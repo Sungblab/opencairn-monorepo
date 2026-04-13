@@ -79,16 +79,16 @@ def get_provider(config: ProviderConfig) -> LLMProvider:
 
 ## Gemini 모델 사양
 
-| 용도 | Model ID (확인 필요) |
-|------|----------|
-| 고성능 추론 | Gemini 3.1 Pro — API ID 확인 필요 |
-| 일반 / 비용 효율 | Gemini 3 Flash — API ID 확인 필요 |
-| Embedding (멀티모달) | `gemini-embedding-2-preview` ✓ |
-| TTS (빠름) | Gemini 2.5 Flash TTS — API ID 확인 필요 |
-| TTS (고품질) | Gemini 2.5 Pro TTS — API ID 확인 필요 |
-| STT / Live | Gemini 3.1 Flash Live — API ID 확인 필요 |
-
-> API model ID는 Google AI Studio 또는 Vertex AI 문서에서 확인 후 `packages/llm/gemini.py`에 상수로 정의한다.
+| 용도 | Model ID | 컨텍스트 | 가격 (input/output, 1M tokens) |
+|------|----------|---------|-------------------------------|
+| 고성능 추론 | `gemini-3.1-pro-preview` | 1M | $2-4 / $12-18 |
+| 일반 / 비용 효율 | `gemini-3-flash-preview` | 1M | $0.50 / $3 |
+| 경량 / 고빈도 | `gemini-3.1-flash-lite-preview` | 1M | $0.25 / $1.50 |
+| Embedding (멀티모달) | `gemini-embedding-2-preview` | 8,192 tokens | 별도 |
+| TTS (빠름) | `gemini-2.5-flash-preview-tts` | — | 별도 |
+| TTS (고품질) | `gemini-2.5-pro-preview-tts` | — | 별도 |
+| STT / Live | `gemini-3.1-flash-live-preview` | — | $0.75(text) $3/min(audio) input |
+| 이미지 생성 | `gemini-3.1-flash-image-preview` | 128k | $0.25 input / $60/1M img tokens |
 
 ### Gemini Embedding 2 사양
 
