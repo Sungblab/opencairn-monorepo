@@ -22,12 +22,15 @@
   |
   v
 [3] Temporal → Python Worker (parse_source Activity)
-  |  - PDF: opendataloader-pdf (구조화 텍스트, 이미지 형식)
-  |  - 오디오: faster-whisper (STT)
-  |  - 영상: ffmpeg → faster-whisper
-  |  - 이미지: Gemini Vision API
-  |  - YouTube: yt-dlp → faster-whisper
-  |  - URL: trafilatura
+  |  - PDF (디지털): LibreOffice headless → PDF → Docling (텍스트/수식/표)
+  |  - PDF (스캔/수기): Docling 텍스트 부족 감지 → chandra OCR
+  |  - DOCX/PPTX/XLSX: LibreOffice headless → PDF → Docling
+  |  - HWP: pyhwp → 텍스트 추출 + LibreOffice headless → PDF (뷰어용)
+  |  - HWPX: XML 직접 파싱 (텍스트) + LibreOffice headless → PDF (뷰어용)
+  |  - 오디오: LLM provider 멀티모달 처리 (Gemini: gemini-3-flash-preview에 오디오 전달)
+  |  - 영상: yt-dlp(YouTube) or ffmpeg 추출 → LLM provider 멀티모달 처리
+  |  - 이미지/도식: LLM provider 멀티모달 (Gemini: gemini-3-flash-preview)
+  |  - URL: trafilatura (HTML 스크래핑)
   |
   v
 [4] Temporal → Python Worker (enhance_with_gemini_multimodal Activity)
@@ -36,7 +39,7 @@
   |
   v
 [5] Temporal → Python Worker (generate_embeddings Activity)
-  |  - gemini-embedding-2-preview (3072 dims)
+  |  - LLM provider embed (Gemini: gemini-embedding-2-preview 3072d, OpenAI: 1536d, Ollama: 768d)
   |  - 텍스트 청크 → 임베딩 → 데이터베이스에 저장
   |
   v

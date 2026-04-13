@@ -2,6 +2,12 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **⚠️ Multi-LLM 업데이트 (2026-04-13):**
+> - `apps/worker/src/worker/gemini/` 디렉토리 **생성하지 말 것** — 이미 `packages/llm/`으로 대체됨
+> - `GeminiClient` 직접 생성 대신 `from llm import get_provider` 사용
+> - Hardcoded `EMBED_MODEL = "gemini-embedding-2-preview"` 대신 `os.environ["EMBED_MODEL"]` 사용
+> - 구현 전 반드시 `docs/superpowers/plans/2026-04-13-multi-llm-provider.md` 먼저 실행할 것
+
 **Goal:** Build the Python worker service that hosts three LangGraph agents (Compiler, Research, Librarian) orchestrated by Temporal, powered by the Gemini API for embeddings and reasoning, and backed by PostgreSQL + pgvector for hybrid semantic search.
 
 **Architecture:** `apps/worker/` is a standalone Python package managed with `uv` + `pyproject.toml`. A Temporal worker process registers all activities and workflows. Each agent is a LangGraph `StateGraph` whose nodes call Gemini and the database. The Gemini client wrapper centralises all SDK calls (embeddings, thinking-mode chat, context caching). Hybrid search fuses pgvector cosine similarity, tsvector BM25, and graph-hop results via Reciprocal Rank Fusion (RRF).

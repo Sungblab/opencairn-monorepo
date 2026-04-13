@@ -17,6 +17,10 @@ NotebookLM + Notion + Cursor를 합친 개인 지식 OS.
 - **캔버스**: 인터랙티브 React/HTML 렌더링 (Claude Artifacts 스타일)
 - **코드 실행**: 샌드박스에서 코드 실행, 과제 채점
 - **딥 리서치**: Gemini Deep Research API + 위키 자동 통합
+- **지식 인터뷰**: 특정 노트/개념을 에이전트로 취급해 직접 대화 — "이 논문 저자 관점에서 대답해줘" (NotebookLM에도 없는 기능)
+- **시나리오 시뮬레이션**: "내 지식베이스 기준으로 이 가설 적용하면?" — 지식 그래프 위에서 What-if 시나리오 실행
+- **도메인 온톨로지 자동 설계**: 프로젝트 생성 시 LLM이 도메인 맞춤 엔티티 스키마 설계 → LightRAG KG 품질 향상
+- **지식 진화 타임라인**: wiki_logs 기반으로 지식 그래프가 어떻게 성장했는지 시각화
 - **SaaS**: 랜딩페이지, 블로그, 빌링 포함
 
 ### 타겟 페르소나
@@ -61,8 +65,11 @@ Python Worker (AI Processing)
   |      |--- Context Caching
   |      |--- Thinking Mode
   |--- LangGraph + Pydantic AI
-  |--- opendataloader-pdf + Gemini Multimodal (hybrid)
-  |--- faster-whisper (STT)
+  |--- Docling (PDF/DOCX/PPTX/XLSX 파싱)
+  |--- chandra (스캔/수기 OCR)
+  |--- pyhwp + LibreOffice headless (HWP/HWPX + PDF 변환)
+  |--- LightRAG (RAG + Knowledge Graph 자동 구축)
+  |--- LLM provider 멀티모달 (Gemini: gemini-3-flash-preview)
   |
   v (S3 API)
 Cloudflare R2
@@ -131,9 +138,11 @@ opencairn.com/app/project/x  -> 프로젝트 (CSR)
 | temporalio | Temporal Worker (워크플로우 + 액티비티 실행) |
 | LangGraph | 에이전트 내부 상태 머신 (각 에이전트의 스텝 로직) |
 | Pydantic AI | 구조화된 출력 추출, 타입 안전성 |
-| google-genai | Gemini API SDK (TTS, Deep Research, Search Grounding, Caching, Thinking) |
-| opendataloader-pdf | PDF 구조적 파싱 (OCR, 수식, 표, LaTeX) |
-| faster-whisper | 오디오/영상 -> 텍스트 (STT) |
+| google-genai | Gemini API SDK (TTS, Deep Research, Search Grounding, Caching, Thinking, 네이티브 오디오/멀티모달) |
+| docling | PDF/DOCX/PPTX/XLSX 파싱 (수식, 표, LaTeX, 멀티컬럼 레이아웃) |
+| chandra | 스캔 PDF / 수기 문서 OCR (복잡한 표, 폼, 손글씨) |
+| pyhwp | HWP 텍스트 추출 |
+| lightrag-hku | RAG + 지식 그래프 자동 구축 (엔티티/관계 추출, 벡터+그래프 하이브리드 검색) |
 | psycopg | PostgreSQL 접근 |
 | redis (py) | Redis 캐시 접근 |
 | boto3 | Cloudflare R2/S3 파일 접근 |
@@ -163,10 +172,15 @@ opencairn.com/app/project/x  -> 프로젝트 (CSR)
 | Cloudflare R2 | Cloudflare R2/Cloudflare R2 | 파일 저장소 (S3 호환) |
 | web | apps/web Dockerfile | Next.js (standalone) |
 | api | apps/api Dockerfile | Hono 백엔드 API |
-| worker | apps/worker Dockerfile | Python AI Worker (Temporal Worker) |
+| worker | apps/worker Dockerfile | Python AI Worker (Python 3.12 + ffmpeg + LibreOffice headless, ARM 호환) |
 | sandbox | apps/sandbox Dockerfile (gVisor) | 코드 실행 + 인터랙티브 캔버스 |
 
 총 8개 서비스. `docker-compose up -d` 한 방.
+
+**호스팅 전략:**
+- **MVP/초기**: Oracle Cloud Always Free (서울 `ap-seoul-1`) — ARM A1 4 OCPU + 24GB RAM + 200GB 스토리지 무료. ~$2/월 (R2만)
+- **스케일업**: OCPU 추가 ($0.01/OCPU/시간). GCP/AWS 대비 1/4 가격.
+- **Docker 이미지**: 전체 스택 ARM 멀티아치 빌드 필수 (`--platform linux/arm64`)
 
 ---
 

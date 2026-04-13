@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **⚠️ Multi-LLM 업데이트 (2026-04-13):** `vector3072` 커스텀 타입 하드코딩 대신 `VECTOR_DIM` env 변수로 동적 설정. `const VECTOR_DIM = parseInt(process.env.VECTOR_DIM ?? "3072")`. 상세: `docs/superpowers/specs/2026-04-13-multi-llm-provider-design.md`
+
 **Goal:** Initialize the OpenCairn monorepo with Turborepo, set up the database schema with Drizzle ORM, wire up Hono API with authentication, implement project/folder/tag/note CRUD, and create a working Docker Compose dev environment.
 
 **Architecture:** Turborepo monorepo with `apps/web` (Next.js 16), `apps/api` (Hono on Node.js), and `packages/db` (Drizzle ORM + PostgreSQL + pgvector). Better Auth handles authentication with Redis sessions. All business logic lives in `apps/api`; the web app only calls the API.

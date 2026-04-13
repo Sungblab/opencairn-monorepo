@@ -2,11 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a multi-source ingest pipeline that accepts PDFs, audio/video, images, YouTube URLs, and web URLs, extracts text/transcripts, optionally enhances complex pages with Gemini Vision, and creates source notes in the database — all orchestrated by Temporal.
+> **⚠️ Multi-LLM 업데이트 (2026-04-13):** `apps/worker/src/worker/lib/gemini_client.py` 직접 생성 대신 `packages/llm/` 패키지를 import해서 사용하도록 구현 시 수정 필요. `get_provider()` 팩토리로 LLM 호출. 상세: `docs/superpowers/specs/2026-04-13-multi-llm-provider-design.md`
 
-**Architecture:** File uploads hit a Hono endpoint in `apps/api` which stores the raw file in Cloudflare R2 and enqueues a Temporal workflow. `apps/worker` (Python) runs Temporal activities: PDF parsing via opendataloader-pdf, STT via faster-whisper, web scraping via trafilatura, and Gemini multimodal enhancement for diagram-heavy content. On completion, the worker calls back into the API to create a source note and optionally trigger the Compiler Agent.
+**Goal:** Build a multi-source ingest pipeline that accepts PDFs, Office docs (DOCX/PPTX/XLSX), HWP/HWPX, audio/video, images, YouTube URLs, and web URLs — converts all documents to PDF for unified viewing, extracts text/transcripts, and creates source notes in the database — all orchestrated by Temporal.
 
-**Tech Stack:** Hono 4, Cloudflare R2 (S3-compatible), Temporal Python SDK, opendataloader-pdf (Java subprocess), faster-whisper, ffmpeg, yt-dlp, trafilatura, Google Generative AI SDK (Gemini 3.1 Flash Lite), Zod, PostgreSQL (Drizzle), Redis, Docker Compose
+**Architecture:** File uploads hit a Hono endpoint in `apps/api` which stores the raw file in Cloudflare R2 and enqueues a Temporal workflow. `apps/worker` (Python) runs Temporal activities: document conversion via LibreOffice headless → Docling (텍스트 추출), chandra OCR (스캔/수기 폴백), gemini-3-flash-preview (오디오/영상/이미지 네이티브 처리), web scraping via trafilatura. 모든 문서는 PDF로 변환되어 R2에 보관 — 프론트엔드는 `@react-pdf-viewer/core`로 단일 뷰어 사용. On completion, the worker calls back into the API to create a source note and optionally trigger the Compiler Agent (LightRAG 인덱싱 포함).
+
+**Tech Stack:** Hono 4, Cloudflare R2 (S3-compatible), Temporal Python SDK, Docling (PDF/DOCX/PPTX/XLSX), chandra (스캔/수기 OCR), pyhwp (HWP), LibreOffice headless (문서→PDF 변환), ffmpeg, yt-dlp, trafilatura, LightRAG (RAG + KG), Google Generative AI SDK (gemini-3-flash-preview — 오디오/영상/이미지 네이티브), Zod, PostgreSQL (Drizzle + pgvector), Redis, Docker Compose (Oracle Cloud Free Tier, 서울 리전 `ap-seoul-1`, ARM A1 4OCPU/24GB)
 
 ---
 
@@ -24,7 +26,7 @@ apps/
 
   worker/
     pyproject.toml              -- Python project config (uv)
-    Dockerfile                  -- Python 3.12 + Java 21 + ffmpeg image
+    Dockerfile                  -- Python 3.12 + ffmpeg + LibreOffice headless image (Java 없음)
     src/
       worker/
         __init__.py
@@ -34,12 +36,14 @@ apps/
           ingest_workflow.py    -- IngestWorkflow definition
         activities/
           __init__.py
-          pdf_activity.py       -- opendataloader-pdf subprocess
-          stt_activity.py       -- faster-whisper + ffmpeg
-          image_activity.py     -- Gemini Vision image analysis
-          youtube_activity.py   -- yt-dlp + STT pipeline
-          web_activity.py       -- trafilatura URL scraping
-          gemini_enhance.py     -- Gemini multimodal enhancement
+          pdf_activity.py       -- LibreOffice→PDF + Docling (텍스트) + chandra OCR (스캔/수기 폴백)
+          office_activity.py    -- LibreOffice headless DOCX/PPTX/XLSX → PDF → Docling
+          hwp_activity.py       -- pyhwp(HWP) / XML(HWPX) 텍스트 추출 + LibreOffice → PDF
+          audio_activity.py     -- gemini-3-flash-preview 네이티브 오디오 STT
+          image_activity.py     -- gemini-3-flash-preview 멀티모달 이미지 분석
+          youtube_activity.py   -- yt-dlp + ffmpeg → gemini-3-flash-preview 네이티브 처리
+          web_activity.py       -- trafilatura URL 스크래핑
+          lightrag_activity.py  -- LightRAG 인덱싱 (엔티티/관계 추출 + 벡터 저장)
           note_activity.py      -- create source note via API callback
         lib/
           Cloudflare R2_client.py       -- download objects from Cloudflare R2
