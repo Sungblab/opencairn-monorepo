@@ -54,6 +54,8 @@ class LLMProvider(ABC):
     async def tts(self, text: str, model: str | None = None) -> bytes | None:
         return None
 
+    # 파일 전사: 멀티모달 모델에 오디오 + "transcribe" 프롬프트
+    # Gemini는 별도 STT 모델 없음 — generate()로 처리
     async def transcribe(self, audio: bytes) -> str | None:
         return None
 ```
@@ -87,7 +89,8 @@ def get_provider(config: ProviderConfig) -> LLMProvider:
 | Embedding (멀티모달) | `gemini-embedding-2-preview` | 8,192 tokens | 별도 |
 | TTS (빠름) | `gemini-2.5-flash-preview-tts` | — | 별도 |
 | TTS (고품질) | `gemini-2.5-pro-preview-tts` | — | 별도 |
-| STT / Live | `gemini-3.1-flash-live-preview` | — | $0.75(text) $3/min(audio) input |
+| 파일 전사 (STT) | `gemini-3-flash-preview` (멀티모달 오디오 입력) | 1M | $0.50(text) $1.00(audio) |
+| 실시간 Live | `gemini-3.1-flash-live-preview` | — | $0.75(text) $3/min(audio) input |
 | 이미지 생성 | `gemini-3.1-flash-image-preview` | 128k | $0.25 input / $60/1M img tokens |
 
 ### Gemini Embedding 2 사양
