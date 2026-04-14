@@ -5,25 +5,29 @@ AI-powered personal knowledge OS. 11 agents, multi-LLM, Docker self-hosted.
 ## Architecture
 
 ```
-apps/web      — Next.js 16. UI ONLY. No Server Actions, no DB access.
-apps/api      — Hono 4. ALL business logic.
-apps/worker   — Python. LangGraph + Temporal. AI agents.
-apps/sandbox  — gVisor. Code execution.
-packages/db   — Drizzle ORM + pgvector.
-packages/llm  — Python. LLM provider adapters (Gemini/OpenAI/Ollama).
-packages/shared — Zod schemas.
+apps/web        — Next.js 16. UI + 브라우저 샌드박스 (Pyodide + iframe).
+apps/api        — Hono 4. ALL business logic.
+apps/worker     — Python. LangGraph + Temporal. 11 AI 에이전트.
+apps/hocuspocus — Yjs 협업 서버 (Better Auth 연동).
+packages/db     — Drizzle ORM + pgvector.
+packages/llm    — Python. LLM provider 추상화 (Gemini/OpenAI/Ollama).
+packages/shared — Zod 스키마 (API 계약).
 ```
+
+> 2026-04-14 업데이트: `apps/sandbox` 폐기 (gVisor 제거). 코드 실행은 전부 브라우저 (Pyodide/iframe). 파싱 스택은 opendataloader-pdf + markitdown + unoserver + H2Orestart + faster-whisper. 시각화는 Cytoscape 5뷰. 상세는 세션 커밋 `7587347`.
 
 ## Rules
 
 - Frontend: NO Server Actions, NO DB imports. API calls only (TanStack Query)
 - Frontend: Next.js 16 — `proxy.ts` 사용 (`middleware.ts` deprecated)
 - Backend: Zod validation, requireAuth middleware, scope by userId
-- DB: Drizzle only, VECTOR(`VECTOR_DIM` env, default 3072), tsvector via trigger
-- Worker: Temporal orchestration, LangGraph per agent, `packages/llm` via `get_provider()`
-- AI: Multi-LLM (Gemini/OpenAI/Ollama). Production=Gemini. Context Caching, Thinking Mode, Search Grounding, TTS — Gemini 전용, graceful degradation
-- Security: gVisor sandbox, AES-256 API keys, CORS restricted
-- i18n: next-intl, default locale `en`, secondary `ko`. All UI strings in messages/{locale}.json
+- DB: Drizzle only, `VECTOR_DIM` env (권장 1536d Gemini Matryoshka truncate), tsvector via trigger
+- Worker: Temporal orchestration, LangGraph per agent, **`packages/llm` get_provider() 필수** (Gemini 직접 호출 금지)
+- AI: Multi-LLM (Gemini/OpenAI/Ollama). BYOK Gemini 추천 (프리미엄 기능 보존). Thinking/Caching/Search Grounding/TTS — Gemini 전용, graceful degradation
+- Sandbox: 브라우저 전용 (Pyodide WASM + iframe sandbox). 서버 코드 실행 금지
+- Security: AES-256 BYOK 키 암호화, CORS 제한, PostgreSQL 인터넷 비노출, Cloudflare 앞단 WAF
+- i18n: next-intl, default `en`, secondary `ko`. All UI strings in `messages/{locale}.json`
+- Collab: Yjs + Hocuspocus (멀티디바이스 동시 편집, Plate Yjs plugin)
 
 ## LLM 참조 규칙
 
@@ -107,7 +111,7 @@ Read these docs when you need context. Don't load them all at once.
 | Agent guardrails, stop conditions, conflicts | `docs/agents/agent-behavior-spec.md` |
 | Temporal workflows, retry policies | `docs/agents/temporal-workflows.md` |
 | Gemini caching, embeddings, prompts, RAG | `docs/agents/context-management.md` |
-| Why Hono? Why Temporal? Why gVisor? | `docs/architecture/adr/` |
+| Architecture Decision Records (Hono/Temporal/LightRAG/Pyodide 등) | `docs/architecture/adr/` |
 | Test strategy, CI pipeline | `docs/testing/strategy.md` |
 | Dev setup, conventions, troubleshooting | `docs/contributing/dev-guide.md` |
 | Claude 반복 실수, 하지 말 것 목록 | `docs/contributing/llm-antipatterns.md` |
@@ -119,13 +123,13 @@ Read these docs when you need context. Don't load them all at once.
 
 | Plan | Scope |
 |------|-------|
-| `docs/superpowers/plans/2026-04-09-plan-1-foundation.md` | Monorepo, DB schema, auth, CRUD, Docker |
-| `docs/superpowers/plans/2026-04-09-plan-2-editor.md` | Plate editor, LaTeX, wiki-links, slash commands |
-| `docs/superpowers/plans/2026-04-09-plan-3-ingest-pipeline.md` | File upload, parsing, Temporal workflows |
-| `docs/superpowers/plans/2026-04-09-plan-4-agent-core.md` | Compiler, Research, Librarian agents |
-| `docs/superpowers/plans/2026-04-09-plan-5-knowledge-graph.md` | Concepts, edges, D3.js visualization |
-| `docs/superpowers/plans/2026-04-09-plan-6-learning-system.md` | Socratic, flashcards, Tool Templates |
-| `docs/superpowers/plans/2026-04-09-plan-7-canvas-sandbox.md` | gVisor sandbox, React canvas, Code Agent |
-| `docs/superpowers/plans/2026-04-09-plan-8-remaining-agents.md` | Connector, Temporal, Synthesis, Curator, Narrator, Deep Research |
-| `docs/superpowers/plans/2026-04-09-plan-9-billing-marketing.md` | Stripe, landing page, blog, docs |
+| `docs/superpowers/plans/2026-04-09-plan-1-foundation.md` | Monorepo, DB schema, Better Auth, CRUD, Docker, Resend, Sentry, CI/CD, backup scripts |
+| `docs/superpowers/plans/2026-04-09-plan-2-editor.md` | Plate v49 에디터, LaTeX, wiki-links, slash commands, Yjs + Hocuspocus 협업 |
+| `docs/superpowers/plans/2026-04-09-plan-3-ingest-pipeline.md` | 파일 업로드, 파싱 (opendataloader-pdf/markitdown/unoserver/H2Orestart/faster-whisper), Temporal 워크플로우 |
+| `docs/superpowers/plans/2026-04-09-plan-4-agent-core.md` | Compiler, Research, Librarian 에이전트 (Python LangGraph + Temporal) |
+| `docs/superpowers/plans/2026-04-09-plan-5-knowledge-graph.md` | LightRAG 동기화, Cytoscape 5뷰 (Graph/Mindmap/Cards/Canvas/Timeline) + Backlinks, Visualization Agent (Task M1) |
+| `docs/superpowers/plans/2026-04-09-plan-6-learning-system.md` | Socratic (Python worker), SM-2 플래시카드, Tool Templates, Cards 뷰 통합 |
+| `docs/superpowers/plans/2026-04-09-plan-7-canvas-sandbox.md` | 브라우저 샌드박스 (Pyodide + iframe), Code Agent |
+| `docs/superpowers/plans/2026-04-09-plan-8-remaining-agents.md` | Connector, Temporal, Synthesis, Curator, Narrator, Deep Research (Task A1) |
+| `docs/superpowers/plans/2026-04-09-plan-9-billing-marketing.md` | Stripe, 랜딩 페이지, 블로그, BYOK, Export API (Task E1, GDPR) |
 | `docs/superpowers/plans/2026-04-13-multi-llm-provider.md` | packages/llm, provider adapters, VECTOR_DIM, Docker Ollama |
