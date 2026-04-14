@@ -31,6 +31,36 @@ packages/shared — Zod schemas.
 - **그 외 라이브러리** → context7 MCP 사용
 - **반복 실수 목록** → `docs/contributing/llm-antipatterns.md` 반드시 확인
 
+## Workflow (기능 구현 후 매번)
+
+> AI 어시스턴트 (Claude Code, Cursor 등)가 기능을 만들 때마다 이 순서를 **반드시** 따를 것. 기존 superpowers skills 활용.
+
+1. **Verification** — `superpowers:verification-before-completion` skill 사용
+   - 빌드 통과 확인 (`pnpm build` 또는 해당 앱 빌드)
+   - 테스트 통과 확인 (`pnpm test` 또는 `pytest`)
+   - 타입체크 (`pnpm typecheck`)
+   - "작업 끝났다" 선언 전 반드시
+
+2. **Code Review** — `feature-dev:code-reviewer` sub-agent 또는 `superpowers:requesting-code-review` skill
+   - 현재 변경분에 대해 버그/보안/안티패턴/프로젝트 컨벤션 위반 체크
+   - 리포트 받으면 `superpowers:receiving-code-review` skill로 피드백 반영
+
+3. **Docs 업데이트** — 다음 중 해당되는 것 전부:
+   - 관련 plan 파일의 `- [ ]` → `- [x]` 체크 표시
+   - 새 아키텍처 결정이 있으면 → `docs/architecture/adr/` 에 ADR 추가
+   - 새 프로젝트 컨벤션이 생기면 → **CLAUDE.md** 반영
+   - 새 반복 실수 발견 시 → `docs/contributing/llm-antipatterns.md` 추가
+   - API 변경 시 → `docs/architecture/api-contract.md` 업데이트
+
+4. **Commit** — atomic, Conventional Commits 포맷 (아래 섹션 규칙 준수)
+
+5. **Plan 또는 브랜치 마무리 시** — `superpowers:finishing-a-development-branch` skill
+   - 전체 테스트 재실행
+   - 브랜치 squash merge (PR 방식 사용 시)
+   - 관련 plan 전체 체크 확인
+
+**원칙**: "구현만 하고 넘어가기" 금지. 매 기능마다 검증 → 리뷰 → 문서 → 커밋 루프.
+
 ## Commits
 
 포맷: `<type>(<scope>): <subject>`
