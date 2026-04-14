@@ -1,0 +1,64 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+.venv/
+__pycache__/
+*.pyc
+.uv/
+
+# Build outputs
+dist/
+build/
+.next/
+.turbo/
+out/
+
+# Environment
+.env
+.env.local
+.env.prod
+.env.production
+.env.development.local
+.env.test.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+.pytest_cache/
+
+# Session artifacts
+.playwright-mcp/
+.claude/local/
+
+# Docker volumes (local dev)
+backups/
+postgres_data/
+redis_data/
+temporal_data/
+minio_data/
+
+# Python
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+
+# Secrets (failsafe)
+*.key
+*.pem
+secrets/
