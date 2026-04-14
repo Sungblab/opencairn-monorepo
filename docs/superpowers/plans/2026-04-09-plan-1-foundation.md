@@ -10,6 +10,27 @@
 
 **Tech Stack:** Turborepo, Next.js 16, Hono 4, Drizzle ORM 0.45, PostgreSQL 16 + pgvector, Better Auth, Redis 7, Zod, TypeScript 5.x, Tailwind CSS 4, pnpm
 
+> **⚠️ 인프라 추가 결정 (2026-04-14):** 다음 항목들이 본 plan 범위에 포함된다 (구현 task는 본 문서 후반에 별도 추가 예정):
+> - **이메일**: Resend (default) + SMTP fallback. env: `EMAIL_PROVIDER=resend|smtp`
+> - **에러/로깅**: Sentry (옵션). env: `SENTRY_DSN` 미설정 시 비활성화. 셀프호스트 사용자는 GlitchTip 대안.
+> - **테스트 전략**:
+>   - `apps/api`, `apps/web` (TS): **Vitest** (단위) + **testcontainers** (PostgreSQL 통합)
+>   - `apps/worker` (Python): **pytest** + Temporal test framework
+>   - E2E: **Playwright**
+>   - 원칙: mocking 최소, 실제 PostgreSQL/Redis 통합 테스트 우선
+> - **CI/CD**: GitHub Actions
+>   - `ci.yml` (PR): lint + typecheck + test (Node + Python matrix)
+>   - `build.yml` (main): `docker buildx` → ghcr.io 멀티아치 (linux/amd64 + linux/arm64)
+>   - Renovate (의존성 자동 PR), CodeQL (보안 스캔)
+> - **백업 스크립트**: 셀프호스트 사용자용 내장 스크립트
+>   - `scripts/backup.sh` — `pg_dump | gzip` + 옵션 R2 업로드 (`--to-r2`)
+>   - `scripts/restore.sh` — 백업 파일 → 컨테이너 복원
+>   - `scripts/backup-verify.sh` — 임시 컨테이너에 복원해서 무결성 검증
+>   - 리텐션 자동 정리 (env: `BACKUP_RETENTION_DAYS=7`)
+>   - cron 등록 가이드 README 포함
+>   - 상세: `docs/architecture/backup-strategy.md`
+> - **호스팅 환경 미고정**: 모든 Docker 이미지는 x86_64 + arm64 멀티아치 빌드 필수. Production 호스팅 결정은 후반 plan에서.
+
 ---
 
 ## File Structure
@@ -1917,4 +1938,80 @@ Expected: Sidebar + "Dashboard" heading.
 ```bash
 git add -A
 git commit -m "chore: verify full stack integration (API + Web + DB + Docker)"
+```
+
+---
+
+## Task B1: Backup & Restore Scripts
+
+> **Added 2026-04-14** — 셀프호스트 사용자용 내장 백업 스크립트. 상세 전략: `docs/architecture/backup-strategy.md`
+
+**Files:**
+- Create: `scripts/backup.sh`
+- Create: `scripts/restore.sh`
+- Create: `scripts/backup-verify.sh`
+- Modify: `.env.example` (백업 env 추가)
+- Modify: `docker-compose.yml` (backups 볼륨)
+- Modify: `README.md` (백업 섹션)
+
+### B1.1 backup.sh
+
+- [ ] **Step 1:** `scripts/backup.sh` 작성. 핵심 로직:
+  1. `BACKUP_DIR` env (기본 `./backups`) 디렉토리 생성
+  2. 타임스탬프 파일명 (`db_YYYYMMDD_HHMMSS.sql.gz`)
+  3. `docker compose exec -T postgres pg_dump -U opencairn opencairn | gzip > "$BACKUP_DIR/$FILENAME"`
+  4. 옵션 `--to-r2`: `aws s3 cp "$FILENAME" s3://$R2_BACKUP_BUCKET/$(date +%Y/%m)/` (aws cli 또는 rclone)
+  5. 옵션 `--to-s3` / `--to-b2`: 각각 AWS S3 / Backblaze B2 업로드
+  6. 리텐션 정리: `find "$BACKUP_DIR" -name "db_*.sql.gz" -mtime +${BACKUP_RETENTION_DAYS:-7} -delete`
+  7. 완료 메시지 + 파일 크기 출력
+  8. 에러 시 비0 exit code (cron 알림용)
+
+### B1.2 restore.sh
+
+- [ ] **Step 2:** `scripts/restore.sh <backup_file>` 작성.
+  1. 인자 유효성 검사
+  2. 경고 프롬프트 (`확실한가? 기존 DB가 덮어써짐`)
+  3. `docker compose stop api worker hocuspocus` — 서비스 정지
+  4. `DROP DATABASE opencairn; CREATE DATABASE opencairn;` — DB 초기화
+  5. `gunzip -c "$1" | docker compose exec -T postgres psql -U opencairn opencairn` — 복원
+  6. `docker compose start api worker hocuspocus` — 재시작
+  7. `curl http://localhost:4000/health` — 헬스체크
+  8. 결과 보고
+
+### B1.3 backup-verify.sh
+
+- [ ] **Step 3:** `scripts/backup-verify.sh <backup_file>` 작성.
+  1. 임시 PostgreSQL 컨테이너 생성 (`docker run --rm -d --name opencairn_verify postgres:16`)
+  2. 백업 파일 복원
+  3. 핵심 테이블 row 카운트 검증 (`users`, `concepts`, `wiki_pages`, `sources`)
+  4. 무결성 제약 검증 (FK, unique)
+  5. 임시 컨테이너 정리
+  6. Sentry/이메일 알림 (실패 시)
+
+### B1.4 env 및 docker-compose
+
+- [ ] **Step 4:** `.env.example`에 추가:
+```bash
+# Backup
+BACKUP_DIR=./backups
+BACKUP_RETENTION_DAYS=7
+R2_BACKUP_BUCKET=                      # optional
+R2_BACKUP_ENDPOINT=                    # optional (Cloudflare R2)
+R2_BACKUP_ACCESS_KEY=                  # optional
+R2_BACKUP_SECRET_KEY=                  # optional
+```
+
+- [ ] **Step 5:** `docker-compose.yml`에 `backups` named volume 추가, `postgres` 서비스에 mount.
+
+### B1.5 README 섹션
+
+- [ ] **Step 6:** `README.md`에 "Backup & Restore" 섹션 추가. 수동 실행 + cron 예시 (`0 3 * * * /opt/opencairn/scripts/backup.sh --to-r2`) + 복구 절차 + 검증 가이드 포함.
+
+### B1.6 Commit
+
+- [ ] **Step 7:**
+```bash
+chmod +x scripts/backup.sh scripts/restore.sh scripts/backup-verify.sh
+git add scripts/ .env.example docker-compose.yml README.md
+git commit -m "feat(infra): add backup/restore/verify scripts with R2 upload support"
 ```

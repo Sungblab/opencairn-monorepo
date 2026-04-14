@@ -2,11 +2,18 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the OpenCairn Learning System — a Socratic Agent that quizzes users, tracks understanding scores, and drives a spaced-repetition flashcard loop using the SM-2 algorithm. A Tool Template engine powers all learning interactions through typed JSON templates rendered as structured output or interactive canvas.
+> **⚠️ 아키텍처 재조정 (2026-04-14):**
+> - **Socratic Agent 위치 이동**: `apps/api/src/agents/socratic/` (TypeScript LangGraph) → **`apps/worker/src/worker/agents/socratic_agent.py`** (Python LangGraph). Plan 4 결정대로 모든 AI 에이전트는 Python worker에 집중, Temporal activity로 실행.
+> - **LLM 호출은 `packages/llm` get_provider() 사용** — 하드코딩 Gemini 클라이언트 금지.
+> - **Cards 뷰 연동 (Plan 5 KG-08)**: 플래시카드 그리드는 Plan 5 `apps/web/src/components/cards/CardGridView.tsx`와 통합. 학습 모드 진입점 = Card 뷰 "Start Review" 버튼.
+> - **이해도 overlay (Plan 5 KG-09)**: `understanding_scores` 테이블이 Plan 5 Graph 뷰 노드 색상 그라데이션 소스.
+> - **Tool Template 엔진은 TypeScript 유지** (`packages/templates/`) — 프론트엔드 스키마 검증 + 렌더링용.
 
-**Architecture:** Flashcard CRUD and SM-2 review logic live in `apps/api` under `routes/learning.ts`. The Socratic Agent is a LangGraph graph in `apps/api/src/agents/socratic/`. The Tool Template engine lives in `packages/templates/` — it loads JSON template definitions, renders prompt strings, validates output against Zod schemas, and routes output to a `structured` or `canvas` renderer. Built-in templates (quiz, flashcard, fill_blank, mock_exam, teach_back, concept_compare, slides, mindmap, cheatsheet) are JSON files committed alongside their Zod schemas. The flashcard review UI and understanding scores dashboard are React Server / Client components in `apps/web`.
+**Goal:** Build the OpenCairn Learning System — a Socratic Agent (Python worker) that quizzes users, tracks understanding scores, and drives a spaced-repetition flashcard loop using the SM-2 algorithm. A Tool Template engine powers all learning interactions through typed JSON templates rendered as structured output or interactive canvas. 학습 모드는 Plan 5의 Cards 뷰와 통합, 이해도 점수는 Graph 뷰 노드 색상으로 시각화.
 
-**Tech Stack:** Turborepo, Next.js 16, Hono 4, Drizzle ORM 0.45, PostgreSQL 16, LangGraph (TypeScript), Zod, Tailwind CSS 4, shadcn/ui, pnpm
+**Architecture:** Flashcard CRUD and SM-2 review logic live in `apps/api` under `routes/learning.ts` (Hono/Drizzle). The **Socratic Agent is a Python LangGraph workflow** running as a Temporal activity in `apps/worker/src/worker/agents/socratic_agent.py`, invoked from the API via Temporal client. The Tool Template engine lives in `packages/templates/` — it loads JSON template definitions, renders prompt strings, validates output against Zod schemas, and routes output to a `structured` or `canvas` renderer (Plan 7 CanvasFrame로 전달). Built-in templates (quiz, flashcard, fill_blank, mock_exam, teach_back, concept_compare, slides, mindmap, cheatsheet) are JSON files committed alongside their Zod schemas. The flashcard review UI integrates with Plan 5's `CardGridView` component in `apps/web`.
+
+**Tech Stack:** Turborepo, Next.js 16, Hono 4, Drizzle ORM 0.45, PostgreSQL 16, **Python LangGraph** (worker 측), `packages/llm` get_provider() 추상화, Zod, Tailwind CSS 4, shadcn/ui, pnpm
 
 ---
 

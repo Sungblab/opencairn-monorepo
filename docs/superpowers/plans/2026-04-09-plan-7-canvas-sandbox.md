@@ -2,17 +2,25 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the OpenCairn Canvas & Sandbox system — an isolated code execution environment (gVisor Docker) paired with a React canvas builder (Vite) that lets the Code Agent generate interactive components and deliver them to the frontend via a sandboxed iframe. Canvas templates (slides, mindmap, cheatsheet) from Plan 6 are rendered through this pipeline.
+> **⚠️ 샌드박스 전면 재설계 (2026-04-14):** Gemini Canvas / Claude Artifacts 방식으로 전환. **서버 사이드 코드 실행 전면 제거** (gVisor/Docker sandbox/Vite builder 전부 폐기). 모든 사용자 코드는 **브라우저 내부**에서 실행: Python → Pyodide (WASM), JS/HTML/React → `<iframe sandbox>` + esm.sh. 서버 자원 0, 셀프호스트 부담 0. 본 plan의 기존 서버 사이드 task들은 전부 폐기되고 클라이언트 사이드로 재작성 필요.
+
+**Goal:** Build the OpenCairn Canvas & Sandbox system — a **client-side** code execution environment (Pyodide + sandboxed iframe) paired with a React canvas renderer that lets the Code Agent generate interactive components and render them inside the user's browser. Canvas templates (slides, mindmap, cheatsheet) from Plan 6 are rendered through this pipeline.
 
 **Architecture:**
-1. **Sandbox Docker service** (`services/sandbox/`) — a gVisor-runtime container exposing an HTTP API. Receives Python or JavaScript source, executes it in isolation, and returns stdout + produced files (base64).
-2. **React canvas builder** (`services/sandbox/canvas-builder/`) — a Vite SSR-less build service running inside the same container. Receives React JSX/TSX source, wraps it in a minimal Vite project, builds to static HTML+JS, and serves it on a per-job URL.
-3. **Sandbox API routes** (`apps/api/src/routes/sandbox.ts`) — Hono proxy that forwards execution requests to the sandbox service, authenticates users, tracks job records, and returns signed iframe URLs.
-4. **Frontend iframe renderer** (`apps/web/src/components/canvas/`) — a `<CanvasFrame>` component that renders a sandboxed `<iframe>` pointing at the built canvas URL, with `postMessage` for bi-directional communication.
-5. **Code Agent** (`apps/api/src/agents/code/`) — a LangGraph graph: generate code → execute in sandbox → analyze stdout/errors → optionally iterate → return final result.
-6. **Canvas template integration** — canvas-renderer templates (slides, mindmap, cheatsheet) from `@opencairn/templates` feed the Code Agent, which generates a React component, builds it via the canvas builder, and returns an iframe URL.
+1. **Pyodide runtime** (`apps/web/src/components/canvas/pyodide-runner.tsx`) — WASM Python 런타임을 브라우저에서 로드. numpy/pandas/matplotlib/scipy 포함. `micropip.install("...")` 로 추가 패키지. 실행 결과(stdout, 생성된 matplotlib 이미지)를 부모 윈도우 상태로 전달. 최초 1회 ~10MB 다운로드, 이후 캐시.
+2. **Iframe sandbox renderer** (`apps/web/src/components/canvas/CanvasFrame.tsx`) — Code Agent가 생성한 JS/HTML/React 코드를 Blob URL로 변환하여 `<iframe sandbox="allow-scripts">`에 주입. 부모 페이지 쿠키/localStorage/네트워크 접근 차단. React 런타임은 **esm.sh** CDN(`import React from "https://esm.sh/react@19"`)으로 동적 로드 — 서버 빌드 불필요.
+3. **Canvas API routes** (`apps/api/src/routes/canvas.ts`) — Code Agent **코드 생성** 엔드포인트만 제공 (LLM 호출 → 생성된 코드 문자열 반환). 실행은 전부 클라이언트 책임.
+4. **Code Agent** (`apps/worker/src/worker/agents/code_agent.py`) — LangGraph: generate code → 프론트엔드에 전달 → 사용자 브라우저가 Pyodide/iframe에서 실행 → stdout/에러를 postMessage로 Agent에게 피드백 → 필요시 반복 (self-healing).
+5. **Canvas template integration** — canvas 템플릿(slides, mindmap, cheatsheet)은 Code Agent가 React 컴포넌트 문자열 생성 → `<CanvasFrame>`에서 iframe으로 렌더.
 
-**Tech Stack:** Turborepo, Next.js 16, Hono 4, Docker + gVisor (runsc), Vite 6, LangGraph (TypeScript), Zod, Tailwind CSS 4, pnpm
+**Tech Stack:** Next.js 16, Hono 4, **Pyodide** (브라우저 WASM Python), **iframe sandbox** (브라우저 네이티브 격리), **esm.sh** (런타임 ESM CDN, React/외부 라이브러리), LangGraph (Python, Code Agent 로직 only), Zod, Tailwind CSS 4
+
+> **핵심 설계 원칙:**
+> - **서버는 코드를 한 줄도 실행 안 함** — Code Agent는 코드 "생성"만, 실행은 전부 클라이언트
+> - **단일 사용자 모델** — 본인 코드를 본인 브라우저에서 = multi-tenant 격리 불필요
+> - **gVisor/Docker sandbox/Vite builder 전부 제거** — 운영 복잡도, ARM 호환성, 자원 부담 모두 해소
+> - **Claude Artifacts / Gemini Canvas 패턴과 동일** — 검증된 방식
+> - 본 plan 하단의 기존 서버 사이드 task 목록은 **deprecated**, 클라이언트 사이드 task로 재작성 필요
 
 ---
 

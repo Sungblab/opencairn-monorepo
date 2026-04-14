@@ -109,14 +109,19 @@ opencairn.com/app/project/x  -> 프로젝트 (CSR)
 |------|------|------|
 | Next.js (App Router) | 16.x | SSG(랜딩/블로그) + CSR(앱) |
 | React | 19.x | UI |
-| Plate | 49.x | 블록 에디터 (LaTeX MathKit, 위키링크, 슬래시 커맨드) |
+| Plate | 49.x | 블록 에디터 (LaTeX MathKit, 위키링크, 슬래시 커맨드, AIPlugin) |
+| @platejs/yjs + Hocuspocus Provider | latest | 실시간 협업 (CRDT, 멀티디바이스 동시편집) |
 | shadcn/ui | latest | UI 컴포넌트 |
 | Tailwind CSS | 4.x | 스타일링 (CSS-first config) |
 | TanStack Query | latest | API 상태 관리 |
-| D3.js / Force Graph | latest | 지식 그래프 시각화 (인터랙티브) |
+| next-intl | latest | 다국어 (en default, ko secondary) |
+| Cytoscape.js + react-cytoscapejs | latest | 지식 그래프 멀티뷰 (Graph/Mindmap), cose-bilkent/dagre/fcose 레이아웃 |
+| Excalidraw 또는 react-zoom-pan-pinch | latest | Canvas 뷰 (무한 캔버스, 자유 배치) |
 | KaTeX | latest | LaTeX 렌더링 |
 | Mermaid | latest | 다이어그램 렌더링 |
 | MDX | latest | 블로그 콘텐츠 |
+| Pyodide (WASM) | latest | 브라우저 내 Python 실행 (Canvas 샌드박스) |
+| @react-pdf-viewer/core | latest | PDF 뷰어 |
 
 ### Backend API
 
@@ -124,8 +129,11 @@ opencairn.com/app/project/x  -> 프로젝트 (CSR)
 |------|------|------|
 | Hono | 4.x | HTTP API 서버 |
 | Drizzle ORM | 0.45.x | DB 접근 (PostgreSQL) |
-| Better Auth | latest | 인증/세션 |
+| Better Auth | latest | 인증/세션 (OAuth, Magic Link, Passkeys) |
 | Stripe | latest | 빌링 (Free/Pro/BYOK) |
+| Resend (+SMTP fallback) | latest | 이메일 (가입 인증, 알림) |
+| Hocuspocus Server | latest | Yjs 협업 서버 (PostgreSQL 영속화, Better Auth 인증 연동) |
+| Sentry (optional) | latest | 에러/로깅 (셀프호스트는 GlitchTip 대안) |
 | @aws-sdk/client-s3 | latest | Cloudflare R2/S3 파일 스토리지 |
 | @temporalio/client | latest | Temporal 워크플로우 트리거 |
 | ioredis | latest | Redis 캐시/세션 |
@@ -138,10 +146,16 @@ opencairn.com/app/project/x  -> 프로젝트 (CSR)
 | temporalio | Temporal Worker (워크플로우 + 액티비티 실행) |
 | LangGraph | 에이전트 내부 상태 머신 (각 에이전트의 스텝 로직) |
 | Pydantic AI | 구조화된 출력 추출, 타입 안전성 |
-| google-genai | Gemini API SDK (TTS, Deep Research, Search Grounding, Caching, Thinking, 네이티브 오디오/멀티모달) |
-| docling | PDF/DOCX/PPTX/XLSX 파싱 (수식, 표, LaTeX, 멀티컬럼 레이아웃) |
-| chandra | 스캔 PDF / 수기 문서 OCR (복잡한 표, 폼, 손글씨) |
-| pyhwp | HWP 텍스트 추출 |
+| packages/llm (custom adapter) | Gemini/OpenAI/Ollama 추상화 (get_provider 팩토리), transcribe()/ocr()/analyze_image()/think()/tts() graceful degradation |
+| google-genai | Gemini API SDK (production provider) |
+| opendataloader-pdf | PDF 텍스트 추출 (Java 11+, 벤치마크 0.907, fast mode 0.015s/page) |
+| pymupdf | PDF 스캔 감지 (텍스트 레이어 유무 확인, 무료 즉각) |
+| markitdown[docx,pptx,xlsx,xls] | Office 문서 텍스트 추출 (MS oss) |
+| unoserver + H2Orestart | 문서→PDF 변환 (뷰어용). LibreOffice 상시 서버, HWP/HWPX 지원 |
+| faster-whisper | 로컬 STT fallback (Ollama/OpenAI 모드에서 오디오 전사, WHISPER_MODEL env) |
+| trafilatura | 웹 URL 스크래핑 (정적 HTML) |
+| crawl4ai | JS 렌더링 사이트 스크래핑 (선택적, Playwright 기반) |
+| yt-dlp | YouTube/영상 다운로드 fallback |
 | lightrag-hku | RAG + 지식 그래프 자동 구축 (엔티티/관계 추출, 벡터+그래프 하이브리드 검색) |
 | psycopg | PostgreSQL 접근 |
 | redis (py) | Redis 캐시 접근 |
@@ -169,18 +183,21 @@ opencairn.com/app/project/x  -> 프로젝트 (CSR)
 | postgres | pgvector/pgvector:pg16 | DB + 벡터 인덱스 + BM25 |
 | temporal | temporalio/auto-setup | 워크플로우 오케스트레이션 (영구적 실행) |
 | redis | redis:7-alpine | 세션/캐시 |
-| Cloudflare R2 | Cloudflare R2/Cloudflare R2 | 파일 저장소 (S3 호환) |
-| web | apps/web Dockerfile | Next.js (standalone) |
-| api | apps/api Dockerfile | Hono 백엔드 API |
-| worker | apps/worker Dockerfile | Python AI Worker (Python 3.12 + ffmpeg + LibreOffice headless, ARM 호환) |
-| sandbox | apps/sandbox Dockerfile (gVisor) | 코드 실행 + 인터랙티브 캔버스 |
+| hocuspocus | ghcr.io/tiptap/hocuspocus | Yjs 협업 서버 (PostgreSQL extension으로 영속화) |
+| cloudflare-r2 / minio | cloudflare r2 또는 호환 | 파일 저장소 (S3 호환) |
+| web | apps/web Dockerfile | Next.js 16 (standalone) |
+| api | apps/api Dockerfile | Hono 4 백엔드 API |
+| worker | apps/worker Dockerfile | Python AI Worker (Python 3.12 + Java 11 + unoserver + H2Orestart + faster-whisper, x86_64/aarch64 멀티아치) |
+| ollama (optional) | ollama/ollama | 완전 로컬 LLM (LLM_PROVIDER=ollama 시 활성화, profiles 기반) |
 
-총 8개 서비스. `docker-compose up -d` 한 방.
+**~~sandbox 서비스 제거됨 (2026-04-14):** 코드 실행이 전부 브라우저 내부(Pyodide + iframe sandbox)로 이동. gVisor, Docker 샌드박스, Vite 빌더 전부 폐기.*
+
+총 8~9개 서비스 (Ollama 옵션 포함). `docker-compose up -d` 한 방.
 
 **호스팅 전략:**
-- **MVP/초기**: Oracle Cloud Always Free (서울 `ap-seoul-1`) — ARM A1 4 OCPU + 24GB RAM + 200GB 스토리지 무료. ~$2/월 (R2만)
-- **스케일업**: OCPU 추가 ($0.01/OCPU/시간). GCP/AWS 대비 1/4 가격.
-- **Docker 이미지**: 전체 스택 ARM 멀티아치 빌드 필수 (`--platform linux/arm64`)
+- **호스팅 환경 미정** — Oracle Cloud, Hetzner, AWS, Fly.io 등 후보. Production 결정은 Plan 후반에서 베이스라인 부하 측정 후 선택.
+- **Docker 이미지 요구사항**: 전체 스택은 **x86_64 + linux/arm64 멀티아치 빌드** 필수 (`docker buildx`)
+- **자원 가이드**: 단일 사용자 셀프호스트 기준 최소 4 vCPU + 8GB RAM, 권장 8 vCPU + 16GB RAM (Temporal + LightRAG + Worker가 주요 자원 소비)
 
 ---
 
@@ -189,16 +206,17 @@ opencairn.com/app/project/x  -> 프로젝트 (CSR)
 ```
 opencairn/
   apps/
-    web/            -- Next.js 16 (SSG 랜딩/블로그 + CSR 앱)
+    web/            -- Next.js 16 (SSG 랜딩/블로그 + CSR 앱, Pyodide/iframe 샌드박스 클라이언트 사이드 포함)
     api/            -- Hono (Backend API, TypeScript)
-    worker/         -- Python (AI Agents, LangGraph)
-    sandbox/        -- Docker Code Runner + Canvas Server
+    worker/         -- Python (AI Agents, LangGraph, Temporal activities)
+    hocuspocus/     -- Yjs 협업 서버 (Node.js, Better Auth 연동)
 
   packages/
     db/             -- Drizzle ORM schema + migrations
+    llm/            -- Python LLM provider adapters (Gemini/OpenAI/Ollama, get_provider 팩토리)
     ui/             -- shadcn/ui shared components
     config/         -- ESLint, TypeScript shared config
-    shared/         -- Shared types (API contracts, Redis message schemas)
+    shared/         -- Shared types (Zod 스키마, API 계약)
 
   docker-compose.yml
   docker-compose.prod.yml
@@ -220,7 +238,10 @@ users
   name            TEXT
   password_hash   TEXT
   plan            ENUM (free, pro, byok)
-  gemini_api_key  TEXT NULLABLE (encrypted, BYOK only)
+  llm_provider    ENUM (gemini, openai, ollama) DEFAULT 'gemini'
+  llm_api_key     TEXT NULLABLE (AES-256 encrypted, BYOK 모드에서 사용 — Gemini/OpenAI 둘 다 동일 컬럼)
+  ollama_base_url TEXT NULLABLE (완전 로컬 모드에서만)
+  whisper_model   TEXT NULLABLE (tiny|base|small|medium|large-v3, 로컬 STT 모델 선택)
   created_at      TIMESTAMP
 
 projects

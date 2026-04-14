@@ -8,6 +8,15 @@
 
 **Tech Stack:** Stripe (`stripe` Node SDK), Next.js 16 SSG, MDX (`@next/mdx`), Tailwind CSS 4, Drizzle ORM, TypeScript 5.x, Zod
 
+> **⚠️ BYOK 정정 (2026-04-14):** BYOK는 OpenAI 전용이 아님. **BYOK Gemini가 추천 모드** — 사용자가 자신의 Gemini 키를 등록하면 모든 프리미엄 기능(Caching, Thinking, Search Grounding, TTS, 멀티모달 embedding) 그대로 보존. BYOK OpenAI는 graceful degrade 모드. 상세: `docs/superpowers/specs/2026-04-13-multi-llm-provider-design.md`
+
+> **⚠️ 데이터 포터빌리티 추가 (2026-04-14):** 본 plan 범위에 다음 항목 포함 (구현 task는 후반에 추가 예정):
+> - **계정 export API** (`GET /api/export/account`) — 비동기 Temporal 워크플로우로 ZIP 생성 (Markdown 위키 + JSON 그래프 + 원본 파일), 완료 시 Resend 이메일 알림
+> - **선택적 export** — 프로젝트별/폴더별/태그별/날짜 범위
+> - **자동 export (Pro/BYOK 전용)** — 주 1회 cron, 사용자 OAuth 연결한 Dropbox/Google Drive/본인 R2로 업로드
+> - **GDPR 준수** — 설정 페이지 "내 데이터 다운로드" / "내 계정 삭제" 버튼
+> - 상세: `docs/architecture/backup-strategy.md` §3 (사용자 데이터 포터빌리티)
+
 ---
 
 ## Plan Definitions
@@ -1934,4 +1943,99 @@ Wrap layout with locale provider. Use `useTranslations('common')` hook in compon
 ```bash
 git add apps/web/
 git commit -m "feat(web): add i18n with next-intl (en + ko)"
+```
+
+---
+
+## Task E1: Account Export API (GDPR + 데이터 포터빌리티)
+
+> **Added 2026-04-14** — 사용자가 자신의 전체 데이터를 Markdown + JSON + 원본 파일로 ZIP export. Obsidian 호환 폴더 구조. 비동기 Temporal 워크플로우. 상세: `docs/architecture/backup-strategy.md` §3
+
+**Files:**
+- Create: `apps/api/src/routes/export.ts`
+- Create: `apps/worker/src/worker/activities/export_activity.py`
+- Create: `apps/worker/src/worker/workflows/export_workflow.py`
+- Modify: `apps/worker/src/worker/main.py` (register)
+- Modify: `packages/db/src/schema.ts` (`export_jobs` 테이블 추가)
+- Modify: `apps/web/src/app/(app)/settings/page.tsx` (export 버튼)
+
+### E1.1 DB 스키마
+
+- [ ] **Step 1:** `packages/db/src/schema.ts`에 `export_jobs` 테이블 추가:
+  - `id` UUID PK
+  - `user_id` UUID FK
+  - `scope` ENUM (`account`, `project`, `folder`, `tag`)
+  - `scope_id` UUID nullable
+  - `status` ENUM (`pending`, `running`, `completed`, `failed`)
+  - `zip_key` TEXT nullable (R2 object key)
+  - `download_url` TEXT nullable (signed URL, 7일 유효)
+  - `error` TEXT nullable
+  - `created_at`, `completed_at` TIMESTAMP
+- [ ] **Step 2:** `pnpm db:generate && pnpm db:migrate`
+
+### E1.2 Temporal Export Workflow
+
+- [ ] **Step 3:** `apps/worker/src/worker/activities/export_activity.py` 생성:
+  - `export_user_data(user_id, scope, scope_id) -> r2_key`
+  - 로직:
+    1. DB에서 사용자의 wiki_pages/notes/conversations/concepts/concept_edges 쿼리 (scope 필터 적용)
+    2. 임시 디렉토리에 폴더 구조 생성:
+       ```
+       opencairn_export_<user_id>_<timestamp>/
+         README.md               (export 메타, 포맷 설명)
+         metadata.json           (user info, 생성 시각, 스코프)
+         wiki/                   (Markdown 파일들, 폴더 구조 반영)
+           project_a/
+             concept_1.md
+             concept_2.md
+         notes/
+         sources/                (원본 PDF/DOCX 등, R2에서 다운로드)
+         graph.json              (concepts + concept_edges)
+         wiki_logs.json          (변경 이력)
+         conversations.json      (대화 히스토리)
+       ```
+    3. `zipfile.ZipFile`로 압축
+    4. 압축된 ZIP을 R2에 업로드 (`exports/<user_id>/<job_id>.zip`)
+    5. 반환: R2 object key
+- [ ] **Step 4:** `apps/worker/src/worker/workflows/export_workflow.py`:
+  - `ExportWorkflow` 정의
+  - activity 호출 (`start_to_close_timeout=30min`, retry_policy 3회)
+  - 완료 후 DB의 `export_jobs` row 업데이트 (signed URL 7일 생성)
+  - Resend로 완료 이메일 발송 (`provider.send_email()` 또는 직접)
+- [ ] **Step 5:** `main.py`에 activity와 workflow 등록.
+
+### E1.3 API Route
+
+- [ ] **Step 6:** `apps/api/src/routes/export.ts`:
+  - `POST /api/export/account` — 계정 전체 export 시작, `export_jobs` row 생성, Temporal workflow 트리거, `{ job_id }` 응답
+  - `POST /api/export/project/:id` — 특정 프로젝트만
+  - `GET /api/export/jobs` — 사용자의 export 작업 히스토리
+  - `GET /api/export/jobs/:id` — 단일 작업 상태 + download URL (완료 시)
+  - 비율 제한: 사용자당 동시 1개만, 하루 최대 5회
+- [ ] **Step 7:** `app.ts`에 라우트 마운트, `requireAuth` 미들웨어.
+
+### E1.4 설정 페이지 UI
+
+- [ ] **Step 8:** `apps/web/src/app/(app)/settings/page.tsx`에 "데이터 & 프라이버시" 섹션 추가:
+  - "내 데이터 다운로드" 버튼 → POST /api/export/account 호출
+  - 작업 목록 (완료된 export, 다운로드 링크, 만료 시각)
+  - "내 계정 삭제" 버튼 (확인 모달, 30일 soft delete 후 hard delete)
+- [ ] **Step 9:** 작업 진행 상태 실시간 표시 (폴링 또는 Hocuspocus broadcast).
+
+### E1.5 자동 Export (Pro/BYOK 전용)
+
+- [ ] **Step 10:** `user_preferences`에 `auto_export_enabled` boolean, `auto_export_target` (dropbox/gdrive/r2), `auto_export_oauth_token` encrypted 컬럼 추가.
+- [ ] **Step 11:** Temporal cron schedule (`@workflow.defn` + `Schedule`)로 주 1회 자동 실행, 사용자 OAuth 연결 대상에 업로드.
+- [ ] **Step 12:** 설정 페이지에 OAuth 연결 UI + 토글.
+
+### E1.6 Commit
+
+- [ ] **Step 13:**
+```bash
+git add apps/api/src/routes/export.ts \
+        apps/worker/src/worker/activities/export_activity.py \
+        apps/worker/src/worker/workflows/export_workflow.py \
+        packages/db/src/schema.ts \
+        apps/web/src/app/\(app\)/settings/page.tsx
+git commit -m "feat(billing): add account export API with Markdown + JSON + sources"
 ```

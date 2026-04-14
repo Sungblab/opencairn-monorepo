@@ -2,11 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Expose the `concepts` and `concept_edges` tables through Hono CRUD routes, add recursive-CTE graph traversal queries, and render the knowledge graph as an interactive D3.js force-directed graph in the Next.js frontend with click-to-wiki, edge add/remove, and relation-type/project-scope filters.
+> **⚠️ Multi-View 확장 (2026-04-14):** 단일 force graph에서 **5가지 뷰 (Graph / Mindmap / Cards / Canvas / Timeline)** + **Backlinks Panel**로 확장. 시각화 라이브러리는 **D3.js → Cytoscape.js**로 교체 (레이아웃 알고리즘, 클러스터링, 타 뷰 전환에 압도적). 모든 뷰는 동일한 `concepts`/`concept_edges` 테이블을 바라보는 렌즈 (single source of truth). Visualization Agent가 뷰 생성을 에이전틱하게 지원.
 
-**Architecture:** All graph API logic lives in `apps/api/src/routes/` as standard Hono route modules, validated with Zod, and backed by `@opencairn/db` Drizzle queries. The frontend graph lives in `apps/web/src/components/graph/` as a React client component that fetches from the API, renders with D3.js `forceSimulation`, and drives wiki navigation via Next.js router. Graph state (selected node, filters) is managed with `useState`/`useReducer` — no external store needed.
+**Goal:** LightRAG가 인제스트 시 자동 추출한 엔티티/관계를 `concepts`/`concept_edges` 테이블과 동기화하고, Hono CRUD routes로 노출하며, **다섯 가지 시각화 뷰** (Graph, Mindmap, Cards, Canvas, Timeline)와 Backlinks Panel로 사용자에게 탐색/창작/학습 경로를 제공한다. 각 뷰는 동일한 그래프 데이터의 렌즈이며, Visualization Agent가 사용자 요청에 따라 뷰를 에이전틱하게 구성한다.
 
-**Tech Stack:** Hono 4, Drizzle ORM 0.45, Zod, D3.js 7, React 19, Next.js 16, TypeScript 5.x, `@opencairn/shared` for API types
+**Architecture:** LightRAG (PostgreSQL 백엔드)가 문서 인덱싱 시 엔티티/관계를 자동 추출 → `lightrag_activity.py`가 결과를 `concepts`/`concept_edges` 테이블에 동기화. 이후 API/프론트엔드 레이어는: Hono routes → Drizzle queries → **Cytoscape.js 기반 멀티뷰 렌더러**. Neo4j 불필요 — PostgreSQL + pgvector로 그래프+벡터 통합 처리. LightRAG 인덱싱은 Temporal 백그라운드 워크플로우로 분리(인제스트 완료 후 비동기 실행)하여 업로드 UX 영향 없음. Visualization Agent는 Temporal activity로 동작하며, 사용자 요청(예: "이 주제로 mindmap 만들어줘")을 받아 그래프 서브셋을 추출하고 뷰 설정을 반환한다.
+
+**Tech Stack:** Hono 4, Drizzle ORM 0.45, Zod, **Cytoscape.js** (+ `react-cytoscapejs`, `cytoscape-fcose`, `cytoscape-dagre`, `cytoscape-cola`), React 19, Next.js 16, TypeScript 5.x, LightRAG (PostgreSQL 백엔드), `@opencairn/shared` for API types
 
 ---
 
@@ -31,18 +33,53 @@ packages/shared/src/
 apps/web/src/
   components/
     graph/
-      ForceGraph.tsx          -- D3 force simulation, SVG render (client component)
-      GraphNode.tsx           -- SVG circle + label for a concept node
-      GraphEdge.tsx           -- SVG line + label for an edge
-      GraphControls.tsx       -- filter panel (relation type, project scope)
-      useGraphData.ts         -- hook: fetch /graph, manage loading/error state
-      useGraphSimulation.ts   -- hook: create + tick D3 forceSimulation
-      graph.types.ts          -- local TS types (D3Node, D3Link, FilterState)
+      ForceGraph.tsx          -- Cytoscape.js fcose 레이아웃, 전체 그래프 조망 (클러스터링 포함)
+      GraphControls.tsx       -- 필터 (관계 타입, 프로젝트, 태그, 생성일)
+      GraphContextMenu.tsx    -- 우클릭 메뉴 (rename/merge/split/delete/send-to-canvas)
+      ClusterOverlay.tsx      -- Louvain 자동 클러스터링 색상 오버레이
+      UnderstandingOverlay.tsx -- 이해도 점수 기반 노드 색상 (red=약함, green=강함)
+      graph.types.ts          -- 공통 타입 (GraphNode, GraphEdge, FilterState)
+    mindmap/
+      MindmapView.tsx         -- cytoscape-dagre/cose-bilkent 방사형 트리 레이아웃
+      MindmapBuilder.tsx      -- Visualization Agent 호출 ("이 주제로 mindmap")
+      MindmapExpand.tsx       -- 노드 클릭 시 서브트리 드릴다운
+    cards/
+      CardGridView.tsx        -- shadcn/ui Card 기반 그리드
+      CardFilter.tsx          -- 그룹화 (프로젝트/태그/상태/이해도) + 정렬
+      CardItem.tsx            -- 개별 concept 카드 (요약, 배지, 배경 색)
+    canvas/
+      InfiniteCanvas.tsx      -- 무한 2D 캔버스 (react-zoom-pan-pinch 또는 Excalidraw 기반)
+      CanvasNode.tsx          -- 드래그 가능한 노드/노트 카드
+      CanvasArrow.tsx         -- 사용자 수동 그리기 화살표
+      CanvasGroup.tsx         -- 그룹 박스 + 주석
+      CanvasAutoLayout.tsx    -- Agent가 자동 배치 ("이 50개 주제별로 정리")
+    timeline/
+      TimelineView.tsx        -- 가로 시간축 + 스케일 전환
+      TimelineItem.tsx        -- 이벤트/concept 점
+    backlinks/
+      BacklinksPanel.tsx      -- 사이드 패널 (현재 노트에 링크된 다른 노트들)
+      BacklinkItem.tsx        -- 단일 백링크 프리뷰
+    views/
+      ViewSwitcher.tsx        -- 5뷰 전환 탭 (Graph/Mindmap/Cards/Canvas/Timeline)
+      ViewContext.tsx         -- 뷰 상태 공유 컨텍스트 (선택된 노드 등)
+      useGraphData.ts         -- 공통 hook: fetch /graph, SWR/TanStack Query
   app/
     (app)/
       projects/[projectId]/
-        graph/
-          page.tsx            -- server component shell, renders ForceGraph
+        view/
+          page.tsx            -- 뷰 스위처 엔트리, URL 쿼리로 현재 뷰 결정 (?view=graph|mindmap|...)
+```
+
+### Visualization Agent (Worker)
+
+```
+apps/worker/src/worker/agents/
+  visualization_agent.py      -- Temporal activity
+                                - build_mindmap(topic, depth) → 서브그래프 + 루트
+                                - build_timeline(topic, range) → 시간순 concept 리스트
+                                - cluster_topics(project_id) → Louvain 결과
+                                - auto_arrange_canvas(concept_ids) → 2D 좌표 계산
+                                - suggest_connections(concept_id) → weak link 제안
 ```
 
 ---
@@ -1617,4 +1654,57 @@ Expected: build succeeds.
 cd /c/Users/Sungbin/Documents/GitHub/opencairn-monorepo
 git add apps/web/src/app/api/\[...path\]/route.ts
 git commit -m "feat(web): add catch-all API proxy route handler for Hono backend"
+```
+
+---
+
+## Task M1: Visualization Agent (Multi-View Generation)
+
+> **Added 2026-04-14** — Multi-View 확장의 핵심 에이전트. Python LangGraph + Temporal activity. 사용자 자연어 요청("이 주제로 mindmap 만들어줘")을 받아 그래프 서브셋을 추출하고 ViewSpec을 반환한다.
+
+**Files:**
+- Create: `apps/worker/src/worker/agents/visualization_agent.py`
+- Create: `apps/worker/src/worker/workflows/visualization_workflow.py`
+- Create: `apps/api/src/routes/visualize.ts`
+- Modify: `apps/worker/src/worker/main.py` (register activity + workflow)
+- Modify: `packages/shared/src/api-types.ts` (ViewSpec Zod 스키마)
+
+### M1.1 Shared ViewSpec Zod 스키마
+
+- [ ] **Step 1:** `packages/shared/src/api-types.ts`에 `ViewType`, `ViewRequest`, `ViewNode`, `ViewEdge`, `ViewSpec` Zod 스키마 추가. `view_type`은 `'graph' | 'mindmap' | 'cards' | 'canvas' | 'timeline'`, `layout`은 Cytoscape 레이아웃 이름 (`'fcose' | 'dagre' | 'cose-bilkent' | 'cola' | 'preset'`), `root_id`는 nullable, `nodes`와 `edges` 배열 포함.
+
+### M1.2 Python Visualization Agent (LangGraph)
+
+- [ ] **Step 2:** `apps/worker/src/worker/agents/visualization_agent.py` 생성. LangGraph StateGraph로 4단계 구성:
+  1. **parse_intent**: 사용자 prompt에서 루트 concept 후보 추출 (`provider.generate()`로 JSON 파싱), LightRAG `mode='local'`로 가장 가까운 concept 검색
+  2. **fetch_subgraph**: 루트 concept에서 N-hop 재귀 CTE로 서브그래프 추출. 루트 없으면 전체 프로젝트 그래프 (상한 500 노드)
+  3. **choose_layout**: `view_type` → layout 이름 매핑 (graph=fcose, mindmap=dagre, cards/canvas/timeline=preset)
+  4. **compose_view_spec**: 최종 ViewSpec dict 조립
+- [ ] **Step 3:** `@activity.defn(name='build_view')` 데코레이터로 Temporal activity 래퍼 추가. 입력은 `VizState` dict, 출력은 `view_spec` dict.
+
+### M1.3 Temporal Workflow
+
+- [ ] **Step 4:** `apps/worker/src/worker/workflows/visualization_workflow.py`에 `VisualizationWorkflow` 정의. `workflow.execute_activity('build_view', req, start_to_close_timeout=60s)`로 activity 호출.
+- [ ] **Step 5:** `apps/worker/src/worker/main.py`의 Worker activities와 workflows 리스트에 `build_view`와 `VisualizationWorkflow` 등록.
+
+### M1.4 API Route
+
+- [ ] **Step 6:** `apps/api/src/routes/visualize.ts`에 Hono 라우트 생성. `POST /` — Zod validator로 ViewRequest 검증, Temporal client로 `VisualizationWorkflow` 시작, `workflowId = 'viz-{userId}-{timestamp}'`, `handle.result()`로 ViewSpec 기다림, JSON 응답.
+- [ ] **Step 7:** `apps/api/src/app.ts`에서 `app.route('/api/visualize', visualizeRoute)` 마운트. `requireAuth` 미들웨어 적용.
+
+### M1.5 Frontend Integration
+
+- [ ] **Step 8:** Plan 5 File Structure에서 정의한 `apps/web/src/components/views/ViewSwitcher.tsx`에서 사용자 뷰 전환 시 `POST /api/visualize` 호출. TanStack Query로 캐싱 (stale 60s). 반환된 ViewSpec을 해당 뷰 컴포넌트(`ForceGraph` / `MindmapView` / `CardGridView` / `InfiniteCanvas` / `TimelineView`)에 주입.
+- [ ] **Step 9:** 로딩 상태 처리 (Agent가 subgraph 계산 중일 때 skeleton 표시).
+
+### M1.6 Commit
+
+- [ ] **Step 10:**
+```bash
+git add apps/worker/src/worker/agents/visualization_agent.py \
+        apps/worker/src/worker/workflows/visualization_workflow.py \
+        apps/api/src/routes/visualize.ts \
+        packages/shared/src/api-types.ts \
+        apps/web/src/components/views/ViewSwitcher.tsx
+git commit -m "feat(agents): add Visualization Agent for multi-view KG rendering"
 ```

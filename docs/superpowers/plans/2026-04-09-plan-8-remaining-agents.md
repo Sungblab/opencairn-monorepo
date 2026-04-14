@@ -2,11 +2,22 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement the six remaining AI agents: Connector (cross-project link suggestion), Temporal (stale knowledge detection + review reminders), Synthesis (cross-domain analogical reasoning), Curator (Gemini Search Grounding + source recommendation), Narrator (multi-speaker podcast audio generation), and Deep Research (Gemini long-running research job with polling).
+> **⚠️ 아키텍처 전면 재조정 (2026-04-14):** 본 plan은 원래 TypeScript/Hono + BullMQ + Supabase Storage 전제로 작성됐으나 Plan 4 결정 및 이번 세션 결정에 따라 **전면 교체**:
+> - **위치**: `apps/api/src/routes/agents/` (Hono TypeScript) → **`apps/worker/src/worker/agents/`** (Python LangGraph)
+> - **실행**: BullMQ → **Temporal Python SDK activity**
+> - **스토리지**: Supabase Storage → **Cloudflare R2** (`apps/worker/src/worker/lib/r2_client.py`)
+> - **LLM 호출**: `@google/genai` (TS) → **`packages/llm` get_provider()** (Python, Gemini/OpenAI/Ollama 추상화)
+> - **검색**: pgvector 직접 호출 → **LightRAG hybrid search** (`mode="hybrid|local|global"`)
+> - **Narrator TTS**: `provider.tts()` 호출 (Gemini 전용, 로컬/OpenAI 모드는 graceful degrade)
+> - **Deep Research**: Gemini Deep Research API는 Gemini provider 전용 기능, `provider.deep_research()` (graceful degrade로 일반 웹검색 + RAG fallback)
+> - **Visualization Agent 추가**: 7개 에이전트로 확장 (원래 6개 + Visualization)
+> - 아래 기존 Hono/TypeScript/BullMQ task 목록은 **deprecated** — Python + Temporal 기준으로 재작성 필요
 
-**Architecture:** Each agent runs as a Hono route under `apps/api/src/routes/agents/` and a corresponding job handler under `apps/api/src/jobs/`. The Connector and Temporal agents query the existing `embeddings`, `wiki_logs`, and `concepts` tables. Synthesis queries concept edges. Curator uses the Gemini Search Grounding tool. Narrator calls Gemini's MultiSpeakerVoiceConfig TTS and stores audio in Supabase Storage. Deep Research uses `interactions.create()` with `background=true` and polls until complete.
+**Goal:** Implement the seven remaining AI agents as Python LangGraph workflows running as Temporal activities: **Connector** (cross-project link suggestion), **Temporal** (stale knowledge detection + review reminders, 시간 기반 쿼리/타임라인), **Synthesis** (여러 노드 → 에세이 생성, cross-domain analogical reasoning), **Curator** (고아/모순/중복 감지, Gemini Search Grounding 기반 소스 추천), **Narrator** (multi-speaker podcast 오디오 생성), **Deep Research** (Gemini Deep Research API 또는 fallback 웹검색 기반 심층 조사), **Visualization** (사용자 뷰 요청 처리 — mindmap/timeline/canvas 자동 배치).
 
-**Tech Stack:** Hono 4, Google GenAI SDK (`@google/genai`), Drizzle ORM, pgvector cosine similarity, Supabase Storage, BullMQ (job queue), TypeScript 5.x
+**Architecture:** 각 에이전트는 `apps/worker/src/worker/agents/<agent>_agent.py` 파일로 Python LangGraph StateGraph 구현. Temporal workflow는 `apps/worker/src/worker/workflows/agent_workflows.py`에 정의. API는 `apps/api/src/routes/agents/*.ts` 에서 Temporal client로 workflow 트리거. 결과는 비동기 콜백으로 API가 DB 업데이트 → Hocuspocus broadcast → 프론트엔드 실시간 반영. LLM 호출은 전부 `packages/llm` get_provider()로 추상화. 검색은 LightRAG hybrid API 사용. 오디오는 `provider.tts()` → Cloudflare R2 업로드 → DB에 signed URL 저장.
+
+**Tech Stack:** Python 3.12, LangGraph 0.3, Pydantic AI, Temporal Python SDK, `packages/llm` (Gemini/OpenAI/Ollama 추상화), LightRAG, asyncpg, boto3 (R2), Hono 4 (API 라우트만)
 
 ---
 
@@ -1143,11 +1154,105 @@ git commit -m "feat(agent): deep-research — Gemini interactions API with backg
 
 ### Env Vars to Add
 
-Add to `.env.example` and Vercel/production secrets:
+~~Deprecated 기존 env~~ (BullMQ/Supabase 제거됨). 새 env는 Plan 3/4 공용 env 사용 + Plan 9 Gemini Deep Research toggle.
 
+```bash
+# 기존 공용 (이미 Plan 3/4에 정의)
+LLM_PROVIDER=gemini                # gemini|openai|ollama
+GEMINI_API_KEY=                    # BYOK Gemini 또는 Production 키
+TEMPORAL_ADDRESS=localhost:7233
+R2_ENDPOINT=                       # Cloudflare R2 (Narrator 오디오 저장)
+R2_BUCKET=opencairn-uploads
+
+# Plan 8 전용
+GEMINI_DEEP_RESEARCH_ENABLED=true  # false면 Deep Research Agent는 웹검색+RAG fallback
 ```
-GEMINI_API_KEY=                    # Required by all Gemini agents
-SUPABASE_URL=                      # Required by Narrator (audio storage)
-SUPABASE_SERVICE_ROLE_KEY=         # Required by Narrator (audio storage)
-REDIS_URL=redis://localhost:6379   # Required by BullMQ queues
-```
+
+---
+
+## Task A1: 7개 에이전트 Python 재구현 (신규 표준)
+
+> **Added 2026-04-14** — 아키텍처 재조정 후 표준 task. 위의 기존 Hono/TypeScript/BullMQ 섹션은 **deprecated**.
+
+각 에이전트는 `apps/worker/src/worker/agents/<name>_agent.py`에 LangGraph StateGraph로 구현. Temporal workflow로 감싸서 `workflows/agent_workflows.py`에 정의. API 라우트는 Hono에서 Temporal client로 트리거.
+
+**공통 파일 패턴:**
+- `apps/worker/src/worker/agents/<name>_agent.py` — LangGraph state + nodes + `@activity.defn`
+- `apps/worker/src/worker/workflows/<name>_workflow.py` — Temporal workflow 정의
+- `apps/api/src/routes/agents/<name>.ts` — Hono 라우트 (Temporal trigger + polling)
+- `packages/shared/src/api-types.ts` — Zod 입출력 스키마
+
+### A1.1 Connector Agent
+
+- [ ] **Step 1:** 프로젝트 간 약한 연결 제안. 입력: `concept_id`. 로직:
+  1. 해당 concept의 임베딩 가져오기
+  2. 다른 프로젝트 concepts에서 유사도 top-K (LightRAG vector search, threshold=0.75)
+  3. 이미 엣지 있는 것 제외
+  4. 결과를 `suggestions` 테이블에 저장 (사용자 승인/거절 대기)
+- [ ] **Step 2:** API: `POST /api/agents/connector/run` (manual), Temporal cron (주 1회 전체 프로젝트)
+- [ ] **Step 3:** 프론트엔드 알림 UI (Plan 5 KG-10)
+
+### A1.2 Temporal Agent
+
+- [ ] **Step 4:** 시간 기반 쿼리 + stale 지식 감지. 역할 3가지:
+  1. **Timeline 뷰 빌드** — Plan 5 KG-07 요청을 Visualization Agent에 위임 받아 날짜 있는 concept 추출 + 정렬
+  2. **Stale 감지** — 90일 이상 편집 안 된 wiki_pages에 LLM이 "최신 정보와 비교해서 여전히 유효?" 체크
+  3. **복습 알림** — SM-2 간격 계산해서 Socratic Agent 트리거
+- [ ] **Step 5:** Temporal cron (일 1회 stale 체크, 시간당 복습 알림)
+
+### A1.3 Synthesis Agent
+
+- [ ] **Step 6:** 여러 노드 선택 → 에세이 생성. 입력: `concept_ids[]`, `style` (essay | summary | comparison | slides). 로직:
+  1. 각 concept의 wiki 본문 로드
+  2. LightRAG로 추가 컨텍스트 (mode='global')
+  3. `provider.generate()` + 긴 컨텍스트 (Gemini면 `cache_context()` 활용)
+  4. 결과를 새 note로 저장 (사용자가 프로젝트에 추가할지 결정)
+- [ ] **Step 7:** API: `POST /api/agents/synthesis/run`, 진행 상태 폴링
+
+### A1.4 Curator Agent
+
+- [ ] **Step 8:** 고아/모순/중복 감지 + 정리 제안. 역할:
+  1. **고아 노드 감지** — degree 0 concepts 찾기
+  2. **중복 감지** — 임베딩 유사도 > 0.9인 concept 쌍 → 병합 제안
+  3. **모순 감지** — `provider.generate()`로 두 위키 본문 비교 ("이 둘 모순되나?")
+  4. **주기 실행** — Temporal cron (일 1회)
+  5. Gemini Search Grounding으로 외부 최신 정보와 사용자 지식 비교 (선택적)
+- [ ] **Step 9:** `suggestions` 테이블에 저장, 프론트엔드 알림
+
+### A1.5 Narrator Agent (팟캐스트 TTS)
+
+- [ ] **Step 10:** 위키 또는 서브그래프 → 2인 대화 팟캐스트 오디오. 로직:
+  1. 입력 concept/프로젝트의 본문 로드
+  2. `provider.generate()`로 2인 대화 스크립트 생성 (시스템 프롬프트: "Host와 Guest의 자연스러운 대화")
+  3. `provider.tts(script, model='gemini-2.5-pro-preview-tts', voices=['host_voice', 'guest_voice'])` — Gemini MultiSpeakerVoiceConfig
+  4. 오디오 파일 R2 업로드, signed URL 반환
+  5. Graceful degradation: provider가 TTS 미지원이면 스크립트만 반환, 프론트엔드는 텍스트로 표시
+- [ ] **Step 11:** API: `POST /api/agents/narrator/run`, 백그라운드 (긴 작업)
+
+### A1.6 Deep Research Agent
+
+- [ ] **Step 12:** Gemini Deep Research API 활용 또는 fallback. 로직:
+  1. Gemini provider + `GEMINI_DEEP_RESEARCH_ENABLED=true`면 Gemini Deep Research API 호출 (장시간 작업, 폴링)
+  2. 아니면 fallback: `provider.ground_search()` (Gemini) 또는 web_search tool (crawl4ai + Research Agent)
+  3. 결과를 새 source + wiki로 저장 (사용자 승인 후)
+- [ ] **Step 13:** API: `POST /api/agents/deep-research/run`, Temporal workflow 긴 타임아웃 (2시간)
+
+### A1.7 Visualization Agent
+
+Plan 5 Task M1 참조. Plan 8에 중복 구현하지 않음 — Plan 5가 주 작업 문서.
+
+### A1.8 통합 Commit
+
+- [ ] **Step 14:** 에이전트별 개별 commit (`feat(agents): implement <name> agent`) 후 통합 PR.
+
+---
+
+## 구현 우선순위
+
+Plan 4 → Plan 5 → **Plan 8 A1.1 ~ A1.6 순서 추천**:
+1. **Synthesis** (가장 단순, 즉시 가치)
+2. **Curator** (주기 실행, 품질 유지)
+3. **Connector** (UX 개선)
+4. **Temporal** (학습 시스템과 연동 필요, Plan 6 이후)
+5. **Narrator** (TTS 의존성)
+6. **Deep Research** (가장 복잡, Gemini 전용 기능 의존)

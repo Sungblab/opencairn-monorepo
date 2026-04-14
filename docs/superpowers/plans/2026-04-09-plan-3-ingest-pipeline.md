@@ -2,13 +2,17 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **⚠️ Multi-LLM 업데이트 (2026-04-13):** `apps/worker/src/worker/lib/gemini_client.py` 직접 생성 대신 `packages/llm/` 패키지를 import해서 사용하도록 구현 시 수정 필요. `get_provider()` 팩토리로 LLM 호출. 상세: `docs/superpowers/specs/2026-04-13-multi-llm-provider-design.md`
+> **⚠️ Multi-LLM 업데이트 (2026-04-13):** `get_provider()` 팩토리로 LLM 호출. 직접 gemini_client 생성 금지. 상세: `docs/superpowers/specs/2026-04-13-multi-llm-provider-design.md`
+
+> **⚠️ 파싱 스택 업데이트 (2026-04-14):** Docling/chandra/pyhwp/LibreOffice headless(raw) → opendataloader-pdf/markitdown/unoserver/H2Orestart로 교체. 스캔 PDF는 provider.ocr()로 추상화 (Gemini Files API / tesseract). 오디오 STT는 provider.transcribe() (Gemini / faster-whisper). 상세는 본 문서 참조.
 
 **Goal:** Build a multi-source ingest pipeline that accepts PDFs, Office docs (DOCX/PPTX/XLSX), HWP/HWPX, audio/video, images, YouTube URLs, and web URLs — converts all documents to PDF for unified viewing, extracts text/transcripts, and creates source notes in the database — all orchestrated by Temporal.
 
-**Architecture:** File uploads hit a Hono endpoint in `apps/api` which stores the raw file in Cloudflare R2 and enqueues a Temporal workflow. `apps/worker` (Python) runs Temporal activities: document conversion via LibreOffice headless → Docling (텍스트 추출), chandra OCR (스캔/수기 폴백), gemini-3-flash-preview (오디오/영상/이미지 네이티브 처리), web scraping via trafilatura. 모든 문서는 PDF로 변환되어 R2에 보관 — 프론트엔드는 `@react-pdf-viewer/core`로 단일 뷰어 사용. On completion, the worker calls back into the API to create a source note and optionally trigger the Compiler Agent (LightRAG 인덱싱 포함).
+**Architecture:** File uploads hit a Hono endpoint in `apps/api` which stores the raw file in Cloudflare R2 and enqueues a Temporal workflow. `apps/worker` (Python) runs Temporal activities: PDF 텍스트 추출 (opendataloader-pdf), 스캔 감지 (pymupdf), 스캔 OCR (provider.ocr()), Office 문서 추출 (markitdown), 뷰어용 PDF 변환 (unoserver + H2Orestart), 오디오/영상 전사 (provider.transcribe()), 이미지 분석 (provider.generate(image=)), web scraping (trafilatura). 모든 문서는 PDF로 변환되어 R2에 보관 — 프론트엔드는 `@react-pdf-viewer/core`로 단일 뷰어 사용. On completion, the worker calls back into the API to create a source note and optionally trigger the Compiler Agent (LightRAG 인덱싱 포함).
 
-**Tech Stack:** Hono 4, Cloudflare R2 (S3-compatible), Temporal Python SDK, Docling (PDF/DOCX/PPTX/XLSX), chandra (스캔/수기 OCR), pyhwp (HWP), LibreOffice headless (문서→PDF 변환), ffmpeg, yt-dlp, trafilatura, LightRAG (RAG + KG), Google Generative AI SDK (gemini-3-flash-preview — 오디오/영상/이미지 네이티브), Zod, PostgreSQL (Drizzle + pgvector), Redis, Docker Compose (Oracle Cloud Free Tier, 서울 리전 `ap-seoul-1`, ARM A1 4OCPU/24GB)
+**Tech Stack:** Hono 4, Cloudflare R2 (S3-compatible), Temporal Python SDK, opendataloader-pdf (PDF 텍스트, Java 11+), pymupdf (스캔 감지), markitdown[docx,pptx,xlsx,xls] (Office 문서), unoserver + H2Orestart (문서→PDF 변환, HWP/HWPX 지원), faster-whisper (로컬 STT fallback, WHISPER_MODEL env), trafilatura (웹 스크래핑), crawl4ai (JS 렌더링 페이지, 선택적), yt-dlp, LightRAG (RAG + KG), packages/llm get_provider() (Gemini/OpenAI/Ollama 추상화), Zod, PostgreSQL (Drizzle + pgvector), Redis, Docker Compose
+
+> **호스팅:** Production 호스팅 환경은 미정 (오라클/Hetzner/AWS/Fly.io 등 후보). 모든 컴포넌트는 Linux x86_64 + aarch64 둘 다 호환되어야 함. ARM 호환성은 모든 의존성(opendataloader-pdf의 Java, unoserver의 LibreOffice, H2Orestart, faster-whisper)에서 검증 완료.
 
 ---
 
@@ -26,7 +30,7 @@ apps/
 
   worker/
     pyproject.toml              -- Python project config (uv)
-    Dockerfile                  -- Python 3.12 + ffmpeg + LibreOffice headless image (Java 없음)
+    Dockerfile                  -- Python 3.12 + Java 11 (Adoptium aarch64) + unoserver + H2Orestart + faster-whisper
     src/
       worker/
         __init__.py
@@ -36,18 +40,17 @@ apps/
           ingest_workflow.py    -- IngestWorkflow definition
         activities/
           __init__.py
-          pdf_activity.py       -- LibreOffice→PDF + Docling (텍스트) + chandra OCR (스캔/수기 폴백)
-          office_activity.py    -- LibreOffice headless DOCX/PPTX/XLSX → PDF → Docling
-          hwp_activity.py       -- pyhwp(HWP) / XML(HWPX) 텍스트 추출 + LibreOffice → PDF
-          audio_activity.py     -- gemini-3-flash-preview 네이티브 오디오 STT
-          image_activity.py     -- gemini-3-flash-preview 멀티모달 이미지 분석
-          youtube_activity.py   -- yt-dlp + ffmpeg → gemini-3-flash-preview 네이티브 처리
-          web_activity.py       -- trafilatura URL 스크래핑
+          pdf_activity.py       -- pymupdf 스캔감지 → opendataloader-pdf (텍스트) / provider.ocr() (스캔)
+          office_activity.py    -- markitdown (텍스트 추출) + unoserver PDF 변환 (뷰어용)
+          hwp_activity.py       -- unoserver + H2Orestart → PDF → opendataloader-pdf (텍스트)
+          audio_activity.py     -- provider.transcribe() [Gemini: generate()+오디오 / 로컬: faster-whisper]
+          image_activity.py     -- provider.generate(image=) [Gemini Vision / Ollama: llava·moondream]
+          youtube_activity.py   -- Gemini YouTube URL 직접 / fallback: yt-dlp → provider.transcribe()
+          web_activity.py       -- trafilatura (정적 HTML) / crawl4ai (JS 렌더링, 선택적)
           lightrag_activity.py  -- LightRAG 인덱싱 (엔티티/관계 추출 + 벡터 저장)
           note_activity.py      -- create source note via API callback
         lib/
-          Cloudflare R2_client.py       -- download objects from Cloudflare R2
-          gemini_client.py      -- Google GenAI client singleton
+          r2_client.py          -- download objects from Cloudflare R2
           api_client.py         -- internal API callback helpers
 
 docker-compose.yml              -- add: temporal, temporal-ui, Cloudflare R2 services
@@ -107,8 +110,13 @@ TEMPORAL_ADDRESS=localhost:7233
 TEMPORAL_NAMESPACE=default
 TEMPORAL_TASK_QUEUE=ingest
 
-# Gemini
+# LLM Provider (gemini | openai | ollama)
+LLM_PROVIDER=gemini
 GEMINI_API_KEY=your-gemini-api-key-here
+
+# 로컬 STT (faster-whisper) — LLM_PROVIDER=ollama 시 사용
+# tiny | base | small | medium | large-v3 (사용자 선택)
+WHISPER_MODEL=medium
 
 # Internal API secret (worker → API callbacks)
 INTERNAL_API_SECRET=change-me-in-production

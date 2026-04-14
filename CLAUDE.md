@@ -64,6 +64,8 @@ Read these docs when you need context. Don't load them all at once.
 | Dev setup, conventions, troubleshooting | `docs/contributing/dev-guide.md` |
 | Claude 반복 실수, 하지 말 것 목록 | `docs/contributing/llm-antipatterns.md` |
 | Multi-LLM provider 설계 (Gemini/OpenAI/Ollama) | `docs/superpowers/specs/2026-04-13-multi-llm-provider-design.md` |
+| 스토리지/사이징 계산 (벡터 DB, 사용자별 용량) | `docs/architecture/storage-planning.md` |
+| DB 백업/복구/데이터 포터빌리티 전략 | `docs/architecture/backup-strategy.md` |
 
 ### Implementation Plans
 

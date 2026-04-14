@@ -2,11 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a fully-featured rich-text note editor in `apps/web` using Plate v49 with LaTeX, wiki-links, slash commands, and real-time save/load wired to the Hono API.
+**Goal:** Build a fully-featured rich-text note editor in `apps/web` using Plate v49 with LaTeX, wiki-links, slash commands, real-time save/load, and **multi-device 실시간 협업 (Yjs CRDT)** wired to the Hono API.
 
-**Architecture:** The editor lives in `apps/web` as a client component. All persistence goes through the Hono API at `apps/api` — no Server Actions. Plate v49 provides the plugin-based editing foundation; custom plugins handle wiki-links and slash commands. The sidebar (folder tree + note list) is a separate client component that reads from the API and drives navigation.
+**Architecture:** The editor lives in `apps/web` as a client component. All persistence goes through the Hono API at `apps/api` — no Server Actions. Plate v49 provides the plugin-based editing foundation; custom plugins handle wiki-links and slash commands. The sidebar (folder tree + note list) is a separate client component that reads from the API and drives navigation. **Hocuspocus 서버**가 별도 Docker 서비스로 동작하며 Yjs document state를 PostgreSQL에 persist한다 — 동일 사용자의 multi-device 동시 편집 + 추후 multi-user 협업 기반.
 
-**Tech Stack:** Plate v49, shadcn/ui, KaTeX, @platejs/math (MathKit), Tailwind CSS 4, Hono 4, Zod, React 19, Next.js 16
+**Tech Stack:** Plate v49 (Yjs 플러그인 포함), shadcn/ui, KaTeX, @platejs/math (MathKit), **Yjs**, **Hocuspocus** (서버) + **@hocuspocus/provider** (클라이언트), Tailwind CSS 4, Hono 4, Zod, React 19, Next.js 16
+
+> **⚠️ 실시간 협업 추가 (2026-04-14):** Hocuspocus 서비스가 docker-compose에 추가됨. PostgreSQL extension으로 Yjs document state 영속화. 인증은 Better Auth 세션을 Hocuspocus `onAuthenticate` 훅으로 검증. 본 plan 후반에 구현 task 추가 예정.
 
 ---
 
@@ -46,7 +48,17 @@ apps/web/
           [noteId]/
             page.tsx                -- note detail page (server shell)
             loading.tsx             -- Suspense fallback
+  components/
+    source-viewer/
+      SourceViewer.tsx              -- 소스 파일 뷰어 라우터 (파일 타입별 분기)
+      PdfViewer.tsx                 -- @react-pdf-viewer/core (PDF 뷰어, 검색/하이라이트)
+      HtmlViewer.tsx                -- iframe + sandbox 속성 (HTML 파일 안전 렌더링)
 ```
+
+> **Source Viewer 뷰어 라이브러리:**
+> - PDF: `@react-pdf-viewer/core` (툴바, 줌, 페이지 네비, PDF 내 텍스트 검색 내장)
+> - HTML: `<iframe sandbox="allow-scripts allow-same-origin">` (별도 라이브러리 없음)
+> - 모든 업로드 파일(DOCX/PPTX/XLSX/HWP)은 인제스트 시 PDF로 변환되어 R2 저장 → PdfViewer 단일 뷰어로 처리
 
 ---
 

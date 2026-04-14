@@ -5,7 +5,7 @@
 
 ## Overview
 
-OpenCairn은 단일 public 레포(AGPLv3)로 운영된다. Production(hosted service)은 Gemini provider를 사용하고, 셀프호스트 유저는 Ollama(완전 로컬) 또는 OpenAI(BYOK)를 선택할 수 있다. Private으로 관리하는 것은 `.env`와 `docker-compose.prod.yml`뿐이며 코드는 전부 공개된다.
+OpenCairn은 단일 public 레포(AGPLv3)로 운영된다. Production(hosted service)은 OpenCairn이 Gemini 키를 제공하는 구독 모드다. 사용자는 **BYOK(Bring Your Own Key)**로 자신의 Gemini 키 또는 OpenAI 키를 들고 올 수 있다. 완전 로컬 사용자는 Ollama를 선택한다. **BYOK Gemini가 추천 모드** — OpenCairn의 프리미엄 기능(Context Caching, Thinking, Search Grounding, TTS, 멀티모달 embedding)이 전부 보존되기 때문. Private으로 관리하는 것은 `.env`와 `docker-compose.prod.yml`뿐이며 코드는 전부 공개된다.
 
 ## Repo 전략
 
@@ -56,7 +56,21 @@ class LLMProvider(ABC):
 
     # 파일 전사: 멀티모달 모델에 오디오 + "transcribe" 프롬프트
     # Gemini는 별도 STT 모델 없음 — generate()로 처리
+    # Ollama/OpenAI: faster-whisper 로컬 fallback
     async def transcribe(self, audio: bytes) -> str | None:
+        return None
+
+    # 스캔 PDF OCR
+    # Gemini: Files API (한국어/손글씨 우수, ~$0.003/page)
+    # 로컬: tesseract (인쇄체 전용, 무료)
+    async def ocr(self, pdf_bytes: bytes) -> str | None:
+        return None
+
+    # 이미지 분석 (멀티모달 generate 래퍼)
+    # Gemini: Vision 네이티브
+    # Ollama: llava / moondream
+    # OpenAI: gpt-4o-mini vision
+    async def analyze_image(self, image: bytes, prompt: str) -> str | None:
         return None
 ```
 
@@ -73,11 +87,25 @@ def get_provider(config: ProviderConfig) -> LLMProvider:
 
 ## 배포 모드
 
-| 모드 | LLM_PROVIDER | 메인 LLM | Embedding | TTS/STT | 비용 |
-|------|-------------|---------|-----------|---------|------|
-| Production | `gemini` | Gemini 3.1 Pro / 3 Flash | gemini-embedding-2-preview | Gemini 2.5 Flash/Pro TTS, 3.1 Flash Live | Google Cloud 결제 |
-| BYOK | `openai` | gpt-4o 등 | text-embedding-3-small (1536d) | 없음 | API key |
-| 완전 로컬 | `ollama` | llama3, qwen 등 | nomic-embed-text (768d) | 없음 | 무료 |
+**중요 개념:** BYOK(Bring Your Own Key)는 provider 선택이 아니라 **API 키 소유 주체**의 문제다. 사용자는 `gemini` / `openai` / `ollama` 중 **아무 provider나 BYOK 가능**하다. Production(hosted)은 OpenCairn이 Gemini 키를 제공하는 모드고, BYOK는 사용자가 직접 키를 들고 오는 모드.
+
+| 모드 | 키 출처 | LLM_PROVIDER | 메인 LLM | Embedding | TTS/STT | OCR | 이미지 | 비용 |
+|------|--------|-------------|---------|-----------|---------|-----|--------|------|
+| **Hosted (Production)** | OpenCairn 제공 | `gemini` | Gemini 3.1 Pro / 3 Flash | gemini-embedding-2-preview (3072d) | Gemini 네이티브 | Files API | Vision 네이티브 | Stripe 구독 |
+| **BYOK Gemini** (추천) | 사용자 | `gemini` | Gemini 3.1 Pro / 3 Flash | gemini-embedding-2-preview (3072d) | Gemini 네이티브 | Files API | Vision 네이티브 | 사용자가 Google에 직접 결제 |
+| **BYOK OpenAI** | 사용자 | `openai` | gpt-4o 등 | text-embedding-3-small (1536d) | faster-whisper | tesseract | gpt-4o-mini vision | 사용자가 OpenAI에 직접 결제 |
+| **완전 로컬** | 불필요 | `ollama` | llama3, qwen 등 | nomic-embed-text (768d) | faster-whisper | tesseract | llava / moondream | 무료 |
+
+### BYOK Gemini가 추천 이유
+
+OpenCairn의 프리미엄 기능(Context Caching, Thinking Mode, Search Grounding, TTS, 멀티모달 Embedding)은 **Gemini 전용**이다. OpenAI BYOK로 전환하면 이 기능들이 graceful degrade되어 경험이 제한된다. Gemini를 쓰되 키만 본인 것을 쓰는 게 **기능/비용/프라이버시 삼박자 최적**.
+
+### 키 저장 및 관리
+
+- BYOK 키는 **AES-256 암호화**되어 `users.llm_api_key`에 저장
+- 암호화 키는 `ENCRYPTION_KEY` env에서 로드 (서버별 고유)
+- 사용자 설정 페이지에서 키 입력/교체/삭제 가능
+- API 호출 시 런타임에 복호화해서 `get_provider(user_id)`에 주입
 
 ## Gemini 모델 사양
 
@@ -109,7 +137,11 @@ Embedding provider마다 차원이 다르므로 `VECTOR_DIM` env로 결정하고
 VECTOR_DIM=3072
 EMBEDDING_MODEL=gemini-embedding-2-preview
 
-# BYOK (OpenAI)
+# BYOK Gemini (추천) — Production과 동일 차원
+VECTOR_DIM=3072
+EMBEDDING_MODEL=gemini-embedding-2-preview
+
+# BYOK OpenAI
 VECTOR_DIM=1536
 EMBEDDING_MODEL=text-embedding-3-small
 
@@ -126,14 +158,19 @@ embedding: vector("embedding", { dimensions: VECTOR_DIM })
 
 ## Gemini Premium Features — Graceful Degradation
 
-| Feature | Gemini | Ollama / OpenAI |
-|---------|--------|-----------------|
-| Thinking Mode (Compiler, Research agent) | `think()` 사용 — 추론 후 답 | `generate()` fallback |
-| Context Caching (긴 문서) | `cache_context()` — 비용↓ 속도↑ | 매번 full context 전송 |
-| Search Grounding | `ground_search()` — 실시간 웹 결합 | RAG만 |
-| TTS (Narrator agent) | `tts()` — 음성 출력 | 텍스트만 반환 |
-| STT / Live | `transcribe()` — 실시간 전사 | 없음 |
-| Multimodal Embedding | 이미지/오디오/PDF 임베딩 | 텍스트만 |
+| Feature | Gemini | Ollama | OpenAI |
+|---------|--------|--------|--------|
+| Thinking Mode | `think()` — 추론 후 답 | `generate()` fallback | `generate()` fallback |
+| Context Caching | `cache_context()` — 비용↓ 속도↑ | 매번 full context 전송 | 매번 full context 전송 |
+| Search Grounding | `ground_search()` — 실시간 웹 결합 | RAG만 | RAG만 |
+| TTS | `tts()` — 음성 출력 | 텍스트만 반환 | 텍스트만 반환 |
+| STT (오디오 전사) | `transcribe()` — generate()+오디오 | faster-whisper (WHISPER_MODEL env) | faster-whisper (WHISPER_MODEL env) |
+| 영상 시각 이해 | Files API — 오디오+비주얼 동시 | faster-whisper (오디오만, 시각 skip) | faster-whisper (오디오만, 시각 skip) |
+| 스캔 PDF OCR | `ocr()` — Files API (한국어/손글씨) | tesseract (인쇄체만) | tesseract (인쇄체만) |
+| 이미지 분석 | `analyze_image()` — Vision 네이티브 | llava / moondream | gpt-4o-mini vision |
+| YouTube 직접 처리 | YouTube URL 직접 (Preview) | yt-dlp → faster-whisper | yt-dlp → faster-whisper |
+| 복잡 레이아웃 enhance | Gemini Vision으로 재처리 | skip (raw 텍스트 그대로) | skip (raw 텍스트 그대로) |
+| Multimodal Embedding | 이미지/오디오/PDF 임베딩 | 텍스트만 | 텍스트만 |
 
 Agent 코드 패턴:
 
@@ -155,10 +192,11 @@ return {"text": text, "audio": audio}  # audio=None이면 프론트에서 텍스
 // user_preferences (packages/db)
 {
   llm_provider: "gemini" | "openai" | "ollama",
-  llm_model: string,          // e.g. "gemini-3.1-pro-preview"
-  tts_model: string | null,   // e.g. "gemini-2.5-pro-tts-preview"
+  llm_model: string,           // e.g. "gemini-3.1-pro-preview"
+  tts_model: string | null,    // e.g. "gemini-2.5-pro-tts-preview"
   stt_model: string | null,
   embed_model: string,
+  whisper_model: string | null, // "tiny"|"base"|"small"|"medium"|"large-v3" — 로컬 STT 모델 크기
   ollama_base_url: string | null,  // 완전 로컬 시 사용
 }
 ```
