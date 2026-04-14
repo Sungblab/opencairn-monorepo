@@ -33,7 +33,25 @@ packages/shared — Zod schemas.
 
 ## Commits
 
-`feat|fix|chore|docs(web|api|worker|db|shared|infra): message`
+포맷: `<type>(<scope>): <subject>`
+
+- **type**: `feat` | `fix` | `chore` | `docs` | `refactor` | `test` | `perf` | `style`
+- **scope**: `web` | `api` | `worker` | `db` | `shared` | `llm` | `infra` | `docs`
+- **subject**: 명령형 현재시제, 소문자 시작, 마침표 없음
+
+규칙:
+- **1 커밋 = 1 논리적 변경**, 1 파일 수정이 아님
+- 같은 세션의 관련된 변경은 **주제별로 묶어서** 1개 커밋 (13개 파일 → 13 커밋 금지)
+- 각 커밋은 **빌드/테스트 통과**해야 함 (깨진 중간 상태 금지)
+- WIP 작업은 브랜치에서, `main` 직커밋은 의미있는 단위로만
+- 본문에 **"왜"**를 설명 — "무엇"은 diff로 보임
+- 권장 빈도: 10-20 커밋/일 max (주 50-100). 더 많으면 "저장 습관" 의심
+- 커뮤니티 기여 받으면 **PR + Squash merge** 전환
+
+금지:
+- `"update"` `"fix"` `"wip"` 같은 의미 없는 메시지
+- 여러 주제 섞기 (`"feat: add graph + fix auth bug + update docs"`)
+- 파일별 쪼개기 (`"update plan-1"` → `"update plan-2"` → ...)
 
 ## Commands
 
