@@ -22,15 +22,15 @@
   |
   v
 [3] Temporal → Python Worker (parse_source Activity)
-  |  - PDF (디지털): LibreOffice headless → PDF → Docling (텍스트/수식/표)
-  |  - PDF (스캔/수기): Docling 텍스트 부족 감지 → chandra OCR
-  |  - DOCX/PPTX/XLSX: LibreOffice headless → PDF → Docling
-  |  - HWP: pyhwp → 텍스트 추출 + LibreOffice headless → PDF (뷰어용)
-  |  - HWPX: XML 직접 파싱 (텍스트) + LibreOffice headless → PDF (뷰어용)
-  |  - 오디오: LLM provider 멀티모달 처리 (Gemini: gemini-3-flash-preview에 오디오 전달)
-  |  - 영상: yt-dlp(YouTube) or ffmpeg 추출 → LLM provider 멀티모달 처리
-  |  - 이미지/도식: LLM provider 멀티모달 (Gemini: gemini-3-flash-preview)
-  |  - URL: trafilatura (HTML 스크래핑)
+  |  - PDF (디지털): pymupdf로 텍스트 레이어 확인 → opendataloader-pdf (텍스트/수식/표)
+  |  - PDF (스캔/수기): pymupdf 스캔 감지 → provider.ocr() (Gemini Files / tesseract)
+  |  - DOCX/PPTX/XLSX/XLS: markitdown (텍스트) + unoserver (뷰어용 PDF 변환)
+  |  - HWP/HWPX: unoserver + H2Orestart → PDF → opendataloader-pdf 재파싱
+  |  - 오디오: provider.transcribe() (Gemini multimodal or faster-whisper)
+  |  - 영상: ffmpeg → provider.transcribe()
+  |  - 이미지/도식: provider.generate(image=) (Gemini Vision / Ollama llava)
+  |  - YouTube: Gemini YouTube URL 직접 or yt-dlp → provider.transcribe()
+  |  - URL: trafilatura (정적 HTML) / crawl4ai (JS 렌더, 선택적)
   |
   v
 [4] Temporal → Python Worker (enhance_with_gemini_multimodal Activity)
@@ -39,8 +39,9 @@
   |
   v
 [5] Temporal → Python Worker (generate_embeddings Activity)
-  |  - LLM provider embed (Gemini: gemini-embedding-2-preview 3072d, OpenAI: 1536d, Ollama: 768d)
-  |  - 텍스트 청크 → 임베딩 → 데이터베이스에 저장
+  |  - LLM provider embed (Gemini: gemini-embedding-2-preview 3072d, Ollama: 768d)
+  |  - KG 추출용 임베딩 → pgvector (그래프/백링크/Compiler 내부 검색용)
+  |  - Q&A 코퍼스는 위키 페이지 (Compiler 완료 후 CAG/File Search/pgvector로 분기)
   |
   v
 [6] Temporal → Python Worker (create_source_note Activity)
@@ -154,31 +155,34 @@
 
 ---
 
-## 4. Canvas Flow (인터랙티브 캔버스)
+## 4. Canvas Flow (브라우저 인터랙티브 캔버스, ADR-006)
 
 ```
-Research Agent가 차트 생성 결정
+Research/Code Agent가 차트·컴포넌트 생성 결정
   |
   v
-[1] Agent가 React 컴포넌트 코드 생성
+[1] Agent가 코드 문자열 생성 (Python or React/JS/HTML)
+  |  - 서버는 코드를 실행하지 않음
   |
   v
-[2] Python Worker → Sandbox API (POST /execute)
-  |  - React 코드 전달
-  |  - gVisor 컨테이너에서:
-  |    a. Vite로 빌드
-  |    b. 정적 파일 생성
-  |    c. 로컬 서버 실행 (포트 할당)
-  |  - 프리뷰 URL 반환
+[2] Hono → Next.js (SSE chunk or message canvas_data)
+  |  - { type: "canvas", language: "react"|"python"|"html", source: "..." }
   |
   v
-[3] Hono → Next.js (canvas_data in message)
-  |  - { type: "canvas", url: "http://sandbox:PORT/..." }
+[3] Next.js 브라우저
+  |  - Python: Pyodide (WASM) 런타임에 주입 → stdout/그림 수신
+  |  - React/JS/HTML: Blob URL + <iframe sandbox="allow-scripts"> + esm.sh CDN
+  |  - allow-same-origin 절대 부여 안 함 (sandbox 탈출 방지)
   |
   v
-[4] Next.js
-  |  - sandboxed iframe으로 URL 렌더링
-  |  - 사용자 인터랙션 가능 (버튼, 슬라이더 등)
+[4] 사용자 인터랙션 (버튼/슬라이더 등)
+  |  - iframe 내부 이벤트는 부모 origin 접근 불가
+  |  - 양방향 통신은 postMessage + origin 검증
+  |
+  v
+[5] 실행 결과 피드백
+  |  - stdout/에러를 postMessage로 Agent에게 전송
+  |  - Agent가 self-healing 반복 (max 3 iteration)
 ```
 
 ---
@@ -234,13 +238,14 @@ Hono Middleware (checkUsage)
   |  - usage_records에서 월간 사용량 조회
   |  - 현재 plan 확인 (free/pro/byok)
   |
-  ├── Free + 한도 초과 → 402 Payment Required 반환
-  ├── Pro / BYOK → 통과
-  └── BYOK → 복호화된 Gemini API 키로 호출 (복호화)
+  ├── Free + 한도 초과 → 402 Payment Required 반환 (Toss 결제 유도)
+  ├── Pro → 통과, usage_records에 토큰 기록 (요금 계산 포함)
+  └── BYOK → AES-256-GCM으로 저장된 Gemini API 키 복호화 → 호출.
+              usage_records에는 token 수만 기록 (요금 집계 제외)
   |
   v
 액션 실행
   |
   v
-usage_records에 토큰 사용량 기록
+usage_records에 기록 (tokens_used, action, is_byok 플래그)
 ```

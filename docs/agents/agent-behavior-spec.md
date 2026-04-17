@@ -1,6 +1,8 @@
 # Agent Behavior Specification
 
-11개 에이전트의 가드레일, 정지 조건, 충돌 해결 규칙, 피드백루프를 정의한다.
+12개 에이전트 (v0.1)의 가드레일, 정지 조건, 충돌 해결 규칙, 피드백루프를 정의한다.
+
+> **2026-04-14 명단**: Compiler / Librarian / Research / Connector / Socratic / Temporal / Synthesis / Curator / Narrator / Deep Research / Code / Visualization. Hunter는 v0.2로 이관됨.
 
 ---
 
@@ -24,8 +26,10 @@
 
 ### 비용 제어
 - Free 티어: 일간 사용량 초과 시 에이전트 실행 거부 (usage_records 체크)
-- BYOK 티어: 자기 비용으로 실행, 제한 없음
+- Pro 티어: 토큰 단가 기반 월 사용량 과금 (usage_records)
+- BYOK 티어: 자기 비용으로 실행, OpenCairn에서 요금 집계 제외 (`is_byok=true` 플래그)
 - Context Caching: 같은 프로젝트 위키에 대한 반복 호출 시 캐시 활용
+- **에이전트별 cost ceiling**: 개별 에이전트 섹션에 "cost ceiling" 필드가 있다면 단일 호출에서 해당 비용을 초과할 것으로 예상되면 실행 거부 (Pre-flight check는 토큰 견적 + provider 단가 기반 추정)
 
 ### 에러 처리
 - Gemini API 429 (rate limit): 지수 백오프 (1s → 2s → 4s → 8s)
@@ -46,12 +50,14 @@
 가드레일:
 - 한 번에 최대 20개의 위키 페이지 생성/수정
 - 기존 위키 페이지 삭제 금지 (수정만 가능)
-- 사용자가 직접 생성한 엔트(is_auto=false)에 대의 수정 금지 (반드시 제안/검토 PR 방식으로만 업데이트)
+- 사용자가 직접 생성한 엔트(is_auto=false) 수정 금지 (반드시 제안/검토 PR 방식으로만 업데이트)
 
 정지 조건:
 - 추출된 개념이 0개면 즉시 종료 (빈 문서)
 - 모든 개념이 기존 위키에 이미 존재하고 보완할 내용 없으면 종료
 - 5분 타임아웃
+
+Cost ceiling: 호출당 최대 500K 토큰(Flash-Lite 기준 약 $0.05). 초과 견적 시 청크 분할 또는 실행 거부.
 
 피드백루프:
 - 위키 생성 후 Librarian에게 건강 체크 트리거 (비동기)
@@ -74,6 +80,8 @@
 - 발견된 이슈가 0개면 즉시 종료
 - 10분 타임아웃
 
+Cost ceiling: 호출당 최대 1M 토큰 (대규모 프로젝트 스캔 포함, Flash-Lite 약 $0.10). 정기 스케줄은 일간 호출 1회 한도.
+
 충돌 방지:
 - Compiler가 실행 중이면 대기 (세마포어)
 - Synthesis가 만든 페이지는 24시간 보호 기간 (즉시 삭제 방지)
@@ -95,8 +103,10 @@
 - 관련 위키 페이지가 0개면 "관련 자료가 없습니다" 반환
 - 3분 타임아웃 (입력 토큰은 3분 이내)
 
+Cost ceiling: 호출당 최대 200K 토큰 (Context Caching 미스 가정, Flash-Lite 약 $0.02). 반복 질문은 캐시 히트로 90% 절감.
+
 피드백루프:
-- 빈 사이트 발견 시 → wiki_feedback job 생성 (Compiler가 처리)
+- 빈 위키 페이지 발견 시 → wiki_feedback job 생성 (Compiler가 처리)
 - 사용자 피드백 (thumbs up/down) → understanding_scores 업데이트
 ```
 
@@ -116,6 +126,11 @@
 - 프로젝트가 1개 이하면 즉시 종료
 - 유효한 제안이 0개면 즉시 종료
 - 5분 타임아웃
+
+Cost ceiling: 호출당 최대 300K 토큰. 전체 프로젝트 cross-compare 시 임베딩 단계 비용이 지배적 (embedding 호출만 집계).
+
+충돌 방지:
+- 동시성 세마포어 불필요 (읽기 전용, 제안만 저장)
 ```
 
 ### 2.5 Socratic Agent
@@ -133,6 +148,8 @@
 정지 조건:
 - 소스 위키가 비어있으면 즉시 종료
 - 2분 타임아웃
+
+Cost ceiling: 호출당 최대 150K 토큰 (Flash-Lite 약 $0.015). 문제 30개 생성 기준으로 충분.
 
 피드백루프:
 - 문제 풀이 후 understanding_scores 업데이트
@@ -153,6 +170,8 @@
 정지 조건:
 - wiki_logs가 비어있으면 즉시 종료
 - 3분 타임아웃
+
+Cost ceiling: 호출당 최대 100K 토큰 (변화 요약 + 복습 알림 생성, Flash-Lite 약 $0.01).
 ```
 
 ### 2.7 Synthesis Agent
@@ -170,6 +189,8 @@
 정지 조건:
 - 개념이 10개 미만이면 즉시 종료 (의미 있는 연결 불가)
 - 5분 타임아웃
+
+Cost ceiling: 호출당 최대 500K 토큰 (Pro 모델 사용, 약 $0.25). 주간 스케줄 고려 시 월간 상한 $2 내외.
 ```
 
 ### 2.8 Curator Agent
@@ -187,6 +208,8 @@
 정지 조건:
 - 검색 결과가 0개면 즉시 종료
 - 3분 타임아웃
+
+Cost ceiling: 호출당 최대 100K 토큰 + Google Search Grounding 요금 (건당 약 $0.035 per query block).
 ```
 
 ### 2.9 Narrator Agent
@@ -233,19 +256,53 @@
 
 **트리거**: 사용자 요청 / Research Agent가 코드 실행 필요 시
 **입력**: 코드 또는 코드 생성 요청 + 컨텍스트
-**출력**: 실행 결과 (stdout, files) + 분석
+**출력**: 코드 문자열 (language 메타데이터 포함) + (선택) 분석 노트
+
+> **중요 (ADR-006)**: Code Agent는 **코드 문자열을 생성**만 한다. 실제 실행은 전부 **사용자 브라우저**에서 진행 (Python은 Pyodide WASM, JS/HTML/React는 `<iframe sandbox="allow-scripts">` + esm.sh). 서버는 코드를 한 줄도 실행하지 않는다.
 
 ```
 가드레일:
-- Sandbox(gVisor)에서만 실행 — 호스트 시스템 접근 불가
-- 실행 시간 제한: 30분
-- 메모리 제한: 256MB
-- 네트워크: API 서버하고만 통신 (외부 차단)
-- 파일 시스템: 임시 디렉토리만 사용, 실행 후 삭제
+- 코드 실행 책임은 클라이언트 — Agent는 LLM 호출만 관장
+- 언어별 출력 가이드:
+  * Python: print()로 stdout. input()/blocking stdin 금지 (Pyodide setStdin 패턴은 배열 pre-injection만 지원)
+  * React/JS/HTML: 외부 라이브러리는 esm.sh 경유 import만 허용 (import React from "https://esm.sh/react@19")
+  * iframe sandbox 속성 "allow-scripts"만 상정, "allow-same-origin" 절대 부여 금지
+- 자체 self-healing 반복 max 3회 (brokePython 오류 → 재생성)
+- 코드 생성 소스 크기 제한: 64KB
 
 정지 조건:
-- 코드 실행 실패 3회 연속 시 종료
-- 30분 타임아웃
+- 3회 self-healing 실패 시 마지막 결과 반환
+- Agent LangGraph 실행 타임아웃: 2분 (클라이언트 실행 대기 별도)
+- 사용자가 cancel 요청 시 즉시 중단
+
+Cost ceiling: 호출당 최대 200K 토큰 (생성 + self-healing 3회 포함, Flash-Lite 약 $0.02).
+
+피드백루프:
+- 브라우저에서 실행 후 stdout/stderr를 postMessage로 Agent에게 전달 → 다음 iteration에 주입
+```
+
+### 2.12 Visualization Agent
+
+**트리거**: 사용자가 지식 그래프 뷰 전환 / 필터 변경 시 / Librarian이 레이아웃 최적화를 요청할 때
+**입력**: project_id, view_type (graph|mindmap|cards|canvas|timeline), filter options
+**출력**: Cytoscape.js JSON 스펙 (노드/엣지/스타일/레이아웃 파라미터) + 뷰 메타데이터
+
+```
+가드레일:
+- 읽기 전용 — concepts/concept_edges/wiki_logs 수정 불가
+- 한 번에 최대 500개 노드 (초과 시 점진적 로드 또는 사용자 경고)
+- Canvas 뷰의 사용자 저장 좌표는 `concept_positions` 테이블에 upsert만 허용, 개념 자체는 수정 금지
+- 5뷰 중 하나만 처리 (view_type 검증)
+
+정지 조건:
+- concepts가 0개면 빈 스펙 반환
+- 30초 타임아웃 (복잡한 레이아웃도 클라이언트에서 증분 렌더)
+
+Cost ceiling: 호출당 최대 50K 토큰 (Gemini Flash-Lite 구조화 출력, 약 $0.005). 대부분의 레이아웃 계산은 클라이언트 Cytoscape가 담당하고, Agent는 파라미터 추천만.
+
+피드백루프:
+- 사용자가 레이아웃 수동 조정 후 "저장"하면 concept_positions 업데이트 (Visualization Agent 아닌 일반 API 경로)
+- Librarian이 고아 페이지/그래프 복잡도 감지 시 Visualization Agent에게 재레이아웃 트리거 가능
 ```
 
 ---
@@ -254,17 +311,20 @@
 
 어떤 에이전트가 어떤 에이전트를 트리거할 수 있는지:
 
-| 트리거하는 에이전트 | Compiler | Librarian | Research | Connector | Socratic | Temporal | Synthesis | Curator | Narrator | Deep Research | Code |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| **Compiler** | - | O (완료 후) | X | X | X | X | X | X | X | X | X |
-| **Librarian** | X | - | X | X | X | X | X | O (빈곳 감지) | X | X | X |
-| **Research** | O (피류) | X | - | X | X | X | X | X | X | X | O (코드 필요 시) |
-| **Connector** | X | X | X | - | X | X | X | X | X | X | X |
-| **Socratic** | X | X | X | X | - | X | X | X | X | X | X |
-| **Temporal** | X | X | X | X | X | - | X | X | X | X | X |
-| **Synthesis** | X | X | X | X | X | X | - | X | X | X | X |
-| **Curator** | O (프로젝트) | X | X | X | X | X | X | - | X | X | X |
-| **Deep Research** | O (결과 통합) | X | X | X | X | X | X | X | X | - | X |
+| 트리거하는 에이전트 | Compiler | Librarian | Research | Connector | Socratic | Temporal | Synthesis | Curator | Narrator | Deep Research | Code | Visualization |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| **Compiler** | - | O (완료 후) | X | X | X | X | X | X | X | X | X | O (KG 갱신 반영) |
+| **Librarian** | X | - | X | X | X | X | X | O (빈곳 감지) | X | X | X | O (복잡도 감지 시) |
+| **Research** | O (피드백) | X | - | X | X | X | X | X | X | X | O (코드 필요 시) | X |
+| **Connector** | X | X | X | - | X | X | X | X | X | X | X | X |
+| **Socratic** | X | X | X | X | - | X | X | X | X | X | X | X |
+| **Temporal** | X | X | X | X | X | - | X | X | X | X | X | X |
+| **Synthesis** | X | X | X | X | X | X | - | X | X | X | X | X |
+| **Curator** | O (프로젝트) | X | X | X | X | X | X | - | X | X | X | X |
+| **Narrator** | X | X | X | X | X | X | X | X | - | X | X | X |
+| **Deep Research** | O (결과 통합) | X | X | X | X | X | X | X | X | - | X | X |
+| **Code** | X | X | X | X | X | X | X | X | X | X | - | X |
+| **Visualization** | X | X | X | X | X | X | X | X | X | X | X | - |
 
 O = 트리거 가능, X = 트리거 불가
 

@@ -52,8 +52,8 @@ Hono (Backend API, TypeScript)
   |--- PostgreSQL + pgvector (DB)
   |--- Temporal (Durable Workflow Orchestration)
   |--- Redis (Cache + Session)
-  |--- Cloudflare R2 (File Storage, S3 compatible)
-  |--- Stripe (Billing)
+  |--- Cloudflare R2 / MinIO (File Storage, S3 compatible)
+  |--- Toss Payments (Billing, Korea)
   |
   v (Temporal Activities)
 Python Worker (AI Processing)
@@ -65,16 +65,20 @@ Python Worker (AI Processing)
   |      |--- Context Caching
   |      |--- Thinking Mode
   |--- LangGraph + Pydantic AI
-  |--- Docling (PDF/DOCX/PPTX/XLSX 파싱)
-  |--- chandra (스캔/수기 OCR)
-  |--- pyhwp + LibreOffice headless (HWP/HWPX + PDF 변환)
+  |--- opendataloader-pdf (PDF 텍스트, Java 11+)
+  |--- pymupdf (스캔 PDF 감지)
+  |--- markitdown (Office: DOCX/PPTX/XLSX)
+  |--- unoserver + H2Orestart (문서→PDF 뷰어 변환, HWP/HWPX 지원)
+  |--- faster-whisper (로컬 STT fallback)
   |--- LightRAG (RAG + Knowledge Graph 자동 구축)
   |--- LLM provider 멀티모달 (Gemini: gemini-3-flash-preview)
   |
   v (S3 API)
-Cloudflare R2
+Cloudflare R2 / MinIO
 
-Sandbox (gVisor runtime, isolated code execution + interactive canvas)
+Browser (Code Execution)
+  |--- Pyodide (WASM Python)
+  |--- <iframe sandbox="allow-scripts"> + esm.sh (JS/HTML/React)
 ```
 
 ### Core Principles
@@ -84,7 +88,7 @@ Sandbox (gVisor runtime, isolated code execution + interactive canvas)
 - **무거운 AI 처리는 전부 Python Worker** -- 에이전트, 위키 생성, 이벤트 실행
 - **Temporal로 에이전트 워크플로우 오케스트레이션** -- 영구적 실행, 자동 복구, 타임아웃, 동시성 제어. 11개 에이전트 간 충돌 방지
 - **Gemini 네이티브 기능 최대한 활용** -- TTS, Deep Research, 검색 그라운딩, 캐싱을 직접 구축하지 않음
-- **gVisor 샌드박스** -- AI 생성 코드 실행 시 커널 수준 격리, 컨테이너 탈출 방지
+- **브라우저 샌드박스** -- AI 생성 코드는 Pyodide (WASM) / `<iframe sandbox>`로 클라이언트에서 실행. 서버는 코드를 한 줄도 실행하지 않는다. 근거는 [ADR-006](../../architecture/adr/006-pyodide-iframe-sandbox.md)
 - **환경변수만 바꾸면 셀프호스팅 <-> 클라우드 전환**
 
 ### URL 구조
@@ -115,7 +119,7 @@ opencairn.com/app/project/x  -> 프로젝트 (CSR)
 | Tailwind CSS | 4.x | 스타일링 (CSS-first config) |
 | TanStack Query | latest | API 상태 관리 |
 | next-intl | latest | 다국어 (en default, ko secondary) |
-| Cytoscape.js + react-cytoscapejs | latest | 지식 그래프 멀티뷰 (Graph/Mindmap), cose-bilkent/dagre/fcose 레이아웃 |
+| Cytoscape.js + react-cytoscapejs | latest | 지식 그래프 5뷰 (Graph/Mindmap/Cards/Canvas/Timeline), cose-bilkent/dagre/fcose 레이아웃 |
 | Excalidraw 또는 react-zoom-pan-pinch | latest | Canvas 뷰 (무한 캔버스, 자유 배치) |
 | KaTeX | latest | LaTeX 렌더링 |
 | Mermaid | latest | 다이어그램 렌더링 |
@@ -130,7 +134,7 @@ opencairn.com/app/project/x  -> 프로젝트 (CSR)
 | Hono | 4.x | HTTP API 서버 |
 | Drizzle ORM | 0.45.x | DB 접근 (PostgreSQL) |
 | Better Auth | latest | 인증/세션 (OAuth, Magic Link, Passkeys) |
-| Stripe | latest | 빌링 (Free/Pro/BYOK) |
+| Toss Payments | latest | 빌링 (Free/Pro/BYOK, 한국 시장) |
 | Resend (+SMTP fallback) | latest | 이메일 (가입 인증, 알림) |
 | Hocuspocus Server | latest | Yjs 협업 서버 (PostgreSQL 영속화, Better Auth 인증 연동) |
 | Sentry (optional) | latest | 에러/로깅 (셀프호스트는 GlitchTip 대안) |
@@ -146,7 +150,7 @@ opencairn.com/app/project/x  -> 프로젝트 (CSR)
 | temporalio | Temporal Worker (워크플로우 + 액티비티 실행) |
 | LangGraph | 에이전트 내부 상태 머신 (각 에이전트의 스텝 로직) |
 | Pydantic AI | 구조화된 출력 추출, 타입 안전성 |
-| packages/llm (custom adapter) | Gemini/OpenAI/Ollama 추상화 (get_provider 팩토리), transcribe()/ocr()/analyze_image()/think()/tts() graceful degradation |
+| packages/llm (custom adapter) | Gemini/Ollama 추상화 (get_provider 팩토리), transcribe()/ocr()/analyze_image()/think()/tts() graceful degradation. OpenAI는 2026-04-15 결정으로 제거됨 (multi-llm-provider-design 참조) |
 | google-genai | Gemini API SDK (production provider) |
 | opendataloader-pdf | PDF 텍스트 추출 (Java 11+, 벤치마크 0.907, fast mode 0.015s/page) |
 | pymupdf | PDF 스캔 감지 (텍스트 레이어 유무 확인, 무료 즉각) |
@@ -169,12 +173,14 @@ opencairn.com/app/project/x  -> 프로젝트 (CSR)
 |------|-----------|--------|
 | **Brain (추론 코어)** | `Gemini 3.1 Pro` | 고도의 지능이 요구되는 **Synthesis(통합)** 및 복합 추론 |
 | **Worker (가성비/캐시)** | `Gemini 3.1 Flash-Lite` | 1M+ 토큰 캐싱을 활용하는 **Research(Q&A)**, **Compiler**, **Socratic(학습)** |
-| **Hunter (효율 수집)** | `Computer Use 모델` | 화면을 '보고' 클릭/검색하여 전문적인 자료를 효율 다운로드 (Manus 형태) |
+| **Visualization (5뷰)** | `Gemini 3.1 Flash-Lite` | 지식 그래프를 5뷰(Graph/Mindmap/Cards/Canvas/Timeline)로 배치·레이아웃하는 구조화 출력 에이전트 |
 | **Deep Research** | `Gemini Deep Research` | 심층적 조사를 자율적으로 계획/실행하는 전담 에이전트 |
 | **Narrator (팟캐스트)** | `Gemini 2.5 Pro TTS` | 위키 텍스트를 고품질 멀티 화자 음성 오디오북/팟캐스트로 생성 |
-| **Voice Q&A (실시간)** | `Gemini 3.1 Flash Live` | 지연 시간에 민감한 A2A 라이브 음성 채팅 및 인터 워크플로우에 최적 |
+| **Voice Q&A (실시간, v0.2)** | `Gemini 3.1 Flash Live` | 지연 시간에 민감한 A2A 라이브 음성 채팅. v0.1 범위 밖 |
 | **RAG / 멀티 임베딩** | `Gemini Embedding 2` | 텍스트, 이미지, 비디오, 오디오를 하나의 임베딩 공간에 매핑하는 하이브리드 RAG |
 | **Canvas (생성형 시각화)** | `Nano Banana Pro` | 위키 내용 기반의 고해상도 인포그래픽, 4K 시각적 레이아웃 생성 |
+
+> **Hunter 에이전트**: 초기 설계 시 Computer-Use 모델 기반 자료 수집 에이전트를 검토했으나, v0.1에서는 **Curator Agent (Google Search Grounding)** 로 대체하고 Hunter는 v0.2로 이관한다. Curator가 지식 갭 감지 + Gemini Search Grounding + 추천 생성을 전담하며, 대화형 스크래핑은 불필요하다고 판단.
 
 ### Infrastructure
 
@@ -238,8 +244,8 @@ users
   name            TEXT
   password_hash   TEXT
   plan            ENUM (free, pro, byok)
-  llm_provider    ENUM (gemini, openai, ollama) DEFAULT 'gemini'
-  llm_api_key     TEXT NULLABLE (AES-256 encrypted, BYOK 모드에서 사용 — Gemini/OpenAI 둘 다 동일 컬럼)
+  llm_provider    ENUM (gemini, ollama) DEFAULT 'gemini'   -- openai는 2026-04-15 제거
+  llm_api_key     TEXT NULLABLE (AES-256-GCM encrypted, BYOK Gemini 모드에서 사용)
   ollama_base_url TEXT NULLABLE (완전 로컬 모드에서만)
   whisper_model   TEXT NULLABLE (tiny|base|small|medium|large-v3, 로컬 STT 모델 선택)
   created_at      TIMESTAMP
@@ -405,7 +411,11 @@ messages
 
 ## 6. Agent System
 
-11개 에이전트. Temporal이 에이전트 간 워크플로우 오케스트레이션을 담당하고, 각 에이전트 내부 로직은 LangGraph로 구현.
+12개 에이전트 (v0.1 전체). Temporal이 에이전트 간 워크플로우 오케스트레이션을 담당하고, 각 에이전트 내부 로직은 LangGraph로 구현.
+
+> **2026-04-14 명단 확정**: Compiler / Librarian / Research / Connector / Socratic / Temporal / Synthesis / Curator / Narrator / Deep Research / Code / Visualization = 12개.
+> **Visualization Agent**가 5뷰 피봇과 함께 v0.1에 추가되었고 (이전 설계의 "11개"에서 +1), 초기 설계의 **Hunter Agent**는 v0.2로 이관 (Curator의 Search Grounding이 v0.1 기능을 커버).
+> 다른 문서에서 "11개 에이전트"라고 기술된 부분은 순차적으로 업데이트되고 있음 (CLAUDE.md, prd, agent-behavior-spec 등).
 
 ### 워크플로우 아키텍처
 
@@ -595,12 +605,36 @@ Flow:
 Trigger: 사용자 요청 / Research Agent가 코드 실행 필요 시
 Flow:
   1. 위키의 기술 지식을 컨텍스트로 사용
-  2. 코드 생성 (Python, JS, R 등)
-  3. Sandbox에서 실행
-  4. 결과 분석 + 시각화
-  5. 코딩 과제 출제 + 채점 (학습용 모드)
-  6. 데이터 분석 + 차트 생성 (연구용 모드)
-  7. 결과물을 위키에 저장 가능
+  2. 코드 생성 (Python or React/JS/HTML) — 서버는 문자열만 반환
+  3. 브라우저가 실행:
+     - Python: Pyodide (WASM) — numpy/pandas/matplotlib 등
+     - React/JS/HTML: <iframe sandbox="allow-scripts"> + esm.sh
+  4. stdout/에러를 postMessage로 Agent에게 피드백
+  5. 필요 시 self-healing 반복 (max 3 iteration)
+  6. 결과 분석 + 시각화 (차트/표)
+  7. 코딩 과제 출제 + 채점 (학습용 모드)
+  8. 결과물을 위키에 저장 가능
+```
+
+(ADR-006의 브라우저 샌드박스 정책 적용)
+
+### 6.12 Visualization Agent
+
+지식 그래프를 5뷰(Graph/Mindmap/Cards/Canvas/Timeline)로 배치/레이아웃.
+
+```
+Trigger: 사용자가 뷰 전환 / 필터 변경 시
+Flow:
+  1. concepts + concept_edges 로드 (프로젝트 또는 전체)
+  2. 선택된 뷰에 맞게 레이아웃 계산:
+     - Graph: cose-bilkent force-directed
+     - Mindmap: dagre 계층형
+     - Cards: grid + 메타데이터 sorting
+     - Canvas: 사용자 저장된 좌표 or 자동 초기 배치
+     - Timeline: wiki_logs 기준 시간축 투영
+  3. Gemini Flash-Lite로 뷰별 최적 파라미터 추천 (구조화 출력)
+  4. Cytoscape.js JSON 스펙 반환 → 프론트 렌더링
+Scope: 읽기 전용, 위키 수정 없음
 ```
 
 ### Agent Categorization
@@ -609,45 +643,56 @@ Flow:
 - Librarian, Temporal, Synthesis, Curator
 
 **반응형 (사용자 요청에 응답):**
-- Compiler (자료 프로세싱), Research, Socratic, Connector, Narrator, Deep Research, Code
+- Compiler (자료 프로세싱), Research, Socratic, Connector, Narrator, Deep Research, Code, Visualization
 
 ---
 
 ## 7. Ingest Pipeline
 
-### Hybrid Approach: opendataloader + Gemini Multimodal
+### Hybrid Approach: 로컬 파싱 + Gemini Multimodal
 
-구조적 파싱은 로컬, 시각적 이해는 AI.
+구조적 파싱은 로컬, 시각적 이해는 AI. 2026-04-14 피봇으로 파싱 스택 전환 완료.
 
 ```
 파일 업로드 (Hono API)
-  -> Cloudflare R2에 원본 저장
-  -> Redis Streams에 ingest job 발행
-  -> Python Worker가 대기
-    -> [1] opendataloader-pdf로 구조적 파싱
-           (텍스트, 수식 -> 표, 코드 -> LaTeX)
-    -> [2] 복잡한 페이지 (다이어그램, 차트, 이미지 포함)는
-           Gemini Files API로 시각적 분석
-    -> [3] 청크된 source 노드 텍스트 생성
-    -> Compiler Agent 트리거 -> 위키 컴파일
+  -> Cloudflare R2/MinIO에 원본 저장
+  -> Temporal IngestWorkflow 시작 (Redis Streams 아님 — ADR-002 참조)
+  -> Python Worker가 Activity 실행
+    -> [1] 포맷별 파싱
+         * PDF: pymupdf로 스캔 감지 → opendataloader-pdf (디지털) or provider.ocr() (스캔)
+         * Office(DOCX/PPTX/XLSX/XLS): markitdown으로 텍스트, unoserver로 뷰어용 PDF
+         * HWP/HWPX: unoserver + H2Orestart → PDF → opendataloader-pdf
+         * 오디오/영상: provider.transcribe() (Gemini multimodal or faster-whisper)
+         * 이미지: provider.generate(image=) (Gemini Vision / Ollama llava)
+         * YouTube: Gemini YouTube URL 직접 or yt-dlp fallback
+         * 웹 URL: trafilatura (정적) / crawl4ai (JS 렌더링, 선택적)
+    -> [2] 복잡한 레이아웃 감지 시 Gemini 멀티모달 enhance
+    -> [3] notes 테이블에 source 노트 생성, pgvector 임베딩 저장
+    -> [4] Compiler Agent 트리거 -> 위키 컴파일
 ```
 
 ### Supported Sources (v0.1)
 
 | 소스 | 1차 파서 | 2차 보강 (Gemini) |
 |------|---------|-------------------|
-| PDF | opendataloader-pdf | 다이어그램 차트 이해 |
-| 오디오 | faster-whisper (STT) | - |
-| 영상 | ffmpeg + faster-whisper | 간단히 |
-| 이미지 | - | Gemini Vision (설명 + OCR) |
-| YouTube | yt-dlp + faster-whisper | - |
-| 웹 URL | trafilatura / readability | - |
+| PDF (디지털) | opendataloader-pdf | 다이어그램/차트 복잡 페이지 |
+| PDF (스캔) | pymupdf 감지 → provider.ocr() | — |
+| DOCX/PPTX/XLSX/XLS | markitdown (텍스트) + unoserver (뷰어 PDF) | — |
+| HWP/HWPX | unoserver + H2Orestart → PDF | opendataloader-pdf 재파싱 |
+| 오디오 | provider.transcribe() (Gemini / faster-whisper) | — |
+| 영상 | ffmpeg → provider.transcribe() | — |
+| 이미지 | provider.generate(image=) (Gemini Vision / llava) | — |
+| YouTube | Gemini YouTube URL or yt-dlp + provider.transcribe() | — |
+| 웹 URL | trafilatura (정적 HTML) | — |
+| 웹 URL (JS 렌더) | crawl4ai (선택적, Playwright 기반) | — |
 
 ### Requirements
 
-- Java 11+ (opendataloader-pdf 의존)
+- Java 11+ (opendataloader-pdf — Dockerfile은 LTS 호환성을 위해 openjdk-21 사용)
 - ffmpeg (영상/오디오 처리)
-- GPU 선택사항 (faster-whisper, 없으면 CPU로 동작)
+- LibreOffice (unoserver 런타임)
+- H2Orestart 확장 (unoserver 컨테이너에 설치 — HWP/HWPX 지원)
+- GPU 선택사항 (faster-whisper large-v3에서 유리, 없으면 CPU로 medium까지)
 
 ---
 
@@ -676,13 +721,24 @@ WITH RECURSIVE graph AS (
 SELECT DISTINCT * FROM graph;
 ```
 
-### Visualization
+### Visualization — 5뷰 체계 (2026-04-14)
 
-- 프론트엔드에서 D3.js force-directed graph로 렌더링
-- 노드 클릭 -> 해당 위키 페이지 열기
-- 엣지 추가/삭제 -> Hono API -> DB 업데이트
-- 필터: 관계 유형별, 프로젝트별, 검색 범위 지정
-- 줌 패닝, 노드 드래그
+Cytoscape.js + react-cytoscapejs 기반. 단일 데이터(concepts + concept_edges)를 5개 관점으로 재구성한다. 구현은 Plan 5 참조.
+
+| 뷰 | 레이아웃 | 용도 |
+|----|---------|------|
+| **Graph** | cose-bilkent (force-directed) | 전체 개념 네트워크 탐색, 클러스터 시각화 |
+| **Mindmap** | dagre 계층형 | 중심 개념 기준 방사형 확장, 하위 개념 정리 |
+| **Cards** | grid 배치 + 메타데이터 | 개념을 카드로 훑기, 검색·필터 1순위 |
+| **Canvas** | 사용자 자유 배치 (Excalidraw 류) | 학습 세션용 워크스페이스, 드래그 앤 드롭 |
+| **Timeline** | wiki_logs 기반 시간축 | 지식이 어떻게 진화했는지 추적, 복습 시점 |
+
+공통 인터랙션:
+- 노드 클릭 → 해당 위키 페이지 열기
+- 엣지 추가/삭제 → Hono API → DB 업데이트
+- 필터: 관계 유형별, 프로젝트별, 검색 범위
+- 줌/팬/노드 드래그
+- Visualization Agent가 뷰 전환 시 최적 레이아웃을 추천 (Gemini Flash-Lite 구조화 출력)
 
 ---
 
@@ -714,43 +770,60 @@ SELECT DISTINCT * FROM graph;
 
 ---
 
-## 10. Canvas & Sandbox
+## 10. Canvas & Sandbox (브라우저 실행, 2026-04-14)
 
 ### Canvas (Interactive Artifacts)
 
-Claude Artifacts / Gemini Canvas 스타일. 정적 HTML이 아님. **인터랙티브 React/HTML 실행**.
+Claude Artifacts / Gemini Canvas 스타일. 정적 HTML이 아님. **인터랙티브 React/HTML을 브라우저 내부에서 실행**. 서버는 코드 문자열만 생성하고 실행은 전부 클라이언트가 담당한다. ADR 근거는 [ADR-006](../../architecture/adr/006-pyodide-iframe-sandbox.md).
 
 ```
-에이전트가 React/HTML 코드 생성
-    -> Sandbox 컨테이너가 빌드 + 로컬 서버 실행
-    -> 프론트엔드에서 sandboxed iframe으로 렌더링
-    -> 사용자가 버튼, 슬라이더, 입력 등 인터랙션 가능
+Code Agent (Python worker)
+    -> LLM이 코드 문자열 생성 (Python or React/JS/HTML)
+    -> API가 코드 + 언어 메타데이터를 프론트에 SSE 스트리밍
+    -> 프론트 (Next.js)
+        * Python: Pyodide (WASM) 런타임에 주입
+        * React/JS/HTML: Blob URL + <iframe sandbox="allow-scripts"> + esm.sh
+    -> stdout, 오류, 상태 변화를 postMessage로 Agent에게 피드백
+    -> Agent가 필요 시 self-healing 반복 (max N=3 iteration)
 ```
 
 | 유형 | 구현 |
 |------|------|
-| Mermaid 다이어그램 | 프론트 네이티브 렌더링 |
+| Mermaid 다이어그램 | 프론트 네이티브 렌더링 (별도 샌드박스 불필요) |
 | LaTeX 수식 | KaTeX 프론트 네이티브 렌더링 |
-| 인터랙티브 차트 | Sandbox -> React 컴포넌트 -> iframe |
-| 슬라이드 | Sandbox -> React 프레젠테이션 -> iframe |
-| 실시간 위젯 | Sandbox -> React -> iframe |
-| 데이터 분석 | Sandbox -> matplotlib/plotly -> 이미지 또는 인터랙티브 |
-| 코드 실행 결과 | Sandbox -> stdout + 파일 |
-| 인포그래픽 | Sandbox -> React -> iframe |
-| 마인드맵 | Sandbox -> React + D3 -> iframe |
+| 인터랙티브 차트 | React 컴포넌트 문자열 → iframe (esm.sh CDN) |
+| 슬라이드 | React 프레젠테이션 컴포넌트 → iframe |
+| 실시간 위젯 | React → iframe |
+| 데이터 분석 | Pyodide + matplotlib/plotly (결과 PNG/Interactive Plotly JSON) |
+| 코드 실행 결과 | Pyodide stdout/stderr + 생성된 파일 (BrowserFS in-memory) |
+| 인포그래픽 | React → iframe |
+| 마인드맵 / Cards / Timeline / Canvas | Cytoscape 5뷰 (Plan 5) — 별도 컴포넌트 |
 
-### Sandbox
+### Sandbox 기술 세부
 
-gVisor(runsc) 런타임 기반 컨테이너에서 코드 실행. 커널 수준 격리로 AI 생성 코드의 컨테이너 탈출 방지.
+**Python (Pyodide)**
+- numpy/pandas/matplotlib/scipy/sympy 기본 포함 (~10MB 최초 다운로드, 이후 브라우저 캐시)
+- `micropip.install()`로 추가 패키지 (pure-Python 또는 Pyodide 빌드된 wheel만)
+- `pyodide.setStdin()`에 pre-injected 배열로 코테(BOJ/Codeforces) 패턴 지원
+- **지원 안 됨**: 블로킹 `input()` 대화형 REPL, 네이티브 C 확장(torch 등)
+- 실행 한도: Agent가 설정한 EXECUTION_TIMEOUT_MS (기본 10s), 무한루프는 Web Worker terminate
 
-- **gVisor 런타임** -- 시스템 콜을 게스트 커널이 처리하기 전에 인터셉트 (커널 공유 리스크 제거)
-- Python, JavaScript/TypeScript, R 지원
-- React 컴포넌트 빌드 + 서빙 (인터랙티브 캔버스용)
-- 네트워크: API 서버와만 통신 가능 (외부 차단)
-- 시간 제한 (30초 기본, 캔버스 서빙은 세션 동안 유지)
-- 메모리 제한 (256MB 기본)
-- 결과: stdout + 생성된 파일 (이미지 등) + 서빙 URL (iframe용)
-- **SaaS 버전**: 추후 E2B/Firecracker MicroVM으로 업그레이드 가능
+**JS/HTML/React (iframe)**
+- `<iframe sandbox="allow-scripts">` — `allow-same-origin` 동시 부여 절대 금지 (MDN 경고)
+- Blob URL로 HTML 주입 (esm.sh CDN으로 React/라이브러리 동적 import)
+- 부모 페이지 쿠키/localStorage/origin 접근 차단
+- 양방향 통신은 `postMessage` + origin 검증
+- 빌드 서버 불필요 (esm.sh가 런타임 번들링)
+
+**보안 경계**
+- 위협 모델: "본인 에이전트가 본인 브라우저에서 본인 코드 실행" — multi-tenant 탈출 방어 불필요
+- 브라우저 SOP + iframe sandbox 속성 + CSP 전역 정책으로 충분
+- 상세: [security-model.md](../../architecture/security-model.md)
+
+**서버 역할**
+- Code Agent (Python worker): 코드 생성만, 실행 안 함
+- `POST /api/code/run` (generate only) — `source`, `language` 문자열 반환
+- `apps/sandbox` / `services/sandbox` / Docker gVisor는 모두 제거됨
 
 ---
 
@@ -875,14 +948,15 @@ Python Worker
 
 | 플랜 | 가격 | 프로젝트 | Q&A | 오디오 생성 | 스토리지 |
 |------|------|---------|-----|-----------|---------|
-| Free | $0 | 최대 10개 | 최대 50개 | 최대 3개 | 100MB |
-| Pro | 월 $X (미정) | 무제한 | 무제한 | 무제한 | 10GB |
-| BYOK | 월 $Y (미정, Pro보다 저렴) | 무제한 | 무제한 | 무제한 | 10GB |
+| Free | 0원 | 최대 10개 | 최대 50개 | 최대 3개 | 100MB |
+| Pro | 월 ₩X (미정) | 무제한 | 무제한 | 무제한 | 10GB |
+| BYOK | 월 ₩Y (미정, Pro보다 저렴) | 무제한 | 무제한 | 무제한 | 10GB |
 
-- BYOK 플랜은 자기 Gemini API 키 등록, AI 비용은 본인 부담
-- Stripe Checkout으로 구독 관리
-- usage_records 테이블로 사용량 추적
-- 셀프호스팅 시 빌링 비활성화 (환경변수로 제어, 기본적으로 무제한)
+- BYOK 플랜은 자기 Gemini/Ollama 설정, AI 토큰 비용은 본인 부담 (`usage_records`에서 토큰 과금 제외)
+- **Toss Payments** 구독 결제 (한국 시장 타겟, 원화 정산). 상세 플로우·Webhook 매핑·환불 정책은 Plan 9 참조
+- `usage_records` 테이블로 사용량 추적 (BYOK 사용자는 limit-check만, 요금에서 제외)
+- 셀프호스팅 시 빌링 비활성화 (`BILLING_ENABLED=false`, 기본값 무제한)
+- v0.2 이후 글로벌 확장 시 다중 PSP(결제 프로세서) 검토 (Stripe 등)
 
 ---
 
@@ -917,7 +991,7 @@ User
 
 ## 16. Docker Compose
 
-### Services (8개)
+### Services (7~8개 — sandbox 서비스 폐기, Ollama는 옵션)
 
 ```yaml
 services:
@@ -943,13 +1017,21 @@ services:
     image: redis:7-alpine
     volumes: [redisdata:/data]
 
-  Cloudflare R2:
-    image: Cloudflare R2/Cloudflare R2
+  minio:
+    # Dev 환경 S3 호환 스토리지. Production은 Cloudflare R2 등으로 교체.
+    image: minio/minio:latest
     command: server /data --console-address ":9001"
-    volumes: [Cloudflare R2data:/data]
+    ports: ["9000:9000", "9001:9001"]
+    volumes: [miniodata:/data]
     environment:
-      Cloudflare R2_ROOT_USER: Cloudflare R2admin
-      Cloudflare R2_ROOT_PASSWORD: Cloudflare R2admin
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+
+  hocuspocus:
+    image: ghcr.io/tiptap/hocuspocus:latest
+    # Yjs 협업 서버 — Better Auth 인증 연동, PostgreSQL 영속화
+    depends_on: [postgres]
+    ports: ["1234:1234"]
 
   web:
     build: { context: ., dockerfile: apps/web/Dockerfile }
@@ -958,29 +1040,40 @@ services:
 
   api:
     build: { context: ., dockerfile: apps/api/Dockerfile }
-    depends_on: [postgres, redis, Cloudflare R2, temporal]
+    depends_on: [postgres, redis, minio, temporal]
     ports: ["4000:4000"]
 
   worker:
     build: { context: ., dockerfile: apps/worker/Dockerfile }
-    depends_on: [postgres, redis, Cloudflare R2, temporal]
+    # Python 3.12 + Java 21 + unoserver + H2Orestart + faster-whisper
+    depends_on: [postgres, redis, minio, temporal]
 
-  sandbox:
-    build: { context: ., dockerfile: apps/sandbox/Dockerfile }
-    runtime: runsc  # gVisor runtime for kernel-level isolation
-    privileged: false
+  # sandbox 서비스는 2026-04-14 피봇으로 폐기됨 (ADR-006)
+  # 코드 실행은 전부 브라우저 (Pyodide + iframe). Docker sandbox 없음.
+
+  ollama:
+    # Optional — LLM_PROVIDER=ollama 시 활성화
+    image: ollama/ollama:latest
+    profiles: ["ollama"]
+    volumes: [ollama_data:/root/.ollama]
+    ports: ["11434:11434"]
 
 volumes:
   pgdata:
   redisdata:
-  Cloudflare R2data:
+  miniodata:
+  ollama_data:
 ```
 
 ### Environment Variables
 
 ```env
 # Required
-GEMINI_API_KEY=your-api-key
+LLM_PROVIDER=gemini              # gemini | ollama (openai는 2026-04-15 제거)
+LLM_API_KEY=your-gemini-api-key
+LLM_MODEL=gemini-3-flash-preview
+EMBED_MODEL=gemini-embedding-2-preview
+VECTOR_DIM=3072                  # Gemini 3072 / Ollama nomic 768 / 운영 truncate 1536
 
 # DB
 DATABASE_URL=postgresql://opencairn:changeme@postgres:5432/opencairn
@@ -988,19 +1081,28 @@ DATABASE_URL=postgresql://opencairn:changeme@postgres:5432/opencairn
 # Redis
 REDIS_URL=redis://redis:6379
 
-# Storage (Cloudflare R2)
-S3_ENDPOINT=http://Cloudflare R2:9000
-S3_ACCESS_KEY=Cloudflare R2admin
-S3_SECRET_KEY=Cloudflare R2admin
+# Storage (S3 compatible)
+S3_ENDPOINT=http://minio:9000    # Production: https://<accountid>.r2.cloudflarestorage.com
+S3_ACCESS_KEY=minioadmin
+S3_SECRET_KEY=minioadmin
 S3_BUCKET=opencairn
 
 # Billing (optional)
 BILLING_ENABLED=false
-STRIPE_SECRET_KEY=
-STRIPE_WEBHOOK_SECRET=
+TOSS_SECRET_KEY=
+TOSS_WEBHOOK_SECRET=
+TOSS_CLIENT_KEY=
 
 # Auth
-AUTH_SECRET=random-secret-here
+BETTER_AUTH_SECRET=random-secret-here
+
+# Temporal
+TEMPORAL_ADDRESS=temporal:7233
+TEMPORAL_NAMESPACE=default
+
+# Internal API (worker → API callbacks)
+INTERNAL_API_URL=http://api:4000
+INTERNAL_API_SECRET=change-me-in-production
 ```
 
 ### Quick Start (셀프호스팅)
@@ -1009,22 +1111,25 @@ AUTH_SECRET=random-secret-here
 git clone https://github.com/opencairn/opencairn.git
 cd opencairn
 cp .env.example .env
-# .env에 GEMINI_API_KEY를 설정
+# .env에 LLM_API_KEY(Gemini)를 설정 — Ollama만 쓰려면 LLM_PROVIDER=ollama
 docker-compose up -d
+# Ollama 로컬 LLM까지 원하면:
+docker-compose --profile ollama up -d
 # http://localhost:3000
 ```
 
-### Production (GCP)
+### Production
 
 ```bash
-# GCE VM (e2-standard-4, 4 vCPU, 16GB)
+# Single-node 운영 (최소: 8 vCPU / 16GB RAM / aarch64 or x86_64)
 docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
-원하면 커뮤니티 하나하나 관리형으로 교체:
-- PostgreSQL -> Cloud SQL
-- Redis -> Memorystore
-- Cloudflare R2 -> Cloud Storage
+관리형으로 교체 가능:
+- PostgreSQL → Neon, Supabase, RDS
+- Redis → Upstash, ElastiCache
+- S3 → Cloudflare R2, Backblaze B2
+- Temporal → Temporal Cloud (셀프호스트 유지 권장)
 
 ---
 
@@ -1061,18 +1166,21 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 - [x] Deep Research Agent (Gemini Deep Research API)
 - [x] Code Agent (코드 실행, 과제, 분석)
 - [x] 지식 그래프 시각화 (인터랙티브)
-- [x] 캔버스 (인터랙티브 React/HTML, Sandbox iframe)
+- [x] 캔버스 (인터랙티브 React/HTML, 브라우저 Pyodide + iframe sandbox)
 - [x] Tool Template System (퀴즈, 슬라이드, 마인드맵 등)
 - [x] 비동기 작업 실행 (브라우저 꺼도 진행, 각 스텝 DB 저장)
-- [x] 빌링 (Free/Pro/BYOK, Stripe)
+- [x] 빌링 (Free/Pro/BYOK, Toss Payments)
+- [x] Visualization Agent (Cytoscape 5뷰 — Graph/Mindmap/Cards/Canvas/Timeline)
 - [x] Docker Compose 원클릭 배포
 
 ### v0.2+
 
 - 모바일 앱
 - OAuth (Google, GitHub)
-- 협업 (실시간 공동 편집)
+- 실시간 공동 편집 확장 (현재는 Yjs CRDT 단독 디바이스 동기화)
 - 플러그인 시스템
 - CLI 도구
 - Gemini Live API (실시간 음성 Q&A)
+- **Hunter Agent** (Computer-Use 기반 자료 수집, v0.1은 Curator + Search Grounding으로 커버)
 - 파인튜닝 (지식 -> 모델 가중치)
+- 다중 PSP 지원 (글로벌 확장 시 Stripe 등)

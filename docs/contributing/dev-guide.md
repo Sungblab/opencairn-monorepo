@@ -8,11 +8,12 @@ OpenCairn 개발 환경 설정 및 컨벤션.
 
 - Node.js 22+ (LTS)
 - pnpm 9+
-- Python 3.12+
+- Python 3.12+ / uv
 - Docker + Docker Compose
-- Java 11+ (opendataloader-pdf)
+- Java 11+ (opendataloader-pdf) — Worker Dockerfile은 openjdk-21 LTS 사용
 - ffmpeg (오디오/영상 처리)
-- gVisor (runsc, 샌드박스용, 선택)
+- LibreOffice + H2Orestart 확장 (unoserver — Worker Dockerfile에 내장)
+- 브라우저 샌드박스는 Pyodide/iframe 기반 → 호스트에 추가 런타임 불필요 (ADR-006)
 
 ## Quick Start
 
@@ -48,15 +49,18 @@ python -m opencairn_worker
 ## Project Structure
 
 ```
-apps/web      — Next.js 16 (UI only)
-apps/api      — Hono 4 (all business logic)
-apps/worker   — Python (AI agents)
-apps/sandbox  — gVisor (code execution)
+apps/web         — Next.js 16 (UI + 브라우저 샌드박스: Pyodide + iframe)
+apps/api         — Hono 4 (all business logic)
+apps/worker      — Python (AI agents, LangGraph + Temporal)
+apps/hocuspocus  — Yjs 협업 서버 (Node, Better Auth 연동)
 
-packages/db      — Drizzle ORM
+packages/db      — Drizzle ORM (pgvector 포함)
+packages/llm     — Python LLM provider adapters (Gemini/Ollama)
 packages/shared  — Zod schemas, constants
 packages/ui      — shadcn/ui components
 packages/config  — ESLint, TypeScript configs
+
+# apps/sandbox는 2026-04-14 폐기됨 (ADR-006). 서버 코드 실행 서비스 없음.
 ```
 
 ## Conventions
@@ -77,7 +81,7 @@ chore(db): update drizzle to 0.45.2
 docs(agents): add compiler agent behavior spec
 
 # Scopes
-web, api, worker, sandbox, db, shared, ui, config, infra
+web, api, worker, hocuspocus, db, llm, shared, ui, config, infra, canvas, docs
 ```
 
 ### TypeScript
@@ -160,11 +164,13 @@ export const yourRoutes = new Hono()
 
 ### Key Libraries
 
-- **Plate v49**: Block editor
+- **Plate v49**: Block editor (LaTeX, 위키링크, 슬래시 커맨드)
 - **TanStack Query**: API state management
 - **shadcn/ui**: UI components
-- **Tailwind CSS v4**: Styling
-- **D3.js**: Knowledge graph visualization
+- **Tailwind CSS v4**: Styling (CSS-first config)
+- **Cytoscape.js + react-cytoscapejs**: Knowledge graph 5뷰 (Graph/Mindmap/Cards/Canvas/Timeline). D3는 사용하지 않음 (2026-04-14 결정)
+- **Pyodide (WASM)**: 브라우저 내 Python 실행 (Canvas 샌드박스)
+- **Yjs + @platejs/yjs**: 실시간 협업 (CRDT)
 
 ## Agent Development
 

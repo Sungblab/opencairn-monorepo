@@ -39,10 +39,12 @@
 - **Integration**: 에이전트 → 테스트 DB + Mock Gemini API
 - **Tool**: pytest + pytest-asyncio
 
-### apps/sandbox
-- **Integration**: 코드 실행 요청 → stdout/파일 반환
-- **Security**: gVisor 격리 검증 (파일시스템 접근 불가 확인)
-- **Tool**: pytest
+### Browser Sandbox (apps/web 내부)
+2026-04-14 피봇으로 `apps/sandbox` 서비스는 폐기됨. 코드 실행은 전부 브라우저(Pyodide + iframe)에서 이루어지므로 별도 서버 테스트 대상이 없다. 대신:
+- **Unit**: Pyodide 래퍼 훅(`useCanvasMessages`, `pyodide-runner.tsx`) 순수 로직 — vitest
+- **Integration**: 모의 Code Agent 출력 → Pyodide 실행 → stdout 검증 (jsdom + @pyodide/pyodide npm)
+- **E2E (Security)**: Playwright로 iframe sandbox 속성 강제 검증 (allow-same-origin 탈출 불가, postMessage origin 차단)
+- **Tool**: vitest + Playwright. 상세는 [docs/testing/sandbox-testing.md](./sandbox-testing.md)
 
 ## 3. Agent Testing
 
@@ -111,7 +113,8 @@ jobs:
     - cd apps/worker && pytest
 
   e2e:
-    services: [postgres, redis, Cloudflare R2]
+    services: [postgres, redis, minio]
     - pnpm build
     - pnpm playwright test
+    # Pyodide 브라우저 sandbox 테스트 포함 (docs/testing/sandbox-testing.md)
 ```

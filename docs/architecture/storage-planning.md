@@ -122,13 +122,18 @@ response = client.models.embed_content(
 
 **트레이드오프:**
 
-| 차원 | 저장 용량 | 검색 품질 | 권장 상황 |
-|--|--|--|--|
-| 3072d (full) | 100% | 100% | 소수 Heavy 사용자 |
-| **1536d (truncate)** | **50%** | ~98% | **Production 권장** |
-| 768d (truncate) | 25% | ~94% | 대규모 운영 / 비용 최소화 |
+| 차원 | 저장 용량 | 검색 품질 | 권장 상황 | Provider |
+|--|--|--|--|--|
+| 3072d (full) | 100% | 100% | 소수 Heavy 사용자 (기본값) | Gemini (native) |
+| **1536d (Matryoshka truncate)** | **50%** | ~98% | **Production 권장 운영값** | Gemini (truncated) |
+| 768d (truncate) | 25% | ~94% | 대규모 운영 / 비용 최소화 | Gemini (further truncate) / Ollama `nomic-embed-text` (native 768d) |
 
-→ **1536d가 sweet spot.** Production에서 `VECTOR_DIM=1536` 고려.
+**권장 운영값: `VECTOR_DIM=1536`** — Matryoshka 특성상 3072d 임베딩을 앞 1536d만 slice해도 품질이 98% 유지됨 (Gemini 공식 기술 문서 근거). 스토리지 절반으로 cold-start·인덱스 빌드·pg_vector kNN 모두 가속.
+
+**주의 (multi-llm 설계 연동):**
+- `VECTOR_DIM`은 **한 배포 내에서 단일 값으로 고정**해야 한다. 차원 혼용 시 pgvector `cosine_distance` 에러.
+- 배포 후 VECTOR_DIM 변경이 필요하면 전체 임베딩 재생성 필요 (마이그레이션 스크립트 필요).
+- `packages/llm` spec에서 각 provider의 native 차원은 Gemini 3072 / Ollama nomic 768. truncate/padding은 DB 쪽에서 처리하지 않고 **provider adapter에서** `output_dimensionality` 파라미터로 맞춘다.
 
 ### 6.2 청크 중복 제거
 
