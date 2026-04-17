@@ -1,14 +1,27 @@
-# Plan 2: Editor — Implementation Plan
+# Plan 2: Editor + Notion급 협업 — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a fully-featured rich-text note editor in `apps/web` using Plate v49 with LaTeX, wiki-links, slash commands, real-time save/load, and **multi-device 실시간 협업 (Yjs CRDT)** wired to the Hono API.
+> **2026-04-18 확장**: 본 plan은 에디터 뿐만 아니라 **Notion급 팀 협업 기능**까지 포함한다. 데이터 모델(Workspace/Permissions)은 [Plan 1](2026-04-09-plan-1-foundation.md)에서 셋업되고, 여기서는 그 위에 돌아가는 UI/UX/실시간 동기화/알림을 구현. 설계 근거는 [collaboration-model.md](../../architecture/collaboration-model.md).
 
-**Architecture:** The editor lives in `apps/web` as a client component. All persistence goes through the Hono API at `apps/api` — no Server Actions. Plate v49 provides the plugin-based editing foundation; custom plugins handle wiki-links and slash commands. The sidebar (folder tree + note list) is a separate client component that reads from the API and drives navigation. **Hocuspocus 서버**가 별도 Docker 서비스로 동작하며 Yjs document state를 PostgreSQL에 persist한다 — 동일 사용자의 multi-device 동시 편집 + 추후 multi-user 협업 기반.
+**Goal:** Build a fully-featured rich-text note editor in `apps/web` using Plate v49 with LaTeX, wiki-links, slash commands, real-time save/load, **multi-user 실시간 협업 (Yjs CRDT)**, Notion 스타일 권한/코멘트/@mention/알림/프레즌스/활동 피드/공개 링크/게스트 — Notion 대체 포지션을 위한 모든 협업 테이블 스테이크.
 
-**Tech Stack:** Plate v49 (Yjs 플러그인 포함), shadcn/ui, KaTeX, @platejs/math (MathKit), **Yjs**, **Hocuspocus** (서버) + **@hocuspocus/provider** (클라이언트), Tailwind CSS 4, Hono 4, Zod, React 19, Next.js 16
+**Architecture:** The editor lives in `apps/web` as a client component. All persistence goes through the Hono API at `apps/api` — no Server Actions. Plate v49 provides the plugin-based editing foundation; custom plugins handle wiki-links, slash commands, @mentions, comments. The sidebar (folder tree + note list) is a separate client component that reads from the API and drives navigation. **Hocuspocus 서버**가 별도 Docker 서비스로 동작하며 Yjs document state를 PostgreSQL에 persist한다. 인증은 Better Auth 세션 + page-level `canWrite` 검증.
 
-> **⚠️ 실시간 협업 추가 (2026-04-14):** Hocuspocus 서비스가 docker-compose에 추가됨. PostgreSQL extension으로 Yjs document state 영속화. 인증은 Better Auth 세션을 Hocuspocus `onAuthenticate` 훅으로 검증. 본 plan 후반에 구현 task 추가 예정.
+**Tech Stack:** Plate v49 (Yjs 플러그인 + comments 플러그인), shadcn/ui, KaTeX, @platejs/math (MathKit), **Yjs**, **Hocuspocus 서버 + Provider + Awareness**, TanStack Query, Tailwind CSS 4, Hono 4, Zod, React 19, Next.js 16, Resend (이메일 알림).
+
+> **Task 개요 (1~7 에디터 + 8~17 협업)**:
+> - Task 1~7: Plate 에디터, LaTeX, wiki-links, slash, save/load, sidebar (기존)
+> - **Task 8: Hocuspocus 서버 + 권한 인증 hook (신규)**
+> - **Task 9: 실시간 공동 편집 클라이언트 + Presence (신규)**
+> - **Task 10: Block anchor Comments + threading (신규)**
+> - **Task 11: @mention 파서 + resolver (신규)**
+> - **Task 12: Notifications 백엔드 (테이블 + SSE) (신규)**
+> - **Task 13: Notification UI (인앱 뱃지 + 드롭다운) (신규)**
+> - **Task 14: Email 알림 (Resend + batching) (신규)**
+> - **Task 15: Activity feed 페이지 (신규)**
+> - **Task 16: Public share link (신규)**
+> - **Task 17: Guest invite 플로우 (신규)**
 
 ---
 
@@ -1140,10 +1153,264 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
 ---
 
+## 협업 기능 (Task 8~17) — Notion급 협업 테이블 스테이크
+
+> Plan 1에서 Workspace/Members/Invites/Permissions 기반이 이미 구축됨.
+> Comments/Notifications/ActivityEvents/PublicShareLinks 테이블은 본 plan 중에 추가.
+
+### Task 8: Hocuspocus 서버 + 권한 인증 Hook
+
+**Files:**
+- Create: `apps/hocuspocus/package.json`
+- Create: `apps/hocuspocus/src/server.ts`
+- Create: `apps/hocuspocus/src/auth.ts`
+- Create: `apps/hocuspocus/Dockerfile`
+- Modify: `docker-compose.yml` (hocuspocus 서비스 추가)
+
+- [ ] **Step 1**: `@hocuspocus/server` + `@hocuspocus/extension-database` 설치
+- [ ] **Step 2**: `auth.ts` — Better Auth 세션 토큰 검증 + `canWrite(user, note)` 호출
+
+```typescript
+// apps/hocuspocus/src/auth.ts
+import type { onAuthenticatePayload } from "@hocuspocus/server";
+import { betterAuth } from "./better-auth-client";
+import { canWrite, canRead, resolveRole } from "./permissions";
+
+export async function authenticateConnection(payload: onAuthenticatePayload) {
+  const { documentName, token } = payload;
+  const session = await betterAuth.verifySession(token);
+  if (!session) throw new Error("Unauthenticated");
+
+  // documentName = "page:<noteId>"
+  const noteId = documentName.replace(/^page:/, "");
+  const role = await resolveRole(session.userId, { type: "note", id: noteId });
+
+  if (role === "none") throw new Error("Forbidden");
+
+  return {
+    userId: session.userId,
+    userName: session.name,
+    readOnly: role === "viewer",
+  };
+}
+```
+
+- [ ] **Step 3**: `server.ts` — Hocuspocus 인스턴스 + Database extension (PostgreSQL에 Yjs state 영속화) + onAuthenticate 훅 + onChange에서 readOnly 검증
+
+- [ ] **Step 4**: Dockerfile + docker-compose.yml에 서비스 추가 (port 1234, depends_on postgres)
+
+- [ ] **Step 5**: Commit
+
+```bash
+git add apps/hocuspocus/ docker-compose.yml
+git commit -m "feat(hocuspocus): Yjs collaboration server with Better Auth + permission-based access control"
+```
+
+---
+
+### Task 9: 실시간 공동 편집 클라이언트 + Presence
+
+**Files:**
+- Modify: `apps/web/src/components/editor/NoteEditor.tsx`
+- Create: `apps/web/src/components/editor/PresenceStack.tsx`
+- Create: `apps/web/src/hooks/useCollaborativeEditor.ts`
+
+- [ ] **Step 1**: `@hocuspocus/provider` 설치, Plate에 Yjs 플러그인 연결
+- [ ] **Step 2**: 페이지 로드 시 `new HocuspocusProvider({ url, name: "page:<noteId>", token })` 생성
+- [ ] **Step 3**: Awareness로 사용자 정보 broadcast (`{ id, name, avatarUrl, color }`)
+- [ ] **Step 4**: `<PresenceStack>` — 현재 페이지 보고 있는 사용자 아바타 스택 (상단 우측)
+- [ ] **Step 5**: 다른 사용자의 커서 표시 (Plate selection awareness)
+- [ ] **Step 6**: readOnly 플래그 시 Plate를 read-only 모드로
+- [ ] **Step 7**: Commit
+
+```bash
+git commit -m "feat(web): real-time collaborative editing with presence avatars and cursors"
+```
+
+---
+
+### Task 10: Block-anchor Comments + Threading
+
+**Files:**
+- Create: `packages/db/src/schema/comments.ts`
+- Create: `apps/api/src/routes/comments.ts`
+- Create: `apps/web/src/components/comments/CommentsPanel.tsx`
+- Create: `apps/web/src/components/comments/CommentThread.tsx`
+- Create: `apps/web/src/components/editor/plugins/CommentsPlugin.tsx`
+
+- [ ] **Step 1**: `comments` + `comment_mentions` 테이블 (collaboration-model §2.3 스키마 그대로)
+- [ ] **Step 2**: `/api/comments` CRUD 라우트 — canRead/canWrite 경유, thread (parent_id), resolve, 본인만 수정 등
+- [ ] **Step 3**: Plate `CommentsPlugin` — 블록 hover 시 "💬 Add comment" 버튼, 블록 옆 뱃지 렌더
+- [ ] **Step 4**: `CommentsPanel` — 페이지 우측 사이드 패널, 스레드 리스트
+- [ ] **Step 5**: `CommentThread` — 댓글 + 답글 트리, resolve 버튼, 작성 폼
+- [ ] **Step 6**: 블록 삭제 시 comments는 preserve (anchor_block_id → null로 강등)
+- [ ] **Step 7**: Commit
+
+```bash
+git commit -m "feat(collab): block-anchor comments with threading and resolution"
+```
+
+---
+
+### Task 11: @mention 파서 + Resolver
+
+**Files:**
+- Create: `apps/web/src/components/editor/plugins/MentionPlugin.tsx`
+- Create: `apps/web/src/components/editor/plugins/mention-combobox.tsx`
+- Create: `apps/api/src/routes/mentions.ts` — `/api/mentions/search?q=&type=`
+- Modify: `comments`/`notes` 저장 시 mentions 파싱
+
+- [ ] **Step 1**: Plate mention plugin — `@` 입력 시 combobox 열림
+- [ ] **Step 2**: combobox 내용 소스:
+  - `user`: workspace 멤버 검색 (`GET /api/workspaces/:wsId/members?q=`)
+  - `page`: 현재 workspace 내 노트 검색
+  - `concept`: 프로젝트 KG 벡터 검색
+  - `date`: natural language date parser (chrono-node)
+- [ ] **Step 3**: 선택 시 serialized format 저장: `@[user:<id>]`, `@[page:<id>]`, `@[concept:<id>]`, `@[date:<iso>]`
+- [ ] **Step 4**: 렌더 시 mention chip에 hover preview
+- [ ] **Step 5**: comment/note 저장 시 backend에서 mention 파싱 → `comment_mentions` insert → notification worker trigger
+- [ ] **Step 6**: Commit
+
+```bash
+git commit -m "feat(collab): @mention plugin (user/page/concept/date) with live combobox resolver"
+```
+
+---
+
+### Task 12: Notifications 백엔드 (테이블 + SSE 스트림)
+
+**Files:**
+- Create: `packages/db/src/schema/notifications.ts` + `notification_preferences.ts`
+- Create: `apps/api/src/routes/notifications.ts`
+- Create: `apps/api/src/lib/notifications/dispatch.ts` — notification 생성 + batching
+- Create: `apps/api/src/lib/notifications/sse-stream.ts`
+
+- [ ] **Step 1**: 테이블 (collaboration-model §2.4 스키마 그대로)
+- [ ] **Step 2**: `dispatch.ts`:
+  - `notify(recipientId, type, payload, batchKey?)` — 5분 내 같은 batch_key면 기존 row 업데이트
+  - 각 알림 타입별 Zod payload 스키마 검증
+- [ ] **Step 3**: SSE 엔드포인트 `GET /api/notifications/stream` — 인증된 사용자의 새 알림 실시간 푸시
+- [ ] **Step 4**: `GET /api/notifications?unread=true&limit=50` — 목록
+- [ ] **Step 5**: `POST /api/notifications/mark-read` — 일괄 읽음 처리
+- [ ] **Step 6**: mention/comment_reply/invite/share/wiki_change/librarian_suggestion 등 이벤트 후크에서 `notify()` 호출
+- [ ] **Step 7**: Commit
+
+```bash
+git commit -m "feat(api): notifications backend with batching, SSE stream, and read-tracking"
+```
+
+---
+
+### Task 13: Notification UI (인앱 뱃지 + 드롭다운)
+
+**Files:**
+- Create: `apps/web/src/components/notifications/NotificationBell.tsx`
+- Create: `apps/web/src/components/notifications/NotificationList.tsx`
+- Create: `apps/web/src/hooks/useNotificationStream.ts`
+
+- [ ] **Step 1**: `useNotificationStream` — SSE 연결 + 새 알림 수신 시 TanStack Query 캐시 update
+- [ ] **Step 2**: `NotificationBell` — 상단 바 종 아이콘 + 읽지 않은 수 뱃지
+- [ ] **Step 3**: 클릭 시 `NotificationList` 드롭다운 (최근 20개, "모두 읽음" 버튼)
+- [ ] **Step 4**: 알림 클릭 → deep link 이동 (예: `/app/w/<ws>/p/<proj>/notes/<note>?commentId=<c>`)
+- [ ] **Step 5**: 타입별 아이콘 + 요약 포맷 (mention: "@Alice: ...", invite: "Bob invited you to 'Design Team'")
+- [ ] **Step 6**: Commit
+
+```bash
+git commit -m "feat(web): in-app notification bell with SSE-backed live updates"
+```
+
+---
+
+### Task 14: Email 알림 (Resend + batching + 선호도 UI)
+
+**Files:**
+- Create: `apps/worker/src/worker/workflows/notification_delivery.py` (Temporal cron workflow)
+- Create: `apps/api/src/lib/email-templates/` (Resend 템플릿들)
+- Create: `apps/web/src/app/(app)/settings/notifications/page.tsx`
+
+- [ ] **Step 1**: Temporal cron (매 1분) — `SELECT notifications WHERE emailed_at IS NULL AND created_at < now() - 30s` 조회
+- [ ] **Step 2**: 사용자별 선호도 확인 (`notification_preferences`):
+  - instant → 즉시 발송 후 `emailed_at` 기록
+  - hourly_digest → 묶어서 매 시간 정각 발송
+  - daily_digest → 매일 09:00 발송
+  - off → 건너뜀
+- [ ] **Step 3**: Resend API로 발송, deep link 포함
+- [ ] **Step 4**: Settings 페이지 — 타입 × 채널(인앱/이메일) × 빈도 매트릭스 편집 UI
+- [ ] **Step 5**: Commit
+
+```bash
+git commit -m "feat(collab): email notifications via Resend with per-type preferences and digest batching"
+```
+
+---
+
+### Task 15: Activity Feed 페이지
+
+**Files:**
+- Create: `apps/api/src/routes/activity.ts`
+- Create: `apps/web/src/app/(app)/w/[workspaceId]/activity/page.tsx`
+- Create: `apps/web/src/components/activity/ActivityTimeline.tsx`
+
+- [ ] **Step 1**: 기존 `wiki_logs` → `activity_events` 확장 (collab 이벤트 추가, collaboration-model §2.5)
+- [ ] **Step 2**: `GET /api/activity?workspace=&project=&actor=&since=&limit=` — keyset pagination (cursor)
+- [ ] **Step 3**: `ActivityTimeline` — Twitter 스타일, actor avatar (user 또는 🤖 아이콘) + verb + object
+- [ ] **Step 4**: 필터 UI (actor_type: all/user/agent, verb 종류)
+- [ ] **Step 5**: Workspace-level / Project-level / 개인 레벨 3가지 뷰
+- [ ] **Step 6**: Commit
+
+```bash
+git commit -m "feat(collab): activity feed with user + agent event unification"
+```
+
+---
+
+### Task 16: Public Share Link
+
+**Files:**
+- Create: `packages/db/src/schema/public-share-links.ts`
+- Create: `apps/api/src/routes/share.ts`
+- Create: `apps/web/src/app/s/[token]/page.tsx` (비로그인 접근 가능)
+- Create: `apps/web/src/components/share/ShareDialog.tsx`
+
+- [ ] **Step 1**: 테이블 (collaboration-model §2.6 스키마)
+- [ ] **Step 2**: `POST /api/share` — 토큰 발급 (32 bytes random), role, 선택적 암호/만료
+- [ ] **Step 3**: `DELETE /api/share/:id` — revoke
+- [ ] **Step 4**: `GET /s/:token` — 토큰 검증 + 암호 확인 + 만료 체크 + rate limit (분당 30)
+- [ ] **Step 5**: 공개 페이지는 게스트 세션 부여, 코멘트 시 "익명:닉네임" 허용 (옵션)
+- [ ] **Step 6**: `<meta name="robots" content="noindex">` 기본 주입, 옵트인 시에만 indexable
+- [ ] **Step 7**: `ShareDialog` — 페이지 "Share" 버튼 → 다이얼로그 (link 복사, 권한 선택, 암호 설정)
+- [ ] **Step 8**: Commit
+
+```bash
+git commit -m "feat(collab): public share links with password/expiry/rate-limit and SEO opt-in"
+```
+
+---
+
+### Task 17: Guest Invite 플로우
+
+**Files:**
+- Modify: `apps/api/src/routes/invites.ts` — guest role 지원 확인
+- Create: `apps/web/src/app/(app)/guest/page.tsx` — guest 전용 간소화 사이드바
+- Modify: workspace switcher — guest는 초대받은 리소스만 표시
+
+- [ ] **Step 1**: Guest 초대 시 `page_permissions` 자동 생성 옵션 (초대 시 특정 page id 지정)
+- [ ] **Step 2**: Guest 계정은 `canAdmin` 불가, workspace 멤버 목록 조회 불가 (API 403)
+- [ ] **Step 3**: 사이드바는 해당 guest에게 공유된 page/project만 표시
+- [ ] **Step 4**: Guest는 `workspaces.plan_type`에 따라 수 제한 (Free 3, Pro 10, Enterprise 무제한)
+- [ ] **Step 5**: 코멘트 작성 시 다른 guest의 이메일 숨김 (이름만 표시)
+- [ ] **Step 6**: Commit
+
+```bash
+git commit -m "feat(collab): guest user flow with scoped resource visibility and plan-based caps"
+```
+
+---
+
 ### Verification
 
 - [ ] `pnpm --filter @opencairn/web dev` starts without TypeScript errors
-- [ ] Navigating to `/notes/[noteId]` renders the Plate editor with content loaded from the API
+- [ ] Navigating to `/app/w/<ws>/p/<proj>/notes/<note>` renders the Plate editor with content loaded from the API
 - [ ] Typing `$...$` inserts an inline LaTeX node rendered by KaTeX
 - [ ] Typing `$$...$$` inserts a block LaTeX node
 - [ ] Typing `[[` opens the note search combobox; selecting a result inserts a wiki-link node
@@ -1152,3 +1419,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 - [ ] Edits auto-save after 1.5 s (check network tab for PATCH `/notes/:id`)
 - [ ] Sidebar renders folders and notes; clicking a note navigates; "New note" creates and redirects
 - [ ] `pnpm --filter @opencairn/web build` succeeds (no missing imports)
+
+**협업 검증**:
+
+- [ ] 같은 페이지를 두 브라우저에서 동시 편집 → 실시간 동기화, 커서·아바타 표시
+- [ ] Viewer 권한 사용자가 편집 시도 → 서버에서 reject, 클라이언트 read-only
+- [ ] 블록 hover 시 "💬 Add comment" → 댓글 스레드 생성, 답글·resolve 동작
+- [ ] `@`로 user 멘션 → 대상자에게 인앱 + 이메일 알림 (선호도에 따라)
+- [ ] 공개 링크 생성 → 비로그인 브라우저에서 viewer 모드로 접근, editor 권한 부여 불가
+- [ ] Admin이 다른 workspace의 page 접근 시도 → 404
+- [ ] Guest는 workspace 멤버 목록 API 호출 시 403
+- [ ] Hocuspocus 연결 시 Better Auth 세션 없으면 WebSocket 거부
+- [ ] Activity feed에 🤖 Compiler Agent 활동과 👤 사용자 활동이 통합 표시

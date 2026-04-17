@@ -360,7 +360,9 @@ git commit -m "infra: add Docker Compose for dev services (PostgreSQL, Redis, Cl
 
 ---
 
-### Task 3: packages/db ??Schema & Client
+### Task 3: packages/db — Schema & Client
+
+> **Workspace 통합 (2026-04-18)**: v0.1부터 Workspace 계층을 포함. projects는 `user_id` 대신 `workspace_id` FK를 가지고, 권한·멤버십·초대·코멘트·알림 테이블이 초기 스키마에 포함된다. 이렇게 하지 않으면 후속 Plan에서 모든 쿼리를 재작성해야 해 비용 폭증. 상세 설계: [collaboration-model.md](../../../architecture/collaboration-model.md).
 
 **Files:**
 - Create: `packages/db/package.json`
@@ -372,12 +374,22 @@ git commit -m "infra: add Docker Compose for dev services (PostgreSQL, Redis, Cl
 - Create: `packages/db/src/schema/enums.ts`
 - Create: `packages/db/src/schema/users.ts`
 - Create: `packages/db/src/schema/auth.ts`
-- Create: `packages/db/src/schema/projects.ts`
+- **Create: `packages/db/src/schema/workspaces.ts`** (신규)
+- **Create: `packages/db/src/schema/workspace-members.ts`** (신규)
+- **Create: `packages/db/src/schema/workspace-invites.ts`** (신규)
+- Create: `packages/db/src/schema/projects.ts` (workspace_id FK 포함)
+- **Create: `packages/db/src/schema/project-permissions.ts`** (신규)
+- **Create: `packages/db/src/schema/page-permissions.ts`** (신규)
 - Create: `packages/db/src/schema/folders.ts`
 - Create: `packages/db/src/schema/tags.ts`
-- Create: `packages/db/src/schema/notes.ts`
+- Create: `packages/db/src/schema/notes.ts` (workspace_id denormalized + inherit_parent 포함)
+- **Create: `packages/db/src/schema/comments.ts`** (신규)
+- **Create: `packages/db/src/schema/comment-mentions.ts`** (신규)
+- **Create: `packages/db/src/schema/notifications.ts`** (신규)
+- **Create: `packages/db/src/schema/notification-preferences.ts`** (신규)
+- **Create: `packages/db/src/schema/public-share-links.ts`** (신규)
 - Create: `packages/db/src/schema/concepts.ts`
-- Create: `packages/db/src/schema/wiki-logs.ts`
+- Create: `packages/db/src/schema/activity-events.ts` (기존 wiki-logs의 확장: user + agent 이벤트 통합)
 - Create: `packages/db/src/schema/learning.ts`
 - Create: `packages/db/src/schema/jobs.ts`
 - Create: `packages/db/src/schema/conversations.ts`
@@ -565,27 +577,181 @@ export const verification = pgTable("verification", {
 });
 ```
 
-- [ ] **Step 8: Create packages/db/src/schema/projects.ts**
+- [ ] **Step 8a: Create packages/db/src/schema/workspaces.ts**
+
+```typescript
+import { pgTable, uuid, text, timestamp, index, pgEnum } from "drizzle-orm/pg-core";
+import { user } from "./users";
+
+export const workspacePlanEnum = pgEnum("workspace_plan", ["free", "pro", "enterprise"]);
+
+export const workspaces = pgTable(
+  "workspaces",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    slug: text("slug").notNull().unique(),
+    name: text("name").notNull(),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "restrict" }),
+    planType: workspacePlanEnum("plan_type").notNull().default("free"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("workspaces_owner_id_idx").on(t.ownerId), index("workspaces_slug_idx").on(t.slug)]
+);
+```
+
+- [ ] **Step 8b: Create packages/db/src/schema/workspace-members.ts**
+
+```typescript
+import { pgTable, uuid, text, timestamp, pgEnum, primaryKey, index } from "drizzle-orm/pg-core";
+import { user } from "./users";
+import { workspaces } from "./workspaces";
+
+export const workspaceRoleEnum = pgEnum("workspace_role", ["owner", "admin", "member", "guest"]);
+
+export const workspaceMembers = pgTable(
+  "workspace_members",
+  {
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    role: workspaceRoleEnum("role").notNull().default("member"),
+    invitedBy: text("invited_by").references(() => user.id, { onDelete: "set null" }),
+    joinedAt: timestamp("joined_at").notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workspaceId, t.userId] }),
+    index("workspace_members_user_id_idx").on(t.userId),
+  ]
+);
+```
+
+- [ ] **Step 8c: Create packages/db/src/schema/workspace-invites.ts**
 
 ```typescript
 import { pgTable, uuid, text, timestamp, index } from "drizzle-orm/pg-core";
 import { user } from "./users";
+import { workspaces } from "./workspaces";
+import { workspaceRoleEnum } from "./workspace-members";
+
+export const workspaceInvites = pgTable(
+  "workspace_invites",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    role: workspaceRoleEnum("role").notNull().default("member"),
+    token: text("token").notNull().unique(),  // URL-safe, 32+ bytes random
+    invitedBy: text("invited_by")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at").notNull(),  // default now() + 7 days (앱에서 계산)
+    acceptedAt: timestamp("accepted_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("workspace_invites_email_idx").on(t.email), index("workspace_invites_token_idx").on(t.token)]
+);
+```
+
+- [ ] **Step 8d: Create packages/db/src/schema/projects.ts (workspace_id FK)**
+
+```typescript
+import { pgTable, uuid, text, timestamp, index, pgEnum } from "drizzle-orm/pg-core";
+import { user } from "./users";
+import { workspaces } from "./workspaces";
+
+export const projectDefaultRoleEnum = pgEnum("project_default_role", ["editor", "viewer"]);
 
 export const projects = pgTable(
   "projects",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: text("user_id")
+    workspaceId: uuid("workspace_id")
       .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+      .references(() => workspaces.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     description: text("description").default(""),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => user.id, { onDelete: "restrict" }),
+    defaultRole: projectDefaultRoleEnum("default_role").notNull().default("editor"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
-  (t) => [index("projects_user_id_idx").on(t.userId)]
+  (t) => [
+    index("projects_workspace_id_idx").on(t.workspaceId),
+    index("projects_created_by_idx").on(t.createdBy),
+  ]
 );
 ```
+
+- [ ] **Step 8e: Create packages/db/src/schema/project-permissions.ts**
+
+```typescript
+import { pgTable, uuid, text, timestamp, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
+import { user } from "./users";
+import { projects } from "./projects";
+
+export const projectRoleEnum = pgEnum("project_role", ["editor", "viewer"]);
+
+export const projectPermissions = pgTable(
+  "project_permissions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    role: projectRoleEnum("role").notNull(),
+    grantedBy: text("granted_by")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("project_permissions_unique").on(t.projectId, t.userId)]
+);
+```
+
+- [ ] **Step 8f: Create packages/db/src/schema/page-permissions.ts**
+
+```typescript
+import { pgTable, uuid, text, timestamp, boolean, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
+import { user } from "./users";
+import { notes } from "./notes";
+
+export const pageRoleEnum = pgEnum("page_role", ["editor", "viewer", "none"]);
+
+export const pagePermissions = pgTable(
+  "page_permissions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    pageId: uuid("page_id")
+      .notNull()
+      .references(() => notes.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    role: pageRoleEnum("role").notNull(),
+    inheritParent: boolean("inherit_parent").notNull().default(true),
+    grantedBy: text("granted_by")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("page_permissions_unique").on(t.pageId, t.userId)]
+);
+```
+
+> **Note**: comments, comment_mentions, notifications, notification_preferences, public_share_links 스키마는 Plan 2 (Editor + Collaboration)에서 정의. v0.1 Foundation에서는 Workspace·권한 core까지만 셋업해 후속 plan이 bolting 없이 확장 가능하도록 한다.
 
 - [ ] **Step 9: Create packages/db/src/schema/folders.ts**
 
@@ -1435,7 +1601,299 @@ git commit -m "feat(api): add Hono server with Better Auth and health endpoint"
 
 ---
 
-### Task 6: apps/api ??Project CRUD Routes
+### Task 5.5: apps/api — Workspace CRUD + Permissions Helper
+
+권한 시스템의 기반. 모든 후속 라우트(Task 6+)가 `canRead`/`canWrite`를 경유해야 하므로 이 헬퍼를 **먼저** 셋업한다.
+
+**Files:**
+- Create: `apps/api/src/lib/permissions.ts` — `resolveRole` / `canRead` / `canWrite` 헬퍼
+- Create: `apps/api/src/middleware/require-role.ts` — Hono middleware for workspace/project 역할 체크
+- Create: `apps/api/src/routes/workspaces.ts` — Workspace CRUD + 멤버 관리
+- Create: `apps/api/src/routes/invites.ts` — 초대 생성·수락·거절
+- Modify: `apps/api/src/app.ts` — routes 마운트
+
+- [ ] **Step 1: permissions.ts 작성 (핵심 헬퍼)**
+
+```typescript
+// apps/api/src/lib/permissions.ts
+import { db } from "@opencairn/db";
+import { workspaceMembers, projectPermissions, pagePermissions, projects, notes } from "@opencairn/db";
+import { and, eq } from "drizzle-orm";
+
+export type ResolvedRole = "owner" | "admin" | "editor" | "viewer" | "none";
+export type ResourceType = "workspace" | "project" | "note";
+
+export async function findWorkspaceId(resource: { type: ResourceType; id: string }): Promise<string | null> {
+  if (resource.type === "workspace") return resource.id;
+  if (resource.type === "project") {
+    const [row] = await db.select({ wsId: projects.workspaceId }).from(projects).where(eq(projects.id, resource.id));
+    return row?.wsId ?? null;
+  }
+  if (resource.type === "note") {
+    const [row] = await db.select({ wsId: notes.workspaceId }).from(notes).where(eq(notes.id, resource.id));
+    return row?.wsId ?? null;
+  }
+  return null;
+}
+
+export async function findProjectId(resource: { type: ResourceType; id: string }): Promise<string | null> {
+  if (resource.type === "project") return resource.id;
+  if (resource.type === "note") {
+    const [row] = await db.select({ pid: notes.projectId }).from(notes).where(eq(notes.id, resource.id));
+    return row?.pid ?? null;
+  }
+  return null;
+}
+
+export async function resolveRole(userId: string, resource: { type: ResourceType; id: string }): Promise<ResolvedRole> {
+  const wsId = await findWorkspaceId(resource);
+  if (!wsId) return "none";
+
+  const [membership] = await db
+    .select()
+    .from(workspaceMembers)
+    .where(and(eq(workspaceMembers.workspaceId, wsId), eq(workspaceMembers.userId, userId)));
+
+  if (!membership) return "none";
+  if (membership.role === "owner") return "owner";
+  if (membership.role === "admin") return "admin";
+
+  if (resource.type === "note") {
+    const [pp] = await db
+      .select()
+      .from(pagePermissions)
+      .where(and(eq(pagePermissions.pageId, resource.id), eq(pagePermissions.userId, userId)));
+    if (pp) return pp.role === "none" ? "none" : pp.role;
+
+    const [note] = await db.select({ inherit: notes.inheritParent }).from(notes).where(eq(notes.id, resource.id));
+    if (note && note.inherit === false) return "none";
+  }
+
+  const projectId = await findProjectId(resource);
+  if (projectId) {
+    const [pp] = await db
+      .select()
+      .from(projectPermissions)
+      .where(and(eq(projectPermissions.projectId, projectId), eq(projectPermissions.userId, userId)));
+    if (pp) return pp.role;
+  }
+
+  if (membership.role === "member") {
+    // workspace 기본 역할 — 프로젝트 `default_role`을 따름 (editor or viewer)
+    if (projectId) {
+      const [proj] = await db.select({ dr: projects.defaultRole }).from(projects).where(eq(projects.id, projectId));
+      return proj?.dr ?? "viewer";
+    }
+    return "editor";
+  }
+  // guest는 명시적 공유 없으면 접근 불가
+  return "none";
+}
+
+export async function canRead(userId: string, resource: { type: ResourceType; id: string }): Promise<boolean> {
+  const r = await resolveRole(userId, resource);
+  return r !== "none";
+}
+
+export async function canWrite(userId: string, resource: { type: ResourceType; id: string }): Promise<boolean> {
+  const r = await resolveRole(userId, resource);
+  return ["owner", "admin", "editor"].includes(r);
+}
+
+export async function canAdmin(userId: string, workspaceId: string): Promise<boolean> {
+  const r = await resolveRole(userId, { type: "workspace", id: workspaceId });
+  return r === "owner" || r === "admin";
+}
+```
+
+- [ ] **Step 2: require-role.ts 미들웨어**
+
+```typescript
+// apps/api/src/middleware/require-role.ts
+import { createMiddleware } from "hono/factory";
+import { resolveRole, ResolvedRole } from "../lib/permissions";
+
+const ORDER: Record<ResolvedRole, number> = { none: 0, viewer: 1, editor: 2, admin: 3, owner: 4 };
+
+export function requireWorkspaceRole(minRole: "member" | "admin" | "owner") {
+  return createMiddleware(async (c, next) => {
+    const user = c.get("user");
+    if (!user) return c.json({ error: "Unauthorized" }, 401);
+    const wsId = c.req.param("workspaceId") ?? c.req.param("id");
+    const role = await resolveRole(user.id, { type: "workspace", id: wsId });
+    const required = minRole === "owner" ? "owner" : minRole === "admin" ? "admin" : "viewer";
+    if (ORDER[role] < ORDER[required]) return c.json({ error: "Forbidden" }, 403);
+    c.set("wsRole", role);
+    await next();
+  });
+}
+```
+
+- [ ] **Step 3: workspaces.ts CRUD + 멤버 관리**
+
+```typescript
+// apps/api/src/routes/workspaces.ts
+import { Hono } from "hono";
+import { zValidator } from "@hono/zod-validator";
+import { z } from "zod";
+import { db } from "@opencairn/db";
+import { workspaces, workspaceMembers } from "@opencairn/db";
+import { and, eq } from "drizzle-orm";
+import { requireAuth } from "../middleware/auth";
+import { requireWorkspaceRole } from "../middleware/require-role";
+
+const createSchema = z.object({ name: z.string().min(1).max(120), slug: z.string().regex(/^[a-z0-9-]+$/).max(64) });
+
+export const workspaceRoutes = new Hono().use("*", requireAuth);
+
+// 내 workspaces 목록 (내가 멤버인 모든 ws)
+workspaceRoutes.get("/", async (c) => {
+  const user = c.get("user");
+  const rows = await db
+    .select({ ws: workspaces, role: workspaceMembers.role })
+    .from(workspaceMembers)
+    .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
+    .where(eq(workspaceMembers.userId, user.id));
+  return c.json(rows);
+});
+
+// workspace 생성 — 생성자가 자동 owner
+workspaceRoutes.post("/", zValidator("json", createSchema), async (c) => {
+  const user = c.get("user");
+  const body = c.req.valid("json");
+  const [ws] = await db.insert(workspaces).values({ ...body, ownerId: user.id }).returning();
+  await db.insert(workspaceMembers).values({ workspaceId: ws.id, userId: user.id, role: "owner" });
+  return c.json(ws, 201);
+});
+
+// 특정 workspace 조회
+workspaceRoutes.get("/:workspaceId", requireWorkspaceRole("member"), async (c) => {
+  const id = c.req.param("workspaceId");
+  const [ws] = await db.select().from(workspaces).where(eq(workspaces.id, id));
+  return c.json(ws);
+});
+
+// 멤버 목록
+workspaceRoutes.get("/:workspaceId/members", requireWorkspaceRole("member"), async (c) => {
+  const id = c.req.param("workspaceId");
+  const members = await db.select().from(workspaceMembers).where(eq(workspaceMembers.workspaceId, id));
+  return c.json(members);
+});
+
+// 역할 변경 (admin 이상)
+workspaceRoutes.patch(
+  "/:workspaceId/members/:userId",
+  requireWorkspaceRole("admin"),
+  zValidator("json", z.object({ role: z.enum(["admin", "member", "guest"]) })),
+  async (c) => {
+    const { workspaceId, userId } = c.req.param();
+    const { role } = c.req.valid("json");
+    await db.update(workspaceMembers).set({ role })
+      .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)));
+    return c.json({ ok: true });
+  }
+);
+
+// 멤버 제거 (admin 이상; owner 제거는 불가)
+workspaceRoutes.delete("/:workspaceId/members/:userId", requireWorkspaceRole("admin"), async (c) => {
+  const { workspaceId, userId } = c.req.param();
+  // owner 보호 로직 필요
+  await db.delete(workspaceMembers)
+    .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)));
+  return c.json({ ok: true });
+});
+```
+
+- [ ] **Step 4: invites.ts — 초대 생성·수락·거절**
+
+```typescript
+// apps/api/src/routes/invites.ts
+import { Hono } from "hono";
+import { zValidator } from "@hono/zod-validator";
+import { z } from "zod";
+import { db } from "@opencairn/db";
+import { workspaceInvites, workspaceMembers } from "@opencairn/db";
+import { and, eq } from "drizzle-orm";
+import { randomBytes } from "node:crypto";
+import { requireAuth } from "../middleware/auth";
+import { requireWorkspaceRole } from "../middleware/require-role";
+import { sendInviteEmail } from "../lib/email";
+
+export const inviteRoutes = new Hono().use("*", requireAuth);
+
+// 초대 생성 (admin 이상)
+inviteRoutes.post(
+  "/workspaces/:workspaceId/invites",
+  requireWorkspaceRole("admin"),
+  zValidator("json", z.object({ email: z.string().email(), role: z.enum(["admin", "member", "guest"]).default("member") })),
+  async (c) => {
+    const { workspaceId } = c.req.param();
+    const { email, role } = c.req.valid("json");
+    const inviter = c.get("user");
+    const token = randomBytes(32).toString("base64url");
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    const [inv] = await db.insert(workspaceInvites).values({
+      workspaceId, email, role, token, invitedBy: inviter.id, expiresAt,
+    }).returning();
+
+    await sendInviteEmail(email, { token, workspaceId, invitedByName: inviter.name });
+    return c.json({ id: inv.id }, 201);
+  }
+);
+
+// 초대 수락 (토큰 기반)
+inviteRoutes.post("/invites/:token/accept", async (c) => {
+  const user = c.get("user");
+  if (!user) return c.json({ error: "Must be logged in to accept invite" }, 401);
+
+  const token = c.req.param("token");
+  const [inv] = await db.select().from(workspaceInvites).where(eq(workspaceInvites.token, token));
+  if (!inv) return c.json({ error: "Invite not found" }, 404);
+  if (inv.acceptedAt) return c.json({ error: "Already accepted" }, 400);
+  if (inv.expiresAt < new Date()) return c.json({ error: "Expired" }, 410);
+  if (inv.email.toLowerCase() !== user.email.toLowerCase()) {
+    return c.json({ error: "Invite email does not match your account" }, 403);
+  }
+
+  await db.insert(workspaceMembers).values({
+    workspaceId: inv.workspaceId, userId: user.id, role: inv.role, invitedBy: inv.invitedBy,
+  });
+  await db.update(workspaceInvites).set({ acceptedAt: new Date() }).where(eq(workspaceInvites.id, inv.id));
+  return c.json({ workspaceId: inv.workspaceId });
+});
+
+// 초대 거절
+inviteRoutes.post("/invites/:token/decline", async (c) => {
+  const token = c.req.param("token");
+  await db.delete(workspaceInvites).where(eq(workspaceInvites.token, token));
+  return c.json({ ok: true });
+});
+```
+
+- [ ] **Step 5: `apps/api/src/lib/email.ts` — Resend 래퍼**
+- [ ] **Step 6: `apps/api/src/app.ts`에서 라우트 마운트**
+
+```typescript
+import { workspaceRoutes } from "./routes/workspaces";
+import { inviteRoutes } from "./routes/invites";
+
+app.route("/api/workspaces", workspaceRoutes);
+app.route("/api", inviteRoutes);  // /api/invites/:token/accept 등
+```
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add apps/api/src/lib/permissions.ts apps/api/src/middleware/require-role.ts \
+        apps/api/src/routes/workspaces.ts apps/api/src/routes/invites.ts \
+        apps/api/src/lib/email.ts apps/api/src/app.ts
+git commit -m "feat(api): workspace CRUD, member management, invite flow with permissions helpers"
+```
+
+---
+
+### Task 6: apps/api — Project CRUD Routes (workspace-scoped)
 
 **Files:**
 - Create: `apps/api/src/routes/projects.ts`
@@ -1450,62 +1908,82 @@ import { db } from "@opencairn/db";
 import { projects, eq, and, desc } from "@opencairn/db";
 import { createProjectSchema, updateProjectSchema } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
+import { canRead, canWrite } from "../lib/permissions";
+import { requireWorkspaceRole } from "../middleware/require-role";
 
 export const projectRoutes = new Hono()
   .use("*", requireAuth)
 
-  .get("/", async (c) => {
+  // 워크스페이스 내 프로젝트 목록 (URL: /api/workspaces/:workspaceId/projects)
+  .get("/workspaces/:workspaceId/projects", requireWorkspaceRole("member"), async (c) => {
+    const workspaceId = c.req.param("workspaceId");
     const user = c.get("user");
-    const result = await db
+    const rows = await db
       .select()
       .from(projects)
-      .where(eq(projects.userId, user.id))
+      .where(eq(projects.workspaceId, workspaceId))
       .orderBy(desc(projects.createdAt));
-    return c.json(result);
+    // viewer 권한도 없는 project는 필터링
+    const visible = [];
+    for (const p of rows) if (await canRead(user.id, { type: "project", id: p.id })) visible.push(p);
+    return c.json(visible);
   })
 
-  .get("/:id", async (c) => {
+  // 단일 프로젝트 조회 (/api/projects/:id)
+  .get("/projects/:id", async (c) => {
     const user = c.get("user");
     const id = c.req.param("id");
+    if (!(await canRead(user.id, { type: "project", id }))) return c.json({ error: "Forbidden" }, 403);
     const [project] = await db
       .select()
       .from(projects)
-      .where(and(eq(projects.id, id), eq(projects.userId, user.id)));
+      .where(eq(projects.id, id));
     if (!project) return c.json({ error: "Not found" }, 404);
     return c.json(project);
   })
 
-  .post("/", zValidator("json", createProjectSchema), async (c) => {
-    const user = c.get("user");
-    const body = c.req.valid("json");
-    const [project] = await db
-      .insert(projects)
-      .values({ ...body, userId: user.id })
-      .returning();
-    return c.json(project, 201);
-  })
+  // 생성: workspace-scoped (/api/workspaces/:workspaceId/projects)
+  .post(
+    "/workspaces/:workspaceId/projects",
+    requireWorkspaceRole("member"),
+    zValidator("json", createProjectSchema),
+    async (c) => {
+      const workspaceId = c.req.param("workspaceId");
+      const user = c.get("user");
+      const body = c.req.valid("json");
+      const [project] = await db
+        .insert(projects)
+        .values({ ...body, workspaceId, createdBy: user.id })
+        .returning();
+      return c.json(project, 201);
+    }
+  )
 
-  .patch("/:id", zValidator("json", updateProjectSchema), async (c) => {
+  // 수정 (/api/projects/:id, editor 이상 필요)
+  .patch("/projects/:id", zValidator("json", updateProjectSchema), async (c) => {
     const user = c.get("user");
     const id = c.req.param("id");
+    if (!(await canWrite(user.id, { type: "project", id }))) return c.json({ error: "Forbidden" }, 403);
     const body = c.req.valid("json");
     const [project] = await db
       .update(projects)
       .set({ ...body, updatedAt: new Date() })
-      .where(and(eq(projects.id, id), eq(projects.userId, user.id)))
+      .where(eq(projects.id, id))
       .returning();
     if (!project) return c.json({ error: "Not found" }, 404);
     return c.json(project);
   })
 
-  .delete("/:id", async (c) => {
+  // 삭제 (workspace admin 이상 또는 생성자)
+  .delete("/projects/:id", async (c) => {
     const user = c.get("user");
     const id = c.req.param("id");
-    const [deleted] = await db
-      .delete(projects)
-      .where(and(eq(projects.id, id), eq(projects.userId, user.id)))
-      .returning();
-    if (!deleted) return c.json({ error: "Not found" }, 404);
+    const [proj] = await db.select().from(projects).where(eq(projects.id, id));
+    if (!proj) return c.json({ error: "Not found" }, 404);
+    const role = await resolveRole(user.id, { type: "workspace", id: proj.workspaceId });
+    const isCreator = proj.createdBy === user.id;
+    if (!["owner", "admin"].includes(role) && !isCreator) return c.json({ error: "Forbidden" }, 403);
+    await db.delete(projects).where(eq(projects.id, id));
     return c.json({ success: true });
   });
 ```
@@ -1518,22 +1996,18 @@ cd apps/api && pnpm add @hono/zod-validator && cd ../..
 
 - [ ] **Step 3: Mount project routes in apps/api/src/app.ts**
 
-Add import and route after auth routes:
-
 ```typescript
 import { projectRoutes } from "./routes/projects";
-
-// ... in createApp():
-app.route("/api/projects", projectRoutes);
+app.route("/api", projectRoutes);  // 이 route 파일은 /workspaces/:wsId/projects, /projects/:id 등 다양한 경로를 가짐
 ```
 
-- [ ] **Step 4: Verify with curl** (requires auth session, test manually or write integration test later)
+- [ ] **Step 4: Verify with curl** — workspace 생성 후 project 생성까지 flow 확인
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add apps/api/
-git commit -m "feat(api): add project CRUD routes"
+git commit -m "feat(api): workspace-scoped project CRUD with permission checks"
 ```
 
 ---
