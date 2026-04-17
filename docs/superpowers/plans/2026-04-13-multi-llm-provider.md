@@ -2,11 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** `packages/llm/` Python 패키지를 신설해 Gemini/OpenAI/Ollama를 단일 인터페이스로 추상화하고, DB 스키마에 `user_preferences`와 동적 `VECTOR_DIM`을 추가하며, Docker Compose에 Ollama 셀프호스트 지원을 추가한다.
+> **⚠️ 2026-04-15 업데이트:** OpenAI provider는 제거됨. v0.1 지원 provider는 **Gemini (production)** + **Ollama (로컬/BYOK)** 2개. 결정 배경은 `docs/superpowers/specs/2026-04-13-multi-llm-provider-design.md` 상단 업데이트 노트 참조.
 
-**Architecture:** `LLMProvider` abstract class를 `packages/llm/base.py`에 정의한다. `GeminiProvider`는 Gemini premium features(Thinking, Context Caching, Search Grounding, TTS)를 구현하고, `OpenAIProvider`/`OllamaProvider`는 `generate`/`embed`만 구현한다. premium feature 메서드는 base에서 `None`을 반환하므로 agent 코드는 `if result:` 한 줄로 fallback 처리한다. `factory.py`가 `LLM_PROVIDER` env를 읽어 provider 인스턴스를 반환한다. DB의 `vector()` 차원은 `VECTOR_DIM` env에서 결정된다.
+**Goal:** `packages/llm/` Python 패키지를 신설해 Gemini/Ollama를 단일 인터페이스로 추상화하고, DB 스키마에 `user_preferences`와 동적 `VECTOR_DIM`을 추가하며, Docker Compose에 Ollama 셀프호스트 지원을 추가한다.
 
-**Tech Stack:** Python 3.12, uv, google-genai SDK, openai SDK, httpx(Ollama), Drizzle ORM, docker-compose profiles
+**Architecture:** `LLMProvider` abstract class를 `packages/llm/base.py`에 정의한다. `GeminiProvider`는 Gemini premium features(Thinking, Context Caching, Search Grounding, TTS)를 구현하고, `OllamaProvider`는 `generate`/`embed`만 구현한다. premium feature 메서드는 base에서 `None`을 반환하므로 agent 코드는 `if result:` 한 줄로 fallback 처리한다. `factory.py`가 `LLM_PROVIDER` env를 읽어 provider 인스턴스를 반환한다. DB의 `vector()` 차원은 `VECTOR_DIM` env에서 결정된다.
+
+**Tech Stack:** Python 3.12, uv, google-genai SDK, httpx(Ollama), Drizzle ORM, docker-compose profiles
 
 ---
 
@@ -19,14 +21,12 @@ packages/llm/                         -- 신규 Python 패키지
     __init__.py                       -- public exports
     base.py                           -- LLMProvider ABC + 데이터 모델
     gemini.py                         -- GeminiProvider (premium features)
-    openai.py                         -- OpenAIProvider (standard)
     ollama.py                         -- OllamaProvider (local)
     factory.py                        -- get_provider(config) → LLMProvider
   tests/
     conftest.py                       -- 공유 fixtures
     test_base.py                      -- 데이터 모델 검증
     test_gemini.py                    -- GeminiProvider (mock google-genai)
-    test_openai.py                    -- OpenAIProvider (mock openai)
     test_ollama.py                    -- OllamaProvider (mock httpx)
     test_factory.py                   -- factory env 파싱
 
@@ -64,7 +64,6 @@ version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
     "google-genai>=1.0.0",
-    "openai>=1.30.0",
     "httpx>=0.27.0",
     "pydantic>=2.7.0",
     "python-dotenv>=1.0.0",
@@ -129,16 +128,6 @@ def gemini_config() -> ProviderConfig:
         api_key="test-gemini-key",
         model="gemini-3-flash-preview",
         embed_model="gemini-embedding-2-preview",
-    )
-
-
-@pytest.fixture
-def openai_config() -> ProviderConfig:
-    return ProviderConfig(
-        provider="openai",
-        api_key="test-openai-key",
-        model="gpt-4o",
-        embed_model="text-embedding-3-small",
     )
 
 
@@ -601,123 +590,7 @@ git commit -m "feat(infra): add GeminiProvider with premium features"
 
 ---
 
-### Task 4: OpenAIProvider
-
-**Files:**
-- Create: `packages/llm/src/llm/openai.py`
-- Create: `packages/llm/tests/test_openai.py`
-
-- [ ] **Step 1: 테스트 작성**
-
-```python
-# packages/llm/tests/test_openai.py
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from llm.openai import OpenAIProvider
-from llm.base import EmbedInput
-
-
-@pytest.fixture
-def provider(openai_config):
-    return OpenAIProvider(openai_config)
-
-
-@pytest.mark.asyncio
-async def test_generate_returns_text(provider):
-    mock_response = MagicMock()
-    mock_response.choices = [MagicMock()]
-    mock_response.choices[0].message.content = "Hello from OpenAI"
-    with patch.object(provider._client.chat.completions, "create", new=AsyncMock(return_value=mock_response)):
-        result = await provider.generate([{"role": "user", "content": "hi"}])
-    assert result == "Hello from OpenAI"
-
-
-@pytest.mark.asyncio
-async def test_embed_returns_vectors(provider):
-    mock_response = MagicMock()
-    mock_response.data = [MagicMock(embedding=[0.1, 0.2, 0.3])]
-    with patch.object(provider._client.embeddings, "create", new=AsyncMock(return_value=mock_response)):
-        result = await provider.embed([EmbedInput(text="hello")])
-    assert result == [[0.1, 0.2, 0.3]]
-
-
-@pytest.mark.asyncio
-async def test_premium_features_return_none(provider):
-    assert await provider.think("prompt") is None
-    assert await provider.tts("text") is None
-    assert await provider.transcribe(b"audio") is None
-    assert await provider.cache_context("content") is None
-    assert await provider.ground_search("query") is None
-```
-
-Save to `packages/llm/tests/test_openai.py`.
-
-- [ ] **Step 2: 테스트 실패 확인**
-
-```bash
-cd /c/Users/Sungbin/Documents/GitHub/opencairn-monorepo/packages/llm
-uv run pytest tests/test_openai.py -v
-```
-
-Expected: `ModuleNotFoundError: No module named 'llm.openai'`
-
-- [ ] **Step 3: `openai.py` 구현**
-
-```python
-# packages/llm/src/llm/openai.py
-from __future__ import annotations
-from openai import AsyncOpenAI
-from .base import LLMProvider, ProviderConfig, EmbedInput
-
-
-class OpenAIProvider(LLMProvider):
-    def __init__(self, config: ProviderConfig) -> None:
-        super().__init__(config)
-        self._client = AsyncOpenAI(
-            api_key=config.api_key,
-            base_url=config.base_url,  # OpenAI-compatible 엔드포인트도 지원
-        )
-
-    async def generate(self, messages: list[dict], **kwargs) -> str:
-        response = await self._client.chat.completions.create(
-            model=self.config.model,
-            messages=messages,
-            **kwargs,
-        )
-        return response.choices[0].message.content
-
-    async def embed(self, inputs: list[EmbedInput]) -> list[list[float]]:
-        # OpenAI embed는 텍스트만 지원
-        texts = [inp.text or "" for inp in inputs]
-        response = await self._client.embeddings.create(
-            model=self.config.embed_model,
-            input=texts,
-        )
-        return [item.embedding for item in response.data]
-```
-
-Save to `packages/llm/src/llm/openai.py`.
-
-- [ ] **Step 4: 테스트 통과 확인**
-
-```bash
-cd /c/Users/Sungbin/Documents/GitHub/opencairn-monorepo/packages/llm
-uv run pytest tests/test_openai.py -v
-```
-
-Expected: 3 passed
-
-- [ ] **Step 5: Commit**
-
-```bash
-cd /c/Users/Sungbin/Documents/GitHub/opencairn-monorepo
-git add packages/llm/src/llm/openai.py packages/llm/tests/test_openai.py
-git commit -m "feat(infra): add OpenAIProvider"
-```
-
----
-
-### Task 5: OllamaProvider
+### Task 4: OllamaProvider
 
 **Files:**
 - Create: `packages/llm/src/llm/ollama.py`
@@ -845,7 +718,7 @@ git commit -m "feat(infra): add OllamaProvider for fully local deployment"
 
 ---
 
-### Task 6: factory.py
+### Task 5: factory.py
 
 **Files:**
 - Create: `packages/llm/src/llm/factory.py`
@@ -859,7 +732,6 @@ import pytest
 from llm.factory import get_provider
 from llm.base import ProviderConfig
 from llm.gemini import GeminiProvider
-from llm.openai import OpenAIProvider
 from llm.ollama import OllamaProvider
 
 
@@ -870,15 +742,6 @@ def test_get_provider_gemini():
     )
     provider = get_provider(config)
     assert isinstance(provider, GeminiProvider)
-
-
-def test_get_provider_openai():
-    config = ProviderConfig(
-        provider="openai", api_key="key",
-        model="gpt-4o", embed_model="text-embedding-3-small"
-    )
-    provider = get_provider(config)
-    assert isinstance(provider, OpenAIProvider)
 
 
 def test_get_provider_ollama():
@@ -897,6 +760,16 @@ def test_get_provider_unknown_raises():
         model="x", embed_model="x"
     )
     with pytest.raises(ValueError, match="Unknown provider: unknown"):
+        get_provider(config)
+
+
+def test_get_provider_openai_raises():
+    # OpenAI is intentionally unsupported (2026-04-15 decision)
+    config = ProviderConfig(
+        provider="openai", api_key="key",
+        model="gpt-4o", embed_model="text-embedding-3-small"
+    )
+    with pytest.raises(ValueError, match="Unknown provider: openai"):
         get_provider(config)
 
 
@@ -928,7 +801,6 @@ from __future__ import annotations
 import os
 from .base import LLMProvider, ProviderConfig
 from .gemini import GeminiProvider
-from .openai import OpenAIProvider
 from .ollama import OllamaProvider
 
 
@@ -945,8 +817,6 @@ def get_provider(config: ProviderConfig | None = None) -> LLMProvider:
     match config.provider:
         case "gemini":
             return GeminiProvider(config)
-        case "openai":
-            return OpenAIProvider(config)
         case "ollama":
             return OllamaProvider(config)
         case _:
@@ -974,7 +844,7 @@ git commit -m "feat(infra): add provider factory with env-based config"
 
 ---
 
-### Task 7: packages/db — user_preferences 테이블 + VECTOR_DIM
+### Task 6: packages/db — user_preferences 테이블 + VECTOR_DIM
 
 **Files:**
 - Create: `packages/db/src/schema/user-preferences.ts`
@@ -991,8 +861,9 @@ import { pgTable, text, uuid, timestamp } from "drizzle-orm/pg-core";
 import { users } from "./users";
 
 export const userPreferences = pgTable("user_preferences", {
-  userId:       uuid("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
-  llmProvider:  text("llm_provider").notNull().default("gemini"),   // "gemini" | "openai" | "ollama"
+  // Better Auth users.id는 text 타입 — uuid() 사용 시 FK 타입 불일치 (M-3 수정)
+  userId:       text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  llmProvider:  text("llm_provider").notNull().default("gemini"),   // "gemini" | "ollama" (openai는 2026-04-15 제거)
   llmModel:     text("llm_model").notNull().default("gemini-3-flash-preview"),
   embedModel:   text("embed_model").notNull().default("gemini-embedding-2-preview"),
   ttsModel:     text("tts_model"),
@@ -1054,7 +925,7 @@ git commit -m "feat(db): add user_preferences table and dynamic VECTOR_DIM"
 
 ---
 
-### Task 8: Docker Compose + 환경 변수
+### Task 7: Docker Compose + 환경 변수
 
 **Files:**
 - Modify: `docker-compose.yml`
@@ -1085,7 +956,7 @@ volumes:
 
 ```bash
 # ── LLM Provider ───────────────────────────────────────────────────────────
-# "gemini" | "openai" | "ollama"
+# "gemini" | "ollama"  (OpenAI는 2026-04-15 제거)
 LLM_PROVIDER=gemini
 
 # Gemini (production)
@@ -1094,18 +965,15 @@ LLM_MODEL=gemini-3-flash-preview
 EMBED_MODEL=gemini-embedding-2-preview
 TTS_MODEL=gemini-2.5-flash-preview-tts
 
-# OpenAI BYOK (LLM_PROVIDER=openai 시)
-# LLM_API_KEY=your-openai-api-key
-# LLM_MODEL=gpt-4o
-# EMBED_MODEL=text-embedding-3-small
-
 # Ollama 완전 로컬 (LLM_PROVIDER=ollama 시)
 # LLM_MODEL=llama3
 # EMBED_MODEL=nomic-embed-text
 # OLLAMA_BASE_URL=http://ollama:11434
 
 # ── Vector Dimension ────────────────────────────────────────────────────────
-# Gemini: 3072 | OpenAI: 1536 | Ollama nomic: 768
+# Gemini 3072 (native) | Matryoshka truncate → 1536 (storage 절감 권장)
+# Ollama nomic-embed-text: 768
+# 권장 운영값: VECTOR_DIM=1536 (storage-planning.md 참조)
 VECTOR_DIM=3072
 ```
 
@@ -1140,8 +1008,9 @@ git commit -m "feat(infra): add Ollama docker profile and LLM env vars"
 
 ## 완료 기준
 
-- [ ] `uv run pytest` — 22 tests passed (`packages/llm/`)
-- [ ] `GeminiProvider`, `OpenAIProvider`, `OllamaProvider` 모두 `LLMProvider` 인터페이스 구현
+- [ ] `uv run pytest` — 17 tests passed (`packages/llm/`, OpenAI 제거 후)
+- [ ] `GeminiProvider`, `OllamaProvider` 모두 `LLMProvider` 인터페이스 구현
+- [ ] `get_provider("openai", ...)` — ValueError 발생 (의도적 비지원)
 - [ ] `get_provider()` — env 없이 config로도, env로도 동작
 - [ ] `docker compose --profile ollama up` — Ollama 컨테이너 정상 기동
 - [ ] `VECTOR_DIM` env 변경 시 Drizzle 마이그레이션이 다른 차원의 vector column 생성
