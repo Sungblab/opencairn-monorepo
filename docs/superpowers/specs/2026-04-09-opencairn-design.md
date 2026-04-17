@@ -8,7 +8,9 @@
 
 ## 1. Product Vision
 
-NotebookLM + Notion + Cursor를 합친 개인 지식 OS.
+NotebookLM + Notion + Cursor를 합친 **개인·팀 지식 OS**.
+
+협업 측면에서는 Notion을 대체하면서 AI 지식 엔진이 추가된 포지션. 규제 산업·대학·연구소 대상 셀프호스팅 옵션으로 진입 장벽이 다른 경쟁자 부재. 상세 협업 설계는 [collaboration-model.md](../../architecture/collaboration-model.md).
 
 - **자료 -> 지식화**: 자료(PDF, 영상, 오디오, 이미지, URL)를 올으면 AI가 위키를 컴파일
 - **노트 작성 + 연결**: Notion 스타일 블록 에디터로 직접 노트 작성, 위키링크로 연결
@@ -23,29 +25,31 @@ NotebookLM + Notion + Cursor를 합친 개인 지식 OS.
 - **지식 진화 타임라인**: wiki_logs 기반으로 지식 그래프가 어떻게 성장했는지 시각화
 - **SaaS**: 랜딩페이지, 블로그, 빌링 포함
 
-### 타겟 페르소나
+### 타겟 페르소나 (3단계 확장)
 
-| 페르소나 | 핵심 니즈 | 주요 기능 |
-|----------|----------|----------|
-| 학생/수험생 | 시험, 공부, 복습 | Socratic, 플래시카드, 모의시험, 슬라이드 |
-| 연구자/직장인 | 자문 정리, 리서치 | Compiler, Deep Research, Synthesis |
-| 직장인 | 회의록 정리, 보고서 작성 | 프로젝트, Q&A, 리포트 생성, Narrator |
-| 개발자 | 기술 문서 정리, 코딩 | Code Agent, 위키, Deep Research |
+| 단계 | Primary | 핵심 니즈 | 주요 기능 | 관문 |
+|------|---------|----------|----------|------|
+| **v0.1** | 대학원생 / 리서처 | 논문 정리, Q&A, 학습 | Compiler, Research, Socratic, Deep Research, KG 5뷰 | 개인 도구로 신뢰 획득 |
+| **v0.2** | 연구실 / 소규모 팀 (3~15명) | 집단 지식 관리, 공동 편집 | + Workspace, 멤버·권한, 코멘트, @mention, 알림, Presence | 팀 도입 "grass-roots" |
+| **v0.3** | 규제 산업 엔터프라이즈 (금융·의료·공공·대학) | 컴플라이언스, 데이터 주권, Notion 대체 | + SSO (SAML/OIDC), 감사 로그, Guest, 공개 링크, Ollama 완전 로컬 | 공식 도입·유료 계약 |
+
+v0.1에서 이미 협업 기반 (Workspace 데이터 모델, 역할, 기본 권한, 실시간 편집)은 갖추고 시작함. v0.2 이상은 UI/기능 확장. 구조 변경은 v0.1에 박아둠.
 
 ---
 
 ## 2. Architecture Overview
 
 ```
-Browser
+Browser (Workspace-scoped)
   |
   v
 Next.js 16 (Frontend)
   |  - 랜딩페이지, 블로그 (SSG, SEO)
   |  - 앱 대시보드 (CSR, API 호출만)
+  |  - URL 구조: /app/w/<workspace>/p/<project>/notes/<note>
   |  - Server Action 없음, DB 접근 없음
   |
-  | REST API
+  | REST API  +  WebSocket (Hocuspocus, Yjs CRDT)
   v
 Hono (Backend API, TypeScript)
   |
@@ -86,21 +90,28 @@ Browser (Code Execution)
 - **Next.js는 UI + 마케팅** -- SSG(랜딩/블로그), CSR(앱). Server Action 없음
 - **Hono가 모든 비즈니스 로직의 게이트웨이** -- 인증, CRUD, 파일 프로세싱, 워크플로우 트리거
 - **무거운 AI 처리는 전부 Python Worker** -- 에이전트, 위키 생성, 이벤트 실행
-- **Temporal로 에이전트 워크플로우 오케스트레이션** -- 영구적 실행, 자동 복구, 타임아웃, 동시성 제어. 11개 에이전트 간 충돌 방지
+- **Temporal로 에이전트 워크플로우 오케스트레이션** -- 영구적 실행, 자동 복구, 타임아웃, 동시성 제어. 12개 에이전트 간 충돌 방지
 - **Gemini 네이티브 기능 최대한 활용** -- TTS, Deep Research, 검색 그라운딩, 캐싱을 직접 구축하지 않음
 - **브라우저 샌드박스** -- AI 생성 코드는 Pyodide (WASM) / `<iframe sandbox>`로 클라이언트에서 실행. 서버는 코드를 한 줄도 실행하지 않는다. 근거는 [ADR-006](../../architecture/adr/006-pyodide-iframe-sandbox.md)
+- **Workspace가 격리 경계** -- 모든 데이터·에이전트·검색·Yjs 문서·알림은 workspace 스코프로 제한. 개인 워크스페이스와 회사 워크스페이스 데이터는 절대 섞이지 않는다. 상세: [collaboration-model.md](../../architecture/collaboration-model.md)
+- **권한은 데이터 레이어에서** -- `canRead(user, resource)` / `canWrite(user, resource)` 헬퍼를 모든 쿼리가 경유. Hocuspocus WebSocket도 연결 시 auth hook으로 권한 검증.
 - **환경변수만 바꾸면 셀프호스팅 <-> 클라우드 전환**
 
 ### URL 구조
 
 ```
-opencairn.com/              -> 랜딩 (SSG)
-opencairn.com/blog           -> 블로그 (MDX + SSG)
-opencairn.com/docs           -> 문서 (SSG)
-opencairn.com/pricing        -> 가격 (SSG)
-opencairn.com/login          -> 인증
-opencairn.com/app/dashboard  -> 앱 (CSR, API 호출만)
-opencairn.com/app/project/x  -> 프로젝트 (CSR)
+opencairn.com/                            -> 랜딩 (SSG)
+opencairn.com/blog                         -> 블로그 (MDX + SSG)
+opencairn.com/docs                         -> 문서 (SSG)
+opencairn.com/pricing                      -> 가격 (SSG)
+opencairn.com/login                        -> 인증
+opencairn.com/app                          -> 워크스페이스 선택 (CSR)
+opencairn.com/app/w/<workspace>            -> workspace 대시보드 (프로젝트 목록, 활동 피드)
+opencairn.com/app/w/<workspace>/members    -> 멤버 / 초대 관리
+opencairn.com/app/w/<workspace>/p/<proj>   -> 프로젝트 (CSR)
+opencairn.com/app/w/<workspace>/p/<proj>/notes/<note>  -> 노트·위키 페이지
+opencairn.com/s/<token>                   -> 공개 공유 링크 (비로그인 접근)
+opencairn.com/invite/<token>              -> 초대 수락
 ```
 
 ---
@@ -235,26 +246,44 @@ opencairn/
 
 ## 5. Data Model
 
+> **협업 계층 상세**: 다음은 핵심 개요. workspace_members, workspace_invites, project_permissions, page_permissions, comments, comment_mentions, notifications, notification_preferences, activity_events, public_share_links 등 협업 전담 테이블 전체 스키마는 [collaboration-model.md §2](../../architecture/collaboration-model.md)에 정리됨.
+
 ### Core Tables
 
 ```
-users
-  id              UUID PK
+users                                           -- Better Auth가 관리. id는 text 타입
+  id              TEXT PK
   email           TEXT UNIQUE
   name            TEXT
   password_hash   TEXT
-  plan            ENUM (free, pro, byok)
-  llm_provider    ENUM (gemini, ollama) DEFAULT 'gemini'   -- openai는 2026-04-15 제거
+  llm_provider    ENUM (gemini, ollama) DEFAULT 'gemini'  -- openai는 2026-04-15 제거
   llm_api_key     TEXT NULLABLE (AES-256-GCM encrypted, BYOK Gemini 모드에서 사용)
   ollama_base_url TEXT NULLABLE (완전 로컬 모드에서만)
-  whisper_model   TEXT NULLABLE (tiny|base|small|medium|large-v3, 로컬 STT 모델 선택)
+  whisper_model   TEXT NULLABLE (tiny|base|small|medium|large-v3)
   created_at      TIMESTAMP
+
+workspaces                                      -- 격리 경계 (collaboration-model 참조)
+  id              UUID PK
+  slug            TEXT UNIQUE                   -- URL용 (예: "acme-corp")
+  name            TEXT
+  owner_id        TEXT FK -> users
+  plan_type       ENUM (free, pro, enterprise)  -- 요금제는 workspace-level
+  created_at      TIMESTAMP
+
+workspace_members                               -- 멤버십 + 역할
+  workspace_id    UUID FK -> workspaces
+  user_id         TEXT FK -> users
+  role            ENUM (owner, admin, member, guest)
+  joined_at       TIMESTAMP
+  PRIMARY KEY (workspace_id, user_id)
 
 projects
   id              UUID PK
-  user_id         UUID FK -> users
+  workspace_id    UUID FK -> workspaces        -- ★ user_id 대신 workspace_id
   name            TEXT
   description     TEXT
+  created_by      TEXT FK -> users             -- 생성자 기록용 (권한 계산 안 함)
+  default_role    ENUM (editor, viewer) DEFAULT 'editor'  -- workspace member가 이 프로젝트에 가지는 기본 역할
   created_at      TIMESTAMP
 
 folders
@@ -275,22 +304,28 @@ note_tags
   tag_id          UUID FK -> tags
 ```
 
+- **사용자 플랜이 아니라 Workspace 플랜**: 같은 사용자가 개인 Free 워크스페이스 + 회사 Enterprise 워크스페이스에 동시 소속 가능.
+- **Better Auth users.id는 text** (uuid 아님). 모든 FK에서 text 타입 사용 (Drizzle schema에서 자주 실수하는 지점).
+
 ### Notes & Wiki
 
 ```
 notes
   id              UUID PK
+  workspace_id    UUID FK -> workspaces (denormalized, 권한·검색 쿼리 속도용)
   project_id      UUID FK -> projects
   folder_id       UUID FK -> folders NULLABLE
   title           TEXT
   content         JSONB (Plate block format)
   content_text    TEXT (plain text for BM25)
   content_tsv     TSVECTOR (generated, BM25 index)
-  embedding       VECTOR(3072) (gemini-embedding-2-preview)
+  embedding       VECTOR(VECTOR_DIM) (default 3072, 권장 운영값 1536 — storage-planning 참조)
   type            ENUM (note, wiki, source)
   source_type     ENUM (manual, pdf, audio, video, image, youtube, web) NULLABLE
-  source_file_key TEXT NULLABLE (Cloudflare R2 key)
-  is_auto         BOOLEAN (AI가 생성했으면 true)
+  source_file_key TEXT NULLABLE (S3/R2 object key)
+  is_auto         BOOLEAN (AI가 생성했으면 true, 사용자 수동 편집 시 false로 전환)
+  inherit_parent  BOOLEAN DEFAULT true (false면 페이지 권한 상속 끊음 — Notion 방식)
+  created_by      TEXT FK -> users                -- 초기 생성자 (AI면 agent 이름)
   created_at      TIMESTAMP
   updated_at      TIMESTAMP
 
@@ -325,16 +360,22 @@ concept_notes
   note_id         UUID FK -> notes
 ```
 
-### Wiki Logs
+### Activity Events (wiki_logs의 확장)
+
+2026-04-18 협업 도입 시 `wiki_logs`를 `activity_events`로 리네이밍·확장. 위키 편집 뿐만 아니라 코멘트, 공유, 권한 변경 등 workspace 내 **모든 활동**을 기록. 상세 스키마는 [collaboration-model.md §2.5](../../architecture/collaboration-model.md).
 
 ```
-wiki_logs
+activity_events
   id              UUID PK
-  note_id         UUID FK -> notes (wiki page)
-  agent           TEXT (compiler, librarian, etc.)
-  action          ENUM (create, update, merge, link, unlink)
-  diff            JSONB (변경 내용)
-  reason          TEXT (AI가 왜 이 변경을 했는지)
+  workspace_id    UUID FK -> workspaces        (스코프)
+  actor_id        TEXT (user_id 또는 agent 이름)
+  actor_type      ENUM (user, agent)
+  verb            ENUM (created, updated, deleted, commented, invited, joined,
+                        role_changed, shared_public, wiki_merged, 등)
+  object_type     ENUM (note, project, workspace, comment, invite, link)
+  object_id       TEXT
+  diff            JSONB NULLABLE
+  reason          TEXT NULLABLE (AI가 왜 그랬는지)
   created_at      TIMESTAMP
 ```
 
@@ -960,32 +1001,68 @@ Python Worker
 
 ---
 
-## 14. Auth
+## 14. Auth & Authorization
+
+### 14.1 Authentication
 
 - 멀티유저 (개별 계정 로그인)
-- Better Auth (Hono 연동)
-- 세션 기반 (Redis에 세션 저장)
-- OAuth 추후 추가 가능 (Google, GitHub)
+- Better Auth (Hono 연동) — 이메일/비밀번호 + Magic Link (v0.1). OAuth(Google/GitHub)는 v0.2.
+- 세션 쿠키 기반 (`better_auth.session_token`, HttpOnly + Secure + SameSite=Lax)
+- 세션 store는 PostgreSQL + Redis 캐시
+- SAML/OIDC SSO는 v0.3 Enterprise
+
+### 14.2 Authorization (권한)
+
+**핵심 원칙:**
+- 모든 read/write 쿼리는 데이터 레이어에서 권한 검증 (`canRead` / `canWrite` 헬퍼). API 미들웨어만으로 부족 — 내부 호출·에이전트·웹훅도 경유.
+- 3계층 권한: Workspace → Project → Page. 상위에서 하위로 상속, 하위에서 명시적 override 가능.
+- Hocuspocus WebSocket 연결 시 auth hook으로 워크스페이스 멤버십 + 페이지 권한 검증.
+
+**역할 체계:**
+
+| 계층 | 역할 | 요약 |
+|------|------|------|
+| Workspace | owner, admin, member, guest | 조직 전체 권한 |
+| Project | editor, viewer | workspace 역할 위의 override |
+| Page | editor, viewer, none | project 역할 위의 override (Notion 방식) |
+
+상세 resolve 알고리즘 + 구현 패턴: [collaboration-model.md §3 / §11](../../architecture/collaboration-model.md)
 
 ---
 
 ## 15. Organization
 
-### Hierarchy
+### 15.1 Hierarchy (3계층)
 
 ```
 User
-  └── Project (격리 단위)
+  └── WorkspaceMembership (M:N via workspace_members)
+Workspace (격리 경계)
+  ├── Members (owner / admin / member / guest)
+  ├── Invites (pending)
+  └── Project (Notion "top-level page" 수준)
+        ├── ProjectPermission (역할 override)
         ├── Folders (중첩 가능)
-        │     └── Notes
+        │     └── Notes (= 페이지)
+        │           └── PagePermission (역할 override)
         ├── Tags
         │     └── Notes (M:N)
         └── Conversations
 ```
 
-- 프로젝트 간 지식이 기본 격리
-- Connector Agent가 프로젝트 간 연결 제안
-- 글로벌 Q&A는 전체 프로젝트 검색 가능
+### 15.2 격리·연결 규칙
+
+- **Workspace 간**: 절대 격리. 에이전트·검색·KG·Yjs 문서 전부 워크스페이스 스코프.
+- **Workspace 내 Project 간**: 기본 격리 but Connector Agent가 연결 제안 (사용자 승인 후 link 생성).
+- **글로벌 Q&A scope**: 같은 workspace 안에서만 전체 프로젝트 검색. 다른 workspace 접근 불가.
+
+### 15.3 Workspace 전환 UX
+
+- 상단 좌측 workspace switcher 드롭다운 (Slack 스타일)
+- 각 workspace별 별도 사이드바, 별도 활동 피드, 별도 알림
+- URL이 `/app/w/<workspace>/...`로 시작 — workspace id가 컨텍스트
+
+상세: [collaboration-model.md](../../architecture/collaboration-model.md)
 
 ---
 
@@ -1172,15 +1249,27 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 - [x] 빌링 (Free/Pro/BYOK, Toss Payments)
 - [x] Visualization Agent (Cytoscape 5뷰 — Graph/Mindmap/Cards/Canvas/Timeline)
 - [x] Docker Compose 원클릭 배포
+- [x] **협업 기반 (Workspace + Permissions + Hocuspocus + Presence + Comments + @mention + Notifications + Activity feed)** — Notion 대체 포지션의 테이블 스테이크
 
 ### v0.2+
 
 - 모바일 앱
 - OAuth (Google, GitHub)
-- 실시간 공동 편집 확장 (현재는 Yjs CRDT 단독 디바이스 동기화)
+- 워크스페이스 **그룹** (팀 단위 권한) — v0.1은 user 개인 권한만
+- 공개 링크 (암호·만료)
+- Guest 고급 기능 (디렉토리 · 온보딩 플로우)
 - 플러그인 시스템
 - CLI 도구
 - Gemini Live API (실시간 음성 Q&A)
 - **Hunter Agent** (Computer-Use 기반 자료 수집, v0.1은 Curator + Search Grounding으로 커버)
+- Webhook 아웃바운드 (Slack/Discord 알림)
 - 파인튜닝 (지식 -> 모델 가중치)
+
+### v0.3 (Enterprise)
+
+- SSO (SAML / OIDC)
+- 감사 로그 export (SOC2, ISO27001 준비)
+- 고급 권한 (IP 화이트리스트, session 타임아웃 정책)
+- Ollama 완전 로컬 프리셋 (규제 산업용 "데이터 외부 송신 없음" 배포 가이드)
 - 다중 PSP 지원 (글로벌 확장 시 Stripe 등)
+- 엔터프라이즈 상용 라이선스 (AGPLv3 대신)
