@@ -13,9 +13,18 @@
 - 각 Activity는 독립적으로 재시도 가능 (최대 3회, 지수 백오프)
 - Activity 타임아웃: 기본 5분, Deep Research는 30분
 
+### Workspace 스코프 (2026-04-18 협업 도입)
+
+- **모든 에이전트 activity의 input에 `workspace_id` + `user_id` 필수**. 누락 시 Zod 검증 실패로 즉시 reject.
+- 에이전트가 읽는 모든 리소스는 `workspace_id`로 필터링. Cross-workspace 데이터 접근 절대 금지.
+- 에이전트가 활용하는 권한:
+  - 사용자 트리거: 해당 user의 권한으로 읽기·쓰기 (권한 상승 금지)
+  - 자동 스케줄 (Librarian/Curator/Temporal): workspace `owner` 권한으로 실행
+- LightRAG 인덱스, pgvector 검색, wiki_logs 조회 등 **모든** 쿼리가 `WHERE workspace_id = $1` 강제.
+
 ### 동시성 제어
-- **프로젝트 세마포어**: 같은 프로젝트의 위키를 수정하는 에이전트는 동시 실행 불가
-  - Temporal의 `workflow.with_semaphore(project_id, max=1)` 사용
+- **워크스페이스·프로젝트 세마포어**: 같은 workspace + project 조합에서 위키를 수정하는 에이전트는 동시 실행 불가
+  - Temporal의 `workflow.with_semaphore("ws:{wsId}:proj:{projectId}", max=1)` 사용
   - 읽기 전용 작업(Research Q&A)은 세마포어 불필요
 - **우선순위**: Compiler > Librarian > 나머지 (제출이 가장 먼저)
 
@@ -121,6 +130,7 @@ Cost ceiling: 호출당 최대 200K 토큰 (Context Caching 미스 가정, Flash
 - 제안만 생성, 자동 연결 금지 (사용자 확인 필요)
 - 한 번에 최대 10개 제안
 - 유사도 기준: cosine similarity > 0.85
+- **같은 workspace 내 프로젝트 간에만 연결 제안 가능**. 다른 workspace의 프로젝트는 절대 crawl/비교하지 않음.
 
 정지 조건:
 - 프로젝트가 1개 이하면 즉시 종료
