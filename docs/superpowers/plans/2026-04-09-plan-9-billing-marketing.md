@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement Stripe-based subscription billing (Free / Pro / BYOK tiers) with usage tracking middleware and plan enforcement, plus a Next.js SSG marketing site with a landing page, MDX blog, docs section, and pricing page.
+**Goal:** Implement Toss Payments-based subscription billing (Free / Pro / BYOK tiers) with usage tracking middleware and plan enforcement, plus a Next.js SSG marketing site with a landing page, MDX blog, docs section, and pricing page.
 
-**Architecture:** Billing logic lives entirely in `apps/api` (Hono route handlers + Drizzle). The web app renders a fully static marketing site built with Next.js SSG — no server components needed for public pages. MDX blog posts are read at build time. Stripe webhooks are handled by a dedicated Hono route. Usage is tracked per-user per-month in the existing `usage_records` table.
+**Architecture:** Billing logic lives entirely in `apps/api` (Hono route handlers + Drizzle). The web app renders a fully static marketing site built with Next.js SSG — no server components needed for public pages. MDX blog posts are read at build time. Toss Payments 빌링키 방식: 프론트에서 카드 등록(`requestBillingAuth`) → 백엔드 빌링키 발급/저장 → 매월 cron으로 직접 청구. Toss 웹훅은 전용 Hono route에서 처리. Usage는 `usage_records` 테이블에 per-user per-month 기록.
 
-**Tech Stack:** Stripe (`stripe` Node SDK), Next.js 16 SSG, MDX (`@next/mdx`), Tailwind CSS 4, Drizzle ORM, TypeScript 5.x, Zod
+**Tech Stack:** Toss Payments (`@tosspayments/tosspayments-sdk` 프론트, REST API 백엔드), Next.js 16 SSG, MDX (`@next/mdx`), Tailwind CSS 4, Drizzle ORM, TypeScript 5.x, Zod
 
 > **⚠️ BYOK 정정 (2026-04-14):** BYOK는 OpenAI 전용이 아님. **BYOK Gemini가 추천 모드** — 사용자가 자신의 Gemini 키를 등록하면 모든 프리미엄 기능(Caching, Thinking, Search Grounding, TTS, 멀티모달 embedding) 그대로 보존. BYOK OpenAI는 graceful degrade 모드. 상세: `docs/superpowers/specs/2026-04-13-multi-llm-provider-design.md`
 
@@ -21,11 +21,11 @@
 
 ## Plan Definitions
 
-| Plan   | Price        | Ingests/mo | QA/mo | Audio/mo | API Keys     |
-|--------|-------------|-----------|-------|----------|-------------|
-| Free   | $0          | 50        | 100   | 5        | None (ours) |
-| Pro    | $19/mo      | Unlimited | Unlimited | 60   | None (ours) |
-| BYOK   | $5/mo       | Unlimited | Unlimited | Unlimited | User's own  |
+| Plan   | Price           | Ingests/mo | QA/mo     | Audio/mo  | API Keys     |
+|--------|----------------|-----------|-----------|-----------|-------------|
+| Free   | 0원             | 50        | 100       | 5         | None (ours) |
+| Pro    | 29,000원/월     | Unlimited | Unlimited | 60        | None (ours) |
+| BYOK   | 6,900원/월      | Unlimited | Unlimited | Unlimited | User's own  |
 
 ---
 
@@ -34,12 +34,12 @@
 ```
 apps/api/src/
   routes/
-    billing.ts              -- Stripe Checkout, portal, webhook handler
+    billing.ts              -- Toss 빌링키 발급, 구독 관리, 웹훅 handler
   middleware/
     usage.ts                -- usage counting middleware (ingest, qa, audio)
     plan-guard.ts           -- plan enforcement middleware (check limits)
   lib/
-    stripe.ts               -- Stripe client singleton + helpers
+    toss.ts                 -- Toss Payments REST 클라이언트 + helpers
     usage.ts                -- usage read/write helpers
 
 apps/web/src/
@@ -47,7 +47,7 @@ apps/web/src/
     (marketing)/            -- route group: no app shell, pure static
       page.tsx              -- landing page (hero, features, how it works, pricing CTA)
       pricing/
-        page.tsx            -- pricing page (plan comparison table + Stripe CTA)
+        page.tsx            -- pricing page (plan comparison table + Toss Payments CTA)
       blog/
         page.tsx            -- blog index (MDX post list, SSG)
         [slug]/
@@ -77,26 +77,33 @@ apps/web/src/
     footer.tsx
 
 packages/db/src/schema/
-  subscriptions.ts          -- subscriptions table (userId, stripeCustomerId, plan, status)
+  subscriptions.ts          -- subscriptions table (userId, tossCustomerKey, tossBillingKey, plan, status)
   -- usage_records already exists from Plan 1
 ```
 
 ---
 
-### Task 1: Stripe Integration (Checkout, webhooks, subscription management)
+### Task 1: Toss Payments Integration (빌링키 발급, 정기결제, 웹훅)
+
+> **토스 빌링 플로우:**
+> 1. 프론트: `tossPayments.requestBillingAuth({ customerKey, successUrl, failUrl })` → 카드 등록 UI
+> 2. 토스가 `successUrl?authKey=...&customerKey=...`으로 리다이렉트
+> 3. 백엔드: `POST /v1/billing/authorizations/issue` → `billingKey` 발급 + DB 저장
+> 4. 매월 cron: `POST /v1/billing/{billingKey}` 로 직접 청구
+> 5. 토스 웹훅으로 결제 성공/실패 수신
 
 **Files:**
-- Create: `apps/api/src/lib/stripe.ts`
+- Create: `apps/api/src/lib/toss.ts`
 - Create: `apps/api/src/routes/billing.ts`
 - Create: `packages/db/src/schema/subscriptions.ts`
 - Modify: `packages/db/src/schema/index.ts`
 - Modify: `apps/api/src/app.ts`
 
-- [ ] **Step 1: Install Stripe SDK**
+- [ ] **Step 1: Install Toss Payments SDK (프론트)**
 
 ```bash
 cd /c/Users/Sungbin/Documents/GitHub/opencairn-monorepo
-pnpm --filter @opencairn/api add stripe
+pnpm --filter @opencairn/web add @tosspayments/tosspayments-sdk
 ```
 
 - [ ] **Step 2: Add `subscriptions` table**
@@ -108,21 +115,21 @@ import { users } from './users'
 
 export const planEnum = pgEnum('plan_type', ['free', 'pro', 'byok'])
 export const subStatusEnum = pgEnum('subscription_status', [
-  'active', 'canceled', 'past_due', 'trialing', 'incomplete'
+  'active', 'canceled', 'past_due'
 ])
 
 export const subscriptions = pgTable('subscriptions', {
-  id:                 uuid('id').defaultRandom().primaryKey(),
-  userId:             text('user_id').notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
-  stripeCustomerId:   text('stripe_customer_id').unique(),
-  stripeSubId:        text('stripe_sub_id').unique(),
-  plan:               planEnum('plan').default('free').notNull(),
-  status:             subStatusEnum('status').default('active').notNull(),
-  currentPeriodStart: timestamp('current_period_start'),
-  currentPeriodEnd:   timestamp('current_period_end'),
-  byokGeminiKey:      text('byok_gemini_key'),   -- encrypted at rest
-  createdAt:          timestamp('created_at').defaultNow().notNull(),
-  updatedAt:          timestamp('updated_at').defaultNow().notNull(),
+  id:                   uuid('id').defaultRandom().primaryKey(),
+  userId:               text('user_id').notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  tossCustomerKey:      text('toss_customer_key').unique(),  // 우리가 생성한 UUID, 토스에 전달
+  tossBillingKey:       text('toss_billing_key').unique(),   // 토스가 발급한 빌링키
+  plan:                 planEnum('plan').default('free').notNull(),
+  status:               subStatusEnum('status').default('active').notNull(),
+  currentPeriodEnd:     timestamp('current_period_end'),     // 다음 결제일
+  byokGeminiKey:        text('byok_gemini_key'),             // AES-256-GCM 암호화 필수 (C-1)
+  byokGeminiKeyIv:      text('byok_gemini_key_iv'),          // GCM nonce
+  createdAt:            timestamp('created_at').defaultNow().notNull(),
+  updatedAt:            timestamp('updated_at').defaultNow().notNull(),
 })
 
 export type Subscription    = typeof subscriptions.$inferSelect
@@ -136,28 +143,52 @@ pnpm --filter @opencairn/db db:generate
 pnpm --filter @opencairn/db db:migrate
 ```
 
-- [ ] **Step 4: Create the Stripe client**
+- [ ] **Step 4: Create the Toss client helper**
 
 ```typescript
-// apps/api/src/lib/stripe.ts
-import Stripe from 'stripe'
+// apps/api/src/lib/toss.ts
 
-if (!process.env.STRIPE_SECRET_KEY) throw new Error('STRIPE_SECRET_KEY is not set')
+if (!process.env.TOSS_SECRET_KEY) throw new Error('TOSS_SECRET_KEY is not set')
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2025-03-31.basil',
-  typescript:  true,
-})
+const TOSS_API = 'https://api.tosspayments.com/v1'
+const authHeader = 'Basic ' + Buffer.from(process.env.TOSS_SECRET_KEY + ':').toString('base64')
 
-export const STRIPE_PRICES = {
-  pro:  process.env.STRIPE_PRICE_PRO!,    // monthly price ID from Stripe dashboard
-  byok: process.env.STRIPE_PRICE_BYOK!,
+// 빌링키 발급 (카드 등록 완료 후 호출)
+export async function issueBillingKey(authKey: string, customerKey: string) {
+  const res = await fetch(`${TOSS_API}/billing/authorizations/issue`, {
+    method:  'POST',
+    headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ authKey, customerKey }),
+  })
+  if (!res.ok) throw new Error(`Toss billingKey issue failed: ${await res.text()}`)
+  return res.json() as Promise<{ billingKey: string; customerKey: string }>
+}
+
+// 정기결제 청구
+export async function chargeBilling(billingKey: string, opts: {
+  customerKey: string
+  amount:      number
+  orderId:     string
+  orderName:   string
+}) {
+  const res = await fetch(`${TOSS_API}/billing/${billingKey}`, {
+    method:  'POST',
+    headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ ...opts, currency: 'KRW' }),
+  })
+  if (!res.ok) throw new Error(`Toss charge failed: ${await res.text()}`)
+  return res.json()
+}
+
+export const PLAN_AMOUNTS = {
+  pro:  29000,
+  byok: 6900,
 } as const
 
 export const PLAN_LIMITS = {
-  free: { ingests: 50,        qa: 100,       audio: 5   },
-  pro:  { ingests: Infinity,  qa: Infinity,  audio: 60  },
-  byok: { ingests: Infinity,  qa: Infinity,  audio: Infinity },
+  free: { ingests: 50,        qa: 100,       audio: 5          },
+  pro:  { ingests: Infinity,  qa: Infinity,  audio: 60         },
+  byok: { ingests: Infinity,  qa: Infinity,  audio: Infinity   },
 } as const
 ```
 
@@ -168,7 +199,8 @@ export const PLAN_LIMITS = {
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { stripe, STRIPE_PRICES } from '../lib/stripe'
+import { randomUUID } from 'crypto'
+import { issueBillingKey } from '../lib/toss'
 import { db } from '../lib/db'
 import { subscriptions } from '@opencairn/db/schema'
 import { eq } from 'drizzle-orm'
@@ -176,155 +208,129 @@ import { authMiddleware } from '../middleware/auth'
 
 export const billingRouter = new Hono()
 
-// POST /billing/checkout — create Stripe Checkout session
+// GET /billing/prepare — customerKey 발급 (프론트가 requestBillingAuth 호출 전에 먼저 요청)
+billingRouter.get('/prepare', authMiddleware, async (c) => {
+  const userId = c.get('userId') as string
+
+  let [sub] = await db
+    .select({ tossCustomerKey: subscriptions.tossCustomerKey })
+    .from(subscriptions)
+    .where(eq(subscriptions.userId, userId))
+
+  if (!sub?.tossCustomerKey) {
+    const customerKey = randomUUID()
+    await db
+      .insert(subscriptions)
+      .values({ userId, tossCustomerKey: customerKey, plan: 'free' })
+      .onConflictDoUpdate({
+        target: subscriptions.userId,
+        set:    { tossCustomerKey: customerKey },
+      })
+    return c.json({ customerKey })
+  }
+
+  return c.json({ customerKey: sub.tossCustomerKey })
+})
+
+// POST /billing/issue — 카드 등록 완료 후 빌링키 발급 및 구독 활성화
 billingRouter.post(
-  '/checkout',
+  '/issue',
   authMiddleware,
   zValidator('json', z.object({
-    plan:       z.enum(['pro', 'byok']),
-    successUrl: z.string().url(),
-    cancelUrl:  z.string().url(),
+    authKey:     z.string(),
+    customerKey: z.string(),
+    plan:        z.enum(['pro', 'byok']),
   })),
   async (c) => {
-    const { plan, successUrl, cancelUrl } = c.req.valid('json')
+    const { authKey, customerKey, plan } = c.req.valid('json')
     const userId = c.get('userId') as string
 
-    // Get or create Stripe customer
-    let [sub] = await db
-      .select()
-      .from(subscriptions)
-      .where(eq(subscriptions.userId, userId))
-
-    let customerId = sub?.stripeCustomerId
-
-    if (!customerId) {
-      const customer = await stripe.customers.create({ metadata: { userId } })
-      customerId = customer.id
-
-      // Upsert subscription row with customer ID
-      await db
-        .insert(subscriptions)
-        .values({ userId, stripeCustomerId: customerId, plan: 'free' })
-        .onConflictDoUpdate({
-          target: subscriptions.userId,
-          set: { stripeCustomerId: customerId },
-        })
-    }
-
-    const session = await stripe.checkout.sessions.create({
-      customer:   customerId,
-      mode:       'subscription',
-      line_items: [{ price: STRIPE_PRICES[plan], quantity: 1 }],
-      success_url: successUrl,
-      cancel_url:  cancelUrl,
-      metadata:   { userId, plan },
-    })
-
-    return c.json({ url: session.url })
-  }
-)
-
-// POST /billing/portal — customer portal for managing subscription
-billingRouter.post(
-  '/portal',
-  authMiddleware,
-  zValidator('json', z.object({ returnUrl: z.string().url() })),
-  async (c) => {
-    const { returnUrl } = c.req.valid('json')
-    const userId = c.get('userId') as string
-
+    // customerKey가 이 userId 소유인지 검증
     const [sub] = await db
-      .select({ stripeCustomerId: subscriptions.stripeCustomerId })
+      .select({ tossCustomerKey: subscriptions.tossCustomerKey })
       .from(subscriptions)
       .where(eq(subscriptions.userId, userId))
 
-    if (!sub?.stripeCustomerId) {
-      return c.json({ error: 'No billing account found' }, 404)
+    if (sub?.tossCustomerKey !== customerKey) {
+      return c.json({ error: 'Invalid customerKey' }, 400)
     }
 
-    const session = await stripe.billingPortal.sessions.create({
-      customer:   sub.stripeCustomerId,
-      return_url: returnUrl,
-    })
+    const { billingKey } = await issueBillingKey(authKey, customerKey)
 
-    return c.json({ url: session.url })
+    const nextMonth = new Date()
+    nextMonth.setMonth(nextMonth.getMonth() + 1)
+
+    await db
+      .update(subscriptions)
+      .set({ tossBillingKey: billingKey, plan, status: 'active', currentPeriodEnd: nextMonth })
+      .where(eq(subscriptions.userId, userId))
+
+    return c.json({ success: true, plan })
   }
 )
 
-// POST /billing/webhook — Stripe webhook handler (no auth middleware)
-billingRouter.post('/webhook', async (c) => {
-  const sig     = c.req.header('stripe-signature') ?? ''
-  const rawBody = await c.req.arrayBuffer()
+// DELETE /billing/subscription — 구독 취소 (다음 결제일 이후 free로 전환)
+billingRouter.delete('/subscription', authMiddleware, async (c) => {
+  const userId = c.get('userId') as string
 
-  let event: import('stripe').Stripe.Event
-  try {
-    event = stripe.webhooks.constructEvent(
-      Buffer.from(rawBody),
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET!
-    )
-  } catch (err: any) {
-    return c.json({ error: `Webhook Error: ${err.message}` }, 400)
+  await db
+    .update(subscriptions)
+    .set({ status: 'canceled' })
+    .where(eq(subscriptions.userId, userId))
+
+  return c.json({ success: true })
+})
+
+// POST /billing/webhook — Toss 웹훅 (no auth middleware)
+// 토스 웹훅은 서명 검증: X-Toss-Signature 헤더 (HMAC-SHA256)
+billingRouter.post('/webhook', async (c) => {
+  const sig     = c.req.header('x-toss-signature') ?? ''
+  const rawBody = await c.req.text()
+
+  // HMAC-SHA256 서명 검증
+  const { createHmac } = await import('crypto')
+  const expected = createHmac('sha256', process.env.TOSS_WEBHOOK_SECRET!)
+    .update(rawBody)
+    .digest('base64')
+
+  if (sig !== expected) {
+    return c.json({ error: 'Invalid signature' }, 400)
   }
 
-  switch (event.type) {
-    case 'checkout.session.completed': {
-      const session = event.data.object as import('stripe').Stripe.Checkout.Session
-      const userId  = session.metadata?.userId
-      const plan    = session.metadata?.plan as 'pro' | 'byok' | undefined
-      if (!userId || !plan) break
+  const event = JSON.parse(rawBody)
 
+  // 토스 웹훅 이벤트: https://docs.tosspayments.com/reference/webhook
+  if (event.eventType === 'PAYMENT_STATUS_CHANGED') {
+    const { status, billingKey } = event.data ?? {}
+
+    if (status === 'DONE') {
+      // 결제 성공 → 다음 결제일 연장
+      const nextMonth = new Date()
+      nextMonth.setMonth(nextMonth.getMonth() + 1)
       await db
         .update(subscriptions)
-        .set({ plan, status: 'active', stripeSubId: session.subscription as string })
-        .where(eq(subscriptions.userId, userId))
-      break
-    }
-
-    case 'customer.subscription.updated':
-    case 'customer.subscription.deleted': {
-      const sub    = event.data.object as import('stripe').Stripe.Subscription
-      const status = event.type === 'customer.subscription.deleted' ? 'canceled' : sub.status
-      const plan   = event.type === 'customer.subscription.deleted' ? 'free'
-        : (sub.metadata?.plan as 'pro' | 'byok' | undefined) ?? 'free'
-
+        .set({ status: 'active', currentPeriodEnd: nextMonth })
+        .where(eq(subscriptions.tossBillingKey, billingKey))
+    } else if (status === 'ABORTED' || status === 'EXPIRED') {
+      // 결제 실패 → past_due
       await db
         .update(subscriptions)
-        .set({
-          status:             status as any,
-          plan:               plan as any,
-          currentPeriodStart: sub.current_period_start
-            ? new Date(sub.current_period_start * 1000) : null,
-          currentPeriodEnd:   sub.current_period_end
-            ? new Date(sub.current_period_end * 1000) : null,
-        })
-        .where(eq(subscriptions.stripeSubId, sub.id))
-      break
-    }
-
-    case 'invoice.payment_failed': {
-      const inv = event.data.object as import('stripe').Stripe.Invoice
-      if (inv.subscription) {
-        await db
-          .update(subscriptions)
-          .set({ status: 'past_due' })
-          .where(eq(subscriptions.stripeSubId, inv.subscription as string))
-      }
-      break
+        .set({ status: 'past_due' })
+        .where(eq(subscriptions.tossBillingKey, billingKey))
     }
   }
 
   return c.json({ received: true })
 })
 
-// GET /billing/subscription — get current user's plan
+// GET /billing/subscription — 현재 플랜 조회
 billingRouter.get('/subscription', authMiddleware, async (c) => {
   const userId = c.get('userId') as string
   const [sub]  = await db
     .select({
-      plan:              subscriptions.plan,
-      status:            subscriptions.status,
-      currentPeriodEnd:  subscriptions.currentPeriodEnd,
+      plan:             subscriptions.plan,
+      status:           subscriptions.status,
+      currentPeriodEnd: subscriptions.currentPeriodEnd,
     })
     .from(subscriptions)
     .where(eq(subscriptions.userId, userId))
@@ -341,15 +347,77 @@ import { billingRouter } from './routes/billing'
 app.route('/billing', billingRouter)
 ```
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 7: 프론트엔드 카드 등록 플로우 (pricing page)**
+
+```typescript
+// apps/web/src/components/marketing/pricing-table.tsx (구독 버튼 onClick)
+import { loadTossPayments } from '@tosspayments/tosspayments-sdk'
+
+async function handleSubscribe(plan: 'pro' | 'byok') {
+  // 1. 백엔드에서 customerKey 받기
+  const { customerKey } = await fetch('/api/billing/prepare').then(r => r.json())
+
+  // 2. 토스 빌링 인증창 호출
+  const toss = await loadTossPayments(process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY!)
+  await toss.requestBillingAuth({
+    method:      'CARD',
+    customerKey,
+    successUrl:  `${window.location.origin}/billing/success?plan=${plan}`,
+    failUrl:     `${window.location.origin}/billing/fail`,
+  })
+  // → 토스가 successUrl로 리다이렉트 (authKey, customerKey 쿼리파람 포함)
+}
+```
+
+```typescript
+// apps/web/src/app/(app)/billing/success/page.tsx
+// 'use client' 필수 — CLAUDE.md: "No Server Actions, API calls only (TanStack Query)"
+// 서버 컴포넌트에서 직접 fetch 금지
+'use client'
+
+import { useEffect, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { apiClient } from '@/lib/api-client'
+
+export default function BillingSuccessPage() {
+  const router       = useRouter()
+  const searchParams = useSearchParams()
+  const called       = useRef(false)
+
+  useEffect(() => {
+    if (called.current) return
+    called.current = true
+
+    const authKey     = searchParams.get('authKey')     ?? ''
+    const customerKey = searchParams.get('customerKey') ?? ''
+    const plan        = searchParams.get('plan') as 'pro' | 'byok' | null
+
+    if (!authKey || !customerKey || !plan) {
+      router.replace('/dashboard?billing=error')
+      return
+    }
+
+    apiClient('/billing/issue', {
+      method: 'POST',
+      body:   JSON.stringify({ authKey, customerKey, plan }),
+    })
+      .then(() => router.replace('/dashboard?billing=success'))
+      .catch(() => router.replace('/dashboard?billing=error'))
+  }, [])
+
+  return <p className="p-8 text-center text-gray-500">결제 처리 중...</p>
+}
+```
+
+- [ ] **Step 8: Commit**
 
 ```bash
 git add packages/db/src/schema/subscriptions.ts \
-        apps/api/src/lib/stripe.ts \
+        apps/api/src/lib/toss.ts \
         apps/api/src/routes/billing.ts \
         apps/api/src/app.ts \
         packages/db/drizzle/
-git commit -m "feat(billing): Stripe Checkout, portal, and webhook handler with subscription management"
+git commit -m "feat(billing): Toss Payments 빌링키 기반 구독 (Pro/BYOK), 웹훅 처리"
 ```
 
 ---
@@ -484,7 +552,7 @@ import { db } from '../lib/db'
 import { subscriptions } from '@opencairn/db/schema'
 import { eq } from 'drizzle-orm'
 import { getUsage, type UsageAction } from '../lib/usage'
-import { PLAN_LIMITS } from '../lib/stripe'
+import { PLAN_LIMITS } from '../lib/toss'
 
 export function enforcePlanLimit(action: UsageAction) {
   return createMiddleware(async (c, next) => {
@@ -529,12 +597,51 @@ export function enforcePlanLimit(action: UsageAction) {
 }
 ```
 
-- [ ] **Step 2: Add BYOK key resolver**
+- [ ] **Step 2: Add BYOK crypto helper + key resolver**
 
-BYOK users store their own Gemini API key in `subscriptions.byokGeminiKey`. Agents should use the user's key when available.
+```typescript
+// apps/api/src/lib/byok-crypto.ts
+// AES-256-GCM 암호화/복호화 — BYOK Gemini API 키 저장용
+import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
+
+const ALGO = 'aes-256-gcm'
+
+function getEncryptionKey(): Buffer {
+  const raw = process.env.BYOK_ENCRYPTION_KEY
+  if (!raw) throw new Error('BYOK_ENCRYPTION_KEY is not set')
+  const buf = Buffer.from(raw, 'base64')
+  if (buf.length !== 32) throw new Error('BYOK_ENCRYPTION_KEY must be 32 bytes (base64 encoded)')
+  return buf
+}
+
+export function encryptByokKey(plaintext: string): { ciphertext: string; iv: string } {
+  const iv     = randomBytes(12)                       // GCM 표준 96-bit nonce
+  const cipher = createCipheriv(ALGO, getEncryptionKey(), iv)
+  const enc    = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()])
+  const tag    = cipher.getAuthTag()
+  // ciphertext = enc + authTag (16 bytes) 를 base64로
+  return {
+    ciphertext: Buffer.concat([enc, tag]).toString('base64'),
+    iv:         iv.toString('base64'),
+  }
+}
+
+export function decryptByokKey(ciphertext: string, iv: string): string {
+  const buf      = Buffer.from(ciphertext, 'base64')
+  const ivBuf    = Buffer.from(iv, 'base64')
+  const tag      = buf.subarray(buf.length - 16)
+  const enc      = buf.subarray(0, buf.length - 16)
+  const decipher = createDecipheriv(ALGO, getEncryptionKey(), ivBuf)
+  decipher.setAuthTag(tag)
+  return decipher.update(enc) + decipher.final('utf8')
+}
+```
+
+BYOK users store their own Gemini API key in `subscriptions.byokGeminiKey` (AES-256-GCM 암호화). Agents should use the user's key when available.
 
 ```typescript
 // apps/api/src/middleware/plan-guard.ts — append:
+import { decryptByokKey } from '../lib/byok-crypto'
 
 export function resolveGeminiKey() {
   return createMiddleware(async (c, next) => {
@@ -542,14 +649,20 @@ export function resolveGeminiKey() {
     if (!userId) return next()
 
     const [sub] = await db
-      .select({ plan: subscriptions.plan, byokGeminiKey: subscriptions.byokGeminiKey })
+      .select({
+        plan:            subscriptions.plan,
+        byokGeminiKey:   subscriptions.byokGeminiKey,
+        byokGeminiKeyIv: subscriptions.byokGeminiKeyIv,
+      })
       .from(subscriptions)
       .where(eq(subscriptions.userId, userId))
 
-    // BYOK users: use their key, otherwise fall back to platform key
-    const geminiKey = sub?.plan === 'byok' && sub.byokGeminiKey
-      ? sub.byokGeminiKey
-      : process.env.GEMINI_API_KEY!
+    let geminiKey = process.env.GEMINI_API_KEY!
+
+    if (sub?.plan === 'byok' && sub.byokGeminiKey && sub.byokGeminiKeyIv) {
+      // DB에서 복호화 후 사용
+      geminiKey = decryptByokKey(sub.byokGeminiKey, sub.byokGeminiKeyIv)
+    }
 
     c.set('geminiKey', geminiKey)
     await next()
@@ -577,6 +690,7 @@ app.use('/agents/*', resolveGeminiKey())
 
 ```typescript
 // Append to apps/api/src/routes/billing.ts:
+import { encryptByokKey } from '../lib/byok-crypto'
 
 billingRouter.put(
   '/byok-key',
@@ -595,10 +709,11 @@ billingRouter.put(
       return c.json({ error: 'BYOK key management requires the BYOK plan' }, 403)
     }
 
-    // In production: encrypt geminiKey before storage using a KMS or AES-256
+    // AES-256-GCM 암호화 후 저장 (C-1 수정)
+    const { ciphertext, iv } = encryptByokKey(geminiKey)
     await db
       .update(subscriptions)
-      .set({ byokGeminiKey: geminiKey })
+      .set({ byokGeminiKey: ciphertext, byokGeminiKeyIv: iv })
       .where(eq(subscriptions.userId, userId))
 
     return c.json({ success: true })
@@ -606,13 +721,156 @@ billingRouter.put(
 )
 ```
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: BYOK usage 요금 집계 제외 (is_byok 플래그)**
+
+usage_records는 BYOK 사용자도 **카운팅**은 하되 **요금 계산**에서는 제외해야 한다 (사용자가 이미 본인 Gemini 비용을 부담). 이는 향후 usage-based overage 요금을 Pro에만 적용할 때 필요.
+
+```typescript
+// packages/db/src/schema/usage-records.ts (수정 — 이미 Plan 1에 존재한다면 ALTER)
+// 스키마에 is_byok 컬럼 추가:
+//   isByok: boolean('is_byok').notNull().default(false)
+
+// apps/api/src/middleware/usage.ts (수정)
+export function trackUsage(action: UsageAction) {
+  return createMiddleware(async (c, next) => {
+    await next()
+    if (c.res.status < 400) {
+      const userId = c.get('userId') as string | undefined
+      const plan = c.get('userPlan') as string | undefined
+      if (userId) {
+        await incrementUsage(userId, action, { isByok: plan === 'byok' }).catch(() => {
+          console.error(`Failed to track usage: ${action} for user ${userId}`)
+        })
+      }
+    }
+  })
+}
+
+// apps/api/src/lib/usage.ts incrementUsage 시그니처 확장:
+export async function incrementUsage(
+  userId: string,
+  action: UsageAction,
+  opts: { isByok?: boolean } = {}
+): Promise<number> {
+  // ... is_byok 값 함께 upsert
+}
+```
+
+**월간 청구서 집계 쿼리**: `SUM(count) FILTER (WHERE is_byok = false)`만 요금 대상. BYOK usage는 **대시보드**에는 표시되지만 **invoice**에서는 제외.
+
+- [ ] **Step 6: Commit**
 
 ```bash
 git add apps/api/src/middleware/plan-guard.ts \
+        apps/api/src/middleware/usage.ts \
+        apps/api/src/lib/usage.ts \
         apps/api/src/routes/billing.ts \
-        apps/api/src/app.ts
-git commit -m "feat(billing): plan enforcement middleware with Free/Pro/BYOK limits and BYOK key management"
+        apps/api/src/app.ts \
+        packages/db/src/schema/usage-records.ts \
+        drizzle/
+git commit -m "feat(billing): plan enforcement + BYOK exclusion from paid usage aggregation"
+```
+
+---
+
+### Task 3b: Refund / Dispute Policy
+
+**Files:**
+- Create: `apps/api/src/routes/billing-refund.ts`
+- Create: `docs/legal/refund-policy.md` (사용자 대면 정책)
+- Modify: `apps/api/src/routes/billing.ts` (웹훅에 환불 이벤트 처리 추가)
+
+OpenCairn 구독 환불 정책 (한국 전자상거래법 + Toss 규약 기반):
+- **결제 후 7일 이내 + 서비스를 실질적으로 사용하지 않은 경우**: 전액 환불
+  - "실질적 사용"의 판정: 해당 기간 동안 `usage_records.count` 총합이 Free 티어 한도(`PLAN_LIMITS.free`) 이하
+- **결제 후 7일 초과 or 실질 사용 발생**: 일할 계산 환불 (사용 일수 × (월 요금 / 30))
+  - 예: ₩6,900 Pro 플랜 결제 10일 후 환불 요청 시 → `6900 - 6900 * 10/30 = ₩4,600` 환불
+- **BYOK 사용자**: OpenCairn 자체는 요금을 받지 않지만 플랜 차액이 있다면 동일한 규칙 적용. 사용자의 Gemini 직접 결제는 환불 대상 아님(별도 Google 계정 문제)
+- **서비스 장애로 인한 환불**: 다운타임 ≥ 24시간 연속 or 월 누계 99.5% SLA 미달성 시 해당 월 요금 100% 환불 청구 가능
+- **챌린지/dispute(Toss)**: 자동으로 구독 `status='past_due'` 전환, 고객센터 대응 큐 진입
+
+구현 스케치:
+
+```typescript
+// apps/api/src/routes/billing-refund.ts
+import { Hono } from "hono";
+import { zValidator } from "@hono/zod-validator";
+import { z } from "zod";
+import { authMiddleware } from "../middleware/auth";
+import { db } from "../lib/db";
+import { subscriptions, refunds } from "@opencairn/db/schema";
+
+export const refundRouter = new Hono().use("*", authMiddleware);
+
+// POST /billing/refund-request — 사용자 요청 접수
+refundRouter.post(
+  "/refund-request",
+  zValidator("json", z.object({ reason: z.string().min(5).max(1000) })),
+  async (c) => {
+    const userId = c.get("userId") as string;
+    const { reason } = c.req.valid("json");
+    // ... 정책 평가 로직:
+    //   1. 구독 조회 → plan, current_period_start, amount
+    //   2. 7일 이내 & usage ≤ free limit → 전액
+    //   3. 그 외 → 일할 계산
+    //   4. refunds 테이블에 row insert (status='pending')
+    //   5. admin 알림 (Plan 10 incident-response 참조)
+    return c.json({ status: "pending" });
+  }
+);
+```
+
+테이블 추가:
+
+```typescript
+// packages/db/src/schema/refunds.ts
+import { pgTable, uuid, text, integer, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { users } from "./users";
+
+export const refundStatus = pgEnum("refund_status", [
+  "pending", "approved", "rejected", "processed",
+]);
+
+export const refunds = pgTable("refunds", {
+  id:          uuid("id").defaultRandom().primaryKey(),
+  userId:      text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  amountKrw:   integer("amount_krw").notNull(),
+  reason:      text("reason").notNull(),
+  status:      refundStatus("status").notNull().default("pending"),
+  tossPaymentKey: text("toss_payment_key"),
+  requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
+});
+```
+
+Toss webhook 환불 이벤트 처리 추가:
+
+```typescript
+// billing.ts 웹훅 핸들러에 CASE 추가:
+//   case 'PAYMENT_REFUNDED':
+//     const refund = payload.data;
+//     await db.update(refunds).set({ status: 'processed', processedAt: new Date() })
+//       .where(eq(refunds.tossPaymentKey, refund.paymentKey));
+//     await db.update(subscriptions).set({ status: 'canceled' })
+//       .where(eq(subscriptions.userId, refund.userId));
+//     break;
+```
+
+- [ ] **Step 1**: `refunds` 테이블 스키마 추가
+- [ ] **Step 2**: `POST /billing/refund-request` 엔드포인트 구현
+- [ ] **Step 3**: Toss webhook에 `PAYMENT_REFUNDED` 이벤트 처리
+- [ ] **Step 4**: `docs/legal/refund-policy.md` 사용자 대면 문서 (한국어 + 영어). FTC 준수를 위한 투명한 조건 명시
+- [ ] **Step 5**: 랜딩 페이지 Footer에 환불 정책 링크 추가
+- [ ] **Step 6**: Commit
+
+```bash
+git add packages/db/src/schema/refunds.ts \
+        apps/api/src/routes/billing-refund.ts \
+        apps/api/src/routes/billing.ts \
+        docs/legal/refund-policy.md \
+        apps/web/src/components/marketing/footer.tsx \
+        drizzle/
+git commit -m "feat(billing): refund policy (7-day/prorated/SLA) + Toss PAYMENT_REFUNDED webhook + public legal doc"
 ```
 
 ---
@@ -1611,31 +1869,27 @@ git commit -m "feat(marketing): docs section with getting started and self-hosti
 
 ### Env Vars to Add
 
-Add to `.env.example` and Vercel/production secrets:
+Add to `.env.example` and production secrets:
 
 ```
-# Stripe
-STRIPE_SECRET_KEY=sk_live_...
-STRIPE_PUBLISHABLE_KEY=pk_live_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_PRICE_PRO=price_...       # Pro plan monthly price ID
-STRIPE_PRICE_BYOK=price_...      # BYOK plan monthly price ID
+# Toss Payments
+TOSS_SECRET_KEY=test_sk_...          # 라이브: live_sk_...
+NEXT_PUBLIC_TOSS_CLIENT_KEY=test_ck_...  # 라이브: live_ck_...
+TOSS_WEBHOOK_SECRET=...              # 토스 대시보드 → 웹훅 → 시크릿
 
-# Supabase (shared with Narrator from Plan 8)
-SUPABASE_URL=
-SUPABASE_SERVICE_ROLE_KEY=
+# BYOK 키 암호화 (AES-256-GCM) — 32바이트 랜덤
+BYOK_ENCRYPTION_KEY=base64_encoded_32_bytes
 ```
 
-### Stripe Webhook Setup
+### Toss Webhook Setup
 
-In the Stripe Dashboard → Webhooks, add an endpoint pointing to:
+토스페이먼츠 대시보드 → 웹훅에서 엔드포인트 등록:
 `https://api.your-domain.com/billing/webhook`
 
-Listen for the following events:
-- `checkout.session.completed`
-- `customer.subscription.updated`
-- `customer.subscription.deleted`
-- `invoice.payment_failed`
+수신 이벤트:
+- `PAYMENT_STATUS_CHANGED`
+
+웹훅 시크릿은 대시보드에서 확인 후 `TOSS_WEBHOOK_SECRET`에 설정.
 
 ---
 
@@ -2038,4 +2292,458 @@ git add apps/api/src/routes/export.ts \
         packages/db/src/schema.ts \
         apps/web/src/app/\(app\)/settings/page.tsx
 git commit -m "feat(billing): add account export API with Markdown + JSON + sources"
+```
+
+---
+
+## Task A1: Admin Panel (SaaS 운영자용)
+
+> **대상:** OpenCairn을 직접 호스팅해서 서비스하는 운영자 전용. 셀프호스팅 사용자에게는 노출 불필요.
+> **접근:** DB `users.role = 'admin'` 컬럼 기반. 초기 admin 지정은 DB 직접 업데이트 또는 `ADMIN_USER_IDS` env 시드.
+
+**Files:**
+- Modify: `packages/db/src/schema/users.ts` — `role` 컬럼 추가
+- Create: `apps/api/src/middleware/admin.ts`
+- Create: `apps/api/src/routes/admin.ts`
+- Create: `apps/web/src/app/(admin)/layout.tsx`
+- Create: `apps/web/src/app/(admin)/admin/page.tsx` — 개요 대시보드
+- Create: `apps/web/src/app/(admin)/admin/users/page.tsx` — 유저 목록
+- Create: `apps/web/src/app/(admin)/admin/users/[id]/page.tsx` — 유저 상세
+- Create: `apps/web/src/app/(admin)/admin/subscriptions/page.tsx` — 구독 현황
+- Create: `apps/web/src/app/(admin)/admin/usage/page.tsx` — 사용량 통계
+- Create: `apps/web/src/app/(admin)/admin/jobs/page.tsx` — 백그라운드 작업
+- Modify: `apps/api/src/app.ts` — admin 라우트 마운트
+
+---
+
+### A1.1 DB 스키마 (role 컬럼)
+
+- [ ] **Step 1:** `packages/db/src/schema/users.ts`에 role 추가
+
+```typescript
+// packages/db/src/schema/users.ts 에 컬럼 추가
+export const userRoleEnum = pgEnum('user_role', ['user', 'admin'])
+
+// users 테이블 정의 안에:
+role: userRoleEnum('role').default('user').notNull(),
+```
+
+- [ ] **Step 2:** migration 생성 + 실행
+
+```bash
+pnpm db:generate && pnpm db:migrate
+```
+
+초기 어드민 지정:
+```sql
+UPDATE users SET role = 'admin' WHERE email = 'your@email.com';
+```
+
+---
+
+### A1.2 Admin Middleware
+
+- [ ] **Step 3:** `apps/api/src/middleware/admin.ts`
+
+```typescript
+// apps/api/src/middleware/admin.ts
+import { createMiddleware } from 'hono/factory'
+import { db } from '../lib/db'
+import { users } from '@opencairn/db/schema'
+import { eq } from 'drizzle-orm'
+
+export const adminMiddleware = createMiddleware(async (c, next) => {
+  const user = c.get('user')  // Better Auth가 세팅한 세션 유저
+  if (!user) return c.json({ error: 'Unauthorized' }, 401)
+
+  const [u] = await db
+    .select({ role: users.role })
+    .from(users)
+    .where(eq(users.id, user.id))
+
+  if (u?.role !== 'admin') {
+    return c.json({ error: 'Forbidden' }, 403)
+  }
+
+  await next()
+})
+```
+
+---
+
+### A1.3 Admin API Routes
+
+- [ ] **Step 4:** `apps/api/src/routes/admin.ts`
+
+```typescript
+// apps/api/src/routes/admin.ts
+import { Hono } from 'hono'
+import { zValidator } from '@hono/zod-validator'
+import { z } from 'zod'
+import { db } from '../lib/db'
+import { users, subscriptions, usageRecords, jobs } from '@opencairn/db/schema'
+import { eq, desc, sql, and, gte, count } from 'drizzle-orm'
+import { authMiddleware } from '../middleware/auth'
+import { adminMiddleware } from '../middleware/admin'
+
+export const adminRouter = new Hono()
+
+// 모든 admin 라우트에 인증 + admin 권한 체크
+adminRouter.use('*', authMiddleware, adminMiddleware)
+
+// ── 개요 (Overview) ──────────────────────────────────────
+
+// GET /admin/stats — 대시보드 핵심 지표
+adminRouter.get('/stats', async (c) => {
+  const now = new Date()
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+  const [
+    totalUsers,
+    newUsersThisMonth,
+    planCounts,
+    totalUsageThisMonth,
+  ] = await Promise.all([
+    // 전체 유저 수
+    db.select({ count: count() }).from(users),
+
+    // 이번달 신규 유저
+    db.select({ count: count() })
+      .from(users)
+      .where(gte(users.createdAt, thirtyDaysAgo)),
+
+    // 플랜별 유저 수
+    db.select({ plan: subscriptions.plan, count: count() })
+      .from(subscriptions)
+      .groupBy(subscriptions.plan),
+
+    // 이번달 전체 사용량
+    db.select({ action: usageRecords.action, total: sql<number>`sum(${usageRecords.count})` })
+      .from(usageRecords)
+      .where(eq(usageRecords.month, `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`))
+      .groupBy(usageRecords.action),
+  ])
+
+  return c.json({
+    totalUsers:          totalUsers[0].count,
+    newUsersThisMonth:   newUsersThisMonth[0].count,
+    planCounts:          Object.fromEntries(planCounts.map(r => [r.plan, r.count])),
+    usageThisMonth:      Object.fromEntries(totalUsageThisMonth.map(r => [r.action, r.total])),
+  })
+})
+
+// ── 유저 관리 ────────────────────────────────────────────
+
+// GET /admin/users?page=1&q=keyword
+adminRouter.get('/users', zValidator('query', z.object({
+  page: z.coerce.number().default(1),
+  q:    z.string().optional(),
+})), async (c) => {
+  const { page, q } = c.req.valid('query')
+  const PAGE_SIZE = 50
+
+  const rows = await db
+    .select({
+      id:        users.id,
+      email:     users.email,
+      name:      users.name,
+      role:      users.role,
+      createdAt: users.createdAt,
+      plan:      subscriptions.plan,
+      status:    subscriptions.status,
+    })
+    .from(users)
+    .leftJoin(subscriptions, eq(subscriptions.userId, users.id))
+    .where(q ? sql`${users.email} ILIKE ${'%' + q + '%'} OR ${users.name} ILIKE ${'%' + q + '%'}` : undefined)
+    .orderBy(desc(users.createdAt))
+    .limit(PAGE_SIZE)
+    .offset((page - 1) * PAGE_SIZE)
+
+  return c.json({ users: rows, page, pageSize: PAGE_SIZE })
+})
+
+// GET /admin/users/:id — 유저 상세 (플랜 + 사용량 + 최근 작업)
+adminRouter.get('/users/:id', async (c) => {
+  const id = c.req.param('id')
+
+  const [user] = await db
+    .select({
+      id:        users.id,
+      email:     users.email,
+      name:      users.name,
+      role:      users.role,
+      createdAt: users.createdAt,
+      plan:             subscriptions.plan,
+      status:           subscriptions.status,
+      currentPeriodEnd: subscriptions.currentPeriodEnd,
+      tossBillingKey:   subscriptions.tossBillingKey,
+    })
+    .from(users)
+    .leftJoin(subscriptions, eq(subscriptions.userId, users.id))
+    .where(eq(users.id, id))
+
+  if (!user) return c.json({ error: 'User not found' }, 404)
+
+  // 월별 사용량 (최근 3개월)
+  const usage = await db
+    .select({ action: usageRecords.action, month: usageRecords.month, count: usageRecords.count })
+    .from(usageRecords)
+    .where(eq(usageRecords.userId, id))
+    .orderBy(desc(usageRecords.month))
+    .limit(30)
+
+  // 최근 작업 5개
+  const recentJobs = await db
+    .select({ id: jobs.id, type: jobs.type, status: jobs.status, createdAt: jobs.createdAt })
+    .from(jobs)
+    .where(eq(jobs.userId, id))
+    .orderBy(desc(jobs.createdAt))
+    .limit(5)
+
+  return c.json({ ...user, usage, recentJobs })
+})
+
+// PATCH /admin/users/:id — 플랜 강제 변경, 역할 변경, 계정 정지
+adminRouter.patch(
+  '/users/:id',
+  zValidator('json', z.object({
+    plan:   z.enum(['free', 'pro', 'byok']).optional(),
+    role:   z.enum(['user', 'admin']).optional(),
+    status: z.enum(['active', 'canceled', 'past_due']).optional(),
+  })),
+  async (c) => {
+    const id      = c.req.param('id')
+    const updates = c.req.valid('json')
+
+    if (updates.role !== undefined) {
+      await db.update(users).set({ role: updates.role }).where(eq(users.id, id))
+    }
+
+    if (updates.plan !== undefined || updates.status !== undefined) {
+      await db.update(subscriptions)
+        .set({
+          ...(updates.plan   !== undefined && { plan:   updates.plan   }),
+          ...(updates.status !== undefined && { status: updates.status }),
+        })
+        .where(eq(subscriptions.userId, id))
+    }
+
+    return c.json({ success: true })
+  }
+)
+
+// DELETE /admin/users/:id — 계정 즉시 삭제 (cascade)
+adminRouter.delete('/users/:id', async (c) => {
+  const id = c.req.param('id')
+  await db.delete(users).where(eq(users.id, id))
+  return c.json({ success: true })
+})
+
+// ── 구독 관리 ────────────────────────────────────────────
+
+// GET /admin/subscriptions?status=past_due
+adminRouter.get('/subscriptions', zValidator('query', z.object({
+  status: z.enum(['active', 'canceled', 'past_due']).optional(),
+  plan:   z.enum(['free', 'pro', 'byok']).optional(),
+  page:   z.coerce.number().default(1),
+})), async (c) => {
+  const { status, plan, page } = c.req.valid('query')
+  const PAGE_SIZE = 50
+
+  const rows = await db
+    .select({
+      userId:           subscriptions.userId,
+      email:            users.email,
+      name:             users.name,
+      plan:             subscriptions.plan,
+      status:           subscriptions.status,
+      currentPeriodEnd: subscriptions.currentPeriodEnd,
+      updatedAt:        subscriptions.updatedAt,
+    })
+    .from(subscriptions)
+    .innerJoin(users, eq(users.id, subscriptions.userId))
+    .where(and(
+      status ? eq(subscriptions.status, status) : undefined,
+      plan   ? eq(subscriptions.plan,   plan)   : undefined,
+    ))
+    .orderBy(desc(subscriptions.updatedAt))
+    .limit(PAGE_SIZE)
+    .offset((page - 1) * PAGE_SIZE)
+
+  return c.json({ subscriptions: rows, page, pageSize: PAGE_SIZE })
+})
+
+// ── 사용량 통계 ──────────────────────────────────────────
+
+// GET /admin/usage?month=2026-04
+adminRouter.get('/usage', zValidator('query', z.object({
+  month: z.string().regex(/^\d{4}-\d{2}$/).optional(),
+})), async (c) => {
+  const now = new Date()
+  const month = c.req.valid('query').month
+    ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
+  // 액션별 합계
+  const totals = await db
+    .select({ action: usageRecords.action, total: sql<number>`sum(${usageRecords.count})` })
+    .from(usageRecords)
+    .where(eq(usageRecords.month, month))
+    .groupBy(usageRecords.action)
+
+  // 상위 20명 heavy user
+  const topUsers = await db
+    .select({
+      userId: usageRecords.userId,
+      email:  users.email,
+      total:  sql<number>`sum(${usageRecords.count})`,
+    })
+    .from(usageRecords)
+    .innerJoin(users, eq(users.id, usageRecords.userId))
+    .where(eq(usageRecords.month, month))
+    .groupBy(usageRecords.userId, users.email)
+    .orderBy(desc(sql`sum(${usageRecords.count})`))
+    .limit(20)
+
+  return c.json({ month, totals, topUsers })
+})
+
+// ── 백그라운드 작업 ──────────────────────────────────────
+
+// GET /admin/jobs?status=failed&page=1
+adminRouter.get('/jobs', zValidator('query', z.object({
+  status: z.enum(['queued', 'running', 'completed', 'failed']).optional(),
+  page:   z.coerce.number().default(1),
+})), async (c) => {
+  const { status, page } = c.req.valid('query')
+  const PAGE_SIZE = 50
+
+  const rows = await db
+    .select({
+      id:        jobs.id,
+      type:      jobs.type,
+      status:    jobs.status,
+      userId:    jobs.userId,
+      email:     users.email,
+      createdAt: jobs.createdAt,
+      error:     jobs.error,
+    })
+    .from(jobs)
+    .innerJoin(users, eq(users.id, jobs.userId))
+    .where(status ? eq(jobs.status, status) : undefined)
+    .orderBy(desc(jobs.createdAt))
+    .limit(PAGE_SIZE)
+    .offset((page - 1) * PAGE_SIZE)
+
+  return c.json({ jobs: rows, page, pageSize: PAGE_SIZE })
+})
+```
+
+- [ ] **Step 5:** `apps/api/src/app.ts`에 라우트 마운트
+
+```typescript
+import { adminRouter } from './routes/admin'
+
+// admin 라우트 선제 인증 — adminRouter 내부 미들웨어 우회 방지 (H-2 수정)
+app.use('/admin/*', authMiddleware)
+app.route('/admin', adminRouter)
+```
+
+---
+
+### A1.4 Admin UI (Next.js)
+
+- [ ] **Step 6:** `apps/web/src/app/(admin)/layout.tsx` — 어드민 레이아웃 (role 체크 + 사이드바)
+
+```tsx
+// apps/web/src/app/(admin)/layout.tsx
+import { redirect } from 'next/navigation'
+import { headers }  from 'next/headers'
+import { auth }     from '@/lib/auth'  // 서버사이드 auth 인스턴스 (api-client 아님)
+
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  // 서버사이드 세션 체크 — Next.js 16 headers() API 사용
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user || (session.user as any).role !== 'admin') redirect('/dashboard')
+
+  return (
+    <div className="flex h-screen">
+      <aside className="w-56 shrink-0 border-r border-gray-200 bg-gray-50 p-4">
+        <p className="mb-6 text-xs font-semibold uppercase tracking-widest text-gray-400">Admin</p>
+        <nav className="space-y-1 text-sm">
+          {[
+            { href: '/admin',               label: '개요'         },
+            { href: '/admin/users',         label: '유저 관리'    },
+            { href: '/admin/subscriptions', label: '구독 현황'    },
+            { href: '/admin/usage',         label: '사용량 통계'  },
+            { href: '/admin/jobs',          label: '백그라운드 작업' },
+          ].map(({ href, label }) => (
+            <a key={href} href={href}
+              className="block rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+            >
+              {label}
+            </a>
+          ))}
+        </nav>
+      </aside>
+      <main className="flex-1 overflow-auto p-8">{children}</main>
+    </div>
+  )
+}
+```
+
+- [ ] **Step 7:** `apps/web/src/app/(admin)/admin/page.tsx` — 개요 대시보드
+
+  - `/admin/stats` 호출 → 전체 유저 수, 이번달 신규 유저, 플랜별 분포, 액션별 사용량 카드 표시
+
+- [ ] **Step 8:** `apps/web/src/app/(admin)/admin/users/page.tsx` — 유저 목록
+
+  - 검색 입력 (`?q=`), 페이지네이션
+  - 테이블: 이메일 / 이름 / 플랜 / 상태 / 가입일 / 액션 버튼 (상세 보기)
+
+- [ ] **Step 9:** `apps/web/src/app/(admin)/admin/users/[id]/page.tsx` — 유저 상세
+
+  - 유저 정보 헤더 (이메일, 가입일, 플랜)
+  - 플랜 강제 변경 드롭다운 (`PATCH /admin/users/:id`)
+  - 계정 정지 / 어드민 권한 부여 / 계정 삭제 버튼 (확인 모달)
+  - 월별 사용량 차트 (최근 3개월)
+  - 최근 작업 목록
+
+- [ ] **Step 10:** `apps/web/src/app/(admin)/admin/subscriptions/page.tsx` — 구독 현황
+
+  - 필터: 전체 / 활성 / 결제 실패(`past_due`) / 취소
+  - 테이블: 이메일 / 플랜 / 상태 / 다음 결제일
+  - `past_due` 행은 빨간색 강조
+
+- [ ] **Step 11:** `apps/web/src/app/(admin)/admin/usage/page.tsx` — 사용량 통계
+
+  - 월 선택기
+  - 액션별 총계 카드 (ingest / QA / audio)
+  - Heavy user top 20 테이블
+
+- [ ] **Step 12:** `apps/web/src/app/(admin)/admin/jobs/page.tsx` — 백그라운드 작업
+
+  - 필터: 전체 / 실행중 / 실패
+  - 테이블: 작업 타입 / 유저 / 상태 / 생성일 / 에러 메시지
+
+---
+
+### A1.5 Env Vars
+
+```
+# Admin 시드 (최초 admin 계정 지정용, 이후 DB role 컬럼으로 관리)
+ADMIN_SEED_EMAIL=your@email.com
+```
+
+### A1.6 Commit
+
+- [ ] **Step 13:**
+
+```bash
+git add packages/db/src/schema/users.ts \
+        apps/api/src/middleware/admin.ts \
+        apps/api/src/routes/admin.ts \
+        apps/api/src/app.ts \
+        apps/web/src/app/\(admin\)/ \
+        packages/db/drizzle/
+git commit -m "feat(billing): SaaS admin panel — user mgmt, subscriptions, usage stats, job monitoring"
 ```

@@ -8,11 +8,15 @@
 
 **Goal:** Build a multi-source ingest pipeline that accepts PDFs, Office docs (DOCX/PPTX/XLSX), HWP/HWPX, audio/video, images, YouTube URLs, and web URLs — converts all documents to PDF for unified viewing, extracts text/transcripts, and creates source notes in the database — all orchestrated by Temporal.
 
-**Architecture:** File uploads hit a Hono endpoint in `apps/api` which stores the raw file in Cloudflare R2 and enqueues a Temporal workflow. `apps/worker` (Python) runs Temporal activities: PDF 텍스트 추출 (opendataloader-pdf), 스캔 감지 (pymupdf), 스캔 OCR (provider.ocr()), Office 문서 추출 (markitdown), 뷰어용 PDF 변환 (unoserver + H2Orestart), 오디오/영상 전사 (provider.transcribe()), 이미지 분석 (provider.generate(image=)), web scraping (trafilatura). 모든 문서는 PDF로 변환되어 R2에 보관 — 프론트엔드는 `@react-pdf-viewer/core`로 단일 뷰어 사용. On completion, the worker calls back into the API to create a source note and optionally trigger the Compiler Agent (LightRAG 인덱싱 포함).
+**Architecture:** File uploads hit a Hono endpoint in `apps/api` which stores the raw file in MinIO/R2 and enqueues a Temporal workflow. `apps/worker` (Python) runs Temporal activities: PDF 텍스트 추출 (opendataloader-pdf), 스캔 감지 (pymupdf), 스캔 OCR (provider.ocr()), Office 문서 추출 (markitdown), 뷰어용 PDF 변환 (unoserver + H2Orestart), 오디오/영상 전사 (provider.transcribe()), 이미지 분석 (provider.generate(image=)), web scraping (trafilatura). 모든 문서는 PDF로 변환되어 R2에 보관 — 프론트엔드는 `@react-pdf-viewer/core`로 단일 뷰어 사용. On completion, the worker calls back into the API to create a source note and optionally trigger the Compiler Agent (LightRAG 인덱싱 포함).
 
-**Tech Stack:** Hono 4, Cloudflare R2 (S3-compatible), Temporal Python SDK, opendataloader-pdf (PDF 텍스트, Java 11+), pymupdf (스캔 감지), markitdown[docx,pptx,xlsx,xls] (Office 문서), unoserver + H2Orestart (문서→PDF 변환, HWP/HWPX 지원), faster-whisper (로컬 STT fallback, WHISPER_MODEL env), trafilatura (웹 스크래핑), crawl4ai (JS 렌더링 페이지, 선택적), yt-dlp, LightRAG (RAG + KG), packages/llm get_provider() (Gemini/OpenAI/Ollama 추상화), Zod, PostgreSQL (Drizzle + pgvector), Redis, Docker Compose
+**Tech Stack:** Hono 4, MinIO/R2 (S3-compatible; dev는 MinIO), Temporal Python SDK, opendataloader-pdf (PDF 텍스트, **Java 11 이상 요구; Worker Dockerfile은 LTS 일관성을 위해 OpenJDK 21 사용**), pymupdf (스캔 감지), markitdown[docx,pptx,xlsx,xls] (Office 문서), unoserver + H2Orestart (문서→PDF 변환, HWP/HWPX 지원), faster-whisper (로컬 STT fallback, WHISPER_MODEL env), trafilatura (웹 스크래핑), crawl4ai (JS 렌더링 페이지, 선택적), yt-dlp, LightRAG (RAG + KG), packages/llm get_provider() (Gemini/Ollama 추상화 — OpenAI는 2026-04-15 제거), Zod, PostgreSQL (Drizzle + pgvector), Redis, Docker Compose
 
 > **호스팅:** Production 호스팅 환경은 미정 (오라클/Hetzner/AWS/Fly.io 등 후보). 모든 컴포넌트는 Linux x86_64 + aarch64 둘 다 호환되어야 함. ARM 호환성은 모든 의존성(opendataloader-pdf의 Java, unoserver의 LibreOffice, H2Orestart, faster-whisper)에서 검증 완료.
+
+> **파일 제한 & 격리:**
+> - **파일 크기 상한**: 기본 200MB (env `MAX_UPLOAD_BYTES`). 이미지는 20MB, 오디오/영상은 500MB. Hono 미들웨어에서 사전 차단.
+> - **Dead-letter / quarantine 경로**: 파싱 실패 3회 재시도 후에도 실패한 파일은 R2의 `quarantine/<user_id>/<yyyy-mm>/` prefix로 이동하고 원본 버킷에서 삭제. `jobs.error`에 실패 사유 + quarantine key 기록. 관리자가 주기적으로 검사.
 
 ---
 
@@ -25,7 +29,7 @@ apps/
       routes/
         ingest.ts               -- POST /ingest/upload, POST /ingest/url
       lib/
-        Cloudflare R2.ts                -- Cloudflare R2 client + upload helpers
+        s3.ts                -- MinIO/R2 client + upload helpers
         temporal-client.ts      -- Temporal client singleton
 
   worker/
@@ -50,41 +54,42 @@ apps/
           lightrag_activity.py  -- LightRAG 인덱싱 (엔티티/관계 추출 + 벡터 저장)
           note_activity.py      -- create source note via API callback
         lib/
-          r2_client.py          -- download objects from Cloudflare R2
+          r2_client.py          -- download objects from MinIO/R2
           api_client.py         -- internal API callback helpers
 
-docker-compose.yml              -- add: temporal, temporal-ui, Cloudflare R2 services
-.env.example                    -- add: Cloudflare R2_*, TEMPORAL_*, GEMINI_API_KEY
+docker-compose.yml              -- add: temporal, temporal-ui, MinIO/R2 services
+.env.example                    -- add: MinIO/R2_*, TEMPORAL_*, GEMINI_API_KEY
 ```
 
 ---
 
-### Task 1: File Upload API Endpoint (Hono → Cloudflare R2)
+### Task 1: File Upload API Endpoint (Hono → MinIO/R2)
 
 **Files:**
 
-- Create: `apps/api/src/lib/Cloudflare R2.ts`
+- Create: `apps/api/src/lib/s3.ts`
 - Create: `apps/api/src/lib/temporal-client.ts`
 - Create: `apps/api/src/routes/ingest.ts`
 - Modify: `apps/api/src/app.ts` (mount ingest routes)
-- Modify: `docker-compose.yml` (add Cloudflare R2 service)
-- Modify: `.env.example` (add Cloudflare R2 + Temporal vars)
+- Modify: `docker-compose.yml` (add MinIO/R2 service)
+- Modify: `.env.example` (add MinIO/R2 + Temporal vars)
 
-- [ ] **Step 1: Add docker-compose Cloudflare R2 service**
+- [ ] **Step 1: Add docker-compose MinIO/R2 service**
 
 ```yaml
 # Add to docker-compose.yml services:
-  Cloudflare R2:
-    image: Cloudflare R2/Cloudflare R2:RELEASE.2024-11-07T00-52-20Z
+  minio:
+    # Dev용 S3-호환 스토리지. Production은 Cloudflare R2로 교체.
+    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
     command: server /data --console-address ":9001"
     ports:
       - "9000:9000"
       - "9001:9001"
     environment:
-      Cloudflare R2_ROOT_USER: ${Cloudflare R2_ROOT_USER:-Cloudflare R2admin}
-      Cloudflare R2_ROOT_PASSWORD: ${Cloudflare R2_ROOT_PASSWORD:-Cloudflare R2admin}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     volumes:
-      - Cloudflare R2_data:/data
+      - minio_data:/data
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 10s
@@ -92,79 +97,88 @@ docker-compose.yml              -- add: temporal, temporal-ui, Cloudflare R2 ser
       retries: 5
 
 volumes:
-  Cloudflare R2_data:
+  minio_data:
 ```
 
 - [ ] **Step 2: Add env vars to .env.example**
 
 ```bash
-# Cloudflare R2
-Cloudflare R2_ENDPOINT=localhost:9000
-Cloudflare R2_ACCESS_KEY=Cloudflare R2admin
-Cloudflare R2_SECRET_KEY=Cloudflare R2admin
-Cloudflare R2_BUCKET=opencairn-uploads
-Cloudflare R2_USE_SSL=false
+# MinIO/R2
+S3_ENDPOINT=localhost:9000
+S3_ACCESS_KEY=minioadmin
+S3_SECRET_KEY=minioadmin
+S3_BUCKET=opencairn-uploads
+S3_USE_SSL=false
 
 # Temporal
 TEMPORAL_ADDRESS=localhost:7233
 TEMPORAL_NAMESPACE=default
 TEMPORAL_TASK_QUEUE=ingest
 
-# LLM Provider (gemini | openai | ollama)
+# LLM Provider (gemini | ollama)  — openai는 2026-04-15 제거
 LLM_PROVIDER=gemini
-GEMINI_API_KEY=your-gemini-api-key-here
+LLM_API_KEY=your-gemini-api-key-here
+LLM_MODEL=gemini-3-flash-preview
+EMBED_MODEL=gemini-embedding-2-preview
+VECTOR_DIM=3072
 
 # 로컬 STT (faster-whisper) — LLM_PROVIDER=ollama 시 사용
 # tiny | base | small | medium | large-v3 (사용자 선택)
 WHISPER_MODEL=medium
 
+# Upload limits
+MAX_UPLOAD_BYTES=209715200         # 200 MB 기본
+MAX_IMAGE_BYTES=20971520           # 20 MB
+MAX_AUDIO_VIDEO_BYTES=524288000    # 500 MB
+INGEST_QUARANTINE_PREFIX=quarantine/
+
 # Internal API secret (worker → API callbacks)
 INTERNAL_API_SECRET=change-me-in-production
 ```
 
-- [ ] **Step 3: Install Cloudflare R2 and Temporal client packages in apps/api**
+- [ ] **Step 3: Install MinIO/R2 and Temporal client packages in apps/api**
 
 ```bash
 cd apps/api
-pnpm add Cloudflare R2 @temporalio/client
+pnpm add minio @temporalio/client
 ```
 
-- [ ] **Step 4: Create apps/api/src/lib/Cloudflare R2.ts**
+- [ ] **Step 4: Create apps/api/src/lib/s3.ts**
 
 ```ts
-// apps/api/src/lib/Cloudflare R2.ts
-import { Client } from 'Cloudflare R2'
+// apps/api/src/lib/s3.ts
+import { Client } from 'minio'
 
 let _client: Client | null = null
 
-export function getCloudflare R2Client(): Client {
+export function getS3Client(): Client {
   if (_client) return _client
   _client = new Client({
-    endPoint: process.env.Cloudflare R2_ENDPOINT?.split(':')[0] ?? 'localhost',
-    port: Number(process.env.Cloudflare R2_ENDPOINT?.split(':')[1] ?? 9000),
-    useSSL: process.env.Cloudflare R2_USE_SSL === 'true',
-    accessKey: process.env.Cloudflare R2_ACCESS_KEY ?? 'Cloudflare R2admin',
-    secretKey: process.env.Cloudflare R2_SECRET_KEY ?? 'Cloudflare R2admin',
+    endPoint: process.env.S3_ENDPOINT?.split(':')[0] ?? 'localhost',
+    port: Number(process.env.S3_ENDPOINT?.split(':')[1] ?? 9000),
+    useSSL: process.env.S3_USE_SSL === 'true',
+    accessKey: process.env.S3_ACCESS_KEY ?? 'minioadmin',
+    secretKey: process.env.S3_SECRET_KEY ?? 'minioadmin',
   })
   return _client
 }
 
-const BUCKET = process.env.Cloudflare R2_BUCKET ?? 'opencairn-uploads'
+const BUCKET = process.env.S3_BUCKET ?? 'opencairn-uploads'
 
 /** Ensure bucket exists (call once at startup). */
 export async function ensureBucket(): Promise<void> {
-  const client = getCloudflare R2Client()
+  const client = getS3Client()
   const exists = await client.bucketExists(BUCKET)
   if (!exists) await client.makeBucket(BUCKET, 'us-east-1')
 }
 
-/** Upload a Buffer or stream to Cloudflare R2 and return the object key. */
+/** Upload a Buffer or stream to MinIO/R2 and return the object key. */
 export async function uploadObject(
   key: string,
   data: Buffer,
   contentType: string
 ): Promise<string> {
-  const client = getCloudflare R2Client()
+  const client = getS3Client()
   await client.putObject(BUCKET, key, data, data.length, {
     'Content-Type': contentType,
   })
@@ -201,16 +215,27 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { sessionMiddleware } from "../middleware/auth";
-import { uploadObject } from "../lib/Cloudflare R2";
+import { authMiddleware } from "../middleware/auth";
+import { uploadObject } from "../lib/s3";
 import { getTemporalClient } from "../lib/temporal-client";
 
 export const ingest = new Hono();
 
 const TASK_QUEUE = process.env.TEMPORAL_TASK_QUEUE ?? "ingest";
 
+// 크기 상한 정책 (env로 override 가능)
+const MAX_UPLOAD = Number(process.env.MAX_UPLOAD_BYTES ?? 200 * 1024 * 1024);
+const MAX_IMAGE = Number(process.env.MAX_IMAGE_BYTES ?? 20 * 1024 * 1024);
+const MAX_AV = Number(process.env.MAX_AUDIO_VIDEO_BYTES ?? 500 * 1024 * 1024);
+
+function maxBytesFor(mimeType: string): number {
+  if (mimeType.startsWith("image/")) return MAX_IMAGE;
+  if (mimeType.startsWith("audio/") || mimeType.startsWith("video/")) return MAX_AV;
+  return MAX_UPLOAD;
+}
+
 // POST /ingest/upload — multipart file upload
-ingest.post("/upload", sessionMiddleware, async (c) => {
+ingest.post("/upload", authMiddleware, async (c) => {
   const session = c.get("session");
   const body = await c.req.parseBody();
   const file = body["file"];
@@ -222,6 +247,11 @@ ingest.post("/upload", sessionMiddleware, async (c) => {
   }
   if (!projectId) {
     return c.json({ error: "projectId is required" }, 400);
+  }
+
+  const maxAllowed = maxBytesFor(file.type);
+  if (file.size > maxAllowed) {
+    return c.json({ error: `File exceeds ${maxAllowed} bytes for type ${file.type}` }, 413);
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -260,7 +290,7 @@ const urlSchema = z.object({
 
 ingest.post(
   "/url",
-  sessionMiddleware,
+  authMiddleware,
   zValidator("json", urlSchema),
   async (c) => {
     const session = c.get("session");
@@ -303,12 +333,12 @@ app.route("/ingest", ingest);
 - [ ] **Step 8: Call ensureBucket() at API startup in apps/api/src/index.ts**
 
 ```ts
-import { ensureBucket } from "./lib/Cloudflare R2";
+import { ensureBucket } from "./lib/s3";
 // Inside startup block, before app.listen():
 await ensureBucket();
 ```
 
-- [ ] **Commit:** `feat(api): add file upload and URL ingest endpoints with Cloudflare R2 storage`
+- [ ] **Commit:** `feat(api): add file upload and URL ingest endpoints with MinIO/R2 storage`
 
 ---
 
@@ -363,7 +393,7 @@ dependencies = [
   "yt-dlp>=2024.11.4",
   "trafilatura>=1.12.0",
   "google-generativeai>=0.8.3",
-  "Cloudflare R2>=7.2.9",
+  "minio>=7.2.9",
   "httpx>=0.27.0",
   "python-dotenv>=1.0.0",
 ]
@@ -591,37 +621,37 @@ if __name__ == "__main__":
 **Files:**
 
 - Create: `apps/worker/src/worker/activities/pdf_activity.py`
-- Create: `apps/worker/src/worker/lib/Cloudflare R2_client.py`
+- Create: `apps/worker/src/worker/lib/s3_client.py`
 
-- [ ] **Step 1: Create apps/worker/src/worker/lib/Cloudflare R2_client.py**
+- [ ] **Step 1: Create apps/worker/src/worker/lib/s3_client.py**
 
 ```python
-# apps/worker/src/worker/lib/Cloudflare R2_client.py
+# apps/worker/src/worker/lib/s3_client.py
 import os
 import tempfile
 from pathlib import Path
-from Cloudflare R2 import Cloudflare R2
+from minio import Minio
 
-_client: Cloudflare R2 | None = None
+_client: Minio | None = None
 
 
-def get_Cloudflare R2_client() -> Cloudflare R2:
+def get_s3_client() -> Minio:
     global _client
     if _client is None:
-        endpoint = os.environ.get("Cloudflare R2_ENDPOINT", "localhost:9000")
-        _client = Cloudflare R2(
+        endpoint = os.environ.get("S3_ENDPOINT", "localhost:9000")
+        _client = Minio(
             endpoint,
-            access_key=os.environ.get("Cloudflare R2_ACCESS_KEY", "Cloudflare R2admin"),
-            secret_key=os.environ.get("Cloudflare R2_SECRET_KEY", "Cloudflare R2admin"),
-            secure=os.environ.get("Cloudflare R2_USE_SSL", "false").lower() == "true",
+            access_key=os.environ.get("S3_ACCESS_KEY", "minioadmin"),
+            secret_key=os.environ.get("S3_SECRET_KEY", "minioadmin"),
+            secure=os.environ.get("S3_USE_SSL", "false").lower() == "true",
         )
     return _client
 
 
 def download_to_tempfile(object_key: str) -> Path:
-    """Download a Cloudflare R2 object to a temp file and return its path."""
-    bucket = os.environ.get("Cloudflare R2_BUCKET", "opencairn-uploads")
-    client = get_Cloudflare R2_client()
+    """Download a MinIO/R2 object to a temp file and return its path."""
+    bucket = os.environ.get("S3_BUCKET", "opencairn-uploads")
+    client = get_s3_client()
     suffix = Path(object_key).suffix or ".bin"
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
     client.fget_object(bucket, object_key, tmp.name)
@@ -642,7 +672,7 @@ from dataclasses import dataclass
 
 from temporalio import activity
 
-from worker.lib.Cloudflare R2_client import download_to_tempfile
+from worker.lib.s3_client import download_to_tempfile
 
 JAR_PATH = os.environ.get("OPENDATALOADER_JAR", "/app/opendataloader-pdf.jar")
 # Pages-per-chunk threshold above which we flag complex layout for Gemini
@@ -731,7 +761,7 @@ from pathlib import Path
 from faster_whisper import WhisperModel
 from temporalio import activity
 
-from worker.lib.Cloudflare R2_client import download_to_tempfile
+from worker.lib.s3_client import download_to_tempfile
 
 WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "base")
 WHISPER_DEVICE = os.environ.get("WHISPER_DEVICE", "cpu")
@@ -834,7 +864,7 @@ from pathlib import Path
 import google.generativeai as genai
 from temporalio import activity
 
-from worker.lib.Cloudflare R2_client import download_to_tempfile
+from worker.lib.s3_client import download_to_tempfile
 from worker.lib.gemini_client import get_gemini_model
 
 IMAGE_PROMPT = (
@@ -1050,7 +1080,7 @@ async def scrape_web_url(inp: dict) -> dict:
 from temporalio import activity
 
 from worker.lib.gemini_client import get_gemini_model
-from worker.lib.Cloudflare R2_client import download_to_tempfile
+from worker.lib.s3_client import download_to_tempfile
 
 ENHANCE_PROMPT_TEMPLATE = """You are a knowledge extraction assistant.
 
@@ -1301,7 +1331,7 @@ app.route("/internal", internal);
 // Append to apps/api/src/routes/ingest.ts
 
 // GET /ingest/status/:workflowId
-ingest.get("/status/:workflowId", sessionMiddleware, async (c) => {
+ingest.get("/status/:workflowId", authMiddleware, async (c) => {
   const { workflowId } = c.req.param();
   const client = await getTemporalClient();
 
@@ -1321,12 +1351,96 @@ ingest.get("/status/:workflowId", sessionMiddleware, async (c) => {
 
 ---
 
+### Task 10: Quarantine (dead-letter) handling
+
+**Files:**
+- Create: `apps/worker/src/worker/activities/quarantine_activity.py`
+- Modify: `apps/worker/src/worker/workflows/ingest_workflow.py`
+
+- [ ] **Step 1: Quarantine helper**
+
+```python
+# apps/worker/src/worker/activities/quarantine_activity.py
+import os
+from datetime import datetime, timezone
+from temporalio import activity
+from worker.lib.r2_client import get_r2_client
+
+QUARANTINE_PREFIX = os.environ.get("INGEST_QUARANTINE_PREFIX", "quarantine/")
+BUCKET = os.environ.get("S3_BUCKET", "opencairn-uploads")
+
+
+@activity.defn(name="quarantine_source")
+async def quarantine_source(inp: dict) -> dict:
+    """Move a failed source to the quarantine prefix and return new key."""
+    client = get_r2_client()
+    src_key: str = inp["object_key"]
+    user_id: str = inp["user_id"]
+    ym = datetime.now(timezone.utc).strftime("%Y-%m")
+    base = src_key.rsplit("/", 1)[-1]
+    new_key = f"{QUARANTINE_PREFIX}{user_id}/{ym}/{base}"
+
+    # copy + delete (R2/S3 has no native move)
+    client.copy_object(
+        Bucket=BUCKET,
+        Key=new_key,
+        CopySource={"Bucket": BUCKET, "Key": src_key},
+    )
+    client.delete_object(Bucket=BUCKET, Key=src_key)
+    activity.logger.warning("Quarantined %s → %s (reason: %s)", src_key, new_key, inp.get("reason"))
+    return {"quarantine_key": new_key}
+```
+
+- [ ] **Step 2: IngestWorkflow에 실패 catch + quarantine 호출**
+
+```python
+# apps/worker/src/worker/workflows/ingest_workflow.py (수정)
+from temporalio.exceptions import ActivityError
+
+@workflow.defn(name="IngestWorkflow")
+class IngestWorkflow:
+    @workflow.run
+    async def run(self, inp: IngestInput) -> str:
+        try:
+            # ... 기존 파싱/transcribe/note_create 로직 ...
+            return note_id
+        except ActivityError as exc:
+            if inp.object_key:
+                await workflow.execute_activity(
+                    quarantine_source,
+                    {
+                        "object_key": inp.object_key,
+                        "user_id": inp.user_id,
+                        "reason": str(exc.cause or exc),
+                    },
+                    schedule_to_close_timeout=_SHORT_TIMEOUT,
+                    retry_policy=RetryPolicy(maximum_attempts=2),
+                )
+            raise
+```
+
+- [ ] **Step 3: `jobs.error` 에 quarantine_key 기록**
+
+API `/internal/source-notes/failure` 엔드포인트에 PATCH로 jobs 테이블 update. 또는 Temporal failure signal로 Hono에 알림.
+
+- [ ] **Step 4: Admin 뷰 (선택적 v0.2)** — `/admin/quarantine` 라우트로 일별 quarantine 파일 리스트 + 수동 재시도.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git commit -m "feat(worker): quarantine activity for failed ingests with R2 dead-letter prefix"
+```
+
+---
+
 ### Verification
 
-- [ ] `docker compose up Cloudflare R2 temporal temporal-ui` starts all three services without errors
+- [ ] `docker compose up minio temporal temporal-ui` starts all three services without errors
 - [ ] Temporal UI at `http://localhost:8080` is accessible
-- [ ] Cloudflare R2 console at `http://localhost:9001` is accessible; `opencairn-uploads` bucket exists
+- [ ] MinIO/R2 console at `http://localhost:9001` is accessible; `opencairn-uploads` bucket exists
 - [ ] `POST /ingest/upload` with a PDF file returns `202` with a `workflowId`
+- [ ] `POST /ingest/upload` with a file > 200MB returns `413` (Payload Too Large)
+- [ ] `POST /ingest/upload` with an image > 20MB returns `413`
 - [ ] The Temporal UI shows `IngestWorkflow` running → completing for the uploaded PDF
 - [ ] `GET /ingest/status/:workflowId` returns `{ status: "COMPLETED" }`
 - [ ] A source note appears in the database with `type = 'source'` and non-empty `content`
@@ -1334,5 +1448,6 @@ ingest.get("/status/:workflowId", sessionMiddleware, async (c) => {
 - [ ] `POST /ingest/url` with a web URL triggers scraping and produces a note
 - [ ] Uploading an image triggers `analyze_image` and produces a description note
 - [ ] Uploading a PDF with tables triggers `enhance_with_gemini` for complex layout
+- [ ] **Corrupt PDF triggers 3 retries → quarantine 이동 → R2 `quarantine/<user>/<yyyy-mm>/` 경로 확인**
 - [ ] Worker restarts cleanly (`docker compose restart worker`) without losing in-progress workflows (Temporal re-delivers)
 - [ ] `X-Internal-Secret` mismatch on `/internal/*` returns `401`

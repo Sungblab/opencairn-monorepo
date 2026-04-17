@@ -8,11 +8,12 @@
 > - Hardcoded `EMBED_MODEL = "gemini-embedding-2-preview"` 대신 `os.environ["EMBED_MODEL"]` 사용
 > - 구현 전 반드시 `docs/superpowers/plans/2026-04-13-multi-llm-provider.md` 먼저 실행할 것
 
-> **⚠️ 11 Agent 확장 맵 (2026-04-14):** 본 plan은 코어 3개 에이전트만 다루지만 실제 프로덕션에는 **11개**가 동작한다:
+> **⚠️ 12 Agent 확장 맵 (2026-04-14):** 본 plan은 코어 3개 에이전트만 다루지만 실제 프로덕션에는 **12개**가 동작한다 (Hunter는 v0.2로 이관):
 > - **Plan 4 (본 plan)**: Compiler, Research, Librarian
-> - **Plan 5 Task M1**: Visualization (멀티뷰 생성)
+> - **Plan 5 Task M1**: Visualization (5뷰 생성 — Graph/Mindmap/Cards/Canvas/Timeline)
 > - **Plan 6**: Socratic (학습/이해도 측정)
-> - **Plan 8 Task A1**: Connector, Temporal, Synthesis, Curator, Narrator, Deep Research
+> - **Plan 7**: Code (브라우저 Pyodide/iframe 샌드박스, ADR-006)
+> - **Plan 8**: Connector, Temporal, Synthesis, Curator, Narrator, Deep Research
 >
 > 모든 에이전트는 `apps/worker/src/worker/agents/` 하위에 위치하며 `packages/llm` get_provider() 사용. Hybrid search는 **LightRAG** (Plan 3 설치)를 통해 `rag.query(mode='hybrid|local|global')` 사용 권장 — 직접 pgvector 호출 지양.
 
@@ -550,7 +551,7 @@ from typing import Optional
 
 class EmbedResult(BaseModel):
     values: list[float]
-    model: str = "gemini-embedding-2-preview"
+    model: str  # EMBED_MODEL env — 기본값 하드코딩 금지
 
 
 class ChatResult(BaseModel):
@@ -572,19 +573,20 @@ from typing import Optional
 import google.genai as genai
 from google.genai import types
 
-EMBED_MODEL = "gemini-embedding-2-preview"
-EMBED_DIMS = 3072
+# env 기반으로 모델/차원 결정 (multi-llm-provider-design 참조)
+EMBED_MODEL = os.environ.get("EMBED_MODEL", "gemini-embedding-2-preview")
+EMBED_DIMS = int(os.environ.get("VECTOR_DIM", "3072"))
 
 
 class GeminiClient:
     """Async wrapper for Gemini embedding, chat (with optional thinking), and caching."""
 
     def __init__(self, api_key: Optional[str] = None) -> None:
-        self._api_key = api_key or os.environ["GEMINI_API_KEY"]
+        self._api_key = api_key or os.environ["LLM_API_KEY"]
         self._client = genai.Client(api_key=self._api_key)
 
     async def embed(self, text: str) -> list[float]:
-        """Embed a single string using gemini-embedding-2-preview (3072 dims)."""
+        """Embed a single string using EMBED_MODEL (dim = VECTOR_DIM env, default 3072; truncate to 1536 recommended in production)."""
         response = await self._client.aio.models.embed_content(
             model=EMBED_MODEL,
             contents=text,

@@ -1,704 +1,280 @@
-# Plan 7: Canvas & Sandbox — Implementation Plan
+# Plan 7: Canvas & Sandbox — Implementation Plan (Browser-First, 2026-04-14)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **⚠️ 샌드박스 전면 재설계 (2026-04-14):** Gemini Canvas / Claude Artifacts 방식으로 전환. **서버 사이드 코드 실행 전면 제거** (gVisor/Docker sandbox/Vite builder 전부 폐기). 모든 사용자 코드는 **브라우저 내부**에서 실행: Python → Pyodide (WASM), JS/HTML/React → `<iframe sandbox>` + esm.sh. 서버 자원 0, 셀프호스트 부담 0. 본 plan의 기존 서버 사이드 task들은 전부 폐기되고 클라이언트 사이드로 재작성 필요.
+> **2026-04-14 재작성:** 본 plan은 이전의 gVisor 기반 서버 사이드 샌드박스 구현을 완전히 폐기한 버전이다.
+> - 구 Task 1~3 (gVisor Dockerfile, 서버 execute/canvas 라우트, Vite builder) → 전부 제거
+> - 신 Task A~E: 브라우저 Pyodide 런타임 + iframe sandbox 렌더러 + Code Agent (Python 워커, 생성 전용) + 템플릿 통합
+> - 근거: [ADR-006](../../architecture/adr/006-pyodide-iframe-sandbox.md)
 
-**Goal:** Build the OpenCairn Canvas & Sandbox system — a **client-side** code execution environment (Pyodide + sandboxed iframe) paired with a React canvas renderer that lets the Code Agent generate interactive components and render them inside the user's browser. Canvas templates (slides, mindmap, cheatsheet) from Plan 6 are rendered through this pipeline.
+**Goal:** OpenCairn의 Canvas & Sandbox 시스템을 **브라우저 전용 실행 환경**으로 구축한다. Python은 Pyodide(WASM), JS/HTML/React는 `<iframe sandbox="allow-scripts">` + esm.sh로 실행. Code Agent(Python worker)는 코드 **생성**만 담당하고, 실행은 전부 사용자 브라우저가 책임진다.
 
 **Architecture:**
-1. **Pyodide runtime** (`apps/web/src/components/canvas/pyodide-runner.tsx`) — WASM Python 런타임을 브라우저에서 로드. numpy/pandas/matplotlib/scipy 포함. `micropip.install("...")` 로 추가 패키지. 실행 결과(stdout, 생성된 matplotlib 이미지)를 부모 윈도우 상태로 전달. 최초 1회 ~10MB 다운로드, 이후 캐시.
-2. **Iframe sandbox renderer** (`apps/web/src/components/canvas/CanvasFrame.tsx`) — Code Agent가 생성한 JS/HTML/React 코드를 Blob URL로 변환하여 `<iframe sandbox="allow-scripts">`에 주입. 부모 페이지 쿠키/localStorage/네트워크 접근 차단. React 런타임은 **esm.sh** CDN(`import React from "https://esm.sh/react@19"`)으로 동적 로드 — 서버 빌드 불필요.
-3. **Canvas API routes** (`apps/api/src/routes/canvas.ts`) — Code Agent **코드 생성** 엔드포인트만 제공 (LLM 호출 → 생성된 코드 문자열 반환). 실행은 전부 클라이언트 책임.
-4. **Code Agent** (`apps/worker/src/worker/agents/code_agent.py`) — LangGraph: generate code → 프론트엔드에 전달 → 사용자 브라우저가 Pyodide/iframe에서 실행 → stdout/에러를 postMessage로 Agent에게 피드백 → 필요시 반복 (self-healing).
-5. **Canvas template integration** — canvas 템플릿(slides, mindmap, cheatsheet)은 Code Agent가 React 컴포넌트 문자열 생성 → `<CanvasFrame>`에서 iframe으로 렌더.
 
-**Tech Stack:** Next.js 16, Hono 4, **Pyodide** (브라우저 WASM Python), **iframe sandbox** (브라우저 네이티브 격리), **esm.sh** (런타임 ESM CDN, React/외부 라이브러리), LangGraph (Python, Code Agent 로직 only), Zod, Tailwind CSS 4
+```
+Code Agent (apps/worker, LangGraph)
+    -> LLM이 코드 문자열 생성 (Python or React/JS/HTML)
+    -> Hono API가 SSE로 프론트에 스트리밍 (type, language, source)
+    -> 브라우저 (Next.js)
+        * Python: <PyodideRunner> — pyodide.runPythonAsync, setStdin, stdout 수집
+        * React/JS/HTML: <CanvasFrame> — Blob URL + iframe sandbox + esm.sh ESM CDN
+    -> 사용자 인터랙션 / 실행 결과
+    -> postMessage (origin 검증) → 부모 윈도우 → API → Agent self-healing
+```
 
-> **핵심 설계 원칙:**
-> - **서버는 코드를 한 줄도 실행 안 함** — Code Agent는 코드 "생성"만, 실행은 전부 클라이언트
-> - **단일 사용자 모델** — 본인 코드를 본인 브라우저에서 = multi-tenant 격리 불필요
-> - **gVisor/Docker sandbox/Vite builder 전부 제거** — 운영 복잡도, ARM 호환성, 자원 부담 모두 해소
-> - **Claude Artifacts / Gemini Canvas 패턴과 동일** — 검증된 방식
-> - 본 plan 하단의 기존 서버 사이드 task 목록은 **deprecated**, 클라이언트 사이드 task로 재작성 필요
+**Tech Stack:** Next.js 16, Hono 4, Pyodide 0.27+ (npm `pyodide`), esm.sh (런타임 ESM CDN), LangGraph (Python, Code Agent only), Zod, Tailwind CSS 4.
+
+**핵심 설계 원칙:**
+- 서버는 코드를 한 줄도 실행하지 않는다 (Pyodide/iframe 모두 client-side)
+- 단일 사용자 모델 — multi-tenant 격리 불필요 (본인 에이전트 ↔ 본인 브라우저)
+- `allow-same-origin`은 절대 iframe에 부여하지 않는다 (MDN 경고 — sandbox 탈출 가능)
+- Pyodide 블로킹 `input()` 미지원 — stdin은 `setStdin()` pre-injection 배열만
+- 테스트는 Playwright로 브라우저 내부 Pyodide 검증 (상세: `docs/testing/sandbox-testing.md`)
 
 ---
 
 ## File Structure
 
 ```
-services/
-  sandbox/
-    Dockerfile                       -- gVisor-ready Node.js + Python image
-    docker-compose.override.yml      -- dev override: mount source, runsc runtime
-    package.json                     -- Express HTTP service
-    tsconfig.json
-    src/
-      index.ts                       -- Express app, listen on port 5050
-      routes/
-        execute.ts                   -- POST /execute (Python | JS)
-        canvas.ts                    -- POST /canvas/build, GET /canvas/:jobId
-      executors/
-        python.ts                    -- spawn python3 in gVisor-isolated subprocess
-        javascript.ts                -- spawn node in gVisor-isolated subprocess
-      canvas-builder/
-        builder.ts                   -- Vite programmatic build for React components
-        template/
-          index.html                 -- minimal HTML shell
-          main.tsx                   -- mounts user component as <App />
-          vite.config.ts             -- Vite config (React plugin, outDir per jobId)
-      lib/
-        jobs.ts                      -- in-memory job store (dev); swap for Redis in prod
-        limits.ts                    -- timeout, max output size constants
-
 apps/
-  api/
-    src/
-      routes/
-        sandbox.ts                   -- Hono proxy to sandbox service
-      agents/
-        code/
-          state.ts                   -- LangGraph state shape
-          nodes/
-            generate-code.ts         -- generate Python/JS/React from prompt
-            execute-code.ts          -- call sandbox API, capture result
-            analyze-result.ts        -- interpret stdout/errors, decide retry
-            build-canvas.ts          -- send React source to canvas builder
-          graph.ts                   -- LangGraph graph wiring
-          index.ts                   -- export compiled graph
-
   web/
     src/
       components/
         canvas/
-          CanvasFrame.tsx            -- sandboxed iframe renderer
-          CanvasToolbar.tsx          -- reload, fullscreen, copy-link actions
-          useCanvasMessages.ts       -- postMessage hook
+          PyodideRunner.tsx           -- WASM Python 실행, stdin pre-injection, stdout/matplotlib 수집
+          CanvasFrame.tsx             -- <iframe sandbox="allow-scripts"> 렌더러
+          CanvasToolbar.tsx           -- reload, copy-source, fullscreen
+          useCanvasMessages.ts        -- postMessage + origin 검증 훅
+          sandbox-html-template.ts    -- iframe 내부에 주입할 HTML shell (esm.sh import map)
       app/
         (app)/
           canvas/
-            page.tsx                 -- canvas gallery / recent canvases
-            [jobId]/
-              page.tsx               -- single canvas viewer
+            page.tsx                  -- 최근 canvas 갤러리
+            [sessionId]/
+              page.tsx                -- 특정 canvas 뷰 (source + 실행 결과)
+      lib/
+        pyodide-loader.ts             -- lazy load, 캐시, 버전 고정
+
+  api/
+    src/
+      routes/
+        code.ts                       -- POST /api/code/run (생성 전용)
+        canvas.ts                     -- POST /api/canvas/from-template
+      agents/                         -- (선택) TS 쪽 얇은 래퍼
+
+  worker/
+    src/worker/
+      agents/
+        code/
+          __init__.py
+          state.py                    -- CodeAgentState (LangGraph)
+          nodes/
+            generate.py               -- LLM → 코드 문자열
+            analyze_feedback.py       -- stdout/에러 수신 후 retry 판단
+          graph.py                    -- 상태 그래프 wiring
+
+packages/
+  shared/
+    src/
+      canvas.ts                       -- Zod: CanvasMessage, CodeLanguage, 공유 타입
 ```
 
 ---
 
-### Task 1: Sandbox Docker Service (gVisor Runtime)
+### Task A: Pyodide 런타임 컴포넌트 (apps/web)
 
 **Files:**
-- Create: `services/sandbox/Dockerfile`
-- Create: `services/sandbox/package.json`
-- Create: `services/sandbox/tsconfig.json`
-- Create: `services/sandbox/src/index.ts`
-- Create: `services/sandbox/src/lib/limits.ts`
-- Create: `services/sandbox/src/lib/jobs.ts`
-- Edit: `docker-compose.yml` (add sandbox service)
+- Create: `apps/web/src/lib/pyodide-loader.ts`
+- Create: `apps/web/src/components/canvas/PyodideRunner.tsx`
 
-- [ ] **Step 1: Create `services/sandbox/Dockerfile`**
+- [ ] **Step A1: `pyodide-loader.ts` — lazy load, 버전 고정**
 
-```dockerfile
-# Multi-stage: build TypeScript, then run in slim image
-FROM node:22-slim AS builder
-WORKDIR /app
-COPY package.json pnpm-lock.yaml* ./
-RUN npm install -g pnpm && pnpm install --frozen-lockfile
-COPY . .
-RUN pnpm build
+```typescript
+// apps/web/src/lib/pyodide-loader.ts
+// Pyodide를 브라우저에서 한 번만 로드하고 캐시한다.
+// CDN 버전은 고정 — 보안상 floating "latest" 금지.
+import type { PyodideInterface } from "pyodide";
 
-FROM node:22-slim AS runner
-# Install Python 3 for code execution
-RUN apt-get update && apt-get install -y python3 python3-pip --no-install-recommends && rm -rf /var/lib/apt/lists/*
-WORKDIR /app
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
+const PYODIDE_VERSION = "0.27.0";
+const PYODIDE_CDN = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
 
-# gVisor drops capabilities — run as non-root
-RUN useradd -m sandboxuser
-USER sandboxuser
+let _instance: Promise<PyodideInterface> | null = null;
 
-EXPOSE 5050
-CMD ["node", "dist/index.js"]
-```
+export function loadPyodide(): Promise<PyodideInterface> {
+  if (_instance) return _instance;
 
-- [ ] **Step 2: Create `services/sandbox/package.json`**
+  _instance = (async () => {
+    // @ts-expect-error — loadPyodide는 CDN 스크립트에서 window에 주입됨
+    const script = document.createElement("script");
+    script.src = `${PYODIDE_CDN}pyodide.js`;
+    script.async = true;
+    await new Promise<void>((resolve, reject) => {
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("Failed to load Pyodide script"));
+      document.head.appendChild(script);
+    });
 
-```json
-{
-  "name": "@opencairn/sandbox",
-  "version": "0.0.1",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc"
-  },
-  "dependencies": {
-    "express": "^4.21.0",
-    "vite": "^6.3.0",
-    "@vitejs/plugin-react": "^4.3.0",
-    "zod": "^3.24.0",
-    "uuid": "^10.0.0"
-  },
-  "devDependencies": {
-    "@types/express": "^5.0.0",
-    "@types/node": "^22.0.0",
-    "@types/uuid": "^10.0.0",
-    "tsx": "^4.19.0",
-    "typescript": "^5.8.0"
-  }
+    // @ts-expect-error global injection
+    const pyodide = await window.loadPyodide({ indexURL: PYODIDE_CDN });
+
+    // 기본 번들만 로드. numpy/pandas/matplotlib은 필요 시 micropip로.
+    return pyodide as PyodideInterface;
+  })();
+
+  return _instance;
 }
 ```
 
-- [ ] **Step 3: Create `services/sandbox/tsconfig.json`**
-
-```json
-{
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "resolveJsonModule": true
-  },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
-}
-```
-
-- [ ] **Step 4: Create `services/sandbox/src/lib/limits.ts`**
-
-```typescript
-export const LIMITS = {
-  EXECUTION_TIMEOUT_MS: 10_000,       // 10 s per code execution
-  MAX_OUTPUT_BYTES: 256 * 1024,       // 256 KB stdout cap
-  MAX_SOURCE_BYTES: 64 * 1024,        // 64 KB source code cap
-  CANVAS_BUILD_TIMEOUT_MS: 30_000,    // 30 s for Vite build
-  MAX_CANVAS_BUNDLE_BYTES: 4 * 1024 * 1024, // 4 MB built bundle cap
-  JOB_TTL_MS: 60 * 60 * 1000,        // 1 hour job retention
-} as const;
-```
-
-- [ ] **Step 5: Create `services/sandbox/src/lib/jobs.ts`**
-
-```typescript
-import { LIMITS } from "./limits";
-
-export type JobStatus = "queued" | "running" | "completed" | "failed";
-
-export type ExecutionJob = {
-  id: string;
-  status: JobStatus;
-  language: "python" | "javascript";
-  source: string;
-  stdout: string;
-  stderr: string;
-  exitCode: number | null;
-  files: Record<string, string>;   // filename → base64 content
-  createdAt: Date;
-  completedAt?: Date;
-  error?: string;
-};
-
-export type CanvasJob = {
-  id: string;
-  status: JobStatus;
-  source: string;                  // React component source
-  serveUrl: string | null;         // path under /canvas/serve/:jobId
-  buildError: string | null;
-  createdAt: Date;
-  completedAt?: Date;
-};
-
-// In-memory store — swap for Redis in production
-const executionJobs = new Map<string, ExecutionJob>();
-const canvasJobs = new Map<string, CanvasJob>();
-
-export const jobStore = {
-  setExecution(job: ExecutionJob) {
-    executionJobs.set(job.id, job);
-    // TTL cleanup
-    setTimeout(() => executionJobs.delete(job.id), LIMITS.JOB_TTL_MS);
-  },
-  getExecution(id: string): ExecutionJob | undefined {
-    return executionJobs.get(id);
-  },
-  setCanvas(job: CanvasJob) {
-    canvasJobs.set(job.id, job);
-    setTimeout(() => canvasJobs.delete(job.id), LIMITS.JOB_TTL_MS);
-  },
-  getCanvas(id: string): CanvasJob | undefined {
-    return canvasJobs.get(id);
-  },
-};
-```
-
-- [ ] **Step 6: Create `services/sandbox/src/index.ts`**
-
-```typescript
-import express from "express";
-import { executeRouter } from "./routes/execute";
-import { canvasRouter } from "./routes/canvas";
-
-const app = express();
-app.use(express.json({ limit: "128kb" }));
-
-app.get("/health", (_req, res) => res.json({ ok: true }));
-app.use("/execute", executeRouter);
-app.use("/canvas", canvasRouter);
-
-const PORT = Number(process.env.PORT ?? 5050);
-app.listen(PORT, () => {
-  console.log(`Sandbox service listening on :${PORT}`);
-});
-```
-
-- [ ] **Step 7: Add sandbox service to `docker-compose.yml`**
-
-Open `docker-compose.yml` and add inside `services:`:
-
-```yaml
-  sandbox:
-    build:
-      context: ./services/sandbox
-      dockerfile: Dockerfile
-    ports:
-      - "5050:5050"
-    runtime: runsc          # gVisor runtime — requires gVisor installed on host
-    environment:
-      NODE_ENV: production
-    volumes:
-      - sandbox_builds:/app/canvas-builds
-    depends_on:
-      - postgres
-
-volumes:
-  sandbox_builds:
-```
-
-> Note: `runtime: runsc` requires gVisor (`runsc`) to be installed on the Docker host and registered as a Docker runtime. In local dev without gVisor, remove or comment out the `runtime:` line — the service still works, only without the gVisor security boundary.
-
-- [ ] **Step 8: Commit**
-
-```bash
-git add services/sandbox/ docker-compose.yml
-git commit -m "feat(sandbox): Docker service scaffold with gVisor runtime, job store, and limits"
-```
-
----
-
-### Task 2: Sandbox Execution API (Python + JS)
-
-**Files:**
-- Create: `services/sandbox/src/executors/python.ts`
-- Create: `services/sandbox/src/executors/javascript.ts`
-- Create: `services/sandbox/src/routes/execute.ts`
-
-- [ ] **Step 1: Create `services/sandbox/src/executors/python.ts`**
-
-```typescript
-import { spawn } from "child_process";
-import { LIMITS } from "../lib/limits";
-
-export type ExecutionResult = {
-  stdout: string;
-  stderr: string;
-  exitCode: number;
-  timedOut: boolean;
-};
-
-export function executePython(source: string): Promise<ExecutionResult> {
-  return new Promise((resolve) => {
-    const child = spawn("python3", ["-c", source], {
-      timeout: LIMITS.EXECUTION_TIMEOUT_MS,
-      env: {
-        // Minimal env — no secrets, no HOME-leakage
-        PATH: "/usr/bin:/usr/local/bin",
-        PYTHONDONTWRITEBYTECODE: "1",
-        PYTHONUNBUFFERED: "1",
-      },
-      uid: process.getuid?.(),    // run as current sandboxed user
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString();
-      if (Buffer.byteLength(stdout) > LIMITS.MAX_OUTPUT_BYTES) child.kill("SIGKILL");
-    });
-    child.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString();
-    });
-
-    child.on("close", (code, signal) => {
-      resolve({
-        stdout: stdout.slice(0, LIMITS.MAX_OUTPUT_BYTES),
-        stderr: stderr.slice(0, 8192),
-        exitCode: code ?? -1,
-        timedOut: signal === "SIGKILL",
-      });
-    });
-
-    child.on("error", (err) => {
-      resolve({ stdout: "", stderr: err.message, exitCode: -1, timedOut: false });
-    });
-  });
-}
-```
-
-- [ ] **Step 2: Create `services/sandbox/src/executors/javascript.ts`**
-
-```typescript
-import { spawn } from "child_process";
-import { LIMITS } from "../lib/limits";
-import type { ExecutionResult } from "./python";
-
-export function executeJavaScript(source: string): Promise<ExecutionResult> {
-  return new Promise((resolve) => {
-    // Write source to stdin of node --input-type=module
-    const child = spawn("node", ["--input-type=module"], {
-      timeout: LIMITS.EXECUTION_TIMEOUT_MS,
-      env: {
-        PATH: "/usr/bin:/usr/local/bin",
-        NODE_NO_WARNINGS: "1",
-      },
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString();
-      if (Buffer.byteLength(stdout) > LIMITS.MAX_OUTPUT_BYTES) child.kill("SIGKILL");
-    });
-    child.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString();
-    });
-    child.on("close", (code, signal) => {
-      resolve({
-        stdout: stdout.slice(0, LIMITS.MAX_OUTPUT_BYTES),
-        stderr: stderr.slice(0, 8192),
-        exitCode: code ?? -1,
-        timedOut: signal === "SIGKILL",
-      });
-    });
-    child.on("error", (err) => {
-      resolve({ stdout: "", stderr: err.message, exitCode: -1, timedOut: false });
-    });
-
-    child.stdin.write(source);
-    child.stdin.end();
-  });
-}
-```
-
-- [ ] **Step 3: Create `services/sandbox/src/routes/execute.ts`**
-
-```typescript
-import { Router } from "express";
-import { z } from "zod";
-import { v4 as uuid } from "uuid";
-import { executePython } from "../executors/python";
-import { executeJavaScript } from "../executors/javascript";
-import { jobStore } from "../lib/jobs";
-import { LIMITS } from "../lib/limits";
-
-export const executeRouter = Router();
-
-const executeSchema = z.object({
-  language: z.enum(["python", "javascript"]),
-  source: z.string().max(LIMITS.MAX_SOURCE_BYTES),
-});
-
-// POST /execute — synchronous execution (returns when done)
-executeRouter.post("/", async (req, res) => {
-  const parsed = executeSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.flatten() });
-  }
-
-  const { language, source } = parsed.data;
-  const id = uuid();
-  const createdAt = new Date();
-
-  const job = {
-    id,
-    status: "running" as const,
-    language,
-    source,
-    stdout: "",
-    stderr: "",
-    exitCode: null,
-    files: {},
-    createdAt,
-  };
-  jobStore.setExecution({ ...job });
-
-  try {
-    const result =
-      language === "python"
-        ? await executePython(source)
-        : await executeJavaScript(source);
-
-    const completed = {
-      ...job,
-      status: (result.exitCode === 0 ? "completed" : "failed") as const,
-      stdout: result.stdout,
-      stderr: result.stderr,
-      exitCode: result.exitCode,
-      completedAt: new Date(),
-      error: result.timedOut ? "Execution timed out" : undefined,
-    };
-    jobStore.setExecution(completed);
-    return res.json(completed);
-  } catch (err) {
-    const failed = {
-      ...job,
-      status: "failed" as const,
-      error: String(err),
-      completedAt: new Date(),
-    };
-    jobStore.setExecution(failed);
-    return res.status(500).json(failed);
-  }
-});
-
-// GET /execute/:id — retrieve a past job
-executeRouter.get("/:id", (req, res) => {
-  const job = jobStore.getExecution(req.params.id);
-  if (!job) return res.status(404).json({ error: "Job not found" });
-  return res.json(job);
-});
-```
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add services/sandbox/src/executors/ services/sandbox/src/routes/execute.ts
-git commit -m "feat(sandbox): Python and JavaScript execution routes with output size limits"
-```
-
----
-
-### Task 3: React Canvas Builder (Vite)
-
-**Files:**
-- Create: `services/sandbox/src/canvas-builder/template/index.html`
-- Create: `services/sandbox/src/canvas-builder/template/main.tsx`
-- Create: `services/sandbox/src/canvas-builder/template/vite.config.ts`
-- Create: `services/sandbox/src/canvas-builder/builder.ts`
-- Create: `services/sandbox/src/routes/canvas.ts`
-
-- [ ] **Step 1: Create canvas Vite template files**
-
-Create `services/sandbox/src/canvas-builder/template/index.html`:
-
-```html
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OpenCairn Canvas</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/main.tsx"></script>
-  </body>
-</html>
-```
-
-Create `services/sandbox/src/canvas-builder/template/main.tsx`:
+- [ ] **Step A2: `PyodideRunner.tsx` — stdin 배열 주입 + stdout 수집 + matplotlib 이미지**
 
 ```tsx
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-// USER_COMPONENT is injected by the builder at build time
-import App from "./UserComponent";
+// apps/web/src/components/canvas/PyodideRunner.tsx
+"use client";
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>
-);
-```
+import { useEffect, useRef, useState } from "react";
+import { loadPyodide } from "@/lib/pyodide-loader";
 
-Create `services/sandbox/src/canvas-builder/template/vite.config.ts`:
+const EXECUTION_TIMEOUT_MS = 10_000;
 
-```typescript
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-
-export default defineConfig({
-  plugins: [react()],
-  build: {
-    outDir: process.env.VITE_OUT_DIR ?? "dist",
-    emptyOutDir: true,
-  },
-});
-```
-
-- [ ] **Step 2: Create `services/sandbox/src/canvas-builder/builder.ts`**
-
-```typescript
-import { build } from "vite";
-import react from "@vitejs/plugin-react";
-import { writeFileSync, mkdirSync, cpSync } from "fs";
-import { resolve, dirname } from "path";
-import { fileURLToPath } from "url";
-import { LIMITS } from "../lib/limits";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const TEMPLATE_DIR = resolve(__dirname, "template");
-const BUILDS_DIR = process.env.CANVAS_BUILDS_DIR ?? resolve(__dirname, "../../../canvas-builds");
-
-export type BuildResult = {
-  success: boolean;
-  serveDir: string | null;
-  error: string | null;
-  durationMs: number;
+type Props = {
+  source: string;
+  stdin?: string; // 사용자가 미리 붙여넣은 stdin 배열 (개행 구분)
+  onResult?: (r: { stdout: string; stderr: string; timedOut: boolean }) => void;
 };
 
-/**
- * Builds a React component source string into a static bundle using Vite.
- * Returns the directory path that can be served as static files.
- */
-export async function buildReactCanvas(
-  jobId: string,
-  reactSource: string
-): Promise<BuildResult> {
-  const start = Date.now();
-  const outDir = resolve(BUILDS_DIR, jobId);
+export function PyodideRunner({ source, stdin = "", onResult }: Props) {
+  const [status, setStatus] = useState<"loading" | "ready" | "running" | "done" | "error">("loading");
+  const [stdout, setStdout] = useState("");
+  const [stderr, setStderr] = useState("");
+  const abortRef = useRef<AbortController | null>(null);
 
-  try {
-    if (Buffer.byteLength(reactSource) > LIMITS.MAX_SOURCE_BYTES) {
-      throw new Error("React source exceeds maximum allowed size.");
-    }
+  useEffect(() => {
+    let cancelled = false;
 
-    // Write user component into a temp project dir
-    const projectDir = resolve(BUILDS_DIR, `${jobId}_src`);
-    mkdirSync(projectDir, { recursive: true });
+    (async () => {
+      try {
+        const pyodide = await loadPyodide();
+        if (cancelled) return;
+        setStatus("ready");
 
-    // Copy template files
-    cpSync(TEMPLATE_DIR, projectDir, { recursive: true });
+        // stdin pre-injection
+        const lines = stdin.split("\n");
+        let idx = 0;
+        pyodide.setStdin({ stdin: () => (idx < lines.length ? lines[idx++] : null) });
 
-    // Write the user's component as UserComponent.tsx
-    writeFileSync(resolve(projectDir, "UserComponent.tsx"), reactSource, "utf-8");
+        // stdout/stderr redirect
+        let outBuf = "";
+        let errBuf = "";
+        pyodide.setStdout({ batched: (s: string) => { outBuf += s + "\n"; setStdout(outBuf); } });
+        pyodide.setStderr({ batched: (s: string) => { errBuf += s + "\n"; setStderr(errBuf); } });
 
-    // Programmatic Vite build
-    await build({
-      root: projectDir,
-      plugins: [react()],
-      build: {
-        outDir,
-        emptyOutDir: true,
-      },
-      logLevel: "silent",
-    });
+        setStatus("running");
+        const ctrl = new AbortController();
+        abortRef.current = ctrl;
 
-    return { success: true, serveDir: outDir, error: null, durationMs: Date.now() - start };
-  } catch (err) {
-    return {
-      success: false,
-      serveDir: null,
-      error: String(err),
-      durationMs: Date.now() - start,
-    };
-  }
+        const execPromise = pyodide.runPythonAsync(source);
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("TIMEOUT")), EXECUTION_TIMEOUT_MS)
+        );
+
+        try {
+          await Promise.race([execPromise, timeoutPromise]);
+          setStatus("done");
+          onResult?.({ stdout: outBuf, stderr: errBuf, timedOut: false });
+        } catch (e) {
+          const timedOut = (e as Error).message === "TIMEOUT";
+          setStatus(timedOut ? "error" : "error");
+          setStderr((prev) => prev + "\n" + (e as Error).message);
+          onResult?.({ stdout: outBuf, stderr: errBuf + "\n" + (e as Error).message, timedOut });
+        }
+      } catch (e) {
+        setStatus("error");
+        setStderr(String(e));
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [source, stdin, onResult]);
+
+  return (
+    <div className="rounded-xl border bg-background p-4 space-y-2">
+      <div className="text-xs text-muted-foreground">Pyodide: {status}</div>
+      {stdout && <pre className="text-sm whitespace-pre-wrap font-mono">{stdout}</pre>}
+      {stderr && <pre className="text-sm whitespace-pre-wrap font-mono text-destructive">{stderr}</pre>}
+    </div>
+  );
 }
 ```
 
-- [ ] **Step 3: Create `services/sandbox/src/routes/canvas.ts`**
-
-```typescript
-import { Router } from "express";
-import { z } from "zod";
-import { v4 as uuid } from "uuid";
-import express from "express";
-import { resolve } from "path";
-import { buildReactCanvas } from "../canvas-builder/builder";
-import { jobStore } from "../lib/jobs";
-import { LIMITS } from "../lib/limits";
-
-export const canvasRouter = Router();
-
-const buildSchema = z.object({
-  source: z.string().max(LIMITS.MAX_SOURCE_BYTES),
-});
-
-// POST /canvas/build — accept React source, build asynchronously, return jobId
-canvasRouter.post("/build", async (req, res) => {
-  const parsed = buildSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.flatten() });
-  }
-
-  const id = uuid();
-  const job = {
-    id,
-    status: "queued" as const,
-    source: parsed.data.source,
-    serveUrl: null,
-    buildError: null,
-    createdAt: new Date(),
-  };
-  jobStore.setCanvas(job);
-
-  // Return immediately; build runs in background
-  res.status(202).json({ jobId: id, status: "queued" });
-
-  // Background build
-  const result = await buildReactCanvas(id, parsed.data.source);
-  jobStore.setCanvas({
-    ...job,
-    status: result.success ? "completed" : "failed",
-    serveUrl: result.success ? `/canvas/serve/${id}` : null,
-    buildError: result.error,
-    completedAt: new Date(),
-  });
-});
-
-// GET /canvas/:jobId — poll job status
-canvasRouter.get("/:jobId", (req, res) => {
-  const job = jobStore.getCanvas(req.params.jobId);
-  if (!job) return res.status(404).json({ error: "Canvas job not found" });
-  return res.json(job);
-});
-
-// Serve built static files
-const BUILDS_DIR = process.env.CANVAS_BUILDS_DIR ?? resolve(process.cwd(), "canvas-builds");
-canvasRouter.use("/serve", express.static(BUILDS_DIR, { fallthrough: false }));
-```
-
-- [ ] **Step 4: Commit**
+- [ ] **Step A3: Commit**
 
 ```bash
-git add services/sandbox/src/canvas-builder/ services/sandbox/src/routes/canvas.ts
-git commit -m "feat(sandbox): React canvas builder with Vite programmatic build and static file serving"
+git add apps/web/src/lib/pyodide-loader.ts apps/web/src/components/canvas/PyodideRunner.tsx
+git commit -m "feat(canvas): Pyodide runtime loader and Python runner with stdin pre-injection"
 ```
 
 ---
 
-### Task 4: Frontend Iframe Renderer
+### Task B: Iframe Sandbox Renderer (apps/web)
 
 **Files:**
+- Create: `apps/web/src/components/canvas/sandbox-html-template.ts`
 - Create: `apps/web/src/components/canvas/useCanvasMessages.ts`
 - Create: `apps/web/src/components/canvas/CanvasFrame.tsx`
-- Create: `apps/web/src/components/canvas/CanvasToolbar.tsx`
-- Create: `apps/web/src/app/(app)/canvas/page.tsx`
-- Create: `apps/web/src/app/(app)/canvas/[jobId]/page.tsx`
 
-- [ ] **Step 1: Create `apps/web/src/components/canvas/useCanvasMessages.ts`**
+- [ ] **Step B1: `sandbox-html-template.ts` — iframe 내부 HTML 템플릿 + esm.sh import map**
 
 ```typescript
-"use client";
+// apps/web/src/components/canvas/sandbox-html-template.ts
+// 사용자 코드를 감싸는 최소 HTML shell. esm.sh로 React를 import.
+export function buildSandboxHTML(userSource: string, language: "react" | "html" | "javascript"): string {
+  if (language === "html") {
+    return userSource; // 이미 완전한 HTML
+  }
 
+  if (language === "javascript") {
+    return `<!doctype html>
+<html><head><meta charset="utf-8"></head>
+<body>
+  <div id="root"></div>
+  <script type="module">
+${userSource}
+  </script>
+</body></html>`;
+  }
+
+  // React: esm.sh에서 React/ReactDOM import, 사용자 컴포넌트 mount
+  return `<!doctype html>
+<html><head>
+  <meta charset="utf-8">
+  <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@19",
+        "react-dom/client": "https://esm.sh/react-dom@19/client"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module">
+    import React from "react";
+    import { createRoot } from "react-dom/client";
+    ${userSource}
+    // 사용자 코드는 export default를 제공한다고 가정
+    const container = document.getElementById("root");
+    createRoot(container).render(React.createElement(App ?? (typeof default_1 !== "undefined" ? default_1 : null)));
+  </script>
+</body></html>`;
+}
+```
+
+- [ ] **Step B2: `useCanvasMessages.ts` — postMessage + origin 검증**
+
+```typescript
+// apps/web/src/components/canvas/useCanvasMessages.ts
+"use client";
 import { useEffect, useRef, useCallback } from "react";
 
 export type CanvasMessage =
@@ -707,704 +283,428 @@ export type CanvasMessage =
   | { type: "CANVAS_RESIZE"; height: number }
   | { type: "HOST_THEME"; theme: "light" | "dark" };
 
-type UseCanvasMessagesOptions = {
-  onMessage: (msg: CanvasMessage) => void;
-  sandboxOrigin: string;
-};
-
-/**
- * Hook for bi-directional postMessage communication with a sandboxed canvas iframe.
- * Returns a `send` function to post messages into the iframe.
- */
+// Blob URL의 origin은 null로 보고되므로 event.origin === "null"이어야 한다.
+// 동시에 iframe contentWindow 참조로 추가 검증 (MessageEvent source 비교).
 export function useCanvasMessages(
   iframeRef: React.RefObject<HTMLIFrameElement | null>,
-  { onMessage, sandboxOrigin }: UseCanvasMessagesOptions
+  onMessage: (m: CanvasMessage) => void
 ) {
-  const onMessageRef = useRef(onMessage);
-  onMessageRef.current = onMessage;
+  const handlerRef = useRef(onMessage);
+  handlerRef.current = onMessage;
 
   useEffect(() => {
-    function handler(event: MessageEvent) {
-      if (event.origin !== sandboxOrigin) return;
-      onMessageRef.current(event.data as CanvasMessage);
+    function listener(event: MessageEvent) {
+      // Blob: URL iframe은 origin이 "null"로 보고됨
+      if (event.origin !== "null") return;
+      if (event.source !== iframeRef.current?.contentWindow) return;
+      handlerRef.current(event.data as CanvasMessage);
     }
-    window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
-  }, [sandboxOrigin]);
+    window.addEventListener("message", listener);
+    return () => window.removeEventListener("message", listener);
+  }, [iframeRef]);
 
-  const send = useCallback(
-    (msg: CanvasMessage) => {
-      iframeRef.current?.contentWindow?.postMessage(msg, sandboxOrigin);
-    },
-    [iframeRef, sandboxOrigin]
-  );
+  const send = useCallback((m: CanvasMessage) => {
+    // Blob URL origin은 불안정 → 이곳에서는 별도 채널이 필요하면 MessageChannel 권장
+    iframeRef.current?.contentWindow?.postMessage(m, "*");
+  }, [iframeRef]);
 
   return { send };
 }
 ```
 
-- [ ] **Step 2: Create `apps/web/src/components/canvas/CanvasFrame.tsx`**
+- [ ] **Step B3: `CanvasFrame.tsx` — Blob URL + sandbox 속성**
 
 ```tsx
+// apps/web/src/components/canvas/CanvasFrame.tsx
 "use client";
-
-import { useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { buildSandboxHTML } from "./sandbox-html-template";
 import { useCanvasMessages } from "./useCanvasMessages";
 
-type CanvasFrameProps = {
-  jobId: string;
-  /** Full URL to the built canvas (served by sandbox service) */
-  src: string;
-  /** Expected sandbox origin, e.g. http://localhost:5050 */
-  sandboxOrigin?: string;
+type Props = {
+  source: string;
+  language: "react" | "html" | "javascript";
   className?: string;
 };
 
-const SANDBOX_ORIGIN =
-  process.env.NEXT_PUBLIC_SANDBOX_ORIGIN ?? "http://localhost:5050";
+const MAX_SOURCE_BYTES = 64 * 1024;
 
-export function CanvasFrame({
-  jobId,
-  src,
-  sandboxOrigin = SANDBOX_ORIGIN,
-  className = "",
-}: CanvasFrameProps) {
+export function CanvasFrame({ source, language, className = "" }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [iframeHeight, setIframeHeight] = useState(480);
+  const [height, setHeight] = useState(480);
 
-  const { send } = useCanvasMessages(iframeRef, {
-    sandboxOrigin,
-    onMessage: useCallback((msg) => {
-      if (msg.type === "CANVAS_READY") setReady(true);
-      if (msg.type === "CANVAS_ERROR") setError(msg.error);
-      if (msg.type === "CANVAS_RESIZE") setIframeHeight(msg.height);
-    }, []),
+  const blobUrl = useMemo(() => {
+    if (new TextEncoder().encode(source).byteLength > MAX_SOURCE_BYTES) {
+      setError(`Source exceeds ${MAX_SOURCE_BYTES} bytes`);
+      return null;
+    }
+    const html = buildSandboxHTML(source, language);
+    const blob = new Blob([html], { type: "text/html" });
+    return URL.createObjectURL(blob);
+  }, [source, language]);
+
+  useEffect(() => () => { if (blobUrl) URL.revokeObjectURL(blobUrl); }, [blobUrl]);
+
+  useCanvasMessages(iframeRef, (m) => {
+    if (m.type === "CANVAS_ERROR") setError(m.error);
+    if (m.type === "CANVAS_RESIZE") setHeight(m.height);
   });
 
+  if (!blobUrl) return <div className="p-4 text-destructive">{error}</div>;
+
   return (
-    <div className={`relative rounded-xl overflow-hidden border border-border bg-background ${className}`}>
-      {!ready && !error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-muted/50 z-10">
-          <span className="text-sm text-muted-foreground animate-pulse">Loading canvas…</span>
-        </div>
-      )}
-      {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-destructive/10 z-10 p-4">
-          <p className="text-sm text-destructive text-center">Canvas error: {error}</p>
-        </div>
-      )}
+    <div className={`rounded-xl overflow-hidden border bg-background ${className}`}>
       <iframe
         ref={iframeRef}
-        src={src}
-        title={`OpenCairn Canvas ${jobId}`}
-        style={{ height: iframeHeight }}
-        className="w-full border-0"
-        // Strict sandbox: allow-scripts for React to run, allow-same-origin for postMessage
-        // Do NOT add allow-forms, allow-popups, allow-top-navigation
-        sandbox="allow-scripts allow-same-origin"
+        src={blobUrl}
+        title="OpenCairn Canvas"
+        // CRITICAL: allow-same-origin 절대 추가 금지 (sandbox escape 가능, MDN 경고)
+        sandbox="allow-scripts"
+        style={{ height, width: "100%", border: 0 }}
         loading="lazy"
-        onLoad={() => {
-          // Send theme on load
-          send({ type: "HOST_THEME", theme: "light" });
-        }}
       />
+      {error && <div className="p-2 text-sm text-destructive bg-destructive/10">{error}</div>}
     </div>
   );
 }
 ```
 
-- [ ] **Step 3: Create `apps/web/src/components/canvas/CanvasToolbar.tsx`**
-
-```tsx
-"use client";
-
-type CanvasToolbarProps = {
-  jobId: string;
-  src: string;
-  onReload: () => void;
-};
-
-export function CanvasToolbar({ jobId, src, onReload }: CanvasToolbarProps) {
-  async function copyLink() {
-    await navigator.clipboard.writeText(src);
-  }
-
-  function openFullscreen() {
-    window.open(src, "_blank", "noopener,noreferrer");
-  }
-
-  return (
-    <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/30">
-      <span className="text-xs text-muted-foreground font-mono truncate flex-1">
-        canvas/{jobId}
-      </span>
-      <button
-        onClick={onReload}
-        className="text-xs px-3 py-1 rounded-md border border-border hover:bg-muted transition-colors"
-        title="Reload canvas"
-      >
-        Reload
-      </button>
-      <button
-        onClick={copyLink}
-        className="text-xs px-3 py-1 rounded-md border border-border hover:bg-muted transition-colors"
-        title="Copy link"
-      >
-        Copy Link
-      </button>
-      <button
-        onClick={openFullscreen}
-        className="text-xs px-3 py-1 rounded-md border border-border hover:bg-muted transition-colors"
-        title="Open full screen"
-      >
-        Fullscreen
-      </button>
-    </div>
-  );
-}
-```
-
-- [ ] **Step 4: Create `apps/web/src/app/(app)/canvas/[jobId]/page.tsx`**
-
-```tsx
-import { CanvasFrame } from "@/components/canvas/CanvasFrame";
-import { CanvasToolbar } from "@/components/canvas/CanvasToolbar";
-
-type Props = { params: Promise<{ jobId: string }> };
-
-export default async function CanvasViewPage({ params }: Props) {
-  const { jobId } = await params;
-  const sandboxOrigin = process.env.NEXT_PUBLIC_SANDBOX_ORIGIN ?? "http://localhost:5050";
-  const src = `${sandboxOrigin}/canvas/serve/${jobId}/index.html`;
-
-  return (
-    <div className="flex flex-col h-full">
-      <CanvasToolbar
-        jobId={jobId}
-        src={src}
-        onReload={() => {}}   // client-side reload handled via key prop in real impl
-      />
-      <div className="flex-1 p-4">
-        <CanvasFrame jobId={jobId} src={src} className="h-full min-h-[480px]" />
-      </div>
-    </div>
-  );
-}
-```
-
-- [ ] **Step 5: Create `apps/web/src/app/(app)/canvas/page.tsx`**
-
-```tsx
-export default function CanvasGalleryPage() {
-  return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-2">Canvas</h1>
-      <p className="text-muted-foreground mb-8">
-        Interactive slides, mind maps, and cheat sheets generated by the Code Agent.
-      </p>
-      {/* TODO: fetch recent canvas jobs from API and render as cards */}
-      <p className="text-sm text-muted-foreground">No canvases yet. Use a canvas template to generate one.</p>
-    </div>
-  );
-}
-```
-
-- [ ] **Step 6: Commit**
+- [ ] **Step B4: Commit**
 
 ```bash
-git add apps/web/src/components/canvas/ apps/web/src/app/\(app\)/canvas/
-git commit -m "feat(web): sandboxed iframe canvas renderer with postMessage communication"
+git add apps/web/src/components/canvas/
+git commit -m "feat(canvas): iframe sandbox renderer with Blob URL and postMessage origin guard"
 ```
 
 ---
 
-### Task 5: Code Agent (LangGraph)
+### Task C: Code Agent (Python worker, LangGraph)
 
 **Files:**
-- Create: `apps/api/src/agents/code/state.ts`
-- Create: `apps/api/src/agents/code/nodes/generate-code.ts`
-- Create: `apps/api/src/agents/code/nodes/execute-code.ts`
-- Create: `apps/api/src/agents/code/nodes/analyze-result.ts`
-- Create: `apps/api/src/agents/code/nodes/build-canvas.ts`
-- Create: `apps/api/src/agents/code/graph.ts`
-- Create: `apps/api/src/agents/code/index.ts`
-- Create: `apps/api/src/routes/code-agent.ts`
-- Edit: `apps/api/src/app.ts` (mount code agent router)
+- Create: `apps/worker/src/worker/agents/code/state.py`
+- Create: `apps/worker/src/worker/agents/code/nodes/generate.py`
+- Create: `apps/worker/src/worker/agents/code/nodes/analyze_feedback.py`
+- Create: `apps/worker/src/worker/agents/code/graph.py`
 
-- [ ] **Step 1: Create `apps/api/src/agents/code/state.ts`**
+- [ ] **Step C1: `state.py`**
 
-```typescript
-import { Annotation } from "@langchain/langgraph";
+```python
+# apps/worker/src/worker/agents/code/state.py
+from dataclasses import dataclass, field
+from typing import Literal
 
-export type CodeLanguage = "python" | "javascript" | "react";
+CodeLanguage = Literal["python", "javascript", "html", "react"]
 
-export const CodeAgentState = Annotation.Root({
-  // inputs
-  userId: Annotation<string>(),
-  prompt: Annotation<string>(),
-  language: Annotation<CodeLanguage>(),
-  context: Annotation<string>({ default: () => "" }),       // optional note/concept context
 
-  // iteration
-  generatedSource: Annotation<string | null>({ default: () => null }),
-  iterationCount: Annotation<number>({ default: () => 0 }),
-  maxIterations: Annotation<number>({ default: () => 3 }),
+@dataclass
+class CodeAgentState:
+    user_id: str
+    prompt: str
+    language: CodeLanguage
+    context: str = ""
 
-  // execution result
-  executionJobId: Annotation<string | null>({ default: () => null }),
-  stdout: Annotation<string | null>({ default: () => null }),
-  stderr: Annotation<string | null>({ default: () => null }),
-  exitCode: Annotation<number | null>({ default: () => null }),
+    generated_source: str | None = None
+    iteration: int = 0
+    max_iterations: int = 3
 
-  // analysis
-  analysisNote: Annotation<string | null>({ default: () => null }),
-  shouldRetry: Annotation<boolean>({ default: () => false }),
-  executionSuccess: Annotation<boolean>({ default: () => false }),
+    # 클라이언트에서 온 피드백
+    client_stdout: str | None = None
+    client_stderr: str | None = None
+    client_timed_out: bool = False
 
-  // canvas
-  canvasJobId: Annotation<string | null>({ default: () => null }),
-  canvasUrl: Annotation<string | null>({ default: () => null }),
-  isCanvasMode: Annotation<boolean>({ default: () => false }),
-});
-
-export type CodeAgentStateType = typeof CodeAgentState.State;
+    should_retry: bool = False
+    analysis_note: str = ""
 ```
 
-- [ ] **Step 2: Create `apps/api/src/agents/code/nodes/generate-code.ts`**
+- [ ] **Step C2: `nodes/generate.py` — get_provider() 사용**
 
-```typescript
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import type { CodeAgentStateType } from "../state";
+```python
+# apps/worker/src/worker/agents/code/nodes/generate.py
+from llm import get_provider
+from ..state import CodeAgentState
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-
-const LANGUAGE_INSTRUCTIONS: Record<string, string> = {
-  python: "Write clean Python 3 code. Do not use input(). Print all outputs with print().",
-  javascript: "Write modern ESM JavaScript. Use console.log() for output. Do not use require().",
-  react: "Write a single default-exported React functional component as TSX. Import React from 'react'. Use Tailwind CSS classes for styling. Do not import external libraries beyond react.",
-};
-
-export async function generateCodeNode(
-  state: CodeAgentStateType
-): Promise<Partial<CodeAgentStateType>> {
-  const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite-preview" });
-
-  const languageGuide = LANGUAGE_INSTRUCTIONS[state.language] ?? "";
-  const retryContext =
-    state.iterationCount > 0 && state.stderr
-      ? `\n\nPrevious attempt failed with this error:\n${state.stderr}\n\nFix the error in your new version.`
-      : "";
-
-  const prompt = `
-You are an expert programmer. Generate code for the following request.
-
-Language: ${state.language}
-${languageGuide}
-
-Request: ${state.prompt}
-
-${state.context ? `Context from user's notes:\n${state.context}` : ""}
-${retryContext}
-
-Return ONLY the source code — no markdown fences, no explanations.
-  `.trim();
-
-  const result = await model.generateContent(prompt);
-  const source = result.response.text().trim();
-
-  // Strip accidental markdown code fences
-  const stripped = source
-    .replace(/^```[\w]*\n?/, "")
-    .replace(/\n?```$/, "")
-    .trim();
-
-  return {
-    generatedSource: stripped,
-    iterationCount: state.iterationCount + 1,
-    isCanvasMode: state.language === "react",
-  };
+GUIDES = {
+    "python": (
+        "Write clean Python 3 for Pyodide (browser WASM). Use print() for output. "
+        "Do NOT use blocking input(); stdin is pre-injected as an array. "
+        "Avoid native C extensions not in Pyodide's wheel list."
+    ),
+    "react": (
+        "Write a single default-exported React functional component as an ES module. "
+        "Import React from 'react' (served via esm.sh import map). "
+        "Use Tailwind classes only; no CSS imports."
+    ),
+    "javascript": "Write an ES module. Use console.log for output. No require().",
+    "html": "Write complete, self-contained HTML. Inline CSS/JS OK.",
 }
+
+
+async def generate_code(state: CodeAgentState) -> CodeAgentState:
+    provider = get_provider()
+    retry = (
+        f"\n\nPrevious attempt stderr:\n{state.client_stderr}\n\nFix the bug."
+        if state.iteration > 0 and state.client_stderr
+        else ""
+    )
+    prompt = (
+        f"You are an expert programmer. Generate code.\n\n"
+        f"Language: {state.language}\n{GUIDES[state.language]}\n\n"
+        f"Request: {state.prompt}\n\n"
+        f"{('Context:\\n' + state.context) if state.context else ''}"
+        f"{retry}\n\n"
+        "Return ONLY the source — no markdown fences, no explanations."
+    )
+    result = await provider.generate([{"role": "user", "content": prompt}])
+    # strip accidental fences
+    src = result.strip().removeprefix("```").removeprefix("python").removeprefix("tsx").removeprefix("\n")
+    src = src.rstrip("`").rstrip()
+    state.generated_source = src
+    state.iteration += 1
+    return state
 ```
 
-- [ ] **Step 3: Create `apps/api/src/agents/code/nodes/execute-code.ts`**
+- [ ] **Step C3: `nodes/analyze_feedback.py`**
 
-```typescript
-import type { CodeAgentStateType } from "../state";
+```python
+# apps/worker/src/worker/agents/code/nodes/analyze_feedback.py
+from ..state import CodeAgentState
 
-const SANDBOX_URL = process.env.SANDBOX_URL ?? "http://localhost:5050";
+async def analyze_feedback(state: CodeAgentState) -> CodeAgentState:
+    if state.client_stderr is None and state.client_stdout is not None:
+        state.should_retry = False
+        state.analysis_note = "Execution reported success by client."
+        return state
 
-export async function executeCodeNode(
-  state: CodeAgentStateType
-): Promise<Partial<CodeAgentStateType>> {
-  if (!state.generatedSource || state.isCanvasMode) return {};
+    if state.iteration >= state.max_iterations:
+        state.should_retry = False
+        state.analysis_note = "Max iterations reached."
+        return state
 
-  const res = await fetch(`${SANDBOX_URL}/execute`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      language: state.language,
-      source: state.generatedSource,
-    }),
-  });
-
-  if (!res.ok) {
-    return {
-      stderr: `Sandbox API error: ${res.status}`,
-      exitCode: -1,
-      executionSuccess: false,
-    };
-  }
-
-  const job = await res.json();
-  return {
-    executionJobId: job.id,
-    stdout: job.stdout,
-    stderr: job.stderr,
-    exitCode: job.exitCode,
-    executionSuccess: job.exitCode === 0,
-  };
-}
+    # 간단한 휴리스틱: Python NameError/SyntaxError/TypeError → retry
+    err = state.client_stderr or ""
+    retryable = any(
+        m in err for m in ("SyntaxError", "NameError", "TypeError", "IndentationError")
+    )
+    state.should_retry = retryable
+    state.analysis_note = ("Retryable code error" if retryable else "Non-retryable or external failure.")
+    return state
 ```
 
-- [ ] **Step 4: Create `apps/api/src/agents/code/nodes/analyze-result.ts`**
+- [ ] **Step C4: `graph.py`**
 
-```typescript
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { z } from "zod";
-import type { CodeAgentStateType } from "../state";
+```python
+# apps/worker/src/worker/agents/code/graph.py
+from langgraph.graph import StateGraph, END
+from .state import CodeAgentState
+from .nodes.generate import generate_code
+from .nodes.analyze_feedback import analyze_feedback
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
-const analysisSchema = z.object({
-  success: z.boolean(),
-  note: z.string(),
-  shouldRetry: z.boolean(),
-});
-
-export async function analyzeResultNode(
-  state: CodeAgentStateType
-): Promise<Partial<CodeAgentStateType>> {
-  // Canvas mode skips execution analysis
-  if (state.isCanvasMode) return { executionSuccess: true, shouldRetry: false };
-
-  if (state.executionSuccess) {
-    return { analysisNote: "Execution succeeded.", shouldRetry: false };
-  }
-
-  if (state.iterationCount >= state.maxIterations) {
-    return {
-      analysisNote: "Max retries reached. Returning last attempt.",
-      shouldRetry: false,
-    };
-  }
-
-  const model = genAI.getGenerativeModel({
-    model: "gemini-3.1-flash-lite-preview",
-    generationConfig: { responseMimeType: "application/json" },
-  });
-
-  const prompt = `
-Analyze this code execution failure and decide whether it is retryable.
-
-Code:
-${state.generatedSource}
-
-Stderr:
-${state.stderr}
-
-Stdout (partial): ${state.stdout?.slice(0, 500) ?? ""}
-
-Return JSON: { "success": false, "note": "brief diagnosis", "shouldRetry": true|false }
-Retry only if the error is a fixable code bug (syntax error, name error, logic error).
-Do NOT retry on resource limits, missing external dependencies, or network errors.
-  `.trim();
-
-  const result = await model.generateContent(prompt);
-  const parsed = analysisSchema.parse(JSON.parse(result.response.text()));
-
-  return {
-    analysisNote: parsed.note,
-    shouldRetry: parsed.shouldRetry,
-  };
-}
+def build_code_agent():
+    g = StateGraph(CodeAgentState)
+    g.add_node("generate", generate_code)
+    g.add_node("analyze", analyze_feedback)
+    g.set_entry_point("generate")
+    # generate 후 클라이언트 응답을 기다려야 하므로 분기 엔진은 외부에서 제어
+    # 여기서는 "generate" → END 직결, 실행 이후 analyze를 별도 호출
+    g.add_edge("generate", END)
+    # analyze 후 retry 필요 시 다시 generate
+    g.add_conditional_edges(
+        "analyze",
+        lambda s: "generate" if s.should_retry else END,
+    )
+    return g.compile()
 ```
 
-- [ ] **Step 5: Create `apps/api/src/agents/code/nodes/build-canvas.ts`**
+- [ ] **Step C5: Commit**
 
-```typescript
-import type { CodeAgentStateType } from "../state";
-
-const SANDBOX_URL = process.env.SANDBOX_URL ?? "http://localhost:5050";
-
-export async function buildCanvasNode(
-  state: CodeAgentStateType
-): Promise<Partial<CodeAgentStateType>> {
-  if (!state.isCanvasMode || !state.generatedSource) return {};
-
-  // Submit build job
-  const buildRes = await fetch(`${SANDBOX_URL}/canvas/build`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ source: state.generatedSource }),
-  });
-
-  if (!buildRes.ok) {
-    return { canvasUrl: null };
-  }
-
-  const { jobId } = await buildRes.json();
-
-  // Poll for completion (max 30 s)
-  const deadline = Date.now() + 30_000;
-  while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 1000));
-    const pollRes = await fetch(`${SANDBOX_URL}/canvas/${jobId}`);
-    if (!pollRes.ok) continue;
-    const job = await pollRes.json();
-    if (job.status === "completed") {
-      const serveUrl = `${SANDBOX_URL}/canvas/serve/${jobId}/index.html`;
-      return { canvasJobId: jobId, canvasUrl: serveUrl, executionSuccess: true };
-    }
-    if (job.status === "failed") {
-      return { canvasJobId: jobId, canvasUrl: null, stderr: job.buildError };
-    }
-  }
-
-  return { canvasUrl: null, stderr: "Canvas build timed out" };
-}
+```bash
+git add apps/worker/src/worker/agents/code/
+git commit -m "feat(worker): Code Agent LangGraph (generate-only + client feedback analysis)"
 ```
 
-- [ ] **Step 6: Create `apps/api/src/agents/code/graph.ts`**
+---
+
+### Task D: API Endpoints (Hono) — 생성 전용
+
+**Files:**
+- Create: `apps/api/src/routes/code.ts`
+
+- [ ] **Step D1: `POST /api/code/run` — Hono에서 worker의 code agent를 호출, 코드 문자열만 반환**
 
 ```typescript
-import { StateGraph, END } from "@langchain/langgraph";
-import { CodeAgentState } from "./state";
-import { generateCodeNode } from "./nodes/generate-code";
-import { executeCodeNode } from "./nodes/execute-code";
-import { analyzeResultNode } from "./nodes/analyze-result";
-import { buildCanvasNode } from "./nodes/build-canvas";
-
-const graph = new StateGraph(CodeAgentState)
-  .addNode("generateCode", generateCodeNode)
-  .addNode("executeCode", executeCodeNode)
-  .addNode("analyzeResult", analyzeResultNode)
-  .addNode("buildCanvas", buildCanvasNode)
-  .addEdge("__start__", "generateCode")
-  .addConditionalEdges("generateCode", (state) => {
-    if (state.isCanvasMode) return "buildCanvas";
-    return "executeCode";
-  })
-  .addEdge("executeCode", "analyzeResult")
-  .addConditionalEdges("analyzeResult", (state) => {
-    if (state.shouldRetry && state.iterationCount < state.maxIterations) {
-      return "generateCode";   // retry loop
-    }
-    return END;
-  })
-  .addEdge("buildCanvas", END);
-
-export const codeAgentGraph = graph.compile();
-```
-
-- [ ] **Step 7: Create `apps/api/src/agents/code/index.ts`**
-
-```typescript
-export { codeAgentGraph } from "./graph";
-export type { CodeAgentStateType, CodeLanguage } from "./state";
-```
-
-- [ ] **Step 8: Create `apps/api/src/routes/code-agent.ts`**
-
-```typescript
+// apps/api/src/routes/code.ts
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { authMiddleware } from "../middleware/auth";
-import { codeAgentGraph } from "../agents/code";
+import { getTemporalClient } from "../lib/temporal-client";
 
-export const codeAgentRouter = new Hono();
-codeAgentRouter.use("*", authMiddleware);
-
-const runSchema = z.object({
+const schema = z.object({
   prompt: z.string().min(1).max(4000),
-  language: z.enum(["python", "javascript", "react"]),
+  language: z.enum(["python", "javascript", "html", "react"]),
   context: z.string().max(8000).optional(),
-  maxIterations: z.number().int().min(1).max(5).optional(),
 });
 
-codeAgentRouter.post("/run", zValidator("json", runSchema), async (c) => {
-  const userId = c.get("userId") as string;
+export const codeRouter = new Hono().use("*", authMiddleware);
+
+codeRouter.post("/run", zValidator("json", schema), async (c) => {
+  const session = c.get("session");
   const body = c.req.valid("json");
 
-  const result = await codeAgentGraph.invoke({
-    userId,
-    prompt: body.prompt,
-    language: body.language,
-    context: body.context ?? "",
-    maxIterations: body.maxIterations ?? 3,
+  const client = await getTemporalClient();
+  const handle = await client.workflow.start("CodeAgentWorkflow", {
+    taskQueue: process.env.TEMPORAL_TASK_QUEUE ?? "default",
+    workflowId: `code-${crypto.randomUUID()}`,
+    args: [{ userId: session.userId, ...body }],
   });
 
+  const result = await handle.result();
   return c.json({
-    source: result.generatedSource,
-    stdout: result.stdout,
-    stderr: result.stderr,
-    exitCode: result.exitCode,
-    executionSuccess: result.executionSuccess,
-    analysisNote: result.analysisNote,
-    iterations: result.iterationCount,
-    // canvas-specific
-    canvasJobId: result.canvasJobId,
-    canvasUrl: result.canvasUrl,
-    isCanvasMode: result.isCanvasMode,
+    source: result.source,
+    language: result.language,
+    iteration: result.iteration,
   });
+});
+
+// 클라이언트가 브라우저 실행 후 결과를 보고할 때 (retry loop용)
+codeRouter.post("/feedback", zValidator("json", z.object({
+  workflowId: z.string(),
+  stdout: z.string().nullable(),
+  stderr: z.string().nullable(),
+  timedOut: z.boolean(),
+})), async (c) => {
+  const client = await getTemporalClient();
+  const handle = client.workflow.getHandle(c.req.valid("json").workflowId);
+  await handle.signal("clientFeedback", c.req.valid("json"));
+  return c.json({ ok: true });
 });
 ```
 
-- [ ] **Step 9: Mount code agent router in `apps/api/src/app.ts`**
-
-```typescript
-import { codeAgentRouter } from "./routes/code-agent";
-// inside app route mounting:
-app.route("/api/code", codeAgentRouter);
-```
-
-- [ ] **Step 10: Commit**
+- [ ] **Step D2: Commit**
 
 ```bash
-git add apps/api/src/agents/code/ apps/api/src/routes/code-agent.ts apps/api/src/app.ts
-git commit -m "feat(api): Code Agent with LangGraph (generate → execute → analyze → retry loop + React canvas build)"
+git add apps/api/src/routes/code.ts
+git commit -m "feat(api): Code Agent endpoints (generate-only, client feedback signal)"
 ```
 
 ---
 
-### Task 6: Canvas Template Integration
+### Task E: Canvas Template Integration
 
 **Files:**
-- Create: `apps/api/src/routes/canvas-templates.ts`
-- Edit: `apps/api/src/app.ts` (mount canvas-templates router)
+- Create: `apps/api/src/routes/canvas.ts`
+- Create: `apps/web/src/app/(app)/canvas/[sessionId]/page.tsx`
 
-This task wires the canvas-renderer templates (slides, mindmap, cheatsheet) from `@opencairn/templates` through the Code Agent pipeline: template engine renders the prompt → Gemini produces structured JSON → Code Agent generates a React component from that JSON → canvas builder builds it → frontend renders the iframe URL.
-
-- [ ] **Step 1: Create `apps/api/src/routes/canvas-templates.ts`**
+- [ ] **Step E1: `POST /api/canvas/from-template` — Plan 6의 canvas 템플릿(slides, mindmap, cheatsheet)을 Code Agent로 전환**
 
 ```typescript
+// apps/api/src/routes/canvas.ts
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { authMiddleware } from "../middleware/auth";
-import { loadTemplate, renderPrompt, validateOutput } from "@opencairn/templates";
-import { codeAgentGraph } from "../agents/code";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { renderTemplate } from "@opencairn/templates";
+import { getTemporalClient } from "../lib/temporal-client";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-export const canvasTemplatesRouter = new Hono();
-canvasTemplatesRouter.use("*", authMiddleware);
-
-const CANVAS_TEMPLATE_IDS = ["slides", "mindmap", "cheatsheet"] as const;
-type CanvasTemplateId = (typeof CANVAS_TEMPLATE_IDS)[number];
-
-const runCanvasSchema = z.object({
-  templateId: z.enum(CANVAS_TEMPLATE_IDS),
+const schema = z.object({
+  templateId: z.enum(["slides", "mindmap", "cheatsheet"]),
   variables: z.record(z.string()),
 });
 
-/**
- * Build a React component generation prompt from the structured canvas data.
- * The Code Agent will use this to produce the actual JSX.
- */
-function buildReactPrompt(templateId: CanvasTemplateId, data: unknown): string {
-  const dataJson = JSON.stringify(data, null, 2);
-  const guides: Record<CanvasTemplateId, string> = {
-    slides: `Create a React slide deck component. Render each slide full-width with a heading and bullet points. Add prev/next navigation buttons with state. Style with Tailwind CSS. Here is the slide data:\n${dataJson}`,
-    mindmap: `Create a React mind map component. Render nodes as nested <ul>/<li> elements with indentation and colored dots per depth level. Style with Tailwind CSS. Here is the node tree data:\n${dataJson}`,
-    cheatsheet: `Create a React cheat sheet component. Render each section as a card with a heading and a table of term/definition/example rows. Style with Tailwind CSS for a compact reference layout. Here is the cheat sheet data:\n${dataJson}`,
-  };
-  return guides[templateId];
-}
+export const canvasRouter = new Hono().use("*", authMiddleware);
 
-canvasTemplatesRouter.post(
-  "/run",
-  zValidator("json", runCanvasSchema),
-  async (c) => {
-    const userId = c.get("userId") as string;
-    const { templateId, variables } = c.req.valid("json");
+canvasRouter.post("/from-template", zValidator("json", schema), async (c) => {
+  const session = c.get("session");
+  const { templateId, variables } = c.req.valid("json");
 
-    // 1. Load template + render prompt
-    const template = loadTemplate(templateId);
-    const prompt = renderPrompt(template, variables);
+  const prompt = renderTemplate(templateId, variables);
+  const client = await getTemporalClient();
+  const handle = await client.workflow.start("CodeAgentWorkflow", {
+    taskQueue: process.env.TEMPORAL_TASK_QUEUE ?? "default",
+    workflowId: `canvas-${templateId}-${crypto.randomUUID()}`,
+    args: [{ userId: session.userId, prompt, language: "react" }],
+  });
 
-    // 2. Call Gemini to get structured data
-    const model = genAI.getGenerativeModel({
-      model: "gemini-3.1-flash-lite-preview",
-      generationConfig: { responseMimeType: "application/json" },
-    });
-    const geminiResult = await model.generateContent(prompt);
-    const rawJson = JSON.parse(geminiResult.response.text());
-
-    // 3. Validate against Zod schema
-    const structuredData = validateOutput(template, rawJson);
-
-    // 4. Build React component prompt from structured data
-    const reactPrompt = buildReactPrompt(templateId, structuredData);
-
-    // 5. Run Code Agent in react mode → canvas build
-    const agentResult = await codeAgentGraph.invoke({
-      userId,
-      prompt: reactPrompt,
-      language: "react",
-      context: "",
-      maxIterations: 2,
-    });
-
-    return c.json({
-      templateId,
-      structuredData,
-      canvasJobId: agentResult.canvasJobId,
-      canvasUrl: agentResult.canvasUrl,
-      source: agentResult.generatedSource,
-      success: agentResult.executionSuccess,
-    });
-  }
-);
-
-// GET /canvas-templates — list available canvas templates
-canvasTemplatesRouter.get("/", (c) => {
-  return c.json(
-    CANVAS_TEMPLATE_IDS.map((id) => {
-      const t = loadTemplate(id);
-      return { id: t.id, name: t.name, description: t.description, renderer: t.renderer };
-    })
-  );
+  const result = await handle.result();
+  return c.json({ source: result.source, language: "react", templateId });
 });
 ```
 
-- [ ] **Step 2: Mount canvas-templates router in `apps/api/src/app.ts`**
+- [ ] **Step E2: `canvas/[sessionId]/page.tsx` — source를 CanvasFrame으로 렌더**
 
-```typescript
-import { canvasTemplatesRouter } from "./routes/canvas-templates";
-// inside app route mounting:
-app.route("/api/canvas-templates", canvasTemplatesRouter);
+```tsx
+// apps/web/src/app/(app)/canvas/[sessionId]/page.tsx
+"use client";
+import { useParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { CanvasFrame } from "@/components/canvas/CanvasFrame";
+import { PyodideRunner } from "@/components/canvas/PyodideRunner";
+
+export default function CanvasSession() {
+  const { sessionId } = useParams<{ sessionId: string }>();
+  const { data } = useQuery({
+    queryKey: ["canvas", sessionId],
+    queryFn: async () => {
+      const r = await fetch(`/api/canvas/sessions/${sessionId}`);
+      return r.json() as Promise<{ source: string; language: "react" | "python" | "html" | "javascript" }>;
+    },
+  });
+
+  if (!data) return <div className="p-6">Loading…</div>;
+
+  return (
+    <div className="p-6 max-w-5xl mx-auto space-y-4">
+      {data.language === "python" ? (
+        <PyodideRunner source={data.source} />
+      ) : (
+        <CanvasFrame source={data.source} language={data.language} />
+      )}
+    </div>
+  );
+}
 ```
 
-- [ ] **Step 3: Add `SANDBOX_URL` and `NEXT_PUBLIC_SANDBOX_ORIGIN` to `.env.example`**
-
-Open `.env.example` and append:
-
-```env
-# Sandbox service
-SANDBOX_URL=http://localhost:5050
-NEXT_PUBLIC_SANDBOX_ORIGIN=http://localhost:5050
-CANVAS_BUILDS_DIR=/app/canvas-builds
-```
-
-- [ ] **Step 4: Commit**
+- [ ] **Step E3: Commit**
 
 ```bash
-git add apps/api/src/routes/canvas-templates.ts apps/api/src/app.ts .env.example
-git commit -m "feat(api): canvas template integration — template engine → Gemini → Code Agent → Vite build → iframe URL"
+git add apps/api/src/routes/canvas.ts apps/web/src/app/\(app\)/canvas/
+git commit -m "feat(canvas): template-to-canvas route and session page rendering"
 ```
+
+---
+
+## Limits & Guardrails
+
+| 항목 | 값 |
+|------|----|
+| EXECUTION_TIMEOUT_MS (Pyodide) | 10,000 ms |
+| MAX_SOURCE_BYTES (iframe/Pyodide) | 64 KB |
+| MAX_CANVAS_BUNDLE_BYTES | N/A (런타임 CDN, 빌드 없음) |
+| Code Agent max_iterations | 3 |
+| Pyodide heap (Chrome 기본) | ~2 GB (브라우저가 관리, 무한루프는 Promise race로 중단) |
+| esm.sh 허용 도메인 (CSP) | `https://esm.sh`, `https://cdn.jsdelivr.net/pyodide/` |
+| iframe `sandbox` 속성 | `"allow-scripts"` ONLY (allow-same-origin 금지) |
+
+## Security Checklist (ADR-006 + security-model.md 연동)
+
+- [ ] CSP `frame-src` / `script-src` 화이트리스트에 esm.sh, jsdelivr pyodide 포함
+- [ ] `iframe sandbox` 속성이 `allow-scripts`만 가지는지 단위 테스트
+- [ ] `allow-same-origin`이 추가되면 Playwright 테스트 실패 (Task F의 E2E 테스트)
+- [ ] `postMessage` origin은 `"null"`로 검증 (Blob URL)
+- [ ] Pyodide 버전은 고정 (`PYODIDE_VERSION` 상수), floating tag 사용 금지
+- [ ] Blob URL은 컴포넌트 언마운트 시 `URL.revokeObjectURL`
+
+## Verification
+
+- [ ] `pnpm --filter @opencairn/web dev` 후 `/canvas/demo`에서 Python 코드가 브라우저에서 실행되고 stdout이 표시됨
+- [ ] React 컴포넌트를 iframe에서 렌더, 부모 창 쿠키/localStorage 접근 시도 시 DOMException
+- [ ] Pyodide 10초 타임아웃 동작 확인 (`while True: pass` 주입)
+- [ ] `allow-same-origin`을 수동 추가하면 E2E 테스트 실패
+- [ ] Code Agent가 Python NameError 발생 시 self-healing 한 번 재생성, 2회째 성공
+- [ ] 64KB 초과 소스는 거부되고 에러 UI 표시
+- [ ] Blob URL 언마운트 후 `URL.revokeObjectURL` 호출됨 (memory leak 없음)
 
 ---
 
@@ -1412,9 +712,10 @@ git commit -m "feat(api): canvas template integration — template engine → Ge
 
 | Task | Key Deliverable |
 |------|----------------|
-| 1 | `services/sandbox/` — Dockerfile (gVisor-ready), Express service, job store, execution limits |
-| 2 | `/execute` routes — Python (`python3 -c`) and JS (`node --input-type=module`) with output size caps |
-| 3 | `/canvas/build` + `/canvas/serve` — Vite programmatic build, static file serving per jobId |
-| 4 | `CanvasFrame` + `CanvasToolbar` — sandboxed iframe with `postMessage` hook, reload/fullscreen/copy |
-| 5 | Code Agent (LangGraph) — generate → execute → analyze → retry loop; React mode routes to canvas builder |
-| 6 | Canvas template route — template engine + Gemini → structured JSON → Code Agent → React → Vite → iframe URL |
+| A | Pyodide 런타임 loader + `<PyodideRunner>` (stdin pre-injection, 10s timeout, stdout/stderr 수집) |
+| B | `<CanvasFrame>` (Blob URL + `sandbox="allow-scripts"`, postMessage origin 검증, esm.sh import map) |
+| C | Code Agent (LangGraph, generate + analyze_feedback, max 3 iteration) |
+| D | `/api/code/run` + `/api/code/feedback` Hono routes (생성 전용, 클라이언트 피드백 signal) |
+| E | Canvas template-to-canvas endpoint + session 페이지 (Pyodide / iframe 분기) |
+
+서버 자원 0. ARM 호환 100%. gVisor 의존성 0. Claude Artifacts / Gemini Canvas와 동일한 UX 패턴.

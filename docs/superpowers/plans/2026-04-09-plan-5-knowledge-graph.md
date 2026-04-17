@@ -1111,7 +1111,7 @@ Expected: no errors in `useGraphSimulation.ts`.
 ```bash
 cd /c/Users/Sungbin/Documents/GitHub/opencairn-monorepo
 git add apps/web/src/components/graph/useGraphSimulation.ts
-git commit -m "feat(web): add D3 force simulation hook with zoom, drag, and arrow markers"
+git commit -m "feat(web): add Cytoscape graph view with cose-bilkent layout, zoom, drag, and edge markers"
 ```
 
 ---

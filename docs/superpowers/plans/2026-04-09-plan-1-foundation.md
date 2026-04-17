@@ -260,8 +260,8 @@ GEMINI_API_KEY=your-gemini-api-key
 
 # Storage (Cloudflare R2)
 S3_ENDPOINT=http://localhost:9000
-S3_ACCESS_KEY=Cloudflare R2admin
-S3_SECRET_KEY=Cloudflare R2admin
+S3_ACCESS_KEY=minioadmin
+S3_SECRET_KEY=minioadmin
 S3_BUCKET=opencairn
 
 # Billing (optional)
@@ -315,22 +315,23 @@ services:
     volumes:
       - redisdata:/data
 
-  Cloudflare R2:
-    image: Cloudflare R2/Cloudflare R2
+  minio:
+    # Dev 환경 S3 호환 스토리지. Production은 Cloudflare R2로 교체.
+    image: minio/minio:latest
     command: server /data --console-address ":9001"
     ports:
       - "9000:9000"
       - "9001:9001"
     volumes:
-      - Cloudflare R2data:/data
+      - miniodata:/data
     environment:
-      Cloudflare R2_ROOT_USER: Cloudflare R2admin
-      Cloudflare R2_ROOT_PASSWORD: Cloudflare R2admin
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
 
 volumes:
   pgdata:
   redisdata:
-  Cloudflare R2data:
+  miniodata:
 ```
 
 - [ ] **Step 2: Start services and verify**
@@ -340,7 +341,7 @@ docker-compose up -d
 docker-compose ps
 ```
 
-Expected: 3 services running (postgres, redis, Cloudflare R2).
+Expected: 3 services running (postgres, redis, minio).
 
 - [ ] **Step 3: Verify PostgreSQL connection**
 
@@ -890,6 +891,7 @@ import {
   timestamp,
   jsonb,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { user } from "./users";
 import { projects } from "./projects";
@@ -927,11 +929,19 @@ export const usageRecords = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    // action: 'ingest' | 'qa' | 'audio' — plan-9 enforcePlanLimit에서 사용
     action: text("action").notNull(),
-    tokensUsed: integer("tokens_used").notNull().default(0),
+    // month: 'YYYY-MM' 형식 — plan-9 incrementUsage upsert 키
+    month: text("month").notNull(),
+    // count: 월별 누적 카운트 (tokensUsed 대신)
+    count: integer("count").notNull().default(0),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [index("usage_records_user_id_idx").on(t.userId)]
+  (t) => [
+    index("usage_records_user_id_idx").on(t.userId),
+    // plan-9 incrementUsage onConflictDoUpdate 대상 복합 unique
+    uniqueIndex("usage_records_user_action_month_idx").on(t.userId, t.action, t.month),
+  ]
 );
 ```
 
@@ -1293,16 +1303,15 @@ export const auth = betterAuth({
 - [ ] **Step 5: Create apps/api/src/middleware/error.ts**
 
 ```typescript
-import type { Context, Next } from "hono";
+import type { Context } from "hono";
 
-export async function errorHandler(c: Context, next: Next) {
-  try {
-    await next();
-  } catch (err) {
-    console.error("[API Error]", err);
-    const message = err instanceof Error ? err.message : "Internal server error";
-    return c.json({ error: message }, 500);
-  }
+// Hono onError 핸들러 — app.use('*', ...) 가 아니라 app.onError()에 등록
+export function errorHandler(err: Error, c: Context) {
+  // production에서 내부 에러 메시지 노출 금지 (보안 리뷰 M-1)
+  const isProd = process.env.NODE_ENV === "production";
+  const message = isProd ? "Internal server error" : err.message;
+  console.error("[API Error]", err.name, isProd ? "(hidden in prod)" : err.message);
+  return c.json({ error: message }, 500);
 }
 ```
 
@@ -1312,7 +1321,9 @@ export async function errorHandler(c: Context, next: Next) {
 import type { Context, Next } from "hono";
 import { auth } from "../lib/auth";
 
-export async function requireAuth(c: Context, next: Next) {
+// authMiddleware — 모든 plan에서 이 이름으로 사용
+// requireAuth는 하위 호환 alias
+export async function authMiddleware(c: Context, next: Next) {
   const session = await auth.api.getSession({
     headers: c.req.raw.headers,
   });
@@ -1323,8 +1334,12 @@ export async function requireAuth(c: Context, next: Next) {
 
   c.set("user", session.user);
   c.set("session", session.session);
+  // userId도 세팅 — plan 6/7/8/9에서 c.get("userId")로 사용
+  c.set("userId", session.user.id);
   await next();
 }
+
+export const requireAuth = authMiddleware; // alias
 ```
 
 - [ ] **Step 7: Create apps/api/src/routes/health.ts**
@@ -1361,18 +1376,23 @@ import { authRoutes } from "./routes/auth";
 export function createApp() {
   const app = new Hono();
 
+  // logger는 use()로 등록
   app.use("*", logger());
-  app.use("*", errorHandler);
+
+  // CORS — origin은 env로 관리 (보안 리뷰 H-4)
   app.use(
     "*",
     cors({
-      origin: ["http://localhost:3000"],
+      origin: process.env.CORS_ORIGIN?.split(",") ?? ["http://localhost:3000"],
       credentials: true,
     })
   );
 
   app.route("/api/health", healthRoutes);
   app.route("/api/auth", authRoutes);
+
+  // errorHandler는 app.onError()에 등록 — use()에 넣으면 thrown error를 못 잡음
+  app.onError(errorHandler);
 
   return app;
 }
@@ -1899,6 +1919,111 @@ Open http://localhost:3000/app/dashboard ??should see dashboard with sidebar.
 ```bash
 git add apps/web/
 git commit -m "feat(web): add Next.js 16 skeleton with landing and dashboard pages"
+```
+
+---
+
+### Task 8.5: Next.js 16 Proxy (API 요청 포워딩)
+
+> **Next.js 16에서 `middleware.ts` deprecated.** 웹앱에서 API를 호출할 때 `/api/*` 경로를 Hono 서버로 포워딩하는 `proxy.ts` (Route Handler) 방식을 사용.
+>
+> **왜 필요한가:** Better Auth는 쿠키 기반 세션이라 Same-Origin이어야 함. 브라우저가 `localhost:3000`에서 `localhost:4000`으로 직접 요청하면 cross-origin 쿠키 문제가 생김. `proxy.ts`를 통해 `localhost:3000/api/*` → `localhost:4000/api/*` 로 서버사이드 포워딩하면 쿠키가 정상 동작.
+
+**Files:**
+- Create: `apps/web/src/app/api/[...path]/route.ts`  ← proxy.ts 역할
+- Create: `apps/web/src/lib/api-client.ts`             ← 프론트용 fetch 래퍼
+
+- [ ] **Step 1: Create API proxy route handler**
+
+```typescript
+// apps/web/src/app/api/[...path]/route.ts
+// Next.js 16 — middleware.ts 대신 catch-all Route Handler로 Hono API 프록시
+import { type NextRequest } from "next/server";
+
+const API_BASE = process.env.INTERNAL_API_URL ?? "http://localhost:4000";
+
+async function handler(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+  const { path } = await params;
+  const url = `${API_BASE}/api/${path.join("/")}${req.nextUrl.search}`;
+
+  // 요청 헤더를 그대로 포워딩 (쿠키 포함)
+  const headers = new Headers(req.headers);
+  headers.set("x-forwarded-for", req.ip ?? "127.0.0.1");
+  headers.set("x-forwarded-host", req.headers.get("host") ?? "");
+
+  const response = await fetch(url, {
+    method:  req.method,
+    headers,
+    body:    req.method !== "GET" && req.method !== "HEAD" ? req.body : undefined,
+    // @ts-expect-error — Node 18+ duplex 필요
+    duplex:  "half",
+  });
+
+  // 응답 헤더 포워딩 (Set-Cookie 포함)
+  const resHeaders = new Headers(response.headers);
+  // 압축 인코딩은 Next.js가 이미 처리
+  resHeaders.delete("content-encoding");
+  resHeaders.delete("content-length");
+
+  return new Response(response.body, {
+    status:  response.status,
+    headers: resHeaders,
+  });
+}
+
+export const GET     = handler;
+export const POST    = handler;
+export const PUT     = handler;
+export const PATCH   = handler;
+export const DELETE  = handler;
+export const OPTIONS = handler;
+```
+
+- [ ] **Step 2: Create API client (TanStack Query에서 사용)**
+
+```typescript
+// apps/web/src/lib/api-client.ts
+// 모든 API 호출은 /api/* 경로로 — proxy가 Hono로 포워딩
+// Server Components에서는 INTERNAL_API_URL 직접 사용 가능
+
+export async function apiClient<T>(
+  path: string,
+  options?: RequestInit
+): Promise<T> {
+  const base = typeof window === "undefined"
+    ? (process.env.INTERNAL_API_URL ?? "http://localhost:4000")
+    : ""; // 브라우저에서는 same-origin (/api/...)
+
+  const res = await fetch(`${base}/api${path}`, {
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    ...options,
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `API error ${res.status}`);
+  }
+
+  return res.json();
+}
+```
+
+- [ ] **Step 3: Add INTERNAL_API_URL to .env.example**
+
+```
+# 웹→API 내부 통신 URL (Docker 환경에서는 컨테이너 이름 사용)
+INTERNAL_API_URL=http://localhost:4000
+# Docker Compose에서는:
+# INTERNAL_API_URL=http://api:4000
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add apps/web/src/app/api/ \
+        apps/web/src/lib/api-client.ts
+git commit -m "feat(web): add API proxy route handler (Next.js 16 proxy.ts 패턴)"
 ```
 
 ---
