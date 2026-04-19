@@ -226,6 +226,41 @@ systemctl start postgresql
 
 ---
 
+## 8a. Agent Runtime 리텐션 (2026-04-20 추가)
+
+Plan 12 (Agent Runtime Standard) 관련 데이터는 독립된 리텐션 정책을 가진다. 자세한 맥락: [`docs/superpowers/specs/2026-04-20-agent-runtime-standard-design.md`](../superpowers/specs/2026-04-20-agent-runtime-standard-design.md).
+
+| 데이터 | 위치 | 리텐션 | 삭제 주체 | 근거 |
+|---|---|---|---|---|
+| LangGraph checkpoint | Postgres `langgraph_checkpoints` 스키마 | 완료 후 **7일** | `prune_old_checkpoints` Temporal activity (cron 02:00 KST) | 디버깅 최소값. 에이전트 실행 실패 시 재현 가능 |
+| Temporal workflow history | Temporal 서버 | **30일** (기본값 유지) | Temporal retention policy | 과거 run 감사 / signal 추적 |
+| Trajectory NDJSON | `TRAJECTORY_DIR` (local) / S3 (hosted) | **30일** | `TRAJECTORY_RETENTION_DAYS` cron (기본 30) | Eval 재생 + 디버깅 충분. 장기보관 시 비용 과다 |
+| `agent_runs` 요약 row | Postgres | **1년** | 월 단위 파티션 drop (TBD) | 비용 리포트 / 월별 사용량 추이 |
+| `workspace_credits` 차감 이력 (PAYG) | Postgres | **7년** | 삭제 안 함 | 한국 세법 회계 증빙 |
+
+### 삭제 연쇄 (Cascade)
+
+- `workspaces.id` 삭제 → 해당 `workspace_id` prefix의 trajectory NDJSON 파일 bulk delete + `agent_runs` CASCADE
+- `users.id` 삭제 (GDPR 계정 삭제) → 해당 유저의 모든 `agent_runs` CASCADE + 관련 trajectory 파일 삭제
+- 삭제는 **async job**으로 처리 (Curator Agent 담당 범위 확장 예정, Plan 8)
+
+### 셀프호스트 주의
+
+- `TRAJECTORY_DIR`은 Docker volume으로 관리. Host 디스크 직접 마운트 비권장 (권한 이슈)
+- 기본 보관 30일. 디스크 여유 적으면 `TRAJECTORY_RETENTION_DAYS=7` 등으로 축소
+- LangGraph checkpoint pruning은 Temporal worker가 실행. Worker 중단 시 pruning도 멈춤 → 주기적 worker healthcheck 필요
+
+### Backup 대상 포함 여부
+
+| 데이터 | Tier 1 (Production) 백업 | Tier 2 (Self-host) 백업 | 이유 |
+|---|---|---|---|
+| LangGraph checkpoint | ✅ (WAL에 포함) | ✅ (pg_dump에 포함) | 진행 중 workflow 재개 가능 |
+| Trajectory NDJSON | ❌ | ❌ | 30일 휘발 정책. Eval 금빛 데이터셋은 별도 repo 복사 |
+| `agent_runs` 요약 | ✅ | ✅ | 비용 감사 증빙 |
+| `workspace_credits` | ✅ | ✅ | 회계 증빙 (법정 보관) |
+
+---
+
 ## 9. 핵심 요약
 
 1. **PostgreSQL은 무조건 백업** — 위키/그래프/임베딩 모두 이 안에

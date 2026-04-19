@@ -17,6 +17,10 @@
 >
 > 모든 에이전트는 `apps/worker/src/worker/agents/` 하위에 위치하며 `packages/llm` get_provider() 사용. Hybrid search는 **LightRAG** (Plan 3 설치)를 통해 `rag.query(mode='hybrid|local|global')` 사용 권장 — 직접 pgvector 호출 지양.
 
+> **⚠️ Agent Runtime Standard (2026-04-20):** 본 plan의 Compiler/Research/Librarian은 **`runtime.Agent` 서브클래스 패턴** 필수. 직접 `langgraph.StateGraph`를 노출하지 말고 `runtime` 내부 구현으로 숨긴다. **Plan 12 (`2026-04-20-plan-12-agent-runtime.md`)를 먼저 완료해야 한다** — Plan 12가 Tool/AgentEvent/Agent/Hook/Trajectory/Eval facade를 `apps/worker/src/runtime/`에 구축. 스펙: `docs/superpowers/specs/2026-04-20-agent-runtime-standard-design.md`.
+>
+> Task 0에 Step 5 (Plan 12 prereq 검증) 추가. Task 5/6/7 (Compiler/Research/Librarian)은 `class XxxAgent(Agent): ...` 패턴으로 재작성. 에이전트 코드에서 `langgraph`/`langchain_core` 직접 import 금지 (import-boundary 린트로 강제).
+
 **Goal:** Build the Python worker service that hosts three LangGraph agents (Compiler, Research, Librarian) orchestrated by Temporal, powered by the Gemini API for embeddings and reasoning, and backed by PostgreSQL + pgvector for hybrid semantic search.
 
 **Architecture:** `apps/worker/` is a standalone Python package managed with `uv` + `pyproject.toml`. A Temporal worker process registers all activities and workflows. Each agent is a LangGraph `StateGraph` whose nodes call Gemini and the database. The Gemini client wrapper centralises all SDK calls (embeddings, thinking-mode chat, context caching). Hybrid search fuses pgvector cosine similarity, tsvector BM25, and graph-hop results via Reciprocal Rank Fusion (RRF).
@@ -143,7 +147,30 @@ grep "EMBED_MODEL" .env
 ```
 Expected: VECTOR_DIM과 EMBED_MODEL 차원이 매치. 불일치 시 Plan 13 §VECTOR_DIM 다시 확인.
 
-> 위 4단계 중 하나라도 실패하면 STOP. 해당 plan부터 완료한 뒤 본 task로 복귀.
+- [ ] **Step 5: Plan 12 (Agent Runtime) prerequisite 검증**
+
+`apps/worker/src/runtime/` 패키지가 구축되어 있고 공개 API 일체가 임포트 가능해야 함.
+
+```bash
+cd apps/worker && uv run python -c "
+from runtime import (
+    Agent, Tool, ToolContext, AgentEvent,
+    AgentStart, AgentEnd, AgentError, ModelEnd,
+    ToolUse, ToolResult, Handoff, AwaitingInput, CustomEvent,
+    tool, get_tools_for_agent,
+    AgentHook, ModelHook, ToolHook, HookRegistry,
+    keep_last_n,
+    make_thread_id, AgentAwaitingInputError,
+    AgentEvaluator, EvalCase, DEFAULT_CRITERIA,
+    TrajectoryWriterHook, TokenCounterHook,
+    stream_graph_as_events,
+)
+print('OK')
+"
+```
+Expected: "OK". ImportError면 Plan 12 미완 — `docs/superpowers/plans/2026-04-20-plan-12-agent-runtime.md` 먼저 실행.
+
+> 위 5단계 중 하나라도 실패하면 STOP. 해당 plan부터 완료한 뒤 본 task로 복귀.
 
 ---
 

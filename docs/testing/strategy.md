@@ -72,6 +72,48 @@
    - Compiler가 수동 노트(is_auto=false)를 수정 못하는지
    - Research가 출처 없는 주장을 생성 못하는지
 
+### Trajectory 기반 Eval (2026-04-20 추가, Plan 12 이후)
+
+Runtime facade가 구축되면 위 방법에 **`AgentEvent` trajectory 매칭**이 추가된다. 스펙: [`2026-04-20-agent-runtime-standard-design.md`](../superpowers/specs/2026-04-20-agent-runtime-standard-design.md) §7.
+
+**3가지 eval 실행 모드**:
+
+| 모드 | 트리거 | LLM | 속도 | 비용 |
+|---|---|---|---|---|
+| **Unit eval (mock)** | CI every PR | `runtime/eval/mocks.py`로 고정 응답 | 빠름 (<30초) | 0원 |
+| **Integration eval** | `pytest -m eval_integration` (수동/nightly) | 실제 Gemini/Ollama | 느림 | 케이스당 ~₩200 |
+| **Replay eval** | 모델 업그레이드 시 `uv run eval replay` | 실제 LLM, 저장된 trajectory를 기대값으로 | 가장 느림 | ~₩200/케이스 |
+
+**검증하는 메트릭** (`DEFAULT_CRITERIA`):
+
+- `tool_trajectory_score` — 기대한 툴이 기대한 인자로 호출되었는가
+- `forbidden_tool_score` — 금지 툴 미호출 (zero tolerance, 1.0 아니면 fail)
+- `handoff_score` — 서브에이전트 위임 체인 일치
+- `response_contains_score` — 최종 응답에 예상 substring 포함 (임계치 0.8)
+- `cost_within_budget` / `duration_within_budget` — 리소스 상한 준수
+
+**케이스 파일**: `apps/worker/eval/{agent}/*.yaml`. 최초 20~30개는 수동 작성, 이후 프로덕션 `agent_runs` 중 유저 👍/👎 런을 PII redaction 거쳐 golden dataset화.
+
+**LLM judge (`response_match_llm`)는 nightly만.** 매 PR 실행 금지 — Gemini 호출 비용 발생.
+
+### Seeded RNG 컨벤션
+
+비결정성을 줄이기 위해 에이전트 테스트 내 모든 랜덤성은 **seed 고정**:
+
+```python
+# CPU에서 generator → device로 이동 (device-invariant seed)
+import torch
+g = torch.Generator(device="cpu")
+g.manual_seed(42)
+noise = torch.randn(n, generator=g).to(device)
+```
+
+- Python stdlib `random`: `random.seed(42)` — 테스트 모듈 상단
+- `numpy.random.default_rng(42)` — numpy 사용 시
+- Gemini/Ollama 호출 시 `temperature=0.0` + `seed`가 지원되면 지정
+
+배경: pyturboquant 레포에서 채택된 재현 가능 RNG 패턴 (`rotation.py:64-73`).
+
 ## 4. Test Database
 
 ```yaml

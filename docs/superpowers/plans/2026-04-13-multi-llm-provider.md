@@ -4,6 +4,8 @@
 
 > **⚠️ 2026-04-15 업데이트:** OpenAI provider는 제거됨. v0.1 지원 provider는 **Gemini (production)** + **Ollama (로컬/BYOK)** 2개. 결정 배경은 `docs/superpowers/specs/2026-04-13-multi-llm-provider-design.md` 상단 업데이트 노트 참조.
 
+> **⚠️ 2026-04-20 업데이트 — Tool Declaration 메서드 추가:** Plan 12 (Agent Runtime) 통합을 위해 `LLMProvider`에 `build_tool_declarations(tools: list) -> list[dict]` 메서드 추가. Default는 `NotImplementedError` raise, Gemini/Ollama provider만 구현 (Gemini FunctionDeclaration 포맷 / Ollama `{type: "function", function: {...}}` 포맷). 구현부는 `runtime.tool_declarations`를 **lazy import** (함수 내부) — `packages/llm`이 `runtime`에 모듈 로드 타임 의존하지 않도록 순환 방지. 상세: Plan 12 Task 5.
+
 **Goal:** `packages/llm/` Python 패키지를 신설해 Gemini/Ollama를 단일 인터페이스로 추상화하고, DB 스키마에 `user_preferences`와 동적 `VECTOR_DIM`을 추가하며, Docker Compose에 Ollama 셀프호스트 지원을 추가한다.
 
 **Architecture:** `LLMProvider` abstract class를 `packages/llm/base.py`에 정의한다. `GeminiProvider`는 Gemini premium features(Thinking, Context Caching, Search Grounding, TTS)를 구현하고, `OllamaProvider`는 `generate`/`embed`만 구현한다. premium feature 메서드는 base에서 `None`을 반환하므로 agent 코드는 `if result:` 한 줄로 fallback 처리한다. `factory.py`가 `LLM_PROVIDER` env를 읽어 provider 인스턴스를 반환한다. DB의 `vector()` 차원은 `VECTOR_DIM` env에서 결정된다.

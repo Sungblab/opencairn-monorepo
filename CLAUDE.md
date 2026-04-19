@@ -72,6 +72,7 @@ Read these docs when you need context. Don't load them all at once.
 | **과금 모델 (Free/BYOK/Pro/Self-host/Enterprise, PAYG 크레딧, 환율, 잔액 UX, 환불)** | `docs/architecture/billing-model.md` |
 | 장애 대응 / 온콜 / 알럿 채널 | `docs/runbooks/incident-response.md` |
 | 브라우저 샌드박스 E2E 테스트 (Pyodide/iframe) | `docs/testing/sandbox-testing.md` |
+| **Agent Runtime Standard** (Tool/AgentEvent/Agent/Hook/Trajectory/Eval 계약) | `docs/superpowers/specs/2026-04-20-agent-runtime-standard-design.md` |
 
 ### Implementation Plans
 
@@ -80,10 +81,11 @@ Read these docs when you need context. Don't load them all at once.
 | Phase | Plan | Scope |
 |-------|------|-------|
 | **0 — Foundation (직렬)** | `plans/2026-04-09-plan-1-foundation.md` | Monorepo, DB schema (**Workspace 3계층 + 권한**), Better Auth, workspace/member/invite CRUD, permissions helpers (`canRead`/`canWrite`/`requireWorkspaceRole`), Docker, Resend, Sentry, CI/CD, backup scripts |
-| **0** | `plans/2026-04-13-multi-llm-provider.md` | packages/llm, provider adapters (Gemini/Ollama), VECTOR_DIM, Docker Ollama. **Plan 4보다 먼저 필수** |
-| **1 — Core (Plan 1·13 후 병렬 가능)** | `plans/2026-04-09-plan-2-editor.md` | Plate v49 에디터 + **Notion급 협업**: Hocuspocus auth hook, 실시간 공동 편집 + Presence, block-anchor 코멘트 + 스레드, @mention, 알림 (SSE+이메일), activity feed, 공개 공유 링크, guest 초대 |
+| **0** | `plans/2026-04-13-multi-llm-provider.md` | packages/llm, provider adapters (Gemini/Ollama), VECTOR_DIM, Docker Ollama. **Plan 4/12보다 먼저 필수** |
+| **0** | `plans/2026-04-20-plan-12-agent-runtime.md` | **Agent Runtime facade** (`apps/worker/src/runtime/`): `@tool` 데코레이터, `AgentEvent` 9종, `Agent` ABC, 3계층 훅, NDJSON trajectory + `agent_runs` 요약 테이블, trajectory 기반 eval 프레임워크, Temporal 헬퍼. **Plan 4/5/6/7/8보다 먼저 필수**. Spec: `2026-04-20-agent-runtime-standard-design.md` |
+| **1 — Core (Plan 1·13·12 후 병렬 가능)** | `plans/2026-04-09-plan-2-editor.md` | Plate v49 에디터 + **Notion급 협업**: Hocuspocus auth hook, 실시간 공동 편집 + Presence, block-anchor 코멘트 + 스레드, @mention, 알림 (SSE+이메일), activity feed, 공개 공유 링크, guest 초대 |
 | **1** | `plans/2026-04-09-plan-3-ingest-pipeline.md` | 파일 업로드, 파싱 (opendataloader-pdf/markitdown/unoserver/H2Orestart/faster-whisper), Temporal 워크플로우 |
-| **1** | `plans/2026-04-09-plan-4-agent-core.md` | Compiler, Research, Librarian 에이전트 (Python LangGraph + Temporal). **Task 0에서 Plan 1·13·3 완료 검증** |
+| **1** | `plans/2026-04-09-plan-4-agent-core.md` | Compiler, Research, Librarian 에이전트 (Python LangGraph + Temporal, **`runtime.Agent` 서브클래스 패턴**). **Task 0에서 Plan 1·13·12·3 완료 검증** |
 | **1** | `plans/2026-04-09-plan-9-billing-marketing.md` | **PAYG 크레딧** + 구독료 (Free/BYOK/Pro), 랜딩 페이지, 블로그, 환불 정책, Export API (GDPR). **결제 레일 task는 사업자등록 후 unblock — 그 전에는 provider-agnostic core만**. 상세: `billing-model.md` |
 | **2 — Scale (Plan 4 후)** | `plans/2026-04-09-plan-5-knowledge-graph.md` | LightRAG 동기화, Cytoscape 5뷰 (Graph/Mindmap/Cards/Canvas/Timeline) + Backlinks, Visualization Agent (Task M1) |
 | **2** | `plans/2026-04-09-plan-6-learning-system.md` | Socratic (Python worker), SM-2 플래시카드, Tool Templates, Cards 뷰 통합 |

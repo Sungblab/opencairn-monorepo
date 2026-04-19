@@ -70,3 +70,69 @@ Provider별 기본값: Gemini=3072, OpenAI=1536, Ollama(nomic)=768
 | 그 외 모든 라이브러리 | context7 MCP 사용 |
 
 **Gemini API는 절대 학습 데이터에 의존하지 말 것** — 모델명/메서드명이 자주 바뀜.
+
+---
+
+## Agent Runtime (spec: `2026-04-20-agent-runtime-standard-design.md`)
+
+`apps/worker/src/worker/agents/**/*.py`에 적용되는 규칙. Plan 12 완료 후 runtime facade(`apps/worker/src/runtime/`)가 존재하면 **린트로 강제됨** (`apps/worker/scripts/check_import_boundaries.py`).
+
+### 에이전트 파일에서 `langgraph` / `langchain_core` 직접 import 금지
+
+| 틀린 것 | 올바른 것 |
+|--------|---------|
+| `from langgraph.graph import StateGraph` | `from runtime import Agent, tool` |
+| `from langchain_core.messages import HumanMessage` | `from runtime import AgentEvent` |
+| `from langgraph.checkpoint.postgres import PostgresSaver` | (runtime 내부에서만 사용) |
+
+12 에이전트는 `runtime` facade로만 접근. LangGraph 교체 시 blast radius를 runtime 모듈 하나로 격리한다.
+
+### LangGraph channel state mutation 금지
+
+```python
+# ❌ 금지 — state["messages"]는 mutable이라 다음 step에도 전염
+def node(state):
+    state["messages"].append(msg)
+    return {}
+
+# ✅ 리듀서에 병합 위임
+def node(state):
+    return {"messages": [msg]}
+```
+
+### `operator.add`로 무한 누적 리스트 금지
+
+```python
+# ❌ 금지 — messages가 unbounded 누적 → context 비대화
+messages: Annotated[list, operator.add]
+
+# ✅ 윈도우 리듀서 사용
+from runtime import keep_last_n
+messages: Annotated[list, keep_last_n(50)]
+```
+
+### `interrupt()` across Temporal activity 경계 금지
+
+LangGraph `interrupt()`는 caller가 실시간 pause/resume 가능하다고 가정. Temporal activity 경계를 넘으면 resume context가 lost. HITL은 반드시:
+
+1. Agent가 `AwaitingInput` 이벤트 yield
+2. Activity가 `AgentAwaitingInputError` raise (Temporal RetryPolicy `non_retryable_error_types`에 포함)
+3. Workflow가 catch → `wait_condition(signal)` → 재입력 받은 input으로 activity 재실행
+
+### 동일 `thread_id`로 두 activity 동시 실행 금지
+
+LangGraph checkpoint race 발생. `make_thread_id(workflow_id, agent_name, parent_run_id)`로 유일성 보장.
+
+### 에이전트 코드에서 LangGraph callback 직접 등록 금지
+
+```python
+# ❌ 금지
+graph.compile(checkpointer=saver, callbacks=[MyCallback()])
+
+# ✅ HookRegistry로만 등록
+from runtime import HookRegistry
+reg.register(my_hook, scope="agent", agent_filter=["research"])
+```
+
+`LangGraphBridgeCallback`이 runtime 내부에서 **단 한 번** 그래프에 attach되어 모든 langchain-core 콜백을 HookChain으로 위임한다.
+

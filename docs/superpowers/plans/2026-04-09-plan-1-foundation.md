@@ -4,6 +4,8 @@
 
 > **⚠️ Multi-LLM 업데이트 (2026-04-13):** `vector3072` 커스텀 타입 하드코딩 대신 `VECTOR_DIM` env 변수로 동적 설정. `const VECTOR_DIM = parseInt(process.env.VECTOR_DIM ?? "3072")`. 상세: `docs/superpowers/specs/2026-04-13-multi-llm-provider-design.md`
 
+> **⚠️ Agent Runtime 스키마 분리 (2026-04-20):** `agent_runs` 테이블은 **본 plan에서 만들지 않음** — Plan 12 Task 9에서 생성. 본 plan은 `workspaces/users/projects/pages(또는 notes)/workspace_members/activity_events`까지만 담당. `agent_runs`는 Plan 12가 실행될 때 `page_id`를 soft reference (FK 없음)로 추가함 (페이지 테이블 네이밍이 plan들 사이에서 전환 중이라 cross-plan migration 순서 이슈 회피).
+
 **Goal:** Initialize the OpenCairn monorepo with Turborepo, set up the database schema with Drizzle ORM, wire up Hono API with authentication, implement project/folder/tag/note CRUD, and create a working Docker Compose dev environment.
 
 **Architecture:** Turborepo monorepo with `apps/web` (Next.js 16), `apps/api` (Hono on Node.js), and `packages/db` (Drizzle ORM + PostgreSQL + pgvector). Better Auth handles authentication with Redis sessions. All business logic lives in `apps/api`; the web app only calls the API.
