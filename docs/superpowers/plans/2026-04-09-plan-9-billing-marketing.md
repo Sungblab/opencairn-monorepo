@@ -2,11 +2,19 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement Toss Payments-based subscription billing (Free / Pro / BYOK tiers) with usage tracking middleware and plan enforcement, plus a Next.js SSG marketing site with a landing page, MDX blog, docs section, and pricing page.
+**Goal:** Implement subscription + PAYG billing (Free / BYOK / Pro / Self-host / Enterprise) with usage tracking middleware and plan enforcement, plus a Next.js SSG marketing site with a landing page, MDX blog, docs section, and pricing page.
 
-**Architecture:** Billing logic lives entirely in `apps/api` (Hono route handlers + Drizzle). The web app renders a fully static marketing site built with Next.js SSG — no server components needed for public pages. MDX blog posts are read at build time. Toss Payments 빌링키 방식: 프론트에서 카드 등록(`requestBillingAuth`) → 백엔드 빌링키 발급/저장 → 매월 cron으로 직접 청구. Toss 웹훅은 전용 Hono route에서 처리. Usage는 `usage_records` 테이블에 per-user per-month 기록.
+**Architecture:** Billing logic lives entirely in `apps/api` (Hono route handlers + Drizzle). The web app renders a fully static marketing site built with Next.js SSG — no server components needed for public pages. MDX blog posts are read at build time. **결제 레일(payment rail)은 사업자등록 후 결정 — 현재 BLOCKED**. `payment_provider` 필드로 멀티 레일 추상화는 미리 설계. 빌링키 방식: 프론트에서 카드 등록 → 백엔드 빌링키 발급/저장 → 구독료 매월 cron 직접 청구 + **Pro PAYG 크레딧 차감 시스템 병행**. 웹훅은 provider별 전용 Hono route에서 처리. Usage는 `usage_records` + `credit_ledger` (append-only) 에 기록.
 
-**Tech Stack:** Toss Payments (`@tosspayments/tosspayments-sdk` 프론트, REST API 백엔드), Next.js 16 SSG, MDX (`@next/mdx`), Tailwind CSS 4, Drizzle ORM, TypeScript 5.x, Zod
+> **⚠️ 실행 순서 주의:** 본 plan의 Task 1~3 (DB 스키마 / plan enforcement / PAYG credit ledger)은 결제 레일 결정과 **무관**하므로 먼저 실행 가능. 결제 레일 의존 task (provider SDK 통합, 빌링키 발급, 웹훅, 결제 UI)는 사업자등록 완료 후 unblock. 순서: provider-agnostic core → 사업자등록 → provider integration.
+
+**Tech Stack:** Payment provider SDK (TBD — 사업자등록 후 결정), Next.js 16 SSG, MDX (`@next/mdx`), Tailwind CSS 4, Drizzle ORM, TypeScript 5.x, Zod
+
+> **⚠️ 가격 모델 전면 개편 (2026-04-19):** **현 모델 = Pro ₩4,900 + PAYG / BYOK ₩2,900 / Free / Self-host / Enterprise.** PAYG 크레딧: 최소 ₩5,000 충전, 만료 없음, $1 = ₩1,650 기준 차감. BYOK는 **OpenCairn 호스티드 1인 계정 임대**(Self-host와 다름 — 우리 서버에서 돌아감). 상세 스펙·환율 정책·잔액 소진 UX·DB 스키마: **[`docs/architecture/billing-model.md`](../../architecture/billing-model.md)**. 본 plan의 Task 3(Plan Enforcement)과 신규 Task 3.5(PAYG Credit System)에서 구현.
+>
+> *[Historical] 2026-04-19 이전 모델: Pro flat-fee ₩29,000/월 (대부분 사용자가 한도 미달로 불만 → PAYG 전환). 폐기됨.*
+
+> **⚠️ BYOK 재정의 (2026-04-19):** BYOK = **관리형 솔로 tier** (OpenCairn 호스티드 1인 계정 · AI 키만 본인 거). Pro 팀 기능(워크스페이스·게스트·우선 큐·10GB·1년 로그) **포함 안 됨**. Self-host(AGPLv3, 본인 서버)와는 다름 — BYOK는 우리 인프라를 임대하는 관리형. "Pro 저가형"이 아니라 "1인 호스팅 + AI는 본인 키로 감당" 솔로 플랜. plan-9의 BYOK 언급은 이 정의 기준으로 재해석 필요.
 
 > **⚠️ BYOK 정정 (2026-04-14):** BYOK는 OpenAI 전용이 아님. **BYOK Gemini가 추천 모드** — 사용자가 자신의 Gemini 키를 등록하면 모든 프리미엄 기능(Caching, Thinking, Search Grounding, TTS, 멀티모달 embedding) 그대로 보존. BYOK OpenAI는 graceful degrade 모드. 상세: `docs/superpowers/specs/2026-04-13-multi-llm-provider-design.md`
 
@@ -21,11 +29,17 @@
 
 ## Plan Definitions
 
-| Plan   | Price           | Ingests/mo | QA/mo     | Audio/mo  | API Keys     |
-|--------|----------------|-----------|-----------|-----------|-------------|
-| Free   | 0원             | 50        | 100       | 5         | None (ours) |
-| Pro    | 29,000원/월     | Unlimited | Unlimited | 60        | None (ours) |
-| BYOK   | 6,900원/월      | Unlimited | Unlimited | Unlimited | User's own  |
+> 본 표는 billing-model.md §1과 동기화. 상세 entitlement·환율·PAYG 로직은 [billing-model.md](../../architecture/billing-model.md) 참조.
+
+| Plan   | 월 구독료 | AI 비용 | 대상 | 핵심 entitlement |
+|--------|-----------|---------|------|-----------------|
+| **Free** | ₩0 | 우리 키 · 월 한도 내 무료 | 체험 | 프로젝트 10 · Q&A 50/월 · 오디오 3/월 · 스토리지 100MB · 12 에이전트 |
+| **BYOK** | ₩2,900/월 | 본인 Gemini 키 (₩0 to us) | 관리형 솔로 | 우리 서버 1인 계정 임대 · **Pro 팀 기능 제외** · Self-host와 구분 |
+| **Pro** | ₩4,900/월 + **PAYG** | 선불 크레딧 차감 · 최소 ₩5,000 충전 · 만료 없음 · $1=₩1,650 | 팀·연구실 | 워크스페이스 · 게스트 · 공개 링크 · 우선 큐 · 10GB · 1년 로그 · 이메일 지원 |
+| Self-host | ₩0 | 본인 LLM | 개발자 | AGPLv3 전체 · 무제한 · Ollama 로컬 · 본인 운영 |
+| Enterprise | 맞춤 견적 | 계약별 | 규제 산업 | 온프레미스 · SSO · 감사 로그 · 상용 라이선스 |
+
+**모든 금액 VAT 별도.** 환율(`$1 = ₩1,650`)은 조정 가능 (30일 사전 고지).
 
 ---
 
