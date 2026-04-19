@@ -1662,6 +1662,11 @@ git commit -m "feat(web): add catch-all API proxy route handler for Hono backend
 
 > **Added 2026-04-14** — Multi-View 확장의 핵심 에이전트. Python LangGraph + Temporal activity. 사용자 자연어 요청("이 주제로 mindmap 만들어줘")을 받아 그래프 서브셋을 추출하고 ViewSpec을 반환한다.
 
+> **책임 경계 (중요)**:
+> - **Timeline 생성은 Visualization Agent 단독 책임.** 5가지 뷰(Graph/Mindmap/Cards/Canvas/Timeline) 모두 본 에이전트가 ViewSpec 반환 경로로 처리.
+> - **Plan 8의 Temporal Agent는 timeline을 생성하지 않는다.** Temporal Agent는 stale 감지 + 예약 자동화(SM-2 review scheduling)만 담당. 날짜 기반 concept 리스트 렌더링·축·tick 계산은 모두 Visualization Agent로 위임.
+> - 두 에이전트는 이름이 유사하지만 완전히 분리된 컴포넌트 — `temporal_agent/`는 temporalio 패키지와 충돌 방지로 붙은 이름이고, 시간 시각화와는 무관하다.
+
 **Files:**
 - Create: `apps/worker/src/worker/agents/visualization_agent.py`
 - Create: `apps/worker/src/worker/workflows/visualization_workflow.py`
@@ -1694,7 +1699,9 @@ git commit -m "feat(web): add catch-all API proxy route handler for Hono backend
 
 ### M1.5 Frontend Integration
 
-- [ ] **Step 8:** Plan 5 File Structure에서 정의한 `apps/web/src/components/views/ViewSwitcher.tsx`에서 사용자 뷰 전환 시 `POST /api/visualize` 호출. TanStack Query로 캐싱 (stale 60s). 반환된 ViewSpec을 해당 뷰 컴포넌트(`ForceGraph` / `MindmapView` / `CardGridView` / `InfiniteCanvas` / `TimelineView`)에 주입.
+> **Backlinks Panel은 ViewSpec 범위 밖**: Backlinks는 현재 보고 있는 노트의 우측에 **항상 고정된 사이드 패널**이며, 뷰 전환(Graph/Mindmap/Cards/Canvas/Timeline)과 독립적으로 동작한다. 따라서 `ViewSpec` / `ViewSwitcher` / Visualization Agent 경로에 포함하지 않는다. Backlinks Panel은 Plan 5 Task 7(Graph Sub-components)에서 `BacklinksPanel.tsx` + `BacklinkItem.tsx` 자체 컴포넌트로 구현하고, `/api/notes/:id/backlinks` (또는 동등한) 전용 엔드포인트를 직접 호출한다.
+
+- [ ] **Step 8:** Plan 5 File Structure에서 정의한 `apps/web/src/components/views/ViewSwitcher.tsx`에서 사용자 뷰 전환 시 `POST /api/visualize` 호출. TanStack Query로 캐싱 (stale 60s). 반환된 ViewSpec을 해당 뷰 컴포넌트(`ForceGraph` / `MindmapView` / `CardGridView` / `InfiniteCanvas` / `TimelineView`)에 주입. **Backlinks Panel은 이 경로에 포함되지 않음 (위 박스 참고).**
 - [ ] **Step 9:** 로딩 상태 처리 (Agent가 subgraph 계산 중일 때 skeleton 표시).
 
 ### M1.6 Commit

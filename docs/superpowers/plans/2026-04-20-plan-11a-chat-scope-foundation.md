@@ -79,6 +79,18 @@ tests/
 
 ---
 
+## Plan 4 Q&A → Plan 11A Chat 마이그레이션
+
+> **위치**: Task 0 실행 전에 반드시 읽고 숙지. 본 섹션은 Plan 4에 임시로 존재할 수 있는 `/api/qa/*` 엔드포인트를 Plan 11A의 canonical `conversations` 기반 chat API로 전환하는 정책이다.
+
+- **현재 상태**: Plan 4 배포 시점 기준, 단순 `POST /api/qa/chat` 엔드포인트가 존재할 수 있다 (v0.1 임시). `conversations` 테이블은 아직 없고, in-memory 또는 stub 테이블에서 동작한다 (`api-contract.md:171` 참고).
+- **병행 운영 기간**: **없음.** Plan 11A 배포와 동시에 `/api/qa/*`를 제거한다. 두 시스템을 겹쳐 운영하지 않는다 — chip 스코프·권한·pin 경고는 /api/qa에 역포팅되지 않으므로 병행은 보안적으로도 부적절.
+- **데이터 이관**: 기존 `/api/qa` 호출 기록은 테스트/개발용이므로 **이관하지 않는다**. `conversations` · `conversation_messages` · `pinned_answers` 테이블은 Plan 11A에서 처음 생성되는 canonical 스키마이며, 이전 데이터는 버린다.
+- **프론트엔드**: Plan 4 단계에서 `/api/qa`를 호출하던 UI는 Plan 11A 배포 시 chip 기반 UI (`<ChipRow>` + `<ChatPanel>`)로 **일괄 교체**. 과도기에는 feature flag (예: `NEXT_PUBLIC_CHAT_V1=true`)로 전환하여 롤백 경로를 확보한다.
+- **API 버전**: `/api/qa`는 **공식 API가 아니며 internal**로 간주 (api-contract에 stable endpoint로 문서화하지 않는다). `/api/chat/*`가 첫 공식 대화 API이며, Plan 11B/11C까지 확장되어도 계약이 유지된다.
+
+---
+
 ## Task 0: Branch & Worktree Setup
 
 - [ ] **Step 1: Create worktree**

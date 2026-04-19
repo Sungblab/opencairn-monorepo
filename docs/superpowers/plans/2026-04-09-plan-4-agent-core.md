@@ -170,7 +170,35 @@ print('OK')
 ```
 Expected: "OK". ImportError면 Plan 12 미완 — `docs/superpowers/plans/2026-04-20-plan-12-agent-runtime.md` 먼저 실행.
 
-> 위 5단계 중 하나라도 실패하면 STOP. 해당 plan부터 완료한 뒤 본 task로 복귀.
+- [ ] **Step 6: 통합 체크리스트 (명시적 확인)**
+
+위 Step 1–5가 모두 pass해도, 아래 bullet이 하나라도 빠지면 Task 1로 진행하지 않는다. 각 항목을 실제로 실행해 확인.
+
+- [ ] `from apps.worker.src.runtime import Agent, tool, ToolContext, AgentEvent` 가능 (Step 5의 import 검증 외에, 개별 심볼이 에이전트 코드에서 바로 사용 가능한지 REPL에서 확인)
+- [ ] `@tool` decorator + schema builder 정상 작동 — 간단 unit test:
+      ```python
+      from runtime import tool, get_tools_for_agent
+      @tool(name="echo", description="Echo input")
+      async def echo(ctx, text: str) -> str: return text
+      decls = get_tools_for_agent([echo])
+      assert decls[0]["name"] == "echo" and "text" in decls[0]["parameters"]["properties"]
+      ```
+- [ ] `agent_runs` 테이블 존재 + FK (`workspace_id` → `workspaces.id`, `user_id` → `user.id`) 연결 —
+      `psql -c "\d agent_runs"` 로 FK constraint 확인
+- [ ] NDJSON trajectory writer 동작 — `TrajectoryWriterHook`으로 한 run 실행 후 `agent_runs/{run_id}.ndjson` 파일 라인별 JSON 파싱 가능
+- [ ] HookRegistry (global / agent / run scope) 로드 — 세 scope 모두에 hook 등록 후 실행 순서(global → agent → run) 확인
+- [ ] Eval runner (`AgentEvaluator` / `EvalEvaluator`) 기본 케이스 통과 — `DEFAULT_CRITERIA` + 1개 `EvalCase`로 `evaluate()` 실행 시 pass 리턴
+- [ ] `packages/llm` provider 어댑터(Gemini + Ollama) + `build_tool_declarations()` 메서드 —
+      ```python
+      from llm import get_provider
+      p = get_provider("gemini")
+      assert hasattr(p, "build_tool_declarations")
+      ```
+- [ ] Workspace 3계층 permissions helper 존재 (Plan 1 Task 5.5의 `apps/api/src/lib/permissions.ts`에 `canRead` / `canWrite` / `requireWorkspaceRole` export 확인)
+
+> 위 Step 1–6 중 하나라도 실패하면 STOP. 해당 plan부터 완료한 뒤 본 task로 복귀.
+
+> **참고 — Plan 4의 API 경계**: 본 plan은 `apps/worker`에만 코드를 추가하고 `apps/api`에 신규 HTTP 엔드포인트(e.g. `/api/qa`)는 **만들지 않는다**. 외부 트리거는 Temporal workflow (`ResearchWorkflow`, `LibrarianWorkflow`, `CompilerWorkflow`) 직접 호출로 국한. 사용자-대면 chat/QA 엔드포인트 (`/api/chat/messages`)는 Plan 11A에서 도입된다 — 병행 운영 기간 없이 Plan 11A 배포와 함께 활성화.
 
 ---
 

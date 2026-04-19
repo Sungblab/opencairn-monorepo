@@ -20,6 +20,28 @@
 
 ---
 
+## 1.1 Monitoring Stack 설정
+
+| 도구 | 역할 | 접속 | Secret 변수 |
+|------|------|------|-------------|
+| Sentry | 에러 트래킹 | sentry.io/org/opencairn | `SENTRY_DSN` (web/api/worker 각각) |
+| Grafana | 메트릭 대시보드 | grafana.opencairn.com (staging/prod) | `GRAFANA_API_KEY` |
+| Prometheus | 메트릭 수집 | prometheus 내부 | (없음, pull 기반) |
+| Alertmanager | 알림 라우팅 | alertmanager 내부 | `ALERTMANAGER_CONFIG` |
+| Telegram bot | 온콜 알림 | `@opencairn_ops_bot` | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` |
+
+**Alert 라우팅**:
+- P0 (가용성) → Telegram + Email (즉시)
+- P1 (성능 저하) → Telegram (5분 집계)
+- P2 (비즈니스 지표) → Email daily summary
+
+**Dashboard ID** (임시 TBD — staging 구성 후 확정):
+- API latency: [TBD]
+- Ingest pipeline: [TBD]
+- Agent cost: [TBD]
+
+---
+
 ## 2. 심각도 분류 (Severity)
 
 | 심각도 | 정의 | 대응 시간 SLO | 예시 |

@@ -2,7 +2,12 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Reference spec:** [2026-04-15-document-skills-design.md](../specs/2026-04-15-document-skills-design.md). 이 plan은 spec을 구현 가능한 단계로 나눈 것이다. 본 plan은 **Plan 1~9 완료 후** 실행된다 (특히 Plan 4 packages/llm, Plan 6 packages/templates, Plan 8 Deep Research에 의존).
+> **Reference spec:** [2026-04-15-document-skills-design.md](../specs/2026-04-15-document-skills-design.md). 이 plan은 spec을 구현 가능한 단계로 나눈 것이다.
+>
+> **Prerequisites (2026-04-20 명확화):**
+> - **필수**: Plan 4 (agent core — `packages/llm` · Compiler/Research/Librarian) + Plan 6 (learning system — `packages/templates` · Socratic) + Plan 8 (remaining agents, 특히 Deep Research). 본 plan의 meta-skill(`deep_research_paper`, `study_pack_generator`)은 Plan 4/6/8의 결과물을 직접 호출한다.
+> - **무관**: Plan 9 billing infrastructure. Plan 9 (특히 결제 레일 Task 1/4+)가 BLOCKED 상태여도 Plan 10은 진행 가능. 문서 생성 기능 자체는 plan 한도(Task 3) 또는 PAYG 크레딧 차감(Task 3.5)의 gate 아래에서 동작하지만, 그 gate는 Plan 9의 provider-agnostic core만으로 충족된다.
+> - **권장 실행 순서**: Plan 4 → Plan 6 → Plan 8 → **Plan 10** (Plan 9는 병렬 가능). Plan 5/7 완료도 권장되나 hard-dependency 아님 (KG 앵커 UX는 Plan 5 이후 더 풍부해짐).
 
 **Goal:** 사용자의 KG를 소재로 LaTeX 논문/DOCX 보고서/HTML·PPTX 슬라이드/PDF/Anki 덱 등을 생성하는 composable document skill layer. 각 skill은 LangGraph 에이전트가 호출하는 primitive이고, `deep_research_paper`와 `study_pack_generator`는 다른 skill을 체이닝하는 meta-skill.
 

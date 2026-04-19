@@ -8,6 +8,12 @@
 - Plan 4 (agent core), Plan 5 (KG), Plan 10 (document skills)
 - Reverse-engineering note: Claude Code CLI (CWD-keyed memory, two-tier compaction, MEMORY.md index pattern)
 
+## Dependencies
+
+- **Plan 12 (Agent Runtime Standard)** — 본 spec은 Plan 12의 `AgentEvent` 스트림 위에서 실행된다. Conversation SSE는 `AgentEvent` 9종(ModelStart/ModelEnd/ToolUse/ToolResult/...)을 그대로 클라이언트로 포워딩하며, `conversation_messages` 테이블은 `agent_runs.id`를 FK로 참조한다.
+- **Plan 11A** — 본 spec의 최소 구현체.
+- Plan 4 (agent core), Plan 5 (KG), Plan 10 (document skills)에서 제공하는 에이전트/툴을 호출.
+
 ---
 
 ## 1. Problem

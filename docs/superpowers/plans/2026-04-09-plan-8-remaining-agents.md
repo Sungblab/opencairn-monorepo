@@ -34,12 +34,14 @@ apps/worker/src/worker/agents/
       persist_suggestions.py
     graph.py
   temporal_agent/          # 'temporal'은 temporalio 패키지와 충돌 방지로 이름 변경
+                           # 참고: 이 에이전트는 '시간축 시각화'가 아니라 stale 감지 + 스케줄링 자동화.
+                           # Timeline 뷰 생성은 Plan 5 Visualization Agent 전속.
     __init__.py
     state.py
     nodes/
-      build_timeline.py
-      detect_stale.py
-      schedule_reviews.py
+      detect_stale.py       # kg.find_stale
+      schedule_reviews.py   # schedule.create (SM-2)
+      notify_targets.py     # notify.send
     graph.py
   synthesis/
     __init__.py
@@ -80,7 +82,8 @@ apps/worker/src/worker/workflows/
 
 apps/api/src/routes/agents/
   connector.ts              # POST /api/agents/connector/run, GET /api/agents/connector/suggestions
-  temporal.ts               # POST /api/agents/temporal/timeline, POST /api/agents/temporal/stale-check
+  temporal.ts               # POST /api/agents/temporal/stale-check, POST /api/agents/temporal/schedule-review
+                            # (timeline 뷰는 POST /api/visualize — Plan 5)
   synthesis.ts              # POST /api/agents/synthesis/run, GET :id
   curator.ts                # POST /api/agents/curator/run, GET /suggestions
   narrator.ts               # POST /api/agents/narrator/run, GET :id
@@ -344,15 +347,21 @@ git commit -m "feat(agents): Connector Agent (Python LangGraph + Temporal) with 
 
 ---
 
-### Task 3: Temporal Agent (stale detection + reviews)
+### Task 3: Temporal Agent (stale detection + review scheduling)
 
 > 주의: Python 패키지 `temporalio` 와 충돌 방지를 위해 폴더명은 `temporal_agent/` 사용.
+
+> **책임 경계 (중요, 2026-04-20 명확화)**:
+> - Temporal Agent는 **stale 감지 + 예약 자동화**만 담당. 즉 `kg.find_stale`, `schedule.create`, `notify.send` 세 도구만 사용.
+> - **Timeline 시각화(view.build_timeline)는 Plan 5 Visualization Agent 전속.** Temporal Agent는 timeline 노드·축·layout·ViewSpec을 생성하지 **않는다**.
+> - 과거 초안의 "날짜 기반 추출" 표현은 timeline 렌더링과 무관한 stale 후보 쿼리(예: `updated_at < now() - 90d`)만을 가리킨다. Plan 5로 위임되는 것은 "시각적 timeline 뷰" 그 자체이며, Temporal Agent는 해당 뷰를 만들지 않는다.
+> - 재확인: 본 에이전트 이름에 "Temporal"이 들어간 것은 **시간축 시각화가 아니라** SM-2 리뷰 스케줄링·stale 알림 자동화를 의미한다.
 
 **Files:**
 - Create: `apps/worker/src/worker/agents/temporal_agent/*.py`
 - Create: `apps/api/src/routes/agents/temporal.ts`
 
-- [ ] **Step 3.1: Stale Detection 노드**
+- [ ] **Step 3.1: Stale Detection 노드 (`kg.find_stale`)**
 
 ```python
 # apps/worker/src/worker/agents/temporal_agent/nodes/detect_stale.py
@@ -363,25 +372,28 @@ STALE_DAYS = 90
 
 async def run(state):
     # 1. SELECT notes WHERE updated_at < now() - 90 days AND type='wiki'
+    #    → 이것은 "stale 후보 필터링"이지 timeline 생성이 아니다.
     # 2. 각 노트 본문을 Gemini에게 "최신 정보와 비교해 여전히 유효한가?" 질문
     # 3. staleness_score 계산 (0-1), stale_alerts에 upsert
     ...
 ```
 
-- [ ] **Step 3.2: Timeline Build 노드**
+- [ ] **Step 3.2: Review Scheduling 노드 (`schedule.create`)**
 
-Plan 5 KG-07 Visualization Agent와 중첩되지 않게. Temporal Agent는 **날짜 기반 추출**만, 렌더링 파라미터는 Visualization Agent가 담당.
+SM-2 복습 간격 계산 후 `POST /internal/socratic/queue-review`로 Socratic Agent 트리거. 학습 플래시카드·복습 주기 자동화 용도. **시간축 뷰와 무관.**
 
-- [ ] **Step 3.3: Review Scheduling 노드**
+- [ ] **Step 3.3: Notification 노드 (`notify.send`)**
 
-SM-2 복습 간격 계산 후 `POST /internal/socratic/queue-review`로 Socratic Agent 트리거.
+Stale 감지·복습 알림을 Plan 2의 notifications 시스템으로 전달. Temporal Agent의 세 번째(그리고 마지막) 도구.
+
+> **비-목표 명시**: 본 에이전트에는 `view.build_timeline` / timeline ViewSpec 생성 / Cytoscape timeline layout 계산이 **존재하지 않는다**. 그 기능이 필요하면 Plan 5 Visualization Agent의 `POST /api/visualize`를 호출하라.
 
 - [ ] **Step 3.4: Temporal workflow + API + cron (일 1회)**
 
 - [ ] **Step 3.5: Commit**
 
 ```bash
-git commit -m "feat(agents): Temporal Agent (stale detection + review scheduling)"
+git commit -m "feat(agents): Temporal Agent (stale detection + review scheduling + notify)"
 ```
 
 ---
@@ -557,7 +569,7 @@ Plan 4 → Plan 5 → Plan 6 → **Plan 8 순서 권장**:
 |------|-------|----------------|
 | 1 | (shared) | suggestions / stale_alerts / audio_files / deep_research_jobs 스키마 |
 | 2 | Connector | cross-project similarity → suggestions, 주 1회 cron |
-| 3 | Temporal | stale 감지 + timeline + review scheduling, 일 1회 cron |
+| 3 | Temporal | stale 감지 + review scheduling + notify (일 1회 cron). **Timeline 생성은 Plan 5 Visualization Agent 전속 — 본 에이전트 범위 외.** |
 | 4 | Synthesis | multi-concept essay 생성 with LightRAG global context |
 | 5 | Curator | orphan/duplicate/contradiction + Gemini Search Grounding |
 | 6 | Narrator | 2-speaker podcast TTS + R2 upload (Gemini 전용 + graceful degrade) |

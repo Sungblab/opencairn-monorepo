@@ -15,36 +15,87 @@ OpenCairn 개발 환경 설정 및 컨벤션.
 - LibreOffice + H2Orestart 확장 (unoserver — Worker Dockerfile에 내장)
 - 브라우저 샌드박스는 Pyodide/iframe 기반 → 호스트에 추가 런타임 불필요 (ADR-006)
 
-## Quick Start
+## Quick Start (신규 개발자 0 → running)
+
+### 1. 전제 조건
+
+| 도구 | 최소 버전 | 권장 | 확인 명령 |
+|------|----------|------|----------|
+| Node.js | 22.0.0 | 22.x LTS | `node -v` |
+| pnpm | 9.0.0 | 9.x | `pnpm -v` |
+| Python | 3.12 | 3.12.x | `python --version` |
+| uv | 0.4 | latest | `uv --version` |
+| Docker | 27.0 | Docker Desktop 최신 | `docker --version` |
+| Docker Compose | v2.20 | v2.x | `docker compose version` |
+
+**uv 설치**:
+- macOS/Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- Windows: `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"`
+
+### 2. 리포 클론 + 의존성
 
 ```bash
-# 1. Clone
-git clone https://github.com/opencairn/opencairn.git
-cd opencairn
-
-# 2. Install dependencies
+git clone <repo>
+cd opencairn-monorepo
 pnpm install
-
-# 3. Start infrastructure
-docker-compose up -d
-
-# 4. Setup environment
-cp .env.example .env
-# Edit .env: set GEMINI_API_KEY
-
-# 5. Run database migrations
-pnpm db:migrate
-
-# 6. Start development servers
-pnpm dev
-# → API: http://localhost:4000
-# → Web: http://localhost:3000
-
-# 7. (Optional) Start Python worker
-cd apps/worker
-pip install -e .
-python -m opencairn_worker
+uv sync --directory apps/worker
 ```
+
+### 3. 환경 변수 — `.env.example` → `.env`
+
+```bash
+cp .env.example .env
+```
+
+필수 변수 (전부 채워야 `pnpm dev` 동작):
+
+| 변수 | 설명 | 생성/획득 방법 |
+|------|------|--------------|
+| `DATABASE_URL` | Postgres 연결 | docker-compose 기본값 (`postgresql://opencairn:opencairn@localhost:5432/opencairn`) |
+| `BETTER_AUTH_SECRET` | 세션 서명키 | `openssl rand -base64 32` |
+| `BETTER_AUTH_URL` | 콜백 URL | `http://localhost:3000` |
+| `GEMINI_API_KEY` | Gemini | aistudio.google.com/apikey |
+| `VECTOR_DIM` | 임베딩 차원 | `3072` (Gemini) / `768` (Ollama) |
+| `TEMPORAL_ADDRESS` | Temporal 서버 | `localhost:7233` |
+| `RESEND_API_KEY` | 이메일 | resend.com (선택 — 개발 시 console log 가능) |
+| `SENTRY_DSN` | 에러 트래킹 | (선택) |
+
+### 4. 인프라 기동
+
+```bash
+docker-compose up -d     # Postgres, Redis, Temporal, (optional) Ollama
+pnpm db:migrate          # 스키마 적용
+pnpm db:seed             # (선택) 테스트 데이터
+```
+
+### 5. 개발 서버
+
+```bash
+pnpm dev
+```
+
+정상 로그 예시:
+```
+[web]       ▲ Next.js 16.x ready on http://localhost:3000
+[api]       Hono listening on http://localhost:4000
+[worker]    Temporal worker started (queues: ingest-queue, agent-queue)
+[hocuspocus] listening on ws://localhost:1234
+```
+
+**헬스체크**: `curl http://localhost:4000/health` → `{"status":"ok"}`
+
+### 6. 트러블슈팅
+
+| 증상 | 원인 | 해결 |
+|------|------|------|
+| `DATABASE_URL` 연결 실패 | Docker 미기동 | `docker-compose up -d db` |
+| `pnpm install` EACCES | 권한 문제 | corepack 활성화: `corepack enable` |
+| `uv sync` 실패 | Python 버전 낮음 | `uv python install 3.12` |
+| Temporal 연결 거부 | Temporal UI 기동 안 됨 | `docker-compose logs temporal` 확인 |
+| `pgvector` extension 에러 | 기본 postgres 이미지 사용 중 | compose가 `pgvector/pgvector:pg16` 쓰는지 확인 |
+| M1/ARM Mac에서 이미지 오류 | amd64 이미지 강제 | `docker-compose pull --platform linux/amd64` |
+| Port 3000/4000 in use | 기존 프로세스가 점유 | kill 또는 `.env`에서 포트 변경 |
+| `Cannot find module @opencairn/db` | 의존성 미설치 | 루트에서 `pnpm install` 재실행 |
 
 ## Project Structure
 
@@ -204,10 +255,10 @@ pnpm db:migrate
 
 ## Troubleshooting
 
+위 Quick Start §6을 먼저 확인. 이하는 추가 케이스:
+
 | Problem | Solution |
 |---------|----------|
-| `Cannot find module @opencairn/db` | Run `pnpm install` from root |
-| DB connection refused | Check `docker-compose ps`, ensure postgres is running |
-| Temporal connection failed | Check temporal service: `docker-compose logs temporal` |
-| Migration fails | Check DATABASE_URL in .env matches docker-compose |
-| Port 3000/4000 in use | Kill existing process or change port in .env |
+| Migration fails | `.env`의 `DATABASE_URL`과 docker-compose 값 일치 확인 |
+| Hocuspocus 연결 실패 | Better Auth 세션 쿠키가 ws 핸드셰이크에 전달되는지 확인 |
+| Gemini 429 rate limit | 로컬 개발 시 BYOK 키 사용 권장, 또는 Ollama provider로 전환 |

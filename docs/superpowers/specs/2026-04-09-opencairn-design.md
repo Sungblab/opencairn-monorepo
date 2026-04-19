@@ -4,6 +4,15 @@
 >
 > "What Karpathy described, as a product"
 
+> **2026-04-14~20 업데이트**: 본 원본은 2026-04-09 작성. 이후 주요 변경:
+> - 2026-04-14: gVisor/apps/sandbox 폐기 → Pyodide/iframe (ADR-006). 12 에이전트 (Visualization 추가). Toss Payments (원화).
+> - 2026-04-15: OpenAI provider 제거. Gemini+Ollama 2개만.
+> - 2026-04-18: Workspace 3계층 (Workspace→Project→Page). Notion급 협업 (코멘트/@mention/알림/공개링크/게스트).
+> - 2026-04-19: 가격 개편. Pro ₩4,900 + PAYG (₩5,000 선불, 만료X, $1=₩1,650). BYOK ₩2,900 (본인 Gemini 키, 단일 사용자 호스팅).
+> - 2026-04-20: Agent Chat Scope (Page/Project/Workspace 3계층, L1-L4 메모리, Strict/Expand RAG, Pin). Agent Runtime Standard (@tool, AgentEvent, Agent ABC, Hook 3계층, Trajectory). 결제 레일은 사업자등록 후 결정 — BLOCKED.
+>
+> 상세: CLAUDE.md, collaboration-model.md, billing-model.md, agent-chat-scope-design.md, agent-runtime-standard-design.md.
+
 ---
 
 ## 1. Product Vision
@@ -167,7 +176,7 @@ opencairn.com/invite/<token>              -> 초대 수락
 | pymupdf | PDF 스캔 감지 (텍스트 레이어 유무 확인, 무료 즉각) |
 | markitdown[docx,pptx,xlsx,xls] | Office 문서 텍스트 추출 (MS oss) |
 | unoserver + H2Orestart | 문서→PDF 변환 (뷰어용). LibreOffice 상시 서버, HWP/HWPX 지원 |
-| faster-whisper | 로컬 STT fallback (Ollama/OpenAI 모드에서 오디오 전사, WHISPER_MODEL env) |
+| faster-whisper | 로컬 STT (Ollama 모드에서 오디오 전사, WHISPER_MODEL env) |
 | trafilatura | 웹 URL 스크래핑 (정적 HTML) |
 | crawl4ai | JS 렌더링 사이트 스크래핑 (선택적, Playwright 기반) |
 | yt-dlp | YouTube/영상 다운로드 fallback |
@@ -230,7 +239,7 @@ opencairn/
 
   packages/
     db/             -- Drizzle ORM schema + migrations
-    llm/            -- Python LLM provider adapters (Gemini/OpenAI/Ollama, get_provider 팩토리)
+    llm/            -- Python LLM provider adapters (Gemini/Ollama, get_provider 팩토리 — OpenAI는 2026-04-15 제거)
     ui/             -- shadcn/ui shared components
     config/         -- ESLint, TypeScript shared config
     shared/         -- Shared types (Zod 스키마, API 계약)
@@ -985,19 +994,23 @@ Python Worker
 
 ## 13. Billing
 
-### Plans
+> **2026-04-19 전면 개편**: 기존 "Pro ₩X 미정 / BYOK ₩Y 미정" 구조는 폐기. 아래 3단 요금제가 캐논이며, 상세는 [billing-model.md](../../architecture/billing-model.md). 결제 레일(PG)은 사업자등록 후 결정이므로 Plan 9의 결제 연동 task는 **BLOCKED** 상태 — 그 전에는 provider-agnostic core (크레딧 잔액·차감·환율 고정·BYOK 키 암호화)만 구현.
 
-| 플랜 | 가격 | 프로젝트 | Q&A | 오디오 생성 | 스토리지 |
-|------|------|---------|-----|-----------|---------|
-| Free | 0원 | 최대 10개 | 최대 50개 | 최대 3개 | 100MB |
-| Pro | 월 ₩X (미정) | 무제한 | 무제한 | 무제한 | 10GB |
-| BYOK | 월 ₩Y (미정, Pro보다 저렴) | 무제한 | 무제한 | 무제한 | 10GB |
+### Plans (v0.1 캐논)
 
-- BYOK 플랜은 자기 Gemini/Ollama 설정, AI 토큰 비용은 본인 부담 (`usage_records`에서 토큰 과금 제외)
-- **Toss Payments** 구독 결제 (한국 시장 타겟, 원화 정산). 상세 플로우·Webhook 매핑·환불 정책은 Plan 9 참조
-- `usage_records` 테이블로 사용량 추적 (BYOK 사용자는 limit-check만, 요금에서 제외)
-- 셀프호스팅 시 빌링 비활성화 (`BILLING_ENABLED=false`, 기본값 무제한)
-- v0.2 이후 글로벌 확장 시 다중 PSP(결제 프로세서) 검토 (Stripe 등)
+| 플랜 | 월 구독료 | AI 비용 | 대상 | 핵심 제약 |
+|------|----------|--------|------|----------|
+| **Free** | ₩0 | OpenCairn 부담 (하드 쿼터) | 평가용 개인 | 프로젝트 10 / Q&A 50 / 스토리지 100MB |
+| **Pro** | **₩4,900 + PAYG** | 선불 크레딧 차감 | 정식 개인·팀 | 최소 ₩5,000 선불, 만료 없음, `$1 = ₩1,650` 고정 환율로 차감 |
+| **BYOK** | **₩2,900** (서버 임대비) | 본인 Gemini API 키 | 솔로 사용자 | 단일 사용자 호스팅, **팀/협업 기능 제외**, 토큰 비용 본인 부담 |
+| Self-host | ₩0 | 본인 부담 | OSS 유저 | AGPLv3, `BILLING_ENABLED=false` 기본 무제한 |
+| Enterprise | 별도 협의 | 별도 협의 | v0.3 규제 산업 | SSO/감사 로그/온프레미스 |
+
+- **PAYG 크레딧**: 사용자가 ₩5,000 이상 선불 충전 → `usage_records`의 토큰 비용만큼 잔액 차감. 만료 없음, 환불 규정은 billing-model.md.
+- **BYOK ≠ Self-host**: BYOK는 OpenCairn이 운영하는 서버의 단일 사용자 계정을 임대하는 모델 (Pro의 팀 기능·공유 제외). Self-host는 사용자가 직접 Docker를 띄우는 별개 트랙.
+- **PG 미확정**: Toss Payments가 후보지만 사업자등록·계약 전까지 결제 레일 미연동. 잔액·차감·환율·BYOK 키 암호화 등 결제-무관 코어는 먼저 구현.
+- **VAT 별도**, 부가세는 billing-model.md의 산정 규칙을 따름.
+- 셀프호스팅 시 빌링 비활성화 (`BILLING_ENABLED=false`, 기본값 무제한).
 
 ---
 

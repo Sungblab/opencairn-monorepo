@@ -70,6 +70,13 @@ Workspace (owner / admin / member / guest)
 - **readOnly 강제**: viewer에게도 WebSocket은 열리지만 서버가 `onChange` hook에서 update를 drop (클라이언트는 Plate `readOnly` 모드).
 - **Awareness (presence)** 전파는 모든 역할에 허용 (user, cursor — 읽기 수준 정보).
 
+#### Hocuspocus readOnly 강제 (상세 메커니즘)
+
+- Viewer/Guest는 WebSocket 연결은 열리지만 `connection.readOnly = true` 플래그.
+- Yjs update 수신 시 서버가 drop + 해당 client에 `permission-denied` 이벤트 emit.
+- 클라이언트는 에디터를 `editable={false}`로 강제. 낙관적 업데이트는 rollback.
+- 권한 변경(멤버 제거/role 변경) 시 서버가 active connections에 `reload` 이벤트 → 클라이언트 재인증.
+
 ### 3.4 Internal endpoints
 
 - `/internal/*` 라우트는 `X-Internal-Secret` 헤더를 검증 (`INTERNAL_API_SECRET` env와 일치). 헤더 없으면 401.
@@ -106,7 +113,10 @@ Workspace (owner / admin / member / guest)
 
 - **알고리즘**: AES-256-GCM
 - **키**: `BYOK_ENCRYPTION_KEY` env (32바이트, base64 인코딩). 배포 시 **시크릿 매니저(Docker secrets, AWS SM, Fly.io secrets 등)**로 주입.
-- **저장 컬럼**: `subscriptions.byok_gemini_key` (ciphertext, base64) + `subscriptions.byok_gemini_key_iv` (nonce, base64). tag는 ciphertext 뒤쪽 16바이트로 concat.
+- **저장 컬럼** (billing-model.md `subscriptions` 테이블과 동일 이름):
+  - `subscriptions.byok_gemini_key_ciphertext` (ciphertext, bytea). tag는 ciphertext 뒤쪽 16바이트로 concat.
+  - `subscriptions.byok_gemini_key_iv` (nonce, bytea).
+  - `subscriptions.byok_gemini_key_version` (int, 키 로테이션 추적).
 - **사용 시점에만 복호화**: `resolveGeminiKey()` 미들웨어에서만, 요청 처리 동안만 메모리에. 로깅·trace에 절대 들어가지 않도록.
 
 ### 4.2 키 로테이션
@@ -123,7 +133,7 @@ Workspace (owner / admin / member / guest)
 
 ### 4.3 삭제
 
-- 사용자가 BYOK 키를 해제하면 `byok_gemini_key` / `byok_gemini_key_iv` 를 `NULL`로 업데이트. 별도 감사 로그에 이벤트 기록.
+- 사용자가 BYOK 키를 해제하면 `byok_gemini_key_ciphertext` / `byok_gemini_key_iv` 를 `NULL`로 업데이트. 별도 감사 로그에 이벤트 기록.
 - 계정 삭제 시 전체 `subscriptions` 행과 함께 cascade 삭제.
 
 ### 4.4 절대 하지 말 것

@@ -1168,13 +1168,35 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 - Modify: `docker-compose.yml` (hocuspocus 서비스 추가)
 
 - [ ] **Step 1**: `@hocuspocus/server` + `@hocuspocus/extension-database` 설치
-- [ ] **Step 2**: `auth.ts` — Better Auth 세션 토큰 검증 + `canWrite(user, note)` 호출
+- [ ] **Step 2**: `auth.ts` — Better Auth 세션 토큰 검증 + **Plan 1의 `canWrite` 어댑터 재사용**
+
+> **중요**: Hocuspocus는 Plan 1(`packages/db` + `apps/api/src/lib/permissions.ts`)에서 정의한 `canRead` / `canWrite` / `resolveRole` 헬퍼를 **그대로 재사용**한다. 권한 로직을 Hocuspocus에 중복 구현하지 않는다 — single source of truth는 Plan 1. 별도 패키지(`@opencairn/permissions`)로 뽑거나, `apps/api`에서 export하여 `apps/hocuspocus`에서 import하는 형태로 공유.
+
+**최소 어댑터 예시 (canWrite 기반)**:
+
+```typescript
+// apps/hocuspocus/src/auth.ts
+import { canWrite } from '@opencairn/api/lib/permissions';
+import { auth } from './better-auth-client';
+
+async authenticate({ token, documentName }) {
+  const session = await auth.verifyToken(token);
+  if (!session) throw new Error('unauthorized');
+  const pageId = parseDocumentName(documentName); // 'page:uuid' → uuid
+  const allowed = await canWrite(session.userId, 'page', pageId);
+  if (!allowed) return { readOnly: true, user: session.user };
+  return { user: session.user };
+}
+```
+
+**전체 auth 핸들러 (resolveRole 기반으로 viewer/editor 구분)**:
 
 ```typescript
 // apps/hocuspocus/src/auth.ts
 import type { onAuthenticatePayload } from "@hocuspocus/server";
 import { betterAuth } from "./better-auth-client";
-import { canWrite, canRead, resolveRole } from "./permissions";
+// Plan 1에서 정의된 헬퍼 — 재구현 금지, 그대로 import
+import { canWrite, canRead, resolveRole } from "@opencairn/api/lib/permissions";
 
 export async function authenticateConnection(payload: onAuthenticatePayload) {
   const { documentName, token } = payload;

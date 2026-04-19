@@ -131,7 +131,45 @@ services:
 
 각 테스트 suite 전에 마이그레이션 실행, 후에 데이터 truncate.
 
-## 5. CI Pipeline
+## 5. CI Gate 기준 (필수 통과)
+
+| Gate | 기준 | 실패 시 |
+|------|------|--------|
+| Lint | ESLint 0 errors (strict) | block merge |
+| Type | `tsc --noEmit` 0 errors (web/api/shared) | block merge |
+| Python type | `ruff check` + `mypy --strict` (apps/worker) | block merge |
+| Unit coverage | ≥75% (packages/db, packages/shared, apps/api/src/lib) | warn (v0.1) → block (v0.3) |
+| Integration coverage | ≥70% (CRUD routes, Hocuspocus, Temporal) | warn (v0.1) → block (v0.3) |
+| E2E | 핵심 경로(signup→upload→wiki→chat) 통과 | block merge |
+| Security | no `allow-same-origin`, no `postMessage(*,'*')` grep 통과 | block merge |
+| Secret scan | gitleaks 통과 | block merge |
+
+## 6. Collaboration Testing (Hocuspocus)
+
+### Unit
+- Yjs update encoding/decoding
+- Awareness (presence) 어댑터
+- auth hook (`canWrite` 모킹 → readOnly 판정)
+
+### Integration
+- 2-client 시뮬레이션 (ws-server 실제 기동 + y-websocket 클라이언트 2개)
+  - Client A update → Client B 수신 <500ms
+  - 동시 편집 CRDT reconcile
+  - Viewer 클라이언트가 update 전송 시 서버 drop
+- 코멘트 create → 알림 생성 (SSE) 확인
+- @mention → 알림 + 이메일 큐 확인
+
+### E2E (Playwright 2-tab)
+- 탭 1 입력 → 탭 2 실시간 반영
+- 탭 1 코멘트 → 탭 2 알림 표시
+- 탭 1 @사용자 → 대상에게 알림
+- Presence cursor 표시 확인
+
+### CI
+- `pnpm --filter @opencairn/hocuspocus test`
+- `playwright test --grep @collaboration` (timeout 15s)
+
+## 7. CI Pipeline
 
 ```yaml
 # .github/workflows/ci.yml

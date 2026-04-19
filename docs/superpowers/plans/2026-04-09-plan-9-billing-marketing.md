@@ -97,9 +97,15 @@ packages/db/src/schema/
 
 ---
 
-### Task 1: Toss Payments Integration (빌링키 발급, 정기결제, 웹훅)
+### Task 1: 결제 레일 통합 — **BLOCKED (사업자등록 후 unblock)**
 
-> **토스 빌링 플로우:**
+> **⚠️ 2026-04-20 상태: BLOCKED.** 결제 레일(PG)은 사업자등록 완료 후 선정한다. 본 task의 코드 예시는 Toss Payments를 전제로 작성되어 있으나, 실제 provider는 미확정이다. 사업자등록 전에는 본 task(빌링키 발급·정기결제·웹훅·결제 UI)를 **실행하지 말 것**. 대신 Task 3 (Plan Enforcement) + Task 3.5 (PAYG Credit Core)를 먼저 완료하여 provider-agnostic core를 준비한다.
+>
+> **Provider 교체 가능성**: Toss · Portone · Stripe(해외) 중 사업 요건에 맞춰 선정. `apps/api/src/lib/toss.ts` 네이밍은 현재 placeholder이며, 실제 구현 시 `apps/api/src/lib/payments/<provider>.ts` 형태로 adapter 패턴 권장. `subscriptions` 테이블의 `toss_*` 컬럼도 `payment_provider` + `provider_customer_key` + `provider_billing_key` 형태의 generic 스키마로 재검토 필요.
+>
+> 상세 지침: [billing-model.md](../../architecture/billing-model.md) (결제 레일 deferral 섹션).
+
+> **토스 빌링 플로우 (참고 — 실제 provider 선정 시 교체 가능):**
 > 1. 프론트: `tossPayments.requestBillingAuth({ customerKey, successUrl, failUrl })` → 카드 등록 UI
 > 2. 토스가 `successUrl?authKey=...&customerKey=...`으로 리다이렉트
 > 3. 백엔드: `POST /v1/billing/authorizations/issue` → `billingKey` 발급 + DB 저장
@@ -551,7 +557,15 @@ git commit -m "feat(billing): usage tracking middleware for ingest, QA, and audi
 
 ---
 
-### Task 3: Plan Enforcement (Free tier limits, Pro unlimited, BYOK API key management)
+### Task 3: Plan Enforcement (plan 별 기능/한도 gate, provider-agnostic)
+
+> **범위 명확화 (2026-04-20)**:
+> - **Task 3 = Plan Enforcement.** plan 별 feature flag · 한도(`PLAN_LIMITS`) gate · BYOK 키 암호화/복호화 · BYOK usage 제외 집계. **결제 레일(PG) 없이도 100% 구현 가능**한 core.
+> - **Task 3.5 = PAYG Credit Core** (신규). `credit_balances` + `credit_ledger` 테이블, 차감 로직, USD→KRW 환율(`$1=₩1,650`), 잔액 조회 API. 충전 UI/결제는 Task 4+ (PG 통합 후).
+> - **Task 4+ = 결제 레일 통합 — BLOCKED (사업자등록 후 unblock).** Toss 빌링키, PAYG 충전 플로우, 웹훅, 환불 UI 등. 본 task들은 사업자등록 전에는 실행하지 말 것.
+> - 실행 순서: Task 1 (스키마) → Task 2 (usage) → **Task 3 + Task 3.5 먼저 (provider-agnostic)** → 사업자등록 → Task 1/4+ (결제 레일 통합).
+
+> **참고**: 본 Task 3은 "Free tier 한도 / Pro 무제한 / BYOK 키 관리"를 다루며, PAYG 크레딧 차감 로직은 Task 3.5에서 다룬다. 두 미들웨어는 별도로 동작하되 `apps/api/src/app.ts`에서 체인 연결된다.
 
 **Files:**
 - Create: `apps/api/src/middleware/plan-guard.ts`
@@ -784,6 +798,162 @@ git add apps/api/src/middleware/plan-guard.ts \
         drizzle/
 git commit -m "feat(billing): plan enforcement + BYOK exclusion from paid usage aggregation"
 ```
+
+---
+
+### Task 3.5: PAYG Credit Core (provider-agnostic — PG 없이 구현 가능)
+
+> **범위**: PAYG 크레딧 시스템의 **결제 레일 독립적 core**. 충전(top-up) UI는 Task 4+ (PG 통합 후)에서 추가. 본 task는 `credit_balances` · `credit_ledger` 테이블, 차감 로직, 환율 계산, 잔액 조회 API만 구현한다. 이로써 사업자등록 완료 후 결제 레일만 꽂으면 Pro PAYG가 end-to-end로 동작할 수 있도록 인프라를 미리 준비한다.
+>
+> **상세 스펙**: [billing-model.md](../../architecture/billing-model.md) §2 (PAYG 크레딧) · §3 (환율) · §4 (잔액 소진 UX).
+
+**Files:**
+- Create: `packages/db/src/schema/credit-balances.ts`
+- Create: `packages/db/src/schema/credit-ledger.ts`
+- Create: `apps/api/src/lib/credits.ts` — 차감/조회/환율 helpers
+- Create: `apps/api/src/middleware/credit-guard.ts` — Pro 요청 시 잔액 체크 + 차감
+- Create: `apps/api/src/routes/credits.ts` — `GET /credits/balance`, `GET /credits/ledger`
+- Modify: `packages/db/src/schema/index.ts`, `apps/api/src/app.ts`
+
+- [ ] **Step 1: `credit_balances` + `credit_ledger` 스키마**
+
+```typescript
+// packages/db/src/schema/credit-balances.ts
+import { pgTable, text, numeric, timestamp } from 'drizzle-orm/pg-core'
+import { users } from './users'
+
+export const creditBalances = pgTable('credit_balances', {
+  userId:       text('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  // 단위: KRW, 소수점 4자리 (Gemini 초미세 차감 대응)
+  balanceKrw:   numeric('balance_krw', { precision: 14, scale: 4 }).notNull().default('0'),
+  updatedAt:    timestamp('updated_at').defaultNow().notNull(),
+})
+```
+
+```typescript
+// packages/db/src/schema/credit-ledger.ts
+// append-only ledger — 감사 추적, 잔액 재계산 가능
+import { pgTable, uuid, text, numeric, jsonb, timestamp, pgEnum } from 'drizzle-orm/pg-core'
+import { users } from './users'
+
+export const creditEntryType = pgEnum('credit_entry_type', [
+  'topup',         // 충전 (+) — Task 4+ PG 통합 후 활성
+  'usage',         // AI 사용 차감 (-)
+  'refund',        // 환불 (+) — Task 3b
+  'adjustment',    // 관리자 조정 (±)
+  'promo',         // 프로모션 크레딧 (+)
+])
+
+export const creditLedger = pgTable('credit_ledger', {
+  id:           uuid('id').defaultRandom().primaryKey(),
+  userId:       text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  type:         creditEntryType('type').notNull(),
+  deltaKrw:     numeric('delta_krw', { precision: 14, scale: 4 }).notNull(),
+  balanceAfter: numeric('balance_after', { precision: 14, scale: 4 }).notNull(),
+  // 메타데이터: usage면 { action, tokens_in, tokens_out, model, usd_cost, fx_rate }
+  meta:         jsonb('meta'),
+  createdAt:    timestamp('created_at').defaultNow().notNull(),
+})
+```
+
+- [ ] **Step 2: 환율 상수 + helpers**
+
+```typescript
+// apps/api/src/lib/credits.ts
+import { db } from './db'
+import { creditBalances, creditLedger } from '@opencairn/db/schema'
+import { eq, sql } from 'drizzle-orm'
+
+// 환율: $1 = ₩1,650 (billing-model.md §3, 30일 사전 고지로 조정 가능)
+export const FX_USD_TO_KRW = 1650
+
+export function usdToKrw(usd: number): number {
+  return Math.ceil(usd * FX_USD_TO_KRW * 10000) / 10000 // 4 decimal places
+}
+
+export async function getBalance(userId: string): Promise<number> {
+  const [row] = await db.select().from(creditBalances).where(eq(creditBalances.userId, userId))
+  return row ? Number(row.balanceKrw) : 0
+}
+
+export async function deductCredits(
+  userId: string,
+  krw: number,
+  meta: Record<string, unknown>,
+): Promise<{ balanceAfter: number; insufficient: boolean }> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(creditBalances)
+      .values({ userId, balanceKrw: '0' })
+      .onConflictDoNothing()
+      .returning()
+
+    const [current] = await tx
+      .select()
+      .from(creditBalances)
+      .where(eq(creditBalances.userId, userId))
+      .for('update')
+
+    const before = Number(current?.balanceKrw ?? '0')
+    if (before < krw) return { balanceAfter: before, insufficient: true }
+
+    const after = before - krw
+    await tx
+      .update(creditBalances)
+      .set({ balanceKrw: String(after), updatedAt: new Date() })
+      .where(eq(creditBalances.userId, userId))
+
+    await tx.insert(creditLedger).values({
+      userId,
+      type: 'usage',
+      deltaKrw: String(-krw),
+      balanceAfter: String(after),
+      meta,
+    })
+
+    return { balanceAfter: after, insufficient: false }
+  })
+}
+```
+
+- [ ] **Step 3: `credit-guard` 미들웨어**
+
+Pro plan 요청 시 예상 비용 계산 → 잔액 부족이면 402 반환. 차감은 실제 LLM 응답 후 `deductCredits()` 호출 (Worker 쪽 hook). BYOK/Free는 이 경로를 우회한다.
+
+- [ ] **Step 4: 잔액 조회 API**
+
+```typescript
+// apps/api/src/routes/credits.ts
+creditsRouter.get('/balance', authMiddleware, async (c) => {
+  const userId = c.get('userId') as string
+  const balance = await getBalance(userId)
+  return c.json({ balanceKrw: balance, fxRate: FX_USD_TO_KRW })
+})
+
+creditsRouter.get('/ledger', authMiddleware, async (c) => {
+  // keyset pagination 권장
+  // ... 최근 100 row
+})
+```
+
+- [ ] **Step 5: 테스트**
+  - 잔액 0 · Pro 요청 → 402 (insufficient)
+  - 잔액 충분 · Pro 요청 → 200 + 차감 + ledger row 생성
+  - BYOK / Free 요청 → credit-guard skip
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add packages/db/src/schema/credit-balances.ts \
+        packages/db/src/schema/credit-ledger.ts \
+        apps/api/src/lib/credits.ts \
+        apps/api/src/middleware/credit-guard.ts \
+        apps/api/src/routes/credits.ts \
+        apps/api/src/app.ts
+git commit -m "feat(billing): PAYG credit core (balances, append-only ledger, FX, deduction) — provider-agnostic"
+```
+
+> **다음 단계**: 사업자등록 완료 → 결제 레일 결정 → Task 1(Toss 또는 대안 PG)의 카드 등록·정기결제·웹훅을 PAYG 충전 이벤트와 연결. 그전까지 `type='topup'` ledger entry는 수동 관리자 조정 또는 프로모션으로만 생성된다.
 
 ---
 

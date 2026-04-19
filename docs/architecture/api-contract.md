@@ -46,6 +46,25 @@ Cookie: better_auth.session_token=<token>
 { "error": "Error message" }
 ```
 
+### Error Codes
+
+| Status | 의미 | 응답 예 |
+|--------|------|--------|
+| 400 | 유효성 | `{ error: "validation failed", details: [...] }` |
+| 401 | 인증 누락/실패 | `{ error: "unauthorized" }` |
+| 403 | 권한 없음 | `{ error: "forbidden", resource: "page:uuid" }` |
+| 404 | 리소스 없음 (권한 없음과 구분) | `{ error: "not_found" }` |
+| 409 | 충돌 (동시 쓰기 등) | `{ error: "conflict", retry_after_ms: 500 }` |
+| 429 | Rate limit | `{ error: "rate_limited", retry_after: 30 }` — `Retry-After: 30` 헤더 (단위: 초) |
+| 500 | 서버 에러 | `{ error: "internal", request_id: "..." }` |
+
+**권한 없음 vs 리소스 없음**: 사용자가 해당 workspace 멤버가 아니면 **404** 반환(리소스 존재 은닉). 멤버이지만 구체 권한 없으면 **403**.
+
+### API 버전 정책
+
+- 현재 버전: v1 (경로에 버전 없음, v0.1까지는 unversioned).
+- Breaking change 시 `/v2/*` 병행 운영 + 6개월 deprecation.
+
 ---
 
 ## Endpoints
@@ -168,7 +187,7 @@ Cookie: better_auth.session_token=<token>
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
 | GET | /api/chat/conversations/by-project/:projectId | Yes | List conversations | - |
-| POST | /api/chat/conversations | Yes | Create conversation | `{ projectId, scope? }` |
+| POST | /api/chat/conversations | Yes | Create conversation | `{ projectId?: string, workspaceId?: string, pageId?: string, scope: 'workspace'\|'project'\|'page', attached_chips?: ChipRef[] }` |
 | GET | /api/chat/conversations/:id/messages | Yes | List messages | - |
 | POST | /api/chat/message | Yes | Send message (SSE stream) | `{ conversationId, content }` |
 
@@ -212,18 +231,20 @@ Cookie: better_auth.session_token=<token>
 | POST | /api/settings/api-key | Yes | Set BYOK Gemini API key | `{ apiKey }` |
 | DELETE | /api/settings/api-key | Yes | Remove BYOK key | - |
 
-### Billing (Toss Payments)
+### Billing
+
+> **결제 레일 TBD (사업자등록 후 확정, 현재 BLOCKED)**. 후보: Toss Payments / 포트원(아임포트) / Stripe. 아래 스키마는 provider-agnostic core — 구체 PSP 웹훅 이벤트 이름은 확정 후 치환.
 
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
-| POST | /api/billing/subscribe | Yes | Create Toss billing-key subscription | `{ plan: "pro" \| "byok" }` |
+| POST | /api/billing/subscribe | Yes | Create billing-key subscription | `{ plan: "pro" \| "byok" }` |
 | POST | /api/billing/cancel | Yes | Cancel active subscription (현행 청구 주기 종료 시) | — |
 | GET  | /api/billing/subscription | Yes | Get current subscription state | — |
 | PUT  | /api/billing/byok-key | Yes | Save encrypted BYOK Gemini API key | `{ geminiKey }` |
 | POST | /api/billing/refund-request | Yes | 환불 요청 접수 (정책은 Plan 9 참조) | `{ reason }` |
-| POST | /api/billing/webhook | No | Toss webhook handler (PAYMENT_APPROVED / PAYMENT_REFUNDED / BILLING_KEY_ISSUED 등) | Toss event |
+| POST | /api/billing/webhook | No | PG webhook handler (결제 승인/환불/빌링키 발급 등) | provider event |
 
-> 참고: 결제 수단은 v0.1에서 Toss Payments 단독 (한국 원화). 글로벌 확장 시 Stripe 등 다른 PSP 추가 가능 (v0.2+).
+> 참고: 결제 수단은 **사업자등록 후 결정 (BLOCKED)**. 그 전까지 provider-agnostic core만 구현.
 
 ### Comments
 
@@ -297,3 +318,21 @@ Cookie: better_auth.session_token=<token>
 |--------|------|------|-------------|------|
 | POST | /api/canvas/from-template | Yes | slides/mindmap/cheatsheet 템플릿 → React 컴포넌트 소스 생성 | `{ templateId, variables }` |
 | GET  | /api/canvas/sessions/:id | Yes | 저장된 canvas 세션 소스 조회 | — |
+
+---
+
+## Types
+
+### ChipRef (Chat scope attachment)
+
+Agent chat scope (Plan 11A)에서 conversation에 attach되는 칩 참조:
+
+```ts
+type ChipRef =
+  | { type: 'page'; id: string }
+  | { type: 'project'; id: string }
+  | { type: 'workspace'; id: string }
+  | { type: 'document'; id: string };  // uploaded source
+```
+
+`POST /api/chat/conversations` 의 `attached_chips` 필드와 `POST /api/chat/message` 컨텍스트 payload에서 동일하게 사용. 칩이 가리키는 리소스는 호출 사용자 `canRead` 통과가 선결.

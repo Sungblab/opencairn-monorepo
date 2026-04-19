@@ -316,7 +316,38 @@ async def register_schedules(client: Client):
 
 ---
 
-## 5. Observability
+## 5. Dead Letter Queue (DLQ)
+
+- **정의**: Temporal Activity 최대 재시도(3회 기본, Deep Research 무제한) 실패 시 `dlq_events` 테이블에 기록 + Telegram 알림.
+- **스키마**: `dlq_events { id, workflow_id, activity_type, input_json, error, failed_at, user_id, workspace_id }`
+- **재실행**: 관리자가 원인 수정 후 `pnpm dlq:retry <id>` CLI로 재큐.
+- **보존**: 30일 후 자동 삭제 (GDPR).
+
+---
+
+## 6. Worker Scaling
+
+| 환경 | Worker Pool | 메모리 | 용도 |
+|------|------------|--------|------|
+| dev | 1 (로컬) | 2GB | 전체 워크플로우 |
+| staging | 2 | 4GB 각 | ingest + agent 분리 |
+| prod (v0.1) | 3 | 8GB 각 | ingest / agent / deep_research |
+| prod (scale) | HPA: CPU 70% 트리거, max 10 | 8GB | 큐별 auto-scale |
+
+- **Task queue 분리**: `ingest-queue`, `agent-queue`, `deep-research-queue` 3개.
+- **Idempotency**: 모든 workflow는 `workflow_id = "{type}:{resource_id}:{user_id}"` 규칙.
+
+---
+
+## 7. Workflow Versioning
+
+- Temporal `GetVersion` API 사용.
+- Breaking change 시 major version bump (`workflow_v1` → `workflow_v2`), 기존 실행은 old 로직 유지.
+- 배포 전 `workflow_versioning.md`에 rationale 기록 (템플릿 제공).
+
+---
+
+## 8. Observability
 
 - Temporal Web UI: `http://localhost:8233` (개발), 워크플로우 상태/히스토리 확인
 - 각 워크플로우의 progress를 jobs 테이블에서 조회 (프론트엔드 표시)

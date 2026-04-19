@@ -76,14 +76,14 @@ Read these docs when you need context. Don't load them all at once.
 
 ### Implementation Plans
 
-**Critical path** (Phase 0 → 1 → 2 → 3 순서. 같은 phase 내는 병렬 가능):
+**Critical path** (Phase 0 → 1 → 2 → 3 순서. Phase 0 내부는 **직렬** (`Plan 1 → Plan 13 → Plan 12`). Phase 1은 Plan 12 완료 후 **Plan 2/3/4/9 병렬**, Phase 2는 Plan 4 완료 후 **Plan 5/6/7/8 병렬**.):
 
 | Phase | Plan | Scope |
 |-------|------|-------|
-| **0 — Foundation (직렬)** | `plans/2026-04-09-plan-1-foundation.md` | Monorepo, DB schema (**Workspace 3계층 + 권한**), Better Auth, workspace/member/invite CRUD, permissions helpers (`canRead`/`canWrite`/`requireWorkspaceRole`), Docker, Resend, Sentry, CI/CD, backup scripts |
-| **0** | `plans/2026-04-13-multi-llm-provider.md` | packages/llm, provider adapters (Gemini/Ollama), VECTOR_DIM, Docker Ollama. **Plan 4/12보다 먼저 필수** |
-| **0** | `plans/2026-04-20-plan-12-agent-runtime.md` | **Agent Runtime facade** (`apps/worker/src/runtime/`): `@tool` 데코레이터, `AgentEvent` 9종, `Agent` ABC, 3계층 훅, NDJSON trajectory + `agent_runs` 요약 테이블, trajectory 기반 eval 프레임워크, Temporal 헬퍼. **Plan 4/5/6/7/8보다 먼저 필수**. Spec: `2026-04-20-agent-runtime-standard-design.md` |
-| **1 — Core (Plan 1·13·12 후 병렬 가능)** | `plans/2026-04-09-plan-2-editor.md` | Plate v49 에디터 + **Notion급 협업**: Hocuspocus auth hook, 실시간 공동 편집 + Presence, block-anchor 코멘트 + 스레드, @mention, 알림 (SSE+이메일), activity feed, 공개 공유 링크, guest 초대 |
+| **0 — Foundation (직렬, 1단계)** | `plans/2026-04-09-plan-1-foundation.md` | Monorepo, DB schema (**Workspace 3계층 + 권한**), Better Auth, workspace/member/invite CRUD, permissions helpers (`canRead`/`canWrite`/`requireWorkspaceRole`), Docker, Resend, Sentry, CI/CD, backup scripts. **Plan 13의 prerequisite.** |
+| **0 — Foundation (직렬, 2단계)** | `plans/2026-04-13-multi-llm-provider.md` | packages/llm, provider adapters (Gemini/Ollama), VECTOR_DIM, Docker Ollama. **Plan 1 완료 후 실행. Plan 12의 prerequisite.** |
+| **0 — Foundation (직렬, 3단계)** | `plans/2026-04-20-plan-12-agent-runtime.md` | **Agent Runtime facade** (`apps/worker/src/runtime/`): `@tool` 데코레이터, `AgentEvent` 9종, `Agent` ABC, 3계층 훅, NDJSON trajectory + `agent_runs` 요약 테이블, trajectory 기반 eval 프레임워크, Temporal 헬퍼. **Plan 13 완료 후 실행. Phase 1/2의 에이전트 plan들(Plan 4/5/6/7/8) prerequisite.** Spec: `2026-04-20-agent-runtime-standard-design.md` |
+| **1 — Core (Plan 12 완료 후 Plan 2/3/4/9 병렬 가능)** | `plans/2026-04-09-plan-2-editor.md` | Plate v49 에디터 + **Notion급 협업**: Hocuspocus auth hook, 실시간 공동 편집 + Presence, block-anchor 코멘트 + 스레드, @mention, 알림 (SSE+이메일), activity feed, 공개 공유 링크, guest 초대 |
 | **1** | `plans/2026-04-09-plan-3-ingest-pipeline.md` | 파일 업로드, 파싱 (opendataloader-pdf/markitdown/unoserver/H2Orestart/faster-whisper), Temporal 워크플로우 |
 | **1** | `plans/2026-04-09-plan-4-agent-core.md` | Compiler, Research, Librarian 에이전트 (Python LangGraph + Temporal, **`runtime.Agent` 서브클래스 패턴**). **Task 0에서 Plan 1·13·12·3 완료 검증** |
 | **1** | `plans/2026-04-09-plan-9-billing-marketing.md` | **PAYG 크레딧** + 구독료 (Free/BYOK/Pro), 랜딩 페이지, 블로그, 환불 정책, Export API (GDPR). **결제 레일 task는 사업자등록 후 unblock — 그 전에는 provider-agnostic core만**. 상세: `billing-model.md` |

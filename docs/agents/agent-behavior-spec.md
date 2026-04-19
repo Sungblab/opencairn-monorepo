@@ -1,352 +1,200 @@
 # Agent Behavior Specification
 
-12개 에이전트 (v0.1)의 가드레일, 정지 조건, 충돌 해결 규칙, 피드백루프를 정의한다.
-
-> **2026-04-14 명단**: Compiler / Librarian / Research / Connector / Socratic / Temporal / Synthesis / Curator / Narrator / Deep Research / Code / Visualization. Hunter는 v0.2로 이관됨.
+> Plan 12 (agent-runtime-standard-design.md) 기준. 모든 에이전트는 `runtime.Agent` ABC를 상속하고, `@tool` 데코레이터로 도구를 선언하며, `AgentEvent` 스트림을 yield한다.
+>
+> **2026-04-14 명단**: Compiler / Librarian / Research / Connector / Socratic / Temporal / Synthesis / Curator / Narrator / Deep Research / Code / Visualization (12개). Hunter는 v0.2로 이관됨.
 
 ---
 
-## 1. Global Rules (모든 에이전트 공통)
+## 1. 공통 계약
 
-### 실행 환경
-- 모든 에이전트는 Temporal Activity로 실행됨
-- 각 Activity는 독립적으로 재시도 가능 (최대 3회, 지수 백오프)
-- Activity 타임아웃: 기본 5분, Deep Research는 30분
+- **인터페이스**: `Agent.run(input) -> AsyncGenerator[AgentEvent]`. 모든 에이전트는 동일한 비동기 스트림 프로토콜을 따른다.
+- **도구 호출**: 모든 LLM function call은 `@tool` 등록된 함수만 호출 가능 (화이트리스트). 각 도구는 `ToolContext`(`user_id`, `workspace_id`, `permissions`, `run_id`)를 통과받으며, context 없이 호출되면 `ToolError` 발생.
+- **이벤트 타입 9종**: `RunStart`, `ModelStart`, `ModelEnd`, `ToolUse`, `ToolResult`, `StateUpdate`, `HandoffRequest`, `AgentError`, `RunEnd`. SSE로 UI에 스트리밍.
+- **훅 3계층**: global / agent-level / run-level. 권한 검증, 비용 추적, 로깅 훅이 기본 global. `HookRegistry.register(hook, scope, agent_filter)`로 등록.
+- **Trajectory**: NDJSON으로 S3/R2 저장 (`trajectories/{run_id}.ndjson`), 요약은 `agent_runs` Postgres 테이블(`id, agent_name, workflow_id, user_id, workspace_id, total_cost_krw, started_at, ended_at, status`).
+- **Workspace 스코프**: 모든 activity input에 `workspace_id` + `user_id` 필수. 누락 시 Zod/Pydantic 검증 실패로 즉시 reject. 읽는 모든 리소스는 `WHERE workspace_id = $1` 강제 — cross-workspace 접근 절대 금지.
 
-### Workspace 스코프 (2026-04-18 협업 도입)
+---
 
-- **모든 에이전트 activity의 input에 `workspace_id` + `user_id` 필수**. 누락 시 Zod 검증 실패로 즉시 reject.
-- 에이전트가 읽는 모든 리소스는 `workspace_id`로 필터링. Cross-workspace 데이터 접근 절대 금지.
-- 에이전트가 활용하는 권한:
-  - 사용자 트리거: 해당 user의 권한으로 읽기·쓰기 (권한 상승 금지)
-  - 자동 스케줄 (Librarian/Curator/Temporal): workspace `owner` 권한으로 실행
-- LightRAG 인덱스, pgvector 검색, wiki_logs 조회 등 **모든** 쿼리가 `WHERE workspace_id = $1` 강제.
+## 2. 가드레일
 
-### 동시성 제어
-- **워크스페이스·프로젝트 세마포어**: 같은 workspace + project 조합에서 위키를 수정하는 에이전트는 동시 실행 불가
-  - Temporal의 `workflow.with_semaphore("ws:{wsId}:proj:{projectId}", max=1)` 사용
-  - 읽기 전용 작업(Research Q&A)은 세마포어 불필요
-- **우선순위**: Compiler > Librarian > 나머지 (제출이 가장 먼저)
+### 도구 화이트리스트
+- 각 에이전트는 자신의 `allowed_tools` 외에는 호출 불가. LLM이 미등록 도구를 요청하면 runtime이 `ToolError` 주입 후 재계획 유도.
+
+### Permission 검증
+- 모든 툴은 실행 전 `ToolContext.permissions` 확인. `canRead`/`canWrite` 위반 시 `ToolError` 발생 → `AgentEvent.ToolResult(error=...)` yield.
+- 사용자 트리거 run: 해당 user의 권한으로 실행 (권한 상승 금지).
+- 자동 스케줄 run (Librarian/Curator/Temporal): workspace `owner` 권한으로 실행.
+- Hocuspocus 에이전트 쓰기는 `canWrite` 통과 후에만 Yjs doc에 반영.
+
+### Stop 조건
+- `max_iterations` 기본 10 (agent-level override 가능). Deep Research만 30+.
+- **Cost ceiling (per-run)**: Free ₩100, BYOK ₩0 (본인 키, 집계 제외), Pro ₩500. 초과 예상 시 `AgentError(cost_exceeded)` 후 RunEnd. Pre-flight는 토큰 견적 × provider 단가 기반.
+- 구조화 출력(Pydantic) 검증 실패 → 최대 2회 재시도 후 실패.
+
+### 충돌 해결
+- 동일 리소스 동시 쓰기 시 Temporal semaphore (`workspace:{wsId}:project:{pid}` max=1) — plan-3/4 workflow 레벨에서 적용.
+- 우선순위: Compiler > Librarian > 나머지.
+- `wiki_logs`에 변경 기록 (agent, action, diff, reason). 사용자 직접 편집(`is_auto=false`)은 에이전트가 덮어쓰지 못함 — 제안/리뷰 PR 경로만.
 
 ### 위키 수정 규칙
 - 모든 위키 변경은 `wiki_logs`에 기록 (agent, action, diff, reason)
-- 사용자가 직접 수정한 내용(is_auto=false)은 AI가 덮어쓰지 않음
-- 충돌 시 양쪽 내용 모두 보존 + 사용자에게 알림
+- 사용자 직접 수정 내용(`is_auto=false`)은 AI가 덮어쓰지 않음
+- 충돌 시 양쪽 보존 + 사용자 알림
 
-### 비용 제어
-- Free 티어: 일간 사용량 초과 시 에이전트 실행 거부 (usage_records 체크)
-- Pro 티어: 토큰 단가 기반 월 사용량 과금 (usage_records)
-- BYOK 티어: 자기 비용으로 실행, OpenCairn에서 요금 집계 제외 (`is_byok=true` 플래그)
-- Context Caching: 같은 프로젝트 위키에 대한 반복 호출 시 캐시 활용
-- **에이전트별 cost ceiling**: 개별 에이전트 섹션에 "cost ceiling" 필드가 있다면 단일 호출에서 해당 비용을 초과할 것으로 예상되면 실행 거부 (Pre-flight check는 토큰 견적 + provider 단가 기반 추정)
+---
+
+## 3. 에이전트별 동작 요약
+
+### 3.1 Compiler
+- **역할**: 파싱된 문서 → KG 노드 + 위키 페이지 생성
+- **Tools**: `kg.upsert_node`, `kg.link`, `wiki.write_page`, `wiki.read_page`
+- **Stop**: 모든 청크 처리 완료 / 추출 개념 0개 / max_iter=10
+- **출력**: 위키 페이지 URL + 노드 ID 목록
+- **Cost ceiling**: ₩500/run (Flash-Lite 기준 500K 토큰)
+
+### 3.2 Research
+- **역할**: 사용자 질문 → 하이브리드 검색 + 답변 생성 + 출처 인용
+- **Tools**: `search.hybrid(query, scope_chips, mode)`, `kg.query`, `cite.format`
+- **Stop**: 답변 생성 완료 / 관련 문서 0개 / max_iter=8
+- **출력**: 답변 마크다운 + citations 배열
+- **Cost ceiling**: ₩200/run (캐시 히트 시 ₩20)
+- **제약**: 읽기 전용. 출처 없는 답변 금지 (최소 1개 인용).
+
+### 3.3 Librarian
+- **역할**: 주기적 KG 품질 관리 — 인덱스 갱신, 연결 강화, 병합/삭제 제안
+- **Tools**: `kg.dedupe`, `kg.classify`, `wiki.reorganize`, `wiki.suggest_merge`
+- **Stop**: 변경점 없음 / max_iter=5
+- **제약**: Synthesis가 만든 페이지는 24시간 보호 기간 (삭제 방지)
+- **Cost ceiling**: ₩500/run (정기 스케줄은 일 1회)
+
+### 3.4 Visualization (Plan 5 M1)
+- **역할**: ViewSpec 빌드 (Graph/Mindmap/Cards/Canvas/Timeline 5뷰)
+- **Tools**: `view.build_graph`, `view.build_mindmap`, `view.build_cards`, `view.build_canvas`, `view.build_timeline`
+- **Stop**: 단일 호출 (비반복)
+- **출력**: Cytoscape ViewSpec JSON (노드/엣지/스타일/레이아웃 파라미터)
+- **제약**: 최대 500 노드. 읽기 전용. Canvas 좌표는 `concept_positions`에 upsert만.
+- **Cost ceiling**: ₩50/run
+
+### 3.5 Socratic (Plan 6)
+- **역할**: 학습 문답 — 퀴즈, 플래시카드 생성
+- **Tools**: `flashcard.sm2_update`, `quiz.generate`, `wiki.read_page`
+- **Stop**: 템플릿 충족 / max_iter=3
+- **제약**: 위키에 없는 내용으로 문제 출제 금지. 한 번에 최대 30 카드.
+- **Cost ceiling**: ₩150/run
+
+### 3.6 Code (Plan 7)
+- **역할**: 코드 문자열 **생성만**. 실행은 브라우저 샌드박스 (Pyodide/iframe postMessage, ADR-006)
+- **Tools**: `sandbox.run_python`, `sandbox.run_js` (둘 다 브라우저 위임)
+- **Stop**: self-healing 3회 / max_iter=5
+- **제약**: iframe sandbox는 `allow-scripts`만. `allow-same-origin` 절대 금지. 서버 코드 실행 없음.
+- **Cost ceiling**: ₩200/run
+
+### 3.7 Connector (Plan 8)
+- **역할**: 외부 URL/API 연결, cross-project 연결 제안
+- **Tools**: `external.fetch_url`, `external.oauth_call`, `kg.suggest_link`
+- **Stop**: 제안 최대 10개 / max_iter=5
+- **제약**: 같은 workspace 내에서만 연결 제안. 자동 연결 금지 (제안만).
+- **Cost ceiling**: ₩300/run
+
+### 3.8 Temporal (Plan 8)
+- **역할**: **stale 감지 + 스케줄링만**. 지식 변화 추적.
+- **Tools**: `kg.find_stale`, `schedule.create`, `notify.send`
+- **Stop**: stale 없음 / max_iter=3
+- **제약**: **Timeline 생성 금지 — Visualization Agent 담당.** 읽기 전용.
+- **Cost ceiling**: ₩100/run
+
+### 3.9 Synthesis (Plan 8)
+- **역할**: 다중 소스 종합, 창발적 연결 제안
+- **Tools**: `kg.query`, `doc.compile`, `wiki.suggest_page`
+- **Stop**: 개념 10개 미만이면 즉시 종료 / max_iter=5
+- **제약**: 제안만. 사용자 확인 후 Compiler가 실제 페이지 생성.
+- **Cost ceiling**: ₩500/run (주간 스케줄)
+
+### 3.10 Curator (Plan 8)
+- **역할**: KG 품질 개선 제안 — 태그, 링크, 외부 자료 추천
+- **Tools**: `kg.suggest_tags`, `kg.suggest_links`, `external.search_grounding`
+- **Stop**: 제안 10개 / max_iter=3
+- **제약**: Gemini Google Search Grounding만 사용 (직접 크롤링 금지).
+- **Cost ceiling**: ₩150/run
+
+### 3.11 Narrator (Plan 8)
+- **역할**: 서술형 문서/오디오 생성
+- **Tools**: `doc.compile`, `tts.synthesize` (Gemini MultiSpeakerVoiceConfig)
+- **Stop**: 단일 호출
+- **제약**: 오디오 50MB 제한. Free 티어 월 3회.
+- **Cost ceiling**: ₩800/run (TTS 비용 지배적)
+
+### 3.12 Deep Research (Plan 8)
+- **역할**: 장문 리서치. child workflow 생성 가능.
+- **Tools**: `gemini.deep_research_start`, `gemini.deep_research_poll`
+- **Stop**: Gemini API 완료 / 30분 타임아웃 / max_iter=30+
+- **제약**: 결과는 바로 위키 저장 안 함 — 사용자 확인 후 Compiler가 처리.
+- **Cost ceiling**: 별도 (건당 ₩2,000-5,000). Free 티어 제외 (Pro/BYOK만).
+
+---
+
+## 4. 재시도 / 타임아웃
+
+### Temporal Activity 레벨 (plan-3/4에서 정의)
+- 기본 재시도 3회, 초기 간격 5s, 지수 backoff (계수 2.0), 최대 간격 60s
+- Deep Research: 재시도 무제한 + 30분 타임아웃 (Gemini background API 폴링)
+
+### Agent 레벨
+- 툴 실패 시 LLM에 error 전달 → 에이전트가 retry/replan 결정 (내부 최대 3회)
+- LLM 환각 감지: 구조화 출력(Pydantic) 스키마 위반 시 재시도 2회 후 실패
 
 ### 에러 처리
-- Gemini API 429 (rate limit): 지수 백오프 (1s → 2s → 4s → 8s)
-- Gemini API 500: 최대 3회 재시도 후 job status=failed
-- LLM 환각 감지: 구조화 출력(Pydantic)으로 위키와 불일치 시 재시도
+- Gemini 429 (rate limit): 지수 백오프 (1s → 2s → 4s → 8s)
+- Gemini 5xx: 최대 3회 재시도 후 job status=failed
+- Worker 크래시: Temporal이 마지막 완료 Activity부터 재개
 
 ---
 
-## 2. Agent-Specific Behavior
-
-### 2.1 Compiler Agent
-
-**트리거**: 소스 업로드 완료, 프로젝트 업로드 완료 시 (Temporal workflow에서 호출)
-**입력**: source 엔트 ID (파싱된 텍스트를 포함)
-**출력**: 생성/수정된 위키 페이지 ID 목록
-
-```
-가드레일:
-- 한 번에 최대 20개의 위키 페이지 생성/수정
-- 기존 위키 페이지 삭제 금지 (수정만 가능)
-- 사용자가 직접 생성한 엔트(is_auto=false) 수정 금지 (반드시 제안/검토 PR 방식으로만 업데이트)
-
-정지 조건:
-- 추출된 개념이 0개면 즉시 종료 (빈 문서)
-- 모든 개념이 기존 위키에 이미 존재하고 보완할 내용 없으면 종료
-- 5분 타임아웃
-
-Cost ceiling: 호출당 최대 500K 토큰(Flash-Lite 기준 약 $0.05). 초과 견적 시 청크 분할 또는 실행 거부.
-
-피드백루프:
-- 위키 생성 후 Librarian에게 건강 체크 트리거 (비동기)
-- wiki_logs에 변경 기록 후 사용자에게 알림
-```
-
-### 2.2 Librarian Agent
-
-**트리거**: Compiler 완료 후 / 정기 스케줄링 (cron)
-**입력**: project_id
-**출력**: 제안 목록 (검토 필요한 것들) + 자동 실행 목록
-
-```
-가드레일:
-- 자동 실행 가능: 인덱스 갱신, 요약 업데이트, 연결 강화
-- 검토 필요: 페이지 병합, 페이지 삭제 제안, 모순 해결, 사용자 엔트(is_auto=false) 내용 수정 제안
-
-정지 조건:
-- 검토할 위키 페이지가 0개면 즉시 종료
-- 발견된 이슈가 0개면 즉시 종료
-- 10분 타임아웃
-
-Cost ceiling: 호출당 최대 1M 토큰 (대규모 프로젝트 스캔 포함, Flash-Lite 약 $0.10). 정기 스케줄은 일간 호출 1회 한도.
-
-충돌 방지:
-- Compiler가 실행 중이면 대기 (세마포어)
-- Synthesis가 만든 페이지는 24시간 보호 기간 (즉시 삭제 방지)
-```
-
-### 2.3 Research Agent
-
-**트리거**: 사용자 질문 (실시간)
-**입력**: 질문 텍스트, conversation_id, scope (project | global)
-**출력**: 답변 텍스트 + 출처 목록 + (선택) 캔버스 데이터
-
-```
-가드레일:
-- 읽기 전용 — 위키를 수정하지 않음 (피류는 별도 트리거)
-- 출처 없는 답변 금지 — 최소 1개의 위키 페이지 인용 필수
-- 글로벌 스코프에서도 다른 사용자의 데이터 접근 금지
-
-정지 조건:
-- 관련 위키 페이지가 0개면 "관련 자료가 없습니다" 반환
-- 3분 타임아웃 (입력 토큰은 3분 이내)
-
-Cost ceiling: 호출당 최대 200K 토큰 (Context Caching 미스 가정, Flash-Lite 약 $0.02). 반복 질문은 캐시 히트로 90% 절감.
-
-피드백루프:
-- 빈 위키 페이지 발견 시 → wiki_feedback job 생성 (Compiler가 처리)
-- 사용자 피드백 (thumbs up/down) → understanding_scores 업데이트
-```
-
-### 2.4 Connector Agent
-
-**트리거**: 새 위키 페이지 생성 후 / 주기적 (주간)
-**입력**: 전체 프로젝트 목록 (횡단)
-**출력**: 다른 프로젝트 연결 제안 목록
-
-```
-가드레일:
-- 제안만 생성, 자동 연결 금지 (사용자 확인 필요)
-- 한 번에 최대 10개 제안
-- 유사도 기준: cosine similarity > 0.85
-- **같은 workspace 내 프로젝트 간에만 연결 제안 가능**. 다른 workspace의 프로젝트는 절대 crawl/비교하지 않음.
-
-정지 조건:
-- 프로젝트가 1개 이하면 즉시 종료
-- 유효한 제안이 0개면 즉시 종료
-- 5분 타임아웃
-
-Cost ceiling: 호출당 최대 300K 토큰. 전체 프로젝트 cross-compare 시 임베딩 단계 비용이 지배적 (embedding 호출만 집계).
-
-충돌 방지:
-- 동시성 세마포어 불필요 (읽기 전용, 제안만 저장)
-```
-
-### 2.5 Socratic Agent
-
-**트리거**: 사용자 요청 (Tool Template)
-**입력**: 위키 페이지/개념 ID 목록, 템플릿 유형 (quiz, flashcard, etc.)
-**출력**: 구조화된 JSON (퀴즈 문제, 플래시카드 세트)
-
-```
-가드레일:
-- 위키에 없는 내용으로 문제 출제 금지
-- 난이도 밸런스: 쉬움 30%, 보통 50%, 어려움 20%
-- 플래시카드는 한 번에 최대 30개 생성
-
-정지 조건:
-- 소스 위키가 비어있으면 즉시 종료
-- 2분 타임아웃
-
-Cost ceiling: 호출당 최대 150K 토큰 (Flash-Lite 약 $0.015). 문제 30개 생성 기준으로 충분.
-
-피드백루프:
-- 문제 풀이 후 understanding_scores 업데이트
-- 취약한 개념 감지 시 추가 플래시카드 자동 생성
-```
-
-### 2.6 Temporal Agent
-
-**트리거**: 위키 페이지 업데이트 후 / 주기적 (일간)
-**입력**: project_id
-**출력**: 변경 감지 리포트 + 복습 알림
-
-```
-가드레일:
-- 읽기 전용 — wiki_logs를 분석, 위키 수정 불가
-- 복습 알림은 하루 최대 5개
-
-정지 조건:
-- wiki_logs가 비어있으면 즉시 종료
-- 3분 타임아웃
-
-Cost ceiling: 호출당 최대 100K 토큰 (변화 요약 + 복습 알림 생성, Flash-Lite 약 $0.01).
-```
-
-### 2.7 Synthesis Agent
-
-**트리거**: 주기적 (주간) / 사용자 요청
-**입력**: project_id 또는 전체
-**출력**: 창발적 연결 제안 목록
-
-```
-가드레일:
-- 제안만 생성, 사용자 확인 후에만 위키 페이지 생성
-- 구조적 유사도 근거 필수 (단순 키워드 매칭 아님)
-- 생성된 사이트 페이지는 24시간 보호 기간 (Librarian 삭제 방지)
-
-정지 조건:
-- 개념이 10개 미만이면 즉시 종료 (의미 있는 연결 불가)
-- 5분 타임아웃
-
-Cost ceiling: 호출당 최대 500K 토큰 (Pro 모델 사용, 약 $0.25). 주간 스케줄 고려 시 월간 상한 $2 내외.
-```
-
-### 2.8 Curator Agent
-
-**트리거**: Librarian이 지식 부족 감지 / 사용자 요청
-**입력**: 주제 또는 부족한 개념 목록
-**출력**: 외부 자료 추천 목록 (URL, 제목, 요약, 신뢰도)
-
-```
-가드레일:
-- Gemini Google Search Grounding을 사용 (직접 크롤링 금지)
-- 추천만 생성, 자동 프로젝트 금지 (사용자 확인 필요)
-- 한 번에 최대 10개 추천
-
-정지 조건:
-- 검색 결과가 0개면 즉시 종료
-- 3분 타임아웃
-
-Cost ceiling: 호출당 최대 100K 토큰 + Google Search Grounding 요금 (건당 약 $0.035 per query block).
-```
-
-### 2.9 Narrator Agent
-
-**트리거**: 사용자 요청
-**입력**: 위키 페이지 ID 목록 또는 project_id
-**출력**: 오디오 파일 (Cloudflare R2 key) + 스크립트 텍스트
-
-```
-가드레일:
-- Gemini MultiSpeakerVoiceConfig를 사용
-- 스크립트 길이: 위키 내용 기준 5-15분 분량
-- 오디오 파일 크기 제한: 50MB
-
-정지 조건:
-- 소스 위키가 비어있으면 즉시 종료
-- 10분 타임아웃
-
-비용 주의:
-- TTS는 토큰 비용이 높음 → Free 티어는 월 3회 제한
-```
-
-### 2.10 Deep Research Agent
-
-**트리거**: 사용자 요청
-**입력**: 리서치 주제 + 위키 컨텍스트
-**출력**: 리포트 (마크다운) + 소스 URL 목록
-
-```
-가드레일:
-- Gemini interactions.create() API를 사용 (직접 웹 크롤링 금지)
-- background=True로 비동기 실행
-- 리포트는 바로 위키에 저장하지 않음 — 사용자 확인 후 Compiler가 처리
-
-정지 조건:
-- Gemini API가 실패하면 즉시 종료 (재시도 없음 — API 자체가 재시도를 포함)
-- 30분 타임아웃
-
-비용 주의:
-- 건당 $2-5 이상 → Free 티어에게는 제공하지 않음 (Pro/BYOK만)
-```
-
-### 2.11 Code Agent
-
-**트리거**: 사용자 요청 / Research Agent가 코드 실행 필요 시
-**입력**: 코드 또는 코드 생성 요청 + 컨텍스트
-**출력**: 코드 문자열 (language 메타데이터 포함) + (선택) 분석 노트
-
-> **중요 (ADR-006)**: Code Agent는 **코드 문자열을 생성**만 한다. 실제 실행은 전부 **사용자 브라우저**에서 진행 (Python은 Pyodide WASM, JS/HTML/React는 `<iframe sandbox="allow-scripts">` + esm.sh). 서버는 코드를 한 줄도 실행하지 않는다.
-
-```
-가드레일:
-- 코드 실행 책임은 클라이언트 — Agent는 LLM 호출만 관장
-- 언어별 출력 가이드:
-  * Python: print()로 stdout. input()/blocking stdin 금지 (Pyodide setStdin 패턴은 배열 pre-injection만 지원)
-  * React/JS/HTML: 외부 라이브러리는 esm.sh 경유 import만 허용 (import React from "https://esm.sh/react@19")
-  * iframe sandbox 속성 "allow-scripts"만 상정, "allow-same-origin" 절대 부여 금지
-- 자체 self-healing 반복 max 3회 (brokePython 오류 → 재생성)
-- 코드 생성 소스 크기 제한: 64KB
-
-정지 조건:
-- 3회 self-healing 실패 시 마지막 결과 반환
-- Agent LangGraph 실행 타임아웃: 2분 (클라이언트 실행 대기 별도)
-- 사용자가 cancel 요청 시 즉시 중단
-
-Cost ceiling: 호출당 최대 200K 토큰 (생성 + self-healing 3회 포함, Flash-Lite 약 $0.02).
-
-피드백루프:
-- 브라우저에서 실행 후 stdout/stderr를 postMessage로 Agent에게 전달 → 다음 iteration에 주입
-```
-
-### 2.12 Visualization Agent
-
-**트리거**: 사용자가 지식 그래프 뷰 전환 / 필터 변경 시 / Librarian이 레이아웃 최적화를 요청할 때
-**입력**: project_id, view_type (graph|mindmap|cards|canvas|timeline), filter options
-**출력**: Cytoscape.js JSON 스펙 (노드/엣지/스타일/레이아웃 파라미터) + 뷰 메타데이터
-
-```
-가드레일:
-- 읽기 전용 — concepts/concept_edges/wiki_logs 수정 불가
-- 한 번에 최대 500개 노드 (초과 시 점진적 로드 또는 사용자 경고)
-- Canvas 뷰의 사용자 저장 좌표는 `concept_positions` 테이블에 upsert만 허용, 개념 자체는 수정 금지
-- 5뷰 중 하나만 처리 (view_type 검증)
-
-정지 조건:
-- concepts가 0개면 빈 스펙 반환
-- 30초 타임아웃 (복잡한 레이아웃도 클라이언트에서 증분 렌더)
-
-Cost ceiling: 호출당 최대 50K 토큰 (Gemini Flash-Lite 구조화 출력, 약 $0.005). 대부분의 레이아웃 계산은 클라이언트 Cytoscape가 담당하고, Agent는 파라미터 추천만.
-
-피드백루프:
-- 사용자가 레이아웃 수동 조정 후 "저장"하면 concept_positions 업데이트 (Visualization Agent 아닌 일반 API 경로)
-- Librarian이 고아 페이지/그래프 복잡도 감지 시 Visualization Agent에게 재레이아웃 트리거 가능
-```
+## 5. 비용 추적
+
+- 모든 `ModelEnd` 이벤트에 `cost_krw` 필드 포함 (prompt_tokens × provider_rate + completion_tokens × provider_rate).
+- `agent_runs.total_cost_krw`에 run 단위 집계. `credit_balances`에서 차감 (PAYG).
+- 월간 집계 뷰: `monthly_agent_costs(user_id, workspace_id, agent_name, total_cost_krw)`.
+- BYOK run은 `is_byok=true` 플래그 — 비용 집계에서 제외.
+
+### 티어별 상한
+
+| 티어 | Per-run 기본 | 예외 |
+|------|------------|------|
+| Free | ₩100 | Deep Research/Narrator 불가 |
+| BYOK | ₩0 (본인 Gemini 키) | 팀 기능 제외 |
+| Pro | ₩500 | Deep Research 건당 별도 과금 |
+| Enterprise | Custom | 협의 |
 
 ---
 
-## 3. Agent Interaction Matrix
+## 6. Agent Interaction Matrix
 
-어떤 에이전트가 어떤 에이전트를 트리거할 수 있는지:
+어느 에이전트가 어느 에이전트를 트리거할 수 있는지. `HandoffRequest` 이벤트로만 요청, 워크플로우가 승인.
 
-| 트리거하는 에이전트 | Compiler | Librarian | Research | Connector | Socratic | Temporal | Synthesis | Curator | Narrator | Deep Research | Code | Visualization |
+| 트리거 → | Compiler | Librarian | Research | Connector | Socratic | Temporal | Synthesis | Curator | Narrator | Deep | Code | Viz |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **Compiler** | - | O (완료 후) | X | X | X | X | X | X | X | X | X | O (KG 갱신 반영) |
-| **Librarian** | X | - | X | X | X | X | X | O (빈곳 감지) | X | X | X | O (복잡도 감지 시) |
-| **Research** | O (피드백) | X | - | X | X | X | X | X | X | X | O (코드 필요 시) | X |
-| **Connector** | X | X | X | - | X | X | X | X | X | X | X | X |
-| **Socratic** | X | X | X | X | - | X | X | X | X | X | X | X |
-| **Temporal** | X | X | X | X | X | - | X | X | X | X | X | X |
-| **Synthesis** | X | X | X | X | X | X | - | X | X | X | X | X |
-| **Curator** | O (프로젝트) | X | X | X | X | X | X | - | X | X | X | X |
-| **Narrator** | X | X | X | X | X | X | X | X | - | X | X | X |
-| **Deep Research** | O (결과 통합) | X | X | X | X | X | X | X | X | - | X | X |
-| **Code** | X | X | X | X | X | X | X | X | X | X | - | X |
-| **Visualization** | X | X | X | X | X | X | X | X | X | X | X | - |
+| **Compiler** | - | O | X | X | X | X | X | X | X | X | X | O |
+| **Librarian** | X | - | X | X | X | X | X | O | X | X | X | O |
+| **Research** | O | X | - | X | X | X | X | X | X | X | O | X |
+| **Curator** | O | X | X | X | X | X | X | - | X | X | X | X |
+| **Deep** | O | X | X | X | X | X | X | X | X | - | X | X |
+| (나머지) | X | X | X | X | X | X | X | X | X | X | X | X |
 
-O = 트리거 가능, X = 트리거 불가
+트리거 체인 깊이 **최대 3단계** (무한 루프 방지).
 
 ---
 
-## 4. Failure Modes & Recovery
+## 7. Failure Modes & Recovery
 
 | 실패 모드 | 영향 | 복구 전략 |
 |-----------|------|-----------|
-| Gemini API 다운 | 모든 에이전트 중단 | Temporal의 자동 재시도 (지수 백오프, 최대 1시간) |
+| Gemini API 다운 | 모든 에이전트 중단 | Temporal 재시도 (지수 백오프, 최대 1시간) |
 | Worker 크래시 | 실행 중 에이전트 중단 | Temporal이 마지막 완료 Activity부터 재개 |
-| DB 커넥션 풀 고갈 | 에이전트 쿼리 실패 | Activity 재시도 + 커넥션 풀 크기 모니터링 |
-| 무한 루프 (에이전트 A → B) | 리소스 고갈 | 트리거 체인 깊이 제한 (최대 3단계) |
-| LLM 환각 (잘못된 개념 추출) | 위키 오염 | Pydantic 스키마 검증 + Librarian 주기적 일관성 체크 |
-| 대용량 파일 프로젝트 | 메모리 부족 | 청크 처리 (페이지/단락 단위), 메모리 제한 |
+| DB 커넥션 풀 고갈 | 쿼리 실패 | Activity 재시도 + 풀 크기 모니터링 |
+| 무한 트리거 체인 | 리소스 고갈 | 체인 깊이 3 제한 |
+| LLM 환각 | 위키 오염 | Pydantic 검증 + Librarian 일관성 체크 |
+| Cost ceiling 초과 | run 중단 | `AgentError(cost_exceeded)` yield + RunEnd |
+| 대용량 입력 | 메모리 부족 | 청크 처리 (페이지/단락 단위) |

@@ -2,7 +2,9 @@
 
 OpenCairn v0.1 과금 모델. 관리형(hosted) 사용자의 요금제·AI 크레딧·환율·환불·알림을 정의합니다. Self-host(AGPLv3)는 본 문서 대상 아님.
 
-> **상태**: 2026-04-19 확정. **결제 수단(payment rail)은 사업자등록 후 결정 — 그때까지 BLOCKED.** 후보: Toss Payments(국내, 원화·SaaS 정산 친화) / Lemon Squeezy(글로벌, 사업자 없이 가능하나 USD·MoR 모델). 사업자등록 완료 시 본 섹션 갱신하고 Plan 9 Task 1 unblock.
+> **⚠️ 결제 레일 BLOCKED (2026-04-20)**: 사업자등록 후 PG 선택. 후보: Toss Payments, 포트원(아임포트), 스트라이프. 그 전까지 **provider-agnostic core만 구현**. Plan 9 Task 1(Payment Rail 연동)은 사업자등록 완료 시점에 unblock.
+
+> **상태**: 2026-04-19 확정. 가격 모델·크레딧 시스템·환율·환불 정책은 확정. 결제 수단(payment rail)만 BLOCKED.
 
 ---
 
@@ -163,7 +165,26 @@ CREATE TABLE credit_ledger (
 
 CREATE INDEX credit_ledger_user_created_idx ON credit_ledger (user_id, created_at DESC);
 CREATE INDEX credit_ledger_request_idx      ON credit_ledger (request_id) WHERE request_id IS NOT NULL;
+
+-- 구독 (Pro/BYOK 활성 상태 + BYOK 키 암호화 저장)
+CREATE TABLE subscriptions (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users(id),
+  plan text NOT NULL CHECK (plan IN ('free','pro','byok')),
+  status text NOT NULL CHECK (status IN ('active','cancelled','past_due')),
+  current_period_start timestamptz NOT NULL,
+  current_period_end timestamptz NOT NULL,
+  -- BYOK 전용 (AES-256-GCM, security-model.md §4 참조)
+  byok_gemini_key_ciphertext bytea,
+  byok_gemini_key_iv bytea,
+  byok_gemini_key_version int DEFAULT 1,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+CREATE UNIQUE INDEX subscriptions_user_active ON subscriptions(user_id) WHERE status = 'active';
 ```
+
+> **BYOK 키 컬럼 네이밍**: `byok_gemini_key_ciphertext` / `byok_gemini_key_iv` / `byok_gemini_key_version` 은 [security-model.md §4](./security-model.md#4-byok-key-management)와 정합. 다른 문서는 이 이름을 그대로 참조(재명명 금지).
 
 ### 4.1 사용량 차감 트랜잭션 (pseudocode)
 
@@ -234,7 +255,22 @@ async function deductUsage(params: {
 
 ---
 
-## 6. 연관 문서
+## 6. 용량 매핑 (storage-planning 연계)
+
+각 플랜이 실제로 어느 정도 자료를 수용 가능한지 — 상세는 [storage-planning.md](./storage-planning.md) Plan별 용량 매핑 참조.
+
+| Plan | 스토리지 한도 | 가정 PDF 개수 (Gemini 3072d 기준) | 의미 |
+|------|--------------|----------------------------------|------|
+| Free | 100 MB | ~40 | 가벼운 개인 노트 (시험·요약 체험) |
+| Pro | 10 GB | ~3,600 | Medium 유저(275MB, PDF 100개) 기준 **~36명분** 용량 |
+| BYOK | 무제한 | 본인 인프라 고려, 공정 사용 정책 별도 | 1인 계정 관리형, AI 비용은 본인 Gemini 키 |
+
+- "PDF 개수"는 평균 30페이지·청크당 9KB·1청크당 3072d 벡터 가정.
+- Pro의 "36명" 계산은 "Pro 1 seat의 스토리지가 Medium 유저 36명을 담을 만큼 넉넉하다"는 여유도 표현. 실제 과금은 seat 단위.
+
+---
+
+## 7. 연관 문서
 
 - [plan-9 billing-marketing](../superpowers/plans/2026-04-09-plan-9-billing-marketing.md) — 구현 플랜 (본 문서에 맞춰 후속 업데이트 필요)
 - [security-model.md](./security-model.md) — BYOK 키 암호화, rate limit (Pro/BYOK 600 req/min)

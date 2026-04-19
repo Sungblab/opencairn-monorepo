@@ -6,6 +6,8 @@
 
 > **⚠️ Agent Runtime 스키마 분리 (2026-04-20):** `agent_runs` 테이블은 **본 plan에서 만들지 않음** — Plan 12 Task 9에서 생성. 본 plan은 `workspaces/users/projects/pages(또는 notes)/workspace_members/activity_events`까지만 담당. `agent_runs`는 Plan 12가 실행될 때 `page_id`를 soft reference (FK 없음)로 추가함 (페이지 테이블 네이밍이 plan들 사이에서 전환 중이라 cross-plan migration 순서 이슈 회피).
 
+> **⚠️ BYOK 키 스키마 (2026-04-20, security-model.md §4 정합):** `user` 테이블의 BYOK Gemini 키 컬럼은 `bytea` 3종 구조 — `byok_gemini_key_ciphertext` (bytea) + `byok_gemini_key_iv` (bytea) + `byok_gemini_key_version` (integer). 구 `gemini_api_key_encrypted`(text) / `gemini_api_key_iv`(text) 명칭은 사용 금지. 암호화 방식은 envelope encryption (AES-256-GCM, KEK는 앱 env에서 로드), `version`은 키 회전용.
+
 **Goal:** Initialize the OpenCairn monorepo with Turborepo, set up the database schema with Drizzle ORM, wire up Hono API with authentication, implement project/folder/tag/note CRUD, and create a working Docker Compose dev environment.
 
 **Architecture:** Turborepo monorepo with `apps/web` (Next.js 16), `apps/api` (Hono on Node.js), and `packages/db` (Drizzle ORM + PostgreSQL + pgvector). Better Auth handles authentication with Redis sessions. All business logic lives in `apps/api`; the web app only calls the API.
@@ -260,6 +262,11 @@ BETTER_AUTH_URL=http://localhost:4000
 # Gemini (required for AI features)
 GEMINI_API_KEY=your-gemini-api-key
 
+# Embedding dimension — packages/db custom-types.ts와 packages/llm 임베딩 모델이 함께 사용.
+# 3072 = Gemini gemini-embedding-2-preview, 768 = Ollama nomic-embed-text / Gemini text-embedding-004.
+# Plan 13에서 provider 선택 시 반드시 이 값과 매치. 변경 시 DB 마이그레이션 재생성 필요.
+VECTOR_DIM=3072
+
 # Storage (Cloudflare R2)
 S3_ENDPOINT=http://localhost:9000
 S3_ACCESS_KEY=minioadmin
@@ -454,8 +461,14 @@ export default defineConfig({
 
 - [ ] **Step 4: Create packages/db/src/schema/custom-types.ts**
 
+> **VECTOR_DIM 환경변수 사용 (2026-04-13 multi-LLM 반영)**: 임베딩 차원은 provider/모델에 따라 달라지므로 하드코딩하지 않는다. `VECTOR_DIM` env로 통일하고, Plan 13은 이 값만 참조 — Plan 1에서 이미 도입된 계약이므로 Plan 13은 **재정의하지 않고 재확인만** 수행한다.
+
 ```typescript
 import { customType } from "drizzle-orm/pg-core";
+
+// VECTOR_DIM은 .env.example 및 docker-compose.yml에서 정의 (기본 3072, Gemini gemini-embedding-2-preview).
+// Ollama nomic-embed-text 등 다른 임베딩 모델 사용 시 env만 교체 (예: 768). 스키마 재작성 불필요.
+const VECTOR_DIM = parseInt(process.env.VECTOR_DIM ?? "3072", 10);
 
 export const tsvector = customType<{ data: string }>({
   dataType() {
@@ -463,12 +476,22 @@ export const tsvector = customType<{ data: string }>({
   },
 });
 
-export const vector3072 = customType<{ data: string }>({
+// 이름은 기존 호환을 위해 `vector3072` 유지. 실제 차원은 VECTOR_DIM env가 결정.
+// 향후 리네이밍 시 `vectorEmbedding` 같은 중립 이름으로 통일 고려.
+export const vector3072 = customType<{ data: number[]; driverData: string }>({
   dataType() {
-    return "vector(3072)";
+    return `vector(${VECTOR_DIM})`;
+  },
+  toDriver(value: number[]): string {
+    return `[${value.join(",")}]`;
+  },
+  fromDriver(value: string): number[] {
+    return value.slice(1, -1).split(",").map(Number);
   },
 });
 ```
+
+> 참고: `drizzle-kit generate`는 Node.js 런타임이 읽은 `process.env.VECTOR_DIM`을 그대로 마이그레이션 SQL에 찍어낸다. CI/로컬 모두 동일한 VECTOR_DIM을 사용해야 마이그레이션 drift가 없다 (Plan 13 Task `VECTOR_DIM 검증` 참조).
 
 - [ ] **Step 5: Create packages/db/src/schema/enums.ts**
 
@@ -514,9 +537,18 @@ export const messageRoleEnum = pgEnum("message_role", ["user", "assistant"]);
 
 - [ ] **Step 6: Create packages/db/src/schema/users.ts**
 
+> **BYOK 키 스키마 (security-model.md §4 정합)**: Gemini API 키는 봉투 암호화(Envelope encryption) 후 `bytea`로 저장. 키 회전을 위해 `version` 컬럼을 함께 둔다. `text` 기반의 구버전 컬럼명(`geminiApiKeyEncrypted`/`geminiApiKeyIv`)은 사용 금지 — 바이너리 암호문을 base64 text로 저장하면 인덱싱/길이/검증이 애매해진다.
+
 ```typescript
-import { pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, customType } from "drizzle-orm/pg-core";
 import { userPlanEnum } from "./enums";
+
+// bytea 커스텀 타입 (drizzle의 built-in bytea는 버전에 따라 미존재/불안정)
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
+});
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -525,8 +557,14 @@ export const user = pgTable("user", {
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
   plan: userPlanEnum("plan").notNull().default("free"),
-  geminiApiKeyEncrypted: text("gemini_api_key_encrypted"),
-  geminiApiKeyIv: text("gemini_api_key_iv"),
+
+  // BYOK Gemini 키 — envelope encryption (AES-256-GCM, KEK는 앱 환경변수).
+  // ciphertext 자체는 GCM의 tag를 포함한 바이너리 blob.
+  byokGeminiKeyCiphertext: bytea("byok_gemini_key_ciphertext"),
+  byokGeminiKeyIv: bytea("byok_gemini_key_iv"),
+  // 키 회전 시 증가. 이전 version으로 암호화된 ciphertext는 재암호화 대상.
+  byokGeminiKeyVersion: integer("byok_gemini_key_version"),
+
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -1706,7 +1744,27 @@ export async function canAdmin(userId: string, workspaceId: string): Promise<boo
   const r = await resolveRole(userId, { type: "workspace", id: workspaceId });
   return r === "owner" || r === "admin";
 }
+
+// 함수형 가드 — 미들웨어(require-role.ts)가 아닌 곳에서도 쓸 수 있게 함수 API 노출.
+// 예: 워커/스크립트/서비스 레이어에서 workspaceId를 이미 알고 있을 때.
+export async function requireWorkspaceRole(
+  userId: string,
+  workspaceId: string,
+  roles: Array<"owner" | "admin" | "editor" | "viewer">,
+): Promise<void> {
+  const r = await resolveRole(userId, { type: "workspace", id: workspaceId });
+  if (r === "none" || !roles.includes(r as Exclude<ResolvedRole, "none">)) {
+    throw new Error(`Forbidden: workspace ${workspaceId} requires role in [${roles.join(",")}], got ${r}`);
+  }
+}
 ```
+
+> **3계층 상속/override 요약** (구현 정합성 체크리스트):
+> 1. `workspace_members`에서 멤버십을 먼저 확인 — 없으면 즉시 `none`.
+> 2. `owner` / `admin`은 모든 하위 리소스에 대해 무조건 해당 역할로 해석 (override 없음).
+> 3. 그 외 멤버는 `page_permissions` → (없으면) `project_permissions` → (없으면) `projects.default_role` 순서로 resolution.
+> 4. `notes.inherit_parent = false`이고 `page_permissions`도 없으면 `none`.
+> 5. `guest`는 명시적 `project_permissions` / `page_permissions`가 없으면 `none`.
 
 - [ ] **Step 2: require-role.ts 미들웨어**
 
@@ -1884,12 +1942,75 @@ app.route("/api/workspaces", workspaceRoutes);
 app.route("/api", inviteRoutes);  // /api/invites/:token/accept 등
 ```
 
+- [ ] **Step 6.5: permissions.ts 유닛 테스트**
+
+`apps/api/tests/permissions.test.ts`를 작성해 4개 역할(`viewer` / `editor` / `admin` / `owner`) 각각에 대해 `canRead` / `canWrite` / `requireWorkspaceRole` 동작을 검증. 각 테스트는 `@opencairn/db` mock 또는 ephemeral Postgres(testcontainers) 중 하나를 사용.
+
+```typescript
+// apps/api/tests/permissions.test.ts
+import { describe, it, expect, beforeEach } from "vitest";
+import { canRead, canWrite, requireWorkspaceRole, resolveRole } from "../src/lib/permissions";
+// 테스트 헬퍼: seedWorkspace({ role: "viewer" | "editor" | "admin" | "owner" }) 형태로 임시 ws/member/project/note 생성
+
+describe("permissions (workspace 3계층)", () => {
+  describe.each([
+    { role: "viewer" as const,  read: true,  write: false, admin: false },
+    { role: "editor" as const,  read: true,  write: true,  admin: false },
+    { role: "admin"  as const,  read: true,  write: true,  admin: true  },
+    { role: "owner"  as const,  read: true,  write: true,  admin: true  },
+  ])("role=$role", ({ role, read, write, admin }) => {
+    let ctx: Awaited<ReturnType<typeof seedWorkspace>>;
+    beforeEach(async () => { ctx = await seedWorkspace({ role }); });
+
+    it("resolveRole returns the workspace role on workspace resource", async () => {
+      const r = await resolveRole(ctx.userId, { type: "workspace", id: ctx.workspaceId });
+      expect(r).toBe(role === "viewer" || role === "editor" ? "editor" : role);
+      // viewer/editor는 workspace_members.role이 "member"이므로 default_role로 fallback — test 설계에 맞게 조정
+    });
+
+    it(`canRead = ${read}`, async () => {
+      expect(await canRead(ctx.userId, { type: "note", id: ctx.noteId })).toBe(read);
+    });
+    it(`canWrite = ${write}`, async () => {
+      expect(await canWrite(ctx.userId, { type: "note", id: ctx.noteId })).toBe(write);
+    });
+    it(`requireWorkspaceRole(admin) ${admin ? "passes" : "throws"}`, async () => {
+      const call = () => requireWorkspaceRole(ctx.userId, ctx.workspaceId, ["owner", "admin"]);
+      if (admin) await expect(call()).resolves.toBeUndefined();
+      else await expect(call()).rejects.toThrow(/Forbidden/);
+    });
+  });
+
+  it("page_permissions override (editor가 특정 page에서만 viewer로 downgrade)", async () => {
+    const ctx = await seedWorkspace({ role: "editor" });
+    await setPagePermission(ctx.userId, ctx.noteId, "viewer");
+    expect(await canRead(ctx.userId,  { type: "note", id: ctx.noteId })).toBe(true);
+    expect(await canWrite(ctx.userId, { type: "note", id: ctx.noteId })).toBe(false);
+  });
+
+  it("inherit_parent=false + no page_permissions ??none", async () => {
+    const ctx = await seedWorkspace({ role: "editor" });
+    await setNoteInherit(ctx.noteId, false);
+    expect(await canRead(ctx.userId, { type: "note", id: ctx.noteId })).toBe(false);
+  });
+
+  it("비멤버는 workspace 리소스 접근 불가", async () => {
+    const ctx = await seedWorkspace({ role: "viewer" });
+    const stranger = await createUser();
+    expect(await canRead(stranger.id, { type: "workspace", id: ctx.workspaceId })).toBe(false);
+  });
+});
+```
+
+Expected: 각 역할별 `canRead` / `canWrite` / `requireWorkspaceRole` + override + 상속 + 비멤버 거부 케이스 모두 `PASS`. 실패 시 `resolveRole`의 fallback 순서(page → project → workspace default)를 재확인.
+
 - [ ] **Step 7: Commit**
 
 ```bash
 git add apps/api/src/lib/permissions.ts apps/api/src/middleware/require-role.ts \
         apps/api/src/routes/workspaces.ts apps/api/src/routes/invites.ts \
-        apps/api/src/lib/email.ts apps/api/src/app.ts
+        apps/api/src/lib/email.ts apps/api/src/app.ts \
+        apps/api/tests/permissions.test.ts
 git commit -m "feat(api): workspace CRUD, member management, invite flow with permissions helpers"
 ```
 

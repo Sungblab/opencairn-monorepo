@@ -771,3 +771,26 @@ from runtime.eval import EvalCase, AgentEvaluator, DEFAULT_CRITERIA
 - **anthropic/claude-code** — Async generator 스트리밍, `isConcurrencySafe(input)` 동적 판단, coordinator system prompt 주입
 - **langchain-ai/langgraph** — Pregel superstep 모델, checkpoint schema, thread_id 시맨틱
 - **pyturboquant** — lazy `__getattr__` optional import 패턴 (별도 적용 예정)
+
+---
+
+## Appendix A — Tool Registry per Agent (v0.1)
+
+Plan 4/5/6/7/8 구현 시 각 에이전트가 등록할 `allowed_tools` 화이트리스트. 실제 도구 이름은 구현 단계에서 확정되며, 이 표는 범위 안내.
+
+| Agent | 대표 Tools (예시) |
+|-------|------------------|
+| Compiler | `kg.upsert_node`, `kg.link`, `wiki.write_page`, `embedding.generate` |
+| Research | `search.hybrid`, `kg.query`, `pdf.fetch_page`, `cite.format` |
+| Librarian | `kg.dedupe`, `kg.classify`, `wiki.reorganize` |
+| Visualization | `kg.query`, `view.build_graph`, `view.build_mindmap`, `view.build_timeline`, `view.build_cards`, `view.build_canvas` |
+| Socratic | `flashcard.sm2_update`, `quiz.generate`, `progress.read` |
+| Code | `sandbox.run_python`, `sandbox.run_js`, `file.read_attachment` |
+| Connector | `external.fetch_url`, `external.oauth_call` |
+| Temporal | `kg.find_stale`, `schedule.create`, `notify.send` (timeline 생성 금지 — Visualization Agent 담당) |
+| Synthesis | `kg.query`, `doc.compile` |
+| Curator | `kg.suggest_tags`, `kg.suggest_links` |
+| Narrator | `doc.compile`, `tts.synthesize` |
+| Deep Research | `search.hybrid`, `external.fetch_url`, `doc.compile`, child workflow spawn |
+
+**원칙**: 모든 도구는 `ToolContext`(user_id, workspace_id, permissions) 통과 후 실행. 툴 실행 시 permission 검증은 런타임 레벨.
