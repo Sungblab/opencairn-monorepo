@@ -1,0 +1,1936 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenCairn — 읽은 것까지 이해하는 AI 지식 OS</title>
+<meta name="description" content="자료를 올려두면 AI가 위키로 엮고, 묻기 전에 연결을 발견하는 개인·팀 지식 OS. 12개 AI 에이전트, 셀프호스팅, AGPLv3.">
+<meta property="og:title" content="OpenCairn — AI Knowledge OS">
+<meta property="og:description" content="쓴 것만 담아두는 도구는 많습니다. OpenCairn은 읽은 것까지 이해합니다.">
+<meta property="og:type" content="website">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        serif: ['"Instrument Serif"', 'Georgia', 'serif'],
+        sans: ['Inter', '"Pretendard Variable"', 'Pretendard', '-apple-system', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+      },
+      colors: {
+        /* White variant — clean white base with warm-neutral grayscale */
+        paper: '#FFFFFF',
+        ink:   '#000000',
+        stone: {
+          50:  '#FFFFFF',  /* body + card bg (pure white) */
+          100: '#F5F5F4',  /* band tone (soft gray) */
+          200: '#E7E5E4',  /* border on white */
+          300: '#D6D3D1',
+          400: '#A8A29E',
+          500: '#78716C',
+          600: '#57534E',
+          700: '#44403C',
+          800: '#292524',
+          900: '#1C1917',
+        },
+        /* ember → all black/gray, italic carries emphasis instead of color */
+        ember: {
+          50:  '#EDEAE2',
+          100: '#E6E0D3',
+          200: '#D8D3C8',
+          300: '#9A9285',
+          500: '#000000',
+          600: '#000000',
+          700: '#000000',
+          900: '#000000',
+        },
+      },
+    },
+  },
+}
+</script>
+
+<style>
+  html { scroll-behavior: smooth; }
+  body { font-feature-settings: 'ss01', 'cv11'; }
+  .serif { font-family: 'Instrument Serif', Georgia, serif; letter-spacing: -0.01em; }
+  .kr { word-break: keep-all; }
+  .divider { background: linear-gradient(90deg, transparent, #D3CCBE 20%, #D3CCBE 80%, transparent); height: 1px; }
+  .grid-bg {
+    background-image:
+      linear-gradient(to right, rgba(64, 60, 50, 0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(64, 60, 50, 0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  .shadow-soft { box-shadow: 0 1px 2px rgba(26,25,22,0.04), 0 8px 24px -8px rgba(26,25,22,0.08); }
+  .shadow-warm { box-shadow: 0 2px 8px rgba(249,115,22,0.08), 0 20px 40px -12px rgba(249,115,22,0.12); }
+
+  @keyframes pulse-dot { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+  .pulse-dot { animation: pulse-dot 2.4s ease-in-out infinite; }
+
+  .flow-line { stroke-dasharray: 4 4; animation: dash 30s linear infinite; }
+  @keyframes dash { to { stroke-dashoffset: -400; } }
+
+  details > summary { list-style: none; cursor: pointer; }
+  details > summary::-webkit-details-marker { display: none; }
+  details[open] .chev { transform: rotate(180deg); }
+  .chev { transition: transform 0.2s; }
+
+  .grain::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0.015;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ═══ scroll reveal ═══ */
+  .reveal { opacity: 0; transform: translateY(16px); transition: opacity 0.7s cubic-bezier(0.22,0.61,0.36,1), transform 0.7s cubic-bezier(0.22,0.61,0.36,1); }
+  .reveal.in { opacity: 1; transform: translateY(0); }
+  .reveal-stagger > * { opacity: 0; transform: translateY(12px); transition: opacity 0.6s cubic-bezier(0.22,0.61,0.36,1), transform 0.6s cubic-bezier(0.22,0.61,0.36,1); }
+  .reveal-stagger.in > * { opacity: 1; transform: translateY(0); }
+  .reveal-stagger.in > *:nth-child(1){transition-delay:0.02s;}
+  .reveal-stagger.in > *:nth-child(2){transition-delay:0.08s;}
+  .reveal-stagger.in > *:nth-child(3){transition-delay:0.14s;}
+  .reveal-stagger.in > *:nth-child(4){transition-delay:0.20s;}
+  .reveal-stagger.in > *:nth-child(5){transition-delay:0.26s;}
+  .reveal-stagger.in > *:nth-child(6){transition-delay:0.32s;}
+  .reveal-stagger.in > *:nth-child(7){transition-delay:0.38s;}
+  .reveal-stagger.in > *:nth-child(8){transition-delay:0.44s;}
+  .reveal-stagger.in > *:nth-child(9){transition-delay:0.50s;}
+  .reveal-stagger.in > *:nth-child(10){transition-delay:0.56s;}
+  .reveal-stagger.in > *:nth-child(11){transition-delay:0.62s;}
+  .reveal-stagger.in > *:nth-child(12){transition-delay:0.68s;}
+
+  /* ═══ typewriter caret after hero tagline ═══ */
+  .caret {
+    display: inline-block; width: 0.08em; height: 0.95em; vertical-align: -0.12em;
+    background: #EA580C; margin-left: 0.08em; animation: caret 1.05s steps(2) infinite;
+  }
+  @keyframes caret { 50% { opacity: 0; } }
+
+  /* ═══ magnetic card tilt (agents) ═══ */
+  .tilt { transition: transform 0.18s ease-out, box-shadow 0.18s ease-out; will-change: transform; }
+  .tilt:hover { box-shadow: 0 8px 30px -8px rgba(234,88,12,0.18), 0 2px 6px rgba(26,25,22,0.05); z-index: 2; }
+
+  /* ═══ live compile panel ═══ */
+  .live-panel { position: relative; border-radius: 16px; overflow: hidden; border: 1px solid #E9E5DD; background: #FAF9F7; }
+  .live-panel::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+    background:
+      radial-gradient(ellipse 400px 180px at 15% 0%, rgba(234,88,12,0.08), transparent 70%),
+      radial-gradient(ellipse 500px 240px at 85% 100%, rgba(124,116,98,0.08), transparent 70%);
+  }
+  .live-panel .bar {
+    display: flex; align-items: center; gap: 8px; padding: 10px 16px;
+    border-bottom: 1px solid #E9E5DD; background: rgba(250,249,247,0.85);
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #7C7462;
+    position: relative; z-index: 2;
+  }
+  .live-panel .bar .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .live-panel .bar .dot.r { background: #FF9B9B; }
+  .live-panel .bar .dot.y { background: #FED773; }
+  .live-panel .bar .dot.g { background: #8BD891; }
+  .live-panel .bar .title { margin-left: 10px; letter-spacing: 0.04em; }
+
+  /* live status ticker */
+  .live-status {
+    padding: 10px 18px; border-top: 1px solid #E9E5DD;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    display: flex; align-items: center; gap: 10px; color: #5C5647;
+    background: rgba(255,255,255,0.5); position: relative; z-index: 2;
+  }
+  .live-status .beat {
+    width: 8px; height: 8px; border-radius: 50%; background: #EA580C;
+    animation: beat 1.6s ease-in-out infinite;
+  }
+  @keyframes beat {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(234,88,12,0.5); }
+    50% { transform: scale(1.25); box-shadow: 0 0 0 8px rgba(234,88,12,0); }
+  }
+  .live-status .msg {
+    flex: 1; overflow: hidden; white-space: nowrap;
+  }
+
+  /* agent dot pulse in hero SVG */
+  @keyframes hero-pulse {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.35); }
+  }
+  .hero-agent-active { animation: hero-pulse 1.2s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+
+  /* output tick count-up */
+  .tick { display: inline-block; font-variant-numeric: tabular-nums; transition: transform 0.25s; }
+
+  /* ═══ interactive mini graph ═══ */
+  .mini-graph { position: relative; aspect-ratio: 16 / 9; background: #FAF9F7; border: 1px solid #E9E5DD; border-radius: 16px; overflow: hidden; }
+  .mini-graph svg { width: 100%; height: 100%; display: block; }
+  .mini-graph .mg-node { cursor: pointer; transition: all 0.22s; }
+  .mini-graph .mg-node circle { transition: r 0.22s, fill 0.22s, stroke 0.22s; }
+  .mini-graph .mg-edge { stroke: #D3CCBE; stroke-width: 1.2; fill: none; transition: stroke 0.22s, stroke-width 0.22s, opacity 0.22s; opacity: 0.55; }
+  .mini-graph .mg-node.active circle { fill: #EA580C; stroke: #FFEDD5; stroke-width: 4; r: 11; }
+  .mini-graph .mg-edge.active { stroke: #EA580C; stroke-width: 2; opacity: 1; }
+  .mini-graph .mg-tooltip {
+    position: absolute; padding: 14px 16px; background: white; border: 1px solid #E9E5DD;
+    border-radius: 10px; max-width: 260px; font-size: 13px;
+    box-shadow: 0 12px 28px -8px rgba(26,25,22,0.12), 0 2px 4px rgba(26,25,22,0.04);
+    opacity: 0; pointer-events: none; transform: translateY(4px); transition: all 0.22s;
+    z-index: 20;
+  }
+  .mini-graph .mg-tooltip.show { opacity: 1; transform: translateY(0); }
+  .mini-graph .mg-tooltip .t-title { font-weight: 600; color: #1C1917; margin-bottom: 6px; }
+  .mini-graph .mg-tooltip .t-desc { color: #5C5647; line-height: 1.5; }
+  .mini-graph .mg-tooltip .t-links { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #E9E5DD; color: #A89E8B; font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; }
+
+  /* whimsy: cairn stacker (logo) */
+  .cairn-stacker { cursor: pointer; }
+  .cairn-extra { opacity: 0; transform: translateY(4px); transition: opacity 0.4s, transform 0.4s; }
+  .cairn-extra.shown { opacity: 1; transform: translateY(0); }
+
+  /* before/after comparator strip */
+  .compare-strip {
+    position: relative; border-radius: 14px; overflow: hidden; border: 1px solid #E9E5DD;
+    background: white; aspect-ratio: 16 / 7.5;
+    display: grid; grid-template-columns: 1fr 1fr;
+  }
+  .compare-strip .pane { padding: 22px 26px; font-size: 14px; line-height: 1.7; color: #403C32; overflow: hidden; position: relative; }
+  .compare-strip .pane.before { background: #F5F3EE; color: #7C7462; }
+  .compare-strip .pane .tag { position: absolute; top: 14px; right: 16px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; padding: 3px 9px; border-radius: 4px; }
+  .compare-strip .pane.before .tag { background: #E9E5DD; color: #7C7462; }
+  .compare-strip .pane.after .tag { background: #FFEDD5; color: #C2410C; }
+  .compare-strip .link { color: #C2410C; border-bottom: 1px dashed #FDBA74; cursor: pointer; }
+  .compare-strip .h { font-weight: 600; color: #1C1917; margin: 0 0 8px; font-size: 16px; letter-spacing: -0.005em; }
+  .compare-strip .line { margin: 0 0 6px; }
+  .compare-strip .divider { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: #E9E5DD; z-index: 5; }
+  .compare-strip .sparkle { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: #EA580C; color: white; padding: 6px 14px; border-radius: 99px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.1em; z-index: 6; box-shadow: 0 6px 18px -4px rgba(234,88,12,0.4); white-space: nowrap; }
+
+  /* ═══ activity feed card (hero right) ═══ */
+  .activity-card {
+    background: linear-gradient(180deg, #FFFFFF, #FAF9F7);
+    border: 1px solid #E9E5DD;
+    border-radius: 16px;
+    padding: 16px 18px 14px;
+    box-shadow: 0 18px 40px -18px rgba(26, 25, 22, 0.18), 0 2px 8px rgba(26, 25, 22, 0.04);
+    position: relative; overflow: hidden;
+  }
+  .activity-card::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(ellipse 260px 140px at 85% 0%, rgba(234,88,12,0.09), transparent 70%),
+      radial-gradient(ellipse 320px 200px at 0% 100%, rgba(124,116,98,0.06), transparent 70%);
+  }
+  .ac-header {
+    display: flex; align-items: center; gap: 10px;
+    padding-bottom: 10px; border-bottom: 1px dashed #E9E5DD;
+    font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+    letter-spacing: 0.1em; color: #A89E8B;
+    position: relative; z-index: 1;
+  }
+  .ac-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #EA580C; box-shadow: 0 0 0 3px rgba(234,88,12,0.18);
+    animation: pulse-dot 2.4s ease-in-out infinite;
+  }
+  .ac-title { color: #C2410C; font-weight: 600; letter-spacing: 0.12em; }
+  .ac-meta { margin-left: auto; color: #A89E8B; font-size: 10px; }
+  .ac-list { list-style: none; padding: 0; margin: 0; position: relative; z-index: 1; }
+  .ac-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 11px 0;
+    border-bottom: 1px dashed #E9E5DD;
+    opacity: 0; transform: translateY(-6px);
+    transition: opacity 0.55s cubic-bezier(0.22,0.61,0.36,1), transform 0.55s cubic-bezier(0.22,0.61,0.36,1);
+  }
+  .ac-item.in { opacity: 1; transform: translateY(0); }
+  .ac-item:last-child { border-bottom: 0; }
+  .ac-item .ac-agent {
+    font-family: 'JetBrains Mono', monospace; font-size: 10.5px; font-weight: 500;
+    color: #C2410C; background: #FFF7ED;
+    padding: 3px 8px; border-radius: 4px;
+    border: 1px solid #FDBA74;
+    white-space: nowrap; flex-shrink: 0;
+    letter-spacing: 0.02em;
+  }
+  .ac-item .ac-text { font-size: 13px; color: #403C32; line-height: 1.45; flex: 1; }
+  .ac-item .ac-text b { color: #1C1917; font-weight: 600; }
+  .ac-item .ac-time {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: #A89E8B; white-space: nowrap; align-self: flex-start; margin-top: 3px;
+  }
+  .ac-footer {
+    display: flex; align-items: center; gap: 6px;
+    padding-top: 10px; margin-top: 4px;
+    border-top: 1px dashed #E9E5DD;
+    font-size: 11px; color: #A89E8B;
+    position: relative; z-index: 1;
+  }
+  .ac-footer svg { color: #8BD891; }
+
+  /* reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    .reveal, .reveal-stagger > *, .tilt, .tick, .ac-item { transition: none !important; }
+    .pulse-dot, .flow-line, .hero-agent-active, .live-status .beat, .caret, .ac-dot { animation: none !important; }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     PAPER MONO OVERRIDE
+     stone + ember remapped in Tailwind config (paper #F5F3EE + ink black).
+     Below: (1) paper baseline, (2) 12-col vertical grid, (3) warm-hex
+     overrides in CSS + SVG, (4) document affordances (ticker · ascii).
+     ═══════════════════════════════════════════════════════════════ */
+
+  /* ─ baseline (white variant) ─ */
+  body { background: #FFFFFF !important; color: #1C1917 !important; }
+  nav { background: rgba(255,255,255,0.92) !important; border-bottom: 1px solid #E5E5E5 !important; }
+
+  /* ─ kill gradients only (shadows restored) ─ */
+  .bg-gradient-to-br { background-image: none !important; }
+
+  /* ─ grid-bg: 12-col vertical hairline rule (document grid) ─ */
+  .grid-bg {
+    background-image: linear-gradient(to right, rgba(26,25,22,0.055) 1px, transparent 1px) !important;
+    background-size: calc(100% / 12) 100% !important;
+  }
+
+  /* ─ divider + caret ─ */
+  .divider { background: linear-gradient(90deg, transparent, #D8D3C8 20%, #D8D3C8 80%, transparent) !important; }
+  .caret { background: #B45309 !important; }
+
+  /* ─ activity card (soft shadow on white) ─ */
+  .activity-card { background: #FFFFFF !important; border: 1px solid #E5E5E5 !important; border-radius: 16px !important; box-shadow: 0 2px 6px rgba(0,0,0,0.04), 0 18px 40px -18px rgba(0,0,0,0.12) !important; }
+  .activity-card::before { background: none !important; }
+  .ac-dot { background: #B45309 !important; box-shadow: 0 0 0 3px rgba(180,83,9,0.14) !important; }
+  .ac-title { color: #1C1917 !important; }
+  .ac-header { color: #6B6559 !important; border-bottom: 1px dashed #E5E5E5 !important; }
+  .ac-item { border-bottom: 1px dashed #E5E5E5 !important; }
+  .ac-item .ac-agent { color: #B45309 !important; background: #FEF7ED !important; border: 1px solid #FED7AA !important; border-radius: 6px !important; }
+  .ac-item .ac-text { color: #3A362F !important; }
+  .ac-item .ac-text b { color: #000 !important; }
+  .ac-item .ac-time, .ac-meta { color: #9A9285 !important; }
+  .ac-footer { color: #9A9285 !important; border-top: 1px dashed #E5E5E5 !important; }
+  .ac-footer svg { color: #22C55E !important; }
+
+  /* ─ live compile panel ─ */
+  .live-panel { background: #FFFFFF !important; border: 1px solid #E5E5E5 !important; border-radius: 16px !important; box-shadow: 0 2px 6px rgba(0,0,0,0.04), 0 18px 40px -18px rgba(0,0,0,0.12) !important; }
+  .live-panel::before { background: none !important; }
+  .live-panel .bar { background: #FAFAFA !important; border-bottom: 1px solid #E5E5E5 !important; color: #6B6559 !important; }
+  .live-status { background: #F5F5F5 !important; border-top: 1px solid #E5E5E5 !important; color: #1C1917 !important; }
+  .live-status .beat { background: #B45309 !important; box-shadow: 0 0 0 0 rgba(180,83,9,0.5) !important; }
+
+  /* ─ tilt hover (soft lift) ─ */
+  .tilt { transition: transform 0.18s ease-out, box-shadow 0.18s ease-out !important; }
+  .tilt:hover { background: #FFFFFF !important; transform: translateY(-1px) !important; }
+
+  /* ─ mini graph ─ */
+  .mini-graph { background: #FAFAFA !important; border: 1px solid #E5E5E5 !important; border-radius: 16px !important; }
+  .mini-graph .mg-edge { stroke: #D4D4D4 !important; }
+  .mini-graph .mg-node.active circle { fill: #B45309 !important; stroke: #FEF3C7 !important; }
+  .mini-graph .mg-edge.active { stroke: #B45309 !important; opacity: 1 !important; }
+  .mini-graph .mg-tooltip { background: #FFFFFF !important; border: 1px solid #E5E5E5 !important; border-radius: 10px !important; box-shadow: 0 12px 28px -8px rgba(0,0,0,0.14), 0 2px 4px rgba(0,0,0,0.04) !important; }
+  .mini-graph .mg-tooltip .t-title { color: #1C1917 !important; }
+  .mini-graph .mg-tooltip .t-desc { color: #3A362F !important; }
+  .mini-graph .mg-tooltip .t-links { color: #6B6559 !important; border-top-color: #D8D3C8 !important; }
+
+  /* ─ SVG hardcoded hex → paper mono grayscale ─ */
+  [fill="#EA580C"], [fill="#F97316"], [fill="#C2410C"], [fill="#7C2D12"] { fill: #1C1917 !important; }
+  [stroke="#EA580C"], [stroke="#F97316"], [stroke="#C2410C"] { stroke: #1C1917 !important; }
+  [fill="#FDBA74"] { fill: #6B6559 !important; }
+  [stroke="#FDBA74"] { stroke: #1C1917 !important; }
+  [fill="#FFEDD5"], [fill="#FFF7ED"] { fill: #EDEAE2 !important; }
+  [fill="#403C32"], [fill="#2A2823"] { fill: #1C1917 !important; }
+  [stroke="#403C32"] { stroke: #1C1917 !important; }
+  [fill="#A89E8B"] { fill: #9A9285 !important; }
+  [stroke="#A89E8B"] { stroke: #9A9285 !important; }
+  [fill="#7C7462"] { fill: #6B6559 !important; }
+  [stroke="#7C7462"] { stroke: #6B6559 !important; }
+  [fill="#5C5647"] { fill: #3A362F !important; }
+  [fill="#D3CCBE"] { fill: #D8D3C8 !important; }
+  [stroke="#D3CCBE"] { stroke: #D8D3C8 !important; }
+  [fill="#E9E5DD"] { fill: #D8D3C8 !important; }
+  [stroke="#E9E5DD"] { stroke: #D8D3C8 !important; }
+  [fill="#FAF9F7"] { fill: #F5F3EE !important; }
+  [fill="#8BD891"] { fill: #6B6559 !important; }
+  [fill="#FED773"] { fill: #9A9285 !important; }
+  [fill="#FF9B9B"] { fill: #9A9285 !important; }
+
+  /* ─ Pricing: featured Pro card → solid black (inverted among paper cards) ─ */
+  #pricing .bg-gradient-to-br { background: #1C1917 !important; border: 1px solid #1C1917 !important; }
+  #pricing .bg-gradient-to-br .bg-ember-500 { background: #F5F3EE !important; color: #1C1917 !important; }
+  #pricing .bg-gradient-to-br .bg-ember-500:hover { background: #FFFFFF !important; }
+
+  /* ─ terminal traffic lights → macOS colors ─ */
+  .bg-red-400 { background-color: #FF5F57 !important; }
+  .bg-yellow-400 { background-color: #FEBC2E !important; }
+  .bg-green-400 { background-color: #28C840 !important; }
+  .text-red-400 { color: #FF5F57 !important; }
+  .text-yellow-400 { color: #FEBC2E !important; }
+  .text-green-400 { color: #28C840 !important; }
+
+  /* ═══════════════════════════════════════════════════════════════
+     DOCUMENT AFFORDANCES · radius · ticker · ascii · section labels
+     ═══════════════════════════════════════════════════════════════ */
+
+  /* radius restored — Tailwind defaults work (rounded-md 6px, rounded-lg 8px, rounded-xl 12px, rounded-2xl 16px) */
+  .rounded-full { border-radius: 9999px !important; }
+
+  /* ticker — full-bleed horizontal marquee */
+  .ticker-viewport { overflow: hidden; border-top: 1px solid #E5E5E5; border-bottom: 1px solid #E5E5E5; background: #FAFAFA; }
+  .ticker-track { display: inline-flex; white-space: nowrap; animation: tkr 85s linear infinite; will-change: transform; padding: 11px 0; }
+  .ticker-track span { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #3A362F; letter-spacing: 0.1em; flex-shrink: 0; }
+  .ticker-track .sep { margin: 0 24px; color: #9A9285; }
+  @keyframes tkr { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  @media (prefers-reduced-motion: reduce) { .ticker-track { animation: none !important; } }
+
+  /* section label (editorial kicker) */
+  .sec-label { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; letter-spacing: 0.18em; color: #6B6559; text-transform: uppercase; display: inline-block; }
+  .sec-label .n { color: #1C1917; font-weight: 500; }
+
+  /* ASCII pipeline block */
+  .ascii { font-family: 'JetBrains Mono', monospace; white-space: pre; line-height: 1.22; color: #6B6559; font-size: 10.5px; letter-spacing: 0; }
+
+  /* spec strip: compact inline mono metadata */
+  .spec-row { display: flex; flex-wrap: wrap; gap: 6px 28px; font-family: 'JetBrains Mono', monospace; font-size: 10.5px; letter-spacing: 0.08em; color: #6B6559; text-transform: uppercase; }
+  .spec-row b { color: #1C1917; font-weight: 500; }
+
+  /* agent grid cell (white variant — borders define the grid) */
+  .agent-cell { background: #FFFFFF; padding: 22px 20px; border-right: 1px solid #EAEAEA; border-bottom: 1px solid #EAEAEA; transition: background 0.15s ease; }
+  .agent-cell:hover { background: #FAFAFA; }
+
+  /* pipeline 6-step on dark ribbon */
+  .pipe-step { padding: 24px 22px; border-right: 1px solid #3A362F; border-bottom: 1px solid #3A362F; }
+  .pipe-step:last-child { border-right: 0; }
+
+  /* principle column (left-border + letter) */
+  .pri-col { border-left: 1px solid #1C1917; padding: 6px 0 6px 20px; transition: background 0.15s ease; }
+  .pri-col:hover { background: #EDEAE2; }
+
+  /* workspace mock (white variant with soft shadow) */
+  .ws-frame { border: 1px solid #E5E5E5; border-radius: 14px; background: #FFFFFF; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.04), 0 24px 56px -24px rgba(0,0,0,0.14); }
+  .ws-chrome { border-bottom: 1px solid #EAEAEA; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #3A362F; background: #FAFAFA; }
+  .ws-chrome .dot { width: 10px; height: 10px; border-radius: 50%; background: #BFB6A7; display: inline-block; margin-right: 5px; }
+  .ws-side { border-right: 1px solid #D8D3C8; padding: 16px 14px; font-size: 12px; }
+  .ws-side-h { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #6B6559; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 8px; }
+  .ws-side-row { display: flex; justify-content: space-between; padding: 5px 8px; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #3A362F; }
+  .ws-side-row.active { background: #1C1917; color: #F5F3EE; }
+  .ws-side-row:hover:not(.active) { background: #EDEAE2; }
+  .ws-main { padding: 28px 32px; }
+  .ws-breadcrumb { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: #6B6559; margin-bottom: 12px; letter-spacing: 0.04em; }
+  .ws-callout { border-left: 2px solid #1C1917; background: #EDEAE2; padding: 10px 14px; font-size: 12.5px; margin: 14px 0; }
+  .ws-callout b { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.14em; }
+  .ws-rail { padding: 16px 14px; font-size: 12px; border-left: 1px solid #D8D3C8; }
+  .ws-rail-h { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #6B6559; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 10px; }
+  .ws-feed-item { margin-bottom: 14px; }
+  .ws-feed-agent { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #1C1917; letter-spacing: 0.1em; }
+  .ws-feed-text { font-size: 12px; color: #3A362F; margin-top: 3px; line-height: 1.5; }
+</style>
+</head>
+
+<body class="bg-stone-50 text-stone-800 font-sans antialiased">
+
+<!-- Navigation -->
+<nav class="sticky top-0 z-40 bg-stone-50/85 backdrop-blur-md border-b border-stone-900">
+  <div class="max-w-[1280px] mx-auto px-6 lg:px-10 py-4 flex items-center justify-between">
+    <a href="#" class="flex items-baseline gap-2.5 cairn-stacker" id="cairnLogo" title="클릭해 보세요">
+      <svg class="w-7 h-7 self-center" viewBox="0 0 32 32" fill="none">
+        <path d="M8 24 L16 8 L24 24 Z" stroke="#403C32" stroke-width="1.5" fill="none"/>
+        <path d="M10 20 L16 12 L22 20 Z" stroke="#1C1917" stroke-width="1.5" fill="#EDEAE2"/>
+        <circle cx="16" cy="20" r="1.5" fill="#403C32"/>
+        <ellipse class="cairn-extra" cx="16" cy="6.5" rx="3" ry="1.6" fill="#1C1917" opacity="0"/>
+      </svg>
+      <span class="serif text-2xl text-stone-900">OpenCairn</span>
+      <span class="font-mono text-[11px] tracking-widest text-stone-500">.v0.1</span>
+    </a>
+    <div class="hidden md:flex items-center gap-7 font-mono text-[12px] tracking-wider text-stone-600">
+      <a href="#how" class="hover:text-stone-900 transition-colors">PIPELINE</a>
+      <a href="#agents" class="hover:text-stone-900 transition-colors">AGENTS</a>
+      <a href="#workspace" class="hover:text-stone-900 transition-colors">WORKSPACE</a>
+      <a href="#vs" class="hover:text-stone-900 transition-colors">WHY</a>
+      <a href="#pricing" class="hover:text-stone-900 transition-colors">PRICING</a>
+      <a href="#docs" class="hover:text-stone-900 transition-colors">DOCS</a>
+    </div>
+    <div class="flex items-center gap-4">
+      <a href="https://github.com/Sungblab/opencairn-monorepo" class="hidden lg:inline-block font-mono text-[11px] tracking-widest text-stone-600 hover:text-stone-900">GITHUB ↗</a>
+      <a href="#login" class="hidden sm:inline-block text-sm text-stone-700 hover:text-stone-900 font-medium kr">로그인</a>
+      <a href="#pricing" class="bg-stone-900 hover:bg-stone-800 text-stone-50 text-sm font-medium px-4 py-2 rounded-md transition-colors kr">무료 시작</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="relative overflow-hidden grid-bg grain">
+  <div class="max-w-[1280px] mx-auto px-6 lg:px-10 pt-24 pb-20 md:pt-32 md:pb-28 relative">
+    <div class="grid md:grid-cols-12 gap-12 items-center">
+      <div class="md:col-span-7">
+        <div class="flex items-center gap-3 mb-10 reveal">
+          <span class="w-2 h-2 bg-stone-900 rounded-full pulse-dot"></span>
+          <span class="sec-label"><span class="n">[ 001 / 012 · HERO ]</span> — 2026.04 · SEOUL · AI KNOWLEDGE OS · AGPLV3</span>
+        </div>
+        <h1 class="kr serif text-5xl md:text-6xl leading-[1.05] text-stone-900 mb-6 reveal">
+          쓴 것만 담아두는<br>도구는 많습니다.<br>
+          <span class="text-ember-700 italic">OpenCairn은</span><br>읽은 것까지 이해합니다<span class="caret" aria-hidden="true"></span>
+        </h1>
+        <p class="kr text-lg text-stone-600 leading-relaxed mb-10 reveal">
+          PDF · 논문 · 영상 · 팟캐스트를 올려두면 12개의 AI 에이전트가 <strong class="text-stone-900 font-semibold">위키로 엮어내고</strong>, 묻기 전에 <strong class="text-stone-900 font-semibold">연결을 발견</strong>하며, 이해의 깊이를 <strong class="text-stone-900 font-semibold">스스로 측정</strong>합니다.
+        </p>
+        <div class="flex flex-wrap items-center gap-4 reveal">
+          <a href="#pricing" class="bg-stone-900 hover:bg-stone-800 text-stone-50 font-medium px-6 py-3 rounded-md transition-colors shadow-soft kr inline-flex items-center gap-2">
+            무료로 시작하기
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+          <a href="#pricing" class="bg-stone-50 border border-stone-300 text-stone-800 font-medium px-6 py-3 rounded-md hover:bg-stone-100 transition-colors kr">
+            요금 보기
+          </a>
+        </div>
+        <p class="kr text-sm text-stone-500 mt-5 reveal">
+          카드 등록 없이 바로 시작 · 12 에이전트 모두 포함
+          <span class="mx-2 text-stone-300">·</span>
+          <a href="#docs" class="text-stone-600 hover:text-stone-900 underline decoration-dotted underline-offset-2">개발자이신가요? 셀프호스팅 가이드 ↗</a>
+        </p>
+        <div class="mt-14 spec-row reveal">
+          <span><b>agents</b> · 12</span>
+          <span><b>parsers</b> · pdf · docx · hwp · epub · mp3 · mp4</span>
+          <span><b>runtime</b> · docker</span>
+          <span><b>vector</b> · pgvector</span>
+          <span><b>license</b> · agplv3</span>
+        </div>
+      </div>
+
+      <!-- Activity feed card (right side of hero) -->
+      <aside class="md:col-span-5 reveal">
+        <div class="activity-card" aria-live="polite">
+          <div class="ac-header">
+            <span class="ac-dot" aria-hidden="true"></span>
+            <span class="ac-title">LIVE · 워크스페이스</span>
+            <span class="ac-meta">12 에이전트 활동 중</span>
+          </div>
+          <ul class="ac-list" id="acList"></ul>
+          <div class="ac-footer">
+            <svg class="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 8l4 4 8-8"/></svg>
+            <span class="kr">방금 전까지의 실제 에이전트 활동 로그</span>
+          </div>
+        </div>
+        <pre class="ascii mt-6">
+     ┌──────────┐       ┌──────────┐
+     │  INGEST  │ ────▶ │ COMPILE  │
+     └────┬─────┘       └────┬─────┘
+          │                  │
+          ▼                  ▼
+     ┌──────────┐       ┌──────────┐
+     │ RESEARCH │ ◀───▶ │ CURATE   │
+     └──────────┘       └──────────┘
+                your knowledge graph</pre>
+      </aside>
+    </div>
+
+    <!-- Hero live compile visual -->
+    <div class="mt-12 relative live-panel reveal">
+      <div class="bar">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="title">opencairn — live compile</span>
+        <span style="margin-left:auto; color:#8BD891;">● compiling</span>
+      </div>
+      <div class="px-6 py-8 md:px-10 md:py-10 relative" style="z-index: 2;">
+      <svg viewBox="0 0 900 360" class="w-full h-auto" fill="none">
+        <!-- Sources (left) -->
+        <g transform="translate(20, 40)">
+          <text x="0" y="0" class="font-mono" font-size="11" fill="#7C7462">INPUT</text>
+          <rect x="0" y="20" width="140" height="44" rx="4" fill="white" stroke="#D3CCBE"/>
+          <text x="16" y="48" font-size="13" fill="#403C32">논문 PDF</text>
+          <rect x="0" y="76" width="140" height="44" rx="4" fill="white" stroke="#D3CCBE"/>
+          <text x="16" y="104" font-size="13" fill="#403C32">팟캐스트 오디오</text>
+          <rect x="0" y="132" width="140" height="44" rx="4" fill="white" stroke="#D3CCBE"/>
+          <text x="16" y="160" font-size="13" fill="#403C32">영상 · YouTube</text>
+          <rect x="0" y="188" width="140" height="44" rx="4" fill="white" stroke="#D3CCBE"/>
+          <text x="16" y="216" font-size="13" fill="#403C32">웹 URL · HWP</text>
+          <rect x="0" y="244" width="140" height="44" rx="4" fill="white" stroke="#D3CCBE"/>
+          <text x="16" y="272" font-size="13" fill="#403C32">스캔 이미지</text>
+        </g>
+
+        <!-- Flow lines -->
+        <g stroke="#EA580C" stroke-width="1.5">
+          <path class="flow-line" d="M 160 62 Q 260 62 340 100"/>
+          <path class="flow-line" d="M 160 118 Q 260 118 340 140"/>
+          <path class="flow-line" d="M 160 174 Q 260 174 340 180"/>
+          <path class="flow-line" d="M 160 230 Q 260 230 340 220"/>
+          <path class="flow-line" d="M 160 286 Q 260 286 340 260"/>
+        </g>
+
+        <!-- Agent hub (middle) -->
+        <g transform="translate(340, 60)">
+          <text x="50" y="-20" class="font-mono" font-size="11" fill="#7C7462">12 AGENTS</text>
+          <rect x="0" y="0" width="180" height="240" rx="8" fill="#2A2823"/>
+          <g class="font-mono" font-size="11" id="agentList">
+            <g data-aix="0"><circle cx="20" cy="26" r="3" fill="#FDBA74"/><text x="30" y="30" fill="#FDBA74">Compiler</text></g>
+            <g data-aix="1"><circle cx="20" cy="48" r="3" fill="#FDBA74"/><text x="30" y="52" fill="#FDBA74">Research</text></g>
+            <g data-aix="2"><circle cx="20" cy="70" r="3" fill="#FDBA74"/><text x="30" y="74" fill="#FDBA74">Librarian</text></g>
+            <g data-aix="3"><circle cx="20" cy="92" r="3" fill="#FDBA74"/><text x="30" y="96" fill="#FDBA74">Synthesis</text></g>
+            <g data-aix="4"><circle cx="20" cy="114" r="3" fill="#FDBA74"/><text x="30" y="118" fill="#FDBA74">Socratic</text></g>
+            <g data-aix="5"><circle cx="20" cy="136" r="3" fill="#FDBA74"/><text x="30" y="140" fill="#FDBA74">Narrator</text></g>
+            <g data-aix="6"><circle cx="104" cy="26" r="3" fill="#D3CCBE"/><text x="114" y="30" fill="#D3CCBE">Curator</text></g>
+            <g data-aix="7"><circle cx="104" cy="48" r="3" fill="#D3CCBE"/><text x="114" y="52" fill="#D3CCBE">Connector</text></g>
+            <g data-aix="8"><circle cx="104" cy="70" r="3" fill="#D3CCBE"/><text x="114" y="74" fill="#D3CCBE">Temporal</text></g>
+            <g data-aix="9"><circle cx="104" cy="92" r="3" fill="#D3CCBE"/><text x="114" y="96" fill="#D3CCBE">Deep R.</text></g>
+            <g data-aix="10"><circle cx="104" cy="114" r="3" fill="#D3CCBE"/><text x="114" y="118" fill="#D3CCBE">Code</text></g>
+            <g data-aix="11"><circle cx="104" cy="136" r="3" fill="#D3CCBE"/><text x="114" y="140" fill="#D3CCBE">Visual.</text></g>
+          </g>
+          <rect x="16" y="170" width="148" height="50" rx="4" fill="#403C32" stroke="#7C7462" stroke-width="0.5"/>
+          <text x="28" y="190" class="font-mono" font-size="10" fill="#A89E8B">오케스트레이션</text>
+          <text x="28" y="208" class="font-mono" font-size="10" fill="#FDBA74" id="hubStatus">● running · 12/12</text>
+        </g>
+
+        <!-- Flow out -->
+        <g stroke="#EA580C" stroke-width="1.5">
+          <path class="flow-line" d="M 520 100 Q 620 100 700 80"/>
+          <path class="flow-line" d="M 520 180 Q 620 180 700 180"/>
+          <path class="flow-line" d="M 520 260 Q 620 260 700 280"/>
+        </g>
+
+        <!-- Outputs (right) -->
+        <g transform="translate(700, 40)">
+          <text x="0" y="0" class="font-mono" font-size="11" fill="#7C7462">OUTPUT</text>
+          <rect x="0" y="20" width="180" height="72" rx="4" fill="#FFF7ED" stroke="#FDBA74"/>
+          <text x="16" y="42" font-size="12" font-weight="600" fill="#7C2D12">위키 페이지</text>
+          <text x="16" y="60" font-size="11" fill="#7C2D12">개념 그래프 · 백링크</text>
+          <text x="16" y="78" class="font-mono" font-size="10" fill="#C2410C"><tspan id="outWiki">17</tspan> 페이지 · <tspan id="outLinks">42</tspan> 링크</text>
+
+          <rect x="0" y="104" width="180" height="72" rx="4" fill="#FFF7ED" stroke="#FDBA74"/>
+          <text x="16" y="126" font-size="12" font-weight="600" fill="#7C2D12">학습 + Q&amp;A</text>
+          <text x="16" y="144" font-size="11" fill="#7C2D12">플래시카드 · 퀴즈</text>
+          <text x="16" y="162" class="font-mono" font-size="10" fill="#C2410C"><tspan id="outCards">23</tspan> 플래시카드 생성</text>
+
+          <rect x="0" y="188" width="180" height="72" rx="4" fill="#FFF7ED" stroke="#FDBA74"/>
+          <text x="16" y="210" font-size="12" font-weight="600" fill="#7C2D12">생성 산출물</text>
+          <text x="16" y="228" font-size="11" fill="#7C2D12">문서 · 팟캐스트 · 슬라이드</text>
+          <text x="16" y="246" class="font-mono" font-size="10" fill="#C2410C">모든 출처 추적 가능</text>
+        </g>
+      </svg>
+      </div>
+      <!-- live status ticker -->
+      <div class="live-status" id="liveStatus">
+        <span class="beat" aria-hidden="true"></span>
+        <span class="msg kr" id="liveMsg" style="font-family:'JetBrains Mono',monospace;">대기 중…</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Stack ticker (full-bleed marquee) -->
+<div class="ticker-viewport" aria-hidden="true">
+  <div class="ticker-track">
+    <span>› PDF<span class="sep">·</span>DOCX<span class="sep">·</span>PPTX<span class="sep">·</span>EPUB<span class="sep">·</span>HWP<span class="sep">·</span>MP3<span class="sep">·</span>MP4<span class="sep">·</span>URL<span class="sep">·</span>NOTION EXPORT<span class="sep">·</span>GITHUB<span class="sep">·</span>PLAIN TEXT<span class="sep">·</span>IMAGES<span class="sep">·</span>OCR<span class="sep">·</span>WHISPER<span class="sep">·</span>PYODIDE<span class="sep">·</span>CYTOSCAPE<span class="sep">·</span>LIGHTRAG<span class="sep">·</span>GEMINI<span class="sep">·</span>OLLAMA<span class="sep">·</span>LANGGRAPH<span class="sep">·</span>TEMPORAL<span class="sep">·</span>HOCUSPOCUS<span class="sep">·</span>YJS CRDT<span class="sep">·</span>PGVECTOR<span class="sep">·</span>PLATE<span class="sep">·</span>BETTER AUTH<span class="sep">·</span>RESEND<span class="sep">·</span>SENTRY<span class="sep">·</span>DOCKER<span class="sep">·</span>AGPLV3<span class="sep">·</span></span>
+    <span>› PDF<span class="sep">·</span>DOCX<span class="sep">·</span>PPTX<span class="sep">·</span>EPUB<span class="sep">·</span>HWP<span class="sep">·</span>MP3<span class="sep">·</span>MP4<span class="sep">·</span>URL<span class="sep">·</span>NOTION EXPORT<span class="sep">·</span>GITHUB<span class="sep">·</span>PLAIN TEXT<span class="sep">·</span>IMAGES<span class="sep">·</span>OCR<span class="sep">·</span>WHISPER<span class="sep">·</span>PYODIDE<span class="sep">·</span>CYTOSCAPE<span class="sep">·</span>LIGHTRAG<span class="sep">·</span>GEMINI<span class="sep">·</span>OLLAMA<span class="sep">·</span>LANGGRAPH<span class="sep">·</span>TEMPORAL<span class="sep">·</span>HOCUSPOCUS<span class="sep">·</span>YJS CRDT<span class="sep">·</span>PGVECTOR<span class="sep">·</span>PLATE<span class="sep">·</span>BETTER AUTH<span class="sep">·</span>RESEND<span class="sep">·</span>SENTRY<span class="sep">·</span>DOCKER<span class="sep">·</span>AGPLV3<span class="sep">·</span></span>
+  </div>
+</div>
+
+<!-- Trust row · [ 002 / metrics ] -->
+<section class="border-b border-stone-900">
+  <div class="max-w-[1280px] mx-auto px-6 lg:px-10 py-12">
+    <div class="grid grid-cols-12 gap-6 items-end">
+      <div class="col-span-12 md:col-span-3 mb-4 md:mb-0">
+        <span class="sec-label"><span class="n">[ 002 / 012 · METRICS ]</span></span>
+      </div>
+      <div class="col-span-12 md:col-span-9 grid grid-cols-2 md:grid-cols-4 gap-8 reveal-stagger">
+        <div class="border-l border-stone-900 pl-5">
+          <div class="serif text-4xl text-stone-900 leading-none"><span class="tick count-up" data-target="12" data-suffix="">0</span></div>
+          <div class="font-mono text-[11px] tracking-widest uppercase text-stone-500 mt-3">AI 에이전트</div>
+        </div>
+        <div class="border-l border-stone-900 pl-5">
+          <div class="serif text-4xl text-stone-900 leading-none"><span class="tick count-up" data-target="5" data-suffix="">0</span><span class="text-stone-500 text-2xl align-top ml-1">뷰</span></div>
+          <div class="font-mono text-[11px] tracking-widest uppercase text-stone-500 mt-3">하나의 그래프 · 다섯 렌즈</div>
+        </div>
+        <div class="border-l border-stone-900 pl-5">
+          <div class="serif text-4xl text-stone-900 leading-none"><span class="tick count-up" data-target="0" data-suffix="">0</span><span class="text-stone-500 text-2xl align-top ml-1">건</span></div>
+          <div class="font-mono text-[11px] tracking-widest uppercase text-stone-500 mt-3">외부 송신 · 로컬 모드</div>
+        </div>
+        <div class="border-l border-stone-900 pl-5">
+          <div class="serif text-4xl text-stone-900 leading-none">AGPLv3</div>
+          <div class="font-mono text-[11px] tracking-widest uppercase text-stone-500 mt-3">오픈소스 라이선스</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Pipeline · [ 003 / pipeline ] -->
+<section id="how" class="bg-stone-900 text-stone-50 py-24 md:py-28 border-y border-stone-900">
+  <div class="max-w-[1280px] mx-auto px-6 lg:px-10">
+    <div class="grid grid-cols-12 gap-6 mb-16 reveal">
+      <div class="col-span-12 md:col-span-3">
+        <span class="sec-label" style="color:#9A9285"><span class="n" style="color:#F5F3EE">[ 003 / 012 · PIPELINE ]</span></span>
+      </div>
+      <div class="col-span-12 md:col-span-9">
+        <h2 class="kr text-3xl md:text-5xl leading-[1.05] tracking-tight font-semibold mb-5">
+          자료 한 개를<br>
+          <span class="text-stone-500">위키 페이지로 바꾸는</span> 여섯 단계.
+        </h2>
+        <p class="kr text-[15px] text-stone-400 leading-relaxed max-w-[540px]">
+          하나의 거대 프롬프트 대신, 좁은 책임을 가진 단계들이 릴레이합니다.
+          그래야 멈출 줄 알고, 고칠 줄 압니다. 모든 문장의 출처는 원본 자료로 돌아갑니다.
+        </p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-12 border border-stone-700 rounded-2xl overflow-hidden reveal-stagger">
+      <div class="col-span-12 md:col-span-2 pipe-step">
+        <div class="font-mono text-[11px] tracking-widest uppercase mb-6 text-stone-500">01 · INGEST</div>
+        <div class="serif text-2xl mb-3">가져오기</div>
+        <p class="text-[12.5px] text-stone-400 leading-relaxed kr">PDF · HWP · 오디오 · 영상 · URL · 스캔 이미지. 형식 무관.</p>
+      </div>
+      <div class="col-span-12 md:col-span-2 pipe-step">
+        <div class="font-mono text-[11px] tracking-widest uppercase mb-6 text-stone-500">02 · PARSE</div>
+        <div class="serif text-2xl mb-3">해체</div>
+        <p class="text-[12.5px] text-stone-400 leading-relaxed kr">OCR · 자막 · 표 구조. 마크다운으로 정규화.</p>
+      </div>
+      <div class="col-span-12 md:col-span-2 pipe-step">
+        <div class="font-mono text-[11px] tracking-widest uppercase mb-6 text-stone-500">03 · EMBED</div>
+        <div class="serif text-2xl mb-3">의미화</div>
+        <p class="text-[12.5px] text-stone-400 leading-relaxed kr">벡터 공간으로 변환. 비슷한 것끼리 가까워짐.</p>
+      </div>
+      <div class="col-span-12 md:col-span-2 pipe-step">
+        <div class="font-mono text-[11px] tracking-widest uppercase mb-6 text-stone-300">04 · COMPILE</div>
+        <div class="serif text-2xl mb-3">엮기</div>
+        <p class="text-[12.5px] text-stone-400 leading-relaxed kr">12 에이전트가 주제별 위키 초안을 작성합니다.</p>
+      </div>
+      <div class="col-span-12 md:col-span-2 pipe-step">
+        <div class="font-mono text-[11px] tracking-widest uppercase mb-6 text-stone-300">05 · CONNECT</div>
+        <div class="serif text-2xl mb-3">연결</div>
+        <p class="text-[12.5px] text-stone-400 leading-relaxed kr">백링크 · 대척점 · 인과 관계를 지식 그래프로.</p>
+      </div>
+      <div class="col-span-12 md:col-span-2 pipe-step">
+        <div class="font-mono text-[11px] tracking-widest uppercase mb-6 text-stone-300">06 · SERVE</div>
+        <div class="serif text-2xl mb-3">사용</div>
+        <p class="text-[12.5px] text-stone-400 leading-relaxed kr">Q&amp;A · 플래시카드 · 소크라테스식 튜터 · 팟캐스트.</p>
+      </div>
+    </div>
+
+    <div class="mt-14 grid grid-cols-12 gap-6 reveal">
+      <div class="col-span-12 md:col-span-3"></div>
+      <div class="col-span-12 md:col-span-9 font-mono text-[12.5px] text-stone-400 leading-relaxed">
+        <span class="text-stone-50">$</span> docker compose up<span class="mx-3 text-stone-600">→</span>http://localhost:3000<span class="mx-3 text-stone-600">→</span><span class="text-stone-50">it just runs.</span>
+      </div>
+    </div>
+
+    <!-- citation promise (merged from old differentiator) -->
+    <div class="mt-20 pt-12 border-t border-stone-700 grid grid-cols-12 gap-6 reveal">
+      <div class="col-span-12 md:col-span-3">
+        <span class="sec-label" style="color:#9A9285"><span class="n" style="color:#F5F3EE">↪ CITATION</span></span>
+      </div>
+      <div class="col-span-12 md:col-span-9">
+        <h3 class="kr serif text-2xl md:text-3xl leading-[1.15] mb-4">
+          모든 문장은 원본 자료로 되돌아갑니다.
+        </h3>
+        <p class="kr text-[14px] text-stone-400 leading-relaxed max-w-[560px] mb-5">
+          AI가 작성한 문장에는 인용이 붙고, 인용은 실제 읽은 자료로 이어집니다.
+          환각 없이, 표절 없이, 실제로 여러분이 가진 자료만으로.
+        </p>
+        <div class="inline-flex flex-wrap items-center gap-2 font-mono text-[12px] text-stone-400 border border-stone-700 px-4 py-3 bg-stone-800 rounded-lg">
+          <span class="text-stone-50">↪</span>
+          <span>citation.sources</span>
+          <span class="text-stone-500">: [</span>
+          <span class="text-stone-300">"note: attention-is-all-you-need"</span>
+          <span class="text-stone-500">,</span>
+          <span class="text-stone-300">"note: rotary-embedding"</span>
+          <span class="text-stone-500">]</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Agents · [ 004 / agents ] -->
+<section id="agents" class="py-24 md:py-32 border-b border-stone-900">
+  <div class="max-w-[1280px] mx-auto px-6 lg:px-10">
+    <div class="grid grid-cols-12 gap-6 mb-16 reveal">
+      <div class="col-span-12 md:col-span-3">
+        <span class="sec-label"><span class="n">[ 004 / 012 · AGENTS ]</span></span>
+      </div>
+      <div class="col-span-12 md:col-span-9">
+        <h2 class="kr text-3xl md:text-5xl text-stone-900 leading-[1.05] tracking-tight font-semibold mb-5">
+          12명의 전문가가<br>분업합니다.
+        </h2>
+        <p class="kr text-[15px] text-stone-600 leading-relaxed max-w-[560px]">
+          하나의 거대한 프롬프트 대신, 좁은 책임을 가진 에이전트들이 릴레이합니다.
+          각자 꺼지지 않는 백그라운드에서 일하고, 브라우저를 닫아도 지식은 계속 자랍니다.
+        </p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-12 border border-stone-900 rounded-2xl overflow-hidden reveal-stagger">
+      <div class="col-span-6 md:col-span-3 agent-cell">
+        <div class="flex items-baseline justify-between mb-3"><span class="font-mono text-[11px] tracking-widest text-stone-900">01</span><span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">core</span></div>
+        <h3 class="serif text-xl text-stone-900 mb-2">Compiler</h3>
+        <p class="kr text-[12.5px] text-stone-600 leading-relaxed">업로드한 자료에서 개념을 뽑아 위키로 엮습니다. 양방향 링크까지 자동으로.</p>
+      </div>
+      <div class="col-span-6 md:col-span-3 agent-cell">
+        <div class="flex items-baseline justify-between mb-3"><span class="font-mono text-[11px] tracking-widest text-stone-900">02</span><span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">core</span></div>
+        <h3 class="serif text-xl text-stone-900 mb-2">Research</h3>
+        <p class="kr text-[12.5px] text-stone-600 leading-relaxed">여러 검색 방식을 조합한 하이브리드 Q&amp;A. 모든 답변에 출처.</p>
+      </div>
+      <div class="col-span-6 md:col-span-3 agent-cell">
+        <div class="flex items-baseline justify-between mb-3"><span class="font-mono text-[11px] tracking-widest text-stone-900">03</span><span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">maintain</span></div>
+        <h3 class="serif text-xl text-stone-900 mb-2">Librarian</h3>
+        <p class="kr text-[12.5px] text-stone-600 leading-relaxed">고아 페이지·모순·중복을 찾아냅니다. 위키 건강을 주기 점검.</p>
+      </div>
+      <div class="col-span-6 md:col-span-3 agent-cell">
+        <div class="flex items-baseline justify-between mb-3"><span class="font-mono text-[11px] tracking-widest text-stone-900">04</span><span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">discover</span></div>
+        <h3 class="serif text-xl text-stone-900 mb-2">Synthesis</h3>
+        <p class="kr text-[12.5px] text-stone-600 leading-relaxed">서로 다른 분야의 구조적 유사성을 발견. 면역계 ↔ 회복성처럼.</p>
+      </div>
+      <div class="col-span-6 md:col-span-3 agent-cell">
+        <div class="flex items-baseline justify-between mb-3"><span class="font-mono text-[11px] tracking-widest text-stone-900">05</span><span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">discover</span></div>
+        <h3 class="serif text-xl text-stone-900 mb-2">Connector</h3>
+        <p class="kr text-[12.5px] text-stone-600 leading-relaxed">프로젝트 간 연결을 제안합니다. 승인하면 크로스 링크 생성.</p>
+      </div>
+      <div class="col-span-6 md:col-span-3 agent-cell">
+        <div class="flex items-baseline justify-between mb-3"><span class="font-mono text-[11px] tracking-widest text-stone-900">06</span><span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">time</span></div>
+        <h3 class="serif text-xl text-stone-900 mb-2">Temporal</h3>
+        <p class="kr text-[12.5px] text-stone-600 leading-relaxed">이해의 시간적 변천을 추적. 오래된 지식 경고 · 복습 알림.</p>
+      </div>
+      <div class="col-span-6 md:col-span-3 agent-cell">
+        <div class="flex items-baseline justify-between mb-3"><span class="font-mono text-[11px] tracking-widest text-stone-900">07</span><span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">source</span></div>
+        <h3 class="serif text-xl text-stone-900 mb-2">Curator</h3>
+        <p class="kr text-[12.5px] text-stone-600 leading-relaxed">지식의 빈 자리를 메울 외부 자료를 웹에서 찾아 추천.</p>
+      </div>
+      <div class="col-span-6 md:col-span-3 agent-cell">
+        <div class="flex items-baseline justify-between mb-3"><span class="font-mono text-[11px] tracking-widest text-stone-900">08</span><span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">source</span></div>
+        <h3 class="serif text-xl text-stone-900 mb-2">Deep Research</h3>
+        <p class="kr text-[12.5px] text-stone-600 leading-relaxed">한 주제를 길게 자율 조사하고 보고서를 위키에 자동 병합.</p>
+      </div>
+      <div class="col-span-6 md:col-span-3 agent-cell">
+        <div class="flex items-baseline justify-between mb-3"><span class="font-mono text-[11px] tracking-widest text-stone-900">09</span><span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">learn</span></div>
+        <h3 class="serif text-xl text-stone-900 mb-2">Socratic</h3>
+        <p class="kr text-[12.5px] text-stone-600 leading-relaxed">플래시카드·퀴즈로 이해를 점검. 간격 반복으로 약한 개념 보강.</p>
+      </div>
+      <div class="col-span-6 md:col-span-3 agent-cell">
+        <div class="flex items-baseline justify-between mb-3"><span class="font-mono text-[11px] tracking-widest text-stone-900">10</span><span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">media</span></div>
+        <h3 class="serif text-xl text-stone-900 mb-2">Narrator</h3>
+        <p class="kr text-[12.5px] text-stone-600 leading-relaxed">위키 내용을 2인 대화 팟캐스트로 변환. 걸으면서 복습.</p>
+      </div>
+      <div class="col-span-6 md:col-span-3 agent-cell">
+        <div class="flex items-baseline justify-between mb-3"><span class="font-mono text-[11px] tracking-widest text-stone-900">11</span><span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">execute</span></div>
+        <h3 class="serif text-xl text-stone-900 mb-2">Code</h3>
+        <p class="kr text-[12.5px] text-stone-600 leading-relaxed">Python · JS를 생성해 브라우저에서 안전하게 실행. 서버는 0 코드.</p>
+      </div>
+      <div class="col-span-6 md:col-span-3 agent-cell">
+        <div class="flex items-baseline justify-between mb-3"><span class="font-mono text-[11px] tracking-widest text-stone-900">12</span><span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">view</span></div>
+        <h3 class="serif text-xl text-stone-900 mb-2">Visualization</h3>
+        <p class="kr text-[12.5px] text-stone-600 leading-relaxed">지식 그래프를 Graph · Mindmap · Cards · Canvas · Timeline 5뷰로.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 Views · [ 006 / views ] -->
+<section class="bg-stone-100 py-24 md:py-32 border-y border-stone-900">
+  <div class="max-w-[1280px] mx-auto px-6 lg:px-10">
+    <div class="grid grid-cols-12 gap-6 mb-16 reveal">
+      <div class="col-span-12 md:col-span-3">
+        <span class="sec-label"><span class="n">[ 005 / 012 · VIEWS ]</span></span>
+      </div>
+      <div class="col-span-12 md:col-span-9">
+        <h2 class="kr text-3xl md:text-5xl text-stone-900 leading-[1.05] tracking-tight font-semibold mb-5">
+          같은 지식을 다섯 가지 렌즈로.
+        </h2>
+        <p class="kr text-[15px] text-stone-600 leading-relaxed max-w-[560px]">
+          하나의 데이터, 다섯 가지 시야. 필요한 순간에 어울리는 뷰로 전환합니다.
+          전환은 기록으로 남고, 언제든 되돌릴 수 있습니다.
+        </p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-5 border border-stone-900 rounded-2xl overflow-hidden reveal-stagger">
+      <!-- Graph -->
+      <div class="agent-cell">
+        <div class="flex items-baseline justify-between mb-3"><span class="font-mono text-[11px] tracking-widest text-stone-900">01</span><span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">overview</span></div>
+        <svg viewBox="0 0 100 80" class="w-full h-24 mb-3">
+          <circle cx="50" cy="40" r="8" fill="#403C32"/>
+          <circle cx="20" cy="20" r="5" fill="#403C32"/>
+          <circle cx="80" cy="20" r="5" fill="#403C32"/>
+          <circle cx="20" cy="60" r="5" fill="#403C32"/>
+          <circle cx="80" cy="60" r="5" fill="#403C32"/>
+          <circle cx="50" cy="10" r="4" fill="#A89E8B"/>
+          <circle cx="50" cy="70" r="4" fill="#A89E8B"/>
+          <line x1="50" y1="40" x2="20" y2="20" stroke="#7C7462" stroke-width="0.5"/>
+          <line x1="50" y1="40" x2="80" y2="20" stroke="#7C7462" stroke-width="0.5"/>
+          <line x1="50" y1="40" x2="20" y2="60" stroke="#7C7462" stroke-width="0.5"/>
+          <line x1="50" y1="40" x2="80" y2="60" stroke="#7C7462" stroke-width="0.5"/>
+          <line x1="50" y1="40" x2="50" y2="10" stroke="#7C7462" stroke-width="0.5"/>
+          <line x1="50" y1="40" x2="50" y2="70" stroke="#7C7462" stroke-width="0.5"/>
+        </svg>
+        <div class="serif text-lg text-stone-900 mb-1">Graph</div>
+        <p class="kr text-[12.5px] text-stone-600">전체 네트워크를 한눈에 탐색</p>
+      </div>
+      <!-- Mindmap -->
+      <div class="agent-cell">
+        <div class="flex items-baseline justify-between mb-3"><span class="font-mono text-[11px] tracking-widest text-stone-900">02</span><span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">radiate</span></div>
+        <svg viewBox="0 0 100 80" class="w-full h-24 mb-3">
+          <circle cx="18" cy="40" r="6" fill="#403C32"/>
+          <line x1="24" y1="40" x2="45" y2="15" stroke="#7C7462" stroke-width="0.5"/>
+          <line x1="24" y1="40" x2="45" y2="40" stroke="#7C7462" stroke-width="0.5"/>
+          <line x1="24" y1="40" x2="45" y2="65" stroke="#7C7462" stroke-width="0.5"/>
+          <circle cx="48" cy="15" r="4" fill="#403C32"/>
+          <circle cx="48" cy="40" r="4" fill="#403C32"/>
+          <circle cx="48" cy="65" r="4" fill="#403C32"/>
+          <line x1="52" y1="15" x2="72" y2="10" stroke="#A89E8B" stroke-width="0.4"/>
+          <line x1="52" y1="15" x2="72" y2="22" stroke="#A89E8B" stroke-width="0.4"/>
+          <line x1="52" y1="40" x2="72" y2="38" stroke="#A89E8B" stroke-width="0.4"/>
+          <line x1="52" y1="40" x2="72" y2="48" stroke="#A89E8B" stroke-width="0.4"/>
+          <line x1="52" y1="65" x2="72" y2="60" stroke="#A89E8B" stroke-width="0.4"/>
+          <circle cx="76" cy="10" r="2.5" fill="#A89E8B"/>
+          <circle cx="76" cy="22" r="2.5" fill="#A89E8B"/>
+          <circle cx="76" cy="38" r="2.5" fill="#A89E8B"/>
+          <circle cx="76" cy="48" r="2.5" fill="#A89E8B"/>
+          <circle cx="76" cy="60" r="2.5" fill="#A89E8B"/>
+        </svg>
+        <div class="serif text-lg text-stone-900 mb-1">Mindmap</div>
+        <p class="kr text-[12.5px] text-stone-600">중심 개념에서 방사형 확장</p>
+      </div>
+      <!-- Cards -->
+      <div class="agent-cell">
+        <div class="flex items-baseline justify-between mb-3"><span class="font-mono text-[11px] tracking-widest text-stone-900">03</span><span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">review</span></div>
+        <svg viewBox="0 0 100 80" class="w-full h-24 mb-3">
+          <rect x="8" y="10" width="24" height="24" fill="#FDFBF5" stroke="#403C32" stroke-width="0.8"/>
+          <rect x="38" y="10" width="24" height="24" fill="#FDFBF5" stroke="#403C32" stroke-width="0.8"/>
+          <rect x="68" y="10" width="24" height="24" fill="#EDEAE2" stroke="#1C1917" stroke-width="1"/>
+          <rect x="8" y="44" width="24" height="24" fill="#FDFBF5" stroke="#403C32" stroke-width="0.8"/>
+          <rect x="38" y="44" width="24" height="24" fill="#FDFBF5" stroke="#403C32" stroke-width="0.8"/>
+          <rect x="68" y="44" width="24" height="24" fill="#FDFBF5" stroke="#403C32" stroke-width="0.8"/>
+          <line x1="12" y1="18" x2="28" y2="18" stroke="#A89E8B" stroke-width="0.6"/>
+          <line x1="42" y1="18" x2="58" y2="18" stroke="#A89E8B" stroke-width="0.6"/>
+          <line x1="72" y1="18" x2="88" y2="18" stroke="#1C1917" stroke-width="1"/>
+        </svg>
+        <div class="serif text-lg text-stone-900 mb-1">Cards</div>
+        <p class="kr text-[12.5px] text-stone-600">검색 · 필터 · 간격 반복 복습</p>
+      </div>
+      <!-- Canvas -->
+      <div class="agent-cell">
+        <div class="flex items-baseline justify-between mb-3"><span class="font-mono text-[11px] tracking-widest text-stone-900">04</span><span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">arrange</span></div>
+        <svg viewBox="0 0 100 80" class="w-full h-24 mb-3">
+          <rect x="5" y="5" width="90" height="70" fill="#FDFBF5" stroke="#D3CCBE" stroke-dasharray="2 2"/>
+          <rect x="12" y="20" width="28" height="16" fill="#EDEAE2" stroke="#1C1917"/>
+          <rect x="55" y="12" width="24" height="20" fill="#FDFBF5" stroke="#403C32"/>
+          <rect x="28" y="48" width="32" height="18" fill="#FDFBF5" stroke="#403C32"/>
+          <rect x="68" y="52" width="20" height="14" fill="#EDEAE2" stroke="#1C1917"/>
+          <line x1="40" y1="28" x2="55" y2="22" stroke="#7C7462" stroke-width="0.5"/>
+          <line x1="44" y1="57" x2="55" y2="22" stroke="#7C7462" stroke-width="0.5"/>
+        </svg>
+        <div class="serif text-lg text-stone-900 mb-1">Canvas</div>
+        <p class="kr text-[12.5px] text-stone-600">자유롭게 배치하는 작업면</p>
+      </div>
+      <!-- Timeline -->
+      <div class="agent-cell" style="border-right: 0;">
+        <div class="flex items-baseline justify-between mb-3"><span class="font-mono text-[11px] tracking-widest text-stone-900">05</span><span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">chronology</span></div>
+        <svg viewBox="0 0 100 80" class="w-full h-24 mb-3">
+          <line x1="10" y1="40" x2="90" y2="40" stroke="#403C32" stroke-width="0.8"/>
+          <line x1="20" y1="35" x2="20" y2="45" stroke="#403C32" stroke-width="0.8"/>
+          <line x1="40" y1="35" x2="40" y2="45" stroke="#403C32" stroke-width="0.8"/>
+          <line x1="60" y1="35" x2="60" y2="45" stroke="#403C32" stroke-width="0.8"/>
+          <line x1="80" y1="35" x2="80" y2="45" stroke="#403C32" stroke-width="0.8"/>
+          <circle cx="20" cy="25" r="4" fill="#403C32"/>
+          <circle cx="40" cy="55" r="4" fill="#403C32"/>
+          <circle cx="60" cy="20" r="4" fill="#1C1917"/>
+          <circle cx="80" cy="60" r="4" fill="#403C32"/>
+          <text x="16" y="15" font-size="6" fill="#7C7462">Jan</text>
+          <text x="36" y="70" font-size="6" fill="#7C7462">Mar</text>
+          <text x="56" y="12" font-size="6" fill="#1C1917">Now</text>
+        </svg>
+        <div class="serif text-lg text-stone-900 mb-1">Timeline</div>
+        <p class="kr text-[12.5px] text-stone-600">시간 축으로 본 이해의 변화</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Try it — interactive mini graph · [ 007 / try ] -->
+<section id="try" class="py-24 md:py-32 border-b border-stone-900">
+  <div class="max-w-[1280px] mx-auto px-6 lg:px-10">
+    <div class="grid grid-cols-12 gap-6 mb-12 reveal">
+      <div class="col-span-12 md:col-span-3">
+        <span class="sec-label"><span class="n">[ 006 / 012 · TRY IT ]</span></span>
+      </div>
+      <div class="col-span-12 md:col-span-9">
+        <h2 class="kr text-3xl md:text-5xl text-stone-900 leading-[1.05] tracking-tight font-semibold mb-5">
+          개념 하나를 고르면,<br>연결된 생각들이 드러납니다.
+        </h2>
+        <p class="kr text-[15px] text-stone-600 leading-relaxed max-w-[560px]">
+          한 대학원생이 트랜스포머 계열 논문 스무 편을 올린 뒤 만들어진 위키의 작은 조각입니다.
+          노드에 마우스를 올리거나 탭해 보세요. OpenCairn이 발견한 연결이 퍼져 나갑니다.
+        </p>
+      </div>
+    </div>
+
+    <div class="grid md:grid-cols-12 gap-8 items-stretch">
+      <div class="md:col-span-4 reveal">
+        <ul class="text-[13.5px] text-stone-600 kr space-y-3 border-t border-stone-900 pt-6">
+          <li class="flex items-start gap-3"><span class="font-mono text-[11px] tracking-widest text-stone-900 pt-0.5">◆</span><span>각 노드는 자동 생성된 위키 페이지입니다.</span></li>
+          <li class="flex items-start gap-3"><span class="font-mono text-[11px] tracking-widest text-stone-900 pt-0.5">◆</span><span>선은 임베딩·개념 공유로 찾은 관계입니다.</span></li>
+          <li class="flex items-start gap-3"><span class="font-mono text-[11px] tracking-widest text-stone-900 pt-0.5">◆</span><span>숫자는 다른 페이지가 참조하는 횟수입니다.</span></li>
+        </ul>
+      </div>
+      <div class="md:col-span-8 mini-graph reveal" id="miniGraph">
+        <svg viewBox="0 0 600 340" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <pattern id="mg-dot" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
+              <circle cx="1" cy="1" r="0.8" fill="#D3CCBE" opacity="0.5"/>
+            </pattern>
+          </defs>
+          <rect width="600" height="340" fill="url(#mg-dot)"/>
+          <!-- edges -->
+          <g id="mg-edges">
+            <path class="mg-edge" data-e="attention|transformer" d="M 160 130 Q 230 110 300 150"/>
+            <path class="mg-edge" data-e="attention|multihead" d="M 160 130 Q 130 180 180 240"/>
+            <path class="mg-edge" data-e="transformer|positional" d="M 300 150 Q 360 140 420 110"/>
+            <path class="mg-edge" data-e="transformer|encoder" d="M 300 150 Q 310 210 360 260"/>
+            <path class="mg-edge" data-e="transformer|bert" d="M 300 150 Q 390 180 470 200"/>
+            <path class="mg-edge" data-e="multihead|attention" d="M 180 240 Q 140 200 160 130"/>
+            <path class="mg-edge" data-e="encoder|decoder" d="M 360 260 Q 430 280 500 270"/>
+            <path class="mg-edge" data-e="positional|rope" d="M 420 110 Q 490 90 540 120"/>
+            <path class="mg-edge" data-e="bert|pretraining" d="M 470 200 Q 520 230 540 270"/>
+          </g>
+          <!-- nodes -->
+          <g id="mg-nodes">
+            <g class="mg-node" data-id="attention" transform="translate(160,130)">
+              <circle r="8" fill="#403C32" stroke="#FFEDD5" stroke-width="2"/>
+              <text x="0" y="-14" text-anchor="middle" font-family="Inter" font-size="11" fill="#403C32">Attention</text>
+            </g>
+            <g class="mg-node" data-id="transformer" transform="translate(300,150)">
+              <circle r="10" fill="#403C32" stroke="#FFEDD5" stroke-width="2"/>
+              <text x="0" y="-16" text-anchor="middle" font-family="Inter" font-size="12" font-weight="600" fill="#1C1917">Transformer</text>
+            </g>
+            <g class="mg-node" data-id="multihead" transform="translate(180,240)">
+              <circle r="7" fill="#403C32" stroke="#FFEDD5" stroke-width="2"/>
+              <text x="0" y="22" text-anchor="middle" font-family="Inter" font-size="11" fill="#403C32">Multi-Head</text>
+            </g>
+            <g class="mg-node" data-id="positional" transform="translate(420,110)">
+              <circle r="7" fill="#403C32" stroke="#FFEDD5" stroke-width="2"/>
+              <text x="0" y="-14" text-anchor="middle" font-family="Inter" font-size="11" fill="#403C32">Positional Enc.</text>
+            </g>
+            <g class="mg-node" data-id="encoder" transform="translate(360,260)">
+              <circle r="7" fill="#403C32" stroke="#FFEDD5" stroke-width="2"/>
+              <text x="0" y="22" text-anchor="middle" font-family="Inter" font-size="11" fill="#403C32">Encoder</text>
+            </g>
+            <g class="mg-node" data-id="decoder" transform="translate(500,270)">
+              <circle r="7" fill="#403C32" stroke="#FFEDD5" stroke-width="2"/>
+              <text x="-14" y="4" text-anchor="end" font-family="Inter" font-size="11" fill="#403C32">Decoder</text>
+            </g>
+            <g class="mg-node" data-id="bert" transform="translate(470,200)">
+              <circle r="7" fill="#403C32" stroke="#FFEDD5" stroke-width="2"/>
+              <text x="0" y="-14" text-anchor="middle" font-family="Inter" font-size="11" fill="#403C32">BERT</text>
+            </g>
+            <g class="mg-node" data-id="rope" transform="translate(540,120)">
+              <circle r="7" fill="#403C32" stroke="#FFEDD5" stroke-width="2"/>
+              <text x="0" y="-14" text-anchor="middle" font-family="Inter" font-size="11" fill="#403C32">RoPE</text>
+            </g>
+            <g class="mg-node" data-id="pretraining" transform="translate(540,270)">
+              <circle r="7" fill="#403C32" stroke="#FFEDD5" stroke-width="2"/>
+              <text x="0" y="22" text-anchor="middle" font-family="Inter" font-size="11" fill="#403C32">Pretraining</text>
+            </g>
+          </g>
+        </svg>
+        <div class="mg-tooltip" id="mgTooltip"></div>
+        <div class="absolute bottom-3 left-4 font-mono text-[10px] text-stone-400 tracking-widest uppercase">지식 그래프 · 8 노드 · 9 연결</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Workspace mock · [ 008 / workspace ] -->
+<section id="workspace" class="bg-stone-100 py-24 md:py-32 border-b border-stone-900">
+  <div class="max-w-[1280px] mx-auto px-6 lg:px-10">
+    <div class="grid grid-cols-12 gap-6 mb-14 reveal">
+      <div class="col-span-12 md:col-span-3">
+        <span class="sec-label"><span class="n">[ 007 / 012 · WORKSPACE ]</span></span>
+      </div>
+      <div class="col-span-12 md:col-span-9">
+        <h2 class="kr text-3xl md:text-5xl text-stone-900 leading-[1.05] tracking-tight font-semibold mb-5">
+          혼자서도, 실험실 단위로도<br>같은 방식으로 움직입니다.
+        </h2>
+        <p class="kr text-[15px] text-stone-600 leading-relaxed max-w-[560px]">
+          위키 페이지는 그냥 글이 아니라, 자료·에이전트·팀원의 합류점입니다. 페이지마다 출처·편집자·에이전트 활동이 함께 살아 있습니다.
+        </p>
+      </div>
+    </div>
+
+    <!-- mock workspace preview -->
+    <div class="ws-frame reveal">
+      <div class="ws-chrome">
+        <div class="flex items-center gap-1">
+          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          <span class="ml-3 text-stone-600">opencairn.local / studio-kim / research-wiki</span>
+        </div>
+        <span class="text-stone-500">⌘ K</span>
+      </div>
+      <div class="grid grid-cols-12 min-h-[440px]">
+        <!-- sidebar -->
+        <div class="col-span-3 ws-side">
+          <div class="ws-side-h">WORKSPACE</div>
+          <div class="mb-4 flex items-center justify-between px-2">
+            <span class="font-medium text-stone-900">Studio Kim</span>
+            <span class="text-stone-500 font-mono text-[10px]">5 members</span>
+          </div>
+          <div class="space-y-0.5 mb-5">
+            <div class="ws-side-row active"><span>Inbox</span><span>3</span></div>
+            <div class="ws-side-row"><span>Pages</span><span class="text-stone-500">214</span></div>
+            <div class="ws-side-row"><span>Graph</span><span></span></div>
+            <div class="ws-side-row"><span>Library</span><span class="text-stone-500">78</span></div>
+            <div class="ws-side-row"><span>Agents</span><span class="text-stone-500">12</span></div>
+          </div>
+          <div class="ws-side-h">PROJECTS</div>
+          <div class="space-y-0.5">
+            <div class="ws-side-row"><span>· Research Wiki</span></div>
+            <div class="ws-side-row"><span>· Thesis Draft</span></div>
+            <div class="ws-side-row"><span>· Lab Meeting</span></div>
+            <div class="ws-side-row"><span>· Reading List</span></div>
+          </div>
+        </div>
+        <!-- main -->
+        <div class="col-span-6 ws-main" style="border-right: 1px solid #D8D3C8;">
+          <div class="ws-breadcrumb">/ research-wiki / attention-mechanism</div>
+          <h3 class="serif text-3xl text-stone-900 kr mb-3">Attention Mechanism</h3>
+          <div class="flex items-center gap-3 mb-5 font-mono text-[10.5px] text-stone-500">
+            <span>compiled by 3 agents</span>
+            <span>·</span>
+            <span>12 sources</span>
+            <span>·</span>
+            <span>updated 2h ago</span>
+          </div>
+          <div class="border-t border-stone-200 pt-4"></div>
+          <p class="text-[13px] text-stone-700 leading-relaxed kr mb-4">
+            Attention은 입력 시퀀스의 각 토큰에 가중치를 부여해 관련성을 계산하는 메커니즘입니다.
+            Vaswani et al. (2017)의 "Attention Is All You Need"가 transformer 아키텍처의 기반을 제시했으며,
+            이후 self-attention과 multi-head attention으로 확장되었습니다.
+          </p>
+          <div class="ws-callout kr">
+            <b class="text-stone-900">⚠ CONTRADICTION</b><br>
+            <span class="mt-1 block text-stone-700">자료 3개가 quadratic complexity에 대해 다른 수치를 제시합니다. Linear Attention 계열은 이 가정을 건드립니다.</span>
+          </div>
+          <p class="text-[13px] text-stone-700 leading-relaxed kr">
+            관련 문서:
+            <span class="underline decoration-stone-400 underline-offset-2">Transformer</span>,
+            <span class="underline decoration-stone-400 underline-offset-2">Scaled Dot-Product</span>,
+            <span class="underline decoration-stone-400 underline-offset-2">Linear Attention</span>.
+          </p>
+        </div>
+        <!-- right rail -->
+        <div class="col-span-3 ws-rail" style="border-left: 0;">
+          <div class="ws-rail-h">AGENT FEED</div>
+          <div class="ws-feed-item">
+            <div class="ws-feed-agent">RESEARCH · 14:06</div>
+            <div class="ws-feed-text kr">contradiction detected in source 4 vs source 9</div>
+          </div>
+          <div class="ws-feed-item">
+            <div class="ws-feed-agent">CONNECTOR · 14:04</div>
+            <div class="ws-feed-text kr">new edge: Attention ↔ Memory</div>
+          </div>
+          <div class="ws-feed-item">
+            <div class="ws-feed-agent">COMPILER · 13:58</div>
+            <div class="ws-feed-text kr">merged 2 fragments into this page</div>
+          </div>
+          <div class="ws-feed-item">
+            <div class="ws-feed-agent" style="color:#6B6559">CURATOR · y'day</div>
+            <div class="ws-feed-text" style="color:#6B6559">5 stale links pruned</div>
+          </div>
+
+          <div class="mt-6 pt-4 border-t border-stone-200">
+            <div class="ws-rail-h">BACKLINKS · 8</div>
+            <ul class="space-y-1 text-[12px] text-stone-700 font-mono">
+              <li>· Transformer</li>
+              <li>· Position Encoding</li>
+              <li>· KV Cache</li>
+              <li>· Flash Attention</li>
+              <li class="text-stone-500">+4 more</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-6 grid grid-cols-12 gap-6 font-mono text-[11px] tracking-widest uppercase text-stone-500">
+      <div class="col-span-12 md:col-span-3"></div>
+      <div class="col-span-12 md:col-span-9 flex flex-wrap gap-5">
+        <span>Hocuspocus · 실시간 동시편집</span>
+        <span>블록 코멘트 · @멘션</span>
+        <span>역할별 권한 · 공개 링크</span>
+        <span>Export API · GDPR</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Principles · [ 009 / principles ] -->
+<section id="vs" class="py-24 md:py-32 border-b border-stone-900">
+  <div class="max-w-[1280px] mx-auto px-6 lg:px-10">
+    <div class="grid grid-cols-12 gap-6 mb-16 reveal">
+      <div class="col-span-12 md:col-span-3">
+        <span class="sec-label"><span class="n">[ 008 / 012 · PRINCIPLES ]</span></span>
+      </div>
+      <div class="col-span-12 md:col-span-9">
+        <h2 class="kr text-3xl md:text-5xl text-stone-900 leading-[1.05] tracking-tight font-semibold mb-5">
+          네 가지 약속이<br>한 자리에 모이기는 드뭅니다.
+        </h2>
+        <p class="kr text-[15px] text-stone-600 leading-relaxed max-w-[560px]">
+          자료 주권 · 살아 있는 지식 · 학습까지 한 줄기 · 열린 소스. 한두 가지를 지키는 도구는 많지만, 넷을 동시에 두는 자리가 OpenCairn입니다.
+        </p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-12 gap-6">
+      <div class="col-span-12 md:col-span-3"></div>
+      <div class="col-span-12 md:col-span-9 grid md:grid-cols-2 gap-x-10 gap-y-12 reveal-stagger">
+        <div class="pri-col">
+          <div class="flex items-baseline gap-3 mb-3">
+            <span class="font-mono text-[11px] tracking-widest text-stone-900">[ a ]</span>
+            <span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">sovereignty</span>
+          </div>
+          <h3 class="serif text-2xl text-stone-900 mb-3">자료는 내 서버에 머뭅니다.</h3>
+          <p class="kr text-[13.5px] text-stone-600 leading-relaxed">
+            텍스트 · 벡터 · 원본 파일 모두 여러분의 인프라 안에 있습니다. 완전 로컬 LLM 모드에서는 외부로 나가는 요청이 0. 외부 SaaS를 쓸 수 없는 환경에도 그대로 도입 가능합니다.
+          </p>
+        </div>
+        <div class="pri-col">
+          <div class="flex items-baseline gap-3 mb-3">
+            <span class="font-mono text-[11px] tracking-widest text-stone-900">[ b ]</span>
+            <span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">compile</span>
+          </div>
+          <h3 class="serif text-2xl text-stone-900 mb-3">정리는 AI, 판단은 사람.</h3>
+          <p class="kr text-[13.5px] text-stone-600 leading-relaxed">
+            Compiler 에이전트가 개념을 뽑아 위키 페이지를 만들고, 기존 위키와 연결합니다. 여러분은 결과를 검토하고 편집하기만 하면 됩니다. 손으로 옮겨 적는 시간이 사라집니다.
+          </p>
+        </div>
+        <div class="pri-col">
+          <div class="flex items-baseline gap-3 mb-3">
+            <span class="font-mono text-[11px] tracking-widest text-stone-900">[ c ]</span>
+            <span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">one·throughline</span>
+          </div>
+          <h3 class="serif text-2xl text-stone-900 mb-3">저장 → 탐색 → 학습까지 한 줄기.</h3>
+          <p class="kr text-[13.5px] text-stone-600 leading-relaxed">
+            Q&amp;A · 5뷰 그래프 · 간격 반복 플래시카드 · 소크라테스식 문답 · 오디오 팟캐스트까지 같은 위키를 재료로 돌아갑니다. 도구 사이를 건너뛰지 않습니다.
+          </p>
+        </div>
+        <div class="pri-col">
+          <div class="flex items-baseline gap-3 mb-3">
+            <span class="font-mono text-[11px] tracking-widest text-stone-900">[ d ]</span>
+            <span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">open·forever</span>
+          </div>
+          <h3 class="serif text-2xl text-stone-900 mb-3">AGPLv3로 공개, 나가는 길 항상 열림.</h3>
+          <p class="kr text-[13.5px] text-stone-600 leading-relaxed">
+            원하면 포크하고 고치고 직접 배포할 수 있습니다. 사내 사용에는 제약이 없으며, 상용 계약이 필요한 경우 별도 라이선스도 준비되어 있습니다. 서비스가 끊길 걱정이 없습니다.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Personas · [ 010 / who ] -->
+<section id="who" class="bg-stone-100 py-24 md:py-32 border-b border-stone-900">
+  <div class="max-w-[1280px] mx-auto px-6 lg:px-10">
+    <div class="grid grid-cols-12 gap-6 mb-14 reveal">
+      <div class="col-span-12 md:col-span-3">
+        <span class="sec-label"><span class="n">[ 009 / 012 · WHO ]</span></span>
+      </div>
+      <div class="col-span-12 md:col-span-9">
+        <h2 class="kr text-3xl md:text-5xl text-stone-900 leading-[1.05] tracking-tight font-semibold mb-5">
+          혼자 쓰던 도구가<br>조직 전체로.
+        </h2>
+        <p class="kr text-[15px] text-stone-600 leading-relaxed max-w-[560px]">
+          개인에서 시작해 연구실, 규제 산업 엔터프라이즈까지 선형적으로 확장합니다. 도구를 바꿀 일이 없습니다.
+        </p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-12 border border-stone-900 rounded-2xl overflow-hidden reveal-stagger">
+      <div class="col-span-12 md:col-span-4 agent-cell">
+        <div class="flex items-baseline justify-between mb-5"><span class="font-mono text-[11px] tracking-widest text-stone-900">v0.1</span><span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">primary</span></div>
+        <h3 class="serif text-2xl text-stone-900 mb-4">대학원생 · 리서처</h3>
+        <p class="kr text-[13px] text-stone-600 leading-relaxed mb-6">
+          논문 50편이 한 덩어리의 위키로 엮입니다. 개념 그래프로 관계를 살피고, 심화 조사는 Deep Research에 맡기고, 시험 전에는 AI 퀴즈로 점검합니다. 인용은 자동으로 원본 노트로 이어집니다.
+        </p>
+        <ul class="text-[11px] text-stone-500 font-mono tracking-wider space-y-1.5">
+          <li>· 개인 셀프호스팅</li>
+          <li>· 본인 API 키 (BYOK)</li>
+          <li>· 기존 노트 앱 마이그레이션</li>
+        </ul>
+      </div>
+      <div class="col-span-12 md:col-span-4 agent-cell">
+        <div class="flex items-baseline justify-between mb-5"><span class="font-mono text-[11px] tracking-widest text-stone-900">v0.2</span><span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">expansion</span></div>
+        <h3 class="serif text-2xl text-stone-900 mb-4">연구실 · 소규모 팀</h3>
+        <p class="kr text-[13px] text-stone-600 leading-relaxed mb-6">
+          역할별 권한으로 운영합니다. 랩 미팅 녹음은 자동 요약되고 할 일이 추출됩니다. 선배가 졸업해도 지식은 랩에 남고, 신입 온보딩이 빨라집니다.
+        </p>
+        <ul class="text-[11px] text-stone-500 font-mono tracking-wider space-y-1.5">
+          <li>· 워크스페이스 + 권한</li>
+          <li>· 실시간 협업 · 코멘트</li>
+          <li>· 랩 서버 직접 설치</li>
+        </ul>
+      </div>
+      <div class="col-span-12 md:col-span-4 agent-cell" style="border-right: 0;">
+        <div class="flex items-baseline justify-between mb-5"><span class="font-mono text-[11px] tracking-widest text-stone-900">v0.3</span><span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">enterprise</span></div>
+        <h3 class="serif text-2xl text-stone-900 mb-4">규제 산업</h3>
+        <p class="kr text-[13px] text-stone-600 leading-relaxed mb-6">
+          금융 · 의료 · 공공 · 대학처럼 외부 SaaS가 허용되지 않는 환경을 위해 설계. 완전 로컬 LLM, 기업 SSO, 감사 로그, 상용 라이선스. 데이터는 한 바이트도 외부로 나가지 않습니다.
+        </p>
+        <ul class="text-[11px] text-stone-500 font-mono tracking-wider space-y-1.5">
+          <li>· 온프레미스 전용</li>
+          <li>· SOC2 · 전자금융 · HIPAA</li>
+          <li>· 상용 라이선스 계약</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Self-hosting · [ 011 / install ] -->
+<section id="docs" class="py-24 md:py-32 border-b border-stone-900">
+  <div class="max-w-[1280px] mx-auto px-6 lg:px-10">
+    <div class="grid grid-cols-12 gap-6 mb-14 reveal">
+      <div class="col-span-12 md:col-span-3">
+        <span class="sec-label"><span class="n">[ 010 / 012 · INSTALL ]</span></span>
+      </div>
+      <div class="col-span-12 md:col-span-9">
+        <h2 class="kr text-3xl md:text-5xl text-stone-900 leading-[1.05] tracking-tight font-semibold mb-5">
+          한 번의 명령어로<br>여러분의 서버에서.
+        </h2>
+        <p class="kr text-[15px] text-stone-600 leading-relaxed max-w-[560px]">
+          Docker Compose 한 줄이면 충분합니다. 데이터베이스 · 파일 스토리지 · 워크플로 엔진까지 한 번에 기동되고, 완전 로컬 LLM 모드도 프로필 하나로 전환됩니다.
+        </p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-12 gap-8">
+      <div class="col-span-12 md:col-span-3"></div>
+      <div class="col-span-12 md:col-span-4">
+        <ul class="space-y-3 text-[13.5px] text-stone-700 border-t border-stone-900 pt-6">
+          <li class="flex items-start gap-3"><span class="font-mono text-[11px] text-stone-900 tracking-widest pt-0.5">→</span><span class="kr">최소 4 vCPU · 8GB RAM, 권장 8 vCPU · 16GB RAM</span></li>
+          <li class="flex items-start gap-3"><span class="font-mono text-[11px] text-stone-900 tracking-widest pt-0.5">→</span><span class="kr">x86_64 + ARM64 멀티아키 (Raspberry Pi · Apple Silicon · Oracle Ampere)</span></li>
+          <li class="flex items-start gap-3"><span class="font-mono text-[11px] text-stone-900 tracking-widest pt-0.5">→</span><span class="kr">월 1회 자동 백업 복구 리허설 스크립트 포함</span></li>
+          <li class="flex items-start gap-3"><span class="font-mono text-[11px] text-stone-900 tracking-widest pt-0.5">→</span><span class="kr">Cloudflare R2 / MinIO / S3 중 선택</span></li>
+        </ul>
+      </div>
+      <div class="col-span-12 md:col-span-5">
+        <div class="bg-stone-900 text-stone-50 p-6 font-mono text-[13px] border border-stone-900 rounded-xl shadow-lg">
+          <div class="flex items-center gap-2 mb-4 pb-4 border-b border-stone-700">
+            <span class="w-3 h-3 bg-red-400 rounded-full"></span>
+            <span class="w-3 h-3 bg-yellow-400 rounded-full"></span>
+            <span class="w-3 h-3 bg-green-400 rounded-full"></span>
+            <span class="ml-auto text-[11px] text-stone-500 tracking-widest">TERMINAL</span>
+          </div>
+          <div class="space-y-2 text-stone-300">
+            <div><span class="text-stone-500">$</span> git clone https://github.com/Sungblab/opencairn-monorepo.git</div>
+            <div><span class="text-stone-500">$</span> cd opencairn-monorepo</div>
+            <div><span class="text-stone-500">$</span> cp .env.example .env</div>
+            <div class="text-stone-500"># .env에 LLM_API_KEY 설정 (Gemini) 또는 LLM_PROVIDER=ollama</div>
+            <div><span class="text-stone-500">$</span> docker-compose up -d</div>
+            <div class="text-stone-500"># Ollama 완전 로컬:</div>
+            <div><span class="text-stone-500">$</span> docker-compose --profile ollama up -d</div>
+            <div class="pt-2 text-stone-400">→ <span class="text-stone-50">http://localhost:3000</span></div>
+            <div class="pt-4 border-t border-stone-800 text-[11.5px] text-stone-500">
+              <span class="text-green-400">✓</span> 7개 서비스 기동 완료<br>
+              <span class="text-green-400">✓</span> 헬스체크 통과<br>
+              <span class="text-green-400">✓</span> 첫 워크스페이스 생성 대기 중
+            </div>
+          </div>
+        </div>
+        <div class="mt-5 font-mono text-[11.5px] text-stone-500 tracking-wider">
+          <span class="text-stone-900">$</span> docker compose up<span class="mx-2 text-stone-400">→</span>http://localhost:3000<span class="mx-2 text-stone-400">→</span><span class="text-stone-900">it just runs.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Pricing · [ 012 / pricing ] -->
+<section id="pricing" class="bg-stone-900 text-stone-50 py-24 md:py-32" style="background-color:#1C1917;">
+  <div class="max-w-[1280px] mx-auto px-6 lg:px-10">
+    <div class="grid grid-cols-12 gap-6 mb-16 reveal">
+      <div class="col-span-12 md:col-span-3">
+        <span class="sec-label" style="color:#9A9285"><span class="n" style="color:#F5F3EE">[ 011 / 012 · PRICING ]</span></span>
+      </div>
+      <div class="col-span-12 md:col-span-9">
+        <h2 class="kr text-3xl md:text-5xl leading-[1.05] tracking-tight font-semibold mb-5">
+          오늘 무료로 시작하고,<br>필요할 때 업그레이드하세요.
+        </h2>
+        <p class="kr text-[15px] text-stone-400 leading-relaxed max-w-[560px]">
+          카드 등록 없이 Free 플랜으로 모든 에이전트를 써 볼 수 있습니다. 연구실·팀 단위로 성장하면 Pro로 무제한, 본인 키를 쓰고 싶다면 BYOK로.
+        </p>
+      </div>
+    </div>
+
+    <!-- Primary: 3 managed plans · strict bordered row -->
+    <div class="grid grid-cols-12 border border-stone-700 rounded-2xl overflow-hidden reveal-stagger">
+      <!-- Free -->
+      <div class="col-span-12 md:col-span-4 p-8 flex flex-col" style="border-right: 1px solid #2A2823; border-bottom: 1px solid #2A2823;">
+        <div class="flex items-baseline justify-between mb-5">
+          <span class="font-mono text-[11px] tracking-widest text-stone-300 uppercase">Free</span>
+          <span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">forever</span>
+        </div>
+        <div class="serif text-5xl mb-2 text-stone-50">₩0</div>
+        <p class="font-mono text-[11px] tracking-wider text-stone-500 mb-6 uppercase">카드 등록 없이 영구 무료 · 체험용</p>
+        <ul class="text-[13px] text-stone-300 space-y-2.5 mb-8 flex-1 kr">
+          <li>· 프로젝트 10개</li>
+          <li>· 월 50개 Q&amp;A</li>
+          <li>· 월 3편 오디오 팟캐스트</li>
+          <li>· 스토리지 100 MB</li>
+          <li>· 12 에이전트 전체 접근</li>
+          <li class="text-stone-500">· 커뮤니티 지원</li>
+        </ul>
+        <a href="#login" class="block text-center border border-stone-50 text-stone-50 hover:bg-stone-50 hover:text-stone-900 font-mono text-[12px] tracking-widest px-6 py-3 rounded-md transition-colors">
+          &gt; 무료로 시작하기
+        </a>
+      </div>
+
+      <!-- Pro (featured · inverted to paper · PAYG) -->
+      <div class="col-span-12 md:col-span-4 p-8 flex flex-col relative" style="background:#F5F3EE; color:#1C1917; border-right: 1px solid #2A2823; border-bottom: 1px solid #2A2823;">
+        <div class="absolute -top-px left-0 right-0 h-[3px]" style="background:#1C1917;"></div>
+        <div class="flex items-baseline justify-between mb-5">
+          <span class="font-mono text-[11px] tracking-widest uppercase" style="color:#1C1917">Pro</span>
+          <span class="font-mono text-[10px] tracking-widest uppercase" style="color:#6B6559">team · payg</span>
+        </div>
+        <div class="serif text-5xl mb-1" style="color:#1C1917">₩4,900<span class="text-lg" style="color:#6B6559"> /월</span></div>
+        <p class="font-mono text-[11px] tracking-wider uppercase mb-5" style="color:#6B6559">구독료 + AI 사용량 별도 (PAYG)</p>
+
+        <div class="mb-6 px-4 py-3 font-mono text-[11.5px] leading-relaxed" style="background:#EDEAE2; border-left: 2px solid #1C1917; color:#1C1917;">
+          <b class="tracking-widest uppercase text-[10px]" style="color:#6B6559;">↪ AI 크레딧 (PAYG)</b><br>
+          <span style="color:#3A362F;">최소 ₩5,000 선불 충전 · <b>잔액 만료 없음</b><br>
+          사용한 만큼만 차감 · <span style="color:#6B6559">$1 = ₩1,650</span></span>
+        </div>
+
+        <ul class="text-[13px] space-y-2.5 mb-8 flex-1 kr" style="color:#3A362F">
+          <li>· 팀 워크스페이스 · 공개 링크 · 게스트</li>
+          <li>· Deep Research 우선 큐</li>
+          <li>· 스토리지 <b style="color:#1C1917">10 GB</b></li>
+          <li>· 1년 활동 로그 보존</li>
+          <li>· 자동 재충전 옵션 · 사용량 대시보드</li>
+          <li>· 이메일 지원</li>
+        </ul>
+        <a href="#login" class="block text-center font-mono text-[12px] tracking-widest px-6 py-3 rounded-md transition-colors" style="background:#1C1917; color:#F5F3EE">
+          &gt; PRO 시작하기 →
+        </a>
+        <p class="font-mono text-[10px] tracking-widest text-center mt-3 uppercase" style="color:#6B6559">14일간 구독료 환불 보장</p>
+      </div>
+
+      <!-- BYOK (managed · solo · own key) -->
+      <div class="col-span-12 md:col-span-4 p-8 flex flex-col" style="border-bottom: 1px solid #2A2823;">
+        <div class="flex items-baseline justify-between mb-5">
+          <span class="font-mono text-[11px] tracking-widest text-stone-300 uppercase">BYOK</span>
+          <span class="font-mono text-[10px] tracking-widest text-stone-500 uppercase">managed · solo</span>
+        </div>
+        <div class="serif text-5xl mb-1 text-stone-50">₩2,900<span class="text-lg text-stone-500"> /월</span></div>
+        <p class="font-mono text-[11px] tracking-wider text-stone-500 mb-6 uppercase">1인 관리형 · 본인 Gemini 키</p>
+        <ul class="text-[13px] text-stone-300 space-y-2.5 mb-8 flex-1 kr">
+          <li>· 저희가 호스팅 · 1인 계정</li>
+          <li>· 본인 Gemini 키 (암호화 저장)</li>
+          <li>· AI 비용 <b class="text-stone-50">0원</b> (본인 API 비용만)</li>
+          <li>· 스토리지 10 GB</li>
+          <li class="text-stone-500">· Pro 팀 기능 제외 (솔로 tier)</li>
+        </ul>
+        <a href="#login" class="block text-center border border-stone-50 text-stone-50 hover:bg-stone-50 hover:text-stone-900 font-mono text-[12px] tracking-widest px-6 py-3 rounded-md transition-colors">
+          &gt; BYOK로 시작
+        </a>
+      </div>
+    </div>
+
+    <p class="text-left md:pl-[25%] text-[11px] text-stone-500 mt-8 font-mono tracking-widest uppercase">
+      국내 카드·간편결제 지원<span class="mx-2 text-stone-600">·</span>VAT 별도<span class="mx-2 text-stone-600">·</span>언제든 해지<span class="mx-2 text-stone-600">·</span><a href="#" class="underline underline-offset-2 decoration-stone-600 hover:text-stone-300">환불 정책</a>
+    </p>
+
+    <!-- Secondary: developer & enterprise options -->
+    <div class="mt-20 pt-12 reveal" style="border-top: 1px solid #3A362F;">
+      <div class="grid grid-cols-12 gap-6 mb-8">
+        <div class="col-span-12 md:col-span-3">
+          <span class="sec-label" style="color:#6B6559">↪ OTHER ROUTES</span>
+        </div>
+        <div class="col-span-12 md:col-span-9">
+          <h3 class="kr serif text-2xl md:text-3xl leading-[1.15] mb-2">
+            직접 운영하거나, 온프레미스로.
+          </h3>
+          <p class="kr text-[13px] text-stone-400 leading-relaxed max-w-[520px]">
+            관리형 클라우드를 원하지 않는다면, 두 가지 길이 더 있습니다.
+          </p>
+        </div>
+      </div>
+      <div class="grid grid-cols-12 gap-0 rounded-xl overflow-hidden" style="border: 1px solid #3A362F;">
+        <a href="#docs" class="group col-span-12 md:col-span-6 p-6 transition-colors hover:bg-stone-800" style="border-right: 1px solid #3A362F; border-bottom: 1px solid #3A362F;">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <div class="font-mono text-[10.5px] tracking-widest text-stone-500 uppercase mb-2">SELF-HOSTED · 개발자용</div>
+              <h4 class="serif text-xl text-stone-100 mb-2 kr">Docker로 직접 운영</h4>
+              <p class="kr text-[13px] text-stone-400 leading-relaxed">
+                오픈소스(AGPLv3) 전체 코드 · 무제한 워크스페이스·멤버 · 완전 로컬 LLM 옵션. 하드웨어와 운영은 여러분 책임입니다.
+              </p>
+            </div>
+            <svg class="w-4 h-4 text-stone-500 group-hover:text-stone-50 mt-1 flex-shrink-0 transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 17L17 7M7 7h10v10"/></svg>
+          </div>
+          <div class="mt-4 font-mono text-[11px] tracking-wider text-stone-500">
+            <span class="text-stone-50">$</span> docker-compose up -d
+          </div>
+        </a>
+        <a href="#enterprise" class="group col-span-12 md:col-span-6 p-6 transition-colors hover:bg-stone-800" style="border-bottom: 1px solid #3A362F;">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <div class="font-mono text-[10.5px] tracking-widest text-stone-500 uppercase mb-2">ENTERPRISE · 규제 산업</div>
+              <h4 class="serif text-xl text-stone-100 mb-2 kr">온프레미스 · SSO · 감사 로그</h4>
+              <p class="kr text-[13px] text-stone-400 leading-relaxed">
+                금융·의료·공공·대학처럼 외부 SaaS를 쓸 수 없는 환경을 위한 전담 설치·지원. 완전 로컬 LLM · SAML/OIDC SSO · 상용 라이선스.
+              </p>
+            </div>
+            <svg class="w-4 h-4 text-stone-500 group-hover:text-stone-50 mt-1 flex-shrink-0 transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 17L17 7M7 7h10v10"/></svg>
+          </div>
+          <div class="mt-4 font-mono text-[11px] tracking-wider text-stone-500 kr">
+            상담 요청 · 맞춤 견적
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ · [ 013 / faq ] -->
+<section id="faq" class="py-24 md:py-32 border-b border-stone-900">
+  <div class="max-w-[1280px] mx-auto px-6 lg:px-10">
+    <div class="grid grid-cols-12 gap-6">
+      <div class="col-span-12 md:col-span-3 mb-6 md:mb-0">
+        <span class="sec-label"><span class="n">[ 012 / 012 · FAQ ]</span></span>
+        <h2 class="kr text-3xl text-stone-900 tracking-tight font-semibold mt-4">묻기 전에.</h2>
+      </div>
+      <div class="col-span-12 md:col-span-9 border-y border-stone-900 divide-y divide-stone-300">
+        <details class="py-6 group">
+          <summary class="flex justify-between items-start gap-6 cursor-pointer kr serif text-xl md:text-2xl text-stone-900">
+            <span>데이터는 어디에 저장되나요?</span>
+            <span class="font-mono text-stone-500 group-open:rotate-45 transition-transform text-2xl leading-none pt-1">+</span>
+          </summary>
+          <p class="mt-4 text-[14px] text-stone-600 leading-relaxed kr max-w-[640px]">
+            전부 여러분이 운영하는 인프라에 저장됩니다. 텍스트·벡터·위키는 데이터베이스에, 원본 파일은 파일 스토리지에. Gemini 모드에서는 AI 호출만 외부로 나가고, 완전 로컬 모드에서는 외부 요청이 0입니다.
+          </p>
+        </details>
+        <details class="py-6 group">
+          <summary class="flex justify-between items-start gap-6 cursor-pointer kr serif text-xl md:text-2xl text-stone-900">
+            <span>AGPLv3면 회사에서 못 쓰는 거 아닌가요?</span>
+            <span class="font-mono text-stone-500 group-open:rotate-45 transition-transform text-2xl leading-none pt-1">+</span>
+          </summary>
+          <p class="mt-4 text-[14px] text-stone-600 leading-relaxed kr max-w-[640px]">
+            사내 사용은 전혀 문제없습니다. AGPLv3는 "네트워크를 통해 외부 제3자에게 서비스할 때" 소스 공개 의무가 생깁니다. 사내 직원 간 공유는 배포가 아니라 사용으로 간주됩니다. 소스 공개가 곤란한 경우 상용 라이선스로 전환 가능.
+          </p>
+        </details>
+        <details class="py-6 group">
+          <summary class="flex justify-between items-start gap-6 cursor-pointer kr serif text-xl md:text-2xl text-stone-900">
+            <span>Gemini 말고 OpenAI는 안 되나요?</span>
+            <span class="font-mono text-stone-500 group-open:rotate-45 transition-transform text-2xl leading-none pt-1">+</span>
+          </summary>
+          <p class="mt-4 text-[14px] text-stone-600 leading-relaxed kr max-w-[640px]">
+            v0.1에서는 Gemini(호스티드 · BYOK)와 Ollama(완전 로컬) 두 가지를 지원합니다. 대용량 컨텍스트 캐싱 · 네이티브 오디오 생성 · 실시간 웹 검색 같은 Gemini 고유 기능을 핵심 가치로 삼기 때문입니다. 완전 로컬이 필요한 경우 Ollama.
+          </p>
+        </details>
+        <details class="py-6 group">
+          <summary class="flex justify-between items-start gap-6 cursor-pointer kr serif text-xl md:text-2xl text-stone-900">
+            <span>기존 노트 앱에서 마이그레이션할 수 있나요?</span>
+            <span class="font-mono text-stone-500 group-open:rotate-45 transition-transform text-2xl leading-none pt-1">+</span>
+          </summary>
+          <p class="mt-4 text-[14px] text-stone-600 leading-relaxed kr max-w-[640px]">
+            Markdown 형태로 내보낸 파일을 업로드하면 Compiler가 위키로 다시 엮습니다. 손으로 정리하던 기존 페이지들이 연결된 위키로 되살아납니다. Notion · Obsidian · Bear 등 주요 앱의 내보내기 포맷을 지원합니다.
+          </p>
+        </details>
+        <details class="py-6 group">
+          <summary class="flex justify-between items-start gap-6 cursor-pointer kr serif text-xl md:text-2xl text-stone-900">
+            <span>AI가 위키를 잘못 쓰면 어떻게 되나요?</span>
+            <span class="font-mono text-stone-500 group-open:rotate-45 transition-transform text-2xl leading-none pt-1">+</span>
+          </summary>
+          <p class="mt-4 text-[14px] text-stone-600 leading-relaxed kr max-w-[640px]">
+            AI가 생성한 문장에는 자동 표시가 붙어 언제든 직접 수정할 수 있습니다. 한 번 손으로 편집한 부분은 이후 AI가 덮어쓰지 않습니다. Librarian이 모순을 찾아 경고하고, 모든 변경은 활동 로그에 남아 원하는 시점으로 되돌릴 수 있습니다.
+          </p>
+        </details>
+        <details class="py-6 group">
+          <summary class="flex justify-between items-start gap-6 cursor-pointer kr serif text-xl md:text-2xl text-stone-900">
+            <span>실시간 협업은 얼마나 매끄러운가요?</span>
+            <span class="font-mono text-stone-500 group-open:rotate-45 transition-transform text-2xl leading-none pt-1">+</span>
+          </summary>
+          <p class="mt-4 text-[14px] text-stone-600 leading-relaxed kr max-w-[640px]">
+            Hocuspocus 기반의 현대적 동기화를 사용해 충돌 해결이나 "다시 연결 중" 같은 지연이 거의 없습니다. 커서·아바타 표시, 블록 단위 코멘트, @멘션, 알림, 공개 링크, 게스트 초대까지 v0.1부터 제공됩니다.
+          </p>
+        </details>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Final CTA · 닫는 말 -->
+<section id="cta" class="bg-stone-50 grid-bg py-24 md:py-32 border-b border-stone-900">
+  <div class="max-w-[1280px] mx-auto px-6 lg:px-10">
+    <div class="grid grid-cols-12 gap-6">
+      <div class="col-span-12 md:col-span-3">
+        <span class="sec-label">↪ CLOSING</span>
+      </div>
+      <div class="col-span-12 md:col-span-9">
+        <h2 class="kr serif text-4xl md:text-6xl text-stone-900 leading-[1.02] mb-6">
+          여러분 지식의<br><span class="italic">제2의 뇌.</span>
+        </h2>
+        <p class="kr text-[15px] text-stone-600 leading-relaxed mb-10 max-w-[560px]">
+          카드 등록 없이 Free 플랜으로 지금 시작하세요. 1년 뒤 여러분의 지식 베이스가 얼마나 자라 있을지는 오늘부터의 축적에 달려 있습니다.
+        </p>
+        <div class="flex flex-wrap items-center gap-4 mb-6">
+          <a href="#login" class="bg-stone-900 hover:bg-stone-800 text-stone-50 font-mono text-[13px] tracking-widest px-8 py-4 rounded-md transition-colors kr inline-flex items-center gap-2.5">
+            &gt; 무료로 시작하기
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+          <a href="#pricing" class="border border-stone-900 text-stone-900 hover:bg-stone-900 hover:text-stone-50 font-mono text-[13px] tracking-widest px-8 py-4 rounded-md transition-colors kr">
+            요금 비교
+          </a>
+        </div>
+        <p class="font-mono text-[11px] text-stone-500 tracking-widest uppercase">
+          <a href="https://github.com/Sungblab/opencairn-monorepo" class="hover:text-stone-900 underline underline-offset-2 decoration-stone-400">GITHUB ↗</a>
+          <span class="mx-3 text-stone-400">·</span>
+          <a href="#docs" class="hover:text-stone-900 underline underline-offset-2 decoration-stone-400">셀프호스팅 가이드</a>
+          <span class="mx-3 text-stone-400">·</span>
+          <span>오늘 저녁, 첫 PDF부터.</span>
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="py-16" style="background-color:#1C1917; color:#D6D3D1;">
+  <div class="max-w-[1280px] mx-auto px-6 lg:px-10">
+    <div class="grid grid-cols-12 gap-6 mb-12">
+      <div class="col-span-12 md:col-span-4">
+        <div class="flex items-baseline gap-3 mb-4">
+          <svg class="w-7 h-7 self-center" viewBox="0 0 32 32" fill="none">
+            <path d="M8 24 L16 8 L24 24 Z" stroke="#D3CCBE" stroke-width="1.5" fill="none"/>
+            <path d="M10 20 L16 12 L22 20 Z" stroke="#F5F3EE" stroke-width="1.5" fill="#2A2823"/>
+            <circle cx="16" cy="20" r="1.5" fill="#D3CCBE"/>
+          </svg>
+          <span class="serif text-2xl" style="color:#F5F3EE">OpenCairn</span>
+          <span class="font-mono text-[11px] tracking-widest" style="color:#A8A29E">.v0.1</span>
+        </div>
+        <p class="kr text-[13px] leading-relaxed max-w-[340px]" style="color:#D6D3D1">
+          AI 지식 OS. 혼자서도, 팀으로도. 셀프호스팅으로 영원히.<br>
+          <span class="font-mono text-[11px] tracking-wider" style="color:#A8A29E">for people who read too much and remember too little.</span>
+        </p>
+      </div>
+      <div class="col-span-6 md:col-span-2">
+        <h4 class="font-mono text-[11px] tracking-widest uppercase mb-4" style="color:#F5F3EE">Product</h4>
+        <ul class="space-y-2 font-mono text-[11.5px] tracking-wider">
+          <li><a href="#how" class="hover:text-stone-50 transition-colors">pipeline</a></li>
+          <li><a href="#agents" class="hover:text-stone-50 transition-colors">agents</a></li>
+          <li><a href="#workspace" class="hover:text-stone-50 transition-colors">workspace</a></li>
+          <li><a href="#vs" class="hover:text-stone-50 transition-colors">principles</a></li>
+          <li><a href="#pricing" class="hover:text-stone-50 transition-colors">pricing</a></li>
+        </ul>
+      </div>
+      <div class="col-span-6 md:col-span-2">
+        <h4 class="font-mono text-[11px] tracking-widest uppercase mb-4" style="color:#F5F3EE">Developers</h4>
+        <ul class="space-y-2 font-mono text-[11.5px] tracking-wider">
+          <li><a href="https://github.com/Sungblab/opencairn-monorepo" class="hover:text-stone-50 transition-colors">github</a></li>
+          <li><a href="https://github.com/Sungblab/opencairn-monorepo/tree/master/docs" class="hover:text-stone-50 transition-colors">docs</a></li>
+          <li><a href="https://github.com/Sungblab/opencairn-monorepo/tree/master/docs/architecture/adr" class="hover:text-stone-50 transition-colors">adrs</a></li>
+          <li><a href="https://github.com/Sungblab/opencairn-monorepo/issues" class="hover:text-stone-50 transition-colors">issues</a></li>
+          <li><a href="#" class="hover:text-stone-50 transition-colors">changelog</a></li>
+        </ul>
+      </div>
+      <div class="col-span-6 md:col-span-2">
+        <h4 class="font-mono text-[11px] tracking-widest uppercase mb-4" style="color:#F5F3EE">Community</h4>
+        <ul class="space-y-2 font-mono text-[11.5px] tracking-wider">
+          <li><a href="#" class="hover:text-stone-50 transition-colors">discord</a></li>
+          <li><a href="#" class="hover:text-stone-50 transition-colors">twitter</a></li>
+          <li><a href="#" class="hover:text-stone-50 transition-colors">roadmap</a></li>
+          <li><a href="mailto:hello@opencairn.dev" class="hover:text-stone-50 transition-colors">email</a></li>
+        </ul>
+      </div>
+      <div class="col-span-6 md:col-span-2">
+        <h4 class="font-mono text-[11px] tracking-widest uppercase mb-4" style="color:#F5F3EE">Legal</h4>
+        <ul class="space-y-2 font-mono text-[11.5px] tracking-wider">
+          <li><a href="https://github.com/Sungblab/opencairn-monorepo/blob/master/LICENSE" class="hover:text-stone-50 transition-colors">agplv3</a></li>
+          <li><a href="#" class="hover:text-stone-50 transition-colors">privacy</a></li>
+          <li><a href="#" class="hover:text-stone-50 transition-colors">refund</a></li>
+          <li><a href="#" class="hover:text-stone-50 transition-colors">cla</a></li>
+          <li><a href="#" class="hover:text-stone-50 transition-colors">terms</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="pt-8 flex flex-wrap items-center justify-between gap-4 font-mono text-[10.5px] tracking-widest uppercase" style="border-top: 1px solid #57534E; color:#A8A29E">
+      <div>© 2026 OpenCairn · Built in Seoul · AGPLv3</div>
+      <div class="flex items-center gap-5">
+        <span>Gemini</span>
+        <span>·</span>
+        <span>Ollama</span>
+        <span>·</span>
+        <span>Docker</span>
+        <span>·</span>
+        <span>Self-Hosted</span>
+      </div>
+    </div>
+  </div>
+  <div class="pt-6 mt-6 text-center font-mono text-[10px] tracking-widest uppercase" style="color:#78716C">
+    &lt; end of document / 읽어주셔서 감사합니다 &gt;
+  </div>
+</footer>
+
+<script>
+/* ═════════ Interactive layer for OpenCairn ═════════ */
+(() => {
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* 1. Scroll reveal (IntersectionObserver) */
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (e.isIntersecting) {
+        e.target.classList.add('in');
+        io.unobserve(e.target);
+      }
+    });
+  }, { rootMargin: '0px 0px -10% 0px', threshold: 0.08 });
+  document.querySelectorAll('.reveal, .reveal-stagger').forEach((el) => io.observe(el));
+
+  /* 2. Stat counter animation (count-up on reveal) */
+  const animateCount = (el) => {
+    const target = parseFloat(el.dataset.target || '0');
+    const suffix = el.dataset.suffix || '';
+    const dur = 1200;
+    const start = performance.now();
+    if (reduce || target === 0) { el.textContent = target + suffix; return; }
+    const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / dur);
+      const v = Math.round(target * easeOut(t));
+      el.textContent = v + suffix;
+      if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  };
+  const countIO = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (e.isIntersecting) {
+        animateCount(e.target);
+        countIO.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.5 });
+  document.querySelectorAll('.count-up').forEach((el) => countIO.observe(el));
+
+  /* 3. Agent card magnetic tilt */
+  if (!reduce) {
+    document.querySelectorAll('.tilt').forEach((card) => {
+      card.addEventListener('mousemove', (e) => {
+        const r = card.getBoundingClientRect();
+        const x = (e.clientX - r.left) / r.width - 0.5;
+        const y = (e.clientY - r.top) / r.height - 0.5;
+        card.style.transform = `perspective(700px) rotateX(${-y * 4}deg) rotateY(${x * 6}deg) translateY(-2px)`;
+      });
+      card.addEventListener('mouseleave', () => {
+        card.style.transform = '';
+      });
+    });
+  }
+
+  /* 4. Hero live compile: cycle agents + output counters + status */
+  const activeOrder = [0, 2, 1, 7, 3, 4, 5, 9, 10, 11, 6, 8]; /* Compiler → Librarian → Research → Connector → Synthesis → Socratic → Narrator → Deep R → Code → Visual. → Curator → Temporal */
+  const messages = [
+    '자료 업로드 감지 · attention_is_all_you_need.pdf',
+    'Compiler: 17 개념 추출 · 임베딩 생성 중',
+    'Librarian: 기존 위키와 3 개의 중복 병합 제안',
+    'Research: 관련 질문 후보 4 건 인덱싱',
+    'Connector: signal-processing 프로젝트와 2 개 개념 연결',
+    'Synthesis: "attention ↔ selective perception" 통합 제안',
+    'Socratic: 플래시카드 9장 자동 생성',
+    'Narrator: 2인 대화 스크립트 초안 작성',
+    'Deep Research: 후속 조사 주제 2 건 큐잉',
+    'Code: 샘플 어텐션 스코어 시각화 생성',
+    'Visualization: 5뷰 레이아웃 업데이트',
+    'Curator: 추천 논문 "RoFormer (2021)" 발견',
+    'Temporal: 지식 그래프 변화 타임라인 동기화'
+  ];
+  const agentNodes = () => Array.from(document.querySelectorAll('#agentList [data-aix]'));
+  const clearActive = () => {
+    agentNodes().forEach((g) => {
+      const c = g.querySelector('circle');
+      if (c) c.classList.remove('hero-agent-active');
+    });
+  };
+  const msgEl = document.getElementById('liveMsg');
+  const outWiki = document.getElementById('outWiki');
+  const outLinks = document.getElementById('outLinks');
+  const outCards = document.getElementById('outCards');
+  let wikiN = 17, linksN = 42, cardsN = 23;
+  let tickI = 0;
+
+  const tickHero = () => {
+    clearActive();
+    const idx = activeOrder[tickI % activeOrder.length];
+    const node = document.querySelector(`#agentList [data-aix="${idx}"] circle`);
+    if (node) node.classList.add('hero-agent-active');
+    if (msgEl) msgEl.textContent = messages[(tickI + 1) % messages.length];
+    /* increment counters every few ticks */
+    if (tickI % 2 === 0) {
+      wikiN += Math.random() < 0.5 ? 1 : 0;
+      linksN += 1 + Math.floor(Math.random() * 3);
+      cardsN += Math.random() < 0.5 ? 1 : 0;
+      if (outWiki) outWiki.textContent = wikiN;
+      if (outLinks) outLinks.textContent = linksN;
+      if (outCards) outCards.textContent = cardsN;
+    }
+    tickI++;
+  };
+  if (!reduce) {
+    tickHero();
+    setInterval(tickHero, 2200);
+  } else {
+    if (msgEl) msgEl.textContent = messages[0];
+  }
+
+  /* 5. Mini graph interaction */
+  const mg = document.getElementById('miniGraph');
+  if (mg) {
+    const tip = document.getElementById('mgTooltip');
+    const DATA = {
+      attention:   { t: 'Attention', d: '입력 시퀀스의 서로 다른 부분에 가중치를 다르게 주어 중요한 정보에 집중하는 메커니즘.', n: 8, links: ['multihead', 'transformer'] },
+      transformer: { t: 'Transformer', d: '어텐션만으로 동작하는 시퀀스 변환 아키텍처. 인코더·디코더 구조.', n: 14, links: ['attention', 'positional', 'encoder', 'bert'] },
+      multihead:   { t: 'Multi-Head Attention', d: '어텐션을 여러 부분 공간에 병렬로 적용해 다양한 관계를 포착.', n: 6, links: ['attention'] },
+      positional:  { t: 'Positional Encoding', d: '어텐션에는 위치 개념이 없어 위치 정보를 명시적으로 주입해야 함.', n: 5, links: ['transformer', 'rope'] },
+      encoder:     { t: 'Encoder', d: '입력을 표현 벡터로 변환하는 스택. Transformer의 상반부.', n: 4, links: ['transformer', 'decoder'] },
+      decoder:     { t: 'Decoder', d: '인코더 출력을 참고해 타겟 시퀀스를 자동회귀적으로 생성.', n: 3, links: ['encoder'] },
+      bert:        { t: 'BERT', d: '인코더만 사용하는 양방향 사전학습 모델. 이해 태스크에 강함.', n: 9, links: ['transformer', 'pretraining'] },
+      rope:        { t: 'RoPE (Rotary Pos. Emb.)', d: '위치 정보를 회전 행렬로 주입해 외삽 성능을 개선한 포지션 인코딩.', n: 4, links: ['positional'] },
+      pretraining: { t: 'Pretraining', d: '대규모 코퍼스에서 범용 언어 능력을 먼저 학습한 뒤 다운스트림에 전이.', n: 7, links: ['bert'] }
+    };
+    const nodes = mg.querySelectorAll('.mg-node');
+    const edges = mg.querySelectorAll('.mg-edge');
+    const clearState = () => {
+      nodes.forEach((n) => n.classList.remove('active'));
+      edges.forEach((e) => e.classList.remove('active'));
+      tip.classList.remove('show');
+    };
+    const activate = (id, clientX, clientY) => {
+      clearState();
+      const n = mg.querySelector(`.mg-node[data-id="${id}"]`);
+      if (!n) return;
+      n.classList.add('active');
+      edges.forEach((e) => {
+        const [a, b] = (e.dataset.e || '').split('|');
+        if (a === id || b === id) e.classList.add('active');
+      });
+      const d = DATA[id];
+      if (!d) return;
+      const r = mg.getBoundingClientRect();
+      const linksHtml = d.links.map((l) => `→ ${DATA[l]?.t || l}`).join(' · ');
+      tip.innerHTML = `<div class="t-title">${d.t}</div><div class="t-desc">${d.d}</div><div class="t-links">백링크 ${d.n} · ${linksHtml}</div>`;
+      /* position tooltip near node, keep in panel */
+      let x = clientX - r.left + 14;
+      let y = clientY - r.top + 14;
+      const tr = tip.getBoundingClientRect();
+      if (x + 280 > r.width) x = clientX - r.left - 280;
+      if (y + 120 > r.height) y = clientY - r.top - 120;
+      tip.style.left = Math.max(8, x) + 'px';
+      tip.style.top = Math.max(8, y) + 'px';
+      tip.classList.add('show');
+    };
+    nodes.forEach((n) => {
+      const onOver = (e) => activate(n.dataset.id, e.clientX, e.clientY);
+      n.addEventListener('mouseenter', onOver);
+      n.addEventListener('mousemove', onOver);
+      n.addEventListener('click', onOver);
+    });
+    mg.addEventListener('mouseleave', clearState);
+
+    /* idle autoplay — cycles through nodes every ~3s until user interacts */
+    const keys = Object.keys(DATA);
+    let autoIdx = 0, autoPaused = false;
+    mg.addEventListener('mouseenter', () => { autoPaused = true; });
+    const auto = () => {
+      if (autoPaused || reduce) return;
+      const key = keys[autoIdx % keys.length];
+      const n = mg.querySelector(`.mg-node[data-id="${key}"]`);
+      if (n) {
+        const r = n.getBoundingClientRect();
+        activate(key, r.left + r.width / 2, r.top + r.height / 2);
+      }
+      autoIdx++;
+    };
+    if (!reduce) {
+      setTimeout(auto, 1200);
+      setInterval(auto, 3200);
+    }
+  }
+
+  /* 6. Cairn stacker easter egg — click logo to add a stone */
+  const logo = document.getElementById('cairnLogo');
+  if (logo) {
+    let clicks = 0;
+    logo.addEventListener('click', (e) => {
+      if (e.target.closest('a') === logo && logo.getAttribute('href') === '#') e.preventDefault();
+      clicks++;
+      if (clicks === 1) {
+        const extra = logo.querySelector('.cairn-extra');
+        if (extra) extra.classList.add('shown');
+      }
+      if (clicks === 3) {
+        const span = logo.querySelector('span.serif');
+        if (span) {
+          const prev = span.textContent;
+          span.textContent = '네 번째 돌 ✦';
+          setTimeout(() => { span.textContent = prev; }, 1600);
+        }
+      }
+    });
+  }
+
+  /* 6.5. Hero activity feed — cycles every 4s */
+  const acList = document.getElementById('acList');
+  if (acList) {
+    const ITEMS = [
+      { agent: 'Compiler',   text: '<b>attention_is_all_you_need.pdf</b> 컴파일 완료 · 17 개념' },
+      { agent: 'Librarian',  text: "'self-attention' ↔ 'scaled dot-product' 중복 병합 제안" },
+      { agent: 'Synthesis',  text: "'어텐션 ↔ 인지 선택' 도메인 간 구조 유사성 발견" },
+      { agent: 'Curator',    text: '<b>RoFormer (2021)</b> 관련 논문 후보 3 건' },
+      { agent: 'Socratic',   text: '약한 개념 4 건 감지 · 플래시카드 9 장 생성' },
+      { agent: 'Connector',  text: "'signal-processing' 프로젝트와 2 개념 연결" },
+      { agent: 'Temporal',   text: "'트랜스포머' 이해도 <b>+15%</b> (지난 7 일)" },
+      { agent: 'Research',   text: '새 질문 후보 4 건 인덱싱 · Q&A 준비 완료' },
+      { agent: 'Deep R.',    text: '<b>"post-LN vs pre-LN"</b> 심층 조사 큐잉' },
+      { agent: 'Narrator',   text: '주간 팟캐스트 <b>12:30</b> 자동 생성' },
+      { agent: 'Code',       text: '어텐션 스코어 히트맵 · 브라우저 렌더링' },
+      { agent: 'Visual.',    text: '지식 그래프 5뷰 레이아웃 재계산' }
+    ];
+    const SHOW = 4;
+    const LABELS = ['방금', '1분 전', '3분 전', '6분 전'];
+    let head = 0;
+    const render = () => {
+      const shown = [];
+      for (let i = 0; i < SHOW; i++) shown.push(ITEMS[(head + i) % ITEMS.length]);
+      acList.innerHTML = shown.map((it, i) => (
+        `<li class="ac-item" style="transition-delay:${i * 60}ms"><span class="ac-agent">${it.agent}</span><span class="ac-text">${it.text}</span><span class="ac-time">${LABELS[i]}</span></li>`
+      )).join('');
+      requestAnimationFrame(() => {
+        acList.querySelectorAll('.ac-item').forEach((el) => el.classList.add('in'));
+      });
+    };
+    render();
+    if (!reduce) {
+      setInterval(() => {
+        /* fade-out old items first */
+        acList.querySelectorAll('.ac-item').forEach((el) => el.classList.remove('in'));
+        setTimeout(() => {
+          head = (head + 1) % ITEMS.length;
+          render();
+        }, 380);
+      }, 4200);
+    }
+  }
+
+  /* 7. Gentle parallax on hero visuals */
+  const liveP = document.querySelector('.live-panel');
+  if (liveP && !reduce) {
+    window.addEventListener('scroll', () => {
+      const r = liveP.getBoundingClientRect();
+      if (r.top > window.innerHeight || r.bottom < 0) return;
+      const progress = 1 - (r.top / window.innerHeight);
+      liveP.style.transform = `translateY(${Math.min(0, (1 - progress) * 12)}px)`;
+    }, { passive: true });
+  }
+})();
+</script>
+</body>
+</html>
