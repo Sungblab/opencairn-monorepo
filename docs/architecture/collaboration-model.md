@@ -240,10 +240,23 @@ function resolveRole(user, page) {
 ### 3.5 Agent scoping
 
 에이전트(Compiler/Research/Synthesis 등)도 권한 시스템을 따른다:
+
 - 에이전트 activity의 `workspace_id` 파라미터 필수
 - Connector Agent는 **같은 workspace 내 다른 project**만 연결 (workspace 경계 절대 불침투)
-- 에이전트가 읽는 컨텐츠는 agent activity를 trigger한 사용자의 권한으로 읽는다 (권한 상승 금지)
-- 자동 실행 에이전트(Librarian/Curator 등)는 workspace owner 권한으로 실행
+- 모든 에이전트 행동은 `activity_events`에 `actor_type='agent'`로 기록 (감시 가능성)
+
+**권한 상속 규칙** (혼동 방지를 위해 명시):
+
+| 트리거 유형 | 예시 에이전트 | 적용 권한 | 근거 |
+|-------------|--------------|-----------|------|
+| **사용자 트리거** (chat, 명시적 호출) | Research, Code, Compiler(업로드 직후), Deep Research | 트리거한 사용자의 `resolveRole` 결과 그대로 적용. **권한 상승 금지.** 사용자가 못 읽는 페이지는 에이전트도 못 읽음. | 사용자가 출력 결과의 책임 주체. PAYG 차감도 사용자 |
+| **자동 스케줄** (cron, idle trigger, 워크스페이스 이벤트 반응) | Librarian, Curator, Visualization (백그라운드), Synthesis (주기적) | **workspace owner 권한**으로 실행. 단 모든 쓰기는 `actor_type='agent'`로 감시 로그 + activity feed에 표시. | 자동 에이전트는 워크스페이스 전체 일관성 유지가 목적 (위키 정리, 중복 감지 등) — owner 시점이 자연스러움 |
+
+**경계 케이스:**
+
+- **사용자 트리거 → 자동 후속 작업**: Research가 사용자 트리거로 실행되다가 결과를 위키에 반영하기 위해 Compiler를 후속 호출하는 경우, 후속도 **트리거한 사용자 권한 유지** (체인 전체 단일 권한 컨텍스트).
+- **자동 트리거 → 사용자 알림**: Librarian이 owner 권한으로 중복 페이지 발견 → 알림은 페이지 `viewer`+ 권한 가진 사용자에게만 전송 (collaboration-model §7).
+- **Guest 사용자 트리거**: Guest가 명시적으로 공유받은 페이지 안에서 채팅 트리거 시 Guest의 좁은 권한 그대로 적용. Guest 권한으로 못 읽는 다른 페이지/프로젝트는 검색 결과에서도 제외.
 
 ---
 

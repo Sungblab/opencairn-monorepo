@@ -96,6 +96,57 @@ apps/worker/
 
 ---
 
+### Task 0: Verify Prerequisites (BLOCKING)
+
+이 plan은 Plan 1(Foundation) + Plan 13(multi-llm-provider) + Plan 3(ingest pipeline) 위에 실행된다. 셋 다 완료되지 않으면 Task 1부터 막힌다 — 시작 전 검증.
+
+- [ ] **Step 1: Plan 1 prerequisite 검증**
+
+다음이 모두 존재해야 함:
+- `packages/db/src/schema/` — workspaces / users / notes / projects / workspace_members / activity_events 테이블 스키마
+- `apps/api/src/lib/permissions.ts` — `canRead` / `canWrite` / `requireWorkspaceRole` export
+- 마이그레이션 적용된 Postgres + pgvector 가동 (`pnpm db:migrate` 성공 이력)
+
+```bash
+ls packages/db/src/schema/{workspaces,users,notes,projects,workspace-members}.ts
+grep -l "export.*canRead\|export.*canWrite" apps/api/src/lib/permissions.ts
+```
+Expected: 모두 존재 + grep 매치.
+
+- [ ] **Step 2: Plan 13 prerequisite 검증**
+
+`packages/llm/` Python 패키지가 빌드되어 `from llm import get_provider`가 동작해야 함.
+
+```bash
+cd packages/llm && uv run python -c "from llm import get_provider; print(get_provider('gemini'))"
+```
+Expected: `<GeminiProvider ...>` 출력. ImportError면 Plan 13 미완.
+
+- [ ] **Step 3: Plan 3 prerequisite 검증**
+
+LightRAG가 설치되어 있고 `apps/worker`에서 import 가능해야 함 (Hybrid search dependency).
+
+```bash
+uv run python -c "import lightrag; print(lightrag.__version__)"
+```
+Expected: 버전 출력. ImportError면 Plan 3 미완.
+
+- [ ] **Step 4: VECTOR_DIM env 일관성 검증**
+
+`packages/db`의 `VECTOR_DIM` 값과 `packages/llm`의 임베딩 모델 차원이 일치해야 함.
+
+```bash
+grep "VECTOR_DIM" .env
+grep "EMBED_MODEL" .env
+# Gemini text-embedding-004 = 768, gemini-embedding-2-preview = 3072
+# Ollama nomic-embed-text = 768
+```
+Expected: VECTOR_DIM과 EMBED_MODEL 차원이 매치. 불일치 시 Plan 13 §VECTOR_DIM 다시 확인.
+
+> 위 4단계 중 하나라도 실패하면 STOP. 해당 plan부터 완료한 뒤 본 task로 복귀.
+
+---
+
 ### Task 1: Python Worker Project Setup
 
 **Files:**

@@ -16,11 +16,17 @@ packages/shared — Zod 스키마 (API 계약).
 
 Data hierarchy: **Workspace → Project → Page** (Notion 스타일 3계층). Workspace가 격리 경계, 하위는 상속 + override. 상세: [collaboration-model.md](docs/architecture/collaboration-model.md).
 
+> **상태**: greenfield. 2026-04-20 기준 코드 0줄, 모노레포 스캐폴딩 미생성. 모든 plan 실행은 monorepo bootstrap (Plan 1 Task 1)부터 시작. 데이터 모델은 처음부터 workspace 3계층 — `projects.user_id` 같은 옛 컬럼은 존재한 적 없음 (2026-04-18 "breaking change" 표현은 spec 진화 의미, 마이그레이션 의미 아님).
+
 > 2026-04-14 업데이트: `apps/sandbox` 폐기 (gVisor 제거). 코드 실행은 전부 브라우저 (Pyodide/iframe, [ADR-006](docs/architecture/adr/006-pyodide-iframe-sandbox.md)). 파싱 스택은 opendataloader-pdf + markitdown + unoserver + H2Orestart + faster-whisper. 시각화는 Cytoscape 5뷰 (Visualization Agent 추가로 12 에이전트). 결제는 Toss Payments (한국 원화). 상세는 세션 커밋 `7587347`.
 >
 > 2026-04-15 업데이트: OpenAI provider 제거. `packages/llm`은 Gemini + Ollama 2개만 지원.
 >
 > **2026-04-18 업데이트**: Notion급 팀 협업을 v0.1에 포함. Workspace 계층 + 역할 기반 권한 + Hocuspocus auth hook + 코멘트 + @mention + 알림 + 활동 피드 + 공개 링크 + 게스트. 페르소나 3단계 확장 (v0.1 대학원생 → v0.2 연구실 → v0.3 규제 산업 엔터프라이즈). 데이터 모델 breaking change: `projects.user_id` → `projects.workspace_id`. 상세: [collaboration-model.md](docs/architecture/collaboration-model.md).
+>
+> **2026-04-19 업데이트**: 가격 모델 전면 개편. Pro ₩29,000 flat → **Pro ₩4,900 구독료 + PAYG** (최소 ₩5,000 선불 크레딧, 만료 없음, `$1 = ₩1,650` 차감). BYOK ₩6,900 → **₩2,900 서버 임대비** (본인 Gemini 키, Pro 팀 기능 제외, 단일 사용자 호스팅). 상세: [billing-model.md](docs/architecture/billing-model.md).
+>
+> **2026-04-20 업데이트**: Agent Chat Scope 캐논 정의 — Page/Project/Workspace 3계층 스코프, Cursor-style 칩 UI, L1-L4 메모리, Strict/Expand RAG, 답변 핀 + 권한 경고, PDF 통일 뷰어. Plan 11A 추가 (Plan 11B/11C는 후속). **결제 레일은 사업자등록 후 결정으로 deferral** (현재 BLOCKED). 상세: [agent-chat-scope-design.md](docs/superpowers/specs/2026-04-20-agent-chat-scope-design.md), [billing-model.md](docs/architecture/billing-model.md).
 
 ## Rules & Workflow
 
@@ -57,26 +63,31 @@ Read these docs when you need context. Don't load them all at once.
 | Test strategy, CI pipeline | `docs/testing/strategy.md` |
 | Dev setup, conventions, troubleshooting | `docs/contributing/dev-guide.md` |
 | Claude 반복 실수, 하지 말 것 목록 | `docs/contributing/llm-antipatterns.md` |
+| 호스팅 서비스 경계 (법적 문서/블로그 위치, repo 포함 범위) | `docs/contributing/hosted-service.md` |
 | Multi-LLM provider 설계 (Gemini/Ollama) | `docs/superpowers/specs/2026-04-13-multi-llm-provider-design.md` |
 | Document skills 설계 (문서 생성 → PDF/DOCX/PPTX) | `docs/superpowers/specs/2026-04-15-document-skills-design.md` |
 | 스토리지/사이징 계산 (벡터 DB, 사용자별 용량) | `docs/architecture/storage-planning.md` |
 | DB 백업/복구/데이터 포터빌리티 전략 | `docs/architecture/backup-strategy.md` |
 | 보안 모델 (BYOK 키, 권한, CSP, rate limit, Hocuspocus auth) | `docs/architecture/security-model.md` |
+| **과금 모델 (Free/BYOK/Pro/Self-host/Enterprise, PAYG 크레딧, 환율, 잔액 UX, 환불)** | `docs/architecture/billing-model.md` |
 | 장애 대응 / 온콜 / 알럿 채널 | `docs/runbooks/incident-response.md` |
 | 브라우저 샌드박스 E2E 테스트 (Pyodide/iframe) | `docs/testing/sandbox-testing.md` |
 
 ### Implementation Plans
 
-| Plan | Scope |
-|------|-------|
-| `docs/superpowers/plans/2026-04-09-plan-1-foundation.md` | Monorepo, DB schema (**Workspace 3계층 + 권한**), Better Auth, workspace/member/invite CRUD, permissions helpers (`canRead`/`canWrite`/`requireWorkspaceRole`), Docker, Resend, Sentry, CI/CD, backup scripts |
-| `docs/superpowers/plans/2026-04-09-plan-2-editor.md` | Plate v49 에디터 + **Notion급 협업**: Hocuspocus auth hook, 실시간 공동 편집 + Presence, block-anchor 코멘트 + 스레드, @mention, 알림 (SSE+이메일), activity feed, 공개 공유 링크, guest 초대 |
-| `docs/superpowers/plans/2026-04-09-plan-3-ingest-pipeline.md` | 파일 업로드, 파싱 (opendataloader-pdf/markitdown/unoserver/H2Orestart/faster-whisper), Temporal 워크플로우 |
-| `docs/superpowers/plans/2026-04-09-plan-4-agent-core.md` | Compiler, Research, Librarian 에이전트 (Python LangGraph + Temporal) |
-| `docs/superpowers/plans/2026-04-09-plan-5-knowledge-graph.md` | LightRAG 동기화, Cytoscape 5뷰 (Graph/Mindmap/Cards/Canvas/Timeline) + Backlinks, Visualization Agent (Task M1) |
-| `docs/superpowers/plans/2026-04-09-plan-6-learning-system.md` | Socratic (Python worker), SM-2 플래시카드, Tool Templates, Cards 뷰 통합 |
-| `docs/superpowers/plans/2026-04-09-plan-7-canvas-sandbox.md` | 브라우저 샌드박스 (Pyodide + iframe, ADR-006), Code Agent |
-| `docs/superpowers/plans/2026-04-09-plan-8-remaining-agents.md` | Connector, Temporal, Synthesis, Curator, Narrator, Deep Research (Python + LangGraph) |
-| `docs/superpowers/plans/2026-04-09-plan-9-billing-marketing.md` | Toss Payments (한국 원화), 랜딩 페이지, 블로그, BYOK, 환불 정책, Export API (GDPR) |
-| `docs/superpowers/plans/2026-04-13-multi-llm-provider.md` | packages/llm, provider adapters (Gemini/Ollama), VECTOR_DIM, Docker Ollama |
-| `docs/superpowers/plans/2026-04-15-plan-10-document-skills.md` | Document skills (PDF/DOCX/PPTX 생성) — 2026-04-15 spec 기반 실행 플랜 |
+**Critical path** (Phase 0 → 1 → 2 → 3 순서. 같은 phase 내는 병렬 가능):
+
+| Phase | Plan | Scope |
+|-------|------|-------|
+| **0 — Foundation (직렬)** | `plans/2026-04-09-plan-1-foundation.md` | Monorepo, DB schema (**Workspace 3계층 + 권한**), Better Auth, workspace/member/invite CRUD, permissions helpers (`canRead`/`canWrite`/`requireWorkspaceRole`), Docker, Resend, Sentry, CI/CD, backup scripts |
+| **0** | `plans/2026-04-13-multi-llm-provider.md` | packages/llm, provider adapters (Gemini/Ollama), VECTOR_DIM, Docker Ollama. **Plan 4보다 먼저 필수** |
+| **1 — Core (Plan 1·13 후 병렬 가능)** | `plans/2026-04-09-plan-2-editor.md` | Plate v49 에디터 + **Notion급 협업**: Hocuspocus auth hook, 실시간 공동 편집 + Presence, block-anchor 코멘트 + 스레드, @mention, 알림 (SSE+이메일), activity feed, 공개 공유 링크, guest 초대 |
+| **1** | `plans/2026-04-09-plan-3-ingest-pipeline.md` | 파일 업로드, 파싱 (opendataloader-pdf/markitdown/unoserver/H2Orestart/faster-whisper), Temporal 워크플로우 |
+| **1** | `plans/2026-04-09-plan-4-agent-core.md` | Compiler, Research, Librarian 에이전트 (Python LangGraph + Temporal). **Task 0에서 Plan 1·13·3 완료 검증** |
+| **1** | `plans/2026-04-09-plan-9-billing-marketing.md` | **PAYG 크레딧** + 구독료 (Free/BYOK/Pro), 랜딩 페이지, 블로그, 환불 정책, Export API (GDPR). **결제 레일 task는 사업자등록 후 unblock — 그 전에는 provider-agnostic core만**. 상세: `billing-model.md` |
+| **2 — Scale (Plan 4 후)** | `plans/2026-04-09-plan-5-knowledge-graph.md` | LightRAG 동기화, Cytoscape 5뷰 (Graph/Mindmap/Cards/Canvas/Timeline) + Backlinks, Visualization Agent (Task M1) |
+| **2** | `plans/2026-04-09-plan-6-learning-system.md` | Socratic (Python worker), SM-2 플래시카드, Tool Templates, Cards 뷰 통합 |
+| **2** | `plans/2026-04-09-plan-7-canvas-sandbox.md` | 브라우저 샌드박스 (Pyodide + iframe, ADR-006), Code Agent |
+| **2** | `plans/2026-04-09-plan-8-remaining-agents.md` | Connector, Temporal, Synthesis, Curator, Narrator, Deep Research (Python + LangGraph) |
+| **3 — Add-ons** | `plans/2026-04-15-plan-10-document-skills.md` | Document skills (LaTeX/DOCX/PPTX/PDF 생성) — 2026-04-15 spec |
+| **3** | `plans/2026-04-20-plan-11a-chat-scope-foundation.md` | **Chat scope 캐논**: Conversation 테이블, Cursor-style 칩 UI, Strict/Expand RAG, Pin + 권한 경고, 비용 추적. Plan 11B(메모리)/11C(뷰어)는 후속 brainstorm-plan 사이클 |
