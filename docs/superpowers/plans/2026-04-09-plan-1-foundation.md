@@ -1466,8 +1466,9 @@ git commit -m "feat(shared): add API Zod schemas and plan constants"
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsx src/index.ts"
+    "dev": "tsx watch --env-file=../../.env src/index.ts",
+    "build": "tsc",
+    "start": "node --env-file=../../.env dist/index.js"
   },
   "dependencies": {
     "hono": "^4.12.0",
