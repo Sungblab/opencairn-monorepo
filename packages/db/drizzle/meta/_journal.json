@@ -43,6 +43,13 @@
       "when": 1776691954271,
       "tag": "0005_cheerful_kabuki",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1776699860299,
+      "tag": "0006_flimsy_metal_master",
+      "breakpoints": true
     }
   ]
 }

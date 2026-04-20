@@ -161,3 +161,135 @@ class AgentApiClient:
             },
         )
         return res["id"]
+
+    # -- Plan 4 Phase B -----------------------------------------------------
+
+    async def hybrid_search_notes(
+        self,
+        *,
+        project_id: str,
+        query_text: str,
+        query_embedding: list[float],
+        k: int = 10,
+    ) -> list[dict[str, Any]]:
+        """RRF-fused pgvector + BM25 search over the project's source notes.
+
+        Each result carries ``noteId``, ``title``, ``snippet`` (truncated
+        content_text), per-channel scores (``vectorScore``/``bm25Score``,
+        nullable when only one channel matched), and the merged ``rrfScore``.
+        Results are already sorted descending by rrfScore.
+        """
+        res = await post_internal(
+            "/api/internal/notes/hybrid-search",
+            {
+                "projectId": project_id,
+                "queryText": query_text,
+                "queryEmbedding": query_embedding,
+                "k": k,
+            },
+        )
+        return list(res.get("results", []))
+
+    async def list_orphan_concepts(self, project_id: str) -> list[dict[str, Any]]:
+        """Concepts in the project with no edges in either direction."""
+        res = await get_internal(
+            f"/api/internal/projects/{project_id}/orphan-concepts"
+        )
+        return list(res.get("results", []))
+
+    async def list_concept_pairs(
+        self,
+        *,
+        project_id: str,
+        similarity_min: float,
+        similarity_max: float = 1.0,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """Near-neighbour concept pairs inside a similarity band, used by
+        Librarian for contradiction (band 0.75-0.95) and duplicate (>=0.97)
+        analysis. Each result carries idA/nameA/descriptionA, idB/..., and
+        cosine ``similarity``.
+        """
+        params = (
+            f"similarityMin={similarity_min}"
+            f"&similarityMax={similarity_max}"
+            f"&limit={int(limit)}"
+        )
+        res = await get_internal(
+            f"/api/internal/projects/{project_id}/concept-pairs?{params}"
+        )
+        return list(res.get("results", []))
+
+    async def list_link_candidates(
+        self,
+        *,
+        project_id: str,
+        min_co_occurrence: int = 2,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Concept pairs that co-occur in the same note at least
+        ``min_co_occurrence`` times. Librarian bumps the edge weight for
+        each of these.
+        """
+        params = f"minCoOccurrence={min_co_occurrence}&limit={int(limit)}"
+        res = await get_internal(
+            f"/api/internal/projects/{project_id}/link-candidates?{params}"
+        )
+        return list(res.get("results", []))
+
+    async def merge_concepts(
+        self,
+        *,
+        primary_id: str,
+        duplicate_ids: list[str],
+    ) -> int:
+        """Collapse duplicates into primary — re-points edges / concept_notes
+        and deletes the duplicate rows. Returns the number of merged rows.
+        """
+        res = await post_internal(
+            "/api/internal/concepts/merge",
+            {"primaryId": primary_id, "duplicateIds": duplicate_ids},
+        )
+        return int(res.get("mergedCount", 0))
+
+    async def refresh_note_tsv(self, note_id: str) -> None:
+        """Force-regenerate content_tsv for a note. Rarely needed (trigger
+        keeps it fresh) — exposed for Librarian after config changes."""
+        await post_internal(f"/api/internal/notes/{note_id}/refresh-tsv", {})
+
+    async def acquire_semaphore(
+        self,
+        *,
+        project_id: str,
+        holder_id: str,
+        purpose: str,
+        max_concurrent: int = 3,
+        ttl_seconds: int = 30 * 60,
+    ) -> dict[str, Any]:
+        """Try to claim a concurrency slot for this project. Returns a dict
+        with ``acquired`` (bool) and — on success — ``renewed`` (bool); on
+        failure the response also carries ``running`` (int) for diagnostics.
+        """
+        res = await post_internal(
+            "/api/internal/semaphores/acquire",
+            {
+                "projectId": project_id,
+                "holderId": holder_id,
+                "purpose": purpose,
+                "maxConcurrent": max_concurrent,
+                "ttlSeconds": ttl_seconds,
+            },
+        )
+        return res
+
+    async def release_semaphore(
+        self,
+        *,
+        project_id: str,
+        holder_id: str,
+    ) -> None:
+        """Drop a holder's slot. Idempotent — calling twice is safe."""
+        await post_internal(
+            "/api/internal/semaphores/release",
+            {"projectId": project_id, "holderId": holder_id},
+        )

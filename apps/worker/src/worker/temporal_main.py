@@ -18,14 +18,22 @@ from temporalio.worker import Worker
 from worker.activities.compiler_activity import compile_note
 from worker.activities.enhance_activity import enhance_with_gemini
 from worker.activities.image_activity import analyze_image
+from worker.activities.librarian_activity import run_librarian
 from worker.activities.note_activity import create_source_note, report_ingest_failure
 from worker.activities.pdf_activity import parse_pdf
 from worker.activities.quarantine_activity import quarantine_source
+from worker.activities.research_activity import run_research
+from worker.activities.semaphore_activity import (
+    acquire_project_semaphore,
+    release_project_semaphore,
+)
 from worker.activities.stt_activity import transcribe_audio
 from worker.activities.web_activity import scrape_web_url
 from worker.activities.youtube_activity import ingest_youtube
 from worker.workflows.compiler_workflow import CompilerWorkflow
 from worker.workflows.ingest_workflow import IngestWorkflow
+from worker.workflows.librarian_workflow import LibrarianWorkflow
+from worker.workflows.research_workflow import ResearchWorkflow
 
 load_dotenv()
 
@@ -39,7 +47,12 @@ async def main() -> None:
     worker = Worker(
         client,
         task_queue=task_queue,
-        workflows=[IngestWorkflow, CompilerWorkflow],
+        workflows=[
+            IngestWorkflow,
+            CompilerWorkflow,
+            ResearchWorkflow,
+            LibrarianWorkflow,
+        ],
         activities=[
             parse_pdf,
             transcribe_audio,
@@ -51,6 +64,10 @@ async def main() -> None:
             quarantine_source,
             report_ingest_failure,
             compile_note,
+            run_research,
+            run_librarian,
+            acquire_project_semaphore,
+            release_project_semaphore,
         ],
     )
     print(f"[worker] Starting Temporal worker on task queue: {task_queue}")

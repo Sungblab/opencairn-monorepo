@@ -77,8 +77,57 @@ services:
     depends_on:
       - temporal
 
+  worker:
+    # Python worker hosting Temporal workflows + LangGraph agents
+    # (Plan 3 ingest + Plan 4 Compiler/Research/Librarian).
+    #
+    # Behind a profile so default `docker compose up -d` only starts infra —
+    # during development we usually run the worker on the host via
+    # `pnpm --filter @opencairn/worker dev` for faster iteration. Containerised
+    # deploys enable this profile:
+    #   docker compose --profile worker up -d worker
+    #
+    # Build context is the monorepo root because the Dockerfile copies both
+    # `packages/llm` (workspace dependency) and `apps/worker/**`.
+    profiles: ["worker"]
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgres://opencairn:changeme@postgres:5432/opencairn}
+      - TEMPORAL_ADDRESS=${TEMPORAL_ADDRESS:-temporal:7233}
+      - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
+      - TEMPORAL_TASK_QUEUE=${TEMPORAL_TASK_QUEUE:-ingest}
+      # INTERNAL_API_URL points at the Hono API. For dev where api runs on
+      # the host outside compose, use host.docker.internal; production
+      # deployments set this to the internal service DNS.
+      - INTERNAL_API_URL=${INTERNAL_API_URL:-http://host.docker.internal:4000}
+      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:?set INTERNAL_API_SECRET in .env}
+      - LLM_PROVIDER=${LLM_PROVIDER:-gemini}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+      - VECTOR_DIM=${VECTOR_DIM:-3072}
+      - TRAJECTORY_DIR=/var/opencairn/trajectories
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-minio:9000}
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - worker_trajectories:/var/opencairn/trajectories
+    extra_hosts:
+      # Linux docker engines don't resolve host.docker.internal by default.
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   pgdata:
   redisdata:
   miniodata:
   ollama_data:
+  worker_trajectories:
