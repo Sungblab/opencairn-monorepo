@@ -12,9 +12,10 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
   const theme = themeFromCookieValue(cookieStore.get(THEME_COOKIE)?.value);
+  const locale = cookieStore.get("NEXT_LOCALE")?.value === "en" ? "en" : "ko";
 
   return (
-    <html lang="ko" data-theme={theme}>
+    <html lang={locale} data-theme={theme}>
       <body className="bg-bg text-fg antialiased">
         <ThemeProvider initialTheme={theme}>{children}</ThemeProvider>
       </body>
