@@ -373,6 +373,11 @@ git commit -m "infra: add Docker Compose for dev services (PostgreSQL, Redis, Cl
 
 > **Workspace 통합 (2026-04-18)**: v0.1부터 Workspace 계층을 포함. projects는 `user_id` 대신 `workspace_id` FK를 가지고, 권한·멤버십·초대·코멘트·알림 테이블이 초기 스키마에 포함된다. 이렇게 하지 않으면 후속 Plan에서 모든 쿼리를 재작성해야 해 비용 폭증. 상세 설계: [collaboration-model.md](../../../architecture/collaboration-model.md).
 
+> **Schema conventions (2026-04-20 review)**:
+> - `bytea` 커스텀 타입은 `custom-types.ts`에서만 선언 (duplication 금지).
+> - 모든 `updated_at` 컬럼은 `.defaultNow().$onUpdate(() => new Date())`를 반드시 포함 (trigger 대안).
+> - `invitedBy` 성격 FK는 `ON DELETE SET NULL` (audit 보존). 컬럼은 nullable.
+
 **Files:**
 - Create: `packages/db/package.json`
 - Create: `packages/db/tsconfig.json`
@@ -489,6 +494,14 @@ export const vector3072 = customType<{ data: number[]; driverData: string }>({
     return value.slice(1, -1).split(",").map(Number);
   },
 });
+
+// Binary storage — used by envelope-encrypted BYOK keys, future webhook secrets, etc.
+// drizzle의 built-in bytea는 버전에 따라 미존재/불안정하므로 프로젝트에서 직접 선언.
+export const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
+});
 ```
 
 > 참고: `drizzle-kit generate`는 Node.js 런타임이 읽은 `process.env.VECTOR_DIM`을 그대로 마이그레이션 SQL에 찍어낸다. CI/로컬 모두 동일한 VECTOR_DIM을 사용해야 마이그레이션 drift가 없다 (Plan 13 Task `VECTOR_DIM 검증` 참조).
@@ -540,15 +553,9 @@ export const messageRoleEnum = pgEnum("message_role", ["user", "assistant"]);
 > **BYOK 키 스키마 (security-model.md §4 정합)**: Gemini API 키는 봉투 암호화(Envelope encryption) 후 `bytea`로 저장. 키 회전을 위해 `version` 컬럼을 함께 둔다. `text` 기반의 구버전 컬럼명(`geminiApiKeyEncrypted`/`geminiApiKeyIv`)은 사용 금지 — 바이너리 암호문을 base64 text로 저장하면 인덱싱/길이/검증이 애매해진다.
 
 ```typescript
-import { pgTable, text, timestamp, boolean, integer, customType } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer } from "drizzle-orm/pg-core";
 import { userPlanEnum } from "./enums";
-
-// bytea 커스텀 타입 (drizzle의 built-in bytea는 버전에 따라 미존재/불안정)
-const bytea = customType<{ data: Buffer; driverData: Buffer }>({
-  dataType() {
-    return "bytea";
-  },
-});
+import { bytea } from "./custom-types";
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -566,7 +573,7 @@ export const user = pgTable("user", {
   byokGeminiKeyVersion: integer("byok_gemini_key_version"),
 
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
 });
 ```
 
@@ -586,7 +593,7 @@ export const session = pgTable("session", {
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
 export const account = pgTable("account", {
@@ -604,7 +611,7 @@ export const account = pgTable("account", {
   scope: text("scope"),
   password: text("password"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
 export const verification = pgTable("verification", {
@@ -613,7 +620,7 @@ export const verification = pgTable("verification", {
   value: text("value").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
 });
 ```
 
@@ -636,7 +643,7 @@ export const workspaces = pgTable(
       .references(() => user.id, { onDelete: "restrict" }),
     planType: workspacePlanEnum("plan_type").notNull().default("free"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
   },
   (t) => [index("workspaces_owner_id_idx").on(t.ownerId), index("workspaces_slug_idx").on(t.slug)]
 );
@@ -690,8 +697,7 @@ export const workspaceInvites = pgTable(
     role: workspaceRoleEnum("role").notNull().default("member"),
     token: text("token").notNull().unique(),  // URL-safe, 32+ bytes random
     invitedBy: text("invited_by")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+      .references(() => user.id, { onDelete: "set null" }),
     expiresAt: timestamp("expires_at").notNull(),  // default now() + 7 days (앱에서 계산)
     acceptedAt: timestamp("accepted_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -723,7 +729,7 @@ export const projects = pgTable(
       .references(() => user.id, { onDelete: "restrict" }),
     defaultRole: projectDefaultRoleEnum("default_role").notNull().default("editor"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
   },
   (t) => [
     index("projects_workspace_id_idx").on(t.workspaceId),
@@ -820,7 +826,7 @@ export const folders = pgTable(
     name: text("name").notNull(),
     position: integer("position").notNull().default(0),
     createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
   },
   (t) => [index("folders_project_id_idx").on(t.projectId)]
 );
@@ -899,7 +905,7 @@ export const notes = pgTable(
     sourceFileKey: text("source_file_key"),
     isAuto: boolean("is_auto").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
     deletedAt: timestamp("deleted_at"),
   },
   (t) => [

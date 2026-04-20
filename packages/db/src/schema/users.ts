@@ -1,12 +1,6 @@
-import { pgTable, text, timestamp, boolean, integer, customType } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer } from "drizzle-orm/pg-core";
 import { userPlanEnum } from "./enums";
-
-// bytea 커스텀 타입 (drizzle의 built-in bytea는 버전에 따라 미존재/불안정)
-const bytea = customType<{ data: Buffer; driverData: Buffer }>({
-  dataType() {
-    return "bytea";
-  },
-});
+import { bytea } from "./custom-types";
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -24,5 +18,5 @@ export const user = pgTable("user", {
   byokGeminiKeyVersion: integer("byok_gemini_key_version"),
 
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
 });

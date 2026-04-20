@@ -23,3 +23,11 @@ export const vector3072 = customType<{ data: number[]; driverData: string }>({
     return value.slice(1, -1).split(",").map(Number);
   },
 });
+
+// Binary storage — used by envelope-encrypted BYOK keys, future webhook secrets, etc.
+// drizzle의 built-in bytea는 버전에 따라 미존재/불안정하므로 프로젝트에서 직접 선언.
+export const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
+});

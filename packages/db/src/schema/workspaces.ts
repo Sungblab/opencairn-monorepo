@@ -14,7 +14,7 @@ export const workspaces = pgTable(
       .references(() => user.id, { onDelete: "restrict" }),
     planType: workspacePlanEnum("plan_type").notNull().default("free"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
   },
   (t) => [index("workspaces_owner_id_idx").on(t.ownerId), index("workspaces_slug_idx").on(t.slug)]
 );
