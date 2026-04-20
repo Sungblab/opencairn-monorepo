@@ -2104,7 +2104,7 @@ export const projectRoutes = new Hono()
     const body = c.req.valid("json");
     const [project] = await db
       .update(projects)
-      .set({ ...body, updatedAt: new Date() })
+      .set(body) // updatedAt은 $onUpdate(() => new Date()) 자동 처리 (Task 3A 캐논)
       .where(eq(projects.id, id))
       .returning();
     if (!project) return c.json({ error: "Not found" }, 404);

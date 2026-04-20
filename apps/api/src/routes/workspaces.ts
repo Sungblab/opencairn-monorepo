@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db, workspaces, workspaceMembers, and, eq } from "@opencairn/db";
 import { requireAuth } from "../middleware/auth";
 import { requireWorkspaceRole } from "../middleware/require-role";
+import { isUuid } from "../lib/validators";
 import type { AppEnv } from "../lib/types";
 
 const createSchema = z.object({
@@ -39,6 +40,7 @@ workspaceRoutes.post("/", zValidator("json", createSchema), async (c) => {
 // 특정 workspace 조회
 workspaceRoutes.get("/:workspaceId", requireWorkspaceRole("member"), async (c) => {
   const id = c.req.param("workspaceId");
+  if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
   const [ws] = await db.select().from(workspaces).where(eq(workspaces.id, id));
   return c.json(ws);
 });
@@ -46,6 +48,7 @@ workspaceRoutes.get("/:workspaceId", requireWorkspaceRole("member"), async (c) =
 // 멤버 목록
 workspaceRoutes.get("/:workspaceId/members", requireWorkspaceRole("member"), async (c) => {
   const id = c.req.param("workspaceId");
+  if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
   const members = await db.select().from(workspaceMembers).where(eq(workspaceMembers.workspaceId, id));
   return c.json(members);
 });
@@ -57,6 +60,7 @@ workspaceRoutes.patch(
   zValidator("json", z.object({ role: z.enum(["admin", "member", "guest"]) })),
   async (c) => {
     const { workspaceId, userId } = c.req.param();
+    if (!isUuid(workspaceId)) return c.json({ error: "Bad Request" }, 400);
     const { role } = c.req.valid("json");
     const [target] = await db.select({ role: workspaceMembers.role }).from(workspaceMembers)
       .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)));
@@ -70,6 +74,7 @@ workspaceRoutes.patch(
 // 멤버 제거 (admin 이상; owner 제거는 불가)
 workspaceRoutes.delete("/:workspaceId/members/:userId", requireWorkspaceRole("admin"), async (c) => {
   const { workspaceId, userId } = c.req.param();
+  if (!isUuid(workspaceId)) return c.json({ error: "Bad Request" }, 400);
   // owner는 제거 금지 — 현재 role이 owner면 403
   const [target] = await db.select({ role: workspaceMembers.role }).from(workspaceMembers)
     .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)));

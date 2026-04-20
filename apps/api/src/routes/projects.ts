@@ -5,6 +5,7 @@ import { createProjectSchema, updateProjectSchema } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite, resolveRole } from "../lib/permissions";
 import { requireWorkspaceRole } from "../middleware/require-role";
+import { isUuid } from "../lib/validators";
 import type { AppEnv } from "../lib/types";
 
 export const projectRoutes = new Hono<AppEnv>()
@@ -13,15 +14,24 @@ export const projectRoutes = new Hono<AppEnv>()
   // 워크스페이스 내 프로젝트 목록 (URL: /api/workspaces/:workspaceId/projects)
   .get("/workspaces/:workspaceId/projects", requireWorkspaceRole("member"), async (c) => {
     const workspaceId = c.req.param("workspaceId");
+    if (!isUuid(workspaceId)) return c.json({ error: "Bad Request" }, 400);
     const user = c.get("user");
     const rows = await db
       .select()
       .from(projects)
       .where(eq(projects.workspaceId, workspaceId))
       .orderBy(desc(projects.createdAt));
-    // viewer 권한도 없는 project는 필터링
-    const visible = [];
-    for (const p of rows) if (await canRead(user.id, { type: "project", id: p.id })) visible.push(p);
+    // owner/admin은 workspace 내 모든 project 읽기 가능 — per-project canRead 생략
+    const wsRole = c.get("wsRole");
+    let visible;
+    if (wsRole === "owner" || wsRole === "admin") {
+      visible = rows;
+    } else {
+      const checks = await Promise.all(
+        rows.map(async (p) => ({ p, ok: await canRead(user.id, { type: "project", id: p.id }) }))
+      );
+      visible = checks.filter((x) => x.ok).map((x) => x.p);
+    }
     return c.json(visible);
   })
 
@@ -29,6 +39,7 @@ export const projectRoutes = new Hono<AppEnv>()
   .get("/projects/:id", async (c) => {
     const user = c.get("user");
     const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
     if (!(await canRead(user.id, { type: "project", id }))) return c.json({ error: "Forbidden" }, 403);
     const [project] = await db
       .select()
@@ -45,6 +56,7 @@ export const projectRoutes = new Hono<AppEnv>()
     zValidator("json", createProjectSchema),
     async (c) => {
       const workspaceId = c.req.param("workspaceId");
+      if (!isUuid(workspaceId)) return c.json({ error: "Bad Request" }, 400);
       const user = c.get("user");
       const body = c.req.valid("json");
       const [project] = await db
@@ -59,11 +71,12 @@ export const projectRoutes = new Hono<AppEnv>()
   .patch("/projects/:id", zValidator("json", updateProjectSchema), async (c) => {
     const user = c.get("user");
     const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
     if (!(await canWrite(user.id, { type: "project", id }))) return c.json({ error: "Forbidden" }, 403);
     const body = c.req.valid("json");
     const [project] = await db
       .update(projects)
-      .set({ ...body, updatedAt: new Date() })
+      .set(body)
       .where(eq(projects.id, id))
       .returning();
     if (!project) return c.json({ error: "Not found" }, 404);
@@ -74,6 +87,7 @@ export const projectRoutes = new Hono<AppEnv>()
   .delete("/projects/:id", async (c) => {
     const user = c.get("user");
     const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
     const [proj] = await db.select().from(projects).where(eq(projects.id, id));
     if (!proj) return c.json({ error: "Not found" }, 404);
     const role = await resolveRole(user.id, { type: "workspace", id: proj.workspaceId });

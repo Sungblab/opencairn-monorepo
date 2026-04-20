@@ -6,6 +6,7 @@ import { randomBytes } from "node:crypto";
 import { requireAuth } from "../middleware/auth";
 import { requireWorkspaceRole } from "../middleware/require-role";
 import { sendInviteEmail } from "../lib/email";
+import { isUuid } from "../lib/validators";
 import type { AppEnv } from "../lib/types";
 
 export const inviteRoutes = new Hono<AppEnv>().use("*", requireAuth);
@@ -17,6 +18,7 @@ inviteRoutes.post(
   zValidator("json", z.object({ email: z.string().email(), role: z.enum(["admin", "member", "guest"]).default("member") })),
   async (c) => {
     const { workspaceId } = c.req.param();
+    if (!isUuid(workspaceId)) return c.json({ error: "Bad Request" }, 400);
     const { email, role } = c.req.valid("json");
     const inviter = c.get("user");
     const token = randomBytes(32).toString("base64url");
@@ -36,6 +38,7 @@ inviteRoutes.post("/invites/:token/accept", async (c) => {
   const user = c.get("user");
 
   const token = c.req.param("token");
+  if (!token || token.length < 32) return c.json({ error: "Bad Request" }, 400);
   const [inv] = await db.select().from(workspaceInvites).where(eq(workspaceInvites.token, token));
   if (!inv) return c.json({ error: "Invite not found" }, 404);
   if (inv.acceptedAt) return c.json({ error: "Already accepted" }, 400);
@@ -63,6 +66,7 @@ inviteRoutes.post("/invites/:token/accept", async (c) => {
 // 초대 거절
 inviteRoutes.post("/invites/:token/decline", async (c) => {
   const token = c.req.param("token");
+  if (!token || token.length < 32) return c.json({ error: "Bad Request" }, 400);
   await db.delete(workspaceInvites).where(eq(workspaceInvites.token, token));
   return c.json({ ok: true });
 });
