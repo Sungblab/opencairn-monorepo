@@ -1,1 +1,101 @@
 @import "tailwindcss";
+
+/* ═══ Brand fonts & runtime color tokens ═══ */
+@theme {
+  --font-serif: "Instrument Serif", Georgia, serif;
+  --font-sans: "Inter", "Pretendard Variable", Pretendard, -apple-system, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Color tokens — indirection through --theme-* (data-theme supplies real values) */
+  --color-bg: var(--theme-bg);
+  --color-surface: var(--theme-surface);
+  --color-border: var(--theme-border);
+  --color-fg: var(--theme-fg);
+  --color-fg-muted: var(--theme-fg-muted);
+  --color-accent: var(--theme-accent);
+  --color-accent-fg: var(--theme-accent-fg);
+  --color-danger: var(--theme-danger);
+  --color-success: var(--theme-success);
+}
+
+/* ═══ Cairn Light (default) ═══ */
+:root,
+[data-theme="cairn-light"] {
+  --theme-bg: #FFFFFF;
+  --theme-surface: #F5F5F4;
+  --theme-border: #E7E5E4;
+  --theme-fg: #1C1917;
+  --theme-fg-muted: #78716C;
+  --theme-accent: #EA580C;
+  --theme-accent-fg: #FFFFFF;
+  --theme-danger: #DC2626;
+  --theme-success: #16A34A;
+  color-scheme: light;
+}
+
+/* ═══ Cairn Dark ═══ */
+[data-theme="cairn-dark"] {
+  --theme-bg: #0C0A09;
+  --theme-surface: #1C1917;
+  --theme-border: #292524;
+  --theme-fg: #F5F5F4;
+  --theme-fg-muted: #A8A29E;
+  --theme-accent: #FB923C;
+  --theme-accent-fg: #1C1917;
+  --theme-danger: #F87171;
+  --theme-success: #4ADE80;
+  color-scheme: dark;
+}
+
+/* ═══ Sepia (warm reading) ═══ */
+[data-theme="sepia"] {
+  --theme-bg: #F7F1E5;
+  --theme-surface: #EFE7D4;
+  --theme-border: #D9CFB9;
+  --theme-fg: #3E2E1A;
+  --theme-fg-muted: #7A6A50;
+  --theme-accent: #B4531A;
+  --theme-accent-fg: #FFFFFF;
+  --theme-danger: #9F2424;
+  --theme-success: #4F7A2C;
+  color-scheme: light;
+}
+
+/* ═══ High Contrast (accessibility) ═══ */
+[data-theme="high-contrast"] {
+  --theme-bg: #000000;
+  --theme-surface: #0A0A0A;
+  --theme-border: #FFFFFF;
+  --theme-fg: #FFFFFF;
+  --theme-fg-muted: #E5E5E5;
+  --theme-accent: #FFFF00;
+  --theme-accent-fg: #000000;
+  --theme-danger: #FF4444;
+  --theme-success: #44FF44;
+  color-scheme: dark;
+}
+
+/* ═══ Landing-only brand tokens (stone+ember warm editorial) ═══ */
+[data-brand="landing"] {
+  --brand-paper: #FFFFFF;
+  --brand-ink: #000000;
+  --brand-stone-50: #FFFFFF;
+  --brand-stone-100: #F5F5F4;
+  --brand-stone-200: #E7E5E4;
+  --brand-stone-300: #D6D3D1;
+  --brand-stone-400: #A8A29E;
+  --brand-stone-500: #78716C;
+  --brand-stone-600: #57534E;
+  --brand-stone-700: #44403C;
+  --brand-stone-800: #292524;
+  --brand-stone-900: #1C1917;
+  --brand-ember-50: #EDEAE2;
+  --brand-ember-100: #E6E0D3;
+  --brand-ember-200: #D8D3C8;
+  --brand-ember-300: #9A9285;
+  --brand-ember-500: #000000;
+  --brand-ember-600: #000000;
+  --brand-ember-700: #000000;
+  --brand-ember-900: #000000;
+  --brand-ember-cta: #EA580C;  /* small warm accent for typewriter caret, focus ring, etc. */
+}
