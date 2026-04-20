@@ -37,6 +37,12 @@ async def test_embed_returns_vectors(provider):
 
 
 @pytest.mark.asyncio
+async def test_embed_rejects_non_text_inputs(provider):
+    with pytest.raises(NotImplementedError, match="text only"):
+        await provider.embed([EmbedInput(image_bytes=b"x")])
+
+
+@pytest.mark.asyncio
 async def test_premium_features_return_none(provider):
     assert await provider.think("prompt") is None
     assert await provider.tts("text") is None

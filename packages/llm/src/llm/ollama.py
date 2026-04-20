@@ -27,6 +27,14 @@ class OllamaProvider(LLMProvider):
             return response.json()["message"]["content"]
 
     async def embed(self, inputs: list[EmbedInput]) -> list[list[float]]:
+        # Ollama's embed endpoint is text-only. Fail loudly rather than
+        # silently padding image/audio/pdf inputs with empty strings.
+        for inp in inputs:
+            if inp.image_bytes or inp.audio_bytes or inp.pdf_bytes:
+                raise NotImplementedError(
+                    "OllamaProvider.embed supports text only; "
+                    "route multimodal inputs through GeminiProvider or ingest."
+                )
         texts = [inp.text or "" for inp in inputs]
         async with httpx.AsyncClient() as client:
             response = await client.post(

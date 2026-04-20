@@ -17,6 +17,13 @@ GEMINI_MODELS = {
 
 
 class GeminiProvider(LLMProvider):
+    """Gemini-backed provider.
+
+    All network calls use the async SDK surface (`client.aio.models`) so the
+    Temporal worker's event loop is never blocked. Retry / rate-limit handling
+    is the caller's responsibility — typically the Temporal activity wrapper.
+    """
+
     def __init__(self, config: ProviderConfig) -> None:
         super().__init__(config)
         self._client = genai.Client(api_key=config.api_key)
@@ -29,7 +36,7 @@ class GeminiProvider(LLMProvider):
             )
             for m in messages
         ]
-        response = self._client.models.generate_content(
+        response = await self._client.aio.models.generate_content(
             model=self.config.model,
             contents=contents,
             **kwargs,
@@ -37,48 +44,33 @@ class GeminiProvider(LLMProvider):
         return response.text
 
     async def embed(self, inputs: list[EmbedInput]) -> list[list[float]]:
-        parts: list[types.Part] = []
-        for inp in inputs:
-            if inp.text:
-                parts.append(types.Part(text=inp.text))
-            if inp.image_bytes:
-                parts.append(
-                    types.Part(
-                        inline_data=types.Blob(mime_type="image/jpeg", data=inp.image_bytes)
-                    )
-                )
-            if inp.audio_bytes:
-                parts.append(
-                    types.Part(
-                        inline_data=types.Blob(mime_type="audio/mp3", data=inp.audio_bytes)
-                    )
-                )
-            if inp.pdf_bytes:
-                parts.append(
-                    types.Part(
-                        inline_data=types.Blob(
-                            mime_type="application/pdf", data=inp.pdf_bytes
-                        )
-                    )
-                )
+        """Text-only batch embed.
 
+        Per the Gemini embeddings API, `embed_content` only reads `parts.text`;
+        multimodal bytes on `EmbedInput` are ignored here. Multimodal ingest
+        paths (image/audio/pdf) should go through `generate` with the document
+        understanding prompt, not the embedding endpoint.
+        """
+        texts = [inp.text for inp in inputs if inp.text]
+        if not texts:
+            return []
         task_type = inputs[0].task if inputs else "retrieval_document"
-        response = self._client.models.embed_content(
+        response = await self._client.aio.models.embed_content(
             model=self.config.embed_model,
-            contents=parts,
+            contents=texts,
             config=types.EmbedContentConfig(task_type=task_type),
         )
         return [list(e.values) for e in response.embeddings]
 
     async def cache_context(self, content: str) -> str | None:
-        cached = self._client.caches.create(
+        cached = await self._client.aio.caches.create(
             model=self.config.model,
             contents=[types.Content(role="user", parts=[types.Part(text=content)])],
         )
         return cached.name
 
     async def think(self, prompt: str) -> ThinkingResult | None:
-        response = self._client.models.generate_content(
+        response = await self._client.aio.models.generate_content(
             model=self.config.model,
             contents=prompt,
             config=types.GenerateContentConfig(
@@ -98,7 +90,7 @@ class GeminiProvider(LLMProvider):
         )
 
     async def ground_search(self, query: str) -> SearchResult | None:
-        response = self._client.models.generate_content(
+        response = await self._client.aio.models.generate_content(
             model=self.config.model,
             contents=query,
             config=types.GenerateContentConfig(
@@ -120,7 +112,7 @@ class GeminiProvider(LLMProvider):
 
     async def tts(self, text: str, model: str | None = None) -> bytes | None:
         tts_model = model or self.config.tts_model or GEMINI_MODELS["tts_flash"]
-        response = self._client.models.generate_content(
+        response = await self._client.aio.models.generate_content(
             model=tts_model,
             contents=text,
             config=types.GenerateContentConfig(
@@ -132,10 +124,11 @@ class GeminiProvider(LLMProvider):
                 ),
             ),
         )
-        return response.audio
+        # Gemini returns PCM audio via the inline_data of the first candidate part.
+        return response.candidates[0].content.parts[0].inline_data.data
 
     async def transcribe(self, audio: bytes) -> str | None:
-        response = self._client.models.generate_content(
+        response = await self._client.aio.models.generate_content(
             model=self.config.model,
             contents=[
                 types.Part(inline_data=types.Blob(mime_type="audio/mp3", data=audio)),

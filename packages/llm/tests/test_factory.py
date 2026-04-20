@@ -58,3 +58,10 @@ def test_get_provider_from_env(monkeypatch):
     monkeypatch.setenv("OLLAMA_BASE_URL", "http://localhost:11434")
     provider = get_provider()
     assert isinstance(provider, OllamaProvider)
+
+
+def test_get_provider_missing_env_raises(monkeypatch):
+    for var in ("LLM_PROVIDER", "LLM_MODEL", "EMBED_MODEL"):
+        monkeypatch.delenv(var, raising=False)
+    with pytest.raises(RuntimeError, match="Missing required env vars"):
+        get_provider()
