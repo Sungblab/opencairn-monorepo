@@ -7,8 +7,8 @@ import {
   jsonb,
   index,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
 import { projects } from "./projects";
+import { workspaces } from "./workspaces";
 import { folders } from "./folders";
 import { noteTypeEnum, sourceTypeEnum } from "./enums";
 import { tsvector, vector3072 } from "./custom-types";
@@ -20,9 +20,13 @@ export const notes = pgTable(
     projectId: uuid("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
     folderId: uuid("folder_id").references(() => folders.id, {
       onDelete: "set null",
     }),
+    inheritParent: boolean("inherit_parent").notNull().default(true),
     title: text("title").notNull().default("Untitled"),
     content: jsonb("content").$type<Record<string, unknown>>(),
     contentText: text("content_text").default(""),
@@ -38,8 +42,10 @@ export const notes = pgTable(
   },
   (t) => [
     index("notes_project_id_idx").on(t.projectId),
+    index("notes_workspace_id_idx").on(t.workspaceId),
     index("notes_folder_id_idx").on(t.folderId),
     index("notes_type_idx").on(t.type),
+    index("notes_deleted_at_idx").on(t.deletedAt),
   ]
 );
 

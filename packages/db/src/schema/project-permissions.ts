@@ -15,9 +15,7 @@ export const projectPermissions = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     role: projectRoleEnum("role").notNull(),
-    grantedBy: text("granted_by")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+    grantedBy: text("granted_by").references(() => user.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [uniqueIndex("project_permissions_unique").on(t.projectId, t.userId)]

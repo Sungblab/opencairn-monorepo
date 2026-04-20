@@ -33,7 +33,10 @@ export const flashcards = pgTable(
     reviewCount: integer("review_count").notNull().default(0),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [index("flashcards_project_id_idx").on(t.projectId)]
+  (t) => [
+    index("flashcards_project_id_idx").on(t.projectId),
+    index("flashcards_next_review_idx").on(t.projectId, t.nextReview),
+  ]
 );
 
 export const reviewLogs = pgTable("review_logs", {

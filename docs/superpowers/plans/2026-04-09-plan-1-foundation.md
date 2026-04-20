@@ -376,7 +376,7 @@ git commit -m "infra: add Docker Compose for dev services (PostgreSQL, Redis, Cl
 > **Schema conventions (2026-04-20 review)**:
 > - `bytea` 커스텀 타입은 `custom-types.ts`에서만 선언 (duplication 금지).
 > - 모든 `updated_at` 컬럼은 `.defaultNow().$onUpdate(() => new Date())`를 반드시 포함 (trigger 대안).
-> - `invitedBy` 성격 FK는 `ON DELETE SET NULL` (audit 보존). 컬럼은 nullable.
+> - `invitedBy`/`grantedBy` 성격 audit FK는 `ON DELETE SET NULL` (user 삭제 시 권한 row는 유지, 수여자 기록만 null). 컬럼은 nullable.
 
 **Files:**
 - Create: `packages/db/package.json`
@@ -758,9 +758,7 @@ export const projectPermissions = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     role: projectRoleEnum("role").notNull(),
-    grantedBy: text("granted_by")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+    grantedBy: text("granted_by").references(() => user.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [uniqueIndex("project_permissions_unique").on(t.projectId, t.userId)]
@@ -788,9 +786,7 @@ export const pagePermissions = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     role: pageRoleEnum("role").notNull(),
     inheritParent: boolean("inherit_parent").notNull().default(true),
-    grantedBy: text("granted_by")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+    grantedBy: text("granted_by").references(() => user.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [uniqueIndex("page_permissions_unique").on(t.pageId, t.userId)]
@@ -879,8 +875,8 @@ import {
   jsonb,
   index,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
 import { projects } from "./projects";
+import { workspaces } from "./workspaces";
 import { folders } from "./folders";
 import { noteTypeEnum, sourceTypeEnum } from "./enums";
 import { tsvector, vector3072 } from "./custom-types";
@@ -892,9 +888,13 @@ export const notes = pgTable(
     projectId: uuid("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
     folderId: uuid("folder_id").references(() => folders.id, {
       onDelete: "set null",
     }),
+    inheritParent: boolean("inherit_parent").notNull().default(true),
     title: text("title").notNull().default("Untitled"),
     content: jsonb("content").$type<Record<string, unknown>>(),
     contentText: text("content_text").default(""),
@@ -910,8 +910,10 @@ export const notes = pgTable(
   },
   (t) => [
     index("notes_project_id_idx").on(t.projectId),
+    index("notes_workspace_id_idx").on(t.workspaceId),
     index("notes_folder_id_idx").on(t.folderId),
     index("notes_type_idx").on(t.type),
+    index("notes_deleted_at_idx").on(t.deletedAt),
   ]
 );
 
@@ -1063,7 +1065,10 @@ export const flashcards = pgTable(
     reviewCount: integer("review_count").notNull().default(0),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [index("flashcards_project_id_idx").on(t.projectId)]
+  (t) => [
+    index("flashcards_project_id_idx").on(t.projectId),
+    index("flashcards_next_review_idx").on(t.projectId, t.nextReview),
+  ]
 );
 
 export const reviewLogs = pgTable("review_logs", {
