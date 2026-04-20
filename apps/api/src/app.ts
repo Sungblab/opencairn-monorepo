@@ -6,6 +6,7 @@ import { healthRoutes } from "./routes/health";
 import { authRoutes } from "./routes/auth";
 import { workspaceRoutes } from "./routes/workspaces";
 import { inviteRoutes } from "./routes/invites";
+import { projectRoutes } from "./routes/projects";
 
 export function createApp() {
   const app = new Hono();
@@ -24,6 +25,7 @@ export function createApp() {
   app.route("/api/auth", authRoutes);
   app.route("/api/workspaces", workspaceRoutes);
   app.route("/api", inviteRoutes);  // /api/workspaces/:id/invites and /api/invites/:token/*
+  app.route("/api", projectRoutes);
 
   app.onError(errorHandler);
 
