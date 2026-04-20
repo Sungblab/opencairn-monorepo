@@ -1,4 +1,8 @@
-"""OpenCairn agent runtime — thin facade over LangGraph + langchain-core."""
+"""OpenCairn agent runtime — thin facade over LangGraph + langchain-core.
+
+12 agents import only from this module. Direct imports of langgraph or
+langchain_core from apps/worker/src/worker/agents/ are forbidden (see lint rule in Task 14).
+"""
 from runtime.agent import Agent
 from runtime.default_hooks import (
     LatencyHook,
@@ -32,7 +36,6 @@ from runtime.events import (
     ToolResult,
     ToolUse,
 )
-from runtime.langgraph_bridge import stream_graph_as_events
 from runtime.hooks import (
     AgentHook,
     HookChain,
@@ -42,6 +45,9 @@ from runtime.hooks import (
     ModelResponse,
     ToolHook,
 )
+from runtime.langgraph_bridge import stream_graph_as_events
+from runtime.reducers import keep_last_n
+from runtime.temporal import AgentAwaitingInputError, make_thread_id
 from runtime.tool_declarations import (
     build_gemini_declarations,
     build_ollama_declarations,
@@ -63,6 +69,7 @@ from runtime.trajectory import (
 
 __all__ = [
     "Agent",
+    "AgentAwaitingInputError",
     "AgentEnd",
     "AgentError",
     "AgentEvaluator",
@@ -103,8 +110,10 @@ __all__ = [
     "get_tool",
     "get_tools_for_agent",
     "hash_input",
+    "keep_last_n",
     "load_case_file",
     "load_cases",
+    "make_thread_id",
     "resolve_storage_from_env",
     "score_trajectory",
     "stream_graph_as_events",

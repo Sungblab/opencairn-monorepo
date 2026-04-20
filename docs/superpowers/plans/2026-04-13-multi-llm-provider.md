@@ -1017,3 +1017,16 @@ git commit -m "feat(infra): add Ollama docker profile and LLM env vars"
 - [x] `docker compose --profile ollama up` — Ollama 컨테이너 정상 기동
 - [x] `VECTOR_DIM` env 변경 시 Drizzle 마이그레이션이 다른 차원의 vector column 생성
 - [x] `.gitignore`에 `docker-compose.prod.yml`, `.env.prod` 포함
+
+---
+
+### Task 8: Tool Declaration Methods (Plan 12 cross-reference, deferred)
+
+> **Added 2026-04-20 by Plan 12 Task 16.** This task is *deferred to Plan 12 Task 5* — it documents that `packages/llm` providers will gain a `build_tool_declarations` method when Plan 12 lands. No work happens in this plan.
+
+**Files (when implemented in Plan 12 Task 5):**
+- Modify: `packages/llm/src/llm/base.py`
+- Modify: `packages/llm/src/llm/gemini.py`
+- Modify: `packages/llm/src/llm/ollama.py`
+
+Add `build_tool_declarations(tools: list) -> list[dict]` method to `LLMProvider`. Default raises `NotImplementedError`; Gemini and Ollama implement via `runtime.tool_declarations` (lazy import to avoid circular dependency between `packages/llm` and `apps/worker/src/runtime`). See Plan 12 Task 5 for the schema builder details.
