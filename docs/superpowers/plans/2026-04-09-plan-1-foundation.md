@@ -2149,7 +2149,9 @@ git commit -m "feat(api): workspace-scoped project CRUD with permission checks"
 
 ---
 
-### Task 7: apps/api ??Folder, Tag, Note CRUD Routes
+### Task 7: apps/api — Folder, Tag, Note CRUD Routes
+
+> **Security enhancement (implemented):** All routes enforce permission checks via `canRead`/`canWrite`. UUID param validation via `isUuid`. `notes.workspaceId` derived from project on insert (NOT NULL constraint). No `updatedAt: new Date()` in PATCH handlers — schema `$onUpdate` handles it automatically (Task 3A canon). `and` is imported in tags.ts where used on delete tag-note route.
 
 **Files:**
 - Create: `apps/api/src/routes/folders.ts`
@@ -2157,20 +2159,26 @@ git commit -m "feat(api): workspace-scoped project CRUD with permission checks"
 - Create: `apps/api/src/routes/notes.ts`
 - Modify: `apps/api/src/app.ts`
 
-- [ ] **Step 1: Create apps/api/src/routes/folders.ts**
+- [x] **Step 1: Create apps/api/src/routes/folders.ts**
 
 ```typescript
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { db, folders, eq, and, asc } from "@opencairn/db";
+import { db, folders, eq, asc } from "@opencairn/db";
 import { createFolderSchema, updateFolderSchema } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
+import { canRead, canWrite } from "../lib/permissions";
+import { isUuid } from "../lib/validators";
+import type { AppEnv } from "../lib/types";
 
-export const folderRoutes = new Hono()
+export const folderRoutes = new Hono<AppEnv>()
   .use("*", requireAuth)
 
   .get("/by-project/:projectId", async (c) => {
+    const user = c.get("user");
     const projectId = c.req.param("projectId");
+    if (!isUuid(projectId)) return c.json({ error: "Bad Request" }, 400);
+    if (!(await canRead(user.id, { type: "project", id: projectId }))) return c.json({ error: "Forbidden" }, 403);
     const result = await db
       .select()
       .from(folders)
@@ -2180,106 +2188,131 @@ export const folderRoutes = new Hono()
   })
 
   .post("/", zValidator("json", createFolderSchema), async (c) => {
+    const user = c.get("user");
     const body = c.req.valid("json");
+    if (!(await canWrite(user.id, { type: "project", id: body.projectId }))) return c.json({ error: "Forbidden" }, 403);
     const [folder] = await db.insert(folders).values(body).returning();
     return c.json(folder, 201);
   })
 
   .patch("/:id", zValidator("json", updateFolderSchema), async (c) => {
+    const user = c.get("user");
     const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+    const [existing] = await db.select({ projectId: folders.projectId }).from(folders).where(eq(folders.id, id));
+    if (!existing) return c.json({ error: "Not found" }, 404);
+    if (!(await canWrite(user.id, { type: "project", id: existing.projectId }))) return c.json({ error: "Forbidden" }, 403);
     const body = c.req.valid("json");
     const [folder] = await db
       .update(folders)
-      .set({ ...body, updatedAt: new Date() })
+      .set(body)
       .where(eq(folders.id, id))
       .returning();
-    if (!folder) return c.json({ error: "Not found" }, 404);
     return c.json(folder);
   })
 
   .delete("/:id", async (c) => {
+    const user = c.get("user");
     const id = c.req.param("id");
-    const [deleted] = await db
-      .delete(folders)
-      .where(eq(folders.id, id))
-      .returning();
-    if (!deleted) return c.json({ error: "Not found" }, 404);
+    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+    const [existing] = await db.select({ projectId: folders.projectId }).from(folders).where(eq(folders.id, id));
+    if (!existing) return c.json({ error: "Not found" }, 404);
+    if (!(await canWrite(user.id, { type: "project", id: existing.projectId }))) return c.json({ error: "Forbidden" }, 403);
+    await db.delete(folders).where(eq(folders.id, id));
     return c.json({ success: true });
   });
 ```
 
-- [ ] **Step 2: Create apps/api/src/routes/tags.ts**
+- [x] **Step 2: Create apps/api/src/routes/tags.ts**
 
 ```typescript
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { db, tags, noteTags, eq } from "@opencairn/db";
+import { db, tags, noteTags, notes, eq, and } from "@opencairn/db";
 import { createTagSchema } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
-import { z } from "zod";
+import { canRead, canWrite } from "../lib/permissions";
+import { isUuid } from "../lib/validators";
+import type { AppEnv } from "../lib/types";
 
-export const tagRoutes = new Hono()
+export const tagRoutes = new Hono<AppEnv>()
   .use("*", requireAuth)
 
   .get("/by-project/:projectId", async (c) => {
+    const user = c.get("user");
     const projectId = c.req.param("projectId");
-    const result = await db
-      .select()
-      .from(tags)
-      .where(eq(tags.projectId, projectId));
+    if (!isUuid(projectId)) return c.json({ error: "Bad Request" }, 400);
+    if (!(await canRead(user.id, { type: "project", id: projectId }))) return c.json({ error: "Forbidden" }, 403);
+    const result = await db.select().from(tags).where(eq(tags.projectId, projectId));
     return c.json(result);
   })
 
   .post("/", zValidator("json", createTagSchema), async (c) => {
+    const user = c.get("user");
     const body = c.req.valid("json");
+    if (!(await canWrite(user.id, { type: "project", id: body.projectId }))) return c.json({ error: "Forbidden" }, 403);
     const [tag] = await db.insert(tags).values(body).returning();
     return c.json(tag, 201);
   })
 
-  .post(
-    "/:tagId/notes/:noteId",
-    async (c) => {
-      const tagId = c.req.param("tagId");
-      const noteId = c.req.param("noteId");
-      await db.insert(noteTags).values({ tagId, noteId }).onConflictDoNothing();
-      return c.json({ success: true }, 201);
-    }
-  )
-
-  .delete("/:tagId/notes/:noteId", async (c) => {
+  // Attach tag to note — both must be in same project, user must have write access on the note
+  .post("/:tagId/notes/:noteId", async (c) => {
+    const user = c.get("user");
     const tagId = c.req.param("tagId");
     const noteId = c.req.param("noteId");
-    await db
-      .delete(noteTags)
-      .where(and(eq(noteTags.tagId, tagId), eq(noteTags.noteId, noteId)));
+    if (!isUuid(tagId) || !isUuid(noteId)) return c.json({ error: "Bad Request" }, 400);
+    const [tag] = await db.select({ projectId: tags.projectId }).from(tags).where(eq(tags.id, tagId));
+    if (!tag) return c.json({ error: "Tag not found" }, 404);
+    const [note] = await db.select({ projectId: notes.projectId }).from(notes).where(eq(notes.id, noteId));
+    if (!note) return c.json({ error: "Note not found" }, 404);
+    if (tag.projectId !== note.projectId) return c.json({ error: "Tag and note must be in same project" }, 400);
+    if (!(await canWrite(user.id, { type: "note", id: noteId }))) return c.json({ error: "Forbidden" }, 403);
+    await db.insert(noteTags).values({ tagId, noteId }).onConflictDoNothing();
+    return c.json({ success: true }, 201);
+  })
+
+  .delete("/:tagId/notes/:noteId", async (c) => {
+    const user = c.get("user");
+    const tagId = c.req.param("tagId");
+    const noteId = c.req.param("noteId");
+    if (!isUuid(tagId) || !isUuid(noteId)) return c.json({ error: "Bad Request" }, 400);
+    if (!(await canWrite(user.id, { type: "note", id: noteId }))) return c.json({ error: "Forbidden" }, 403);
+    await db.delete(noteTags).where(and(eq(noteTags.tagId, tagId), eq(noteTags.noteId, noteId)));
     return c.json({ success: true });
   })
 
   .delete("/:id", async (c) => {
+    const user = c.get("user");
     const id = c.req.param("id");
-    const [deleted] = await db
-      .delete(tags)
-      .where(eq(tags.id, id))
-      .returning();
-    if (!deleted) return c.json({ error: "Not found" }, 404);
+    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+    const [existing] = await db.select({ projectId: tags.projectId }).from(tags).where(eq(tags.id, id));
+    if (!existing) return c.json({ error: "Not found" }, 404);
+    if (!(await canWrite(user.id, { type: "project", id: existing.projectId }))) return c.json({ error: "Forbidden" }, 403);
+    await db.delete(tags).where(eq(tags.id, id));
     return c.json({ success: true });
   });
 ```
 
-- [ ] **Step 3: Create apps/api/src/routes/notes.ts**
+- [x] **Step 3: Create apps/api/src/routes/notes.ts**
 
 ```typescript
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { db, notes, eq, and, desc, isNull } from "@opencairn/db";
+import { db, notes, projects, eq, and, desc, isNull } from "@opencairn/db";
 import { createNoteSchema, updateNoteSchema } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
+import { canRead, canWrite } from "../lib/permissions";
+import { isUuid } from "../lib/validators";
+import type { AppEnv } from "../lib/types";
 
-export const noteRoutes = new Hono()
+export const noteRoutes = new Hono<AppEnv>()
   .use("*", requireAuth)
 
   .get("/by-project/:projectId", async (c) => {
+    const user = c.get("user");
     const projectId = c.req.param("projectId");
+    if (!isUuid(projectId)) return c.json({ error: "Bad Request" }, 400);
+    if (!(await canRead(user.id, { type: "project", id: projectId }))) return c.json({ error: "Forbidden" }, 403);
     const result = await db
       .select()
       .from(notes)
@@ -2289,7 +2322,10 @@ export const noteRoutes = new Hono()
   })
 
   .get("/:id", async (c) => {
+    const user = c.get("user");
     const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+    if (!(await canRead(user.id, { type: "note", id }))) return c.json({ error: "Forbidden" }, 403);
     const [note] = await db
       .select()
       .from(notes)
@@ -2299,25 +2335,37 @@ export const noteRoutes = new Hono()
   })
 
   .post("/", zValidator("json", createNoteSchema), async (c) => {
+    const user = c.get("user");
     const body = c.req.valid("json");
-    const [note] = await db.insert(notes).values(body).returning();
+    // write-access on project required
+    if (!(await canWrite(user.id, { type: "project", id: body.projectId }))) return c.json({ error: "Forbidden" }, 403);
+    // derive workspaceId from project (notes.workspaceId is NOT NULL, denormalized for query speed)
+    const [proj] = await db.select({ workspaceId: projects.workspaceId }).from(projects).where(eq(projects.id, body.projectId));
+    if (!proj) return c.json({ error: "Project not found" }, 404);
+    const [note] = await db.insert(notes).values({ ...body, workspaceId: proj.workspaceId }).returning();
     return c.json(note, 201);
   })
 
   .patch("/:id", zValidator("json", updateNoteSchema), async (c) => {
+    const user = c.get("user");
     const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+    if (!(await canWrite(user.id, { type: "note", id }))) return c.json({ error: "Forbidden" }, 403);
     const body = c.req.valid("json");
     const [note] = await db
       .update(notes)
-      .set({ ...body, updatedAt: new Date() })
-      .where(eq(notes.id, id))
+      .set(body)
+      .where(and(eq(notes.id, id), isNull(notes.deletedAt)))
       .returning();
     if (!note) return c.json({ error: "Not found" }, 404);
     return c.json(note);
   })
 
   .delete("/:id", async (c) => {
+    const user = c.get("user");
     const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+    if (!(await canWrite(user.id, { type: "note", id }))) return c.json({ error: "Forbidden" }, 403);
     const [note] = await db
       .update(notes)
       .set({ deletedAt: new Date() })
@@ -2328,7 +2376,7 @@ export const noteRoutes = new Hono()
   });
 ```
 
-- [ ] **Step 4: Mount all routes in apps/api/src/app.ts**
+- [x] **Step 4: Mount all routes in apps/api/src/app.ts**
 
 ```typescript
 import { folderRoutes } from "./routes/folders";
@@ -2341,11 +2389,12 @@ app.route("/api/tags", tagRoutes);
 app.route("/api/notes", noteRoutes);
 ```
 
-- [ ] **Step 5: Commit**
+Mount order: health → auth → workspaces → invites → projects → folders → tags → notes → onError.
+
+- [x] **Step 5: Commit**
 
 ```bash
-git add apps/api/
-git commit -m "feat(api): add folder, tag, and note CRUD routes"
+git commit -m "feat(api): folder/tag/note CRUD with permission checks and workspace derivation"
 ```
 
 ---
