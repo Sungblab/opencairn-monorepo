@@ -17,5 +17,6 @@ export * from "./schema/wiki-logs";
 export * from "./schema/learning";
 export * from "./schema/jobs";
 export * from "./schema/conversations";
+export * from "./schema/user-preferences";
 
 export { eq, and, or, desc, asc, sql, inArray, isNull } from "drizzle-orm";
