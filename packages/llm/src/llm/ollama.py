@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import os
 from typing import Any
 
 import httpx
@@ -52,6 +54,40 @@ class OllamaProvider(LLMProvider):
         )
         response.raise_for_status()
         return response.json()["embeddings"]
+
+    async def generate_multimodal(
+        self,
+        prompt: str,
+        *,
+        image_bytes: bytes | None = None,
+        image_mime: str | None = None,
+        pdf_bytes: bytes | None = None,
+    ) -> str | None:
+        """Image-grounded generation via an Ollama vision model.
+
+        Ollama's ``/api/generate`` accepts an ``images`` array of base64
+        strings and has no native PDF handler — so PDFs short-circuit to
+        ``None`` for the ingest pipeline to fall back to another path.
+
+        The vision model is chosen from ``OLLAMA_VISION_MODEL`` if set,
+        otherwise we reuse ``config.model``; when the configured model has
+        no vision head, Ollama returns an empty/garbled string, which is
+        still preferable to a hard failure inside a Temporal activity.
+        """
+        if pdf_bytes or not image_bytes:
+            return None
+        vision_model = os.environ.get("OLLAMA_VISION_MODEL", self.config.model)
+        response = await self._http.post(
+            "/api/generate",
+            json={
+                "model": vision_model,
+                "prompt": prompt,
+                "images": [base64.b64encode(image_bytes).decode()],
+                "stream": False,
+            },
+        )
+        response.raise_for_status()
+        return response.json().get("response")
 
     def build_tool_declarations(self, tools: list[Any]) -> list[dict[str, Any]]:
         # Lazy import keeps packages/llm free of a module-load dependency

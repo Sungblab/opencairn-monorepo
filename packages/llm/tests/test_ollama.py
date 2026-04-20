@@ -49,3 +49,53 @@ async def test_premium_features_return_none(provider):
     assert await provider.transcribe(b"audio") is None
     assert await provider.cache_context("content") is None
     assert await provider.ground_search("query") is None
+
+
+@pytest.mark.asyncio
+async def test_generate_multimodal_sends_base64_images(provider, monkeypatch):
+    import base64
+
+    # Pin the vision model so the assertion doesn't depend on config defaults.
+    monkeypatch.setenv("OLLAMA_VISION_MODEL", "llava")
+    captured: dict = {}
+
+    def _capture(request: httpx.Request) -> httpx.Response:
+        import json
+
+        captured["payload"] = json.loads(request.content)
+        return httpx.Response(200, json={"response": "a chart of Q1 revenue"})
+
+    with respx.mock:
+        respx.post("http://localhost:11434/api/generate").mock(side_effect=_capture)
+        result = await provider.generate_multimodal(
+            "Describe this image.",
+            image_bytes=b"\x89PNG\r\n",
+            image_mime="image/png",
+        )
+    assert result == "a chart of Q1 revenue"
+    assert captured["payload"]["model"] == "llava"
+    assert captured["payload"]["images"] == [
+        base64.b64encode(b"\x89PNG\r\n").decode()
+    ]
+    assert captured["payload"]["stream"] is False
+
+
+@pytest.mark.asyncio
+async def test_generate_multimodal_pdf_returns_none(provider):
+    # Ollama has no native PDF handling — short-circuit without hitting HTTP.
+    with respx.mock(assert_all_called=False) as router:
+        route = router.post("http://localhost:11434/api/generate")
+        result = await provider.generate_multimodal(
+            "Summarise.", pdf_bytes=b"%PDF"
+        )
+    assert result is None
+    assert not route.called
+
+
+@pytest.mark.asyncio
+async def test_generate_multimodal_no_input_returns_none(provider):
+    with respx.mock(assert_all_called=False) as router:
+        route = router.post("http://localhost:11434/api/generate")
+        result = await provider.generate_multimodal("no image")
+    assert result is None
+    assert not route.called

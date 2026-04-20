@@ -118,3 +118,73 @@ async def test_transcribe_returns_text(provider):
     ):
         result = await provider.transcribe(b"audio-data")
     assert result == "transcribed text"
+
+
+@pytest.mark.asyncio
+async def test_generate_multimodal_image_sends_inline_data(provider):
+    from google.genai import types
+
+    mock_response = MagicMock()
+    mock_response.text = "a cat on a desk"
+    with patch.object(
+        provider._client.aio.models,
+        "generate_content",
+        new=AsyncMock(return_value=mock_response),
+    ) as mocked:
+        result = await provider.generate_multimodal(
+            "Describe this image.",
+            image_bytes=b"\x89PNG\r\n",
+            image_mime="image/png",
+        )
+    assert result == "a cat on a desk"
+    parts = mocked.await_args.kwargs["contents"]
+    # Must include an inline_data Part carrying the image mime + bytes.
+    image_part = next(
+        (p for p in parts if isinstance(p, types.Part) and p.inline_data),
+        None,
+    )
+    assert image_part is not None
+    assert image_part.inline_data.mime_type == "image/png"
+    assert image_part.inline_data.data == b"\x89PNG\r\n"
+    # Prompt part comes after the image part.
+    assert parts[-1].text == "Describe this image."
+
+
+@pytest.mark.asyncio
+async def test_generate_multimodal_image_requires_mime(provider):
+    # Bytes without mime is ambiguous; return None rather than guessing.
+    with patch.object(
+        provider._client.aio.models,
+        "generate_content",
+        new=AsyncMock(),
+    ) as mocked:
+        result = await provider.generate_multimodal(
+            "describe", image_bytes=b"x", image_mime=None
+        )
+    assert result is None
+    mocked.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_generate_multimodal_pdf_sends_pdf_mime(provider):
+    from google.genai import types
+
+    mock_response = MagicMock()
+    mock_response.text = "pdf summary"
+    with patch.object(
+        provider._client.aio.models,
+        "generate_content",
+        new=AsyncMock(return_value=mock_response),
+    ) as mocked:
+        result = await provider.generate_multimodal(
+            "Summarise.",
+            pdf_bytes=b"%PDF-1.4 fake",
+        )
+    assert result == "pdf summary"
+    parts = mocked.await_args.kwargs["contents"]
+    pdf_part = next(
+        (p for p in parts if isinstance(p, types.Part) and p.inline_data),
+        None,
+    )
+    assert pdf_part is not None
+    assert pdf_part.inline_data.mime_type == "application/pdf"
