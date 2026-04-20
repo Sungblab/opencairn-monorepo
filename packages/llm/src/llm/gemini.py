@@ -36,6 +36,10 @@ class GeminiProvider(LLMProvider):
         Returns `response.text`; callers needing tool use, grounded search,
         or audio output should use `think()` / `ground_search()` / `tts()`
         where the response is iterated part-by-part instead of flattened.
+
+        ``response_mime_type`` (and any other GenerateContentConfig fields) are
+        forwarded into ``config=GenerateContentConfig(...)`` — the SDK no
+        longer accepts them as top-level kwargs on ``generate_content``.
         """
         contents = [
             types.Content(
@@ -44,10 +48,17 @@ class GeminiProvider(LLMProvider):
             )
             for m in messages
         ]
+        config_kwargs = {}
+        for key in ("response_mime_type", "response_schema", "temperature", "max_output_tokens", "top_p", "top_k"):
+            if key in kwargs:
+                config_kwargs[key] = kwargs.pop(key)
+        call_kwargs: dict = dict(kwargs)
+        if config_kwargs:
+            call_kwargs["config"] = types.GenerateContentConfig(**config_kwargs)
         response = await self._client.aio.models.generate_content(
             model=self.config.model,
             contents=contents,
-            **kwargs,
+            **call_kwargs,
         )
         return response.text
 
