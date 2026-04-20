@@ -3,32 +3,139 @@ import { useRef } from "react";
 import { useTranslations } from "next-intl";
 import { useScrollReveal } from "@/lib/landing/hooks/useScrollReveal";
 
+type SideRow = { label: string; count: string; active: boolean };
+type FeedItem = { agent: string; text: string; faded?: boolean };
+
 export function WorkspaceShowcase() {
   const t = useTranslations("landing.workspace");
   const ref = useRef<HTMLElement>(null);
   useScrollReveal(ref);
-  const points = t.raw("points") as { title: string; body: string }[];
+
+  const sideRows = t.raw("mock.sideRows") as SideRow[];
+  const projects = t.raw("mock.projects") as string[];
+  const meta = t.raw("mock.pageMeta") as string[];
+  const relatedItems = t.raw("mock.relatedItems") as string[];
+  const feed = t.raw("mock.feed") as FeedItem[];
+  const backlinks = t.raw("mock.backlinks") as string[];
+  const tags = t.raw("tags") as string[];
 
   return (
-    <section
-      ref={ref}
-      className="reveal border-b border-[color:var(--brand-stone-200)] bg-[color:var(--brand-paper)] py-24 md:py-28"
-    >
-      <div className="mx-auto max-w-6xl px-6">
-        <h2 className="font-serif text-4xl text-[color:var(--brand-stone-900)] md:text-5xl">
-          {t("heading")}
-        </h2>
-        <p className="mt-4 max-w-2xl text-[color:var(--brand-stone-600)]">{t("sub")}</p>
-        <div className="mt-12 grid gap-6 md:grid-cols-3">
-          {points.map((p, i) => (
-            <div
-              key={i}
-              className="rounded-xl border border-[color:var(--brand-stone-200)] bg-[color:var(--brand-stone-50)] p-6"
-            >
-              <h3 className="font-serif text-xl text-[color:var(--brand-stone-900)]">{p.title}</h3>
-              <p className="mt-3 text-sm text-[color:var(--brand-stone-600)]">{p.body}</p>
+    <section ref={ref} id="workspace" className="bg-stone-100 py-24 md:py-32 border-b border-stone-900">
+      <div className="max-w-[1280px] mx-auto px-6 lg:px-10">
+        <div className="grid grid-cols-12 gap-6 mb-14 reveal">
+          <div className="col-span-12 md:col-span-3">
+            <span className="sec-label">
+              <span className="n">{t("label")}</span>
+            </span>
+          </div>
+          <div className="col-span-12 md:col-span-9">
+            <h2 className="kr text-3xl md:text-5xl text-stone-900 leading-[1.05] tracking-tight font-semibold mb-5">
+              {t("title1")}
+              <br />
+              {t("title2")}
+            </h2>
+            <p className="kr text-[15px] text-stone-600 leading-relaxed max-w-[560px]">{t("sub")}</p>
+          </div>
+        </div>
+
+        <div className="ws-frame reveal overflow-x-auto">
+          <div className="min-w-[920px]">
+          <div className="ws-chrome">
+            <div className="flex items-center gap-1">
+              <span className="dot" />
+              <span className="dot" />
+              <span className="dot" />
+              <span className="ml-3 text-stone-600">{t("mock.chromePath")}</span>
             </div>
-          ))}
+            <span className="text-stone-500">⌘ K</span>
+          </div>
+          <div className="grid grid-cols-12 min-h-[440px]">
+            <div className="col-span-3 ws-side">
+              <div className="ws-side-h">{t("mock.sideWorkspace")}</div>
+              <div className="mb-4 flex items-center justify-between px-2">
+                <span className="font-medium text-stone-900">{t("mock.sideWorkspaceName")}</span>
+                <span className="text-stone-500 font-mono text-[10px]">{t("mock.sideWorkspaceMembers")}</span>
+              </div>
+              <div className="space-y-0.5 mb-5">
+                {sideRows.map((row, i) => (
+                  <div key={i} className={`ws-side-row${row.active ? " active" : ""}`}>
+                    <span>{row.label}</span>
+                    <span className={row.active ? "" : "text-stone-500"}>{row.count}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="ws-side-h">{t("mock.sideProjects")}</div>
+              <div className="space-y-0.5">
+                {projects.map((p, i) => (
+                  <div key={i} className="ws-side-row">
+                    <span>{p}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="col-span-6 ws-main" style={{ borderRight: "1px solid #D8D3C8" }}>
+              <div className="ws-breadcrumb">{t("mock.breadcrumb")}</div>
+              <h3 className="font-serif text-3xl text-stone-900 kr mb-3">{t("mock.pageTitle")}</h3>
+              <div className="flex items-center gap-3 mb-5 font-mono text-[10.5px] text-stone-500">
+                {meta.map((m, i) => (
+                  <span key={i}>
+                    {i > 0 ? "· " : ""}
+                    {m}
+                  </span>
+                ))}
+              </div>
+              <div className="border-t border-stone-200 pt-4" />
+              <p className="text-[13px] text-stone-700 leading-relaxed kr mb-4">{t("mock.body")}</p>
+              <div className="ws-callout kr">
+                <b className="text-stone-900">{t("mock.calloutTitle")}</b>
+                <br />
+                <span className="mt-1 block text-stone-700">{t("mock.calloutBody")}</span>
+              </div>
+              <p className="text-[13px] text-stone-700 leading-relaxed kr">
+                {t("mock.related")}{" "}
+                {relatedItems.map((it, i) => (
+                  <span key={i}>
+                    {i > 0 && ", "}
+                    <span className="underline decoration-stone-400 underline-offset-2">{it}</span>
+                  </span>
+                ))}
+                .
+              </p>
+            </div>
+            <div className="col-span-3 ws-rail" style={{ borderLeft: 0 }}>
+              <div className="ws-rail-h">{t("mock.railFeedH")}</div>
+              {feed.map((f, i) => (
+                <div key={i} className="ws-feed-item">
+                  <div className="ws-feed-agent" style={f.faded ? { color: "#6B6559" } : undefined}>
+                    {f.agent}
+                  </div>
+                  <div className="ws-feed-text kr" style={f.faded ? { color: "#6B6559" } : undefined}>
+                    {f.text}
+                  </div>
+                </div>
+              ))}
+              <div className="mt-6 pt-4 border-t border-stone-200">
+                <div className="ws-rail-h">{t("mock.backlinksH")}</div>
+                <ul className="space-y-1 text-[12px] text-stone-700 font-mono">
+                  {backlinks.map((b, i) => (
+                    <li key={i} className={i === backlinks.length - 1 ? "text-stone-500" : undefined}>
+                      {b}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+          </div>
+        </div>
+
+        <div className="mt-6 grid grid-cols-12 gap-6 font-mono text-[11px] tracking-widest uppercase text-stone-500">
+          <div className="col-span-12 md:col-span-3" />
+          <div className="col-span-12 md:col-span-9 flex flex-wrap gap-5">
+            {tags.map((tag, i) => (
+              <span key={i}>{tag}</span>
+            ))}
+          </div>
         </div>
       </div>
     </section>

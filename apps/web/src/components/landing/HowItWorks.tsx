@@ -3,28 +3,89 @@ import { useRef } from "react";
 import { useTranslations } from "next-intl";
 import { useScrollReveal } from "@/lib/landing/hooks/useScrollReveal";
 
+type Step = { n: string; title: string; body: string };
+
 export function HowItWorks() {
-  const t = useTranslations("landing.how");
+  const t = useTranslations("landing.pipeline");
   const ref = useRef<HTMLElement>(null);
   useScrollReveal(ref);
-  const steps = t.raw("steps") as { n: string; title: string; body: string }[];
+  const steps = t.raw("steps") as Step[];
 
   return (
-    <section
-      id="how"
-      ref={ref}
-      className="reveal bg-[color:var(--brand-stone-900)] py-24 text-[color:var(--brand-stone-50)] md:py-28"
-    >
-      <div className="mx-auto max-w-6xl px-6">
-        <h2 className="font-serif text-4xl md:text-5xl">{t("heading")}</h2>
-        <div className="mt-12 grid gap-8 md:grid-cols-3">
-          {steps.map((s) => (
-            <div key={s.n} className="rounded-xl border border-[color:var(--brand-stone-700)] bg-[color:var(--brand-stone-800)] p-6">
-              <p className="font-mono text-xs text-[color:var(--brand-stone-400)]">{s.n}</p>
-              <h3 className="mt-3 font-serif text-2xl">{s.title}</h3>
-              <p className="mt-3 text-sm text-[color:var(--brand-stone-300)]">{s.body}</p>
+    <section ref={ref} id="how" className="bg-stone-900 text-stone-50 py-24 md:py-28 border-y border-stone-900">
+      <div className="max-w-[1280px] mx-auto px-6 lg:px-10">
+        <div className="grid grid-cols-12 gap-6 mb-16 reveal">
+          <div className="col-span-12 md:col-span-3">
+            <span className="sec-label" style={{ color: "#9A9285" }}>
+              <span className="n" style={{ color: "#F5F3EE" }}>
+                {t("label")}
+              </span>
+            </span>
+          </div>
+          <div className="col-span-12 md:col-span-9">
+            <h2 className="kr text-3xl md:text-5xl leading-[1.05] tracking-tight font-semibold mb-5">
+              {t("title1")}
+              <br />
+              <span className="text-stone-500">{t("title2")}</span> {t("title3")}
+            </h2>
+            <p className="kr text-[15px] text-stone-400 leading-relaxed max-w-[540px]">
+              {t("sub")}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-12 border border-stone-700 rounded-2xl overflow-hidden reveal-stagger">
+          {steps.map((s, i) => (
+            <div key={i} className="col-span-12 md:col-span-2 pipe-step">
+              <div
+                className={`font-mono text-[11px] tracking-widest uppercase mb-6 ${
+                  i < 3 ? "text-stone-500" : "text-stone-300"
+                }`}
+              >
+                {s.n}
+              </div>
+              <div className="font-serif text-2xl mb-3">{s.title}</div>
+              <p className="text-[12.5px] text-stone-400 leading-relaxed kr">{s.body}</p>
             </div>
           ))}
+        </div>
+
+        <div className="mt-14 grid grid-cols-12 gap-6 reveal">
+          <div className="col-span-12 md:col-span-3" />
+          <div className="col-span-12 md:col-span-9 font-mono text-[12.5px] text-stone-400 leading-relaxed">
+            <span className="text-stone-50">{t("terminal.prompt")}</span> {t("terminal.cmd")}
+            <span className="mx-3 text-stone-600">→</span>
+            {t("terminal.result")}
+            <span className="mx-3 text-stone-600">→</span>
+            <span className="text-stone-50">{t("terminal.tail")}</span>
+          </div>
+        </div>
+
+        <div className="mt-20 pt-12 border-t border-stone-700 grid grid-cols-12 gap-6 reveal">
+          <div className="col-span-12 md:col-span-3">
+            <span className="sec-label" style={{ color: "#9A9285" }}>
+              <span className="n" style={{ color: "#F5F3EE" }}>
+                {t("citation.label")}
+              </span>
+            </span>
+          </div>
+          <div className="col-span-12 md:col-span-9">
+            <h3 className="kr font-serif text-2xl md:text-3xl leading-[1.15] mb-4">
+              {t("citation.title")}
+            </h3>
+            <p className="kr text-[14px] text-stone-400 leading-relaxed max-w-[560px] mb-5">
+              {t("citation.body")}
+            </p>
+            <div className="inline-flex flex-wrap items-center gap-2 font-mono text-[12px] text-stone-400 border border-stone-700 px-4 py-3 bg-stone-800 rounded-lg">
+              <span className="text-stone-50">↪</span>
+              <span>{t("citation.pillKey")}</span>
+              <span className="text-stone-500">: [</span>
+              <span className="text-stone-300">{t("citation.pillA")}</span>
+              <span className="text-stone-500">,</span>
+              <span className="text-stone-300">{t("citation.pillB")}</span>
+              <span className="text-stone-500">]</span>
+            </div>
+          </div>
         </div>
       </div>
     </section>

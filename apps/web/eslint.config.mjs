@@ -34,6 +34,12 @@ export default [
               "^[\\u2000-\\u27BF]+$",
               "^OpenCairn$",
               "^GitHub$",
+              // landing-only typographic decorations (not translated content)
+              "·",
+              "^\\.v0\\.1$",
+              "^⌘ K$",
+              ":\\s*\\[",
+              "\\]",
             ],
           },
         },

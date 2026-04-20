@@ -1,51 +1,312 @@
 "use client";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useScrollReveal } from "@/lib/landing/hooks/useScrollReveal";
-import { useTypewriter } from "@/lib/landing/hooks/useTypewriter";
+
+type ActivityItem = { agent: string; text: string };
+
+const ACTIVE_ORDER = [0, 2, 1, 7, 3, 4, 5, 9, 10, 11, 6, 8];
+const AGENT_ROWS: Array<{ idx: number; x: number; y: number; text: number; fill: string; label: string }> = [
+  { idx: 0, x: 20, y: 26, text: 30, fill: "#FDBA74", label: "Compiler" },
+  { idx: 1, x: 20, y: 48, text: 52, fill: "#FDBA74", label: "Research" },
+  { idx: 2, x: 20, y: 70, text: 74, fill: "#FDBA74", label: "Librarian" },
+  { idx: 3, x: 20, y: 92, text: 96, fill: "#FDBA74", label: "Synthesis" },
+  { idx: 4, x: 20, y: 114, text: 118, fill: "#FDBA74", label: "Socratic" },
+  { idx: 5, x: 20, y: 136, text: 140, fill: "#FDBA74", label: "Narrator" },
+  { idx: 6, x: 104, y: 26, text: 30, fill: "#D3CCBE", label: "Curator" },
+  { idx: 7, x: 104, y: 48, text: 52, fill: "#D3CCBE", label: "Connector" },
+  { idx: 8, x: 104, y: 70, text: 74, fill: "#D3CCBE", label: "Temporal" },
+  { idx: 9, x: 104, y: 92, text: 96, fill: "#D3CCBE", label: "Deep R." },
+  { idx: 10, x: 104, y: 114, text: 118, fill: "#D3CCBE", label: "Code" },
+  { idx: 11, x: 104, y: 136, text: 140, fill: "#D3CCBE", label: "Visual." },
+];
 
 export function Hero() {
   const t = useTranslations("landing.hero");
-  const ref = useRef<HTMLElement>(null);
-  useScrollReveal(ref);
+  const sectionRef = useRef<HTMLElement>(null);
+  useScrollReveal(sectionRef);
 
-  const rotatingWords = t.raw("rotatingWords") as string[];
-  const typed = useTypewriter(rotatingWords);
+  const activityItems = t.raw("activity.items") as ActivityItem[];
+  const timeLabels = t.raw("activity.timeLabels") as string[];
+  const inputItems = t.raw("livePanel.inputItems") as string[];
+  const rotating = t.raw("livePanel.rotating") as string[];
+
+  const SHOW = 4;
+  const [head, setHead] = useState(0);
+  const [acIn, setAcIn] = useState(true);
+  const [activeAgent, setActiveAgent] = useState<number>(ACTIVE_ORDER[0]);
+  const [liveMsg, setLiveMsg] = useState(rotating[0] ?? "");
+  const [wikiN, setWikiN] = useState(17);
+  const [linksN, setLinksN] = useState(42);
+  const [cardsN, setCardsN] = useState(23);
+  const livePanelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) return;
+    let tickI = 0;
+    const id = setInterval(() => {
+      setActiveAgent(ACTIVE_ORDER[tickI % ACTIVE_ORDER.length]);
+      setLiveMsg(rotating[(tickI + 1) % rotating.length]);
+      if (tickI % 2 === 0) {
+        setWikiN((n) => n + (Math.random() < 0.5 ? 1 : 0));
+        setLinksN((n) => n + 1 + Math.floor(Math.random() * 3));
+        setCardsN((n) => n + (Math.random() < 0.5 ? 1 : 0));
+      }
+      tickI++;
+    }, 2200);
+    return () => clearInterval(id);
+  }, [rotating]);
+
+  useEffect(() => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) return;
+    const id = setInterval(() => {
+      setAcIn(false);
+      setTimeout(() => {
+        setHead((h) => (h + 1) % activityItems.length);
+        setAcIn(true);
+      }, 380);
+    }, 4200);
+    return () => clearInterval(id);
+  }, [activityItems.length]);
+
+  useEffect(() => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const el = livePanelRef.current;
+    if (reduce || !el) return;
+    const onScroll = () => {
+      const r = el.getBoundingClientRect();
+      if (r.top > window.innerHeight || r.bottom < 0) return;
+      const progress = 1 - r.top / window.innerHeight;
+      el.style.transform = `translateY(${Math.min(0, (1 - progress) * 12)}px)`;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const shown: ActivityItem[] = [];
+  for (let i = 0; i < SHOW; i++) shown.push(activityItems[(head + i) % activityItems.length]);
 
   return (
-    <section
-      ref={ref}
-      className="reveal relative overflow-hidden bg-[color:var(--brand-paper)] py-24 md:py-32"
-    >
-      <div className="mx-auto max-w-6xl px-6">
-        <p className="font-mono text-xs uppercase tracking-widest text-[color:var(--brand-stone-500)]">
-          {t("eyebrow")}
-        </p>
-        <h1 className="mt-6 font-serif text-5xl leading-tight text-[color:var(--brand-stone-900)] md:text-7xl">
-          <span>{typed}</span>
-          <span
-            className="ml-[0.08em] inline-block h-[0.95em] w-[0.08em] animate-pulse bg-[color:var(--brand-ember-cta)] align-baseline"
-            aria-hidden
-          />
-          <br />
-          <em className="font-serif not-italic">{t("titleEm")}</em>
-        </h1>
-        <p className="mt-6 max-w-2xl text-lg text-[color:var(--brand-stone-600)]">
-          {t("sub")}
-        </p>
-        <div className="mt-10 flex items-center gap-4">
-          <a
-            href="/dashboard"
-            className="rounded-full bg-[color:var(--brand-stone-900)] px-6 py-3 text-sm font-medium text-[color:var(--brand-paper)] hover:opacity-90"
-          >
-            {t("cta")}
-          </a>
-          <a
-            href="#how"
-            className="text-sm font-medium text-[color:var(--brand-stone-600)] hover:text-[color:var(--brand-stone-900)]"
-          >
-            {t("ctaGhost")}
-          </a>
+    <section ref={sectionRef} className="relative overflow-hidden grid-bg grain">
+      <div className="max-w-[1280px] mx-auto px-6 lg:px-10 pt-24 pb-20 md:pt-32 md:pb-28 relative">
+        <div className="grid md:grid-cols-12 gap-12 items-center">
+          <div className="md:col-span-7">
+            <div className="flex items-center gap-3 mb-10 reveal">
+              <span className="w-2 h-2 bg-stone-900 rounded-full pulse-dot" aria-hidden />
+              <span className="sec-label">
+                <span className="n">{t("label")}</span> — {t("labelMeta")}
+              </span>
+            </div>
+            <h1 className="kr font-serif text-4xl sm:text-5xl md:text-6xl leading-[1.05] text-stone-900 mb-6 reveal">
+              {t("titleLine1")}
+              <br />
+              {t("titleLine2")}
+              <br />
+              <em className="font-serif not-italic">{t("titleBrand")}</em>
+              <br />
+              {t("titleLine3")}
+              <span className="caret" aria-hidden />
+            </h1>
+            <p
+              className="kr text-lg text-stone-600 leading-relaxed mb-10 reveal"
+              dangerouslySetInnerHTML={{ __html: t.raw("sub") as string }}
+            />
+            <div className="flex flex-wrap items-center gap-4 reveal">
+              <a
+                href="#pricing"
+                className="bg-stone-900 hover:bg-stone-800 text-stone-50 font-medium px-6 py-3 rounded-md transition-colors kr inline-flex items-center gap-2"
+              >
+                {t("ctaPrimary")}
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14M13 5l7 7-7 7" />
+                </svg>
+              </a>
+              <a
+                href="#pricing"
+                className="bg-stone-50 border border-stone-300 text-stone-800 font-medium px-6 py-3 rounded-md hover:bg-stone-100 transition-colors kr"
+              >
+                {t("ctaSecondary")}
+              </a>
+            </div>
+            <p className="kr text-sm text-stone-500 mt-5 reveal">
+              {t("noCard")}
+              <span className="mx-2 text-stone-300">·</span>
+              <a href="#docs" className="text-stone-600 hover:text-stone-900 underline decoration-dotted underline-offset-2">
+                {t("selfhostLink")}
+              </a>
+            </p>
+            <div className="mt-14 spec-row reveal">
+              <span>
+                <b>{t("spec.agents")}</b> · {t("spec.agentsVal")}
+              </span>
+              <span>
+                <b>{t("spec.parsers")}</b> · {t("spec.parsersVal")}
+              </span>
+              <span>
+                <b>{t("spec.runtime")}</b> · {t("spec.runtimeVal")}
+              </span>
+              <span>
+                <b>{t("spec.vector")}</b> · {t("spec.vectorVal")}
+              </span>
+              <span>
+                <b>{t("spec.license")}</b> · {t("spec.licenseVal")}
+              </span>
+            </div>
+          </div>
+
+          <aside className="md:col-span-5 reveal">
+            <div className="activity-card" aria-live="polite">
+              <div className="ac-header">
+                <span className="ac-dot" aria-hidden />
+                <span className="ac-title">{t("activity.title")}</span>
+                <span className="ac-meta">{t("activity.meta")}</span>
+              </div>
+              <ul className="ac-list">
+                {shown.map((it, i) => (
+                  <li
+                    key={`${head}-${i}`}
+                    className={`ac-item${acIn ? " in" : ""}`}
+                    style={{ transitionDelay: `${i * 60}ms` }}
+                  >
+                    <span className="ac-agent">{it.agent}</span>
+                    <span className="ac-text" dangerouslySetInnerHTML={{ __html: it.text }} />
+                    <span className="ac-time">{timeLabels[i] ?? ""}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="ac-footer">
+                <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6}>
+                  <path d="M2 8l4 4 8-8" />
+                </svg>
+                <span className="kr">{t("activity.footer")}</span>
+              </div>
+            </div>
+            <pre className="ascii mt-6">{`     +----------+       +----------+
+     |  INGEST  | -----> | COMPILE  |
+     +----+-----+       +----+-----+
+          |                  |
+          v                  v
+     +----------+       +----------+
+     | RESEARCH | <----> | CURATE   |
+     +----------+       +----------+
+                your knowledge graph`}</pre>
+          </aside>
+        </div>
+
+        <div ref={livePanelRef} className="mt-12 relative live-panel reveal">
+          <div className="bar">
+            <span className="dot r" />
+            <span className="dot y" />
+            <span className="dot g" />
+            <span className="title">{t("livePanel.title")}</span>
+            <span style={{ marginLeft: "auto", color: "#28C840" }}>{t("livePanel.compiling")}</span>
+          </div>
+          <div className="px-6 py-8 md:px-10 md:py-10 relative" style={{ zIndex: 2 }}>
+            <svg viewBox="0 0 900 360" className="w-full h-auto" fill="none">
+              <g transform="translate(20, 40)">
+                <text x={0} y={0} className="font-mono" fontSize={11} fill="#6B6559">
+                  {t("livePanel.input")}
+                </text>
+                {inputItems.map((label, i) => (
+                  <g key={i}>
+                    <rect x={0} y={20 + i * 56} width={140} height={44} rx={4} fill="white" stroke="#D3CCBE" />
+                    <text x={16} y={48 + i * 56} fontSize={13} fill="#1C1917">
+                      {label}
+                    </text>
+                  </g>
+                ))}
+              </g>
+              <g stroke="#1C1917" strokeWidth={1.5}>
+                <path className="flow-line" d="M 160 62 Q 260 62 340 100" />
+                <path className="flow-line" d="M 160 118 Q 260 118 340 140" />
+                <path className="flow-line" d="M 160 174 Q 260 174 340 180" />
+                <path className="flow-line" d="M 160 230 Q 260 230 340 220" />
+                <path className="flow-line" d="M 160 286 Q 260 286 340 260" />
+              </g>
+              <g transform="translate(340, 60)">
+                <text x={50} y={-20} className="font-mono" fontSize={11} fill="#6B6559">
+                  {t("livePanel.agentsHeader")}
+                </text>
+                <rect x={0} y={0} width={180} height={240} rx={8} fill="#2A2823" />
+                <g className="font-mono" fontSize={11}>
+                  {AGENT_ROWS.map((r) => {
+                    const isActive = r.idx === activeAgent;
+                    return (
+                      <g key={r.idx}>
+                        <circle
+                          cx={r.x}
+                          cy={r.y}
+                          r={3}
+                          fill={r.fill}
+                          className={isActive ? "hero-agent-active" : undefined}
+                        />
+                        <text x={r.x + 10} y={r.text} fill={r.fill}>
+                          {r.label}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </g>
+                <rect x={16} y={170} width={148} height={50} rx={4} fill="#403C32" stroke="#7C7462" strokeWidth={0.5} />
+                <text x={28} y={190} className="font-mono" fontSize={10} fill="#9A9285">
+                  {t("livePanel.orchestration")}
+                </text>
+                <text x={28} y={208} className="font-mono" fontSize={10} fill="#FDBA74">
+                  {t("livePanel.status")}
+                </text>
+              </g>
+              <g stroke="#1C1917" strokeWidth={1.5}>
+                <path className="flow-line" d="M 520 100 Q 620 100 700 80" />
+                <path className="flow-line" d="M 520 180 Q 620 180 700 180" />
+                <path className="flow-line" d="M 520 260 Q 620 260 700 280" />
+              </g>
+              <g transform="translate(700, 40)">
+                <text x={0} y={0} className="font-mono" fontSize={11} fill="#6B6559">
+                  {t("livePanel.output")}
+                </text>
+                <rect x={0} y={20} width={180} height={72} rx={4} fill="#FEF7ED" stroke="#FED7AA" />
+                <text x={16} y={42} fontSize={12} fontWeight={600} fill="#1C1917">
+                  {t("livePanel.outWikiTitle")}
+                </text>
+                <text x={16} y={60} fontSize={11} fill="#1C1917">
+                  {t("livePanel.outWikiDesc")}
+                </text>
+                <text x={16} y={78} className="font-mono" fontSize={10} fill="#B45309">
+                  <tspan>{wikiN}</tspan> {t("livePanel.outWikiMeta")} · <tspan>{linksN}</tspan> {t("livePanel.outWikiLinksMeta")}
+                </text>
+
+                <rect x={0} y={104} width={180} height={72} rx={4} fill="#FEF7ED" stroke="#FED7AA" />
+                <text x={16} y={126} fontSize={12} fontWeight={600} fill="#1C1917">
+                  {t("livePanel.outLearnTitle")}
+                </text>
+                <text x={16} y={144} fontSize={11} fill="#1C1917">
+                  {t("livePanel.outLearnDesc")}
+                </text>
+                <text x={16} y={162} className="font-mono" fontSize={10} fill="#B45309">
+                  <tspan>{cardsN}</tspan> {t("livePanel.outLearnMeta")}
+                </text>
+
+                <rect x={0} y={188} width={180} height={72} rx={4} fill="#FEF7ED" stroke="#FED7AA" />
+                <text x={16} y={210} fontSize={12} fontWeight={600} fill="#1C1917">
+                  {t("livePanel.outGenTitle")}
+                </text>
+                <text x={16} y={228} fontSize={11} fill="#1C1917">
+                  {t("livePanel.outGenDesc")}
+                </text>
+                <text x={16} y={246} className="font-mono" fontSize={10} fill="#B45309">
+                  {t("livePanel.outGenMeta")}
+                </text>
+              </g>
+            </svg>
+          </div>
+          <div className="live-status">
+            <span className="beat" aria-hidden />
+            <span className="msg kr" style={{ fontFamily: "var(--font-mono)" }}>
+              {liveMsg}
+            </span>
+          </div>
         </div>
       </div>
     </section>

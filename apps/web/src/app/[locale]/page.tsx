@@ -4,14 +4,15 @@ import type { Locale } from "@/i18n";
 import { LandingHeader } from "@/components/landing/chrome/Header";
 import { LandingFooter } from "@/components/landing/chrome/Footer";
 import { Hero } from "@/components/landing/Hero";
-import { ProblemBand } from "@/components/landing/ProblemBand";
+import { StackTicker } from "@/components/landing/StackTicker";
+import { Metrics } from "@/components/landing/Metrics";
 import { HowItWorks } from "@/components/landing/HowItWorks";
 import { AgentsGrid } from "@/components/landing/AgentsGrid";
-import { WorkspaceShowcase } from "@/components/landing/WorkspaceShowcase";
+import { FiveViews } from "@/components/landing/FiveViews";
 import { MiniGraph } from "@/components/landing/MiniGraph";
-import { Personas } from "@/components/landing/Personas";
+import { WorkspaceShowcase } from "@/components/landing/WorkspaceShowcase";
 import { Comparison } from "@/components/landing/Comparison";
-import { ForWhom } from "@/components/landing/ForWhom";
+import { Personas } from "@/components/landing/Personas";
 import { DocsTeaser } from "@/components/landing/DocsTeaser";
 import { Pricing } from "@/components/landing/Pricing";
 import { Faq } from "@/components/landing/Faq";
@@ -36,18 +37,19 @@ export default async function Landing({ params }: { params: Promise<{ locale: Lo
     <div
       data-brand="landing"
       data-theme="cairn-light"
-      className="min-h-screen bg-[color:var(--brand-paper)] text-[color:var(--brand-stone-900)]"
+      className="min-h-screen bg-stone-50 text-stone-800 font-sans antialiased"
     >
       <LandingHeader />
       <Hero />
-      <ProblemBand />
+      <StackTicker />
+      <Metrics />
       <HowItWorks />
       <AgentsGrid />
-      <WorkspaceShowcase />
+      <FiveViews />
       <MiniGraph />
-      <Personas />
+      <WorkspaceShowcase />
       <Comparison />
-      <ForWhom />
+      <Personas />
       <DocsTeaser />
       <Pricing />
       <Faq />

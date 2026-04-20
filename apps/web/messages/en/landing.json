@@ -1,128 +1,487 @@
 {
   "meta": {
-    "title": "OpenCairn — 읽은 것까지 이해하는 AI 지식 OS",
-    "description": "자료를 올려두면 AI가 위키로 엮고, 묻기 전에 연결을 발견하는 개인·팀 지식 OS. 12개 AI 에이전트, 셀프호스팅, AGPLv3."
+    "title": "OpenCairn — the AI knowledge OS that understands what you read",
+    "description": "Drop in your sources and 12 AI agents weave them into a wiki, surface connections before you ask, and measure your depth of understanding. Self-hosted, AGPLv3."
+  },
+  "nav": {
+    "logoTitle": "Try clicking",
+    "pipeline": "PIPELINE",
+    "agents": "AGENTS",
+    "workspace": "WORKSPACE",
+    "why": "WHY",
+    "pricing": "PRICING",
+    "docs": "DOCS",
+    "github": "GITHUB ↗",
+    "signIn": "Sign in",
+    "signUp": "Start free",
+    "easter": "fourth stone ✦"
   },
   "hero": {
-    "eyebrow": "AI Knowledge OS",
-    "title": "읽은 것까지 이해하는",
-    "titleEm": "AI 지식 OS",
-    "sub": "자료를 올려두시면 AI가 위키로 엮어드려요. 묻기 전에 연결을 발견해드립니다.",
-    "cta": "시작하기",
-    "ctaGhost": "데모 보기 →",
-    "rotatingWords": [
-      "읽은 것까지 이해하는",
-      "자동으로 엮어주는",
-      "관계까지 이해하는"
+    "label": "[ 001 / 012 · HERO ]",
+    "labelMeta": "2026.04 · SEOUL · AI KNOWLEDGE OS · AGPLV3",
+    "titleLine1": "Plenty of tools hold",
+    "titleLine2": "what you write.",
+    "titleBrand": "OpenCairn",
+    "titleLine3": "understands what you read.",
+    "sub": "Drop in PDFs, papers, videos, and podcasts. 12 AI agents <b>weave them into a wiki</b>, <b>surface connections</b> before you ask, and <b>measure how well you actually understand</b> what's there.",
+    "ctaPrimary": "Start free",
+    "ctaSecondary": "See pricing",
+    "noCard": "No card required · all 12 agents included",
+    "selfhostLink": "Developer? Self-hosting guide ↗",
+    "spec": {
+      "agents": "agents",
+      "agentsVal": "12",
+      "parsers": "parsers",
+      "parsersVal": "pdf · docx · hwp · epub · mp3 · mp4",
+      "runtime": "runtime",
+      "runtimeVal": "docker",
+      "vector": "vector",
+      "vectorVal": "pgvector",
+      "license": "license",
+      "licenseVal": "agplv3"
+    },
+    "activity": {
+      "title": "LIVE · WORKSPACE",
+      "meta": "12 agents active",
+      "footer": "Real agent activity, up to seconds ago",
+      "timeLabels": ["just now", "1m ago", "3m ago", "6m ago"],
+      "items": [
+        { "agent": "Compiler", "text": "<b>attention_is_all_you_need.pdf</b> compiled · 17 concepts" },
+        { "agent": "Librarian", "text": "‘self-attention’ ↔ ‘scaled dot-product’ merge suggested" },
+        { "agent": "Synthesis", "text": "Cross-domain analogy: ‘attention ↔ cognitive selection’" },
+        { "agent": "Curator", "text": "<b>RoFormer (2021)</b> · 3 related paper candidates" },
+        { "agent": "Socratic", "text": "4 weak concepts detected · 9 flashcards generated" },
+        { "agent": "Connector", "text": "Linked 2 concepts with ‘signal-processing’ project" },
+        { "agent": "Temporal", "text": "‘Transformer’ understanding <b>+15%</b> (last 7 days)" },
+        { "agent": "Research", "text": "4 new question candidates indexed · Q&A ready" },
+        { "agent": "Deep R.", "text": "<b>\"post-LN vs pre-LN\"</b> deep dive queued" },
+        { "agent": "Narrator", "text": "Weekly podcast auto-generated · <b>12:30</b>" },
+        { "agent": "Code", "text": "Attention score heatmap · rendered in browser" },
+        { "agent": "Visual.", "text": "Knowledge graph 5-view layout recomputed" }
+      ]
+    },
+    "livePanel": {
+      "title": "opencairn — live compile",
+      "compiling": "● compiling",
+      "input": "INPUT",
+      "inputItems": ["Paper PDF", "Podcast audio", "Video · YouTube", "Web URL · HWP", "Scanned image"],
+      "agentsHeader": "12 AGENTS",
+      "orchestration": "orchestration",
+      "status": "● running · 12/12",
+      "output": "OUTPUT",
+      "outWikiTitle": "Wiki pages",
+      "outWikiDesc": "Concept graph · backlinks",
+      "outWikiMeta": "pages",
+      "outWikiLinksMeta": "links",
+      "outLearnTitle": "Learning + Q&A",
+      "outLearnDesc": "Flashcards · quizzes",
+      "outLearnMeta": "flashcards generated",
+      "outGenTitle": "Generated artifacts",
+      "outGenDesc": "Docs · podcasts · slides",
+      "outGenMeta": "every source traceable",
+      "idle": "idle…",
+      "rotating": [
+        "Upload detected · attention_is_all_you_need.pdf",
+        "Compiler: 17 concepts extracted · embedding",
+        "Librarian: 3 duplicate merges suggested with existing wiki",
+        "Research: 4 candidate questions indexed",
+        "Connector: 2 concepts linked to signal-processing project",
+        "Synthesis: \"attention ↔ selective perception\" merge proposed",
+        "Socratic: 9 flashcards auto-generated",
+        "Narrator: 2-person dialogue script drafted",
+        "Deep Research: 2 follow-up topics queued",
+        "Code: sample attention-score visualization built",
+        "Visualization: 5-view layout updated",
+        "Curator: related paper \"RoFormer (2021)\" discovered",
+        "Temporal: graph-change timeline synced"
+      ]
+    }
+  },
+  "metrics": {
+    "label": "[ 002 / 012 · METRICS ]",
+    "items": [
+      { "value": 12, "suffix": "", "caption": "AI agents" },
+      { "value": 5, "suffix": " views", "caption": "One graph · five lenses" },
+      { "value": 0, "suffix": "", "caption": "External calls · local mode" },
+      { "value": "AGPLv3", "suffix": "", "caption": "Open-source license" }
     ]
   },
-  "problem": {
-    "heading": "쓴 것만 담는 도구는 많습니다.",
-    "headingEm": "OpenCairn은 읽은 것까지 이해합니다.",
-    "sub": "자료는 쌓이는데 연결은 안 보입니다. 정리할 시간은 없고, 질문할 타이밍은 놓칩니다. OpenCairn은 읽은 순간부터 엮어드립니다."
-  },
-  "how": {
-    "heading": "어떻게 동작하나요",
+  "pipeline": {
+    "label": "[ 003 / 012 · PIPELINE ]",
+    "title1": "Turning one source",
+    "title2": "into a wiki page,",
+    "title3": "in six steps.",
+    "sub": "Instead of one giant prompt, narrow-responsibility steps hand off the baton. That way the system knows when to stop and what to fix. Every sentence traces back to the source.",
     "steps": [
-      { "n": "01", "title": "올려두면", "body": "PDF·YouTube·오디오·이미지·URL 어떤 자료든 받습니다." },
-      { "n": "02", "title": "자동으로 엮고", "body": "12 에이전트가 위키 페이지로 정리하고 개념 간 연결을 만듭니다." },
-      { "n": "03", "title": "먼저 발견해요", "body": "질문하기 전에 관련된 맥락과 플래시카드가 제안돼요." }
-    ]
+      { "n": "01 · INGEST", "title": "Intake", "body": "PDF · HWP · audio · video · URL · scanned images. Format-agnostic." },
+      { "n": "02 · PARSE", "title": "Break down", "body": "OCR · captions · table structure. Normalized to Markdown." },
+      { "n": "03 · EMBED", "title": "Meaning", "body": "Mapped to vector space. Similar things end up close." },
+      { "n": "04 · COMPILE", "title": "Weave", "body": "12 agents draft wiki pages per topic." },
+      { "n": "05 · CONNECT", "title": "Link", "body": "Backlinks · opposing views · causal edges into a knowledge graph." },
+      { "n": "06 · SERVE", "title": "Use", "body": "Q&A · flashcards · Socratic tutor · podcasts." }
+    ],
+    "terminal": {
+      "prompt": "$",
+      "cmd": "docker compose up",
+      "result": "http://localhost:3000",
+      "tail": "it just runs."
+    },
+    "citation": {
+      "label": "↪ CITATION",
+      "title": "Every sentence traces back to the source.",
+      "body": "AI-written sentences carry citations, and citations point to the materials you actually read. No hallucinations, no plagiarism — just what you already have.",
+      "pillKey": "citation.sources",
+      "pillA": "\"note: attention-is-all-you-need\"",
+      "pillB": "\"note: rotary-embedding\""
+    }
   },
   "agents": {
-    "heading": "12개의 AI 에이전트가 일합니다",
+    "label": "[ 004 / 012 · AGENTS ]",
+    "title1": "Twelve specialists,",
+    "title2": "each with a narrow job.",
+    "sub": "Instead of one giant prompt, narrow-responsibility agents hand off the baton. Each runs in a background that doesn't die — close the browser and your knowledge keeps growing.",
     "items": [
-      { "title": "Compiler", "body": "자료를 위키 페이지로 엮어냅니다." },
-      { "title": "Research", "body": "여러 소스를 교차 검증해 답합니다." },
-      { "title": "Librarian", "body": "태그와 구조를 정리해둡니다." },
-      { "title": "Socratic", "body": "맞춤 질문으로 이해를 깊게 합니다." },
-      { "title": "Code", "body": "코드 블록을 안전한 브라우저 샌드박스에서 실행합니다." },
-      { "title": "Connector", "body": "외부 노트·링크를 가져옵니다." },
-      { "title": "Temporal", "body": "시간축 변화를 추적합니다." },
-      { "title": "Synthesis", "body": "여러 페이지를 한 단락으로 요약합니다." },
-      { "title": "Curator", "body": "관련 자료를 먼저 추천해드립니다." },
-      { "title": "Narrator", "body": "긴 글을 듣기 좋은 오디오로 변환합니다." },
-      { "title": "Deep Research", "body": "깊이 있는 리서치 리포트를 생성합니다." },
-      { "title": "Visualization", "body": "지식을 그래프·타임라인·마인드맵으로 보여드립니다." }
+      { "n": "01", "cat": "core", "name": "Compiler", "body": "Extracts concepts from uploads into wiki pages, with two-way links built in." },
+      { "n": "02", "cat": "core", "name": "Research", "body": "Hybrid Q&A across multiple search strategies. Every answer cited." },
+      { "n": "03", "cat": "maintain", "name": "Librarian", "body": "Finds orphan pages, contradictions, and duplicates. Wiki health on a schedule." },
+      { "n": "04", "cat": "discover", "name": "Synthesis", "body": "Finds structural analogies across domains — immune system ↔ resilience." },
+      { "n": "05", "cat": "discover", "name": "Connector", "body": "Suggests cross-project links; accept to create them." },
+      { "n": "06", "cat": "time", "name": "Temporal", "body": "Tracks how understanding evolves. Stale-knowledge warnings and review nudges." },
+      { "n": "07", "cat": "source", "name": "Curator", "body": "Finds external sources to fill gaps in what you know." },
+      { "n": "08", "cat": "source", "name": "Deep Research", "body": "Investigates one topic autonomously over a long horizon, then merges into the wiki." },
+      { "n": "09", "cat": "learn", "name": "Socratic", "body": "Checks understanding with flashcards and quizzes. Spaced repetition on weak spots." },
+      { "n": "10", "cat": "media", "name": "Narrator", "body": "Turns wiki content into two-voice podcasts. Review while you walk." },
+      { "n": "11", "cat": "execute", "name": "Code", "body": "Generates Python/JS and runs it safely in the browser. Zero server code." },
+      { "n": "12", "cat": "view", "name": "Visualization", "body": "Renders the graph as Graph · Mindmap · Cards · Canvas · Timeline." }
     ]
+  },
+  "views": {
+    "label": "[ 005 / 012 · VIEWS ]",
+    "title": "One graph, five lenses.",
+    "sub": "One dataset, five ways to see it. Switch to whichever view fits the moment. Every switch is logged and reversible.",
+    "items": [
+      { "n": "01", "cat": "overview", "name": "Graph", "body": "Explore the full network at a glance" },
+      { "n": "02", "cat": "radiate", "name": "Mindmap", "body": "Radiate outward from a central concept" },
+      { "n": "03", "cat": "review", "name": "Cards", "body": "Search, filter, and spaced-repetition review" },
+      { "n": "04", "cat": "arrange", "name": "Canvas", "body": "Freeform layout for thinking in space" },
+      { "n": "05", "cat": "chronology", "name": "Timeline", "body": "How your understanding changes over time" }
+    ]
+  },
+  "try": {
+    "label": "[ 006 / 012 · TRY IT ]",
+    "title1": "Pick one concept",
+    "title2": "and the connected thoughts surface.",
+    "sub": "A small slice of a wiki built by a grad student who uploaded twenty transformer papers. Hover or tap a node — the connections OpenCairn found ripple out.",
+    "bullets": [
+      "Each node is an auto-generated wiki page.",
+      "Edges are relationships found via embeddings and shared concepts.",
+      "The numbers show how often other pages reference this one."
+    ],
+    "caption": "Knowledge graph · 8 nodes · 9 edges",
+    "backlinks": "backlinks",
+    "graph": {
+      "attention": { "t": "Attention", "d": "A mechanism that weighs different parts of the input sequence so the model can focus on what matters." },
+      "transformer": { "t": "Transformer", "d": "A sequence-to-sequence architecture built from attention alone. Encoder–decoder structure." },
+      "multihead": { "t": "Multi-Head Attention", "d": "Runs attention in parallel subspaces to capture different kinds of relationships." },
+      "positional": { "t": "Positional Encoding", "d": "Attention has no innate notion of order — position must be injected explicitly." },
+      "encoder": { "t": "Encoder", "d": "Stack that turns input tokens into representation vectors. The upper half of a Transformer." },
+      "decoder": { "t": "Decoder", "d": "Uses encoder output to generate the target sequence autoregressively." },
+      "bert": { "t": "BERT", "d": "Encoder-only bidirectional pretrained model. Strong on understanding tasks." },
+      "rope": { "t": "RoPE (Rotary Pos. Emb.)", "d": "Position info via rotation matrices. Better extrapolation than naive positional encodings." },
+      "pretraining": { "t": "Pretraining", "d": "Learn general language ability on a large corpus, then transfer to downstream tasks." }
+    }
   },
   "workspace": {
-    "heading": "개인 노트에서 팀 지식으로",
-    "sub": "혼자 쓰다가 팀과 공유하고 싶어질 때, 이사 없이 그대로 확장됩니다.",
-    "points": [
-      { "title": "개인 워크스페이스", "body": "처음엔 내 노트만. 자료·위키·플래시카드가 한 곳에." },
-      { "title": "팀 워크스페이스", "body": "초대 한 번으로 공동 편집·코멘트·알림·공유 링크까지." },
-      { "title": "권한 3단계", "body": "Workspace → Project → Page. 필요한 만큼만 공개." }
+    "label": "[ 007 / 012 · WORKSPACE ]",
+    "title1": "Same shape for a solo user",
+    "title2": "as for a whole lab.",
+    "sub": "Wiki pages aren't just text — they're the meeting point of sources, agents, and teammates. Every page carries its citations, editors, and agent activity with it.",
+    "mock": {
+      "chromePath": "opencairn.local / studio-kim / research-wiki",
+      "sideWorkspace": "WORKSPACE",
+      "sideWorkspaceName": "Studio Kim",
+      "sideWorkspaceMembers": "5 members",
+      "sideRows": [
+        { "label": "Inbox", "count": "3", "active": true },
+        { "label": "Pages", "count": "214", "active": false },
+        { "label": "Graph", "count": "", "active": false },
+        { "label": "Library", "count": "78", "active": false },
+        { "label": "Agents", "count": "12", "active": false }
+      ],
+      "sideProjects": "PROJECTS",
+      "projects": ["· Research Wiki", "· Thesis Draft", "· Lab Meeting", "· Reading List"],
+      "breadcrumb": "/ research-wiki / attention-mechanism",
+      "pageTitle": "Attention Mechanism",
+      "pageMeta": ["compiled by 3 agents", "12 sources", "updated 2h ago"],
+      "body": "Attention weights the tokens of an input sequence by relevance. Vaswani et al. (2017) — \"Attention Is All You Need\" — introduced it as the foundation of the transformer architecture; self-attention and multi-head attention followed.",
+      "calloutTitle": "⚠ CONTRADICTION",
+      "calloutBody": "Three sources disagree on quadratic complexity. The Linear Attention family challenges this assumption.",
+      "related": "Related pages:",
+      "relatedItems": ["Transformer", "Scaled Dot-Product", "Linear Attention"],
+      "railFeedH": "AGENT FEED",
+      "feed": [
+        { "agent": "RESEARCH · 14:06", "text": "contradiction detected in source 4 vs source 9" },
+        { "agent": "CONNECTOR · 14:04", "text": "new edge: Attention ↔ Memory" },
+        { "agent": "COMPILER · 13:58", "text": "merged 2 fragments into this page" },
+        { "agent": "CURATOR · y'day", "text": "5 stale links pruned", "faded": true }
+      ],
+      "backlinksH": "BACKLINKS · 8",
+      "backlinks": ["· Transformer", "· Position Encoding", "· KV Cache", "· Flash Attention", "+4 more"]
+    },
+    "tags": [
+      "Hocuspocus · real-time co-editing",
+      "Block comments · @mentions",
+      "Role permissions · public links",
+      "Export API · GDPR"
     ]
   },
-  "try": { "heading": "연결이 먼저 보이는 경험" },
-  "who": { "heading": "누구를 위한 도구인가요" },
-  "vs": {
-    "heading": "기존 도구와의 차이",
-    "colDimension": "측면",
-    "colOthers": "일반 문서 도구",
-    "rows": [
-      { "dimension": "자료 수집", "others": "수동 정리", "opencairn": "업로드만 하면 자동 위키화" },
-      { "dimension": "관계 발견", "others": "직접 태그·링크", "opencairn": "12 에이전트가 연결을 제안" },
-      { "dimension": "로컬·셀프호스트", "others": "제한적", "opencairn": "Docker 한 방, AGPLv3" },
-      { "dimension": "학습 루프", "others": "없음", "opencairn": "플래시카드 + Socratic + 퀴즈" }
-    ]
-  },
-  "forWhom": {
-    "heading": "이런 분께 어울려요",
+  "principles": {
+    "label": "[ 008 / 012 · PRINCIPLES ]",
+    "title1": "Four promises",
+    "title2": "rarely kept together.",
+    "sub": "Data sovereignty · living knowledge · one throughline to learning · open source. Tools that keep one or two of these are common. Keeping all four at once — that's OpenCairn.",
     "items": [
-      { "title": "대학원생·연구자", "body": "논문·실험 기록·강의 노트를 자동 위키로 엮어 시험과 발표에 대비하세요." },
-      { "title": "지식 노동자", "body": "회의록·리서치·뉴스레터를 모아두면 팀의 공용 지식으로 정돈됩니다." },
-      { "title": "평생 학습자", "body": "읽은 책·팟캐스트·영상을 쌓아두면 Socratic 질문으로 이해가 깊어져요." }
+      {
+        "tag": "[ a ]",
+        "cat": "sovereignty",
+        "title": "Your data stays on your server.",
+        "body": "Text, vectors, and original files all live in your infrastructure. In fully-local LLM mode there are zero outbound requests — deployable even where external SaaS is forbidden."
+      },
+      {
+        "tag": "[ b ]",
+        "cat": "compile",
+        "title": "AI does the sorting, you do the judging.",
+        "body": "The Compiler agent extracts concepts, creates pages, and links them to the existing wiki. You review and edit. The time you spent copying by hand disappears."
+      },
+      {
+        "tag": "[ c ]",
+        "cat": "one·throughline",
+        "title": "Capture → explore → learn, one continuous line.",
+        "body": "Q&A · 5-view graph · spaced-repetition flashcards · Socratic dialogue · audio podcasts — all fed from the same wiki. No tool-hopping."
+      },
+      {
+        "tag": "[ d ]",
+        "cat": "open·forever",
+        "title": "AGPLv3 in the open; exit always available.",
+        "body": "Fork, modify, deploy yourself — whenever you want. Internal company use is unrestricted; commercial licenses exist if source disclosure is a problem. No risk of the service disappearing."
+      }
     ]
   },
-  "docs": {
-    "heading": "문서와 가이드",
-    "sub": "시작부터 셀프호스팅까지, 필요한 문서가 준비돼 있어요.",
-    "cta": "문서 보기 →"
+  "personas": {
+    "label": "[ 009 / 012 · WHO ]",
+    "title1": "A tool you started solo,",
+    "title2": "grown into your organization.",
+    "sub": "Linearly scales from an individual to a lab to a regulated enterprise — without swapping tools.",
+    "items": [
+      {
+        "ver": "v0.1",
+        "cat": "primary",
+        "title": "Grad student · researcher",
+        "body": "Fifty papers become one woven wiki. Explore relationships in the concept graph, delegate deep dives to Deep Research, and self-check before exams with AI quizzes. Citations lead straight back to your original notes.",
+        "bullets": ["· Personal self-hosting", "· Your own API key (BYOK)", "· Import from existing note apps"]
+      },
+      {
+        "ver": "v0.2",
+        "cat": "expansion",
+        "title": "Lab · small team",
+        "body": "Run it with role-based permissions. Lab-meeting recordings auto-summarize into action items. Seniors graduate, but the knowledge stays behind — onboarding new members is fast.",
+        "bullets": ["· Workspaces + permissions", "· Live collaboration · comments", "· Install on your lab server"]
+      },
+      {
+        "ver": "v0.3",
+        "cat": "enterprise",
+        "title": "Regulated industries",
+        "body": "Designed for finance, healthcare, government, and universities — places where external SaaS isn't allowed. Fully-local LLM, enterprise SSO, audit logs, commercial licensing. Not a byte leaves your premises.",
+        "bullets": ["· On-prem only", "· SOC2 · e-finance · HIPAA", "· Commercial license agreement"]
+      }
+    ]
+  },
+  "install": {
+    "label": "[ 010 / 012 · INSTALL ]",
+    "title1": "One command,",
+    "title2": "your server.",
+    "sub": "One Docker Compose line is enough. Database, file storage, and workflow engine all come up together, and a single profile flag switches to fully-local LLM mode.",
+    "bullets": [
+      "Minimum 4 vCPU · 8GB RAM, recommended 8 vCPU · 16GB RAM",
+      "x86_64 + ARM64 multi-arch (Raspberry Pi · Apple Silicon · Oracle Ampere)",
+      "Monthly automated backup-restore rehearsal script included",
+      "Choose Cloudflare R2 / MinIO / S3"
+    ],
+    "terminalLabel": "TERMINAL",
+    "terminalLines": [
+      "$ git clone https://github.com/Sungblab/opencairn-monorepo.git",
+      "$ cd opencairn-monorepo",
+      "$ cp .env.example .env",
+      "# set LLM_API_KEY (Gemini) or LLM_PROVIDER=ollama in .env",
+      "$ docker-compose up -d",
+      "# fully-local Ollama:",
+      "$ docker-compose --profile ollama up -d"
+    ],
+    "terminalResult": "→ http://localhost:3000",
+    "terminalOk": [
+      "7 services up",
+      "health checks passed",
+      "waiting for first workspace"
+    ],
+    "terminalTail": "$ docker compose up → http://localhost:3000 → it just runs."
   },
   "pricing": {
-    "heading": "가격",
-    "sub": "본인 데이터·속도·확실한 기능에 대한 예측 가능한 비용.",
+    "label": "[ 011 / 012 · PRICING ]",
+    "title1": "Start free today,",
+    "title2": "upgrade when you need to.",
+    "sub": "Try every agent on Free — no card required. When you scale into a lab or team, Pro removes the limits; bring your own Gemini key with BYOK.",
     "free": {
       "name": "Free",
+      "cat": "forever",
       "price": "₩0",
-      "unit": "/ 월",
-      "tagline": "체험용"
-    },
-    "byok": {
-      "name": "BYOK",
-      "price": "₩2,900",
-      "unit": "/ 월",
-      "tagline": "본인 Gemini 키 · 관리형 솔로"
+      "tagline": "Forever free, no card · for trying it out",
+      "bullets": [
+        "10 projects",
+        "50 Q&A per month",
+        "3 audio podcasts per month",
+        "100 MB storage",
+        "All 12 agents"
+      ],
+      "bulletsMuted": ["Community support"],
+      "cta": "> Start for free"
     },
     "pro": {
       "name": "Pro",
+      "cat": "team · payg",
       "price": "₩4,900",
-      "unit": "/ 월 + PAYG",
-      "tagline": "팀 · 연구실 · PAYG 크레딧 최소 ₩5,000"
+      "unit": "/mo",
+      "tagline": "Subscription + AI usage separate (PAYG)",
+      "payg": {
+        "label": "↪ AI CREDITS (PAYG)",
+        "line1": "Minimum ₩5,000 prepaid · <b>credits never expire</b>",
+        "line2": "Pay only for what you use · <m>$1 = ₩1,650</m>"
+      },
+      "bullets": [
+        "Team workspaces · public links · guests",
+        "Deep Research priority queue",
+        "<b>10 GB</b> storage",
+        "1-year activity log retention",
+        "Auto top-up · usage dashboard",
+        "Email support"
+      ],
+      "cta": "> Start Pro →",
+      "guarantee": "14-day subscription refund guarantee"
     },
-    "selfhost": {
-      "name": "Self-host",
-      "price": "₩0",
-      "unit": "",
-      "tagline": "AGPLv3 · 본인 서버 · 무제한"
+    "byok": {
+      "name": "BYOK",
+      "cat": "managed · solo",
+      "price": "₩2,900",
+      "unit": "/mo",
+      "tagline": "Managed solo · your own Gemini key",
+      "bullets": [
+        "We host · solo account",
+        "Your Gemini key (stored encrypted)",
+        "AI cost <b>₩0</b> from us (only your API cost)",
+        "10 GB storage"
+      ],
+      "bulletsMuted": ["Pro team features not included (solo tier)"],
+      "cta": "> Start with BYOK"
     },
-    "vat": "모든 금액 VAT 별도."
+    "footnote": "Domestic cards & easy pay · VAT separate · cancel anytime · refund policy",
+    "refundLinkLabel": "Refund policy",
+    "secondary": {
+      "label": "↪ OTHER ROUTES",
+      "title": "Run it yourself, or on-prem.",
+      "sub": "If managed cloud isn't for you, here are two more paths.",
+      "selfHost": {
+        "cat": "SELF-HOSTED · DEVELOPERS",
+        "title": "Run it yourself with Docker",
+        "body": "Full open-source code (AGPLv3) · unlimited workspaces and members · fully-local LLM option. Hardware and ops are on you.",
+        "cmd": "$ docker-compose up -d"
+      },
+      "enterprise": {
+        "cat": "ENTERPRISE · REGULATED",
+        "title": "On-prem · SSO · audit logs",
+        "body": "Dedicated install and support for finance, healthcare, government, and universities — environments where external SaaS isn't an option. Fully-local LLM · SAML/OIDC SSO · commercial license.",
+        "cmd": "Request a consultation · custom quote"
+      }
+    }
   },
   "faq": {
-    "heading": "자주 묻는 질문",
+    "label": "[ 012 / 012 · FAQ ]",
+    "title": "Before you ask.",
     "items": [
-      { "q": "제 자료는 안전한가요?", "a": "관리형 Pro/BYOK 플랜은 전용 워크스페이스에 격리됩니다. Self-host를 선택하시면 본인 서버에서만 돌아갑니다." },
-      { "q": "AI 비용은 누가 내나요?", "a": "Pro는 PAYG 크레딧(최소 ₩5,000 선불, 만료 없음). BYOK는 본인 Gemini 키로 구독료만. Self-host는 본인 키 또는 Ollama 로컬." },
-      { "q": "오픈소스인가요?", "a": "네. AGPLv3입니다. 상용 라이선스는 Enterprise 플랜." },
-      { "q": "Docker 한 방으로 셀프호스팅 가능한가요?", "a": "네. docker-compose up -d 하나로 전체 스택이 뜹니다." }
+      {
+        "q": "Where is my data stored?",
+        "a": "All of it in infrastructure you operate. Text, vectors, and wiki pages in the database; original files in file storage. In Gemini mode only the AI call leaves; in fully-local mode there are no outbound requests."
+      },
+      {
+        "q": "Doesn't AGPLv3 mean my company can't use it?",
+        "a": "Internal company use is entirely fine. AGPLv3 triggers source-disclosure only when you serve third parties over a network. Sharing within a company counts as use, not distribution. A commercial license is available if source disclosure would be a problem."
+      },
+      {
+        "q": "Why not OpenAI instead of Gemini?",
+        "a": "v0.1 supports Gemini (hosted & BYOK) and Ollama (fully local). We lean into Gemini-specific capabilities — large-context caching, native audio generation, real-time web search — as core value. For fully-local requirements, Ollama."
+      },
+      {
+        "q": "Can I migrate from my existing note app?",
+        "a": "Export to Markdown, upload, and Compiler re-weaves it into a wiki. The pages you organized by hand come back as a connected wiki. Notion · Obsidian · Bear and other major export formats are supported."
+      },
+      {
+        "q": "What if the AI gets the wiki wrong?",
+        "a": "AI-generated sentences are marked and always directly editable. Once you hand-edit a section, AI won't overwrite it. Librarian surfaces contradictions, every change lives in the activity log, and you can roll back to any point."
+      },
+      {
+        "q": "How smooth is the real-time collaboration?",
+        "a": "We use Hocuspocus-based modern sync, so conflict resolution and \"reconnecting…\" delays are basically gone. Cursors and avatars, block-level comments, @mentions, notifications, public links, and guest invites are all in v0.1."
+      }
     ]
   },
   "cta": {
-    "heading": "{minutes}분이면 위키가 시작됩니다",
-    "sub": "업로드 한 번으로 첫 위키 페이지가 생성되는 속도를 느껴보세요.",
-    "primary": "시작하기",
-    "secondary": "GitHub에서 보기"
+    "label": "↪ CLOSING",
+    "titleA": "A second brain",
+    "titleB": "for your knowledge.",
+    "sub": "Start with Free today — no card required. How much your knowledge base has grown a year from now depends on what you start accumulating today.",
+    "primary": "> Start for free",
+    "secondary": "Compare plans",
+    "bottomGithub": "GITHUB ↗",
+    "bottomSelfhost": "Self-hosting guide",
+    "bottomTonight": "Tonight, start with your first PDF."
+  },
+  "footer": {
+    "tagline": "AI knowledge OS. Solo or team. Self-hosted, forever.",
+    "taglineMono": "for people who read too much and remember too little.",
+    "colProduct": "Product",
+    "colDev": "Developers",
+    "colCommunity": "Community",
+    "colLegal": "Legal",
+    "productLinks": [
+      { "label": "pipeline", "href": "#how" },
+      { "label": "agents", "href": "#agents" },
+      { "label": "workspace", "href": "#workspace" },
+      { "label": "principles", "href": "#vs" },
+      { "label": "pricing", "href": "#pricing" }
+    ],
+    "devLinks": [
+      { "label": "github", "href": "https://github.com/Sungblab/opencairn-monorepo" },
+      { "label": "docs", "href": "https://github.com/Sungblab/opencairn-monorepo/tree/master/docs" },
+      { "label": "adrs", "href": "https://github.com/Sungblab/opencairn-monorepo/tree/master/docs/architecture/adr" },
+      { "label": "issues", "href": "https://github.com/Sungblab/opencairn-monorepo/issues" },
+      { "label": "changelog", "href": "#" }
+    ],
+    "communityLinks": [
+      { "label": "discord", "href": "#" },
+      { "label": "twitter", "href": "#" },
+      { "label": "roadmap", "href": "#" },
+      { "label": "email", "href": "mailto:hello@opencairn.dev" }
+    ],
+    "legalLinks": [
+      { "label": "agplv3", "href": "https://github.com/Sungblab/opencairn-monorepo/blob/master/LICENSE" },
+      { "label": "privacy", "href": "/privacy" },
+      { "label": "refund", "href": "/refund" },
+      { "label": "cla", "href": "#" },
+      { "label": "terms", "href": "/terms" }
+    ],
+    "copyright": "© 2026 OpenCairn · Built in Seoul · AGPLv3",
+    "badges": ["Gemini", "Ollama", "Docker", "Self-Hosted"],
+    "endline": "< end of document / thanks for reading >",
+    "langLabel": "LANGUAGE",
+    "langKo": "한국어",
+    "langEn": "English"
   }
 }

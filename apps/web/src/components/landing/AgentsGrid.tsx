@@ -2,41 +2,46 @@
 import { useRef } from "react";
 import { useTranslations } from "next-intl";
 import { useScrollReveal } from "@/lib/landing/hooks/useScrollReveal";
-import { useMagneticTilt } from "@/lib/landing/hooks/useMagneticTilt";
 
-function AgentCard({ title, body }: { title: string; body: string }) {
-  const ref = useRef<HTMLElement>(null);
-  useMagneticTilt(ref);
-  return (
-    <article
-      ref={ref}
-      className="rounded-xl border border-[color:var(--brand-stone-200)] bg-[color:var(--brand-paper)] p-6 transition-shadow hover:shadow-lg"
-    >
-      <h3 className="font-serif text-xl text-[color:var(--brand-stone-900)]">{title}</h3>
-      <p className="mt-2 text-sm text-[color:var(--brand-stone-600)]">{body}</p>
-    </article>
-  );
-}
+type Agent = { n: string; cat: string; name: string; body: string };
 
 export function AgentsGrid() {
   const t = useTranslations("landing.agents");
   const ref = useRef<HTMLElement>(null);
   useScrollReveal(ref);
-  const agents = t.raw("items") as { title: string; body: string }[];
+  const items = t.raw("items") as Agent[];
 
   return (
-    <section
-      id="agents"
-      ref={ref}
-      className="reveal border-b border-[color:var(--brand-stone-200)] bg-[color:var(--brand-paper)] py-24 md:py-32"
-    >
-      <div className="mx-auto max-w-6xl px-6">
-        <h2 className="font-serif text-4xl text-[color:var(--brand-stone-900)] md:text-5xl">
-          {t("heading")}
-        </h2>
-        <div className="mt-12 grid gap-6 md:grid-cols-3 lg:grid-cols-4">
-          {agents.map((a, i) => (
-            <AgentCard key={i} title={a.title} body={a.body} />
+    <section ref={ref} id="agents" className="py-24 md:py-32 border-b border-stone-900">
+      <div className="max-w-[1280px] mx-auto px-6 lg:px-10">
+        <div className="grid grid-cols-12 gap-6 mb-16 reveal">
+          <div className="col-span-12 md:col-span-3">
+            <span className="sec-label">
+              <span className="n">{t("label")}</span>
+            </span>
+          </div>
+          <div className="col-span-12 md:col-span-9">
+            <h2 className="kr text-3xl md:text-5xl text-stone-900 leading-[1.05] tracking-tight font-semibold mb-5">
+              {t("title1")}
+              <br />
+              {t("title2")}
+            </h2>
+            <p className="kr text-[15px] text-stone-600 leading-relaxed max-w-[560px]">
+              {t("sub")}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-12 border border-stone-900 rounded-2xl overflow-hidden reveal-stagger">
+          {items.map((a, i) => (
+            <div key={i} className="col-span-6 md:col-span-3 agent-cell tilt">
+              <div className="flex items-baseline justify-between mb-3">
+                <span className="font-mono text-[11px] tracking-widest text-stone-900">{a.n}</span>
+                <span className="font-mono text-[10px] tracking-widest text-stone-500 uppercase">{a.cat}</span>
+              </div>
+              <h3 className="font-serif text-xl text-stone-900 mb-2">{a.name}</h3>
+              <p className="kr text-[12.5px] text-stone-600 leading-relaxed">{a.body}</p>
+            </div>
           ))}
         </div>
       </div>
