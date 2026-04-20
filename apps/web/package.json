@@ -24,6 +24,7 @@
     "eslint": "^10.2.1",
     "eslint-plugin-i18next": "^6.1.4",
     "tailwindcss": "^4.0.0",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "typescript-eslint": "^8.58.2"
   }
 }

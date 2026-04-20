@@ -1,4 +1,6 @@
 {
+  "title": "대시보드",
+  "welcome": "OpenCairn에 오신 걸 환영해요.",
   "nav": {
     "workspace": "워크스페이스",
     "settings": "설정",
