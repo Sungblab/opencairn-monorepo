@@ -65,6 +65,7 @@ export async function resolveRole(userId: string, resource: { type: ResourceType
     }
     return "editor";
   }
+  // guest는 명시적 공유 없으면 접근 불가 (page/project permission 없이는 여기로 떨어짐)
   return "none";
 }
 
