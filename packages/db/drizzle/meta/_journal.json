@@ -36,6 +36,13 @@
       "when": 1776685179965,
       "tag": "0004_daffy_reavers",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1776691954271,
+      "tag": "0005_cheerful_kabuki",
+      "breakpoints": true
     }
   ]
 }
