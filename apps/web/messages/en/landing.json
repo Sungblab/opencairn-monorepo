@@ -57,7 +57,17 @@
   },
   "try": { "heading": "연결이 먼저 보이는 경험" },
   "who": { "heading": "누구를 위한 도구인가요" },
-  "vs": { "heading": "기존 도구와의 차이" },
+  "vs": {
+    "heading": "기존 도구와의 차이",
+    "colDimension": "측면",
+    "colOthers": "일반 문서 도구",
+    "rows": [
+      { "dimension": "자료 수집", "others": "수동 정리", "opencairn": "업로드만 하면 자동 위키화" },
+      { "dimension": "관계 발견", "others": "직접 태그·링크", "opencairn": "12 에이전트가 연결을 제안" },
+      { "dimension": "로컬·셀프호스트", "others": "제한적", "opencairn": "Docker 한 방, AGPLv3" },
+      { "dimension": "학습 루프", "others": "없음", "opencairn": "플래시카드 + Socratic + 퀴즈" }
+    ]
+  },
   "forWhom": {
     "heading": "이런 분께 어울려요",
     "items": [
