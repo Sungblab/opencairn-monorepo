@@ -237,8 +237,9 @@ dist/
 .env
 .env.local
 *.log
-drizzle/meta/
 ```
+
+> **Note**: Drizzle의 `drizzle/meta/` 폴더는 반드시 커밋해야 함 (drizzle-kit이 다음 migration diff 계산 시 snapshot 필요). `.gitignore`에 추가 금지.
 
 - [ ] **Step 7: Create .npmrc**
 
@@ -1290,6 +1291,8 @@ cp ../../.env.example ../../.env
 pnpm db:generate
 pnpm db:migrate
 ```
+
+> **Note (2026-04-20 review)**: 생성된 `0000_*.sql`은 첫 줄에 반드시 `CREATE EXTENSION IF NOT EXISTS vector;--> statement-breakpoint`를 포함해야 함 (모든 환경의 첫 마이그레이션이 실패하지 않으려면). drizzle-kit은 이 라인을 덮어쓰지 않음.
 
 Expected: Migration SQL generated in `drizzle/` folder, tables created in PostgreSQL.
 

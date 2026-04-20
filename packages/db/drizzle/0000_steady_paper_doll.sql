@@ -1,3 +1,4 @@
+CREATE EXTENSION IF NOT EXISTS vector;--> statement-breakpoint
 CREATE TYPE "public"."conversation_scope" AS ENUM('project', 'global');--> statement-breakpoint
 CREATE TYPE "public"."job_status" AS ENUM('queued', 'running', 'completed', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."message_role" AS ENUM('user', 'assistant');--> statement-breakpoint

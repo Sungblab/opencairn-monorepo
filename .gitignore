@@ -64,4 +64,3 @@ minio_data/
 secrets/
 
 # Database migrations
-drizzle/meta/
