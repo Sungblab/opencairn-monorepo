@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from google import genai
@@ -11,7 +12,7 @@ GEMINI_MODELS = {
     "pro": "gemini-3.1-pro-preview",
     "flash": "gemini-3-flash-preview",
     "flash_lite": "gemini-3.1-flash-lite-preview",
-    "embed": "gemini-embedding-2-preview",
+    "embed": "gemini-embedding-001",
     "tts_flash": "gemini-2.5-flash-preview-tts",
     "tts_pro": "gemini-2.5-pro-preview-tts",
     "live": "gemini-3.1-flash-live-preview",
@@ -69,15 +70,25 @@ class GeminiProvider(LLMProvider):
         multimodal bytes on `EmbedInput` are ignored here. Multimodal ingest
         paths (image/audio/pdf) should go through `generate` with the document
         understanding prompt, not the embedding endpoint.
+
+        Matryoshka (MRL) truncation: ``gemini-embedding-001`` emits a 3072-dim
+        vector natively but the first ``output_dimensionality`` dims form a
+        self-contained embedding. We forward ``VECTOR_DIM`` so the vector we
+        persist matches the pgvector column width (see
+        ``packages/db/src/schema/custom-types.ts``). Unset env → no truncation.
         """
         texts = [inp.text for inp in inputs if inp.text]
         if not texts:
             return []
         task_type = inputs[0].task if inputs else "retrieval_document"
+        config_kwargs: dict[str, Any] = {"task_type": task_type}
+        dim = os.getenv("VECTOR_DIM")
+        if dim:
+            config_kwargs["output_dimensionality"] = int(dim)
         response = await self._client.aio.models.embed_content(
             model=self.config.embed_model,
             contents=texts,
-            config=types.EmbedContentConfig(task_type=task_type),
+            config=types.EmbedContentConfig(**config_kwargs),
         )
         return [list(e.values) for e in response.embeddings]
 

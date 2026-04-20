@@ -13,7 +13,7 @@ def test_provider_config_gemini():
         provider="gemini",
         api_key="key",
         model="gemini-3-flash-preview",
-        embed_model="gemini-embedding-2-preview",
+        embed_model="gemini-embedding-001",
     )
     assert config.provider == "gemini"
     assert config.base_url is None

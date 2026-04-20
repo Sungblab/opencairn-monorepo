@@ -38,6 +38,45 @@ async def test_embed_text_only(provider):
 
 
 @pytest.mark.asyncio
+async def test_embed_forwards_vector_dim_as_output_dimensionality(
+    provider, monkeypatch
+):
+    # gemini-embedding-001은 3072 native지만 MRL로 앞 N dim을 잘라 쓸 수 있음.
+    # VECTOR_DIM 환경변수를 EmbedContentConfig.output_dimensionality로 전달해
+    # 저장할 pgvector 컬럼 폭(768 기본)에 맞춰야 ADR-005 정책대로 동작.
+    from google.genai import types
+
+    monkeypatch.setenv("VECTOR_DIM", "768")
+    mock_response = MagicMock()
+    mock_response.embeddings = [MagicMock(values=[0.1] * 768)]
+    with patch.object(
+        provider._client.aio.models,
+        "embed_content",
+        new=AsyncMock(return_value=mock_response),
+    ) as mocked:
+        await provider.embed([EmbedInput(text="hello")])
+    config = mocked.await_args.kwargs["config"]
+    assert isinstance(config, types.EmbedContentConfig)
+    assert config.output_dimensionality == 768
+
+
+@pytest.mark.asyncio
+async def test_embed_skips_output_dim_when_env_unset(provider, monkeypatch):
+    # VECTOR_DIM 미설정 시 native 차원(3072) 유지 — 명시적으로 API에 안 보냄.
+    monkeypatch.delenv("VECTOR_DIM", raising=False)
+    mock_response = MagicMock()
+    mock_response.embeddings = [MagicMock(values=[0.1] * 3072)]
+    with patch.object(
+        provider._client.aio.models,
+        "embed_content",
+        new=AsyncMock(return_value=mock_response),
+    ) as mocked:
+        await provider.embed([EmbedInput(text="hello")])
+    config = mocked.await_args.kwargs["config"]
+    assert config.output_dimensionality is None
+
+
+@pytest.mark.asyncio
 async def test_embed_empty_when_no_text(provider):
     # Non-text EmbedInputs are dropped — Gemini's embed endpoint is text-only.
     with patch.object(

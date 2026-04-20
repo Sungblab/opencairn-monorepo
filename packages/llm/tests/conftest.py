@@ -8,7 +8,7 @@ def gemini_config() -> ProviderConfig:
         provider="gemini",
         api_key="test-gemini-key",
         model="gemini-3-flash-preview",
-        embed_model="gemini-embedding-2-preview",
+        embed_model="gemini-embedding-001",
     )
 
 
