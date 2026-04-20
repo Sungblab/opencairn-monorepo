@@ -2597,45 +2597,53 @@ git commit -m "feat(web): add Next.js 16 skeleton with landing and dashboard pag
 
 ```typescript
 // apps/web/src/app/api/[...path]/route.ts
-// Next.js 16 — middleware.ts 대신 catch-all Route Handler로 Hono API 프록시
+// Next.js 16 — catch-all Route Handler forwards /api/* requests to Hono API.
+// Needed because Better Auth cookies require same-origin; direct browser fetches
+// to localhost:4000 from localhost:3000 would be cross-origin.
 import { type NextRequest } from "next/server";
 
 const API_BASE = process.env.INTERNAL_API_URL ?? "http://localhost:4000";
 
-async function handler(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+async function handler(
+  req: NextRequest,
+  { params }: { params: Promise<{ path: string[] }> },
+) {
   const { path } = await params;
   const url = `${API_BASE}/api/${path.join("/")}${req.nextUrl.search}`;
 
-  // 요청 헤더를 그대로 포워딩 (쿠키 포함)
+  // Forward request headers (cookies included)
   const headers = new Headers(req.headers);
-  headers.set("x-forwarded-for", req.ip ?? "127.0.0.1");
+  const forwardedFor = req.headers.get("x-forwarded-for") ?? "";
+  if (forwardedFor) headers.set("x-forwarded-for", forwardedFor);
   headers.set("x-forwarded-host", req.headers.get("host") ?? "");
 
-  const response = await fetch(url, {
-    method:  req.method,
-    headers,
-    body:    req.method !== "GET" && req.method !== "HEAD" ? req.body : undefined,
-    // @ts-expect-error — Node 18+ duplex 필요
-    duplex:  "half",
-  });
+  const hasBody = req.method !== "GET" && req.method !== "HEAD";
 
-  // 응답 헤더 포워딩 (Set-Cookie 포함)
+  const response = await fetch(url, {
+    method: req.method,
+    headers,
+    body: hasBody ? req.body : undefined,
+    // Node 18+: streaming request bodies require `duplex: "half"`
+    // TS DOM RequestInit may not declare this yet — suppress if tsc complains
+    ...(hasBody ? { duplex: "half" } : {}),
+  } as RequestInit & { duplex?: "half" });
+
+  // Forward response headers including Set-Cookie; strip encoding/length that Next re-computes
   const resHeaders = new Headers(response.headers);
-  // 압축 인코딩은 Next.js가 이미 처리
   resHeaders.delete("content-encoding");
   resHeaders.delete("content-length");
 
   return new Response(response.body, {
-    status:  response.status,
+    status: response.status,
     headers: resHeaders,
   });
 }
 
-export const GET     = handler;
-export const POST    = handler;
-export const PUT     = handler;
-export const PATCH   = handler;
-export const DELETE  = handler;
+export const GET = handler;
+export const POST = handler;
+export const PUT = handler;
+export const PATCH = handler;
+export const DELETE = handler;
 export const OPTIONS = handler;
 ```
 
