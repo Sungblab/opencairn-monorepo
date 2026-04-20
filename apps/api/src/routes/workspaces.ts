@@ -28,8 +28,11 @@ workspaceRoutes.get("/", async (c) => {
 workspaceRoutes.post("/", zValidator("json", createSchema), async (c) => {
   const user = c.get("user");
   const body = c.req.valid("json");
-  const [ws] = await db.insert(workspaces).values({ ...body, ownerId: user.id }).returning();
-  await db.insert(workspaceMembers).values({ workspaceId: ws.id, userId: user.id, role: "owner" });
+  const ws = await db.transaction(async (tx) => {
+    const [created] = await tx.insert(workspaces).values({ ...body, ownerId: user.id }).returning();
+    await tx.insert(workspaceMembers).values({ workspaceId: created.id, userId: user.id, role: "owner" });
+    return created;
+  });
   return c.json(ws, 201);
 });
 
@@ -55,6 +58,9 @@ workspaceRoutes.patch(
   async (c) => {
     const { workspaceId, userId } = c.req.param();
     const { role } = c.req.valid("json");
+    const [target] = await db.select({ role: workspaceMembers.role }).from(workspaceMembers)
+      .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)));
+    if (target?.role === "owner") return c.json({ error: "Cannot change workspace owner role" }, 403);
     await db.update(workspaceMembers).set({ role })
       .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)));
     return c.json({ ok: true });

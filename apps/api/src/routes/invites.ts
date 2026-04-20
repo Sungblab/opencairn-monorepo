@@ -34,7 +34,6 @@ inviteRoutes.post(
 // 초대 수락
 inviteRoutes.post("/invites/:token/accept", async (c) => {
   const user = c.get("user");
-  if (!user) return c.json({ error: "Must be logged in to accept invite" }, 401);
 
   const token = c.req.param("token");
   const [inv] = await db.select().from(workspaceInvites).where(eq(workspaceInvites.token, token));
@@ -45,10 +44,19 @@ inviteRoutes.post("/invites/:token/accept", async (c) => {
     return c.json({ error: "Invite email does not match your account" }, 403);
   }
 
-  await db.insert(workspaceMembers).values({
-    workspaceId: inv.workspaceId, userId: user.id, role: inv.role, invitedBy: inv.invitedBy,
-  });
-  await db.update(workspaceInvites).set({ acceptedAt: new Date() }).where(eq(workspaceInvites.id, inv.id));
+  try {
+    await db.transaction(async (tx) => {
+      await tx.insert(workspaceMembers).values({
+        workspaceId: inv.workspaceId, userId: user.id, role: inv.role, invitedBy: inv.invitedBy,
+      });
+      await tx.update(workspaceInvites).set({ acceptedAt: new Date() }).where(eq(workspaceInvites.id, inv.id));
+    });
+  } catch (err: unknown) {
+    if (err && typeof err === "object" && "code" in err && (err as { code: string }).code === "23505") {
+      return c.json({ error: "Already a member of this workspace" }, 409);
+    }
+    throw err;
+  }
   return c.json({ workspaceId: inv.workspaceId });
 });
 

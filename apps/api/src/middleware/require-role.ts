@@ -1,11 +1,12 @@
 import { createMiddleware } from "hono/factory";
 import { resolveRole, ResolvedRole } from "../lib/permissions";
+import type { AppEnv } from "../lib/types";
 
 const ORDER: Record<ResolvedRole, number> = { none: 0, viewer: 1, editor: 2, admin: 3, owner: 4 };
 
 export function requireWorkspaceRole(minRole: "member" | "admin" | "owner") {
-  return createMiddleware(async (c, next) => {
-    const user = c.get("user") as { id: string } | undefined;
+  return createMiddleware<AppEnv>(async (c, next) => {
+    const user = c.get("user");
     if (!user) return c.json({ error: "Unauthorized" }, 401);
     const wsId = c.req.param("workspaceId") ?? c.req.param("id") ?? "";
     const role = await resolveRole(user.id, { type: "workspace", id: wsId });
