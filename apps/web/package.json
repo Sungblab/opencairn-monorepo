@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint src --max-warnings 0",
     "i18n:sync": "node scripts/i18n-sync.mjs",
-    "i18n:parity": "node scripts/i18n-parity.mjs"
+    "i18n:parity": "node scripts/i18n-parity.mjs",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "next": "^16.0.0",
@@ -18,6 +19,7 @@
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "^16.2.4",
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
