@@ -1,5 +1,17 @@
 """OpenCairn agent runtime — thin facade over LangGraph + langchain-core."""
 from runtime.agent import Agent
+from runtime.eval import (
+    AgentEvaluator,
+    DEFAULT_CRITERIA,
+    EvalCase,
+    EvalResult,
+    ExpectedHandoff,
+    ExpectedToolCall,
+    ScoreResult,
+    load_case_file,
+    load_cases,
+    score_trajectory,
+)
 from runtime.events import (
     AgentEnd,
     AgentError,
@@ -36,11 +48,17 @@ __all__ = [
     "Agent",
     "AgentEnd",
     "AgentError",
+    "AgentEvaluator",
     "AgentEvent",
     "AgentHook",
     "AgentStart",
     "AwaitingInput",
     "CustomEvent",
+    "DEFAULT_CRITERIA",
+    "EvalCase",
+    "EvalResult",
+    "ExpectedHandoff",
+    "ExpectedToolCall",
     "Handoff",
     "HookChain",
     "HookRegistry",
@@ -49,6 +67,7 @@ __all__ = [
     "ModelRequest",
     "ModelResponse",
     "Scope",
+    "ScoreResult",
     "Tool",
     "ToolContext",
     "ToolHook",
@@ -57,6 +76,9 @@ __all__ = [
     "get_tool",
     "get_tools_for_agent",
     "hash_input",
+    "load_case_file",
+    "load_cases",
+    "score_trajectory",
     "stream_graph_as_events",
     "tool",
 ]
