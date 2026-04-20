@@ -82,8 +82,14 @@ function toPlateDoc(text: string): Record<string, unknown> {
   };
 }
 
+// Compiler shares the ingest task queue — one worker process handles
+// both workflows. Split later if the compile path needs its own
+// concurrency budget (Plan 4 Task 8 "per-project semaphore" is the
+// first candidate for that split).
 const COMPILER_TASK_QUEUE =
-  process.env.TEMPORAL_COMPILER_TASK_QUEUE ?? "compiler";
+  process.env.TEMPORAL_COMPILER_TASK_QUEUE ??
+  process.env.TEMPORAL_TASK_QUEUE ??
+  "ingest";
 
 internal.post(
   "/source-notes",
