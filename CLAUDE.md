@@ -73,6 +73,7 @@ Read these docs when you need context. Don't load them all at once.
 | 장애 대응 / 온콜 / 알럿 채널 | `docs/runbooks/incident-response.md` |
 | 브라우저 샌드박스 E2E 테스트 (Pyodide/iframe) | `docs/testing/sandbox-testing.md` |
 | **Agent Runtime Standard** (Tool/AgentEvent/Agent/Hook/Trajectory/Eval 계약) | `docs/superpowers/specs/2026-04-20-agent-runtime-standard-design.md` |
+| **탭 시스템 설계** (Multi-Mode Tab 11종, Split Pane, Diff View, Whiteboard, Presentation, Command Palette, AI↔탭 프로토콜) | `docs/superpowers/specs/2026-04-20-tab-system-design.md` |
 
 ### Implementation Plans
 
@@ -83,7 +84,7 @@ Read these docs when you need context. Don't load them all at once.
 | **0 — Foundation (직렬, 1단계)** | `plans/2026-04-09-plan-1-foundation.md` | Monorepo, DB schema (**Workspace 3계층 + 권한**), Better Auth, workspace/member/invite CRUD, permissions helpers (`canRead`/`canWrite`/`requireWorkspaceRole`), Docker, Resend, Sentry, CI/CD, backup scripts. **Plan 13의 prerequisite.** |
 | **0 — Foundation (직렬, 2단계)** | `plans/2026-04-13-multi-llm-provider.md` | packages/llm, provider adapters (Gemini/Ollama), VECTOR_DIM, Docker Ollama. **Plan 1 완료 후 실행. Plan 12의 prerequisite.** |
 | **0 — Foundation (직렬, 3단계)** | `plans/2026-04-20-plan-12-agent-runtime.md` | **Agent Runtime facade** (`apps/worker/src/runtime/`): `@tool` 데코레이터, `AgentEvent` 9종, `Agent` ABC, 3계층 훅, NDJSON trajectory + `agent_runs` 요약 테이블, trajectory 기반 eval 프레임워크, Temporal 헬퍼. **Plan 13 완료 후 실행. Phase 1/2의 에이전트 plan들(Plan 4/5/6/7/8) prerequisite.** Spec: `2026-04-20-agent-runtime-standard-design.md` |
-| **1 — Core (Plan 12 완료 후 Plan 2/3/4/9 병렬 가능)** | `plans/2026-04-09-plan-2-editor.md` | Plate v49 에디터 + **Notion급 협업**: Hocuspocus auth hook, 실시간 공동 편집 + Presence, block-anchor 코멘트 + 스레드, @mention, 알림 (SSE+이메일), activity feed, 공개 공유 링크, guest 초대 |
+| **1 — Core (Plan 12 완료 후 Plan 2/3/4/9 병렬 가능)** | `plans/2026-04-09-plan-2-editor.md` | Plate v49 에디터 + **Notion급 협업**: Hocuspocus auth hook, 실시간 공동 편집 + Presence, block-anchor 코멘트 + 스레드, @mention, 알림 (SSE+이메일), activity feed, 공개 공유 링크, guest 초대. **Task 18~20(2026-04-20 추가)**: Claude급 채팅 렌더러(Mermaid/SVG/KaTeX/syntax highlighting), Notion 이상급 에디터 블록(Mermaid/SVG/Embed/Callout/Toggle/Table/Column), Chat→Editor 자동 블록 변환. **Task 21~24(2026-04-20 추가)**: Multi-Mode Tab Shell(plate\|artifact\|data\|source\|canvas\|reading\|spreadsheet\|whiteboard\|presentation\|mindmap\|flashcard) + Split Pane(`⌘\`) + Diff View(AI hunk accept/reject) + Reading/Spreadsheet/Whiteboard/Presentation/Command Palette. 상세: `2026-04-20-tab-system-design.md` |
 | **1** | `plans/2026-04-09-plan-3-ingest-pipeline.md` | 파일 업로드, 파싱 (opendataloader-pdf/markitdown/unoserver/H2Orestart/faster-whisper), Temporal 워크플로우 |
 | **1** | `plans/2026-04-09-plan-4-agent-core.md` | Compiler, Research, Librarian 에이전트 (Python LangGraph + Temporal, **`runtime.Agent` 서브클래스 패턴**). **Task 0에서 Plan 1·13·12·3 완료 검증** |
 | **1** | `plans/2026-04-09-plan-9-billing-marketing.md` | **PAYG 크레딧** + 구독료 (Free/BYOK/Pro), 랜딩 페이지, 블로그, 환불 정책, Export API (GDPR). **결제 레일 task는 사업자등록 후 unblock — 그 전에는 provider-agnostic core만**. 상세: `billing-model.md` |
