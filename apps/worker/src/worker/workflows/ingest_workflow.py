@@ -11,6 +11,7 @@ from datetime import timedelta
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
+from temporalio.exceptions import ActivityError
 
 
 @dataclass
@@ -36,10 +37,55 @@ _LONG_TIMEOUT = timedelta(minutes=30)
 _SHORT_TIMEOUT = timedelta(minutes=5)
 
 
+_QUARANTINE_RETRY = RetryPolicy(maximum_attempts=2, backoff_coefficient=2.0)
+
+
 @workflow.defn(name="IngestWorkflow")
 class IngestWorkflow:
     @workflow.run
     async def run(self, inp: IngestInput) -> str:
+        try:
+            return await self._run_pipeline(inp)
+        except ActivityError as exc:
+            # Plan 3 Task 10 — dead-letter on repeated activity failure.
+            # Quarantine + reporting are best-effort; the original ActivityError
+            # is always re-raised so Temporal marks the workflow FAILED.
+            reason = str(exc.cause or exc)[:500]
+            quarantine_key: str | None = None
+            if inp.object_key:
+                try:
+                    result = await workflow.execute_activity(
+                        "quarantine_source",
+                        {
+                            "object_key": inp.object_key,
+                            "user_id": inp.user_id,
+                            "reason": reason,
+                        },
+                        schedule_to_close_timeout=_SHORT_TIMEOUT,
+                        retry_policy=_QUARANTINE_RETRY,
+                    )
+                    quarantine_key = result.get("quarantine_key")
+                except ActivityError:
+                    pass  # quarantine best-effort; don't mask original error
+            try:
+                await workflow.execute_activity(
+                    "report_ingest_failure",
+                    {
+                        "user_id": inp.user_id,
+                        "project_id": inp.project_id,
+                        "url": inp.url,
+                        "object_key": inp.object_key,
+                        "quarantine_key": quarantine_key,
+                        "reason": reason,
+                    },
+                    schedule_to_close_timeout=_SHORT_TIMEOUT,
+                    retry_policy=_QUARANTINE_RETRY,
+                )
+            except ActivityError:
+                pass  # reporting is best-effort
+            raise
+
+    async def _run_pipeline(self, inp: IngestInput) -> str:
         mime = inp.mime_type
         text: str = ""
         needs_enhance = False

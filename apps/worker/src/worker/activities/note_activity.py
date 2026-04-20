@@ -15,6 +15,8 @@ from temporalio import activity
 
 from worker.lib.api_client import post_internal
 
+__all__ = ["create_source_note", "report_ingest_failure"]
+
 
 def _derive_title(inp: dict) -> str:
     """Prefer an uploaded filename, fall back to the URL, finally a sentinel."""
@@ -78,3 +80,26 @@ async def create_source_note(inp: dict) -> str:
     note_id: str = result["noteId"]
     activity.logger.info("Source note created: %s", note_id)
     return note_id
+
+
+@activity.defn(name="report_ingest_failure")
+async def report_ingest_failure(inp: dict) -> None:
+    """Notify API of ingest failure with quarantine info.
+
+    Best-effort: logs and swallows errors so a broken reporting endpoint can
+    never mask the original ingest failure that the workflow re-raises.
+    Called by :class:`worker.workflows.ingest_workflow.IngestWorkflow` after
+    the ``quarantine_source`` activity has moved the failed object.
+    """
+    payload = {
+        "userId": inp["user_id"],
+        "projectId": inp["project_id"],
+        "sourceUrl": inp.get("url"),
+        "objectKey": inp.get("object_key"),
+        "quarantineKey": inp.get("quarantine_key"),
+        "reason": inp.get("reason", "unknown"),
+    }
+    try:
+        await post_internal("/api/internal/ingest-failures", payload)
+    except Exception as exc:  # noqa: BLE001
+        activity.logger.error("Failed to report ingest failure: %s", exc)

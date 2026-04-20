@@ -100,4 +100,26 @@ internal.post(
   },
 );
 
+// Plan 3 Task 10 — dead-letter failure receiver. The worker posts here after
+// it has moved a failed upload under the quarantine prefix. v0 is a
+// structured log; Plan 5 will wire this to a jobs table + admin dashboard.
+const failureSchema = z.object({
+  userId: z.string(),
+  projectId: z.string().uuid(),
+  sourceUrl: z.string().url().nullable().optional(),
+  objectKey: z.string().nullable().optional(),
+  quarantineKey: z.string().nullable().optional(),
+  reason: z.string(),
+});
+
+internal.post(
+  "/ingest-failures",
+  zValidator("json", failureSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    console.warn("[ingest-failure]", JSON.stringify(body));
+    return c.json({ ok: true }, 202);
+  },
+);
+
 export const internalRoutes = internal;

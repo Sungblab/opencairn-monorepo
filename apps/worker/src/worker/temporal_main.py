@@ -16,8 +16,9 @@ from temporalio.worker import Worker
 
 from worker.activities.enhance_activity import enhance_with_gemini
 from worker.activities.image_activity import analyze_image
-from worker.activities.note_activity import create_source_note
+from worker.activities.note_activity import create_source_note, report_ingest_failure
 from worker.activities.pdf_activity import parse_pdf
+from worker.activities.quarantine_activity import quarantine_source
 from worker.activities.stt_activity import transcribe_audio
 from worker.activities.web_activity import scrape_web_url
 from worker.activities.youtube_activity import ingest_youtube
@@ -44,7 +45,9 @@ async def main() -> None:
             scrape_web_url,
             enhance_with_gemini,
             create_source_note,
-        ],  # quarantine activity lands in Plan 3 Task 10
+            quarantine_source,
+            report_ingest_failure,
+        ],
     )
     print(f"[worker] Starting Temporal worker on task queue: {task_queue}")
     await worker.run()
