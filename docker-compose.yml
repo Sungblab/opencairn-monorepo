@@ -30,7 +30,19 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
 
+  ollama:
+    # Optional local LLM runtime for fully-offline / BYOK stacks.
+    # Enable with: docker compose --profile ollama up -d ollama
+    image: ollama/ollama:latest
+    profiles: ["ollama"]
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+
 volumes:
   pgdata:
   redisdata:
   miniodata:
+  ollama_data:

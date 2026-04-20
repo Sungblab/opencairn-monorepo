@@ -63,4 +63,7 @@ minio_data/
 *.pem
 secrets/
 
+# Private production compose override
+docker-compose.prod.yml
+
 # Database migrations
