@@ -1,8 +1,9 @@
 import { customType } from "drizzle-orm/pg-core";
 
-// VECTOR_DIM은 .env.example 및 docker-compose.yml에서 정의 (기본 3072, Gemini gemini-embedding-2-preview).
-// Ollama nomic-embed-text 등 다른 임베딩 모델 사용 시 env만 교체 (예: 768). 스키마 재작성 불필요.
-const VECTOR_DIM = parseInt(process.env.VECTOR_DIM ?? "3072", 10);
+// VECTOR_DIM은 .env.example 및 docker-compose.yml에서 정의 (기본 768, Gemini gemini-embedding-001
+// Matryoshka truncate). 저장 4배 감소, MTEB 품질 손실 ~0.26%. 3072 native도 VECTOR_DIM 변경만으로
+// 전환 가능하며 스키마 재작성은 불필요 — Drizzle migration만 재생성. Ollama nomic-embed-text도 768.
+const VECTOR_DIM = parseInt(process.env.VECTOR_DIM ?? "768", 10);
 
 export const tsvector = customType<{ data: string }>({
   dataType() {

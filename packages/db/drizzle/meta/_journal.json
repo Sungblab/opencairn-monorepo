@@ -50,6 +50,13 @@
       "when": 1776699860299,
       "tag": "0006_flimsy_metal_master",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1776705736711,
+      "tag": "0007_natural_proemial_gods",
+      "breakpoints": true
     }
   ]
 }
