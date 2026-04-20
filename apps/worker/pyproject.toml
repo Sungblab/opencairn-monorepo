@@ -25,6 +25,8 @@ dependencies = [
     # YouTube audio download for the ingest_youtube activity. Pinned above
     # the 2024.11 release that fixes the YouTube player extractor regression.
     "yt-dlp>=2024.11.4",
+    # Web URL scraping for the scrape_web_url activity.
+    "trafilatura>=1.12.0",
 ]
 
 [project.optional-dependencies]
