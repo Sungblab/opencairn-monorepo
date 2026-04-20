@@ -1,0 +1,128 @@
+{
+  "meta": {
+    "title": "OpenCairn — 읽은 것까지 이해하는 AI 지식 OS",
+    "description": "자료를 올려두면 AI가 위키로 엮고, 묻기 전에 연결을 발견하는 개인·팀 지식 OS. 12개 AI 에이전트, 셀프호스팅, AGPLv3."
+  },
+  "hero": {
+    "eyebrow": "AI Knowledge OS",
+    "title": "읽은 것까지 이해하는",
+    "titleEm": "AI 지식 OS",
+    "sub": "자료를 올려두시면 AI가 위키로 엮어드려요. 묻기 전에 연결을 발견해드립니다.",
+    "cta": "시작하기",
+    "ctaGhost": "데모 보기 →",
+    "rotatingWords": [
+      "읽은 것까지 이해하는",
+      "자동으로 엮어주는",
+      "관계까지 이해하는"
+    ]
+  },
+  "problem": {
+    "heading": "쓴 것만 담는 도구는 많습니다.",
+    "headingEm": "OpenCairn은 읽은 것까지 이해합니다.",
+    "sub": "자료는 쌓이는데 연결은 안 보입니다. 정리할 시간은 없고, 질문할 타이밍은 놓칩니다. OpenCairn은 읽은 순간부터 엮어드립니다."
+  },
+  "how": {
+    "heading": "어떻게 동작하나요",
+    "steps": [
+      { "n": "01", "title": "올려두면", "body": "PDF·YouTube·오디오·이미지·URL 어떤 자료든 받습니다." },
+      { "n": "02", "title": "자동으로 엮고", "body": "12 에이전트가 위키 페이지로 정리하고 개념 간 연결을 만듭니다." },
+      { "n": "03", "title": "먼저 발견해요", "body": "질문하기 전에 관련된 맥락과 플래시카드가 제안돼요." }
+    ]
+  },
+  "agents": {
+    "heading": "12개의 AI 에이전트가 일합니다",
+    "items": [
+      { "title": "Compiler", "body": "자료를 위키 페이지로 엮어냅니다." },
+      { "title": "Research", "body": "여러 소스를 교차 검증해 답합니다." },
+      { "title": "Librarian", "body": "태그와 구조를 정리해둡니다." },
+      { "title": "Socratic", "body": "맞춤 질문으로 이해를 깊게 합니다." },
+      { "title": "Code", "body": "코드 블록을 안전한 브라우저 샌드박스에서 실행합니다." },
+      { "title": "Connector", "body": "외부 노트·링크를 가져옵니다." },
+      { "title": "Temporal", "body": "시간축 변화를 추적합니다." },
+      { "title": "Synthesis", "body": "여러 페이지를 한 단락으로 요약합니다." },
+      { "title": "Curator", "body": "관련 자료를 먼저 추천해드립니다." },
+      { "title": "Narrator", "body": "긴 글을 듣기 좋은 오디오로 변환합니다." },
+      { "title": "Deep Research", "body": "깊이 있는 리서치 리포트를 생성합니다." },
+      { "title": "Visualization", "body": "지식을 그래프·타임라인·마인드맵으로 보여드립니다." }
+    ]
+  },
+  "workspace": {
+    "heading": "개인 노트에서 팀 지식으로",
+    "sub": "혼자 쓰다가 팀과 공유하고 싶어질 때, 이사 없이 그대로 확장됩니다.",
+    "points": [
+      { "title": "개인 워크스페이스", "body": "처음엔 내 노트만. 자료·위키·플래시카드가 한 곳에." },
+      { "title": "팀 워크스페이스", "body": "초대 한 번으로 공동 편집·코멘트·알림·공유 링크까지." },
+      { "title": "권한 3단계", "body": "Workspace → Project → Page. 필요한 만큼만 공개." }
+    ]
+  },
+  "try": { "heading": "연결이 먼저 보이는 경험" },
+  "who": { "heading": "누구를 위한 도구인가요" },
+  "vs": {
+    "heading": "기존 도구와의 차이",
+    "colDimension": "측면",
+    "colOthers": "일반 문서 도구",
+    "rows": [
+      { "dimension": "자료 수집", "others": "수동 정리", "opencairn": "업로드만 하면 자동 위키화" },
+      { "dimension": "관계 발견", "others": "직접 태그·링크", "opencairn": "12 에이전트가 연결을 제안" },
+      { "dimension": "로컬·셀프호스트", "others": "제한적", "opencairn": "Docker 한 방, AGPLv3" },
+      { "dimension": "학습 루프", "others": "없음", "opencairn": "플래시카드 + Socratic + 퀴즈" }
+    ]
+  },
+  "forWhom": {
+    "heading": "이런 분께 어울려요",
+    "items": [
+      { "title": "대학원생·연구자", "body": "논문·실험 기록·강의 노트를 자동 위키로 엮어 시험과 발표에 대비하세요." },
+      { "title": "지식 노동자", "body": "회의록·리서치·뉴스레터를 모아두면 팀의 공용 지식으로 정돈됩니다." },
+      { "title": "평생 학습자", "body": "읽은 책·팟캐스트·영상을 쌓아두면 Socratic 질문으로 이해가 깊어져요." }
+    ]
+  },
+  "docs": {
+    "heading": "문서와 가이드",
+    "sub": "시작부터 셀프호스팅까지, 필요한 문서가 준비돼 있어요.",
+    "cta": "문서 보기 →"
+  },
+  "pricing": {
+    "heading": "가격",
+    "sub": "본인 데이터·속도·확실한 기능에 대한 예측 가능한 비용.",
+    "free": {
+      "name": "Free",
+      "price": "₩0",
+      "unit": "/ 월",
+      "tagline": "체험용"
+    },
+    "byok": {
+      "name": "BYOK",
+      "price": "₩2,900",
+      "unit": "/ 월",
+      "tagline": "본인 Gemini 키 · 관리형 솔로"
+    },
+    "pro": {
+      "name": "Pro",
+      "price": "₩4,900",
+      "unit": "/ 월 + PAYG",
+      "tagline": "팀 · 연구실 · PAYG 크레딧 최소 ₩5,000"
+    },
+    "selfhost": {
+      "name": "Self-host",
+      "price": "₩0",
+      "unit": "",
+      "tagline": "AGPLv3 · 본인 서버 · 무제한"
+    },
+    "vat": "모든 금액 VAT 별도."
+  },
+  "faq": {
+    "heading": "자주 묻는 질문",
+    "items": [
+      { "q": "제 자료는 안전한가요?", "a": "관리형 Pro/BYOK 플랜은 전용 워크스페이스에 격리됩니다. Self-host를 선택하시면 본인 서버에서만 돌아갑니다." },
+      { "q": "AI 비용은 누가 내나요?", "a": "Pro는 PAYG 크레딧(최소 ₩5,000 선불, 만료 없음). BYOK는 본인 Gemini 키로 구독료만. Self-host는 본인 키 또는 Ollama 로컬." },
+      { "q": "오픈소스인가요?", "a": "네. AGPLv3입니다. 상용 라이선스는 Enterprise 플랜." },
+      { "q": "Docker 한 방으로 셀프호스팅 가능한가요?", "a": "네. docker-compose up -d 하나로 전체 스택이 뜹니다." }
+    ]
+  },
+  "cta": {
+    "heading": "{minutes}분이면 위키가 시작됩니다",
+    "sub": "업로드 한 번으로 첫 위키 페이지가 생성되는 속도를 느껴보세요.",
+    "primary": "시작하기",
+    "secondary": "GitHub에서 보기"
+  }
+}

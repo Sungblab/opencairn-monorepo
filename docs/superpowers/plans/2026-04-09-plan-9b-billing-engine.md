@@ -1,4 +1,16 @@
-# Plan 9: Billing & Marketing — Implementation Plan
+# Plan 9b: Billing Engine — Implementation Plan
+
+> **🚧 상태: BLOCKED (사업자등록 후 unblock)** — 결제 레일 (Toss Payments 또는 대안)은 사업자등록 완료 이후 결정. Provider-agnostic core는 미리 설계 가능.
+>
+> **Plan 9 분할 이력:** 기존 `plan-9-billing-marketing.md`는 2026-04-20에 둘로 분할됨.
+> - **Plan 9a** (`plan-9a-web-foundation-and-landing.md`): 테마 + i18n + 랜딩 포트 + footer placeholder. 이미 실행 가능.
+> - **Plan 9b** (본 파일): PAYG 크레딧 엔진, Toss 연동, 결제 UI, 환불 정책 본문, GDPR export, 블로그, 법적 문서 본문.
+>
+> 기존 Task 목차 중 **marketing 섹션 (landing page, MDX blog, pricing page, docs teaser 등)은 Plan 9a로 이관**됨. 본 파일 하위 task 중 마케팅 관련 내용은 Plan 9a 완료 여부 확인 후 해당 항목 스킵 또는 재활용.
+
+---
+
+## [원본 Plan 9 — Billing & Marketing — 이하 원문 유지]
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
