@@ -55,7 +55,7 @@ cp .env.example .env
 | `BETTER_AUTH_SECRET` | 세션 서명키 | `openssl rand -base64 32` |
 | `BETTER_AUTH_URL` | 콜백 URL | `http://localhost:3000` |
 | `GEMINI_API_KEY` | Gemini | aistudio.google.com/apikey |
-| `VECTOR_DIM` | 임베딩 차원 | `3072` (Gemini) / `768` (Ollama) |
+| `VECTOR_DIM` | 임베딩 차원 | `768` 기본 (Gemini embedding-001 MRL / Ollama nomic). ADR-007 참조 |
 | `TEMPORAL_ADDRESS` | Temporal 서버 | `localhost:7233` |
 | `RESEND_API_KEY` | 이메일 | resend.com (선택 — 개발 시 console log 가능) |
 | `SENTRY_DSN` | 에러 트래킹 | (선택) |

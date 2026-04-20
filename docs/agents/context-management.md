@@ -57,19 +57,22 @@ cache = client.caches.create(
 
 ## 2. Embedding Strategy
 
-### 모델: gemini-embedding-2-preview
+### 모델: gemini-embedding-001 (MTEB multilingual #1, 2026-04-21 ADR-007)
 
 ```python
+# 실제 호출은 packages/llm `get_provider().embed()`를 거침 — 아래는 동등한 SDK 표현.
 result = client.models.embed_content(
-    model="gemini-embedding-2-preview",
+    model="gemini-embedding-001",
     contents=text,
     config=EmbedContentConfig(
-        output_dimensionality=3072,  # 최대 차원수
+        output_dimensionality=768,  # Matryoshka truncate. VECTOR_DIM env와 일치시킴.
         task_type="RETRIEVAL_DOCUMENT",  # 문서 저장 시
         # task_type="RETRIEVAL_QUERY",  # 검색 쿼리 시
     ),
 )
 ```
+
+멀티모달(이미지/음성/영상) 임베딩이 필요하면 `gemini-embedding-2-preview`로 env 교체 — 단 해당 모델은 **Batch API 미지원, TPM 상한 낮음**. 저장 비용·품질 손실 tradeoff는 ADR-007 참조.
 
 ### 임베딩 시점
 

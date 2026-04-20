@@ -39,7 +39,9 @@
   |
   v
 [5] Temporal → Python Worker (generate_embeddings Activity)
-  |  - LLM provider embed (Gemini: gemini-embedding-2-preview 3072d, Ollama: 768d)
+  |  - LLM provider embed (Gemini: gemini-embedding-001 768d via Matryoshka truncate,
+  |                         Ollama: nomic-embed-text 768d)
+  |  - Batch API 도입 예정 (별도 Plan) — 현재는 표준 embedContent 호출
   |  - KG 추출용 임베딩 → pgvector (그래프/백링크/Compiler 내부 검색용)
   |  - Q&A 코퍼스는 위키 페이지 (Compiler 완료 후 CAG/File Search/pgvector로 분기)
   |
