@@ -10,9 +10,12 @@ import {
   conceptEdges,
   conceptNotes,
   wikiLogs,
+  projectSemaphoreSlots,
   eq,
   and,
   sql,
+  lt,
+  count,
 } from "@opencairn/db";
 import { getTemporalClient } from "../lib/temporal-client";
 import type { AppEnv } from "../lib/types";
@@ -398,6 +401,454 @@ internal.post(
       reason: body.reason ?? null,
     });
     return c.json({ id }, 201);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Plan 4 Phase B — Research agent support (hybrid search over source notes)
+// ---------------------------------------------------------------------------
+
+// POST /internal/notes/hybrid-search — RRF-fused pgvector cosine + tsvector
+// BM25 over notes scoped to a project. Returns the top-k merged results with
+// per-channel scores so the caller can cite each hit and display a snippet.
+//
+// We run the two queries independently (each LIMIT k*2 so fusion has headroom
+// for the complement case), then fuse in JS using the standard
+// `1/(k_rrf + rank)` formula with k_rrf=60. Doing RRF in SQL is possible but
+// Postgres window functions over CTEs for a k=10 case aren't meaningfully
+// faster and make the query much harder to read.
+//
+// LightRAG / graph expansion (plan's "graph_hops") is deferred to Plan 5.
+// v0 returns raw note hits which is sufficient for the Research agent to
+// ground answers + cite — the graph layer enriches rather than replaces.
+const hybridSearchSchema = z.object({
+  projectId: z.string().uuid(),
+  queryText: z.string().min(1).max(2000),
+  queryEmbedding: z.array(z.number()),
+  k: z.number().int().positive().max(50).default(10),
+});
+
+type HybridHit = {
+  noteId: string;
+  title: string;
+  snippet: string;
+  sourceType: string | null;
+  sourceUrl: string | null;
+  vectorScore: number | null;
+  bm25Score: number | null;
+  rrfScore: number;
+};
+
+const RRF_K = 60;
+const SNIPPET_MAX = 400;
+
+function clipSnippet(text: string | null): string {
+  if (!text) return "";
+  const compact = text.replace(/\s+/g, " ").trim();
+  return compact.length > SNIPPET_MAX
+    ? compact.slice(0, SNIPPET_MAX) + "…"
+    : compact;
+}
+
+internal.post(
+  "/notes/hybrid-search",
+  zValidator("json", hybridSearchSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const vec = vectorLiteral(body.queryEmbedding);
+    const fetchLimit = body.k * 2;
+
+    // Vector channel — cosine distance (<=>). We cap to notes with an
+    // embedding to avoid returning rows that haven't been embedded yet
+    // (e.g. a note created before Plan 13 or pending backfill).
+    const vectorRowsRaw = await db.execute(sql`
+      SELECT
+        id,
+        title,
+        content_text,
+        source_type,
+        source_url,
+        1 - (embedding <=> ${vec}::vector) AS score
+      FROM notes
+      WHERE project_id = ${body.projectId}
+        AND deleted_at IS NULL
+        AND embedding IS NOT NULL
+      ORDER BY embedding <=> ${vec}::vector ASC
+      LIMIT ${fetchLimit}
+    `);
+    const vectorRows =
+      (vectorRowsRaw as unknown as { rows: Array<Record<string, unknown>> })
+        .rows ?? (vectorRowsRaw as unknown as Array<Record<string, unknown>>);
+
+    // BM25 channel — tsvector ranking with plainto_tsquery (safe against
+    // punctuation, avoids injection). We use the `simple` config to stay
+    // multilingual (matches migration 0006). Rows without a usable tsv
+    // match are filtered by `@@`.
+    const bm25RowsRaw = await db.execute(sql`
+      SELECT
+        id,
+        title,
+        content_text,
+        source_type,
+        source_url,
+        ts_rank(content_tsv, plainto_tsquery('simple', ${body.queryText})) AS score
+      FROM notes
+      WHERE project_id = ${body.projectId}
+        AND deleted_at IS NULL
+        AND content_tsv @@ plainto_tsquery('simple', ${body.queryText})
+      ORDER BY score DESC
+      LIMIT ${fetchLimit}
+    `);
+    const bm25Rows =
+      (bm25RowsRaw as unknown as { rows: Array<Record<string, unknown>> })
+        .rows ?? (bm25RowsRaw as unknown as Array<Record<string, unknown>>);
+
+    const hits = new Map<string, HybridHit>();
+    const rrf = new Map<string, number>();
+
+    const addRow = (
+      row: Record<string, unknown>,
+      rank: number,
+      channel: "vector" | "bm25",
+    ) => {
+      const noteId = String(row.id);
+      const existing = hits.get(noteId);
+      const rawScore = Number(row.score ?? 0);
+      if (!existing) {
+        hits.set(noteId, {
+          noteId,
+          title: String(row.title ?? "Untitled"),
+          snippet: clipSnippet(row.content_text as string | null),
+          sourceType: (row.source_type as string | null) ?? null,
+          sourceUrl: (row.source_url as string | null) ?? null,
+          vectorScore: channel === "vector" ? rawScore : null,
+          bm25Score: channel === "bm25" ? rawScore : null,
+          rrfScore: 0,
+        });
+      } else if (channel === "vector") {
+        existing.vectorScore = rawScore;
+      } else {
+        existing.bm25Score = rawScore;
+      }
+      rrf.set(noteId, (rrf.get(noteId) ?? 0) + 1 / (RRF_K + rank));
+    };
+
+    vectorRows.forEach((r, i) => addRow(r, i + 1, "vector"));
+    bm25Rows.forEach((r, i) => addRow(r, i + 1, "bm25"));
+
+    for (const [noteId, score] of rrf.entries()) {
+      const hit = hits.get(noteId);
+      if (hit) hit.rrfScore = score;
+    }
+
+    const merged = Array.from(hits.values())
+      .sort((a, b) => b.rrfScore - a.rrfScore)
+      .slice(0, body.k);
+
+    return c.json({ results: merged });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Plan 4 Phase B — Librarian agent support
+// ---------------------------------------------------------------------------
+
+// GET /internal/projects/:id/orphan-concepts — concepts with no edges in
+// either direction. Librarian detect_orphans step consumes this.
+internal.get("/projects/:id/orphan-concepts", async (c) => {
+  const projectId = c.req.param("id");
+  if (!z.string().uuid().safeParse(projectId).success) {
+    return c.json({ error: "Invalid project id" }, 400);
+  }
+  const rowsRaw = await db.execute(sql`
+    SELECT c.id, c.name
+    FROM concepts c
+    WHERE c.project_id = ${projectId}
+      AND NOT EXISTS (
+        SELECT 1 FROM concept_edges e
+        WHERE e.source_id = c.id OR e.target_id = c.id
+      )
+  `);
+  const rows =
+    (rowsRaw as unknown as { rows: Array<Record<string, unknown>> }).rows ??
+    (rowsRaw as unknown as Array<Record<string, unknown>>);
+  return c.json({
+    results: rows.map((r) => ({ id: String(r.id), name: String(r.name) })),
+  });
+});
+
+// GET /internal/projects/:id/concept-pairs — near-neighbour concept pairs for
+// contradiction / duplicate analysis. `similarityMin` + `similarityMax` bound
+// the band: `contradiction` check wants 0.75-0.95 (related but potentially
+// conflicting), `duplicate` check wants >=0.97.
+internal.get("/projects/:id/concept-pairs", async (c) => {
+  const projectId = c.req.param("id");
+  const similarityMinRaw = c.req.query("similarityMin");
+  const similarityMaxRaw = c.req.query("similarityMax");
+  const limitRaw = c.req.query("limit");
+  if (!z.string().uuid().safeParse(projectId).success) {
+    return c.json({ error: "Invalid project id" }, 400);
+  }
+  const similarityMin = similarityMinRaw ? Number(similarityMinRaw) : 0.75;
+  const similarityMax = similarityMaxRaw ? Number(similarityMaxRaw) : 1.0;
+  const limit = Math.min(Math.max(Number(limitRaw ?? 20), 1), 200);
+  if (
+    !Number.isFinite(similarityMin) ||
+    !Number.isFinite(similarityMax) ||
+    similarityMin >= similarityMax
+  ) {
+    return c.json({ error: "Invalid similarity bounds" }, 400);
+  }
+
+  // We use a self-join with `a.id < b.id` to avoid (A,B)+(B,A) duplicates and
+  // cast to jsonb/text so node-postgres serialises uuids faithfully.
+  const rowsRaw = await db.execute(sql`
+    SELECT
+      a.id AS id_a, a.name AS name_a, a.description AS desc_a,
+      b.id AS id_b, b.name AS name_b, b.description AS desc_b,
+      1 - (a.embedding <=> b.embedding) AS similarity
+    FROM concepts a
+    JOIN concepts b
+      ON a.project_id = b.project_id AND a.id < b.id
+    WHERE a.project_id = ${projectId}
+      AND a.embedding IS NOT NULL
+      AND b.embedding IS NOT NULL
+      AND 1 - (a.embedding <=> b.embedding) >= ${similarityMin}
+      AND 1 - (a.embedding <=> b.embedding) <= ${similarityMax}
+    ORDER BY similarity DESC
+    LIMIT ${limit}
+  `);
+  const rows =
+    (rowsRaw as unknown as { rows: Array<Record<string, unknown>> }).rows ??
+    (rowsRaw as unknown as Array<Record<string, unknown>>);
+  return c.json({
+    results: rows.map((r) => ({
+      idA: String(r.id_a),
+      nameA: String(r.name_a ?? ""),
+      descriptionA: String(r.desc_a ?? ""),
+      idB: String(r.id_b),
+      nameB: String(r.name_b ?? ""),
+      descriptionB: String(r.desc_b ?? ""),
+      similarity: Number(r.similarity ?? 0),
+    })),
+  });
+});
+
+// POST /internal/concepts/merge — collapse `duplicateIds` into `primaryId`.
+// Re-points every concept_edges row + concept_notes link to the primary,
+// then deletes the duplicates. Description is left untouched (Librarian's
+// LLM already updated primary via /concepts/upsert before calling merge).
+const mergeConceptsSchema = z.object({
+  primaryId: z.string().uuid(),
+  duplicateIds: z.array(z.string().uuid()).min(1).max(50),
+});
+
+internal.post(
+  "/concepts/merge",
+  zValidator("json", mergeConceptsSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    if (body.duplicateIds.includes(body.primaryId)) {
+      return c.json({ error: "primary cannot be in duplicates" }, 400);
+    }
+
+    // Perform the reparent + delete atomically: a concurrent Compiler
+    // run on the same project could otherwise link a dying concept and
+    // leak a dangling row. node-postgres doesn't expose a top-level
+    // transaction helper in the drizzle binding we use — a single raw
+    // SQL BEGIN/COMMIT block is simpler than plumbing a separate client.
+    const dupArray = sql.raw(
+      `ARRAY[${body.duplicateIds.map((d) => `'${d}'::uuid`).join(",")}]`,
+    );
+    await db.execute(sql`
+      BEGIN;
+      UPDATE concept_edges SET source_id = ${body.primaryId}
+        WHERE source_id = ANY(${dupArray});
+      UPDATE concept_edges SET target_id = ${body.primaryId}
+        WHERE target_id = ANY(${dupArray});
+      -- An edge from primary to itself is meaningless; delete the self-loops
+      -- that the reparent above may have just created.
+      DELETE FROM concept_edges WHERE source_id = target_id;
+      INSERT INTO concept_notes (concept_id, note_id)
+        SELECT ${body.primaryId}, note_id FROM concept_notes
+        WHERE concept_id = ANY(${dupArray})
+        ON CONFLICT DO NOTHING;
+      DELETE FROM concept_notes WHERE concept_id = ANY(${dupArray});
+      DELETE FROM concepts WHERE id = ANY(${dupArray});
+      COMMIT;
+    `);
+
+    return c.json({ ok: true, mergedCount: body.duplicateIds.length });
+  },
+);
+
+// GET /internal/projects/:id/link-candidates — concept pairs that frequently
+// co-occur in the same note. Librarian strengthens these edges after each
+// nightly run (weight := clamp(existing, cnt * 0.05, 1.0)).
+internal.get("/projects/:id/link-candidates", async (c) => {
+  const projectId = c.req.param("id");
+  const minCoOccurrenceRaw = c.req.query("minCoOccurrence");
+  const limitRaw = c.req.query("limit");
+  if (!z.string().uuid().safeParse(projectId).success) {
+    return c.json({ error: "Invalid project id" }, 400);
+  }
+  const minCoOccurrence = Math.max(Number(minCoOccurrenceRaw ?? 2), 1);
+  const limit = Math.min(Math.max(Number(limitRaw ?? 100), 1), 1000);
+  const rowsRaw = await db.execute(sql`
+    SELECT cn1.concept_id AS src, cn2.concept_id AS tgt, COUNT(*)::int AS cnt
+    FROM concept_notes cn1
+    JOIN concept_notes cn2
+      ON cn1.note_id = cn2.note_id AND cn1.concept_id < cn2.concept_id
+    JOIN concepts c1 ON c1.id = cn1.concept_id AND c1.project_id = ${projectId}
+    JOIN concepts c2 ON c2.id = cn2.concept_id AND c2.project_id = ${projectId}
+    GROUP BY cn1.concept_id, cn2.concept_id
+    HAVING COUNT(*) >= ${minCoOccurrence}
+    ORDER BY cnt DESC
+    LIMIT ${limit}
+  `);
+  const rows =
+    (rowsRaw as unknown as { rows: Array<Record<string, unknown>> }).rows ??
+    (rowsRaw as unknown as Array<Record<string, unknown>>);
+  return c.json({
+    results: rows.map((r) => ({
+      sourceId: String(r.src),
+      targetId: String(r.tgt),
+      coOccurrenceCount: Number(r.cnt ?? 0),
+    })),
+  });
+});
+
+// POST /internal/notes/:id/refresh-tsv — safety valve: force-regenerate
+// content_tsv for a single note. The trigger keeps the column fresh
+// automatically; this endpoint exists so Librarian can rebuild after a
+// migration changes the tokenizer config without a full reindex migration.
+internal.post("/notes/:id/refresh-tsv", async (c) => {
+  const id = c.req.param("id");
+  if (!z.string().uuid().safeParse(id).success) {
+    return c.json({ error: "Invalid note id" }, 400);
+  }
+  await db.execute(sql`
+    UPDATE notes
+    SET content_tsv = to_tsvector('simple',
+      coalesce(title, '') || ' ' || coalesce(content_text, ''))
+    WHERE id = ${id}
+  `);
+  return c.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// Plan 4 Phase B Task 8 — per-project semaphore (row-count slots)
+// ---------------------------------------------------------------------------
+
+// POST /internal/semaphores/acquire — try to claim a slot. Returns
+// `{ acquired: true }` on success or `{ acquired: false, running: N }` if
+// capacity is full. The worker activity spin-waits with a heartbeat.
+//
+// Design note (see also schema comment): we rejected a Temporal mutex
+// workflow because (a) worker cannot touch PG directly, (b) mutex state
+// still ends up persisted *somewhere*, and (c) a counted-slot table is
+// observable — you can `SELECT * FROM project_semaphore_slots` during an
+// incident and see exactly what's running. The `expires_at` column is the
+// crash-safety belt: a holder that dies without releasing frees its slot
+// automatically once `now() > expires_at`.
+const semaphoreAcquireSchema = z.object({
+  projectId: z.string().uuid(),
+  holderId: z.string().min(1).max(200),
+  purpose: z.string().min(1).max(100),
+  maxConcurrent: z.number().int().positive().max(100).default(3),
+  ttlSeconds: z.number().int().positive().max(60 * 60 * 4).default(60 * 30),
+});
+
+internal.post(
+  "/semaphores/acquire",
+  zValidator("json", semaphoreAcquireSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + body.ttlSeconds * 1000);
+
+    // 1. Sweep expired slots first so capacity reflects reality.
+    await db
+      .delete(projectSemaphoreSlots)
+      .where(
+        and(
+          eq(projectSemaphoreSlots.projectId, body.projectId),
+          lt(projectSemaphoreSlots.expiresAt, now),
+        ),
+      );
+
+    // 2. Idempotent renewal — if this holder already owns a slot, extend
+    // the deadline and report success. Covers the common case of an
+    // activity retry after a transient crash between acquire and the
+    // workflow body starting.
+    const [existing] = await db
+      .select({ id: projectSemaphoreSlots.id })
+      .from(projectSemaphoreSlots)
+      .where(
+        and(
+          eq(projectSemaphoreSlots.projectId, body.projectId),
+          eq(projectSemaphoreSlots.holderId, body.holderId),
+        ),
+      );
+    if (existing) {
+      await db
+        .update(projectSemaphoreSlots)
+        .set({ expiresAt })
+        .where(eq(projectSemaphoreSlots.id, existing.id));
+      return c.json({ acquired: true, renewed: true });
+    }
+
+    // 3. Count active slots and conditionally insert. We do this in two
+    // statements — a single `INSERT ... SELECT WHERE count < N` would be
+    // atomic but harder to read; since the common case is no contention
+    // and we re-check on the next poll, a rare over-commit is acceptable.
+    const [runningRow] = await db
+      .select({ n: count() })
+      .from(projectSemaphoreSlots)
+      .where(eq(projectSemaphoreSlots.projectId, body.projectId));
+    const running = Number(runningRow?.n ?? 0);
+    if (running >= body.maxConcurrent) {
+      return c.json({ acquired: false, running });
+    }
+
+    try {
+      await db.insert(projectSemaphoreSlots).values({
+        projectId: body.projectId,
+        holderId: body.holderId,
+        purpose: body.purpose,
+        expiresAt,
+      });
+    } catch {
+      // Unique index race — another request beat us with the same
+      // (projectId, holderId). Treat as "we already have it".
+      return c.json({ acquired: true, renewed: true });
+    }
+
+    return c.json({ acquired: true, renewed: false });
+  },
+);
+
+// POST /internal/semaphores/release — drop a holder's slot. Safe to call
+// twice (no-op if already released).
+const semaphoreReleaseSchema = z.object({
+  projectId: z.string().uuid(),
+  holderId: z.string().min(1).max(200),
+});
+
+internal.post(
+  "/semaphores/release",
+  zValidator("json", semaphoreReleaseSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    await db
+      .delete(projectSemaphoreSlots)
+      .where(
+        and(
+          eq(projectSemaphoreSlots.projectId, body.projectId),
+          eq(projectSemaphoreSlots.holderId, body.holderId),
+        ),
+      );
+    return c.json({ ok: true });
   },
 );
 
