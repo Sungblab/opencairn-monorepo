@@ -11,6 +11,7 @@ import { folderRoutes } from "./routes/folders";
 import { tagRoutes } from "./routes/tags";
 import { noteRoutes } from "./routes/notes";
 import { ingestRoutes } from "./routes/ingest";
+import { internalRoutes } from "./routes/internal";
 
 export function createApp() {
   const app = new Hono();
@@ -34,6 +35,7 @@ export function createApp() {
   app.route("/api/tags", tagRoutes);
   app.route("/api/notes", noteRoutes);
   app.route("/api/ingest", ingestRoutes);
+  app.route("/api/internal", internalRoutes);
 
   app.onError(errorHandler);
 

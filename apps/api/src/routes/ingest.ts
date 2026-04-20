@@ -198,4 +198,22 @@ export const ingestRoutes = new Hono<AppEnv>()
     });
 
     return c.json({ workflowId }, 202);
+  })
+
+  // GET /ingest/status/:workflowId — poll Temporal for workflow status.
+  // Auth: any authenticated user (covered by the router-wide `requireAuth`
+  // middleware at the top). workflowId is a random UUID generated per
+  // submission so it acts as a capability URL; tightening to per-owner
+  // verification is a Plan 5 follow-up once we persist (userId, workflowId).
+  .get("/status/:workflowId", async (c) => {
+    const workflowId = c.req.param("workflowId");
+    const client = await getTemporalClient();
+    const handle = client.workflow.getHandle(workflowId);
+    const desc = await handle.describe();
+    return c.json({
+      workflowId,
+      status: desc.status.name,
+      startTime: desc.startTime,
+      closeTime: desc.closeTime ?? null,
+    });
   });
