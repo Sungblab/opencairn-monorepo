@@ -5,7 +5,10 @@
   "scripts": {
     "dev": "next dev --port 3000",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "lint": "eslint src --max-warnings 0",
+    "i18n:sync": "node scripts/i18n-sync.mjs",
+    "i18n:parity": "node scripts/i18n-parity.mjs"
   },
   "dependencies": {
     "next": "^16.0.0",
