@@ -9,6 +9,11 @@ services:
       POSTGRES_DB: opencairn
       POSTGRES_USER: opencairn
       POSTGRES_PASSWORD: changeme
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opencairn -d opencairn"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -19,16 +24,21 @@ services:
 
   minio:
     # Dev 환경 S3 호환 스토리지. Production은 Cloudflare R2로 교체.
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
     command: server /data --console-address ":9001"
     ports:
       - "9000:9000"
       - "9001:9001"
-    volumes:
-      - miniodata:/data
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   ollama:
     # Optional local LLM runtime for fully-offline / BYOK stacks.
@@ -40,6 +50,32 @@ services:
     ports:
       - "11434:11434"
     restart: unless-stopped
+
+  temporal:
+    # Temporal server for workflow orchestration (Plan 3+).
+    # auto-setup image creates the temporal/temporal_visibility schemas in
+    # the shared pgvector Postgres on first boot.
+    image: temporalio/auto-setup:1.24
+    ports:
+      - "7233:7233"
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-opencairn}
+      - POSTGRES_PWD=${POSTGRES_PASSWORD:-changeme}
+      - POSTGRES_SEEDS=postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  temporal-ui:
+    image: temporalio/ui:2.26.2
+    ports:
+      - "8080:8080"
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+    depends_on:
+      - temporal
 
 volumes:
   pgdata:

@@ -1,5 +1,7 @@
 # Plan 3: Ingest Pipeline 단계별 Implementation Plan
 
+> **✅ 완료 (2026-04-20)** — Tasks 1-10 구현 완료, plan-3/ingest 브랜치에서 master 머지. 60/60 worker pytest + 29/29 llm pytest pass. Office/HWP 변환(markitdown/unoserver/H2Orestart), scan PDF OCR, streaming upload은 follow-up task로 분리.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 > **⚠️ Multi-LLM 업데이트 (2026-04-13):** `get_provider()` 팩토리로 LLM 호출. 직접 gemini_client 생성 금지. 상세: `docs/superpowers/specs/2026-04-13-multi-llm-provider-design.md`

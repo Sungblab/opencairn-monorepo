@@ -160,6 +160,45 @@ class GeminiProvider(LLMProvider):
         )
         return response.text
 
+    async def generate_multimodal(
+        self,
+        prompt: str,
+        *,
+        image_bytes: bytes | None = None,
+        image_mime: str | None = None,
+        pdf_bytes: bytes | None = None,
+    ) -> str | None:
+        """Image- or PDF-grounded text generation via the async Gemini SDK.
+
+        Gemini handles both images and PDFs as ``inline_data`` parts; the text
+        prompt is appended last so the model sees the content *before* the
+        instruction. Returns ``None`` when the caller passes ``image_bytes``
+        without an accompanying ``image_mime`` (can't guess safely from bytes).
+        """
+        parts: list = []
+        if image_bytes:
+            if not image_mime:
+                return None  # caller error — mime required
+            parts.append(
+                types.Part(
+                    inline_data=types.Blob(mime_type=image_mime, data=image_bytes)
+                )
+            )
+        if pdf_bytes:
+            parts.append(
+                types.Part(
+                    inline_data=types.Blob(
+                        mime_type="application/pdf", data=pdf_bytes
+                    )
+                )
+            )
+        parts.append(types.Part(text=prompt))
+        response = await self._client.aio.models.generate_content(
+            model=self.config.model,
+            contents=parts,
+        )
+        return response.text
+
     def build_tool_declarations(self, tools: list[Any]) -> list[dict[str, Any]]:
         # Lazy import keeps packages/llm free of a module-load dependency
         # on the agent runtime; the concrete type is runtime.tools.Tool.

@@ -35,6 +35,8 @@ export const notes = pgTable(
     type: noteTypeEnum("type").notNull().default("note"),
     sourceType: sourceTypeEnum("source_type"),
     sourceFileKey: text("source_file_key"),
+    sourceUrl: text("source_url"),
+    mimeType: text("mime_type"),
     isAuto: boolean("is_auto").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),

@@ -62,6 +62,22 @@ class LLMProvider(ABC):
     async def transcribe(self, audio: bytes) -> str | None:
         return None
 
+    async def generate_multimodal(
+        self,
+        prompt: str,
+        *,
+        image_bytes: bytes | None = None,
+        image_mime: str | None = None,
+        pdf_bytes: bytes | None = None,
+    ) -> str | None:
+        """Multimodal generation with an image or PDF attached.
+
+        Returns None if the provider doesn't support the requested modality.
+        Providers must override to opt in. Exactly one of image_bytes / pdf_bytes
+        should be set — behavior when both are set is provider-defined.
+        """
+        return None
+
     # Providers that support tool calling override this. The `tools` list is
     # typed loosely (`list[Any]`) because `packages/llm` must not import the
     # agent runtime at module load time — the concrete type is

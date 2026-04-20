@@ -12,6 +12,7 @@ export const sourceTypeEnum = pgEnum("source_type", [
   "image",
   "youtube",
   "web",
+  "unknown",
 ]);
 
 export const jobStatusEnum = pgEnum("job_status", [

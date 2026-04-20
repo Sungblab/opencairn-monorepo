@@ -14,6 +14,19 @@ dependencies = [
     "asyncpg>=0.29.0",
     "pyyaml>=6.0",
     "opencairn-llm",
+    "minio>=7.2.9",
+    "pymupdf>=1.24.0",
+    "httpx>=0.27.0",
+    "python-dotenv>=1.0.0",
+    # STT fallback when provider.transcribe returns None (e.g. Ollama).
+    # Large (~GB Whisper model downloaded on first use) — only invoked when
+    # LLM_PROVIDER=ollama or similar. Gemini users never touch this.
+    "faster-whisper>=1.0.3",
+    # YouTube audio download for the ingest_youtube activity. Pinned above
+    # the 2024.11 release that fixes the YouTube player extractor regression.
+    "yt-dlp>=2024.11.4",
+    # Web URL scraping for the scrape_web_url activity.
+    "trafilatura>=1.12.0",
 ]
 
 [project.optional-dependencies]

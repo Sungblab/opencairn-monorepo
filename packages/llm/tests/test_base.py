@@ -73,3 +73,9 @@ async def test_base_defaults_return_none():
     assert await p.ground_search("query") is None
     assert await p.tts("text") is None
     assert await p.transcribe(b"audio") is None
+    assert (
+        await p.generate_multimodal(
+            "describe", image_bytes=b"x", image_mime="image/png"
+        )
+        is None
+    )
