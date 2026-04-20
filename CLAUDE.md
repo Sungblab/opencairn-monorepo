@@ -34,6 +34,18 @@ Data hierarchy: **Workspace → Project → Page** (Notion 스타일 3계층). W
 - **Post-feature workflow** (Verification → Review → Docs → Commit) → `opencairn:post-feature` skill
 - **Commit conventions** → `opencairn:commit` skill
 
+## i18n 규율 (Plan 9a 이후 전 코드 적용)
+
+`apps/web` 내 **모든 user-facing 문자열은 i18n 키로 정의** 필수. 하드코딩 금지.
+
+- ko 값만 채우고 en은 `pnpm --filter @opencairn/web i18n:sync`로 ko 복사 stopgap 유지
+- JSX 리터럴 한국어/영어 → ESLint `i18next/no-literal-string` 룰이 CI에서 error (`pnpm --filter @opencairn/web lint`)
+- 키 parity는 `pnpm --filter @opencairn/web i18n:parity` 통과 필수
+- 예외: 상표 "OpenCairn", 개발자 로그, 테스트 fixture, CLI 스크립트 출력
+- 조사 분기는 ICU `{item, select, consonant {을} other {를}}` 패턴
+- 카피 규칙: 존댓말, 경쟁사 미언급, 기술 스택 상세 최소화 (기존 브랜드 규칙 준수)
+- 상세: `docs/superpowers/specs/2026-04-20-web-foundation-design.md` § i18n 규율
+
 ## Commands
 
 ```bash
