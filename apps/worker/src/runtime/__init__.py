@@ -12,6 +12,14 @@ from runtime.events import (
     ToolResult,
     ToolUse,
 )
+from runtime.tools import (
+    Tool,
+    ToolContext,
+    get_tool,
+    get_tools_for_agent,
+    hash_input,
+    tool,
+)
 
 __all__ = [
     "AgentEnd",
@@ -23,6 +31,12 @@ __all__ = [
     "Handoff",
     "ModelEnd",
     "Scope",
+    "Tool",
+    "ToolContext",
     "ToolResult",
     "ToolUse",
+    "get_tool",
+    "get_tools_for_agent",
+    "hash_input",
+    "tool",
 ]
