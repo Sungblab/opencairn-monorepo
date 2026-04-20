@@ -1,25 +1,58 @@
-import { useTranslations } from "next-intl";
-import { setRequestLocale } from "next-intl/server";
+import { setRequestLocale, getTranslations } from "next-intl/server";
+import type { Metadata } from "next";
 import type { Locale } from "@/i18n";
+import { LandingHeader } from "@/components/landing/chrome/Header";
+import { LandingFooter } from "@/components/landing/chrome/Footer";
+import { Hero } from "@/components/landing/Hero";
+import { ProblemBand } from "@/components/landing/ProblemBand";
+import { HowItWorks } from "@/components/landing/HowItWorks";
+import { AgentsGrid } from "@/components/landing/AgentsGrid";
+import { WorkspaceShowcase } from "@/components/landing/WorkspaceShowcase";
+import { MiniGraph } from "@/components/landing/MiniGraph";
+import { Personas } from "@/components/landing/Personas";
+import { Comparison } from "@/components/landing/Comparison";
+import { ForWhom } from "@/components/landing/ForWhom";
+import { DocsTeaser } from "@/components/landing/DocsTeaser";
+import { Pricing } from "@/components/landing/Pricing";
+import { Faq } from "@/components/landing/Faq";
+import { Cta } from "@/components/landing/Cta";
+
+export const dynamic = "force-static";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: Locale }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "landing.meta" });
+  return { title: t("title"), description: t("description") };
+}
 
 export default async function Landing({ params }: { params: Promise<{ locale: Locale }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  return <LandingInner />;
-}
-
-function LandingInner() {
-  const t = useTranslations("landing.hero");
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center">
-      <h1 className="font-serif text-6xl">{t("title")}</h1>
-      <p className="mt-4 text-lg text-fg-muted">{t("sub")}</p>
-      <a
-        href="/dashboard"
-        className="mt-8 rounded-lg bg-accent px-6 py-3 text-sm font-semibold text-accent-fg"
-      >
-        {t("cta")}
-      </a>
-    </main>
+    <div
+      data-brand="landing"
+      data-theme="cairn-light"
+      className="min-h-screen bg-[color:var(--brand-paper)] text-[color:var(--brand-stone-900)]"
+    >
+      <LandingHeader />
+      <Hero />
+      <ProblemBand />
+      <HowItWorks />
+      <AgentsGrid />
+      <WorkspaceShowcase />
+      <MiniGraph />
+      <Personas />
+      <Comparison />
+      <ForWhom />
+      <DocsTeaser />
+      <Pricing />
+      <Faq />
+      <Cta />
+      <LandingFooter />
+    </div>
   );
 }
