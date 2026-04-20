@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from temporalio.client import Client
 from temporalio.worker import Worker
 
+from worker.activities.enhance_activity import enhance_with_gemini
 from worker.activities.image_activity import analyze_image
 from worker.activities.pdf_activity import parse_pdf
 from worker.activities.stt_activity import transcribe_audio
@@ -40,7 +41,8 @@ async def main() -> None:
             analyze_image,
             ingest_youtube,
             scrape_web_url,
-        ],  # remaining activities land in Plan 3 Tasks 8-10
+            enhance_with_gemini,
+        ],  # remaining activities land in Plan 3 Tasks 9-10
     )
     print(f"[worker] Starting Temporal worker on task queue: {task_queue}")
     await worker.run()
