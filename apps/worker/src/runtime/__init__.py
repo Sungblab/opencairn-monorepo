@@ -43,6 +43,12 @@ from runtime.tools import (
     hash_input,
     tool,
 )
+from runtime.trajectory import (
+    LocalFSTrajectoryStorage,
+    TrajectoryStorage,
+    TrajectoryWriter,
+    resolve_storage_from_env,
+)
 
 __all__ = [
     "Agent",
@@ -62,6 +68,7 @@ __all__ = [
     "Handoff",
     "HookChain",
     "HookRegistry",
+    "LocalFSTrajectoryStorage",
     "ModelEnd",
     "ModelHook",
     "ModelRequest",
@@ -73,11 +80,14 @@ __all__ = [
     "ToolHook",
     "ToolResult",
     "ToolUse",
+    "TrajectoryStorage",
+    "TrajectoryWriter",
     "get_tool",
     "get_tools_for_agent",
     "hash_input",
     "load_case_file",
     "load_cases",
+    "resolve_storage_from_env",
     "score_trajectory",
     "stream_graph_as_events",
     "tool",
