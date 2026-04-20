@@ -16,6 +16,7 @@
     "postgres": "^3.4.0"
   },
   "devDependencies": {
+    "dotenv": "^16.4.0",
     "drizzle-kit": "^0.31.0",
     "typescript": "^5.8.0"
   }
