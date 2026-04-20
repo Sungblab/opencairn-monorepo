@@ -62,3 +62,6 @@ minio_data/
 *.key
 *.pem
 secrets/
+
+# Database migrations
+drizzle/meta/

@@ -1,0 +1,17 @@
+{
+  "name": "opencairn",
+  "private": true,
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "db:generate": "turbo db:generate --filter=@opencairn/db",
+    "db:migrate": "turbo db:migrate --filter=@opencairn/db",
+    "db:studio": "turbo db:studio --filter=@opencairn/db"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.0"
+  },
+  "packageManager": "pnpm@9.15.0"
+}
