@@ -15,12 +15,21 @@ export const noteRoutes = new Hono<AppEnv>()
     const projectId = c.req.param("projectId");
     if (!isUuid(projectId)) return c.json({ error: "Bad Request" }, 400);
     if (!(await canRead(user.id, { type: "project", id: projectId }))) return c.json({ error: "Forbidden" }, 403);
-    const result = await db
+    const rows = await db
       .select()
       .from(notes)
       .where(and(eq(notes.projectId, projectId), isNull(notes.deletedAt)))
       .orderBy(desc(notes.updatedAt));
-    return c.json(result);
+
+    // Filter notes with inheritParent=false: per-user pagePermission required
+    const maybePrivate = rows.filter(n => n.inheritParent === false);
+    if (maybePrivate.length === 0) return c.json(rows);
+
+    const privateChecks = await Promise.all(
+      maybePrivate.map(async n => ({ id: n.id, ok: await canRead(user.id, { type: "note", id: n.id }) }))
+    );
+    const blockedIds = new Set(privateChecks.filter(x => !x.ok).map(x => x.id));
+    return c.json(rows.filter(n => !blockedIds.has(n.id)));
   })
 
   .get("/:id", async (c) => {
@@ -71,7 +80,7 @@ export const noteRoutes = new Hono<AppEnv>()
     const [note] = await db
       .update(notes)
       .set({ deletedAt: new Date() })
-      .where(eq(notes.id, id))
+      .where(and(eq(notes.id, id), isNull(notes.deletedAt)))
       .returning();
     if (!note) return c.json({ error: "Not found" }, 404);
     return c.json({ success: true });

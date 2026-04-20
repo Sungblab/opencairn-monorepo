@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { db, tags, noteTags, notes, eq, and } from "@opencairn/db";
+import { db, tags, noteTags, notes, eq, and, isNull } from "@opencairn/db";
 import { createTagSchema } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite } from "../lib/permissions";
@@ -35,7 +35,10 @@ export const tagRoutes = new Hono<AppEnv>()
     if (!isUuid(tagId) || !isUuid(noteId)) return c.json({ error: "Bad Request" }, 400);
     const [tag] = await db.select({ projectId: tags.projectId }).from(tags).where(eq(tags.id, tagId));
     if (!tag) return c.json({ error: "Tag not found" }, 404);
-    const [note] = await db.select({ projectId: notes.projectId }).from(notes).where(eq(notes.id, noteId));
+    const [note] = await db
+      .select({ projectId: notes.projectId })
+      .from(notes)
+      .where(and(eq(notes.id, noteId), isNull(notes.deletedAt)));
     if (!note) return c.json({ error: "Note not found" }, 404);
     if (tag.projectId !== note.projectId) return c.json({ error: "Tag and note must be in same project" }, 400);
     if (!(await canWrite(user.id, { type: "note", id: noteId }))) return c.json({ error: "Forbidden" }, 403);
