@@ -2522,7 +2522,7 @@ export default function LandingPage() {
         AI knowledge base for learning, research, and work.
       </p>
       <a
-        href="/app/dashboard"
+        href="/dashboard"
         className="mt-8 rounded-lg bg-amber-500 px-6 py-3 text-sm font-semibold text-neutral-950 hover:bg-amber-400"
       >
         Get Started
@@ -2572,7 +2572,7 @@ pnpm --filter @opencairn/web dev
 ```
 
 Open http://localhost:3000 ??should see landing page.
-Open http://localhost:3000/app/dashboard ??should see dashboard with sidebar.
+Open http://localhost:3000/dashboard — should see dashboard with sidebar.
 
 - [ ] **Step 11: Commit**
 
@@ -2722,7 +2722,7 @@ Expected: "OpenCairn" heading with "Get Started" button.
 
 - [ ] **Step 4: Verify dashboard**
 
-Open http://localhost:3000/app/dashboard
+Open http://localhost:3000/dashboard
 
 Expected: Sidebar + "Dashboard" heading.
 
