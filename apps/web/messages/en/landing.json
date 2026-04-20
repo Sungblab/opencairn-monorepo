@@ -1,0 +1,59 @@
+{
+  "meta": {
+    "title": "OpenCairn — 읽은 것까지 이해하는 AI 지식 OS",
+    "description": "자료를 올려두면 AI가 위키로 엮고, 묻기 전에 연결을 발견하는 개인·팀 지식 OS. 12개 AI 에이전트, 셀프호스팅, AGPLv3."
+  },
+  "hero": {
+    "eyebrow": "AI Knowledge OS",
+    "title": "읽은 것까지 이해하는",
+    "titleEm": "AI 지식 OS",
+    "sub": "자료를 올려두시면 AI가 위키로 엮어드려요. 묻기 전에 연결을 발견해드립니다.",
+    "cta": "시작하기",
+    "ctaGhost": "데모 보기"
+  },
+  "problem": { "heading": "쓴 것만 담는 도구는 많습니다. OpenCairn은 읽은 것까지 이해합니다." },
+  "how": { "heading": "어떻게 동작하나요" },
+  "agents": { "heading": "12개의 AI 에이전트가 일합니다" },
+  "workspace": { "heading": "개인 노트에서 팀 지식으로" },
+  "try": { "heading": "연결이 먼저 보이는 경험" },
+  "who": { "heading": "누구를 위한 도구인가요" },
+  "vs": { "heading": "기존 도구와의 차이" },
+  "forWhom": { "heading": "이런 분께 어울려요" },
+  "docs": { "heading": "문서와 가이드" },
+  "pricing": {
+    "heading": "가격",
+    "sub": "본인 데이터·속도·확실한 기능에 대한 예측 가능한 비용.",
+    "free": {
+      "name": "Free",
+      "price": "₩0",
+      "unit": "/ 월",
+      "tagline": "체험용"
+    },
+    "byok": {
+      "name": "BYOK",
+      "price": "₩2,900",
+      "unit": "/ 월",
+      "tagline": "본인 Gemini 키 · 관리형 솔로"
+    },
+    "pro": {
+      "name": "Pro",
+      "price": "₩4,900",
+      "unit": "/ 월 + PAYG",
+      "tagline": "팀 · 연구실 · PAYG 크레딧 최소 ₩5,000"
+    },
+    "selfhost": {
+      "name": "Self-host",
+      "price": "₩0",
+      "unit": "",
+      "tagline": "AGPLv3 · 본인 서버 · 무제한"
+    },
+    "vat": "모든 금액 VAT 별도."
+  },
+  "faq": { "heading": "자주 묻는 질문" },
+  "cta": {
+    "heading": "5분이면 위키가 시작됩니다",
+    "sub": "업로드 한 번으로 첫 위키 페이지가 생성되는 속도를 느껴보세요.",
+    "primary": "시작하기",
+    "secondary": "GitHub에서 보기"
+  }
+}
