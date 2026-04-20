@@ -26,6 +26,11 @@ export function createApp() {
     })
   );
 
+  // /api/internal must be mounted BEFORE the generic /api routes
+  // (inviteRoutes, projectRoutes) — those sub-apps use requireAuth as a
+  // wildcard middleware and would otherwise intercept /api/internal/* with
+  // a 401 session check, masking the shared-secret gate inside internal.
+  app.route("/api/internal", internalRoutes);
   app.route("/api/health", healthRoutes);
   app.route("/api/auth", authRoutes);
   app.route("/api/workspaces", workspaceRoutes);
@@ -35,7 +40,6 @@ export function createApp() {
   app.route("/api/tags", tagRoutes);
   app.route("/api/notes", noteRoutes);
   app.route("/api/ingest", ingestRoutes);
-  app.route("/api/internal", internalRoutes);
 
   app.onError(errorHandler);
 
