@@ -79,7 +79,7 @@ packages/db/drizzle/<timestamp>_agent_runs.sql  -- migration
 
 **Files:** none (verification only)
 
-- [ ] **Step 1: Verify Plan 1 completion**
+- [x] **Step 1: Verify Plan 1 completion**
 
 Run:
 ```bash
@@ -88,7 +88,7 @@ grep -l "DATABASE_URL" .env.example
 ```
 Expected: files exist + grep matches. If not → STOP, complete Plan 1 first.
 
-- [ ] **Step 2: Verify Plan 13 (multi-llm) completion**
+- [x] **Step 2: Verify Plan 13 (multi-llm) completion**
 
 Run:
 ```bash
@@ -98,7 +98,7 @@ cd ../..
 ```
 Expected: "OK" printed twice. If not → STOP, complete Plan 13 first.
 
-- [ ] **Step 3: Verify tooling**
+- [x] **Step 3: Verify tooling**
 
 Run:
 ```bash
@@ -107,7 +107,7 @@ python --version
 ```
 Expected: `uv 0.4+`, Python accessible. If `uv` missing: `pip install uv` or follow `docs/contributing/dev-guide.md`.
 
-- [ ] **Step 4: Review spec**
+- [x] **Step 4: Review spec**
 
 Read `docs/superpowers/specs/2026-04-20-agent-runtime-standard-design.md` end-to-end. Confirm mental model matches:
 - 9 AgentEvent types
@@ -130,7 +130,7 @@ Read `docs/superpowers/specs/2026-04-20-agent-runtime-standard-design.md` end-to
 - Create: `apps/worker/tests/runtime/conftest.py`
 - Modify: root `pnpm-workspace.yaml` (if exists from Plan 1) — no changes needed for Python apps, but verify
 
-- [ ] **Step 1: Create `apps/worker/pyproject.toml`**
+- [x] **Step 1: Create `apps/worker/pyproject.toml`**
 
 ```toml
 [project]
@@ -194,13 +194,13 @@ pythonVersion = "3.12"
 strict = ["src/runtime"]
 ```
 
-- [ ] **Step 2: Create `apps/worker/.python-version`**
+- [x] **Step 2: Create `apps/worker/.python-version`**
 
 ```
 3.12
 ```
 
-- [ ] **Step 3: Create `apps/worker/.env.example`**
+- [x] **Step 3: Create `apps/worker/.env.example`**
 
 ```bash
 # Database (inherits from Plan 1)
@@ -224,7 +224,7 @@ SENTRY_DSN=
 OTEL_EXPORTER_OTLP_ENDPOINT=
 ```
 
-- [ ] **Step 4: Create empty package files**
+- [x] **Step 4: Create empty package files**
 
 Write empty files with only a docstring:
 
@@ -244,7 +244,7 @@ langchain_core from apps/worker/src/worker/agents/ are forbidden (see lint rule 
 
 `apps/worker/tests/runtime/__init__.py`: empty file.
 
-- [ ] **Step 5: Create `apps/worker/tests/runtime/conftest.py`**
+- [x] **Step 5: Create `apps/worker/tests/runtime/conftest.py`**
 
 ```python
 """Shared fixtures for runtime tests."""
@@ -267,7 +267,7 @@ def tmp_trajectory_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return d
 ```
 
-- [ ] **Step 6: Install and verify imports**
+- [x] **Step 6: Install and verify imports**
 
 Run:
 ```bash
@@ -275,7 +275,7 @@ cd apps/worker && uv sync && uv run python -c "import runtime; import worker; pr
 ```
 Expected: "OK" printed. If `opencairn-llm` path resolution fails, verify `packages/llm/pyproject.toml` exists.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/worker/pyproject.toml apps/worker/.python-version apps/worker/.env.example apps/worker/src/runtime/__init__.py apps/worker/src/worker/__init__.py apps/worker/tests/runtime/__init__.py apps/worker/tests/runtime/conftest.py apps/worker/uv.lock
@@ -290,7 +290,7 @@ git commit -m "chore(worker): scaffold apps/worker with runtime + worker package
 - Create: `apps/worker/src/runtime/events.py`
 - Create: `apps/worker/tests/runtime/test_events.py`
 
-- [ ] **Step 1: Write the failing test (`tests/runtime/test_events.py`)**
+- [x] **Step 1: Write the failing test (`tests/runtime/test_events.py`)**
 
 ```python
 """AgentEvent model tests — construction, serialization, discriminated union parsing."""
@@ -425,12 +425,12 @@ def test_seq_monotonic_not_enforced_at_model_level() -> None:
     assert ev2.seq == 3
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd apps/worker && uv run pytest tests/runtime/test_events.py -v`
 Expected: ImportError — `runtime.events` does not exist.
 
-- [ ] **Step 3: Implement `src/runtime/events.py`**
+- [x] **Step 3: Implement `src/runtime/events.py`**
 
 ```python
 """AgentEvent schema — 9 event types + discriminated union.
@@ -561,7 +561,7 @@ __all__ = [
 ]
 ```
 
-- [ ] **Step 4: Update `src/runtime/__init__.py` exports**
+- [x] **Step 4: Update `src/runtime/__init__.py` exports**
 
 Replace the contents:
 ```python
@@ -595,12 +595,12 @@ __all__ = [
 ]
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `cd apps/worker && uv run pytest tests/runtime/test_events.py -v`
 Expected: all 10 tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/worker/src/runtime/events.py apps/worker/src/runtime/__init__.py apps/worker/tests/runtime/test_events.py
@@ -615,7 +615,7 @@ git commit -m "feat(worker): add AgentEvent schema (9 types, discriminated union
 - Create: `packages/shared/src/agent-events.ts`
 - Create: `packages/shared/tests/agent-events.test.ts`
 
-- [ ] **Step 1: Write the failing test (`tests/agent-events.test.ts`)**
+- [x] **Step 1: Write the failing test (`tests/agent-events.test.ts`)**
 
 ```typescript
 import { describe, expect, test } from "vitest";
@@ -678,12 +678,12 @@ describe("AgentEventSchema", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter @opencairn/shared test agent-events`
 Expected: Module not found — `agent-events.ts` does not exist.
 
-- [ ] **Step 3: Implement `packages/shared/src/agent-events.ts`**
+- [x] **Step 3: Implement `packages/shared/src/agent-events.ts`**
 
 ```typescript
 import { z } from "zod";
@@ -795,12 +795,12 @@ export const AgentEventSchema = z.discriminatedUnion("type", [
 export type AgentEvent = z.infer<typeof AgentEventSchema>;
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pnpm --filter @opencairn/shared test agent-events`
 Expected: 4 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/shared/src/agent-events.ts packages/shared/tests/agent-events.test.ts
@@ -815,7 +815,7 @@ git commit -m "feat(shared): add AgentEvent Zod schema mirroring Python runtime"
 - Create: `apps/worker/src/runtime/tools.py`
 - Create: `apps/worker/tests/runtime/test_tools.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Tests for @tool decorator and ToolContext auto-injection."""
@@ -957,12 +957,12 @@ async def test_get_tools_for_agent_filters_by_scope(fake_ctx: ToolContext) -> No
     assert t not in get_tools_for_agent("compiler", "page")
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd apps/worker && uv run pytest tests/runtime/test_tools.py -v`
 Expected: ImportError on `runtime.tools`.
 
-- [ ] **Step 3: Implement `src/runtime/tools.py`**
+- [x] **Step 3: Implement `src/runtime/tools.py`**
 
 ```python
 """Tool system — @tool decorator, ToolContext, registry."""
@@ -1134,7 +1134,7 @@ __all__ = [
 ]
 ```
 
-- [ ] **Step 4: Update `conftest.py` to clear registry between tests**
+- [x] **Step 4: Update `conftest.py` to clear registry between tests**
 
 Edit `apps/worker/tests/runtime/conftest.py`:
 
@@ -1165,7 +1165,7 @@ def tmp_trajectory_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return d
 ```
 
-- [ ] **Step 5: Update `runtime/__init__.py` exports**
+- [x] **Step 5: Update `runtime/__init__.py` exports**
 
 Append to imports:
 ```python
@@ -1182,12 +1182,12 @@ And to `__all__`:
     "tool",
 ```
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
 Run: `cd apps/worker && uv run pytest tests/runtime/test_tools.py tests/runtime/test_events.py -v`
 Expected: all pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/worker/src/runtime/tools.py apps/worker/src/runtime/__init__.py apps/worker/tests/runtime/test_tools.py apps/worker/tests/runtime/conftest.py
@@ -1203,7 +1203,7 @@ git commit -m "feat(worker): add @tool decorator with auto-schema and registry"
 - Create: `apps/worker/tests/runtime/test_tool_declarations.py`
 - Modify: `packages/llm/src/llm/base.py` — add `build_tool_declarations` method
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Tests for Gemini/Ollama tool schema builders."""
@@ -1250,12 +1250,12 @@ async def test_empty_list_returns_empty() -> None:
     assert build_ollama_declarations([]) == []
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd apps/worker && uv run pytest tests/runtime/test_tool_declarations.py -v`
 Expected: ImportError.
 
-- [ ] **Step 3: Implement `src/runtime/tool_declarations.py`**
+- [x] **Step 3: Implement `src/runtime/tool_declarations.py`**
 
 ```python
 """Provider-specific tool schema builders.
@@ -1326,7 +1326,7 @@ def build_ollama_declarations(tools: list[Tool]) -> list[dict[str, Any]]:
 __all__ = ["build_gemini_declarations", "build_ollama_declarations"]
 ```
 
-- [ ] **Step 4: Update `runtime/__init__.py`**
+- [x] **Step 4: Update `runtime/__init__.py`**
 
 Append:
 ```python
@@ -1338,7 +1338,7 @@ Add to `__all__`:
     "build_ollama_declarations",
 ```
 
-- [ ] **Step 5: Modify `packages/llm/src/llm/base.py` — add default method**
+- [x] **Step 5: Modify `packages/llm/src/llm/base.py` — add default method**
 
 Add to the `LLMProvider` ABC:
 
@@ -1368,12 +1368,12 @@ And `ollama.py`:
 
 Note: the `from runtime...` import is lazy (inside method) to avoid circular import — `packages/llm` does not depend on `runtime` at module-load time.
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
 Run: `cd apps/worker && uv run pytest tests/runtime/ -v`
 Expected: all pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/worker/src/runtime/tool_declarations.py apps/worker/src/runtime/__init__.py apps/worker/tests/runtime/test_tool_declarations.py packages/llm/src/llm/base.py packages/llm/src/llm/gemini.py packages/llm/src/llm/ollama.py
@@ -1388,7 +1388,7 @@ git commit -m "feat(llm,worker): add Gemini/Ollama tool declaration builders"
 - Create: `apps/worker/src/runtime/reducers.py`
 - Create: `apps/worker/tests/runtime/test_reducers.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Tests for keep_last_n reducer."""
@@ -1437,12 +1437,12 @@ def test_handles_single_update_not_list() -> None:
     assert merged == [1, 2, 3]
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd apps/worker && uv run pytest tests/runtime/test_reducers.py -v`
 Expected: ImportError.
 
-- [ ] **Step 3: Implement `src/runtime/reducers.py`**
+- [x] **Step 3: Implement `src/runtime/reducers.py`**
 
 ```python
 """Custom LangGraph reducers."""
@@ -1477,7 +1477,7 @@ def keep_last_n(n: int) -> Callable[[list[T], list[T] | T], list[T]]:
 __all__ = ["keep_last_n"]
 ```
 
-- [ ] **Step 4: Update `runtime/__init__.py`**
+- [x] **Step 4: Update `runtime/__init__.py`**
 
 Append:
 ```python
@@ -1485,12 +1485,12 @@ from runtime.reducers import keep_last_n
 ```
 Add `"keep_last_n"` to `__all__`.
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run: `cd apps/worker && uv run pytest tests/runtime/test_reducers.py -v`
 Expected: all pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/worker/src/runtime/reducers.py apps/worker/src/runtime/__init__.py apps/worker/tests/runtime/test_reducers.py
@@ -1505,7 +1505,7 @@ git commit -m "feat(worker): add keep_last_n LangGraph reducer"
 - Create: `apps/worker/src/runtime/hooks.py`
 - Create: `apps/worker/tests/runtime/test_hooks.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Tests for hook system — registration, scope resolution, short-circuit semantics."""
@@ -1666,12 +1666,12 @@ async def test_tool_hook_before_can_replace_result(ctx: ToolContext) -> None:
     assert result == {"cached": True}
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd apps/worker && uv run pytest tests/runtime/test_hooks.py -v`
 Expected: ImportError.
 
-- [ ] **Step 3: Implement `src/runtime/hooks.py`**
+- [x] **Step 3: Implement `src/runtime/hooks.py`**
 
 ```python
 """Hook system — 3-tier ABCs (agent/model/tool), scope-based registry, onion execution.
@@ -1886,7 +1886,7 @@ __all__ = [
 ]
 ```
 
-- [ ] **Step 4: Update `runtime/__init__.py`**
+- [x] **Step 4: Update `runtime/__init__.py`**
 
 Append:
 ```python
@@ -1897,12 +1897,12 @@ Add to `__all__`:
     "AgentHook", "HookChain", "HookRegistry", "ModelHook", "ModelRequest", "ModelResponse", "ToolHook",
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run: `cd apps/worker && uv run pytest tests/runtime/test_hooks.py -v`
 Expected: 7 tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/worker/src/runtime/hooks.py apps/worker/src/runtime/__init__.py apps/worker/tests/runtime/test_hooks.py
@@ -1918,7 +1918,7 @@ git commit -m "feat(worker): add 3-tier hook system with scope-based registry"
 - Create: `apps/worker/src/runtime/langgraph_bridge.py`
 - Create: `apps/worker/tests/runtime/test_agent.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Tests for Agent ABC and stream_graph_as_events adapter."""
@@ -1973,12 +1973,12 @@ async def test_subclass_yields_events() -> None:
     assert events[2].type == "agent_end"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd apps/worker && uv run pytest tests/runtime/test_agent.py -v`
 Expected: ImportError.
 
-- [ ] **Step 3: Implement `src/runtime/agent.py`**
+- [x] **Step 3: Implement `src/runtime/agent.py`**
 
 ```python
 """Agent base class — contract for all 12 OpenCairn agents."""
@@ -2020,7 +2020,7 @@ class Agent(ABC):
 __all__ = ["Agent"]
 ```
 
-- [ ] **Step 4: Implement `src/runtime/langgraph_bridge.py` (adapter)**
+- [x] **Step 4: Implement `src/runtime/langgraph_bridge.py` (adapter)**
 
 ```python
 """LangGraph astream_events → AgentEvent adapter.
@@ -2194,7 +2194,7 @@ def _is_retryable(err: Exception) -> bool:
 __all__ = ["stream_graph_as_events"]
 ```
 
-- [ ] **Step 5: Update `runtime/__init__.py`**
+- [x] **Step 5: Update `runtime/__init__.py`**
 
 Append:
 ```python
@@ -2207,12 +2207,12 @@ Add to `__all__`:
     "stream_graph_as_events",
 ```
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
 Run: `cd apps/worker && uv run pytest tests/runtime/test_agent.py -v`
 Expected: all pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/worker/src/runtime/agent.py apps/worker/src/runtime/langgraph_bridge.py apps/worker/src/runtime/__init__.py apps/worker/tests/runtime/test_agent.py
@@ -2229,7 +2229,7 @@ git commit -m "feat(worker): add Agent ABC and LangGraph→AgentEvent adapter"
 - Create: `packages/db/drizzle/<timestamp>_agent_runs.sql`
 - Create: `packages/db/tests/agent-runs.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 import { describe, expect, test } from "vitest";
@@ -2253,12 +2253,12 @@ describe("agent_runs schema", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter @opencairn/db test agent-runs`
 Expected: module not found.
 
-- [ ] **Step 3: Implement `packages/db/src/schema/agent-runs.ts`**
+- [x] **Step 3: Implement `packages/db/src/schema/agent-runs.ts`**
 
 ```typescript
 import { sql } from "drizzle-orm";
@@ -2315,14 +2315,14 @@ export type AgentRun = typeof agentRuns.$inferSelect;
 export type NewAgentRun = typeof agentRuns.$inferInsert;
 ```
 
-- [ ] **Step 4: Modify `packages/db/src/schema/index.ts` to re-export**
+- [x] **Step 4: Modify `packages/db/src/schema/index.ts` to re-export**
 
 Add:
 ```typescript
 export * from "./agent-runs";
 ```
 
-- [ ] **Step 5: Generate migration**
+- [x] **Step 5: Generate migration**
 
 Run:
 ```bash
@@ -2330,12 +2330,12 @@ pnpm --filter @opencairn/db db:generate
 ```
 Inspect the generated SQL in `packages/db/drizzle/<timestamp>_*.sql`. Verify it creates `agent_runs` table and 3 indexes.
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
 Run: `pnpm --filter @opencairn/db test agent-runs && pnpm --filter @opencairn/db typecheck`
 Expected: tests pass, typecheck clean.
 
-- [ ] **Step 7: Apply migration locally**
+- [x] **Step 7: Apply migration locally**
 
 Run:
 ```bash
@@ -2343,7 +2343,7 @@ pnpm db:migrate
 ```
 Verify: `psql $DATABASE_URL -c "\d agent_runs"` shows 20 columns + 3 indexes.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add packages/db/src/schema/agent-runs.ts packages/db/src/schema/index.ts packages/db/drizzle/ packages/db/tests/agent-runs.test.ts
@@ -2358,7 +2358,7 @@ git commit -m "feat(db): add agent_runs table with handoff tree + trajectory poi
 - Create: `apps/worker/src/runtime/trajectory.py`
 - Create: `apps/worker/tests/runtime/test_trajectory_local.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Tests for LocalFSTrajectoryStorage — NDJSON write, read, atomic rename."""
@@ -2449,12 +2449,12 @@ async def test_buffer_flushes_on_agent_end(tmp_trajectory_dir: Path) -> None:
     assert len(files_after) == 1
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd apps/worker && uv run pytest tests/runtime/test_trajectory_local.py -v`
 Expected: ImportError.
 
-- [ ] **Step 3: Implement `src/runtime/trajectory.py`**
+- [x] **Step 3: Implement `src/runtime/trajectory.py`**
 
 ```python
 """Trajectory storage — Protocol + LocalFSTrajectoryStorage + TrajectoryWriter.
@@ -2598,7 +2598,7 @@ __all__ = [
 ]
 ```
 
-- [ ] **Step 4: Update `runtime/__init__.py`**
+- [x] **Step 4: Update `runtime/__init__.py`**
 
 Append:
 ```python
@@ -2612,12 +2612,12 @@ Add to `__all__`:
     "resolve_storage_from_env",
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run: `cd apps/worker && uv run pytest tests/runtime/test_trajectory_local.py -v`
 Expected: 5 tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/worker/src/runtime/trajectory.py apps/worker/src/runtime/__init__.py apps/worker/tests/runtime/test_trajectory_local.py
@@ -2632,7 +2632,7 @@ git commit -m "feat(worker): add LocalFS trajectory storage with buffered NDJSON
 - Create: `apps/worker/src/runtime/default_hooks.py`
 - Create: `apps/worker/tests/runtime/test_default_hooks.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Tests for default global hooks."""
@@ -2714,12 +2714,12 @@ async def test_token_counter_aggregates_cost(ctx: ToolContext) -> None:
     assert totals.cost_krw == 17
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd apps/worker && uv run pytest tests/runtime/test_default_hooks.py -v`
 Expected: ImportError.
 
-- [ ] **Step 3: Implement `src/runtime/default_hooks.py`**
+- [x] **Step 3: Implement `src/runtime/default_hooks.py`**
 
 ```python
 """Default global hooks — trajectory writer, token counter, Sentry, latency."""
@@ -2882,12 +2882,12 @@ class SentryHook(AgentHook, ModelHook, ToolHook):
 __all__ = ["RunTotals", "SentryHook", "TokenCounterHook", "TrajectoryWriterHook"]
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd apps/worker && uv run pytest tests/runtime/test_default_hooks.py -v`
 Expected: 2 tests PASS.
 
-- [ ] **Step 5: Update `runtime/__init__.py`**
+- [x] **Step 5: Update `runtime/__init__.py`**
 
 Append:
 ```python
@@ -2895,7 +2895,7 @@ from runtime.default_hooks import RunTotals, SentryHook, TokenCounterHook, Traje
 ```
 Add to `__all__`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/worker/src/runtime/default_hooks.py apps/worker/src/runtime/__init__.py apps/worker/tests/runtime/test_default_hooks.py
@@ -2910,7 +2910,7 @@ git commit -m "feat(worker): add default hooks (trajectory writer, token counter
 - Create: `apps/worker/src/runtime/temporal.py`
 - Create: `apps/worker/tests/runtime/test_temporal_helpers.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 """Tests for Temporal helpers."""
@@ -2941,12 +2941,12 @@ def test_awaiting_input_error_is_exception() -> None:
         raise AgentAwaitingInputError(interrupt_id="i", prompt="?")
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd apps/worker && uv run pytest tests/runtime/test_temporal_helpers.py -v`
 Expected: ImportError.
 
-- [ ] **Step 3: Implement `src/runtime/temporal.py`**
+- [x] **Step 3: Implement `src/runtime/temporal.py`**
 
 ```python
 """Temporal integration helpers."""
@@ -2982,7 +2982,7 @@ class AgentAwaitingInputError(Exception):
 __all__ = ["AgentAwaitingInputError", "make_thread_id"]
 ```
 
-- [ ] **Step 4: Update `runtime/__init__.py`**
+- [x] **Step 4: Update `runtime/__init__.py`**
 
 Append:
 ```python
@@ -2990,12 +2990,12 @@ from runtime.temporal import AgentAwaitingInputError, make_thread_id
 ```
 Add to `__all__`.
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run: `cd apps/worker && uv run pytest tests/runtime/test_temporal_helpers.py -v`
 Expected: 4 tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/worker/src/runtime/temporal.py apps/worker/src/runtime/__init__.py apps/worker/tests/runtime/test_temporal_helpers.py
@@ -3017,7 +3017,7 @@ git commit -m "feat(worker): add make_thread_id + AgentAwaitingInputError"
 - Create: `apps/worker/tests/runtime/test_eval_runner.py`
 - Create: `apps/worker/eval/research/basic_scope_respect.yaml` (sample)
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `tests/runtime/test_eval_case.py`:
 ```python
@@ -3193,12 +3193,12 @@ async def test_runner_passes_clean_trajectory() -> None:
     result.assert_passed(DEFAULT_CRITERIA)
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd apps/worker && uv run pytest tests/runtime/test_eval_case.py tests/runtime/test_eval_metrics.py tests/runtime/test_eval_runner.py -v`
 Expected: ImportError on `runtime.eval`.
 
-- [ ] **Step 3: Implement `src/runtime/eval/__init__.py`**
+- [x] **Step 3: Implement `src/runtime/eval/__init__.py`**
 
 ```python
 """Eval framework — trajectory-based agent tests."""
@@ -3221,7 +3221,7 @@ __all__ = [
 ]
 ```
 
-- [ ] **Step 4: Implement `src/runtime/eval/case.py`**
+- [x] **Step 4: Implement `src/runtime/eval/case.py`**
 
 ```python
 """EvalCase data models."""
@@ -3268,7 +3268,7 @@ class EvalCase(BaseModel):
 __all__ = ["EvalCase", "ExpectedHandoff", "ExpectedToolCall"]
 ```
 
-- [ ] **Step 5: Implement `src/runtime/eval/loader.py`**
+- [x] **Step 5: Implement `src/runtime/eval/loader.py`**
 
 ```python
 """YAML case loader."""
@@ -3295,7 +3295,7 @@ def load_cases(dir_path: str | Path) -> list[EvalCase]:
 __all__ = ["load_case_file", "load_cases"]
 ```
 
-- [ ] **Step 6: Implement `src/runtime/eval/metrics.py`**
+- [x] **Step 6: Implement `src/runtime/eval/metrics.py`**
 
 ```python
 """Trajectory scoring — tool match, forbidden, handoff, response, budgets."""
@@ -3392,7 +3392,7 @@ def score_trajectory(
 __all__ = ["ScoreResult", "score_trajectory"]
 ```
 
-- [ ] **Step 7: Implement `src/runtime/eval/runner.py`**
+- [x] **Step 7: Implement `src/runtime/eval/runner.py`**
 
 ```python
 """AgentEvaluator — runs an Agent against an EvalCase and scores the trajectory."""
@@ -3481,7 +3481,7 @@ def _default_ctx(case: EvalCase) -> ToolContext:
 __all__ = ["AgentEvaluator", "DEFAULT_CRITERIA", "EvalResult"]
 ```
 
-- [ ] **Step 8: Create sample eval case**
+- [x] **Step 8: Create sample eval case**
 
 `apps/worker/eval/research/basic_scope_respect.yaml`:
 ```yaml
@@ -3504,7 +3504,7 @@ response_contains:
 max_cost_krw: 200
 ```
 
-- [ ] **Step 9: Update `runtime/__init__.py`**
+- [x] **Step 9: Update `runtime/__init__.py`**
 
 Append:
 ```python
@@ -3512,12 +3512,12 @@ from runtime.eval import AgentEvaluator, DEFAULT_CRITERIA, EvalCase, ExpectedToo
 ```
 Add to `__all__`.
 
-- [ ] **Step 10: Run tests**
+- [x] **Step 10: Run tests**
 
 Run: `cd apps/worker && uv run pytest tests/runtime/test_eval_case.py tests/runtime/test_eval_metrics.py tests/runtime/test_eval_runner.py -v`
 Expected: all pass.
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 git add apps/worker/src/runtime/eval/ apps/worker/eval/ apps/worker/tests/runtime/test_eval_case.py apps/worker/tests/runtime/test_eval_metrics.py apps/worker/tests/runtime/test_eval_runner.py apps/worker/src/runtime/__init__.py
@@ -3533,7 +3533,7 @@ git commit -m "feat(worker): add trajectory-based eval framework (case/metrics/r
 - Create: `apps/worker/scripts/check_import_boundaries.py`
 - Modify: `docs/contributing/llm-antipatterns.md`
 
-- [ ] **Step 1: Create import boundary checker**
+- [x] **Step 1: Create import boundary checker**
 
 `apps/worker/scripts/check_import_boundaries.py`:
 ```python
@@ -3591,7 +3591,7 @@ if __name__ == "__main__":
     sys.exit(main())
 ```
 
-- [ ] **Step 2: Add script to pyproject**
+- [x] **Step 2: Add script to pyproject**
 
 Edit `apps/worker/pyproject.toml`, add to `[tool.uv]` or as alias via shell. Add shell entry:
 ```toml
@@ -3599,12 +3599,12 @@ Edit `apps/worker/pyproject.toml`, add to `[tool.uv]` or as alias via shell. Add
 check-import-boundaries = "scripts.check_import_boundaries:main"
 ```
 
-- [ ] **Step 3: Run checker (expect skip)**
+- [x] **Step 3: Run checker (expect skip)**
 
 Run: `cd apps/worker && uv run python scripts/check_import_boundaries.py`
 Expected: "agents dir ... does not exist — skipping".
 
-- [ ] **Step 4: Update `docs/contributing/llm-antipatterns.md`**
+- [x] **Step 4: Update `docs/contributing/llm-antipatterns.md`**
 
 Append section at the end of the file (create file if missing, with a single top heading `# LLM Antipatterns`):
 
@@ -3668,7 +3668,7 @@ LangGraph checkpoint race. Use `make_thread_id(workflow_id, agent_name, parent_r
 OpenCairn's `LangGraphBridgeCallback` is the single attach point. Agents register via `HookRegistry`, not by calling `graph.compile(callbacks=[...])`.
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/worker/scripts/check_import_boundaries.py apps/worker/pyproject.toml docs/contributing/llm-antipatterns.md
@@ -3682,7 +3682,7 @@ git commit -m "chore(worker,docs): add import boundary check + runtime antipatte
 **Files:**
 - Create: `apps/worker/tests/runtime/test_integration_echo_agent.py`
 
-- [ ] **Step 1: Write the integration test**
+- [x] **Step 1: Write the integration test**
 
 ```python
 """End-to-end: EchoAgent runs with full hook chain, writes trajectory,
@@ -3819,17 +3819,17 @@ async def test_full_pipeline(tmp_trajectory_dir: Path) -> None:
     assert scores.cost_within_budget == 1.0
 ```
 
-- [ ] **Step 2: Run the test**
+- [x] **Step 2: Run the test**
 
 Run: `cd apps/worker && uv run pytest tests/runtime/test_integration_echo_agent.py -v`
 Expected: PASS.
 
-- [ ] **Step 3: Run full test suite**
+- [x] **Step 3: Run full test suite**
 
 Run: `cd apps/worker && uv run pytest tests/runtime/ -v`
 Expected: all previous tasks' tests + integration PASS. No failures.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/worker/tests/runtime/test_integration_echo_agent.py
@@ -3846,12 +3846,12 @@ git commit -m "test(worker): add end-to-end EchoAgent integration smoke"
 - Modify: `docs/superpowers/plans/2026-04-09-plan-1-foundation.md`
 - Modify: `CLAUDE.md`
 
-- [ ] **Step 1: Update Plan 4 Task 0 prerequisites**
+- [x] **Step 1: Update Plan 4 Task 0 prerequisites**
 
 Edit `docs/superpowers/plans/2026-04-09-plan-4-agent-core.md` — insert after the existing "Step 4: VECTOR_DIM env 일관성 검증" but before "위 4단계 중 하나라도 실패하면 STOP":
 
 ```markdown
-- [ ] **Step 5: Plan 12 (Agent Runtime) prerequisite 검증**
+- [x] **Step 5: Plan 12 (Agent Runtime) prerequisite 검증**
 
 `apps/worker/src/runtime/` 패키지가 구축되어 있고 `from runtime import Agent, tool, AgentEvent` 가 성공해야 함.
 
@@ -3863,14 +3863,14 @@ Expected: "OK". ImportError면 Plan 12 미완.
 
 Change the "위 4단계" to "위 5단계".
 
-- [ ] **Step 2: Add Plan 12 reference in Plan 4 header block**
+- [x] **Step 2: Add Plan 12 reference in Plan 4 header block**
 
 Add to the top-of-file update notes:
 ```markdown
 > **⚠️ Agent Runtime Standard (2026-04-20):** 본 plan의 Compiler/Research/Librarian은 `runtime.Agent` 서브클래스 패턴을 따른다. 직접 `langgraph.StateGraph`를 노출하지 말고 내부 구현으로 숨긴다. Plan 12 (`2026-04-20-plan-12-agent-runtime.md`)를 먼저 완료해야 한다.
 ```
 
-- [ ] **Step 3: Update multi-llm plan**
+- [x] **Step 3: Update multi-llm plan**
 
 Edit `docs/superpowers/plans/2026-04-13-multi-llm-provider.md`. Add a Task near the end (after current last task):
 
@@ -3885,7 +3885,7 @@ Edit `docs/superpowers/plans/2026-04-13-multi-llm-provider.md`. Add a Task near 
 Add `build_tool_declarations(tools: list) -> list[dict]` method. Default raises NotImplementedError; Gemini and Ollama implement via `runtime.tool_declarations` (lazy import to avoid circular). See Plan 12 Task 5.
 ```
 
-- [ ] **Step 4: Update Plan 1 to include agent_runs**
+- [x] **Step 4: Update Plan 1 to include agent_runs**
 
 Edit `docs/superpowers/plans/2026-04-09-plan-1-foundation.md`. In the DB schema task list, add:
 
@@ -3893,7 +3893,7 @@ Edit `docs/superpowers/plans/2026-04-09-plan-1-foundation.md`. In the DB schema 
 Note: `packages/db/src/schema/agent-runs.ts` is built in Plan 12 Task 9 (after Plan 1 establishes workspaces/users/projects/pages tables). Plan 1 does NOT need to create it.
 ```
 
-- [ ] **Step 5: Update CLAUDE.md Implementation Plans table**
+- [x] **Step 5: Update CLAUDE.md Implementation Plans table**
 
 Edit `CLAUDE.md` — add row in the Phase 0 section (after multi-llm-provider row):
 
@@ -3903,7 +3903,7 @@ Edit `CLAUDE.md` — add row in the Phase 0 section (after multi-llm-provider ro
 
 Update the Phase 1 rows that mention Plan 4-dependent plans to note "Plan 12 후" as prerequisite.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add docs/superpowers/plans/2026-04-09-plan-4-agent-core.md docs/superpowers/plans/2026-04-13-multi-llm-provider.md docs/superpowers/plans/2026-04-09-plan-1-foundation.md CLAUDE.md
@@ -3914,27 +3914,27 @@ git commit -m "docs(plans): cross-reference Plan 12 as prerequisite for Plans 4/
 
 ## Final Verification
 
-- [ ] **Step 1: Run full test suite**
+- [x] **Step 1: Run full test suite**
 
 Run: `cd apps/worker && uv run pytest -v`
 Expected: all tests PASS.
 
-- [ ] **Step 2: Type check**
+- [x] **Step 2: Type check**
 
 Run: `cd apps/worker && uv run pyright src/runtime`
 Expected: 0 errors.
 
-- [ ] **Step 3: Ruff lint**
+- [x] **Step 3: Ruff lint**
 
 Run: `cd apps/worker && uv run ruff check src/runtime tests/runtime`
 Expected: 0 violations.
 
-- [ ] **Step 4: Import boundary check**
+- [x] **Step 4: Import boundary check**
 
 Run: `cd apps/worker && uv run python scripts/check_import_boundaries.py`
 Expected: "OK — no direct langgraph/langchain imports" (or "agents dir does not exist — skipping" before Plan 4).
 
-- [ ] **Step 5: Public API smoke**
+- [x] **Step 5: Public API smoke**
 
 Run:
 ```bash
@@ -3956,7 +3956,7 @@ print('Public API OK')
 ```
 Expected: "Public API OK".
 
-- [ ] **Step 6: Confirm no regressions in packages/llm or packages/db**
+- [x] **Step 6: Confirm no regressions in packages/llm or packages/db**
 
 Run:
 ```bash
@@ -3966,7 +3966,7 @@ cd packages/llm && uv run pytest && cd ../..
 ```
 Expected: all green.
 
-- [ ] **Step 7: Ready for Plan 4**
+- [x] **Step 7: Ready for Plan 4**
 
 Update memory:
 ```bash
