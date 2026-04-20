@@ -8,9 +8,9 @@ from typing import Any
 @dataclass
 class ProviderConfig:
     provider: str
-    api_key: str | None
-    model: str
-    embed_model: str
+    api_key: str | None = field(default=None, repr=False)  # never leak keys via repr/logs
+    model: str = ""
+    embed_model: str = ""
     tts_model: str | None = None
     base_url: str | None = None
     extra: dict[str, Any] = field(default_factory=dict)
@@ -47,7 +47,7 @@ class LLMProvider(ABC):
     @abstractmethod
     async def embed(self, inputs: list[EmbedInput]) -> list[list[float]]: ...
 
-    async def cache_context(self, content: str) -> str | None:
+    async def cache_context(self, content: str, ttl: str | None = None) -> str | None:
         return None
 
     async def think(self, prompt: str) -> ThinkingResult | None:

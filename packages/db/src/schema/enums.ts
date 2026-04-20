@@ -35,3 +35,9 @@ export const conversationScopeEnum = pgEnum("conversation_scope", [
 ]);
 
 export const messageRoleEnum = pgEnum("message_role", ["user", "assistant"]);
+
+// OpenAI is intentionally excluded (2026-04-15 decision — see
+// docs/superpowers/specs/2026-04-13-multi-llm-provider-design.md). Enforced
+// at DB layer so API routes can't write a string the factory will reject
+// at request time.
+export const llmProviderEnum = pgEnum("llm_provider_kind", ["gemini", "ollama"]);

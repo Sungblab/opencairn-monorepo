@@ -52,6 +52,7 @@ def test_get_provider_openai_raises():
 
 
 def test_get_provider_from_env(monkeypatch):
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
     monkeypatch.setenv("LLM_MODEL", "llama3")
     monkeypatch.setenv("EMBED_MODEL", "nomic-embed-text")

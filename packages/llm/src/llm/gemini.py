@@ -29,6 +29,12 @@ class GeminiProvider(LLMProvider):
         self._client = genai.Client(api_key=config.api_key)
 
     async def generate(self, messages: list[dict], **kwargs) -> str:
+        """Plain-text chat completion.
+
+        Returns `response.text`; callers needing tool use, grounded search,
+        or audio output should use `think()` / `ground_search()` / `tts()`
+        where the response is iterated part-by-part instead of flattened.
+        """
         contents = [
             types.Content(
                 role=m["role"],
@@ -62,10 +68,18 @@ class GeminiProvider(LLMProvider):
         )
         return [list(e.values) for e in response.embeddings]
 
-    async def cache_context(self, content: str) -> str | None:
+    async def cache_context(self, content: str, ttl: str | None = None) -> str | None:
+        # The SDK wants cache options nested under CreateCachedContentConfig,
+        # not as top-level kwargs. TTL is optional; callers who want long-
+        # lived caches (Research / Librarian agents) pass e.g. "3600s".
+        cfg_kwargs: dict = {
+            "contents": [types.Content(role="user", parts=[types.Part(text=content)])]
+        }
+        if ttl:
+            cfg_kwargs["ttl"] = ttl
         cached = await self._client.aio.caches.create(
             model=self.config.model,
-            contents=[types.Content(role="user", parts=[types.Part(text=content)])],
+            config=types.CreateCachedContentConfig(**cfg_kwargs),
         )
         return cached.name
 
@@ -124,8 +138,13 @@ class GeminiProvider(LLMProvider):
                 ),
             ),
         )
-        # Gemini returns PCM audio via the inline_data of the first candidate part.
-        return response.candidates[0].content.parts[0].inline_data.data
+        # Real TTS responses may lead with a text part (safety / meta) before
+        # the audio blob, so iterate rather than blindly indexing parts[0].
+        for part in response.candidates[0].content.parts:
+            inline = getattr(part, "inline_data", None)
+            if inline and getattr(inline, "data", None):
+                return inline.data
+        return None
 
     async def transcribe(self, audio: bytes) -> str | None:
         response = await self._client.aio.models.generate_content(

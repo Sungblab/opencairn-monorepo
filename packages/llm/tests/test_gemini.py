@@ -70,13 +70,34 @@ async def test_think_returns_thinking_result(provider):
 
 
 @pytest.mark.asyncio
+async def test_cache_context_wraps_in_config(provider):
+    # Must pass options via CreateCachedContentConfig, not top-level kwargs.
+    from google.genai import types
+
+    mock_cache = MagicMock()
+    mock_cache.name = "cachedContents/abc"
+    with patch.object(
+        provider._client.aio.caches,
+        "create",
+        new=AsyncMock(return_value=mock_cache),
+    ) as mocked:
+        result = await provider.cache_context("long system prompt", ttl="3600s")
+    assert result == "cachedContents/abc"
+    kwargs = mocked.await_args.kwargs
+    assert "contents" not in kwargs, "contents must be nested under config"
+    assert isinstance(kwargs["config"], types.CreateCachedContentConfig)
+
+
+@pytest.mark.asyncio
 async def test_tts_returns_bytes(provider):
-    # Real Gemini TTS response path: candidates[0].content.parts[0].inline_data.data
+    # Real Gemini TTS response may lead with a text part before the audio
+    # blob — we iterate parts, not blindly index [0].
     mock_response = MagicMock()
-    part = MagicMock()
-    part.inline_data.data = b"audio-bytes"
+    text_part = MagicMock(inline_data=None)
+    audio_part = MagicMock()
+    audio_part.inline_data.data = b"audio-bytes"
     mock_response.candidates = [MagicMock()]
-    mock_response.candidates[0].content.parts = [part]
+    mock_response.candidates[0].content.parts = [text_part, audio_part]
     with patch.object(
         provider._client.aio.models,
         "generate_content",

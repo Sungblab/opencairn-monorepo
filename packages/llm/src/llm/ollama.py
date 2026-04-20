@@ -11,20 +11,28 @@ class OllamaProvider(LLMProvider):
     def __init__(self, config: ProviderConfig) -> None:
         super().__init__(config)
         self._base = (config.base_url or OLLAMA_DEFAULT_URL).rstrip("/")
+        # Single shared client — ingest embeds thousands of chunks per doc,
+        # so a new AsyncClient per call would burn TLS handshakes + FDs.
+        # `connect` is short; `read` is long to cover CPU-bound local generates.
+        self._http = httpx.AsyncClient(
+            base_url=self._base,
+            timeout=httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=5.0),
+        )
+
+    async def aclose(self) -> None:
+        await self._http.aclose()
 
     async def generate(self, messages: list[dict], **kwargs) -> str:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{self._base}/api/chat",
-                json={
-                    "model": self.config.model,
-                    "messages": messages,
-                    "stream": False,
-                },
-                timeout=120,
-            )
-            response.raise_for_status()
-            return response.json()["message"]["content"]
+        response = await self._http.post(
+            "/api/chat",
+            json={
+                "model": self.config.model,
+                "messages": messages,
+                "stream": False,
+            },
+        )
+        response.raise_for_status()
+        return response.json()["message"]["content"]
 
     async def embed(self, inputs: list[EmbedInput]) -> list[list[float]]:
         # Ollama's embed endpoint is text-only. Fail loudly rather than
@@ -36,11 +44,9 @@ class OllamaProvider(LLMProvider):
                     "route multimodal inputs through GeminiProvider or ingest."
                 )
         texts = [inp.text or "" for inp in inputs]
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{self._base}/api/embed",
-                json={"model": self.config.embed_model, "input": texts},
-                timeout=60,
-            )
-            response.raise_for_status()
-            return response.json()["embeddings"]
+        response = await self._http.post(
+            "/api/embed",
+            json={"model": self.config.embed_model, "input": texts},
+        )
+        response.raise_for_status()
+        return response.json()["embeddings"]
