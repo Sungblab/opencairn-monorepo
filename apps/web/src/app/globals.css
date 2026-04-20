@@ -2,9 +2,9 @@
 
 /* ═══ Brand fonts & runtime color tokens ═══ */
 @theme {
-  --font-serif: "Instrument Serif", Georgia, serif;
-  --font-sans: "Inter", "Pretendard Variable", Pretendard, -apple-system, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-serif: var(--font-serif-raw), Georgia, serif;
+  --font-sans: var(--font-sans-raw), "Pretendard Variable", Pretendard, -apple-system, system-ui, sans-serif;
+  --font-mono: var(--font-mono-raw), ui-monospace, monospace;
 
   /* Color tokens — indirection through --theme-* (data-theme supplies real values) */
   --color-bg: var(--theme-bg);
