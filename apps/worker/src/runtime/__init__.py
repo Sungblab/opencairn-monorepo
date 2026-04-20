@@ -1,4 +1,5 @@
 """OpenCairn agent runtime — thin facade over LangGraph + langchain-core."""
+from runtime.agent import Agent
 from runtime.events import (
     AgentEnd,
     AgentError,
@@ -12,6 +13,7 @@ from runtime.events import (
     ToolResult,
     ToolUse,
 )
+from runtime.langgraph_bridge import stream_graph_as_events
 from runtime.hooks import (
     AgentHook,
     HookChain,
@@ -31,6 +33,7 @@ from runtime.tools import (
 )
 
 __all__ = [
+    "Agent",
     "AgentEnd",
     "AgentError",
     "AgentEvent",
@@ -54,5 +57,6 @@ __all__ = [
     "get_tool",
     "get_tools_for_agent",
     "hash_input",
+    "stream_graph_as_events",
     "tool",
 ]
