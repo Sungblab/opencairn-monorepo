@@ -45,6 +45,7 @@ coverage/
 # Session artifacts
 .playwright-mcp/
 .claude/local/
+.worktrees/
 
 # Docker volumes (local dev)
 backups/
