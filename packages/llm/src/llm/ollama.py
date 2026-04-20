@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import httpx
 
 from .base import EmbedInput, LLMProvider, ProviderConfig
@@ -50,3 +52,10 @@ class OllamaProvider(LLMProvider):
         )
         response.raise_for_status()
         return response.json()["embeddings"]
+
+    def build_tool_declarations(self, tools: list[Any]) -> list[dict[str, Any]]:
+        # Lazy import keeps packages/llm free of a module-load dependency
+        # on the agent runtime; the concrete type is runtime.tools.Tool.
+        from runtime.tool_declarations import build_ollama_declarations
+
+        return build_ollama_declarations(tools)

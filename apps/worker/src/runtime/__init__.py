@@ -35,6 +35,10 @@ from runtime.hooks import (
     ModelResponse,
     ToolHook,
 )
+from runtime.tool_declarations import (
+    build_gemini_declarations,
+    build_ollama_declarations,
+)
 from runtime.tools import (
     Tool,
     ToolContext,
@@ -82,6 +86,8 @@ __all__ = [
     "ToolUse",
     "TrajectoryStorage",
     "TrajectoryWriter",
+    "build_gemini_declarations",
+    "build_ollama_declarations",
     "get_tool",
     "get_tools_for_agent",
     "hash_input",
