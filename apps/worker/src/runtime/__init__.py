@@ -1,5 +1,12 @@
 """OpenCairn agent runtime — thin facade over LangGraph + langchain-core."""
 from runtime.agent import Agent
+from runtime.default_hooks import (
+    LatencyHook,
+    RunTotals,
+    SentryHook,
+    TokenCounterHook,
+    TrajectoryWriterHook,
+)
 from runtime.eval import (
     AgentEvaluator,
     DEFAULT_CRITERIA,
@@ -72,13 +79,17 @@ __all__ = [
     "Handoff",
     "HookChain",
     "HookRegistry",
+    "LatencyHook",
     "LocalFSTrajectoryStorage",
     "ModelEnd",
     "ModelHook",
     "ModelRequest",
     "ModelResponse",
+    "RunTotals",
     "Scope",
     "ScoreResult",
+    "SentryHook",
+    "TokenCounterHook",
     "Tool",
     "ToolContext",
     "ToolHook",
@@ -86,6 +97,7 @@ __all__ = [
     "ToolUse",
     "TrajectoryStorage",
     "TrajectoryWriter",
+    "TrajectoryWriterHook",
     "build_gemini_declarations",
     "build_ollama_declarations",
     "get_tool",
