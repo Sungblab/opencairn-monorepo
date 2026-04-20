@@ -786,7 +786,6 @@ export const pagePermissions = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     role: pageRoleEnum("role").notNull(),
-    inheritParent: boolean("inherit_parent").notNull().default(true),
     grantedBy: text("granted_by").references(() => user.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },

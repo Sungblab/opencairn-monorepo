@@ -122,7 +122,7 @@ Cookie: better_auth.session_token=<token>
 | PUT | /api/projects/:id/permissions | project `editor` | 사용자 권한 부여 | `{ userId, role }` |
 | DELETE | /api/projects/:id/permissions/:userId | project `editor` | 권한 해제 | - |
 | GET | /api/notes/:id/permissions | page `viewer` | 페이지 권한 목록 | - |
-| PUT | /api/notes/:id/permissions | page `editor` | 페이지 권한 부여 | `{ userId, role, inheritParent }` |
+| PUT | /api/notes/:id/permissions | page `editor` | 페이지 권한 부여 | `{ userId, role }` |
 | DELETE | /api/notes/:id/permissions/:userId | page `editor` | 페이지 권한 해제 | - |
 
 ### Projects

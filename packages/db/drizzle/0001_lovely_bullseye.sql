@@ -1,0 +1,1 @@
+ALTER TABLE "page_permissions" DROP COLUMN "inherit_parent";

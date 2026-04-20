@@ -84,7 +84,6 @@ page_permissions
   page_id         uuid FK → notes.id ON DELETE CASCADE
   user_id         text FK → users.id NULLABLE
   role            enum (editor, viewer, none)    -- 'none'으로 명시적 접근 차단
-  inherit_parent  boolean NOT NULL DEFAULT true  -- false면 상속 끊고 독립 관리
   granted_by      text FK → users.id
   created_at      timestamptz
   UNIQUE (page_id, user_id)

@@ -8,6 +8,13 @@
       "when": 1776667831873,
       "tag": "0000_steady_paper_doll",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1776670519875,
+      "tag": "0001_lovely_bullseye",
+      "breakpoints": true
     }
   ]
 }
