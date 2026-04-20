@@ -1,0 +1,17 @@
+id: research-001
+description: Page scope basic search uses search_pages with scope=page, no out-of-scope fetches
+agent: research
+scope: page
+input:
+  query: "프로젝트에서 쓰인 알고리즘 정리"
+  page_id: page-abc
+expected_tools:
+  - tool_name: search_pages
+    args_match:
+      scope: page
+forbidden_tools:
+  - fetch_url
+  - call_librarian
+response_contains:
+  - 알고리즘
+max_cost_krw: 200

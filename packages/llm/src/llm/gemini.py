@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from google import genai
 from google.genai import types
 
@@ -157,3 +159,10 @@ class GeminiProvider(LLMProvider):
             ],
         )
         return response.text
+
+    def build_tool_declarations(self, tools: list[Any]) -> list[dict[str, Any]]:
+        # Lazy import keeps packages/llm free of a module-load dependency
+        # on the agent runtime; the concrete type is runtime.tools.Tool.
+        from runtime.tool_declarations import build_gemini_declarations
+
+        return build_gemini_declarations(tools)

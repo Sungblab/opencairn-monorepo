@@ -61,3 +61,13 @@ class LLMProvider(ABC):
 
     async def transcribe(self, audio: bytes) -> str | None:
         return None
+
+    # Providers that support tool calling override this. The `tools` list is
+    # typed loosely (`list[Any]`) because `packages/llm` must not import the
+    # agent runtime at module load time — the concrete type is
+    # `list[runtime.tools.Tool]` but that import happens inside the subclass.
+    def build_tool_declarations(self, tools: list[Any]) -> list[dict[str, Any]]:
+        """Return tool schemas in this provider's expected format."""
+        raise NotImplementedError(
+            f"{type(self).__name__} does not support tool calling"
+        )
