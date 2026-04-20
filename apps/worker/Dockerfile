@@ -38,6 +38,17 @@ COPY apps/worker/pyproject.toml apps/worker/uv.lock /app/apps/worker/
 WORKDIR /app/apps/worker
 RUN uv sync --no-dev --frozen
 
+# opendataloader-pdf (Plan 3 Task 3) — Java-based PDF → JSON extractor.
+# The release URL is a placeholder; the ``|| (...)`` fallback keeps the image
+# build green when the URL is unreachable so CI/dev builds don't stall. When
+# the jar is missing the parse_pdf activity will fail at runtime — operators
+# should mount a jar manually at /app/opendataloader-pdf.jar in that case.
+ARG OPENDATALOADER_VERSION=0.3.0
+RUN curl -fL \
+        "https://github.com/opencairn/opendataloader-pdf/releases/download/v${OPENDATALOADER_VERSION}/opendataloader-pdf-${OPENDATALOADER_VERSION}-all.jar" \
+        -o /app/opendataloader-pdf.jar \
+    || (echo "WARN: opendataloader-pdf jar download failed; mount manually at /app/opendataloader-pdf.jar" && touch /app/opendataloader-pdf.jar)
+
 # Application code.
 COPY apps/worker/src /app/apps/worker/src
 COPY apps/worker/scripts /app/apps/worker/scripts

@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from temporalio.client import Client
 from temporalio.worker import Worker
 
+from worker.activities.pdf_activity import parse_pdf
 from worker.workflows.ingest_workflow import IngestWorkflow
 
 load_dotenv()
@@ -29,7 +30,7 @@ async def main() -> None:
         client,
         task_queue=task_queue,
         workflows=[IngestWorkflow],
-        activities=[],  # populated in Plan 3 Tasks 3-10
+        activities=[parse_pdf],  # remaining activities land in Plan 3 Tasks 4-10
     )
     print(f"[worker] Starting Temporal worker on task queue: {task_queue}")
     await worker.run()
