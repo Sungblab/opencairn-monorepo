@@ -2,7 +2,19 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { db, notes, projects, eq } from "@opencairn/db";
+import {
+  db,
+  notes,
+  projects,
+  concepts,
+  conceptEdges,
+  conceptNotes,
+  wikiLogs,
+  eq,
+  and,
+  sql,
+} from "@opencairn/db";
+import { getTemporalClient } from "../lib/temporal-client";
 import type { AppEnv } from "../lib/types";
 
 // Internal-only routes — reachable by worker callbacks on the docker network.
@@ -22,6 +34,17 @@ internal.use("*", async (c, next) => {
   }
   await next();
 });
+
+// `vector(n)` literal for pgvector cosine similarity queries. Drizzle's custom
+// type serialiser already produces `[f1,f2,...]` strings; we wrap them into
+// `::vector` casts at query time.
+function vectorLiteral(values: number[]): string {
+  return `[${values.join(",")}]`;
+}
+
+// ---------------------------------------------------------------------------
+// Plan 3 — source note ingestion callback
+// ---------------------------------------------------------------------------
 
 // NOTE: `userId` and `parentNoteId` are accepted from the worker for audit
 // logging / future threading but are NOT persisted — the `notes` table
@@ -59,6 +82,9 @@ function toPlateDoc(text: string): Record<string, unknown> {
   };
 }
 
+const COMPILER_TASK_QUEUE =
+  process.env.TEMPORAL_COMPILER_TASK_QUEUE ?? "compiler";
+
 internal.post(
   "/source-notes",
   zValidator("json", sourceNoteSchema),
@@ -89,11 +115,33 @@ internal.post(
       isAuto: true,
     });
 
-    // TODO Plan 5: enqueue Compiler Agent workflow when triggerCompiler is true.
+    // Plan 4 — Compiler agent trigger. Kick a Temporal workflow that will
+    // extract concepts from the source note, dedupe against existing project
+    // concepts, and write wiki logs. Best-effort: failure here must not fail
+    // the ingest (the source note itself is already persisted).
     if (body.triggerCompiler) {
-      console.log(
-        `[internal] compiler trigger queued for note ${noteId} (user=${body.userId} project=${body.projectId})`,
-      );
+      try {
+        const client = await getTemporalClient();
+        const workflowId = `compiler-${noteId}`;
+        await client.workflow.start("CompilerWorkflow", {
+          taskQueue: COMPILER_TASK_QUEUE,
+          workflowId,
+          args: [
+            {
+              note_id: noteId,
+              project_id: body.projectId,
+              workspace_id: proj.workspaceId,
+              user_id: body.userId,
+            },
+          ],
+        });
+      } catch (err) {
+        console.warn(
+          `[internal] failed to start CompilerWorkflow for note ${noteId}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
     }
 
     return c.json({ noteId }, 201);
@@ -119,6 +167,231 @@ internal.post(
     const body = c.req.valid("json");
     console.warn("[ingest-failure]", JSON.stringify(body));
     return c.json({ ok: true }, 202);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Plan 4 — Compiler agent support
+// ---------------------------------------------------------------------------
+
+// GET /internal/notes/:id — worker fetches note body + scope metadata so the
+// Compiler agent can operate without shipping the note payload in the
+// workflow input (keeps Temporal history small; content can be MBs).
+internal.get("/notes/:id", async (c) => {
+  const id = c.req.param("id");
+  if (!z.string().uuid().safeParse(id).success) {
+    return c.json({ error: "Invalid note id" }, 400);
+  }
+  const [row] = await db
+    .select({
+      id: notes.id,
+      projectId: notes.projectId,
+      workspaceId: notes.workspaceId,
+      title: notes.title,
+      contentText: notes.contentText,
+      sourceType: notes.sourceType,
+      sourceUrl: notes.sourceUrl,
+      type: notes.type,
+    })
+    .from(notes)
+    .where(eq(notes.id, id));
+  if (!row) return c.json({ error: "Not found" }, 404);
+  return c.json(row);
+});
+
+// POST /internal/concepts/search — vector kNN over a project's concepts.
+// Uses pgvector `<=>` cosine-distance operator; similarity = 1 - distance.
+const conceptSearchSchema = z.object({
+  projectId: z.string().uuid(),
+  embedding: z.array(z.number()),
+  k: z.number().int().positive().max(50).default(10),
+  // Optional name substring pre-filter (case-insensitive) — lets the
+  // compiler do "dedupe by identical name" cheaply before the vector cost.
+  nameIlike: z.string().min(1).max(200).optional(),
+});
+
+internal.post(
+  "/concepts/search",
+  zValidator("json", conceptSearchSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const vec = vectorLiteral(body.embedding);
+
+    // Raw SQL because drizzle's pgvector support is limited.
+    const rows = await db.execute(sql`
+      SELECT
+        id,
+        name,
+        description,
+        1 - (embedding <=> ${vec}::vector) AS similarity
+      FROM concepts
+      WHERE project_id = ${body.projectId}
+        ${body.nameIlike ? sql`AND name ILIKE ${`%${body.nameIlike}%`}` : sql``}
+        AND embedding IS NOT NULL
+      ORDER BY embedding <=> ${vec}::vector ASC
+      LIMIT ${body.k}
+    `);
+
+    // drizzle-orm returns rows under `.rows` for raw queries on node-postgres.
+    const data = (rows as unknown as { rows: Array<Record<string, unknown>> }).rows ?? rows;
+    return c.json({ results: data });
+  },
+);
+
+// POST /internal/concepts/upsert — idempotent upsert by (project_id, name).
+// Returns the concept id and whether the row was newly created. If an
+// existing row is updated, its description is kept unless the incoming one
+// is longer (compiler heuristic — richer descriptions win).
+const conceptUpsertSchema = z.object({
+  projectId: z.string().uuid(),
+  name: z.string().min(1).max(200),
+  description: z.string().default(""),
+  embedding: z.array(z.number()),
+});
+
+internal.post(
+  "/concepts/upsert",
+  zValidator("json", conceptUpsertSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+
+    const [existing] = await db
+      .select({ id: concepts.id, description: concepts.description })
+      .from(concepts)
+      .where(
+        and(
+          eq(concepts.projectId, body.projectId),
+          eq(concepts.name, body.name),
+        ),
+      );
+
+    if (existing) {
+      const currentLen = (existing.description ?? "").length;
+      if (body.description.length > currentLen) {
+        await db
+          .update(concepts)
+          .set({ description: body.description, embedding: body.embedding })
+          .where(eq(concepts.id, existing.id));
+      }
+      return c.json({ id: existing.id, created: false });
+    }
+
+    const id = randomUUID();
+    await db.insert(concepts).values({
+      id,
+      projectId: body.projectId,
+      name: body.name,
+      description: body.description,
+      embedding: body.embedding,
+    });
+    return c.json({ id, created: true }, 201);
+  },
+);
+
+// POST /internal/concept-edges — idempotent edge upsert. Edges have no
+// natural PK, so we dedupe on (source_id, target_id, relation_type). A
+// repeat call strengthens the weight (max of existing and incoming).
+const conceptEdgeSchema = z.object({
+  sourceId: z.string().uuid(),
+  targetId: z.string().uuid(),
+  relationType: z.string().min(1).max(100).default("related-to"),
+  weight: z.number().min(0).max(1).default(1.0),
+  evidenceNoteId: z.string().uuid().nullable().optional(),
+});
+
+internal.post(
+  "/concept-edges",
+  zValidator("json", conceptEdgeSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    if (body.sourceId === body.targetId) {
+      return c.json({ error: "Self-edge not allowed" }, 400);
+    }
+
+    const [existing] = await db
+      .select({ id: conceptEdges.id, weight: conceptEdges.weight })
+      .from(conceptEdges)
+      .where(
+        and(
+          eq(conceptEdges.sourceId, body.sourceId),
+          eq(conceptEdges.targetId, body.targetId),
+          eq(conceptEdges.relationType, body.relationType),
+        ),
+      );
+
+    if (existing) {
+      if (body.weight > existing.weight) {
+        await db
+          .update(conceptEdges)
+          .set({
+            weight: body.weight,
+            evidenceNoteId: body.evidenceNoteId ?? null,
+          })
+          .where(eq(conceptEdges.id, existing.id));
+      }
+      return c.json({ id: existing.id, created: false });
+    }
+
+    const id = randomUUID();
+    await db.insert(conceptEdges).values({
+      id,
+      sourceId: body.sourceId,
+      targetId: body.targetId,
+      relationType: body.relationType,
+      weight: body.weight,
+      evidenceNoteId: body.evidenceNoteId ?? null,
+    });
+    return c.json({ id, created: true }, 201);
+  },
+);
+
+// POST /internal/concept-notes — link a concept to a note. The table has a
+// composite primary key (concept_id, note_id), so we use ON CONFLICT DO
+// NOTHING semantics — duplicate links are silently ignored.
+const conceptNoteSchema = z.object({
+  conceptId: z.string().uuid(),
+  noteId: z.string().uuid(),
+});
+
+internal.post(
+  "/concept-notes",
+  zValidator("json", conceptNoteSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    await db
+      .insert(conceptNotes)
+      .values({ conceptId: body.conceptId, noteId: body.noteId })
+      .onConflictDoNothing();
+    return c.json({ ok: true });
+  },
+);
+
+// POST /internal/wiki-logs — append an audit row describing what an agent
+// did to a note. Used by Compiler/Research/Librarian to build the public
+// edit history visible in the note's sidebar.
+const wikiLogSchema = z.object({
+  noteId: z.string().uuid(),
+  agent: z.string().min(1).max(100),
+  action: z.enum(["create", "update", "merge", "link", "unlink"]),
+  diff: z.record(z.unknown()).nullable().optional(),
+  reason: z.string().max(2000).nullable().optional(),
+});
+
+internal.post(
+  "/wiki-logs",
+  zValidator("json", wikiLogSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const id = randomUUID();
+    await db.insert(wikiLogs).values({
+      id,
+      noteId: body.noteId,
+      agent: body.agent,
+      action: body.action,
+      diff: body.diff ?? null,
+      reason: body.reason ?? null,
+    });
+    return c.json({ id }, 201);
   },
 );
 
