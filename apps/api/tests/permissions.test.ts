@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { db, user, eq } from "@opencairn/db";
 import { canRead, canWrite, requireWorkspaceRole } from "../src/lib/permissions.js";
 import {
   seedWorkspace,
@@ -109,7 +110,6 @@ describe("permissions (workspace 3계층)", () => {
     } finally {
       await ctx.cleanup();
       // outsider 유저 정리 (workspace에 소속되지 않으므로 ctx.cleanup에 포함 안 됨)
-      const { db, user, eq } = await import("@opencairn/db");
       await db.delete(user).where(eq(user.id, outsider.id));
     }
   });

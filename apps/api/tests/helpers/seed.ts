@@ -9,7 +9,6 @@ import {
   pagePermissions,
   notes,
   eq,
-  and,
 } from "@opencairn/db";
 
 export type SeedRole = "viewer" | "editor" | "admin" | "owner";
@@ -125,39 +124,35 @@ export async function seedWorkspace(opts: { role: SeedRole }): Promise<SeedResul
     });
   }
 
-  // 8. cleanup — 역의존 순서로 삭제
+  // 8. cleanup — workspace 삭제가 CASCADE로 members/invites/projects/notes/perms를 모두 정리.
+  //    각 step을 독립적으로 try/catch해서 한 step 실패 시에도 나머지를 계속 시도.
+  //    모든 오류는 AggregateError로 묶어 상위로 전파 (silent leak 불가).
   const cleanup = async () => {
-    // pagePermissions (note 삭제 전에)
-    await db.delete(pagePermissions).where(eq(pagePermissions.pageId, noteId));
+    const errors: unknown[] = [];
 
-    // projectPermissions
-    await db
-      .delete(projectPermissions)
-      .where(
-        and(
-          eq(projectPermissions.projectId, projectId),
-          eq(projectPermissions.userId, testUser.id),
-        ),
-      );
+    // 1. workspace 삭제 → CASCADE: members, invites, projects, notes, projectPerms, pagePerms
+    try {
+      await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
+    } catch (e) {
+      errors.push(e);
+    }
 
-    // notes
-    await db.delete(notes).where(eq(notes.id, noteId));
-
-    // projects (cascade → projectPermissions이 이미 없어도 OK)
-    await db.delete(projects).where(eq(projects.id, projectId));
-
-    // workspaceMembers
-    await db
-      .delete(workspaceMembers)
-      .where(eq(workspaceMembers.workspaceId, workspaceId));
-
-    // workspaces
-    await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
-
-    // users
-    await db.delete(user).where(eq(user.id, testUser.id));
+    // 2. user 삭제 (workspace가 먼저 삭제되어야 ownerId FK RESTRICT를 통과)
+    try {
+      await db.delete(user).where(eq(user.id, testUser.id));
+    } catch (e) {
+      errors.push(e);
+    }
     if (ownerUser.id !== testUser.id) {
-      await db.delete(user).where(eq(user.id, ownerUser.id));
+      try {
+        await db.delete(user).where(eq(user.id, ownerUser.id));
+      } catch (e) {
+        errors.push(e);
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new AggregateError(errors, "cleanup partial failure");
     }
   };
 
