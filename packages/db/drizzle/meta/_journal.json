@@ -29,6 +29,13 @@
       "when": 1776683306174,
       "tag": "0003_powerful_hydra",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1776685179965,
+      "tag": "0004_daffy_reavers",
+      "breakpoints": true
     }
   ]
 }
