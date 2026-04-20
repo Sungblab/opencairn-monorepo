@@ -4,5 +4,6 @@
 langchain_core from apps/worker/src/worker/agents/ are forbidden (see lint rule in Task 16).
 """
 from runtime.reducers import keep_last_n
+from runtime.temporal import AgentAwaitingInputError, make_thread_id
 
-__all__ = ["keep_last_n"]
+__all__ = ["AgentAwaitingInputError", "keep_last_n", "make_thread_id"]
