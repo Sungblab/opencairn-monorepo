@@ -9,7 +9,9 @@
     "lint": "eslint src --max-warnings 0",
     "i18n:sync": "node scripts/i18n-sync.mjs",
     "i18n:parity": "node scripts/i18n-parity.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:unit": "vitest run",
+    "test": "vitest run"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
@@ -42,10 +44,12 @@
     "@types/lodash.debounce": "^4.0.9",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@vitest/ui": "^4.1.5",
     "eslint": "^10.2.1",
     "eslint-plugin-i18next": "^6.1.4",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.8.0",
-    "typescript-eslint": "^8.58.2"
+    "typescript-eslint": "^8.58.2",
+    "vitest": "^4.1.5"
   }
 }
