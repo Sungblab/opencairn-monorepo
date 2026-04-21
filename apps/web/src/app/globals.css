@@ -41,7 +41,7 @@
   --theme-border: #E7E5E4;
   --theme-fg: #1C1917;
   --theme-fg-muted: #78716C;
-  --theme-accent: #EA580C;
+  --theme-accent: #44403C;
   --theme-accent-fg: #FFFFFF;
   --theme-danger: #DC2626;
   --theme-success: #16A34A;
@@ -55,7 +55,7 @@
   --theme-border: #292524;
   --theme-fg: #F5F5F4;
   --theme-fg-muted: #A8A29E;
-  --theme-accent: #FB923C;
+  --theme-accent: #A8A29E;
   --theme-accent-fg: #1C1917;
   --theme-danger: #F87171;
   --theme-success: #4ADE80;
@@ -69,8 +69,8 @@
   --theme-border: #D9CFB9;
   --theme-fg: #3E2E1A;
   --theme-fg-muted: #7A6A50;
-  --theme-accent: #B4531A;
-  --theme-accent-fg: #FFFFFF;
+  --theme-accent: #7A6A50;
+  --theme-accent-fg: #F7F1E5;
   --theme-danger: #9F2424;
   --theme-success: #4F7A2C;
   color-scheme: light;
@@ -112,7 +112,7 @@
   --brand-ember-600: #000000;
   --brand-ember-700: #000000;
   --brand-ember-900: #000000;
-  --brand-ember-cta: #B45309;
+  --brand-ember-cta: #1C1917;
 }
 
 [data-brand="landing"] { font-feature-settings: "ss01", "cv11"; }
@@ -187,7 +187,7 @@ details[open] .chev { transform: rotate(180deg); }
   width: 0.08em;
   height: 0.95em;
   vertical-align: -0.12em;
-  background: #B45309;
+  background: #1C1917;
   margin-left: 0.08em;
   animation: caret 1.05s steps(2) infinite;
 }
@@ -242,12 +242,12 @@ details[open] .chev { transform: rotate(180deg); }
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #B45309;
+  background: #44403C;
   animation: beat 1.6s ease-in-out infinite;
 }
 @keyframes beat {
-  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(180,83,9,0.5); }
-  50% { transform: scale(1.25); box-shadow: 0 0 0 8px rgba(180,83,9,0); }
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(68,64,60,0.5); }
+  50% { transform: scale(1.25); box-shadow: 0 0 0 8px rgba(68,64,60,0); }
 }
 .live-status .msg { flex: 1; overflow: hidden; white-space: nowrap; }
 
@@ -285,12 +285,12 @@ details[open] .chev { transform: rotate(180deg); }
   opacity: 0.55;
 }
 .mini-graph .mg-node.active circle {
-  fill: #B45309;
-  stroke: #FEF3C7;
+  fill: #1C1917;
+  stroke: #E7E5E4;
   stroke-width: 4;
   r: 11;
 }
-.mini-graph .mg-edge.active { stroke: #B45309; stroke-width: 2; opacity: 1; }
+.mini-graph .mg-edge.active { stroke: #1C1917; stroke-width: 2; opacity: 1; }
 .mini-graph .mg-tooltip {
   position: absolute;
   padding: 14px 16px;
@@ -352,8 +352,8 @@ details[open] .chev { transform: rotate(180deg); }
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #B45309;
-  box-shadow: 0 0 0 3px rgba(180,83,9,0.14);
+  background: #44403C;
+  box-shadow: 0 0 0 3px rgba(68,64,60,0.14);
   animation: pulse-dot 2.4s ease-in-out infinite;
 }
 .ac-title { color: #1C1917; font-weight: 600; letter-spacing: 0.12em; }
@@ -375,10 +375,10 @@ details[open] .chev { transform: rotate(180deg); }
   font-family: var(--font-mono);
   font-size: 10.5px;
   font-weight: 500;
-  color: #B45309;
-  background: #FEF7ED;
+  color: #44403C;
+  background: #F5F5F4;
   padding: 3px 8px;
-  border: 1px solid #FED7AA;
+  border: 1px solid #E7E5E4;
   border-radius: 6px;
   white-space: nowrap;
   flex-shrink: 0;
