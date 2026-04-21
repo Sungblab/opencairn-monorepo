@@ -51,6 +51,12 @@ export default [
     rules: { "i18next/no-literal-string": "off" },
   },
   {
+    // shadcn/ui primitives — library-style components; literal strings (e.g., screen-reader "Close")
+    // are expected defaults. Consumers translate at usage sites.
+    files: ["src/components/ui/**/*.{ts,tsx}"],
+    rules: { "i18next/no-literal-string": "off" },
+  },
+  {
     files: ["scripts/**/*.mjs"],
     rules: { "i18next/no-literal-string": "off" },
   },
