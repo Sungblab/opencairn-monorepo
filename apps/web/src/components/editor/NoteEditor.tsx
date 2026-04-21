@@ -7,6 +7,7 @@ import {
   H1Plugin,
   H2Plugin,
   H3Plugin,
+  HorizontalRulePlugin,
   ItalicPlugin,
   StrikethroughPlugin,
 } from "@platejs/basic-nodes/react";
@@ -30,6 +31,7 @@ import {
   type ToolbarMark,
 } from "./editor-toolbar";
 import { latexPlugins } from "./plugins/latex";
+import { SlashMenu, type SlashEditor } from "./plugins/slash";
 import {
   createWikiLinkPlugin,
   WikiLinkCombobox,
@@ -48,6 +50,7 @@ const basePlugins = [
   H2Plugin,
   H3Plugin,
   BlockquotePlugin,
+  HorizontalRulePlugin,
   ListPlugin,
   ...latexPlugins,
 ];
@@ -161,6 +164,7 @@ export function NoteEditor({
         ctx={{ wsSlug, projectId }}
         editor={editor as unknown as Parameters<typeof WikiLinkCombobox>[0]["editor"]}
       />
+      <SlashMenu editor={editor as unknown as SlashEditor} />
       <div className="mx-auto w-full max-w-[720px] flex-1 px-8 py-8">
         <input
           value={title}

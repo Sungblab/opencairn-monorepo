@@ -1,0 +1,212 @@
+"use client";
+
+import { toggleList } from "@platejs/list";
+import { useTranslations } from "next-intl";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+
+// Plan 2A Task 17 — slash command menu.
+//
+// Trigger: `/` keypress anywhere in the editor opens a centered portal menu
+// with nine block conversions. Clicking (or Enter on) an item removes the
+// triggering `/` via `editor.tf.deleteBackward("character")` and runs the
+// transform. Escape / outside-click closes without touching the document.
+//
+// Plate v49 quirks worth flagging (see plan lines 2568-2712 for the original
+// but-partially-wrong call-outs):
+//   * `editor.tf.toggleBlock({ type })` does NOT exist. Use the per-plugin
+//     transform `editor.tf.<key>.toggle()` (matches the toolbar at
+//     editor-toolbar.tsx + NoteEditor.tsx:138-152).
+//   * `editor.tf.insertNode` is the singular, deprecated form. v49 ships
+//     `editor.tf.insertNodes(node | nodes[], options?)`.
+//   * `deleteBackward` takes a `TextUnit` — 'character' | 'word' | 'line' |
+//     'block' — confirmed against @platejs/slate 49.2.21's index.d.ts.
+//   * The `hr` void node has no `editor.tf.insert.hr` helper; we insert the
+//     node via raw `insertNodes`, then drop an empty paragraph after so the
+//     caret is not trapped inside a void.
+//   * There is no `@platejs/code-block` installed, so the "code" slash
+//     command toggles the inline `code` mark (same behaviour as the
+//     toolbar). A future upgrade can swap it for a block once the dep is
+//     added; i18n label has been narrowed from "코드 블록"/"Code block" to
+//     plain "코드"/"Code" to match.
+
+export type SlashKey =
+  | "h1"
+  | "h2"
+  | "h3"
+  | "ul"
+  | "ol"
+  | "blockquote"
+  | "code"
+  | "hr"
+  | "math_block";
+
+// `tNode` helper keeps the menu as an ordered list so the E2E can assert a
+// stable sequence.
+interface SlashCommandDef {
+  key: SlashKey;
+  labelKey:
+    | "heading_1"
+    | "heading_2"
+    | "heading_3"
+    | "bulleted_list"
+    | "numbered_list"
+    | "quote"
+    | "code"
+    | "divider"
+    | "math";
+}
+
+const COMMANDS: SlashCommandDef[] = [
+  { key: "h1", labelKey: "heading_1" },
+  { key: "h2", labelKey: "heading_2" },
+  { key: "h3", labelKey: "heading_3" },
+  { key: "ul", labelKey: "bulleted_list" },
+  { key: "ol", labelKey: "numbered_list" },
+  { key: "blockquote", labelKey: "quote" },
+  { key: "code", labelKey: "code" },
+  { key: "hr", labelKey: "divider" },
+  { key: "math_block", labelKey: "math" },
+];
+
+// The editor surface we actually use. Plate's fully-typed `PlateEditor` drags
+// in deep generics; narrow to exactly the transforms this menu touches so the
+// caller can pass the editor without an `as any` cast at the usage site (the
+// cast lives in `SlashMenuProps` below).
+export interface SlashEditor {
+  tf: {
+    insertNodes: (
+      node: unknown,
+      options?: { select?: boolean },
+    ) => void;
+    insertText?: (text: string) => void;
+    deleteBackward: (unit: "character" | "word" | "line" | "block") => void;
+    insert: {
+      equation: () => void;
+    };
+    code?: { toggle: () => void };
+    h1?: { toggle: () => void };
+    h2?: { toggle: () => void };
+    h3?: { toggle: () => void };
+    blockquote?: { toggle: () => void };
+  };
+}
+
+export interface SlashMenuProps {
+  editor: SlashEditor;
+}
+
+export function SlashMenu({ editor }: SlashMenuProps) {
+  const t = useTranslations("editor.slash");
+
+  const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  // Window-scoped keydown mirrors `WikiLinkCombobox`. The `/` here fires in
+  // addition to Plate inserting it into the document — we rely on that so the
+  // caret is already one-character-past the trigger when the menu opens, and
+  // command execution then calls `deleteBackward` to remove it.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "/" && !open && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        // Let Plate process the `/` insertion first, then open on the next
+        // tick. setTimeout(0) is sufficient — no need to read DOM state.
+        setTimeout(() => setOpen(true), 0);
+      } else if (e.key === "Escape" && open) {
+        setOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  const runCommand = useCallback(
+    (key: SlashKey) => {
+      // Step 1: remove the triggering `/` that Plate already inserted.
+      editor.tf.deleteBackward("character");
+
+      // Step 2: dispatch the command.
+      switch (key) {
+        case "h1":
+        case "h2":
+        case "h3":
+        case "blockquote": {
+          const tf = editor.tf as unknown as Record<
+            string,
+            { toggle?: () => void } | undefined
+          >;
+          tf[key]?.toggle?.();
+          break;
+        }
+        case "ul":
+          toggleList(editor as unknown as never, { listStyleType: "disc" });
+          break;
+        case "ol":
+          toggleList(editor as unknown as never, {
+            listStyleType: "decimal",
+          });
+          break;
+        case "code":
+          editor.tf.code?.toggle();
+          break;
+        case "hr":
+          // Void block — insert the `hr` node, then an empty paragraph so
+          // typing after the divider lands in a normal block rather than
+          // being trapped against the void.
+          editor.tf.insertNodes(
+            { type: "hr", children: [{ text: "" }] },
+            { select: true },
+          );
+          editor.tf.insertNodes(
+            { type: "p", children: [{ text: "" }] },
+            { select: true },
+          );
+          break;
+        case "math_block":
+          editor.tf.insert.equation();
+          break;
+      }
+
+      setOpen(false);
+    },
+    [editor],
+  );
+
+  const items = useMemo(() => COMMANDS, []);
+  if (!mounted || !open) return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/20 pt-32"
+      onClick={() => setOpen(false)}
+      data-testid="slash-menu"
+    >
+      <div
+        className="bg-bg-base w-full max-w-xs rounded-md border border-[color:var(--border)] shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <ul className="max-h-72 overflow-auto py-1">
+          {items.map((cmd) => (
+            <li key={cmd.key}>
+              <button
+                type="button"
+                data-testid={`slash-cmd-${cmd.key}`}
+                onMouseDown={(e) => {
+                  // Prevent the editor from losing selection before we run
+                  // the transform — same pattern as the toolbar buttons.
+                  e.preventDefault();
+                  runCommand(cmd.key);
+                }}
+                className="hover:bg-bg-muted w-full px-3 py-2 text-left text-sm"
+              >
+                {t(cmd.labelKey)}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>,
+    document.body,
+  );
+}

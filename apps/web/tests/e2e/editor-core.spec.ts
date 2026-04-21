@@ -118,4 +118,37 @@ test.describe("editor core (Plan 2A Task 14)", () => {
       page.getByTestId("note-body").locator("a[data-target-id]").first(),
     ).toBeVisible();
   });
+
+  // Plan 2A Task 17 — slash command menu. Typing `/` pops a portal menu;
+  // picking H1 converts the current line and typed text lands inside an <h1>.
+  test("slash menu converts line to H1", async ({
+    page,
+    request,
+    context,
+  }) => {
+    const session = await seedAndSignIn(request);
+    await applySessionCookie(context, session);
+
+    await page.goto("/ko/app");
+    await expect(page).toHaveURL(
+      new RegExp(
+        `/(ko/)?app/w/${session.wsSlug}/p/${session.projectId}(/|$)`,
+      ),
+      { timeout: 15_000 },
+    );
+
+    await page.getByTestId("new-note-button").click();
+    await expect(page).toHaveURL(/\/notes\/[0-9a-f-]{36}$/, {
+      timeout: 10_000,
+    });
+
+    await page.getByTestId("note-body").click();
+    await page.keyboard.press("/");
+    await expect(page.getByTestId("slash-menu")).toBeVisible();
+    await page.getByTestId("slash-cmd-h1").click();
+    await page.keyboard.type("My heading");
+    await expect(
+      page.getByTestId("note-body").locator("h1").first(),
+    ).toContainText("My heading");
+  });
 });
