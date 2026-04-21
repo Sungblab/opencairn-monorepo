@@ -29,10 +29,12 @@ import {
   type ToolbarBlock,
   type ToolbarMark,
 } from "./editor-toolbar";
+import { latexPlugins } from "./plugins/latex";
 
 // Basic marks + blocks. Lists are handled by the indent-based ListPlugin; the
 // bulleted/numbered toolbar buttons call `toggleList` directly with the style
-// type. Slash-command list insertion lands in Task 17.
+// type. Slash-command list insertion lands in Task 17. `latexPlugins` wires the
+// void equation/inline-equation nodes to their KaTeX renderers.
 const basePlugins = [
   BoldPlugin,
   ItalicPlugin,
@@ -43,6 +45,7 @@ const basePlugins = [
   H3Plugin,
   BlockquotePlugin,
   ListPlugin,
+  ...latexPlugins,
 ];
 
 export interface NoteEditorProps {
