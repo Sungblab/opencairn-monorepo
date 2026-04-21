@@ -12,7 +12,7 @@ export function LandingFooter() {
   const legalLinks = t.raw("legalLinks") as Link[];
 
   return (
-    <footer className="py-16" style={{ backgroundColor: "#1C1917", color: "#FFFFFF" }}>
+    <footer className="py-16" style={{ backgroundColor: "#171717", color: "#FFFFFF" }}>
       <div className="max-w-[1280px] mx-auto px-6 lg:px-10">
         <div className="grid grid-cols-12 gap-6 mb-12">
           <div className="col-span-12 md:col-span-4">
@@ -24,7 +24,7 @@ export function LandingFooter() {
             <p className="kr text-[13px] leading-relaxed max-w-[340px]" style={{ color: "#FFFFFF" }}>
               {t("tagline")}
               <br />
-              <span className="font-mono text-[11px] tracking-wider" style={{ color: "#FFFFFF" }}>
+              <span className="font-sans text-[11px] tracking-wider" style={{ color: "#FFFFFF" }}>
                 {t("taglineMono")}
               </span>
             </p>
@@ -36,10 +36,10 @@ export function LandingFooter() {
             { h: t("colLegal"), links: legalLinks },
           ].map((col, i) => (
             <div key={i} className="col-span-6 md:col-span-2">
-              <h4 className="font-mono text-[11px] tracking-widest uppercase mb-4" style={{ color: "#FFFFFF" }}>
+              <h4 className="font-sans text-[11px] tracking-widest uppercase mb-4" style={{ color: "#FFFFFF" }}>
                 {col.h}
               </h4>
-              <ul className="space-y-2 font-mono text-[12.5px] tracking-wider" style={{ color: "#FFFFFF" }}>
+              <ul className="space-y-2 font-sans text-[12.5px] tracking-wider" style={{ color: "#FFFFFF" }}>
                 {col.links.map((l, j) => (
                   <li key={j}>
                     <a href={l.href} className="hover:text-stone-50 transition-colors">
@@ -53,14 +53,14 @@ export function LandingFooter() {
         </div>
         <div
           className="pt-8 flex flex-wrap items-center justify-between gap-6"
-          style={{ borderTop: "1px solid #57534E" }}
+          style={{ borderTop: "1px solid #525252" }}
         >
-          <div className="font-mono text-[10.5px] tracking-widest uppercase" style={{ color: "#FFFFFF" }}>
+          <div className="font-sans text-[10.5px] tracking-widest uppercase" style={{ color: "#FFFFFF" }}>
             {t("copyright")}
           </div>
           <div
-            className="inline-flex items-center rounded-md overflow-hidden font-mono text-[11px] tracking-widest uppercase"
-            style={{ border: "1px solid #57534E" }}
+            className="inline-flex items-center rounded-md overflow-hidden font-sans text-[11px] tracking-widest uppercase"
+            style={{ border: "1px solid #525252" }}
             role="group"
             aria-label={t("langLabel")}
           >
@@ -70,8 +70,8 @@ export function LandingFooter() {
               className="px-3.5 py-1.5 transition-colors"
               style={
                 locale === "ko"
-                  ? { backgroundColor: "#F5F3EE", color: "#1C1917" }
-                  : { color: "#D3CCBE" }
+                  ? { backgroundColor: "#FAFAFA", color: "#171717" }
+                  : { color: "#A3A3A3" }
               }
             >
               {t("langKo")}
@@ -82,8 +82,8 @@ export function LandingFooter() {
               className="px-3.5 py-1.5 transition-colors"
               style={
                 locale === "en"
-                  ? { backgroundColor: "#F5F3EE", color: "#1C1917" }
-                  : { color: "#D3CCBE" }
+                  ? { backgroundColor: "#FAFAFA", color: "#171717" }
+                  : { color: "#A3A3A3" }
               }
             >
               {t("langEn")}

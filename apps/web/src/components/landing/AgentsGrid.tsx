@@ -36,10 +36,10 @@ export function AgentsGrid() {
           {items.map((a, i) => (
             <div key={i} className="col-span-6 md:col-span-3 agent-cell tilt">
               <div className="flex items-baseline justify-between mb-3">
-                <span className="font-mono text-[11px] tracking-widest text-stone-900">{a.n}</span>
-                <span className="font-mono text-[10px] tracking-widest text-stone-500 uppercase">{a.cat}</span>
+                <span className="font-sans text-[11px] tracking-widest text-stone-900">{a.n}</span>
+                <span className="font-sans text-[10px] tracking-widest text-stone-500 uppercase">{a.cat}</span>
               </div>
-              <h3 className="font-serif text-xl text-stone-900 mb-2">{a.name}</h3>
+              <h3 className="font-sans text-xl text-stone-900 mb-2">{a.name}</h3>
               <p className="kr text-[14px] text-stone-600 leading-relaxed">{a.body}</p>
             </div>
           ))}

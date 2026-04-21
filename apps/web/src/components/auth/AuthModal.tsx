@@ -18,7 +18,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       <DialogContent showCloseButton className="max-w-sm p-6 gap-0">
         <div className="flex flex-col gap-5">
           <div className="flex flex-col gap-1">
-            <h2 className="font-serif text-xl text-stone-900">{t("modal.title")}</h2>
+            <h2 className="font-sans text-xl text-stone-900">{t("modal.title")}</h2>
             <p className="text-sm text-stone-500">{t("modal.desc")}</p>
           </div>
 

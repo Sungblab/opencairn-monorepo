@@ -19,7 +19,7 @@ export default async function VerifyEmailPage({
     <div className="flex flex-col gap-4 text-center py-2">
       {hasError ? (
         <>
-          <p className="font-serif text-xl text-stone-900">{t("verify.error")}</p>
+          <p className="font-sans text-xl text-stone-900">{t("verify.error")}</p>
           <p className="text-sm text-stone-500">{t("verify.errorDesc")}</p>
           <a
             href={`/${locale}/auth/signup`}
@@ -30,7 +30,7 @@ export default async function VerifyEmailPage({
         </>
       ) : (
         <>
-          <p className="font-serif text-xl text-stone-900">{t("verify.success")}</p>
+          <p className="font-sans text-xl text-stone-900">{t("verify.success")}</p>
           <p className="text-sm text-stone-500">{t("verify.successDesc")}</p>
           <a
             href={`/${locale}/auth/login`}

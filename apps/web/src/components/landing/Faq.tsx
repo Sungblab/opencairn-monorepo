@@ -24,9 +24,9 @@ export function Faq() {
           <div className="col-span-12 md:col-span-9 border-y border-stone-900 divide-y divide-stone-300">
             {items.map((it, i) => (
               <details key={i} className="py-6 group">
-                <summary className="flex justify-between items-start gap-6 cursor-pointer kr font-serif text-xl md:text-2xl text-stone-900">
+                <summary className="flex justify-between items-start gap-6 cursor-pointer kr font-sans text-xl md:text-2xl text-stone-900">
                   <span>{it.q}</span>
-                  <span className="font-mono text-stone-500 group-open:rotate-45 transition-transform text-2xl leading-none pt-1">
+                  <span className="font-sans text-stone-500 group-open:rotate-45 transition-transform text-2xl leading-none pt-1">
                     +
                   </span>
                 </summary>

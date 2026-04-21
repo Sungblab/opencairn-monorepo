@@ -73,9 +73,9 @@ export function SignupForm() {
       <div className="flex flex-col gap-5">
         <Progress />
         <div className="flex flex-col gap-3 py-2">
-          <p className="font-serif text-xl text-stone-900">{t("signup.emailSent")}</p>
+          <p className="font-sans text-xl text-stone-900">{t("signup.emailSent")}</p>
           <p className="text-sm text-stone-500">{t("signup.emailSentDesc")}</p>
-          <p className="text-xs text-stone-400 font-mono mt-1">{email}</p>
+          <p className="text-xs text-stone-400 font-sans mt-1">{email}</p>
         </div>
         <a
           href={`/${locale}/auth/login`}
@@ -93,11 +93,11 @@ export function SignupForm() {
         <Progress />
 
         <div className="flex flex-col gap-0.5">
-          <h2 className="font-serif text-xl text-stone-900">{t("signup.step2Title")}</h2>
+          <h2 className="font-sans text-xl text-stone-900">{t("signup.step2Title")}</h2>
           <button
             type="button"
             onClick={goBack}
-            className="text-left text-sm text-stone-400 hover:text-stone-600 transition-colors font-mono"
+            className="text-left text-sm text-stone-400 hover:text-stone-600 transition-colors font-sans"
           >
             {email} ↩
           </button>
@@ -150,7 +150,7 @@ export function SignupForm() {
       <Progress />
 
       <div className="flex flex-col gap-1">
-        <h2 className="font-serif text-xl text-stone-900">{t("signup.title")}</h2>
+        <h2 className="font-sans text-xl text-stone-900">{t("signup.title")}</h2>
         <p className="text-sm text-stone-500">{t("signup.step1Desc")}</p>
       </div>
 

@@ -129,7 +129,7 @@ export function MiniGraph() {
             <ul className="text-[13.5px] text-stone-600 kr space-y-3 border-t border-stone-900 pt-6">
               {bullets.map((b, i) => (
                 <li key={i} className="flex items-start gap-3">
-                  <span className="font-mono text-[11px] tracking-widest text-stone-900 pt-0.5">◆</span>
+                  <span className="font-sans text-[11px] tracking-widest text-stone-900 pt-0.5">◆</span>
                   <span>{b}</span>
                 </li>
               ))}
@@ -144,7 +144,7 @@ export function MiniGraph() {
             <svg viewBox="0 0 600 340" preserveAspectRatio="xMidYMid meet">
               <defs>
                 <pattern id="mg-dot" x={0} y={0} width={24} height={24} patternUnits="userSpaceOnUse">
-                  <circle cx={1} cy={1} r={0.8} fill="#D3CCBE" opacity={0.5} />
+                  <circle cx={1} cy={1} r={0.8} fill="#A3A3A3" opacity={0.5} />
                 </pattern>
               </defs>
               <rect width={600} height={340} fill="url(#mg-dot)" />
@@ -166,7 +166,7 @@ export function MiniGraph() {
                     onMouseMove={(e) => activate(n.id, e.clientX, e.clientY)}
                     onClick={(e) => activate(n.id, e.clientX, e.clientY)}
                   >
-                    <circle r={n.r} fill="#403C32" stroke="#FFEDD5" strokeWidth={2} />
+                    <circle r={n.r} fill="#262626" stroke="#FFEDD5" strokeWidth={2} />
                     <text
                       x={n.tx}
                       y={n.ty}
@@ -174,7 +174,7 @@ export function MiniGraph() {
                       fontFamily="Inter"
                       fontSize={n.bold ? 12 : 11}
                       fontWeight={n.bold ? 600 : undefined}
-                      fill={n.bold ? "#1C1917" : "#403C32"}
+                      fill={n.bold ? "#171717" : "#262626"}
                     >
                       {graph[n.id]?.t ?? n.id}
                     </text>
@@ -194,7 +194,7 @@ export function MiniGraph() {
                 </>
               )}
             </div>
-            <div className="absolute bottom-3 left-4 font-mono text-[10px] text-stone-400 tracking-widest uppercase">
+            <div className="absolute bottom-3 left-4 font-sans text-[10px] text-stone-400 tracking-widest uppercase">
               {t("caption")}
             </div>
           </div>

@@ -6,8 +6,11 @@
 
 /* ═══ Brand fonts & runtime color tokens ═══ */
 @theme {
+  /* `font-serif` is reserved for the OpenCairn wordmark only (header/footer/
+   * auth chrome). All headlines, prices, and body text use Pretendard via
+   * `font-sans`. Korean text always renders in Pretendard regardless. */
   --font-serif: var(--font-serif-raw), Georgia, serif;
-  --font-sans: var(--font-sans-raw), "Pretendard Variable", Pretendard, -apple-system, system-ui, sans-serif;
+  --font-sans: "Pretendard Variable", Pretendard, var(--font-sans-raw), -apple-system, system-ui, sans-serif;
   --font-mono: var(--font-mono-raw), ui-monospace, monospace;
 
   --color-bg: var(--theme-bg);
@@ -22,26 +25,26 @@
 
   /* Override Tailwind's default warm stone palette with neutral grays (landing spec) */
   --color-stone-50: #FFFFFF;
-  --color-stone-100: #F5F5F4;
-  --color-stone-200: #E7E5E4;
-  --color-stone-300: #D6D3D1;
-  --color-stone-400: #A8A29E;
-  --color-stone-500: #78716C;
-  --color-stone-600: #57534E;
-  --color-stone-700: #44403C;
-  --color-stone-800: #292524;
-  --color-stone-900: #1C1917;
+  --color-stone-100: #F5F5F5;
+  --color-stone-200: #E5E5E5;
+  --color-stone-300: #D4D4D4;
+  --color-stone-400: #A3A3A3;
+  --color-stone-500: #737373;
+  --color-stone-600: #525252;
+  --color-stone-700: #404040;
+  --color-stone-800: #262626;
+  --color-stone-900: #171717;
 }
 
 /* ═══ Cairn Light (default) ═══ */
 :root,
 [data-theme="cairn-light"] {
   --theme-bg: #FFFFFF;
-  --theme-surface: #F5F5F4;
-  --theme-border: #E7E5E4;
-  --theme-fg: #1C1917;
-  --theme-fg-muted: #78716C;
-  --theme-accent: #44403C;
+  --theme-surface: #F5F5F5;
+  --theme-border: #E5E5E5;
+  --theme-fg: #171717;
+  --theme-fg-muted: #737373;
+  --theme-accent: #404040;
   --theme-accent-fg: #FFFFFF;
   --theme-danger: #DC2626;
   --theme-success: #16A34A;
@@ -50,13 +53,13 @@
 
 /* ═══ Cairn Dark ═══ */
 [data-theme="cairn-dark"] {
-  --theme-bg: #0C0A09;
-  --theme-surface: #1C1917;
-  --theme-border: #292524;
-  --theme-fg: #F5F5F4;
-  --theme-fg-muted: #A8A29E;
-  --theme-accent: #A8A29E;
-  --theme-accent-fg: #1C1917;
+  --theme-bg: #0A0A0A;
+  --theme-surface: #171717;
+  --theme-border: #262626;
+  --theme-fg: #F5F5F5;
+  --theme-fg-muted: #A3A3A3;
+  --theme-accent: #A3A3A3;
+  --theme-accent-fg: #171717;
   --theme-danger: #F87171;
   --theme-success: #4ADE80;
   color-scheme: dark;
@@ -90,29 +93,29 @@
   color-scheme: dark;
 }
 
-/* ═══ Landing-only brand tokens (stone+ember warm editorial) ═══ */
+/* ═══ Landing-only brand tokens (neutral editorial — ember kept as alias only) ═══ */
 [data-brand="landing"] {
   --brand-paper: #FFFFFF;
   --brand-ink: #000000;
   --brand-stone-50: #FFFFFF;
-  --brand-stone-100: #F5F5F4;
-  --brand-stone-200: #E7E5E4;
-  --brand-stone-300: #D6D3D1;
-  --brand-stone-400: #A8A29E;
-  --brand-stone-500: #78716C;
-  --brand-stone-600: #57534E;
-  --brand-stone-700: #44403C;
-  --brand-stone-800: #292524;
-  --brand-stone-900: #1C1917;
-  --brand-ember-50: #EDEAE2;
-  --brand-ember-100: #E6E0D3;
-  --brand-ember-200: #D8D3C8;
-  --brand-ember-300: #9A9285;
+  --brand-stone-100: #F5F5F5;
+  --brand-stone-200: #E5E5E5;
+  --brand-stone-300: #D4D4D4;
+  --brand-stone-400: #A3A3A3;
+  --brand-stone-500: #737373;
+  --brand-stone-600: #525252;
+  --brand-stone-700: #404040;
+  --brand-stone-800: #262626;
+  --brand-stone-900: #171717;
+  --brand-ember-50: #E5E5E5;
+  --brand-ember-100: #E5E5E5;
+  --brand-ember-200: #D4D4D4;
+  --brand-ember-300: #737373;
   --brand-ember-500: #000000;
   --brand-ember-600: #000000;
   --brand-ember-700: #000000;
   --brand-ember-900: #000000;
-  --brand-ember-cta: #1C1917;
+  --brand-ember-cta: #171717;
 }
 
 [data-brand="landing"] { font-feature-settings: "ss01", "cv11"; }
@@ -136,7 +139,7 @@
 }
 
 .divider {
-  background: linear-gradient(90deg, transparent, #D8D3C8 20%, #D8D3C8 80%, transparent);
+  background: linear-gradient(90deg, transparent, #D4D4D4 20%, #D4D4D4 80%, transparent);
   height: 1px;
 }
 
@@ -187,7 +190,7 @@ details[open] .chev { transform: rotate(180deg); }
   width: 0.08em;
   height: 0.95em;
   vertical-align: -0.12em;
-  background: #1C1917;
+  background: #171717;
   margin-left: 0.08em;
   animation: caret 1.05s steps(2) infinite;
 }
@@ -213,9 +216,9 @@ details[open] .chev { transform: rotate(180deg); }
   padding: 10px 16px;
   background: #FAFAFA;
   border-bottom: 1px solid #E5E5E5;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
-  color: #6B6559;
+  color: #525252;
   position: relative;
   z-index: 2;
 }
@@ -229,12 +232,12 @@ details[open] .chev { transform: rotate(180deg); }
   padding: 10px 18px;
   background: #F5F5F5;
   border-top: 1px solid #E5E5E5;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #1C1917;
+  color: #171717;
   position: relative;
   z-index: 2;
 }
@@ -242,7 +245,7 @@ details[open] .chev { transform: rotate(180deg); }
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #44403C;
+  background: #404040;
   animation: beat 1.6s ease-in-out infinite;
 }
 @keyframes beat {
@@ -285,12 +288,12 @@ details[open] .chev { transform: rotate(180deg); }
   opacity: 0.55;
 }
 .mini-graph .mg-node.active circle {
-  fill: #1C1917;
-  stroke: #E7E5E4;
+  fill: #171717;
+  stroke: #E5E5E5;
   stroke-width: 4;
   r: 11;
 }
-.mini-graph .mg-edge.active { stroke: #1C1917; stroke-width: 2; opacity: 1; }
+.mini-graph .mg-edge.active { stroke: #171717; stroke-width: 2; opacity: 1; }
 .mini-graph .mg-tooltip {
   position: absolute;
   padding: 14px 16px;
@@ -307,14 +310,14 @@ details[open] .chev { transform: rotate(180deg); }
   z-index: 20;
 }
 .mini-graph .mg-tooltip.show { opacity: 1; transform: translateY(0); }
-.mini-graph .mg-tooltip .t-title { font-weight: 600; color: #1C1917; margin-bottom: 6px; }
-.mini-graph .mg-tooltip .t-desc { color: #3A362F; line-height: 1.5; }
+.mini-graph .mg-tooltip .t-title { font-weight: 600; color: #171717; margin-bottom: 6px; }
+.mini-graph .mg-tooltip .t-desc { color: #262626; line-height: 1.5; }
 .mini-graph .mg-tooltip .t-links {
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px dashed #D8D3C8;
-  color: #6B6559;
-  font-family: var(--font-mono);
+  border-top: 1px dashed #D4D4D4;
+  color: #525252;
+  font-family: var(--font-sans);
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -341,10 +344,10 @@ details[open] .chev { transform: rotate(180deg); }
   gap: 10px;
   padding-bottom: 10px;
   border-bottom: 1px dashed #E5E5E5;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10.5px;
   letter-spacing: 0.1em;
-  color: #6B6559;
+  color: #525252;
   position: relative;
   z-index: 1;
 }
@@ -352,12 +355,12 @@ details[open] .chev { transform: rotate(180deg); }
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #44403C;
+  background: #404040;
   box-shadow: 0 0 0 3px rgba(68,64,60,0.14);
   animation: pulse-dot 2.4s ease-in-out infinite;
 }
-.ac-title { color: #1C1917; font-weight: 600; letter-spacing: 0.12em; }
-.ac-meta { margin-left: auto; color: #9A9285; font-size: 10px; }
+.ac-title { color: #171717; font-weight: 600; letter-spacing: 0.12em; }
+.ac-meta { margin-left: auto; color: #737373; font-size: 10px; }
 .ac-list { list-style: none; padding: 0; margin: 0; position: relative; z-index: 1; }
 .ac-item {
   display: flex;
@@ -372,24 +375,24 @@ details[open] .chev { transform: rotate(180deg); }
 .ac-item.in { opacity: 1; transform: translateY(0); }
 .ac-item:last-child { border-bottom: 0; }
 .ac-item .ac-agent {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10.5px;
   font-weight: 500;
-  color: #44403C;
-  background: #F5F5F4;
+  color: #404040;
+  background: #F5F5F5;
   padding: 3px 8px;
-  border: 1px solid #E7E5E4;
+  border: 1px solid #E5E5E5;
   border-radius: 6px;
   white-space: nowrap;
   flex-shrink: 0;
   letter-spacing: 0.02em;
 }
-.ac-item .ac-text { font-size: 13px; color: #3A362F; line-height: 1.45; flex: 1; }
+.ac-item .ac-text { font-size: 13px; color: #262626; line-height: 1.45; flex: 1; }
 .ac-item .ac-text b { color: #000; font-weight: 600; }
 .ac-item .ac-time {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
-  color: #9A9285;
+  color: #737373;
   white-space: nowrap;
   align-self: flex-start;
   margin-top: 3px;
@@ -402,7 +405,7 @@ details[open] .chev { transform: rotate(180deg); }
   margin-top: 4px;
   border-top: 1px dashed #E5E5E5;
   font-size: 11px;
-  color: #9A9285;
+  color: #737373;
   position: relative;
   z-index: 1;
 }
@@ -429,33 +432,33 @@ details[open] .chev { transform: rotate(180deg); }
   padding: 11px 0;
 }
 .ticker-track span {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
-  color: #3A362F;
+  color: #262626;
   letter-spacing: 0.1em;
   flex-shrink: 0;
 }
-.ticker-track .sep { margin: 0 24px; color: #9A9285; }
+.ticker-track .sep { margin: 0 24px; color: #737373; }
 @keyframes tkr { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 @media (prefers-reduced-motion: reduce) { .ticker-track { animation: none !important; } }
 
 /* ═══ editorial section label ═══ */
 .sec-label {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11.5px;
   letter-spacing: 0.18em;
-  color: #6B6559;
+  color: #525252;
   text-transform: uppercase;
   display: inline-block;
 }
-.sec-label .n { color: #1C1917; font-weight: 500; }
+.sec-label .n { color: #171717; font-weight: 500; }
 
 /* ─ ASCII block ─ system mono (JetBrains Mono drops U+2500 box-drawing glyphs) */
 .ascii {
   font-family: ui-monospace, "SF Mono", "Menlo", "Consolas", "DejaVu Sans Mono", monospace;
   white-space: pre;
   line-height: 1.22;
-  color: #6B6559;
+  color: #525252;
   font-size: 10.5px;
   letter-spacing: 0;
   font-feature-settings: normal;
@@ -467,13 +470,13 @@ details[open] .chev { transform: rotate(180deg); }
   display: flex;
   flex-wrap: wrap;
   gap: 6px 28px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10.5px;
   letter-spacing: 0.08em;
-  color: #6B6559;
+  color: #525252;
   text-transform: uppercase;
 }
-.spec-row b { color: #1C1917; font-weight: 500; }
+.spec-row b { color: #171717; font-weight: 500; }
 
 /* ─ agent grid cell ─ */
 .agent-cell {
@@ -488,18 +491,18 @@ details[open] .chev { transform: rotate(180deg); }
 /* ─ pipeline dark ribbon step ─ */
 .pipe-step {
   padding: 24px 22px;
-  border-right: 1px solid #3A362F;
-  border-bottom: 1px solid #3A362F;
+  border-right: 1px solid #262626;
+  border-bottom: 1px solid #262626;
 }
 .pipe-step:last-child { border-right: 0; }
 
 /* ─ principle column ─ */
 .pri-col {
-  border-left: 1px solid #1C1917;
+  border-left: 1px solid #171717;
   padding: 6px 0 6px 20px;
   transition: background 0.15s ease;
 }
-.pri-col:hover { background: #EDEAE2; }
+.pri-col:hover { background: #E5E5E5; }
 
 /* ═══ workspace mock ═══ */
 .ws-frame {
@@ -515,28 +518,28 @@ details[open] .chev { transform: rotate(180deg); }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
-  color: #3A362F;
+  color: #262626;
   background: #FAFAFA;
 }
 .ws-chrome .dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #BFB6A7;
+  background: #A3A3A3;
   display: inline-block;
   margin-right: 5px;
 }
 .ws-side {
-  border-right: 1px solid #D8D3C8;
+  border-right: 1px solid #D4D4D4;
   padding: 16px 14px;
   font-size: 12px;
 }
 .ws-side-h {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
-  color: #6B6559;
+  color: #525252;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   margin-bottom: 8px;
@@ -545,49 +548,48 @@ details[open] .chev { transform: rotate(180deg); }
   display: flex;
   justify-content: space-between;
   padding: 5px 8px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11.5px;
-  color: #3A362F;
+  color: #262626;
 }
-.ws-side-row.active { background: #1C1917; color: #F5F3EE; }
-.ws-side-row:hover:not(.active) { background: #EDEAE2; }
+.ws-side-row.active { background: #171717; color: #FAFAFA; }
+.ws-side-row:hover:not(.active) { background: #E5E5E5; }
 .ws-main { padding: 28px 32px; }
 .ws-breadcrumb {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10.5px;
-  color: #6B6559;
+  color: #525252;
   margin-bottom: 12px;
   letter-spacing: 0.04em;
 }
 .ws-callout {
-  border-left: 2px solid #1C1917;
-  background: #EDEAE2;
+  border-left: 2px solid #171717;
+  background: #E5E5E5;
   padding: 10px 14px;
   font-size: 12.5px;
   margin: 14px 0;
 }
-.ws-callout b { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em; }
-.ws-rail { padding: 16px 14px; font-size: 12px; border-left: 1px solid #D8D3C8; }
+.ws-callout b { font-family: var(--font-sans); font-size: 10px; letter-spacing: 0.14em; }
+.ws-rail { padding: 16px 14px; font-size: 12px; border-left: 1px solid #D4D4D4; }
 .ws-rail-h {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
-  color: #6B6559;
+  color: #525252;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   margin-bottom: 10px;
 }
 .ws-feed-item { margin-bottom: 14px; }
 .ws-feed-agent {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
-  color: #1C1917;
+  color: #171717;
   letter-spacing: 0.1em;
 }
-.ws-feed-text { font-size: 12px; color: #3A362F; margin-top: 3px; line-height: 1.5; }
+.ws-feed-text { font-size: 12px; color: #262626; margin-top: 3px; line-height: 1.5; }
 
 @theme inline {
   --font-heading: var(--font-sans);
-  --font-sans: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -631,11 +633,11 @@ details[open] .chev { transform: rotate(180deg); }
 /* ═══ shadcn → Plan 9a token bridge ═══
  * Keep shadcn variable NAMES (--background, --foreground, --primary, …) so
  * future `shadcn add` commands keep working, but route them at Plan 9a's
- * --theme-* tokens so shadcn components inherit the warm stone+ember palette
- * and respect the active [data-theme="..."] (cairn-light/cairn-dark/sepia/
+ * --theme-* tokens so shadcn components inherit the neutral palette and
+ * respect the active [data-theme="..."] (cairn-light/cairn-dark/sepia/
  * high-contrast). Per OpenCairn design memory:
- *   - Primary CTA is stone-900 (--theme-fg), NOT ember.
- *   - Ember (--theme-accent) is strictly for --accent / --ring highlights.
+ *   - Primary CTA is --theme-fg (#171717 in light), NOT a colored accent.
+ *   - --theme-accent is a darker neutral for --accent / --ring only.
  */
 :root {
   --background: var(--theme-bg);
@@ -644,13 +646,13 @@ details[open] .chev { transform: rotate(180deg); }
   --card-foreground: var(--theme-fg);
   --popover: var(--theme-surface);
   --popover-foreground: var(--theme-fg);
-  --primary: var(--theme-fg);               /* stone-900 CTA */
+  --primary: var(--theme-fg);               /* neutral-900 CTA */
   --primary-foreground: var(--theme-bg);
   --secondary: var(--theme-surface);
   --secondary-foreground: var(--theme-fg);
   --muted: var(--theme-surface);
   --muted-foreground: var(--theme-fg-muted);
-  --accent: var(--theme-accent);            /* ember — highlight only */
+  --accent: var(--theme-accent);            /* neutral-700 — highlight only */
   --accent-foreground: var(--theme-accent-fg);
   --destructive: var(--theme-danger);
   --border: var(--theme-border);

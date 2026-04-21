@@ -20,7 +20,7 @@
     "easter": "네 번째 돌 ✦"
   },
   "hero": {
-    "label": "[ 001 / 012 · HERO ]",
+    "label": "HERO",
     "labelMeta": "2026.04 · SEOUL · AI KNOWLEDGE OS · AGPLV3",
     "titleLine1": "쓴 것만 담아두는",
     "titleLine2": "도구는 많습니다.",
@@ -101,7 +101,7 @@
     }
   },
   "metrics": {
-    "label": "[ 002 / 012 · METRICS ]",
+    "label": "METRICS",
     "items": [
       { "value": 12, "suffix": "", "caption": "AI 에이전트" },
       { "value": 5, "suffix": "뷰", "caption": "하나의 그래프 · 다섯 렌즈" },
@@ -110,7 +110,7 @@
     ]
   },
   "pipeline": {
-    "label": "[ 003 / 012 · PIPELINE ]",
+    "label": "PIPELINE",
     "title1": "자료 한 개를",
     "title2": "위키 페이지로 바꾸는",
     "title3": "여섯 단계.",
@@ -130,7 +130,7 @@
       "tail": "it just runs."
     },
     "citation": {
-      "label": "↪ CITATION",
+      "label": "CITATION",
       "title": "모든 문장은 원본 자료로 되돌아갑니다.",
       "body": "AI가 작성한 문장에는 인용이 붙고, 인용은 실제 읽은 자료로 이어집니다. 환각 없이, 표절 없이, 실제로 여러분이 가진 자료만으로.",
       "pillKey": "citation.sources",
@@ -139,7 +139,7 @@
     }
   },
   "agents": {
-    "label": "[ 004 / 012 · AGENTS ]",
+    "label": "AGENTS",
     "title1": "12명의 전문가가",
     "title2": "분업합니다.",
     "sub": "하나의 거대한 프롬프트 대신, 좁은 책임을 가진 에이전트들이 릴레이합니다. 각자 꺼지지 않는 백그라운드에서 일하고, 브라우저를 닫아도 지식은 계속 자랍니다.",
@@ -159,7 +159,7 @@
     ]
   },
   "views": {
-    "label": "[ 005 / 012 · VIEWS ]",
+    "label": "VIEWS",
     "title": "같은 지식을 다섯 가지 렌즈로.",
     "sub": "하나의 데이터, 다섯 가지 시야. 필요한 순간에 어울리는 뷰로 전환합니다. 전환은 기록으로 남고, 언제든 되돌릴 수 있습니다.",
     "items": [
@@ -171,7 +171,7 @@
     ]
   },
   "try": {
-    "label": "[ 006 / 012 · TRY IT ]",
+    "label": "TRY IT",
     "title1": "개념 하나를 고르면,",
     "title2": "연결된 생각들이 드러납니다.",
     "sub": "한 대학원생이 트랜스포머 계열 논문 스무 편을 올린 뒤 만들어진 위키의 작은 조각입니다. 노드에 마우스를 올리거나 탭해 보세요. OpenCairn이 발견한 연결이 퍼져 나갑니다.",
@@ -195,7 +195,7 @@
     }
   },
   "workspace": {
-    "label": "[ 007 / 012 · WORKSPACE ]",
+    "label": "WORKSPACE",
     "title1": "혼자서도, 실험실 단위로도",
     "title2": "같은 방식으로 움직입니다.",
     "sub": "위키 페이지는 그냥 글이 아니라, 자료·에이전트·팀원의 합류점입니다. 페이지마다 출처·편집자·에이전트 활동이 함께 살아 있습니다.",
@@ -239,7 +239,7 @@
     ]
   },
   "principles": {
-    "label": "[ 008 / 012 · PRINCIPLES ]",
+    "label": "PRINCIPLES",
     "title1": "네 가지 약속이",
     "title2": "한 자리에 모이기는 드뭅니다.",
     "sub": "자료 주권 · 살아 있는 지식 · 학습까지 한 줄기 · 열린 소스. 한두 가지를 지키는 도구는 많지만, 넷을 동시에 두는 자리가 OpenCairn입니다.",
@@ -271,7 +271,7 @@
     ]
   },
   "personas": {
-    "label": "[ 009 / 012 · WHO ]",
+    "label": "WHO",
     "title1": "혼자 쓰던 도구가",
     "title2": "조직 전체로.",
     "sub": "개인에서 시작해 연구실, 규제 산업 엔터프라이즈까지 선형적으로 확장합니다. 도구를 바꿀 일이 없습니다.",
@@ -300,7 +300,7 @@
     ]
   },
   "install": {
-    "label": "[ 010 / 012 · INSTALL ]",
+    "label": "INSTALL",
     "title1": "한 번의 명령어로",
     "title2": "여러분의 서버에서.",
     "sub": "Docker Compose 한 줄이면 충분합니다. 데이터베이스 · 파일 스토리지 · 워크플로 엔진까지 한 번에 기동되고, 완전 로컬 LLM 모드도 프로필 하나로 전환됩니다.",
@@ -329,7 +329,7 @@
     "terminalTail": "$ docker compose up → http://localhost:3000 → it just runs."
   },
   "pricing": {
-    "label": "[ 011 / 012 · PRICING ]",
+    "label": "PRICING",
     "title1": "오늘 무료로 시작하고,",
     "title2": "필요할 때 업그레이드하세요.",
     "sub": "Free 플랜으로 모든 에이전트를 먼저 써볼 수 있습니다. 연구실·팀 단위로 커지면 Pro 무제한, 본인 키를 쓰고 싶다면 BYOK로.",
@@ -346,7 +346,7 @@
         "12 에이전트 전체 접근"
       ],
       "bulletsMuted": ["커뮤니티 지원"],
-      "cta": "> 시작하기"
+      "cta": "시작하기"
     },
     "pro": {
       "name": "Pro",
@@ -355,7 +355,7 @@
       "unit": "/월",
       "tagline": "구독료 + AI 사용량 별도 (PAYG)",
       "payg": {
-        "label": "↪ AI 크레딧 (PAYG)",
+        "label": "AI 크레딧 (PAYG)",
         "line1": "최소 ₩5,000 선불 충전 · <b>잔액 만료 없음</b>",
         "line2": "사용한 만큼만 차감 · <m>$1 = ₩1,650</m>"
       },
@@ -367,7 +367,7 @@
         "자동 재충전 옵션 · 사용량 대시보드",
         "이메일 지원"
       ],
-      "cta": "> PRO 시작하기 →",
+      "cta": "PRO 시작하기",
       "guarantee": "14일간 구독료 환불 보장"
     },
     "byok": {
@@ -383,12 +383,12 @@
         "스토리지 10 GB"
       ],
       "bulletsMuted": ["Pro 팀 기능 제외 (솔로 tier)"],
-      "cta": "> BYOK로 시작"
+      "cta": "BYOK로 시작"
     },
     "footnote": "국내 카드·간편결제 지원 · VAT 별도 · 언제든 해지 · 환불 정책",
     "refundLinkLabel": "환불 정책",
     "secondary": {
-      "label": "↪ OTHER ROUTES",
+      "label": "OTHER ROUTES",
       "title": "직접 운영하거나, 온프레미스로.",
       "sub": "관리형 클라우드를 원하지 않는다면, 두 가지 길이 더 있습니다.",
       "selfHost": {
@@ -406,7 +406,7 @@
     }
   },
   "faq": {
-    "label": "[ 012 / 012 · FAQ ]",
+    "label": "FAQ",
     "title": "묻기 전에.",
     "items": [
       {
@@ -436,7 +436,7 @@
     ]
   },
   "cta": {
-    "label": "↪ CLOSING",
+    "label": "CLOSING",
     "titleA": "여러분 지식의",
     "titleB": "제2의 뇌.",
     "sub": "Free 플랜으로 오늘 시작하세요. 1년 뒤 지식 베이스가 얼마나 자라 있을지는, 오늘부터의 축적이 정합니다.",

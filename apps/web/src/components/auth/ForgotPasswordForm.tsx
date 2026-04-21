@@ -37,7 +37,7 @@ export function ForgotPasswordForm() {
   if (sent) {
     return (
       <div className="flex flex-col gap-3 text-center py-4">
-        <p className="font-serif text-xl text-stone-900">{t("forgot.sent")}</p>
+        <p className="font-sans text-xl text-stone-900">{t("forgot.sent")}</p>
         <p className="text-sm text-stone-500">{t("forgot.sentDesc")}</p>
         <a
           href={`/${locale}/auth/login`}
@@ -52,7 +52,7 @@ export function ForgotPasswordForm() {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <h2 className="font-serif text-xl text-stone-900">{t("forgot.title")}</h2>
+        <h2 className="font-sans text-xl text-stone-900">{t("forgot.title")}</h2>
         <p className="text-sm text-stone-500">{t("forgot.desc")}</p>
       </div>
 

@@ -36,7 +36,7 @@ export function DocsTeaser() {
             <ul className="space-y-3 text-[13.5px] text-stone-700 border-t border-stone-900 pt-6">
               {bullets.map((b, i) => (
                 <li key={i} className="flex items-start gap-3">
-                  <span className="font-mono text-[11px] text-stone-900 tracking-widest pt-0.5">→</span>
+                  <span className="text-[11px] text-stone-900 pt-0.5">→</span>
                   <span className="kr">{b}</span>
                 </li>
               ))}
@@ -66,7 +66,7 @@ export function DocsTeaser() {
                 </div>
               </div>
             </div>
-            <div className="mt-5 font-mono text-[11.5px] text-stone-500 tracking-wider">
+            <div className="mt-5 text-[11.5px] text-stone-500 tracking-wider">
               {t("terminalTail")}
             </div>
           </div>

@@ -16,8 +16,8 @@ export function HowItWorks() {
       <div className="max-w-[1280px] mx-auto px-6 lg:px-10">
         <div className="grid grid-cols-12 gap-6 mb-16 reveal">
           <div className="col-span-12 md:col-span-3">
-            <span className="sec-label" style={{ color: "#9A9285" }}>
-              <span className="n" style={{ color: "#F5F3EE" }}>
+            <span className="sec-label" style={{ color: "#737373" }}>
+              <span className="n" style={{ color: "#FAFAFA" }}>
                 {t("label")}
               </span>
             </span>
@@ -38,13 +38,13 @@ export function HowItWorks() {
           {steps.map((s, i) => (
             <div key={i} className="col-span-12 md:col-span-2 pipe-step">
               <div
-                className={`font-mono text-[11px] tracking-widest uppercase mb-6 ${
+                className={`text-[11px] tracking-widest uppercase mb-6 ${
                   i < 3 ? "text-stone-500" : "text-stone-300"
                 }`}
               >
                 {s.n}
               </div>
-              <div className="font-serif text-2xl mb-3">{s.title}</div>
+              <div className="font-sans text-2xl mb-3">{s.title}</div>
               <p className="text-[14px] text-stone-400 leading-relaxed kr">{s.body}</p>
             </div>
           ))}
@@ -63,14 +63,14 @@ export function HowItWorks() {
 
         <div className="mt-20 pt-12 border-t border-stone-700 grid grid-cols-12 gap-6 reveal">
           <div className="col-span-12 md:col-span-3">
-            <span className="sec-label" style={{ color: "#9A9285" }}>
-              <span className="n" style={{ color: "#F5F3EE" }}>
+            <span className="sec-label" style={{ color: "#737373" }}>
+              <span className="n" style={{ color: "#FAFAFA" }}>
                 {t("citation.label")}
               </span>
             </span>
           </div>
           <div className="col-span-12 md:col-span-9">
-            <h3 className="kr font-serif text-2xl md:text-3xl leading-[1.15] mb-4">
+            <h3 className="kr font-sans text-2xl md:text-3xl leading-[1.15] mb-4">
               {t("citation.title")}
             </h3>
             <p className="kr text-[14px] text-stone-400 leading-relaxed max-w-[560px] mb-5">

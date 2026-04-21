@@ -59,14 +59,14 @@ export function Metrics() {
           <div className="col-span-12 md:col-span-9 grid grid-cols-2 md:grid-cols-4 gap-8 reveal-stagger">
             {items.map((m, i) => (
               <div key={i} className="border-l border-stone-900 pl-5">
-                <div className="font-serif text-4xl text-stone-900 leading-none">
+                <div className="font-sans text-4xl text-stone-900 leading-none">
                   {typeof m.value === "number" ? (
                     <CountValue target={m.value} suffix={m.suffix} />
                   ) : (
                     <span>{m.value}</span>
                   )}
                 </div>
-                <div className="font-mono text-[11px] tracking-widest uppercase text-stone-500 mt-3">
+                <div className="font-sans text-[11px] tracking-widest uppercase text-stone-500 mt-3">
                   {m.caption}
                 </div>
               </div>

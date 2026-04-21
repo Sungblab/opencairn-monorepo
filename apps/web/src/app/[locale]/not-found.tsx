@@ -20,7 +20,7 @@ export default function NotFound() {
                 <span className="n">{t("label")}</span>
               </span>
             </div>
-            <h1 className="kr font-serif text-4xl sm:text-5xl md:text-6xl leading-[1.05] text-stone-900 mb-6">
+            <h1 className="kr font-sans text-4xl sm:text-5xl md:text-6xl leading-[1.05] text-stone-900 mb-6">
               {t("title")}
             </h1>
             <p className="kr text-lg text-stone-600 leading-relaxed mb-10 max-w-xl">{t("body")}</p>

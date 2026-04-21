@@ -38,12 +38,12 @@ export function Personas() {
               style={i === items.length - 1 ? { borderRight: 0 } : undefined}
             >
               <div className="flex items-baseline justify-between mb-5">
-                <span className="font-mono text-[11px] tracking-widest text-stone-900">{p.ver}</span>
-                <span className="font-mono text-[10px] tracking-widest text-stone-500 uppercase">{p.cat}</span>
+                <span className="font-sans text-[11px] tracking-widest text-stone-900">{p.ver}</span>
+                <span className="font-sans text-[10px] tracking-widest text-stone-500 uppercase">{p.cat}</span>
               </div>
-              <h3 className="font-serif text-2xl text-stone-900 mb-4">{p.title}</h3>
+              <h3 className="font-sans text-2xl text-stone-900 mb-4">{p.title}</h3>
               <p className="kr text-[13px] text-stone-600 leading-relaxed mb-6">{p.body}</p>
-              <ul className="text-[12.5px] text-stone-600 font-mono tracking-wider space-y-1.5">
+              <ul className="text-[12.5px] text-stone-600 font-sans tracking-wider space-y-1.5">
                 {p.bullets.map((b, j) => (
                   <li key={j}>{b}</li>
                 ))}

@@ -19,8 +19,8 @@ export default function GlobalError({
         style={{
           margin: 0,
           minHeight: "100vh",
-          background: "#F5F3EE",
-          color: "#1C1917",
+          background: "#FAFAFA",
+          color: "#171717",
           fontFamily:
             'Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
           display: "flex",
@@ -35,7 +35,7 @@ export default function GlobalError({
               fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
               fontSize: 11,
               letterSpacing: "0.18em",
-              color: "#6B6559",
+              color: "#525252",
               textTransform: "uppercase",
               marginBottom: 24,
             }}
@@ -57,13 +57,13 @@ export default function GlobalError({
             style={{
               fontSize: 17,
               lineHeight: 1.6,
-              color: "#403C32",
+              color: "#262626",
               margin: "0 0 32px",
             }}
           >
             복구할 수 없는 오류가 발생했습니다. 페이지를 새로고침 해주세요.
             <br />
-            <span style={{ color: "#6B6559", fontSize: 14 }}>
+            <span style={{ color: "#525252", fontSize: 14 }}>
               An unrecoverable error occurred. Please reload the page.
             </span>
           </p>
@@ -71,8 +71,8 @@ export default function GlobalError({
             type="button"
             onClick={reset}
             style={{
-              background: "#1C1917",
-              color: "#F5F3EE",
+              background: "#171717",
+              color: "#FAFAFA",
               border: 0,
               padding: "12px 24px",
               borderRadius: 6,
@@ -90,7 +90,7 @@ export default function GlobalError({
                 fontFamily: "ui-monospace, monospace",
                 fontSize: 11,
                 letterSpacing: "0.12em",
-                color: "#9A9285",
+                color: "#737373",
                 textTransform: "uppercase",
               }}
             >

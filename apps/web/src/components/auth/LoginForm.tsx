@@ -50,7 +50,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <h2 className="font-serif text-xl text-stone-900">{t("login.title")}</h2>
+      <h2 className="font-sans text-xl text-stone-900">{t("login.title")}</h2>
 
       <GoogleButton />
 

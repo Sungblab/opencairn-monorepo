@@ -41,7 +41,7 @@ export function LandingHeader() {
               OpenCairn
             </span>
           </a>
-          <div className="hidden md:flex items-center gap-7 font-mono text-[12px] tracking-wider text-stone-600">
+          <div className="hidden md:flex items-center gap-7 font-sans text-[12px] tracking-wider text-stone-600">
             <a href="#how" className="hover:text-stone-900 transition-colors">{t("pipeline")}</a>
             <a href="#agents" className="hover:text-stone-900 transition-colors">{t("agents")}</a>
             <a href="#workspace" className="hover:text-stone-900 transition-colors">{t("workspace")}</a>
@@ -53,7 +53,7 @@ export function LandingHeader() {
             <a
               href={`/${otherLocale}`}
               aria-label={t("switchToLabel")}
-              className="font-mono text-[11px] tracking-widest text-stone-500 hover:text-stone-900 transition-colors"
+              className="font-sans text-[11px] tracking-widest text-stone-500 hover:text-stone-900 transition-colors"
             >
               {t("switchTo")}
             </a>

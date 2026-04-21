@@ -16,16 +16,16 @@ export function Cta() {
             <span className="sec-label">{t("label")}</span>
           </div>
           <div className="col-span-12 md:col-span-9">
-            <h2 className="kr font-serif text-4xl md:text-6xl text-stone-900 leading-[1.02] mb-6">
+            <h2 className="kr font-sans text-4xl md:text-6xl text-stone-900 leading-[1.02] mb-6">
               {t("titleA")}
               <br />
-              <span className="italic">{t("titleB")}</span>
+              <span className="font-extrabold tracking-tight">{t("titleB")}</span>
             </h2>
             <p className="kr text-[15px] text-stone-600 leading-relaxed mb-10 max-w-[560px]">{t("sub")}</p>
             <div className="flex flex-wrap items-center gap-4 mb-6">
               <a
                 href="#login"
-                className="bg-stone-900 hover:bg-stone-800 text-stone-50 font-mono text-[13px] tracking-widest px-8 py-4 rounded-md transition-colors kr inline-flex items-center gap-2.5"
+                className="bg-stone-900 hover:bg-stone-800 text-stone-50 font-sans text-[13px] tracking-widest px-8 py-4 rounded-md transition-colors kr inline-flex items-center gap-2.5"
               >
                 {t("primary")}
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -34,12 +34,12 @@ export function Cta() {
               </a>
               <a
                 href="#pricing"
-                className="border border-stone-900 text-stone-900 hover:bg-stone-900 hover:text-stone-50 font-mono text-[13px] tracking-widest px-8 py-4 rounded-md transition-colors kr"
+                className="border border-stone-900 text-stone-900 hover:bg-stone-900 hover:text-stone-50 font-sans text-[13px] tracking-widest px-8 py-4 rounded-md transition-colors kr"
               >
                 {t("secondary")}
               </a>
             </div>
-            <p className="font-mono text-[13px] text-stone-600 tracking-wider">
+            <p className="font-sans text-[13px] text-stone-600 tracking-wider">
               <a
                 href="https://github.com/Sungblab/opencairn-monorepo"
                 className="hover:text-stone-900 underline underline-offset-2 decoration-stone-400"

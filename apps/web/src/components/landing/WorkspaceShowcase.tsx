@@ -54,7 +54,7 @@ export function WorkspaceShowcase() {
               <div className="ws-side-h">{t("mock.sideWorkspace")}</div>
               <div className="mb-4 flex items-center justify-between px-2">
                 <span className="font-medium text-stone-900">{t("mock.sideWorkspaceName")}</span>
-                <span className="text-stone-500 font-mono text-[10px]">{t("mock.sideWorkspaceMembers")}</span>
+                <span className="text-stone-500 font-sans text-[10px]">{t("mock.sideWorkspaceMembers")}</span>
               </div>
               <div className="space-y-0.5 mb-5">
                 {sideRows.map((row, i) => (
@@ -73,10 +73,10 @@ export function WorkspaceShowcase() {
                 ))}
               </div>
             </div>
-            <div className="col-span-12 md:col-span-6 ws-main md:[border-right:1px_solid_#D8D3C8]">
+            <div className="col-span-12 md:col-span-6 ws-main md:[border-right:1px_solid_#D4D4D4]">
               <div className="ws-breadcrumb">{t("mock.breadcrumb")}</div>
-              <h3 className="font-serif text-3xl text-stone-900 kr mb-3">{t("mock.pageTitle")}</h3>
-              <div className="flex items-center gap-3 mb-5 font-mono text-[10.5px] text-stone-500">
+              <h3 className="font-sans text-3xl text-stone-900 kr mb-3">{t("mock.pageTitle")}</h3>
+              <div className="flex items-center gap-3 mb-5 font-sans text-[10.5px] text-stone-500">
                 {meta.map((m, i) => (
                   <span key={i}>
                     {i > 0 ? "· " : ""}
@@ -106,17 +106,17 @@ export function WorkspaceShowcase() {
               <div className="ws-rail-h">{t("mock.railFeedH")}</div>
               {feed.map((f, i) => (
                 <div key={i} className="ws-feed-item">
-                  <div className="ws-feed-agent" style={f.faded ? { color: "#6B6559" } : undefined}>
+                  <div className="ws-feed-agent" style={f.faded ? { color: "#525252" } : undefined}>
                     {f.agent}
                   </div>
-                  <div className="ws-feed-text kr" style={f.faded ? { color: "#6B6559" } : undefined}>
+                  <div className="ws-feed-text kr" style={f.faded ? { color: "#525252" } : undefined}>
                     {f.text}
                   </div>
                 </div>
               ))}
               <div className="mt-6 pt-4 border-t border-stone-200">
                 <div className="ws-rail-h">{t("mock.backlinksH")}</div>
-                <ul className="space-y-1 text-[12px] text-stone-700 font-mono">
+                <ul className="space-y-1 text-[12px] text-stone-700 font-sans">
                   {backlinks.map((b, i) => (
                     <li key={i} className={i === backlinks.length - 1 ? "text-stone-500" : undefined}>
                       {b}
@@ -129,7 +129,7 @@ export function WorkspaceShowcase() {
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-12 gap-6 font-mono text-[11px] tracking-widest uppercase text-stone-500">
+        <div className="mt-6 grid grid-cols-12 gap-6 font-sans text-[11px] tracking-widest uppercase text-stone-500">
           <div className="col-span-12 md:col-span-3" />
           <div className="col-span-12 md:col-span-9 flex flex-wrap gap-5">
             {tags.map((tag, i) => (

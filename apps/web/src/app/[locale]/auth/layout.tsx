@@ -29,7 +29,7 @@ export default async function AuthLayout({
         </a>
 
         <div className="flex flex-col gap-8">
-          <p className="font-serif text-4xl xl:text-5xl leading-tight text-stone-50">
+          <p className="font-sans text-4xl xl:text-5xl leading-tight text-stone-50">
             {t("headline")}
           </p>
           <ul className="flex flex-col gap-3">
@@ -44,7 +44,7 @@ export default async function AuthLayout({
           </ul>
         </div>
 
-        <p className="text-xs text-stone-600 font-mono tracking-wider">
+        <p className="text-xs text-stone-600 font-sans tracking-wider">
           AGPLv3 · Self-hostable
         </p>
       </div>

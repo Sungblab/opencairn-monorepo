@@ -36,10 +36,10 @@ export function Comparison() {
             {items.map((p, i) => (
               <div key={i} className="pri-col">
                 <div className="flex items-baseline gap-3 mb-3">
-                  <span className="font-mono text-[11px] tracking-widest text-stone-900">{p.tag}</span>
-                  <span className="font-mono text-[10px] tracking-widest text-stone-500 uppercase">{p.cat}</span>
+                  <span className="font-sans text-[11px] tracking-widest text-stone-900">{p.tag}</span>
+                  <span className="font-sans text-[10px] tracking-widest text-stone-500 uppercase">{p.cat}</span>
                 </div>
-                <h3 className="font-serif text-2xl text-stone-900 mb-3">{p.title}</h3>
+                <h3 className="font-sans text-2xl text-stone-900 mb-3">{p.title}</h3>
                 <p className="kr text-[13.5px] text-stone-600 leading-relaxed">{p.body}</p>
               </div>
             ))}
