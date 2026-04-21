@@ -64,6 +64,25 @@ describe("PATCH /api/notes/:id", () => {
     }
   });
 
+  it("title-only PATCH preserves existing content_text", async () => {
+    await authedFetch(`/api/notes/${ctx.noteId}`, {
+      method: "PATCH",
+      userId: ctx.userId,
+      body: JSON.stringify({
+        content: [{ type: "p", children: [{ text: "Persisted body" }] }],
+      }),
+    });
+    const res = await authedFetch(`/api/notes/${ctx.noteId}`, {
+      method: "PATCH",
+      userId: ctx.userId,
+      body: JSON.stringify({ title: "New title only" }),
+    });
+    expect(res.status).toBe(200);
+    const [row] = await db.select().from(notes).where(eq(notes.id, ctx.noteId));
+    expect(row!.title).toBe("New title only");
+    expect(row!.contentText).toContain("Persisted body");
+  });
+
   it("deleted note returns 404", async () => {
     await db
       .update(notes)
