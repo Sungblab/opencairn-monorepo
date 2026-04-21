@@ -9,14 +9,7 @@ export function LandingHeader() {
   const otherLocale = locale === "ko" ? "en" : "ko";
   const nameRef = useRef<HTMLSpanElement>(null);
   const [clicks, setClicks] = useState(0);
-
   const [authOpen, setAuthOpen] = useState(false);
-  const [authTab, setAuthTab] = useState<"login" | "signup">("login");
-
-  const openAuth = (tab: "login" | "signup") => {
-    setAuthTab(tab);
-    setAuthOpen(true);
-  };
 
   const onLogoClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -65,25 +58,21 @@ export function LandingHeader() {
               {t("switchTo")}
             </a>
             <button
-              onClick={() => openAuth("login")}
+              onClick={() => setAuthOpen(true)}
               className="hidden sm:inline-block text-sm text-stone-700 hover:text-stone-900 font-medium kr transition-colors"
             >
               {t("signIn")}
             </button>
-            <button
-              onClick={() => openAuth("signup")}
+            <a
+              href={`/${locale}/auth/signup`}
               className="bg-stone-900 hover:bg-stone-800 text-stone-50 text-sm font-medium px-4 py-2 rounded-md transition-colors kr"
             >
               {t("signUp")}
-            </button>
+            </a>
           </div>
         </div>
       </nav>
-      <AuthModal
-        open={authOpen}
-        onOpenChange={setAuthOpen}
-        defaultTab={authTab}
-      />
+      <AuthModal open={authOpen} onOpenChange={setAuthOpen} />
     </>
   );
 }

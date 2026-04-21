@@ -2,6 +2,7 @@ import { setRequestLocale, getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 import type { Locale } from "@/i18n";
 import { LandingHeader } from "@/components/landing/chrome/Header";
+import { GoogleOneTap } from "@/components/auth/GoogleOneTap";
 import { LandingFooter } from "@/components/landing/chrome/Footer";
 import { Hero } from "@/components/landing/Hero";
 import { StackTicker } from "@/components/landing/StackTicker";
@@ -55,6 +56,7 @@ export default async function Landing({ params }: { params: Promise<{ locale: Lo
       className="min-h-screen bg-stone-50 text-stone-800 font-sans antialiased"
     >
       <LandingHeader />
+      <GoogleOneTap />
       <Hero />
       <StackTicker />
       <Metrics />

@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { oneTap } from "better-auth/plugins";
 import { db } from "@opencairn/db";
 
 // trustedOrigins must include the web app URL; otherwise proxied requests
@@ -37,5 +38,6 @@ export const auth = betterAuth({
   session: {
     expiresIn: 60 * 60 * 24 * 7,
   },
+  plugins: [oneTap()],
   trustedOrigins,
 });
