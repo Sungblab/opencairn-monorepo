@@ -29,6 +29,7 @@
     "parse_error": "Math parse error"
   },
   "toolbar": {
+    "aria_label": "Editor toolbar",
     "bold": "Bold",
     "italic": "Italic",
     "strike": "Strikethrough",

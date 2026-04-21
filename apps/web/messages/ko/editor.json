@@ -29,6 +29,7 @@
     "parse_error": "수식 파싱 오류"
   },
   "toolbar": {
+    "aria_label": "에디터 도구 모음",
     "bold": "굵게",
     "italic": "기울임",
     "strike": "취소선",
