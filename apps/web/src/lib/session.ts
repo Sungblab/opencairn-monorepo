@@ -1,5 +1,5 @@
 // Server-only helper: read Better Auth session from cookies on the server side.
-// Any /app/* route must be authed — unauthed hits redirect to /login.
+// Any /app/* route must be authed — unauthed hits redirect to /ko/auth/login.
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -18,7 +18,7 @@ export async function requireSession(): Promise<ServerSession> {
     headers: { cookie: cookieHeader },
     cache: "no-store",
   });
-  if (!res.ok) redirect("/login");
+  if (!res.ok) redirect("/ko/auth/login");
   const body = (await res.json()) as ServerSession;
   return body;
 }
