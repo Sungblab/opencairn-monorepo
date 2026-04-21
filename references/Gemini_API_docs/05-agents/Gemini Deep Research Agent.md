@@ -1,7 +1,19 @@
-The Gemini Deep Research Agent autonomously plans, executes, and synthesizes
-multi-step research tasks. Powered by Gemini 3.1 Pro, it navigates complex
-information landscapes using web search and your own data to produce detailed,
-cited reports.
+The Gemini Deep Research Agent is a powerful agentic researcher designed for
+autonomous, multi-step investigations that synthesize complex information from
+hundreds of public web sources and private workspace data into comprehensive,
+cited reports. It supports collaborative planning, visualization, MCP servers,
+and File Search.
+
+The agent comes in two variants (April 2026):
+
+| Agent code | Purpose | Notes |
+| --- | --- | --- |
+| `deep-research-preview-04-2026` | Speed and efficiency — default choice | Standard preview tier |
+| `deep-research-max-preview-04-2026` | Maximum comprehensiveness — accuracy-critical investigations | Long-running, higher cost |
+
+Both variants share the same I/O envelope: **Input** — Text, Image, PDF, Audio,
+Video; **Output** — Text (cited reports), Images; **Token limits** — 1,048,576
+input context / 65,536 output.
 
 Research tasks involve iterative searching and reading and can take several
 minutes to complete. You must use **background execution** (set `background=true`)
@@ -24,7 +36,7 @@ and poll for results.
 
     interaction = client.interactions.create(
         input="Research the history of Google TPUs.",
-        agent='deep-research-pro-preview-12-2025',
+        agent='deep-research-preview-04-2026',
         background=True
     )
 
@@ -48,7 +60,7 @@ and poll for results.
 
     const interaction = await client.interactions.create({
         input: 'Research the history of Google TPUs.',
-        agent: 'deep-research-pro-preview-12-2025',
+        agent: 'deep-research-preview-04-2026',
         background: true
     });
 
@@ -74,7 +86,7 @@ and poll for results.
     -H "x-goog-api-key: $GEMINI_API_KEY" \
     -d '{
         "input": "Research the history of Google TPUs.",
-        "agent": "deep-research-pro-preview-12-2025",
+        "agent": "deep-research-preview-04-2026",
         "background": true
     }'
 
@@ -103,7 +115,7 @@ the following example.
 
     interaction = client.interactions.create(
         input="Compare our 2025 fiscal year report against current public web news.",
-        agent="deep-research-pro-preview-12-2025",
+        agent="deep-research-preview-04-2026",
         background=True,
         tools=[
             {
@@ -117,7 +129,7 @@ the following example.
 
     const interaction = await client.interactions.create({
         input: 'Compare our 2025 fiscal year report against current public web news.',
-        agent: 'deep-research-pro-preview-12-2025',
+        agent: 'deep-research-preview-04-2026',
         background: true,
         tools: [
             { type: 'file_search', file_search_store_names: ['fileSearchStores/my-store-name'] },
@@ -131,7 +143,7 @@ the following example.
     -H "x-goog-api-key: $GEMINI_API_KEY" \
     -d '{
         "input": "Compare our 2025 fiscal year report against current public web news.",
-        "agent": "deep-research-pro-preview-12-2025",
+        "agent": "deep-research-preview-04-2026",
         "background": true,
         "tools": [
             {"type": "file_search", "file_search_store_names": ["fileSearchStores/my-store-name"]},
@@ -160,7 +172,7 @@ Define the desired output format explicitly in your input text.
 
     interaction = client.interactions.create(
         input=prompt,
-        agent="deep-research-pro-preview-12-2025",
+        agent="deep-research-preview-04-2026",
         background=True
     )
 
@@ -177,7 +189,7 @@ Define the desired output format explicitly in your input text.
 
     const interaction = await client.interactions.create({
         input: prompt,
-        agent: 'deep-research-pro-preview-12-2025',
+        agent: 'deep-research-preview-04-2026',
         background: true,
     });
 
@@ -188,7 +200,7 @@ Define the desired output format explicitly in your input text.
     -H "x-goog-api-key: $GEMINI_API_KEY" \
     -d '{
         "input": "Research the competitive landscape of EV batteries.\n\nFormat the output as a technical report with the following structure: \n1. Executive Summary\n2. Key Players (Must include a data table comparing capacity and chemistry)\n3. Supply Chain Risks",
-        "agent": "deep-research-pro-preview-12-2025",
+        "agent": "deep-research-preview-04-2026",
         "background": true
 
 ## Multimodal inputs
@@ -223,7 +235,7 @@ image URL.
                 "uri": "https://storage.googleapis.com/generativeai-downloads/images/generated_elephants_giraffes_zebras_sunset.jpg"
             }
         ],
-        agent="deep-research-pro-preview-12-2025",
+        agent="deep-research-preview-04-2026",
         background=True
     )
 
@@ -260,7 +272,7 @@ image URL.
                 uri: 'https://storage.googleapis.com/generativeai-downloads/images/generated_elephants_giraffes_zebras_sunset.jpg'
             }
         ],
-        agent: 'deep-research-pro-preview-12-2025',
+        agent: 'deep-research-preview-04-2026',
         background: true
     });
 
@@ -289,7 +301,7 @@ image URL.
             {"type": "text", "text": "Analyze the interspecies dynamics and behavioral risks present in the provided image of the African watering hole. Specifically, investigate the symbiotic relationship between the avian species and the pachyderms shown, and conduct a risk assessment for the reticulated giraffes based on their drinking posture relative to the specific predator visible in the foreground."},
             {"type": "image", "uri": "https://storage.googleapis.com/generativeai-downloads/images/generated_elephants_giraffes_zebras_sunset.jpg"}
         ],
-        "agent": "deep-research-pro-preview-12-2025",
+        "agent": "deep-research-preview-04-2026",
         "background": true
     }'
 
@@ -326,7 +338,7 @@ which lets you resume from the specific point where you disconnected.
 
     stream = client.interactions.create(
         input="Research the history of Google TPUs.",
-        agent="deep-research-pro-preview-12-2025",
+        agent="deep-research-preview-04-2026",
         background=True,
         stream=True,
         agent_config={
@@ -359,7 +371,7 @@ which lets you resume from the specific point where you disconnected.
 
     const stream = await client.interactions.create({
         input: 'Research the history of Google TPUs.',
-        agent: 'deep-research-pro-preview-12-2025',
+        agent: 'deep-research-preview-04-2026',
         background: true,
         stream: true,
         agent_config: {
@@ -400,7 +412,7 @@ which lets you resume from the specific point where you disconnected.
     -H "x-goog-api-key: $GEMINI_API_KEY" \
     -d '{
         "input": "Research the history of Google TPUs.",
-        "agent": "deep-research-pro-preview-12-2025",
+        "agent": "deep-research-preview-04-2026",
         "background": true,
         "stream": true,
         "agent_config": {
@@ -433,7 +445,7 @@ drops.
     client = genai.Client()
 
     # Configuration
-    agent_name = 'deep-research-pro-preview-12-2025'
+    agent_name = 'deep-research-preview-04-2026'
     prompt = 'Compare golang SDK test frameworks'
 
     # State tracking
@@ -528,7 +540,7 @@ drops.
     try {
         const stream = await client.interactions.create({
             input: 'Compare golang SDK test frameworks',
-            agent: 'deep-research-pro-preview-12-2025',
+            agent: 'deep-research-preview-04-2026',
             background: true,
             stream: true,
             agent_config: {
@@ -566,7 +578,7 @@ drops.
     -H "x-goog-api-key: $GEMINI_API_KEY" \
     -d '{
         "input": "Compare golang SDK test frameworks",
-        "agent": "deep-research-pro-preview-12-2025",
+        "agent": "deep-research-preview-04-2026",
         "background": true,
         "stream": true,
         "agent_config": {
