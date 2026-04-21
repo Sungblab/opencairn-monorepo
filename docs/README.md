@@ -39,4 +39,5 @@
 | Claude 반복 실수, 하지 말 것 목록                        | `contributing/llm-antipatterns.md`     |
 | 호스팅 서비스 경계 (법적 문서/블로그 위치, repo 포함 범위) | `contributing/hosted-service.md`       |
 | 장애 대응 / 온콜 / 알럿 채널                             | `runbooks/incident-response.md`        |
+| **Super Admin 콘솔** (운영자 전용, 이상 사용자 대응 MVP)  | `superpowers/specs/2026-04-22-super-admin-console-design.md` |
 | **Plan별 완료 상태 + 커밋**                              | `contributing/plans-status.md`         |
