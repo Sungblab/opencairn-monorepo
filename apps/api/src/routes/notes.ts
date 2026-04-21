@@ -5,6 +5,7 @@ import { createNoteSchema, updateNoteSchema } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite } from "../lib/permissions";
 import { isUuid } from "../lib/validators";
+import { plateValueToText } from "../lib/plate-text";
 import type { AppEnv } from "../lib/types";
 
 export const noteRoutes = new Hono<AppEnv>()
@@ -53,7 +54,12 @@ export const noteRoutes = new Hono<AppEnv>()
     // derive workspaceId from project (notes.workspaceId is NOT NULL, denormalized for query speed)
     const [proj] = await db.select({ workspaceId: projects.workspaceId }).from(projects).where(eq(projects.id, body.projectId));
     if (!proj) return c.json({ error: "Project not found" }, 404);
-    const [note] = await db.insert(notes).values({ ...body, workspaceId: proj.workspaceId }).returning();
+    // Derive content_text from Plate Value so FTS/embedding stays in sync with content.
+    const contentText = body.content ? plateValueToText(body.content) : "";
+    const [note] = await db
+      .insert(notes)
+      .values({ ...body, workspaceId: proj.workspaceId, contentText })
+      .returning();
     return c.json(note, 201);
   })
 
@@ -63,9 +69,14 @@ export const noteRoutes = new Hono<AppEnv>()
     if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
     if (!(await canWrite(user.id, { type: "note", id }))) return c.json({ error: "Forbidden" }, 403);
     const body = c.req.valid("json");
+    const update: Record<string, unknown> = { ...body };
+    // Re-derive content_text whenever content is rewritten (including null → "").
+    if (body.content !== undefined) {
+      update.contentText = plateValueToText(body.content);
+    }
     const [note] = await db
       .update(notes)
-      .set(body)
+      .set(update)
       .where(and(eq(notes.id, id), isNull(notes.deletedAt)))
       .returning();
     if (!note) return c.json({ error: "Not found" }, 404);

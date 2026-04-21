@@ -32,16 +32,20 @@ export const createTagSchema = z.object({
 });
 
 // ── Notes ─────────────────────────────────────────────────────────────────────────
+// Plate Value is an array of block nodes. `content` is jsonb in DB — we accept any
+// JSON array here; strict Plate node validation happens client-side.
+const plateValueSchema = z.array(z.unknown()).nullable();
+
 export const createNoteSchema = z.object({
   projectId: z.string().uuid(),
   folderId: z.string().uuid().nullable().default(null),
   title: z.string().max(300).default("Untitled"),
-  content: z.record(z.unknown()).nullable().default(null),
+  content: plateValueSchema.default(null),
   type: z.enum(["note", "wiki", "source"]).default("note"),
 });
 
 export const updateNoteSchema = z.object({
   title: z.string().max(300).optional(),
-  content: z.record(z.unknown()).nullable().optional(),
+  content: plateValueSchema.optional(),
   folderId: z.string().uuid().nullable().optional(),
 });

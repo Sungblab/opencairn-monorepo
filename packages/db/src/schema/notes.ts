@@ -28,7 +28,9 @@ export const notes = pgTable(
     }),
     inheritParent: boolean("inherit_parent").notNull().default(true),
     title: text("title").notNull().default("Untitled"),
-    content: jsonb("content").$type<Record<string, unknown>>(),
+    // Plate Value is `Array<PlateNode>`. Kept as `unknown` so both array and legacy
+    // object payloads round-trip through jsonb without a cast dance.
+    content: jsonb("content").$type<unknown>(),
     contentText: text("content_text").default(""),
     contentTsv: tsvector("content_tsv"),
     embedding: vector3072("embedding"),
