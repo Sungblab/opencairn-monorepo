@@ -88,7 +88,26 @@ Provider별 VECTOR_DIM 기본값: Gemini(embedding-001 MRL)=768, Ollama(nomic)=7
 
 ---
 
-## 8. Next.js 16
+## 8. Plate v49 (에디터)
+
+Plan 2A (2026-04-21) 중 반복 확인한 v49 함정. Plan의 코드 스니펫보다 `node_modules/@platejs/*/dist/**/*.d.ts`를 신뢰할 것.
+
+- ❌ `from '@platejs/core/react'` 직접 import → ✅ `from 'platejs/react'` (re-export)
+- ❌ `BasicNodesKit`, `MathKit` 같은 bundle export 기대 → ✅ 존재하지 않음. 개별 플러그인 import (`BoldPlugin`, `H1Plugin`, `EquationPlugin`, `HorizontalRulePlugin` 등).
+- ❌ 플러그인에 컴포넌트 주입 시 `kit({ components: {...} })` → ✅ `Plugin.withComponent(Component)` 또는 `createPlatePlugin({ node: { component } })` 또는 `createPlateEditor({ components: { [Plugin.key]: Component } })`.
+- ❌ `editor.tf.toggleMark(mark)` / `editor.tf.toggleBlock({ type })` → ✅ 그런 API 없음. 각 플러그인이 노출한 `editor.tf.{key}.toggle()` 호출 (예: `editor.tf.bold.toggle()`, `editor.tf.h1.toggle()`).
+- ❌ `<Plate onChange={...}>` → ✅ `<Plate onValueChange={...}>`. 바디는 `<PlateContent>`.
+- ❌ `editor.tf.insertNode(n)` → ✅ `editor.tf.insertNodes(n, { select: true })` (plural — 단수는 deprecated/없음).
+- ❌ `editor.tf.deleteBackward("char")` → ✅ `editor.tf.deleteBackward("character")` (Slate TextUnit 이름).
+- ❌ `@platejs/list`에서 별도 `UnorderedListPlugin` / `OrderedListPlugin` → ✅ v49는 indent 기반 — 단일 `ListPlugin` + `toggleList(editor, { listStyleType: "disc" | "decimal" })` 호출로 전환.
+- ❌ `@platejs/math`의 `$...$` 오토포맷 기대 → ✅ v49 math 노드는 void. `editor.tf.insert.equation()` / `editor.tf.insert.inlineEquation(tex)` 트랜스폼으로만 삽입.
+- ❌ `@platejs/code-block` 없이 CodePlugin만으로 코드 블록 기대 → ✅ basic-nodes의 `CodePlugin`은 **인라인 마크**. 블록이 필요하면 `@platejs/code-block`을 별도 의존성으로 추가.
+- ❌ 인라인 non-void 요소에서 `{children}` 생략 → ✅ Slate 런타임이 `Cannot get the start point...` throw. 앵커/span 안에 반드시 렌더.
+- ❌ 메뉴 버튼 `onClick`만 달고 에디터 선택 유실 → ✅ `onMouseDown={e => e.preventDefault()}`로 포커스 유지.
+
+---
+
+## 9. Next.js 16
 
 - ❌ `middleware.ts` → ✅ `proxy.ts` (Next.js 16에서 `middleware.ts`는 deprecated)
 - `NextRequest` → `NextResponse` 구조는 동일
@@ -96,7 +115,7 @@ Provider별 VECTOR_DIM 기본값: Gemini(embedding-001 MRL)=768, Ollama(nomic)=7
 
 ---
 
-## 9. 라이브러리 참조
+## 10. 라이브러리 참조
 
 | 상황 | 참조 방법 |
 |------|---------|

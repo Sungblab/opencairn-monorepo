@@ -88,8 +88,9 @@ Cookie: better_auth.session_token=<token>
 
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
-| GET | /api/workspaces | Yes | 내가 멤버인 모든 워크스페이스 | - |
+| GET | /api/workspaces | Yes | 내가 멤버인 모든 워크스페이스 — 응답 `[{ id, slug, name, role }]` | - |
 | POST | /api/workspaces | Yes | 새 workspace 생성 (생성자는 owner) | `{ name, slug }` |
+| GET | /api/workspaces/by-slug/:slug | member | slug로 워크스페이스 조회 — 응답 `{ id, slug, name, role }` (redirect 체인 용) | - |
 | GET | /api/workspaces/:workspaceId | member | 워크스페이스 상세 | - |
 | PATCH | /api/workspaces/:workspaceId | admin | 이름/slug/plan 변경 | `{ name?, slug?, planType? }` |
 | DELETE | /api/workspaces/:workspaceId | owner | 워크스페이스 삭제 (cascade) | - |
@@ -159,9 +160,10 @@ Cookie: better_auth.session_token=<token>
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
 | GET | /api/projects/:projectId/notes | project `viewer` | 노트 목록 (접근 불가 page 필터링) | - |
+| GET | /api/notes/search | project `viewer` | 제목 substring 검색 (wiki-link combobox 용, max 10) — `?q=<str>&projectId=<uuid>`, 응답 `[{ id, title, updatedAt }]` | - |
 | GET | /api/notes/:id | page `viewer` | 노트 조회 | - |
 | POST | /api/projects/:projectId/notes | project `editor` | 노트 생성 | `{ folderId?, title?, content?, type?, inheritParent? }` |
-| PATCH | /api/notes/:id | page `editor` | 수정 | `{ title?, content?, folderId?, inheritParent? }` |
+| PATCH | /api/notes/:id | page `editor` | 수정 — `content`는 Plate v49 배열 (jsonb). 서버가 `content_text`를 텍스트 추출로 자동 파생(FTS 용). | `{ title?, content?, folderId?, inheritParent? }` |
 | DELETE | /api/notes/:id | page `editor` | 소프트 삭제 | - |
 
 ### Ingest
@@ -179,6 +181,7 @@ Cookie: better_auth.session_token=<token>
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
 | POST | /internal/source-notes | `X-Internal-Secret` | 파싱된 텍스트로 source 노트 생성 + (선택) Compiler 트리거 | `{ userId, projectId, parentNoteId?, title, content, sourceType, objectKey?, sourceUrl?, mimeType, triggerCompiler }` |
+| POST | /internal/test-seed | `X-Internal-Secret` + `NODE_ENV !== "production"` | E2E 전용 — 유저 + 워크스페이스 + 프로젝트 + "Welcome" 노트를 생성하고 서명된 Better Auth 세션 쿠키를 반환. 응답: `{ userId, wsSlug, workspaceId, projectId, noteId, sessionCookie, cookieName, cookieValue, expiresAt }`. 프로덕션에서는 403. | `{}` |
 
 `X-Internal-Secret` 헤더는 `INTERNAL_API_SECRET` env와 일치해야 하며, 불일치 시 `401`.
 
