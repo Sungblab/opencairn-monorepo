@@ -1,14 +1,15 @@
-export default function AppLayout({
+import { ReactQueryProvider } from "@/lib/react-query";
+import { requireSession } from "@/lib/session";
+
+export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  await requireSession();
   return (
-    <div className="flex min-h-screen">
-      <aside className="w-64 border-r border-neutral-800 p-4">
-        <h2 className="text-sm font-semibold text-neutral-400">OpenCairn</h2>
-      </aside>
-      <main className="flex-1 p-6">{children}</main>
-    </div>
+    <ReactQueryProvider>
+      <div className="flex min-h-screen">{children}</div>
+    </ReactQueryProvider>
   );
 }
