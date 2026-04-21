@@ -44,6 +44,7 @@ Full index: **`docs/README.md`**. 고빈도:
 | 협업 모델 (권한/Hocuspocus/코멘트) | `docs/architecture/collaboration-model.md`                     |
 | Agent Runtime Standard           | `docs/superpowers/specs/2026-04-20-agent-runtime-standard-design.md` |
 | 탭 시스템 설계                    | `docs/superpowers/specs/2026-04-20-tab-system-design.md`       |
+| 컨텍스트 예산 정책 (RAG/wiki 주입) | `docs/architecture/context-budget.md`                          |
 | Claude 반복 실수 목록             | `docs/contributing/llm-antipatterns.md`                        |
 
 ## Plans
