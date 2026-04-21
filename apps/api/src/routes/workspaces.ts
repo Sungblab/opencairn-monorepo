@@ -14,15 +14,41 @@ const createSchema = z.object({
 
 export const workspaceRoutes = new Hono<AppEnv>().use("*", requireAuth);
 
-// 내 workspaces 목록
+// 내 workspaces 목록 — minimal projection for redirect/list flows
 workspaceRoutes.get("/", async (c) => {
   const user = c.get("user");
   const rows = await db
-    .select({ ws: workspaces, role: workspaceMembers.role })
+    .select({
+      id: workspaces.id,
+      slug: workspaces.slug,
+      name: workspaces.name,
+      role: workspaceMembers.role,
+    })
     .from(workspaceMembers)
     .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
     .where(eq(workspaceMembers.userId, user.id));
   return c.json(rows);
+});
+
+// slug → workspace 조회 (멤버만 접근). /app/w/:wsSlug redirect chain 용.
+workspaceRoutes.get("/by-slug/:slug", async (c) => {
+  const user = c.get("user");
+  const slug = c.req.param("slug");
+  const [row] = await db
+    .select({
+      id: workspaces.id,
+      slug: workspaces.slug,
+      name: workspaces.name,
+      role: workspaceMembers.role,
+    })
+    .from(workspaces)
+    .innerJoin(
+      workspaceMembers,
+      and(eq(workspaceMembers.workspaceId, workspaces.id), eq(workspaceMembers.userId, user.id))
+    )
+    .where(eq(workspaces.slug, slug));
+  if (!row) return c.json({ error: "Not found" }, 404);
+  return c.json(row);
 });
 
 // workspace 생성 — 생성자가 자동 owner

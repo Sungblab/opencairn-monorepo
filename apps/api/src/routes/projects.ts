@@ -35,6 +35,35 @@ export const projectRoutes = new Hono<AppEnv>()
     return c.json(visible);
   })
 
+  // 워크스페이스별 프로젝트 목록 (?workspaceId=) — /app/w/:wsSlug redirect chain 용.
+  // /projects/:id 보다 먼저 정의해 라우트 우선순위 확보.
+  .get("/projects", async (c) => {
+    const user = c.get("user");
+    const workspaceId = c.req.query("workspaceId");
+    if (!workspaceId || !isUuid(workspaceId)) {
+      return c.json({ error: "Bad Request" }, 400);
+    }
+    if (!(await canRead(user.id, { type: "workspace", id: workspaceId }))) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+    const rows = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.workspaceId, workspaceId))
+      .orderBy(desc(projects.createdAt));
+    const wsRole = await resolveRole(user.id, { type: "workspace", id: workspaceId });
+    let visible;
+    if (wsRole === "owner" || wsRole === "admin") {
+      visible = rows;
+    } else {
+      const checks = await Promise.all(
+        rows.map(async (p) => ({ p, ok: await canRead(user.id, { type: "project", id: p.id }) }))
+      );
+      visible = checks.filter((x) => x.ok).map((x) => x.p);
+    }
+    return c.json(visible);
+  })
+
   // 단일 프로젝트 조회 (/api/projects/:id)
   .get("/projects/:id", async (c) => {
     const user = c.get("user");

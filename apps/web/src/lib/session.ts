@@ -1,5 +1,5 @@
 // Server-only helper: read Better Auth session from cookies on the server side.
-// Any (app)/* route must be authed — unauthed hits redirect to /login.
+// Any /app/* route must be authed — unauthed hits redirect to /login.
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
