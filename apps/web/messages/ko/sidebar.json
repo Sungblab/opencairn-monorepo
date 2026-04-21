@@ -1,3 +1,6 @@
 {
-  "loading": "불러오는 중…"
+  "loading": "불러오는 중…",
+  "new_note": "새 노트",
+  "empty_project": "이 프로젝트에는 아직 노트가 없어요.",
+  "untitled": "제목 없음"
 }
