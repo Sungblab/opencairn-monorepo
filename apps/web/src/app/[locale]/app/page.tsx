@@ -14,7 +14,7 @@ export default async function AppIndex({
     headers: { cookie: cookieHeader },
     cache: "no-store",
   });
-  if (!res.ok) redirect(`/${locale}/login`);
+  if (!res.ok) throw new Error(`Failed to load workspaces (${res.status})`);
   const wss = (await res.json()) as Array<{ slug: string }>;
   if (wss.length === 0) redirect(`/${locale}/onboarding`);
   redirect(`/${locale}/app/w/${wss[0].slug}`);

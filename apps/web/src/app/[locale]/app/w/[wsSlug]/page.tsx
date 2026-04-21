@@ -18,7 +18,7 @@ export default async function WorkspaceIndex({
   if (!wsRes.ok) notFound();
   const ws = (await wsRes.json()) as { id: string };
 
-  const projRes = await fetch(`${base}/api/projects?workspaceId=${ws.id}`, {
+  const projRes = await fetch(`${base}/api/workspaces/${ws.id}/projects`, {
     headers: { cookie: cookieHeader },
     cache: "no-store",
   });
