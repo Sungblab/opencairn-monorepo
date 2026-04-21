@@ -628,73 +628,86 @@ details[open] .chev { transform: rotate(180deg); }
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* ═══ shadcn → Plan 9a token bridge ═══
+ * Keep shadcn variable NAMES (--background, --foreground, --primary, …) so
+ * future `shadcn add` commands keep working, but route them at Plan 9a's
+ * --theme-* tokens so shadcn components inherit the warm stone+ember palette
+ * and respect the active [data-theme="..."] (cairn-light/cairn-dark/sepia/
+ * high-contrast). Per OpenCairn design memory:
+ *   - Primary CTA is stone-900 (--theme-fg), NOT ember.
+ *   - Ember (--theme-accent) is strictly for --accent / --ring highlights.
+ */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --background: var(--theme-bg);
+  --foreground: var(--theme-fg);
+  --card: var(--theme-surface);
+  --card-foreground: var(--theme-fg);
+  --popover: var(--theme-surface);
+  --popover-foreground: var(--theme-fg);
+  --primary: var(--theme-fg);               /* stone-900 CTA */
+  --primary-foreground: var(--theme-bg);
+  --secondary: var(--theme-surface);
+  --secondary-foreground: var(--theme-fg);
+  --muted: var(--theme-surface);
+  --muted-foreground: var(--theme-fg-muted);
+  --accent: var(--theme-accent);            /* ember — highlight only */
+  --accent-foreground: var(--theme-accent-fg);
+  --destructive: var(--theme-danger);
+  --border: var(--theme-border);
+  --input: var(--theme-border);
+  --ring: var(--theme-accent);
+  --chart-1: var(--theme-accent);
+  --chart-2: var(--theme-fg);
+  --chart-3: var(--theme-fg-muted);
+  --chart-4: var(--theme-border);
+  --chart-5: var(--theme-surface);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: var(--theme-surface);
+  --sidebar-foreground: var(--theme-fg);
+  --sidebar-primary: var(--theme-fg);
+  --sidebar-primary-foreground: var(--theme-bg);
+  --sidebar-accent: var(--theme-accent);
+  --sidebar-accent-foreground: var(--theme-accent-fg);
+  --sidebar-border: var(--theme-border);
+  --sidebar-ring: var(--theme-accent);
 }
 
+/* Legacy `.dark` class selector kept as a passthrough — Plan 9a switches
+ * palettes via [data-theme="cairn-dark"] on a parent element rather than a
+ * `.dark` class. If any third-party shadcn block writes `.dark`, it still
+ * resolves to the current --theme-* values so nothing breaks. */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: var(--theme-bg);
+  --foreground: var(--theme-fg);
+  --card: var(--theme-surface);
+  --card-foreground: var(--theme-fg);
+  --popover: var(--theme-surface);
+  --popover-foreground: var(--theme-fg);
+  --primary: var(--theme-fg);
+  --primary-foreground: var(--theme-bg);
+  --secondary: var(--theme-surface);
+  --secondary-foreground: var(--theme-fg);
+  --muted: var(--theme-surface);
+  --muted-foreground: var(--theme-fg-muted);
+  --accent: var(--theme-accent);
+  --accent-foreground: var(--theme-accent-fg);
+  --destructive: var(--theme-danger);
+  --border: var(--theme-border);
+  --input: var(--theme-border);
+  --ring: var(--theme-accent);
+  --chart-1: var(--theme-accent);
+  --chart-2: var(--theme-fg);
+  --chart-3: var(--theme-fg-muted);
+  --chart-4: var(--theme-border);
+  --chart-5: var(--theme-surface);
+  --sidebar: var(--theme-surface);
+  --sidebar-foreground: var(--theme-fg);
+  --sidebar-primary: var(--theme-fg);
+  --sidebar-primary-foreground: var(--theme-bg);
+  --sidebar-accent: var(--theme-accent);
+  --sidebar-accent-foreground: var(--theme-accent-fg);
+  --sidebar-border: var(--theme-border);
+  --sidebar-ring: var(--theme-accent);
 }
 
 @layer base {
