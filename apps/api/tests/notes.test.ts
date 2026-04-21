@@ -96,3 +96,47 @@ describe("PATCH /api/notes/:id", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("GET /api/notes/search", () => {
+  let ctx: SeedResult;
+  beforeEach(async () => { ctx = await seedWorkspace({ role: "editor" }); });
+  afterEach(async () => { await ctx.cleanup(); });
+
+  it("returns title-ilike matches scoped to projectId", async () => {
+    await db.insert(notes).values({
+      workspaceId: ctx.workspaceId,
+      projectId: ctx.projectId,
+      title: "Attention is all you need",
+      content: null,
+    });
+    const res = await authedFetch(
+      `/api/notes/search?q=Atten&projectId=${ctx.projectId}`,
+      { method: "GET", userId: ctx.userId },
+    );
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.length).toBeGreaterThan(0);
+    expect(data[0].title.toLowerCase()).toContain("atten");
+  });
+
+  it("returns 403 when caller lacks project read", async () => {
+    const outsider = await seedWorkspace({ role: "editor" });
+    try {
+      const res = await authedFetch(
+        `/api/notes/search?q=x&projectId=${ctx.projectId}`,
+        { method: "GET", userId: outsider.userId },
+      );
+      expect(res.status).toBe(403);
+    } finally {
+      await outsider.cleanup();
+    }
+  });
+
+  it("rejects q shorter than 1 char", async () => {
+    const res = await authedFetch(
+      `/api/notes/search?q=&projectId=${ctx.projectId}`,
+      { method: "GET", userId: ctx.userId },
+    );
+    expect(res.status).toBe(400);
+  });
+});

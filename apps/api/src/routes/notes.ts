@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { db, notes, projects, eq, and, desc, isNull } from "@opencairn/db";
+import { db, notes, projects, eq, and, desc, isNull, sql } from "@opencairn/db";
 import { createNoteSchema, updateNoteSchema } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite } from "../lib/permissions";
@@ -31,6 +31,28 @@ export const noteRoutes = new Hono<AppEnv>()
     );
     const blockedIds = new Set(privateChecks.filter(x => !x.ok).map(x => x.id));
     return c.json(rows.filter(n => !blockedIds.has(n.id)));
+  })
+
+  .get("/search", async (c) => {
+    const user = c.get("user");
+    const q = c.req.query("q")?.trim() ?? "";
+    const projectId = c.req.query("projectId") ?? "";
+    if (q.length < 1 || !isUuid(projectId)) return c.json({ error: "Bad Request" }, 400);
+    if (!(await canRead(user.id, { type: "project", id: projectId }))) return c.json({ error: "Forbidden" }, 403);
+    const rows = await db
+      .select({ id: notes.id, title: notes.title, updatedAt: notes.updatedAt })
+      .from(notes)
+      .where(
+        and(
+          eq(notes.projectId, projectId),
+          isNull(notes.deletedAt),
+          // ilike for case-insensitive substring
+          sql`${notes.title} ILIKE ${"%" + q + "%"}`,
+        ),
+      )
+      .orderBy(desc(notes.updatedAt))
+      .limit(10);
+    return c.json(rows);
   })
 
   .get("/:id", async (c) => {
