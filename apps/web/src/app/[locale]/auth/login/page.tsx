@@ -1,6 +1,7 @@
 import { setRequestLocale } from "next-intl/server";
 import type { Locale } from "@/i18n";
 import { LoginForm } from "@/components/auth/LoginForm";
+import { GoogleOneTap } from "@/components/auth/GoogleOneTap";
 
 export default async function LoginPage({
   params,
@@ -9,5 +10,10 @@ export default async function LoginPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale as Locale);
-  return <LoginForm />;
+  return (
+    <>
+      <GoogleOneTap />
+      <LoginForm />
+    </>
+  );
 }
