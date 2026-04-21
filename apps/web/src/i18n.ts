@@ -10,14 +10,16 @@ export default getRequestConfig(async ({ requestLocale }) => {
   if (!locales.includes(requested as Locale)) notFound();
   const locale = requested as Locale;
 
-  const [common, landing, dashboard] = await Promise.all([
+  const [common, landing, dashboard, sidebar, app] = await Promise.all([
     import(`../messages/${locale}/common.json`).then((m) => m.default),
     import(`../messages/${locale}/landing.json`).then((m) => m.default),
     import(`../messages/${locale}/dashboard.json`).then((m) => m.default),
+    import(`../messages/${locale}/sidebar.json`).then((m) => m.default),
+    import(`../messages/${locale}/app.json`).then((m) => m.default),
   ]);
 
   return {
     locale,
-    messages: { common, landing, dashboard },
+    messages: { common, landing, dashboard, sidebar, app },
   };
 });
