@@ -48,6 +48,7 @@ playwright-report/
 .playwright-mcp/
 .claude/local/
 .worktrees/
+.superpowers/
 
 # Docker volumes (local dev)
 backups/
