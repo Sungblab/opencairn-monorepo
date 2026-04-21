@@ -1,0 +1,44 @@
+{
+  "placeholder": {
+    "title": "제목 없음",
+    "body": "무엇이든 적어보세요…"
+  },
+  "save": {
+    "saving": "저장 중…",
+    "saved": "저장됨",
+    "failed": "저장 실패",
+    "failed_detail": "변경 사항이 로컬에만 있어요. 새로고침하면 사라질 수 있습니다."
+  },
+  "wikilink": {
+    "search_empty": "찾는 노트가 없어요.",
+    "deleted": "삭제된 노트",
+    "hint": "노트 제목을 입력해보세요"
+  },
+  "slash": {
+    "heading_1": "제목 1",
+    "heading_2": "제목 2",
+    "heading_3": "제목 3",
+    "bulleted_list": "글머리 기호 목록",
+    "numbered_list": "번호 매기기 목록",
+    "quote": "인용구",
+    "code": "코드 블록",
+    "divider": "구분선",
+    "math": "수식 블록"
+  },
+  "math": {
+    "parse_error": "수식 파싱 오류"
+  },
+  "toolbar": {
+    "bold": "굵게",
+    "italic": "기울임",
+    "strike": "취소선",
+    "code": "인라인 코드",
+    "h1": "제목 1",
+    "h2": "제목 2",
+    "h3": "제목 3",
+    "bulleted": "글머리 기호",
+    "numbered": "번호 매기기",
+    "quote": "인용",
+    "wikilink": "노트 연결"
+  }
+}

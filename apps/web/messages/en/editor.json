@@ -1,0 +1,44 @@
+{
+  "placeholder": {
+    "title": "Untitled",
+    "body": "Start typing…"
+  },
+  "save": {
+    "saving": "Saving…",
+    "saved": "Saved",
+    "failed": "Save failed",
+    "failed_detail": "Your changes are only local. Reloading may lose them."
+  },
+  "wikilink": {
+    "search_empty": "No matching note.",
+    "deleted": "Deleted note",
+    "hint": "Type a note title"
+  },
+  "slash": {
+    "heading_1": "Heading 1",
+    "heading_2": "Heading 2",
+    "heading_3": "Heading 3",
+    "bulleted_list": "Bulleted list",
+    "numbered_list": "Numbered list",
+    "quote": "Quote",
+    "code": "Code block",
+    "divider": "Divider",
+    "math": "Math block"
+  },
+  "math": {
+    "parse_error": "Math parse error"
+  },
+  "toolbar": {
+    "bold": "Bold",
+    "italic": "Italic",
+    "strike": "Strikethrough",
+    "code": "Inline code",
+    "h1": "Heading 1",
+    "h2": "Heading 2",
+    "h3": "Heading 3",
+    "bulleted": "Bulleted list",
+    "numbered": "Numbered list",
+    "quote": "Quote",
+    "wikilink": "Link note"
+  }
+}

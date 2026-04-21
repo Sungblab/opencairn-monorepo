@@ -2,5 +2,7 @@
   "loading": "Loading…",
   "new_note": "New note",
   "empty_project": "No notes yet in this project.",
-  "untitled": "Untitled"
+  "empty_folder": "Empty.",
+  "untitled": "Untitled",
+  "offline": "Offline"
 }
