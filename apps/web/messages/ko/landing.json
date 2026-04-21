@@ -1,7 +1,8 @@
 {
   "meta": {
-    "title": "OpenCairn — 읽은 것까지 이해하는 AI 지식 OS",
-    "description": "자료를 올려두면 AI가 위키로 엮고, 묻기 전에 연결을 발견하는 개인·팀 지식 OS. 12개 AI 에이전트, 셀프호스팅, AGPLv3."
+    "title": "OpenCairn — AI 지식 OS",
+    "description": "자료를 올려두면 AI가 위키로 엮고, 묻기 전에 연결을 발견하는 개인·팀 지식 OS. 12개 AI 에이전트, 셀프호스팅, AGPLv3.",
+    "ogDescription": "12개의 AI 에이전트가 PDF·논문·영상을 위키로 엮고, 연결을 먼저 발견합니다."
   },
   "nav": {
     "logoTitle": "클릭해 보세요",
@@ -13,7 +14,9 @@
     "docs": "DOCS",
     "github": "GITHUB ↗",
     "signIn": "로그인",
-    "signUp": "무료 시작",
+    "signUp": "시작하기",
+    "switchTo": "EN",
+    "switchToLabel": "Switch to English",
     "easter": "네 번째 돌 ✦"
   },
   "hero": {
@@ -24,9 +27,9 @@
     "titleBrand": "OpenCairn은",
     "titleLine3": "읽은 것까지 이해합니다",
     "sub": "PDF · 논문 · 영상 · 팟캐스트를 올려두면 12개의 AI 에이전트가 <b>위키로 엮어내고</b>, 묻기 전에 <b>연결을 발견</b>하며, 이해의 깊이를 <b>스스로 측정</b>합니다.",
-    "ctaPrimary": "무료로 시작하기",
+    "ctaPrimary": "시작하기",
     "ctaSecondary": "요금 보기",
-    "noCard": "카드 등록 없이 바로 시작 · 12 에이전트 모두 포함",
+    "noCard": "12개 에이전트 모두 포함",
     "selfhostLink": "개발자이신가요? 셀프호스팅 가이드 ↗",
     "spec": {
       "agents": "agents",
@@ -329,12 +332,12 @@
     "label": "[ 011 / 012 · PRICING ]",
     "title1": "오늘 무료로 시작하고,",
     "title2": "필요할 때 업그레이드하세요.",
-    "sub": "카드 등록 없이 Free 플랜으로 모든 에이전트를 써 볼 수 있습니다. 연구실·팀 단위로 성장하면 Pro로 무제한, 본인 키를 쓰고 싶다면 BYOK로.",
+    "sub": "Free 플랜으로 모든 에이전트를 먼저 써볼 수 있습니다. 연구실·팀 단위로 커지면 Pro 무제한, 본인 키를 쓰고 싶다면 BYOK로.",
     "free": {
       "name": "Free",
       "cat": "forever",
       "price": "₩0",
-      "tagline": "카드 등록 없이 영구 무료 · 체험용",
+      "tagline": "영구 무료 · 체험용",
       "bullets": [
         "프로젝트 10개",
         "월 50개 Q&A",
@@ -343,7 +346,7 @@
         "12 에이전트 전체 접근"
       ],
       "bulletsMuted": ["커뮤니티 지원"],
-      "cta": "> 무료로 시작하기"
+      "cta": "> 시작하기"
     },
     "pro": {
       "name": "Pro",
@@ -436,8 +439,8 @@
     "label": "↪ CLOSING",
     "titleA": "여러분 지식의",
     "titleB": "제2의 뇌.",
-    "sub": "카드 등록 없이 Free 플랜으로 지금 시작하세요. 1년 뒤 여러분의 지식 베이스가 얼마나 자라 있을지는 오늘부터의 축적에 달려 있습니다.",
-    "primary": "> 무료로 시작하기",
+    "sub": "Free 플랜으로 오늘 시작하세요. 1년 뒤 지식 베이스가 얼마나 자라 있을지는, 오늘부터의 축적이 정합니다.",
+    "primary": "> 시작하기",
     "secondary": "요금 비교",
     "bottomGithub": "GITHUB ↗",
     "bottomSelfhost": "셀프호스팅 가이드",
@@ -477,7 +480,7 @@
       { "label": "cla", "href": "#" },
       { "label": "terms", "href": "/terms" }
     ],
-    "copyright": "© 2026 OpenCairn · Built in Seoul · AGPLv3",
+    "copyright": "© 2026 OpenCairn · Made by Sungblab",
     "badges": ["Gemini", "Ollama", "Docker", "Self-Hosted"],
     "endline": "< end of document / 읽어주셔서 감사합니다 >",
     "langLabel": "LANGUAGE",

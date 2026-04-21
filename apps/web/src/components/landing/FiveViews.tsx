@@ -127,7 +127,7 @@ export function FiveViews() {
               </div>
               {SVGS[i]}
               <div className="font-serif text-lg text-stone-900 mb-1">{v.name}</div>
-              <p className="kr text-[12.5px] text-stone-600">{v.body}</p>
+              <p className="kr text-[14px] text-stone-600 leading-relaxed">{v.body}</p>
             </div>
           ))}
         </div>

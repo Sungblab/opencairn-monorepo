@@ -1,7 +1,8 @@
 {
   "meta": {
-    "title": "OpenCairn — the AI knowledge OS that understands what you read",
-    "description": "Drop in your sources and 12 AI agents weave them into a wiki, surface connections before you ask, and measure your depth of understanding. Self-hosted, AGPLv3."
+    "title": "OpenCairn — AI Knowledge OS",
+    "description": "Drop in your sources and 12 AI agents weave them into a wiki, surface connections before you ask, and measure your depth of understanding. Self-hosted, AGPLv3.",
+    "ogDescription": "12 AI agents weave your PDFs, papers, and videos into a wiki, and surface connections before you ask."
   },
   "nav": {
     "logoTitle": "Try clicking",
@@ -13,7 +14,9 @@
     "docs": "DOCS",
     "github": "GITHUB ↗",
     "signIn": "Sign in",
-    "signUp": "Start free",
+    "signUp": "Get started",
+    "switchTo": "한국어",
+    "switchToLabel": "한국어로 전환",
     "easter": "fourth stone ✦"
   },
   "hero": {
@@ -24,9 +27,9 @@
     "titleBrand": "OpenCairn",
     "titleLine3": "understands what you read.",
     "sub": "Drop in PDFs, papers, videos, and podcasts. 12 AI agents <b>weave them into a wiki</b>, <b>surface connections</b> before you ask, and <b>measure how well you actually understand</b> what's there.",
-    "ctaPrimary": "Start free",
+    "ctaPrimary": "Get started",
     "ctaSecondary": "See pricing",
-    "noCard": "No card required · all 12 agents included",
+    "noCard": "All 12 agents included",
     "selfhostLink": "Developer? Self-hosting guide ↗",
     "spec": {
       "agents": "agents",
@@ -329,12 +332,12 @@
     "label": "[ 011 / 012 · PRICING ]",
     "title1": "Start free today,",
     "title2": "upgrade when you need to.",
-    "sub": "Try every agent on Free — no card required. When you scale into a lab or team, Pro removes the limits; bring your own Gemini key with BYOK.",
+    "sub": "Try every agent on Free first. When you scale into a lab or team, Pro removes the limits; bring your own Gemini key with BYOK.",
     "free": {
       "name": "Free",
       "cat": "forever",
       "price": "₩0",
-      "tagline": "Forever free, no card · for trying it out",
+      "tagline": "Forever free · for trying it out",
       "bullets": [
         "10 projects",
         "50 Q&A per month",
@@ -343,7 +346,7 @@
         "All 12 agents"
       ],
       "bulletsMuted": ["Community support"],
-      "cta": "> Start for free"
+      "cta": "> Get started"
     },
     "pro": {
       "name": "Pro",
@@ -436,8 +439,8 @@
     "label": "↪ CLOSING",
     "titleA": "A second brain",
     "titleB": "for your knowledge.",
-    "sub": "Start with Free today — no card required. How much your knowledge base has grown a year from now depends on what you start accumulating today.",
-    "primary": "> Start for free",
+    "sub": "Start with Free today. How much your knowledge base has grown a year from now depends on what you start accumulating today.",
+    "primary": "> Get started",
     "secondary": "Compare plans",
     "bottomGithub": "GITHUB ↗",
     "bottomSelfhost": "Self-hosting guide",
@@ -477,7 +480,7 @@
       { "label": "cla", "href": "#" },
       { "label": "terms", "href": "/terms" }
     ],
-    "copyright": "© 2026 OpenCairn · Built in Seoul · AGPLv3",
+    "copyright": "© 2026 OpenCairn · Made by Sungblab",
     "badges": ["Gemini", "Ollama", "Docker", "Self-Hosted"],
     "endline": "< end of document / thanks for reading >",
     "langLabel": "LANGUAGE",

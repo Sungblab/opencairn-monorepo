@@ -6,8 +6,16 @@ import { THEME_COOKIE, themeFromCookieValue } from "@/lib/theme/cookie";
 import { instrumentSerif, inter, jetbrainsMono } from "@/lib/landing/fonts";
 
 export const metadata: Metadata = {
-  title: "OpenCairn",
-  description: "AI knowledge base for learning, research, and work.",
+  title: "OpenCairn — AI Knowledge OS",
+  description:
+    "12개의 AI 에이전트가 PDF·논문·영상·팟캐스트를 위키로 엮고, 연결을 먼저 발견하며, 이해의 깊이를 스스로 측정합니다. Docker 셀프호스팅, AGPLv3.",
+  openGraph: {
+    type: "website",
+    siteName: "OpenCairn",
+  },
+  twitter: {
+    card: "summary_large_image",
+  },
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

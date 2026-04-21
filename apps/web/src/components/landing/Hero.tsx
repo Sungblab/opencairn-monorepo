@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useScrollReveal } from "@/lib/landing/hooks/useScrollReveal";
 
 type ActivityItem = { agent: string; text: string };
 
@@ -24,7 +23,26 @@ const AGENT_ROWS: Array<{ idx: number; x: number; y: number; text: number; fill:
 export function Hero() {
   const t = useTranslations("landing.hero");
   const sectionRef = useRef<HTMLElement>(null);
-  useScrollReveal(sectionRef);
+
+  useEffect(() => {
+    const root = sectionRef.current;
+    if (!root) return;
+    const els = root.querySelectorAll<HTMLElement>(".reveal");
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) {
+      els.forEach((el) => el.classList.add("in"));
+      return;
+    }
+    const raf1 = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        els.forEach((el, i) => {
+          el.style.transitionDelay = `${i * 70}ms`;
+          el.classList.add("in");
+        });
+      });
+    });
+    return () => cancelAnimationFrame(raf1);
+  }, []);
 
   const activityItems = t.raw("activity.items") as ActivityItem[];
   const timeLabels = t.raw("activity.timeLabels") as string[];
@@ -89,28 +107,28 @@ export function Hero() {
   for (let i = 0; i < SHOW; i++) shown.push(activityItems[(head + i) % activityItems.length]);
 
   return (
-    <section ref={sectionRef} className="relative overflow-hidden grid-bg grain">
-      <div className="max-w-[1280px] mx-auto px-6 lg:px-10 pt-24 pb-20 md:pt-32 md:pb-28 relative">
-        <div className="grid md:grid-cols-12 gap-12 items-center">
+    <section ref={sectionRef} className="relative overflow-hidden grain">
+      <div className="max-w-[1280px] 2xl:max-w-[1480px] mx-auto px-6 lg:px-10 pt-6 pb-20 md:pt-8 md:pb-28 lg:pt-10 xl:pt-14 2xl:pt-20 2xl:pb-36 relative">
+        <div className="grid md:grid-cols-12 gap-12 2xl:gap-16 items-center">
           <div className="md:col-span-7">
-            <div className="flex items-center gap-3 mb-10 reveal">
+            <div className="flex items-center gap-3 mb-4 lg:mb-6 2xl:mb-10 reveal">
               <span className="w-2 h-2 bg-stone-900 rounded-full pulse-dot" aria-hidden />
               <span className="sec-label">
-                <span className="n">{t("label")}</span> — {t("labelMeta")}
+                <span className="n">{t("label")}</span>
               </span>
             </div>
-            <h1 className="kr font-serif text-4xl sm:text-5xl md:text-6xl leading-[1.05] text-stone-900 mb-6 reveal">
-              {t("titleLine1")}
+            <h1 className="kr font-serif text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[1.05] text-stone-900 mb-4 lg:mb-6 2xl:mb-8 reveal">
+              {t("titleLine1")}{" "}
               <br />
-              {t("titleLine2")}
+              {t("titleLine2")}{" "}
               <br />
-              <em className="font-serif not-italic">{t("titleBrand")}</em>
+              <em className="font-serif not-italic">{t("titleBrand")}</em>{" "}
               <br />
               {t("titleLine3")}
               <span className="caret" aria-hidden />
             </h1>
             <p
-              className="kr text-lg text-stone-600 leading-relaxed mb-10 reveal"
+              className="kr text-lg text-stone-600 leading-relaxed mb-5 lg:mb-8 2xl:mb-10 reveal"
               dangerouslySetInnerHTML={{ __html: t.raw("sub") as string }}
             />
             <div className="flex flex-wrap items-center gap-4 reveal">
@@ -130,30 +148,13 @@ export function Hero() {
                 {t("ctaSecondary")}
               </a>
             </div>
-            <p className="kr text-sm text-stone-500 mt-5 reveal">
+            <p className="kr text-sm text-stone-500 mt-3 lg:mt-5 2xl:mt-8 reveal">
               {t("noCard")}
               <span className="mx-2 text-stone-300">·</span>
               <a href="#docs" className="text-stone-600 hover:text-stone-900 underline decoration-dotted underline-offset-2">
                 {t("selfhostLink")}
               </a>
             </p>
-            <div className="mt-14 spec-row reveal">
-              <span>
-                <b>{t("spec.agents")}</b> · {t("spec.agentsVal")}
-              </span>
-              <span>
-                <b>{t("spec.parsers")}</b> · {t("spec.parsersVal")}
-              </span>
-              <span>
-                <b>{t("spec.runtime")}</b> · {t("spec.runtimeVal")}
-              </span>
-              <span>
-                <b>{t("spec.vector")}</b> · {t("spec.vectorVal")}
-              </span>
-              <span>
-                <b>{t("spec.license")}</b> · {t("spec.licenseVal")}
-              </span>
-            </div>
           </div>
 
           <aside className="md:col-span-5 reveal">
@@ -183,15 +184,6 @@ export function Hero() {
                 <span className="kr">{t("activity.footer")}</span>
               </div>
             </div>
-            <pre className="ascii mt-6">{`     +----------+       +----------+
-     |  INGEST  | -----> | COMPILE  |
-     +----+-----+       +----+-----+
-          |                  |
-          v                  v
-     +----------+       +----------+
-     | RESEARCH | <----> | CURATE   |
-     +----------+       +----------+
-                your knowledge graph`}</pre>
           </aside>
         </div>
 

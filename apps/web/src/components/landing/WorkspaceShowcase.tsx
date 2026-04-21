@@ -38,19 +38,19 @@ export function WorkspaceShowcase() {
           </div>
         </div>
 
-        <div className="ws-frame reveal overflow-x-auto">
-          <div className="min-w-[920px]">
+        <div className="ws-frame reveal md:overflow-x-auto">
+          <div className="md:min-w-[920px]">
           <div className="ws-chrome">
             <div className="flex items-center gap-1">
               <span className="dot" />
               <span className="dot" />
               <span className="dot" />
-              <span className="ml-3 text-stone-600">{t("mock.chromePath")}</span>
+              <span className="ml-3 text-stone-600 truncate">{t("mock.chromePath")}</span>
             </div>
-            <span className="text-stone-500">⌘ K</span>
+            <span className="text-stone-500 shrink-0">⌘ K</span>
           </div>
-          <div className="grid grid-cols-12 min-h-[440px]">
-            <div className="col-span-3 ws-side">
+          <div className="grid grid-cols-12 md:min-h-[440px]">
+            <div className="hidden md:block md:col-span-3 ws-side">
               <div className="ws-side-h">{t("mock.sideWorkspace")}</div>
               <div className="mb-4 flex items-center justify-between px-2">
                 <span className="font-medium text-stone-900">{t("mock.sideWorkspaceName")}</span>
@@ -73,7 +73,7 @@ export function WorkspaceShowcase() {
                 ))}
               </div>
             </div>
-            <div className="col-span-6 ws-main" style={{ borderRight: "1px solid #D8D3C8" }}>
+            <div className="col-span-12 md:col-span-6 ws-main md:[border-right:1px_solid_#D8D3C8]">
               <div className="ws-breadcrumb">{t("mock.breadcrumb")}</div>
               <h3 className="font-serif text-3xl text-stone-900 kr mb-3">{t("mock.pageTitle")}</h3>
               <div className="flex items-center gap-3 mb-5 font-mono text-[10.5px] text-stone-500">
@@ -102,7 +102,7 @@ export function WorkspaceShowcase() {
                 .
               </p>
             </div>
-            <div className="col-span-3 ws-rail" style={{ borderLeft: 0 }}>
+            <div className="hidden md:block md:col-span-3 ws-rail" style={{ borderLeft: 0 }}>
               <div className="ws-rail-h">{t("mock.railFeedH")}</div>
               {feed.map((f, i) => (
                 <div key={i} className="ws-feed-item">

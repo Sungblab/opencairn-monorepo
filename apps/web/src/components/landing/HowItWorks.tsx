@@ -45,7 +45,7 @@ export function HowItWorks() {
                 {s.n}
               </div>
               <div className="font-serif text-2xl mb-3">{s.title}</div>
-              <p className="text-[12.5px] text-stone-400 leading-relaxed kr">{s.body}</p>
+              <p className="text-[14px] text-stone-400 leading-relaxed kr">{s.body}</p>
             </div>
           ))}
         </div>

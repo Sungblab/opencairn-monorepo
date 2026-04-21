@@ -27,7 +27,22 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "landing.meta" });
-  return { title: t("title"), description: t("description") };
+  const title = t("title");
+  const description = t("description");
+  const ogDescription = t("ogDescription");
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description: ogDescription,
+      locale: locale === "ko" ? "ko_KR" : "en_US",
+    },
+    twitter: {
+      title,
+      description: ogDescription,
+    },
+  };
 }
 
 export default async function Landing({ params }: { params: Promise<{ locale: Locale }> }) {

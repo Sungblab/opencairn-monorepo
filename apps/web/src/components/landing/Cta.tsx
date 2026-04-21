@@ -9,7 +9,7 @@ export function Cta() {
   useScrollReveal(ref);
 
   return (
-    <section ref={ref} id="cta" className="bg-stone-50 grid-bg py-24 md:py-32 border-b border-stone-900">
+    <section ref={ref} id="cta" className="bg-stone-50 py-24 md:py-32 border-b border-stone-900">
       <div className="max-w-[1280px] mx-auto px-6 lg:px-10">
         <div className="grid grid-cols-12 gap-6">
           <div className="col-span-12 md:col-span-3">
@@ -39,7 +39,7 @@ export function Cta() {
                 {t("secondary")}
               </a>
             </div>
-            <p className="font-mono text-[11px] text-stone-500 tracking-widest uppercase">
+            <p className="font-mono text-[13px] text-stone-600 tracking-wider">
               <a
                 href="https://github.com/Sungblab/opencairn-monorepo"
                 className="hover:text-stone-900 underline underline-offset-2 decoration-stone-400"

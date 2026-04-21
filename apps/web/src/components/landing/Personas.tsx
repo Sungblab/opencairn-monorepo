@@ -43,7 +43,7 @@ export function Personas() {
               </div>
               <h3 className="font-serif text-2xl text-stone-900 mb-4">{p.title}</h3>
               <p className="kr text-[13px] text-stone-600 leading-relaxed mb-6">{p.body}</p>
-              <ul className="text-[11px] text-stone-500 font-mono tracking-wider space-y-1.5">
+              <ul className="text-[12.5px] text-stone-600 font-mono tracking-wider space-y-1.5">
                 {p.bullets.map((b, j) => (
                   <li key={j}>{b}</li>
                 ))}

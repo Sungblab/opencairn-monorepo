@@ -40,7 +40,7 @@ export function AgentsGrid() {
                 <span className="font-mono text-[10px] tracking-widest text-stone-500 uppercase">{a.cat}</span>
               </div>
               <h3 className="font-serif text-xl text-stone-900 mb-2">{a.name}</h3>
-              <p className="kr text-[12.5px] text-stone-600 leading-relaxed">{a.body}</p>
+              <p className="kr text-[14px] text-stone-600 leading-relaxed">{a.body}</p>
             </div>
           ))}
         </div>
