@@ -41,6 +41,8 @@ yarn-debug.log*
 coverage/
 .nyc_output/
 .pytest_cache/
+test-results/
+playwright-report/
 
 # Session artifacts
 .playwright-mcp/

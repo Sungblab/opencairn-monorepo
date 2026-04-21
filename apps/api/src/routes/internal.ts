@@ -4,6 +4,9 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import {
   db,
+  user,
+  workspaces,
+  workspaceMembers,
   notes,
   projects,
   concepts,
@@ -18,6 +21,7 @@ import {
   count,
 } from "@opencairn/db";
 import { getTemporalClient } from "../lib/temporal-client";
+import { signSessionForUser } from "../lib/test-session";
 import type { AppEnv } from "../lib/types";
 
 // Internal-only routes — reachable by worker callbacks on the docker network.
@@ -851,5 +855,85 @@ internal.post(
     return c.json({ ok: true });
   },
 );
+
+// ---------------------------------------------------------------------------
+// Plan 2A Task 14 — E2E test seed
+// ---------------------------------------------------------------------------
+
+// POST /internal/test-seed — create a user + workspace + project + Welcome
+// note, then return a signed Better Auth session cookie so Playwright can
+// attach it and drive the UI. Double-gated: the internal middleware above
+// already checks X-Internal-Secret; we additionally refuse to run when
+// NODE_ENV === "production" so a leaked secret in prod can't mint sessions.
+internal.post("/test-seed", async (c) => {
+  if (process.env.NODE_ENV === "production") {
+    return c.json({ error: "test-seed disabled in production" }, 403);
+  }
+
+  const userId = randomUUID();
+  const email = `e2e-${userId}@example.com`;
+  const workspaceId = randomUUID();
+  const slug = `e2e-ws-${workspaceId.slice(0, 8)}`;
+  const projectId = randomUUID();
+  const noteId = randomUUID();
+
+  // Minimal Better Auth user row — no account (password/oauth) needed
+  // because the session cookie we mint below skips the login flow.
+  await db.insert(user).values({
+    id: userId,
+    email,
+    name: `E2E User ${userId.slice(0, 8)}`,
+    emailVerified: true,
+  });
+
+  await db.insert(workspaces).values({
+    id: workspaceId,
+    slug,
+    name: "E2E Workspace",
+    ownerId: userId,
+    planType: "free",
+  });
+
+  await db.insert(workspaceMembers).values({
+    workspaceId,
+    userId,
+    role: "owner",
+  });
+
+  await db.insert(projects).values({
+    id: projectId,
+    workspaceId,
+    name: "E2E Project",
+    createdBy: userId,
+    defaultRole: "editor",
+  });
+
+  // One pre-seeded "Welcome" note — downstream E2E tests (Task 16 wiki-link
+  // combobox) depend on having at least one searchable title in the project.
+  await db.insert(notes).values({
+    id: noteId,
+    projectId,
+    workspaceId,
+    title: "Welcome",
+    inheritParent: true,
+  });
+
+  const { setCookie, name, value, expiresAt } = await signSessionForUser(userId);
+
+  return c.json({
+    userId,
+    wsSlug: slug,
+    workspaceId,
+    projectId,
+    noteId,
+    // Full Set-Cookie header — Playwright `parseCookie` helper splits out
+    // attributes. The decomposed `name`/`value` are included for callers
+    // that want to build cookie objects directly without re-parsing.
+    sessionCookie: setCookie,
+    cookieName: name,
+    cookieValue: value,
+    expiresAt: expiresAt.toISOString(),
+  });
+});
 
 export const internalRoutes = internal;
