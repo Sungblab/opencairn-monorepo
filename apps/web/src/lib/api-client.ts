@@ -37,9 +37,10 @@ export async function apiClient<T>(
 
 // ---------- Types mirroring Hono route response shapes ----------
 // Timestamps are serialized as ISO strings across the wire even though
-// Drizzle returns `Date` server-side. `content` is stored as jsonb of a
-// Plate Value (array of nodes) but we keep it typed as `unknown[] | null`
-// so legacy payloads (objects pre-migration) don't break compilation.
+// Drizzle returns `Date` server-side. `content` is stored as jsonb with a
+// Plate Value (array of nodes) in the canonical case, but legacy rows may
+// hold objects or null. We type it as `unknown` so consumers must narrow at
+// the Plate boundary via `parseEditorContent` in editor-utils.
 
 export interface NoteRow {
   id: string;
@@ -48,7 +49,11 @@ export interface NoteRow {
   folderId: string | null;
   inheritParent: boolean;
   title: string;
-  content: unknown[] | null;
+  /**
+   * jsonb from DB. Plate Value is an array; legacy rows may be object or
+   * null — narrow at editor boundary via `parseEditorContent`.
+   */
+  content: unknown;
   contentText: string | null;
   type: "note" | "wiki" | "source";
   sourceType: string | null;

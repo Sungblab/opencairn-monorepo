@@ -14,7 +14,7 @@ export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 export interface UseSaveNoteResult {
   save: ((body: PatchNoteBody) => void) & { cancel: () => void; flush: () => void };
-  flush: (body: PatchNoteBody) => void;
+  flush: (body: PatchNoteBody) => Promise<NoteRow>;
   status: SaveStatus;
   lastError: string | null;
 }
@@ -23,8 +23,11 @@ export interface UseSaveNoteResult {
  * Debounced PATCH /notes/:id hook used by the editor.
  *
  * - `save(body)`  : 500ms-debounced save; subsequent calls coalesce.
- * - `flush(body)` : cancels pending debounce + saves synchronously (e.g. on
- *   blur / route change).
+ * - `flush(body)` : cancels pending debounce + awaits a synchronous save
+ *   (e.g. on blur / beforeunload / route guard). Returns the updated
+ *   `NoteRow` promise. **Rejects** on API error — callers must handle or
+ *   swallow. `lastError` state is still updated via `onError` (which runs
+ *   before the promise rejects).
  * - `status`      : idle | saving | saved | error — drive the status pill.
  * - `lastError`   : ApiError message when `status === "error"`.
  */
@@ -67,7 +70,7 @@ export function useSaveNote(noteId: string): UseSaveNoteResult {
     save: debouncedSave,
     flush: (body: PatchNoteBody) => {
       debouncedSave.cancel();
-      mutation.mutate(body);
+      return mutation.mutateAsync(body);
     },
     status,
     lastError,
