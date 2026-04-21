@@ -29,6 +29,11 @@ import { createPortal } from "react-dom";
 //     toolbar). A future upgrade can swap it for a block once the dep is
 //     added; i18n label has been narrowed from "코드 블록"/"Code block" to
 //     plain "코드"/"Code" to match.
+//   * `math_block` is intentionally NOT in the menu. `editor.tf.insert.equation()`
+//     inserts a void node with empty `texExpression`, which MathBlock then
+//     renders as a permanent red parse-error banner (no edit popover ships in
+//     Plan 2A). Re-enable once Plan 2D provides a TeX input UX — the
+//     `editor.slash.math` i18n key is kept in the bundle for that.
 
 export type SlashKey =
   | "h1"
@@ -38,8 +43,7 @@ export type SlashKey =
   | "ol"
   | "blockquote"
   | "code"
-  | "hr"
-  | "math_block";
+  | "hr";
 
 // `tNode` helper keeps the menu as an ordered list so the E2E can assert a
 // stable sequence.
@@ -53,8 +57,7 @@ interface SlashCommandDef {
     | "numbered_list"
     | "quote"
     | "code"
-    | "divider"
-    | "math";
+    | "divider";
 }
 
 const COMMANDS: SlashCommandDef[] = [
@@ -66,7 +69,6 @@ const COMMANDS: SlashCommandDef[] = [
   { key: "blockquote", labelKey: "quote" },
   { key: "code", labelKey: "code" },
   { key: "hr", labelKey: "divider" },
-  { key: "math_block", labelKey: "math" },
 ];
 
 // The editor surface we actually use. Plate's fully-typed `PlateEditor` drags
@@ -81,9 +83,6 @@ export interface SlashEditor {
     ) => void;
     insertText?: (text: string) => void;
     deleteBackward: (unit: "character" | "word" | "line" | "block") => void;
-    insert: {
-      equation: () => void;
-    };
     code?: { toggle: () => void };
     h1?: { toggle: () => void };
     h2?: { toggle: () => void };
@@ -109,6 +108,12 @@ export function SlashMenu({ editor }: SlashMenuProps) {
   // command execution then calls `deleteBackward` to remove it.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // IME composition (Korean/Japanese/Chinese): the `/` key may fire while
+      // a composition is pending — opening the menu and running
+      // `deleteBackward` in that state removes a composed codepoint rather
+      // than the `/` that was never committed. Bail early for both the
+      // modern `isComposing` flag and the legacy `keyCode === 229` signal.
+      if (e.isComposing || e.keyCode === 229) return;
       if (e.key === "/" && !open && !e.metaKey && !e.ctrlKey && !e.altKey) {
         // Let Plate process the `/` insertion first, then open on the next
         // tick. setTimeout(0) is sufficient — no need to read DOM state.
@@ -162,9 +167,6 @@ export function SlashMenu({ editor }: SlashMenuProps) {
             { type: "p", children: [{ text: "" }] },
             { select: true },
           );
-          break;
-        case "math_block":
-          editor.tf.insert.equation();
           break;
       }
 

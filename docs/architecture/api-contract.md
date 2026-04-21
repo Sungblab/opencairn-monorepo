@@ -14,7 +14,7 @@ Hono 백엔드 API 명세. 프론트엔드는 이 계약에만 의존한다.
 모든 `/api/*` 라우트 (health, auth, share 공개 링크 제외)는 세션 쿠키 필요.
 
 ```
-Cookie: better_auth.session_token=<token>
+Cookie: better-auth.session_token=<token>
 ```
 
 ## Authorization
