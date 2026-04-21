@@ -30,6 +30,10 @@ import {
   type ToolbarMark,
 } from "./editor-toolbar";
 import { latexPlugins } from "./plugins/latex";
+import {
+  createWikiLinkPlugin,
+  WikiLinkCombobox,
+} from "./plugins/wiki-link";
 
 // Basic marks + blocks. Lists are handled by the indent-based ListPlugin; the
 // bulleted/numbered toolbar buttons call `toggleList` directly with the style
@@ -52,6 +56,8 @@ export interface NoteEditorProps {
   noteId: string;
   initialTitle: string;
   initialValue: PlateValue | null;
+  wsSlug: string;
+  projectId: string;
   readOnly?: boolean;
 }
 
@@ -59,6 +65,8 @@ export function NoteEditor({
   noteId,
   initialTitle,
   initialValue,
+  wsSlug,
+  projectId,
   readOnly,
 }: NoteEditorProps) {
   const t = useTranslations("editor");
@@ -70,8 +78,16 @@ export function NoteEditor({
     [initialValue],
   );
 
+  // Wiki-link plugin is built per-editor so the element renderer can close
+  // over the route context. `usePlateEditor` is memoized around `plugins` by
+  // reference, so we need a stable array derived from `wsSlug`/`projectId`.
+  const plugins = useMemo(
+    () => [...basePlugins, createWikiLinkPlugin({ wsSlug, projectId })],
+    [wsSlug, projectId],
+  );
+
   const editor = usePlateEditor({
-    plugins: basePlugins,
+    plugins,
     // `PlateValue` is intentionally loose (see lib/editor-utils.ts); Plate's
     // internal `Value` type is strict. Cast at the boundary.
     value: startValue as unknown as never,
@@ -141,6 +157,10 @@ export function NoteEditor({
   return (
     <div className="flex min-h-full flex-col">
       <EditorToolbar actions={actions} />
+      <WikiLinkCombobox
+        ctx={{ wsSlug, projectId }}
+        editor={editor as unknown as Parameters<typeof WikiLinkCombobox>[0]["editor"]}
+      />
       <div className="mx-auto w-full max-w-[720px] flex-1 px-8 py-8">
         <input
           value={title}

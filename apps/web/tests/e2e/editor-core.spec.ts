@@ -78,4 +78,44 @@ test.describe("editor core (Plan 2A Task 14)", () => {
     });
     await expect(page.getByTestId("note-body")).toContainText("Hello world");
   });
+
+  // Plan 2A Task 16 — wiki-link combobox insertion happy path. The test-seed
+  // endpoint ships a "Welcome" note in the same project, so typing "Wel" is
+  // enough to surface a result we can click.
+  test("wiki-link combobox inserts link", async ({
+    page,
+    request,
+    context,
+  }) => {
+    const session = await seedAndSignIn(request);
+    await applySessionCookie(context, session);
+
+    await page.goto("/ko/app");
+    await expect(page).toHaveURL(
+      new RegExp(
+        `/(ko/)?app/w/${session.wsSlug}/p/${session.projectId}(/|$)`,
+      ),
+      { timeout: 15_000 },
+    );
+
+    // Create a fresh note so we can write into it without racing the seed
+    // note's initial hydration.
+    await page.getByTestId("new-note-button").click();
+    await expect(page).toHaveURL(/\/notes\/[0-9a-f-]{36}$/, {
+      timeout: 10_000,
+    });
+
+    await page.getByTestId("note-body").click();
+    await page.keyboard.type("See: ");
+    await page.keyboard.press("Control+k");
+
+    const combobox = page.getByTestId("wikilink-combobox");
+    await expect(combobox).toBeVisible();
+    await combobox.locator("input").fill("Wel");
+    await page.locator('[data-testid^="wikilink-result-"]').first().click();
+
+    await expect(
+      page.getByTestId("note-body").locator("a[data-target-id]").first(),
+    ).toBeVisible();
+  });
 });
