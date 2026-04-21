@@ -1,0 +1,1 @@
+ALTER TABLE "user_preferences" ALTER COLUMN "embed_model" SET DEFAULT 'gemini-embedding-001';

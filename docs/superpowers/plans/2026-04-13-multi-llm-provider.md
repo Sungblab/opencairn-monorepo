@@ -448,7 +448,11 @@ GEMINI_MODELS = {
     "pro": "gemini-3.1-pro-preview",
     "flash": "gemini-3-flash-preview",
     "flash_lite": "gemini-3.1-flash-lite-preview",
-    "embed": "gemini-embedding-2-preview",
+    # Historical: plan was written pre-ADR-007 (2026-04-21). Current default is
+    # `gemini-embedding-001` (text, MRL 768d). `gemini-embedding-2-preview` is
+    # kept as a multimodal fallback — reinstate when Batch API lands for it.
+    "embed": "gemini-embedding-001",
+    "embed_multimodal": "gemini-embedding-2-preview",
     "tts_flash": "gemini-2.5-flash-preview-tts",
     "tts_pro": "gemini-2.5-pro-preview-tts",
     "live": "gemini-3.1-flash-live-preview",

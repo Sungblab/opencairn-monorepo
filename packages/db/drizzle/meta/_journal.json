@@ -57,6 +57,13 @@
       "when": 1776705736711,
       "tag": "0007_natural_proemial_gods",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1776790117906,
+      "tag": "0008_natural_baron_zemo",
+      "breakpoints": true
     }
   ]
 }

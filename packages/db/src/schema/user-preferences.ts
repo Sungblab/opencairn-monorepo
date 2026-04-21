@@ -12,7 +12,7 @@ export const userPreferences = pgTable("user_preferences", {
     .references(() => user.id, { onDelete: "cascade" }),
   llmProvider: llmProviderEnum("llm_provider").notNull().default("gemini"),
   llmModel: text("llm_model").notNull().default("gemini-3-flash-preview"),
-  embedModel: text("embed_model").notNull().default("gemini-embedding-2-preview"),
+  embedModel: text("embed_model").notNull().default("gemini-embedding-001"),
   ttsModel: text("tts_model"),
   ollamaBaseUrl: text("ollama_base_url"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
