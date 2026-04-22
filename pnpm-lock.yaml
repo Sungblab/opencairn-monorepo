@@ -57,6 +57,9 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.14
       dotenv:
         specifier: ^16.4.0
         version: 16.6.1
