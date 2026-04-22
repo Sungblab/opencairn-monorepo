@@ -387,3 +387,27 @@ class GeminiProvider(LLMProvider):
 
     async def embed_batch_cancel(self, handle: BatchEmbedHandle) -> None:
         await self._client.aio.batches.cancel(name=handle.provider_batch_name)
+
+    # ── Tool-calling surface (Plan Agent Runtime v2 · A) ────────────────
+
+    def supports_tool_calling(self) -> bool:
+        return True
+
+    def supports_parallel_tool_calling(self) -> bool:
+        # C will enable this once the executor can partition read-only
+        # tool batches and dispatch them concurrently.
+        return False
+
+    @staticmethod
+    def _build_function_declarations(tools: list) -> list[dict[str, Any]]:
+        """Translate runtime.tools.Tool instances to Gemini
+        `function_declarations` shape. `input_schema()` already strips
+        `ToolContext` params (handled by the @tool decorator)."""
+        decls: list[dict[str, Any]] = []
+        for t in tools:
+            decls.append({
+                "name": t.name,
+                "description": t.description,
+                "parameters": t.input_schema(),
+            })
+        return decls
