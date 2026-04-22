@@ -20,5 +20,6 @@ export * from "./schema/conversations";
 export * from "./schema/user-preferences";
 export * from "./schema/agent-runs";
 export * from "./schema/project-semaphores";
+export * from "./schema/embedding-batches";
 
 export { eq, and, or, desc, asc, sql, inArray, isNull, lt, gt, lte, gte, count } from "drizzle-orm";

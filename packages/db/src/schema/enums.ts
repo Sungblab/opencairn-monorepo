@@ -42,3 +42,17 @@ export const messageRoleEnum = pgEnum("message_role", ["user", "assistant"]);
 // at DB layer so API routes can't write a string the factory will reject
 // at request time.
 export const llmProviderEnum = pgEnum("llm_provider_kind", ["gemini", "ollama"]);
+
+// Plan 3b batch-embedding lifecycle. Values mirror
+// packages/llm/src/llm/batch_types.py BATCH_STATE_* constants so Python and
+// TypeScript sides can round-trip without a lookup table. `timeout` is
+// OpenCairn-specific (caller gave up waiting) and has no provider state.
+export const embeddingBatchStateEnum = pgEnum("embedding_batch_state", [
+  "pending",
+  "running",
+  "succeeded",
+  "failed",
+  "cancelled",
+  "expired",
+  "timeout",
+]);
