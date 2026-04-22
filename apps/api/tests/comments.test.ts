@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createApp } from "../src/app.js";
-import { db, commentMentions, eq } from "@opencairn/db";
+import { db, comments, commentMentions, eq } from "@opencairn/db";
 import {
   seedMultiRoleWorkspace,
   type SeedMultiRoleResult,
@@ -78,5 +78,265 @@ describe("POST /api/notes/:noteId/comments", () => {
     const json = await r.json();
     expect(json.comments).toHaveLength(1);
     expect(json.comments[0].mentions).toEqual([]);
+  });
+});
+
+describe("PATCH /api/comments/:id", () => {
+  let seed: SeedMultiRoleResult;
+
+  beforeEach(async () => {
+    seed = await seedMultiRoleWorkspace();
+  });
+
+  afterEach(async () => {
+    await seed.cleanup();
+  });
+
+  it("only the author may edit", async () => {
+    const app = createApp();
+    const createRes = await app.request(
+      `/api/notes/${seed.noteId}/comments`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: await signSessionCookie(seed.editorUserId),
+        },
+        body: JSON.stringify({ body: "orig" }),
+      },
+    );
+    expect(createRes.status).toBe(201);
+    const { id } = await createRes.json();
+
+    // viewer (not author) → 403
+    const forbiddenRes = await app.request(`/api/comments/${id}`, {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        cookie: await signSessionCookie(seed.viewerUserId),
+      },
+      body: JSON.stringify({ body: "hacked" }),
+    });
+    expect(forbiddenRes.status).toBe(403);
+
+    // author (editor) → 200
+    const okRes = await app.request(`/api/comments/${id}`, {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        cookie: await signSessionCookie(seed.editorUserId),
+      },
+      body: JSON.stringify({ body: "edited" }),
+    });
+    expect(okRes.status).toBe(200);
+
+    const [row] = await db
+      .select()
+      .from(comments)
+      .where(eq(comments.id, id));
+    expect(row.body).toBe("edited");
+  });
+
+  it("re-extracts mentions on edit", async () => {
+    const app = createApp();
+    // X = viewer, Y = commenter
+    const X = seed.viewerUserId;
+    const Y = seed.commenterUserId;
+
+    const createRes = await app.request(
+      `/api/notes/${seed.noteId}/comments`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: await signSessionCookie(seed.editorUserId),
+        },
+        body: JSON.stringify({ body: `hi @[user:${X}]` }),
+      },
+    );
+    expect(createRes.status).toBe(201);
+    const { id } = await createRes.json();
+
+    const before = await db
+      .select()
+      .from(commentMentions)
+      .where(eq(commentMentions.commentId, id));
+    expect(before.map((r) => r.mentionedId)).toEqual([X]);
+
+    const patchRes = await app.request(`/api/comments/${id}`, {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        cookie: await signSessionCookie(seed.editorUserId),
+      },
+      body: JSON.stringify({ body: `hi @[user:${Y}]` }),
+    });
+    expect(patchRes.status).toBe(200);
+
+    const after = await db
+      .select()
+      .from(commentMentions)
+      .where(eq(commentMentions.commentId, id));
+    expect(after.map((r) => r.mentionedId)).toEqual([Y]);
+  });
+});
+
+describe("DELETE /api/comments/:id", () => {
+  let seed: SeedMultiRoleResult;
+
+  beforeEach(async () => {
+    seed = await seedMultiRoleWorkspace();
+  });
+
+  afterEach(async () => {
+    await seed.cleanup();
+  });
+
+  it("non-author viewer cannot delete", async () => {
+    const app = createApp();
+    const createRes = await app.request(
+      `/api/notes/${seed.noteId}/comments`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: await signSessionCookie(seed.editorUserId),
+        },
+        body: JSON.stringify({ body: "editor's comment" }),
+      },
+    );
+    expect(createRes.status).toBe(201);
+    const { id } = await createRes.json();
+
+    const res = await app.request(`/api/comments/${id}`, {
+      method: "DELETE",
+      headers: { cookie: await signSessionCookie(seed.viewerUserId) },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("author can delete", async () => {
+    const app = createApp();
+    const createRes = await app.request(
+      `/api/notes/${seed.noteId}/comments`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: await signSessionCookie(seed.commenterUserId),
+        },
+        body: JSON.stringify({ body: "my own comment" }),
+      },
+    );
+    expect(createRes.status).toBe(201);
+    const { id } = await createRes.json();
+
+    const delRes = await app.request(`/api/comments/${id}`, {
+      method: "DELETE",
+      headers: { cookie: await signSessionCookie(seed.commenterUserId) },
+    });
+    expect(delRes.status).toBe(204);
+
+    const listRes = await app.request(
+      `/api/notes/${seed.noteId}/comments`,
+      { headers: { cookie: await signSessionCookie(seed.editorUserId) } },
+    );
+    expect(listRes.status).toBe(200);
+    const listJson = await listRes.json();
+    expect(listJson.comments).toHaveLength(0);
+  });
+
+  it("editor (non-author) can delete", async () => {
+    const app = createApp();
+    const createRes = await app.request(
+      `/api/notes/${seed.noteId}/comments`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: await signSessionCookie(seed.commenterUserId),
+        },
+        body: JSON.stringify({ body: "commenter's comment" }),
+      },
+    );
+    expect(createRes.status).toBe(201);
+    const { id } = await createRes.json();
+
+    const res = await app.request(`/api/comments/${id}`, {
+      method: "DELETE",
+      headers: { cookie: await signSessionCookie(seed.editorUserId) },
+    });
+    expect(res.status).toBe(204);
+  });
+});
+
+describe("POST /api/comments/:id/resolve", () => {
+  let seed: SeedMultiRoleResult;
+
+  beforeEach(async () => {
+    seed = await seedMultiRoleWorkspace();
+  });
+
+  afterEach(async () => {
+    await seed.cleanup();
+  });
+
+  it("editor toggles resolved_at", async () => {
+    const app = createApp();
+    const createRes = await app.request(
+      `/api/notes/${seed.noteId}/comments`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: await signSessionCookie(seed.editorUserId),
+        },
+        body: JSON.stringify({ body: "needs resolving" }),
+      },
+    );
+    expect(createRes.status).toBe(201);
+    const { id } = await createRes.json();
+
+    const res1 = await app.request(`/api/comments/${id}/resolve`, {
+      method: "POST",
+      headers: { cookie: await signSessionCookie(seed.editorUserId) },
+    });
+    expect(res1.status).toBe(200);
+    const json1 = await res1.json();
+    expect(typeof json1.resolvedAt).toBe("string");
+    expect(() => new Date(json1.resolvedAt).toISOString()).not.toThrow();
+    expect(json1.resolvedBy).toBe(seed.editorUserId);
+
+    const res2 = await app.request(`/api/comments/${id}/resolve`, {
+      method: "POST",
+      headers: { cookie: await signSessionCookie(seed.editorUserId) },
+    });
+    expect(res2.status).toBe(200);
+    const json2 = await res2.json();
+    expect(json2.resolvedAt).toBeNull();
+    expect(json2.resolvedBy).toBeNull();
+  });
+
+  it("commenter (not author) cannot resolve unless they wrote it", async () => {
+    const app = createApp();
+    const createRes = await app.request(
+      `/api/notes/${seed.noteId}/comments`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: await signSessionCookie(seed.editorUserId),
+        },
+        body: JSON.stringify({ body: "editor's comment" }),
+      },
+    );
+    expect(createRes.status).toBe(201);
+    const { id } = await createRes.json();
+
+    const res = await app.request(`/api/comments/${id}/resolve`, {
+      method: "POST",
+      headers: { cookie: await signSessionCookie(seed.commenterUserId) },
+    });
+    expect(res.status).toBe(403);
   });
 });

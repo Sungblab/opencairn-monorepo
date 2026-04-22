@@ -13,16 +13,15 @@ import {
 } from "@opencairn/db";
 import {
   createCommentSchema,
+  updateCommentSchema,
   type CommentResponse,
   type MentionToken,
 } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
-import { canRead, resolveRole } from "../lib/permissions";
+import { canRead, canWrite, canComment } from "../lib/permissions";
 import { parseMentions } from "../lib/mention-parser";
 import { isUuid } from "../lib/validators";
 import type { AppEnv } from "../lib/types";
-
-const COMMENTER_ROLES = ["owner", "admin", "editor", "commenter"] as const;
 
 export const commentsRouter = new Hono<AppEnv>()
   .use("*", requireAuth)
@@ -61,16 +60,7 @@ export const commentsRouter = new Hono<AppEnv>()
     }
 
     const response: CommentResponse[] = rows.map((r) => ({
-      id: r.id,
-      noteId: r.noteId,
-      parentId: r.parentId,
-      anchorBlockId: r.anchorBlockId,
-      authorId: r.authorId,
-      body: r.body,
-      resolvedAt: r.resolvedAt ? r.resolvedAt.toISOString() : null,
-      resolvedBy: r.resolvedBy,
-      createdAt: r.createdAt.toISOString(),
-      updatedAt: r.updatedAt.toISOString(),
+      ...serialize(r),
       mentions: mentionsByComment.get(r.id) ?? [],
     }));
 
@@ -85,8 +75,7 @@ export const commentsRouter = new Hono<AppEnv>()
       const noteId = c.req.param("noteId");
       if (!isUuid(noteId)) return c.json({ error: "Bad Request" }, 400);
 
-      const role = await resolveRole(userId, { type: "note", id: noteId });
-      if (!COMMENTER_ROLES.includes(role as (typeof COMMENTER_ROLES)[number])) {
+      if (!(await canComment(userId, { type: "note", id: noteId }))) {
         return c.json({ error: "Forbidden" }, 403);
       }
 
@@ -129,21 +118,128 @@ export const commentsRouter = new Hono<AppEnv>()
       });
 
       const response: CommentResponse = {
-        id: inserted.id,
-        noteId: inserted.noteId,
-        parentId: inserted.parentId,
-        anchorBlockId: inserted.anchorBlockId,
-        authorId: inserted.authorId,
-        body: inserted.body,
-        resolvedAt: inserted.resolvedAt
-          ? inserted.resolvedAt.toISOString()
-          : null,
-        resolvedBy: inserted.resolvedBy,
-        createdAt: inserted.createdAt.toISOString(),
-        updatedAt: inserted.updatedAt.toISOString(),
+        ...serialize(inserted),
         mentions,
       };
 
       return c.json(response, 201);
     },
-  );
+  )
+
+  .patch(
+    "/comments/:id",
+    zValidator("json", updateCommentSchema),
+    async (c) => {
+      const userId = c.get("userId");
+      const id = c.req.param("id");
+      if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+
+      const [row] = await db
+        .select()
+        .from(comments)
+        .where(eq(comments.id, id));
+      if (!row) return c.json({ error: "NotFound" }, 404);
+      if (row.authorId !== userId) return c.json({ error: "Forbidden" }, 403);
+
+      const { body } = c.req.valid("json");
+      const mentions = parseMentions(body);
+
+      const updated = await db.transaction(async (tx) => {
+        const [u] = await tx
+          .update(comments)
+          .set({
+            body,
+            bodyAst: mentions.length ? { mentions } : null,
+            updatedAt: new Date(),
+          })
+          .where(eq(comments.id, id))
+          .returning();
+        await tx
+          .delete(commentMentions)
+          .where(eq(commentMentions.commentId, id));
+        if (mentions.length) {
+          await tx.insert(commentMentions).values(
+            mentions.map((m) => ({
+              commentId: id,
+              mentionedType: m.type,
+              mentionedId: m.id,
+            })),
+          );
+        }
+        return u!;
+      });
+
+      const response: CommentResponse = { ...serialize(updated), mentions };
+      return c.json(response);
+    },
+  )
+
+  .delete("/comments/:id", async (c) => {
+    const userId = c.get("userId");
+    const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+
+    const [row] = await db
+      .select()
+      .from(comments)
+      .where(eq(comments.id, id));
+    if (!row) return c.json({ error: "NotFound" }, 404);
+
+    const isAuthor = row.authorId === userId;
+    if (!isAuthor) {
+      const writable = await canWrite(userId, {
+        type: "note",
+        id: row.noteId,
+      });
+      if (!writable) return c.json({ error: "Forbidden" }, 403);
+    }
+
+    await db.delete(comments).where(eq(comments.id, id));
+    return c.body(null, 204);
+  })
+
+  .post("/comments/:id/resolve", async (c) => {
+    const userId = c.get("userId");
+    const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+
+    const [row] = await db
+      .select()
+      .from(comments)
+      .where(eq(comments.id, id));
+    if (!row) return c.json({ error: "NotFound" }, 404);
+
+    const isAuthor = row.authorId === userId;
+    const allowed =
+      isAuthor ||
+      (await canWrite(userId, { type: "note", id: row.noteId }));
+    if (!allowed) return c.json({ error: "Forbidden" }, 403);
+
+    const [updated] = await db
+      .update(comments)
+      .set({
+        resolvedAt: row.resolvedAt ? null : new Date(),
+        resolvedBy: row.resolvedAt ? null : userId,
+        updatedAt: new Date(),
+      })
+      .where(eq(comments.id, id))
+      .returning();
+    return c.json(serialize(updated!));
+  });
+
+function serialize(
+  r: typeof comments.$inferSelect,
+): Omit<CommentResponse, "mentions"> {
+  return {
+    id: r.id,
+    noteId: r.noteId,
+    parentId: r.parentId,
+    anchorBlockId: r.anchorBlockId,
+    authorId: r.authorId,
+    body: r.body,
+    resolvedAt: r.resolvedAt ? r.resolvedAt.toISOString() : null,
+    resolvedBy: r.resolvedBy,
+    createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
+  };
+}
