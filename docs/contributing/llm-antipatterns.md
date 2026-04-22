@@ -152,3 +152,15 @@ Added 2026-04-22. Bit us during Agent Runtime v2 · Sub-project A and must not b
 - ❌ `thought_signature`를 옮길 때 part를 쪼개거나 합침 → ✅ Gemini 3는 assistant content의 임의 part에 thought signature를 embed함. Function Calling §497-504는 signature가 든 part를 이웃과 분리하거나 두 signature를 병합하는 것을 금지. 가장 안전한 건 `content` 전체를 opaque로 취급하고 다음 turn에 그대로 re-inject.
 - ❌ `OllamaProvider.generate_with_tools`에 fallback 구현을 추가 → ✅ Sub-project A에서는 `ToolCallingNotSupported` stub으로 두고 **fail fast**. `LLM_PROVIDER=ollama`로 툴 요구 agent가 라우팅되면 `runtime.loop_runner.run_with_tools`가 즉시 예외를 던져야 함. Text-only로 조용히 fallback 금지.
 - ❌ `google.genai.errors.APIError`를 테스트에서 `APIError(code=429, response=MagicMock())` 식으로 생성 → ✅ 현재 SDK 시그니처는 `APIError(code, response_json, response=None)`로 `response_json` 필수. `response_json={"error": {"message": "..."}}` 전달.
+
+---
+
+## 13. Gemini Interactions API — Deep Research (Phase A, 2026-04-23)
+
+Added 2026-04-23. `google-genai` 1.73.1 기준. Deep Research Phase A(`packages/llm/src/llm/gemini.py` `start_interaction` 외 3종) 구현 중 발견.
+
+- ❌ 스트리밍을 `client.aio.interactions.stream(interaction_id=...)`로 호출 → ✅ `AsyncInteractionsResource`에 `.stream()` 메서드는 **존재하지 않음**. 노출 메서드는 `cancel / create / delete / get`. 스트리밍은 **`get(stream=True, last_event_id=...)`로 `AsyncStream[InteractionSSEEvent]` 반환** (혹은 `create(..., stream=True)` — 새 interaction 시작 시). `dir(client.aio.interactions)`로 즉시 확인 가능.
+- ❌ `agent_config["type"]`에 full 모델명(예: `"deep-research-max-preview-04-2026"`)을 넣음 → ✅ SDK의 `DeepResearchAgentConfigParam.type`은 `Required[Literal["deep-research"]]` 고정 discriminator. 실제 모델명은 **top-level `agent=` 파라미터**로만 전달. `agent_config`에는 `{"type": "deep-research", "collaborative_planning": ..., "thinking_summaries": ..., "visualization": ...}`.
+- ❌ `UserWarning: Interactions usage is experimental and may change in future versions.`를 CI에서 `-W error`로 막음 → ✅ SDK가 클라이언트 접근 시 1회 emit하는 **정상 경고**. 억제하지 말되 CI가 error-on-warning이면 `pytest.ini`의 `filterwarnings`에 `ignore::UserWarning:google.genai.*` 추가 고려.
+- ❌ `interactions.get(interaction_id)` non-stream 호출 결과의 `outputs`를 `resp.outputs`로 바로 대입 → ✅ 서버가 `outputs=null`을 반환할 수 있음. `list(resp.outputs or [])`로 방어. 이미 `gemini.py` `get_interaction` 구현이 이 형태.
+- ❌ `InteractionHandle` / `InteractionState` / `InteractionEvent`를 provider 외부(apps/worker · Temporal activity 등)에서 `google.genai` 타입으로 대체하려 시도 → ✅ 이 3종은 **경계 타입**. `packages/llm`은 SDK 타입을 외부로 누출하지 않는 것이 Phase A 합의. Phase B에서 Temporal payload 직렬화할 때도 dataclass를 그대로 사용하고 `google.genai` enum은 가두어 둘 것.

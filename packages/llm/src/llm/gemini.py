@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import time
 import uuid
+from collections.abc import AsyncGenerator
 from typing import Any, Literal, Sequence
 
 from google import genai
@@ -25,6 +26,7 @@ from .batch_types import (
     BatchNotSupported,
 )
 from .errors import ProviderFatalError, ProviderRetryableError
+from .interactions import InteractionEvent, InteractionHandle, InteractionState
 from .tool_types import AssistantTurn, ToolResult, ToolUse, UsageCounts
 
 # Gemini ``JobState`` enum → our normalised strings. Keys are the enum
@@ -538,3 +540,75 @@ class GeminiProvider(LLMProvider):
                 )
             )]
         )
+
+    # --- Interactions API (Deep Research) -------------------------------
+
+    async def start_interaction(
+        self,
+        *,
+        input: str,
+        agent: str,
+        collaborative_planning: bool = False,
+        background: bool = False,
+        previous_interaction_id: str | None = None,
+        thinking_summaries: Literal["auto", "none"] | None = None,
+        visualization: Literal["auto", "off"] | None = None,
+    ) -> InteractionHandle:
+        # DeepResearchAgentConfigParam.type is a fixed discriminator — the full
+        # agent identifier goes on the top-level ``agent`` kwarg.
+        agent_config: dict[str, Any] = {"type": "deep-research"}
+        if collaborative_planning:
+            agent_config["collaborative_planning"] = True
+        if thinking_summaries is not None:
+            agent_config["thinking_summaries"] = thinking_summaries
+        if visualization is not None:
+            agent_config["visualization"] = visualization
+
+        kwargs: dict[str, Any] = {
+            "input": input,
+            "agent": agent,
+            "agent_config": agent_config,
+            "background": background,
+        }
+        if previous_interaction_id is not None:
+            kwargs["previous_interaction_id"] = previous_interaction_id
+
+        resp = await self._client.aio.interactions.create(**kwargs)
+        return InteractionHandle(
+            id=resp.id,
+            agent=resp.agent,
+            background=bool(resp.background),
+        )
+
+    async def get_interaction(self, interaction_id: str) -> InteractionState:
+        resp = await self._client.aio.interactions.get(interaction_id=interaction_id)
+        return InteractionState(
+            id=resp.id,
+            status=resp.status,
+            outputs=list(resp.outputs or []),
+            error=resp.error,
+        )
+
+    async def stream_interaction(
+        self,
+        interaction_id: str,
+        *,
+        last_event_id: str | None = None,
+    ) -> AsyncGenerator[InteractionEvent, None]:
+        # The SDK exposes streaming by passing ``stream=True`` to ``get`` (or
+        # ``create``). There is no separate ``.stream()`` method. ``get`` with
+        # ``stream=True`` returns an ``AsyncStream[InteractionSSEEvent]`` that
+        # we async-iterate.
+        kwargs: dict[str, Any] = {"interaction_id": interaction_id, "stream": True}
+        if last_event_id is not None:
+            kwargs["last_event_id"] = last_event_id
+        stream = await self._client.aio.interactions.get(**kwargs)
+        async for raw in stream:
+            yield InteractionEvent(
+                event_id=raw.event_id,
+                kind=raw.kind,
+                payload=dict(raw.payload or {}),
+            )
+
+    async def cancel_interaction(self, interaction_id: str) -> None:
+        await self._client.aio.interactions.cancel(interaction_id=interaction_id)

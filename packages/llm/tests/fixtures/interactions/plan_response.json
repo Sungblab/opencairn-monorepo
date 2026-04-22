@@ -1,0 +1,6 @@
+{
+  "id": "int_plan_abc123",
+  "agent": "deep-research-max-preview-04-2026",
+  "status": "queued",
+  "background": true
+}

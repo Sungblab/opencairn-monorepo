@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import Any, Literal, Sequence
 
@@ -12,6 +13,7 @@ from .batch_types import (
     BatchEmbedResult,
     BatchNotSupported,
 )
+from .interactions import InteractionEvent, InteractionHandle, InteractionState
 from .tool_types import ToolResult
 
 
@@ -87,6 +89,49 @@ class LLMProvider(ABC):
         should be set — behavior when both are set is provider-defined.
         """
         return None
+
+    # --- Interactions API (Deep Research) -------------------------------
+    # Providers that support Google's Interactions API (Gemini) override
+    # these. The default raises NotImplementedError so callers can ``try``
+    # the call and fall back to UI-layer gating ("Gemini 키가 필요합니다").
+
+    async def start_interaction(
+        self,
+        *,
+        input: str,
+        agent: str,
+        collaborative_planning: bool = False,
+        background: bool = False,
+        previous_interaction_id: str | None = None,
+        thinking_summaries: Literal["auto", "none"] | None = None,
+        visualization: Literal["auto", "off"] | None = None,
+    ) -> InteractionHandle:
+        raise NotImplementedError(
+            f"{type(self).__name__} does not support the Interactions API"
+        )
+
+    async def get_interaction(self, interaction_id: str) -> InteractionState:
+        raise NotImplementedError(
+            f"{type(self).__name__} does not support the Interactions API"
+        )
+
+    async def stream_interaction(
+        self,
+        interaction_id: str,
+        *,
+        last_event_id: str | None = None,
+    ) -> AsyncGenerator[InteractionEvent, None]:
+        raise NotImplementedError(
+            f"{type(self).__name__} does not support the Interactions API"
+        )
+        # Unreachable but required so the function is an async generator.
+        if False:  # pragma: no cover
+            yield  # type: ignore[unreachable]
+
+    async def cancel_interaction(self, interaction_id: str) -> None:
+        raise NotImplementedError(
+            f"{type(self).__name__} does not support the Interactions API"
+        )
 
     # Providers that support tool calling override this. The `tools` list is
     # typed loosely (`list[Any]`) because `packages/llm` must not import the

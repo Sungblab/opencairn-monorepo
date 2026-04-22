@@ -1,0 +1,4 @@
+{"event_id": "ev_0", "kind": "thought_summary", "payload": {"text": "Decomposing into sub-questions."}}
+{"event_id": "ev_1", "kind": "text", "payload": {"delta": "TPU v1 launched in 2016..."}}
+{"event_id": "ev_2", "kind": "image", "payload": {"data": "BASE64PNG==", "mime_type": "image/png"}}
+{"event_id": "ev_3", "kind": "status", "payload": {"status": "completed"}}

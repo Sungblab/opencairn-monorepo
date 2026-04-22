@@ -19,6 +19,13 @@ from .embed_helper import (
     embed_many,
 )
 from .factory import get_provider
+from .interactions import (
+    InteractionEvent,
+    InteractionEventKind,
+    InteractionHandle,
+    InteractionState,
+    InteractionStatus,
+)
 
 __all__ = [
     "LLMProvider",
@@ -43,4 +50,10 @@ __all__ = [
     "ENV_BATCH_ENABLED_COMPILER",
     "ENV_BATCH_ENABLED_LIBRARIAN",
     "ENV_BATCH_MIN_ITEMS",
+    # Interactions API (Deep Research)
+    "InteractionEvent",
+    "InteractionEventKind",
+    "InteractionHandle",
+    "InteractionState",
+    "InteractionStatus",
 ]
