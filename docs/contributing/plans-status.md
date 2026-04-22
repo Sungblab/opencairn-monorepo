@@ -32,6 +32,15 @@ Plan 파일 위치: `docs/superpowers/plans/`.
 | ---------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `2026-04-22-onboarding-implementation.md`            | 🟡 feat 브랜치 | `/{locale}/onboarding` 2-모드 라우트 (워크스페이스 생성 + 초대 수락). Backend prereq: `GET /api/invites/:token`, 예약 slug + 409 매핑, invite email URL 교정, `/test-seed` onboarding 모드 2종. Frontend: 서버 가드 + `CreateWorkspaceForm` + `AcceptInviteCard` + slug/return-to 헬퍼 + signup→verify→login→onboarding 토큰 승계. Playwright 4 specs. Spec: `2026-04-22-onboarding-and-first-run-design.md`. |
 | `2026-04-22-agent-runtime-v2a-core-tool-loop.md`     | ✅ 2026-04-23 (feat 브랜치) | Agent Runtime v2 · Sub-A Core Tool-Use Loop. `packages/llm` tool-calling surface (`tool_types`/`errors`/base/Gemini `generate_with_tools` + `tool_result_to_message`, Ollama stub raises `ToolCallingNotSupported`). `apps/worker/src/runtime/tool_loop.py` ToolLoopExecutor + hard/soft guards + termination paths (model_stopped/structured_submitted/max_turns/…/provider_error/cancelled). 6 builtin tools (`list_project_topics`/`search_concepts`/`search_notes`/`read_note`/`fetch_url` SSRF-hardened/`emit_structured_output`) + `ToolContextRegistry` + `runtime.loop_runner.run_with_tools` helper + `ToolDemoAgent` 4 presets. `/api/internal/projects/:id/topics` Hono route. Docs: antipatterns §12 + api-contract Internal table + context-budget §7 tool path budgets. Umbrella A 완료 마킹. Tests: llm 27 · worker 102 (runtime + tools_builtin + agents + security) · integration 4 skipped (GEMINI_API_KEY_CI gated). |
+| `2026-04-22-deep-research-phase-a-llm-wrapper.md`    | ✅ 2026-04-23 (feat 브랜치) | Deep Research integration · Phase A. `packages/llm` Interactions API wrapper. `interactions.py` dataclasses (`InteractionHandle`/`InteractionState`/`InteractionEvent` + `InteractionStatus`/`InteractionEventKind` Literal 별칭). `LLMProvider` base에 4개 async hook (`start_interaction`/`get_interaction`/`stream_interaction`/`cancel_interaction`) 기본 `NotImplementedError`. `GeminiProvider`가 `client.aio.interactions.create/get(stream=True)/cancel` 로 위임 구현 (스트리밍은 `get(stream=True, last_event_id=...)` 경유 — SDK에는 별도 `.stream()` 없음). `OllamaProvider`는 상속된 기본값 유지 + 회귀 테스트 4개로 핀. Spec Open Question #1 (SDK 버전 확인) 해결: `google-genai` 1.73.1에서 `client.aio.interactions.*` 노출 확인. 121/121 pytest. 다음: Phase B (DB + Temporal workflow + activities). |
+
+### Deep Research integration (Spec: `2026-04-22-deep-research-integration-design.md`)
+
+- ✅ Phase A — `packages/llm` Interactions wrapper (2026-04-23)
+- 🟡 Phase B — DB + Temporal workflow (next)
+- 🟡 Phase C — apps/api routes + SSE
+- 🟡 Phase D — apps/web `/research` + Plate research-meta
+- 🟡 Phase E — i18n + feature flag + E2E + 출시
 
 ## Phase 2 — Scale (Plan 4 후, 병렬 가능)
 

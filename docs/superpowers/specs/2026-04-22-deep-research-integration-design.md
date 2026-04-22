@@ -632,7 +632,7 @@ Google이 실제 비용을 API로 반환하지 않으므로 **추정치**로 기
 
 ## 10. Open Questions
 
-1. **google-genai SDK 버전** — `client.interactions.*` API가 안정화된 버전 확인 필요. 4월 preview 발표와 동시에 SDK 업데이트 여부는 `uv`로 설치 시 확인.
+1. ~~google-genai SDK 버전~~ — 해결됨 (Phase A, 2026-04-23). 설치된 SDK 버전(`google-genai` 1.73.1)이 `client.aio.interactions.*` (create/get/cancel)를 노출함을 `packages/llm/tests/test_gemini_interactions.py`로 확정. 스트리밍은 별도 `.stream()` 메서드가 아니라 `get(stream=True, last_event_id=...)` 경유로 `AsyncStream[InteractionSSEEvent]`를 반환하는 구조임을 SDK 소스(`google/genai/_interactions/resources/interactions.py` L1278~L1367)로 확인 → 구현에 반영. 정확한 버전은 `packages/llm/uv.lock` 참고.
 2. **Google visualization 이미지 포맷** — PNG/SVG 어느 쪽 받을지는 실제 응답 확인 후 MinIO 업로드 코드 확정. 둘 다 처리 가능하게 구현.
 3. **research-meta 블록 Plate 직렬화 호환성** — Yjs 동기화에서 커스텀 블록 ok 여부. Plan 2B Hocuspocus 통합 전에 Yjs 테스트 1개.
 4. **SSE vs WebSocket** — 현재 SSE로 설계했으나 Hocuspocus가 붙는 라우트와 합류 시 WebSocket로 통일할지는 Plan 2B에서 재검토. 본 spec에서는 SSE로 진행.
