@@ -89,7 +89,7 @@ Cookie: better-auth.session_token=<token>
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
 | GET | /api/workspaces | Yes | 내가 멤버인 모든 워크스페이스 — 응답 `[{ id, slug, name, role }]` | - |
-| POST | /api/workspaces | Yes | 새 workspace 생성 (생성자는 owner) | `{ name, slug }` |
+| POST | /api/workspaces | Yes | 새 workspace 생성 (생성자는 owner, 기본 프로젝트 1개 자동 생성). slug 미지정 시 이름에서 ASCII 파생, 불가/충돌 시 `w-{hex8}` fallback | `{ name, slug? }` |
 | GET | /api/workspaces/by-slug/:slug | member | slug로 워크스페이스 조회 — 응답 `{ id, slug, name, role }` (redirect 체인 용) | - |
 | GET | /api/workspaces/:workspaceId | member | 워크스페이스 상세 | - |
 | PATCH | /api/workspaces/:workspaceId | admin | 이름/slug/plan 변경 | `{ name?, slug?, planType? }` |
