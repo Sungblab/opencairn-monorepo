@@ -15,8 +15,6 @@
     "github": "GITHUB ↗",
     "signIn": "Sign in",
     "signUp": "Get started",
-    "switchTo": "한국어",
-    "switchToLabel": "한국어로 전환",
     "easter": "fourth stone ✦"
   },
   "hero": {
@@ -25,7 +23,7 @@
     "titleLine1": "Plenty of tools hold",
     "titleLine2": "what you write.",
     "titleBrand": "OpenCairn",
-    "titleLine3": "understands what you read.",
+    "titleLine3": "knows what you read.",
     "sub": "Drop in PDFs, papers, videos, and podcasts. 12 AI agents <b>weave them into a wiki</b>, <b>surface connections</b> before you ask, and <b>measure how well you actually understand</b> what's there.",
     "ctaPrimary": "Get started",
     "ctaSecondary": "See pricing",
@@ -480,11 +478,8 @@
       { "label": "cla", "href": "#" },
       { "label": "terms", "href": "/terms" }
     ],
-    "copyright": "© 2026 OpenCairn · Made by Sungblab",
+    "copyright": "© 2026 OpenCairn · Made by <author>Sungblab</author>",
     "badges": ["Gemini", "Ollama", "Docker", "Self-Hosted"],
-    "endline": "< end of document / thanks for reading >",
-    "langLabel": "LANGUAGE",
-    "langKo": "한국어",
-    "langEn": "English"
+    "endline": "< end of document / thanks for reading >"
   }
 }

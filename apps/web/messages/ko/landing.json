@@ -15,8 +15,6 @@
     "github": "GITHUB ↗",
     "signIn": "로그인",
     "signUp": "시작하기",
-    "switchTo": "EN",
-    "switchToLabel": "Switch to English",
     "easter": "네 번째 돌 ✦"
   },
   "hero": {
@@ -480,11 +478,8 @@
       { "label": "cla", "href": "#" },
       { "label": "terms", "href": "/terms" }
     ],
-    "copyright": "© 2026 OpenCairn · Made by Sungblab",
+    "copyright": "© 2026 OpenCairn · Made by <author>Sungblab</author>",
     "badges": ["Gemini", "Ollama", "Docker", "Self-Hosted"],
-    "endline": "< end of document / 읽어주셔서 감사합니다 >",
-    "langLabel": "LANGUAGE",
-    "langKo": "한국어",
-    "langEn": "English"
+    "endline": "< end of document / 읽어주셔서 감사합니다 >"
   }
 }

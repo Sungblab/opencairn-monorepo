@@ -48,5 +48,8 @@
   "placeholder": {
     "comingSoon": "준비 중입니다."
   },
+  "language": {
+    "menuLabel": "Select language"
+  },
   "not_found": "Not found."
 }

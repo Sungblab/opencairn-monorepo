@@ -1,11 +1,11 @@
 "use client";
-import { useTranslations, useLocale } from "next-intl";
+import { useTranslations } from "next-intl";
+import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 
 type Link = { label: string; href: string };
 
 export function LandingFooter() {
   const t = useTranslations("landing.footer");
-  const locale = useLocale();
   const productLinks = t.raw("productLinks") as Link[];
   const devLinks = t.raw("devLinks") as Link[];
   const communityLinks = t.raw("communityLinks") as Link[];
@@ -56,39 +56,20 @@ export function LandingFooter() {
           style={{ borderTop: "1px solid #525252" }}
         >
           <div className="font-sans text-[10.5px] tracking-widest uppercase" style={{ color: "#FFFFFF" }}>
-            {t("copyright")}
+            {t.rich("copyright", {
+              author: (chunks) => (
+                <a
+                  href="https://sungblab.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline decoration-stone-500 underline-offset-2 hover:decoration-stone-50 transition-colors"
+                >
+                  {chunks}
+                </a>
+              ),
+            })}
           </div>
-          <div
-            className="inline-flex items-center rounded-md overflow-hidden font-sans text-[11px] tracking-widest uppercase"
-            style={{ border: "1px solid #525252" }}
-            role="group"
-            aria-label={t("langLabel")}
-          >
-            <a
-              href="/ko"
-              aria-current={locale === "ko" ? "page" : undefined}
-              className="px-3.5 py-1.5 transition-colors"
-              style={
-                locale === "ko"
-                  ? { backgroundColor: "#FAFAFA", color: "#171717" }
-                  : { color: "#A3A3A3" }
-              }
-            >
-              {t("langKo")}
-            </a>
-            <a
-              href="/en"
-              aria-current={locale === "en" ? "page" : undefined}
-              className="px-3.5 py-1.5 transition-colors"
-              style={
-                locale === "en"
-                  ? { backgroundColor: "#FAFAFA", color: "#171717" }
-                  : { color: "#A3A3A3" }
-              }
-            >
-              {t("langEn")}
-            </a>
-          </div>
+          <LanguageSwitcher tone="dark" />
         </div>
       </div>
     </footer>

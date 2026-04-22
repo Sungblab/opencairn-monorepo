@@ -2,11 +2,11 @@
 import { useRef, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { AuthModal } from "@/components/auth/AuthModal";
+import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 
 export function LandingHeader() {
   const t = useTranslations("landing.nav");
   const locale = useLocale();
-  const otherLocale = locale === "ko" ? "en" : "ko";
   const nameRef = useRef<HTMLSpanElement>(null);
   const [clicks, setClicks] = useState(0);
   const [authOpen, setAuthOpen] = useState(false);
@@ -50,13 +50,7 @@ export function LandingHeader() {
             <a href="#docs" className="hover:text-stone-900 transition-colors">{t("docs")}</a>
           </div>
           <div className="flex items-center gap-4">
-            <a
-              href={`/${otherLocale}`}
-              aria-label={t("switchToLabel")}
-              className="font-sans text-[11px] tracking-widest text-stone-500 hover:text-stone-900 transition-colors"
-            >
-              {t("switchTo")}
-            </a>
+            <LanguageSwitcher />
             <button
               onClick={() => setAuthOpen(true)}
               className="hidden sm:inline-block text-sm text-stone-700 hover:text-stone-900 font-medium kr transition-colors"
