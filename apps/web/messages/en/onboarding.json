@@ -6,18 +6,12 @@
   },
   "create": {
     "title": "Create your first workspace",
-    "desc": "A workspace is where your documents and projects live. You can rename it and change the address later.",
+    "desc": "A workspace is where your documents and projects live. You can rename it later.",
     "nameLabel": "Name",
-    "slugLabel": "Address",
     "submit": "Create workspace",
-    "suggest": "Try",
-    "slugHintPrefix": "/app/w/",
-    "slugHintPlaceholder": "…",
+    "autoSlugHint": "The address is generated for you — change it in settings later.",
     "errors": {
       "required": "Please enter a name.",
-      "slug_invalid": "The address must be 3–40 lowercase letters, digits, or hyphens.",
-      "slug_reserved": "That address is reserved. Pick another.",
-      "slug_conflict": "That address is already taken. Try one of the suggestions.",
       "network": "Connection issue. Please try again in a moment.",
       "generic": "Something went wrong. Please try again."
     }
