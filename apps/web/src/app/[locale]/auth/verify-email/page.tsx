@@ -1,5 +1,6 @@
 import { setRequestLocale, getTranslations } from "next-intl/server";
 import type { Locale } from "@/i18n";
+import { PostVerifyLink } from "./PostVerifyLink";
 
 export default async function VerifyEmailPage({
   params,
@@ -32,12 +33,7 @@ export default async function VerifyEmailPage({
         <>
           <p className="font-sans text-xl text-stone-900">{t("verify.success")}</p>
           <p className="text-sm text-stone-500">{t("verify.successDesc")}</p>
-          <a
-            href={`/${locale}/auth/login`}
-            className="mt-2 inline-block bg-stone-900 text-stone-50 text-sm font-medium px-4 py-2 rounded-md hover:bg-stone-800 transition-colors"
-          >
-            {t("verify.goLogin")}
-          </a>
+          <PostVerifyLink locale={locale} />
         </>
       )}
     </div>

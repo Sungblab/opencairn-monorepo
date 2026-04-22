@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,24 @@ export function SignupForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Read invite token from URL once. Used to (a) echo via callbackURL so
+  // the verify-email link can pick it up, and (b) stash in sessionStorage
+  // as a fallback if the user opens verify-email in another tab.
+  const inviteToken =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("invite")
+      : null;
+
+  useEffect(() => {
+    if (inviteToken) {
+      try {
+        sessionStorage.setItem("opencairn:pending_invite", inviteToken);
+      } catch {
+        // ignore storage errors (private browsing, disabled storage)
+      }
+    }
+  }, [inviteToken]);
+
   const goBack = () => {
     setError(null);
     setStep(1);
@@ -34,11 +52,16 @@ export function SignupForm() {
     setError(null);
     setLoading(true);
 
+    const callbackBase = `/${locale}/auth/verify-email`;
+    const callbackURL = inviteToken
+      ? `${callbackBase}?invite=${encodeURIComponent(inviteToken)}`
+      : callbackBase;
+
     const { error: authError } = await authClient.signUp.email({
       name,
       email,
       password,
-      callbackURL: `/${locale}/auth/verify-email`,
+      callbackURL,
     });
 
     setLoading(false);

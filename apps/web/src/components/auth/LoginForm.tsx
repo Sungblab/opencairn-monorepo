@@ -1,11 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { GoogleButton } from "./GoogleButton";
+import { isSafeReturnTo } from "@/lib/return-to";
 
 interface LoginFormProps {
   onSuccess?: () => void;
@@ -20,6 +21,12 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [returnTo, setReturnTo] = useState<string | null>(null);
+
+  useEffect(() => {
+    const r = new URLSearchParams(window.location.search).get("return_to");
+    if (r && isSafeReturnTo(r)) setReturnTo(r);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,9 +50,22 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
 
     if (onSuccess) {
       onSuccess();
-    } else {
-      router.push(`/${locale}/app`);
+      return;
     }
+
+    if (returnTo) {
+      // return_to has already passed isSafeReturnTo; prepend locale when
+      // caller sent the path without one.
+      const dest = returnTo.startsWith(`/${locale}`)
+        ? returnTo
+        : `/${locale}${returnTo}`;
+      // Full navigation — some post-login pages (like /onboarding) run
+      // server guards that read fresh cookies.
+      window.location.href = dest;
+      return;
+    }
+
+    router.push(`/${locale}/app`);
   };
 
   return (
