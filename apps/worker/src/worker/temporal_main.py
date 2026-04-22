@@ -57,6 +57,16 @@ from worker.workflows.ingest_workflow import IngestWorkflow
 from worker.workflows.librarian_workflow import LibrarianWorkflow
 from worker.workflows.research_workflow import ResearchWorkflow
 
+# Deep Research (Spec 2026-04-22) — registered only when FEATURE_DEEP_RESEARCH
+# is on. Importing here is cheap and keeps the conditional small below.
+from worker.activities.deep_research import (
+    create_deep_research_plan,
+    execute_deep_research,
+    iterate_deep_research_plan,
+    persist_deep_research_report,
+)
+from worker.workflows.deep_research_workflow import DeepResearchWorkflow
+
 load_dotenv()
 
 
@@ -66,46 +76,60 @@ async def main() -> None:
         namespace=os.environ.get("TEMPORAL_NAMESPACE", "default"),
     )
     task_queue = os.environ.get("TEMPORAL_TASK_QUEUE", "ingest")
+    workflows: list = [
+        IngestWorkflow,
+        CompilerWorkflow,
+        ResearchWorkflow,
+        LibrarianWorkflow,
+        BatchEmbedWorkflow,
+        ImportWorkflow,
+    ]
+    activities: list = [
+        parse_pdf,
+        transcribe_audio,
+        analyze_image,
+        ingest_youtube,
+        scrape_web_url,
+        enhance_with_gemini,
+        create_source_note,
+        quarantine_source,
+        report_ingest_failure,
+        compile_note,
+        run_research,
+        run_librarian,
+        acquire_project_semaphore,
+        release_project_semaphore,
+        submit_batch_embed,
+        poll_batch_embed,
+        fetch_batch_embed_results,
+        cancel_batch_embed,
+        # Ingest Source Expansion — Drive + Notion one-shot import.
+        discover_drive_tree,
+        upload_drive_file_to_minio,
+        unzip_notion_export,
+        convert_notion_md_to_plate,
+        upload_staging_to_minio,
+        resolve_target,
+        materialize_page_tree,
+        finalize_import_job,
+    ]
+
+    # Deep Research Phase B — feature-flag gated so the worker boots cleanly
+    # when the flag is off without warning about activities that never fire.
+    if os.environ.get("FEATURE_DEEP_RESEARCH", "false").lower() == "true":
+        workflows.append(DeepResearchWorkflow)
+        activities.extend([
+            create_deep_research_plan,
+            iterate_deep_research_plan,
+            execute_deep_research,
+            persist_deep_research_report,
+        ])
+
     worker = Worker(
         client,
         task_queue=task_queue,
-        workflows=[
-            IngestWorkflow,
-            CompilerWorkflow,
-            ResearchWorkflow,
-            LibrarianWorkflow,
-            BatchEmbedWorkflow,
-            ImportWorkflow,
-        ],
-        activities=[
-            parse_pdf,
-            transcribe_audio,
-            analyze_image,
-            ingest_youtube,
-            scrape_web_url,
-            enhance_with_gemini,
-            create_source_note,
-            quarantine_source,
-            report_ingest_failure,
-            compile_note,
-            run_research,
-            run_librarian,
-            acquire_project_semaphore,
-            release_project_semaphore,
-            submit_batch_embed,
-            poll_batch_embed,
-            fetch_batch_embed_results,
-            cancel_batch_embed,
-            # Ingest Source Expansion — Drive + Notion one-shot import.
-            discover_drive_tree,
-            upload_drive_file_to_minio,
-            unzip_notion_export,
-            convert_notion_md_to_plate,
-            upload_staging_to_minio,
-            resolve_target,
-            materialize_page_tree,
-            finalize_import_job,
-        ],
+        workflows=workflows,
+        activities=activities,
     )
     print(f"[worker] Starting Temporal worker on task queue: {task_queue}")
     await worker.run()
