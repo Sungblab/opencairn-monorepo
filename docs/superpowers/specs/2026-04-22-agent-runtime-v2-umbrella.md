@@ -47,7 +47,7 @@ Provider-agnostic, 관측 가능, Temporal-native한 agentic tool-calling 런타
 
 | ID | 이름 | 목적 | 의존 | 상태 | Spec |
 |----|------|------|------|------|------|
-| **A** | Core Tool-Use Loop | Provider `generate_with_tools` + `ToolLoopExecutor` + 6 tool family + `ToolDemoAgent` | 없음 | 📘 planned | `2026-04-22-agent-runtime-v2a-core-tool-loop-design.md` |
+| **A** | Core Tool-Use Loop | Provider `generate_with_tools` + `ToolLoopExecutor` + 6 tool family + `ToolDemoAgent` | 없음 | ✅ done | `2026-04-22-agent-runtime-v2a-core-tool-loop-design.md` |
 | **B** | Agent Retrofit | Compiler/Research/Librarian을 tool-based로 재작성. `emit_structured_output` 채택. concept relations 테이블 추가 → `get_concept_graph` 완성 | A | ⏳ queued | TBD |
 | **C** | Advanced Loop | Parallel tool execution, streaming tool execution, multi-level compaction (snip/microcompact/autocompact with protected tail), Gemini 3 thought signature 수동 관리 | A | ⏳ queued | TBD |
 | **D** | MCP Integration | stdio/http MCP client, MCP tool → `runtime.Tool` wrapper. Gemini Python SDK의 `tools=[session]` 경로 활용. 메모리의 "MCP client 별도 spec" 흡수 | A | ⏳ queued | TBD |

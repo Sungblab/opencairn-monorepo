@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal, Sequence
+
+from pydantic import BaseModel
 
 from .batch_types import (
     BatchEmbedHandle,
@@ -10,6 +12,7 @@ from .batch_types import (
     BatchEmbedResult,
     BatchNotSupported,
 )
+from .tool_types import ToolResult
 
 
 @dataclass
@@ -93,6 +96,46 @@ class LLMProvider(ABC):
         """Return tool schemas in this provider's expected format."""
         raise NotImplementedError(
             f"{type(self).__name__} does not support tool calling"
+        )
+
+    # ── Tool-calling surface (Plan Agent Runtime v2 · A) ────────────────
+    #
+    # Providers that support tool calling override `supports_tool_calling`
+    # to return True and implement `generate_with_tools` +
+    # `tool_result_to_message`. The default raises so callers fail fast
+    # when provisioned against a provider that does not support tools
+    # (e.g. LLM_PROVIDER=ollama in A).
+    #
+    # Type of `messages` is intentionally `list` — each provider uses its
+    # own native message type, and ToolLoopExecutor treats them as opaque
+    # to preserve provider-specific metadata such as Gemini 3 thought
+    # signatures.
+
+    def supports_tool_calling(self) -> bool:
+        return False
+
+    def supports_parallel_tool_calling(self) -> bool:
+        return False
+
+    async def generate_with_tools(
+        self,
+        messages: list,
+        tools: list,
+        *,
+        mode: Literal["auto", "any", "none"] = "auto",
+        allowed_tool_names: Sequence[str] | None = None,
+        final_response_schema: type[BaseModel] | None = None,
+        cached_context_id: str | None = None,
+        temperature: float | None = None,
+        max_output_tokens: int | None = None,
+    ):
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement generate_with_tools"
+        )
+
+    def tool_result_to_message(self, result: ToolResult):
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement tool_result_to_message"
         )
 
     # ── Batch embedding surface (Plan 3b) ────────────────────────────────

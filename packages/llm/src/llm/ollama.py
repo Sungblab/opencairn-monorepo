@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 
 from .base import EmbedInput, LLMProvider, ProviderConfig
+from .errors import ToolCallingNotSupported
 
 OLLAMA_DEFAULT_URL = "http://localhost:11434"
 
@@ -95,3 +96,22 @@ class OllamaProvider(LLMProvider):
         from runtime.tool_declarations import build_ollama_declarations
 
         return build_ollama_declarations(tools)
+
+    # Ollama tool calling is deferred to a later sub-project. The stub
+    # raises an explicit error so callers that route an agent requiring
+    # tools to LLM_PROVIDER=ollama fail fast with a useful message
+    # instead of silently returning no tool calls.
+
+    def supports_tool_calling(self) -> bool:
+        return False
+
+    async def generate_with_tools(self, *args, **kwargs):
+        raise ToolCallingNotSupported(
+            "OllamaProvider.generate_with_tools is not implemented yet. "
+            "Set LLM_PROVIDER=gemini or implement this method."
+        )
+
+    def tool_result_to_message(self, result):
+        raise ToolCallingNotSupported(
+            "OllamaProvider.tool_result_to_message is not implemented yet."
+        )
