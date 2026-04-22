@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import {
   and,
   db,
+  desc,
   eq,
   importJobs,
   inArray,
@@ -15,7 +16,7 @@ import {
   startNotionImportSchema,
 } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
-import { canWrite } from "../lib/permissions";
+import { canRead, canWrite } from "../lib/permissions";
 import { getPresignedPutUrl } from "../lib/s3";
 import { getTemporalClient } from "../lib/temporal-client";
 import type { AppEnv } from "../lib/types";
@@ -228,3 +229,214 @@ importRouter.post(
     return c.json({ jobId: job.id }, 201);
   },
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// List / detail / SSE / cancel — consumed by the /import page (Task 14+)
+// ─────────────────────────────────────────────────────────────────────────────
+
+type RawSourceMeta = Record<string, unknown>;
+
+// Strip the raw ingest metadata down to UI-safe fields. Raw shape is
+// source-specific and contains object keys + file ids we don't want to leak
+// across workspaces — the list/detail endpoints both go through this.
+function safeSourceMetadata(source: string, meta: unknown): RawSourceMeta {
+  const m = (meta ?? {}) as RawSourceMeta;
+  if (source === "notion_zip") {
+    return {
+      originalName: typeof m.original_name === "string" ? m.original_name : null,
+    };
+  }
+  if (source === "google_drive") {
+    const fileIds = Array.isArray(m.file_ids) ? m.file_ids : [];
+    return { fileCount: fileIds.length };
+  }
+  return {};
+}
+
+importRouter.get("/jobs", requireAuth, async (c) => {
+  const userId = c.get("userId");
+  const workspaceId = c.req.query("workspaceId");
+  if (!workspaceId) return c.json({ error: "workspaceId required" }, 400);
+  const allowed = await canRead(userId, {
+    type: "workspace",
+    id: workspaceId,
+  });
+  if (!allowed) return c.json({ error: "Forbidden" }, 403);
+  const rows = await db
+    .select({
+      id: importJobs.id,
+      workspaceId: importJobs.workspaceId,
+      source: importJobs.source,
+      status: importJobs.status,
+      totalItems: importJobs.totalItems,
+      completedItems: importJobs.completedItems,
+      failedItems: importJobs.failedItems,
+      sourceMetadata: importJobs.sourceMetadata,
+      errorSummary: importJobs.errorSummary,
+      createdAt: importJobs.createdAt,
+      finishedAt: importJobs.finishedAt,
+    })
+    .from(importJobs)
+    .where(eq(importJobs.workspaceId, workspaceId))
+    .orderBy(desc(importJobs.createdAt))
+    .limit(50);
+  return c.json(
+    rows.map((r) => ({
+      ...r,
+      sourceMetadata: safeSourceMetadata(r.source, r.sourceMetadata),
+    })),
+  );
+});
+
+importRouter.get("/jobs/:id", requireAuth, async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const [row] = await db
+    .select()
+    .from(importJobs)
+    .where(eq(importJobs.id, id))
+    .limit(1);
+  if (!row) return c.json({ error: "not_found" }, 404);
+  const allowed = await canRead(userId, {
+    type: "workspace",
+    id: row.workspaceId,
+  });
+  if (!allowed) return c.json({ error: "Forbidden" }, 403);
+  return c.json({
+    id: row.id,
+    workspaceId: row.workspaceId,
+    source: row.source,
+    status: row.status,
+    totalItems: row.totalItems,
+    completedItems: row.completedItems,
+    failedItems: row.failedItems,
+    errorSummary: row.errorSummary,
+    createdAt: row.createdAt,
+    finishedAt: row.finishedAt,
+    sourceMetadata: safeSourceMetadata(row.source, row.sourceMetadata),
+  });
+});
+
+// Polling-based SSE. Not as snappy as DB LISTEN/NOTIFY or a Temporal query
+// but dead simple and the progress bar updates every 2s which is fine UX.
+// Upgrade candidate if we see the /jobs row under heavy concurrent polling.
+importRouter.get("/jobs/:id/events", requireAuth, async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const [job] = await db
+    .select({
+      id: importJobs.id,
+      workspaceId: importJobs.workspaceId,
+    })
+    .from(importJobs)
+    .where(eq(importJobs.id, id))
+    .limit(1);
+  if (!job) return c.json({ error: "not_found" }, 404);
+  const allowed = await canRead(userId, {
+    type: "workspace",
+    id: job.workspaceId,
+  });
+  if (!allowed) return c.json({ error: "Forbidden" }, 403);
+
+  const POLL_MS = 2_000;
+  const MAX_TICKS = 15 * 60 / 2; // ~15 minutes cap then client reconnects
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const encoder = new TextEncoder();
+      const send = (data: unknown) => {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+      };
+      let tick = 0;
+      while (tick < MAX_TICKS) {
+        const [row] = await db
+          .select({
+            status: importJobs.status,
+            totalItems: importJobs.totalItems,
+            completedItems: importJobs.completedItems,
+            failedItems: importJobs.failedItems,
+          })
+          .from(importJobs)
+          .where(eq(importJobs.id, id))
+          .limit(1);
+        if (!row) break;
+        send({
+          type: "job.updated",
+          status: row.status,
+          total: row.totalItems,
+          completed: row.completedItems,
+          failed: row.failedItems,
+        });
+        if (row.status === "completed" || row.status === "failed") {
+          send({ type: "job.finished", status: row.status });
+          break;
+        }
+        await new Promise((r) => setTimeout(r, POLL_MS));
+        tick += 1;
+      }
+      controller.close();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      // nginx would otherwise buffer the whole stream before flushing.
+      "X-Accel-Buffering": "no",
+    },
+  });
+});
+
+importRouter.delete("/jobs/:id", requireAuth, async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const [job] = await db
+    .select()
+    .from(importJobs)
+    .where(eq(importJobs.id, id))
+    .limit(1);
+  if (!job) return c.json({ error: "not_found" }, 404);
+  const allowed = await canWrite(userId, {
+    type: "workspace",
+    id: job.workspaceId,
+  });
+  if (!allowed) return c.json({ error: "Forbidden" }, 403);
+
+  if (job.status === "queued" || job.status === "running") {
+    try {
+      const client = await getTemporalClient();
+      const handle = client.workflow.getHandle(job.workflowId);
+      await handle.cancel();
+    } catch (err) {
+      // Temporal may already have reaped the workflow if it finished between
+      // our SELECT and the cancel RPC. Swallow — we still mark the row failed
+      // below so the UI reflects the user's intent.
+      console.warn(
+        `[import] cancel RPC failed for ${job.workflowId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+  await db
+    .update(importJobs)
+    .set({ status: "failed", errorSummary: "Cancelled by user" })
+    .where(eq(importJobs.id, id));
+  return c.json({ ok: true });
+});
+
+// Retry is deferred — the plan marks it as follow-up work and the MVP UX
+// asks the user to re-upload the ZIP / re-pick the Drive files instead.
+// Keeping a stub route so the UI can surface a clear 501 rather than a 404
+// and client code doesn't need to feature-detect.
+importRouter.post("/jobs/:id/retry", requireAuth, async (c) => {
+  return c.json(
+    {
+      error: "retry_not_implemented",
+      hint: "Re-submit via /api/import/drive or /api/import/notion with the same inputs",
+    },
+    501,
+  );
+});
