@@ -37,6 +37,11 @@ dependencies = [
     # simpler with the generic client.
     "google-api-python-client>=2.100",
     "google-auth>=2.23",
+    # Notion MD → Plate conversion (Plan: ingest-source-expansion Task 8).
+    # CommonMark-compliant, token-stream-based — we walk the tokens directly
+    # rather than relying on an HTML intermediate so Plate elements like
+    # wikilinks can be emitted inline without re-parsing.
+    "markdown-it-py>=3.0",
 ]
 
 [project.optional-dependencies]

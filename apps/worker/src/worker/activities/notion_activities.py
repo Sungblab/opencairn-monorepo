@@ -23,9 +23,16 @@ import os
 import re
 import zipfile
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+from urllib.parse import unquote, urlparse
 
+from markdown_it import MarkdownIt
 from temporalio import activity
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from markdown_it.token import Token
 
 
 class ZipDefenseError(Exception):
@@ -241,10 +248,291 @@ async def unzip_notion_export(payload: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Task 8: Markdown → Plate converter
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# We work directly off markdown-it's token stream rather than an HTML
+# intermediate. Plate elements (especially wikilink, which has a noteId
+# attribute) can't round-trip through HTML cleanly, and a token walker is
+# simpler than trying to rehydrate cross-references after the fact.
+
+
+# Link hrefs from Notion exports look like
+#   ../Other%20Page%20abc123....md
+# We match the 32-char hex id immediately before `.md` at the end of the
+# URL path. Narrower than _UUID_RE above (no leading space, end-anchored).
+_UUID_IN_LINK = re.compile(r"([0-9a-f]{32})(?=\.md$)", re.IGNORECASE)
+
+
+def _text_leaf(text: str, **marks: Any) -> dict[str, Any]:
+    return {"text": text, **marks}
+
+
+def _flatten_inline(
+    tokens: list[Token],
+    *,
+    uuid_link_map: dict[str, int],
+    idx_to_note_id: dict[int, str],
+) -> list[dict[str, Any]]:
+    """Walk markdown-it inline tokens and emit Plate leaves + link elements.
+
+    Bold/italic/code marks are tracked in a mutable dict keyed by mark name;
+    each emitted text leaf snapshots the current mark set. Links are tracked
+    on a stack so their children collect text pushed between link_open and
+    link_close. A link resolves to a ``wikilink`` element when the href
+    matches a known Notion id, otherwise a regular ``a`` element (keeping
+    the original href so dead cross-page links still show something
+    clickable in the editor).
+    """
+    out: list[dict[str, Any]] = []
+    marks: dict[str, bool] = {}
+    link_stack: list[dict[str, Any]] = []
+
+    def sink() -> list[dict[str, Any]]:
+        return link_stack[-1]["children"] if link_stack else out
+
+    def push_text(text: str) -> None:
+        sink().append(_text_leaf(text, **marks))
+
+    for t in tokens:
+        if t.type == "text":
+            push_text(t.content)
+        elif t.type == "strong_open":
+            marks["bold"] = True
+        elif t.type == "strong_close":
+            marks.pop("bold", None)
+        elif t.type == "em_open":
+            marks["italic"] = True
+        elif t.type == "em_close":
+            marks.pop("italic", None)
+        elif t.type == "code_inline":
+            # Code is its own mark — merge with any currently-active marks
+            # so `**bold `inline code`**` survives as bold+code.
+            sink().append(_text_leaf(t.content, code=True, **marks))
+        elif t.type == "link_open":
+            href = t.attrs.get("href", "") if t.attrs else ""
+            href_decoded = unquote(href)
+            parsed = urlparse(href_decoded)
+            m = _UUID_IN_LINK.search(parsed.path)
+            if m and m.group(1) in uuid_link_map:
+                idx = uuid_link_map[m.group(1)]
+                note_id = idx_to_note_id.get(idx)
+                link_stack.append(
+                    {
+                        "type": "wikilink",
+                        "noteId": note_id,
+                        "label": "",
+                        "children": [],
+                    }
+                )
+            else:
+                link_stack.append(
+                    {"type": "a", "url": href_decoded, "children": []}
+                )
+        elif t.type == "link_close":
+            node = link_stack.pop()
+            if node.get("type") == "wikilink":
+                label = "".join(c.get("text", "") for c in node["children"])
+                node["label"] = label
+                node["children"] = [_text_leaf(label)]
+            sink().append(node)
+        elif t.type in {"softbreak", "hardbreak"}:
+            push_text("\n")
+        elif t.type == "image":
+            # Inline images are unusual; the block-level paragraph handler
+            # catches the common single-image-paragraph case. Anything
+            # showing up here is an image nested inside other inline markup
+            # — we downgrade to a plaintext marker rather than dropping it.
+            push_text(f"[image: {t.attrs.get('alt', '') if t.attrs else ''}]")
+
+    if not out:
+        out = [_text_leaf("")]
+    return out
+
+
+def md_to_plate(
+    markdown: str,
+    *,
+    uuid_link_map: dict[str, int],
+    idx_to_note_id: dict[int, str],
+    resolve_asset: Callable[[str], str | None],
+) -> list[dict[str, Any]]:
+    """Convert a Markdown string into a list of Plate JSON blocks.
+
+    ``resolve_asset(relative_path)`` should return an absolute URL if the
+    path can be upgraded to an uploaded asset (typically a MinIO presigned
+    GET), or ``None`` to fall back to the raw path. The callback shape
+    keeps md_to_plate pure — the asset-upload side-effect lives in the
+    Temporal activity wrapper below.
+    """
+    md = MarkdownIt("commonmark", {"breaks": False, "html": False})
+    tokens = md.parse(markdown)
+    blocks: list[dict[str, Any]] = []
+
+    def inline_of(tok: Token) -> list[dict[str, Any]]:
+        return _flatten_inline(
+            tok.children or [],
+            uuid_link_map=uuid_link_map,
+            idx_to_note_id=idx_to_note_id,
+        )
+
+    i = 0
+    while i < len(tokens):
+        t = tokens[i]
+        if t.type == "heading_open":
+            level = int(t.tag[1])  # 'h1' → 1
+            inline_tok = tokens[i + 1]
+            blocks.append(
+                {"type": f"h{level}", "children": inline_of(inline_tok)}
+            )
+            i += 3  # open, inline, close
+
+        elif t.type == "paragraph_open":
+            inline_tok = tokens[i + 1]
+            children = inline_tok.children or []
+            img_children = [c for c in children if c.type == "image"]
+            # Collapse "paragraph with a single image" into a Plate image
+            # block so the editor shows it as a media element rather than
+            # an empty paragraph.
+            if len(children) == 1 and len(img_children) == 1:
+                img = img_children[0]
+                src = img.attrs.get("src", "") if img.attrs else ""
+                # markdown-it-py stores the alt text in `.content`, not in
+                # attrs — attrs["alt"] is always empty by design.
+                alt = img.content or ""
+                resolved = resolve_asset(src)
+                blocks.append(
+                    {
+                        "type": "image",
+                        "url": resolved or src,
+                        "alt": alt,
+                        "children": [_text_leaf("")],
+                    }
+                )
+            else:
+                blocks.append(
+                    {"type": "p", "children": inline_of(inline_tok)}
+                )
+            i += 3  # open, inline, close
+
+        elif t.type in {"fence", "code_block"}:
+            blocks.append(
+                {
+                    "type": "code_block",
+                    "lang": (t.info.strip() or None) if t.info else None,
+                    "children": [_text_leaf(t.content.rstrip("\n"))],
+                }
+            )
+            i += 1
+
+        elif t.type == "hr":
+            blocks.append({"type": "hr", "children": [_text_leaf("")]})
+            i += 1
+
+        elif t.type in {"bullet_list_open", "ordered_list_open"}:
+            kind = "ul" if t.type.startswith("bullet") else "ol"
+            close_tag = f"{kind}_close"
+            items: list[dict[str, Any]] = []
+            j = i + 1
+            while j < len(tokens) and tokens[j].type != close_tag:
+                if tokens[j].type == "list_item_open":
+                    # List item body is usually paragraph_open → inline →
+                    # paragraph_close. We grab the first inline we see and
+                    # flatten it; nested block structure inside a list item
+                    # is a v2 concern.
+                    k = j + 1
+                    while (
+                        k < len(tokens)
+                        and tokens[k].type != "list_item_close"
+                    ):
+                        if tokens[k].type == "inline":
+                            items.append(
+                                {"type": "li", "children": inline_of(tokens[k])}
+                            )
+                            break
+                        k += 1
+                    # advance past the list_item_close we didn't already hit
+                    while (
+                        k < len(tokens)
+                        and tokens[k].type != "list_item_close"
+                    ):
+                        k += 1
+                    j = k + 1
+                else:
+                    j += 1
+            blocks.append(
+                {
+                    "type": kind,
+                    "children": items
+                    or [{"type": "li", "children": [_text_leaf("")]}],
+                }
+            )
+            i = j + 1  # skip the ul/ol_close
+
+        elif t.type == "blockquote_open":
+            collected: list[dict[str, Any]] = []
+            j = i + 1
+            while j < len(tokens) and tokens[j].type != "blockquote_close":
+                if tokens[j].type == "inline":
+                    collected.extend(inline_of(tokens[j]))
+                j += 1
+            blocks.append(
+                {
+                    "type": "blockquote",
+                    "children": collected or [_text_leaf("")],
+                }
+            )
+            i = j + 1
+
+        else:
+            i += 1
+
+    if not blocks:
+        blocks = [{"type": "p", "children": [_text_leaf("")]}]
+    return blocks
+
+
+@activity.defn(name="convert_notion_md_to_plate")
+async def convert_notion_md_to_plate(payload: dict[str, Any]) -> None:
+    """Convert a single staged Markdown file and PATCH the target note.
+
+    Payload: ``{ staging_dir, staging_path, note_id, uuid_link_map,
+    idx_to_note_id, job_id }``. The materialize step (Task 9) primes
+    ``idx_to_note_id`` after creating OpenCairn pages; by the time this
+    activity runs every referenced id has a resolution.
+    """
+    from worker.lib.api_client import patch_internal
+
+    staging_dir = Path(payload["staging_dir"])
+    md_path = staging_dir / payload["staging_path"]
+    md_text = md_path.read_text(encoding="utf-8")
+
+    def resolve_asset(_href: str) -> str | None:
+        # Placeholder: Task 9 will upload referenced assets to MinIO and
+        # return a presigned GET. For Plan 3a MVP we return None so the
+        # converter falls back to the raw path — good enough for the first
+        # ship since images render via same-origin proxy.
+        return None
+
+    plate = md_to_plate(
+        md_text,
+        uuid_link_map=payload["uuid_link_map"],
+        idx_to_note_id=payload["idx_to_note_id"],
+        resolve_asset=resolve_asset,
+    )
+    await patch_internal(
+        f"/api/internal/notes/{payload['note_id']}",
+        {"content": plate, "sourceType": "notion"},
+    )
+
+
 __all__ = [
     "ZipDefenseError",
     "_safe_extract",
     "_strip_uuid",
+    "convert_notion_md_to_plate",
+    "md_to_plate",
     "unzip_and_walk",
     "unzip_notion_export",
 ]
