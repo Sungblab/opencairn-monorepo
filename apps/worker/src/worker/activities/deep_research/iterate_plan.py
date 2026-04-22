@@ -71,7 +71,6 @@ async def _run_iterate_plan(
         agent=inp.model,
         collaborative_planning=True,
         background=True,
-        stream=False,
         previous_interaction_id=inp.previous_interaction_id,
     )
 

@@ -1,8 +1,10 @@
 """``execute_deep_research`` — the 20-60 min executing phase.
 
 The activity:
-  1. Starts a non-collaborative interaction with stream=True and
-     previous_interaction_id = approved plan's id.
+  1. Starts a non-collaborative interaction with previous_interaction_id
+     set to the approved plan's id (the SDK's ``create`` returns an
+     ``Interaction`` — there is no ``stream`` kwarg; streaming happens
+     through the separate ``stream_interaction`` call).
   2. Consumes stream_interaction events; each is forwarded via on_event.
   3. Collects images + citations in order.
   4. After the stream closes, fetches the final state and returns the
@@ -133,10 +135,11 @@ def test_happy_path_streams_and_collects(monkeypatch):
 
     call = provider.start_calls[0]
     assert call["collaborative_planning"] is False
-    assert call["stream"] is True
-    assert call["visualization"] is True
+    assert call["background"] is True
+    assert call["visualization"] == "auto"
     assert call["thinking_summaries"] == "auto"
     assert call["previous_interaction_id"] == "int-plan"
+    assert "stream" not in call  # SDK drops stream kwarg — streaming is via stream_interaction()
 
     # status events are not forwarded; the other 5 are.
     assert len(forwarded) == 5

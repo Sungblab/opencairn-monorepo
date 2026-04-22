@@ -74,7 +74,6 @@ async def _run_create_plan(
         agent=inp.model,
         collaborative_planning=True,
         background=True,
-        stream=False,
     )
 
     state = None

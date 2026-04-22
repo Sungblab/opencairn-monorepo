@@ -1,9 +1,13 @@
 """``execute_deep_research`` Temporal activity — streaming execution.
 
 The 20-60 min phase:
-  - Start a stream=True interaction chained from the approved plan.
-  - Consume events and forward them to ``on_event`` (the production
-    callback persists to research_run_artifacts + SSE via the internal API).
+  - Start a non-collaborative interaction chained from the approved plan.
+    (The SDK's ``create`` returns an ``Interaction`` — streaming is a
+    separate call to ``stream_interaction(id)`` which wraps ``get(stream=True)``.
+    Phase A's signature fix dropped the bogus ``stream=True`` kwarg.)
+  - Consume events from ``stream_interaction`` and forward them to
+    ``on_event`` (the production callback persists to
+    research_run_artifacts + SSE via the internal API).
   - Heartbeat per event so Temporal doesn't consider the activity stalled.
   - Return the consolidated report + ordered image / citation refs.
 
@@ -92,10 +96,9 @@ async def _run_execute_research(
         agent=inp.model,
         collaborative_planning=False,
         background=True,
-        stream=True,
         previous_interaction_id=inp.previous_interaction_id,
         thinking_summaries="auto",
-        visualization=True,
+        visualization="auto",
     )
 
     images: list[dict[str, str]] = []
