@@ -25,7 +25,7 @@ from .batch_types import (
     BatchNotSupported,
 )
 from .errors import ProviderFatalError, ProviderRetryableError
-from .tool_types import AssistantTurn, ToolUse, UsageCounts
+from .tool_types import AssistantTurn, ToolResult, ToolUse, UsageCounts
 
 # Gemini ``JobState`` enum → our normalised strings. Keys are the enum
 # ``.value`` (e.g. ``"JOB_STATE_SUCCEEDED"``) so we can tolerate both the
@@ -516,4 +516,25 @@ class GeminiProvider(LLMProvider):
                 cached_input_tokens=getattr(um, "cached_content_token_count", 0) or 0,
             ),
             stop_reason=str(candidate.finish_reason or "STOP"),
+        )
+
+    def tool_result_to_message(self, result: ToolResult):
+        """Translate a ToolResult back into a Gemini `Content` so it
+        can be appended to the conversation history for the next turn.
+        Uses `FunctionResponse.id` to match Gemini 3's id-keyed mapping
+        (Function Calling docs §207-210)."""
+        payload = (
+            {"result": result.data}
+            if not result.is_error
+            else {"error": result.data}
+        )
+        return types.Content(
+            role="user",
+            parts=[types.Part(
+                function_response=types.FunctionResponse(
+                    id=result.tool_use_id,
+                    name=result.name,
+                    response=payload,
+                )
+            )]
         )
