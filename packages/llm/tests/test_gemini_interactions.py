@@ -71,6 +71,29 @@ async def test_start_interaction_forwards_previous_id(provider):
 
 
 @pytest.mark.asyncio
+async def test_start_interaction_forwards_optional_agent_config(provider):
+    mock_response, _ = _fixture_as_obj("plan_response.json")
+    with patch.object(
+        provider._client.aio.interactions,
+        "create",
+        new=AsyncMock(return_value=mock_response),
+    ) as mocked:
+        await provider.start_interaction(
+            input="x",
+            agent="deep-research-max-preview-04-2026",
+            stream=True,
+            thinking_summaries="auto",
+            visualization=True,
+        )
+    call = mocked.await_args
+    cfg = call.kwargs["agent_config"]
+    assert cfg["type"] == "deep-research"
+    assert cfg["thinking_summaries"] == "auto"
+    assert cfg["visualization"] is True
+    assert call.kwargs["stream"] is True
+
+
+@pytest.mark.asyncio
 async def test_get_interaction_running(provider):
     mock_response, raw = _fixture_as_obj("running_state.json")
     with patch.object(
