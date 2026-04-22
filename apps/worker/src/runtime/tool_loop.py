@@ -123,6 +123,7 @@ import asyncio  # noqa: E402
 import json  # noqa: E402 (kept near executor so types block stays tidy)
 import logging  # noqa: E402
 
+from llm.errors import ProviderFatalError, ProviderRetryableError  # noqa: E402
 from llm.tool_types import ToolResult  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -161,23 +162,27 @@ class ToolLoopExecutor:
         await self._hooks.on_run_start(state)
         try:
             while True:
-                # Hard guards — evaluated at loop head so partial state
-                # from the previous iteration is already accounted for.
                 if reason := self._check_hard_guards(state):
                     return self._finalize(state, reason)
 
                 await self._hooks.on_turn_start(state)
 
-                turn = await self._provider.generate_with_tools(
-                    messages=state.messages,
-                    tools=self._tools,
-                    mode=self._config.mode,
-                    allowed_tool_names=self._config.allowed_tool_names,
-                    final_response_schema=self._config.final_response_schema,
-                    cached_context_id=self._config.cached_context_id,
-                    temperature=self._config.temperature,
-                    max_output_tokens=self._config.max_output_tokens,
-                )
+                try:
+                    turn = await self._provider.generate_with_tools(
+                        messages=state.messages, tools=self._tools,
+                        mode=self._config.mode,
+                        allowed_tool_names=self._config.allowed_tool_names,
+                        final_response_schema=self._config.final_response_schema,
+                        cached_context_id=self._config.cached_context_id,
+                        temperature=self._config.temperature,
+                        max_output_tokens=self._config.max_output_tokens,
+                    )
+                except ProviderRetryableError:
+                    raise  # Temporal activity retry
+                except ProviderFatalError as e:
+                    return self._finalize(
+                        state, "provider_error", error=str(e),
+                    )
 
                 state.total_input_tokens += turn.usage.input_tokens
                 state.total_output_tokens += turn.usage.output_tokens
@@ -203,11 +208,20 @@ class ToolLoopExecutor:
                     )
                     await self._hooks.on_tool_end(state, tu, result)
 
-                    # After each tool, check if we've blown the tool budget.
+                    if (
+                        tu.name == "emit_structured_output"
+                        and isinstance(result.data, dict)
+                        and result.data.get("accepted") is True
+                    ):
+                        state.final_structured_output = result.data.get("validated")
+                        return self._finalize(state, "structured_submitted")
+
                     if reason := self._check_hard_guards(state):
                         return self._finalize(state, reason)
 
                 state.turn_count += 1
+        except asyncio.CancelledError:
+            return self._finalize(state, "cancelled")
         finally:
             await self._hooks.on_run_end(state)
 
