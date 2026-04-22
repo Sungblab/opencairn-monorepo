@@ -12,7 +12,17 @@ export const sourceTypeEnum = pgEnum("source_type", [
   "image",
   "youtube",
   "web",
+  "notion",
   "unknown",
+]);
+
+export const integrationProviderEnum = pgEnum("integration_provider", [
+  "google_drive",
+]);
+
+export const importSourceEnum = pgEnum("import_source", [
+  "google_drive",
+  "notion_zip",
 ]);
 
 export const jobStatusEnum = pgEnum("job_status", [
