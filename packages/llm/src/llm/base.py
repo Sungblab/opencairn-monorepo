@@ -102,10 +102,9 @@ class LLMProvider(ABC):
         agent: str,
         collaborative_planning: bool = False,
         background: bool = False,
-        stream: bool = False,
         previous_interaction_id: str | None = None,
-        thinking_summaries: str | None = None,
-        visualization: bool = False,
+        thinking_summaries: Literal["auto", "none"] | None = None,
+        visualization: Literal["auto", "off"] | None = None,
     ) -> InteractionHandle:
         raise NotImplementedError(
             f"{type(self).__name__} does not support the Interactions API"

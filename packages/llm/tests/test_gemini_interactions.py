@@ -81,16 +81,14 @@ async def test_start_interaction_forwards_optional_agent_config(provider):
         await provider.start_interaction(
             input="x",
             agent="deep-research-max-preview-04-2026",
-            stream=True,
             thinking_summaries="auto",
-            visualization=True,
+            visualization="auto",
         )
     call = mocked.await_args
     cfg = call.kwargs["agent_config"]
     assert cfg["type"] == "deep-research"
     assert cfg["thinking_summaries"] == "auto"
-    assert cfg["visualization"] is True
-    assert call.kwargs["stream"] is True
+    assert cfg["visualization"] == "auto"
 
 
 @pytest.mark.asyncio

@@ -550,10 +550,9 @@ class GeminiProvider(LLMProvider):
         agent: str,
         collaborative_planning: bool = False,
         background: bool = False,
-        stream: bool = False,
         previous_interaction_id: str | None = None,
-        thinking_summaries: str | None = None,
-        visualization: bool = False,
+        thinking_summaries: Literal["auto", "none"] | None = None,
+        visualization: Literal["auto", "off"] | None = None,
     ) -> InteractionHandle:
         # DeepResearchAgentConfigParam.type is a fixed discriminator — the full
         # agent identifier goes on the top-level ``agent`` kwarg.
@@ -562,8 +561,8 @@ class GeminiProvider(LLMProvider):
             agent_config["collaborative_planning"] = True
         if thinking_summaries is not None:
             agent_config["thinking_summaries"] = thinking_summaries
-        if visualization:
-            agent_config["visualization"] = True
+        if visualization is not None:
+            agent_config["visualization"] = visualization
 
         kwargs: dict[str, Any] = {
             "input": input,
@@ -571,8 +570,6 @@ class GeminiProvider(LLMProvider):
             "agent_config": agent_config,
             "background": background,
         }
-        if stream:
-            kwargs["stream"] = True
         if previous_interaction_id is not None:
             kwargs["previous_interaction_id"] = previous_interaction_id
 
