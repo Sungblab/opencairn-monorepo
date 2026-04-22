@@ -1,6 +1,7 @@
 import { setRequestLocale, getTranslations } from "next-intl/server";
 import type { Locale } from "@/i18n";
 import { PostVerifyLink } from "./PostVerifyLink";
+import { AuthEyebrow } from "@/components/auth/AuthEyebrow";
 
 export default async function VerifyEmailPage({
   params,
@@ -17,24 +18,25 @@ export default async function VerifyEmailPage({
   const hasError = !!error;
 
   return (
-    <div className="flex flex-col gap-4 text-center py-2">
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-2.5">
+        <AuthEyebrow label={t("verify.eyebrow")} />
+        <h2 className="font-sans text-2xl font-bold leading-tight text-stone-900 kr">
+          {hasError ? t("verify.error") : t("verify.success")}
+        </h2>
+        <p className="text-sm text-stone-600 kr">
+          {hasError ? t("verify.errorDesc") : t("verify.successDesc")}
+        </p>
+      </div>
       {hasError ? (
-        <>
-          <p className="font-sans text-xl text-stone-900">{t("verify.error")}</p>
-          <p className="text-sm text-stone-500">{t("verify.errorDesc")}</p>
-          <a
-            href={`/${locale}/auth/signup`}
-            className="mt-2 inline-block bg-stone-900 text-stone-50 text-sm font-medium px-4 py-2 rounded-md hover:bg-stone-800 transition-colors"
-          >
-            {t("verify.retry")}
-          </a>
-        </>
+        <a
+          href={`/${locale}/auth/signup`}
+          className="auth-btn auth-btn-primary w-full"
+        >
+          {t("verify.retry")}
+        </a>
       ) : (
-        <>
-          <p className="font-sans text-xl text-stone-900">{t("verify.success")}</p>
-          <p className="text-sm text-stone-500">{t("verify.successDesc")}</p>
-          <PostVerifyLink locale={locale} />
-        </>
+        <PostVerifyLink locale={locale} />
       )}
     </div>
   );

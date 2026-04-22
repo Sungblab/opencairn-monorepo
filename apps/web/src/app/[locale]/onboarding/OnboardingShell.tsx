@@ -72,11 +72,7 @@ export function OnboardingShell({
   return (
     <div className="flex flex-col gap-5">
       {banner && (
-        <p
-          role="status"
-          aria-live="polite"
-          className="text-sm bg-stone-50 border border-stone-200 rounded-md px-3 py-2 text-stone-700"
-        >
+        <p role="status" aria-live="polite" className="auth-alert auth-alert-info kr">
           {banner}
         </p>
       )}

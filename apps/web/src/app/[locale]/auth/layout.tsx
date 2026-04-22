@@ -1,6 +1,9 @@
 import { setRequestLocale } from "next-intl/server";
 import { getTranslations } from "next-intl/server";
 import type { Locale } from "@/i18n";
+import { AuthEyebrow } from "@/components/auth/AuthEyebrow";
+import { AuthCard } from "@/components/auth/AuthCard";
+import { AuthCairn } from "@/components/auth/AuthCairn";
 
 export default async function AuthLayout({
   children,
@@ -17,36 +20,54 @@ export default async function AuthLayout({
     <div
       data-brand="auth"
       data-theme="cairn-light"
-      className="min-h-screen bg-stone-50 flex"
+      className="min-h-screen bg-stone-100 flex"
     >
       {/* Left panel — brand / editorial */}
-      <div className="hidden lg:flex flex-col justify-between flex-1 bg-stone-900 text-stone-50 p-12 xl:p-16">
+      <div className="hidden lg:flex flex-col flex-1 bg-stone-900 text-stone-50 p-12 xl:p-16 relative overflow-hidden">
+        {/* TOP — logo */}
         <a
           href={`/${locale}`}
-          className="font-serif text-2xl text-stone-50 hover:text-stone-300 transition-colors"
+          className="self-start font-serif text-2xl text-stone-50 hover:bg-stone-50 hover:text-stone-900 px-3 py-1 rounded-md transition-colors relative z-10 auth-rise-1"
         >
           OpenCairn
         </a>
 
-        <div className="flex flex-col gap-8">
-          <p className="font-sans text-4xl xl:text-5xl leading-tight text-stone-50">
+        {/* MIDDLE — eyebrow + headline + bullets, vertically centered */}
+        <div className="flex-1 flex flex-col justify-center gap-8 relative z-10">
+          <div className="auth-rise-2">
+            <AuthEyebrow label={t("eyebrow")} tone="light" />
+          </div>
+          <p className="font-sans text-4xl xl:text-5xl leading-[1.1] text-stone-50 kr max-w-xl auth-rise-3">
             {t("headline")}
           </p>
-          <ul className="flex flex-col gap-3">
-            {(["point1", "point2", "point3"] as const).map((key) => (
-              <li key={key} className="flex items-start gap-3 text-sm text-stone-400">
-                <span className="mt-0.5 shrink-0 w-4 h-4 rounded-full border border-stone-600 flex items-center justify-center">
-                  <span className="w-1.5 h-1.5 rounded-full bg-stone-400" />
-                </span>
+          <ul className="flex flex-col gap-3 max-w-md">
+            {(["point1", "point2", "point3"] as const).map((key, i) => (
+              <li
+                key={key}
+                className={`flex items-start gap-3 text-sm text-stone-300 leading-relaxed kr auth-rise-${4 + i}`}
+              >
+                <span className="mt-2 shrink-0 w-3 h-px bg-stone-500" aria-hidden />
                 {t(key)}
               </li>
             ))}
           </ul>
         </div>
 
-        <p className="text-xs text-stone-600 font-sans tracking-wider">
-          {t("footnote")}
-        </p>
+        {/* BOTTOM — ambient cairn stack */}
+        <div className="self-start relative z-10 auth-rise-7">
+          <AuthCairn />
+        </div>
+
+        {/* subtle grid overlay to match landing rhythm */}
+        <div
+          className="absolute inset-0 opacity-[0.04] pointer-events-none"
+          style={{
+            backgroundImage:
+              "linear-gradient(to right, #fff 1px, transparent 1px)",
+            backgroundSize: "calc(100% / 12) 100%",
+          }}
+          aria-hidden
+        />
       </div>
 
       {/* Right panel — form */}
@@ -54,12 +75,12 @@ export default async function AuthLayout({
         {/* Mobile-only logo */}
         <a
           href={`/${locale}`}
-          className="lg:hidden mb-10 font-serif text-2xl text-stone-900 hover:text-stone-700 transition-colors"
+          className="lg:hidden mb-8 font-serif text-2xl text-stone-900 hover:bg-stone-900 hover:text-stone-50 px-3 py-1 rounded-md transition-colors"
         >
           OpenCairn
         </a>
-        <div className="w-full max-w-sm">
-          {children}
+        <div className="w-full max-w-md">
+          <AuthCard>{children}</AuthCard>
         </div>
       </div>
     </div>

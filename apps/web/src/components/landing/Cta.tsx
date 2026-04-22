@@ -25,7 +25,7 @@ export function Cta() {
             <div className="flex flex-wrap items-center gap-4 mb-6">
               <a
                 href="#login"
-                className="bg-stone-900 hover:bg-stone-800 text-stone-50 font-sans text-[13px] tracking-widest px-8 py-4 rounded-md transition-colors kr inline-flex items-center gap-2.5"
+                className="bg-stone-900 hover:bg-stone-50 hover:text-stone-900 text-stone-50 border border-stone-900 font-sans text-[13px] tracking-widest px-8 py-4 rounded-md transition-colors kr inline-flex items-center gap-2.5"
               >
                 {t("primary")}
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">

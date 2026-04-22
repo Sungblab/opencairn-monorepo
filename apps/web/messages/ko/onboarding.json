@@ -5,6 +5,7 @@
     "footnote": "AGPLv3 · 셀프호스팅"
   },
   "create": {
+    "eyebrow": "워크스페이스",
     "title": "첫 워크스페이스를 만드세요",
     "desc": "워크스페이스는 문서와 프로젝트가 모이는 공간이에요. 이름은 언제든 바꿀 수 있어요.",
     "nameLabel": "이름",
@@ -17,6 +18,7 @@
     }
   },
   "invite": {
+    "eyebrow": "초대 수락",
     "title": "{inviterName}님의 초대",
     "body": "{workspaceName}에 {role} 역할로 참여합니다.",
     "roles": {

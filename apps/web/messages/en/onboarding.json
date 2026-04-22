@@ -5,6 +5,7 @@
     "footnote": "AGPLv3 · self-hosted"
   },
   "create": {
+    "eyebrow": "Workspace",
     "title": "Create your first workspace",
     "desc": "A workspace is where your documents and projects live. You can rename it later.",
     "nameLabel": "Name",
@@ -17,6 +18,7 @@
     }
   },
   "invite": {
+    "eyebrow": "Invitation",
     "title": "{inviterName} invited you",
     "body": "Join {workspaceName} as {role}.",
     "roles": {

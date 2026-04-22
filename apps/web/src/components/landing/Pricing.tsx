@@ -132,7 +132,7 @@ export function Pricing() {
             </ul>
             <a
               href="#login"
-              className="block text-center font-sans text-[12px] tracking-widest px-6 py-3 rounded-md transition-colors"
+              className="block text-center font-sans text-[12px] tracking-widest px-6 py-3 rounded-md transition-colors border border-stone-900 hover:bg-stone-50 hover:text-stone-900"
               style={{ background: "#171717", color: "#FAFAFA" }}
             >
               {t("pro.cta")}

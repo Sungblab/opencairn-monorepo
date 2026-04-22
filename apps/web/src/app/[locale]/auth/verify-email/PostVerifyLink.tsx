@@ -29,10 +29,7 @@ export function PostVerifyLink({ locale }: { locale: string }) {
   }, [locale]);
 
   return (
-    <a
-      href={href}
-      className="mt-2 inline-block bg-stone-900 text-stone-50 text-sm font-medium px-4 py-2 rounded-md hover:bg-stone-800 transition-colors"
-    >
+    <a href={href} className="auth-btn auth-btn-primary w-full">
       {t("goLogin")}
     </a>
   );

@@ -478,7 +478,7 @@
       { "label": "cla", "href": "#" },
       { "label": "terms", "href": "/terms" }
     ],
-    "copyright": "© 2026 OpenCairn · Made by <author>Sungblab</author>",
+    "copyright": "© 2026 OpenCairn · Built by <author>Sungblab</author>",
     "badges": ["Gemini", "Ollama", "Docker", "Self-Hosted"],
     "endline": "< end of document / thanks for reading >"
   }

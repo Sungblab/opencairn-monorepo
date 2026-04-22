@@ -1,8 +1,8 @@
 "use client";
 import { useState, useRef } from "react";
 import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { AuthCard } from "@/components/auth/AuthCard";
+import { AuthEyebrow } from "@/components/auth/AuthEyebrow";
 
 type ErrorKind = "required" | "network" | "generic";
 
@@ -49,47 +49,51 @@ export function CreateWorkspaceForm({ locale }: { locale: string }) {
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-5">
-      <div className="flex flex-col gap-1">
-        <h2 className="font-sans text-xl text-stone-900">{t("title")}</h2>
-        <p className="text-sm text-stone-500">{t("desc")}</p>
-      </div>
+    <AuthCard>
+      <form onSubmit={submit} className="flex flex-col gap-6">
+        <div className="flex flex-col gap-2.5">
+          <AuthEyebrow label={t("eyebrow")} />
+          <h2 className="font-sans text-2xl font-bold leading-tight text-stone-900 kr">
+            {t("title")}
+          </h2>
+          <p className="text-sm text-stone-600 kr">{t("desc")}</p>
+        </div>
 
-      {error && (
-        <p
-          role="alert"
-          aria-live="polite"
-          className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-md"
+        {error && (
+          <p role="alert" aria-live="polite" className="auth-alert kr">
+            {tErr(error)}
+          </p>
+        )}
+
+        <div className="flex flex-col gap-1.5">
+          <label className="auth-label" htmlFor="ws-name">
+            {t("nameLabel")}
+          </label>
+          <input
+            id="ws-name"
+            data-testid="ws-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoComplete="organization"
+            autoFocus
+            required
+            maxLength={120}
+            className="auth-input"
+          />
+          <p className="text-xs font-semibold text-stone-600 mt-1 kr">
+            {t("autoSlugHint")}
+          </p>
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading}
+          data-testid="ws-submit"
+          className="auth-btn auth-btn-primary w-full kr"
         >
-          {tErr(error)}
-        </p>
-      )}
-
-      <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium text-stone-700" htmlFor="ws-name">
-          {t("nameLabel")}
-        </label>
-        <Input
-          id="ws-name"
-          data-testid="ws-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          autoComplete="organization"
-          autoFocus
-          required
-          maxLength={120}
-        />
-        <p className="text-xs text-stone-400">{t("autoSlugHint")}</p>
-      </div>
-
-      <Button
-        type="submit"
-        disabled={loading}
-        data-testid="ws-submit"
-        className="w-full"
-      >
-        {loading ? "…" : t("submit")}
-      </Button>
-    </form>
+          {loading ? "…" : t("submit")}
+        </button>
+      </form>
+    </AuthCard>
   );
 }

@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
+import { AuthCard } from "@/components/auth/AuthCard";
+import { AuthEyebrow } from "@/components/auth/AuthEyebrow";
 
 type AcceptError =
   | "email_mismatch"
@@ -76,56 +77,52 @@ export function AcceptInviteCard({
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-1">
-        <h2 className="font-sans text-xl text-stone-900">
-          {t("title", { inviterName: info.inviterName })}
-        </h2>
-        <p className="text-sm text-stone-500">
-          {t("body", {
-            workspaceName: info.workspaceName,
-            role: tRole(info.role),
-          })}
-        </p>
+    <AuthCard>
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-2.5">
+          <AuthEyebrow label={t("eyebrow")} />
+          <h2 className="font-sans text-2xl font-bold leading-tight text-stone-900 kr">
+            {t("title", { inviterName: info.inviterName })}
+          </h2>
+          <p className="text-sm text-stone-600 kr">
+            {t("body", {
+              workspaceName: info.workspaceName,
+              role: tRole(info.role),
+            })}
+          </p>
+        </div>
+
+        {emailMismatch && (
+          <p role="alert" className="auth-alert auth-alert-warn kr">
+            {t("emailMismatchHint", { inviteEmail: info.email })}
+          </p>
+        )}
+
+        {error && (
+          <p role="alert" aria-live="polite" className="auth-alert kr">
+            {tErr(error)}
+          </p>
+        )}
+
+        <button
+          type="button"
+          onClick={accept}
+          disabled={loading || emailMismatch}
+          data-testid="invite-accept"
+          className="auth-btn auth-btn-primary w-full kr"
+        >
+          {loading ? "…" : t("accept")}
+        </button>
+
+        <button
+          type="button"
+          onClick={onSwitchToCreate}
+          data-testid="invite-create-instead"
+          className="text-center text-sm font-semibold text-stone-700 hover:bg-stone-900 hover:text-stone-50 underline underline-offset-2 decoration-2 decoration-stone-400 hover:decoration-stone-50 hover:no-underline py-2 rounded-md border-2 border-transparent hover:border-stone-900 transition-colors kr"
+        >
+          {t("declineAndCreate")}
+        </button>
       </div>
-
-      {emailMismatch && (
-        <p
-          role="alert"
-          className="text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded-md"
-        >
-          {t("emailMismatchHint", { inviteEmail: info.email })}
-        </p>
-      )}
-
-      {error && (
-        <p
-          role="alert"
-          aria-live="polite"
-          className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-md"
-        >
-          {tErr(error)}
-        </p>
-      )}
-
-      <Button
-        type="button"
-        onClick={accept}
-        disabled={loading || emailMismatch}
-        data-testid="invite-accept"
-        className="w-full"
-      >
-        {loading ? "…" : t("accept")}
-      </Button>
-
-      <button
-        type="button"
-        onClick={onSwitchToCreate}
-        data-testid="invite-create-instead"
-        className="text-center text-sm text-stone-500 hover:text-stone-800 underline"
-      >
-        {t("declineAndCreate")}
-      </button>
-    </div>
+    </AuthCard>
   );
 }

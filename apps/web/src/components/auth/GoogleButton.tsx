@@ -1,9 +1,13 @@
 "use client";
 import { useTranslations, useLocale } from "next-intl";
 import { authClient } from "@/lib/auth-client";
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-export function GoogleButton() {
+interface GoogleButtonProps {
+  className?: string;
+}
+
+export function GoogleButton({ className }: GoogleButtonProps) {
   const t = useTranslations("auth");
   const locale = useLocale();
 
@@ -15,13 +19,12 @@ export function GoogleButton() {
   };
 
   return (
-    <Button
+    <button
       type="button"
-      variant="outline"
-      className="w-full gap-2"
       onClick={handleClick}
+      className={cn("auth-btn auth-btn-secondary w-full", className)}
     >
-      <svg viewBox="0 0 24 24" className="size-4" aria-hidden="true">
+      <svg viewBox="0 0 24 24" className="size-[18px]" aria-hidden="true">
         <path
           d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
           fill="#4285F4"
@@ -40,6 +43,6 @@ export function GoogleButton() {
         />
       </svg>
       {t("google.button")}
-    </Button>
+    </button>
   );
 }

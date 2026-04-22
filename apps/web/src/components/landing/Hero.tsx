@@ -134,7 +134,7 @@ export function Hero() {
             <div className="flex flex-wrap items-center gap-4 reveal">
               <a
                 href="#pricing"
-                className="bg-stone-900 hover:bg-stone-800 text-stone-50 font-medium px-6 py-3 rounded-md transition-colors kr inline-flex items-center gap-2"
+                className="bg-stone-900 hover:bg-stone-50 hover:text-stone-900 text-stone-50 border border-stone-900 font-medium px-6 py-3 rounded-md transition-colors kr inline-flex items-center gap-2"
               >
                 {t("ctaPrimary")}
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -143,7 +143,7 @@ export function Hero() {
               </a>
               <a
                 href="#pricing"
-                className="bg-stone-50 border border-stone-300 text-stone-800 font-medium px-6 py-3 rounded-md hover:bg-stone-100 transition-colors kr"
+                className="bg-stone-50 border border-stone-300 text-stone-800 hover:bg-stone-900 hover:text-stone-50 hover:border-stone-900 font-medium px-6 py-3 rounded-md transition-colors kr"
               >
                 {t("ctaSecondary")}
               </a>
