@@ -84,6 +84,9 @@ importers:
       '@opencairn/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@slate-yjs/core':
+        specifier: ^1.0.2
+        version: 1.0.2(slate@0.118.1)(yjs@13.6.30)
       better-auth:
         specifier: ^1.2.0
         version: 1.6.5(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(kysely@0.28.16)(postgres@3.4.9))(next@16.2.4(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vitest@4.1.5)
@@ -1927,6 +1930,12 @@ packages:
   '@sindresorhus/merge-streams@4.0.0':
     resolution: {integrity: sha512-tlqY9xq5ukxTUZBmoOp+m61cqwQD5pHJtFY3Mn8CA8ps6yghLH/Hw8UPdqg4OLmFW3IFlcXnQNmo/dh8HzXYIQ==}
     engines: {node: '>=18'}
+
+  '@slate-yjs/core@1.0.2':
+    resolution: {integrity: sha512-X0hLFJbQu9c1ItWBaNuEn0pqcXYK76KCp8C4Gvy/VaTQVMo1VgAb2WiiJ0Je/AyuIYEPPSTNVOcyrGHwgA7e6Q==}
+    peerDependencies:
+      slate: '>=0.70.0'
+      yjs: ^13.5.29
 
   '@stablelib/base64@1.0.1':
     resolution: {integrity: sha512-1bnPQqSxSuc3Ii6MhBysoWCg58j97aUjuCSZrGSmDxNqtytIi0k8utUenAwTZN4V5mXXYGsVUI9zeBqy+jBOSQ==}
@@ -6427,6 +6436,12 @@ snapshots:
   '@sec-ant/readable-stream@0.4.1': {}
 
   '@sindresorhus/merge-streams@4.0.0': {}
+
+  '@slate-yjs/core@1.0.2(slate@0.118.1)(yjs@13.6.30)':
+    dependencies:
+      slate: 0.118.1
+      y-protocols: 1.0.7(yjs@13.6.30)
+      yjs: 13.6.30
 
   '@stablelib/base64@1.0.1': {}
 
