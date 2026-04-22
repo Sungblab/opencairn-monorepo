@@ -33,21 +33,15 @@ describe("PATCH /api/notes/:id", () => {
     await ctx.cleanup();
   });
 
-  it("editor can save Plate array content and content_text is derived", async () => {
-    const body = {
-      title: "Greeting",
-      content: [{ type: "p", children: [{ text: "Hello world" }] }],
-    };
+  it("editor can update meta fields (title, folderId)", async () => {
     const res = await authedFetch(`/api/notes/${ctx.noteId}`, {
       method: "PATCH",
       userId: ctx.userId,
-      body: JSON.stringify(body),
+      body: JSON.stringify({ title: "Greeting" }),
     });
     expect(res.status).toBe(200);
     const [row] = await db.select().from(notes).where(eq(notes.id, ctx.noteId));
     expect(row!.title).toBe("Greeting");
-    expect(row!.content).toEqual(body.content);
-    expect(row!.contentText).toContain("Hello world");
   });
 
   it("viewer receives 403", async () => {
@@ -64,23 +58,30 @@ describe("PATCH /api/notes/:id", () => {
     }
   });
 
-  it("title-only PATCH preserves existing content_text", async () => {
-    await authedFetch(`/api/notes/${ctx.noteId}`, {
-      method: "PATCH",
-      userId: ctx.userId,
-      body: JSON.stringify({
+  it("PATCH ignores content field (Yjs is canonical)", async () => {
+    // Pre-seed content directly (simulating Hocuspocus persistence).
+    await db
+      .update(notes)
+      .set({
         content: [{ type: "p", children: [{ text: "Persisted body" }] }],
-      }),
-    });
+        contentText: "Persisted body",
+      })
+      .where(eq(notes.id, ctx.noteId));
+
+    // Caller tries to clobber via PATCH; schema must strip `content`.
     const res = await authedFetch(`/api/notes/${ctx.noteId}`, {
       method: "PATCH",
       userId: ctx.userId,
-      body: JSON.stringify({ title: "New title only" }),
+      body: JSON.stringify({
+        title: "New Title",
+        content: [{ type: "p", children: [{ text: "SHOULD_NOT_PERSIST" }] }],
+      }),
     });
     expect(res.status).toBe(200);
     const [row] = await db.select().from(notes).where(eq(notes.id, ctx.noteId));
-    expect(row!.title).toBe("New title only");
-    expect(row!.contentText).toContain("Persisted body");
+    expect(row!.title).toBe("New Title");
+    expect(row!.contentText ?? "").not.toContain("SHOULD_NOT_PERSIST");
+    expect(row!.contentText ?? "").toContain("Persisted body");
   });
 
   it("deleted note returns 404", async () => {

@@ -2,6 +2,9 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { db, notes, projects, eq, and, desc, isNull, sql } from "@opencairn/db";
 import { createNoteSchema, updateNoteSchema } from "@opencairn/shared";
+
+// PATCH body ignores `content` — Yjs (via Hocuspocus) is canonical (Plan 2B).
+const patchNoteSchema = updateNoteSchema.omit({ content: true });
 import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite } from "../lib/permissions";
 import { isUuid } from "../lib/validators";
@@ -85,20 +88,19 @@ export const noteRoutes = new Hono<AppEnv>()
     return c.json(note, 201);
   })
 
-  .patch("/:id", zValidator("json", updateNoteSchema), async (c) => {
+  // Plan 2B: content/content_text are now Yjs-canonical — persisted only by
+  // Hocuspocus `onStoreDocument`. PATCH accepts meta fields only; any
+  // `content` key in the request body is stripped by the Zod schema (.omit)
+  // so stale clients don't silently clobber the collaborative state.
+  .patch("/:id", zValidator("json", patchNoteSchema), async (c) => {
     const user = c.get("user");
     const id = c.req.param("id");
     if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
     if (!(await canWrite(user.id, { type: "note", id }))) return c.json({ error: "Forbidden" }, 403);
     const body = c.req.valid("json");
-    const update: Record<string, unknown> = { ...body };
-    // Re-derive content_text whenever content is rewritten (including null → "").
-    if (body.content !== undefined) {
-      update.contentText = plateValueToText(body.content);
-    }
     const [note] = await db
       .update(notes)
-      .set(update)
+      .set(body)
       .where(and(eq(notes.id, id), isNull(notes.deletedAt)))
       .returning();
     if (!note) return c.json({ error: "Not found" }, 404);
