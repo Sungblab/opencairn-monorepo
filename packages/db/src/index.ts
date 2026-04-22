@@ -1,4 +1,4 @@
-export { db, type DB } from "./client";
+export { db, createDb, type DB } from "./client";
 
 export * from "./schema/enums";
 export * from "./schema/users";
@@ -21,5 +21,7 @@ export * from "./schema/user-preferences";
 export * from "./schema/agent-runs";
 export * from "./schema/project-semaphores";
 export * from "./schema/embedding-batches";
+export * from "./schema/comments";
+export * from "./schema/yjs-documents";
 
-export { eq, and, or, desc, asc, sql, inArray, isNull, lt, gt, lte, gte, count } from "drizzle-orm";
+export { eq, and, or, desc, asc, sql, inArray, isNull, isNotNull, ilike, lt, gt, lte, gte, count } from "drizzle-orm";

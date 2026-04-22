@@ -10,6 +10,7 @@ import {
   notes,
   eq,
 } from "@opencairn/db";
+import { createMultiRoleSeed } from "../../src/lib/test-seed-multi.js";
 
 export type SeedRole = "viewer" | "editor" | "admin" | "owner";
 
@@ -166,11 +167,43 @@ export async function seedWorkspace(opts: { role: SeedRole }): Promise<SeedResul
   };
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Plan 2B: multi-role seed for comments + collab tests.
+// Existing seedWorkspace({role}) returns a single-user context — left untouched.
+//
+// Implementation moved to `apps/api/src/lib/test-seed-multi.ts` (Plan 2B
+// Task 20) so the Playwright-facing `/internal/test-seed-multi-role` endpoint
+// and these vitest helpers share one codepath. This file keeps the legacy
+// `SeedMultiRoleResult` export + `seedMultiRoleWorkspace` name so existing
+// call sites (notes.test.ts, comments.test.ts, mentions.test.ts) remain
+// unchanged. The returned object is a superset of the old shape — `wsSlug`
+// is additionally exposed because the E2E needs it to build URLs.
+// ────────────────────────────────────────────────────────────────────────────
+export interface SeedMultiRoleResult {
+  workspaceId: string;
+  wsSlug: string;
+  projectId: string;
+  noteId: string;            // editor+commenter+viewer all have access
+  privateNoteId: string;     // inheritParent=false + no pagePermissions for viewer
+  otherWorkspaceId: string;  // separate workspace, no shared members
+  ownerUserId: string;
+  editorUserId: string;
+  commenterUserId: string;
+  viewerUserId: string;
+  cleanup: () => Promise<void>;
+}
+
+export async function seedMultiRoleWorkspace(): Promise<SeedMultiRoleResult> {
+  // Thin wrapper around the shared lib — preserves the historical return
+  // shape for existing vitest consumers (notes/comments/mentions).
+  return createMultiRoleSeed();
+}
+
 // 특정 note에 pagePermissions 행 삽입
 export async function setPagePermission(
   userId: string,
   pageId: string,
-  role: "editor" | "viewer" | "none",
+  role: "editor" | "commenter" | "viewer" | "none",
 ): Promise<void> {
   await db.insert(pagePermissions).values({
     pageId,

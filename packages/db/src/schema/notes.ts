@@ -40,6 +40,8 @@ export const notes = pgTable(
     sourceUrl: text("source_url"),
     mimeType: text("mime_type"),
     isAuto: boolean("is_auto").notNull().default(false),
+    // Hocuspocus가 기존 notes.content를 Y.Doc으로 seed한 시각. 재시작 시 덮어쓰기 방지 가드.
+    yjsStateLoadedAt: timestamp("yjs_state_loaded_at", { withTimezone: true }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
     deletedAt: timestamp("deleted_at"),

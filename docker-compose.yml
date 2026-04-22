@@ -22,6 +22,27 @@ services:
     volumes:
       - redisdata:/data
 
+  hocuspocus:
+    # Yjs-over-WebSocket collaboration backend (Plan 2B).
+    # Build context is the monorepo root because the Dockerfile copies
+    # @opencairn/api + @opencairn/db + @opencairn/shared workspace packages.
+    build:
+      context: .
+      dockerfile: apps/hocuspocus/Dockerfile
+    ports:
+      - "1234:1234"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgres://opencairn:changeme@postgres:5432/opencairn}
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env}
+      - HOCUSPOCUS_ORIGINS=${HOCUSPOCUS_ORIGINS:-http://localhost:3000}
+      - HOCUSPOCUS_PORT=1234
+      - NODE_ENV=${NODE_ENV:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
   minio:
     # Dev 환경 S3 호환 스토리지. Production은 Cloudflare R2로 교체.
     image: minio/minio:RELEASE.2024-11-07T00-52-20Z

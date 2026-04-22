@@ -2,7 +2,7 @@ import { pgTable, uuid, text, timestamp, pgEnum, uniqueIndex } from "drizzle-orm
 import { user } from "./users";
 import { projects } from "./projects";
 
-export const projectRoleEnum = pgEnum("project_role", ["editor", "viewer"]);
+export const projectRoleEnum = pgEnum("project_role", ["editor", "commenter", "viewer"]);
 
 export const projectPermissions = pgTable(
   "project_permissions",

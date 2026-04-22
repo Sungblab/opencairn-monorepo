@@ -4,16 +4,19 @@ import {
   seedAndSignIn,
 } from "./helpers/seed-session";
 
-// Plan 2A Task 14 — E2E happy path for the editor.
-//
-//   redirect chain → new note → title+body → "Saved" → reload persists
+// Plan 2A Task 14 (updated for Plan 2B Task 16) — E2E happy path for the
+// editor. Content now persists via Yjs + Hocuspocus rather than PATCH, so the
+// test verifies title-only REST saves and client-side input/UI wiring.
+// Reload-persistence for *content* is covered by Plan 2B integration tests
+// (Task 20) which exercise the Hocuspocus onStoreDocument path.
 //
 // Depends on the test-only POST /api/internal/test-seed endpoint. Infra
 // required: Postgres (docker-compose), API on :4000, web on :3000. The
 // Playwright webServer block only spawns web; the API must be running
-// separately (`pnpm --filter @opencairn/api dev`).
+// separately (`pnpm --filter @opencairn/api dev`). Hocuspocus may be down
+// for these tests — the editor still mounts, the WS just never connects.
 test.describe("editor core (Plan 2A Task 14)", () => {
-  test("create → edit → reload persists", async ({ page, request, context }) => {
+  test("create → title save → reload persists title", async ({ page, request, context }) => {
     const session = await seedAndSignIn(request);
     await applySessionCookie(context, session);
 
@@ -35,11 +38,9 @@ test.describe("editor core (Plan 2A Task 14)", () => {
       timeout: 10_000,
     });
 
-    // 3. Title first. `useSaveNote` debounces on a single mutation slot, so
-    //    successive calls coalesce to the LAST args — we need to let the
-    //    title save round-trip to the server before starting the body, or
-    //    the body save would overwrite the pending title save and the title
-    //    would never be persisted.
+    // 3. Title save — debounced PATCH /notes/:id { title }. The save pill
+    //    reflects the title-only path (content no longer flows through PATCH
+    //    under Plan 2B — it's Yjs-canonical).
     const title = page.getByTestId("note-title");
     await title.fill("Test Note");
     await expect(page.getByTestId("save-status")).toHaveText(
@@ -47,36 +48,35 @@ test.describe("editor core (Plan 2A Task 14)", () => {
       { timeout: 5_000 },
     );
 
-    // 4. Body. Ctrl+S forces a synchronous `flush` with both title + editor
-    //    value, so we bypass the debounce coalescing caveat above and can
-    //    deterministically wait for the resulting network round-trip via
-    //    `waitForResponse` rather than scraping the status text (which may
-    //    still read "저장됨" from the title save, making a text-only wait
-    //    falsely green).
+    // 4. Body input still works even without a live Hocuspocus (the editor
+    //    is writable against the local Y.Doc; without a server the doc just
+    //    doesn't sync). We only check that keystrokes land in the DOM so the
+    //    toolbar/slash/wiki-link interactions downstream still have a target.
     const body = page.getByTestId("note-body");
     await body.click();
     await page.keyboard.type("Hello world");
+    await expect(body).toContainText("Hello world");
+
+    // 5. Cmd/Ctrl+S flushes the pending title save. It must NOT send content.
     const patchPromise = page.waitForResponse(
       (r) =>
-        r.url().includes(`/api/notes/${session.noteId}`) === false &&
         r.url().includes("/api/notes/") &&
         r.request().method() === "PATCH" &&
         r.ok(),
       { timeout: 5_000 },
     );
     await page.keyboard.press("Control+s");
-    await patchPromise;
-    await expect(page.getByTestId("save-status")).toHaveText(
-      /저장됨|Saved/,
-      { timeout: 3_000 },
-    );
+    const patchRes = await patchPromise;
+    const sentBody = patchRes.request().postDataJSON() as Record<string, unknown>;
+    expect(sentBody).toHaveProperty("title");
+    expect(sentBody).not.toHaveProperty("content");
 
-    // 5. Reload — content must still be there.
+    // 6. Reload — title must survive (it went through PATCH). Body state is
+    //    out of scope here; Yjs-round-trip lives in Plan 2B integration tests.
     await page.reload();
     await expect(page.getByTestId("note-title")).toHaveValue("Test Note", {
       timeout: 10_000,
     });
-    await expect(page.getByTestId("note-body")).toContainText("Hello world");
   });
 
   // Plan 2A Task 16 — wiki-link combobox insertion happy path. The test-seed

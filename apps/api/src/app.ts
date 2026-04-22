@@ -12,6 +12,8 @@ import { tagRoutes } from "./routes/tags";
 import { noteRoutes } from "./routes/notes";
 import { ingestRoutes } from "./routes/ingest";
 import { internalRoutes } from "./routes/internal";
+import { commentsRouter } from "./routes/comments";
+import { mentionsRouter } from "./routes/mentions";
 
 export function createApp() {
   const app = new Hono();
@@ -40,6 +42,8 @@ export function createApp() {
   app.route("/api/tags", tagRoutes);
   app.route("/api/notes", noteRoutes);
   app.route("/api/ingest", ingestRoutes);
+  app.route("/api", commentsRouter);  // /api/notes/:noteId/comments (Plan 2B)
+  app.route("/api", mentionsRouter);  // /api/mentions/search (Plan 2B)
 
   app.onError(errorHandler);
 

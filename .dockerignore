@@ -1,0 +1,37 @@
+# Workspace node_modules are restored inside containers via `pnpm install`
+# — don't copy them in (they contain symlinks that confuse Docker's context
+# loader and they'd be wrong for the target Alpine arch anyway).
+**/node_modules
+**/.turbo
+**/.next
+**/dist
+**/build
+**/.cache
+
+# Editor + git metadata
+.git
+.gitignore
+.vscode
+.idea
+.cursor
+**/.DS_Store
+
+# Test + doc artifacts we never want in an image
+**/*.log
+**/coverage
+**/.nyc_output
+**/playwright-report
+**/test-results
+
+# Secrets — must be injected via compose/k8s, never baked into the image
+.env
+.env.*
+!.env.example
+
+# Python worker byproducts
+**/__pycache__
+**/*.pyc
+**/.venv
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache

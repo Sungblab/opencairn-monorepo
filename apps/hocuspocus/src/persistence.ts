@@ -1,0 +1,189 @@
+// Plan 2B Task 13: @hocuspocus/extension-database persistence boundary.
+//
+// The Y.Doc binary state lives in `yjs_documents` (Plan 2B Task 1). On first
+// load for a given document, seed the Y.Doc from the legacy `notes.content`
+// Plate JSON so existing notes don't appear empty when collaborative editing
+// comes online. On every save, write the canonical Y-state to `yjs_documents`
+// AND derive a Plate JSON + plain-text snapshot into `notes.content` +
+// `notes.content_text` (mirror — Y-state is authoritative; this mirror exists
+// for hybrid-search, snippets, RSS-style previews, and migrations).
+//
+// Transaction discipline: both writes live in a single tx. yjs_documents is
+// upserted first (since notes.content is derived from it), then notes updates.
+//
+// See docs/architecture/collaboration-model.md § persistence.
+
+import { Database } from "@hocuspocus/extension-database";
+import * as Y from "yjs";
+import {
+  yjsDocuments,
+  notes,
+  eq,
+  type DB,
+} from "@opencairn/db";
+import { plateToYDoc, yDocToPlate } from "./plate-bridge.js";
+import { logger } from "./logger.js";
+
+export interface PersistenceDeps {
+  db: DB;
+}
+
+// page:<uuid> — mirrors auth.ts and permissions-adapter.ts. Any other
+// document-name shape is unsupported and yields null/no-op.
+const DOC_RE =
+  /^page:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+
+// Walk a Plate JSON tree and emit a whitespace-joined plain-text snapshot.
+// Plate/Slate text leaves live under `text`; structural nodes hold `children`.
+// This intentionally drops marks, URLs, and block semantics — the output is
+// a best-effort search payload, not a reversible representation.
+function extractText(value: unknown[]): string {
+  const parts: string[] = [];
+  const walk = (n: unknown): void => {
+    if (!n || typeof n !== "object") return;
+    const node = n as { text?: unknown; children?: unknown };
+    if (typeof node.text === "string") {
+      parts.push(node.text);
+      return;
+    }
+    if (Array.isArray(node.children)) node.children.forEach(walk);
+  };
+  value.forEach(walk);
+  return parts.join(" ").replace(/\s+/g, " ").trim();
+}
+
+export interface Persistence {
+  fetch: (args: {
+    documentName: string;
+    context?: unknown;
+  }) => Promise<Uint8Array | null>;
+  store: (args: {
+    documentName: string;
+    state: Uint8Array;
+    lastContext?: unknown;
+  }) => Promise<void>;
+  extension: () => Database;
+}
+
+export function makePersistence({ db }: PersistenceDeps): Persistence {
+  const fetchImpl = async ({
+    documentName,
+  }: {
+    documentName: string;
+  }): Promise<Uint8Array | null> => {
+    // Fast path: a stored Y-state exists → hand it back verbatim.
+    const existing = await db.query.yjsDocuments.findFirst({
+      where: eq(yjsDocuments.name, documentName),
+    });
+    if (existing) return existing.state;
+
+    const m = DOC_RE.exec(documentName);
+    if (!m) return null;
+    const noteId = m[1]!;
+
+    const note = await db.query.notes.findFirst({
+      where: eq(notes.id, noteId),
+    });
+    if (!note) return null;
+
+    // Idempotency guard: if we previously stamped `yjs_state_loaded_at` but the
+    // `yjs_documents` row is now missing (manual deletion, disaster recovery,
+    // etc.), do NOT re-seed from `notes.content` — the mirror at this point is
+    // downstream of the Y-state that was lost, so re-seeding would resurrect a
+    // stale snapshot. Return null; Hocuspocus starts with an empty doc.
+    if (note.yjsStateLoadedAt) {
+      logger.warn(
+        { noteId },
+        "persistence.fetch: yjs_state_loaded_at set but no yjs_documents row — starting blank",
+      );
+      return null;
+    }
+
+    // First load for this note: seed Y.Doc from legacy notes.content.
+    const seedValue =
+      (note.content as unknown[] | null) ??
+      [{ type: "p", children: [{ text: "" }] }];
+    const doc = new Y.Doc();
+    plateToYDoc(doc, seedValue);
+    const state = Y.encodeStateAsUpdate(doc);
+    const stateVector = Y.encodeStateVector(doc);
+
+    // Insert the seeded state + stamp notes.yjs_state_loaded_at in a single tx
+    // so a concurrent second fetch for the same note cannot re-seed. If the
+    // insert loses the race (onConflictDoNothing), the loaded_at stamp still
+    // happens — harmless, because the extant row is authoritative anyway.
+    await db.transaction(async (tx) => {
+      await tx
+        .insert(yjsDocuments)
+        .values({ name: documentName, state, stateVector })
+        .onConflictDoNothing();
+      await tx
+        .update(notes)
+        .set({ yjsStateLoadedAt: new Date() })
+        .where(eq(notes.id, noteId));
+    });
+
+    logger.info(
+      { noteId, bytes: state.byteLength },
+      "persistence.fetch: seeded Y.Doc from notes.content",
+    );
+    return state;
+  };
+
+  const storeImpl = async ({
+    documentName,
+    state,
+  }: {
+    documentName: string;
+    state: Uint8Array;
+    lastContext?: unknown;
+  }): Promise<void> => {
+    const m = DOC_RE.exec(documentName);
+    if (!m) {
+      logger.warn(
+        { documentName },
+        "persistence.store: unsupported document name, skipping",
+      );
+      return;
+    }
+    const noteId = m[1]!;
+
+    // Reconstruct Y.Doc from the canonical update bytes so we can derive a
+    // Plate snapshot + plain-text mirror. `state` here is the full state
+    // encoded via `Y.encodeStateAsUpdate` (Database extension's contract).
+    const doc = new Y.Doc();
+    Y.applyUpdate(doc, state);
+    const plateValue = yDocToPlate(doc);
+    const contentText = extractText(plateValue);
+    const stateVector = Y.encodeStateVector(doc);
+
+    await db.transaction(async (tx) => {
+      await tx
+        .insert(yjsDocuments)
+        .values({ name: documentName, state, stateVector })
+        .onConflictDoUpdate({
+          target: yjsDocuments.name,
+          set: { state, stateVector, updatedAt: new Date() },
+        });
+      await tx
+        .update(notes)
+        .set({
+          // notes.content is jsonb + `.$type<unknown>()` — Plate Value (array)
+          // round-trips directly without a cast dance.
+          content: plateValue as unknown,
+          contentText,
+          updatedAt: new Date(),
+        })
+        .where(eq(notes.id, noteId));
+    });
+  };
+
+  return {
+    fetch: fetchImpl,
+    store: storeImpl,
+    // @hocuspocus/extension-database v3 accepts `{ fetch, store }`. Its
+    // onStoreDocument wraps the payload with `state: Buffer.from(...)`; Buffer
+    // is a Uint8Array subclass, so our `state: Uint8Array` contract holds.
+    extension: () => new Database({ fetch: fetchImpl, store: storeImpl }),
+  };
+}

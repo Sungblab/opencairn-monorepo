@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createApp } from "../src/app.js";
 import { db, notes, eq } from "@opencairn/db";
-import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
+import {
+  seedWorkspace,
+  seedMultiRoleWorkspace,
+  type SeedResult,
+  type SeedMultiRoleResult,
+} from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
 
 const app = createApp();
@@ -33,21 +38,15 @@ describe("PATCH /api/notes/:id", () => {
     await ctx.cleanup();
   });
 
-  it("editor can save Plate array content and content_text is derived", async () => {
-    const body = {
-      title: "Greeting",
-      content: [{ type: "p", children: [{ text: "Hello world" }] }],
-    };
+  it("editor can update meta fields (title, folderId)", async () => {
     const res = await authedFetch(`/api/notes/${ctx.noteId}`, {
       method: "PATCH",
       userId: ctx.userId,
-      body: JSON.stringify(body),
+      body: JSON.stringify({ title: "Greeting" }),
     });
     expect(res.status).toBe(200);
     const [row] = await db.select().from(notes).where(eq(notes.id, ctx.noteId));
     expect(row!.title).toBe("Greeting");
-    expect(row!.content).toEqual(body.content);
-    expect(row!.contentText).toContain("Hello world");
   });
 
   it("viewer receives 403", async () => {
@@ -64,23 +63,30 @@ describe("PATCH /api/notes/:id", () => {
     }
   });
 
-  it("title-only PATCH preserves existing content_text", async () => {
-    await authedFetch(`/api/notes/${ctx.noteId}`, {
-      method: "PATCH",
-      userId: ctx.userId,
-      body: JSON.stringify({
+  it("PATCH ignores content field (Yjs is canonical)", async () => {
+    // Pre-seed content directly (simulating Hocuspocus persistence).
+    await db
+      .update(notes)
+      .set({
         content: [{ type: "p", children: [{ text: "Persisted body" }] }],
-      }),
-    });
+        contentText: "Persisted body",
+      })
+      .where(eq(notes.id, ctx.noteId));
+
+    // Caller tries to clobber via PATCH; schema must strip `content`.
     const res = await authedFetch(`/api/notes/${ctx.noteId}`, {
       method: "PATCH",
       userId: ctx.userId,
-      body: JSON.stringify({ title: "New title only" }),
+      body: JSON.stringify({
+        title: "New Title",
+        content: [{ type: "p", children: [{ text: "SHOULD_NOT_PERSIST" }] }],
+      }),
     });
     expect(res.status).toBe(200);
     const [row] = await db.select().from(notes).where(eq(notes.id, ctx.noteId));
-    expect(row!.title).toBe("New title only");
-    expect(row!.contentText).toContain("Persisted body");
+    expect(row!.title).toBe("New Title");
+    expect(row!.contentText ?? "").not.toContain("SHOULD_NOT_PERSIST");
+    expect(row!.contentText ?? "").toContain("Persisted body");
   });
 
   it("deleted note returns 404", async () => {
@@ -138,5 +144,54 @@ describe("GET /api/notes/search", () => {
       { method: "GET", userId: ctx.userId },
     );
     expect(res.status).toBe(400);
+  });
+});
+
+// Plan 2B Task 16 — role lookup endpoint used by the server-rendered note
+// page to compute `readOnly` before handing the editor off to Yjs. The
+// endpoint MUST be registered before `/:id` so Hono doesn't swallow "role"
+// as a UUID — validated here by the editor/viewer happy paths not 400'ing.
+describe("GET /api/notes/:id/role", () => {
+  let ctx: SeedMultiRoleResult;
+
+  beforeEach(async () => {
+    ctx = await seedMultiRoleWorkspace();
+  });
+
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  it("editor sees role=editor", async () => {
+    const res = await authedFetch(`/api/notes/${ctx.noteId}/role`, {
+      method: "GET",
+      userId: ctx.editorUserId,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { role: string };
+    expect(body.role).toBe("editor");
+  });
+
+  it("viewer sees role=viewer (read-only editor path)", async () => {
+    const res = await authedFetch(`/api/notes/${ctx.noteId}/role`, {
+      method: "GET",
+      userId: ctx.viewerUserId,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { role: string };
+    expect(body.role).toBe("viewer");
+  });
+
+  it("outsider receives 403 (role=none)", async () => {
+    const outsider = await seedWorkspace({ role: "editor" });
+    try {
+      const res = await authedFetch(`/api/notes/${ctx.noteId}/role`, {
+        method: "GET",
+        userId: outsider.userId,
+      });
+      expect(res.status).toBe(403);
+    } finally {
+      await outsider.cleanup();
+    }
   });
 });
