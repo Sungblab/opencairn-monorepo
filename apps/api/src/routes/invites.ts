@@ -42,10 +42,16 @@ inviteRoutes.get("/invites/:token", async (c) => {
   if (row.acceptedAt) return c.json({ error: "already_accepted" }, 400);
   if (row.expiresAt < new Date()) return c.json({ error: "expired" }, 410);
 
-  const [inviter] = await db
-    .select({ name: user.name })
-    .from(user)
-    .where(eq(user.id, row.invitedBy));
+  // invited_by is ON DELETE SET NULL — skip the lookup when the inviter
+  // account has been removed, so the preview still renders.
+  const inviter = row.invitedBy
+    ? (
+        await db
+          .select({ name: user.name })
+          .from(user)
+          .where(eq(user.id, row.invitedBy))
+      )[0]
+    : null;
 
   return c.json({
     workspaceId: row.workspaceId,

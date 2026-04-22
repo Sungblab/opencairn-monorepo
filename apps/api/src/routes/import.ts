@@ -19,6 +19,7 @@ import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite } from "../lib/permissions";
 import { getPresignedPutUrl } from "../lib/s3";
 import { getTemporalClient } from "../lib/temporal-client";
+import { isUuid } from "../lib/validators";
 import type { AppEnv } from "../lib/types";
 
 // Hard ceiling on a single Notion export ZIP. Defaults to 5GB (matches the
@@ -291,6 +292,7 @@ importRouter.get("/jobs", requireAuth, async (c) => {
 importRouter.get("/jobs/:id", requireAuth, async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
+  if (!isUuid(id)) return c.json({ error: "bad_request" }, 400);
   const [row] = await db
     .select()
     .from(importJobs)
@@ -323,6 +325,7 @@ importRouter.get("/jobs/:id", requireAuth, async (c) => {
 importRouter.get("/jobs/:id/events", requireAuth, async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
+  if (!isUuid(id)) return c.json({ error: "bad_request" }, 400);
   const [job] = await db
     .select({
       id: importJobs.id,
@@ -392,6 +395,7 @@ importRouter.get("/jobs/:id/events", requireAuth, async (c) => {
 importRouter.delete("/jobs/:id", requireAuth, async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
+  if (!isUuid(id)) return c.json({ error: "bad_request" }, 400);
   const [job] = await db
     .select()
     .from(importJobs)
