@@ -582,11 +582,31 @@ class GeminiProvider(LLMProvider):
 
     async def get_interaction(self, interaction_id: str) -> InteractionState:
         resp = await self._client.aio.interactions.get(interaction_id=interaction_id)
+        # ``Interaction.outputs`` items are SDK ``Content`` BaseModel instances
+        # (TextContent, ImageContent, …). Callers expect plain dicts
+        # (``state.outputs[0]["type"]``) so we ``model_dump`` at the boundary
+        # — never let SDK BaseModels escape ``packages/llm``.
+        outputs_raw = resp.outputs or []
+        outputs = [
+            o.model_dump() if hasattr(o, "model_dump") else dict(o)
+            for o in outputs_raw
+        ]
+        # The SDK ``Interaction`` schema does not declare ``error``; the field
+        # is absent in normal completed/failed paths. Server-side may attach
+        # one via pydantic ``extra`` for non-spec failure modes — getattr
+        # keeps us defensive without depending on SDK BaseModel behavior.
+        err_raw = getattr(resp, "error", None)
+        if err_raw is None:
+            err: dict[str, Any] | None = None
+        elif hasattr(err_raw, "model_dump"):
+            err = err_raw.model_dump()
+        else:
+            err = dict(err_raw)
         return InteractionState(
             id=resp.id,
             status=resp.status,
-            outputs=list(resp.outputs or []),
-            error=resp.error,
+            outputs=outputs,
+            error=err,
         )
 
     async def stream_interaction(

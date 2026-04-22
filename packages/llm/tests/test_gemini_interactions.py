@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from google.genai._interactions.types.interaction import Interaction
 
 from llm.gemini import GeminiProvider
 from llm.interactions import InteractionHandle
@@ -17,6 +18,23 @@ def _fixture_as_obj(name: str):
     for k, v in data.items():
         setattr(m, k, v)
     return m, data
+
+
+def _real_interaction(**overrides):
+    """Build a real SDK ``Interaction`` instance from sane defaults.
+
+    Using ``model_validate`` (rather than ``MagicMock`` with ad-hoc attrs)
+    pins our boundary mapping to the actual SDK schema — wrong field names
+    fail at validation time, in test, instead of at runtime in production.
+    """
+    payload = {
+        "id": "int_run_xyz789",
+        "status": "in_progress",
+        "created": "2026-04-23T00:00:00Z",
+        "updated": "2026-04-23T00:00:00Z",
+    }
+    payload.update(overrides)
+    return Interaction.model_validate(payload)
 
 
 @pytest.fixture
@@ -93,14 +111,14 @@ async def test_start_interaction_forwards_optional_agent_config(provider):
 
 @pytest.mark.asyncio
 async def test_get_interaction_running(provider):
-    mock_response, raw = _fixture_as_obj("running_state.json")
+    mock_response = _real_interaction(id="int_run_xyz789", status="in_progress")
     with patch.object(
         provider._client.aio.interactions,
         "get",
         new=AsyncMock(return_value=mock_response),
     ) as mocked:
         state = await provider.get_interaction("int_run_xyz789")
-    assert state.id == raw["id"]
+    assert state.id == "int_run_xyz789"
     assert state.status == "in_progress"
     assert state.outputs == []
     assert state.error is None
@@ -109,7 +127,19 @@ async def test_get_interaction_running(provider):
 
 @pytest.mark.asyncio
 async def test_get_interaction_completed_with_outputs(provider):
-    mock_response, raw = _fixture_as_obj("completed_state.json")
+    # Build a real SDK Interaction with outputs as the discriminated Content
+    # union (TextContent + ImageContent). Provider must model_dump these into
+    # plain dicts so callers can do ``state.outputs[0]["type"]`` without
+    # crashing on ``Content`` BaseModel instances.
+    mock_response = _real_interaction(
+        id="int_run_xyz789",
+        status="completed",
+        updated="2026-04-23T00:05:00Z",
+        outputs=[
+            {"type": "text", "text": "## TPU Generations\n..."},
+            {"type": "image", "data": "BASE64PNG==", "mime_type": "image/png"},
+        ],
+    )
     with patch.object(
         provider._client.aio.interactions,
         "get",
@@ -119,7 +149,12 @@ async def test_get_interaction_completed_with_outputs(provider):
     assert state.status == "completed"
     assert len(state.outputs) == 2
     assert state.outputs[0]["type"] == "text"
+    assert state.outputs[0]["text"].startswith("## TPU Generations")
     assert state.outputs[1]["type"] == "image"
+    assert state.outputs[1]["mime_type"] == "image/png"
+    # Pure dicts, never SDK BaseModel instances — callers depend on this.
+    for o in state.outputs:
+        assert isinstance(o, dict)
 
 
 @pytest.mark.asyncio

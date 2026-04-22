@@ -1,9 +1,0 @@
-{
-  "id": "int_run_xyz789",
-  "status": "completed",
-  "outputs": [
-    {"type": "text", "text": "## TPU Generations\n..."},
-    {"type": "image", "data": "BASE64PNG==", "mime_type": "image/png"}
-  ],
-  "error": null
-}
