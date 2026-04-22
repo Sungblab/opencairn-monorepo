@@ -1,12 +1,13 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes } from "node:crypto";
 import {
   db,
   user,
   workspaces,
   workspaceMembers,
+  workspaceInvites,
   notes,
   projects,
   concepts,
@@ -984,21 +985,78 @@ internal.post("/test-seed", async (c) => {
     return c.json({ error: "test-seed disabled in production" }, 403);
   }
 
+  const parsed = (await c.req.json().catch(() => ({}))) as {
+    mode?: "default" | "onboarding-empty" | "onboarding-invite";
+  };
+  const mode = parsed.mode ?? "default";
+
   const userId = randomUUID();
   const email = `e2e-${userId}@example.com`;
-  const workspaceId = randomUUID();
-  const slug = `e2e-ws-${workspaceId.slice(0, 8)}`;
-  const projectId = randomUUID();
-  const noteId = randomUUID();
-
-  // Minimal Better Auth user row — no account (password/oauth) needed
-  // because the session cookie we mint below skips the login flow.
   await db.insert(user).values({
     id: userId,
     email,
     name: `E2E User ${userId.slice(0, 8)}`,
     emailVerified: true,
   });
+
+  const { setCookie, name, value, expiresAt } =
+    await signSessionForUser(userId);
+  const baseReply = {
+    userId,
+    email,
+    sessionCookie: setCookie,
+    cookieName: name,
+    cookieValue: value,
+    expiresAt: expiresAt.toISOString(),
+  };
+
+  if (mode === "onboarding-empty") {
+    // Fresh user, no workspace, no invite — used by the "first workspace"
+    // flow E2E tests.
+    return c.json(baseReply);
+  }
+
+  if (mode === "onboarding-invite") {
+    // Separate owner user + workspace, then issue an invite to the fresh
+    // user's email so the accept-card path can be exercised.
+    const ownerId = randomUUID();
+    await db.insert(user).values({
+      id: ownerId,
+      email: `e2e-owner-${ownerId}@example.com`,
+      name: "Owner",
+      emailVerified: true,
+    });
+    const workspaceId = randomUUID();
+    const inviteWorkspaceSlug = `e2e-inv-${workspaceId.slice(0, 8)}`;
+    await db.insert(workspaces).values({
+      id: workspaceId,
+      slug: inviteWorkspaceSlug,
+      name: "Invite Target WS",
+      ownerId,
+      planType: "free",
+    });
+    await db.insert(workspaceMembers).values({
+      workspaceId,
+      userId: ownerId,
+      role: "owner",
+    });
+    const inviteToken = randomBytes(32).toString("base64url");
+    await db.insert(workspaceInvites).values({
+      workspaceId,
+      email,
+      role: "member",
+      token: inviteToken,
+      invitedBy: ownerId,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
+    return c.json({ ...baseReply, inviteToken, inviteWorkspaceSlug });
+  }
+
+  // default mode — existing workspace + project + Welcome note.
+  const workspaceId = randomUUID();
+  const slug = `e2e-ws-${workspaceId.slice(0, 8)}`;
+  const projectId = randomUUID();
+  const noteId = randomUUID();
 
   await db.insert(workspaces).values({
     id: workspaceId,
@@ -1032,21 +1090,12 @@ internal.post("/test-seed", async (c) => {
     inheritParent: true,
   });
 
-  const { setCookie, name, value, expiresAt } = await signSessionForUser(userId);
-
   return c.json({
-    userId,
+    ...baseReply,
     wsSlug: slug,
     workspaceId,
     projectId,
     noteId,
-    // Full Set-Cookie header — Playwright `parseCookie` helper splits out
-    // attributes. The decomposed `name`/`value` are included for callers
-    // that want to build cookie objects directly without re-parsing.
-    sessionCookie: setCookie,
-    cookieName: name,
-    cookieValue: value,
-    expiresAt: expiresAt.toISOString(),
   });
 });
 
