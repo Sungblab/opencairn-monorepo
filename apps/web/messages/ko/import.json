@@ -1,0 +1,51 @@
+{
+  "pageTitle": "가져오기",
+  "pageDescription": "외부 서비스에서 자료를 워크스페이스로 옮겨옵니다.",
+  "tabs": {
+    "drive": "Google Drive",
+    "notion": "Notion ZIP"
+  },
+  "drive": {
+    "notConnected": "Google Drive 연결하기",
+    "connectedAs": "Google Drive 연결됨: {email}",
+    "switchAccount": "계정 바꾸기",
+    "disconnect": "연결 해제",
+    "pickFiles": "파일 선택하기",
+    "selectedCount": "{count}개 파일 · {size}",
+    "notConfigured": "관리자가 Google OAuth credentials를 설정해야 사용 가능합니다."
+  },
+  "notion": {
+    "instructions": "Notion → Settings → Export all workspace content → Markdown & CSV로 받은 ZIP 파일을 올려주세요.",
+    "dropZone": "여기에 ZIP 파일을 드롭하거나 클릭해서 선택",
+    "uploading": "업로드 중... {progress}%",
+    "uploaded": "업로드 완료: {name} ({size})",
+    "tooLarge": "ZIP 파일이 너무 큽니다 (최대 {max})."
+  },
+  "target": {
+    "label": "가져올 위치",
+    "new": "새 프로젝트로 만들기",
+    "existing": "기존 프로젝트에 추가",
+    "selectProject": "프로젝트 선택",
+    "selectParent": "상위 페이지 선택 (선택사항)"
+  },
+  "actions": {
+    "start": "가져오기 시작",
+    "cancel": "취소",
+    "retry": "재시도",
+    "openResult": "결과 열기"
+  },
+  "progress": {
+    "title": "가져오기 진행 상황",
+    "summary": "{completed} / {total} · 실패 {failed}",
+    "eta": "예상 남은 시간: {duration}",
+    "failedHeader": "실패한 항목 ({count})",
+    "completed": "완료되었습니다.",
+    "failed": "가져오기에 실패했습니다.",
+    "reauthNeeded": "Google 재인증이 필요합니다."
+  },
+  "errors": {
+    "driveNotConnected": "먼저 Google Drive를 연결해주세요.",
+    "importLimitExceeded": "동시에 진행 중인 가져오기가 너무 많습니다. 기존 작업이 완료된 후 다시 시도해주세요.",
+    "zipTooLarge": "ZIP 파일이 허용 용량을 초과했습니다."
+  }
+}

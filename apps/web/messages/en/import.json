@@ -1,0 +1,51 @@
+{
+  "pageTitle": "Import",
+  "pageDescription": "Bring content from external services into this workspace.",
+  "tabs": {
+    "drive": "Google Drive",
+    "notion": "Notion ZIP"
+  },
+  "drive": {
+    "notConnected": "Connect Google Drive",
+    "connectedAs": "Connected: {email}",
+    "switchAccount": "Switch account",
+    "disconnect": "Disconnect",
+    "pickFiles": "Pick files",
+    "selectedCount": "{count} files · {size}",
+    "notConfigured": "Google OAuth credentials must be configured by an admin."
+  },
+  "notion": {
+    "instructions": "Export your Notion workspace as Markdown & CSV, then upload the ZIP here.",
+    "dropZone": "Drop a ZIP file here or click to select",
+    "uploading": "Uploading... {progress}%",
+    "uploaded": "Uploaded: {name} ({size})",
+    "tooLarge": "ZIP is too large (max {max})."
+  },
+  "target": {
+    "label": "Import to",
+    "new": "New project",
+    "existing": "Existing project",
+    "selectProject": "Choose project",
+    "selectParent": "Parent page (optional)"
+  },
+  "actions": {
+    "start": "Start import",
+    "cancel": "Cancel",
+    "retry": "Retry",
+    "openResult": "Open result"
+  },
+  "progress": {
+    "title": "Import progress",
+    "summary": "{completed} / {total} · {failed} failed",
+    "eta": "ETA: {duration}",
+    "failedHeader": "Failed items ({count})",
+    "completed": "Import complete.",
+    "failed": "Import failed.",
+    "reauthNeeded": "Google re-authentication required."
+  },
+  "errors": {
+    "driveNotConnected": "Connect Google Drive first.",
+    "importLimitExceeded": "Too many imports in progress. Wait for the existing one to finish.",
+    "zipTooLarge": "ZIP exceeds the allowed size."
+  }
+}
