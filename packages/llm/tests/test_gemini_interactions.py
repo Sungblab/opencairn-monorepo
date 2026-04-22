@@ -104,7 +104,7 @@ async def test_get_interaction_completed_with_outputs(provider):
 @pytest.mark.asyncio
 async def test_stream_interaction_yields_events(provider):
     path = FIXTURES / "stream_events.jsonl"
-    lines = [json.loads(l) for l in path.read_text().splitlines() if l.strip()]
+    lines = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
     async def _gen():
         for row in lines:
