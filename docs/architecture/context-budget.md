@@ -84,3 +84,23 @@ LLM 호출 한 번에 주입할 컨텍스트 토큰을 **제품 수준에서** �
 - `docs/architecture/data-flow.md` — ingest → wiki → Q&A 흐름
 - `docs/superpowers/specs/2026-04-20-agent-runtime-standard-design.md` — agent tool-call 계약
 - `docs/superpowers/specs/2026-04-21-plan-11b-chat-editor-loop-design.md` — provenance·save_suggestion는 본 예산 정책과 정합
+
+---
+
+## 7. Tool path token budgets (Agent Runtime v2 · Sub-A, 2026-04-22)
+
+Sub-project A가 도입한 builtin tools는 각자 bounded response를 반환해 한 턴 안에서 input token budget이 터지지 않도록 설계됨:
+
+| Tool | Mode | Max output chars | Approx tokens |
+|------|------|-------------------|---------------|
+| `list_project_topics` | — | ~2 KB | ~500 |
+| `search_concepts` (k=5) | synopsis | ~4 KB | ~1k |
+| `search_notes` (k=5) | synopsis (snippet ≤ 400 ch) | ~2 KB | ~500 |
+| `search_notes` (k=5) | full | ~10 KB | ~2.5k |
+| `read_note` | — | 50 KB (MAX_CONTENT_CHARS) | ~12k |
+| `fetch_url` | — | 10 MB cap / text-only ≤ 50 KB | ~12k |
+| `emit_structured_output` | — | ~1 KB | ~250 |
+
+- `ToolLoopExecutor._truncate`는 tool 결과를 50 KB으로 잘라 re-injection. 초과 시 `[truncated: original N chars]` suffix 포함.
+- `synopsis-only` 경로의 single-turn 입력은 user prompt + wiki root 제외 ~15k tokens 이하로 유지. 본 문서 §3의 "long-context <200k / hybrid" 정책과 일치.
+- 루프 하드 가드: `LoopConfig.max_total_input_tokens = 200_000` (default). `max_turns 8`, `max_tool_calls 12`, per-tool 30s (`fetch_url` 60s)로 실패 시 bounded termination reason 반환.
