@@ -25,6 +25,12 @@ Plan 파일 위치: `docs/superpowers/plans/`.
 | `2026-04-20-plan-9a-web-foundation-and-landing.md`     | ✅ 2026-04-20, HEAD `415d668`    | 테마(4팔레트) + i18n(next-intl, ko/en, ESLint no-literal-string, parity CI) + 랜딩 10섹션 포트 SSG + sitemap/robots + Playwright smoke. Lighthouse는 프로덕션 배포 시 수동. 본 Plan 후 모든 user-facing 문자열은 i18n 키 강제.                                                                                         |
 | `2026-04-09-plan-9b-billing-engine.md`                 | 🔴 BLOCKED (사업자등록)          | PAYG 크레딧 엔진, Toss 연동, 결제 UI, 환불, Export(GDPR), 블로그, 법적 문서 본문. Plan 9a의 Pricing 섹션 숫자를 API로 교체.                                                                                                                                                                                         |
 
+## Phase 1 follow-ups
+
+| Plan                                                 | Status | Summary                                                                                                                                                                                                                                                                      |
+| ---------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `2026-04-22-onboarding-implementation.md`            | 🟡 feat 브랜치 | `/{locale}/onboarding` 2-모드 라우트 (워크스페이스 생성 + 초대 수락). Backend prereq: `GET /api/invites/:token`, 예약 slug + 409 매핑, invite email URL 교정, `/test-seed` onboarding 모드 2종. Frontend: 서버 가드 + `CreateWorkspaceForm` + `AcceptInviteCard` + slug/return-to 헬퍼 + signup→verify→login→onboarding 토큰 승계. Playwright 4 specs. Spec: `2026-04-22-onboarding-and-first-run-design.md`. |
+
 ## Phase 2 — Scale (Plan 4 후, 병렬 가능)
 
 | Plan                                           | Summary                                                                                          |
