@@ -101,7 +101,7 @@ async def test_get_interaction_running(provider):
     ) as mocked:
         state = await provider.get_interaction("int_run_xyz789")
     assert state.id == raw["id"]
-    assert state.status == "running"
+    assert state.status == "in_progress"
     assert state.outputs == []
     assert state.error is None
     mocked.assert_awaited_once_with(interaction_id="int_run_xyz789")
