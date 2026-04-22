@@ -68,3 +68,34 @@ async def test_start_interaction_forwards_previous_id(provider):
         )
     call = mocked.await_args
     assert call.kwargs["previous_interaction_id"] == "int_plan_abc123"
+
+
+@pytest.mark.asyncio
+async def test_get_interaction_running(provider):
+    mock_response, raw = _fixture_as_obj("running_state.json")
+    with patch.object(
+        provider._client.aio.interactions,
+        "get",
+        new=AsyncMock(return_value=mock_response),
+    ) as mocked:
+        state = await provider.get_interaction("int_run_xyz789")
+    assert state.id == raw["id"]
+    assert state.status == "running"
+    assert state.outputs == []
+    assert state.error is None
+    mocked.assert_awaited_once_with(interaction_id="int_run_xyz789")
+
+
+@pytest.mark.asyncio
+async def test_get_interaction_completed_with_outputs(provider):
+    mock_response, raw = _fixture_as_obj("completed_state.json")
+    with patch.object(
+        provider._client.aio.interactions,
+        "get",
+        new=AsyncMock(return_value=mock_response),
+    ):
+        state = await provider.get_interaction("int_run_xyz789")
+    assert state.status == "completed"
+    assert len(state.outputs) == 2
+    assert state.outputs[0]["type"] == "text"
+    assert state.outputs[1]["type"] == "image"

@@ -25,7 +25,7 @@ from .batch_types import (
     BatchNotSupported,
 )
 from .errors import ProviderFatalError, ProviderRetryableError
-from .interactions import InteractionHandle
+from .interactions import InteractionHandle, InteractionState
 from .tool_types import AssistantTurn, ToolResult, ToolUse, UsageCounts
 
 # Gemini ``JobState`` enum → our normalised strings. Keys are the enum
@@ -580,4 +580,13 @@ class GeminiProvider(LLMProvider):
             id=resp.id,
             agent=resp.agent,
             background=bool(resp.background),
+        )
+
+    async def get_interaction(self, interaction_id: str) -> InteractionState:
+        resp = await self._client.aio.interactions.get(interaction_id=interaction_id)
+        return InteractionState(
+            id=resp.id,
+            status=resp.status,
+            outputs=list(resp.outputs or []),
+            error=resp.error,
         )
