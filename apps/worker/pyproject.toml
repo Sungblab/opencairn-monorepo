@@ -31,6 +31,12 @@ dependencies = [
     # with apps/api/src/lib/integration-tokens.ts — both sides decrypt the
     # same rows written by /api/integrations/google/callback.
     "cryptography>=42.0",
+    # Google Drive ingest (Plan: ingest-source-expansion Task 6). We use the
+    # lower-level google-api-python-client rather than google-cloud-* since
+    # the latter targets service accounts; OAuth-access-token flows are
+    # simpler with the generic client.
+    "google-api-python-client>=2.100",
+    "google-auth>=2.23",
 ]
 
 [project.optional-dependencies]
