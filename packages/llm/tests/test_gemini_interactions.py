@@ -99,3 +99,51 @@ async def test_get_interaction_completed_with_outputs(provider):
     assert len(state.outputs) == 2
     assert state.outputs[0]["type"] == "text"
     assert state.outputs[1]["type"] == "image"
+
+
+@pytest.mark.asyncio
+async def test_stream_interaction_yields_events(provider):
+    path = FIXTURES / "stream_events.jsonl"
+    lines = [json.loads(l) for l in path.read_text().splitlines() if l.strip()]
+
+    async def _gen():
+        for row in lines:
+            ev = MagicMock()
+            ev.event_id = row["event_id"]
+            ev.kind = row["kind"]
+            ev.payload = row["payload"]
+            yield ev
+
+    with patch.object(
+        provider._client.aio.interactions,
+        "get",
+        new=AsyncMock(return_value=_gen()),
+    ) as mocked:
+        collected = []
+        async for ev in provider.stream_interaction("int_run_xyz789"):
+            collected.append(ev)
+
+    assert [e.event_id for e in collected] == ["ev_0", "ev_1", "ev_2", "ev_3"]
+    assert collected[0].kind == "thought_summary"
+    assert collected[2].payload["mime_type"] == "image/png"
+    mocked.assert_awaited_once()
+    call_kwargs = mocked.await_args.kwargs
+    assert call_kwargs["interaction_id"] == "int_run_xyz789"
+    assert call_kwargs["stream"] is True
+
+
+@pytest.mark.asyncio
+async def test_stream_interaction_forwards_last_event_id(provider):
+    async def _empty():
+        if False:
+            yield
+
+    with patch.object(
+        provider._client.aio.interactions,
+        "get",
+        new=AsyncMock(return_value=_empty()),
+    ) as mocked:
+        async for _ in provider.stream_interaction("int_run_xyz789", last_event_id="ev_2"):
+            pass
+    assert mocked.await_args.kwargs["last_event_id"] == "ev_2"
+    assert mocked.await_args.kwargs["stream"] is True

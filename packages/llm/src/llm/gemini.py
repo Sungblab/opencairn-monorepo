@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import time
 import uuid
+from collections.abc import AsyncGenerator
 from typing import Any, Literal, Sequence
 
 from google import genai
@@ -25,7 +26,7 @@ from .batch_types import (
     BatchNotSupported,
 )
 from .errors import ProviderFatalError, ProviderRetryableError
-from .interactions import InteractionHandle, InteractionState
+from .interactions import InteractionEvent, InteractionHandle, InteractionState
 from .tool_types import AssistantTurn, ToolResult, ToolUse, UsageCounts
 
 # Gemini ``JobState`` enum → our normalised strings. Keys are the enum
@@ -590,3 +591,24 @@ class GeminiProvider(LLMProvider):
             outputs=list(resp.outputs or []),
             error=resp.error,
         )
+
+    async def stream_interaction(
+        self,
+        interaction_id: str,
+        *,
+        last_event_id: str | None = None,
+    ) -> AsyncGenerator[InteractionEvent, None]:
+        # The SDK exposes streaming by passing ``stream=True`` to ``get`` (or
+        # ``create``). There is no separate ``.stream()`` method. ``get`` with
+        # ``stream=True`` returns an ``AsyncStream[InteractionSSEEvent]`` that
+        # we async-iterate.
+        kwargs: dict[str, Any] = {"interaction_id": interaction_id, "stream": True}
+        if last_event_id is not None:
+            kwargs["last_event_id"] = last_event_id
+        stream = await self._client.aio.interactions.get(**kwargs)
+        async for raw in stream:
+            yield InteractionEvent(
+                event_id=raw.event_id,
+                kind=raw.kind,
+                payload=dict(raw.payload or {}),
+            )
