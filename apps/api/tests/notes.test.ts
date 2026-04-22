@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createApp } from "../src/app.js";
 import { db, notes, eq } from "@opencairn/db";
-import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
+import {
+  seedWorkspace,
+  seedMultiRoleWorkspace,
+  type SeedResult,
+  type SeedMultiRoleResult,
+} from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
 
 const app = createApp();
@@ -139,5 +144,54 @@ describe("GET /api/notes/search", () => {
       { method: "GET", userId: ctx.userId },
     );
     expect(res.status).toBe(400);
+  });
+});
+
+// Plan 2B Task 16 — role lookup endpoint used by the server-rendered note
+// page to compute `readOnly` before handing the editor off to Yjs. The
+// endpoint MUST be registered before `/:id` so Hono doesn't swallow "role"
+// as a UUID — validated here by the editor/viewer happy paths not 400'ing.
+describe("GET /api/notes/:id/role", () => {
+  let ctx: SeedMultiRoleResult;
+
+  beforeEach(async () => {
+    ctx = await seedMultiRoleWorkspace();
+  });
+
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  it("editor sees role=editor", async () => {
+    const res = await authedFetch(`/api/notes/${ctx.noteId}/role`, {
+      method: "GET",
+      userId: ctx.editorUserId,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { role: string };
+    expect(body.role).toBe("editor");
+  });
+
+  it("viewer sees role=viewer (read-only editor path)", async () => {
+    const res = await authedFetch(`/api/notes/${ctx.noteId}/role`, {
+      method: "GET",
+      userId: ctx.viewerUserId,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { role: string };
+    expect(body.role).toBe("viewer");
+  });
+
+  it("outsider receives 403 (role=none)", async () => {
+    const outsider = await seedWorkspace({ role: "editor" });
+    try {
+      const res = await authedFetch(`/api/notes/${ctx.noteId}/role`, {
+        method: "GET",
+        userId: outsider.userId,
+      });
+      expect(res.status).toBe(403);
+    } finally {
+      await outsider.cleanup();
+    }
   });
 });

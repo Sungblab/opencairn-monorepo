@@ -6,7 +6,7 @@ import { createNoteSchema, updateNoteSchema } from "@opencairn/shared";
 // PATCH body ignores `content` — Yjs (via Hocuspocus) is canonical (Plan 2B).
 const patchNoteSchema = updateNoteSchema.omit({ content: true });
 import { requireAuth } from "../middleware/auth";
-import { canRead, canWrite } from "../lib/permissions";
+import { canRead, canWrite, resolveRole } from "../lib/permissions";
 import { isUuid } from "../lib/validators";
 import { plateValueToText } from "../lib/plate-text";
 import type { AppEnv } from "../lib/types";
@@ -56,6 +56,20 @@ export const noteRoutes = new Hono<AppEnv>()
       .orderBy(desc(notes.updatedAt))
       .limit(10);
     return c.json(rows);
+  })
+
+  // Role lookup — server-rendered note page uses this to compute `readOnly`
+  // before handing off to the Yjs-backed editor. Registered BEFORE the generic
+  // `/:id` so Hono's router doesn't treat "role" as a UUID (which would 400).
+  // Returns 403 for roles=none so UI can show "no access" without leaking
+  // existence via the 200/404 split.
+  .get("/:id/role", async (c) => {
+    const user = c.get("user");
+    const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+    const role = await resolveRole(user.id, { type: "note", id });
+    if (role === "none") return c.json({ error: "Forbidden" }, 403);
+    return c.json({ role });
   })
 
   .get("/:id", async (c) => {

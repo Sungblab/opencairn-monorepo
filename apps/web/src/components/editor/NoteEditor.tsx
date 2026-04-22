@@ -13,16 +13,16 @@ import {
 } from "@platejs/basic-nodes/react";
 import { ListPlugin } from "@platejs/list/react";
 import { toggleList } from "@platejs/list";
-import { Plate, PlateContent, usePlateEditor } from "platejs/react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Plate, PlateContent } from "platejs/react";
+import debounce from "lodash.debounce";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
-import { useSaveNote } from "@/hooks/use-save-note";
 import {
-  emptyEditorValue,
-  parseEditorContent,
-  type PlateValue,
-} from "@/lib/editor-utils";
+  useCollaborativeEditor,
+  colorFor,
+} from "@/hooks/useCollaborativeEditor";
+import { api, ApiError } from "@/lib/api-client";
 
 import {
   EditorToolbar,
@@ -39,8 +39,9 @@ import {
 
 // Basic marks + blocks. Lists are handled by the indent-based ListPlugin; the
 // bulleted/numbered toolbar buttons call `toggleList` directly with the style
-// type. Slash-command list insertion lands in Task 17. `latexPlugins` wires the
-// void equation/inline-equation nodes to their KaTeX renderers.
+// type. `latexPlugins` wires the void equation/inline-equation nodes to their
+// KaTeX renderers. Content persistence is handled by YjsPlugin in
+// `useCollaborativeEditor` — this array does NOT include YjsPlugin itself.
 const basePlugins = [
   BoldPlugin,
   ItalicPlugin,
@@ -55,78 +56,108 @@ const basePlugins = [
   ...latexPlugins,
 ];
 
+type TitleSaveStatus = "idle" | "saving" | "saved" | "error";
+
 export interface NoteEditorProps {
   noteId: string;
   initialTitle: string;
-  initialValue: PlateValue | null;
   wsSlug: string;
   projectId: string;
-  readOnly?: boolean;
+  /** Authenticated user id — used as the Yjs awareness key. */
+  userId: string;
+  /** Display name shown next to remote cursors. */
+  userName: string;
+  /** Server-derived (role === viewer|commenter). Locks both title + body. */
+  readOnly: boolean;
 }
 
 export function NoteEditor({
   noteId,
   initialTitle,
-  initialValue,
   wsSlug,
   projectId,
+  userId,
+  userName,
   readOnly,
 }: NoteEditorProps) {
   const t = useTranslations("editor");
-  const { save, flush, status, lastError } = useSaveNote(noteId);
 
+  // ── Title save path (PATCH /notes/:id with { title } only) ────────────
+  // Content persists via Yjs; only title/folderId still flow through the
+  // REST API (updateNoteSchema.omit({content})). Kept a tiny local debounce
+  // here instead of a hook since the logic is straightforward.
   const [title, setTitle] = useState(initialTitle);
-  const startValue = useMemo(
-    () => parseEditorContent(initialValue ?? emptyEditorValue()),
-    [initialValue],
+  const [titleStatus, setTitleStatus] = useState<TitleSaveStatus>("idle");
+  const [titleError, setTitleError] = useState<string | null>(null);
+  // Guard against "saved"→"idle" flicker when rapid edits race the response.
+  const pendingRef = useRef(0);
+
+  const patchTitle = useCallback(
+    async (value: string) => {
+      pendingRef.current += 1;
+      setTitleStatus("saving");
+      try {
+        await api.patchNote(noteId, { title: value });
+        pendingRef.current -= 1;
+        if (pendingRef.current === 0) {
+          setTitleStatus("saved");
+          setTitleError(null);
+        }
+      } catch (err) {
+        pendingRef.current = Math.max(0, pendingRef.current - 1);
+        setTitleStatus("error");
+        setTitleError(err instanceof ApiError ? err.message : String(err));
+      }
+    },
+    [noteId],
+  );
+
+  const debouncedPatchTitle = useMemo(
+    () => debounce((v: string) => void patchTitle(v), 500),
+    [patchTitle],
+  );
+
+  // Cancel pending debounced save on unmount so unmounts mid-typing don't
+  // fire a spurious PATCH after the page is gone.
+  useEffect(() => () => debouncedPatchTitle.cancel(), [debouncedPatchTitle]);
+
+  const handleTitleChange = useCallback(
+    (v: string) => {
+      setTitle(v);
+      debouncedPatchTitle(v);
+    },
+    [debouncedPatchTitle],
   );
 
   // Wiki-link plugin is built per-editor so the element renderer can close
-  // over the route context. `usePlateEditor` is memoized around `plugins` by
-  // reference, so we need a stable array derived from `wsSlug`/`projectId`.
+  // over the route context. Memoized so `useCollaborativeEditor` (which
+  // depends on `basePlugins` by reference) doesn't churn.
   const plugins = useMemo(
     () => [...basePlugins, createWikiLinkPlugin({ wsSlug, projectId })],
     [wsSlug, projectId],
   );
 
-  const editor = usePlateEditor({
-    plugins,
-    // `PlateValue` is intentionally loose (see lib/editor-utils.ts); Plate's
-    // internal `Value` type is strict. Cast at the boundary.
-    value: startValue as unknown as never,
+  const editor = useCollaborativeEditor({
+    noteId,
+    user: { id: userId, name: userName, color: colorFor(userId) },
+    readOnly,
+    basePlugins: plugins,
   });
 
-  const handleTitleChange = useCallback(
-    (v: string) => {
-      setTitle(v);
-      save({ title: v });
-    },
-    [save],
-  );
-
-  const handleContentChange = useCallback(
-    ({ value }: { value: unknown }) => {
-      save({ content: value as PlateValue });
-    },
-    [save],
-  );
-
-  // Cmd/Ctrl+S forces a synchronous save of the current title + editor value.
+  // Cmd/Ctrl+S flushes the PENDING title save only — editor content is
+  // already live via Yjs, so there is nothing to "save" on keystroke.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        void flush({ title, content: editor.children as PlateValue }).catch(
-          () => {
-            // useSaveNote already surfaces the error via `lastError`.
-          },
-        );
+        debouncedPatchTitle.cancel();
+        void patchTitle(title);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [flush, title, editor]);
+  }, [debouncedPatchTitle, patchTitle, title]);
 
   const actions: ToolbarActions = useMemo(
     () => ({
@@ -174,11 +205,7 @@ export function NoteEditor({
           className="placeholder:text-fg-muted w-full bg-transparent text-3xl font-semibold outline-none"
           data-testid="note-title"
         />
-        <Plate
-          editor={editor}
-          onValueChange={handleContentChange}
-          readOnly={readOnly}
-        >
+        <Plate editor={editor} readOnly={readOnly}>
           <PlateContent
             data-testid="note-body"
             placeholder={t("placeholder.body")}
@@ -192,12 +219,12 @@ export function NoteEditor({
           role="status"
           aria-live="polite"
         >
-          {status === "saving" && t("save.saving")}
-          {status === "saved" && t("save.saved")}
-          {status === "error" && (
+          {titleStatus === "saving" && t("save.saving")}
+          {titleStatus === "saved" && t("save.saved")}
+          {titleStatus === "error" && (
             <span className="text-red-600">
               {t("save.failed")}
-              {lastError ? `: ${lastError}` : null}
+              {titleError ? `: ${titleError}` : null}
             </span>
           )}
         </div>
