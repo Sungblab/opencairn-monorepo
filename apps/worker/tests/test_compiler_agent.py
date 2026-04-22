@@ -311,3 +311,104 @@ async def test_compiler_propagates_unexpected_errors_with_agent_error_event() ->
 
     assert events[-1].type == "agent_error"
     assert "db down" in events[-1].message
+
+
+# ---------------------------------------------------------------------------
+# Plan 3b — batch embedding integration
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_compiler_takes_batch_path_when_flag_on_and_enough_candidates(
+    monkeypatch,
+) -> None:
+    """With BATCH_EMBED_COMPILER_ENABLED=true and a candidate count at
+    or above BATCH_EMBED_MIN_ITEMS, the injected batch_submit callback
+    should be awaited once and provider.embed should never fire.
+    """
+    monkeypatch.setenv("BATCH_EMBED_COMPILER_ENABLED", "true")
+    monkeypatch.setenv("BATCH_EMBED_MIN_ITEMS", "3")
+
+    # 3 concepts extracted — exactly at the threshold.
+    extraction = json.dumps(
+        {
+            "concepts": [
+                {"name": f"concept-{i}", "description": f"desc-{i}"}
+                for i in range(3)
+            ]
+        }
+    )
+    provider = _make_provider(extraction)
+    # Gemini exposes supports_batch_embed=True; the mock doesn't reflect
+    # that by default. Set it explicitly so embed_many takes the batch
+    # branch.
+    provider.supports_batch_embed = True
+
+    api = _make_api()
+
+    batch_calls: list[dict[str, Any]] = []
+
+    async def batch_submit(inputs, *, workspace_id):
+        batch_calls.append({"workspace_id": workspace_id, "n": len(inputs)})
+        return [[0.2] * 16 for _ in inputs]
+
+    agent = CompilerAgent(provider=provider, api=api, batch_submit=batch_submit)
+
+    events = []
+    async for ev in agent.run(
+        {
+            "note_id": "note-1",
+            "project_id": "proj-1",
+            "workspace_id": "ws-1",
+            "user_id": "user-1",
+        },
+        _make_ctx(),
+    ):
+        events.append(ev)
+
+    assert len(batch_calls) == 1
+    assert batch_calls[0]["n"] == 3
+    assert batch_calls[0]["workspace_id"] == "ws-1"
+    # Sync path must not be touched when the batch path succeeded.
+    provider.embed.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_compiler_stays_on_sync_path_when_flag_off(monkeypatch) -> None:
+    """Default configuration — flag unset → sync provider.embed called once
+    per extracted concept (via embed_many's sync aggregation).
+    """
+    monkeypatch.delenv("BATCH_EMBED_COMPILER_ENABLED", raising=False)
+
+    extraction = json.dumps(
+        {
+            "concepts": [
+                {"name": f"concept-{i}", "description": f"desc-{i}"}
+                for i in range(3)
+            ]
+        }
+    )
+    provider = _make_provider(extraction)
+    # Return 3 vectors aligned with the 3 concepts — embed_many's sync
+    # path calls provider.embed once with the whole list.
+    provider.embed = AsyncMock(return_value=[[0.1] * 16 for _ in range(3)])
+
+    batch_submit = AsyncMock()
+    api = _make_api()
+    agent = CompilerAgent(provider=provider, api=api, batch_submit=batch_submit)
+
+    async for _ in agent.run(
+        {
+            "note_id": "note-1",
+            "project_id": "proj-1",
+            "workspace_id": "ws-1",
+            "user_id": "user-1",
+        },
+        _make_ctx(),
+    ):
+        pass
+
+    batch_submit.assert_not_awaited()
+    # Sync path: provider.embed called once (embed_many sends the whole
+    # list) even though there are 3 candidates.
+    provider.embed.assert_awaited_once()

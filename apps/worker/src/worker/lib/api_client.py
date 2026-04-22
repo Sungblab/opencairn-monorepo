@@ -45,6 +45,14 @@ async def get_internal(path: str) -> dict[str, Any]:
         return response.json()
 
 
+async def patch_internal(path: str, body: dict[str, Any]) -> dict[str, Any]:
+    """PATCH ``{API_BASE}{path}`` with the internal secret."""
+    async with httpx.AsyncClient(base_url=API_BASE, timeout=_TIMEOUT) as client:
+        response = await client.patch(path, json=body, headers=_HEADERS)
+        response.raise_for_status()
+        return response.json()
+
+
 class AgentApiClient:
     """Typed facade over the Plan 4 internal endpoints.
 
@@ -292,4 +300,68 @@ class AgentApiClient:
         await post_internal(
             "/api/internal/semaphores/release",
             {"projectId": project_id, "holderId": holder_id},
+        )
+
+    # -- Plan 3b: embedding_batches lifecycle ------------------------------
+
+    async def create_embedding_batch(
+        self,
+        *,
+        workspace_id: str | None,
+        provider: str,
+        provider_batch_name: str,
+        input_count: int,
+        input_s3_key: str,
+    ) -> tuple[str, bool]:
+        """Idempotent insert keyed on ``providerBatchName``.
+
+        Returns ``(row_id, created)``. Temporal replay of the submit activity
+        after a worker crash should hit the unique-index path and receive
+        ``created=False`` without a duplicate insert.
+        """
+        res = await post_internal(
+            "/api/internal/embedding-batches",
+            {
+                "workspaceId": workspace_id,
+                "provider": provider,
+                "providerBatchName": provider_batch_name,
+                "inputCount": input_count,
+                "inputS3Key": input_s3_key,
+            },
+        )
+        return res["id"], bool(res.get("created", False))
+
+    async def update_embedding_batch(
+        self,
+        *,
+        batch_id: str,
+        state: str,
+        success_count: int | None = None,
+        failure_count: int | None = None,
+        pending_count: int | None = None,
+        output_s3_key: str | None = None,
+        error: str | None = None,
+        mark_completed: bool = False,
+    ) -> None:
+        """Patch a batch row; only non-None fields are sent so a poll that
+        only changes ``state`` doesn't overwrite previously-set counts.
+        ``mark_completed=True`` stamps ``completed_at = now()`` on the API
+        side.
+        """
+        body: dict[str, Any] = {"state": state}
+        if success_count is not None:
+            body["successCount"] = success_count
+        if failure_count is not None:
+            body["failureCount"] = failure_count
+        if pending_count is not None:
+            body["pendingCount"] = pending_count
+        if output_s3_key is not None:
+            body["outputS3Key"] = output_s3_key
+        if error is not None:
+            body["error"] = error
+        if mark_completed:
+            body["markCompleted"] = True
+        await patch_internal(
+            f"/api/internal/embedding-batches/{batch_id}",
+            body,
         )

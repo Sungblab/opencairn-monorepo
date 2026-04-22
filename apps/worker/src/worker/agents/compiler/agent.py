@@ -26,7 +26,7 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
-from llm import LLMProvider
+from llm import ENV_BATCH_ENABLED_COMPILER, LLMProvider, embed_many
 from llm.base import EmbedInput
 
 from runtime.agent import Agent
@@ -102,9 +102,15 @@ class CompilerAgent(Agent):
         *,
         provider: LLMProvider,
         api: AgentApiClient | None = None,
+        batch_submit=None,
     ) -> None:
         self.provider = provider
         self.api = api or AgentApiClient()
+        # Plan 3b — optional batch-embed callback. When the Compiler
+        # activity injects one and BATCH_EMBED_COMPILER_ENABLED=true, all
+        # extracted-concept embeddings are submitted in one batch before
+        # the per-concept loop runs. None = tests/scripts always sync.
+        self._batch_submit = batch_submit
 
     # -- public entrypoint --------------------------------------------------
 
@@ -181,14 +187,31 @@ class CompilerAgent(Agent):
             async for ev in extraction_events:
                 yield ev
 
-            # 3. Per-concept: embed, search, upsert, link, log.
+            # 3a. Compute all embed texts up-front and batch-embed them
+            # so large notes can take advantage of Gemini's batch tier
+            # (Plan 3b). When the flag is off or the batch_submit callback
+            # is absent (tests / scripts), embed_many() transparently
+            # falls through to provider.embed per-item.
+            embed_texts = [
+                _build_embed_text(c) for c in extracted
+            ]
+            embed_vectors = await embed_many(
+                self.provider,
+                [EmbedInput(text=t) for t in embed_texts],
+                workspace_id=ctx.workspace_id,
+                batch_submit=self._batch_submit,
+                flag_env=ENV_BATCH_ENABLED_COMPILER,
+            )
+
+            # 3b. Per-concept: embed (pre-computed), search, upsert, link, log.
             created = 0
             merged = 0
             linked = 0
             concept_ids: list[str] = []
-            for candidate in extracted:
+            for candidate, embedding in zip(extracted, embed_vectors):
                 result = await self._process_concept(
                     candidate=candidate,
+                    embedding=embedding,
                     input=validated,
                     ctx=ctx,
                     seq=seq,
@@ -332,6 +355,7 @@ class CompilerAgent(Agent):
         self,
         *,
         candidate: dict[str, str],
+        embedding: list[float] | None,
         input: CompilerInput,
         ctx: ToolContext,
         seq: _SeqCounter,
@@ -342,15 +366,12 @@ class CompilerAgent(Agent):
         if not name:
             return _ConceptProcessed(concept_id=None, was_created=False, was_linked=False, events=_aiter([]))
 
-        # Embed a combined "name — description" — gives dedupe better signal
-        # than name alone when two notes use the same term with different
-        # senses (e.g. "배치 정규화" in a CS note vs a statistics note).
-        embed_text = name if not description else f"{name} — {description}"
-        try:
-            vecs = await self.provider.embed([EmbedInput(text=embed_text)])
-            embedding = vecs[0]
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Embedding failed for concept %s: %s", name, exc)
+        # Embedding is pre-computed upstream (Plan 3b — either via batch
+        # or the sync fallback). A None value means the embed failed for
+        # just this candidate; match the previous "drop the concept on
+        # embedding failure" semantics so Librarian can retry later.
+        if embedding is None:
+            logger.warning("Embedding missing for concept %s; skipping", name)
             return _ConceptProcessed(concept_id=None, was_created=False, was_linked=False, events=_aiter([]))
 
         # Search for existing concepts (name ILIKE first to catch exact
@@ -541,6 +562,16 @@ class _ConceptProcessed:
 async def _aiter(items: list[AgentEvent]) -> AsyncGenerator[AgentEvent, None]:
     for ev in items:
         yield ev
+
+
+def _build_embed_text(candidate: dict[str, str]) -> str:
+    """Compose the dedupe signal used for kNN. Combining name + description
+    disambiguates homonyms better than name alone (e.g. "배치 정규화" in a
+    CS note vs. a statistics note). Empty descriptions fall back to name.
+    """
+    name = candidate["name"].strip()
+    description = candidate.get("description", "").strip()
+    return name if not description else f"{name} — {description}"
 
 
 _JSON_BLOCK = re.compile(r"```(?:json)?\s*(.+?)```", re.DOTALL)

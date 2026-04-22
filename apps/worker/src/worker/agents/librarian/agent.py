@@ -33,7 +33,7 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
-from llm import LLMProvider
+from llm import ENV_BATCH_ENABLED_LIBRARIAN, LLMProvider, embed_many
 from llm.base import EmbedInput
 
 from runtime.agent import Agent
@@ -107,9 +107,16 @@ class LibrarianAgent(Agent):
         *,
         provider: LLMProvider,
         api: AgentApiClient | None = None,
+        batch_submit=None,
     ) -> None:
         self.provider = provider
         self.api = api or AgentApiClient()
+        # Plan 3b — batch_submit is wired up but not fully exploited yet.
+        # The merge loop embeds one summary per cluster; a future refactor
+        # can lift those embeds out of the loop to realise the batch-tier
+        # discount. Today's behaviour matches pre-3b: each call is 1 item,
+        # below BATCH_EMBED_MIN_ITEMS → embed_many falls through to sync.
+        self._batch_submit = batch_submit
 
     async def run(
         self,
@@ -437,10 +444,20 @@ class LibrarianAgent(Agent):
             # on the primary stays and the duplicates get collapsed into it.
             if merged_summary:
                 try:
-                    vecs = await self.provider.embed(
-                        [EmbedInput(text=merged_summary)]
+                    # TODO(Plan 3b Phase 2): lift this out of the loop so
+                    # all clusters' merged-summary embeddings batch in one
+                    # BatchEmbedWorkflow call. Today each call is 1 item,
+                    # which falls through to provider.embed via embed_many.
+                    vecs = await embed_many(
+                        self.provider,
+                        [EmbedInput(text=merged_summary)],
+                        workspace_id=ctx.workspace_id,
+                        batch_submit=self._batch_submit,
+                        flag_env=ENV_BATCH_ENABLED_LIBRARIAN,
                     )
                     new_embedding = vecs[0]
+                    if new_embedding is None:
+                        raise RuntimeError("embedding returned None")
                     await self.api.upsert_concept(
                         project_id=input.project_id,
                         name=details_by_id[primary_id]["name"],

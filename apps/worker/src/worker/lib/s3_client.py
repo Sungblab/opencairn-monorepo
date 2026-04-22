@@ -47,3 +47,59 @@ def download_to_tempfile(object_key: str) -> Path:
     client.fget_object(bucket, object_key, tmp.name)
     tmp.close()
     return Path(tmp.name)
+
+
+def upload_jsonl(object_key: str, lines: list[dict]) -> None:
+    """Write ``lines`` as newline-delimited JSON to ``object_key``.
+
+    Used by the Plan 3b batch-embed pipeline for audit sidecars. We pack
+    the bytes in-memory because individual batches are bounded (v0 has
+    no caller-side split above a few thousand items), so the JSONL for
+    inputs stays well under 10 MiB even at the upper end.
+    """
+    import io
+    import json
+
+    bucket = os.environ.get("S3_BUCKET", "opencairn-uploads")
+    client = get_s3_client()
+    payload = "\n".join(json.dumps(line, ensure_ascii=False) for line in lines).encode(
+        "utf-8"
+    )
+    buf = io.BytesIO(payload)
+    client.put_object(
+        bucket,
+        object_key,
+        data=buf,
+        length=len(payload),
+        content_type="application/x-ndjson",
+    )
+
+
+def download_jsonl(object_key: str) -> list[dict]:
+    """Read a JSONL blob and return one dict per line.
+
+    Lines that fail to parse are logged and skipped — callers treating
+    the sidecar as aligned-by-index should not receive an exception in
+    the middle of a run when one row is corrupt.
+    """
+    import json
+    import logging
+
+    logger = logging.getLogger(__name__)
+    bucket = os.environ.get("S3_BUCKET", "opencairn-uploads")
+    client = get_s3_client()
+    resp = client.get_object(bucket, object_key)
+    try:
+        data = resp.read()
+    finally:
+        resp.close()
+        resp.release_conn()
+    out: list[dict] = []
+    for i, raw in enumerate(data.decode("utf-8").splitlines()):
+        if not raw.strip():
+            continue
+        try:
+            out.append(json.loads(raw))
+        except json.JSONDecodeError as exc:
+            logger.warning("download_jsonl: bad line %d in %s: %s", i, object_key, exc)
+    return out
