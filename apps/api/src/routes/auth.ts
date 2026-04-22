@@ -12,6 +12,7 @@ export const authRoutes = new Hono()
       userId: session.user.id,
       email: session.user.email,
       name: session.user.name,
+      emailVerified: session.user.emailVerified ?? false,
     });
   })
   .all("/*", (c) => auth.handler(c.req.raw));
