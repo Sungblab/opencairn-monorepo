@@ -582,11 +582,31 @@ class GeminiProvider(LLMProvider):
 
     async def get_interaction(self, interaction_id: str) -> InteractionState:
         resp = await self._client.aio.interactions.get(interaction_id=interaction_id)
+        # ``Interaction.outputs`` items are SDK ``Content`` BaseModel instances
+        # (TextContent, ImageContent, …). Callers expect plain dicts
+        # (``state.outputs[0]["type"]``) so we ``model_dump`` at the boundary
+        # — never let SDK BaseModels escape ``packages/llm``.
+        outputs_raw = resp.outputs or []
+        outputs = [
+            o.model_dump() if hasattr(o, "model_dump") else dict(o)
+            for o in outputs_raw
+        ]
+        # The SDK ``Interaction`` schema does not declare ``error``; the field
+        # is absent in normal completed/failed paths. Server-side may attach
+        # one via pydantic ``extra`` for non-spec failure modes — getattr
+        # keeps us defensive without depending on SDK BaseModel behavior.
+        err_raw = getattr(resp, "error", None)
+        if err_raw is None:
+            err: dict[str, Any] | None = None
+        elif hasattr(err_raw, "model_dump"):
+            err = err_raw.model_dump()
+        else:
+            err = dict(err_raw)
         return InteractionState(
             id=resp.id,
             status=resp.status,
-            outputs=list(resp.outputs or []),
-            error=resp.error,
+            outputs=outputs,
+            error=err,
         )
 
     async def stream_interaction(
@@ -599,16 +619,39 @@ class GeminiProvider(LLMProvider):
         # ``create``). There is no separate ``.stream()`` method. ``get`` with
         # ``stream=True`` returns an ``AsyncStream[InteractionSSEEvent]`` that
         # we async-iterate.
+        #
+        # ``InteractionSSEEvent`` is an ``Annotated[Union[…], discriminator=
+        # "event_type"]`` — there is no ``.kind`` or ``.payload`` attribute on
+        # the variants. We lift ``event_type`` into our ``kind`` field and
+        # ``model_dump`` the rest of the variant into ``payload`` (after
+        # popping the duplicates) so callers get a uniform plain-dict view.
         kwargs: dict[str, Any] = {"interaction_id": interaction_id, "stream": True}
         if last_event_id is not None:
             kwargs["last_event_id"] = last_event_id
         stream = await self._client.aio.interactions.get(**kwargs)
         async for raw in stream:
             yield InteractionEvent(
-                event_id=raw.event_id,
-                kind=raw.kind,
-                payload=dict(raw.payload or {}),
+                event_id=getattr(raw, "event_id", "") or "",
+                kind=raw.event_type,
+                payload=self._serialize_event_payload(raw),
             )
+
+    @staticmethod
+    def _serialize_event_payload(raw: Any) -> dict[str, Any]:
+        """Reduce one ``InteractionSSEEvent`` variant to a plain dict payload.
+
+        ``event_type`` and ``event_id`` are lifted onto our ``InteractionEvent``
+        boundary fields, so we drop them from the payload to avoid storing the
+        same value twice. Variant-specific fields (``delta``, ``interaction``,
+        ``error``, ``content``, ``status``, ``index``) survive untouched.
+        """
+        if hasattr(raw, "model_dump"):
+            data: dict[str, Any] = raw.model_dump()
+        else:
+            data = dict(raw)
+        data.pop("event_type", None)
+        data.pop("event_id", None)
+        return data
 
     async def cancel_interaction(self, interaction_id: str) -> None:
         await self._client.aio.interactions.cancel(interaction_id=interaction_id)

@@ -23,6 +23,13 @@ def test_state_has_status_outputs_error():
     assert s.error is None
 
 
+def test_state_status_in_progress_matches_sdk_literal():
+    # SDK uses "in_progress" (not "running"). Asserting it round-trips through
+    # the dataclass guards against the previous drift where we used "running".
+    s = InteractionState(id="int_1", status="in_progress")
+    assert s.status == "in_progress"
+
+
 def test_state_error_shape():
     s = InteractionState(
         id="int_1",
@@ -37,9 +44,9 @@ def test_state_error_shape():
 def test_event_payload_is_dict():
     ev = InteractionEvent(
         event_id="ev_1",
-        kind="thought_summary",
-        payload={"text": "decomposing"},
+        kind="content.delta",
+        payload={"delta": {"type": "text", "text": "decomposing"}},
     )
     assert ev.event_id == "ev_1"
-    assert ev.kind == "thought_summary"
-    assert ev.payload["text"] == "decomposing"
+    assert ev.kind == "content.delta"
+    assert ev.payload["delta"]["text"] == "decomposing"

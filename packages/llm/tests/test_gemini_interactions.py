@@ -1,22 +1,32 @@
-import json
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
+from google.genai._interactions.types.interaction import Interaction
 
 from llm.gemini import GeminiProvider
 from llm.interactions import InteractionHandle
 
-FIXTURES = Path(__file__).parent / "fixtures" / "interactions"
 
+def _real_interaction(**overrides):
+    """Build a real SDK ``Interaction`` instance from sane defaults.
 
-def _fixture_as_obj(name: str):
-    """Return a MagicMock whose attributes match the JSON fixture keys."""
-    data = json.loads((FIXTURES / name).read_text())
-    m = MagicMock()
-    for k, v in data.items():
-        setattr(m, k, v)
-    return m, data
+    Using ``model_validate`` (rather than ``MagicMock`` with ad-hoc attrs)
+    pins our boundary mapping to the actual SDK schema — wrong field names
+    fail at validation time, in test, instead of at runtime in production.
+
+    Fields not declared on the SDK schema (``background``, ``error``) land
+    in ``__pydantic_extra__`` because Stainless ``BaseModel`` is configured
+    with ``extra="allow"``, so callers can still drive provider methods that
+    rely on getattr-style access for non-spec fields.
+    """
+    payload = {
+        "id": "int_run_xyz789",
+        "status": "in_progress",
+        "created": "2026-04-23T00:00:00Z",
+        "updated": "2026-04-23T00:00:00Z",
+    }
+    payload.update(overrides)
+    return Interaction.model_validate(payload)
 
 
 @pytest.fixture
@@ -24,9 +34,17 @@ def provider(gemini_config):
     return GeminiProvider(gemini_config)
 
 
+def _start_response():
+    return _real_interaction(
+        id="int_plan_abc123",
+        agent="deep-research-max-preview-04-2026",
+        background=True,
+    )
+
+
 @pytest.mark.asyncio
 async def test_start_interaction_returns_handle(provider):
-    mock_response, raw = _fixture_as_obj("plan_response.json")
+    mock_response = _start_response()
     with patch.object(
         provider._client.aio.interactions,
         "create",
@@ -39,8 +57,8 @@ async def test_start_interaction_returns_handle(provider):
             background=True,
         )
     assert isinstance(handle, InteractionHandle)
-    assert handle.id == raw["id"]
-    assert handle.agent == raw["agent"]
+    assert handle.id == "int_plan_abc123"
+    assert handle.agent == "deep-research-max-preview-04-2026"
     assert handle.background is True
     # Verify the SDK call carried our arguments
     call = mocked.await_args
@@ -54,11 +72,10 @@ async def test_start_interaction_returns_handle(provider):
 
 @pytest.mark.asyncio
 async def test_start_interaction_forwards_previous_id(provider):
-    mock_response, _ = _fixture_as_obj("plan_response.json")
     with patch.object(
         provider._client.aio.interactions,
         "create",
-        new=AsyncMock(return_value=mock_response),
+        new=AsyncMock(return_value=_start_response()),
     ) as mocked:
         await provider.start_interaction(
             input="edit: focus on TPU v5",
@@ -72,11 +89,10 @@ async def test_start_interaction_forwards_previous_id(provider):
 
 @pytest.mark.asyncio
 async def test_start_interaction_forwards_optional_agent_config(provider):
-    mock_response, _ = _fixture_as_obj("plan_response.json")
     with patch.object(
         provider._client.aio.interactions,
         "create",
-        new=AsyncMock(return_value=mock_response),
+        new=AsyncMock(return_value=_start_response()),
     ) as mocked:
         await provider.start_interaction(
             input="x",
@@ -93,15 +109,15 @@ async def test_start_interaction_forwards_optional_agent_config(provider):
 
 @pytest.mark.asyncio
 async def test_get_interaction_running(provider):
-    mock_response, raw = _fixture_as_obj("running_state.json")
+    mock_response = _real_interaction(id="int_run_xyz789", status="in_progress")
     with patch.object(
         provider._client.aio.interactions,
         "get",
         new=AsyncMock(return_value=mock_response),
     ) as mocked:
         state = await provider.get_interaction("int_run_xyz789")
-    assert state.id == raw["id"]
-    assert state.status == "running"
+    assert state.id == "int_run_xyz789"
+    assert state.status == "in_progress"
     assert state.outputs == []
     assert state.error is None
     mocked.assert_awaited_once_with(interaction_id="int_run_xyz789")
@@ -109,7 +125,19 @@ async def test_get_interaction_running(provider):
 
 @pytest.mark.asyncio
 async def test_get_interaction_completed_with_outputs(provider):
-    mock_response, raw = _fixture_as_obj("completed_state.json")
+    # Build a real SDK Interaction with outputs as the discriminated Content
+    # union (TextContent + ImageContent). Provider must model_dump these into
+    # plain dicts so callers can do ``state.outputs[0]["type"]`` without
+    # crashing on ``Content`` BaseModel instances.
+    mock_response = _real_interaction(
+        id="int_run_xyz789",
+        status="completed",
+        updated="2026-04-23T00:05:00Z",
+        outputs=[
+            {"type": "text", "text": "## TPU Generations\n..."},
+            {"type": "image", "data": "BASE64PNG==", "mime_type": "image/png"},
+        ],
+    )
     with patch.object(
         provider._client.aio.interactions,
         "get",
@@ -119,20 +147,79 @@ async def test_get_interaction_completed_with_outputs(provider):
     assert state.status == "completed"
     assert len(state.outputs) == 2
     assert state.outputs[0]["type"] == "text"
+    assert state.outputs[0]["text"].startswith("## TPU Generations")
     assert state.outputs[1]["type"] == "image"
+    assert state.outputs[1]["mime_type"] == "image/png"
+    # Pure dicts, never SDK BaseModel instances — callers depend on this.
+    for o in state.outputs:
+        assert isinstance(o, dict)
 
 
 @pytest.mark.asyncio
 async def test_stream_interaction_yields_events(provider):
-    path = FIXTURES / "stream_events.jsonl"
-    lines = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    # Use real SDK SSE variant instances. Each variant carries the
+    # ``event_type`` discriminator (becomes our ``kind``) plus variant-
+    # specific payload fields (``delta`` / ``interaction`` / ``error`` / …).
+    # The previous test fed MagicMock objects with hand-set ``kind`` and
+    # ``payload`` attrs that don't exist on any SDK type — masking the
+    # actual stream_interaction shape mismatch.
+    from google.genai._interactions.types.content_delta import ContentDelta
+    from google.genai._interactions.types.interaction_complete_event import (
+        InteractionCompleteEvent,
+    )
+    from google.genai._interactions.types.interaction_start_event import (
+        InteractionStartEvent,
+    )
+
+    interaction_payload = {
+        "id": "int_run_xyz789",
+        "status": "in_progress",
+        "created": "2026-04-23T00:00:00Z",
+        "updated": "2026-04-23T00:00:00Z",
+    }
+    events = [
+        InteractionStartEvent.model_validate(
+            {
+                "event_type": "interaction.start",
+                "event_id": "ev_0",
+                "interaction": interaction_payload,
+            }
+        ),
+        ContentDelta.model_validate(
+            {
+                "event_type": "content.delta",
+                "event_id": "ev_1",
+                "index": 0,
+                "delta": {"type": "text", "text": "TPU v1 launched in 2016..."},
+            }
+        ),
+        ContentDelta.model_validate(
+            {
+                "event_type": "content.delta",
+                "event_id": "ev_2",
+                "index": 0,
+                "delta": {
+                    "type": "image",
+                    "data": "BASE64PNG==",
+                    "mime_type": "image/png",
+                },
+            }
+        ),
+        InteractionCompleteEvent.model_validate(
+            {
+                "event_type": "interaction.complete",
+                "event_id": "ev_3",
+                "interaction": {
+                    **interaction_payload,
+                    "status": "completed",
+                    "updated": "2026-04-23T00:05:00Z",
+                },
+            }
+        ),
+    ]
 
     async def _gen():
-        for row in lines:
-            ev = MagicMock()
-            ev.event_id = row["event_id"]
-            ev.kind = row["kind"]
-            ev.payload = row["payload"]
+        for ev in events:
             yield ev
 
     with patch.object(
@@ -145,8 +232,25 @@ async def test_stream_interaction_yields_events(provider):
             collected.append(ev)
 
     assert [e.event_id for e in collected] == ["ev_0", "ev_1", "ev_2", "ev_3"]
-    assert collected[0].kind == "thought_summary"
-    assert collected[2].payload["mime_type"] == "image/png"
+    # ``kind`` is the SDK ``event_type`` verbatim — not the legacy
+    # ContentDelta sub-type ("text"/"image") we previously assumed.
+    assert [e.kind for e in collected] == [
+        "interaction.start",
+        "content.delta",
+        "content.delta",
+        "interaction.complete",
+    ]
+    # Payload is plain dict; variant-specific fields stay accessible.
+    assert collected[1].payload["delta"]["type"] == "text"
+    assert collected[2].payload["delta"]["mime_type"] == "image/png"
+    assert collected[0].payload["interaction"]["id"] == "int_run_xyz789"
+    # ``event_type`` and ``event_id`` are lifted to ``kind`` / ``event_id``
+    # so we don't double-store them in the payload dict.
+    assert "event_type" not in collected[0].payload
+    assert "event_id" not in collected[0].payload
+    for e in collected:
+        assert isinstance(e.payload, dict)
+
     mocked.assert_awaited_once()
     call_kwargs = mocked.await_args.kwargs
     assert call_kwargs["interaction_id"] == "int_run_xyz789"
