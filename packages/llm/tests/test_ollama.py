@@ -99,3 +99,30 @@ async def test_generate_multimodal_no_input_returns_none(provider):
         result = await provider.generate_multimodal("no image")
     assert result is None
     assert not route.called
+
+
+@pytest.mark.asyncio
+async def test_ollama_start_interaction_raises(provider):
+    with pytest.raises(NotImplementedError):
+        await provider.start_interaction(
+            input="x", agent="deep-research-preview-04-2026",
+        )
+
+
+@pytest.mark.asyncio
+async def test_ollama_get_interaction_raises(provider):
+    with pytest.raises(NotImplementedError):
+        await provider.get_interaction("int_1")
+
+
+@pytest.mark.asyncio
+async def test_ollama_stream_interaction_raises(provider):
+    with pytest.raises(NotImplementedError):
+        async for _ in provider.stream_interaction("int_1"):
+            pass
+
+
+@pytest.mark.asyncio
+async def test_ollama_cancel_interaction_raises(provider):
+    with pytest.raises(NotImplementedError):
+        await provider.cancel_interaction("int_1")
