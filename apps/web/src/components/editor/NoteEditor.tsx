@@ -24,6 +24,8 @@ import {
 } from "@/hooks/useCollaborativeEditor";
 import { api, ApiError } from "@/lib/api-client";
 
+import { DisconnectedBanner } from "../collab/DisconnectedBanner";
+import { ReadOnlyBanner } from "../collab/ReadOnlyBanner";
 import {
   EditorToolbar,
   type ToolbarActions,
@@ -31,6 +33,7 @@ import {
   type ToolbarMark,
 } from "./editor-toolbar";
 import { latexPlugins } from "./plugins/latex";
+import { PresenceStack } from "./PresenceStack";
 import { SlashMenu, type SlashEditor } from "./plugins/slash";
 import {
   createWikiLinkPlugin,
@@ -189,46 +192,61 @@ export function NoteEditor({
   );
 
   return (
-    <div className="flex min-h-full flex-col">
-      <EditorToolbar actions={actions} />
-      <WikiLinkCombobox
-        ctx={{ wsSlug, projectId }}
-        editor={editor as unknown as Parameters<typeof WikiLinkCombobox>[0]["editor"]}
-      />
-      <SlashMenu editor={editor as unknown as SlashEditor} />
-      <div className="mx-auto w-full max-w-[720px] flex-1 px-8 py-8">
-        <input
-          value={title}
-          onChange={(e) => handleTitleChange(e.target.value)}
-          placeholder={t("placeholder.title")}
-          disabled={readOnly}
-          className="placeholder:text-fg-muted w-full bg-transparent text-3xl font-semibold outline-none"
-          data-testid="note-title"
+    <Plate editor={editor} readOnly={readOnly}>
+      <div className="flex min-h-full flex-col">
+        {/* Banners live inside <Plate> so they can read the editor context
+            via useEditorRef / usePluginOption. `DisconnectedBanner`
+            self-hides when connected; `ReadOnlyBanner` is gated by the
+            server-resolved `readOnly` prop. */}
+        <DisconnectedBanner />
+        {readOnly && <ReadOnlyBanner />}
+
+        <EditorToolbar actions={actions} />
+        <WikiLinkCombobox
+          ctx={{ wsSlug, projectId }}
+          editor={editor as unknown as Parameters<typeof WikiLinkCombobox>[0]["editor"]}
         />
-        <Plate editor={editor} readOnly={readOnly}>
+        <SlashMenu editor={editor as unknown as SlashEditor} />
+        <div className="mx-auto w-full max-w-[720px] flex-1 px-8 py-8">
+          <div className="flex items-start justify-between gap-4">
+            <input
+              value={title}
+              onChange={(e) => handleTitleChange(e.target.value)}
+              placeholder={t("placeholder.title")}
+              disabled={readOnly}
+              className="placeholder:text-fg-muted w-full bg-transparent text-3xl font-semibold outline-none"
+              data-testid="note-title"
+            />
+            {/* PresenceStack shows remote collaborators; self-hides when
+                alone. Positioned in the title row's top-right for minimal
+                layout disruption. */}
+            <div className="shrink-0 pt-2">
+              <PresenceStack />
+            </div>
+          </div>
           <PlateContent
             data-testid="note-body"
             placeholder={t("placeholder.body")}
             className="prose prose-stone mt-6 min-h-[60vh] max-w-none focus:outline-none"
             readOnly={readOnly}
           />
-        </Plate>
-        <div
-          className="text-fg-muted mt-4 text-xs"
-          data-testid="save-status"
-          role="status"
-          aria-live="polite"
-        >
-          {titleStatus === "saving" && t("save.saving")}
-          {titleStatus === "saved" && t("save.saved")}
-          {titleStatus === "error" && (
-            <span className="text-red-600">
-              {t("save.failed")}
-              {titleError ? `: ${titleError}` : null}
-            </span>
-          )}
+          <div
+            className="text-fg-muted mt-4 text-xs"
+            data-testid="save-status"
+            role="status"
+            aria-live="polite"
+          >
+            {titleStatus === "saving" && t("save.saving")}
+            {titleStatus === "saved" && t("save.saved")}
+            {titleStatus === "error" && (
+              <span className="text-red-600">
+                {t("save.failed")}
+                {titleError ? `: ${titleError}` : null}
+              </span>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </Plate>
   );
 }
