@@ -1,0 +1,31 @@
+{
+  "name": "@opencairn/hocuspocus",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=../../.env src/server.ts",
+    "build": "tsc",
+    "start": "node --env-file=../../.env dist/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@hocuspocus/server": "^3.1.1",
+    "@hocuspocus/extension-database": "^3.1.1",
+    "@opencairn/api": "workspace:*",
+    "@opencairn/db": "workspace:*",
+    "@opencairn/shared": "workspace:*",
+    "better-auth": "^1.2.0",
+    "pino": "^9.0.0",
+    "yjs": "^13.6.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@hocuspocus/provider": "^3.1.1",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0",
+    "vitest": "^4.1.4"
+  }
+}
