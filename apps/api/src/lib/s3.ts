@@ -63,3 +63,20 @@ export async function uploadObject(
   });
   return key;
 }
+
+// Short-lived PUT URL the browser can upload directly to, bypassing the API.
+// MinIO's presignedPutObject does NOT bind Content-Length into the signature
+// — `maxSize` is accepted for symmetry with callers but the API route must
+// still enforce the ceiling before issuing the URL.
+export async function getPresignedPutUrl(
+  key: string,
+  opts: {
+    expiresSeconds?: number;
+    contentType?: string;
+    maxSize?: number;
+  } = {},
+): Promise<string> {
+  const client = getS3Client();
+  const expires = opts.expiresSeconds ?? 30 * 60;
+  return client.presignedPutObject(BUCKET, key, expires);
+}

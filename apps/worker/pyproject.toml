@@ -27,6 +27,21 @@ dependencies = [
     "yt-dlp>=2024.11.4",
     # Web URL scraping for the scrape_web_url activity.
     "trafilatura>=1.12.0",
+    # AES-256-GCM for user_integrations OAuth token storage. Wire-compatible
+    # with apps/api/src/lib/integration-tokens.ts — both sides decrypt the
+    # same rows written by /api/integrations/google/callback.
+    "cryptography>=42.0",
+    # Google Drive ingest (Plan: ingest-source-expansion Task 6). We use the
+    # lower-level google-api-python-client rather than google-cloud-* since
+    # the latter targets service accounts; OAuth-access-token flows are
+    # simpler with the generic client.
+    "google-api-python-client>=2.100",
+    "google-auth>=2.23",
+    # Notion MD → Plate conversion (Plan: ingest-source-expansion Task 8).
+    # CommonMark-compliant, token-stream-based — we walk the tokens directly
+    # rather than relying on an HTML intermediate so Plate elements like
+    # wikilinks can be emitted inline without re-parsing.
+    "markdown-it-py>=3.0",
 ]
 
 [project.optional-dependencies]

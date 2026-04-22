@@ -28,6 +28,7 @@
 | Multi-LLM provider 설계 (Gemini/Ollama)                         | `superpowers/specs/2026-04-13-multi-llm-provider-design.md`         |
 | Document skills (PDF/DOCX/PPTX 생성)                            | `superpowers/specs/2026-04-15-document-skills-design.md`            |
 | **탭 시스템** (Multi-Mode Tab, Split Pane, Diff, Command Palette) | `superpowers/specs/2026-04-20-tab-system-design.md`                 |
+| **Ingest source expansion** (Drive + Notion one-shot import)     | `superpowers/specs/2026-04-22-ingest-source-expansion-design.md`    |
 
 ## Ops & contributing
 

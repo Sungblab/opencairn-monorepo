@@ -15,6 +15,7 @@ import {
   wikiLogs,
   projectSemaphoreSlots,
   embeddingBatches,
+  importJobs,
   eq,
   and,
   sql,
@@ -966,6 +967,205 @@ internal.patch(
     if (!updated) {
       return c.json({ error: "not found" }, 404);
     }
+    return c.json({ ok: true });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Ingest Source Expansion — import-job lifecycle + flat note materialization
+// ---------------------------------------------------------------------------
+
+// GET /internal/import-jobs/:id — worker re-hydrates the job row between
+// activities. We synthesize a `target` discriminated-union shape for the
+// worker so it doesn't have to reimplement the "new vs existing" decision
+// against raw columns.
+internal.get("/import-jobs/:id", async (c) => {
+  const id = c.req.param("id");
+  if (!z.string().uuid().safeParse(id).success) {
+    return c.json({ error: "Invalid job id" }, 400);
+  }
+  const [job] = await db
+    .select()
+    .from(importJobs)
+    .where(eq(importJobs.id, id))
+    .limit(1);
+  if (!job) return c.json({ error: "not_found" }, 404);
+  return c.json({
+    id: job.id,
+    workspaceId: job.workspaceId,
+    userId: job.userId,
+    source: job.source,
+    status: job.status,
+    totalItems: job.totalItems,
+    completedItems: job.completedItems,
+    failedItems: job.failedItems,
+    sourceMetadata: job.sourceMetadata,
+    // `target` is the worker-facing view. If targetProjectId is NULL the
+    // activity will create a fresh project and PATCH the ids back.
+    target: job.targetProjectId
+      ? {
+          kind: "existing" as const,
+          projectId: job.targetProjectId,
+          parentNoteId: job.targetParentNoteId,
+        }
+      : { kind: "new" as const },
+  });
+});
+
+const importJobPatchSchema = z.object({
+  status: z.enum(["queued", "running", "completed", "failed"]).optional(),
+  totalItems: z.number().int().nonnegative().optional(),
+  completedItems: z.number().int().nonnegative().optional(),
+  failedItems: z.number().int().nonnegative().optional(),
+  targetProjectId: z.string().uuid().nullable().optional(),
+  targetParentNoteId: z.string().uuid().nullable().optional(),
+  errorSummary: z.string().max(4000).nullable().optional(),
+  finishedAt: z.string().datetime().nullable().optional(),
+});
+
+internal.patch(
+  "/import-jobs/:id",
+  zValidator("json", importJobPatchSchema),
+  async (c) => {
+    const id = c.req.param("id");
+    if (!z.string().uuid().safeParse(id).success) {
+      return c.json({ error: "Invalid job id" }, 400);
+    }
+    const body = c.req.valid("json");
+    // Build the patch object explicitly so we only touch fields the caller
+    // provided — matches the embeddingBatches PATCH style above.
+    const patch: Record<string, unknown> = {};
+    if (body.status !== undefined) patch.status = body.status;
+    if (body.totalItems !== undefined) patch.totalItems = body.totalItems;
+    if (body.completedItems !== undefined)
+      patch.completedItems = body.completedItems;
+    if (body.failedItems !== undefined) patch.failedItems = body.failedItems;
+    if (body.targetProjectId !== undefined)
+      patch.targetProjectId = body.targetProjectId;
+    if (body.targetParentNoteId !== undefined)
+      patch.targetParentNoteId = body.targetParentNoteId;
+    if (body.errorSummary !== undefined) patch.errorSummary = body.errorSummary;
+    if (body.finishedAt !== undefined)
+      patch.finishedAt = body.finishedAt ? new Date(body.finishedAt) : null;
+    if (Object.keys(patch).length === 0) return c.json({ ok: true });
+    const [updated] = await db
+      .update(importJobs)
+      .set(patch)
+      .where(eq(importJobs.id, id))
+      .returning({ id: importJobs.id });
+    if (!updated) return c.json({ error: "not_found" }, 404);
+    return c.json({ ok: true });
+  },
+);
+
+// POST /internal/projects — worker creates a landing project for a "new"
+// target. userId is required: projects.createdBy is NOT NULL with RESTRICT
+// on user deletion, so the import job's owner is the only sensible author.
+const internalProjectCreateSchema = z.object({
+  workspaceId: z.string().uuid(),
+  userId: z.string().min(1).max(200),
+  name: z.string().min(1).max(200),
+});
+
+internal.post(
+  "/projects",
+  zValidator("json", internalProjectCreateSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const [proj] = await db
+      .insert(projects)
+      .values({
+        workspaceId: body.workspaceId,
+        name: body.name,
+        createdBy: body.userId,
+      })
+      .returning({ id: projects.id });
+    return c.json({ id: proj.id });
+  },
+);
+
+// POST /internal/notes — generic note insert for the import pipeline.
+// Mirrors /internal/source-notes but accepts pre-rendered Plate content and
+// skips the Compiler trigger (imports run the Compiler later, in bulk,
+// once all pages have landed). parentNoteId and importPath/importJobId are
+// accepted for forward-compat but NOT persisted — the notes table has no
+// parent or import columns today (same precedent as /source-notes).
+const internalNoteCreateSchema = z.object({
+  projectId: z.string().uuid(),
+  parentNoteId: z.string().uuid().nullable().optional(),
+  title: z.string().min(1).max(512).default("Untitled"),
+  type: z.enum(["note", "source"]).default("note"),
+  sourceType: z
+    .enum(["pdf", "audio", "video", "image", "youtube", "web", "unknown", "notion"])
+    .nullable()
+    .optional(),
+  content: z.unknown().nullable().optional(),
+  contentText: z.string().nullable().optional(),
+  importJobId: z.string().uuid().optional(),
+  importPath: z.string().max(1024).optional(),
+});
+
+internal.post(
+  "/notes",
+  zValidator("json", internalNoteCreateSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const [proj] = await db
+      .select({ workspaceId: projects.workspaceId })
+      .from(projects)
+      .where(eq(projects.id, body.projectId));
+    if (!proj) return c.json({ error: "Project not found" }, 404);
+
+    const id = randomUUID();
+    await db.insert(notes).values({
+      id,
+      projectId: body.projectId,
+      workspaceId: proj.workspaceId,
+      title: body.title,
+      type: body.type,
+      sourceType: body.sourceType ?? null,
+      content: body.content ?? null,
+      contentText: body.contentText ?? "",
+      isAuto: true,
+    });
+    return c.json({ id }, 201);
+  },
+);
+
+// PATCH /internal/notes/:id — worker backfills content after the Markdown
+// converter (Task 8) finishes. Narrow allowlist so the same endpoint can't
+// be (ab)used to rewrite arbitrary columns like workspace_id.
+const internalNotePatchSchema = z.object({
+  content: z.unknown().optional(),
+  contentText: z.string().optional(),
+  title: z.string().min(1).max(512).optional(),
+  sourceType: z
+    .enum(["pdf", "audio", "video", "image", "youtube", "web", "unknown", "notion"])
+    .nullable()
+    .optional(),
+});
+
+internal.patch(
+  "/notes/:id",
+  zValidator("json", internalNotePatchSchema),
+  async (c) => {
+    const id = c.req.param("id");
+    if (!z.string().uuid().safeParse(id).success) {
+      return c.json({ error: "invalid uuid" }, 400);
+    }
+    const body = c.req.valid("json");
+    const patch: Record<string, unknown> = {};
+    if (body.content !== undefined) patch.content = body.content;
+    if (body.contentText !== undefined) patch.contentText = body.contentText;
+    if (body.title !== undefined) patch.title = body.title;
+    if (body.sourceType !== undefined) patch.sourceType = body.sourceType;
+    if (Object.keys(patch).length === 0) return c.json({ ok: true });
+    const [updated] = await db
+      .update(notes)
+      .set(patch)
+      .where(eq(notes.id, id))
+      .returning({ id: notes.id });
+    if (!updated) return c.json({ error: "not_found" }, 404);
     return c.json({ ok: true });
   },
 );

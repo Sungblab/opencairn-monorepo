@@ -253,6 +253,45 @@ docker-compose up -d
 pnpm db:migrate
 ```
 
+## Import (Drive + Notion)
+
+One-shot bulk import at `/app/w/[slug]/import`. Feature flag:
+`FEATURE_IMPORT_ENABLED=true`. Full design in
+`docs/superpowers/specs/2026-04-22-ingest-source-expansion-design.md`
+(spec) and `docs/superpowers/plans/2026-04-22-ingest-source-expansion.md`
+(plan).
+
+### Google Drive setup
+
+1. Google Cloud Console → APIs & Services → Credentials → Create OAuth
+   client ID. Application type: **Web**.
+2. Authorized redirect URI: `{PUBLIC_API_URL}/api/integrations/google/callback`.
+3. Scopes on the OAuth consent screen: `drive.file` + `userinfo.email`.
+   Both are non-sensitive — **no CASA audit required**.
+4. Set `GOOGLE_OAUTH_CLIENT_ID` + `GOOGLE_OAUTH_CLIENT_SECRET` in `.env`.
+
+### Token encryption key
+
+Generate once per deployment and keep stable — rotation requires
+re-encrypting existing `user_integrations` rows:
+
+```bash
+openssl rand -base64 32
+```
+
+Set the output as `INTEGRATION_TOKEN_ENCRYPTION_KEY`. The API (TS) and
+worker (Python) both decrypt from the same bytes — wire format is
+`iv(12) || tag(16) || ct`, see `apps/api/src/lib/integration-tokens.ts`
+and `apps/worker/src/worker/lib/integration_crypto.py`.
+
+### Notion ZIPs
+
+No OAuth. Users upload their workspace export ZIP directly via a
+presigned MinIO URL. Size ceilings are env-tunable
+(`IMPORT_NOTION_ZIP_MAX_BYTES`, `IMPORT_NOTION_ZIP_MAX_UNCOMPRESSED_BYTES`).
+The worker extracts into `NOTION_IMPORT_STAGING_DIR/<job_id>/` with
+zip-slip / bomb / file-count defenses before any file hits disk.
+
 ## Troubleshooting
 
 위 Quick Start §6을 먼저 확인. 이하는 추가 케이스:
@@ -262,3 +301,7 @@ pnpm db:migrate
 | Migration fails | `.env`의 `DATABASE_URL`과 docker-compose 값 일치 확인 |
 | Hocuspocus 연결 실패 | Better Auth 세션 쿠키가 ws 핸드셰이크에 전달되는지 확인 |
 | Gemini 429 rate limit | 로컬 개발 시 BYOK 키 사용 권장, 또는 Ollama provider로 전환 |
+| /import returns 404 | `FEATURE_IMPORT_ENABLED=true` 설정 및 서버 재시작 |
+| Drive connect → 503 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` 미설정 |
+| OAuth state expired | 10분 TTL — OAuth 동의 화면에서 너무 오래 머물면 재시작 필요 |
+| Notion zip_slip/bomb | ZIP 내부에 `../` 경로 혹은 과도한 압축률 — 다른 경로 재업로드 |
