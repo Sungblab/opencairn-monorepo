@@ -17,11 +17,18 @@ import { CommentComposer } from "./CommentComposer";
 
 interface ThreadProps {
   noteId: string;
+  /** Workspace scope forwarded to the reply composer's mention search. */
+  workspaceId: string;
   root: CommentResponse & { replies: CommentResponse[] };
   canComment: boolean;
 }
 
-export function CommentThread({ noteId, root, canComment }: ThreadProps) {
+export function CommentThread({
+  noteId,
+  workspaceId,
+  root,
+  canComment,
+}: ThreadProps) {
   const t = useTranslations("collab.comments");
   const resolve = useResolveComment(noteId);
   const remove = useDeleteComment(noteId);
@@ -61,7 +68,13 @@ export function CommentThread({ noteId, root, canComment }: ThreadProps) {
           ))}
         </ul>
       )}
-      {canComment && <CommentComposer noteId={noteId} parentId={root.id} />}
+      {canComment && (
+        <CommentComposer
+          noteId={noteId}
+          workspaceId={workspaceId}
+          parentId={root.id}
+        />
+      )}
     </div>
   );
 }

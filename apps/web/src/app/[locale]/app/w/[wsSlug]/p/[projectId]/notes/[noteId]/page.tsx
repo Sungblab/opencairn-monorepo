@@ -14,6 +14,10 @@ interface PageProps {
 interface NoteMetaDTO {
   id: string;
   title: string;
+  // Denormalized workspace uuid from the notes row (see notes.workspaceId in
+  // packages/db). Plan 2B Task 19 threads this into NoteEditor →
+  // CommentsPanel → CommentComposer so the @mention search can scope itself.
+  workspaceId: string;
 }
 
 interface RoleDTO {
@@ -84,6 +88,7 @@ export default async function NotePage({ params }: PageProps) {
       noteId={note.id}
       initialTitle={note.title}
       wsSlug={wsSlug}
+      workspaceId={note.workspaceId}
       projectId={projectId}
       userId={me.userId}
       userName={me.name ?? me.email ?? "Anonymous"}

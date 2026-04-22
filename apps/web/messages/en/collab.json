@@ -23,7 +23,12 @@
       "page": "Search pages",
       "concept": "Search concepts",
       "date": "Type a date"
-    }
+    },
+    "date": {
+      "format_hint": "YYYY-MM-DD",
+      "insert": "Insert"
+    },
+    "empty": "No results"
   },
   "collab": {
     "readonly_banner": "Read-only mode",

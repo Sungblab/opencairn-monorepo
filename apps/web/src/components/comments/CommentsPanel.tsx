@@ -19,6 +19,11 @@ import { CommentThread } from "./CommentThread";
 interface CommentsPanelProps {
   noteId: string;
   /**
+   * Workspace scope for `/api/mentions/search` inside the composer. Forwarded
+   * to both the page-level composer and every per-thread reply composer.
+   */
+  workspaceId: string;
+  /**
    * True if the viewer has at least the `commenter` role. Gates the top-level
    * composer and all per-thread reply/resolve/delete buttons. Viewers see
    * the panel read-only.
@@ -38,7 +43,11 @@ function groupByRoot(comments: CommentResponse[]) {
   }));
 }
 
-export function CommentsPanel({ noteId, canComment }: CommentsPanelProps) {
+export function CommentsPanel({
+  noteId,
+  workspaceId,
+  canComment,
+}: CommentsPanelProps) {
   const t = useTranslations("collab.comments");
   const { data, isLoading } = useComments(noteId);
 
@@ -58,7 +67,7 @@ export function CommentsPanel({ noteId, canComment }: CommentsPanelProps) {
       {canComment && (
         <div className="border-b p-3">
           {/* Page-level composer — anchorBlockId omitted → null on server. */}
-          <CommentComposer noteId={noteId} />
+          <CommentComposer noteId={noteId} workspaceId={workspaceId} />
         </div>
       )}
 
@@ -70,6 +79,7 @@ export function CommentsPanel({ noteId, canComment }: CommentsPanelProps) {
             <li key={root.id} className="p-4">
               <CommentThread
                 noteId={noteId}
+                workspaceId={workspaceId}
                 root={root}
                 canComment={canComment}
               />

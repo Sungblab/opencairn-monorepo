@@ -66,6 +66,12 @@ export interface NoteEditorProps {
   noteId: string;
   initialTitle: string;
   wsSlug: string;
+  /**
+   * Workspace uuid (not slug). Forwarded to CommentsPanel so the @mention
+   * combobox can scope `/api/mentions/search`. `wsSlug` is kept separately
+   * because the wiki-link combobox builds route URLs from the slug.
+   */
+  workspaceId: string;
   projectId: string;
   /** Authenticated user id — used as the Yjs awareness key. */
   userId: string;
@@ -85,6 +91,7 @@ export function NoteEditor({
   noteId,
   initialTitle,
   wsSlug,
+  workspaceId,
   projectId,
   userId,
   userName,
@@ -260,7 +267,11 @@ export function NoteEditor({
             </div>
           </div>
         </div>
-        <CommentsPanel noteId={noteId} canComment={canComment} />
+        <CommentsPanel
+          noteId={noteId}
+          workspaceId={workspaceId}
+          canComment={canComment}
+        />
       </div>
     </Plate>
   );

@@ -23,7 +23,12 @@
       "page": "페이지 검색",
       "concept": "개념 검색",
       "date": "날짜 입력"
-    }
+    },
+    "date": {
+      "format_hint": "YYYY-MM-DD",
+      "insert": "삽입"
+    },
+    "empty": "결과 없음"
   },
   "collab": {
     "readonly_banner": "읽기 전용 모드입니다",
