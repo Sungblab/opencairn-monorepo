@@ -16,6 +16,12 @@ import * as wikiLogs from "./schema/wiki-logs";
 import * as learning from "./schema/learning";
 import * as jobs from "./schema/jobs";
 import * as conversations from "./schema/conversations";
+import * as userPreferences from "./schema/user-preferences";
+import * as agentRuns from "./schema/agent-runs";
+import * as projectSemaphores from "./schema/project-semaphores";
+import * as embeddingBatches from "./schema/embedding-batches";
+import * as comments from "./schema/comments";
+import * as yjsDocuments from "./schema/yjs-documents";
 
 const schema = {
   ...users,
@@ -34,8 +40,27 @@ const schema = {
   ...learning,
   ...jobs,
   ...conversations,
+  ...userPreferences,
+  ...agentRuns,
+  ...projectSemaphores,
+  ...embeddingBatches,
+  ...comments,
+  ...yjsDocuments,
 };
 
+// 명시적 factory — 소비자가 자체 pool을 소유하고 싶을 때 사용.
+// 호출자가 pool 수명 책임 (no global cache). hocuspocus 등 별개 서비스용.
+export function createDb(url: string) {
+  const client = postgres(url, {
+    prepare: false,
+    max: 10,
+    idle_timeout: 20,
+    max_lifetime: 60 * 5,
+  });
+  return drizzle(client, { schema });
+}
+
+// 모듈-레벨 singleton — HMR 대비 globalForDb 캐시 유지.
 const globalForDb = globalThis as unknown as {
   _pgClient?: ReturnType<typeof postgres>;
 };

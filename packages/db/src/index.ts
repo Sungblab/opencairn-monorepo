@@ -1,4 +1,4 @@
-export { db, type DB } from "./client";
+export { db, createDb, type DB } from "./client";
 
 export * from "./schema/enums";
 export * from "./schema/users";
