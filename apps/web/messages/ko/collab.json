@@ -1,0 +1,33 @@
+{
+  "presence": {
+    "you": "나",
+    "viewing_count": "{count}명이 보고 있습니다"
+  },
+  "comments": {
+    "panel_title": "코멘트",
+    "add_button": "코멘트 추가",
+    "composer_placeholder": "코멘트를 입력하세요...",
+    "reply": "답글",
+    "resolve": "해결됨으로 표시",
+    "resolved": "해결됨",
+    "unresolved": "다시 열기",
+    "delete": "삭제",
+    "delete_confirm": "이 코멘트를 삭제하시겠어요?",
+    "orphan_block": "원본 블록이 삭제되었습니다",
+    "show_resolved": "해결된 코멘트 보기",
+    "empty": "아직 코멘트가 없습니다"
+  },
+  "mention": {
+    "combobox_hint": {
+      "user": "멤버 검색",
+      "page": "페이지 검색",
+      "concept": "개념 검색",
+      "date": "날짜 입력"
+    }
+  },
+  "collab": {
+    "readonly_banner": "읽기 전용 모드입니다",
+    "disconnected_banner": "연결이 끊겼습니다. 재시도 중...",
+    "restore_connection": "다시 연결"
+  }
+}

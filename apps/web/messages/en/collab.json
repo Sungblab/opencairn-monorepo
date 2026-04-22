@@ -1,0 +1,33 @@
+{
+  "presence": {
+    "you": "You",
+    "viewing_count": "{count} viewing"
+  },
+  "comments": {
+    "panel_title": "Comments",
+    "add_button": "Add comment",
+    "composer_placeholder": "Write a comment...",
+    "reply": "Reply",
+    "resolve": "Mark resolved",
+    "resolved": "Resolved",
+    "unresolved": "Reopen",
+    "delete": "Delete",
+    "delete_confirm": "Delete this comment?",
+    "orphan_block": "Original block was deleted",
+    "show_resolved": "Show resolved",
+    "empty": "No comments yet"
+  },
+  "mention": {
+    "combobox_hint": {
+      "user": "Search members",
+      "page": "Search pages",
+      "concept": "Search concepts",
+      "date": "Type a date"
+    }
+  },
+  "collab": {
+    "readonly_banner": "Read-only mode",
+    "disconnected_banner": "Disconnected. Reconnecting...",
+    "restore_connection": "Retry"
+  }
+}
