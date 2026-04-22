@@ -119,6 +119,7 @@ class NoopHooks:
 # ── Executor ────────────────────────────────────────────────────────────
 
 
+import asyncio  # noqa: E402
 import json  # noqa: E402 (kept near executor so types block stays tidy)
 import logging  # noqa: E402
 
@@ -190,6 +191,8 @@ class ToolLoopExecutor:
                     )
 
                 for tu in turn.tool_uses:
+                    if reason := self._check_soft_guards(state, tu):
+                        return self._finalize(state, reason)
                     result = await self._execute_tool(tu)
                     state.messages.append(
                         self._provider.tool_result_to_message(result)
@@ -211,15 +214,25 @@ class ToolLoopExecutor:
     async def _execute_tool(self, tool_use) -> ToolResult:
         # Merge system-managed scope values over LLM-supplied args
         # (Umbrella §3 C3 — workspace isolation enforcement).
+        timeout = self._config.per_tool_timeout_overrides.get(
+            tool_use.name, self._config.per_tool_timeout_sec,
+        )
         args = {**tool_use.args, **self._tool_context}
         try:
-            raw = await self._tool_registry.execute(tool_use.name, args)
+            async with asyncio.timeout(timeout):
+                raw = await self._tool_registry.execute(tool_use.name, args)
             data = self._truncate(raw, tool_use.name)
             return ToolResult(
                 tool_use_id=tool_use.id, name=tool_use.name,
                 data=data, is_error=False,
             )
-        except Exception as e:  # other failure modes added in Task 11
+        except asyncio.TimeoutError:
+            return ToolResult(
+                tool_use_id=tool_use.id, name=tool_use.name,
+                data={"error": f"Tool timed out after {timeout}s"},
+                is_error=True,
+            )
+        except Exception as e:
             return ToolResult(
                 tool_use_id=tool_use.id, name=tool_use.name,
                 data={"error": f"{type(e).__name__}: {e}"},
@@ -266,3 +279,29 @@ class ToolLoopExecutor:
         if self._budget.should_stop(state):
             return "budget_exceeded"
         return None
+
+    def _check_soft_guards(
+        self, state: LoopState, tool_use,
+    ) -> TerminationReason | None:
+        key = CallKey(tool_use.name, tool_use.args_hash())
+        repeat = state.call_history.count(key)
+        if repeat >= self._config.loop_detection_stop_threshold - 1:
+            return "loop_detected_hard"
+        if repeat >= self._config.loop_detection_threshold - 1:
+            self._inject_loop_warning(state, tool_use)
+        return None
+
+    def _inject_loop_warning(self, state: LoopState, tool_use) -> None:
+        warn = ToolResult(
+            tool_use_id=tool_use.id, name=tool_use.name,
+            data={
+                "warning": (
+                    f"You have called '{tool_use.name}' with the same "
+                    "arguments repeatedly. Try a different approach."
+                )
+            },
+            is_error=True,
+        )
+        state.messages.append(
+            self._provider.tool_result_to_message(warn)
+        )
