@@ -1,12 +1,49 @@
 from __future__ import annotations
 
 import os
+import time
 from typing import Any
 
 from google import genai
 from google.genai import types
 
 from .base import EmbedInput, LLMProvider, ProviderConfig, SearchResult, ThinkingResult
+from .batch_types import (
+    BATCH_STATE_CANCELLED,
+    BATCH_STATE_EXPIRED,
+    BATCH_STATE_FAILED,
+    BATCH_STATE_PENDING,
+    BATCH_STATE_RUNNING,
+    BATCH_STATE_SUCCEEDED,
+    BATCH_TERMINAL_STATES,
+    BatchEmbedHandle,
+    BatchEmbedPoll,
+    BatchEmbedResult,
+    BatchNotSupported,
+)
+
+# Gemini ``JobState`` enum → our normalised strings. Keys are the enum
+# ``.value`` (e.g. ``"JOB_STATE_SUCCEEDED"``) so we can tolerate both the
+# enum object and a raw string without importing the SDK enum at runtime.
+_GEMINI_STATE_MAP: dict[str, str] = {
+    "JOB_STATE_UNSPECIFIED": BATCH_STATE_PENDING,
+    "JOB_STATE_QUEUED": BATCH_STATE_PENDING,
+    "JOB_STATE_PENDING": BATCH_STATE_PENDING,
+    "JOB_STATE_RUNNING": BATCH_STATE_RUNNING,
+    "JOB_STATE_UPDATING": BATCH_STATE_RUNNING,
+    "JOB_STATE_PAUSED": BATCH_STATE_RUNNING,
+    "JOB_STATE_SUCCEEDED": BATCH_STATE_SUCCEEDED,
+    "JOB_STATE_PARTIALLY_SUCCEEDED": BATCH_STATE_SUCCEEDED,
+    "JOB_STATE_FAILED": BATCH_STATE_FAILED,
+    "JOB_STATE_CANCELLING": BATCH_STATE_CANCELLED,
+    "JOB_STATE_CANCELLED": BATCH_STATE_CANCELLED,
+    "JOB_STATE_EXPIRED": BATCH_STATE_EXPIRED,
+}
+
+
+def _normalise_state(raw: Any) -> str:
+    key = getattr(raw, "value", None) or getattr(raw, "name", None) or str(raw or "")
+    return _GEMINI_STATE_MAP.get(key, BATCH_STATE_PENDING)
 
 GEMINI_MODELS = {
     "pro": "gemini-3.1-pro-preview",
@@ -227,3 +264,126 @@ class GeminiProvider(LLMProvider):
         from runtime.tool_declarations import build_gemini_declarations
 
         return build_gemini_declarations(tools)
+
+    # ── Batch embedding (Plan 3b) ────────────────────────────────────────
+
+    @property
+    def supports_batch_embed(self) -> bool:
+        return True
+
+    async def embed_batch_submit(
+        self,
+        inputs: list[EmbedInput],
+        *,
+        display_name: str | None = None,
+    ) -> BatchEmbedHandle:
+        """Submit an async batch embed job.
+
+        Uses ``client.aio.batches.create_embeddings`` with inlined requests.
+        All items share one :class:`EmbedContentConfig` — ``task_type`` is
+        taken from the first input (matching the single-call ``embed()``
+        convention) and ``output_dimensionality`` is sourced from
+        ``VECTOR_DIM`` so the produced vectors match the pgvector column.
+
+        Raises :class:`ValueError` if the list is empty or contains no text.
+        """
+        texts = [inp.text for inp in inputs if inp.text]
+        if not texts:
+            raise ValueError("embed_batch_submit requires at least one text input")
+        task_type = inputs[0].task if inputs else "retrieval_document"
+        config_kwargs: dict[str, Any] = {"task_type": task_type}
+        dim = os.getenv("VECTOR_DIM")
+        if dim:
+            config_kwargs["output_dimensionality"] = int(dim)
+        src = types.EmbeddingsBatchJobSource(
+            inlined_requests=types.EmbedContentBatch(
+                contents=texts,
+                config=types.EmbedContentConfig(**config_kwargs),
+            )
+        )
+        create_config = types.CreateEmbeddingsBatchJobConfig(
+            display_name=display_name or f"opencairn-embed-{int(time.time())}",
+        )
+        job = await self._client.aio.batches.create_embeddings(
+            model=self.config.embed_model,
+            src=src,
+            config=create_config,
+        )
+        if not job.name:
+            raise RuntimeError(
+                "Gemini batch submit returned a BatchJob with no .name"
+            )
+        return BatchEmbedHandle(
+            provider_batch_name=job.name,
+            submitted_at=time.time(),
+            input_count=len(texts),
+        )
+
+    async def embed_batch_poll(self, handle: BatchEmbedHandle) -> BatchEmbedPoll:
+        """Fetch current batch state + counts.
+
+        Gemini's ``BatchJob`` doesn't expose per-item success/failure counts
+        while running — only the terminal ``dest.inlined_embed_content_responses``
+        reveals them. We return ``request_count = handle.input_count`` for
+        caller observability and leave success/failure at 0 until terminal.
+        """
+        job = await self._client.aio.batches.get(name=handle.provider_batch_name)
+        state = _normalise_state(job.state)
+        successful = 0
+        failed = 0
+        pending = handle.input_count
+        if state == BATCH_STATE_SUCCEEDED and job.dest is not None:
+            responses = job.dest.inlined_embed_content_responses or []
+            for r in responses:
+                if r.error is not None:
+                    failed += 1
+                elif r.response is not None and r.response.embedding is not None:
+                    successful += 1
+            pending = max(0, handle.input_count - successful - failed)
+        return BatchEmbedPoll(
+            state=state,
+            request_count=handle.input_count,
+            successful_request_count=successful,
+            failed_request_count=failed,
+            pending_request_count=pending,
+            done=state in BATCH_TERMINAL_STATES,
+        )
+
+    async def embed_batch_fetch(self, handle: BatchEmbedHandle) -> BatchEmbedResult:
+        """Fetch aligned per-item vectors.
+
+        ``inlined_embed_content_responses`` preserves input order per the
+        SDK docs. A response's ``.error`` being set → we emit ``None`` at
+        that index so the caller can decide per call-site how to handle
+        the loss (Compiler drops, Librarian retries next sweep).
+        """
+        job = await self._client.aio.batches.get(name=handle.provider_batch_name)
+        state = _normalise_state(job.state)
+        if state != BATCH_STATE_SUCCEEDED:
+            raise RuntimeError(
+                f"embed_batch_fetch called on non-succeeded batch "
+                f"{handle.provider_batch_name!r}: state={state}"
+            )
+        dest = job.dest
+        if dest is None or dest.inlined_embed_content_responses is None:
+            raise RuntimeError(
+                f"Gemini batch {handle.provider_batch_name!r} succeeded but has no "
+                "inlined responses — dest=None or missing responses"
+            )
+        vectors: list[list[float] | None] = []
+        errors: list[str | None] = []
+        for r in dest.inlined_embed_content_responses:
+            if r.error is not None:
+                vectors.append(None)
+                msg = r.error.message or "unknown error"
+                errors.append(f"[{r.error.code or 0}] {msg}")
+            elif r.response is not None and r.response.embedding is not None:
+                vectors.append(list(r.response.embedding.values or []))
+                errors.append(None)
+            else:
+                vectors.append(None)
+                errors.append("empty response")
+        return BatchEmbedResult(vectors=vectors, errors=errors)
+
+    async def embed_batch_cancel(self, handle: BatchEmbedHandle) -> None:
+        await self._client.aio.batches.cancel(name=handle.provider_batch_name)

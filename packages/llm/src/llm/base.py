@@ -4,6 +4,13 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
 
+from .batch_types import (
+    BatchEmbedHandle,
+    BatchEmbedPoll,
+    BatchEmbedResult,
+    BatchNotSupported,
+)
+
 
 @dataclass
 class ProviderConfig:
@@ -86,4 +93,43 @@ class LLMProvider(ABC):
         """Return tool schemas in this provider's expected format."""
         raise NotImplementedError(
             f"{type(self).__name__} does not support tool calling"
+        )
+
+    # ── Batch embedding surface (Plan 3b) ────────────────────────────────
+    # Providers that support async batch embedding override these. The
+    # default behaviour raises :class:`BatchNotSupported` so callers can
+    # catch once and fall back to the synchronous ``embed()`` path.
+    #
+    # Lifecycle: submit → poll (until done) → fetch. ``cancel`` is best-
+    # effort; providers that can't cancel raise ``BatchNotSupported``.
+    @property
+    def supports_batch_embed(self) -> bool:
+        return False
+
+    async def embed_batch_submit(
+        self,
+        inputs: list[EmbedInput],
+        *,
+        display_name: str | None = None,
+    ) -> BatchEmbedHandle:
+        raise BatchNotSupported(
+            f"{type(self).__name__} does not support batch embeddings"
+        )
+
+    async def embed_batch_poll(self, handle: BatchEmbedHandle) -> BatchEmbedPoll:
+        raise BatchNotSupported(
+            f"{type(self).__name__} does not support batch embeddings"
+        )
+
+    async def embed_batch_fetch(self, handle: BatchEmbedHandle) -> BatchEmbedResult:
+        """Return per-item results. Must only be called after a poll whose
+        :attr:`BatchEmbedPoll.done` is ``True`` and ``state`` is succeeded.
+        """
+        raise BatchNotSupported(
+            f"{type(self).__name__} does not support batch embeddings"
+        )
+
+    async def embed_batch_cancel(self, handle: BatchEmbedHandle) -> None:
+        raise BatchNotSupported(
+            f"{type(self).__name__} does not support batch embeddings"
         )
