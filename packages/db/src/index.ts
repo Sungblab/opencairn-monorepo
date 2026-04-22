@@ -24,4 +24,4 @@ export * from "./schema/embedding-batches";
 export * from "./schema/comments";
 export * from "./schema/yjs-documents";
 
-export { eq, and, or, desc, asc, sql, inArray, isNull, ilike, lt, gt, lte, gte, count } from "drizzle-orm";
+export { eq, and, or, desc, asc, sql, inArray, isNull, isNotNull, ilike, lt, gt, lte, gte, count } from "drizzle-orm";
