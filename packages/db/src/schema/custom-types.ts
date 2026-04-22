@@ -32,3 +32,17 @@ export const bytea = customType<{ data: Buffer; driverData: Buffer }>({
     return "bytea";
   },
 });
+
+// Uint8Array variant — Y.Doc은 Uint8Array를 요구하므로 드라이버 경계에서 변환.
+// 동일한 postgres bytea로 직렬화되며, `bytea`와 컬럼 타입은 상호 호환.
+export const byteaU8 = customType<{ data: Uint8Array; driverData: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
+  toDriver(value: Uint8Array): Buffer {
+    return Buffer.from(value);
+  },
+  fromDriver(value: Buffer): Uint8Array {
+    return new Uint8Array(value);
+  },
+});

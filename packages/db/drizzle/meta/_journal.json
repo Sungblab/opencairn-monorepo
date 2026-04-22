@@ -71,6 +71,13 @@
       "when": 1776834138077,
       "tag": "0009_noisy_silver_sable",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1776844557700,
+      "tag": "0010_plan_2b_collab",
+      "breakpoints": true
     }
   ]
 }
