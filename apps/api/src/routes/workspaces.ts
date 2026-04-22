@@ -7,9 +7,21 @@ import { requireWorkspaceRole } from "../middleware/require-role";
 import { isUuid } from "../lib/validators";
 import type { AppEnv } from "../lib/types";
 
+// Keep in sync with apps/web/src/lib/slug.ts RESERVED_SLUGS.
+const RESERVED_SLUGS: ReadonlySet<string> = new Set([
+  "app", "api", "admin", "auth", "www", "assets", "static", "public",
+  "health", "onboarding", "settings", "billing", "share",
+  "invite", "invites", "help", "docs", "blog",
+]);
+
 const createSchema = z.object({
   name: z.string().min(1).max(120),
-  slug: z.string().regex(/^[a-z0-9-]+$/).max(64),
+  slug: z
+    .string()
+    .regex(/^[a-z0-9-]+$/)
+    .min(3)
+    .max(40)
+    .refine((s) => !RESERVED_SLUGS.has(s), { message: "reserved_slug" }),
 });
 
 export const workspaceRoutes = new Hono<AppEnv>().use("*", requireAuth);
@@ -55,12 +67,24 @@ workspaceRoutes.get("/by-slug/:slug", async (c) => {
 workspaceRoutes.post("/", zValidator("json", createSchema), async (c) => {
   const user = c.get("user");
   const body = c.req.valid("json");
-  const ws = await db.transaction(async (tx) => {
-    const [created] = await tx.insert(workspaces).values({ ...body, ownerId: user.id }).returning();
-    await tx.insert(workspaceMembers).values({ workspaceId: created.id, userId: user.id, role: "owner" });
-    return created;
-  });
-  return c.json(ws, 201);
+  try {
+    const ws = await db.transaction(async (tx) => {
+      const [created] = await tx.insert(workspaces).values({ ...body, ownerId: user.id }).returning();
+      await tx.insert(workspaceMembers).values({ workspaceId: created.id, userId: user.id, role: "owner" });
+      return created;
+    });
+    return c.json(ws, 201);
+  } catch (err: unknown) {
+    // DrizzleQueryError wraps the underlying PostgresError in `cause`;
+    // fall back to top-level `code` for direct driver errors.
+    const code =
+      (err as { code?: string; cause?: { code?: string } } | null)?.code ??
+      (err as { cause?: { code?: string } } | null)?.cause?.code;
+    if (code === "23505") {
+      return c.json({ error: "slug_conflict" }, 409);
+    }
+    throw err;
+  }
 });
 
 // 특정 workspace 조회

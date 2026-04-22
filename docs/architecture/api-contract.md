@@ -113,7 +113,7 @@ Cookie: better-auth.session_token=<token>
 | DELETE | /api/workspaces/:workspaceId/invites/:id | admin | 초대 취소 | - |
 | POST | /api/invites/:token/accept | Yes (로그인) | 초대 수락 | - |
 | POST | /api/invites/:token/decline | No | 초대 거절 | - |
-| GET | /api/invites/:token | No | 초대 정보 조회 (수락 UI용) | - |
+| GET | /api/invites/:token | No | 초대 정보 조회 (수락 UI용) — 응답 `{ workspaceId, workspaceName, inviterName, role, email, expiresAt }`. 404 / 410 / 400 `already_accepted`. | - |
 
 ### Permissions
 

@@ -1,0 +1,47 @@
+{
+  "layout": {
+    "brand": "OpenCairn",
+    "headline": "Get started",
+    "footnote": "AGPLv3 · self-hosted"
+  },
+  "create": {
+    "title": "Create your first workspace",
+    "desc": "A workspace is where your documents and projects live. You can rename it and change the address later.",
+    "nameLabel": "Name",
+    "slugLabel": "Address",
+    "submit": "Create workspace",
+    "suggest": "Try",
+    "slugHintPrefix": "/app/w/",
+    "slugHintPlaceholder": "…",
+    "errors": {
+      "required": "Please enter a name.",
+      "slug_invalid": "The address must be 3–40 lowercase letters, digits, or hyphens.",
+      "slug_reserved": "That address is reserved. Pick another.",
+      "slug_conflict": "That address is already taken. Try one of the suggestions.",
+      "network": "Connection issue. Please try again in a moment.",
+      "generic": "Something went wrong. Please try again."
+    }
+  },
+  "invite": {
+    "title": "{inviterName} invited you",
+    "body": "Join {workspaceName} as {role}.",
+    "roles": {
+      "admin": "admin",
+      "member": "member",
+      "guest": "guest"
+    },
+    "accept": "Accept & enter",
+    "declineAndCreate": "Or create your own workspace instead",
+    "emailMismatchHint": "This invite was sent to {inviteEmail}. Please sign in with that address.",
+    "errors": {
+      "email_mismatch": "The invited email does not match your signed-in address.",
+      "expired": "This invite has expired. Ask the sender to resend it.",
+      "already_member": "You are already a member of this workspace.",
+      "already_accepted": "This invite was already accepted.",
+      "not_found": "We could not find this invite link.",
+      "bad_request": "This invite link is malformed.",
+      "network": "Connection issue. Please try again in a moment.",
+      "generic": "Something went wrong. Please try again."
+    }
+  }
+}

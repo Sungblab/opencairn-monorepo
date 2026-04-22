@@ -1,19 +1,28 @@
 import type { APIRequestContext, BrowserContext } from "@playwright/test";
 
+export type SeedMode = "default" | "onboarding-empty" | "onboarding-invite";
+
 // Response shape from POST /api/internal/test-seed — matches
-// apps/api/src/routes/internal.ts.
+// apps/api/src/routes/internal.ts. Workspace/project/note fields are
+// populated only in the default mode; invite fields only in
+// onboarding-invite mode.
 export interface SeededSession {
   userId: string;
-  wsSlug: string;
-  workspaceId: string;
-  projectId: string;
-  noteId: string;
+  email: string;
   /** Full Set-Cookie header emitted by the API. */
   sessionCookie: string;
   /** Decomposed cookie so callers can skip re-parsing. */
   cookieName: string;
   cookieValue: string;
   expiresAt: string;
+  // default mode only
+  wsSlug?: string;
+  workspaceId?: string;
+  projectId?: string;
+  noteId?: string;
+  // onboarding-invite mode only
+  inviteToken?: string;
+  inviteWorkspaceSlug?: string;
 }
 
 const DEFAULT_API_BASE = process.env.API_BASE ?? "http://localhost:4000";
@@ -22,10 +31,17 @@ const DEFAULT_API_BASE = process.env.API_BASE ?? "http://localhost:4000";
  * Hit the test-only seed endpoint and return the fresh fixture + session.
  * Throws if `INTERNAL_API_SECRET` isn't configured — the request would 401
  * anyway and the error message is more useful this way.
+ *
+ * Modes:
+ *  - `default` (existing): user + workspace + project + Welcome note.
+ *  - `onboarding-empty`: user only — no workspace. For the /onboarding
+ *    "create first workspace" flow.
+ *  - `onboarding-invite`: user + separate owner's workspace + pending
+ *    invite to the fresh user's email. For the accept-card flow.
  */
 export async function seedAndSignIn(
   request: APIRequestContext,
-  opts: { apiBase?: string } = {},
+  opts: { apiBase?: string; mode?: SeedMode } = {},
 ): Promise<SeededSession> {
   const apiBase = opts.apiBase ?? DEFAULT_API_BASE;
   const secret = process.env.INTERNAL_API_SECRET;
@@ -41,7 +57,7 @@ export async function seedAndSignIn(
       "x-internal-secret": secret,
       "content-type": "application/json",
     },
-    data: {},
+    data: { mode: opts.mode ?? "default" },
   });
   if (!res.ok()) {
     const body = await res.text().catch(() => "");

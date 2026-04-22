@@ -1,7 +1,14 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { db, workspaceInvites, workspaceMembers, eq } from "@opencairn/db";
+import {
+  db,
+  workspaceInvites,
+  workspaceMembers,
+  workspaces,
+  user,
+  eq,
+} from "@opencairn/db";
 import { randomBytes } from "node:crypto";
 import { requireAuth } from "../middleware/auth";
 import { requireWorkspaceRole } from "../middleware/require-role";
@@ -9,7 +16,49 @@ import { sendInviteEmail } from "../lib/email";
 import { isUuid } from "../lib/validators";
 import type { AppEnv } from "../lib/types";
 
-export const inviteRoutes = new Hono<AppEnv>().use("*", requireAuth);
+export const inviteRoutes = new Hono<AppEnv>();
+
+// Public — 토큰 자체가 비밀이므로 수락 UI 프리뷰는 인증 불필요.
+// requireAuth 미들웨어 *앞에* 등록해야 함.
+inviteRoutes.get("/invites/:token", async (c) => {
+  const token = c.req.param("token");
+  if (!token || token.length < 32) {
+    return c.json({ error: "bad_request" }, 400);
+  }
+  const [row] = await db
+    .select({
+      workspaceId: workspaceInvites.workspaceId,
+      email: workspaceInvites.email,
+      role: workspaceInvites.role,
+      expiresAt: workspaceInvites.expiresAt,
+      acceptedAt: workspaceInvites.acceptedAt,
+      invitedBy: workspaceInvites.invitedBy,
+      workspaceName: workspaces.name,
+    })
+    .from(workspaceInvites)
+    .innerJoin(workspaces, eq(workspaces.id, workspaceInvites.workspaceId))
+    .where(eq(workspaceInvites.token, token));
+  if (!row) return c.json({ error: "not_found" }, 404);
+  if (row.acceptedAt) return c.json({ error: "already_accepted" }, 400);
+  if (row.expiresAt < new Date()) return c.json({ error: "expired" }, 410);
+
+  const [inviter] = await db
+    .select({ name: user.name })
+    .from(user)
+    .where(eq(user.id, row.invitedBy));
+
+  return c.json({
+    workspaceId: row.workspaceId,
+    workspaceName: row.workspaceName,
+    inviterName: inviter?.name ?? "",
+    role: row.role,
+    email: row.email,
+    expiresAt: row.expiresAt.toISOString(),
+  });
+});
+
+// 인증 필요한 라우트
+inviteRoutes.use("*", requireAuth);
 
 // 초대 생성 (admin 이상)
 inviteRoutes.post(
