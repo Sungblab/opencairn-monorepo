@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "@react-email/render": "^2.0.0",
+    "@types/node": "^25.6.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.0.0",
