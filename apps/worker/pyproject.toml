@@ -27,6 +27,10 @@ dependencies = [
     "yt-dlp>=2024.11.4",
     # Web URL scraping for the scrape_web_url activity.
     "trafilatura>=1.12.0",
+    # AES-256-GCM for user_integrations OAuth token storage. Wire-compatible
+    # with apps/api/src/lib/integration-tokens.ts — both sides decrypt the
+    # same rows written by /api/integrations/google/callback.
+    "cryptography>=42.0",
 ]
 
 [project.optional-dependencies]
