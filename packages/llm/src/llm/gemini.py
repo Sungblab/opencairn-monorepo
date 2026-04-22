@@ -612,3 +612,6 @@ class GeminiProvider(LLMProvider):
                 kind=raw.kind,
                 payload=dict(raw.payload or {}),
             )
+
+    async def cancel_interaction(self, interaction_id: str) -> None:
+        await self._client.aio.interactions.cancel(interaction_id=interaction_id)

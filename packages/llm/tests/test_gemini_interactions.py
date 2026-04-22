@@ -147,3 +147,15 @@ async def test_stream_interaction_forwards_last_event_id(provider):
             pass
     assert mocked.await_args.kwargs["last_event_id"] == "ev_2"
     assert mocked.await_args.kwargs["stream"] is True
+
+
+@pytest.mark.asyncio
+async def test_cancel_interaction_calls_sdk(provider):
+    with patch.object(
+        provider._client.aio.interactions,
+        "cancel",
+        new=AsyncMock(return_value=None),
+    ) as mocked:
+        result = await provider.cancel_interaction("int_run_xyz789")
+    assert result is None
+    mocked.assert_awaited_once_with(interaction_id="int_run_xyz789")
