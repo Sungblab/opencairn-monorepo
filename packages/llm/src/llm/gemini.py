@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import os
 import time
-from typing import Any
+import uuid
+from typing import Any, Literal, Sequence
 
 from google import genai
+from google.genai import errors as genai_errors
 from google.genai import types
+from pydantic import BaseModel
 
 from .base import EmbedInput, LLMProvider, ProviderConfig, SearchResult, ThinkingResult
 from .batch_types import (
@@ -21,6 +24,8 @@ from .batch_types import (
     BatchEmbedResult,
     BatchNotSupported,
 )
+from .errors import ProviderFatalError, ProviderRetryableError
+from .tool_types import AssistantTurn, ToolUse, UsageCounts
 
 # Gemini ``JobState`` enum → our normalised strings. Keys are the enum
 # ``.value`` (e.g. ``"JOB_STATE_SUCCEEDED"``) so we can tolerate both the
@@ -411,3 +416,104 @@ class GeminiProvider(LLMProvider):
                 "parameters": t.input_schema(),
             })
         return decls
+
+    async def generate_with_tools(
+        self,
+        messages: list,
+        tools: list,
+        *,
+        mode: Literal["auto", "any", "none"] = "auto",
+        allowed_tool_names: Sequence[str] | None = None,
+        final_response_schema: type[BaseModel] | None = None,
+        cached_context_id: str | None = None,
+        temperature: float | None = None,
+        max_output_tokens: int | None = None,
+    ) -> AssistantTurn:
+        fn_decls = self._build_function_declarations(tools)
+
+        mode_map = {"auto": "AUTO", "any": "ANY", "none": "NONE"}
+        tool_config = types.ToolConfig(
+            function_calling_config=types.FunctionCallingConfig(
+                mode=mode_map[mode],
+                allowed_function_names=(
+                    list(allowed_tool_names) if allowed_tool_names else None
+                ),
+            )
+        )
+
+        config_kwargs: dict[str, Any] = {
+            "tools": [types.Tool(function_declarations=fn_decls)] if fn_decls else [],
+            "tool_config": tool_config,
+            # CRITICAL: runtime owns the loop. Docs default is auto-exec,
+            # which would bypass our instrumentation + guards.
+            "automatic_function_calling": types.AutomaticFunctionCallingConfig(
+                disable=True
+            ),
+        }
+        if temperature is not None:
+            config_kwargs["temperature"] = temperature
+        if max_output_tokens is not None:
+            config_kwargs["max_output_tokens"] = max_output_tokens
+        if cached_context_id:
+            config_kwargs["cached_content"] = cached_context_id
+        if final_response_schema is not None:
+            config_kwargs["response_mime_type"] = "application/json"
+            config_kwargs["response_schema"] = final_response_schema
+
+        config = types.GenerateContentConfig(**config_kwargs)
+
+        try:
+            response = await self._client.aio.models.generate_content(
+                model=self.config.model,
+                contents=messages,
+                config=config,
+            )
+        except genai_errors.APIError as e:
+            code = getattr(e, "code", None) or 0
+            if code in (408, 429, 500, 502, 503, 504):
+                raise ProviderRetryableError(str(e)) from e
+            raise ProviderFatalError(str(e)) from e
+
+        candidate = response.candidates[0]
+        assistant_content = candidate.content
+        text_parts: list[str] = []
+        tool_uses: list[ToolUse] = []
+
+        # Per Gemini docs §Notes and limitations: "don't assume
+        # function_call is always last — iterate through parts".
+        for part in assistant_content.parts:
+            fc = getattr(part, "function_call", None)
+            if fc is not None:
+                tool_uses.append(ToolUse(
+                    id=fc.id or uuid.uuid4().hex,
+                    name=fc.name,
+                    args=dict(fc.args) if fc.args else {},
+                    thought_signature=getattr(part, "thought_signature", None),
+                ))
+                continue
+            txt = getattr(part, "text", None)
+            if txt:
+                text_parts.append(txt)
+
+        final_text = "\n".join(text_parts) if text_parts else None
+        structured: dict | None = None
+        if final_response_schema is not None and final_text:
+            import json as _json
+            try:
+                structured = _json.loads(final_text)
+            except _json.JSONDecodeError:
+                pass  # caller/loop can recover on next turn
+
+        um = response.usage_metadata
+        return AssistantTurn(
+            final_text=final_text,
+            tool_uses=tuple(tool_uses),
+            assistant_message=assistant_content,
+            structured_output=structured,
+            usage=UsageCounts(
+                input_tokens=getattr(um, "prompt_token_count", 0) or 0,
+                output_tokens=getattr(um, "candidates_token_count", 0) or 0,
+                cached_input_tokens=getattr(um, "cached_content_token_count", 0) or 0,
+            ),
+            stop_reason=str(candidate.finish_reason or "STOP"),
+        )
