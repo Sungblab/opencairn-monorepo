@@ -6,7 +6,7 @@
 
 **Architecture:** New workspace package `@opencairn/emails` exports React components (`<InviteEmail>`, shared `<Layout>`, `<Button>`). `apps/api` imports the component directly and passes it to `resend.emails.send({ react: <Component .../> })` — Resend converts to HTML internally. A react-email CLI dev server runs on port 3001 for local preview. No runtime LLM calls; Gemini is only used at development time by the engineer to scaffold new templates.
 
-**Tech Stack:** TypeScript, React 19, `@react-email/components` (primitives like `Html`, `Container`, `Button`), `react-email` CLI (preview dev server), Resend SDK (already installed), Vitest (already the monorepo runner), pnpm workspaces.
+**Tech Stack:** TypeScript, React 19, `react-email` v6 (consolidated package — since 2026-04-16 the `@react-email/components` package was folded into `react-email` itself and marked deprecated, so we import primitives like `Html`, `Container`, `Button` directly from `react-email`), Resend SDK (already installed), Vitest (already the monorepo runner), pnpm workspaces.
 
 **Design reference:** `docs/superpowers/specs/2026-04-23-react-email-adoption-design.md`
 
@@ -66,16 +66,15 @@ Each file has a single responsibility. Components (`Layout`, `Button`) are indep
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@react-email/components": "^0.5.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-email": "^6.0.0"
   },
   "devDependencies": {
-    "@react-email/render": "^1.3.0",
+    "@react-email/render": "^2.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.0.0",
-    "react-email": "^4.0.0",
     "typescript": "^5.8.0",
     "vitest": "^4.1.4"
   }
@@ -83,10 +82,12 @@ Each file has a single responsibility. Components (`Layout`, `Button`) are indep
 ```
 
 Notes:
+- As of `react-email@6.0.0` (2026-04-16), the `@react-email/components` package is deprecated — all primitives (`Html`, `Head`, `Body`, `Container`, `Button`, `Text`, `Section`, `Hr`, `Preview`) are now exported directly from `react-email`. Do NOT install `@react-email/components`.
+- `react-email` is a runtime dep (not devDep) because we import its components from our template TSX files. It also ships the `email` CLI binary for the preview server.
 - `react`/`react-dom` are runtime deps because Resend SDK calls `@react-email/render` against the component tree at send time.
-- `@react-email/render` is a devDep because we only call it from tests; production send goes through Resend SDK which bundles its own render.
-- `email dev` (from the `react-email` package) is the preview CLI. `--port 3001` avoids Next.js dev on 3000.
-- Version pinning uses caret ranges consistent with `packages/db` and `packages/shared`; pnpm will resolve actual latest on install.
+- `@react-email/render` stays a devDep — only tests call it directly; production send goes through Resend SDK which bundles its own render pipeline.
+- `email dev --port 3001` avoids Next.js dev on 3000.
+- Version pinning uses caret ranges consistent with `packages/db` and `packages/shared`.
 
 - [ ] **Step 2: Create `packages/emails/tsconfig.json`**
 
@@ -244,7 +245,7 @@ Expected: FAIL — `Cannot find module '../src/components/Button'`.
 
 `packages/emails/src/components/Button.tsx`:
 ```tsx
-import { Button as RButton } from "@react-email/components";
+import { Button as RButton } from "react-email";
 import { colors, spacing } from "./tokens";
 import type { ReactNode } from "react";
 
@@ -381,7 +382,7 @@ import {
   Section,
   Text,
   Hr,
-} from "@react-email/components";
+} from "react-email";
 import type { ReactNode } from "react";
 import { colors, fonts, spacing, layout } from "./tokens";
 
@@ -507,7 +508,7 @@ Expected: FAIL — `Cannot find module '../src/templates/invite'`.
 
 `packages/emails/src/templates/invite.tsx`:
 ```tsx
-import { Text } from "@react-email/components";
+import { Text } from "react-email";
 import { Layout } from "../components/Layout";
 import { Button } from "../components/Button";
 import { colors, spacing } from "../components/tokens";
