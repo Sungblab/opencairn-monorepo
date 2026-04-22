@@ -79,3 +79,40 @@ async def test_base_defaults_return_none():
         )
         is None
     )
+
+
+class _StubProvider(LLMProvider):
+    async def generate(self, messages, **kwargs):
+        return ""
+
+    async def embed(self, inputs):
+        return []
+
+
+@pytest.mark.asyncio
+async def test_start_interaction_default_raises():
+    p = _StubProvider(ProviderConfig(provider="stub"))
+    with pytest.raises(NotImplementedError):
+        await p.start_interaction(input="x", agent="deep-research-preview-04-2026")
+
+
+@pytest.mark.asyncio
+async def test_get_interaction_default_raises():
+    p = _StubProvider(ProviderConfig(provider="stub"))
+    with pytest.raises(NotImplementedError):
+        await p.get_interaction("int_1")
+
+
+@pytest.mark.asyncio
+async def test_stream_interaction_default_raises():
+    p = _StubProvider(ProviderConfig(provider="stub"))
+    with pytest.raises(NotImplementedError):
+        async for _ in p.stream_interaction("int_1"):
+            pass
+
+
+@pytest.mark.asyncio
+async def test_cancel_interaction_default_raises():
+    p = _StubProvider(ProviderConfig(provider="stub"))
+    with pytest.raises(NotImplementedError):
+        await p.cancel_interaction("int_1")
