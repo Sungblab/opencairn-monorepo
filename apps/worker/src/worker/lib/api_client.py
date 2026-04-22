@@ -205,6 +205,17 @@ class AgentApiClient:
         )
         return list(res.get("results", []))
 
+    async def list_project_topics(
+        self, *, project_id: str,
+    ) -> list[dict[str, Any]]:
+        """Top 30 concepts in the project by note-link count. Used as the
+        Layer 3 hierarchical retrieval entry point for ToolDemoAgent.
+        """
+        res = await get_internal(
+            f"/api/internal/projects/{project_id}/topics"
+        )
+        return list(res.get("results", []))
+
     async def list_concept_pairs(
         self,
         *,
