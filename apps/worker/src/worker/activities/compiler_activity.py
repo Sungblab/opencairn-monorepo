@@ -29,6 +29,7 @@ from runtime.trajectory import LocalFSTrajectoryStorage, TrajectoryWriter
 
 from worker.agents.compiler import CompilerAgent, CompilerOutput
 from worker.lib.api_client import AgentApiClient
+from worker.lib.batch_submit import make_batch_submit
 
 
 _TRAJECTORY_DIR = Path(
@@ -105,7 +106,15 @@ async def compile_note(inp: dict[str, Any]) -> dict[str, Any]:
     )
 
     provider = get_provider()
-    agent = CompilerAgent(provider=provider, api=AgentApiClient())
+    # Plan 3b — the batch callback is always injected; embed_many() inside
+    # the agent only exercises it when BATCH_EMBED_COMPILER_ENABLED=true
+    # and the candidate count crosses BATCH_EMBED_MIN_ITEMS. Otherwise
+    # it's unused and the sync provider.embed path runs unchanged.
+    agent = CompilerAgent(
+        provider=provider,
+        api=AgentApiClient(),
+        batch_submit=make_batch_submit(),
+    )
 
     output: CompilerOutput | None = None
     async for ev in agent.run(inp, ctx):

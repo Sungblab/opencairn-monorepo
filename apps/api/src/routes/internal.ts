@@ -14,6 +14,7 @@ import {
   conceptNotes,
   wikiLogs,
   projectSemaphoreSlots,
+  embeddingBatches,
   eq,
   and,
   sql,
@@ -852,6 +853,118 @@ internal.post(
           eq(projectSemaphoreSlots.holderId, body.holderId),
         ),
       );
+    return c.json({ ok: true });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Plan 3b — embedding_batches lifecycle (worker-owned)
+// ---------------------------------------------------------------------------
+
+// The worker owns the full lifecycle of an `embedding_batches` row:
+// create (before submit), update-state (on poll), mark-complete (on fetch).
+// We expose three narrow endpoints rather than a generic PATCH so the
+// contract from packages/llm batch_types.py stays legible here — each
+// endpoint accepts exactly the fields worker activities need.
+
+const embeddingBatchStates = [
+  "pending",
+  "running",
+  "succeeded",
+  "failed",
+  "cancelled",
+  "expired",
+  "timeout",
+] as const;
+
+const createEmbeddingBatchSchema = z.object({
+  workspaceId: z.string().uuid().nullable(),
+  provider: z.string().min(1).max(50),
+  providerBatchName: z.string().min(1).max(500),
+  inputCount: z.number().int().nonnegative(),
+  inputS3Key: z.string().min(1).max(500),
+});
+
+internal.post(
+  "/embedding-batches",
+  zValidator("json", createEmbeddingBatchSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const now = new Date();
+    // ON CONFLICT DO NOTHING on the unique index makes this idempotent —
+    // if Temporal replays the submit activity after a worker crash, the
+    // second insert is a no-op and we simply look up the existing row.
+    const [inserted] = await db
+      .insert(embeddingBatches)
+      .values({
+        workspaceId: body.workspaceId,
+        provider: body.provider,
+        providerBatchName: body.providerBatchName,
+        state: "running",
+        inputCount: body.inputCount,
+        pendingCount: body.inputCount,
+        inputS3Key: body.inputS3Key,
+        submittedAt: now,
+      })
+      .onConflictDoNothing({
+        target: embeddingBatches.providerBatchName,
+      })
+      .returning({ id: embeddingBatches.id });
+    if (inserted) {
+      return c.json({ id: inserted.id, created: true });
+    }
+    // Already existed — return the existing id for the replay case.
+    const [existing] = await db
+      .select({ id: embeddingBatches.id })
+      .from(embeddingBatches)
+      .where(eq(embeddingBatches.providerBatchName, body.providerBatchName));
+    if (!existing) {
+      return c.json({ error: "insert conflict but row missing" }, 500);
+    }
+    return c.json({ id: existing.id, created: false });
+  },
+);
+
+const updateEmbeddingBatchSchema = z.object({
+  state: z.enum(embeddingBatchStates),
+  successCount: z.number().int().nonnegative().optional(),
+  failureCount: z.number().int().nonnegative().optional(),
+  pendingCount: z.number().int().nonnegative().optional(),
+  outputS3Key: z.string().min(1).max(500).nullish(),
+  error: z.string().max(2000).nullish(),
+  markCompleted: z.boolean().optional(),
+});
+
+internal.patch(
+  "/embedding-batches/:id",
+  zValidator("json", updateEmbeddingBatchSchema),
+  async (c) => {
+    const id = c.req.param("id");
+    // Match the UUID guard style used elsewhere in this file — an
+    // invalid path param should surface as a clean 400, not a 500 from
+    // Postgres' uuid cast.
+    if (!z.string().uuid().safeParse(id).success) {
+      return c.json({ error: "invalid uuid" }, 400);
+    }
+    const body = c.req.valid("json");
+    // Drizzle's typed setters want us to only include fields we actually
+    // want to touch; build the patch object conditionally so a poll that
+    // only changes `state` doesn't clobber success/failure counts to null.
+    const patch: Record<string, unknown> = { state: body.state };
+    if (body.successCount !== undefined) patch.successCount = body.successCount;
+    if (body.failureCount !== undefined) patch.failureCount = body.failureCount;
+    if (body.pendingCount !== undefined) patch.pendingCount = body.pendingCount;
+    if (body.outputS3Key !== undefined) patch.outputS3Key = body.outputS3Key;
+    if (body.error !== undefined) patch.error = body.error;
+    if (body.markCompleted) patch.completedAt = new Date();
+    const [updated] = await db
+      .update(embeddingBatches)
+      .set(patch)
+      .where(eq(embeddingBatches.id, id))
+      .returning({ id: embeddingBatches.id });
+    if (!updated) {
+      return c.json({ error: "not found" }, 404);
+    }
     return c.json({ ok: true });
   },
 );

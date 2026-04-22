@@ -15,6 +15,12 @@ from dotenv import load_dotenv
 from temporalio.client import Client
 from temporalio.worker import Worker
 
+from worker.activities.batch_embed_activities import (
+    cancel_batch_embed,
+    fetch_batch_embed_results,
+    poll_batch_embed,
+    submit_batch_embed,
+)
 from worker.activities.compiler_activity import compile_note
 from worker.activities.enhance_activity import enhance_with_gemini
 from worker.activities.image_activity import analyze_image
@@ -30,6 +36,7 @@ from worker.activities.semaphore_activity import (
 from worker.activities.stt_activity import transcribe_audio
 from worker.activities.web_activity import scrape_web_url
 from worker.activities.youtube_activity import ingest_youtube
+from worker.workflows.batch_embed_workflow import BatchEmbedWorkflow
 from worker.workflows.compiler_workflow import CompilerWorkflow
 from worker.workflows.ingest_workflow import IngestWorkflow
 from worker.workflows.librarian_workflow import LibrarianWorkflow
@@ -52,6 +59,7 @@ async def main() -> None:
             CompilerWorkflow,
             ResearchWorkflow,
             LibrarianWorkflow,
+            BatchEmbedWorkflow,
         ],
         activities=[
             parse_pdf,
@@ -68,6 +76,10 @@ async def main() -> None:
             run_librarian,
             acquire_project_semaphore,
             release_project_semaphore,
+            submit_batch_embed,
+            poll_batch_embed,
+            fetch_batch_embed_results,
+            cancel_batch_embed,
         ],
     )
     print(f"[worker] Starting Temporal worker on task queue: {task_queue}")

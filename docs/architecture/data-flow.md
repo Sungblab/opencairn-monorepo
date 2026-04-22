@@ -41,7 +41,10 @@
 [5] Temporal → Python Worker (generate_embeddings Activity)
   |  - LLM provider embed (Gemini: gemini-embedding-001 768d via Matryoshka truncate,
   |                         Ollama: nomic-embed-text 768d)
-  |  - Batch API 도입 예정 (별도 Plan) — 현재는 표준 embedContent 호출
+  |  - Batch API 통합 완료 (ADR-008 / Plan 3b): `embed_many()` helper가 두 경로 중 분기.
+  |    flag (BATCH_EMBED_COMPILER_ENABLED / BATCH_EMBED_LIBRARIAN_ENABLED) + 최소 아이템 수
+  |    충족 시 `BatchEmbedWorkflow` child spawn, 아니면 단건 embedContent. Ollama는 no-op.
+  |    Research(query-time)는 non-goal — 24h SLA와 충돌. provider.embed() 유지.
   |  - KG 추출용 임베딩 → pgvector (그래프/백링크/Compiler 내부 검색용)
   |  - Q&A 코퍼스는 위키 페이지 (Compiler 완료 후 CAG/File Search/pgvector로 분기)
   |

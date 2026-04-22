@@ -64,6 +64,13 @@
       "when": 1776790117906,
       "tag": "0008_natural_baron_zemo",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1776834138077,
+      "tag": "0009_noisy_silver_sable",
+      "breakpoints": true
     }
   ]
 }

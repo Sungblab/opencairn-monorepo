@@ -20,6 +20,7 @@ Provider별 VECTOR_DIM 기본값: Gemini(embedding-001 MRL)=768, Ollama(nomic)=7
 - ❌ `from openai import ...` / `from worker.gemini.client import GeminiClient` → ✅ `from llm import get_provider` (packages/llm, Gemini + Ollama만, 2026-04-15)
 - ❌ `GeminiClient(api_key=...)` 직접 생성 → ✅ `get_provider()` 팩토리
 - ❌ `EMBED_MODEL = "gemini-embedding-001"` 하드코딩 → ✅ `os.environ["EMBED_MODEL"]` (BYOK 사용자가 `embed-2-preview` 등 멀티모달 모델로 덮어쓸 수 있음)
+- ❌ agent 루프 안에서 `provider.embed([single_input])` N번 호출 → ✅ 루프 밖에서 `embed_many(provider, [...], workspace_id=..., batch_submit=self._batch_submit, flag_env=...)` 한 번. `embed_many()`가 batch flag / min items / provider supports_batch_embed 분기 흡수 (Plan 3b / ADR-008, 2026-04-22). Research 경로(query-time)는 non-goal — 기존 `provider.embed()` 유지.
 - ❌ Gemini function call 응답에서 `thoughtSignature` 버리기 → ✅ 다음 턴 history에 반드시 포함
 - ❌ Gemini context cache 1000 토큰 시도 → ✅ 최소 4096 토큰 (Gemini spec)
 

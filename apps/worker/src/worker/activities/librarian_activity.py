@@ -20,6 +20,7 @@ from runtime.trajectory import LocalFSTrajectoryStorage, TrajectoryWriter
 
 from worker.agents.librarian import LibrarianAgent
 from worker.lib.api_client import AgentApiClient
+from worker.lib.batch_submit import make_batch_submit
 
 
 _TRAJECTORY_DIR = Path(
@@ -83,7 +84,11 @@ async def run_librarian(inp: dict[str, Any]) -> dict[str, Any]:
     )
 
     provider = get_provider()
-    agent = LibrarianAgent(provider=provider, api=AgentApiClient())
+    agent = LibrarianAgent(
+        provider=provider,
+        api=AgentApiClient(),
+        batch_submit=make_batch_submit(),
+    )
 
     final_output: dict[str, Any] | None = None
     async for ev in agent.run(inp, ctx):
