@@ -26,6 +26,9 @@ importers:
       '@opencairn/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@opencairn/emails':
+        specifier: workspace:*
+        version: link:../../packages/emails
       '@opencairn/shared':
         specifier: workspace:*
         version: link:../../packages/shared
