@@ -45,7 +45,7 @@ export default async function AuthLayout({
         </div>
 
         <p className="text-xs text-stone-600 font-sans tracking-wider">
-          AGPLv3 · Self-hostable
+          {t("footnote")}
         </p>
       </div>
 
