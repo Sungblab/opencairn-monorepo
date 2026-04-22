@@ -3,15 +3,15 @@ import { colors, spacing } from "./tokens";
 import type { ReactNode } from "react";
 
 // `variant` is reserved for future template-specific styles (e.g., secondary
-// outline button). v0.1 only implements `primary`, but the prop is declared so
-// call sites don't have to be rewritten when we add the second variant.
+// outline button). v0.1 only implements `primary` — when the second variant
+// lands, expand this union AND branch on the destructured value below.
 interface Props {
   href: string;
   children: ReactNode;
   variant?: "primary";
 }
 
-export function Button({ href, children }: Props) {
+export function Button({ href, children, variant: _variant = "primary" }: Props) {
   return (
     <RButton
       href={href}

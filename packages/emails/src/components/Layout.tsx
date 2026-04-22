@@ -37,7 +37,7 @@ export function Layout({ preview, lang = "ko", children }: Props) {
               문의는 <a href="mailto:hello@opencairn.com" style={{ color: colors.link }}>hello@opencairn.com</a> 으로 보내주세요.
             </Text>
             <Text style={{ fontSize: "12px", color: colors.textMuted, margin: `${spacing.xs} 0 0 0` }}>
-              © OpenCairn
+              © {new Date().getFullYear()} OpenCairn
             </Text>
           </Section>
         </Container>

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render } from "@react-email/render";
 import { Button } from "../src/components/Button";
+import { colors } from "../src/components/tokens";
 
 describe("Button", () => {
   it("renders an anchor with the provided href and label", async () => {
@@ -11,8 +12,9 @@ describe("Button", () => {
 
   it("applies the primary fill color from tokens", async () => {
     const html = await render(<Button href="https://x">go</Button>);
-    // Primary token — keep in sync with tokens.ts
-    expect(html).toContain("#111111");
-    expect(html).toContain("#ffffff");
+    // Assert against token values directly so the test stays green when
+    // tokens.ts changes and fails only if the Button stops consuming them.
+    expect(html).toContain(colors.primary);
+    expect(html).toContain(colors.primaryText);
   });
 });
