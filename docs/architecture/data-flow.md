@@ -254,3 +254,47 @@ Hono Middleware (checkUsage)
   v
 usage_records에 기록 (tokens_used, action, is_byok 플래그)
 ```
+
+## 7. Deep Research Flow
+
+Spec: `docs/superpowers/specs/2026-04-22-deep-research-integration-design.md`.
+
+```
+user types topic + model
+  |
+  v
+apps/api (Phase C): POST /api/research/runs → Temporal.startWorkflow(DeepResearchWorkflow)
+  |
+  v
+Workflow ─> create_deep_research_plan (activity)
+  |            - resolve_api_key (BYOK decrypt | managed env, inside activity)
+  |            - provider.start_interaction(collaborative_planning=True, background=True)
+  |            - poll get_interaction until completed
+  |
+  v
+  wait_condition — user signals: user_feedback / approve_plan / cancel / 24h timeout
+  |
+  v
+  iterate_deep_research_plan (loops while feedback queued)
+  |
+  v
+  execute_deep_research (approved plan → stream)
+  |   - stream_interaction events → on_event callback
+  |   - heartbeat per event (60s heartbeat_timeout)
+  |   - collect ImageRef + Citation lists
+  |
+  v
+  persist_deep_research_report
+  |   - fetch image bytes, upload to MinIO (research/{workspace_id}/{run_id}/{seq})
+  |   - markdown_to_plate with image URL mapping
+  |   - prepend research-meta Plate block (runId/model/plan/sources/cost)
+  |   - POST /internal/notes (idempotencyKey=run_id)
+  |
+  v
+DeepResearchOutput { status="completed", noteId, totalCostUsdCents }
+```
+
+Feature flag `FEATURE_DEEP_RESEARCH` gates everything (worker registration, api,
+web). Managed PAYG path further gated by `FEATURE_MANAGED_DEEP_RESEARCH` until
+Plan 9b (billing) lands. BYOK key stored in `user_preferences.byok_api_key_encrypted`
+using the same AES-256-GCM scheme as `user_integrations.access_token_encrypted`.
