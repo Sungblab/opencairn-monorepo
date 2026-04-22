@@ -1,23 +1,10 @@
-import json
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from google.genai._interactions.types.interaction import Interaction
 
 from llm.gemini import GeminiProvider
 from llm.interactions import InteractionHandle
-
-FIXTURES = Path(__file__).parent / "fixtures" / "interactions"
-
-
-def _fixture_as_obj(name: str):
-    """Return a MagicMock whose attributes match the JSON fixture keys."""
-    data = json.loads((FIXTURES / name).read_text())
-    m = MagicMock()
-    for k, v in data.items():
-        setattr(m, k, v)
-    return m, data
 
 
 def _real_interaction(**overrides):
@@ -26,6 +13,11 @@ def _real_interaction(**overrides):
     Using ``model_validate`` (rather than ``MagicMock`` with ad-hoc attrs)
     pins our boundary mapping to the actual SDK schema — wrong field names
     fail at validation time, in test, instead of at runtime in production.
+
+    Fields not declared on the SDK schema (``background``, ``error``) land
+    in ``__pydantic_extra__`` because Stainless ``BaseModel`` is configured
+    with ``extra="allow"``, so callers can still drive provider methods that
+    rely on getattr-style access for non-spec fields.
     """
     payload = {
         "id": "int_run_xyz789",
@@ -42,9 +34,17 @@ def provider(gemini_config):
     return GeminiProvider(gemini_config)
 
 
+def _start_response():
+    return _real_interaction(
+        id="int_plan_abc123",
+        agent="deep-research-max-preview-04-2026",
+        background=True,
+    )
+
+
 @pytest.mark.asyncio
 async def test_start_interaction_returns_handle(provider):
-    mock_response, raw = _fixture_as_obj("plan_response.json")
+    mock_response = _start_response()
     with patch.object(
         provider._client.aio.interactions,
         "create",
@@ -57,8 +57,8 @@ async def test_start_interaction_returns_handle(provider):
             background=True,
         )
     assert isinstance(handle, InteractionHandle)
-    assert handle.id == raw["id"]
-    assert handle.agent == raw["agent"]
+    assert handle.id == "int_plan_abc123"
+    assert handle.agent == "deep-research-max-preview-04-2026"
     assert handle.background is True
     # Verify the SDK call carried our arguments
     call = mocked.await_args
@@ -72,11 +72,10 @@ async def test_start_interaction_returns_handle(provider):
 
 @pytest.mark.asyncio
 async def test_start_interaction_forwards_previous_id(provider):
-    mock_response, _ = _fixture_as_obj("plan_response.json")
     with patch.object(
         provider._client.aio.interactions,
         "create",
-        new=AsyncMock(return_value=mock_response),
+        new=AsyncMock(return_value=_start_response()),
     ) as mocked:
         await provider.start_interaction(
             input="edit: focus on TPU v5",
@@ -90,11 +89,10 @@ async def test_start_interaction_forwards_previous_id(provider):
 
 @pytest.mark.asyncio
 async def test_start_interaction_forwards_optional_agent_config(provider):
-    mock_response, _ = _fixture_as_obj("plan_response.json")
     with patch.object(
         provider._client.aio.interactions,
         "create",
-        new=AsyncMock(return_value=mock_response),
+        new=AsyncMock(return_value=_start_response()),
     ) as mocked:
         await provider.start_interaction(
             input="x",
