@@ -527,6 +527,39 @@ async def convert_notion_md_to_plate(payload: dict[str, Any]) -> None:
     )
 
 
+@activity.defn(name="upload_staging_to_minio")
+async def upload_staging_to_minio(payload: dict[str, Any]) -> dict[str, str]:
+    """Copy a staged file out of the Notion unzip tree into MinIO.
+
+    Called per-binary by the ImportWorkflow after unzip_notion_export has
+    extracted everything to ``NOTION_IMPORT_STAGING_DIR/<job_id>/``. The
+    staged file is read into memory (Notion attachments are small — images
+    and small CSVs — so streaming chunking is overkill here) and pushed
+    under the object_key the workflow picked. Returns the pair back so
+    the child IngestWorkflow can pick up from a canonical record.
+    """
+    from worker.lib.s3_client import get_s3_client
+
+    staged_path = (
+        _staging_base() / payload["job_id"] / payload["staging_path"]
+    )
+    with open(staged_path, "rb") as f:
+        data = f.read()
+    import io
+
+    client = get_s3_client()
+    bucket = os.environ.get("S3_BUCKET", "opencairn-uploads")
+    buf = io.BytesIO(data)
+    client.put_object(
+        bucket,
+        payload["object_key"],
+        buf,
+        length=len(data),
+        content_type=payload["mime"],
+    )
+    return {"object_key": payload["object_key"], "mime": payload["mime"]}
+
+
 __all__ = [
     "ZipDefenseError",
     "_safe_extract",
@@ -535,4 +568,5 @@ __all__ = [
     "md_to_plate",
     "unzip_and_walk",
     "unzip_notion_export",
+    "upload_staging_to_minio",
 ]

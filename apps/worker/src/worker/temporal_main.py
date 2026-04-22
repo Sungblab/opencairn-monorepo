@@ -22,10 +22,24 @@ from worker.activities.batch_embed_activities import (
     submit_batch_embed,
 )
 from worker.activities.compiler_activity import compile_note
+from worker.activities.drive_activities import (
+    discover_drive_tree,
+    upload_drive_file_to_minio,
+)
 from worker.activities.enhance_activity import enhance_with_gemini
 from worker.activities.image_activity import analyze_image
+from worker.activities.import_activities import (
+    finalize_import_job,
+    materialize_page_tree,
+    resolve_target,
+)
 from worker.activities.librarian_activity import run_librarian
 from worker.activities.note_activity import create_source_note, report_ingest_failure
+from worker.activities.notion_activities import (
+    convert_notion_md_to_plate,
+    unzip_notion_export,
+    upload_staging_to_minio,
+)
 from worker.activities.pdf_activity import parse_pdf
 from worker.activities.quarantine_activity import quarantine_source
 from worker.activities.research_activity import run_research
@@ -38,6 +52,7 @@ from worker.activities.web_activity import scrape_web_url
 from worker.activities.youtube_activity import ingest_youtube
 from worker.workflows.batch_embed_workflow import BatchEmbedWorkflow
 from worker.workflows.compiler_workflow import CompilerWorkflow
+from worker.workflows.import_workflow import ImportWorkflow
 from worker.workflows.ingest_workflow import IngestWorkflow
 from worker.workflows.librarian_workflow import LibrarianWorkflow
 from worker.workflows.research_workflow import ResearchWorkflow
@@ -60,6 +75,7 @@ async def main() -> None:
             ResearchWorkflow,
             LibrarianWorkflow,
             BatchEmbedWorkflow,
+            ImportWorkflow,
         ],
         activities=[
             parse_pdf,
@@ -80,6 +96,15 @@ async def main() -> None:
             poll_batch_embed,
             fetch_batch_embed_results,
             cancel_batch_embed,
+            # Ingest Source Expansion — Drive + Notion one-shot import.
+            discover_drive_tree,
+            upload_drive_file_to_minio,
+            unzip_notion_export,
+            convert_notion_md_to_plate,
+            upload_staging_to_minio,
+            resolve_target,
+            materialize_page_tree,
+            finalize_import_job,
         ],
     )
     print(f"[worker] Starting Temporal worker on task queue: {task_queue}")
