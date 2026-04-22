@@ -96,7 +96,7 @@ tests/
 - [ ] **Step 1: Create worktree**
 
 ```bash
-git worktree add ../opencairn-monorepo-plan11a -b feat/plan-11a-chat-scope master
+git worktree add ../opencairn-monorepo-plan11a -b feat/plan-11a-chat-scope main
 cd ../opencairn-monorepo-plan11a
 ```
 

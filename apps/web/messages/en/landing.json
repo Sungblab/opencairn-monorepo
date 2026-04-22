@@ -460,8 +460,8 @@
     ],
     "devLinks": [
       { "label": "github", "href": "https://github.com/Sungblab/opencairn-monorepo" },
-      { "label": "docs", "href": "https://github.com/Sungblab/opencairn-monorepo/tree/master/docs" },
-      { "label": "adrs", "href": "https://github.com/Sungblab/opencairn-monorepo/tree/master/docs/architecture/adr" },
+      { "label": "docs", "href": "https://github.com/Sungblab/opencairn-monorepo/tree/main/docs" },
+      { "label": "adrs", "href": "https://github.com/Sungblab/opencairn-monorepo/tree/main/docs/architecture/adr" },
       { "label": "issues", "href": "https://github.com/Sungblab/opencairn-monorepo/issues" },
       { "label": "changelog", "href": "#" }
     ],
@@ -472,7 +472,7 @@
       { "label": "email", "href": "mailto:hello@opencairn.dev" }
     ],
     "legalLinks": [
-      { "label": "agplv3", "href": "https://github.com/Sungblab/opencairn-monorepo/blob/master/LICENSE" },
+      { "label": "agplv3", "href": "https://github.com/Sungblab/opencairn-monorepo/blob/main/LICENSE" },
       { "label": "privacy", "href": "/privacy" },
       { "label": "refund", "href": "/refund" },
       { "label": "cla", "href": "#" },
