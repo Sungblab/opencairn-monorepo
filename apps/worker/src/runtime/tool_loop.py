@@ -160,6 +160,11 @@ class ToolLoopExecutor:
         await self._hooks.on_run_start(state)
         try:
             while True:
+                # Hard guards — evaluated at loop head so partial state
+                # from the previous iteration is already accounted for.
+                if reason := self._check_hard_guards(state):
+                    return self._finalize(state, reason)
+
                 await self._hooks.on_turn_start(state)
 
                 turn = await self._provider.generate_with_tools(
@@ -194,6 +199,10 @@ class ToolLoopExecutor:
                         CallKey(tu.name, tu.args_hash())
                     )
                     await self._hooks.on_tool_end(state, tu, result)
+
+                    # After each tool, check if we've blown the tool budget.
+                    if reason := self._check_hard_guards(state):
+                        return self._finalize(state, reason)
 
                 state.turn_count += 1
         finally:
@@ -246,3 +255,14 @@ class ToolLoopExecutor:
             total_output_tokens=state.total_output_tokens,
             error=error,
         )
+
+    def _check_hard_guards(self, state: LoopState) -> TerminationReason | None:
+        if state.turn_count >= self._config.max_turns:
+            return "max_turns"
+        if state.tool_call_count >= self._config.max_tool_calls:
+            return "max_tool_calls"
+        if state.total_input_tokens >= self._config.max_total_input_tokens:
+            return "max_input_tokens"
+        if self._budget.should_stop(state):
+            return "budget_exceeded"
+        return None
