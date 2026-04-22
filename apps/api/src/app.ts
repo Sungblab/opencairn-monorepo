@@ -15,6 +15,7 @@ import { internalRoutes } from "./routes/internal";
 import { commentsRouter } from "./routes/comments";
 import { mentionsRouter } from "./routes/mentions";
 import { integrationsRouter } from "./routes/integrations";
+import { importRouter } from "./routes/import";
 
 export function createApp() {
   const app = new Hono();
@@ -43,6 +44,10 @@ export function createApp() {
   // mount integrations BEFORE the invite/project/comments/mentions routers.
   // Same precedent as /api/internal.
   app.route("/api/integrations", integrationsRouter);
+  // /api/import sits above the wildcard /api routers for the same reason —
+  // inviteRoutes' .use("*", requireAuth) would otherwise race the importRouter's
+  // own per-route requireAuth and surface a 401 before zValidator can run.
+  app.route("/api/import", importRouter);
   app.route("/api", inviteRoutes);  // /api/workspaces/:id/invites and /api/invites/:token/*
   app.route("/api", projectRoutes);
   app.route("/api/folders", folderRoutes);
