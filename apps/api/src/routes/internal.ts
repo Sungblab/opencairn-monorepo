@@ -23,6 +23,7 @@ import {
 } from "@opencairn/db";
 import { getTemporalClient } from "../lib/temporal-client";
 import { signSessionForUser } from "../lib/test-session";
+import { createMultiRoleSeed } from "../lib/test-seed-multi";
 import type { AppEnv } from "../lib/types";
 
 // Internal-only routes — reachable by worker callbacks on the docker network.
@@ -1046,6 +1047,65 @@ internal.post("/test-seed", async (c) => {
     cookieName: name,
     cookieValue: value,
     expiresAt: expiresAt.toISOString(),
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Plan 2B Task 20 — multi-role E2E test seed
+// ---------------------------------------------------------------------------
+
+// POST /internal/test-seed-multi-role — create one workspace with four roles
+// (owner/editor/commenter/viewer) + shared note + private note + sibling
+// workspace, then mint a signed session cookie for EACH role user so the
+// Playwright collab E2E can assign one cookie per browser context.
+//
+// Same double gate as `/test-seed`: the internal middleware already enforces
+// the shared-secret header; we additionally refuse in production so a leaked
+// secret still can't mint four sessions at once on prod.
+internal.post("/test-seed-multi-role", async (c) => {
+  if (process.env.NODE_ENV === "production") {
+    return c.json(
+      { error: "test-seed-multi-role disabled in production" },
+      403,
+    );
+  }
+
+  const seed = await createMultiRoleSeed();
+
+  // Sign one session per role user. `signSessionForUser` inserts a real
+  // `session` row so Better Auth's getSession() resolves against DB state
+  // rather than a bypass — behaviour matches /test-seed.
+  const [ownerSess, editorSess, commenterSess, viewerSess] = await Promise.all(
+    [
+      signSessionForUser(seed.ownerUserId),
+      signSessionForUser(seed.editorUserId),
+      signSessionForUser(seed.commenterUserId),
+      signSessionForUser(seed.viewerUserId),
+    ],
+  );
+
+  const toCookiePayload = (
+    userId: string,
+    s: Awaited<ReturnType<typeof signSessionForUser>>,
+  ) => ({
+    userId,
+    sessionCookie: s.setCookie,
+    cookieName: s.name,
+    cookieValue: s.value,
+    expiresAt: s.expiresAt.toISOString(),
+  });
+
+  return c.json({
+    workspaceId: seed.workspaceId,
+    wsSlug: seed.wsSlug,
+    projectId: seed.projectId,
+    noteId: seed.noteId,
+    privateNoteId: seed.privateNoteId,
+    otherWorkspaceId: seed.otherWorkspaceId,
+    owner: toCookiePayload(seed.ownerUserId, ownerSess),
+    editor: toCookiePayload(seed.editorUserId, editorSess),
+    commenter: toCookiePayload(seed.commenterUserId, commenterSess),
+    viewer: toCookiePayload(seed.viewerUserId, viewerSess),
   });
 });
 
