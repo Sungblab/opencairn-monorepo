@@ -78,6 +78,13 @@
       "when": 1776844557700,
       "tag": "0010_plan_2b_collab",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1776845234582,
+      "tag": "0011_plan_2b_commenter_role",
+      "breakpoints": true
     }
   ]
 }

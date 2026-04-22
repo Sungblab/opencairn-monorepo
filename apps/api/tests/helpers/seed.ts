@@ -166,11 +166,155 @@ export async function seedWorkspace(opts: { role: SeedRole }): Promise<SeedResul
   };
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Plan 2B: multi-role seed for comments + collab tests.
+// Existing seedWorkspace({role}) returns a single-user context — left untouched.
+// This helper builds one workspace with owner/editor/commenter/viewer roles
+// simultaneously, plus a private note (viewer blocked) and a sibling workspace
+// (no shared members) for cross-workspace isolation tests.
+// ────────────────────────────────────────────────────────────────────────────
+export interface SeedMultiRoleResult {
+  workspaceId: string;
+  projectId: string;
+  noteId: string;            // editor+commenter+viewer all have access
+  privateNoteId: string;     // inheritParent=false + no pagePermissions for viewer
+  otherWorkspaceId: string;  // separate workspace, no shared members
+  ownerUserId: string;
+  editorUserId: string;
+  commenterUserId: string;
+  viewerUserId: string;
+  cleanup: () => Promise<void>;
+}
+
+export async function seedMultiRoleWorkspace(): Promise<SeedMultiRoleResult> {
+  const ownerUser = await createUser();
+  const editorUser = await createUser();
+  const commenterUser = await createUser();
+  const viewerUser = await createUser();
+
+  // Primary workspace with project defaultRole="editor".
+  const workspaceId = randomUUID();
+  await db.insert(workspaces).values({
+    id: workspaceId,
+    slug: `test-ws-${workspaceId.slice(0, 8)}`,
+    name: "Test Workspace (multi-role)",
+    ownerId: ownerUser.id,
+    planType: "free",
+  });
+
+  await db.insert(workspaceMembers).values([
+    { workspaceId, userId: ownerUser.id, role: "owner" },
+    { workspaceId, userId: editorUser.id, role: "member" },
+    { workspaceId, userId: commenterUser.id, role: "member" },
+    { workspaceId, userId: viewerUser.id, role: "member" },
+  ]);
+
+  const projectId = randomUUID();
+  await db.insert(projects).values({
+    id: projectId,
+    workspaceId,
+    name: "Test Project (multi-role)",
+    createdBy: ownerUser.id,
+    defaultRole: "editor",
+  });
+
+  // editor inherits defaultRole="editor" from project; no explicit row needed.
+  // commenter + viewer need explicit overrides.
+  await db.insert(projectPermissions).values([
+    { projectId, userId: commenterUser.id, role: "commenter" },
+    { projectId, userId: viewerUser.id, role: "viewer" },
+  ]);
+
+  // Shared note — all 4 users should be able to read; editor can write.
+  const noteId = randomUUID();
+  await db.insert(notes).values({
+    id: noteId,
+    projectId,
+    workspaceId,
+    title: "shared note",
+    inheritParent: true,
+  });
+
+  // Private note — inheritParent=false + no pagePermissions → viewer sees "none".
+  // Grant owner/editor/commenter explicit page-level access so they still pass.
+  const privateNoteId = randomUUID();
+  await db.insert(notes).values({
+    id: privateNoteId,
+    projectId,
+    workspaceId,
+    title: "private note",
+    inheritParent: false,
+  });
+  await db.insert(pagePermissions).values([
+    { pageId: privateNoteId, userId: editorUser.id, role: "editor" },
+    { pageId: privateNoteId, userId: commenterUser.id, role: "commenter" },
+  ]);
+
+  // Sibling workspace — different owner, zero shared members.
+  const otherOwner = await createUser();
+  const otherWorkspaceId = randomUUID();
+  await db.insert(workspaces).values({
+    id: otherWorkspaceId,
+    slug: `test-ws-${otherWorkspaceId.slice(0, 8)}`,
+    name: "Other Workspace",
+    ownerId: otherOwner.id,
+    planType: "free",
+  });
+  await db.insert(workspaceMembers).values({
+    workspaceId: otherWorkspaceId,
+    userId: otherOwner.id,
+    role: "owner",
+  });
+
+  const createdUserIds = [
+    ownerUser.id,
+    editorUser.id,
+    commenterUser.id,
+    viewerUser.id,
+    otherOwner.id,
+  ];
+
+  const cleanup = async () => {
+    const errors: unknown[] = [];
+    // workspace delete cascades to members/projects/notes/permissions/comments.
+    for (const wsId of [workspaceId, otherWorkspaceId]) {
+      try {
+        await db.delete(workspaces).where(eq(workspaces.id, wsId));
+      } catch (e) {
+        errors.push(e);
+      }
+    }
+    for (const uid of createdUserIds) {
+      try {
+        await db.delete(user).where(eq(user.id, uid));
+      } catch (e) {
+        errors.push(e);
+      }
+    }
+    if (errors.length > 0) {
+      throw new AggregateError(errors, "multi-role cleanup partial failure");
+    }
+  };
+
+  return {
+    workspaceId,
+    projectId,
+    noteId,
+    privateNoteId,
+    otherWorkspaceId,
+    ownerUserId: ownerUser.id,
+    editorUserId: editorUser.id,
+    commenterUserId: commenterUser.id,
+    viewerUserId: viewerUser.id,
+    cleanup,
+  };
+}
+
 // 특정 note에 pagePermissions 행 삽입
 export async function setPagePermission(
   userId: string,
   pageId: string,
-  role: "editor" | "viewer" | "none",
+  role: "editor" | "commenter" | "viewer" | "none",
 ): Promise<void> {
   await db.insert(pagePermissions).values({
     pageId,

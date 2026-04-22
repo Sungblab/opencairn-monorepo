@@ -2,7 +2,7 @@ import { createMiddleware } from "hono/factory";
 import { resolveRole, ResolvedRole } from "../lib/permissions";
 import type { AppEnv } from "../lib/types";
 
-const ORDER: Record<ResolvedRole, number> = { none: 0, viewer: 1, editor: 2, admin: 3, owner: 4 };
+const ORDER: Record<ResolvedRole, number> = { none: 0, viewer: 1, commenter: 2, editor: 3, admin: 4, owner: 5 };
 
 export function requireWorkspaceRole(minRole: "member" | "admin" | "owner") {
   return createMiddleware<AppEnv>(async (c, next) => {

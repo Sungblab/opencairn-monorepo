@@ -1,6 +1,6 @@
 import { db, workspaceMembers, projectPermissions, pagePermissions, projects, notes, and, eq } from "@opencairn/db";
 
-export type ResolvedRole = "owner" | "admin" | "editor" | "viewer" | "none";
+export type ResolvedRole = "owner" | "admin" | "editor" | "commenter" | "viewer" | "none";
 export type ResourceType = "workspace" | "project" | "note";
 
 export async function findWorkspaceId(resource: { type: ResourceType; id: string }): Promise<string | null> {
@@ -79,6 +79,12 @@ export async function canWrite(userId: string, resource: { type: ResourceType; i
   return ["owner", "admin", "editor"].includes(r);
 }
 
+// Plan 2B: commenter+ can read and post comments but not edit content (content is Yjs).
+export async function canComment(userId: string, resource: { type: ResourceType; id: string }): Promise<boolean> {
+  const r = await resolveRole(userId, resource);
+  return ["owner", "admin", "editor", "commenter"].includes(r);
+}
+
 export async function canAdmin(userId: string, workspaceId: string): Promise<boolean> {
   const r = await resolveRole(userId, { type: "workspace", id: workspaceId });
   return r === "owner" || r === "admin";
@@ -90,7 +96,7 @@ export async function requireWorkspaceRole(
   roles: Array<"owner" | "admin" | "editor" | "viewer">,
 ): Promise<void> {
   const r = await resolveRole(userId, { type: "workspace", id: workspaceId });
-  if (r === "none" || !roles.includes(r as Exclude<ResolvedRole, "none">)) {
+  if (r === "none" || r === "commenter" || !roles.includes(r)) {
     throw new Error(`Forbidden: workspace ${workspaceId} requires role in [${roles.join(",")}], got ${r}`);
   }
 }
