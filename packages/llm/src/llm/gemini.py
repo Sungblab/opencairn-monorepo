@@ -25,6 +25,7 @@ from .batch_types import (
     BatchNotSupported,
 )
 from .errors import ProviderFatalError, ProviderRetryableError
+from .interactions import InteractionHandle
 from .tool_types import AssistantTurn, ToolResult, ToolUse, UsageCounts
 
 # Gemini ``JobState`` enum → our normalised strings. Keys are the enum
@@ -537,4 +538,46 @@ class GeminiProvider(LLMProvider):
                     response=payload,
                 )
             )]
+        )
+
+    # --- Interactions API (Deep Research) -------------------------------
+
+    async def start_interaction(
+        self,
+        *,
+        input: str,
+        agent: str,
+        collaborative_planning: bool = False,
+        background: bool = False,
+        stream: bool = False,
+        previous_interaction_id: str | None = None,
+        thinking_summaries: str | None = None,
+        visualization: bool = False,
+    ) -> InteractionHandle:
+        # DeepResearchAgentConfigParam.type is a fixed discriminator — the full
+        # agent identifier goes on the top-level ``agent`` kwarg.
+        agent_config: dict[str, Any] = {"type": "deep-research"}
+        if collaborative_planning:
+            agent_config["collaborative_planning"] = True
+        if thinking_summaries is not None:
+            agent_config["thinking_summaries"] = thinking_summaries
+        if visualization:
+            agent_config["visualization"] = True
+
+        kwargs: dict[str, Any] = {
+            "input": input,
+            "agent": agent,
+            "agent_config": agent_config,
+            "background": background,
+        }
+        if stream:
+            kwargs["stream"] = True
+        if previous_interaction_id is not None:
+            kwargs["previous_interaction_id"] = previous_interaction_id
+
+        resp = await self._client.aio.interactions.create(**kwargs)
+        return InteractionHandle(
+            id=resp.id,
+            agent=resp.agent,
+            background=bool(resp.background),
         )
