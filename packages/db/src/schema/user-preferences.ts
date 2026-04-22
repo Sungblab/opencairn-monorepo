@@ -1,5 +1,6 @@
 import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { user } from "./users";
+import { bytea } from "./custom-types";
 import { llmProviderEnum } from "./enums";
 
 // Per-user LLM provider configuration. Gemini by default; switch to Ollama
@@ -15,6 +16,11 @@ export const userPreferences = pgTable("user_preferences", {
   embedModel: text("embed_model").notNull().default("gemini-embedding-001"),
   ttsModel: text("tts_model"),
   ollamaBaseUrl: text("ollama_base_url"),
+  // Deep Research (Spec 2026-04-22) BYOK key. AES-256-GCM encrypted, wire
+  // layout iv(12)||tag(16)||ct — same scheme as user_integrations so the
+  // existing worker decrypt helper round-trips. Nullable until the user
+  // registers a key via Settings (Phase D).
+  byokApiKeyEncrypted: bytea("byok_api_key_encrypted"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
