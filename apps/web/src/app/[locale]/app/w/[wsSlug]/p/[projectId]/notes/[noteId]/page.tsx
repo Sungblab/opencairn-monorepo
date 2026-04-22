@@ -74,6 +74,10 @@ export default async function NotePage({ params }: PageProps) {
 
   // viewer + commenter cannot write content or title. owner/admin/editor can.
   const readOnly = role === "viewer" || role === "commenter";
+  // Plan 2B Task 18: commenter is readOnly for Yjs but CAN post/resolve/
+  // delete comments — decouple the two flags so the CommentsPanel composer
+  // appears even when the editor body is locked.
+  const canComment = role !== "viewer";
 
   return (
     <NoteEditor
@@ -84,6 +88,7 @@ export default async function NotePage({ params }: PageProps) {
       userId={me.userId}
       userName={me.name ?? me.email ?? "Anonymous"}
       readOnly={readOnly}
+      canComment={canComment}
     />
   );
 }
