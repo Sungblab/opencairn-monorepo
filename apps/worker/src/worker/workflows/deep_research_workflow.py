@@ -16,6 +16,7 @@ on the Temporal data converter).
 """
 from __future__ import annotations
 
+import asyncio
 import os
 from dataclasses import dataclass
 from datetime import timedelta
@@ -193,26 +194,46 @@ class DeepResearchWorkflow:
 
             approved = self._approved_plan or current_plan_text
 
-            exec_out: dict[str, Any] = await workflow.execute_activity(
-                "execute_deep_research",
-                ExecuteResearchInput(
-                    run_id=inp.run_id,
-                    user_id=inp.user_id,
-                    approved_plan=approved,
-                    model=inp.model,
-                    billing_path=inp.billing_path,
-                    previous_interaction_id=self._last_interaction_id or "",
-                ),
-                start_to_close_timeout=_EXEC_TIMEOUT,
-                heartbeat_timeout=timedelta(seconds=60),
-                retry_policy=RetryPolicy(
-                    maximum_attempts=2,
-                    non_retryable_error_types=[
-                        "quota_exceeded",
-                        "invalid_byok_key",
-                    ],
-                ),
+            exec_task = asyncio.ensure_future(
+                workflow.execute_activity(
+                    "execute_deep_research",
+                    ExecuteResearchInput(
+                        run_id=inp.run_id,
+                        user_id=inp.user_id,
+                        approved_plan=approved,
+                        model=inp.model,
+                        billing_path=inp.billing_path,
+                        previous_interaction_id=self._last_interaction_id or "",
+                    ),
+                    start_to_close_timeout=_EXEC_TIMEOUT,
+                    heartbeat_timeout=timedelta(seconds=60),
+                    retry_policy=RetryPolicy(
+                        maximum_attempts=2,
+                        non_retryable_error_types=[
+                            "quota_exceeded",
+                            "invalid_byok_key",
+                        ],
+                    ),
+                )
             )
+            await workflow.wait_condition(
+                lambda: self._cancelled or exec_task.done()
+            )
+            if self._cancelled and not exec_task.done():
+                exec_task.cancel()
+                try:
+                    await exec_task
+                except Exception:
+                    pass
+                return DeepResearchOutput(
+                    status="cancelled",
+                    error={
+                        "code": "user_cancelled",
+                        "message": "User cancelled run",
+                        "retryable": False,
+                    },
+                )
+            exec_out: dict[str, Any] = await exec_task
 
             persist_out: dict[str, Any] = await workflow.execute_activity(
                 "persist_deep_research_report",

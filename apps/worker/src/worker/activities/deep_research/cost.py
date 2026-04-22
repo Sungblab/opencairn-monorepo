@@ -39,7 +39,10 @@ def estimate_cost_usd_cents(
 
     usd = base * time_factor
     if billing_path == "managed":
-        margin = float(os.environ.get("MANAGED_MARGIN", "1.3"))
+        try:
+            margin = float(os.environ.get("MANAGED_MARGIN", "1.3"))
+        except ValueError:
+            margin = 1.3
         usd *= margin
 
     return int(round(usd * 100))

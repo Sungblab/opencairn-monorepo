@@ -70,3 +70,16 @@ def test_rejects_unknown_model():
             duration_minutes=10.0,
             billing_path="byok",
         )
+
+
+def test_managed_path_malformed_margin_falls_back_to_default(monkeypatch):
+    monkeypatch.setenv("MANAGED_MARGIN", "not-a-number")
+    # Falls back to 1.3: 2.00 * 1.0 * 1.3 = 2.60 USD → 260 cents.
+    assert (
+        estimate_cost_usd_cents(
+            model="deep-research-preview-04-2026",
+            duration_minutes=20.0,
+            billing_path="managed",
+        )
+        == 260
+    )

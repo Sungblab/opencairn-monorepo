@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Protocol
+from typing import Any, Awaitable, Callable, Protocol
 
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
@@ -100,7 +100,7 @@ async def _run_create_plan(
     return CreatePlanOutput(interaction_id=handle.id, plan_text=plan_text)
 
 
-def _extract_text(outputs: list[dict]) -> str:
+def _extract_text(outputs: list[dict[str, Any]]) -> str:
     return "".join(o.get("text", "") for o in outputs if o.get("type") == "text")
 
 
