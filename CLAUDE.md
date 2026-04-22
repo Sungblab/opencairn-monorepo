@@ -51,6 +51,6 @@ Full index: **`docs/README.md`**. 고빈도:
 
 Critical path: **0 (1 → 13 → 12) → 1 (2/3/4/9 병렬) → 2 (5/6/7/8 병렬) → 3**. 완료 커밋 + 상세 상태는 `docs/contributing/plans-status.md`.
 
-- ✅ Complete: Plan 1, 13, 12, 3, 4, 9a, 2A (editor core, solo).
-- 🟡 Active / next: Plan 2B (Hocuspocus + comments + @mention), 2C (notifications + share), 2D (chat renderer + block extensions), 2E (tab shell), Plan 5/6/7/8.
+- ✅ Complete: Plan 1, 13, 12, 3, 4, 9a, 2A (editor core, solo), 2B (Hocuspocus + comments + @mention).
+- 🟡 Active / next: Plan 2C (notifications + share), 2D (chat renderer + block extensions), 2E (tab shell), Plan 5/6/7/8.
 - 🔴 Blocked: Plan 9b (사업자등록 필요).
