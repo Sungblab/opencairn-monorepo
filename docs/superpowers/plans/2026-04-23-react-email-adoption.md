@@ -6,7 +6,7 @@
 
 **Architecture:** New workspace package `@opencairn/emails` exports React components (`<InviteEmail>`, shared `<Layout>`, `<Button>`). `apps/api` imports the component directly and passes it to `resend.emails.send({ react: <Component .../> })` — Resend converts to HTML internally. A react-email CLI dev server runs on port 3001 for local preview. No runtime LLM calls; Gemini is only used at development time by the engineer to scaffold new templates.
 
-**Tech Stack:** TypeScript, React 19, `@react-email/components` (primitives like `Html`, `Container`, `Button`), `react-email` CLI (preview dev server), Resend SDK (already installed), Vitest (already the monorepo runner), pnpm workspaces.
+**Tech Stack:** TypeScript, React 19, `react-email` v6 (consolidated package — since 2026-04-16 the `@react-email/components` package was folded into `react-email` itself and marked deprecated, so we import primitives like `Html`, `Container`, `Button` directly from `react-email`), Resend SDK (already installed), Vitest (already the monorepo runner), pnpm workspaces.
 
 **Design reference:** `docs/superpowers/specs/2026-04-23-react-email-adoption-design.md`
 
@@ -48,7 +48,7 @@ Each file has a single responsibility. Components (`Layout`, `Button`) are indep
 - Create: `packages/emails/emails/.gitkeep`
 - Create: `packages/emails/src/index.ts` (empty stub for now)
 
-- [ ] **Step 1: Create `packages/emails/package.json`**
+- [x] **Step 1: Create `packages/emails/package.json`**
 
 ```json
 {
@@ -66,16 +66,15 @@ Each file has a single responsibility. Components (`Layout`, `Button`) are indep
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@react-email/components": "^0.5.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-email": "^6.0.0"
   },
   "devDependencies": {
-    "@react-email/render": "^1.3.0",
+    "@react-email/render": "^2.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.0.0",
-    "react-email": "^4.0.0",
     "typescript": "^5.8.0",
     "vitest": "^4.1.4"
   }
@@ -83,12 +82,14 @@ Each file has a single responsibility. Components (`Layout`, `Button`) are indep
 ```
 
 Notes:
+- As of `react-email@6.0.0` (2026-04-16), the `@react-email/components` package is deprecated — all primitives (`Html`, `Head`, `Body`, `Container`, `Button`, `Text`, `Section`, `Hr`, `Preview`) are now exported directly from `react-email`. Do NOT install `@react-email/components`.
+- `react-email` is a runtime dep (not devDep) because we import its components from our template TSX files. It also ships the `email` CLI binary for the preview server.
 - `react`/`react-dom` are runtime deps because Resend SDK calls `@react-email/render` against the component tree at send time.
-- `@react-email/render` is a devDep because we only call it from tests; production send goes through Resend SDK which bundles its own render.
-- `email dev` (from the `react-email` package) is the preview CLI. `--port 3001` avoids Next.js dev on 3000.
-- Version pinning uses caret ranges consistent with `packages/db` and `packages/shared`; pnpm will resolve actual latest on install.
+- `@react-email/render` stays a devDep — only tests call it directly; production send goes through Resend SDK which bundles its own render pipeline.
+- `email dev --port 3001` avoids Next.js dev on 3000.
+- Version pinning uses caret ranges consistent with `packages/db` and `packages/shared`.
 
-- [ ] **Step 2: Create `packages/emails/tsconfig.json`**
+- [x] **Step 2: Create `packages/emails/tsconfig.json`**
 
 ```json
 {
@@ -107,7 +108,7 @@ Notes:
 - `jsx: "react-jsx"` — React 17+ automatic JSX runtime, no need to import React in every file.
 - `rootDir: ./src` excludes the `emails/` preview directory from `tsc` build output (CLI handles it separately).
 
-- [ ] **Step 3: Create `packages/emails/vitest.config.ts`**
+- [x] **Step 3: Create `packages/emails/vitest.config.ts`**
 
 ```ts
 import { defineConfig } from "vitest/config";
@@ -126,7 +127,7 @@ Notes:
 - `@vitejs/plugin-react` is required because tests render TSX components via `@react-email/render`.
 - `environment: "node"` — no DOM needed; `render()` returns a string.
 
-- [ ] **Step 4: Create empty placeholders**
+- [x] **Step 4: Create empty placeholders**
 
 `packages/emails/emails/.gitkeep` (empty file — just needs to exist so git tracks the preview directory).
 
@@ -136,17 +137,17 @@ Notes:
 export {};
 ```
 
-- [ ] **Step 5: Install dependencies**
+- [x] **Step 5: Install dependencies**
 
 Run: `pnpm install`
 Expected: Installs `packages/emails` deps and adds it to the workspace graph. No errors.
 
-- [ ] **Step 6: Verify workspace registration**
+- [x] **Step 6: Verify workspace registration**
 
 Run: `pnpm --filter @opencairn/emails exec echo ok`
 Expected: Prints `ok`. Confirms pnpm sees the package.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/emails/ pnpm-lock.yaml
@@ -160,7 +161,7 @@ git commit -m "feat(emails): scaffold @opencairn/emails workspace package"
 **Files:**
 - Create: `packages/emails/src/components/tokens.ts`
 
-- [ ] **Step 1: Create `tokens.ts`**
+- [x] **Step 1: Create `tokens.ts`**
 
 ```ts
 // OpenCairn brand tokens for email templates.
@@ -196,7 +197,7 @@ export const layout = {
 } as const;
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add packages/emails/src/components/tokens.ts
@@ -211,7 +212,7 @@ git commit -m "feat(emails): add neutral monochrome design tokens"
 - Create: `packages/emails/tests/button.test.tsx`
 - Create: `packages/emails/src/components/Button.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/emails/tests/button.test.tsx`:
 ```tsx
@@ -235,16 +236,16 @@ describe("Button", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `pnpm --filter @opencairn/emails test`
 Expected: FAIL — `Cannot find module '../src/components/Button'`.
 
-- [ ] **Step 3: Implement Button**
+- [x] **Step 3: Implement Button**
 
 `packages/emails/src/components/Button.tsx`:
 ```tsx
-import { Button as RButton } from "@react-email/components";
+import { Button as RButton } from "react-email";
 import { colors, spacing } from "./tokens";
 import type { ReactNode } from "react";
 
@@ -278,12 +279,12 @@ export function Button({ href, children }: Props) {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `pnpm --filter @opencairn/emails test`
 Expected: PASS — both Button tests green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/emails/src/components/Button.tsx packages/emails/tests/button.test.tsx
@@ -298,7 +299,7 @@ git commit -m "feat(emails): add branded Button primitive"
 - Create: `packages/emails/tests/layout.test.tsx`
 - Create: `packages/emails/src/components/Layout.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/emails/tests/layout.test.tsx`:
 ```tsx
@@ -363,12 +364,12 @@ describe("Layout", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `pnpm --filter @opencairn/emails test`
 Expected: FAIL — `Cannot find module '../src/components/Layout'`.
 
-- [ ] **Step 3: Implement Layout**
+- [x] **Step 3: Implement Layout**
 
 `packages/emails/src/components/Layout.tsx`:
 ```tsx
@@ -381,7 +382,7 @@ import {
   Section,
   Text,
   Hr,
-} from "@react-email/components";
+} from "react-email";
 import type { ReactNode } from "react";
 import { colors, fonts, spacing, layout } from "./tokens";
 
@@ -421,12 +422,12 @@ export function Layout({ preview, lang = "ko", children }: Props) {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `pnpm --filter @opencairn/emails test`
 Expected: PASS — all 6 Layout tests green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/emails/src/components/Layout.tsx packages/emails/tests/layout.test.tsx
@@ -441,7 +442,7 @@ git commit -m "feat(emails): add Layout shell with header + footer"
 - Create: `packages/emails/tests/invite.test.tsx`
 - Create: `packages/emails/src/templates/invite.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/emails/tests/invite.test.tsx`:
 ```tsx
@@ -498,16 +499,16 @@ describe("InviteEmail", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `pnpm --filter @opencairn/emails test`
 Expected: FAIL — `Cannot find module '../src/templates/invite'`.
 
-- [ ] **Step 3: Implement InviteEmail**
+- [x] **Step 3: Implement InviteEmail**
 
 `packages/emails/src/templates/invite.tsx`:
 ```tsx
-import { Text } from "@react-email/components";
+import { Text } from "react-email";
 import { Layout } from "../components/Layout";
 import { Button } from "../components/Button";
 import { colors, spacing } from "../components/tokens";
@@ -538,12 +539,12 @@ export function InviteEmail({ inviter, signupUrl }: Props) {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `pnpm --filter @opencairn/emails test`
 Expected: PASS — all 6 InviteEmail tests green (plus earlier Button + Layout tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/emails/src/templates/invite.tsx packages/emails/tests/invite.test.tsx
@@ -557,7 +558,7 @@ git commit -m "feat(emails): add InviteEmail template with Korean copy"
 **Files:**
 - Modify: `packages/emails/src/index.ts`
 
-- [ ] **Step 1: Replace the empty stub with exports**
+- [x] **Step 1: Replace the empty stub with exports**
 
 `packages/emails/src/index.ts`:
 ```ts
@@ -566,12 +567,12 @@ export { Button } from "./components/Button";
 export { InviteEmail } from "./templates/invite";
 ```
 
-- [ ] **Step 2: Verify TypeScript build still works**
+- [x] **Step 2: Verify TypeScript build still works**
 
 Run: `pnpm --filter @opencairn/emails build`
 Expected: Produces `packages/emails/dist/` with `.d.ts` files. No TS errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/emails/src/index.ts
@@ -586,7 +587,7 @@ git commit -m "feat(emails): export Layout, Button, InviteEmail"
 - Create: `packages/emails/emails/invite.tsx`
 - Delete: `packages/emails/emails/.gitkeep`
 
-- [ ] **Step 1: Create preview wrapper**
+- [x] **Step 1: Create preview wrapper**
 
 `packages/emails/emails/invite.tsx`:
 ```tsx
@@ -609,12 +610,12 @@ Preview.PreviewProps = {
 };
 ```
 
-- [ ] **Step 2: Remove the placeholder**
+- [x] **Step 2: Remove the placeholder**
 
 Run: `git rm packages/emails/emails/.gitkeep`
 Expected: File removed from git.
 
-- [ ] **Step 3: Manually verify the preview server starts**
+- [x] **Step 3: Manually verify the preview server starts**
 
 Run: `pnpm --filter @opencairn/emails dev`
 Open http://localhost:3001 in a browser.
@@ -622,7 +623,7 @@ Expected: `invite` template appears in the sidebar; clicking renders the invite 
 
 Note: the CLI may require one-time initialization on first run; wait for "Ready in..." or similar log before assuming failure.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/emails/emails/invite.tsx
@@ -636,7 +637,7 @@ git commit -m "feat(emails): add invite preview wrapper for dev server"
 **Files:**
 - Modify: `apps/api/package.json`
 
-- [ ] **Step 1: Add workspace dependency**
+- [x] **Step 1: Add workspace dependency**
 
 In `apps/api/package.json`, find the `dependencies` block and add the `@opencairn/emails` line (keep alphabetical order after `@opencairn/db`):
 
@@ -659,17 +660,17 @@ After:
     "@opencairn/shared": "workspace:*",
 ```
 
-- [ ] **Step 2: Install**
+- [x] **Step 2: Install**
 
 Run: `pnpm install`
 Expected: pnpm links `@opencairn/emails` into `apps/api/node_modules`.
 
-- [ ] **Step 3: Verify link resolves**
+- [x] **Step 3: Verify link resolves**
 
 Run: `pnpm --filter @opencairn/api exec node -e "import('@opencairn/emails').then(m => console.log(Object.keys(m)))"`
 Expected: Prints `[ 'Layout', 'Button', 'InviteEmail' ]`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/api/package.json pnpm-lock.yaml
@@ -683,7 +684,7 @@ git commit -m "feat(api): depend on @opencairn/emails workspace package"
 **Files:**
 - Modify: `apps/api/src/lib/email.ts`
 
-- [ ] **Step 1: Replace the file contents**
+- [x] **Step 1: Replace the file contents**
 
 `apps/api/src/lib/email.ts`:
 ```ts
@@ -728,17 +729,17 @@ Notes on what changed:
 - Default `from` updated to `hello@opencairn.com` (verified domain); `EMAIL_FROM` env var still overrides.
 - Signature `(to, { token, workspaceId, invitedByName })` unchanged — `workspaceId` is still accepted but not used in the rendered template (reserved for future extensions like workspace name / logo per workspace).
 
-- [ ] **Step 2: Build apps/api to check for type errors**
+- [x] **Step 2: Build apps/api to check for type errors**
 
 Run: `pnpm --filter @opencairn/api build`
 Expected: `tsc` passes with no errors. `apps/api/dist/lib/email.js` is regenerated.
 
-- [ ] **Step 3: Run the existing invites test to confirm no regressions**
+- [x] **Step 3: Run the existing invites test to confirm no regressions**
 
 Run: `pnpm --filter @opencairn/api test -- tests/invites.test.ts`
 Expected: All 5 existing tests pass. (They don't exercise `sendInviteEmail` directly, so the rewrite shouldn't break them — this step confirms that assumption.)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/api/src/lib/email.ts
@@ -752,7 +753,7 @@ git commit -m "feat(api): render invite email with react-email InviteEmail"
 **Files:**
 - Modify: `.env.example`
 
-- [ ] **Step 1: Update EMAIL_FROM default**
+- [x] **Step 1: Update EMAIL_FROM default**
 
 Find the `# Email (Resend)` block near line 99 and change:
 
@@ -768,7 +769,7 @@ EMAIL_FROM=OpenCairn <hello@opencairn.com>
 
 Keep the comment `# Email (Resend) — leave unset to log to console in dev` and `RESEND_API_KEY=` line unchanged.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add .env.example
@@ -781,17 +782,17 @@ git commit -m "chore(env): default EMAIL_FROM to hello@opencairn.com"
 
 This task is manual verification — no code changes.
 
-- [ ] **Step 1: Confirm the package builds and tests pass in isolation**
+- [x] **Step 1: Confirm the package builds and tests pass in isolation**
 
 Run: `pnpm --filter @opencairn/emails test && pnpm --filter @opencairn/emails build`
 Expected: All tests pass; `dist/` regenerates without errors.
 
-- [ ] **Step 2: Confirm apps/api builds and tests pass**
+- [x] **Step 2: Confirm apps/api builds and tests pass**
 
 Run: `pnpm --filter @opencairn/api build && pnpm --filter @opencairn/api test`
 Expected: `tsc` clean; all existing API tests pass.
 
-- [ ] **Step 3: Launch preview server and visually verify**
+- [x] **Step 3: Launch preview server and visually verify**
 
 Run: `pnpm --filter @opencairn/emails dev`
 Open http://localhost:3001
@@ -807,7 +808,7 @@ Expected:
 
 Stop the server with Ctrl+C.
 
-- [ ] **Step 4: (Optional) Live send test**
+- [x] **Step 4: (Optional) Live send test**
 
 Only run this if a Resend API key is available and willing to spend a real send credit.
 
@@ -823,7 +824,7 @@ Only run this if a Resend API key is available and willing to spend a real send 
    ```
 3. Check inbox: Korean subject, dark CTA button, working fallback URL.
 
-- [ ] **Step 5: Final commit (if any follow-up tweaks)**
+- [x] **Step 5: Final commit (if any follow-up tweaks)**
 
 If steps 3-4 surfaced visual bugs that required changes, commit them as `fix(emails): ...`. Otherwise no commit needed here.
 

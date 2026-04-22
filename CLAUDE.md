@@ -10,6 +10,7 @@ apps/api        — Hono 4. ALL business logic + 권한 헬퍼.
 apps/worker     — Python. LangGraph + Temporal. 12 AI 에이전트.
 apps/hocuspocus — Yjs 협업 서버 (Better Auth + page-level 권한 hook).
 packages/db     — Drizzle ORM + pgvector + workspace 3계층 권한.
+packages/emails — react-email v6 템플릿 + Resend. Layout/Button/InviteEmail.
 packages/llm    — Python. LLM provider 추상화 (Gemini/Ollama).
 packages/shared — Zod 스키마 (API 계약).
 ```
