@@ -159,15 +159,69 @@ async def test_get_interaction_completed_with_outputs(provider):
 
 @pytest.mark.asyncio
 async def test_stream_interaction_yields_events(provider):
-    path = FIXTURES / "stream_events.jsonl"
-    lines = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    # Use real SDK SSE variant instances. Each variant carries the
+    # ``event_type`` discriminator (becomes our ``kind``) plus variant-
+    # specific payload fields (``delta`` / ``interaction`` / ``error`` / …).
+    # The previous test fed MagicMock objects with hand-set ``kind`` and
+    # ``payload`` attrs that don't exist on any SDK type — masking the
+    # actual stream_interaction shape mismatch.
+    from google.genai._interactions.types.content_delta import ContentDelta
+    from google.genai._interactions.types.interaction_complete_event import (
+        InteractionCompleteEvent,
+    )
+    from google.genai._interactions.types.interaction_start_event import (
+        InteractionStartEvent,
+    )
+
+    interaction_payload = {
+        "id": "int_run_xyz789",
+        "status": "in_progress",
+        "created": "2026-04-23T00:00:00Z",
+        "updated": "2026-04-23T00:00:00Z",
+    }
+    events = [
+        InteractionStartEvent.model_validate(
+            {
+                "event_type": "interaction.start",
+                "event_id": "ev_0",
+                "interaction": interaction_payload,
+            }
+        ),
+        ContentDelta.model_validate(
+            {
+                "event_type": "content.delta",
+                "event_id": "ev_1",
+                "index": 0,
+                "delta": {"type": "text", "text": "TPU v1 launched in 2016..."},
+            }
+        ),
+        ContentDelta.model_validate(
+            {
+                "event_type": "content.delta",
+                "event_id": "ev_2",
+                "index": 0,
+                "delta": {
+                    "type": "image",
+                    "data": "BASE64PNG==",
+                    "mime_type": "image/png",
+                },
+            }
+        ),
+        InteractionCompleteEvent.model_validate(
+            {
+                "event_type": "interaction.complete",
+                "event_id": "ev_3",
+                "interaction": {
+                    **interaction_payload,
+                    "status": "completed",
+                    "updated": "2026-04-23T00:05:00Z",
+                },
+            }
+        ),
+    ]
 
     async def _gen():
-        for row in lines:
-            ev = MagicMock()
-            ev.event_id = row["event_id"]
-            ev.kind = row["kind"]
-            ev.payload = row["payload"]
+        for ev in events:
             yield ev
 
     with patch.object(
@@ -180,8 +234,25 @@ async def test_stream_interaction_yields_events(provider):
             collected.append(ev)
 
     assert [e.event_id for e in collected] == ["ev_0", "ev_1", "ev_2", "ev_3"]
-    assert collected[0].kind == "thought_summary"
-    assert collected[2].payload["mime_type"] == "image/png"
+    # ``kind`` is the SDK ``event_type`` verbatim — not the legacy
+    # ContentDelta sub-type ("text"/"image") we previously assumed.
+    assert [e.kind for e in collected] == [
+        "interaction.start",
+        "content.delta",
+        "content.delta",
+        "interaction.complete",
+    ]
+    # Payload is plain dict; variant-specific fields stay accessible.
+    assert collected[1].payload["delta"]["type"] == "text"
+    assert collected[2].payload["delta"]["mime_type"] == "image/png"
+    assert collected[0].payload["interaction"]["id"] == "int_run_xyz789"
+    # ``event_type`` and ``event_id`` are lifted to ``kind`` / ``event_id``
+    # so we don't double-store them in the payload dict.
+    assert "event_type" not in collected[0].payload
+    assert "event_id" not in collected[0].payload
+    for e in collected:
+        assert isinstance(e.payload, dict)
+
     mocked.assert_awaited_once()
     call_kwargs = mocked.await_args.kwargs
     assert call_kwargs["interaction_id"] == "int_run_xyz789"

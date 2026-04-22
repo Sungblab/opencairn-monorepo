@@ -619,16 +619,39 @@ class GeminiProvider(LLMProvider):
         # ``create``). There is no separate ``.stream()`` method. ``get`` with
         # ``stream=True`` returns an ``AsyncStream[InteractionSSEEvent]`` that
         # we async-iterate.
+        #
+        # ``InteractionSSEEvent`` is an ``Annotated[Union[…], discriminator=
+        # "event_type"]`` — there is no ``.kind`` or ``.payload`` attribute on
+        # the variants. We lift ``event_type`` into our ``kind`` field and
+        # ``model_dump`` the rest of the variant into ``payload`` (after
+        # popping the duplicates) so callers get a uniform plain-dict view.
         kwargs: dict[str, Any] = {"interaction_id": interaction_id, "stream": True}
         if last_event_id is not None:
             kwargs["last_event_id"] = last_event_id
         stream = await self._client.aio.interactions.get(**kwargs)
         async for raw in stream:
             yield InteractionEvent(
-                event_id=raw.event_id,
-                kind=raw.kind,
-                payload=dict(raw.payload or {}),
+                event_id=getattr(raw, "event_id", "") or "",
+                kind=raw.event_type,
+                payload=self._serialize_event_payload(raw),
             )
+
+    @staticmethod
+    def _serialize_event_payload(raw: Any) -> dict[str, Any]:
+        """Reduce one ``InteractionSSEEvent`` variant to a plain dict payload.
+
+        ``event_type`` and ``event_id`` are lifted onto our ``InteractionEvent``
+        boundary fields, so we drop them from the payload to avoid storing the
+        same value twice. Variant-specific fields (``delta``, ``interaction``,
+        ``error``, ``content``, ``status``, ``index``) survive untouched.
+        """
+        if hasattr(raw, "model_dump"):
+            data: dict[str, Any] = raw.model_dump()
+        else:
+            data = dict(raw)
+        data.pop("event_type", None)
+        data.pop("event_id", None)
+        return data
 
     async def cancel_interaction(self, interaction_id: str) -> None:
         await self._client.aio.interactions.cancel(interaction_id=interaction_id)
