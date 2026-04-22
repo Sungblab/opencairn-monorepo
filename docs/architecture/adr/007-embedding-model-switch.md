@@ -16,7 +16,7 @@
 1. **기본 임베딩 모델: `gemini-embedding-001`** (텍스트 전용, GA, MTEB multilingual 1위).
 2. **Matryoshka truncation으로 768d 저장** — `VECTOR_DIM=768` default, provider adapter에서 `output_dimensionality=768`을 반드시 forward.
 3. **Gemini Developer API 사용** (Vertex AI 아님) — BYOK/관리형 양쪽 동일. Vertex 전환은 엔터프라이즈 요건 생기면 재검토.
-4. **Batch API 전환은 별도 Plan으로 분리** — `asyncBatchEmbedContent` 기반 인제스트는 Temporal activity 구조 변경을 수반하므로 Plan 3 확장으로 다룬다. 본 ADR은 단건 embed 경로의 모델·차원만 변경.
+4. **Batch API 전환은 별도 Plan으로 분리** — `asyncBatchEmbedContent` 기반 인제스트는 Temporal activity 구조 변경을 수반하므로 Plan 3 확장으로 다룬다. 본 ADR은 단건 embed 경로의 모델·차원만 변경. **후속: Plan 3b + ADR-008**에서 `BatchEmbedWorkflow` + `embedding_batches` 테이블로 구현 완료 (2026-04-22).
 5. **멀티모달 임베딩이 필요한 경로(이미지/음성 전용 features)**에 한해 `EMBED_MODEL=gemini-embedding-2-preview`로 env 덮어쓰기 허용. 혼용 시 provider/차원을 호출부가 아니라 config로 분리.
 
 ## Tradeoffs

@@ -44,6 +44,8 @@
 
 **Decision:** Option 3. Each caller owns its own batch; no shared queue. `BATCH_EMBED_MAX_ITEMS=2000` env (Gemini's `InlinedRequests` practical ceiling — see Open Questions #1 for exact quota). A `BATCH_EMBED_MIN_ITEMS=8` threshold: batches below it fall through to synchronous `provider.embed()` because the latency penalty outweighs the per-call savings.
 
+**v0 implementation note (2026-04-22):** `BATCH_EMBED_MAX_ITEMS` and the >2000 splitting logic are **deferred to Phase 2**. Today callers submit whatever count they have; Gemini caps via its own `InlinedRequests` limit. Compiler typically extracts 10–50 concepts per note, Librarian's v0 loop is 1 item, so the upper-bound split is not on any current hot path.
+
 ### AD-2 · Temporal workflow structure
 
 **Options:**
