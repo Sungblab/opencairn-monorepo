@@ -10,6 +10,11 @@
 
 **Spec:** `docs/superpowers/specs/2026-04-22-deep-research-integration-design.md` §4.4 + §6.
 
+> **Post-implementation notes (2026-04-23):** 이 plan의 Task 4 · 6 코드 예시는 실제 `google-genai` 1.73.1 SDK와 두 군데에서 어긋났다. 구현은 SDK 기준으로 정정됐고, 재탕 방지 메모는 `docs/contributing/llm-antipatterns.md` §13에 있다.
+>
+> - **Task 4 `agent_config["type"]`** — plan은 `{"type": agent}` (full 모델명)으로 썼지만 SDK의 `DeepResearchAgentConfigParam.type`은 `Literal["deep-research"]` 고정 discriminator. 구현은 `{"type": "deep-research"}` + 별도 top-level `agent=` 로 수정됨.
+> - **Task 6 `.stream()` 메서드** — plan은 `self._client.aio.interactions.stream(**kwargs)`로 썼지만 SDK의 `AsyncInteractionsResource`에는 `.stream()` 메서드가 없다. 구현은 `get(stream=True, last_event_id=...)`로 `AsyncStream[InteractionSSEEvent]`를 받아 async-iterate 하는 방식으로 수정됨.
+
 ---
 
 ## File Structure
