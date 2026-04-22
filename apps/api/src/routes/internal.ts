@@ -558,6 +558,39 @@ internal.post(
 );
 
 // ---------------------------------------------------------------------------
+// Agent Runtime v2 · Sub-A — tool-demo retrieval support
+// ---------------------------------------------------------------------------
+
+// GET /internal/projects/:id/topics — top 30 concepts in the project ranked
+// by note-link count. Used by `list_project_topics` tool as the Layer 3
+// hierarchical retrieval entry point (see docs/architecture/context-budget.md).
+internal.get("/projects/:id/topics", async (c) => {
+  const projectId = c.req.param("id");
+  if (!z.string().uuid().safeParse(projectId).success) {
+    return c.json({ error: "Invalid project id" }, 400);
+  }
+  const rowsRaw = await db.execute(sql`
+    SELECT c.id AS topic_id, c.name, COUNT(cn.note_id)::int AS concept_count
+    FROM concepts c
+    LEFT JOIN concept_notes cn ON cn.concept_id = c.id
+    WHERE c.project_id = ${projectId}
+    GROUP BY c.id, c.name
+    ORDER BY concept_count DESC, c.name ASC
+    LIMIT 30
+  `);
+  const rows =
+    (rowsRaw as unknown as { rows: Array<Record<string, unknown>> }).rows ??
+    (rowsRaw as unknown as Array<Record<string, unknown>>);
+  return c.json({
+    results: rows.map((r) => ({
+      topic_id: String(r.topic_id),
+      name: String(r.name),
+      concept_count: Number(r.concept_count ?? 0),
+    })),
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Plan 4 Phase B — Librarian agent support
 // ---------------------------------------------------------------------------
 
