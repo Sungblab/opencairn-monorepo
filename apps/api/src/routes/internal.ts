@@ -8,6 +8,7 @@ import {
   workspaces,
   workspaceMembers,
   workspaceInvites,
+  folders,
   notes,
   projects,
   concepts,
@@ -31,6 +32,7 @@ import { signSessionForUser } from "../lib/test-session";
 import { createMultiRoleSeed } from "../lib/test-seed-multi";
 import { isUuid } from "../lib/validators";
 import { plateValueToText } from "../lib/plate-text";
+import { labelFromId } from "../lib/tree-queries";
 import type { AppEnv } from "../lib/types";
 import {
   assertResourceWorkspace,
@@ -1511,6 +1513,148 @@ internal.post("/test-seed", async (c) => {
     noteId,
   });
 });
+
+// ---------------------------------------------------------------------------
+// App Shell Phase 2 — bulk seed for the 5k-node perf fixture
+// ---------------------------------------------------------------------------
+
+// POST /internal/test-seed-bulk — inflate an existing project with N folders
+// and M notes so `tests/e2e/fixtures/seed-5k-nodes.ts` can stress the sidebar
+// tree virtualisation. Folders are laid out across `maxDepth` levels, each
+// row getting a random parent from the preceding level; notes pick a random
+// folder (or the project root ~10% of the time). Caller supplies the
+// projectId; we derive workspaceId from it so the seed never crosses a
+// workspace boundary by accident. Same double-gate as /test-seed: the
+// internal-secret middleware above + a NODE_ENV=production refusal.
+const testSeedBulkSchema = z.object({
+  projectId: z.string().uuid(),
+  folders: z.number().int().min(0).max(5000).default(500),
+  notes: z.number().int().min(0).max(20000).default(4500),
+  maxDepth: z.number().int().min(1).max(8).default(3),
+});
+
+internal.post(
+  "/test-seed-bulk",
+  // Prod refusal runs BEFORE the Zod validator so a malformed payload in
+  // production returns the same 403 as a well-formed one — otherwise a 400
+  // from the schema leaks the endpoint's existence to an attacker who only
+  // has the internal secret. The Zod guard is still useful in non-prod.
+  async (c, next) => {
+    if (process.env.NODE_ENV === "production") {
+      return c.json({ error: "test-seed-bulk disabled in production" }, 403);
+    }
+    return next();
+  },
+  zValidator("json", testSeedBulkSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+
+    const [proj] = await db
+      .select({ workspaceId: projects.workspaceId })
+      .from(projects)
+      .where(eq(projects.id, body.projectId));
+    if (!proj) return c.json({ error: "Project not found" }, 404);
+
+    // Distribute folders across `maxDepth` levels as evenly as possible. The
+    // final depth is `maxDepth - 1` (roots are depth 0), so a maxDepth of 3
+    // yields three levels; with 500 folders that's ~167 per level.
+    const perDepth: number[] = new Array(body.maxDepth).fill(0);
+    for (let i = 0; i < body.folders; i += 1) {
+      perDepth[i % body.maxDepth] += 1;
+    }
+
+    type Built = {
+      id: string;
+      parentId: string | null;
+      path: string;
+      depth: number;
+    };
+    const built: Built[] = [];
+    for (let depth = 0; depth < body.maxDepth; depth += 1) {
+      const parents =
+        depth === 0 ? [] : built.filter((b) => b.depth === depth - 1);
+      // If an upstream level ended up empty (possible when perDepth[depth-1]
+      // rounded to 0), fall back to the closest non-empty ancestor so the
+      // generator degrades gracefully rather than dropping child folders.
+      const fallbackParents =
+        depth === 0 || parents.length > 0
+          ? parents
+          : built.filter((b) => b.depth < depth);
+      for (let i = 0; i < perDepth[depth]; i += 1) {
+        const id = randomUUID();
+        if (depth === 0) {
+          built.push({ id, parentId: null, path: labelFromId(id), depth });
+          continue;
+        }
+        const pool = fallbackParents;
+        const parent = pool[Math.floor(Math.random() * pool.length)];
+        built.push({
+          id,
+          parentId: parent.id,
+          path: `${parent.path}.${labelFromId(id)}`,
+          depth,
+        });
+      }
+    }
+
+    // Insert folders depth-by-depth so each level's rows can safely reference
+    // parents inserted in the previous level. Within a level we still batch
+    // in chunks to keep the INSERT statement size bounded.
+    const CHUNK = 500;
+    for (let depth = 0; depth < body.maxDepth; depth += 1) {
+      const atDepth = built.filter((b) => b.depth === depth);
+      for (let i = 0; i < atDepth.length; i += CHUNK) {
+        const slice = atDepth.slice(i, i + CHUNK);
+        await db.insert(folders).values(
+          slice.map((b, idx) => ({
+            id: b.id,
+            projectId: body.projectId,
+            parentId: b.parentId,
+            name: `perf-folder-${depth}-${i + idx}`,
+            position: i + idx,
+            path: b.path,
+          })),
+        );
+      }
+    }
+
+    const folderIds = built.map((b) => b.id);
+
+    // Notes: random folder parent so virtualisation has to paint across many
+    // expanded subtrees. ~10% land at the project root to exercise the
+    // top-level leaf path too.
+    const noteIds: string[] = [];
+    const noteRows: Array<{
+      id: string;
+      projectId: string;
+      workspaceId: string;
+      folderId: string | null;
+      title: string;
+      inheritParent: boolean;
+    }> = [];
+    for (let i = 0; i < body.notes; i += 1) {
+      const id = randomUUID();
+      noteIds.push(id);
+      const useRoot = built.length === 0 || Math.random() < 0.1;
+      const folderId = useRoot
+        ? null
+        : built[Math.floor(Math.random() * built.length)].id;
+      noteRows.push({
+        id,
+        projectId: body.projectId,
+        workspaceId: proj.workspaceId,
+        folderId,
+        title: `perf-note-${i}`,
+        inheritParent: true,
+      });
+    }
+    for (let i = 0; i < noteRows.length; i += CHUNK) {
+      await db.insert(notes).values(noteRows.slice(i, i + CHUNK));
+    }
+
+    return c.json({ folderIds, noteIds }, 201);
+  },
+);
 
 // ---------------------------------------------------------------------------
 // Plan 2B Task 20 — multi-role E2E test seed

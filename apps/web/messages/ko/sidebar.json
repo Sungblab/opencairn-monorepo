@@ -55,5 +55,10 @@
     "delete": "삭제",
     "delete_shortcut": "⌘Del",
     "confirm_delete": "\"{label}\"을(를) 삭제할까요?"
+  },
+  "toasts": {
+    "move_failed": "이동에 실패했어요. 다시 시도해주세요.",
+    "rename_failed": "이름 변경에 실패했어요. 다시 시도해주세요.",
+    "delete_failed": "삭제에 실패했어요. 다시 시도해주세요."
   }
 }

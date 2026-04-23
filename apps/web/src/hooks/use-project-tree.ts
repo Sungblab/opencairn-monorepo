@@ -102,6 +102,7 @@ export function useProjectTree(opts: { projectId: string }) {
     const parentScoped: string[] = [
       "tree.folder_created",
       "tree.folder_renamed",
+      "tree.folder_reordered",
       "tree.folder_deleted",
       "tree.note_created",
       "tree.note_renamed",

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Tree, type NodeApi, type TreeApi } from "react-arborist";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { useProjectTree, type TreeNode } from "@/hooks/use-project-tree";
 import { useSidebarStore } from "@/stores/sidebar-store";
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
@@ -99,6 +100,7 @@ export function ProjectTree({
   const expanded = useSidebarStore((s) => s.expanded);
   const qc = useQueryClient();
   const t = useTranslations("sidebar.tree_menu");
+  const tToast = useTranslations("sidebar.toasts");
   const data = useMemo(() => deriveData(roots, expanded), [roots, expanded]);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [typeAheadBuf, setTypeAheadBuf] = useState("");
@@ -154,6 +156,7 @@ export function ProjectTree({
       }
     } catch (err) {
       console.error("project tree move failed", err);
+      toast.error(tToast("move_failed"));
       qc.invalidateQueries({ queryKey: ["project-tree", projectId] });
     }
   }
@@ -171,11 +174,12 @@ export function ProjectTree({
           await persistRename(id, kind, newLabel);
         } catch (err) {
           console.error("project tree rename failed", err);
+          toast.error(tToast("rename_failed"));
           qc.invalidateQueries({ queryKey: ["project-tree", projectId] });
         }
       })();
     },
-    [projectId, qc],
+    [projectId, qc, tToast],
   );
 
   const handleDelete = useCallback(
@@ -188,11 +192,12 @@ export function ProjectTree({
           await persistDelete(id, kind);
         } catch (err) {
           console.error("project tree delete failed", err);
+          toast.error(tToast("delete_failed"));
           qc.invalidateQueries({ queryKey: ["project-tree", projectId] });
         }
       })();
     },
-    [projectId, qc, t],
+    [projectId, qc, t, tToast],
   );
 
   const ctxValue: ProjectTreeCtxValue = useMemo(
