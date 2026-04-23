@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { randomUUID } from "node:crypto";
 import { createApp } from "../src/app.js";
 import { db, notes, researchRuns, eq } from "@opencairn/db";
 import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
@@ -65,7 +66,7 @@ describe("POST /api/internal/notes (research extension)", () => {
     // idempotency check can back-fill and then look up noteId on retry.
     // The plan's test omitted this setup step — without it the UPDATE is a
     // no-op on both calls, resulting in two distinct noteIds.
-    const runId = "a0b1c2d3-e4f5-6789-abcd-ef0123456789"; // valid uuid
+    const runId = randomUUID();
     await db.insert(researchRuns).values({
       id: runId,
       workspaceId: ctx.workspaceId,
