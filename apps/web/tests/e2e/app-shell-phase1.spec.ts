@@ -95,7 +95,12 @@ test.describe("App Shell Phase 1", () => {
     );
     expect(patchRes.ok()).toBe(true);
 
+    // next-intl `localePrefix: "as-needed"` strips `/ko` for the default
+    // locale, so the URL after redirect is `/app/w/<slug>`. Also tolerate
+    // an optional trailing slash since Next sometimes normalizes one.
     await page.goto("/ko");
-    await page.waitForURL(new RegExp(`/ko/app/w/${session.wsSlug}/`));
+    await page.waitForURL(
+      new RegExp(`(?:/ko)?/app/w/${session.wsSlug}/?$`),
+    );
   });
 });

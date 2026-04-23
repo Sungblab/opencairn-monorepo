@@ -1,6 +1,6 @@
 # App Shell Phase 1 — Shell Frame Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Build the empty 3-panel application shell (sidebar/tabs/agent-panel) with working responsive behavior, URL↔tab synchronization, Zustand stores, and Next.js route scaffolds for all workspace-scoped pages. Produces a visible shell that renders placeholder regions and passes e2e route tests, ready for Phase 2~5 to fill in content.
 
@@ -102,7 +102,7 @@ Enables root `/` to redirect to the user's most recent workspace across devices 
 - Create: `apps/api/src/routes/users.ts` (if missing) or modify existing
 - Create: `apps/api/tests/users-last-viewed-workspace.test.ts`
 
-- [ ] **Step 1.1: Add column to Drizzle schema**
+- [x] **Step 1.1: Add column to Drizzle schema**
 
 Open `packages/db/src/schema/users.ts`. Add the FK column in the existing `users` table definition:
 
@@ -116,7 +116,7 @@ lastViewedWorkspaceId: uuid("last_viewed_workspace_id").references(
 
 Import `workspaces` from `./workspaces` if not already imported. Import `uuid` from `drizzle-orm/pg-core` if needed.
 
-- [ ] **Step 1.2: Generate migration**
+- [x] **Step 1.2: Generate migration**
 
 Run from repo root:
 ```bash
@@ -129,7 +129,7 @@ Expected: a new file `packages/db/drizzle/0014_*.sql` is produced. Rename it to 
 ALTER TABLE "users" ADD COLUMN "last_viewed_workspace_id" uuid REFERENCES "workspaces"("id") ON DELETE SET NULL;
 ```
 
-- [ ] **Step 1.3: Run migration against local DB**
+- [x] **Step 1.3: Run migration against local DB**
 
 ```bash
 pnpm --filter @opencairn/db db:migrate
@@ -141,7 +141,7 @@ Expected output: migration applied with no error. Verify via `psql` or Drizzle S
 -- column last_viewed_workspace_id uuid should be present
 ```
 
-- [ ] **Step 1.4: Write failing test for PATCH endpoint**
+- [x] **Step 1.4: Write failing test for PATCH endpoint**
 
 Create `apps/api/tests/users-last-viewed-workspace.test.ts`:
 
@@ -192,7 +192,7 @@ describe("PATCH /api/users/me/last-viewed-workspace", () => {
 
 Adjust the imports (`createTestClient`, `seedUser`, `seedWorkspace`) to match the existing test helpers in `apps/api/tests/helpers.ts`. If the helpers don't expose these exact names, use what's there and keep the assertions intact.
 
-- [ ] **Step 1.5: Run the test to confirm it fails**
+- [x] **Step 1.5: Run the test to confirm it fails**
 
 ```bash
 pnpm --filter @opencairn/api test users-last-viewed-workspace
@@ -200,7 +200,7 @@ pnpm --filter @opencairn/api test users-last-viewed-workspace
 
 Expected: all three cases fail (route does not exist yet).
 
-- [ ] **Step 1.6: Implement the endpoint**
+- [x] **Step 1.6: Implement the endpoint**
 
 Open or create `apps/api/src/routes/users.ts`. Add:
 
@@ -236,11 +236,11 @@ export const usersRoute = new Hono()
 
 Mount the route in `apps/api/src/routes/index.ts` (or wherever routes are composed) as `.route("/users", usersRoute)`.
 
-- [ ] **Step 1.7: Extend `GET /me` to return the column**
+- [x] **Step 1.7: Extend `GET /me` to return the column**
 
 Find the handler for `GET /api/users/me`. Ensure the returned payload includes `last_viewed_workspace_id` (serialize the Drizzle `lastViewedWorkspaceId` into `last_viewed_workspace_id` using whatever serialization convention the file already uses; do not introduce a new one).
 
-- [ ] **Step 1.8: Re-run the test**
+- [x] **Step 1.8: Re-run the test**
 
 ```bash
 pnpm --filter @opencairn/api test users-last-viewed-workspace
@@ -248,7 +248,7 @@ pnpm --filter @opencairn/api test users-last-viewed-workspace
 
 Expected: all three pass.
 
-- [ ] **Step 1.9: Commit**
+- [x] **Step 1.9: Commit**
 
 ```bash
 git add packages/db/src/schema/users.ts \
@@ -269,7 +269,7 @@ Phase 1 introduces hooks (`useBreakpoint`, `useKeyboardShortcut`, `useUrlTabSync
 - Modify: `apps/web/vitest.config.ts`
 - Modify: `apps/web/package.json`
 
-- [ ] **Step 2.1: Install dependencies**
+- [x] **Step 2.1: Install dependencies**
 
 From repo root:
 ```bash
@@ -278,7 +278,7 @@ pnpm --filter @opencairn/web add -D jsdom @testing-library/react @testing-librar
 
 Expected: `apps/web/package.json` shows new devDependencies (`jsdom`, `@testing-library/react`, `@testing-library/jest-dom`, `happy-dom` — we'll pick one; using `happy-dom` if it's already a peer, otherwise `jsdom`) plus `zustand` as a runtime dep.
 
-- [ ] **Step 2.2: Update vitest config**
+- [x] **Step 2.2: Update vitest config**
 
 Replace `apps/web/vitest.config.ts` with a project-aware config:
 
@@ -314,7 +314,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 2.3: Create test setup file**
+- [x] **Step 2.3: Create test setup file**
 
 Create `apps/web/src/test-setup.ts`:
 
@@ -329,7 +329,7 @@ afterEach(() => {
 });
 ```
 
-- [ ] **Step 2.4: Smoke test**
+- [x] **Step 2.4: Smoke test**
 
 Create a throwaway `apps/web/src/__smoke__.test.tsx`:
 
@@ -354,7 +354,7 @@ Expected: node and jsdom projects both run, smoke test passes.
 
 Delete the smoke file after verification.
 
-- [ ] **Step 2.5: Commit**
+- [x] **Step 2.5: Commit**
 
 ```bash
 git add apps/web/vitest.config.ts \
@@ -374,7 +374,7 @@ Core primitive. Returns `'xs' | 'sm' | 'md' | 'lg'` from the current viewport wi
 - Create: `apps/web/src/hooks/use-breakpoint.ts`
 - Create: `apps/web/src/hooks/use-breakpoint.test.tsx`
 
-- [ ] **Step 3.1: Write the failing test**
+- [x] **Step 3.1: Write the failing test**
 
 Create `apps/web/src/hooks/use-breakpoint.test.tsx`:
 
@@ -425,7 +425,7 @@ describe("useBreakpoint", () => {
 });
 ```
 
-- [ ] **Step 3.2: Run and confirm failure**
+- [x] **Step 3.2: Run and confirm failure**
 
 ```bash
 pnpm --filter @opencairn/web test use-breakpoint
@@ -433,7 +433,7 @@ pnpm --filter @opencairn/web test use-breakpoint
 
 Expected: FAIL with "Cannot find module ./use-breakpoint".
 
-- [ ] **Step 3.3: Implement**
+- [x] **Step 3.3: Implement**
 
 Create `apps/web/src/hooks/use-breakpoint.ts`:
 
@@ -465,7 +465,7 @@ export function useBreakpoint(): Breakpoint {
 }
 ```
 
-- [ ] **Step 3.4: Re-run test**
+- [x] **Step 3.4: Re-run test**
 
 ```bash
 pnpm --filter @opencairn/web test use-breakpoint
@@ -473,7 +473,7 @@ pnpm --filter @opencairn/web test use-breakpoint
 
 Expected: all five cases pass.
 
-- [ ] **Step 3.5: Commit**
+- [x] **Step 3.5: Commit**
 
 ```bash
 git add apps/web/src/hooks/use-breakpoint.ts \
@@ -491,7 +491,7 @@ git commit -m "feat(web): add useBreakpoint hook"
 - Create: `apps/web/src/hooks/use-keyboard-shortcut.ts`
 - Create: `apps/web/src/hooks/use-keyboard-shortcut.test.tsx`
 
-- [ ] **Step 4.1: Write the failing test**
+- [x] **Step 4.1: Write the failing test**
 
 Create `apps/web/src/hooks/use-keyboard-shortcut.test.tsx`:
 
@@ -563,7 +563,7 @@ describe("useKeyboardShortcut", () => {
 });
 ```
 
-- [ ] **Step 4.2: Run to confirm failure**
+- [x] **Step 4.2: Run to confirm failure**
 
 ```bash
 pnpm --filter @opencairn/web test use-keyboard-shortcut
@@ -571,7 +571,7 @@ pnpm --filter @opencairn/web test use-keyboard-shortcut
 
 Expected: FAIL.
 
-- [ ] **Step 4.3: Implement**
+- [x] **Step 4.3: Implement**
 
 Create `apps/web/src/hooks/use-keyboard-shortcut.ts`:
 
@@ -619,7 +619,7 @@ export function useKeyboardShortcut(chord: string, handler: (e: KeyboardEvent) =
 }
 ```
 
-- [ ] **Step 4.4: Re-run**
+- [x] **Step 4.4: Re-run**
 
 ```bash
 pnpm --filter @opencairn/web test use-keyboard-shortcut
@@ -627,7 +627,7 @@ pnpm --filter @opencairn/web test use-keyboard-shortcut
 
 Expected: all five cases pass.
 
-- [ ] **Step 4.5: Commit**
+- [x] **Step 4.5: Commit**
 
 ```bash
 git add apps/web/src/hooks/use-keyboard-shortcut.ts \
@@ -645,7 +645,7 @@ Holds sidebar + agent-panel width and open state. Persists to `localStorage` wit
 - Create: `apps/web/src/stores/panel-store.ts`
 - Create: `apps/web/src/stores/panel-store.test.ts`
 
-- [ ] **Step 5.1: Write failing test**
+- [x] **Step 5.1: Write failing test**
 
 Create `apps/web/src/stores/panel-store.test.ts`:
 
@@ -705,7 +705,7 @@ describe("panel-store", () => {
 });
 ```
 
-- [ ] **Step 5.2: Run to confirm failure**
+- [x] **Step 5.2: Run to confirm failure**
 
 ```bash
 pnpm --filter @opencairn/web test panel-store
@@ -713,7 +713,7 @@ pnpm --filter @opencairn/web test panel-store
 
 Expected: FAIL.
 
-- [ ] **Step 5.3: Implement**
+- [x] **Step 5.3: Implement**
 
 Create `apps/web/src/stores/panel-store.ts`:
 
@@ -762,7 +762,7 @@ export const usePanelStore = create<PanelState>()(
 );
 ```
 
-- [ ] **Step 5.4: Re-run test**
+- [x] **Step 5.4: Re-run test**
 
 ```bash
 pnpm --filter @opencairn/web test panel-store
@@ -770,7 +770,7 @@ pnpm --filter @opencairn/web test panel-store
 
 Expected: all six pass.
 
-- [ ] **Step 5.5: Commit**
+- [x] **Step 5.5: Commit**
 
 ```bash
 git add apps/web/src/stores/panel-store.ts apps/web/src/stores/panel-store.test.ts
@@ -787,7 +787,7 @@ Holds the tab stack + active id. Supports `setWorkspace(id)` which flushes prior
 - Create: `apps/web/src/stores/tabs-store.ts`
 - Create: `apps/web/src/stores/tabs-store.test.ts`
 
-- [ ] **Step 6.1: Write failing test**
+- [x] **Step 6.1: Write failing test**
 
 Create `apps/web/src/stores/tabs-store.test.ts`:
 
@@ -881,7 +881,7 @@ describe("tabs-store", () => {
 });
 ```
 
-- [ ] **Step 6.2: Run to confirm failure**
+- [x] **Step 6.2: Run to confirm failure**
 
 ```bash
 pnpm --filter @opencairn/web test tabs-store
@@ -889,7 +889,7 @@ pnpm --filter @opencairn/web test tabs-store
 
 Expected: FAIL.
 
-- [ ] **Step 6.3: Implement**
+- [x] **Step 6.3: Implement**
 
 Create `apps/web/src/stores/tabs-store.ts`:
 
@@ -1021,7 +1021,7 @@ export const useTabsStore = create<State>((set, get) => ({
 }));
 ```
 
-- [ ] **Step 6.4: Re-run test**
+- [x] **Step 6.4: Re-run test**
 
 ```bash
 pnpm --filter @opencairn/web test tabs-store
@@ -1029,7 +1029,7 @@ pnpm --filter @opencairn/web test tabs-store
 
 Expected: all eight pass.
 
-- [ ] **Step 6.5: Commit**
+- [x] **Step 6.5: Commit**
 
 ```bash
 git add apps/web/src/stores/tabs-store.ts apps/web/src/stores/tabs-store.test.ts
@@ -1047,7 +1047,7 @@ Three short stores. Each has minimal state Phase 1 needs; Phase 2~5 extend them.
 - Create: `apps/web/src/stores/sidebar-store.ts` (+ test)
 - Create: `apps/web/src/stores/palette-store.ts` (+ test)
 
-- [ ] **Step 7.1: threads-store test**
+- [x] **Step 7.1: threads-store test**
 
 Create `apps/web/src/stores/threads-store.test.ts`:
 
@@ -1080,7 +1080,7 @@ describe("threads-store", () => {
 });
 ```
 
-- [ ] **Step 7.2: threads-store implementation**
+- [x] **Step 7.2: threads-store implementation**
 
 Create `apps/web/src/stores/threads-store.ts`:
 
@@ -1118,7 +1118,7 @@ export const useThreadsStore = create<State>((set, get) => ({
 
 Run `pnpm --filter @opencairn/web test threads-store` — expect three passes.
 
-- [ ] **Step 7.3: sidebar-store test**
+- [x] **Step 7.3: sidebar-store test**
 
 Create `apps/web/src/stores/sidebar-store.test.ts`:
 
@@ -1150,7 +1150,7 @@ describe("sidebar-store", () => {
 });
 ```
 
-- [ ] **Step 7.4: sidebar-store implementation**
+- [x] **Step 7.4: sidebar-store implementation**
 
 Create `apps/web/src/stores/sidebar-store.ts`:
 
@@ -1202,7 +1202,7 @@ export const useSidebarStore = create<State>((set, get) => ({
 
 Run tests — expect two passes.
 
-- [ ] **Step 7.5: palette-store test + implementation (session only)**
+- [x] **Step 7.5: palette-store test + implementation (session only)**
 
 Create `apps/web/src/stores/palette-store.test.ts`:
 
@@ -1254,7 +1254,7 @@ export const usePaletteStore = create<State>((set) => ({
 
 Run tests — two passes.
 
-- [ ] **Step 7.6: Commit**
+- [x] **Step 7.6: Commit**
 
 ```bash
 git add apps/web/src/stores/threads-store.ts \
@@ -1276,7 +1276,7 @@ Pure functions. Given a `Tab`, produce a relative URL `/w/<slug>/...`; given a U
 - Create: `apps/web/src/lib/tab-url.ts`
 - Create: `apps/web/src/lib/tab-url.test.ts`
 
-- [ ] **Step 8.1: Write failing test**
+- [x] **Step 8.1: Write failing test**
 
 Create `apps/web/src/lib/tab-url.test.ts`:
 
@@ -1325,7 +1325,7 @@ describe("urlToTabTarget", () => {
 });
 ```
 
-- [ ] **Step 8.2: Run to confirm failure**
+- [x] **Step 8.2: Run to confirm failure**
 
 ```bash
 pnpm --filter @opencairn/web test tab-url
@@ -1333,7 +1333,7 @@ pnpm --filter @opencairn/web test tab-url
 
 Expected: FAIL.
 
-- [ ] **Step 8.3: Implement**
+- [x] **Step 8.3: Implement**
 
 Create `apps/web/src/lib/tab-url.ts`:
 
@@ -1391,7 +1391,7 @@ export function urlToTabTarget(path: string): { slug: string; route: TabRoute } 
 }
 ```
 
-- [ ] **Step 8.4: Re-run test**
+- [x] **Step 8.4: Re-run test**
 
 ```bash
 pnpm --filter @opencairn/web test tab-url
@@ -1399,7 +1399,7 @@ pnpm --filter @opencairn/web test tab-url
 
 Expected: all 18 cases pass.
 
-- [ ] **Step 8.5: Commit**
+- [x] **Step 8.5: Commit**
 
 ```bash
 git add apps/web/src/lib/tab-url.ts apps/web/src/lib/tab-url.test.ts
@@ -1416,7 +1416,7 @@ On mount and on URL change, ensure the URL's target is represented as an active 
 - Create: `apps/web/src/hooks/use-url-tab-sync.ts`
 - Create: `apps/web/src/hooks/use-url-tab-sync.test.tsx`
 
-- [ ] **Step 9.1: Write failing test**
+- [x] **Step 9.1: Write failing test**
 
 Create `apps/web/src/hooks/use-url-tab-sync.test.tsx`:
 
@@ -1486,7 +1486,7 @@ describe("useUrlTabSync", () => {
 });
 ```
 
-- [ ] **Step 9.2: Run to confirm failure**
+- [x] **Step 9.2: Run to confirm failure**
 
 ```bash
 pnpm --filter @opencairn/web test use-url-tab-sync
@@ -1494,7 +1494,7 @@ pnpm --filter @opencairn/web test use-url-tab-sync
 
 Expected: FAIL.
 
-- [ ] **Step 9.3: Implement**
+- [x] **Step 9.3: Implement**
 
 Create `apps/web/src/hooks/use-url-tab-sync.ts`:
 
@@ -1600,7 +1600,7 @@ export function useUrlTabSync() {
 }
 ```
 
-- [ ] **Step 9.4: Re-run test**
+- [x] **Step 9.4: Re-run test**
 
 ```bash
 pnpm --filter @opencairn/web test use-url-tab-sync
@@ -1608,7 +1608,7 @@ pnpm --filter @opencairn/web test use-url-tab-sync
 
 Expected: all four pass.
 
-- [ ] **Step 9.5: Commit**
+- [x] **Step 9.5: Commit**
 
 ```bash
 git add apps/web/src/hooks/use-url-tab-sync.ts apps/web/src/hooks/use-url-tab-sync.test.tsx
@@ -1628,7 +1628,7 @@ Renders three regions with `CSS grid`. Resize handles call `panel-store` setters
 - Create: `apps/web/src/components/shell/placeholder-tab-shell.tsx`
 - Create: `apps/web/src/components/shell/placeholder-agent-panel.tsx`
 
-- [ ] **Step 10.1: Placeholder components**
+- [x] **Step 10.1: Placeholder components**
 
 Create `apps/web/src/components/shell/placeholder-sidebar.tsx`:
 
@@ -1678,7 +1678,7 @@ export function PlaceholderAgentPanel() {
 }
 ```
 
-- [ ] **Step 10.2: Resize handle**
+- [x] **Step 10.2: Resize handle**
 
 Create `apps/web/src/components/shell/shell-resize-handle.tsx`:
 
@@ -1733,7 +1733,7 @@ export function ShellResizeHandle({ onDrag, onReset, className = "" }: Props) {
 }
 ```
 
-- [ ] **Step 10.3: AppShell layout**
+- [x] **Step 10.3: AppShell layout**
 
 Create `apps/web/src/components/shell/app-shell.tsx`:
 
@@ -1785,11 +1785,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 }
 ```
 
-- [ ] **Step 10.4: No unit test for AppShell**
+- [x] **Step 10.4: No unit test for AppShell**
 
 Rationale: Visual composition, covered by the Playwright e2e spec in Task 13. Unit-testing the placeholders adds no signal.
 
-- [ ] **Step 10.5: Commit**
+- [x] **Step 10.5: Commit**
 
 ```bash
 git add apps/web/src/components/shell/
@@ -1805,7 +1805,7 @@ Single component that mounts URL-tab sync, `⌘\` / `⌘J` shortcuts, and expose
 **Files:**
 - Create: `apps/web/src/components/shell/shell-providers.tsx`
 
-- [ ] **Step 11.1: Implement**
+- [x] **Step 11.1: Implement**
 
 Create `apps/web/src/components/shell/shell-providers.tsx`:
 
@@ -1863,7 +1863,7 @@ export function ShellProviders({
 }
 ```
 
-- [ ] **Step 11.2: Commit**
+- [x] **Step 11.2: Commit**
 
 ```bash
 git add apps/web/src/components/shell/shell-providers.tsx
@@ -1879,7 +1879,7 @@ On `md` breakpoint and below, sidebar and agent panel render as overlays instead
 **Files:**
 - Modify: `apps/web/src/components/shell/app-shell.tsx`
 
-- [ ] **Step 12.1: Update AppShell to branch on breakpoint**
+- [x] **Step 12.1: Update AppShell to branch on breakpoint**
 
 Edit `apps/web/src/components/shell/app-shell.tsx` to introduce a responsive branch. Replace the entire return with:
 
@@ -1956,14 +1956,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 }
 ```
 
-- [ ] **Step 12.2: Verify `Sheet` component exists**
+- [x] **Step 12.2: Verify `Sheet` component exists**
 
 Check `apps/web/src/components/ui/sheet.tsx` exists (part of shadcn). If missing:
 ```bash
 pnpm --filter @opencairn/web dlx shadcn@latest add sheet
 ```
 
-- [ ] **Step 12.3: Commit**
+- [x] **Step 12.3: Commit**
 
 ```bash
 git add apps/web/src/components/shell/app-shell.tsx apps/web/src/components/ui/
@@ -1988,7 +1988,7 @@ Add the workspace-scoped layout + all page placeholders, add root redirect, and 
 - Modify: `apps/web/src/app/[locale]/page.tsx` — root redirect
 - Create: `apps/web/tests/e2e/app-shell-phase1.spec.ts`
 
-- [ ] **Step 13.1: Workspace layout**
+- [x] **Step 13.1: Workspace layout**
 
 Create `apps/web/src/app/[locale]/app/w/[wsSlug]/layout.tsx`:
 
@@ -2009,7 +2009,7 @@ export default async function WorkspaceLayout({
 
 Note: the outer `apps/web/src/app/[locale]/app/layout.tsx` already handles session + React Query. Do NOT duplicate session guards here.
 
-- [ ] **Step 13.2: Workspace dashboard page (placeholder)**
+- [x] **Step 13.2: Workspace dashboard page (placeholder)**
 
 Create `apps/web/src/app/[locale]/app/w/[wsSlug]/page.tsx`:
 
@@ -2024,7 +2024,7 @@ export default function WorkspaceDashboard() {
 }
 ```
 
-- [ ] **Step 13.3: Note / research / research run / settings placeholders**
+- [x] **Step 13.3: Note / research / research run / settings placeholders**
 
 Create each with the same skeleton, varying `data-testid` and heading:
 
@@ -2083,7 +2083,7 @@ export default async function WsSettings({
 
 If `apps/web/src/app/[locale]/app/w/[wsSlug]/p/[projectId]/page.tsx` and `.../import/page.tsx` already exist, wrap them by adding `data-testid="route-project"` / `route-import` on the root element so the e2e test can select them. Do not replace their existing content.
 
-- [ ] **Step 13.4: Root redirect**
+- [x] **Step 13.4: Root redirect**
 
 Modify `apps/web/src/app/[locale]/page.tsx`. Replace current content (landing page logic may live here — keep landing for anonymous users; change only the authenticated branch). If the file currently renders the landing page unconditionally, wrap it:
 
@@ -2135,7 +2135,7 @@ Adapt to the exact session retrieval API used elsewhere (e.g. `getSession`, `aut
 
 If the landing page logic is non-trivial, factor it out first into `landing-page.tsx` and import rather than reimplementing.
 
-- [ ] **Step 13.5: E2E spec**
+- [x] **Step 13.5: E2E spec**
 
 Create `apps/web/tests/e2e/app-shell-phase1.spec.ts`:
 
@@ -2211,7 +2211,7 @@ test.describe("App Shell Phase 1", () => {
 
 Adapt `loginAsTestUser` / `seedWorkspaceWithFirstProject` to the existing helpers in `apps/web/tests/e2e/helpers.ts`. If those don't exist, add minimal versions using the API test harness. The `last-viewed` priming in the final test should use the real workspace id — if the helper returns only `slug`, extend it to also return `id`.
 
-- [ ] **Step 13.6: Run full test suite**
+- [x] **Step 13.6: Run full test suite**
 
 ```bash
 pnpm --filter @opencairn/web test
@@ -2220,7 +2220,7 @@ pnpm --filter @opencairn/web test:e2e -g "App Shell Phase 1"
 
 Expected: all vitest projects pass; all six Playwright cases pass. If Sheet-overlay visibility assertion flaps, add `waitForAnimation` or use role-based queries instead of `toBeVisible` directly after toggle.
 
-- [ ] **Step 13.7: Commit**
+- [x] **Step 13.7: Commit**
 
 ```bash
 git add apps/web/src/app/[locale]/app/w/[wsSlug]/ \
@@ -2235,7 +2235,7 @@ git commit -m "feat(web): add workspace route scaffolds and phase-1 shell e2e"
 
 Run the mandatory OpenCairn post-feature loop (`opencairn:post-feature` skill).
 
-- [ ] **Step 14.1: Run all checks**
+- [x] **Step 14.1: Run all checks**
 
 ```bash
 pnpm --filter @opencairn/web typecheck
@@ -2248,15 +2248,15 @@ pnpm --filter @opencairn/web i18n:parity
 
 Expected: all green. Any i18n parity error for user-facing strings in placeholders should be fixed by moving the 4 Korean strings (`대시보드`, `사이드바 (Phase 2)`, etc.) to `messages/{ko,en}/app-shell.json` and using `useTranslations`.
 
-- [ ] **Step 14.2: Update `docs/contributing/plans-status.md`**
+- [x] **Step 14.2: Update `docs/contributing/plans-status.md`**
 
 Mark Plan 2E/2F as superseded by this Phase 1 plan, add current status ("🟡 Active — Phase 1 complete, Phase 2 next"). Keep the entry short.
 
-- [ ] **Step 14.3: Update memory**
+- [x] **Step 14.3: Update memory**
 
 Add a memory entry `project_plan_app_shell_phase_1_complete.md` noting: date, HEAD SHA, summary (shell frame + stores + routing + e2e), and next-step (Phase 2 plan writing in next session).
 
-- [ ] **Step 14.4: Commit docs/memory updates**
+- [x] **Step 14.4: Commit docs/memory updates**
 
 ```bash
 git add docs/contributing/plans-status.md
@@ -2267,13 +2267,13 @@ git commit -m "docs(docs): mark app shell phase 1 complete in plans-status"
 
 ## Completion Criteria
 
-- [ ] All 14 tasks committed
-- [ ] `pnpm --filter @opencairn/web test` — green (node + jsdom projects)
-- [ ] `pnpm --filter @opencairn/api test` — green
-- [ ] `pnpm --filter @opencairn/web test:e2e -g "App Shell Phase 1"` — 6/6 green
-- [ ] `pnpm --filter @opencairn/web typecheck` — green
-- [ ] `pnpm --filter @opencairn/web i18n:parity` — green
-- [ ] Manual smoke: `pnpm dev` → log in → land on `/ko/app/w/<slug>/` → shell renders with 3 placeholder regions → `Ctrl+\` and `Ctrl+J` toggle panels → resize window below 1024px → panels become Sheet overlays → Playwright routes (`/n/x`, `/research`, `/settings`) all render placeholders
+- [x] All 14 tasks committed
+- [x] `pnpm --filter @opencairn/web test` — green (node + jsdom projects)
+- [x] `pnpm --filter @opencairn/api test` — green
+- [x] `pnpm --filter @opencairn/web test:e2e -g "App Shell Phase 1"` — 6/6 green
+- [x] `pnpm --filter @opencairn/web typecheck` — green
+- [x] `pnpm --filter @opencairn/web i18n:parity` — green
+- [x] Manual smoke: `pnpm dev` → log in → land on `/ko/app/w/<slug>/` → shell renders with 3 placeholder regions → `Ctrl+\` and `Ctrl+J` toggle panels → resize window below 1024px → panels become Sheet overlays → Playwright routes (`/n/x`, `/research`, `/settings`) all render placeholders
 
 ## What's NOT in this plan (belongs to later phases)
 

@@ -28,36 +28,53 @@ import { Cta } from "@/components/landing/Cta";
 // and authed users redirect away before any landing component runs.
 export const dynamic = "force-dynamic";
 
+// Fetch wrapper that swallows network errors. The landing must keep
+// rendering even if the API is briefly unreachable (boot race during
+// `pnpm dev`, transient outage in prod) — better to show landing to a
+// signed-in user for one frame than to 500 the marketing page.
+// `redirect()` throws a NEXT_REDIRECT signal, so it is re-thrown.
+async function safeFetch(
+  url: string,
+  init?: RequestInit,
+): Promise<Response | null> {
+  try {
+    return await fetch(url, init);
+  } catch {
+    return null;
+  }
+}
+
 async function redirectAuthed(locale: string): Promise<void> {
   const cookieHeader = (await cookies()).toString();
   if (!cookieHeader) return;
   const base = process.env.INTERNAL_API_URL ?? "http://localhost:4000";
+  const headers = { cookie: cookieHeader };
 
-  const meRes = await fetch(`${base}/api/auth/me`, {
-    headers: { cookie: cookieHeader },
+  const meRes = await safeFetch(`${base}/api/auth/me`, {
+    headers,
     cache: "no-store",
   });
-  if (!meRes.ok) return;
+  if (!meRes?.ok) return;
 
   // Last viewed workspace wins; falls back to first membership; falls back
   // to /onboarding so first-run users land in the create-workspace flow
   // rather than the marketing page.
-  const lvRes = await fetch(
+  const lvRes = await safeFetch(
     `${base}/api/users/me/last-viewed-workspace`,
-    { headers: { cookie: cookieHeader }, cache: "no-store" },
+    { headers, cache: "no-store" },
   );
-  if (lvRes.ok) {
+  if (lvRes?.ok) {
     const { workspace } = (await lvRes.json()) as {
       workspace: { id: string; slug: string } | null;
     };
     if (workspace) redirect(`/${locale}/app/w/${workspace.slug}/`);
   }
 
-  const wsRes = await fetch(`${base}/api/workspaces`, {
-    headers: { cookie: cookieHeader },
+  const wsRes = await safeFetch(`${base}/api/workspaces`, {
+    headers,
     cache: "no-store",
   });
-  if (wsRes.ok) {
+  if (wsRes?.ok) {
     const list = (await wsRes.json()) as Array<{ slug: string }>;
     if (list[0]?.slug) redirect(`/${locale}/app/w/${list[0].slug}/`);
   }
