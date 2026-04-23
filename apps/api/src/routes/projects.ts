@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { db, projects, folders, eq, desc, and } from "@opencairn/db";
+import { db, projects, folders, notes, pagePermissions, eq, desc, and } from "@opencairn/db";
 import { createProjectSchema, updateProjectSchema } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite, resolveRole } from "../lib/permissions";
@@ -154,6 +154,41 @@ export const projectRoutes = new Hono<AppEnv>()
             : [],
       })),
     });
+  })
+
+  // 사이드바 권한 배칭 (/api/projects/:projectId/permissions).
+  // 효과적인 프로젝트 role 하나 + 이 프로젝트 내부 노트에 대한 per-user
+  // page_permissions override 맵을 한 번에 돌려준다. 사이드바는 마운트 시점에
+  // 이걸 한 번 호출하고, 이후 렌더 루프에서는 per-node 권한 체크를 절대로
+  // 하지 않는다 (spec §4.6.1, §4.10 — "per-node perm check in render loop").
+  .get("/projects/:projectId/permissions", async (c) => {
+    const user = c.get("user");
+    const projectId = c.req.param("projectId");
+    if (!isUuid(projectId)) return c.json({ error: "Bad Request" }, 400);
+
+    const role = await resolveRole(user.id, { type: "project", id: projectId });
+    if (role === "none") return c.json({ error: "Forbidden" }, 403);
+
+    // Scope overrides to notes in THIS project — a user's pagePermissions
+    // in other projects are irrelevant to this sidebar and shouldn't leak.
+    const overrideRows = await db
+      .select({
+        pageId: pagePermissions.pageId,
+        role: pagePermissions.role,
+      })
+      .from(pagePermissions)
+      .innerJoin(notes, eq(notes.id, pagePermissions.pageId))
+      .where(
+        and(
+          eq(pagePermissions.userId, user.id),
+          eq(notes.projectId, projectId),
+        ),
+      );
+
+    const overrides: Record<string, string> = {};
+    for (const row of overrideRows) overrides[row.pageId] = row.role;
+
+    return c.json({ role, overrides });
   })
 
   // 삭제 (workspace admin 이상 또는 생성자)
