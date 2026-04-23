@@ -9,10 +9,12 @@ import {
   eq,
   asc,
   desc,
+  max,
 } from "@opencairn/db";
 import {
   createResearchRunSchema,
   listRunsQuerySchema,
+  addTurnSchema,
 } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
 import { canWrite, canRead } from "../lib/permissions";
@@ -225,5 +227,68 @@ researchRouter.get("/runs/:id", requireAuth, async (c) => {
     })),
   });
 });
+
+// Utility: load run with auth check. Returns null on not-found / cross-ws
+// (same 404 shape) or the hydrated run.
+async function loadRunForUser(runId: string, userId: string) {
+  if (!/^[0-9a-f-]{36}$/i.test(runId)) return null;
+  const [run] = await db
+    .select()
+    .from(researchRuns)
+    .where(eq(researchRuns.id, runId));
+  if (!run) return null;
+  if (!(await canRead(userId, { type: "workspace", id: run.workspaceId }))) {
+    return null;
+  }
+  return run;
+}
+
+// POST /api/research/runs/:id/turns  — queue feedback for iterate_plan
+researchRouter.post(
+  "/runs/:id/turns",
+  requireAuth,
+  zValidator("json", addTurnSchema),
+  async (c) => {
+    const userId = c.get("userId");
+    const runId = c.req.param("id");
+    const { feedback } = c.req.valid("json");
+
+    const run = await loadRunForUser(runId, userId);
+    if (!run) return c.json({ error: "not_found" }, 404);
+    if (!(await canWrite(userId, { type: "project", id: run.projectId }))) {
+      return c.json({ error: "forbidden" }, 403);
+    }
+
+    // Plan feedback only valid while the plan is still being negotiated.
+    if (
+      run.status !== "planning" &&
+      run.status !== "awaiting_approval"
+    ) {
+      return c.json({ error: "invalid_state", status: run.status }, 409);
+    }
+
+    const [{ nextSeq }] = await db
+      .select({ nextSeq: max(researchRunTurns.seq) })
+      .from(researchRunTurns)
+      .where(eq(researchRunTurns.runId, runId));
+
+    const [turn] = await db
+      .insert(researchRunTurns)
+      .values({
+        runId,
+        seq: (nextSeq ?? -1) + 1,
+        role: "user",
+        kind: "user_feedback",
+        content: feedback,
+      })
+      .returning({ id: researchRunTurns.id });
+
+    const client = await getTemporalClient();
+    const handle = client.workflow.getHandle(run.workflowId);
+    await handle.signal("user_feedback", feedback, turn.id);
+
+    return c.json({ turnId: turn.id }, 202);
+  },
+);
 
 export { researchRouter };

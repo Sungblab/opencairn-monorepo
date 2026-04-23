@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createApp } from "../src/app.js";
-import { db, researchRuns, researchRunTurns, researchRunArtifacts, eq } from "@opencairn/db";
+import { db, researchRuns, researchRunTurns, researchRunArtifacts, eq, asc } from "@opencairn/db";
 import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
 
@@ -311,6 +311,81 @@ describe("GET /api/research/runs/:id", () => {
       expect(res.status).toBe(404);
     } finally {
       await other.cleanup();
+    }
+  });
+});
+
+describe("POST /api/research/runs/:id/turns", () => {
+  let ctx: SeedResult;
+  beforeEach(async () => {
+    ctx = await seedWorkspace({ role: "editor" });
+    workflowSignalSpy.mockClear();
+  });
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  it("signals user_feedback and inserts a turn when status=awaiting_approval", async () => {
+    const runId = await createPlanningRun(ctx);
+    // Seed one plan_proposal and move run into awaiting_approval.
+    await db.insert(researchRunTurns).values({
+      runId, seq: 0, role: "agent", kind: "plan_proposal", content: "plan v1",
+    });
+    await db
+      .update(researchRuns)
+      .set({ status: "awaiting_approval" })
+      .where(eq(researchRuns.id, runId));
+
+    const res = await authedFetch(`/api/research/runs/${runId}/turns`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ feedback: "narrower scope please" }),
+    });
+    expect(res.status).toBe(202);
+
+    const turns = await db
+      .select()
+      .from(researchRunTurns)
+      .where(eq(researchRunTurns.runId, runId))
+      .orderBy(asc(researchRunTurns.seq));
+    expect(turns).toHaveLength(2);
+    expect(turns[1]!.role).toBe("user");
+    expect(turns[1]!.kind).toBe("user_feedback");
+    expect(turns[1]!.content).toBe("narrower scope please");
+
+    expect(workflowSignalSpy).toHaveBeenCalledTimes(1);
+    expect(workflowSignalSpy.mock.calls[0][0]).toBe("user_feedback");
+  });
+
+  it("returns 409 when run is not in a plan-editable state", async () => {
+    const runId = await createPlanningRun(ctx);
+    await db
+      .update(researchRuns)
+      .set({ status: "completed" })
+      .where(eq(researchRuns.id, runId));
+
+    const res = await authedFetch(`/api/research/runs/${runId}/turns`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ feedback: "too late" }),
+    });
+    expect(res.status).toBe(409);
+    expect(workflowSignalSpy).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 on viewer", async () => {
+    const runId = await createPlanningRun(ctx);
+    const viewer = await seedWorkspace({ role: "viewer" });
+    try {
+      const res = await authedFetch(`/api/research/runs/${runId}/turns`, {
+        method: "POST",
+        userId: viewer.userId,
+        body: JSON.stringify({ feedback: "x" }),
+      });
+      // Cross-workspace — hidden with 404.
+      expect(res.status).toBe(404);
+    } finally {
+      await viewer.cleanup();
     }
   });
 });
