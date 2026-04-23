@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Tree, type NodeApi, type TreeApi } from "react-arborist";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -92,7 +92,7 @@ async function persistDelete(id: string, kind: TreeNode["kind"]) {
 
 export function ProjectTree({
   projectId,
-  height = 600,
+  height,
   width = "100%",
 }: ProjectTreeProps) {
   const { roots, loadChildren } = useProjectTree({ projectId });
@@ -104,6 +104,24 @@ export function ProjectTree({
   const [typeAheadBuf, setTypeAheadBuf] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
   const treeRef = useRef<TreeApi<TreeNode> | null>(null);
+
+  // react-arborist's virtualization needs a concrete pixel height. When the
+  // caller doesn't pin one we observe the container and forward its
+  // clientHeight so the tree fills whatever the sidebar layout gives it.
+  const [observedHeight, setObservedHeight] = useState<number>(height ?? 400);
+  useEffect(() => {
+    if (height !== undefined) {
+      setObservedHeight(height);
+      return;
+    }
+    const el = containerRef.current;
+    if (!el) return;
+    const apply = () => setObservedHeight(el.clientHeight || 400);
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [height]);
 
   useTypeAhead(containerRef, setTypeAheadBuf);
 
@@ -214,7 +232,7 @@ export function ProjectTree({
           ref={treeRef}
           data={data}
           width={width}
-          height={height}
+          height={observedHeight}
           rowHeight={28}
           openByDefault={false}
           searchTerm={typeAheadBuf || undefined}

@@ -35,7 +35,8 @@
   "project": {
     "empty": "Create a project to get started",
     "new": "New project",
-    "switch_aria": "Switch project"
+    "switch_aria": "Switch project",
+    "create_cta": "+ Create project"
   },
   "footer": {
     "notifications_aria": "Notifications",

@@ -35,7 +35,8 @@
   "project": {
     "empty": "프로젝트를 만들어 시작하세요",
     "new": "새 프로젝트",
-    "switch_aria": "프로젝트 전환"
+    "switch_aria": "프로젝트 전환",
+    "create_cta": "+ 프로젝트 만들기"
   },
   "footer": {
     "notifications_aria": "알림",

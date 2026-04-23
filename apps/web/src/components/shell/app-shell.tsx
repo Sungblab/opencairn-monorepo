@@ -1,7 +1,7 @@
 "use client";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useTranslations } from "next-intl";
-import { PlaceholderSidebar } from "./placeholder-sidebar";
+import { ShellSidebar } from "@/components/sidebar/shell-sidebar";
 import { PlaceholderTabShell } from "./placeholder-tab-shell";
 import { PlaceholderAgentPanel } from "./placeholder-agent-panel";
 import { ShellResizeHandle } from "./shell-resize-handle";
@@ -43,7 +43,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         >
           <SheetContent side="left" className="w-[280px] p-0">
             <SheetTitle className="sr-only">{t("sidebar")}</SheetTitle>
-            <PlaceholderSidebar />
+            <ShellSidebar />
           </SheetContent>
         </Sheet>
         <PlaceholderTabShell>{children}</PlaceholderTabShell>
@@ -70,7 +70,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {sidebarOpen && (
         <>
           <div style={{ width: sidebarWidth, flexShrink: 0 }}>
-            <PlaceholderSidebar />
+            <ShellSidebar />
           </div>
           <ShellResizeHandle
             onDrag={(d) => setSidebarWidth(sidebarWidth + d)}
