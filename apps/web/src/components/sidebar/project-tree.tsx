@@ -1,10 +1,12 @@
 "use client";
-import { useCallback, useMemo, useState } from "react";
-import { Tree, type NodeApi } from "react-arborist";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { Tree, type NodeApi, type TreeApi } from "react-arborist";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useProjectTree, type TreeNode } from "@/hooks/use-project-tree";
 import { useSidebarStore } from "@/stores/sidebar-store";
+import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
+import { useTypeAhead } from "@/hooks/use-tree-keyboard";
 import { ProjectTreeNode } from "./project-tree-node";
 import {
   ProjectTreeContext,
@@ -99,6 +101,11 @@ export function ProjectTree({
   const t = useTranslations("sidebar.tree_menu");
   const data = useMemo(() => deriveData(roots, expanded), [roots, expanded]);
   const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [typeAheadBuf, setTypeAheadBuf] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const treeRef = useRef<TreeApi<TreeNode> | null>(null);
+
+  useTypeAhead(containerRef, setTypeAheadBuf);
 
   async function handleToggle(id: string) {
     const { isExpanded, toggleExpanded } = useSidebarStore.getState();
@@ -180,19 +187,37 @@ export function ProjectTree({
     [renamingId, handleStartRename, handleCommitRename, handleDelete],
   );
 
+  // ⌘/Ctrl+Delete removes the currently focused row after a confirm. Bound
+  // globally because arborist owns focus, but the handler bails out when
+  // an editable element is focused so Backspace/Delete inside the rename
+  // input keeps its normal behavior.
+  useKeyboardShortcut("mod+delete", () => {
+    const focused = treeRef.current?.focusedNode;
+    if (!focused) return;
+    if (typeof document !== "undefined") {
+      const active = document.activeElement as HTMLElement | null;
+      if (active?.closest("input, textarea, [contenteditable]")) return;
+    }
+    handleDelete(focused.data.id, focused.data.kind, focused.data.label);
+  });
+
   return (
     <ProjectTreeContext.Provider value={ctxValue}>
       <div
-        className="min-h-0 flex-1 overflow-hidden"
+        ref={containerRef}
+        tabIndex={0}
+        className="min-h-0 flex-1 overflow-hidden outline-none"
         data-testid="project-tree"
         data-project-id={projectId}
       >
         <Tree<TreeNode>
+          ref={treeRef}
           data={data}
           width={width}
           height={height}
           rowHeight={28}
           openByDefault={false}
+          searchTerm={typeAheadBuf || undefined}
           onToggle={handleToggle}
           onMove={handleMove}
         >
