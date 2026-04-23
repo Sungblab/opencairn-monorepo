@@ -1227,9 +1227,11 @@ internal.post(
     // idempotency branch above. UUID guard mirrors the read path above —
     // the column is uuid type, so non-UUID keys must be skipped.
     if (body.idempotencyKey && UUID_RE.test(body.idempotencyKey)) {
+      // updatedAt is stamped by Drizzle's $onUpdate on researchRuns —
+      // explicit set is redundant.
       await db
         .update(researchRuns)
-        .set({ noteId: id, updatedAt: new Date() })
+        .set({ noteId: id })
         .where(eq(researchRuns.id, body.idempotencyKey));
     }
 
