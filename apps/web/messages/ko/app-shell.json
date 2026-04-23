@@ -4,5 +4,27 @@
     "tab_bar": "탭 바 (Phase 3)",
     "agent_panel": "AI 에이전트 (Phase 4)",
     "dashboard": "대시보드"
+  },
+  "routes": {
+    "dashboard": {
+      "heading": "대시보드",
+      "placeholder": "Phase 5가 이 자리를 채웁니다."
+    },
+    "note": {
+      "heading": "노트 {id}",
+      "placeholder": "Phase 3가 이 자리를 채웁니다."
+    },
+    "research_hub": {
+      "heading": "Deep Research",
+      "placeholder": "Phase 5가 이 자리를 채웁니다."
+    },
+    "research_run": {
+      "heading": "Research {id}",
+      "placeholder": "Phase 5가 이 자리를 채웁니다."
+    },
+    "ws_settings": {
+      "heading": "워크스페이스 설정 — {sub}",
+      "placeholder": "Phase 2C가 이 자리를 채웁니다."
+    }
   }
 }
