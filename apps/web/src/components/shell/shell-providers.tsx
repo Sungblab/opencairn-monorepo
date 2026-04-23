@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect } from "react";
 import { AppShell } from "./app-shell";
+import { Toaster } from "@/components/ui/toaster";
 import { useUrlTabSync } from "@/hooks/use-url-tab-sync";
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
 import { usePanelStore } from "@/stores/panel-store";
@@ -51,5 +52,10 @@ export function ShellProviders({
     setSidebarWs(key);
   }, [wsSlug, setThreadsWs, setSidebarWs]);
 
-  return <AppShell>{children}</AppShell>;
+  return (
+    <>
+      <AppShell>{children}</AppShell>
+      <Toaster />
+    </>
+  );
 }
