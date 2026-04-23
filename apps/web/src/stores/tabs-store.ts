@@ -235,12 +235,22 @@ export const useTabsStore = create<State>((set, get) => ({
   closeOthers: (keepId) => {
     const s = get();
     const next = s.tabs.filter((t) => t.id === keepId || t.pinned);
-    set({ tabs: next, activeId: keepId });
+    // Evicted tabs feed the ⌘⇧T stack so bulk-close stays undoable
+    // (VSCode / Chrome "Reopen closed tabs" parity). Pinned tabs can't be
+    // closed so they're filtered alongside keepId — they never enter
+    // the stack.
+    const evicted = s.tabs.filter(
+      (t) => t.id !== keepId && !t.pinned,
+    );
+    const closedStack = [...s.closedStack, ...evicted].slice(
+      -CLOSED_STACK_LIMIT,
+    );
+    set({ tabs: next, activeId: keepId, closedStack });
     if (s.workspaceId)
       flush(s.workspaceId, {
         tabs: next,
         activeId: keepId,
-        closedStack: s.closedStack,
+        closedStack,
       });
   },
 
@@ -248,14 +258,24 @@ export const useTabsStore = create<State>((set, get) => ({
     const s = get();
     const idx = s.tabs.findIndex((t) => t.id === id);
     if (idx < 0) return;
-    const next = s.tabs.slice(0, idx + 1);
+    // Keep the pivot + everything to its left + any pinned tabs on the
+    // right. Matches the close-button / ⌘W rule that pinned tabs resist
+    // close actions; closing just the unpinned right-hand tabs is the
+    // least surprising behavior.
+    const rightSlice = s.tabs.slice(idx + 1);
+    const evicted = rightSlice.filter((t) => !t.pinned);
+    const rightPinned = rightSlice.filter((t) => t.pinned);
+    const next = [...s.tabs.slice(0, idx + 1), ...rightPinned];
     const activeId = next.some((t) => t.id === s.activeId) ? s.activeId : id;
-    set({ tabs: next, activeId });
+    const closedStack = [...s.closedStack, ...evicted].slice(
+      -CLOSED_STACK_LIMIT,
+    );
+    set({ tabs: next, activeId, closedStack });
     if (s.workspaceId)
       flush(s.workspaceId, {
         tabs: next,
         activeId,
-        closedStack: s.closedStack,
+        closedStack,
       });
   },
 

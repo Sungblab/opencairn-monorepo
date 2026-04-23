@@ -124,6 +124,18 @@ describe("tabs-store extensions", () => {
       expect(ids).toEqual(["a", "c"]);
       expect(useTabsStore.getState().activeId).toBe("a");
     });
+
+    it("pushes evicted tabs onto closedStack (pinned are skipped)", () => {
+      ["a", "b", "c", "d"].forEach((id) =>
+        useTabsStore.getState().addTab(mk({ id })),
+      );
+      useTabsStore.getState().togglePin("c");
+      useTabsStore.getState().closeOthers("a");
+      // b + d were closed; c was pinned and stayed; a is the survivor.
+      expect(
+        useTabsStore.getState().closedStack.map((t) => t.id),
+      ).toEqual(["b", "d"]);
+    });
   });
 
   describe("closeRight", () => {
@@ -154,6 +166,33 @@ describe("tabs-store extensions", () => {
       useTabsStore.getState().setActive("c");
       useTabsStore.getState().closeRight("a");
       expect(useTabsStore.getState().activeId).toBe("a");
+    });
+
+    it("pushes evicted right-side tabs onto closedStack", () => {
+      ["a", "b", "c", "d"].forEach((id) =>
+        useTabsStore.getState().addTab(mk({ id })),
+      );
+      useTabsStore.getState().closeRight("b");
+      expect(
+        useTabsStore.getState().closedStack.map((t) => t.id),
+      ).toEqual(["c", "d"]);
+    });
+
+    it("keeps a pinned tab on the right side; does not push it to closedStack", () => {
+      ["a", "b", "c", "d"].forEach((id) =>
+        useTabsStore.getState().addTab(mk({ id })),
+      );
+      useTabsStore.getState().togglePin("d");
+      useTabsStore.getState().closeRight("b");
+      // c is evicted; d is pinned and stays.
+      expect(useTabsStore.getState().tabs.map((t) => t.id)).toEqual([
+        "a",
+        "b",
+        "d",
+      ]);
+      expect(
+        useTabsStore.getState().closedStack.map((t) => t.id),
+      ).toEqual(["c"]);
     });
   });
 
