@@ -1,7 +1,6 @@
 {
   "placeholders": {
     "sidebar": "사이드바 (Phase 2)",
-    "tab_bar": "탭 바 (Phase 3)",
     "agent_panel": "AI 에이전트 (Phase 4)",
     "dashboard": "대시보드"
   },

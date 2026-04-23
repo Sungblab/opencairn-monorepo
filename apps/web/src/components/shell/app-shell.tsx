@@ -2,7 +2,7 @@
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useTranslations } from "next-intl";
 import { ShellSidebar } from "@/components/sidebar/shell-sidebar";
-import { PlaceholderTabShell } from "./placeholder-tab-shell";
+import { TabShell } from "../tab-shell/tab-shell";
 import { PlaceholderAgentPanel } from "./placeholder-agent-panel";
 import { ShellResizeHandle } from "./shell-resize-handle";
 import { usePanelStore } from "@/stores/panel-store";
@@ -46,7 +46,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <ShellSidebar />
           </SheetContent>
         </Sheet>
-        <PlaceholderTabShell>{children}</PlaceholderTabShell>
+        <TabShell>{children}</TabShell>
         <Sheet
           open={agentPanelOpen}
           onOpenChange={(open) => {
@@ -78,7 +78,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           />
         </>
       )}
-      <PlaceholderTabShell>{children}</PlaceholderTabShell>
+      <TabShell>{children}</TabShell>
       {agentPanelOpen && (
         <>
           <ShellResizeHandle
