@@ -29,6 +29,7 @@ import {
 import { requireAuth } from "../middleware/auth";
 import { canWrite, canRead } from "../lib/permissions";
 import { getTemporalClient, taskQueue } from "../lib/temporal-client";
+import { isUuid } from "../lib/validators";
 import type { AppEnv } from "../lib/types";
 
 const researchRouter = new Hono<AppEnv>();
@@ -240,8 +241,7 @@ researchRouter.get("/runs/:id", requireAuth, async (c) => {
 // "----------------------------" or all-zeros) and pushed the rejection down
 // to the DB query. Reject at the boundary so we don't waste a round-trip and
 // don't have a malformed string flowing through canRead either.
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// Strict regex lives in lib/validators.ts.
 
 // Postgres SQLSTATE 23505 = unique_violation. We bump into this on
 // research_run_turns_run_seq_idx when two concurrent writes (e.g. user
@@ -264,7 +264,7 @@ const concurrentWriteResponse = {
 } as const satisfies ResearchConcurrentWriteError;
 
 async function loadRunForUser(runId: string | undefined, userId: string) {
-  if (!runId || !UUID_RE.test(runId)) return null;
+  if (!isUuid(runId)) return null;
   const [run] = await db
     .select()
     .from(researchRuns)
@@ -309,14 +309,14 @@ researchRouter.post(
     const [{ nextSeq }] = await db
       .select({ nextSeq: max(researchRunTurns.seq) })
       .from(researchRunTurns)
-      .where(eq(researchRunTurns.runId, runId));
+      .where(eq(researchRunTurns.runId, run.id));
 
     let turnId: string;
     try {
       const [turn] = await db
         .insert(researchRunTurns)
         .values({
-          runId,
+          runId: run.id,
           seq: (nextSeq ?? -1) + 1,
           role: "user",
           kind: "user_feedback",
@@ -370,13 +370,13 @@ researchRouter.patch(
     const [{ nextSeq }] = await db
       .select({ nextSeq: max(researchRunTurns.seq) })
       .from(researchRunTurns)
-      .where(eq(researchRunTurns.runId, runId));
+      .where(eq(researchRunTurns.runId, run.id));
 
     try {
       const [turn] = await db
         .insert(researchRunTurns)
         .values({
-          runId,
+          runId: run.id,
           seq: (nextSeq ?? -1) + 1,
           role: "user",
           kind: "user_edit",
@@ -445,7 +445,7 @@ researchRouter.post(
         .from(researchRunTurns)
         .where(
           and(
-            eq(researchRunTurns.runId, runId),
+            eq(researchRunTurns.runId, run.id),
             eq(researchRunTurns.kind, "user_edit"),
           ),
         )
@@ -459,7 +459,7 @@ researchRouter.post(
           .from(researchRunTurns)
           .where(
             and(
-              eq(researchRunTurns.runId, runId),
+              eq(researchRunTurns.runId, run.id),
               eq(researchRunTurns.kind, "plan_proposal"),
             ),
           )
@@ -483,9 +483,9 @@ researchRouter.post(
         const [{ nextSeq }] = await tx
           .select({ nextSeq: max(researchRunTurns.seq) })
           .from(researchRunTurns)
-          .where(eq(researchRunTurns.runId, runId));
+          .where(eq(researchRunTurns.runId, run.id));
         await tx.insert(researchRunTurns).values({
-          runId,
+          runId: run.id,
           seq: (nextSeq ?? -1) + 1,
           role: "user",
           kind: "approval",
@@ -494,7 +494,7 @@ researchRouter.post(
         await tx
           .update(researchRuns)
           .set({ approvedPlanText: approved })
-          .where(eq(researchRuns.id, runId));
+          .where(eq(researchRuns.id, run.id));
       });
     } catch (err) {
       if (isUniqueViolation(err)) {
@@ -563,12 +563,6 @@ researchRouter.post("/runs/:id/cancel", requireAuth, async (c) => {
 researchRouter.get("/runs/:id/stream", requireAuth, async (c) => {
   const userId = c.get("userId");
   const runId = c.req.param("id");
-  // Hono types c.req.param() as string | undefined. Other handlers narrow it
-  // via the loadRunForUser(string, string) call in the same scope, but here
-  // the value is captured by a ReadableStream closure where TS drops the
-  // narrowing — so guard explicitly, otherwise eq() inside the loop body
-  // fails typecheck against the uuid column.
-  if (!runId) return c.json({ error: "not_found" }, 404);
 
   const run = await loadRunForUser(runId, userId);
   if (!run) return c.json({ error: "not_found" }, 404);
@@ -605,7 +599,7 @@ researchRouter.get("/runs/:id/stream", requireAuth, async (c) => {
               error: researchRuns.error,
             })
             .from(researchRuns)
-            .where(eq(researchRuns.id, runId));
+            .where(eq(researchRuns.id, run.id));
           if (!row) break;
 
           if (row.status !== lastStatus) {
@@ -618,7 +612,7 @@ researchRouter.get("/runs/:id/stream", requireAuth, async (c) => {
             .from(researchRunTurns)
             .where(
               and(
-                eq(researchRunTurns.runId, runId),
+                eq(researchRunTurns.runId, run.id),
                 gt(researchRunTurns.seq, lastTurnSeq),
               ),
             )
@@ -644,7 +638,7 @@ researchRouter.get("/runs/:id/stream", requireAuth, async (c) => {
             .from(researchRunArtifacts)
             .where(
               and(
-                eq(researchRunArtifacts.runId, runId),
+                eq(researchRunArtifacts.runId, run.id),
                 gt(researchRunArtifacts.seq, lastArtifactSeq),
               ),
             )
