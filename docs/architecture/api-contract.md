@@ -186,6 +186,30 @@ Cookie: better-auth.session_token=<token>
 
 `X-Internal-Secret` 헤더는 `INTERNAL_API_SECRET` env와 일치해야 하며, 불일치 시 `401`.
 
+### Deep Research (Phase C, feature-flag `FEATURE_DEEP_RESEARCH`)
+
+Public — Better Auth 세션 + `canWrite`(project, 생성/변경) 또는 `canRead`(workspace, 조회/스트림). `FEATURE_DEEP_RESEARCH=false` 시 모든 경로 404. `billingPath: "managed"`는 `FEATURE_MANAGED_DEEP_RESEARCH` 필요 (off 시 403 `{error:"managed_disabled"}`).
+
+| Method | Path                                     | Body / Query                | Response |
+|--------|------------------------------------------|-----------------------------|----------|
+| POST   | `/api/research/runs`                     | `createResearchRunSchema`   | `201 { runId }` |
+| GET    | `/api/research/runs?workspaceId=&limit=` | `listRunsQuerySchema`       | `200 { runs: ResearchRunSummary[] }` (newest-first, default limit 50) |
+| GET    | `/api/research/runs/:id`                 | —                           | `200 ResearchRunDetail` (run + turns asc + artifacts asc) |
+| POST   | `/api/research/runs/:id/turns`           | `addTurnSchema`             | `202 { turnId }` — inserts `user_feedback` turn + signals workflow |
+| PATCH  | `/api/research/runs/:id/plan`            | `updatePlanSchema`          | `200 { turnId }` — inserts `user_edit` turn, DB only (no signal) |
+| POST   | `/api/research/runs/:id/approve`         | `approvePlanSchema`         | `202 { approved: true }` — resolves override > user_edit > plan_proposal, signals `approve_plan` |
+| POST   | `/api/research/runs/:id/cancel`          | —                           | `202 { cancelled: true }` / `{ cancelled: true, alreadyTerminal: true }` |
+| GET    | `/api/research/runs/:id/stream`          | —                           | `200 text/event-stream`; events: `status`, `turn`, `artifact`, `error`, `done`. 2s poll, 70min cap. |
+
+Internal (`X-Internal-Secret`) — Phase B worker의 `persist_report` 호출 경로:
+
+| Method | Path                                     | Body | Response |
+|--------|------------------------------------------|------|----------|
+| POST   | `/api/internal/notes`                    | legacy ingest shape OR `{idempotencyKey, projectId, workspaceId, userId, title, plateValue}` | `201 { id, noteId }` — idempotencyKey가 UUID이고 기존 `researchRuns.id` 매칭 시 back-fill → 재시도 idempotent |
+| POST   | `/api/internal/research/image-bytes`     | `{ url }` | `200 { base64, mimeType }` / `404` (artifact 매칭/base64 없음) |
+
+Cross-workspace 접근은 **404** (존재 은닉). 상태별 쓰기 금지는 `409 { error:"invalid_state", status }` — `planning`/`awaiting_approval` 외 상태에서의 turns/plan/approve 거절.
+
 #### Tool-calling loop (worker runtime, Agent Runtime v2 · A)
 
 `run_with_tools(...)` (`apps/worker/src/runtime/loop_runner.py`)은 Temporal activity 내부에서 호출되는 러너. 시그니처는 `provider, initial_messages, tools, tool_context (dict), config: LoopConfig | None, hooks: LoopHooks | None`. 한 activity = 한 loop이며 `LoopConfig.max_turns (default 8)`, `max_tool_calls (12)`, `max_total_input_tokens (200_000)`, per-tool timeout, 소프트 루프 detection으로 bounded. Provider가 tool calling을 지원하지 않으면 `ToolCallingNotSupported` fail-fast.
