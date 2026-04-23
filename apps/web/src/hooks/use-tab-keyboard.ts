@@ -7,6 +7,17 @@ function isMac(): boolean {
   return /Mac|iPhone|iPad/i.test(navigator.platform);
 }
 
+// Arrow chords collide with text-field cursor navigation (⌘← → line start,
+// ⌥← → word-back). When an editable target has focus we bail on *arrow*
+// handlers so typing in Plate / the title input stays intuitive. ⌘W /
+// ⌘1-9 / ⌘T keep working everywhere — those aren't editor-bound chords.
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  const tag = target.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+}
+
 // One listener covers every tab-scoped chord so we avoid registering nine
 // separate keydown handlers for ⌘1…⌘9. Non-mod presses fall through to the
 // editor so typing "w" inside Plate stays responsive.
@@ -37,6 +48,12 @@ export function useTabKeyboard() {
         }
         return;
       }
+
+      // Arrow handlers bail out when the target is an editable — otherwise
+      // ⌘← inside the title input or Plate body would steal line-start
+      // navigation, and ⌥← would steal word-back.
+      const arrow = e.key === "ArrowLeft" || e.key === "ArrowRight";
+      if (arrow && isEditableTarget(e.target)) return;
 
       // ⌘Alt+Arrow → reorder active tab within the bar (shift comes later
       // when we add pinned-zone separator logic).

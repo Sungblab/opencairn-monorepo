@@ -130,6 +130,65 @@ describe("useTabKeyboard", () => {
     ]);
   });
 
+  it("⌘→ bails out when an INPUT element is focused (text-field cursor nav)", () => {
+    seed(["a", "b"]);
+    renderHook(() => useTabKeyboard());
+    useTabsStore.getState().setActive("a");
+
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    input.focus();
+    try {
+      const isMac = /Mac|iPhone|iPad/i.test(navigator.platform);
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "ArrowRight",
+          metaKey: isMac,
+          ctrlKey: !isMac,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    } finally {
+      document.body.removeChild(input);
+    }
+    // Active tab is unchanged because the handler short-circuited.
+    expect(useTabsStore.getState().activeId).toBe("a");
+  });
+
+  it("⌘→ still switches tabs when focus is NOT inside an editable", () => {
+    seed(["a", "b"]);
+    renderHook(() => useTabKeyboard());
+    useTabsStore.getState().setActive("a");
+    act(() => press("ArrowRight"));
+    expect(useTabsStore.getState().activeId).toBe("b");
+  });
+
+  it("⌘W still fires inside an INPUT — tab close is not editor-bound", () => {
+    seed(["a", "b"]);
+    renderHook(() => useTabKeyboard());
+    useTabsStore.getState().setActive("a");
+
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    input.focus();
+    try {
+      const isMac = /Mac|iPhone|iPad/i.test(navigator.platform);
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "w",
+          metaKey: isMac,
+          ctrlKey: !isMac,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    } finally {
+      document.body.removeChild(input);
+    }
+    expect(useTabsStore.getState().tabs.map((t) => t.id)).toEqual(["b"]);
+  });
+
   it("a plain letter press without the modifier is ignored", () => {
     seed(["a", "b"]);
     renderHook(() => useTabKeyboard());
