@@ -15,6 +15,7 @@ import {
   createResearchRunSchema,
   listRunsQuerySchema,
   addTurnSchema,
+  updatePlanSchema,
 } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
 import { canWrite, canRead } from "../lib/permissions";
@@ -288,6 +289,48 @@ researchRouter.post(
     await handle.signal("user_feedback", feedback, turn.id);
 
     return c.json({ turnId: turn.id }, 202);
+  },
+);
+
+// PATCH /api/research/runs/:id/plan — local edit, no Google call, no signal
+researchRouter.patch(
+  "/runs/:id/plan",
+  requireAuth,
+  zValidator("json", updatePlanSchema),
+  async (c) => {
+    const userId = c.get("userId");
+    const runId = c.req.param("id");
+    const { editedText } = c.req.valid("json");
+
+    const run = await loadRunForUser(runId, userId);
+    if (!run) return c.json({ error: "not_found" }, 404);
+    if (!(await canWrite(userId, { type: "project", id: run.projectId }))) {
+      return c.json({ error: "forbidden" }, 403);
+    }
+    if (
+      run.status !== "planning" &&
+      run.status !== "awaiting_approval"
+    ) {
+      return c.json({ error: "invalid_state", status: run.status }, 409);
+    }
+
+    const [{ nextSeq }] = await db
+      .select({ nextSeq: max(researchRunTurns.seq) })
+      .from(researchRunTurns)
+      .where(eq(researchRunTurns.runId, runId));
+
+    const [turn] = await db
+      .insert(researchRunTurns)
+      .values({
+        runId,
+        seq: (nextSeq ?? -1) + 1,
+        role: "user",
+        kind: "user_edit",
+        content: editedText,
+      })
+      .returning({ id: researchRunTurns.id });
+
+    return c.json({ turnId: turn.id }, 200);
   },
 );
 

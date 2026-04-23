@@ -389,3 +389,57 @@ describe("POST /api/research/runs/:id/turns", () => {
     }
   });
 });
+
+describe("PATCH /api/research/runs/:id/plan", () => {
+  let ctx: SeedResult;
+  beforeEach(async () => {
+    ctx = await seedWorkspace({ role: "editor" });
+    workflowSignalSpy.mockClear();
+  });
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  it("inserts user_edit turn and does NOT signal the workflow", async () => {
+    const runId = await createPlanningRun(ctx);
+    await db.insert(researchRunTurns).values({
+      runId, seq: 0, role: "agent", kind: "plan_proposal", content: "plan v1",
+    });
+    await db
+      .update(researchRuns)
+      .set({ status: "awaiting_approval" })
+      .where(eq(researchRuns.id, runId));
+
+    const res = await authedFetch(`/api/research/runs/${runId}/plan`, {
+      method: "PATCH",
+      userId: ctx.userId,
+      body: JSON.stringify({ editedText: "plan v1\n- added step X" }),
+    });
+    expect(res.status).toBe(200);
+
+    const turns = await db
+      .select()
+      .from(researchRunTurns)
+      .where(eq(researchRunTurns.runId, runId))
+      .orderBy(asc(researchRunTurns.seq));
+    expect(turns).toHaveLength(2);
+    expect(turns[1]!.kind).toBe("user_edit");
+    expect(turns[1]!.content).toContain("added step X");
+
+    expect(workflowSignalSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects when status is researching/completed/failed/cancelled", async () => {
+    const runId = await createPlanningRun(ctx);
+    await db
+      .update(researchRuns)
+      .set({ status: "researching" })
+      .where(eq(researchRuns.id, runId));
+    const res = await authedFetch(`/api/research/runs/${runId}/plan`, {
+      method: "PATCH",
+      userId: ctx.userId,
+      body: JSON.stringify({ editedText: "late edit" }),
+    });
+    expect(res.status).toBe(409);
+  });
+});
