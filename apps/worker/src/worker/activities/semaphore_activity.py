@@ -50,6 +50,10 @@ async def acquire_project_semaphore(inp: dict[str, Any]) -> dict[str, Any]:
         - ttl_seconds: int (optional, default 1800)
     """
     api = AgentApiClient()
+    # workspace_id is required (Tier 1 item 1-3); the caller workflow passes
+    # it from its own payload so the API can enforce workspace/project
+    # consistency before opening the advisory-lock transaction.
+    workspace_id = inp["workspace_id"]
     project_id = inp["project_id"]
     holder_id = inp["holder_id"]
     purpose = inp["purpose"]
@@ -60,6 +64,7 @@ async def acquire_project_semaphore(inp: dict[str, Any]) -> dict[str, Any]:
     while True:
         attempt += 1
         resp = await api.acquire_semaphore(
+            workspace_id=workspace_id,
             project_id=project_id,
             holder_id=holder_id,
             purpose=purpose,
@@ -88,9 +93,14 @@ async def release_project_semaphore(inp: dict[str, Any]) -> None:
     API does a no-op when the slot is already gone.
     """
     api = AgentApiClient()
+    workspace_id = inp["workspace_id"]
     project_id = inp["project_id"]
     holder_id = inp["holder_id"]
-    await api.release_semaphore(project_id=project_id, holder_id=holder_id)
+    await api.release_semaphore(
+        workspace_id=workspace_id,
+        project_id=project_id,
+        holder_id=holder_id,
+    )
     activity.logger.info(
         "semaphore released: project=%s holder=%s", project_id, holder_id
     )

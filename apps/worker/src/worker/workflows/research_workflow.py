@@ -34,6 +34,7 @@ class ResearchWorkflow:
     @workflow.run
     async def run(self, inp: dict[str, Any]) -> dict[str, Any]:
         project_id = inp["project_id"]
+        workspace_id = inp["workspace_id"]
         holder_id = workflow.info().workflow_id
 
         workflow.logger.info(
@@ -45,6 +46,7 @@ class ResearchWorkflow:
         await workflow.execute_activity(
             acquire_project_semaphore,
             {
+                "workspace_id": workspace_id,
                 "project_id": project_id,
                 "holder_id": holder_id,
                 "purpose": _SEM_PURPOSE,
@@ -73,7 +75,11 @@ class ResearchWorkflow:
             try:
                 await workflow.execute_activity(
                     release_project_semaphore,
-                    {"project_id": project_id, "holder_id": holder_id},
+                    {
+                        "workspace_id": workspace_id,
+                        "project_id": project_id,
+                        "holder_id": holder_id,
+                    },
                     start_to_close_timeout=timedelta(seconds=60),
                     retry_policy=RetryPolicy(maximum_attempts=1),
                 )

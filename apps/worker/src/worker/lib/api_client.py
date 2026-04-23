@@ -288,6 +288,7 @@ class AgentApiClient:
     async def acquire_semaphore(
         self,
         *,
+        workspace_id: str,
         project_id: str,
         holder_id: str,
         purpose: str,
@@ -297,10 +298,13 @@ class AgentApiClient:
         """Try to claim a concurrency slot for this project. Returns a dict
         with ``acquired`` (bool) and — on success — ``renewed`` (bool); on
         failure the response also carries ``running`` (int) for diagnostics.
+
+        ``workspace_id`` is enforced server-side (Tier 1 item 1-3 + 1-2).
         """
         res = await post_internal(
             "/api/internal/semaphores/acquire",
             {
+                "workspaceId": workspace_id,
                 "projectId": project_id,
                 "holderId": holder_id,
                 "purpose": purpose,
@@ -313,13 +317,18 @@ class AgentApiClient:
     async def release_semaphore(
         self,
         *,
+        workspace_id: str,
         project_id: str,
         holder_id: str,
     ) -> None:
         """Drop a holder's slot. Idempotent — calling twice is safe."""
         await post_internal(
             "/api/internal/semaphores/release",
-            {"projectId": project_id, "holderId": holder_id},
+            {
+                "workspaceId": workspace_id,
+                "projectId": project_id,
+                "holderId": holder_id,
+            },
         )
 
     # -- Plan 3b: embedding_batches lifecycle ------------------------------
