@@ -20,17 +20,18 @@ import {
   addTurnSchema,
   updatePlanSchema,
   approvePlanSchema,
+  type ResearchRunDetail,
+  type ResearchInvalidStateError,
+  type ResearchCancelResponse,
+  type ResearchApproveResponse,
+  type ResearchConcurrentWriteError,
 } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
 import { canWrite, canRead } from "../lib/permissions";
-import { getTemporalClient } from "../lib/temporal-client";
+import { getTemporalClient, taskQueue } from "../lib/temporal-client";
 import type { AppEnv } from "../lib/types";
 
 const researchRouter = new Hono<AppEnv>();
-
-function taskQueue(): string {
-  return process.env.TEMPORAL_TASK_QUEUE ?? "ingest";
-}
 
 function isFeatureEnabled(): boolean {
   return (process.env.FEATURE_DEEP_RESEARCH ?? "false").toLowerCase() === "true";
@@ -174,20 +175,27 @@ researchRouter.get("/runs/:id", requireAuth, async (c) => {
   // Parallelise the two independent reads. The detail endpoint is on the
   // Phase D hot path (initial hydration before SSE takes over), so saving
   // one round-trip matters.
+  // Use run.id rather than the raw param — the run reference is the only one
+  // TS knows is a non-undefined string here, since c.req.param() returns
+  // string | undefined and the loadRunForUser narrowing doesn't propagate
+  // back to the original variable.
   const [turns, artifacts] = await Promise.all([
     db
       .select()
       .from(researchRunTurns)
-      .where(eq(researchRunTurns.runId, id))
+      .where(eq(researchRunTurns.runId, run.id))
       .orderBy(asc(researchRunTurns.seq)),
     db
       .select()
       .from(researchRunArtifacts)
-      .where(eq(researchRunArtifacts.runId, id))
+      .where(eq(researchRunArtifacts.runId, run.id))
       .orderBy(asc(researchRunArtifacts.seq)),
   ]);
 
-  return c.json({
+  // `satisfies` (rather than a cast) so missing or misnamed fields trip a
+  // compile error against the shared contract, while still letting TS infer
+  // narrow literal types for the response body.
+  const detail = {
     id: run.id,
     workspaceId: run.workspaceId,
     projectId: run.projectId,
@@ -219,13 +227,44 @@ researchRouter.get("/runs/:id", requireAuth, async (c) => {
       payload: a.payload,
       createdAt: a.createdAt.toISOString(),
     })),
-  });
+  } satisfies ResearchRunDetail;
+  return c.json(detail);
 });
 
 // Utility: load run with auth check. Returns null on not-found / cross-ws
 // (same 404 shape) or the hydrated run.
-async function loadRunForUser(runId: string, userId: string) {
-  if (!/^[0-9a-f-]{36}$/i.test(runId)) return null;
+//
+// Regex: RFC 4122 (+ RFC 9562) strict. Enforces hyphen positions, allows
+// versions 1-8 in the version nibble, and 8/9/a/b in the variant nibble. The
+// previous `[0-9a-f-]{36}` accepted any 36-char hex+hyphen soup (e.g.
+// "----------------------------" or all-zeros) and pushed the rejection down
+// to the DB query. Reject at the boundary so we don't waste a round-trip and
+// don't have a malformed string flowing through canRead either.
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+// Postgres SQLSTATE 23505 = unique_violation. We bump into this on
+// research_run_turns_run_seq_idx when two concurrent writes (e.g. user
+// hammering POST /turns, or POST /turns racing against POST /approve) both
+// compute the same max(seq)+1. Surfacing as 500 told the client "server is
+// broken"; converting to 409 tells it "you raced, retry once with a fresh
+// max(seq)" — which is the actual remediation.
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code: unknown }).code === "23505"
+  );
+}
+
+const concurrentWriteResponse = {
+  error: "concurrent_write",
+  retryable: true,
+} as const satisfies ResearchConcurrentWriteError;
+
+async function loadRunForUser(runId: string | undefined, userId: string) {
+  if (!runId || !UUID_RE.test(runId)) return null;
   const [run] = await db
     .select()
     .from(researchRuns)
@@ -258,7 +297,13 @@ researchRouter.post(
       run.status !== "planning" &&
       run.status !== "awaiting_approval"
     ) {
-      return c.json({ error: "invalid_state", status: run.status }, 409);
+      return c.json(
+        {
+          error: "invalid_state",
+          status: run.status,
+        } satisfies ResearchInvalidStateError,
+        409,
+      );
     }
 
     const [{ nextSeq }] = await db
@@ -266,22 +311,31 @@ researchRouter.post(
       .from(researchRunTurns)
       .where(eq(researchRunTurns.runId, runId));
 
-    const [turn] = await db
-      .insert(researchRunTurns)
-      .values({
-        runId,
-        seq: (nextSeq ?? -1) + 1,
-        role: "user",
-        kind: "user_feedback",
-        content: feedback,
-      })
-      .returning({ id: researchRunTurns.id });
+    let turnId: string;
+    try {
+      const [turn] = await db
+        .insert(researchRunTurns)
+        .values({
+          runId,
+          seq: (nextSeq ?? -1) + 1,
+          role: "user",
+          kind: "user_feedback",
+          content: feedback,
+        })
+        .returning({ id: researchRunTurns.id });
+      turnId = turn.id;
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        return c.json(concurrentWriteResponse, 409);
+      }
+      throw err;
+    }
 
     const client = await getTemporalClient();
     const handle = client.workflow.getHandle(run.workflowId);
-    await handle.signal("user_feedback", feedback, turn.id);
+    await handle.signal("user_feedback", feedback, turnId);
 
-    return c.json({ turnId: turn.id }, 202);
+    return c.json({ turnId }, 202);
   },
 );
 
@@ -304,7 +358,13 @@ researchRouter.patch(
       run.status !== "planning" &&
       run.status !== "awaiting_approval"
     ) {
-      return c.json({ error: "invalid_state", status: run.status }, 409);
+      return c.json(
+        {
+          error: "invalid_state",
+          status: run.status,
+        } satisfies ResearchInvalidStateError,
+        409,
+      );
     }
 
     const [{ nextSeq }] = await db
@@ -312,18 +372,24 @@ researchRouter.patch(
       .from(researchRunTurns)
       .where(eq(researchRunTurns.runId, runId));
 
-    const [turn] = await db
-      .insert(researchRunTurns)
-      .values({
-        runId,
-        seq: (nextSeq ?? -1) + 1,
-        role: "user",
-        kind: "user_edit",
-        content: editedText,
-      })
-      .returning({ id: researchRunTurns.id });
-
-    return c.json({ turnId: turn.id }, 200);
+    try {
+      const [turn] = await db
+        .insert(researchRunTurns)
+        .values({
+          runId,
+          seq: (nextSeq ?? -1) + 1,
+          role: "user",
+          kind: "user_edit",
+          content: editedText,
+        })
+        .returning({ id: researchRunTurns.id });
+      return c.json({ turnId: turn.id }, 200);
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        return c.json(concurrentWriteResponse, 409);
+      }
+      throw err;
+    }
   },
 );
 
@@ -346,7 +412,29 @@ researchRouter.post(
       run.status !== "planning" &&
       run.status !== "awaiting_approval"
     ) {
-      return c.json({ error: "invalid_state", status: run.status }, 409);
+      return c.json(
+        {
+          error: "invalid_state",
+          status: run.status,
+        } satisfies ResearchInvalidStateError,
+        409,
+      );
+    }
+
+    // Idempotent double-click guard. The first approve already committed
+    // (approval turn + approvedPlanText set in a single tx) but the workflow
+    // hasn't yet flipped status to researching, so a second click would slip
+    // past the status guard above and insert another approval turn + signal
+    // approve_plan twice. Echo the previously-approved text and skip both
+    // writes and the signal.
+    if (run.approvedPlanText !== null) {
+      return c.json(
+        {
+          approved: true,
+          alreadyApproved: true,
+        } satisfies ResearchApproveResponse,
+        202,
+      );
     }
 
     // Resolve the plan text to approve.
@@ -390,29 +478,39 @@ researchRouter.post(
     // approvedPlanText still null, and the subsequent signal fires against
     // a half-committed state. Temporal signal stays OUTSIDE the tx because
     // the SDK call is not transactional and shouldn't hold DB locks.
-    await db.transaction(async (tx) => {
-      const [{ nextSeq }] = await tx
-        .select({ nextSeq: max(researchRunTurns.seq) })
-        .from(researchRunTurns)
-        .where(eq(researchRunTurns.runId, runId));
-      await tx.insert(researchRunTurns).values({
-        runId,
-        seq: (nextSeq ?? -1) + 1,
-        role: "user",
-        kind: "approval",
-        content: approved,
+    try {
+      await db.transaction(async (tx) => {
+        const [{ nextSeq }] = await tx
+          .select({ nextSeq: max(researchRunTurns.seq) })
+          .from(researchRunTurns)
+          .where(eq(researchRunTurns.runId, runId));
+        await tx.insert(researchRunTurns).values({
+          runId,
+          seq: (nextSeq ?? -1) + 1,
+          role: "user",
+          kind: "approval",
+          content: approved,
+        });
+        await tx
+          .update(researchRuns)
+          .set({ approvedPlanText: approved })
+          .where(eq(researchRuns.id, runId));
       });
-      await tx
-        .update(researchRuns)
-        .set({ approvedPlanText: approved, updatedAt: new Date() })
-        .where(eq(researchRuns.id, runId));
-    });
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        return c.json(concurrentWriteResponse, 409);
+      }
+      throw err;
+    }
 
     const client = await getTemporalClient();
     const handle = client.workflow.getHandle(run.workflowId);
     await handle.signal("approve_plan", approved);
 
-    return c.json({ approved: true }, 202);
+    return c.json(
+      { approved: true } satisfies ResearchApproveResponse,
+      202,
+    );
   },
 );
 
@@ -434,7 +532,13 @@ researchRouter.post("/runs/:id/cancel", requireAuth, async (c) => {
     run.status === "failed" ||
     run.status === "cancelled"
   ) {
-    return c.json({ cancelled: true, alreadyTerminal: true }, 202);
+    return c.json(
+      {
+        cancelled: true,
+        alreadyTerminal: true,
+      } satisfies ResearchCancelResponse,
+      202,
+    );
   }
 
   const client = await getTemporalClient();
@@ -444,7 +548,10 @@ researchRouter.post("/runs/:id/cancel", requireAuth, async (c) => {
   // handle.cancel() would trip CancelledError mid-activity and skip cleanup.
   await handle.signal("cancel");
 
-  return c.json({ cancelled: true }, 202);
+  return c.json(
+    { cancelled: true } satisfies ResearchCancelResponse,
+    202,
+  );
 });
 
 // GET /api/research/runs/:id/stream  — SSE progress stream
@@ -456,6 +563,12 @@ researchRouter.post("/runs/:id/cancel", requireAuth, async (c) => {
 researchRouter.get("/runs/:id/stream", requireAuth, async (c) => {
   const userId = c.get("userId");
   const runId = c.req.param("id");
+  // Hono types c.req.param() as string | undefined. Other handlers narrow it
+  // via the loadRunForUser(string, string) call in the same scope, but here
+  // the value is captured by a ReadableStream closure where TS drops the
+  // narrowing — so guard explicitly, otherwise eq() inside the loop body
+  // fails typecheck against the uuid column.
+  if (!runId) return c.json({ error: "not_found" }, 404);
 
   const run = await loadRunForUser(runId, userId);
   if (!run) return c.json({ error: "not_found" }, 404);

@@ -65,9 +65,16 @@ export const researchRuns = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // $onUpdate is application-side (Drizzle stamps it on every UPDATE that
+    // doesn't explicitly set it). Without this, only the /approve handler —
+    // which used to set updatedAt manually — kept the column fresh; every
+    // other writer (worker activities flipping status, persist_report setting
+    // noteId, cancel signal) left it stale. No DB-level trigger and no
+    // migration are needed because the column itself is unchanged.
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
-      .defaultNow(),
+      .defaultNow()
+      .$onUpdate(() => new Date()),
     completedAt: timestamp("completed_at", { withTimezone: true }),
   },
   (t) => [

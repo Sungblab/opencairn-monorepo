@@ -20,6 +20,10 @@ vi.mock("../src/lib/temporal-client.js", () => ({
       getHandle: getHandleSpy,
     },
   }),
+  // The route imports taskQueue() too; the mock has to provide every named
+  // export the route uses or the import fails at runtime with "No <name>
+  // export is defined on the mock".
+  taskQueue: () => "ingest",
 }));
 
 // Feature flag on for all tests; individual tests can override.
@@ -313,6 +317,23 @@ describe("GET /api/research/runs/:id", () => {
       await other.cleanup();
     }
   });
+
+  // RFC 4122 (+ 9562) regex regression. The previous /^[0-9a-f-]{36}$/ would
+  // accept all-hyphens, mismatched hyphen positions, version-0, etc. and let
+  // them propagate to the DB. The strict regex rejects them at the boundary
+  // and returns the same 404 the not-found row would have produced.
+  it.each([
+    "00000000-0000-0000-0000-000000000000", // version 0 — reject
+    "abcdefabcdefabcdefabcdefabcdefabcdef", // wrong hyphen positions
+    "------------------------------------", // 36 chars but all hyphens
+    "12345678-1234-x234-1234-1234567890ab", // non-hex char
+  ])("returns 404 on malformed UUID %s", async (badId) => {
+    const res = await authedFetch(`/api/research/runs/${badId}`, {
+      method: "GET",
+      userId: ctx.userId,
+    });
+    expect(res.status).toBe(404);
+  });
 });
 
 describe("POST /api/research/runs/:id/turns", () => {
@@ -357,21 +378,37 @@ describe("POST /api/research/runs/:id/turns", () => {
     expect(workflowSignalSpy.mock.calls[0][0]).toBe("user_feedback");
   });
 
-  it("returns 409 when run is not in a plan-editable state", async () => {
-    const runId = await createPlanningRun(ctx);
-    await db
-      .update(researchRuns)
-      .set({ status: "completed" })
-      .where(eq(researchRuns.id, runId));
+  // Status guard exhaustive sweep. Previously only "completed" was exercised;
+  // the other three terminal/in-flight states slipped through coverage even
+  // though the guard branch covers all four.
+  it.each(["researching", "completed", "failed", "cancelled"] as const)(
+    "returns 409 invalid_state when status is %s",
+    async (status) => {
+      const runId = await createPlanningRun(ctx);
+      await db
+        .update(researchRuns)
+        .set({ status })
+        .where(eq(researchRuns.id, runId));
 
-    const res = await authedFetch(`/api/research/runs/${runId}/turns`, {
-      method: "POST",
-      userId: ctx.userId,
-      body: JSON.stringify({ feedback: "too late" }),
-    });
-    expect(res.status).toBe(409);
-    expect(workflowSignalSpy).not.toHaveBeenCalled();
-  });
+      const res = await authedFetch(`/api/research/runs/${runId}/turns`, {
+        method: "POST",
+        userId: ctx.userId,
+        body: JSON.stringify({ feedback: "too late" }),
+      });
+      expect(res.status).toBe(409);
+      const body = (await res.json()) as { error: string; status: string };
+      expect(body.error).toBe("invalid_state");
+      expect(body.status).toBe(status);
+      expect(workflowSignalSpy).not.toHaveBeenCalled();
+    },
+  );
+
+  // Note: the 23505 → 409 conversion (handler reads max(seq), races against
+  // another writer for the same +1 slot) cannot be reproduced from a single
+  // event-loop test — both the read and the write happen in the same tick.
+  // The route's catch branch is verified by the explicit isUniqueViolation
+  // shape and a manual repro in dev (open two tabs, click feedback fast).
+  // Phase D will revisit with a proper concurrent harness.
 
   it("returns 403 on viewer", async () => {
     const runId = await createPlanningRun(ctx);
@@ -429,18 +466,200 @@ describe("PATCH /api/research/runs/:id/plan", () => {
     expect(workflowSignalSpy).not.toHaveBeenCalled();
   });
 
-  it("rejects when status is researching/completed/failed/cancelled", async () => {
+  // The describe-it title used to claim it covered all four states but only
+  // exercised "researching". Promoted to it.each so every disallowed state
+  // actually runs the assertion.
+  it.each(["researching", "completed", "failed", "cancelled"] as const)(
+    "returns 409 invalid_state when status is %s",
+    async (status) => {
+      const runId = await createPlanningRun(ctx);
+      await db
+        .update(researchRuns)
+        .set({ status })
+        .where(eq(researchRuns.id, runId));
+      const res = await authedFetch(`/api/research/runs/${runId}/plan`, {
+        method: "PATCH",
+        userId: ctx.userId,
+        body: JSON.stringify({ editedText: "late edit" }),
+      });
+      expect(res.status).toBe(409);
+      const body = (await res.json()) as { error: string; status: string };
+      expect(body.error).toBe("invalid_state");
+      expect(body.status).toBe(status);
+    },
+  );
+
+  // updatedAt $onUpdate regression — every UPDATE on researchRuns must bump
+  // updatedAt now that Drizzle stamps it. We catch it on the PATCH /plan
+  // path because that handler's INSERT-only — if /plan started touching
+  // researchRuns directly, this would still pass via the worker's status
+  // flips; but as the simplest run-state mutation, it gives us a clean
+  // regression hook.
+  it("bumps updatedAt on any update via $onUpdate", async () => {
     const runId = await createPlanningRun(ctx);
+    const [before] = await db
+      .select({ updatedAt: researchRuns.updatedAt })
+      .from(researchRuns)
+      .where(eq(researchRuns.id, runId));
+    await new Promise((r) => setTimeout(r, 10));
     await db
       .update(researchRuns)
-      .set({ status: "researching" })
+      .set({ status: "awaiting_approval" })
       .where(eq(researchRuns.id, runId));
-    const res = await authedFetch(`/api/research/runs/${runId}/plan`, {
-      method: "PATCH",
+    const [after] = await db
+      .select({ updatedAt: researchRuns.updatedAt })
+      .from(researchRuns)
+      .where(eq(researchRuns.id, runId));
+    expect(after!.updatedAt.getTime()).toBeGreaterThan(
+      before!.updatedAt.getTime(),
+    );
+  });
+});
+
+describe("POST /api/research/runs/:id/approve", () => {
+  let ctx: SeedResult;
+  beforeEach(async () => {
+    ctx = await seedWorkspace({ role: "editor" });
+    workflowSignalSpy.mockClear();
+  });
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  it("prefers latest user_edit over plan_proposal", async () => {
+    const runId = await createPlanningRun(ctx);
+    await db.insert(researchRunTurns).values([
+      { runId, seq: 0, role: "agent", kind: "plan_proposal", content: "PROPOSAL" },
+      { runId, seq: 1, role: "user", kind: "user_edit", content: "EDITED" },
+    ]);
+    await db
+      .update(researchRuns)
+      .set({ status: "awaiting_approval" })
+      .where(eq(researchRuns.id, runId));
+
+    const res = await authedFetch(`/api/research/runs/${runId}/approve`, {
+      method: "POST",
       userId: ctx.userId,
-      body: JSON.stringify({ editedText: "late edit" }),
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(202);
+
+    const [row] = await db
+      .select({ approvedPlanText: researchRuns.approvedPlanText })
+      .from(researchRuns)
+      .where(eq(researchRuns.id, runId));
+    expect(row!.approvedPlanText).toBe("EDITED");
+
+    expect(workflowSignalSpy).toHaveBeenCalledWith("approve_plan", "EDITED");
+  });
+
+  it("uses explicit finalPlanText override when provided", async () => {
+    const runId = await createPlanningRun(ctx);
+    await db.insert(researchRunTurns).values({
+      runId, seq: 0, role: "agent", kind: "plan_proposal", content: "PROPOSAL",
+    });
+    await db
+      .update(researchRuns)
+      .set({ status: "awaiting_approval" })
+      .where(eq(researchRuns.id, runId));
+
+    const res = await authedFetch(`/api/research/runs/${runId}/approve`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ finalPlanText: "OVERRIDE" }),
+    });
+    expect(res.status).toBe(202);
+    expect(workflowSignalSpy).toHaveBeenCalledWith("approve_plan", "OVERRIDE");
+  });
+
+  it("returns 409 when no plan_proposal exists yet", async () => {
+    const runId = await createPlanningRun(ctx);
+    const res = await authedFetch(`/api/research/runs/${runId}/approve`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({}),
     });
     expect(res.status).toBe(409);
+    expect(workflowSignalSpy).not.toHaveBeenCalled();
+  });
+
+  // Status guard sweep — symmetric with /turns and /plan above.
+  it.each(["researching", "completed", "failed", "cancelled"] as const)(
+    "returns 409 invalid_state when status is %s",
+    async (status) => {
+      const runId = await createPlanningRun(ctx);
+      await db
+        .update(researchRuns)
+        .set({ status })
+        .where(eq(researchRuns.id, runId));
+
+      const res = await authedFetch(`/api/research/runs/${runId}/approve`, {
+        method: "POST",
+        userId: ctx.userId,
+        body: JSON.stringify({ finalPlanText: "any" }),
+      });
+      expect(res.status).toBe(409);
+      const body = (await res.json()) as { error: string; status: string };
+      expect(body.error).toBe("invalid_state");
+      expect(body.status).toBe(status);
+      expect(workflowSignalSpy).not.toHaveBeenCalled();
+    },
+  );
+
+  // Double-click idempotency. The first approve commits the approval turn +
+  // approvedPlanText in one tx; the workflow takes a few ms to flip status to
+  // researching. A second click during that window used to insert a second
+  // approval turn and signal approve_plan twice; now it short-circuits with
+  // alreadyApproved=true and zero side effects.
+  it("is idempotent on double-click while approvedPlanText is set", async () => {
+    const runId = await createPlanningRun(ctx);
+    await db.insert(researchRunTurns).values({
+      runId, seq: 0, role: "agent", kind: "plan_proposal", content: "PROPOSAL",
+    });
+    await db
+      .update(researchRuns)
+      .set({ status: "awaiting_approval" })
+      .where(eq(researchRuns.id, runId));
+
+    // First click — real approval, signals once.
+    const first = await authedFetch(`/api/research/runs/${runId}/approve`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ finalPlanText: "FINAL" }),
+    });
+    expect(first.status).toBe(202);
+    expect(workflowSignalSpy).toHaveBeenCalledTimes(1);
+
+    // Second click — workflow hasn't flipped status yet, but approvedPlanText
+    // is already set. Should be a no-op acknowledgement.
+    const second = await authedFetch(`/api/research/runs/${runId}/approve`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ finalPlanText: "DIFFERENT" }),
+    });
+    expect(second.status).toBe(202);
+    const body = (await second.json()) as {
+      approved: boolean;
+      alreadyApproved?: boolean;
+    };
+    expect(body.approved).toBe(true);
+    expect(body.alreadyApproved).toBe(true);
+
+    // No second signal, no second approval turn.
+    expect(workflowSignalSpy).toHaveBeenCalledTimes(1);
+    const turns = await db
+      .select()
+      .from(researchRunTurns)
+      .where(eq(researchRunTurns.runId, runId))
+      .orderBy(asc(researchRunTurns.seq));
+    const approvalTurns = turns.filter((t) => t.kind === "approval");
+    expect(approvalTurns).toHaveLength(1);
+    // Original approval text wins; the second click does NOT overwrite.
+    const [row] = await db
+      .select({ approvedPlanText: researchRuns.approvedPlanText })
+      .from(researchRuns)
+      .where(eq(researchRuns.id, runId));
+    expect(row!.approvedPlanText).toBe("FINAL");
   });
 });
 
@@ -546,74 +765,6 @@ describe("GET /api/research/runs/:id/stream", () => {
       { method: "GET", userId: ctx.userId },
     );
     expect(res.status).toBe(404);
-  });
-});
-
-describe("POST /api/research/runs/:id/approve", () => {
-  let ctx: SeedResult;
-  beforeEach(async () => {
-    ctx = await seedWorkspace({ role: "editor" });
-    workflowSignalSpy.mockClear();
-  });
-  afterEach(async () => {
-    await ctx.cleanup();
-  });
-
-  it("prefers latest user_edit over plan_proposal", async () => {
-    const runId = await createPlanningRun(ctx);
-    await db.insert(researchRunTurns).values([
-      { runId, seq: 0, role: "agent", kind: "plan_proposal", content: "PROPOSAL" },
-      { runId, seq: 1, role: "user", kind: "user_edit", content: "EDITED" },
-    ]);
-    await db
-      .update(researchRuns)
-      .set({ status: "awaiting_approval" })
-      .where(eq(researchRuns.id, runId));
-
-    const res = await authedFetch(`/api/research/runs/${runId}/approve`, {
-      method: "POST",
-      userId: ctx.userId,
-      body: JSON.stringify({}),
-    });
-    expect(res.status).toBe(202);
-
-    const [row] = await db
-      .select({ approvedPlanText: researchRuns.approvedPlanText })
-      .from(researchRuns)
-      .where(eq(researchRuns.id, runId));
-    expect(row!.approvedPlanText).toBe("EDITED");
-
-    expect(workflowSignalSpy).toHaveBeenCalledWith("approve_plan", "EDITED");
-  });
-
-  it("uses explicit finalPlanText override when provided", async () => {
-    const runId = await createPlanningRun(ctx);
-    await db.insert(researchRunTurns).values({
-      runId, seq: 0, role: "agent", kind: "plan_proposal", content: "PROPOSAL",
-    });
-    await db
-      .update(researchRuns)
-      .set({ status: "awaiting_approval" })
-      .where(eq(researchRuns.id, runId));
-
-    const res = await authedFetch(`/api/research/runs/${runId}/approve`, {
-      method: "POST",
-      userId: ctx.userId,
-      body: JSON.stringify({ finalPlanText: "OVERRIDE" }),
-    });
-    expect(res.status).toBe(202);
-    expect(workflowSignalSpy).toHaveBeenCalledWith("approve_plan", "OVERRIDE");
-  });
-
-  it("returns 409 when no plan_proposal exists yet", async () => {
-    const runId = await createPlanningRun(ctx);
-    const res = await authedFetch(`/api/research/runs/${runId}/approve`, {
-      method: "POST",
-      userId: ctx.userId,
-      body: JSON.stringify({}),
-    });
-    expect(res.status).toBe(409);
-    expect(workflowSignalSpy).not.toHaveBeenCalled();
   });
 });
 
