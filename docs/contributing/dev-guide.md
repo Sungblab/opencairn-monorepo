@@ -53,7 +53,7 @@ cp .env.example .env
 |------|------|--------------|
 | `DATABASE_URL` | Postgres 연결 | docker-compose 기본값 (`postgresql://opencairn:opencairn@localhost:5432/opencairn`) |
 | `BETTER_AUTH_SECRET` | 세션 서명키 | `openssl rand -base64 32` |
-| `BETTER_AUTH_URL` | 콜백 URL | `http://localhost:3000` |
+| `BETTER_AUTH_URL` | Better Auth 서버 URL (= API 포트) | `http://localhost:4000` |
 | `GEMINI_API_KEY` | Gemini | aistudio.google.com/apikey |
 | `VECTOR_DIM` | 임베딩 차원 | `768` 기본 (Gemini embedding-001 MRL / Ollama nomic). ADR-007 참조 |
 | `TEMPORAL_ADDRESS` | Temporal 서버 | `localhost:7233` |
@@ -63,7 +63,7 @@ cp .env.example .env
 ### 4. 인프라 기동
 
 ```bash
-docker-compose up -d     # Postgres, Redis, Temporal, (optional) Ollama
+docker-compose up -d     # Postgres, Redis, MinIO, Temporal (hocuspocus/worker/ollama는 profile-gated)
 pnpm db:migrate          # 스키마 적용
 pnpm db:seed             # (선택) 테스트 데이터
 ```

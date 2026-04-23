@@ -26,6 +26,12 @@ services:
     # Yjs-over-WebSocket collaboration backend (Plan 2B).
     # Build context is the monorepo root because the Dockerfile copies
     # @opencairn/api + @opencairn/db + @opencairn/shared workspace packages.
+    #
+    # Behind a profile so default `docker compose up -d` only starts infra —
+    # during development we run hocuspocus on the host via `pnpm dev`
+    # (tsx watch) for hot-reload. Containerised / prod-smoke runs:
+    #   docker compose --profile hocuspocus up -d hocuspocus
+    profiles: ["hocuspocus"]
     build:
       context: .
       dockerfile: apps/hocuspocus/Dockerfile
