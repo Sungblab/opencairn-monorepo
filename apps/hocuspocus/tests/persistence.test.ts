@@ -1,7 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as Y from "yjs";
-import { createDb, notes, yjsDocuments, eq } from "@opencairn/db";
-import { makePersistence } from "../src/persistence.js";
+import {
+  createDb,
+  notes,
+  yjsDocuments,
+  YJS_DOCUMENT_MAX_BYTES,
+  eq,
+} from "@opencairn/db";
+import {
+  makePersistence,
+  YjsStateTooLargeError,
+} from "../src/persistence.js";
 import { PLATE_BRIDGE_ROOT_KEY } from "../src/plate-bridge.js";
 import {
   seedMultiRoleWorkspace,
@@ -148,6 +157,57 @@ describe("persistence", () => {
       documentName: `page:${randomId}`,
     });
     expect(bytes).toBeNull();
+  });
+
+  it("store rejects states above YJS_DOCUMENT_MAX_BYTES before touching the DB", async () => {
+    await persistence.fetch({ documentName: `page:${seed.noteId}` });
+    const priorRow = await db.query.yjsDocuments.findFirst({
+      where: eq(yjsDocuments.name, `page:${seed.noteId}`),
+    });
+    const priorBytes = priorRow!.sizeBytes;
+
+    // Fabricate an oversize payload. We do not need a valid Y-update here —
+    // the size guard must fire BEFORE Y.applyUpdate would parse it.
+    const oversize = new Uint8Array(YJS_DOCUMENT_MAX_BYTES + 1);
+    await expect(
+      persistence.store({
+        documentName: `page:${seed.noteId}`,
+        state: oversize,
+        lastContext: { userId: seed.editorUserId, readOnly: false },
+      }),
+    ).rejects.toBeInstanceOf(YjsStateTooLargeError);
+
+    // DB row must be untouched — size_bytes + state remain the pre-call values.
+    const afterRow = await db.query.yjsDocuments.findFirst({
+      where: eq(yjsDocuments.name, `page:${seed.noteId}`),
+    });
+    expect(afterRow!.sizeBytes).toBe(priorBytes);
+  });
+
+  it("store writes size_bytes alongside state so rollup queries are accurate", async () => {
+    await persistence.fetch({ documentName: `page:${seed.noteId}` });
+
+    const doc = new Y.Doc();
+    const prior = await db.query.yjsDocuments.findFirst({
+      where: eq(yjsDocuments.name, `page:${seed.noteId}`),
+    });
+    if (prior?.state) Y.applyUpdate(doc, prior.state);
+    (doc.get(PLATE_BRIDGE_ROOT_KEY, Y.XmlText) as Y.XmlText).insert(
+      0,
+      "sizeBytes audit",
+    );
+    const fullState = Y.encodeStateAsUpdate(doc);
+
+    await persistence.store({
+      documentName: `page:${seed.noteId}`,
+      state: fullState,
+      lastContext: { userId: seed.editorUserId, readOnly: false },
+    });
+
+    const after = await db.query.yjsDocuments.findFirst({
+      where: eq(yjsDocuments.name, `page:${seed.noteId}`),
+    });
+    expect(after!.sizeBytes).toBe(after!.state.byteLength);
   });
 
   it("extension() returns a @hocuspocus/extension-database Database instance", () => {

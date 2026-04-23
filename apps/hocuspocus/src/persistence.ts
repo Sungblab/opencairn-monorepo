@@ -17,6 +17,7 @@ import { Database } from "@hocuspocus/extension-database";
 import * as Y from "yjs";
 import {
   yjsDocuments,
+  YJS_DOCUMENT_MAX_BYTES,
   notes,
   eq,
   type DB,
@@ -26,6 +27,25 @@ import { logger } from "./logger.js";
 
 export interface PersistenceDeps {
   db: DB;
+}
+
+// Thrown when a Y.Doc state would exceed YJS_DOCUMENT_MAX_BYTES. Named so
+// callers / tests can distinguish the cap miss from a generic DB error — the
+// DB-level CHECK constraint exists as a backstop, but this pre-check surfaces
+// the failure with a richer message before the round-trip.
+export class YjsStateTooLargeError extends Error {
+  readonly documentName: string;
+  readonly stateBytes: number;
+  readonly maxBytes: number;
+  constructor(documentName: string, stateBytes: number) {
+    super(
+      `Y.Doc state for ${documentName} is ${stateBytes} bytes, exceeding the ${YJS_DOCUMENT_MAX_BYTES}-byte cap`,
+    );
+    this.name = "YjsStateTooLargeError";
+    this.documentName = documentName;
+    this.stateBytes = stateBytes;
+    this.maxBytes = YJS_DOCUMENT_MAX_BYTES;
+  }
 }
 
 // page:<uuid> — mirrors auth.ts and permissions-adapter.ts. Any other
@@ -115,7 +135,12 @@ export function makePersistence({ db }: PersistenceDeps): Persistence {
     await db.transaction(async (tx) => {
       await tx
         .insert(yjsDocuments)
-        .values({ name: documentName, state, stateVector })
+        .values({
+          name: documentName,
+          state,
+          stateVector,
+          sizeBytes: state.byteLength,
+        })
         .onConflictDoNothing();
       await tx
         .update(notes)
@@ -148,6 +173,19 @@ export function makePersistence({ db }: PersistenceDeps): Persistence {
     }
     const noteId = m[1]!;
 
+    // Size cap pre-check. The DB CHECK is the authoritative guard, but
+    // surfacing the failure here avoids a wasted round-trip and gives the
+    // caller a specific error class. Plan 2B H-3 / Tier 2 2-7: a runaway
+    // Y.Doc (pathological app bug or deliberate wedging attempt) could
+    // otherwise pin the hocuspocus store path on an oversize bytea.
+    if (state.byteLength > YJS_DOCUMENT_MAX_BYTES) {
+      logger.error(
+        { noteId, documentName, stateBytes: state.byteLength },
+        "persistence.store: Y.Doc state exceeds size cap, rejecting write",
+      );
+      throw new YjsStateTooLargeError(documentName, state.byteLength);
+    }
+
     // Reconstruct Y.Doc from the canonical update bytes so we can derive a
     // Plate snapshot + plain-text mirror. `state` here is the full state
     // encoded via `Y.encodeStateAsUpdate` (Database extension's contract).
@@ -160,10 +198,20 @@ export function makePersistence({ db }: PersistenceDeps): Persistence {
     await db.transaction(async (tx) => {
       await tx
         .insert(yjsDocuments)
-        .values({ name: documentName, state, stateVector })
+        .values({
+          name: documentName,
+          state,
+          stateVector,
+          sizeBytes: state.byteLength,
+        })
         .onConflictDoUpdate({
           target: yjsDocuments.name,
-          set: { state, stateVector, updatedAt: new Date() },
+          set: {
+            state,
+            stateVector,
+            sizeBytes: state.byteLength,
+            updatedAt: new Date(),
+          },
         });
       await tx
         .update(notes)
