@@ -9,6 +9,7 @@ import { isUuid } from "../lib/validators";
 import { uploadObject } from "../lib/s3";
 import { getTemporalClient } from "../lib/temporal-client";
 import type { AppEnv } from "../lib/types";
+import { db, ingestJobs, projects, eq } from "@opencairn/db";
 
 const TASK_QUEUE = process.env.TEMPORAL_TASK_QUEUE ?? "ingest";
 
@@ -68,6 +69,19 @@ function isYoutubeUrl(raw: string): boolean {
   } catch {
     return false;
   }
+}
+
+// Resolves the workspace that owns a project so we can stamp
+// `ingest_jobs` with both the user and the workspace. Returns null if
+// the project has been deleted between the `canWrite` check and the
+// dispatch (vanishingly rare; we treat it as a terminal "forbidden").
+// [Tier 1 item 1-5]
+async function findProjectWorkspace(projectId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ workspaceId: projects.workspaceId })
+    .from(projects)
+    .where(eq(projects.id, projectId));
+  return row?.workspaceId ?? null;
 }
 
 const urlSchema = z.object({
@@ -142,7 +156,25 @@ export const ingestRoutes = new Hono<AppEnv>()
       await uploadObject(objectKey, buffer, clientMime);
 
       const workflowId = `ingest-${randomUUID()}`;
+      const workspaceId = await findProjectWorkspace(projectId);
+      if (!workspaceId) {
+        return c.json({ error: "Project not found" }, 404);
+      }
       const client = await getTemporalClient();
+
+      // Persist dispatch metadata BEFORE starting the workflow so the
+      // status handler can enforce an owner check the moment the
+      // workflow becomes queryable. If the subsequent Temporal call
+      // fails, the row is harmless (no workflow actually runs against
+      // it, and the workflow_id unique constraint blocks accidental
+      // reuse). [Tier 1 item 1-5]
+      await db.insert(ingestJobs).values({
+        workflowId,
+        userId: user.id,
+        workspaceId,
+        projectId,
+        source: "upload",
+      });
 
       await client.workflow.start("IngestWorkflow", {
         taskQueue: TASK_QUEUE,
@@ -179,7 +211,20 @@ export const ingestRoutes = new Hono<AppEnv>()
     const mimeType = isYoutube ? "x-opencairn/youtube" : "x-opencairn/web-url";
 
     const workflowId = `ingest-url-${randomUUID()}`;
+    const workspaceId = await findProjectWorkspace(projectId);
+    if (!workspaceId) {
+      return c.json({ error: "Project not found" }, 404);
+    }
     const client = await getTemporalClient();
+
+    // Same owner-tracking row as /upload so GET /status can enforce it. [Tier 1 1-5]
+    await db.insert(ingestJobs).values({
+      workflowId,
+      userId: user.id,
+      workspaceId,
+      projectId,
+      source: isYoutube ? "youtube" : "web-url",
+    });
 
     await client.workflow.start("IngestWorkflow", {
       taskQueue: TASK_QUEUE,
@@ -201,12 +246,26 @@ export const ingestRoutes = new Hono<AppEnv>()
   })
 
   // GET /ingest/status/:workflowId — poll Temporal for workflow status.
-  // Auth: any authenticated user (covered by the router-wide `requireAuth`
-  // middleware at the top). workflowId is a random UUID generated per
-  // submission so it acts as a capability URL; tightening to per-owner
-  // verification is a Plan 5 follow-up once we persist (userId, workflowId).
+  // Auth: caller must be the user who dispatched the workflow. The
+  // `ingest_jobs` table pins workflow ids to (userId, workspaceId,
+  // projectId) so random / guessed workflow ids return 404 (no row) and
+  // a different authenticated user hits 403 on someone else's job.
+  // [Tier 1 item 1-5 / Plan 3 H-1]
   .get("/status/:workflowId", async (c) => {
+    const user = c.get("user");
     const workflowId = c.req.param("workflowId");
+
+    const [row] = await db
+      .select({ userId: ingestJobs.userId })
+      .from(ingestJobs)
+      .where(eq(ingestJobs.workflowId, workflowId));
+    if (!row) {
+      return c.json({ error: "Not found" }, 404);
+    }
+    if (row.userId !== user.id) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+
     const client = await getTemporalClient();
     const handle = client.workflow.getHandle(workflowId);
     const desc = await handle.describe();
