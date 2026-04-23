@@ -45,5 +45,14 @@
   "search": {
     "placeholder": "이 프로젝트에서 검색",
     "shortcut_hint": "⌘K"
+  },
+  "tree_menu": {
+    "rename": "이름 바꾸기",
+    "rename_shortcut": "F2",
+    "duplicate": "복제",
+    "copy_link": "링크 복사",
+    "delete": "삭제",
+    "delete_shortcut": "⌘Del",
+    "confirm_delete": "\"{label}\"을(를) 삭제할까요?"
   }
 }

@@ -1,10 +1,15 @@
 "use client";
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Tree, type NodeApi } from "react-arborist";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { useProjectTree, type TreeNode } from "@/hooks/use-project-tree";
 import { useSidebarStore } from "@/stores/sidebar-store";
 import { ProjectTreeNode } from "./project-tree-node";
+import {
+  ProjectTreeContext,
+  type ProjectTreeCtxValue,
+} from "./project-tree-context";
 
 export interface ProjectTreeProps {
   projectId: string;
@@ -58,6 +63,31 @@ async function persistMove(node: TreeNode, parentId: string | null, index: numbe
   if (!res.ok) throw new Error(`notes move ${res.status}`);
 }
 
+async function persistRename(
+  id: string,
+  kind: TreeNode["kind"],
+  label: string,
+) {
+  const url =
+    kind === "folder" ? `/api/folders/${id}` : `/api/notes/${id}`;
+  const body =
+    kind === "folder" ? { name: label } : { title: label };
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`${kind} rename ${res.status}`);
+}
+
+async function persistDelete(id: string, kind: TreeNode["kind"]) {
+  const url =
+    kind === "folder" ? `/api/folders/${id}` : `/api/notes/${id}`;
+  const res = await fetch(url, { method: "DELETE", credentials: "include" });
+  if (!res.ok) throw new Error(`${kind} delete ${res.status}`);
+}
+
 export function ProjectTree({
   projectId,
   height = 600,
@@ -66,7 +96,9 @@ export function ProjectTree({
   const { roots, loadChildren } = useProjectTree({ projectId });
   const expanded = useSidebarStore((s) => s.expanded);
   const qc = useQueryClient();
+  const t = useTranslations("sidebar.tree_menu");
   const data = useMemo(() => deriveData(roots, expanded), [roots, expanded]);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
 
   async function handleToggle(id: string) {
     const { isExpanded, toggleExpanded } = useSidebarStore.getState();
@@ -101,23 +133,72 @@ export function ProjectTree({
     }
   }
 
+  const handleStartRename = useCallback((id: string) => {
+    setRenamingId(id);
+  }, []);
+
+  const handleCommitRename = useCallback(
+    (id: string, kind: TreeNode["kind"], newLabel: string | null) => {
+      setRenamingId((curr) => (curr === id ? null : curr));
+      if (newLabel === null || newLabel.length === 0) return;
+      void (async () => {
+        try {
+          await persistRename(id, kind, newLabel);
+        } catch (err) {
+          console.error("project tree rename failed", err);
+          qc.invalidateQueries({ queryKey: ["project-tree", projectId] });
+        }
+      })();
+    },
+    [projectId, qc],
+  );
+
+  const handleDelete = useCallback(
+    (id: string, kind: TreeNode["kind"], label: string) => {
+      if (typeof window === "undefined") return;
+      const confirmed = window.confirm(t("confirm_delete", { label }));
+      if (!confirmed) return;
+      void (async () => {
+        try {
+          await persistDelete(id, kind);
+        } catch (err) {
+          console.error("project tree delete failed", err);
+          qc.invalidateQueries({ queryKey: ["project-tree", projectId] });
+        }
+      })();
+    },
+    [projectId, qc, t],
+  );
+
+  const ctxValue: ProjectTreeCtxValue = useMemo(
+    () => ({
+      renamingId,
+      onStartRename: handleStartRename,
+      onCommitRename: handleCommitRename,
+      onDelete: handleDelete,
+    }),
+    [renamingId, handleStartRename, handleCommitRename, handleDelete],
+  );
+
   return (
-    <div
-      className="min-h-0 flex-1 overflow-hidden"
-      data-testid="project-tree"
-      data-project-id={projectId}
-    >
-      <Tree<TreeNode>
-        data={data}
-        width={width}
-        height={height}
-        rowHeight={28}
-        openByDefault={false}
-        onToggle={handleToggle}
-        onMove={handleMove}
+    <ProjectTreeContext.Provider value={ctxValue}>
+      <div
+        className="min-h-0 flex-1 overflow-hidden"
+        data-testid="project-tree"
+        data-project-id={projectId}
       >
-        {ProjectTreeNode}
-      </Tree>
-    </div>
+        <Tree<TreeNode>
+          data={data}
+          width={width}
+          height={height}
+          rowHeight={28}
+          openByDefault={false}
+          onToggle={handleToggle}
+          onMove={handleMove}
+        >
+          {ProjectTreeNode}
+        </Tree>
+      </div>
+    </ProjectTreeContext.Provider>
   );
 }

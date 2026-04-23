@@ -2,6 +2,10 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NodeApi } from "react-arborist";
 import { ProjectTreeNode } from "./project-tree-node";
+import {
+  ProjectTreeContext,
+  type ProjectTreeCtxValue,
+} from "./project-tree-context";
 import type { TreeNode } from "@/hooks/use-project-tree";
 import { useTabsStore } from "@/stores/tabs-store";
 
@@ -13,14 +17,14 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("next-intl", () => ({
   useLocale: () => "ko",
+  useTranslations: (ns?: string) => (key: string) =>
+    ns ? `${ns}.${key}` : key,
 }));
 
 function mkNode(
   data: TreeNode,
   overrides: Partial<NodeApi<TreeNode>> = {},
 ): NodeApi<TreeNode> {
-  // Only the fields the renderer actually touches; the rest are filled with
-  // noops so TypeScript is satisfied without pulling in arborist internals.
   return {
     id: data.id,
     data,
@@ -31,15 +35,33 @@ function mkNode(
   } as unknown as NodeApi<TreeNode>;
 }
 
-function renderNode(node: NodeApi<TreeNode>) {
-  return render(
-    <ProjectTreeNode
-      node={node}
-      style={{}}
-      dragHandle={() => {}}
-      tree={{} as never}
-    />,
-  );
+function mkCtx(overrides: Partial<ProjectTreeCtxValue> = {}): ProjectTreeCtxValue {
+  return {
+    renamingId: null,
+    onStartRename: vi.fn(),
+    onCommitRename: vi.fn(),
+    onDelete: vi.fn(),
+    ...overrides,
+  };
+}
+
+function renderNode(
+  node: NodeApi<TreeNode>,
+  ctx: ProjectTreeCtxValue = mkCtx(),
+) {
+  return {
+    ctx,
+    ...render(
+      <ProjectTreeContext.Provider value={ctx}>
+        <ProjectTreeNode
+          node={node}
+          style={{}}
+          dragHandle={() => {}}
+          tree={{} as never}
+        />
+      </ProjectTreeContext.Provider>,
+    ),
+  };
 }
 
 describe("ProjectTreeNode", () => {
@@ -135,5 +157,70 @@ describe("ProjectTreeNode", () => {
     renderNode(node);
     fireEvent.click(screen.getByRole("treeitem"));
     expect(useTabsStore.getState().activeId).toBe("t-1");
+  });
+
+  it("F2 triggers onStartRename for the focused row", () => {
+    const onStartRename = vi.fn();
+    const node = mkNode({
+      kind: "note",
+      id: "n-7",
+      parent_id: null,
+      label: "Rename me",
+      child_count: 0,
+    });
+    renderNode(node, mkCtx({ onStartRename }));
+    fireEvent.keyDown(screen.getByRole("treeitem"), { key: "F2" });
+    expect(onStartRename).toHaveBeenCalledWith("n-7");
+  });
+
+  it("double-clicking a row starts rename", () => {
+    const onStartRename = vi.fn();
+    const node = mkNode({
+      kind: "folder",
+      id: "f4",
+      parent_id: null,
+      label: "Docs",
+      child_count: 0,
+    });
+    renderNode(node, mkCtx({ onStartRename }));
+    fireEvent.doubleClick(screen.getByRole("treeitem"));
+    expect(onStartRename).toHaveBeenCalledWith("f4");
+  });
+
+  it("renders an input when the row is the renaming target", () => {
+    const onCommitRename = vi.fn();
+    const node = mkNode({
+      kind: "note",
+      id: "n-9",
+      parent_id: null,
+      label: "Draft",
+      child_count: 0,
+    });
+    renderNode(
+      node,
+      mkCtx({ renamingId: "n-9", onCommitRename }),
+    );
+    const input = screen.getByDisplayValue("Draft") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Final" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onCommitRename).toHaveBeenCalledWith("n-9", "note", "Final");
+  });
+
+  it("Escape in the rename input commits a null (cancel)", () => {
+    const onCommitRename = vi.fn();
+    const node = mkNode({
+      kind: "folder",
+      id: "f-9",
+      parent_id: null,
+      label: "Notes",
+      child_count: 2,
+    });
+    renderNode(
+      node,
+      mkCtx({ renamingId: "f-9", onCommitRename }),
+    );
+    const input = screen.getByDisplayValue("Notes") as HTMLInputElement;
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(onCommitRename).toHaveBeenCalledWith("f-9", "folder", null);
   });
 });

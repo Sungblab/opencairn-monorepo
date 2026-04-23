@@ -45,5 +45,14 @@
   "search": {
     "placeholder": "Search this project",
     "shortcut_hint": "⌘K"
+  },
+  "tree_menu": {
+    "rename": "Rename",
+    "rename_shortcut": "F2",
+    "duplicate": "Duplicate",
+    "copy_link": "Copy link",
+    "delete": "Delete",
+    "delete_shortcut": "⌘Del",
+    "confirm_delete": "Delete \"{label}\"?"
   }
 }
