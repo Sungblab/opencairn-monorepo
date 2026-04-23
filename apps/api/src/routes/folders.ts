@@ -6,7 +6,7 @@ import { createFolderSchema, updateFolderSchema } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite } from "../lib/permissions";
 import { isUuid } from "../lib/validators";
-import { labelFromId } from "../lib/tree-queries";
+import { labelFromId, moveFolder } from "../lib/tree-queries";
 import { emitTreeEvent } from "../lib/tree-events";
 import type { AppEnv } from "../lib/types";
 
@@ -73,11 +73,6 @@ export const folderRoutes = new Hono<AppEnv>()
     const user = c.get("user");
     const id = c.req.param("id");
     if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
-    // NOTE: parent_id changes here do NOT yet rewrite the ltree subtree —
-    // that path rewrite moves in via `moveFolder` during Task 11 (drag-drop).
-    // For now, PATCH only changes the scalar and emits tree.folder_moved;
-    // callers who change parent_id via this endpoint without Task 11 in
-    // place will leave the ltree path stale and must be aware of that.
     const [existing] = await db
       .select({
         projectId: folders.projectId,
@@ -89,16 +84,40 @@ export const folderRoutes = new Hono<AppEnv>()
     if (!existing) return c.json({ error: "Not found" }, 404);
     if (!(await canWrite(user.id, { type: "project", id: existing.projectId }))) return c.json({ error: "Forbidden" }, 403);
     const body = c.req.valid("json");
+
+    const moving =
+      body.parentId !== undefined && body.parentId !== existing.parentId;
+
+    // Path rewrite goes through moveFolder so the ltree subtree stays
+    // consistent. We run it first because a failed move should leave the
+    // scalar fields (name/position) untouched — callers then see the error
+    // without a half-applied rename.
+    if (moving) {
+      try {
+        await moveFolder({
+          projectId: existing.projectId,
+          folderId: id,
+          newParentId: body.parentId ?? null,
+        });
+      } catch (err) {
+        return c.json({ error: (err as Error).message }, 400);
+      }
+    }
+
+    const scalarSet: Partial<typeof folders.$inferInsert> = {};
+    if (body.name !== undefined) scalarSet.name = body.name;
+    if (body.position !== undefined) scalarSet.position = body.position;
+    if (Object.keys(scalarSet).length > 0) {
+      await db.update(folders).set(scalarSet).where(eq(folders.id, id));
+    }
+
     const [folder] = await db
-      .update(folders)
-      .set(body)
-      .where(eq(folders.id, id))
-      .returning();
+      .select()
+      .from(folders)
+      .where(eq(folders.id, id));
 
     const at = new Date().toISOString();
     const renamed = body.name !== undefined && body.name !== existing.name;
-    const moved =
-      body.parentId !== undefined && body.parentId !== existing.parentId;
     if (renamed) {
       emitTreeEvent({
         kind: "tree.folder_renamed",
@@ -109,7 +128,7 @@ export const folderRoutes = new Hono<AppEnv>()
         at,
       });
     }
-    if (moved) {
+    if (moving) {
       emitTreeEvent({
         kind: "tree.folder_moved",
         projectId: folder.projectId,
