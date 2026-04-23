@@ -38,8 +38,13 @@ export function ProjectTreeNode({
   const isRenaming = ctx.renamingId === node.data.id;
 
   const inputRef = useRef<HTMLInputElement>(null);
+  // Guards against a stray onBlur re-commit after the user pressed Escape:
+  // Escape flips the flag, onCommitRename(null) unmounts the input, and any
+  // racing blur event from the same tick sees `skipBlur` and bails.
+  const skipBlurRef = useRef(false);
   useEffect(() => {
     if (isRenaming) {
+      skipBlurRef.current = false;
       inputRef.current?.focus();
       inputRef.current?.select();
     }
@@ -122,6 +127,7 @@ export function ProjectTreeNode({
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
+                skipBlurRef.current = true;
                 ctx.onCommitRename(
                   node.data.id,
                   kind,
@@ -129,16 +135,18 @@ export function ProjectTreeNode({
                 );
               } else if (e.key === "Escape") {
                 e.preventDefault();
+                skipBlurRef.current = true;
                 ctx.onCommitRename(node.data.id, kind, null);
               }
             }}
-            onBlur={(e) =>
+            onBlur={(e) => {
+              if (skipBlurRef.current) return;
               ctx.onCommitRename(
                 node.data.id,
                 kind,
                 e.currentTarget.value.trim(),
-              )
-            }
+              );
+            }}
           />
         ) : (
           <span className="flex-1 truncate">{node.data.label}</span>

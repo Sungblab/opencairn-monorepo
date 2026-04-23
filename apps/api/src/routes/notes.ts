@@ -5,7 +5,15 @@ import { db, notes, projects, eq, and, desc, isNull, sql } from "@opencairn/db";
 import { createNoteSchema, updateNoteSchema } from "@opencairn/shared";
 
 // PATCH body ignores `content` — Yjs (via Hocuspocus) is canonical (Plan 2B).
-const patchNoteSchema = updateNoteSchema.omit({ content: true });
+// `folderId` is also stripped here: moves must go through /:id/move, which
+// enforces cross-project scope via moveNote(). Allowing folderId on this
+// route would let a caller re-parent a note into another project's folder,
+// since the DB has no FK guarding `notes.folder_id → folders.project_id =
+// notes.project_id`.
+const patchNoteSchema = updateNoteSchema.omit({
+  content: true,
+  folderId: true,
+});
 
 // Move-only body. A dedicated endpoint keeps this orthogonal to the
 // Yjs-coupled `/:id` PATCH that silently strips `content`.
@@ -173,9 +181,10 @@ export const noteRoutes = new Hono<AppEnv>()
     if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
     if (!(await canWrite(user.id, { type: "note", id }))) return c.json({ error: "Forbidden" }, 403);
     const body = c.req.valid("json");
-    // Capture prev title + folderId to detect rename/move deltas for SSE.
+    // Capture prev title to detect rename deltas for SSE. folderId is
+    // intentionally NOT fetched here — moves route through /:id/move.
     const [prev] = await db
-      .select({ title: notes.title, folderId: notes.folderId })
+      .select({ title: notes.title })
       .from(notes)
       .where(and(eq(notes.id, id), isNull(notes.deletedAt)));
     if (!prev) return c.json({ error: "Not found" }, 404);
@@ -186,10 +195,7 @@ export const noteRoutes = new Hono<AppEnv>()
       .returning();
     if (!note) return c.json({ error: "Not found" }, 404);
 
-    const at = new Date().toISOString();
     const renamed = body.title !== undefined && body.title !== prev.title;
-    const moved =
-      body.folderId !== undefined && body.folderId !== prev.folderId;
     if (renamed) {
       emitTreeEvent({
         kind: "tree.note_renamed",
@@ -197,17 +203,7 @@ export const noteRoutes = new Hono<AppEnv>()
         id: note.id,
         parentId: note.folderId,
         label: note.title,
-        at,
-      });
-    }
-    if (moved) {
-      emitTreeEvent({
-        kind: "tree.note_moved",
-        projectId: note.projectId,
-        id: note.id,
-        parentId: note.folderId,
-        label: note.title,
-        at,
+        at: new Date().toISOString(),
       });
     }
 
