@@ -6,12 +6,8 @@ import { createFolderSchema, updateFolderSchema } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite } from "../lib/permissions";
 import { isUuid } from "../lib/validators";
+import { labelFromId } from "../lib/tree-queries";
 import type { AppEnv } from "../lib/types";
-
-// ltree labels only accept [A-Za-z0-9_]. Encode UUIDs by replacing dashes.
-// Kept inline here because Task 3 has not yet introduced tree-queries.ts;
-// when it does, this helper moves there and folders.ts imports it.
-const labelFromId = (id: string): string => id.replace(/-/g, "_");
 
 export const folderRoutes = new Hono<AppEnv>()
   .use("*", requireAuth)
