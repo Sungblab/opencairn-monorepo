@@ -26,6 +26,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
     collab,
     importMessages,
     onboarding,
+    appShell,
   ] = await Promise.all([
     import(`../messages/${locale}/common.json`).then((m) => m.default),
     import(`../messages/${locale}/landing.json`).then((m) => m.default),
@@ -37,6 +38,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
     import(`../messages/${locale}/collab.json`).then((m) => m.default),
     import(`../messages/${locale}/import.json`).then((m) => m.default),
     import(`../messages/${locale}/onboarding.json`).then((m) => m.default),
+    import(`../messages/${locale}/app-shell.json`).then((m) => m.default),
   ]);
 
   return {
@@ -52,6 +54,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
       collab,
       import: importMessages,
       onboarding,
+      appShell,
     },
   };
 });
