@@ -7,6 +7,7 @@ import {
   notes,
   and,
   eq,
+  isNull,
   type DB,
 } from "@opencairn/db";
 
@@ -31,10 +32,14 @@ export async function findWorkspaceId(
     return row?.wsId ?? null;
   }
   if (resource.type === "note") {
+    // Soft-deleted notes must resolve as "not found" so downstream permission
+    // checks fall to `none` — prevents Hocuspocus / compiler / internal-PATCH
+    // paths from reviving a note after the owner emptied their trash.
+    // Post-hoc review Tier 0 item 0-1 (Plan 1 H-4 family).
     const [row] = await conn
       .select({ wsId: notes.workspaceId })
       .from(notes)
-      .where(eq(notes.id, resource.id));
+      .where(and(eq(notes.id, resource.id), isNull(notes.deletedAt)));
     return row?.wsId ?? null;
   }
   return null;
