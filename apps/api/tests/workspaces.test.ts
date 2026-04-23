@@ -1,5 +1,13 @@
+import { randomBytes, randomUUID } from "node:crypto";
 import { describe, it, expect, afterEach } from "vitest";
-import { db, workspaces, user, eq } from "@opencairn/db";
+import {
+  db,
+  workspaces,
+  workspaceMembers,
+  workspaceInvites,
+  user,
+  eq,
+} from "@opencairn/db";
 import { createApp } from "../src/app.js";
 import { createUser } from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
@@ -7,6 +15,7 @@ import { signSessionCookie } from "./helpers/session.js";
 const app = createApp();
 
 const createdWorkspaceSlugs = new Set<string>();
+const createdWorkspaceIds = new Set<string>();
 const createdUserIds = new Set<string>();
 
 async function authedPost(
@@ -34,11 +43,63 @@ async function authedPost(
   return { res, userId: u.id };
 }
 
+async function authedGet(
+  path: string,
+  userId: string,
+): Promise<Response> {
+  const cookie = await signSessionCookie(userId);
+  return app.request(path, { headers: { cookie } });
+}
+
+async function seedMembership(
+  userId: string,
+  opts: { role?: "owner" | "admin" | "member" | "guest"; name?: string } = {},
+): Promise<{ workspaceId: string; slug: string }> {
+  const workspaceId = randomUUID();
+  const slug = `test-ws-${workspaceId.slice(0, 8)}`;
+  await db.insert(workspaces).values({
+    id: workspaceId,
+    slug,
+    name: opts.name ?? "Test Workspace",
+    ownerId: userId,
+    planType: "free",
+  });
+  createdWorkspaceIds.add(workspaceId);
+  createdWorkspaceSlugs.add(slug);
+  await db.insert(workspaceMembers).values({
+    workspaceId,
+    userId,
+    role: opts.role ?? "owner",
+  });
+  return { workspaceId, slug };
+}
+
+async function seedInvite(
+  workspaceId: string,
+  email: string,
+  opts: { acceptedAt?: Date; expiresAt?: Date } = {},
+): Promise<string> {
+  const id = randomUUID();
+  const expiresAt =
+    opts.expiresAt ?? new Date(Date.now() + 1000 * 60 * 60 * 24);
+  await db.insert(workspaceInvites).values({
+    id,
+    workspaceId,
+    email,
+    role: "member",
+    token: randomBytes(16).toString("hex"),
+    expiresAt,
+    acceptedAt: opts.acceptedAt ?? null,
+  });
+  return id;
+}
+
 async function cleanup(): Promise<void> {
   for (const slug of createdWorkspaceSlugs) {
     await db.delete(workspaces).where(eq(workspaces.slug, slug));
   }
   createdWorkspaceSlugs.clear();
+  createdWorkspaceIds.clear();
   for (const id of createdUserIds) {
     await db.delete(user).where(eq(user.id, id));
   }
@@ -135,5 +196,117 @@ describe("POST /api/workspaces slug auto-generation", () => {
       slug: "taken",
     });
     expect(res.status).toBe(409);
+  });
+});
+
+describe("GET /api/workspaces/me", () => {
+  afterEach(cleanup);
+
+  it("returns empty arrays for user with no memberships or invites", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const res = await authedGet("/api/workspaces/me", u.id);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      workspaces: unknown[];
+      invites: unknown[];
+    };
+    expect(body.workspaces).toEqual([]);
+    expect(body.invites).toEqual([]);
+  });
+
+  it("returns workspaces the user is a member of with role", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const { workspaceId, slug } = await seedMembership(u.id, {
+      role: "owner",
+      name: "ACME",
+    });
+    const res = await authedGet("/api/workspaces/me", u.id);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      workspaces: Array<{
+        id: string;
+        slug: string;
+        name: string;
+        role: string;
+      }>;
+    };
+    expect(body.workspaces).toHaveLength(1);
+    expect(body.workspaces[0]).toMatchObject({
+      id: workspaceId,
+      slug,
+      name: "ACME",
+      role: "owner",
+    });
+  });
+
+  it("includes pending invites addressed to the user's email", async () => {
+    const inviter = await createUser();
+    createdUserIds.add(inviter.id);
+    const invitee = await createUser();
+    createdUserIds.add(invitee.id);
+    const { workspaceId } = await seedMembership(inviter.id, {
+      name: "Invite Land",
+    });
+    const inviteId = await seedInvite(workspaceId, invitee.email);
+
+    const res = await authedGet("/api/workspaces/me", invitee.id);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      invites: Array<{
+        id: string;
+        workspaceId: string;
+        workspaceName: string;
+        role: string;
+      }>;
+    };
+    expect(body.invites).toHaveLength(1);
+    expect(body.invites[0]).toMatchObject({
+      id: inviteId,
+      workspaceId,
+      workspaceName: "Invite Land",
+    });
+  });
+
+  it("excludes accepted or expired invites", async () => {
+    const inviter = await createUser();
+    createdUserIds.add(inviter.id);
+    const invitee = await createUser();
+    createdUserIds.add(invitee.id);
+    const { workspaceId } = await seedMembership(inviter.id);
+    // accepted invite
+    await seedInvite(workspaceId, invitee.email, {
+      acceptedAt: new Date(),
+    });
+    // expired invite (into a second workspace — partial unique allows it)
+    const other = await seedMembership(inviter.id, { name: "Other" });
+    await seedInvite(other.workspaceId, invitee.email, {
+      expiresAt: new Date(Date.now() - 1000),
+    });
+
+    const res = await authedGet("/api/workspaces/me", invitee.id);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { invites: unknown[] };
+    expect(body.invites).toEqual([]);
+  });
+
+  it("excludes invites addressed to other emails", async () => {
+    const inviter = await createUser();
+    createdUserIds.add(inviter.id);
+    const me = await createUser();
+    createdUserIds.add(me.id);
+    const { workspaceId } = await seedMembership(inviter.id);
+    await seedInvite(workspaceId, "someone-else@example.com");
+
+    const res = await authedGet("/api/workspaces/me", me.id);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { invites: unknown[] };
+    expect(body.invites).toEqual([]);
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const res = await app.request("/api/workspaces/me");
+    expect(res.status).toBe(401);
   });
 });

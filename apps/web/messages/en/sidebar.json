@@ -4,5 +4,56 @@
   "empty_project": "No notes yet in this project.",
   "empty_folder": "Empty.",
   "untitled": "Untitled",
-  "offline": "Offline"
+  "offline": "Offline",
+  "switcher": {
+    "trigger_aria": "Switch workspace",
+    "label": "Workspaces",
+    "invites_label": "Invitations",
+    "new_workspace": "Create new workspace",
+    "placeholder": "Loading…"
+  },
+  "role": {
+    "owner": "Owner",
+    "admin": "Admin",
+    "member": "Member",
+    "guest": "Guest"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "research": "Deep Research",
+    "import": "Import",
+    "more_aria": "More"
+  },
+  "more_menu": {
+    "settings": "Workspace settings",
+    "templates": "Template gallery",
+    "shared_links": "Shared links",
+    "trash": "Trash",
+    "feedback": "Send feedback",
+    "changelog": "What's new"
+  },
+  "project": {
+    "empty": "Create a project to get started",
+    "new": "New project",
+    "switch_aria": "Switch project",
+    "create_cta": "+ Create project"
+  },
+  "footer": {
+    "notifications_aria": "Notifications",
+    "settings_aria": "Workspace settings",
+    "guest_name": "Guest"
+  },
+  "search": {
+    "placeholder": "Search this project",
+    "shortcut_hint": "⌘K"
+  },
+  "tree_menu": {
+    "rename": "Rename",
+    "rename_shortcut": "F2",
+    "duplicate": "Duplicate",
+    "copy_link": "Copy link",
+    "delete": "Delete",
+    "delete_shortcut": "⌘Del",
+    "confirm_delete": "Delete \"{label}\"?"
+  }
 }

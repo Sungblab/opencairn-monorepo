@@ -4,5 +4,56 @@
   "empty_project": "이 프로젝트에는 아직 노트가 없어요.",
   "empty_folder": "비어 있어요.",
   "untitled": "제목 없음",
-  "offline": "오프라인"
+  "offline": "오프라인",
+  "switcher": {
+    "trigger_aria": "워크스페이스 전환",
+    "label": "워크스페이스",
+    "invites_label": "받은 초대",
+    "new_workspace": "새 워크스페이스 만들기",
+    "placeholder": "불러오는 중…"
+  },
+  "role": {
+    "owner": "소유자",
+    "admin": "관리자",
+    "member": "멤버",
+    "guest": "게스트"
+  },
+  "nav": {
+    "dashboard": "대시보드",
+    "research": "Deep Research",
+    "import": "가져오기",
+    "more_aria": "더보기"
+  },
+  "more_menu": {
+    "settings": "워크스페이스 설정",
+    "templates": "템플릿 갤러리",
+    "shared_links": "공유 링크 관리",
+    "trash": "휴지통",
+    "feedback": "피드백 보내기",
+    "changelog": "업데이트 소식"
+  },
+  "project": {
+    "empty": "프로젝트를 만들어 시작하세요",
+    "new": "새 프로젝트",
+    "switch_aria": "프로젝트 전환",
+    "create_cta": "+ 프로젝트 만들기"
+  },
+  "footer": {
+    "notifications_aria": "알림",
+    "settings_aria": "워크스페이스 설정",
+    "guest_name": "게스트"
+  },
+  "search": {
+    "placeholder": "이 프로젝트에서 검색",
+    "shortcut_hint": "⌘K"
+  },
+  "tree_menu": {
+    "rename": "이름 바꾸기",
+    "rename_shortcut": "F2",
+    "duplicate": "복제",
+    "copy_link": "링크 복사",
+    "delete": "삭제",
+    "delete_shortcut": "⌘Del",
+    "confirm_delete": "\"{label}\"을(를) 삭제할까요?"
+  }
 }

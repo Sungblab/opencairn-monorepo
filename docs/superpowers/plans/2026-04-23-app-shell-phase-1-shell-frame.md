@@ -2280,7 +2280,7 @@ git commit -m "docs(docs): mark app shell phase 1 complete in plans-status"
 | Item | Phase |
 |------|-------|
 | Workspace switcher dropdown, global nav, project hero, tree | 2 |
-| Real project tree backend (`ltree` vs closure table, ADR 0008) | 2 (prerequisite) |
+| Real project tree backend (`ltree` vs closure table, ADR 009) | 2 (prerequisite) |
 | Tab bar rendering (drag, context menu, overflow) | 3 |
 | Preview tab mode UI (italic) | 3 |
 | Split pane | 3 |

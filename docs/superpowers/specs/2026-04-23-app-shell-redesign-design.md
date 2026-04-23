@@ -230,15 +230,24 @@ URL이 authoritative. 네 가지 규칙으로 동작:
 
 #### 4.6.1 백엔드
 
-- **트리 구조**: `pages.parent_id` (기존) + **materialized path (`ltree`) 또는 closure table** 중 택일 (§14 Open Question, Phase 2 시작 전 ADR 0008 결정).
-- **Lazy children API**: `GET /api/projects/<projectId>/tree?parent_id=<X>` — 기본 2단계 프리패치(요청한 depth + 1).
-- **권한 배칭**: `GET /api/projects/<projectId>/permissions` — 프로젝트 마운트 시 1회 호출, 클라이언트 캐시. 렌더 루프의 per-node 권한 체크 절대 금지.
-- **실시간 메타 채널**: `GET /api/stream/projects/<projectId>/tree` SSE. 이벤트:
-  - `page.created` — 새 페이지 생성 (parent_id, id, title, icon)
-  - `page.renamed` — 제목/아이콘 변경
-  - `page.moved` — parent_id 변경 (프로젝트 내부만)
-  - `page.deleted` — soft delete (휴지통 이동)
-  - `page.restored` — 휴지통에서 복구
+> 실제 스키마는 `folders`(parent_id 자기참조, 계층)와 `notes`(folder_id 기반 leaf) 두 테이블로 분리되어 있다. "페이지"는 UI 용어일 뿐이며, 트리 노드는 항상 `kind: "folder" | "note"` discriminator로 식별한다. 근거 + 대안 비교: ADR 009.
+
+- **트리 구조**:
+  - `folders` 에 `ltree path` 컬럼 추가 (GiST 인덱스). 폴더 계층의 subtree 조회와 이동을 `path <@ ancestor` 로 처리.
+  - `notes` 는 기존 `folder_id` 유지. 노트 이동 = `UPDATE notes SET folder_id = :new` 단일 row 업데이트, path 수학 없음.
+  - 루트 레벨에 folders(`parent_id = null`)와 notes(`folder_id = null`) 공존 허용.
+- **Lazy children API**: `GET /api/projects/<projectId>/tree?parent_id=<X>` — 해당 parent 의 folder children + note children을 묶어 반환 + 1단계 손자 프리패치. 응답 shape는 §11.3.
+- **권한 배칭**: `GET /api/projects/<projectId>/permissions` — 프로젝트 마운트 시 1회 호출, 클라이언트 캐시. 프로젝트 role + 기존 `page_permissions`(→`notes.id`) override 맵. 폴더는 per-folder 권한 없음(프로젝트 상속). 렌더 루프의 per-node 권한 체크 절대 금지.
+- **실시간 메타 채널**: `GET /api/stream/projects/<projectId>/tree` SSE. 이벤트는 `kind` discriminator로 통일:
+  - `tree.folder_created` — 새 폴더 (parent_id, id, name)
+  - `tree.folder_renamed` — name 변경
+  - `tree.folder_moved` — parent_id 변경 (프로젝트 내부만)
+  - `tree.folder_deleted` — hard delete (폴더에 자식 있으면 거부 또는 cascade는 §14)
+  - `tree.note_created` — 새 노트 (folder_id, id, title)
+  - `tree.note_renamed` — title 변경
+  - `tree.note_moved` — folder_id 변경 (프로젝트 내부만)
+  - `tree.note_deleted` — soft delete (`notes.deleted_at`)
+  - `tree.note_restored` — 휴지통에서 복구
 - Yjs awareness 사용 금지 — 편집 cursor마다 사이드바 리렌더되는 사고 방지.
 
 #### 4.6.2 프론트엔드 스택
@@ -257,15 +266,17 @@ cmdk                    # ⌘K 팔레트 (전역)
 
 #### 4.6.3 성능 예산 (Phase 2 통과 기준)
 
+"노드" = folder + note 합계.
+
 | 지표 | 목표 | 측정 방법 |
 |------|------|-----------|
-| 프로젝트 전환 후 트리 초기 렌더 (5K 페이지) | < 300ms | E2E Playwright, 프로젝트 히어로 클릭 → 첫 노드 paint |
-| 폴더 확장 (1K 자식) | < 100ms | 손으로 ▸ 클릭, Chrome performance tab |
-| 드래그-드롭 이동 (낙관적 UI) | < 50ms | 드래그 drop → 새 위치에 노드 표시 |
+| 프로젝트 전환 후 트리 초기 렌더 (5K 노드) | < 300ms | E2E Playwright, 프로젝트 히어로 클릭 → 첫 노드 paint |
+| 폴더 확장 (1K 자식 노드 — folders + notes) | < 100ms | 손으로 ▸ 클릭, Chrome performance tab |
+| 드래그-드롭 이동 (낙관적 UI, folder 또는 note) | < 50ms | 드래그 drop → 새 위치에 노드 표시 |
 | 리사이저 드래그 | 60fps | Chrome performance tab frame graph |
 | 사이드바 mount (cold) | < 400ms | workspace 진입 → 첫 노드 paint |
 
-10K 페이지 테넌트는 보통 프로젝트 여러 개로 쪼개져 있음 — 프로젝트당 5K가 현실적 상한. 초과 시 virtualization 깊이 추가 조정.
+10K 테넌트는 보통 프로젝트 여러 개로 쪼개져 있음 — 프로젝트당 5K 노드가 현실적 상한. 초과 시 virtualization 깊이 추가 조정.
 
 ### 4.7 GUI 체크리스트 (파리티 기준)
 
@@ -280,14 +291,14 @@ Phase 2 착수 시 각 항목을 task로 쪼갬:
 - [ ] 리사이저 드래그 + 더블클릭 → 기본값 리셋
 - [ ] `⌘\` 사이드바 토글 (VSCode 패리티)
 - [ ] Collapsed state 영속화 (per-workspace localStorage — 프로젝트별 펼침 상태 기억)
-- [ ] 페이지 이모지/아이콘 렌더
-- [ ] 공개 링크·댓글·멘션·presence 배지
+- [ ] 노드 아이콘 렌더 — folder 아이콘 vs note 아이콘 구분, 향후 이모지 확장 대비 (v1에서는 `folders`/`notes` 어느 쪽도 icon 컬럼 없음 → 기본 아이콘 세트만 사용)
+- [ ] 공개 링크·댓글·멘션·presence 배지 (notes 대상에만 적용, folders 는 v1 미적용)
 
 ### 4.8 의도적으로 빼는 Notion 패턴
 
 - **Favorites 섹션** — v1 YAGNI. 탭 pin(§5.5)으로 대체.
 - **Recently visited 섹션** — 탭이 이미 그 역할.
-- **Private / Shared 섹션 분리** — 대신 페이지 노드 옆에 공유 배지. 섹션 단위 분리는 시각적 노이즈.
+- **Private / Shared 섹션 분리** — 대신 노트 노드 옆에 공유 배지. 섹션 단위 분리는 시각적 노이즈.
 
 ### 4.9 푸터
 
@@ -1178,9 +1189,9 @@ persist(
 | PATCH | `/api/threads/:id` | 제목/archived 수정 |
 | DELETE | `/api/threads/:id` | soft delete |
 | POST | `/api/message-feedback` | 👍/👎 |
-| GET | `/api/projects/:projectId/tree?parent_id=X` | Lazy children |
-| GET | `/api/projects/:projectId/permissions` | 권한 배칭 |
-| GET | `/api/stream/projects/:projectId/tree` | SSE tree events |
+| GET | `/api/projects/:projectId/tree?parent_id=X` | Lazy children — folders + notes 통합 응답 (§4.6.1, 응답 shape 아래) |
+| GET | `/api/projects/:projectId/permissions` | 프로젝트 role + `page_permissions`(→notes.id) override 배칭 |
+| GET | `/api/stream/projects/:projectId/tree` | SSE tree events (`tree.folder_*`, `tree.note_*`) |
 | GET | `/api/stream/notifications` | SSE notifications |
 | PATCH | `/api/users/me/last-viewed-workspace` | `last_viewed_workspace_id` 저장 (루트 `/` redirect 용, cross-device) |
 
@@ -1188,11 +1199,27 @@ persist(
 - `users` 테이블에 `last_viewed_workspace_id uuid NULL` 추가
 - 프로젝트 레벨 "last viewed" 는 **클라이언트 localStorage 만** (`oc:last_project:<wsId>`) — cross-device sync 는 v1 미지원 (§14)
 
+**`/api/projects/:id/tree` 응답 shape** (Phase 2):
+
+```ts
+type TreeNode =
+  | { kind: "folder"; id: string; parent_id: string | null; label: string; child_count: number; children?: TreeNode[] }
+  | { kind: "note";   id: string; parent_id: string | null; label: string; child_count: 0 };
+
+// parent_id === folder_id for notes, === folders.parent_id for folders.
+// child_count = folder.child_folder_count + folder.note_count (folders only)
+// children[] is pre-fetched one level deep for each folder returned.
+
+interface TreeResponse { nodes: TreeNode[] }
+```
+
+`parent_id` 쿼리 파라미터는 folder id 또는 null 만 허용 (note id는 400). Root 요청(`parent_id` 없음 또는 null)은 `folders.parent_id IS NULL` 폴더 + `notes.folder_id IS NULL` 노트 합집합을 반환.
+
 ### 11.4 SSE 채널 인벤토리 (전체 앱)
 
 | 채널 | 스코프 | 이벤트 | 소비자 |
 |------|--------|--------|--------|
-| `/api/stream/projects/:id/tree` | project | page.created/renamed/moved/deleted/restored | sidebar tree |
+| `/api/stream/projects/:id/tree` | project | tree.folder_created/renamed/moved/deleted + tree.note_created/renamed/moved/deleted/restored | sidebar tree |
 | `/api/stream/notes/:id` (Hocuspocus) | note | Yjs awareness + updates | 에디터 |
 | `/api/threads/:id/messages` (POST) | thread | agent response stream | agent panel |
 | `/api/research/runs/:id/stream` | research run | lifecycle events | research run view |
@@ -1258,17 +1285,11 @@ CREATE TABLE message_feedback (
 );
 CREATE INDEX message_feedback_message_id_idx ON message_feedback(message_id);
 
--- 4) pages 트리 모델 (ADR 0008 결정 후 추가)
--- Option A: ltree
---   ALTER TABLE pages ADD COLUMN path ltree;
---   CREATE INDEX pages_path_gist ON pages USING GIST(path);
--- Option B: closure table
---   CREATE TABLE page_closure (
---     ancestor_id uuid REFERENCES pages(id) ON DELETE CASCADE,
---     descendant_id uuid REFERENCES pages(id) ON DELETE CASCADE,
---     depth int NOT NULL,
---     PRIMARY KEY (ancestor_id, descendant_id)
---   );
+-- 4) folder 트리 모델 (ADR 009 — Phase 2 에서 실제 실행, Phase 4는 해당 없음)
+-- CREATE EXTENSION IF NOT EXISTS ltree;
+-- ALTER TABLE folders ADD COLUMN path ltree NOT NULL;  -- 백필은 Phase 2 migration에서
+-- CREATE INDEX folders_path_gist ON folders USING GIST(path);
+-- notes는 folder_id 만 유지, path 없음 (노트 이동 = folder_id 단일 업데이트).
 ```
 
 ### 11.6 Testing 전략
@@ -1322,7 +1343,7 @@ CREATE INDEX message_feedback_message_id_idx ON message_feedback(message_id);
 | Phase | 범위 | 예상 task | 전제 |
 |-------|------|-----------|------|
 | **1. Shell Frame** | `app-shell.tsx` 3영역 레이아웃, zustand stores 골격, URL ↔ tab sync, `⌘\` / `⌘J` 토글, Sheet 반응형 | 4~5 | — |
-| **2. Sidebar** | workspace switcher, global nav, project hero + 스위처, 푸터, react-arborist + dnd-kit 트리, lazy children, SSE stream, 권한 배칭, GUI 체크리스트 전부 | 8~10 | Phase 1, ADR 0008 (ltree vs closure) 결정 |
+| **2. Sidebar** | workspace switcher, global nav, project hero + 스위처, 푸터, react-arborist + dnd-kit 트리, lazy children, SSE stream, 권한 배칭, GUI 체크리스트 전부 | 8~10 | Phase 1, ADR 009 (ltree vs closure) 결정 |
 | **3. Tab System** | Tab store (per-workspace localStorage), 탭 바 UI, preview mode, 단축키, TabModeRouter, 4가지 core mode(plate/reading/source/data), overflow | 6~8 | Phase 1. Phase 2와 병렬 가능 |
 | **4. Agent Panel Shell** | panel shell, thread-list, conversation 렌더 (Plan 2D 흡수), scope chips, composer, API + DB 마이그레이션 | 5~6 | Phase 1. Plan 2D chat renderer 소스 재사용 |
 | **5. Routes & Palette** | dashboard / project / research hub / research run / import / ws settings 뷰, `/settings/*` account shell, cmdk palette, 알림 drawer | 6~7 | Phase 2, 3, 4. Phase D(Research UI)와 맞물림 |
@@ -1352,7 +1373,9 @@ CREATE INDEX message_feedback_message_id_idx ON message_feedback(message_id);
 
 ## 14. Open Questions (spec 확정 후 Phase별로 결정)
 
-- [ ] **Tree 백엔드**: `ltree` vs closure table — ADR 0008 로 결정. **Phase 2 시작 전 필수.**
+- [x] **Tree 백엔드**: `ltree` on `folders` 채택(ADR 009, 2026-04-23). 노트는 `folder_id` 만 유지, path 없음.
+- [ ] **폴더 hard delete 정책**: 자식이 있는 폴더 삭제 시 refuse / cascade / move-to-root 중 택일. Phase 2 구현 전 결정.
+- [ ] **Notes icon 컬럼**: Notion 스타일 이모지 지원 시점. v1은 기본 아이콘 세트만 렌더.
 - [ ] **Preview tab 승격 트리거**: "편집 시작" 정의 — Plate `onChange` 첫 발화 vs 키입력 any (스크롤 제외). Phase 3 구현 시 결정.
 - [ ] **Agent panel 모바일(<640) UX**: Sheet로만 유지 vs 탭 전환식 fullscreen. Phase 1 POC로 검증.
 - [ ] **Palette 기본 스코프**: `이 프로젝트` vs `이 워크스페이스` default. 사용자 베타 피드백 후 결정.

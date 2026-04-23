@@ -5,8 +5,8 @@
 **Goal:** Replace Phase 1 placeholder sidebar with the real left-panel UI: workspace switcher dropdown, global nav (4 icons + "더보기"), project hero dropdown, scoped search shortcut, virtualized project-scoped tree with drag-drop + keyboard + inline rename, and a footer with user + notifications + workspace settings entry. Includes the backend tree API and SSE meta stream.
 
 **Architecture:**
-- Postgres `ltree` materialized-path column on `pages` (ADR 0008 decided in Task 1) for `O(log n)` tree queries and move operations.
-- `GET /api/projects/:id/tree?parent_id=X` returns 2-depth prefetch; `GET /api/projects/:id/permissions` batches project-level permissions; `GET /api/stream/projects/:id/tree` SSE streams `page.created/renamed/moved/deleted/restored` events.
+- Postgres `ltree` materialized-path column on `folders` only (ADR 009 decided in Task 1). Notes stay as `folder_id` leaves — no path column. Moving a folder rewrites the subtree's paths in one UPDATE; moving a note is a single `folder_id` write.
+- `GET /api/projects/:id/tree?parent_id=X` returns folders + notes as discriminated nodes with one level of folder prefetch; `GET /api/projects/:id/permissions` batches project role + existing `page_permissions`(→`notes.id`) overrides; `GET /api/stream/projects/:id/tree` SSE streams `tree.folder_*` and `tree.note_*` events.
 - Frontend: `react-arborist` for virtualization + keyboard + focus management; `@dnd-kit/core` for 3-way drag-drop and accessibility; `zustand` selectors to prevent reconciliation bombs; `@tanstack/react-query` for server state + SSE-driven invalidation.
 
 **Tech Stack:** Drizzle ORM + `ltree`, Hono (API), React 19, `react-arborist`, `@dnd-kit/core` + `@dnd-kit/sortable`, Zustand, React Query, Vitest, Playwright.
@@ -21,9 +21,10 @@
 **New files:**
 
 ```
-docs/architecture/adr/0008-page-tree-storage.md               # decision record
-packages/db/drizzle/NNNN_pages_ltree.sql                      # schema migration
-packages/db/src/schema/pages.ts                               # +path column (likely existing file)
+docs/architecture/adr/009-page-tree-storage.md                # decision record
+packages/db/drizzle/0018_folders_ltree_path.sql               # schema migration
+packages/db/src/schema/folders.ts                             # +path column on folders (existing file)
+packages/db/src/schema/custom-types.ts                        # +ltree customType (existing file)
 
 apps/api/src/routes/
 ├── projects-tree.ts                                          # GET /api/projects/:id/tree
@@ -59,7 +60,8 @@ apps/web/src/hooks/
 ```
 apps/web/src/components/shell/app-shell.tsx                   # import real Sidebar
 apps/api/src/routes/index.ts                                  # mount new routes
-packages/db/src/schema/pages.ts                               # +path column
+packages/db/src/schema/folders.ts                             # +path column (ltree)
+packages/db/src/schema/custom-types.ts                        # +ltree customType
 messages/ko/sidebar.json, messages/en/sidebar.json            # i18n strings
 ```
 
@@ -78,325 +80,548 @@ apps/web/tests/e2e/sidebar.spec.ts
 
 ---
 
-## Task 1: ADR 0008 — page tree storage (`ltree` vs closure table)
+## Task 1: ADR 009 — page tree storage (`ltree` vs closure table)
 
-Block dependency for the rest of Plan 2. Short decision document rather than a commit-worthy investigation; the spec already argues for `ltree` on read-heavy + small-move workloads. This task formalizes the call.
+Block dependency for the rest of Plan 2. Short decision document rather than a commit-worthy investigation. The spec's §4.6 already argues for `ltree`; this task formalizes the call and pins down the detail that the ltree column lives on **`folders` only**, not on a unified `pages` table (which does not exist — the real schema splits into `folders` + `notes`, see ADR 009 "Context").
 
 **Files:**
-- Create: `docs/architecture/adr/0008-page-tree-storage.md`
+- Create: `docs/architecture/adr/009-page-tree-storage.md`
 
-- [ ] **Step 1.1: Write the ADR**
+- [x] **Step 1.1: Write the ADR**
 
-```markdown
-# ADR 0008 — Page Tree Storage
+Author the ADR verbatim as committed in `docs/architecture/adr/009-page-tree-storage.md` (the canonical file — do not duplicate its body here in the plan; the plan should not drift from the real document).
 
-**Date:** 2026-04-23
-**Status:** Accepted
-**Context spec:** 2026-04-23-app-shell-redesign-design.md §4.6
+Key points the ADR must pin:
 
-## Decision
+- **Decision**: `ltree` path column on `folders`; notes stay flat under folders via `folder_id`.
+- **Context**: schema realities (`folders` hierarchical, `notes` leaves) — the Notion-style unified `pages` table was never built and is out of scope for Phase 2.
+- **Workload**: ≤ 5K nodes/project (folders + notes combined), typical folder subtree < 100, folder moves rare, note moves common but single-row.
+- **Consequences**: `CREATE EXTENSION IF NOT EXISTS ltree` in the Task 2 migration; `folders.path` labels use `regexp_replace(id::text, '-', '_', 'g')` (ltree only accepts `[A-Za-z0-9_]`); move SQL shown; no schema change on notes.
+- **Review trigger**: revisit if projects grow > 50K nodes AND folder moves cluster, OR if the product adds note-in-note nesting (which collapses the split into a unified `pages` table — new ADR at that point).
 
-Use Postgres `ltree` materialized-path column on `pages`.
-
-## Options considered
-
-| Option | Read (subtree) | Write (move) | Schema cost | Ecosystem |
-|--------|----------------|--------------|-------------|-----------|
-| `ltree` | `path <@ ancestor` uses GiST, O(log n) | Update subtree paths on move, bounded by subtree size | 1 column + GiST index | Postgres native, `drizzle-orm/pg-core` supports custom column |
-| Closure table | Join on (ancestor, descendant), O(1) per pair | Insert/delete all ancestor rows on move, O(depth × subtree) | Extra table, 2 FKs, triggers to maintain | ORM-agnostic |
-| `parent_id` only | Recursive CTE, O(depth) | Single row update | Already present | Built-in |
-
-Workload facts (from product): 5K pages per project, typical subtree size < 100, moves are rare (< 1/user/session), list-and-expand is constant traffic. `ltree` fits.
-
-## Consequences
-
-- Requires `CREATE EXTENSION ltree;` on prod + dev DBs (already enabled per 2026-03 migration 0007).
-- Drizzle custom column definition needed (`ltree`). Wrap in `customType` helper.
-- Move operation must update descendant paths in a single transaction:
-  ```sql
-  UPDATE pages SET path = :newPrefix || subpath(path, nlevel(:oldPrefix))
-  WHERE path <@ :oldPrefix;
-  ```
-
-## Review trigger
-
-Revisit if a project grows > 50K pages AND move operations cluster (e.g., batch reorganization features).
-```
-
-- [ ] **Step 1.2: Commit**
+- [x] **Step 1.2: Commit**
 
 ```bash
-git add docs/architecture/adr/0008-page-tree-storage.md
-git commit -m "docs(adr): adopt postgres ltree for page tree storage"
+git add docs/architecture/adr/009-page-tree-storage.md
+git commit -m "docs(adr): adopt postgres ltree for folder tree storage"
 ```
 
 ---
 
-## Task 2: Add `pages.path` column + `ltree` custom type
+## Task 2: Add `folders.path` ltree column + GiST index
+
+Notes are unaffected — they stay as `(folder_id, position)` leaves. Only `folders` get a materialized path (ADR 009).
 
 **Files:**
-- Modify: `packages/db/src/schema/pages.ts`
-- Create: `packages/db/src/custom-types.ts` edit (or new) — `ltree` customType
-- Create: migration (auto-numbered by Drizzle)
+- Modify: `packages/db/src/schema/custom-types.ts` — add `ltree` customType
+- Modify: `packages/db/src/schema/folders.ts` — add `path` column + index
+- Create: `packages/db/drizzle/0018_folders_ltree_path.sql`
 
-- [ ] **Step 2.1: Add ltree custom type**
+- [x] **Step 2.1: Add ltree custom type**
 
-Open `packages/db/src/custom-types.ts` (exists per schema listing). Add:
+Open `packages/db/src/schema/custom-types.ts` and append:
 
 ```ts
-import { customType } from "drizzle-orm/pg-core";
-
 export const ltree = customType<{ data: string; driverData: string }>({
-  dataType: () => "ltree",
-  toDriver: (value) => value,
-  fromDriver: (value) => value,
+  dataType() {
+    return "ltree";
+  },
+  toDriver(value: string): string {
+    return value;
+  },
+  fromDriver(value: string): string {
+    return value;
+  },
 });
 ```
 
-- [ ] **Step 2.2: Add `path` column to `pages` schema**
+- [x] **Step 2.2: Add `path` column + index to `folders` schema**
 
-Open `packages/db/src/schema/pages.ts`. Add inside the existing `pgTable("pages", {...})`:
+Open `packages/db/src/schema/folders.ts`. Extend the existing `pgTable("folders", {...})`:
 
 ```ts
-path: ltree("path").notNull(),
+import { ltree } from "./custom-types";
+// ...
+export const folders = pgTable(
+  "folders",
+  {
+    // ...existing columns
+    path: ltree("path").notNull(),
+  },
+  (t) => [
+    index("folders_project_id_idx").on(t.projectId),
+    // Drizzle's `index(...).using("gist", col)` is supported via raw `.using`.
+    // If the builder can't express GiST cleanly, keep the index declaration
+    // minimal here (B-tree) and rely on the SQL migration to create the real
+    // GiST index. The migration is authoritative.
+  ]
+);
 ```
 
-Also add an index definition in the second arg:
-```ts
-(t) => [
-  // ...existing indices
-  index("pages_path_gist").using("gist", t.path),
-]
-```
+Leave the GiST index definition in SQL — `pnpm db:generate` has known gaps around `USING gist` and `::ltree` casts, so we write the migration by hand and mark the schema file as consistent with it.
 
-Import `ltree` from `"../custom-types"` and `index` from `"drizzle-orm/pg-core"` if not already imported.
+- [x] **Step 2.3: Write the migration (by hand)**
 
-- [ ] **Step 2.3: Write the migration by hand**
-
-`pnpm db:generate` does not emit `USING gist` nor `::ltree` casts cleanly. Create the migration manually. Find the current highest number in `packages/db/drizzle/`, use `N+1`. Filename body: `pages_ltree_path`.
+`packages/db/drizzle/` already runs up through `0017_users_last_viewed_workspace.sql`. Next number is **0018**. Filename: `0018_folders_ltree_path.sql`.
 
 ```sql
--- Ensure extension (idempotent)
+-- Ensure ltree extension (idempotent — may already exist on older envs)
 CREATE EXTENSION IF NOT EXISTS ltree;
 
--- Add column nullable first, backfill, then enforce NOT NULL
-ALTER TABLE "pages" ADD COLUMN "path" ltree;
+-- Add nullable first so the backfill can run, then enforce NOT NULL.
+ALTER TABLE "folders" ADD COLUMN "path" ltree;
 
--- Backfill: path = project_id::text || '.' || id::text with dashes replaced.
--- ltree labels only allow [A-Za-z0-9_], so UUIDs need dashes removed.
-UPDATE "pages" SET "path" = (
-  regexp_replace("project_id"::text, '-', '_', 'g')
-  || '.'
-  || regexp_replace("id"::text, '-', '_', 'g')
-)::ltree
-WHERE "parent_id" IS NULL;
-
--- Parent-ed rows: recursive CTE fills in reverse breadth order.
--- Since pages.parent_id forms a DAG rooted at parent_id IS NULL, this converges.
+-- Backfill: folder labels are folders.id with dashes replaced by underscores
+-- (ltree labels accept only [A-Za-z0-9_]). Project id is not part of the
+-- path — the tree is scoped per project at query time via project_id filter,
+-- which keeps labels shorter and avoids redundant prefix storage.
 WITH RECURSIVE walk AS (
-  SELECT p.id, (
-    regexp_replace(p.project_id::text, '-', '_', 'g')
-    || '.' || regexp_replace(p.id::text, '-', '_', 'g')
-  )::ltree AS new_path
-  FROM "pages" p WHERE p.parent_id IS NULL
+  SELECT f.id,
+         f.parent_id,
+         f.project_id,
+         (regexp_replace(f.id::text, '-', '_', 'g'))::ltree AS new_path
+  FROM "folders" f
+  WHERE f.parent_id IS NULL
   UNION ALL
-  SELECT c.id, (w.new_path || regexp_replace(c.id::text, '-', '_', 'g'))::ltree
-  FROM "pages" c JOIN walk w ON c.parent_id = w.id
+  SELECT c.id,
+         c.parent_id,
+         c.project_id,
+         (w.new_path || regexp_replace(c.id::text, '-', '_', 'g'))::ltree
+  FROM "folders" c
+  JOIN walk w ON c.parent_id = w.id AND c.project_id = w.project_id
 )
-UPDATE "pages" p SET "path" = w.new_path FROM walk w WHERE p.id = w.id;
+UPDATE "folders" f SET "path" = w.new_path FROM walk w WHERE f.id = w.id;
 
-ALTER TABLE "pages" ALTER COLUMN "path" SET NOT NULL;
+-- Sanity: no NULLs left. If this fires, there is an orphaned folder (parent_id
+-- pointing at a non-existent row) and the migration should abort.
+DO $$
+DECLARE null_count int;
+BEGIN
+  SELECT COUNT(*) INTO null_count FROM "folders" WHERE "path" IS NULL;
+  IF null_count > 0 THEN
+    RAISE EXCEPTION 'folders_ltree backfill left % NULL rows', null_count;
+  END IF;
+END$$;
 
-CREATE INDEX "pages_path_gist" ON "pages" USING gist ("path");
+ALTER TABLE "folders" ALTER COLUMN "path" SET NOT NULL;
+
+CREATE INDEX "folders_path_gist" ON "folders" USING GIST ("path");
 ```
 
-- [ ] **Step 2.4: Apply migration**
+- [x] **Step 2.4: Apply migration**
 
 ```bash
 pnpm --filter @opencairn/db db:migrate
 ```
 
-Expected: no errors. Verify:
+Expected: no errors. Verify via psql (or the project's `db:psql` shortcut if available):
 ```sql
-\d pages
--- path column of type ltree, pages_path_gist index present
-SELECT path FROM pages LIMIT 3;
--- paths look like "proj_uuid_no_dashes.page_uuid_no_dashes"
+\d folders
+-- path column of type ltree, folders_path_gist index present
+SELECT id, parent_id, path FROM folders LIMIT 5;
+-- root folders have a single-label path (id_no_dashes)
+-- child folders have concatenated labels matching their ancestry
 ```
 
-- [ ] **Step 2.5: Commit**
+- [x] **Step 2.5: Commit**
 
 ```bash
-git add packages/db/src/custom-types.ts \
-        packages/db/src/schema/pages.ts \
-        packages/db/drizzle/
-git commit -m "feat(db): add ltree path column to pages with gist index"
+git add packages/db/src/schema/custom-types.ts \
+        packages/db/src/schema/folders.ts \
+        packages/db/drizzle/0018_folders_ltree_path.sql \
+        packages/db/drizzle/meta
+git commit -m "feat(db): add ltree path column to folders with gist index"
 ```
 
 ---
 
 ## Task 3: Tree query helpers (`apps/api/src/lib/tree-queries.ts`)
 
-Pure SQL wrappers for: list children of a parent, get subtree, move subtree, delete subtree. Tests hit a live test DB (existing harness in `apps/api/tests/`).
+Pure SQL wrappers that unify folders (ltree-backed) + notes (folder_id leaves) into a single discriminated node stream for the sidebar. Tests use the existing `seedWorkspace({role})` harness in `apps/api/tests/helpers/seed.ts` plus direct `db.insert(folders|notes)` for structure setup.
 
 **Files:**
 - Create: `apps/api/src/lib/tree-queries.ts`
 - Create: `apps/api/tests/tree-queries.test.ts`
 
-- [ ] **Step 3.1: Write failing test**
+- [x] **Step 3.1: Define the public surface**
+
+```ts
+// TreeRow returned by the listing helpers.
+export interface TreeRow {
+  kind: "folder" | "note";
+  id: string;
+  parentId: string | null;      // folder.parent_id OR note.folder_id
+  label: string;                // folder.name OR note.title
+  pathText: string | null;      // folders.path::text; null for notes
+  childCount: number;           // folders: count(child folders) + count(notes in folder); notes: 0
+}
+```
+
+Functions:
+
+| Function | Purpose |
+|----------|---------|
+| `listChildren({projectId, parentId})` | Direct children of `parentId` (null = root). Returns folders first (`ORDER BY path`), then notes (`ORDER BY position`). |
+| `listChildrenForParents({projectId, parentIds})` | Batch of the above, grouped by parent. Empty input → empty Map. |
+| `getFolderSubtree({projectId, rootFolderId})` | Folder subtree via `path <@ root.path`, BFS order. Notes excluded — callers fetch notes per folder separately when needed. |
+| `moveFolder({projectId, folderId, newParentId})` | Update `folders.path` for the subtree using `subpath(path, nlevel(oldPath))` concat. Refuses cross-project. |
+| `moveNote({projectId, noteId, newFolderId})` | Single-row `UPDATE notes SET folder_id = :new`. `newFolderId` must belong to `projectId` or be null. |
+
+- [x] **Step 3.2: Write failing tests**
 
 Create `apps/api/tests/tree-queries.test.ts`:
 
 ```ts
-import { describe, it, expect, beforeEach } from "vitest";
-import { seedProject, seedPage, resetDb } from "./helpers";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { randomUUID } from "node:crypto";
+import { db, folders, notes, eq, sql } from "@opencairn/db";
+import { seedWorkspace, type SeedResult } from "./helpers/seed";
 import {
   listChildren,
   listChildrenForParents,
-  getSubtree,
-  movePage,
+  getFolderSubtree,
+  moveFolder,
+  moveNote,
 } from "../src/lib/tree-queries";
 
+// Inline folder insert — mirrors the production migration's label rule
+// (UUIDs with dashes replaced by underscores). Keeps the test helper tight.
+const label = (uuid: string) => uuid.replace(/-/g, "_");
+
+async function insertFolder(opts: {
+  projectId: string;
+  parentId: string | null;
+  name: string;
+  parentPath?: string;
+}): Promise<{ id: string; path: string }> {
+  const id = randomUUID();
+  const path = opts.parentPath
+    ? `${opts.parentPath}.${label(id)}`
+    : label(id);
+  await db.insert(folders).values({
+    id,
+    projectId: opts.projectId,
+    parentId: opts.parentId,
+    name: opts.name,
+    path,
+  });
+  return { id, path };
+}
+
+async function insertNote(opts: {
+  projectId: string;
+  workspaceId: string;
+  folderId: string | null;
+  title: string;
+}): Promise<string> {
+  const id = randomUUID();
+  await db.insert(notes).values({
+    id,
+    projectId: opts.projectId,
+    workspaceId: opts.workspaceId,
+    folderId: opts.folderId,
+    title: opts.title,
+  });
+  return id;
+}
+
 describe("tree-queries", () => {
-  beforeEach(resetDb);
-
-  it("listChildren returns direct children with counts", async () => {
-    const project = await seedProject();
-    const root = await seedPage({ projectId: project.id, parentId: null, title: "Root" });
-    const a = await seedPage({ projectId: project.id, parentId: root.id, title: "A" });
-    const b = await seedPage({ projectId: project.id, parentId: root.id, title: "B" });
-    await seedPage({ projectId: project.id, parentId: a.id, title: "A1" });
-
-    const rows = await listChildren({ projectId: project.id, parentId: root.id });
-    expect(rows).toHaveLength(2);
-    expect(rows.find((r) => r.id === a.id)?.childCount).toBe(1);
-    expect(rows.find((r) => r.id === b.id)?.childCount).toBe(0);
+  let seed: SeedResult;
+  beforeEach(async () => {
+    seed = await seedWorkspace({ role: "owner" });
+  });
+  afterEach(async () => {
+    await seed.cleanup();
   });
 
-  it("listChildrenForParents batches children of many parents in one query", async () => {
-    const project = await seedProject();
-    const r1 = await seedPage({ projectId: project.id, parentId: null, title: "R1" });
-    const r2 = await seedPage({ projectId: project.id, parentId: null, title: "R2" });
-    const r3 = await seedPage({ projectId: project.id, parentId: null, title: "R3" });
-    const r1a = await seedPage({ projectId: project.id, parentId: r1.id, title: "R1.A" });
-    const r1b = await seedPage({ projectId: project.id, parentId: r1.id, title: "R1.B" });
-    const r2a = await seedPage({ projectId: project.id, parentId: r2.id, title: "R2.A" });
-
-    const grouped = await listChildrenForParents({
-      projectId: project.id,
-      parentIds: [r1.id, r2.id, r3.id],
+  it("listChildren returns folder children + note children of a folder", async () => {
+    const root = await insertFolder({
+      projectId: seed.projectId,
+      parentId: null,
+      name: "Root",
+    });
+    const childFolder = await insertFolder({
+      projectId: seed.projectId,
+      parentId: root.id,
+      name: "Child",
+      parentPath: root.path,
+    });
+    const noteId = await insertNote({
+      projectId: seed.projectId,
+      workspaceId: seed.workspaceId,
+      folderId: root.id,
+      title: "Leaf note",
     });
 
-    expect(grouped.get(r1.id)?.map((r) => r.id).sort()).toEqual([r1a.id, r1b.id].sort());
-    expect(grouped.get(r2.id)?.map((r) => r.id)).toEqual([r2a.id]);
-    expect(grouped.get(r3.id)).toEqual([]); // no children, still present
+    const rows = await listChildren({ projectId: seed.projectId, parentId: root.id });
+    const kinds = rows.map((r) => `${r.kind}:${r.id}`);
+    expect(kinds).toContain(`folder:${childFolder.id}`);
+    expect(kinds).toContain(`note:${noteId}`);
+    expect(rows.find((r) => r.id === childFolder.id)?.childCount).toBe(0);
+    expect(rows.find((r) => r.id === noteId)?.childCount).toBe(0);
+  });
+
+  it("listChildren at root returns root folders + root notes", async () => {
+    const rootFolder = await insertFolder({
+      projectId: seed.projectId,
+      parentId: null,
+      name: "R",
+    });
+    const rootNote = await insertNote({
+      projectId: seed.projectId,
+      workspaceId: seed.workspaceId,
+      folderId: null,
+      title: "root-level note",
+    });
+    // seedWorkspace creates seed.noteId with folderId null — also expected in result.
+
+    const rows = await listChildren({ projectId: seed.projectId, parentId: null });
+    const ids = rows.map((r) => r.id);
+    expect(ids).toContain(rootFolder.id);
+    expect(ids).toContain(rootNote);
+    expect(ids).toContain(seed.noteId);
+    // folders come first, notes after
+    const firstNoteIdx = rows.findIndex((r) => r.kind === "note");
+    const firstFolderIdx = rows.findIndex((r) => r.kind === "folder");
+    expect(firstFolderIdx).toBeLessThan(firstNoteIdx);
+  });
+
+  it("folder childCount includes both subfolders and direct notes", async () => {
+    const root = await insertFolder({
+      projectId: seed.projectId,
+      parentId: null,
+      name: "Root",
+    });
+    await insertFolder({
+      projectId: seed.projectId,
+      parentId: root.id,
+      name: "sub1",
+      parentPath: root.path,
+    });
+    await insertFolder({
+      projectId: seed.projectId,
+      parentId: root.id,
+      name: "sub2",
+      parentPath: root.path,
+    });
+    await insertNote({
+      projectId: seed.projectId,
+      workspaceId: seed.workspaceId,
+      folderId: root.id,
+      title: "n1",
+    });
+
+    const [row] = await listChildren({ projectId: seed.projectId, parentId: null }).then(
+      (rows) => rows.filter((r) => r.id === root.id),
+    );
+    expect(row.childCount).toBe(3); // 2 subfolders + 1 note
+  });
+
+  it("listChildrenForParents batches many parents in one pass", async () => {
+    const r1 = await insertFolder({ projectId: seed.projectId, parentId: null, name: "R1" });
+    const r2 = await insertFolder({ projectId: seed.projectId, parentId: null, name: "R2" });
+    await insertFolder({ projectId: seed.projectId, parentId: r1.id, name: "a", parentPath: r1.path });
+    await insertFolder({ projectId: seed.projectId, parentId: r1.id, name: "b", parentPath: r1.path });
+    await insertNote({ projectId: seed.projectId, workspaceId: seed.workspaceId, folderId: r2.id, title: "n" });
+
+    const grouped = await listChildrenForParents({
+      projectId: seed.projectId,
+      parentIds: [r1.id, r2.id],
+    });
+    expect(grouped.get(r1.id)?.filter((r) => r.kind === "folder")).toHaveLength(2);
+    expect(grouped.get(r2.id)?.filter((r) => r.kind === "note")).toHaveLength(1);
   });
 
   it("listChildrenForParents returns empty map for empty input", async () => {
-    const project = await seedProject();
-    const grouped = await listChildrenForParents({ projectId: project.id, parentIds: [] });
+    const grouped = await listChildrenForParents({ projectId: seed.projectId, parentIds: [] });
     expect(grouped.size).toBe(0);
   });
 
-  it("getSubtree returns depth-first including the root", async () => {
-    const project = await seedProject();
-    const root = await seedPage({ projectId: project.id, parentId: null });
-    const a = await seedPage({ projectId: project.id, parentId: root.id });
-    const a1 = await seedPage({ projectId: project.id, parentId: a.id });
+  it("getFolderSubtree returns folders only, BFS order", async () => {
+    const root = await insertFolder({ projectId: seed.projectId, parentId: null, name: "Root" });
+    const a = await insertFolder({
+      projectId: seed.projectId, parentId: root.id, name: "A", parentPath: root.path,
+    });
+    const a1 = await insertFolder({
+      projectId: seed.projectId, parentId: a.id, name: "A1", parentPath: a.path,
+    });
 
-    const ids = (await getSubtree({ projectId: project.id, rootId: root.id })).map((r) => r.id);
-    expect(ids).toEqual([root.id, a.id, a1.id]);
+    const subtree = await getFolderSubtree({ projectId: seed.projectId, rootFolderId: root.id });
+    const ids = subtree.map((r) => r.id);
+    expect(ids[0]).toBe(root.id);
+    expect(ids.slice(1).sort()).toEqual([a.id, a1.id].sort());
   });
 
-  it("movePage reparents node and updates descendant paths", async () => {
-    const project = await seedProject();
-    const p1 = await seedPage({ projectId: project.id, parentId: null });
-    const p2 = await seedPage({ projectId: project.id, parentId: null });
-    const child = await seedPage({ projectId: project.id, parentId: p1.id });
-    const grand = await seedPage({ projectId: project.id, parentId: child.id });
+  it("moveFolder reparents folder and rewrites descendant paths", async () => {
+    const f1 = await insertFolder({ projectId: seed.projectId, parentId: null, name: "F1" });
+    const f2 = await insertFolder({ projectId: seed.projectId, parentId: null, name: "F2" });
+    const child = await insertFolder({
+      projectId: seed.projectId, parentId: f1.id, name: "child", parentPath: f1.path,
+    });
+    const grand = await insertFolder({
+      projectId: seed.projectId, parentId: child.id, name: "grand", parentPath: child.path,
+    });
 
-    await movePage({ projectId: project.id, pageId: child.id, newParentId: p2.id });
+    await moveFolder({
+      projectId: seed.projectId,
+      folderId: child.id,
+      newParentId: f2.id,
+    });
 
-    const subtreeOfP2 = await getSubtree({ projectId: project.id, rootId: p2.id });
-    expect(subtreeOfP2.map((r) => r.id)).toEqual([p2.id, child.id, grand.id]);
+    const afterSub = await getFolderSubtree({
+      projectId: seed.projectId, rootFolderId: f2.id,
+    });
+    expect(afterSub.map((r) => r.id).sort()).toEqual(
+      [f2.id, child.id, grand.id].sort(),
+    );
   });
 
-  it("movePage refuses moves that cross project boundaries", async () => {
-    const pA = await seedProject();
-    const pB = await seedProject();
-    const page = await seedPage({ projectId: pA.id, parentId: null });
+  it("moveFolder refuses cross-project moves", async () => {
+    const other = await seedWorkspace({ role: "owner" });
+    try {
+      const folderHere = await insertFolder({
+        projectId: seed.projectId, parentId: null, name: "here",
+      });
 
-    await expect(
-      movePage({ projectId: pA.id, pageId: page.id, newParentId: null, newProjectId: pB.id }),
-    ).rejects.toThrow(/cross-project/);
+      await expect(
+        moveFolder({
+          projectId: other.projectId,           // wrong project
+          folderId: folderHere.id,
+          newParentId: null,
+        }),
+      ).rejects.toThrow(/cross-project|not found/);
+    } finally {
+      await other.cleanup();
+    }
+  });
+
+  it("moveNote updates folder_id and rejects cross-project targets", async () => {
+    const f1 = await insertFolder({ projectId: seed.projectId, parentId: null, name: "F1" });
+    const f2 = await insertFolder({ projectId: seed.projectId, parentId: null, name: "F2" });
+    const noteId = await insertNote({
+      projectId: seed.projectId,
+      workspaceId: seed.workspaceId,
+      folderId: f1.id,
+      title: "n",
+    });
+
+    await moveNote({ projectId: seed.projectId, noteId, newFolderId: f2.id });
+    const [moved] = await db
+      .select({ folderId: notes.folderId })
+      .from(notes)
+      .where(eq(notes.id, noteId));
+    expect(moved.folderId).toBe(f2.id);
+
+    // Cross-project target folder → refused.
+    const other = await seedWorkspace({ role: "owner" });
+    try {
+      const otherFolder = await insertFolder({
+        projectId: other.projectId, parentId: null, name: "outside",
+      });
+      await expect(
+        moveNote({
+          projectId: seed.projectId,
+          noteId,
+          newFolderId: otherFolder.id,
+        }),
+      ).rejects.toThrow(/cross-project|not found/);
+    } finally {
+      await other.cleanup();
+    }
   });
 });
 ```
 
-- [ ] **Step 3.2: Run — expect failure**
+- [x] **Step 3.3: Run — expect failure**
 
 ```bash
 pnpm --filter @opencairn/api test tree-queries
 ```
 
-Expected: all fail (module missing).
+Expected: module-missing error.
 
-- [ ] **Step 3.3: Implement**
+- [x] **Step 3.4: Implement**
 
 Create `apps/api/src/lib/tree-queries.ts`:
 
 ```ts
 import { and, eq, sql } from "drizzle-orm";
-import { db, pages } from "@opencairn/db";
+import { db, folders, notes } from "@opencairn/db";
 
-function label(uuid: string): string {
-  return uuid.replace(/-/g, "_");
-}
+const label = (uuid: string) => uuid.replace(/-/g, "_");
 
 export interface TreeRow {
+  kind: "folder" | "note";
   id: string;
-  parentId: string | null;
-  title: string;
-  icon: string | null;
-  pathText: string;
-  childCount: number;
+  parentId: string | null;   // folders.parent_id OR notes.folder_id
+  label: string;             // folders.name OR notes.title
+  pathText: string | null;   // folders.path::text; null for notes
+  childCount: number;        // folders: child folders + direct notes; notes: 0
 }
 
+/**
+ * Return all direct children of `parentId` (null = root) in a single query,
+ * unioning folders and notes. Ordering: folders first (by ltree path), then
+ * notes (by `position` then `created_at`). The sidebar renders them in this
+ * order without further client-side sorting.
+ */
 export async function listChildren(opts: {
   projectId: string;
   parentId: string | null;
 }): Promise<TreeRow[]> {
-  const parentClause = opts.parentId
-    ? sql`parent_id = ${opts.parentId}`
-    : sql`parent_id IS NULL`;
+  const folderParent = opts.parentId
+    ? sql`f.parent_id = ${opts.parentId}::uuid`
+    : sql`f.parent_id IS NULL`;
+  const noteParent = opts.parentId
+    ? sql`n.folder_id = ${opts.parentId}::uuid`
+    : sql`n.folder_id IS NULL`;
 
   const rows = await db.execute<TreeRow>(sql`
     SELECT
-      p.id,
-      p.parent_id AS "parentId",
-      p.title,
-      p.icon,
-      p.path::text AS "pathText",
+      'folder'::text AS "kind",
+      f.id,
+      f.parent_id AS "parentId",
+      f.name AS "label",
+      f.path::text AS "pathText",
       (
-        SELECT COUNT(*)::int
-        FROM pages c
-        WHERE c.parent_id = p.id
-      ) AS "childCount"
-    FROM pages p
-    WHERE p.project_id = ${opts.projectId}
-      AND ${parentClause}
-      AND p.deleted_at IS NULL
-    ORDER BY p.position ASC NULLS LAST, p.created_at ASC
+        (SELECT COUNT(*)::int FROM folders c WHERE c.parent_id = f.id)
+        + (SELECT COUNT(*)::int FROM notes cn
+           WHERE cn.folder_id = f.id AND cn.deleted_at IS NULL)
+      ) AS "childCount",
+      0 AS "sortGroup",
+      f.path::text AS "sortKey"
+    FROM folders f
+    WHERE f.project_id = ${opts.projectId}::uuid
+      AND ${folderParent}
+    UNION ALL
+    SELECT
+      'note'::text,
+      n.id,
+      n.folder_id AS "parentId",
+      n.title AS "label",
+      NULL AS "pathText",
+      0 AS "childCount",
+      1 AS "sortGroup",
+      lpad(
+        coalesce(extract(epoch FROM n.created_at)::bigint::text, '0'),
+        16,
+        '0'
+      ) AS "sortKey"
+    FROM notes n
+    WHERE n.project_id = ${opts.projectId}::uuid
+      AND ${noteParent}
+      AND n.deleted_at IS NULL
+    ORDER BY "sortGroup", "sortKey"
   `);
-  return rows.rows;
+  return rows.rows.map(({ kind, id, parentId, label, pathText, childCount }) => ({
+    kind, id, parentId, label, pathText, childCount,
+  }));
 }
 
 /**
- * Batch sibling fetch: returns every direct child of the given parent ids in
- * one query, grouped by parentId. Avoids N+1 when the `/projects/:id/tree`
- * endpoint needs to prefetch grandchildren for every root. Parent ids must
- * all belong to `opts.projectId` — the caller is responsible for that check.
- * An empty `parentIds` returns an empty Map.
+ * Batch version of listChildren for N parents in one query. Used by the tree
+ * endpoint to prefetch one level of grandchildren without N+1.
+ * Empty input short-circuits to an empty Map.
  */
 export async function listChildrenForParents(opts: {
   projectId: string;
@@ -405,379 +630,584 @@ export async function listChildrenForParents(opts: {
   const grouped = new Map<string, TreeRow[]>();
   if (opts.parentIds.length === 0) return grouped;
 
+  // parentIds here are always folder ids (notes can't have children).
+  // Callers must filter kind="folder" before passing.
   const rows = await db.execute<TreeRow>(sql`
     SELECT
-      p.id,
-      p.parent_id AS "parentId",
-      p.title,
-      p.icon,
-      p.path::text AS "pathText",
+      'folder'::text AS "kind",
+      f.id,
+      f.parent_id AS "parentId",
+      f.name AS "label",
+      f.path::text AS "pathText",
       (
-        SELECT COUNT(*)::int
-        FROM pages c
-        WHERE c.parent_id = p.id
-      ) AS "childCount"
-    FROM pages p
-    WHERE p.project_id = ${opts.projectId}
-      AND p.parent_id = ANY(${opts.parentIds}::uuid[])
-      AND p.deleted_at IS NULL
-    ORDER BY p.position ASC NULLS LAST, p.created_at ASC
+        (SELECT COUNT(*)::int FROM folders c WHERE c.parent_id = f.id)
+        + (SELECT COUNT(*)::int FROM notes cn
+           WHERE cn.folder_id = f.id AND cn.deleted_at IS NULL)
+      ) AS "childCount",
+      0 AS "sortGroup",
+      f.path::text AS "sortKey"
+    FROM folders f
+    WHERE f.project_id = ${opts.projectId}::uuid
+      AND f.parent_id = ANY(${opts.parentIds}::uuid[])
+    UNION ALL
+    SELECT
+      'note'::text, n.id, n.folder_id, n.title, NULL, 0,
+      1, lpad(coalesce(extract(epoch FROM n.created_at)::bigint::text, '0'), 16, '0')
+    FROM notes n
+    WHERE n.project_id = ${opts.projectId}::uuid
+      AND n.folder_id = ANY(${opts.parentIds}::uuid[])
+      AND n.deleted_at IS NULL
+    ORDER BY "sortGroup", "sortKey"
   `);
 
   for (const pid of opts.parentIds) grouped.set(pid, []);
   for (const row of rows.rows) {
-    if (row.parentId) grouped.get(row.parentId)?.push(row);
+    if (row.parentId) {
+      const bucket = grouped.get(row.parentId);
+      if (bucket) {
+        bucket.push({
+          kind: row.kind,
+          id: row.id,
+          parentId: row.parentId,
+          label: row.label,
+          pathText: row.pathText,
+          childCount: row.childCount,
+        });
+      }
+    }
   }
   return grouped;
 }
 
-export async function getSubtree(opts: {
+/**
+ * Folder-only subtree (notes excluded). Used by move operations to rewrite
+ * descendant paths, and by integrity checks. BFS order (nlevel, path).
+ */
+export async function getFolderSubtree(opts: {
   projectId: string;
-  rootId: string;
+  rootFolderId: string;
 }): Promise<TreeRow[]> {
   const rows = await db.execute<TreeRow>(sql`
     WITH root AS (
-      SELECT path FROM pages WHERE id = ${opts.rootId} AND project_id = ${opts.projectId}
+      SELECT path FROM folders
+       WHERE id = ${opts.rootFolderId}::uuid
+         AND project_id = ${opts.projectId}::uuid
     )
     SELECT
-      p.id,
-      p.parent_id AS "parentId",
-      p.title,
-      p.icon,
-      p.path::text AS "pathText",
+      'folder'::text AS "kind",
+      f.id,
+      f.parent_id AS "parentId",
+      f.name AS "label",
+      f.path::text AS "pathText",
       0 AS "childCount"
-    FROM pages p, root r
-    WHERE p.path <@ r.path
-      AND p.project_id = ${opts.projectId}
-      AND p.deleted_at IS NULL
-    ORDER BY nlevel(p.path), p.position ASC NULLS LAST, p.created_at ASC
+    FROM folders f, root r
+    WHERE f.path <@ r.path
+      AND f.project_id = ${opts.projectId}::uuid
+    ORDER BY nlevel(f.path), f.path
   `);
   return rows.rows;
 }
 
-export async function movePage(opts: {
+/**
+ * Move a folder (and by extension its entire subtree) under a new parent in
+ * the same project. Refuses cross-project moves — if `newParentId` belongs to
+ * a different project, the parent lookup returns no row and this throws.
+ */
+export async function moveFolder(opts: {
   projectId: string;
-  pageId: string;
+  folderId: string;
   newParentId: string | null;
-  newProjectId?: string;
 }): Promise<void> {
-  if (opts.newProjectId && opts.newProjectId !== opts.projectId) {
-    throw new Error("cross-project move not allowed");
-  }
-
   await db.transaction(async (tx) => {
-    const [page] = await tx
-      .select()
-      .from(pages)
-      .where(and(eq(pages.id, opts.pageId), eq(pages.projectId, opts.projectId)));
-    if (!page) throw new Error("page not found");
+    const [folder] = await tx
+      .select({ id: folders.id, path: folders.path, projectId: folders.projectId })
+      .from(folders)
+      .where(and(
+        eq(folders.id, opts.folderId),
+        eq(folders.projectId, opts.projectId),
+      ));
+    if (!folder) throw new Error("folder not found in this project");
 
-    const oldPathText = page.path;
+    const oldPath = folder.path;
 
     let newPrefix: string;
     if (opts.newParentId) {
       const [parent] = await tx
-        .select()
-        .from(pages)
-        .where(and(eq(pages.id, opts.newParentId), eq(pages.projectId, opts.projectId)));
-      if (!parent) throw new Error("new parent not found");
-      newPrefix = `${parent.path}.${label(opts.pageId)}`;
+        .select({ id: folders.id, path: folders.path })
+        .from(folders)
+        .where(and(
+          eq(folders.id, opts.newParentId),
+          eq(folders.projectId, opts.projectId),
+        ));
+      if (!parent) throw new Error("cross-project parent or not found");
+      newPrefix = `${parent.path}.${label(opts.folderId)}`;
     } else {
-      newPrefix = `${label(opts.projectId)}.${label(opts.pageId)}`;
+      newPrefix = label(opts.folderId);
     }
 
+    // Rewrite paths for the whole subtree in one UPDATE. For a subtree rooted
+    // at `oldPath` with nlevel=N, each descendant path of length M gets
+    // replaced with `newPrefix || subpath(path, N)`.
     await tx.execute(sql`
-      UPDATE pages SET path = (${newPrefix}::ltree || subpath(path, nlevel(${oldPathText}::ltree)))
-      WHERE path <@ ${oldPathText}::ltree AND project_id = ${opts.projectId}
+      UPDATE folders
+      SET path = (${newPrefix}::ltree
+                  || subpath(path, nlevel(${oldPath}::ltree)))
+      WHERE path <@ ${oldPath}::ltree
+        AND project_id = ${opts.projectId}::uuid
     `);
 
     await tx
-      .update(pages)
+      .update(folders)
       .set({ parentId: opts.newParentId })
-      .where(eq(pages.id, opts.pageId));
+      .where(eq(folders.id, opts.folderId));
+  });
+}
+
+/**
+ * Move a note across folders. Single row update — no path math.
+ * `newFolderId = null` moves the note to project root.
+ */
+export async function moveNote(opts: {
+  projectId: string;
+  noteId: string;
+  newFolderId: string | null;
+}): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [note] = await tx
+      .select({ projectId: notes.projectId })
+      .from(notes)
+      .where(eq(notes.id, opts.noteId));
+    if (!note || note.projectId !== opts.projectId) {
+      throw new Error("note not found in this project");
+    }
+
+    if (opts.newFolderId) {
+      const [parent] = await tx
+        .select({ id: folders.id })
+        .from(folders)
+        .where(and(
+          eq(folders.id, opts.newFolderId),
+          eq(folders.projectId, opts.projectId),
+        ));
+      if (!parent) throw new Error("cross-project folder or not found");
+    }
+
+    await tx
+      .update(notes)
+      .set({ folderId: opts.newFolderId })
+      .where(eq(notes.id, opts.noteId));
   });
 }
 ```
 
-- [ ] **Step 3.4: Re-run**
+- [x] **Step 3.5: Re-run**
 
 ```bash
 pnpm --filter @opencairn/api test tree-queries
 ```
 
-Expected: four pass.
+Expected: all pass.
 
-- [ ] **Step 3.5: Commit**
+- [x] **Step 3.6: Commit**
 
 ```bash
 git add apps/api/src/lib/tree-queries.ts apps/api/tests/tree-queries.test.ts
-git commit -m "feat(api): add ltree-based tree query helpers"
+git commit -m "feat(api): add folder ltree + note leaf tree query helpers"
 ```
 
 ---
 
 ## Task 4: `GET /api/projects/:id/tree` endpoint
 
-Returns direct children with 1-level grandchild prefetch (spec §4.6.1). Auth: project membership.
+Returns direct children (folders + notes, discriminated) with one level of grandchild prefetch (spec §4.6.1, §11.3). Auth: existing `canRead({type: "project", id})` helper from `apps/api/src/lib/permissions.ts`.
 
 **Files:**
 - Create: `apps/api/src/routes/projects-tree.ts`
-- Modify: `apps/api/src/routes/index.ts` (mount)
+- Modify: `apps/api/src/index.ts` — mount the new route (same Hono app root as other routes)
 - Create: `apps/api/tests/projects-tree.test.ts`
 
-- [ ] **Step 4.1: Write failing test**
+- [x] **Step 4.1: Write failing test**
 
 Create `apps/api/tests/projects-tree.test.ts`:
 
 ```ts
-import { describe, it, expect, beforeEach } from "vitest";
-import { createTestClient, seedUser, seedProject, seedPage, addMember, resetDb } from "./helpers";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { randomUUID } from "node:crypto";
+import { db, folders, notes } from "@opencairn/db";
+import { seedWorkspace, type SeedResult } from "./helpers/seed";
+import { installTestSession } from "./helpers/session"; // same pattern as notes.test.ts
+import { app } from "../src/index"; // test app instance
+// Note: existing tests build the request via `installTestSession(app, userId).fetch(url)` —
+// copy whichever harness call the existing test files use.
+
+const label = (id: string) => id.replace(/-/g, "_");
+
+async function mkFolder(projectId: string, parentId: string | null, name: string, parentPath?: string) {
+  const id = randomUUID();
+  const path = parentPath ? `${parentPath}.${label(id)}` : label(id);
+  await db.insert(folders).values({ id, projectId, parentId, name, path });
+  return { id, path };
+}
+
+async function mkNote(projectId: string, workspaceId: string, folderId: string | null, title: string) {
+  const id = randomUUID();
+  await db.insert(notes).values({ id, projectId, workspaceId, folderId, title });
+  return id;
+}
 
 describe("GET /api/projects/:id/tree", () => {
-  beforeEach(resetDb);
+  let seed: SeedResult;
+  beforeEach(async () => {
+    seed = await seedWorkspace({ role: "owner" });
+  });
+  afterEach(async () => {
+    await seed.cleanup();
+  });
 
-  it("returns top-level children when parent_id omitted", async () => {
-    const user = await seedUser();
-    const project = await seedProject({ ownerId: user.id });
-    await seedPage({ projectId: project.id, parentId: null, title: "Root 1" });
-    await seedPage({ projectId: project.id, parentId: null, title: "Root 2" });
+  it("returns root folders + root notes as discriminated nodes", async () => {
+    const root = await mkFolder(seed.projectId, null, "Root folder");
+    // seed.noteId already exists at root (folder_id=null)
 
-    const client = createTestClient({ userId: user.id });
-    const res = await client.get(`/api/projects/${project.id}/tree`);
+    const res = await fetch(`/api/projects/${seed.projectId}/tree`, {
+      headers: await installTestSession(seed.userId),
+    });
     expect(res.status).toBe(200);
-    expect(res.body.pages).toHaveLength(2);
-    expect(res.body.pages[0].title).toBe("Root 1");
+    const body = await res.json();
+    const ids = body.nodes.map((n: any) => n.id);
+    expect(ids).toContain(root.id);
+    expect(ids).toContain(seed.noteId);
+    const rootKind = body.nodes.find((n: any) => n.id === root.id).kind;
+    expect(rootKind).toBe("folder");
+    const noteKind = body.nodes.find((n: any) => n.id === seed.noteId).kind;
+    expect(noteKind).toBe("note");
   });
 
-  it("prefetches one level of grandchildren", async () => {
-    const user = await seedUser();
-    const project = await seedProject({ ownerId: user.id });
-    const r = await seedPage({ projectId: project.id, parentId: null });
-    await seedPage({ projectId: project.id, parentId: r.id, title: "child" });
+  it("prefetches one level of folder children (folders + notes)", async () => {
+    const root = await mkFolder(seed.projectId, null, "Root");
+    const subFolder = await mkFolder(seed.projectId, root.id, "sub", root.path);
+    const subNote = await mkNote(seed.projectId, seed.workspaceId, root.id, "sub note");
 
-    const client = createTestClient({ userId: user.id });
-    const res = await client.get(`/api/projects/${project.id}/tree`);
-    expect(res.body.pages[0].children).toHaveLength(1);
-    expect(res.body.pages[0].children[0].title).toBe("child");
+    const res = await fetch(`/api/projects/${seed.projectId}/tree`, {
+      headers: await installTestSession(seed.userId),
+    });
+    const body = await res.json();
+    const rootNode = body.nodes.find((n: any) => n.id === root.id);
+    const childIds = rootNode.children.map((c: any) => c.id);
+    expect(childIds).toContain(subFolder.id);
+    expect(childIds).toContain(subNote);
   });
 
-  it("requires project membership", async () => {
-    const owner = await seedUser();
-    const outsider = await seedUser();
-    const project = await seedProject({ ownerId: owner.id });
+  it("parent_id=<folderId> returns that folder's children only", async () => {
+    const root = await mkFolder(seed.projectId, null, "Root");
+    await mkFolder(seed.projectId, root.id, "a", root.path);
+    await mkNote(seed.projectId, seed.workspaceId, root.id, "n");
 
-    const client = createTestClient({ userId: outsider.id });
-    const res = await client.get(`/api/projects/${project.id}/tree`);
-    expect(res.status).toBe(403);
+    const res = await fetch(`/api/projects/${seed.projectId}/tree?parent_id=${root.id}`, {
+      headers: await installTestSession(seed.userId),
+    });
+    const body = await res.json();
+    const ids = body.nodes.map((n: any) => n.id);
+    expect(ids).not.toContain(seed.noteId); // seed's root-level note is NOT included
+    expect(body.nodes).toHaveLength(2);
   });
 
-  it("parent_id query filters to direct children of that parent", async () => {
-    const user = await seedUser();
-    const project = await seedProject({ ownerId: user.id });
-    const r = await seedPage({ projectId: project.id, parentId: null });
-    await seedPage({ projectId: project.id, parentId: r.id, title: "c1" });
-    await seedPage({ projectId: project.id, parentId: r.id, title: "c2" });
+  it("rejects parent_id when it refers to a note", async () => {
+    const res = await fetch(`/api/projects/${seed.projectId}/tree?parent_id=${seed.noteId}`, {
+      headers: await installTestSession(seed.userId),
+    });
+    expect(res.status).toBe(400);
+  });
 
-    const client = createTestClient({ userId: user.id });
-    const res = await client.get(`/api/projects/${project.id}/tree?parent_id=${r.id}`);
-    expect(res.body.pages).toHaveLength(2);
+  it("403 for non-members", async () => {
+    const outsider = await seedWorkspace({ role: "owner" });
+    try {
+      const res = await fetch(`/api/projects/${seed.projectId}/tree`, {
+        headers: await installTestSession(outsider.userId),
+      });
+      expect(res.status).toBe(403);
+    } finally {
+      await outsider.cleanup();
+    }
+  });
+
+  it("cross-project parent_id returns 400/404 (folder belongs to another project)", async () => {
+    const other = await seedWorkspace({ role: "owner" });
+    try {
+      const otherFolder = await mkFolder(other.projectId, null, "outside");
+      const res = await fetch(
+        `/api/projects/${seed.projectId}/tree?parent_id=${otherFolder.id}`,
+        { headers: await installTestSession(seed.userId) },
+      );
+      expect([400, 404]).toContain(res.status);
+    } finally {
+      await other.cleanup();
+    }
   });
 });
 ```
 
-- [ ] **Step 4.2: Run — expect failure**
+Adapt harness calls (`installTestSession`, `fetch`, `app.request`) to whatever pattern `notes.test.ts` / `comments.test.ts` already use — the test file is the authoritative reference.
 
-- [ ] **Step 4.3: Implement**
-
-Create `apps/api/src/routes/projects-tree.ts`:
-
-```ts
-import { Hono } from "hono";
-import { z } from "zod";
-import { zValidator } from "@hono/zod-validator";
-import { listChildren, listChildrenForParents } from "../lib/tree-queries";
-import { requireSession } from "../lib/auth";
-import { requireProjectMember } from "../lib/permissions";
-
-const query = z.object({ parent_id: z.string().uuid().optional() });
-
-export const projectsTreeRoute = new Hono()
-  .get(
-    "/projects/:projectId/tree",
-    zValidator("query", query),
-    async (c) => {
-      const session = await requireSession(c);
-      const projectId = c.req.param("projectId");
-      await requireProjectMember(session.userId, projectId);
-      const { parent_id } = c.req.valid("query");
-
-      const roots = await listChildren({ projectId, parentId: parent_id ?? null });
-
-      // Batch-fetch grandchildren in a single query to avoid N+1. We only
-      // query for roots that actually have children — the childCount sub-
-      // select above is already paid for, so reuse it as a filter.
-      const parentsWithChildren = roots.filter((r) => r.childCount > 0).map((r) => r.id);
-      const grouped = await listChildrenForParents({
-        projectId,
-        parentIds: parentsWithChildren,
-      });
-
-      return c.json({
-        pages: roots.map((r) => ({
-          id: r.id,
-          parent_id: r.parentId,
-          title: r.title,
-          icon: r.icon,
-          child_count: r.childCount,
-          children: (grouped.get(r.id) ?? []).map((ch) => ({
-            id: ch.id,
-            parent_id: ch.parentId,
-            title: ch.title,
-            icon: ch.icon,
-            child_count: ch.childCount,
-          })),
-        })),
-      });
-    },
-  );
-```
-
-Mount in `apps/api/src/routes/index.ts`:
-```ts
-.route("/", projectsTreeRoute)
-```
-
-Ensure `requireProjectMember` exists in `apps/api/src/lib/permissions.ts`; if not, add it alongside existing workspace helpers — throws 403 on non-member, returns `void` otherwise.
-
-- [ ] **Step 4.4: Re-run**
+- [x] **Step 4.2: Run — expect failure**
 
 ```bash
 pnpm --filter @opencairn/api test projects-tree
 ```
 
-Expected: four pass.
+- [x] **Step 4.3: Implement**
 
-- [ ] **Step 4.5: Commit**
+Create `apps/api/src/routes/projects-tree.ts`:
+
+```ts
+import { Hono } from "hono";
+import { and, eq } from "drizzle-orm";
+import { db, folders } from "@opencairn/db";
+import { requireAuth } from "../middleware/auth";
+import { canRead } from "../lib/permissions";
+import { isUuid } from "../lib/validators";
+import {
+  listChildren,
+  listChildrenForParents,
+  type TreeRow,
+} from "../lib/tree-queries";
+import type { AppEnv } from "../lib/types";
+
+export const projectsTreeRoutes = new Hono<AppEnv>()
+  .use("*", requireAuth)
+  .get("/:projectId/tree", async (c) => {
+    const user = c.get("user");
+    const projectId = c.req.param("projectId");
+    if (!isUuid(projectId)) return c.json({ error: "Bad Request" }, 400);
+
+    if (!(await canRead(user.id, { type: "project", id: projectId }))) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+
+    const parentIdRaw = c.req.query("parent_id");
+    let parentId: string | null = null;
+    if (parentIdRaw !== undefined) {
+      if (!isUuid(parentIdRaw)) return c.json({ error: "Bad Request" }, 400);
+      // parent_id must refer to a folder in THIS project.
+      const [folder] = await db
+        .select({ id: folders.id })
+        .from(folders)
+        .where(and(eq(folders.id, parentIdRaw), eq(folders.projectId, projectId)));
+      if (!folder) {
+        return c.json(
+          { error: "parent_id must be a folder in this project" },
+          400,
+        );
+      }
+      parentId = parentIdRaw;
+    }
+
+    const roots: TreeRow[] = await listChildren({ projectId, parentId });
+
+    // Only folders can have children — prefetch one level of grandchildren
+    // for any folder with childCount > 0. Notes are leaves.
+    const parentIds = roots
+      .filter((r) => r.kind === "folder" && r.childCount > 0)
+      .map((r) => r.id);
+    const grouped = await listChildrenForParents({ projectId, parentIds });
+
+    return c.json({
+      nodes: roots.map((r) => ({
+        kind: r.kind,
+        id: r.id,
+        parent_id: r.parentId,
+        label: r.label,
+        child_count: r.childCount,
+        children:
+          r.kind === "folder"
+            ? (grouped.get(r.id) ?? []).map((ch) => ({
+                kind: ch.kind,
+                id: ch.id,
+                parent_id: ch.parentId,
+                label: ch.label,
+                child_count: ch.childCount,
+              }))
+            : [],
+      })),
+    });
+  });
+```
+
+Mount in `apps/api/src/index.ts` alongside other `projects`-prefixed routes (use the same `.route("/api/projects", ...)` base the existing code uses — locate by grepping for the existing `projects` mount).
+
+- [x] **Step 4.4: Re-run**
+
+```bash
+pnpm --filter @opencairn/api test projects-tree
+```
+
+Expected: all pass.
+
+- [x] **Step 4.5: Commit**
 
 ```bash
 git add apps/api/src/routes/projects-tree.ts \
-        apps/api/src/routes/index.ts \
-        apps/api/src/lib/permissions.ts \
+        apps/api/src/index.ts \
         apps/api/tests/projects-tree.test.ts
-git commit -m "feat(api): add project tree endpoint with 2-level prefetch"
+git commit -m "feat(api): add project tree endpoint with 1-level prefetch (folders+notes)"
 ```
 
 ---
 
-## Task 5: `GET /api/projects/:id/permissions` (batched perms)
+## Task 5: `GET /api/projects/:id/permissions` (batched)
 
-Returns one object collapsing the caller's role + per-branch overrides so the sidebar never checks permissions per-node (spec §4.6.1, §4.10).
+Returns the caller's effective project role + a map of `page_permissions` overrides the caller has (keyed by `pageId` → `notes.id`). Client uses this to skip per-node permission checks during render (spec §4.6.1, §4.10).
+
+Folders do **not** have per-folder permissions in v1 — they inherit the project role (noted in ADR 009 consequences).
 
 **Files:**
 - Create: `apps/api/src/routes/projects-permissions.ts`
+- Modify: `apps/api/src/index.ts` — mount
 - Create: `apps/api/tests/projects-permissions.test.ts`
 
-- [ ] **Step 5.1: Failing test**
+- [x] **Step 5.1: Failing test**
+
+Use `seedWorkspace` + the project's actual role (owner / editor / viewer — `seedWorkspace({role})` handles all three via `projectPermissions` inserts) and `setPagePermission(userId, noteId, role)` from `helpers/seed.ts`.
 
 ```ts
 // apps/api/tests/projects-permissions.test.ts
-import { describe, it, expect, beforeEach } from "vitest";
-import {
-  createTestClient, seedUser, seedProject, setProjectRole, setPagePermission, resetDb,
-} from "./helpers";
+import { describe, it, expect, afterEach } from "vitest";
+import { seedWorkspace, setPagePermission, type SeedResult } from "./helpers/seed";
+import { installTestSession } from "./helpers/session";
 
 describe("GET /api/projects/:id/permissions", () => {
-  beforeEach(resetDb);
-
-  it("returns role=owner for the project owner", async () => {
-    const owner = await seedUser();
-    const project = await seedProject({ ownerId: owner.id });
-    const client = createTestClient({ userId: owner.id });
-    const res = await client.get(`/api/projects/${project.id}/permissions`);
-    expect(res.status).toBe(200);
-    expect(res.body.role).toBe("owner");
-    expect(res.body.overrides).toEqual({});
+  const cleanups: SeedResult[] = [];
+  afterEach(async () => {
+    for (const s of cleanups.splice(0)) await s.cleanup();
   });
 
-  it("collapses page-level overrides into a keyed map", async () => {
-    const owner = await seedUser();
-    const member = await seedUser();
-    const project = await seedProject({ ownerId: owner.id });
-    await setProjectRole({ projectId: project.id, userId: member.id, role: "viewer" });
-    const pageId = crypto.randomUUID();
-    await setPagePermission({ pageId, userId: member.id, role: "editor" });
+  it("returns owner role for workspace owner", async () => {
+    const seed = await seedWorkspace({ role: "owner" });
+    cleanups.push(seed);
 
-    const client = createTestClient({ userId: member.id });
-    const res = await client.get(`/api/projects/${project.id}/permissions`);
-    expect(res.body.role).toBe("viewer");
-    expect(res.body.overrides[pageId]).toBe("editor");
+    const res = await fetch(`/api/projects/${seed.projectId}/permissions`, {
+      headers: await installTestSession(seed.userId),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.role).toBe("owner");
+    expect(body.overrides).toEqual({});
+  });
+
+  it("returns viewer role + page-level overrides", async () => {
+    const seed = await seedWorkspace({ role: "viewer" });
+    cleanups.push(seed);
+    // viewer has projectPermissions row role="viewer" — seed.noteId is readable via
+    // inheritParent=true. Grant an explicit editor override on the seed note:
+    await setPagePermission(seed.userId, seed.noteId, "editor");
+
+    const res = await fetch(`/api/projects/${seed.projectId}/permissions`, {
+      headers: await installTestSession(seed.userId),
+    });
+    const body = await res.json();
+    expect(body.role).toBe("viewer");
+    expect(body.overrides[seed.noteId]).toBe("editor");
   });
 
   it("403 for non-members", async () => {
-    const outsider = await seedUser();
-    const project = await seedProject({ ownerId: (await seedUser()).id });
-    const client = createTestClient({ userId: outsider.id });
-    expect((await client.get(`/api/projects/${project.id}/permissions`)).status).toBe(403);
+    const inside = await seedWorkspace({ role: "owner" });
+    const outside = await seedWorkspace({ role: "owner" });
+    cleanups.push(inside, outside);
+
+    const res = await fetch(`/api/projects/${inside.projectId}/permissions`, {
+      headers: await installTestSession(outside.userId),
+    });
+    expect(res.status).toBe(403);
   });
 });
 ```
 
-- [ ] **Step 5.2: Implement**
+- [x] **Step 5.2: Implement**
 
 ```ts
 // apps/api/src/routes/projects-permissions.ts
 import { Hono } from "hono";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
-  db, projects, projectPermissions, pagePermissions,
+  db,
+  projects,
+  projectPermissions,
+  pagePermissions,
+  workspaceMembers,
+  workspaces,
 } from "@opencairn/db";
-import { requireSession } from "../lib/auth";
+import { requireAuth } from "../middleware/auth";
+import { isUuid } from "../lib/validators";
+import type { AppEnv } from "../lib/types";
 
-export const projectsPermissionsRoute = new Hono().get(
-  "/projects/:projectId/permissions",
-  async (c) => {
-    const session = await requireSession(c);
+export const projectsPermissionsRoutes = new Hono<AppEnv>()
+  .use("*", requireAuth)
+  .get("/:projectId/permissions", async (c) => {
+    const user = c.get("user");
     const projectId = c.req.param("projectId");
+    if (!isUuid(projectId)) return c.json({ error: "Bad Request" }, 400);
 
-    const [proj] = await db.select().from(projects).where(eq(projects.id, projectId));
-    if (!proj) return c.json({ error: "not_found" }, 404);
+    const [proj] = await db
+      .select({ id: projects.id, workspaceId: projects.workspaceId, defaultRole: projects.defaultRole })
+      .from(projects)
+      .where(eq(projects.id, projectId));
+    if (!proj) return c.json({ error: "Not found" }, 404);
 
-    let role: "owner" | "admin" | "editor" | "commenter" | "viewer" | null = null;
-    if (proj.ownerId === session.userId) role = "owner";
-    else {
-      const [pp] = await db
-        .select()
-        .from(projectPermissions)
+    // Resolve the effective role. Precedence: workspace owner > workspace admin >
+    // projectPermissions row > workspace member (→ project defaultRole) > forbidden.
+    type Role = "owner" | "admin" | "editor" | "commenter" | "viewer";
+    let role: Role | null = null;
+
+    const [ws] = await db
+      .select({ ownerId: workspaces.ownerId })
+      .from(workspaces)
+      .where(eq(workspaces.id, proj.workspaceId));
+
+    if (ws?.ownerId === user.id) {
+      role = "owner";
+    } else {
+      const [wm] = await db
+        .select({ role: workspaceMembers.role })
+        .from(workspaceMembers)
         .where(and(
-          eq(projectPermissions.projectId, projectId),
-          eq(projectPermissions.userId, session.userId),
+          eq(workspaceMembers.workspaceId, proj.workspaceId),
+          eq(workspaceMembers.userId, user.id),
         ));
-      role = (pp?.role as typeof role) ?? null;
+      if (wm?.role === "admin") {
+        role = "admin";
+      } else if (wm) {
+        const [pp] = await db
+          .select({ role: projectPermissions.role })
+          .from(projectPermissions)
+          .where(and(
+            eq(projectPermissions.projectId, projectId),
+            eq(projectPermissions.userId, user.id),
+          ));
+        role = (pp?.role as Role) ?? (proj.defaultRole as Role) ?? null;
+      }
     }
 
-    if (!role) return c.json({ error: "forbidden" }, 403);
+    if (!role) return c.json({ error: "Forbidden" }, 403);
 
-    const overrides = await db
-      .select()
+    const overrideRows = await db
+      .select({ pageId: pagePermissions.pageId, role: pagePermissions.role })
       .from(pagePermissions)
-      .where(eq(pagePermissions.userId, session.userId));
+      .where(eq(pagePermissions.userId, user.id));
 
-    const map: Record<string, string> = {};
-    for (const row of overrides) map[row.pageId] = row.role;
+    const overrides: Record<string, string> = {};
+    for (const row of overrideRows) overrides[row.pageId] = row.role;
 
-    return c.json({ role, overrides: map });
-  },
-);
+    return c.json({ role, overrides });
+  });
 ```
 
-Mount in `routes/index.ts`.
+Mount in `apps/api/src/index.ts` alongside the tree route.
 
-- [ ] **Step 5.3: Run, adjust, commit**
+- [x] **Step 5.3: Run + commit**
 
 ```bash
 pnpm --filter @opencairn/api test projects-permissions
 git add apps/api/src/routes/projects-permissions.ts \
-        apps/api/src/routes/index.ts \
+        apps/api/src/index.ts \
         apps/api/tests/projects-permissions.test.ts
 git commit -m "feat(api): batch project permissions with page-level overrides"
 ```
@@ -786,15 +1216,16 @@ git commit -m "feat(api): batch project permissions with page-level overrides"
 
 ## Task 6: SSE tree stream `/api/stream/projects/:id/tree`
 
-Sends `page.created`, `renamed`, `moved`, `deleted`, `restored` events. Uses an in-process event bus tied to page CRUD routes.
+Sends `tree.folder_*` and `tree.note_*` events. Uses an in-process event bus tied to the existing folder/note CRUD routes. Response pattern matches `apps/api/src/routes/import.ts` (native `ReadableStream` + `Response` with `text/event-stream`).
 
 **Files:**
 - Create: `apps/api/src/lib/tree-events.ts`
 - Create: `apps/api/src/routes/stream-projects-tree.ts`
-- Modify: existing page CRUD handlers to call `treeEventBus.emit(...)`.
+- Modify: `apps/api/src/routes/folders.ts` — emit on POST/PATCH (name/parent_id)/DELETE
+- Modify: `apps/api/src/routes/notes.ts` — emit on POST/PATCH (title/folder_id)/DELETE (soft) + a `restore` surface if Phase 2 needs it (else defer the `tree.note_restored` wire-up to the tab/trash plan and document it as a TODO)
 - Create: `apps/api/tests/stream-projects-tree.test.ts`
 
-- [ ] **Step 6.1: Event bus**
+- [x] **Step 6.1: Event bus**
 
 Create `apps/api/src/lib/tree-events.ts`:
 
@@ -802,152 +1233,256 @@ Create `apps/api/src/lib/tree-events.ts`:
 import { EventEmitter } from "node:events";
 
 export type TreeEventKind =
-  | "page.created" | "page.renamed" | "page.moved" | "page.deleted" | "page.restored";
+  | "tree.folder_created"
+  | "tree.folder_renamed"
+  | "tree.folder_moved"
+  | "tree.folder_deleted"
+  | "tree.note_created"
+  | "tree.note_renamed"
+  | "tree.note_moved"
+  | "tree.note_deleted"
+  | "tree.note_restored";
 
+// Shape matches §11.3 TreeNode minus `children` (clients just invalidate
+// the relevant subtree in React Query cache — no need to ship the body).
 export interface TreeEvent {
   kind: TreeEventKind;
   projectId: string;
-  pageId: string;
-  parentId: string | null;
-  title?: string;
-  icon?: string | null;
+  id: string;                 // folder id or note id
+  parentId: string | null;    // folders.parent_id or notes.folder_id
+  label?: string;             // folder.name or note.title (present on created/renamed)
   at: string;
 }
 
 class TreeEventBus extends EventEmitter {
-  emitEvent(e: TreeEvent) {
+  emitEvent(e: TreeEvent): void {
     this.emit(`project:${e.projectId}`, e);
   }
   subscribe(projectId: string, handler: (e: TreeEvent) => void): () => void {
-    const ch = `project:${projectId}`;
-    this.on(ch, handler);
-    return () => this.off(ch, handler);
+    const ch = `project:${e.projectId}`; // eslint-disable-line — replaced below
+    return this.off.bind(this, ch, handler) as () => void;
   }
 }
 
-export const treeEventBus = new TreeEventBus();
+// ^ The shorthand above is intentional pseudo-code to keep the README short;
+// the real implementation below avoids the EventBus closure capture bug and
+// uses a plain EventEmitter with subscribe/unsubscribe helpers:
+
+export const treeEventBus = new EventEmitter();
 treeEventBus.setMaxListeners(1000);
+
+export function emitTreeEvent(e: TreeEvent): void {
+  treeEventBus.emit(`project:${e.projectId}`, e);
+}
+
+export function subscribeTreeEvents(
+  projectId: string,
+  handler: (e: TreeEvent) => void,
+): () => void {
+  const ch = `project:${projectId}`;
+  treeEventBus.on(ch, handler);
+  return () => {
+    treeEventBus.off(ch, handler);
+  };
+}
 ```
 
-- [ ] **Step 6.2: Wire existing page CRUD to emit**
+(Implementation note: favor `emitTreeEvent` / `subscribeTreeEvents` free functions over a class — tests mock them more cleanly and there's no per-bus state worth encapsulating.)
 
-Grep existing `apps/api/src/routes/` for page CRUD routes. At each mutation success, call:
+- [x] **Step 6.2: Wire existing CRUD handlers to emit**
+
+**`apps/api/src/routes/folders.ts`** — after each successful mutation:
+
+- `POST /` → `tree.folder_created` with `{ projectId: body.projectId, id: folder.id, parentId: folder.parentId, label: folder.name }`
+- `PATCH /:id` → compare the pre/post row and emit:
+  - `tree.folder_renamed` if `name` changed
+  - `tree.folder_moved` if `parent_id` changed (this one also implies the plan's `moveFolder` path rewrite — see Task 3; for Phase 2, the existing PATCH handler updates only `parent_id` scalar, so extend it to call `moveFolder` when `parent_id` changes so paths stay consistent)
+- `DELETE /:id` → `tree.folder_deleted`. If the folder had children, hard-delete cascades via FK; the policy decision is in spec §14 open question.
+
+**`apps/api/src/routes/notes.ts`** — at each success path:
+
+- `POST /` → `tree.note_created` with `{ projectId: body.projectId, id: note.id, parentId: note.folderId, label: note.title }`
+- `PATCH /:id` → `tree.note_renamed` if `title` changed; `tree.note_moved` if `folder_id` changed
+- `DELETE /:id` → `tree.note_deleted` (soft delete via `deleted_at`). `tree.note_restored` is **not** emitted in v1 — mark with `// TODO(phase-later): emit tree.note_restored from trash-restore endpoint` at the spot the restore surface would live.
+
+Pattern for each site:
 
 ```ts
-import { treeEventBus } from "../lib/tree-events";
-treeEventBus.emitEvent({
-  kind: "page.created", // or renamed/moved/deleted/restored per handler
+import { emitTreeEvent } from "../lib/tree-events";
+// ...after the DB commit:
+emitTreeEvent({
+  kind: "tree.folder_created",
   projectId,
-  pageId,
-  parentId,
-  title, icon,
+  id: folder.id,
+  parentId: folder.parentId,
+  label: folder.name,
   at: new Date().toISOString(),
 });
 ```
 
-Add at the last success path, after the DB transaction commits.
+Emit **after** the transaction commits — never from inside a drizzle `transaction` callback, to avoid clients seeing an event for a mutation that gets rolled back.
 
-- [ ] **Step 6.3: SSE route**
+- [x] **Step 6.3: SSE route**
 
-Create `apps/api/src/routes/stream-projects-tree.ts`:
+Create `apps/api/src/routes/stream-projects-tree.ts` — follow the `import.ts` pattern (native `ReadableStream` + `Response`) to stay consistent with other SSE routes in this codebase.
 
 ```ts
 import { Hono } from "hono";
-import { streamSSE } from "hono/streaming";
-import { treeEventBus } from "../lib/tree-events";
-import { requireSession } from "../lib/auth";
-import { requireProjectMember } from "../lib/permissions";
+import { requireAuth } from "../middleware/auth";
+import { canRead } from "../lib/permissions";
+import { isUuid } from "../lib/validators";
+import { subscribeTreeEvents, type TreeEvent } from "../lib/tree-events";
+import type { AppEnv } from "../lib/types";
 
-export const streamProjectsTreeRoute = new Hono().get(
-  "/stream/projects/:projectId/tree",
-  async (c) => {
-    const session = await requireSession(c);
+const PING_INTERVAL_MS = 30_000;
+
+export const streamProjectsTreeRoutes = new Hono<AppEnv>()
+  .use("*", requireAuth)
+  .get("/:projectId/tree", async (c) => {
+    const user = c.get("user");
     const projectId = c.req.param("projectId");
-    await requireProjectMember(session.userId, projectId);
+    if (!isUuid(projectId)) return c.json({ error: "Bad Request" }, 400);
+    if (!(await canRead(user.id, { type: "project", id: projectId }))) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
 
-    return streamSSE(c, async (stream) => {
-      const unsub = treeEventBus.subscribe(projectId, (e) => {
-        stream.writeSSE({ event: e.kind, data: JSON.stringify(e) });
-      });
-      c.req.raw.signal.addEventListener("abort", () => unsub());
-      const ka = setInterval(() => stream.writeSSE({ event: "ping", data: "1" }), 30_000);
-      try {
-        await new Promise<void>((resolve) =>
-          c.req.raw.signal.addEventListener("abort", () => resolve()),
-        );
-      } finally {
-        clearInterval(ka);
-        unsub();
-      }
+    const encoder = new TextEncoder();
+    const signal = c.req.raw.signal;
+
+    const stream = new ReadableStream({
+      start(controller) {
+        const send = (event: string, data: unknown) => {
+          controller.enqueue(
+            encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
+          );
+        };
+
+        const unsub = subscribeTreeEvents(projectId, (e: TreeEvent) => {
+          try { send(e.kind, e); } catch { /* client closed */ }
+        });
+
+        const pingTimer: NodeJS.Timeout = setInterval(() => {
+          try { send("ping", { at: new Date().toISOString() }); } catch {}
+        }, PING_INTERVAL_MS);
+
+        signal.addEventListener("abort", () => {
+          clearInterval(pingTimer);
+          unsub();
+          try { controller.close(); } catch {}
+        });
+
+        // Send an immediate "ready" so clients know the stream is open.
+        send("ready", { projectId });
+      },
     });
-  },
-);
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
+      },
+    });
+  });
 ```
 
-Mount in `routes/index.ts`.
+Mount in `apps/api/src/index.ts` at `/api/stream/projects`.
 
-- [ ] **Step 6.4: Integration test**
+- [x] **Step 6.4: Integration test**
 
 ```ts
 // apps/api/tests/stream-projects-tree.test.ts
-import { describe, it, expect, beforeEach } from "vitest";
-import { createTestClient, seedUser, seedProject, createPage, resetDb } from "./helpers";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { seedWorkspace, type SeedResult } from "./helpers/seed";
+import { installTestSession } from "./helpers/session";
+import { emitTreeEvent } from "../src/lib/tree-events";
 
 describe("GET /api/stream/projects/:id/tree", () => {
-  beforeEach(resetDb);
+  const cleanups: SeedResult[] = [];
+  afterEach(async () => {
+    for (const s of cleanups.splice(0)) await s.cleanup();
+  });
 
-  it("receives page.created event", async () => {
-    const user = await seedUser();
-    const project = await seedProject({ ownerId: user.id });
-    const client = createTestClient({ userId: user.id });
+  it("streams a folder_created event after a folder POST", async () => {
+    const seed = await seedWorkspace({ role: "owner" });
+    cleanups.push(seed);
 
-    const events: string[] = [];
+    const headers = await installTestSession(seed.userId);
     const controller = new AbortController();
-    const ready = client.sse(`/api/stream/projects/${project.id}/tree`, {
+    const res = await fetch(`/api/stream/projects/${seed.projectId}/tree`, {
+      headers,
       signal: controller.signal,
-      onMessage: (e) => events.push(e.type),
     });
-    await ready;
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/event-stream");
 
-    await createPage({ projectId: project.id, parentId: null, title: "new", userId: user.id });
+    const received: string[] = [];
+    const reader = res.body!.getReader();
+    const dec = new TextDecoder();
+    const readLoop = (async () => {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        for (const line of dec.decode(value).split("\n")) {
+          if (line.startsWith("event: ")) received.push(line.slice(7));
+        }
+      }
+    })();
 
-    await vi.waitFor(() => expect(events).toContain("page.created"), { timeout: 2000 });
+    // Emit directly via the bus — avoids needing the full POST /folders harness.
+    emitTreeEvent({
+      kind: "tree.folder_created",
+      projectId: seed.projectId,
+      id: "00000000-0000-0000-0000-000000000001",
+      parentId: null,
+      label: "new",
+      at: new Date().toISOString(),
+    });
+
+    await vi.waitFor(
+      () => expect(received).toContain("tree.folder_created"),
+      { timeout: 2000 },
+    );
+
     controller.abort();
+    await readLoop.catch(() => {});
   });
 });
 ```
 
-Adjust `client.sse` to whatever the existing harness exposes; if none, use the `EventSource` ponyfill pattern already in other SSE tests (search `apps/api/tests` for `streamSSE` consumers).
+The `emitTreeEvent` bus write is hermetic — it avoids wiring a full CRUD request in this test and lets you exercise the stream in isolation. End-to-end coverage (POST /folders → SSE event) lives in the Playwright sidebar spec (Task 15).
 
-- [ ] **Step 6.5: Commit**
+- [x] **Step 6.5: Commit**
 
 ```bash
 git add apps/api/src/lib/tree-events.ts \
         apps/api/src/routes/stream-projects-tree.ts \
-        apps/api/src/routes/index.ts \
-        apps/api/src/routes/<pages-crud files> \
+        apps/api/src/routes/folders.ts \
+        apps/api/src/routes/notes.ts \
+        apps/api/src/index.ts \
         apps/api/tests/stream-projects-tree.test.ts
-git commit -m "feat(api): SSE stream for project tree events"
+git commit -m "feat(api): SSE stream for folder+note tree events"
 ```
 
 ---
 
 ## Task 7: `useProjectTree` React Query + SSE hook
 
-Frontend hook that fetches `/api/projects/:id/tree`, subscribes to `/api/stream/projects/:id/tree`, and fans out events into React Query cache updates.
+Frontend hook that fetches `/api/projects/:id/tree`, subscribes to `/api/stream/projects/:id/tree`, and maps tree events onto selective React Query cache invalidations. Tree nodes carry a `kind` discriminator so the tree component can render folders and notes differently without re-deriving the model.
 
 **Files:**
 - Create: `apps/web/src/hooks/use-project-tree.ts`
 - Create: `apps/web/src/hooks/use-project-tree.test.tsx`
 
-- [ ] **Step 7.1: Failing test**
+- [x] **Step 7.1: Failing test**
 
 ```tsx
 // apps/web/src/hooks/use-project-tree.test.tsx
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { useProjectTree } from "./use-project-tree";
+import { useProjectTree, type TreeNode } from "./use-project-tree";
 
 const mkQc = () =>
   new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
@@ -958,92 +1493,128 @@ global.fetch = fetchMock as unknown as typeof fetch;
 afterEach(() => fetchMock.mockReset());
 
 describe("useProjectTree", () => {
-  it("loads root pages on mount", async () => {
+  it("loads root nodes on mount (folders + notes)", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => ({
-        pages: [{ id: "p1", parent_id: null, title: "Root", icon: null, child_count: 0, children: [] }],
+      json: async (): Promise<{ nodes: TreeNode[] }> => ({
+        nodes: [
+          { kind: "folder", id: "f1", parent_id: null, label: "Folder A", child_count: 0, children: [] },
+          { kind: "note",   id: "n1", parent_id: null, label: "Root note",  child_count: 0 },
+        ],
       }),
     });
     const qc = mkQc();
     const { result } = renderHook(() => useProjectTree({ projectId: "x" }), {
       wrapper: ({ children }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>,
     });
-    await waitFor(() => expect(result.current.roots).toHaveLength(1));
-    expect(result.current.roots[0].title).toBe("Root");
+    await waitFor(() => expect(result.current.roots).toHaveLength(2));
+    expect(result.current.roots[0].kind).toBe("folder");
+    expect(result.current.roots[1].kind).toBe("note");
   });
 });
 ```
 
-(Full SSE integration is covered by e2e Task 15. The unit test here just ensures fetch wiring.)
+(Full SSE integration is covered by the e2e spec in Task 15. The unit test here just pins the fetch wiring + shape.)
 
-- [ ] **Step 7.2: Implement**
+- [x] **Step 7.2: Implement**
 
 ```ts
 // apps/web/src/hooks/use-project-tree.ts
 "use client";
+
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export interface TreeNode {
+  kind: "folder" | "note";
   id: string;
-  parent_id: string | null;
-  title: string;
-  icon: string | null;
-  child_count: number;
-  children?: TreeNode[];
+  parent_id: string | null;   // folder.parent_id OR note.folder_id
+  label: string;              // folder.name OR note.title
+  child_count: number;        // 0 for notes
+  children?: TreeNode[];      // folders only, prefetched one level
 }
+
+interface TreeResponse { nodes: TreeNode[] }
 
 const treeKey = (projectId: string, parentId: string | null) =>
   ["project-tree", projectId, parentId ?? "root"] as const;
+
+async function fetchTree(projectId: string, parentId: string | null): Promise<TreeNode[]> {
+  const url = parentId
+    ? `/api/projects/${projectId}/tree?parent_id=${parentId}`
+    : `/api/projects/${projectId}/tree`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`tree ${r.status}`);
+  const body = (await r.json()) as TreeResponse;
+  return body.nodes;
+}
 
 export function useProjectTree(opts: { projectId: string }) {
   const qc = useQueryClient();
   const rootQuery = useQuery({
     queryKey: treeKey(opts.projectId, null),
-    queryFn: async () => {
-      const r = await fetch(`/api/projects/${opts.projectId}/tree`);
-      if (!r.ok) throw new Error(`tree ${r.status}`);
-      const body = (await r.json()) as { pages: TreeNode[] };
-      return body.pages;
-    },
+    queryFn: () => fetchTree(opts.projectId, null),
   });
 
   useEffect(() => {
     const src = new EventSource(`/api/stream/projects/${opts.projectId}/tree`);
-    const invalidate = () =>
+
+    // Per-event handlers so we can invalidate the smallest useful subtree.
+    // Event payloads carry `parentId` (from tree-events.ts), which tells us
+    // exactly which parent's children list is stale.
+    const invalidateParent = (raw: MessageEvent) => {
+      try {
+        const evt = JSON.parse(raw.data) as { parentId: string | null };
+        qc.invalidateQueries({
+          queryKey: treeKey(opts.projectId, evt.parentId ?? null),
+        });
+      } catch {
+        // Malformed payload — fall back to full tree invalidation.
+        qc.invalidateQueries({ queryKey: ["project-tree", opts.projectId] });
+      }
+    };
+
+    // For moves, both old and new parents have stale children lists. The
+    // event does not carry the old parent, so `tree.*_moved` invalidates
+    // every cached tree page for this project.
+    const invalidateAll = () =>
       qc.invalidateQueries({ queryKey: ["project-tree", opts.projectId] });
-    src.addEventListener("page.created", invalidate);
-    src.addEventListener("page.renamed", invalidate);
-    src.addEventListener("page.moved", invalidate);
-    src.addEventListener("page.deleted", invalidate);
-    src.addEventListener("page.restored", invalidate);
+
+    const created = ["tree.folder_created", "tree.note_created"] as const;
+    const renamed = ["tree.folder_renamed", "tree.note_renamed"] as const;
+    const moved   = ["tree.folder_moved", "tree.note_moved"] as const;
+    const deleted = ["tree.folder_deleted", "tree.note_deleted", "tree.note_restored"] as const;
+
+    for (const ev of created)  src.addEventListener(ev, invalidateParent);
+    for (const ev of renamed)  src.addEventListener(ev, invalidateParent);
+    for (const ev of moved)    src.addEventListener(ev, invalidateAll);
+    for (const ev of deleted)  src.addEventListener(ev, invalidateParent);
+
     return () => src.close();
   }, [opts.projectId, qc]);
 
   async function loadChildren(parentId: string): Promise<TreeNode[]> {
-    return await qc.fetchQuery({
+    return qc.fetchQuery({
       queryKey: treeKey(opts.projectId, parentId),
-      queryFn: async () => {
-        const r = await fetch(`/api/projects/${opts.projectId}/tree?parent_id=${parentId}`);
-        if (!r.ok) throw new Error(`tree ${r.status}`);
-        const body = (await r.json()) as { pages: TreeNode[] };
-        return body.pages;
-      },
+      queryFn: () => fetchTree(opts.projectId, parentId),
     });
   }
 
-  return { roots: rootQuery.data ?? [], isLoading: rootQuery.isLoading, loadChildren };
+  return {
+    roots: rootQuery.data ?? [],
+    isLoading: rootQuery.isLoading,
+    loadChildren,
+  };
 }
 ```
 
-- [ ] **Step 7.3: Run + commit**
+- [x] **Step 7.3: Run + commit**
 
 ```bash
 pnpm --filter @opencairn/web test use-project-tree
 git add apps/web/src/hooks/use-project-tree.ts apps/web/src/hooks/use-project-tree.test.tsx
-git commit -m "feat(web): add useProjectTree hook with SSE invalidation"
+git commit -m "feat(web): add useProjectTree hook with folder+note SSE invalidation"
 ```
 
 ---
@@ -1056,7 +1627,7 @@ Top-of-sidebar dropdown. Lists workspaces from `/api/workspaces/me`, shows pendi
 - Create: `apps/web/src/components/sidebar/workspace-switcher.tsx`
 - Create: `apps/web/src/components/sidebar/workspace-switcher.test.tsx`
 
-- [ ] **Step 8.1: Test (happy path + role badge + switch)**
+- [x] **Step 8.1: Test (happy path + role badge + switch)**
 
 ```tsx
 // apps/web/src/components/sidebar/workspace-switcher.test.tsx
@@ -1100,7 +1671,7 @@ describe("WorkspaceSwitcher", () => {
 });
 ```
 
-- [ ] **Step 8.2: Implement**
+- [x] **Step 8.2: Implement**
 
 ```tsx
 "use client";
@@ -1178,11 +1749,11 @@ export function WorkspaceSwitcher() {
 
 *Uses existing shadcn `dropdown-menu`; add via `pnpm dlx shadcn add dropdown-menu` if missing.*
 
-- [ ] **Step 8.3: Hardcode locale fix later**
+- [x] **Step 8.3: Hardcode locale fix later**
 
 The `/ko/app/...` hardcode is a Phase 2 shortcut. Use `useLocale()` from `next-intl` if already imported elsewhere. Revise to `` `/${locale}/app/w/...` ``.
 
-- [ ] **Step 8.4: Commit**
+- [x] **Step 8.4: Commit**
 
 ```bash
 git add apps/web/src/components/sidebar/workspace-switcher.tsx \
@@ -1205,7 +1776,7 @@ Four small components with repetitive structure. One task, multiple commits at t
 - Create: `apps/web/src/components/sidebar/sidebar-footer.tsx`
 - Create: `apps/web/src/components/sidebar/scoped-search.tsx`
 
-- [ ] **Step 9.1: Global nav**
+- [x] **Step 9.1: Global nav**
 
 ```tsx
 // apps/web/src/components/sidebar/global-nav.tsx
@@ -1242,7 +1813,7 @@ export function GlobalNav() {
 }
 ```
 
-- [ ] **Step 9.2: More menu popover**
+- [x] **Step 9.2: More menu popover**
 
 ```tsx
 // apps/web/src/components/sidebar/more-menu.tsx
@@ -1269,7 +1840,7 @@ export function MoreMenu({ base }: { base: string }) {
 }
 ```
 
-- [ ] **Step 9.3: Project hero + project switcher**
+- [x] **Step 9.3: Project hero + project switcher**
 
 ```tsx
 // apps/web/src/components/sidebar/project-hero.tsx
@@ -1339,7 +1910,7 @@ export function ProjectSwitcher() {
 
 Add a small `use-current-project.ts` co-located helper that reads `wsSlug`+`projectId` from params or from the tab store.
 
-- [ ] **Step 9.4: Sidebar footer**
+- [x] **Step 9.4: Sidebar footer**
 
 ```tsx
 // apps/web/src/components/sidebar/sidebar-footer.tsx
@@ -1385,7 +1956,7 @@ export function SidebarFooter() {
 }
 ```
 
-- [ ] **Step 9.5: Scoped search (palette shortcut)**
+- [x] **Step 9.5: Scoped search (palette shortcut)**
 
 ```tsx
 // apps/web/src/components/sidebar/scoped-search.tsx
@@ -1410,7 +1981,7 @@ export function ScopedSearch() {
 
 Palette itself is Phase 5; the button just opens the (yet empty) palette store.
 
-- [ ] **Step 9.6: Commit**
+- [x] **Step 9.6: Commit**
 
 ```bash
 git add apps/web/src/components/sidebar/{global-nav,more-menu,project-hero,project-switcher,sidebar-footer,scoped-search,use-current-project}.tsx \
@@ -1429,13 +2000,13 @@ The heart of the sidebar. Virtualized rows, keyboard navigation, drag-drop, inli
 - Create: `apps/web/src/components/sidebar/project-tree-node.tsx`
 - Create: `apps/web/src/components/sidebar/tree-context-menu.tsx`
 
-- [ ] **Step 10.1: Install deps**
+- [x] **Step 10.1: Install deps**
 
 ```bash
 pnpm --filter @opencairn/web add react-arborist @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities
 ```
 
-- [ ] **Step 10.2: Implement tree wrapper**
+- [x] **Step 10.2: Implement tree wrapper**
 
 ```tsx
 // apps/web/src/components/sidebar/project-tree.tsx
@@ -1486,7 +2057,7 @@ function toArboristData(
 }
 ```
 
-- [ ] **Step 10.3: Row renderer**
+- [x] **Step 10.3: Row renderer**
 
 ```tsx
 // apps/web/src/components/sidebar/project-tree-node.tsx
@@ -1502,6 +2073,9 @@ export function ProjectTreeNode({ node, style, dragHandle }: NodeRendererProps<T
   const router = useRouter();
 
   function onClick() {
+    // Folders: toggle-open is handled by react-arborist; click on the row
+    // beyond the chevron does nothing. Notes: open in a tab.
+    if (node.data.kind === "folder") return;
     const tabs = useTabsStore.getState();
     const existing = tabs.findTabByTarget("note", node.data.id);
     if (existing) {
@@ -1513,6 +2087,8 @@ export function ProjectTreeNode({ node, style, dragHandle }: NodeRendererProps<T
     router.push(`/ko/app/w/${wsSlug}/n/${node.data.id}`);
   }
 
+  const hasChildren = node.data.kind === "folder" && node.data.child_count > 0;
+
   return (
     <div
       ref={dragHandle}
@@ -1520,7 +2096,7 @@ export function ProjectTreeNode({ node, style, dragHandle }: NodeRendererProps<T
       onClick={onClick}
       className="flex cursor-pointer items-center gap-1 rounded px-1 text-sm hover:bg-accent"
     >
-      {node.data.child_count > 0 ? (
+      {hasChildren ? (
         <ChevronRight
           className={`h-3 w-3 transition-transform ${node.isOpen ? "rotate-90" : ""}`}
           onClick={(e) => {
@@ -1531,13 +2107,15 @@ export function ProjectTreeNode({ node, style, dragHandle }: NodeRendererProps<T
       ) : (
         <span className="h-3 w-3" />
       )}
-      {node.data.icon ? (
-        <span>{node.data.icon}</span>
+      {/* Phase 2 has no per-node icon column in the DB; render a type-based
+          default. Folder emoji/icon support is a Phase 2 follow-up (spec §14). */}
+      {node.data.kind === "folder" ? (
+        <Folder className="h-3.5 w-3.5 text-muted-foreground" />
       ) : (
         <FileText className="h-3.5 w-3.5 text-muted-foreground" />
       )}
-      <span className="truncate">{node.data.title}</span>
-      {node.data.child_count > 0 ? (
+      <span className="truncate">{node.data.label}</span>
+      {hasChildren ? (
         <span className="ml-auto text-[10px] text-muted-foreground">
           {node.data.child_count}
         </span>
@@ -1547,7 +2125,9 @@ export function ProjectTreeNode({ node, style, dragHandle }: NodeRendererProps<T
 }
 ```
 
-- [ ] **Step 10.4: Commit**
+(Import `Folder` alongside `FileText` from `lucide-react`.)
+
+- [x] **Step 10.4: Commit**
 
 ```bash
 git add apps/web/src/components/sidebar/project-tree*.tsx \
@@ -1559,26 +2139,38 @@ git commit -m "feat(web): add virtualized project tree (react-arborist)"
 
 ## Task 11: Drag-drop move via dnd-kit
 
-Hook into react-arborist's `onMove` to PATCH `/api/pages/:id` with new parent. Respect 3-way drop zones and project boundaries.
+Hook into react-arborist's `onMove`. A dragged node carries its `kind` so the client picks the right endpoint: folders → `PATCH /api/folders/:id` (parent_id + position), notes → `PATCH /api/notes/:id/move` (folder_id). Respect 3-way drop zones and project boundaries. Notes cannot be drop *targets* (they're leaves) — the drop slot on a note row treats it as an insertion point relative to its folder.
 
 **Files:**
 - Modify: `apps/web/src/components/sidebar/project-tree.tsx` — add `onMove` handler
 - Create: `apps/web/src/hooks/use-tree-drag-drop.ts`
-- Modify: `apps/api/src/routes/pages.ts` (if PATCH route missing)
+- Modify: `apps/api/src/routes/folders.ts` — extend existing PATCH to emit `tree.folder_moved` and call `moveFolder` when parent_id changes; add `position` field to `updateFolderSchema` in `@opencairn/shared` if missing
+- Modify: `apps/api/src/routes/notes.ts` — add `PATCH /:id/move` that calls `moveNote` and emits `tree.note_moved`. A move-only endpoint keeps the "title/content" PATCH unchanged and side-steps Yjs coupling.
 
-- [ ] **Step 11.1: Client move handler**
+- [x] **Step 11.1: Client move handler**
 
 Edit `project-tree.tsx` to pass `onMove`:
 
 ```tsx
 async function onMove({
-  dragIds, parentId, index,
-}: { dragIds: string[]; parentId: string | null; index: number }) {
-  for (const id of dragIds) {
-    const res = await fetch(`/api/pages/${id}/move`, {
+  dragIds, dragNodes, parentId, index,
+}: {
+  dragIds: string[];
+  dragNodes: Array<{ data: TreeNode }>;
+  parentId: string | null;  // null → root
+  index: number;
+}) {
+  for (const node of dragNodes) {
+    const body = node.data.kind === "folder"
+      ? { parent_id: parentId, position: index }
+      : { folder_id: parentId };
+    const url = node.data.kind === "folder"
+      ? `/api/folders/${node.data.id}`
+      : `/api/notes/${node.data.id}/move`;
+    const res = await fetch(url, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ parent_id: parentId, position: index }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) {
       toast.error("이동에 실패했습니다");
@@ -1588,80 +2180,130 @@ async function onMove({
 }
 ```
 
-Optimistic UI: react-arborist reorders rows immediately; on failure we re-fetch from server.
+Optimistic UI: react-arborist reorders immediately; on failure we re-fetch.
 
-- [ ] **Step 11.2: Server move endpoint**
+- [x] **Step 11.2: Server move endpoints**
 
-Search for existing page PATCH route. If `/api/pages/:id/move` not present, add:
+**folders.ts** — extend the existing `.patch("/:id", ...)` handler:
 
 ```ts
-// apps/api/src/routes/pages.ts (existing file)
-.patch("/pages/:id/move", zValidator("json", z.object({
-  parent_id: z.string().uuid().nullable(),
-  position: z.number().int().nonnegative().optional(),
+// apps/api/src/routes/folders.ts
+.patch("/:id", zValidator("json", updateFolderSchema), async (c) => {
+  const user = c.get("user");
+  const id = c.req.param("id");
+  if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+  const [existing] = await db
+    .select({ projectId: folders.projectId, parentId: folders.parentId, name: folders.name })
+    .from(folders)
+    .where(eq(folders.id, id));
+  if (!existing) return c.json({ error: "Not found" }, 404);
+  if (!(await canWrite(user.id, { type: "project", id: existing.projectId }))) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  const body = c.req.valid("json");
+  const movingParent =
+    body.parent_id !== undefined && body.parent_id !== existing.parentId;
+  const renaming = body.name !== undefined && body.name !== existing.name;
+
+  if (movingParent) {
+    // Path rewrite lives in moveFolder — call it instead of a raw UPDATE so
+    // descendant paths stay consistent.
+    await moveFolder({
+      projectId: existing.projectId,
+      folderId: id,
+      newParentId: body.parent_id ?? null,
+    });
+  }
+
+  if (renaming || body.position !== undefined) {
+    const nextSet: Partial<typeof folders.$inferInsert> = {};
+    if (renaming) nextSet.name = body.name!;
+    if (body.position !== undefined) nextSet.position = body.position;
+    await db.update(folders).set(nextSet).where(eq(folders.id, id));
+  }
+
+  const [after] = await db.select().from(folders).where(eq(folders.id, id));
+
+  // Emit AFTER all writes commit.
+  if (movingParent) {
+    emitTreeEvent({
+      kind: "tree.folder_moved",
+      projectId: existing.projectId,
+      id,
+      parentId: after.parentId,
+      label: after.name,
+      at: new Date().toISOString(),
+    });
+  }
+  if (renaming) {
+    emitTreeEvent({
+      kind: "tree.folder_renamed",
+      projectId: existing.projectId,
+      id,
+      parentId: after.parentId,
+      label: after.name,
+      at: new Date().toISOString(),
+    });
+  }
+
+  return c.json(after);
+});
+```
+
+**notes.ts** — add a dedicated move endpoint so it doesn't collide with the Yjs-bound PATCH that rejects `content`:
+
+```ts
+.patch("/:id/move", zValidator("json", z.object({
+  folder_id: z.string().uuid().nullable(),
 })), async (c) => {
-  const session = await requireSession(c);
-  const pageId = c.req.param("id");
-  const { parent_id, position } = c.req.valid("json");
-
-  const [page] = await db.select().from(pages).where(eq(pages.id, pageId));
-  if (!page) return c.json({ error: "not_found" }, 404);
-  await requireProjectMember(session.userId, page.projectId);
-
-  if (parent_id) {
-    const [parent] = await db.select().from(pages).where(eq(pages.id, parent_id));
-    if (!parent || parent.projectId !== page.projectId) {
-      return c.json({ error: "cross_project" }, 400);
-    }
+  const user = c.get("user");
+  const id = c.req.param("id");
+  if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+  const [note] = await db
+    .select({ projectId: notes.projectId })
+    .from(notes)
+    .where(eq(notes.id, id));
+  if (!note) return c.json({ error: "Not found" }, 404);
+  if (!(await canWrite(user.id, { type: "note", id }))) {
+    return c.json({ error: "Forbidden" }, 403);
   }
 
-  await movePage({ projectId: page.projectId, pageId, newParentId: parent_id });
-  if (position !== undefined) {
-    await db.update(pages).set({ position }).where(eq(pages.id, pageId));
+  const { folder_id } = c.req.valid("json");
+  try {
+    await moveNote({ projectId: note.projectId, noteId: id, newFolderId: folder_id });
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 400);
   }
 
-  treeEventBus.emitEvent({
-    kind: "page.moved",
-    projectId: page.projectId,
-    pageId,
-    parentId: parent_id,
+  emitTreeEvent({
+    kind: "tree.note_moved",
+    projectId: note.projectId,
+    id,
+    parentId: folder_id,
     at: new Date().toISOString(),
   });
-
   return c.json({ ok: true });
 });
 ```
 
-- [ ] **Step 11.3: Test move**
+- [x] **Step 11.3: Test moves**
 
-Add to `apps/api/tests/projects-tree.test.ts` a case:
+Add two cases to `apps/api/tests/projects-tree.test.ts` (or a dedicated `moves.test.ts`):
 
-```ts
-it("PATCH /pages/:id/move updates parent and fires page.moved", async () => {
-  const user = await seedUser();
-  const project = await seedProject({ ownerId: user.id });
-  const p1 = await seedPage({ projectId: project.id, parentId: null });
-  const p2 = await seedPage({ projectId: project.id, parentId: null });
-  const child = await seedPage({ projectId: project.id, parentId: p1.id });
+- Folder move: PATCH `/api/folders/:id` with a new `parent_id` → subtree reappears under the new parent on the tree endpoint.
+- Note move: PATCH `/api/notes/:id/move` with `folder_id` → `notes.folder_id` updated, `tree.note_moved` emitted.
 
-  const client = createTestClient({ userId: user.id });
-  const res = await client.patch(`/api/pages/${child.id}/move`, {
-    body: { parent_id: p2.id },
-  });
-  expect(res.status).toBe(200);
+Use the helpers from Task 3/4 (direct `db.insert` + `seedWorkspace`).
 
-  const tree = await client.get(`/api/projects/${project.id}/tree?parent_id=${p2.id}`);
-  expect(tree.body.pages.map((r: any) => r.id)).toContain(child.id);
-});
-```
-
-- [ ] **Step 11.4: Commit**
+- [x] **Step 11.4: Commit**
 
 ```bash
 git add apps/web/src/components/sidebar/project-tree.tsx \
-        apps/api/src/routes/pages.ts \
+        apps/api/src/routes/folders.ts \
+        apps/api/src/routes/notes.ts \
         apps/api/tests/projects-tree.test.ts
-git commit -m "feat(web,api): support tree drag-drop move with optimistic ui"
+git commit -m "feat(web,api): folder+note drag-drop move with optimistic ui"
 ```
 
 ---
@@ -1674,31 +2316,34 @@ Double-click or F2 starts rename (contentEditable row). Enter confirms PATCH tit
 - Modify: `apps/web/src/components/sidebar/project-tree-node.tsx`
 - Create: `apps/web/src/components/sidebar/tree-context-menu.tsx`
 
-- [ ] **Step 12.1: Extend row to support rename state**
+- [x] **Step 12.1: Extend row to support rename state**
 
-Add a `renamingId` signal in `project-tree.tsx` (lift state up). Pass `isRenaming` + `onStartRename` + `onCommitRename` to `ProjectTreeNode`. In the node, conditionally render `<input>` vs `<span>`.
+Add a `renamingId` signal in `project-tree.tsx` (lift state up). Pass `isRenaming` + `onStartRename` + `onCommitRename(id, kind, newLabel | null)` to `ProjectTreeNode`. In the node, conditionally render `<input>` vs `<span>`.
 
 ```tsx
 // inside ProjectTreeNode (pseudo-diff)
 {isRenaming ? (
   <input
     autoFocus
-    defaultValue={node.data.title}
+    defaultValue={node.data.label}
     className="flex-1 bg-transparent text-sm outline-none"
     onKeyDown={(e) => {
-      if (e.key === "Enter") onCommitRename(node.data.id, e.currentTarget.value);
-      if (e.key === "Escape") onCommitRename(node.data.id, null);
+      if (e.key === "Enter") onCommitRename(node.data.id, node.data.kind, e.currentTarget.value);
+      if (e.key === "Escape") onCommitRename(node.data.id, node.data.kind, null);
     }}
-    onBlur={(e) => onCommitRename(node.data.id, e.currentTarget.value)}
+    onBlur={(e) => onCommitRename(node.data.id, node.data.kind, e.currentTarget.value)}
   />
 ) : (
-  <span className="truncate">{node.data.title}</span>
+  <span className="truncate">{node.data.label}</span>
 )}
 ```
 
-`onCommitRename(id, null)` = cancel. Non-null = PATCH `/api/pages/:id` with `{ title }`.
+`onCommitRename(id, kind, null)` = cancel. Non-null commits:
 
-- [ ] **Step 12.2: Context menu**
+- `kind === "folder"` → `PATCH /api/folders/:id` with `{ name: newLabel }`
+- `kind === "note"`   → `PATCH /api/notes/:id` with `{ title: newLabel }` (the existing note PATCH handler already omits `content` — Yjs is canonical)
+
+- [x] **Step 12.2: Context menu**
 
 ```tsx
 // apps/web/src/components/sidebar/tree-context-menu.tsx
@@ -1731,7 +2376,7 @@ export function TreeContextMenu({
 
 Wrap each row in `<TreeContextMenu ...>`. Use shadcn `context-menu` (add if missing).
 
-- [ ] **Step 12.3: Commit**
+- [x] **Step 12.3: Commit**
 
 ```bash
 git add apps/web/src/components/sidebar/project-tree.tsx \
@@ -1751,7 +2396,7 @@ react-arborist gives most of this via its own keyboard plugin. Supplement with t
 - Create: `apps/web/src/hooks/use-tree-keyboard.ts`
 - Modify: `apps/web/src/components/sidebar/project-tree.tsx`
 
-- [ ] **Step 13.1: Type-ahead implementation sketch**
+- [x] **Step 13.1: Type-ahead implementation sketch**
 
 ```ts
 "use client";
@@ -1775,7 +2420,7 @@ export function useTypeAhead(onJump: (prefix: string) => void) {
 }
 ```
 
-- [ ] **Step 13.2: ⌘Del shortcut**
+- [x] **Step 13.2: ⌘Del shortcut**
 
 Inside `project-tree.tsx`:
 
@@ -1783,12 +2428,17 @@ Inside `project-tree.tsx`:
 useKeyboardShortcut("mod+delete", async () => {
   const focused = treeRef.current?.focusedNode;
   if (!focused) return;
-  if (!confirm(`"${focused.data.title}"을(를) 삭제할까요?`)) return;
-  await fetch(`/api/pages/${focused.data.id}`, { method: "DELETE" });
+  if (!confirm(`"${focused.data.label}"을(를) 삭제할까요?`)) return;
+  const url = focused.data.kind === "folder"
+    ? `/api/folders/${focused.data.id}`
+    : `/api/notes/${focused.data.id}`;
+  const res = await fetch(url, { method: "DELETE" });
+  if (!res.ok) toast.error("삭제에 실패했습니다");
+  // SSE (tree.folder_deleted / tree.note_deleted) will invalidate the cache.
 });
 ```
 
-- [ ] **Step 13.3: Commit**
+- [x] **Step 13.3: Commit**
 
 ```bash
 git add apps/web/src/hooks/use-tree-keyboard.ts \
@@ -1806,7 +2456,7 @@ Tie all previous components together and swap in to AppShell.
 - Create: `apps/web/src/components/sidebar/sidebar.tsx`
 - Modify: `apps/web/src/components/shell/app-shell.tsx`
 
-- [ ] **Step 14.1: Assemble**
+- [x] **Step 14.1: Assemble**
 
 ```tsx
 // apps/web/src/components/sidebar/sidebar.tsx
@@ -1835,7 +2485,7 @@ export function Sidebar() {
 }
 ```
 
-- [ ] **Step 14.2: Empty state**
+- [x] **Step 14.2: Empty state**
 
 ```tsx
 // apps/web/src/components/sidebar/sidebar-empty-state.tsx
@@ -1859,11 +2509,11 @@ export function SidebarEmptyState() {
 }
 ```
 
-- [ ] **Step 14.3: Swap into AppShell**
+- [x] **Step 14.3: Swap into AppShell**
 
 Edit `apps/web/src/components/shell/app-shell.tsx`: replace `PlaceholderSidebar` import and usage with the new `Sidebar`. Keep `data-testid="app-shell-sidebar"` compatibility (the Sidebar's root already carries it).
 
-- [ ] **Step 14.4: Commit**
+- [x] **Step 14.4: Commit**
 
 ```bash
 git add apps/web/src/components/sidebar/sidebar.tsx \
@@ -1880,13 +2530,13 @@ Covers: render, workspace switch, project switch, tree expand, rename, drag-drop
 
 **Files:**
 - Create: `apps/web/tests/e2e/sidebar.spec.ts`
-- Create: `apps/web/tests/e2e/fixtures/seed-5k-pages.ts`
+- Create: `apps/web/tests/e2e/fixtures/seed-5k-nodes.ts`
 
-- [ ] **Step 15.1: Fixtures**
+- [x] **Step 15.1: Fixtures**
 
-`seed-5k-pages.ts` — helper that posts 5000 pages to the test API for perf runs; used only in the tagged perf test below.
+`seed-5k-nodes.ts` — helper that seeds 5000 tree nodes (mix of folders + notes, e.g. 500 folders ~3 levels deep, 4500 notes distributed) into a fresh workspace/project for the perf run. Used only in the tagged perf test below.
 
-- [ ] **Step 15.2: Spec**
+- [x] **Step 15.2: Spec**
 
 ```ts
 import { test, expect } from "@playwright/test";
@@ -1911,12 +2561,12 @@ test.describe("Sidebar", () => {
     await page.waitForURL(new RegExp(`/ko/app/w/${b.slug}/`));
   });
 
-  test("expands folder and shows children via SSE after create", async ({ page }) => {
-    const { slug, projectId } = await seedWorkspaceWithFirstProject();
+  test("shows new folder via SSE after POST /folders", async ({ page }) => {
+    const { slug, projectId, workspaceId } = await seedWorkspaceWithFirstProject();
     await page.goto(`/ko/app/w/${slug}/`);
     const before = await page.getByTestId("project-tree").getByRole("treeitem").count();
-    await page.request.post(`/api/projects/${projectId}/pages`, {
-      data: { title: "new-from-api", parent_id: null },
+    await page.request.post(`/api/folders`, {
+      data: { projectId, name: "new-folder", parentId: null },
     });
     await expect(async () => {
       const n = await page.getByTestId("project-tree").getByRole("treeitem").count();
@@ -1924,9 +2574,23 @@ test.describe("Sidebar", () => {
     }).toPass({ timeout: 3000 });
   });
 
-  test("double-click enters rename, Enter commits", async ({ page }) => {
-    const { slug, pageId } = await seedWorkspaceWithFirstProject();
+  test("shows new note via SSE after POST /notes", async ({ page }) => {
+    const { slug, projectId, workspaceId } = await seedWorkspaceWithFirstProject();
     await page.goto(`/ko/app/w/${slug}/`);
+    const before = await page.getByTestId("project-tree").getByRole("treeitem").count();
+    await page.request.post(`/api/notes`, {
+      data: { projectId, workspaceId, title: "new-note-from-api", folderId: null },
+    });
+    await expect(async () => {
+      const n = await page.getByTestId("project-tree").getByRole("treeitem").count();
+      expect(n).toBe(before + 1);
+    }).toPass({ timeout: 3000 });
+  });
+
+  test("double-click enters rename, Enter commits (note)", async ({ page }) => {
+    const { slug } = await seedWorkspaceWithFirstProject();
+    await page.goto(`/ko/app/w/${slug}/`);
+    // The seeded note is at root — first treeitem.
     const row = page.getByRole("treeitem").first();
     await row.dblclick();
     const input = row.getByRole("textbox");
@@ -1943,10 +2607,10 @@ test.describe("Sidebar", () => {
 });
 
 test.describe("Sidebar performance", () => {
-  test("renders 5K pages under 300ms @perf", async ({ page }) => {
+  test("renders 5K nodes under 300ms @perf", async ({ page }) => {
     test.slow();
-    const { slug } = await import("./fixtures/seed-5k-pages");
-    await seedWorkspaceWithFirstProject();
+    const { seed5kNodes } = await import("./fixtures/seed-5k-nodes");
+    const { slug } = await seed5kNodes();
     const t0 = Date.now();
     await page.goto(`/ko/app/w/${slug}/`);
     await page.getByTestId("project-tree").getByRole("treeitem").first().waitFor();
@@ -1955,19 +2619,19 @@ test.describe("Sidebar performance", () => {
 });
 ```
 
-- [ ] **Step 15.3: Commit**
+- [x] **Step 15.3: Commit**
 
 ```bash
 git add apps/web/tests/e2e/sidebar.spec.ts \
-        apps/web/tests/e2e/fixtures/seed-5k-pages.ts
-git commit -m "test(web): e2e sidebar coverage and 5k-page perf smoke"
+        apps/web/tests/e2e/fixtures/seed-5k-nodes.ts
+git commit -m "test(web): e2e sidebar coverage and 5k-node perf smoke"
 ```
 
 ---
 
 ## Task 16: Post-feature check + docs
 
-- [ ] **Step 16.1: Full suite**
+- [x] **Step 16.1: Full suite**
 
 ```bash
 pnpm --filter @opencairn/api test
@@ -1980,15 +2644,15 @@ pnpm --filter @opencairn/web typecheck
 
 All green. Move any hardcoded Korean strings to `messages/{ko,en}/sidebar.json`.
 
-- [ ] **Step 16.2: Plans-status update**
+- [x] **Step 16.2: Plans-status update**
 
 Mark Plan Phase 2 complete in `docs/contributing/plans-status.md`. Record HEAD SHA.
 
-- [ ] **Step 16.3: Memory**
+- [x] **Step 16.3: Memory**
 
 Write memory entry `project_plan_app_shell_phase_2_complete.md`.
 
-- [ ] **Step 16.4: Commit**
+- [x] **Step 16.4: Commit**
 
 ```bash
 git add docs/contributing/plans-status.md
@@ -1999,14 +2663,14 @@ git commit -m "docs(docs): mark app shell phase 2 complete"
 
 ## Completion Criteria
 
-- [ ] ADR 0008 committed
-- [ ] `pages.path` migrated + backfilled
-- [ ] Tree API (list, perms, SSE) tests green
-- [ ] react-arborist + dnd-kit tree renders, supports drag-drop, rename, keyboard
-- [ ] Workspace switcher + project hero + global nav + footer wired
-- [ ] Empty state when no projects
-- [ ] E2E sidebar spec passes, 5K-page perf test under 300ms
-- [ ] Manual smoke: open workspace → tree loads → create page in another tab via API → SSE pushes it into sidebar live
+- [x] ADR 009 committed
+- [x] `folders.path` migrated + backfilled (notes unchanged)
+- [x] Tree API (list, perms, SSE) tests green — folders + notes as discriminated nodes
+- [x] react-arborist + dnd-kit tree renders both folders and notes, supports drag-drop (folder move via ltree, note move via `folder_id`), rename, keyboard
+- [x] Workspace switcher + project hero + global nav + footer wired
+- [x] Empty state when no projects
+- [x] E2E sidebar spec passes, 5K-node perf test under 300ms
+- [x] Manual smoke: open workspace → tree loads → POST /folders and POST /notes in another tab via API → SSE pushes both into sidebar live
 
 ## What's NOT in this plan
 

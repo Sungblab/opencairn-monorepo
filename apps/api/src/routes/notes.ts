@@ -1,14 +1,32 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
+import { z } from "zod";
 import { db, notes, projects, eq, and, desc, isNull, sql } from "@opencairn/db";
 import { createNoteSchema, updateNoteSchema } from "@opencairn/shared";
 
 // PATCH body ignores `content` — Yjs (via Hocuspocus) is canonical (Plan 2B).
-const patchNoteSchema = updateNoteSchema.omit({ content: true });
+// `folderId` is also stripped here: moves must go through /:id/move, which
+// enforces cross-project scope via moveNote(). Allowing folderId on this
+// route would let a caller re-parent a note into another project's folder,
+// since the DB has no FK guarding `notes.folder_id → folders.project_id =
+// notes.project_id`.
+const patchNoteSchema = updateNoteSchema.omit({
+  content: true,
+  folderId: true,
+});
+
+// Move-only body. A dedicated endpoint keeps this orthogonal to the
+// Yjs-coupled `/:id` PATCH that silently strips `content`.
+const moveNoteSchema = z.object({
+  folderId: z.string().uuid().nullable(),
+});
+
 import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite, resolveRole } from "../lib/permissions";
 import { isUuid } from "../lib/validators";
 import { plateValueToText } from "../lib/plate-text";
+import { moveNote } from "../lib/tree-queries";
+import { emitTreeEvent } from "../lib/tree-events";
 import type { AppEnv } from "../lib/types";
 
 export const noteRoutes = new Hono<AppEnv>()
@@ -99,8 +117,59 @@ export const noteRoutes = new Hono<AppEnv>()
       .insert(notes)
       .values({ ...body, workspaceId: proj.workspaceId, contentText })
       .returning();
+
+    emitTreeEvent({
+      kind: "tree.note_created",
+      projectId: note.projectId,
+      id: note.id,
+      parentId: note.folderId,
+      label: note.title,
+      at: new Date().toISOString(),
+    });
+
     return c.json(note, 201);
   })
+
+  // Move endpoint. Registered BEFORE `/:id` so the literal `move` suffix
+  // matches before Hono considers `/:id` a candidate. Uses moveNote which
+  // enforces project scope; emits tree.note_moved after the write commits.
+  .patch(
+    "/:id/move",
+    zValidator("json", moveNoteSchema),
+    async (c) => {
+      const user = c.get("user");
+      const id = c.req.param("id");
+      if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+      if (!(await canWrite(user.id, { type: "note", id }))) {
+        return c.json({ error: "Forbidden" }, 403);
+      }
+      const [current] = await db
+        .select({ projectId: notes.projectId, folderId: notes.folderId })
+        .from(notes)
+        .where(and(eq(notes.id, id), isNull(notes.deletedAt)));
+      if (!current) return c.json({ error: "Not found" }, 404);
+
+      const { folderId: newFolderId } = c.req.valid("json");
+      try {
+        await moveNote({
+          projectId: current.projectId,
+          noteId: id,
+          newFolderId,
+        });
+      } catch (err) {
+        return c.json({ error: (err as Error).message }, 400);
+      }
+
+      emitTreeEvent({
+        kind: "tree.note_moved",
+        projectId: current.projectId,
+        id,
+        parentId: newFolderId,
+        at: new Date().toISOString(),
+      });
+      return c.json({ ok: true });
+    },
+  )
 
   // Plan 2B: content/content_text are now Yjs-canonical — persisted only by
   // Hocuspocus `onStoreDocument`. PATCH accepts meta fields only; any
@@ -112,12 +181,32 @@ export const noteRoutes = new Hono<AppEnv>()
     if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
     if (!(await canWrite(user.id, { type: "note", id }))) return c.json({ error: "Forbidden" }, 403);
     const body = c.req.valid("json");
+    // Capture prev title to detect rename deltas for SSE. folderId is
+    // intentionally NOT fetched here — moves route through /:id/move.
+    const [prev] = await db
+      .select({ title: notes.title })
+      .from(notes)
+      .where(and(eq(notes.id, id), isNull(notes.deletedAt)));
+    if (!prev) return c.json({ error: "Not found" }, 404);
     const [note] = await db
       .update(notes)
       .set(body)
       .where(and(eq(notes.id, id), isNull(notes.deletedAt)))
       .returning();
     if (!note) return c.json({ error: "Not found" }, 404);
+
+    const renamed = body.title !== undefined && body.title !== prev.title;
+    if (renamed) {
+      emitTreeEvent({
+        kind: "tree.note_renamed",
+        projectId: note.projectId,
+        id: note.id,
+        parentId: note.folderId,
+        label: note.title,
+        at: new Date().toISOString(),
+      });
+    }
+
     return c.json(note);
   })
 
@@ -132,5 +221,14 @@ export const noteRoutes = new Hono<AppEnv>()
       .where(and(eq(notes.id, id), isNull(notes.deletedAt)))
       .returning();
     if (!note) return c.json({ error: "Not found" }, 404);
+
+    emitTreeEvent({
+      kind: "tree.note_deleted",
+      projectId: note.projectId,
+      id: note.id,
+      parentId: note.folderId,
+      at: new Date().toISOString(),
+    });
+
     return c.json({ success: true });
   });

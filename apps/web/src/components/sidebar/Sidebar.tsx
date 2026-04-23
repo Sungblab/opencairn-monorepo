@@ -1,6 +1,6 @@
 "use client";
 import { useTranslations } from "next-intl";
-import { useProjectTree } from "@/hooks/use-project-tree";
+import { useLegacyProjectTree } from "@/hooks/use-legacy-project-tree";
 import { FolderTree } from "./FolderTree";
 import { NewNoteButton } from "./NewNoteButton";
 
@@ -14,7 +14,7 @@ export function Sidebar({
   projectName: string;
 }) {
   const t = useTranslations("sidebar");
-  const tree = useProjectTree(projectId);
+  const tree = useLegacyProjectTree(projectId);
 
   return (
     <aside

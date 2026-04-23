@@ -127,6 +127,13 @@
       "when": 1776939436961,
       "tag": "0017_users_last_viewed_workspace",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1776952020451,
+      "tag": "0018_folders_ltree_path",
+      "breakpoints": true
     }
   ]
 }
