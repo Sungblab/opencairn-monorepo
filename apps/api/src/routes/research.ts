@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { randomUUID } from "node:crypto";
 import { zValidator } from "@hono/zod-validator";
 import {
   db,
@@ -81,25 +82,21 @@ researchRouter.post(
       return c.json({ error: "forbidden" }, 403);
     }
 
-    // Insert DB row first. workflowId = id = runId (1:1, idempotent).
-    const [inserted] = await db
-      .insert(researchRuns)
-      .values({
-        workspaceId: body.workspaceId,
-        projectId: body.projectId,
-        userId,
-        topic: body.topic,
-        model: body.model,
-        billingPath: body.billingPath,
-        status: "planning",
-        workflowId: "", // filled below
-      })
-      .returning({ id: researchRuns.id });
-    const runId = inserted.id;
-    await db
-      .update(researchRuns)
-      .set({ workflowId: runId, updatedAt: new Date() })
-      .where(eq(researchRuns.id, runId));
+    // Generate the id in the app layer so workflowId == id in a single insert
+    // (the column is NOT NULL). Eliminates the redundant follow-up UPDATE and
+    // the intermediate `workflowId: ""` half-state.
+    const runId = randomUUID();
+    await db.insert(researchRuns).values({
+      id: runId,
+      workspaceId: body.workspaceId,
+      projectId: body.projectId,
+      userId,
+      topic: body.topic,
+      model: body.model,
+      billingPath: body.billingPath,
+      status: "planning",
+      workflowId: runId,
+    });
 
     // Start Temporal workflow. Arg shape matches DeepResearchInput dataclass
     // in apps/worker/src/worker/workflows/deep_research_workflow.py.
@@ -170,32 +167,25 @@ researchRouter.get(
 researchRouter.get("/runs/:id", requireAuth, async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
-  if (!/^[0-9a-f-]{36}$/i.test(id)) {
-    return c.json({ error: "not_found" }, 404);
-  }
 
-  const [run] = await db
-    .select()
-    .from(researchRuns)
-    .where(eq(researchRuns.id, id));
+  const run = await loadRunForUser(id, userId);
   if (!run) return c.json({ error: "not_found" }, 404);
 
-  if (!(await canRead(userId, { type: "workspace", id: run.workspaceId }))) {
-    // Hide existence on cross-workspace access — 404, not 403.
-    return c.json({ error: "not_found" }, 404);
-  }
-
-  const turns = await db
-    .select()
-    .from(researchRunTurns)
-    .where(eq(researchRunTurns.runId, id))
-    .orderBy(asc(researchRunTurns.seq));
-
-  const artifacts = await db
-    .select()
-    .from(researchRunArtifacts)
-    .where(eq(researchRunArtifacts.runId, id))
-    .orderBy(asc(researchRunArtifacts.seq));
+  // Parallelise the two independent reads. The detail endpoint is on the
+  // Phase D hot path (initial hydration before SSE takes over), so saving
+  // one round-trip matters.
+  const [turns, artifacts] = await Promise.all([
+    db
+      .select()
+      .from(researchRunTurns)
+      .where(eq(researchRunTurns.runId, id))
+      .orderBy(asc(researchRunTurns.seq)),
+    db
+      .select()
+      .from(researchRunArtifacts)
+      .where(eq(researchRunArtifacts.runId, id))
+      .orderBy(asc(researchRunArtifacts.seq)),
+  ]);
 
   return c.json({
     id: run.id,
@@ -394,22 +384,29 @@ researchRouter.post(
       return c.json({ error: "no_plan_yet" }, 409);
     }
 
-    const [{ nextSeq }] = await db
-      .select({ nextSeq: max(researchRunTurns.seq) })
-      .from(researchRunTurns)
-      .where(eq(researchRunTurns.runId, runId));
-    await db.insert(researchRunTurns).values({
-      runId,
-      seq: (nextSeq ?? -1) + 1,
-      role: "user",
-      kind: "approval",
-      content: approved,
+    // Approval must land atomically: either the approval turn AND
+    // approvedPlanText both commit, or neither does. Otherwise a crash
+    // between the INSERT and UPDATE leaves an orphan approval turn with
+    // approvedPlanText still null, and the subsequent signal fires against
+    // a half-committed state. Temporal signal stays OUTSIDE the tx because
+    // the SDK call is not transactional and shouldn't hold DB locks.
+    await db.transaction(async (tx) => {
+      const [{ nextSeq }] = await tx
+        .select({ nextSeq: max(researchRunTurns.seq) })
+        .from(researchRunTurns)
+        .where(eq(researchRunTurns.runId, runId));
+      await tx.insert(researchRunTurns).values({
+        runId,
+        seq: (nextSeq ?? -1) + 1,
+        role: "user",
+        kind: "approval",
+        content: approved,
+      });
+      await tx
+        .update(researchRuns)
+        .set({ approvedPlanText: approved, updatedAt: new Date() })
+        .where(eq(researchRuns.id, runId));
     });
-
-    await db
-      .update(researchRuns)
-      .set({ approvedPlanText: approved, updatedAt: new Date() })
-      .where(eq(researchRuns.id, runId));
 
     const client = await getTemporalClient();
     const handle = client.workflow.getHandle(run.workflowId);
@@ -467,6 +464,11 @@ researchRouter.get("/runs/:id/stream", requireAuth, async (c) => {
   const MAX_MINUTES = 70; // cover the 60min workflow cap + persistence slack
   const MAX_TICKS = (MAX_MINUTES * 60 * 1000) / POLL_MS;
 
+  // Flag flipped by the stream's cancel callback when the client disconnects
+  // (browser close, navigation, fetch abort). Checked at each loop boundary so
+  // the 2s-poll + 70min-cap combo doesn't keep hammering the DB for a reader
+  // that's already gone.
+  let aborted = false;
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const encoder = new TextEncoder();
@@ -481,6 +483,7 @@ researchRouter.get("/runs/:id/stream", requireAuth, async (c) => {
 
       try {
         while (tick < MAX_TICKS) {
+          if (aborted) break;
           const [row] = await db
             .select({
               status: researchRuns.status,
@@ -574,6 +577,9 @@ researchRouter.get("/runs/:id/stream", requireAuth, async (c) => {
       } finally {
         controller.close();
       }
+    },
+    cancel() {
+      aborted = true;
     },
   });
 
