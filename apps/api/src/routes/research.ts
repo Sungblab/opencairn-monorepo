@@ -11,6 +11,7 @@ import {
   asc,
   desc,
   max,
+  gt,
 } from "@opencairn/db";
 import {
   createResearchRunSchema,
@@ -447,6 +448,143 @@ researchRouter.post("/runs/:id/cancel", requireAuth, async (c) => {
   await handle.signal("cancel");
 
   return c.json({ cancelled: true }, 202);
+});
+
+// GET /api/research/runs/:id/stream  — SSE progress stream
+//
+// Polling-based like /api/import/jobs/:id/events: every 2s, query the run
+// row + any new turns + any new artifacts since last seq, emit events,
+// close on terminal status. Pure projection — no Temporal coupling on this
+// endpoint so an API restart doesn't take the stream down.
+researchRouter.get("/runs/:id/stream", requireAuth, async (c) => {
+  const userId = c.get("userId");
+  const runId = c.req.param("id");
+
+  const run = await loadRunForUser(runId, userId);
+  if (!run) return c.json({ error: "not_found" }, 404);
+
+  const POLL_MS = 2_000;
+  const MAX_MINUTES = 70; // cover the 60min workflow cap + persistence slack
+  const MAX_TICKS = (MAX_MINUTES * 60 * 1000) / POLL_MS;
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const encoder = new TextEncoder();
+      const send = (data: unknown) => {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+      };
+
+      let lastStatus: string | null = null;
+      let lastTurnSeq = -1;
+      let lastArtifactSeq = -1;
+      let tick = 0;
+
+      try {
+        while (tick < MAX_TICKS) {
+          const [row] = await db
+            .select({
+              status: researchRuns.status,
+              projectId: researchRuns.projectId,
+              noteId: researchRuns.noteId,
+              error: researchRuns.error,
+            })
+            .from(researchRuns)
+            .where(eq(researchRuns.id, runId));
+          if (!row) break;
+
+          if (row.status !== lastStatus) {
+            send({ type: "status", status: row.status });
+            lastStatus = row.status;
+          }
+
+          const newTurns = await db
+            .select()
+            .from(researchRunTurns)
+            .where(
+              and(
+                eq(researchRunTurns.runId, runId),
+                gt(researchRunTurns.seq, lastTurnSeq),
+              ),
+            )
+            .orderBy(asc(researchRunTurns.seq));
+          for (const t of newTurns) {
+            send({
+              type: "turn",
+              turn: {
+                id: t.id,
+                seq: t.seq,
+                role: t.role,
+                kind: t.kind,
+                interactionId: t.interactionId,
+                content: t.content,
+                createdAt: t.createdAt.toISOString(),
+              },
+            });
+            lastTurnSeq = t.seq;
+          }
+
+          const newArts = await db
+            .select()
+            .from(researchRunArtifacts)
+            .where(
+              and(
+                eq(researchRunArtifacts.runId, runId),
+                gt(researchRunArtifacts.seq, lastArtifactSeq),
+              ),
+            )
+            .orderBy(asc(researchRunArtifacts.seq));
+          for (const a of newArts) {
+            send({
+              type: "artifact",
+              artifact: {
+                id: a.id,
+                seq: a.seq,
+                kind: a.kind,
+                payload: a.payload,
+                createdAt: a.createdAt.toISOString(),
+              },
+            });
+            lastArtifactSeq = a.seq;
+          }
+
+          if (row.error) {
+            send({
+              type: "error",
+              code: (row.error as { code: string }).code,
+              message: (row.error as { message: string }).message,
+            });
+          }
+
+          if (
+            row.status === "completed" ||
+            row.status === "failed" ||
+            row.status === "cancelled"
+          ) {
+            send({
+              type: "done",
+              noteId: row.noteId,
+              projectId: row.projectId,
+            });
+            break;
+          }
+
+          await new Promise((r) => setTimeout(r, POLL_MS));
+          tick += 1;
+        }
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
 });
 
 export { researchRouter };

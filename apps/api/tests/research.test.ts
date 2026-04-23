@@ -481,6 +481,74 @@ describe("POST /api/research/runs/:id/cancel", () => {
   });
 });
 
+describe("GET /api/research/runs/:id/stream", () => {
+  let ctx: SeedResult;
+  beforeEach(async () => {
+    ctx = await seedWorkspace({ role: "editor" });
+  });
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  it("emits status + turn events then done on completion", async () => {
+    const runId = await createPlanningRun(ctx);
+
+    // Drive the run to a terminal state across a couple of polls.
+    const driver = (async () => {
+      await new Promise((r) => setTimeout(r, 100));
+      await db.insert(researchRunTurns).values({
+        runId, seq: 0, role: "agent", kind: "plan_proposal", content: "plan",
+      });
+      await db
+        .update(researchRuns)
+        .set({ status: "awaiting_approval", updatedAt: new Date() })
+        .where(eq(researchRuns.id, runId));
+      await new Promise((r) => setTimeout(r, 2200));
+      await db
+        .update(researchRuns)
+        .set({
+          status: "completed",
+          completedAt: new Date(),
+          noteId: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(researchRuns.id, runId));
+    })();
+
+    const res = await authedFetch(`/api/research/runs/${runId}/stream`, {
+      method: "GET",
+      userId: ctx.userId,
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/event-stream");
+
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    const seen: string[] = [];
+    const deadline = Date.now() + 10_000;
+    outer: while (Date.now() < deadline) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const text = decoder.decode(value);
+      seen.push(text);
+      if (text.includes('"type":"done"')) break outer;
+    }
+    await driver;
+    const all = seen.join("");
+    expect(all).toContain('"type":"status"');
+    expect(all).toContain('"type":"turn"');
+    expect(all).toContain('"type":"done"');
+  }, 15_000);
+
+  it("returns 404 when the run does not exist", async () => {
+    const res = await authedFetch(
+      `/api/research/runs/00000000-0000-0000-0000-000000000000/stream`,
+      { method: "GET", userId: ctx.userId },
+    );
+    expect(res.status).toBe(404);
+  });
+});
+
 describe("POST /api/research/runs/:id/approve", () => {
   let ctx: SeedResult;
   beforeEach(async () => {
