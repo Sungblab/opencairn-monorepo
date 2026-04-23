@@ -18,7 +18,7 @@ import {
 import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite } from "../lib/permissions";
 import { getPresignedPutUrl } from "../lib/s3";
-import { getTemporalClient } from "../lib/temporal-client";
+import { getTemporalClient, taskQueue } from "../lib/temporal-client";
 import { isUuid } from "../lib/validators";
 import type { AppEnv } from "../lib/types";
 
@@ -91,10 +91,6 @@ async function runningImportCount(userId: string): Promise<number> {
       ),
     );
   return rows.length;
-}
-
-function taskQueue(): string {
-  return process.env.TEMPORAL_TASK_QUEUE ?? "ingest";
 }
 
 importRouter.post(

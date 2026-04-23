@@ -15,3 +15,10 @@ export async function getTemporalClient(): Promise<Client> {
   });
   return _client;
 }
+
+// Both ingest and deep-research route their workflows through the same
+// task queue today; kept here so adding a third caller doesn't tempt a
+// third copy of the env-fallback string.
+export function taskQueue(): string {
+  return process.env.TEMPORAL_TASK_QUEUE ?? "ingest";
+}
