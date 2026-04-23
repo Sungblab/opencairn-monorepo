@@ -121,11 +121,27 @@ export function NoteEditor({
   // is a one-shot. Lives on a ref (not state) so it doesn't cause a
   // re-render on the first keystroke.
   const firstEditFiredRef = useRef(false);
-  const notifyFirstEdit = useCallback(() => {
-    if (firstEditFiredRef.current) return;
-    firstEditFiredRef.current = true;
-    onFirstEdit?.();
-  }, [onFirstEdit]);
+  const notifyFirstEditOnKey = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (firstEditFiredRef.current) return;
+      // Modifier chords (⌘S, ⌘A, ⌘C, etc.) are not "edits" for promotion
+      // purposes — the user is inspecting or saving, not authoring. Alt on
+      // its own is often used for word-nav and special-char entry; leave
+      // it out of promotion too.
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      // Printable one-character keys (letters, digits, punctuation) are
+      // real authoring. e.key.length === 1 distinguishes "a" from
+      // "ArrowLeft" / "Tab" / "Escape" / "Shift". Bare modifiers (Shift
+      // held alone) have e.key === "Shift" and fail the length check.
+      const isPrintable = e.key.length === 1;
+      const isEditingKey =
+        e.key === "Backspace" || e.key === "Delete" || e.key === "Enter";
+      if (!isPrintable && !isEditingKey) return;
+      firstEditFiredRef.current = true;
+      onFirstEdit?.();
+    },
+    [onFirstEdit],
+  );
 
   const patchTitle = useCallback(
     async (value: string) => {
@@ -231,7 +247,7 @@ export function NoteEditor({
           first interactive input. Capture-phase so ancestor toolbar keys
           still bubble normally. */}
       <div
-        onKeyDownCapture={readOnly ? undefined : notifyFirstEdit}
+        onKeyDownCapture={readOnly ? undefined : notifyFirstEditOnKey}
         className="contents"
       >
       {/* Outer flex row: editor column (flex-1) on the left, CommentsPanel
