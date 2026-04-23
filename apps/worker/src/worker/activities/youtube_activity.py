@@ -28,11 +28,49 @@ import os
 import tempfile
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import yt_dlp
 from llm import get_provider
 from llm.base import ProviderConfig
 from temporalio import activity
+
+
+# Hostnames that the API's isYoutubeUrl() allows. Mirrored here so the
+# worker does not blindly trust the dispatch payload: if a later code path
+# ever smuggled a non-YouTube URL with mime=x-opencairn/youtube, yt-dlp's
+# generic extractor would happily download arbitrary sites (SSRF-ish +
+# unbounded bandwidth) and pass the audio to the LLM pipeline.
+# [Tier 1 item 1-4 / Plan 3 C-2]
+_ALLOWED_YOUTUBE_HOSTS = frozenset({"youtube.com", "youtu.be", "m.youtube.com", "www.youtube.com", "music.youtube.com"})
+
+
+def _assert_youtube_url(url: str) -> None:
+    """Raise if `url` is not a YouTube host. Called before yt-dlp fetches.
+
+    Acceptable hostnames match the exact allowlist or any `*.youtube.com`
+    subdomain (mirrors the API-side regex in apps/api/src/routes/ingest.ts).
+    Any URL that fails here would otherwise be handed to yt-dlp's generic
+    extractor, which will cheerfully download from arbitrary sites.
+    """
+    try:
+        parsed = urlparse(url)
+    except ValueError as exc:
+        raise ValueError(f"youtube_activity: unparseable URL: {url!r}") from exc
+
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(f"youtube_activity: non-http(s) scheme: {parsed.scheme!r}")
+
+    hostname = (parsed.hostname or "").lower()
+    if not hostname:
+        raise ValueError("youtube_activity: missing hostname")
+
+    if hostname in _ALLOWED_YOUTUBE_HOSTS or hostname.endswith(".youtube.com"):
+        return
+
+    raise ValueError(
+        f"youtube_activity: hostname {hostname!r} is not a YouTube host; refusing to dispatch to yt-dlp"
+    )
 
 
 def _provider_config() -> ProviderConfig:
@@ -69,6 +107,9 @@ def _download_youtube_audio(url: str, out_dir: Path) -> tuple[Path, str, str]:
         "quiet": True,
         "no_warnings": True,
     }
+    # Re-validate the hostname immediately before yt-dlp touches it so a
+    # malformed dispatch payload cannot bypass the API-side check.
+    _assert_youtube_url(url)
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
         title = info.get("title") or "YouTube Video"
@@ -110,6 +151,9 @@ async def ingest_youtube(inp: dict) -> dict:
     downstream source-note writer gets a self-describing artefact.
     """
     url: str = inp["url"]
+    # Fail fast before creating temp dirs or logging the URL body if it is
+    # not actually a YouTube URL. [Tier 1 item 1-4]
+    _assert_youtube_url(url)
     activity.logger.info("Ingesting YouTube URL: %s", url)
 
     tmp_dir = Path(tempfile.mkdtemp())

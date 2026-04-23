@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { randomUUID, randomBytes } from "node:crypto";
@@ -32,6 +32,11 @@ import { createMultiRoleSeed } from "../lib/test-seed-multi";
 import { isUuid } from "../lib/validators";
 import { plateValueToText } from "../lib/plate-text";
 import type { AppEnv } from "../lib/types";
+import {
+  assertResourceWorkspace,
+  assertManyResourceWorkspace,
+  WorkspaceMismatchError,
+} from "../lib/internal-assert";
 
 // Internal-only routes — reachable by worker callbacks on the docker network.
 // Auth is a shared secret (INTERNAL_API_SECRET) carried in `X-Internal-Secret`;
@@ -56,6 +61,23 @@ internal.use("*", async (c, next) => {
 // `::vector` casts at query time.
 function vectorLiteral(values: number[]): string {
   return `[${values.join(",")}]`;
+}
+
+// Runs `check`, catches WorkspaceMismatchError, returns a 403 Response.
+// Non-mismatch errors rethrow for the global handler. [Tier 1 item 1-3]
+async function guardWorkspace(
+  c: Context<AppEnv>,
+  check: () => Promise<void>,
+): Promise<Response | null> {
+  try {
+    await check();
+    return null;
+  } catch (err) {
+    if (err instanceof WorkspaceMismatchError) {
+      return c.json({ error: "workspace_mismatch" }, 403);
+    }
+    throw err;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -688,6 +710,11 @@ internal.get("/projects/:id/concept-pairs", async (c) => {
 // then deletes the duplicates. Description is left untouched (Librarian's
 // LLM already updated primary via /concepts/upsert before calling merge).
 const mergeConceptsSchema = z.object({
+  // Tier 1 item 1-3: require workspaceId so we can enforce that every
+  // concept id in the payload belongs to the claimed workspace before we
+  // start mutating. Prevents a worker bug from merging a foreign-workspace
+  // concept (which would silently *delete* someone else's row).
+  workspaceId: z.string().uuid(),
   primaryId: z.string().uuid(),
   duplicateIds: z.array(z.string().uuid()).min(1).max(50),
 });
@@ -701,31 +728,67 @@ internal.post(
       return c.json({ error: "primary cannot be in duplicates" }, 400);
     }
 
-    // Perform the reparent + delete atomically: a concurrent Compiler
-    // run on the same project could otherwise link a dying concept and
-    // leak a dangling row. node-postgres doesn't expose a top-level
-    // transaction helper in the drizzle binding we use — a single raw
-    // SQL BEGIN/COMMIT block is simpler than plumbing a separate client.
-    const dupArray = sql.raw(
-      `ARRAY[${body.duplicateIds.map((d) => `'${d}'::uuid`).join(",")}]`,
-    );
-    await db.execute(sql`
-      BEGIN;
-      UPDATE concept_edges SET source_id = ${body.primaryId}
-        WHERE source_id = ANY(${dupArray});
-      UPDATE concept_edges SET target_id = ${body.primaryId}
-        WHERE target_id = ANY(${dupArray});
-      -- An edge from primary to itself is meaningless; delete the self-loops
-      -- that the reparent above may have just created.
-      DELETE FROM concept_edges WHERE source_id = target_id;
-      INSERT INTO concept_notes (concept_id, note_id)
+    // Workspace scope check runs outside the transaction so a foreign-
+    // workspace id returns 403 without ever opening a write transaction.
+    try {
+      await assertResourceWorkspace(db, body.workspaceId, {
+        type: "concept",
+        id: body.primaryId,
+      });
+      await assertManyResourceWorkspace(db, body.workspaceId, {
+        type: "concept",
+        ids: body.duplicateIds,
+      });
+    } catch (err) {
+      if (err instanceof WorkspaceMismatchError) {
+        return c.json({ error: "workspace_mismatch" }, 403);
+      }
+      throw err;
+    }
+
+    // Tier 1 item 1-1 (Plan 4 C-1 + Plan 1 H-5):
+    //   * Use `db.transaction()` so the reparent-then-delete sequence is
+    //     a real atomic unit. The old BEGIN/COMMIT string executed as a
+    //     single node-postgres `execute` which does NOT roll back on
+    //     interior failure — any error left concept_edges pointing at a
+    //     row that had already been deleted.
+    //   * Replace `sql.raw` string concatenation of the UUID array with
+    //     `sql.join` so the duplicate ids travel as typed parameters
+    //     rather than being interpolated into the query body.
+    //   * `VALUES (...) :: uuid` casts keep the array typing explicit
+    //     without a raw `ARRAY[]` literal.
+    const dupArray = sql`ARRAY[${sql.join(
+      body.duplicateIds.map((id) => sql`${id}::uuid`),
+      sql`, `,
+    )}]`;
+
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`
+        UPDATE concept_edges SET source_id = ${body.primaryId}
+        WHERE source_id = ANY(${dupArray})
+      `);
+      await tx.execute(sql`
+        UPDATE concept_edges SET target_id = ${body.primaryId}
+        WHERE target_id = ANY(${dupArray})
+      `);
+      // An edge from primary to itself is meaningless; delete the self-
+      // loops that the reparent above may have just created.
+      await tx.execute(sql`
+        DELETE FROM concept_edges WHERE source_id = target_id
+      `);
+      await tx.execute(sql`
+        INSERT INTO concept_notes (concept_id, note_id)
         SELECT ${body.primaryId}, note_id FROM concept_notes
         WHERE concept_id = ANY(${dupArray})
-        ON CONFLICT DO NOTHING;
-      DELETE FROM concept_notes WHERE concept_id = ANY(${dupArray});
-      DELETE FROM concepts WHERE id = ANY(${dupArray});
-      COMMIT;
-    `);
+        ON CONFLICT DO NOTHING
+      `);
+      await tx.execute(sql`
+        DELETE FROM concept_notes WHERE concept_id = ANY(${dupArray})
+      `);
+      await tx.execute(sql`
+        DELETE FROM concepts WHERE id = ANY(${dupArray})
+      `);
+    });
 
     return c.json({ ok: true, mergedCount: body.duplicateIds.length });
   },
@@ -808,6 +871,7 @@ internal.post("/notes/:id/refresh-tsv", async (c) => {
 // crash-safety belt: a holder that dies without releasing frees its slot
 // automatically once `now() > expires_at`.
 const semaphoreAcquireSchema = z.object({
+  workspaceId: z.string().uuid(),
   projectId: z.string().uuid(),
   holderId: z.string().min(1).max(200),
   purpose: z.string().min(1).max(100),
@@ -820,73 +884,94 @@ internal.post(
   zValidator("json", semaphoreAcquireSchema),
   async (c) => {
     const body = c.req.valid("json");
+
+    const guard = await guardWorkspace(c, () =>
+      assertResourceWorkspace(db, body.workspaceId, {
+        type: "project",
+        id: body.projectId,
+      }),
+    );
+    if (guard) return guard;
+
     const now = new Date();
     const expiresAt = new Date(now.getTime() + body.ttlSeconds * 1000);
 
-    // 1. Sweep expired slots first so capacity reflects reality.
-    await db
-      .delete(projectSemaphoreSlots)
-      .where(
-        and(
-          eq(projectSemaphoreSlots.projectId, body.projectId),
-          lt(projectSemaphoreSlots.expiresAt, now),
-        ),
+    // Tier 1 item 1-2 (Plan 4 C-2):
+    //   The old sweep → count → insert sequence was three independent
+    //   statements, so two concurrent acquires on the same project could
+    //   both see `running < maxConcurrent` before either inserted. With
+    //   `max = 3` and a burst of 4 workers, we observed double-commit
+    //   in the wild. Wrap the whole transaction in
+    //   `pg_advisory_xact_lock(hashtext(projectId))` so concurrent
+    //   acquires on the same project serialize on the advisory lock and
+    //   release it automatically at commit/rollback. The lock is per-
+    //   project so different projects remain independently concurrent.
+    const result = await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtext(${body.projectId}::text))`,
       );
 
-    // 2. Idempotent renewal — if this holder already owns a slot, extend
-    // the deadline and report success. Covers the common case of an
-    // activity retry after a transient crash between acquire and the
-    // workflow body starting.
-    const [existing] = await db
-      .select({ id: projectSemaphoreSlots.id })
-      .from(projectSemaphoreSlots)
-      .where(
-        and(
-          eq(projectSemaphoreSlots.projectId, body.projectId),
-          eq(projectSemaphoreSlots.holderId, body.holderId),
-        ),
-      );
-    if (existing) {
-      await db
-        .update(projectSemaphoreSlots)
-        .set({ expiresAt })
-        .where(eq(projectSemaphoreSlots.id, existing.id));
-      return c.json({ acquired: true, renewed: true });
-    }
+      // 1. Sweep expired slots inside the lock so capacity reflects reality
+      //    AND another concurrent acquire cannot race the sweep.
+      await tx
+        .delete(projectSemaphoreSlots)
+        .where(
+          and(
+            eq(projectSemaphoreSlots.projectId, body.projectId),
+            lt(projectSemaphoreSlots.expiresAt, now),
+          ),
+        );
 
-    // 3. Count active slots and conditionally insert. We do this in two
-    // statements — a single `INSERT ... SELECT WHERE count < N` would be
-    // atomic but harder to read; since the common case is no contention
-    // and we re-check on the next poll, a rare over-commit is acceptable.
-    const [runningRow] = await db
-      .select({ n: count() })
-      .from(projectSemaphoreSlots)
-      .where(eq(projectSemaphoreSlots.projectId, body.projectId));
-    const running = Number(runningRow?.n ?? 0);
-    if (running >= body.maxConcurrent) {
-      return c.json({ acquired: false, running });
-    }
+      // 2. Idempotent renewal — if this holder already owns a slot, extend
+      //    the deadline and report success. Covers the common case of an
+      //    activity retry after a transient crash between acquire and the
+      //    workflow body starting.
+      const [existing] = await tx
+        .select({ id: projectSemaphoreSlots.id })
+        .from(projectSemaphoreSlots)
+        .where(
+          and(
+            eq(projectSemaphoreSlots.projectId, body.projectId),
+            eq(projectSemaphoreSlots.holderId, body.holderId),
+          ),
+        );
+      if (existing) {
+        await tx
+          .update(projectSemaphoreSlots)
+          .set({ expiresAt })
+          .where(eq(projectSemaphoreSlots.id, existing.id));
+        return { acquired: true as const, renewed: true as const };
+      }
 
-    try {
-      await db.insert(projectSemaphoreSlots).values({
+      // 3. Count and conditionally insert. With the advisory lock held,
+      //    the count is consistent for the remainder of the transaction
+      //    so a separate INSERT ... SELECT WHERE NOT EXISTS is not needed.
+      const [runningRow] = await tx
+        .select({ n: count() })
+        .from(projectSemaphoreSlots)
+        .where(eq(projectSemaphoreSlots.projectId, body.projectId));
+      const running = Number(runningRow?.n ?? 0);
+      if (running >= body.maxConcurrent) {
+        return { acquired: false as const, running };
+      }
+
+      await tx.insert(projectSemaphoreSlots).values({
         projectId: body.projectId,
         holderId: body.holderId,
         purpose: body.purpose,
         expiresAt,
       });
-    } catch {
-      // Unique index race — another request beat us with the same
-      // (projectId, holderId). Treat as "we already have it".
-      return c.json({ acquired: true, renewed: true });
-    }
+      return { acquired: true as const, renewed: false as const };
+    });
 
-    return c.json({ acquired: true, renewed: false });
+    return c.json(result);
   },
 );
 
 // POST /internal/semaphores/release — drop a holder's slot. Safe to call
 // twice (no-op if already released).
 const semaphoreReleaseSchema = z.object({
+  workspaceId: z.string().uuid(),
   projectId: z.string().uuid(),
   holderId: z.string().min(1).max(200),
 });
@@ -896,6 +981,15 @@ internal.post(
   zValidator("json", semaphoreReleaseSchema),
   async (c) => {
     const body = c.req.valid("json");
+
+    const guard = await guardWorkspace(c, () =>
+      assertResourceWorkspace(db, body.workspaceId, {
+        type: "project",
+        id: body.projectId,
+      }),
+    );
+    if (guard) return guard;
+
     await db
       .delete(projectSemaphoreSlots)
       .where(

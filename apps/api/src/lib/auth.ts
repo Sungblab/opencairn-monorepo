@@ -13,6 +13,22 @@ const trustedOrigins =
 
 const webUrl = process.env.WEB_URL ?? "http://localhost:3000";
 
+// Google OAuth is only registered when both credentials are present. Empty-
+// string fallbacks let the server accept `/sign-in/social?provider=google`
+// and hit Google with blank clientId — an opaque failure path that leaked
+// stack traces in the old setup. When unset we omit the provider and the
+// One Tap plugin entirely, so Better Auth cleanly rejects the route.
+// [Tier 1 item 1-7 / Plan 1 C-3]
+const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim();
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
+const googleOAuthEnabled = Boolean(googleClientId && googleClientSecret);
+
+if (!googleOAuthEnabled && process.env.NODE_ENV !== "test") {
+  console.info(
+    "[auth] Google OAuth disabled — set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to enable.",
+  );
+}
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: "pg" }),
   emailAndPassword: {
@@ -29,12 +45,14 @@ export const auth = betterAuth({
     },
     callbackURL: `${webUrl}/ko/auth/verify-email`,
   },
-  socialProviders: {
-    google: {
-      clientId: process.env.GOOGLE_CLIENT_ID ?? "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
-    },
-  },
+  socialProviders: googleOAuthEnabled
+    ? {
+        google: {
+          clientId: googleClientId!,
+          clientSecret: googleClientSecret!,
+        },
+      }
+    : {},
   session: {
     expiresIn: 60 * 60 * 24 * 7,
   },
@@ -56,6 +74,6 @@ export const auth = betterAuth({
       "/send-verification-email": { window: 60, max: 3 },
     },
   },
-  plugins: [oneTap()],
+  plugins: googleOAuthEnabled ? [oneTap()] : [],
   trustedOrigins,
 });

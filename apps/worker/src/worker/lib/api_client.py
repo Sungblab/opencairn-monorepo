@@ -259,15 +259,24 @@ class AgentApiClient:
     async def merge_concepts(
         self,
         *,
+        workspace_id: str,
         primary_id: str,
         duplicate_ids: list[str],
     ) -> int:
         """Collapse duplicates into primary — re-points edges / concept_notes
         and deletes the duplicate rows. Returns the number of merged rows.
+
+        ``workspace_id`` is enforced server-side (Tier 1 item 1-3). A
+        mismatched id on any of the concept rows returns 403
+        ``workspace_mismatch`` and raises ``httpx.HTTPStatusError`` here.
         """
         res = await post_internal(
             "/api/internal/concepts/merge",
-            {"primaryId": primary_id, "duplicateIds": duplicate_ids},
+            {
+                "workspaceId": workspace_id,
+                "primaryId": primary_id,
+                "duplicateIds": duplicate_ids,
+            },
         )
         return int(res.get("mergedCount", 0))
 
@@ -279,6 +288,7 @@ class AgentApiClient:
     async def acquire_semaphore(
         self,
         *,
+        workspace_id: str,
         project_id: str,
         holder_id: str,
         purpose: str,
@@ -288,10 +298,13 @@ class AgentApiClient:
         """Try to claim a concurrency slot for this project. Returns a dict
         with ``acquired`` (bool) and — on success — ``renewed`` (bool); on
         failure the response also carries ``running`` (int) for diagnostics.
+
+        ``workspace_id`` is enforced server-side (Tier 1 item 1-3 + 1-2).
         """
         res = await post_internal(
             "/api/internal/semaphores/acquire",
             {
+                "workspaceId": workspace_id,
                 "projectId": project_id,
                 "holderId": holder_id,
                 "purpose": purpose,
@@ -304,13 +317,18 @@ class AgentApiClient:
     async def release_semaphore(
         self,
         *,
+        workspace_id: str,
         project_id: str,
         holder_id: str,
     ) -> None:
         """Drop a holder's slot. Idempotent — calling twice is safe."""
         await post_internal(
             "/api/internal/semaphores/release",
-            {"projectId": project_id, "holderId": holder_id},
+            {
+                "workspaceId": workspace_id,
+                "projectId": project_id,
+                "holderId": holder_id,
+            },
         )
 
     # -- Plan 3b: embedding_batches lifecycle ------------------------------

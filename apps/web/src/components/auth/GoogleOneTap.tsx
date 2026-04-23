@@ -2,7 +2,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
-import { authClient } from "@/lib/auth-client";
+import { authClient, googleOAuthEnabled } from "@/lib/auth-client";
 
 // authClient is typed as the base return type; oneTapClient plugin adds
 // .oneTap() at runtime. Cast here to call it without widening the export type.
@@ -20,6 +20,11 @@ export function GoogleOneTap() {
   const locale = useLocale();
 
   useEffect(() => {
+    // Server has no Google creds configured → oneTapClient plugin was skipped
+    // and `client.oneTap` would throw. Same gate as GoogleButton.
+    // [Tier 1 item 1-7]
+    if (!googleOAuthEnabled) return;
+
     // FedCM frequently rejects on localhost with NetworkError even when the
     // OAuth client is configured — it needs a public HTTPS origin + proper
     // permissions policy. The regular Google button still works, so we just

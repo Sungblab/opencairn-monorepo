@@ -6,9 +6,13 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     environment:
-      POSTGRES_DB: opencairn
-      POSTGRES_USER: opencairn
-      POSTGRES_PASSWORD: changeme
+      POSTGRES_DB: ${POSTGRES_DB:-opencairn}
+      POSTGRES_USER: ${POSTGRES_USER:-opencairn}
+      # Required. `:?` fails `docker compose` at parse time if unset, so
+      # dev/prod never silently boot a database with a shared default
+      # password. Set in `.env` (gitignored) or export in the shell.
+      # [Tier 1 item 1-6 / Plan 1 C-6]
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U opencairn -d opencairn"]
       interval: 10s
@@ -38,7 +42,10 @@ services:
     ports:
       - "1234:1234"
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgres://opencairn:changeme@postgres:5432/opencairn}
+      # If DATABASE_URL is unset, build it from the same POSTGRES_USER /
+      # POSTGRES_PASSWORD that the `postgres` service requires above — no
+      # more baked-in `changeme` fallback. [Tier 1 item 1-6]
+      - DATABASE_URL=${DATABASE_URL:-postgres://${POSTGRES_USER:-opencairn}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-opencairn}}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env}
       - HOCUSPOCUS_ORIGINS=${HOCUSPOCUS_ORIGINS:-http://localhost:3000}
       - HOCUSPOCUS_PORT=1234
@@ -89,7 +96,10 @@ services:
       - DB=postgres12
       - DB_PORT=5432
       - POSTGRES_USER=${POSTGRES_USER:-opencairn}
-      - POSTGRES_PWD=${POSTGRES_PASSWORD:-changeme}
+      # No literal fallback — POSTGRES_PASSWORD is already required at the
+      # `postgres` service above (`:?`), so compose fails parse before
+      # reaching a stale default. [Tier 1 item 1-6]
+      - POSTGRES_PWD=${POSTGRES_PASSWORD}
       - POSTGRES_SEEDS=postgres
     depends_on:
       postgres:
@@ -121,7 +131,7 @@ services:
       context: .
       dockerfile: apps/worker/Dockerfile
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgres://opencairn:changeme@postgres:5432/opencairn}
+      - DATABASE_URL=${DATABASE_URL:-postgres://${POSTGRES_USER:-opencairn}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-opencairn}}
       - TEMPORAL_ADDRESS=${TEMPORAL_ADDRESS:-temporal:7233}
       - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
       - TEMPORAL_TASK_QUEUE=${TEMPORAL_TASK_QUEUE:-ingest}
