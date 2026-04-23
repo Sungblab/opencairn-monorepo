@@ -5,7 +5,7 @@
 **Goal:** Replace Phase 1 placeholder sidebar with the real left-panel UI: workspace switcher dropdown, global nav (4 icons + "더보기"), project hero dropdown, scoped search shortcut, virtualized project-scoped tree with drag-drop + keyboard + inline rename, and a footer with user + notifications + workspace settings entry. Includes the backend tree API and SSE meta stream.
 
 **Architecture:**
-- Postgres `ltree` materialized-path column on `pages` (ADR 0008 decided in Task 1) for `O(log n)` tree queries and move operations.
+- Postgres `ltree` materialized-path column on `pages` (ADR 009 decided in Task 1) for `O(log n)` tree queries and move operations.
 - `GET /api/projects/:id/tree?parent_id=X` returns 2-depth prefetch; `GET /api/projects/:id/permissions` batches project-level permissions; `GET /api/stream/projects/:id/tree` SSE streams `page.created/renamed/moved/deleted/restored` events.
 - Frontend: `react-arborist` for virtualization + keyboard + focus management; `@dnd-kit/core` for 3-way drag-drop and accessibility; `zustand` selectors to prevent reconciliation bombs; `@tanstack/react-query` for server state + SSE-driven invalidation.
 
@@ -21,7 +21,7 @@
 **New files:**
 
 ```
-docs/architecture/adr/0008-page-tree-storage.md               # decision record
+docs/architecture/adr/009-page-tree-storage.md                # decision record
 packages/db/drizzle/NNNN_pages_ltree.sql                      # schema migration
 packages/db/src/schema/pages.ts                               # +path column (likely existing file)
 
@@ -78,17 +78,17 @@ apps/web/tests/e2e/sidebar.spec.ts
 
 ---
 
-## Task 1: ADR 0008 — page tree storage (`ltree` vs closure table)
+## Task 1: ADR 009 — page tree storage (`ltree` vs closure table)
 
 Block dependency for the rest of Plan 2. Short decision document rather than a commit-worthy investigation; the spec already argues for `ltree` on read-heavy + small-move workloads. This task formalizes the call.
 
 **Files:**
-- Create: `docs/architecture/adr/0008-page-tree-storage.md`
+- Create: `docs/architecture/adr/009-page-tree-storage.md`
 
 - [ ] **Step 1.1: Write the ADR**
 
 ```markdown
-# ADR 0008 — Page Tree Storage
+# ADR 009 — Page Tree Storage
 
 **Date:** 2026-04-23
 **Status:** Accepted
@@ -126,7 +126,7 @@ Revisit if a project grows > 50K pages AND move operations cluster (e.g., batch 
 - [ ] **Step 1.2: Commit**
 
 ```bash
-git add docs/architecture/adr/0008-page-tree-storage.md
+git add docs/architecture/adr/009-page-tree-storage.md
 git commit -m "docs(adr): adopt postgres ltree for page tree storage"
 ```
 
@@ -1999,7 +1999,7 @@ git commit -m "docs(docs): mark app shell phase 2 complete"
 
 ## Completion Criteria
 
-- [ ] ADR 0008 committed
+- [ ] ADR 009 committed
 - [ ] `pages.path` migrated + backfilled
 - [ ] Tree API (list, perms, SSE) tests green
 - [ ] react-arborist + dnd-kit tree renders, supports drag-drop, rename, keyboard

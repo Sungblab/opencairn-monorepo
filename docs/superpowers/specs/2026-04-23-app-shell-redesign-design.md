@@ -230,7 +230,7 @@ URL이 authoritative. 네 가지 규칙으로 동작:
 
 #### 4.6.1 백엔드
 
-- **트리 구조**: `pages.parent_id` (기존) + **materialized path (`ltree`) 또는 closure table** 중 택일 (§14 Open Question, Phase 2 시작 전 ADR 0008 결정).
+- **트리 구조**: `pages.parent_id` (기존) + **materialized path (`ltree`) 또는 closure table** 중 택일 (§14 Open Question, Phase 2 시작 전 ADR 009 결정).
 - **Lazy children API**: `GET /api/projects/<projectId>/tree?parent_id=<X>` — 기본 2단계 프리패치(요청한 depth + 1).
 - **권한 배칭**: `GET /api/projects/<projectId>/permissions` — 프로젝트 마운트 시 1회 호출, 클라이언트 캐시. 렌더 루프의 per-node 권한 체크 절대 금지.
 - **실시간 메타 채널**: `GET /api/stream/projects/<projectId>/tree` SSE. 이벤트:
@@ -1258,7 +1258,7 @@ CREATE TABLE message_feedback (
 );
 CREATE INDEX message_feedback_message_id_idx ON message_feedback(message_id);
 
--- 4) pages 트리 모델 (ADR 0008 결정 후 추가)
+-- 4) pages 트리 모델 (ADR 009 결정 후 추가)
 -- Option A: ltree
 --   ALTER TABLE pages ADD COLUMN path ltree;
 --   CREATE INDEX pages_path_gist ON pages USING GIST(path);
@@ -1322,7 +1322,7 @@ CREATE INDEX message_feedback_message_id_idx ON message_feedback(message_id);
 | Phase | 범위 | 예상 task | 전제 |
 |-------|------|-----------|------|
 | **1. Shell Frame** | `app-shell.tsx` 3영역 레이아웃, zustand stores 골격, URL ↔ tab sync, `⌘\` / `⌘J` 토글, Sheet 반응형 | 4~5 | — |
-| **2. Sidebar** | workspace switcher, global nav, project hero + 스위처, 푸터, react-arborist + dnd-kit 트리, lazy children, SSE stream, 권한 배칭, GUI 체크리스트 전부 | 8~10 | Phase 1, ADR 0008 (ltree vs closure) 결정 |
+| **2. Sidebar** | workspace switcher, global nav, project hero + 스위처, 푸터, react-arborist + dnd-kit 트리, lazy children, SSE stream, 권한 배칭, GUI 체크리스트 전부 | 8~10 | Phase 1, ADR 009 (ltree vs closure) 결정 |
 | **3. Tab System** | Tab store (per-workspace localStorage), 탭 바 UI, preview mode, 단축키, TabModeRouter, 4가지 core mode(plate/reading/source/data), overflow | 6~8 | Phase 1. Phase 2와 병렬 가능 |
 | **4. Agent Panel Shell** | panel shell, thread-list, conversation 렌더 (Plan 2D 흡수), scope chips, composer, API + DB 마이그레이션 | 5~6 | Phase 1. Plan 2D chat renderer 소스 재사용 |
 | **5. Routes & Palette** | dashboard / project / research hub / research run / import / ws settings 뷰, `/settings/*` account shell, cmdk palette, 알림 drawer | 6~7 | Phase 2, 3, 4. Phase D(Research UI)와 맞물림 |
@@ -1352,7 +1352,7 @@ CREATE INDEX message_feedback_message_id_idx ON message_feedback(message_id);
 
 ## 14. Open Questions (spec 확정 후 Phase별로 결정)
 
-- [ ] **Tree 백엔드**: `ltree` vs closure table — ADR 0008 로 결정. **Phase 2 시작 전 필수.**
+- [ ] **Tree 백엔드**: `ltree` vs closure table — ADR 009 로 결정. **Phase 2 시작 전 필수.**
 - [ ] **Preview tab 승격 트리거**: "편집 시작" 정의 — Plate `onChange` 첫 발화 vs 키입력 any (스크롤 제외). Phase 3 구현 시 결정.
 - [ ] **Agent panel 모바일(<640) UX**: Sheet로만 유지 vs 탭 전환식 fullscreen. Phase 1 POC로 검증.
 - [ ] **Palette 기본 스코프**: `이 프로젝트` vs `이 워크스페이스` default. 사용자 베타 피드백 후 결정.
