@@ -490,6 +490,7 @@ GET returns paginated history; POST accepts user message, persists it, invokes t
 Create `apps/api/src/lib/agent-pipeline.ts` with a streaming generator interface. The initial implementation can return a tiny stub response (echo + citation stub) so this plan can land without depending on runtime changes.
 
 ```ts
+import { eq } from "drizzle-orm";
 import { db, chatMessages } from "@opencairn/db";
 
 export interface AgentChunk {
@@ -514,10 +515,42 @@ export async function* runAgent(opts: {
   yield { type: "done", payload: {} };
 }
 
-export async function persistAgentMessage(threadId: string, content: object, mode: string) {
+/**
+ * Insert an empty agent row with status='streaming' BEFORE the SSE stream
+ * begins. Buffer-then-INSERT-at-end loses data on crash; per-token UPDATE
+ * amplifies writes to hundreds per message. Placeholder insert plus a
+ * single final UPDATE in a finally block is the middle ground — the row
+ * exists from turn zero so any crash leaves something recoverable and
+ * the thread list never lies about message count.
+ */
+export async function createStreamingAgentMessage(threadId: string, mode: string) {
   const [row] = await db
     .insert(chatMessages)
-    .values({ threadId, role: "agent", content, mode })
+    .values({
+      threadId,
+      role: "agent",
+      status: "streaming",
+      content: { body: "" },
+      mode,
+    })
+    .returning({ id: chatMessages.id });
+  return row;
+}
+
+/**
+ * Finalize the placeholder row. Callers pass `complete` on clean stream
+ * end, `failed` on pipeline error. Content always reflects whatever was
+ * buffered so the UI can display partial output for failed messages.
+ */
+export async function finalizeAgentMessage(
+  messageId: string,
+  content: object,
+  status: "complete" | "failed",
+) {
+  const [row] = await db
+    .update(chatMessages)
+    .set({ content, status })
+    .where(eq(chatMessages.id, messageId))
     .returning();
   return row;
 }
@@ -536,7 +569,7 @@ import { zValidator } from "@hono/zod-validator";
 import { and, asc, eq } from "drizzle-orm";
 import { db, chatThreads, chatMessages } from "@opencairn/db";
 import { requireSession } from "../lib/auth";
-import { runAgent, persistAgentMessage } from "../lib/agent-pipeline";
+import { runAgent, createStreamingAgentMessage, finalizeAgentMessage } from "../lib/agent-pipeline";
 
 const postBody = z.object({
   content: z.string().min(1),
@@ -572,27 +605,47 @@ export const threadsMessagesRoute = new Hono()
       .values({ threadId: id, role: "user", content: { body: content, scope }, mode })
       .returning();
 
+    // Create the agent row with status='streaming' BEFORE we begin
+    // emitting SSE frames. If the connection drops or the pipeline throws
+    // mid-stream, the row remains in the DB and we flag it `failed` in
+    // the finally block instead of silently losing the turn. Clients get
+    // the row id up front via `agent_placeholder` so optimistic UI can
+    // key off it.
+    const { id: agentId } = await createStreamingAgentMessage(id, mode);
+
     return streamSSE(c, async (stream) => {
       await stream.writeSSE({ event: "user_persisted", data: JSON.stringify({ id: userRow.id }) });
+      await stream.writeSSE({ event: "agent_placeholder", data: JSON.stringify({ id: agentId }) });
 
       const buffer: string[] = [];
       const meta: Record<string, unknown> = {};
-      for await (const chunk of runAgent({ threadId: id, userMessage: { content, scope }, mode })) {
-        if (chunk.type === "text") buffer.push((chunk.payload as { delta: string }).delta);
-        if (chunk.type === "status") meta.status = chunk.payload;
-        if (chunk.type === "thought") meta.thought = chunk.payload;
-        if (chunk.type === "citation") meta.citations = [...((meta.citations as unknown[]) ?? []), chunk.payload];
-        if (chunk.type === "save_suggestion") meta.save_suggestion = chunk.payload;
-        await stream.writeSSE({ event: chunk.type, data: JSON.stringify(chunk.payload) });
+      let streamStatus: "complete" | "failed" = "complete";
+      try {
+        for await (const chunk of runAgent({ threadId: id, userMessage: { content, scope }, mode })) {
+          if (chunk.type === "text") buffer.push((chunk.payload as { delta: string }).delta);
+          if (chunk.type === "status") meta.status = chunk.payload;
+          if (chunk.type === "thought") meta.thought = chunk.payload;
+          if (chunk.type === "citation") meta.citations = [...((meta.citations as unknown[]) ?? []), chunk.payload];
+          if (chunk.type === "save_suggestion") meta.save_suggestion = chunk.payload;
+          await stream.writeSSE({ event: chunk.type, data: JSON.stringify(chunk.payload) });
+        }
+      } catch (err) {
+        streamStatus = "failed";
+        await stream.writeSSE({
+          event: "error",
+          data: JSON.stringify({ message: err instanceof Error ? err.message : "agent failed" }),
+        });
+      } finally {
+        // Always finalize. On success we flip streaming→complete with
+        // full buffered content; on failure we keep whatever partial body
+        // we have so the UI can render "(중단됨 — N words)".
+        await finalizeAgentMessage(agentId, { body: buffer.join(""), ...meta }, streamStatus);
+        await db.update(chatThreads).set({ updatedAt: new Date() }).where(eq(chatThreads.id, id));
       }
-
-      const agentRow = await persistAgentMessage(
-        id,
-        { body: buffer.join(""), ...meta },
-        mode,
-      );
-      await stream.writeSSE({ event: "done", data: JSON.stringify({ id: agentRow.id }) });
-      await db.update(chatThreads).set({ updatedAt: new Date() }).where(eq(chatThreads.id, id));
+      await stream.writeSSE({
+        event: "done",
+        data: JSON.stringify({ id: agentId, status: streamStatus }),
+      });
     });
   });
 ```
@@ -624,6 +677,7 @@ describe("Threads messages", () => {
     });
 
     expect(events).toContain("user_persisted");
+    expect(events).toContain("agent_placeholder");
     expect(events).toContain("done");
     expect(events).toContain("status");
     expect(events).toContain("text");
@@ -632,6 +686,15 @@ describe("Threads messages", () => {
     expect(list.body.messages).toHaveLength(2);
     expect(list.body.messages[0].role).toBe("user");
     expect(list.body.messages[1].role).toBe("agent");
+    expect(list.body.messages[1].status).toBe("complete");
+  });
+
+  it("leaves the agent row as 'failed' when the pipeline throws mid-stream", async () => {
+    // Point runAgent at a generator that yields one text chunk then throws.
+    // Expected: SSE emits user_persisted + agent_placeholder + text + error
+    // + done; the stored agent row has status='failed' and body = partial
+    // chunk — never vanishes, never 404s for the client. See fixture
+    // `withFailingAgent` in tests/helpers.ts.
   });
 });
 ```
@@ -953,34 +1016,38 @@ export function useChatSend(threadId: string | null) {
       });
       if (!res.ok || !res.body) return;
 
+      // Parse SSE with `eventsource-parser` (Vercel-maintained; same lib
+      // the AI SDK uses internally). The previous hand-rolled
+      // `buf.split(/\n\n/)` didn\'t handle CRLF-style line endings,
+      // `:` comment heartbeats, or the spec\'s `id:` / `retry:` fields.
+      // Multi-byte handling was already correct via
+      // TextDecoder({stream:true}), so that part of the review reasoning
+      // is moot, but the other concerns are real and the library is
+      // ~1 KB + battle-tested on every major LLM stream.
+      const { createParser } = await import("eventsource-parser");
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      let buf = "";
+      const parser = createParser((ev) => {
+        if (ev.type !== "event" || !ev.event) return;
+        const payload = ev.data ? JSON.parse(ev.data) : null;
+        setLive((prev) => {
+          if (!prev) return prev;
+          switch (ev.event) {
+            case "agent_placeholder": return { ...prev, id: payload.id };
+            case "status": return { ...prev, status: payload };
+            case "thought": return { ...prev, thought: payload };
+            case "text": return { ...prev, body: prev.body + (payload.delta ?? "") };
+            case "citation": return { ...prev, citations: [...prev.citations, payload] };
+            case "save_suggestion": return { ...prev, save_suggestion: payload };
+            case "done": return { ...prev, id: payload.id ?? prev.id };
+            default: return prev;
+          }
+        });
+      });
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const parts = buf.split(/\n\n/);
-        buf = parts.pop() ?? "";
-        for (const part of parts) {
-          const lines = part.split("\n");
-          const event = lines.find((l) => l.startsWith("event: "))?.slice(7);
-          const data = lines.filter((l) => l.startsWith("data: ")).map((l) => l.slice(6)).join("\n");
-          if (!event) continue;
-          const payload = data ? JSON.parse(data) : null;
-          setLive((prev) => {
-            if (!prev) return prev;
-            switch (event) {
-              case "status": return { ...prev, status: payload };
-              case "thought": return { ...prev, thought: payload };
-              case "text": return { ...prev, body: prev.body + (payload.delta ?? "") };
-              case "citation": return { ...prev, citations: [...prev.citations, payload] };
-              case "save_suggestion": return { ...prev, save_suggestion: payload };
-              case "done": return { ...prev, id: payload.id };
-              default: return prev;
-            }
-          });
-        }
+        parser.feed(decoder.decode(value, { stream: true }));
       }
       qc.invalidateQueries({ queryKey: ["thread-messages", threadId] });
       setLive(null);
