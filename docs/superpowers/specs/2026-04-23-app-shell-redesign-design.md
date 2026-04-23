@@ -241,7 +241,8 @@ URL이 authoritative. 네 가지 규칙으로 동작:
 - **실시간 메타 채널**: `GET /api/stream/projects/<projectId>/tree` SSE. 이벤트는 `kind` discriminator로 통일:
   - `tree.folder_created` — 새 폴더 (parent_id, id, name)
   - `tree.folder_renamed` — name 변경
-  - `tree.folder_moved` — parent_id 변경 (프로젝트 내부만)
+  - `tree.folder_moved` — parent_id 변경 (프로젝트 내부만, full-tree 무효화)
+  - `tree.folder_reordered` — parent_id 동일, position만 변경 (parent-scoped 무효화로 충분)
   - `tree.folder_deleted` — hard delete (폴더에 자식 있으면 거부 또는 cascade는 §14)
   - `tree.note_created` — 새 노트 (folder_id, id, title)
   - `tree.note_renamed` — title 변경
