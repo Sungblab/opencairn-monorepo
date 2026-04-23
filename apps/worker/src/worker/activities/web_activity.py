@@ -73,7 +73,7 @@ def _is_private(ip_str: str) -> bool:
     )
 
 
-def _resolve_host(host: str) -> list[str]:
+def _resolve_host_sync(host: str) -> list[str]:
     clean = host.strip("[]")
     try:
         return [info[4][0] for info in socket.getaddrinfo(clean, None)]
@@ -81,7 +81,18 @@ def _resolve_host(host: str) -> list[str]:
         return []
 
 
-def _assert_url_is_public(url: str) -> None:
+async def _resolve_host(host: str) -> list[str]:
+    """DNS lookup via thread pool.
+
+    ``socket.getaddrinfo`` is a blocking syscall; calling it inline on an
+    asyncio worker would freeze the event loop for the full resolution time
+    (seconds under packet loss / timeouts). We bounce through
+    ``asyncio.to_thread`` so the event loop stays responsive.
+    """
+    return await asyncio.to_thread(_resolve_host_sync, host)
+
+
+async def _assert_url_is_public(url: str) -> None:
     """Raise ``ApplicationError(non_retryable=True)`` if ``url`` targets a
     private or otherwise unsafe destination. Checks scheme, literal IP,
     and DNS resolution for hostnames.
@@ -107,7 +118,7 @@ def _assert_url_is_public(url: str) -> None:
             type="ssrf_blocked",
             non_retryable=True,
         )
-    addrs = _resolve_host(host)
+    addrs = await _resolve_host(host)
     if not addrs:
         raise ApplicationError(
             f"DNS resolution failed for {host}",
@@ -123,25 +134,6 @@ def _assert_url_is_public(url: str) -> None:
             )
 
 
-async def _stream_with_cap(client: httpx.AsyncClient, url: str) -> str:
-    """Stream response body with a hard byte cap. Decode as UTF-8 (replace
-    on invalid). Raises ``ApplicationError`` if the cap is exceeded.
-    """
-    async with client.stream("GET", url) as response:
-        response.raise_for_status()
-        chunks: list[bytes] = []
-        total = 0
-        async for chunk in response.aiter_bytes():
-            total += len(chunk)
-            if total > MAX_BYTES:
-                raise ApplicationError(
-                    f"Response exceeded {MAX_BYTES} bytes",
-                    type="response_too_large",
-                )
-            chunks.append(chunk)
-    return b"".join(chunks).decode("utf-8", errors="replace")
-
-
 async def _scrape_impl(url: str) -> dict:
     """Core SSRF-safe scraping. Pure async function — no Temporal activity
     context, so tests can call it directly. Returns ``{"text", "has_complex_layout"}``
@@ -153,20 +145,35 @@ async def _scrape_impl(url: str) -> dict:
         timeout=HTTP_TIMEOUT,
         headers={"User-Agent": USER_AGENT},
     ) as client:
-        # Manual redirect loop: re-validate every hop so a public first
-        # response cannot redirect us onto an internal address.
+        # Manual redirect loop: re-validate every hop AND stream every
+        # response under a size cap in a single request. The earlier version
+        # called ``client.get`` first (buffering the whole body unconditionally)
+        # and only then decided to stream — a large non-redirect response
+        # therefore bypassed the cap entirely. Using ``client.stream`` as the
+        # single entry point closes that OOM window. (Tier 0 review follow-up.)
         for _ in range(MAX_REDIRECTS + 1):
-            _assert_url_is_public(current_url)
-            response = await client.get(current_url)
-            if response.status_code in (301, 302, 303, 307, 308):
-                location = response.headers.get("location")
-                if not location:
-                    break
-                current_url = urljoin(current_url, location)
-                continue
-            # Not a redirect: re-fetch with streaming so we can cap the size.
-            html = await _stream_with_cap(client, current_url)
-            break
+            await _assert_url_is_public(current_url)
+            async with client.stream("GET", current_url) as response:
+                if response.status_code in (301, 302, 303, 307, 308):
+                    location = response.headers.get("location")
+                    if not location:
+                        html = ""
+                        break
+                    current_url = urljoin(current_url, location)
+                    continue
+                response.raise_for_status()
+                chunks: list[bytes] = []
+                total = 0
+                async for chunk in response.aiter_bytes():
+                    total += len(chunk)
+                    if total > MAX_BYTES:
+                        raise ApplicationError(
+                            f"Response exceeded {MAX_BYTES} bytes",
+                            type="response_too_large",
+                        )
+                    chunks.append(chunk)
+                html = b"".join(chunks).decode("utf-8", errors="replace")
+                break
         else:
             raise ApplicationError(
                 f"Too many redirects (>{MAX_REDIRECTS})",
