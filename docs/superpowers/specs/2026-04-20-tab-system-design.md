@@ -1,7 +1,19 @@
 # Tab System Design Spec
 
+> **Status: Superseded (2026-04-23)**
+> This document is historical. The authoritative spec is
+> [`2026-04-23-app-shell-redesign-design.md`](2026-04-23-app-shell-redesign-design.md).
+> Kept for context on original decisions and iteration history.
+>
+> Key divergences in the superseding spec:
+> - Tab store scope changed from global `sessionStorage` to per-workspace `localStorage`
+> - Tab history (`history`/`historyIdx`) removed — URL history takes over
+> - `⌘\` reassigned from split pane to sidebar toggle; split pane moved to `⌘⇧\`
+> - New `Tab.kind` field (dashboard / project / note / research_hub / research_run / import / ws_settings)
+> - New `Tab.preview` field (VSCode-style preview tab)
+
 **Date:** 2026-04-20
-**Status:** Draft
+**Status:** Superseded by 2026-04-23-app-shell-redesign-design.md
 **Related:** Plan 2 (Task 21~24), Plan 5 (KG 5뷰), Plan 6 (학습 시스템), Plan 7 (Canvas), Plan 10 (Document Skills)
 
 ---
