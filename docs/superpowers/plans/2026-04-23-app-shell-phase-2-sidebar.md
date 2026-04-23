@@ -252,6 +252,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { seedProject, seedPage, resetDb } from "./helpers";
 import {
   listChildren,
+  listChildrenForParents,
   getSubtree,
   movePage,
 } from "../src/lib/tree-queries";
@@ -270,6 +271,31 @@ describe("tree-queries", () => {
     expect(rows).toHaveLength(2);
     expect(rows.find((r) => r.id === a.id)?.childCount).toBe(1);
     expect(rows.find((r) => r.id === b.id)?.childCount).toBe(0);
+  });
+
+  it("listChildrenForParents batches children of many parents in one query", async () => {
+    const project = await seedProject();
+    const r1 = await seedPage({ projectId: project.id, parentId: null, title: "R1" });
+    const r2 = await seedPage({ projectId: project.id, parentId: null, title: "R2" });
+    const r3 = await seedPage({ projectId: project.id, parentId: null, title: "R3" });
+    const r1a = await seedPage({ projectId: project.id, parentId: r1.id, title: "R1.A" });
+    const r1b = await seedPage({ projectId: project.id, parentId: r1.id, title: "R1.B" });
+    const r2a = await seedPage({ projectId: project.id, parentId: r2.id, title: "R2.A" });
+
+    const grouped = await listChildrenForParents({
+      projectId: project.id,
+      parentIds: [r1.id, r2.id, r3.id],
+    });
+
+    expect(grouped.get(r1.id)?.map((r) => r.id).sort()).toEqual([r1a.id, r1b.id].sort());
+    expect(grouped.get(r2.id)?.map((r) => r.id)).toEqual([r2a.id]);
+    expect(grouped.get(r3.id)).toEqual([]); // no children, still present
+  });
+
+  it("listChildrenForParents returns empty map for empty input", async () => {
+    const project = await seedProject();
+    const grouped = await listChildrenForParents({ projectId: project.id, parentIds: [] });
+    expect(grouped.size).toBe(0);
   });
 
   it("getSubtree returns depth-first including the root", async () => {
@@ -363,6 +389,46 @@ export async function listChildren(opts: {
     ORDER BY p.position ASC NULLS LAST, p.created_at ASC
   `);
   return rows.rows;
+}
+
+/**
+ * Batch sibling fetch: returns every direct child of the given parent ids in
+ * one query, grouped by parentId. Avoids N+1 when the `/projects/:id/tree`
+ * endpoint needs to prefetch grandchildren for every root. Parent ids must
+ * all belong to `opts.projectId` — the caller is responsible for that check.
+ * An empty `parentIds` returns an empty Map.
+ */
+export async function listChildrenForParents(opts: {
+  projectId: string;
+  parentIds: string[];
+}): Promise<Map<string, TreeRow[]>> {
+  const grouped = new Map<string, TreeRow[]>();
+  if (opts.parentIds.length === 0) return grouped;
+
+  const rows = await db.execute<TreeRow>(sql`
+    SELECT
+      p.id,
+      p.parent_id AS "parentId",
+      p.title,
+      p.icon,
+      p.path::text AS "pathText",
+      (
+        SELECT COUNT(*)::int
+        FROM pages c
+        WHERE c.parent_id = p.id
+      ) AS "childCount"
+    FROM pages p
+    WHERE p.project_id = ${opts.projectId}
+      AND p.parent_id = ANY(${opts.parentIds}::uuid[])
+      AND p.deleted_at IS NULL
+    ORDER BY p.position ASC NULLS LAST, p.created_at ASC
+  `);
+
+  for (const pid of opts.parentIds) grouped.set(pid, []);
+  for (const row of rows.rows) {
+    if (row.parentId) grouped.get(row.parentId)?.push(row);
+  }
+  return grouped;
 }
 
 export async function getSubtree(opts: {
@@ -529,7 +595,7 @@ Create `apps/api/src/routes/projects-tree.ts`:
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { listChildren } from "../lib/tree-queries";
+import { listChildren, listChildrenForParents } from "../lib/tree-queries";
 import { requireSession } from "../lib/auth";
 import { requireProjectMember } from "../lib/permissions";
 
@@ -546,20 +612,24 @@ export const projectsTreeRoute = new Hono()
       const { parent_id } = c.req.valid("query");
 
       const roots = await listChildren({ projectId, parentId: parent_id ?? null });
-      const children = await Promise.all(
-        roots.map(async (r) =>
-          r.childCount > 0 ? await listChildren({ projectId, parentId: r.id }) : [],
-        ),
-      );
+
+      // Batch-fetch grandchildren in a single query to avoid N+1. We only
+      // query for roots that actually have children — the childCount sub-
+      // select above is already paid for, so reuse it as a filter.
+      const parentsWithChildren = roots.filter((r) => r.childCount > 0).map((r) => r.id);
+      const grouped = await listChildrenForParents({
+        projectId,
+        parentIds: parentsWithChildren,
+      });
 
       return c.json({
-        pages: roots.map((r, i) => ({
+        pages: roots.map((r) => ({
           id: r.id,
           parent_id: r.parentId,
           title: r.title,
           icon: r.icon,
           child_count: r.childCount,
-          children: children[i].map((ch) => ({
+          children: (grouped.get(r.id) ?? []).map((ch) => ({
             id: ch.id,
             parent_id: ch.parentId,
             title: ch.title,

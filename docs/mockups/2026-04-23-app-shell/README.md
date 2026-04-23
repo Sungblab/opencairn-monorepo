@@ -4,11 +4,13 @@ Target state mockup for the full OpenCairn app — 3-column shell (sidebar / tab
 
 ## View
 
-Open `index.html` directly in a browser:
+Open `index.html` directly in a browser — from this directory:
 
 ```
-file:///C:/Users/Sungbin/Documents/GitHub/opencairn-monorepo/docs/mockups/2026-04-23-app-shell/index.html
+./index.html
 ```
+
+Or from the repo root: `docs/mockups/2026-04-23-app-shell/index.html`.
 
 Navigate via the sidebar or hash URLs (`#/dashboard`, `#/project`, `#/research`, ...).
 

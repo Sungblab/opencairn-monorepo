@@ -262,7 +262,9 @@ describe("newTab", () => {
 import type { Tab, TabKind, TabMode } from "@/stores/tabs-store";
 
 export function genTabId(): string {
-  return `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  // See phase 1 plan: `t_` prefix kept for debuggability; uniqueness from
+  // crypto.randomUUID to avoid collisions under rapid tab opens.
+  return `t_${crypto.randomUUID()}`;
 }
 
 function defaultMode(kind: TabKind): TabMode {
