@@ -1529,7 +1529,11 @@ function defaultTitleFor(kind: TabKind, targetId: string | null): string {
 }
 
 function newId() {
-  return `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  // `t_` prefix is retained for debuggability (tab IDs stand out in devtools /
+  // logs). Uniqueness comes from crypto.randomUUID — Date.now + 6-char random
+  // has meaningful collision risk under rapid tab opens (duplicate-hotkey,
+  // deep-link prefetch) which would corrupt the tabs map keyed on id.
+  return `t_${crypto.randomUUID()}`;
 }
 
 export function useUrlTabSync() {
