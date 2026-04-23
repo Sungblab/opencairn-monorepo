@@ -157,8 +157,16 @@ async def _scrape_impl(url: str) -> dict:
                 if response.status_code in (301, 302, 303, 307, 308):
                     location = response.headers.get("location")
                     if not location:
-                        html = ""
-                        break
+                        # A 3xx without Location is malformed per RFC 7231 §7.1.2.
+                        # The earlier code swallowed it as an empty scrape, which
+                        # meant compiler/ingest would happily embed and index an
+                        # empty note. Surface it as non-retryable so the ingest
+                        # worker parks the job instead of looping.
+                        raise ApplicationError(
+                            f"Redirect response missing Location header at {current_url}",
+                            type="invalid_redirect",
+                            non_retryable=True,
+                        )
                     current_url = urljoin(current_url, location)
                     continue
                 response.raise_for_status()
