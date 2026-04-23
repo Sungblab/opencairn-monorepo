@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { randomUUID } from "node:crypto";
 import { zValidator } from "@hono/zod-validator";
 import {
   db,
@@ -81,25 +82,21 @@ researchRouter.post(
       return c.json({ error: "forbidden" }, 403);
     }
 
-    // Insert DB row first. workflowId = id = runId (1:1, idempotent).
-    const [inserted] = await db
-      .insert(researchRuns)
-      .values({
-        workspaceId: body.workspaceId,
-        projectId: body.projectId,
-        userId,
-        topic: body.topic,
-        model: body.model,
-        billingPath: body.billingPath,
-        status: "planning",
-        workflowId: "", // filled below
-      })
-      .returning({ id: researchRuns.id });
-    const runId = inserted.id;
-    await db
-      .update(researchRuns)
-      .set({ workflowId: runId, updatedAt: new Date() })
-      .where(eq(researchRuns.id, runId));
+    // Generate the id in the app layer so workflowId == id in a single insert
+    // (the column is NOT NULL). Eliminates the redundant follow-up UPDATE and
+    // the intermediate `workflowId: ""` half-state.
+    const runId = randomUUID();
+    await db.insert(researchRuns).values({
+      id: runId,
+      workspaceId: body.workspaceId,
+      projectId: body.projectId,
+      userId,
+      topic: body.topic,
+      model: body.model,
+      billingPath: body.billingPath,
+      status: "planning",
+      workflowId: runId,
+    });
 
     // Start Temporal workflow. Arg shape matches DeepResearchInput dataclass
     // in apps/worker/src/worker/workflows/deep_research_workflow.py.
