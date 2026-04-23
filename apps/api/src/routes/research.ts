@@ -384,22 +384,29 @@ researchRouter.post(
       return c.json({ error: "no_plan_yet" }, 409);
     }
 
-    const [{ nextSeq }] = await db
-      .select({ nextSeq: max(researchRunTurns.seq) })
-      .from(researchRunTurns)
-      .where(eq(researchRunTurns.runId, runId));
-    await db.insert(researchRunTurns).values({
-      runId,
-      seq: (nextSeq ?? -1) + 1,
-      role: "user",
-      kind: "approval",
-      content: approved,
+    // Approval must land atomically: either the approval turn AND
+    // approvedPlanText both commit, or neither does. Otherwise a crash
+    // between the INSERT and UPDATE leaves an orphan approval turn with
+    // approvedPlanText still null, and the subsequent signal fires against
+    // a half-committed state. Temporal signal stays OUTSIDE the tx because
+    // the SDK call is not transactional and shouldn't hold DB locks.
+    await db.transaction(async (tx) => {
+      const [{ nextSeq }] = await tx
+        .select({ nextSeq: max(researchRunTurns.seq) })
+        .from(researchRunTurns)
+        .where(eq(researchRunTurns.runId, runId));
+      await tx.insert(researchRunTurns).values({
+        runId,
+        seq: (nextSeq ?? -1) + 1,
+        role: "user",
+        kind: "approval",
+        content: approved,
+      });
+      await tx
+        .update(researchRuns)
+        .set({ approvedPlanText: approved, updatedAt: new Date() })
+        .where(eq(researchRuns.id, runId));
     });
-
-    await db
-      .update(researchRuns)
-      .set({ approvedPlanText: approved, updatedAt: new Date() })
-      .where(eq(researchRuns.id, runId));
 
     const client = await getTemporalClient();
     const handle = client.workflow.getHandle(run.workflowId);
