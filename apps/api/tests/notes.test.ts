@@ -89,7 +89,7 @@ describe("PATCH /api/notes/:id", () => {
     expect(row!.contentText ?? "").toContain("Persisted body");
   });
 
-  it("deleted note returns 404", async () => {
+  it("deleted note is blocked (Plan 1 H-4: permissions treat soft-deleted as invisible)", async () => {
     await db
       .update(notes)
       .set({ deletedAt: new Date() })
@@ -99,7 +99,14 @@ describe("PATCH /api/notes/:id", () => {
       userId: ctx.userId,
       body: JSON.stringify({ title: "x" }),
     });
-    expect(res.status).toBe(404);
+    // After Tier 0 item 0-1, findWorkspaceId returns null for soft-deleted
+    // notes → canWrite fails before the UPDATE runs, so the route now 403s
+    // (previously returned 404 from the UPDATE no-row path). Either is a
+    // valid "blocked" response; the invariant is that the title is NOT
+    // rewritten.
+    expect(res.status).toBe(403);
+    const [row] = await db.select().from(notes).where(eq(notes.id, ctx.noteId));
+    expect(row!.title).not.toBe("x");
   });
 });
 

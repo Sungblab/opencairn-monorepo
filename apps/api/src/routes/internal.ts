@@ -21,6 +21,7 @@ import {
   researchRunArtifacts,
   eq,
   and,
+  isNull,
   sql,
   lt,
   count,
@@ -215,7 +216,10 @@ internal.get("/notes/:id", async (c) => {
       type: notes.type,
     })
     .from(notes)
-    .where(eq(notes.id, id));
+    // Tier 0 item 0-1: soft-deleted notes stay hidden from the worker path so
+    // the compiler does not re-embed a note after the owner emptied their
+    // trash. permissions.ts enforces the same invariant for session paths.
+    .where(and(eq(notes.id, id), isNull(notes.deletedAt)));
   if (!row) return c.json({ error: "Not found" }, 404);
   return c.json(row);
 });
@@ -772,12 +776,19 @@ internal.post("/notes/:id/refresh-tsv", async (c) => {
   if (!z.string().uuid().safeParse(id).success) {
     return c.json({ error: "Invalid note id" }, 400);
   }
-  await db.execute(sql`
-    UPDATE notes
-    SET content_tsv = to_tsvector('simple',
-      coalesce(title, '') || ' ' || coalesce(content_text, ''))
-    WHERE id = ${id}
-  `);
+  // Tier 0 item 0-1: skip soft-deleted notes so a stray Librarian rebuild
+  // does not regenerate the tsvector for rows the user already discarded.
+  // Using drizzle's update builder with .returning() gives us a typed row
+  // count (array length) without reaching into the raw pg driver shape.
+  const updated = await db
+    .update(notes)
+    .set({
+      contentTsv: sql`to_tsvector('simple',
+        coalesce(${notes.title}, '') || ' ' || coalesce(${notes.contentText}, ''))`,
+    })
+    .where(and(eq(notes.id, id), isNull(notes.deletedAt)))
+    .returning({ id: notes.id });
+  if (updated.length === 0) return c.json({ error: "Not found" }, 404);
   return c.json({ ok: true });
 });
 
@@ -1266,10 +1277,13 @@ internal.patch(
     if (body.title !== undefined) patch.title = body.title;
     if (body.sourceType !== undefined) patch.sourceType = body.sourceType;
     if (Object.keys(patch).length === 0) return c.json({ ok: true });
+    // Tier 0 item 0-1: soft-deleted notes must not be revived via this
+    // worker-facing backfill — the UI hides them and the trigger column
+    // alone does not block the UPDATE, so we filter here.
     const [updated] = await db
       .update(notes)
       .set(patch)
-      .where(eq(notes.id, id))
+      .where(and(eq(notes.id, id), isNull(notes.deletedAt)))
       .returning({ id: notes.id });
     if (!updated) return c.json({ error: "not_found" }, 404);
     return c.json({ ok: true });

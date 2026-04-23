@@ -1,8 +1,9 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { randomBytes, randomUUID } from "node:crypto";
-import { db, workspaces, workspaceMembers, user, eq } from "@opencairn/db";
+import { db, workspaces, workspaceMembers, workspaceInvites, user, and, eq } from "@opencairn/db";
 import { createApp } from "../src/app.js";
 import { createUser } from "./helpers/seed.js";
+import { signSessionCookie } from "./helpers/session.js";
 
 const app = createApp();
 
@@ -116,5 +117,116 @@ describe("GET /api/invites/:token", () => {
   it("returns 400 when token is shorter than 32 chars", async () => {
     const res = await app.request(`/api/invites/tooshort`);
     expect(res.status).toBe(400);
+  });
+});
+
+// Tier 0 item 0-4 (Plan 1 C-5): invite POST must be rate-limited per admin
+// so a compromised or malicious admin cannot email-bomb arbitrary addresses.
+// The limit is 10 invites / 60 seconds per (workspace, admin) bucket — chosen
+// because real admins rarely invite more than a handful at a time, while
+// attackers want orders of magnitude more.
+describe("POST /api/workspaces/:workspaceId/invites — rate limit", () => {
+  afterEach(async () => {
+    const { _resetRateLimits } = await import("../src/lib/rate-limit.js");
+    _resetRateLimits();
+    await cleanup();
+  });
+
+  it("per-admin bucket caps invite bursts (429 after ~10 in the window)", async () => {
+    const admin = await createUser();
+    createdUserIds.add(admin.id);
+    const workspaceId = randomUUID();
+    await db.insert(workspaces).values({
+      id: workspaceId,
+      slug: `rl-${randomBytes(4).toString("hex")}`,
+      name: "Rate Limit WS",
+      ownerId: admin.id,
+      planType: "free",
+    });
+    createdWorkspaceIds.add(workspaceId);
+    await db.insert(workspaceMembers).values({
+      workspaceId,
+      userId: admin.id,
+      role: "admin",
+    });
+
+    const cookie = await signSessionCookie(admin.id);
+    const statuses: number[] = [];
+    for (let i = 0; i < 15; i++) {
+      const r = await app.request(
+        `/api/workspaces/${workspaceId}/invites`,
+        {
+          method: "POST",
+          headers: { cookie, "content-type": "application/json" },
+          body: JSON.stringify({
+            email: `invitee-${i}-${randomBytes(3).toString("hex")}@ex.com`,
+            role: "member",
+          }),
+        },
+      );
+      statuses.push(r.status);
+    }
+
+    const created = statuses.filter((s) => s === 201).length;
+    const limited = statuses.filter((s) => s === 429).length;
+    expect(created).toBeLessThanOrEqual(10);
+    expect(limited).toBeGreaterThanOrEqual(5);
+    // Total must account for every attempt.
+    expect(created + limited).toBe(15);
+  });
+});
+
+// Tier 0 item 0-5 (Plan 1 C-2): concurrent accepts of the same invite must
+// produce exactly one member row. Without the `isNull(acceptedAt)` UPDATE
+// guard, two interleaved accepts can both pass the HTTP `if (inv.acceptedAt)`
+// check, then both run the UPDATE — relying entirely on the workspace_members
+// PK as the backstop. The guard is defense-in-depth: the UPDATE itself
+// returns zero rows for the losing transaction, so we do not rely on the
+// downstream unique-violation catch to preserve the invariant.
+describe("POST /api/invites/:token/accept — concurrency invariant", () => {
+  afterEach(cleanup);
+
+  it("concurrent accepts of the same invite yield exactly one member row", async () => {
+    const email = `race-${randomBytes(4).toString("hex")}@ex.com`;
+    const { token, workspaceId } = await seedInvite({ email });
+
+    // Create an authenticated user whose email matches the invite.
+    const targetUser = await createUser();
+    createdUserIds.add(targetUser.id);
+    await db.update(user).set({ email }).where(eq(user.id, targetUser.id));
+    const cookie = await signSessionCookie(targetUser.id);
+
+    const concurrency = 5;
+    const results = await Promise.all(
+      Array.from({ length: concurrency }, () =>
+        app.request(`/api/invites/${token}/accept`, {
+          method: "POST",
+          headers: { cookie, "content-type": "application/json" },
+          body: "{}",
+        }),
+      ),
+    );
+    const statuses = results.map((r) => r.status);
+    const successCount = statuses.filter((s) => s === 200).length;
+    expect(successCount).toBe(1);
+
+    // Exactly one membership row.
+    const members = await db
+      .select()
+      .from(workspaceMembers)
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, workspaceId),
+          eq(workspaceMembers.userId, targetUser.id),
+        ),
+      );
+    expect(members.length).toBe(1);
+
+    // Invite is now marked accepted exactly once (timestamp present).
+    const [inv] = await db
+      .select()
+      .from(workspaceInvites)
+      .where(eq(workspaceInvites.token, token));
+    expect(inv!.acceptedAt).not.toBeNull();
   });
 });

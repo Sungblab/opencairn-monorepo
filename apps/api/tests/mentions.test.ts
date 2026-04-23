@@ -44,6 +44,29 @@ describe("GET /api/mentions/search", () => {
     );
   });
 
+  // Tier 0 item 0-3 (Plan 2B C-1): user mention search must NOT expose member
+  // emails. The prior response leaked `sublabel = user.email`, which made the
+  // autocomplete a silent PII enumeration primitive for any workspace member.
+  it("user type does not expose member emails as sublabel", async () => {
+    const app = createApp();
+    const r = await app.request(
+      `/api/mentions/search?type=user&q=&workspaceId=${seed.workspaceId}`,
+      { headers: { cookie: await signSessionCookie(seed.editorUserId) } },
+    );
+    expect(r.status).toBe(200);
+    const json = await r.json();
+    expect(json.results.length).toBeGreaterThan(0);
+    for (const row of json.results as Array<Record<string, unknown>>) {
+      expect(row).not.toHaveProperty("email");
+      expect(row.sublabel).toBeUndefined();
+      // Label must also not be an email string — fall back to name or id,
+      // never the user's email even when name is null.
+      expect(typeof row.label === "string" && row.label.includes("@")).toBe(
+        false,
+      );
+    }
+  });
+
   it("page type excludes notes the caller cannot read", async () => {
     const app = createApp();
     const r = await app.request(

@@ -7,14 +7,23 @@ import {
   workspaceMembers,
   workspaces,
   user,
+  and,
   eq,
+  isNull,
 } from "@opencairn/db";
 import { randomBytes } from "node:crypto";
 import { requireAuth } from "../middleware/auth";
 import { requireWorkspaceRole } from "../middleware/require-role";
 import { sendInviteEmail } from "../lib/email";
 import { isUuid } from "../lib/validators";
+import { checkRateLimit } from "../lib/rate-limit";
 import type { AppEnv } from "../lib/types";
+
+// Tier 0 item 0-4 (Plan 1 C-5): cap invite bursts per (workspace, admin) to
+// 10/min. Real admins rarely send more than a handful; attackers want orders
+// of magnitude more.
+const INVITE_MAX = 10;
+const INVITE_WINDOW_MS = 60_000;
 
 export const inviteRoutes = new Hono<AppEnv>();
 
@@ -76,6 +85,17 @@ inviteRoutes.post(
     if (!isUuid(workspaceId)) return c.json({ error: "Bad Request" }, 400);
     const { email, role } = c.req.valid("json");
     const inviter = c.get("user");
+
+    const rl = checkRateLimit(
+      `invite:${workspaceId}:${inviter.id}`,
+      INVITE_MAX,
+      INVITE_WINDOW_MS,
+    );
+    if (!rl.allowed) {
+      c.header("Retry-After", String(rl.retryAfterSec));
+      return c.json({ error: "rate_limited" }, 429);
+    }
+
     const token = randomBytes(32).toString("base64url");
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
@@ -102,14 +122,38 @@ inviteRoutes.post("/invites/:token/accept", async (c) => {
     return c.json({ error: "Invite email does not match your account" }, 403);
   }
 
+  // Tier 0 item 0-5 (Plan 1 C-2): claim the invite BEFORE inserting the
+  // member so concurrent accepts serialize cleanly. The `isNull(acceptedAt)`
+  // guard means the losing transaction's UPDATE returns zero rows — we
+  // detect that via `rowCount === 1` and abort without relying on the
+  // workspace_members PK as the sole backstop (defense-in-depth).
+  const INVITE_RACE_LOST = Symbol("invite_race_lost");
   try {
     await db.transaction(async (tx) => {
+      const claimed = await tx
+        .update(workspaceInvites)
+        .set({ acceptedAt: new Date() })
+        .where(
+          and(
+            eq(workspaceInvites.id, inv.id),
+            isNull(workspaceInvites.acceptedAt),
+          ),
+        )
+        .returning({ id: workspaceInvites.id });
+      if (claimed.length !== 1) {
+        // Another concurrent caller already claimed the invite. Throw a
+        // sentinel so the outer handler maps it to the same 400 as the
+        // pre-transaction check above.
+        throw INVITE_RACE_LOST;
+      }
       await tx.insert(workspaceMembers).values({
         workspaceId: inv.workspaceId, userId: user.id, role: inv.role, invitedBy: inv.invitedBy,
       });
-      await tx.update(workspaceInvites).set({ acceptedAt: new Date() }).where(eq(workspaceInvites.id, inv.id));
     });
   } catch (err: unknown) {
+    if (err === INVITE_RACE_LOST) {
+      return c.json({ error: "Already accepted" }, 400);
+    }
     if (err && typeof err === "object" && "code" in err && (err as { code: string }).code === "23505") {
       return c.json({ error: "Already a member of this workspace" }, 409);
     }

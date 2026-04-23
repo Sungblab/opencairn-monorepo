@@ -38,6 +38,24 @@ export const auth = betterAuth({
   session: {
     expiresIn: 60 * 60 * 24 * 7,
   },
+  // Tier 0 item 0-4 (Plan 1 C-5): enable Better Auth's per-IP rate limiter so
+  // /sign-in, /sign-up, /forget-password etc. are not open brute-force or
+  // enumeration targets. Development has rate limiting disabled by default —
+  // `enabled: true` turns it on everywhere. Tighter custom rules cover the
+  // highest-abuse paths (account creation and password reset). Memory storage
+  // is per-process; multi-instance deployments should move this to the DB
+  // adapter (tracked as a Tier 1 follow-up).
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 100,
+    customRules: {
+      "/sign-up/email": { window: 60, max: 5 },
+      "/sign-in/email": { window: 60, max: 10 },
+      "/forget-password": { window: 60, max: 3 },
+      "/send-verification-email": { window: 60, max: 3 },
+    },
+  },
   plugins: [oneTap()],
   trustedOrigins,
 });
