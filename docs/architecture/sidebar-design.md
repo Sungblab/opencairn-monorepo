@@ -1,4 +1,21 @@
-# Sidebar Design (exploring — not a decision)
+# Sidebar Design (superseded)
+
+> **Status: Superseded (2026-04-23)**
+> This exploring draft was absorbed into the authoritative spec at
+> [`../superpowers/specs/2026-04-23-app-shell-redesign-design.md`](../superpowers/specs/2026-04-23-app-shell-redesign-design.md).
+> Kept for context on original decisions and iteration history.
+>
+> The superseding spec inherits:
+> - Performance budget (5K pages < 300ms, folder expand < 100ms, drag-drop < 50ms, 60fps resize)
+> - Frontend stack (react-arborist + dnd-kit + zustand + react-query + cmdk)
+> - Backend decisions (lazy children, batched permissions, SSE meta channel, no Yjs awareness)
+> - GUI checklist (keyboard, drag, rename, context menu, multi-select)
+> - Landmines (React reconciliation, Yjs coupling, per-node perm checks, drag-time DB writes)
+>
+> New in the superseding spec:
+> - Project-isolated tree scope (current project only, not workspace-wide)
+> - Workspace switcher / global nav / project hero / footer structure
+> - Explicit API endpoints (`/api/projects/:id/tree`, `/api/stream/projects/:id/tree`)
 
 > **Status: exploring** (2026-04-23). Notion 대체 포지션의 1차 진입 인상이 사이드바라는 판단 하에, **"리눅스급 성능 + macOS/Windows급 GUI"** 기준으로 구조와 성능 예산을 먼저 박아두는 문서. **결정 아님.**
 

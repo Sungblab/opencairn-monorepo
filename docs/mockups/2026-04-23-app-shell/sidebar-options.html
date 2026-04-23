@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sidebar Options — OpenCairn</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+  :root {
+    --theme-bg: #FFFFFF;
+    --theme-surface: #F5F5F5;
+    --theme-surface-deep: #EFEFEF;
+    --theme-border: #E5E5E5;
+    --theme-fg: #171717;
+    --theme-fg-muted: #737373;
+    --theme-accent: #404040;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #FAFAFA;
+    color: var(--theme-fg);
+    font-family: 'Pretendard Variable', Pretendard, -apple-system, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: 32px 24px 80px;
+    line-height: 1.5;
+  }
+  .page-head {
+    max-width: 1400px;
+    margin: 0 auto 24px;
+  }
+  .page-head h1 {
+    font-family: Georgia, serif;
+    font-size: 28px;
+    letter-spacing: -0.01em;
+    margin-bottom: 8px;
+  }
+  .page-head p {
+    font-size: 14px;
+    color: var(--theme-fg-muted);
+    max-width: 640px;
+  }
+  .grid {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  .grid .wide { grid-column: span 2; }
+  .card {
+    background: var(--theme-bg);
+    border: 1px solid var(--theme-border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+  .card-head {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--theme-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .card-head h3 {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .card-head .stamp {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--theme-fg-muted);
+  }
+  .preview {
+    height: 420px;
+    display: flex;
+    background: var(--theme-bg);
+    border-bottom: 1px solid var(--theme-border);
+    overflow: hidden;
+  }
+  .main-placeholder {
+    flex: 1;
+    background: repeating-linear-gradient(
+      45deg,
+      #FAFAFA,
+      #FAFAFA 8px,
+      #F5F5F5 8px,
+      #F5F5F5 16px
+    );
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--theme-fg-muted);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .card-body {
+    padding: 14px 18px 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    font-size: 12px;
+  }
+  .card-body h4 {
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--theme-fg-muted);
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .card-body ul { list-style: none; }
+  .card-body li { margin-bottom: 4px; line-height: 1.5; }
+  .pros li::before { content: "+ "; color: #16A34A; font-weight: 600; }
+  .cons li::before { content: "− "; color: #DC2626; font-weight: 600; }
+
+  .select-bar {
+    padding: 10px 18px;
+    background: var(--theme-surface);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+  }
+  .select-bar .recommended {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--theme-fg-muted);
+    font-size: 11px;
+  }
+  .select-bar .recommended::before {
+    content: "★";
+    color: var(--theme-fg);
+  }
+  .select-bar.no-rec .recommended { visibility: hidden; }
+  .btn {
+    padding: 6px 12px;
+    background: var(--theme-fg);
+    color: var(--theme-bg);
+    border: 1px solid var(--theme-fg);
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .btn:hover { opacity: 0.85; }
+
+  /* ─── Shared sidebar styles ─── */
+  .sb-base {
+    background: var(--theme-surface);
+    border-right: 1px solid var(--theme-border);
+    display: flex;
+    flex-direction: column;
+  }
+  .sb-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 4px;
+    color: var(--theme-fg);
+  }
+  .sb-row:hover { background: var(--theme-border); }
+  .sb-row.active { background: var(--theme-fg); color: var(--theme-bg); }
+  .sb-row.muted { color: var(--theme-fg-muted); }
+  .sb-row .icon { width: 11px; height: 11px; opacity: 0.75; flex-shrink: 0; }
+  .sb-label {
+    font-size: 10px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--theme-fg-muted);
+    padding: 0 8px;
+    font-weight: 500;
+  }
+  .sb-ws-switch {
+    margin: 10px 10px 6px;
+    padding: 6px 8px;
+    background: var(--theme-bg);
+    border: 1px solid var(--theme-border);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .sb-ws-switch .ws-icon {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    background: var(--theme-fg);
+    color: var(--theme-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .sb-ws-switch .chev {
+    margin-left: auto;
+    color: var(--theme-fg-muted);
+    font-size: 10px;
+  }
+  .sb-search {
+    margin: 4px 10px 8px;
+    padding: 5px 8px;
+    background: var(--theme-bg);
+    border: 1px solid var(--theme-border);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--theme-fg-muted);
+  }
+  .sb-search kbd {
+    margin-left: auto;
+    padding: 0 4px;
+    font-size: 10px;
+    font-family: ui-monospace, monospace;
+    background: var(--theme-surface);
+    border: 1px solid var(--theme-border);
+    border-radius: 3px;
+  }
+
+  /* ─── Variant 5: Hybrid (rail + NB-style header) ─── */
+  .v5 .rail {
+    width: 48px;
+    background: var(--theme-surface-deep);
+    border-right: 1px solid var(--theme-border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 0;
+    gap: 6px;
+  }
+  .v5 .rail .ws-root {
+    width: 32px; height: 32px;
+    background: var(--theme-bg);
+    border: 1px solid var(--theme-border);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: Georgia, serif;
+    font-size: 14px;
+  }
+  .v5 .rail .divider-line {
+    width: 20px;
+    height: 1px;
+    background: var(--theme-border);
+    margin: 2px 0;
+  }
+  .v5 .rail .pi {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--theme-bg);
+    border: 1px solid var(--theme-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    position: relative;
+    color: var(--theme-fg-muted);
+  }
+  .v5 .rail .pi:hover { background: var(--theme-surface); color: var(--theme-fg); }
+  .v5 .rail .pi.active {
+    background: var(--theme-fg);
+    color: var(--theme-bg);
+    border-color: var(--theme-fg);
+  }
+  .v5 .rail .pi.active::before {
+    content: "";
+    position: absolute;
+    left: -9px;
+    top: 4px;
+    bottom: 4px;
+    width: 3px;
+    border-radius: 2px;
+    background: var(--theme-fg);
+  }
+  .v5 .rail .add { color: var(--theme-fg-muted); font-size: 16px; font-weight: 300; }
+  .v5 .sidebar { width: 272px; }
+  .v5 .project-hero {
+    padding: 16px 16px 14px;
+    background: var(--theme-bg);
+    border-bottom: 1px solid var(--theme-border);
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .v5 .project-hero:hover { background: var(--theme-surface); }
+  .v5 .project-hero .tag {
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--theme-fg-muted);
+    margin-bottom: 5px;
+    font-weight: 500;
+  }
+  .v5 .project-hero .title {
+    font-family: Georgia, serif;
+    font-size: 20px;
+    letter-spacing: -0.015em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 1.15;
+  }
+  .v5 .project-hero .title .chev {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--theme-fg-muted);
+  }
+  .v5 .project-hero .meta {
+    font-size: 10.5px;
+    color: var(--theme-fg-muted);
+    margin-top: 4px;
+  }
+
+  /* ─── Variant 1: Left rail (Slack style) ─── */
+  .v1 .rail {
+    width: 48px;
+    background: var(--theme-surface-deep);
+    border-right: 1px solid var(--theme-border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 0;
+    gap: 6px;
+  }
+  .v1 .rail .pi {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--theme-bg);
+    border: 1px solid var(--theme-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    position: relative;
+    color: var(--theme-fg-muted);
+  }
+  .v1 .rail .pi:hover { background: var(--theme-surface); color: var(--theme-fg); }
+  .v1 .rail .pi.active {
+    background: var(--theme-fg);
+    color: var(--theme-bg);
+    border-color: var(--theme-fg);
+  }
+  .v1 .rail .pi.active::before {
+    content: "";
+    position: absolute;
+    left: -9px;
+    top: 4px;
+    bottom: 4px;
+    width: 3px;
+    border-radius: 2px;
+    background: var(--theme-fg);
+  }
+  .v1 .rail .ws-root {
+    width: 32px; height: 32px;
+    background: var(--theme-bg);
+    border: 1px solid var(--theme-border);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: Georgia, serif;
+    font-size: 14px;
+    margin-bottom: 2px;
+  }
+  .v1 .rail .divider-line {
+    width: 20px;
+    height: 1px;
+    background: var(--theme-border);
+    margin: 2px 0;
+  }
+  .v1 .rail .add {
+    color: var(--theme-fg-muted);
+    font-size: 16px;
+    font-weight: 300;
+  }
+  .v1 .sidebar {
+    width: 232px;
+  }
+  .v1 .project-head {
+    padding: 14px 14px 10px;
+    border-bottom: 1px solid var(--theme-border);
+  }
+  .v1 .project-head .name {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin-bottom: 2px;
+  }
+  .v1 .project-head .meta {
+    font-size: 10px;
+    color: var(--theme-fg-muted);
+  }
+
+  /* ─── Variant 2: Top project bar (NotebookLM style) ─── */
+  .v2 .sidebar {
+    width: 280px;
+  }
+  .v2 .ws-strip {
+    padding: 8px 14px;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--theme-fg-muted);
+    border-bottom: 1px dashed var(--theme-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .v2 .project-swap {
+    padding: 14px 14px 12px;
+    border-bottom: 1px solid var(--theme-border);
+    background: var(--theme-bg);
+    cursor: pointer;
+  }
+  .v2 .project-swap:hover { background: var(--theme-surface); }
+  .v2 .project-swap .tag {
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--theme-fg-muted);
+    margin-bottom: 4px;
+  }
+  .v2 .project-swap .title {
+    font-family: Georgia, serif;
+    font-size: 19px;
+    letter-spacing: -0.015em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .v2 .project-swap .title .chev {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--theme-fg-muted);
+  }
+  .v2 .project-swap .meta {
+    font-size: 10.5px;
+    color: var(--theme-fg-muted);
+    margin-top: 4px;
+  }
+
+  /* ─── Variant 3: Sidebar header (VS Code style) ─── */
+  .v3 .sidebar {
+    width: 264px;
+  }
+  .v3 .project-pick {
+    margin: 4px 10px 10px;
+    padding: 6px 8px;
+    background: var(--theme-bg);
+    border: 1px solid var(--theme-border);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .v3 .project-pick .folder-glyph {
+    width: 14px; height: 14px;
+    color: var(--theme-fg-muted);
+  }
+  .v3 .project-pick .chev {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--theme-fg-muted);
+  }
+  .v3 .project-pick:hover { background: var(--theme-surface); }
+
+  /* ─── Variant 4: Vault / back arrow ─── */
+  .v4 .sidebar {
+    width: 264px;
+  }
+  .v4 .back-strip {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--theme-border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--theme-fg-muted);
+    cursor: pointer;
+  }
+  .v4 .back-strip:hover { color: var(--theme-fg); }
+  .v4 .project-head {
+    padding: 12px 14px 14px;
+    border-bottom: 1px solid var(--theme-border);
+  }
+  .v4 .project-head .name {
+    font-family: Georgia, serif;
+    font-size: 19px;
+    letter-spacing: -0.015em;
+    margin-bottom: 3px;
+  }
+  .v4 .project-head .meta {
+    font-size: 10.5px;
+    color: var(--theme-fg-muted);
+  }
+  .v4 .overlay-note {
+    position: absolute;
+    inset: 0;
+    background: rgba(250,250,250,0.96);
+    backdrop-filter: blur(4px);
+    display: flex;
+    flex-direction: column;
+    padding: 32px;
+    font-size: 11px;
+    color: var(--theme-fg-muted);
+  }
+  .v4 .overlay-note .big {
+    font-family: Georgia, serif;
+    font-size: 18px;
+    color: var(--theme-fg);
+    margin-bottom: 10px;
+  }
+  .v4 .overlay-note ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 12px;
+  }
+  .v4 .overlay-note li {
+    padding: 8px 12px;
+    background: var(--theme-bg);
+    border: 1px solid var(--theme-border);
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--theme-fg);
+    cursor: pointer;
+  }
+  .v4 .overlay-note li:hover { background: var(--theme-surface); }
+  .v4 .overlay-note li.active {
+    background: var(--theme-fg);
+    color: var(--theme-bg);
+    border-color: var(--theme-fg);
+  }
+  .v4 .preview-wrap { position: relative; width: 100%; }
+
+  /* Tree items shared */
+  .tree {
+    padding: 6px 10px;
+    flex: 1;
+    overflow-y: auto;
+  }
+  .tree .nested { padding-left: 12px; margin-top: 2px; }
+
+  /* Footer */
+  .sb-footer {
+    padding: 8px 10px;
+    border-top: 1px solid var(--theme-border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sb-footer .avatar {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--theme-fg);
+    color: var(--theme-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .sb-footer .who {
+    font-size: 11px;
+    line-height: 1.3;
+    min-width: 0;
+    flex: 1;
+  }
+  .sb-footer .who b { display: block; font-weight: 500; }
+  .sb-footer .who small { color: var(--theme-fg-muted); font-size: 9.5px; }
+
+  .footnote {
+    max-width: 1400px;
+    margin: 24px auto 0;
+    padding: 18px 20px;
+    background: var(--theme-bg);
+    border: 1px solid var(--theme-border);
+    border-radius: 10px;
+    font-size: 12.5px;
+    line-height: 1.65;
+    color: var(--theme-fg-muted);
+  }
+  .footnote b { color: var(--theme-fg); }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>사이드바 · 프로젝트 격리 패턴 4종</h1>
+  <p>동일한 데이터(투자노트 / 리서치 노트 / 독서 메모) · 같은 선택 상태(투자노트 > 2026 Q2 포트폴리오 리뷰 > AI 인프라 트렌드)를 다섯 가지 방식으로 표현. 맨 위는 "1+2 하이브리드" 조합안(신규), 그 아래 2×2 그리드는 원안 4종. 메인 영역은 일부러 패턴 placeholder로 비워서 사이드바 차이에만 집중할 수 있게 했어.</p>
+</div>
+
+<div class="grid">
+
+  <!-- ═══ VARIANT 5 — Hybrid (1+2) ═══ -->
+  <div class="card v5 wide">
+    <div class="card-head">
+      <h3>5 — 1+2 하이브리드 · 레일 + NB 스타일 헤더</h3>
+      <span class="stamp">조합 · 신규 후보</span>
+    </div>
+    <div class="preview" style="height:440px">
+      <!-- Rail -->
+      <div class="rail">
+        <div class="ws-root" title="김성빈 워크스페이스">K</div>
+        <div class="divider-line"></div>
+        <div class="pi active" title="투자노트">투자</div>
+        <div class="pi" title="리서치 노트">리서</div>
+        <div class="pi" title="독서 메모">독서</div>
+        <div class="divider-line"></div>
+        <div class="pi add">+</div>
+      </div>
+      <!-- Sidebar -->
+      <div class="sb-base sidebar">
+        <div class="project-hero" title="클릭 시 프로젝트 스위처">
+          <div class="tag">프로젝트</div>
+          <div class="title">
+            투자노트
+            <span class="chev">▾</span>
+          </div>
+          <div class="meta">32개 문서 · 2026 Q2 · 나만 접근</div>
+        </div>
+        <div class="sb-search">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <span>검색</span>
+          <kbd>⌘K</kbd>
+        </div>
+        <div class="tree">
+          <div class="sb-label" style="margin-bottom:6px">폴더 · 문서</div>
+          <div class="sb-row">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h6l2 2h8v12a2 2 0 0 1-2 2H4z"/></svg>
+            <span style="flex:1">2026 Q2 포트폴리오 리뷰</span>
+            <span style="font-size:10px;color:var(--theme-fg-muted)">24</span>
+          </div>
+          <div class="nested">
+            <div class="sb-row active">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+              <span>AI 인프라 트렌드</span>
+            </div>
+            <div class="sb-row">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+              <span>반도체 공급망 분석</span>
+            </div>
+            <div class="sb-row muted">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+              <span>테슬라 FSD v13 분석</span>
+            </div>
+          </div>
+          <div class="sb-row muted">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h6l2 2h8v12a2 2 0 0 1-2 2H4z"/></svg>
+            <span style="flex:1">경쟁사 분석</span>
+            <span style="font-size:10px">5</span>
+          </div>
+          <div class="sb-row muted">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h6l2 2h8v12a2 2 0 0 1-2 2H4z"/></svg>
+            <span style="flex:1">매크로 자료</span>
+            <span style="font-size:10px">3</span>
+          </div>
+        </div>
+        <div class="sb-footer">
+          <div class="avatar">S</div>
+          <div class="who"><b>김성빈</b><small>Pro · ₩12,300</small></div>
+        </div>
+      </div>
+      <!-- Main placeholder wider to show it fits -->
+      <div class="main-placeholder" style="flex:1">에디터 · 채팅 영역 — 실제 화면에서는 탭바 · 본문 · AI 어시스턴트</div>
+    </div>
+    <div class="card-body" style="grid-template-columns: 1fr 1fr 1fr; gap: 20px">
+      <div class="pros">
+        <h4>Pros</h4>
+        <ul>
+          <li>한눈에 보는 맥락(레일) + 현재 프로젝트 정체성(큰 헤더) 양쪽 다 확보</li>
+          <li>전환 2-way: 레일 아이콘 1클릭 <b>또는</b> 헤더 드롭다운 (검색 가능)</li>
+          <li>프로젝트 많아지면 레일 스크롤, 헤더는 드롭다운으로 검색 가능</li>
+          <li>Linear · Height 등 실무 에디터 툴에서 검증된 조합</li>
+        </ul>
+      </div>
+      <div class="cons">
+        <h4>Cons</h4>
+        <ul>
+          <li>폭 48 + 272 = <b>320px</b> 소비 (1440px 모니터에서 ~22%)</li>
+          <li>프로젝트 정보 두 번 노출 (레일 아이콘 + 헤더) — 중복처럼 보일 수 있음</li>
+          <li>레일 아이콘 "투자/리서/독서" 2글자 축약은 프로젝트 이름이 고유할 때만 의미</li>
+        </ul>
+      </div>
+      <div class="pros" style="border-left:1px solid var(--theme-border);padding-left:16px">
+        <h4 style="color:var(--theme-fg)">조합이 주는 특별한 이점</h4>
+        <ul style="list-style:none">
+          <li style="margin-bottom:6px">→ <b>신규 사용자</b>는 헤더로 "어디 있는지" 즉시 인지</li>
+          <li style="margin-bottom:6px">→ <b>파워 사용자</b>는 레일로 1클릭 전환 (탭 여러 프로젝트 혼용 가능)</li>
+          <li style="margin-bottom:6px">→ <b>프로젝트 설정/공유/삭제</b>는 헤더 드롭다운에 둠 (레일은 전환 전용)</li>
+          <li>→ 탭 여러 개 열어도 <b>탭별로 다른 프로젝트도 가능</b> (레일이 탭별 상태 따라감)</li>
+        </ul>
+      </div>
+    </div>
+    <div class="select-bar">
+      <span class="recommended">조합안 — 격리감 + 전환 편의성 + 브랜딩 세 마리</span>
+      <button class="btn" onclick="pick('5 (1+2 hybrid)')">이걸로 선택</button>
+    </div>
+  </div>
+
+  <!-- ═══ VARIANT 1 — Left rail (Slack) ═══ -->
+  <div class="card v1">
+    <div class="card-head">
+      <h3>1 — 좌측 레일 (Slack/Discord 스타일)</h3>
+      <span class="stamp">순수 안</span>
+    </div>
+    <div class="preview">
+      <!-- Rail -->
+      <div class="rail">
+        <div class="ws-root" title="김성빈 워크스페이스">K</div>
+        <div class="divider-line"></div>
+        <div class="pi active" title="투자노트">투자</div>
+        <div class="pi" title="리서치 노트">리서</div>
+        <div class="pi" title="독서 메모">독서</div>
+        <div class="divider-line"></div>
+        <div class="pi add">+</div>
+      </div>
+      <!-- Sidebar -->
+      <div class="sb-base sidebar">
+        <div class="project-head">
+          <div class="name">투자노트</div>
+          <div class="meta">32개 문서 · 2026 Q2</div>
+        </div>
+        <div class="sb-search">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <span>검색</span>
+          <kbd>⌘K</kbd>
+        </div>
+        <div class="tree">
+          <div style="margin-bottom: 8px">
+            <div class="sb-label" style="margin-bottom:4px">폴더</div>
+            <div class="sb-row">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h6l2 2h8v12a2 2 0 0 1-2 2H4z"/></svg>
+              <span style="flex:1">2026 Q2 포트폴리오 리뷰</span>
+              <span style="font-size:10px;color:var(--theme-fg-muted)">24</span>
+            </div>
+            <div class="nested">
+              <div class="sb-row active">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+                <span>AI 인프라 트렌드</span>
+              </div>
+              <div class="sb-row">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+                <span>반도체 공급망 분석</span>
+              </div>
+              <div class="sb-row muted">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+                <span>테슬라 FSD v13 분석</span>
+              </div>
+            </div>
+            <div class="sb-row muted">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h6l2 2h8v12a2 2 0 0 1-2 2H4z"/></svg>
+              <span style="flex:1">경쟁사 분석</span>
+              <span style="font-size:10px">5</span>
+            </div>
+          </div>
+        </div>
+        <div class="sb-footer">
+          <div class="avatar">S</div>
+          <div class="who"><b>김성빈</b><small>Pro · ₩12,300</small></div>
+        </div>
+      </div>
+      <div class="main-placeholder">에디터 · 채팅 영역</div>
+    </div>
+    <div class="card-body">
+      <div class="pros">
+        <h4>Pros</h4>
+        <ul>
+          <li>격리감 최대 — 한 번에 한 프로젝트만 보임</li>
+          <li>프로젝트 전환 1클릭 (레일 아이콘)</li>
+          <li>탭 여러 개 열어도 같은 프로젝트 안이라 맥락 일관</li>
+          <li>Slack/Discord로 이미 검증된 패턴</li>
+        </ul>
+      </div>
+      <div class="cons">
+        <h4>Cons</h4>
+        <ul>
+          <li>가로 폭 48px 소비 (전체 화면에서 ~3%)</li>
+          <li>프로젝트 많아지면 레일 스크롤 필요</li>
+          <li>초보 사용자가 "왜 옆 프로젝트가 안 보이지?" 처음엔 갸우뚱</li>
+        </ul>
+      </div>
+    </div>
+    <div class="select-bar no-rec">
+      <span class="recommended"></span>
+      <button class="btn" onclick="pick(1)">이걸로 선택</button>
+    </div>
+  </div>
+
+  <!-- ═══ VARIANT 2 — Top project bar (NotebookLM) ═══ -->
+  <div class="card v2">
+    <div class="card-head">
+      <h3>2 — 상단 프로젝트 바 (NotebookLM 스타일)</h3>
+      <span class="stamp">대안</span>
+    </div>
+    <div class="preview">
+      <div class="sb-base sidebar">
+        <div class="ws-strip">
+          <span>김성빈 워크스페이스</span>
+          <span style="color:var(--theme-fg)">▾</span>
+        </div>
+        <div class="project-swap">
+          <div class="tag">현재 프로젝트</div>
+          <div class="title">
+            투자노트
+            <span class="chev">▾</span>
+          </div>
+          <div class="meta">32개 문서 · 2026 Q2</div>
+        </div>
+        <div class="sb-search">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <span>검색</span>
+          <kbd>⌘K</kbd>
+        </div>
+        <div class="tree">
+          <div class="sb-label" style="margin-bottom:6px">폴더 · 문서</div>
+          <div class="sb-row">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h6l2 2h8v12a2 2 0 0 1-2 2H4z"/></svg>
+            <span style="flex:1">2026 Q2 포트폴리오 리뷰</span>
+            <span style="font-size:10px;color:var(--theme-fg-muted)">24</span>
+          </div>
+          <div class="nested">
+            <div class="sb-row active">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+              <span>AI 인프라 트렌드</span>
+            </div>
+            <div class="sb-row">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+              <span>반도체 공급망 분석</span>
+            </div>
+            <div class="sb-row muted">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+              <span>테슬라 FSD v13 분석</span>
+            </div>
+          </div>
+          <div class="sb-row muted">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h6l2 2h8v12a2 2 0 0 1-2 2H4z"/></svg>
+            <span style="flex:1">경쟁사 분석</span>
+            <span style="font-size:10px">5</span>
+          </div>
+        </div>
+        <div class="sb-footer">
+          <div class="avatar">S</div>
+          <div class="who"><b>김성빈</b><small>Pro · ₩12,300</small></div>
+        </div>
+      </div>
+      <div class="main-placeholder">에디터 · 채팅 영역</div>
+    </div>
+    <div class="card-body">
+      <div class="pros">
+        <h4>Pros</h4>
+        <ul>
+          <li>현재 프로젝트 이름이 명시적으로 크게 — "어디에 있는지" 가장 분명</li>
+          <li>Deep Research = NotebookLM 연상 시 UX 기준선 가장 가까움</li>
+          <li>드롭다운 1번으로 프로젝트 전환</li>
+          <li>레일 공간 절약</li>
+        </ul>
+      </div>
+      <div class="cons">
+        <h4>Cons</h4>
+        <ul>
+          <li>프로젝트 전환이 2단계 (드롭다운 → 선택)</li>
+          <li>사이드바 상단이 무거워져 노트 목록 공간 좁아짐</li>
+          <li>"어떤 프로젝트들이 있는지" 개괄 보려면 드롭다운 열어야 함</li>
+        </ul>
+      </div>
+    </div>
+    <div class="select-bar no-rec">
+      <span class="recommended"></span>
+      <button class="btn" onclick="pick(2)">이걸로 선택</button>
+    </div>
+  </div>
+
+  <!-- ═══ VARIANT 3 — Sidebar header (VS Code) ═══ -->
+  <div class="card v3">
+    <div class="card-head">
+      <h3>3 — 사이드바 헤더 드롭다운 (VS Code 스타일)</h3>
+      <span class="stamp">대안</span>
+    </div>
+    <div class="preview">
+      <div class="sb-base sidebar">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px 6px">
+          <span style="font-family:Georgia,serif;font-size:14px">OpenCairn</span>
+        </div>
+        <div class="sb-ws-switch">
+          <div class="ws-icon">K</div>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">김성빈 워크스페이스</span>
+          <span class="chev">▾</span>
+        </div>
+        <div class="project-pick">
+          <svg class="folder-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h6l2 2h8v12a2 2 0 0 1-2 2H4z"/></svg>
+          <span style="flex:1">투자노트</span>
+          <span class="chev">▾</span>
+        </div>
+        <div class="sb-search">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <span>검색</span>
+          <kbd>⌘K</kbd>
+        </div>
+        <div class="tree">
+          <div class="sb-label" style="margin-bottom:6px">탐색기</div>
+          <div class="sb-row">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h6l2 2h8v12a2 2 0 0 1-2 2H4z"/></svg>
+            <span style="flex:1">2026 Q2 포트폴리오 리뷰</span>
+            <span style="font-size:10px;color:var(--theme-fg-muted)">24</span>
+          </div>
+          <div class="nested">
+            <div class="sb-row active">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+              <span>AI 인프라 트렌드</span>
+            </div>
+            <div class="sb-row">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+              <span>반도체 공급망 분석</span>
+            </div>
+          </div>
+          <div class="sb-row muted">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h6l2 2h8v12a2 2 0 0 1-2 2H4z"/></svg>
+            <span style="flex:1">경쟁사 분석</span>
+            <span style="font-size:10px">5</span>
+          </div>
+        </div>
+        <div class="sb-footer">
+          <div class="avatar">S</div>
+          <div class="who"><b>김성빈</b><small>Pro · ₩12,300</small></div>
+        </div>
+      </div>
+      <div class="main-placeholder">에디터 · 채팅 영역</div>
+    </div>
+    <div class="card-body">
+      <div class="pros">
+        <h4>Pros</h4>
+        <ul>
+          <li>OpenCairn 이름이 앱에 항상 노출 (브랜딩)</li>
+          <li>워크스페이스/프로젝트 2단 스위처 구조가 권한 3계층과 1:1 매칭</li>
+          <li>레일 없어서 전체 폭 절약</li>
+        </ul>
+      </div>
+      <div class="cons">
+        <h4>Cons</h4>
+        <ul>
+          <li>상단에 스위처/헤더가 3단(로고·WS·프로젝트) 겹쳐 무거움</li>
+          <li>프로젝트 "이름"만 보이지 시각적 크기는 1보다 작음 → 격리감 중간</li>
+          <li>VS Code 연상 → 지식 앱이라기보단 개발 툴 톤</li>
+        </ul>
+      </div>
+    </div>
+    <div class="select-bar no-rec">
+      <span class="recommended"></span>
+      <button class="btn" onclick="pick(3)">이걸로 선택</button>
+    </div>
+  </div>
+
+  <!-- ═══ VARIANT 4 — Vault / back out ═══ -->
+  <div class="card v4">
+    <div class="card-head">
+      <h3>4 — Vault 격리 (Obsidian 스타일)</h3>
+      <span class="stamp">극단</span>
+    </div>
+    <div class="preview">
+      <div class="sb-base sidebar">
+        <div class="back-strip">
+          <span style="font-size:12px">←</span>
+          <span>프로젝트 목록으로</span>
+        </div>
+        <div class="project-head">
+          <div class="name">투자노트</div>
+          <div class="meta">32개 문서 · 2026 Q2</div>
+        </div>
+        <div class="sb-search">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <span>검색</span>
+          <kbd>⌘K</kbd>
+        </div>
+        <div class="tree">
+          <div class="sb-label" style="margin-bottom:6px">폴더 · 문서</div>
+          <div class="sb-row">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h6l2 2h8v12a2 2 0 0 1-2 2H4z"/></svg>
+            <span style="flex:1">2026 Q2 포트폴리오 리뷰</span>
+            <span style="font-size:10px;color:var(--theme-fg-muted)">24</span>
+          </div>
+          <div class="nested">
+            <div class="sb-row active">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+              <span>AI 인프라 트렌드</span>
+            </div>
+            <div class="sb-row">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+              <span>반도체 공급망 분석</span>
+            </div>
+          </div>
+        </div>
+        <div class="sb-footer">
+          <div class="avatar">S</div>
+          <div class="who"><b>김성빈</b><small>Pro · ₩12,300</small></div>
+        </div>
+      </div>
+      <div class="preview-wrap" style="flex:1;position:relative">
+        <div class="main-placeholder">에디터 · 채팅 영역</div>
+        <div class="overlay-note">
+          <div class="big">"← 프로젝트 목록으로" 클릭 시</div>
+          <div>메인 영역이 프로젝트 선택 오버레이로 전환됨. 전환 마찰은 의도된 것 — "다른 프로젝트에 간다"를 사용자가 명시적으로 선언.</div>
+          <ul>
+            <li class="active">투자노트 (현재)</li>
+            <li>리서치 노트 — 12개 문서</li>
+            <li>독서 메모 — 15개 문서</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="pros">
+        <h4>Pros</h4>
+        <ul>
+          <li>격리감 극대치 — 다른 프로젝트의 존재조차 전환 전엔 안 보임</li>
+          <li>한 프로젝트에 "몰입"하는 장기 작업에 좋음</li>
+          <li>사이드바 최소주의 (UI 경량)</li>
+        </ul>
+      </div>
+      <div class="cons">
+        <h4>Cons</h4>
+        <ul>
+          <li>다른 프로젝트 간 빠른 점프 불가 — 전환 마찰 큼</li>
+          <li>탭을 여러 프로젝트에 걸쳐서 쓰기 어려움 (프로젝트 바꾸면 탭 초기화 느낌)</li>
+          <li>AI 어시스턴트에 "다른 프로젝트 문서 참조" 요청도 까다로워짐</li>
+        </ul>
+      </div>
+    </div>
+    <div class="select-bar no-rec">
+      <span class="recommended"></span>
+      <button class="btn" onclick="pick(4)">이걸로 선택</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="footnote">
+  <b>참고:</b> 위 4개는 격리 표현 방식의 축이지, 채택된 안은 세부 요소(워크스페이스 스위처 위치 · 검색바 위치 · 유저 푸터 등)를 더 다듬음. 사이드바 이외 영역(탭바 · 채팅 패널)은 다음 단계에서 붙여. 각 옵션의 <b>사이드바 폭은</b> 1=48+232px / 2=280px / 3=264px / 4=264px.
+</div>
+
+<script>
+  function pick(n) {
+    alert("Variant " + n + " 선택됨 — 터미널에서 선택 알려줘.");
+  }
+</script>
+
+</body>
+</html>

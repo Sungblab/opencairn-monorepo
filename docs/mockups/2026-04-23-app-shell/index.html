@@ -1,0 +1,1259 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenCairn — App Shell Mockup</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['"Pretendard Variable"', 'Pretendard', '-apple-system', 'system-ui', 'sans-serif'],
+          serif: ['Georgia', 'serif'],
+          mono: ['ui-monospace', 'SF Mono', 'Consolas', 'monospace'],
+        },
+        colors: {
+          bg: 'var(--theme-bg)',
+          surface: 'var(--theme-surface)',
+          border: 'var(--theme-border)',
+          'border-strong': 'var(--theme-border-strong)',
+          fg: 'var(--theme-fg)',
+          'fg-muted': 'var(--theme-fg-muted)',
+          accent: 'var(--theme-accent)',
+          'accent-fg': 'var(--theme-accent-fg)',
+          danger: 'var(--theme-danger)',
+          success: 'var(--theme-success)',
+        },
+      },
+    },
+  };
+</script>
+<style>
+  /* ═══ Theme tokens — mirrors apps/web/src/app/globals.css.
+   * --theme-border-strong is mockup-only: a darker variant used on
+   * card/button/input boundaries so the app shell matches the
+   * neo-brutal landing/auth aesthetic (2px stone-900 borders). */
+  :root, [data-theme="cairn-light"] {
+    --theme-bg: #FFFFFF;
+    --theme-surface: #F5F5F5;
+    --theme-border: #D4D4D4;
+    --theme-border-strong: #171717;
+    --theme-fg: #171717;
+    --theme-fg-muted: #737373;
+    --theme-accent: #404040;
+    --theme-accent-fg: #FFFFFF;
+    --theme-danger: #DC2626;
+    --theme-success: #16A34A;
+    color-scheme: light;
+  }
+  [data-theme="cairn-dark"] {
+    --theme-bg: #0A0A0A;
+    --theme-surface: #171717;
+    --theme-border: #404040;
+    --theme-border-strong: #A3A3A3;
+    --theme-fg: #F5F5F5;
+    --theme-fg-muted: #A3A3A3;
+    --theme-accent: #A3A3A3;
+    --theme-accent-fg: #171717;
+    --theme-danger: #F87171;
+    --theme-success: #4ADE80;
+    color-scheme: dark;
+  }
+  [data-theme="sepia"] {
+    --theme-bg: #F7F1E5;
+    --theme-surface: #EFE7D4;
+    --theme-border: #C4B696;
+    --theme-border-strong: #3E2E1A;
+    --theme-fg: #3E2E1A;
+    --theme-fg-muted: #7A6A50;
+    --theme-accent: #7A6A50;
+    --theme-accent-fg: #F7F1E5;
+    --theme-danger: #9F2424;
+    --theme-success: #4F7A2C;
+    color-scheme: light;
+  }
+  [data-theme="high-contrast"] {
+    --theme-bg: #000000;
+    --theme-surface: #0A0A0A;
+    --theme-border: #FFFFFF;
+    --theme-border-strong: #FFFFFF;
+    --theme-fg: #FFFFFF;
+    --theme-fg-muted: #E5E5E5;
+    --theme-accent: #FFFF00;
+    --theme-accent-fg: #000000;
+    --theme-danger: #FF4444;
+    --theme-success: #44FF44;
+    color-scheme: dark;
+  }
+
+  html, body { height: 100%; }
+  body {
+    background: var(--theme-bg);
+    color: var(--theme-fg);
+    font-family: 'Pretendard Variable', Pretendard, -apple-system, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .kr { word-break: keep-all; }
+
+  /* Scrollbar — subtle */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--theme-border);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--theme-fg-muted); }
+
+  /* Section label (landing convention) — bumped to 600 for boundary visibility */
+  .sec-label {
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    color: var(--theme-fg-muted);
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  /* Code / monospace blocks */
+  .mono { font-family: ui-monospace, 'SF Mono', 'Consolas', monospace; }
+
+  /* Prose (note body) */
+  .prose-note {
+    max-width: 720px;
+    line-height: 1.75;
+    font-size: 16px;
+  }
+  .prose-note h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0.5rem 0 1rem;
+    letter-spacing: -0.01em;
+  }
+  .prose-note h2 {
+    font-size: 1.4rem;
+    font-weight: 600;
+    margin: 1.5rem 0 0.75rem;
+  }
+  .prose-note h3 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin: 1rem 0 0.5rem;
+  }
+  .prose-note p { margin-bottom: 1rem; }
+  .prose-note a {
+    color: var(--theme-fg);
+    text-decoration: underline;
+    text-decoration-color: var(--theme-fg-muted);
+    text-underline-offset: 3px;
+  }
+  .prose-note ul, .prose-note ol { margin-left: 1.5rem; margin-bottom: 1rem; }
+  .prose-note li { margin-bottom: 0.25rem; }
+  .prose-note blockquote {
+    border-left: 3px solid var(--theme-fg);
+    padding-left: 1rem;
+    margin: 1rem 0;
+    color: var(--theme-fg-muted);
+  }
+  .prose-note code {
+    background: var(--theme-surface);
+    padding: 0.1em 0.4em;
+    border-radius: 4px;
+    font-size: 0.9em;
+    font-family: ui-monospace, 'SF Mono', 'Consolas', monospace;
+  }
+
+  /* Sidebar tree items */
+  .tree-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--theme-fg);
+  }
+  .tree-row:hover { background: var(--theme-border); }
+  .tree-row.active { background: var(--theme-fg); color: var(--theme-bg); }
+  .tree-row.active:hover { background: var(--theme-fg); }
+
+  /* Nav icon (workspace-level compact row) */
+  .nav-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    color: var(--theme-fg);
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    transition: background 0.1s, color 0.1s;
+  }
+  .nav-icon:hover { background: var(--theme-border); }
+  .nav-icon.active {
+    background: var(--theme-fg);
+    color: var(--theme-bg);
+  }
+  .nav-icon.active:hover { background: var(--theme-fg); }
+
+  /* Tab bar */
+  .tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px 6px 10px;
+    border-right: 1.5px solid var(--theme-border);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--theme-fg-muted);
+    cursor: pointer;
+    max-width: 200px;
+    min-width: 100px;
+  }
+  .tab.active {
+    background: var(--theme-bg);
+    color: var(--theme-fg);
+    font-weight: 600;
+    border-bottom: 2px solid var(--theme-fg);
+    margin-bottom: -1px;
+  }
+  .tab:hover:not(.active) { background: var(--theme-border); }
+  .tab .close {
+    opacity: 0;
+    padding: 2px;
+    border-radius: 3px;
+    transition: opacity 0.1s;
+  }
+  .tab:hover .close, .tab.active .close { opacity: 1; }
+  .tab .close:hover { background: var(--theme-border); }
+
+  /* Button styles — neo-brutal offset shadow on actionable buttons,
+   * matches landing/auth: 1.5px stone-900 border + 0 2px 0 0 shadow,
+   * presses to 0 0 0 0 on :active. .btn-ghost stays flat for nav rows. */
+  .btn-primary {
+    background: var(--theme-fg);
+    color: var(--theme-bg);
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1.5px solid var(--theme-fg);
+    box-shadow: 0 2px 0 0 var(--theme-fg);
+    cursor: pointer;
+    transition: transform 0.08s, box-shadow 0.08s, background 0.12s;
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 3px 0 0 var(--theme-fg); }
+  .btn-primary:active { transform: translateY(2px); box-shadow: 0 0 0 0 var(--theme-fg); }
+  .btn-ghost {
+    background: transparent;
+    color: var(--theme-fg);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .btn-ghost:hover { background: var(--theme-surface); }
+  .btn-outline {
+    background: var(--theme-bg);
+    color: var(--theme-fg);
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1.5px solid var(--theme-border-strong);
+    box-shadow: 0 2px 0 0 var(--theme-border-strong);
+    cursor: pointer;
+    transition: transform 0.08s, box-shadow 0.08s, background 0.12s;
+  }
+  .btn-outline:hover { transform: translateY(-1px); box-shadow: 0 3px 0 0 var(--theme-border-strong); background: var(--theme-surface); }
+  .btn-outline:active { transform: translateY(2px); box-shadow: 0 0 0 0 var(--theme-border-strong); }
+
+  /* Scope chip (chat panel context) */
+  .scope-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px 2px 6px;
+    font-size: 10.5px;
+    font-weight: 500;
+    border-radius: 4px;
+    background: var(--theme-bg);
+    color: var(--theme-fg);
+    border: 1.5px solid var(--theme-border);
+    cursor: pointer;
+    transition: border-color 0.1s, background 0.1s;
+  }
+  .scope-chip:hover { border-color: var(--theme-border-strong); background: var(--theme-surface); }
+  .scope-chip .scope-close {
+    margin-left: 2px;
+    color: var(--theme-fg-muted);
+    font-size: 10px;
+    padding: 0 2px;
+    opacity: 0.7;
+  }
+  .scope-chip:hover .scope-close { opacity: 1; color: var(--theme-fg); }
+
+  /* Chip / badge */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 4px;
+    background: var(--theme-surface);
+    color: var(--theme-fg-muted);
+    border: 1.5px solid var(--theme-border);
+  }
+  .chip-success {
+    background: color-mix(in srgb, var(--theme-success) 14%, transparent);
+    color: var(--theme-success);
+    border-color: color-mix(in srgb, var(--theme-success) 50%, transparent);
+  }
+  .chip-warn {
+    background: color-mix(in srgb, #f59e0b 14%, transparent);
+    color: #f59e0b;
+    border-color: color-mix(in srgb, #f59e0b 50%, transparent);
+  }
+  .chip-info {
+    background: color-mix(in srgb, #3b82f6 14%, transparent);
+    color: #3b82f6;
+    border-color: color-mix(in srgb, #3b82f6 50%, transparent);
+  }
+
+  /* Card — boundary visibility via 1.5px strong border + soft offset
+   * shadow. Hover lifts the card slightly for tactile feedback.
+   * Mirrors the landing/auth neo-brutal language. */
+  .card {
+    background: var(--theme-bg);
+    border: 1.5px solid var(--theme-border-strong);
+    border-radius: 10px;
+    padding: 18px;
+    box-shadow: 0 2px 0 0 var(--theme-border-strong);
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+  .card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 0 0 var(--theme-border-strong);
+  }
+
+  /* Kbd */
+  kbd {
+    display: inline-block;
+    padding: 1px 6px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    background: var(--theme-surface);
+    border: 1.5px solid var(--theme-border);
+    border-radius: 4px;
+    color: var(--theme-fg-muted);
+  }
+
+  /* Pulse dot */
+  @keyframes pulse-dot { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+  .pulse-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--theme-success);
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+  .pulse-dot.researching { background: #3b82f6; }
+  .pulse-dot.failed { background: var(--theme-danger); animation: none; opacity: 1; }
+
+  /* Empty state */
+  .empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--theme-fg-muted);
+  }
+
+  /* Screen transition */
+  .screen { animation: fadeIn 0.12s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body data-theme="cairn-light">
+
+<!-- ═══ App Shell ═══ -->
+<div class="flex h-screen overflow-hidden">
+
+  <!-- ─ Left Sidebar (3+2 combo, diet) ─ -->
+  <aside id="sidebar" class="w-[272px] shrink-0 border-r border-border bg-surface flex flex-col">
+
+    <!-- Workspace switcher (3-style, compact) -->
+    <button class="mx-3 mt-3 mb-2 flex items-center gap-2 px-2.5 py-1.5 rounded bg-bg border-[1.5px] border-fg-muted hover:border-fg text-left transition-colors">
+      <div class="w-5 h-5 rounded bg-fg text-bg flex items-center justify-center text-[10px] font-semibold shrink-0">K</div>
+      <span class="text-[12.5px] truncate flex-1 font-medium">김성빈 워크스페이스</span>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-fg-muted shrink-0"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg>
+    </button>
+
+    <!-- Workspace-level nav (icon row — A+B hybrid, tooltip on hover) -->
+    <nav class="px-3 flex items-center gap-1">
+      <a href="#/dashboard" class="nav-link nav-icon" data-route="dashboard" title="홈" aria-label="홈">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+      </a>
+      <a href="#/research" class="nav-link nav-icon" data-route="research" title="Deep Research" aria-label="Deep Research">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      </a>
+      <a href="#/import" class="nav-link nav-icon" data-route="import" title="가져오기" aria-label="가져오기">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+      </a>
+      <button class="nav-icon opacity-60" title="더 보기" aria-label="더 보기" onclick="alert(`전체 메뉴 팔레트 (${MOD_LABEL}K 또는 더보기) — 다음 이터레이션`)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+      </button>
+    </nav>
+
+    <!-- Project hero (trimmed — name only, no meta) -->
+    <button id="project-hero" class="mx-3 mt-3 mb-2 flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-bg border-[1.5px] border-fg hover:bg-fg hover:text-bg text-left transition-colors" style="box-shadow: 0 2px 0 0 var(--theme-fg);">
+      <span class="text-[14px] font-semibold tracking-tight kr truncate" id="project-hero-name">투자노트</span>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 opacity-70"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+
+    <!-- Search -->
+    <div class="px-3 pb-2">
+      <button class="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded bg-bg border-[1.5px] border-fg-muted hover:border-fg text-left text-fg-muted text-xs transition-colors">
+        <div class="flex items-center gap-2">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <span>이 프로젝트에서 검색</span>
+        </div>
+        <kbd data-mod="K">Ctrl+K</kbd>
+      </button>
+    </div>
+
+    <!-- Tree: current project folders + notes (not a list of projects!) -->
+    <div class="flex-1 overflow-y-auto px-3 py-2 border-t border-border">
+      <div class="flex items-center justify-between px-1 mb-1.5">
+        <span class="sec-label">폴더 · 문서</span>
+        <button class="btn-ghost !p-1" title="새 문서">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </div>
+      <div class="space-y-0.5" id="project-tree">
+        <!-- Folder: 엔비디아 리서치 -->
+        <details open>
+          <summary class="tree-row list-none">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="shrink-0 chev"><path d="m6 9 6 6 6-6"/></svg>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-fg-muted"><path d="M4 4h6l2 2h8v12a2 2 0 0 1-2 2H4z"/></svg>
+            <span class="flex-1 truncate">2026 Q2 포트폴리오 리뷰</span>
+            <span class="text-[10px] text-fg-muted shrink-0">24</span>
+          </summary>
+          <div class="mt-0.5 space-y-0.5 ml-[13px] pl-[10px] border-l border-border">
+            <a href="#/note" class="nav-link tree-row" data-route="note">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+              <span class="truncate kr">AI 인프라 트렌드</span>
+            </a>
+            <div class="tree-row">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 opacity-60"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+              <span class="opacity-80 truncate kr">반도체 공급망 분석</span>
+            </div>
+            <div class="tree-row">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 opacity-60"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+              <span class="opacity-80 truncate kr">테슬라 FSD v13 분석</span>
+            </div>
+            <div class="tree-row">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 opacity-60"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+              <span class="opacity-80 truncate kr">Q1 실적 정리 메모</span>
+            </div>
+            <div class="tree-row text-fg-muted text-[11px] italic">… 20개 더</div>
+          </div>
+        </details>
+        <!-- Folder: 경쟁사 분석 -->
+        <details>
+          <summary class="tree-row list-none">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="shrink-0 chev"><path d="m6 9 6 6 6-6"/></svg>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-fg-muted"><path d="M4 4h6l2 2h8v12a2 2 0 0 1-2 2H4z"/></svg>
+            <span class="flex-1 truncate">경쟁사 분석</span>
+            <span class="text-[10px] text-fg-muted shrink-0">5</span>
+          </summary>
+        </details>
+        <!-- Folder: 매크로 자료 -->
+        <details>
+          <summary class="tree-row list-none">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="shrink-0 chev"><path d="m6 9 6 6 6-6"/></svg>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-fg-muted"><path d="M4 4h6l2 2h8v12a2 2 0 0 1-2 2H4z"/></svg>
+            <span class="flex-1 truncate">매크로 자료</span>
+            <span class="text-[10px] text-fg-muted shrink-0">3</span>
+          </summary>
+        </details>
+        <!-- Root-level note -->
+        <div class="tree-row">
+          <span class="w-[10px] shrink-0"></span>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 opacity-60"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+          <span class="opacity-80 truncate kr">(루트) 2026 투자 가설</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer (style B — single row, avatar+name left, icons right) -->
+    <div class="px-2 py-2 border-t border-border flex items-center gap-1.5">
+      <div class="flex items-center gap-2 flex-1 min-w-0 px-1.5 py-1 rounded hover:bg-border cursor-pointer">
+        <div class="w-6 h-6 rounded-full bg-fg text-bg flex items-center justify-center text-[10px] font-semibold shrink-0">S</div>
+        <div class="flex-1 min-w-0">
+          <div class="text-xs truncate leading-tight">김성빈</div>
+          <div class="text-[10px] text-fg-muted truncate leading-tight">Pro · ₩12,300</div>
+        </div>
+      </div>
+      <button class="btn-ghost !p-1.5 shrink-0 relative" title="알림">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+        <span class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-danger"></span>
+      </button>
+      <a href="#/settings" class="nav-link btn-ghost !p-1.5 shrink-0" title="설정" data-route="settings">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </a>
+    </div>
+
+  </aside>
+
+  <!-- ─ Main Area (tabs + content) ─ -->
+  <div class="flex-1 flex flex-col min-w-0">
+
+    <!-- Tab bar -->
+    <div class="h-10 flex items-stretch border-b border-border bg-surface overflow-x-auto" id="tab-bar">
+      <!-- Tabs rendered by router -->
+    </div>
+
+    <!-- Content area -->
+    <main class="flex-1 overflow-auto" id="content">
+      <!-- Screens rendered here -->
+    </main>
+
+  </div>
+
+  <!-- ─ Right Chat Panel (collapsible) ─ -->
+  <aside id="chat-panel" class="w-[340px] shrink-0 border-l border-border bg-surface flex flex-col">
+
+    <!-- Header: title + collapse -->
+    <div class="px-3 h-10 border-b border-border flex items-center justify-between shrink-0">
+      <span class="sec-label">AI 에이전트</span>
+      <div class="flex items-center gap-1">
+        <button class="btn-ghost !p-1" title="새 대화">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <button class="btn-ghost !p-1" title="대화 목록">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+        </button>
+        <button class="btn-ghost !p-1" onclick="toggleChatPanel()" title="접기">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Conversation area -->
+    <div class="flex-1 overflow-auto px-3 py-3 space-y-4">
+
+      <!-- User turn 1 -->
+      <div class="text-[13px] leading-relaxed">
+        <div class="text-[10px] text-fg-muted uppercase tracking-wider mb-1 font-medium">나</div>
+        <div class="kr">H100 리드타임이 작년 동기 대비 얼마나 개선됐어?</div>
+      </div>
+
+      <!-- Assistant turn 1 (live, with thought + status) -->
+      <div class="text-[13px] leading-relaxed">
+        <div class="text-[10px] text-fg-muted uppercase tracking-wider mb-1 font-medium flex items-center gap-2">
+          <span>에이전트</span>
+          <span class="chip !text-[9px] !px-1.5 !py-0.5">balanced</span>
+        </div>
+
+        <!-- Thought bubble (collapsed by default in real, expanded in mock for demo) -->
+        <details open class="mb-2 text-[11.5px] text-fg-muted bg-bg border border-border rounded-md px-2.5 py-2">
+          <summary class="list-none cursor-pointer flex items-center gap-1.5">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="chev"><path d="m6 9 6 6 6-6"/></svg>
+            <span class="font-medium">생각 2초</span>
+          </summary>
+          <div class="mt-1.5 pl-3 leading-normal kr">
+            사용자가 H100 공급 개선도를 묻고 있음. 현재 페이지 'AI 인프라 트렌드'에 관련 수치가 있을 것 같아 먼저 훑고, 없으면 '반도체 공급망 분석' 노트로 확장한다.
+          </div>
+        </details>
+
+        <!-- Status line (live, streaming) -->
+        <div class="mb-2 text-[11.5px] text-fg-muted flex items-center gap-2">
+          <span class="pulse-dot"></span>
+          <span class="kr">'H100 리드타임' 관련 문서 훑는 중…</span>
+        </div>
+
+        <!-- Assistant answer -->
+        <div class="kr">
+          2026년 1분기 기준 <b>8~12주</b>로 단축됐습니다. 작년 동기 대비 약 40% 개선된 수치로, TSMC CoWoS 캐파 확장과 SK하이닉스 HBM3e 양산 안정화가 주 원인입니다.
+        </div>
+
+        <!-- Citations -->
+        <div class="mt-2 flex flex-wrap gap-1">
+          <button class="chip !text-[10px]">
+            <span class="font-medium">[1]</span>
+            <span class="truncate max-w-[160px] kr">AI 인프라 트렌드</span>
+          </button>
+          <button class="chip !text-[10px]">
+            <span class="font-medium">[2]</span>
+            <span class="truncate max-w-[160px] kr">반도체 공급망 분석</span>
+          </button>
+        </div>
+
+        <!-- Save suggestion chip -->
+        <div class="mt-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-border bg-bg text-[11px]">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg>
+          <span class="flex-1 kr truncate">"H100 리드타임 추이" 노트 제안</span>
+          <button class="px-2 py-0.5 rounded bg-fg text-bg text-[10px] font-medium">저장</button>
+          <button class="btn-ghost !p-0.5" title="닫기">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <!-- Message actions -->
+        <div class="mt-1.5 flex items-center gap-1 text-fg-muted">
+          <button class="btn-ghost !p-1" title="복사"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>
+          <button class="btn-ghost !p-1" title="다시 생성"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg></button>
+          <button class="btn-ghost !p-1" title="좋아요"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 10v12M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H7"/></svg></button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Scope chips row + strict toggle -->
+    <div class="px-3 py-2 border-t border-border flex flex-wrap items-center gap-1 shrink-0">
+      <button class="scope-chip" title="현재 페이지 (자동 부착)">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+        <span class="truncate max-w-[110px] kr">AI 인프라 트렌드</span>
+        <span class="scope-close">×</span>
+      </button>
+      <button class="scope-chip" title="프로젝트">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h6l2 2h8v12a2 2 0 0 1-2 2H4z"/></svg>
+        <span class="truncate max-w-[80px]">투자노트</span>
+        <span class="scope-close">×</span>
+      </button>
+      <button class="scope-chip" title="개인 메모리">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C9.24 2 7 4.24 7 7c0 1.1.4 2.1 1 2.9-1.5.7-2.5 2.1-2.5 3.8 0 1.8 1.2 3.3 2.9 3.9-.2.5-.4 1-.4 1.7 0 1.7 1.3 3 3 3 .7 0 1.3-.2 1.8-.6.5.4 1.1.6 1.8.6 1.7 0 3-1.3 3-3 0-.6-.1-1.2-.4-1.7 1.7-.6 2.9-2.1 2.9-3.9 0-1.8-1-3.2-2.5-3.8.6-.8 1-1.8 1-2.9 0-2.76-2.24-5-5-5Z"/><path d="M12 2v20"/></svg>
+        <span>개인 메모리</span>
+      </button>
+      <button class="scope-chip !text-fg-muted" title="컨텍스트 추가">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+      <div class="flex-1"></div>
+      <button class="flex items-center gap-1 text-[10.5px] text-fg-muted hover:text-fg px-1.5 py-0.5 rounded hover:bg-border" title="검색 범위 — Strict: 부착된 컨텍스트만. Expand: 관련 페이지 자동 확장.">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+        <span>Strict</span>
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+    </div>
+
+    <!-- Input (single rounded container, auto-grow, mic↔send toggle) -->
+    <div class="p-3 pt-1 shrink-0" id="chat-input-wrap">
+      <div class="bg-bg border-[1.5px] border-fg-muted rounded-xl focus-within:border-fg transition-colors">
+        <textarea
+          rows="1"
+          id="chat-textarea"
+          oninput="onChatInput(this)"
+          class="w-full px-3.5 pt-2.5 pb-0 bg-transparent border-0 outline-none resize-none text-[13px] kr placeholder:text-fg-muted leading-relaxed"
+          style="min-height: 24px; max-height: 200px;"
+          placeholder="메시지를 입력하세요…"
+        ></textarea>
+        <div class="flex items-center gap-0.5 px-1.5 pb-1.5 pt-1">
+          <!-- Left: attach only -->
+          <button class="btn-ghost !p-1.5" title="첨부">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+
+          <div class="flex-1"></div>
+
+          <!-- Mode selector -->
+          <button class="flex items-center gap-1 px-2 py-1 rounded hover:bg-border text-[11px] text-fg-muted" title="모델 모드 전환">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.5 6.5L21 9l-5 4.5 1.5 7-5.5-3.5L6.5 20.5 8 13.5 3 9l6.5-.5z"/></svg>
+            <span class="text-fg font-medium">auto</span>
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+
+          <!-- Mic (shown when empty) -->
+          <button id="chat-mic-btn" class="ml-1 btn-ghost !p-1.5" title="음성 입력">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="6" height="12" x="9" y="2" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="23"/><line x1="8" x2="16" y1="23" y2="23"/></svg>
+          </button>
+
+          <!-- Send (shown when text present) -->
+          <button id="chat-send-btn" class="ml-1 w-7 h-7 rounded-full bg-fg text-bg hidden items-center justify-center hover:opacity-85" title="전송">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Chat panel toggle (shown when panel is collapsed) -->
+  <button id="chat-toggle" class="hidden absolute right-3 top-14 btn-outline !p-2" onclick="toggleChatPanel()" title="AI 에이전트 열기">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+  </button>
+
+</div>
+
+<!-- ═══ Screen Templates ═══ -->
+
+<!-- DASHBOARD -->
+<template id="screen-dashboard">
+  <div class="screen max-w-6xl mx-auto px-8 py-8">
+    <div class="flex items-end justify-between mb-6">
+      <div>
+        <h1 class="font-serif text-3xl tracking-tight">대시보드</h1>
+        <p class="text-sm text-fg-muted mt-1">최근 활동 · Deep Research 진행 상황 · 추천</p>
+      </div>
+      <button class="btn-primary">새 프로젝트</button>
+    </div>
+
+    <!-- Quick stats -->
+    <div class="grid grid-cols-4 gap-3 mb-8">
+      <div class="card !p-4">
+        <div class="sec-label mb-1">문서</div>
+        <div class="text-2xl font-semibold">47</div>
+        <div class="text-[11px] text-fg-muted mt-1">+3 이번 주</div>
+      </div>
+      <div class="card !p-4">
+        <div class="sec-label mb-1">Deep Research</div>
+        <div class="text-2xl font-semibold">2 <span class="text-sm text-fg-muted font-normal">진행 중</span></div>
+        <div class="text-[11px] text-fg-muted mt-1">AI 인프라 · 반도체</div>
+      </div>
+      <div class="card !p-4">
+        <div class="sec-label mb-1">남은 크레딧</div>
+        <div class="text-2xl font-semibold">₩12,300</div>
+        <div class="text-[11px] text-fg-muted mt-1">≈ Deep Research 3회</div>
+      </div>
+      <div class="card !p-4">
+        <div class="sec-label mb-1">BYOK 키</div>
+        <div class="text-2xl font-semibold flex items-center gap-2"><span class="pulse-dot"></span>연결됨</div>
+        <div class="text-[11px] text-fg-muted mt-1">Gemini API</div>
+      </div>
+    </div>
+
+    <!-- Active Research -->
+    <div class="mb-8">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold">진행 중인 Deep Research</h2>
+        <a href="#/research" class="text-xs text-fg-muted hover:text-fg">전체 보기 →</a>
+      </div>
+      <div class="space-y-2">
+        <div class="card flex items-center gap-4">
+          <div class="pulse-dot researching shrink-0"></div>
+          <div class="flex-1 min-w-0">
+            <div class="font-medium text-sm">AI 인프라 시장 2026 전망</div>
+            <div class="text-xs text-fg-muted mt-0.5">투자노트 · 12분 전 시작 · 리서치 실행 중</div>
+          </div>
+          <span class="chip chip-info">researching</span>
+          <a href="#/research-detail" class="btn-ghost !px-3 !py-1 text-xs">열기 →</a>
+        </div>
+        <div class="card flex items-center gap-4">
+          <div class="w-1.5 h-1.5 rounded-full bg-fg-muted shrink-0"></div>
+          <div class="flex-1 min-w-0">
+            <div class="font-medium text-sm">반도체 공급망 2026 Q2</div>
+            <div class="text-xs text-fg-muted mt-0.5">투자노트 · 방금 · 플랜 승인 대기</div>
+          </div>
+          <span class="chip chip-warn">awaiting approval</span>
+          <a href="#/research-detail" class="btn-ghost !px-3 !py-1 text-xs">열기 →</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent docs -->
+    <div class="mb-8">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold">최근 작업한 문서</h2>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <a href="#/note" class="card block">
+          <div class="sec-label">투자노트</div>
+          <div class="font-medium text-sm mt-1 mb-1.5 kr">AI 인프라 트렌드</div>
+          <div class="text-xs text-fg-muted kr">엔비디아 H100 공급 개선세, TSMC CoWoS 캐파 확대…</div>
+          <div class="text-[11px] text-fg-muted mt-3">3시간 전 편집</div>
+        </a>
+        <a href="#/note" class="card block">
+          <div class="sec-label">리서치 노트</div>
+          <div class="font-medium text-sm mt-1 mb-1.5 kr">LLM 추론 최적화 서베이</div>
+          <div class="text-xs text-fg-muted kr">vLLM · TensorRT-LLM · SGLang 비교. KV 캐시 관리 전략…</div>
+          <div class="text-[11px] text-fg-muted mt-3">어제</div>
+        </a>
+        <a href="#/note" class="card block">
+          <div class="sec-label">독서 메모</div>
+          <div class="font-medium text-sm mt-1 mb-1.5 kr">The Making of Prince of Persia</div>
+          <div class="text-xs text-fg-muted kr">Jordan Mechner의 Apple II 개발 일지. 1985~1989…</div>
+          <div class="text-[11px] text-fg-muted mt-3">3일 전</div>
+        </a>
+      </div>
+    </div>
+
+  </div>
+</template>
+
+<!-- PROJECT VIEW (note list + empty main) -->
+<template id="screen-project">
+  <div class="screen max-w-6xl mx-auto px-8 py-8">
+    <div class="text-xs text-fg-muted mb-2">투자노트 ›</div>
+    <div class="flex items-end justify-between mb-6">
+      <div>
+        <h1 class="font-serif text-2xl tracking-tight">2026 Q2 포트폴리오 리뷰</h1>
+        <p class="text-sm text-fg-muted mt-1">24개 문서 · 마지막 활동 3시간 전</p>
+      </div>
+      <div class="flex gap-2">
+        <button class="btn-outline">Deep Research 시작</button>
+        <button class="btn-outline">가져오기</button>
+        <button class="btn-primary">새 문서</button>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="flex items-center gap-2 mb-4">
+      <button class="chip !px-3 !py-1 bg-fg text-bg border-fg">전체 24</button>
+      <button class="chip !px-3 !py-1">임포트 12</button>
+      <button class="chip !px-3 !py-1">Deep Research 2</button>
+      <button class="chip !px-3 !py-1">직접 작성 10</button>
+      <div class="flex-1"></div>
+      <button class="btn-ghost text-xs">정렬: 최근 편집 ↓</button>
+    </div>
+
+    <!-- Note list -->
+    <div class="border border-border rounded-lg overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-surface text-xs text-fg-muted">
+          <tr>
+            <th class="text-left px-4 py-2 font-medium">제목</th>
+            <th class="text-left px-4 py-2 font-medium w-32">유형</th>
+            <th class="text-left px-4 py-2 font-medium w-32">편집자</th>
+            <th class="text-left px-4 py-2 font-medium w-28">업데이트</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="border-t border-border hover:bg-surface cursor-pointer" onclick="location.hash='#/note'">
+            <td class="px-4 py-2.5">
+              <div class="flex items-center gap-2">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-fg-muted"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                <span class="font-medium">AI 인프라 트렌드</span>
+              </div>
+            </td>
+            <td class="px-4 py-2.5"><span class="chip">직접 작성</span></td>
+            <td class="px-4 py-2.5 text-fg-muted text-xs">김성빈</td>
+            <td class="px-4 py-2.5 text-fg-muted text-xs">3시간 전</td>
+          </tr>
+          <tr class="border-t border-border hover:bg-surface cursor-pointer" onclick="location.hash='#/note'">
+            <td class="px-4 py-2.5">
+              <div class="flex items-center gap-2">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-fg-muted"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <span class="font-medium kr">반도체 공급망 2026 전망 리포트</span>
+              </div>
+            </td>
+            <td class="px-4 py-2.5"><span class="chip chip-info">Deep Research</span></td>
+            <td class="px-4 py-2.5 text-fg-muted text-xs">AI 생성</td>
+            <td class="px-4 py-2.5 text-fg-muted text-xs">어제</td>
+          </tr>
+          <tr class="border-t border-border hover:bg-surface cursor-pointer">
+            <td class="px-4 py-2.5">
+              <div class="flex items-center gap-2">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-fg-muted"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                <span>Q1 실적 정리 메모.pdf</span>
+              </div>
+            </td>
+            <td class="px-4 py-2.5"><span class="chip">임포트</span></td>
+            <td class="px-4 py-2.5 text-fg-muted text-xs">Drive</td>
+            <td class="px-4 py-2.5 text-fg-muted text-xs">2일 전</td>
+          </tr>
+          <tr class="border-t border-border hover:bg-surface cursor-pointer">
+            <td class="px-4 py-2.5">
+              <div class="flex items-center gap-2">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-fg-muted"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                <span>테슬라 FSD v13 분석</span>
+              </div>
+            </td>
+            <td class="px-4 py-2.5"><span class="chip">직접 작성</span></td>
+            <td class="px-4 py-2.5 text-fg-muted text-xs">김성빈</td>
+            <td class="px-4 py-2.5 text-fg-muted text-xs">3일 전</td>
+          </tr>
+          <tr class="border-t border-border">
+            <td colspan="4" class="px-4 py-3 text-center text-xs text-fg-muted">… 20개 더 보기</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</template>
+
+<!-- NOTE EDITOR (Plate-like) -->
+<template id="screen-note">
+  <div class="screen">
+    <!-- Breadcrumb + actions -->
+    <div class="px-8 py-3 border-b border-border flex items-center justify-between bg-bg sticky top-0 z-10">
+      <div class="text-xs text-fg-muted">
+        투자노트 › 2026 Q2 포트폴리오 리뷰 › <span class="text-fg">AI 인프라 트렌드</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-[11px] text-fg-muted">3시간 전 자동 저장</span>
+        <button class="btn-ghost !p-1.5" title="댓글"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+        <button class="btn-ghost !p-1.5" title="공유"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg></button>
+        <button class="btn-ghost !p-1.5" title="더보기"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div class="px-8 py-10 prose-note mx-auto">
+      <h1 class="kr">AI 인프라 트렌드 2026</h1>
+      <p class="text-fg-muted text-sm kr">엔비디아 H100 공급 개선 · TSMC CoWoS 캐파 확대 · 추론 최적화 스택 분화 — 3가지 축으로 본 Q2 전망.</p>
+
+      <h2 class="kr">1. 공급 측면: H100 공급 제약 해소 가속</h2>
+      <p class="kr">
+        2026년 1분기 기준 H100 리드타임은 <a href="#">8~12주</a>로 단축됐습니다.
+        작년 동기 대비 <b>약 40% 개선</b>된 수치입니다.
+        주요 원인은 <a href="#">TSMC CoWoS</a> 캐파 확장과 SK하이닉스의 HBM3e 양산 안정화입니다.
+      </p>
+
+      <blockquote class="kr">
+        "추론 워크로드가 폭증하면서 H100 수요 자체는 줄지 않았지만, L40S와 H200 믹스가 변화하면서
+        실효 공급은 여유가 생겼다." — 반도체 애널리스트 K (2026년 4월)
+      </blockquote>
+
+      <h2 class="kr">2. 제조 측면: TSMC CoWoS 캐파 2배</h2>
+      <p class="kr">
+        TSMC는 2026년 말까지 <code>CoWoS-L</code> 캐파를 월 45K 장 규모로 확대할 계획입니다.
+        이는 2025년 동기 대비 <b>2배 수준</b>입니다.
+      </p>
+
+      <h3 class="kr">참고 문서</h3>
+      <ul>
+        <li class="kr">관련 노트: <a href="#">H200 공급 현황 메모</a></li>
+        <li class="kr">Deep Research: <a href="#">반도체 공급망 2026 전망 리포트</a></li>
+      </ul>
+
+      <h2 class="kr">3. 추론 스택: vLLM · TensorRT-LLM · SGLang</h2>
+      <p class="kr">
+        오픈소스 진영에서는 <a href="#">vLLM v0.7</a>이 <a href="#">continuous batching</a>
+        기본값이 되면서 처리량이 크게 개선됐습니다. NVIDIA는 <a href="#">TensorRT-LLM</a>으로
+        자사 GPU 최적화를 이어가고, 학계에서는 <a href="#">SGLang</a>이 주목받고 있습니다.
+      </p>
+
+      <p class="text-fg-muted text-sm italic kr">
+        ※ 이 섹션은 <a href="#">LLM 추론 최적화 서베이</a> 노트에서 요약 발췌됨.
+      </p>
+
+      <!-- Slash menu hint -->
+      <div class="mt-8 text-xs text-fg-muted flex items-center gap-2 kr">
+        <kbd>/</kbd> 를 누르면 블록 메뉴, <kbd>[[</kbd> 는 위키 링크가 열립니다.
+      </div>
+    </div>
+  </div>
+</template>
+
+<!-- DEEP RESEARCH HUB -->
+<template id="screen-research">
+  <div class="screen max-w-6xl mx-auto px-8 py-8">
+    <div class="flex items-end justify-between mb-2">
+      <h1 class="font-serif text-3xl tracking-tight">Deep Research</h1>
+      <button class="btn-primary">새 리서치 시작</button>
+    </div>
+    <p class="text-sm text-fg-muted mb-6 kr">주제를 입력하면 플랜을 검토하고, 최종 리포트가 워크스페이스에 문서로 저장됩니다.</p>
+
+    <!-- Status tabs -->
+    <div class="flex items-center gap-1 border-b border-border mb-5 text-sm">
+      <button class="px-3 py-2 font-medium border-b-2 border-fg -mb-px">전체 8</button>
+      <button class="px-3 py-2 text-fg-muted hover:text-fg">진행 중 2</button>
+      <button class="px-3 py-2 text-fg-muted hover:text-fg">승인 대기 1</button>
+      <button class="px-3 py-2 text-fg-muted hover:text-fg">완료 4</button>
+      <button class="px-3 py-2 text-fg-muted hover:text-fg">실패/취소 1</button>
+    </div>
+
+    <!-- Run list -->
+    <div class="space-y-2">
+      <!-- Researching -->
+      <div class="card flex items-center gap-4 cursor-pointer" onclick="location.hash='#/research-detail'">
+        <div class="pulse-dot researching shrink-0"></div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-0.5">
+            <span class="font-medium">AI 인프라 시장 2026 전망</span>
+            <span class="chip chip-info">researching</span>
+          </div>
+          <div class="text-xs text-fg-muted kr">투자노트 · deep-research-max · 12분 전 시작 · 리포트 작성 중 (3/5)</div>
+        </div>
+        <div class="text-right text-xs text-fg-muted shrink-0">
+          <div>예상 $2.40 ~ $3.20</div>
+          <div class="mt-0.5">BYOK</div>
+        </div>
+      </div>
+
+      <!-- Awaiting approval -->
+      <div class="card flex items-center gap-4 cursor-pointer" onclick="location.hash='#/research-detail'">
+        <div class="w-1.5 h-1.5 rounded-full bg-fg-muted shrink-0"></div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-0.5">
+            <span class="font-medium">반도체 공급망 2026 Q2</span>
+            <span class="chip chip-warn">awaiting approval</span>
+          </div>
+          <div class="text-xs text-fg-muted kr">투자노트 · deep-research · 방금 · 플랜 v2 검토 필요</div>
+        </div>
+        <div class="text-right text-xs text-fg-muted shrink-0">
+          <div>예상 $0.80 ~ $1.40</div>
+          <div class="mt-0.5">크레딧</div>
+        </div>
+      </div>
+
+      <!-- Completed 1 -->
+      <div class="card flex items-center gap-4 cursor-pointer">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="text-success shrink-0"><path d="M20 6 9 17l-5-5"/></svg>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-0.5">
+            <span class="font-medium">LLM 추론 최적화 서베이</span>
+            <span class="chip chip-success">completed</span>
+          </div>
+          <div class="text-xs text-fg-muted kr">리서치 노트 · 어제 완료 · 리포트 문서 → <a href="#/note" class="underline">열기</a></div>
+        </div>
+        <div class="text-right text-xs text-fg-muted shrink-0">
+          <div>$1.94</div>
+          <div class="mt-0.5">BYOK</div>
+        </div>
+      </div>
+
+      <!-- Completed 2 -->
+      <div class="card flex items-center gap-4 cursor-pointer">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="text-success shrink-0"><path d="M20 6 9 17l-5-5"/></svg>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-0.5">
+            <span class="font-medium kr">헬스케어 AI 규제 동향 (EU AI Act · FDA)</span>
+            <span class="chip chip-success">completed</span>
+          </div>
+          <div class="text-xs text-fg-muted kr">리서치 노트 · 3일 전</div>
+        </div>
+        <div class="text-right text-xs text-fg-muted shrink-0">
+          <div>$2.18</div>
+          <div class="mt-0.5">크레딧</div>
+        </div>
+      </div>
+
+      <!-- Failed -->
+      <div class="card flex items-center gap-4 cursor-pointer opacity-70">
+        <div class="w-1.5 h-1.5 rounded-full bg-danger shrink-0"></div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-0.5">
+            <span class="font-medium kr">비상장 AI 스타트업 밸류에이션 비교</span>
+            <span class="chip" style="background:color-mix(in srgb,var(--theme-danger) 12%,transparent);color:var(--theme-danger);border-color:color-mix(in srgb,var(--theme-danger) 30%,transparent)">failed</span>
+          </div>
+          <div class="text-xs text-fg-muted kr">투자노트 · 1주 전 · BYOK 키 쿼터 초과 — <a href="#/settings" class="underline">설정에서 확인</a></div>
+        </div>
+        <div class="text-right text-xs text-fg-muted shrink-0">
+          <div>—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty hint -->
+    <p class="text-xs text-fg-muted text-center mt-8 kr">
+      이전 리서치는 해당 프로젝트의 문서로 보관됩니다. 소스 · 플랜 · 생각 요약은 문서 상단의
+      접이식 블록에서 확인할 수 있습니다.
+    </p>
+  </div>
+</template>
+
+<!-- SCREEN STUB — placeholder for screens we haven't built yet -->
+<template id="screen-stub">
+  <div class="empty screen h-full">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mb-3 opacity-40"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/></svg>
+    <div class="text-sm font-medium mb-1">이 화면은 아직 목업 중입니다</div>
+    <div class="text-xs kr" id="stub-message">다음 이터레이션에서 추가됩니다.</div>
+  </div>
+</template>
+
+<!-- ═══ Router + Interactions ═══ -->
+<script>
+  const ROUTES = {
+    'dashboard':         { title: '대시보드',         tpl: 'screen-dashboard' },
+    'research':          { title: 'Deep Research',  tpl: 'screen-research' },
+    'research-detail':   { title: '리서치 상세',       tpl: 'screen-stub', stubMessage: '리서치 상세 (planning · awaiting approval · researching · completed 상태) 화면은 다음 이터레이션에서 추가됩니다.' },
+    'project':           { title: '투자노트',         tpl: 'screen-project' },
+    'note':              { title: 'AI 인프라 트렌드',  tpl: 'screen-note' },
+    'import':            { title: '가져오기',         tpl: 'screen-stub', stubMessage: 'Drive/Notion 임포트 허브는 다음 이터레이션에서 추가됩니다.' },
+    'settings':          { title: '설정',            tpl: 'screen-stub', stubMessage: '설정 (프로필 · AI/BYOK · 청구 · 워크스페이스 admin) 은 다음 이터레이션에서 추가됩니다.' },
+  };
+
+  // Multi-tab state — simple in-memory
+  const tabs = [];
+  let activeTabId = null;
+  let tabCounter = 0;
+
+  function openOrFocusTab(routeKey) {
+    const existing = tabs.find(t => t.route === routeKey);
+    if (existing) {
+      activeTabId = existing.id;
+    } else {
+      const id = ++tabCounter;
+      tabs.push({ id, route: routeKey, title: ROUTES[routeKey]?.title || routeKey });
+      activeTabId = id;
+    }
+    renderTabs();
+    renderContent();
+  }
+
+  function closeTab(id, e) {
+    e?.stopPropagation();
+    const idx = tabs.findIndex(t => t.id === id);
+    if (idx === -1) return;
+    tabs.splice(idx, 1);
+    if (activeTabId === id) {
+      if (tabs.length > 0) {
+        const next = tabs[Math.min(idx, tabs.length - 1)];
+        activeTabId = next.id;
+        location.hash = '#/' + next.route;
+      } else {
+        activeTabId = null;
+        location.hash = '#/dashboard';
+        return;
+      }
+    }
+    renderTabs();
+    renderContent();
+  }
+
+  function focusTab(id) {
+    const t = tabs.find(x => x.id === id);
+    if (!t) return;
+    activeTabId = id;
+    location.hash = '#/' + t.route;
+  }
+
+  function renderTabs() {
+    const bar = document.getElementById('tab-bar');
+    bar.innerHTML = '';
+    tabs.forEach(t => {
+      const el = document.createElement('div');
+      el.className = 'tab' + (t.id === activeTabId ? ' active' : '');
+      el.onclick = () => focusTab(t.id);
+      el.innerHTML = `
+        <span class="truncate flex-1">${t.title}</span>
+        <span class="close" onclick="closeTab(${t.id}, event)">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </span>
+      `;
+      bar.appendChild(el);
+    });
+    // New tab button
+    if (tabs.length > 0) {
+      const btn = document.createElement('button');
+      btn.className = 'px-3 text-fg-muted hover:text-fg hover:bg-border';
+      btn.title = '새 탭';
+      btn.onclick = () => { location.hash = '#/dashboard'; };
+      btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>';
+      bar.appendChild(btn);
+    }
+  }
+
+  function renderContent() {
+    const content = document.getElementById('content');
+    const tab = tabs.find(t => t.id === activeTabId);
+    if (!tab) {
+      content.innerHTML = '';
+      return;
+    }
+    const route = ROUTES[tab.route] || ROUTES.dashboard;
+    const tpl = document.getElementById(route.tpl);
+    if (!tpl) {
+      content.innerHTML = '<div class="empty h-full">Template missing: ' + route.tpl + '</div>';
+      return;
+    }
+    content.innerHTML = '';
+    const node = tpl.content.cloneNode(true);
+    content.appendChild(node);
+    // Inject stub message if present
+    if (route.stubMessage) {
+      const stub = content.querySelector('#stub-message');
+      if (stub) stub.textContent = route.stubMessage;
+    }
+    // Update nav active state
+    document.querySelectorAll('.nav-link').forEach(a => {
+      a.classList.toggle('active', a.dataset.route === tab.route);
+    });
+  }
+
+  function onHashChange() {
+    const hash = location.hash.replace(/^#\//, '') || 'dashboard';
+    if (!ROUTES[hash]) {
+      location.hash = '#/dashboard';
+      return;
+    }
+    openOrFocusTab(hash);
+  }
+
+  window.addEventListener('hashchange', onHashChange);
+
+  // Chat panel toggle
+  let chatCollapsed = false;
+  function toggleChatPanel() {
+    const panel = document.getElementById('chat-panel');
+    const toggle = document.getElementById('chat-toggle');
+    chatCollapsed = !chatCollapsed;
+    if (chatCollapsed) {
+      panel.classList.add('hidden');
+      toggle.classList.remove('hidden');
+    } else {
+      panel.classList.remove('hidden');
+      toggle.classList.add('hidden');
+    }
+  }
+
+  // Chat textarea — auto-grow + mic↔send swap based on content.
+  function onChatInput(ta) {
+    // Auto-grow
+    ta.style.height = 'auto';
+    const next = Math.min(ta.scrollHeight, 200);
+    ta.style.height = next + 'px';
+    // Mic ↔ Send swap
+    const hasText = ta.value.trim().length > 0;
+    const mic = document.getElementById('chat-mic-btn');
+    const send = document.getElementById('chat-send-btn');
+    if (mic && send) {
+      mic.classList.toggle('hidden', hasText);
+      send.classList.toggle('hidden', !hasText);
+      // Restore `flex` display when send is shown (we used `hidden` + `items-center justify-center` combo)
+      if (hasText) {
+        send.classList.add('flex');
+      } else {
+        send.classList.remove('flex');
+      }
+    }
+  }
+
+  // OS-aware modifier rendering. macOS → ⌘, Windows/Linux → Ctrl+.
+  const IS_MAC = /Macintosh|Mac OS X|iPhone|iPad/.test(navigator.userAgent);
+  const MOD_LABEL = IS_MAC ? '⌘' : 'Ctrl+';
+  function renderModKeys() {
+    document.querySelectorAll('kbd[data-mod]').forEach((el) => {
+      const key = el.dataset.mod;
+      el.textContent = `${MOD_LABEL}${key}`;
+    });
+  }
+  renderModKeys();
+
+  // Theme switcher (Mod+.)
+  const THEMES = ['cairn-light', 'cairn-dark', 'sepia', 'high-contrast'];
+  let themeIdx = 0;
+  function cycleTheme() {
+    themeIdx = (themeIdx + 1) % THEMES.length;
+    document.body.dataset.theme = THEMES[themeIdx];
+  }
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === '.') {
+      e.preventDefault();
+      cycleTheme();
+    }
+    // Mod+K — placeholder for command palette
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      alert(`${MOD_LABEL}K 명령 팔레트는 다음 이터레이션에서 추가됩니다.`);
+    }
+  });
+
+  // Initialize
+  onHashChange();
+</script>
+
+</body>
+</html>
