@@ -616,3 +616,87 @@ describe("POST /api/research/runs/:id/approve", () => {
     expect(workflowSignalSpy).not.toHaveBeenCalled();
   });
 });
+
+describe("Deep Research happy path (integration)", () => {
+  let ctx: SeedResult;
+  beforeEach(async () => {
+    ctx = await seedWorkspace({ role: "editor" });
+    workflowStartSpy.mockClear();
+    workflowSignalSpy.mockClear();
+  });
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  it("create → plan arrives → approve → complete", async () => {
+    // 1. create run
+    const create = await authedFetch("/api/research/runs", {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({
+        workspaceId: ctx.workspaceId,
+        projectId: ctx.projectId,
+        topic: "Summarise recent transformer efficiency papers",
+        model: "deep-research-preview-04-2026",
+        billingPath: "byok",
+      }),
+    });
+    expect(create.status).toBe(201);
+    const { runId } = (await create.json()) as { runId: string };
+
+    // 2. worker (simulated) posts a plan_proposal + flips status
+    await db.insert(researchRunTurns).values({
+      runId, seq: 0, role: "agent", kind: "plan_proposal", content: "P0",
+    });
+    await db
+      .update(researchRuns)
+      .set({ status: "awaiting_approval" })
+      .where(eq(researchRuns.id, runId));
+
+    // 3. user iterates once
+    const feedback = await authedFetch(`/api/research/runs/${runId}/turns`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ feedback: "scope narrower" }),
+    });
+    expect(feedback.status).toBe(202);
+
+    // 4. worker posts a new plan_proposal
+    await db.insert(researchRunTurns).values({
+      runId, seq: 2, role: "agent", kind: "plan_proposal", content: "P1",
+    });
+
+    // 5. user approves
+    const approve = await authedFetch(`/api/research/runs/${runId}/approve`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({}),
+    });
+    expect(approve.status).toBe(202);
+    expect(workflowSignalSpy).toHaveBeenCalledWith("approve_plan", "P1");
+
+    // 6. worker completes
+    await db
+      .update(researchRuns)
+      .set({
+        status: "completed",
+        noteId: ctx.noteId,
+        completedAt: new Date(),
+      })
+      .where(eq(researchRuns.id, runId));
+
+    // 7. detail endpoint reflects end state
+    const detail = await authedFetch(`/api/research/runs/${runId}`, {
+      method: "GET",
+      userId: ctx.userId,
+    });
+    const d = (await detail.json()) as {
+      status: string;
+      noteId: string | null;
+      turns: unknown[];
+    };
+    expect(d.status).toBe("completed");
+    expect(d.noteId).toBe(ctx.noteId);
+    expect(d.turns.length).toBeGreaterThanOrEqual(4); // 2 proposals, 1 feedback, 1 approval
+  });
+});
