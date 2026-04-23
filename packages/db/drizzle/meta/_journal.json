@@ -120,6 +120,13 @@
       "when": 1776930684599,
       "tag": "0016_ingest_jobs_owner_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1776939436961,
+      "tag": "0017_users_last_viewed_workspace",
+      "breakpoints": true
     }
   ]
 }
