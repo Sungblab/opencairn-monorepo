@@ -1,11 +1,12 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { db, projects, eq, desc } from "@opencairn/db";
+import { db, projects, folders, eq, desc, and } from "@opencairn/db";
 import { createProjectSchema, updateProjectSchema } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite, resolveRole } from "../lib/permissions";
 import { requireWorkspaceRole } from "../middleware/require-role";
 import { isUuid } from "../lib/validators";
+import { listChildren, listChildrenForParents } from "../lib/tree-queries";
 import type { AppEnv } from "../lib/types";
 
 export const projectRoutes = new Hono<AppEnv>()
@@ -81,6 +82,78 @@ export const projectRoutes = new Hono<AppEnv>()
       .returning();
     if (!project) return c.json({ error: "Not found" }, 404);
     return c.json(project);
+  })
+
+  // 사이드바 트리 (/api/projects/:projectId/tree[?parent_id=...]).
+  // folders + notes를 `kind` discriminator로 묶어 한 번에 반환. `parent_id`는
+  // 반드시 이 프로젝트에 속한 folder id 이어야 하며, 값이 비어 있으면 root
+  // (folders.parent_id IS NULL + notes.folder_id IS NULL)를 돌려준다.
+  // 폴더 노드 각각은 1단계 손자(children)를 프리패치해 사이드바의 첫 확장
+  // 클릭에서 추가 round-trip이 없도록 한다. Phase 2 spec §4.6.1 / §11.3.
+  .get("/projects/:projectId/tree", async (c) => {
+    const user = c.get("user");
+    const projectId = c.req.param("projectId");
+    if (!isUuid(projectId)) return c.json({ error: "Bad Request" }, 400);
+    if (!(await canRead(user.id, { type: "project", id: projectId }))) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+
+    const parentIdRaw = c.req.query("parent_id");
+    let parentId: string | null = null;
+    if (parentIdRaw !== undefined && parentIdRaw !== "") {
+      if (!isUuid(parentIdRaw)) return c.json({ error: "Bad Request" }, 400);
+      const [folder] = await db
+        .select({ id: folders.id })
+        .from(folders)
+        .where(
+          and(
+            eq(folders.id, parentIdRaw),
+            eq(folders.projectId, projectId),
+          ),
+        );
+      if (!folder) {
+        // Either the id belongs to a note (notes are leaves and can't be
+        // parents) or to a folder outside this project. Either way the
+        // caller shouldn't be passing it here.
+        return c.json(
+          { error: "parent_id must be a folder in this project" },
+          400,
+        );
+      }
+      parentId = parentIdRaw;
+    }
+
+    const roots = await listChildren({ projectId, parentId });
+
+    // Prefetch one level of children for every folder that has any. Notes
+    // are leaves and don't need prefetching.
+    const folderParents = roots
+      .filter((r) => r.kind === "folder" && r.childCount > 0)
+      .map((r) => r.id);
+    const grouped = await listChildrenForParents({
+      projectId,
+      parentIds: folderParents,
+    });
+
+    return c.json({
+      nodes: roots.map((r) => ({
+        kind: r.kind,
+        id: r.id,
+        parent_id: r.parentId,
+        label: r.label,
+        child_count: r.childCount,
+        children:
+          r.kind === "folder"
+            ? (grouped.get(r.id) ?? []).map((ch) => ({
+                kind: ch.kind,
+                id: ch.id,
+                parent_id: ch.parentId,
+                label: ch.label,
+                child_count: ch.childCount,
+              }))
+            : [],
+      })),
+    });
   })
 
   // 삭제 (workspace admin 이상 또는 생성자)
