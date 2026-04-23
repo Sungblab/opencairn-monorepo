@@ -17,6 +17,7 @@ import {
   projectSemaphoreSlots,
   embeddingBatches,
   importJobs,
+  researchRuns,
   eq,
   and,
   sql,
@@ -26,6 +27,7 @@ import {
 import { getTemporalClient } from "../lib/temporal-client";
 import { signSessionForUser } from "../lib/test-session";
 import { createMultiRoleSeed } from "../lib/test-seed-multi";
+import { plateValueToText } from "../lib/plate-text";
 import type { AppEnv } from "../lib/types";
 
 // Internal-only routes — reachable by worker callbacks on the docker network.
@@ -1124,31 +1126,88 @@ internal.post(
 // once all pages have landed). parentNoteId and importPath/importJobId are
 // accepted for forward-compat but NOT persisted — the notes table has no
 // parent or import columns today (same precedent as /source-notes).
-const internalNoteCreateSchema = z.object({
-  projectId: z.string().uuid(),
-  parentNoteId: z.string().uuid().nullable().optional(),
-  title: z.string().min(1).max(512).default("Untitled"),
-  type: z.enum(["note", "source"]).default("note"),
-  sourceType: z
-    .enum(["pdf", "audio", "video", "image", "youtube", "web", "unknown", "notion"])
-    .nullable()
-    .optional(),
-  content: z.unknown().nullable().optional(),
-  contentText: z.string().nullable().optional(),
-  importJobId: z.string().uuid().optional(),
-  importPath: z.string().max(1024).optional(),
-});
+// POST /internal/notes — shared by the import pipeline AND the Deep Research
+// persist_report activity (Phase C). Two call-site shapes supported:
+//
+//   A. Ingest-expansion (legacy): { projectId, title, type, sourceType,
+//        content, contentText, parentNoteId?, importJobId?, importPath? }
+//        — pre-rendered content + contentText, no idempotency.
+//
+//   B. Deep Research (Phase C):  { idempotencyKey, projectId, workspaceId,
+//        userId, title, plateValue }
+//        — pre-rendered Plate value; contentText derived here. workspaceId
+//        must match projectId's workspace.
+//
+// We do not gate by payload shape explicitly; the Zod schema permits both
+// and the handler branches on presence of `idempotencyKey`.
+const internalNoteCreateSchema = z
+  .object({
+    projectId: z.string().uuid(),
+    parentNoteId: z.string().uuid().nullable().optional(),
+    title: z.string().min(1).max(512).default("Untitled"),
+    type: z.enum(["note", "source"]).default("note"),
+    sourceType: z
+      .enum(["pdf", "audio", "video", "image", "youtube", "web", "unknown", "notion"])
+      .nullable()
+      .optional(),
+    content: z.unknown().nullable().optional(),
+    contentText: z.string().nullable().optional(),
+    importJobId: z.string().uuid().optional(),
+    importPath: z.string().max(1024).optional(),
+    // --- Phase C additions ---
+    idempotencyKey: z.string().min(1).max(128).optional(),
+    workspaceId: z.string().uuid().optional(),
+    userId: z.string().min(1).max(200).optional(),
+    plateValue: z.unknown().optional(),
+  })
+  .refine(
+    (v) => !(v.idempotencyKey && !v.plateValue),
+    { message: "plateValue required when idempotencyKey is present" },
+  );
 
 internal.post(
   "/notes",
   zValidator("json", internalNoteCreateSchema),
   async (c) => {
     const body = c.req.valid("json");
+
     const [proj] = await db
       .select({ workspaceId: projects.workspaceId })
       .from(projects)
       .where(eq(projects.id, body.projectId));
     if (!proj) return c.json({ error: "Project not found" }, 404);
+
+    // If workspaceId was supplied (Phase C shape), enforce consistency.
+    if (body.workspaceId && body.workspaceId !== proj.workspaceId) {
+      return c.json({ error: "workspace_mismatch" }, 400);
+    }
+
+    // Idempotency — if the key matches an already-inserted research run's
+    // noteId, return it instead of inserting again. Keyed on researchRuns.id
+    // which equals the worker-supplied idempotencyKey (= run_id) by contract.
+    // Guard: researchRuns.id is a UUID column; skip the query if the key is
+    // not UUID-shaped to avoid a Postgres cast error.
+    const UUID_RE =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (body.idempotencyKey && UUID_RE.test(body.idempotencyKey)) {
+      const [existing] = await db
+        .select({ noteId: researchRuns.noteId })
+        .from(researchRuns)
+        .where(eq(researchRuns.id, body.idempotencyKey));
+      if (existing?.noteId) {
+        return c.json({ id: existing.noteId, noteId: existing.noteId }, 201);
+      }
+    }
+
+    // Resolve the note content and contentText from either payload shape.
+    const content =
+      (body.plateValue as unknown) ??
+      body.content ??
+      null;
+    let contentText = body.contentText ?? "";
+    if (!contentText && body.plateValue) {
+      contentText = plateValueToText(body.plateValue as never) ?? "";
+    }
 
     const id = randomUUID();
     await db.insert(notes).values({
@@ -1158,11 +1217,22 @@ internal.post(
       title: body.title,
       type: body.type,
       sourceType: body.sourceType ?? null,
-      content: body.content ?? null,
-      contentText: body.contentText ?? "",
+      content,
+      contentText,
       isAuto: true,
     });
-    return c.json({ id }, 201);
+
+    // Back-fill researchRuns.noteId so a retry of this call hits the
+    // idempotency branch above. UUID guard mirrors the read path above —
+    // the column is uuid type, so non-UUID keys must be skipped.
+    if (body.idempotencyKey && UUID_RE.test(body.idempotencyKey)) {
+      await db
+        .update(researchRuns)
+        .set({ noteId: id, updatedAt: new Date() })
+        .where(eq(researchRuns.id, body.idempotencyKey));
+    }
+
+    return c.json({ id, noteId: id }, 201);
   },
 );
 
