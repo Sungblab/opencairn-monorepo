@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useTranslations, useLocale } from "next-intl";
-import { authClient } from "@/lib/auth-client";
+import { authClient, googleOAuthEnabled } from "@/lib/auth-client";
 import { GoogleButton } from "./GoogleButton";
 import { AuthEyebrow } from "./AuthEyebrow";
 
@@ -203,12 +203,14 @@ export function SignupForm() {
         <p className="text-sm text-stone-600 kr">{t("signup.step1Desc")}</p>
       </div>
 
-      <div className="flex flex-col gap-3">
-        <GoogleButton />
-        <div className="auth-divider">
-          <span>{t("signup.orContinueWith")}</span>
+      {googleOAuthEnabled && (
+        <div className="flex flex-col gap-3">
+          <GoogleButton />
+          <div className="auth-divider">
+            <span>{t("signup.orContinueWith")}</span>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="signup-email" className="auth-label">

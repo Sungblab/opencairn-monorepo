@@ -3,6 +3,7 @@ import { useTranslations, useLocale } from "next-intl";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { GoogleButton } from "./GoogleButton";
 import { AuthEyebrow } from "./AuthEyebrow";
+import { googleOAuthEnabled } from "@/lib/auth-client";
 
 interface AuthModalProps {
   open: boolean;
@@ -30,11 +31,14 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
           </div>
 
           <div className="flex flex-col gap-3">
-            <GoogleButton />
-
-            <div className="auth-divider">
-              <span>{t("modal.or")}</span>
-            </div>
+            {googleOAuthEnabled && (
+              <>
+                <GoogleButton />
+                <div className="auth-divider">
+                  <span>{t("modal.or")}</span>
+                </div>
+              </>
+            )}
 
             <a
               href={`/${locale}/auth/login`}

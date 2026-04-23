@@ -1,6 +1,6 @@
 "use client";
 import { useTranslations, useLocale } from "next-intl";
-import { authClient } from "@/lib/auth-client";
+import { authClient, googleOAuthEnabled } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
 interface GoogleButtonProps {
@@ -10,6 +10,10 @@ interface GoogleButtonProps {
 export function GoogleButton({ className }: GoogleButtonProps) {
   const t = useTranslations("auth");
   const locale = useLocale();
+
+  // Don't render a social-login affordance we can't honour.
+  // [Tier 1 item 1-7]
+  if (!googleOAuthEnabled) return null;
 
   const handleClick = async () => {
     await authClient.signIn.social({

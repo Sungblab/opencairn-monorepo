@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
-import { authClient } from "@/lib/auth-client";
+import { authClient, googleOAuthEnabled } from "@/lib/auth-client";
 import { GoogleButton } from "./GoogleButton";
 import { AuthEyebrow } from "./AuthEyebrow";
 import { isSafeReturnTo } from "@/lib/return-to";
@@ -174,12 +174,14 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
         <p className="text-sm text-stone-600 kr">{t("login.subtitle")}</p>
       </div>
 
-      <div className="flex flex-col gap-3">
-        <GoogleButton />
-        <div className="auth-divider">
-          <span>{t("login.orContinueWith")}</span>
+      {googleOAuthEnabled && (
+        <div className="flex flex-col gap-3">
+          <GoogleButton />
+          <div className="auth-divider">
+            <span>{t("login.orContinueWith")}</span>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="auth-email" className="auth-label">
