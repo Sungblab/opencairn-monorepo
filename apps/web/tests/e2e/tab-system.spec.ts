@@ -51,7 +51,7 @@ test.describe("App Shell tab system (Phase 3-A)", () => {
     // the locator rather than a specific title keeps the test resilient to
     // the seed's welcome-note copy evolving.
     await tree.getByRole("treeitem").first().click();
-    const previewTab = page.locator('[data-testid^="tab-"]').first();
+    const previewTab = page.locator('[role="tab"]').first();
     await expect(previewTab).toBeVisible();
     // Preview-mode tabs render their title as italic text inside the tab.
     await expect(previewTab.locator("span").first()).toHaveClass(/italic/);
@@ -69,30 +69,30 @@ test.describe("App Shell tab system (Phase 3-A)", () => {
       `/ko/app/w/${session.wsSlug}/n/${extraNotes[0].id}`,
     );
     // Let the URL-driven tab sync settle.
-    await expect(page.locator('[data-testid^="tab-"]')).toHaveCount(1);
+    await expect(page.locator('[role="tab"]')).toHaveCount(1);
 
     // Navigate to a different note via URL — the use-url-tab-sync hook
     // must call addOrReplacePreview, keeping the total at 1.
     await page.goto(
       `/ko/app/w/${session.wsSlug}/n/${extraNotes[1].id}`,
     );
-    await expect(page.locator('[data-testid^="tab-"]')).toHaveCount(1);
+    await expect(page.locator('[role="tab"]')).toHaveCount(1);
   });
 
   test("Ctrl+W closes the active tab", async ({ page }) => {
     await page.goto(
       `/ko/app/w/${session.wsSlug}/n/${extraNotes[0].id}`,
     );
-    await expect(page.locator('[data-testid^="tab-"]')).toHaveCount(1);
+    await expect(page.locator('[role="tab"]')).toHaveCount(1);
     await page.keyboard.press("Control+w");
-    await expect(page.locator('[data-testid^="tab-"]')).toHaveCount(0);
+    await expect(page.locator('[role="tab"]')).toHaveCount(0);
   });
 
   test("Ctrl+T opens a new blank tab", async ({ page }) => {
     await page.goto(`/ko/app/w/${session.wsSlug}/`);
-    const before = await page.locator('[data-testid^="tab-"]').count();
+    const before = await page.locator('[role="tab"]').count();
     await page.keyboard.press("Control+t");
-    await expect(page.locator('[data-testid^="tab-"]')).toHaveCount(before + 1);
+    await expect(page.locator('[role="tab"]')).toHaveCount(before + 1);
   });
 
   test("pin hides the close button and Ctrl+W becomes a no-op", async ({
@@ -101,7 +101,7 @@ test.describe("App Shell tab system (Phase 3-A)", () => {
     await page.goto(
       `/ko/app/w/${session.wsSlug}/n/${extraNotes[0].id}`,
     );
-    const tab = page.locator('[data-testid^="tab-"]').first();
+    const tab = page.locator('[role="tab"]').first();
     await expect(tab).toBeVisible();
     await tab.click({ button: "right" });
     // Context menu renders via portal; scope the menu role to avoid
@@ -112,7 +112,7 @@ test.describe("App Shell tab system (Phase 3-A)", () => {
     await expect(tab.getByLabel("고정됨")).toBeVisible();
 
     await page.keyboard.press("Control+w");
-    await expect(page.locator('[data-testid^="tab-"]')).toHaveCount(1);
+    await expect(page.locator('[role="tab"]')).toHaveCount(1);
   });
 
   test("overflow menu lists every open tab", async ({ page }) => {
@@ -123,7 +123,7 @@ test.describe("App Shell tab system (Phase 3-A)", () => {
     for (const row of rows.slice(0, 3)) {
       await row.dblclick();
     }
-    const openTabs = await page.locator('[data-testid^="tab-"]').count();
+    const openTabs = await page.locator('[role="tab"]').count();
     await page.getByTestId("tab-overflow-trigger").click();
     const menu = page.getByRole("menu");
     await expect(menu).toBeVisible();
