@@ -22,8 +22,11 @@ export const workspaceInvites = pgTable(
   },
   (t) => [
     index("workspace_invites_email_idx").on(t.email),
-    index("workspace_invites_token_idx").on(t.token),
-    // invited_by needed for audit joins + FK SET NULL performance.
+    // No separate btree on `token` — `.unique()` already creates
+    // `workspace_invites_token_unique`, which covers equality lookups.
+    // (PR #13 gemini review follow-up: dropping the redundant
+    // `workspace_invites_token_idx` saved the write amplification on an
+    // already-unique column.)
     index("workspace_invites_invited_by_idx").on(t.invitedBy),
     // Partial unique: forbids two open invites to the same (workspace, email)
     // pair, while still allowing a fresh invite after the prior one was
