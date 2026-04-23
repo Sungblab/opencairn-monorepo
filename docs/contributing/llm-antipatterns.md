@@ -176,3 +176,21 @@ Added 2026-04-23. `google-genai` 1.73.1 기준. Deep Research Phase A(`packages/
 - ❌ `Interaction.outputs` 아이템(`Content` BaseModel = TextContent · ImageContent · …)을 그대로 boundary 밖으로 흘려보냄 → ✅ 호출자는 `state.outputs[0]["type"]`처럼 dict access를 기대. provider에서 `o.model_dump() if hasattr(o, "model_dump") else dict(o)`로 평탄화. SDK BaseModel을 `packages/llm` 밖으로 누출하지 말 것.
 - ❌ `Interaction.status` / `event_type` 값을 `.value` 또는 `str(...).lower()`로 가공 → ✅ 이미 plain `Literal[...]` 문자열. enum 변환은 불필요하고 잘못된 값으로 저장될 위험만 추가.
 - ❌ Interactions API 테스트를 `MagicMock()` + 수기 `setattr(m, "kind", ...)` 조합으로 작성 → ✅ 반드시 **실제 SDK 모델 인스턴스**로 mock 구성: `Interaction.model_validate({...})`, `InteractionStartEvent.model_validate({...})`, `ContentDelta.model_validate({...})` 등. 자기가 상상한 SDK 모양을 mock하면 plan-vs-SDK 드리프트가 테스트로 잡히지 않음. `MagicMock(spec=Interaction)`는 보조 수단으로만 사용 (변형이 많을 때 model_validate가 더 명확).
+
+---
+
+## 14. Base UI primitives + React tree (App Shell Phase 2, 2026-04-23)
+
+Added 2026-04-23. App Shell Phase 2 sidebar(`apps/web/src/components/sidebar/*`) 구현 중 발견. `@base-ui/react` 1.4, `react-arborist` 3.5 기준.
+
+- ❌ shadcn-style `DropdownMenuLabel`/`ContextMenuLabel`을 `DropdownMenuGroup` 밖에서 사용 → ✅ Base UI `Menu.GroupLabel`은 `Menu.Group` root context가 **필수**. 안 감싸면 `"MenuGroupRootContext is missing"` 런타임 throw. 섹션을 label로 구분하려면 `<Group><Label/>…<Item/></Group>` 로 항상 묶을 것.
+- ❌ Base UI `ContextMenu.Trigger`의 `children`을 trigger 대체 element로 기대 → ✅ `render` prop이 trigger 대체 경로. `<ContextMenuTrigger render={<div ref={...} onClick={...} />}>...children for that div...</ContextMenuTrigger>` 형태. row element 자체를 trigger로 쓰려면 이 패턴.
+- ❌ Plan spec의 `<DropdownMenuItem asChild><a href...>`를 그대로 복사 → ✅ `asChild`는 radix 관용구. Base UI에 해당 prop 없음. 대안: (a) `onClick` 으로 `router.push`, (b) `<ContextMenuItem render={<a href={...} />}>`. asChild가 지원되는지는 primitive의 `.Props` type에서 먼저 확인.
+- ❌ `react-arborist` `<Tree>` 에 `height` 없이 마운트 (flex 기반 레이아웃 기대) → ✅ 가상화 특성상 **number 강제**. flex slot 내부에 넣으려면 `ResizeObserver` 로 컨테이너 `clientHeight` 관찰 후 주입. 기본값(400 등)으로 두면 viewport 변경 시 overflow / 잘림.
+- ❌ arborist row renderer에 props를 직접 넘기려 시도 → ✅ children-as-component API는 `NodeRendererProps<T>` 이외에 추가 prop을 받지 않음. per-tree state는 `React.Context`로 lift-up. `ProjectTreeContext` 패턴 참고.
+- ❌ `<Tree>` 자체를 `render` + `@testing-library/react` 조합으로 jsdom 유닛 테스트 → ✅ `react-arborist`는 `react-dnd`의 `HTML5Backend`에 의존하며 jsdom에서 DOM event model이 일치하지 않아 선명한 타임아웃/스로우 발생. row 렌더러(`ProjectTreeNode`)만 unit 테스트, tree 전체 동작은 Playwright E2E로.
+- ❌ next-intl test mock을 `useTranslations: () => (key) => key` 로 작성하여 namespace를 잃음 → ✅ namespace-aware identity 선호: `useTranslations: (ns?: string) => (key) => ns ? \`${ns}.${key}\` : key`. 컴포넌트가 `useTranslations("sidebar.project")` + `t("empty")` 를 쓰면 mock이 "sidebar.project.empty"를 반환해야 테스트 matcher가 일관.
+- ❌ 인라인 rename input에서 Enter/Escape 시 `onCommitRename`만 호출, onBlur 는 그대로 둠 → ✅ input unmount 전에 blur가 한 틱 늦게 fire하면 원본 값으로 재-commit 됨. `skipBlurRef = useRef(false)` + Enter/Escape에서 `skipBlurRef.current = true` 설정 + onBlur에서 `if (skipBlurRef.current) return` 가드. isRenaming true로 전환 시 useEffect에서 reset.
+- ❌ `PATCH /api/notes/:id` 에 `folderId` 를 열어둔 채 "이동은 `/:id/move` 써라" 주석만 남김 → ✅ `updateNoteSchema.omit({ content, folderId })` 로 스키마 레벨에서 strip. `notes.folder_id → folders.project_id` FK 가드가 DB에 없으므로 PATCH 경로를 열어두면 cross-project 이동이 조용히 통과 (App Shell Phase 2 Task 11 review에서 잡힘).
+- ❌ Windows에서 `Sidebar.tsx`(legacy) 가 이미 존재하는데 `sidebar.tsx` 신규 생성 → ✅ NTFS case-insensitive FS는 두 파일을 같은 것으로 취급. 충돌하면 `shell-sidebar.tsx` / `ShellSidebar` 처럼 다른 이름 선택. `git mv`로 rename 하고 싶을 때도 `--force` + 두 단계 필요.
+- ❌ `react-arborist` `onToggle` 핸들러에서 `node.isOpen` 기반으로 분기 → ✅ callback은 **id만** 받음. 외부 expand set(우리는 `sidebarStore.expanded`)에서 기존 상태를 읽고 분기할 것.

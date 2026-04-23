@@ -87,7 +87,7 @@ Block dependency for the rest of Plan 2. Short decision document rather than a c
 **Files:**
 - Create: `docs/architecture/adr/009-page-tree-storage.md`
 
-- [ ] **Step 1.1: Write the ADR**
+- [x] **Step 1.1: Write the ADR**
 
 Author the ADR verbatim as committed in `docs/architecture/adr/009-page-tree-storage.md` (the canonical file — do not duplicate its body here in the plan; the plan should not drift from the real document).
 
@@ -99,7 +99,7 @@ Key points the ADR must pin:
 - **Consequences**: `CREATE EXTENSION IF NOT EXISTS ltree` in the Task 2 migration; `folders.path` labels use `regexp_replace(id::text, '-', '_', 'g')` (ltree only accepts `[A-Za-z0-9_]`); move SQL shown; no schema change on notes.
 - **Review trigger**: revisit if projects grow > 50K nodes AND folder moves cluster, OR if the product adds note-in-note nesting (which collapses the split into a unified `pages` table — new ADR at that point).
 
-- [ ] **Step 1.2: Commit**
+- [x] **Step 1.2: Commit**
 
 ```bash
 git add docs/architecture/adr/009-page-tree-storage.md
@@ -117,7 +117,7 @@ Notes are unaffected — they stay as `(folder_id, position)` leaves. Only `fold
 - Modify: `packages/db/src/schema/folders.ts` — add `path` column + index
 - Create: `packages/db/drizzle/0018_folders_ltree_path.sql`
 
-- [ ] **Step 2.1: Add ltree custom type**
+- [x] **Step 2.1: Add ltree custom type**
 
 Open `packages/db/src/schema/custom-types.ts` and append:
 
@@ -135,7 +135,7 @@ export const ltree = customType<{ data: string; driverData: string }>({
 });
 ```
 
-- [ ] **Step 2.2: Add `path` column + index to `folders` schema**
+- [x] **Step 2.2: Add `path` column + index to `folders` schema**
 
 Open `packages/db/src/schema/folders.ts`. Extend the existing `pgTable("folders", {...})`:
 
@@ -160,7 +160,7 @@ export const folders = pgTable(
 
 Leave the GiST index definition in SQL — `pnpm db:generate` has known gaps around `USING gist` and `::ltree` casts, so we write the migration by hand and mark the schema file as consistent with it.
 
-- [ ] **Step 2.3: Write the migration (by hand)**
+- [x] **Step 2.3: Write the migration (by hand)**
 
 `packages/db/drizzle/` already runs up through `0017_users_last_viewed_workspace.sql`. Next number is **0018**. Filename: `0018_folders_ltree_path.sql`.
 
@@ -208,7 +208,7 @@ ALTER TABLE "folders" ALTER COLUMN "path" SET NOT NULL;
 CREATE INDEX "folders_path_gist" ON "folders" USING GIST ("path");
 ```
 
-- [ ] **Step 2.4: Apply migration**
+- [x] **Step 2.4: Apply migration**
 
 ```bash
 pnpm --filter @opencairn/db db:migrate
@@ -223,7 +223,7 @@ SELECT id, parent_id, path FROM folders LIMIT 5;
 -- child folders have concatenated labels matching their ancestry
 ```
 
-- [ ] **Step 2.5: Commit**
+- [x] **Step 2.5: Commit**
 
 ```bash
 git add packages/db/src/schema/custom-types.ts \
@@ -243,7 +243,7 @@ Pure SQL wrappers that unify folders (ltree-backed) + notes (folder_id leaves) i
 - Create: `apps/api/src/lib/tree-queries.ts`
 - Create: `apps/api/tests/tree-queries.test.ts`
 
-- [ ] **Step 3.1: Define the public surface**
+- [x] **Step 3.1: Define the public surface**
 
 ```ts
 // TreeRow returned by the listing helpers.
@@ -267,7 +267,7 @@ Functions:
 | `moveFolder({projectId, folderId, newParentId})` | Update `folders.path` for the subtree using `subpath(path, nlevel(oldPath))` concat. Refuses cross-project. |
 | `moveNote({projectId, noteId, newFolderId})` | Single-row `UPDATE notes SET folder_id = :new`. `newFolderId` must belong to `projectId` or be null. |
 
-- [ ] **Step 3.2: Write failing tests**
+- [x] **Step 3.2: Write failing tests**
 
 Create `apps/api/tests/tree-queries.test.ts`:
 
@@ -532,7 +532,7 @@ describe("tree-queries", () => {
 });
 ```
 
-- [ ] **Step 3.3: Run — expect failure**
+- [x] **Step 3.3: Run — expect failure**
 
 ```bash
 pnpm --filter @opencairn/api test tree-queries
@@ -540,7 +540,7 @@ pnpm --filter @opencairn/api test tree-queries
 
 Expected: module-missing error.
 
-- [ ] **Step 3.4: Implement**
+- [x] **Step 3.4: Implement**
 
 Create `apps/api/src/lib/tree-queries.ts`:
 
@@ -800,7 +800,7 @@ export async function moveNote(opts: {
 }
 ```
 
-- [ ] **Step 3.5: Re-run**
+- [x] **Step 3.5: Re-run**
 
 ```bash
 pnpm --filter @opencairn/api test tree-queries
@@ -808,7 +808,7 @@ pnpm --filter @opencairn/api test tree-queries
 
 Expected: all pass.
 
-- [ ] **Step 3.6: Commit**
+- [x] **Step 3.6: Commit**
 
 ```bash
 git add apps/api/src/lib/tree-queries.ts apps/api/tests/tree-queries.test.ts
@@ -826,7 +826,7 @@ Returns direct children (folders + notes, discriminated) with one level of grand
 - Modify: `apps/api/src/index.ts` — mount the new route (same Hono app root as other routes)
 - Create: `apps/api/tests/projects-tree.test.ts`
 
-- [ ] **Step 4.1: Write failing test**
+- [x] **Step 4.1: Write failing test**
 
 Create `apps/api/tests/projects-tree.test.ts`:
 
@@ -948,13 +948,13 @@ describe("GET /api/projects/:id/tree", () => {
 
 Adapt harness calls (`installTestSession`, `fetch`, `app.request`) to whatever pattern `notes.test.ts` / `comments.test.ts` already use — the test file is the authoritative reference.
 
-- [ ] **Step 4.2: Run — expect failure**
+- [x] **Step 4.2: Run — expect failure**
 
 ```bash
 pnpm --filter @opencairn/api test projects-tree
 ```
 
-- [ ] **Step 4.3: Implement**
+- [x] **Step 4.3: Implement**
 
 Create `apps/api/src/routes/projects-tree.ts`:
 
@@ -1034,7 +1034,7 @@ export const projectsTreeRoutes = new Hono<AppEnv>()
 
 Mount in `apps/api/src/index.ts` alongside other `projects`-prefixed routes (use the same `.route("/api/projects", ...)` base the existing code uses — locate by grepping for the existing `projects` mount).
 
-- [ ] **Step 4.4: Re-run**
+- [x] **Step 4.4: Re-run**
 
 ```bash
 pnpm --filter @opencairn/api test projects-tree
@@ -1042,7 +1042,7 @@ pnpm --filter @opencairn/api test projects-tree
 
 Expected: all pass.
 
-- [ ] **Step 4.5: Commit**
+- [x] **Step 4.5: Commit**
 
 ```bash
 git add apps/api/src/routes/projects-tree.ts \
@@ -1064,7 +1064,7 @@ Folders do **not** have per-folder permissions in v1 — they inherit the projec
 - Modify: `apps/api/src/index.ts` — mount
 - Create: `apps/api/tests/projects-permissions.test.ts`
 
-- [ ] **Step 5.1: Failing test**
+- [x] **Step 5.1: Failing test**
 
 Use `seedWorkspace` + the project's actual role (owner / editor / viewer — `seedWorkspace({role})` handles all three via `projectPermissions` inserts) and `setPagePermission(userId, noteId, role)` from `helpers/seed.ts`.
 
@@ -1121,7 +1121,7 @@ describe("GET /api/projects/:id/permissions", () => {
 });
 ```
 
-- [ ] **Step 5.2: Implement**
+- [x] **Step 5.2: Implement**
 
 ```ts
 // apps/api/src/routes/projects-permissions.ts
@@ -1202,7 +1202,7 @@ export const projectsPermissionsRoutes = new Hono<AppEnv>()
 
 Mount in `apps/api/src/index.ts` alongside the tree route.
 
-- [ ] **Step 5.3: Run + commit**
+- [x] **Step 5.3: Run + commit**
 
 ```bash
 pnpm --filter @opencairn/api test projects-permissions
@@ -1225,7 +1225,7 @@ Sends `tree.folder_*` and `tree.note_*` events. Uses an in-process event bus tie
 - Modify: `apps/api/src/routes/notes.ts` — emit on POST/PATCH (title/folder_id)/DELETE (soft) + a `restore` surface if Phase 2 needs it (else defer the `tree.note_restored` wire-up to the tab/trash plan and document it as a TODO)
 - Create: `apps/api/tests/stream-projects-tree.test.ts`
 
-- [ ] **Step 6.1: Event bus**
+- [x] **Step 6.1: Event bus**
 
 Create `apps/api/src/lib/tree-events.ts`:
 
@@ -1289,7 +1289,7 @@ export function subscribeTreeEvents(
 
 (Implementation note: favor `emitTreeEvent` / `subscribeTreeEvents` free functions over a class — tests mock them more cleanly and there's no per-bus state worth encapsulating.)
 
-- [ ] **Step 6.2: Wire existing CRUD handlers to emit**
+- [x] **Step 6.2: Wire existing CRUD handlers to emit**
 
 **`apps/api/src/routes/folders.ts`** — after each successful mutation:
 
@@ -1322,7 +1322,7 @@ emitTreeEvent({
 
 Emit **after** the transaction commits — never from inside a drizzle `transaction` callback, to avoid clients seeing an event for a mutation that gets rolled back.
 
-- [ ] **Step 6.3: SSE route**
+- [x] **Step 6.3: SSE route**
 
 Create `apps/api/src/routes/stream-projects-tree.ts` — follow the `import.ts` pattern (native `ReadableStream` + `Response`) to stay consistent with other SSE routes in this codebase.
 
@@ -1389,7 +1389,7 @@ export const streamProjectsTreeRoutes = new Hono<AppEnv>()
 
 Mount in `apps/api/src/index.ts` at `/api/stream/projects`.
 
-- [ ] **Step 6.4: Integration test**
+- [x] **Step 6.4: Integration test**
 
 ```ts
 // apps/api/tests/stream-projects-tree.test.ts
@@ -1453,7 +1453,7 @@ describe("GET /api/stream/projects/:id/tree", () => {
 
 The `emitTreeEvent` bus write is hermetic — it avoids wiring a full CRUD request in this test and lets you exercise the stream in isolation. End-to-end coverage (POST /folders → SSE event) lives in the Playwright sidebar spec (Task 15).
 
-- [ ] **Step 6.5: Commit**
+- [x] **Step 6.5: Commit**
 
 ```bash
 git add apps/api/src/lib/tree-events.ts \
@@ -1475,7 +1475,7 @@ Frontend hook that fetches `/api/projects/:id/tree`, subscribes to `/api/stream/
 - Create: `apps/web/src/hooks/use-project-tree.ts`
 - Create: `apps/web/src/hooks/use-project-tree.test.tsx`
 
-- [ ] **Step 7.1: Failing test**
+- [x] **Step 7.1: Failing test**
 
 ```tsx
 // apps/web/src/hooks/use-project-tree.test.tsx
@@ -1517,7 +1517,7 @@ describe("useProjectTree", () => {
 
 (Full SSE integration is covered by the e2e spec in Task 15. The unit test here just pins the fetch wiring + shape.)
 
-- [ ] **Step 7.2: Implement**
+- [x] **Step 7.2: Implement**
 
 ```ts
 // apps/web/src/hooks/use-project-tree.ts
@@ -1609,7 +1609,7 @@ export function useProjectTree(opts: { projectId: string }) {
 }
 ```
 
-- [ ] **Step 7.3: Run + commit**
+- [x] **Step 7.3: Run + commit**
 
 ```bash
 pnpm --filter @opencairn/web test use-project-tree
@@ -1627,7 +1627,7 @@ Top-of-sidebar dropdown. Lists workspaces from `/api/workspaces/me`, shows pendi
 - Create: `apps/web/src/components/sidebar/workspace-switcher.tsx`
 - Create: `apps/web/src/components/sidebar/workspace-switcher.test.tsx`
 
-- [ ] **Step 8.1: Test (happy path + role badge + switch)**
+- [x] **Step 8.1: Test (happy path + role badge + switch)**
 
 ```tsx
 // apps/web/src/components/sidebar/workspace-switcher.test.tsx
@@ -1671,7 +1671,7 @@ describe("WorkspaceSwitcher", () => {
 });
 ```
 
-- [ ] **Step 8.2: Implement**
+- [x] **Step 8.2: Implement**
 
 ```tsx
 "use client";
@@ -1749,11 +1749,11 @@ export function WorkspaceSwitcher() {
 
 *Uses existing shadcn `dropdown-menu`; add via `pnpm dlx shadcn add dropdown-menu` if missing.*
 
-- [ ] **Step 8.3: Hardcode locale fix later**
+- [x] **Step 8.3: Hardcode locale fix later**
 
 The `/ko/app/...` hardcode is a Phase 2 shortcut. Use `useLocale()` from `next-intl` if already imported elsewhere. Revise to `` `/${locale}/app/w/...` ``.
 
-- [ ] **Step 8.4: Commit**
+- [x] **Step 8.4: Commit**
 
 ```bash
 git add apps/web/src/components/sidebar/workspace-switcher.tsx \
@@ -1776,7 +1776,7 @@ Four small components with repetitive structure. One task, multiple commits at t
 - Create: `apps/web/src/components/sidebar/sidebar-footer.tsx`
 - Create: `apps/web/src/components/sidebar/scoped-search.tsx`
 
-- [ ] **Step 9.1: Global nav**
+- [x] **Step 9.1: Global nav**
 
 ```tsx
 // apps/web/src/components/sidebar/global-nav.tsx
@@ -1813,7 +1813,7 @@ export function GlobalNav() {
 }
 ```
 
-- [ ] **Step 9.2: More menu popover**
+- [x] **Step 9.2: More menu popover**
 
 ```tsx
 // apps/web/src/components/sidebar/more-menu.tsx
@@ -1840,7 +1840,7 @@ export function MoreMenu({ base }: { base: string }) {
 }
 ```
 
-- [ ] **Step 9.3: Project hero + project switcher**
+- [x] **Step 9.3: Project hero + project switcher**
 
 ```tsx
 // apps/web/src/components/sidebar/project-hero.tsx
@@ -1910,7 +1910,7 @@ export function ProjectSwitcher() {
 
 Add a small `use-current-project.ts` co-located helper that reads `wsSlug`+`projectId` from params or from the tab store.
 
-- [ ] **Step 9.4: Sidebar footer**
+- [x] **Step 9.4: Sidebar footer**
 
 ```tsx
 // apps/web/src/components/sidebar/sidebar-footer.tsx
@@ -1956,7 +1956,7 @@ export function SidebarFooter() {
 }
 ```
 
-- [ ] **Step 9.5: Scoped search (palette shortcut)**
+- [x] **Step 9.5: Scoped search (palette shortcut)**
 
 ```tsx
 // apps/web/src/components/sidebar/scoped-search.tsx
@@ -1981,7 +1981,7 @@ export function ScopedSearch() {
 
 Palette itself is Phase 5; the button just opens the (yet empty) palette store.
 
-- [ ] **Step 9.6: Commit**
+- [x] **Step 9.6: Commit**
 
 ```bash
 git add apps/web/src/components/sidebar/{global-nav,more-menu,project-hero,project-switcher,sidebar-footer,scoped-search,use-current-project}.tsx \
@@ -2000,13 +2000,13 @@ The heart of the sidebar. Virtualized rows, keyboard navigation, drag-drop, inli
 - Create: `apps/web/src/components/sidebar/project-tree-node.tsx`
 - Create: `apps/web/src/components/sidebar/tree-context-menu.tsx`
 
-- [ ] **Step 10.1: Install deps**
+- [x] **Step 10.1: Install deps**
 
 ```bash
 pnpm --filter @opencairn/web add react-arborist @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities
 ```
 
-- [ ] **Step 10.2: Implement tree wrapper**
+- [x] **Step 10.2: Implement tree wrapper**
 
 ```tsx
 // apps/web/src/components/sidebar/project-tree.tsx
@@ -2057,7 +2057,7 @@ function toArboristData(
 }
 ```
 
-- [ ] **Step 10.3: Row renderer**
+- [x] **Step 10.3: Row renderer**
 
 ```tsx
 // apps/web/src/components/sidebar/project-tree-node.tsx
@@ -2127,7 +2127,7 @@ export function ProjectTreeNode({ node, style, dragHandle }: NodeRendererProps<T
 
 (Import `Folder` alongside `FileText` from `lucide-react`.)
 
-- [ ] **Step 10.4: Commit**
+- [x] **Step 10.4: Commit**
 
 ```bash
 git add apps/web/src/components/sidebar/project-tree*.tsx \
@@ -2147,7 +2147,7 @@ Hook into react-arborist's `onMove`. A dragged node carries its `kind` so the cl
 - Modify: `apps/api/src/routes/folders.ts` — extend existing PATCH to emit `tree.folder_moved` and call `moveFolder` when parent_id changes; add `position` field to `updateFolderSchema` in `@opencairn/shared` if missing
 - Modify: `apps/api/src/routes/notes.ts` — add `PATCH /:id/move` that calls `moveNote` and emits `tree.note_moved`. A move-only endpoint keeps the "title/content" PATCH unchanged and side-steps Yjs coupling.
 
-- [ ] **Step 11.1: Client move handler**
+- [x] **Step 11.1: Client move handler**
 
 Edit `project-tree.tsx` to pass `onMove`:
 
@@ -2182,7 +2182,7 @@ async function onMove({
 
 Optimistic UI: react-arborist reorders immediately; on failure we re-fetch.
 
-- [ ] **Step 11.2: Server move endpoints**
+- [x] **Step 11.2: Server move endpoints**
 
 **folders.ts** — extend the existing `.patch("/:id", ...)` handler:
 
@@ -2287,7 +2287,7 @@ Optimistic UI: react-arborist reorders immediately; on failure we re-fetch.
 });
 ```
 
-- [ ] **Step 11.3: Test moves**
+- [x] **Step 11.3: Test moves**
 
 Add two cases to `apps/api/tests/projects-tree.test.ts` (or a dedicated `moves.test.ts`):
 
@@ -2296,7 +2296,7 @@ Add two cases to `apps/api/tests/projects-tree.test.ts` (or a dedicated `moves.t
 
 Use the helpers from Task 3/4 (direct `db.insert` + `seedWorkspace`).
 
-- [ ] **Step 11.4: Commit**
+- [x] **Step 11.4: Commit**
 
 ```bash
 git add apps/web/src/components/sidebar/project-tree.tsx \
@@ -2316,7 +2316,7 @@ Double-click or F2 starts rename (contentEditable row). Enter confirms PATCH tit
 - Modify: `apps/web/src/components/sidebar/project-tree-node.tsx`
 - Create: `apps/web/src/components/sidebar/tree-context-menu.tsx`
 
-- [ ] **Step 12.1: Extend row to support rename state**
+- [x] **Step 12.1: Extend row to support rename state**
 
 Add a `renamingId` signal in `project-tree.tsx` (lift state up). Pass `isRenaming` + `onStartRename` + `onCommitRename(id, kind, newLabel | null)` to `ProjectTreeNode`. In the node, conditionally render `<input>` vs `<span>`.
 
@@ -2343,7 +2343,7 @@ Add a `renamingId` signal in `project-tree.tsx` (lift state up). Pass `isRenamin
 - `kind === "folder"` → `PATCH /api/folders/:id` with `{ name: newLabel }`
 - `kind === "note"`   → `PATCH /api/notes/:id` with `{ title: newLabel }` (the existing note PATCH handler already omits `content` — Yjs is canonical)
 
-- [ ] **Step 12.2: Context menu**
+- [x] **Step 12.2: Context menu**
 
 ```tsx
 // apps/web/src/components/sidebar/tree-context-menu.tsx
@@ -2376,7 +2376,7 @@ export function TreeContextMenu({
 
 Wrap each row in `<TreeContextMenu ...>`. Use shadcn `context-menu` (add if missing).
 
-- [ ] **Step 12.3: Commit**
+- [x] **Step 12.3: Commit**
 
 ```bash
 git add apps/web/src/components/sidebar/project-tree.tsx \
@@ -2396,7 +2396,7 @@ react-arborist gives most of this via its own keyboard plugin. Supplement with t
 - Create: `apps/web/src/hooks/use-tree-keyboard.ts`
 - Modify: `apps/web/src/components/sidebar/project-tree.tsx`
 
-- [ ] **Step 13.1: Type-ahead implementation sketch**
+- [x] **Step 13.1: Type-ahead implementation sketch**
 
 ```ts
 "use client";
@@ -2420,7 +2420,7 @@ export function useTypeAhead(onJump: (prefix: string) => void) {
 }
 ```
 
-- [ ] **Step 13.2: ⌘Del shortcut**
+- [x] **Step 13.2: ⌘Del shortcut**
 
 Inside `project-tree.tsx`:
 
@@ -2438,7 +2438,7 @@ useKeyboardShortcut("mod+delete", async () => {
 });
 ```
 
-- [ ] **Step 13.3: Commit**
+- [x] **Step 13.3: Commit**
 
 ```bash
 git add apps/web/src/hooks/use-tree-keyboard.ts \
@@ -2456,7 +2456,7 @@ Tie all previous components together and swap in to AppShell.
 - Create: `apps/web/src/components/sidebar/sidebar.tsx`
 - Modify: `apps/web/src/components/shell/app-shell.tsx`
 
-- [ ] **Step 14.1: Assemble**
+- [x] **Step 14.1: Assemble**
 
 ```tsx
 // apps/web/src/components/sidebar/sidebar.tsx
@@ -2485,7 +2485,7 @@ export function Sidebar() {
 }
 ```
 
-- [ ] **Step 14.2: Empty state**
+- [x] **Step 14.2: Empty state**
 
 ```tsx
 // apps/web/src/components/sidebar/sidebar-empty-state.tsx
@@ -2509,11 +2509,11 @@ export function SidebarEmptyState() {
 }
 ```
 
-- [ ] **Step 14.3: Swap into AppShell**
+- [x] **Step 14.3: Swap into AppShell**
 
 Edit `apps/web/src/components/shell/app-shell.tsx`: replace `PlaceholderSidebar` import and usage with the new `Sidebar`. Keep `data-testid="app-shell-sidebar"` compatibility (the Sidebar's root already carries it).
 
-- [ ] **Step 14.4: Commit**
+- [x] **Step 14.4: Commit**
 
 ```bash
 git add apps/web/src/components/sidebar/sidebar.tsx \
@@ -2532,11 +2532,11 @@ Covers: render, workspace switch, project switch, tree expand, rename, drag-drop
 - Create: `apps/web/tests/e2e/sidebar.spec.ts`
 - Create: `apps/web/tests/e2e/fixtures/seed-5k-nodes.ts`
 
-- [ ] **Step 15.1: Fixtures**
+- [x] **Step 15.1: Fixtures**
 
 `seed-5k-nodes.ts` — helper that seeds 5000 tree nodes (mix of folders + notes, e.g. 500 folders ~3 levels deep, 4500 notes distributed) into a fresh workspace/project for the perf run. Used only in the tagged perf test below.
 
-- [ ] **Step 15.2: Spec**
+- [x] **Step 15.2: Spec**
 
 ```ts
 import { test, expect } from "@playwright/test";
@@ -2619,7 +2619,7 @@ test.describe("Sidebar performance", () => {
 });
 ```
 
-- [ ] **Step 15.3: Commit**
+- [x] **Step 15.3: Commit**
 
 ```bash
 git add apps/web/tests/e2e/sidebar.spec.ts \
@@ -2631,7 +2631,7 @@ git commit -m "test(web): e2e sidebar coverage and 5k-node perf smoke"
 
 ## Task 16: Post-feature check + docs
 
-- [ ] **Step 16.1: Full suite**
+- [x] **Step 16.1: Full suite**
 
 ```bash
 pnpm --filter @opencairn/api test
@@ -2644,15 +2644,15 @@ pnpm --filter @opencairn/web typecheck
 
 All green. Move any hardcoded Korean strings to `messages/{ko,en}/sidebar.json`.
 
-- [ ] **Step 16.2: Plans-status update**
+- [x] **Step 16.2: Plans-status update**
 
 Mark Plan Phase 2 complete in `docs/contributing/plans-status.md`. Record HEAD SHA.
 
-- [ ] **Step 16.3: Memory**
+- [x] **Step 16.3: Memory**
 
 Write memory entry `project_plan_app_shell_phase_2_complete.md`.
 
-- [ ] **Step 16.4: Commit**
+- [x] **Step 16.4: Commit**
 
 ```bash
 git add docs/contributing/plans-status.md
@@ -2663,14 +2663,14 @@ git commit -m "docs(docs): mark app shell phase 2 complete"
 
 ## Completion Criteria
 
-- [ ] ADR 009 committed
-- [ ] `folders.path` migrated + backfilled (notes unchanged)
-- [ ] Tree API (list, perms, SSE) tests green — folders + notes as discriminated nodes
-- [ ] react-arborist + dnd-kit tree renders both folders and notes, supports drag-drop (folder move via ltree, note move via `folder_id`), rename, keyboard
-- [ ] Workspace switcher + project hero + global nav + footer wired
-- [ ] Empty state when no projects
-- [ ] E2E sidebar spec passes, 5K-node perf test under 300ms
-- [ ] Manual smoke: open workspace → tree loads → POST /folders and POST /notes in another tab via API → SSE pushes both into sidebar live
+- [x] ADR 009 committed
+- [x] `folders.path` migrated + backfilled (notes unchanged)
+- [x] Tree API (list, perms, SSE) tests green — folders + notes as discriminated nodes
+- [x] react-arborist + dnd-kit tree renders both folders and notes, supports drag-drop (folder move via ltree, note move via `folder_id`), rename, keyboard
+- [x] Workspace switcher + project hero + global nav + footer wired
+- [x] Empty state when no projects
+- [x] E2E sidebar spec passes, 5K-node perf test under 300ms
+- [x] Manual smoke: open workspace → tree loads → POST /folders and POST /notes in another tab via API → SSE pushes both into sidebar live
 
 ## What's NOT in this plan
 

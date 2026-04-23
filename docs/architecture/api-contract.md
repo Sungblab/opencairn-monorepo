@@ -89,6 +89,7 @@ Cookie: better-auth.session_token=<token>
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
 | GET | /api/workspaces | Yes | 내가 멤버인 모든 워크스페이스 — 응답 `[{ id, slug, name, role }]` | - |
+| GET | /api/workspaces/me | Yes | 사이드바 스위처 1회 호출 페이로드 — 응답 `{ workspaces: [{id,slug,name,role}], invites: [{id,workspaceId,workspaceName,workspaceSlug,role,expiresAt}] }`. invites는 현재 사용자의 email에 발급된 pending(미수락+미만료) 초대만. | - |
 | POST | /api/workspaces | Yes | 새 workspace 생성 (생성자는 owner, 기본 프로젝트 1개 자동 생성). slug 미지정 시 이름에서 ASCII 파생, 불가/충돌 시 `w-{hex8}` fallback | `{ name, slug? }` |
 | GET | /api/workspaces/by-slug/:slug | member | slug로 워크스페이스 조회 — 응답 `{ id, slug, name, role }` (redirect 체인 용) | - |
 | GET | /api/workspaces/:workspaceId | member | 워크스페이스 상세 | - |
@@ -142,7 +143,7 @@ Cookie: better-auth.session_token=<token>
 |--------|------|------|-------------|------|
 | GET | /api/folders/by-project/:projectId | Yes | List folders | - |
 | POST | /api/folders | Yes | Create folder | `{ projectId, parentId?, name }` |
-| PATCH | /api/folders/:id | Yes | Update folder | `{ name?, parentId?, position? }` |
+| PATCH | /api/folders/:id | Yes | Update folder. `parentId` 변경 시 `moveFolder()`가 ltree 서브트리 전체를 재작성(App Shell Phase 2 Task 11). cross-project 이동 시 400. 스칼라(name/position)는 이동 후 별도 적용. | `{ name?, parentId?, position? }` |
 | DELETE | /api/folders/:id | Yes | Delete folder | - |
 
 ### Tags
@@ -163,7 +164,8 @@ Cookie: better-auth.session_token=<token>
 | GET | /api/notes/search | project `viewer` | 제목 substring 검색 (wiki-link combobox 용, max 10) — `?q=<str>&projectId=<uuid>`, 응답 `[{ id, title, updatedAt }]` | - |
 | GET | /api/notes/:id | page `viewer` | 노트 조회 | - |
 | POST | /api/projects/:projectId/notes | project `editor` | 노트 생성 | `{ folderId?, title?, content?, type?, inheritParent? }` |
-| PATCH | /api/notes/:id | page `editor` | 수정 — `content`는 Plate v49 배열 (jsonb). 서버가 `content_text`를 텍스트 추출로 자동 파생(FTS 용). | `{ title?, content?, folderId?, inheritParent? }` |
+| PATCH | /api/notes/:id | page `editor` | 메타 수정. `content`는 Yjs canonical(Plan 2B에서 body에서 strip), `folderId`도 이 경로에서 제거됨 — 이동은 `/:id/move` 사용(App Shell Phase 2 Task 11, cross-project 스코프 누수 방지). 서버가 `content_text`를 텍스트 추출로 자동 파생(FTS 용). | `{ title?, inheritParent? }` |
+| PATCH | /api/notes/:id/move | page `editor` | 폴더 간 이동(또는 프로젝트 루트로). `moveNote()`가 cross-project 타겟을 거절. | `{ folderId: uuid \| null }` |
 | DELETE | /api/notes/:id | page `editor` | 소프트 삭제 | - |
 
 ### Ingest
