@@ -15,6 +15,22 @@ interface Bucket {
 
 const buckets = new Map<string, Bucket>();
 
+// Lazy eviction state. Without sweeping, an attacker driving many unique
+// keys (`invite:${ws}:${generated-uid}`) would leak memory indefinitely
+// since entries are only touched when their key is revisited. We run a
+// full sweep at most once per SWEEP_INTERVAL_MS — cheap (O(n) over the
+// current map) and self-throttling.
+const SWEEP_INTERVAL_MS = 60_000;
+let lastSweepAt = 0;
+
+function sweepIfDue(now: number): void {
+  if (now - lastSweepAt < SWEEP_INTERVAL_MS) return;
+  lastSweepAt = now;
+  for (const [key, bucket] of buckets) {
+    if (bucket.resetAt <= now) buckets.delete(key);
+  }
+}
+
 export interface RateLimitResult {
   allowed: boolean;
   retryAfterSec: number;
@@ -26,6 +42,7 @@ export function checkRateLimit(
   windowMs: number,
 ): RateLimitResult {
   const now = Date.now();
+  sweepIfDue(now);
   const bucket = buckets.get(key);
   if (!bucket || bucket.resetAt <= now) {
     buckets.set(key, { count: 1, resetAt: now + windowMs });
@@ -45,4 +62,11 @@ export function checkRateLimit(
 // Never call from production paths.
 export function _resetRateLimits(): void {
   buckets.clear();
+  lastSweepAt = 0;
+}
+
+// Test-only accessor for the current bucket size — lets the sweep test
+// observe the eviction side effect without reaching into the module.
+export function _bucketCountForTests(): number {
+  return buckets.size;
 }
