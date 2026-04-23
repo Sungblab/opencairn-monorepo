@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { randomUUID } from "node:crypto";
 import { createApp } from "../src/app.js";
-import { db, notes, researchRuns, eq } from "@opencairn/db";
+import { db, notes, researchRuns, researchRunArtifacts, eq } from "@opencairn/db";
 import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
 
 const SECRET = "test-internal-secret-abc";
@@ -142,5 +142,69 @@ describe("POST /api/internal/notes (research extension)", () => {
     } finally {
       await other.cleanup();
     }
+  });
+});
+
+describe("POST /api/internal/research/image-bytes", () => {
+  let ctx: SeedResult;
+  beforeEach(async () => {
+    ctx = await seedWorkspace({ role: "owner" });
+  });
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  it("returns base64 + mimeType for a known artifact", async () => {
+    const [run] = await db
+      .insert(researchRuns)
+      .values({
+        workspaceId: ctx.workspaceId,
+        projectId: ctx.projectId,
+        userId: ctx.userId,
+        topic: "t",
+        model: "deep-research-preview-04-2026",
+        billingPath: "byok",
+        status: "researching",
+        workflowId: "wf",
+      })
+      .returning({ id: researchRuns.id });
+    await db.insert(researchRunArtifacts).values({
+      runId: run.id,
+      seq: 0,
+      kind: "image",
+      payload: {
+        url: "https://fake.googleusercontent/r/1.png",
+        mimeType: "image/png",
+        base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/wcAAwAB/D2+J6cAAAAASUVORK5CYII=",
+      },
+    });
+
+    const res = await internalFetch("/api/internal/research/image-bytes", {
+      method: "POST",
+      body: JSON.stringify({
+        url: "https://fake.googleusercontent/r/1.png",
+      }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { base64: string; mimeType: string };
+    expect(body.mimeType).toBe("image/png");
+    expect(body.base64.startsWith("iVBOR")).toBe(true);
+  });
+
+  it("returns 404 when no artifact matches the URL", async () => {
+    const res = await internalFetch("/api/internal/research/image-bytes", {
+      method: "POST",
+      body: JSON.stringify({ url: "https://unknown" }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("rejects missing secret header", async () => {
+    const res = await app.request("/api/internal/research/image-bytes", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url: "x" }),
+    });
+    expect(res.status).toBe(401);
   });
 });

@@ -18,6 +18,7 @@ import {
   embeddingBatches,
   importJobs,
   researchRuns,
+  researchRunArtifacts,
   eq,
   and,
   sql,
@@ -1460,5 +1461,43 @@ internal.post("/test-seed-multi-role", async (c) => {
     viewer: toCookiePayload(seed.viewerUserId, viewerSess),
   });
 });
+
+// POST /internal/research/image-bytes — replay image bytes captured during
+// execute_deep_research. Matches against researchRunArtifacts.payload->>'url'.
+// The worker's persist_report reads this back, uploads to MinIO, and only
+// then materialises the final Plate block. Kept small: the worker already
+// knows runId via its own workflow context, so we only need the URL here.
+const researchImageBytesSchema = z.object({
+  url: z.string().url().max(4096),
+});
+
+internal.post(
+  "/research/image-bytes",
+  zValidator("json", researchImageBytesSchema),
+  async (c) => {
+    const { url } = c.req.valid("json");
+    const [row] = await db
+      .select({ payload: researchRunArtifacts.payload })
+      .from(researchRunArtifacts)
+      .where(
+        and(
+          eq(researchRunArtifacts.kind, "image"),
+          sql`${researchRunArtifacts.payload}->>'url' = ${url}`,
+        ),
+      )
+      .limit(1);
+    if (!row) return c.json({ error: "not_found" }, 404);
+
+    const payload = row.payload as {
+      url?: string;
+      mimeType?: string;
+      base64?: string;
+    };
+    if (!payload.base64 || !payload.mimeType) {
+      return c.json({ error: "artifact_missing_bytes" }, 404);
+    }
+    return c.json({ base64: payload.base64, mimeType: payload.mimeType }, 200);
+  },
+);
 
 export const internalRoutes = internal;
