@@ -1,0 +1,39 @@
+{
+  "placeholders": {
+    "sidebar": "Sidebar (Phase 2)",
+    "tab_bar": "Tab bar (Phase 3)",
+    "agent_panel": "AI Agent (Phase 4)",
+    "dashboard": "Dashboard"
+  },
+  "routes": {
+    "dashboard": {
+      "heading": "Dashboard",
+      "placeholder": "Phase 5 will fill this in."
+    },
+    "note": {
+      "heading": "Note {id}",
+      "placeholder": "Phase 3 will fill this in."
+    },
+    "research_hub": {
+      "heading": "Deep Research",
+      "placeholder": "Phase 5 will fill this in."
+    },
+    "research_run": {
+      "heading": "Research {id}",
+      "placeholder": "Phase 5 will fill this in."
+    },
+    "ws_settings": {
+      "heading": "Workspace settings — {sub}",
+      "placeholder": "Phase 2C will fill this in."
+    }
+  },
+  "tabTitles": {
+    "dashboard": "Dashboard",
+    "note": "Note",
+    "project": "Project",
+    "research_hub": "Deep Research",
+    "research_run": "Research {id}",
+    "import": "Import",
+    "ws_settings": "Settings"
+  }
+}

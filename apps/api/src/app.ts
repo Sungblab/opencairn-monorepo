@@ -17,6 +17,7 @@ import { mentionsRouter } from "./routes/mentions";
 import { integrationsRouter } from "./routes/integrations";
 import { importRouter } from "./routes/import";
 import { researchRouter } from "./routes/research";
+import { userRoutes } from "./routes/users";
 
 export function createApp() {
   const app = new Hono();
@@ -56,6 +57,7 @@ export function createApp() {
   app.route("/api/notes", noteRoutes);
   app.route("/api/ingest", ingestRoutes);
   app.route("/api/research", researchRouter);
+  app.route("/api/users", userRoutes);
   app.route("/api", commentsRouter);  // /api/notes/:noteId/comments (Plan 2B)
   app.route("/api", mentionsRouter);  // /api/mentions/search (Plan 2B)
 
