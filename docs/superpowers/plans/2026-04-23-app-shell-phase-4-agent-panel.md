@@ -141,9 +141,8 @@ export const chatThreads = pgTable(
 `packages/db/src/schema/chat-messages.ts`:
 
 ```ts
-import { pgTable, uuid, jsonb, timestamp, text, index, check } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
-import { messageRoleEnum } from "./enums";
+import { pgTable, uuid, jsonb, timestamp, text, index } from "drizzle-orm/pg-core";
+import { messageRoleEnum, messageStatusEnum } from "./enums";
 import { chatThreads } from "./chat-threads";
 
 export const chatMessages = pgTable(
@@ -159,20 +158,14 @@ export const chatMessages = pgTable(
     // `complete`  → stream ended cleanly (the common case).
     // `failed`    → pipeline threw; retained for observability + UI state.
     // User messages are always `complete` (persisted synchronously).
-    status: text("status").notNull().default("complete"),
+    status: messageStatusEnum("status").notNull().default("complete"),
     content: jsonb("content").notNull(),
     mode: text("mode"),
     provider: text("provider"),
     tokenUsage: jsonb("token_usage"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [
-    index("chat_messages_thread_created_idx").on(t.threadId, t.createdAt),
-    check(
-      "chat_messages_status_check",
-      sql`${t.status} IN ('streaming', 'complete', 'failed')`,
-    ),
-  ],
+  (t) => [index("chat_messages_thread_created_idx").on(t.threadId, t.createdAt)],
 );
 ```
 
@@ -217,9 +210,19 @@ Edit `packages/db/src/schema/enums.ts`:
 
 // ADD:
 export const messageRoleEnum = pgEnum("message_role", ["user", "agent"]);
+
+// Streaming persistence states (see chat-messages.ts status column).
+// `streaming` → placeholder inserted before SSE emits.
+// `complete`  → stream ended cleanly.
+// `failed`    → pipeline threw; partial buffer preserved for UI.
+export const messageStatusEnum = pgEnum("message_status", [
+  "streaming",
+  "complete",
+  "failed",
+]);
 ```
 
-The migration SQL will handle the DB-level type rename (see Step 1.4).
+The migration SQL will handle the DB-level type creation (see Step 1.4).
 
 - [ ] **Step 1.4: Handwritten migration**
 
@@ -234,6 +237,9 @@ DROP TYPE IF EXISTS "conversation_scope";
 -- replace enum (old had 'user' + 'assistant'; new uses 'user' + 'agent')
 DROP TYPE IF EXISTS "message_role";
 CREATE TYPE "message_role" AS ENUM ('user', 'agent');
+
+-- new enum: agent message lifecycle state
+CREATE TYPE "message_status" AS ENUM ('streaming', 'complete', 'failed');
 
 -- chat_threads
 CREATE TABLE "chat_threads" (
@@ -254,14 +260,12 @@ CREATE TABLE "chat_messages" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "thread_id" uuid NOT NULL REFERENCES "chat_threads"("id") ON DELETE CASCADE,
   "role" "message_role" NOT NULL,
-  "status" text NOT NULL DEFAULT 'complete',
+  "status" "message_status" NOT NULL DEFAULT 'complete',
   "content" jsonb NOT NULL,
   "mode" text,
   "provider" text,
   "token_usage" jsonb,
-  "created_at" timestamp with time zone NOT NULL DEFAULT NOW(),
-  CONSTRAINT "chat_messages_status_check"
-    CHECK ("status" IN ('streaming', 'complete', 'failed'))
+  "created_at" timestamp with time zone NOT NULL DEFAULT NOW()
 );
 CREATE INDEX "chat_messages_thread_created_idx" ON "chat_messages" ("thread_id", "created_at");
 
