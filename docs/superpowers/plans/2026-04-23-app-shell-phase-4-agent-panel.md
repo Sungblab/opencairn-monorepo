@@ -141,7 +141,8 @@ export const chatThreads = pgTable(
 `packages/db/src/schema/chat-messages.ts`:
 
 ```ts
-import { pgTable, uuid, jsonb, timestamp, text, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, jsonb, timestamp, text, index, check } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { messageRoleEnum } from "./enums";
 import { chatThreads } from "./chat-threads";
 
@@ -153,13 +154,25 @@ export const chatMessages = pgTable(
       .notNull()
       .references(() => chatThreads.id, { onDelete: "cascade" }),
     role: messageRoleEnum("role").notNull(),
+    // `streaming` → row inserted before SSE emits; body filled in a finally
+    //               block so a crash mid-stream leaves a recoverable row.
+    // `complete`  → stream ended cleanly (the common case).
+    // `failed`    → pipeline threw; retained for observability + UI state.
+    // User messages are always `complete` (persisted synchronously).
+    status: text("status").notNull().default("complete"),
     content: jsonb("content").notNull(),
     mode: text("mode"),
     provider: text("provider"),
     tokenUsage: jsonb("token_usage"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("chat_messages_thread_created_idx").on(t.threadId, t.createdAt)],
+  (t) => [
+    index("chat_messages_thread_created_idx").on(t.threadId, t.createdAt),
+    check(
+      "chat_messages_status_check",
+      sql`${t.status} IN ('streaming', 'complete', 'failed')`,
+    ),
+  ],
 );
 ```
 
@@ -241,11 +254,14 @@ CREATE TABLE "chat_messages" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "thread_id" uuid NOT NULL REFERENCES "chat_threads"("id") ON DELETE CASCADE,
   "role" "message_role" NOT NULL,
+  "status" text NOT NULL DEFAULT 'complete',
   "content" jsonb NOT NULL,
   "mode" text,
   "provider" text,
   "token_usage" jsonb,
-  "created_at" timestamp with time zone NOT NULL DEFAULT NOW()
+  "created_at" timestamp with time zone NOT NULL DEFAULT NOW(),
+  CONSTRAINT "chat_messages_status_check"
+    CHECK ("status" IN ('streaming', 'complete', 'failed'))
 );
 CREATE INDEX "chat_messages_thread_created_idx" ON "chat_messages" ("thread_id", "created_at");
 
