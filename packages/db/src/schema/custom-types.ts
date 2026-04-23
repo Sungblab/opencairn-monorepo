@@ -46,3 +46,13 @@ export const byteaU8 = customType<{ data: Uint8Array; driverData: Buffer }>({
     return new Uint8Array(value);
   },
 });
+
+// Postgres ltree — hierarchical path stored as dotted labels. Used by
+// `folders.path` (ADR 009) to support `path <@ ancestor` GiST subtree lookups
+// in O(log n). Labels are constrained to [A-Za-z0-9_] by Postgres, so the
+// migration encodes UUIDs by replacing dashes with underscores.
+export const ltree = customType<{ data: string; driverData: string }>({
+  dataType() {
+    return "ltree";
+  },
+});
