@@ -106,6 +106,25 @@ describe("useTabKeyboard", () => {
     expect(useTabsStore.getState().activeId).toBe("b");
   });
 
+  // Stale / null activeId recovery. Achievable via a corrupted localStorage
+  // blob or a race where the active tab was removed without an activeId
+  // update. ⌘→ should symmetrically pick the first tab; ⌘← the last.
+  it("⌘→ lands on the first tab when activeId doesn't match any tab", () => {
+    seed(["a", "b", "c"]);
+    renderHook(() => useTabKeyboard());
+    useTabsStore.setState({ activeId: "ghost" });
+    act(() => press("ArrowRight"));
+    expect(useTabsStore.getState().activeId).toBe("a");
+  });
+
+  it("⌘← lands on the last tab when activeId doesn't match any tab", () => {
+    seed(["a", "b", "c"]);
+    renderHook(() => useTabKeyboard());
+    useTabsStore.setState({ activeId: "ghost" });
+    act(() => press("ArrowLeft"));
+    expect(useTabsStore.getState().activeId).toBe("c");
+  });
+
   it("⌘⌥→ reorders the active tab one slot to the right", () => {
     seed(["a", "b", "c"]);
     renderHook(() => useTabKeyboard());
