@@ -90,7 +90,15 @@ export function useTabKeyboard() {
       if (!e.shiftKey && !e.altKey && e.key === "ArrowLeft") {
         if (s.tabs.length === 0) return;
         const idx = s.tabs.findIndex((t) => t.id === s.activeId);
-        const prev = s.tabs[(idx - 1 + s.tabs.length) % s.tabs.length];
+        // idx === -1 (no / stale activeId) should symmetrically land on the
+        // last tab, the same way ⌘→ in that state lands on the first via
+        // (-1 + 1) % N = 0. Without this guard the modulo would wrap to
+        // N-2 and pick the second-to-last tab, which feels broken.
+        const prevIdx =
+          idx < 0
+            ? s.tabs.length - 1
+            : (idx - 1 + s.tabs.length) % s.tabs.length;
+        const prev = s.tabs[prevIdx];
         if (prev) {
           e.preventDefault();
           s.setActive(prev.id);

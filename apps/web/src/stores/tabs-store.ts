@@ -204,30 +204,19 @@ export const useTabsStore = create<State>((set, get) => ({
   addOrReplacePreview: (tab) => {
     const s = get();
     const previewIdx = s.tabs.findIndex((t) => t.preview);
-    if (previewIdx < 0) {
-      s.addTab(tab);
-      // After addTab the activeId might already be set to the first tab in
-      // the store (if it was empty); force the new preview tab to be active
-      // because the caller's intent is "open and focus this".
-      const post = get();
-      if (post.activeId !== tab.id) {
-        set({ activeId: tab.id });
-        if (post.workspaceId)
-          flush(post.workspaceId, {
-            tabs: post.tabs,
-            activeId: tab.id,
-            closedStack: post.closedStack,
-          });
-      }
-      return;
-    }
-    const next = [...s.tabs];
-    next[previewIdx] = tab;
-    set({ tabs: next, activeId: tab.id });
+    // The caller's intent is "open and focus this preview tab", so activeId
+    // always resolves to the new tab — unlike addTab which preserves any
+    // existing activeId. One set / one flush for both branches.
+    const tabs =
+      previewIdx < 0
+        ? [...s.tabs, tab]
+        : s.tabs.map((t, i) => (i === previewIdx ? tab : t));
+    const activeId = tab.id;
+    set({ tabs, activeId });
     if (s.workspaceId)
       flush(s.workspaceId, {
-        tabs: next,
-        activeId: tab.id,
+        tabs,
+        activeId,
         closedStack: s.closedStack,
       });
   },

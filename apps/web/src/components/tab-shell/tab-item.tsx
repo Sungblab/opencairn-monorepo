@@ -24,7 +24,7 @@ export function TabItem({ tab, active, onClick, onClose }: TabItemProps) {
           onClose();
         }
       }}
-      className={`group flex h-9 min-w-[120px] max-w-[220px] shrink-0 cursor-pointer items-center gap-1.5 border-r border-border px-2 text-xs transition-colors ${
+      className={`group flex h-full min-w-[120px] max-w-[220px] shrink-0 cursor-pointer items-center gap-1.5 border-r border-border px-2 text-xs transition-colors ${
         active ? "bg-background" : "bg-muted/40 hover:bg-muted/70"
       }`}
     >
