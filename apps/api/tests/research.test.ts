@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createApp } from "../src/app.js";
-import { db, researchRuns, eq } from "@opencairn/db";
+import { db, researchRuns, researchRunTurns, researchRunArtifacts, eq } from "@opencairn/db";
 import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
 
@@ -181,6 +181,136 @@ describe("POST /api/research/runs", () => {
       expect(res.status).toBe(404);
     } finally {
       process.env.FEATURE_DEEP_RESEARCH = "true";
+    }
+  });
+});
+
+async function createPlanningRun(ctx: SeedResult): Promise<string> {
+  const [row] = await db
+    .insert(researchRuns)
+    .values({
+      workspaceId: ctx.workspaceId,
+      projectId: ctx.projectId,
+      userId: ctx.userId,
+      topic: "fixture",
+      model: "deep-research-preview-04-2026",
+      billingPath: "byok",
+      status: "planning",
+      workflowId: "wf",
+    })
+    .returning({ id: researchRuns.id });
+  await db
+    .update(researchRuns)
+    .set({ workflowId: row.id })
+    .where(eq(researchRuns.id, row.id));
+  return row.id;
+}
+
+describe("GET /api/research/runs", () => {
+  let ctx: SeedResult;
+  beforeEach(async () => {
+    ctx = await seedWorkspace({ role: "editor" });
+  });
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  it("lists workspace runs newest-first", async () => {
+    const a = await createPlanningRun(ctx);
+    await new Promise((r) => setTimeout(r, 5)); // ensure createdAt differs
+    const b = await createPlanningRun(ctx);
+    const res = await authedFetch(
+      `/api/research/runs?workspaceId=${ctx.workspaceId}`,
+      { method: "GET", userId: ctx.userId },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { runs: Array<{ id: string }> };
+    expect(body.runs.map((r) => r.id)).toEqual([b, a]);
+  });
+
+  it("returns 400 when workspaceId query param missing", async () => {
+    const res = await authedFetch("/api/research/runs", {
+      method: "GET",
+      userId: ctx.userId,
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 403 for non-member", async () => {
+    const outsider = await seedWorkspace({ role: "owner" });
+    try {
+      const res = await authedFetch(
+        `/api/research/runs?workspaceId=${ctx.workspaceId}`,
+        { method: "GET", userId: outsider.userId },
+      );
+      expect(res.status).toBe(403);
+    } finally {
+      await outsider.cleanup();
+    }
+  });
+});
+
+describe("GET /api/research/runs/:id", () => {
+  let ctx: SeedResult;
+  beforeEach(async () => {
+    ctx = await seedWorkspace({ role: "editor" });
+  });
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  it("returns run with empty turns/artifacts initially", async () => {
+    const runId = await createPlanningRun(ctx);
+    const res = await authedFetch(`/api/research/runs/${runId}`, {
+      method: "GET",
+      userId: ctx.userId,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      id: string;
+      status: string;
+      turns: unknown[];
+      artifacts: unknown[];
+    };
+    expect(body.id).toBe(runId);
+    expect(body.status).toBe("planning");
+    expect(body.turns).toEqual([]);
+    expect(body.artifacts).toEqual([]);
+  });
+
+  it("returns turns ordered by seq asc and artifacts by seq asc", async () => {
+    const runId = await createPlanningRun(ctx);
+    await db.insert(researchRunTurns).values([
+      { runId, seq: 0, role: "agent", kind: "plan_proposal", content: "plan v1" },
+      { runId, seq: 1, role: "user", kind: "user_feedback", content: "narrower" },
+    ]);
+    await db.insert(researchRunArtifacts).values([
+      { runId, seq: 0, kind: "thought_summary", payload: { text: "thinking..." } },
+      { runId, seq: 1, kind: "text_delta", payload: { text: "chunk 1" } },
+    ]);
+    const res = await authedFetch(`/api/research/runs/${runId}`, {
+      method: "GET",
+      userId: ctx.userId,
+    });
+    const body = (await res.json()) as {
+      turns: { seq: number; content: string }[];
+      artifacts: { seq: number }[];
+    };
+    expect(body.turns.map((t) => t.seq)).toEqual([0, 1]);
+    expect(body.artifacts.map((a) => a.seq)).toEqual([0, 1]);
+  });
+
+  it("returns 404 on cross-workspace access", async () => {
+    const other = await seedWorkspace({ role: "owner" });
+    const runId = await createPlanningRun(other);
+    try {
+      const res = await authedFetch(`/api/research/runs/${runId}`, {
+        method: "GET",
+        userId: ctx.userId,
+      });
+      expect(res.status).toBe(404);
+    } finally {
+      await other.cleanup();
     }
   });
 });

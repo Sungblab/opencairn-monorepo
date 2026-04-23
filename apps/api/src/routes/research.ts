@@ -3,14 +3,19 @@ import { zValidator } from "@hono/zod-validator";
 import {
   db,
   researchRuns,
+  researchRunTurns,
+  researchRunArtifacts,
   projects,
   eq,
+  asc,
+  desc,
 } from "@opencairn/db";
 import {
   createResearchRunSchema,
+  listRunsQuerySchema,
 } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
-import { canWrite } from "../lib/permissions";
+import { canWrite, canRead } from "../lib/permissions";
 import { getTemporalClient } from "../lib/temporal-client";
 import type { AppEnv } from "../lib/types";
 
@@ -112,5 +117,113 @@ researchRouter.post(
     return c.json({ runId }, 201);
   },
 );
+
+// GET /api/research/runs?workspaceId=...
+researchRouter.get(
+  "/runs",
+  requireAuth,
+  zValidator("query", listRunsQuerySchema),
+  async (c) => {
+    const userId = c.get("userId");
+    const { workspaceId, limit } = c.req.valid("query");
+
+    if (!(await canRead(userId, { type: "workspace", id: workspaceId }))) {
+      return c.json({ error: "forbidden" }, 403);
+    }
+
+    const rows = await db
+      .select({
+        id: researchRuns.id,
+        topic: researchRuns.topic,
+        model: researchRuns.model,
+        status: researchRuns.status,
+        billingPath: researchRuns.billingPath,
+        createdAt: researchRuns.createdAt,
+        updatedAt: researchRuns.updatedAt,
+        completedAt: researchRuns.completedAt,
+        totalCostUsdCents: researchRuns.totalCostUsdCents,
+        noteId: researchRuns.noteId,
+      })
+      .from(researchRuns)
+      .where(eq(researchRuns.workspaceId, workspaceId))
+      .orderBy(desc(researchRuns.createdAt))
+      .limit(limit);
+
+    return c.json({
+      runs: rows.map((r) => ({
+        ...r,
+        createdAt: r.createdAt.toISOString(),
+        updatedAt: r.updatedAt.toISOString(),
+        completedAt: r.completedAt?.toISOString() ?? null,
+      })),
+    });
+  },
+);
+
+// GET /api/research/runs/:id
+researchRouter.get("/runs/:id", requireAuth, async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  if (!/^[0-9a-f-]{36}$/i.test(id)) {
+    return c.json({ error: "not_found" }, 404);
+  }
+
+  const [run] = await db
+    .select()
+    .from(researchRuns)
+    .where(eq(researchRuns.id, id));
+  if (!run) return c.json({ error: "not_found" }, 404);
+
+  if (!(await canRead(userId, { type: "workspace", id: run.workspaceId }))) {
+    // Hide existence on cross-workspace access — 404, not 403.
+    return c.json({ error: "not_found" }, 404);
+  }
+
+  const turns = await db
+    .select()
+    .from(researchRunTurns)
+    .where(eq(researchRunTurns.runId, id))
+    .orderBy(asc(researchRunTurns.seq));
+
+  const artifacts = await db
+    .select()
+    .from(researchRunArtifacts)
+    .where(eq(researchRunArtifacts.runId, id))
+    .orderBy(asc(researchRunArtifacts.seq));
+
+  return c.json({
+    id: run.id,
+    workspaceId: run.workspaceId,
+    projectId: run.projectId,
+    topic: run.topic,
+    model: run.model,
+    status: run.status,
+    billingPath: run.billingPath,
+    currentInteractionId: run.currentInteractionId,
+    approvedPlanText: run.approvedPlanText,
+    error: run.error,
+    totalCostUsdCents: run.totalCostUsdCents,
+    noteId: run.noteId,
+    createdAt: run.createdAt.toISOString(),
+    updatedAt: run.updatedAt.toISOString(),
+    completedAt: run.completedAt?.toISOString() ?? null,
+    turns: turns.map((t) => ({
+      id: t.id,
+      seq: t.seq,
+      role: t.role,
+      kind: t.kind,
+      interactionId: t.interactionId,
+      content: t.content,
+      createdAt: t.createdAt.toISOString(),
+    })),
+    artifacts: artifacts.map((a) => ({
+      id: a.id,
+      seq: a.seq,
+      kind: a.kind,
+      payload: a.payload,
+      createdAt: a.createdAt.toISOString(),
+    })),
+  });
+});
 
 export { researchRouter };
