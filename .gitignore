@@ -13,6 +13,9 @@ build/
 .turbo/
 out/
 
+# Next.js auto-generated (path flips between `next dev` and `next build`)
+apps/web/next-env.d.ts
+
 # Environment
 .env
 .env.local
