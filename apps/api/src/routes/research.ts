@@ -467,6 +467,11 @@ researchRouter.get("/runs/:id/stream", requireAuth, async (c) => {
   const MAX_MINUTES = 70; // cover the 60min workflow cap + persistence slack
   const MAX_TICKS = (MAX_MINUTES * 60 * 1000) / POLL_MS;
 
+  // Flag flipped by the stream's cancel callback when the client disconnects
+  // (browser close, navigation, fetch abort). Checked at each loop boundary so
+  // the 2s-poll + 70min-cap combo doesn't keep hammering the DB for a reader
+  // that's already gone.
+  let aborted = false;
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const encoder = new TextEncoder();
@@ -481,6 +486,7 @@ researchRouter.get("/runs/:id/stream", requireAuth, async (c) => {
 
       try {
         while (tick < MAX_TICKS) {
+          if (aborted) break;
           const [row] = await db
             .select({
               status: researchRuns.status,
@@ -574,6 +580,9 @@ researchRouter.get("/runs/:id/stream", requireAuth, async (c) => {
       } finally {
         controller.close();
       }
+    },
+    cancel() {
+      aborted = true;
     },
   });
 
