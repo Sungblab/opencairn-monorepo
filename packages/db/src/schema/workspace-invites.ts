@@ -27,6 +27,8 @@ export const workspaceInvites = pgTable(
     // (PR #13 gemini review follow-up: dropping the redundant
     // `workspace_invites_token_idx` saved the write amplification on an
     // already-unique column.)
+    // `invited_by` btree kept — needed for admin audit joins and for the
+    // FK's `ON DELETE SET NULL` scan when a user row is deleted.
     index("workspace_invites_invited_by_idx").on(t.invitedBy),
     // Partial unique: forbids two open invites to the same (workspace, email)
     // pair, while still allowing a fresh invite after the prior one was

@@ -147,7 +147,12 @@ API 143/143 · hocuspocus 39/39 (size-cap + size_bytes 회귀 2건 추가) · db
 **프로덕션 주의** (배포 runbook 으로 승격):
 
 - 2-7 `CHECK (octet_length(state) <= 4 MB)` 은 기존 row 가 cap 을 초과하면 `ALTER TABLE` 단계에서 실패. 배포 전 `SELECT max(octet_length(state)) FROM yjs_documents;` 로 pre-flight 검증. dev 에서는 최대값 < 100 bytes.
-- 2-5 `workspaces_slug_lower_check` 역시 기존 row 중 하나라도 uppercase 가 섞여 있으면 constraint 추가 단계에서 실패. 배포 전 `SELECT id, slug FROM workspaces WHERE slug != lower(slug);` 로 audit 후, 나오는 row 는 `UPDATE workspaces SET slug = lower(slug) WHERE slug != lower(slug);` 로 정규화한 뒤 migration 진행. (PR #13 gemini 리뷰 follow-up — 0014 를 retro-patch 하는 대신 runbook 에 기록.) dev 는 모든 slug 가 이미 lowercase 였음.
+- 2-5 `workspaces_slug_lower_check` 역시 기존 row 중 하나라도 uppercase 가 섞여 있으면 constraint 추가 단계에서 실패. 배포 전 두 단계 audit:
+  1. `SELECT id, slug FROM workspaces WHERE slug != lower(slug);` — 비정규화된 row 탐지.
+  2. `SELECT lower(slug) AS s, count(*) FROM workspaces GROUP BY s HAVING count(*) > 1;` — 소문자 변환 시 **충돌** (unique 위반 primitive) 이 생기는지 확인. ex. `AcmE` + `acme` 는 단독 UPDATE 로 병합 불가.
+  - 충돌이 0 건이면 `UPDATE workspaces SET slug = lower(slug) WHERE slug != lower(slug);` 로 정규화 후 migration 진행.
+  - 충돌이 있으면 row 별로 새 slug 를 수기 할당 (소유 admin 에게 알림 → `/workspaces/:slug` 리다이렉트 안내). dev 에서는 모든 slug 가 이미 lowercase 이고 충돌 0.
+  - (PR #13 gemini 리뷰 follow-up + PR #14 gemini 후속 — 0014 를 retro-patch 하는 대신 runbook 에 기록.)
 
 ### Tier 2 follow-up (migration 0015)
 
