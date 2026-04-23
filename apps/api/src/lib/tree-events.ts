@@ -13,6 +13,7 @@ export type TreeEventKind =
   | "tree.folder_created"
   | "tree.folder_renamed"
   | "tree.folder_moved"
+  | "tree.folder_reordered"
   | "tree.folder_deleted"
   | "tree.note_created"
   | "tree.note_renamed"

@@ -87,6 +87,11 @@ export const folderRoutes = new Hono<AppEnv>()
 
     const moving =
       body.parentId !== undefined && body.parentId !== existing.parentId;
+    // Reorder = position changed within the SAME parent. When both parent
+    // and position change we only emit `tree.folder_moved` (project-scoped
+    // invalidate already covers the reorder); re-emitting would just
+    // double-fetch.
+    const reordering = !moving && body.position !== undefined;
 
     // Path rewrite goes through moveFolder so the ltree subtree stays
     // consistent. We run it first because a failed move should leave the
@@ -131,6 +136,15 @@ export const folderRoutes = new Hono<AppEnv>()
     if (moving) {
       emitTreeEvent({
         kind: "tree.folder_moved",
+        projectId: folder.projectId,
+        id: folder.id,
+        parentId: folder.parentId,
+        label: folder.name,
+        at,
+      });
+    } else if (reordering) {
+      emitTreeEvent({
+        kind: "tree.folder_reordered",
         projectId: folder.projectId,
         id: folder.id,
         parentId: folder.parentId,
