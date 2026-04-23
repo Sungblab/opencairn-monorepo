@@ -17,5 +17,33 @@
     "admin": "Admin",
     "member": "Member",
     "guest": "Guest"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "research": "Deep Research",
+    "import": "Import",
+    "more_aria": "More"
+  },
+  "more_menu": {
+    "settings": "Workspace settings",
+    "templates": "Template gallery",
+    "shared_links": "Shared links",
+    "trash": "Trash",
+    "feedback": "Send feedback",
+    "changelog": "What's new"
+  },
+  "project": {
+    "empty": "Create a project to get started",
+    "new": "New project",
+    "switch_aria": "Switch project"
+  },
+  "footer": {
+    "notifications_aria": "Notifications",
+    "settings_aria": "Workspace settings",
+    "guest_name": "Guest"
+  },
+  "search": {
+    "placeholder": "Search this project",
+    "shortcut_hint": "⌘K"
   }
 }
