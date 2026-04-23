@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { db, eq, user, workspaces, workspaceMembers } from "@opencairn/db";
+import { and, db, eq, user, workspaces, workspaceMembers } from "@opencairn/db";
 import { randomUUID } from "node:crypto";
 import { createApp } from "../src/app.js";
 import { createUser } from "./helpers/seed.js";
@@ -104,5 +104,59 @@ describe("PATCH /api/users/me/last-viewed-workspace", () => {
       body: JSON.stringify({ workspaceId: randomUUID() }),
     });
     expect(res.status).toBe(401);
+  });
+});
+
+describe("GET /api/users/me/last-viewed-workspace", () => {
+  async function getLastViewed(userId: string): Promise<Response> {
+    const cookie = await signSessionCookie(userId);
+    return app.request("/api/users/me/last-viewed-workspace", {
+      headers: { cookie },
+    });
+  }
+
+  it("returns null when never set", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const res = await getLastViewed(u.id);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { workspace: unknown };
+    expect(body.workspace).toBeNull();
+  });
+
+  it("returns {id, slug} when set and user is still a member", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const wsId = await seedWorkspaceFor(u.id);
+    await patchLastViewed(u.id, { workspaceId: wsId });
+
+    const res = await getLastViewed(u.id);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      workspace: { id: string; slug: string } | null;
+    };
+    expect(body.workspace?.id).toBe(wsId);
+    expect(body.workspace?.slug).toMatch(/^lvw-/);
+  });
+
+  it("returns null after the user lost membership", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const wsId = await seedWorkspaceFor(u.id);
+    await patchLastViewed(u.id, { workspaceId: wsId });
+
+    // Remove membership while keeping the workspace + lastViewedWorkspaceId.
+    await db
+      .delete(workspaceMembers)
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, wsId),
+          eq(workspaceMembers.userId, u.id),
+        ),
+      );
+
+    const res = await getLastViewed(u.id);
+    const body = (await res.json()) as { workspace: unknown };
+    expect(body.workspace).toBeNull();
   });
 });
