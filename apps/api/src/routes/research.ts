@@ -418,4 +418,35 @@ researchRouter.post(
   },
 );
 
+// POST /api/research/runs/:id/cancel
+researchRouter.post("/runs/:id/cancel", requireAuth, async (c) => {
+  const userId = c.get("userId");
+  const runId = c.req.param("id");
+
+  const run = await loadRunForUser(runId, userId);
+  if (!run) return c.json({ error: "not_found" }, 404);
+  if (!(await canWrite(userId, { type: "project", id: run.projectId }))) {
+    return c.json({ error: "forbidden" }, 403);
+  }
+
+  // Terminal states — nothing to do. Return 202 for idempotency (so UI can
+  // retry spam-click without shaking the user with an error).
+  if (
+    run.status === "completed" ||
+    run.status === "failed" ||
+    run.status === "cancelled"
+  ) {
+    return c.json({ cancelled: true, alreadyTerminal: true }, 202);
+  }
+
+  const client = await getTemporalClient();
+  const handle = client.workflow.getHandle(run.workflowId);
+  // Use the signal rather than handle.cancel() — the workflow's cancel
+  // handler does the Google provider.cancel_interaction + DB transition.
+  // handle.cancel() would trip CancelledError mid-activity and skip cleanup.
+  await handle.signal("cancel");
+
+  return c.json({ cancelled: true }, 202);
+});
+
 export { researchRouter };

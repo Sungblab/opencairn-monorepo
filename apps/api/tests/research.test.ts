@@ -444,6 +444,43 @@ describe("PATCH /api/research/runs/:id/plan", () => {
   });
 });
 
+describe("POST /api/research/runs/:id/cancel", () => {
+  let ctx: SeedResult;
+  beforeEach(async () => {
+    ctx = await seedWorkspace({ role: "editor" });
+    workflowSignalSpy.mockClear();
+    workflowCancelSpy.mockClear();
+  });
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  it("sends cancel signal to workflow", async () => {
+    const runId = await createPlanningRun(ctx);
+    const res = await authedFetch(`/api/research/runs/${runId}/cancel`, {
+      method: "POST",
+      userId: ctx.userId,
+    });
+    expect(res.status).toBe(202);
+    expect(workflowSignalSpy).toHaveBeenCalledWith("cancel");
+  });
+
+  it("is idempotent on already-completed runs (202, no signal)", async () => {
+    const runId = await createPlanningRun(ctx);
+    await db
+      .update(researchRuns)
+      .set({ status: "completed" })
+      .where(eq(researchRuns.id, runId));
+
+    const res = await authedFetch(`/api/research/runs/${runId}/cancel`, {
+      method: "POST",
+      userId: ctx.userId,
+    });
+    expect(res.status).toBe(202);
+    expect(workflowSignalSpy).not.toHaveBeenCalled();
+  });
+});
+
 describe("POST /api/research/runs/:id/approve", () => {
   let ctx: SeedResult;
   beforeEach(async () => {
