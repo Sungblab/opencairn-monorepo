@@ -85,6 +85,13 @@ export interface NoteEditorProps {
    * intentionally decoupled.
    */
   canComment: boolean;
+  /**
+   * Fires once on the user's first interactive keystroke. Used by the
+   * App Shell Phase 3 tab system to promote a preview (single-click)
+   * tab into a sticky tab on first edit. Safe to omit — the editor
+   * works the same without it.
+   */
+  onFirstEdit?: () => void;
 }
 
 export function NoteEditor({
@@ -97,6 +104,7 @@ export function NoteEditor({
   userName,
   readOnly,
   canComment,
+  onFirstEdit,
 }: NoteEditorProps) {
   const t = useTranslations("editor");
 
@@ -109,6 +117,15 @@ export function NoteEditor({
   const [titleError, setTitleError] = useState<string | null>(null);
   // Guard against "saved"→"idle" flicker when rapid edits race the response.
   const pendingRef = useRef(0);
+  // Tracks whether `onFirstEdit` has already fired so preview-tab promotion
+  // is a one-shot. Lives on a ref (not state) so it doesn't cause a
+  // re-render on the first keystroke.
+  const firstEditFiredRef = useRef(false);
+  const notifyFirstEdit = useCallback(() => {
+    if (firstEditFiredRef.current) return;
+    firstEditFiredRef.current = true;
+    onFirstEdit?.();
+  }, [onFirstEdit]);
 
   const patchTitle = useCallback(
     async (value: string) => {
@@ -208,6 +225,15 @@ export function NoteEditor({
 
   return (
     <Plate editor={editor} readOnly={readOnly}>
+      {/* onKeyDownCapture wraps both the title input and PlateContent so
+          any user keystroke anywhere in the editor fires notifyFirstEdit
+          once — used by the tab shell to promote a preview tab on the
+          first interactive input. Capture-phase so ancestor toolbar keys
+          still bubble normally. */}
+      <div
+        onKeyDownCapture={readOnly ? undefined : notifyFirstEdit}
+        className="contents"
+      >
       {/* Outer flex row: editor column (flex-1) on the left, CommentsPanel
           (fixed 320px) on the right. The panel is outside the Plate content
           flow but still inside <Plate> so future block-anchored jumps can
@@ -272,6 +298,7 @@ export function NoteEditor({
           workspaceId={workspaceId}
           canComment={canComment}
         />
+      </div>
       </div>
     </Plate>
   );
