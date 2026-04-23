@@ -55,5 +55,10 @@
     "delete": "Delete",
     "delete_shortcut": "⌘Del",
     "confirm_delete": "Delete \"{label}\"?"
+  },
+  "toasts": {
+    "move_failed": "Couldn't move. Please try again.",
+    "rename_failed": "Couldn't rename. Please try again.",
+    "delete_failed": "Couldn't delete. Please try again."
   }
 }
