@@ -2,13 +2,9 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import {
-  useTabsStore,
-  type Tab,
-  type TabKind,
-  type TabMode,
-} from "@/stores/tabs-store";
+import { useTabsStore, type TabKind } from "@/stores/tabs-store";
 import { tabToUrl, urlToTabTarget, type TabRoute } from "@/lib/tab-url";
+import { newTab } from "@/lib/tab-factory";
 
 // URL is the source of truth for the active tab. Two effects:
 //   1) setWorkspace once per slug change so the right per-workspace stack is
@@ -21,17 +17,14 @@ import { tabToUrl, urlToTabTarget, type TabRoute } from "@/lib/tab-url";
 // forward, deep-link paste, and command-palette navigation all flow through
 // the same reconciliation path. Tabs cannot drift from the URL because they
 // are derived from it.
-function defaultModeFor(_kind: TabKind): TabMode {
-  return "plate";
-}
 
 // Resolve a placeholder tab title at the user's current locale. Returns a
 // concrete string (not a key) because the title is persisted to localStorage
 // inside the Tab object — Phase 3 renders it directly. Caveat: a tab created
 // in `ko` keeps its Korean title until closed and reopened even after the
 // user switches locale to `en`. The proper fix is to persist `titleKey` and
-// resolve at render time, but that's a Phase 3 concern when tabs actually
-// render; for now this beats hardcoded Korean for English-locale users.
+// resolve at render time, but that's a later concern; for now this beats
+// hardcoded strings for English-locale users.
 function resolveDefaultTitle(
   t: ReturnType<typeof useTranslations>,
   kind: TabKind,
@@ -55,14 +48,6 @@ function resolveDefaultTitle(
   }
 }
 
-function newId() {
-  // `t_` prefix is retained for debuggability (tab IDs stand out in devtools
-  // / logs). Uniqueness comes from crypto.randomUUID — Date.now + 6-char
-  // random has meaningful collision risk under rapid tab opens (duplicate
-  // hotkey, deep-link prefetch) which would corrupt the tabs map keyed on id.
-  return `t_${crypto.randomUUID()}`;
-}
-
 export function useUrlTabSync() {
   const router = useRouter();
   const pathname = usePathname() ?? "/";
@@ -77,7 +62,6 @@ export function useUrlTabSync() {
   const tabs = useTabsStore((s) => s.tabs);
   const activeId = useTabsStore((s) => s.activeId);
   const setWorkspace = useTabsStore((s) => s.setWorkspace);
-  const addTab = useTabsStore((s) => s.addTab);
   const setActive = useTabsStore((s) => s.setActive);
 
   const initialized = useRef<string | null>(null);
@@ -95,30 +79,28 @@ export function useUrlTabSync() {
     const parsed = urlToTabTarget(pathname);
     if (!parsed || parsed.slug !== slug) return;
     const { route } = parsed;
-    const existing = useTabsStore
-      .getState()
-      .findTabByTarget(route.kind, route.targetId);
+    const store = useTabsStore.getState();
+    const existing = store.findTabByTarget(route.kind, route.targetId);
     if (existing) {
       if (activeId !== existing.id) setActive(existing.id);
       return;
     }
-    const tab: Tab = {
-      id: newId(),
+    const tab = newTab({
       kind: route.kind,
       targetId: route.targetId,
-      mode: defaultModeFor(route.kind),
       title: resolveDefaultTitle(tabTitle, route.kind, route.targetId),
-      pinned: false,
-      // Notes opened by URL navigation default to preview mode (italic in
-      // Phase 3); promotion to a permanent tab happens on second click.
-      preview: route.kind === "note",
-      dirty: false,
-      splitWith: null,
-      splitSide: null,
-      scrollY: 0,
-    };
-    addTab(tab);
-  }, [pathname, slug, activeId, setActive, addTab, tabTitle]);
+    });
+    // Notes opened via sidebar single-click arrive as preview tabs. To avoid
+    // stacking one preview per click (which is how you end up with 20 tabs
+    // after a morning of browsing), we replace any existing preview tab
+    // instead of appending. Non-note kinds have preview=false from the
+    // factory default, so addTab just appends.
+    if (tab.preview) {
+      store.addOrReplacePreview(tab);
+    } else {
+      store.addTab(tab);
+    }
+  }, [pathname, slug, activeId, setActive, tabTitle]);
 
   const navigateToTab = useCallback(
     (

@@ -1,8 +1,8 @@
 import { create } from "zustand";
 
-// Tab system canonical types — Phase 3 will fill in tab bar rendering, drag,
-// preview-mode italic, split panes, etc. Keep this list authoritative; new
-// tab kinds added in later phases must extend the union here.
+// Tab system canonical types — Phase 3 fills in tab bar rendering, drag,
+// preview-mode italic, keyboard nav, and the closed-tab restore stack.
+// New tab kinds added in later phases must extend the union here.
 export type TabKind =
   | "dashboard"
   | "project"
@@ -40,9 +40,14 @@ export interface Tab {
   scrollY: number;
 }
 
+// ⌘⇧T ring buffer — keeps the last N non-pinned closed tabs per workspace.
+// Persisted so a restore survives reloads (matches Chrome / VSCode behavior).
+const CLOSED_STACK_LIMIT = 10;
+
 interface Persisted {
   tabs: Tab[];
   activeId: string | null;
+  closedStack: Tab[];
 }
 
 interface State extends Persisted {
@@ -53,6 +58,13 @@ interface State extends Persisted {
   setActive(id: string): void;
   updateTab(id: string, patch: Partial<Tab>): void;
   findTabByTarget(kind: TabKind, targetId: string | null): Tab | undefined;
+  reorderTab(from: number, to: number): void;
+  togglePin(id: string): void;
+  promoteFromPreview(id: string): void;
+  addOrReplacePreview(tab: Tab): void;
+  closeOthers(keepId: string): void;
+  closeRight(id: string): void;
+  restoreClosed(): void;
 }
 
 // Per-workspace storage keys: switching workspaces flushes the outgoing
@@ -63,10 +75,18 @@ const key = (wsId: string) => `oc:tabs:${wsId}`;
 function loadPersisted(wsId: string): Persisted {
   try {
     const raw = localStorage.getItem(key(wsId));
-    if (!raw) return { tabs: [], activeId: null };
-    return JSON.parse(raw) as Persisted;
+    if (!raw) return { tabs: [], activeId: null, closedStack: [] };
+    const parsed = JSON.parse(raw) as Partial<Persisted>;
+    return {
+      tabs: parsed.tabs ?? [],
+      activeId: parsed.activeId ?? null,
+      // closedStack was added in Phase 3. Older persisted blobs from Phase 1
+      // omit it — coerce to empty so the user doesn't see a crash on first
+      // load after the upgrade.
+      closedStack: parsed.closedStack ?? [],
+    };
   } catch {
-    return { tabs: [], activeId: null };
+    return { tabs: [], activeId: null, closedStack: [] };
   }
 }
 
@@ -78,14 +98,24 @@ export const useTabsStore = create<State>((set, get) => ({
   workspaceId: null,
   tabs: [],
   activeId: null,
+  closedStack: [],
 
   setWorkspace: (id) => {
     const prev = get();
     if (prev.workspaceId && prev.workspaceId !== id) {
-      flush(prev.workspaceId, { tabs: prev.tabs, activeId: prev.activeId });
+      flush(prev.workspaceId, {
+        tabs: prev.tabs,
+        activeId: prev.activeId,
+        closedStack: prev.closedStack,
+      });
     }
     const loaded = loadPersisted(id);
-    set({ workspaceId: id, tabs: loaded.tabs, activeId: loaded.activeId });
+    set({
+      workspaceId: id,
+      tabs: loaded.tabs,
+      activeId: loaded.activeId,
+      closedStack: loaded.closedStack,
+    });
   },
 
   addTab: (tab) => {
@@ -93,7 +123,8 @@ export const useTabsStore = create<State>((set, get) => ({
     const tabs = [...s.tabs, tab];
     const activeId = s.activeId ?? tab.id;
     set({ tabs, activeId });
-    if (s.workspaceId) flush(s.workspaceId, { tabs, activeId });
+    if (s.workspaceId)
+      flush(s.workspaceId, { tabs, activeId, closedStack: s.closedStack });
   },
 
   closeTab: (id) => {
@@ -109,24 +140,153 @@ export const useTabsStore = create<State>((set, get) => ({
       const left = s.tabs[idx - 1];
       activeId = right?.id ?? left?.id ?? null;
     }
-    set({ tabs, activeId });
-    if (s.workspaceId) flush(s.workspaceId, { tabs, activeId });
+    const closedStack = [...s.closedStack, target].slice(-CLOSED_STACK_LIMIT);
+    set({ tabs, activeId, closedStack });
+    if (s.workspaceId) flush(s.workspaceId, { tabs, activeId, closedStack });
   },
 
   setActive: (id) => {
     const s = get();
     if (!s.tabs.some((t) => t.id === id)) return;
     set({ activeId: id });
-    if (s.workspaceId) flush(s.workspaceId, { tabs: s.tabs, activeId: id });
+    if (s.workspaceId)
+      flush(s.workspaceId, {
+        tabs: s.tabs,
+        activeId: id,
+        closedStack: s.closedStack,
+      });
   },
 
   updateTab: (id, patch) => {
     const s = get();
     const tabs = s.tabs.map((t) => (t.id === id ? { ...t, ...patch } : t));
     set({ tabs });
-    if (s.workspaceId) flush(s.workspaceId, { tabs, activeId: s.activeId });
+    if (s.workspaceId)
+      flush(s.workspaceId, {
+        tabs,
+        activeId: s.activeId,
+        closedStack: s.closedStack,
+      });
   },
 
   findTabByTarget: (kind, targetId) =>
     get().tabs.find((t) => t.kind === kind && t.targetId === targetId),
+
+  reorderTab: (from, to) => {
+    const s = get();
+    if (from === to) return;
+    if (from < 0 || from >= s.tabs.length) return;
+    if (to < 0 || to >= s.tabs.length) return;
+    const next = [...s.tabs];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    set({ tabs: next });
+    if (s.workspaceId)
+      flush(s.workspaceId, {
+        tabs: next,
+        activeId: s.activeId,
+        closedStack: s.closedStack,
+      });
+  },
+
+  togglePin: (id) => {
+    const current = get().tabs.find((t) => t.id === id);
+    if (!current) return;
+    get().updateTab(id, { pinned: !current.pinned });
+  },
+
+  promoteFromPreview: (id) => {
+    const current = get().tabs.find((t) => t.id === id);
+    if (!current || !current.preview) return;
+    get().updateTab(id, { preview: false });
+  },
+
+  addOrReplacePreview: (tab) => {
+    const s = get();
+    const previewIdx = s.tabs.findIndex((t) => t.preview);
+    if (previewIdx < 0) {
+      s.addTab(tab);
+      // After addTab the activeId might already be set to the first tab in
+      // the store (if it was empty); force the new preview tab to be active
+      // because the caller's intent is "open and focus this".
+      const post = get();
+      if (post.activeId !== tab.id) {
+        set({ activeId: tab.id });
+        if (post.workspaceId)
+          flush(post.workspaceId, {
+            tabs: post.tabs,
+            activeId: tab.id,
+            closedStack: post.closedStack,
+          });
+      }
+      return;
+    }
+    const next = [...s.tabs];
+    next[previewIdx] = tab;
+    set({ tabs: next, activeId: tab.id });
+    if (s.workspaceId)
+      flush(s.workspaceId, {
+        tabs: next,
+        activeId: tab.id,
+        closedStack: s.closedStack,
+      });
+  },
+
+  closeOthers: (keepId) => {
+    const s = get();
+    const next = s.tabs.filter((t) => t.id === keepId || t.pinned);
+    // Evicted tabs feed the ⌘⇧T stack so bulk-close stays undoable
+    // (VSCode / Chrome "Reopen closed tabs" parity). Pinned tabs can't be
+    // closed so they're filtered alongside keepId — they never enter
+    // the stack.
+    const evicted = s.tabs.filter(
+      (t) => t.id !== keepId && !t.pinned,
+    );
+    const closedStack = [...s.closedStack, ...evicted].slice(
+      -CLOSED_STACK_LIMIT,
+    );
+    set({ tabs: next, activeId: keepId, closedStack });
+    if (s.workspaceId)
+      flush(s.workspaceId, {
+        tabs: next,
+        activeId: keepId,
+        closedStack,
+      });
+  },
+
+  closeRight: (id) => {
+    const s = get();
+    const idx = s.tabs.findIndex((t) => t.id === id);
+    if (idx < 0) return;
+    // Keep the pivot + everything to its left + any pinned tabs on the
+    // right. Matches the close-button / ⌘W rule that pinned tabs resist
+    // close actions; closing just the unpinned right-hand tabs is the
+    // least surprising behavior.
+    const rightSlice = s.tabs.slice(idx + 1);
+    const evicted = rightSlice.filter((t) => !t.pinned);
+    const rightPinned = rightSlice.filter((t) => t.pinned);
+    const next = [...s.tabs.slice(0, idx + 1), ...rightPinned];
+    const activeId = next.some((t) => t.id === s.activeId) ? s.activeId : id;
+    const closedStack = [...s.closedStack, ...evicted].slice(
+      -CLOSED_STACK_LIMIT,
+    );
+    set({ tabs: next, activeId, closedStack });
+    if (s.workspaceId)
+      flush(s.workspaceId, {
+        tabs: next,
+        activeId,
+        closedStack,
+      });
+  },
+
+  restoreClosed: () => {
+    const s = get();
+    if (s.closedStack.length === 0) return;
+    const last = s.closedStack[s.closedStack.length - 1];
+    const closedStack = s.closedStack.slice(0, -1);
+    const tabs = [...s.tabs, last];
+    set({ tabs, activeId: last.id, closedStack });
+    if (s.workspaceId)
+      flush(s.workspaceId, { tabs, activeId: last.id, closedStack });
+  },
 }));

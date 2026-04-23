@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
-import { NoteEditor } from "@/components/editor/NoteEditor";
+import { NoteEditorClient } from "@/components/editor/note-editor-client";
 
 interface PageProps {
   params: Promise<{
@@ -84,7 +84,7 @@ export default async function NotePage({ params }: PageProps) {
   const canComment = role !== "viewer";
 
   return (
-    <NoteEditor
+    <NoteEditorClient
       noteId={note.id}
       initialTitle={note.title}
       wsSlug={wsSlug}
