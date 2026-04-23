@@ -158,6 +158,28 @@ async def test_redirect_to_private_ip_blocked() -> None:
     assert info.value.non_retryable is True
 
 
+async def test_redirect_without_location_header_raises() -> None:
+    """PR #11 review follow-up: a 3xx response without a ``Location`` header
+    is malformed per RFC 7231 §7.1.2. The earlier code silently broke out of
+    the redirect loop with an empty body, which meant downstream ingest
+    would embed and index an empty note. The activity must surface the
+    failure as non-retryable so the workflow parks the job instead of
+    quietly succeeding or retrying forever.
+    """
+    missing_location = _StreamResponse(status_code=302, headers={})
+    client = _mock_client(missing_location)
+
+    with _patch_dns(), patch(
+        "worker.activities.web_activity.httpx.AsyncClient",
+        return_value=client,
+    ):
+        with pytest.raises(ApplicationError) as info:
+            await _scrape_impl("http://example.com/")
+    assert info.value.type == "invalid_redirect"
+    assert info.value.non_retryable is True
+    assert "location" in str(info.value).lower()
+
+
 async def test_redirect_loop_bounded() -> None:
     """A redirect chain longer than ``MAX_REDIRECTS`` must terminate —
     never silently trust a site that keeps redirecting to public hops."""
