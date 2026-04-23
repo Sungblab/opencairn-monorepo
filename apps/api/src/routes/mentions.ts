@@ -52,11 +52,16 @@ export const mentionsRouter = new Hono<AppEnv>()
 
       if (type === "user") {
         // Prefix match so "al" finds "Alice" but not "Malcolm".
+        //
+        // Tier 0 item 0-3 (Plan 2B C-1): DO NOT select `user.email`. The
+        // earlier response leaked every workspace member's email as
+        // `sublabel`, turning the autocomplete into a PII enumeration
+        // primitive for any authenticated member. Label falls back to the
+        // id when name is missing — NEVER to email.
         const rows = await db
           .select({
             id: user.id,
             name: user.name,
-            email: user.email,
             avatarUrl: user.image,
           })
           .from(workspaceMembers)
@@ -72,8 +77,7 @@ export const mentionsRouter = new Hono<AppEnv>()
         results = rows.map((r) => ({
           type: "user" as const,
           id: r.id,
-          label: r.name ?? r.email ?? r.id,
-          sublabel: r.email ?? undefined,
+          label: r.name ?? r.id,
           avatarUrl: r.avatarUrl ?? undefined,
         }));
       } else if (type === "page") {
