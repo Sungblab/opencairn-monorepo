@@ -28,6 +28,7 @@ import {
 import { getTemporalClient } from "../lib/temporal-client";
 import { signSessionForUser } from "../lib/test-session";
 import { createMultiRoleSeed } from "../lib/test-seed-multi";
+import { isUuid } from "../lib/validators";
 import { plateValueToText } from "../lib/plate-text";
 import type { AppEnv } from "../lib/types";
 
@@ -1188,9 +1189,7 @@ internal.post(
     // which equals the worker-supplied idempotencyKey (= run_id) by contract.
     // Guard: researchRuns.id is a UUID column; skip the query if the key is
     // not UUID-shaped to avoid a Postgres cast error.
-    const UUID_RE =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (body.idempotencyKey && UUID_RE.test(body.idempotencyKey)) {
+    if (isUuid(body.idempotencyKey)) {
       const [existing] = await db
         .select({ noteId: researchRuns.noteId })
         .from(researchRuns)
@@ -1226,7 +1225,7 @@ internal.post(
     // Back-fill researchRuns.noteId so a retry of this call hits the
     // idempotency branch above. UUID guard mirrors the read path above —
     // the column is uuid type, so non-UUID keys must be skipped.
-    if (body.idempotencyKey && UUID_RE.test(body.idempotencyKey)) {
+    if (isUuid(body.idempotencyKey)) {
       // updatedAt is stamped by Drizzle's $onUpdate on researchRuns —
       // explicit set is redundant.
       await db
