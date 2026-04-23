@@ -494,7 +494,9 @@ class LibrarianAgent(Agent):
             merged_count = 0
             try:
                 merged_count = await self.api.merge_concepts(
-                    primary_id=primary_id, duplicate_ids=duplicate_ids
+                    workspace_id=ctx.workspace_id,
+                    primary_id=primary_id,
+                    duplicate_ids=duplicate_ids,
                 )
             except Exception as exc:  # noqa: BLE001
                 logger.warning(

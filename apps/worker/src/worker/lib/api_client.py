@@ -259,15 +259,24 @@ class AgentApiClient:
     async def merge_concepts(
         self,
         *,
+        workspace_id: str,
         primary_id: str,
         duplicate_ids: list[str],
     ) -> int:
         """Collapse duplicates into primary — re-points edges / concept_notes
         and deletes the duplicate rows. Returns the number of merged rows.
+
+        ``workspace_id`` is enforced server-side (Tier 1 item 1-3). A
+        mismatched id on any of the concept rows returns 403
+        ``workspace_mismatch`` and raises ``httpx.HTTPStatusError`` here.
         """
         res = await post_internal(
             "/api/internal/concepts/merge",
-            {"primaryId": primary_id, "duplicateIds": duplicate_ids},
+            {
+                "workspaceId": workspace_id,
+                "primaryId": primary_id,
+                "duplicateIds": duplicate_ids,
+            },
         )
         return int(res.get("mergedCount", 0))
 
