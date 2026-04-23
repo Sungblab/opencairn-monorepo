@@ -4,5 +4,18 @@
   "empty_project": "이 프로젝트에는 아직 노트가 없어요.",
   "empty_folder": "비어 있어요.",
   "untitled": "제목 없음",
-  "offline": "오프라인"
+  "offline": "오프라인",
+  "switcher": {
+    "trigger_aria": "워크스페이스 전환",
+    "label": "워크스페이스",
+    "invites_label": "받은 초대",
+    "new_workspace": "새 워크스페이스 만들기",
+    "placeholder": "불러오는 중…"
+  },
+  "role": {
+    "owner": "소유자",
+    "admin": "관리자",
+    "member": "멤버",
+    "guest": "게스트"
+  }
 }

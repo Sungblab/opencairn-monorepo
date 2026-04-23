@@ -2,7 +2,17 @@ import { randomBytes } from "node:crypto";
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { db, workspaces, workspaceMembers, projects, and, eq } from "@opencairn/db";
+import {
+  db,
+  workspaces,
+  workspaceMembers,
+  workspaceInvites,
+  projects,
+  and,
+  eq,
+  gt,
+  isNull,
+} from "@opencairn/db";
 import { requireAuth } from "../middleware/auth";
 import { requireWorkspaceRole } from "../middleware/require-role";
 import { isUuid } from "../lib/validators";
@@ -62,6 +72,47 @@ workspaceRoutes.get("/", async (c) => {
     .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
     .where(eq(workspaceMembers.userId, user.id));
   return c.json(rows);
+});
+
+// 현재 사용자의 workspace 멤버십 + 나에게 온 pending 초대.
+// 사이드바 스위처/대시보드 모두 이 한 번의 호출로 필요한 정보를 읽는다.
+// pending = acceptedAt IS NULL AND expiresAt > now(). 이메일 매칭.
+workspaceRoutes.get("/me", async (c) => {
+  const u = c.get("user");
+  const ws = await db
+    .select({
+      id: workspaces.id,
+      slug: workspaces.slug,
+      name: workspaces.name,
+      role: workspaceMembers.role,
+    })
+    .from(workspaceMembers)
+    .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
+    .where(eq(workspaceMembers.userId, u.id));
+
+  const email = (u as { email?: string | null }).email;
+  const invites = email
+    ? await db
+        .select({
+          id: workspaceInvites.id,
+          workspaceId: workspaceInvites.workspaceId,
+          workspaceName: workspaces.name,
+          workspaceSlug: workspaces.slug,
+          role: workspaceInvites.role,
+          expiresAt: workspaceInvites.expiresAt,
+        })
+        .from(workspaceInvites)
+        .innerJoin(workspaces, eq(workspaces.id, workspaceInvites.workspaceId))
+        .where(
+          and(
+            eq(workspaceInvites.email, email),
+            isNull(workspaceInvites.acceptedAt),
+            gt(workspaceInvites.expiresAt, new Date())
+          )
+        )
+    : [];
+
+  return c.json({ workspaces: ws, invites });
 });
 
 // slug → workspace 조회 (멤버만 접근). /app/w/:wsSlug redirect chain 용.

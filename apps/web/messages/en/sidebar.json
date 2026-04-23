@@ -4,5 +4,18 @@
   "empty_project": "No notes yet in this project.",
   "empty_folder": "Empty.",
   "untitled": "Untitled",
-  "offline": "Offline"
+  "offline": "Offline",
+  "switcher": {
+    "trigger_aria": "Switch workspace",
+    "label": "Workspaces",
+    "invites_label": "Invitations",
+    "new_workspace": "Create new workspace",
+    "placeholder": "Loading…"
+  },
+  "role": {
+    "owner": "Owner",
+    "admin": "Admin",
+    "member": "Member",
+    "guest": "Guest"
+  }
 }
