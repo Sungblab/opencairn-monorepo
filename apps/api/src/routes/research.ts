@@ -167,32 +167,25 @@ researchRouter.get(
 researchRouter.get("/runs/:id", requireAuth, async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
-  if (!/^[0-9a-f-]{36}$/i.test(id)) {
-    return c.json({ error: "not_found" }, 404);
-  }
 
-  const [run] = await db
-    .select()
-    .from(researchRuns)
-    .where(eq(researchRuns.id, id));
+  const run = await loadRunForUser(id, userId);
   if (!run) return c.json({ error: "not_found" }, 404);
 
-  if (!(await canRead(userId, { type: "workspace", id: run.workspaceId }))) {
-    // Hide existence on cross-workspace access — 404, not 403.
-    return c.json({ error: "not_found" }, 404);
-  }
-
-  const turns = await db
-    .select()
-    .from(researchRunTurns)
-    .where(eq(researchRunTurns.runId, id))
-    .orderBy(asc(researchRunTurns.seq));
-
-  const artifacts = await db
-    .select()
-    .from(researchRunArtifacts)
-    .where(eq(researchRunArtifacts.runId, id))
-    .orderBy(asc(researchRunArtifacts.seq));
+  // Parallelise the two independent reads. The detail endpoint is on the
+  // Phase D hot path (initial hydration before SSE takes over), so saving
+  // one round-trip matters.
+  const [turns, artifacts] = await Promise.all([
+    db
+      .select()
+      .from(researchRunTurns)
+      .where(eq(researchRunTurns.runId, id))
+      .orderBy(asc(researchRunTurns.seq)),
+    db
+      .select()
+      .from(researchRunArtifacts)
+      .where(eq(researchRunArtifacts.runId, id))
+      .orderBy(asc(researchRunArtifacts.seq)),
+  ]);
 
   return c.json({
     id: run.id,
