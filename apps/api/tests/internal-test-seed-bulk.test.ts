@@ -85,7 +85,11 @@ describe("POST /api/internal/test-seed-bulk", () => {
     });
     expect(res.status).toBe(201);
     const folderRows = await db
-      .select({ id: folders.id, parentId: folders.parentId })
+      .select({
+        id: folders.id,
+        parentId: folders.parentId,
+        path: folders.path,
+      })
       .from(folders)
       .where(eq(folders.projectId, ctx.projectId));
     const ids = new Set(folderRows.map((r) => r.id));
@@ -96,6 +100,14 @@ describe("POST /api/internal/test-seed-bulk", () => {
     }
     // At least one root (depth 0) is present so the tree is reachable.
     expect(folderRows.some((r) => r.parentId === null)).toBe(true);
+    // And at least one non-root row actually exists — otherwise the depth
+    // walker silently collapsed everything to level 0 and the "parent_id
+    // references another inserted folder" check above would be vacuously
+    // true. ltree path depth = number of dot-separated labels.
+    const maxDepth = Math.max(
+      ...folderRows.map((r) => (r.path as unknown as string).split(".").length),
+    );
+    expect(maxDepth).toBeGreaterThan(1);
   });
 
   it("inserts notes with the project's workspaceId denormalised", async () => {

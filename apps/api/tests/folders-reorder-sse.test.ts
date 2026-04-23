@@ -88,6 +88,38 @@ describe("PATCH /api/folders/:id — tree event emissions", () => {
     expect(kinds).not.toContain("tree.folder_moved");
   });
 
+  it("stays silent when position is resent with the existing value (no-op)", async () => {
+    const folder = await insertFolder({
+      projectId: seed.projectId,
+      parentId: null,
+      name: "F",
+      position: 3,
+    });
+
+    const events: TreeEvent[] = [];
+    const unsubscribe = subscribeTreeEvents(seed.projectId, (e) =>
+      events.push(e),
+    );
+
+    try {
+      // Client retries a move with the same position — must not broadcast
+      // an SSE event to every connected sidebar for a write that changed
+      // nothing.
+      const res = await authedPatch(
+        folder.id,
+        { position: 3 },
+        seed.userId,
+      );
+      expect(res.status).toBe(200);
+    } finally {
+      unsubscribe();
+    }
+
+    const kinds = events.map((e) => e.kind);
+    expect(kinds).not.toContain("tree.folder_reordered");
+    expect(kinds).not.toContain("tree.folder_moved");
+  });
+
   it("does not emit tree.folder_reordered when position is absent", async () => {
     const folder = await insertFolder({
       projectId: seed.projectId,

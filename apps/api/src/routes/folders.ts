@@ -78,6 +78,7 @@ export const folderRoutes = new Hono<AppEnv>()
         projectId: folders.projectId,
         parentId: folders.parentId,
         name: folders.name,
+        position: folders.position,
       })
       .from(folders)
       .where(eq(folders.id, id));
@@ -90,8 +91,13 @@ export const folderRoutes = new Hono<AppEnv>()
     // Reorder = position changed within the SAME parent. When both parent
     // and position change we only emit `tree.folder_moved` (project-scoped
     // invalidate already covers the reorder); re-emitting would just
-    // double-fetch.
-    const reordering = !moving && body.position !== undefined;
+    // double-fetch. A PATCH that resends the existing position is a no-op
+    // and must NOT broadcast — otherwise every idempotent retry wakes up
+    // every connected sidebar.
+    const reordering =
+      !moving &&
+      body.position !== undefined &&
+      body.position !== existing.position;
 
     // Path rewrite goes through moveFolder so the ltree subtree stays
     // consistent. We run it first because a failed move should leave the

@@ -1535,11 +1535,18 @@ const testSeedBulkSchema = z.object({
 
 internal.post(
   "/test-seed-bulk",
-  zValidator("json", testSeedBulkSchema),
-  async (c) => {
+  // Prod refusal runs BEFORE the Zod validator so a malformed payload in
+  // production returns the same 403 as a well-formed one — otherwise a 400
+  // from the schema leaks the endpoint's existence to an attacker who only
+  // has the internal secret. The Zod guard is still useful in non-prod.
+  async (c, next) => {
     if (process.env.NODE_ENV === "production") {
       return c.json({ error: "test-seed-bulk disabled in production" }, 403);
     }
+    return next();
+  },
+  zValidator("json", testSeedBulkSchema),
+  async (c) => {
     const body = c.req.valid("json");
 
     const [proj] = await db
