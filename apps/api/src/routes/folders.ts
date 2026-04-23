@@ -7,6 +7,7 @@ import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite } from "../lib/permissions";
 import { isUuid } from "../lib/validators";
 import { labelFromId } from "../lib/tree-queries";
+import { emitTreeEvent } from "../lib/tree-events";
 import type { AppEnv } from "../lib/types";
 
 export const folderRoutes = new Hono<AppEnv>()
@@ -55,6 +56,16 @@ export const folderRoutes = new Hono<AppEnv>()
       .insert(folders)
       .values({ ...body, id, path })
       .returning();
+
+    emitTreeEvent({
+      kind: "tree.folder_created",
+      projectId: folder.projectId,
+      id: folder.id,
+      parentId: folder.parentId,
+      label: folder.name,
+      at: new Date().toISOString(),
+    });
+
     return c.json(folder, 201);
   })
 
@@ -62,7 +73,19 @@ export const folderRoutes = new Hono<AppEnv>()
     const user = c.get("user");
     const id = c.req.param("id");
     if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
-    const [existing] = await db.select({ projectId: folders.projectId }).from(folders).where(eq(folders.id, id));
+    // NOTE: parent_id changes here do NOT yet rewrite the ltree subtree —
+    // that path rewrite moves in via `moveFolder` during Task 11 (drag-drop).
+    // For now, PATCH only changes the scalar and emits tree.folder_moved;
+    // callers who change parent_id via this endpoint without Task 11 in
+    // place will leave the ltree path stale and must be aware of that.
+    const [existing] = await db
+      .select({
+        projectId: folders.projectId,
+        parentId: folders.parentId,
+        name: folders.name,
+      })
+      .from(folders)
+      .where(eq(folders.id, id));
     if (!existing) return c.json({ error: "Not found" }, 404);
     if (!(await canWrite(user.id, { type: "project", id: existing.projectId }))) return c.json({ error: "Forbidden" }, 403);
     const body = c.req.valid("json");
@@ -71,6 +94,32 @@ export const folderRoutes = new Hono<AppEnv>()
       .set(body)
       .where(eq(folders.id, id))
       .returning();
+
+    const at = new Date().toISOString();
+    const renamed = body.name !== undefined && body.name !== existing.name;
+    const moved =
+      body.parentId !== undefined && body.parentId !== existing.parentId;
+    if (renamed) {
+      emitTreeEvent({
+        kind: "tree.folder_renamed",
+        projectId: folder.projectId,
+        id: folder.id,
+        parentId: folder.parentId,
+        label: folder.name,
+        at,
+      });
+    }
+    if (moved) {
+      emitTreeEvent({
+        kind: "tree.folder_moved",
+        projectId: folder.projectId,
+        id: folder.id,
+        parentId: folder.parentId,
+        label: folder.name,
+        at,
+      });
+    }
+
     return c.json(folder);
   })
 
@@ -78,9 +127,21 @@ export const folderRoutes = new Hono<AppEnv>()
     const user = c.get("user");
     const id = c.req.param("id");
     if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
-    const [existing] = await db.select({ projectId: folders.projectId }).from(folders).where(eq(folders.id, id));
+    const [existing] = await db
+      .select({ projectId: folders.projectId, parentId: folders.parentId })
+      .from(folders)
+      .where(eq(folders.id, id));
     if (!existing) return c.json({ error: "Not found" }, 404);
     if (!(await canWrite(user.id, { type: "project", id: existing.projectId }))) return c.json({ error: "Forbidden" }, 403);
     await db.delete(folders).where(eq(folders.id, id));
+
+    emitTreeEvent({
+      kind: "tree.folder_deleted",
+      projectId: existing.projectId,
+      id,
+      parentId: existing.parentId,
+      at: new Date().toISOString(),
+    });
+
     return c.json({ success: true });
   });

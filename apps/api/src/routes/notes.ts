@@ -9,6 +9,7 @@ import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite, resolveRole } from "../lib/permissions";
 import { isUuid } from "../lib/validators";
 import { plateValueToText } from "../lib/plate-text";
+import { emitTreeEvent } from "../lib/tree-events";
 import type { AppEnv } from "../lib/types";
 
 export const noteRoutes = new Hono<AppEnv>()
@@ -99,6 +100,16 @@ export const noteRoutes = new Hono<AppEnv>()
       .insert(notes)
       .values({ ...body, workspaceId: proj.workspaceId, contentText })
       .returning();
+
+    emitTreeEvent({
+      kind: "tree.note_created",
+      projectId: note.projectId,
+      id: note.id,
+      parentId: note.folderId,
+      label: note.title,
+      at: new Date().toISOString(),
+    });
+
     return c.json(note, 201);
   })
 
@@ -112,12 +123,44 @@ export const noteRoutes = new Hono<AppEnv>()
     if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
     if (!(await canWrite(user.id, { type: "note", id }))) return c.json({ error: "Forbidden" }, 403);
     const body = c.req.valid("json");
+    // Capture prev title + folderId to detect rename/move deltas for SSE.
+    const [prev] = await db
+      .select({ title: notes.title, folderId: notes.folderId })
+      .from(notes)
+      .where(and(eq(notes.id, id), isNull(notes.deletedAt)));
+    if (!prev) return c.json({ error: "Not found" }, 404);
     const [note] = await db
       .update(notes)
       .set(body)
       .where(and(eq(notes.id, id), isNull(notes.deletedAt)))
       .returning();
     if (!note) return c.json({ error: "Not found" }, 404);
+
+    const at = new Date().toISOString();
+    const renamed = body.title !== undefined && body.title !== prev.title;
+    const moved =
+      body.folderId !== undefined && body.folderId !== prev.folderId;
+    if (renamed) {
+      emitTreeEvent({
+        kind: "tree.note_renamed",
+        projectId: note.projectId,
+        id: note.id,
+        parentId: note.folderId,
+        label: note.title,
+        at,
+      });
+    }
+    if (moved) {
+      emitTreeEvent({
+        kind: "tree.note_moved",
+        projectId: note.projectId,
+        id: note.id,
+        parentId: note.folderId,
+        label: note.title,
+        at,
+      });
+    }
+
     return c.json(note);
   })
 
@@ -132,5 +175,14 @@ export const noteRoutes = new Hono<AppEnv>()
       .where(and(eq(notes.id, id), isNull(notes.deletedAt)))
       .returning();
     if (!note) return c.json({ error: "Not found" }, 404);
+
+    emitTreeEvent({
+      kind: "tree.note_deleted",
+      projectId: note.projectId,
+      id: note.id,
+      parentId: note.folderId,
+      at: new Date().toISOString(),
+    });
+
     return c.json({ success: true });
   });
