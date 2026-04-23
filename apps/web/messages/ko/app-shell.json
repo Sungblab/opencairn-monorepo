@@ -26,5 +26,14 @@
       "heading": "워크스페이스 설정 — {sub}",
       "placeholder": "Phase 2C가 이 자리를 채웁니다."
     }
+  },
+  "tabTitles": {
+    "dashboard": "대시보드",
+    "note": "노트",
+    "project": "프로젝트",
+    "research_hub": "Deep Research",
+    "research_run": "Research {id}",
+    "import": "가져오기",
+    "ws_settings": "설정"
   }
 }

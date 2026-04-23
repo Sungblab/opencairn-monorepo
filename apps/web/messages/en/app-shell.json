@@ -26,5 +26,14 @@
       "heading": "Workspace settings — {sub}",
       "placeholder": "Phase 2C will fill this in."
     }
+  },
+  "tabTitles": {
+    "dashboard": "Dashboard",
+    "note": "Note",
+    "project": "Project",
+    "research_hub": "Deep Research",
+    "research_run": "Research {id}",
+    "import": "Import",
+    "ws_settings": "Settings"
   }
 }

@@ -12,6 +12,14 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({ wsSlug: "acme" }),
 }));
 
+// Stub next-intl's useTranslations so the hook can resolve placeholder tab
+// titles without a NextIntlClientProvider wrapper. Real i18n is exercised
+// by the Playwright spec; the unit test only needs deterministic output.
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string, vars?: Record<string, unknown>) =>
+    vars && "id" in vars ? `${key}:${vars.id}` : key,
+}));
+
 describe("useUrlTabSync", () => {
   beforeEach(() => {
     localStorage.clear();

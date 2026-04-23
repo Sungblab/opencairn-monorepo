@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef } from "react";
 import { useParams, usePathname, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   useTabsStore,
   type Tab,
@@ -24,26 +25,33 @@ function defaultModeFor(_kind: TabKind): TabMode {
   return "plate";
 }
 
-function defaultTitleFor(kind: TabKind, targetId: string | null): string {
-  // Placeholder labels — Phase 2/4 will swap in real fetched titles. Korean
-  // strings are deliberate (default locale per CLAUDE.md); the planned i18n
-  // refactor in Task 14 moves these to messages/{ko,en}/app-shell.json once
-  // the placeholder UI is wired up.
+// Resolve a placeholder tab title at the user's current locale. Returns a
+// concrete string (not a key) because the title is persisted to localStorage
+// inside the Tab object — Phase 3 renders it directly. Caveat: a tab created
+// in `ko` keeps its Korean title until closed and reopened even after the
+// user switches locale to `en`. The proper fix is to persist `titleKey` and
+// resolve at render time, but that's a Phase 3 concern when tabs actually
+// render; for now this beats hardcoded Korean for English-locale users.
+function resolveDefaultTitle(
+  t: ReturnType<typeof useTranslations>,
+  kind: TabKind,
+  targetId: string | null,
+): string {
   switch (kind) {
     case "dashboard":
-      return "대시보드";
+      return t("dashboard");
     case "note":
-      return "노트";
+      return t("note");
     case "project":
-      return "프로젝트";
+      return t("project");
     case "research_hub":
-      return "Deep Research";
+      return t("research_hub");
     case "research_run":
-      return `Research ${targetId ?? ""}`;
+      return t("research_run", { id: targetId ?? "" });
     case "import":
-      return "가져오기";
+      return t("import");
     case "ws_settings":
-      return "설정";
+      return t("ws_settings");
   }
 }
 
@@ -58,6 +66,7 @@ function newId() {
 export function useUrlTabSync() {
   const router = useRouter();
   const pathname = usePathname() ?? "/";
+  const tabTitle = useTranslations("appShell.tabTitles");
   const params = useParams<{ wsSlug?: string }>();
   const slug = params?.wsSlug ?? "";
 
@@ -98,7 +107,7 @@ export function useUrlTabSync() {
       kind: route.kind,
       targetId: route.targetId,
       mode: defaultModeFor(route.kind),
-      title: defaultTitleFor(route.kind, route.targetId),
+      title: resolveDefaultTitle(tabTitle, route.kind, route.targetId),
       pinned: false,
       // Notes opened by URL navigation default to preview mode (italic in
       // Phase 3); promotion to a permanent tab happens on second click.
@@ -109,7 +118,7 @@ export function useUrlTabSync() {
       scrollY: 0,
     };
     addTab(tab);
-  }, [pathname, slug, activeId, setActive, addTab]);
+  }, [pathname, slug, activeId, setActive, addTab, tabTitle]);
 
   const navigateToTab = useCallback(
     (
