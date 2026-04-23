@@ -443,3 +443,71 @@ describe("PATCH /api/research/runs/:id/plan", () => {
     expect(res.status).toBe(409);
   });
 });
+
+describe("POST /api/research/runs/:id/approve", () => {
+  let ctx: SeedResult;
+  beforeEach(async () => {
+    ctx = await seedWorkspace({ role: "editor" });
+    workflowSignalSpy.mockClear();
+  });
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  it("prefers latest user_edit over plan_proposal", async () => {
+    const runId = await createPlanningRun(ctx);
+    await db.insert(researchRunTurns).values([
+      { runId, seq: 0, role: "agent", kind: "plan_proposal", content: "PROPOSAL" },
+      { runId, seq: 1, role: "user", kind: "user_edit", content: "EDITED" },
+    ]);
+    await db
+      .update(researchRuns)
+      .set({ status: "awaiting_approval" })
+      .where(eq(researchRuns.id, runId));
+
+    const res = await authedFetch(`/api/research/runs/${runId}/approve`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(202);
+
+    const [row] = await db
+      .select({ approvedPlanText: researchRuns.approvedPlanText })
+      .from(researchRuns)
+      .where(eq(researchRuns.id, runId));
+    expect(row!.approvedPlanText).toBe("EDITED");
+
+    expect(workflowSignalSpy).toHaveBeenCalledWith("approve_plan", "EDITED");
+  });
+
+  it("uses explicit finalPlanText override when provided", async () => {
+    const runId = await createPlanningRun(ctx);
+    await db.insert(researchRunTurns).values({
+      runId, seq: 0, role: "agent", kind: "plan_proposal", content: "PROPOSAL",
+    });
+    await db
+      .update(researchRuns)
+      .set({ status: "awaiting_approval" })
+      .where(eq(researchRuns.id, runId));
+
+    const res = await authedFetch(`/api/research/runs/${runId}/approve`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ finalPlanText: "OVERRIDE" }),
+    });
+    expect(res.status).toBe(202);
+    expect(workflowSignalSpy).toHaveBeenCalledWith("approve_plan", "OVERRIDE");
+  });
+
+  it("returns 409 when no plan_proposal exists yet", async () => {
+    const runId = await createPlanningRun(ctx);
+    const res = await authedFetch(`/api/research/runs/${runId}/approve`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(409);
+    expect(workflowSignalSpy).not.toHaveBeenCalled();
+  });
+});

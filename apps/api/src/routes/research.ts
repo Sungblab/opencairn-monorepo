@@ -7,6 +7,7 @@ import {
   researchRunArtifacts,
   projects,
   eq,
+  and,
   asc,
   desc,
   max,
@@ -16,6 +17,7 @@ import {
   listRunsQuerySchema,
   addTurnSchema,
   updatePlanSchema,
+  approvePlanSchema,
 } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
 import { canWrite, canRead } from "../lib/permissions";
@@ -331,6 +333,88 @@ researchRouter.patch(
       .returning({ id: researchRunTurns.id });
 
     return c.json({ turnId: turn.id }, 200);
+  },
+);
+
+// POST /api/research/runs/:id/approve
+researchRouter.post(
+  "/runs/:id/approve",
+  requireAuth,
+  zValidator("json", approvePlanSchema),
+  async (c) => {
+    const userId = c.get("userId");
+    const runId = c.req.param("id");
+    const { finalPlanText } = c.req.valid("json");
+
+    const run = await loadRunForUser(runId, userId);
+    if (!run) return c.json({ error: "not_found" }, 404);
+    if (!(await canWrite(userId, { type: "project", id: run.projectId }))) {
+      return c.json({ error: "forbidden" }, 403);
+    }
+    if (
+      run.status !== "planning" &&
+      run.status !== "awaiting_approval"
+    ) {
+      return c.json({ error: "invalid_state", status: run.status }, 409);
+    }
+
+    // Resolve the plan text to approve.
+    let approved = finalPlanText;
+    if (!approved) {
+      const [latestEdit] = await db
+        .select({ content: researchRunTurns.content })
+        .from(researchRunTurns)
+        .where(
+          and(
+            eq(researchRunTurns.runId, runId),
+            eq(researchRunTurns.kind, "user_edit"),
+          ),
+        )
+        .orderBy(desc(researchRunTurns.seq))
+        .limit(1);
+      if (latestEdit) {
+        approved = latestEdit.content;
+      } else {
+        const [latestProp] = await db
+          .select({ content: researchRunTurns.content })
+          .from(researchRunTurns)
+          .where(
+            and(
+              eq(researchRunTurns.runId, runId),
+              eq(researchRunTurns.kind, "plan_proposal"),
+            ),
+          )
+          .orderBy(desc(researchRunTurns.seq))
+          .limit(1);
+        approved = latestProp?.content;
+      }
+    }
+    if (!approved) {
+      return c.json({ error: "no_plan_yet" }, 409);
+    }
+
+    const [{ nextSeq }] = await db
+      .select({ nextSeq: max(researchRunTurns.seq) })
+      .from(researchRunTurns)
+      .where(eq(researchRunTurns.runId, runId));
+    await db.insert(researchRunTurns).values({
+      runId,
+      seq: (nextSeq ?? -1) + 1,
+      role: "user",
+      kind: "approval",
+      content: approved,
+    });
+
+    await db
+      .update(researchRuns)
+      .set({ approvedPlanText: approved, updatedAt: new Date() })
+      .where(eq(researchRuns.id, runId));
+
+    const client = await getTemporalClient();
+    const handle = client.workflow.getHandle(run.workflowId);
+    await handle.signal("approve_plan", approved);
+
+    return c.json({ approved: true }, 202);
   },
 );
 
