@@ -35,5 +35,26 @@
     "research_run": "Research {id}",
     "import": "가져오기",
     "ws_settings": "설정"
+  },
+  "tabs": {
+    "bar": {
+      "newTab": "새 탭",
+      "newTabTitle": "새 노트",
+      "overflowTrigger": "탭 목록"
+    },
+    "item": {
+      "close": "닫기",
+      "pinned": "고정됨",
+      "unsaved": "저장되지 않음"
+    },
+    "menu": {
+      "pin": "고정",
+      "unpin": "고정 해제",
+      "duplicate": "복제",
+      "close": "닫기",
+      "closeOthers": "다른 탭 닫기",
+      "closeRight": "오른쪽 탭 닫기",
+      "copyLink": "링크 복사"
+    }
   }
 }

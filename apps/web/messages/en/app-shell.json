@@ -35,5 +35,26 @@
     "research_run": "Research {id}",
     "import": "Import",
     "ws_settings": "Settings"
+  },
+  "tabs": {
+    "bar": {
+      "newTab": "New tab",
+      "newTabTitle": "New note",
+      "overflowTrigger": "Tab list"
+    },
+    "item": {
+      "close": "Close",
+      "pinned": "Pinned",
+      "unsaved": "Unsaved"
+    },
+    "menu": {
+      "pin": "Pin",
+      "unpin": "Unpin",
+      "duplicate": "Duplicate",
+      "close": "Close",
+      "closeOthers": "Close other tabs",
+      "closeRight": "Close tabs to the right",
+      "copyLink": "Copy link"
+    }
   }
 }
