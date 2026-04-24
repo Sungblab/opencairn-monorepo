@@ -10,6 +10,7 @@ import { projectRoutes } from "./routes/projects";
 import { folderRoutes } from "./routes/folders";
 import { tagRoutes } from "./routes/tags";
 import { noteRoutes } from "./routes/notes";
+import { noteAssetRoutes } from "./routes/note-assets";
 import { ingestRoutes } from "./routes/ingest";
 import { internalRoutes } from "./routes/internal";
 import { commentsRouter } from "./routes/comments";
@@ -55,6 +56,12 @@ export function createApp() {
   app.route("/api", projectRoutes);
   app.route("/api/folders", folderRoutes);
   app.route("/api/tags", tagRoutes);
+  // Phase 3-B viewer endpoints (/:id/file, /:id/data). Must be mounted BEFORE
+  // noteRoutes — noteRoutes declares a catch-all GET /:id that would
+  // otherwise swallow the file/data suffixes. Hono's matcher walks
+  // registrations in order, so the first sub-app that returns a non-404
+  // wins; noteAssetRoutes 404s fall through to noteRoutes naturally.
+  app.route("/api/notes", noteAssetRoutes);
   app.route("/api/notes", noteRoutes);
   app.route("/api/ingest", ingestRoutes);
   app.route("/api/research", researchRouter);

@@ -163,6 +163,8 @@ Cookie: better-auth.session_token=<token>
 | GET | /api/projects/:projectId/notes | project `viewer` | 노트 목록 (접근 불가 page 필터링) | - |
 | GET | /api/notes/search | project `viewer` | 제목 substring 검색 (wiki-link combobox 용, max 10) — `?q=<str>&projectId=<uuid>`, 응답 `[{ id, title, updatedAt }]` | - |
 | GET | /api/notes/:id | page `viewer` | 노트 조회 | - |
+| GET | /api/notes/:id/file | page `viewer` + `sourceFileKey !== null` | MinIO 오브젝트 스트리밍 (source-mode 뷰어, PDF 등). `Content-Type`/`Content-Length`는 `statObject`에서, `Content-Disposition`은 note.title. 400 non-UUID / 403 read 없음 / 404 missing or no sourceFileKey. | - |
+| GET | /api/notes/:id/data | page `viewer` | `{ data: <JSON> \| null }` — `content_text`를 JSON 파싱. 비-JSON/빈 문자열은 `null` (500 아님). data-mode 뷰어용. | - |
 | POST | /api/projects/:projectId/notes | project `editor` | 노트 생성 | `{ folderId?, title?, content?, type?, inheritParent? }` |
 | PATCH | /api/notes/:id | page `editor` | 메타 수정. `content`는 Yjs canonical(Plan 2B에서 body에서 strip), `folderId`도 이 경로에서 제거됨 — 이동은 `/:id/move` 사용(App Shell Phase 2 Task 11, cross-project 스코프 누수 방지). 서버가 `content_text`를 텍스트 추출로 자동 파생(FTS 용). | `{ title?, inheritParent? }` |
 | PATCH | /api/notes/:id/move | page `editor` | 폴더 간 이동(또는 프로젝트 루트로). `moveNote()`가 cross-project 타겟을 거절. | `{ folderId: uuid \| null }` |
