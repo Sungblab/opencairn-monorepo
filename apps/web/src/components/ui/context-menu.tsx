@@ -69,10 +69,81 @@ function ContextMenuSeparator({
   );
 }
 
+// Submenu + RadioGroup surfaces. Base UI exposes each of these as a distinct
+// part (SubmenuRoot / SubmenuTrigger / RadioGroup / RadioItem), unlike Radix
+// where Sub is the composite. The wrappers below preserve the shadcn naming
+// so callers don't have to care which primitive is underneath.
+function ContextMenuSub({ ...props }: Primitive.SubmenuRoot.Props) {
+  return <Primitive.SubmenuRoot {...props} />;
+}
+
+function ContextMenuSubTrigger({
+  className,
+  ...props
+}: Primitive.SubmenuTrigger.Props) {
+  return (
+    <Primitive.SubmenuTrigger
+      data-slot="context-menu-sub-trigger"
+      className={cn(
+        "relative flex cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+function ContextMenuSubContent({
+  className,
+  ...props
+}: Primitive.Popup.Props) {
+  return (
+    <Primitive.Portal>
+      <Primitive.Positioner className="isolate z-50">
+        <Primitive.Popup
+          data-slot="context-menu-sub-content"
+          className={cn(
+            "z-50 min-w-40 origin-(--transform-origin) overflow-hidden rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+            className,
+          )}
+          {...props}
+        />
+      </Primitive.Positioner>
+    </Primitive.Portal>
+  );
+}
+
+function ContextMenuRadioGroup({ ...props }: Primitive.RadioGroup.Props) {
+  return (
+    <Primitive.RadioGroup data-slot="context-menu-radio-group" {...props} />
+  );
+}
+
+function ContextMenuRadioItem({
+  className,
+  ...props
+}: Primitive.RadioItem.Props) {
+  return (
+    <Primitive.RadioItem
+      data-slot="context-menu-radio-item"
+      className={cn(
+        "relative flex cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-[state=checked]:bg-accent/40",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
 export {
   ContextMenu,
   ContextMenuTrigger,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubTrigger,
+  ContextMenuSubContent,
+  ContextMenuRadioGroup,
+  ContextMenuRadioItem,
 };

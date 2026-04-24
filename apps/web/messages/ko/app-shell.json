@@ -53,7 +53,31 @@
       "close": "닫기",
       "closeOthers": "다른 탭 닫기",
       "closeRight": "오른쪽 탭 닫기",
-      "copyLink": "링크 복사"
+      "copyLink": "링크 복사",
+      "mode": {
+        "trigger": "모드 변경",
+        "options": {
+          "plate": "편집 (Plate)",
+          "reading": "읽기 전용",
+          "source": "원본 (PDF)",
+          "data": "데이터 (JSON)"
+        }
+      }
+    }
+  },
+  "viewers": {
+    "stub": {
+      "comingSoon": "{mode} 뷰어는 다음 Plan 에서 준비됩니다."
+    },
+    "reading": {
+      "fontSize": "폰트 크기",
+      "readingTime": "약 {min}분"
+    },
+    "source": {
+      "loadFailed": "PDF 로드 실패"
+    },
+    "data": {
+      "empty": "데이터 없음"
     }
   }
 }

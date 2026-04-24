@@ -6,6 +6,28 @@ import { useTabsStore, type TabKind } from "@/stores/tabs-store";
 import { tabToUrl, urlToTabTarget, type TabRoute } from "@/lib/tab-url";
 import { newTab } from "@/lib/tab-factory";
 
+// Map a (kind, targetId) pair to its persistent i18n key + interpolation
+// params. Phase 3-B: tabs carry this alongside the cached `title` so the
+// Tab bar / overflow menu relabel themselves when the user flips locale.
+// Notes return `undefined` because their title comes from the DB and must
+// not be translated as UI copy.
+function tabTitleKey(
+  kind: TabKind,
+  targetId: string | null,
+): { key: string | undefined; params: Record<string, string> | undefined } {
+  switch (kind) {
+    case "note":
+      return { key: undefined, params: undefined };
+    case "research_run":
+      return {
+        key: "appShell.tabTitles.research_run",
+        params: { id: targetId ?? "" },
+      };
+    default:
+      return { key: `appShell.tabTitles.${kind}`, params: undefined };
+  }
+}
+
 // URL is the source of truth for the active tab. Two effects:
 //   1) setWorkspace once per slug change so the right per-workspace stack is
 //      hydrated from localStorage.
@@ -18,13 +40,12 @@ import { newTab } from "@/lib/tab-factory";
 // the same reconciliation path. Tabs cannot drift from the URL because they
 // are derived from it.
 
-// Resolve a placeholder tab title at the user's current locale. Returns a
-// concrete string (not a key) because the title is persisted to localStorage
-// inside the Tab object — Phase 3 renders it directly. Caveat: a tab created
-// in `ko` keeps its Korean title until closed and reopened even after the
-// user switches locale to `en`. The proper fix is to persist `titleKey` and
-// resolve at render time, but that's a later concern; for now this beats
-// hardcoded strings for English-locale users.
+// Seeds the cached `title` field at the user's current locale. Under Phase
+// 3-B this is a fallback: TabItem / TabOverflowMenu render through
+// `useResolvedTabTitle`, which prefers `titleKey` → live translation. The
+// cached value survives (a) persisted Phase 3-A tabs that have no titleKey,
+// (b) note tabs where the title comes from the DB (no i18n key), and
+// (c) missing-message fallback at render time.
 function resolveDefaultTitle(
   t: ReturnType<typeof useTranslations>,
   kind: TabKind,
@@ -85,10 +106,13 @@ export function useUrlTabSync() {
       if (activeId !== existing.id) setActive(existing.id);
       return;
     }
+    const { key, params } = tabTitleKey(route.kind, route.targetId);
     const tab = newTab({
       kind: route.kind,
       targetId: route.targetId,
       title: resolveDefaultTitle(tabTitle, route.kind, route.targetId),
+      titleKey: key,
+      titleParams: params,
     });
     // Notes opened via sidebar single-click arrive as preview tabs. To avoid
     // stacking one preview per click (which is how you end up with 20 tabs

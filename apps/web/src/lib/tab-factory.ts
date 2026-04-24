@@ -28,9 +28,21 @@ export interface NewTabOptions {
    * Title must be resolved by the caller — the factory is i18n-agnostic so
    * that ko/en switch at runtime doesn't require a second pass through
    * every tab. Callers typically use `useTranslations("appShell.tabTitles")`
-   * to fill this in.
+   * to fill this in. Persisted to localStorage as the cached fallback used
+   * whenever `titleKey` is absent or missing from the message catalog.
    */
   title: string;
+  /**
+   * Optional i18n key (e.g. "appShell.tabTitles.dashboard") resolved at
+   * render time by `useResolvedTabTitle`. Set by callers for kinds whose
+   * title is static UI copy so the tab relabels when the user flips locale.
+   * Leave unset for `note` (DB-sourced title).
+   */
+  titleKey?: string;
+  /**
+   * Interpolation params for `titleKey` (e.g. `{ id }` for `research_run`).
+   */
+  titleParams?: Record<string, string>;
   mode?: TabMode;
   preview?: boolean;
 }
@@ -42,6 +54,8 @@ export function newTab(opts: NewTabOptions): Tab {
     targetId: opts.targetId,
     mode: opts.mode ?? defaultMode(opts.kind),
     title: opts.title,
+    titleKey: opts.titleKey,
+    titleParams: opts.titleParams,
     pinned: false,
     preview: opts.preview ?? defaultPreview(opts.kind),
     dirty: false,

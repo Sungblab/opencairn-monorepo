@@ -2,6 +2,7 @@
 import { FileText, Pin, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { Tab } from "@/stores/tabs-store";
+import { useResolvedTabTitle } from "@/lib/resolve-tab-title";
 
 export interface TabItemProps {
   tab: Tab;
@@ -12,6 +13,7 @@ export interface TabItemProps {
 
 export function TabItem({ tab, active, onClick, onClose }: TabItemProps) {
   const t = useTranslations("appShell.tabs.item");
+  const resolvedTitle = useResolvedTabTitle(tab);
   return (
     <div
       role="tab"
@@ -31,9 +33,9 @@ export function TabItem({ tab, active, onClick, onClose }: TabItemProps) {
       <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       <span
         className={`flex-1 truncate ${tab.preview ? "italic" : ""}`}
-        title={tab.title}
+        title={resolvedTitle}
       >
-        {tab.title}
+        {resolvedTitle}
       </span>
       {tab.dirty ? (
         <span
