@@ -40,12 +40,12 @@ export const wikiActionEnum = pgEnum("wiki_action", [
   "unlink",
 ]);
 
-export const conversationScopeEnum = pgEnum("conversation_scope", [
-  "project",
-  "global",
-]);
-
-export const messageRoleEnum = pgEnum("message_role", ["user", "assistant"]);
+// Chat schema (conversations/messages tables + conversation_scope/message_role
+// enums) was a Plan 1 stub that never had any code referencing it. Plan 11A
+// (`2026-04-20-plan-11a-chat-scope-foundation.md`) replaces the table shape
+// entirely — new `scope_type` enum with `['page','project','workspace']`,
+// separate `scopeType`+`scopeId` columns, plus rag_mode/chips/memory_flags.
+// Removed here (migration 0019) so Plan 11A starts from a clean slate.
 
 // OpenAI is intentionally excluded (2026-04-15 decision — see
 // docs/superpowers/specs/2026-04-13-multi-llm-provider-design.md). Enforced

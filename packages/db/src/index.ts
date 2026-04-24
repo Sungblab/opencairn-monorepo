@@ -16,7 +16,6 @@ export * from "./schema/concepts";
 export * from "./schema/wiki-logs";
 export * from "./schema/learning";
 export * from "./schema/jobs";
-export * from "./schema/conversations";
 export * from "./schema/user-preferences";
 export * from "./schema/agent-runs";
 export * from "./schema/project-semaphores";

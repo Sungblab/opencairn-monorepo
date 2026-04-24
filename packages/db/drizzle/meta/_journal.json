@@ -134,6 +134,13 @@
       "when": 1776952020451,
       "tag": "0018_folders_ltree_path",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1777052565406,
+      "tag": "0019_drop_chat_scope_stub",
+      "breakpoints": true
     }
   ]
 }
