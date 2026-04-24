@@ -18,6 +18,16 @@ from typing import Any
 from temporalio import workflow
 from temporalio.common import RetryPolicy
 
+with workflow.unsafe.imports_passed_through():
+    from worker.lib.batch_timeouts import batch_aware_start_timeout
+
+# Plan 3b gap: when BATCH_EMBED_LIBRARIAN_ENABLED is on, run_librarian
+# blocks on the BatchEmbedWorkflow for up to BATCH_EMBED_MAX_WAIT_SECONDS
+# (default 24h). See compiler_workflow.py for the analogous rationale.
+RUN_LIBRARIAN_START_TIMEOUT = batch_aware_start_timeout(
+    timedelta(hours=1), flag_env="BATCH_EMBED_LIBRARIAN_ENABLED"
+)
+
 
 @workflow.defn(name="LibrarianWorkflow")
 class LibrarianWorkflow:
@@ -30,7 +40,7 @@ class LibrarianWorkflow:
         result = await workflow.execute_activity(
             "run_librarian",
             inp,
-            start_to_close_timeout=timedelta(hours=1),
+            start_to_close_timeout=RUN_LIBRARIAN_START_TIMEOUT,
             heartbeat_timeout=timedelta(minutes=5),
             retry_policy=RetryPolicy(
                 initial_interval=timedelta(seconds=10),
