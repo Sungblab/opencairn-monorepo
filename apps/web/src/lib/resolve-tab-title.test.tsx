@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { NextIntlClientProvider } from "next-intl";
-import { ResolveTabTitle } from "./resolve-tab-title";
+import { useResolvedTabTitle } from "./resolve-tab-title";
 import type { Tab } from "@/stores/tabs-store";
 
 // Fixture: only the keys actually referenced by the tests. Phase 3-B task 1
@@ -32,6 +32,13 @@ const baseTab: Tab = {
   scrollY: 0,
 };
 
+// Inline probe — we can't call `useResolvedTabTitle` at the top level of a
+// test because it's a hook. The probe renders the resolved string as text so
+// we can assert on `container.textContent`.
+function Probe({ tab }: { tab: Tab }) {
+  return <>{useResolvedTabTitle(tab)}</>;
+}
+
 function renderWithIntl(ui: React.ReactNode) {
   return render(
     <NextIntlClientProvider locale="ko" messages={messages}>
@@ -40,13 +47,13 @@ function renderWithIntl(ui: React.ReactNode) {
   );
 }
 
-describe("ResolveTabTitle", () => {
+describe("useResolvedTabTitle", () => {
   it("renders the translated titleKey", () => {
     const tab: Tab = {
       ...baseTab,
       titleKey: "appShell.tabTitles.dashboard",
     };
-    const { container } = renderWithIntl(<ResolveTabTitle tab={tab} />);
+    const { container } = renderWithIntl(<Probe tab={tab} />);
     expect(container.textContent).toBe("대시보드");
   });
 
@@ -58,7 +65,7 @@ describe("ResolveTabTitle", () => {
       titleKey: "appShell.tabTitles.research_run",
       titleParams: { id: "r-42" },
     };
-    const { container } = renderWithIntl(<ResolveTabTitle tab={tab} />);
+    const { container } = renderWithIntl(<Probe tab={tab} />);
     expect(container.textContent).toBe("Research r-42");
   });
 
@@ -69,7 +76,7 @@ describe("ResolveTabTitle", () => {
       targetId: "n-1",
       title: "My DB-sourced note",
     };
-    const { container } = renderWithIntl(<ResolveTabTitle tab={tab} />);
+    const { container } = renderWithIntl(<Probe tab={tab} />);
     expect(container.textContent).toBe("My DB-sourced note");
   });
 
@@ -79,7 +86,7 @@ describe("ResolveTabTitle", () => {
       title: "cached-fallback",
       titleKey: "appShell.tabTitles.nonexistent",
     };
-    const { container } = renderWithIntl(<ResolveTabTitle tab={tab} />);
+    const { container } = renderWithIntl(<Probe tab={tab} />);
     expect(container.textContent).toBe("cached-fallback");
   });
 });

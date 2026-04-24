@@ -40,13 +40,12 @@ function tabTitleKey(
 // the same reconciliation path. Tabs cannot drift from the URL because they
 // are derived from it.
 
-// Resolve a placeholder tab title at the user's current locale. Returns a
-// concrete string (not a key) because the title is persisted to localStorage
-// inside the Tab object — Phase 3 renders it directly. Caveat: a tab created
-// in `ko` keeps its Korean title until closed and reopened even after the
-// user switches locale to `en`. The proper fix is to persist `titleKey` and
-// resolve at render time, but that's a later concern; for now this beats
-// hardcoded strings for English-locale users.
+// Seeds the cached `title` field at the user's current locale. Under Phase
+// 3-B this is a fallback: TabItem / TabOverflowMenu render through
+// `useResolvedTabTitle`, which prefers `titleKey` → live translation. The
+// cached value survives (a) persisted Phase 3-A tabs that have no titleKey,
+// (b) note tabs where the title comes from the DB (no i18n key), and
+// (c) missing-message fallback at render time.
 function resolveDefaultTitle(
   t: ReturnType<typeof useTranslations>,
   kind: TabKind,

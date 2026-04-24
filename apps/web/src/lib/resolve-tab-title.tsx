@@ -17,25 +17,13 @@ import type { Tab } from "@/stores/tabs-store";
  * otherwise (including when the key is missing in the message catalog).
  */
 export function useResolvedTabTitle(tab: Tab): string {
-  // Always call the hook unconditionally at the root namespace so a tab
-  // that drops its `titleKey` across renders doesn't trip the rules of
-  // hooks. The full dotted path is passed to `t()` and resolved against
-  // the root messages object.
+  // Always call the hook — React rules-of-hooks require consistent order
+  // across renders, and `titleKey` may toggle between undefined and a value
+  // (e.g. a Phase 3-A persisted tab loaded alongside a Phase 3-B one).
   const t = useTranslations();
   if (!tab.titleKey) return tab.title;
-  const resolved = t(tab.titleKey, tab.titleParams ?? {});
-  // next-intl surfaces a missing key by returning the key path itself
-  // (e.g. "appShell.tabTitles.nonexistent"). Treat that as a miss and
-  // fall through to the cached title so we never render a raw dotted
-  // path to the user.
-  return resolved === tab.titleKey ? tab.title : resolved;
-}
-
-/**
- * Thin component wrapper around `useResolvedTabTitle` so callers that
- * need a title inside a `.map()` body (where hooks can't be called)
- * can render a child component that calls the hook per-tab.
- */
-export function ResolveTabTitle({ tab }: { tab: Tab }) {
-  return <>{useResolvedTabTitle(tab)}</>;
+  // `t.has` checks message existence without triggering the default `onError`
+  // (which logs to the console). Works under any `getMessageFallback` config.
+  if (!t.has(tab.titleKey)) return tab.title;
+  return t(tab.titleKey, tab.titleParams);
 }
