@@ -1,20 +1,32 @@
 "use client";
+import { useTabsStore } from "@/stores/tabs-store";
 import { TabBar } from "./tab-bar";
+import { TabModeRouter, isRoutedByTabModeRouter } from "./tab-mode-router";
 
-// Phase 3-A scope: tab bar chrome + route-level content. The spec's
-// per-mode viewer dispatch (TabModeRouter) lands in Plan 3-B alongside the
-// backend endpoints that power source / data viewers. For plate and
-// reading-mode notes, route-level pages (e.g., notes/[noteId]/page.tsx)
-// render via `children` — they already do the server-side auth + fetch
-// fan-out that NoteEditor needs.
+// Phase 3-B: the body branch. If there's an active tab whose mode is NOT
+// `plate`, render TabModeRouter — which dispatches to the per-mode viewer.
+// Otherwise fall back to Next.js route `children` (the SSR-rendered page
+// that already handles auth + NoteEditor fan-out). `plate` stays on the
+// children path deliberately: migrating the editor into a client-only
+// router would lose server-side auth + meta fetching.
 export function TabShell({ children }: { children: React.ReactNode }) {
+  const tabs = useTabsStore((s) => s.tabs);
+  const activeId = useTabsStore((s) => s.activeId);
+  const active = tabs.find((t) => t.id === activeId);
+
   return (
     <main
       data-testid="app-shell-main"
       className="flex min-h-0 flex-1 flex-col bg-background"
     >
       <TabBar />
-      <div className="flex min-h-0 flex-1 overflow-auto">{children}</div>
+      <div className="flex min-h-0 flex-1 overflow-auto">
+        {active && isRoutedByTabModeRouter(active) ? (
+          <TabModeRouter tab={active} />
+        ) : (
+          children
+        )}
+      </div>
     </main>
   );
 }
