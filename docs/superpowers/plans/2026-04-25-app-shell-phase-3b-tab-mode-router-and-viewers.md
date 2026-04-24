@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Amendment 2026-04-25 (post-merge drift correction):** Task 7의 `react-pdf` 선택은 `docs/superpowers/specs/2026-04-09-opencairn-design.md:148`가 이미 **`@react-pdf-viewer/core`**를 명시 이유(내장 텍스트 검색·툴바·페이지 네비)와 함께 결정한 뒤의 무근거 drift였고, 구현은 커밋 `f292f74` "swap SourceViewer to @react-pdf-viewer/core (restore spec)"에서 원상 복구되었다. 본 문서 Task 7의 코드 블록은 역사적 기록(초기 PR #27 구현)으로 남기며, 현행 소스는 `apps/web/src/components/tab-shell/viewers/source-viewer.tsx`를 참조.
+
 **Goal:** Replace the Phase 3-A pass-through `TabShell` body (route `children` only) with a `TabModeRouter` that dispatches to four core viewers (`reading`, `source`, `data`, plus `stub` for non-core modes). Add the two backend endpoints the viewers need (`GET /api/notes/:id/file`, `GET /api/notes/:id/data`). Extend `onFirstEdit` preview promotion to mouse-driven authoring (paste + drop). Fix the persisted `Tab.title` locale-lock-in by adding a render-time `titleKey` resolver.
 
 **Architecture:**
@@ -9,9 +11,9 @@
 - Non-plate modes (`reading`, `source`, `data`, and every unrecognized mode) take the TabModeRouter path. Viewers fetch whatever they need client-side via React Query; no SSR rewrites.
 - Mode is entered via (a) `⌘⇧R` toggle (plate↔reading, spec §5.10.1) and (b) new tab context-menu "모드" submenu. Auto-detection of `source` from `notes.source_type='pdf'` is out of scope — deferred to a follow-up.
 - `Tab.titleKey` is a new optional field. When set, TabItem/TabOverflowMenu render `t(titleKey, { id })` at render time; `title` remains a cached fallback so persisted tabs created before the migration keep working.
-- Viewers: `ReadingViewer` spins up a read-only `Hocuspocus` connection via the existing `useCollaborativeEditor` hook (same content that `NoteEditor` sees, no staleness). `SourceViewer` uses `react-pdf` against `/api/notes/:id/file`. `DataViewer` uses `react-json-view-lite` against `/api/notes/:id/data`.
+- Viewers: `ReadingViewer` spins up a read-only `Hocuspocus` connection via the existing `useCollaborativeEditor` hook (same content that `NoteEditor` sees, no staleness). `SourceViewer` uses `@react-pdf-viewer/core` against `/api/notes/:id/file` (spec §148 — 내장 검색/툴바). `DataViewer` uses `react-json-view-lite` against `/api/notes/:id/data`.
 
-**Tech Stack:** `react-pdf` + `pdfjs-dist`, `react-json-view-lite`, existing `@platejs/*` v49 + `useCollaborativeEditor` hook, React Query, Vitest, Playwright.
+**Tech Stack:** `@react-pdf-viewer/core` + `@react-pdf-viewer/default-layout` + `pdfjs-dist`, `react-json-view-lite`, existing `@platejs/*` v49 + `useCollaborativeEditor` hook, React Query, Vitest, Playwright.
 
 **Spec:** `docs/superpowers/specs/2026-04-23-app-shell-redesign-design.md` §5.3 (modes), §5.10 (per-mode detail), §5.6 (`⌘⇧R`).
 **Depends on:** Phase 3-A (tabs-store extensions, TabBar/TabItem, context menu, keyboard shortcuts, preview promotion). All green on `main` as of `f02668e`.

@@ -135,16 +135,16 @@ Cookie: better-auth.session_token=<token>
 | POST | /api/workspaces/:workspaceId/projects | member | 새 프로젝트 생성 | `{ name, description?, defaultRole? }` |
 | GET | /api/projects/:id | project `viewer` | 프로젝트 상세 | - |
 | PATCH | /api/projects/:id | project `editor` | 수정 | `{ name?, description?, defaultRole? }` |
-| DELETE | /api/projects/:id | workspace `admin` or creator | 삭제 | - |
+| DELETE | /api/projects/:id | workspace `owner`/`admin` or creator | 삭제 | - |
 
 ### Folders
 
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
-| GET | /api/folders/by-project/:projectId | Yes | List folders | - |
-| POST | /api/folders | Yes | Create folder | `{ projectId, parentId?, name }` |
-| PATCH | /api/folders/:id | Yes | Update folder. `parentId` 변경 시 `moveFolder()`가 ltree 서브트리 전체를 재작성(App Shell Phase 2 Task 11). cross-project 이동 시 400. 스칼라(name/position)는 이동 후 별도 적용. | `{ name?, parentId?, position? }` |
-| DELETE | /api/folders/:id | Yes | Delete folder | - |
+| GET | /api/folders/by-project/:projectId | project `viewer` | List folders | - |
+| POST | /api/folders | project `editor` | Create folder | `{ projectId, parentId?, name }` |
+| PATCH | /api/folders/:id | project `editor` | Update folder. `parentId` 변경 시 `moveFolder()`가 ltree 서브트리 전체를 재작성(App Shell Phase 2 Task 11). cross-project 이동 시 400. 스칼라(name/position)는 이동 후 별도 적용. | `{ name?, parentId?, position? }` |
+| DELETE | /api/folders/:id | project `editor` | Delete folder | - |
 
 ### Tags
 
@@ -219,6 +219,8 @@ Cross-workspace 접근은 **404** (존재 은닉). 상태별 쓰기 금지는 `4
 `run_with_tools(...)` (`apps/worker/src/runtime/loop_runner.py`)은 Temporal activity 내부에서 호출되는 러너. 시그니처는 `provider, initial_messages, tools, tool_context (dict), config: LoopConfig | None, hooks: LoopHooks | None`. 한 activity = 한 loop이며 `LoopConfig.max_turns (default 8)`, `max_tool_calls (12)`, `max_total_input_tokens (200_000)`, per-tool timeout, 소프트 루프 detection으로 bounded. Provider가 tool calling을 지원하지 않으면 `ToolCallingNotSupported` fail-fast.
 
 ### Chat
+
+> 🟡 **Status: Planned (Plan 11A — Chat Scope Foundation).** 아래 계약은 설계서대로의 최종 상태이며 아직 `apps/api`에 라우트가 없다. `conversation_scope` enum도 현재 DB는 `['project','global']` 2값만 정의(`packages/db/src/schema/enums.ts:43`) — 3계층(workspace/project/page)은 Plan 11A 구현 시 migration + enum 확장과 함께 도입. 현 상태에서 해당 엔드포인트를 호출하면 404.
 
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
