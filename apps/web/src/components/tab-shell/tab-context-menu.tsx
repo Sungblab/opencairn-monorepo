@@ -7,6 +7,7 @@ import {
 import { useTabsStore, type Tab } from "@/stores/tabs-store";
 import { newTab } from "@/lib/tab-factory";
 import { tabToUrl } from "@/lib/tab-url";
+import { TabModeSubmenu } from "./tab-mode-submenu";
 
 export interface TabContextMenuItemsProps {
   tab: Tab;
@@ -53,6 +54,8 @@ export function TabContextMenuItems({ tab, wsSlug }: TabContextMenuItemsProps) {
         {tab.pinned ? t("unpin") : t("pin")}
       </ContextMenuItem>
       <ContextMenuItem onClick={duplicate}>{t("duplicate")}</ContextMenuItem>
+      <ContextMenuSeparator />
+      <TabModeSubmenu tab={tab} />
       <ContextMenuSeparator />
       <ContextMenuItem onClick={() => closeTab(tab.id)} disabled={tab.pinned}>
         {t("close")}

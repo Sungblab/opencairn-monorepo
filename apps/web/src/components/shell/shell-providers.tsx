@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { useUrlTabSync } from "@/hooks/use-url-tab-sync";
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
 import { useTabKeyboard } from "@/hooks/use-tab-keyboard";
+import { useTabModeShortcut } from "@/hooks/use-tab-mode-shortcut";
 import { usePanelStore } from "@/stores/panel-store";
 import { useThreadsStore } from "@/stores/threads-store";
 import { useSidebarStore } from "@/stores/sidebar-store";
@@ -26,6 +27,7 @@ export function ShellProviders({
 }) {
   useUrlTabSync();
   useTabKeyboard();
+  useTabModeShortcut();
 
   const toggleSidebar = usePanelStore((s) => s.toggleSidebar);
   const toggleAgentPanel = usePanelStore((s) => s.toggleAgentPanel);
