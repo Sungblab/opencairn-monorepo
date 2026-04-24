@@ -53,7 +53,31 @@
       "close": "Close",
       "closeOthers": "Close other tabs",
       "closeRight": "Close tabs to the right",
-      "copyLink": "Copy link"
+      "copyLink": "Copy link",
+      "mode": {
+        "trigger": "Change mode",
+        "options": {
+          "plate": "Edit (Plate)",
+          "reading": "Reading",
+          "source": "Source (PDF)",
+          "data": "Data (JSON)"
+        }
+      }
+    }
+  },
+  "viewers": {
+    "stub": {
+      "comingSoon": "{mode} viewer ships in a later plan."
+    },
+    "reading": {
+      "fontSize": "Font size",
+      "readingTime": "~{min} min"
+    },
+    "source": {
+      "loadFailed": "Failed to load PDF"
+    },
+    "data": {
+      "empty": "No data"
     }
   }
 }
