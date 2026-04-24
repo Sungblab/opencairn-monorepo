@@ -220,7 +220,7 @@ Cross-workspace 접근은 **404** (존재 은닉). 상태별 쓰기 금지는 `4
 
 ### Chat
 
-> 🟡 **Status: Planned (Plan 11A — Chat Scope Foundation).** 아래 계약은 설계서대로의 최종 상태이며 아직 `apps/api`에 라우트가 없다. `conversation_scope` enum도 현재 DB는 `['project','global']` 2값만 정의(`packages/db/src/schema/enums.ts:43`) — 3계층(workspace/project/page)은 Plan 11A 구현 시 migration + enum 확장과 함께 도입. 현 상태에서 해당 엔드포인트를 호출하면 404.
+> 🟡 **Status: Planned (Plan 11A — Chat Scope Foundation).** 아래 계약은 설계서대로의 최종 상태이며 아직 `apps/api`에 라우트가 없다. Plan 1의 `conversations`/`messages`/`conversation_scope`/`message_role` 스텁은 드리프트가 있어 migration 0019에서 제거됨 — Plan 11A가 `scope_type` enum(`['page','project','workspace']`), split `scopeType`+`scopeId` 컬럼, `ragMode`, `attachedChips`, `memoryFlags`, 확장된 `message_role`(`user`/`assistant`/`system`/`tool`)로 스키마 전체를 새로 정의한다. 현 상태에서 해당 엔드포인트를 호출하면 404.
 
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|

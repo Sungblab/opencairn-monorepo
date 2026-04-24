@@ -15,7 +15,6 @@ import * as concepts from "./schema/concepts";
 import * as wikiLogs from "./schema/wiki-logs";
 import * as learning from "./schema/learning";
 import * as jobs from "./schema/jobs";
-import * as conversations from "./schema/conversations";
 import * as userPreferences from "./schema/user-preferences";
 import * as agentRuns from "./schema/agent-runs";
 import * as projectSemaphores from "./schema/project-semaphores";
@@ -39,7 +38,6 @@ const schema = {
   ...wikiLogs,
   ...learning,
   ...jobs,
-  ...conversations,
   ...userPreferences,
   ...agentRuns,
   ...projectSemaphores,
