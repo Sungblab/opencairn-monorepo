@@ -16,9 +16,11 @@ export function GoogleButton({ className }: GoogleButtonProps) {
   if (!googleOAuthEnabled) return null;
 
   const handleClick = async () => {
+    // Better Auth resolves relative callbackURL against its own baseURL
+    // (the API at :4000), which would 404. Anchor to the web origin.
     await authClient.signIn.social({
       provider: "google",
-      callbackURL: `/${locale}/app`,
+      callbackURL: `${window.location.origin}/${locale}/app`,
     });
   };
 
