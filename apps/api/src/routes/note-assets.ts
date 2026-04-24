@@ -19,9 +19,8 @@ export const noteAssetRoutes = new Hono<AppEnv>()
   // Streams the MinIO object bound to notes.source_file_key. Used by the
   // source-mode viewer (PDF). Content-Type / Length come from statObject so
   // we don't have to duplicate them in Postgres. Content-Disposition uses
-  // the note title with a minimal sanitizer (strips \r\n" only) — enough to
-  // prevent header injection without the RFC 5987 ceremony a UI string
-  // rarely needs.
+  // RFC 6266 dual form so Korean / non-ASCII titles don't garble in Safari
+  // or older Chromium.
   .get("/:id/file", async (c) => {
     const user = c.get("user");
     const id = c.req.param("id");
@@ -37,10 +36,19 @@ export const noteAssetRoutes = new Hono<AppEnv>()
     if (!note.sourceFileKey) return c.json({ error: "Not Found" }, 404);
 
     const obj = await streamObject(note.sourceFileKey);
-    const safeName = note.title.replace(/[\r\n"]/g, "_");
+    // RFC 6266 dual form: `filename=` stays ASCII for legacy clients (Safari,
+    // IE), `filename*=UTF-8''` carries the real UTF-8 name for modern browsers.
+    // Strip header-breaking chars (\r\n") AND the backslash escape char before
+    // building either form.
+    const safeName = note.title.replace(/[\r\n"\\]/g, "_");
+    const asciiName = safeName.replace(/[^\x20-\x7e]/g, "_");
+    const starName = encodeURIComponent(safeName);
     c.header("Content-Type", obj.contentType);
     c.header("Content-Length", String(obj.contentLength));
-    c.header("Content-Disposition", `inline; filename="${safeName}"`);
+    c.header(
+      "Content-Disposition",
+      `inline; filename="${asciiName}"; filename*=UTF-8''${starName}`,
+    );
     return c.body(obj.stream);
   })
 

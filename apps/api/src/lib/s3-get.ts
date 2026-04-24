@@ -31,13 +31,23 @@ export async function streamObject(key: string): Promise<StreamedObject> {
 function nodeStreamToWebStream(node: Readable): ReadableStream<Uint8Array> {
   return new ReadableStream({
     start(controller) {
-      node.on("data", (chunk: Buffer) =>
-        controller.enqueue(new Uint8Array(chunk)),
-      );
+      node.on("data", (chunk: Buffer) => {
+        controller.enqueue(new Uint8Array(chunk));
+        // Pause the Node stream once the Web stream's queue is full. `pull`
+        // below resumes when the consumer has drained.
+        if ((controller.desiredSize ?? 0) <= 0) node.pause();
+      });
       node.on("end", () => controller.close());
       node.on("error", (err) => controller.error(err));
     },
+    pull() {
+      // Consumer asked for more — unblock the Node stream. Safe to call
+      // resume() even when the stream isn't paused; it's a no-op.
+      node.resume();
+    },
     cancel() {
+      // Client aborted. Destroying the Node stream frees the underlying
+      // MinIO socket so the bucket connection isn't held open.
       node.destroy();
     },
   });
