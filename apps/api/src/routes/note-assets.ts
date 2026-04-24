@@ -28,8 +28,15 @@ export const noteAssetRoutes = new Hono<AppEnv>()
     if (!(await canRead(user.id, { type: "note", id }))) {
       return c.json({ error: "Forbidden" }, 403);
     }
+    // Narrow the SELECT to only what we need. `notes.content` (jsonb),
+    // `contentText` (text), `embedding` (vector768), `contentTsv` (tsvector)
+    // are potentially large and unused by this handler — fetching them
+    // inflates API memory per request for no benefit.
     const [note] = await db
-      .select()
+      .select({
+        title: notes.title,
+        sourceFileKey: notes.sourceFileKey,
+      })
       .from(notes)
       .where(and(eq(notes.id, id), isNull(notes.deletedAt)));
     if (!note) return c.json({ error: "Not Found" }, 404);
@@ -42,7 +49,15 @@ export const noteAssetRoutes = new Hono<AppEnv>()
     // building either form.
     const safeName = note.title.replace(/[\r\n"\\]/g, "_");
     const asciiName = safeName.replace(/[^\x20-\x7e]/g, "_");
-    const starName = encodeURIComponent(safeName);
+    // RFC 5987 attr-char excludes !'()* — `encodeURIComponent` leaves them
+    // literal. The single quote especially: `filename*=UTF-8''value` uses
+    // `'` as delimiter, so a title like "it's.pdf" would split the header.
+    // Percent-encode the RFC 3986 "mark" leftovers so strict parsers don't
+    // choke. See tools.ietf.org/html/rfc5987 §3.2.1 (attr-char).
+    const starName = encodeURIComponent(safeName).replace(
+      /[!'()*]/g,
+      (ch) => "%" + ch.charCodeAt(0).toString(16).toUpperCase(),
+    );
     c.header("Content-Type", obj.contentType);
     c.header("Content-Length", String(obj.contentLength));
     c.header(

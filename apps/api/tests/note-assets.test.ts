@@ -52,6 +52,31 @@ describe("GET /api/notes/:id/file", () => {
     expect(await res.text()).toBe("PDF-BYTES");
   });
 
+  it("percent-encodes RFC 5987 reserved chars in filename* so single quotes don't break the header", async () => {
+    // `'` is the RFC 5987 delimiter inside `filename*=UTF-8''value`. A raw
+    // `'` in the filename would split the parameter value on strict parsers
+    // (Content-Disposition header corruption). This regression-guards the
+    // custom percent-encoding for !'()* on top of encodeURIComponent.
+    await db
+      .update(notes)
+      .set({
+        title: "it's a 한글 note!.pdf",
+        sourceFileKey: "uploads/test.pdf",
+        sourceType: "pdf",
+      })
+      .where(eq(notes.id, ctx.noteId));
+    const res = await authedGet(`/api/notes/${ctx.noteId}/file`, ctx.userId);
+    const disposition = res.headers.get("content-disposition") ?? "";
+    // UTF-8 name is fully percent-encoded; single quote → %27, exclamation
+    // mark → %21. The bare `'` in `filename*=UTF-8''` after `UTF-8` is the
+    // RFC 5987 literal delimiter and should appear exactly twice.
+    expect(disposition).toContain("filename*=UTF-8''");
+    expect(disposition).not.toMatch(/filename\*=UTF-8''[^;]*'/);
+    expect(disposition).toContain("%27"); // encoded '
+    expect(disposition).toContain("%21"); // encoded !
+    expect(disposition).toContain("%ED%95%9C"); // encoded 한
+  });
+
   it("returns 404 when sourceFileKey is null", async () => {
     const res = await authedGet(`/api/notes/${ctx.noteId}/file`, ctx.userId);
     expect(res.status).toBe(404);

@@ -10,9 +10,15 @@ import { TabModeRouter, isRoutedByTabModeRouter } from "./tab-mode-router";
 // children path deliberately: migrating the editor into a client-only
 // router would lose server-side auth + meta fetching.
 export function TabShell({ children }: { children: React.ReactNode }) {
-  const tabs = useTabsStore((s) => s.tabs);
-  const activeId = useTabsStore((s) => s.activeId);
-  const active = tabs.find((t) => t.id === activeId);
+  // Single selector so TabShell only re-renders when the active tab's object
+  // reference changes. Two separate selectors + external `.find()` would
+  // subscribe to the whole `tabs` array and re-render on ANY tab update
+  // (dirty flag, scrollY persistence, neighbor closeTab). `updateTab` only
+  // replaces the one targeted tab's object, so unrelated updates keep the
+  // active tab's reference stable and this selector returns the same value.
+  const active = useTabsStore((s) =>
+    s.tabs.find((t) => t.id === s.activeId),
+  );
 
   return (
     <main
