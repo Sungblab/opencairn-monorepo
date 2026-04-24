@@ -81,8 +81,14 @@ export const commentsRouter = new Hono<AppEnv>()
       // which is a write against the page's structural content. Require
       // `editor` (canWrite). Page-level comments stay at `commenter` (canComment).
       // See api-contract.md §Comments.
+      //
+      // Explicit `!= null` rather than truthy — createCommentSchema already
+      // rejects empty strings via `.min(1)`, but the permission gate and the
+      // INSERT path should not disagree on what counts as "anchored". If the
+      // schema ever relaxes, an empty string must still route through
+      // canWrite, not leak into canComment.
       const resource = { type: "note" as const, id: noteId };
-      const allowed = body.anchorBlockId
+      const allowed = body.anchorBlockId != null
         ? await canWrite(userId, resource)
         : await canComment(userId, resource);
       if (!allowed) return c.json({ error: "Forbidden" }, 403);

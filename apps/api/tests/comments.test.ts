@@ -107,6 +107,39 @@ describe("POST /api/notes/:noteId/comments", () => {
     expect(json.anchorBlockId).toBe("blk7");
   });
 
+  it("empty-string anchorBlockId is rejected by zod (400), not routed as unanchored", async () => {
+    // Defense-in-depth: the handler uses `!= null` (not truthy) so an empty
+    // string would still trip the canWrite branch if it somehow reached the
+    // handler. createCommentSchema.anchorBlockId has `.min(1)` so it should
+    // never get past validation — but pin that contract here so a future
+    // relaxation of the schema can't silently downgrade the permission check.
+    const app = createApp();
+    const res = await app.request(`/api/notes/${seed.noteId}/comments`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: await signSessionCookie(seed.commenterUserId),
+      },
+      body: JSON.stringify({ body: "empty anchor", anchorBlockId: "" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("explicit null anchorBlockId is treated as unanchored (commenter OK)", async () => {
+    const app = createApp();
+    const res = await app.request(`/api/notes/${seed.noteId}/comments`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: await signSessionCookie(seed.commenterUserId),
+      },
+      body: JSON.stringify({ body: "null anchor", anchorBlockId: null }),
+    });
+    expect(res.status).toBe(201);
+    const json = await res.json();
+    expect(json.anchorBlockId).toBe(null);
+  });
+
   it("GET returns threaded shape with mentions", async () => {
     const app = createApp();
     await app.request(`/api/notes/${seed.noteId}/comments`, {
