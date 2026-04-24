@@ -1,37 +1,29 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { NextIntlClientProvider } from "next-intl";
 import { SourceViewer } from "./source-viewer";
 
-vi.mock("react-pdf", () => ({
-  Document: ({
-    onLoadSuccess,
-    children,
-  }: {
-    onLoadSuccess?: (arg: { numPages: number }) => void;
-    children: React.ReactNode;
-  }) => {
-    // Simulate a 2-page PDF so the Page map renders twice.
-    onLoadSuccess?.({ numPages: 2 });
-    return <div data-testid="pdf-document">{children}</div>;
-  },
-  Page: ({ pageNumber }: { pageNumber: number }) => (
-    <div data-testid={`pdf-page-${pageNumber}`} />
+// Shallow-mock @react-pdf-viewer/core. The real Viewer mounts pdfjs +
+// a web worker which jsdom can't run; we only need to assert that
+// SourceViewer wires the right fileUrl into Viewer and gates on
+// targetId.
+vi.mock("@react-pdf-viewer/core", () => ({
+  Worker: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="pdf-worker">{children}</div>
   ),
-  pdfjs: { GlobalWorkerOptions: {} },
+  Viewer: ({ fileUrl }: { fileUrl: string }) => (
+    <div data-testid="pdf-viewer" data-file-url={fileUrl} />
+  ),
 }));
 
-const messages = {
-  appShell: { viewers: { source: { loadFailed: "PDF 로드 실패" } } },
-};
+vi.mock("@react-pdf-viewer/default-layout", () => ({
+  // Return a sentinel object so SourceViewer can pass it to Viewer's
+  // `plugins` array without caring about its internal shape.
+  defaultLayoutPlugin: () => ({ install: () => {}, uninstall: () => {} }),
+}));
 
-function wrap(node: React.ReactNode) {
-  return render(
-    <NextIntlClientProvider locale="ko" messages={messages}>
-      {node}
-    </NextIntlClientProvider>,
-  );
-}
+// The core + default-layout CSS imports are side-effect only. jsdom's
+// vite env doesn't load CSS; the import gets hoisted and vitest treats
+// it as empty, which is fine.
 
 const tab = {
   id: "t",
@@ -50,15 +42,20 @@ const tab = {
 };
 
 describe("SourceViewer", () => {
-  it("points Document at /api/notes/:id/file and renders every page", () => {
-    wrap(<SourceViewer tab={tab} />);
-    expect(screen.getByTestId("pdf-document")).toBeInTheDocument();
-    expect(screen.getByTestId("pdf-page-1")).toBeInTheDocument();
-    expect(screen.getByTestId("pdf-page-2")).toBeInTheDocument();
+  it("mounts the Viewer with fileUrl=/api/notes/:id/file", () => {
+    render(<SourceViewer tab={tab} />);
+    const viewer = screen.getByTestId("pdf-viewer");
+    expect(viewer).toBeInTheDocument();
+    expect(viewer.getAttribute("data-file-url")).toBe("/api/notes/n1/file");
+  });
+
+  it("wraps the Viewer in a Worker", () => {
+    render(<SourceViewer tab={tab} />);
+    expect(screen.getByTestId("pdf-worker")).toBeInTheDocument();
   });
 
   it("renders nothing when targetId is null", () => {
-    const { container } = wrap(
+    const { container } = render(
       <SourceViewer tab={{ ...tab, targetId: null }} />,
     );
     expect(container.firstChild).toBeNull();
