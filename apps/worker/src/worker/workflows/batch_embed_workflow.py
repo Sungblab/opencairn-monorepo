@@ -111,11 +111,17 @@ class BatchEmbedWorkflow:
         # ``workflow.info()`` gives us a deterministic identifier we can
         # embed in the object key. Fall back to a uuid if info is absent
         # (tests that don't run inside a Temporal env).
+        #
+        # M-5 fix (post-hoc review 2026-04-23): the earlier ``run_id[:8]``
+        # slice collapsed the 128-bit run_id into a 32-bit space, and
+        # workflow_id is deterministic (e.g. ``compiler-{noteId}``) so
+        # two retries of the same compile_note could share a prefix and
+        # clobber each other's JSONL sidecars. Use the full run_id.
         try:
             info = workflow.info()
-            run_prefix = f"{info.workflow_id}-{info.run_id[:8]}"
+            run_prefix = f"{info.workflow_id}-{info.run_id}"
         except Exception:  # noqa: BLE001
-            run_prefix = uuid.uuid4().hex[:16]
+            run_prefix = uuid.uuid4().hex
         input_s3_key = f"embeddings/batch/{run_prefix}/input.jsonl"
         output_s3_key = f"embeddings/batch/{run_prefix}/output.jsonl"
 

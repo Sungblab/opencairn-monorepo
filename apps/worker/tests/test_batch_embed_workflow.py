@@ -28,8 +28,12 @@ from worker.workflows.batch_embed_workflow import (
 # name — names match the real ``@activity.defn`` registrations.
 
 
+_submit_calls: list[dict] = []
+
+
 @activity.defn(name="submit_batch_embed")
 async def _stub_submit(payload: dict) -> dict:
+    _submit_calls.append(payload)
     return {
         "handle": {
             "provider_batch_name": "batches/stub",
@@ -84,6 +88,7 @@ async def _stub_cancel(payload: dict) -> None:
 def _reset_state():
     _poll_states.clear()
     _cancel_calls.clear()
+    _submit_calls.clear()
     yield
 
 
@@ -207,3 +212,42 @@ async def test_batch_embed_workflow_empty_input_returns_empty():
     assert result.input_count == 0
     assert result.batch_id == ""
     assert result.output_s3_key == ""
+
+
+@pytest.mark.asyncio
+async def test_batch_embed_workflow_s3_key_uses_full_run_id(monkeypatch):
+    """M-5 (post-hoc review 2026-04-23): early implementation truncated
+    ``run_id`` to 8 hex chars for the S3 prefix. At 2^32 space that
+    collides in the ~65k-run range (birthday), which is realistic within
+    a single workspace's embedding history. The prefix must include the
+    full run id so two concurrent workflows with the same workflow_id
+    (e.g. a retried compile_note whose workflow_id is deterministic)
+    never clobber each other's JSONL sidecars.
+    """
+    monkeypatch.setenv("BATCH_EMBED_INITIAL_POLL_SECONDS", "1")
+
+    async with await WorkflowEnvironment.start_time_skipping() as env:
+        task_queue = f"batch-test-{uuid.uuid4().hex[:8]}"
+        async with Worker(
+            env.client,
+            task_queue=task_queue,
+            workflows=[BatchEmbedWorkflow],
+            activities=[_stub_submit, _stub_poll, _stub_fetch, _stub_cancel],
+        ):
+            wf_handle = await env.client.start_workflow(
+                BatchEmbedWorkflow.run,
+                BatchEmbedInput(items=[{"text": "hello", "task": None}]),
+                id=f"wf-{uuid.uuid4().hex}",
+                task_queue=task_queue,
+            )
+            await wf_handle.result()
+            desc = await wf_handle.describe()
+            expected_run_id = desc.run_id
+
+    assert _submit_calls, "submit_batch_embed stub should have captured the call"
+    input_key = _submit_calls[0]["input_s3_key"]
+    # Full run_id must appear verbatim in the prefix — slicing to 8 hex
+    # re-introduces M-5's collision window.
+    assert expected_run_id in input_key, (
+        f"run_id {expected_run_id!r} missing from S3 key {input_key!r}"
+    )
