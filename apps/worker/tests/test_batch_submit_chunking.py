@@ -8,6 +8,8 @@ without re-deriving the correctness contract.
 """
 from __future__ import annotations
 
+import pytest
+
 from llm import EmbedInput
 
 from worker.lib.batch_submit import (
@@ -65,19 +67,43 @@ class TestAlignFromChunks:
         assert aligned == [[1.0], [2.0], [3.0], [4.0], [5.0]]
 
     def test_preserves_none_placeholders_for_empty_text(self) -> None:
-        """``make_batch_submit`` skips ``EmbedInput`` with falsy text
-        when building the workflow payload, but the aligned output
-        must still mark them as ``None`` so the caller's zip() lines up.
+        """Contract: ``_run_one_chunk`` returns a list of length
+        ``len(chunk)`` with ``None`` already filled for empty-text slots.
+        ``_align_from_chunks`` just concatenates — the previous cursor
+        logic double-skipped empties and dropped vectors of non-empty
+        items that followed an empty one. (PR #25 review — Gemini
+        CRITICAL.)
         """
         original = [
             EmbedInput(text="a"),
             EmbedInput(text=""),
             EmbedInput(text="b"),
         ]
-        # chunks only contain items with text — in this case 2 items
-        chunk_results = [[[1.0], [2.0]]]
+        # Real shape from ``_run_one_chunk``: aligned to the chunk,
+        # ``None`` slotted for empty text.
+        chunk_results = [[[1.0], None, [2.0]]]
         aligned = _align_from_chunks(original, chunk_results)
         assert aligned == [[1.0], None, [2.0]]
+
+    def test_multi_chunk_with_interleaved_empties(self) -> None:
+        """Regression for PR #25: the old cursor-based implementation
+        dropped item 5's vector here because the "empty skip" path
+        advanced the cursor without consuming from the flat list.
+        """
+        original = [
+            EmbedInput(text="a"),
+            EmbedInput(text=""),
+            EmbedInput(text="b"),
+            EmbedInput(text="c"),
+            EmbedInput(text=""),
+            EmbedInput(text="d"),
+        ]
+        chunk_results = [
+            [[1.0], None, [2.0]],
+            [[3.0], None, [4.0]],
+        ]
+        aligned = _align_from_chunks(original, chunk_results)
+        assert aligned == [[1.0], None, [2.0], [3.0], None, [4.0]]
 
     def test_chunk_none_result_propagates(self) -> None:
         original = [EmbedInput(text=str(i)) for i in range(3)]
@@ -85,11 +111,39 @@ class TestAlignFromChunks:
         aligned = _align_from_chunks(original, chunk_results)
         assert aligned == [[1.0], None, [3.0]]
 
-    def test_missing_items_get_none(self) -> None:
-        """If a chunk result shortens (edge case from provider skipping
-        empty texts that somehow slipped in), missing slots become None
-        rather than IndexError."""
+    def test_pipeline_invariant_across_chunk_sizes(self) -> None:
+        """End-to-end: for any ``max_items``, concatenated chunk-aligned
+        outputs equal an original-aligned output. Guards against
+        re-introduction of the double-alignment bug.
+        """
+        original = [
+            EmbedInput(text="a"),
+            EmbedInput(text=""),
+            EmbedInput(text="b"),
+            EmbedInput(text=""),
+            EmbedInput(text="c"),
+        ]
+        for max_items in (1, 2, 3, 5, 10):
+            chunks = _chunk_inputs(original, max_items=max_items)
+            simulated = [
+                [[float(ord(inp.text))] if inp.text else None for inp in chunk]
+                for chunk in chunks
+            ]
+            aligned = _align_from_chunks(original, simulated)
+            assert len(aligned) == len(original)
+            for inp, slot in zip(original, aligned):
+                if inp.text:
+                    assert slot == [float(ord(inp.text))], (
+                        f"wrong vector for {inp.text!r} at max_items={max_items}"
+                    )
+                else:
+                    assert slot is None
+
+    def test_length_mismatch_raises(self) -> None:
+        """Invariant: ``sum(len(chunk)) == len(original)``. Anything
+        else is a ``_run_one_chunk`` bug — fail loud.
+        """
         original = [EmbedInput(text=str(i)) for i in range(3)]
-        chunk_results = [[[1.0]]]  # only 1 vector for 3 inputs
-        aligned = _align_from_chunks(original, chunk_results)
-        assert aligned == [[1.0], None, None]
+        too_short: list[list[list[float] | None]] = [[[1.0]]]
+        with pytest.raises(ValueError, match="total"):
+            _align_from_chunks(original, too_short)
