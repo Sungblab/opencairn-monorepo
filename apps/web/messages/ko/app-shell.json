@@ -73,9 +73,6 @@
       "fontSize": "폰트 크기",
       "readingTime": "약 {min}분"
     },
-    "source": {
-      "loadFailed": "PDF 로드 실패"
-    },
     "data": {
       "empty": "데이터 없음"
     }

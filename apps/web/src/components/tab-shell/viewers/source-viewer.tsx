@@ -6,14 +6,27 @@ import "@react-pdf-viewer/core/lib/styles/index.css";
 import "@react-pdf-viewer/default-layout/lib/styles/index.css";
 import type { Tab } from "@/stores/tabs-store";
 
-// pdfjs-dist worker served from our own public path via Next's
-// `new URL + import.meta.url`. @react-pdf-viewer/core is pinned to
-// pdfjs-dist@3.11.174 — DO NOT bump pdfjs-dist past v3 without also
-// swapping the viewer (v4+ ESM changes broke @react-pdf-viewer).
+// pdfjs-dist worker URL resolved at build time via Next's
+// `new URL + import.meta.url`. Version is pinned to 3.11.174 in the
+// root package.json's pnpm.overrides — @react-pdf-viewer/core@3 does
+// not support pdfjs-dist v4+ (ESM boundary changes). Do NOT bump
+// pdfjs-dist without also swapping the viewer package.
 const WORKER_URL =
   typeof window !== "undefined"
     ? new URL("pdfjs-dist/build/pdf.worker.min.js", import.meta.url).toString()
     : "";
+
+// CVE-2024-4367 mitigation: pdfjs-dist < 4.2.67 is vulnerable to
+// arbitrary JS execution via a crafted font in a PDF. `isEvalSupported:
+// false` disables the eval-based font path that is the attack vector,
+// turning the CVE into a non-issue for our pinned v3 build. See
+// mozilla.github.io/pdf.js/api/draft/global.html#getDocument for the
+// supported options. The trade-off is slightly slower font rendering
+// on old PDFs that rely on eval'd CFF glyphs — acceptable.
+const SECURE_DOCUMENT_PARAMS = <T,>(options: T): T => ({
+  ...options,
+  isEvalSupported: false,
+});
 
 export function SourceViewer({ tab }: { tab: Tab }) {
   const url = useMemo(
@@ -35,7 +48,11 @@ export function SourceViewer({ tab }: { tab: Tab }) {
       className="h-full overflow-hidden bg-neutral-100 dark:bg-neutral-900"
     >
       <Worker workerUrl={WORKER_URL}>
-        <Viewer fileUrl={url} plugins={[defaultLayout]} />
+        <Viewer
+          fileUrl={url}
+          plugins={[defaultLayout]}
+          transformGetDocumentParams={SECURE_DOCUMENT_PARAMS}
+        />
       </Worker>
     </div>
   );

@@ -73,9 +73,6 @@
       "fontSize": "Font size",
       "readingTime": "~{min} min"
     },
-    "source": {
-      "loadFailed": "Failed to load PDF"
-    },
     "data": {
       "empty": "No data"
     }

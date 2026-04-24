@@ -10,9 +10,24 @@ vi.mock("@react-pdf-viewer/core", () => ({
   Worker: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="pdf-worker">{children}</div>
   ),
-  Viewer: ({ fileUrl }: { fileUrl: string }) => (
-    <div data-testid="pdf-viewer" data-file-url={fileUrl} />
-  ),
+  Viewer: ({
+    fileUrl,
+    transformGetDocumentParams,
+  }: {
+    fileUrl: string;
+    transformGetDocumentParams?: (p: Record<string, unknown>) => Record<string, unknown>;
+  }) => {
+    // Snapshot the hardened options so the CVE-2024-4367 mitigation
+    // assertion can inspect what gets passed to pdfjs.
+    const applied = transformGetDocumentParams?.({ url: fileUrl }) ?? {};
+    return (
+      <div
+        data-testid="pdf-viewer"
+        data-file-url={fileUrl}
+        data-is-eval-supported={String(applied.isEvalSupported)}
+      />
+    );
+  },
 }));
 
 vi.mock("@react-pdf-viewer/default-layout", () => ({
@@ -59,5 +74,11 @@ describe("SourceViewer", () => {
       <SourceViewer tab={{ ...tab, targetId: null }} />,
     );
     expect(container.firstChild).toBeNull();
+  });
+
+  it("disables eval in getDocument params to mitigate CVE-2024-4367", () => {
+    render(<SourceViewer tab={tab} />);
+    const viewer = screen.getByTestId("pdf-viewer");
+    expect(viewer.getAttribute("data-is-eval-supported")).toBe("false");
   });
 });

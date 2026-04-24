@@ -13,5 +13,13 @@
     "turbo": "^2.5.0",
     "typescript": "^5.8.0"
   },
-  "packageManager": "pnpm@9.15.0"
+  "packageManager": "pnpm@9.15.0",
+  "pnpm": {
+    "overrides": {
+      "pdfjs-dist": "3.11.174"
+    },
+    "neverBuiltDependencies": [
+      "canvas"
+    ]
+  }
 }
