@@ -135,7 +135,7 @@ Cookie: better-auth.session_token=<token>
 | POST | /api/workspaces/:workspaceId/projects | member | 새 프로젝트 생성 | `{ name, description?, defaultRole? }` |
 | GET | /api/projects/:id | project `viewer` | 프로젝트 상세 | - |
 | PATCH | /api/projects/:id | project `editor` | 수정 | `{ name?, description?, defaultRole? }` |
-| DELETE | /api/projects/:id | workspace `owner`/`admin` or creator | 삭제 | - |
+| DELETE | /api/projects/:id | workspace `owner`, `admin`, or creator | 삭제 | - |
 
 ### Folders
 
