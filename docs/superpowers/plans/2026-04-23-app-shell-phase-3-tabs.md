@@ -10,7 +10,7 @@
 - `TabModeRouter` is a pure dispatch on `Tab.mode` returning the right viewer; each viewer is a single-responsibility component in `components/tab-shell/viewers/`.
 - Non-core modes (`artifact`, `spreadsheet`, `presentation`, `whiteboard`, `canvas`, `mindmap`, `flashcard`, `diff`) render a "Coming soon" stub that is replaced in later plans.
 
-**Tech Stack:** `@dnd-kit/sortable`, existing Plate v49 editor, `pdf.js` (via `react-pdf`), `react-json-view-lite` for JSON tree, shadcn menus, Vitest, Playwright.
+**Tech Stack:** `@dnd-kit/sortable`, existing Plate v49 editor, `pdf.js` via `@react-pdf-viewer/core` (see spec `2026-04-09-opencairn-design.md:148` — 내장 검색·툴바·페이지 네비 필요; 본 plan의 이전 개정판에서 `react-pdf`로 기술된 부분은 drift였으며 Phase 3-B 구현에서 커밋 `f292f74`로 원복), `react-json-view-lite` for JSON tree, shadcn menus, Vitest, Playwright.
 
 **Spec:** `docs/superpowers/specs/2026-04-23-app-shell-redesign-design.md` §5 (Tab System).
 **Depends on:** Phase 1 (tabs-store, useUrlTabSync, AppShell) + Phase 2 (real Sidebar, for sidebar-click → preview tab interaction).

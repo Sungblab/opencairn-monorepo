@@ -222,6 +222,11 @@ public_share_links
 
 ```
 function resolveRole(user, page) {
+  // 0. Soft-deleted는 존재하지 않는 것으로 취급
+  //    apps/api/src/lib/permissions.ts 의 lookup은
+  //    `isNull(notes.deletedAt)` 필터를 붙이므로 row 자체가 돌아오지 않아 'none'.
+  //    즉 삭제된 노트는 복구 전까지 어떤 role도 상속하지 않는다.
+  if (page === null /* lookup failed or deletedAt IS NOT NULL */) return 'none'
   // 1. 페이지별 override
   if (page_permissions has row for (page, user)) return that.role
   // 2. 페이지가 상속 거부면 — 여기서 끝 (아무 권한 없음)
