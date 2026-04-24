@@ -6,6 +6,28 @@ import { useTabsStore, type TabKind } from "@/stores/tabs-store";
 import { tabToUrl, urlToTabTarget, type TabRoute } from "@/lib/tab-url";
 import { newTab } from "@/lib/tab-factory";
 
+// Map a (kind, targetId) pair to its persistent i18n key + interpolation
+// params. Phase 3-B: tabs carry this alongside the cached `title` so the
+// Tab bar / overflow menu relabel themselves when the user flips locale.
+// Notes return `undefined` because their title comes from the DB and must
+// not be translated as UI copy.
+function tabTitleKey(
+  kind: TabKind,
+  targetId: string | null,
+): { key: string | undefined; params: Record<string, string> | undefined } {
+  switch (kind) {
+    case "note":
+      return { key: undefined, params: undefined };
+    case "research_run":
+      return {
+        key: "appShell.tabTitles.research_run",
+        params: { id: targetId ?? "" },
+      };
+    default:
+      return { key: `appShell.tabTitles.${kind}`, params: undefined };
+  }
+}
+
 // URL is the source of truth for the active tab. Two effects:
 //   1) setWorkspace once per slug change so the right per-workspace stack is
 //      hydrated from localStorage.
@@ -85,10 +107,13 @@ export function useUrlTabSync() {
       if (activeId !== existing.id) setActive(existing.id);
       return;
     }
+    const { key, params } = tabTitleKey(route.kind, route.targetId);
     const tab = newTab({
       kind: route.kind,
       targetId: route.targetId,
       title: resolveDefaultTitle(tabTitle, route.kind, route.targetId),
+      titleKey: key,
+      titleParams: params,
     });
     // Notes opened via sidebar single-click arrive as preview tabs. To avoid
     // stacking one preview per click (which is how you end up with 20 tabs
