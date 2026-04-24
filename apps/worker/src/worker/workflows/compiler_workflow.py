@@ -24,10 +24,20 @@ with workflow.unsafe.imports_passed_through():
         acquire_project_semaphore,
         release_project_semaphore,
     )
+    from worker.lib.batch_timeouts import batch_aware_start_timeout
 
 
 _SEM_PURPOSE = "compiler"
 _SEM_ACQUIRE_TIMEOUT = timedelta(minutes=30)
+
+# Plan 3b gap: when BATCH_EMBED_COMPILER_ENABLED is on, compile_note
+# blocks on the BatchEmbedWorkflow for up to BATCH_EMBED_MAX_WAIT_SECONDS
+# (default 24h). The activity slot must outlast it — worker/lib/
+# batch_submit.py:17 documents the requirement. Computed at module import
+# so Temporal's deterministic sandbox sees a fixed value per worker boot.
+COMPILE_NOTE_START_TIMEOUT = batch_aware_start_timeout(
+    timedelta(minutes=10), flag_env="BATCH_EMBED_COMPILER_ENABLED"
+)
 
 
 @workflow.defn(name="CompilerWorkflow")
@@ -60,7 +70,7 @@ class CompilerWorkflow:
             result = await workflow.execute_activity(
                 "compile_note",
                 inp,
-                start_to_close_timeout=timedelta(minutes=10),
+                start_to_close_timeout=COMPILE_NOTE_START_TIMEOUT,
                 heartbeat_timeout=timedelta(minutes=2),
                 retry_policy=RetryPolicy(
                     initial_interval=timedelta(seconds=2),

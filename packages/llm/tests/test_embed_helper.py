@@ -173,6 +173,58 @@ async def test_batch_runtime_error_falls_back_to_sync(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_fallback_emits_structured_event_with_reason(monkeypatch, caplog):
+    """Plan 3b observability: every fallback produces one structured
+    ``batch_embed.fallback`` WARNING so ops dashboards can count
+    fallback rate per reason. Two branches:
+      - BatchNotSupported → reason=provider_unsupported
+      - other Exception  → reason=batch_failed
+    """
+    import logging
+
+    monkeypatch.setenv(ENV_BATCH_ENABLED_LIBRARIAN, "true")
+    p = _StubProvider(supports_batch=True)
+
+    async def raising_submit(inputs, *, workspace_id):
+        raise BatchNotSupported("no credential for batch")
+
+    items = [EmbedInput(text=str(i)) for i in range(10)]
+    with caplog.at_level(logging.WARNING, logger="batch_embed.fallback"):
+        await embed_many(
+            p, items, workspace_id="ws-42", batch_submit=raising_submit
+        )
+
+    records = [
+        r
+        for r in caplog.records
+        if r.__dict__.get("event") == "batch_embed.fallback"
+    ]
+    assert len(records) == 1
+    assert records[0].__dict__["reason"] == "provider_unsupported"
+    assert records[0].__dict__["input_count"] == 10
+    assert records[0].__dict__["workspace_id"] == "ws-42"
+    assert records[0].levelno == logging.WARNING
+
+    caplog.clear()
+
+    async def exploding_submit(inputs, *, workspace_id):
+        raise RuntimeError("workflow retry exhausted")
+
+    with caplog.at_level(logging.WARNING, logger="batch_embed.fallback"):
+        await embed_many(
+            p, items, workspace_id="ws-42", batch_submit=exploding_submit
+        )
+
+    records = [
+        r
+        for r in caplog.records
+        if r.__dict__.get("event") == "batch_embed.fallback"
+    ]
+    assert len(records) == 1
+    assert records[0].__dict__["reason"] == "batch_failed"
+
+
+@pytest.mark.asyncio
 async def test_per_agent_flag_independence(monkeypatch):
     # Librarian ON but caller passes the Compiler flag — must not batch.
     monkeypatch.setenv(ENV_BATCH_ENABLED_LIBRARIAN, "true")
