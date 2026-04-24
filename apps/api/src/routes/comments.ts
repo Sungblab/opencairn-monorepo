@@ -75,11 +75,17 @@ export const commentsRouter = new Hono<AppEnv>()
       const noteId = c.req.param("noteId");
       if (!isUuid(noteId)) return c.json({ error: "Bad Request" }, 400);
 
-      if (!(await canComment(userId, { type: "note", id: noteId }))) {
-        return c.json({ error: "Forbidden" }, 403);
-      }
-
       const body = c.req.valid("json");
+
+      // Block-anchored comments attach metadata to a specific editor block,
+      // which is a write against the page's structural content. Require
+      // `editor` (canWrite). Page-level comments stay at `commenter` (canComment).
+      // See api-contract.md §Comments.
+      const resource = { type: "note" as const, id: noteId };
+      const allowed = body.anchorBlockId
+        ? await canWrite(userId, resource)
+        : await canComment(userId, resource);
+      if (!allowed) return c.json({ error: "Forbidden" }, 403);
 
       // Derive workspaceId from the note (notes.workspaceId is denormalized).
       const [note] = await db
