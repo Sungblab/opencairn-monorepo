@@ -135,16 +135,16 @@ Cookie: better-auth.session_token=<token>
 | POST | /api/workspaces/:workspaceId/projects | member | 새 프로젝트 생성 | `{ name, description?, defaultRole? }` |
 | GET | /api/projects/:id | project `viewer` | 프로젝트 상세 | - |
 | PATCH | /api/projects/:id | project `editor` | 수정 | `{ name?, description?, defaultRole? }` |
-| DELETE | /api/projects/:id | workspace `admin` or creator | 삭제 | - |
+| DELETE | /api/projects/:id | workspace `owner`/`admin` or creator | 삭제 | - |
 
 ### Folders
 
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
-| GET | /api/folders/by-project/:projectId | Yes | List folders | - |
-| POST | /api/folders | Yes | Create folder | `{ projectId, parentId?, name }` |
-| PATCH | /api/folders/:id | Yes | Update folder. `parentId` 변경 시 `moveFolder()`가 ltree 서브트리 전체를 재작성(App Shell Phase 2 Task 11). cross-project 이동 시 400. 스칼라(name/position)는 이동 후 별도 적용. | `{ name?, parentId?, position? }` |
-| DELETE | /api/folders/:id | Yes | Delete folder | - |
+| GET | /api/folders/by-project/:projectId | project `viewer` | List folders | - |
+| POST | /api/folders | project `editor` | Create folder | `{ projectId, parentId?, name }` |
+| PATCH | /api/folders/:id | project `editor` | Update folder. `parentId` 변경 시 `moveFolder()`가 ltree 서브트리 전체를 재작성(App Shell Phase 2 Task 11). cross-project 이동 시 400. 스칼라(name/position)는 이동 후 별도 적용. | `{ name?, parentId?, position? }` |
+| DELETE | /api/folders/:id | project `editor` | Delete folder | - |
 
 ### Tags
 

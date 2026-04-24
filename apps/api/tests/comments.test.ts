@@ -61,6 +61,52 @@ describe("POST /api/notes/:noteId/comments", () => {
     expect(res.status).toBe(403);
   });
 
+  it("commenter can create a page-level (unanchored) comment", async () => {
+    const app = createApp();
+    const res = await app.request(`/api/notes/${seed.noteId}/comments`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: await signSessionCookie(seed.commenterUserId),
+      },
+      body: JSON.stringify({ body: "page-level ok" }),
+    });
+    expect(res.status).toBe(201);
+    const json = await res.json();
+    expect(json.anchorBlockId).toBe(null);
+  });
+
+  it("commenter cannot create a block-anchored comment (needs editor)", async () => {
+    // api-contract.md §Comments: "page viewer (기본) / editor if anchored".
+    // Block-level annotations mutate structural metadata of an editor block,
+    // so they require write access on the page, not just comment access.
+    const app = createApp();
+    const res = await app.request(`/api/notes/${seed.noteId}/comments`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: await signSessionCookie(seed.commenterUserId),
+      },
+      body: JSON.stringify({ body: "blocked", anchorBlockId: "blk9" }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("editor can create a block-anchored comment", async () => {
+    const app = createApp();
+    const res = await app.request(`/api/notes/${seed.noteId}/comments`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: await signSessionCookie(seed.editorUserId),
+      },
+      body: JSON.stringify({ body: "anchor by editor", anchorBlockId: "blk7" }),
+    });
+    expect(res.status).toBe(201);
+    const json = await res.json();
+    expect(json.anchorBlockId).toBe("blk7");
+  });
+
   it("GET returns threaded shape with mentions", async () => {
     const app = createApp();
     await app.request(`/api/notes/${seed.noteId}/comments`, {
