@@ -94,30 +94,34 @@ def _align_from_chunks(
     original: Sequence[EmbedInput],
     chunk_results: list[list[list[float] | None]],
 ) -> list[list[float] | None]:
-    """Zip chunk results back to the original input order.
+    """Flatten chunk-aligned results into an original-aligned list.
 
-    ``EmbedInput`` with empty/None text are skipped before the workflow
-    payload is built (bytes never cross Temporal's payload boundary),
-    so their slot in the aligned list is always ``None``. Missing
-    results (edge case where a chunk returns fewer vectors than it
-    received — shouldn't happen post-fix but defensive) also resolve to
-    ``None``.
+    ``_run_one_chunk`` already returns a list of length ``len(chunk)``
+    with ``None`` in each empty-text slot. ``_chunk_inputs`` produces
+    contiguous non-overlapping slices of ``original``, so concatenating
+    the chunk results is already aligned 1:1 with ``original``.
+
+    The previous implementation re-walked ``original`` with a cursor
+    that skipped empty-text slots, effectively double-accounting the
+    empties: every non-empty input that followed an empty one pulled
+    the wrong (usually ``None``) slot from the flat list. See PR #25
+    review (Gemini CRITICAL) and the regression tests
+    ``test_preserves_none_placeholders_for_empty_text`` and
+    ``test_multi_chunk_with_interleaved_empties``.
+
+    ``original`` stays in the signature for a length-invariant check
+    — anything other than ``sum(len(chunk)) == len(original)`` is a
+    ``_run_one_chunk`` bug and we'd rather fail loud than return a
+    silently-shortened list.
     """
     flat: list[list[float] | None] = []
     for chunk in chunk_results:
         flat.extend(chunk)
-    out: list[list[float] | None] = []
-    cursor = 0
-    for inp in original:
-        if not inp.text:
-            out.append(None)
-            continue
-        if cursor < len(flat):
-            out.append(flat[cursor])
-        else:
-            out.append(None)
-        cursor += 1
-    return out
+    if len(flat) != len(original):
+        raise ValueError(
+            f"chunk results total {len(flat)} but original has {len(original)}"
+        )
+    return flat
 
 
 async def _get_temporal_client() -> Client:
@@ -233,12 +237,26 @@ def make_batch_submit(*, task_queue: str | None = None):
             return [None] * len(inputs)
 
         client = await _get_temporal_client()
-        chunk_results: list[list[list[float] | None]] = []
-        for chunk in chunks:
-            chunk_result = await _run_one_chunk(
-                client, chunk, workspace_id=workspace_id, queue=queue
+        # Run chunks concurrently. Each chunk's workflow can legally
+        # block up to BATCH_EMBED_MAX_WAIT_SECONDS (default 24h) —
+        # sequential execution would multiply that by len(chunks) and
+        # blow past the caller activity's start_to_close_timeout
+        # envelope (24h + 10m, see batch_timeouts.py). Gemini's batch
+        # API accepts concurrent submissions; running in parallel
+        # also compresses total latency to ~max(chunk_latencies).
+        # Exceptions from any chunk propagate — embed_helper catches
+        # and falls back to sync for the whole input. (PR #25 review —
+        # Gemini HIGH.)
+        chunk_results = list(
+            await asyncio.gather(
+                *(
+                    _run_one_chunk(
+                        client, chunk, workspace_id=workspace_id, queue=queue
+                    )
+                    for chunk in chunks
+                )
             )
-            chunk_results.append(chunk_result)
+        )
 
         return _align_from_chunks(inputs, chunk_results)
 
