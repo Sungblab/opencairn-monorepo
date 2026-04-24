@@ -121,6 +121,12 @@ export function NoteEditor({
   // is a one-shot. Lives on a ref (not state) so it doesn't cause a
   // re-render on the first keystroke.
   const firstEditFiredRef = useRef(false);
+  const notifyFirstEditOnce = useCallback(() => {
+    if (firstEditFiredRef.current) return;
+    firstEditFiredRef.current = true;
+    onFirstEdit?.();
+  }, [onFirstEdit]);
+
   const notifyFirstEditOnKey = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (firstEditFiredRef.current) return;
@@ -137,10 +143,28 @@ export function NoteEditor({
       const isEditingKey =
         e.key === "Backspace" || e.key === "Delete" || e.key === "Enter";
       if (!isPrintable && !isEditingKey) return;
-      firstEditFiredRef.current = true;
-      onFirstEdit?.();
+      notifyFirstEditOnce();
     },
-    [onFirstEdit],
+    [notifyFirstEditOnce],
+  );
+
+  // Paste and drop are always "edit intent" (the user is authoring content,
+  // just via a non-keystroke channel) so they skip the printable-key filter
+  // and go straight to the shared one-shot gate. Without these, a user who
+  // starts a fresh note by pasting or dragging content never promotes the
+  // preview tab — the next sidebar click silently replaces their work.
+  const notifyFirstEditOnPaste = useCallback(
+    (_e: React.ClipboardEvent<HTMLDivElement>) => {
+      notifyFirstEditOnce();
+    },
+    [notifyFirstEditOnce],
+  );
+
+  const notifyFirstEditOnDrop = useCallback(
+    (_e: React.DragEvent<HTMLDivElement>) => {
+      notifyFirstEditOnce();
+    },
+    [notifyFirstEditOnce],
   );
 
   const patchTitle = useCallback(
@@ -248,6 +272,8 @@ export function NoteEditor({
           still bubble normally. */}
       <div
         onKeyDownCapture={readOnly ? undefined : notifyFirstEditOnKey}
+        onPasteCapture={readOnly ? undefined : notifyFirstEditOnPaste}
+        onDropCapture={readOnly ? undefined : notifyFirstEditOnDrop}
         className="contents"
       >
       {/* Outer flex row: editor column (flex-1) on the left, CommentsPanel
