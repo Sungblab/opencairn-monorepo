@@ -25,6 +25,29 @@ from .batch_types import BatchNotSupported
 
 logger = logging.getLogger(__name__)
 
+# Shared batch-embed event namespace — see
+# ``apps/worker/src/worker/lib/batch_metrics.py`` for the canonical event
+# schema. packages/llm can't import worker-side code, so we emit the
+# fallback event via stdlib logging using the same event name
+# (``batch_embed.fallback``) + field names (``reason``, ``input_count``,
+# optionally ``workspace_id``). Dashboards filter on ``event=...`` not
+# on logger name, so a second logger namespace is fine.
+_batch_metrics_logger = logging.getLogger("batch_embed.fallback")
+
+
+def _emit_fallback(
+    *, reason: str, input_count: int, workspace_id: str | None
+) -> None:
+    _batch_metrics_logger.warning(
+        "batch_embed.fallback",
+        extra={
+            "event": "batch_embed.fallback",
+            "reason": reason,
+            "input_count": input_count,
+            "workspace_id": workspace_id,
+        },
+    )
+
 # Feature flags and thresholds. All callers share one env space; per-caller
 # overrides (Compiler vs Librarian) live in the caller module, not here.
 ENV_BATCH_ENABLED_COMPILER = "BATCH_EMBED_COMPILER_ENABLED"
@@ -128,12 +151,22 @@ async def embed_many(
                 "Batch path unsupported by provider, falling back to sync: %s",
                 exc,
             )
+            _emit_fallback(
+                reason="provider_unsupported",
+                input_count=len(items),
+                workspace_id=workspace_id,
+            )
         except Exception as exc:  # noqa: BLE001
-            # Keep availability; the counter is emitted from the worker-
-            # side callback, so we don't double-count here.
+            # Keep availability; the counter is emitted here so ops has
+            # one signal regardless of which layer raised.
             logger.warning(
                 "Batch embed failed (%s); falling back to sync path",
                 exc,
+            )
+            _emit_fallback(
+                reason="batch_failed",
+                input_count=len(items),
+                workspace_id=workspace_id,
             )
 
     # Sync fallback — same shape as batch path (list[list[float] | None]).

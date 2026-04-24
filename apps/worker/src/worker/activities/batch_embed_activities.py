@@ -13,6 +13,7 @@ provider calls still see typed :class:`BatchEmbedHandle` objects.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from temporalio import activity
@@ -28,6 +29,7 @@ from llm import (
 # provider reached any terminal state. See embedding_batches enum.
 _STATE_TIMEOUT = "timeout"
 from worker.lib.api_client import AgentApiClient
+from worker.lib.batch_metrics import emit_event
 from worker.lib.s3_client import upload_jsonl
 
 logger = logging.getLogger(__name__)
@@ -108,6 +110,14 @@ async def submit_batch_embed(payload: dict[str, Any]) -> dict[str, Any]:
             "embedding_batches row %s already existed (replay?)", batch_id
         )
 
+    emit_event(
+        "batch_embed.submit",
+        workspace_id=workspace_id,
+        input_count=handle.input_count,
+        provider_batch_name=handle.provider_batch_name,
+        batch_id=batch_id,
+    )
+
     return {
         "handle": _handle_to_dict(handle),
         "batch_id": batch_id,
@@ -133,6 +143,14 @@ async def poll_batch_embed(payload: dict[str, Any]) -> dict[str, Any]:
         failure_count=poll.failed_request_count,
         pending_count=poll.pending_request_count,
     )
+    if poll.done:
+        emit_event(
+            "batch_embed.poll_done",
+            batch_id=batch_id,
+            state=poll.state,
+            success_count=poll.successful_request_count,
+            failure_count=poll.failed_request_count,
+        )
     return {
         "state": poll.state,
         "request_count": poll.request_count,
@@ -182,6 +200,20 @@ async def fetch_batch_embed_results(payload: dict[str, Any]) -> dict[str, Any]:
         pending_count=0,
         output_s3_key=output_s3_key,
         mark_completed=True,
+    )
+
+    # Duration is submit → fetch (end-to-end Gemini time). handle carries
+    # the submit timestamp. Missing/zero submitted_at yields a 0 duration
+    # — dashboards can filter those out rather than mislead.
+    submit_ts = handle.submitted_at or 0.0
+    now = time.time()
+    duration = max(0.0, now - submit_ts) if submit_ts else 0.0
+    emit_event(
+        "batch_embed.fetch",
+        batch_id=batch_id,
+        duration_seconds=duration,
+        success_count=success,
+        failure_count=failure,
     )
 
     return {
