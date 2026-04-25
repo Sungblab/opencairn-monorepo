@@ -32,18 +32,26 @@ function withIntl(node: React.ReactNode) {
 
 // Plate provides `attributes` / `nodeProps` props at runtime. For unit
 // rendering we hand-roll a minimal subset — Plate's PlateElementProps
-// expects more, so cast at the test boundary.
+// expects api/setOptions/tf/type and friends that have no test value here.
+// Cast the component to a relaxed prop shape at the test boundary.
+const ResearchMetaElementForTest =
+  ResearchMetaElement as unknown as React.ComponentType<{
+    attributes: Record<string, unknown>;
+    element: ResearchMetaElementType;
+    children: React.ReactNode;
+  }>;
+
 function renderMeta(
   el: ResearchMetaElementType = baseElement,
 ) {
   return render(
     withIntl(
-      <ResearchMetaElement
-        attributes={{ "data-slate-node": "element", ref: vi.fn() } as never}
+      <ResearchMetaElementForTest
+        attributes={{ "data-slate-node": "element", ref: vi.fn() }}
         element={el}
       >
         {""}
-      </ResearchMetaElement>,
+      </ResearchMetaElementForTest>,
     ),
   );
 }
