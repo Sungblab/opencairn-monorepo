@@ -161,6 +161,81 @@ export const commentsApi = {
     }),
 };
 
+// ---------- Chat threads + messages (App Shell Phase 4) ----------
+// The agent panel renders a per-workspace thread list in its header dropdown
+// and a per-thread message log in its body. Both are jsonb-heavy on the wire
+// — `content` is whatever the SSE pipeline persisted (body + thought + status
+// + citations + save_suggestion). We type the well-known keys but keep the
+// long tail (`scope`, `citations`, `save_suggestion`) as `unknown` so callers
+// must narrow at the renderer boundary instead of leaking shape assumptions
+// into hooks.
+
+export interface ChatThread {
+  id: string;
+  title: string;
+  updated_at: string;
+  created_at: string;
+}
+
+export interface ChatMessageContent {
+  body: string;
+  scope?: unknown;
+  thought?: { summary: string; tokens?: number };
+  status?: { phrase?: string };
+  citations?: unknown[];
+  save_suggestion?: unknown;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "agent";
+  status: "streaming" | "complete" | "failed";
+  content: ChatMessageContent;
+  mode: string | null;
+  provider: string | null;
+  created_at: string;
+}
+
+export const chatApi = {
+  listThreads: (workspaceId: string) =>
+    apiClient<{ threads: ChatThread[] }>(
+      `/threads?workspace_id=${encodeURIComponent(workspaceId)}`,
+    ),
+  createThread: (workspaceId: string, title?: string) =>
+    apiClient<{ id: string; title: string }>(`/threads`, {
+      method: "POST",
+      body: JSON.stringify({
+        workspace_id: workspaceId,
+        ...(title ? { title } : {}),
+      }),
+    }),
+  renameThread: (id: string, title: string) =>
+    apiClient<{ ok: true }>(`/threads/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ title }),
+    }),
+  archiveThread: (id: string) =>
+    apiClient<{ ok: true }>(`/threads/${id}`, { method: "DELETE" }),
+  listMessages: (threadId: string) =>
+    apiClient<{ messages: ChatMessage[] }>(`/threads/${threadId}/messages`),
+  // Feedback is fire-and-forget upsert. We omit `reason` from the body when
+  // missing so the server-side zod schema doesn't have to special-case empty
+  // strings.
+  submitFeedback: (
+    messageId: string,
+    sentiment: "positive" | "negative",
+    reason?: string,
+  ) =>
+    apiClient<{ ok: true }>(`/message-feedback`, {
+      method: "POST",
+      body: JSON.stringify({
+        message_id: messageId,
+        sentiment,
+        ...(reason ? { reason } : {}),
+      }),
+    }),
+};
+
 export const api = {
   getNote: (id: string) => apiClient<NoteRow>(`/notes/${id}`),
   listNotesByProject: (projectId: string) =>

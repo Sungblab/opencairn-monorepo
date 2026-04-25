@@ -3,7 +3,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useTranslations } from "next-intl";
 import { ShellSidebar } from "@/components/sidebar/shell-sidebar";
 import { TabShell } from "../tab-shell/tab-shell";
-import { PlaceholderAgentPanel } from "./placeholder-agent-panel";
+import { AgentPanel } from "@/components/agent-panel/agent-panel";
 import { ShellResizeHandle } from "./shell-resize-handle";
 import { usePanelStore } from "@/stores/panel-store";
 import { useBreakpoint } from "@/hooks/use-breakpoint";
@@ -60,7 +60,7 @@ export function AppShell({ children, deepResearchEnabled }: AppShellProps) {
         >
           <SheetContent side="right" className="w-[360px] p-0">
             <SheetTitle className="sr-only">{t("agent_panel")}</SheetTitle>
-            <PlaceholderAgentPanel />
+            <AgentPanel />
           </SheetContent>
         </Sheet>
       </div>
@@ -91,7 +91,7 @@ export function AppShell({ children, deepResearchEnabled }: AppShellProps) {
             onReset={resetAgentPanelWidth}
           />
           <div style={{ width: agentPanelWidth, flexShrink: 0 }}>
-            <PlaceholderAgentPanel />
+            <AgentPanel />
           </div>
         </>
       )}

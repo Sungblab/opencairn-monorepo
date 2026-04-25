@@ -1,0 +1,66 @@
+{
+  "header": {
+    "title": "AI Agent",
+    "new_thread_aria": "New conversation",
+    "thread_list_aria": "Thread list",
+    "collapse_aria": "Collapse panel"
+  },
+  "thread_list": {
+    "loading": "Loading…",
+    "empty": "No conversations yet.",
+    "untitled": "(untitled)"
+  },
+  "bubble": {
+    "user_label": "Me",
+    "agent_label": "Agent",
+    "thought_label": "Thinking",
+    "thought_seconds": "{seconds}s",
+    "save_suggestion_prefix": "Save \"{title}\" as a note?",
+    "save_suggestion_save": "Save",
+    "save_suggestion_dismiss_aria": "Dismiss",
+    "actions": {
+      "copy_aria": "Copy",
+      "regenerate_aria": "Regenerate",
+      "thumbs_up_aria": "Thumbs up",
+      "thumbs_down_aria": "Thumbs down"
+    },
+    "feedback_reasons": {
+      "incorrect": "Incorrect",
+      "incomplete": "Incomplete",
+      "irrelevant": "Irrelevant",
+      "other": "Other"
+    }
+  },
+  "composer": {
+    "placeholder": "Type a message...",
+    "attach_aria": "Attach",
+    "voice_aria": "Voice input",
+    "send_aria": "Send",
+    "modes": {
+      "trigger_aria": "Choose response mode",
+      "auto": "AUTO",
+      "fast": "FAST",
+      "balanced": "BALANCED",
+      "accurate": "ACCURATE",
+      "research": "RESEARCH"
+    }
+  },
+  "scope": {
+    "add_aria": "Add scope",
+    "strict": "STRICT",
+    "loose": "LOOSE",
+    "strict_aria": "Toggle scope mode",
+    "chips": {
+      "page": "📄 Page",
+      "project": "📂 Project",
+      "workspace": "🏠 Workspace",
+      "memory": "🧠 Memory",
+      "research": "🔬 This research"
+    }
+  },
+  "empty_state": {
+    "intro": "Ask anything grounded in this workspace's knowledge.",
+    "hint": "Use the scope chips to adjust what the agent reads.",
+    "start_cta": "Start a conversation"
+  }
+}

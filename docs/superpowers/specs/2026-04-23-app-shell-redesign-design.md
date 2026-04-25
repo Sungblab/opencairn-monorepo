@@ -1384,6 +1384,8 @@ CREATE INDEX message_feedback_message_id_idx ON message_feedback(message_id);
 - [ ] **Last-viewed project cross-device sync**: v1은 localStorage만. Cross-device 가 요구되면 `user_workspace_state(user_id, workspace_id, last_viewed_project_id)` 테이블 추가.
 - [ ] **Thread 공유**: v1 미지원 (프라이빗). 팀 공유 요구 발생 시 `chat_threads.visibility` + permissions 테이블 추가.
 - [ ] **Message feedback의 thumbs-down 이유 enum**: 자유 텍스트 vs enum 고정. v1은 enum(`incorrect/incomplete/irrelevant/other`) + 자유 `reason text` 보조.
+- [ ] **Agent pipeline integration (Phase 4 follow-up).** Phase 4 ships a stub `runAgent` in `apps/api/src/lib/agent-pipeline.ts` that emits a deterministic placeholder. Replace with real `packages/llm` + `packages/agent-runtime` wiring in a follow-up — likely merged with humanizer + model-router spec implementations. Tracked alongside the citations + save-suggestion flows from Plan 11A/11B.
+- [ ] **E2E execution (Phase 4 follow-up).** `apps/web/tests/e2e/agent-panel.spec.ts` is committed but couldn't be run in the same session because Playwright reused an existing dev server from a sibling worktree. Run manually before merge.
 
 ---
 

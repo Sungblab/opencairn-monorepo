@@ -190,6 +190,9 @@ importers:
       cmdk:
         specifier: ^1.1.1
         version: 1.1.1(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      eventsource-parser:
+        specifier: ^3.0.8
+        version: 3.0.8
       katex:
         specifier: ^0.16
         version: 0.16.45

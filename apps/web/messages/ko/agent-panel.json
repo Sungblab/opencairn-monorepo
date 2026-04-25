@@ -1,0 +1,66 @@
+{
+  "header": {
+    "title": "AI 에이전트",
+    "new_thread_aria": "새 대화",
+    "thread_list_aria": "대화 목록",
+    "collapse_aria": "패널 접기"
+  },
+  "thread_list": {
+    "loading": "불러오는 중…",
+    "empty": "대화가 없습니다.",
+    "untitled": "(제목 없음)"
+  },
+  "bubble": {
+    "user_label": "나",
+    "agent_label": "에이전트",
+    "thought_label": "생각",
+    "thought_seconds": "{seconds}초",
+    "save_suggestion_prefix": "\"{title}\" 노트로 저장 제안",
+    "save_suggestion_save": "저장",
+    "save_suggestion_dismiss_aria": "닫기",
+    "actions": {
+      "copy_aria": "복사",
+      "regenerate_aria": "재생성",
+      "thumbs_up_aria": "좋아요",
+      "thumbs_down_aria": "싫어요"
+    },
+    "feedback_reasons": {
+      "incorrect": "부정확",
+      "incomplete": "불완전",
+      "irrelevant": "관련 없음",
+      "other": "기타"
+    }
+  },
+  "composer": {
+    "placeholder": "메시지를 입력하세요...",
+    "attach_aria": "첨부",
+    "voice_aria": "음성 입력",
+    "send_aria": "전송",
+    "modes": {
+      "trigger_aria": "응답 모드 선택",
+      "auto": "AUTO",
+      "fast": "FAST",
+      "balanced": "BALANCED",
+      "accurate": "ACCURATE",
+      "research": "RESEARCH"
+    }
+  },
+  "scope": {
+    "add_aria": "스코프 추가",
+    "strict": "STRICT",
+    "loose": "LOOSE",
+    "strict_aria": "스코프 모드 전환",
+    "chips": {
+      "page": "📄 페이지",
+      "project": "📂 프로젝트",
+      "workspace": "🏠 워크스페이스",
+      "memory": "🧠 메모리",
+      "research": "🔬 이 리서치"
+    }
+  },
+  "empty_state": {
+    "intro": "이 워크스페이스의 지식을 기반으로 물어보세요.",
+    "hint": "스코프 칩으로 범위를 조정할 수 있습니다.",
+    "start_cta": "첫 대화 시작"
+  }
+}

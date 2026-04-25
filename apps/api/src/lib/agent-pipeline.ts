@@ -1,0 +1,85 @@
+// Stub agent pipeline used by POST /api/threads/:id/messages while the real
+// runtime + multi-LLM wiring is still being designed. The shape of
+// `runAgent` (an async generator yielding typed chunks) and the
+// create/finalize helpers around it are picked so the real pipeline can be
+// slotted in without changing the SSE route.
+
+import { db, chatMessages, eq } from "@opencairn/db";
+
+export type AgentChunkType =
+  | "status"
+  | "thought"
+  | "text"
+  | "citation"
+  | "save_suggestion"
+  | "done";
+
+export interface AgentChunk {
+  type: AgentChunkType;
+  payload: unknown;
+}
+
+export type ChatMode = "auto" | "fast" | "balanced" | "accurate" | "research";
+
+// Stub generator: emits a deterministic stream so the SSE transport,
+// persistence, and client-side hook can be exercised without a real LLM
+// dependency. Replace with the real runtime call when packages/llm +
+// agent-runtime are wired in; the chunk shape stays.
+export async function* runAgent(opts: {
+  threadId: string;
+  userMessage: { content: string; scope?: unknown };
+  mode: ChatMode;
+}): AsyncGenerator<AgentChunk> {
+  yield { type: "status", payload: { phrase: "관련 문서 훑는 중..." } };
+  yield {
+    type: "thought",
+    payload: { summary: "사용자의 질문 분석 중", tokens: 120 },
+  };
+
+  const body = `(stub agent response to: ${opts.userMessage.content})`;
+  for (const ch of body) {
+    yield { type: "text", payload: { delta: ch } };
+    // 4ms gap per char keeps tests fast while still exercising multi-frame
+    // streaming.
+    await new Promise((r) => setTimeout(r, 4));
+  }
+  yield { type: "done", payload: {} };
+}
+
+// Insert an empty agent row with status='streaming' before SSE begins so a
+// mid-stream crash leaves a recoverable row instead of silently losing the
+// turn. The single final UPDATE in a `finally` keeps write amplification
+// bounded — we don't touch the row per chunk.
+export async function createStreamingAgentMessage(
+  threadId: string,
+  mode: ChatMode,
+) {
+  const [row] = await db
+    .insert(chatMessages)
+    .values({
+      threadId,
+      role: "agent",
+      status: "streaming",
+      content: { body: "" },
+      mode,
+    })
+    .returning({ id: chatMessages.id });
+  return row;
+}
+
+// Single UPDATE at the end of the stream — content holds the joined buffer
+// plus any sidecar metadata (status phrase, thoughts, citations, save
+// suggestion). Status flips to 'complete' on a clean stream, 'failed' if
+// the pipeline threw mid-flight.
+export async function finalizeAgentMessage(
+  messageId: string,
+  content: object,
+  status: "complete" | "failed",
+) {
+  const [row] = await db
+    .update(chatMessages)
+    .set({ content, status })
+    .where(eq(chatMessages.id, messageId))
+    .returning();
+  return row;
+}

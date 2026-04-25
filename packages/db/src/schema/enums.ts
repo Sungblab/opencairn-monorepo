@@ -47,6 +47,23 @@ export const wikiActionEnum = pgEnum("wiki_action", [
 // separate `scopeType`+`scopeId` columns, plus rag_mode/chips/memory_flags.
 // Removed here (migration 0019) so Plan 11A starts from a clean slate.
 
+// Phase 4 (App Shell agent panel, plan 2026-04-23) reintroduces a slimmer
+// chat schema — `chat_threads` + `chat_messages` + `message_feedback`. The
+// new `message_role` enum drops the legacy `assistant` value in favour of
+// `agent` (matches the rest of the runtime/UI vocabulary).
+export const messageRoleEnum = pgEnum("message_role", ["user", "agent"]);
+
+// Streaming persistence states for chat-messages.ts `status` column.
+//   `streaming` → placeholder inserted before SSE emits, so a crash mid-
+//                 stream leaves a row we can recover instead of a ghost.
+//   `complete`  → stream ended cleanly (the steady-state value).
+//   `failed`    → pipeline threw; partial buffer preserved for retry UI.
+export const messageStatusEnum = pgEnum("message_status", [
+  "streaming",
+  "complete",
+  "failed",
+]);
+
 // OpenAI is intentionally excluded (2026-04-15 decision — see
 // docs/superpowers/specs/2026-04-13-multi-llm-provider-design.md). Enforced
 // at DB layer so API routes can't write a string the factory will reject
