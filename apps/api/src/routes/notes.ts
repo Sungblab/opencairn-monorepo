@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { db, notes, projects, eq, and, desc, isNull, sql } from "@opencairn/db";
-import { createNoteSchema, updateNoteSchema } from "@opencairn/shared";
+import { createNoteSchema, updateNoteSchema, patchCanvasSchema } from "@opencairn/shared";
 
 // PATCH body ignores `content` — Yjs (via Hocuspocus) is canonical (Plan 2B).
 // `folderId` is also stripped here: moves must go through /:id/move, which
@@ -171,6 +171,56 @@ export const noteRoutes = new Hono<AppEnv>()
       return c.json({ ok: true });
     },
   )
+
+  // Plan 7 Phase 1: dedicated canvas write surface. The shared `/:id` PATCH
+  // strips `content` because Plan 2B made Yjs canonical for Plate notes —
+  // canvas notes don't use Yjs (single-user, no collab), so they need a
+  // separate route that writes `content_text` directly without touching
+  // `yjs_documents`. Triage order is intentionally stricter than GET `/:id`:
+  // canRead → exists → sourceType=='canvas' → canWrite. canRead-fail returns
+  // 404 (hide existence) rather than 403, because writes are the only thing
+  // this surface does — leaking existence buys nothing.
+  .patch("/:id/canvas", zValidator("json", patchCanvasSchema), async (c) => {
+    const user = c.get("user");
+    const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+
+    if (!(await canRead(user.id, { type: "note", id }))) {
+      return c.json({ error: "Not Found" }, 404);
+    }
+
+    const [note] = await db
+      .select()
+      .from(notes)
+      .where(eq(notes.id, id))
+      .limit(1);
+    if (!note || note.deletedAt) return c.json({ error: "Not Found" }, 404);
+
+    if (note.sourceType !== "canvas") {
+      return c.json({ error: "notCanvas" }, 409);
+    }
+
+    if (!(await canWrite(user.id, { type: "note", id }))) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+
+    const body = c.req.valid("json");
+    const [updated] = await db
+      .update(notes)
+      .set({
+        contentText: body.source,
+        ...(body.language !== undefined ? { canvasLanguage: body.language } : {}),
+      })
+      .where(eq(notes.id, id))
+      .returning({
+        id: notes.id,
+        contentText: notes.contentText,
+        canvasLanguage: notes.canvasLanguage,
+        updatedAt: notes.updatedAt,
+      });
+
+    return c.json(updated, 200);
+  })
 
   // Plan 2B: content/content_text are now Yjs-canonical — persisted only by
   // Hocuspocus `onStoreDocument`. PATCH accepts meta fields only; any
