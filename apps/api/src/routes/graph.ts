@@ -1,9 +1,11 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { db, concepts, eq, sql } from "@opencairn/db";
+import { db, concepts, eq, and, sql } from "@opencairn/db";
 import {
   graphQuerySchema,
   type GraphResponse,
+  graphExpandQuerySchema,
+  type GraphExpandResponse,
 } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
 import { canRead } from "../lib/permissions";
@@ -118,6 +120,119 @@ export const graphRoutes = new Hono<AppEnv>()
         })),
         truncated: total > limit,
         totalConcepts: total,
+      };
+      return c.json(body);
+    },
+  )
+
+  // GET /api/projects/:projectId/graph/expand/:conceptId
+  .get(
+    "/:projectId/graph/expand/:conceptId",
+    zValidator("query", graphExpandQuerySchema),
+    async (c) => {
+      const user = c.get("user");
+      const projectId = c.req.param("projectId");
+      const conceptId = c.req.param("conceptId");
+      if (!isUuid(projectId) || !isUuid(conceptId)) {
+        return c.json({ error: "bad-request" }, 400);
+      }
+      if (!(await canRead(user.id, { type: "project", id: projectId }))) {
+        return c.json({ error: "forbidden" }, 403);
+      }
+      const { hops } = c.req.valid("query");
+
+      // Seed must belong to the path projectId — prevents cross-project leak.
+      const [seed] = await db
+        .select({ id: concepts.id })
+        .from(concepts)
+        .where(and(eq(concepts.id, conceptId), eq(concepts.projectId, projectId)));
+      if (!seed) return c.json({ error: "not-found" }, 404);
+
+      // Recursive CTE: collect concept ids reachable within `hops` undirected
+      // steps. Cap result to 200 nodes to bound payload size.
+      type TraversalRow = { concept_id: string };
+      const traversalRaw = await db.execute(sql`
+        WITH RECURSIVE traversal AS (
+          SELECT ${conceptId}::uuid AS concept_id, 0 AS depth
+          UNION
+          SELECT
+            CASE WHEN e.source_id = t.concept_id THEN e.target_id
+                 ELSE e.source_id END AS concept_id,
+            t.depth + 1 AS depth
+          FROM traversal t
+          JOIN concept_edges e
+            ON e.source_id = t.concept_id OR e.target_id = t.concept_id
+          WHERE t.depth < ${hops}
+        )
+        SELECT DISTINCT concept_id FROM traversal LIMIT 200
+      `);
+      const conceptIds = (
+        (traversalRaw as unknown as { rows: TraversalRow[] }).rows ??
+        (traversalRaw as unknown as TraversalRow[])
+      ).map((r) => r.concept_id);
+
+      const idArr = sql.join(
+        conceptIds.map((id) => sql`${id}::uuid`),
+        sql`, `,
+      );
+
+      // Same node shape as /graph (degree + noteCount + firstNoteId).
+      type NodeRow = {
+        id: string;
+        name: string;
+        description: string | null;
+        degree: number;
+        note_count: number;
+        first_note_id: string | null;
+      };
+      const nodeRaw = await db.execute(sql`
+        SELECT
+          c.id, c.name, c.description,
+          (SELECT count(*)::int FROM concept_edges e
+            WHERE e.source_id = c.id OR e.target_id = c.id) AS degree,
+          (SELECT count(*)::int FROM concept_notes cn
+            WHERE cn.concept_id = c.id) AS note_count,
+          (SELECT cn.note_id FROM concept_notes cn
+            JOIN notes n ON n.id = cn.note_id
+            WHERE cn.concept_id = c.id AND n.deleted_at IS NULL
+            ORDER BY n.created_at ASC LIMIT 1) AS first_note_id
+        FROM concepts c
+        WHERE c.id = ANY(ARRAY[${idArr}])
+          AND c.project_id = ${projectId}
+      `);
+      const nodeRows = (
+        (nodeRaw as unknown as { rows: NodeRow[] }).rows ??
+        (nodeRaw as unknown as NodeRow[])
+      );
+
+      type EdgeRow = { id: string; source_id: string; target_id: string; relation_type: string; weight: number };
+      const edgeRaw = await db.execute(sql`
+        SELECT e.id, e.source_id, e.target_id, e.relation_type, e.weight
+        FROM concept_edges e
+        WHERE e.source_id = ANY(ARRAY[${idArr}])
+          AND e.target_id = ANY(ARRAY[${idArr}])
+      `);
+      const edgeRows = (
+        (edgeRaw as unknown as { rows: EdgeRow[] }).rows ??
+        (edgeRaw as unknown as EdgeRow[])
+      );
+
+      const body: GraphExpandResponse = {
+        nodes: nodeRows.map((r) => ({
+          id: r.id,
+          name: r.name,
+          description: r.description ?? "",
+          degree: r.degree,
+          noteCount: r.note_count,
+          firstNoteId: r.first_note_id,
+        })),
+        edges: edgeRows.map((r) => ({
+          id: r.id,
+          sourceId: r.source_id,
+          targetId: r.target_id,
+          relationType: r.relation_type,
+          weight: Number(r.weight),
+        })),
       };
       return c.json(body);
     },

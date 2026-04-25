@@ -180,4 +180,42 @@ describe("GET /api/projects/:projectId/graph", () => {
     const body = (await res.json()) as { nodes: Array<{ id: string }> };
     expect(body.nodes.map((n) => n.id)).toEqual(expectedOrder);
   });
+
+  it("expand: rejects hops > 3", async () => {
+    const res = await app.request(
+      `/api/projects/${projectId}/graph/expand/${conceptA}?hops=4`,
+      { method: "GET", headers: { cookie: await signSessionCookie(memberId) } },
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("expand: returns 404 when the concept belongs to a different project", async () => {
+    // conceptA is in projectId; the URL says otherProjectId. Should 404,
+    // NOT 200 with the wrong-project subgraph (resource scope leak).
+    const res = await app.request(
+      `/api/projects/${otherProjectId}/graph/expand/${conceptA}`,
+      { method: "GET", headers: { cookie: await signSessionCookie(memberId) } },
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("expand: returns the seed + 1-hop neighbors for hops=1", async () => {
+    const res = await app.request(
+      `/api/projects/${projectId}/graph/expand/${conceptA}?hops=1`,
+      { method: "GET", headers: { cookie: await signSessionCookie(memberId) } },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { nodes: Array<{ id: string }>; edges: unknown[] };
+    const ids = body.nodes.map((n) => n.id).sort();
+    expect(ids).toEqual([conceptA, conceptB].sort());
+    expect(body.edges).toHaveLength(1);
+  });
+
+  it("expand: returns 403 for a non-member", async () => {
+    const res = await app.request(
+      `/api/projects/${projectId}/graph/expand/${conceptA}`,
+      { method: "GET", headers: { cookie: await signSessionCookie(nonMemberId) } },
+    );
+    expect(res.status).toBe(403);
+  });
 });
