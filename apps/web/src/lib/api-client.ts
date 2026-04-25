@@ -218,6 +218,22 @@ export const chatApi = {
     apiClient<{ ok: true }>(`/threads/${id}`, { method: "DELETE" }),
   listMessages: (threadId: string) =>
     apiClient<{ messages: ChatMessage[] }>(`/threads/${threadId}/messages`),
+  // Feedback is fire-and-forget upsert. We omit `reason` from the body when
+  // missing so the server-side zod schema doesn't have to special-case empty
+  // strings.
+  submitFeedback: (
+    messageId: string,
+    sentiment: "positive" | "negative",
+    reason?: string,
+  ) =>
+    apiClient<{ ok: true }>(`/message-feedback`, {
+      method: "POST",
+      body: JSON.stringify({
+        message_id: messageId,
+        sentiment,
+        ...(reason ? { reason } : {}),
+      }),
+    }),
 };
 
 export const api = {
