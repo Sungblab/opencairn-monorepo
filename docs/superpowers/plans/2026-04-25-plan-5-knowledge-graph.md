@@ -217,11 +217,11 @@ git commit -m "feat(shared): add Plan 5 graph + backlinks Zod schemas"
 **Files:**
 - Create: `packages/db/src/schema/wiki-links.ts`
 - Modify: `packages/db/src/schema/index.ts` or `packages/db/src/index.ts` (re-export)
-- Create: `packages/db/drizzle/0020_wiki_links_table.sql`
+- Create: `packages/db/drizzle/0021_wiki_links_table.sql` *(0020 은 PR #34 의 `chat_redesign` 이 이미 차지)*
 - Create: `packages/db/drizzle/meta/_journal.json` patched entry
 - Create: `packages/db/test/wiki-links-constraint.test.ts`
 
-> **번호 race**: Plan 7 Canvas Phase 1 도 0020/0021 차지 가능. 이 PR 머지 시점에 충돌 시 `0020_…` → `0022_wiki_links_table.sql` 로 rename + journal 갱신. 패턴은 Plan 7 spec §3.3 동일.
+> **번호 race**: PR #34 (App Shell Phase 4) 가 머지되며 `0020_chat_redesign.sql` 로 0020 슬롯을 점유했음. 본 PR 은 0021. Plan 7 Canvas Phase 1 도 두 개 (`0021/0022` 또는 `0022/0023`) 가 필요하므로 머지 순서에 따라 다음 번호로 추가 rename 필요할 수 있음 — 충돌 시 파일명 + `meta/_journal.json` 두 곳.
 
 - [ ] **Step 2.1: Read existing schema barrel to see export pattern**
 
@@ -381,11 +381,11 @@ If a `./schema/index.ts` barrel exists instead, add the line there.
 pnpm --filter @opencairn/db db:generate
 ```
 
-Drizzle will produce `0020_*.sql`. Inspect the generated content — it will create the table and unique constraint and indexes from the schema. The generated file name may include a random suffix (e.g. `0020_loose_taskmaster.sql`); rename it to `0020_wiki_links_table.sql` and update `meta/_journal.json` accordingly.
+Drizzle will produce `0021_*.sql` (since 0020 is already taken by `chat_redesign`). The generated file name may include a random suffix (e.g. `0021_loose_taskmaster.sql`); rename it to `0021_wiki_links_table.sql` and update `meta/_journal.json` accordingly.
 
 - [ ] **Step 2.7: Append the backfill query to the migration**
 
-Open `packages/db/drizzle/0020_wiki_links_table.sql` and append after the auto-generated DDL:
+Open `packages/db/drizzle/0021_wiki_links_table.sql` and append after the auto-generated DDL:
 
 ```sql
 --> statement-breakpoint
@@ -406,7 +406,7 @@ JOIN LATERAL jsonb_path_query(n.content, '$.** ? (@.type == "wiki-link")') AS li
 WHERE n.deleted_at IS NULL
   AND n.content IS NOT NULL
   AND link ? 'targetId'
-  AND (link->>'targetId') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+  AND (link->>'targetId') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
   AND EXISTS (
     SELECT 1 FROM "notes" t
     WHERE t.id = (link->>'targetId')::uuid
@@ -421,7 +421,7 @@ ON CONFLICT ("source_note_id", "target_note_id") DO NOTHING;
 pnpm --filter @opencairn/db db:migrate
 ```
 
-Expected: migration applies cleanly. If the `0020` slot collides with Plan 7 Canvas Phase 1, rename to `0022_wiki_links_table.sql` and update `meta/_journal.json`'s tag/breakpoints accordingly, then re-run.
+Expected: migration applies cleanly. If Plan 7 Canvas Phase 1 lands first and takes 0021/0022, rename to the next free slot (e.g. `0023_wiki_links_table.sql`) and update `meta/_journal.json`'s tag/breakpoints accordingly, then re-run.
 
 - [ ] **Step 2.9: Run the constraint test — expect PASS**
 
@@ -436,7 +436,7 @@ Expected: 4 tests pass.
 ```bash
 git add packages/db/src/schema/wiki-links.ts \
         packages/db/src/index.ts \
-        packages/db/drizzle/0020_wiki_links_table.sql \
+        packages/db/drizzle/0021_wiki_links_table.sql \
         packages/db/drizzle/meta/_journal.json \
         packages/db/test/wiki-links-constraint.test.ts
 git commit -m "feat(db): add wiki_links reverse-index table with backfill (Plan 5 Phase 1)"
@@ -543,12 +543,15 @@ Expected: `Cannot find module '../src/wiki-link-sync.js'`.
 `apps/hocuspocus/src/wiki-link-sync.ts`:
 
 ```ts
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, inArray, isNull } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { wikiLinks, notes, projects } from "@opencairn/db";
 
+// `i` flag: external systems (some Better Auth flows, ingest sources) can
+// emit upper- or mixed-case UUIDs. Plate is consistent today but we don't
+// own the producers transitively — be permissive on read.
 const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Walk a Plate value (deeply nested array of nodes with `children`) and
@@ -632,22 +635,20 @@ export async function syncWikiLinks(
   const live = await tx
     .select({ id: notes.id })
     .from(notes)
-    .where(
-      and(
-        sql`${notes.id} = ANY(ARRAY[${sql.join(
-          candidates.map((id) => sql`${id}::uuid`),
-          sql`, `,
-        )}])`,
-        sql`${notes.deletedAt} IS NULL`,
-      ),
-    );
+    .where(and(inArray(notes.id, candidates), isNull(notes.deletedAt)));
   const liveSet = new Set(live.map((r) => r.id));
   const rows = candidates
     .filter((t) => liveSet.has(t))
     .map((targetNoteId) => ({ sourceNoteId, targetNoteId, workspaceId }));
   if (rows.length === 0) return;
 
-  await tx.insert(wikiLinks).values(rows);
+  // .onConflictDoNothing() guards against the rare case where two Hocuspocus
+  // store transactions for the same note interleave — the DELETE→SELECT→INSERT
+  // sequence is atomic *per* tx, but PostgreSQL's READ COMMITTED default lets
+  // a peer tx commit between the DELETE and INSERT and reach the unique
+  // constraint first. Cheaper than escalating isolation; the constraint
+  // itself still enforces correctness.
+  await tx.insert(wikiLinks).values(rows).onConflictDoNothing();
 }
 ```
 
@@ -2210,9 +2211,19 @@ export function ProjectGraph({ projectId }: Props) {
     [addOrReplacePreview, router, wsSlug, t],
   );
 
-  // Wire cytoscape events when the instance becomes available. We attach
-  // exactly once per cy instance — Cytoscape de-registers on cy.destroy()
-  // (called by react-cytoscapejs on unmount).
+  // Park the latest handler in a ref so the cytoscape `dbltap` binding
+  // closes over a stable indirection. Without this, the binding would
+  // capture the *first* render's onNodeDoubleClick and miss any tabs-store
+  // / router updates that happened since (classic stale-closure bug).
+  // The ref-update effect is keyed on `onNodeDoubleClick` so it always
+  // points at the current callback; the bind effect is keyed on `data`
+  // so we only re-bind when cytoscape's underlying instance might be
+  // rebuilt (elements arrival).
+  const handlerRef = useRef(onNodeDoubleClick);
+  useEffect(() => {
+    handlerRef.current = onNodeDoubleClick;
+  }, [onNodeDoubleClick]);
+
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
@@ -2222,12 +2233,12 @@ export function ProjectGraph({ projectId }: Props) {
       if (node?.isNode?.()) {
         const fid = node.data("firstNoteId") as string | null;
         const lbl = node.data("label") as string;
-        onNodeDoubleClick(fid, lbl);
+        handlerRef.current(fid, lbl);
       }
     };
     cy.on("dbltap", "node", onTap);
     return () => { cy.off("dbltap", "node", onTap); };
-  }, [onNodeDoubleClick, data]);
+  }, [data]);
 
   if (isLoading) return <GraphSkeleton />;
   if (error) return <GraphError error={error as Error} />;
