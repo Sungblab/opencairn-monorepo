@@ -296,6 +296,9 @@ importers:
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
+      pyodide:
+        specifier: 0.27.0
+        version: 0.27.0
       tailwindcss:
         specifier: ^4.0.0
         version: 4.2.2
@@ -5212,6 +5215,10 @@ packages:
   punycode@2.3.1:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
+
+  pyodide@0.27.0:
+    resolution: {integrity: sha512-0O992noCKqv8lPw4+QFWw8d8yrNWVtQ6zPhWNg/RNYbFohiwmV6SGlVh5fWk/4pOxyhgHbayq+ur8JoR/r5U9A==}
+    engines: {node: '>=18.0.0'}
 
   qs@6.15.1:
     resolution: {integrity: sha512-6YHEFRL9mfgcAvql/XhwTvf5jKcOiiupt2FiJxHkiX1z4j7WL8J/jRHYLluORvc1XxB5rV20KoeK00gVJamspg==}
@@ -11118,6 +11125,13 @@ snapshots:
   proxy-compare@2.6.0: {}
 
   punycode@2.3.1: {}
+
+  pyodide@0.27.0:
+    dependencies:
+      ws: 8.20.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   qs@6.15.1:
     dependencies:
