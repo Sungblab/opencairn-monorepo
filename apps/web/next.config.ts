@@ -29,14 +29,18 @@ const withNextIntl = createNextIntlPlugin("./src/i18n.ts");
 //   pattern used by CanvasFrame and any future Pyodide Web Worker.
 // - 'unsafe-inline' on style-src is preserved for Tailwind's runtime
 //   classes; tightening to nonces is a Phase 2+ exercise.
-// - Dev mode: Next.js / Turbopack injects inline bootstrap <script> tags
-//   (self.__next_r etc.) without a nonce, so 'unsafe-inline' is required
-//   for hydration. Production keeps the strict policy.
-const isDev = process.env.NODE_ENV !== "production";
+// - 'unsafe-inline' on script-src: kept for BOTH dev and production. Next.js
+//   App Router streams hydration data via inline `<script>self.__next_f.push(...)`
+//   on every SSR'd page. Without a nonce, that traffic is blocked outright;
+//   an earlier dev-only gate broke prod silently because nobody noticed
+//   hydration regressing. Tightening requires a per-request nonce middleware
+//   (Edge runtime — `next.config.ts` static headers cannot generate one) —
+//   tracked as Phase 2+ alongside the style-src nonce migration. Until then,
+//   both directives accept inline.
 const CSP_HEADER = [
   "default-src 'self'",
   "frame-src 'self' blob:",
-  `script-src 'self' 'unsafe-eval'${isDev ? " 'unsafe-inline'" : ""} https://cdn.jsdelivr.net/pyodide/ https://esm.sh`,
+  "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net/pyodide/ https://esm.sh",
   "worker-src 'self' blob:",
   "connect-src 'self' https://esm.sh https://cdn.jsdelivr.net/pyodide/",
   "img-src 'self' data: blob: https:",
