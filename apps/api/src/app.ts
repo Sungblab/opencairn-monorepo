@@ -19,6 +19,7 @@ import { integrationsRouter } from "./routes/integrations";
 import { importRouter } from "./routes/import";
 import { researchRouter } from "./routes/research";
 import { threadRoutes } from "./routes/threads";
+import { messageFeedbackRoutes } from "./routes/message-feedback";
 import { userRoutes } from "./routes/users";
 import { streamRoutes } from "./routes/stream";
 
@@ -54,6 +55,9 @@ export function createApp() {
   // own per-route requireAuth and surface a 401 before zValidator can run.
   app.route("/api/import", importRouter);
   app.route("/api/threads", threadRoutes);
+  // Mounted alongside /api/threads (specific path) so the wildcard /api routers
+  // below don't intercept this with their own requireAuth chains.
+  app.route("/api/message-feedback", messageFeedbackRoutes);
   app.route("/api", inviteRoutes);  // /api/workspaces/:id/invites and /api/invites/:token/*
   app.route("/api", projectRoutes);
   app.route("/api/folders", folderRoutes);
