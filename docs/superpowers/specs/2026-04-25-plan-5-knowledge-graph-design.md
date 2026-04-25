@@ -220,7 +220,7 @@ JOIN LATERAL jsonb_path_query(n.content, '$.** ? (@.type == "wiki-link")') AS li
 WHERE n.deleted_at IS NULL
   AND n.content IS NOT NULL
   AND link ? 'targetId'
-  AND (link->>'targetId') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+  AND (link->>'targetId') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
   AND EXISTS (
     SELECT 1 FROM "notes" t
     WHERE t.id = (link->>'targetId')::uuid
@@ -260,9 +260,12 @@ DROP TABLE "wiki_links";
 
 ```ts
 import type { PgTransaction } from "drizzle-orm/pg-core";
-import { wikiLinks, notes, eq, and, sql } from "@opencairn/db";
+import { wikiLinks, notes, eq, and, inArray, isNull } from "@opencairn/db";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+// `i` flag: external systems (some Better Auth flows, ingest sources) can
+// emit upper- or mixed-case UUIDs. Plate is consistent today but we don't
+// own the producers transitively — be permissive on read.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Walk a Plate value (deeply nested array of nodes with `children`) and
@@ -311,15 +314,7 @@ export async function syncWikiLinks(
   const live = await tx
     .select({ id: notes.id })
     .from(notes)
-    .where(
-      and(
-        sql`${notes.id} = ANY (ARRAY[${sql.join(
-          targetIds.map((id) => sql`${id}::uuid`),
-          sql`, `
-        )}])`,
-        sql`${notes.deletedAt} IS NULL`
-      )
-    );
+    .where(and(inArray(notes.id, targetIds), isNull(notes.deletedAt)));
   const liveSet = new Set(live.map((r) => r.id));
   const rows = targetIds
     .filter((t) => liveSet.has(t))
@@ -330,17 +325,27 @@ export async function syncWikiLinks(
     }));
   if (rows.length === 0) return;
 
-  await tx.insert(wikiLinks).values(rows);
-  // unique constraint on (source, target) is satisfied because we DELETEd
-  // first; if a future race adds dedup needs, switch to onConflictDoNothing.
+  // .onConflictDoNothing() guards against the rare case where two Hocuspocus
+  // store transactions for the same note interleave — the DELETE→SELECT→INSERT
+  // sequence is atomic *per* tx, but PostgreSQL's READ COMMITTED default lets
+  // a peer tx commit between the DELETE and INSERT and reach the unique
+  // constraint first. Cheaper than escalating isolation; the constraint
+  // itself still enforces correctness.
+  await tx.insert(wikiLinks).values(rows).onConflictDoNothing();
 }
 ```
 
 ### 4.3 `persistence.ts` 패치
 
-`apps/hocuspocus/src/persistence.ts` 의 store 트랜잭션 (line 198~226):
+`apps/hocuspocus/src/persistence.ts` 의 store 트랜잭션 (line 198~226). store 함수 자체는 fetch 와 분리된 핸들러라 `workspaceId` 를 캐시해 두지 않는다 — 트랜잭션 안에서 `resolveWorkspaceForNote` 로 한 번 SELECT 한다 (`projects.workspaceId` 는 노트 이동으로 변경 불가, 안전):
 
 ```diff
++import {
++  extractWikiLinkTargets,
++  resolveWorkspaceForNote,
++  syncWikiLinks,
++} from "./wiki-link-sync.js";
+...
    await db.transaction(async (tx) => {
      await tx
        .insert(yjsDocuments)
@@ -355,12 +360,16 @@ export async function syncWikiLinks(
        })
        .where(eq(notes.id, noteId));
 +    // Plan 5 Phase 1: rebuild wiki_links index from the just-saved Plate value.
-+    const targets = extractWikiLinkTargets(plateValue);
-+    await syncWikiLinks(tx, noteId, targets, workspaceId);
++    // Resolve workspaceId from the source note inside the same tx — if the
++    // note was hard-deleted between fetch and store, resolve returns null
++    // and we skip the sync (the UPDATE notes above is also a no-op then).
++    const workspaceId = await resolveWorkspaceForNote(tx, noteId);
++    if (workspaceId) {
++      const targets = extractWikiLinkTargets(plateValue);
++      await syncWikiLinks(tx, noteId, targets, workspaceId);
++    }
    });
 ```
-
-`workspaceId` 는 persistence 가 fetch 단계에서 이미 알고 있다 (`notes.projectId → projects.workspaceId`). 만약 캐시되어 있지 않다면 store 진입 시 한 번 SELECT.
 
 **테스트 hooks:**
 - `extractWikiLinkTargets` 는 pure function — 별도 unit test (deep nesting / 잘못된 type / 자기참조 / 중복 / 비-UUID)
