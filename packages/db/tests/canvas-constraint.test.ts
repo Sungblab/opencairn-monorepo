@@ -103,4 +103,28 @@ describe("notes_canvas_language_check constraint", () => {
     expect(row.canvasLanguage).toBeNull();
     await db.delete(notes).where(eq(notes.id, row.id));
   });
+
+  // Strict iff direction: a non-canvas note must have canvas_language NULL.
+  // Without this branch, sourceType='manual' AND canvasLanguage='python'
+  // would slip past the API guard (PATCH /:id/canvas already 409s) but
+  // hit the DB unchecked. The CHECK constraint is the defense-in-depth.
+  it("rejects non-canvas note with non-null canvasLanguage", async () => {
+    let thrown: unknown;
+    try {
+      await db.insert(notes).values({
+        title: "Stray Language",
+        projectId,
+        workspaceId,
+        sourceType: "manual",
+        canvasLanguage: "python",
+      });
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeDefined();
+    const cause = (thrown as { cause?: { code?: string; constraint_name?: string } })
+      ?.cause;
+    expect(cause?.constraint_name).toBe("notes_canvas_language_check");
+    expect(cause?.code).toBe("23514");
+  });
 });

@@ -56,15 +56,17 @@ export const notes = pgTable(
     index("notes_folder_id_idx").on(t.folderId),
     index("notes_type_idx").on(t.type),
     index("notes_deleted_at_idx").on(t.deletedAt),
-    // Predicate mirrors `0021_canvas_language_column.sql`. The `::text` cast on
+    // Predicate mirrors `0022_canvas_language_column.sql`. The `::text` cast on
     // `source_type` is required because the migration runs in a transaction
     // that adds the 'canvas' enum value, and Postgres rejects direct enum
-    // literal use in the same transaction (55P04). Both directions of the iff
-    // are spelled out so the constraint fires on either column changing.
+    // literal use in the same transaction (55P04). Strict iff: a canvas note
+    // MUST have canvas_language NOT NULL, and a non-canvas note MUST have
+    // canvas_language NULL. Without the second branch's NULL clamp, a row
+    // with sourceType='manual' AND canvas_language='python' would slip past.
     check(
       "notes_canvas_language_check",
       sql`(${t.sourceType}::text = 'canvas' AND ${t.canvasLanguage} IS NOT NULL)
-          OR (${t.sourceType} IS NULL OR ${t.sourceType}::text <> 'canvas')`,
+          OR ((${t.sourceType} IS NULL OR ${t.sourceType}::text <> 'canvas') AND ${t.canvasLanguage} IS NULL)`,
     ),
   ]
 );
