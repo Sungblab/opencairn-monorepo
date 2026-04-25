@@ -13,7 +13,7 @@ const createBody = z.object({
   title: z.string().max(200).optional(),
 });
 const patchBody = z.object({
-  title: z.string().max(200).optional(),
+  title: z.string().trim().min(1).max(200).optional(),
   archived: z.boolean().optional(),
 });
 
@@ -26,8 +26,9 @@ export const threadRoutes = new Hono<AppEnv>()
     if (!(await canRead(userId, { type: "workspace", id: workspace_id }))) {
       return c.json({ error: "forbidden" }, 403);
     }
-    // Archived rows are excluded by default; an admin restore endpoint is a
-    // future API and would scope the unarchive separately.
+    // Archived rows are hidden from the agent-panel sidebar. Soft delete keeps
+    // the message history intact for billing/audit reads against the rows
+    // directly.
     const rows = await db
       .select({
         id: chatThreads.id,
@@ -74,8 +75,13 @@ export const threadRoutes = new Hono<AppEnv>()
   .patch("/:id", zValidator("json", patchBody), async (c) => {
     const userId = c.get("userId");
     const id = c.req.param("id");
-    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+    if (!isUuid(id)) return c.json({ error: "bad_request" }, 400);
     const { title, archived } = c.req.valid("json");
+    // No-op when the body carries no recognized fields — avoids reordering the
+    // sidebar by bumping updatedAt on an empty PATCH.
+    if (title === undefined && archived === undefined) {
+      return c.json({ ok: true });
+    }
     const [row] = await db
       .select({ userId: chatThreads.userId })
       .from(chatThreads)
@@ -85,9 +91,9 @@ export const threadRoutes = new Hono<AppEnv>()
     await db
       .update(chatThreads)
       .set({
-        ...(title !== undefined ? { title } : {}),
-        ...(archived ? { archivedAt: new Date() } : {}),
-        updatedAt: new Date(),
+        ...(title !== undefined ? { title, updatedAt: new Date() } : {}),
+        ...(archived === true ? { archivedAt: new Date() } : {}),
+        ...(archived === false ? { archivedAt: null } : {}),
       })
       .where(eq(chatThreads.id, id));
     return c.json({ ok: true });
@@ -96,7 +102,7 @@ export const threadRoutes = new Hono<AppEnv>()
   .delete("/:id", async (c) => {
     const userId = c.get("userId");
     const id = c.req.param("id");
-    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+    if (!isUuid(id)) return c.json({ error: "bad_request" }, 400);
     const [row] = await db
       .select({ userId: chatThreads.userId })
       .from(chatThreads)

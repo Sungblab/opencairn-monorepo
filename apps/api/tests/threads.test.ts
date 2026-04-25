@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createApp } from "../src/app.js";
-import { db, chatThreads, eq } from "@opencairn/db";
+import { db, chatThreads, user, eq } from "@opencairn/db";
 import {
   seedWorkspace,
   seedMultiRoleWorkspace,
@@ -164,8 +164,7 @@ describe("Threads REST — non-member rejection", () => {
   afterEach(async () => {
     await ctx.cleanup();
     // outsider has no workspace membership and no FK dependents — direct delete.
-    const { db: rawDb, user, eq: rawEq } = await import("@opencairn/db");
-    await rawDb.delete(user).where(rawEq(user.id, outsiderId));
+    await db.delete(user).where(eq(user.id, outsiderId));
   });
 
   it("non-member of workspace gets 403 on POST", async () => {
@@ -298,5 +297,121 @@ describe("Threads REST — mutations", () => {
       },
     );
     expect(res.status).toBe(404);
+  });
+
+  it("PATCH archived=false restores a previously archived thread", async () => {
+    const create = await authedFetch("/api/threads", {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ workspace_id: ctx.workspaceId, title: "restore-me" }),
+    });
+    const { id } = (await create.json()) as { id: string };
+
+    // Archive first.
+    const archive = await authedFetch(`/api/threads/${id}`, {
+      method: "PATCH",
+      userId: ctx.userId,
+      body: JSON.stringify({ archived: true }),
+    });
+    expect(archive.status).toBe(200);
+
+    // Confirm hidden from list.
+    const hiddenList = await authedFetch(
+      `/api/threads?workspace_id=${ctx.workspaceId}`,
+      { method: "GET", userId: ctx.userId },
+    );
+    expect(((await hiddenList.json()) as { threads: ThreadListItem[] }).threads).toHaveLength(0);
+
+    // Restore.
+    const restore = await authedFetch(`/api/threads/${id}`, {
+      method: "PATCH",
+      userId: ctx.userId,
+      body: JSON.stringify({ archived: false }),
+    });
+    expect(restore.status).toBe(200);
+
+    // Reappears in list.
+    const list = await authedFetch(
+      `/api/threads?workspace_id=${ctx.workspaceId}`,
+      { method: "GET", userId: ctx.userId },
+    );
+    const body = (await list.json()) as { threads: ThreadListItem[] };
+    expect(body.threads).toHaveLength(1);
+    expect(body.threads[0].id).toBe(id);
+
+    // archivedAt is null again at the DB level.
+    const [row] = await db.select().from(chatThreads).where(eq(chatThreads.id, id));
+    expect(row!.archivedAt).toBeNull();
+  });
+
+  it("empty PATCH body does NOT bump updated_at", async () => {
+    const create = await authedFetch("/api/threads", {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ workspace_id: ctx.workspaceId, title: "stable" }),
+    });
+    const { id } = (await create.json()) as { id: string };
+
+    const [before] = await db
+      .select({ updatedAt: chatThreads.updatedAt })
+      .from(chatThreads)
+      .where(eq(chatThreads.id, id));
+
+    const patch = await authedFetch(`/api/threads/${id}`, {
+      method: "PATCH",
+      userId: ctx.userId,
+      body: JSON.stringify({}),
+    });
+    expect(patch.status).toBe(200);
+
+    const [after] = await db
+      .select({ updatedAt: chatThreads.updatedAt })
+      .from(chatThreads)
+      .where(eq(chatThreads.id, id));
+    expect(after!.updatedAt.toISOString()).toBe(before!.updatedAt.toISOString());
+  });
+
+  it("PATCH archived=true does NOT bump updated_at (metadata-only)", async () => {
+    const create = await authedFetch("/api/threads", {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ workspace_id: ctx.workspaceId, title: "meta" }),
+    });
+    const { id } = (await create.json()) as { id: string };
+
+    const [before] = await db
+      .select({ updatedAt: chatThreads.updatedAt })
+      .from(chatThreads)
+      .where(eq(chatThreads.id, id));
+
+    const patch = await authedFetch(`/api/threads/${id}`, {
+      method: "PATCH",
+      userId: ctx.userId,
+      body: JSON.stringify({ archived: true }),
+    });
+    expect(patch.status).toBe(200);
+
+    const [after] = await db
+      .select({ updatedAt: chatThreads.updatedAt, archivedAt: chatThreads.archivedAt })
+      .from(chatThreads)
+      .where(eq(chatThreads.id, id));
+    expect(after!.updatedAt.toISOString()).toBe(before!.updatedAt.toISOString());
+    expect(after!.archivedAt).not.toBeNull();
+  });
+
+  it("PATCH with whitespace-only title returns 400", async () => {
+    const create = await authedFetch("/api/threads", {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ workspace_id: ctx.workspaceId, title: "ok" }),
+    });
+    const { id } = (await create.json()) as { id: string };
+
+    const res = await authedFetch(`/api/threads/${id}`, {
+      method: "PATCH",
+      userId: ctx.userId,
+      body: JSON.stringify({ title: "   " }),
+    });
+    expect(res.status).toBe(400);
   });
 });
