@@ -33,9 +33,14 @@ export function Conversation({ threadId, onSaveSuggestion }: Props) {
   // Ref-based scroll keeps the DOM cheap on long threads — no per-message
   // ref. We re-run on `messages.length` (new turn arrived) and `live?.body`
   // (delta during stream) so the latest content stays in view.
+  //
+  // Behavior: `auto` while a stream is live (re-firing `smooth` on every
+  // delta retriggers the animation and visibly lags behind the text), and
+  // `smooth` when the turn lands so the boundary feels intentional.
   const endRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+    const behavior: ScrollBehavior = live ? "auto" : "smooth";
+    endRef.current?.scrollIntoView({ block: "end", behavior });
   }, [messages.length, live?.body]);
 
   async function onFeedback(
