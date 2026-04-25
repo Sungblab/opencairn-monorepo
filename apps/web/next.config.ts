@@ -22,8 +22,33 @@ try {
 
 const withNextIntl = createNextIntlPlugin("./src/i18n.ts");
 
+// CSP allowlist supporting Plan 7 canvas runtime:
+// - 'unsafe-eval' is required by Pyodide's WASM compilation path (ADR-006).
+// - script-src + connect-src allow Pyodide + esm.sh CDN loads.
+// - frame-src 'self' blob: + worker-src 'self' blob: cover the iframe Blob URL
+//   pattern used by CanvasFrame and any future Pyodide Web Worker.
+// - 'unsafe-inline' on style-src is preserved for Tailwind's runtime
+//   classes; tightening to nonces is a Phase 2+ exercise.
+const CSP_HEADER = [
+  "default-src 'self'",
+  "frame-src 'self' blob:",
+  "script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net/pyodide/ https://esm.sh",
+  "worker-src 'self' blob:",
+  "connect-src 'self' https://esm.sh https://cdn.jsdelivr.net/pyodide/",
+  "img-src 'self' data: blob: https:",
+  "style-src 'self' 'unsafe-inline'",
+].join("; ");
+
 const nextConfig: NextConfig = {
   output: "standalone",
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [{ key: "Content-Security-Policy", value: CSP_HEADER }],
+      },
+    ];
+  },
 };
 
 export default withNextIntl(nextConfig);
