@@ -1,0 +1,45 @@
+import type { CytoscapeElement, FilterState, GraphSnapshot } from "./graph-types";
+
+/**
+ * Project the GraphResponse + active filters into the Cytoscape elements
+ * shape. Edges are dropped if either endpoint is filtered out — Cytoscape
+ * tolerates dangling edges, but the visual is misleading.
+ */
+export function toCytoscapeElements(
+  snap: GraphSnapshot,
+  filters: FilterState,
+): CytoscapeElement[] {
+  const search = filters.search.trim().toLowerCase();
+  const visibleNodeIds = new Set<string>();
+  const nodeElements: CytoscapeElement[] = [];
+  for (const n of snap.nodes) {
+    if (search && !n.name.toLowerCase().includes(search)) continue;
+    visibleNodeIds.add(n.id);
+    nodeElements.push({
+      data: {
+        id: n.id,
+        label: n.name,
+        type: "node",
+        degree: n.degree,
+        firstNoteId: n.firstNoteId,
+      },
+    });
+  }
+  const edgeElements: CytoscapeElement[] = [];
+  for (const e of snap.edges) {
+    if (!visibleNodeIds.has(e.sourceId)) continue;
+    if (!visibleNodeIds.has(e.targetId)) continue;
+    if (filters.relation && e.relationType !== filters.relation) continue;
+    edgeElements.push({
+      data: {
+        id: e.id,
+        source: e.sourceId,
+        target: e.targetId,
+        type: "edge",
+        relationType: e.relationType,
+        weight: e.weight,
+      },
+    });
+  }
+  return [...nodeElements, ...edgeElements];
+}

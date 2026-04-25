@@ -1,0 +1,27 @@
+{
+  "viewer": {
+    "title": "Graph",
+    "missing": "No project selected to render a graph."
+  },
+  "filters": {
+    "searchPlaceholder": "Search concepts…",
+    "relationLabel": "Relation",
+    "relationAll": "All",
+    "truncatedBanner": "Showing {shown} of {total} concepts. Narrow with search or relation filters.",
+    "showAllOver500": "Over 500 nodes — narrow with filters."
+  },
+  "nodeMenu": {
+    "openFirstNote": "Open note",
+    "openFirstNoteDisabled": "This concept has no source notes yet",
+    "expand": "Expand neighbors"
+  },
+  "empty": {
+    "title": "The graph is still empty",
+    "body": "Concepts will appear here automatically as notes are ingested."
+  },
+  "errors": {
+    "loadFailed": "Failed to load the graph.",
+    "tooManyHops": "Neighbor expansion supports at most 3 hops.",
+    "forbidden": "You don't have access to this project."
+  }
+}

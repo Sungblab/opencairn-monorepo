@@ -1,4 +1,4 @@
-export { db, createDb, type DB } from "./client";
+export { db, createDb, type DB, type Tx } from "./client";
 
 export * from "./schema/enums";
 export * from "./schema/users";
@@ -29,5 +29,6 @@ export * from "./schema/user-integrations";
 export * from "./schema/import-jobs";
 export * from "./schema/ingest-jobs";
 export * from "./schema/research";
+export * from "./schema/wiki-links";
 
 export { eq, and, or, desc, asc, sql, inArray, isNull, isNotNull, ilike, lt, gt, lte, gte, count, max } from "drizzle-orm";

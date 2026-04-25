@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { db, notes, projects, eq, and, desc, isNull, sql } from "@opencairn/db";
+import { db, notes, projects, wikiLinks, eq, and, desc, isNull, sql } from "@opencairn/db";
 import { createNoteSchema, updateNoteSchema, patchCanvasSchema } from "@opencairn/shared";
 
 // PATCH body ignores `content` — Yjs (via Hocuspocus) is canonical (Plan 2B).
@@ -88,6 +88,63 @@ export const noteRoutes = new Hono<AppEnv>()
     const role = await resolveRole(user.id, { type: "note", id });
     if (role === "none") return c.json({ error: "Forbidden" }, 403);
     return c.json({ role });
+  })
+
+  .get("/:id/backlinks", async (c) => {
+    const user = c.get("user");
+    const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "bad-request" }, 400);
+    if (!(await canRead(user.id, { type: "note", id }))) {
+      return c.json({ error: "forbidden" }, 403);
+    }
+
+    // JOIN wiki_links → notes (source) → projects (for project name).
+    // Exclude soft-deleted source notes.
+    const rows = await db
+      .select({
+        id: notes.id,
+        title: notes.title,
+        projectId: notes.projectId,
+        projectName: projects.name,
+        updatedAt: notes.updatedAt,
+        inheritParent: notes.inheritParent,
+      })
+      .from(wikiLinks)
+      .innerJoin(notes, eq(notes.id, wikiLinks.sourceNoteId))
+      .innerJoin(projects, eq(projects.id, notes.projectId))
+      .where(
+        and(
+          eq(wikiLinks.targetNoteId, id),
+          isNull(notes.deletedAt),
+        ),
+      )
+      .orderBy(desc(notes.updatedAt));
+
+    // Per-row canRead for private (inheritParent=false) source notes.
+    // Mirrors the over-fetch + filter pattern used by mentions.ts.
+    const visible: Array<{
+      id: string;
+      title: string;
+      projectId: string;
+      projectName: string;
+      updatedAt: string;
+    }> = [];
+    for (const row of rows) {
+      if (row.inheritParent === false) {
+        if (!(await canRead(user.id, { type: "note", id: row.id }))) continue;
+      } else {
+        if (!(await canRead(user.id, { type: "project", id: row.projectId }))) continue;
+      }
+      visible.push({
+        id: row.id,
+        title: row.title,
+        projectId: row.projectId,
+        projectName: row.projectName,
+        updatedAt: row.updatedAt.toISOString(),
+      });
+    }
+
+    return c.json({ data: visible, total: visible.length });
   })
 
   .get("/:id", async (c) => {

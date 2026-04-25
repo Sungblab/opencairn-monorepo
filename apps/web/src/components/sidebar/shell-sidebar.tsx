@@ -7,6 +7,7 @@ import { ProjectTree } from "./project-tree";
 import { SidebarFooter } from "./sidebar-footer";
 import { SidebarEmptyState } from "./sidebar-empty-state";
 import { useCurrentProjectContext } from "./use-current-project";
+import { ProjectGraphLink } from "./project-graph-link";
 
 export interface ShellSidebarProps {
   deepResearchEnabled: boolean;
@@ -34,6 +35,7 @@ export function ShellSidebar({ deepResearchEnabled }: ShellSidebarProps) {
       ) : null}
       <ProjectHero />
       <ScopedSearch />
+      <ProjectGraphLink />
       {projectId ? (
         <ProjectTree projectId={projectId} />
       ) : (

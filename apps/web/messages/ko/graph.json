@@ -1,0 +1,27 @@
+{
+  "viewer": {
+    "title": "그래프",
+    "missing": "그래프를 표시할 프로젝트가 선택되지 않았습니다."
+  },
+  "filters": {
+    "searchPlaceholder": "개념 이름으로 검색…",
+    "relationLabel": "관계",
+    "relationAll": "전체",
+    "truncatedBanner": "{shown} / {total} 개념 표시 중. 검색·관계 필터로 좁히세요.",
+    "showAllOver500": "노드 500개 이상 — 필터로 좁혀서 보세요."
+  },
+  "nodeMenu": {
+    "openFirstNote": "노트 열기",
+    "openFirstNoteDisabled": "이 개념에 연결된 노트가 없습니다",
+    "expand": "주변 펼치기"
+  },
+  "empty": {
+    "title": "아직 그래프가 비어 있습니다",
+    "body": "노트가 인제스트되면 자동으로 개념이 추출되어 여기에 나타납니다."
+  },
+  "errors": {
+    "loadFailed": "그래프를 불러오지 못했습니다.",
+    "tooManyHops": "이웃 펼치기 단계는 최대 3까지 가능합니다.",
+    "forbidden": "이 프로젝트에 접근 권한이 없습니다."
+  }
+}

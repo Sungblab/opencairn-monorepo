@@ -162,6 +162,13 @@
       "when": 1777121536307,
       "tag": "0022_canvas_language_column",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1777129390745,
+      "tag": "0023_wiki_links_table",
+      "breakpoints": true
     }
   ]
 }

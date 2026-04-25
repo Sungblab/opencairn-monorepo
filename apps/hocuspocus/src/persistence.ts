@@ -23,6 +23,11 @@ import {
   type DB,
 } from "@opencairn/db";
 import { plateToYDoc, yDocToPlate } from "./plate-bridge.js";
+import {
+  extractWikiLinkTargets,
+  resolveWorkspaceForNote,
+  syncWikiLinks,
+} from "./wiki-link-sync.js";
 import { logger } from "./logger.js";
 
 export interface PersistenceDeps {
@@ -223,6 +228,14 @@ export function makePersistence({ db }: PersistenceDeps): Persistence {
           updatedAt: new Date(),
         })
         .where(eq(notes.id, noteId));
+      // Plan 5 Phase 1: rebuild wiki_links index from the just-saved Plate
+      // value. workspaceId resolved inside the same tx so a project move
+      // mid-flight cannot mis-scope the index.
+      const workspaceId = await resolveWorkspaceForNote(tx, noteId);
+      if (workspaceId) {
+        const targets = extractWikiLinkTargets(plateValue);
+        await syncWikiLinks(tx, noteId, targets, workspaceId);
+      }
     });
   };
 

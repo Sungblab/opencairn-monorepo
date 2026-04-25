@@ -18,6 +18,9 @@ vi.mock("./viewers/data-viewer", () => ({
 vi.mock("./viewers/canvas-viewer", () => ({
   CanvasViewer: () => <div data-testid="canvas-viewer" />,
 }));
+vi.mock("./viewers/project-graph-viewer", () => ({
+  ProjectGraphViewer: () => <div data-testid="project-graph-viewer" />,
+}));
 
 const mk = (mode: Tab["mode"]): Tab => ({
   id: "t", kind: "note", targetId: "n1", mode,
@@ -70,5 +73,10 @@ describe("TabModeRouter", () => {
     expect(() => wrap(<TabModeRouter tab={mk("plate")} />)).toThrow(
       /plate.*children/i,
     );
+  });
+
+  it("dispatches graph → ProjectGraphViewer", () => {
+    wrap(<TabModeRouter tab={mk("graph")} />);
+    expect(screen.getByTestId("project-graph-viewer")).toBeInTheDocument();
   });
 });

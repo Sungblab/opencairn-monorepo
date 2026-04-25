@@ -20,6 +20,7 @@
   },
   "tabTitles": {
     "dashboard": "대시보드",
+    "graph": "그래프",
     "note": "노트",
     "project": "프로젝트",
     "research_hub": "Deep Research",

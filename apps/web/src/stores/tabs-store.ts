@@ -23,6 +23,7 @@ export type TabMode =
   | "whiteboard"
   | "source"
   | "canvas"
+  | "graph"
   | "mindmap"
   | "flashcard";
 

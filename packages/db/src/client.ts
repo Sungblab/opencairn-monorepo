@@ -21,6 +21,7 @@ import * as projectSemaphores from "./schema/project-semaphores";
 import * as embeddingBatches from "./schema/embedding-batches";
 import * as comments from "./schema/comments";
 import * as yjsDocuments from "./schema/yjs-documents";
+import * as wikiLinks from "./schema/wiki-links";
 
 const schema = {
   ...users,
@@ -44,6 +45,7 @@ const schema = {
   ...embeddingBatches,
   ...comments,
   ...yjsDocuments,
+  ...wikiLinks,
 };
 
 // 명시적 factory — 소비자가 자체 pool을 소유하고 싶을 때 사용.
@@ -78,3 +80,6 @@ if (process.env.NODE_ENV !== "production") {
 
 export const db = drizzle(sql, { schema });
 export type DB = typeof db;
+// Drizzle transaction handle — the type passed to the callback of db.transaction().
+// Use this instead of DB when you accept either db or tx so helpers work in both contexts.
+export type Tx = Parameters<Parameters<DB["transaction"]>[0]>[0];
