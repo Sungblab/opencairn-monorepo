@@ -190,6 +190,12 @@ importers:
       cmdk:
         specifier: ^1.1.1
         version: 1.1.1(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      cytoscape:
+        specifier: ^3.30
+        version: 3.33.2
+      cytoscape-fcose:
+        specifier: ^2.2
+        version: 2.2.0(cytoscape@3.33.2)
       eventsource-parser:
         specifier: ^3.0.8
         version: 3.0.8
@@ -220,6 +226,9 @@ importers:
       react-arborist:
         specifier: ^3.5.0
         version: 3.5.0(@types/node@25.6.0)(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      react-cytoscapejs:
+        specifier: ^2.0
+        version: 2.0.0(cytoscape@3.33.2)(react@19.2.5)
       react-dom:
         specifier: ^19.0.0
         version: 19.2.5(react@19.2.5)
@@ -266,6 +275,12 @@ importers:
       '@testing-library/react':
         specifier: ^16.3.2
         version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      '@types/cytoscape':
+        specifier: ^3.31.0
+        version: 3.31.0
+      '@types/cytoscape-fcose':
+        specifier: ^2.2.5
+        version: 2.2.5
       '@types/katex':
         specifier: ^0.16.8
         version: 0.16.8
@@ -275,6 +290,9 @@ importers:
       '@types/react':
         specifier: ^19.0.0
         version: 19.2.14
+      '@types/react-cytoscapejs':
+        specifier: ^1.2.6
+        version: 1.2.6
       '@types/react-dom':
         specifier: ^19.0.0
         version: 19.2.3(@types/react@19.2.14)
@@ -2803,6 +2821,13 @@ packages:
   '@types/cors@2.8.19':
     resolution: {integrity: sha512-mFNylyeyqN93lfe/9CSxOGREz8cpzAhH+E93xJ4xWQf62V8sQ/24reV2nyzUWM6H6Xji+GGHpkbLe7pVoUEskg==}
 
+  '@types/cytoscape-fcose@2.2.5':
+    resolution: {integrity: sha512-FaM6MM5zC4Yh72E60vkpbM4tstJS90wj3u1Vq/SMiK/MShhLaMd17QkmR39S14aUWdfNSlUEfx/g/XkDdFmXDA==}
+
+  '@types/cytoscape@3.31.0':
+    resolution: {integrity: sha512-EXHOHxqQjGxLDEh5cP4te6J0bi7LbCzmZkzsR6f703igUac8UGMdEohMyU3GHAayCTZrLQOMnaE/lqB2Ekh8Ww==}
+    deprecated: This is a stub types definition. cytoscape provides its own type definitions, so you do not need this installed.
+
   '@types/debug@4.1.13':
     resolution: {integrity: sha512-KSVgmQmzMwPlmtljOomayoR89W4FynCAi3E8PPs7vmDVPe84hT+vGPKkJfThkmXs0x0jAaa9U8uW8bbfyS2fWw==}
 
@@ -2844,6 +2869,9 @@ packages:
 
   '@types/node@25.6.0':
     resolution: {integrity: sha512-+qIYRKdNYJwY3vRCZMdJbPLJAtGjQBudzZzdzwQYkEPQd+PJGixUL5QfvCLDaULoLv+RhT3LDkwEfKaAkgSmNQ==}
+
+  '@types/react-cytoscapejs@1.2.6':
+    resolution: {integrity: sha512-Nivfky/kuzT4BtIXpv5hV79Kfn+DUiBiftQeCvFCLUhqxz2ADgUxMYdHtxAUpfHiYZYuU9CWM8tGBTaybTH5+A==}
 
   '@types/react-dom@19.2.3':
     resolution: {integrity: sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ==}
@@ -3424,6 +3452,9 @@ packages:
     resolution: {integrity: sha512-tJtZBBHA6vjIAaF6EnIaq6laBBP9aq/Y3ouVJjEfoHbRBcHBAHYcMh/w8LDrk2PvIMMq8gmopa5D4V8RmbrxGw==}
     engines: {node: '>= 0.10'}
 
+  cose-base@2.2.0:
+    resolution: {integrity: sha512-AzlgcsCbUMymkADOJtQm3wO9S3ltPfYOFD5033keQn9NJzIbtnZj+UdBJe7DYml/8TdbtHJW3j58SOnKhWY/5g==}
+
   cosmiconfig@9.0.1:
     resolution: {integrity: sha512-hr4ihw+DBqcvrsEDioRO31Z17x71pUYoNe/4h6Z0wB72p7MU7/9gH8Q3s12NFhHPfYBBOV3qyfUxmr/Yn3shnQ==}
     engines: {node: '>=14'}
@@ -3451,6 +3482,15 @@ packages:
 
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
+
+  cytoscape-fcose@2.2.0:
+    resolution: {integrity: sha512-ki1/VuRIHFCzxWNrsshHYPs6L7TvLu3DL+TyIGEsRcvVERmxokbf5Gdk7mFxZnTdiGtnA4cfSmjZJMviqSuZrQ==}
+    peerDependencies:
+      cytoscape: ^3.2.0
+
+  cytoscape@3.33.2:
+    resolution: {integrity: sha512-sj4HXd3DokGhzZAdjDejGvTPLqlt84vNFN8m7bGsOzDY5DyVcxIb2ejIXat2Iy7HxWhdT/N1oKyheJ5YdpsGuw==}
+    engines: {node: '>=0.10'}
 
   data-uri-to-buffer@4.0.1:
     resolution: {integrity: sha512-0R9ikRb668HB7QDxT1vkpuUBtqc53YyAwMwGeUFKRojY/NWKvdZ+9UYtRfGmhqNbRkTSVpMbmyhXipFFv2cb/A==}
@@ -4439,6 +4479,9 @@ packages:
     resolution: {integrity: sha512-3i5pmOiZvMDj00qhrIVbH0AnioVTx22DMP7Vn5At4yJO46iy+FM8Y/g61ltenLVSo3fiO8h8Q3QOFgf/gQ72ww==}
     engines: {node: '>=20.0.0'}
 
+  layout-base@2.0.1:
+    resolution: {integrity: sha512-dp3s92+uNI1hWIpPGH3jK2kxE2lMjdXdr+DH8ynZHpd6PUlH6x6cbuXnoMmiNumznqaNO31xu9e79F0uuZ0JFg==}
+
   leac@0.6.0:
     resolution: {integrity: sha512-y+SqErxb8h7nE/fiEX07jsbuhrpO9lL8eca7/Y1nuWV2moNlXhyd59iDGcRf6moVyDMbmTNzL40SUyrFU/yDpg==}
 
@@ -4562,6 +4605,10 @@ packages:
 
   longest-streak@3.1.0:
     resolution: {integrity: sha512-9Ri+o0JYgehTaVBBDoMqIl8GXtbWg711O3srftcHhZ0dqnETqLaoIK0x17fUw9rFSlK/0NlsKe0Ahhyl5pXE2g==}
+
+  loose-envify@1.4.0:
+    resolution: {integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==}
+    hasBin: true
 
   lru-cache@11.3.5:
     resolution: {integrity: sha512-NxVFwLAnrd9i7KUBxC4DrUhmgjzOs+1Qm50D3oF1/oL+r1NpZ4gA7xvG0/zJ8evR7zIKn4vLf7qTNduWFtCrRw==}
@@ -5197,6 +5244,9 @@ packages:
     resolution: {integrity: sha512-NxNv/kLguCA7p3jE8oL2aEBsrJWgAakBpgmgK6lpPWV+WuOmY6r2/zbAVnP+T8bQlA0nzHXSJSJW0Hq7ylaD2Q==}
     engines: {node: '>= 6'}
 
+  prop-types@15.8.1:
+    resolution: {integrity: sha512-oj87CgZICdulUohogVAR7AjlC0327U4el4L6eAvOqCeudMDVU0NThNaV+b9Df4dXgSP1gXMTnPdhfe/2qDH5cg==}
+
   proto3-json-serializer@2.0.2:
     resolution: {integrity: sha512-SAzp/O4Yh02jGdRc+uIrGoe87dkN/XtwxfZ4ZyafJHymd79ozp5VG5nyZ7ygqPM5+cpLDjjGnYFUkngonyDPOQ==}
     engines: {node: '>=14.0.0'}
@@ -5250,6 +5300,12 @@ packages:
     peerDependencies:
       react: '>= 16.14'
       react-dom: '>= 16.14'
+
+  react-cytoscapejs@2.0.0:
+    resolution: {integrity: sha512-t3SSl1DQy7+JQjN+8QHi1anEJlM3i3aAeydHTsJwmjo/isyKK7Rs7oCvU6kZsB9NwZidzZQR21Vm2PcBLG/Tjg==}
+    peerDependencies:
+      cytoscape: ^3.2.19
+      react: '>=15.0.0'
 
   react-dnd-html5-backend@14.1.0:
     resolution: {integrity: sha512-6ONeqEC3XKVf4eVmMTe0oPds+c5B9Foyj8p/ZKLb7kL2qh9COYxiBHv3szd6gztqi/efkmriywLUVlPotqoJyw==}
@@ -8425,6 +8481,14 @@ snapshots:
     dependencies:
       '@types/node': 22.19.17
 
+  '@types/cytoscape-fcose@2.2.5':
+    dependencies:
+      cytoscape: 3.33.2
+
+  '@types/cytoscape@3.31.0':
+    dependencies:
+      cytoscape: 3.33.2
+
   '@types/debug@4.1.13':
     dependencies:
       '@types/ms': 2.1.0
@@ -8466,6 +8530,11 @@ snapshots:
   '@types/node@25.6.0':
     dependencies:
       undici-types: 7.19.2
+
+  '@types/react-cytoscapejs@1.2.6':
+    dependencies:
+      '@types/react': 19.2.14
+      cytoscape: 3.33.2
 
   '@types/react-dom@19.2.3(@types/react@19.2.14)':
     dependencies:
@@ -9131,6 +9200,10 @@ snapshots:
       object-assign: 4.1.1
       vary: 1.1.2
 
+  cose-base@2.2.0:
+    dependencies:
+      layout-base: 2.0.1
+
   cosmiconfig@9.0.1(typescript@5.9.3):
     dependencies:
       env-paths: 2.2.1
@@ -9156,6 +9229,13 @@ snapshots:
   cssesc@3.0.0: {}
 
   csstype@3.2.3: {}
+
+  cytoscape-fcose@2.2.0(cytoscape@3.33.2):
+    dependencies:
+      cose-base: 2.2.0
+      cytoscape: 3.33.2
+
+  cytoscape@3.33.2: {}
 
   data-uri-to-buffer@4.0.1: {}
 
@@ -10148,6 +10228,8 @@ snapshots:
 
   kysely@0.28.16: {}
 
+  layout-base@2.0.1: {}
+
   leac@0.6.0: {}
 
   levn@0.4.1:
@@ -10243,6 +10325,10 @@ snapshots:
   long@5.3.2: {}
 
   longest-streak@3.1.0: {}
+
+  loose-envify@1.4.0:
+    dependencies:
+      js-tokens: 4.0.0
 
   lru-cache@11.3.5: {}
 
@@ -11098,6 +11184,12 @@ snapshots:
       kleur: 3.0.3
       sisteransi: 1.0.5
 
+  prop-types@15.8.1:
+    dependencies:
+      loose-envify: 1.4.0
+      object-assign: 4.1.1
+      react-is: 16.13.1
+
   proto3-json-serializer@2.0.2:
     dependencies:
       protobufjs: 7.5.5
@@ -11174,6 +11266,12 @@ snapshots:
       - '@types/hoist-non-react-statics'
       - '@types/node'
       - '@types/react'
+
+  react-cytoscapejs@2.0.0(cytoscape@3.33.2)(react@19.2.5):
+    dependencies:
+      cytoscape: 3.33.2
+      prop-types: 15.8.1
+      react: 19.2.5
 
   react-dnd-html5-backend@14.1.0:
     dependencies:
