@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   pgTable,
   uuid,
@@ -6,6 +7,7 @@ import {
   boolean,
   jsonb,
   index,
+  check,
 } from "drizzle-orm/pg-core";
 import { projects } from "./projects";
 import { workspaces } from "./workspaces";
@@ -36,6 +38,7 @@ export const notes = pgTable(
     embedding: vector3072("embedding"),
     type: noteTypeEnum("type").notNull().default("note"),
     sourceType: sourceTypeEnum("source_type"),
+    // Plan 7 Canvas Phase 1. Non-null iff sourceType='canvas' (notes_canvas_language_check).
     canvasLanguage: canvasLanguageEnum("canvas_language"),
     sourceFileKey: text("source_file_key"),
     sourceUrl: text("source_url"),
@@ -53,6 +56,16 @@ export const notes = pgTable(
     index("notes_folder_id_idx").on(t.folderId),
     index("notes_type_idx").on(t.type),
     index("notes_deleted_at_idx").on(t.deletedAt),
+    // Predicate mirrors `0021_canvas_language_column.sql`. The `::text` cast on
+    // `source_type` is required because the migration runs in a transaction
+    // that adds the 'canvas' enum value, and Postgres rejects direct enum
+    // literal use in the same transaction (55P04). Both directions of the iff
+    // are spelled out so the constraint fires on either column changing.
+    check(
+      "notes_canvas_language_check",
+      sql`(${t.sourceType}::text = 'canvas' AND ${t.canvasLanguage} IS NOT NULL)
+          OR (${t.sourceType} IS NULL OR ${t.sourceType}::text <> 'canvas')`,
+    ),
   ]
 );
 

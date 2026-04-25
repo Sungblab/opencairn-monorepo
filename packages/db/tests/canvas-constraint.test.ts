@@ -19,26 +19,31 @@ describe("notes_canvas_language_check constraint", () => {
   let userId: string;
 
   beforeAll(async () => {
-    userId = `canvas-test-${Date.now()}`;
-    await db.insert(user).values({
-      id: userId,
-      name: "Canvas Test",
-      email: `canvas-test-${Date.now()}@example.com`,
-    });
-    const [ws] = await db
-      .insert(workspaces)
-      .values({
+    // All three setup inserts run in one transaction so a failure on the
+    // workspace or project insert does not leak the user row (no `afterAll`
+    // would run if `beforeAll` throws).
+    await db.transaction(async (tx) => {
+      userId = `canvas-test-${Date.now()}`;
+      await tx.insert(user).values({
+        id: userId,
         name: "Canvas Test",
-        slug: `canvas-test-${Date.now()}`,
-        ownerId: userId,
-      })
-      .returning();
-    workspaceId = ws.id;
-    const [p] = await db
-      .insert(projects)
-      .values({ name: "Test", workspaceId, createdBy: userId })
-      .returning();
-    projectId = p.id;
+        email: `canvas-test-${Date.now()}@example.com`,
+      });
+      const [ws] = await tx
+        .insert(workspaces)
+        .values({
+          name: "Canvas Test",
+          slug: `canvas-test-${Date.now()}`,
+          ownerId: userId,
+        })
+        .returning();
+      workspaceId = ws.id;
+      const [p] = await tx
+        .insert(projects)
+        .values({ name: "Test", workspaceId, createdBy: userId })
+        .returning();
+      projectId = p.id;
+    });
   });
 
   afterAll(async () => {

@@ -2595,7 +2595,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "notes_canvas_language_check": {
+          "name": "notes_canvas_language_check",
+          "value": "(\"notes\".\"source_type\"::text = 'canvas' AND \"notes\".\"canvas_language\" IS NOT NULL)\n          OR (\"notes\".\"source_type\" IS NULL OR \"notes\".\"source_type\"::text <> 'canvas')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.page_permissions": {
