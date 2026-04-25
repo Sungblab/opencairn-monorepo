@@ -100,8 +100,12 @@ export function PyodideRunner({ source, stdin = "", onResult }: Props) {
     return () => {
       cancelled = true;
     };
-    // Intentionally omit onResult and t — see latest-callback-ref pattern above.
-  }, [source, stdin]);
+    // Empty deps on purpose: callers (CanvasViewer, /canvas/demo) trigger
+    // re-execution via `key={runId}` remount, so source/stdin prop updates
+    // during a mount (typing into the editor, late note hydration) must not
+    // re-fire the run loop. `onResult` is read through the ref above so a
+    // fresh inline arrow doesn't force a re-run either.
+  }, []);
 
   return (
     <div className="rounded-xl border bg-background p-4 space-y-2">
