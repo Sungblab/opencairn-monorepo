@@ -170,6 +170,7 @@ export const graphRoutes = new Hono<AppEnv>()
         (traversalRaw as unknown as { rows: TraversalRow[] }).rows ??
         (traversalRaw as unknown as TraversalRow[])
       ).map((r) => r.concept_id);
+      if (conceptIds.length === 0) return c.json({ nodes: [], edges: [] });
 
       const idArr = sql.join(
         conceptIds.map((id) => sql`${id}::uuid`),
