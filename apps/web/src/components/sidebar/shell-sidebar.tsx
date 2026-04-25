@@ -8,12 +8,16 @@ import { SidebarFooter } from "./sidebar-footer";
 import { SidebarEmptyState } from "./sidebar-empty-state";
 import { useCurrentProjectContext } from "./use-current-project";
 
+export interface ShellSidebarProps {
+  deepResearchEnabled: boolean;
+}
+
 // App Shell Phase 2 assembled sidebar (distinct from the legacy
 // project-scoped `Sidebar` that still layouts the editor page). Stacks the
 // six Phase 2 subcomponents in spec order; the tree slot renders either
 // <ProjectTree> or the empty-state CTA depending on whether the URL has an
 // active projectId. The testid matches what Phase 1's e2e already watches.
-export function ShellSidebar() {
+export function ShellSidebar({ deepResearchEnabled }: ShellSidebarProps) {
   const { wsSlug, projectId } = useCurrentProjectContext();
 
   return (
@@ -22,7 +26,12 @@ export function ShellSidebar() {
       className="flex h-full min-h-0 flex-col border-r border-border bg-background"
     >
       <WorkspaceSwitcher />
-      {wsSlug ? <GlobalNav wsSlug={wsSlug} /> : null}
+      {wsSlug ? (
+        <GlobalNav
+          wsSlug={wsSlug}
+          deepResearchEnabled={deepResearchEnabled}
+        />
+      ) : null}
       <ProjectHero />
       <ScopedSearch />
       {projectId ? (
