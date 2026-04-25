@@ -30,7 +30,7 @@ export function PanelHeader({ onNewThread }: { onNewThread(): void }) {
       <div className="flex items-center gap-1">
         <button
           type="button"
-          aria-label={t("newThreadAria")}
+          aria-label={t("new_thread_aria")}
           onClick={onNewThread}
           className="rounded p-1 hover:bg-accent"
         >
@@ -38,7 +38,7 @@ export function PanelHeader({ onNewThread }: { onNewThread(): void }) {
         </button>
         <DropdownMenu>
           <DropdownMenuTrigger
-            aria-label={t("threadListAria")}
+            aria-label={t("thread_list_aria")}
             className="rounded p-1 hover:bg-accent"
           >
             <MoreHorizontal className="h-4 w-4" />
@@ -49,7 +49,7 @@ export function PanelHeader({ onNewThread }: { onNewThread(): void }) {
         </DropdownMenu>
         <button
           type="button"
-          aria-label={t("collapseAria")}
+          aria-label={t("collapse_aria")}
           onClick={togglePanel}
           className="rounded p-1 hover:bg-accent"
         >

@@ -1,11 +1,11 @@
 {
   "header": {
     "title": "AI 에이전트",
-    "newThreadAria": "새 대화",
-    "threadListAria": "대화 목록",
-    "collapseAria": "패널 접기"
+    "new_thread_aria": "새 대화",
+    "thread_list_aria": "대화 목록",
+    "collapse_aria": "패널 접기"
   },
-  "threadList": {
+  "thread_list": {
     "loading": "불러오는 중…",
     "empty": "대화가 없습니다.",
     "untitled": "(제목 없음)"

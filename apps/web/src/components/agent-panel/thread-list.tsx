@@ -11,16 +11,17 @@
 import { useParams } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { useChatThreads } from "@/hooks/use-chat-threads";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
 import { useThreadsStore } from "@/stores/threads-store";
 
 export function ThreadList() {
   const { wsSlug } = useParams<{ wsSlug?: string }>();
-  const workspaceId = useWorkspaceId(wsSlug ?? "");
+  const workspaceId = useWorkspaceId(wsSlug);
   const { threads, isLoading } = useChatThreads(workspaceId);
   const setActive = useThreadsStore((s) => s.setActiveThread);
-  const t = useTranslations("agentPanel.threadList");
+  const t = useTranslations("agentPanel.thread_list");
   const format = useFormatter();
 
   if (isLoading) {
@@ -30,24 +31,25 @@ export function ThreadList() {
     return <p className="p-2 text-xs text-muted-foreground">{t("empty")}</p>;
   }
 
+  // DropdownMenuItem (Base UI Menu.Item) closes the menu on selection and
+  // gives us keyboard nav for free, so we drop the manual <ul>/<li> + <button>
+  // pair. onSelect is the menu-item idiom that fires after the close gesture.
   return (
-    <ul className="max-h-80 overflow-auto p-1">
+    <div className="max-h-80 overflow-auto p-1">
       {threads.map((thread) => (
-        <li key={thread.id}>
-          <button
-            type="button"
-            onClick={() => setActive(thread.id)}
-            className="flex w-full flex-col rounded px-2 py-1.5 text-left hover:bg-accent"
-          >
-            <span className="truncate text-sm">
-              {thread.title || t("untitled")}
-            </span>
-            <span className="text-[10px] text-muted-foreground">
-              {format.relativeTime(new Date(thread.updated_at))}
-            </span>
-          </button>
-        </li>
+        <DropdownMenuItem
+          key={thread.id}
+          onSelect={() => setActive(thread.id)}
+          className="flex w-full flex-col items-start rounded px-2 py-1.5 text-left"
+        >
+          <span className="truncate text-sm">
+            {thread.title || t("untitled")}
+          </span>
+          <span className="text-[10px] text-muted-foreground">
+            {format.relativeTime(new Date(thread.updated_at))}
+          </span>
+        </DropdownMenuItem>
       ))}
-    </ul>
+    </div>
   );
 }

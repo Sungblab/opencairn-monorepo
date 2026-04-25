@@ -14,10 +14,12 @@ async function fetchWorkspaceId(slug: string): Promise<string | null> {
   return json.id;
 }
 
-export function useWorkspaceId(wsSlug: string): string | null {
+// Accept undefined so callers don't have to coerce missing slugs to "" — that
+// coercion used to park an empty-key entry in the React Query cache.
+export function useWorkspaceId(wsSlug: string | undefined): string | null {
   const q = useQuery({
-    queryKey: ["workspace-id", wsSlug],
-    queryFn: () => fetchWorkspaceId(wsSlug),
+    queryKey: ["workspace-id", wsSlug ?? null],
+    queryFn: () => fetchWorkspaceId(wsSlug as string),
     staleTime: 5 * 60_000,
     enabled: Boolean(wsSlug),
   });
