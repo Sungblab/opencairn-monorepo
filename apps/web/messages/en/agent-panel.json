@@ -1,0 +1,13 @@
+{
+  "header": {
+    "title": "AI Agent",
+    "newThreadAria": "New conversation",
+    "threadListAria": "Thread list",
+    "collapseAria": "Collapse panel"
+  },
+  "threadList": {
+    "loading": "Loading…",
+    "empty": "No conversations yet.",
+    "untitled": "(untitled)"
+  }
+}

@@ -27,6 +27,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
     importMessages,
     onboarding,
     appShell,
+    agentPanel,
   ] = await Promise.all([
     import(`../messages/${locale}/common.json`).then((m) => m.default),
     import(`../messages/${locale}/landing.json`).then((m) => m.default),
@@ -39,6 +40,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
     import(`../messages/${locale}/import.json`).then((m) => m.default),
     import(`../messages/${locale}/onboarding.json`).then((m) => m.default),
     import(`../messages/${locale}/app-shell.json`).then((m) => m.default),
+    import(`../messages/${locale}/agent-panel.json`).then((m) => m.default),
   ]);
 
   return {
@@ -55,6 +57,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
       import: importMessages,
       onboarding,
       appShell,
+      agentPanel,
     },
   };
 });
