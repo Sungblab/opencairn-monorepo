@@ -1,0 +1,172 @@
+"use client";
+
+// SSE consumer for streaming agent responses. The route POSTs JSON and
+// streams `text/event-stream` back, so EventSource (GET-only) is not an
+// option — we use fetch + a ReadableStream reader and parse frames with
+// `eventsource-parser` (handles CRLF, comment heartbeats, partial frames).
+//
+// Lifecycle:
+//   1. caller invokes `send` -> any prior in-flight fetch is aborted so
+//      two assistant turns can never interleave into the same `live`.
+//   2. `live` is a transient preview built from incremental SSE events.
+//   3. on `done` (or stream end / error) we invalidate the messages query
+//      and clear `live` — the persisted rows then drive the conversation,
+//      avoiding a double-render of preview + persisted row.
+
+import { useCallback, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+
+export interface StreamingAgentMessage {
+  // null until the SSE `agent_placeholder` arrives — once set, the row
+  // exists in DB so any failure leaves a recoverable record.
+  id: string | null;
+  body: string;
+  thought: { summary: string; tokens?: number } | null;
+  status: { phrase?: string } | null;
+  citations: unknown[];
+  save_suggestion: unknown | null;
+}
+
+const initialLive: StreamingAgentMessage = {
+  id: null,
+  body: "",
+  thought: null,
+  status: null,
+  citations: [],
+  save_suggestion: null,
+};
+
+export interface SendInput {
+  content: string;
+  scope?: unknown;
+  mode?: string;
+}
+
+export function useChatSend(threadId: string | null) {
+  const qc = useQueryClient();
+  const [live, setLive] = useState<StreamingAgentMessage | null>(null);
+  const controller = useRef<AbortController | null>(null);
+
+  const send = useCallback(
+    async (input: SendInput) => {
+      if (!threadId) return;
+      // Aborting any in-flight stream guarantees the next send starts from
+      // a clean live state (no interleaving of two assistant turns).
+      controller.current?.abort();
+      const ac = new AbortController();
+      controller.current = ac;
+
+      setLive({ ...initialLive });
+
+      let res: Response;
+      try {
+        res = await fetch(`/api/threads/${threadId}/messages`, {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "content-type": "application/json",
+            accept: "text/event-stream",
+          },
+          body: JSON.stringify({
+            content: input.content,
+            scope: input.scope,
+            mode: input.mode ?? "auto",
+          }),
+          signal: ac.signal,
+        });
+      } catch (err) {
+        // AbortError fires here when a newer send superseded us before the
+        // fetch resolved. Leave `live` as the newer send already set it,
+        // and bail without invalidating (the newer send owns invalidation).
+        if ((err as Error).name === "AbortError") return;
+        setLive(null);
+        return;
+      }
+
+      if (!res.ok || !res.body) {
+        setLive(null);
+        return;
+      }
+
+      const { createParser } = await import("eventsource-parser");
+      // eventsource-parser v3 takes a callbacks object (v2 took a bare fn).
+      // We're on v3.x — pass `onEvent`.
+      const parser = createParser({
+        onEvent: (ev) => {
+          if (!ev.event) return;
+          let payload: Record<string, unknown> | null = null;
+          try {
+            payload = ev.data
+              ? (JSON.parse(ev.data) as Record<string, unknown>)
+              : null;
+          } catch {
+            // Malformed frame — skip rather than tear down the whole stream.
+            return;
+          }
+          setLive((prev) => {
+            if (!prev) return prev;
+            switch (ev.event) {
+              case "agent_placeholder":
+                return {
+                  ...prev,
+                  id: typeof payload?.id === "string" ? payload.id : prev.id,
+                };
+              case "status":
+                return {
+                  ...prev,
+                  status: payload as StreamingAgentMessage["status"],
+                };
+              case "thought":
+                return {
+                  ...prev,
+                  thought: payload as StreamingAgentMessage["thought"],
+                };
+              case "text": {
+                const delta =
+                  typeof payload?.delta === "string" ? payload.delta : "";
+                return { ...prev, body: prev.body + delta };
+              }
+              case "citation":
+                return { ...prev, citations: [...prev.citations, payload] };
+              case "save_suggestion":
+                return { ...prev, save_suggestion: payload };
+              case "done":
+                return {
+                  ...prev,
+                  id: typeof payload?.id === "string" ? payload.id : prev.id,
+                };
+              default:
+                return prev;
+            }
+          });
+        },
+      });
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          parser.feed(decoder.decode(value, { stream: true }));
+        }
+      } catch (err) {
+        // Aborted: silently stop streaming. Other errors will be surfaced
+        // through toast plumbing in Phase 4D — for now we only swallow.
+        if ((err as Error).name !== "AbortError") {
+          // intentional: error UI lands in a follow-up task
+        }
+      } finally {
+        // Only the *current* send should invalidate + clear `live`. If a
+        // newer send aborted us, it owns the next round of state.
+        if (controller.current === ac) {
+          qc.invalidateQueries({ queryKey: ["chat-messages", threadId] });
+          setLive(null);
+        }
+      }
+    },
+    [threadId, qc],
+  );
+
+  return { send, live };
+}
