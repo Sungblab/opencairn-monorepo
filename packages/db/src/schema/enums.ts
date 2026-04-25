@@ -14,6 +14,18 @@ export const sourceTypeEnum = pgEnum("source_type", [
   "web",
   "notion",
   "unknown",
+  "canvas",
+]);
+
+// Plan 7 Canvas Phase 1 — language pinned at note creation. The CHECK on
+// `notes` enforces `canvasLanguage IS NOT NULL ↔ sourceType = 'canvas'`,
+// so adding a value here without a matching runtime route is harmless but
+// every value MUST have a sandbox runtime in apps/web.
+export const canvasLanguageEnum = pgEnum("canvas_language", [
+  "python",
+  "javascript",
+  "html",
+  "react",
 ]);
 
 export const integrationProviderEnum = pgEnum("integration_provider", [

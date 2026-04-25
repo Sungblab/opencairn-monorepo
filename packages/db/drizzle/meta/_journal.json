@@ -148,6 +148,20 @@
       "when": 1777117410770,
       "tag": "0020_chat_redesign",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1777121536306,
+      "tag": "0021_canvas_source_type_value",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1777121536307,
+      "tag": "0022_canvas_language_column",
+      "breakpoints": true
     }
   ]
 }

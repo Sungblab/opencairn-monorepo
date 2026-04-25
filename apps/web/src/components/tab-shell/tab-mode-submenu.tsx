@@ -14,7 +14,7 @@ import { useTabsStore, type Tab, type TabMode } from "@/stores/tabs-store";
 // canvas, mindmap, flashcard) are entered via their dedicated feature
 // flows — exposing them here would be confusing because most of them
 // aren't valid for every tab kind.
-const MODES: TabMode[] = ["plate", "reading", "source", "data"];
+const MODES: TabMode[] = ["plate", "reading", "source", "data", "canvas"];
 
 export function TabModeSubmenu({ tab }: { tab: Tab }) {
   const t = useTranslations("appShell.tabs.menu.mode");

@@ -1,0 +1,54 @@
+{
+  "tab": {
+    "title": "캔버스",
+    "untitled": "이름 없는 캔버스"
+  },
+  "viewer": {
+    "languageLabel": "언어",
+    "run": "실행",
+    "reset": "되돌리기",
+    "save": {
+      "saved": "저장됨",
+      "saving": "저장 중…",
+      "dirty": "변경됨",
+      "error": "저장 실패"
+    },
+    "languages": {
+      "python": "Python",
+      "javascript": "JavaScript",
+      "html": "HTML",
+      "react": "React"
+    }
+  },
+  "runner": {
+    "status": {
+      "loading": "Pyodide 로드 중…",
+      "ready": "준비됨",
+      "running": "실행 중…",
+      "done": "완료",
+      "error": "오류"
+    },
+    "stdout": "표준 출력",
+    "stderr": "오류 출력"
+  },
+  "frame": {
+    "loading": "샌드박스 로드 중…",
+    "error": "샌드박스 오류"
+  },
+  "errors": {
+    "sourceTooLarge": "소스가 64KB 를 초과했습니다.",
+    "executionTimeout": "실행이 10초 시간 제한을 초과했습니다.",
+    "notCanvas": "캔버스 노트가 아닙니다."
+  },
+  "demo": {
+    "title": "캔버스 데모",
+    "sourcePlaceholder": "여기에 코드를 입력하세요…",
+    "languagePython": "Python (Pyodide)",
+    "languageReact": "React (esm.sh)",
+    "languageHtml": "HTML",
+    "languageJavascript": "JavaScript"
+  },
+  "sidebar": {
+    "newCanvas": "새 캔버스"
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "tab": {
+    "title": "Canvas",
+    "untitled": "Untitled Canvas"
+  },
+  "viewer": {
+    "languageLabel": "Language",
+    "run": "Run",
+    "reset": "Reset",
+    "save": {
+      "saved": "Saved",
+      "saving": "Saving…",
+      "dirty": "Modified",
+      "error": "Save failed"
+    },
+    "languages": {
+      "python": "Python",
+      "javascript": "JavaScript",
+      "html": "HTML",
+      "react": "React"
+    }
+  },
+  "runner": {
+    "status": {
+      "loading": "Loading Pyodide…",
+      "ready": "Ready",
+      "running": "Running…",
+      "done": "Done",
+      "error": "Error"
+    },
+    "stdout": "Standard output",
+    "stderr": "Error output"
+  },
+  "frame": {
+    "loading": "Loading sandbox…",
+    "error": "Sandbox error"
+  },
+  "errors": {
+    "sourceTooLarge": "Source exceeds 64 KB.",
+    "executionTimeout": "Execution exceeded the 10-second timeout.",
+    "notCanvas": "Not a canvas note."
+  },
+  "demo": {
+    "title": "Canvas Demo",
+    "sourcePlaceholder": "Type code here…",
+    "languagePython": "Python (Pyodide)",
+    "languageReact": "React (esm.sh)",
+    "languageHtml": "HTML",
+    "languageJavascript": "JavaScript"
+  },
+  "sidebar": {
+    "newCanvas": "New canvas"
+  }
+}

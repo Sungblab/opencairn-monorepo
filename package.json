@@ -7,7 +7,8 @@
     "lint": "turbo lint",
     "db:generate": "turbo db:generate --filter=@opencairn/db",
     "db:migrate": "turbo db:migrate --filter=@opencairn/db",
-    "db:studio": "turbo db:studio --filter=@opencairn/db"
+    "db:studio": "turbo db:studio --filter=@opencairn/db",
+    "canvas:guard": "bash scripts/canvas-regression-guard.sh"
   },
   "devDependencies": {
     "turbo": "^2.5.0",
