@@ -164,8 +164,17 @@ details[open] .chev { transform: rotate(180deg); }
  * CSS animations driven by scroll position recover automatically on every
  * render, regardless of mount/unmount/cache state.
  *
- * Browser support: Chrome/Edge 115+, Safari 26+, Firefox 130+ (Baseline 2024).
- * Older browsers fall through `@supports not` and stay visible (no fade-in).
+ * Browser support (verified against caniuse 2026-04):
+ *   Chrome/Edge 115+ — stable since Jul 2023.
+ *   Safari 26.0+    — stable since Sep 2025; no earlier release shipped it
+ *                     (Safari 17–18 do not support view(), the previous
+ *                     comment's "26+" was correct, "17+" claims are wrong).
+ *   Firefox          — NOT in stable. Behind
+ *                     `layout.css.scroll-driven-animations.enabled` flag in
+ *                     151+; ships when the flag flips. Treat Firefox as
+ *                     "no animation, content always visible" until then.
+ * Older / non-supporting browsers fall through `@supports not` below and
+ * remain fully visible with no fade-in (no broken layout, no stuck state).
  *
  * Hero intro stagger uses a separate `.reveal-intro` class below — view()
  * doesn't help for elements already in the initial viewport. */
@@ -176,21 +185,20 @@ details[open] .chev { transform: rotate(180deg); }
   animation-timeline: view();
   animation-range: entry 0% entry 50%;
 }
-@keyframes scroll-reveal {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 
+/* `.reveal-stagger > *` reuses the same `to { opacity:1; translateY(0) }`
+ * end-state. The visible difference comes from the wider `animation-range`
+ * (entry 60% vs 50%) and the smaller initial offset (12px vs 16px), not
+ * from a different keyframe shape — so both share `@keyframes scroll-reveal`. */
 .reveal-stagger > * {
   opacity: 0;
   transform: translateY(12px);
-  animation: scroll-reveal-stagger linear both;
+  animation: scroll-reveal linear both;
   animation-timeline: view();
   animation-range: entry 0% entry 60%;
 }
-@keyframes scroll-reveal-stagger {
+
+@keyframes scroll-reveal {
   to {
     opacity: 1;
     transform: translateY(0);
