@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import "./globals.css";
 import { ThemeProvider } from "@/lib/theme/provider";
 import { THEME_COOKIE, themeFromCookieValue } from "@/lib/theme/cookie";
-import { instrumentSerif, inter, jetbrainsMono } from "@/lib/landing/fonts";
+import { instrumentSerif, inter, jetbrainsMono, pretendard } from "@/lib/landing/fonts";
 
 export const metadata: Metadata = {
   title: "OpenCairn — AI Knowledge OS",
@@ -28,17 +28,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html
       lang={locale}
       data-theme={theme}
-      className={`${instrumentSerif.variable} ${inter.variable} ${jetbrainsMono.variable}`}
+      className={`${pretendard.variable} ${instrumentSerif.variable} ${inter.variable} ${jetbrainsMono.variable}`}
     >
-      <head>
-        {/* TODO(v0.2): self-host Pretendard via next/font/local */}
-        <link
-          rel="stylesheet"
-          as="style"
-          crossOrigin=""
-          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
-        />
-      </head>
       <body className="bg-bg text-fg antialiased">
         <ThemeProvider initialTheme={theme}>{children}</ThemeProvider>
       </body>

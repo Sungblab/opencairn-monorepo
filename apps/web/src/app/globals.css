@@ -10,7 +10,7 @@
    * auth chrome). All headlines, prices, and body text use Pretendard via
    * `font-sans`. Korean text always renders in Pretendard regardless. */
   --font-serif: var(--font-serif-raw), Georgia, serif;
-  --font-sans: "Pretendard Variable", Pretendard, var(--font-sans-raw), -apple-system, system-ui, sans-serif;
+  --font-sans: var(--font-pretendard), var(--font-sans-raw), -apple-system, system-ui, sans-serif;
   --font-mono: var(--font-mono-raw), ui-monospace, monospace;
 
   --color-bg: var(--theme-bg);
@@ -157,32 +157,68 @@ details > summary::-webkit-details-marker { display: none; }
 details[open] .chev { transform: rotate(180deg); }
 .chev { transition: transform 0.2s; }
 
-/* ═══ scroll reveal ═══ */
+/* ═══ scroll reveal ═══
+ * Pure CSS via `animation-timeline: view()` — no JS state.
+ * Reasoning: JS-toggled `.in` class is fragile across browser bfcache
+ * restoration and Next.js 16 SPA back-nav (useEffect re-run timing varies).
+ * CSS animations driven by scroll position recover automatically on every
+ * render, regardless of mount/unmount/cache state.
+ *
+ * Browser support: Chrome/Edge 115+, Safari 26+, Firefox 130+ (Baseline 2024).
+ * Older browsers fall through `@supports not` and stay visible (no fade-in).
+ *
+ * Hero intro stagger uses a separate `.reveal-intro` class below — view()
+ * doesn't help for elements already in the initial viewport. */
 .reveal {
   opacity: 0;
   transform: translateY(16px);
-  transition: opacity 0.7s cubic-bezier(0.22,0.61,0.36,1), transform 0.7s cubic-bezier(0.22,0.61,0.36,1);
+  animation: scroll-reveal linear both;
+  animation-timeline: view();
+  animation-range: entry 0% entry 50%;
 }
-.reveal.in { opacity: 1; transform: translateY(0); }
+@keyframes scroll-reveal {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 
 .reveal-stagger > * {
   opacity: 0;
   transform: translateY(12px);
-  transition: opacity 0.6s cubic-bezier(0.22,0.61,0.36,1), transform 0.6s cubic-bezier(0.22,0.61,0.36,1);
+  animation: scroll-reveal-stagger linear both;
+  animation-timeline: view();
+  animation-range: entry 0% entry 60%;
 }
-.reveal-stagger.in > * { opacity: 1; transform: translateY(0); }
-.reveal-stagger.in > *:nth-child(1)  { transition-delay: 0.02s; }
-.reveal-stagger.in > *:nth-child(2)  { transition-delay: 0.08s; }
-.reveal-stagger.in > *:nth-child(3)  { transition-delay: 0.14s; }
-.reveal-stagger.in > *:nth-child(4)  { transition-delay: 0.20s; }
-.reveal-stagger.in > *:nth-child(5)  { transition-delay: 0.26s; }
-.reveal-stagger.in > *:nth-child(6)  { transition-delay: 0.32s; }
-.reveal-stagger.in > *:nth-child(7)  { transition-delay: 0.38s; }
-.reveal-stagger.in > *:nth-child(8)  { transition-delay: 0.44s; }
-.reveal-stagger.in > *:nth-child(9)  { transition-delay: 0.50s; }
-.reveal-stagger.in > *:nth-child(10) { transition-delay: 0.56s; }
-.reveal-stagger.in > *:nth-child(11) { transition-delay: 0.62s; }
-.reveal-stagger.in > *:nth-child(12) { transition-delay: 0.68s; }
+@keyframes scroll-reveal-stagger {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@supports not (animation-timeline: view()) {
+  .reveal,
+  .reveal-stagger > * {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+}
+
+/* Hero intro: time-based stagger, plays once per mount via fill-mode: both.
+ * --reveal-delay is set inline per element by Hero.tsx for staggering. */
+.reveal-intro {
+  opacity: 0;
+  transform: translateY(16px);
+  animation: hero-intro 0.7s cubic-bezier(0.22, 0.61, 0.36, 1) var(--reveal-delay, 0ms) both;
+}
+@keyframes hero-intro {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 
 /* ═══ typewriter caret ═══ */
 .caret {
@@ -437,7 +473,12 @@ details[open] .chev { transform: rotate(180deg); }
 
 /* ═══ reduced motion ═══ */
 @media (prefers-reduced-motion: reduce) {
-  .reveal, .reveal-stagger > *, .tilt, .tick, .ac-item { transition: none !important; transform: none !important; opacity: 1 !important; }
+  .reveal, .reveal-stagger > *, .reveal-intro, .tilt, .tick, .ac-item {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
   .pulse-dot, .flow-line, .hero-agent-active, .live-status .beat, .caret, .ac-dot { animation: none !important; }
 }
 
