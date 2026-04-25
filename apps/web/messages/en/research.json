@@ -1,0 +1,99 @@
+{
+  "hub": {
+    "title": "Deep Research",
+    "subtitle": "Run automated deep-dive research and receive the result as a note.",
+    "new_button": "New research",
+    "empty": "You have no research runs yet.",
+    "list": {
+      "topic": "Topic",
+      "model": "Model",
+      "status": "Status",
+      "started_at": "Started",
+      "completed_at": "Completed",
+      "open": "Open"
+    }
+  },
+  "model": {
+    "deep_research": "Deep Research",
+    "deep_research_max": "Deep Research Max",
+    "cost_hint": {
+      "deep_research": "approx. $1–3 per run",
+      "deep_research_max": "approx. $3–7 per run"
+    }
+  },
+  "billing_path": {
+    "byok": "Bring your own key (BYOK)",
+    "managed": "Managed credits (PAYG)",
+    "byok_help": "Calls Google with the key you registered. Google bills you directly.",
+    "managed_help": "OpenCairn calls Google with its key and deducts from your credit balance."
+  },
+  "new_dialog": {
+    "title": "Start a new research",
+    "topic_label": "Topic",
+    "topic_placeholder": "e.g. Korean SaaS market trends in 2026",
+    "project_label": "Project to save the resulting note in",
+    "model_label": "Model",
+    "billing_label": "Billing path",
+    "submit": "Start",
+    "cancel": "Cancel",
+    "submitting": "Starting…"
+  },
+  "plan_review": {
+    "heading": "Review the research plan",
+    "explainer": "Check the plan and tweak it if needed. Approving kicks off the deep dive.",
+    "feedback_placeholder": "Remove this part and add that part…",
+    "feedback_send": "Send feedback",
+    "edit_direct": "Edit directly",
+    "edit_save": "Save edits",
+    "edit_cancel": "Cancel",
+    "approve": "Approve and start",
+    "approving": "Starting…",
+    "loading": "Fetching the plan…",
+    "iterating": "Re-writing the plan…"
+  },
+  "progress": {
+    "heading": "Research in progress",
+    "subhead": "This can take up to about an hour. You can close this page — it keeps running.",
+    "thinking": "Thinking",
+    "writing": "Writing",
+    "image_generating": "Generating image",
+    "no_artifacts_yet": "Result fragments will appear shortly.",
+    "cancel": "Cancel",
+    "cancelling": "Cancelling…"
+  },
+  "completed": {
+    "heading": "Research complete",
+    "open_note": "Open the note",
+    "redirecting": "Taking you to the note…"
+  },
+  "status": {
+    "planning": "Planning",
+    "awaiting_approval": "Awaiting approval",
+    "researching": "Researching",
+    "completed": "Completed",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  },
+  "error": {
+    "invalid_byok": "Your Gemini API key is invalid.",
+    "invalid_byok_cta": "Go to key settings",
+    "quota_exceeded": "Your Google quota has been exceeded.",
+    "managed_credits_short": "Managed mode requires a credit top-up.",
+    "managed_credits_cta": "Go to billing",
+    "managed_disabled": "Managed mode is not yet available.",
+    "generic_failed": "The research failed.",
+    "concurrent_write": "A concurrent edit was detected. Please retry in a moment.",
+    "feature_disabled": "Deep Research is currently disabled."
+  },
+  "meta": {
+    "label": "Deep Research metadata",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "model_label": "Model",
+    "plan": "Plan",
+    "sources": "Sources",
+    "thought_summaries": "Thought summaries",
+    "cost_approx": "Estimated cost",
+    "cost_disclaimer": "This is an estimate; actual billing depends on the billing path."
+  }
+}

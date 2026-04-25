@@ -47,8 +47,8 @@ Plan 파일 위치: `docs/superpowers/plans/`.
 - ✅ Phase A — `packages/llm` Interactions wrapper (2026-04-23)
 - ✅ Phase B — DB + Temporal workflow (2026-04-23, merge `3b03154`)
 - ✅ Phase C — apps/api routes + SSE (2026-04-23, merge `a838524`)
-- 🟡 Phase D — apps/web `/research` + Plate research-meta
-- 🟡 Phase E — i18n + feature flag + E2E + 출시
+- ✅ Phase D — apps/web `/research` UI + research-meta block (2026-04-25, branch `feat/deep-research-phase-d`). 23 tasks · feature-flagged routes (`(shell)/research`, `(shell)/research/[runId]`) + flag-gated sidebar icon · `api-client-research` (8 endpoints) + `useResearchStream` SSE hook · 4 client components (NewResearchDialog, ResearchHub, ResearchPlanReview, ResearchProgress, ResearchRunView orchestrator) · Plate v49 `research-meta` void block + Yjs roundtrip pin · `research.json` i18n (72 keys ko/en parity) · web 49 files/278 tests · tsc + lint clean · `tests/e2e/research-smoke.spec.ts` (skipped without `FEATURE_DEEP_RESEARCH`).
+- 🟡 Phase E — en native review · BYOK 등록 UI · `/settings/ai` · 전체 E2E green · prod release
 
 ## Phase 2 — Scale (Plan 4 후, 병렬 가능)
 

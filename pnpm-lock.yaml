@@ -145,6 +145,9 @@ importers:
       '@hocuspocus/provider':
         specifier: ^3.1.1
         version: 3.4.4(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30)
+      '@opencairn/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@platejs/basic-nodes':
         specifier: ^49
         version: 49.0.0(platejs@49.2.21(@types/react@19.2.14)(immer@10.2.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.5)))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -251,6 +254,9 @@ importers:
       '@playwright/test':
         specifier: ^1.59.1
         version: 1.59.1
+      '@slate-yjs/core':
+        specifier: ^1.0.2
+        version: 1.0.2(slate@0.118.1)(yjs@13.6.30)
       '@tailwindcss/postcss':
         specifier: ^4.0.0
         version: 4.2.2

@@ -52,6 +52,6 @@ Full index: **`docs/README.md`**. 고빈도:
 
 Critical path: **0 (1 → 13 → 12) → 1 (2/3/4/9 병렬) → 2 (5/6/7/8 병렬) → 3**. 완료 커밋 + 상세 상태는 `docs/contributing/plans-status.md`.
 
-- ✅ Complete: Plan 1, 13, 12, 3, 3b, 4, 9a, 2A (editor core, solo), 2B (Hocuspocus + comments + @mention), Ingest Source Expansion, Onboarding, Agent Runtime v2 Sub-A, React Email, Deep Research Phase A/B/C, App Shell Phase 1 (shell frame) + Phase 2 (sidebar) + Phase 3-A (tab bar chrome) + Phase 3-B (mode router + viewers).
-- 🟡 Active / next: Plan 2C (notifications + share), 2D (chat renderer + block extensions), App Shell Phase 4~5 (agent panel, palette), Plan 5/6/7/8, Deep Research Phase D/E.
+- ✅ Complete: Plan 1, 13, 12, 3, 3b, 4, 9a, 2A (editor core, solo), 2B (Hocuspocus + comments + @mention), Ingest Source Expansion, Onboarding, Agent Runtime v2 Sub-A, React Email, Deep Research Phase A/B/C/D, App Shell Phase 1 (shell frame) + Phase 2 (sidebar) + Phase 3-A (tab bar chrome) + Phase 3-B (mode router + viewers).
+- 🟡 Active / next: Plan 2C (notifications + share), 2D (chat renderer + block extensions), App Shell Phase 4~5 (agent panel, palette), Plan 5/6/7/8, Deep Research Phase E (BYOK UI · /settings/ai · prod release).
 - 🔴 Blocked: Plan 9b (사업자등록 필요).

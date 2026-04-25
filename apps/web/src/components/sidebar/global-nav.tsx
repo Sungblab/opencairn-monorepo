@@ -6,19 +6,32 @@ import { MoreMenu } from "./more-menu";
 
 export interface GlobalNavProps {
   wsSlug: string;
+  deepResearchEnabled: boolean;
 }
 
 // Icon rail that sits at the top of the sidebar. Links go to workspace-scoped
 // routes; the overflow popover carries secondary destinations that would
 // otherwise push this row past the sidebar width.
-export function GlobalNav({ wsSlug }: GlobalNavProps) {
+//
+// `deepResearchEnabled` mirrors the API-side gate at
+// apps/api/src/routes/research.ts:52. When the flag is off the route 404s,
+// so the icon must not appear in the rail.
+export function GlobalNav({ wsSlug, deepResearchEnabled }: GlobalNavProps) {
   const locale = useLocale();
   const t = useTranslations("sidebar.nav");
   const base = `/${locale}/app/w/${wsSlug}`;
 
   const items = [
     { href: `${base}/`, label: t("dashboard"), Icon: Home },
-    { href: `${base}/research`, label: t("research"), Icon: FlaskConical },
+    ...(deepResearchEnabled
+      ? [
+          {
+            href: `${base}/research`,
+            label: t("research"),
+            Icon: FlaskConical,
+          } as const,
+        ]
+      : []),
     { href: `${base}/import`, label: t("import"), Icon: DownloadCloud },
   ] as const;
 

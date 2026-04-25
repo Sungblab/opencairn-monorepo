@@ -14,7 +14,7 @@ vi.mock("next/navigation", () => ({
 
 describe("GlobalNav", () => {
   it("renders three locale-prefixed workspace links and a more button", () => {
-    render(<GlobalNav wsSlug="acme" />);
+    render(<GlobalNav wsSlug="acme" deepResearchEnabled={true} />);
     const links = screen.getAllByRole("link");
     const hrefs = links.map((a) => a.getAttribute("href"));
     // Next.js Link strips the trailing slash from "/ko/app/w/acme/" on render.
@@ -26,5 +26,18 @@ describe("GlobalNav", () => {
     expect(
       screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
     ).toBeInTheDocument();
+  });
+
+  it("hides the research icon when deepResearchEnabled is false", () => {
+    render(<GlobalNav wsSlug="acme" deepResearchEnabled={false} />);
+    const links = screen.getAllByRole("link");
+    const hrefs = links.map((a) => a.getAttribute("href"));
+    expect(hrefs).toEqual([
+      "/ko/app/w/acme",
+      "/ko/app/w/acme/import",
+    ]);
+    expect(
+      screen.queryByLabelText("sidebar.nav.research"),
+    ).not.toBeInTheDocument();
   });
 });

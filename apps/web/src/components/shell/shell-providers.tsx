@@ -20,9 +20,11 @@ import { newTab } from "@/lib/tab-factory";
 // stores agree on which workspace is active.
 export function ShellProviders({
   wsSlug,
+  deepResearchEnabled,
   children,
 }: {
   wsSlug: string;
+  deepResearchEnabled: boolean;
   children: React.ReactNode;
 }) {
   useUrlTabSync();
@@ -86,7 +88,7 @@ export function ShellProviders({
 
   return (
     <>
-      <AppShell>{children}</AppShell>
+      <AppShell deepResearchEnabled={deepResearchEnabled}>{children}</AppShell>
       <Toaster />
     </>
   );

@@ -1,0 +1,99 @@
+{
+  "hub": {
+    "title": "Deep Research",
+    "subtitle": "심층 조사를 자동으로 실행하고 결과를 노트로 받아보세요.",
+    "new_button": "새 리서치 시작",
+    "empty": "아직 시작한 리서치가 없습니다.",
+    "list": {
+      "topic": "주제",
+      "model": "모델",
+      "status": "상태",
+      "started_at": "시작 시각",
+      "completed_at": "완료 시각",
+      "open": "열기"
+    }
+  },
+  "model": {
+    "deep_research": "Deep Research",
+    "deep_research_max": "Deep Research Max",
+    "cost_hint": {
+      "deep_research": "한 회당 약 $1–3",
+      "deep_research_max": "한 회당 약 $3–7"
+    }
+  },
+  "billing_path": {
+    "byok": "내 키 (BYOK)",
+    "managed": "관리형 크레딧 (PAYG)",
+    "byok_help": "직접 등록한 Gemini API 키로 호출합니다. 비용은 Google이 청구합니다.",
+    "managed_help": "OpenCairn이 보유한 키로 호출하고, 잔액에서 차감됩니다."
+  },
+  "new_dialog": {
+    "title": "새 리서치 시작",
+    "topic_label": "주제",
+    "topic_placeholder": "예: 2026년 한국 SaaS 시장 동향",
+    "project_label": "결과 노트가 저장될 프로젝트",
+    "model_label": "모델",
+    "billing_label": "결제 경로",
+    "submit": "시작하기",
+    "cancel": "취소",
+    "submitting": "시작 중…"
+  },
+  "plan_review": {
+    "heading": "조사 계획 검토",
+    "explainer": "조사 계획을 확인하고 필요하면 수정하세요. 승인하면 본격 조사가 시작됩니다.",
+    "feedback_placeholder": "이 부분을 빼고 저 부분을 추가해주세요…",
+    "feedback_send": "수정 요청",
+    "edit_direct": "직접 편집",
+    "edit_save": "수정 저장",
+    "edit_cancel": "취소",
+    "approve": "승인하고 시작",
+    "approving": "시작 중…",
+    "loading": "계획을 받아오는 중…",
+    "iterating": "계획을 다시 작성 중…"
+  },
+  "progress": {
+    "heading": "조사 진행 중",
+    "subhead": "최대 약 한 시간이 걸릴 수 있습니다. 이 페이지를 닫아도 진행됩니다.",
+    "thinking": "사고 중",
+    "writing": "작성 중",
+    "image_generating": "이미지 생성 중",
+    "no_artifacts_yet": "곧 결과 조각이 나타납니다.",
+    "cancel": "취소",
+    "cancelling": "취소 중…"
+  },
+  "completed": {
+    "heading": "조사 완료",
+    "open_note": "노트 열기",
+    "redirecting": "노트로 이동 중…"
+  },
+  "status": {
+    "planning": "계획 작성 중",
+    "awaiting_approval": "승인 대기",
+    "researching": "조사 중",
+    "completed": "완료됨",
+    "failed": "실패",
+    "cancelled": "취소됨"
+  },
+  "error": {
+    "invalid_byok": "Gemini API 키가 유효하지 않습니다.",
+    "invalid_byok_cta": "키 설정으로 이동",
+    "quota_exceeded": "Google 계정 쿼터를 초과했습니다.",
+    "managed_credits_short": "관리형 경로를 사용하려면 크레딧 충전이 필요합니다.",
+    "managed_credits_cta": "결제로 이동",
+    "managed_disabled": "관리형 경로는 아직 준비 중입니다.",
+    "generic_failed": "조사가 실패했습니다.",
+    "concurrent_write": "동시 수정이 감지되었어요. 잠시 후 다시 시도해주세요.",
+    "feature_disabled": "Deep Research가 현재 비활성화되어 있습니다."
+  },
+  "meta": {
+    "label": "Deep Research 메타데이터",
+    "expand": "펼치기",
+    "collapse": "접기",
+    "model_label": "모델",
+    "plan": "조사 계획",
+    "sources": "출처",
+    "thought_summaries": "사고 요약",
+    "cost_approx": "추정 비용",
+    "cost_disclaimer": "추정치이며 실제 청구는 결제 경로에 따라 다릅니다."
+  }
+}
