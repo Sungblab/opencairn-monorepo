@@ -76,7 +76,17 @@ export function ResearchHub({
                     : t("model.deep_research")}
                 </td>
                 <td>{t(`status.${r.status}`)}</td>
-                <td className="text-muted-foreground">
+                {/*
+                 * `toLocaleString(locale)` on an ISO string formats with the
+                 * runtime's timezone, which differs between server (often UTC)
+                 * and client (user-local). React would flag the mismatch on
+                 * hydration; suppress it here — the visible diff is a brief
+                 * zone correction on first paint, which is the expected UX.
+                 */}
+                <td
+                  className="text-muted-foreground"
+                  suppressHydrationWarning
+                >
                   {new Date(r.createdAt).toLocaleString(locale)}
                 </td>
               </tr>
