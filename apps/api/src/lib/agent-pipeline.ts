@@ -1,11 +1,8 @@
 // Stub agent pipeline used by POST /api/threads/:id/messages while the real
-// runtime + multi-LLM wiring (Plan 11A / Plan 12 follow-up) is still being
-// designed. The shape of `runAgent` (an async generator yielding typed
-// chunks) and the create/finalize helpers around it are picked so the
-// real pipeline can be slotted in without changing the SSE route.
-//
-// See docs/superpowers/plans/2026-04-23-app-shell-phase-4-agent-panel.md
-// (Task 3 / §13.2) for the long-term plan.
+// runtime + multi-LLM wiring is still being designed. The shape of
+// `runAgent` (an async generator yielding typed chunks) and the
+// create/finalize helpers around it are picked so the real pipeline can be
+// slotted in without changing the SSE route.
 
 import { db, chatMessages, eq } from "@opencairn/db";
 
@@ -24,10 +21,10 @@ export interface AgentChunk {
 
 export type ChatMode = "auto" | "fast" | "balanced" | "accurate" | "research";
 
-// Async generator so the SSE route can `for await` chunks and forward each
-// one to the client without buffering the whole response. The real
-// implementation will replace the body of this function with a call into
-// the agent-runtime; the chunk shape stays.
+// Stub generator: emits a deterministic stream so the SSE transport,
+// persistence, and client-side hook can be exercised without a real LLM
+// dependency. Replace with the real runtime call when packages/llm +
+// agent-runtime are wired in; the chunk shape stays.
 export async function* runAgent(opts: {
   threadId: string;
   userMessage: { content: string; scope?: unknown };
@@ -39,13 +36,11 @@ export async function* runAgent(opts: {
     payload: { summary: "사용자의 질문 분석 중", tokens: 120 },
   };
 
-  // Stub body — real pipeline (packages/llm + agent-runtime) wired in a
-  // follow-up. Plan §13.2 of the spec tracks this.
   const body = `(stub agent response to: ${opts.userMessage.content})`;
   for (const ch of body) {
     yield { type: "text", payload: { delta: ch } };
-    // Tiny delay so streaming is observable in dev tooling without making
-    // tests slow. ~4ms per char × ~50 chars = ~200ms; fine for vitest.
+    // 4ms gap per char keeps tests fast while still exercising multi-frame
+    // streaming.
     await new Promise((r) => setTimeout(r, 4));
   }
   yield { type: "done", payload: {} };

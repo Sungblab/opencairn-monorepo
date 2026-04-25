@@ -33,7 +33,7 @@ const patchBody = z.object({
   archived: z.boolean().optional(),
 });
 
-// 8 KB ceiling matches typical chat input limits and keeps malformed clients
+// 8000 chars (~8 KB ASCII, more for multibyte) — keeps malformed clients
 // from forcing the SSE path to enqueue an unbounded body.
 const postMessageBody = z.object({
   content: z.string().trim().min(1).max(8000),
@@ -43,9 +43,9 @@ const postMessageBody = z.object({
     .default("auto"),
 });
 
-// Test seam — vitest swaps this via `setRunAgent` to inject failure paths
-// without monkey-patching the module graph. Defaults to the stub generator
-// from agent-pipeline.ts.
+// Test seam — vitest swaps this via `__setRunAgentForTest` to inject failure
+// paths without monkey-patching the module graph. Defaults to the stub
+// generator from agent-pipeline.ts.
 type RunAgentFn = (opts: {
   threadId: string;
   userMessage: { content: string; scope?: unknown };
@@ -55,6 +55,14 @@ type RunAgentFn = (opts: {
 let runAgentImpl: RunAgentFn = defaultRunAgent;
 
 export function __setRunAgentForTest(impl: RunAgentFn | null): void {
+  // Defensive guard: the symbol is unlikely to be exploited but the runtime
+  // check documents intent and prevents production callers from swapping
+  // the pipeline. Vitest sets VITEST=true by default.
+  if (process.env.NODE_ENV !== "test" && process.env.VITEST !== "true") {
+    throw new Error(
+      "__setRunAgentForTest may only be called in test environments",
+    );
+  }
   runAgentImpl = impl ?? defaultRunAgent;
 }
 
@@ -270,6 +278,12 @@ export const threadRoutes = new Hono<AppEnv>()
               userMessage: { content, scope },
               mode,
             })) {
+              // Break early on client abort — async generators handle this
+              // naturally on `break` (the generator's `return()` is invoked
+              // implicitly), and `finally` below still runs to finalize the
+              // row. Without this, we'd keep pulling chunks while every
+              // `send` no-ops.
+              if (closed) break;
               if (chunk.type === "text") {
                 const p = chunk.payload as { delta: string };
                 buffer.push(p.delta);
@@ -294,9 +308,11 @@ export const threadRoutes = new Hono<AppEnv>()
                 err instanceof Error ? err.message : "agent_failed",
             });
           } finally {
-            // Single final write — content holds the joined body plus any
-            // sidecar metadata so the renderer can replay without
-            // re-running the pipeline.
+            // NOTE: finalize + thread bump aren't transactional — a process
+            // kill between them leaves the row complete but the thread
+            // `updated_at` stale; sidebar reorder will lag by one turn.
+            // Acceptable for the stub; revisit if the real pipeline adds
+            // external side effects worth atomicity.
             await finalizeAgentMessage(
               agentId,
               { body: buffer.join(""), ...meta },
