@@ -20,6 +20,7 @@
   },
   "tabTitles": {
     "dashboard": "Dashboard",
+    "graph": "Graph",
     "note": "Note",
     "project": "Project",
     "research_hub": "Deep Research",
