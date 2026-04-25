@@ -51,12 +51,18 @@ export function CanvasViewer({ tab }: { tab: Tab }) {
     "saved" | "saving" | "dirty" | "error"
   >("saved");
 
-  // Sync local state when the loaded note changes.
+  // Sync local state ONLY when we load a different note.
+  // Without the id-guard, every successful save (which calls
+  // `qc.setQueryData(["note", noteId], data)`) would re-fire this effect
+  // and overwrite local edits the user typed during the 1.5s debounce or
+  // the in-flight PATCH — losing their latest keystrokes.
+  const lastSyncedNoteId = useRef<string | null>(null);
   useEffect(() => {
-    if (note) {
-      setSource(note.contentText ?? "");
-      setLanguage(note.canvasLanguage);
-    }
+    if (!note) return;
+    if (lastSyncedNoteId.current === note.id) return;
+    lastSyncedNoteId.current = note.id;
+    setSource(note.contentText ?? "");
+    setLanguage(note.canvasLanguage);
   }, [note]);
 
   // Debounced save. Cancels prior timer on every (source/language) change so

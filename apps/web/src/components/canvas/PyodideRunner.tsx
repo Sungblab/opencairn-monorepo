@@ -14,7 +14,7 @@ type Props = {
 };
 
 export function PyodideRunner({ source, stdin = "", onResult }: Props) {
-  const t = useTranslations("canvas.runner");
+  const t = useTranslations("canvas");
   const [status, setStatus] = useState<Status>("loading");
   const [stdout, setStdout] = useState("");
   const [stderr, setStderr] = useState("");
@@ -41,15 +41,18 @@ export function PyodideRunner({ source, stdin = "", onResult }: Props) {
           stdin: () => (idx < lines.length ? lines[idx++] : null),
         });
 
+        // Pyodide's batched callback delivers chunks that already include
+        // the newlines from `print(...)` — appending another `\n` would
+        // double-space the visible output.
         pyodide.setStdout({
           batched: (s: string) => {
-            outBuf += s + "\n";
+            outBuf += s;
             if (!cancelled) setStdout(outBuf);
           },
         });
         pyodide.setStderr({
           batched: (s: string) => {
-            errBuf += s + "\n";
+            errBuf += s;
             if (!cancelled) setStderr(errBuf);
           },
         });
@@ -75,12 +78,15 @@ export function PyodideRunner({ source, stdin = "", onResult }: Props) {
         } catch (e) {
           if (cancelled) return;
           const timedOut = (e as Error).message === "__CANVAS_TIMEOUT__";
-          const msg = timedOut ? t("status.error") : (e as Error).message;
+          const msg = timedOut
+            ? t("errors.executionTimeout")
+            : (e as Error).message;
+          const errLine = msg + "\n";
           setStatus("error");
-          setStderr((prev) => prev + "\n" + msg);
+          setStderr((prev) => prev + errLine);
           onResultRef.current?.({
             stdout: outBuf,
-            stderr: errBuf + "\n" + msg,
+            stderr: errBuf + errLine,
             timedOut,
           });
         }
@@ -101,7 +107,7 @@ export function PyodideRunner({ source, stdin = "", onResult }: Props) {
   return (
     <div className="rounded-xl border bg-background p-4 space-y-2">
       <div className="text-xs text-muted-foreground" data-testid="status">
-        {t(`status.${status}`)}
+        {t(`runner.status.${status}`)}
       </div>
       {stdout && (
         <pre

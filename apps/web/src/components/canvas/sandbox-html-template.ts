@@ -7,10 +7,15 @@
 // - "html": user wrote HTML; render as-is.
 // - "javascript": wrap user JS in a module script; provide a `#root` mount.
 // - "react": same `#root`, but bring React via esm.sh import map and call
-//   `createRoot(...)` on whatever default-exported component the user wrote.
-//   The default-export-vs-globalThis.App probe lets either ESM-style
-//   `export default` or imperative `globalThis.App = ...` work in the
-//   inline module.
+//   `createRoot(globalThis.App)` on the user's component.
+//
+// Phase 1 React contract: the user assigns their component to
+// `globalThis.App`, e.g. `globalThis.App = function App() { return ... }`.
+// `export default` does NOT work inside an inline `<script type="module">`
+// because the script has no module specifier — its exports are unreachable.
+// Phase 2 will support `export default` via dynamic `import()` of the user's
+// source as a separate Blob URL module; until then, `globalThis.App` is the
+// supported pattern and the runner surfaces a clear error otherwise.
 
 export type CanvasIframeLanguage = "react" | "html" | "javascript";
 
@@ -52,11 +57,12 @@ ${userSource}
     import React from "react";
     import { createRoot } from "react-dom/client";
 ${userSource}
-    const App = (typeof default_1 !== "undefined") ? default_1 : (typeof globalThis.App !== "undefined" ? globalThis.App : null);
+    const App = typeof globalThis.App !== "undefined" ? globalThis.App : null;
     if (App) {
       createRoot(document.getElementById("root")).render(React.createElement(App));
     } else {
-      document.getElementById("root").textContent = "No default export found";
+      document.getElementById("root").textContent =
+        "Assign your component to globalThis.App = function App() { ... } (export default is not supported in inline modules — see Phase 1 docs).";
     }
   </script>
 </body></html>`;
