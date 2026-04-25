@@ -157,4 +157,27 @@ describe("GET /api/projects/:projectId/graph", () => {
     expect(body.edges).toHaveLength(0);
     expect(body.totalConcepts).toBe(0);
   });
+
+  it("orders by recent when ?order=recent is passed", async () => {
+    // Derive expected order from actual created_at values to avoid flakiness
+    // when A and B are inserted in the same millisecond.
+    const seeded = await db
+      .select({ id: concepts.id, createdAt: concepts.createdAt })
+      .from(concepts)
+      .where(eq(concepts.projectId, projectId));
+    const expectedOrder = [...seeded]
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((s) => s.id);
+
+    const res = await app.request(
+      `/api/projects/${projectId}/graph?order=recent`,
+      {
+        method: "GET",
+        headers: { cookie: await signSessionCookie(memberId) },
+      },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { nodes: Array<{ id: string }> };
+    expect(body.nodes.map((n) => n.id)).toEqual(expectedOrder);
+  });
 });
