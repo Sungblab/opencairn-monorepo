@@ -251,6 +251,9 @@ importers:
       '@playwright/test':
         specifier: ^1.59.1
         version: 1.59.1
+      '@slate-yjs/core':
+        specifier: ^1.0.2
+        version: 1.0.2(slate@0.118.1)(yjs@13.6.30)
       '@tailwindcss/postcss':
         specifier: ^4.0.0
         version: 4.2.2

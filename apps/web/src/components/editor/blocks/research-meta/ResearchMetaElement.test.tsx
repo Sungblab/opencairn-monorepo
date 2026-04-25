@@ -87,3 +87,70 @@ describe("ResearchMetaElement", () => {
   });
 });
 
+import * as Y from "yjs";
+import {
+  slateNodesToInsertDelta,
+  yTextToSlateElement,
+} from "@slate-yjs/core";
+
+describe("ResearchMetaElement — Yjs serialization", () => {
+  // Same canonical key apps/hocuspocus and the Plate Yjs plugin agree on.
+  // See docs/contributing/llm-antipatterns.md §11.
+  const ROOT_KEY = "content";
+
+  it("survives a round-trip through Yjs", () => {
+    const original: ResearchMetaElementType = {
+      type: "research-meta",
+      runId: "r1",
+      model: "deep-research-max-preview-04-2026",
+      plan: "Step 1\nStep 2",
+      sources: [
+        { title: "S1", url: "https://example.com/1", seq: 0 },
+        { title: "S2", url: "https://example.com/2", seq: 1 },
+      ],
+      thoughtSummaries: ["t1", "t2"],
+      costUsdCents: 500,
+      children: [{ text: "" }],
+    };
+
+    // Wrap in a paragraph + meta block — y-slate root must contain at least
+    // one block; the Plate ↔ Yjs bridge then serializes each child as a
+    // sub-XmlText.
+    const slateRoot = [original];
+
+    const ydoc = new Y.Doc();
+    const ytext = ydoc.get(ROOT_KEY, Y.XmlText) as Y.XmlText;
+    ytext.applyDelta(slateNodesToInsertDelta(slateRoot));
+
+    const restored = yTextToSlateElement(ytext);
+    expect(restored.children).toHaveLength(1);
+    const restoredMeta = restored.children[0] as ResearchMetaElementType;
+    expect(restoredMeta.type).toBe("research-meta");
+    expect(restoredMeta.runId).toBe("r1");
+    expect(restoredMeta.model).toBe("deep-research-max-preview-04-2026");
+    expect(restoredMeta.plan).toBe("Step 1\nStep 2");
+    expect(restoredMeta.sources).toEqual(original.sources);
+    expect(restoredMeta.thoughtSummaries).toEqual(["t1", "t2"]);
+    expect(restoredMeta.costUsdCents).toBe(500);
+  });
+
+  it("survives round-trip when optional fields are absent", () => {
+    const original: ResearchMetaElementType = {
+      type: "research-meta",
+      runId: "r2",
+      model: "deep-research-preview-04-2026",
+      plan: "p",
+      sources: [],
+      children: [{ text: "" }],
+    };
+    const ydoc = new Y.Doc();
+    const ytext = ydoc.get("content", Y.XmlText) as Y.XmlText;
+    ytext.applyDelta(slateNodesToInsertDelta([original]));
+    const restored = yTextToSlateElement(ytext);
+    const restoredMeta = restored.children[0] as ResearchMetaElementType;
+    expect(restoredMeta.thoughtSummaries).toBeUndefined();
+    expect(restoredMeta.costUsdCents).toBeUndefined();
+    expect(restoredMeta.sources).toEqual([]);
+  });
+});
+
