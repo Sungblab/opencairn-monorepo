@@ -67,6 +67,27 @@ describe("ResearchPlanReview", () => {
     );
   });
 
+  it("cancel reverts edit mode without calling updatePlan", () => {
+    vi.mocked(researchApi.updatePlan).mockClear();
+    setup();
+    // Cancel only exists while editing.
+    expect(
+      screen.queryByRole("button", { name: /^취소$/ }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /직접 편집/ }));
+    const ta = screen.getByDisplayValue(/1\) Step/);
+    fireEvent.change(ta, { target: { value: "scratch text" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /^취소$/ }));
+
+    // Back to read mode — the original plan text is shown again as a <pre>,
+    // and the edit-mode textarea is gone.
+    expect(screen.queryByDisplayValue("scratch text")).not.toBeInTheDocument();
+    expect(screen.getByText(/1\) Step/)).toBeInTheDocument();
+    expect(researchApi.updatePlan).not.toHaveBeenCalled();
+  });
+
   it("shows iterating message during planning", () => {
     render(
       <QueryClientProvider

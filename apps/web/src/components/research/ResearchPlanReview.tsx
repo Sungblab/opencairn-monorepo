@@ -92,6 +92,18 @@ export function ResearchPlanReview({
         >
           {editing ? t("edit_save") : t("edit_direct")}
         </button>
+        {editing && (
+          // Discard the in-flight textarea edits and return to the read view.
+          // Re-entering edit mode resets the draft from `planText`, so we
+          // don't need to clear it here.
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            className="rounded border border-border px-3 py-1 text-sm"
+          >
+            {t("edit_cancel")}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => approve.mutate()}

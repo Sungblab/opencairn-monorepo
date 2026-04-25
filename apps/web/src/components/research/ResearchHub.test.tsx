@@ -6,8 +6,9 @@ import { ResearchHub } from "./ResearchHub";
 import koMessages from "../../../messages/ko/research.json";
 import { researchApi } from "@/lib/api-client-research";
 
+const pushMock = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: pushMock }),
 }));
 
 vi.mock("@/lib/api-client-research", () => ({
@@ -78,5 +79,41 @@ describe("ResearchHub", () => {
     expect(
       screen.getByRole("dialog", { name: /새 리서치 시작/ }),
     ).toBeInTheDocument();
+  });
+
+  it("rows expose role=link and activate on Enter / Space", async () => {
+    pushMock.mockClear();
+    vi.mocked(researchApi.listRuns).mockResolvedValueOnce({
+      runs: [
+        {
+          id: "r-key",
+          topic: "Keyboard topic",
+          model: "deep-research-preview-04-2026",
+          status: "completed",
+          billingPath: "byok",
+          createdAt: "2026-04-25T00:00:00Z",
+          updatedAt: "2026-04-25T00:00:00Z",
+          completedAt: "2026-04-25T00:30:00Z",
+          totalCostUsdCents: 100,
+          noteId: "n-key",
+        },
+      ],
+    });
+    setup();
+    const row = await screen.findByTestId("research-row");
+    expect(row).toHaveAttribute("role", "link");
+    expect(row).toHaveAttribute("tabindex", "0");
+
+    fireEvent.keyDown(row, { key: "Enter" });
+    expect(pushMock).toHaveBeenLastCalledWith(
+      "/ko/app/w/acme/research/r-key",
+    );
+
+    fireEvent.keyDown(row, { key: " " });
+    expect(pushMock).toHaveBeenCalledTimes(2);
+
+    // Other keys should not activate.
+    fireEvent.keyDown(row, { key: "ArrowDown" });
+    expect(pushMock).toHaveBeenCalledTimes(2);
   });
 });

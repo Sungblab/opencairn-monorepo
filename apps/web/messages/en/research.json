@@ -45,6 +45,7 @@
     "feedback_send": "Send feedback",
     "edit_direct": "Edit directly",
     "edit_save": "Save edits",
+    "edit_cancel": "Cancel",
     "approve": "Approve and start",
     "approving": "Starting…",
     "loading": "Fetching the plan…",
