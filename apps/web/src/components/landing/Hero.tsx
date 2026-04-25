@@ -5,6 +5,60 @@ import { useTranslations } from "next-intl";
 type ActivityItem = { agent: string; text: string };
 
 const ACTIVE_ORDER = [0, 2, 1, 7, 3, 4, 5, 9, 10, 11, 6, 8];
+
+// 펀치라인(line3)만 타이핑. SSR/no-JS는 풀텍스트가 보이고, 클라이언트는 마운트 직후
+// 비워서 `.reveal` opacity 페이드 뒤에서 자연스럽게 시작됨. bfcache 복원 시는
+// 즉시 풀텍스트로 점프해 재생을 막는다.
+function TypewriterText({
+  text,
+  startDelay = 400,
+  charDelay = 55,
+}: {
+  text: string;
+  startDelay?: number;
+  charDelay?: number;
+}) {
+  const [shown, setShown] = useState(text);
+
+  useEffect(() => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) {
+      setShown(text);
+      return;
+    }
+
+    setShown("");
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let i = 0;
+    const tick = () => {
+      if (cancelled) return;
+      i += 1;
+      setShown(text.slice(0, i));
+      if (i < text.length) {
+        timer = setTimeout(tick, charDelay);
+      }
+    };
+    timer = setTimeout(tick, startDelay);
+
+    const onPageshow = (e: PageTransitionEvent) => {
+      if (!e.persisted) return;
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      setShown(text);
+    };
+    window.addEventListener("pageshow", onPageshow);
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("pageshow", onPageshow);
+    };
+  }, [text, startDelay, charDelay]);
+
+  return <>{shown}</>;
+}
+
 const AGENT_ROWS: Array<{ idx: number; x: number; y: number; text: number; fill: string; label: string }> = [
   { idx: 0, x: 20, y: 26, text: 30, fill: "#FAFAFA", label: "Compiler" },
   { idx: 1, x: 20, y: 48, text: 52, fill: "#FAFAFA", label: "Research" },
@@ -33,15 +87,48 @@ export function Hero() {
       els.forEach((el) => el.classList.add("in"));
       return;
     }
-    const raf1 = requestAnimationFrame(() => {
+
+    // 80ms initial pause + 110ms stagger = 의도적 호흡감.
+    // 7개 요소 → 첫 시작 80ms, 마지막 시작 80+6*110=740ms.
+    const STAGGER = 110;
+    const INITIAL_PAUSE = 80;
+    let raf1: number | null = null;
+    let pauseTimer: ReturnType<typeof setTimeout> | null = null;
+
+    raf1 = requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        els.forEach((el, i) => {
-          el.style.transitionDelay = `${i * 70}ms`;
-          el.classList.add("in");
-        });
+        pauseTimer = setTimeout(() => {
+          els.forEach((el, i) => {
+            el.style.transitionDelay = `${i * STAGGER}ms`;
+            el.classList.add("in");
+          });
+        }, INITIAL_PAUSE);
       });
     });
-    return () => cancelAnimationFrame(raf1);
+
+    // bfcache 복원 시: useEffect는 재실행되지 않지만 이 핸들러는 살아있음 (페이지가
+    // 동결됐을 뿐 cleanup이 안 불림). .in이 빠진 요소가 있다면 transition 없이
+    // 즉시 보이게 하여 "빈 화면" 버그를 막는다.
+    const onPageshow = (e: PageTransitionEvent) => {
+      if (!e.persisted) return;
+      els.forEach((el) => {
+        if (el.classList.contains("in")) return;
+        const prev = el.style.transition;
+        el.style.transition = "none";
+        el.style.transitionDelay = "0ms";
+        el.classList.add("in");
+        // force reflow so the transition reset takes effect before we restore it
+        void el.offsetHeight;
+        el.style.transition = prev;
+      });
+    };
+    window.addEventListener("pageshow", onPageshow);
+
+    return () => {
+      if (raf1 !== null) cancelAnimationFrame(raf1);
+      if (pauseTimer) clearTimeout(pauseTimer);
+      window.removeEventListener("pageshow", onPageshow);
+    };
   }, []);
 
   const activityItems = t.raw("activity.items") as ActivityItem[];
@@ -124,7 +211,7 @@ export function Hero() {
               <br />
               <em className="font-extrabold tracking-tight not-italic">{t("titleBrand")}</em>{" "}
               <br />
-              {t("titleLine3")}
+              <TypewriterText text={t("titleLine3")} />
               <span className="caret" aria-hidden />
             </h1>
             <p
