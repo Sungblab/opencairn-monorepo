@@ -111,8 +111,9 @@ export const noteRoutes = new Hono<AppEnv>()
     // derive workspaceId from project (notes.workspaceId is NOT NULL, denormalized for query speed)
     const [proj] = await db.select({ workspaceId: projects.workspaceId }).from(projects).where(eq(projects.id, body.projectId));
     if (!proj) return c.json({ error: "Project not found" }, 404);
-    // Derive content_text from Plate Value so FTS/embedding stays in sync with content.
-    const contentText = body.content ? plateValueToText(body.content) : "";
+    // For canvas notes, contentText holds raw source code (validated to ≤64KB by Zod).
+    // For Plate-content notes, derive from the Plate value so FTS/embedding stays in sync.
+    const contentText = body.contentText ?? (body.content ? plateValueToText(body.content) : "");
     const [note] = await db
       .insert(notes)
       .values({ ...body, workspaceId: proj.workspaceId, contentText })
