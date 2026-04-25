@@ -488,7 +488,7 @@ Playwright 1개 시나리오만:
 | v0.1 | 본 spec 전체: 가드 + 사용자 CRUD 액션 + 워크스페이스 CRUD 액션 + 감사 로그 + step-up |
 | v0.2 | IP 제한 env, 실패 시도 감사 로그, DB role 분리 (INSERT-only), 서브도메인 분리 검토 |
 | v0.3 | Impersonation (별도 spec 필수) |
-| v0.4 | Plan 9b 완료 후: 결제 조회/환불, 수동 크레딧 지급 |
+| v0.4 | Plan 9b 완료 후: 결제 조회/환불, 수동 크레딧 지급, **Promotion Engine** (§ 15) |
 | v1.0 | 성장 지표 대시보드 (별도 spec), support role 추가 |
 
 ## 13. Open Questions
@@ -508,3 +508,22 @@ Playwright 1개 시나리오만:
 - **자체 장애** — admin 콘솔 오작동으로 정상 사용자 영향 = 0건
 - **운영자 오조작 복구율** — soft delete 유예 덕에 "잘못 지움" 복구 = 100% (30일 이내 시도 시)
 - **외부 감사 대응** — 법적 요청 수신 → CSV export 시간 < 5분
+
+## 15. Promotion Engine (TBD · Plan 9b)
+
+> **Status:** placeholder. 상세 설계는 Plan 9b 시작 시 본 spec 의 § 15 로 채워 넣는다.
+> **Source spec:** [`2026-04-25-billing-pricing-redesign-design.md`](./2026-04-25-billing-pricing-redesign-design.md) § 9.1 — Promotion Engine 은 별도 spec 보다 본 super-admin spec 의 확장이 더 적합 (admin UI · 감사 로그 · 권한 가드 모두 본 spec 의 인프라 재사용).
+
+### 15.1 범위 (예정)
+
+- 4 grant type 관리 UI: signup-bonus / card-bonus / domain-bonus (`*.ac.kr`) / manual-grant (운영자 수동)
+- abuse watchlist UI: 의심 가입자 (도메인 패턴, IP 패턴, 행동 패턴) 모니터 + 차단
+- promotion CRUD + redemption 로그 조회
+- `blocked_email_domains` 관리
+
+### 15.2 재사용 인프라
+
+- § 3 권한 모델 (`super_admin` 역할 그대로)
+- § 5 데이터 모델 (`admin_audit_log` 에 promotion 이벤트 추가)
+- § 6 API 패턴 (`/admin/promotions/*`, `/admin/abuse-watchlist/*`)
+- § 8 보안 (step-up re-auth · 감사 자동 기록)

@@ -328,59 +328,59 @@
   },
   "pricing": {
     "label": "PRICING",
-    "title1": "오늘 무료로 시작하고,",
-    "title2": "필요할 때 업그레이드하세요.",
-    "sub": "Free 플랜으로 모든 에이전트를 먼저 써볼 수 있습니다. 연구실·팀 단위로 커지면 Pro 무제한, 본인 키를 쓰고 싶다면 BYOK로.",
-    "free": {
-      "name": "Free",
-      "cat": "forever",
+    "title1": "구독 없는 AI 노트.",
+    "title2": "충전한 캐시는 만료되지 않습니다.",
+    "sub": "솔로는 ₩0, BYOK는 ₩3,900, 협업 Team은 ₩9,900/석. 캐시는 영구 보유되고, 작업 전 비용을 미리 알려드립니다.",
+    "solo": {
+      "name": "Solo",
+      "cat": "payg · 캐시",
       "price": "₩0",
-      "tagline": "영구 무료 · 체험용",
+      "tagline": "구독 없이 · 충전한 만큼만",
       "bullets": [
-        "프로젝트 10개",
-        "월 50개 Q&A",
-        "월 3편 오디오 팟캐스트",
-        "스토리지 100 MB",
-        "12 에이전트 전체 접근"
+        "신규 가입 시 <b>₩3,000 캐시</b> 증정",
+        "충전한 캐시는 <b>영구 보유 · 만료 없음</b>",
+        "12 에이전트 전체 접근",
+        "노트 무제한 · 스토리지 100 MB",
+        "본인 Gemini 키 (BYOK) 옵션"
       ],
       "bulletsMuted": ["커뮤니티 지원"],
       "cta": "시작하기"
     },
-    "pro": {
-      "name": "Pro",
-      "cat": "team · payg",
-      "price": "₩4,900",
-      "unit": "/월",
-      "tagline": "구독료 + AI 사용량 별도 (PAYG)",
+    "team": {
+      "name": "Team",
+      "cat": "team · 워크스페이스 공유",
+      "price": "₩9,900",
+      "unit": "/석/월",
+      "tagline": "협업 · 워크스페이스 캐시 공유",
       "payg": {
-        "label": "AI 크레딧 (PAYG)",
-        "line1": "최소 ₩5,000 선불 충전 · <b>잔액 만료 없음</b>",
-        "line2": "사용한 만큼만 차감 · <m>$1 = ₩1,650</m>"
+        "label": "캐시",
+        "line1": "최소 충전 ₩5,000 · <b>영구 보유 · 만료 없음</b>",
+        "line2": "작업 전 비용 미리 보기 · hard cap 기본"
       },
       "bullets": [
-        "팀 워크스페이스 · 공개 링크 · 게스트",
+        "팀 워크스페이스 · 게스트 · 공개 링크",
         "Deep Research 우선 큐",
         "스토리지 <b>10 GB</b>",
         "1년 활동 로그 보존",
-        "자동 재충전 옵션 · 사용량 대시보드",
+        "워크스페이스 캐시 풀 · 자동 재충전",
         "이메일 지원"
       ],
-      "cta": "PRO 시작하기",
-      "guarantee": "14일간 구독료 환불 보장"
+      "cta": "TEAM 시작하기",
+      "guarantee": "14일간 정액 환불 보장"
     },
     "byok": {
       "name": "BYOK",
-      "cat": "managed · solo",
-      "price": "₩2,900",
+      "cat": "본인 키 · 1인",
+      "price": "₩3,900",
       "unit": "/월",
-      "tagline": "1인 관리형 · 본인 Gemini 키",
+      "tagline": "본인 Gemini 키 · 1인 호스팅",
       "bullets": [
         "저희가 호스팅 · 1인 계정",
         "본인 Gemini 키 (암호화 저장)",
-        "AI 비용 <b>0원</b> (본인 API 비용만)",
+        "API 사용료는 본인 결제",
         "스토리지 10 GB"
       ],
-      "bulletsMuted": ["Pro 팀 기능 제외 (솔로 tier)"],
+      "bulletsMuted": ["협업이 필요하면 Team으로"],
       "cta": "BYOK로 시작"
     },
     "footnote": "국내 카드·간편결제 지원 · VAT 별도 · 언제든 해지 · 환불 정책",
@@ -437,7 +437,7 @@
     "label": "CLOSING",
     "titleA": "여러분 지식의",
     "titleB": "제2의 뇌.",
-    "sub": "Free 플랜으로 오늘 시작하세요. 1년 뒤 지식 베이스가 얼마나 자라 있을지는, 오늘부터의 축적이 정합니다.",
+    "sub": "솔로 ₩0으로 오늘 시작하세요. 1년 뒤 지식 베이스가 얼마나 자라 있을지는, 오늘부터의 축적이 정합니다.",
     "primary": "> 시작하기",
     "secondary": "요금 비교",
     "bottomGithub": "GITHUB ↗",
@@ -446,7 +446,7 @@
   },
   "footer": {
     "tagline": "AI 지식 OS. 혼자서도, 팀으로도. 셀프호스팅으로 영원히.",
-    "taglineMono": "for people who read too much and remember too little.",
+    "taglineMono": "구독 없는 AI 노트. 만료 없는 캐시.",
     "colProduct": "Product",
     "colDev": "Developers",
     "colCommunity": "Community",

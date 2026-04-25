@@ -12,9 +12,9 @@ export function Pricing() {
   const ref = useRef<HTMLElement>(null);
   useScrollReveal(ref);
 
-  const freeBullets = t.raw("free.bullets") as string[];
-  const freeBulletsMuted = t.raw("free.bulletsMuted") as string[];
-  const proBullets = t.raw("pro.bullets") as string[];
+  const soloBullets = t.raw("solo.bullets") as string[];
+  const soloBulletsMuted = t.raw("solo.bulletsMuted") as string[];
+  const teamBullets = t.raw("team.bullets") as string[];
   const byokBullets = t.raw("byok.bullets") as string[];
   const byokMuted = t.raw("byok.bulletsMuted") as string[];
 
@@ -45,22 +45,24 @@ export function Pricing() {
         </div>
 
         <div className="grid grid-cols-12 border border-stone-700 rounded-2xl overflow-hidden reveal-stagger">
-          {/* Free */}
+          {/* Solo */}
           <div
             className="col-span-12 md:col-span-4 p-8 flex flex-col"
             style={{ borderRight: "1px solid #2A2823", borderBottom: "1px solid #2A2823" }}
           >
             <div className="flex items-baseline justify-between mb-5">
-              <span className="font-sans text-[11px] tracking-widest text-stone-300 uppercase">{t("free.name")}</span>
-              <span className="font-sans text-[10px] tracking-widest text-stone-500 uppercase">{t("free.cat")}</span>
+              <span className="font-sans text-[11px] tracking-widest text-stone-300 uppercase">{t("solo.name")}</span>
+              <span className="font-sans text-[10px] tracking-widest text-stone-500 uppercase">{t("solo.cat")}</span>
             </div>
-            <div className="font-sans text-5xl mb-2 text-stone-50">{t("free.price")}</div>
-            <p className="font-sans text-[11px] tracking-wider text-stone-500 mb-6 uppercase">{t("free.tagline")}</p>
+            <div className="font-sans text-5xl mb-2 text-stone-50">{t("solo.price")}</div>
+            <p className="font-sans text-[11px] tracking-wider text-stone-500 mb-6 uppercase">{t("solo.tagline")}</p>
             <ul className="text-[13px] text-stone-300 space-y-2.5 mb-8 flex-1 kr">
-              {freeBullets.map((b, i) => (
-                <li key={i}>· {b}</li>
+              {soloBullets.map((b, i) => (
+                <li key={i}>
+                  · <Html html={b} />
+                </li>
               ))}
-              {freeBulletsMuted.map((b, i) => (
+              {soloBulletsMuted.map((b, i) => (
                 <li key={`m-${i}`} className="text-stone-500">
                   · {b}
                 </li>
@@ -70,11 +72,11 @@ export function Pricing() {
               href="#login"
               className="block text-center border border-stone-50 text-stone-50 hover:bg-stone-50 hover:text-stone-900 font-sans text-[12px] tracking-widest px-6 py-3 rounded-md transition-colors"
             >
-              {t("free.cta")}
+              {t("solo.cta")}
             </a>
           </div>
 
-          {/* Pro (featured) */}
+          {/* Team (featured) */}
           <div
             className="col-span-12 md:col-span-4 p-8 flex flex-col relative"
             style={{
@@ -87,21 +89,21 @@ export function Pricing() {
             <div className="absolute -top-px left-0 right-0 h-[3px]" style={{ background: "#171717" }} />
             <div className="flex items-baseline justify-between mb-5">
               <span className="font-sans text-[11px] tracking-widest uppercase" style={{ color: "#171717" }}>
-                {t("pro.name")}
+                {t("team.name")}
               </span>
               <span className="font-sans text-[10px] tracking-widest uppercase" style={{ color: "#525252" }}>
-                {t("pro.cat")}
+                {t("team.cat")}
               </span>
             </div>
             <div className="font-sans text-5xl mb-1" style={{ color: "#171717" }}>
-              {t("pro.price")}
+              {t("team.price")}
               <span className="text-lg" style={{ color: "#525252" }}>
                 {" "}
-                {t("pro.unit")}
+                {t("team.unit")}
               </span>
             </div>
             <p className="font-sans text-[11px] tracking-wider uppercase mb-5" style={{ color: "#525252" }}>
-              {t("pro.tagline")}
+              {t("team.tagline")}
             </p>
 
             <div
@@ -109,22 +111,18 @@ export function Pricing() {
               style={{ background: "#E5E5E5", borderLeft: "2px solid #171717", color: "#171717" }}
             >
               <b className="tracking-widest uppercase text-[10px]" style={{ color: "#525252" }}>
-                {t("pro.payg.label")}
+                {t("team.payg.label")}
               </b>
               <br />
               <span style={{ color: "#262626" }}>
-                <Html html={t.raw("pro.payg.line1") as string} />
+                <Html html={t.raw("team.payg.line1") as string} />
                 <br />
-                <Html
-                  html={(t.raw("pro.payg.line2") as string)
-                    .replace(/<m>/g, '<span style="color:#525252">')
-                    .replace(/<\/m>/g, "</span>")}
-                />
+                <Html html={t.raw("team.payg.line2") as string} />
               </span>
             </div>
 
             <ul className="text-[13px] space-y-2.5 mb-8 flex-1 kr" style={{ color: "#262626" }}>
-              {proBullets.map((b, i) => (
+              {teamBullets.map((b, i) => (
                 <li key={i}>
                   · <Html html={b} />
                 </li>
@@ -135,10 +133,10 @@ export function Pricing() {
               className="block text-center font-sans text-[12px] tracking-widest px-6 py-3 rounded-md transition-colors border border-stone-900 hover:bg-stone-50 hover:text-stone-900"
               style={{ background: "#171717", color: "#FAFAFA" }}
             >
-              {t("pro.cta")}
+              {t("team.cta")}
             </a>
             <p className="font-sans text-[10px] tracking-widest text-center mt-3 uppercase" style={{ color: "#525252" }}>
-              {t("pro.guarantee")}
+              {t("team.guarantee")}
             </p>
           </div>
 
