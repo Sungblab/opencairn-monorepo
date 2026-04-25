@@ -15,6 +15,10 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { createParser } from "eventsource-parser";
+
+const isObj = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null;
 
 export interface StreamingAgentMessage {
   // null until the SSE `agent_placeholder` arrives — once set, the row
@@ -88,17 +92,12 @@ export function useChatSend(threadId: string | null) {
         return;
       }
 
-      const { createParser } = await import("eventsource-parser");
-      // eventsource-parser v3 takes a callbacks object (v2 took a bare fn).
-      // We're on v3.x — pass `onEvent`.
       const parser = createParser({
         onEvent: (ev) => {
           if (!ev.event) return;
-          let payload: Record<string, unknown> | null = null;
+          let payload: unknown = null;
           try {
-            payload = ev.data
-              ? (JSON.parse(ev.data) as Record<string, unknown>)
-              : null;
+            payload = ev.data ? JSON.parse(ev.data) : null;
           } catch {
             // Malformed frame — skip rather than tear down the whole stream.
             return;
@@ -107,34 +106,34 @@ export function useChatSend(threadId: string | null) {
             if (!prev) return prev;
             switch (ev.event) {
               case "agent_placeholder":
-                return {
-                  ...prev,
-                  id: typeof payload?.id === "string" ? payload.id : prev.id,
-                };
+                return isObj(payload) && typeof payload.id === "string"
+                  ? { ...prev, id: payload.id }
+                  : prev;
               case "status":
-                return {
-                  ...prev,
-                  status: payload as StreamingAgentMessage["status"],
-                };
+                return isObj(payload)
+                  ? { ...prev, status: payload as { phrase?: string } }
+                  : prev;
               case "thought":
-                return {
-                  ...prev,
-                  thought: payload as StreamingAgentMessage["thought"],
-                };
-              case "text": {
-                const delta =
-                  typeof payload?.delta === "string" ? payload.delta : "";
-                return { ...prev, body: prev.body + delta };
-              }
+                return isObj(payload)
+                  ? {
+                      ...prev,
+                      thought: payload as { summary: string; tokens?: number },
+                    }
+                  : prev;
+              case "text":
+                return isObj(payload) && typeof payload.delta === "string"
+                  ? { ...prev, body: prev.body + payload.delta }
+                  : prev;
               case "citation":
                 return { ...prev, citations: [...prev.citations, payload] };
               case "save_suggestion":
-                return { ...prev, save_suggestion: payload };
+                return isObj(payload)
+                  ? { ...prev, save_suggestion: payload }
+                  : prev;
               case "done":
-                return {
-                  ...prev,
-                  id: typeof payload?.id === "string" ? payload.id : prev.id,
-                };
+                return isObj(payload) && typeof payload.id === "string"
+                  ? { ...prev, id: payload.id }
+                  : prev;
               default:
                 return prev;
             }
@@ -150,18 +149,16 @@ export function useChatSend(threadId: string | null) {
           if (done) break;
           parser.feed(decoder.decode(value, { stream: true }));
         }
-      } catch (err) {
-        // Aborted: silently stop streaming. Other errors will be surfaced
-        // through toast plumbing in Phase 4D — for now we only swallow.
-        if ((err as Error).name !== "AbortError") {
-          // intentional: error UI lands in a follow-up task
-        }
+      } catch {
+        // SSE read errors (incl. AbortError on supersede) leave live state
+        // intact for the next send to overwrite or finally to clear.
       } finally {
         // Only the *current* send should invalidate + clear `live`. If a
         // newer send aborted us, it owns the next round of state.
         if (controller.current === ac) {
           qc.invalidateQueries({ queryKey: ["chat-messages", threadId] });
           setLive(null);
+          controller.current = null;
         }
       }
     },

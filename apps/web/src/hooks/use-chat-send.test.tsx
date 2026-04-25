@@ -1,6 +1,6 @@
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { ReactNode } from "react";
 
 import { useChatSend } from "./use-chat-send";
@@ -28,10 +28,14 @@ function makeWrapper() {
 }
 
 const fetchMock = vi.fn();
-vi.stubGlobal("fetch", fetchMock);
+
+beforeEach(() => {
+  vi.stubGlobal("fetch", fetchMock);
+});
 
 afterEach(() => {
   fetchMock.mockReset();
+  vi.unstubAllGlobals();
 });
 
 describe("useChatSend", () => {
