@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useTranslations } from "next-intl";
 
 type ActivityItem = { agent: string; text: string };
@@ -74,62 +74,24 @@ const AGENT_ROWS: Array<{ idx: number; x: number; y: number; text: number; fill:
   { idx: 11, x: 104, y: 136, text: 140, fill: "#A3A3A3", label: "Visual." },
 ];
 
+// 80ms initial pause + 110ms stagger = 의도적 호흡감.
+// 모든 reveal-intro 요소의 delay를 한 곳에서 관리해 JSX와 디자인 의도를 일치시킴.
+const HERO_INTRO_DELAYS = {
+  badge: 80,
+  title: 190,
+  sub: 300,
+  ctas: 410,
+  noCard: 520,
+  aside: 630,
+  livePanel: 740,
+} as const;
+
+// CSS custom property는 React의 CSSProperties에 명시되지 않으므로 cast 필요.
+const introStyle = (delayMs: number): CSSProperties =>
+  ({ "--reveal-delay": `${delayMs}ms` }) as CSSProperties;
+
 export function Hero() {
   const t = useTranslations("landing.hero");
-  const sectionRef = useRef<HTMLElement>(null);
-
-  useEffect(() => {
-    const root = sectionRef.current;
-    if (!root) return;
-    const els = root.querySelectorAll<HTMLElement>(".reveal");
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) {
-      els.forEach((el) => el.classList.add("in"));
-      return;
-    }
-
-    // 80ms initial pause + 110ms stagger = 의도적 호흡감.
-    // 7개 요소 → 첫 시작 80ms, 마지막 시작 80+6*110=740ms.
-    const STAGGER = 110;
-    const INITIAL_PAUSE = 80;
-    let raf1: number | null = null;
-    let pauseTimer: ReturnType<typeof setTimeout> | null = null;
-
-    raf1 = requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        pauseTimer = setTimeout(() => {
-          els.forEach((el, i) => {
-            el.style.transitionDelay = `${i * STAGGER}ms`;
-            el.classList.add("in");
-          });
-        }, INITIAL_PAUSE);
-      });
-    });
-
-    // bfcache 복원 시: useEffect는 재실행되지 않지만 이 핸들러는 살아있음 (페이지가
-    // 동결됐을 뿐 cleanup이 안 불림). .in이 빠진 요소가 있다면 transition 없이
-    // 즉시 보이게 하여 "빈 화면" 버그를 막는다.
-    const onPageshow = (e: PageTransitionEvent) => {
-      if (!e.persisted) return;
-      els.forEach((el) => {
-        if (el.classList.contains("in")) return;
-        const prev = el.style.transition;
-        el.style.transition = "none";
-        el.style.transitionDelay = "0ms";
-        el.classList.add("in");
-        // force reflow so the transition reset takes effect before we restore it
-        void el.offsetHeight;
-        el.style.transition = prev;
-      });
-    };
-    window.addEventListener("pageshow", onPageshow);
-
-    return () => {
-      if (raf1 !== null) cancelAnimationFrame(raf1);
-      if (pauseTimer) clearTimeout(pauseTimer);
-      window.removeEventListener("pageshow", onPageshow);
-    };
-  }, []);
 
   const activityItems = t.raw("activity.items") as ActivityItem[];
   const timeLabels = t.raw("activity.timeLabels") as string[];
@@ -194,17 +156,23 @@ export function Hero() {
   for (let i = 0; i < SHOW; i++) shown.push(activityItems[(head + i) % activityItems.length]);
 
   return (
-    <section ref={sectionRef} className="relative overflow-hidden">
+    <section className="relative overflow-hidden">
       <div className="max-w-[1280px] 2xl:max-w-[1480px] mx-auto px-6 lg:px-10 pt-4 pb-20 md:pt-6 md:pb-28 lg:pt-8 xl:pt-10 2xl:pb-36 relative">
         <div className="grid md:grid-cols-12 gap-12 2xl:gap-16 items-center">
           <div className="md:col-span-7">
-            <div className="flex items-center gap-3 mb-4 lg:mb-6 2xl:mb-10 reveal">
+            <div
+              className="flex items-center gap-3 mb-4 lg:mb-6 2xl:mb-10 reveal-intro"
+              style={introStyle(HERO_INTRO_DELAYS.badge)}
+            >
               <span className="w-2 h-2 bg-stone-900 rounded-full pulse-dot" aria-hidden />
               <span className="sec-label">
                 <span className="n">{t("label")}</span>
               </span>
             </div>
-            <h1 className="kr font-sans text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[1.05] text-stone-900 mb-4 lg:mb-6 2xl:mb-8 reveal">
+            <h1
+              className="kr font-sans text-4xl sm:text-5xl md:text-5xl lg:text-6xl leading-[1.05] text-stone-900 mb-4 lg:mb-6 2xl:mb-8 reveal-intro"
+              style={introStyle(HERO_INTRO_DELAYS.title)}
+            >
               {t("titleLine1")}{" "}
               <br />
               {t("titleLine2")}{" "}
@@ -215,10 +183,14 @@ export function Hero() {
               <span className="caret" aria-hidden />
             </h1>
             <p
-              className="kr text-lg text-stone-600 leading-relaxed mb-5 lg:mb-8 2xl:mb-10 reveal"
+              className="kr text-lg text-stone-600 leading-relaxed mb-5 lg:mb-8 2xl:mb-10 reveal-intro"
+              style={introStyle(HERO_INTRO_DELAYS.sub)}
               dangerouslySetInnerHTML={{ __html: t.raw("sub") as string }}
             />
-            <div className="flex flex-wrap items-center gap-4 reveal">
+            <div
+              className="flex flex-wrap items-center gap-4 reveal-intro"
+              style={introStyle(HERO_INTRO_DELAYS.ctas)}
+            >
               <a
                 href="#pricing"
                 className="bg-stone-900 hover:bg-stone-50 hover:text-stone-900 text-stone-50 border border-stone-900 font-medium px-6 py-3 rounded-md transition-colors kr inline-flex items-center gap-2"
@@ -235,7 +207,10 @@ export function Hero() {
                 {t("ctaSecondary")}
               </a>
             </div>
-            <p className="kr text-sm text-stone-500 mt-3 lg:mt-5 2xl:mt-8 reveal">
+            <p
+              className="kr text-sm text-stone-500 mt-3 lg:mt-5 2xl:mt-8 reveal-intro"
+              style={introStyle(HERO_INTRO_DELAYS.noCard)}
+            >
               {t("noCard")}
               <span className="mx-2 text-stone-300">·</span>
               <a href="#docs" className="text-stone-600 hover:text-stone-900 underline decoration-dotted underline-offset-2">
@@ -244,7 +219,10 @@ export function Hero() {
             </p>
           </div>
 
-          <aside className="md:col-span-5 reveal">
+          <aside
+            className="md:col-span-5 reveal-intro"
+            style={introStyle(HERO_INTRO_DELAYS.aside)}
+          >
             <div className="activity-card" aria-live="polite">
               <div className="ac-header">
                 <span className="ac-dot" aria-hidden />
@@ -274,7 +252,11 @@ export function Hero() {
           </aside>
         </div>
 
-        <div ref={livePanelRef} className="mt-12 relative live-panel reveal">
+        <div
+          ref={livePanelRef}
+          className="mt-12 relative live-panel reveal-intro"
+          style={introStyle(HERO_INTRO_DELAYS.livePanel)}
+        >
           <div className="bar">
             <span className="dot r" />
             <span className="dot y" />
