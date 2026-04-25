@@ -91,7 +91,13 @@ services:
     # the shared pgvector Postgres on first boot.
     image: temporalio/auto-setup:1.24
     ports:
-      - "7233:7233"
+      # Host port is configurable via TEMPORAL_HOST_PORT (default 7233).
+      # Set it to e.g. 17233 on Windows + Hyper-V/WSL, where the
+      # 7147-7246 range is excluded from user-bindable ports on some boots.
+      # Container-internal DNS (`temporal:7233`) is unaffected, so api/worker
+      # running inside compose keep using 7233. Local-only dev (worker on
+      # host) must mirror the override in TEMPORAL_ADDRESS.
+      - "${TEMPORAL_HOST_PORT:-7233}:7233"
     environment:
       - DB=postgres12
       - DB_PORT=5432
