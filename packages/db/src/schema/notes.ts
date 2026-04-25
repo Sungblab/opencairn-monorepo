@@ -10,7 +10,7 @@ import {
 import { projects } from "./projects";
 import { workspaces } from "./workspaces";
 import { folders } from "./folders";
-import { noteTypeEnum, sourceTypeEnum } from "./enums";
+import { noteTypeEnum, sourceTypeEnum, canvasLanguageEnum } from "./enums";
 import { tsvector, vector3072 } from "./custom-types";
 
 export const notes = pgTable(
@@ -36,6 +36,7 @@ export const notes = pgTable(
     embedding: vector3072("embedding"),
     type: noteTypeEnum("type").notNull().default("note"),
     sourceType: sourceTypeEnum("source_type"),
+    canvasLanguage: canvasLanguageEnum("canvas_language"),
     sourceFileKey: text("source_file_key"),
     sourceUrl: text("source_url"),
     mimeType: text("mime_type"),
