@@ -60,13 +60,27 @@ export function ResearchHub({
             </tr>
           </thead>
           <tbody>
-            {data.runs.map((r) => (
+            {data.runs.map((r) => {
+              const href = `/${locale}/app/w/${wsSlug}/research/${r.id}`;
+              const open = () => router.push(href);
+              return (
               <tr
                 key={r.id}
-                className="hover:bg-muted/30 cursor-pointer border-b border-border"
-                onClick={() =>
-                  router.push(`/${locale}/app/w/${wsSlug}/research/${r.id}`)
-                }
+                className="hover:bg-muted/30 cursor-pointer border-b border-border focus-visible:bg-muted/40 focus-visible:outline-none"
+                role="link"
+                tabIndex={0}
+                aria-label={`${t("hub.list.open")}: ${r.topic}`}
+                onClick={open}
+                onKeyDown={(e) => {
+                  // Mirror the activation contract of an anchor — Enter and
+                  // Space follow the link. Middle-click / Cmd+click can't be
+                  // emulated on a <tr>, which is the residual cost of the
+                  // table layout (see review #32 follow-up).
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    open();
+                  }
+                }}
                 data-testid="research-row"
               >
                 <td className="py-2">{r.topic}</td>
@@ -90,7 +104,8 @@ export function ResearchHub({
                   {new Date(r.createdAt).toLocaleString(locale)}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       )}
