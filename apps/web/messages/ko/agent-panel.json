@@ -9,5 +9,26 @@
     "loading": "불러오는 중…",
     "empty": "대화가 없습니다.",
     "untitled": "(제목 없음)"
+  },
+  "bubble": {
+    "user_label": "나",
+    "agent_label": "에이전트",
+    "thought_label": "생각",
+    "thought_seconds": "{seconds}초",
+    "save_suggestion_prefix": "\"{title}\" 노트로 저장 제안",
+    "save_suggestion_save": "저장",
+    "save_suggestion_dismiss_aria": "닫기",
+    "actions": {
+      "copy_aria": "복사",
+      "regenerate_aria": "재생성",
+      "thumbs_up_aria": "좋아요",
+      "thumbs_down_aria": "싫어요"
+    },
+    "feedback_reasons": {
+      "incorrect": "부정확",
+      "incomplete": "불완전",
+      "irrelevant": "관련 없음",
+      "other": "기타"
+    }
   }
 }

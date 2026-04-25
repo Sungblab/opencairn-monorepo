@@ -9,5 +9,26 @@
     "loading": "Loading…",
     "empty": "No conversations yet.",
     "untitled": "(untitled)"
+  },
+  "bubble": {
+    "user_label": "Me",
+    "agent_label": "Agent",
+    "thought_label": "Thinking",
+    "thought_seconds": "{seconds}s",
+    "save_suggestion_prefix": "Save \"{title}\" as a note?",
+    "save_suggestion_save": "Save",
+    "save_suggestion_dismiss_aria": "Dismiss",
+    "actions": {
+      "copy_aria": "Copy",
+      "regenerate_aria": "Regenerate",
+      "thumbs_up_aria": "Thumbs up",
+      "thumbs_down_aria": "Thumbs down"
+    },
+    "feedback_reasons": {
+      "incorrect": "Incorrect",
+      "incomplete": "Incomplete",
+      "irrelevant": "Irrelevant",
+      "other": "Other"
+    }
   }
 }
