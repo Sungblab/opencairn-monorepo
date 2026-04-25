@@ -40,6 +40,7 @@ import {
   createWikiLinkPlugin,
   WikiLinkCombobox,
 } from "./plugins/wiki-link";
+import { researchMetaPlugin } from "./blocks/research-meta/research-meta-plugin";
 
 // Basic marks + blocks. Lists are handled by the indent-based ListPlugin; the
 // bulleted/numbered toolbar buttons call `toggleList` directly with the style
@@ -58,6 +59,7 @@ const basePlugins = [
   HorizontalRulePlugin,
   ListPlugin,
   ...latexPlugins,
+  researchMetaPlugin,
 ];
 
 type TitleSaveStatus = "idle" | "saving" | "saved" | "error";

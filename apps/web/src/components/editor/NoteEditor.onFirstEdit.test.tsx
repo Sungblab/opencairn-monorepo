@@ -52,6 +52,14 @@ vi.mock("./plugins/latex", () => ({
   latexPlugins: [],
 }));
 
+// research-meta-plugin calls `createPlatePlugin` at module scope. The
+// `platejs/react` mock above intentionally only exports the surface this
+// suite needs, so stub the plugin to an empty object — this test cares
+// about onFirstEdit wiring, not plugin registration.
+vi.mock("./blocks/research-meta/research-meta-plugin", () => ({
+  researchMetaPlugin: {},
+}));
+
 import { renderNoteEditor } from "./NoteEditor.test-rig";
 
 describe("NoteEditor.onFirstEdit", () => {
