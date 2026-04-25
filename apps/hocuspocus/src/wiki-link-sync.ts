@@ -1,4 +1,4 @@
-import { wikiLinks, notes, projects, eq, and, inArray, isNull, type Tx } from "@opencairn/db";
+import { wikiLinks, notes, eq, and, inArray, isNull, type Tx } from "@opencairn/db";
 
 // `i` flag: external systems (some Better Auth flows, ingest sources) can
 // emit upper- or mixed-case UUIDs. Plate is consistent today but we don't
@@ -51,9 +51,8 @@ export async function resolveWorkspaceForNote(
   noteId: string,
 ): Promise<string | null> {
   const rows = await tx
-    .select({ workspaceId: projects.workspaceId })
+    .select({ workspaceId: notes.workspaceId })
     .from(notes)
-    .innerJoin(projects, eq(projects.id, notes.projectId))
     .where(eq(notes.id, noteId));
   return rows[0]?.workspaceId ?? null;
 }
@@ -87,11 +86,10 @@ export async function syncWikiLinks(
   const live = await tx
     .select({ id: notes.id })
     .from(notes)
-    .innerJoin(projects, eq(projects.id, notes.projectId))
     .where(and(
       inArray(notes.id, candidates),
       isNull(notes.deletedAt),
-      eq(projects.workspaceId, workspaceId),
+      eq(notes.workspaceId, workspaceId),
     ));
   const liveSet = new Set(live.map((r) => r.id));
   const rows = candidates
