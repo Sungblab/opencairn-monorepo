@@ -20,8 +20,10 @@ interface PanelState {
   sidebarOpen: boolean;
   agentPanelWidth: number;
   agentPanelOpen: boolean;
+  backlinksOpen: boolean;
   toggleSidebar(): void;
   toggleAgentPanel(): void;
+  toggleBacklinks(): void;
   setSidebarWidth(w: number): void;
   setAgentPanelWidth(w: number): void;
   resetSidebarWidth(): void;
@@ -38,9 +40,12 @@ export const usePanelStore = create<PanelState>()(
       sidebarOpen: true,
       agentPanelWidth: AGENT_DEFAULT,
       agentPanelOpen: true,
+      backlinksOpen: false,
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
       toggleAgentPanel: () =>
         set((s) => ({ agentPanelOpen: !s.agentPanelOpen })),
+      toggleBacklinks: () =>
+        set((s) => ({ backlinksOpen: !s.backlinksOpen })),
       setSidebarWidth: (w) =>
         set({ sidebarWidth: clamp(w, SIDEBAR_MIN, SIDEBAR_MAX) }),
       setAgentPanelWidth: (w) =>

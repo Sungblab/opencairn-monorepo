@@ -1,4 +1,5 @@
 import { useTranslations } from "next-intl";
+import { NoteWithBacklinks } from "@/components/notes/NoteWithBacklinks";
 
 export default async function NotePlaceholder({
   params,
@@ -6,7 +7,11 @@ export default async function NotePlaceholder({
   params: Promise<{ noteId: string }>;
 }) {
   const { noteId } = await params;
-  return <NoteBody noteId={noteId} />;
+  return (
+    <NoteWithBacklinks noteId={noteId}>
+      <NoteBody noteId={noteId} />
+    </NoteWithBacklinks>
+  );
 }
 
 function NoteBody({ noteId }: { noteId: string }) {
