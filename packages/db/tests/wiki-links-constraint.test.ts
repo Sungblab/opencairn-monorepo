@@ -18,31 +18,36 @@ describe("wiki_links table", () => {
   let n2: string;
 
   beforeAll(async () => {
-    const [u] = await db
-      .insert(user)
-      .values({ id: crypto.randomUUID(), email: `wl-${Date.now()}@example.com`, name: "wl-test", emailVerified: false })
-      .returning();
-    userId = u.id;
-    const [ws] = await db
-      .insert(workspaces)
-      .values({ name: "WL Test", slug: `wl-${Date.now()}`, ownerId: userId })
-      .returning();
-    workspaceId = ws.id;
-    const [p] = await db
-      .insert(projects)
-      .values({ name: "P", workspaceId, createdBy: userId })
-      .returning();
-    projectId = p.id;
-    const [a] = await db
-      .insert(notes)
-      .values({ title: "A", projectId, workspaceId })
-      .returning();
-    const [b] = await db
-      .insert(notes)
-      .values({ title: "B", projectId, workspaceId })
-      .returning();
-    n1 = a.id;
-    n2 = b.id;
+    // All setup inserts run in one transaction so a failure on the workspace,
+    // project, or notes insert does not leak the user row (no `afterAll`
+    // would run if `beforeAll` throws).
+    await db.transaction(async (tx) => {
+      const [u] = await tx
+        .insert(user)
+        .values({ id: crypto.randomUUID(), email: `wl-${crypto.randomUUID().slice(0, 8)}@example.com`, name: "wl-test", emailVerified: false })
+        .returning();
+      userId = u.id;
+      const [ws] = await tx
+        .insert(workspaces)
+        .values({ name: "WL Test", slug: `wl-${crypto.randomUUID().slice(0, 8)}`, ownerId: userId })
+        .returning();
+      workspaceId = ws.id;
+      const [p] = await tx
+        .insert(projects)
+        .values({ name: "P", workspaceId, createdBy: userId })
+        .returning();
+      projectId = p.id;
+      const [a] = await tx
+        .insert(notes)
+        .values({ title: "A", projectId, workspaceId })
+        .returning();
+      const [b] = await tx
+        .insert(notes)
+        .values({ title: "B", projectId, workspaceId })
+        .returning();
+      n1 = a.id;
+      n2 = b.id;
+    });
   });
 
   afterAll(async () => {
