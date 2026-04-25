@@ -67,6 +67,12 @@ export interface NoteRow {
   sourceFileKey: string | null;
   sourceUrl: string | null;
   mimeType: string | null;
+  /**
+   * Plan 7 Canvas Phase 1: non-null only when sourceType='canvas'. The DB
+   * CHECK constraint enforces the iff between sourceType='canvas' and
+   * canvasLanguage IS NOT NULL.
+   */
+  canvasLanguage: "python" | "javascript" | "html" | "react" | null;
   isAuto: boolean;
   createdAt: string;
   updatedAt: string;
@@ -90,6 +96,22 @@ export interface CreateNoteBody {
   folderId?: string | null;
   title?: string;
   content?: unknown[] | null;
+  // Plan 7 Canvas Phase 1: canvas notes carry source code in contentText
+  // and a non-null canvasLanguage. The DB CHECK constraint enforces the
+  // iff between sourceType='canvas' and canvasLanguage IS NOT NULL.
+  sourceType?:
+    | "manual"
+    | "pdf"
+    | "audio"
+    | "video"
+    | "image"
+    | "youtube"
+    | "web"
+    | "notion"
+    | "unknown"
+    | "canvas";
+  canvasLanguage?: "python" | "javascript" | "html" | "react";
+  contentText?: string;
 }
 
 export interface FolderRow {

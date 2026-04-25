@@ -2,6 +2,7 @@
 import { useTranslations } from "next-intl";
 import { useLegacyProjectTree } from "@/hooks/use-legacy-project-tree";
 import { FolderTree } from "./FolderTree";
+import { NewCanvasButton } from "./NewCanvasButton";
 import { NewNoteButton } from "./NewNoteButton";
 
 export function Sidebar({
@@ -30,8 +31,9 @@ export function Sidebar({
           {projectName}
         </h2>
       </header>
-      <div className="p-2">
+      <div className="p-2 space-y-1">
         <NewNoteButton workspaceSlug={workspaceSlug} projectId={projectId} />
+        <NewCanvasButton workspaceSlug={workspaceSlug} projectId={projectId} />
       </div>
       <div className="flex-1 overflow-y-auto p-2">
         {tree.isLoading ? (
