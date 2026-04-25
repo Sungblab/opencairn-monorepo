@@ -30,5 +30,32 @@
       "irrelevant": "관련 없음",
       "other": "기타"
     }
+  },
+  "composer": {
+    "placeholder": "메시지를 입력하세요...",
+    "attach_aria": "첨부",
+    "voice_aria": "음성 입력",
+    "send_aria": "전송",
+    "modes": {
+      "trigger_aria": "응답 모드 선택",
+      "auto": "AUTO",
+      "fast": "FAST",
+      "balanced": "BALANCED",
+      "accurate": "ACCURATE",
+      "research": "RESEARCH"
+    }
+  },
+  "scope": {
+    "add_aria": "스코프 추가",
+    "strict": "STRICT",
+    "loose": "LOOSE",
+    "strict_aria": "스코프 모드 전환",
+    "chips": {
+      "page": "📄 페이지",
+      "project": "📂 프로젝트",
+      "workspace": "🏠 워크스페이스",
+      "memory": "🧠 메모리",
+      "research": "🔬 이 리서치"
+    }
   }
 }

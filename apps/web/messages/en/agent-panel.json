@@ -30,5 +30,32 @@
       "irrelevant": "Irrelevant",
       "other": "Other"
     }
+  },
+  "composer": {
+    "placeholder": "Type a message...",
+    "attach_aria": "Attach",
+    "voice_aria": "Voice input",
+    "send_aria": "Send",
+    "modes": {
+      "trigger_aria": "Choose response mode",
+      "auto": "AUTO",
+      "fast": "FAST",
+      "balanced": "BALANCED",
+      "accurate": "ACCURATE",
+      "research": "RESEARCH"
+    }
+  },
+  "scope": {
+    "add_aria": "Add scope",
+    "strict": "STRICT",
+    "loose": "LOOSE",
+    "strict_aria": "Toggle scope mode",
+    "chips": {
+      "page": "📄 Page",
+      "project": "📂 Project",
+      "workspace": "🏠 Workspace",
+      "memory": "🧠 Memory",
+      "research": "🔬 This research"
+    }
   }
 }
