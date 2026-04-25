@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
@@ -86,6 +87,10 @@ export function ResearchRunView({ runId, wsSlug }: ResearchRunViewProps) {
         ? t("error.invalid_byok")
         : code === "quota_exceeded"
         ? t("error.quota_exceeded")
+        : code === "managed_credits_short"
+        ? t("error.managed_credits_short")
+        : code === "managed_disabled"
+        ? t("error.managed_disabled")
         : t("error.generic_failed");
     return (
       <div className="mx-auto w-full max-w-2xl p-6 text-sm">
@@ -94,12 +99,20 @@ export function ResearchRunView({ runId, wsSlug }: ResearchRunViewProps) {
         </h2>
         <p>{message}</p>
         {code === "invalid_byok_key" && (
-          <a
+          <Link
             href={`/${locale}/app/settings/ai`}
             className="text-primary mt-2 inline-block underline"
           >
             {t("error.invalid_byok_cta")}
-          </a>
+          </Link>
+        )}
+        {code === "managed_credits_short" && (
+          <Link
+            href={`/${locale}/app/settings/billing`}
+            className="text-primary mt-2 inline-block underline"
+          >
+            {t("error.managed_credits_cta")}
+          </Link>
         )}
       </div>
     );

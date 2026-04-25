@@ -123,4 +123,43 @@ describe("ResearchRunView", () => {
       ).toBeInTheDocument(),
     );
   });
+
+  it("renders managed_credits_short copy + billing CTA", async () => {
+    setup(
+      detail({
+        status: "failed",
+        error: {
+          code: "managed_credits_short",
+          message: "x",
+          retryable: false,
+        },
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByText(/관리형 경로를 사용하려면 크레딧 충전이 필요합니다/),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("link", { name: /결제로 이동/ }),
+    ).toHaveAttribute("href", "/ko/app/settings/billing");
+  });
+
+  it("renders managed_disabled copy", async () => {
+    setup(
+      detail({
+        status: "failed",
+        error: {
+          code: "managed_disabled",
+          message: "x",
+          retryable: false,
+        },
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByText(/관리형 경로는 아직 준비 중입니다/),
+      ).toBeInTheDocument(),
+    );
+  });
 });
