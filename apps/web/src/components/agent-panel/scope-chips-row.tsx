@@ -5,8 +5,8 @@
 // current research) plus a STRICT vs LOOSE switch that decides whether
 // off-scope retrieval is hard-blocked or merely down-weighted.
 //
-// `defaultScopeIds` is exported separately so the AgentPanel caller (Task
-// 11) can derive the *initial* selection from the active tab kind without
+// `defaultScopeIds` is exported separately so the AgentPanel caller can
+// derive the *initial* selection from the active tab kind without
 // re-reading the store inside this component on every render. This row
 // itself stays stateless beyond the props — caller owns selection +
 // strict mode.
@@ -71,9 +71,9 @@ export function ScopeChipsRow({
   const tab = useTabsStore((s) => s.tabs.find((tt) => tt.id === activeId));
   // Chips offered: a stable union so the user can promote any context, not
   // only the kinds defaulted by the active tab. The active tab is read
-  // here purely for future suggestion logic — today the AgentPanel (Task
-  // 11) caller seeds the initial selection from `defaultScopeIds`, which
-  // keeps this component a pure controlled view.
+  // here purely for future suggestion logic — today the AgentPanel caller
+  // seeds the initial selection from `defaultScopeIds`, which keeps this
+  // component a pure controlled view.
   void tab;
   return (
     <div className="flex items-center gap-1 border-t border-border px-2 py-1 text-[10px]">
