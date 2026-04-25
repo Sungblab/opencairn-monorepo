@@ -18,6 +18,7 @@ import { mentionsRouter } from "./routes/mentions";
 import { integrationsRouter } from "./routes/integrations";
 import { importRouter } from "./routes/import";
 import { researchRouter } from "./routes/research";
+import { threadRoutes } from "./routes/threads";
 import { userRoutes } from "./routes/users";
 import { streamRoutes } from "./routes/stream";
 
@@ -52,6 +53,7 @@ export function createApp() {
   // inviteRoutes' .use("*", requireAuth) would otherwise race the importRouter's
   // own per-route requireAuth and surface a 401 before zValidator can run.
   app.route("/api/import", importRouter);
+  app.route("/api/threads", threadRoutes);
   app.route("/api", inviteRoutes);  // /api/workspaces/:id/invites and /api/invites/:token/*
   app.route("/api", projectRoutes);
   app.route("/api/folders", folderRoutes);
