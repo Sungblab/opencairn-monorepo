@@ -4,7 +4,6 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 describe("pyodide-loader", () => {
   beforeEach(() => {
     document.head.innerHTML = "";
-    // @ts-expect-error window.loadPyodide is augmented globally
     delete window.loadPyodide;
     vi.resetModules();
   });
@@ -22,7 +21,6 @@ describe("pyodide-loader", () => {
 
   it("two calls return the same Promise (cached)", async () => {
     const mockPyodide = { runPythonAsync: vi.fn() };
-    // @ts-expect-error
     window.loadPyodide = vi.fn().mockResolvedValue(mockPyodide);
 
     // Simulate the script's onload handler firing on append.
@@ -39,7 +37,6 @@ describe("pyodide-loader", () => {
       const p2 = load();
       expect(p1).toBe(p2);
       await p1;
-      // @ts-expect-error
       expect(window.loadPyodide).toHaveBeenCalledTimes(1);
     } finally {
       document.head.appendChild = origAppend;

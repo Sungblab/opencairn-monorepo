@@ -91,7 +91,6 @@ export function CanvasViewer({ tab }: { tab: Tab }) {
     };
     // `save` mutation object identity is stable per QueryClient; intentionally
     // omitted to avoid restarting the debounce on every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source, language, note]);
 
   if (!note) return <div className="p-4 text-sm">{t("frame.loading")}</div>;

@@ -101,7 +101,6 @@ export function PyodideRunner({ source, stdin = "", onResult }: Props) {
       cancelled = true;
     };
     // Intentionally omit onResult and t — see latest-callback-ref pattern above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source, stdin]);
 
   return (

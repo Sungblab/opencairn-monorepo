@@ -185,7 +185,7 @@ CREATE TABLE promotions (
 
 CREATE TABLE promotion_redemptions (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id         UUID NOT NULL REFERENCES users(id),
+  user_id         TEXT NOT NULL REFERENCES "user"(id),
   promotion_id    UUID NOT NULL REFERENCES promotions(id),
   credit_krw      BIGINT NOT NULL,
   ledger_id       UUID REFERENCES credit_ledger(id),  -- audit chain to credit_ledger
@@ -223,7 +223,7 @@ CREATE TABLE blocked_email_domains (
   domain      TEXT PRIMARY KEY,           -- e.g., 'abuse.ac.kr'
   reason      TEXT NOT NULL,              -- 차단 사유
   blocked_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  blocked_by  UUID REFERENCES users(id)   -- admin user
+  blocked_by  TEXT REFERENCES "user"(id)   -- admin user
 );
 ```
 
