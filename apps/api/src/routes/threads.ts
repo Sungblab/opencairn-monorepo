@@ -137,11 +137,13 @@ export const threadRoutes = new Hono<AppEnv>()
       .where(eq(chatThreads.id, id));
     if (!row) return c.json({ error: "not_found" }, 404);
     if (row.userId !== userId) return c.json({ error: "forbidden" }, 403);
+    const now = new Date();
     await db
       .update(chatThreads)
       .set({
-        ...(title !== undefined ? { title, updatedAt: new Date() } : {}),
-        ...(archived === true ? { archivedAt: new Date() } : {}),
+        updatedAt: now,
+        ...(title !== undefined ? { title } : {}),
+        ...(archived === true ? { archivedAt: now } : {}),
         ...(archived === false ? { archivedAt: null } : {}),
       })
       .where(eq(chatThreads.id, id));
@@ -158,9 +160,10 @@ export const threadRoutes = new Hono<AppEnv>()
       .where(eq(chatThreads.id, id));
     if (!row) return c.json({ error: "not_found" }, 404);
     if (row.userId !== userId) return c.json({ error: "forbidden" }, 403);
+    const now = new Date();
     await db
       .update(chatThreads)
-      .set({ archivedAt: new Date() })
+      .set({ archivedAt: now, updatedAt: now })
       .where(eq(chatThreads.id, id));
     return c.json({ ok: true });
   })
@@ -235,6 +238,15 @@ export const threadRoutes = new Hono<AppEnv>()
         })
         .returning({ id: chatMessages.id });
 
+      // Bump thread updatedAt as soon as the user message lands so the
+      // sidebar reorders on send rather than waiting for the agent stream
+      // to finish — a 30s research turn shouldn't pin the thread to its
+      // pre-send slot for the entire stream window.
+      await db
+        .update(chatThreads)
+        .set({ updatedAt: new Date() })
+        .where(eq(chatThreads.id, id));
+
       const { id: agentId } = await createStreamingAgentMessage(id, mode);
 
       const encoder = new TextEncoder();
@@ -308,22 +320,14 @@ export const threadRoutes = new Hono<AppEnv>()
                 err instanceof Error ? err.message : "agent_failed",
             });
           } finally {
-            // NOTE: finalize + thread bump aren't transactional — a process
-            // kill between them leaves the row complete but the thread
-            // `updated_at` stale; sidebar reorder will lag by one turn.
-            // Acceptable for the stub; revisit if the real pipeline adds
-            // external side effects worth atomicity.
+            // Thread `updated_at` was bumped right after the user row was
+            // persisted (above), so the sidebar already reordered when the
+            // user hit send — finally only finalizes the agent row.
             await finalizeAgentMessage(
               agentId,
               { body: buffer.join(""), ...meta },
               streamStatus,
             );
-            // A new message is a meaningful update (unlike PATCH archive),
-            // so we bump updatedAt to reorder the sidebar.
-            await db
-              .update(chatThreads)
-              .set({ updatedAt: new Date() })
-              .where(eq(chatThreads.id, id));
           }
 
           send("done", { id: agentId, status: streamStatus });

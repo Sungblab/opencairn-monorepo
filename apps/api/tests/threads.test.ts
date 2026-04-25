@@ -371,7 +371,7 @@ describe("Threads REST — mutations", () => {
     expect(after!.updatedAt.toISOString()).toBe(before!.updatedAt.toISOString());
   });
 
-  it("PATCH archived=true does NOT bump updated_at (metadata-only)", async () => {
+  it("PATCH archived=true bumps updated_at (any modification is meaningful)", async () => {
     const create = await authedFetch("/api/threads", {
       method: "POST",
       userId: ctx.userId,
@@ -384,6 +384,11 @@ describe("Threads REST — mutations", () => {
       .from(chatThreads)
       .where(eq(chatThreads.id, id));
 
+    // Postgres `now()` resolution is microseconds, but most test runs
+    // complete fast enough that an immediate UPDATE would return the same
+    // timestamp. Sleep a hair so the toISOString comparison is meaningful.
+    await new Promise((r) => setTimeout(r, 5));
+
     const patch = await authedFetch(`/api/threads/${id}`, {
       method: "PATCH",
       userId: ctx.userId,
@@ -395,7 +400,73 @@ describe("Threads REST — mutations", () => {
       .select({ updatedAt: chatThreads.updatedAt, archivedAt: chatThreads.archivedAt })
       .from(chatThreads)
       .where(eq(chatThreads.id, id));
-    expect(after!.updatedAt.toISOString()).toBe(before!.updatedAt.toISOString());
+    expect(after!.updatedAt.getTime()).toBeGreaterThan(before!.updatedAt.getTime());
+    expect(after!.archivedAt).not.toBeNull();
+  });
+
+  it("PATCH archived=false bumps updated_at (restore is meaningful)", async () => {
+    const create = await authedFetch("/api/threads", {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ workspace_id: ctx.workspaceId, title: "restore-bump" }),
+    });
+    const { id } = (await create.json()) as { id: string };
+
+    // Archive first so restore is a real transition.
+    await authedFetch(`/api/threads/${id}`, {
+      method: "PATCH",
+      userId: ctx.userId,
+      body: JSON.stringify({ archived: true }),
+    });
+
+    const [before] = await db
+      .select({ updatedAt: chatThreads.updatedAt })
+      .from(chatThreads)
+      .where(eq(chatThreads.id, id));
+
+    await new Promise((r) => setTimeout(r, 5));
+
+    const restore = await authedFetch(`/api/threads/${id}`, {
+      method: "PATCH",
+      userId: ctx.userId,
+      body: JSON.stringify({ archived: false }),
+    });
+    expect(restore.status).toBe(200);
+
+    const [after] = await db
+      .select({ updatedAt: chatThreads.updatedAt, archivedAt: chatThreads.archivedAt })
+      .from(chatThreads)
+      .where(eq(chatThreads.id, id));
+    expect(after!.updatedAt.getTime()).toBeGreaterThan(before!.updatedAt.getTime());
+    expect(after!.archivedAt).toBeNull();
+  });
+
+  it("DELETE bumps updated_at (symmetric with PATCH archived=true)", async () => {
+    const create = await authedFetch("/api/threads", {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ workspace_id: ctx.workspaceId, title: "del-bump" }),
+    });
+    const { id } = (await create.json()) as { id: string };
+
+    const [before] = await db
+      .select({ updatedAt: chatThreads.updatedAt })
+      .from(chatThreads)
+      .where(eq(chatThreads.id, id));
+
+    await new Promise((r) => setTimeout(r, 5));
+
+    const del = await authedFetch(`/api/threads/${id}`, {
+      method: "DELETE",
+      userId: ctx.userId,
+    });
+    expect(del.status).toBe(200);
+
+    const [after] = await db
+      .select({ updatedAt: chatThreads.updatedAt, archivedAt: chatThreads.archivedAt })
+      .from(chatThreads)
+      .where(eq(chatThreads.id, id));
+    expect(after!.updatedAt.getTime()).toBeGreaterThan(before!.updatedAt.getTime());
     expect(after!.archivedAt).not.toBeNull();
   });
 
