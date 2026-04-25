@@ -57,5 +57,10 @@
       "memory": "🧠 Memory",
       "research": "🔬 This research"
     }
+  },
+  "empty_state": {
+    "intro": "Ask anything grounded in this workspace's knowledge.",
+    "hint": "Use the scope chips to adjust what the agent reads.",
+    "start_cta": "Start a conversation"
   }
 }
