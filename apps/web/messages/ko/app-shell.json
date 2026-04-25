@@ -52,7 +52,8 @@
           "plate": "편집 (Plate)",
           "reading": "읽기 전용",
           "source": "원본 (PDF)",
-          "data": "데이터 (JSON)"
+          "data": "데이터 (JSON)",
+          "canvas": "캔버스 (코드)"
         }
       }
     }

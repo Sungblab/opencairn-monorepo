@@ -52,7 +52,8 @@
           "plate": "Edit (Plate)",
           "reading": "Reading",
           "source": "Source (PDF)",
-          "data": "Data (JSON)"
+          "data": "Data (JSON)",
+          "canvas": "Canvas (Code)"
         }
       }
     }

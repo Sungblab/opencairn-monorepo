@@ -95,7 +95,10 @@ export function CanvasViewer({ tab }: { tab: Tab }) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="border-b p-2 flex items-center gap-3 text-sm">
+      <div
+        className="border-b p-2 flex items-center gap-3 text-sm"
+        data-testid="canvas-viewer-toolbar"
+      >
         <label className="flex items-center gap-2">
           <span>{t("viewer.languageLabel")}:</span>
           <select

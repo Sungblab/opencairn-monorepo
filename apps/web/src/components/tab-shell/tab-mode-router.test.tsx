@@ -15,6 +15,9 @@ vi.mock("./viewers/source-viewer", () => ({
 vi.mock("./viewers/data-viewer", () => ({
   DataViewer: () => <div data-testid="data-viewer" />,
 }));
+vi.mock("./viewers/canvas-viewer", () => ({
+  CanvasViewer: () => <div data-testid="canvas-viewer" />,
+}));
 
 const mk = (mode: Tab["mode"]): Tab => ({
   id: "t", kind: "note", targetId: "n1", mode,
@@ -49,6 +52,11 @@ describe("TabModeRouter", () => {
   it("dispatches data → DataViewer", () => {
     wrap(<TabModeRouter tab={mk("data")} />);
     expect(screen.getByTestId("data-viewer")).toBeInTheDocument();
+  });
+
+  it("dispatches canvas → CanvasViewer", () => {
+    wrap(<TabModeRouter tab={mk("canvas")} />);
+    expect(screen.getByTestId("canvas-viewer")).toBeInTheDocument();
   });
 
   it("falls back to StubViewer for non-core modes", () => {
