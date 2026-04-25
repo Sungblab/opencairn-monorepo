@@ -328,59 +328,59 @@
   },
   "pricing": {
     "label": "PRICING",
-    "title1": "Start free today,",
-    "title2": "upgrade when you need to.",
-    "sub": "Try every agent on Free first. When you scale into a lab or team, Pro removes the limits; bring your own Gemini key with BYOK.",
-    "free": {
-      "name": "Free",
-      "cat": "forever",
+    "title1": "Notes without subscriptions.",
+    "title2": "Cash that doesn't expire.",
+    "sub": "Solo at ₩0, BYOK at ₩3,900, Team at ₩9,900/seat. Prepaid cash never expires, and we preview costs before each run.",
+    "solo": {
+      "name": "Solo",
+      "cat": "payg · cash",
       "price": "₩0",
-      "tagline": "Forever free · for trying it out",
+      "tagline": "No subscription · just prepaid cash",
       "bullets": [
-        "10 projects",
-        "50 Q&A per month",
-        "3 audio podcasts per month",
-        "100 MB storage",
-        "All 12 agents"
+        "<b>₩3,000 cash</b> on signup",
+        "Prepaid cash <b>never expires</b>",
+        "All 12 agents",
+        "Unlimited notes · 100 MB storage",
+        "Bring your own Gemini key (BYOK) optional"
       ],
       "bulletsMuted": ["Community support"],
       "cta": "Get started"
     },
-    "pro": {
-      "name": "Pro",
-      "cat": "team · payg",
-      "price": "₩4,900",
-      "unit": "/mo",
-      "tagline": "Subscription + AI usage separate (PAYG)",
+    "team": {
+      "name": "Team",
+      "cat": "team · shared workspace",
+      "price": "₩9,900",
+      "unit": "/seat/mo",
+      "tagline": "Collaboration · shared workspace cash",
       "payg": {
-        "label": "AI CREDITS (PAYG)",
-        "line1": "Minimum ₩5,000 prepaid · <b>credits never expire</b>",
-        "line2": "Pay only for what you use · <m>$1 = ₩1,650</m>"
+        "label": "CASH",
+        "line1": "Minimum ₩5,000 prepaid · <b>permanent · never expires</b>",
+        "line2": "Cost preview before each run · hard cap by default"
       },
       "bullets": [
-        "Team workspaces · public links · guests",
+        "Team workspaces · guests · public links",
         "Deep Research priority queue",
         "<b>10 GB</b> storage",
         "1-year activity log retention",
-        "Auto top-up · usage dashboard",
+        "Shared workspace cash · auto top-up",
         "Email support"
       ],
-      "cta": "Start Pro",
+      "cta": "Start Team",
       "guarantee": "14-day subscription refund guarantee"
     },
     "byok": {
       "name": "BYOK",
-      "cat": "managed · solo",
-      "price": "₩2,900",
+      "cat": "your key · solo",
+      "price": "₩3,900",
       "unit": "/mo",
-      "tagline": "Managed solo · your own Gemini key",
+      "tagline": "Your own Gemini key · single seat",
       "bullets": [
-        "We host · solo account",
-        "Your Gemini key (stored encrypted)",
-        "AI cost <b>₩0</b> from us (only your API cost)",
+        "We host · single seat",
+        "Your Gemini key (encrypted at rest)",
+        "API usage billed by you",
         "10 GB storage"
       ],
-      "bulletsMuted": ["Pro team features not included (solo tier)"],
+      "bulletsMuted": ["For collaboration, see Team"],
       "cta": "Start with BYOK"
     },
     "footnote": "Domestic cards & easy pay · VAT separate · cancel anytime · refund policy",
@@ -437,7 +437,7 @@
     "label": "CLOSING",
     "titleA": "A second brain",
     "titleB": "for your knowledge.",
-    "sub": "Start with Free today. How much your knowledge base has grown a year from now depends on what you start accumulating today.",
+    "sub": "Start free on Solo today. How much your knowledge base has grown a year from now depends on what you start accumulating today.",
     "primary": "> Get started",
     "secondary": "Compare plans",
     "bottomGithub": "GITHUB ↗",
@@ -446,7 +446,7 @@
   },
   "footer": {
     "tagline": "AI knowledge OS. Solo or team. Self-hosted, forever.",
-    "taglineMono": "for people who read too much and remember too little.",
+    "taglineMono": "Subscription-free notes. Cash that doesn't expire.",
     "colProduct": "Product",
     "colDev": "Developers",
     "colCommunity": "Community",
