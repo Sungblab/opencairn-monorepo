@@ -29,10 +29,14 @@ const withNextIntl = createNextIntlPlugin("./src/i18n.ts");
 //   pattern used by CanvasFrame and any future Pyodide Web Worker.
 // - 'unsafe-inline' on style-src is preserved for Tailwind's runtime
 //   classes; tightening to nonces is a Phase 2+ exercise.
+// - Dev mode: Next.js / Turbopack injects inline bootstrap <script> tags
+//   (self.__next_r etc.) without a nonce, so 'unsafe-inline' is required
+//   for hydration. Production keeps the strict policy.
+const isDev = process.env.NODE_ENV !== "production";
 const CSP_HEADER = [
   "default-src 'self'",
   "frame-src 'self' blob:",
-  "script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net/pyodide/ https://esm.sh",
+  `script-src 'self' 'unsafe-eval'${isDev ? " 'unsafe-inline'" : ""} https://cdn.jsdelivr.net/pyodide/ https://esm.sh`,
   "worker-src 'self' blob:",
   "connect-src 'self' https://esm.sh https://cdn.jsdelivr.net/pyodide/",
   "img-src 'self' data: blob: https:",

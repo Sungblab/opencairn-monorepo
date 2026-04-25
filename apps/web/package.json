@@ -42,6 +42,7 @@
     "next-intl": "^4.9.1",
     "pdfjs-dist": "3.11.174",
     "platejs": "^49",
+    "pretendard": "^1.3.9",
     "react": "^19.0.0",
     "react-arborist": "^3.5.0",
     "react-dom": "^19.0.0",

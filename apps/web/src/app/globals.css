@@ -10,7 +10,7 @@
    * auth chrome). All headlines, prices, and body text use Pretendard via
    * `font-sans`. Korean text always renders in Pretendard regardless. */
   --font-serif: var(--font-serif-raw), Georgia, serif;
-  --font-sans: "Pretendard Variable", Pretendard, var(--font-sans-raw), -apple-system, system-ui, sans-serif;
+  --font-sans: var(--font-pretendard), var(--font-sans-raw), -apple-system, system-ui, sans-serif;
   --font-mono: var(--font-mono-raw), ui-monospace, monospace;
 
   --color-bg: var(--theme-bg);
