@@ -36,16 +36,54 @@ export const createTagSchema = z.object({
 // JSON array here; strict Plate node validation happens client-side.
 const plateValueSchema = z.array(z.unknown()).nullable();
 
-export const createNoteSchema = z.object({
-  projectId: z.string().uuid(),
-  folderId: z.string().uuid().nullable().default(null),
-  title: z.string().max(300).default("Untitled"),
-  content: plateValueSchema.default(null),
-  type: z.enum(["note", "wiki", "source"]).default("note"),
-});
+const sourceTypeSchema = z.enum([
+  "manual",
+  "pdf",
+  "audio",
+  "video",
+  "image",
+  "youtube",
+  "web",
+  "notion",
+  "unknown",
+  "canvas",
+]);
+
+export const canvasLanguageSchema = z.enum([
+  "python",
+  "javascript",
+  "html",
+  "react",
+]);
+
+const MAX_CANVAS_SOURCE_BYTES = 64 * 1024;
+
+export const createNoteSchema = z
+  .object({
+    projectId: z.string().uuid(),
+    folderId: z.string().uuid().nullable().default(null),
+    title: z.string().max(300).default("Untitled"),
+    content: plateValueSchema.default(null),
+    type: z.enum(["note", "wiki", "source"]).default("note"),
+    sourceType: sourceTypeSchema.optional(),
+    canvasLanguage: canvasLanguageSchema.optional(),
+    contentText: z.string().max(MAX_CANVAS_SOURCE_BYTES).optional(),
+  })
+  .refine(
+    (d) => d.sourceType !== "canvas" || d.canvasLanguage !== undefined,
+    {
+      message: "canvasLanguage required when sourceType=canvas",
+      path: ["canvasLanguage"],
+    },
+  );
 
 export const updateNoteSchema = z.object({
   title: z.string().max(300).optional(),
   content: plateValueSchema.optional(),
   folderId: z.string().uuid().nullable().optional(),
+});
+
+export const patchCanvasSchema = z.object({
+  source: z.string().max(MAX_CANVAS_SOURCE_BYTES),
+  language: canvasLanguageSchema.optional(),
 });
