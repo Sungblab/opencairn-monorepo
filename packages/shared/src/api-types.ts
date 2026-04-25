@@ -55,8 +55,9 @@ export const canvasLanguageSchema = z.enum([
   "html",
   "react",
 ]);
+export type CanvasLanguage = z.infer<typeof canvasLanguageSchema>;
 
-const MAX_CANVAS_SOURCE_BYTES = 64 * 1024;
+export const MAX_CANVAS_SOURCE_BYTES = 64 * 1024;
 
 export const createNoteSchema = z
   .object({
@@ -69,6 +70,9 @@ export const createNoteSchema = z
     canvasLanguage: canvasLanguageSchema.optional(),
     contentText: z.string().max(MAX_CANVAS_SOURCE_BYTES).optional(),
   })
+  // Asymmetric on purpose: only the canvas → language direction is API-checked.
+  // The reverse (canvasLanguage without sourceType=canvas) is rejected by the DB
+  // CHECK constraint notes_canvas_language_check (Plan 7 Phase 1 Task 1).
   .refine(
     (d) => d.sourceType !== "canvas" || d.canvasLanguage !== undefined,
     {

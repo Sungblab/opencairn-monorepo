@@ -13,7 +13,21 @@ describe("createNoteSchema (canvas extension)", () => {
   it("rejects sourceType='canvas' without canvasLanguage", () => {
     const r = createNoteSchema.safeParse({ ...baseValid, sourceType: "canvas" });
     expect(r.success).toBe(false);
-    if (!r.success) expect(r.error.issues[0].path).toContain("canvasLanguage");
+    if (!r.success) {
+      expect(r.error.issues[0].path).toContain("canvasLanguage");
+      expect(r.error.issues[0].message).toBe(
+        "canvasLanguage required when sourceType=canvas",
+      );
+    }
+  });
+
+  it("accepts non-canvas sourceType with stray canvasLanguage (DB CHECK enforces, not API)", () => {
+    const r = createNoteSchema.safeParse({
+      ...baseValid,
+      sourceType: "manual",
+      canvasLanguage: "python",
+    });
+    expect(r.success).toBe(true);
   });
 
   it("accepts sourceType='canvas' + canvasLanguage='python'", () => {
@@ -56,6 +70,11 @@ describe("patchCanvasSchema", () => {
   it("invalid language rejected", () => {
     const r = patchCanvasSchema.safeParse({ source: "x", language: "ruby" });
     expect(r.success).toBe(false);
+  });
+
+  it("accepts source without language (language is optional)", () => {
+    const r = patchCanvasSchema.safeParse({ source: "x" });
+    expect(r.success).toBe(true);
   });
 });
 
