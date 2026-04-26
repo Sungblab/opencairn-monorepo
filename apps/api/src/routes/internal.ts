@@ -20,6 +20,8 @@ import {
   importJobs,
   researchRuns,
   researchRunArtifacts,
+  codeRuns,
+  codeTurns,
   eq,
   and,
   isNull,
@@ -1401,7 +1403,11 @@ internal.post("/test-seed", async (c) => {
   }
 
   const parsed = (await c.req.json().catch(() => ({}))) as {
-    mode?: "default" | "onboarding-empty" | "onboarding-invite";
+    mode?:
+      | "default"
+      | "onboarding-empty"
+      | "onboarding-invite"
+      | "canvas-phase2";
   };
   const mode = parsed.mode ?? "default";
 
@@ -1465,6 +1471,59 @@ internal.post("/test-seed", async (c) => {
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
     return c.json({ ...baseReply, inviteToken, inviteWorkspaceSlug });
+  }
+
+  if (mode === "canvas-phase2") {
+    // Plan 7 Canvas Phase 2 — seed a workspace + project + a single canvas
+    // note (sourceType='canvas', canvasLanguage='python') so Playwright tests
+    // for the Code Agent / Monaco / SSE run pages have a deterministic
+    // landing target. The canvas metadata pair is required by the
+    // notes_canvas_language_check constraint (migration 0022).
+    const workspaceId = randomUUID();
+    const slug = `e2e-canvas-${workspaceId.slice(0, 8)}`;
+    const projectId = randomUUID();
+    const noteId = randomUUID();
+
+    await db.insert(workspaces).values({
+      id: workspaceId,
+      slug,
+      name: "E2E Canvas Workspace",
+      ownerId: userId,
+      planType: "free",
+    });
+
+    await db.insert(workspaceMembers).values({
+      workspaceId,
+      userId,
+      role: "owner",
+    });
+
+    await db.insert(projects).values({
+      id: projectId,
+      workspaceId,
+      name: "E2E Canvas Project",
+      createdBy: userId,
+      defaultRole: "editor",
+    });
+
+    await db.insert(notes).values({
+      id: noteId,
+      projectId,
+      workspaceId,
+      title: "Canvas Sample",
+      sourceType: "canvas",
+      canvasLanguage: "python",
+      contentText: "print('hello')",
+      inheritParent: true,
+    });
+
+    return c.json({
+      ...baseReply,
+      wsSlug: slug,
+      workspaceId,
+      projectId,
+      noteId,
+    });
   }
 
   // default mode — existing workspace + project + Welcome note.
@@ -1750,6 +1809,90 @@ internal.post(
       return c.json({ error: "artifact_missing_bytes" }, 404);
     }
     return c.json({ base64: payload.base64, mimeType: payload.mimeType }, 200);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Plan 7 Canvas Phase 2 — Code Agent worker callbacks
+// ---------------------------------------------------------------------------
+//
+// Worker (apps/worker/src/worker/lib/code_persistence.py) calls these two
+// endpoints to persist turn rows + flip the `code_runs.status` column. Both
+// are gated by the shared-secret middleware above; FEATURE_CODE_AGENT itself
+// is enforced at the worker registration layer + the public /api/code router,
+// not here — so a callback retry from a workflow that started before the flag
+// flipped off can still drain.
+
+const codeTurnInsertSchema = z.object({
+  runId: z.string().uuid(),
+  seq: z.number().int().nonnegative(),
+  // Mirror the Plan 7 spec literals on `kind` so a typo in the worker can't
+  // silently land a junk value the SSE event-encoder will then refuse.
+  kind: z.enum(["generate", "fix"]),
+  source: z.string().max(64 * 1024),
+  explanation: z.string().max(4 * 1024).nullable().optional(),
+  prevError: z.string().max(8 * 1024).nullable().optional(),
+});
+
+internal.post(
+  "/code/turns",
+  zValidator("json", codeTurnInsertSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    // (run_id, seq) is uniquely indexed (code_turns_run_seq_unique). Use
+    // ON CONFLICT DO NOTHING so a Temporal activity retry that re-emits the
+    // same seq is a no-op rather than a 500 the workflow has to handle.
+    await db
+      .insert(codeTurns)
+      .values({
+        runId: body.runId,
+        seq: body.seq,
+        kind: body.kind,
+        source: body.source,
+        explanation: body.explanation ?? null,
+        prevError: body.prevError ?? null,
+      })
+      .onConflictDoNothing();
+    return c.json({ ok: true });
+  },
+);
+
+const codeRunStatusPatchSchema = z.object({
+  // Allow the full set the workflow can transition through. Schema validation
+  // protects against a stray status string the SSE consumer doesn't know how
+  // to render.
+  status: z.enum([
+    "pending",
+    "running",
+    "awaiting_feedback",
+    "completed",
+    "max_turns",
+    "cancelled",
+    "abandoned",
+    "failed",
+  ]),
+});
+
+internal.patch(
+  "/code/runs/:id/status",
+  zValidator("json", codeRunStatusPatchSchema),
+  async (c) => {
+    const id = c.req.param("id");
+    // Use the shared isUuid helper rather than a one-off Zod parse — keeps
+    // the UUID acceptance set identical across every internal write route.
+    if (!isUuid(id)) {
+      return c.json({ error: "invalid uuid" }, 400);
+    }
+    const { status } = c.req.valid("json");
+    // updatedAt is bumped by Drizzle's $onUpdate on codeRuns, so we don't set
+    // it explicitly — same pattern the embedding-batches PATCH uses above.
+    const [updated] = await db
+      .update(codeRuns)
+      .set({ status })
+      .where(eq(codeRuns.id, id))
+      .returning({ id: codeRuns.id });
+    if (!updated) return c.json({ error: "not_found" }, 404);
+    return c.json({ ok: true });
   },
 );
 

@@ -11,6 +11,10 @@ import { apiClient } from "@/lib/api-client";
 import type { Tab } from "@/stores/tabs-store";
 import { PyodideRunner } from "@/components/canvas/PyodideRunner";
 import { CanvasFrame } from "@/components/canvas/CanvasFrame";
+import { MonacoEditor } from "@/components/canvas/MonacoEditor";
+import { CodeAgentPanel } from "@/components/canvas/CodeAgentPanel";
+import { CanvasOutputsGallery } from "@/components/canvas/CanvasOutputsGallery";
+import { useCodeAgentStream } from "@/lib/use-code-agent-stream";
 
 type CanvasLanguage = "python" | "javascript" | "html" | "react";
 
@@ -50,6 +54,16 @@ export function CanvasViewer({ tab }: { tab: Tab }) {
   const [saveStatus, setSaveStatus] = useState<
     "saved" | "saving" | "dirty" | "error"
   >("saved");
+
+  // Plan 7 Canvas Phase 2 — Code Agent + outputs wiring.
+  // `currentRunId` is the SSE handle returned by `POST /api/code/run`; it
+  // drives `useCodeAgentStream` and is forwarded to the outputs gallery so
+  // saved figures get attributed to the right run.
+  // `pendingFigures` is the latest set of base64 PNGs harvested from
+  // `PyodideRunner.onResult`; the gallery renders them with a Save button.
+  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
+  const [pendingFigures, setPendingFigures] = useState<string[]>([]);
+  const runResult = useCodeAgentStream(currentRunId);
 
   // Sync local state ONLY when we load a different note.
   // Without the id-guard, every successful save (which calls
@@ -93,10 +107,17 @@ export function CanvasViewer({ tab }: { tab: Tab }) {
     // omitted to avoid restarting the debounce on every render.
   }, [source, language, note]);
 
-  if (!note) return <div className="p-4 text-sm">{t("frame.loading")}</div>;
+  if (!note || !noteId)
+    return <div className="p-4 text-sm">{t("frame.loading")}</div>;
 
   const tooLarge =
     new TextEncoder().encode(source).byteLength > MAX_CANVAS_SOURCE_BYTES;
+
+  // Apply: replace the editor source. Discard from CodeAgentPanel passes
+  // the empty string — only treat non-empty payloads as accept.
+  function handleAgentApply(applied: string) {
+    if (applied.length > 0) setSource(applied);
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -121,7 +142,12 @@ export function CanvasViewer({ tab }: { tab: Tab }) {
         </label>
         <button
           type="button"
-          onClick={() => setRunId((n) => n + 1)}
+          onClick={() => {
+            // Each Run starts a new local run cycle — clear pending figures
+            // so stale ones from the previous run don't bleed into the gallery.
+            setPendingFigures([]);
+            setRunId((n) => n + 1);
+          }}
           disabled={tooLarge}
           className="px-3 py-1 rounded bg-primary text-primary-foreground disabled:opacity-50"
         >
@@ -135,22 +161,56 @@ export function CanvasViewer({ tab }: { tab: Tab }) {
         </span>
       </div>
       <div className="flex flex-1 min-h-0">
-        <textarea
-          value={source}
-          onChange={(e) => setSource(e.target.value)}
-          className="flex-1 p-3 font-mono text-sm bg-muted/20 border-r outline-none resize-none"
-          spellCheck={false}
-        />
-        <div className="flex-1 p-3 overflow-auto">
-          {tooLarge ? (
-            <div className="text-destructive text-sm">
-              {t("errors.sourceTooLarge")}
-            </div>
-          ) : language === "python" ? (
-            <PyodideRunner key={runId} source={source} />
-          ) : (
-            <CanvasFrame key={runId} source={source} language={language} />
-          )}
+        <div className="flex-1 border-r min-w-0 flex flex-col">
+          <div className="flex-1 min-h-0">
+            <MonacoEditor
+              language={language}
+              value={source}
+              onChange={setSource}
+            />
+          </div>
+          <div className="border-t p-2">
+            <CodeAgentPanel
+              noteId={noteId}
+              language={language}
+              runResult={
+                currentRunId
+                  ? {
+                      status: runResult.status,
+                      turns: runResult.turns,
+                      doneStatus: runResult.doneStatus ?? undefined,
+                      errorCode: runResult.errorCode ?? undefined,
+                    }
+                  : null
+              }
+              onApply={handleAgentApply}
+              onStart={(id) => setCurrentRunId(id)}
+            />
+          </div>
+        </div>
+        <div className="flex-1 flex flex-col min-w-0">
+          <div className="flex-1 p-3 overflow-auto">
+            {tooLarge ? (
+              <div className="text-destructive text-sm">
+                {t("errors.sourceTooLarge")}
+              </div>
+            ) : language === "python" ? (
+              <PyodideRunner
+                key={runId}
+                source={source}
+                onResult={(r) => setPendingFigures(r.figures)}
+              />
+            ) : (
+              <CanvasFrame key={runId} source={source} language={language} />
+            )}
+          </div>
+          <div className="border-t p-2">
+            <CanvasOutputsGallery
+              noteId={noteId}
+              runId={currentRunId}
+              pendingFigures={pendingFigures}
+            />
+          </div>
         </div>
       </div>
     </div>

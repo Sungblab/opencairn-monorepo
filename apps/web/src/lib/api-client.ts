@@ -21,10 +21,23 @@ export async function apiClient<T>(
   path: string,
   options?: RequestInit,
 ): Promise<T> {
+  // Multipart uploads (Plan 7 Canvas Phase 2 — `useCanvasOutputs.upload`) need
+  // the browser to set `Content-Type: multipart/form-data; boundary=...`. If
+  // we forced `application/json` here the server would lose the boundary and
+  // fail to parse the FormData. Detect FormData and skip the default header.
+  const isFormData =
+    typeof FormData !== "undefined" && options?.body instanceof FormData;
+  const baseHeaders: Record<string, string> = isFormData
+    ? {}
+    : { "Content-Type": "application/json" };
+
   const res = await fetch(`${baseUrl()}/api${path}`, {
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...options?.headers },
     ...options,
+    // Apply the merged headers AFTER the spread so caller-provided headers
+    // can still override but the JSON default isn't reintroduced when the
+    // body is FormData.
+    headers: { ...baseHeaders, ...options?.headers },
   });
 
   if (!res.ok) {

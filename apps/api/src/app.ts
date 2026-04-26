@@ -18,6 +18,8 @@ import { mentionsRouter } from "./routes/mentions";
 import { integrationsRouter } from "./routes/integrations";
 import { importRouter } from "./routes/import";
 import { researchRouter } from "./routes/research";
+import { codeRoutes } from "./routes/code";
+import { canvasRoutes } from "./routes/canvas";
 import { threadRoutes } from "./routes/threads";
 import { messageFeedbackRoutes } from "./routes/message-feedback";
 import { userRoutes } from "./routes/users";
@@ -74,6 +76,8 @@ export function createApp() {
   app.route("/api/notes", noteRoutes);
   app.route("/api/ingest", ingestRoutes);
   app.route("/api/research", researchRouter);
+  app.route("/api/code", codeRoutes);
+  app.route("/api/canvas", canvasRoutes);
   app.route("/api/users", userRoutes);
   app.route("/api/notifications", notificationRoutes);
   app.route("/api/stream", streamRoutes);  // SSE: project tree (Phase 2) + notifications (Phase 5)
