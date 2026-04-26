@@ -484,6 +484,43 @@ export const notificationsApi = {
     apiClient<{ ok: true }>(`/notifications/${id}/read`, { method: "PATCH" }),
 };
 
+// ---------- Public share viewer (Plan 2C Task 8) ----------
+// Unlike everything else in this module, the share viewer is unauthenticated.
+// We bypass `apiClient` (which sends `credentials: "include"`) and use a raw
+// `fetch` with `credentials: "omit"` so the share token is the ONLY identity
+// signal — no session cookie leaks to the public endpoint, and the API can
+// rate-limit purely by IP. The endpoint lives at `/api/public/share/:token`
+// (registered before the auth wildcard in `apps/api/src/routes/share.ts`).
+
+export interface PublicShareNote {
+  id: string;
+  title: string;
+  role: "viewer" | "commenter" | "editor";
+  /** Plate value array as returned by `yjs-to-plate` server-side. */
+  plateValue: Array<Record<string, unknown>>;
+  updatedAt: string;
+}
+
+export async function fetchPublicShare(
+  token: string,
+): Promise<PublicShareNote> {
+  const res = await fetch(
+    `${baseUrl()}/api/public/share/${encodeURIComponent(token)}`,
+    {
+      credentials: "omit",
+      // Disable Next.js Data Cache for this request: share-link state is
+      // mutable (revoke flips the row) and we don't want a stale 200 to
+      // outlive a revoke. The page itself is rendered SSR per request.
+      cache: "no-store",
+    },
+  );
+  if (!res.ok) {
+    throw new ApiError(res.status, `share_status_${res.status}`);
+  }
+  const body = (await res.json()) as { note: PublicShareNote };
+  return body.note;
+}
+
 export const api = {
   getNote: (id: string) => apiClient<NoteRow>(`/notes/${id}`),
   listNotesByProject: (projectId: string) =>
