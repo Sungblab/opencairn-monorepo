@@ -31,7 +31,8 @@
     "timeline": "Timeline",
     "board": "Board",
     "switcherAria": "Choose view",
-    "needsRoot": "Pick a starting concept to render the mindmap"
+    "needsRoot": "Pick a starting concept to render the mindmap",
+    "noConcepts": "No concepts in this project yet"
   },
   "ai": {
     "trigger": "Draw with AI"
