@@ -13,6 +13,7 @@ import {
 } from "@platejs/basic-nodes/react";
 import { ListPlugin } from "@platejs/list/react";
 import { toggleList } from "@platejs/list";
+import { CodeBlockPlugin, CodeLinePlugin } from "@platejs/code-block/react";
 import { Plate, PlateContent } from "platejs/react";
 import debounce from "lodash.debounce";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -58,6 +59,8 @@ const basePlugins = [
   BlockquotePlugin,
   HorizontalRulePlugin,
   ListPlugin,
+  CodeBlockPlugin,
+  CodeLinePlugin,
   ...latexPlugins,
   researchMetaPlugin,
 ];
