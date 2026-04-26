@@ -202,11 +202,21 @@ workspaceRoutes.get("/:workspaceId", requireWorkspaceRole("member"), async (c) =
   return c.json(ws);
 });
 
-// 멤버 목록
+// 멤버 목록 — workspace settings → members 탭 직렬화 형태로 반환.
+// user 정보(이름/이메일)를 join해 한 번의 호출로 표시 가능하게.
 workspaceRoutes.get("/:workspaceId/members", requireWorkspaceRole("member"), async (c) => {
   const id = c.req.param("workspaceId");
   if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
-  const members = await db.select().from(workspaceMembers).where(eq(workspaceMembers.workspaceId, id));
+  const members = await db
+    .select({
+      userId: workspaceMembers.userId,
+      role: workspaceMembers.role,
+      email: user.email,
+      name: user.name,
+    })
+    .from(workspaceMembers)
+    .innerJoin(user, eq(user.id, workspaceMembers.userId))
+    .where(eq(workspaceMembers.workspaceId, id));
   return c.json(members);
 });
 

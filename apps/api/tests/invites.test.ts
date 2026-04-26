@@ -230,3 +230,97 @@ describe("POST /api/invites/:token/accept — concurrency invariant", () => {
     expect(inv!.acceptedAt).not.toBeNull();
   });
 });
+
+// App Shell Phase 5 Task 6 — workspace settings → invites tab needs both a
+// list endpoint and a cancel endpoint scoped to the (workspaceId, inviteId)
+// pair so a workspace admin can't tamper with another workspace's invites.
+describe("GET /api/workspaces/:wsId/invites + DELETE /:inviteId", () => {
+  afterEach(cleanup);
+
+  async function authedGet(
+    path: string,
+    userId: string,
+  ): Promise<Response> {
+    const cookie = await signSessionCookie(userId);
+    return app.request(path, { headers: { cookie } });
+  }
+  async function authedDelete(
+    path: string,
+    userId: string,
+  ): Promise<Response> {
+    const cookie = await signSessionCookie(userId);
+    return app.request(path, { method: "DELETE", headers: { cookie } });
+  }
+
+  it("admin sees their own workspace's invites in created_at desc order", async () => {
+    const { workspaceId, inviter } = await seedInvite({});
+    // Add a second invite a beat later.
+    await new Promise((r) => setTimeout(r, 5));
+    await db.insert(workspaceInvites).values({
+      workspaceId,
+      email: "second@ex.com",
+      role: "admin",
+      token: randomBytes(32).toString("base64url"),
+      invitedBy: inviter.id,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
+
+    const res = await authedGet(
+      `/api/workspaces/${workspaceId}/invites`,
+      inviter.id,
+    );
+    expect(res.status).toBe(200);
+    const rows = (await res.json()) as Array<{ email: string }>;
+    expect(rows.length).toBe(2);
+    // newest first
+    expect(rows[0].email).toBe("second@ex.com");
+  });
+
+  it("non-admin (member) is forbidden", async () => {
+    const { workspaceId } = await seedInvite({});
+    const stranger = await createUser();
+    createdUserIds.add(stranger.id);
+    await db.insert(workspaceMembers).values({
+      workspaceId,
+      userId: stranger.id,
+      role: "member",
+    });
+    const res = await authedGet(
+      `/api/workspaces/${workspaceId}/invites`,
+      stranger.id,
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("admin can cancel an invite from their workspace", async () => {
+    const { workspaceId, inviter } = await seedInvite({});
+    const [row] = await db
+      .select({ id: workspaceInvites.id })
+      .from(workspaceInvites)
+      .where(eq(workspaceInvites.workspaceId, workspaceId));
+    const res = await authedDelete(
+      `/api/workspaces/${workspaceId}/invites/${row.id}`,
+      inviter.id,
+    );
+    expect(res.status).toBe(200);
+    const remaining = await db
+      .select()
+      .from(workspaceInvites)
+      .where(eq(workspaceInvites.id, row.id));
+    expect(remaining).toHaveLength(0);
+  });
+
+  it("404 when (workspaceId, inviteId) do not match", async () => {
+    const a = await seedInvite({});
+    const b = await seedInvite({});
+    const [other] = await db
+      .select({ id: workspaceInvites.id })
+      .from(workspaceInvites)
+      .where(eq(workspaceInvites.workspaceId, b.workspaceId));
+    const res = await authedDelete(
+      `/api/workspaces/${a.workspaceId}/invites/${other.id}`,
+      a.inviter.id,
+    );
+    expect(res.status).toBe(404);
+  });
+});
