@@ -1,0 +1,9 @@
+{
+  "id": "teach-back",
+  "name": "Teach-Back Explanation",
+  "description": "Generate a Feynman-style explanation of a concept as if teaching it simply.",
+  "renderer": "structured",
+  "output_schema_id": "teach_back",
+  "variables": ["concept", "context", "audience"],
+  "prompt_template": "Explain the following concept as if teaching it to a {{audience}}.\n\nConcept: {{concept}}\n\nBackground material:\n{{context}}\n\nUse simple language. Include an analogy, key points, common mistakes, and follow-up questions to check understanding.\n\nReturn JSON: { concept, explanation, analogy?, key_points, common_mistakes, follow_up_questions }"
+}

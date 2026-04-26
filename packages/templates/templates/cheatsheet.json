@@ -1,0 +1,9 @@
+{
+  "id": "cheatsheet",
+  "name": "Cheat Sheet",
+  "description": "Generate a compact reference cheat sheet rendered as a styled card in the Canvas.",
+  "renderer": "canvas",
+  "output_schema_id": "cheatsheet",
+  "variables": ["topic", "context"],
+  "prompt_template": "Create a concise cheat sheet for quick reference on the following topic.\n\nTopic: {{topic}}\n\nSource material:\n{{context}}\n\nOrganize into sections with term/definition/example entries. Keep definitions brief — this is for quick lookup.\n\nReturn JSON: { title, sections: [{ heading, items: [{ term, definition, example? }] }] }"
+}
