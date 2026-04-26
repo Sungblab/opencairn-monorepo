@@ -35,3 +35,6 @@ __all__ = [
     "search_concepts",
     "search_notes",
 ]
+
+# Side-effect import: registers ViewSpec in SCHEMA_REGISTRY (Plan 5 Phase 2).
+from . import view_spec_schema  # noqa: F401, E402
