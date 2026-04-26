@@ -217,4 +217,62 @@ describe("POST /api/visualize", () => {
     releaseFirst?.();
     await res1.text();
   });
+
+  it("releases the lock immediately when the consumer cancels the stream", async () => {
+    // Regression guard for the gemini-code-assist post-merge review: the
+    // original TransformStream wrapper omitted `cancel`, so a client that
+    // disconnected mid-stream held the per-user lock until the visualize-
+    // lock TTL (~2 min) — blocking subsequent POSTs with 429. Adding
+    // `cancel() { release(); }` makes the lock follow the consumer.
+    let releaseFirst: (() => void) | null = null;
+    const firstClosed = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+
+    streamCtrl.nextStream = () => {
+      const enc = new TextEncoder();
+      return new ReadableStream<Uint8Array>({
+        async start(controller) {
+          controller.enqueue(
+            enc.encode(
+              `event: tool_use\ndata: {"name":"hold","callId":"1"}\n\n`,
+            ),
+          );
+          await firstClosed;
+          controller.enqueue(enc.encode(`event: done\ndata: {}\n\n`));
+          controller.close();
+        },
+      });
+    };
+
+    const res1 = await postVisualize(
+      { projectId: ctx.projectId, prompt: "first" },
+      { cookie },
+    );
+    expect(res1.status).toBe(200);
+
+    // Cancel the response body — mirrors a browser disconnect / fetch
+    // abort. The TransformStream wrapper's `cancel` runs, calling release().
+    await res1.body?.cancel();
+    // Release the inner stream so the test doesn't dangle on the awaiter.
+    releaseFirst?.();
+
+    // Restore default fast stream and try again — should NOT hit 429 since
+    // the lock was released on cancel.
+    streamCtrl.nextStream = () => {
+      const enc = new TextEncoder();
+      return new ReadableStream<Uint8Array>({
+        start(c) {
+          c.enqueue(enc.encode(`event: done\ndata: {}\n\n`));
+          c.close();
+        },
+      });
+    };
+    const res2 = await postVisualize(
+      { projectId: ctx.projectId, prompt: "second" },
+      { cookie },
+    );
+    expect(res2.status).toBe(200);
+    await res2.text();
+  });
 });

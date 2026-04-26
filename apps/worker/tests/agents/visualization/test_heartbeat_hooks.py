@@ -1,3 +1,11 @@
+"""Plan 5 KG Phase 2 — HeartbeatLoopHooks unit tests.
+
+Post-merge review (gemini-code-assist) follow-up: heartbeats are lossy —
+Temporal only persists the *latest* heartbeat call's details. The hook
+must accumulate event history and re-send the full list on every call
+so fast tool windows (cache hits, sub-poll-interval completions) don't
+overwrite tool_use entries before the API poller (250 ms) sees them.
+"""
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -31,37 +39,80 @@ def _tool_result(name="search_concepts", id_="call-1"):
 
 
 @pytest.mark.asyncio
-async def test_on_tool_start_emits_heartbeat():
+async def test_on_tool_start_emits_tool_use_event_as_first_payload():
     with patch(
         "worker.agents.visualization.heartbeat_hooks.activity",
     ) as activity_mod:
         hooks = HeartbeatLoopHooks()
         await hooks.on_tool_start(_state(), _tool_use())
     activity_mod.heartbeat.assert_called_once()
-    metadata = activity_mod.heartbeat.call_args.args[0]
-    assert metadata["event"] == "tool_use"
-    assert metadata["payload"]["name"] == "search_concepts"
-    assert metadata["payload"]["callId"] == "call-1"
-    assert metadata["payload"]["input"] == {"query": "x"}
+    # First call: history holds just the one tool_use event, sent as a
+    # single positional arg → heartbeatDetails.payloads = [Payload(tool_use)].
+    args = activity_mod.heartbeat.call_args.args
+    assert len(args) == 1
+    assert args[0]["event"] == "tool_use"
+    assert args[0]["payload"]["name"] == "search_concepts"
+    assert args[0]["payload"]["callId"] == "call-1"
+    assert args[0]["payload"]["input"] == {"query": "x"}
 
 
 @pytest.mark.asyncio
-async def test_on_tool_end_emits_heartbeat_with_summary():
+async def test_on_tool_end_resends_full_event_history():
+    # Critical regression guard: when a fast tool finishes inside a single
+    # poll window, we MUST re-send the tool_use event alongside the
+    # tool_result so the API stream sees both.
     with patch(
         "worker.agents.visualization.heartbeat_hooks.activity",
     ) as activity_mod:
         hooks = HeartbeatLoopHooks()
+        await hooks.on_tool_start(_state(), _tool_use())
         await hooks.on_tool_end(_state(), _tool_use(), _tool_result())
-    metadata = activity_mod.heartbeat.call_args.args[0]
-    assert metadata["event"] == "tool_result"
-    assert metadata["payload"]["callId"] == "call-1"
-    assert metadata["payload"]["ok"] is True
+    # Second heartbeat call carries BOTH events (variadic, full history).
+    second_call = activity_mod.heartbeat.call_args_list[-1]
+    args = second_call.args
+    assert len(args) == 2
+    assert args[0]["event"] == "tool_use"
+    assert args[1]["event"] == "tool_result"
+    assert args[1]["payload"]["callId"] == "call-1"
+    assert args[1]["payload"]["ok"] is True
+
+
+@pytest.mark.asyncio
+async def test_history_accumulates_across_multiple_tool_calls():
+    with patch(
+        "worker.agents.visualization.heartbeat_hooks.activity",
+    ) as activity_mod:
+        hooks = HeartbeatLoopHooks()
+        await hooks.on_tool_start(
+            _state(),
+            _tool_use(name="search_concepts", id_="call-1"),
+        )
+        await hooks.on_tool_end(
+            _state(),
+            _tool_use(name="search_concepts", id_="call-1"),
+            _tool_result(id_="call-1"),
+        )
+        await hooks.on_tool_start(
+            _state(),
+            _tool_use(name="expand_concept_graph", id_="call-2"),
+        )
+        await hooks.on_tool_end(
+            _state(),
+            _tool_use(name="expand_concept_graph", id_="call-2"),
+            _tool_result(id_="call-2"),
+        )
+    # Final heartbeat carries the entire 4-event history.
+    args = activity_mod.heartbeat.call_args_list[-1].args
+    assert len(args) == 4
+    events = [a["event"] for a in args]
+    assert events == ["tool_use", "tool_result", "tool_use", "tool_result"]
+    call_ids = [a["payload"]["callId"] for a in args]
+    assert call_ids == ["call-1", "call-1", "call-2", "call-2"]
 
 
 @pytest.mark.asyncio
 async def test_other_hooks_are_no_op():
     hooks = HeartbeatLoopHooks()
-    # Should not raise / not heartbeat
     with patch(
         "worker.agents.visualization.heartbeat_hooks.activity",
     ) as activity_mod:
