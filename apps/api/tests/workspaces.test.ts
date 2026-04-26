@@ -5,6 +5,10 @@ import {
   workspaces,
   workspaceMembers,
   workspaceInvites,
+  projects,
+  notes,
+  researchRuns,
+  userPreferences,
   user,
   eq,
 } from "@opencairn/db";
@@ -308,5 +312,294 @@ describe("GET /api/workspaces/me", () => {
   it("returns 401 when unauthenticated", async () => {
     const res = await app.request("/api/workspaces/me");
     expect(res.status).toBe(401);
+  });
+});
+
+// App Shell Phase 5 Task 1 — dashboard 카드 4장의 데이터 소스. snake_case 응답
+// 키 (docs / docs_week_delta / research_in_progress / credits_krw / byok_connected)
+// 는 클라이언트가 그대로 분해해 카드에 매핑하므로 이름 자체가 계약이다.
+describe("GET /api/workspaces/:workspaceId/stats", () => {
+  afterEach(cleanup);
+
+  async function seedNote(
+    workspaceId: string,
+    projectId: string,
+    opts: { createdAt?: Date; deletedAt?: Date } = {},
+  ): Promise<string> {
+    const id = randomUUID();
+    await db.insert(notes).values({
+      id,
+      projectId,
+      workspaceId,
+      title: "n",
+      inheritParent: true,
+      createdAt: opts.createdAt,
+      updatedAt: opts.createdAt,
+      deletedAt: opts.deletedAt ?? null,
+    });
+    return id;
+  }
+
+  async function seedProject(
+    workspaceId: string,
+    ownerId: string,
+  ): Promise<string> {
+    const id = randomUUID();
+    await db.insert(projects).values({
+      id,
+      workspaceId,
+      name: "p",
+      createdBy: ownerId,
+    });
+    return id;
+  }
+
+  it("returns zero counts and disconnected BYOK on empty workspace", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const { workspaceId } = await seedMembership(u.id);
+    const res = await authedGet(`/api/workspaces/${workspaceId}/stats`, u.id);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      docs: 0,
+      docs_week_delta: 0,
+      research_in_progress: 0,
+      credits_krw: 0,
+      byok_connected: false,
+    });
+  });
+
+  it("counts non-deleted notes plus this-week delta", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const { workspaceId } = await seedMembership(u.id);
+    const projectId = await seedProject(workspaceId, u.id);
+    const now = Date.now();
+    // 2 notes within the last week
+    await seedNote(workspaceId, projectId, {
+      createdAt: new Date(now - 60 * 1000),
+    });
+    await seedNote(workspaceId, projectId, {
+      createdAt: new Date(now - 24 * 60 * 60 * 1000),
+    });
+    // 1 note older than 7 days
+    await seedNote(workspaceId, projectId, {
+      createdAt: new Date(now - 30 * 24 * 60 * 60 * 1000),
+    });
+    // 1 soft-deleted note (must not count towards docs at all)
+    await seedNote(workspaceId, projectId, {
+      createdAt: new Date(now - 60 * 1000),
+      deletedAt: new Date(),
+    });
+
+    const res = await authedGet(`/api/workspaces/${workspaceId}/stats`, u.id);
+    const body = (await res.json()) as { docs: number; docs_week_delta: number };
+    expect(body.docs).toBe(3);
+    expect(body.docs_week_delta).toBe(2);
+  });
+
+  it("counts only active research statuses", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const { workspaceId } = await seedMembership(u.id);
+    const projectId = await seedProject(workspaceId, u.id);
+
+    const insertRun = async (status: "planning" | "awaiting_approval" | "researching" | "completed" | "failed" | "cancelled") => {
+      const id = randomUUID();
+      await db.insert(researchRuns).values({
+        id,
+        workspaceId,
+        projectId,
+        userId: u.id,
+        topic: "t",
+        model: "deep-research-preview-04-2026",
+        billingPath: "managed",
+        status,
+        workflowId: id,
+      });
+    };
+    await insertRun("planning");
+    await insertRun("awaiting_approval");
+    await insertRun("researching");
+    await insertRun("completed");
+    await insertRun("failed");
+    await insertRun("cancelled");
+
+    const res = await authedGet(`/api/workspaces/${workspaceId}/stats`, u.id);
+    const body = (await res.json()) as { research_in_progress: number };
+    expect(body.research_in_progress).toBe(3);
+  });
+
+  it("reports byok_connected when user_preferences holds an encrypted key", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const { workspaceId } = await seedMembership(u.id);
+    await db.insert(userPreferences).values({
+      userId: u.id,
+      byokApiKeyEncrypted: Buffer.from("ciphertext-blob"),
+    });
+    const res = await authedGet(`/api/workspaces/${workspaceId}/stats`, u.id);
+    const body = (await res.json()) as { byok_connected: boolean };
+    expect(body.byok_connected).toBe(true);
+  });
+
+  it("returns 403 for non-member", async () => {
+    const owner = await createUser();
+    createdUserIds.add(owner.id);
+    const outsider = await createUser();
+    createdUserIds.add(outsider.id);
+    const { workspaceId } = await seedMembership(owner.id);
+    const res = await authedGet(
+      `/api/workspaces/${workspaceId}/stats`,
+      outsider.id,
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const id = randomUUID();
+    const res = await app.request(`/api/workspaces/${id}/stats`);
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects non-member access on malformed id", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const res = await authedGet("/api/workspaces/not-a-uuid/stats", u.id);
+    // requireWorkspaceRole runs before isUuid; an invalid uuid surfaces as
+    // either a permission error (403) or a query error (500) — the contract
+    // we care about is "caller cannot read stats", not the exact code.
+    expect(res.status).not.toBe(200);
+  });
+});
+
+describe("GET /api/workspaces/:workspaceId/recent-notes", () => {
+  afterEach(cleanup);
+
+  async function seedProject(
+    workspaceId: string,
+    ownerId: string,
+  ): Promise<string> {
+    const id = randomUUID();
+    await db.insert(projects).values({
+      id,
+      workspaceId,
+      name: `proj-${id.slice(0, 4)}`,
+      createdBy: ownerId,
+    });
+    return id;
+  }
+  async function seedNote(
+    workspaceId: string,
+    projectId: string,
+    title: string,
+    updatedAt: Date,
+    opts: { deletedAt?: Date } = {},
+  ): Promise<string> {
+    const id = randomUUID();
+    await db.insert(notes).values({
+      id,
+      projectId,
+      workspaceId,
+      title,
+      inheritParent: true,
+      createdAt: updatedAt,
+      updatedAt,
+      deletedAt: opts.deletedAt ?? null,
+    });
+    return id;
+  }
+
+  it("returns notes ordered by updated_at desc with project_name joined", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const { workspaceId } = await seedMembership(u.id);
+    const projectId = await seedProject(workspaceId, u.id);
+    const oldest = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    const middle = new Date(Date.now() - 60 * 60 * 1000);
+    const newest = new Date(Date.now() - 60 * 1000);
+    await seedNote(workspaceId, projectId, "a", oldest);
+    await seedNote(workspaceId, projectId, "b", middle);
+    await seedNote(workspaceId, projectId, "c", newest);
+
+    const res = await authedGet(
+      `/api/workspaces/${workspaceId}/recent-notes`,
+      u.id,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      notes: Array<{ title: string; project_name: string }>;
+    };
+    expect(body.notes.map((n) => n.title)).toEqual(["c", "b", "a"]);
+    expect(body.notes[0].project_name).toMatch(/^proj-/);
+  });
+
+  it("excludes soft-deleted notes", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const { workspaceId } = await seedMembership(u.id);
+    const projectId = await seedProject(workspaceId, u.id);
+    await seedNote(workspaceId, projectId, "alive", new Date());
+    await seedNote(workspaceId, projectId, "gone", new Date(), {
+      deletedAt: new Date(),
+    });
+    const res = await authedGet(
+      `/api/workspaces/${workspaceId}/recent-notes`,
+      u.id,
+    );
+    const body = (await res.json()) as { notes: Array<{ title: string }> };
+    expect(body.notes.map((n) => n.title)).toEqual(["alive"]);
+  });
+
+  it("clamps limit to 1..50 and defaults to 5", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const { workspaceId } = await seedMembership(u.id);
+    const projectId = await seedProject(workspaceId, u.id);
+    for (let i = 0; i < 7; i++) {
+      await seedNote(
+        workspaceId,
+        projectId,
+        `n-${i}`,
+        new Date(Date.now() - i * 60 * 1000),
+      );
+    }
+    // default
+    const def = await authedGet(
+      `/api/workspaces/${workspaceId}/recent-notes`,
+      u.id,
+    );
+    expect(((await def.json()) as { notes: unknown[] }).notes).toHaveLength(5);
+    // explicit small
+    const two = await authedGet(
+      `/api/workspaces/${workspaceId}/recent-notes?limit=2`,
+      u.id,
+    );
+    expect(((await two.json()) as { notes: unknown[] }).notes).toHaveLength(2);
+    // invalid → default
+    const bad = await authedGet(
+      `/api/workspaces/${workspaceId}/recent-notes?limit=abc`,
+      u.id,
+    );
+    expect(((await bad.json()) as { notes: unknown[] }).notes).toHaveLength(5);
+    // over upper bound clamped (only 7 rows so still 7)
+    const huge = await authedGet(
+      `/api/workspaces/${workspaceId}/recent-notes?limit=999`,
+      u.id,
+    );
+    expect(((await huge.json()) as { notes: unknown[] }).notes).toHaveLength(7);
+  });
+
+  it("returns 403 for non-member", async () => {
+    const owner = await createUser();
+    createdUserIds.add(owner.id);
+    const outsider = await createUser();
+    createdUserIds.add(outsider.id);
+    const { workspaceId } = await seedMembership(owner.id);
+    const res = await authedGet(
+      `/api/workspaces/${workspaceId}/recent-notes`,
+      outsider.id,
+    );
+    expect(res.status).toBe(403);
   });
 });
