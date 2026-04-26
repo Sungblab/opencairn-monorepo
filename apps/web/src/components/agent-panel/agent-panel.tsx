@@ -24,6 +24,7 @@ import { useChatSend } from "@/hooks/use-chat-send";
 import { useChatThreads } from "@/hooks/use-chat-threads";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
 import { api } from "@/lib/api-client";
+import { newTab } from "@/lib/tab-factory";
 import {
   createNoteFromMarkdown,
   insertFromMarkdown,
@@ -150,19 +151,14 @@ export function AgentPanel() {
                   markdown: body_markdown,
                   apiCreateNote,
                   onCreated: (note) => {
-                    useTabsStore.getState().addTab({
-                      id: crypto.randomUUID(),
-                      kind: "note",
-                      targetId: note.id,
-                      mode: "plate",
-                      title: note.title,
-                      pinned: false,
-                      preview: false,
-                      dirty: false,
-                      splitWith: null,
-                      splitSide: null,
-                      scrollY: 0,
-                    });
+                    useTabsStore.getState().addTab(
+                      newTab({
+                        kind: "note",
+                        targetId: note.id,
+                        title: note.title,
+                        mode: "plate",
+                      }),
+                    );
                   },
                   onError: () => toast.error(t("save_suggestion_failed")),
                 });
