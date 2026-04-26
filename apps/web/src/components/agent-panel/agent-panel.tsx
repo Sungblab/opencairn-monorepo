@@ -9,14 +9,25 @@
 //      whatever tab the user is currently looking at.
 //   3. The "+ new thread" action, shared by the header button and the empty
 //      state CTA so both code paths converge on the same mutation.
+//   4. The save-suggestion handler (Task 21): validates the SSE payload, tries
+//      to insert into the active Plate editor, and falls back to a "create new
+//      note" toast action when no Plate editor is open.
 // Children (Conversation, Composer, ScopeChipsRow) stay controlled views.
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { toast } from "sonner";
+import { saveSuggestionSchema } from "@opencairn/shared";
 
 import { useChatSend } from "@/hooks/use-chat-send";
 import { useChatThreads } from "@/hooks/use-chat-threads";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
+import { api } from "@/lib/api-client";
+import {
+  createNoteFromMarkdown,
+  insertFromMarkdown,
+} from "@/lib/notes/insert-from-markdown";
 import { useTabsStore } from "@/stores/tabs-store";
 import { useThreadsStore } from "@/stores/threads-store";
 
@@ -67,6 +78,106 @@ export function AgentPanel() {
     setActive(id);
   }
 
+  // i18n for save-suggestion toasts (Task 21).
+  const t = useTranslations("agentPanel.bubble");
+
+  // Resolves the projectId needed for note creation from the active tab.
+  // • note tab → fetch the note row (which includes projectId)
+  // • project tab → targetId is the projectId directly
+  // • anything else → null (caller handles the missing-target path)
+  const resolveProjectId = useCallback(async (): Promise<string | null> => {
+    if (!activeTab) return null;
+    if (activeTab.kind === "note" && activeTab.targetId) {
+      try {
+        const note = await api.getNote(activeTab.targetId);
+        return note.projectId;
+      } catch {
+        return null;
+      }
+    }
+    if (activeTab.kind === "project" && activeTab.targetId) {
+      return activeTab.targetId;
+    }
+    return null;
+  }, [activeTab]);
+
+  // Validates the SSE payload, inserts markdown into the active Plate editor,
+  // and shows a "create new note" toast action when no editor is open.
+  const handleSaveSuggestion = useCallback(
+    async (raw: unknown) => {
+      const parsed = saveSuggestionSchema.safeParse(raw);
+      if (!parsed.success) {
+        toast.error(t("save_suggestion_failed"));
+        return;
+      }
+      const { title, body_markdown } = parsed.data;
+
+      // Lazily resolve projectId inside apiCreateNote so it is only fetched
+      // when the user actually chooses to create a new note.
+      const apiCreateNote = async (input: {
+        title: string;
+        content: unknown[];
+      }) => {
+        const projectId = await resolveProjectId();
+        if (!projectId) throw new Error("no project context");
+        const note = await api.createNote({
+          projectId,
+          title: input.title,
+          content: input.content,
+        });
+        return { id: note.id, title: note.title };
+      };
+
+      await insertFromMarkdown({
+        markdown: body_markdown,
+        // activeTab.targetId is the noteId for note tabs.
+        activeNoteId:
+          activeTab?.kind === "note" ? (activeTab.targetId ?? undefined) : undefined,
+        // mode is the TabMode string; "plate" indicates the Plate editor.
+        activeNoteIsPlate:
+          activeTab?.kind === "note" && activeTab.mode === "plate",
+        apiCreateNote,
+        onSuccess: () => {
+          toast.success(t("save_suggestion_inserted_active"));
+        },
+        onMissingTarget: () => {
+          toast(t("save_suggestion_target_prompt"), {
+            action: {
+              label: t("save_suggestion_create_new"),
+              onClick: () => {
+                void createNoteFromMarkdown({
+                  title,
+                  markdown: body_markdown,
+                  apiCreateNote,
+                  onCreated: (note) => {
+                    useTabsStore.getState().addTab({
+                      id: crypto.randomUUID(),
+                      kind: "note",
+                      targetId: note.id,
+                      mode: "plate",
+                      title: note.title,
+                      pinned: false,
+                      preview: false,
+                      dirty: false,
+                      splitWith: null,
+                      splitSide: null,
+                      scrollY: 0,
+                    });
+                  },
+                  onError: () => toast.error(t("save_suggestion_failed")),
+                });
+              },
+            },
+            cancel: { label: t("save_suggestion_cancel") },
+          });
+        },
+        onCreatedNote: () => {},
+        onError: () => toast.error(t("save_suggestion_failed")),
+      });
+    },
+    [activeTab, t, resolveProjectId],
+  );
+
   return (
     <aside
       data-testid="app-shell-agent-panel"
@@ -74,7 +185,10 @@ export function AgentPanel() {
     >
       <PanelHeader onNewThread={startNewThread} />
       {activeThreadId ? (
-        <Conversation threadId={activeThreadId} />
+        <Conversation
+          threadId={activeThreadId}
+          onSaveSuggestion={handleSaveSuggestion}
+        />
       ) : (
         <AgentPanelEmptyState onStart={startNewThread} busy={create.isPending} />
       )}
