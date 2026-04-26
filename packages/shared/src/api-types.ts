@@ -167,3 +167,50 @@ export const backlinksResponseSchema = z.object({
   total: z.number().int().nonnegative(),
 });
 export type BacklinksResponse = z.infer<typeof backlinksResponseSchema>;
+
+// ─── Plan 5 Phase 2: ViewSpec ────────────────────────────────────────
+
+export const ViewType = z.enum([
+  "graph", "mindmap", "cards", "timeline", "board",
+]);
+export type ViewType = z.infer<typeof ViewType>;
+
+export const ViewLayout = z.enum(["fcose", "dagre", "preset", "cose-bilkent"]);
+export type ViewLayout = z.infer<typeof ViewLayout>;
+
+export const ViewNode = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1),
+  description: z.string().optional(),
+  degree: z.number().int().min(0).optional(),
+  noteCount: z.number().int().min(0).optional(),
+  firstNoteId: z.string().uuid().nullable().optional(),
+  eventYear: z.number().int().min(-3000).max(3000).optional(),
+  position: z.object({ x: z.number(), y: z.number() }).optional(),
+});
+export type ViewNode = z.infer<typeof ViewNode>;
+
+export const ViewEdge = z.object({
+  id: z.string().uuid().optional(),
+  sourceId: z.string().uuid(),
+  targetId: z.string().uuid(),
+  relationType: z.string(),
+  weight: z.number().min(0).max(1),
+});
+export type ViewEdge = z.infer<typeof ViewEdge>;
+
+export const ViewSpec = z.object({
+  viewType: ViewType,
+  layout: ViewLayout,
+  rootId: z.string().uuid().nullable(),
+  nodes: z.array(ViewNode).max(500),
+  edges: z.array(ViewEdge).max(2000),
+  rationale: z.string().max(200).optional(),
+});
+export type ViewSpec = z.infer<typeof ViewSpec>;
+
+export const GraphViewResponse = ViewSpec.extend({
+  truncated: z.boolean(),
+  totalConcepts: z.number().int().min(0),
+});
+export type GraphViewResponse = z.infer<typeof GraphViewResponse>;
