@@ -2,29 +2,17 @@ import { getTranslations } from "next-intl/server";
 import { apiClient } from "@/lib/api-client";
 import { DeckCard } from "@/components/learn/DeckCard";
 
-interface FlashcardRow {
-  id: string;
+interface DeckRow {
   deckName: string;
-  nextReview: string;
+  total: number;
+  due: number;
 }
 
-async function getDecks(projectId: string) {
+async function getDecks(projectId: string): Promise<DeckRow[]> {
   try {
-    const cards = await apiClient<FlashcardRow[]>(
-      `/api/projects/${projectId}/learn/flashcards`,
+    return await apiClient<DeckRow[]>(
+      `/api/projects/${projectId}/learn/decks`,
     );
-    const now = new Date();
-    const deckMap = new Map<string, { total: number; due: number }>();
-    for (const card of cards) {
-      const entry = deckMap.get(card.deckName) ?? { total: 0, due: 0 };
-      entry.total += 1;
-      if (new Date(card.nextReview) <= now) entry.due += 1;
-      deckMap.set(card.deckName, entry);
-    }
-    return Array.from(deckMap.entries()).map(([name, stats]) => ({
-      deckName: name,
-      ...stats,
-    }));
   } catch {
     return [];
   }

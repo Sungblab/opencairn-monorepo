@@ -285,6 +285,62 @@ describe("Learning API — SM-2 Review", () => {
   });
 });
 
+describe("Learning API — Deck Aggregation", () => {
+  let ctx: SeedResult;
+
+  beforeEach(async () => {
+    ctx = await seedWorkspace({ role: "editor" });
+  });
+
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  it("GET /decks returns empty array when no cards", async () => {
+    const res = await authedFetch(
+      `/api/projects/${ctx.projectId}/learn/decks`,
+      { method: "GET", userId: ctx.userId },
+    );
+    expect(res.status).toBe(200);
+    const decks = await res.json();
+    expect(Array.isArray(decks)).toBe(true);
+    expect(decks).toHaveLength(0);
+  });
+
+  it("GET /decks aggregates cards by deckName", async () => {
+    await db.insert(flashcards).values([
+      { projectId: ctx.projectId, front: "F1", back: "B1", deckName: "JS" },
+      { projectId: ctx.projectId, front: "F2", back: "B2", deckName: "JS" },
+      { projectId: ctx.projectId, front: "F3", back: "B3", deckName: "Python" },
+    ]);
+
+    const res = await authedFetch(
+      `/api/projects/${ctx.projectId}/learn/decks`,
+      { method: "GET", userId: ctx.userId },
+    );
+    expect(res.status).toBe(200);
+    const decks = await res.json();
+    expect(decks).toHaveLength(2);
+    const js = decks.find((d: { deckName: string }) => d.deckName === "JS");
+    expect(js.total).toBe(2);
+    const py = decks.find((d: { deckName: string }) => d.deckName === "Python");
+    expect(py.total).toBe(1);
+  });
+
+  it("GET /decks 403 for non-member", async () => {
+    const otherCtx = await seedWorkspace({ role: "editor" });
+    try {
+      const res = await authedFetch(
+        `/api/projects/${ctx.projectId}/learn/decks`,
+        { method: "GET", userId: otherCtx.userId },
+      );
+      expect(res.status).toBe(403);
+    } finally {
+      await otherCtx.cleanup();
+    }
+  });
+});
+
 describe("Learning API — Understanding Scores", () => {
   let ctx: SeedResult;
 

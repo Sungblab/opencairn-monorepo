@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useTranslations, useFormatter } from "next-intl";
 
 type ScoreEntry = {
   conceptId: string;
@@ -28,6 +28,7 @@ function ScoreBar({ score }: { score: number }) {
 
 export function ScoresDashboard({ scores }: { scores: ScoreEntry[] }) {
   const t = useTranslations("learn.scores");
+  const format = useFormatter();
 
   if (scores.length === 0) {
     return (
@@ -63,7 +64,7 @@ export function ScoresDashboard({ scores }: { scores: ScoreEntry[] }) {
           <ScoreBar score={entry.score} />
           <p className="text-xs text-muted-foreground">
             {t("last_reviewed")}:{" "}
-            {new Date(entry.lastAssessed).toLocaleDateString(undefined, {
+            {format.dateTime(new Date(entry.lastAssessed), {
               month: "short",
               day: "numeric",
               year: "numeric",

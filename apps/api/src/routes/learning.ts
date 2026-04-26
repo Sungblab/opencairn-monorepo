@@ -6,9 +6,12 @@ import {
   flashcards,
   reviewLogs,
   understandingScores,
+  concepts,
   eq,
   and,
   lte,
+  count,
+  sql,
 } from "@opencairn/db";
 import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite } from "../lib/permissions";
@@ -189,27 +192,52 @@ export const learningRoutes = new Hono<AppEnv>()
       const nextReview = new Date();
       nextReview.setDate(nextReview.getDate() + nextIntervalDays);
 
-      const [updated] = await db
-        .update(flashcards)
-        .set({
-          reviewCount: nextReps,
-          intervalDays: nextIntervalDays,
-          easeFactor: nextEF,
-          nextReview,
-        })
-        .where(eq(flashcards.id, id))
-        .returning();
-
-      await db.insert(reviewLogs).values({
-        flashcardId: id,
-        rating: quality,
+      const updated = await db.transaction(async (tx) => {
+        const [card] = await tx
+          .update(flashcards)
+          .set({
+            reviewCount: nextReps,
+            intervalDays: nextIntervalDays,
+            easeFactor: nextEF,
+            nextReview,
+          })
+          .where(eq(flashcards.id, id))
+          .returning();
+        await tx.insert(reviewLogs).values({
+          flashcardId: id,
+          rating: quality,
+        });
+        return card;
       });
 
       return c.json(updated);
     },
   )
 
+  // ── Deck aggregation ─────────────────────────────────────────────────────────
+  // Returns per-deck counts without loading all card data into the client.
+
+  .get("/:projectId/learn/decks", async (c) => {
+    const userId = c.get("userId");
+    const projectId = c.req.param("projectId");
+    if (!isUuid(projectId)) return c.json({ error: "bad-request" }, 400);
+    if (!(await canRead(userId, { type: "project", id: projectId }))) {
+      return c.json({ error: "forbidden" }, 403);
+    }
+    const rows = await db
+      .select({
+        deckName: flashcards.deckName,
+        total: count(flashcards.id),
+        due: sql<number>`count(*) filter (where ${flashcards.nextReview} <= now())`,
+      })
+      .from(flashcards)
+      .where(eq(flashcards.projectId, projectId))
+      .groupBy(flashcards.deckName);
+    return c.json(rows);
+  })
+
   // ── Understanding Scores ─────────────────────────────────────────────────────
+  // Scoped to the project via JOIN on concepts.projectId.
 
   .get("/:projectId/learn/scores", async (c) => {
     const userId = c.get("userId");
@@ -219,8 +247,19 @@ export const learningRoutes = new Hono<AppEnv>()
       return c.json({ error: "forbidden" }, 403);
     }
     const scores = await db
-      .select()
+      .select({
+        id: understandingScores.id,
+        conceptId: understandingScores.conceptId,
+        score: understandingScores.score,
+        lastAssessed: understandingScores.lastAssessed,
+      })
       .from(understandingScores)
-      .where(eq(understandingScores.userId, userId));
+      .innerJoin(concepts, eq(understandingScores.conceptId, concepts.id))
+      .where(
+        and(
+          eq(understandingScores.userId, userId),
+          eq(concepts.projectId, projectId),
+        ),
+      );
     return c.json(scores);
   });

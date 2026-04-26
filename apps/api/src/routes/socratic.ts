@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { randomUUID } from "node:crypto";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth";
@@ -37,7 +38,7 @@ export const socraticRoutes = new Hono<AppEnv>()
       const body = c.req.valid("json");
       const client = await getTemporalClient();
       const handle = await client.workflow.start("SocraticGenerateWorkflow", {
-        workflowId: `socratic-gen-${userId}-${Date.now()}`,
+        workflowId: `socratic-gen-${userId}-${randomUUID()}`,
         taskQueue: taskQueue(),
         args: [{ conceptName: body.conceptName, noteContext: body.noteContext }],
       });
@@ -61,7 +62,7 @@ export const socraticRoutes = new Hono<AppEnv>()
       const body = c.req.valid("json");
       const client = await getTemporalClient();
       const handle = await client.workflow.start("SocraticEvaluateWorkflow", {
-        workflowId: `socratic-eval-${userId}-${Date.now()}`,
+        workflowId: `socratic-eval-${userId}-${randomUUID()}`,
         taskQueue: taskQueue(),
         args: [
           {
