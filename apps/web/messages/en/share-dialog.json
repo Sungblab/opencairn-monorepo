@@ -1,0 +1,19 @@
+{
+  "title": "Share",
+  "invitePeople": "Invite people",
+  "inviteSearchPlaceholder": "Search workspace members",
+  "addButton": "Add",
+  "role": {
+    "viewer": "Viewer",
+    "commenter": "Commenter",
+    "editor": "Editor"
+  },
+  "removeMember": "Remove access",
+  "webShareToggle": "Share to web",
+  "webShareCopy": "Copy",
+  "webShareCopied": "Copied",
+  "webShareRevoke": "Revoke link",
+  "webShareCreatedBy": "Created by {name} · {date}",
+  "viewOnlyBanner": "Shared as view-only",
+  "notWorkspaceMember": "Only workspace members can be granted access"
+}

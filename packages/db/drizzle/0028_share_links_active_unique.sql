@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "share_links_active_role_unique" ON "share_links" USING btree ("note_id","role") WHERE "share_links"."revoked_at" IS NULL;

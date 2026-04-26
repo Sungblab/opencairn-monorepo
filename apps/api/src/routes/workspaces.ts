@@ -385,3 +385,35 @@ workspaceRoutes.get(
     return c.json({ notes: rows });
   },
 );
+
+// Plan 2C Task 4 — workspace member search powering the ShareDialog
+// "Invite people" panel. Gated to workspace members (any role); ILIKE on
+// name OR email, capped at 10 results. Empty query returns an empty list
+// rather than firing an unbounded scan.
+workspaceRoutes.get(
+  "/:workspaceId/members/search",
+  requireWorkspaceRole("member"),
+  async (c) => {
+    const wsId = c.req.param("workspaceId");
+    if (!isUuid(wsId)) return c.json({ error: "Bad Request" }, 400);
+    const q = c.req.query("q")?.trim() ?? "";
+    if (q.length < 1) return c.json({ members: [] });
+    const rows = await db
+      .select({
+        userId: workspaceMembers.userId,
+        role: workspaceMembers.role,
+        name: user.name,
+        email: user.email,
+      })
+      .from(workspaceMembers)
+      .innerJoin(user, eq(user.id, workspaceMembers.userId))
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, wsId),
+          sql`(${user.name} ILIKE ${"%" + q + "%"} OR ${user.email} ILIKE ${"%" + q + "%"})`,
+        ),
+      )
+      .limit(10);
+    return c.json({ members: rows });
+  },
+);

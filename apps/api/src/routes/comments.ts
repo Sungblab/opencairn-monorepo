@@ -162,6 +162,31 @@ export const commentsRouter = new Hono<AppEnv>()
         ),
       );
 
+      // Plan 2C — comment_reply notification. Fires when:
+      //   - the new comment is a reply (parentId set), AND
+      //   - the parent author is not the current user
+      // Mention + comment_reply double-fire is allowed (both meaningful;
+      // both link to the same note).
+      if (body.parentId) {
+        const [parent] = await db
+          .select({ authorId: comments.authorId })
+          .from(comments)
+          .where(eq(comments.id, body.parentId));
+        if (parent && parent.authorId !== userId) {
+          await persistAndPublish({
+            userId: parent.authorId,
+            kind: "comment_reply",
+            payload: {
+              summary: body.body.slice(0, 200),
+              noteId,
+              commentId: inserted.id,
+              parentCommentId: body.parentId,
+              fromUserId: userId,
+            },
+          }).catch(() => undefined);
+        }
+      }
+
       return c.json(response, 201);
     },
   )

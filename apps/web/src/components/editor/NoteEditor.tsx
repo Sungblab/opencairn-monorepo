@@ -28,6 +28,7 @@ import { api, ApiError } from "@/lib/api-client";
 import { DisconnectedBanner } from "../collab/DisconnectedBanner";
 import { ReadOnlyBanner } from "../collab/ReadOnlyBanner";
 import { CommentsPanel } from "../comments/CommentsPanel";
+import { ShareDialog } from "../share/share-dialog";
 import {
   EditorToolbar,
   type ToolbarActions,
@@ -125,6 +126,11 @@ export function NoteEditor({
   onFirstEdit,
 }: NoteEditorProps) {
   const t = useTranslations("editor");
+  // Plan 2C Task 9 — separate namespace because the existing `t` is bound
+  // to "editor" and we want the share UI strings to live in their own JSON
+  // file (one feature per namespace, easier i18n parity).
+  const tShare = useTranslations("shareDialog");
+  const [shareOpen, setShareOpen] = useState(false);
 
   // ── Title save path (PATCH /notes/:id with { title } only) ────────────
   // Content persists via Yjs; only title/folderId still flow through the
@@ -336,11 +342,30 @@ export function NoteEditor({
               />
               {/* PresenceStack shows remote collaborators; self-hides when
                   alone. Positioned in the title row's top-right for minimal
-                  layout disruption. */}
-              <div className="shrink-0 pt-2">
+                  layout disruption. The Share button only renders for
+                  writers — the route-level `readOnly` flag already strips it
+                  for viewer/commenter roles, so we don't need an explicit
+                  perms check here. */}
+              <div className="flex shrink-0 items-center gap-2 pt-2">
+                {!readOnly ? (
+                  <button
+                    type="button"
+                    onClick={() => setShareOpen(true)}
+                    className="rounded border border-border px-3 py-1 text-xs hover:bg-accent"
+                    data-testid="share-button"
+                  >
+                    {tShare("title")}
+                  </button>
+                ) : null}
                 <PresenceStack />
               </div>
             </div>
+            <ShareDialog
+              noteId={noteId}
+              workspaceId={workspaceId}
+              open={shareOpen}
+              onOpenChange={setShareOpen}
+            />
             <PlateContent
               data-testid="note-body"
               placeholder={t("placeholder.body")}
