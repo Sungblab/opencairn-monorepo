@@ -30,7 +30,8 @@
     "cards": "카드",
     "timeline": "타임라인",
     "board": "보드",
-    "switcherAria": "보기 선택"
+    "switcherAria": "보기 선택",
+    "needsRoot": "마인드맵을 보려면 시작 개념을 선택하세요"
   },
   "ai": {
     "trigger": "AI로 그리기"

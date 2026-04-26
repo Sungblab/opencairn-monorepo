@@ -30,7 +30,8 @@
     "cards": "Cards",
     "timeline": "Timeline",
     "board": "Board",
-    "switcherAria": "Choose view"
+    "switcherAria": "Choose view",
+    "needsRoot": "Pick a starting concept to render the mindmap"
   },
   "ai": {
     "trigger": "Draw with AI"
