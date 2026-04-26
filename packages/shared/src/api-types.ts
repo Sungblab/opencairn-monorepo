@@ -125,12 +125,41 @@ export const graphEdgeSchema = z.object({
 });
 export type GraphEdge = z.infer<typeof graphEdgeSchema>;
 
+/**
+ * Plan 5 Phase 2: in-tab view types under the single `mode='graph'` tab.
+ * `graph` is the Phase 1 default and remains regression-zero.
+ */
+export const graphViewTypeSchema = z.enum([
+  "graph",
+  "mindmap",
+  "cards",
+  "timeline",
+  "board",
+]);
+export type GraphViewType = z.infer<typeof graphViewTypeSchema>;
+
+/** Server-suggested layout hint for the renderer (cytoscape-* algorithms). */
+export const graphLayoutSchema = z.enum(["fcose", "dagre", "preset"]);
+export type GraphLayout = z.infer<typeof graphLayoutSchema>;
+
 export const graphResponseSchema = z.object({
   nodes: z.array(graphNodeSchema),
   edges: z.array(graphEdgeSchema),
   /** True when totalConcepts > limit; UI shows a "narrow with filters" banner. */
   truncated: z.boolean(),
   totalConcepts: z.number().int().nonnegative(),
+  /**
+   * Echo of the requested `?view=` (defaults to `graph` for Phase 1 callers).
+   * Phase 1 clients ignore this field (super-set compatibility).
+   */
+  viewType: graphViewTypeSchema,
+  /** Layout hint for the client renderer. */
+  layout: graphLayoutSchema,
+  /**
+   * Echoed seed concept id for `view=mindmap|board`. `null` for the other
+   * three views and for `mindmap` against an empty project.
+   */
+  rootId: z.string().uuid().nullable(),
 });
 export type GraphResponse = z.infer<typeof graphResponseSchema>;
 
@@ -146,6 +175,18 @@ export const graphQuerySchema = z.object({
   limit: z.coerce.number().int().min(50).max(500).default(500),
   order: z.enum(["degree", "recent"]).default("degree"),
   relation: z.string().optional(),
+  /**
+   * Plan 5 Phase 2: in-tab view selector. `graph` (default) is regression-zero
+   * vs Phase 1 — same nodes/edges/truncated/totalConcepts shape, plus the
+   * `viewType`/`layout`/`rootId` echo fields appended.
+   */
+  view: graphViewTypeSchema.default("graph"),
+  /**
+   * Seed concept id for `view=mindmap|board`. For `mindmap` it is auto-selected
+   * (highest-degree concept in the project) when omitted. Ignored by
+   * `view=graph|cards|timeline`.
+   */
+  root: z.string().uuid().optional(),
 });
 export const graphExpandQuerySchema = z.object({
   hops: z.coerce.number().int().min(1).max(3).default(1),

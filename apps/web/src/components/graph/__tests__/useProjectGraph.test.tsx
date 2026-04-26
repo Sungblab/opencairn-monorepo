@@ -10,6 +10,10 @@ const fixture: GraphResponse = {
   edges: [],
   truncated: false,
   totalConcepts: 1,
+  // Plan 5 Phase 2: server echoes the requested view + layout hint + rootId.
+  viewType: "graph",
+  layout: "fcose",
+  rootId: null,
 };
 
 function wrapper({ children }: { children: ReactNode }) {
