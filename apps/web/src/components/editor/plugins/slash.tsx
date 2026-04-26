@@ -2,7 +2,7 @@
 
 import { toggleList } from "@platejs/list";
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
 // Plan 2A Task 17 — slash command menu.
@@ -43,7 +43,12 @@ export type SlashKey =
   | "ol"
   | "blockquote"
   | "code"
-  | "hr";
+  | "hr"
+  | "mermaid"
+  | "callout"
+  | "toggle"
+  | "table"
+  | "columns";
 
 // `tNode` helper keeps the menu as an ordered list so the E2E can assert a
 // stable sequence.
@@ -57,7 +62,12 @@ interface SlashCommandDef {
     | "numbered_list"
     | "quote"
     | "code"
-    | "divider";
+    | "divider"
+    | "mermaid"
+    | "callout"
+    | "toggle"
+    | "table"
+    | "columns";
 }
 
 const COMMANDS: SlashCommandDef[] = [
@@ -69,6 +79,11 @@ const COMMANDS: SlashCommandDef[] = [
   { key: "blockquote", labelKey: "quote" },
   { key: "code", labelKey: "code" },
   { key: "hr", labelKey: "divider" },
+  { key: "mermaid", labelKey: "mermaid" },
+  { key: "callout", labelKey: "callout" },
+  { key: "toggle", labelKey: "toggle" },
+  { key: "table", labelKey: "table" },
+  { key: "columns", labelKey: "columns" },
 ];
 
 // The editor surface we actually use. Plate's fully-typed `PlateEditor` drags
@@ -168,6 +183,91 @@ export function SlashMenu({ editor }: SlashMenuProps) {
             { select: true },
           );
           break;
+        case "mermaid":
+          editor.tf.insertNodes(
+            { type: "mermaid", code: "", children: [{ text: "" }] },
+            { select: true },
+          );
+          editor.tf.insertNodes(
+            { type: "p", children: [{ text: "" }] },
+            { select: true },
+          );
+          break;
+        case "callout":
+          editor.tf.insertNodes(
+            {
+              type: "callout",
+              kind: "info",
+              children: [{ type: "p", children: [{ text: "" }] }],
+            },
+            { select: true },
+          );
+          break;
+        case "toggle":
+          editor.tf.insertNodes(
+            {
+              type: "toggle",
+              open: true,
+              children: [
+                { type: "p", children: [{ text: "" }] },
+                { type: "p", children: [{ text: "" }] },
+              ],
+            },
+            { select: true },
+          );
+          break;
+        case "table":
+          editor.tf.insertNodes(
+            {
+              type: "table",
+              children: [
+                {
+                  type: "tr",
+                  children: [
+                    { type: "th", children: [{ type: "p", children: [{ text: "" }] }] },
+                    { type: "th", children: [{ type: "p", children: [{ text: "" }] }] },
+                    { type: "th", children: [{ type: "p", children: [{ text: "" }] }] },
+                  ],
+                },
+                {
+                  type: "tr",
+                  children: [
+                    { type: "td", children: [{ type: "p", children: [{ text: "" }] }] },
+                    { type: "td", children: [{ type: "p", children: [{ text: "" }] }] },
+                    { type: "td", children: [{ type: "p", children: [{ text: "" }] }] },
+                  ],
+                },
+                {
+                  type: "tr",
+                  children: [
+                    { type: "td", children: [{ type: "p", children: [{ text: "" }] }] },
+                    { type: "td", children: [{ type: "p", children: [{ text: "" }] }] },
+                    { type: "td", children: [{ type: "p", children: [{ text: "" }] }] },
+                  ],
+                },
+              ],
+            },
+            { select: true },
+          );
+          break;
+        case "columns":
+          editor.tf.insertNodes(
+            {
+              type: "column_group",
+              children: [
+                {
+                  type: "column",
+                  children: [{ type: "p", children: [{ text: "" }] }],
+                },
+                {
+                  type: "column",
+                  children: [{ type: "p", children: [{ text: "" }] }],
+                },
+              ],
+            },
+            { select: true },
+          );
+          break;
       }
 
       setOpen(false);
@@ -189,22 +289,30 @@ export function SlashMenu({ editor }: SlashMenuProps) {
         onClick={(e) => e.stopPropagation()}
       >
         <ul className="max-h-72 overflow-auto py-1">
-          {items.map((cmd) => (
-            <li key={cmd.key}>
-              <button
-                type="button"
-                data-testid={`slash-cmd-${cmd.key}`}
-                onMouseDown={(e) => {
-                  // Prevent the editor from losing selection before we run
-                  // the transform — same pattern as the toolbar buttons.
-                  e.preventDefault();
-                  runCommand(cmd.key);
-                }}
-                className="hover:bg-bg-muted w-full px-3 py-2 text-left text-sm"
-              >
-                {t(cmd.labelKey)}
-              </button>
-            </li>
+          {items.map((cmd, i) => (
+            <Fragment key={cmd.key}>
+              {i === 8 && (
+                <li
+                  className="my-1 border-t border-[color:var(--border)]"
+                  aria-hidden="true"
+                />
+              )}
+              <li>
+                <button
+                  type="button"
+                  data-testid={`slash-cmd-${cmd.key}`}
+                  onMouseDown={(e) => {
+                    // Prevent the editor from losing selection before we run
+                    // the transform — same pattern as the toolbar buttons.
+                    e.preventDefault();
+                    runCommand(cmd.key);
+                  }}
+                  className="hover:bg-bg-muted w-full px-3 py-2 text-left text-sm"
+                >
+                  {t(cmd.labelKey)}
+                </button>
+              </li>
+            </Fragment>
           ))}
         </ul>
       </div>
