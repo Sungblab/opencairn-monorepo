@@ -57,6 +57,7 @@ from worker.workflows.import_workflow import ImportWorkflow
 from worker.workflows.ingest_workflow import IngestWorkflow
 from worker.workflows.librarian_workflow import LibrarianWorkflow
 from worker.workflows.research_workflow import ResearchWorkflow
+from worker.workflows.visualize_workflow import VisualizeWorkflow
 
 # Deep Research (Spec 2026-04-22) — registered only when FEATURE_DEEP_RESEARCH
 # is on. Importing here is cheap and keeps the conditional small below.
@@ -84,6 +85,7 @@ async def main() -> None:
         LibrarianWorkflow,
         BatchEmbedWorkflow,
         ImportWorkflow,
+        VisualizeWorkflow,
     ]
     activities: list = [
         parse_pdf,

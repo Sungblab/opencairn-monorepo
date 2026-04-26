@@ -23,6 +23,7 @@ import { messageFeedbackRoutes } from "./routes/message-feedback";
 import { userRoutes } from "./routes/users";
 import { streamRoutes } from "./routes/stream";
 import { graphRoutes } from "./routes/graph";
+import { visualizeRouter } from "./routes/visualize";
 
 export function createApp() {
   const app = new Hono();
@@ -73,6 +74,7 @@ export function createApp() {
   app.route("/api/notes", noteRoutes);
   app.route("/api/ingest", ingestRoutes);
   app.route("/api/research", researchRouter);
+  app.route("/api/visualize", visualizeRouter);
   app.route("/api/users", userRoutes);
   app.route("/api/stream", streamRoutes);  // SSE: project tree (Phase 2)
   app.route("/api", commentsRouter);  // /api/notes/:noteId/comments (Plan 2B)
