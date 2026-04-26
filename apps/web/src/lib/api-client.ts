@@ -379,6 +379,16 @@ export interface GoogleIntegrationStatus {
   scopes: string | null;
 }
 
+export type WorkspaceSharedLinkRow = {
+  id: string;
+  token: string;
+  role: "viewer" | "commenter" | "editor";
+  noteId: string;
+  noteTitle: string;
+  createdAt: string;
+  createdBy: { id: string; name: string };
+};
+
 export const wsSettingsApi = {
   members: (workspaceId: string) =>
     apiClient<WorkspaceMemberRow[]>(`/workspaces/${workspaceId}/members`),
@@ -410,6 +420,10 @@ export const wsSettingsApi = {
     apiClient<{ ok: true }>(
       `/workspaces/${workspaceId}/invites/${inviteId}`,
       { method: "DELETE" },
+    ),
+  sharedLinks: (workspaceId: string) =>
+    apiClient<{ links: WorkspaceSharedLinkRow[] }>(
+      `/workspaces/${workspaceId}/share`,
     ),
 };
 

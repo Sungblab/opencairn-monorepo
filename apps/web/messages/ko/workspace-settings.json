@@ -51,7 +51,12 @@
   },
   "sharedLinks": {
     "heading": "공유 링크",
-    "stub": "공유 링크 API 합류 후 활성화됩니다."
+    "empty": "활성 공유 링크가 없습니다",
+    "headerNote": "노트",
+    "headerRole": "권한",
+    "headerCreatedBy": "생성자",
+    "headerCreatedAt": "생성일",
+    "revoke": "폐기"
   },
   "trash": {
     "heading": "휴지통",
