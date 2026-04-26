@@ -23,5 +23,16 @@
     "loadFailed": "그래프를 불러오지 못했습니다.",
     "tooManyHops": "이웃 펼치기 단계는 최대 3까지 가능합니다.",
     "forbidden": "이 프로젝트에 접근 권한이 없습니다."
+  },
+  "views": {
+    "graph": "그래프",
+    "mindmap": "마인드맵",
+    "cards": "카드",
+    "timeline": "타임라인",
+    "board": "보드",
+    "switcherAria": "보기 선택"
+  },
+  "ai": {
+    "trigger": "AI로 그리기"
   }
 }
