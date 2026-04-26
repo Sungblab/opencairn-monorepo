@@ -35,6 +35,9 @@
     "loading": "Loading sandbox…",
     "error": "Sandbox error"
   },
+  "monaco": {
+    "loading": "Loading editor…"
+  },
   "errors": {
     "sourceTooLarge": "Source exceeds 64 KB.",
     "executionTimeout": "Execution exceeded the 10-second timeout.",

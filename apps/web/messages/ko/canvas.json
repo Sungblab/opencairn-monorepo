@@ -35,6 +35,9 @@
     "loading": "샌드박스 로드 중…",
     "error": "샌드박스 오류"
   },
+  "monaco": {
+    "loading": "에디터 불러오는 중…"
+  },
   "errors": {
     "sourceTooLarge": "소스가 64KB 를 초과했습니다.",
     "executionTimeout": "실행이 10초 시간 제한을 초과했습니다.",

@@ -53,6 +53,25 @@ vi.mock("@/lib/pyodide-loader", () => ({
   loadPyodide: vi.fn(() => new Promise(() => {})), // never resolves — we only check the loading text
 }));
 
+// Stub MonacoEditor with a plain textarea so the existing role-based queries
+// (e.g. `findByRole("textbox")`) keep working without spinning up Monaco's
+// worker + DOM canvas in jsdom.
+vi.mock("@/components/canvas/MonacoEditor", () => ({
+  MonacoEditor: ({
+    value,
+    onChange,
+  }: {
+    value: string;
+    onChange: (v: string) => void;
+  }) => (
+    <textarea
+      data-testid="canvas-source"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  ),
+}));
+
 const tab = {
   id: "t1",
   kind: "note",

@@ -11,6 +11,7 @@ import { apiClient } from "@/lib/api-client";
 import type { Tab } from "@/stores/tabs-store";
 import { PyodideRunner } from "@/components/canvas/PyodideRunner";
 import { CanvasFrame } from "@/components/canvas/CanvasFrame";
+import { MonacoEditor } from "@/components/canvas/MonacoEditor";
 
 type CanvasLanguage = "python" | "javascript" | "html" | "react";
 
@@ -135,12 +136,13 @@ export function CanvasViewer({ tab }: { tab: Tab }) {
         </span>
       </div>
       <div className="flex flex-1 min-h-0">
-        <textarea
-          value={source}
-          onChange={(e) => setSource(e.target.value)}
-          className="flex-1 p-3 font-mono text-sm bg-muted/20 border-r outline-none resize-none"
-          spellCheck={false}
-        />
+        <div className="flex-1 border-r min-w-0">
+          <MonacoEditor
+            language={language}
+            value={source}
+            onChange={setSource}
+          />
+        </div>
         <div className="flex-1 p-3 overflow-auto">
           {tooLarge ? (
             <div className="text-destructive text-sm">
