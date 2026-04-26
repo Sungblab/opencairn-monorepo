@@ -53,6 +53,6 @@ Full index: **`docs/README.md`**. 고빈도:
 
 Critical path: **0 (1 → 13 → 12) → 1 (2/3/4/9 병렬) → 2 (5/6/7/8 병렬) → 3**. 완료 커밋 + 상세 상태는 `docs/contributing/plans-status.md`.
 
-- ✅ Complete: Plan 1, 13, 12, 3, 3b, 4, 9a, 2A (editor core, solo), 2B (Hocuspocus + comments + @mention), Ingest Source Expansion, Onboarding, Agent Runtime v2 Sub-A, React Email, Deep Research Phase A/B/C/D, App Shell Phase 1 (shell frame) + Phase 2 (sidebar) + Phase 3-A (tab bar chrome) + Phase 3-B (mode router + viewers) + Phase 4 (agent panel) + Phase 5 (routes + palette + notifications), Plan 7 Phase 1 (Canvas web runtime + Tab Mode Router).
-- 🟡 Active / next: Plan 2C (share + remaining notification publish wiring), 2D (chat renderer + block extensions), Plan 5/6/8, Plan 7 Phase 2 (Code Agent + /api/code/run + Monaco), Deep Research Phase E (BYOK UI · /settings/ai · prod release).
+- ✅ Complete: Plan 1, 13, 12, 3, 3b, 4, 9a, 2A (editor core, solo), 2B (Hocuspocus + comments + @mention), Ingest Source Expansion, Onboarding, Agent Runtime v2 Sub-A, React Email, Deep Research Phase A/B/C/D/E (features), App Shell Phase 1 (shell frame) + Phase 2 (sidebar) + Phase 3-A (tab bar chrome) + Phase 3-B (mode router + viewers) + Phase 4 (agent panel) + Phase 5 (routes + palette + notifications), Plan 7 Phase 1 (Canvas web runtime + Tab Mode Router).
+- 🟡 Active / next: Plan 2C (share + remaining notification publish wiring), 2D (chat renderer + block extensions), Plan 5/6/8, Plan 7 Phase 2 (Code Agent + /api/code/run + Monaco), Deep Research prod release (manual env flip).
 - 🔴 Blocked: Plan 9b (사업자등록 필요).

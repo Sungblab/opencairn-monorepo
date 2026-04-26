@@ -1,7 +1,7 @@
 {
   "hub": {
     "title": "Deep Research",
-    "subtitle": "Run automated deep-dive research and receive the result as a note.",
+    "subtitle": "Run automated research and get the result delivered as a note.",
     "new_button": "New research",
     "empty": "You have no research runs yet.",
     "list": {
@@ -22,8 +22,8 @@
     }
   },
   "billing_path": {
-    "byok": "Bring your own key (BYOK)",
-    "managed": "Managed credits (PAYG)",
+    "byok": "Bring your own key",
+    "managed": "Managed credits (pay as you go)",
     "byok_help": "Calls Google with the key you registered. Google bills you directly.",
     "managed_help": "OpenCairn calls Google with its key and deducts from your credit balance."
   },
@@ -40,8 +40,8 @@
   },
   "plan_review": {
     "heading": "Review the research plan",
-    "explainer": "Check the plan and tweak it if needed. Approving kicks off the deep dive.",
-    "feedback_placeholder": "Remove this part and add that part…",
+    "explainer": "Review the plan and edit if needed. Approving starts the research.",
+    "feedback_placeholder": "Remove this section and add that one…",
     "feedback_send": "Send feedback",
     "edit_direct": "Edit directly",
     "edit_save": "Save edits",
@@ -49,15 +49,15 @@
     "approve": "Approve and start",
     "approving": "Starting…",
     "loading": "Fetching the plan…",
-    "iterating": "Re-writing the plan…"
+    "iterating": "Rewriting the plan…"
   },
   "progress": {
     "heading": "Research in progress",
-    "subhead": "This can take up to about an hour. You can close this page — it keeps running.",
+    "subhead": "This can take up to an hour. Closing this page is fine — the run continues in the background.",
     "thinking": "Thinking",
     "writing": "Writing",
     "image_generating": "Generating image",
-    "no_artifacts_yet": "Result fragments will appear shortly.",
+    "no_artifacts_yet": "Partial results will appear here shortly.",
     "cancel": "Cancel",
     "cancelling": "Cancelling…"
   },
@@ -75,14 +75,14 @@
     "cancelled": "Cancelled"
   },
   "error": {
-    "invalid_byok": "Your Gemini API key is invalid.",
+    "invalid_byok": "The Gemini API key is invalid.",
     "invalid_byok_cta": "Go to key settings",
-    "quota_exceeded": "Your Google quota has been exceeded.",
+    "quota_exceeded": "The Google API quota has been exceeded.",
     "managed_credits_short": "Managed mode requires a credit top-up.",
     "managed_credits_cta": "Go to billing",
     "managed_disabled": "Managed mode is not yet available.",
     "generic_failed": "The research failed.",
-    "concurrent_write": "A concurrent edit was detected. Please retry in a moment.",
+    "concurrent_write": "Another edit came in at the same time. Try again in a moment.",
     "feature_disabled": "Deep Research is currently disabled."
   },
   "meta": {
@@ -94,6 +94,6 @@
     "sources": "Sources",
     "thought_summaries": "Thought summaries",
     "cost_approx": "Estimated cost",
-    "cost_disclaimer": "This is an estimate; actual billing depends on the billing path."
+    "cost_disclaimer": "This is an estimate. Actual billing depends on the billing path."
   }
 }
