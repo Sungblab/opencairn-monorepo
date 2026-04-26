@@ -9,5 +9,10 @@
     "research_complete": "리서치 완료",
     "share_invite": "공유 초대",
     "system": "공지"
+  },
+  "summary": {
+    "comment_reply": "{from} 님이 답글을 남겼습니다",
+    "share_invite": "{from} 님이 \"{note}\"를 공유했습니다 ({role})",
+    "research_complete": "\"{topic}\" 리서치가 완료되었습니다"
   }
 }
