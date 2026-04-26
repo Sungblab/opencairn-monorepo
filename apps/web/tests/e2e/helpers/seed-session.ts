@@ -1,6 +1,10 @@
 import type { APIRequestContext, BrowserContext } from "@playwright/test";
 
-export type SeedMode = "default" | "onboarding-empty" | "onboarding-invite";
+export type SeedMode =
+  | "default"
+  | "onboarding-empty"
+  | "onboarding-invite"
+  | "canvas-phase2";
 
 // Response shape from POST /api/internal/test-seed — matches
 // apps/api/src/routes/internal.ts. Workspace/project/note fields are
@@ -38,6 +42,9 @@ const DEFAULT_API_BASE = process.env.API_BASE ?? "http://localhost:4000";
  *    "create first workspace" flow.
  *  - `onboarding-invite`: user + separate owner's workspace + pending
  *    invite to the fresh user's email. For the accept-card flow.
+ *  - `canvas-phase2`: user + workspace + project + a single canvas note
+ *    (sourceType='canvas', canvasLanguage='python') with a deterministic
+ *    `noteId` for Plan 7 Phase 2 Code Agent / Monaco / outputs E2E.
  */
 export async function seedAndSignIn(
   request: APIRequestContext,
