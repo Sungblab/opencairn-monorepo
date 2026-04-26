@@ -312,6 +312,34 @@ export const dashboardApi = {
     ),
 };
 
+// ---------- Project view (Phase 5 Task 2) ----------
+
+export interface ProjectMeta {
+  id: string;
+  name: string;
+  description: string | null;
+  workspaceId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ProjectNoteKind = "imported" | "research" | "manual";
+
+export interface ProjectNoteRow {
+  id: string;
+  title: string;
+  kind: ProjectNoteKind;
+  updated_at: string;
+}
+
+export const projectsApi = {
+  get: (id: string) => apiClient<ProjectMeta>(`/projects/${id}`),
+  notes: (id: string, filter: "all" | ProjectNoteKind = "all") =>
+    apiClient<{ notes: ProjectNoteRow[] }>(
+      `/projects/${id}/notes?filter=${filter}`,
+    ),
+};
+
 export const api = {
   getNote: (id: string) => apiClient<NoteRow>(`/notes/${id}`),
   listNotesByProject: (projectId: string) =>
