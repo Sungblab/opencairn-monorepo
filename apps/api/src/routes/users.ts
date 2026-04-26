@@ -11,7 +11,7 @@ import {
   workspaces,
 } from "@opencairn/db";
 import { requireAuth } from "../middleware/auth";
-import { decryptToken } from "../lib/integration-tokens";
+import { encryptToken, decryptToken } from "../lib/integration-tokens";
 import type { AppEnv } from "../lib/types";
 
 export const userRoutes = new Hono<AppEnv>().use("*", requireAuth);
@@ -51,6 +51,20 @@ userRoutes.get("/me/last-viewed-workspace", async (c) => {
 // happily 302 them into a 403 next time they hit `/`.
 const lastViewedSchema = z.object({
   workspaceId: z.string().uuid(),
+});
+
+// Deep Research Phase E — BYOK key validation. Length bounds are first so a
+// bare `AIza` token (4 chars, prefix-valid) surfaces `too_short` rather than
+// being accepted; max prevents a DoS via multi-megabyte ciphertext writes.
+// The `.startsWith("AIza")` is a cheap shape gate — real validity is only
+// known once the worker calls Gemini, but rejecting obvious typos here saves
+// a roundtrip and keeps the error UX local to /settings/ai.
+const setByokKeySchema = z.object({
+  apiKey: z
+    .string()
+    .min(20, { message: "too_short" })
+    .max(200, { message: "too_long" })
+    .startsWith("AIza", { message: "wrong_prefix" }),
 });
 
 userRoutes.patch(
@@ -126,3 +140,45 @@ userRoutes.get("/me/byok-key", async (c) => {
     updatedAt: row.updatedAt.toISOString(),
   });
 });
+
+// Deep Research Phase E — write endpoint for the BYOK Gemini key.
+// Upsert on userId (PK) so re-registration is idempotent and never leaves a
+// stale row. We surface the first failing Zod issue's `message` as a stable
+// `code` (too_short / too_long / wrong_prefix) so the /settings/ai client
+// can map to localized copy without parsing free-form messages.
+userRoutes.put(
+  "/me/byok-key",
+  zValidator("json", setByokKeySchema, (result, c) => {
+    if (!result.success) {
+      const code = result.error.issues[0]?.message ?? "invalid_input";
+      return c.json({ error: "invalid_input", code }, 400);
+    }
+  }),
+  async (c) => {
+    const me = c.get("user");
+    const { apiKey } = c.req.valid("json");
+    const ciphertext = encryptToken(apiKey);
+    const now = new Date();
+
+    await db
+      .insert(userPreferences)
+      .values({
+        userId: me.id,
+        byokApiKeyEncrypted: ciphertext,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: userPreferences.userId,
+        set: {
+          byokApiKeyEncrypted: ciphertext,
+          updatedAt: now,
+        },
+      });
+
+    return c.json({
+      registered: true,
+      lastFour: apiKey.slice(-4),
+      updatedAt: now.toISOString(),
+    });
+  },
+);
