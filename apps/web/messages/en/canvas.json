@@ -38,10 +38,43 @@
   "monaco": {
     "loading": "Loading editor…"
   },
+  "agent": {
+    "title": "Code Agent",
+    "placeholder": "Describe what you want in natural language. e.g. Plot sin(x) with matplotlib.",
+    "run": "Ask AI",
+    "running": "Writing code…",
+    "apply": "Apply",
+    "discard": "Discard",
+    "retry": "Retry",
+    "autoFix": "Auto-fix",
+    "autoFixOn": "Auto-fix: on",
+    "autoFixOff": "Auto-fix: off",
+    "turnsCount": "{current} / {max} turns",
+    "maxTurnsReached": "Reached the maximum number of fix attempts.",
+    "abandoned": "Stopped after 30 minutes with no response.",
+    "cancelled": "Cancelled."
+  },
+  "outputs": {
+    "title": "Saved outputs",
+    "save": "Save to note",
+    "saved": "Saved",
+    "empty": "No saved outputs yet.",
+    "delete": "Delete",
+    "confirmDelete": "Delete this output?"
+  },
+  "template": {
+    "notAvailable": "Templates are coming soon."
+  },
   "errors": {
     "sourceTooLarge": "Source exceeds 64 KB.",
     "executionTimeout": "Execution exceeded the 10-second timeout.",
-    "notCanvas": "Not a canvas note."
+    "notCanvas": "Not a canvas note.",
+    "wrongLanguage": "The code language doesn't match this note.",
+    "workflowFailed": "The Code Agent isn't responding.",
+    "outputTooLarge": "Output file is too large (over 2MB).",
+    "outputBadType": "Unsupported output type.",
+    "templatesNotAvailable": "Templates are coming soon.",
+    "alreadyTerminal": "This run has already finished."
   },
   "demo": {
     "title": "Canvas Demo",

@@ -10,8 +10,40 @@ type Status = "loading" | "ready" | "running" | "done" | "error";
 type Props = {
   source: string;
   stdin?: string;
-  onResult?: (r: { stdout: string; stderr: string; timedOut: boolean }) => void;
+  onResult?: (r: {
+    stdout: string;
+    stderr: string;
+    figures: string[];
+    timedOut: boolean;
+  }) => void;
 };
+
+// Plan 7 Canvas Phase 2 — matplotlib figure capture.
+//
+// We force the AGG (non-interactive PNG) backend BEFORE running user code so
+// `matplotlib.pyplot` writes to in-memory buffers instead of trying to spin
+// up a Tk/Qt window (which would crash inside the Pyodide WebAssembly VM).
+// AFTER the run we walk every figure number, save it to a `BytesIO`, and
+// base64-encode the bytes. Returning the strings to JS via `.toJs()` lets
+// the gallery render them as `data:image/png;base64,...` previews.
+//
+// The wrapper is wrapped in `try/except ImportError` so notes that don't
+// import matplotlib still finish cleanly — we just emit `figures: []`.
+const FIGURE_CAPTURE_PY = `
+import io, base64
+try:
+    import matplotlib.pyplot as plt
+    result = []
+    for num in plt.get_fignums():
+        fig = plt.figure(num)
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+        result.append(base64.b64encode(buf.getvalue()).decode())
+    plt.close('all')
+    result
+except ImportError:
+    []
+`;
 
 export function PyodideRunner({ source, stdin = "", onResult }: Props) {
   const t = useTranslations("canvas");
@@ -57,6 +89,17 @@ export function PyodideRunner({ source, stdin = "", onResult }: Props) {
           },
         });
 
+        // Force the AGG (PNG) matplotlib backend before user code runs.
+        // Skipping this lets pyplot try to open a Tk window and crash the VM.
+        try {
+          await pyodide.runPythonAsync(
+            `import os; os.environ['MPLBACKEND'] = 'AGG'`,
+          );
+        } catch {
+          // Best-effort: if even this fails we still want the user code to run
+          // — they just won't get figures back.
+        }
+
         setStatus("running");
         const exec = pyodide.runPythonAsync(source);
         const timeout = new Promise<never>((_, reject) =>
@@ -69,10 +112,26 @@ export function PyodideRunner({ source, stdin = "", onResult }: Props) {
         try {
           await Promise.race([exec, timeout]);
           if (cancelled) return;
+
+          // After the user code finishes, harvest matplotlib figures. The
+          // wrapper above no-ops if matplotlib isn't installed, so this is
+          // safe to call unconditionally.
+          let figures: string[] = [];
+          try {
+            const proxy = await pyodide.runPythonAsync(FIGURE_CAPTURE_PY);
+            figures = (proxy?.toJs?.() ?? []) as string[];
+            // PyProxy memory has to be freed manually; otherwise Pyodide
+            // leaks one Python object per render of a figure-producing run.
+            proxy?.destroy?.();
+          } catch {
+            figures = [];
+          }
+
           setStatus("done");
           onResultRef.current?.({
             stdout: outBuf,
             stderr: errBuf,
+            figures,
             timedOut: false,
           });
         } catch (e) {
@@ -87,6 +146,7 @@ export function PyodideRunner({ source, stdin = "", onResult }: Props) {
           onResultRef.current?.({
             stdout: outBuf,
             stderr: errBuf + errLine,
+            figures: [],
             timedOut,
           });
         }

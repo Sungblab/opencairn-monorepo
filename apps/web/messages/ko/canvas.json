@@ -38,10 +38,43 @@
   "monaco": {
     "loading": "에디터 불러오는 중…"
   },
+  "agent": {
+    "title": "코드 에이전트",
+    "placeholder": "원하는 동작을 자연어로 입력해 주세요. 예: matplotlib으로 sin 그래프를 그려 줘",
+    "run": "AI에게 부탁",
+    "running": "코드 작성 중…",
+    "apply": "적용",
+    "discard": "버림",
+    "retry": "다시 시도",
+    "autoFix": "자동 수정",
+    "autoFixOn": "자동 수정: 켜짐",
+    "autoFixOff": "자동 수정: 꺼짐",
+    "turnsCount": "{current} / {max} 회",
+    "maxTurnsReached": "수정 시도 한도에 도달했습니다.",
+    "abandoned": "30 분 동안 응답이 없어 종료되었습니다.",
+    "cancelled": "취소되었습니다."
+  },
+  "outputs": {
+    "title": "저장된 출력",
+    "save": "노트에 저장",
+    "saved": "저장됨",
+    "empty": "아직 저장된 출력이 없습니다.",
+    "delete": "삭제",
+    "confirmDelete": "이 출력을 삭제할까요?"
+  },
+  "template": {
+    "notAvailable": "템플릿 기능은 곧 제공됩니다."
+  },
   "errors": {
     "sourceTooLarge": "소스가 64KB 를 초과했습니다.",
     "executionTimeout": "실행이 10초 시간 제한을 초과했습니다.",
-    "notCanvas": "캔버스 노트가 아닙니다."
+    "notCanvas": "캔버스 노트가 아닙니다.",
+    "wrongLanguage": "코드 언어가 노트와 다릅니다.",
+    "workflowFailed": "코드 에이전트가 응답하지 않습니다.",
+    "outputTooLarge": "출력 파일이 너무 큽니다 (2MB 초과).",
+    "outputBadType": "지원하지 않는 출력 형식입니다.",
+    "templatesNotAvailable": "템플릿 기능은 곧 제공됩니다.",
+    "alreadyTerminal": "이미 종료된 실행입니다."
   },
   "demo": {
     "title": "캔버스 데모",
