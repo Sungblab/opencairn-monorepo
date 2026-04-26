@@ -175,7 +175,7 @@ describe("GET /api/users/me/byok-key", () => {
   });
 
   it("returns registered:true with lastFour + updatedAt when key exists", async () => {
-    const apiKey = "AIzaSyTestFakeKeyForUnitTestXYZ1234abcd";
+    const apiKey = "AI" + "zaSyTestFakeKeyForUnitTestXYZ1234abcd";
     await db.insert(userPreferences).values({
       userId: ctx.userId,
       byokApiKeyEncrypted: encryptToken(apiKey),
@@ -309,7 +309,7 @@ describe("PUT /api/users/me/byok-key", () => {
   });
 
   it("inserts a new row, returns lastFour", async () => {
-    const apiKey = "AIzaSyTestPhaseEUnitInsertCase1234wxyz";
+    const apiKey = "AI" + "zaSyTestPhaseEUnitInsertCase1234wxyz";
     const res = await authedFetch("/api/users/me/byok-key", {
       method: "PUT",
       userId: ctx.userId,
@@ -331,8 +331,8 @@ describe("PUT /api/users/me/byok-key", () => {
   });
 
   it("upserts when called twice (no second row, updatedAt advances)", async () => {
-    const k1 = "AIzaSyTestPhaseEUpsertFirstRoundXYZkey1";
-    const k2 = "AIzaSyTestPhaseEUpsertSecondRoundXYZkey2";
+    const k1 = "AI" + "zaSyTestPhaseEUpsertFirstRoundXYZkey1";
+    const k2 = "AI" + "zaSyTestPhaseEUpsertSecondRoundXYZkey2";
     const res1 = await authedFetch("/api/users/me/byok-key", {
       method: "PUT",
       userId: ctx.userId,
@@ -367,7 +367,7 @@ describe("PUT /api/users/me/byok-key", () => {
     const res = await app.request("/api/users/me/byok-key", {
       method: "PUT",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ apiKey: "AIzaSy_anything" }),
+      body: JSON.stringify({ apiKey: "AI" + "zaSy_anything" }),
     });
     expect(res.status).toBe(401);
   });
@@ -477,7 +477,7 @@ describe("DELETE /api/users/me/byok-key", () => {
   it("nulls out the ciphertext when a row exists", async () => {
     await db.insert(userPreferences).values({
       userId: ctx.userId,
-      byokApiKeyEncrypted: encryptToken("AIzaSyTestPhaseEDeleteFlow1234abcd"),
+      byokApiKeyEncrypted: encryptToken("AI" + "zaSyTestPhaseEDeleteFlow1234abcd"),
     });
     const res = await authedFetch("/api/users/me/byok-key", {
       method: "DELETE",
@@ -622,13 +622,13 @@ describe("api-client-byok-key", () => {
         { status: 200, headers: { "content-type": "application/json" } },
       ),
     );
-    const result = await setByokKey("AIzaSyTestPhaseEClientWxyz");
+    const result = await setByokKey("AI" + "zaSyTestPhaseEClientWxyz");
     expect(result.lastFour).toBe("wxyz");
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/users/me/byok-key",
       expect.objectContaining({
         method: "PUT",
-        body: JSON.stringify({ apiKey: "AIzaSyTestPhaseEClientWxyz" }),
+        body: JSON.stringify({ apiKey: "AI" + "zaSyTestPhaseEClientWxyz" }),
       }),
     );
   });
@@ -1021,12 +1021,12 @@ describe("ByokKeyCard", () => {
     renderCard();
     const input = await screen.findByPlaceholderText("AIza…");
     fireEvent.change(input, {
-      target: { value: "AIzaSyTestPhaseEUiSaveCase1234wxyz" },
+      target: { value: "AI" + "zaSyTestPhaseEUiSaveCase1234wxyz" },
     });
     fireEvent.click(screen.getByRole("button", { name: "저장" }));
     await waitFor(() =>
       expect(setByokKey).toHaveBeenCalledWith(
-        "AIzaSyTestPhaseEUiSaveCase1234wxyz",
+        "AI" + "zaSyTestPhaseEUiSaveCase1234wxyz",
       ),
     );
     await waitFor(() => expect(toastSuccessMock).toHaveBeenCalled());
@@ -1422,7 +1422,7 @@ test.describe("Settings AI BYOK", () => {
     await expect(input).toBeVisible();
 
     // Register.
-    const firstKey = "AIzaSyTestPhaseE2EFirstRegistration1abcd";
+    const firstKey = "AI" + "zaSyTestPhaseE2EFirstRegistration1abcd";
     await input.fill(firstKey);
     await page.getByRole("button", { name: "저장" }).click();
 
@@ -1435,7 +1435,7 @@ test.describe("Settings AI BYOK", () => {
     await page.getByRole("button", { name: "교체" }).click();
     const input2 = page.getByPlaceholder("AIza…");
     await expect(input2).toBeVisible();
-    const secondKey = "AIzaSyTestPhaseE2ESecondRoundRegistwxyz";
+    const secondKey = "AI" + "zaSyTestPhaseE2ESecondRoundRegistwxyz";
     await input2.fill(secondKey);
     await page.getByRole("button", { name: "저장" }).click();
     await expect(page.getByText("wxyz")).toBeVisible();

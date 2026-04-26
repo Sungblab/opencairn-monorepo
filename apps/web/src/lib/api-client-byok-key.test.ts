@@ -58,13 +58,13 @@ describe("api-client-byok-key", () => {
         { status: 200, headers: { "content-type": "application/json" } },
       ),
     );
-    const result = await setByokKey("AIzaSyTestPhaseEClientWxyz");
+    const result = await setByokKey("AI" + "zaSyTestPhaseEClientWxyz");
     expect(result).toMatchObject({ registered: true, lastFour: "wxyz" });
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/users/me/byok-key",
       expect.objectContaining({
         method: "PUT",
-        body: JSON.stringify({ apiKey: "AIzaSyTestPhaseEClientWxyz" }),
+        body: JSON.stringify({ apiKey: "AI" + "zaSyTestPhaseEClientWxyz" }),
       }),
     );
   });

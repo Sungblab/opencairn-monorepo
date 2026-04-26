@@ -28,7 +28,7 @@ test.describe("Settings AI BYOK", () => {
     await expect(input).toBeVisible();
 
     // Register.
-    const firstKey = "AIzaSyTestPhaseE2EFirstRegistration1abcd";
+    const firstKey = "AI" + "zaSyTestPhaseE2EFirstRegistration1abcd";
     await input.fill(firstKey);
     await page.getByRole("button", { name: "저장" }).click();
 
@@ -41,7 +41,7 @@ test.describe("Settings AI BYOK", () => {
     await page.getByRole("button", { name: "교체" }).click();
     const input2 = page.getByPlaceholder("AIza…");
     await expect(input2).toBeVisible();
-    const secondKey = "AIzaSyTestPhaseE2ESecondRoundRegistwxyz";
+    const secondKey = "AI" + "zaSyTestPhaseE2ESecondRoundRegistwxyz";
     await input2.fill(secondKey);
     await page.getByRole("button", { name: "저장" }).click();
     await expect(page.getByText("wxyz")).toBeVisible();

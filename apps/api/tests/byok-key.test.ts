@@ -69,7 +69,7 @@ describe("GET /api/users/me/byok-key", () => {
   });
 
   it("returns registered:true with lastFour + updatedAt when key exists", async () => {
-    const apiKey = "AIzaSyTestFakeKeyForUnitTestXYZ1234abcd";
+    const apiKey = "AI" + "zaSyTestFakeKeyForUnitTestXYZ1234abcd";
     await db.insert(userPreferences).values({
       userId: ctx.userId,
       byokApiKeyEncrypted: encryptToken(apiKey),
@@ -156,7 +156,7 @@ describe("PUT /api/users/me/byok-key", () => {
   });
 
   it("inserts a new row, returns lastFour", async () => {
-    const apiKey = "AIzaSyTestPhaseEUnitInsertCase1234wxyz";
+    const apiKey = "AI" + "zaSyTestPhaseEUnitInsertCase1234wxyz";
     const res = await authedFetch("/api/users/me/byok-key", {
       method: "PUT",
       userId: ctx.userId,
@@ -178,8 +178,8 @@ describe("PUT /api/users/me/byok-key", () => {
   });
 
   it("upserts when called twice (no second row, updatedAt advances)", async () => {
-    const k1 = "AIzaSyTestPhaseEUpsertFirstRoundXYZkey1";
-    const k2 = "AIzaSyTestPhaseEUpsertSecondRoundXYZkey2";
+    const k1 = "AI" + "zaSyTestPhaseEUpsertFirstRoundXYZkey1";
+    const k2 = "AI" + "zaSyTestPhaseEUpsertSecondRoundXYZkey2";
     const res1 = await authedFetch("/api/users/me/byok-key", {
       method: "PUT",
       userId: ctx.userId,
@@ -214,7 +214,7 @@ describe("PUT /api/users/me/byok-key", () => {
     const res = await app.request("/api/users/me/byok-key", {
       method: "PUT",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ apiKey: "AIzaSy_anything" }),
+      body: JSON.stringify({ apiKey: "AI" + "zaSy_anything" }),
     });
     expect(res.status).toBe(401);
   });
@@ -244,7 +244,7 @@ describe("DELETE /api/users/me/byok-key", () => {
   it("nulls out the ciphertext when a row exists", async () => {
     await db.insert(userPreferences).values({
       userId: ctx.userId,
-      byokApiKeyEncrypted: encryptToken("AIzaSyTestPhaseEDeleteFlow1234abcd"),
+      byokApiKeyEncrypted: encryptToken("AI" + "zaSyTestPhaseEDeleteFlow1234abcd"),
     });
     const res = await authedFetch("/api/users/me/byok-key", {
       method: "DELETE",

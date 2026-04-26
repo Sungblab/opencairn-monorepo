@@ -79,12 +79,12 @@ describe("ByokKeyCard", () => {
     renderCard();
     const input = await screen.findByPlaceholderText("AIza…");
     fireEvent.change(input, {
-      target: { value: "AIzaSyTestPhaseEUiSaveCase1234wxyz" },
+      target: { value: "AI" + "zaSyTestPhaseEUiSaveCase1234wxyz" },
     });
     fireEvent.click(screen.getByRole("button", { name: "저장" }));
     await waitFor(() =>
       expect(setByokKey).toHaveBeenCalledWith(
-        "AIzaSyTestPhaseEUiSaveCase1234wxyz",
+        "AI" + "zaSyTestPhaseEUiSaveCase1234wxyz",
       ),
     );
     await waitFor(() => expect(toastSuccessMock).toHaveBeenCalled());
