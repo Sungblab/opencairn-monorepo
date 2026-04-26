@@ -8,6 +8,7 @@ import "katex/dist/katex.min.css";
 import { proseClasses } from "@/lib/markdown/shared-prose";
 import { sanitizeHtml } from "@/lib/markdown/sanitize-html";
 import { CodeBlock } from "./renderers/code-block";
+import { CalloutBlockquote } from "./renderers/callout-blockquote";
 import { StreamingCursor } from "./streaming-text";
 
 interface ChatMessageRendererProps {
@@ -39,9 +40,7 @@ export function ChatMessageRenderer({
           table: ({ children }) => (
             <table className={proseClasses.table}>{children}</table>
           ),
-          blockquote: ({ children }) => (
-            <blockquote className={proseClasses.blockquote}>{children}</blockquote>
-          ),
+          blockquote: CalloutBlockquote,
           a: ({ children, ...props }) => (
             <a {...props} target="_blank" rel="noopener noreferrer">
               {children}

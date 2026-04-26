@@ -39,3 +39,23 @@ describe("ChatMessageRenderer", () => {
     expect(screen.getByTestId("streaming-cursor")).toBeInTheDocument();
   });
 });
+
+describe("ChatMessageRenderer — callout-aware blockquote", () => {
+  it("renders > [!info] as a styled callout", () => {
+    render(wrap(<ChatMessageRenderer body="> [!info] hello" />));
+    const el = screen.getByTestId("chat-callout-info");
+    expect(el).toBeInTheDocument();
+    expect(el).toHaveTextContent("hello");
+  });
+
+  it("renders > [!warn] with warn styling", () => {
+    render(wrap(<ChatMessageRenderer body="> [!warn] careful" />));
+    expect(screen.getByTestId("chat-callout-warn")).toBeInTheDocument();
+  });
+
+  it("falls back to a plain blockquote without [!kind] prefix", () => {
+    const { container } = render(wrap(<ChatMessageRenderer body="> just a quote" />));
+    expect(container.querySelector("blockquote")).toBeInTheDocument();
+    expect(screen.queryByTestId("chat-callout-info")).toBeNull();
+  });
+});
