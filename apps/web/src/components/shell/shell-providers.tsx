@@ -2,7 +2,6 @@
 import { useCallback, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { AppShell } from "./app-shell";
-import { Toaster } from "@/components/ui/toaster";
 import { useUrlTabSync } from "@/hooks/use-url-tab-sync";
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
 import { useTabKeyboard } from "@/hooks/use-tab-keyboard";
@@ -86,10 +85,10 @@ export function ShellProviders({
     setSidebarWs(key);
   }, [wsSlug, setThreadsWs, setSidebarWs]);
 
+  // Toaster lives at the [locale]/layout.tsx boundary (Phase 5 lift) so
+  // /onboarding, /auth, /settings — anything outside the (shell) route
+  // group — also gets toast notifications.
   return (
-    <>
-      <AppShell deepResearchEnabled={deepResearchEnabled}>{children}</AppShell>
-      <Toaster />
-    </>
+    <AppShell deepResearchEnabled={deepResearchEnabled}>{children}</AppShell>
   );
 }
