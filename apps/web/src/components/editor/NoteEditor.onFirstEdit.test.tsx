@@ -86,6 +86,10 @@ vi.mock("./blocks/table/table-plugin", () => ({ tablePlugins: [] }));
 // array so the platejs/react partial mock holds for this headless test suite.
 vi.mock("./blocks/columns/columns-plugin", () => ({ columnsPlugins: [] }));
 
+// mermaid-fence calls `createPlatePlugin` at module scope. Stub to an empty
+// object so the platejs/react partial mock holds for this headless test suite.
+vi.mock("./plugins/mermaid-fence", () => ({ MermaidFencePlugin: {} }));
+
 import { renderNoteEditor } from "./NoteEditor.test-rig";
 
 describe("NoteEditor.onFirstEdit", () => {
