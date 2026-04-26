@@ -151,3 +151,14 @@ export const researchBillingPathEnum = pgEnum("research_billing_path", [
   "byok",
   "managed",
 ]);
+
+// App Shell Phase 5 Task 9 — notification kinds. New rows MUST add a
+// matching renderer branch in apps/web NotificationItem; an unmapped kind
+// renders the raw payload summary which is fine but unbranded.
+export const notificationKindEnum = pgEnum("notification_kind", [
+  "mention",
+  "comment_reply",
+  "research_complete",
+  "share_invite",
+  "system",
+]);
