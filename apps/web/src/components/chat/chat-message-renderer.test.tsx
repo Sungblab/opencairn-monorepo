@@ -17,8 +17,19 @@ describe("ChatMessageRenderer", () => {
   });
 
   it("renders a fenced code block with language label", () => {
-    render(wrap(<ChatMessageRenderer body="```js\nconst x = 1;\n```" />));
+    // Use expression form so escape sequences are processed; JSX string
+    // attributes pass `\n` through as a literal two-char sequence.
+    const md = "```js\nconst x = 1;\n```";
+    render(wrap(<ChatMessageRenderer body={md} />));
     expect(screen.getByTestId("code-block-lang")).toHaveTextContent("js");
+  });
+
+  it("preserves literal escape sequences inside code blocks (no \\n stripping)", () => {
+    // A regex tutorial that intentionally contains the two-character sequence
+    // \\n must not be turned into a real newline by the renderer.
+    const md = "```\nmatch /a\\nb/\n```";
+    const { container } = render(wrap(<ChatMessageRenderer body={md} />));
+    expect(container.textContent).toContain("match /a\\nb/");
   });
 
   it("renders a GFM table", () => {

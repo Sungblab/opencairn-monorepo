@@ -21,14 +21,7 @@ export function ChatMessageRenderer({
   body,
   streaming,
 }: ChatMessageRendererProps) {
-  // Normalize escape sequences that might arrive as literal two-character
-  // sequences (e.g., from JSX string attributes or improperly serialized
-  // agent responses). Real newlines pass through unchanged.
-  const normalized = body
-    .replace(/\\n/g, "\n")
-    .replace(/\\t/g, "\t")
-    .replace(/\\r/g, "");
-  const safeBody = sanitizeHtml(normalized);
+  const safeBody = sanitizeHtml(body);
   return (
     <div className={proseClasses.body} data-testid="chat-message-renderer">
       <ReactMarkdown
