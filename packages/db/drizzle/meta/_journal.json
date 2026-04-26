@@ -169,6 +169,13 @@
       "when": 1777129390745,
       "tag": "0023_wiki_links_table",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1777187258073,
+      "tag": "0024_canvas_code_runs_outputs",
+      "breakpoints": true
     }
   ]
 }
