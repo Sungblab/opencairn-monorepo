@@ -59,6 +59,27 @@ const deserializerPlugins = [
   MarkdownPlugin,
 ];
 
+function joinCodeLines(node: PlateNode): string {
+  // Plate code_block has children of type code_line, each with a single text leaf.
+  if (!node.children) return "";
+  return node.children
+    .map((line) => line.children?.[0]?.text ?? "")
+    .join("\n");
+}
+
+function postprocessMermaid(nodes: PlateNode[]): PlateNode[] {
+  return nodes.map((n) => {
+    if (n.type === "code_block" && (n.lang === "mermaid" || n.lang === "Mermaid")) {
+      return {
+        type: "mermaid",
+        code: joinCodeLines(n),
+        children: [{ text: "" }],
+      };
+    }
+    return n;
+  });
+}
+
 export function markdownToPlate(markdown: string): PlateNode[] {
   if (!markdown || !markdown.trim()) {
     return [{ type: "p", children: [{ text: "" }] }];
@@ -82,5 +103,5 @@ export function markdownToPlate(markdown: string): PlateNode[] {
     return [{ type: "p", children: [{ text: "" }] }];
   }
 
-  return value;
+  return postprocessMermaid(value);
 }

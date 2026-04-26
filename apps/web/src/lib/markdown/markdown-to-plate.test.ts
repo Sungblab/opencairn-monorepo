@@ -35,3 +35,29 @@ describe("markdownToPlate — GFM basics", () => {
     expect(() => markdownToPlate("# Heading\n```js\nunterminated")).not.toThrow();
   });
 });
+
+describe("markdownToPlate — mermaid post-processing", () => {
+  it("converts a ```mermaid fenced code block to a mermaid element", () => {
+    const result = markdownToPlate("```mermaid\ngraph TD\nA --> B\n```");
+    expect(result[0]).toMatchObject({
+      type: "mermaid",
+      code: "graph TD\nA --> B",
+    });
+    expect(result[0].children).toEqual([{ text: "" }]);
+  });
+
+  it("leaves non-mermaid code blocks untouched", () => {
+    const result = markdownToPlate("```js\nconst x = 1;\n```");
+    expect(result[0]).toMatchObject({ type: "code_block" });
+    expect(result[0].type).not.toBe("mermaid");
+  });
+
+  it("handles multiple mermaid blocks interleaved with prose", () => {
+    const md = "intro\n\n```mermaid\nA-->B\n```\n\nmiddle\n\n```mermaid\nC-->D\n```";
+    const result = markdownToPlate(md);
+    const mermaidBlocks = result.filter((n) => n.type === "mermaid");
+    expect(mermaidBlocks).toHaveLength(2);
+    expect(mermaidBlocks[0].code).toBe("A-->B");
+    expect(mermaidBlocks[1].code).toBe("C-->D");
+  });
+});
