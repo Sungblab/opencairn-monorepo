@@ -59,7 +59,7 @@ describe("api-client-byok-key", () => {
       ),
     );
     const result = await setByokKey("AIzaSyTestPhaseEClientWxyz");
-    expect(result.lastFour).toBe("wxyz");
+    expect(result).toMatchObject({ registered: true, lastFour: "wxyz" });
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/users/me/byok-key",
       expect.objectContaining({
