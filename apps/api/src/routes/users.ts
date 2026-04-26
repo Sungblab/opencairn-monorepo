@@ -78,3 +78,46 @@ userRoutes.patch(
     return c.json({ ok: true });
   },
 );
+
+// App Shell Phase 5 Task 7 — account profile view source. `locale` and
+// `timezone` are kept in the response shape so the client form can bind to
+// them, but they're returned as `null` until we add real columns (no
+// migration in scope for Phase 5; tracked as follow-up).
+userRoutes.get("/me", async (c) => {
+  const me = c.get("user");
+  const [row] = await db
+    .select({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      image: user.image,
+      plan: user.plan,
+    })
+    .from(user)
+    .where(eq(user.id, me.id))
+    .limit(1);
+  if (!row) return c.json({ error: "Not found" }, 404);
+  return c.json({
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    image: row.image,
+    plan: row.plan,
+    locale: null,
+    timezone: null,
+  });
+});
+
+const meSchema = z
+  .object({
+    name: z.string().min(1).max(120).optional(),
+  })
+  .strict();
+
+userRoutes.patch("/me", zValidator("json", meSchema), async (c) => {
+  const me = c.get("user");
+  const body = c.req.valid("json");
+  if (Object.keys(body).length === 0) return c.json({ ok: true });
+  await db.update(user).set(body).where(eq(user.id, me.id));
+  return c.json({ ok: true });
+});
