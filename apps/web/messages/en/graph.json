@@ -22,7 +22,10 @@
   "errors": {
     "loadFailed": "Failed to load the graph.",
     "tooManyHops": "Neighbor expansion supports at most 3 hops.",
-    "forbidden": "You don't have access to this project."
+    "forbidden": "You don't have access to this project.",
+    "visualizeFailed": "AI visualization failed. Please try again.",
+    "concurrent-visualize": "Another visualization request is already running. Try again in a moment.",
+    "agent_did_not_emit_view_spec": "The AI couldn't build a suitable view. Try rewording your prompt."
   },
   "views": {
     "graph": "Graph",
@@ -35,6 +38,24 @@
     "noConcepts": "No concepts in this project yet"
   },
   "ai": {
-    "trigger": "Draw with AI"
+    "trigger": "Draw with AI",
+    "dialogTitle": "Draw graph with AI",
+    "promptPlaceholder": "How should we visualize this? e.g. show the transformer concepts as a mindmap",
+    "submit": "Draw with AI",
+    "submitting": "Generating…",
+    "cancel": "Cancel",
+    "viewTypeLabel": "View type",
+    "viewTypeAuto": "Auto",
+    "viewType_graph": "Graph",
+    "viewType_mindmap": "Mindmap",
+    "viewType_cards": "Cards",
+    "viewType_timeline": "Timeline",
+    "viewType_board": "Board",
+    "progress": {
+      "search_concepts": "Search concepts",
+      "get_neighbors": "Fetch neighbors",
+      "filter_concepts": "Filter concepts",
+      "build_view_spec": "Build view"
+    }
   }
 }
