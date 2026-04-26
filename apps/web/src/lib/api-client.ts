@@ -428,6 +428,23 @@ export const meApi = {
     }),
 };
 
+// ---------- Workspace text search (Phase 5 Task 8 / palette) ----------
+
+export interface WorkspaceNoteSearchHit {
+  id: string;
+  title: string;
+  project_id: string;
+  project_name: string;
+  updated_at: string;
+}
+
+export const searchApi = {
+  workspaceNotes: (workspaceId: string, q: string, limit = 20) =>
+    apiClient<{ results: WorkspaceNoteSearchHit[] }>(
+      `/workspaces/${workspaceId}/notes/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+    ),
+};
+
 export const api = {
   getNote: (id: string) => apiClient<NoteRow>(`/notes/${id}`),
   listNotesByProject: (projectId: string) =>

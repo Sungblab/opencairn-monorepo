@@ -2,6 +2,7 @@
 import { useCallback, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { AppShell } from "./app-shell";
+import { CommandPalette } from "@/components/palette/command-palette";
 import { useUrlTabSync } from "@/hooks/use-url-tab-sync";
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
 import { useTabKeyboard } from "@/hooks/use-tab-keyboard";
@@ -88,7 +89,14 @@ export function ShellProviders({
   // Toaster lives at the [locale]/layout.tsx boundary (Phase 5 lift) so
   // /onboarding, /auth, /settings — anything outside the (shell) route
   // group — also gets toast notifications.
+  //
+  // CommandPalette is shell-only — it depends on a workspace context for
+  // its scoped note search and most of its actions; outside-of-shell pages
+  // don't have a wsSlug to bind to.
   return (
-    <AppShell deepResearchEnabled={deepResearchEnabled}>{children}</AppShell>
+    <>
+      <AppShell deepResearchEnabled={deepResearchEnabled}>{children}</AppShell>
+      <CommandPalette wsSlug={wsSlug} />
+    </>
   );
 }

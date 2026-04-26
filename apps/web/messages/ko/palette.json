@@ -1,0 +1,19 @@
+{
+  "label": "명령 팔레트",
+  "placeholder": "무엇을 찾고 있나요?",
+  "empty": "결과 없음",
+  "groups": {
+    "notes": "노트",
+    "actions": "액션"
+  },
+  "actions": {
+    "dashboard": "대시보드로 이동",
+    "research": "Deep Research 허브",
+    "import": "가져오기",
+    "wsSettings": "워크스페이스 설정",
+    "profile": "내 프로필",
+    "newProject": "새 프로젝트 만들기",
+    "toggleSidebar": "사이드바 토글",
+    "toggleAgent": "에이전트 패널 토글"
+  }
+}
