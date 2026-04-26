@@ -60,6 +60,12 @@ vi.mock("./blocks/research-meta/research-meta-plugin", () => ({
   researchMetaPlugin: {},
 }));
 
+// mermaid-plugin also calls `createPlatePlugin` at module scope.
+// Same treatment: stub it out so the platejs/react partial mock holds.
+vi.mock("./blocks/mermaid/mermaid-plugin", () => ({
+  MermaidPlugin: {},
+}));
+
 import { renderNoteEditor } from "./NoteEditor.test-rig";
 
 describe("NoteEditor.onFirstEdit", () => {
