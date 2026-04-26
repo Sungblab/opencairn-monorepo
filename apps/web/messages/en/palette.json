@@ -1,0 +1,19 @@
+{
+  "label": "Command palette",
+  "placeholder": "What are you looking for?",
+  "empty": "No results",
+  "groups": {
+    "notes": "Notes",
+    "actions": "Actions"
+  },
+  "actions": {
+    "dashboard": "Go to dashboard",
+    "research": "Deep Research hub",
+    "import": "Import",
+    "wsSettings": "Workspace settings",
+    "profile": "My profile",
+    "newProject": "New project",
+    "toggleSidebar": "Toggle sidebar",
+    "toggleAgent": "Toggle agent panel"
+  }
+}

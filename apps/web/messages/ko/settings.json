@@ -1,0 +1,35 @@
+{
+  "ai": {
+    "title": "AI 설정",
+    "subtitle": "Deep Research에 사용할 Gemini API 키를 관리합니다.",
+    "byok": {
+      "heading": "Gemini API 키",
+      "description": "직접 등록한 키로 Deep Research를 호출합니다. 비용은 Google이 사용자의 Google Cloud 계정에 청구합니다.",
+      "input_label": "API 키",
+      "input_placeholder": "AIza…",
+      "save": "저장",
+      "saving": "저장 중…",
+      "saved": "키가 저장되었습니다.",
+      "registered_label": "등록된 키",
+      "last_updated": "마지막 업데이트",
+      "replace": "교체",
+      "delete": "삭제",
+      "delete_confirm_title": "API 키를 삭제할까요?",
+      "delete_confirm_body": "삭제 후에는 새 리서치를 시작할 때 다시 등록해야 합니다.",
+      "delete_confirm_yes": "삭제",
+      "delete_confirm_no": "취소",
+      "deleting": "삭제 중…",
+      "deleted": "키가 삭제되었습니다.",
+      "help_text": "Google AI Studio에서 키를 발급할 수 있습니다.",
+      "loading": "키 정보를 불러오는 중…",
+      "error": {
+        "wrong_prefix": "올바른 Gemini API 키 형식이 아닙니다. (AIza로 시작하는 키)",
+        "too_short": "키가 너무 짧습니다.",
+        "too_long": "키가 너무 깁니다.",
+        "save_failed": "저장에 실패했습니다. 잠시 후 다시 시도해주세요.",
+        "delete_failed": "삭제에 실패했습니다. 잠시 후 다시 시도해주세요.",
+        "load_failed": "키 정보를 불러오지 못했습니다."
+      }
+    }
+  }
+}

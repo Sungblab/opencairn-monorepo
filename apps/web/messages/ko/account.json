@@ -1,0 +1,31 @@
+{
+  "title": "계정 설정",
+  "back": "← 워크스페이스로",
+  "tabs": {
+    "profile": "프로필",
+    "providers": "BYOK",
+    "security": "보안",
+    "billing": "청구·크레딧"
+  },
+  "profile": {
+    "heading": "프로필",
+    "nameLabel": "이름",
+    "emailLabel": "이메일",
+    "save": "저장",
+    "saved": "저장되었습니다.",
+    "saveFailed": "저장에 실패했습니다.",
+    "localeNote": "언어와 시간대 설정은 곧 지원됩니다."
+  },
+  "providers": {
+    "heading": "BYOK",
+    "stub": "BYOK 키 등록 화면은 Deep Research Phase E 합류 후 활성화됩니다."
+  },
+  "security": {
+    "heading": "보안",
+    "stub": "비밀번호 변경 / 세션 관리는 곧 추가됩니다."
+  },
+  "billing": {
+    "heading": "청구·크레딧",
+    "stub": "유료 플랜과 크레딧은 Plan 9b 합류 후 활성화됩니다."
+  }
+}

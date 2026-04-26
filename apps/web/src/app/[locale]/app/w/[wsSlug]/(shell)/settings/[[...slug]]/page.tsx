@@ -1,23 +1,24 @@
-import { useTranslations } from "next-intl";
+import { apiClient } from "@/lib/api-client";
+import { WorkspaceSettingsView } from "@/components/views/workspace-settings/workspace-settings-view";
 
-export default async function WorkspaceSettingsPlaceholder({
+// App Shell Phase 5 Task 6 — replaces the Phase 1 placeholder. Sub route
+// (/settings/<sub>) is read from the optional catch-all segment and threaded
+// to the client view as a discriminator. wsId is resolved server-side so
+// every tab's API helper works with a stable uuid.
+export default async function WsSettings({
   params,
 }: {
-  params: Promise<{ slug?: string[] }>;
+  params: Promise<{ wsSlug: string; slug?: string[] }>;
 }) {
-  const { slug } = await params;
-  const sub = slug?.[0] ?? "members";
-  return <SettingsBody sub={sub} />;
-}
-
-function SettingsBody({ sub }: { sub: string }) {
-  const t = useTranslations("appShell.routes.ws_settings");
+  const { wsSlug, slug } = await params;
+  const ws = await apiClient<{ id: string }>(
+    `/workspaces/by-slug/${wsSlug}`,
+  );
   return (
-    <div data-testid="route-ws-settings" className="p-6">
-      <h1 className="text-2xl font-semibold">
-        {t("heading", { sub })}
-      </h1>
-      <p className="text-sm text-muted-foreground">{t("placeholder")}</p>
-    </div>
+    <WorkspaceSettingsView
+      wsSlug={wsSlug}
+      wsId={ws.id}
+      sub={slug?.[0] ?? "members"}
+    />
   );
 }
