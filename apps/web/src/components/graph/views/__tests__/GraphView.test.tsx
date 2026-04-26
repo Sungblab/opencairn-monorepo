@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NextIntlClientProvider } from "next-intl";
 import koGraph from "@/../messages/ko/graph.json";
-import { ProjectGraph } from "../ProjectGraph";
+import GraphView from "../GraphView";
 
 vi.mock("next/dynamic", () => ({
   default: () => () => <div data-testid="cy-mount">cytoscape</div>,
@@ -23,13 +23,13 @@ function renderWith(data: unknown) {
   return render(
     <QueryClientProvider client={qc}>
       <NextIntlClientProvider locale="ko" messages={{ graph: koGraph }}>
-        <ProjectGraph projectId="p1" />
+        <GraphView projectId="p1" />
       </NextIntlClientProvider>
     </QueryClientProvider>,
   );
 }
 
-describe("ProjectGraph", () => {
+describe("GraphView", () => {
   it("renders empty state when concept list is empty", async () => {
     renderWith({ nodes: [], edges: [], truncated: false, totalConcepts: 0 });
     expect(await screen.findByText(koGraph.empty.title)).toBeInTheDocument();
