@@ -31,7 +31,7 @@ cd "$REPO_ROOT"
 FAIL=0
 
 echo "[plan-5-guard] checking cytoscape version pins in apps/web/package.json..."
-if grep -nE '"cytoscape(-fcose)?"\s*:\s*"(latest|\*)"' apps/web/package.json 2>/dev/null; then
+if grep -nE '"cytoscape(-fcose|-dagre)?"\s*:\s*"(latest|\*)"' apps/web/package.json 2>/dev/null; then
   echo "  FAIL: cytoscape package pinned to latest/* — pin to ^x.y or x.y.z"
   FAIL=1
 fi
