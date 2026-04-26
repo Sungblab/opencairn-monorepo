@@ -5,6 +5,7 @@ import {
   eq,
   desc,
   notifications,
+  sql,
 } from "@opencairn/db";
 import { requireAuth } from "../middleware/auth";
 import { isUuid } from "../lib/validators";
@@ -43,13 +44,16 @@ notificationRoutes.get("/", async (c) => {
 });
 
 // Idempotent — re-marking an already-read notification is a no-op.
+// COALESCE preserves the original read_at so analytics keep "first read"
+// truth, and the second call still returns 200 (the row exists, ownership
+// matches) instead of 404.
 notificationRoutes.patch("/:id/read", async (c) => {
   const me = c.get("user");
   const id = c.req.param("id");
   if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
   const result = await db
     .update(notifications)
-    .set({ readAt: new Date() })
+    .set({ readAt: sql`COALESCE(${notifications.readAt}, NOW())` })
     .where(
       and(eq(notifications.id, id), eq(notifications.userId, me.id)),
     )
