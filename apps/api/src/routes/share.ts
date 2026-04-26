@@ -7,6 +7,8 @@ import {
   notes,
   user,
   yjsDocuments,
+  pagePermissions,
+  workspaceMembers,
   eq,
   and,
   isNull,
@@ -22,6 +24,7 @@ import {
   isValidShareTokenFormat,
 } from "../lib/share-token";
 import { yjsStateToPlateValue, fallbackPlateValue } from "../lib/yjs-to-plate";
+import { persistAndPublish } from "../lib/notification-events";
 import type { AppEnv } from "../lib/types";
 
 // Plan 2C — public share-link routes. Notion model: token = secret, no expiry,
@@ -266,6 +269,242 @@ shareRouter.delete("/share/:shareId", requireAuth, async (c) => {
   }
   return c.body(null, 204);
 });
+
+// ============================================================================
+// Plan 2C Task 4 — per-note permissions (ShareDialog "Invite people" panel).
+// Workspace members can be granted page-level access (viewer/commenter/editor)
+// to a note. Grants and role changes fire a `share_invite` notification to
+// the target (skipping self-grants). Same per-route requireAuth pattern as
+// the share-link routes above.
+// ============================================================================
+
+const permissionRoleSchema = z.enum(["viewer", "commenter", "editor"]);
+
+const permissionGrantSchema = z.object({
+  userId: z.string().min(1),
+  role: permissionRoleSchema,
+});
+
+const permissionPatchSchema = z.object({
+  role: permissionRoleSchema,
+});
+
+shareRouter.get("/notes/:id/permissions", requireAuth, async (c) => {
+  const userId = c.get("userId");
+  const noteId = c.req.param("id");
+  if (!isUuid(noteId)) return c.json({ error: "Bad Request" }, 400);
+  if (!(await canRead(userId, { type: "note", id: noteId }))) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+  const rows = await db
+    .select({
+      userId: pagePermissions.userId,
+      role: pagePermissions.role,
+      grantedBy: pagePermissions.grantedBy,
+      createdAt: pagePermissions.createdAt,
+      name: user.name,
+      email: user.email,
+    })
+    .from(pagePermissions)
+    .leftJoin(user, eq(user.id, pagePermissions.userId))
+    .where(eq(pagePermissions.pageId, noteId))
+    .orderBy(desc(pagePermissions.createdAt));
+  return c.json({
+    permissions: rows.map((r) => ({
+      userId: r.userId,
+      role: r.role,
+      grantedBy: r.grantedBy,
+      name: r.name ?? "",
+      email: r.email ?? "",
+      createdAt: r.createdAt.toISOString(),
+    })),
+  });
+});
+
+shareRouter.post(
+  "/notes/:id/permissions",
+  requireAuth,
+  zValidator("json", permissionGrantSchema),
+  async (c) => {
+    const actorId = c.get("userId");
+    const noteId = c.req.param("id");
+    if (!isUuid(noteId)) return c.json({ error: "Bad Request" }, 400);
+    if (!(await canWrite(actorId, { type: "note", id: noteId }))) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+    const { userId: targetId, role } = c.req.valid("json");
+
+    // Resolve note (workspaceId + title) — title is needed for the
+    // notification payload, workspaceId for the membership check.
+    const [note] = await db
+      .select({
+        workspaceId: notes.workspaceId,
+        title: notes.title,
+      })
+      .from(notes)
+      .where(and(eq(notes.id, noteId), isNull(notes.deletedAt)));
+    if (!note) return c.json({ error: "Not found" }, 404);
+
+    // Membership guard — only workspace members may receive page-level
+    // grants. External users must use a public share link instead.
+    const [membership] = await db
+      .select({ userId: workspaceMembers.userId })
+      .from(workspaceMembers)
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, note.workspaceId),
+          eq(workspaceMembers.userId, targetId),
+        ),
+      );
+    if (!membership) {
+      return c.json({ error: "not_workspace_member" }, 400);
+    }
+
+    // Upsert via the unique (page_id, user_id) index.
+    const [row] = await db
+      .insert(pagePermissions)
+      .values({
+        pageId: noteId,
+        userId: targetId,
+        role,
+        grantedBy: actorId,
+      })
+      .onConflictDoUpdate({
+        target: [pagePermissions.pageId, pagePermissions.userId],
+        set: { role, grantedBy: actorId },
+      })
+      .returning();
+
+    // Notification fan-out — skip self-grants. Failures must not bubble up
+    // and surface as 5xx; we already persisted the permission.
+    if (targetId !== actorId) {
+      const [actor] = await db
+        .select({ name: user.name })
+        .from(user)
+        .where(eq(user.id, actorId));
+      await persistAndPublish({
+        userId: targetId,
+        kind: "share_invite",
+        payload: {
+          summary: `${actor?.name ?? "누군가"}님이 "${note.title}"를 공유했습니다`,
+          noteId,
+          noteTitle: note.title,
+          role,
+          fromUserId: actorId,
+        },
+      }).catch(() => undefined);
+    }
+
+    return c.json(
+      {
+        permission: {
+          userId: row.userId,
+          role: row.role,
+          grantedBy: row.grantedBy,
+          createdAt: row.createdAt.toISOString(),
+        },
+      },
+      201,
+    );
+  },
+);
+
+shareRouter.patch(
+  "/notes/:id/permissions/:userId",
+  requireAuth,
+  zValidator("json", permissionPatchSchema),
+  async (c) => {
+    const actorId = c.get("userId");
+    const noteId = c.req.param("id");
+    const targetId = c.req.param("userId");
+    if (!isUuid(noteId)) return c.json({ error: "Bad Request" }, 400);
+    if (!(await canWrite(actorId, { type: "note", id: noteId }))) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+    const { role } = c.req.valid("json");
+
+    const [existing] = await db
+      .select()
+      .from(pagePermissions)
+      .where(
+        and(
+          eq(pagePermissions.pageId, noteId),
+          eq(pagePermissions.userId, targetId),
+        ),
+      );
+    if (!existing) return c.json({ error: "Not found" }, 404);
+
+    const roleChanged = existing.role !== role;
+    if (roleChanged) {
+      await db
+        .update(pagePermissions)
+        .set({ role, grantedBy: actorId })
+        .where(
+          and(
+            eq(pagePermissions.pageId, noteId),
+            eq(pagePermissions.userId, targetId),
+          ),
+        );
+    }
+
+    // Re-notify only on actual role changes AND when target ≠ actor.
+    if (roleChanged && targetId !== actorId) {
+      const [note] = await db
+        .select({ title: notes.title })
+        .from(notes)
+        .where(and(eq(notes.id, noteId), isNull(notes.deletedAt)));
+      const [actor] = await db
+        .select({ name: user.name })
+        .from(user)
+        .where(eq(user.id, actorId));
+      if (note) {
+        await persistAndPublish({
+          userId: targetId,
+          kind: "share_invite",
+          payload: {
+            summary: `${actor?.name ?? "누군가"}님이 "${note.title}"를 공유했습니다`,
+            noteId,
+            noteTitle: note.title,
+            role,
+            fromUserId: actorId,
+          },
+        }).catch(() => undefined);
+      }
+    }
+
+    return c.json({
+      permission: {
+        userId: targetId,
+        role,
+        grantedBy: roleChanged ? actorId : existing.grantedBy,
+        createdAt: existing.createdAt.toISOString(),
+      },
+    });
+  },
+);
+
+shareRouter.delete(
+  "/notes/:id/permissions/:userId",
+  requireAuth,
+  async (c) => {
+    const actorId = c.get("userId");
+    const noteId = c.req.param("id");
+    const targetId = c.req.param("userId");
+    if (!isUuid(noteId)) return c.json({ error: "Bad Request" }, 400);
+    if (!(await canWrite(actorId, { type: "note", id: noteId }))) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+    await db
+      .delete(pagePermissions)
+      .where(
+        and(
+          eq(pagePermissions.pageId, noteId),
+          eq(pagePermissions.userId, targetId),
+        ),
+      );
+    return c.body(null, 204);
+  },
+);
 
 shareRouter.get(
   "/workspaces/:workspaceId/share",
