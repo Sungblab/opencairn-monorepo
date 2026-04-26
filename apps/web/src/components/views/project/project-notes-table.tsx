@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -32,12 +32,19 @@ export function ProjectNotesTable({
   const [filter, setFilter] = useState<Filter>("all");
   const { data } = useQuery({
     queryKey: ["project-notes", projectId, filter],
-    queryFn: async () => {
-      const r = await projectsApi.notes(projectId, filter);
-      if (filter === "all") onLoaded?.(r.notes);
-      return r.notes;
-    },
+    queryFn: () => projectsApi.notes(projectId, filter).then((r) => r.notes),
   });
+
+  // Side effect must live outside queryFn — queryFn is skipped on cache hits,
+  // which would leave the parent meta row stale on revisit. Ref keeps the
+  // effect deps stable when callers pass an inline arrow.
+  const onLoadedRef = useRef(onLoaded);
+  useEffect(() => {
+    onLoadedRef.current = onLoaded;
+  });
+  useEffect(() => {
+    if (data && filter === "all") onLoadedRef.current?.(data);
+  }, [data, filter]);
 
   return (
     <div>
