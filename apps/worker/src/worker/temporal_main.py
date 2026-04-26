@@ -48,6 +48,7 @@ from worker.activities.semaphore_activity import (
     release_project_semaphore,
 )
 from worker.activities.stt_activity import transcribe_audio
+from worker.activities.visualize_activity import build_view
 from worker.activities.web_activity import scrape_web_url
 from worker.activities.youtube_activity import ingest_youtube
 from worker.workflows.batch_embed_workflow import BatchEmbedWorkflow
@@ -97,6 +98,7 @@ async def main() -> None:
         compile_note,
         run_research,
         run_librarian,
+        build_view,
         acquire_project_semaphore,
         release_project_semaphore,
         submit_batch_embed,
