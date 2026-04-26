@@ -1,13 +1,35 @@
 {
-  "title": "대시보드",
-  "welcome": "OpenCairn에 오신 걸 환영해요.",
+  "title": "Dashboard",
+  "subtitle": "Recent activity · Deep Research progress · Recommendations",
+  "welcome": "Welcome to OpenCairn.",
+  "newProject": "New project",
   "nav": {
-    "workspace": "워크스페이스",
-    "settings": "설정",
-    "signOut": "로그아웃"
+    "workspace": "Workspace",
+    "settings": "Settings",
+    "signOut": "Sign out"
   },
   "empty": {
-    "title": "아직 노트가 없어요",
-    "cta": "첫 노트 만들기"
+    "title": "No notes yet",
+    "cta": "Create your first note"
+  },
+  "stats": {
+    "docs": "Documents",
+    "weekDelta": "+{n} this week",
+    "research": "Deep Research",
+    "researchInProgress": "{n} in progress",
+    "credits": "Credits",
+    "creditsAmount": "₩{value}",
+    "byok": "BYOK key",
+    "connected": "Connected",
+    "disconnected": "Not connected"
+  },
+  "sections": {
+    "activeResearch": "Active Deep Research",
+    "recentDocs": "Recent documents"
+  },
+  "lists": {
+    "noResearch": "No active research.",
+    "noDocs": "No recent notes.",
+    "openLink": "Open"
   }
 }

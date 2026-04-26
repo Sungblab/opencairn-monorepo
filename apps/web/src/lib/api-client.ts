@@ -258,6 +258,60 @@ export const chatApi = {
     }),
 };
 
+// ---------- Dashboard / workspace summary (Phase 5 Task 1) ----------
+// snake_case keys mirror the server contract — see workspaces.ts stats /
+// recent-notes routes. Kept verbatim so consumers can dump straight into
+// the JSX without an extra translation layer.
+
+export interface WorkspaceStats {
+  docs: number;
+  docs_week_delta: number;
+  research_in_progress: number;
+  /** KRW. 0 until Plan 9b billing engine ships. */
+  credits_krw: number;
+  byok_connected: boolean;
+}
+
+export interface RecentNoteSummary {
+  id: string;
+  title: string;
+  project_id: string;
+  project_name: string;
+  updated_at: string;
+}
+
+export interface ResearchRunSummary {
+  id: string;
+  topic: string;
+  model: string;
+  status:
+    | "planning"
+    | "awaiting_approval"
+    | "researching"
+    | "completed"
+    | "failed"
+    | "cancelled";
+  billingPath: "managed" | "byok";
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  totalCostUsdCents: number | null;
+  noteId: string | null;
+}
+
+export const dashboardApi = {
+  stats: (workspaceId: string) =>
+    apiClient<WorkspaceStats>(`/workspaces/${workspaceId}/stats`),
+  recentNotes: (workspaceId: string, limit = 5) =>
+    apiClient<{ notes: RecentNoteSummary[] }>(
+      `/workspaces/${workspaceId}/recent-notes?limit=${limit}`,
+    ),
+  researchRuns: (workspaceId: string, limit = 20) =>
+    apiClient<{ runs: ResearchRunSummary[] }>(
+      `/research/runs?workspaceId=${workspaceId}&limit=${limit}`,
+    ),
+};
+
 export const api = {
   getNote: (id: string) => apiClient<NoteRow>(`/notes/${id}`),
   listNotesByProject: (projectId: string) =>
