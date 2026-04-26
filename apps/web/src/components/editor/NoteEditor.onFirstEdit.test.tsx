@@ -66,6 +66,12 @@ vi.mock("./blocks/mermaid/mermaid-plugin", () => ({
   MermaidPlugin: {},
 }));
 
+// callout-plugin also calls `createPlatePlugin` at module scope.
+// Same treatment: stub it out so the platejs/react partial mock holds.
+vi.mock("./blocks/callout/callout-plugin", () => ({
+  CalloutPlugin: {},
+}));
+
 import { renderNoteEditor } from "./NoteEditor.test-rig";
 
 describe("NoteEditor.onFirstEdit", () => {

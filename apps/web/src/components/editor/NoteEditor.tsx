@@ -43,6 +43,7 @@ import {
 } from "./plugins/wiki-link";
 import { researchMetaPlugin } from "./blocks/research-meta/research-meta-plugin";
 import { MermaidPlugin } from "./blocks/mermaid/mermaid-plugin";
+import { CalloutPlugin } from "./blocks/callout/callout-plugin";
 
 // Basic marks + blocks. Lists are handled by the indent-based ListPlugin; the
 // bulleted/numbered toolbar buttons call `toggleList` directly with the style
@@ -65,6 +66,7 @@ const basePlugins = [
   ...latexPlugins,
   researchMetaPlugin,
   MermaidPlugin,
+  CalloutPlugin,
 ];
 
 type TitleSaveStatus = "idle" | "saving" | "saved" | "error";
