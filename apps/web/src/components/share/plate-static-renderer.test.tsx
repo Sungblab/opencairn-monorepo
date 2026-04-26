@@ -42,6 +42,57 @@ describe("PlateStaticRenderer", () => {
     expect(screen.getByText("future-block content")).toBeInTheDocument();
   });
 
+  it("renders inline link nodes (Notion / deep-research import) with safe href", () => {
+    render(
+      <PlateStaticRenderer
+        value={[
+          {
+            type: "p",
+            children: [
+              { text: "see " },
+              {
+                type: "a",
+                url: "https://example.com/path",
+                children: [{ text: "the docs" }],
+              },
+              { text: " for more" },
+            ],
+          },
+        ]}
+      />,
+    );
+    const link = screen.getByRole("link", { name: "the docs" });
+    expect(link.getAttribute("href")).toBe("https://example.com/path");
+    expect(link.getAttribute("rel")).toContain("noopener");
+    expect(link.getAttribute("target")).toBe("_blank");
+  });
+
+  it("rejects javascript: and data: URLs (defangs to '#')", () => {
+    render(
+      <PlateStaticRenderer
+        value={[
+          {
+            type: "p",
+            children: [
+              {
+                type: "a",
+                url: "javascript:alert(1)",
+                children: [{ text: "click me" }],
+              },
+              {
+                type: "a",
+                url: "data:text/html,<script>alert(1)</script>",
+                children: [{ text: "data link" }],
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByRole("link", { name: "click me" }).getAttribute("href")).toBe("#");
+    expect(screen.getByRole("link", { name: "data link" }).getAttribute("href")).toBe("#");
+  });
+
   it("applies bold and italic marks", () => {
     render(
       <PlateStaticRenderer

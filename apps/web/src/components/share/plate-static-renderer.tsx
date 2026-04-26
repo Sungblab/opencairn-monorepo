@@ -25,6 +25,36 @@ interface ElementProps {
   node: Node;
 }
 
+// Allowlist for inline `a` URLs. The public viewer is unauthenticated and
+// public-internet-visible; a malicious imported note must not be able to
+// smuggle `javascript:`, `data:`, `vbscript:`, or `file:` URLs through the
+// renderer. Schemeless URLs (relative or `//host`) are kept as-is so notes
+// referencing in-app routes still work. Anything that can't be parsed falls
+// back to `#`.
+function safeHref(raw: unknown): string {
+  if (typeof raw !== "string") return "#";
+  const trimmed = raw.trim();
+  if (trimmed === "") return "#";
+  // Schemeless / relative — let the browser resolve against the share page.
+  if (
+    trimmed.startsWith("/") ||
+    trimmed.startsWith("#") ||
+    trimmed.startsWith("?")
+  ) {
+    return trimmed;
+  }
+  try {
+    // Use a base so relative URLs still parse without throwing.
+    const u = new URL(trimmed, "https://share.local/");
+    if (u.protocol === "http:" || u.protocol === "https:" || u.protocol === "mailto:") {
+      return trimmed;
+    }
+    return "#";
+  } catch {
+    return "#";
+  }
+}
+
 const ELEMENTS: Record<string, (props: ElementProps) => ReactElement> = {
   p: ({ children }) => <p className="my-2 leading-7">{children}</p>,
   h1: ({ children }) => (
@@ -44,6 +74,22 @@ const ELEMENTS: Record<string, (props: ElementProps) => ReactElement> = {
   ul: ({ children }) => <ul className="my-2 list-disc pl-6">{children}</ul>,
   ol: ({ children }) => <ol className="my-2 list-decimal pl-6">{children}</ol>,
   li: ({ children }) => <li>{children}</li>,
+  // Inline link. Notion ingest + the Deep Research markdown converter both
+  // emit `{ type: "a", url, children }` nodes (see
+  // apps/worker/src/worker/activities/notion_activities.py +
+  // apps/worker/src/worker/activities/deep_research/markdown_to_plate.py).
+  // Without this branch they fall through to `<div>` and silently drop
+  // their hyperlink.
+  a: ({ children, node }) => (
+    <a
+      href={safeHref(node.url)}
+      target="_blank"
+      rel="noopener noreferrer nofollow"
+      className="text-primary underline underline-offset-4"
+    >
+      {children}
+    </a>
+  ),
   code_block: ({ children }) => (
     <pre className="my-3 overflow-x-auto rounded bg-muted p-3 text-sm">
       <code>{children}</code>
