@@ -103,7 +103,7 @@ messages/{ko,en}/dashboard.json, project.json, research.json, import.json,
 
 **Files:** `apps/web/src/app/[locale]/app/w/[wsSlug]/page.tsx`, `components/views/dashboard/*.tsx`
 
-- [ ] **Step 1.1: Replace placeholder page**
+- [x] **Step 1.1: Replace placeholder page**
 
 ```tsx
 // apps/web/src/app/[locale]/app/w/[wsSlug]/page.tsx
@@ -119,7 +119,7 @@ export default async function WorkspaceDashboard({
 }
 ```
 
-- [ ] **Step 1.2: Stats row**
+- [x] **Step 1.2: Stats row**
 
 ```tsx
 // apps/web/src/components/views/dashboard/stats-row.tsx
@@ -159,7 +159,7 @@ export function StatsRow({ wsSlug }: { wsSlug: string }) {
 
 If `/api/workspaces/:slug/stats` does not exist, add it in `apps/api/src/routes/workspaces.ts` — a small aggregation endpoint returning the fields above. The counts come from existing tables (pages count where deleted_at is null; research_runs count where status = 'researching'; user credit balance from billing table).
 
-- [ ] **Step 1.3: Active research + recent docs**
+- [x] **Step 1.3: Active research + recent docs**
 
 Stub both with React Query calls to existing endpoints:
 - `GET /api/research/runs?workspace_id=<id>&status_in=researching,awaiting_approval` → `ActiveResearchList`
@@ -167,7 +167,7 @@ Stub both with React Query calls to existing endpoints:
 
 Implementation follows the same pattern as StatsRow. Keep the DOM simple — 3-column grid for recent docs, stacked cards for research.
 
-- [ ] **Step 1.4: DashboardView composition**
+- [x] **Step 1.4: DashboardView composition**
 
 ```tsx
 "use client";
@@ -206,7 +206,7 @@ export function DashboardView({ wsSlug }: { wsSlug: string }) {
 }
 ```
 
-- [ ] **Step 1.5: Commit**
+- [x] **Step 1.5: Commit**
 
 ```bash
 git add apps/web/src/app/[locale]/app/w/[wsSlug]/page.tsx \
@@ -221,7 +221,7 @@ git commit -m "feat(web): real dashboard view with stats/research/docs"
 
 **Files:** `apps/web/src/app/[locale]/app/w/[wsSlug]/p/[projectId]/page.tsx`, `components/views/project/*`
 
-- [ ] **Step 2.1: Route page**
+- [x] **Step 2.1: Route page**
 
 ```tsx
 // page.tsx
@@ -237,7 +237,7 @@ export default async function ProjectPage({
 }
 ```
 
-- [ ] **Step 2.2: Meta row + notes table**
+- [x] **Step 2.2: Meta row + notes table**
 
 ```tsx
 // project-meta-row.tsx
@@ -319,7 +319,7 @@ export function ProjectNotesTable({ wsSlug, projectId }: { wsSlug: string; proje
 }
 ```
 
-- [ ] **Step 2.3: View composition + action bar + commit**
+- [x] **Step 2.3: View composition + action bar + commit**
 
 ```tsx
 // project-view.tsx
@@ -367,7 +367,7 @@ git commit -m "feat(web): real project view (meta + filterable notes table)"
 
 **Files:** `apps/web/src/app/[locale]/app/w/[wsSlug]/research/page.tsx`, `components/views/research/research-hub-view.tsx`
 
-- [ ] **Step 3.1: Hub view**
+- [x] **Step 3.1: Hub view**
 
 ```tsx
 "use client";
@@ -432,7 +432,7 @@ export function ResearchHubView({ wsSlug }: { wsSlug: string }) {
 }
 ```
 
-- [ ] **Step 3.2: Run card**
+- [x] **Step 3.2: Run card**
 
 ```tsx
 "use client";
@@ -473,7 +473,7 @@ export function ResearchRunCard({ run, wsSlug }: { run: any; wsSlug: string }) {
 }
 ```
 
-- [ ] **Step 3.3: Commit**
+- [x] **Step 3.3: Commit**
 
 ```bash
 git add apps/web/src/app/[locale]/app/w/[wsSlug]/research/page.tsx \
@@ -489,7 +489,7 @@ The full lifecycle UI is Deep Research Phase D's territory. This task renders a 
 
 **Files:** `apps/web/src/app/[locale]/app/w/[wsSlug]/research/[runId]/page.tsx`, `components/views/research/research-run-view.tsx`
 
-- [ ] **Step 4.1: Implement**
+- [x] **Step 4.1: Implement**
 
 ```tsx
 // research-run-view.tsx
@@ -526,7 +526,7 @@ export function ResearchRunView({ runId }: { runId: string }) {
 }
 ```
 
-- [ ] **Step 4.2: Commit**
+- [x] **Step 4.2: Commit**
 
 ```bash
 git add apps/web/src/app/[locale]/app/w/[wsSlug]/research/[runId]/page.tsx \
@@ -540,7 +540,7 @@ git commit -m "feat(web): research run view stub dispatching on status"
 
 **Files:** `apps/web/src/app/[locale]/app/w/[wsSlug]/import/page.tsx`, `components/views/import/import-view.tsx`
 
-- [ ] **Step 5.1: 2-step wizard**
+- [x] **Step 5.1: 2-step wizard**
 
 Reuse existing import-jobs API (already built per memory). Front-end:
 
@@ -616,7 +616,7 @@ function ProjectSelect({ wsSlug, value, onChange }: any) { /* fetch projects, re
 
 `ProjectSelect` is a minimal dropdown reading `/api/workspaces/:slug/projects`. Inline it — 20 lines.
 
-- [ ] **Step 5.2: Commit**
+- [x] **Step 5.2: Commit**
 
 ```bash
 git add apps/web/src/app/[locale]/app/w/[wsSlug]/import/page.tsx \
@@ -630,7 +630,7 @@ git commit -m "feat(web): 2-step import wizard"
 
 **Files:** `apps/web/src/app/[locale]/app/w/[wsSlug]/settings/[[...slug]]/page.tsx`, `components/views/workspace-settings/*`
 
-- [ ] **Step 6.1: Router view**
+- [x] **Step 6.1: Router view**
 
 ```tsx
 // workspace-settings-view.tsx
@@ -682,7 +682,7 @@ export function WorkspaceSettingsView({ wsSlug, sub }: { wsSlug: string; sub: st
 }
 ```
 
-- [ ] **Step 6.2: Subtab bodies**
+- [x] **Step 6.2: Subtab bodies**
 
 Each subtab is a short component that calls an existing API:
 - `MembersTab` → `GET /api/workspaces/:slug/members` (list + role PATCH)
@@ -708,7 +708,7 @@ export function SharedLinksTab({ wsSlug }: { wsSlug: string }) {
 }
 ```
 
-- [ ] **Step 6.3: Route page**
+- [x] **Step 6.3: Route page**
 
 ```tsx
 // apps/web/src/app/[locale]/app/w/[wsSlug]/settings/[[...slug]]/page.tsx
@@ -724,7 +724,7 @@ export default async function WsSettings({
 }
 ```
 
-- [ ] **Step 6.4: Commit**
+- [x] **Step 6.4: Commit**
 
 ```bash
 git add apps/web/src/app/[locale]/app/w/[wsSlug]/settings/ \
@@ -738,7 +738,7 @@ git commit -m "feat(web): workspace admin subtabs (members/invites/integrations/
 
 **Files:** `apps/web/src/app/[locale]/settings/layout.tsx`, 4 page files, `components/views/account/*`
 
-- [ ] **Step 7.1: AccountShell**
+- [x] **Step 7.1: AccountShell**
 
 ```tsx
 // account-shell.tsx
@@ -776,7 +776,7 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
 }
 ```
 
-- [ ] **Step 7.2: Layout**
+- [x] **Step 7.2: Layout**
 
 ```tsx
 // apps/web/src/app/[locale]/settings/layout.tsx
@@ -789,7 +789,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
 }
 ```
 
-- [ ] **Step 7.3: 4 page files**
+- [x] **Step 7.3: 4 page files**
 
 Each page is ~40 lines: fetch user / BYOK / sessions / billing data and render forms. Skeletons:
 
@@ -843,7 +843,7 @@ export function ProfileView() {
 
 Providers / Security / Billing follow the same pattern: fetch, local state, mutation, form. Keep forms minimal; richer billing UI is a later concern.
 
-- [ ] **Step 7.4: Commit**
+- [x] **Step 7.4: Commit**
 
 ```bash
 git add apps/web/src/app/[locale]/settings/ \
@@ -857,7 +857,7 @@ git commit -m "feat(web): account settings shell with profile/byok/security/bill
 
 **Files:** `apps/web/src/components/palette/command-palette.tsx`, `palette-actions.ts`, `palette-search.ts`
 
-- [ ] **Step 8.1: Action registry**
+- [x] **Step 8.1: Action registry**
 
 ```ts
 // palette-actions.ts
@@ -894,7 +894,7 @@ export function buildActions(router: any, wsSlug?: string): Action[] {
 }
 ```
 
-- [ ] **Step 8.2: Search adapter**
+- [x] **Step 8.2: Search adapter**
 
 ```ts
 // palette-search.ts
@@ -906,7 +906,7 @@ export async function searchNotes(q: string, wsSlug: string): Promise<Array<{ id
 }
 ```
 
-- [ ] **Step 8.3: Palette UI**
+- [x] **Step 8.3: Palette UI**
 
 ```tsx
 // command-palette.tsx
@@ -989,11 +989,11 @@ export function CommandPalette() {
 }
 ```
 
-- [ ] **Step 8.4: Mount globally**
+- [x] **Step 8.4: Mount globally**
 
 In `shell-providers.tsx` add `<CommandPalette />` at the bottom of the render tree so every route has it mounted.
 
-- [ ] **Step 8.5: Commit**
+- [x] **Step 8.5: Commit**
 
 ```bash
 git add apps/web/src/components/palette/ \
@@ -1007,7 +1007,7 @@ git commit -m "feat(web): command palette with search + action registry"
 
 **Files:** `apps/api/src/routes/notifications.ts`, `stream-notifications.ts`, `apps/api/src/lib/notification-events.ts`, `apps/api/tests/notifications.test.ts`
 
-- [ ] **Step 9.1: Event bus**
+- [x] **Step 9.1: Event bus**
 
 ```ts
 // apps/api/src/lib/notification-events.ts
@@ -1036,13 +1036,13 @@ export const notificationBus = new NotificationBus();
 notificationBus.setMaxListeners(1000);
 ```
 
-- [ ] **Step 9.2: Persistence**
+- [x] **Step 9.2: Persistence**
 
 Add a DB table `notifications` via the standard migration flow (schema file + auto-numbered migration). Columns: `id uuid pk, user_id text fk users, kind text, payload jsonb, created_at timestamptz default now(), seen_at timestamptz, read_at timestamptz, index on (user_id, created_at desc) where read_at is null`.
 
 Wire `notificationBus.publish` at the existing mutation sites — mentions in `apps/api/src/routes/mentions.ts`, comments in `comments`, research completion in the worker, share invites in invites route. Small `persistAndPublish(notification)` helper lives alongside `notification-events.ts`.
 
-- [ ] **Step 9.3: REST + SSE**
+- [x] **Step 9.3: REST + SSE**
 
 ```ts
 // notifications.ts (GET list + PATCH mark-read)
@@ -1081,7 +1081,7 @@ export const streamNotificationsRoute = new Hono().get("/stream/notifications", 
 });
 ```
 
-- [ ] **Step 9.4: Test + commit**
+- [x] **Step 9.4: Test + commit**
 
 Minimal test: create a mention, see it in `GET /api/notifications`, PATCH mark-read, confirm `read_at` set.
 
@@ -1101,7 +1101,7 @@ git commit -m "feat(api,db): notifications table, rest, and sse stream"
 
 **Files:** `apps/web/src/components/notifications/*`
 
-- [ ] **Step 10.1: Hook**
+- [x] **Step 10.1: Hook**
 
 ```ts
 // use-notifications.ts
@@ -1135,7 +1135,7 @@ export function useNotifications() {
 }
 ```
 
-- [ ] **Step 10.2: Drawer**
+- [x] **Step 10.2: Drawer**
 
 ```tsx
 // notification-drawer.tsx
@@ -1169,7 +1169,7 @@ export function NotificationDrawer({ open, onOpenChange }: { open: boolean; onOp
 }
 ```
 
-- [ ] **Step 10.3: Item**
+- [x] **Step 10.3: Item**
 
 ```tsx
 // notification-item.tsx
@@ -1192,11 +1192,11 @@ export function NotificationItem({ item, onClick }: any) {
 }
 ```
 
-- [ ] **Step 10.4: Hook drawer into Sidebar footer**
+- [x] **Step 10.4: Hook drawer into Sidebar footer**
 
 Edit `sidebar-footer.tsx`: wrap the `🔔` button with state to open `NotificationDrawer` and pass `open`/`onOpenChange`.
 
-- [ ] **Step 10.5: Commit**
+- [x] **Step 10.5: Commit**
 
 ```bash
 git add apps/web/src/components/notifications/ \
@@ -1208,7 +1208,7 @@ git commit -m "feat(web): notifications drawer with SSE live updates"
 
 ## Task 11: i18n parity + cleanup
 
-- [ ] **Step 11.1: Extract all Korean literals**
+- [x] **Step 11.1: Extract all Korean literals**
 
 Run:
 ```bash
@@ -1220,7 +1220,7 @@ Expected: `i18next/no-literal-string` failures for all the new Phase 5 views. Mo
 
 Replace literals in components with `useTranslations(ns)`.
 
-- [ ] **Step 11.2: Commit per namespace**
+- [x] **Step 11.2: Commit per namespace**
 
 ```bash
 git add messages/ko/dashboard.json messages/en/dashboard.json apps/web/src/components/views/dashboard/
@@ -1234,7 +1234,7 @@ git commit -m "i18n(web): dashboard strings"
 
 **Files:** `apps/web/tests/e2e/palette.spec.ts`, `notifications.spec.ts`, `routes.spec.ts`
 
-- [ ] **Step 12.1: Palette spec**
+- [x] **Step 12.1: Palette spec**
 
 ```ts
 import { test, expect } from "@playwright/test";
@@ -1252,7 +1252,7 @@ test("opens with Ctrl+K, runs dashboard action", async ({ page }) => {
 });
 ```
 
-- [ ] **Step 12.2: Notifications spec**
+- [x] **Step 12.2: Notifications spec**
 
 ```ts
 import { test, expect } from "@playwright/test";
@@ -1268,7 +1268,7 @@ test("drawer shows inserted notification", async ({ page }) => {
 });
 ```
 
-- [ ] **Step 12.3: Route smoke spec**
+- [x] **Step 12.3: Route smoke spec**
 
 ```ts
 import { test, expect } from "@playwright/test";
@@ -1298,7 +1298,7 @@ test.describe("Phase 5 routes", () => {
 });
 ```
 
-- [ ] **Step 12.4: Commit**
+- [x] **Step 12.4: Commit**
 
 ```bash
 git add apps/web/tests/e2e/palette.spec.ts \
@@ -1311,7 +1311,7 @@ git commit -m "test(web): e2e palette, notifications, and route smokes"
 
 ## Task 13: Post-feature
 
-- [ ] **Step 13.1: Full suite**
+- [x] **Step 13.1: Full suite**
 
 ```bash
 pnpm --filter @opencairn/api test
@@ -1322,7 +1322,7 @@ pnpm --filter @opencairn/web typecheck
 pnpm --filter @opencairn/web lint
 ```
 
-- [ ] **Step 13.2: Plans-status + memory + commit**
+- [x] **Step 13.2: Plans-status + memory + commit**
 
 Mark Plan Phase 5 complete. Record HEAD SHA. Write memory entry.
 
@@ -1335,17 +1335,17 @@ git commit -m "docs(docs): mark app shell phase 5 complete"
 
 ## Completion Criteria
 
-- [ ] Dashboard renders 4 stats + active research + recent docs
-- [ ] Project view filters between all/imported/research/manual
-- [ ] Research hub shows status tabs + run cards; run route renders stub dispatching on status
-- [ ] Import wizard covers 2 steps (source → project)
-- [ ] Workspace admin has 5 subtabs routed
-- [ ] Account shell (`/settings/*`) renders outside AppShell
-- [ ] `⌘K` opens palette; action and note selection work
-- [ ] `🔔` opens drawer; SSE pushes a new notification live
-- [ ] Full e2e across palette/notifications/routes passes
-- [ ] All user-facing strings live in `messages/{ko,en}/*.json`
-- [ ] Manual smoke: round-trip every URL in spec §3.1
+- [x] Dashboard renders 4 stats + active research + recent docs
+- [x] Project view filters between all/imported/research/manual
+- [x] Research hub shows status tabs + run cards; run route renders stub dispatching on status
+- [x] Import wizard covers 2 steps (source → project)
+- [x] Workspace admin has 5 subtabs routed
+- [x] Account shell (`/settings/*`) renders outside AppShell
+- [x] `⌘K` opens palette; action and note selection work
+- [x] `🔔` opens drawer; SSE pushes a new notification live
+- [x] Full e2e across palette/notifications/routes passes
+- [x] All user-facing strings live in `messages/{ko,en}/*.json`
+- [x] Manual smoke: round-trip every URL in spec §3.1
 
 ## What's NOT in this plan
 
