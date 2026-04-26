@@ -48,6 +48,7 @@ import { TogglePlugin } from "./blocks/toggle/toggle-plugin";
 import { tablePlugins } from "./blocks/table/table-plugin";
 import { columnsPlugins } from "./blocks/columns/columns-plugin";
 import { MermaidFencePlugin } from "./plugins/mermaid-fence";
+import { useActiveEditorStore } from "@/stores/activeEditorStore";
 
 // Basic marks + blocks. Lists are handled by the indent-based ListPlugin; the
 // bulleted/numbered toolbar buttons call `toggleList` directly with the style
@@ -235,6 +236,17 @@ export function NoteEditor({
     readOnly,
     basePlugins: plugins,
   });
+
+  const setEditor = useActiveEditorStore((s) => s.setEditor);
+  const removeEditor = useActiveEditorStore((s) => s.removeEditor);
+
+  useEffect(() => {
+    if (!editor) return;
+    setEditor(noteId, editor);
+    return () => {
+      removeEditor(noteId);
+    };
+  }, [editor, noteId, setEditor, removeEditor]);
 
   // Cmd/Ctrl+S flushes the PENDING title save only — editor content is
   // already live via Yjs, so there is nothing to "save" on keystroke.
