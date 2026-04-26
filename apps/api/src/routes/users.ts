@@ -157,7 +157,21 @@ userRoutes.put(
   async (c) => {
     const me = c.get("user");
     const { apiKey } = c.req.valid("json");
-    const ciphertext = encryptToken(apiKey);
+
+    // Encrypt can throw if INTEGRATION_TOKEN_ENCRYPTION_KEY is unset/malformed.
+    // Without this guard the failure surfaces as an opaque 500 with no ops
+    // signal — mirroring the GET handler's decrypt try/catch keeps the BYOK
+    // CRUD trio symmetric and gives operators a structured log line.
+    let ciphertext: Buffer;
+    try {
+      ciphertext = encryptToken(apiKey);
+    } catch (err) {
+      console.warn("byok-key encrypt failed", {
+        userId: me.id,
+        error: (err as Error).message,
+      });
+      return c.json({ error: "internal_error" }, 500);
+    }
     const now = new Date();
 
     await db
@@ -182,3 +196,18 @@ userRoutes.put(
     });
   },
 );
+
+// Deep Research Phase E — clear endpoint for the BYOK Gemini key.
+// Sets `byokApiKeyEncrypted` to NULL rather than deleting the row so other
+// `user_preferences` columns (llm_provider, llm_model, etc.) are preserved.
+// Idempotent: an UPDATE with no matching row affects zero rows and silently
+// succeeds, so we always return `{ registered: false }` for a consistent UX
+// regardless of whether the user had a key registered.
+userRoutes.delete("/me/byok-key", async (c) => {
+  const me = c.get("user");
+  await db
+    .update(userPreferences)
+    .set({ byokApiKeyEncrypted: null, updatedAt: new Date() })
+    .where(eq(userPreferences.userId, me.id));
+  return c.json({ registered: false });
+});

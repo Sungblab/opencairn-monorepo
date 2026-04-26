@@ -219,3 +219,60 @@ describe("PUT /api/users/me/byok-key", () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe("DELETE /api/users/me/byok-key", () => {
+  let ctx: SeedResult;
+  let savedEncKey: string | undefined;
+
+  beforeEach(async () => {
+    savedEncKey = process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY;
+    process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY = TEST_KEY;
+    ctx = await seedWorkspace({ role: "editor" });
+    await db
+      .delete(userPreferences)
+      .where(eq(userPreferences.userId, ctx.userId));
+  });
+  afterEach(async () => {
+    await ctx.cleanup();
+    if (savedEncKey !== undefined) {
+      process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY = savedEncKey;
+    } else {
+      delete process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY;
+    }
+  });
+
+  it("nulls out the ciphertext when a row exists", async () => {
+    await db.insert(userPreferences).values({
+      userId: ctx.userId,
+      byokApiKeyEncrypted: encryptToken("AIzaSyTestPhaseEDeleteFlow1234abcd"),
+    });
+    const res = await authedFetch("/api/users/me/byok-key", {
+      method: "DELETE",
+      userId: ctx.userId,
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ registered: false });
+
+    const [row] = await db
+      .select()
+      .from(userPreferences)
+      .where(eq(userPreferences.userId, ctx.userId));
+    expect(row!.byokApiKeyEncrypted).toBeNull();
+  });
+
+  it("is idempotent when no row exists (returns 200)", async () => {
+    const res = await authedFetch("/api/users/me/byok-key", {
+      method: "DELETE",
+      userId: ctx.userId,
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ registered: false });
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const res = await app.request("/api/users/me/byok-key", {
+      method: "DELETE",
+    });
+    expect(res.status).toBe(401);
+  });
+});
