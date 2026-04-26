@@ -78,6 +78,10 @@ vi.mock("./blocks/toggle/toggle-plugin", () => ({
   TogglePlugin: {},
 }));
 
+// table-plugin re-exports @platejs/table/react plugins. Stub to empty array
+// so the platejs/react partial mock holds for this headless test suite.
+vi.mock("./blocks/table/table-plugin", () => ({ tablePlugins: [] }));
+
 import { renderNoteEditor } from "./NoteEditor.test-rig";
 
 describe("NoteEditor.onFirstEdit", () => {
