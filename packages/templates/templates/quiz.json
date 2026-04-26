@@ -1,0 +1,9 @@
+{
+  "id": "quiz",
+  "name": "Multiple-Choice Quiz",
+  "description": "Generate a multiple-choice quiz for a topic or set of notes.",
+  "renderer": "structured",
+  "output_schema_id": "quiz",
+  "variables": ["topic", "context", "num_questions"],
+  "prompt_template": "You are an expert quiz creator.\n\nTopic: {{topic}}\nNumber of questions: {{num_questions}}\n\nSource material:\n{{context}}\n\nGenerate a multiple-choice quiz. Each question must have exactly 4 options with one correct answer. Include a brief explanation for the correct answer.\n\nReturn valid JSON matching the schema: { title, questions: [{ question, options: [4 strings], correctIndex, explanation }] }"
+}

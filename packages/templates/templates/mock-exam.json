@@ -1,0 +1,9 @@
+{
+  "id": "mock-exam",
+  "name": "Mock Exam",
+  "description": "Generate a timed mock exam with multiple sections and question types.",
+  "renderer": "structured",
+  "output_schema_id": "mock_exam",
+  "variables": ["topic", "context", "duration_minutes", "num_questions"],
+  "prompt_template": "Create a mock exam for the following topic.\n\nTopic: {{topic}}\nDuration: {{duration_minutes}} minutes\nTotal questions: {{num_questions}}\n\nSource material:\n{{context}}\n\nInclude a mix of MCQ, short answer, and essay questions grouped into sections. Provide marking guidance for each question.\n\nReturn JSON matching: { title, duration_minutes, sections: [{ name, questions: [{ type, question, marks, answer_guide, options?, correct_option? }] }] }"
+}

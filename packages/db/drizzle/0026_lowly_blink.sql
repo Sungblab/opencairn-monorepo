@@ -1,0 +1,1 @@
+ALTER TABLE "flashcards" ADD COLUMN "deck_name" text DEFAULT 'default' NOT NULL;

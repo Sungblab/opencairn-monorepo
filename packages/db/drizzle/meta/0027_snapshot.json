@@ -1,6 +1,6 @@
 {
-  "id": "dc890bd2-6fe2-4e89-b894-8ab9ab88fe1f",
-  "prevId": "d879b3b1-3932-4edc-b131-049120b3e519",
+  "id": "2ed868f3-c563-4063-9155-0bbb794b6006",
+  "prevId": "dc890bd2-6fe2-4e89-b894-8ab9ab88fe1f",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -4294,6 +4294,173 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.share_links": {
+      "name": "share_links",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "note_id": {
+          "name": "note_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token": {
+          "name": "token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "share_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'viewer'"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "share_links_token_unique": {
+          "name": "share_links_token_unique",
+          "columns": [
+            {
+              "expression": "token",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "share_links_note_id_idx": {
+          "name": "share_links_note_id_idx",
+          "columns": [
+            {
+              "expression": "note_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "share_links_workspace_id_idx": {
+          "name": "share_links_workspace_id_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "share_links_active_token_idx": {
+          "name": "share_links_active_token_idx",
+          "columns": [
+            {
+              "expression": "token",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"share_links\".\"revoked_at\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "share_links_note_id_notes_id_fk": {
+          "name": "share_links_note_id_notes_id_fk",
+          "tableFrom": "share_links",
+          "tableTo": "notes",
+          "columnsFrom": [
+            "note_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "share_links_workspace_id_workspaces_id_fk": {
+          "name": "share_links_workspace_id_workspaces_id_fk",
+          "tableFrom": "share_links",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "share_links_created_by_user_id_fk": {
+          "name": "share_links_created_by_user_id_fk",
+          "tableFrom": "share_links",
+          "tableTo": "user",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.note_tags": {
       "name": "note_tags",
       "schema": "",
@@ -5580,6 +5747,15 @@
       "values": [
         "editor",
         "viewer"
+      ]
+    },
+    "public.share_role": {
+      "name": "share_role",
+      "schema": "public",
+      "values": [
+        "viewer",
+        "commenter",
+        "editor"
       ]
     },
     "public.workspace_role": {

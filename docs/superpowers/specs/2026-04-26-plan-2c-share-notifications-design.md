@@ -109,7 +109,7 @@ export const shareLinks = pgTable(
 
 ### 마이그레이션
 
-- 파일명: `0026_share_links.sql` (Drizzle generate)
+- 파일명: `0027_share_links.sql` (Drizzle generate; main의 0026_lowly_blink와 충돌하여 재번호됨)
 - main HEAD가 0024이고 plan-7-phase-2가 이미 0025를 점유. 머지 충돌 시 reviewer가 재번호 (`project_plan7_phase2_complete.md`에 같은 패턴 선례)
 - 단방향 신규 추가, 기존 데이터 영향 없음
 
@@ -513,7 +513,7 @@ CI gate. 신규 키 모두 ko/en 동시 추가.
 
 **DB (packages/db)**
 - `src/schema/share-links.ts`
-- `migrations/0026_share_links.sql` (Drizzle generate; 머지 시점 충돌 시 재번호)
+- `migrations/0027_share_links.sql` (Drizzle generate; main의 0026_lowly_blink와 충돌하여 재번호됨)
 
 **Worker (apps/worker)**
 - `src/worker/activities/deep_research/finalize.py`

@@ -1,26 +1,32 @@
 // Plan 5 KG Phase 2 · Task 10 · Vis Agent SSE wrapper
 //
-// Wraps a Temporal workflow/activity handle as a ReadableStream<Uint8Array>
-// of SSE-formatted bytes. Two concurrent loops:
+// Wraps a Temporal workflow handle as a ReadableStream<Uint8Array> of
+// SSE-formatted bytes. Two concurrent loops:
 //
 //  1. result()  → resolves to the validated ViewSpec dict (success), or
 //                 throws (failure). Drives the terminal `view_spec | error`
 //                 event and the trailing `done` terminator.
-//  2. describe() poller → every POLL_INTERVAL_MS, scans pendingActivities
-//                 for new heartbeatDetails entries (HeartbeatLoopHooks emits
-//                 `{event: "tool_use" | "tool_result", payload}`), and
-//                 forwards each unique entry as an SSE event.
-//
-// Deep Research Phase C (apps/api/src/routes/research.ts) uses a DB-projection
-// SSE — every 2s, it polls research_runs/turns/artifacts. That model doesn't
-// fit build_view because there's no persisted run row; the agent's progress
-// is intrinsic to the activity heartbeat. Hence this dedicated wrapper.
+//  2. describe() poller → every POLL_INTERVAL_MS, scans the workflow
+//                 description's pendingActivities for new heartbeat payloads
+//                 (HeartbeatLoopHooks emits `{event, payload}` records via
+//                 `activity.heartbeat(*self._events)`), decodes each payload
+//                 via the SDK's DefaultPayloadConverter, and forwards each
+//                 unique entry as an SSE event.
 //
 // Cancel semantics: ReadableStream.cancel() (browser disconnect, fetch abort)
 // flips `cancelled`, breaks the poller loop on its next iteration, and best-
-// -effort calls handle.cancel() so the worker stops paying for tool calls.
+// effort calls handle.cancel() so the worker stops paying for tool calls.
+//
+// SDK shape note: in the real Temporal TS SDK, the workflow describe()
+// response exposes pendingActivities under `desc.raw.pendingActivities`,
+// each entry's `heartbeatDetails` is a `Payloads` proto wrapper (i.e.
+// `{ payloads: Payload[] }`), and each Payload's `data` is JSON bytes that
+// must be decoded via DataConverter — not a JS array of plain objects.
+// The earlier shape (`desc.pendingActivities` of plain HeartbeatEvent[])
+// was a test-fake fiction that never matched production.
 
-import type { WorkflowHandle } from "@temporalio/client";
+import type { WorkflowHandle, Payload } from "@temporalio/client";
+import { defaultPayloadConverter } from "@temporalio/client";
 
 type HeartbeatEvent = { event: string; payload: unknown };
 
@@ -38,6 +44,20 @@ function sseChunk(event: string, data: unknown): Uint8Array {
   return new TextEncoder().encode(`event: ${event}\ndata: ${json}\n\n`);
 }
 
+// Structural shape we depend on from describe(). The real SDK returns a
+// `WorkflowExecutionDescription` whose `raw` is the protobuf
+// `DescribeWorkflowExecutionResponse`, on which `pendingActivities[i].
+// heartbeatDetails` is `IPayloads | null`. Test fakes that stub describe()
+// must mirror this exact path — see tests/lib/temporal-visualize.test.ts
+// for the canonical fake using `defaultPayloadConverter.toPayload`.
+type DescribeShape = {
+  raw?: {
+    pendingActivities?: Array<{
+      heartbeatDetails?: { payloads?: Payload[] | null } | null;
+    } | null> | null;
+  } | null;
+};
+
 // Loose structural type — a real WorkflowHandle satisfies it, and the test
 // fakes do too. We never call any other handle method here.
 type VisualizeHandle =
@@ -47,6 +67,24 @@ type VisualizeHandle =
       result: () => Promise<unknown>;
       cancel: () => Promise<void>;
     };
+
+function decodeHeartbeatEvent(p: Payload): HeartbeatEvent | null {
+  let value: unknown;
+  try {
+    value = defaultPayloadConverter.fromPayload(p);
+  } catch {
+    return null;
+  }
+  if (
+    value !== null &&
+    typeof value === "object" &&
+    "event" in value &&
+    typeof (value as { event: unknown }).event === "string"
+  ) {
+    return value as HeartbeatEvent;
+  }
+  return null;
+}
 
 /**
  * Wrap a Temporal handle as an SSE-friendly ReadableStream.
@@ -71,10 +109,7 @@ export function streamBuildView(
   // Drain all unseen heartbeats from one describe() snapshot. Returns true
   // if any new heartbeats were emitted (used by the final-flush loop to
   // know when to stop). Swallows enqueue errors so the poller doesn't crash
-  // after the controller closes. Note: doesn't gate on `cancelled` — the
-  // post-result drain runs *after* we flip the flag specifically to stop
-  // the background poller, but we still want to flush queued heartbeats.
-  // The enqueue try/catch handles the post-close case.
+  // after the controller closes.
   const drainHeartbeats = async (
     controller: ReadableStreamDefaultController<Uint8Array>,
     closed: { value: boolean },
@@ -83,16 +118,17 @@ export function streamBuildView(
     try {
       const desc = (await (
         handle as { describe: () => Promise<unknown> }
-      ).describe()) as {
-        pendingActivities?: Array<{ heartbeatDetails?: HeartbeatEvent[] }>;
-      };
-      const acts = desc.pendingActivities ?? [];
+      ).describe()) as DescribeShape;
+      const acts = desc?.raw?.pendingActivities ?? [];
       for (const a of acts) {
-        for (const hb of a.heartbeatDetails ?? []) {
+        const payloads = a?.heartbeatDetails?.payloads ?? [];
+        for (const p of payloads) {
+          const hb = decodeHeartbeatEvent(p);
+          if (!hb) continue;
           const key = JSON.stringify(hb);
           if (seen.has(key)) continue;
           seen.add(key);
-          if (hb.event && hb.payload !== undefined && !closed.value) {
+          if (hb.payload !== undefined && !closed.value) {
             try {
               controller.enqueue(sseChunk(hb.event, hb.payload));
               emitted = true;

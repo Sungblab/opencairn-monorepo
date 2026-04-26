@@ -54,6 +54,7 @@ from worker.activities.semaphore_activity import (
     release_project_semaphore,
 )
 from worker.activities.stt_activity import transcribe_audio
+from worker.activities.socratic_activity import evaluate_answer, generate_questions
 from worker.activities.visualize_activity import build_view
 from worker.activities.web_activity import scrape_web_url
 from worker.activities.youtube_activity import ingest_youtube
@@ -64,6 +65,7 @@ from worker.workflows.import_workflow import ImportWorkflow
 from worker.workflows.ingest_workflow import IngestWorkflow
 from worker.workflows.librarian_workflow import LibrarianWorkflow
 from worker.workflows.research_workflow import ResearchWorkflow
+from worker.workflows.socratic_workflow import SocraticEvaluateWorkflow, SocraticGenerateWorkflow
 from worker.workflows.visualize_workflow import VisualizeWorkflow
 
 # Deep Research (Spec 2026-04-22) — registered only when FEATURE_DEEP_RESEARCH
@@ -110,6 +112,8 @@ def build_worker_config() -> WorkerConfig:
         BatchEmbedWorkflow,
         ImportWorkflow,
         VisualizeWorkflow,
+        SocraticGenerateWorkflow,
+        SocraticEvaluateWorkflow,
     ]
     activities: list[Any] = [
         parse_pdf,
@@ -125,6 +129,8 @@ def build_worker_config() -> WorkerConfig:
         run_research,
         run_librarian,
         build_view,
+        generate_questions,
+        evaluate_answer,
         acquire_project_semaphore,
         release_project_semaphore,
         submit_batch_embed,

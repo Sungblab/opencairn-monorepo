@@ -1,0 +1,9 @@
+{
+  "id": "slides",
+  "name": "Slide Deck",
+  "description": "Generate a structured slide deck rendered as an interactive React component in the Canvas.",
+  "renderer": "canvas",
+  "output_schema_id": "slides",
+  "variables": ["topic", "context", "num_slides"],
+  "prompt_template": "Create a {{num_slides}}-slide presentation on the following topic.\n\nTopic: {{topic}}\n\nSource material:\n{{context}}\n\nEach slide needs a heading, up to 6 bullet points, and optional speaker notes. Choose an appropriate layout (title, bullets, two-column, image-text).\n\nReturn JSON: { title, slides: [{ heading, bullets, speaker_notes?, layout }] }"
+}

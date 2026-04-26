@@ -25,6 +25,10 @@ type RawNodeRow = {
   degree: number;
   note_count: number;
   first_note_id: string | null;
+  // Surfaced for the deterministic timeline path (ViewNode.createdAt). The
+  // client `timeline-layout.ts` falls back to this when `eventYear` is
+  // absent — without it, every node lands at the axis midpoint.
+  created_at: string | Date | null;
 };
 
 type RawEdgeRow = {
@@ -35,6 +39,14 @@ type RawEdgeRow = {
   weight: number;
 };
 
+function toIso(value: string | Date | null): string | undefined {
+  if (value === null || value === undefined) return undefined;
+  if (value instanceof Date) return value.toISOString();
+  // postgres-js returns timestamps as Date objects; the string branch is a
+  // belt-and-suspenders fallback for drivers that hand back ISO strings.
+  return String(value);
+}
+
 function mapNodeRows(rows: RawNodeRow[]): GraphNode[] {
   return rows.map((r) => ({
     id: r.id,
@@ -43,6 +55,7 @@ function mapNodeRows(rows: RawNodeRow[]): GraphNode[] {
     degree: r.degree,
     noteCount: r.note_count,
     firstNoteId: r.first_note_id,
+    createdAt: toIso(r.created_at),
   }));
 }
 
@@ -80,6 +93,7 @@ async function fetchNodesByIds(
       c.id,
       c.name,
       c.description,
+      c.created_at,
       (SELECT count(*)::int FROM concept_edges e
         WHERE e.source_id = c.id OR e.target_id = c.id) AS degree,
       (SELECT count(*)::int FROM concept_notes cn
@@ -91,6 +105,10 @@ async function fetchNodesByIds(
     FROM concepts c
     WHERE c.id = ANY(ARRAY[${idArr}])
       AND c.project_id = ${projectId}
+    -- Stable order so BoardView.autoConcentric (positioned by node index)
+    -- doesn't reflow on every refetch. Postgres makes no order guarantee
+    -- without ORDER BY, even when WHERE filters by a list of ids.
+    ORDER BY c.name ASC, c.id ASC
   `);
   return mapNodeRows(unwrapRows<RawNodeRow>(raw));
 }
@@ -146,6 +164,7 @@ export async function selectGraphView(opts: {
       c.id,
       c.name,
       c.description,
+      c.created_at,
       (SELECT count(*)::int FROM concept_edges e
         WHERE e.source_id = c.id OR e.target_id = c.id) AS degree,
       (SELECT count(*)::int FROM concept_notes cn
@@ -317,6 +336,7 @@ async function selectConceptsOrderedByCreatedAt(
       c.id,
       c.name,
       c.description,
+      c.created_at,
       (SELECT count(*)::int FROM concept_edges e
         WHERE e.source_id = c.id OR e.target_id = c.id) AS degree,
       (SELECT count(*)::int FROM concept_notes cn

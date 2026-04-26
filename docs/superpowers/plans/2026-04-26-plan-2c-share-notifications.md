@@ -19,7 +19,7 @@
 | 경로 | 책임 |
 |------|------|
 | `packages/db/src/schema/share-links.ts` | `shareLinks` 테이블 + `shareRoleEnum` |
-| `packages/db/drizzle/0026_share_links.sql` | DB 마이그레이션 (Drizzle generate) |
+| `packages/db/drizzle/0027_share_links.sql` | DB 마이그레이션 (Drizzle generate; main 0026_lowly_blink와 충돌하여 재번호) |
 | `apps/api/src/lib/share-token.ts` | 토큰 생성/검증 헬퍼 (`randomBytes(32).base64url`) |
 | `apps/api/src/lib/yjs-to-plate.ts` | Y.Doc state → Plate value 디코더 (공유 SSR용) |
 | `apps/api/src/routes/share.ts` | 공개 공유 + per-note 권한 라우트 통합 |
@@ -108,7 +108,7 @@
 **Files:**
 - Create: `packages/db/src/schema/share-links.ts`
 - Modify: `packages/db/src/index.ts` (export 추가)
-- Generate: `packages/db/drizzle/0026_share_links.sql`
+- Generate: `packages/db/drizzle/0027_share_links.sql` (main의 0026_lowly_blink와 충돌하여 재번호됨)
 
 - [ ] **Step 1: 스키마 파일 작성**
 
@@ -193,7 +193,7 @@ export * from "./schema/share-links";
 pnpm --filter @opencairn/db run db:generate
 ```
 
-기대 결과: `packages/db/drizzle/0026_share_links.sql` 파일 생성. 내용 확인 — 다음을 포함해야 함:
+기대 결과: `packages/db/drizzle/0027_share_links.sql` 파일 생성 (main 0026_lowly_blink와 번호 충돌 시 자동으로 다음 idx 사용). 내용 확인 — 다음을 포함해야 함:
 - `CREATE TYPE "public"."share_role"`
 - `CREATE TABLE "share_links"`
 - 4개 인덱스 (token unique, note_id, workspace_id, active token partial WHERE revoked_at IS NULL)
@@ -221,7 +221,7 @@ pnpm --filter @opencairn/db run test
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages/db/src/schema/share-links.ts packages/db/src/index.ts packages/db/drizzle/0026_share_links.sql packages/db/drizzle/meta/
+git add packages/db/src/schema/share-links.ts packages/db/src/index.ts packages/db/drizzle/0027_share_links.sql packages/db/drizzle/meta/
 git commit -m "feat(db): add share_links table for Notion-style public share links (Plan 2C)"
 ```
 

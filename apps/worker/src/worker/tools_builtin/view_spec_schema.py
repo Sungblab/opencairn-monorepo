@@ -32,6 +32,12 @@ class ViewSpecNode(BaseModel):
     noteCount: int | None = None
     firstNoteId: str | None = None
     eventYear: int | None = Field(default=None, ge=-3000, le=3000)
+    # ISO-8601 created_at fallback for the timeline view. The Vis Agent
+    # populates `eventYear` only for explicitly date-anchored concepts;
+    # everything else relies on the deterministic SQL surfacing
+    # `concepts.created_at` here so the layout doesn't collapse onto
+    # the axis midpoint. Mirrors `ViewNode.createdAt` in api-types.ts.
+    createdAt: str | None = None
     position: dict | None = None
 
 
