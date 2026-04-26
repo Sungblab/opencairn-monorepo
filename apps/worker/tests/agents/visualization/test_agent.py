@@ -102,3 +102,23 @@ async def test_run_with_tools_called_with_three_tools_and_loop_config():
     assert msgs[0]["role"] == "system"
     assert msgs[1]["role"] == "user"
     assert "User-preferred view: mindmap" in msgs[1]["text"]
+
+
+@pytest.mark.asyncio
+async def test_user_prompt_omits_hint_when_none():
+    provider = MagicMock()
+    spec = {"viewType": "graph", "layout": "fcose", "rootId": None,
+            "nodes": [], "edges": []}
+    captured = {}
+
+    async def fake(**kwargs):
+        captured.update(kwargs)
+        return _make_loop_result("structured_submitted", spec)
+
+    with patch(
+        "worker.agents.visualization.agent.run_with_tools", new=fake,
+    ):
+        agent = VisualizationAgent(provider=provider)
+        await agent.run(request=_request())
+
+    assert "User-preferred view:" not in captured["initial_messages"][1]["text"]

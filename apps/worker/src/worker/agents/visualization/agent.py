@@ -19,6 +19,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
+from llm import LLMProvider
+
 from runtime.loop_runner import run_with_tools
 from runtime.tool_loop import LoopConfig, LoopHooks, LoopResult
 
@@ -61,7 +63,7 @@ class VisualizationAgent:
         "view. Terminates on emit_structured_output(schema_name='ViewSpec')."
     )
 
-    def __init__(self, *, provider) -> None:
+    def __init__(self, *, provider: LLMProvider) -> None:
         self.provider = provider
 
     async def run(
