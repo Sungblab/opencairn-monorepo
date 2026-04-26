@@ -53,6 +53,15 @@ export const shareLinks = pgTable(
     index("share_links_active_token_idx")
       .on(t.token)
       .where(sql`${t.revokedAt} IS NULL`),
+    // Defence-in-depth for the application-level idempotency check in
+    // POST /notes/:id/share. Two concurrent POSTs could otherwise pass
+    // the SELECT and both INSERT, leaving the workspace with duplicate
+    // active links for the same (note, role) pair. A partial unique
+    // index forces the second writer to fail with a 23505, which the
+    // route catches and downgrades to a re-fetch + reuse path.
+    uniqueIndex("share_links_active_role_unique")
+      .on(t.noteId, t.role)
+      .where(sql`${t.revokedAt} IS NULL`),
   ],
 );
 
