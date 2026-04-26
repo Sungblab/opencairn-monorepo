@@ -21,6 +21,7 @@ import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite, canComment } from "../lib/permissions";
 import { parseMentions } from "../lib/mention-parser";
 import { isUuid } from "../lib/validators";
+import { persistAndPublish } from "../lib/notification-events";
 import type { AppEnv } from "../lib/types";
 
 export const commentsRouter = new Hono<AppEnv>()
@@ -133,6 +134,33 @@ export const commentsRouter = new Hono<AppEnv>()
         ...serialize(inserted),
         mentions,
       };
+
+      // App Shell Phase 5 Task 9 — fan out a notification per mentioned user
+      // (skip self-mentions). Done AFTER the transaction commits so a rolled
+      // back insert never surfaces a phantom alert; awaited so the test can
+      // assert on the resulting row, but silent-on-failure (a notification
+      // outage shouldn't 500 the comment write).
+      const userMentionIds = Array.from(
+        new Set(
+          mentions
+            .filter((m) => m.type === "user" && m.id !== userId)
+            .map((m) => m.id),
+        ),
+      );
+      await Promise.all(
+        userMentionIds.map((mentionedId) =>
+          persistAndPublish({
+            userId: mentionedId,
+            kind: "mention",
+            payload: {
+              summary: body.body,
+              noteId,
+              commentId: inserted.id,
+              fromUserId: userId,
+            },
+          }).catch(() => undefined),
+        ),
+      );
 
       return c.json(response, 201);
     },

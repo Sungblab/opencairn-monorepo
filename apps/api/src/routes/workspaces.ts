@@ -8,10 +8,18 @@ import {
   workspaceMembers,
   workspaceInvites,
   projects,
+  notes,
+  researchRuns,
+  user,
+  userPreferences,
   and,
   eq,
   gt,
   isNull,
+  desc,
+  count,
+  inArray,
+  sql,
 } from "@opencairn/db";
 import { requireAuth } from "../middleware/auth";
 import { requireWorkspaceRole } from "../middleware/require-role";
@@ -195,11 +203,21 @@ workspaceRoutes.get("/:workspaceId", requireWorkspaceRole("member"), async (c) =
   return c.json(ws);
 });
 
-// 멤버 목록
+// 멤버 목록 — workspace settings → members 탭 직렬화 형태로 반환.
+// user 정보(이름/이메일)를 join해 한 번의 호출로 표시 가능하게.
 workspaceRoutes.get("/:workspaceId/members", requireWorkspaceRole("member"), async (c) => {
   const id = c.req.param("workspaceId");
   if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
-  const members = await db.select().from(workspaceMembers).where(eq(workspaceMembers.workspaceId, id));
+  const members = await db
+    .select({
+      userId: workspaceMembers.userId,
+      role: workspaceMembers.role,
+      email: user.email,
+      name: user.name,
+    })
+    .from(workspaceMembers)
+    .innerJoin(user, eq(user.id, workspaceMembers.userId))
+    .where(eq(workspaceMembers.workspaceId, id));
   return c.json(members);
 });
 
@@ -233,3 +251,137 @@ workspaceRoutes.delete("/:workspaceId/members/:userId", requireWorkspaceRole("ad
     .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)));
   return c.json({ ok: true });
 });
+
+// 대시보드 헤더 카드 4장 집계 (App Shell Phase 5 Task 1).
+// 응답은 snake_case로 고정 — 클라이언트에서 그대로 분해해 카드에 매핑한다.
+// credits_krw 는 Plan 9b billing 도착 전까지 stub 0. byok_connected 는 사용자
+// 본인의 BYOK 키 (legacy users 컬럼 또는 user_preferences 신규 컬럼) 어느 쪽이든
+// 등록되어 있으면 true.
+workspaceRoutes.get(
+  "/:workspaceId/stats",
+  requireWorkspaceRole("member"),
+  async (c) => {
+    const workspaceId = c.req.param("workspaceId");
+    if (!isUuid(workspaceId)) return c.json({ error: "Bad Request" }, 400);
+    const userId = c.get("user").id;
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const [docsTotal] = await db
+      .select({ n: count() })
+      .from(notes)
+      .where(and(eq(notes.workspaceId, workspaceId), isNull(notes.deletedAt)));
+    const [docsWeek] = await db
+      .select({ n: count() })
+      .from(notes)
+      .where(
+        and(
+          eq(notes.workspaceId, workspaceId),
+          isNull(notes.deletedAt),
+          gt(notes.createdAt, weekAgo),
+        ),
+      );
+    const [researchActive] = await db
+      .select({ n: count() })
+      .from(researchRuns)
+      .where(
+        and(
+          eq(researchRuns.workspaceId, workspaceId),
+          inArray(researchRuns.status, [
+            "planning",
+            "awaiting_approval",
+            "researching",
+          ]),
+        ),
+      );
+    const [legacyByok] = await db
+      .select({ key: user.byokGeminiKeyCiphertext })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+    const [prefByok] = await db
+      .select({ key: userPreferences.byokApiKeyEncrypted })
+      .from(userPreferences)
+      .where(eq(userPreferences.userId, userId))
+      .limit(1);
+
+    return c.json({
+      docs: docsTotal.n,
+      docs_week_delta: docsWeek.n,
+      research_in_progress: researchActive.n,
+      credits_krw: 0,
+      byok_connected: legacyByok?.key != null || prefByok?.key != null,
+    });
+  },
+);
+
+// Command Palette (App Shell Phase 5 Task 8) workspace 노트 검색. Title ILIKE
+// 만 사용하는 minimal 구현 — Postgres FTS / pg_trgm 으로의 확장은 별도 plan
+// (text-search exploration). q 가 비면 빈 배열, limit 1..50.
+workspaceRoutes.get(
+  "/:workspaceId/notes/search",
+  requireWorkspaceRole("member"),
+  async (c) => {
+    const workspaceId = c.req.param("workspaceId");
+    if (!isUuid(workspaceId)) return c.json({ error: "Bad Request" }, 400);
+    const q = c.req.query("q")?.trim() ?? "";
+    if (q.length < 1) return c.json({ results: [] });
+    const limitRaw = c.req.query("limit");
+    const limitParsed = Number.parseInt(limitRaw ?? "20", 10);
+    const limit = Number.isFinite(limitParsed)
+      ? Math.max(1, Math.min(50, limitParsed))
+      : 20;
+    const rows = await db
+      .select({
+        id: notes.id,
+        title: notes.title,
+        project_id: notes.projectId,
+        project_name: projects.name,
+        updated_at: notes.updatedAt,
+      })
+      .from(notes)
+      .innerJoin(projects, eq(projects.id, notes.projectId))
+      .where(
+        and(
+          eq(notes.workspaceId, workspaceId),
+          isNull(notes.deletedAt),
+          sql`${notes.title} ILIKE ${"%" + q + "%"}`,
+        ),
+      )
+      .orderBy(desc(notes.updatedAt))
+      .limit(limit);
+    return c.json({ results: rows });
+  },
+);
+
+// 대시보드 우측 카드 — 최근 업데이트된 노트 N개 (App Shell Phase 5 Task 1).
+// limit 1~50 (기본 5). 권한: workspace member이면 충분 (사이드바와 동일하게
+// per-note canRead는 클라이언트에서 라우팅 시점에 다시 확인). project 이름까지
+// JOIN해서 한 번에 평탄화 — 카드에서 라벨로 사용.
+workspaceRoutes.get(
+  "/:workspaceId/recent-notes",
+  requireWorkspaceRole("member"),
+  async (c) => {
+    const workspaceId = c.req.param("workspaceId");
+    if (!isUuid(workspaceId)) return c.json({ error: "Bad Request" }, 400);
+    const limitRaw = c.req.query("limit");
+    const limitParsed = Number.parseInt(limitRaw ?? "5", 10);
+    const limit = Number.isFinite(limitParsed)
+      ? Math.max(1, Math.min(50, limitParsed))
+      : 5;
+
+    const rows = await db
+      .select({
+        id: notes.id,
+        title: notes.title,
+        project_id: notes.projectId,
+        project_name: projects.name,
+        updated_at: notes.updatedAt,
+      })
+      .from(notes)
+      .innerJoin(projects, eq(projects.id, notes.projectId))
+      .where(and(eq(notes.workspaceId, workspaceId), isNull(notes.deletedAt)))
+      .orderBy(desc(notes.updatedAt))
+      .limit(limit);
+    return c.json({ notes: rows });
+  },
+);

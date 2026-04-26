@@ -1,0 +1,31 @@
+{
+  "title": "Account settings",
+  "back": "← Back to workspace",
+  "tabs": {
+    "profile": "Profile",
+    "providers": "BYOK",
+    "security": "Security",
+    "billing": "Billing & credits"
+  },
+  "profile": {
+    "heading": "Profile",
+    "nameLabel": "Name",
+    "emailLabel": "Email",
+    "save": "Save",
+    "saved": "Saved.",
+    "saveFailed": "Save failed.",
+    "localeNote": "Language and timezone settings are coming soon."
+  },
+  "providers": {
+    "heading": "BYOK",
+    "stub": "BYOK key registration ships with Deep Research Phase E."
+  },
+  "security": {
+    "heading": "Security",
+    "stub": "Password change and session management are coming soon."
+  },
+  "billing": {
+    "heading": "Billing & credits",
+    "stub": "Paid plan and credits ship with Plan 9b."
+  }
+}

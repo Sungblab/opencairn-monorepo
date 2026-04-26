@@ -1,6 +1,8 @@
 {
   "title": "대시보드",
+  "subtitle": "최근 활동 · Deep Research 진행 상황 · 추천",
   "welcome": "OpenCairn에 오신 걸 환영해요.",
+  "newProject": "새 프로젝트",
   "nav": {
     "workspace": "워크스페이스",
     "settings": "설정",
@@ -9,5 +11,25 @@
   "empty": {
     "title": "아직 노트가 없어요",
     "cta": "첫 노트 만들기"
+  },
+  "stats": {
+    "docs": "문서",
+    "weekDelta": "+{n} 이번 주",
+    "research": "Deep Research",
+    "researchInProgress": "{n} 진행 중",
+    "credits": "남은 크레딧",
+    "creditsAmount": "₩{value}",
+    "byok": "BYOK 키",
+    "connected": "연결됨",
+    "disconnected": "미연결"
+  },
+  "sections": {
+    "activeResearch": "진행 중인 Deep Research",
+    "recentDocs": "최근 작업한 문서"
+  },
+  "lists": {
+    "noResearch": "진행 중인 리서치가 없습니다.",
+    "noDocs": "최근 노트가 없습니다.",
+    "openLink": "열기"
   }
 }

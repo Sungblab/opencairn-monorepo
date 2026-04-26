@@ -1,6 +1,5 @@
 // SSE streams under /api/stream. Phase 2 introduces the project tree
-// stream; future plans (notifications, import progress, etc.) can mount
-// additional endpoints on this router. Follows the same native
+// stream; Phase 5 adds notifications. Follows the same native
 // ReadableStream + Response pattern as apps/api/src/routes/import.ts.
 
 import { Hono } from "hono";
@@ -8,6 +7,10 @@ import { requireAuth } from "../middleware/auth";
 import { canRead } from "../lib/permissions";
 import { isUuid } from "../lib/validators";
 import { subscribeTreeEvents, type TreeEvent } from "../lib/tree-events";
+import {
+  subscribeNotifications,
+  type NotificationEvent,
+} from "../lib/notification-events";
 import type { AppEnv } from "../lib/types";
 
 const PING_INTERVAL_MS = 30_000;
@@ -68,6 +71,66 @@ export const streamRoutes = new Hono<AppEnv>()
           }
         };
 
+        signal.addEventListener("abort", cleanup, { once: true });
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
+      },
+    });
+  })
+
+  // App Shell Phase 5 Task 9 — per-user notifications SSE channel. Each
+  // event uses the notification kind as the SSE event name so the client
+  // can register kind-specific handlers (mention, comment_reply, ...).
+  .get("/notifications", async (c) => {
+    const user = c.get("user");
+    const encoder = new TextEncoder();
+    const signal = c.req.raw.signal;
+
+    const stream = new ReadableStream({
+      start(controller) {
+        let closed = false;
+        const send = (event: string, data: unknown) => {
+          if (closed) return;
+          try {
+            controller.enqueue(
+              encoder.encode(
+                `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`,
+              ),
+            );
+          } catch {
+            closed = true;
+          }
+        };
+
+        const unsubscribe = subscribeNotifications(
+          user.id,
+          (n: NotificationEvent) => send(n.kind, n),
+        );
+
+        const pingTimer = setInterval(() => {
+          send("ping", { at: new Date().toISOString() });
+        }, PING_INTERVAL_MS);
+
+        send("ready", { at: new Date().toISOString() });
+
+        const cleanup = () => {
+          if (closed) return;
+          closed = true;
+          clearInterval(pingTimer);
+          unsubscribe();
+          try {
+            controller.close();
+          } catch {
+            /* already closed */
+          }
+        };
         signal.addEventListener("abort", cleanup, { once: true });
       },
     });
