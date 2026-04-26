@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import asyncio
 import os
+from dataclasses import dataclass
+from typing import Any
 
 from dotenv import load_dotenv
 from temporalio.client import Client
@@ -20,6 +22,10 @@ from worker.activities.batch_embed_activities import (
     fetch_batch_embed_results,
     poll_batch_embed,
     submit_batch_embed,
+)
+from worker.activities.code_activity import (
+    analyze_feedback_activity,
+    generate_code_activity,
 )
 from worker.activities.compiler_activity import compile_note
 from worker.activities.drive_activities import (
@@ -51,6 +57,7 @@ from worker.activities.stt_activity import transcribe_audio
 from worker.activities.web_activity import scrape_web_url
 from worker.activities.youtube_activity import ingest_youtube
 from worker.workflows.batch_embed_workflow import BatchEmbedWorkflow
+from worker.workflows.code_workflow import CodeAgentWorkflow
 from worker.workflows.compiler_workflow import CompilerWorkflow
 from worker.workflows.import_workflow import ImportWorkflow
 from worker.workflows.ingest_workflow import IngestWorkflow
@@ -70,13 +77,29 @@ from worker.workflows.deep_research_workflow import DeepResearchWorkflow
 load_dotenv()
 
 
-async def main() -> None:
-    client = await Client.connect(
-        os.environ.get("TEMPORAL_ADDRESS", "localhost:7233"),
-        namespace=os.environ.get("TEMPORAL_NAMESPACE", "default"),
-    )
-    task_queue = os.environ.get("TEMPORAL_TASK_QUEUE", "ingest")
-    workflows: list = [
+@dataclass(frozen=True)
+class WorkerConfig:
+    """Resolved worker registration set.
+
+    Built fresh on each call to ``build_worker_config`` so that feature flags
+    are read at process-start time (or test time, via ``monkeypatch.setenv``)
+    rather than at module import. This keeps the registration deterministic
+    and the unit test for flag gating hermetic.
+    """
+
+    workflows: list[Any]
+    activities: list[Any]
+
+
+def build_worker_config() -> WorkerConfig:
+    """Resolve the workflow + activity set the Temporal worker should register.
+
+    Reads ``FEATURE_DEEP_RESEARCH`` and ``FEATURE_CODE_AGENT`` from the
+    environment so feature-flagged components are added only when their flag
+    is on. The base set (ingest/compiler/research/librarian/batch/import) is
+    always registered.
+    """
+    workflows: list[Any] = [
         IngestWorkflow,
         CompilerWorkflow,
         ResearchWorkflow,
@@ -84,7 +107,7 @@ async def main() -> None:
         BatchEmbedWorkflow,
         ImportWorkflow,
     ]
-    activities: list = [
+    activities: list[Any] = [
         parse_pdf,
         transcribe_audio,
         analyze_image,
@@ -118,18 +141,38 @@ async def main() -> None:
     # when the flag is off without warning about activities that never fire.
     if os.environ.get("FEATURE_DEEP_RESEARCH", "false").lower() == "true":
         workflows.append(DeepResearchWorkflow)
-        activities.extend([
-            create_deep_research_plan,
-            iterate_deep_research_plan,
-            execute_deep_research,
-            persist_deep_research_report,
-        ])
+        activities.extend(
+            [
+                create_deep_research_plan,
+                iterate_deep_research_plan,
+                execute_deep_research,
+                persist_deep_research_report,
+            ]
+        )
+
+    # Plan 7 Phase 2 — Code Agent. Same flag-gated registration as Deep
+    # Research; shares the ``ingest`` task queue per the single-worker
+    # convention documented in the module docstring.
+    if os.environ.get("FEATURE_CODE_AGENT", "false").lower() == "true":
+        workflows.append(CodeAgentWorkflow)
+        activities.extend([generate_code_activity, analyze_feedback_activity])
+
+    return WorkerConfig(workflows=workflows, activities=activities)
+
+
+async def main() -> None:
+    client = await Client.connect(
+        os.environ.get("TEMPORAL_ADDRESS", "localhost:7233"),
+        namespace=os.environ.get("TEMPORAL_NAMESPACE", "default"),
+    )
+    task_queue = os.environ.get("TEMPORAL_TASK_QUEUE", "ingest")
+    cfg = build_worker_config()
 
     worker = Worker(
         client,
         task_queue=task_queue,
-        workflows=workflows,
-        activities=activities,
+        workflows=cfg.workflows,
+        activities=cfg.activities,
     )
     print(f"[worker] Starting Temporal worker on task queue: {task_queue}")
     await worker.run()
