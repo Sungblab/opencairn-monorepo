@@ -93,6 +93,31 @@ class AgentApiClient:
         res = await post_internal("/api/internal/concepts/search", body)
         return list(res.get("results", []))
 
+    async def expand_concept_graph(
+        self,
+        *,
+        project_id: str,
+        workspace_id: str,
+        user_id: str,
+        concept_id: str,
+        hops: int = 1,
+    ) -> dict[str, Any]:
+        """POST /api/internal/projects/:id/graph/expand.
+
+        Carries workspace_id + user_id in the body so the API can enforce
+        the canRead chain + projects.workspaceId match (internal API
+        workspace scope memo). Plan 5 Phase 2.
+        """
+        return await post_internal(
+            f"/api/internal/projects/{project_id}/graph/expand",
+            {
+                "conceptId": concept_id,
+                "hops": hops,
+                "workspaceId": workspace_id,
+                "userId": user_id,
+            },
+        )
+
     async def upsert_concept(
         self,
         *,
