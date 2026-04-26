@@ -33,6 +33,8 @@ import { createMultiRoleSeed } from "../lib/test-seed-multi";
 import { isUuid } from "../lib/validators";
 import { plateValueToText } from "../lib/plate-text";
 import { labelFromId } from "../lib/tree-queries";
+import { canRead } from "../lib/permissions";
+import { expandFromConcept } from "../lib/expand-graph";
 import type { AppEnv } from "../lib/types";
 import {
   assertResourceWorkspace,
@@ -621,6 +623,66 @@ internal.get("/projects/:id/topics", async (c) => {
     })),
   });
 });
+
+// ---------------------------------------------------------------------------
+// Plan 5 Phase 2 — concept-graph expand for VisualizationAgent + tools
+// ---------------------------------------------------------------------------
+
+// POST /internal/projects/:id/graph/expand — N-hop subgraph fetch around a
+// seed concept. Internal counterpart of the user-session GET route in
+// routes/graph.ts; the worker `get_concept_graph` builtin tool calls this
+// via AgentApiClient.expand_concept_graph.
+//
+// Workspace scope is enforced two ways (defense in depth, matches the
+// internal-API memo): the request body MUST carry a `workspaceId` that
+// matches `projects.workspaceId`, AND `userId` must satisfy `canRead` on
+// the project. A worker bug that mixed two workspaces' state would fail
+// the workspace match before any read occurs; a worker bug that
+// re-purposed a foreign user would fail canRead.
+const internalGraphExpandSchema = z.object({
+  conceptId: z.string().uuid(),
+  hops: z.coerce.number().int().min(1).max(3).default(1),
+  workspaceId: z.string().uuid(),
+  userId: z.string().uuid(),
+});
+
+internal.post(
+  "/projects/:id/graph/expand",
+  zValidator("json", internalGraphExpandSchema),
+  async (c) => {
+    const projectId = c.req.param("id");
+    if (!isUuid(projectId)) return c.json({ error: "bad-request" }, 400);
+    const { conceptId, hops, workspaceId, userId } = c.req.valid("json");
+
+    // 1. Project must exist; its workspaceId must match the body's claim.
+    const [proj] = await db
+      .select({ workspaceId: projects.workspaceId })
+      .from(projects)
+      .where(eq(projects.id, projectId));
+    if (!proj) return c.json({ error: "not-found" }, 404);
+    if (proj.workspaceId !== workspaceId) {
+      return c.json({ error: "workspace_mismatch" }, 403);
+    }
+
+    // 2. canRead enforcement using the carried userId — same surface as
+    //    the user-session route would apply on a session-bound user.id.
+    const allowed = await canRead(userId, { type: "project", id: projectId });
+    if (!allowed) return c.json({ error: "forbidden" }, 403);
+
+    // 3. Seed concept must live in this project — prevents a cross-project
+    //    leak via a concept id stolen from another project's row set.
+    const [seed] = await db
+      .select({ id: concepts.id })
+      .from(concepts)
+      .where(and(eq(concepts.id, conceptId), eq(concepts.projectId, projectId)));
+    if (!seed) return c.json({ error: "not-found" }, 404);
+
+    // 4. Shared BFS + node/edge fetch — same SQL as the user-session route
+    //    via the helper at lib/expand-graph.ts.
+    const body = await expandFromConcept(projectId, conceptId, hops);
+    return c.json(body);
+  },
+);
 
 // ---------------------------------------------------------------------------
 // Plan 4 Phase B — Librarian agent support
