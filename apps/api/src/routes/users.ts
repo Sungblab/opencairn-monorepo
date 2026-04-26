@@ -1,8 +1,17 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { and, db, eq, user, workspaceMembers, workspaces } from "@opencairn/db";
+import {
+  and,
+  db,
+  eq,
+  user,
+  userPreferences,
+  workspaceMembers,
+  workspaces,
+} from "@opencairn/db";
 import { requireAuth } from "../middleware/auth";
+import { decryptToken } from "../lib/integration-tokens";
 import type { AppEnv } from "../lib/types";
 
 export const userRoutes = new Hono<AppEnv>().use("*", requireAuth);
@@ -78,3 +87,42 @@ userRoutes.patch(
     return c.json({ ok: true });
   },
 );
+
+// Deep Research Phase E — read endpoint for the BYOK Gemini key.
+// Decrypts on read to compute lastFour rather than storing it as a separate
+// column — single-user reads, negligible cost, no consistency burden.
+userRoutes.get("/me/byok-key", async (c) => {
+  const me = c.get("user");
+  const [row] = await db
+    .select({
+      enc: userPreferences.byokApiKeyEncrypted,
+      updatedAt: userPreferences.updatedAt,
+    })
+    .from(userPreferences)
+    .where(eq(userPreferences.userId, me.id))
+    .limit(1);
+
+  if (!row || !row.enc) return c.json({ registered: false });
+
+  // Decrypt can throw if ciphertext is corrupt or the encryption key has been
+  // rotated. In either case the user's recovery path (re-register a key on
+  // /settings/ai) is identical to the no-row case, so we surface
+  // `registered: false` rather than 500. We log a short warning so operators
+  // can detect mass-rotation issues — userId + error message only, no
+  // plaintext or stack dump.
+  let plain: string;
+  try {
+    plain = decryptToken(row.enc);
+  } catch (err) {
+    console.warn("byok-key decrypt failed", {
+      userId: me.id,
+      error: (err as Error).message,
+    });
+    return c.json({ registered: false });
+  }
+  return c.json({
+    registered: true,
+    lastFour: plain.slice(-4),
+    updatedAt: row.updatedAt.toISOString(),
+  });
+});
