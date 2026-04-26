@@ -82,6 +82,10 @@ vi.mock("./blocks/toggle/toggle-plugin", () => ({
 // so the platejs/react partial mock holds for this headless test suite.
 vi.mock("./blocks/table/table-plugin", () => ({ tablePlugins: [] }));
 
+// columns-plugin re-exports @platejs/layout/react plugins. Stub to empty
+// array so the platejs/react partial mock holds for this headless test suite.
+vi.mock("./blocks/columns/columns-plugin", () => ({ columnsPlugins: [] }));
+
 import { renderNoteEditor } from "./NoteEditor.test-rig";
 
 describe("NoteEditor.onFirstEdit", () => {

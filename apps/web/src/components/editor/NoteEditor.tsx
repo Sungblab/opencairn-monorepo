@@ -46,6 +46,7 @@ import { MermaidPlugin } from "./blocks/mermaid/mermaid-plugin";
 import { CalloutPlugin } from "./blocks/callout/callout-plugin";
 import { TogglePlugin } from "./blocks/toggle/toggle-plugin";
 import { tablePlugins } from "./blocks/table/table-plugin";
+import { columnsPlugins } from "./blocks/columns/columns-plugin";
 
 // Basic marks + blocks. Lists are handled by the indent-based ListPlugin; the
 // bulleted/numbered toolbar buttons call `toggleList` directly with the style
@@ -70,7 +71,8 @@ const basePlugins = [
   MermaidPlugin,
   CalloutPlugin,
   TogglePlugin,
-  ...tablePlugins,  // NEW
+  ...tablePlugins,
+  ...columnsPlugins,  // NEW
 ];
 
 type TitleSaveStatus = "idle" | "saving" | "saved" | "error";
