@@ -265,9 +265,11 @@ provider = await resolve_llm_provider(
 
 새로 추가되는 라우트 5 개. 모두 `requireAuth` + Zod + workspace 권한 체크 + `notes.sourceType='canvas'` 가드.
 
-### 4.1 `POST /api/code/run` — Code Agent 시작 (SSE)
+### 4.1 `POST /api/code/run` — Code Agent 시작 + `GET /api/code/runs/:runId/stream` — SSE
 
-**Request body:**
+**Transport pattern:** Deep Research 와 동형. `POST` 가 workflow 를 시작하고 `runId` 를 즉시 반환, 클라이언트는 별도 `GET` SSE 엔드포인트를 `EventSource` 로 구독. POST 가 직접 SSE 를 반환하지 않는 이유: `EventSource` 는 GET 만 지원하므로 split 패턴이 web 측에서 자연스러움.
+
+**Request body (POST):**
 ```ts
 {
   noteId: uuid,
@@ -275,8 +277,9 @@ provider = await resolve_llm_provider(
   language: 'python' | 'javascript' | 'html' | 'react',
 }
 ```
+**Response (POST):** `200 { runId: uuid }`.
 
-**Response:** `text/event-stream`. SSE events:
+**GET `/api/code/runs/:runId/stream`** (owner-only) — `text/event-stream`. SSE events:
 | event kind | payload | 의미 |
 |---|---|---|
 | `queued` | `{ runId }` | workflow start 완료 |
