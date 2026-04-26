@@ -20,8 +20,13 @@ export function toCytoscapeElements(
         id: n.id,
         label: n.name,
         type: "node",
-        degree: n.degree,
-        firstNoteId: n.firstNoteId,
+        // Plan 5 Phase 2: ViewNode makes degree/firstNoteId optional (mindmap
+        // / cards / timeline / board sometimes don't carry them). Default to
+        // 0 / null so downstream styling + the open-first-note action stay
+        // safe — Phase 1 GraphNodes always supply these so behavior is
+        // unchanged for the default `view=graph` path.
+        degree: n.degree ?? 0,
+        firstNoteId: n.firstNoteId ?? null,
       },
     });
   }
@@ -32,7 +37,11 @@ export function toCytoscapeElements(
     if (filters.relation && e.relationType !== filters.relation) continue;
     edgeElements.push({
       data: {
-        id: e.id,
+        // Plan 5 Phase 2: ViewEdge.id is optional (AI-emitted ViewSpecs may
+        // omit it). Cytoscape requires a stable id per element — synthesise
+        // one from source/target/relation when missing so re-renders don't
+        // shuffle edges around.
+        id: e.id ?? `${e.sourceId}->${e.targetId}:${e.relationType}`,
         source: e.sourceId,
         target: e.targetId,
         type: "edge",

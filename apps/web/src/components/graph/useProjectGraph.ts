@@ -1,24 +1,65 @@
 "use client";
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { GraphResponse, GraphExpandResponse } from "@opencairn/shared";
-import type { GraphSnapshot } from "./graph-types";
+import type {
+  GraphExpandResponse,
+  GraphViewResponse,
+  ViewType,
+} from "@opencairn/shared";
+import { useViewStateStore } from "./view-state-store";
 
 const STALE_MS = 30_000;
 
-export function useProjectGraph(projectId: string) {
-  const qc = useQueryClient();
-  const queryKey = ["project-graph", projectId] as const;
+interface Options {
+  view?: ViewType;
+  root?: string;
+}
 
-  const query = useQuery<GraphSnapshot>({
+async function fetchGraphView(
+  projectId: string,
+  opts: Options,
+  signal?: AbortSignal,
+): Promise<GraphViewResponse> {
+  const params = new URLSearchParams();
+  // Phase 1 default: ?view=graph + degree-ordered top-500. Stays regression-zero
+  // for callers that pass no opts (e.g. ProjectGraph from Phase 1).
+  params.set("view", opts.view ?? "graph");
+  params.set("limit", "500");
+  params.set("order", "degree");
+  if (opts.root) params.set("root", opts.root);
+  const res = await fetch(
+    `/api/projects/${projectId}/graph?${params.toString()}`,
+    { credentials: "include", signal },
+  );
+  if (!res.ok) throw new Error(`graph ${res.status}`);
+  return (await res.json()) as GraphViewResponse;
+}
+
+export function useProjectGraph(projectId: string, opts: Options = {}) {
+  const view = opts.view ?? "graph";
+  const root = opts.root ?? null;
+  // Inline ViewSpec emitted by the Visualization Agent takes priority — when
+  // present we synthesise a GraphViewResponse from it and skip the network
+  // round-trip entirely (Plan 5 Phase 2 § view-state-store).
+  const inline = useViewStateStore((s) => s.getInline(projectId, view, root));
+  const qc = useQueryClient();
+  // Cache key is partitioned by (projectId, view, root) so switching views
+  // doesn't blow away the previous view's data and triggers an isolated fetch.
+  const queryKey = ["project-graph", projectId, view, root] as const;
+
+  const query = useQuery<GraphViewResponse>({
     queryKey,
     enabled: !!projectId,
     staleTime: STALE_MS,
     queryFn: async ({ signal }) => {
-      const res = await fetch(`/api/projects/${projectId}/graph?limit=500&order=degree`, { signal });
-      if (!res.ok) throw new Error(`graph ${res.status}`);
-      const body = (await res.json()) as GraphResponse;
-      return body;
+      if (inline) {
+        return {
+          ...inline,
+          truncated: false,
+          totalConcepts: inline.nodes.length,
+        };
+      }
+      return fetchGraphView(projectId, opts, signal);
     },
   });
 
@@ -29,7 +70,7 @@ export function useProjectGraph(projectId: string) {
       );
       if (!res.ok) throw new Error(`expand ${res.status}`);
       const slice = (await res.json()) as GraphExpandResponse;
-      qc.setQueryData<GraphSnapshot>(queryKey, (prev) => {
+      qc.setQueryData<GraphViewResponse>(queryKey, (prev) => {
         if (!prev) return prev;
         const nodeMap = new Map(prev.nodes.map((n) => [n.id, n]));
         for (const n of slice.nodes) nodeMap.set(n.id, n);
