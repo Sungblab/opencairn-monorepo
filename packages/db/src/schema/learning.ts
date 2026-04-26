@@ -25,6 +25,7 @@ export const flashcards = pgTable(
     noteId: uuid("note_id").references(() => notes.id, {
       onDelete: "set null",
     }),
+    deckName: text("deck_name").notNull().default("default"),
     front: text("front").notNull(),
     back: text("back").notNull(),
     easeFactor: real("ease_factor").notNull().default(2.5),

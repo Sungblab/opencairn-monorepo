@@ -25,6 +25,7 @@ import { messageFeedbackRoutes } from "./routes/message-feedback";
 import { userRoutes } from "./routes/users";
 import { streamRoutes } from "./routes/stream";
 import { graphRoutes } from "./routes/graph";
+import { learningRoutes } from "./routes/learning";
 import { visualizeRouter } from "./routes/visualize";
 import { notificationRoutes } from "./routes/notifications";
 
@@ -66,6 +67,7 @@ export function createApp() {
   app.route("/api", inviteRoutes);  // /api/workspaces/:id/invites and /api/invites/:token/*
   app.route("/api", projectRoutes);
   app.route("/api/projects", graphRoutes);
+  app.route("/api/projects", learningRoutes);
   app.route("/api/folders", folderRoutes);
   app.route("/api/tags", tagRoutes);
   // Phase 3-B viewer endpoints (/:id/file, /:id/data). Must be mounted BEFORE
