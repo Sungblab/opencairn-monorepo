@@ -105,9 +105,19 @@ shareRouter.get("/public/share/:token", async (c) => {
       .from(yjsDocuments)
       .where(eq(yjsDocuments.name, docName))
       .limit(1);
-    plateValue = yjsRow?.state
-      ? yjsStateToPlateValue(yjsRow.state)
-      : fallbackPlateValue(note.content);
+    // Y.applyUpdate can throw on a malformed/corrupt state buffer. The
+    // public viewer is unauthenticated and customer-visible — surface a 500
+    // here is a worse outcome than rendering the legacy `notes.content`
+    // fallback, so swallow the decode error and fall back gracefully.
+    if (yjsRow?.state) {
+      try {
+        plateValue = yjsStateToPlateValue(yjsRow.state);
+      } catch {
+        plateValue = fallbackPlateValue(note.content);
+      }
+    } else {
+      plateValue = fallbackPlateValue(note.content);
+    }
   } else {
     plateValue = fallbackPlateValue(note.content);
   }
@@ -180,16 +190,53 @@ shareRouter.post(
     }
 
     const token = generateShareToken();
-    const [created] = await db
-      .insert(shareLinks)
-      .values({
-        noteId,
-        workspaceId: note.workspaceId,
-        token,
-        role,
-        createdBy: userId,
-      })
-      .returning();
+    let created;
+    try {
+      [created] = await db
+        .insert(shareLinks)
+        .values({
+          noteId,
+          workspaceId: note.workspaceId,
+          token,
+          role,
+          createdBy: userId,
+        })
+        .returning();
+    } catch (err) {
+      // Race: two concurrent POSTs both passed the SELECT idempotency check
+      // and both reached INSERT. The partial unique index
+      // `share_links_active_role_unique` forces one of them to fail with
+      // Postgres SQLSTATE 23505. Catch only that case and re-fetch the
+      // winning row so the caller still gets a usable token. Any other
+      // error (FK violation, etc.) bubbles up as a 500.
+      // drizzle-orm wraps postgres-js errors in DrizzleQueryError, so the
+      // SQLSTATE may live on the cause rather than the top-level error.
+      const code =
+        (err as { code?: string })?.code ??
+        (err as { cause?: { code?: string } })?.cause?.code;
+      if (code !== "23505") throw err;
+      const [winner] = await db
+        .select()
+        .from(shareLinks)
+        .where(
+          and(
+            eq(shareLinks.noteId, noteId),
+            eq(shareLinks.role, role),
+            isNull(shareLinks.revokedAt),
+          ),
+        )
+        .limit(1);
+      if (!winner) throw err;
+      return c.json(
+        {
+          id: winner.id,
+          token: winner.token,
+          role: winner.role,
+          createdAt: winner.createdAt.toISOString(),
+        },
+        200,
+      );
+    }
 
     return c.json(
       {
@@ -252,11 +299,13 @@ shareRouter.delete("/share/:shareId", requireAuth, async (c) => {
   // first querying GET.
   if (!link) return c.body(null, 204);
 
-  // Authorization: creator OR canWrite on the note.
-  if (link.createdBy !== userId) {
-    if (!(await canWrite(userId, { type: "note", id: link.noteId }))) {
-      return c.json({ error: "Forbidden" }, 403);
-    }
+  // Authorization: must hold current write access to the note. We
+  // intentionally do NOT honour a creator-bypass — a member who has been
+  // demoted or removed from the workspace must lose the power to revoke
+  // links the workspace currently relies on. Workspace admins / current
+  // editors retain revoke power via canWrite.
+  if (!(await canWrite(userId, { type: "note", id: link.noteId }))) {
+    return c.json({ error: "Forbidden" }, 403);
   }
 
   // Idempotent: only set revokedAt on the first call. Second call is a no-op

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createApp } from "../src/app.js";
-import { db, shareLinks, notes, eq } from "@opencairn/db";
+import { db, shareLinks, notes, yjsDocuments, eq } from "@opencairn/db";
 import {
   seedMultiRoleWorkspace,
   seedWorkspace,
@@ -81,6 +81,41 @@ describe("POST /api/notes/:id/share", () => {
       .then((r) => r.json());
     expect(b.token).not.toBe(a.token);
     expect(b.role).toBe("commenter");
+  });
+
+  it("partial unique (note_id, role) WHERE revoked_at IS NULL rejects parallel duplicates at the DB layer", async () => {
+    // Direct DB insert simulates a concurrent winner that already landed
+    // before this writer's INSERT runs. The partial unique index must
+    // force a 23505 — that's what the route's catch arm relies on for
+    // graceful race recovery.
+    await db.insert(shareLinks).values({
+      noteId: seed.noteId,
+      workspaceId: seed.workspaceId,
+      token: "z".repeat(43),
+      role: "viewer",
+      createdBy: seed.ownerUserId,
+    });
+
+    let caught: unknown = null;
+    try {
+      await db.insert(shareLinks).values({
+        noteId: seed.noteId,
+        workspaceId: seed.workspaceId,
+        token: "y".repeat(43),
+        role: "viewer", // Same (note, role) → must collide.
+        createdBy: seed.ownerUserId,
+      });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).not.toBeNull();
+    // drizzle-orm wraps the postgres-js error in a DrizzleQueryError; the
+    // route's catch arm reads `.code` from the cause / top-level. Walk both
+    // shapes here so the test mirrors what the production code sees.
+    const code =
+      (caught as { code?: string }).code ??
+      ((caught as { cause?: { code?: string } }).cause?.code);
+    expect(code).toBe("23505");
   });
 
   it("rejects with 403 when caller is not a workspace member", async () => {
@@ -169,6 +204,37 @@ describe("DELETE /api/share/:shareId", () => {
       .where(eq(shareLinks.id, created.id));
     expect(row).toBeDefined();
     expect(row.revokedAt).not.toBeNull();
+  });
+
+  it("rejects creator-without-canWrite (e.g. demoted member) with 403", async () => {
+    // Simulate the demoted-creator scenario: a row whose `created_by` is a
+    // member who currently lacks write access (commenter). No creator-bypass
+    // — a member who has lost write power must not be able to revoke a link
+    // the workspace currently relies on.
+    const [seeded] = await db
+      .insert(shareLinks)
+      .values({
+        noteId: seed.noteId,
+        workspaceId: seed.workspaceId,
+        token: "a".repeat(43),
+        role: "viewer",
+        createdBy: seed.commenterUserId,
+      })
+      .returning();
+
+    const app = createApp();
+    const res = await app.request(`/api/share/${seeded.id}`, {
+      method: "DELETE",
+      headers: { cookie: await signSessionCookie(seed.commenterUserId) },
+    });
+    expect(res.status).toBe(403);
+
+    // Row stays active.
+    const [row] = await db
+      .select()
+      .from(shareLinks)
+      .where(eq(shareLinks.id, seeded.id));
+    expect(row.revokedAt).toBeNull();
   });
 });
 
@@ -266,6 +332,44 @@ describe("GET /api/public/share/:token", () => {
     });
     const res = await app.request(`/api/public/share/${created.token}`);
     expect(res.status).toBe(404);
+  });
+
+  it("falls back to legacy notes.content when the Yjs state is corrupt (no 500)", async () => {
+    const app = createApp();
+    const cookie = await signSessionCookie(seed.ownerUserId);
+    const created = await app
+      .request(`/api/notes/${seed.noteId}/share`, {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({ role: "viewer" }),
+      })
+      .then((r) => r.json());
+
+    // Mark the note as Yjs-authoritative so the route attempts a decode,
+    // then plant a garbage state buffer that Y.applyUpdate will reject.
+    await db
+      .update(notes)
+      .set({
+        yjsStateLoadedAt: new Date(),
+        content: [
+          { type: "p", children: [{ text: "legacy fallback content" }] },
+        ],
+      })
+      .where(eq(notes.id, seed.noteId));
+    const garbage = new Uint8Array([0xff, 0xff, 0xff, 0xff, 0xff, 0xff]);
+    await db.insert(yjsDocuments).values({
+      name: `page:${seed.noteId}`,
+      state: garbage,
+      stateVector: new Uint8Array([0]),
+      sizeBytes: garbage.length,
+    });
+
+    const res = await app.request(`/api/public/share/${created.token}`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(Array.isArray(body.note.plateValue)).toBe(true);
+    const text = JSON.stringify(body.note.plateValue);
+    expect(text).toContain("legacy fallback content");
   });
 
   it("404s when the underlying note is soft-deleted", async () => {
