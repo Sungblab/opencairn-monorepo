@@ -3,7 +3,7 @@ import { ChevronRight } from "lucide-react";
 import { useEditorRef } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 import type { Descendant } from "platejs";
-import { Children, isValidElement, type ReactNode } from "react";
+import { Children, type ReactNode } from "react";
 
 interface ToggleElementProps extends Omit<PlateElementProps, "element"> {
   element: PlateElementProps["element"] & {
@@ -26,9 +26,9 @@ export function ToggleElement({
     editor.tf.setNodes({ open: !isOpen }, { at: path });
   };
 
-  // Slate passes one child per element child as a React element. The first
-  // entry is the summary, the rest are the body. Splitting via Children.toArray
-  // keeps Slate's selection wiring intact (we never render outside `children`).
+  // Slate requires non-void elements to render every child node, otherwise
+  // selection/normalization/undo break. We split summary vs body and CSS-hide
+  // the body when collapsed instead of conditionally rendering it.
   const childArray = Children.toArray(children) as ReactNode[];
   const [summary, ...body] = childArray;
 
@@ -54,13 +54,14 @@ export function ToggleElement({
         </button>
         <div className="flex-1">{summary}</div>
       </div>
-      {isOpen && body.length > 0 && (
-        <div data-testid="toggle-body" className="ml-5 border-l border-[color:var(--border)] pl-3 mt-1">
-          {body.map((child, i) =>
-            isValidElement(child) ? <div key={i}>{child}</div> : child,
-          )}
-        </div>
-      )}
+      <div
+        data-testid="toggle-body"
+        data-open={isOpen}
+        className="ml-5 border-l border-[color:var(--border)] pl-3 mt-1"
+        style={{ display: isOpen ? undefined : "none" }}
+      >
+        {body}
+      </div>
     </div>
   );
 }

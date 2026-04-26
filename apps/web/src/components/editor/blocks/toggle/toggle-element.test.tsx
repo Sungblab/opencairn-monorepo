@@ -17,7 +17,10 @@ vi.mock("platejs/react", async () => {
 });
 
 describe("ToggleElement", () => {
-  it("hides body when open=false", () => {
+  // Slate requires children to remain in the DOM regardless of UI state, so
+  // both `open=false` and `open=true` keep the body mounted; only the
+  // visibility/data-open marker differs.
+  it("CSS-hides body when open=false but keeps it in the DOM", () => {
     render(
       // @ts-expect-error — test mock omits Plate's full editor context
       <ToggleElement
@@ -35,7 +38,10 @@ describe("ToggleElement", () => {
         <p>body</p>
       </ToggleElement>,
     );
-    expect(screen.queryByTestId("toggle-body")).toBeNull();
+    const body = screen.getByTestId("toggle-body");
+    expect(body).toBeInTheDocument();
+    expect(body).toHaveAttribute("data-open", "false");
+    expect(body).toHaveStyle({ display: "none" });
   });
 
   it("shows body when open=true", () => {
@@ -56,7 +62,10 @@ describe("ToggleElement", () => {
         <p>body</p>
       </ToggleElement>,
     );
-    expect(screen.getByTestId("toggle-body")).toBeInTheDocument();
+    const body = screen.getByTestId("toggle-body");
+    expect(body).toBeInTheDocument();
+    expect(body).toHaveAttribute("data-open", "true");
+    expect(body).not.toHaveStyle({ display: "none" });
   });
 
   it("toggles on chevron click", () => {
