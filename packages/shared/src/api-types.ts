@@ -107,6 +107,14 @@ export const graphNodeSchema = z.object({
   degree: z.number().int().nonnegative(),
   noteCount: z.number().int().nonnegative(),
   firstNoteId: z.string().uuid().nullable(),
+  /**
+   * ISO-8601 timestamp of `concepts.created_at`. Optional for Phase 1
+   * super-set compatibility — older clients ignore the field; the timeline
+   * view renderer reads it as the X-axis fallback when `eventYear` is
+   * absent (the deterministic path's default since the Vis Agent only
+   * sets `eventYear` for concepts it can date-anchor explicitly).
+   */
+  createdAt: z.string().optional(),
 });
 export type GraphNode = z.infer<typeof graphNodeSchema>;
 
@@ -227,6 +235,13 @@ export const ViewNode = z.object({
   noteCount: z.number().int().min(0).optional(),
   firstNoteId: z.string().uuid().nullable().optional(),
   eventYear: z.number().int().min(-3000).max(3000).optional(),
+  /**
+   * ISO-8601 created_at fallback used by the timeline layout when the Vis
+   * Agent (or deterministic path) didn't supply an explicit `eventYear`.
+   * Without this the deterministic timeline collapses every node onto the
+   * axis midpoint — see timeline-layout.ts `nodeYear`.
+   */
+  createdAt: z.string().optional(),
   position: z.object({ x: z.number(), y: z.number() }).optional(),
 });
 export type ViewNode = z.infer<typeof ViewNode>;

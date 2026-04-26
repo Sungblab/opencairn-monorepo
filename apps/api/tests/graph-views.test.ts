@@ -83,6 +83,7 @@ interface GraphResponseBody {
     degree: number;
     noteCount: number;
     firstNoteId: string | null;
+    createdAt?: string;
   }>;
   edges: Array<{
     id: string;
@@ -250,6 +251,16 @@ describe("GET /api/projects/:id/graph?view=", () => {
     const ids = body.nodes.map((n) => n.id);
     expect(ids[0]).toBe(seed.hubId);
     expect(ids[ids.length - 1]).toBe(seed.isolatedId);
+    // Regression guard (gemini-code-assist review follow-up): every node on
+    // the timeline path MUST surface `createdAt`. Without it the client
+    // layout collapses every node onto the axis midpoint because `eventYear`
+    // is only populated by the LLM path, not the deterministic one.
+    for (const n of body.nodes) {
+      expect(typeof n.createdAt).toBe("string");
+      expect(Number.isFinite(new Date(n.createdAt as string).getTime())).toBe(
+        true,
+      );
+    }
   });
 
   // ─── Test 7: board with explicit root → 1-hop neighborhood ────────
