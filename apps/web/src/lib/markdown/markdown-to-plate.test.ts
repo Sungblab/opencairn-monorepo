@@ -61,3 +61,38 @@ describe("markdownToPlate — mermaid post-processing", () => {
     expect(mermaidBlocks[1].code).toBe("C-->D");
   });
 });
+
+describe("markdownToPlate — callout post-processing", () => {
+  it("converts > [!info] blockquote to a callout element with kind=info", () => {
+    const result = markdownToPlate("> [!info] hello");
+    expect(result[0]).toMatchObject({ type: "callout", kind: "info" });
+  });
+
+  it("supports warn / tip / danger kinds", () => {
+    const warn = markdownToPlate("> [!warn] caution");
+    expect(warn[0]).toMatchObject({ type: "callout", kind: "warn" });
+
+    const tip = markdownToPlate("> [!tip] hot tip");
+    expect(tip[0]).toMatchObject({ type: "callout", kind: "tip" });
+
+    const danger = markdownToPlate("> [!danger] do not");
+    expect(danger[0]).toMatchObject({ type: "callout", kind: "danger" });
+  });
+
+  it("strips the [!kind] prefix from the first child paragraph", () => {
+    const result = markdownToPlate("> [!info] hello world");
+    const firstPara = result[0].children?.[0];
+    const text = firstPara?.children?.[0]?.text;
+    expect(text).toBe("hello world");
+  });
+
+  it("leaves a plain blockquote unchanged", () => {
+    const result = markdownToPlate("> just a quote");
+    expect(result[0].type).toBe("blockquote");
+  });
+
+  it("normalizes unknown kinds to 'info'", () => {
+    const result = markdownToPlate("> [!whatever] hi");
+    expect(result[0]).toMatchObject({ type: "callout", kind: "info" });
+  });
+});

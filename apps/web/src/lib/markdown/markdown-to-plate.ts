@@ -80,6 +80,84 @@ function postprocessMermaid(nodes: PlateNode[]): PlateNode[] {
   });
 }
 
+const CALLOUT_KINDS = ["info", "warn", "tip", "danger"] as const;
+type CalloutKind = (typeof CALLOUT_KINDS)[number];
+
+const CALLOUT_PREFIX_RE = /^\s*\[!(\w+)\]\s?(.*)$/;
+
+function extractCalloutKind(node: PlateNode): {
+  kind: CalloutKind;
+  strippedFirstChild: PlateNode;
+} | null {
+  if (node.type !== "blockquote") return null;
+  const firstChild = node.children?.[0];
+  if (!firstChild) return null;
+
+  // The Plate markdown deserializer produces blockquotes with text leaves
+  // as direct children: blockquote → { text: "[!kind] body" }.
+  // Detect both the flat case (firstChild is a text leaf) and the nested
+  // case (firstChild is a paragraph whose first leaf has the text).
+  let firstLeaf: PlateNode;
+  let text: string;
+  let isFlat: boolean;
+
+  if (typeof firstChild.text === "string") {
+    // Flat: firstChild itself is the text leaf.
+    firstLeaf = firstChild;
+    text = firstChild.text;
+    isFlat = true;
+  } else {
+    // Nested: firstChild is a block element (p) containing text leaves.
+    const leaf = firstChild.children?.[0];
+    if (!leaf || typeof leaf.text !== "string") return null;
+    firstLeaf = leaf;
+    text = leaf.text;
+    isFlat = false;
+  }
+
+  const match = text.match(CALLOUT_PREFIX_RE);
+  if (!match) return null;
+
+  const rawKind = match[1].toLowerCase();
+  const kind: CalloutKind = (CALLOUT_KINDS as readonly string[]).includes(rawKind)
+    ? (rawKind as CalloutKind)
+    : "info";
+  const remaining = match[2];
+
+  let strippedFirstChild: PlateNode;
+  if (isFlat) {
+    // Wrap the stripped text leaf in a paragraph so the callout children
+    // follow the standard Slate element structure (element → text leaves).
+    strippedFirstChild = {
+      type: "p",
+      children: [{ ...firstLeaf, text: remaining }],
+    };
+  } else {
+    // Rebuild the paragraph with the prefix stripped from the first leaf.
+    const newLeafChildren = [
+      { ...firstLeaf, text: remaining },
+      ...(firstChild.children?.slice(1) ?? []),
+    ];
+    strippedFirstChild = { ...firstChild, children: newLeafChildren };
+  }
+
+  return { kind, strippedFirstChild };
+}
+
+function postprocessCallout(nodes: PlateNode[]): PlateNode[] {
+  return nodes.map((n) => {
+    const detected = extractCalloutKind(n);
+    if (!detected) return n;
+    const { kind, strippedFirstChild } = detected;
+    const otherChildren = n.children?.slice(1) ?? [];
+    return {
+      type: "callout",
+      kind,
+      children: [strippedFirstChild, ...otherChildren],
+    };
+  });
+}
+
 export function markdownToPlate(markdown: string): PlateNode[] {
   if (!markdown || !markdown.trim()) {
     return [{ type: "p", children: [{ text: "" }] }];
@@ -103,5 +181,5 @@ export function markdownToPlate(markdown: string): PlateNode[] {
     return [{ type: "p", children: [{ text: "" }] }];
   }
 
-  return postprocessMermaid(value);
+  return postprocessCallout(postprocessMermaid(value));
 }
