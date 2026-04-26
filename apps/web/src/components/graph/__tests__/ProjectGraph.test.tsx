@@ -1,8 +1,14 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { ProjectGraph } from "../ProjectGraph";
 import koGraph from "@/../messages/ko/graph.json";
+import { useRouter, useSearchParams } from "next/navigation";
+
+vi.mock("next/navigation", () => ({
+  useRouter: vi.fn(),
+  useSearchParams: vi.fn(),
+}));
 
 vi.mock("../ViewSwitcher", () => ({
   ViewSwitcher: ({ onAiClick }: { onAiClick: () => void }) => (
@@ -30,6 +36,15 @@ function wrap(ui: React.ReactNode) {
 }
 
 describe("ProjectGraph (assembled)", () => {
+  beforeEach(() => {
+    (useRouter as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      replace: vi.fn(),
+    });
+    (useSearchParams as unknown as ReturnType<typeof vi.fn>).mockReturnValue(
+      new URLSearchParams(),
+    );
+  });
+
   it("mounts ViewSwitcher + ViewRenderer with projectId", () => {
     wrap(<ProjectGraph projectId="p-1" />);
     expect(screen.getByTestId("renderer").textContent).toBe("p-1");
