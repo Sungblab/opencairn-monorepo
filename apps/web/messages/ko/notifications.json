@@ -1,0 +1,13 @@
+{
+  "drawer": {
+    "title": "알림",
+    "empty": "알림이 없습니다."
+  },
+  "kindLabels": {
+    "mention": "멘션",
+    "comment_reply": "코멘트 응답",
+    "research_complete": "리서치 완료",
+    "share_invite": "공유 초대",
+    "system": "공지"
+  }
+}

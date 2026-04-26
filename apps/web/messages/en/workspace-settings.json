@@ -1,0 +1,60 @@
+{
+  "title": "Workspace settings",
+  "tabs": {
+    "members": "Members",
+    "invites": "Invites",
+    "integrations": "Integrations",
+    "sharedLinks": "Shared links",
+    "trash": "Trash"
+  },
+  "members": {
+    "heading": "Members",
+    "headerName": "Name",
+    "headerEmail": "Email",
+    "headerRole": "Role",
+    "headerActions": "",
+    "rolePlaceholder": "Pick a role",
+    "roleLabels": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "member": "Member",
+      "guest": "Guest"
+    },
+    "remove": "Remove",
+    "ownerLocked": "Owner cannot be changed or removed.",
+    "empty": "No members yet."
+  },
+  "invites": {
+    "heading": "Invites",
+    "newEmailLabel": "Email",
+    "newRoleLabel": "Role",
+    "send": "Send",
+    "headerEmail": "Email",
+    "headerRole": "Role",
+    "headerStatus": "Status",
+    "headerActions": "",
+    "statusPending": "Pending",
+    "statusAccepted": "Accepted",
+    "statusExpired": "Expired",
+    "cancel": "Cancel",
+    "empty": "No invites sent yet."
+  },
+  "integrations": {
+    "heading": "Integrations",
+    "google": {
+      "name": "Google Drive",
+      "connected": "Connected as {email}",
+      "disconnected": "Not connected",
+      "connect": "Connect",
+      "disconnect": "Disconnect"
+    }
+  },
+  "sharedLinks": {
+    "heading": "Shared links",
+    "stub": "Activates once the shared-links API ships."
+  },
+  "trash": {
+    "heading": "Trash",
+    "stub": "Activates once the trash API ships."
+  }
+}

@@ -1,6 +1,18 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { db, projects, folders, notes, pagePermissions, eq, desc, and } from "@opencairn/db";
+import {
+  db,
+  projects,
+  folders,
+  notes,
+  pagePermissions,
+  researchRuns,
+  eq,
+  desc,
+  and,
+  isNull,
+  isNotNull,
+} from "@opencairn/db";
 import { createProjectSchema, updateProjectSchema } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite, resolveRole } from "../lib/permissions";
@@ -48,6 +60,89 @@ export const projectRoutes = new Hono<AppEnv>()
       .where(eq(projects.id, id));
     if (!project) return c.json({ error: "Not found" }, 404);
     return c.json(project);
+  })
+
+  // App Shell Phase 5 Task 2 — project view 의 노트 테이블 데이터 소스.
+  // ?filter=all|imported|research|manual 로 4-tab UI가 직접 매핑.
+  // 분류 규칙:
+  //   research = research_runs.note_id 가 set된 노트 (Phase D 산출물)
+  //   imported = sourceType in (pdf|audio|video|image|youtube|web|notion|unknown)
+  //              AND research 가 아닌 것
+  //   manual   = sourceType IN (NULL, 'manual', 'canvas') 또는 위 두 그룹에서 빠진 것
+  //   all      = 전체
+  // 응답 키는 snake_case 로 dashboard endpoint들과 일관 (kind / updated_at).
+  // Soft-deleted 는 항상 제외.
+  .get("/projects/:id/notes", async (c) => {
+    const user = c.get("user");
+    const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+    if (!(await canRead(user.id, { type: "project", id }))) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+    const filterRaw = c.req.query("filter") ?? "all";
+    const filter = (
+      ["all", "imported", "research", "manual"] as const
+    ).includes(filterRaw as never)
+      ? (filterRaw as "all" | "imported" | "research" | "manual")
+      : "all";
+
+    const runRows = await db
+      .select({ noteId: researchRuns.noteId })
+      .from(researchRuns)
+      .where(
+        and(
+          eq(researchRuns.projectId, id),
+          isNotNull(researchRuns.noteId),
+        ),
+      );
+    const researchNoteIds = new Set(
+      runRows.map((r) => r.noteId).filter((v): v is string => v != null),
+    );
+
+    const rows = await db
+      .select({
+        id: notes.id,
+        title: notes.title,
+        sourceType: notes.sourceType,
+        updatedAt: notes.updatedAt,
+      })
+      .from(notes)
+      .where(and(eq(notes.projectId, id), isNull(notes.deletedAt)))
+      .orderBy(desc(notes.updatedAt));
+
+    const IMPORTED_SOURCE_TYPES = new Set([
+      "pdf",
+      "audio",
+      "video",
+      "image",
+      "youtube",
+      "web",
+      "notion",
+      "unknown",
+    ]);
+
+    const annotated = rows.map((n) => {
+      const isResearch = researchNoteIds.has(n.id);
+      const isImported =
+        !isResearch &&
+        n.sourceType != null &&
+        IMPORTED_SOURCE_TYPES.has(n.sourceType);
+      const kind: "research" | "imported" | "manual" = isResearch
+        ? "research"
+        : isImported
+          ? "imported"
+          : "manual";
+      return {
+        id: n.id,
+        title: n.title,
+        kind,
+        updated_at: n.updatedAt.toISOString(),
+      };
+    });
+
+    const filtered =
+      filter === "all" ? annotated : annotated.filter((n) => n.kind === filter);
+    return c.json({ notes: filtered });
   })
 
   // 생성: workspace-scoped (/api/workspaces/:workspaceId/projects)
