@@ -15,20 +15,20 @@
       "replace": "Replace",
       "delete": "Delete",
       "delete_confirm_title": "Delete this API key?",
-      "delete_confirm_body": "You'll need to register one again before starting a new research run.",
+      "delete_confirm_body": "You'll need to register a new key before starting another research run.",
       "delete_confirm_yes": "Delete",
       "delete_confirm_no": "Cancel",
       "deleting": "Deleting…",
       "deleted": "Key deleted.",
-      "help_text": "Generate a key from Google AI Studio.",
+      "help_text": "You can generate a key in Google AI Studio.",
       "loading": "Loading…",
       "error": {
         "wrong_prefix": "That doesn't look like a Gemini API key (it should start with AIza).",
         "too_short": "Key is too short.",
         "too_long": "Key is too long.",
-        "save_failed": "Save failed. Please try again in a moment.",
-        "delete_failed": "Delete failed. Please try again in a moment.",
-        "load_failed": "Couldn't load key status."
+        "save_failed": "Couldn't save the key. Try again in a moment.",
+        "delete_failed": "Couldn't delete the key. Try again in a moment.",
+        "load_failed": "Couldn't load the key status. Try refreshing."
       }
     }
   }
