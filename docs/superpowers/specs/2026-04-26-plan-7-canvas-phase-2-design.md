@@ -85,11 +85,11 @@ ReadableStream
 
 | 레이어 | 역할 | 핵심 파일 |
 |---|---|---|
-| `apps/web` | Monaco 편집, Pyodide/iframe 실행, postMessage 수신, SSE 구독, output 업로드 트리거 | `components/canvas/MonacoEditor.tsx`, `components/canvas/CodeAgentPanel.tsx`, `components/canvas/CanvasOutputsGallery.tsx`, `lib/use-code-agent-stream.ts`, `lib/use-canvas-outputs.ts` |
+| `apps/web` | Monaco 편집, Pyodide/iframe 실행, postMessage 수신, SSE 구독, output 업로드 트리거 | `components/canvas/MonacoEditor.tsx`, `components/canvas/CodeAgentPanel.tsx`, `components/canvas/CanvasOutputsGallery.tsx`, `lib/use-code-agent-stream.ts`, `lib/use-canvas-outputs.ts` (+ `components/tab-shell/viewers/canvas-viewer.tsx` 수정 — Phase 1 textarea → MonacoEditor) |
 | `apps/api` | 인증/권한, workflow start/signal, SSE poll, MinIO upload | `routes/code.ts` (신규), `routes/canvas.ts` (확장 — Phase 1 placeholder 자리) |
 | `apps/worker` | LLM 호출, 셀프힐링 루프, AgentEvent 발생 | `worker/agents/code/`, `worker/activities/code_activity.py`, `worker/workflows/code_workflow.py` |
 | `packages/llm` | BYOK/managed 라우팅 | 기존 surface (chat 정책) — 추가 변경 없음 |
-| `packages/db` | `code_runs`, `code_turns`, `canvas_outputs` | migration `0022_canvas_code_runs_outputs.sql` |
+| `packages/db` | `code_runs`, `code_turns`, `canvas_outputs` | migration `0024_canvas_code_runs_outputs.sql` (0023 = wiki_links_table 다음) |
 | `packages/shared` | Zod 스키마 (`codeAgentRunRequestSchema`, `codeAgentFeedbackSchema`, `canvasOutputCreateSchema`, `codeAgentEventSchema`) | `shared/src/code-types.ts` 신설 |
 
 ### 2.3 핵심 invariant
@@ -134,7 +134,7 @@ class CodeAgent(runtime.Agent):
 
 ```python
 class CodeOutputSchema(BaseModel):
-    language: Literal["python", "javascript", "jsx", "html"]
+    language: Literal["python", "javascript", "html", "react"]
     source: str = Field(max_length=64 * 1024)  # Phase 1 invariant
     explanation: str = Field(max_length=2000)
 ```
@@ -215,7 +215,7 @@ class CodeRunParams:
     workspace_id: UUID
     user_id: str
     prompt: str
-    language: Literal["python", "javascript", "jsx", "html"]
+    language: Literal["python", "javascript", "html", "react"]
     byok_key_handle: str | None  # billing-routing.md 참조
 ```
 
@@ -272,7 +272,7 @@ provider = await resolve_llm_provider(
 {
   noteId: uuid,
   prompt: string,           // max 4000 chars
-  language: 'python' | 'javascript' | 'jsx' | 'html',
+  language: 'python' | 'javascript' | 'html' | 'react',
 }
 ```
 
@@ -355,7 +355,7 @@ if (!env.FEATURE_CANVAS_TEMPLATES) {
 
 ### 4.6 DB schema
 
-`packages/db/migrations/0022_canvas_code_runs_outputs.sql`:
+`packages/db/drizzle/0024_canvas_code_runs_outputs.sql`:
 
 ```sql
 CREATE TABLE code_runs (
@@ -431,7 +431,7 @@ const LANG_MAP = {
 - **옵션:** `minimap: false`, `fontSize: 13`, `tabSize: 2`, `wordWrap: "on"`, `fixedOverflowWidgets: true`.
 - **CSP:** Monaco web worker (`editor.worker.js`, `ts.worker.js`) 는 `monaco-editor/esm/vs/...` 경로 → `worker-src 'self' blob:` 만 보장. **CDN 사용 안 함**.
 
-`CanvasViewer.tsx` (Phase 1) 수정:
+`apps/web/src/components/tab-shell/viewers/canvas-viewer.tsx` (Phase 1) 수정:
 - 기존 `<textarea>` → `<MonacoEditor language={LANG_MAP[note.canvasLanguage]} value={src} onChange={onChange} ... />`.
 - 로딩 fallback 은 textarea-스타일 placeholder.
 - 디바운스 1.5s 저장 로직 그대로.
