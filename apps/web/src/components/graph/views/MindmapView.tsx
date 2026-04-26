@@ -1,5 +1,5 @@
 "use client";
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import cytoscape from "cytoscape";
 import dagre from "cytoscape-dagre";
@@ -57,6 +57,51 @@ export default function MindmapView({ projectId, root }: Props) {
     ];
   }, [data]);
 
+  const cyRef = useRef<cytoscape.Core | null>(null);
+
+  // Latest tap handler. Closes over `params`, `router`, `data?.rootId` —
+  // all of which can change while the cytoscape instance is mounted (e.g.
+  // user clicks a child node → URL params change → re-render but cytoscape
+  // instance stays). Without the ref-indirection, the listener bound in
+  // the `cy` callback would freeze the *first* render's params/data and
+  // never see updates. Same pattern as GraphView.tsx (gemini-code-assist
+  // post-merge review follow-up — Plan 5 KG Phase 2).
+  const onNodeTap = useCallback(
+    (id: string) => {
+      if (id === data?.rootId) return;
+      const next = new URLSearchParams(params.toString());
+      next.set("view", "mindmap");
+      next.set("root", id);
+      router.replace(`?${next.toString()}`, { scroll: false });
+    },
+    [data?.rootId, params, router],
+  );
+
+  const handlerRef = useRef(onNodeTap);
+  useEffect(() => {
+    handlerRef.current = onNodeTap;
+  }, [onNodeTap]);
+
+  // Bind the cytoscape `tap` listener once per dataset. We re-bind when
+  // `data` changes because react-cytoscapejs may rebuild the underlying
+  // graph; pointing at `handlerRef.current` keeps the bound callback
+  // current without re-binding on every render.
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    const onTap = (evt: cytoscape.EventObject) => {
+      if (evt.target === cy) return;
+      const node = evt.target;
+      if (node?.isNode?.()) {
+        handlerRef.current(node.id());
+      }
+    };
+    cy.on("tap", "node", onTap);
+    return () => {
+      cy.off("tap", "node", onTap);
+    };
+  }, [data]);
+
   if (isLoading) {
     return <div className="p-6 text-sm text-muted-foreground">…</div>;
   }
@@ -112,15 +157,7 @@ export default function MindmapView({ projectId, root }: Props) {
         ] as cytoscape.StylesheetJsonBlock[]
       }
       cy={(cy: cytoscape.Core) => {
-        cy.removeAllListeners();
-        cy.on("tap", "node", (evt) => {
-          const id = evt.target.id();
-          if (id === data.rootId) return;
-          const next = new URLSearchParams(params.toString());
-          next.set("view", "mindmap");
-          next.set("root", id);
-          router.replace(`?${next.toString()}`, { scroll: false });
-        });
+        cyRef.current = cy;
       }}
       style={{ width: "100%", height: "100%" }}
     />
