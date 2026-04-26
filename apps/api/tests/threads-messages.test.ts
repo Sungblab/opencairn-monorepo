@@ -234,6 +234,61 @@ describe("Threads messages — multi-user scoping", () => {
   });
 });
 
+describe("POST /threads/:id/messages — save_suggestion stub flag", () => {
+  let ctx: SeedResult;
+
+  beforeEach(async () => {
+    ctx = await seedWorkspace({ role: "owner" });
+  });
+
+  afterEach(async () => {
+    await ctx.cleanup();
+    // Restore the env var in case the test left it set.
+    delete process.env.AGENT_STUB_EMIT_SAVE_SUGGESTION;
+  });
+
+  it("emits a save_suggestion chunk when /test-save is sent and flag is set", async () => {
+    const prev = process.env.AGENT_STUB_EMIT_SAVE_SUGGESTION;
+    process.env.AGENT_STUB_EMIT_SAVE_SUGGESTION = "1";
+    try {
+      const threadId = await createThread(ctx.workspaceId, ctx.userId);
+      const res = await authedFetch(`/api/threads/${threadId}/messages`, {
+        method: "POST",
+        userId: ctx.userId,
+        body: JSON.stringify({ content: "hello /test-save world", mode: "auto" }),
+      });
+      expect(res.status).toBe(200);
+      const text = await res.text();
+      const frames = parseSseEvents(text);
+      const savedFrames = frames.filter((f) => f.event === "save_suggestion");
+      expect(savedFrames).toHaveLength(1);
+      const payload = savedFrames[0].data as { title: string; body_markdown: string };
+      expect(payload.title).toBeDefined();
+      expect(payload.body_markdown).toContain("# ");
+    } finally {
+      if (prev === undefined) {
+        delete process.env.AGENT_STUB_EMIT_SAVE_SUGGESTION;
+      } else {
+        process.env.AGENT_STUB_EMIT_SAVE_SUGGESTION = prev;
+      }
+    }
+  });
+
+  it("does NOT emit save_suggestion when the flag is not set", async () => {
+    delete process.env.AGENT_STUB_EMIT_SAVE_SUGGESTION;
+    const threadId = await createThread(ctx.workspaceId, ctx.userId);
+    const res = await authedFetch(`/api/threads/${threadId}/messages`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ content: "hello /test-save world", mode: "auto" }),
+    });
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    const frames = parseSseEvents(text);
+    expect(frames.find((f) => f.event === "save_suggestion")).toBeUndefined();
+  });
+});
+
 describe("Threads messages — pipeline failure", () => {
   let ctx: SeedResult;
 

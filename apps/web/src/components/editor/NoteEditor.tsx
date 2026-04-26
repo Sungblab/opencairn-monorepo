@@ -13,6 +13,7 @@ import {
 } from "@platejs/basic-nodes/react";
 import { ListPlugin } from "@platejs/list/react";
 import { toggleList } from "@platejs/list";
+import { CodeBlockPlugin, CodeLinePlugin } from "@platejs/code-block/react";
 import { Plate, PlateContent } from "platejs/react";
 import debounce from "lodash.debounce";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -42,6 +43,13 @@ import {
   WikiLinkCombobox,
 } from "./plugins/wiki-link";
 import { researchMetaPlugin } from "./blocks/research-meta/research-meta-plugin";
+import { MermaidPlugin } from "./blocks/mermaid/mermaid-plugin";
+import { CalloutPlugin } from "./blocks/callout/callout-plugin";
+import { TogglePlugin } from "./blocks/toggle/toggle-plugin";
+import { tablePlugins } from "./blocks/table/table-plugin";
+import { columnsPlugins } from "./blocks/columns/columns-plugin";
+import { MermaidFencePlugin } from "./plugins/mermaid-fence";
+import { useActiveEditorStore } from "@/stores/activeEditorStore";
 
 // Basic marks + blocks. Lists are handled by the indent-based ListPlugin; the
 // bulleted/numbered toolbar buttons call `toggleList` directly with the style
@@ -59,8 +67,16 @@ const basePlugins = [
   BlockquotePlugin,
   HorizontalRulePlugin,
   ListPlugin,
+  CodeBlockPlugin,
+  CodeLinePlugin,
   ...latexPlugins,
   researchMetaPlugin,
+  MermaidPlugin,
+  CalloutPlugin,
+  TogglePlugin,
+  ...tablePlugins,
+  ...columnsPlugins,
+  MermaidFencePlugin,
 ];
 
 type TitleSaveStatus = "idle" | "saving" | "saved" | "error";
@@ -226,6 +242,23 @@ export function NoteEditor({
     readOnly,
     basePlugins: plugins,
   });
+
+  const setEditor = useActiveEditorStore((s) => s.setEditor);
+  const removeEditor = useActiveEditorStore((s) => s.removeEditor);
+
+  useEffect(() => {
+    if (!editor) return;
+    setEditor(noteId, editor);
+    return () => {
+      // Only clear the registration if our editor is still the registered
+      // one. A newer mount for the same noteId (split view, rapid tab
+      // remount, StrictMode) may have already replaced it; clearing then
+      // would orphan the new instance.
+      if (useActiveEditorStore.getState().getEditor(noteId) === editor) {
+        removeEditor(noteId);
+      }
+    };
+  }, [editor, noteId, setEditor, removeEditor]);
 
   // Cmd/Ctrl+S flushes the PENDING title save only — editor content is
   // already live via Yjs, so there is nothing to "save" on keystroke.

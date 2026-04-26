@@ -11,6 +11,7 @@ import { useTranslations } from "next-intl";
 
 import type { ChatMessage } from "@/lib/api-client";
 
+import { ChatMessageRenderer } from "../chat/chat-message-renderer";
 import { CitationChips, type Citation } from "./citation-chips";
 import { MessageActions } from "./message-actions";
 import { SaveSuggestionCard } from "./save-suggestion-card";
@@ -103,7 +104,10 @@ export function MessageBubble({
         <ThoughtBubble summary={thought.summary} tokens={thought.tokens} />
       ) : null}
       {status ? <StatusLine phrase={status} /> : null}
-      <p className="whitespace-pre-wrap text-sm">{msg.content.body}</p>
+      <ChatMessageRenderer
+        body={String(msg.content.body ?? "")}
+        streaming={msg.status === "streaming"}
+      />
       {citations.length > 0 ? <CitationChips citations={citations} /> : null}
       {saveSuggestion ? (
         <SaveSuggestionCard

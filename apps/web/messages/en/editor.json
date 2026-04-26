@@ -23,7 +23,12 @@
     "quote": "Quote",
     "code": "Code",
     "divider": "Divider",
-    "math": "Math block"
+    "math": "Math block",
+    "mermaid": "Diagram",
+    "callout": "Callout",
+    "toggle": "Toggle",
+    "table": "Table",
+    "columns": "Columns"
   },
   "math": {
     "parse_error": "Math parse error"
@@ -41,5 +46,36 @@
     "numbered": "Numbered list",
     "quote": "Quote",
     "wikilink": "Link note"
+  },
+  "blocks": {
+    "mermaid": {
+      "placeholder": "Enter mermaid code here…",
+      "error_title": "Diagram error",
+      "error_help": "Check the syntax or rewrite the code.",
+      "show_source": "Show source",
+      "hide_source": "Hide source"
+    },
+    "callout": {
+      "info": "Info",
+      "warn": "Warn",
+      "tip": "Tip",
+      "danger": "Danger"
+    },
+    "toggle": {
+      "placeholder": "Enter a heading"
+    },
+    "table": {
+      "row_add_above": "Add row above",
+      "row_add_below": "Add row below",
+      "col_add_left": "Add column left",
+      "col_add_right": "Add column right",
+      "row_delete": "Delete row",
+      "col_delete": "Delete column",
+      "header_toggle": "Use first row as header"
+    },
+    "columns": {
+      "two": "Two columns",
+      "three": "Three columns"
+    }
   }
 }

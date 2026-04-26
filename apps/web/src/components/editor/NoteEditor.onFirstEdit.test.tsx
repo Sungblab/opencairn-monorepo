@@ -60,6 +60,36 @@ vi.mock("./blocks/research-meta/research-meta-plugin", () => ({
   researchMetaPlugin: {},
 }));
 
+// mermaid-plugin also calls `createPlatePlugin` at module scope.
+// Same treatment: stub it out so the platejs/react partial mock holds.
+vi.mock("./blocks/mermaid/mermaid-plugin", () => ({
+  MermaidPlugin: {},
+}));
+
+// callout-plugin also calls `createPlatePlugin` at module scope.
+// Same treatment: stub it out so the platejs/react partial mock holds.
+vi.mock("./blocks/callout/callout-plugin", () => ({
+  CalloutPlugin: {},
+}));
+
+// toggle-plugin also calls `createPlatePlugin` at module scope.
+// Same treatment: stub it out so the platejs/react partial mock holds.
+vi.mock("./blocks/toggle/toggle-plugin", () => ({
+  TogglePlugin: {},
+}));
+
+// table-plugin re-exports @platejs/table/react plugins. Stub to empty array
+// so the platejs/react partial mock holds for this headless test suite.
+vi.mock("./blocks/table/table-plugin", () => ({ tablePlugins: [] }));
+
+// columns-plugin re-exports @platejs/layout/react plugins. Stub to empty
+// array so the platejs/react partial mock holds for this headless test suite.
+vi.mock("./blocks/columns/columns-plugin", () => ({ columnsPlugins: [] }));
+
+// mermaid-fence calls `createPlatePlugin` at module scope. Stub to an empty
+// object so the platejs/react partial mock holds for this headless test suite.
+vi.mock("./plugins/mermaid-fence", () => ({ MermaidFencePlugin: {} }));
+
 import { renderNoteEditor } from "./NoteEditor.test-rig";
 
 describe("NoteEditor.onFirstEdit", () => {
