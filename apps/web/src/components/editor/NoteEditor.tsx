@@ -250,7 +250,13 @@ export function NoteEditor({
     if (!editor) return;
     setEditor(noteId, editor);
     return () => {
-      removeEditor(noteId);
+      // Only clear the registration if our editor is still the registered
+      // one. A newer mount for the same noteId (split view, rapid tab
+      // remount, StrictMode) may have already replaced it; clearing then
+      // would orphan the new instance.
+      if (useActiveEditorStore.getState().getEditor(noteId) === editor) {
+        removeEditor(noteId);
+      }
     };
   }, [editor, noteId, setEditor, removeEditor]);
 
