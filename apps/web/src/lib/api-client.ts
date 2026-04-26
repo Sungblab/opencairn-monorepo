@@ -406,6 +406,28 @@ export const integrationsApi = {
     apiClient<{ ok: true }>(`/integrations/google`, { method: "DELETE" }),
 };
 
+// ---------- Account / current user (Phase 5 Task 7) ----------
+
+export interface MeProfile {
+  id: string;
+  email: string;
+  name: string;
+  image: string | null;
+  plan: "free" | "pro" | "byok";
+  /** Server returns null until locale/timezone columns ship. */
+  locale: string | null;
+  timezone: string | null;
+}
+
+export const meApi = {
+  get: () => apiClient<MeProfile>(`/users/me`),
+  patch: (body: { name?: string }) =>
+    apiClient<{ ok: true }>(`/users/me`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+};
+
 export const api = {
   getNote: (id: string) => apiClient<NoteRow>(`/notes/${id}`),
   listNotesByProject: (projectId: string) =>

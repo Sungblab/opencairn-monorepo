@@ -31,6 +31,9 @@ export default getRequestConfig(async ({ requestLocale }) => {
     research,
     canvas,
     note,
+    project,
+    workspaceSettings,
+    account,
   ] = await Promise.all([
     import(`../messages/${locale}/common.json`).then((m) => m.default),
     import(`../messages/${locale}/landing.json`).then((m) => m.default),
@@ -47,6 +50,11 @@ export default getRequestConfig(async ({ requestLocale }) => {
     import(`../messages/${locale}/research.json`).then((m) => m.default),
     import(`../messages/${locale}/canvas.json`).then((m) => m.default),
     import(`../messages/${locale}/note.json`).then((m) => m.default),
+    import(`../messages/${locale}/project.json`).then((m) => m.default),
+    import(`../messages/${locale}/workspace-settings.json`).then(
+      (m) => m.default,
+    ),
+    import(`../messages/${locale}/account.json`).then((m) => m.default),
   ]);
 
   return {
@@ -67,6 +75,9 @@ export default getRequestConfig(async ({ requestLocale }) => {
       research,
       canvas,
       note,
+      project,
+      workspaceSettings,
+      account,
     },
   };
 });
