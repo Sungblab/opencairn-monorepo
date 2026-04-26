@@ -16,9 +16,13 @@ import { createPlatePlugin } from "platejs/react";
 // The replacement is a single `replaceNodes` call so undo lands in one
 // step, not three.
 //
-// Infinite-loop safety: `onChange` fires again after `replaceNodes`, but
-// `isMermaidCodeBlock` checks `type === 'code_block'`; the new node has
-// `type === 'mermaid'`, so the guard is false and the loop exits cleanly.
+// Undo-trap safety: when the user undoes our conversion, Slate replays the
+// inverse operations of `replaceNodes` — i.e., a `remove_node` of the just-
+// inserted `mermaid` element followed by `insert_node` of the original
+// `code_block`. Without a guard, `onChange` would re-fire and re-convert
+// the restored code_block, making undo impossible. We detect this case by
+// scanning `editor.operations` for a `remove_node` of a `mermaid` element
+// and bail out for that change tick.
 //
 // Index stability: we do a 1:1 replacement (one code_block → one mermaid
 // node), so indices do not shift after `replaceNodes`. The `i++` loop
@@ -43,27 +47,62 @@ function joinLines(node: CodeBlockNode): string {
     .join("\n");
 }
 
+interface RemoveNodeOp {
+  type: "remove_node";
+  node?: { type?: string };
+}
+
+export function isUndoOfMermaidConversion(
+  ops: readonly { type: string }[],
+): boolean {
+  return ops.some((op) => {
+    if (op.type !== "remove_node") return false;
+    const removed = (op as RemoveNodeOp).node;
+    return removed?.type === "mermaid";
+  });
+}
+
+interface MermaidFenceEditorShape {
+  operations: readonly { type: string }[];
+  children: readonly unknown[];
+  tf: {
+    replaceNodes: (
+      node: { type: "mermaid"; code: string; children: { text: string }[] },
+      options: { at: number[] },
+    ) => void;
+  };
+}
+
+export function runMermaidFenceConversion(editor: MermaidFenceEditorShape): void {
+  // If this change tick is the inverse of our own conversion (the user
+  // pressed undo), don't re-fire — that would create an undo trap where
+  // the restored code_block is immediately re-converted.
+  if (isUndoOfMermaidConversion(editor.operations)) return;
+
+  // Walk top-level only — mermaid blocks shouldn't appear inside lists
+  // or tables, and recursion would slow the per-keystroke handler.
+  const value = editor.children as Array<{
+    type?: string;
+    lang?: string;
+    children?: unknown[];
+  }>;
+  for (let i = 0; i < value.length; i++) {
+    const n = value[i] as CodeBlockNode;
+    if (isMermaidCodeBlock(n)) {
+      const code = joinLines(n);
+      editor.tf.replaceNodes(
+        { type: "mermaid", code, children: [{ text: "" }] },
+        { at: [i] },
+      );
+    }
+  }
+}
+
 export const MermaidFencePlugin = createPlatePlugin({
   key: "mermaid-fence",
   handlers: {
     onChange: ({ editor }) => {
-      // Walk top-level only — mermaid blocks shouldn't appear inside lists
-      // or tables, and recursion would slow the per-keystroke handler.
-      const value = editor.children as unknown as Array<{
-        type?: string;
-        lang?: string;
-        children?: unknown[];
-      }>;
-      for (let i = 0; i < value.length; i++) {
-        const n = value[i] as CodeBlockNode;
-        if (isMermaidCodeBlock(n)) {
-          const code = joinLines(n);
-          editor.tf.replaceNodes(
-            { type: "mermaid", code, children: [{ text: "" }] },
-            { at: [i] },
-          );
-        }
-      }
+      runMermaidFenceConversion(editor as unknown as MermaidFenceEditorShape);
     },
   },
 });
