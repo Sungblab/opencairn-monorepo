@@ -23,9 +23,13 @@
     "loadFailed": "그래프를 불러오지 못했습니다.",
     "tooManyHops": "이웃 펼치기 단계는 최대 3까지 가능합니다.",
     "forbidden": "이 프로젝트에 접근 권한이 없습니다.",
-    "visualizeFailed": "AI 시각화에 실패했습니다. 다시 시도해주세요.",
-    "concurrent-visualize": "이미 다른 시각화 요청이 진행 중입니다. 잠시 후 다시 시도해주세요.",
-    "agent_did_not_emit_view_spec": "AI가 적합한 보기를 만들지 못했습니다. 프롬프트를 다시 작성해주세요."
+    "notFound": "찾을 수 없는 개념입니다.",
+    "visualizeFailed": "AI 뷰 생성에 실패했습니다.",
+    "visualizeTimeout": "AI 뷰 생성 시간이 초과되었습니다. 다시 시도해주세요.",
+    "concurrent-visualize": "이미 진행 중인 AI 뷰 생성이 있습니다.",
+    "promptTooLong": "요청은 500자 이내로 작성해주세요.",
+    "missingRoot": "이 뷰는 중심 개념이 필요합니다.",
+    "agent_did_not_emit_view_spec": "AI 뷰 생성에 실패했습니다."
   },
   "views": {
     "graph": "그래프",
@@ -33,29 +37,29 @@
     "cards": "카드",
     "timeline": "타임라인",
     "board": "보드",
-    "switcherAria": "보기 선택",
-    "needsRoot": "마인드맵을 보려면 시작 개념을 선택하세요",
-    "noConcepts": "이 프로젝트에 아직 개념이 없습니다"
+    "switcherAria": "뷰 전환",
+    "needsRoot": "이 뷰는 중심 개념이 필요합니다. 검색에서 개념을 선택하거나 'AI로 만들기'를 사용하세요.",
+    "noConcepts": "이 프로젝트에는 아직 개념이 없습니다."
   },
   "ai": {
-    "trigger": "AI로 그리기",
-    "dialogTitle": "AI로 그래프 그리기",
-    "promptPlaceholder": "어떻게 시각화할까요? 예: 트랜스포머 개념을 마인드맵으로 보여줘",
-    "submit": "AI로 그리기",
+    "trigger": "AI로 만들기",
+    "dialogTitle": "AI로 뷰 만들기",
+    "promptPlaceholder": "예) 트랜스포머 주제로 마인드맵, 딥러닝 역사 타임라인…",
+    "submit": "생성하기",
     "submitting": "생성 중…",
     "cancel": "취소",
-    "viewTypeLabel": "보기 유형",
+    "viewTypeLabel": "뷰 유형",
     "viewTypeAuto": "자동",
     "viewType_graph": "그래프",
     "viewType_mindmap": "마인드맵",
     "viewType_cards": "카드",
     "viewType_timeline": "타임라인",
     "viewType_board": "보드",
+    "rationale": "AI 추천 근거",
     "progress": {
-      "search_concepts": "개념 검색",
-      "get_neighbors": "이웃 조회",
-      "filter_concepts": "개념 필터링",
-      "build_view_spec": "보기 구성"
+      "search_concepts": "개념 검색 중…",
+      "get_concept_graph": "관계 가져오는 중…",
+      "emit_structured_output": "뷰 구성 중…"
     }
   }
 }

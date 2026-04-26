@@ -20,12 +20,16 @@
     "body": "Concepts will appear here automatically as notes are ingested."
   },
   "errors": {
-    "loadFailed": "Failed to load the graph.",
-    "tooManyHops": "Neighbor expansion supports at most 3 hops.",
+    "loadFailed": "Failed to load graph.",
+    "tooManyHops": "Neighbor expansion is capped at 3 hops.",
     "forbidden": "You don't have access to this project.",
-    "visualizeFailed": "AI visualization failed. Please try again.",
-    "concurrent-visualize": "Another visualization request is already running. Try again in a moment.",
-    "agent_did_not_emit_view_spec": "The AI couldn't build a suitable view. Try rewording your prompt."
+    "notFound": "Concept not found.",
+    "visualizeFailed": "AI view generation failed.",
+    "visualizeTimeout": "AI view generation timed out. Please try again.",
+    "concurrent-visualize": "An AI view generation is already in progress.",
+    "promptTooLong": "Request must be 500 characters or fewer.",
+    "missingRoot": "This view needs a focus concept.",
+    "agent_did_not_emit_view_spec": "AI view generation failed."
   },
   "views": {
     "graph": "Graph",
@@ -33,15 +37,15 @@
     "cards": "Cards",
     "timeline": "Timeline",
     "board": "Board",
-    "switcherAria": "Choose view",
-    "needsRoot": "Pick a starting concept to render the mindmap",
-    "noConcepts": "No concepts in this project yet"
+    "switcherAria": "Switch view",
+    "needsRoot": "This view needs a focus concept. Pick one from search or use 'Generate with AI'.",
+    "noConcepts": "This project has no concepts yet."
   },
   "ai": {
-    "trigger": "Draw with AI",
-    "dialogTitle": "Draw graph with AI",
-    "promptPlaceholder": "How should we visualize this? e.g. show the transformer concepts as a mindmap",
-    "submit": "Draw with AI",
+    "trigger": "Generate with AI",
+    "dialogTitle": "Generate a view with AI",
+    "promptPlaceholder": "e.g. transformer mindmap, history of deep learning timeline…",
+    "submit": "Generate",
     "submitting": "Generating…",
     "cancel": "Cancel",
     "viewTypeLabel": "View type",
@@ -51,11 +55,11 @@
     "viewType_cards": "Cards",
     "viewType_timeline": "Timeline",
     "viewType_board": "Board",
+    "rationale": "Why this view",
     "progress": {
-      "search_concepts": "Search concepts",
-      "get_neighbors": "Fetch neighbors",
-      "filter_concepts": "Filter concepts",
-      "build_view_spec": "Build view"
+      "search_concepts": "Searching concepts…",
+      "get_concept_graph": "Fetching relations…",
+      "emit_structured_output": "Composing the view…"
     }
   }
 }
