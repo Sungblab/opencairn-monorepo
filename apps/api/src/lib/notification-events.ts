@@ -7,6 +7,17 @@
 // In-process only — fine for the single-process Hono deployment today.
 // Multi-process scale-out would need Postgres LISTEN/NOTIFY or a queue.
 // Mirrors the convention in lib/tree-events.ts.
+//
+// Payload shape per kind (all kinds share `summary: string` for the
+// drawer's fallback renderer):
+//   mention            { summary, noteId, commentId, fromUserId }
+//   comment_reply      { summary, noteId, commentId, parentCommentId, fromUserId }
+//   share_invite       { summary, noteId, noteTitle, role, fromUserId }
+//   research_complete  { summary, runId, noteId, projectId, topic }
+//   system             { summary, level: 'info'|'warning', linkUrl? }   (wiring TBD — Super Admin)
+//
+// Self-notification rule: every publisher MUST skip when the target user
+// equals the actor (mirrors comments.ts mention fan-out).
 
 import { EventEmitter } from "node:events";
 import { db, notifications, type Notification } from "@opencairn/db";
