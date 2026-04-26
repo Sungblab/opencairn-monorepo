@@ -190,6 +190,64 @@ Research/Code Agent가 차트·컴포넌트 생성 결정
   |  - Agent가 self-healing 반복 (max 3 iteration)
 ```
 
+### 4.1 Code Agent flow (Plan 7 Phase 2)
+
+`/api/code/*` + `CodeAgentWorkflow`. Browser ↔ apps/api SSE 폴 + apps/worker Temporal signal-driven loop.
+
+```
+Browser (CanvasViewer + CodeAgentPanel)
+   │  POST /api/code/run {noteId, prompt, language}
+   ▼
+apps/api  ──→  insert code_runs row  ──→  client.workflow.start("CodeAgentWorkflow")
+   │
+   │  return {runId}
+   ▼
+Browser opens GET /api/code/runs/:runId/stream  (SSE)
+   │
+apps/api SSE poll loop  ←──────────────  apps/worker
+   │  reads code_runs.status                  │  CodeAgentWorkflow:
+   │  reads code_turns                        │    1. generate_code_activity
+   │                                          │       ├─ resolve_llm_provider("chat")
+   │                                          │       ├─ CodeAgent.run(generate)
+   │                                          │       ├─ POST /api/internal/code/turns
+   │                                          │       └─ PATCH status=awaiting_feedback
+   │                                          │    2. wait_condition(feedback or cancel, 30min idle)
+   │                                          │    3. on signal{kind:"error"}:
+   │                                          │       analyze_feedback_activity
+   │                                          │       (loop max 3 fix turns)
+   │                                          │    4. terminal: completed / max_turns / cancelled / abandoned
+   │                                          │
+   ▼
+Browser receives turn_complete / awaiting_feedback / done events
+   │
+   │  user clicks Apply  →  setSource(turn.source)  →  PyodideRunner re-mounts
+   │
+   │  user clicks "AI 수정 요청" (error feedback)
+   ▼
+POST /api/code/feedback {runId, kind:"error", error}
+   ▼
+client.workflow.signal("client_feedback", ...)  →  workflow consumes signal, runs analyze_feedback_activity
+```
+
+Workflow `RetryPolicy(maximum_attempts=2)` + 1h `workflowExecutionTimeout`. SSE keep-alive comment frame every 2s so nginx/Cloudflare 60–100s idle drops don't kill long `awaiting_feedback` waits.
+
+### 4.2 Matplotlib output capture (Plan 7 Phase 2)
+
+```
+PyodideRunner runs user code with MPLBACKEND=Agg
+   ├─ collects plt.get_fignums() → base64 PNGs
+   └─ emits figures[] via onResult
+
+CanvasOutputsGallery (pendingFigures props)
+   └─ user clicks Save → POST /api/canvas/output (multipart, file + noteId + contentHash)
+                       → SHA-256 idempotent on (noteId, contentHash)
+                       → MinIO canvas-outputs/<workspaceId>/<noteId>/<hash>.{png|svg}
+                       → canvas_outputs row
+                       → urlPath: /api/canvas/outputs/:id/file
+```
+
+Concurrent first-write races protected by `canvas_outputs_note_hash_unique` UNIQUE — losers SELECT the existing row after `ON CONFLICT DO NOTHING`.
+
 ---
 
 ## 5. Background Agent Flow (자동화 에이전트)
