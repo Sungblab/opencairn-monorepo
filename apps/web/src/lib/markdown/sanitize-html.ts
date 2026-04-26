@@ -10,6 +10,10 @@ import DOMPurify from "isomorphic-dompurify";
 // for inline SVG and HTML embedded in agent responses) does. So we
 // sanitize the input string before it ever reaches the markdown
 // pipeline — defense in depth on top of `rehype-raw`'s own filter.
+//
+// Uses an explicit tag/attr whitelist (no USE_PROFILES) so the allowed
+// surface is auditable in this file alone — DOMPurify defaults add tags
+// we don't want.
 
 const ALLOWED_TAGS = [
   // GFM
@@ -47,6 +51,5 @@ export function sanitizeHtml(input: string): string {
     ALLOWED_TAGS,
     ALLOWED_ATTR: ALLOWED_ATTRS,
     ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|#|\/):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
-    USE_PROFILES: { svg: true, html: true },
   });
 }
