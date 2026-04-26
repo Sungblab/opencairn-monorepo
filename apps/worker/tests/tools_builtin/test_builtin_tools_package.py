@@ -3,7 +3,7 @@ from __future__ import annotations
 from worker.tools_builtin import BUILTIN_TOOLS
 
 
-def test_builtin_tools_has_six():
+def test_builtin_tools_has_seven():
     names = {t.name for t in BUILTIN_TOOLS}
     assert names == {
         "list_project_topics",
@@ -12,6 +12,7 @@ def test_builtin_tools_has_six():
         "read_note",
         "fetch_url",
         "emit_structured_output",
+        "get_concept_graph",
     }
 
 

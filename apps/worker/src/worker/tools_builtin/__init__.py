@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from .emit_structured_output import emit_structured_output
 from .fetch_url import fetch_url
+from .get_concept_graph import get_concept_graph
 from .list_project_topics import list_project_topics
 from .read_note import read_note
 from .search_concepts import search_concepts
@@ -24,12 +25,14 @@ BUILTIN_TOOLS: tuple = (
     read_note,
     fetch_url,
     emit_structured_output,
+    get_concept_graph,
 )
 
 __all__ = [
     "BUILTIN_TOOLS",
     "emit_structured_output",
     "fetch_url",
+    "get_concept_graph",
     "list_project_topics",
     "read_note",
     "search_concepts",
