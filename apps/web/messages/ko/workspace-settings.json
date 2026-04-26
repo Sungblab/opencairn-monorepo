@@ -1,0 +1,60 @@
+{
+  "title": "워크스페이스 설정",
+  "tabs": {
+    "members": "멤버",
+    "invites": "초대",
+    "integrations": "통합",
+    "sharedLinks": "공유 링크",
+    "trash": "휴지통"
+  },
+  "members": {
+    "heading": "멤버",
+    "headerName": "이름",
+    "headerEmail": "이메일",
+    "headerRole": "역할",
+    "headerActions": "",
+    "rolePlaceholder": "역할 선택",
+    "roleLabels": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "member": "Member",
+      "guest": "Guest"
+    },
+    "remove": "제거",
+    "ownerLocked": "Owner는 변경/제거할 수 없습니다.",
+    "empty": "멤버가 없습니다."
+  },
+  "invites": {
+    "heading": "초대",
+    "newEmailLabel": "이메일",
+    "newRoleLabel": "역할",
+    "send": "보내기",
+    "headerEmail": "이메일",
+    "headerRole": "역할",
+    "headerStatus": "상태",
+    "headerActions": "",
+    "statusPending": "대기",
+    "statusAccepted": "수락됨",
+    "statusExpired": "만료됨",
+    "cancel": "취소",
+    "empty": "보낸 초대가 없습니다."
+  },
+  "integrations": {
+    "heading": "통합",
+    "google": {
+      "name": "Google Drive",
+      "connected": "{email} 으로 연결됨",
+      "disconnected": "연결 안 됨",
+      "connect": "연결",
+      "disconnect": "연결 해제"
+    }
+  },
+  "sharedLinks": {
+    "heading": "공유 링크",
+    "stub": "공유 링크 API 합류 후 활성화됩니다."
+  },
+  "trash": {
+    "heading": "휴지통",
+    "stub": "휴지통 API 합류 후 활성화됩니다."
+  }
+}

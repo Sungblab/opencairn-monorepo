@@ -9,6 +9,7 @@ import {
   user,
   and,
   eq,
+  desc,
   isNull,
 } from "@opencairn/db";
 import { randomBytes } from "node:crypto";
@@ -169,3 +170,53 @@ inviteRoutes.post("/invites/:token/decline", async (c) => {
   await db.delete(workspaceInvites).where(eq(workspaceInvites.token, token));
   return c.json({ ok: true });
 });
+
+// App Shell Phase 5 Task 6 — workspace settings → invites 탭. 워크스페이스
+// 어드민이 발송했던 초대 전체 목록 (수락된 것까지) 을 created_at desc 로.
+// pending vs accepted 구분은 acceptedAt 컬럼으로 클라이언트에서 처리.
+inviteRoutes.get(
+  "/workspaces/:workspaceId/invites",
+  requireWorkspaceRole("admin"),
+  async (c) => {
+    const id = c.req.param("workspaceId");
+    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+    const rows = await db
+      .select({
+        id: workspaceInvites.id,
+        email: workspaceInvites.email,
+        role: workspaceInvites.role,
+        expiresAt: workspaceInvites.expiresAt,
+        acceptedAt: workspaceInvites.acceptedAt,
+        createdAt: workspaceInvites.createdAt,
+      })
+      .from(workspaceInvites)
+      .where(eq(workspaceInvites.workspaceId, id))
+      .orderBy(desc(workspaceInvites.createdAt));
+    return c.json(rows);
+  },
+);
+
+// App Shell Phase 5 Task 6 — invite 취소. workspaceId 를 path 에 명시해
+// 한 워크스페이스 admin 이 다른 워크스페이스 초대를 건드리지 못하게.
+// (internal-api workspaceId-scope 룰)
+inviteRoutes.delete(
+  "/workspaces/:workspaceId/invites/:inviteId",
+  requireWorkspaceRole("admin"),
+  async (c) => {
+    const { workspaceId, inviteId } = c.req.param();
+    if (!isUuid(workspaceId) || !isUuid(inviteId)) {
+      return c.json({ error: "Bad Request" }, 400);
+    }
+    const result = await db
+      .delete(workspaceInvites)
+      .where(
+        and(
+          eq(workspaceInvites.id, inviteId),
+          eq(workspaceInvites.workspaceId, workspaceId),
+        ),
+      )
+      .returning({ id: workspaceInvites.id });
+    if (result.length === 0) return c.json({ error: "Not found" }, 404);
+    return c.json({ ok: true });
+  },
+);

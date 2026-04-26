@@ -53,6 +53,46 @@ vi.mock("@/lib/pyodide-loader", () => ({
   loadPyodide: vi.fn(() => new Promise(() => {})), // never resolves — we only check the loading text
 }));
 
+// Stub MonacoEditor with a plain textarea so the existing role-based queries
+// (e.g. `findByRole("textbox")`) keep working without spinning up Monaco's
+// worker + DOM canvas in jsdom.
+vi.mock("@/components/canvas/MonacoEditor", () => ({
+  MonacoEditor: ({
+    value,
+    onChange,
+  }: {
+    value: string;
+    onChange: (v: string) => void;
+  }) => (
+    <textarea
+      data-testid="canvas-source"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  ),
+}));
+
+// Stub the SSE hook — the viewer now wires `useCodeAgentStream(currentRunId)`
+// for the agent panel. With no run started the panel reads the idle defaults.
+vi.mock("@/lib/use-code-agent-stream", () => ({
+  useCodeAgentStream: () => ({
+    status: "queued",
+    turns: [],
+    doneStatus: null,
+    errorCode: null,
+  }),
+}));
+
+// Stub the canvas outputs hook — the gallery only needs an empty list and
+// a no-op upload to render the empty state.
+vi.mock("@/lib/use-canvas-outputs", () => ({
+  useCanvasOutputs: () => ({
+    data: { outputs: [] },
+    upload: vi.fn(),
+    uploading: false,
+  }),
+}));
+
 const tab = {
   id: "t1",
   kind: "note",
@@ -88,12 +128,14 @@ describe("CanvasViewer", () => {
 
   it("textarea change → debounced 1.5s PATCH call", async () => {
     const { apiClient } = await import("@/lib/api-client");
-    const { findByRole } = render(wrap(<CanvasViewer tab={tab} />));
+    const { findByTestId } = render(wrap(<CanvasViewer tab={tab} />));
 
-    // Wait for the initial GET to resolve and the textarea to render under
-    // real timers (testing-library's findBy retry loop relies on real
+    // Wait for the initial GET to resolve and the editor textarea to render
+    // under real timers (testing-library's findBy retry loop relies on real
     // setTimeout, so we keep real timers until the element is visible).
-    const ta = (await findByRole("textbox")) as HTMLTextAreaElement;
+    // We target `canvas-source` specifically — the agent panel also renders
+    // a textarea, so a generic `findByRole("textbox")` would be ambiguous.
+    const ta = (await findByTestId("canvas-source")) as HTMLTextAreaElement;
 
     // Switch to fake timers ONLY for the debounce window so the 1.5s wait
     // collapses without burning real wallclock.

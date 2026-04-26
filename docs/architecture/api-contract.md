@@ -343,19 +343,32 @@ Cross-workspace 접근은 **404** (존재 은닉). 상태별 쓰기 금지는 `4
 - Yjs update 메시지는 CRDT protocol
 - Awareness 메시지로 presence 공유 (user, cursor)
 
-### Code Agent (브라우저 샌드박스)
+### Code Agent (Plan 7 Phase 2, feature-flag `FEATURE_CODE_AGENT`)
 
-| Method | Path | Auth | Description | Body |
-|--------|------|------|-------------|------|
-| POST | /api/code/run | Yes | Code Agent에게 코드 생성 요청 (실행 안 함) | `{ prompt, language: python\|javascript\|html\|react, context? }` |
-| POST | /api/code/feedback | Yes | 브라우저에서 실행 후 stdout/stderr 피드백 (self-healing 재생성용) | `{ workflowId, stdout, stderr, timedOut }` |
+Public — Better Auth 세션 + canvas note 소유자. `FEATURE_CODE_AGENT=false` 시 모든 경로 404.
 
-### Canvas Templates
+| Method | Path                              | Auth | Description / Body |
+|--------|-----------------------------------|------|--------------------|
+| POST   | /api/code/run                     | Yes  | Body: `{ noteId, prompt, language }` → `{ runId }`. 409 `notCanvas` (note `source_type` ≠ `canvas`) / `wrongLanguage` (note `canvas_language` 와 body `language` 불일치). Temporal `CodeAgentWorkflow` start. |
+| GET    | /api/code/runs/:runId/stream      | Yes  | SSE. Owner-only. `code_runs.status` + `code_turns` 폴링. Events: `queued` / `turn_complete` / `awaiting_feedback` / `done` / `error`. Keep-alive comment frames every 2s. |
+| POST   | /api/code/feedback                | Yes  | Body: `{ runId, kind: "error"\|"ok"\|"cancel", error?, stdout? }`. 409 `alreadyTerminal` if run 종료. Temporal `client_feedback` signal forward. |
 
-| Method | Path | Auth | Description | Body |
-|--------|------|------|-------------|------|
-| POST | /api/canvas/from-template | Yes | slides/mindmap/cheatsheet 템플릿 → React 컴포넌트 소스 생성 | `{ templateId, variables }` |
-| GET  | /api/canvas/sessions/:id | Yes | 저장된 canvas 세션 소스 조회 | — |
+Internal worker callbacks (`X-Internal-Secret`, `NODE_ENV !== "production"` 또는 secret 일치):
+
+| Method | Path                                       | Notes |
+|--------|--------------------------------------------|-------|
+| POST   | /api/internal/code/turns                   | Worker → API. Idempotent on `(run_id, seq)` UNIQUE. |
+| PATCH  | /api/internal/code/runs/:id/status         | Worker → API. 8-state allow-list (`queued`/`running`/`awaiting_feedback`/`completed`/`failed`/`cancelled`/`abandoned`/`max_turns`). |
+
+### Canvas (Plan 7 Phase 2)
+
+| Method | Path                            | Auth   | Description / Body |
+|--------|---------------------------------|--------|--------------------|
+| POST   | /api/canvas/from-template       | Yes    | 501 `templatesNotAvailable` until Plan 6 lands templates. (Reserved interface — `{ templateId, variables }`.) |
+| POST   | /api/canvas/output              | page `editor` | `multipart/form-data: file, noteId, contentHash`. ≤2MB png/svg, idempotent on `(noteId, contentHash)` via `canvas_outputs_note_hash_unique`. 413 `outputTooLarge` / 400 `outputBadType`. → MinIO `canvas-outputs/<workspaceId>/<noteId>/<contentHash>.{png\|svg}` + `canvas_outputs` row. |
+| GET    | /api/canvas/outputs?noteId=     | page `viewer` | List by `noteId` (DESC). |
+| GET    | /api/canvas/outputs/:id/file    | page `viewer` | Streams the binary from MinIO (`Content-Type` from row). |
+| GET    | /api/canvas/sessions/:id        | Yes    | (Reserved — Phase 3.) |
 
 ---
 

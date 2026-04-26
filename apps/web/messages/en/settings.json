@@ -1,0 +1,35 @@
+{
+  "ai": {
+    "title": "AI Settings",
+    "subtitle": "Manage the Gemini API key used for Deep Research.",
+    "byok": {
+      "heading": "Gemini API Key",
+      "description": "Deep Research calls Gemini directly with the key you register. Google bills your own Google Cloud account.",
+      "input_label": "API key",
+      "input_placeholder": "AIza…",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Key saved.",
+      "registered_label": "Registered key",
+      "last_updated": "Last updated",
+      "replace": "Replace",
+      "delete": "Delete",
+      "delete_confirm_title": "Delete this API key?",
+      "delete_confirm_body": "You'll need to register a new key before starting another research run.",
+      "delete_confirm_yes": "Delete",
+      "delete_confirm_no": "Cancel",
+      "deleting": "Deleting…",
+      "deleted": "Key deleted.",
+      "help_text": "You can generate a key in Google AI Studio.",
+      "loading": "Loading…",
+      "error": {
+        "wrong_prefix": "That doesn't look like a Gemini API key (it should start with AIza).",
+        "too_short": "Key is too short.",
+        "too_long": "Key is too long.",
+        "save_failed": "Couldn't save the key. Try again in a moment.",
+        "delete_failed": "Couldn't delete the key. Try again in a moment.",
+        "load_failed": "Couldn't load the key status. Try refreshing."
+      }
+    }
+  }
+}

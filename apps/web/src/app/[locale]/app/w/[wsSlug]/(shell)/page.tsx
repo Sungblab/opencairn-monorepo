@@ -1,11 +1,17 @@
-import { useTranslations } from "next-intl";
+import { apiClient } from "@/lib/api-client";
+import { DashboardView } from "@/components/views/dashboard/dashboard-view";
 
-export default function WorkspaceDashboard() {
-  const t = useTranslations("appShell.routes.dashboard");
-  return (
-    <div data-testid="route-dashboard" className="p-6">
-      <h1 className="text-2xl font-semibold">{t("heading")}</h1>
-      <p className="text-sm text-muted-foreground">{t("placeholder")}</p>
-    </div>
+// Replaces the Phase 1 placeholder with the real dashboard. We resolve the
+// workspace slug → id server-side so every card downstream works with a
+// stable uuid (matches Phase D's research hub pattern).
+export default async function WorkspaceDashboard({
+  params,
+}: {
+  params: Promise<{ wsSlug: string }>;
+}) {
+  const { wsSlug } = await params;
+  const ws = await apiClient<{ id: string }>(
+    `/workspaces/by-slug/${wsSlug}`,
   );
+  return <DashboardView wsSlug={wsSlug} wsId={ws.id} />;
 }

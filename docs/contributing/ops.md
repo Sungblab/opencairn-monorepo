@@ -101,3 +101,16 @@ python -m scripts.purge_embedding_jsonl --dry-run
 1. `worker/lib/batch_metrics.py` 의 `emit_event` 에 OTEL meter 호출 추가 (로그는 유지)
 2. `packages/llm/src/llm/embed_helper.py` 의 `_emit_fallback` 도 동일
 3. `opencairn_batch_embed_*` 이름은 Plan 3b §B4 에서 예약된 counter 네임으로 사용
+
+---
+
+## canvas_outputs ops (Plan 7 Phase 2)
+
+- **Bucket layout**: `canvas-outputs/<workspaceId>/<noteId>/<contentHash>.{png|svg}` in MinIO.
+- **Cleanup**: 30-day untouched-object cron deletion is **not yet implemented** — track as a Phase 3 follow-up (`scripts/purge_canvas_outputs.py`). Current behavior: outputs persist indefinitely.
+- **Monitoring**: object count / total bytes / upload failure rate via Grafana dashboard `canvas-outputs` (panel TBD).
+- **Idempotency**: SHA-256 collision on `(noteId, contentHash)` returns the existing row's id rather than re-uploading. Concurrent first-write races protected by the `canvas_outputs_note_hash_unique` UNIQUE index — losers get the existing row via the second SELECT after `ON CONFLICT DO NOTHING`.
+- **Size cap**: hard 2MB enforced at `bodyLimit` middleware AND post-parse `file.size` check (defense in depth) — 413 `outputTooLarge` on overflow.
+- **Mime allow-list**: `image/png`, `image/svg+xml` only — 400 `outputBadType` on others.
+- **Workflow `failed` status**: if `agent.run` raises and `set_run_status("failed")` itself raises, the original exception still propagates (best-effort status flip). Worst case: status remains `running` and the workflow's `RetryPolicy(maximum_attempts=2)` plus the 1-hour `workflowExecutionTimeout` bound the damage.
+- **SSE keep-alive**: every poll iteration sends either a data event or `: keepalive\n\n` comment frame, so proxies (nginx 60s, Cloudflare 100s defaults) won't drop long `awaiting_feedback` waits.

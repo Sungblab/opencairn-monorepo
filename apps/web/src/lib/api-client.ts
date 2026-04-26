@@ -21,10 +21,23 @@ export async function apiClient<T>(
   path: string,
   options?: RequestInit,
 ): Promise<T> {
+  // Multipart uploads (Plan 7 Canvas Phase 2 — `useCanvasOutputs.upload`) need
+  // the browser to set `Content-Type: multipart/form-data; boundary=...`. If
+  // we forced `application/json` here the server would lose the boundary and
+  // fail to parse the FormData. Detect FormData and skip the default header.
+  const isFormData =
+    typeof FormData !== "undefined" && options?.body instanceof FormData;
+  const baseHeaders: Record<string, string> = isFormData
+    ? {}
+    : { "Content-Type": "application/json" };
+
   const res = await fetch(`${baseUrl()}/api${path}`, {
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...options?.headers },
     ...options,
+    // Apply the merged headers AFTER the spread so caller-provided headers
+    // can still override but the JSON default isn't reintroduced when the
+    // body is FormData.
+    headers: { ...baseHeaders, ...options?.headers },
   });
 
   if (!res.ok) {
@@ -256,6 +269,219 @@ export const chatApi = {
         ...(reason ? { reason } : {}),
       }),
     }),
+};
+
+// ---------- Dashboard / workspace summary (Phase 5 Task 1) ----------
+// snake_case keys mirror the server contract — see workspaces.ts stats /
+// recent-notes routes. Kept verbatim so consumers can dump straight into
+// the JSX without an extra translation layer.
+
+export interface WorkspaceStats {
+  docs: number;
+  docs_week_delta: number;
+  research_in_progress: number;
+  /** KRW. 0 until Plan 9b billing engine ships. */
+  credits_krw: number;
+  byok_connected: boolean;
+}
+
+export interface RecentNoteSummary {
+  id: string;
+  title: string;
+  project_id: string;
+  project_name: string;
+  updated_at: string;
+}
+
+export interface ResearchRunSummary {
+  id: string;
+  topic: string;
+  model: string;
+  status:
+    | "planning"
+    | "awaiting_approval"
+    | "researching"
+    | "completed"
+    | "failed"
+    | "cancelled";
+  billingPath: "managed" | "byok";
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  totalCostUsdCents: number | null;
+  noteId: string | null;
+}
+
+export const dashboardApi = {
+  stats: (workspaceId: string) =>
+    apiClient<WorkspaceStats>(`/workspaces/${workspaceId}/stats`),
+  recentNotes: (workspaceId: string, limit = 5) =>
+    apiClient<{ notes: RecentNoteSummary[] }>(
+      `/workspaces/${workspaceId}/recent-notes?limit=${limit}`,
+    ),
+  researchRuns: (workspaceId: string, limit = 20) =>
+    apiClient<{ runs: ResearchRunSummary[] }>(
+      `/research/runs?workspaceId=${workspaceId}&limit=${limit}`,
+    ),
+};
+
+// ---------- Project view (Phase 5 Task 2) ----------
+
+export interface ProjectMeta {
+  id: string;
+  name: string;
+  description: string | null;
+  workspaceId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ProjectNoteKind = "imported" | "research" | "manual";
+
+export interface ProjectNoteRow {
+  id: string;
+  title: string;
+  kind: ProjectNoteKind;
+  updated_at: string;
+}
+
+export const projectsApi = {
+  get: (id: string) => apiClient<ProjectMeta>(`/projects/${id}`),
+  notes: (id: string, filter: "all" | ProjectNoteKind = "all") =>
+    apiClient<{ notes: ProjectNoteRow[] }>(
+      `/projects/${id}/notes?filter=${filter}`,
+    ),
+};
+
+// ---------- Workspace settings (Phase 5 Task 6) ----------
+
+export type WorkspaceRole = "owner" | "admin" | "member" | "guest";
+
+export interface WorkspaceMemberRow {
+  userId: string;
+  role: WorkspaceRole;
+  email: string;
+  name: string;
+}
+
+export interface WorkspaceInviteRow {
+  id: string;
+  email: string;
+  role: "admin" | "member" | "guest";
+  expiresAt: string;
+  acceptedAt: string | null;
+  createdAt: string;
+}
+
+export interface GoogleIntegrationStatus {
+  connected: boolean;
+  accountEmail: string | null;
+  scopes: string | null;
+}
+
+export const wsSettingsApi = {
+  members: (workspaceId: string) =>
+    apiClient<WorkspaceMemberRow[]>(`/workspaces/${workspaceId}/members`),
+  patchMemberRole: (
+    workspaceId: string,
+    userId: string,
+    role: "admin" | "member" | "guest",
+  ) =>
+    apiClient<{ ok: true }>(`/workspaces/${workspaceId}/members/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    }),
+  removeMember: (workspaceId: string, userId: string) =>
+    apiClient<{ ok: true }>(`/workspaces/${workspaceId}/members/${userId}`, {
+      method: "DELETE",
+    }),
+  invites: (workspaceId: string) =>
+    apiClient<WorkspaceInviteRow[]>(`/workspaces/${workspaceId}/invites`),
+  createInvite: (
+    workspaceId: string,
+    email: string,
+    role: "admin" | "member" | "guest" = "member",
+  ) =>
+    apiClient<{ id: string }>(`/workspaces/${workspaceId}/invites`, {
+      method: "POST",
+      body: JSON.stringify({ email, role }),
+    }),
+  cancelInvite: (workspaceId: string, inviteId: string) =>
+    apiClient<{ ok: true }>(
+      `/workspaces/${workspaceId}/invites/${inviteId}`,
+      { method: "DELETE" },
+    ),
+};
+
+export const integrationsApi = {
+  google: () => apiClient<GoogleIntegrationStatus>(`/integrations/google`),
+  disconnectGoogle: () =>
+    apiClient<{ ok: true }>(`/integrations/google`, { method: "DELETE" }),
+};
+
+// ---------- Account / current user (Phase 5 Task 7) ----------
+
+export interface MeProfile {
+  id: string;
+  email: string;
+  name: string;
+  image: string | null;
+  plan: "free" | "pro" | "byok";
+  /** Server returns null until locale/timezone columns ship. */
+  locale: string | null;
+  timezone: string | null;
+}
+
+export const meApi = {
+  get: () => apiClient<MeProfile>(`/users/me`),
+  patch: (body: { name?: string }) =>
+    apiClient<{ ok: true }>(`/users/me`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+};
+
+// ---------- Workspace text search (Phase 5 Task 8 / palette) ----------
+
+export interface WorkspaceNoteSearchHit {
+  id: string;
+  title: string;
+  project_id: string;
+  project_name: string;
+  updated_at: string;
+}
+
+export const searchApi = {
+  workspaceNotes: (workspaceId: string, q: string, limit = 20) =>
+    apiClient<{ results: WorkspaceNoteSearchHit[] }>(
+      `/workspaces/${workspaceId}/notes/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+    ),
+};
+
+// ---------- Notifications drawer (Phase 5 Task 10) ----------
+
+export type NotificationKind =
+  | "mention"
+  | "comment_reply"
+  | "research_complete"
+  | "share_invite"
+  | "system";
+
+export interface NotificationRow {
+  id: string;
+  userId: string;
+  kind: NotificationKind;
+  payload: Record<string, unknown>;
+  created_at: string;
+  seen_at: string | null;
+  read_at: string | null;
+}
+
+export const notificationsApi = {
+  list: () =>
+    apiClient<{ notifications: NotificationRow[] }>(`/notifications`),
+  markRead: (id: string) =>
+    apiClient<{ ok: true }>(`/notifications/${id}/read`, { method: "PATCH" }),
 };
 
 export const api = {

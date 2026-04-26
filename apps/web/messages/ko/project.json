@@ -1,0 +1,29 @@
+{
+  "metaRow": {
+    "pageCount": "{n}개 문서",
+    "lastActivity": "마지막 활동 {at}",
+    "lastActivityNever": "활동 없음"
+  },
+  "actions": {
+    "newDoc": "새 문서",
+    "import": "가져오기",
+    "research": "Deep Research 시작"
+  },
+  "tabs": {
+    "all": "전체",
+    "imported": "임포트",
+    "research": "Deep Research",
+    "manual": "직접 작성"
+  },
+  "table": {
+    "headerTitle": "제목",
+    "headerKind": "유형",
+    "headerUpdated": "업데이트",
+    "kindLabels": {
+      "imported": "임포트",
+      "research": "Deep Research",
+      "manual": "직접 작성"
+    },
+    "empty": "표시할 노트가 없습니다."
+  }
+}

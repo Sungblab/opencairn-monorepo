@@ -18,12 +18,15 @@ import { mentionsRouter } from "./routes/mentions";
 import { integrationsRouter } from "./routes/integrations";
 import { importRouter } from "./routes/import";
 import { researchRouter } from "./routes/research";
+import { codeRoutes } from "./routes/code";
+import { canvasRoutes } from "./routes/canvas";
 import { threadRoutes } from "./routes/threads";
 import { messageFeedbackRoutes } from "./routes/message-feedback";
 import { userRoutes } from "./routes/users";
 import { streamRoutes } from "./routes/stream";
 import { graphRoutes } from "./routes/graph";
 import { visualizeRouter } from "./routes/visualize";
+import { notificationRoutes } from "./routes/notifications";
 
 export function createApp() {
   const app = new Hono();
@@ -75,8 +78,11 @@ export function createApp() {
   app.route("/api/ingest", ingestRoutes);
   app.route("/api/research", researchRouter);
   app.route("/api/visualize", visualizeRouter);
+  app.route("/api/code", codeRoutes);
+  app.route("/api/canvas", canvasRoutes);
   app.route("/api/users", userRoutes);
-  app.route("/api/stream", streamRoutes);  // SSE: project tree (Phase 2)
+  app.route("/api/notifications", notificationRoutes);
+  app.route("/api/stream", streamRoutes);  // SSE: project tree (Phase 2) + notifications (Phase 5)
   app.route("/api", commentsRouter);  // /api/notes/:noteId/comments (Plan 2B)
   app.route("/api", mentionsRouter);  // /api/mentions/search (Plan 2B)
 

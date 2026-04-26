@@ -1,0 +1,29 @@
+{
+  "metaRow": {
+    "pageCount": "{n} documents",
+    "lastActivity": "Last active {at}",
+    "lastActivityNever": "No activity yet"
+  },
+  "actions": {
+    "newDoc": "New document",
+    "import": "Import",
+    "research": "Start Deep Research"
+  },
+  "tabs": {
+    "all": "All",
+    "imported": "Imported",
+    "research": "Deep Research",
+    "manual": "Authored"
+  },
+  "table": {
+    "headerTitle": "Title",
+    "headerKind": "Kind",
+    "headerUpdated": "Updated",
+    "kindLabels": {
+      "imported": "Imported",
+      "research": "Deep Research",
+      "manual": "Authored"
+    },
+    "empty": "No notes to show."
+  }
+}
