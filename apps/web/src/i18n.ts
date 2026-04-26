@@ -38,6 +38,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
     notifications,
     settings,
     publicShare,
+    shareDialog,
   ] = await Promise.all([
     import(`../messages/${locale}/common.json`).then((m) => m.default),
     import(`../messages/${locale}/landing.json`).then((m) => m.default),
@@ -63,6 +64,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
     import(`../messages/${locale}/notifications.json`).then((m) => m.default),
     import(`../messages/${locale}/settings.json`).then((m) => m.default),
     import(`../messages/${locale}/public-share.json`).then((m) => m.default),
+    import(`../messages/${locale}/share-dialog.json`).then((m) => m.default),
   ]);
 
   return {
@@ -90,6 +92,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
       notifications,
       settings,
       publicShare,
+      shareDialog,
     },
   };
 });
