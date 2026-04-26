@@ -20,8 +20,46 @@
     "body": "Concepts will appear here automatically as notes are ingested."
   },
   "errors": {
-    "loadFailed": "Failed to load the graph.",
-    "tooManyHops": "Neighbor expansion supports at most 3 hops.",
-    "forbidden": "You don't have access to this project."
+    "loadFailed": "Failed to load graph.",
+    "tooManyHops": "Neighbor expansion is capped at 3 hops.",
+    "forbidden": "You don't have access to this project.",
+    "notFound": "Concept not found.",
+    "visualizeFailed": "AI view generation failed.",
+    "visualizeTimeout": "AI view generation timed out. Please try again.",
+    "concurrent-visualize": "An AI view generation is already in progress.",
+    "promptTooLong": "Request must be 500 characters or fewer.",
+    "missingRoot": "This view needs a focus concept.",
+    "agent_did_not_emit_view_spec": "AI view generation failed."
+  },
+  "views": {
+    "graph": "Graph",
+    "mindmap": "Mindmap",
+    "cards": "Cards",
+    "timeline": "Timeline",
+    "board": "Board",
+    "switcherAria": "Switch view",
+    "needsRoot": "This view needs a focus concept. Pick one from search or use 'Generate with AI'.",
+    "noConcepts": "This project has no concepts yet."
+  },
+  "ai": {
+    "trigger": "Generate with AI",
+    "dialogTitle": "Generate a view with AI",
+    "promptPlaceholder": "e.g. transformer mindmap, history of deep learning timeline…",
+    "submit": "Generate",
+    "submitting": "Generating…",
+    "cancel": "Cancel",
+    "viewTypeLabel": "View type",
+    "viewTypeAuto": "Auto",
+    "viewType_graph": "Graph",
+    "viewType_mindmap": "Mindmap",
+    "viewType_cards": "Cards",
+    "viewType_timeline": "Timeline",
+    "viewType_board": "Board",
+    "rationale": "Why this view",
+    "progress": {
+      "search_concepts": "Searching concepts…",
+      "get_concept_graph": "Fetching relations…",
+      "emit_structured_output": "Composing the view…"
+    }
   }
 }

@@ -25,6 +25,7 @@ import { messageFeedbackRoutes } from "./routes/message-feedback";
 import { userRoutes } from "./routes/users";
 import { streamRoutes } from "./routes/stream";
 import { graphRoutes } from "./routes/graph";
+import { visualizeRouter } from "./routes/visualize";
 import { notificationRoutes } from "./routes/notifications";
 
 export function createApp() {
@@ -76,6 +77,7 @@ export function createApp() {
   app.route("/api/notes", noteRoutes);
   app.route("/api/ingest", ingestRoutes);
   app.route("/api/research", researchRouter);
+  app.route("/api/visualize", visualizeRouter);
   app.route("/api/code", codeRoutes);
   app.route("/api/canvas", canvasRoutes);
   app.route("/api/users", userRoutes);

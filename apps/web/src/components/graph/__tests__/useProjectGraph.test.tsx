@@ -3,21 +3,40 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useProjectGraph } from "../useProjectGraph";
-import type { GraphResponse } from "@opencairn/shared";
+import { useViewStateStore } from "../view-state-store";
+import type { GraphViewResponse, ViewSpec } from "@opencairn/shared";
 
-const fixture: GraphResponse = {
+const fixture: GraphViewResponse = {
   nodes: [{ id: "n1", name: "Alpha", description: "", degree: 0, noteCount: 0, firstNoteId: null }],
   edges: [],
   truncated: false,
   totalConcepts: 1,
+  // Plan 5 Phase 2: server echoes the requested view + layout hint + rootId.
+  viewType: "graph",
+  layout: "fcose",
+  rootId: null,
 };
 
 function wrapper({ children }: { children: ReactNode }) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
 }
 
+// Builds a fresh provider per renderHook so cache state never leaks between tests.
+function wrap() {
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  });
+  return ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+  );
+}
+
 beforeEach(() => {
+  // Plan 5 Phase 2: clear inline ViewSpec store before each test so the
+  // priority-over-network rule isn't masked by leakage from a sibling case.
+  useViewStateStore.setState({ inline: {} });
+  vi.restoreAllMocks();
   vi.stubGlobal(
     "fetch",
     vi.fn(async () => new Response(JSON.stringify(fixture), { status: 200 })),
@@ -55,5 +74,66 @@ describe("useProjectGraph", () => {
     });
     await waitFor(() => expect(result.current.data?.nodes).toHaveLength(2));
     expect(result.current.data?.edges).toHaveLength(1);
+  });
+});
+
+describe("useProjectGraph view+root extension", () => {
+  it("includes ?view=mindmap&root=<id> in fetch URL", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({
+        viewType: "mindmap", layout: "dagre",
+        rootId: "11111111-1111-4111-8111-111111111111",
+        nodes: [], edges: [], truncated: false, totalConcepts: 0,
+      })),
+    );
+    const { result } = renderHook(
+      () => useProjectGraph("proj-1", {
+        view: "mindmap",
+        root: "11111111-1111-4111-8111-111111111111",
+      }),
+      { wrapper: wrap() },
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    const url = (fetchSpy.mock.calls[0]?.[0] as string) ?? "";
+    expect(url).toContain("view=mindmap");
+    expect(url).toContain("root=11111111-1111-4111-8111-111111111111");
+  });
+
+  it("uses inline ViewSpec from store when present, skips fetch", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const spec: ViewSpec = {
+      viewType: "mindmap",
+      layout: "dagre",
+      rootId: "11111111-1111-4111-8111-111111111111",
+      nodes: [{ id: "11111111-1111-4111-8111-111111111111", name: "x" }],
+      edges: [],
+    };
+    useViewStateStore.getState().setInline("proj-1", spec);
+    const { result } = renderHook(
+      () => useProjectGraph("proj-1", { view: "mindmap", root: spec.rootId! }),
+      { wrapper: wrap() },
+    );
+    await waitFor(() => expect(result.current.data).toBeTruthy());
+    expect(result.current.data?.nodes).toEqual(spec.nodes);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("query key includes view + root for cache separation", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({
+        viewType: "graph", layout: "fcose", rootId: null,
+        nodes: [], edges: [], truncated: false, totalConcepts: 0,
+      })),
+    );
+    const { result, rerender } = renderHook(
+      ({ view }: { view: "graph" | "mindmap" }) =>
+        useProjectGraph("proj-1", { view }),
+      { wrapper: wrap(), initialProps: { view: "graph" } },
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    rerender({ view: "mindmap" });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    // 2 fetches — separate cache keys per view.
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 });

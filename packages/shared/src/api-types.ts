@@ -125,12 +125,41 @@ export const graphEdgeSchema = z.object({
 });
 export type GraphEdge = z.infer<typeof graphEdgeSchema>;
 
+/**
+ * Plan 5 Phase 2: in-tab view types under the single `mode='graph'` tab.
+ * `graph` is the Phase 1 default and remains regression-zero.
+ */
+export const graphViewTypeSchema = z.enum([
+  "graph",
+  "mindmap",
+  "cards",
+  "timeline",
+  "board",
+]);
+export type GraphViewType = z.infer<typeof graphViewTypeSchema>;
+
+/** Server-suggested layout hint for the renderer (cytoscape-* algorithms). */
+export const graphLayoutSchema = z.enum(["fcose", "dagre", "preset"]);
+export type GraphLayout = z.infer<typeof graphLayoutSchema>;
+
 export const graphResponseSchema = z.object({
   nodes: z.array(graphNodeSchema),
   edges: z.array(graphEdgeSchema),
   /** True when totalConcepts > limit; UI shows a "narrow with filters" banner. */
   truncated: z.boolean(),
   totalConcepts: z.number().int().nonnegative(),
+  /**
+   * Echo of the requested `?view=` (defaults to `graph` for Phase 1 callers).
+   * Phase 1 clients ignore this field (super-set compatibility).
+   */
+  viewType: graphViewTypeSchema,
+  /** Layout hint for the client renderer. */
+  layout: graphLayoutSchema,
+  /**
+   * Echoed seed concept id for `view=mindmap|board`. `null` for the other
+   * three views and for `mindmap` against an empty project.
+   */
+  rootId: z.string().uuid().nullable(),
 });
 export type GraphResponse = z.infer<typeof graphResponseSchema>;
 
@@ -146,6 +175,18 @@ export const graphQuerySchema = z.object({
   limit: z.coerce.number().int().min(50).max(500).default(500),
   order: z.enum(["degree", "recent"]).default("degree"),
   relation: z.string().optional(),
+  /**
+   * Plan 5 Phase 2: in-tab view selector. `graph` (default) is regression-zero
+   * vs Phase 1 — same nodes/edges/truncated/totalConcepts shape, plus the
+   * `viewType`/`layout`/`rootId` echo fields appended.
+   */
+  view: graphViewTypeSchema.default("graph"),
+  /**
+   * Seed concept id for `view=mindmap|board`. For `mindmap` it is auto-selected
+   * (highest-degree concept in the project) when omitted. Ignored by
+   * `view=graph|cards|timeline`.
+   */
+  root: z.string().uuid().optional(),
 });
 export const graphExpandQuerySchema = z.object({
   hops: z.coerce.number().int().min(1).max(3).default(1),
@@ -167,3 +208,50 @@ export const backlinksResponseSchema = z.object({
   total: z.number().int().nonnegative(),
 });
 export type BacklinksResponse = z.infer<typeof backlinksResponseSchema>;
+
+// ─── Plan 5 Phase 2: ViewSpec ────────────────────────────────────────
+
+export const ViewType = z.enum([
+  "graph", "mindmap", "cards", "timeline", "board",
+]);
+export type ViewType = z.infer<typeof ViewType>;
+
+export const ViewLayout = z.enum(["fcose", "dagre", "preset", "cose-bilkent"]);
+export type ViewLayout = z.infer<typeof ViewLayout>;
+
+export const ViewNode = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1),
+  description: z.string().optional(),
+  degree: z.number().int().min(0).optional(),
+  noteCount: z.number().int().min(0).optional(),
+  firstNoteId: z.string().uuid().nullable().optional(),
+  eventYear: z.number().int().min(-3000).max(3000).optional(),
+  position: z.object({ x: z.number(), y: z.number() }).optional(),
+});
+export type ViewNode = z.infer<typeof ViewNode>;
+
+export const ViewEdge = z.object({
+  id: z.string().uuid().optional(),
+  sourceId: z.string().uuid(),
+  targetId: z.string().uuid(),
+  relationType: z.string(),
+  weight: z.number().min(0).max(1),
+});
+export type ViewEdge = z.infer<typeof ViewEdge>;
+
+export const ViewSpec = z.object({
+  viewType: ViewType,
+  layout: ViewLayout,
+  rootId: z.string().uuid().nullable(),
+  nodes: z.array(ViewNode).max(500),
+  edges: z.array(ViewEdge).max(2000),
+  rationale: z.string().max(200).optional(),
+});
+export type ViewSpec = z.infer<typeof ViewSpec>;
+
+export const GraphViewResponse = ViewSpec.extend({
+  truncated: z.boolean(),
+  totalConcepts: z.number().int().min(0),
+});
+export type GraphViewResponse = z.infer<typeof GraphViewResponse>;

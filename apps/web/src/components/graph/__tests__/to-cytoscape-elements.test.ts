@@ -10,6 +10,12 @@ const seed: GraphSnapshot = {
   edges: [{ id: "e1", sourceId: "n1", targetId: "n2", relationType: "is-a", weight: 1 }],
   truncated: false,
   totalConcepts: 2,
+  // Plan 5 Phase 2: GraphSnapshot is now `GraphViewResponse` (ViewSpec +
+  // truncated/totalConcepts). Default-view fixture mirrors what the server
+  // returns for `?view=graph` so toCytoscapeElements stays the unit under test.
+  viewType: "graph",
+  layout: "fcose",
+  rootId: null,
 };
 
 describe("toCytoscapeElements", () => {

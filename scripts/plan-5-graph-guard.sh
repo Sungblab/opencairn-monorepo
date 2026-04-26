@@ -31,7 +31,7 @@ cd "$REPO_ROOT"
 FAIL=0
 
 echo "[plan-5-guard] checking cytoscape version pins in apps/web/package.json..."
-if grep -nE '"cytoscape(-fcose)?"\s*:\s*"(latest|\*)"' apps/web/package.json 2>/dev/null; then
+if grep -nE '"cytoscape(-fcose|-dagre)?"\s*:\s*"(latest|\*)"' apps/web/package.json 2>/dev/null; then
   echo "  FAIL: cytoscape package pinned to latest/* — pin to ^x.y or x.y.z"
   FAIL=1
 fi
@@ -57,6 +57,52 @@ echo "[plan-5-guard] checking ProjectGraph SSR safety (no top-level react-cytosc
 if grep -nE '^[[:space:]]*import[[:space:]]+[^t][^y][^p][^e]?[^"]*from[[:space:]]+"react-cytoscapejs"' \
      apps/web/src/components/graph/ProjectGraph.tsx 2>/dev/null; then
   echo "  FAIL: top-level static import of react-cytoscapejs — must use dynamic() with ssr:false"
+  FAIL=1
+fi
+
+# ─── Plan 5 Phase 2 guards ──────────────────────────────────────────────
+#
+# 4. ViewSpec MUST be registered in SCHEMA_REGISTRY. The terminal path of
+#    VisualizationAgent calls emit_structured_output(schema_name="ViewSpec",
+#    data=...); if the registration disappears (e.g. an import-side-effect
+#    refactor), the agent loop runs to max-steps and the SSE stream never
+#    emits `event: view_spec`.
+#
+# 5. SSE event tokens (`view_spec`, `tool_use`, `done`) MUST exist in the
+#    /api/visualize bridge. The web client (useVisualizeMutation) parses
+#    these by exact string match — silently dropping a token would freeze
+#    the dialog progress feed without any error.
+#
+# 6. ViewType enum in @opencairn/shared MUST list all 5 view names
+#    (graph, mindmap, cards, timeline, board) on the same line. The
+#    UI ViewSwitcher + worker-side prompt rely on the full set; dropping
+#    one would silently 400 every visualize request that targets it.
+
+echo "[plan-5-guard] checking ViewSpec SCHEMA_REGISTRY registration..."
+if ! grep -q 'register_schema("ViewSpec"' \
+     apps/worker/src/worker/tools_builtin/view_spec_schema.py 2>/dev/null; then
+  echo "  FAIL: ViewSpec is not registered in SCHEMA_REGISTRY — VisualizationAgent terminal path broken"
+  FAIL=1
+fi
+
+echo "[plan-5-guard] checking SSE event tokens in temporal-visualize bridge..."
+if ! grep -q "event: view_spec" apps/api/src/lib/temporal-visualize.ts 2>/dev/null; then
+  echo "  FAIL: 'event: view_spec' SSE token missing — client never receives terminal payload"
+  FAIL=1
+fi
+if ! grep -q "event: tool_use" apps/api/src/lib/temporal-visualize.ts 2>/dev/null; then
+  echo "  FAIL: 'event: tool_use' SSE token missing — VisualizeProgress feed silently freezes"
+  FAIL=1
+fi
+if ! grep -q "event: done" apps/api/src/lib/temporal-visualize.ts 2>/dev/null; then
+  echo "  FAIL: 'event: done' SSE token missing — client connection never closes cleanly"
+  FAIL=1
+fi
+
+echo "[plan-5-guard] checking ViewType enum has all 5 view names..."
+if ! grep -qE 'graph.*mindmap.*cards.*timeline.*board' \
+     packages/shared/src/api-types.ts 2>/dev/null; then
+  echo "  FAIL: ViewType enum missing one of {graph, mindmap, cards, timeline, board}"
   FAIL=1
 fi
 

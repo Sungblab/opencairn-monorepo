@@ -4,13 +4,33 @@ import { db, concepts, eq, and, sql } from "@opencairn/db";
 import {
   graphQuerySchema,
   type GraphResponse,
+  type GraphLayout,
   graphExpandQuerySchema,
   type GraphExpandResponse,
 } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
 import { canRead } from "../lib/permissions";
 import { isUuid } from "../lib/validators";
+import { expandFromConcept } from "../lib/expand-graph";
+import {
+  selectGraphView,
+  selectMindmapBfs,
+  selectMaxDegreeConcept,
+  selectConceptsByRecency,
+  selectConceptsByCreatedAsc,
+  selectOneHopNeighborhood,
+  projectOwnsConcept,
+} from "../lib/graph-views";
 import type { AppEnv } from "../lib/types";
+
+// Plan 5 Phase 2 view caps (mirrored in the design spec §4.1 table). Edge
+// caps for cards/timeline are 0 because those views do not render edges.
+const MINDMAP_DEPTH = 3;
+const MINDMAP_PER_PARENT_CAP = 8;
+const MINDMAP_TOTAL_CAP = 50;
+const CARDS_LIMIT = 80;
+const TIMELINE_LIMIT = 50;
+const BOARD_CAP = 200;
 
 // concept_edges / concept_notes / notes are referenced via raw SQL string
 // literals in db.execute() calls below; only `concepts` needs a Drizzle
@@ -29,99 +49,148 @@ export const graphRoutes = new Hono<AppEnv>()
       if (!(await canRead(user.id, { type: "project", id: projectId }))) {
         return c.json({ error: "forbidden" }, 403);
       }
-      const { limit, order, relation } = c.req.valid("query");
+      const { limit, order, relation, view, root } = c.req.valid("query");
 
-      // Total concepts for the truncated banner.
+      // Total concepts is shared across all views — drives `truncated` for
+      // graph/board/mindmap and is echoed for cards/timeline so the client
+      // can show "showing N of M" copy.
       const [{ total }] = await db
         .select({ total: sql<number>`count(*)::int` })
         .from(concepts)
         .where(eq(concepts.projectId, projectId));
 
-      // Top-N concepts. Degree = inbound + outbound edges (cross apply
-      // concept_edges twice). For "recent" we just sort by created_at desc.
-      const orderClause =
-        order === "recent"
-          ? sql`c.created_at DESC`
-          : sql`(SELECT count(*)::int
-                 FROM concept_edges e
-                 WHERE e.source_id = c.id OR e.target_id = c.id) DESC,
-                c.name ASC`;
-
-      // For each concept: id, name, description, degree, noteCount, firstNoteId.
-      // firstNoteId = LEFT JOIN concept_notes ORDER BY notes.created_at LIMIT 1.
-      type NodeRow = {
-        id: string;
-        name: string;
-        description: string | null;
-        degree: number;
-        note_count: number;
-        first_note_id: string | null;
-      };
-      const nodeRaw = await db.execute(sql`
-        SELECT
-          c.id,
-          c.name,
-          c.description,
-          (SELECT count(*)::int FROM concept_edges e
-            WHERE e.source_id = c.id OR e.target_id = c.id) AS degree,
-          (SELECT count(*)::int FROM concept_notes cn
-            WHERE cn.concept_id = c.id) AS note_count,
-          (SELECT cn.note_id FROM concept_notes cn
-            JOIN notes n ON n.id = cn.note_id
-            WHERE cn.concept_id = c.id AND n.deleted_at IS NULL
-            ORDER BY n.created_at ASC LIMIT 1) AS first_note_id
-        FROM concepts c
-        WHERE c.project_id = ${projectId}
-        ORDER BY ${orderClause}
-        LIMIT ${limit}
-      `);
-      const nodeRows = (
-        (nodeRaw as unknown as { rows: NodeRow[] }).rows ??
-        (nodeRaw as unknown as NodeRow[])
-      );
-
-      type EdgeRow = { id: string; source_id: string; target_id: string; relation_type: string; weight: number };
-      const nodeIds = nodeRows.map((r) => r.id);
-      let edgeRows: EdgeRow[] = [];
-      if (nodeIds.length > 0) {
-        const idArr = sql.join(
-          nodeIds.map((id) => sql`${id}::uuid`),
-          sql`, `,
-        );
-        const relationFilter = relation ? sql`AND e.relation_type = ${relation}` : sql``;
-        const edgeRaw = await db.execute(sql`
-          SELECT e.id, e.source_id, e.target_id, e.relation_type, e.weight
-          FROM concept_edges e
-          WHERE e.source_id = ANY(ARRAY[${idArr}])
-            AND e.target_id = ANY(ARRAY[${idArr}])
-            ${relationFilter}
-        `);
-        edgeRows = (
-          (edgeRaw as unknown as { rows: EdgeRow[] }).rows ??
-          (edgeRaw as unknown as EdgeRow[])
-        );
+      // ─── view dispatch ────────────────────────────────────────────────
+      // The `view=graph` branch is regression-zero against Phase 1. Other
+      // branches reuse the `selectGraphView` -> nodes/edges fetch helpers
+      // and only diverge in their selection strategy + layout hint.
+      let payload: GraphResponse;
+      if (view === "graph") {
+        const { nodes, edges } = await selectGraphView({
+          projectId,
+          limit,
+          order,
+          relation,
+        });
+        payload = {
+          nodes,
+          edges,
+          truncated: total > limit,
+          totalConcepts: total,
+          viewType: "graph",
+          layout: "fcose",
+          rootId: null,
+        };
+      } else if (view === "mindmap") {
+        // root validation: explicit root must belong to the path project
+        // (resource scope leak guard). Auto-select max-degree concept when
+        // omitted; null result means the project has zero concepts and the
+        // empty-tree branch below applies.
+        let rootId: string | null = null;
+        if (root) {
+          if (!(await projectOwnsConcept(projectId, root))) {
+            return c.json({ error: "not-found" }, 404);
+          }
+          rootId = root;
+        } else {
+          rootId = await selectMaxDegreeConcept(projectId);
+        }
+        if (!rootId) {
+          payload = {
+            nodes: [],
+            edges: [],
+            truncated: false,
+            totalConcepts: total,
+            viewType: "mindmap",
+            layout: "dagre",
+            rootId: null,
+          };
+        } else {
+          const { nodes, edges } = await selectMindmapBfs({
+            projectId,
+            rootId,
+            depth: MINDMAP_DEPTH,
+            perParentCap: MINDMAP_PER_PARENT_CAP,
+            totalCap: MINDMAP_TOTAL_CAP,
+          });
+          payload = {
+            nodes,
+            edges,
+            truncated: total > nodes.length,
+            totalConcepts: total,
+            viewType: "mindmap",
+            layout: "dagre",
+            rootId,
+          };
+        }
+      } else if (view === "cards") {
+        const nodes = await selectConceptsByRecency({
+          projectId,
+          limit: CARDS_LIMIT,
+        });
+        payload = {
+          nodes,
+          edges: [],
+          truncated: total > CARDS_LIMIT,
+          totalConcepts: total,
+          viewType: "cards",
+          layout: "preset",
+          rootId: null,
+        };
+      } else if (view === "timeline") {
+        const nodes = await selectConceptsByCreatedAsc({
+          projectId,
+          limit: TIMELINE_LIMIT,
+        });
+        payload = {
+          nodes,
+          edges: [],
+          truncated: total > TIMELINE_LIMIT,
+          totalConcepts: total,
+          viewType: "timeline",
+          layout: "preset",
+          rootId: null,
+        };
+      } else {
+        // view === "board"
+        // root is optional. With a root: 1-hop neighborhood. Without:
+        // top-N by degree (board falls back to the Phase 1 graph fetch with
+        // a 200-node cap, edges among the chosen nodes only).
+        let rootId: string | null = null;
+        let nodes;
+        let edges;
+        if (root) {
+          if (!(await projectOwnsConcept(projectId, root))) {
+            return c.json({ error: "not-found" }, 404);
+          }
+          rootId = root;
+          ({ nodes, edges } = await selectOneHopNeighborhood({
+            projectId,
+            rootId,
+            cap: BOARD_CAP,
+          }));
+        } else {
+          ({ nodes, edges } = await selectGraphView({
+            projectId,
+            limit: Math.min(limit, BOARD_CAP),
+            order: "degree",
+            relation,
+          }));
+        }
+        payload = {
+          nodes,
+          edges,
+          truncated: total > nodes.length,
+          totalConcepts: total,
+          viewType: "board",
+          layout: "preset",
+          rootId,
+        };
       }
 
-      const body: GraphResponse = {
-        nodes: nodeRows.map((r) => ({
-          id: r.id,
-          name: r.name,
-          description: r.description ?? "",
-          degree: r.degree,
-          noteCount: r.note_count,
-          firstNoteId: r.first_note_id,
-        })),
-        edges: edgeRows.map((r) => ({
-          id: r.id,
-          sourceId: r.source_id,
-          targetId: r.target_id,
-          relationType: r.relation_type,
-          weight: Number(r.weight),
-        })),
-        truncated: total > limit,
-        totalConcepts: total,
-      };
-      return c.json(body);
+      // The `as GraphLayout` cast is a no-op runtime — keeps the literal
+      // unions narrowed for the response body type.
+      void (payload.layout satisfies GraphLayout);
+      return c.json(payload);
     },
   )
 
@@ -148,93 +217,14 @@ export const graphRoutes = new Hono<AppEnv>()
         .where(and(eq(concepts.id, conceptId), eq(concepts.projectId, projectId)));
       if (!seed) return c.json({ error: "not-found" }, 404);
 
-      // Recursive CTE: collect concept ids reachable within `hops` undirected
-      // steps. Cap result to 200 nodes to bound payload size.
-      type TraversalRow = { concept_id: string };
-      const traversalRaw = await db.execute(sql`
-        WITH RECURSIVE traversal AS (
-          SELECT ${conceptId}::uuid AS concept_id, 0 AS depth
-          UNION
-          SELECT
-            CASE WHEN e.source_id = t.concept_id THEN e.target_id
-                 ELSE e.source_id END AS concept_id,
-            t.depth + 1 AS depth
-          FROM traversal t
-          JOIN concept_edges e
-            ON e.source_id = t.concept_id OR e.target_id = t.concept_id
-          WHERE t.depth < ${hops}
-        )
-        SELECT DISTINCT concept_id FROM traversal LIMIT 200
-      `);
-      const conceptIds = (
-        (traversalRaw as unknown as { rows: TraversalRow[] }).rows ??
-        (traversalRaw as unknown as TraversalRow[])
-      ).map((r) => r.concept_id);
-      if (conceptIds.length === 0) return c.json({ nodes: [], edges: [] });
-
-      const idArr = sql.join(
-        conceptIds.map((id) => sql`${id}::uuid`),
-        sql`, `,
+      // BFS + node/edge fetch shared with the internal-only Plan 5 Phase 2
+      // route at /api/internal/projects/:id/graph/expand. See
+      // ../lib/expand-graph.ts.
+      const body: GraphExpandResponse = await expandFromConcept(
+        projectId,
+        conceptId,
+        hops,
       );
-
-      // Same node shape as /graph (degree + noteCount + firstNoteId).
-      type NodeRow = {
-        id: string;
-        name: string;
-        description: string | null;
-        degree: number;
-        note_count: number;
-        first_note_id: string | null;
-      };
-      const nodeRaw = await db.execute(sql`
-        SELECT
-          c.id, c.name, c.description,
-          (SELECT count(*)::int FROM concept_edges e
-            WHERE e.source_id = c.id OR e.target_id = c.id) AS degree,
-          (SELECT count(*)::int FROM concept_notes cn
-            WHERE cn.concept_id = c.id) AS note_count,
-          (SELECT cn.note_id FROM concept_notes cn
-            JOIN notes n ON n.id = cn.note_id
-            WHERE cn.concept_id = c.id AND n.deleted_at IS NULL
-            ORDER BY n.created_at ASC LIMIT 1) AS first_note_id
-        FROM concepts c
-        WHERE c.id = ANY(ARRAY[${idArr}])
-          AND c.project_id = ${projectId}
-      `);
-      const nodeRows = (
-        (nodeRaw as unknown as { rows: NodeRow[] }).rows ??
-        (nodeRaw as unknown as NodeRow[])
-      );
-
-      type EdgeRow = { id: string; source_id: string; target_id: string; relation_type: string; weight: number };
-      const edgeRaw = await db.execute(sql`
-        SELECT e.id, e.source_id, e.target_id, e.relation_type, e.weight
-        FROM concept_edges e
-        WHERE e.source_id = ANY(ARRAY[${idArr}])
-          AND e.target_id = ANY(ARRAY[${idArr}])
-      `);
-      const edgeRows = (
-        (edgeRaw as unknown as { rows: EdgeRow[] }).rows ??
-        (edgeRaw as unknown as EdgeRow[])
-      );
-
-      const body: GraphExpandResponse = {
-        nodes: nodeRows.map((r) => ({
-          id: r.id,
-          name: r.name,
-          description: r.description ?? "",
-          degree: r.degree,
-          noteCount: r.note_count,
-          firstNoteId: r.first_note_id,
-        })),
-        edges: edgeRows.map((r) => ({
-          id: r.id,
-          sourceId: r.source_id,
-          targetId: r.target_id,
-          relationType: r.relation_type,
-          weight: Number(r.weight),
-        })),
-      };
       return c.json(body);
     },
   );

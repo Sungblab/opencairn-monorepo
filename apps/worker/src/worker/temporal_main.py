@@ -54,6 +54,7 @@ from worker.activities.semaphore_activity import (
     release_project_semaphore,
 )
 from worker.activities.stt_activity import transcribe_audio
+from worker.activities.visualize_activity import build_view
 from worker.activities.web_activity import scrape_web_url
 from worker.activities.youtube_activity import ingest_youtube
 from worker.workflows.batch_embed_workflow import BatchEmbedWorkflow
@@ -63,6 +64,7 @@ from worker.workflows.import_workflow import ImportWorkflow
 from worker.workflows.ingest_workflow import IngestWorkflow
 from worker.workflows.librarian_workflow import LibrarianWorkflow
 from worker.workflows.research_workflow import ResearchWorkflow
+from worker.workflows.visualize_workflow import VisualizeWorkflow
 
 # Deep Research (Spec 2026-04-22) — registered only when FEATURE_DEEP_RESEARCH
 # is on. Importing here is cheap and keeps the conditional small below.
@@ -106,6 +108,7 @@ def build_worker_config() -> WorkerConfig:
         LibrarianWorkflow,
         BatchEmbedWorkflow,
         ImportWorkflow,
+        VisualizeWorkflow,
     ]
     activities: list[Any] = [
         parse_pdf,
@@ -120,6 +123,7 @@ def build_worker_config() -> WorkerConfig:
         compile_note,
         run_research,
         run_librarian,
+        build_view,
         acquire_project_semaphore,
         release_project_semaphore,
         submit_batch_embed,
