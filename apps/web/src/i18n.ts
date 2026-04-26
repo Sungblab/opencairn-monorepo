@@ -35,6 +35,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
     workspaceSettings,
     account,
     palette,
+    notifications,
   ] = await Promise.all([
     import(`../messages/${locale}/common.json`).then((m) => m.default),
     import(`../messages/${locale}/landing.json`).then((m) => m.default),
@@ -57,6 +58,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
     ),
     import(`../messages/${locale}/account.json`).then((m) => m.default),
     import(`../messages/${locale}/palette.json`).then((m) => m.default),
+    import(`../messages/${locale}/notifications.json`).then((m) => m.default),
   ]);
 
   return {
@@ -81,6 +83,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
       workspaceSettings,
       account,
       palette,
+      notifications,
     },
   };
 });

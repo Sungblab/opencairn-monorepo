@@ -445,6 +445,32 @@ export const searchApi = {
     ),
 };
 
+// ---------- Notifications drawer (Phase 5 Task 10) ----------
+
+export type NotificationKind =
+  | "mention"
+  | "comment_reply"
+  | "research_complete"
+  | "share_invite"
+  | "system";
+
+export interface NotificationRow {
+  id: string;
+  userId: string;
+  kind: NotificationKind;
+  payload: Record<string, unknown>;
+  created_at: string;
+  seen_at: string | null;
+  read_at: string | null;
+}
+
+export const notificationsApi = {
+  list: () =>
+    apiClient<{ notifications: NotificationRow[] }>(`/notifications`),
+  markRead: (id: string) =>
+    apiClient<{ ok: true }>(`/notifications/${id}/read`, { method: "PATCH" }),
+};
+
 export const api = {
   getNote: (id: string) => apiClient<NoteRow>(`/notes/${id}`),
   listNotesByProject: (projectId: string) =>

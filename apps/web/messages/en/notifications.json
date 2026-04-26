@@ -1,0 +1,13 @@
+{
+  "drawer": {
+    "title": "Notifications",
+    "empty": "No notifications yet."
+  },
+  "kindLabels": {
+    "mention": "Mention",
+    "comment_reply": "Comment reply",
+    "research_complete": "Research complete",
+    "share_invite": "Share invite",
+    "system": "System"
+  }
+}
