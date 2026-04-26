@@ -72,6 +72,12 @@ vi.mock("./blocks/callout/callout-plugin", () => ({
   CalloutPlugin: {},
 }));
 
+// toggle-plugin also calls `createPlatePlugin` at module scope.
+// Same treatment: stub it out so the platejs/react partial mock holds.
+vi.mock("./blocks/toggle/toggle-plugin", () => ({
+  TogglePlugin: {},
+}));
+
 import { renderNoteEditor } from "./NoteEditor.test-rig";
 
 describe("NoteEditor.onFirstEdit", () => {
