@@ -1,0 +1,46 @@
+{
+  "hub": {
+    "title": "Learning Hub",
+    "subtitle": "Train your memory, test your understanding, and track your progress.",
+    "flashcards": {
+      "title": "Flashcard Decks",
+      "description": "Review due cards using spaced repetition (SM-2)."
+    },
+    "scores": {
+      "title": "Understanding Scores",
+      "description": "See how well you know each concept based on Socratic sessions."
+    }
+  },
+  "flashcards": {
+    "title": "Flashcard Decks",
+    "empty": "No decks yet. Use the Socratic Agent or a template to create flashcards.",
+    "due": "due",
+    "cards_total": "cards",
+    "review_now": "Review Now",
+    "browse": "Browse"
+  },
+  "review": {
+    "card_progress": "{current} / {total}",
+    "front": "Front",
+    "back": "Back",
+    "reveal": "Reveal Answer",
+    "session_complete": "Session complete!",
+    "done": "Done",
+    "no_due": "No cards due for this deck.",
+    "back_to_decks": "Back to decks",
+    "loading": "Loading cards…",
+    "quality": {
+      "1": "Blackout",
+      "2": "Hard",
+      "3": "Good",
+      "4": "Easy"
+    }
+  },
+  "scores": {
+    "title": "Understanding Scores",
+    "avg_label": "avg",
+    "concepts_suffix": "concepts",
+    "empty": "No scores yet. Complete a Socratic session to see your understanding scores.",
+    "last_reviewed": "Last reviewed"
+  }
+}

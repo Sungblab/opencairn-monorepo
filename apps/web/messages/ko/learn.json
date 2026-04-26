@@ -1,0 +1,46 @@
+{
+  "hub": {
+    "title": "학습 허브",
+    "subtitle": "기억을 훈련하고, 이해도를 점검하고, 학습 진도를 추적하세요.",
+    "flashcards": {
+      "title": "플래시카드 덱",
+      "description": "SM-2 간격 반복으로 미룬 카드를 복습하세요."
+    },
+    "scores": {
+      "title": "이해도 점수",
+      "description": "소크라테스 세션에서 측정된 개념별 이해도를 확인하세요."
+    }
+  },
+  "flashcards": {
+    "title": "플래시카드 덱",
+    "empty": "덱이 없습니다. 소크라테스 에이전트나 템플릿으로 카드를 만들어 보세요.",
+    "due": "복습 대기",
+    "cards_total": "장",
+    "review_now": "지금 복습",
+    "browse": "둘러보기"
+  },
+  "review": {
+    "card_progress": "{current} / {total}",
+    "front": "앞면",
+    "back": "뒷면",
+    "reveal": "정답 보기",
+    "session_complete": "세션 완료!",
+    "done": "완료",
+    "no_due": "복습할 카드가 없습니다.",
+    "back_to_decks": "덱 목록으로",
+    "loading": "카드 불러오는 중…",
+    "quality": {
+      "1": "기억 안 남",
+      "2": "어려움",
+      "3": "알겠음",
+      "4": "쉬움"
+    }
+  },
+  "scores": {
+    "title": "이해도 점수",
+    "avg_label": "평균",
+    "concepts_suffix": "개 개념",
+    "empty": "아직 점수가 없습니다. 소크라테스 세션을 완료하면 이해도가 측정됩니다.",
+    "last_reviewed": "마지막 복습"
+  }
+}
