@@ -175,6 +175,10 @@ describe("PATCH /api/internal/research/runs/:id/finalize", () => {
       message: "429 quota exceeded",
       retryable: false,
     });
+    // Failed must NOT stamp completedAt — otherwise a later transition into
+    // "completed" (workflow replay / manual recovery) would skip the
+    // research_complete notification because previouslyCompleted is sticky.
+    expect(row!.completedAt).toBeNull();
 
     const notifs = await db
       .select()
@@ -186,6 +190,46 @@ describe("PATCH /api/internal/research/runs/:id/finalize", () => {
         ),
       );
     expect(notifs).toHaveLength(0);
+  });
+
+  it("failed → completed still fires research_complete (completedAt stays null on failed)", async () => {
+    const failed = await internalFetch(
+      `/api/internal/research/runs/${runId}/finalize`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: "failed",
+          errorCode: "transient",
+          errorMessage: "transient backend hiccup",
+        }),
+      },
+    );
+    expect(failed.status).toBe(200);
+
+    // Recovery: same run id transitions to completed. Notification MUST fire.
+    const completed = await internalFetch(
+      `/api/internal/research/runs/${runId}/finalize`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ status: "completed", noteId: ctx.noteId }),
+      },
+    );
+    expect(completed.status).toBe(200);
+    const completedBody = (await completed.json()) as {
+      alreadyFinalized: boolean;
+    };
+    expect(completedBody.alreadyFinalized).toBe(false);
+
+    const notifs = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, ctx.userId),
+          eq(notifications.kind, "research_complete"),
+        ),
+      );
+    expect(notifs).toHaveLength(1);
   });
 
   it("transitions to cancelled, no notification fired", async () => {

@@ -1930,9 +1930,14 @@ internal.patch(
       const previouslyCompleted = existing.completedAt !== null;
       const patch: Record<string, unknown> = {
         status: body.status,
-        // Stamp completedAt on the first terminal transition; preserve the
-        // original timestamp on retries (idempotent set).
-        completedAt: existing.completedAt ?? new Date(),
+        // Only stamp completedAt on a successful completion. failed/cancelled
+        // are terminal but they MUST NOT poison the idempotency key — a
+        // failed-then-recovered run (e.g. workflow restart, manual replay)
+        // still needs to fire the research_complete notification on the
+        // first transition into "completed".
+        completedAt:
+          existing.completedAt ??
+          (body.status === "completed" ? new Date() : null),
       };
       if (body.status === "failed") {
         patch.error = {
