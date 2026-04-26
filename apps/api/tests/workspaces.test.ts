@@ -603,3 +603,100 @@ describe("GET /api/workspaces/:workspaceId/recent-notes", () => {
     expect(res.status).toBe(403);
   });
 });
+
+// App Shell Phase 5 Task 8 — palette workspace note search.
+describe("GET /api/workspaces/:workspaceId/notes/search", () => {
+  afterEach(cleanup);
+
+  async function seedProject(
+    workspaceId: string,
+    ownerId: string,
+  ): Promise<string> {
+    const id = randomUUID();
+    await db.insert(projects).values({
+      id,
+      workspaceId,
+      name: "p",
+      createdBy: ownerId,
+    });
+    return id;
+  }
+  async function seedNote(
+    workspaceId: string,
+    projectId: string,
+    title: string,
+    opts: { deletedAt?: Date } = {},
+  ): Promise<string> {
+    const id = randomUUID();
+    await db.insert(notes).values({
+      id,
+      projectId,
+      workspaceId,
+      title,
+      inheritParent: true,
+      deletedAt: opts.deletedAt ?? null,
+    });
+    return id;
+  }
+
+  it("returns empty results for blank query", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const { workspaceId } = await seedMembership(u.id);
+    const res = await authedGet(
+      `/api/workspaces/${workspaceId}/notes/search?q=`,
+      u.id,
+    );
+    const body = (await res.json()) as { results: unknown[] };
+    expect(body.results).toEqual([]);
+  });
+
+  it("matches title case-insensitively and joins project_name", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const { workspaceId } = await seedMembership(u.id);
+    const projectId = await seedProject(workspaceId, u.id);
+    await seedNote(workspaceId, projectId, "Quantum Computing");
+    await seedNote(workspaceId, projectId, "Cooking Recipes");
+    const res = await authedGet(
+      `/api/workspaces/${workspaceId}/notes/search?q=quantum`,
+      u.id,
+    );
+    const body = (await res.json()) as {
+      results: Array<{ title: string; project_name: string }>;
+    };
+    expect(body.results).toHaveLength(1);
+    expect(body.results[0].title).toBe("Quantum Computing");
+    expect(body.results[0].project_name).toBe("p");
+  });
+
+  it("excludes soft-deleted notes", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const { workspaceId } = await seedMembership(u.id);
+    const projectId = await seedProject(workspaceId, u.id);
+    await seedNote(workspaceId, projectId, "alive");
+    await seedNote(workspaceId, projectId, "alive-tombstone", {
+      deletedAt: new Date(),
+    });
+    const res = await authedGet(
+      `/api/workspaces/${workspaceId}/notes/search?q=alive`,
+      u.id,
+    );
+    const body = (await res.json()) as { results: Array<{ title: string }> };
+    expect(body.results.map((r) => r.title)).toEqual(["alive"]);
+  });
+
+  it("returns 403 for non-member", async () => {
+    const owner = await createUser();
+    createdUserIds.add(owner.id);
+    const outsider = await createUser();
+    createdUserIds.add(outsider.id);
+    const { workspaceId } = await seedMembership(owner.id);
+    const res = await authedGet(
+      `/api/workspaces/${workspaceId}/notes/search?q=foo`,
+      outsider.id,
+    );
+    expect(res.status).toBe(403);
+  });
+});

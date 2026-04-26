@@ -19,6 +19,7 @@ import {
   desc,
   count,
   inArray,
+  sql,
 } from "@opencairn/db";
 import { requireAuth } from "../middleware/auth";
 import { requireWorkspaceRole } from "../middleware/require-role";
@@ -310,6 +311,45 @@ workspaceRoutes.get(
       credits_krw: 0,
       byok_connected: legacyByok?.key != null || prefByok?.key != null,
     });
+  },
+);
+
+// Command Palette (App Shell Phase 5 Task 8) workspace 노트 검색. Title ILIKE
+// 만 사용하는 minimal 구현 — Postgres FTS / pg_trgm 으로의 확장은 별도 plan
+// (text-search exploration). q 가 비면 빈 배열, limit 1..50.
+workspaceRoutes.get(
+  "/:workspaceId/notes/search",
+  requireWorkspaceRole("member"),
+  async (c) => {
+    const workspaceId = c.req.param("workspaceId");
+    if (!isUuid(workspaceId)) return c.json({ error: "Bad Request" }, 400);
+    const q = c.req.query("q")?.trim() ?? "";
+    if (q.length < 1) return c.json({ results: [] });
+    const limitRaw = c.req.query("limit");
+    const limitParsed = Number.parseInt(limitRaw ?? "20", 10);
+    const limit = Number.isFinite(limitParsed)
+      ? Math.max(1, Math.min(50, limitParsed))
+      : 20;
+    const rows = await db
+      .select({
+        id: notes.id,
+        title: notes.title,
+        project_id: notes.projectId,
+        project_name: projects.name,
+        updated_at: notes.updatedAt,
+      })
+      .from(notes)
+      .innerJoin(projects, eq(projects.id, notes.projectId))
+      .where(
+        and(
+          eq(notes.workspaceId, workspaceId),
+          isNull(notes.deletedAt),
+          sql`${notes.title} ILIKE ${"%" + q + "%"}`,
+        ),
+      )
+      .orderBy(desc(notes.updatedAt))
+      .limit(limit);
+    return c.json({ results: rows });
   },
 );
 
