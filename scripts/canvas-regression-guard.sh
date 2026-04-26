@@ -65,6 +65,29 @@ if grep -RnE "pyodide/(latest|v@latest)" apps/web/src/ 2>/dev/null; then
   FAIL=1
 fi
 
+echo "[canvas-guard] checking Monaco is not loaded from a CDN..."
+# Monaco must be self-hosted via @monaco-editor/react webpack bundling.
+# A reference to monaco-editor.min.js or the monaco loader from cdnjs/jsdelivr
+# in app source would mean we're loading editor JS from a third party,
+# which (a) defeats the offline-friendly Docker deploy story and (b) widens
+# our CSP attack surface (cdn.jsdelivr.net is currently allowed for Pyodide
+# only — Monaco landing there would silently extend that allowance).
+if grep -RnE "(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net)/.*monaco-editor" apps/web/src/ 2>/dev/null; then
+  echo "  FAIL: Monaco CDN reference detected — must self-host via @monaco-editor/react"
+  FAIL=1
+fi
+
+echo "[canvas-guard] checking SSE response uses text/event-stream..."
+# /api/code/runs/:runId/stream MUST emit text/event-stream Content-Type so
+# browser EventSource consumers can attach. A regression to application/json
+# would break the streaming UI silently. We assert positive presence of the
+# text/event-stream literal in apps/api/src/routes/code.ts rather than
+# scanning for application/json (which legitimately appears on POST routes).
+if ! grep -q "text/event-stream" apps/api/src/routes/code.ts 2>/dev/null; then
+  echo "  FAIL: /api/code/runs/:runId/stream must set text/event-stream Content-Type"
+  FAIL=1
+fi
+
 if [[ $FAIL -ne 0 ]]; then
   echo "[canvas-guard] FAIL"
   exit 1

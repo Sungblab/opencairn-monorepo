@@ -1403,7 +1403,11 @@ internal.post("/test-seed", async (c) => {
   }
 
   const parsed = (await c.req.json().catch(() => ({}))) as {
-    mode?: "default" | "onboarding-empty" | "onboarding-invite";
+    mode?:
+      | "default"
+      | "onboarding-empty"
+      | "onboarding-invite"
+      | "canvas-phase2";
   };
   const mode = parsed.mode ?? "default";
 
@@ -1467,6 +1471,59 @@ internal.post("/test-seed", async (c) => {
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
     return c.json({ ...baseReply, inviteToken, inviteWorkspaceSlug });
+  }
+
+  if (mode === "canvas-phase2") {
+    // Plan 7 Canvas Phase 2 — seed a workspace + project + a single canvas
+    // note (sourceType='canvas', canvasLanguage='python') so Playwright tests
+    // for the Code Agent / Monaco / SSE run pages have a deterministic
+    // landing target. The canvas metadata pair is required by the
+    // notes_canvas_language_check constraint (migration 0022).
+    const workspaceId = randomUUID();
+    const slug = `e2e-canvas-${workspaceId.slice(0, 8)}`;
+    const projectId = randomUUID();
+    const noteId = randomUUID();
+
+    await db.insert(workspaces).values({
+      id: workspaceId,
+      slug,
+      name: "E2E Canvas Workspace",
+      ownerId: userId,
+      planType: "free",
+    });
+
+    await db.insert(workspaceMembers).values({
+      workspaceId,
+      userId,
+      role: "owner",
+    });
+
+    await db.insert(projects).values({
+      id: projectId,
+      workspaceId,
+      name: "E2E Canvas Project",
+      createdBy: userId,
+      defaultRole: "editor",
+    });
+
+    await db.insert(notes).values({
+      id: noteId,
+      projectId,
+      workspaceId,
+      title: "Canvas Sample",
+      sourceType: "canvas",
+      canvasLanguage: "python",
+      contentText: "print('hello')",
+      inheritParent: true,
+    });
+
+    return c.json({
+      ...baseReply,
+      wsSlug: slug,
+      workspaceId,
+      projectId,
+      noteId,
+    });
   }
 
   // default mode — existing workspace + project + Welcome note.
