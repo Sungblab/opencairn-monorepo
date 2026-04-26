@@ -18,6 +18,11 @@
     "save_suggestion_prefix": "Save \"{title}\" as a note?",
     "save_suggestion_save": "Save",
     "save_suggestion_dismiss_aria": "Dismiss",
+    "save_suggestion_inserted_active": "Added to the current note",
+    "save_suggestion_target_prompt": "Where should I save this conversation?",
+    "save_suggestion_create_new": "Create new note",
+    "save_suggestion_cancel": "Cancel",
+    "save_suggestion_failed": "Save failed. Please try again.",
     "actions": {
       "copy_aria": "Copy",
       "regenerate_aria": "Regenerate",

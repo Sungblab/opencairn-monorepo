@@ -18,6 +18,11 @@
     "save_suggestion_prefix": "\"{title}\" 노트로 저장 제안",
     "save_suggestion_save": "저장",
     "save_suggestion_dismiss_aria": "닫기",
+    "save_suggestion_inserted_active": "현재 노트에 추가했어요",
+    "save_suggestion_target_prompt": "이 채팅을 어디에 저장할까요?",
+    "save_suggestion_create_new": "새 노트로 만들기",
+    "save_suggestion_cancel": "취소",
+    "save_suggestion_failed": "저장에 실패했어요. 다시 시도해 주세요.",
     "actions": {
       "copy_aria": "복사",
       "regenerate_aria": "재생성",

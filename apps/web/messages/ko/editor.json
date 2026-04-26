@@ -23,7 +23,12 @@
     "quote": "인용구",
     "code": "코드",
     "divider": "구분선",
-    "math": "수식 블록"
+    "math": "수식 블록",
+    "mermaid": "다이어그램",
+    "callout": "알림 박스",
+    "toggle": "토글",
+    "table": "표",
+    "columns": "다단"
   },
   "math": {
     "parse_error": "수식 파싱 오류"
@@ -41,5 +46,36 @@
     "numbered": "번호 매기기",
     "quote": "인용",
     "wikilink": "노트 연결"
+  },
+  "blocks": {
+    "mermaid": {
+      "placeholder": "여기에 mermaid 코드를 입력하세요…",
+      "error_title": "다이어그램 오류",
+      "error_help": "구문을 확인하거나 코드를 다시 작성해 주세요.",
+      "show_source": "코드 보기",
+      "hide_source": "코드 숨기기"
+    },
+    "callout": {
+      "info": "정보",
+      "warn": "주의",
+      "tip": "팁",
+      "danger": "경고"
+    },
+    "toggle": {
+      "placeholder": "제목을 입력하세요"
+    },
+    "table": {
+      "row_add_above": "위에 행 추가",
+      "row_add_below": "아래에 행 추가",
+      "col_add_left": "왼쪽에 열 추가",
+      "col_add_right": "오른쪽에 열 추가",
+      "row_delete": "행 삭제",
+      "col_delete": "열 삭제",
+      "header_toggle": "첫 행을 헤더로"
+    },
+    "columns": {
+      "two": "2단",
+      "three": "3단"
+    }
   }
 }

@@ -1,0 +1,9 @@
+{
+  "renderer": {
+    "copy": "Copy",
+    "copied": "Copied",
+    "mermaid_loading": "Rendering diagram…",
+    "mermaid_error": "Cannot render diagram",
+    "code_language_label": "{lang}"
+  }
+}
