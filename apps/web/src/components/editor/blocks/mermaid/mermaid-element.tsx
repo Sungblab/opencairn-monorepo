@@ -5,8 +5,8 @@ import type { PlateElementProps } from "platejs/react";
 import { useMermaidRender } from "@/hooks/useMermaidRender";
 import { proseClasses } from "@/lib/markdown/shared-prose";
 
-interface MermaidElementProps extends PlateElementProps {
-  element: {
+interface MermaidElementProps extends Omit<PlateElementProps, "element"> {
+  element: PlateElementProps["element"] & {
     type: "mermaid";
     code: string;
     children: [{ text: "" }];

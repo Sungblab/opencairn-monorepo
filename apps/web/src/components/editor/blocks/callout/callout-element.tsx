@@ -9,6 +9,7 @@ import {
 import { useTranslations } from "next-intl";
 import { useEditorRef } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
+import type { Descendant } from "platejs";
 import { proseClasses, type CalloutKind } from "@/lib/markdown/shared-prose";
 
 const ICONS: Record<CalloutKind, LucideIcon> = {
@@ -20,11 +21,11 @@ const ICONS: Record<CalloutKind, LucideIcon> = {
 
 const CYCLE: CalloutKind[] = ["info", "warn", "tip", "danger"];
 
-interface CalloutElementProps extends PlateElementProps {
-  element: {
+interface CalloutElementProps extends Omit<PlateElementProps, "element"> {
+  element: PlateElementProps["element"] & {
     type: "callout";
     kind: CalloutKind;
-    children: unknown[];
+    children: Descendant[];
   };
 }
 

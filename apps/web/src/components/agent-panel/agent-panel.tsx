@@ -164,7 +164,7 @@ export function AgentPanel() {
                 });
               },
             },
-            cancel: { label: t("save_suggestion_cancel") },
+            cancel: { label: t("save_suggestion_cancel"), onClick: () => {} },
           });
         },
         onCreatedNote: () => {},

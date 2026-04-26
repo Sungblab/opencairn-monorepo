@@ -28,6 +28,7 @@ describe("CalloutElement", () => {
   it("renders kind=info icon by default", () => {
     render(
       wrap(
+        // @ts-expect-error — test mock omits Plate's full editor context
         <CalloutElement
           attributes={{ "data-slate-node": "element" } as never}
           element={{
@@ -50,6 +51,7 @@ describe("CalloutElement", () => {
     setNodes.mockClear();
     render(
       wrap(
+        // @ts-expect-error — test mock omits Plate's full editor context
         <CalloutElement
           attributes={{ "data-slate-node": "element" } as never}
           element={{
@@ -73,6 +75,7 @@ describe("CalloutElement", () => {
     setNodes.mockClear();
     render(
       wrap(
+        // @ts-expect-error — test mock omits Plate's full editor context
         <CalloutElement
           attributes={{ "data-slate-node": "element" } as never}
           element={{

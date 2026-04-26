@@ -19,6 +19,7 @@ vi.mock("platejs/react", async () => {
 describe("ToggleElement", () => {
   it("hides body when open=false", () => {
     render(
+      // @ts-expect-error — test mock omits Plate's full editor context
       <ToggleElement
         attributes={{ "data-slate-node": "element" } as never}
         element={{
@@ -39,6 +40,7 @@ describe("ToggleElement", () => {
 
   it("shows body when open=true", () => {
     render(
+      // @ts-expect-error — test mock omits Plate's full editor context
       <ToggleElement
         attributes={{ "data-slate-node": "element" } as never}
         element={{
@@ -60,6 +62,7 @@ describe("ToggleElement", () => {
   it("toggles on chevron click", () => {
     setNodes.mockClear();
     render(
+      // @ts-expect-error — test mock omits Plate's full editor context
       <ToggleElement
         attributes={{ "data-slate-node": "element" } as never}
         element={{

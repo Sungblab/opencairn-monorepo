@@ -26,6 +26,7 @@ describe("MermaidElement", () => {
   it("renders SVG when code parses", async () => {
     render(
       wrap(
+        // @ts-expect-error — test mock omits Plate's full editor context
         <MermaidElement
           attributes={{ "data-slate-node": "element" } as never}
           element={{ type: "mermaid", code: "graph TD\nA --> B", children: [{ text: "" }] }}
@@ -42,6 +43,7 @@ describe("MermaidElement", () => {
   it("renders error UI when parse fails", () => {
     render(
       wrap(
+        // @ts-expect-error — test mock omits Plate's full editor context
         <MermaidElement
           attributes={{ "data-slate-node": "element" } as never}
           element={{ type: "mermaid", code: "BAD", children: [{ text: "" }] }}

@@ -50,7 +50,7 @@ export async function insertFromMarkdown(args: InsertFromMarkdownArgs) {
 
   try {
     const ast = markdownToPlate(markdown);
-    const at = editor.api.end?.();
+    const at = editor.api.end?.([] as never);
     editor.tf.insertNodes(ast as never, at ? ({ at } as never) : undefined);
     onSuccess();
   } catch (err) {

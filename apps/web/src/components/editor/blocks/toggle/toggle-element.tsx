@@ -2,13 +2,14 @@
 import { ChevronRight } from "lucide-react";
 import { useEditorRef } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
+import type { Descendant } from "platejs";
 import { Children, isValidElement, type ReactNode } from "react";
 
-interface ToggleElementProps extends PlateElementProps {
-  element: {
+interface ToggleElementProps extends Omit<PlateElementProps, "element"> {
+  element: PlateElementProps["element"] & {
     type: "toggle";
     open?: boolean;
-    children: unknown[];
+    children: Descendant[];
   };
 }
 
