@@ -418,6 +418,7 @@ shareRouter.patch(
     const noteId = c.req.param("id");
     const targetId = c.req.param("userId");
     if (!isUuid(noteId)) return c.json({ error: "Bad Request" }, 400);
+    if (!targetId) return c.json({ error: "Bad Request" }, 400);
     if (!(await canWrite(actorId, { type: "note", id: noteId }))) {
       return c.json({ error: "Forbidden" }, 403);
     }
@@ -491,6 +492,7 @@ shareRouter.delete(
     const noteId = c.req.param("id");
     const targetId = c.req.param("userId");
     if (!isUuid(noteId)) return c.json({ error: "Bad Request" }, 400);
+    if (!targetId) return c.json({ error: "Bad Request" }, 400);
     if (!(await canWrite(actorId, { type: "note", id: noteId }))) {
       return c.json({ error: "Forbidden" }, 403);
     }
