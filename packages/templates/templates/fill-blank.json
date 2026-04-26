@@ -1,0 +1,9 @@
+{
+  "id": "fill-blank",
+  "name": "Fill in the Blank",
+  "description": "Create a cloze-style passage with blanks for key terms.",
+  "renderer": "structured",
+  "output_schema_id": "fill_blank",
+  "variables": ["topic", "context"],
+  "prompt_template": "Topic: {{topic}}\n\nSource:\n{{context}}\n\nCreate a fill-in-the-blank exercise. Write a coherent passage that teaches the topic, replacing key terms with placeholders like ___1___, ___2___, etc. Provide the correct answer and an optional hint for each blank.\n\nReturn JSON: { passage, blanks: [{ placeholder, answer, hint? }] }"
+}

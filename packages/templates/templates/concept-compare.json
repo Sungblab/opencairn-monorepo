@@ -1,0 +1,9 @@
+{
+  "id": "concept-compare",
+  "name": "Concept Comparison",
+  "description": "Compare two concepts side by side across multiple dimensions.",
+  "renderer": "structured",
+  "output_schema_id": "concept_compare",
+  "variables": ["concept_a", "concept_b", "context"],
+  "prompt_template": "Compare and contrast the following two concepts.\n\nConcept A: {{concept_a}}\nConcept B: {{concept_b}}\n\nContext:\n{{context}}\n\nIdentify similarities, key differences across dimensions, and guidance on when to use each.\n\nReturn JSON: { concept_a, concept_b, similarities, differences: [{ dimension, a, b }], when_to_use_a, when_to_use_b, summary }"
+}

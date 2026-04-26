@@ -1,0 +1,9 @@
+{
+  "id": "mindmap",
+  "name": "Mind Map",
+  "description": "Generate a hierarchical mind map rendered interactively in the Canvas.",
+  "renderer": "canvas",
+  "output_schema_id": "mindmap",
+  "variables": ["topic", "context"],
+  "prompt_template": "Create a mind map for the following topic.\n\nTopic: {{topic}}\n\nSource material:\n{{context}}\n\nThe mind map should have a root node and branches expanding to at least depth 3. Assign a color hint to main branches.\n\nReturn JSON: { root, nodes: [{ id, label, parentId, depth, color? }] }"
+}

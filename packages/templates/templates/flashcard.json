@@ -1,0 +1,9 @@
+{
+  "id": "flashcard",
+  "name": "Flashcard Set",
+  "description": "Generate a set of spaced-repetition flashcards from notes or a topic.",
+  "renderer": "structured",
+  "output_schema_id": "flashcard",
+  "variables": ["topic", "context", "num_cards"],
+  "prompt_template": "You are a flashcard expert.\n\nTopic: {{topic}}\nNumber of cards: {{num_cards}}\n\nSource material:\n{{context}}\n\nCreate {{num_cards}} flashcards. Front: a clear question or prompt. Back: a concise but complete answer. Include relevant tags.\n\nReturn JSON: { cards: [{ front, back, tags }] }"
+}
