@@ -73,6 +73,7 @@ from worker.workflows.visualize_workflow import VisualizeWorkflow
 from worker.activities.deep_research import (
     create_deep_research_plan,
     execute_deep_research,
+    finalize_deep_research,
     iterate_deep_research_plan,
     persist_deep_research_report,
 )
@@ -157,6 +158,7 @@ def build_worker_config() -> WorkerConfig:
                 iterate_deep_research_plan,
                 execute_deep_research,
                 persist_deep_research_report,
+                finalize_deep_research,
             ]
         )
 

@@ -9,5 +9,10 @@
     "research_complete": "Research complete",
     "share_invite": "Share invite",
     "system": "System"
+  },
+  "summary": {
+    "comment_reply": "{from} replied",
+    "share_invite": "{from} shared \"{note}\" ({role})",
+    "research_complete": "\"{topic}\" research completed"
   }
 }

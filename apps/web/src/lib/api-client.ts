@@ -379,6 +379,16 @@ export interface GoogleIntegrationStatus {
   scopes: string | null;
 }
 
+export type WorkspaceSharedLinkRow = {
+  id: string;
+  token: string;
+  role: "viewer" | "commenter" | "editor";
+  noteId: string;
+  noteTitle: string;
+  createdAt: string;
+  createdBy: { id: string; name: string };
+};
+
 export const wsSettingsApi = {
   members: (workspaceId: string) =>
     apiClient<WorkspaceMemberRow[]>(`/workspaces/${workspaceId}/members`),
@@ -410,6 +420,10 @@ export const wsSettingsApi = {
     apiClient<{ ok: true }>(
       `/workspaces/${workspaceId}/invites/${inviteId}`,
       { method: "DELETE" },
+    ),
+  sharedLinks: (workspaceId: string) =>
+    apiClient<{ links: WorkspaceSharedLinkRow[] }>(
+      `/workspaces/${workspaceId}/share`,
     ),
 };
 
@@ -482,6 +496,127 @@ export const notificationsApi = {
     apiClient<{ notifications: NotificationRow[] }>(`/notifications`),
   markRead: (id: string) =>
     apiClient<{ ok: true }>(`/notifications/${id}/read`, { method: "PATCH" }),
+};
+
+// ---------- Public share viewer (Plan 2C Task 8) ----------
+// Unlike everything else in this module, the share viewer is unauthenticated.
+// We bypass `apiClient` (which sends `credentials: "include"`) and use a raw
+// `fetch` with `credentials: "omit"` so the share token is the ONLY identity
+// signal — no session cookie leaks to the public endpoint, and the API can
+// rate-limit purely by IP. The endpoint lives at `/api/public/share/:token`
+// (registered before the auth wildcard in `apps/api/src/routes/share.ts`).
+
+export interface PublicShareNote {
+  id: string;
+  title: string;
+  role: "viewer" | "commenter" | "editor";
+  /** Plate value array as returned by `yjs-to-plate` server-side. */
+  plateValue: Array<Record<string, unknown>>;
+  updatedAt: string;
+}
+
+export async function fetchPublicShare(
+  token: string,
+): Promise<PublicShareNote> {
+  const res = await fetch(
+    `${baseUrl()}/api/public/share/${encodeURIComponent(token)}`,
+    {
+      credentials: "omit",
+      // Disable Next.js Data Cache for this request: share-link state is
+      // mutable (revoke flips the row) and we don't want a stale 200 to
+      // outlive a revoke. The page itself is rendered SSR per request.
+      cache: "no-store",
+    },
+  );
+  if (!res.ok) {
+    throw new ApiError(res.status, `share_status_${res.status}`);
+  }
+  const body = (await res.json()) as { note: PublicShareNote };
+  return body.note;
+}
+
+// ---------- Plan 2C: share links + per-note permissions (Task 9) ----------
+// Drives the ShareDialog (Invite people + Share to web). All routes go through
+// `apiClient` (credentials: include) — only the unauthenticated public viewer
+// (`fetchPublicShare` above) bypasses the cookie. The shapes match the Hono
+// response bodies in apps/api/src/routes/share.ts and the
+// `/workspaces/:workspaceId/members/search` route in workspaces.ts.
+
+export type ShareLinkRow = {
+  id: string;
+  token: string;
+  role: "viewer" | "commenter" | "editor";
+  createdAt: string;
+  createdBy: { id: string; name: string };
+};
+
+export type PagePermissionRow = {
+  userId: string;
+  role: "viewer" | "commenter" | "editor";
+  grantedBy: string | null;
+  createdAt: string;
+  name: string;
+  email: string;
+};
+
+export type WorkspaceMemberSearchRow = {
+  userId: string;
+  role: string;
+  name: string;
+  email: string;
+};
+
+export const shareApi = {
+  list: (noteId: string) =>
+    apiClient<{ links: ShareLinkRow[] }>(`/notes/${noteId}/share`),
+  create: (noteId: string, role: "viewer" | "commenter") =>
+    apiClient<ShareLinkRow>(`/notes/${noteId}/share`, {
+      method: "POST",
+      body: JSON.stringify({ role }),
+    }),
+  // Note: revoke uses a flat /share/:shareId path, NOT scoped to noteId — the
+  // server resolves the note from the shareId and runs the auth check from
+  // there (matches apps/api/src/routes/share.ts `DELETE /share/:shareId`).
+  revoke: (shareId: string) =>
+    apiClient<void>(`/share/${shareId}`, { method: "DELETE" }),
+};
+
+export const notePermissionsApi = {
+  list: (noteId: string) =>
+    apiClient<{ permissions: PagePermissionRow[] }>(
+      `/notes/${noteId}/permissions`,
+    ),
+  grant: (
+    noteId: string,
+    userId: string,
+    role: "viewer" | "commenter" | "editor",
+  ) =>
+    apiClient<PagePermissionRow>(`/notes/${noteId}/permissions`, {
+      method: "POST",
+      body: JSON.stringify({ userId, role }),
+    }),
+  update: (
+    noteId: string,
+    userId: string,
+    role: "viewer" | "commenter" | "editor",
+  ) =>
+    apiClient<PagePermissionRow>(`/notes/${noteId}/permissions/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    }),
+  revoke: (noteId: string, userId: string) =>
+    apiClient<void>(`/notes/${noteId}/permissions/${userId}`, {
+      method: "DELETE",
+    }),
+};
+
+export const workspaceMembersApi = {
+  // Backend route is `/workspaces/:workspaceId/members/search` — the path
+  // segment is just a value here, so naming the local var `wsId` is fine.
+  search: (wsId: string, q: string) =>
+    apiClient<{ members: WorkspaceMemberSearchRow[] }>(
+      `/workspaces/${wsId}/members/search?q=${encodeURIComponent(q)}`,
+    ),
 };
 
 export const api = {

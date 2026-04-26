@@ -43,6 +43,7 @@ import {
   assertManyResourceWorkspace,
   WorkspaceMismatchError,
 } from "../lib/internal-assert";
+import { persistAndPublish } from "../lib/notification-events";
 
 // Internal-only routes — reachable by worker callbacks on the docker network.
 // Auth is a shared secret (INTERNAL_API_SECRET) carried in `X-Internal-Secret`;
@@ -1871,6 +1872,116 @@ internal.post(
       return c.json({ error: "artifact_missing_bytes" }, 404);
     }
     return c.json({ base64: payload.base64, mimeType: payload.mimeType }, 200);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Plan 2C Task 6 — Deep Research finalize callback
+// ---------------------------------------------------------------------------
+//
+// The Temporal worker calls this when a Deep Research workflow reaches a
+// terminal state (completed / failed / cancelled). Idempotency is enforced
+// via SELECT ... FOR UPDATE inside a transaction: we capture
+// `previouslyCompleted` BEFORE the UPDATE so a Temporal retry
+// (RetryPolicy(maximum_attempts=5)) can land twice without double-firing
+// the `research_complete` notification.
+//
+// Notification rules:
+//   - completed (first transition only) → fire research_complete to userId
+//   - completed (subsequent retries)    → no notification, alreadyFinalized:true
+//   - failed / cancelled                → no notification (UI surfaces error
+//                                          via the run row's status + error)
+const finalizeResearchSchema = z.object({
+  status: z.enum(["completed", "failed", "cancelled"]),
+  // Set when the worker has materialised the report into a Plate note.
+  // Optional because failed/cancelled never produce one.
+  noteId: z.string().uuid().optional(),
+  // Stored into researchRuns.error JSON only when status === "failed".
+  errorCode: z.string().max(200).optional(),
+  errorMessage: z.string().max(2000).optional(),
+});
+
+internal.patch(
+  "/research/runs/:id/finalize",
+  zValidator("json", finalizeResearchSchema),
+  async (c) => {
+    const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "invalid uuid" }, 400);
+    const body = c.req.valid("json");
+
+    const result = await db.transaction(async (tx) => {
+      // FOR UPDATE locks the row for the rest of the tx so a parallel
+      // worker retry can't read the same pre-completion state and both
+      // believe they're the first to finalise.
+      const [existing] = await tx
+        .select({
+          completedAt: researchRuns.completedAt,
+          userId: researchRuns.userId,
+          topic: researchRuns.topic,
+          projectId: researchRuns.projectId,
+        })
+        .from(researchRuns)
+        .where(eq(researchRuns.id, id))
+        .for("update");
+      if (!existing) return { found: false as const };
+
+      // Capture BEFORE the UPDATE — this is the idempotency key. If
+      // completedAt was already non-null we MUST NOT notify again.
+      const previouslyCompleted = existing.completedAt !== null;
+      const patch: Record<string, unknown> = {
+        status: body.status,
+        // Only stamp completedAt on a successful completion. failed/cancelled
+        // are terminal but they MUST NOT poison the idempotency key — a
+        // failed-then-recovered run (e.g. workflow restart, manual replay)
+        // still needs to fire the research_complete notification on the
+        // first transition into "completed".
+        completedAt:
+          existing.completedAt ??
+          (body.status === "completed" ? new Date() : null),
+      };
+      if (body.status === "failed") {
+        patch.error = {
+          code: body.errorCode ?? "unknown",
+          message: body.errorMessage ?? "",
+          retryable: false,
+        };
+      }
+      await tx
+        .update(researchRuns)
+        .set(patch)
+        .where(eq(researchRuns.id, id));
+
+      return {
+        found: true as const,
+        previouslyCompleted,
+        userId: existing.userId,
+        topic: existing.topic,
+        projectId: existing.projectId,
+      };
+    });
+
+    if (!result.found) return c.json({ error: "not_found" }, 404);
+
+    // Fire AFTER the tx commits so a rolled-back finalise can't surface a
+    // phantom drawer entry. Same convention as the comments / share routes
+    // (Plan 2C Tasks 4–5). Swallow notification errors — the run's terminal
+    // state is the source of truth; a missed drawer ping is recoverable on
+    // the next refresh and must not 500 the worker callback.
+    if (body.status === "completed" && !result.previouslyCompleted) {
+      await persistAndPublish({
+        userId: result.userId,
+        kind: "research_complete",
+        payload: {
+          summary: `"${result.topic}" 리서치가 완료되었습니다`,
+          runId: id,
+          noteId: body.noteId,
+          projectId: result.projectId,
+          topic: result.topic,
+        },
+      }).catch(() => undefined);
+    }
+
+    return c.json({ ok: true, alreadyFinalized: result.previouslyCompleted });
   },
 );
 

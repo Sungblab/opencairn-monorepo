@@ -32,5 +32,6 @@ export * from "./schema/research";
 export * from "./schema/wiki-links";
 export * from "./schema/notifications";
 export * from "./schema/code-runs";
+export * from "./schema/share-links";
 
 export { eq, and, or, desc, asc, sql, inArray, isNull, isNotNull, ilike, lt, gt, lte, gte, count, max } from "drizzle-orm";

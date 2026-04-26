@@ -35,11 +35,13 @@ with workflow.unsafe.imports_passed_through():
     from worker.activities.deep_research.persist_report import (
         PersistReportInput,
     )
+    from worker.activities.deep_research.finalize import FinalizeInput
 
 
 _PLAN_TIMEOUT = timedelta(minutes=15)
 _EXEC_TIMEOUT = timedelta(minutes=70)
 _PERSIST_TIMEOUT = timedelta(minutes=10)
+_FINALIZE_TIMEOUT = timedelta(seconds=30)
 _ABANDON_TIMEOUT = timedelta(hours=24)
 
 
@@ -153,6 +155,12 @@ class DeepResearchWorkflow:
                     timeout=_ABANDON_TIMEOUT,
                 )
                 if not reached:
+                    await workflow.execute_activity(
+                        "finalize_deep_research",
+                        FinalizeInput(run_id=inp.run_id, status="cancelled"),
+                        start_to_close_timeout=_FINALIZE_TIMEOUT,
+                        retry_policy=RetryPolicy(maximum_attempts=5),
+                    )
                     return DeepResearchOutput(
                         status="cancelled",
                         error={
@@ -183,6 +191,12 @@ class DeepResearchWorkflow:
                 current_plan_text = iter_out["plan_text"]
 
             if self._cancelled:
+                await workflow.execute_activity(
+                    "finalize_deep_research",
+                    FinalizeInput(run_id=inp.run_id, status="cancelled"),
+                    start_to_close_timeout=_FINALIZE_TIMEOUT,
+                    retry_policy=RetryPolicy(maximum_attempts=5),
+                )
                 return DeepResearchOutput(
                     status="cancelled",
                     error={
@@ -225,6 +239,12 @@ class DeepResearchWorkflow:
                     await exec_task
                 except Exception:
                     pass
+                await workflow.execute_activity(
+                    "finalize_deep_research",
+                    FinalizeInput(run_id=inp.run_id, status="cancelled"),
+                    start_to_close_timeout=_FINALIZE_TIMEOUT,
+                    retry_policy=RetryPolicy(maximum_attempts=5),
+                )
                 return DeepResearchOutput(
                     status="cancelled",
                     error={
@@ -253,6 +273,16 @@ class DeepResearchWorkflow:
                 start_to_close_timeout=_PERSIST_TIMEOUT,
                 retry_policy=RetryPolicy(maximum_attempts=5),
             )
+            await workflow.execute_activity(
+                "finalize_deep_research",
+                FinalizeInput(
+                    run_id=inp.run_id,
+                    status="completed",
+                    note_id=persist_out["note_id"],
+                ),
+                start_to_close_timeout=_FINALIZE_TIMEOUT,
+                retry_policy=RetryPolicy(maximum_attempts=5),
+            )
             return DeepResearchOutput(
                 status="completed",
                 note_id=persist_out["note_id"],
@@ -266,6 +296,17 @@ class DeepResearchWorkflow:
             if isinstance(cause, ApplicationError):
                 code = cause.type or code
                 msg = cause.message
+            await workflow.execute_activity(
+                "finalize_deep_research",
+                FinalizeInput(
+                    run_id=inp.run_id,
+                    status="failed",
+                    error_code=code,
+                    error_message=msg,
+                ),
+                start_to_close_timeout=_FINALIZE_TIMEOUT,
+                retry_policy=RetryPolicy(maximum_attempts=5),
+            )
             return DeepResearchOutput(
                 status="failed",
                 error={"code": code, "message": msg, "retryable": False},

@@ -15,6 +15,7 @@ import { ingestRoutes } from "./routes/ingest";
 import { internalRoutes } from "./routes/internal";
 import { commentsRouter } from "./routes/comments";
 import { mentionsRouter } from "./routes/mentions";
+import { shareRouter } from "./routes/share";
 import { integrationsRouter } from "./routes/integrations";
 import { importRouter } from "./routes/import";
 import { researchRouter } from "./routes/research";
@@ -65,6 +66,11 @@ export function createApp() {
   // Mounted alongside /api/threads (specific path) so the wildcard /api routers
   // below don't intercept this with their own requireAuth chains.
   app.route("/api/message-feedback", messageFeedbackRoutes);
+  // Plan 2C share-link routes. Same public-then-auth shape as inviteRoutes.
+  // Mounted FIRST among `/api` wildcard sub-apps so its public route
+  // (`/api/public/share/:token`) is dispatched before any other sub-app's
+  // wildcard auth middleware (e.g. inviteRoutes' or commentsRouter's).
+  app.route("/api", shareRouter);  // /api/public/share/:token + /api/notes/:id/share + /api/share/:shareId + /api/workspaces/:workspaceId/share
   app.route("/api", inviteRoutes);  // /api/workspaces/:id/invites and /api/invites/:token/*
   app.route("/api", projectRoutes);
   app.route("/api/projects", graphRoutes);
