@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -12,11 +12,17 @@ export function ProfileView() {
   const { data } = useQuery({ queryKey: ["me"], queryFn: () => meApi.get() });
   const [name, setName] = useState("");
 
-  // Hydrate the input once the server response lands. Re-syncs if the user
-  // navigates away and back to a freshly fetched profile.
+  // Hydrate the input once per fetched user — gating on `name === ""` made
+  // the field uneditable (clearing the input snapped it back to data.name on
+  // the next render). Track the last hydrated user id so a logout/relogin or
+  // account switch still re-syncs.
+  const hydratedFor = useRef<string | null>(null);
   useEffect(() => {
-    if (data?.name && name === "") setName(data.name);
-  }, [data?.name, name]);
+    if (data && hydratedFor.current !== data.id) {
+      setName(data.name ?? "");
+      hydratedFor.current = data.id;
+    }
+  }, [data]);
 
   const save = useMutation({
     mutationFn: () => meApi.patch({ name: name.trim() }),
