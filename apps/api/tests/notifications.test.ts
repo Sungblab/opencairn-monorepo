@@ -172,6 +172,37 @@ describe("PATCH /api/notifications/:id/read", () => {
     expect(again.status).toBe(200);
   });
 
+  it("preserves the original read_at across repeated calls", async () => {
+    // Regression: the prior implementation set readAt = NOW() unconditionally,
+    // overwriting the first-read timestamp on every retry. COALESCE in the
+    // UPDATE should keep the analytics-truthy "first time the user opened the
+    // notification" value stable.
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const event = await persistAndPublish({
+      userId: u.id,
+      kind: "mention",
+      payload: { summary: "x" },
+    });
+    await authedPatch(`/api/notifications/${event.id}/read`, u.id);
+    const [first] = await db
+      .select({ readAt: notifications.readAt })
+      .from(notifications)
+      .where(eq(notifications.id, event.id));
+    expect(first.readAt).not.toBeNull();
+    const firstStamp = first.readAt!.getTime();
+
+    // NOW() resolution in Postgres is microseconds — wait long enough that a
+    // second UPDATE without COALESCE would produce a strictly greater value.
+    await new Promise((r) => setTimeout(r, 25));
+    await authedPatch(`/api/notifications/${event.id}/read`, u.id);
+    const [second] = await db
+      .select({ readAt: notifications.readAt })
+      .from(notifications)
+      .where(eq(notifications.id, event.id));
+    expect(second.readAt!.getTime()).toBe(firstStamp);
+  });
+
   it("404 when caller does not own the notification", async () => {
     const owner = await createUser();
     const intruder = await createUser();
