@@ -340,6 +340,72 @@ export const projectsApi = {
     ),
 };
 
+// ---------- Workspace settings (Phase 5 Task 6) ----------
+
+export type WorkspaceRole = "owner" | "admin" | "member" | "guest";
+
+export interface WorkspaceMemberRow {
+  userId: string;
+  role: WorkspaceRole;
+  email: string;
+  name: string;
+}
+
+export interface WorkspaceInviteRow {
+  id: string;
+  email: string;
+  role: "admin" | "member" | "guest";
+  expiresAt: string;
+  acceptedAt: string | null;
+  createdAt: string;
+}
+
+export interface GoogleIntegrationStatus {
+  connected: boolean;
+  accountEmail: string | null;
+  scopes: string | null;
+}
+
+export const wsSettingsApi = {
+  members: (workspaceId: string) =>
+    apiClient<WorkspaceMemberRow[]>(`/workspaces/${workspaceId}/members`),
+  patchMemberRole: (
+    workspaceId: string,
+    userId: string,
+    role: "admin" | "member" | "guest",
+  ) =>
+    apiClient<{ ok: true }>(`/workspaces/${workspaceId}/members/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    }),
+  removeMember: (workspaceId: string, userId: string) =>
+    apiClient<{ ok: true }>(`/workspaces/${workspaceId}/members/${userId}`, {
+      method: "DELETE",
+    }),
+  invites: (workspaceId: string) =>
+    apiClient<WorkspaceInviteRow[]>(`/workspaces/${workspaceId}/invites`),
+  createInvite: (
+    workspaceId: string,
+    email: string,
+    role: "admin" | "member" | "guest" = "member",
+  ) =>
+    apiClient<{ id: string }>(`/workspaces/${workspaceId}/invites`, {
+      method: "POST",
+      body: JSON.stringify({ email, role }),
+    }),
+  cancelInvite: (workspaceId: string, inviteId: string) =>
+    apiClient<{ ok: true }>(
+      `/workspaces/${workspaceId}/invites/${inviteId}`,
+      { method: "DELETE" },
+    ),
+};
+
+export const integrationsApi = {
+  google: () => apiClient<GoogleIntegrationStatus>(`/integrations/google`),
+  disconnectGoogle: () =>
+    apiClient<{ ok: true }>(`/integrations/google`, { method: "DELETE" }),
+};
+
 export const api = {
   getNote: (id: string) => apiClient<NoteRow>(`/notes/${id}`),
   listNotesByProject: (projectId: string) =>
