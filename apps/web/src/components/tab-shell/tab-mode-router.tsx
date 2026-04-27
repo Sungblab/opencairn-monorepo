@@ -5,6 +5,7 @@ import { SourceViewer } from "./viewers/source-viewer";
 import { DataViewer } from "./viewers/data-viewer";
 import { CanvasViewer } from "./viewers/canvas-viewer";
 import { ProjectGraphViewer } from "./viewers/project-graph-viewer";
+import { IngestViewer } from "./viewers/ingest-viewer";
 import { StubViewer } from "./viewers/stub-viewer";
 
 export function TabModeRouter({ tab }: { tab: Tab }) {
@@ -19,6 +20,8 @@ export function TabModeRouter({ tab }: { tab: Tab }) {
       return <CanvasViewer tab={tab} />;
     case "graph":
       return <ProjectGraphViewer tab={tab} />;
+    case "ingest":
+      return <IngestViewer tab={tab} />;
     case "plate":
       // plate renders through the Next.js route page; TabShell should pick
       // children when mode === 'plate'. Reaching here means a caller bypassed
