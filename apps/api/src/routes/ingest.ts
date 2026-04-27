@@ -8,6 +8,7 @@ import { requireAuth } from "../middleware/auth";
 import { canWrite } from "../lib/permissions";
 import { isUuid } from "../lib/validators";
 import { uploadObject } from "../lib/s3";
+import { streamObject } from "../lib/s3-get";
 import { getTemporalClient } from "../lib/temporal-client";
 import { getRedis } from "../lib/redis";
 import type { AppEnv } from "../lib/types";
@@ -356,4 +357,45 @@ export const ingestRoutes = new Hono<AppEnv>()
         void subscriber.quit().catch(() => {});
       });
     });
+  })
+
+  // GET /ingest/figures/:wfid/:filename — stream proxy for extracted PDF
+  // figures so the browser doesn't need a presigned MinIO URL. Auth gate is
+  // identical to /stream — only the dispatcher of the workflow can read its
+  // figures. Filename is constrained to a basename so traversal can't reach
+  // sibling user prefixes.
+  .get("/figures/:wfid/:filename", async (c) => {
+    const user = c.get("user");
+    const workflowId = c.req.param("wfid");
+    const filename = c.req.param("filename");
+
+    if (
+      !filename ||
+      filename.includes("/") ||
+      filename.includes("\\") ||
+      filename.includes("..")
+    ) {
+      return c.json({ error: "Invalid filename" }, 400);
+    }
+
+    const [row] = await db
+      .select({ userId: ingestJobs.userId })
+      .from(ingestJobs)
+      .where(eq(ingestJobs.workflowId, workflowId));
+    if (!row) return c.json({ error: "Not found" }, 404);
+    if (row.userId !== user.id) return c.json({ error: "Forbidden" }, 403);
+
+    const objectKey = `uploads/${user.id}/figures/${workflowId}/${filename}`;
+    try {
+      const obj = await streamObject(objectKey);
+      return new Response(obj.stream, {
+        headers: {
+          "content-type": obj.contentType || "image/png",
+          "content-length": String(obj.contentLength),
+          "cache-control": "private, max-age=3600",
+        },
+      });
+    } catch {
+      return c.json({ error: "Figure not found" }, 404);
+    }
   });
