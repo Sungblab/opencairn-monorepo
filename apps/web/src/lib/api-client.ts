@@ -491,9 +491,22 @@ export interface NotificationRow {
   read_at: string | null;
 }
 
+export interface NotificationsListResponse {
+  notifications: NotificationRow[];
+  /** Opaque cursor for the next page; `null` when no more rows exist. */
+  nextCursor: string | null;
+}
+
 export const notificationsApi = {
-  list: () =>
-    apiClient<{ notifications: NotificationRow[] }>(`/notifications`),
+  list: (opts: { cursor?: string; limit?: number } = {}) => {
+    const params = new URLSearchParams();
+    if (opts.cursor) params.set("cursor", opts.cursor);
+    if (opts.limit) params.set("limit", String(opts.limit));
+    const qs = params.toString();
+    return apiClient<NotificationsListResponse>(
+      `/notifications${qs ? `?${qs}` : ""}`,
+    );
+  },
   markRead: (id: string) =>
     apiClient<{ ok: true }>(`/notifications/${id}/read`, { method: "PATCH" }),
 };
