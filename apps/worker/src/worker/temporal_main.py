@@ -53,6 +53,7 @@ from worker.activities.connector_activity import run_connector as run_connector_
 from worker.activities.research_activity import run_research
 from worker.activities.staleness_activity import run_staleness as run_staleness_activity
 from worker.activities.synthesis_activity import run_synthesis
+from worker.activities.narrator_activity import run_narrator
 from worker.activities.semaphore_activity import (
     acquire_project_semaphore,
     release_project_semaphore,
@@ -72,6 +73,7 @@ from worker.workflows.research_workflow import ResearchWorkflow
 from worker.workflows.curator_workflow import CuratorWorkflow
 from worker.workflows.connector_workflow import ConnectorWorkflow
 from worker.workflows.synthesis_workflow import SynthesisWorkflow
+from worker.workflows.narrator_workflow import NarratorWorkflow
 from worker.workflows.socratic_workflow import SocraticEvaluateWorkflow, SocraticGenerateWorkflow
 from worker.workflows.staleness_workflow import StalenessWorkflow
 from worker.workflows.visualize_workflow import VisualizeWorkflow
@@ -126,6 +128,7 @@ def build_worker_config() -> WorkerConfig:
         CuratorWorkflow,
         ConnectorWorkflow,
         StalenessWorkflow,
+        NarratorWorkflow,
     ]
     activities: list[Any] = [
         parse_pdf,
@@ -143,6 +146,7 @@ def build_worker_config() -> WorkerConfig:
         run_research,
         run_staleness_activity,
         run_synthesis,
+        run_narrator,
         run_librarian,
         build_view,
         generate_questions,

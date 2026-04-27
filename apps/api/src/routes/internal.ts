@@ -24,6 +24,7 @@ import {
   codeTurns,
   suggestions,
   staleAlerts,
+  audioFiles,
   eq,
   and,
   isNull,
@@ -2290,6 +2291,35 @@ internal.post(
       .insert(staleAlerts)
       .values({ noteId, stalenessScore, reason })
       .returning({ id: staleAlerts.id });
+    return c.json({ id: row.id }, 201);
+  },
+);
+
+// POST /internal/audio-files — persist an audio_files record produced by the
+// Narrator agent after uploading audio to MinIO/R2.
+const audioFileCreateSchema = z.object({
+  noteId: z.string().uuid().nullable().optional(),
+  r2Key: z.string().min(1).max(500),
+  durationSec: z.number().int().positive().optional(),
+  voices: z
+    .array(z.object({ name: z.string(), style: z.string().optional() }))
+    .optional(),
+});
+
+internal.post(
+  "/audio-files",
+  zValidator("json", audioFileCreateSchema),
+  async (c) => {
+    const { noteId, r2Key, durationSec, voices } = c.req.valid("json");
+    const [row] = await db
+      .insert(audioFiles)
+      .values({
+        noteId: noteId ?? null,
+        r2Key,
+        durationSec: durationSec ?? null,
+        voices: voices ?? null,
+      })
+      .returning({ id: audioFiles.id });
     return c.json({ id: row.id }, 201);
   },
 );
