@@ -74,7 +74,11 @@ describe("POST /api/chat/conversations", () => {
     expect(body.ragMode).toBe("strict"); // default applied by Zod schema
   });
 
-  it("rejects scope_id from a different workspace with 403", async () => {
+  it("rejects scope_id from a different workspace with 404 (no existence oracle)", async () => {
+    // 11A intentionally collapses "doesn't exist" and "exists in another
+    // workspace" into a single 404 so a caller cannot enumerate UUIDs
+    // across the platform. validateScope returns "scope target not
+    // found" in both cases.
     const foreign = await seedWorkspace({ role: "owner" });
     try {
       const res = await authedFetch("/api/chat/conversations", {
@@ -83,13 +87,12 @@ describe("POST /api/chat/conversations", () => {
         body: JSON.stringify({
           workspaceId: ctx.workspaceId,
           scopeType: "page",
-          // Foreign note — must be rejected by validateScope.
           scopeId: foreign.noteId,
           attachedChips: [],
           memoryFlags: FULL_FLAGS,
         }),
       });
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(404);
     } finally {
       await foreign.cleanup();
     }
@@ -297,7 +300,9 @@ describe("POST /api/chat/conversations/:id/chips", () => {
     expect(chip?.label).toBe("test"); // seed helper inserts notes with title "test"
   });
 
-  it("rejects a chip pointing to a different workspace's page (403)", async () => {
+  it("rejects a chip pointing to a different workspace's page (404 no-oracle)", async () => {
+    // Same existence-oracle defence as the scope check on conversation
+    // create — cross-workspace and not-existing both collapse to 404.
     const id = await createConvo();
     const foreign = await seedWorkspace({ role: "owner" });
     try {
@@ -306,7 +311,7 @@ describe("POST /api/chat/conversations/:id/chips", () => {
         userId: ctx.userId,
         body: JSON.stringify({ type: "page", id: foreign.noteId }),
       });
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(404);
     } finally {
       await foreign.cleanup();
     }
@@ -685,6 +690,75 @@ describe("POST /api/chat/messages/:id/pin/confirm", () => {
       expect(res.status).toBe(200);
       const body = (await res.json()) as { pinned: boolean };
       expect(body.pinned).toBe(true);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  it("recomputes the delta on confirm and persists the snapshot as JSON", async () => {
+    // Verifies the reviewer C1 fix — confirm doesn't blindly trust the
+    // caller's intent. We seed a scenario with a visibility delta, hit
+    // /pin/confirm directly (skipping the warning modal call), and
+    // assert the persisted reason is a JSON snapshot of the actual
+    // delta — not just the literal "user_confirmed_permission_warning"
+    // string. This is the audit hook for "user pinned despite leak".
+    const { pinnedAnswers, eq: eqOp, db: dbConn } = await import(
+      "@opencairn/db"
+    );
+    const s = await seedPinScenario({ citedNoteVisibleToStranger: false });
+    try {
+      const res = await authedFetch(
+        `/api/chat/messages/${s.messageId}/pin/confirm`,
+        {
+          method: "POST",
+          userId: s.ownerCtx.userId,
+          body: JSON.stringify({ noteId: s.ownerCtx.noteId, blockId: "b1" }),
+        },
+      );
+      expect(res.status).toBe(200);
+      const [row] = await dbConn
+        .select()
+        .from(pinnedAnswers)
+        .where(eqOp(pinnedAnswers.messageId, s.messageId));
+      expect(row.reason).toBeDefined();
+      // JSON snapshot starts with `{` so we know it's not the literal tag.
+      expect(row.reason?.startsWith("{")).toBe(true);
+      const parsed = JSON.parse(row.reason as string);
+      expect(parsed.tag).toBe("user_confirmed_permission_warning");
+      expect(parsed.delta.hiddenSources[0].sourceId).toBe(s.citedNoteId);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  it("records `no_permission_delta` on confirm when delta cleared between /pin and /pin/confirm", async () => {
+    // A friendly race: between the original /pin (which returned 409)
+    // and /pin/confirm, an admin grants the stranger access to the
+    // cited source. confirm recomputes, sees no delta, persists the
+    // clean tag.
+    const { setPagePermission } = await import("./helpers/seed.js");
+    const { pinnedAnswers, eq: eqOp, db: dbConn } = await import(
+      "@opencairn/db"
+    );
+    const s = await seedPinScenario({ citedNoteVisibleToStranger: false });
+    try {
+      // Simulate the grant — stranger now sees the cited source.
+      await setPagePermission(s.strangerId, s.citedNoteId, "viewer");
+
+      const res = await authedFetch(
+        `/api/chat/messages/${s.messageId}/pin/confirm`,
+        {
+          method: "POST",
+          userId: s.ownerCtx.userId,
+          body: JSON.stringify({ noteId: s.ownerCtx.noteId, blockId: "b2" }),
+        },
+      );
+      expect(res.status).toBe(200);
+      const [row] = await dbConn
+        .select()
+        .from(pinnedAnswers)
+        .where(eqOp(pinnedAnswers.blockId, "b2"));
+      expect(row.reason).toBe("no_permission_delta");
     } finally {
       await s.cleanup();
     }

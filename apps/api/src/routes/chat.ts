@@ -197,14 +197,27 @@ chatRoutes.delete("/conversations/:id/chips/:chipKey", async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
   const chipKey = c.req.param("chipKey");
-  // Memory chip types are themselves colon-delimited (`memory:l3`), and
-  // chip ids in 11A never contain a colon (uuids for scope chips,
-  // alphanumeric+underscore identifiers for memory chips). So the LAST
-  // colon is always the type/id separator.
-  const sep = chipKey.lastIndexOf(":");
-  if (sep <= 0) return c.json({ error: "invalid chip key" }, 400);
-  const type = chipKey.slice(0, sep);
-  const chipId = chipKey.slice(sep + 1);
+  // Anchor the type extraction on the closed enum of chip types instead
+  // of inferring from `lastIndexOf(":")`. The latter quietly corrupted
+  // memory chip ids that themselves contain a colon (Plan 11B promised
+  // broader id formats and `lastIndexOf` would have happily mis-parsed
+  // `memory:l3:user:bob@example.com:l3-pin` → type=`memory:l3:user:...`).
+  const KNOWN_TYPES = [
+    "page",
+    "project",
+    "workspace",
+    "memory:l3",
+    "memory:l4",
+    "memory:l2",
+  ] as const;
+  const matchedType = KNOWN_TYPES.find(
+    (p) => chipKey === p || chipKey.startsWith(`${p}:`),
+  );
+  if (!matchedType || chipKey.length <= matchedType.length + 1) {
+    return c.json({ error: "invalid chip key" }, 400);
+  }
+  const type = matchedType;
+  const chipId = chipKey.slice(matchedType.length + 1);
 
   const [convo] = await db
     .select()
@@ -245,6 +258,10 @@ async function doPin(opts: {
     noteId: opts.noteId,
     blockId: opts.blockId,
     pinnedBy: opts.userId,
+    // The audit story relies on `reason` being either a fixed tag
+    // ("no_permission_delta") or a JSON snapshot of the delta when the
+    // user confirmed despite a warning. Future audit reads parse the
+    // JSON when the value starts with "{".
     reason: opts.reason,
   });
 }
@@ -295,7 +312,9 @@ chatRoutes.post(
       delta = await computePinDelta(ctx.citations, noteId);
     } catch (e) {
       const status = (e as { status?: number }).status;
-      if (status === 404) return c.json({ error: (e as Error).message }, 404);
+      if (status === 404 || status === 413) {
+        return c.json({ error: (e as Error).message }, status);
+      }
       throw e;
     }
 
@@ -411,13 +430,33 @@ chatRoutes.post(
     const ctx = await loadPinContext(userId, messageId, noteId);
     if (!ctx.ok) return c.json({ error: ctx.error }, ctx.status);
 
-    await doPin({
-      userId,
-      messageId,
-      noteId,
-      blockId,
-      reason: "user_confirmed_permission_warning",
-    });
+    // CRITICAL: recompute the delta on the confirm path so a scripted
+    // client cannot bypass the modal by hitting /pin/confirm directly
+    // — the original /pin response is just a hint. The recomputed
+    // snapshot is what we audit. If the delta has shrunk to zero
+    // between the two calls (e.g. an admin granted access in the
+    // meantime), record that as `no_permission_delta`.
+    let delta;
+    try {
+      delta = await computePinDelta(ctx.citations, noteId);
+    } catch (e) {
+      const status = (e as { status?: number }).status;
+      if (status === 404 || status === 413) {
+        return c.json({ error: (e as Error).message }, status);
+      }
+      throw e;
+    }
+
+    const reason =
+      delta.hiddenSources.length === 0
+        ? "no_permission_delta"
+        : JSON.stringify({
+            tag: "user_confirmed_permission_warning",
+            delta,
+            confirmedAt: new Date().toISOString(),
+          });
+
+    await doPin({ userId, messageId, noteId, blockId, reason });
     return c.json({ pinned: true });
   },
 );

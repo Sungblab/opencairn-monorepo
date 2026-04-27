@@ -51,27 +51,32 @@ export async function validateScope(
     return { label: ws.name };
   }
 
+  // For project / page lookups: collapse "row exists in another
+  // workspace" with "row does not exist at all" into a single response.
+  // Distinguishing the two leaks an existence oracle — a caller who
+  // doesn't belong to the target workspace can otherwise enumerate
+  // project/page UUIDs and learn whether each one is real. Mirrors the
+  // silent-false behaviour of `permissions.canRead`.
   if (scopeType === "project") {
     const [row] = await conn
       .select({ name: projects.name, workspaceId: projects.workspaceId })
       .from(projects)
       .where(eq(projects.id, scopeId));
-    if (!row) throw new ScopeValidationError(404, "project not found");
-    if (row.workspaceId !== workspaceId) {
-      throw new ScopeValidationError(403, "scope outside workspace");
+    if (!row || row.workspaceId !== workspaceId) {
+      throw new ScopeValidationError(404, "scope target not found");
     }
     return { label: row.name };
   }
 
   // page — soft-deleted notes resolve as not-found so a chat scoped to a
-  // trashed page can't be created.
+  // trashed page can't be created. Cross-workspace and not-existing both
+  // collapse to 404 (existence-oracle defence above).
   const [row] = await conn
     .select({ title: notes.title, workspaceId: notes.workspaceId })
     .from(notes)
     .where(and(eq(notes.id, scopeId), isNull(notes.deletedAt)));
-  if (!row) throw new ScopeValidationError(404, "page not found");
-  if (row.workspaceId !== workspaceId) {
-    throw new ScopeValidationError(403, "scope outside workspace");
+  if (!row || row.workspaceId !== workspaceId) {
+    throw new ScopeValidationError(404, "scope target not found");
   }
   return { label: row.title || "Untitled" };
 }
