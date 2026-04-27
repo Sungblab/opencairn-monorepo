@@ -51,6 +51,7 @@ from worker.activities.quarantine_activity import quarantine_source
 from worker.activities.curator_activity import run_curator
 from worker.activities.connector_activity import run_connector as run_connector_activity
 from worker.activities.research_activity import run_research
+from worker.activities.staleness_activity import run_staleness as run_staleness_activity
 from worker.activities.synthesis_activity import run_synthesis
 from worker.activities.semaphore_activity import (
     acquire_project_semaphore,
@@ -72,6 +73,7 @@ from worker.workflows.curator_workflow import CuratorWorkflow
 from worker.workflows.connector_workflow import ConnectorWorkflow
 from worker.workflows.synthesis_workflow import SynthesisWorkflow
 from worker.workflows.socratic_workflow import SocraticEvaluateWorkflow, SocraticGenerateWorkflow
+from worker.workflows.staleness_workflow import StalenessWorkflow
 from worker.workflows.visualize_workflow import VisualizeWorkflow
 
 # Deep Research (Spec 2026-04-22) — registered only when FEATURE_DEEP_RESEARCH
@@ -123,6 +125,7 @@ def build_worker_config() -> WorkerConfig:
         SocraticEvaluateWorkflow,
         CuratorWorkflow,
         ConnectorWorkflow,
+        StalenessWorkflow,
     ]
     activities: list[Any] = [
         parse_pdf,
@@ -138,6 +141,7 @@ def build_worker_config() -> WorkerConfig:
         run_curator,
         run_connector_activity,
         run_research,
+        run_staleness_activity,
         run_synthesis,
         run_librarian,
         build_view,

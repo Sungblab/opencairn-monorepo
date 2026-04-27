@@ -23,6 +23,7 @@ import {
   codeRuns,
   codeTurns,
   suggestions,
+  staleAlerts,
   eq,
   and,
   isNull,
@@ -2232,6 +2233,63 @@ internal.post(
       .insert(suggestions)
       .values({ userId, projectId, type, payload, status: "pending" })
       .returning({ id: suggestions.id });
+    return c.json({ id: row.id }, 201);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Plan 8 — Staleness Agent support
+// ---------------------------------------------------------------------------
+
+// GET /internal/projects/:id/stale-notes?days=90&limit=20
+// Returns wiki notes not updated in the last N days for the Staleness agent.
+internal.get("/projects/:id/stale-notes", async (c) => {
+  const projectId = c.req.param("id");
+  if (!z.string().uuid().safeParse(projectId).success) {
+    return c.json({ error: "Invalid project id" }, 400);
+  }
+  const daysRaw = c.req.query("days");
+  const limitRaw = c.req.query("limit");
+  const days = Math.max(1, Math.min(365, parseInt(daysRaw ?? "90", 10) || 90));
+  const limit = Math.max(1, Math.min(100, parseInt(limitRaw ?? "20", 10) || 20));
+
+  const rows = await db
+    .select({
+      id: notes.id,
+      title: notes.title,
+      contentText: notes.contentText,
+      updatedAt: notes.updatedAt,
+    })
+    .from(notes)
+    .where(
+      and(
+        eq(notes.projectId, projectId),
+        eq(notes.type, "wiki"),
+        isNull(notes.deletedAt),
+        sql`${notes.updatedAt} < now() - (${days} || ' days')::interval`,
+      ),
+    )
+    .limit(limit);
+
+  return c.json({ notes: rows });
+});
+
+// POST /internal/stale-alerts — persist a staleness alert row.
+const staleAlertCreateSchema = z.object({
+  noteId: z.string().uuid(),
+  stalenessScore: z.number().min(0).max(1),
+  reason: z.string().max(500),
+});
+
+internal.post(
+  "/stale-alerts",
+  zValidator("json", staleAlertCreateSchema),
+  async (c) => {
+    const { noteId, stalenessScore, reason } = c.req.valid("json");
+    const [row] = await db
+      .insert(staleAlerts)
+      .values({ noteId, stalenessScore, reason })
+      .returning({ id: staleAlerts.id });
     return c.json({ id: row.id }, 201);
   },
 );
