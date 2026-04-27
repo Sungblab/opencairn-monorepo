@@ -14,10 +14,26 @@
 //   comment_reply      { summary, noteId, commentId, parentCommentId, fromUserId }
 //   share_invite       { summary, noteId, noteTitle, role, fromUserId }
 //   research_complete  { summary, runId, noteId, projectId, topic }
-//   system             { summary, level: 'info'|'warning', linkUrl? }   (wiring TBD — Super Admin)
+//   system             { summary, level: 'info'|'warning', linkUrl?, refType?, refId? }
+//
+// `system` is the catch-all for cross-feature notifications that don't
+// warrant their own enum value (DB enum + i18n keys + drawer renderer).
+// Current emitters:
+//   - apps/worker/src/worker/activities/import_activities.py
+//     finalize_import_job — writes refType="import_job", refId=<jobId>,
+//     level=info on success / warning when total>0 && completed==0.
+// Future emitters: Super Admin Console (broadcast announcements,
+// rate-limit warnings) — refType="admin_broadcast" / "ratelimit".
+//
+// In-band publish surface for activities + admin tooling:
+//   POST /api/internal/notifications  (X-Internal-Secret)
+//   { userId, kind, payload }   — payload.summary is required (1..2000c).
 //
 // Self-notification rule: every publisher MUST skip when the target user
-// equals the actor (mirrors comments.ts mention fan-out).
+// equals the actor (mirrors comments.ts mention fan-out). Activities that
+// emit on behalf of the originating user (e.g. import_done — the user
+// triggered their own import) are exempt because the actor IS the
+// recipient.
 
 import { EventEmitter } from "node:events";
 import { db, notifications, type Notification } from "@opencairn/db";

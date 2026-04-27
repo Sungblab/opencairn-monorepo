@@ -2069,4 +2069,59 @@ internal.patch(
   },
 );
 
+// ---------------------------------------------------------------------------
+// Generic notification publish — let activities (e.g. ImportWorkflow's
+// finalize_import_job) emit drawer + SSE notifications without re-implementing
+// the persist + fan-out plumbing. Each kind's payload contract is documented
+// in apps/api/src/lib/notification-events.ts. We require a non-empty
+// `payload.summary` since the drawer's NotificationItem treats it as the
+// universal fallback when a renderer doesn't have a structured summary
+// template (every kind ships at least the fallback string from the producer).
+// ---------------------------------------------------------------------------
+
+const internalNotificationPayloadSchema = z
+  .record(z.unknown())
+  .refine(
+    (p) => {
+      const summary = (p as Record<string, unknown>).summary;
+      return typeof summary === "string" && summary.length > 0
+        && summary.length <= 2000;
+    },
+    { message: "payload.summary must be a 1..2000 char string" },
+  );
+
+const internalNotificationSchema = z.object({
+  userId: z.string().uuid(),
+  kind: z.enum([
+    "mention",
+    "comment_reply",
+    "research_complete",
+    "share_invite",
+    "system",
+  ]),
+  payload: internalNotificationPayloadSchema,
+});
+
+internal.post(
+  "/notifications",
+  zValidator("json", internalNotificationSchema, (result, c) => {
+    // Surface zod's first issue as a flat error string so the worker (which
+    // only inspects `error`) can log a useful diagnostic.
+    if (!result.success) {
+      const first = result.error.issues[0];
+      const path = first.path.join(".") || "(root)";
+      return c.json({ error: `${path}: ${first.message}` }, 400);
+    }
+  }),
+  async (c) => {
+    const body = c.req.valid("json");
+    const event = await persistAndPublish({
+      userId: body.userId,
+      kind: body.kind,
+      payload: body.payload as Record<string, unknown>,
+    });
+    return c.json({ id: event.id }, 201);
+  },
+);
+
 export const internalRoutes = internal;

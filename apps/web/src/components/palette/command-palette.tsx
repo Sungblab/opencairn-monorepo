@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { Command } from "cmdk";
@@ -10,18 +10,24 @@ import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
 import { apiClient, type WorkspaceNoteSearchHit } from "@/lib/api-client";
 import { buildActions } from "./palette-actions";
 import { searchWorkspaceNotes } from "./palette-search";
+import { extractWsSlug } from "./extract-ws-slug";
 
-// Mounted by ShellProviders so it has the wsSlug context. ⌘K opens; ⌘\\ /
-// ⌘J still toggle their panels even with the palette open because the store
-// dispatches don't depend on focus.
+// Mounted at the [locale]/layout boundary so /settings, /onboarding, and the
+// rest of the non-shell routes pick up ⌘K too. The active workspace is
+// derived from the URL — we only have a wsSlug under `/<locale>/app/w/<slug>`
+// — and the palette degrades gracefully (action-only, no note search) when
+// the path doesn't have one.
 //
 // wsId is resolved on demand via /workspaces/by-slug/:slug — react-query
 // dedupes against the same fetch the sidebar made on mount, so this adds no
 // extra round-trip in the common case.
-export function CommandPalette({ wsSlug }: { wsSlug: string }) {
+export function CommandPalette() {
+  const pathname = usePathname();
+  const wsSlug = extractWsSlug(pathname);
   const { data: ws } = useQuery({
     queryKey: ["ws-by-slug", wsSlug],
     queryFn: () => apiClient<{ id: string }>(`/workspaces/by-slug/${wsSlug}`),
+    enabled: !!wsSlug,
   });
   const wsId = ws?.id ?? "";
   const router = useRouter();
@@ -60,7 +66,7 @@ export function CommandPalette({ wsSlug }: { wsSlug: string }) {
   }, [query, isOpen, wsId]);
 
   const actions = useMemo(
-    () => buildActions({ locale, wsSlug }),
+    () => buildActions({ locale, wsSlug: wsSlug ?? undefined }),
     [locale, wsSlug],
   );
 
@@ -84,7 +90,7 @@ export function CommandPalette({ wsSlug }: { wsSlug: string }) {
         <Command.Empty className="p-3 text-xs text-muted-foreground">
           {t("empty")}
         </Command.Empty>
-        {notes.length > 0 && (
+        {notes.length > 0 && wsSlug && (
           <Command.Group heading={t("groups.notes")}>
             {notes.map((n) => (
               <Command.Item

@@ -46,19 +46,25 @@ export function buildActions(opts: {
     labelKey: "profile",
     run: (r) => r.push(`/${locale}/settings/profile`),
   });
-  actions.push(
-    {
-      id: "toggle-sidebar",
-      labelKey: "toggleSidebar",
-      shortcut: "⌘\\",
-      run: () => usePanelStore.getState().toggleSidebar(),
-    },
-    {
-      id: "toggle-agent",
-      labelKey: "toggleAgent",
-      shortcut: "⌘J",
-      run: () => usePanelStore.getState().toggleAgentPanel(),
-    },
-  );
+  // Panel toggles only mean something inside the (shell) route group — the
+  // panel store is wired to AppShell, so calling them on /settings or
+  // /onboarding is a silent no-op for the user. Hide them outside shell so
+  // the palette doesn't advertise actions that visibly do nothing.
+  if (wsBase) {
+    actions.push(
+      {
+        id: "toggle-sidebar",
+        labelKey: "toggleSidebar",
+        shortcut: "⌘\\",
+        run: () => usePanelStore.getState().toggleSidebar(),
+      },
+      {
+        id: "toggle-agent",
+        labelKey: "toggleAgent",
+        shortcut: "⌘J",
+        run: () => usePanelStore.getState().toggleAgentPanel(),
+      },
+    );
+  }
   return actions;
 }

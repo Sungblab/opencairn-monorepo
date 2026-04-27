@@ -3,6 +3,8 @@ import { getMessages, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { locales, type Locale } from "@/i18n";
 import { Toaster } from "@/components/ui/toaster";
+import { ReactQueryProvider } from "@/lib/react-query";
+import { CommandPalette } from "@/components/palette/command-palette";
 
 export function generateStaticParams() {
   return locales.map((locale) => ({ locale }));
@@ -20,15 +22,19 @@ export default async function LocaleLayout({
   setRequestLocale(locale as Locale);
   const messages = await getMessages();
 
-  // Toaster lives at the locale boundary (lifted from ShellProviders in
-  // Phase 5) so onboarding / auth / settings — anything outside the (shell)
-  // route group — also gets toast notifications. The Toaster itself reads
-  // the theme from the root layout's `data-theme`, so colours track palette
-  // changes without re-mounting.
+  // Toaster, ReactQueryProvider, and CommandPalette all live at the locale
+  // boundary so non-(shell) routes (/settings, /onboarding, /auth, /s/<token>)
+  // get toasts, can use react-query, and can open ⌘K. The palette derives
+  // its workspace context from the URL, so a global mount needs no prop drill.
+  // Theme tokens come from the root layout's `data-theme`, so colours track
+  // palette changes without re-mounting either provider.
   return (
     <NextIntlClientProvider messages={messages}>
-      {children}
-      <Toaster />
+      <ReactQueryProvider>
+        {children}
+        <Toaster />
+        <CommandPalette />
+      </ReactQueryProvider>
     </NextIntlClientProvider>
   );
 }

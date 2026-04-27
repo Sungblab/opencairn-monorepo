@@ -177,6 +177,43 @@ async def materialize_page_tree(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+_SOURCE_LABELS_KO = {
+    "google_drive": "Google Drive",
+    "notion_zip": "Notion",
+}
+
+
+def _build_import_summary(
+    *,
+    source: str,
+    status: str,
+    completed: int,
+    failed: int,
+    total: int,
+) -> tuple[str, str]:
+    """Return (summary, level) for the system-kind notification.
+
+    Korean default — the project ships ko-first and ``users`` doesn't track
+    a preferred locale yet. The drawer renders ``payload.summary`` raw for
+    ``system`` kind so a per-locale string here is a clean future swap.
+    """
+    label = _SOURCE_LABELS_KO.get(source, "가져오기")
+    if status == "completed":
+        if failed == 0:
+            return (
+                f"{label} 가져오기가 완료되었습니다 — {completed}/{total} 페이지",
+                "info",
+            )
+        return (
+            f"{label} 가져오기 — {completed}/{total} 성공, {failed}개 실패",
+            "warning",
+        )
+    return (
+        f"{label} 가져오기에 실패했습니다 — {total}개 항목 모두 실패",
+        "warning",
+    )
+
+
 @activity.defn(name="finalize_import_job")
 async def finalize_import_job(payload: dict[str, Any]) -> None:
     """Stamp the terminal status + counters on the import_jobs row.
@@ -210,18 +247,37 @@ async def finalize_import_job(payload: dict[str, Any]) -> None:
 
     # Notification is best-effort — a missing endpoint or DB blip must not
     # surface as a job failure, since the import itself has already landed.
+    # The previous code shipped `kind: "import_done"`, which is *not* in
+    # `notification_kind` — every publish was a silent 400. Use `system`
+    # with a refType/refId tag so the drawer can route on click later.
     with contextlib.suppress(Exception):
+        # Re-fetch the job to learn the source kind for a nicer summary —
+        # the workflow envelope drops `source` by the time we get here.
+        job = await get_internal(f"/api/internal/import-jobs/{job_id}")
+        summary, level = _build_import_summary(
+            source=str(job.get("source", "")),
+            status=status,
+            completed=completed,
+            failed=failed,
+            total=total,
+        )
         await post_internal(
             "/api/internal/notifications",
             {
                 "userId": payload["user_id"],
-                "kind": "import_done",
-                "refId": job_id,
+                "kind": "system",
+                "payload": {
+                    "summary": summary,
+                    "level": level,
+                    "refType": "import_job",
+                    "refId": job_id,
+                },
             },
         )
 
 
 __all__ = [
+    "_build_import_summary",
     "_compute_effective_parents",
     "_sort_pages_first",
     "finalize_import_job",
