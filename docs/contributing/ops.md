@@ -106,9 +106,13 @@ python -m scripts.purge_embedding_jsonl --dry-run
 
 ## canvas_outputs ops (Plan 7 Phase 2)
 
-- **Bucket layout**: `canvas-outputs/<workspaceId>/<noteId>/<contentHash>.{png|svg}` in MinIO.
-- **Cleanup**: 30-day untouched-object cron deletion is **not yet implemented** — track as a Phase 3 follow-up (`scripts/purge_canvas_outputs.py`). Current behavior: outputs persist indefinitely.
-- **Monitoring**: object count / total bytes / upload failure rate via Grafana dashboard `canvas-outputs` (panel TBD).
+- **Bucket layout**: `canvas-outputs/<workspaceId>/<noteId>/<contentHash>.{png|svg}` under the shared `S3_BUCKET` (default `opencairn-uploads`).
+- **Cleanup**: `apps/worker/scripts/purge_canvas_outputs.py` — orphan-only sweep. Lists aged keys (default >30d) under the `canvas-outputs/` prefix, filters them against `canvas_outputs.s3_key` in Postgres, and deletes only those with no matching DB row. In-use rows are left strictly alone, so an active note's figures aren't garbage-collected mid-life.
+  - `python -m scripts.purge_canvas_outputs --dry-run` — preview
+  - `python -m scripts.purge_canvas_outputs` — live, 30 days
+  - `python -m scripts.purge_canvas_outputs --skip-db` — emergency storage-only mode (DB unreachable; expect gallery 404s afterwards)
+  - TTL knob: `CANVAS_OUTPUTS_TTL_DAYS` env var (default 30).
+- **Monitoring**: import `docs/observability/grafana-dashboards/canvas-outputs.json` for the standard panel set (object count, total bytes, upload failure rate, time-series + purge annotations). Metric emission is a Phase 3 follow-up — the dashboard imports cleanly but shows "No data" until `opencairn_canvas_*` counters/gauges are wired (see the dashboard README for the contract).
 - **Idempotency**: SHA-256 collision on `(noteId, contentHash)` returns the existing row's id rather than re-uploading. Concurrent first-write races protected by the `canvas_outputs_note_hash_unique` UNIQUE index — losers get the existing row via the second SELECT after `ON CONFLICT DO NOTHING`.
 - **Size cap**: hard 2MB enforced at `bodyLimit` middleware AND post-parse `file.size` check (defense in depth) — 413 `outputTooLarge` on overflow.
 - **Mime allow-list**: `image/png`, `image/svg+xml` only — 400 `outputBadType` on others.
