@@ -1,0 +1,45 @@
+{
+  "spotlight": {
+    "title": "{fileName} 분석 중",
+    "subtitle": "페이지를 읽고 그림과 구조를 추출하고 있어요.",
+    "skipToTab": "탭에서 보기",
+    "secondsRemaining": "{n}초"
+  },
+  "tab": {
+    "title": "분석 중: {fileName}",
+    "openSourceNote": "노트로 이동",
+    "denseToggle": "상세 보기",
+    "denseToggleOff": "간단히 보기"
+  },
+  "dock": {
+    "running": "{fileName} · {pct}%",
+    "completed": "{fileName} 완료",
+    "failed": "{fileName} 실패",
+    "openNote": "노트 열기",
+    "retry": "다시 시도",
+    "dismiss": "닫기",
+    "moreCount": "+{n}개 더"
+  },
+  "stage": {
+    "downloading": "다운로드 중",
+    "parsing": "파싱 중",
+    "enhancing": "개선 중",
+    "persisting": "저장 중"
+  },
+  "unit": {
+    "page": "페이지 {n}/{total}",
+    "segment": "세그먼트 {n}/{total}",
+    "section": "섹션 {n}/{total}"
+  },
+  "figure": {
+    "image": "이미지",
+    "table": "표",
+    "chart": "차트",
+    "equation": "수식"
+  },
+  "error": {
+    "generic": "처리 중 오류가 발생했습니다.",
+    "unsupported": "지원되지 않는 파일일 수 있습니다.",
+    "retryHint": "잠시 후 다시 시도해 주세요."
+  }
+}

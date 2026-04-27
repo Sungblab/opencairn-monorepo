@@ -31,6 +31,8 @@ import trafilatura
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
+from worker.lib.ingest_events import publish_safe
+
 COMPLEX_MARKER_PATTERN = re.compile(
     r"(figure\s+\d+|table\s+\d+|equation\s+\d+|\$\$|\\\[)",
     re.IGNORECASE,
@@ -197,8 +199,13 @@ async def _scrape_impl(url: str) -> dict:
 @activity.defn(name="scrape_web_url")
 async def scrape_web_url(inp: dict) -> dict:
     url: str = inp["url"]
+    workflow_id: str | None = inp.get("workflow_id")
     activity.logger.info("Scraping web URL: %s", url)
+    if workflow_id:
+        await publish_safe(workflow_id, "stage_changed", {"stage": "downloading", "pct": None})
     result = await _scrape_impl(url)
+    if workflow_id:
+        await publish_safe(workflow_id, "stage_changed", {"stage": "parsing", "pct": None})
     activity.heartbeat("extraction complete")
     activity.logger.info(
         "Web scrape complete: %d chars, complex=%s",

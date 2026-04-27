@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
+import { streamSSE } from "hono/streaming";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
@@ -7,7 +8,9 @@ import { requireAuth } from "../middleware/auth";
 import { canWrite } from "../lib/permissions";
 import { isUuid } from "../lib/validators";
 import { uploadObject } from "../lib/s3";
+import { streamObject } from "../lib/s3-get";
 import { getTemporalClient } from "../lib/temporal-client";
+import { getRedis } from "../lib/redis";
 import type { AppEnv } from "../lib/types";
 import { db, ingestJobs, projects, eq } from "@opencairn/db";
 
@@ -275,4 +278,142 @@ export const ingestRoutes = new Hono<AppEnv>()
       startTime: desc.startTime,
       closeTime: desc.closeTime ?? null,
     });
+  })
+
+  // GET /ingest/stream/:workflowId — Server-Sent Events for live ingest
+  // visibility (Plan: live-ingest-visualization Task 7).
+  //
+  // Auth model mirrors /status/:workflowId — caller must be the dispatcher.
+  // The handler replays the Redis LIST backlog (events emitted before the
+  // browser opened the stream) then SUBSCRIBEs to the live channel. Both
+  // share a single seq counter so the client can dedupe via Last-Event-ID
+  // on auto-reconnect.
+  .get("/stream/:workflowId", async (c) => {
+    const user = c.get("user");
+    const workflowId = c.req.param("workflowId");
+
+    const [row] = await db
+      .select({ userId: ingestJobs.userId })
+      .from(ingestJobs)
+      .where(eq(ingestJobs.workflowId, workflowId));
+    if (!row) return c.json({ error: "Not found" }, 404);
+    if (row.userId !== user.id) return c.json({ error: "Forbidden" }, 403);
+
+    const lastEventId = c.req.header("Last-Event-ID");
+    const lastSeq = lastEventId ? Number(lastEventId) : 0;
+
+    return streamSSE(c, async (stream) => {
+      const r = getRedis();
+      const subscriber = r.duplicate();
+      let lastSent = Number.isFinite(lastSeq) ? lastSeq : 0;
+      let closed = false;
+
+      // Keepalive — proxies often close idle SSE connections after ~60s.
+      const keepalive = setInterval(() => {
+        void stream
+          .writeSSE({ event: "keepalive", data: "" })
+          .catch(() => {});
+      }, 30_000);
+
+      const cleanup = async () => {
+        if (closed) return;
+        closed = true;
+        clearInterval(keepalive);
+        try {
+          await subscriber.quit();
+        } catch {
+          // best-effort — already disconnected or never connected
+        }
+      };
+
+      // Register abort handler BEFORE any await so a client that disconnects
+      // during the backlog replay still triggers cleanup of the duplicate
+      // Redis socket and the keepalive interval.
+      stream.onAbort(() => {
+        void cleanup();
+      });
+
+      try {
+        // 1) Subscribe FIRST so messages published during the LRANGE window
+        //    aren't lost. The dedup via lastSent handles the duplicate
+        //    delivery (same event reachable via both channel and LIST).
+        subscriber.on("message", async (_chan, raw) => {
+          if (closed) return;
+          try {
+            const ev = JSON.parse(raw) as { seq: number; kind: string };
+            if (ev.seq <= lastSent) return;
+            await stream.writeSSE({ id: String(ev.seq), data: raw });
+            lastSent = ev.seq;
+            if (ev.kind === "completed" || ev.kind === "failed") {
+              await cleanup();
+              stream.close();
+            }
+          } catch {
+            // ignore malformed
+          }
+        });
+        await subscriber.subscribe(`ingest:events:${workflowId}`);
+
+        // 2) Replay backlog. LPUSH stores newest first; reverse to chronological.
+        //    Any event that landed between subscribe() and lrange() arrives
+        //    via both paths; lastSent dedups.
+        const backlog = await r.lrange(`ingest:replay:${workflowId}`, 0, -1);
+        for (const raw of backlog.reverse()) {
+          if (closed) break;
+          try {
+            const ev = JSON.parse(raw) as { seq: number; kind: string };
+            if (ev.seq > lastSent) {
+              await stream.writeSSE({ id: String(ev.seq), data: raw });
+              lastSent = ev.seq;
+            }
+          } catch {
+            // Malformed payload — skip; never break the stream over one bad row.
+          }
+        }
+      } catch {
+        // Any unhandled error during setup must not leak the subscriber.
+        await cleanup();
+      }
+    });
+  })
+
+  // GET /ingest/figures/:wfid/:filename — stream proxy for extracted PDF
+  // figures so the browser doesn't need a presigned MinIO URL. Auth gate is
+  // identical to /stream — only the dispatcher of the workflow can read its
+  // figures. Filename is constrained to a basename so traversal can't reach
+  // sibling user prefixes.
+  .get("/figures/:wfid/:filename", async (c) => {
+    const user = c.get("user");
+    const workflowId = c.req.param("wfid");
+    const filename = c.req.param("filename");
+
+    if (
+      !filename ||
+      filename.includes("/") ||
+      filename.includes("\\") ||
+      filename.includes("..")
+    ) {
+      return c.json({ error: "Invalid filename" }, 400);
+    }
+
+    const [row] = await db
+      .select({ userId: ingestJobs.userId })
+      .from(ingestJobs)
+      .where(eq(ingestJobs.workflowId, workflowId));
+    if (!row) return c.json({ error: "Not found" }, 404);
+    if (row.userId !== user.id) return c.json({ error: "Forbidden" }, 403);
+
+    const objectKey = `uploads/${user.id}/figures/${workflowId}/${filename}`;
+    try {
+      const obj = await streamObject(objectKey);
+      return new Response(obj.stream, {
+        headers: {
+          "content-type": obj.contentType || "image/png",
+          "content-length": String(obj.contentLength),
+          "cache-control": "private, max-age=3600",
+        },
+      });
+    } catch {
+      return c.json({ error: "Figure not found" }, 404);
+    }
   });

@@ -1,8 +1,12 @@
 """IngestWorkflow — Temporal workflow that dispatches per-mime ingest activities.
 
-Plan 3 Task 2 scaffold: activities are referenced by name so the workflow module
-can be imported (and the worker can register it) even before Plan 3 Tasks 3-10
-land the concrete activity implementations.
+Plan 3 Task 2 scaffold + Plan: live-ingest-visualization Task 6.
+
+The workflow now also threads ``workflow_id`` and ``started_at_ms`` into every
+activity input so the per-activity event emitters (Tasks 3-5) can publish
+IngestEvents without each activity needing to read Temporal context. Workflows
+are deterministic and may not talk to Redis directly — the small ``emit_started``
+activity exists for the same reason: it forwards to ``publish_safe`` for us.
 """
 from __future__ import annotations
 
@@ -40,12 +44,46 @@ _SHORT_TIMEOUT = timedelta(minutes=5)
 _QUARANTINE_RETRY = RetryPolicy(maximum_attempts=2, backoff_coefficient=2.0)
 
 
+def _activity_input(inp: IngestInput, workflow_id: str, started_at_ms: int, **extra) -> dict:
+    """Build the dict passed to an ingest activity, with workflow context fields."""
+    return {
+        **inp.__dict__,
+        "workflow_id": workflow_id,
+        "started_at_ms": started_at_ms,
+        **extra,
+    }
+
+
 @workflow.defn(name="IngestWorkflow")
 class IngestWorkflow:
     @workflow.run
     async def run(self, inp: IngestInput) -> str:
+        workflow_id = workflow.info().workflow_id
+        started_at_ms = int(workflow.now().timestamp() * 1000)
+
+        # Best-effort: emit the started event before parsing kicks off so
+        # the spotlight overlay can paint a frame immediately.
         try:
-            return await self._run_pipeline(inp)
+            await workflow.execute_activity(
+                "emit_started",
+                {
+                    "workflow_id": workflow_id,
+                    "payload": {
+                        "mime": inp.mime_type,
+                        "fileName": inp.file_name,
+                        "url": inp.url,
+                        "totalUnits": None,
+                    },
+                },
+                schedule_to_close_timeout=_SHORT_TIMEOUT,
+                retry_policy=_QUARANTINE_RETRY,
+            )
+        except ActivityError:
+            # Visibility layer must never break ingest. Fall through.
+            pass
+
+        try:
+            return await self._run_pipeline(inp, workflow_id, started_at_ms)
         except ActivityError as exc:
             # Plan 3 Task 10 — dead-letter on repeated activity failure.
             # Quarantine + reporting are best-effort; the original ActivityError
@@ -77,6 +115,7 @@ class IngestWorkflow:
                         "object_key": inp.object_key,
                         "quarantine_key": quarantine_key,
                         "reason": reason,
+                        "workflow_id": workflow_id,
                     },
                     schedule_to_close_timeout=_SHORT_TIMEOUT,
                     retry_policy=_QUARANTINE_RETRY,
@@ -85,15 +124,19 @@ class IngestWorkflow:
                 pass  # reporting is best-effort
             raise
 
-    async def _run_pipeline(self, inp: IngestInput) -> str:
+    async def _run_pipeline(
+        self, inp: IngestInput, workflow_id: str, started_at_ms: int
+    ) -> str:
         mime = inp.mime_type
         text: str = ""
         needs_enhance = False
 
+        activity_input = _activity_input(inp, workflow_id, started_at_ms)
+
         if mime == "application/pdf":
             result = await workflow.execute_activity(
                 "parse_pdf",
-                inp,
+                activity_input,
                 schedule_to_close_timeout=_LONG_TIMEOUT,
                 retry_policy=_RETRY,
             )
@@ -102,7 +145,7 @@ class IngestWorkflow:
         elif mime.startswith("audio/") or mime.startswith("video/"):
             result = await workflow.execute_activity(
                 "transcribe_audio",
-                inp,
+                activity_input,
                 schedule_to_close_timeout=_LONG_TIMEOUT,
                 retry_policy=_RETRY,
             )
@@ -110,7 +153,7 @@ class IngestWorkflow:
         elif mime.startswith("image/"):
             result = await workflow.execute_activity(
                 "analyze_image",
-                inp,
+                activity_input,
                 schedule_to_close_timeout=_SHORT_TIMEOUT,
                 retry_policy=_RETRY,
             )
@@ -118,7 +161,7 @@ class IngestWorkflow:
         elif mime == "x-opencairn/youtube":
             result = await workflow.execute_activity(
                 "ingest_youtube",
-                inp,
+                activity_input,
                 schedule_to_close_timeout=_LONG_TIMEOUT,
                 retry_policy=_RETRY,
             )
@@ -126,7 +169,7 @@ class IngestWorkflow:
         elif mime == "x-opencairn/web-url":
             result = await workflow.execute_activity(
                 "scrape_web_url",
-                inp,
+                activity_input,
                 schedule_to_close_timeout=_SHORT_TIMEOUT,
                 retry_policy=_RETRY,
             )
@@ -138,7 +181,7 @@ class IngestWorkflow:
         if needs_enhance:
             enhanced = await workflow.execute_activity(
                 "enhance_with_gemini",
-                {**inp.__dict__, "raw_text": text},
+                _activity_input(inp, workflow_id, started_at_ms, raw_text=text),
                 schedule_to_close_timeout=_SHORT_TIMEOUT,
                 retry_policy=_RETRY,
             )
@@ -155,6 +198,8 @@ class IngestWorkflow:
                 "mime_type": mime,
                 "object_key": inp.object_key,
                 "text": text,
+                "workflow_id": workflow_id,
+                "started_at_ms": started_at_ms,
             },
             schedule_to_close_timeout=_SHORT_TIMEOUT,
             retry_policy=_RETRY,

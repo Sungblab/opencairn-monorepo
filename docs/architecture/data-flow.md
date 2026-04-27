@@ -79,6 +79,31 @@
     - 지식 그래프 업데이트
 ```
 
+### 1.1 Live Ingest Visualization (Plan: live-ingest-visualization)
+
+The visibility layer fans Worker activity progress to the browser without
+ever blocking ingest itself. Redis is the bus; the worker never holds open
+SSE connections.
+
+```
+[Worker activity]                    [Redis]                     [API SSE]                 [Browser]
+publish_safe(workflow_id, kind, ...)  ──>  PUBLISH ingest:events:<wfid>
+                                            LPUSH/LTRIM/EXPIRE ingest:replay:<wfid>
+                                                                  │
+                                              GET /api/ingest/stream/:wfid (auth via ingest_jobs.userId)
+                                                                  │
+                                                       LRANGE ingest:replay:<wfid> 0 -1  (chronological replay)
+                                                       SUBSCRIBE ingest:events:<wfid>    (live tail)
+                                                                  │
+                                                                  ├─> SSE id=<seq> data=<event> ──> EventSource
+                                                                  └─> close on kind ∈ {completed, failed}
+```
+
+Ring buffer caps at `INGEST_REPLAY_MAX_LEN` entries with `INGEST_REPLAY_TTL_SECONDS` TTL.
+Browser uses `Last-Event-ID` for auto-reconnect dedup; Zustand store guards
+duplicates via per-run `lastSeq`. UI is gated by `NEXT_PUBLIC_FEATURE_LIVE_INGEST`;
+backend always publishes so flipping the flag is UI-only.
+
 ---
 
 ## 2. Q&A Flow (질문 → 응답)

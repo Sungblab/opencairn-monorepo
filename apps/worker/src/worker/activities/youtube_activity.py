@@ -35,6 +35,8 @@ from llm import get_provider
 from llm.base import ProviderConfig
 from temporalio import activity
 
+from worker.lib.ingest_events import publish_safe
+
 
 # Hostnames that the API's isYoutubeUrl() allows. Mirrored here so the
 # worker does not blindly trust the dispatch payload: if a later code path
@@ -151,6 +153,7 @@ async def ingest_youtube(inp: dict) -> dict:
     downstream source-note writer gets a self-describing artefact.
     """
     url: str = inp["url"]
+    workflow_id: str | None = inp.get("workflow_id")
     # Fail fast before creating temp dirs or logging the URL body if it is
     # not actually a YouTube URL. [Tier 1 item 1-4]
     _assert_youtube_url(url)
@@ -158,11 +161,15 @@ async def ingest_youtube(inp: dict) -> dict:
 
     tmp_dir = Path(tempfile.mkdtemp())
     try:
+        if workflow_id:
+            await publish_safe(workflow_id, "stage_changed", {"stage": "downloading", "pct": None})
         activity.heartbeat("downloading youtube audio")
         wav_path, title, description = await asyncio.to_thread(
             _download_youtube_audio, url, tmp_dir
         )
 
+        if workflow_id:
+            await publish_safe(workflow_id, "stage_changed", {"stage": "parsing", "pct": None})
         activity.heartbeat("calling provider.transcribe")
         audio_bytes = wav_path.read_bytes()
         provider = get_provider(_provider_config())

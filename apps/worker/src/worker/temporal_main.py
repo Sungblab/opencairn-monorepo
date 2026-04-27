@@ -32,6 +32,7 @@ from worker.activities.drive_activities import (
     discover_drive_tree,
     upload_drive_file_to_minio,
 )
+from worker.activities.emit_event import emit_started
 from worker.activities.enhance_activity import enhance_with_gemini
 from worker.activities.image_activity import analyze_image
 from worker.activities.import_activities import (
@@ -131,6 +132,7 @@ def build_worker_config() -> WorkerConfig:
         NarratorWorkflow,
     ]
     activities: list[Any] = [
+        emit_started,
         parse_pdf,
         transcribe_audio,
         analyze_image,

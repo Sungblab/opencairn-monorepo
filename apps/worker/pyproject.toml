@@ -42,6 +42,9 @@ dependencies = [
     # rather than relying on an HTML intermediate so Plate elements like
     # wikilinks can be emitted inline without re-parsing.
     "markdown-it-py>=3.0",
+    # Redis pub/sub + LIST replay for live ingest event emission
+    # (Plan: live-ingest-visualization Task 3). Async client used by activities.
+    "redis>=5.0,<6",
 ]
 
 [project.optional-dependencies]

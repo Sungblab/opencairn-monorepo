@@ -5,6 +5,7 @@ import { ShellSidebar } from "@/components/sidebar/shell-sidebar";
 import { TabShell } from "../tab-shell/tab-shell";
 import { AgentPanel } from "@/components/agent-panel/agent-panel";
 import { ShellResizeHandle } from "./shell-resize-handle";
+import { IngestOverlays } from "@/components/ingest/ingest-overlays";
 import { usePanelStore } from "@/stores/panel-store";
 import { useBreakpoint } from "@/hooks/use-breakpoint";
 
@@ -95,6 +96,7 @@ export function AppShell({ children, deepResearchEnabled }: AppShellProps) {
           </div>
         </>
       )}
+      <IngestOverlays />
     </div>
   );
 }
