@@ -250,6 +250,162 @@ describe("GET /api/chat/conversations", () => {
   });
 });
 
+describe("POST /api/chat/conversations/:id/chips", () => {
+  let ctx: SeedResult;
+  beforeEach(async () => {
+    ctx = await seedWorkspace({ role: "owner" });
+  });
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  async function createConvo(): Promise<string> {
+    const res = await authedFetch("/api/chat/conversations", {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({
+        workspaceId: ctx.workspaceId,
+        scopeType: "workspace",
+        scopeId: ctx.workspaceId,
+        attachedChips: [],
+        memoryFlags: FULL_FLAGS,
+      }),
+    });
+    const body = (await res.json()) as { id: string };
+    return body.id;
+  }
+
+  it("adds a manual page chip with the resolved label", async () => {
+    const id = await createConvo();
+    const res = await authedFetch(`/api/chat/conversations/${id}/chips`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ type: "page", id: ctx.noteId }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      attachedChips: Array<{ type: string; id: string; manual: boolean; label?: string }>;
+    };
+    const chip = body.attachedChips.find((c) => c.id === ctx.noteId);
+    expect(chip?.manual).toBe(true);
+    expect(chip?.label).toBe("test"); // seed helper inserts notes with title "test"
+  });
+
+  it("rejects a chip pointing to a different workspace's page (403)", async () => {
+    const id = await createConvo();
+    const foreign = await seedWorkspace({ role: "owner" });
+    try {
+      const res = await authedFetch(`/api/chat/conversations/${id}/chips`, {
+        method: "POST",
+        userId: ctx.userId,
+        body: JSON.stringify({ type: "page", id: foreign.noteId }),
+      });
+      expect(res.status).toBe(403);
+    } finally {
+      await foreign.cleanup();
+    }
+  });
+
+  it("dedupes by composite key — same chip added twice keeps one", async () => {
+    const id = await createConvo();
+    const body = JSON.stringify({ type: "page", id: ctx.noteId });
+    await authedFetch(`/api/chat/conversations/${id}/chips`, {
+      method: "POST",
+      userId: ctx.userId,
+      body,
+    });
+    const res = await authedFetch(`/api/chat/conversations/${id}/chips`, {
+      method: "POST",
+      userId: ctx.userId,
+      body,
+    });
+    const json = (await res.json()) as {
+      attachedChips: Array<{ id: string }>;
+    };
+    const matches = json.attachedChips.filter((c) => c.id === ctx.noteId);
+    expect(matches).toHaveLength(1);
+  });
+
+  it("accepts memory:l3 chip without scope validation", async () => {
+    const id = await createConvo();
+    const res = await authedFetch(`/api/chat/conversations/${id}/chips`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ type: "memory:l3", id: "user_workspace_global" }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      attachedChips: Array<{ type: string; id: string }>;
+    };
+    expect(body.attachedChips.find((c) => c.type === "memory:l3")).toBeDefined();
+  });
+});
+
+describe("DELETE /api/chat/conversations/:id/chips/:chipKey", () => {
+  let ctx: SeedResult;
+  beforeEach(async () => {
+    ctx = await seedWorkspace({ role: "owner" });
+  });
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  it("removes a chip by composite key", async () => {
+    const create = await authedFetch("/api/chat/conversations", {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({
+        workspaceId: ctx.workspaceId,
+        scopeType: "page",
+        scopeId: ctx.noteId,
+        attachedChips: [{ type: "page", id: ctx.noteId, manual: false }],
+        memoryFlags: FULL_FLAGS,
+      }),
+    });
+    const { id } = (await create.json()) as { id: string };
+
+    const res = await authedFetch(
+      `/api/chat/conversations/${id}/chips/page:${ctx.noteId}`,
+      { method: "DELETE", userId: ctx.userId },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { attachedChips: Array<{ id: string }> };
+    expect(body.attachedChips.find((c) => c.id === ctx.noteId)).toBeUndefined();
+  });
+
+  it("removes a memory chip whose key contains a colon", async () => {
+    const create = await authedFetch("/api/chat/conversations", {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({
+        workspaceId: ctx.workspaceId,
+        scopeType: "workspace",
+        scopeId: ctx.workspaceId,
+        attachedChips: [],
+        memoryFlags: FULL_FLAGS,
+      }),
+    });
+    const { id } = (await create.json()) as { id: string };
+    await authedFetch(`/api/chat/conversations/${id}/chips`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ type: "memory:l4", id: "ws-summary" }),
+    });
+
+    const res = await authedFetch(
+      `/api/chat/conversations/${id}/chips/memory:l4:ws-summary`,
+      { method: "DELETE", userId: ctx.userId },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      attachedChips: Array<{ type: string; id: string }>;
+    };
+    expect(
+      body.attachedChips.find((c) => c.type === "memory:l4" && c.id === "ws-summary"),
+    ).toBeUndefined();
+  });
+});
+
 describe("GET /api/chat/conversations/:id", () => {
   let ctx: SeedResult;
   beforeEach(async () => {

@@ -11,6 +11,7 @@ import {
 import {
   CreateConversationBodySchema,
   PatchConversationBodySchema,
+  AddChipBodySchema,
 } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
 import { canRead } from "../lib/permissions";
@@ -117,4 +118,101 @@ chatRoutes.get("/conversations", async (c) => {
     )
     .orderBy(desc(conversations.updatedAt));
   return c.json(rows);
+});
+
+// ── Chip add/remove (Plan 11A Task 4) ───────────────────────────────────
+//
+// Composite key for delete = `<type>:<id>`. The chipKey path param URL-
+// encodes the colon, but Hono's parser hands us the decoded form. The
+// dedupe pass keeps duplicate (type,id) rows from accumulating when a
+// client racing two add requests with the same target both win.
+
+function dedupeChips(arr: AttachedChip[]): AttachedChip[] {
+  const seen = new Set<string>();
+  return arr.filter((c) => {
+    const k = `${c.type}:${c.id}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+chatRoutes.post(
+  "/conversations/:id/chips",
+  zValidator("json", AddChipBodySchema),
+  async (c) => {
+    const userId = c.get("userId");
+    const id = c.req.param("id");
+    const [convo] = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.id, id));
+    if (!convo) return c.json({ error: "not found" }, 404);
+    if (convo.ownerUserId !== userId) {
+      return c.json({ error: "forbidden" }, 403);
+    }
+
+    const { type, id: chipId } = c.req.valid("json");
+
+    let label: string | undefined;
+    if (type === "page" || type === "project" || type === "workspace") {
+      // Workspace-scoped chip → resolve label and enforce boundary.
+      try {
+        const resolved = await validateScope(convo.workspaceId, type, chipId);
+        label = resolved.label;
+      } catch (e) {
+        if (e instanceof ScopeValidationError) {
+          return c.json({ error: e.message }, e.status);
+        }
+        throw e;
+      }
+    }
+    // Memory chips (memory:l3 / memory:l4 / memory:l2) accepted as-is in
+    // 11A — Plan 11B owns the workspace+user-scoped lookup. No label
+    // because the UI does not render them yet.
+
+    const next = dedupeChips([
+      ...(convo.attachedChips as AttachedChip[]),
+      { type, id: chipId, label, manual: true },
+    ]);
+    const [row] = await db
+      .update(conversations)
+      .set({ attachedChips: next, updatedAt: new Date() })
+      .where(eq(conversations.id, id))
+      .returning();
+    return c.json(row);
+  },
+);
+
+chatRoutes.delete("/conversations/:id/chips/:chipKey", async (c) => {
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  const chipKey = c.req.param("chipKey");
+  // Memory chip types are themselves colon-delimited (`memory:l3`), and
+  // chip ids in 11A never contain a colon (uuids for scope chips,
+  // alphanumeric+underscore identifiers for memory chips). So the LAST
+  // colon is always the type/id separator.
+  const sep = chipKey.lastIndexOf(":");
+  if (sep <= 0) return c.json({ error: "invalid chip key" }, 400);
+  const type = chipKey.slice(0, sep);
+  const chipId = chipKey.slice(sep + 1);
+
+  const [convo] = await db
+    .select()
+    .from(conversations)
+    .where(eq(conversations.id, id));
+  if (!convo) return c.json({ error: "not found" }, 404);
+  if (convo.ownerUserId !== userId) {
+    return c.json({ error: "forbidden" }, 403);
+  }
+
+  const next = (convo.attachedChips as AttachedChip[]).filter(
+    (c) => !(c.type === type && c.id === chipId),
+  );
+  const [row] = await db
+    .update(conversations)
+    .set({ attachedChips: next, updatedAt: new Date() })
+    .where(eq(conversations.id, id))
+    .returning();
+  return c.json(row);
 });
