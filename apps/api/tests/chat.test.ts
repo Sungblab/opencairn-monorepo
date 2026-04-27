@@ -503,6 +503,94 @@ async function seedPinScenario(opts: {
   };
 }
 
+describe("POST /api/chat/message (SSE)", () => {
+  let ctx: SeedResult;
+  beforeEach(async () => {
+    ctx = await seedWorkspace({ role: "owner" });
+  });
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  it("emits delta + cost + done events and persists user + assistant rows", async () => {
+    const create = await authedFetch("/api/chat/conversations", {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({
+        workspaceId: ctx.workspaceId,
+        scopeType: "page",
+        scopeId: ctx.noteId,
+        attachedChips: [{ type: "page", id: ctx.noteId, manual: false }],
+        memoryFlags: FULL_FLAGS,
+      }),
+    });
+    const { id: conversationId } = (await create.json()) as { id: string };
+
+    const res = await app.request("/api/chat/message", {
+      method: "POST",
+      headers: {
+        cookie: await signSessionCookie(ctx.userId),
+        "content-type": "application/json",
+        accept: "text/event-stream",
+      },
+      body: JSON.stringify({ conversationId, content: "hello" }),
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/event-stream");
+
+    const text = await res.text();
+    expect(text).toContain("event: delta");
+    expect(text).toContain("event: cost");
+    expect(text).toContain("event: done");
+
+    // Both rows persisted; assistant carries non-zero tokensOut.
+    const persisted = await db
+      .select()
+      .from(conversationMessages)
+      .where(eq(conversationMessages.conversationId, conversationId));
+    expect(persisted).toHaveLength(2);
+    const assistant = persisted.find((m) => m.role === "assistant");
+    expect(assistant?.tokensOut).toBeGreaterThan(0);
+
+    // Conversation totals incremented (tokensIn from user + tokensOut
+    // from assistant; costKrw a non-empty numeric string).
+    const [convo] = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.id, conversationId));
+    expect(convo.totalTokensIn).toBeGreaterThan(0);
+    expect(convo.totalTokensOut).toBeGreaterThan(0);
+    expect(Number(convo.totalCostKrw)).toBeGreaterThan(0);
+  });
+
+  it("returns 403 for a non-owner caller", async () => {
+    const create = await authedFetch("/api/chat/conversations", {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({
+        workspaceId: ctx.workspaceId,
+        scopeType: "page",
+        scopeId: ctx.noteId,
+        attachedChips: [],
+        memoryFlags: FULL_FLAGS,
+      }),
+    });
+    const { id: conversationId } = (await create.json()) as { id: string };
+
+    const stranger = await createUser();
+    try {
+      const res = await authedFetch("/api/chat/message", {
+        method: "POST",
+        userId: stranger.id,
+        body: JSON.stringify({ conversationId, content: "hi" }),
+      });
+      expect(res.status).toBe(403);
+    } finally {
+      await db.delete(user).where(eq(user.id, stranger.id));
+    }
+  });
+});
+
 describe("POST /api/chat/messages/:id/pin", () => {
   it("pins immediately when no citations are hidden", async () => {
     const s = await seedPinScenario({ citedNoteVisibleToStranger: true });
