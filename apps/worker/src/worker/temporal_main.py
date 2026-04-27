@@ -49,6 +49,7 @@ from worker.activities.notion_activities import (
 from worker.activities.pdf_activity import parse_pdf
 from worker.activities.quarantine_activity import quarantine_source
 from worker.activities.research_activity import run_research
+from worker.activities.synthesis_activity import run_synthesis
 from worker.activities.semaphore_activity import (
     acquire_project_semaphore,
     release_project_semaphore,
@@ -65,6 +66,7 @@ from worker.workflows.import_workflow import ImportWorkflow
 from worker.workflows.ingest_workflow import IngestWorkflow
 from worker.workflows.librarian_workflow import LibrarianWorkflow
 from worker.workflows.research_workflow import ResearchWorkflow
+from worker.workflows.synthesis_workflow import SynthesisWorkflow
 from worker.workflows.socratic_workflow import SocraticEvaluateWorkflow, SocraticGenerateWorkflow
 from worker.workflows.visualize_workflow import VisualizeWorkflow
 
@@ -108,6 +110,7 @@ def build_worker_config() -> WorkerConfig:
         IngestWorkflow,
         CompilerWorkflow,
         ResearchWorkflow,
+        SynthesisWorkflow,
         LibrarianWorkflow,
         BatchEmbedWorkflow,
         ImportWorkflow,
@@ -127,6 +130,7 @@ def build_worker_config() -> WorkerConfig:
         report_ingest_failure,
         compile_note,
         run_research,
+        run_synthesis,
         run_librarian,
         build_view,
         generate_questions,
