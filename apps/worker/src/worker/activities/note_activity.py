@@ -11,9 +11,12 @@ Plan 5 wire-up point (currently a log statement).
 """
 from __future__ import annotations
 
+import time
+
 from temporalio import activity
 
 from worker.lib.api_client import post_internal
+from worker.lib.ingest_events import publish_safe
 
 __all__ = ["create_source_note", "report_ingest_failure"]
 
@@ -64,6 +67,12 @@ async def create_source_note(inp: dict) -> str:
         inp["project_id"],
     )
 
+    workflow_id: str | None = inp.get("workflow_id")
+    started_at_ms: int | None = inp.get("started_at_ms")
+
+    if workflow_id:
+        await publish_safe(workflow_id, "stage_changed", {"stage": "persisting", "pct": None})
+
     payload = {
         "userId": inp["user_id"],
         "projectId": inp["project_id"],
@@ -79,6 +88,16 @@ async def create_source_note(inp: dict) -> str:
     result = await post_internal("/api/internal/source-notes", payload)
     note_id: str = result["noteId"]
     activity.logger.info("Source note created: %s", note_id)
+
+    if workflow_id:
+        duration = (
+            int(time.time() * 1000) - started_at_ms if started_at_ms else 0
+        )
+        await publish_safe(workflow_id, "completed", {
+            "noteId": note_id,
+            "totalDurationMs": max(duration, 0),
+        })
+
     return note_id
 
 
@@ -91,13 +110,25 @@ async def report_ingest_failure(inp: dict) -> None:
     Called by :class:`worker.workflows.ingest_workflow.IngestWorkflow` after
     the ``quarantine_source`` activity has moved the failed object.
     """
+    workflow_id: str | None = inp.get("workflow_id")
+    reason: str = inp.get("reason", "unknown")
+    quarantine_key: str | None = inp.get("quarantine_key")
+
+    if workflow_id:
+        retryable = "timeout" in reason.lower() or "network" in reason.lower()
+        await publish_safe(workflow_id, "failed", {
+            "reason": reason[:500],
+            "quarantineKey": quarantine_key,
+            "retryable": retryable,
+        })
+
     payload = {
         "userId": inp["user_id"],
         "projectId": inp["project_id"],
         "sourceUrl": inp.get("url"),
         "objectKey": inp.get("object_key"),
-        "quarantineKey": inp.get("quarantine_key"),
-        "reason": inp.get("reason", "unknown"),
+        "quarantineKey": quarantine_key,
+        "reason": reason,
     }
     try:
         await post_internal("/api/internal/ingest-failures", payload)

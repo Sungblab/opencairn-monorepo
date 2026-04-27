@@ -26,6 +26,7 @@ from temporalio import activity
 
 from llm import get_provider
 from llm.base import ProviderConfig
+from worker.lib.ingest_events import publish_safe
 from worker.lib.s3_client import download_to_tempfile
 
 
@@ -67,10 +68,14 @@ async def enhance_with_gemini(inp: dict) -> dict:
     raw_text: str = (inp.get("raw_text") or "")[:MAX_RAW_CHARS]
     object_key: str | None = inp.get("object_key")
     mime_type: str = inp.get("mime_type") or ""
+    workflow_id: str | None = inp.get("workflow_id")
 
     activity.logger.info(
         "Enhancing with LLM: object_key=%s, text_len=%d", object_key, len(raw_text)
     )
+
+    if workflow_id:
+        await publish_safe(workflow_id, "stage_changed", {"stage": "enhancing", "pct": None})
 
     if not raw_text.strip():
         activity.logger.warning("enhance called with empty raw_text; returning as-is")

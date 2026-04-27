@@ -25,6 +25,7 @@ from temporalio import activity
 
 from llm import get_provider
 from llm.base import ProviderConfig
+from worker.lib.ingest_events import publish_safe
 from worker.lib.s3_client import download_to_tempfile
 
 IMAGE_PROMPT = (
@@ -54,7 +55,11 @@ async def analyze_image(inp: dict) -> dict:
     """
     object_key: str = inp["object_key"]
     mime_type: str = inp["mime_type"]
+    workflow_id: str | None = inp.get("workflow_id")
     activity.logger.info("Analyzing image: %s", object_key)
+
+    if workflow_id:
+        await publish_safe(workflow_id, "stage_changed", {"stage": "parsing", "pct": None})
 
     image_path = download_to_tempfile(object_key)
     try:

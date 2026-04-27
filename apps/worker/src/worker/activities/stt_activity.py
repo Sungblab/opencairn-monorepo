@@ -33,6 +33,7 @@ from temporalio import activity
 
 from llm import get_provider
 from llm.base import ProviderConfig
+from worker.lib.ingest_events import publish_safe
 from worker.lib.s3_client import download_to_tempfile
 
 
@@ -100,12 +101,18 @@ async def transcribe_audio(inp: dict) -> dict:
     workflow writes this into a source note downstream.
     """
     object_key: str = inp["object_key"]
+    workflow_id: str | None = inp.get("workflow_id")
     activity.logger.info("Transcribing audio/video: %s", object_key)
+
+    if workflow_id:
+        await publish_safe(workflow_id, "stage_changed", {"stage": "downloading", "pct": None})
 
     media_path = download_to_tempfile(object_key)
     wav_path = Path(tempfile.mktemp(suffix=".wav"))
 
     try:
+        if workflow_id:
+            await publish_safe(workflow_id, "stage_changed", {"stage": "parsing", "pct": None})
         activity.heartbeat("extracting audio via ffmpeg")
         await asyncio.to_thread(_extract_audio, media_path, wav_path)
 
