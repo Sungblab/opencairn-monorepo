@@ -2213,6 +2213,7 @@ internal.post(
 
 const internalSuggestionCreateSchema = z.object({
   userId: z.string().min(1),
+  workspaceId: z.string().uuid(),
   projectId: z.string().uuid(),
   type: z.enum([
     "connector_link",
@@ -2229,7 +2230,15 @@ internal.post(
   "/suggestions",
   zValidator("json", internalSuggestionCreateSchema),
   async (c) => {
-    const { userId, projectId, type, payload } = c.req.valid("json");
+    const { userId, workspaceId, projectId, type, payload } =
+      c.req.valid("json");
+    const [proj] = await db
+      .select({ workspaceId: projects.workspaceId })
+      .from(projects)
+      .where(eq(projects.id, projectId));
+    if (!proj) return c.json({ error: "not-found" }, 404);
+    if (proj.workspaceId !== workspaceId)
+      return c.json({ error: "workspace_mismatch" }, 403);
     const [row] = await db
       .insert(suggestions)
       .values({ userId, projectId, type, payload, status: "pending" })
@@ -2267,7 +2276,7 @@ internal.get("/projects/:id/stale-notes", async (c) => {
         eq(notes.projectId, projectId),
         eq(notes.type, "wiki"),
         isNull(notes.deletedAt),
-        sql`${notes.updatedAt} < now() - (${days} || ' days')::interval`,
+        sql`${notes.updatedAt} < now() - make_interval(days => ${days})`,
       ),
     )
     .limit(limit);

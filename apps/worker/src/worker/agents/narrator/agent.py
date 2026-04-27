@@ -61,7 +61,7 @@ class NarratorInput:
     workspace_id: str
     user_id: str
     style: str = "conversational"
-    max_duration_sec: int = 600
+    max_duration_sec: int = 900
 
 
 class NarratorAgent(Agent):
@@ -101,7 +101,7 @@ class NarratorAgent(Agent):
             max_duration_sec=int(
                 input.get(
                     "max_duration_sec",
-                    os.environ.get("NARRATOR_MAX_DURATION_SEC", "600"),
+                    os.environ.get("NARRATOR_MAX_DURATION_SEC", "900"),
                 )
             ),
         )
@@ -283,7 +283,7 @@ class NarratorAgent(Agent):
 
                 # Run synchronous MinIO upload in a thread executor so the
                 # async event loop stays unblocked.
-                await asyncio.get_event_loop().run_in_executor(
+                await asyncio.get_running_loop().run_in_executor(
                     None, _sync_upload, audio_bytes, r2_key
                 )
 

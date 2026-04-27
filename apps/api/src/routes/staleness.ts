@@ -24,6 +24,7 @@ const staleCheckSchema = z.object({
   projectId: z.string().uuid(),
   staleDays: z.number().int().min(1).max(365).optional().default(90),
   maxNotes: z.number().int().min(1).max(50).optional().default(20),
+  scoreThreshold: z.number().min(0).max(1).optional().default(0.5),
 });
 
 stalenessRoutes.post(
@@ -57,6 +58,7 @@ stalenessRoutes.post(
           user_id: userId,
           stale_days: body.staleDays,
           max_notes: body.maxNotes,
+          score_threshold: body.scoreThreshold,
         },
       ],
     });

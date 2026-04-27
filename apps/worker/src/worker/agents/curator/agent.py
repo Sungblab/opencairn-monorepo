@@ -143,6 +143,7 @@ class CuratorAgent(Agent):
                     "/api/internal/suggestions",
                     {
                         "userId": validated.user_id,
+                        "workspaceId": validated.workspace_id,
                         "projectId": validated.project_id,
                         "type": "curator_orphan",
                         "payload": {
@@ -197,6 +198,7 @@ class CuratorAgent(Agent):
                     "/api/internal/suggestions",
                     {
                         "userId": validated.user_id,
+                        "workspaceId": validated.workspace_id,
                         "projectId": validated.project_id,
                         "type": "curator_duplicate",
                         "payload": {
@@ -343,6 +345,7 @@ class CuratorAgent(Agent):
                         "/api/internal/suggestions",
                         {
                             "userId": validated.user_id,
+                            "workspaceId": validated.workspace_id,
                             "projectId": validated.project_id,
                             "type": "curator_contradiction",
                             "payload": {
