@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { AttachedChip } from "@opencairn/shared";
 
 import { useScopeContext } from "@/hooks/useScopeContext";
@@ -33,28 +33,50 @@ export function ChatPanel() {
   const [ragMode, setRagMode] = useState<RagModeValue>("strict");
   const [messages, setMessages] = useState<Message[]>([]);
   const [busy, setBusy] = useState(false);
+  // Concurrent calls (e.g. user types and clicks a chip in the same
+  // tick) used to spawn duplicate POST /conversations requests because
+  // both saw `conversationId === null`. The ref captures the in-flight
+  // promise so subsequent callers await the same response.
+  const pendingCreate = useRef<Promise<string | null> | null>(null);
 
-  async function ensureConversation(): Promise<string | null> {
-    if (conversationId) return conversationId;
-    if (!ctx.workspaceId) return null; // can't create without resolved id
-    const res = await fetch("/api/chat/conversations", {
-      method: "POST",
-      credentials: "include",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        workspaceId: ctx.workspaceId,
-        scopeType: ctx.scopeType,
-        scopeId: ctx.scopeId,
-        attachedChips: chips,
-        ragMode,
-        memoryFlags: { l3_global: true, l3_workspace: true, l4: true, l2: false },
-      }),
+  function ensureConversation(): Promise<string | null> {
+    if (conversationId) return Promise.resolve(conversationId);
+    if (!ctx.workspaceId) return Promise.resolve(null);
+    if (pendingCreate.current) return pendingCreate.current;
+
+    const promise = (async () => {
+      const res = await fetch("/api/chat/conversations", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          workspaceId: ctx.workspaceId,
+          scopeType: ctx.scopeType,
+          scopeId: ctx.scopeId,
+          attachedChips: chips,
+          ragMode,
+          memoryFlags: {
+            l3_global: true,
+            l3_workspace: true,
+            l4: true,
+            l2: false,
+          },
+        }),
+      });
+      if (!res.ok) return null;
+      const body = (await res.json()) as {
+        id: string;
+        attachedChips: AttachedChip[];
+      };
+      setConversationId(body.id);
+      setChips(body.attachedChips);
+      return body.id;
+    })().finally(() => {
+      pendingCreate.current = null;
     });
-    if (!res.ok) return null;
-    const body = (await res.json()) as { id: string; attachedChips: AttachedChip[] };
-    setConversationId(body.id);
-    setChips(body.attachedChips);
-    return body.id;
+
+    pendingCreate.current = promise;
+    return promise;
   }
 
   async function send(text: string): Promise<void> {

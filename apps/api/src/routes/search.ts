@@ -48,9 +48,11 @@ export const searchRoutes = new Hono<AppEnv>()
         return c.json({ error: "forbidden" }, 403);
       }
 
-      // Over-fetch by 2x so the per-row canRead filter still has room to
-      // fill the page after dropping private notes — same pattern the
-      // mentions search uses.
+      // Over-fetch by 2x so the per-row canRead filter still has room
+      // to fill the page after dropping private notes — same pattern
+      // the mentions search uses. The leading-wildcard `ilike` does
+      // NOT use a B-tree on title; migration 0031 adds a pg_trgm GIN
+      // index so this query stays sub-100ms past ~10k notes.
       const noteRows = await db
         .select({ id: notes.id, title: notes.title })
         .from(notes)
@@ -74,20 +76,35 @@ export const searchRoutes = new Hono<AppEnv>()
         )
         .limit(SCOPE_TARGETS_LIMIT);
 
-      const visibleNotes: ScopeTargetSearchHit[] = [];
-      for (const row of noteRows) {
-        if (await canRead(userId, { type: "note", id: row.id })) {
-          visibleNotes.push({ type: "page", id: row.id, label: row.title || "Untitled" });
-          if (visibleNotes.length >= SCOPE_TARGETS_LIMIT) break;
-        }
-      }
+      // Per-row canRead in parallel so total search latency = O(1)
+      // resolveRole calls instead of O(rows). The slice happens after
+      // the filter so private notes don't burn the result-set budget.
+      // `label` is the raw title — clients render the empty-title
+      // fallback in their own locale instead of the API hardcoding
+      // "Untitled".
+      const visibleNotes: ScopeTargetSearchHit[] = (
+        await Promise.all(
+          noteRows.map(async (row) => {
+            const ok = await canRead(userId, { type: "note", id: row.id });
+            return ok
+              ? ({ type: "page" as const, id: row.id, label: row.title })
+              : null;
+          }),
+        )
+      )
+        .filter((n): n is ScopeTargetSearchHit => n !== null)
+        .slice(0, SCOPE_TARGETS_LIMIT);
 
-      const visibleProjects: ScopeTargetSearchHit[] = [];
-      for (const row of projectRows) {
-        if (await canRead(userId, { type: "project", id: row.id })) {
-          visibleProjects.push({ type: "project", id: row.id, label: row.name });
-        }
-      }
+      const visibleProjects: ScopeTargetSearchHit[] = (
+        await Promise.all(
+          projectRows.map(async (row) => {
+            const ok = await canRead(userId, { type: "project", id: row.id });
+            return ok
+              ? ({ type: "project" as const, id: row.id, label: row.name })
+              : null;
+          }),
+        )
+      ).filter((p): p is ScopeTargetSearchHit => p !== null);
 
       // Pages first, then projects — chips usually anchor on the most
       // specific scope, and project rows are less common anyway.

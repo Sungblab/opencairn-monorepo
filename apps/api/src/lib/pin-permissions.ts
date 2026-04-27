@@ -33,8 +33,29 @@ export type PinDelta = {
 // both axes so a malicious payload can't pin one DB-stalling request to
 // every workspace member; over-cap throws so the caller can surface a
 // "too large to evaluate" error to the user.
+//
+// Concurrency guard: `Promise.all` over the worst-case 200×50=10_000
+// `resolveRole` calls would saturate the postgres connection pool (each
+// call is 2-4 roundtrips, and pgbouncer/pg pool defaults sit around
+// 10-20 connections). We process in serial chunks so at most
+// CHUNK_CONCURRENCY in-flight checks contend for the pool at once.
 const MAX_MEMBERS_FOR_PIN_DELTA = 200;
 const MAX_NOTE_CITATIONS_FOR_PIN_DELTA = 50;
+const CHUNK_CONCURRENCY = 10;
+
+async function mapInChunks<T, R>(
+  items: readonly T[],
+  size: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const out: R[] = [];
+  for (let i = 0; i < items.length; i += size) {
+    const slice = items.slice(i, i + size);
+    const results = await Promise.all(slice.map(fn));
+    out.push(...results);
+  }
+  return out;
+}
 
 export async function computePinDelta(
   citations: Citation[],
@@ -72,44 +93,45 @@ export async function computePinDelta(
     );
   }
 
-  // Step 1: collect users who can read the target page. Parallelised so
-  // total wall time = max(per-call latency) instead of M×latency.
+  // Step 1: collect users who can read the target page. Chunked to
+  // bound concurrent DB roundtrips at CHUNK_CONCURRENCY rather than the
+  // full member list — naive Promise.all would saturate the connection
+  // pool on large workspaces.
   const targetReaders = (
-    await Promise.all(
-      members.map(async (m) => ({
-        userId: m.userId,
-        role: await resolveRole(m.userId, { type: "note", id: targetPageId }, options),
-      })),
-    )
+    await mapInChunks(members, CHUNK_CONCURRENCY, async (m) => ({
+      userId: m.userId,
+      role: await resolveRole(m.userId, { type: "note", id: targetPageId }, options),
+    }))
   )
     .filter((r) => r.role !== "none")
     .map((r) => r.userId);
 
   // Step 2: for each note citation, find target readers who CANNOT read
-  // it. Each citation's M-user fan-out runs in parallel, and the
-  // citations themselves run in parallel — bounded by the caps above.
+  // it. Citations run sequentially (outer loop) and the per-citation
+  // user fan-out is chunked — total in-flight checks stay at ≤
+  // CHUNK_CONCURRENCY at any moment, never the worst-case M×N.
   const hiddenSources: PinDelta["hiddenSources"] = [];
   const hiddenUserSet = new Set<string>();
 
-  await Promise.all(
-    noteCitations.map(async (cite) => {
-      const userRoles = await Promise.all(
-        targetReaders.map(async (u) => ({
-          userId: u,
-          role: await resolveRole(u, { type: "note", id: cite.source_id }, options),
-        })),
-      );
-      const blocked = userRoles.filter((r) => r.role === "none").map((r) => r.userId);
-      if (blocked.length > 0) {
-        hiddenSources.push({
-          sourceType: cite.source_type,
-          sourceId: cite.source_id,
-          snippet: cite.snippet,
-        });
-        for (const u of blocked) hiddenUserSet.add(u);
-      }
-    }),
-  );
+  for (const cite of noteCitations) {
+    const userRoles = await mapInChunks(
+      targetReaders,
+      CHUNK_CONCURRENCY,
+      async (u) => ({
+        userId: u,
+        role: await resolveRole(u, { type: "note", id: cite.source_id }, options),
+      }),
+    );
+    const blocked = userRoles.filter((r) => r.role === "none").map((r) => r.userId);
+    if (blocked.length > 0) {
+      hiddenSources.push({
+        sourceType: cite.source_type,
+        sourceId: cite.source_id,
+        snippet: cite.snippet,
+      });
+      for (const u of blocked) hiddenUserSet.add(u);
+    }
+  }
 
   return {
     hiddenSources,

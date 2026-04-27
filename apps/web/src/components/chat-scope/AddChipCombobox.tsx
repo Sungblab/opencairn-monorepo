@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Plus } from "lucide-react";
 import type { AttachedChip } from "@opencairn/shared";
@@ -26,18 +26,44 @@ export function AddChipCombobox({
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchHit[]>([]);
+  // AbortController per in-flight search. Without this, a slow
+  // response for "ro" can clobber a fresh "rop" response that
+  // resolved earlier — the user sees stale results that don't
+  // match what they typed.
+  const inflight = useRef<AbortController | null>(null);
+
+  // Cancel any pending request on unmount so React doesn't try to
+  // setState on a torn-down component.
+  useEffect(
+    () => () => {
+      inflight.current?.abort();
+    },
+    [],
+  );
 
   async function search(term: string): Promise<void> {
     setQ(term);
     if (term.length < 2 || !workspaceId) {
       setResults([]);
+      inflight.current?.abort();
+      inflight.current = null;
       return;
     }
-    const r = await fetch(
-      `/api/search/scope-targets?workspaceId=${workspaceId}&q=${encodeURIComponent(term)}`,
-      { credentials: "include" },
-    );
-    if (r.ok) setResults((await r.json()) as SearchHit[]);
+    inflight.current?.abort();
+    const ctrl = new AbortController();
+    inflight.current = ctrl;
+    try {
+      const r = await fetch(
+        `/api/search/scope-targets?workspaceId=${workspaceId}&q=${encodeURIComponent(term)}`,
+        { credentials: "include", signal: ctrl.signal },
+      );
+      if (ctrl.signal.aborted) return;
+      if (r.ok) setResults((await r.json()) as SearchHit[]);
+    } catch (e) {
+      // AbortError is the expected signal that a newer search
+      // pre-empted us — swallow it; anything else bubbles up.
+      if ((e as { name?: string }).name !== "AbortError") throw e;
+    }
   }
 
   return (
