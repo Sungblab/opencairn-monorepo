@@ -3,19 +3,24 @@ import { zValidator } from "@hono/zod-validator";
 import {
   db,
   conversations,
+  conversationMessages,
+  pinnedAnswers,
   eq,
   and,
   desc,
   type AttachedChip,
+  type Citation,
 } from "@opencairn/db";
 import {
   CreateConversationBodySchema,
   PatchConversationBodySchema,
   AddChipBodySchema,
+  PinBodySchema,
 } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
-import { canRead } from "../lib/permissions";
+import { canRead, canWrite } from "../lib/permissions";
 import { validateScope, ScopeValidationError } from "../lib/chat-scope";
+import { computePinDelta } from "../lib/pin-permissions";
 import type { AppEnv } from "../lib/types";
 
 // Plan 11A — /api/chat router. Each conversation is owned by exactly one
@@ -216,3 +221,115 @@ chatRoutes.delete("/conversations/:id/chips/:chipKey", async (c) => {
     .returning();
   return c.json(row);
 });
+
+// ── Pin (Plan 11A Task 5) ────────────────────────────────────────────────
+//
+// /pin runs the citation-visibility check; if any citation is hidden from
+// a target-page reader, returns 409 with the delta payload so the client
+// can show the warning modal. /pin/confirm is the explicit "I understand
+// the leak" path — same write, different `reason` tag for audit.
+
+async function doPin(opts: {
+  userId: string;
+  messageId: string;
+  noteId: string;
+  blockId: string;
+  reason: string;
+}): Promise<void> {
+  await db.insert(pinnedAnswers).values({
+    messageId: opts.messageId,
+    noteId: opts.noteId,
+    blockId: opts.blockId,
+    pinnedBy: opts.userId,
+    reason: opts.reason,
+  });
+}
+
+async function loadPinContext(
+  userId: string,
+  messageId: string,
+  noteId: string,
+): Promise<
+  | { ok: true; citations: Citation[] }
+  | { ok: false; status: 403 | 404; error: string }
+> {
+  const [msg] = await db
+    .select()
+    .from(conversationMessages)
+    .where(eq(conversationMessages.id, messageId));
+  if (!msg) return { ok: false, status: 404, error: "message not found" };
+
+  const [convo] = await db
+    .select()
+    .from(conversations)
+    .where(eq(conversations.id, msg.conversationId));
+  if (!convo) return { ok: false, status: 404, error: "conversation not found" };
+  if (convo.ownerUserId !== userId) {
+    return { ok: false, status: 403, error: "forbidden" };
+  }
+
+  if (!(await canWrite(userId, { type: "note", id: noteId }))) {
+    return { ok: false, status: 403, error: "no write permission on target page" };
+  }
+
+  return { ok: true, citations: msg.citations as Citation[] };
+}
+
+chatRoutes.post(
+  "/messages/:id/pin",
+  zValidator("json", PinBodySchema),
+  async (c) => {
+    const userId = c.get("userId");
+    const messageId = c.req.param("id");
+    const { noteId, blockId } = c.req.valid("json");
+
+    const ctx = await loadPinContext(userId, messageId, noteId);
+    if (!ctx.ok) return c.json({ error: ctx.error }, ctx.status);
+
+    let delta;
+    try {
+      delta = await computePinDelta(ctx.citations, noteId);
+    } catch (e) {
+      const status = (e as { status?: number }).status;
+      if (status === 404) return c.json({ error: (e as Error).message }, 404);
+      throw e;
+    }
+
+    if (delta.hiddenSources.length > 0) {
+      // 409 Conflict — the request is well-formed but cannot proceed
+      // without explicit confirmation that the visibility delta is
+      // acceptable.
+      return c.json({ requireConfirm: true, warning: delta }, 409);
+    }
+    await doPin({
+      userId,
+      messageId,
+      noteId,
+      blockId,
+      reason: "no_permission_delta",
+    });
+    return c.json({ pinned: true });
+  },
+);
+
+chatRoutes.post(
+  "/messages/:id/pin/confirm",
+  zValidator("json", PinBodySchema),
+  async (c) => {
+    const userId = c.get("userId");
+    const messageId = c.req.param("id");
+    const { noteId, blockId } = c.req.valid("json");
+
+    const ctx = await loadPinContext(userId, messageId, noteId);
+    if (!ctx.ok) return c.json({ error: ctx.error }, ctx.status);
+
+    await doPin({
+      userId,
+      messageId,
+      noteId,
+      blockId,
+      reason: "user_confirmed_permission_warning",
+    });
+    return c.json({ pinned: true });
+  },
+);

@@ -3,12 +3,18 @@ import { createApp } from "../src/app.js";
 import {
   db,
   conversations,
+  conversationMessages,
+  notes,
+  workspaceMembers,
+  pagePermissions,
   user,
   eq,
 } from "@opencairn/db";
 import {
   seedWorkspace,
   createUser,
+  setPagePermission,
+  setNoteInherit,
   type SeedResult,
 } from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
@@ -403,6 +409,197 @@ describe("DELETE /api/chat/conversations/:id/chips/:chipKey", () => {
     expect(
       body.attachedChips.find((c) => c.type === "memory:l4" && c.id === "ws-summary"),
     ).toBeUndefined();
+  });
+});
+
+// ── Pin tests ──────────────────────────────────────────────────────────
+//
+// To exercise the permission delta we need a workspace with two members
+// where one cited source is hidden from the second member while the
+// target page is visible to both. The seedWorkspace helper only builds a
+// single-role context, so the helper below extends it: it inserts a
+// second user as a workspaceMember, an extra source note with
+// inheritParent=false + an explicit "none" page_permission for the
+// stranger, and a conversation+message wired to that citation.
+async function seedPinScenario(opts: {
+  citedNoteVisibleToStranger: boolean;
+}): Promise<{
+  ownerCtx: SeedResult;
+  strangerId: string;
+  conversationId: string;
+  messageId: string;
+  citedNoteId: string;
+  cleanup: () => Promise<void>;
+}> {
+  const ownerCtx = await seedWorkspace({ role: "owner" });
+
+  const stranger = await createUser();
+  await db.insert(workspaceMembers).values({
+    workspaceId: ownerCtx.workspaceId,
+    userId: stranger.id,
+    role: "member",
+  });
+
+  // Cited source — independent note inside the same project. inheritParent
+  // = false breaks project default access, so a page_permission row is the
+  // only path to grant the stranger a role on it. Toggling visibility
+  // merely changes whether we add that page_permission row.
+  const [citedNote] = await db
+    .insert(notes)
+    .values({
+      title: "cited-source",
+      projectId: ownerCtx.projectId,
+      workspaceId: ownerCtx.workspaceId,
+      inheritParent: false,
+    })
+    .returning();
+  // Owner always retains access via workspace ownership.
+  if (opts.citedNoteVisibleToStranger) {
+    await setPagePermission(stranger.id, citedNote.id, "viewer");
+  }
+  // Target page = ownerCtx.noteId (default inheritParent=true → stranger
+  // sees it via project membership default role).
+
+  // Conversation owned by the owner, scoped to the target page.
+  const [convo] = await db
+    .insert(conversations)
+    .values({
+      workspaceId: ownerCtx.workspaceId,
+      ownerUserId: ownerCtx.userId,
+      scopeType: "page",
+      scopeId: ownerCtx.noteId,
+      memoryFlags: FULL_FLAGS,
+    })
+    .returning();
+  const [msg] = await db
+    .insert(conversationMessages)
+    .values({
+      conversationId: convo.id,
+      role: "assistant",
+      content: "answer",
+      citations: [
+        {
+          source_type: "note",
+          source_id: citedNote.id,
+          snippet: "snippet from cited source",
+        },
+      ],
+    })
+    .returning();
+
+  return {
+    ownerCtx,
+    strangerId: stranger.id,
+    conversationId: convo.id,
+    messageId: msg.id,
+    citedNoteId: citedNote.id,
+    cleanup: async () => {
+      // Workspace cascade clears notes/conversations/messages/perms; the
+      // stranger user is deleted explicitly because they are not the
+      // workspace owner and so survive the cascade.
+      await ownerCtx.cleanup();
+      await db.delete(user).where(eq(user.id, stranger.id));
+    },
+  };
+}
+
+describe("POST /api/chat/messages/:id/pin", () => {
+  it("pins immediately when no citations are hidden", async () => {
+    const s = await seedPinScenario({ citedNoteVisibleToStranger: true });
+    try {
+      const res = await authedFetch(`/api/chat/messages/${s.messageId}/pin`, {
+        method: "POST",
+        userId: s.ownerCtx.userId,
+        body: JSON.stringify({ noteId: s.ownerCtx.noteId, blockId: "block-1" }),
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { pinned: boolean };
+      expect(body.pinned).toBe(true);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  it("returns 409 + warning when citation is hidden from a target-page reader", async () => {
+    const s = await seedPinScenario({ citedNoteVisibleToStranger: false });
+    try {
+      const res = await authedFetch(`/api/chat/messages/${s.messageId}/pin`, {
+        method: "POST",
+        userId: s.ownerCtx.userId,
+        body: JSON.stringify({ noteId: s.ownerCtx.noteId, blockId: "block-1" }),
+      });
+      expect(res.status).toBe(409);
+      const body = (await res.json()) as {
+        requireConfirm: boolean;
+        warning: {
+          hiddenSources: Array<{ sourceId: string }>;
+          hiddenUsers: Array<{ userId: string }>;
+        };
+      };
+      expect(body.requireConfirm).toBe(true);
+      expect(body.warning.hiddenSources.length).toBeGreaterThan(0);
+      expect(body.warning.hiddenSources[0].sourceId).toBe(s.citedNoteId);
+      expect(body.warning.hiddenUsers.map((u) => u.userId)).toContain(s.strangerId);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  it("returns 403 when caller lacks write access on target page", async () => {
+    const s = await seedPinScenario({ citedNoteVisibleToStranger: true });
+    try {
+      const res = await authedFetch(`/api/chat/messages/${s.messageId}/pin`, {
+        method: "POST",
+        userId: s.strangerId, // member, not the convo owner
+        body: JSON.stringify({ noteId: s.ownerCtx.noteId, blockId: "block-1" }),
+      });
+      // Stranger is not the conversation owner → 403 from owner check
+      // (which precedes the canWrite check, so the message is "forbidden").
+      expect(res.status).toBe(403);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  it("returns 404 for an unknown message", async () => {
+    const ctx = await seedWorkspace({ role: "owner" });
+    try {
+      const res = await authedFetch(
+        "/api/chat/messages/00000000-0000-0000-0000-000000000000/pin",
+        {
+          method: "POST",
+          userId: ctx.userId,
+          body: JSON.stringify({ noteId: ctx.noteId, blockId: "block-1" }),
+        },
+      );
+      expect(res.status).toBe(404);
+    } finally {
+      await ctx.cleanup();
+    }
+  });
+});
+
+describe("POST /api/chat/messages/:id/pin/confirm", () => {
+  it("force-pins after confirmation even with hidden citations", async () => {
+    const s = await seedPinScenario({ citedNoteVisibleToStranger: false });
+    try {
+      const res = await authedFetch(
+        `/api/chat/messages/${s.messageId}/pin/confirm`,
+        {
+          method: "POST",
+          userId: s.ownerCtx.userId,
+          body: JSON.stringify({
+            noteId: s.ownerCtx.noteId,
+            blockId: "block-1",
+          }),
+        },
+      );
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { pinned: boolean };
+      expect(body.pinned).toBe(true);
+    } finally {
+      await s.cleanup();
+    }
   });
 });
 
