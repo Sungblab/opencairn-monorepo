@@ -220,14 +220,20 @@ Cross-workspace 접근은 **404** (존재 은닉). 상태별 쓰기 금지는 `4
 
 ### Chat
 
-> 🟡 **Status: Planned (Plan 11A — Chat Scope Foundation).** 아래 계약은 설계서대로의 최종 상태이며 아직 `apps/api`에 라우트가 없다. Plan 1의 `conversations`/`messages`/`conversation_scope`/`message_role` 스텁은 드리프트가 있어 migration 0019에서 제거됨 — Plan 11A가 `scope_type` enum(`['page','project','workspace']`), split `scopeType`+`scopeId` 컬럼, `ragMode`, `attachedChips`, `memoryFlags`, 확장된 `message_role`(`user`/`assistant`/`system`/`tool`)로 스키마 전체를 새로 정의한다. 현 상태에서 해당 엔드포인트를 호출하면 404.
+> ✅ **Status: Plan 11A merged — Chat Scope Foundation.** 라우트는 `apps/api/src/routes/chat.ts`에 구현되어 있고 DB는 `conversations`/`conversation_messages`/`pinned_answers` (migration 0029, `scope_type` / `rag_mode` / `conversation_message_role` enums). SSE 메시지 라우트는 placeholder 응답을 흘려보내며 실제 LLM 통합은 Plan 11B에서 Plan 4 worker로 위임된다. Pin은 인용 가시성 델타 검사(409 → /pin/confirm) 포함.
 
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
-| GET | /api/chat/conversations/by-project/:projectId | Yes | List conversations | - |
-| POST | /api/chat/conversations | Yes | Create conversation | `{ projectId?: string, workspaceId?: string, pageId?: string, scope: 'workspace'\|'project'\|'page', attached_chips?: ChipRef[] }` |
-| GET | /api/chat/conversations/:id/messages | Yes | List messages | - |
-| POST | /api/chat/message | Yes | Send message (SSE stream) | `{ conversationId, content }` |
+| GET | /api/chat/conversations | workspace 멤버 | List owner's conversations | `?workspaceId=` |
+| POST | /api/chat/conversations | workspace 멤버 | Create conversation (auto-attach scope chip) | `{ workspaceId, scopeType: 'page'\|'project'\|'workspace', scopeId, attachedChips: AttachedChip[], ragMode?: 'strict'\|'expand', memoryFlags: { l3_global, l3_workspace, l4, l2 }, title? }` |
+| GET | /api/chat/conversations/:id | owner | Get one conversation | - |
+| PATCH | /api/chat/conversations/:id | owner | Update ragMode / memoryFlags / title | `{ ragMode?, memoryFlags?, title? }` |
+| POST | /api/chat/conversations/:id/chips | owner | Add chip (workspace boundary enforced for page/project/workspace; memory:l* accepted as-is) | `{ type: ChipType, id }` |
+| DELETE | /api/chat/conversations/:id/chips/:chipKey | owner | Remove chip by composite key `<type>:<id>` (lastIndexOf separator handles `memory:l*` types) | - |
+| POST | /api/chat/message | owner | Send message (SSE stream `delta` / `cost` / `done`; placeholder reply in 11A) | `{ conversationId, content }` |
+| POST | /api/chat/messages/:id/pin | owner of convo + write on target page | Pin assistant message to a page block. Returns `200 { pinned:true }` if no permission delta, otherwise `409 { requireConfirm:true, warning: { hiddenSources, hiddenUsers } }` | `{ noteId, blockId }` |
+| POST | /api/chat/messages/:id/pin/confirm | owner of convo + write on target page | Force-pin after the user accepts the visibility warning (records `reason='user_confirmed_permission_warning'` on the row) | `{ noteId, blockId }` |
+| GET | /api/search/scope-targets | workspace 멤버 | Chip combobox backing search (pages + projects matching `q`, per-row canRead filtered) | `?workspaceId=&q=` |
 
 ### Knowledge Graph
 
