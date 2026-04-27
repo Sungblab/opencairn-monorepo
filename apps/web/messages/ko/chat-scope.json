@@ -1,0 +1,36 @@
+{
+  "chip": {
+    "remove_aria": "{label} 칩 제거",
+    "tokens_estimate": "약 {kilo}k 토큰",
+    "auto_label": "자동 첨부됨"
+  },
+  "combobox": {
+    "add_aria": "컨텍스트 추가",
+    "placeholder": "페이지 또는 프로젝트 검색…",
+    "empty": "결과가 없습니다",
+    "min_chars_hint": "두 글자 이상 입력해 주세요"
+  },
+  "rag_mode": {
+    "strict_label": "엄격",
+    "expand_label": "확장",
+    "strict_description": "엄격 — 첨부된 칩에서만 검색합니다",
+    "expand_description": "확장 — 칩 외부 워크스페이스로 폴백합니다"
+  },
+  "pin": {
+    "button": "이 페이지에 고정",
+    "pinned": "고정됨",
+    "modal_title": "인용 가시성 경고",
+    "modal_body": "이 답변은 대상 페이지를 읽을 수 있는 사용자 {users}명에게 보이지 않는 출처 {sources}건을 인용하고 있습니다.",
+    "modal_note": "고정된 답변은 그대로 보이지만, 인용된 일부 출처는 일부 사용자에게 비공개입니다.",
+    "cancel": "취소",
+    "confirm": "그래도 고정"
+  },
+  "cost": {
+    "badge_aria": "이 답변의 토큰 비용",
+    "badge_title": "토큰 비용: {cost}원"
+  },
+  "input": {
+    "placeholder": "어떻게 도와드릴까요?",
+    "send": "보내기"
+  }
+}

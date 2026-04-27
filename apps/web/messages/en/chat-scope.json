@@ -1,0 +1,36 @@
+{
+  "chip": {
+    "remove_aria": "Remove {label}",
+    "tokens_estimate": "~{kilo}k tokens",
+    "auto_label": "auto-attached"
+  },
+  "combobox": {
+    "add_aria": "Add context",
+    "placeholder": "Search pages or projects…",
+    "empty": "No results",
+    "min_chars_hint": "Type at least two characters"
+  },
+  "rag_mode": {
+    "strict_label": "Strict",
+    "expand_label": "Expand",
+    "strict_description": "Strict — only search attached chips",
+    "expand_description": "Expand — fall back to the workspace outside chips"
+  },
+  "pin": {
+    "button": "Pin to page",
+    "pinned": "Pinned",
+    "modal_title": "Citation visibility warning",
+    "modal_body": "This answer cites {sources} source(s) that are not visible to {users} user(s) who can read the target page.",
+    "modal_note": "The pinned answer will still be visible, but some cited sources are hidden from some readers.",
+    "cancel": "Cancel",
+    "confirm": "Pin anyway"
+  },
+  "cost": {
+    "badge_aria": "Token cost for this answer",
+    "badge_title": "Token cost: {cost} KRW"
+  },
+  "input": {
+    "placeholder": "How can I help?",
+    "send": "Send"
+  }
+}

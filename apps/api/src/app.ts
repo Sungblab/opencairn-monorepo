@@ -23,6 +23,7 @@ import { codeRoutes } from "./routes/code";
 import { canvasRoutes } from "./routes/canvas";
 import { threadRoutes } from "./routes/threads";
 import { chatRoutes } from "./routes/chat";
+import { searchRoutes } from "./routes/search";
 import { messageFeedbackRoutes } from "./routes/message-feedback";
 import { userRoutes } from "./routes/users";
 import { streamRoutes } from "./routes/stream";
@@ -68,6 +69,9 @@ export function createApp() {
   // Mounted as a specific path (not a wildcard /api router) so it does
   // not race the share/invite/comments wildcard auth middlewares.
   app.route("/api/chat", chatRoutes);
+  // Plan 11A — chip combobox search. Specific path so the `/api/*`
+  // wildcard sub-apps don't intercept it with their own auth chain.
+  app.route("/api/search", searchRoutes);
   // Mounted alongside /api/threads (specific path) so the wildcard /api routers
   // below don't intercept this with their own requireAuth chains.
   app.route("/api/message-feedback", messageFeedbackRoutes);
