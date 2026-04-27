@@ -8,6 +8,7 @@ the workflow depends on (binary → closest-ancestor-page, pages-first order).
 from __future__ import annotations
 
 from worker.activities.import_activities import (
+    _build_import_summary,
     _compute_effective_parents,
     _sort_pages_first,
 )
@@ -81,3 +82,63 @@ def test_sort_pages_first() -> None:
     # workflow test can assert against a concrete sequence.
     assert sorted_[0]["idx"] == 1
     assert sorted_[1]["idx"] == 3
+
+
+# ---------------------------------------------------------------------------
+# _build_import_summary — drives the system-kind notification payload.
+# Locked-down here so a copy tweak to the Korean string doesn't silently
+# break the level (info/warning) classification that the drawer renders
+# differently.
+# ---------------------------------------------------------------------------
+
+
+class TestBuildImportSummary:
+    def test_full_success_is_info(self) -> None:
+        summary, level = _build_import_summary(
+            source="notion_zip",
+            status="completed",
+            completed=15,
+            failed=0,
+            total=15,
+        )
+        assert level == "info"
+        assert "Notion" in summary
+        assert "15/15" in summary
+
+    def test_partial_success_is_warning(self) -> None:
+        summary, level = _build_import_summary(
+            source="google_drive",
+            status="completed",
+            completed=12,
+            failed=3,
+            total=15,
+        )
+        assert level == "warning"
+        assert "Google Drive" in summary
+        assert "12/15" in summary
+        assert "3" in summary  # failure count surfaced
+
+    def test_total_failure_is_warning(self) -> None:
+        summary, level = _build_import_summary(
+            source="notion_zip",
+            status="failed",
+            completed=0,
+            failed=4,
+            total=4,
+        )
+        assert level == "warning"
+        assert "실패" in summary
+
+    def test_unknown_source_uses_generic_label(self) -> None:
+        summary, level = _build_import_summary(
+            source="dropbox_zip",  # not a known source kind
+            status="completed",
+            completed=1,
+            failed=0,
+            total=1,
+        )
+        assert level == "info"
+        # Falls back to the generic "가져오기" label rather than echoing the
+        # raw source slug into a user-facing string.
+        assert "dropbox_zip" not in summary
+        assert "가져오기" in summary
