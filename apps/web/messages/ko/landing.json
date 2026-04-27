@@ -1,8 +1,8 @@
 {
   "meta": {
     "title": "OpenCairn — AI 지식 OS",
-    "description": "자료를 올려두면 AI가 위키로 엮고, 묻기 전에 연결을 발견하는 개인·팀 지식 OS. 12개 AI 에이전트, 셀프호스팅, AGPLv3.",
-    "ogDescription": "12개의 AI 에이전트가 PDF·논문·영상을 위키로 엮고, 연결을 먼저 발견합니다."
+    "description": "파일을 올리면 12개의 AI 에이전트가 위키로 엮고, 연결을 먼저 발견하는 개인·팀 지식 OS. 셀프호스팅, AGPLv3.",
+    "ogDescription": "PDF·논문·강의 녹음을 올리면 AI가 위키로 엮고, 번역하고, 그래프로 시각화합니다."
   },
   "nav": {
     "logoTitle": "클릭해 보세요",
@@ -24,16 +24,16 @@
     "titleLine2": "도구는 많습니다.",
     "titleBrand": "OpenCairn은",
     "titleLine3": "읽은 것까지 이해합니다",
-    "sub": "PDF · 논문 · 영상 · 팟캐스트를 올려두면 12개의 AI 에이전트가 <b>위키로 엮어내고</b>, 묻기 전에 <b>연결을 발견</b>하며, 이해의 깊이를 <b>스스로 측정</b>합니다.",
+    "sub": "PDF · 논문 · 영상 · 강의 녹음을 올리면 12개의 AI 에이전트가 <b>알아서 위키로 엮어내고</b>, 묻기 전에 <b>연결을 발견</b>하며, 이해의 깊이를 <b>스스로 측정</b>합니다.",
     "ctaPrimary": "시작하기",
     "ctaSecondary": "요금 보기",
-    "noCard": "12개 에이전트 모두 포함",
+    "noCard": "12개 에이전트 · 파일 올리면 바로 시작",
     "selfhostLink": "개발자이신가요? 셀프호스팅 가이드 ↗",
     "spec": {
       "agents": "agents",
       "agentsVal": "12",
       "parsers": "parsers",
-      "parsersVal": "pdf · docx · hwp · epub · mp3 · mp4",
+      "parsersVal": "pdf · docx · hwp · epub · mp3 · mp4 · m4a",
       "runtime": "runtime",
       "runtimeVal": "docker",
       "vector": "vector",
@@ -48,12 +48,12 @@
       "timeLabels": ["방금", "1분 전", "3분 전", "6분 전"],
       "items": [
         { "agent": "Compiler", "text": "<b>attention_is_all_you_need.pdf</b> 컴파일 완료 · 17 개념" },
-        { "agent": "Librarian", "text": "‘self-attention’ ↔ ‘scaled dot-product’ 중복 병합 제안" },
-        { "agent": "Synthesis", "text": "‘어텐션 ↔ 인지 선택’ 도메인 간 구조 유사성 발견" },
+        { "agent": "Librarian", "text": "'self-attention' ↔ 'scaled dot-product' 중복 병합 제안" },
+        { "agent": "Synthesis", "text": "'어텐션 ↔ 인지 선택' 도메인 간 구조 유사성 발견" },
         { "agent": "Curator", "text": "<b>RoFormer (2021)</b> 관련 논문 후보 3 건" },
         { "agent": "Socratic", "text": "약한 개념 4 건 감지 · 플래시카드 9 장 생성" },
-        { "agent": "Connector", "text": "‘signal-processing’ 프로젝트와 2 개념 연결" },
-        { "agent": "Temporal", "text": "‘트랜스포머’ 이해도 <b>+15%</b> (지난 7 일)" },
+        { "agent": "Connector", "text": "'signal-processing' 프로젝트와 2 개념 연결" },
+        { "agent": "Temporal", "text": "'트랜스포머' 이해도 <b>+15%</b> (지난 7 일)" },
         { "agent": "Research", "text": "새 질문 후보 4 건 인덱싱 · Q&A 준비 완료" },
         { "agent": "Deep R.", "text": "<b>\"post-LN vs pre-LN\"</b> 심층 조사 큐잉" },
         { "agent": "Narrator", "text": "주간 팟캐스트 <b>12:30</b> 자동 생성" },
@@ -65,7 +65,7 @@
       "title": "opencairn — live compile",
       "compiling": "● compiling",
       "input": "INPUT",
-      "inputItems": ["논문 PDF", "팟캐스트 오디오", "영상 · YouTube", "웹 URL · HWP", "스캔 이미지"],
+      "inputItems": ["논문 PDF", "강의·회의 녹음", "영상 · YouTube", "팟캐스트 오디오", "웹 URL · HWP"],
       "agentsHeader": "12 AGENTS",
       "orchestration": "오케스트레이션",
       "status": "● running · 12/12",
@@ -83,6 +83,7 @@
       "idle": "대기 중…",
       "rotating": [
         "자료 업로드 감지 · attention_is_all_you_need.pdf",
+        "Parse: 강의 녹음 1h 23m 전사 완료 · 마크다운 변환 중",
         "Compiler: 17 개념 추출 · 임베딩 생성 중",
         "Librarian: 기존 위키와 3 개의 중복 병합 제안",
         "Research: 관련 질문 후보 4 건 인덱싱",
@@ -112,10 +113,10 @@
     "title1": "자료 한 개를",
     "title2": "위키 페이지로 바꾸는",
     "title3": "여섯 단계.",
-    "sub": "하나의 거대 프롬프트 대신, 좁은 책임을 가진 단계들이 릴레이합니다. 그래야 멈출 줄 알고, 고칠 줄 압니다. 모든 문장의 출처는 원본 자료로 돌아갑니다.",
+    "sub": "올리는 것이 전부입니다. 나머지 여섯 단계는 에이전트가 알아서 처리합니다. 모든 문장의 출처는 원본 자료로 이어집니다.",
     "steps": [
       { "n": "01 · INGEST", "title": "가져오기", "body": "PDF · HWP · 오디오 · 영상 · URL · 스캔 이미지. 형식 무관." },
-      { "n": "02 · PARSE", "title": "해체", "body": "OCR · 자막 · 표 구조. 마크다운으로 정규화." },
+      { "n": "02 · PARSE", "title": "해체", "body": "OCR · 강의 전사 · 자막 · 표 구조. 마크다운으로 정규화." },
       { "n": "03 · EMBED", "title": "의미화", "body": "벡터 공간으로 변환. 비슷한 것끼리 가까워짐." },
       { "n": "04 · COMPILE", "title": "엮기", "body": "12 에이전트가 주제별 위키 초안을 작성합니다." },
       { "n": "05 · CONNECT", "title": "연결", "body": "백링크 · 대척점 · 인과 관계를 지식 그래프로." },
@@ -140,17 +141,17 @@
     "label": "AGENTS",
     "title1": "12명의 전문가가",
     "title2": "분업합니다.",
-    "sub": "하나의 거대한 프롬프트 대신, 좁은 책임을 가진 에이전트들이 릴레이합니다. 각자 꺼지지 않는 백그라운드에서 일하고, 브라우저를 닫아도 지식은 계속 자랍니다.",
+    "sub": "열두 에이전트가 각자 맡은 역할을 백그라운드에서 쉬지 않고 처리합니다. 브라우저를 닫아도 지식은 계속 자랍니다.",
     "items": [
-      { "n": "01", "cat": "core", "name": "Compiler", "body": "업로드한 자료에서 개념을 뽑아 위키로 엮습니다. 양방향 링크까지 자동으로." },
+      { "n": "01", "cat": "core", "name": "Compiler", "body": "업로드한 자료에서 개념을 뽑아 위키로 엮습니다. 오디오·영상은 전사 후 처리. 양방향 링크까지 자동." },
       { "n": "02", "cat": "core", "name": "Research", "body": "여러 검색 방식을 조합한 하이브리드 Q&A. 모든 답변에 출처." },
       { "n": "03", "cat": "maintain", "name": "Librarian", "body": "고아 페이지·모순·중복을 찾아냅니다. 위키 건강을 주기 점검." },
       { "n": "04", "cat": "discover", "name": "Synthesis", "body": "서로 다른 분야의 구조적 유사성을 발견. 면역계 ↔ 회복성처럼." },
       { "n": "05", "cat": "discover", "name": "Connector", "body": "프로젝트 간 연결을 제안합니다. 승인하면 크로스 링크 생성." },
-      { "n": "06", "cat": "time", "name": "Temporal", "body": "이해의 시간적 변천을 추적. 오래된 지식 경고 · 복습 알림." },
+      { "n": "06", "cat": "time", "name": "Temporal", "body": "시간이 지나며 이해가 어떻게 변하는지 추적합니다. 오래된 지식 경고 · 복습 알림." },
       { "n": "07", "cat": "source", "name": "Curator", "body": "지식의 빈 자리를 메울 외부 자료를 웹에서 찾아 추천." },
       { "n": "08", "cat": "source", "name": "Deep Research", "body": "한 주제를 길게 자율 조사하고 보고서를 위키에 자동 병합." },
-      { "n": "09", "cat": "learn", "name": "Socratic", "body": "플래시카드·퀴즈로 이해를 점검. 간격 반복으로 약한 개념 보강." },
+      { "n": "09", "cat": "learn", "name": "Socratic", "body": "플래시카드·퀴즈로 이해를 점검합니다. 간격 반복으로 빈 곳을 채웁니다." },
       { "n": "10", "cat": "media", "name": "Narrator", "body": "위키 내용을 2인 대화 팟캐스트로 변환. 걸으면서 복습." },
       { "n": "11", "cat": "execute", "name": "Code", "body": "Python · JS를 생성해 브라우저에서 안전하게 실행. 서버는 0 코드." },
       { "n": "12", "cat": "view", "name": "Visualization", "body": "지식 그래프를 Graph · Mindmap · Cards · Canvas · Timeline 5뷰로." }
@@ -195,8 +196,8 @@
   "workspace": {
     "label": "WORKSPACE",
     "title1": "혼자서도, 실험실 단위로도",
-    "title2": "같은 방식으로 움직입니다.",
-    "sub": "위키 페이지는 그냥 글이 아니라, 자료·에이전트·팀원의 합류점입니다. 페이지마다 출처·편집자·에이전트 활동이 함께 살아 있습니다.",
+    "title2": "도구를 바꿀 필요가 없습니다.",
+    "sub": "위키 페이지는 그냥 글이 아니라, 자료·사람·에이전트가 만나는 곳입니다. 페이지마다 출처·편집자·에이전트 활동이 함께 살아 있습니다.",
     "mock": {
       "chromePath": "opencairn.local / studio-kim / research-wiki",
       "sideWorkspace": "WORKSPACE",
@@ -240,7 +241,7 @@
     "label": "PRINCIPLES",
     "title1": "네 가지 약속이",
     "title2": "한 자리에 모이기는 드뭅니다.",
-    "sub": "자료 주권 · 살아 있는 지식 · 학습까지 한 줄기 · 열린 소스. 한두 가지를 지키는 도구는 많지만, 넷을 동시에 두는 자리가 OpenCairn입니다.",
+    "sub": "자료 주권 · 살아 있는 지식 · 학습까지 한 줄기 · 열린 소스. 한두 가지를 지키는 도구는 많지만, 이 넷을 한 자리에 모은 도구가 OpenCairn입니다.",
     "items": [
       {
         "tag": "[ a ]",
@@ -272,20 +273,20 @@
     "label": "WHO",
     "title1": "혼자 쓰던 도구가",
     "title2": "조직 전체로.",
-    "sub": "개인에서 시작해 연구실, 규제 산업 엔터프라이즈까지 선형적으로 확장합니다. 도구를 바꿀 일이 없습니다.",
+    "sub": "개인에서 시작해 연구실, 규제 산업까지. 규모가 커져도 도구는 그대로입니다.",
     "items": [
       {
         "ver": "v0.1",
         "cat": "primary",
-        "title": "대학원생 · 리서처",
-        "body": "논문 50편이 한 덩어리의 위키로 엮입니다. 개념 그래프로 관계를 살피고, 심화 조사는 Deep Research에 맡기고, 시험 전에는 AI 퀴즈로 점검합니다. 인용은 자동으로 원본 노트로 이어집니다.",
-        "bullets": ["· 개인 셀프호스팅", "· 본인 API 키 (BYOK)", "· 기존 노트 앱 마이그레이션"]
+        "title": "대학생 · 직장인 · 리서처",
+        "body": "강의·회의·세미나 녹음을 올리면 전사부터 위키 정리까지 자동입니다. 논문 50편도 한 덩어리 위키로 엮이고, 시험·발표 전에는 AI 퀴즈로 빠르게 점검합니다. 인용은 자동으로 원본 자료로 이어집니다.",
+        "bullets": ["· 강의·회의·세미나 녹음 자동 전사", "· 개인 셀프호스팅", "· 본인 API 키 (BYOK)", "· 기존 노트 앱 마이그레이션"]
       },
       {
         "ver": "v0.2",
         "cat": "expansion",
         "title": "연구실 · 소규모 팀",
-        "body": "역할별 권한으로 운영합니다. 랩 미팅 녹음은 자동 요약되고 할 일이 추출됩니다. 선배가 졸업해도 지식은 랩에 남고, 신입 온보딩이 빨라집니다.",
+        "body": "역할별 권한으로 운영합니다. 랩 미팅 녹음이 요약되고 다음 할 일로 정리됩니다. 선배가 졸업해도 지식은 랩에 남고, 신입 온보딩이 빨라집니다.",
         "bullets": ["· 워크스페이스 + 권한", "· 실시간 협업 · 코멘트", "· 랩 서버 직접 설치"]
       },
       {
@@ -408,6 +409,10 @@
     "title": "묻기 전에.",
     "items": [
       {
+        "q": "오디오나 영상 파일도 분석이 되나요?",
+        "a": "됩니다. mp3 · mp4 · m4a 등 오디오·영상 파일을 올리면 자동으로 전사된 뒤 텍스트처럼 위키로 엮입니다. 강의 녹음은 개념 페이지로, 회의 녹음은 요약과 할 일 목록으로 정리됩니다. 실시간 전사는 지원하지 않으며, 파일 업로드 후 처리됩니다."
+      },
+      {
         "q": "데이터는 어디에 저장되나요?",
         "a": "전부 여러분이 운영하는 인프라에 저장됩니다. 텍스트·벡터·위키는 데이터베이스에, 원본 파일은 파일 스토리지에. Gemini 모드에서는 AI 호출만 외부로 나가고, 완전 로컬 모드에서는 외부 요청이 0입니다."
       },
@@ -437,12 +442,12 @@
     "label": "CLOSING",
     "titleA": "여러분 지식의",
     "titleB": "제2의 뇌.",
-    "sub": "솔로 ₩0으로 오늘 시작하세요. 1년 뒤 지식 베이스가 얼마나 자라 있을지는, 오늘부터의 축적이 정합니다.",
+    "sub": "솔로 ₩0으로 오늘 시작하세요. 1년 뒤가 어떻게 달라질지는, 오늘 쌓기 시작한 것이 결정합니다.",
     "primary": "> 시작하기",
     "secondary": "요금 비교",
     "bottomGithub": "GITHUB ↗",
     "bottomSelfhost": "셀프호스팅 가이드",
-    "bottomTonight": "오늘 저녁, 첫 PDF부터."
+    "bottomTonight": "오늘 저녁, 파일 하나부터."
   },
   "footer": {
     "tagline": "AI 지식 OS. 혼자서도, 팀으로도. 셀프호스팅으로 영원히.",
