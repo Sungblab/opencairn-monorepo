@@ -49,6 +49,27 @@ def download_to_tempfile(object_key: str) -> Path:
     return Path(tmp.name)
 
 
+def upload_object(object_key: str, data: bytes, content_type: str) -> None:
+    """Upload arbitrary bytes to ``object_key`` in the configured bucket.
+
+    Used by the live-ingest figure-extraction path: the PDF activity uploads
+    extracted page figures so the API ``/api/ingest/figures/...`` proxy can
+    stream them back to the browser without exposing presigned URLs.
+    """
+    import io
+
+    bucket = os.environ.get("S3_BUCKET", "opencairn-uploads")
+    client = get_s3_client()
+    buf = io.BytesIO(data)
+    client.put_object(
+        bucket,
+        object_key,
+        data=buf,
+        length=len(data),
+        content_type=content_type,
+    )
+
+
 def upload_jsonl(object_key: str, lines: list[dict]) -> None:
     """Write ``lines`` as newline-delimited JSON to ``object_key``.
 
