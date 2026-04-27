@@ -1,0 +1,45 @@
+{
+  "spotlight": {
+    "title": "Analysing {fileName}",
+    "subtitle": "Reading pages, extracting figures and structure.",
+    "skipToTab": "Open in tab",
+    "secondsRemaining": "{n}s"
+  },
+  "tab": {
+    "title": "Analysing: {fileName}",
+    "openSourceNote": "Open note",
+    "denseToggle": "Show details",
+    "denseToggleOff": "Hide details"
+  },
+  "dock": {
+    "running": "{fileName} · {pct}%",
+    "completed": "{fileName} complete",
+    "failed": "{fileName} failed",
+    "openNote": "Open note",
+    "retry": "Retry",
+    "dismiss": "Dismiss",
+    "moreCount": "+{n} more"
+  },
+  "stage": {
+    "downloading": "Downloading",
+    "parsing": "Parsing",
+    "enhancing": "Enhancing",
+    "persisting": "Saving"
+  },
+  "unit": {
+    "page": "Page {n}/{total}",
+    "segment": "Segment {n}/{total}",
+    "section": "Section {n}/{total}"
+  },
+  "figure": {
+    "image": "Image",
+    "table": "Table",
+    "chart": "Chart",
+    "equation": "Equation"
+  },
+  "error": {
+    "generic": "Something went wrong while processing.",
+    "unsupported": "This file type may not be supported.",
+    "retryHint": "Please try again in a moment."
+  }
+}
