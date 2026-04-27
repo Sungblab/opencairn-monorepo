@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-15
 **Plan:** Plan 10 (new)
-**Status:** Draft — awaiting user review
+**Status:** ⚠️ **SUPERSEDED** by [`2026-04-27-multi-format-synthesis-export-design.md`](./2026-04-27-multi-format-synthesis-export-design.md) — 본 spec 은 server-side Tectonic MSA 단일 파이프라인 모델 (ADR-006 이전). 2026-04-27 synthesis export spec 이 Pyodide-first 생성 + 다중 포맷 (LaTeX/DOCX/PDF/MD) + 플래그 게이트로 재설계됨. 본 문서는 역사적 참고용으로만 유지.
 
 ---
 
