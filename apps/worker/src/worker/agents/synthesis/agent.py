@@ -12,6 +12,7 @@ other agent in the platform.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 import uuid
@@ -118,10 +119,11 @@ class SynthesisAgent(Agent):
         )
 
         try:
-            # 1. Fetch each source note.
-            contexts: list[dict[str, str]] = []
+            # 1. Emit ToolUse events for all fetches, then gather in parallel.
+            call_ids = []
             for note_id in validated.note_ids:
                 call_id = f"call-{uuid.uuid4().hex[:8]}"
+                call_ids.append(call_id)
                 args = {"note_id": note_id}
                 yield ToolUse(
                     run_id=ctx.run_id,
@@ -136,11 +138,39 @@ class SynthesisAgent(Agent):
                     input_hash=hash_input(args),
                     concurrency_safe=True,
                 )
-                started = time.time()
-                try:
-                    note = await self.api.get_note(note_id)
-                    text = (note.get("contentText") or "")[:_MAX_NOTE_CHARS]
-                    title = note.get("title") or "Untitled"
+
+            t_fetch = time.time()
+            fetch_results = await asyncio.gather(
+                *[self.api.get_note(nid) for nid in validated.note_ids],
+                return_exceptions=True,
+            )
+            fetch_ms = int((time.time() - t_fetch) * 1000)
+
+            contexts: list[dict[str, str]] = []
+            for note_id, call_id, result in zip(
+                validated.note_ids, call_ids, fetch_results
+            ):
+                if isinstance(result, Exception):
+                    logger.warning(
+                        "SynthesisAgent: failed to fetch note %s: %s",
+                        note_id,
+                        result,
+                    )
+                    yield ToolResult(
+                        run_id=ctx.run_id,
+                        workspace_id=ctx.workspace_id,
+                        agent_name=self.name,
+                        seq=seq.next(),
+                        ts=time.time(),
+                        type="tool_result",
+                        tool_call_id=call_id,
+                        ok=False,
+                        output={"error": str(result)},
+                        duration_ms=fetch_ms,
+                    )
+                else:
+                    text = (result.get("contentText") or "")[:_MAX_NOTE_CHARS]
+                    title = result.get("title") or "Untitled"
                     contexts.append({"title": title, "text": text})
                     yield ToolResult(
                         run_id=ctx.run_id,
@@ -152,25 +182,7 @@ class SynthesisAgent(Agent):
                         tool_call_id=call_id,
                         ok=True,
                         output={"title": title, "chars": len(text)},
-                        duration_ms=int((time.time() - started) * 1000),
-                    )
-                except Exception as fetch_exc:  # noqa: BLE001
-                    logger.warning(
-                        "SynthesisAgent: failed to fetch note %s: %s",
-                        note_id,
-                        fetch_exc,
-                    )
-                    yield ToolResult(
-                        run_id=ctx.run_id,
-                        workspace_id=ctx.workspace_id,
-                        agent_name=self.name,
-                        seq=seq.next(),
-                        ts=time.time(),
-                        type="tool_result",
-                        tool_call_id=call_id,
-                        ok=False,
-                        output={"error": str(fetch_exc)},
-                        duration_ms=int((time.time() - started) * 1000),
+                        duration_ms=fetch_ms,
                     )
 
             # Require at least one note to have content.

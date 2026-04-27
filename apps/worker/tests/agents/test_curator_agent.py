@@ -464,10 +464,13 @@ def test_build_candidate_pairs_adjacent():
         {"id": f"t{i}", "name": f"Topic {i}", "description": f"Desc {i}"}
         for i in range(6)
     ]
+    # Sliding window: (0,1), (1,2), (2,3), (3,4), (4,5) = 5 pairs (capped by max_pairs=5)
     pairs = _build_candidate_pairs(topics, max_pairs=5)
-    assert len(pairs) == 3  # (0,1), (2,3), (4,5)
+    assert len(pairs) == 5
     assert pairs[0][0]["id"] == "t0"
     assert pairs[0][1]["id"] == "t1"
+    assert pairs[1][0]["id"] == "t1"
+    assert pairs[1][1]["id"] == "t2"
 
 
 def test_build_candidate_pairs_respects_max():

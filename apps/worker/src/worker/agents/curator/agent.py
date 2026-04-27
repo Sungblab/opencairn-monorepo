@@ -11,8 +11,10 @@ trajectory writer + token counter hooks.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import re
 import time
 import uuid
 from collections.abc import AsyncGenerator
@@ -138,8 +140,8 @@ class CuratorAgent(Agent):
             orphans = orphans[: validated.max_orphans]
             orphans_found = len(orphans)
 
-            for concept in orphans:
-                await post_internal(
+            await asyncio.gather(*[
+                post_internal(
                     "/api/internal/suggestions",
                     {
                         "userId": validated.user_id,
@@ -152,7 +154,9 @@ class CuratorAgent(Agent):
                         },
                     },
                 )
-                suggestions_created += 1
+                for concept in orphans
+            ])
+            suggestions_created += orphans_found
 
             yield ToolResult(
                 run_id=ctx.run_id,
@@ -193,8 +197,8 @@ class CuratorAgent(Agent):
             )
             duplicates_found = len(pairs)
 
-            for pair in pairs:
-                await post_internal(
+            await asyncio.gather(*[
+                post_internal(
                     "/api/internal/suggestions",
                     {
                         "userId": validated.user_id,
@@ -210,7 +214,9 @@ class CuratorAgent(Agent):
                         },
                     },
                 )
-                suggestions_created += 1
+                for pair in pairs
+            ])
+            suggestions_created += duplicates_found
 
             yield ToolResult(
                 run_id=ctx.run_id,
@@ -435,16 +441,16 @@ def _is_retryable(exc: Exception) -> bool:
     return False
 
 
+_JSON_FENCE_RE = re.compile(r"```(?:\w+)?\n?(.*?)```", re.DOTALL)
+
+
 def _parse_contradiction_response(raw: str) -> dict[str, Any]:
     """Parse the LLM JSON response, returning defaults on parse failure."""
     try:
-        # Strip markdown fences if the model wrapped the JSON.
         text = raw.strip()
-        if text.startswith("```"):
-            lines = text.splitlines()
-            # Drop the opening fence (and optional language tag) and closing fence.
-            inner = [ln for ln in lines[1:] if not ln.startswith("```")]
-            text = "\n".join(inner).strip()
+        m = _JSON_FENCE_RE.search(text)
+        if m:
+            text = m.group(1).strip()
         return json.loads(text)
     except (json.JSONDecodeError, ValueError):
         logger.warning("CuratorAgent: failed to parse contradiction response: %r", raw[:200])
@@ -455,20 +461,19 @@ def _build_candidate_pairs(
     topics: list[dict[str, Any]],
     max_pairs: int,
 ) -> list[tuple[dict[str, Any], dict[str, Any]]]:
-    """Build up to ``max_pairs`` non-overlapping adjacent pairs from topics.
+    """Build up to ``max_pairs`` sliding-window adjacent pairs from topics.
 
-    We take adjacent pairs rather than full cartesian product to keep the
-    number of LLM calls bounded and predictable. The topics list is already
-    sorted by relevance (note-link count descending) from the API, so we
-    compare the most prominent concepts first.
+    Sliding window (i, i+1) instead of disjoint (0,1), (2,3)... so that we
+    catch contradictions between any two neighbouring concepts, not just even-
+    indexed pairs. The topics list is sorted by relevance (note-link count
+    descending) from the API, so the most prominent concepts are checked first.
     """
     pairs: list[tuple[dict[str, Any], dict[str, Any]]] = []
-    for i in range(0, len(topics) - 1, 2):
+    for i in range(len(topics) - 1):
         if len(pairs) >= max_pairs:
             break
         a = topics[i]
         b = topics[i + 1]
-        # Only include pairs where both concepts have at least some description.
         if a.get("description") and b.get("description"):
             pairs.append((a, b))
     return pairs

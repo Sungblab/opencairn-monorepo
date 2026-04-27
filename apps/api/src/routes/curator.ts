@@ -88,10 +88,7 @@ curatorRoutes.get(
       return c.json({ error: "projectId required" }, 400);
     }
 
-    // Validate UUID shape to avoid pg errors.
-    const uuidRe =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRe.test(projectId)) {
+    if (!z.string().uuid().safeParse(projectId).success) {
       return c.json({ error: "invalid projectId" }, 400);
     }
 

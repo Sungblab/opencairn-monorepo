@@ -12,6 +12,7 @@ Python package. The Hono API route is ``/api/agents/temporal/stale-check``.
 """
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import json
 import logging
@@ -157,21 +158,25 @@ class StalenessAgent(Agent):
                 duration_ms=int((time.time() - fetch_started) * 1000),
             )
 
-            # 2. Score each candidate via LLM, then save alerts.
+            # 2. Score all candidates via LLM in parallel (max 5 concurrent).
             notes_checked = 0
             alerts_created = 0
             results: list[StaleNoteResult] = []
 
-            now_ts = time.time()
+            _llm_sem = asyncio.Semaphore(5)
+
+            # Precompute per-note metadata and emit all ToolUse events upfront.
+            note_meta = []
+            score_call_ids = []
             for note in candidates:
                 note_id = str(note.get("id", ""))
                 title = str(note.get("title", "Untitled"))
                 content_text = str(note.get("contentText") or "")
-                updated_at_raw = note.get("updatedAt")
-                days_old = _days_since(updated_at_raw)
+                days_old = _days_since(note.get("updatedAt"))
+                note_meta.append((note_id, title, content_text, days_old))
 
-                # Score via LLM.
                 score_call_id = f"call-{uuid.uuid4().hex[:8]}"
+                score_call_ids.append(score_call_id)
                 score_args = {"note_id": note_id, "title": title}
                 yield ToolUse(
                     run_id=ctx.run_id,
@@ -186,53 +191,40 @@ class StalenessAgent(Agent):
                     input_hash=hash_input(score_args),
                     concurrency_safe=True,
                 )
-                llm_started = time.time()
-                try:
-                    raw_response = await self.provider.generate(
-                        [
-                            {"role": "system", "content": STALENESS_SYSTEM},
-                            {
-                                "role": "user",
-                                "content": build_staleness_prompt(
-                                    title, content_text, days_old
-                                ),
-                            },
-                        ],
-                        response_mime_type="application/json",
-                    )
-                    latency_ms = int((time.time() - llm_started) * 1000)
-                    yield ModelEnd(
-                        run_id=ctx.run_id,
-                        workspace_id=ctx.workspace_id,
-                        agent_name=self.name,
-                        seq=seq.next(),
-                        ts=time.time(),
-                        type="model_end",
-                        model_id=self.provider.config.model or "unknown",
-                        prompt_tokens=0,
-                        completion_tokens=0,
-                        cached_tokens=0,
-                        cost_krw=0,
-                        finish_reason="stop",
-                        latency_ms=latency_ms,
-                    )
-                    parsed = _parse_staleness_response(raw_response)
-                    staleness_score = float(parsed.get("score", 0.0))
-                    reason = str(parsed.get("reason", ""))
-                    notes_checked += 1
-                    yield ToolResult(
-                        run_id=ctx.run_id,
-                        workspace_id=ctx.workspace_id,
-                        agent_name=self.name,
-                        seq=seq.next(),
-                        ts=time.time(),
-                        type="tool_result",
-                        tool_call_id=score_call_id,
-                        ok=True,
-                        output={"score": staleness_score},
-                        duration_ms=int((time.time() - llm_started) * 1000),
-                    )
-                except Exception as exc:  # noqa: BLE001
+
+            async def _score_note(
+                note_id: str, title: str, content_text: str, days_old: int
+            ) -> tuple[str, int, Exception | None]:
+                t0 = time.time()
+                async with _llm_sem:
+                    try:
+                        raw = await self.provider.generate(
+                            [
+                                {"role": "system", "content": STALENESS_SYSTEM},
+                                {
+                                    "role": "user",
+                                    "content": build_staleness_prompt(
+                                        title, content_text, days_old
+                                    ),
+                                },
+                            ],
+                            response_mime_type="application/json",
+                        )
+                        return raw, int((time.time() - t0) * 1000), None
+                    except Exception as exc:  # noqa: BLE001
+                        return "", int((time.time() - t0) * 1000), exc
+
+            llm_responses = await asyncio.gather(
+                *[_score_note(nid, ti, ct, do) for nid, ti, ct, do in note_meta]
+            )
+
+            # Emit ModelEnd + ToolResult for each LLM result.
+            for (note_id, title, content_text, days_old), score_call_id, (
+                raw_response,
+                latency_ms,
+                exc,
+            ) in zip(note_meta, score_call_ids, llm_responses):
+                if exc is not None:
                     logger.warning(
                         "StalenessAgent: LLM scoring failed for note=%r: %s",
                         note_id,
@@ -248,7 +240,7 @@ class StalenessAgent(Agent):
                         tool_call_id=score_call_id,
                         ok=False,
                         output={"error": str(exc)},
-                        duration_ms=int((time.time() - llm_started) * 1000),
+                        duration_ms=latency_ms,
                     )
                     results.append(
                         StaleNoteResult(
@@ -261,6 +253,38 @@ class StalenessAgent(Agent):
                         )
                     )
                     continue
+
+                yield ModelEnd(
+                    run_id=ctx.run_id,
+                    workspace_id=ctx.workspace_id,
+                    agent_name=self.name,
+                    seq=seq.next(),
+                    ts=time.time(),
+                    type="model_end",
+                    model_id=self.provider.config.model or "unknown",
+                    prompt_tokens=0,
+                    completion_tokens=0,
+                    cached_tokens=0,
+                    cost_krw=0,
+                    finish_reason="stop",
+                    latency_ms=latency_ms,
+                )
+                parsed = _parse_staleness_response(raw_response)
+                staleness_score = float(parsed.get("score", 0.0))
+                reason = str(parsed.get("reason", ""))
+                notes_checked += 1
+                yield ToolResult(
+                    run_id=ctx.run_id,
+                    workspace_id=ctx.workspace_id,
+                    agent_name=self.name,
+                    seq=seq.next(),
+                    ts=time.time(),
+                    type="tool_result",
+                    tool_call_id=score_call_id,
+                    ok=True,
+                    output={"score": staleness_score},
+                    duration_ms=latency_ms,
+                )
 
                 # 3. Persist alert if above threshold.
                 alert_created = False
@@ -305,7 +329,7 @@ class StalenessAgent(Agent):
                             duration_ms=int((time.time() - alert_started) * 1000),
                         )
 
-                        # 4. Best-effort notification using existing `system` kind.
+                        # 4. Best-effort notification (i18n key stored in payload).
                         with contextlib.suppress(Exception):
                             await post_internal(
                                 "/api/internal/notifications",
@@ -313,10 +337,11 @@ class StalenessAgent(Agent):
                                     "userId": validated.user_id,
                                     "kind": "system",
                                     "payload": {
-                                        "summary": (
-                                            f"Wiki note \"{title}\" may be outdated "
-                                            f"(staleness score: {staleness_score:.2f})"
-                                        ),
+                                        "summaryKey": "notifications.staleAlert",
+                                        "summaryParams": {
+                                            "title": title,
+                                            "score": f"{staleness_score:.2f}",
+                                        },
                                         "level": "warning",
                                         "refType": "stale_alert",
                                         "refId": note_id,

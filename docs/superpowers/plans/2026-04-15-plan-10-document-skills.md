@@ -1,5 +1,7 @@
 # Plan 10: Document Skills — Implementation Plan
 
+> ⚠️ **SUPERSEDED** by [`2026-04-27-plan-multi-format-synthesis-export.md`](./2026-04-27-plan-multi-format-synthesis-export.md) (sibling synthesis export plan). 본 plan 은 미실행 상태로 사장됨 (server-side Tectonic MSA 가정 + ADR-006 이전 설계). 2026-04-27 plan 이 6 phase / 31 task TDD 로 재설계되어 대체. 본 문서는 역사적 참고용으로만 유지.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 > **Reference spec:** [2026-04-15-document-skills-design.md](../specs/2026-04-15-document-skills-design.md). 이 plan은 spec을 구현 가능한 단계로 나눈 것이다.
