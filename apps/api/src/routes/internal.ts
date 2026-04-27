@@ -22,6 +22,7 @@ import {
   researchRunArtifacts,
   codeRuns,
   codeTurns,
+  suggestions,
   eq,
   and,
   isNull,
@@ -2121,6 +2122,40 @@ internal.post(
       payload: body.payload as Record<string, unknown>,
     });
     return c.json({ id: event.id }, 201);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Plan 8 — Curator / Connector suggestions
+// ---------------------------------------------------------------------------
+// Agents (Curator, Connector) call this endpoint to persist quality
+// suggestions that the user can review and act on in the UI.
+// ---------------------------------------------------------------------------
+
+const internalSuggestionCreateSchema = z.object({
+  userId: z.string().min(1),
+  projectId: z.string().uuid(),
+  type: z.enum([
+    "connector_link",
+    "curator_orphan",
+    "curator_duplicate",
+    "curator_contradiction",
+    "curator_external_source",
+    "synthesis_insight",
+  ]),
+  payload: z.record(z.unknown()),
+});
+
+internal.post(
+  "/suggestions",
+  zValidator("json", internalSuggestionCreateSchema),
+  async (c) => {
+    const { userId, projectId, type, payload } = c.req.valid("json");
+    const [row] = await db
+      .insert(suggestions)
+      .values({ userId, projectId, type, payload, status: "pending" })
+      .returning({ id: suggestions.id });
+    return c.json({ id: row.id }, 201);
   },
 );
 

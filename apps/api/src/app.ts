@@ -32,6 +32,7 @@ import { learningRoutes } from "./routes/learning";
 import { socraticRoutes } from "./routes/socratic";
 import { visualizeRouter } from "./routes/visualize";
 import { synthesisRoutes } from "./routes/synthesis";
+import { curatorRoutes } from "./routes/curator";
 import { notificationRoutes } from "./routes/notifications";
 
 export function createApp() {
@@ -100,6 +101,7 @@ export function createApp() {
   app.route("/api/visualize", visualizeRouter);
   app.route("/api/code", codeRoutes);
   app.route("/api/synthesis", synthesisRoutes);
+  app.route("/api/curator", curatorRoutes);
   app.route("/api/canvas", canvasRoutes);
   app.route("/api/users", userRoutes);
   app.route("/api/notifications", notificationRoutes);
