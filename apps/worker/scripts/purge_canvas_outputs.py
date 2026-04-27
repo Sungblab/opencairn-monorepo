@@ -91,21 +91,43 @@ class _DbConn(Protocol):
     async def fetch(self, query: str, *args): ...
 
 
+# Chunk size for the in-use lookup. ``ANY($1::text[])`` sends the array as a
+# single bind parameter so Postgres' 65535-parameter ceiling doesn't apply,
+# but very large arrays (10K+) push asyncpg's framing and can flip the
+# planner away from the s3_key index. After a hard project-delete cascade
+# the candidate list can easily reach that range, so we slice the lookup
+# into bite-sized SQL round-trips. 500 is conservative — well below any
+# practical limit and small enough that one slow chunk doesn't block the
+# others for long.
+_DB_LOOKUP_CHUNK = 500
+
+
 async def find_orphan_keys(
     conn: _DbConn,
     *,
     candidates: list[str],
+    chunk_size: int = _DB_LOOKUP_CHUNK,
 ) -> list[str]:
     """Filter ``candidates`` down to keys with **no** matching
     ``canvas_outputs.s3_key`` row. Active rows are skipped — only
-    orphan storage is collected."""
+    orphan storage is collected.
+
+    The DB lookup is sliced into ``chunk_size`` batches; tests pin the
+    chunking by passing a small value, production accepts the default.
+    """
     if not candidates:
         return []
-    rows = await conn.fetch(
-        "SELECT s3_key FROM canvas_outputs WHERE s3_key = ANY($1::text[])",
-        candidates,
-    )
-    in_use = {row["s3_key"] for row in rows}
+    if chunk_size < 1:
+        raise ValueError("chunk_size must be >= 1")
+
+    in_use: set[str] = set()
+    for start in range(0, len(candidates), chunk_size):
+        chunk = candidates[start : start + chunk_size]
+        rows = await conn.fetch(
+            "SELECT s3_key FROM canvas_outputs WHERE s3_key = ANY($1::text[])",
+            chunk,
+        )
+        in_use.update(row["s3_key"] for row in rows)
     return [k for k in candidates if k not in in_use]
 
 

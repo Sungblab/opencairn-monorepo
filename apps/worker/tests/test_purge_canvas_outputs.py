@@ -168,6 +168,38 @@ class TestFindOrphanKeys:
         )
         assert orphans == []
 
+    @pytest.mark.asyncio
+    async def test_chunks_lookup_to_avoid_oversize_arrays(self) -> None:
+        """ANY($1::text[]) sends one bind param, so we don't trip the
+        65535-param ceiling — but 10K+ element arrays push asyncpg's
+        framing and can flip the planner. The lookup must split into
+        chunk_size-sized round-trips so a hard project-delete cascade
+        with thousands of orphans doesn't pile into one mega-query."""
+        candidates = [f"canvas-outputs/ws/n/o{i}.png" for i in range(7)]
+        # Mark every 3rd as in-use so both branches of the filter run on
+        # multiple chunks (otherwise a chunked impl that only looks at
+        # the first chunk could still pass).
+        in_use = {candidates[1], candidates[4]}
+        conn = _FakeConn(in_use=in_use)
+        orphans = await find_orphan_keys(
+            conn, candidates=candidates, chunk_size=3,
+        )
+        # 3 chunks: [0..2], [3..5], [6]
+        assert len(conn.queries) == 3
+        # Each chunk's bind param size is bounded by chunk_size.
+        for _, args in conn.queries:
+            assert len(args[0]) <= 3
+        # Orphans: every candidate not in the in_use set.
+        assert sorted(orphans) == sorted(set(candidates) - in_use)
+
+    @pytest.mark.asyncio
+    async def test_rejects_zero_chunk_size(self) -> None:
+        conn = _FakeConn(in_use=set())
+        with pytest.raises(ValueError):
+            await find_orphan_keys(
+                conn, candidates=["a"], chunk_size=0,
+            )
+
 
 class TestPurgeKeys:
     def test_removes_each_key_once(self) -> None:
