@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import time
@@ -199,7 +200,10 @@ async def parse_pdf(inp: dict[str, Any]) -> dict[str, Any]:
         }
 
     finally:
+        # Recursive cleanup — opendataloader-pdf with --extract-images=true
+        # can write nested figure directories under out_dir, which the older
+        # iterdir+rmdir loop would fail on with "Directory not empty". Using
+        # rmtree(ignore_errors=True) keeps the activity exit clean even if
+        # the JAR layout changes between releases.
         pdf_path.unlink(missing_ok=True)
-        for f in out_dir.iterdir():
-            f.unlink(missing_ok=True)
-        out_dir.rmdir()
+        shutil.rmtree(out_dir, ignore_errors=True)

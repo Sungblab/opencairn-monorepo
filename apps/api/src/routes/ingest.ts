@@ -308,54 +308,72 @@ export const ingestRoutes = new Hono<AppEnv>()
       let lastSent = Number.isFinite(lastSeq) ? lastSeq : 0;
       let closed = false;
 
-      // 1) Replay backlog. LPUSH stores newest first; reverse to chronological.
-      const backlog = await r.lrange(`ingest:replay:${workflowId}`, 0, -1);
-      for (const raw of backlog.reverse()) {
-        try {
-          const ev = JSON.parse(raw) as { seq: number; kind: string };
-          if (ev.seq > lastSent) {
-            await stream.writeSSE({ id: String(ev.seq), data: raw });
-            lastSent = ev.seq;
-          }
-        } catch {
-          // Malformed payload — skip; never break the stream over one bad row.
-        }
-      }
-
-      // 2) Subscribe to live channel. Skip events <= lastSent (race window
-      //    where a publish landed between LRANGE and SUBSCRIBE).
-      await subscriber.subscribe(`ingest:events:${workflowId}`);
-      subscriber.on("message", async (_chan, raw) => {
-        if (closed) return;
-        try {
-          const ev = JSON.parse(raw) as { seq: number; kind: string };
-          if (ev.seq <= lastSent) return;
-          await stream.writeSSE({ id: String(ev.seq), data: raw });
-          lastSent = ev.seq;
-          if (ev.kind === "completed" || ev.kind === "failed") {
-            closed = true;
-            await subscriber.unsubscribe();
-            await subscriber.quit();
-            stream.close();
-          }
-        } catch {
-          // ignore malformed
-        }
-      });
-
-      // 3) Keepalive — proxies often close idle SSE connections after ~60s.
+      // Keepalive — proxies often close idle SSE connections after ~60s.
       const keepalive = setInterval(() => {
         void stream
           .writeSSE({ event: "keepalive", data: "" })
           .catch(() => {});
       }, 30_000);
 
-      stream.onAbort(() => {
+      const cleanup = async () => {
+        if (closed) return;
         closed = true;
         clearInterval(keepalive);
-        void subscriber.unsubscribe().catch(() => {});
-        void subscriber.quit().catch(() => {});
+        try {
+          await subscriber.quit();
+        } catch {
+          // best-effort — already disconnected or never connected
+        }
+      };
+
+      // Register abort handler BEFORE any await so a client that disconnects
+      // during the backlog replay still triggers cleanup of the duplicate
+      // Redis socket and the keepalive interval.
+      stream.onAbort(() => {
+        void cleanup();
       });
+
+      try {
+        // 1) Subscribe FIRST so messages published during the LRANGE window
+        //    aren't lost. The dedup via lastSent handles the duplicate
+        //    delivery (same event reachable via both channel and LIST).
+        subscriber.on("message", async (_chan, raw) => {
+          if (closed) return;
+          try {
+            const ev = JSON.parse(raw) as { seq: number; kind: string };
+            if (ev.seq <= lastSent) return;
+            await stream.writeSSE({ id: String(ev.seq), data: raw });
+            lastSent = ev.seq;
+            if (ev.kind === "completed" || ev.kind === "failed") {
+              await cleanup();
+              stream.close();
+            }
+          } catch {
+            // ignore malformed
+          }
+        });
+        await subscriber.subscribe(`ingest:events:${workflowId}`);
+
+        // 2) Replay backlog. LPUSH stores newest first; reverse to chronological.
+        //    Any event that landed between subscribe() and lrange() arrives
+        //    via both paths; lastSent dedups.
+        const backlog = await r.lrange(`ingest:replay:${workflowId}`, 0, -1);
+        for (const raw of backlog.reverse()) {
+          if (closed) break;
+          try {
+            const ev = JSON.parse(raw) as { seq: number; kind: string };
+            if (ev.seq > lastSent) {
+              await stream.writeSSE({ id: String(ev.seq), data: raw });
+              lastSent = ev.seq;
+            }
+          } catch {
+            // Malformed payload — skip; never break the stream over one bad row.
+          }
+        }
+      } catch {
+        // Any unhandled error during setup must not leak the subscriber.
+        await cleanup();
+      }
     });
   })
 
