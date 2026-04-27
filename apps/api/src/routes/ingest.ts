@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
+import { streamSSE } from "hono/streaming";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
@@ -8,6 +9,7 @@ import { canWrite } from "../lib/permissions";
 import { isUuid } from "../lib/validators";
 import { uploadObject } from "../lib/s3";
 import { getTemporalClient } from "../lib/temporal-client";
+import { getRedis } from "../lib/redis";
 import type { AppEnv } from "../lib/types";
 import { db, ingestJobs, projects, eq } from "@opencairn/db";
 
@@ -274,5 +276,84 @@ export const ingestRoutes = new Hono<AppEnv>()
       status: desc.status.name,
       startTime: desc.startTime,
       closeTime: desc.closeTime ?? null,
+    });
+  })
+
+  // GET /ingest/stream/:workflowId — Server-Sent Events for live ingest
+  // visibility (Plan: live-ingest-visualization Task 7).
+  //
+  // Auth model mirrors /status/:workflowId — caller must be the dispatcher.
+  // The handler replays the Redis LIST backlog (events emitted before the
+  // browser opened the stream) then SUBSCRIBEs to the live channel. Both
+  // share a single seq counter so the client can dedupe via Last-Event-ID
+  // on auto-reconnect.
+  .get("/stream/:workflowId", async (c) => {
+    const user = c.get("user");
+    const workflowId = c.req.param("workflowId");
+
+    const [row] = await db
+      .select({ userId: ingestJobs.userId })
+      .from(ingestJobs)
+      .where(eq(ingestJobs.workflowId, workflowId));
+    if (!row) return c.json({ error: "Not found" }, 404);
+    if (row.userId !== user.id) return c.json({ error: "Forbidden" }, 403);
+
+    const lastEventId = c.req.header("Last-Event-ID");
+    const lastSeq = lastEventId ? Number(lastEventId) : 0;
+
+    return streamSSE(c, async (stream) => {
+      const r = getRedis();
+      const subscriber = r.duplicate();
+      let lastSent = Number.isFinite(lastSeq) ? lastSeq : 0;
+      let closed = false;
+
+      // 1) Replay backlog. LPUSH stores newest first; reverse to chronological.
+      const backlog = await r.lrange(`ingest:replay:${workflowId}`, 0, -1);
+      for (const raw of backlog.reverse()) {
+        try {
+          const ev = JSON.parse(raw) as { seq: number; kind: string };
+          if (ev.seq > lastSent) {
+            await stream.writeSSE({ id: String(ev.seq), data: raw });
+            lastSent = ev.seq;
+          }
+        } catch {
+          // Malformed payload — skip; never break the stream over one bad row.
+        }
+      }
+
+      // 2) Subscribe to live channel. Skip events <= lastSent (race window
+      //    where a publish landed between LRANGE and SUBSCRIBE).
+      await subscriber.subscribe(`ingest:events:${workflowId}`);
+      subscriber.on("message", async (_chan, raw) => {
+        if (closed) return;
+        try {
+          const ev = JSON.parse(raw) as { seq: number; kind: string };
+          if (ev.seq <= lastSent) return;
+          await stream.writeSSE({ id: String(ev.seq), data: raw });
+          lastSent = ev.seq;
+          if (ev.kind === "completed" || ev.kind === "failed") {
+            closed = true;
+            await subscriber.unsubscribe();
+            await subscriber.quit();
+            stream.close();
+          }
+        } catch {
+          // ignore malformed
+        }
+      });
+
+      // 3) Keepalive — proxies often close idle SSE connections after ~60s.
+      const keepalive = setInterval(() => {
+        void stream
+          .writeSSE({ event: "keepalive", data: "" })
+          .catch(() => {});
+      }, 30_000);
+
+      stream.onAbort(() => {
+        closed = true;
+        clearInterval(keepalive);
+        void subscriber.unsubscribe().catch(() => {});
+        void subscriber.quit().catch(() => {});
+      });
     });
   });
