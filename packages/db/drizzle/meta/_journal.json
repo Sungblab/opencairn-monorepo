@@ -218,6 +218,13 @@
       "when": 1777264800000,
       "tag": "0031_chat_scope_search_trgm",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1777299046568,
+      "tag": "0032_yummy_rick_jones",
+      "breakpoints": true
     }
   ]
 }

@@ -22,6 +22,9 @@ import {
   researchRunArtifacts,
   codeRuns,
   codeTurns,
+  suggestions,
+  staleAlerts,
+  audioFiles,
   eq,
   and,
   isNull,
@@ -253,6 +256,33 @@ internal.get("/notes/:id", async (c) => {
   return c.json(row);
 });
 
+// GET /internal/concepts/:id — fetch a single concept row including its
+// embedding. Used by ConnectorAgent (Plan 8) to retrieve the source
+// concept's vector before doing the cross-project similarity search.
+internal.get("/concepts/:id", async (c) => {
+  const id = c.req.param("id");
+  if (!z.string().uuid().safeParse(id).success) {
+    return c.json({ error: "Invalid concept id" }, 400);
+  }
+  const rowsRaw = await db.execute(sql`
+    SELECT id, project_id, name, description, embedding
+    FROM concepts
+    WHERE id = ${id}
+  `);
+  const rows =
+    (rowsRaw as unknown as { rows: Array<Record<string, unknown>> }).rows ??
+    (rowsRaw as unknown as Array<Record<string, unknown>>);
+  if (!rows.length) return c.json({ error: "Not found" }, 404);
+  const row = rows[0];
+  return c.json({
+    id: String(row.id),
+    projectId: String(row.project_id),
+    name: String(row.name ?? ""),
+    description: String(row.description ?? ""),
+    embedding: row.embedding ?? null,
+  });
+});
+
 // POST /internal/concepts/search — vector kNN over a project's concepts.
 // Uses pgvector `<=>` cosine-distance operator; similarity = 1 - distance.
 const conceptSearchSchema = z.object({
@@ -289,6 +319,56 @@ internal.post(
     // drizzle-orm returns rows under `.rows` for raw queries on node-postgres.
     const data = (rows as unknown as { rows: Array<Record<string, unknown>> }).rows ?? rows;
     return c.json({ results: data });
+  },
+);
+
+// POST /internal/workspace-concepts/search — cross-project kNN similarity
+// search. Finds concepts in ALL projects of a workspace, excluding the
+// source project. Used by ConnectorAgent to surface cross-project links.
+//
+// SQL: cosine similarity via pgvector `<=>` operator, joined to projects so
+// we can filter by workspace_id and exclude the caller's own project.
+const workspaceConceptSearchSchema = z.object({
+  workspaceId: z.string().uuid(),
+  embedding: z.array(z.number()),
+  k: z.number().int().positive().max(50).default(10),
+  excludeProjectId: z.string().uuid(),
+});
+
+internal.post(
+  "/workspace-concepts/search",
+  zValidator("json", workspaceConceptSearchSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const vec = vectorLiteral(body.embedding);
+
+    const rows = await db.execute(sql`
+      SELECT
+        c.id,
+        c.name,
+        c.project_id,
+        1 - (c.embedding <=> ${vec}::vector) AS similarity
+      FROM concepts c
+      JOIN projects p ON p.id = c.project_id
+      WHERE p.workspace_id = ${body.workspaceId}
+        AND c.project_id != ${body.excludeProjectId}
+        AND c.embedding IS NOT NULL
+      ORDER BY c.embedding <=> ${vec}::vector ASC
+      LIMIT ${body.k}
+    `);
+
+    const data =
+      (rows as unknown as { rows: Array<Record<string, unknown>> }).rows ??
+      (rows as unknown as Array<Record<string, unknown>>);
+
+    return c.json({
+      results: data.map((r) => ({
+        id: String(r.id),
+        name: String(r.name ?? ""),
+        project_id: String(r.project_id),
+        similarity: Number(r.similarity ?? 0),
+      })),
+    });
   },
 );
 
@@ -2121,6 +2201,135 @@ internal.post(
       payload: body.payload as Record<string, unknown>,
     });
     return c.json({ id: event.id }, 201);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Plan 8 — Curator / Connector suggestions
+// ---------------------------------------------------------------------------
+// Agents (Curator, Connector) call this endpoint to persist quality
+// suggestions that the user can review and act on in the UI.
+// ---------------------------------------------------------------------------
+
+const internalSuggestionCreateSchema = z.object({
+  userId: z.string().min(1),
+  workspaceId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  type: z.enum([
+    "connector_link",
+    "curator_orphan",
+    "curator_duplicate",
+    "curator_contradiction",
+    "curator_external_source",
+    "synthesis_insight",
+  ]),
+  payload: z.record(z.unknown()),
+});
+
+internal.post(
+  "/suggestions",
+  zValidator("json", internalSuggestionCreateSchema),
+  async (c) => {
+    const { userId, workspaceId, projectId, type, payload } =
+      c.req.valid("json");
+    const [proj] = await db
+      .select({ workspaceId: projects.workspaceId })
+      .from(projects)
+      .where(eq(projects.id, projectId));
+    if (!proj) return c.json({ error: "not-found" }, 404);
+    if (proj.workspaceId !== workspaceId)
+      return c.json({ error: "workspace_mismatch" }, 403);
+    const [row] = await db
+      .insert(suggestions)
+      .values({ userId, projectId, type, payload, status: "pending" })
+      .returning({ id: suggestions.id });
+    return c.json({ id: row.id }, 201);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Plan 8 — Staleness Agent support
+// ---------------------------------------------------------------------------
+
+// GET /internal/projects/:id/stale-notes?days=90&limit=20
+// Returns wiki notes not updated in the last N days for the Staleness agent.
+internal.get("/projects/:id/stale-notes", async (c) => {
+  const projectId = c.req.param("id");
+  if (!z.string().uuid().safeParse(projectId).success) {
+    return c.json({ error: "Invalid project id" }, 400);
+  }
+  const daysRaw = c.req.query("days");
+  const limitRaw = c.req.query("limit");
+  const days = Math.max(1, Math.min(365, parseInt(daysRaw ?? "90", 10) || 90));
+  const limit = Math.max(1, Math.min(100, parseInt(limitRaw ?? "20", 10) || 20));
+
+  const rows = await db
+    .select({
+      id: notes.id,
+      title: notes.title,
+      contentText: notes.contentText,
+      updatedAt: notes.updatedAt,
+    })
+    .from(notes)
+    .where(
+      and(
+        eq(notes.projectId, projectId),
+        eq(notes.type, "wiki"),
+        isNull(notes.deletedAt),
+        sql`${notes.updatedAt} < now() - make_interval(days => ${days})`,
+      ),
+    )
+    .limit(limit);
+
+  return c.json({ notes: rows });
+});
+
+// POST /internal/stale-alerts — persist a staleness alert row.
+const staleAlertCreateSchema = z.object({
+  noteId: z.string().uuid(),
+  stalenessScore: z.number().min(0).max(1),
+  reason: z.string().max(500),
+});
+
+internal.post(
+  "/stale-alerts",
+  zValidator("json", staleAlertCreateSchema),
+  async (c) => {
+    const { noteId, stalenessScore, reason } = c.req.valid("json");
+    const [row] = await db
+      .insert(staleAlerts)
+      .values({ noteId, stalenessScore, reason })
+      .returning({ id: staleAlerts.id });
+    return c.json({ id: row.id }, 201);
+  },
+);
+
+// POST /internal/audio-files — persist an audio_files record produced by the
+// Narrator agent after uploading audio to MinIO/R2.
+const audioFileCreateSchema = z.object({
+  noteId: z.string().uuid().nullable().optional(),
+  r2Key: z.string().min(1).max(500),
+  durationSec: z.number().int().positive().optional(),
+  voices: z
+    .array(z.object({ name: z.string(), style: z.string().optional() }))
+    .optional(),
+});
+
+internal.post(
+  "/audio-files",
+  zValidator("json", audioFileCreateSchema),
+  async (c) => {
+    const { noteId, r2Key, durationSec, voices } = c.req.valid("json");
+    const [row] = await db
+      .insert(audioFiles)
+      .values({
+        noteId: noteId ?? null,
+        r2Key,
+        durationSec: durationSec ?? null,
+        voices: voices ?? null,
+      })
+      .returning({ id: audioFiles.id });
+    return c.json({ id: row.id }, 201);
   },
 );
 
