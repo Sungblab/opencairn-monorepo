@@ -6,3 +6,4 @@ export * from "./comment-types";
 export * from "./import-types";
 export * from "./research-types";
 export * from "./code-types";
+export * from "./chat";
