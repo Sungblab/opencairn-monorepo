@@ -58,6 +58,56 @@ Self-host 시:
 
 ---
 
+## Branding & SEO: env 패턴 (하드코딩 금지)
+
+OSS/호스팅 양쪽 모두 동작해야 하므로 브랜드·도메인·연락처·SEO 메타는 **하드코딩하지 말고 env + 디폴트** 패턴을 쓴다.
+
+### 판별 기준 한 줄
+
+> "포크 사용자가 이 값 없이도 빌드가 돌고 페이지가 떠야 하나?"
+>
+> - **YES → env + 디폴트, git에 커밋.** (브랜드명, OG 메타, robots, sitemap, 연락처 placeholder 등)
+> - **NO → `.env`에만, `.gitignore`.** (API 키, DB 비번, Stripe secret, Resend 키 등 시크릿만)
+
+99%는 전자다. 시크릿이 아니면 디폴트 박아서 커밋한다.
+
+### git에 들어가는 것 (커밋, 포크도 받음)
+
+- `apps/web/lib/site-config.ts` 같은 단일 출처 — `process.env.SITE_NAME ?? "OpenCairn"` 식
+- `app/robots.ts`, `app/sitemap.ts`, `app/layout.tsx` metadata — 전부 `siteConfig`에서 읽기 (정적 `robots.txt`/`sitemap.xml` 만들지 말 것)
+- `.env.example` — 모든 키 + 설명 + OSS 디폴트 (`SITE_NAME=OpenCairn`, `SITE_URL=https://example.com`)
+- 디폴트 OG 이미지 (중립 "OpenCairn" 로고 PNG) — `apps/web/public/og-default.png`
+
+### `.gitignore`에만
+
+- `.env`, `.env.production`, `.env.local` (Next.js 기본 ignore)
+- 본인 도메인 전용 OG/파비콘이 있다면 → 차라리 `OG_IMAGE_URL`을 env로 받아 CDN URL 주입
+- Search Console 인증 파일 (`google*.html`) — 또는 `GOOGLE_SITE_VERIFICATION` env로 meta tag 주입
+- 운영 prod의 analytics 키, Sentry DSN
+
+### 표준 env 키 (Plan 9b sweep 시 일괄 추출)
+
+```
+SITE_NAME=OpenCairn
+SITE_URL=https://opencairn.com
+SITE_OWNER=
+SITE_DESCRIPTION_KO=
+SITE_DESCRIPTION_EN=
+OG_IMAGE_URL=
+CONTACT_EMAIL=
+SUPPORT_URL=
+ANALYTICS_PLAUSIBLE_DOMAIN=
+GOOGLE_SITE_VERIFICATION=
+TWITTER_HANDLE=
+```
+
+### 지금부터 적용
+
+- 신규 카피·메타·이메일 템플릿은 처음부터 `siteConfig`/i18n 키로 추출. "OpenCairn"·고정 도메인·연락처 직접 박지 말 것.
+- 실제 `lib/site-config.ts` 모듈 추출 + `.env.example` 키 추가 + 기존 하드코딩 sweep은 **Plan 9b 빌링과 묶어서 한 번에**. 그때까지는 위 규칙만 준수.
+
+---
+
 ## Operator
 
 - 현재: **Sungblab** (개인) — `sungblab.com`
