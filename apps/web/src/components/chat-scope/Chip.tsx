@@ -28,7 +28,7 @@ export function Chip({
   chip: AttachedChip;
   onRemove: (key: string) => void;
   tokenEstimate?: number;
-}): JSX.Element {
+}) {
   const t = useTranslations("chatScope.chip");
   const label = chip.label ?? chip.id.slice(0, 8);
   const key = `${chip.type}:${chip.id}`;

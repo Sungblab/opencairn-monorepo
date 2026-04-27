@@ -26,7 +26,7 @@ type Message = {
 // the full body once — the placeholder reply is short enough that we
 // don't need streaming render. Real LLM streaming arrives in Plan 11B
 // alongside the chip humanizer/router specs already on disk.
-export function ChatPanel(): JSX.Element {
+export function ChatPanel() {
   const ctx = useScopeContext();
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [chips, setChips] = useState<AttachedChip[]>(ctx.initialChips);

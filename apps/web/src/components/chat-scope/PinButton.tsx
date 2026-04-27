@@ -19,7 +19,7 @@ export function PinButton({
   messageId: string;
   targetNoteId: string;
   targetBlockId: string;
-}): JSX.Element {
+}) {
   const t = useTranslations("chatScope.pin");
   const [pinned, setPinned] = useState(false);
   const [warning, setWarning] = useState<PinDelta | null>(null);

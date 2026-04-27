@@ -21,7 +21,7 @@ export function AddChipCombobox({
 }: {
   workspaceId: string | null;
   onAdd: (chip: { type: AttachedChip["type"]; id: string }) => void;
-}): JSX.Element {
+}) {
   const t = useTranslations("chatScope.combobox");
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");

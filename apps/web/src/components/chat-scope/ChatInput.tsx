@@ -29,7 +29,7 @@ export function ChatInput({
   onRemoveChip: (key: string) => void;
   onChangeRagMode: (m: RagModeValue) => void;
   disabled?: boolean;
-}): JSX.Element {
+}) {
   const t = useTranslations("chatScope.input");
   const [text, setText] = useState("");
   return (

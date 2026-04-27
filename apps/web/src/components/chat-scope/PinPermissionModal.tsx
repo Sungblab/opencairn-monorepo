@@ -19,7 +19,7 @@ export function PinPermissionModal({
   warning: PinDelta;
   onCancel: () => void;
   onConfirm: () => void;
-}): JSX.Element {
+}) {
   const t = useTranslations("chatScope.pin");
   return (
     <div

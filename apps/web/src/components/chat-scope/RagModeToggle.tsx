@@ -15,7 +15,7 @@ export function RagModeToggle({
 }: {
   mode: RagModeValue;
   onChange: (m: RagModeValue) => void;
-}): JSX.Element {
+}) {
   const t = useTranslations("chatScope.rag_mode");
   const [open, setOpen] = useState(false);
 

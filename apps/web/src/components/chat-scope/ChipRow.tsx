@@ -18,7 +18,7 @@ export function ChipRow({
   workspaceId: string | null;
   onAdd: (chip: { type: AttachedChip["type"]; id: string }) => void;
   onRemove: (key: string) => void;
-}): JSX.Element {
+}) {
   return (
     <div className="flex flex-wrap items-center gap-1.5 border-b border-stone-200 px-2 py-1">
       {chips.map((c) => (
