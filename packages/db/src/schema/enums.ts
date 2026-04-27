@@ -162,3 +162,22 @@ export const notificationKindEnum = pgEnum("notification_kind", [
   "share_invite",
   "system",
 ]);
+
+// Plan 8 — Connector/Curator/Synthesis agents surface actionable insights as
+// suggestions. `type` encodes which agent produced the row and what the user
+// should do; `status` tracks the lifecycle through acceptance or dismissal.
+export const suggestionTypeEnum = pgEnum("suggestion_type", [
+  "connector_link",
+  "curator_orphan",
+  "curator_duplicate",
+  "curator_contradiction",
+  "curator_external_source",
+  "synthesis_insight",
+]);
+
+export const suggestionStatusEnum = pgEnum("suggestion_status", [
+  "pending",
+  "accepted",
+  "rejected",
+  "expired",
+]);
