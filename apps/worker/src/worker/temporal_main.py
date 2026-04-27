@@ -49,6 +49,7 @@ from worker.activities.notion_activities import (
 from worker.activities.pdf_activity import parse_pdf
 from worker.activities.quarantine_activity import quarantine_source
 from worker.activities.curator_activity import run_curator
+from worker.activities.connector_activity import run_connector as run_connector_activity
 from worker.activities.research_activity import run_research
 from worker.activities.synthesis_activity import run_synthesis
 from worker.activities.semaphore_activity import (
@@ -68,6 +69,7 @@ from worker.workflows.ingest_workflow import IngestWorkflow
 from worker.workflows.librarian_workflow import LibrarianWorkflow
 from worker.workflows.research_workflow import ResearchWorkflow
 from worker.workflows.curator_workflow import CuratorWorkflow
+from worker.workflows.connector_workflow import ConnectorWorkflow
 from worker.workflows.synthesis_workflow import SynthesisWorkflow
 from worker.workflows.socratic_workflow import SocraticEvaluateWorkflow, SocraticGenerateWorkflow
 from worker.workflows.visualize_workflow import VisualizeWorkflow
@@ -120,6 +122,7 @@ def build_worker_config() -> WorkerConfig:
         SocraticGenerateWorkflow,
         SocraticEvaluateWorkflow,
         CuratorWorkflow,
+        ConnectorWorkflow,
     ]
     activities: list[Any] = [
         parse_pdf,
@@ -133,6 +136,7 @@ def build_worker_config() -> WorkerConfig:
         report_ingest_failure,
         compile_note,
         run_curator,
+        run_connector_activity,
         run_research,
         run_synthesis,
         run_librarian,

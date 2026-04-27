@@ -254,6 +254,33 @@ internal.get("/notes/:id", async (c) => {
   return c.json(row);
 });
 
+// GET /internal/concepts/:id — fetch a single concept row including its
+// embedding. Used by ConnectorAgent (Plan 8) to retrieve the source
+// concept's vector before doing the cross-project similarity search.
+internal.get("/concepts/:id", async (c) => {
+  const id = c.req.param("id");
+  if (!z.string().uuid().safeParse(id).success) {
+    return c.json({ error: "Invalid concept id" }, 400);
+  }
+  const rowsRaw = await db.execute(sql`
+    SELECT id, project_id, name, description, embedding
+    FROM concepts
+    WHERE id = ${id}
+  `);
+  const rows =
+    (rowsRaw as unknown as { rows: Array<Record<string, unknown>> }).rows ??
+    (rowsRaw as unknown as Array<Record<string, unknown>>);
+  if (!rows.length) return c.json({ error: "Not found" }, 404);
+  const row = rows[0];
+  return c.json({
+    id: String(row.id),
+    projectId: String(row.project_id),
+    name: String(row.name ?? ""),
+    description: String(row.description ?? ""),
+    embedding: row.embedding ?? null,
+  });
+});
+
 // POST /internal/concepts/search — vector kNN over a project's concepts.
 // Uses pgvector `<=>` cosine-distance operator; similarity = 1 - distance.
 const conceptSearchSchema = z.object({
@@ -290,6 +317,56 @@ internal.post(
     // drizzle-orm returns rows under `.rows` for raw queries on node-postgres.
     const data = (rows as unknown as { rows: Array<Record<string, unknown>> }).rows ?? rows;
     return c.json({ results: data });
+  },
+);
+
+// POST /internal/workspace-concepts/search — cross-project kNN similarity
+// search. Finds concepts in ALL projects of a workspace, excluding the
+// source project. Used by ConnectorAgent to surface cross-project links.
+//
+// SQL: cosine similarity via pgvector `<=>` operator, joined to projects so
+// we can filter by workspace_id and exclude the caller's own project.
+const workspaceConceptSearchSchema = z.object({
+  workspaceId: z.string().uuid(),
+  embedding: z.array(z.number()),
+  k: z.number().int().positive().max(50).default(10),
+  excludeProjectId: z.string().uuid(),
+});
+
+internal.post(
+  "/workspace-concepts/search",
+  zValidator("json", workspaceConceptSearchSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const vec = vectorLiteral(body.embedding);
+
+    const rows = await db.execute(sql`
+      SELECT
+        c.id,
+        c.name,
+        c.project_id,
+        1 - (c.embedding <=> ${vec}::vector) AS similarity
+      FROM concepts c
+      JOIN projects p ON p.id = c.project_id
+      WHERE p.workspace_id = ${body.workspaceId}
+        AND c.project_id != ${body.excludeProjectId}
+        AND c.embedding IS NOT NULL
+      ORDER BY c.embedding <=> ${vec}::vector ASC
+      LIMIT ${body.k}
+    `);
+
+    const data =
+      (rows as unknown as { rows: Array<Record<string, unknown>> }).rows ??
+      (rows as unknown as Array<Record<string, unknown>>);
+
+    return c.json({
+      results: data.map((r) => ({
+        id: String(r.id),
+        name: String(r.name ?? ""),
+        project_id: String(r.project_id),
+        similarity: Number(r.similarity ?? 0),
+      })),
+    });
   },
 );
 
