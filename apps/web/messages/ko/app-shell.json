@@ -71,10 +71,7 @@
       "title": "원본 PDF",
       "frameTitle": "{title} PDF 뷰어",
       "open": "새 탭에서 열기",
-      "download": "다운로드",
-      "refresh": "새로고침",
-      "fallbackTitle": "PDF 미리보기를 표시할 수 없습니다.",
-      "fallbackOpen": "새 탭에서 열기"
+      "download": "다운로드"
     },
     "data": {
       "empty": "데이터 없음"

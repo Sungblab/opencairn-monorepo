@@ -1,8 +1,52 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Tab } from "@/stores/tabs-store";
 import { SourceViewer } from "./source-viewer";
+
+const pdfViewerMock = vi.hoisted(() => ({
+  props: [] as Array<{
+    config: { src: string };
+    style?: React.CSSProperties;
+    onReady?: (registry: unknown) => void;
+  }>,
+}));
+
+vi.mock("@embedpdf/react-pdf-viewer", () => ({
+  PDFViewer: (props: {
+    config: { src: string };
+    style?: React.CSSProperties;
+    onReady?: (registry: unknown) => void;
+  }) => {
+    pdfViewerMock.props.push(props);
+    return (
+      <div
+        data-testid="embedpdf-viewer"
+        data-src={props.config.src}
+        data-height={props.style?.height}
+      />
+    );
+  },
+}));
+
+vi.mock("next/dynamic", () => ({
+  default:
+    (loader: () => Promise<React.ComponentType<Record<string, unknown>>>) =>
+    (props: Record<string, unknown>) => {
+      const React = require("react") as typeof import("react");
+      const [Component, setComponent] =
+        React.useState<React.ComponentType<Record<string, unknown>> | null>(
+          null,
+        );
+
+      React.useEffect(() => {
+        loader().then((loaded) => setComponent(() => loaded));
+      }, []);
+
+      if (!Component) return null;
+      return <Component {...props} />;
+    },
+}));
 
 const tab: Tab = {
   id: "t",
@@ -28,9 +72,6 @@ const messages = {
         frameTitle: "{title} PDF 뷰어",
         open: "새 탭에서 열기",
         download: "다운로드",
-        refresh: "새로고침",
-        fallbackTitle: "PDF 미리보기를 표시할 수 없습니다.",
-        fallbackOpen: "새 탭에서 열기",
       },
     },
   },
@@ -45,15 +86,17 @@ function renderSourceViewer(nextTab: Tab = tab) {
 }
 
 describe("SourceViewer", () => {
-  it("embeds the note file in the browser-native PDF viewer", () => {
+  beforeEach(() => {
+    pdfViewerMock.props = [];
+  });
+
+  it("loads the note file in the EmbedPDF viewer", async () => {
     renderSourceViewer();
-    const viewer = screen.getByTestId("pdf-frame");
+    const viewer = await screen.findByTestId("embedpdf-viewer");
 
     expect(viewer).toBeInTheDocument();
-    expect(viewer.getAttribute("data")).toBe(
-      "/api/notes/n1/file#toolbar=1&navpanes=1&scrollbar=1&view=FitH",
-    );
-    expect(viewer).toHaveAttribute("type", "application/pdf");
+    expect(viewer).toHaveAttribute("data-src", "/api/notes/n1/file");
+    expect(viewer).toHaveAttribute("data-height", "100%");
   });
 
   it("renders nothing when targetId is null", () => {
@@ -78,15 +121,26 @@ describe("SourceViewer", () => {
     );
   });
 
-  it("refreshes the embedded PDF without changing the source URL", () => {
+  it("emits a viewer-ready event for agent integrations", async () => {
+    const listener = vi.fn();
+    window.addEventListener("opencairn:source-pdf-ready", listener);
+
     renderSourceViewer();
-    const viewer = screen.getByTestId("pdf-frame");
-    expect(viewer).toHaveAttribute("data-reload-seq", "0");
+    await waitFor(() => expect(pdfViewerMock.props.length).toBeGreaterThan(0));
 
-    fireEvent.click(screen.getByLabelText("새로고침"));
+    act(() => {
+      pdfViewerMock.props.at(-1)?.onReady?.({ search: "registry" });
+    });
 
-    const refreshed = screen.getByTestId("pdf-frame");
-    expect(refreshed).toHaveAttribute("data-reload-seq", "1");
-    expect(refreshed.getAttribute("data")).toBe(viewer.getAttribute("data"));
+    expect(listener).toHaveBeenCalledTimes(1);
+    const event = listener.mock.calls[0]?.[0] as CustomEvent;
+    expect(event.detail).toMatchObject({
+      tabId: "t",
+      noteId: "n1",
+      title: "doc.pdf",
+    });
+    expect(event.detail.registry).toEqual({ search: "registry" });
+
+    window.removeEventListener("opencairn:source-pdf-ready", listener);
   });
 });

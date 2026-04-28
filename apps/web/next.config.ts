@@ -27,6 +27,8 @@ const withNextIntl = createNextIntlPlugin("./src/i18n.ts");
 // CSP allowlist supporting Plan 7 canvas runtime:
 // - 'unsafe-eval' is required by Pyodide's WASM compilation path (ADR-006).
 // - script-src + connect-src allow Pyodide + esm.sh CDN loads.
+// - connect-src keeps jsDelivr open because EmbedPDF/PDFium fetches optional
+//   CJK/Latin font fallback packages from the same CDN when a PDF lacks fonts.
 // - frame-src 'self' blob: + worker-src 'self' blob: cover the iframe Blob URL
 //   pattern used by CanvasFrame and any future Pyodide Web Worker.
 // - 'unsafe-inline' on style-src is preserved for Tailwind's runtime
@@ -44,8 +46,9 @@ const CSP_HEADER = [
   "frame-src 'self' blob:",
   "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net/pyodide/ https://esm.sh",
   "worker-src 'self' blob:",
-  "connect-src 'self' https://esm.sh https://cdn.jsdelivr.net/pyodide/",
+  "connect-src 'self' https://esm.sh https://cdn.jsdelivr.net",
   "img-src 'self' data: blob: https:",
+  "font-src 'self' data: https://cdn.jsdelivr.net",
   "style-src 'self' 'unsafe-inline'",
 ].join("; ");
 
