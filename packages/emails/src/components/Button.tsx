@@ -1,3 +1,4 @@
+import * as React from "react";
 import { Button as RButton } from "react-email";
 import { colors, spacing } from "./tokens";
 import type { ReactNode } from "react";

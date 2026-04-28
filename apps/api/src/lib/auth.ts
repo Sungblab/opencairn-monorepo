@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { oneTap } from "better-auth/plugins";
 import { db } from "@opencairn/db";
+import { sendResetPasswordEmail, sendVerificationEmail } from "./email";
 
 // trustedOrigins must include the web app URL; otherwise proxied requests
 // from :3000 are rejected by Better Auth's origin validation. Reuse
@@ -34,14 +35,17 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true,
+    // Real delivery via lib/email.ts — Resend / SMTP / console depending on
+    // EMAIL_PROVIDER. Errors surface through Better Auth as a 500 so the
+    // user sees "메일 전송에 실패했습니다" instead of a silent half-signup.
     sendResetPassword: async ({ user, url }) => {
-      console.log(`[DEV] Reset password for ${user.email}: ${url}`);
+      await sendResetPasswordEmail(user.email, { resetUrl: url });
     },
   },
   emailVerification: {
     sendOnSignUp: true,
     sendVerificationEmail: async ({ user, url }) => {
-      console.log(`[DEV] Verify email for ${user.email}: ${url}`);
+      await sendVerificationEmail(user.email, { verifyUrl: url });
     },
     callbackURL: `${webUrl}/ko/auth/verify-email`,
   },
