@@ -263,3 +263,74 @@ def test_default_persist_event_posts_to_api_internal_artifacts(monkeypatch):
     path, body = captured[0]
     assert path == "/api/internal/research/runs/run-abc/artifacts"
     assert body == {"kind": "text_delta", "payload": {"text": "hello"}}
+
+
+def test_to_api_payload_maps_image_mime_type():
+    from worker.activities.deep_research.execute_research import _to_api_payload
+
+    out = _to_api_payload(
+        "image", {"url": "gs://img/a.png", "mime_type": "image/png"}
+    )
+
+    # API's discriminated-union schema requires `mimeType` (camelCase). The
+    # provider's raw event uses `mime_type`, and without translation every
+    # image artifact 400s and gets dropped by the resilient persist callback.
+    assert out == {"url": "gs://img/a.png", "mimeType": "image/png"}
+
+
+def test_to_api_payload_maps_citation_url_to_source_url():
+    from worker.activities.deep_research.execute_research import _to_api_payload
+
+    out = _to_api_payload(
+        "citation", {"url": "https://example.com/s1", "title": "Source 1"}
+    )
+
+    # citation payload renames `url` -> `sourceUrl` to match the API schema.
+    assert out == {"sourceUrl": "https://example.com/s1", "title": "Source 1"}
+
+
+def test_to_api_payload_passthrough_for_text_delta():
+    from worker.activities.deep_research.execute_research import _to_api_payload
+
+    out = _to_api_payload("text_delta", {"text": "hi"})
+
+    assert out == {"text": "hi"}
+
+
+def test_default_persist_event_remaps_image_payload(monkeypatch):
+    """Image events must arrive at the API with `mimeType` (not `mime_type`).
+
+    Regression for the gemini-code-assist follow-up on PR #151: the path was
+    repaired but the payload key mismatch still rejected every image artifact.
+    """
+    from worker.activities.deep_research import execute_research as mod
+
+    captured: list[tuple[str, dict]] = []
+
+    async def _capturing_post(path: str, body: dict) -> dict:
+        captured.append((path, body))
+        return {}
+
+    class _StubActivityInfo:
+        workflow_id = "run-img"
+
+    monkeypatch.setenv("INTERNAL_API_SECRET", "test-secret")
+    monkeypatch.setattr("worker.lib.api_client.post_internal", _capturing_post)
+    monkeypatch.setattr(mod.activity, "info", lambda: _StubActivityInfo())
+    monkeypatch.setattr(mod.activity, "in_activity", lambda: False)
+
+    asyncio.run(
+        mod._default_persist_event(
+            "image", {"url": "gs://img/a.png", "mime_type": "image/png"}
+        )
+    )
+
+    assert captured == [
+        (
+            "/api/internal/research/runs/run-img/artifacts",
+            {
+                "kind": "image",
+                "payload": {"url": "gs://img/a.png", "mimeType": "image/png"},
+            },
+        )
+    ]
