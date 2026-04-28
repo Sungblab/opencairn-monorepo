@@ -10,7 +10,7 @@
 # Built from the monorepo root so the multi-stage COPY picks up workspace deps
 # (@opencairn/api, @opencairn/db, @opencairn/shared).
 
-FROM node:22-alpine AS builder
+FROM node:25-alpine AS builder
 
 # `libc6-compat` keeps Node native modules (bcrypt, sharp, ws native acceleration)
 # loadable on Alpine's musl libc.
@@ -39,7 +39,7 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @opencairn/hocuspocus build
 
 # ────────────────────────────────────────────────────────────────────────────
-FROM node:22-alpine AS runner
+FROM node:25-alpine AS runner
 
 RUN apk add --no-cache libc6-compat
 RUN corepack enable
