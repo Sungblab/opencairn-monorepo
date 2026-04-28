@@ -1,8 +1,13 @@
 version: 2
 
-# Weekly cadence keeps PR noise tolerable for a small team while still catching
-# CVEs within ~7 days. Security updates ship continuously regardless of this
-# schedule — Dependabot's security alert track is independent.
+# Monthly cadence — weekly was producing ~10 PRs every Monday across the six
+# ecosystems below. Monthly + aggressive grouping keeps the merge queue
+# tractable for a small team. Security updates ship continuously regardless
+# of this schedule — Dependabot's security alert track is independent.
+#
+# Companion: `.github/workflows/dependabot-auto-merge.yml` auto-merges
+# minor+patch PRs once CI is green, so most of these never need a human.
+# Majors still open as individual PRs and require manual review.
 #
 # NOTE: Dependabot's config parser does NOT support YAML aliases / merge keys
 # (`&anchor` + `<<: *anchor`), nor does it allow custom top-level keys. Every
@@ -16,9 +21,9 @@ updates:
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
       day: "monday"
-    open-pull-requests-limit: 8
+    open-pull-requests-limit: 3
     # Foundational deps where a major bump touches runtime behavior across
     # the whole monorepo — autonomous merge isn't safe even when CI is
     # green (most of the surface is type-level or covered by happy-path
@@ -48,36 +53,13 @@ updates:
       - dependency-name: "pdfjs-dist"
         update-types: ["version-update:semver-major"]
     groups:
-      typescript:
-        patterns:
-          - "typescript"
-          - "@types/*"
-      eslint:
-        patterns:
-          - "eslint*"
-          - "@typescript-eslint/*"
-          - "typescript-eslint"
-      next:
-        patterns:
-          - "next"
-          - "@next/*"
-          - "next-intl"
-      plate:
-        patterns:
-          - "platejs"
-          - "@platejs/*"
-      testing:
-        patterns:
-          - "vitest"
-          - "@vitest/*"
-          - "@playwright/*"
-          - "@testing-library/*"
-      # Catch-all for everything else — minor + patch only, so each individual
-      # package upgrade still ships but they're bundled into a single weekly
-      # PR instead of one PR per package. Majors continue to open as
-      # individual PRs (which we want — majors deserve human review).
-      # The named groups above match first; this one mops up the rest.
-      misc-minor-patch:
+      # Single catch-all for minor + patch across the entire JS workspace.
+      # Previously split into typescript / eslint / next / plate / testing
+      # groups — that produced 5–6 PRs/week. One bundled PR is fine because
+      # the auto-merge workflow handles the green case without humans.
+      # Majors continue to open as individual PRs (which we want — majors
+      # deserve human review).
+      npm-minor-patch:
         applies-to: version-updates
         patterns:
           - "*"
@@ -89,9 +71,9 @@ updates:
   - package-ecosystem: "pip"
     directory: "/apps/worker"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
       day: "monday"
-    open-pull-requests-limit: 4
+    open-pull-requests-limit: 2
     # langgraph + langchain-core were removed from the worker in commit
     # b4d716b ("retire unused langgraph integration"). Dependabot kept
     # opening bumps for them — silence the noise here. Re-enable if/when
@@ -114,8 +96,17 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
       day: "monday"
+    open-pull-requests-limit: 1
+    groups:
+      actions-minor-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   # Docker base images for the four Dockerfiles.
   #
@@ -127,35 +118,44 @@ updates:
   #     `python3-uno` bridge that unoserver depends on is pinned to whatever
   #     Debian ships, and the `uv.lock` resolves against 3.12.
   # Patch + minor bumps still flow normally.
+  #
+  # Each Dockerfile gets its own ecosystem entry (Dependabot requires it),
+  # but `open-pull-requests-limit: 1` per service caps the noise — at most
+  # 4 docker PRs per month, and most months will produce 0–1 since base
+  # images don't churn that often.
   - package-ecosystem: "docker"
     directory: "/apps/api"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
       day: "monday"
+    open-pull-requests-limit: 1
     ignore:
       - dependency-name: "node"
         update-types: ["version-update:semver-major"]
   - package-ecosystem: "docker"
     directory: "/apps/web"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
       day: "monday"
+    open-pull-requests-limit: 1
     ignore:
       - dependency-name: "node"
         update-types: ["version-update:semver-major"]
   - package-ecosystem: "docker"
     directory: "/apps/hocuspocus"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
       day: "monday"
+    open-pull-requests-limit: 1
     ignore:
       - dependency-name: "node"
         update-types: ["version-update:semver-major"]
   - package-ecosystem: "docker"
     directory: "/apps/worker"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
       day: "monday"
+    open-pull-requests-limit: 1
     ignore:
       - dependency-name: "python"
         update-types: ["version-update:semver-major"]
