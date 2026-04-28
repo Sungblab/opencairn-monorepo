@@ -41,7 +41,7 @@ dependencies = [
     "markdown-it-py>=3.0",
     # Redis pub/sub + LIST replay for live ingest event emission
     # (Plan: live-ingest-visualization Task 3). Async client used by activities.
-    "redis>=5.0,<6",
+    "redis>=5.0,<8",
     # Office text extraction for the parse_office activity (Plan 3 follow-up
     # Office/HWP). Native parsers — docx via python-docx, pptx via
     # python-pptx, xlsx via openpyxl, legacy xls via xlrd. Old binary
