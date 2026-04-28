@@ -18,9 +18,10 @@ export function initSentry(): void {
   const dsn = process.env.SENTRY_DSN?.trim();
   if (!dsn) return;
 
+  const environment = process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV ?? "production";
   Sentry.init({
     dsn,
-    environment: process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV ?? "production",
+    environment,
     release: process.env.SENTRY_RELEASE,
     tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE ?? 0.1),
     // Defer profiler loading to operators that want it — bundling
@@ -29,7 +30,7 @@ export function initSentry(): void {
     // dependency on @sentry/profiling-node when needed.
   });
   initialized = true;
-  console.info(`[sentry] initialized (env=${process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV ?? "production"})`);
+  console.info(`[sentry] initialized (env=${environment})`);
 }
 
 // Hono onError hook adapter — install with `app.onError(sentryOnError)` after

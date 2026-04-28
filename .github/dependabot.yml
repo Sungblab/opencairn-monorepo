@@ -1,5 +1,12 @@
 version: 2
 
+# Shared schedule reused by every package-ecosystem entry below via the YAML
+# merge anchor. Single source of truth — bump cadence here when needed.
+x-weekly-schedule: &weekly-schedule
+  schedule:
+    interval: "weekly"
+    day: "monday"
+
 # Weekly cadence keeps PR noise tolerable for a small team while still catching
 # CVEs within ~7 days. Security updates ship continuously regardless of this
 # schedule — Dependabot's security alert track is independent.
@@ -9,9 +16,7 @@ updates:
   # under `apps/*` / `packages/*` automatically.
   - package-ecosystem: "npm"
     directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
+    <<: *weekly-schedule
     open-pull-requests-limit: 8
     groups:
       typescript:
@@ -42,36 +47,24 @@ updates:
   # Python worker.
   - package-ecosystem: "pip"
     directory: "/apps/worker"
-    schedule:
-      interval: "weekly"
-      day: "monday"
+    <<: *weekly-schedule
     open-pull-requests-limit: 4
 
   # GitHub Actions versions.
   - package-ecosystem: "github-actions"
     directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
+    <<: *weekly-schedule
 
-  # Docker base images for the three Dockerfiles.
+  # Docker base images for the four Dockerfiles.
   - package-ecosystem: "docker"
     directory: "/apps/api"
-    schedule:
-      interval: "weekly"
-      day: "monday"
+    <<: *weekly-schedule
   - package-ecosystem: "docker"
     directory: "/apps/web"
-    schedule:
-      interval: "weekly"
-      day: "monday"
+    <<: *weekly-schedule
   - package-ecosystem: "docker"
     directory: "/apps/hocuspocus"
-    schedule:
-      interval: "weekly"
-      day: "monday"
+    <<: *weekly-schedule
   - package-ecosystem: "docker"
     directory: "/apps/worker"
-    schedule:
-      interval: "weekly"
-      day: "monday"
+    <<: *weekly-schedule

@@ -45,6 +45,14 @@ const resend =
 let smtpTransporter: import("nodemailer").Transporter | null = null;
 async function getSmtpTransporter(): Promise<import("nodemailer").Transporter> {
   if (smtpTransporter) return smtpTransporter;
+  // Fail-closed symmetric with the Resend branch: without SMTP_HOST,
+  // nodemailer silently falls back to localhost:25 and surfaces a confusing
+  // ECONNREFUSED instead of the real misconfiguration.
+  if (!process.env.SMTP_HOST) {
+    throw new Error(
+      "EMAIL_PROVIDER=smtp but SMTP_HOST is unset. Set SMTP_HOST or switch EMAIL_PROVIDER.",
+    );
+  }
   const nodemailer = await import("nodemailer");
   const port = Number(process.env.SMTP_PORT ?? 587);
   // 465 → implicit TLS; everything else → STARTTLS upgrade per nodemailer
