@@ -7,6 +7,7 @@ import {
   boolean,
   jsonb,
   index,
+  uniqueIndex,
   check,
 } from "drizzle-orm/pg-core";
 import { projects } from "./projects";
@@ -44,6 +45,7 @@ export const notes = pgTable(
     sourceUrl: text("source_url"),
     mimeType: text("mime_type"),
     isAuto: boolean("is_auto").notNull().default(false),
+    doi: text("doi"),
     // Hocuspocus가 기존 notes.content를 Y.Doc으로 seed한 시각. 재시작 시 덮어쓰기 방지 가드.
     yjsStateLoadedAt: timestamp("yjs_state_loaded_at", { withTimezone: true }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -56,6 +58,11 @@ export const notes = pgTable(
     index("notes_folder_id_idx").on(t.folderId),
     index("notes_type_idx").on(t.type),
     index("notes_deleted_at_idx").on(t.deletedAt),
+    // Literature dedupe: at most one note per (workspace, doi). Partial so
+    // notes without a DOI (the vast majority) skip the index entirely.
+    uniqueIndex("notes_workspace_doi_idx")
+      .on(t.workspaceId, t.doi)
+      .where(sql`${t.doi} IS NOT NULL`),
     // Predicate mirrors `0022_canvas_language_column.sql`. The `::text` cast on
     // `source_type` is required because the migration runs in a transaction
     // that adds the 'canvas' enum value, and Postgres rejects direct enum
