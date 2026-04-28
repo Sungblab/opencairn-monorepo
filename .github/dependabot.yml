@@ -1,22 +1,23 @@
 version: 2
 
-# Shared schedule reused by every package-ecosystem entry below via the YAML
-# merge anchor. Single source of truth — bump cadence here when needed.
-x-weekly-schedule: &weekly-schedule
-  schedule:
-    interval: "weekly"
-    day: "monday"
-
 # Weekly cadence keeps PR noise tolerable for a small team while still catching
 # CVEs within ~7 days. Security updates ship continuously regardless of this
 # schedule — Dependabot's security alert track is independent.
+#
+# NOTE: Dependabot's config parser does NOT support YAML aliases / merge keys
+# (`&anchor` + `<<: *anchor`), nor does it allow custom top-level keys. Every
+# `schedule:` block must be inlined verbatim — repetition is the cost of a
+# parseable config. See:
+# https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference
 updates:
   # Root + every workspace pnpm manifest. Setting `directory: "/"` with the
   # pnpm package-ecosystem covers the workspace lockfile + every package.json
   # under `apps/*` / `packages/*` automatically.
   - package-ecosystem: "npm"
     directory: "/"
-    <<: *weekly-schedule
+    schedule:
+      interval: "weekly"
+      day: "monday"
     open-pull-requests-limit: 8
     groups:
       typescript:
@@ -47,24 +48,36 @@ updates:
   # Python worker.
   - package-ecosystem: "pip"
     directory: "/apps/worker"
-    <<: *weekly-schedule
+    schedule:
+      interval: "weekly"
+      day: "monday"
     open-pull-requests-limit: 4
 
   # GitHub Actions versions.
   - package-ecosystem: "github-actions"
     directory: "/"
-    <<: *weekly-schedule
+    schedule:
+      interval: "weekly"
+      day: "monday"
 
   # Docker base images for the four Dockerfiles.
   - package-ecosystem: "docker"
     directory: "/apps/api"
-    <<: *weekly-schedule
+    schedule:
+      interval: "weekly"
+      day: "monday"
   - package-ecosystem: "docker"
     directory: "/apps/web"
-    <<: *weekly-schedule
+    schedule:
+      interval: "weekly"
+      day: "monday"
   - package-ecosystem: "docker"
     directory: "/apps/hocuspocus"
-    <<: *weekly-schedule
+    schedule:
+      interval: "weekly"
+      day: "monday"
   - package-ecosystem: "docker"
     directory: "/apps/worker"
-    <<: *weekly-schedule
+    schedule:
+      interval: "weekly"
+      day: "monday"
