@@ -403,12 +403,43 @@ describe("POST /api/research/runs/:id/turns", () => {
     },
   );
 
-  // Note: the 23505 → 409 conversion (handler reads max(seq), races against
-  // another writer for the same +1 slot) cannot be reproduced from a single
-  // event-loop test — both the read and the write happen in the same tick.
-  // The route's catch branch is verified by the explicit isUniqueViolation
-  // shape and a manual repro in dev (open two tabs, click feedback fast).
-  // Phase D will revisit with a proper concurrent harness.
+  it("serializes concurrent feedback writes into distinct turn sequences", async () => {
+    const runId = await createPlanningRun(ctx);
+    await db.insert(researchRunTurns).values({
+      runId, seq: 0, role: "agent", kind: "plan_proposal", content: "plan v1",
+    });
+    await db
+      .update(researchRuns)
+      .set({ status: "awaiting_approval" })
+      .where(eq(researchRuns.id, runId));
+
+    const responses = await Promise.all(
+      Array.from({ length: 12 }, (_, i) =>
+        authedFetch(`/api/research/runs/${runId}/turns`, {
+          method: "POST",
+          userId: ctx.userId,
+          body: JSON.stringify({ feedback: `feedback ${i}` }),
+        }),
+      ),
+    );
+
+    expect(responses.map((r) => r.status)).toEqual(Array(12).fill(202));
+    const bodies = (await Promise.all(responses.map((r) => r.json()))) as Array<{
+      turnId: string;
+    }>;
+    expect(new Set(bodies.map((b) => b.turnId)).size).toBe(12);
+
+    const turns = await db
+      .select()
+      .from(researchRunTurns)
+      .where(eq(researchRunTurns.runId, runId))
+      .orderBy(asc(researchRunTurns.seq));
+    expect(turns.map((t) => t.seq)).toEqual(
+      Array.from({ length: 13 }, (_, i) => i),
+    );
+    expect(turns.filter((t) => t.kind === "user_feedback")).toHaveLength(12);
+    expect(workflowSignalSpy).toHaveBeenCalledTimes(12);
+  }, 20_000);
 
   it("returns 403 on viewer", async () => {
     const runId = await createPlanningRun(ctx);
@@ -655,6 +686,86 @@ describe("POST /api/research/runs/:id/approve", () => {
     const approvalTurns = turns.filter((t) => t.kind === "approval");
     expect(approvalTurns).toHaveLength(1);
     // Original approval text wins; the second click does NOT overwrite.
+    const [row] = await db
+      .select({ approvedPlanText: researchRuns.approvedPlanText })
+      .from(researchRuns)
+      .where(eq(researchRuns.id, runId));
+    expect(row!.approvedPlanText).toBe("FINAL");
+  });
+
+  it("serializes concurrent approvals into one approval turn and one signal", async () => {
+    const runId = await createPlanningRun(ctx);
+    await db.insert(researchRunTurns).values({
+      runId, seq: 0, role: "agent", kind: "plan_proposal", content: "PROPOSAL",
+    });
+    await db
+      .update(researchRuns)
+      .set({ status: "awaiting_approval" })
+      .where(eq(researchRuns.id, runId));
+
+    const responses = await Promise.all([
+      authedFetch(`/api/research/runs/${runId}/approve`, {
+        method: "POST",
+        userId: ctx.userId,
+        body: JSON.stringify({ finalPlanText: "FINAL A" }),
+      }),
+      authedFetch(`/api/research/runs/${runId}/approve`, {
+        method: "POST",
+        userId: ctx.userId,
+        body: JSON.stringify({ finalPlanText: "FINAL B" }),
+      }),
+    ]);
+
+    expect(responses.map((r) => r.status)).toEqual([202, 202]);
+    const bodies = (await Promise.all(responses.map((r) => r.json()))) as Array<{
+      approved: boolean;
+      alreadyApproved?: boolean;
+    }>;
+    expect(bodies.every((body) => body.approved)).toBe(true);
+    expect(bodies.filter((body) => body.alreadyApproved).length).toBe(1);
+    expect(workflowSignalSpy).toHaveBeenCalledTimes(1);
+
+    const turns = await db
+      .select()
+      .from(researchRunTurns)
+      .where(eq(researchRunTurns.runId, runId))
+      .orderBy(asc(researchRunTurns.seq));
+    const approvalTurns = turns.filter((t) => t.kind === "approval");
+    expect(approvalTurns).toHaveLength(1);
+    const [row] = await db
+      .select({ approvedPlanText: researchRuns.approvedPlanText })
+      .from(researchRuns)
+      .where(eq(researchRuns.id, runId));
+    expect(["FINAL A", "FINAL B"]).toContain(row!.approvedPlanText);
+    expect(approvalTurns[0]!.content).toBe(row!.approvedPlanText);
+  });
+
+  it("treats approve retries after the workflow status flips as already approved", async () => {
+    const runId = await createPlanningRun(ctx);
+    await db.insert(researchRunTurns).values([
+      { runId, seq: 0, role: "agent", kind: "plan_proposal", content: "PROPOSAL" },
+      { runId, seq: 1, role: "user", kind: "approval", content: "FINAL" },
+    ]);
+    await db
+      .update(researchRuns)
+      .set({ status: "researching", approvedPlanText: "FINAL" })
+      .where(eq(researchRuns.id, runId));
+
+    const res = await authedFetch(`/api/research/runs/${runId}/approve`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ finalPlanText: "DIFFERENT" }),
+    });
+
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as {
+      approved: boolean;
+      alreadyApproved?: boolean;
+    };
+    expect(body.approved).toBe(true);
+    expect(body.alreadyApproved).toBe(true);
+    expect(workflowSignalSpy).not.toHaveBeenCalled();
+
     const [row] = await db
       .select({ approvedPlanText: researchRuns.approvedPlanText })
       .from(researchRuns)
