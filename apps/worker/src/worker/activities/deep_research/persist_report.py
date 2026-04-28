@@ -115,8 +115,11 @@ async def _run_persist_report(
     plate_value = [meta_block, *plate_body]
 
     # 4. Create the note via internal API. Idempotent by run id.
+    #    The path must include `/api` — Hono mounts internal routes at
+    #    `/api/internal`; the bare `/internal/notes` form silently 404s
+    #    (audit S4-008).
     response = await post_internal(
-        "/internal/notes",
+        "/api/internal/notes",
         {
             "idempotencyKey": inp.run_id,
             "projectId": inp.project_id,
@@ -143,7 +146,7 @@ async def _production_fetch_image(url: str) -> tuple[bytes, str]:
     from worker.lib.api_client import post_internal
 
     body = await post_internal(
-        "/internal/research/image-bytes", {"url": url}
+        "/api/internal/research/image-bytes", {"url": url}
     )
     return base64.b64decode(body["base64"]), body["mimeType"]
 

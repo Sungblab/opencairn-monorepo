@@ -1992,6 +1992,62 @@ internal.post("/test-seed-multi-role", async (c) => {
   });
 });
 
+// POST /internal/research/runs/:id/artifacts — streamed artifact write. The
+// worker's execute_deep_research activity calls this once per Google
+// Interactions stream event (thought/text/citation/image) so the row lands in
+// `research_run_artifacts` immediately and the UI / persist_report can replay
+// it later. We auto-assign `seq` via SELECT MAX(seq) + 1 inside the request:
+// the workflow drives a single activity instance at a time, so concurrent
+// inserts for the same run_id don't happen in practice; any race that does
+// slip through is bounded by the (run_id, seq) unique index.
+//
+// Audit S4-008 (2026-04-28): this endpoint was promised by the Phase C
+// comment in execute_research.py but never implemented; the worker side
+// also pointed at `/internal/...` instead of `/api/internal/...`. Both paths
+// are repaired here + in the worker call sites.
+const researchArtifactWriteSchema = z.object({
+  kind: z.enum(["thought_summary", "text_delta", "image", "citation"]),
+  payload: z.record(z.unknown()),
+});
+
+internal.post(
+  "/research/runs/:id/artifacts",
+  zValidator("json", researchArtifactWriteSchema),
+  async (c) => {
+    const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "invalid uuid" }, 400);
+    const body = c.req.valid("json");
+
+    const [run] = await db
+      .select({ id: researchRuns.id })
+      .from(researchRuns)
+      .where(eq(researchRuns.id, id));
+    if (!run) return c.json({ error: "research_run_not_found" }, 404);
+
+    const [seqRow] = await db
+      .select({
+        maxSeq: sql<number | null>`MAX(${researchRunArtifacts.seq})`,
+      })
+      .from(researchRunArtifacts)
+      .where(eq(researchRunArtifacts.runId, id));
+    const nextSeq = (seqRow?.maxSeq ?? -1) + 1;
+
+    const [inserted] = await db
+      .insert(researchRunArtifacts)
+      .values({
+        runId: id,
+        seq: nextSeq,
+        kind: body.kind,
+        payload: body.payload as Record<string, unknown>,
+      })
+      .returning({
+        id: researchRunArtifacts.id,
+        seq: researchRunArtifacts.seq,
+      });
+    return c.json({ id: inserted.id, seq: inserted.seq }, 201);
+  },
+);
+
 // POST /internal/research/image-bytes — replay image bytes captured during
 // execute_deep_research. Matches against researchRunArtifacts.payload->>'url'.
 // The worker's persist_report reads this back, uploads to MinIO, and only

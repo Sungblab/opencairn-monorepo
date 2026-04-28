@@ -220,3 +220,46 @@ def test_quota_exceeded_is_non_retryable(monkeypatch):
         )
     assert excinfo.value.type == "quota_exceeded"
     assert excinfo.value.non_retryable is True
+
+
+
+# --- S4-008 regression: production wiring URL paths ---------------------
+
+
+def test_default_persist_event_posts_to_api_internal_artifacts(monkeypatch):
+    """Streamed artifacts must land at /api/internal/research/runs/:id/artifacts.
+
+    The Hono router mounts internal routes at `/api/internal`, so the
+    historical `/internal/...` form silently 404s and the worker's
+    `except Exception: pass` swallows the failure (audit S4-008).
+    """
+    from worker.activities.deep_research import execute_research as mod
+
+    captured: list[tuple[str, dict]] = []
+
+    async def _capturing_post(path: str, body: dict) -> dict:
+        captured.append((path, body))
+        return {}
+
+    class _StubActivityInfo:
+        workflow_id = "run-abc"
+
+    def _stub_info() -> _StubActivityInfo:
+        return _StubActivityInfo()
+
+    def _in_activity() -> bool:
+        return False
+
+    monkeypatch.setenv("INTERNAL_API_SECRET", "test-secret")
+    monkeypatch.setattr(
+        "worker.lib.api_client.post_internal", _capturing_post,
+    )
+    monkeypatch.setattr(mod.activity, "info", _stub_info)
+    monkeypatch.setattr(mod.activity, "in_activity", _in_activity)
+
+    asyncio.run(mod._default_persist_event("text_delta", {"text": "hello"}))
+
+    assert len(captured) == 1
+    path, body = captured[0]
+    assert path == "/api/internal/research/runs/run-abc/artifacts"
+    assert body == {"kind": "text_delta", "payload": {"text": "hello"}}

@@ -152,23 +152,24 @@ async def _run_execute_research(
 async def _default_persist_event(kind: str, payload: dict[str, Any]) -> None:
     """Write a streamed artifact through to the API's internal endpoint.
 
-    The endpoint itself ships in Phase C. Until then the POST 404s and
-    we swallow it so the stream keeps running during pre-Phase-C smoke
-    tests. The raw payload is also already in Temporal's activity log,
-    so no data loss even if the persist fails silently.
+    Path must include the ``/api`` prefix the Hono router mounts at
+    (``app.route("/api/internal", internalRoutes)``); a missing prefix
+    silently 404s and the ``except Exception`` below swallows the failure
+    so the stream keeps running. Audit S4-008 (2026-04-28) corrected this
+    plus added the matching endpoint on the API side.
     """
     from worker.lib.api_client import post_internal
 
     run_id = activity.info().workflow_id
     try:
         await post_internal(
-            f"/internal/research/{run_id}/artifacts",
+            f"/api/internal/research/runs/{run_id}/artifacts",
             {"kind": kind, "payload": payload},
         )
-    except Exception:  # pragma: no cover — Phase B tolerates missing endpoint
+    except Exception:  # pragma: no cover — keep the stream resilient
         if activity.in_activity():
             activity.logger.warning(
-                "artifact persist failed — endpoint likely missing (Phase C)"
+                "artifact persist failed — see /api/internal/research/runs"
             )
 
 
