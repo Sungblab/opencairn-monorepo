@@ -1,0 +1,43 @@
+{
+  "search": {
+    "placeholder": "Search by title, author, or keyword",
+    "button": "Search",
+    "reSearch": "Re-search",
+    "resultCount": "{count} results",
+    "openInEditor": "Open full results in editor",
+    "noResults": "No results found.",
+    "loading": "Searching...",
+    "error": "An error occurred while searching."
+  },
+  "filter": {
+    "sources": "Sources",
+    "arxiv": "arXiv",
+    "semanticScholar": "Semantic Scholar",
+    "crossref": "Crossref"
+  },
+  "result": {
+    "citations": "{count} citations",
+    "year": "{year}",
+    "abstract": "Abstract",
+    "openPdf": "Open PDF",
+    "doiLink": "DOI Link"
+  },
+  "badge": {
+    "openAccess": "OA",
+    "paywalled": "Paywalled"
+  },
+  "import": {
+    "selected": "{count} selected",
+    "button": "Import",
+    "importing": "Importing...",
+    "done": "Import complete",
+    "skipped": "{count} already in workspace — skipped",
+    "skippedNone": "No items skipped",
+    "project": "Project",
+    "selectProject": "Select project",
+    "paywallNotice": "No OA PDF found. Upload the PDF directly or access via institutional subscription."
+  },
+  "tab": {
+    "title": "Literature Search"
+  }
+}
