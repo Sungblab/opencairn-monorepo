@@ -18,10 +18,35 @@ from typing import Any
 import httpx
 
 API_BASE = os.environ.get("INTERNAL_API_URL", "http://api:4000")
-INTERNAL_SECRET = os.environ.get("INTERNAL_API_SECRET", "change-me-in-production")
 
-_HEADERS = {"X-Internal-Secret": INTERNAL_SECRET}
+# Secrets that must never be honored as production credentials. The historical
+# default ``"change-me-in-production"`` shipped in older worker images; if any
+# deployment carries it in its env, treat it as a misconfiguration rather than
+# silently authenticating to the internal API.
+_PLACEHOLDER_INTERNAL_SECRETS = frozenset({"change-me-in-production"})
+
 _TIMEOUT = 30.0
+
+
+def _required_internal_secret() -> str:
+    """Return ``INTERNAL_API_SECRET`` from the env, raising if missing.
+
+    Resolved per-call so misconfiguration surfaces at the first network attempt
+    instead of relying on module import order. Tests that mock ``post_internal``
+    / ``get_internal`` / ``patch_internal`` outright are unaffected.
+    """
+    raw = os.environ.get("INTERNAL_API_SECRET", "").strip()
+    if not raw or raw in _PLACEHOLDER_INTERNAL_SECRETS:
+        raise RuntimeError(
+            "INTERNAL_API_SECRET is required to call the internal API. "
+            "Set INTERNAL_API_SECRET to a strong, deploy-specific secret "
+            "(matching the API service)."
+        )
+    return raw
+
+
+def _internal_headers() -> dict[str, str]:
+    return {"X-Internal-Secret": _required_internal_secret()}
 
 
 async def post_internal(path: str, body: dict[str, Any]) -> dict[str, Any]:
@@ -31,24 +56,27 @@ async def post_internal(path: str, body: dict[str, Any]) -> dict[str, Any]:
     matches the longest source-note insert we expect (large text + embedding
     trigger queueing).
     """
+    headers = _internal_headers()
     async with httpx.AsyncClient(base_url=API_BASE, timeout=_TIMEOUT) as client:
-        response = await client.post(path, json=body, headers=_HEADERS)
+        response = await client.post(path, json=body, headers=headers)
         response.raise_for_status()
         return response.json()
 
 
 async def get_internal(path: str) -> dict[str, Any]:
     """GET ``{API_BASE}{path}`` with the internal secret. Same error contract as post."""
+    headers = _internal_headers()
     async with httpx.AsyncClient(base_url=API_BASE, timeout=_TIMEOUT) as client:
-        response = await client.get(path, headers=_HEADERS)
+        response = await client.get(path, headers=headers)
         response.raise_for_status()
         return response.json()
 
 
 async def patch_internal(path: str, body: dict[str, Any]) -> dict[str, Any]:
     """PATCH ``{API_BASE}{path}`` with the internal secret."""
+    headers = _internal_headers()
     async with httpx.AsyncClient(base_url=API_BASE, timeout=_TIMEOUT) as client:
-        response = await client.patch(path, json=body, headers=_HEADERS)
+        response = await client.patch(path, json=body, headers=headers)
         response.raise_for_status()
         return response.json()
 
