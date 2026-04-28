@@ -19,6 +19,38 @@ jobs:
   node:
     name: Node (lint + typecheck + unit)
     runs-on: ubuntu-latest
+
+    # apps/api unit tests are integration-style — `tests/setup.ts` does a real
+    # `SELECT 1 AS ping` against Postgres and aborts the suite if it can't
+    # connect. Without this service block every PR's Node job died at the
+    # api test step regardless of what the PR touched. pgvector image because
+    # the schema declares vector columns; pg16 to match docker-compose.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: opencairn
+          POSTGRES_USER: opencairn
+          POSTGRES_PASSWORD: opencairn-ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U opencairn -d opencairn"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Picked up by packages/db's `postgres(process.env.DATABASE_URL!)` and
+      # by drizzle-kit migrate. Matches the `services.postgres` block above.
+      DATABASE_URL: postgresql://opencairn:opencairn-ci@localhost:5432/opencairn
+      # Better Auth refuses to boot without a secret. CI value is irrelevant
+      # to test correctness — tests don't verify cryptographic strength.
+      BETTER_AUTH_SECRET: ci-better-auth-secret-32-chars-min-xx
+      BETTER_AUTH_URL: http://localhost:4000
+      # Internal API HMAC. Same rationale as BETTER_AUTH_SECRET.
+      INTERNAL_API_SECRET: ci-internal-api-secret-do-not-use-anywhere
+
     steps:
       - uses: actions/checkout@v4
 
@@ -47,6 +79,12 @@ jobs:
 
       - name: Typecheck (emails)
         run: pnpm --filter @opencairn/emails build
+
+      # Apply Drizzle migrations so api tests run against the real schema —
+      # `SELECT 1` clears once the service is up, but per-table queries need
+      # the schema to actually exist.
+      - name: Apply DB migrations
+        run: pnpm --filter @opencairn/db db:migrate
 
       - name: Unit tests (api)
         run: pnpm --filter @opencairn/api test
