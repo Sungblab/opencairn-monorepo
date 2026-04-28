@@ -61,7 +61,9 @@ export function LitResultCard({
       {papers.slice(0, 5).map((paper) => (
         <div key={paper.id} className="space-y-0.5">
           <div className="flex items-start gap-2">
-            <span className="text-muted-foreground mt-0.5">📄</span>
+            {/* Decorative — purely visual, role=img with empty label so SR skips it. */}
+            {/* eslint-disable-next-line i18next/no-literal-string */}
+            <span aria-hidden="true" className="text-muted-foreground mt-0.5">📄</span>
             <div className="flex-1 min-w-0">
               <p className="font-medium text-foreground truncate">
                 {paper.title}
