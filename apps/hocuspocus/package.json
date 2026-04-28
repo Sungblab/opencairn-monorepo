@@ -11,21 +11,21 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@hocuspocus/extension-database": "^3.1.1",
-    "@hocuspocus/server": "^3.1.1",
+    "@hocuspocus/extension-database": "^3.4.4",
+    "@hocuspocus/server": "^3.4.4",
     "@opencairn/api": "workspace:*",
     "@opencairn/db": "workspace:*",
     "@opencairn/shared": "workspace:*",
     "@slate-yjs/core": "^1.0.2",
     "better-auth": "^1.6.9",
-    "pino": "^9.0.0",
+    "pino": "^10.3.1",
     "yjs": "^13.6.0",
-    "zod": "^3.24.0"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@hocuspocus/provider": "^3.1.1",
+    "@hocuspocus/provider": "^3.4.4",
     "@types/node": "^25.6.0",
-    "dotenv": "^16.4.0",
+    "dotenv": "^17.4.2",
     "tsx": "^4.19.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.5"

@@ -3,10 +3,12 @@ import createNextIntlPlugin from "next-intl/plugin";
 import { readFileSync } from "fs";
 import { join } from "path";
 
+const MONOREPO_ROOT = join(process.cwd(), "../..");
+
 // Next.js reads .env only from its own app directory, not the monorepo root.
 // Load the root .env manually so NEXT_PUBLIC_* vars are available at build time.
 try {
-  const raw = readFileSync(join(process.cwd(), "../../.env"), "utf8");
+  const raw = readFileSync(join(MONOREPO_ROOT, ".env"), "utf8");
   for (const line of raw.split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
@@ -49,6 +51,9 @@ const CSP_HEADER = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  turbopack: {
+    root: MONOREPO_ROOT,
+  },
   async headers() {
     return [
       {

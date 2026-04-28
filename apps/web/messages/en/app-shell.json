@@ -67,6 +67,15 @@
       "fontSize": "Font size",
       "readingTime": "~{min} min"
     },
+    "source": {
+      "title": "Source PDF",
+      "frameTitle": "{title} PDF viewer",
+      "open": "Open in new tab",
+      "download": "Download",
+      "refresh": "Refresh",
+      "fallbackTitle": "PDF preview is unavailable.",
+      "fallbackOpen": "Open in new tab"
+    },
     "data": {
       "empty": "No data"
     }

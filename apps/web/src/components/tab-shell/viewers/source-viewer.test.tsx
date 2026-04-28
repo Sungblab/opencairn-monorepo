@@ -1,46 +1,10 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
+import { describe, expect, it } from "vitest";
+import type { Tab } from "@/stores/tabs-store";
 import { SourceViewer } from "./source-viewer";
 
-// Shallow-mock @react-pdf-viewer/core. The real Viewer mounts pdfjs +
-// a web worker which jsdom can't run; we only need to assert that
-// SourceViewer wires the right fileUrl into Viewer and gates on
-// targetId.
-vi.mock("@react-pdf-viewer/core", () => ({
-  Worker: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="pdf-worker">{children}</div>
-  ),
-  Viewer: ({
-    fileUrl,
-    transformGetDocumentParams,
-  }: {
-    fileUrl: string;
-    transformGetDocumentParams?: (p: Record<string, unknown>) => Record<string, unknown>;
-  }) => {
-    // Snapshot the hardened options so the CVE-2024-4367 mitigation
-    // assertion can inspect what gets passed to pdfjs.
-    const applied = transformGetDocumentParams?.({ url: fileUrl }) ?? {};
-    return (
-      <div
-        data-testid="pdf-viewer"
-        data-file-url={fileUrl}
-        data-is-eval-supported={String(applied.isEvalSupported)}
-      />
-    );
-  },
-}));
-
-vi.mock("@react-pdf-viewer/default-layout", () => ({
-  // Return a sentinel object so SourceViewer can pass it to Viewer's
-  // `plugins` array without caring about its internal shape.
-  defaultLayoutPlugin: () => ({ install: () => {}, uninstall: () => {} }),
-}));
-
-// The core + default-layout CSS imports are side-effect only. jsdom's
-// vite env doesn't load CSS; the import gets hoisted and vitest treats
-// it as empty, which is fine.
-
-const tab = {
+const tab: Tab = {
   id: "t",
   kind: "note" as const,
   targetId: "n1",
@@ -56,29 +20,73 @@ const tab = {
   scrollY: 0,
 };
 
-describe("SourceViewer", () => {
-  it("mounts the Viewer with fileUrl=/api/notes/:id/file", () => {
-    render(<SourceViewer tab={tab} />);
-    const viewer = screen.getByTestId("pdf-viewer");
-    expect(viewer).toBeInTheDocument();
-    expect(viewer.getAttribute("data-file-url")).toBe("/api/notes/n1/file");
-  });
+const messages = {
+  appShell: {
+    viewers: {
+      source: {
+        title: "원본 PDF",
+        frameTitle: "{title} PDF 뷰어",
+        open: "새 탭에서 열기",
+        download: "다운로드",
+        refresh: "새로고침",
+        fallbackTitle: "PDF 미리보기를 표시할 수 없습니다.",
+        fallbackOpen: "새 탭에서 열기",
+      },
+    },
+  },
+};
 
-  it("wraps the Viewer in a Worker", () => {
-    render(<SourceViewer tab={tab} />);
-    expect(screen.getByTestId("pdf-worker")).toBeInTheDocument();
+function renderSourceViewer(nextTab: Tab = tab) {
+  return render(
+    <NextIntlClientProvider locale="ko" messages={messages}>
+      <SourceViewer tab={nextTab} />
+    </NextIntlClientProvider>,
+  );
+}
+
+describe("SourceViewer", () => {
+  it("embeds the note file in the browser-native PDF viewer", () => {
+    renderSourceViewer();
+    const viewer = screen.getByTestId("pdf-frame");
+
+    expect(viewer).toBeInTheDocument();
+    expect(viewer.getAttribute("data")).toBe(
+      "/api/notes/n1/file#toolbar=1&navpanes=1&scrollbar=1&view=FitH",
+    );
+    expect(viewer).toHaveAttribute("type", "application/pdf");
   });
 
   it("renders nothing when targetId is null", () => {
-    const { container } = render(
-      <SourceViewer tab={{ ...tab, targetId: null }} />,
-    );
+    const { container } = renderSourceViewer({ ...tab, targetId: null });
     expect(container.firstChild).toBeNull();
   });
 
-  it("disables eval in getDocument params to mitigate CVE-2024-4367", () => {
-    render(<SourceViewer tab={tab} />);
-    const viewer = screen.getByTestId("pdf-viewer");
-    expect(viewer.getAttribute("data-is-eval-supported")).toBe("false");
+  it("keeps open and download actions on the raw file URL", () => {
+    renderSourceViewer();
+
+    expect(screen.getByLabelText("새 탭에서 열기")).toHaveAttribute(
+      "href",
+      "/api/notes/n1/file",
+    );
+    expect(screen.getByLabelText("다운로드")).toHaveAttribute(
+      "href",
+      "/api/notes/n1/file",
+    );
+    expect(screen.getByLabelText("다운로드")).toHaveAttribute(
+      "download",
+      "doc.pdf",
+    );
+  });
+
+  it("refreshes the embedded PDF without changing the source URL", () => {
+    renderSourceViewer();
+    const viewer = screen.getByTestId("pdf-frame");
+    expect(viewer).toHaveAttribute("data-reload-seq", "0");
+
+    fireEvent.click(screen.getByLabelText("새로고침"));
+
+    const refreshed = screen.getByTestId("pdf-frame");
+    expect(refreshed).toHaveAttribute("data-reload-seq", "1");
+    expect(refreshed.getAttribute("data")).toBe(viewer.getAttribute("data"));
   });
 });
