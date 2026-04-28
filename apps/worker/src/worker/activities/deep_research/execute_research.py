@@ -159,12 +159,15 @@ def _to_api_payload(kind: str, payload: dict[str, Any]) -> dict[str, Any]:
     ``except`` below — image-bytes lookups then 404 forever (audit S4-008
     follow-up to PR #151).
     """
-    p = dict(payload)
-    if kind == "image" and "mime_type" in p:
+    if kind == "image" and "mime_type" in payload:
+        p = dict(payload)
         p["mimeType"] = p.pop("mime_type")
-    if kind == "citation" and "url" in p:
+        return p
+    if kind == "citation" and "url" in payload:
+        p = dict(payload)
         p["sourceUrl"] = p.pop("url")
-    return p
+        return p
+    return payload
 
 
 async def _default_persist_event(kind: str, payload: dict[str, Any]) -> None:
