@@ -63,5 +63,8 @@
   },
   "graph": {
     "entry": "View this project's graph"
+  },
+  "agents": {
+    "entry": "View this project's agents"
   }
 }

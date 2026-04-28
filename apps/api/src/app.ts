@@ -36,6 +36,7 @@ import { narratorRoutes } from "./routes/narrator";
 import { curatorRoutes } from "./routes/curator";
 import { connectorRoutes } from "./routes/connector";
 import { stalenessRoutes } from "./routes/staleness";
+import { plan8AgentRoutes } from "./routes/plan8-agents";
 import { notificationRoutes } from "./routes/notifications";
 import { literatureRoutes } from "./routes/literature";
 import { docEditorRoutes } from "./routes/doc-editor";
@@ -79,6 +80,9 @@ export function createApp() {
   // Plan 11A — chip combobox search. Specific path so the `/api/*`
   // wildcard sub-apps don't intercept it with their own auth chain.
   app.route("/api/search", searchRoutes);
+  // Plan 8 agent entrypoints. Keep this above the wildcard `/api` routers so
+  // the overview/audio paths do not get swallowed by their auth middlewares.
+  app.route("/api/agents/plan8", plan8AgentRoutes);
   // Mounted alongside /api/threads (specific path) so the wildcard /api routers
   // below don't intercept this with their own requireAuth chains.
   app.route("/api/message-feedback", messageFeedbackRoutes);
