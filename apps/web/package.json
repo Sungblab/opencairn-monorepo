@@ -96,7 +96,7 @@
     "eslint-plugin-i18next": "^6.1.4",
     "jsdom": "^29.0.2",
     "jszip": "^3.10.1",
-    "pyodide": "0.27.0",
+    "pyodide": "0.29.3",
     "tailwindcss": "^4.2.4",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.1",
