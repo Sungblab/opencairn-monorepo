@@ -239,6 +239,13 @@
       "when": 1777450000000,
       "tag": "0034_note_enrichments",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1777347379123,
+      "tag": "0035_doc_editor_calls",
+      "breakpoints": true
     }
   ]
 }
