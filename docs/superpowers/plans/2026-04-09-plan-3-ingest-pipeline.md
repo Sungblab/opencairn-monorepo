@@ -1,6 +1,10 @@
 # Plan 3: Ingest Pipeline 단계별 Implementation Plan
 
-> **✅ 완료 (2026-04-20)** — Tasks 1-10 구현 완료, plan-3/ingest 브랜치에서 master 머지. 60/60 worker pytest + 29/29 llm pytest pass. Office/HWP 변환(markitdown/unoserver/H2Orestart), scan PDF OCR, streaming upload은 follow-up task로 분리.
+> **✅ 완료 (2026-04-20)** — Tasks 1-10 구현 완료, plan-3/ingest 브랜치에서 master 머지. 60/60 worker pytest + 29/29 llm pytest pass. ~~Office/HWP 변환(markitdown/unoserver/H2Orestart)~~ scan PDF OCR, streaming upload은 follow-up task로 분리.
+
+> **✅ Office/HWP follow-up 완료 (2026-04-28, branch `feat/plan-3-office-hwp-followup`)** — `apps/worker/src/worker/activities/office_activity.py` (`parse_office`: markitdown for OOXML docx/pptx/xlsx/xls + unoserver→pymupdf 레거시 doc/ppt) + `hwp_activity.py` (`parse_hwp`: unoserver+H2Orestart→opendataloader-pdf), `ingest_workflow.py` MIME 분기, `temporal_main.py` 활동 등록, `Dockerfile`에 `libreoffice-{core,writer,impress,calc} + libreoffice-java-common + python3-uno + unoserver==3.5` + H2Orestart 0.7 oxt + `scripts/start-worker.sh` entrypoint(unoserver daemon → exec worker). 18 신규 pytest pass (4 office + 4 hwp + 10 dispatch parametrize). 잔여 follow-up: scan PDF OCR (audit Tier 1 #5), streaming upload. 이미지 사이즈 +500MB. ARM64 buildx 검증 + dev 서버 실 업로드 검증은 docker-compose worker profile 빌드 후 별도 작업.
+
+> **🟡 Scan PDF OCR follow-up (audit Tier 1 #5, 미실행)** — `pdf_activity._detect_scan` 이 이미 스캔 PDF를 감지해서 `is_scan=True`로 표시하지만, 텍스트 추출은 빈 문자열로 끝나서 유저에게 silent empty note가 만들어짐. 방향: `packages/llm/src/llm/base.py`에 `LLMProvider.ocr(image_bytes) -> str` 추상 메서드 추가, `gemini.py`는 Gemini Vision multimodal (`gemini-2.5-flash` 등 멀티모달 모델로 페이지 PNG → 텍스트), `ollama.py`는 raise NotImplementedError (graceful degradation 카피 없이 실패). `pdf_activity`는 `is_scan=True`일 때 pymupdf로 페이지를 PNG로 렌더 → `provider.ocr(png_bytes)` per page → 텍스트 concat. 이미지 페이지가 OCR 비용을 발생시키므로 워크스페이스/유저 OCR 토큰 예산 가드는 후속 별도 spec. **다음 세션에서 이 callout을 plan으로 승격**.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
