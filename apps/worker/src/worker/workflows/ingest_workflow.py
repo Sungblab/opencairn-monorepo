@@ -46,6 +46,27 @@ _SHORT_TIMEOUT = timedelta(minutes=5)
 _QUARANTINE_RETRY = RetryPolicy(maximum_attempts=2, backoff_coefficient=2.0)
 
 
+# Office MIMEs handled by ``parse_office``. Mirrors
+# ``apps/api/src/routes/ingest.ts``'s allowlist for the OOXML + legacy
+# binary set; HWP/HWPX go through ``parse_hwp`` instead because they need
+# the H2Orestart extension path, not markitdown.
+_OFFICE_MIMES = frozenset({
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/msword",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.ms-excel",
+})
+
+_HWP_MIMES = frozenset({
+    "application/x-hwp",
+    "application/haansofthwp",
+    "application/vnd.hancom.hwp",
+    "application/vnd.hancom.hwpx",
+})
+
+
 def _activity_input(inp: IngestInput, workflow_id: str, started_at_ms: int, **extra) -> dict:
     """Build the dict passed to an ingest activity, with workflow context fields."""
     return {
@@ -174,6 +195,29 @@ class IngestWorkflow:
                 "scrape_web_url",
                 activity_input,
                 schedule_to_close_timeout=_SHORT_TIMEOUT,
+                retry_policy=_RETRY,
+            )
+            text = result["text"]
+            needs_enhance = result.get("has_complex_layout", False)
+        elif mime in _OFFICE_MIMES:
+            # Plan 3 follow-up Office/HWP. parse_office returns
+            # {text, viewer_pdf_object_key, has_complex_layout}; we drop
+            # the viewer key on the floor for now (no consumer wired yet)
+            # and pass text/complex flag through the same shape as PDF.
+            result = await workflow.execute_activity(
+                "parse_office",
+                activity_input,
+                schedule_to_close_timeout=_LONG_TIMEOUT,
+                retry_policy=_RETRY,
+            )
+            text = result["text"]
+            needs_enhance = result.get("has_complex_layout", False)
+        elif mime in _HWP_MIMES:
+            # HWP/HWPX go through unoserver+H2Orestart → opendataloader-pdf.
+            result = await workflow.execute_activity(
+                "parse_hwp",
+                activity_input,
+                schedule_to_close_timeout=_LONG_TIMEOUT,
                 retry_policy=_RETRY,
             )
             text = result["text"]

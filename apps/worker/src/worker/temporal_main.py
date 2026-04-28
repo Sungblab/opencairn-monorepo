@@ -47,6 +47,8 @@ from worker.activities.notion_activities import (
     unzip_notion_export,
     upload_staging_to_minio,
 )
+from worker.activities.hwp_activity import parse_hwp
+from worker.activities.office_activity import parse_office
 from worker.activities.pdf_activity import parse_pdf
 from worker.activities.quarantine_activity import quarantine_source
 from worker.activities.curator_activity import run_curator
@@ -149,6 +151,8 @@ def build_worker_config() -> WorkerConfig:
     activities: list[Any] = [
         emit_started,
         parse_pdf,
+        parse_office,
+        parse_hwp,
         transcribe_audio,
         analyze_image,
         ingest_youtube,
