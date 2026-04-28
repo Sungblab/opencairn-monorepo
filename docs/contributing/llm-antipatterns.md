@@ -208,3 +208,10 @@ Added 2026-04-24. App Shell Phase 3-A(`apps/web/src/hooks/use-tab-*`, `apps/web/
 - ❌ base-ui `ContextMenu.Item` / `DropdownMenu.Item`을 `<ContextMenu>` 루트 없이 단독으로 vitest `render()` → ✅ `"Base UI: MenuRootContext is missing. Menu parts must be placed within <Menu.Root>"` throw. 테스트 하네스에서 열린 상태의 ContextMenu 래퍼를 만들어야 함: `<ContextMenu defaultOpen><ContextMenuTrigger>anchor</ContextMenuTrigger><ContextMenuContent>{items}</ContextMenuContent></ContextMenu>`. content는 portal이지만 testing-library `screen`은 `document.body` 기준이라 매칭됨.
 - ❌ `replace_all: true` 옵션으로 Edit 호출했는데 old_string이 특정 instance만 다른 경우(다른 ID/id/변수명) 한 군데만 치환됨 → ✅ replace_all은 old_string이 **exact match**인 모든 인스턴스만 치환. ID 등이 달라지면 각 variant를 별도 Edit로 처리하거나 공통 접미/접두부만 포함하는 string을 선택. 테스트 파일 등에서 `render(<Comp tab={mk({ id: "a" })}/>)` 같은 반복 호출을 일괄 래핑할 때 이 함정이 생김.
 - ❌ `.test.ts`에서 `localStorage.clear()` 호출 → ✅ vitest.config.ts의 `projects` 설정상 `.test.ts`는 **node env**(localStorage 없음), `.test.tsx`만 jsdom. 스토어/훅/DOM 관련 테스트는 파일 확장자를 `.tsx`로 맞출 것. `ReferenceError: localStorage is not defined`가 나오면 먼저 확장자 확인.
+
+---
+
+## 16. Windows worktree tooling
+
+- ❌ Windows worktree에서 번들 `rg.exe`가 권한 오류(`Access is denied` 등)로 막혔는데 같은 `rg` 검색을 반복 → ✅ 세션 초반에 `rg --version` 또는 `rg --files -g package.json`로 1회만 확인하고, 실패하면 즉시 PowerShell 검색으로 전환. 파일명 검색은 `Get-ChildItem -Recurse -File -Filter <name>`, 본문 검색은 `Get-ChildItem -Recurse -File | Select-String -Pattern '<term>'`.
+- ❌ `rg` 실행 차단을 구현 blocker로 취급 → ✅ 이 리포의 Windows fallback은 정상 작업 경로다. 검색 결과가 필요할 뿐이면 `Select-String`/`Get-ChildItem`로 계속 진행하고, 최종 보고에는 `rg` 권한 문제 때문에 fallback을 썼다고만 남긴다.
