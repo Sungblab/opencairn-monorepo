@@ -33,10 +33,7 @@ import {
   type ChatMsg,
   type Usage,
 } from "../lib/llm/gemini";
-import type {
-  RetrievalScope,
-  RetrievalChip,
-} from "../lib/chat-retrieval";
+import type { RetrievalScope, RetrievalChip } from "../lib/chat-retrieval";
 import type { AppEnv } from "../lib/types";
 
 // Plan 11A — /api/chat router. Each conversation is owned by exactly one
@@ -296,13 +293,18 @@ async function loadPinContext(
     .select()
     .from(conversations)
     .where(eq(conversations.id, msg.conversationId));
-  if (!convo) return { ok: false, status: 404, error: "conversation not found" };
+  if (!convo)
+    return { ok: false, status: 404, error: "conversation not found" };
   if (convo.ownerUserId !== userId) {
     return { ok: false, status: 403, error: "forbidden" };
   }
 
   if (!(await canWrite(userId, { type: "note", id: noteId }))) {
-    return { ok: false, status: 403, error: "no write permission on target page" };
+    return {
+      ok: false,
+      status: 403,
+      error: "no write permission on target page",
+    };
   }
 
   return { ok: true, citations: msg.citations as Citation[] };
@@ -347,17 +349,14 @@ chatRoutes.post(
   },
 );
 
-// ── Message SSE (Plan 11A Task 6 + Real-LLM Task 8) ────────────────────
+// ── Message SSE (Plan 11A Task 6 + Plan 11B-A Task 8) ──────────────────
 //
-// Plan 11A initially shipped a placeholder echo (`(11A placeholder reply)`)
-// because the worker-side LLM had not been wired through. Task 8 of
-// chat-real-llm-wiring replaces the echo with a real Gemini call via
-// runChat(): retrieval reads attachedChips + ragMode, the provider streams
-// text deltas, and token accounting comes from the provider-reported
-// usageMetadata. LLMNotConfiguredError is mapped to an SSE `event: error`
-// with code `llm_not_configured` so misconfigured operators get a visible
-// signal rather than the silent stub. Refs:
-// docs/review/2026-04-28-completion-claims-audit.md §1.2.
+// Streams real Gemini responses via runChat(): retrieval reads
+// attachedChips + ragMode, the provider streams text deltas, and token
+// accounting comes from the provider-reported usageMetadata.
+// LLMNotConfiguredError is mapped to an SSE `event: error` with code
+// `llm_not_configured` so misconfigured operators get a visible signal
+// rather than a silent failure. Refs: docs/review/2026-04-28-completion-claims-audit.md §1.2.
 chatRoutes.post(
   "/message",
   zValidator("json", SendMessageBodySchema),
@@ -377,7 +376,11 @@ chatRoutes.post(
     // Map conversation scope to retrieval scope.
     const scope: RetrievalScope =
       convo.scopeType === "page"
-        ? { type: "page", workspaceId: convo.workspaceId, noteId: convo.scopeId }
+        ? {
+            type: "page",
+            workspaceId: convo.workspaceId,
+            noteId: convo.scopeId,
+          }
         : convo.scopeType === "project"
           ? {
               type: "project",
@@ -389,7 +392,8 @@ chatRoutes.post(
     // Filter chips: retrieval ignores memory:* in v1.
     const chips: RetrievalChip[] = (convo.attachedChips as AttachedChip[])
       .filter(
-        (c) => c.type === "page" || c.type === "project" || c.type === "workspace",
+        (c) =>
+          c.type === "page" || c.type === "project" || c.type === "workspace",
       )
       .map((c) => ({ type: c.type, id: c.id }) as RetrievalChip);
 
@@ -431,7 +435,9 @@ chatRoutes.post(
         provider = getGeminiProvider();
       } catch (err) {
         const code =
-          err instanceof LLMNotConfiguredError ? "llm_not_configured" : "llm_failed";
+          err instanceof LLMNotConfiguredError
+            ? "llm_not_configured"
+            : "llm_failed";
         await stream.writeSSE({
           event: "error",
           data: JSON.stringify({
@@ -446,7 +452,8 @@ chatRoutes.post(
       const buffer: string[] = [];
       const citations: Citation[] = [];
       let usage: Usage | null = null;
-      let saveSuggestion: { title: string; body_markdown: string } | null = null;
+      let saveSuggestion: { title: string; body_markdown: string } | null =
+        null;
 
       try {
         for await (const chunk of runChat({
