@@ -13337,7 +13337,7 @@ snapshots:
     dependencies:
       '@next/env': 16.2.3
       '@swc/helpers': 0.5.15
-      baseline-browser-mapping: 2.10.23
+      baseline-browser-mapping: 2.10.20
       caniuse-lite: 1.0.30001791
       postcss: 8.4.31
       react: 19.2.5
