@@ -24,6 +24,10 @@ import type { AppEnv } from "../lib/types";
 
 const SCOPE_TARGETS_LIMIT = 10;
 
+function notNull<T>(value: T | null): value is T {
+  return value !== null;
+}
+
 const scopeTargetsQuery = z.object({
   workspaceId: z.string().uuid(),
   q: z.string().trim().min(1).max(64),
@@ -82,8 +86,6 @@ export const searchRoutes = new Hono<AppEnv>()
       // `label` is the raw title — clients render the empty-title
       // fallback in their own locale instead of the API hardcoding
       // "Untitled".
-      type PageHit = { type: "page"; id: string; label: string };
-      type ProjectHit = { type: "project"; id: string; label: string };
       const visibleNotes: ScopeTargetSearchHit[] = (
         await Promise.all(
           noteRows.map(async (row) => {
@@ -94,7 +96,7 @@ export const searchRoutes = new Hono<AppEnv>()
           }),
         )
       )
-        .filter((n): n is PageHit => n !== null)
+        .filter(notNull)
         .slice(0, SCOPE_TARGETS_LIMIT);
 
       const visibleProjects: ScopeTargetSearchHit[] = (
@@ -106,7 +108,7 @@ export const searchRoutes = new Hono<AppEnv>()
               : null;
           }),
         )
-      ).filter((p): p is ProjectHit => p !== null);
+      ).filter(notNull);
 
       // Pages first, then projects — chips usually anchor on the most
       // specific scope, and project rows are less common anyway.

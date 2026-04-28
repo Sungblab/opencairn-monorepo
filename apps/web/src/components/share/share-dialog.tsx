@@ -25,6 +25,7 @@
 // VisualizeDialog / ByokKeyCard.
 
 import { useState } from "react";
+import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -261,7 +262,7 @@ export function ShareDialog({
                     onClick={() => revokePerm.mutate(p.userId)}
                     className="rounded border border-border px-2 py-0.5 text-xs hover:bg-accent"
                   >
-                    ×
+                    <X aria-hidden="true" className="size-3" />
                   </button>
                 </li>
               ))}
