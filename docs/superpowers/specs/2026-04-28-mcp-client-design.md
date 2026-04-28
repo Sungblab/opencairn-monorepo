@@ -28,14 +28,19 @@ OpenCairn 의 12 에이전트가 외부 도구를 호출할 때 매번 자체 ac
   있지만 별도 spec 으로 분리. §11 백로그 참고.
 - **Sampling / Resources / Prompts** MCP feature 안 다룸. 이번 spec 은 **tools** 만.
 
-### 1.1 사용자 시나리오
+### 1.1 사용자 시나리오 (long-term 비전)
 
 - 사용자가 Settings → Integrations → "Add MCP Server" 클릭
 - displayName="My Linear", URL=`https://mcp.linear.app/sse`, Authorization Header=`Bearer lin_xxx` 입력
 - "Test" 버튼 → 서버 `list_tools` 호출 → "23 tools detected (create_issue, list_issues, ...)" 표시
 - 등록 완료
-- 다음에 Compiler 에이전트가 "이슈 만들어" 라는 사용자 요청을 받으면 `mcp__my_linear__create_issue` 툴이
-  자동으로 카탈로그에 들어가 있고, 에이전트가 호출
+- 다음에 (사용자-facing) 에이전트가 "이슈 만들어" 라는 사용자 요청을 받으면 `mcp__my_linear__create_issue`
+  툴이 자동으로 카탈로그에 들어가 있고, 에이전트가 호출
+
+> **Phase 1 의 정합 (§10)**: 위 마지막 단계의 "사용자-facing 에이전트" wiring 은 Phase 2 로 분리. Phase 1 은
+> 인프라(등록/카탈로그/실행/멀티테넌트 격리/SSRF) 검증이 목표라, 이미 `runtime.loop_runner.run_with_tools` 를
+> 쓰는 `tool_demo` 에이전트로 e2e smoke 만 검증한다. (`compiler` 는 deterministic LLM-then-API 파이프라인이라
+> tool-loop 자체가 없음 — Phase 1 통합 대상이 될 수 없음. 자세한 결정 근거는 §10 노트 참고.)
 
 ---
 
@@ -137,8 +142,10 @@ export const mcpServerStatusEnum = pgEnum("mcp_server_status", [
 
 ### 4.3 마이그레이션
 
-- 다음 가용 번호 = **0033** (Plan 8 가 0032 사용 — `MEMORY.md` `project_plan8_complete` 확인).
-- 파일: `packages/db/drizzle/0033_user_mcp_servers.sql` + 메타 snapshot.
+- 번호는 **plan 실행 시점에 `pnpm db:generate` 가 결정**. 본 spec 작성 시점 (2026-04-28) 의 head 는 0034
+  (`note_enrichments`) 로, 지금 돌리면 0035. 병렬 세션이 0035~를 잡을 수 있으므로 hard-code 금지 — Plan
+  11B Phase A 의 migration-number 핸들링과 동일 패턴.
+- 파일: `packages/db/drizzle/<NNNN>_user_mcp_servers.sql` + 메타 snapshot.
 - 롤백: `DROP TABLE user_mcp_servers; DROP TYPE mcp_server_status;` 로 충분 (다른 테이블 참조 없음).
 
 ### 4.4 통합지점
@@ -267,25 +274,38 @@ async def build_mcp_tools_for_user(
 
 ### 6.4 ToolLoopExecutor 통합
 
-기존 `tools = static_tools` 호출지점에서 union:
+Phase 1 통합 지점은 `runtime.loop_runner.run_with_tools` 를 이미 쓰는 에이전트의 `tools` 인자에 union:
 
 ```python
-# 예: apps/worker/src/worker/agents/compiler/agent.py
-static_tools = get_tools_for_agent("compiler", scope="workspace")
-mcp_tools = await build_mcp_tools_for_user(user_id, db_session=session)
+# Phase 1: apps/worker/src/worker/agents/tool_demo/agent.py (run_with_tools 기존 콜)
+static_tools = list(self.tools)  # tool_demo presets (plain/reference/external/full)
+mcp_tools = await build_mcp_tools_for_user(
+    user_id=tool_context["user_id"],
+    db_session=session,
+)
 all_tools = static_tools + mcp_tools
 
-executor = ToolLoopExecutor(
-    provider=provider,
-    tool_registry=registry,  # 동일. registry.execute(name, args) 가 mcp__ prefix 로 분기
-    config=loop_config,
-    tool_context=tool_context,
+return await run_with_tools(
+    provider=self.provider,
+    initial_messages=messages,
     tools=all_tools,
+    tool_context=tool_context,
+    config=config,
 )
 ```
 
-`tool_registry.execute` 분기 — `mcp__` prefix 면 어댑터 closure 의 `run()` 으로 라우팅. registry 는 정적
-`_REGISTRY` 와 per-run mcp tools 둘 다 보는 작은 래퍼 클래스로 (현 `_REGISTRY` 글로벌 dict 안 건드림).
+`run_with_tools` 가 내부에서 `ToolContextRegistry(tools=all_tools, ctx=ctx)` 를 만들고 `ToolLoopExecutor` 에
+넘긴다. 즉 `mcp__<slug>__<tool>` 이름은 다른 builtin 툴과 동일하게 `_by_name` dict 에 들어가 — 추가 prefix
+분기 코드 0줄. 어댑터의 `run()` 이 closure 안의 `auth_header` 로 외부 서버를 호출하므로 격리는 어댑터
+경계가 보장한다 (§7.3 불변식 1~3).
+
+**Phase 2 에서 다른 사용자-facing 에이전트** (chat panel agent / Compiler 가 채팅 진입점을 갖게 되는 경우 등)
+가 `run_with_tools` 를 채택할 때 같은 1줄 union 을 진입점에 추가하면 된다. 별도 어댑터 변경 없음.
+
+> **Compiler 가 Phase 1 대상이 아닌 이유**: 현 `apps/worker/src/worker/agents/compiler/agent.py` 는
+> `provider.generate()` 한 번 + deterministic `AgentApiClient` 호출 파이프라인이라 tool-loop 자체가 없다.
+> Compiler 를 `run_with_tools` 로 마이그하는 작업은 별도 plan 으로, MCP Phase 2 와 무관하게 evaluable 한
+> 단위로 분리한다.
 
 ### 6.5 Workflow / Activity 통합
 
@@ -436,20 +456,28 @@ async def test_call_tool_via_streamable_http(in_process_mcp_http_server):
 
 ### Phase 1 — 본 spec 의 implementation plan 범위
 
-목표: **Compiler 에이전트 1개 + 사용자가 등록한 1개 서버**까지 end-to-end 동작.
+목표: **`tool_demo` 에이전트 (e2e smoke harness) + 사용자가 등록한 1개 서버**까지 end-to-end 동작.
+인프라 검증이 목적 — 사용자-facing UX wiring 은 Phase 2.
 
-- 0033 마이그 + `user_mcp_servers` 테이블
+- 마이그(번호는 plan 실행 시점 결정) + `user_mcp_servers` 테이블
 - API 4개 (`GET/POST/PATCH/DELETE /api/mcp/servers`) + `POST /test`
 - `apps/web` settings UI 1페이지 (등록 폼 + 목록 + Test 버튼). i18n 키 ko/en parity
-- worker `runtime/mcp/` 패키지 + Compiler 에이전트 진입점에 `build_mcp_tools_for_user` 호출
+- worker `runtime/mcp/` 패키지 + `tool_demo.full(provider).run(...)` 진입점에서
+  `build_mcp_tools_for_user` 호출하도록 1줄 union (§6.4)
 - `FEATURE_MCP_CLIENT` flag (default OFF). hosted env 에서만 true
-- E2E smoke 1회
+- E2E smoke 1회 (ngrok + 자작 echo MCP 서버 → tool_demo 호출 → trajectory 에 `mcp__echo__add` 캡처)
 
-### Phase 2 — 다른 11 에이전트 노출
+> Phase 1 통합 대상으로 `tool_demo` 를 고른 이유: 12 에이전트 중 `run_with_tools` 를 이미 쓰는 곳은 `tool_demo`
+> 와 `visualization` 둘뿐. `visualization` 은 `emit_structured_output(ViewSpec)` 로 강제 종료되는 contract 라
+> free-form MCP 호출과 안 맞음. `tool_demo` 는 4 preset (plain/reference/external/full) 중 `full` 이 자연스럽게
+> "모든 builtin 툴 + 사용자가 가져온 MCP 툴" 카탈로그가 되어 시연 가치가 가장 높음.
 
-- 어댑터 자체는 변경 없음 — 각 에이전트 진입점에 1줄 추가
+### Phase 2 — 사용자-facing 에이전트 노출 + 11 에이전트 확대
+
+- App Shell Phase 4 채팅 패널 / 신규 chat agent / Compiler 의 채팅 진입점 등 사용자-facing 에이전트가
+  `run_with_tools` 를 채택하는 시점에 진입점 1줄 union (§6.4) 추가
 - 에이전트별 안전성 검토 (예: 자율 reading 만 하는 Curator 가 destructive 툴 노출되어도 되는지)
-- 별도 plan 또는 Phase 1 plan 후속 task
+- Compiler 가 채팅 진입점을 갖게 되는 경우의 마이그도 여기에 들어옴 (별도 plan 가능)
 
 ### Phase 3 — Workspace 공유 (OQ-1) + OAuth (OQ-2)
 
@@ -497,3 +525,6 @@ async def test_call_tool_via_streamable_http(in_process_mcp_http_server):
 
 - 2026-04-28: 초안 작성. brainstorming 세션에서 7 결정 확정 (등록 단위 / transport / 인증 / 노출 정책 /
   catalog 모델 / failure mode / 백로그 위치).
+- 2026-04-28 (저녁): Phase 1 통합 대상을 `compiler` → `tool_demo` 로 정정 (§1.1, §6.4, §10). Compiler 는
+  현재 tool-loop 를 안 쓰므로 1줄 union 이 적용 안 됨이 plan 작성 중 발견. 마이그 번호도 hard-code 0033
+  → "plan 실행 시점에 `pnpm db:generate` 가 결정" 으로 완화 (병렬 세션과 충돌 방지).
