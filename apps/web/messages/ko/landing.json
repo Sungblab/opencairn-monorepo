@@ -65,7 +65,7 @@
       "title": "opencairn — live compile",
       "compiling": "● compiling",
       "input": "INPUT",
-      "inputItems": ["논문 PDF", "강의·회의 녹음", "영상 · YouTube", "팟캐스트 오디오", "웹 URL · HWP"],
+      "inputItems": ["논문 PDF", "강의·회의 녹음", "영상 · YouTube", "팟캐스트 오디오", "DOCX · PPTX"],
       "agentsHeader": "12 AGENTS",
       "orchestration": "오케스트레이션",
       "status": "● running · 12/12",
@@ -115,7 +115,7 @@
     "title3": "여섯 단계.",
     "sub": "올리는 것이 전부입니다. 나머지 여섯 단계는 에이전트가 알아서 처리합니다. 모든 문장의 출처는 원본 자료로 이어집니다.",
     "steps": [
-      { "n": "01 · INGEST", "title": "가져오기", "body": "PDF · HWP · 오디오 · 영상 · URL · 스캔 이미지. 형식 무관." },
+      { "n": "01 · INGEST", "title": "가져오기", "body": "PDF · DOCX · 오디오 · 영상 · URL · 스캔 이미지. 형식 무관." },
       { "n": "02 · PARSE", "title": "해체", "body": "OCR · 강의 전사 · 자막 · 표 구조. 마크다운으로 정규화." },
       { "n": "03 · EMBED", "title": "의미화", "body": "벡터 공간으로 변환. 비슷한 것끼리 가까워짐." },
       { "n": "04 · COMPILE", "title": "엮기", "body": "12 에이전트가 주제별 위키 초안을 작성합니다." },
