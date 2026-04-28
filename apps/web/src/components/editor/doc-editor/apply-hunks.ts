@@ -14,12 +14,33 @@ import type { DocEditorHunk } from "@opencairn/shared";
 // Hunks within a block apply right-to-left so earlier offsets stay valid
 // after each splice.
 
+export interface ApplyHunksResult {
+  value: Value;
+  appliedCount: number;
+  skippedCount: number;
+}
+
 export function applyHunksToValue(
   value: Value,
   hunks: DocEditorHunk[],
-): Value {
-  if (hunks.length === 0) return value;
+): ApplyHunksResult {
+  if (hunks.length === 0) {
+    return { value, appliedCount: 0, skippedCount: 0 };
+  }
   let mutated = false;
+  let appliedCount = 0;
+  let skippedCount = 0;
+  // Hunks targeting an unknown blockId are skipped at the block-walk
+  // level — count them up-front so a later splice that no-ops doesn't
+  // double-count.
+  const knownBlockIds = new Set<string>();
+  for (const node of value) {
+    if (isElementWithId(node)) knownBlockIds.add(node.id);
+  }
+  for (const h of hunks) {
+    if (!knownBlockIds.has(h.blockId)) skippedCount++;
+  }
+
   const next = value.map((node) => {
     if (!isElementWithId(node)) return node;
     const blockHunks = hunks.filter((h) => h.blockId === node.id);
@@ -37,8 +58,12 @@ export function applyHunksToValue(
         h.originalText,
         h.replacementText,
       );
-      if (result === null) continue; // drift — skip this hunk
+      if (result === null) {
+        skippedCount++;
+        continue;
+      }
       children = result;
+      appliedCount++;
       blockMutated = true;
     }
     if (!blockMutated) return node;
@@ -47,7 +72,11 @@ export function applyHunksToValue(
   });
   // Preserve referential identity when nothing changed so React/Plate
   // memoization paths can short-circuit.
-  return mutated ? next : value;
+  return {
+    value: mutated ? next : value,
+    appliedCount,
+    skippedCount,
+  };
 }
 
 function isElementWithId(

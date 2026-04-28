@@ -12,7 +12,7 @@ describe("applyHunksToValue", () => {
   ];
 
   it("replaces a substring inside a single text node", () => {
-    const next = applyHunksToValue(initial, [
+    const { value: next } = applyHunksToValue(initial, [
       {
         blockId: "b1",
         originalRange: { start: 0, end: 5 },
@@ -29,7 +29,7 @@ describe("applyHunksToValue", () => {
     const stale: Value = [
       { type: "p", id: "b1", children: [{ text: "different content" }] },
     ];
-    const next = applyHunksToValue(stale, [
+    const result = applyHunksToValue(stale, [
       {
         blockId: "b1",
         originalRange: { start: 0, end: 5 },
@@ -37,11 +37,13 @@ describe("applyHunksToValue", () => {
         replacementText: "Hi",
       },
     ]);
-    expect(next).toEqual(stale);
+    expect(result.value).toEqual(stale);
+    expect(result.appliedCount).toBe(0);
+    expect(result.skippedCount).toBe(1);
   });
 
   it("skips hunks targeting unknown block ids", () => {
-    const next = applyHunksToValue(initial, [
+    const result = applyHunksToValue(initial, [
       {
         blockId: "missing",
         originalRange: { start: 0, end: 5 },
@@ -49,7 +51,9 @@ describe("applyHunksToValue", () => {
         replacementText: "Hi",
       },
     ]);
-    expect(next).toEqual(initial);
+    expect(result.value).toEqual(initial);
+    expect(result.appliedCount).toBe(0);
+    expect(result.skippedCount).toBe(1);
   });
 
   it("preserves marks on text outside the hunk range", () => {
@@ -65,7 +69,7 @@ describe("applyHunksToValue", () => {
         ],
       },
     ];
-    const next = applyHunksToValue(styled, [
+    const { value: next } = applyHunksToValue(styled, [
       {
         blockId: "b1",
         originalRange: { start: 0, end: 5 },
@@ -82,8 +86,10 @@ describe("applyHunksToValue", () => {
   });
 
   it("returns the same array reference when no hunks apply", () => {
-    const next = applyHunksToValue(initial, []);
-    expect(next).toBe(initial);
+    const result = applyHunksToValue(initial, []);
+    expect(result.value).toBe(initial);
+    expect(result.appliedCount).toBe(0);
+    expect(result.skippedCount).toBe(0);
   });
 
   it("applies multiple non-overlapping hunks in a single block", () => {
@@ -92,7 +98,7 @@ describe("applyHunksToValue", () => {
     const v: Value = [
       { type: "p", id: "b1", children: [{ text: "alpha bravo charlie" }] },
     ];
-    const next = applyHunksToValue(v, [
+    const result = applyHunksToValue(v, [
       {
         blockId: "b1",
         originalRange: { start: 0, end: 5 },
@@ -106,7 +112,32 @@ describe("applyHunksToValue", () => {
         replacementText: "C",
       },
     ]);
-    const block = next[0] as { children: Array<{ text: string }> };
+    const block = result.value[0] as { children: Array<{ text: string }> };
     expect(block.children.map((c) => c.text).join("")).toBe("A bravo C");
+    expect(result.appliedCount).toBe(2);
+    expect(result.skippedCount).toBe(0);
+  });
+
+  it("reports both applied and skipped counts on partial drift", () => {
+    const v: Value = [
+      { type: "p", id: "b1", children: [{ text: "hello world" }] },
+    ];
+    const result = applyHunksToValue(v, [
+      {
+        blockId: "b1",
+        originalRange: { start: 0, end: 5 },
+        originalText: "hello",
+        replacementText: "Hi",
+      },
+      {
+        // wrong original — drifts and skips
+        blockId: "b1",
+        originalRange: { start: 6, end: 11 },
+        originalText: "WORLD",
+        replacementText: "Earth",
+      },
+    ]);
+    expect(result.appliedCount).toBe(1);
+    expect(result.skippedCount).toBe(1);
   });
 });

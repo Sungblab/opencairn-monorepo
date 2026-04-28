@@ -18,6 +18,7 @@ import { Plate, PlateContent } from "platejs/react";
 import debounce from "lodash.debounce";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
+import { toast } from "sonner";
 
 import {
   useCollaborativeEditor,
@@ -142,6 +143,7 @@ export function NoteEditor({
   // to "editor" and we want the share UI strings to live in their own JSON
   // file (one feature per namespace, easier i18n parity).
   const tShare = useTranslations("shareDialog");
+  const tDocEditor = useTranslations("docEditor");
   const [shareOpen, setShareOpen] = useState(false);
 
   // Plan 11B Phase A — slash AI commands (`/improve`, `/translate`, etc.).
@@ -350,7 +352,7 @@ export function NoteEditor({
 
   const handleAcceptAll = useCallback(() => {
     if (docEditor.state.status !== "ready") return;
-    const next = applyHunksToValue(
+    const result = applyHunksToValue(
       editor.children as unknown as Value,
       docEditor.state.payload.hunks,
     );
@@ -359,12 +361,19 @@ export function NoteEditor({
     // full plugin set and would force us to re-declare the same shape.
     (
       editor.tf as unknown as { setValue: (v: Value) => void }
-    ).setValue(next);
+    ).setValue(result.value);
+    // Document drifted between selection capture and accept — at least one
+    // hunk no longer matches its expected `originalText`. The successful
+    // hunks still apply (right-to-left splice keeps offsets valid for the
+    // ones that did match), but warn the user so they re-check the doc.
+    if (result.skippedCount > 0) {
+      toast.warning(tDocEditor("error.selection_race"));
+    }
     setSheetOpen(false);
     setPendingCommand(null);
     setPendingSelection(null);
     docEditor.reset();
-  }, [editor, docEditor]);
+  }, [editor, docEditor, tDocEditor]);
 
   const handleRejectAll = useCallback(() => {
     setSheetOpen(false);
