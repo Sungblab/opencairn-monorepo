@@ -44,7 +44,7 @@
     "cytoscape-dagre": "^2.5",
     "cytoscape-fcose": "^2.2",
     "eventsource-parser": "^3.0.8",
-    "isomorphic-dompurify": "^2.27.0",
+    "isomorphic-dompurify": "^3.10.0",
     "katex": "^0.16",
     "lodash.debounce": "^4",
     "lucide-react": "^0.460.0",
