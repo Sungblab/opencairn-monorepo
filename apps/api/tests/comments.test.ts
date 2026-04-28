@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createApp } from "../src/app.js";
-import { db, comments, commentMentions, eq } from "@opencairn/db";
+import { db, comments, commentMentions, eq, user } from "@opencairn/db";
 import {
+  createUser,
   seedMultiRoleWorkspace,
   type SeedMultiRoleResult,
 } from "./helpers/seed.js";
@@ -46,6 +47,32 @@ describe("POST /api/notes/:noteId/comments", () => {
         }),
       ]),
     );
+  });
+
+  it("rejects user mentions outside the note workspace", async () => {
+    const app = createApp();
+    const outsider = await createUser();
+    try {
+      const res = await app.request(`/api/notes/${seed.noteId}/comments`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: await signSessionCookie(seed.editorUserId),
+        },
+        body: JSON.stringify({
+          body: "hi @[user:" + outsider.id + "]",
+        }),
+      });
+
+      expect(res.status).toBe(400);
+      const rows = await db
+        .select()
+        .from(commentMentions)
+        .where(eq(commentMentions.mentionedId, outsider.id));
+      expect(rows).toEqual([]);
+    } finally {
+      await db.delete(user).where(eq(user.id, outsider.id));
+    }
   });
 
   it("viewer (no commenter) cannot create", async () => {
@@ -257,6 +284,44 @@ describe("PATCH /api/comments/:id", () => {
       .from(commentMentions)
       .where(eq(commentMentions.commentId, id));
     expect(after.map((r) => r.mentionedId)).toEqual([Y]);
+  });
+
+  it("rejects edited user mentions outside the note workspace", async () => {
+    const app = createApp();
+    const outsider = await createUser();
+    try {
+      const createRes = await app.request(
+        `/api/notes/${seed.noteId}/comments`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            cookie: await signSessionCookie(seed.editorUserId),
+          },
+          body: JSON.stringify({ body: "orig" }),
+        },
+      );
+      expect(createRes.status).toBe(201);
+      const { id } = await createRes.json();
+
+      const patchRes = await app.request(`/api/comments/${id}`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          cookie: await signSessionCookie(seed.editorUserId),
+        },
+        body: JSON.stringify({ body: `hi @[user:${outsider.id}]` }),
+      });
+      expect(patchRes.status).toBe(400);
+
+      const rows = await db
+        .select()
+        .from(commentMentions)
+        .where(eq(commentMentions.commentId, id));
+      expect(rows).toEqual([]);
+    } finally {
+      await db.delete(user).where(eq(user.id, outsider.id));
+    }
   });
 });
 

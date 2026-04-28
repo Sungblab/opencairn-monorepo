@@ -8,7 +8,9 @@ import {
   workspaceMembers,
   workspaceInvites,
   projects,
+  projectPermissions,
   notes,
+  pagePermissions,
   researchRuns,
   user,
   userPreferences,
@@ -330,6 +332,7 @@ workspaceRoutes.get(
     const limit = Number.isFinite(limitParsed)
       ? Math.max(1, Math.min(50, limitParsed))
       : 20;
+    const userId = c.get("user").id;
     const rows = await db
       .select({
         id: notes.id,
@@ -340,23 +343,46 @@ workspaceRoutes.get(
       })
       .from(notes)
       .innerJoin(projects, eq(projects.id, notes.projectId))
+      .innerJoin(
+        workspaceMembers,
+        and(
+          eq(workspaceMembers.workspaceId, notes.workspaceId),
+          eq(workspaceMembers.userId, userId),
+        ),
+      )
+      .leftJoin(
+        pagePermissions,
+        and(
+          eq(pagePermissions.pageId, notes.id),
+          eq(pagePermissions.userId, userId),
+        ),
+      )
+      .leftJoin(
+        projectPermissions,
+        and(
+          eq(projectPermissions.projectId, notes.projectId),
+          eq(projectPermissions.userId, userId),
+        ),
+      )
       .where(
         and(
           eq(notes.workspaceId, workspaceId),
           isNull(notes.deletedAt),
           sql`${notes.title} ILIKE ${"%" + q + "%"}`,
+          readableNoteSql(),
         ),
       )
       .orderBy(desc(notes.updatedAt))
       .limit(limit);
+
     return c.json({ results: rows });
   },
 );
 
 // 대시보드 우측 카드 — 최근 업데이트된 노트 N개 (App Shell Phase 5 Task 1).
-// limit 1~50 (기본 5). 권한: workspace member이면 충분 (사이드바와 동일하게
-// per-note canRead는 클라이언트에서 라우팅 시점에 다시 확인). project 이름까지
-// JOIN해서 한 번에 평탄화 — 카드에서 라벨로 사용.
+// limit 1~50 (기본 5). Workspace member gate 뒤에도 private page 제목이
+// 새지 않도록 note 단위 canRead로 한 번 더 필터링한다. mentions/search와
+// 동일하게 overfetch 후 limit까지 잘라 response shape는 유지한다.
 workspaceRoutes.get(
   "/:workspaceId/recent-notes",
   requireWorkspaceRole("member"),
@@ -368,6 +394,7 @@ workspaceRoutes.get(
     const limit = Number.isFinite(limitParsed)
       ? Math.max(1, Math.min(50, limitParsed))
       : 5;
+    const userId = c.get("user").id;
 
     const rows = await db
       .select({
@@ -379,9 +406,37 @@ workspaceRoutes.get(
       })
       .from(notes)
       .innerJoin(projects, eq(projects.id, notes.projectId))
-      .where(and(eq(notes.workspaceId, workspaceId), isNull(notes.deletedAt)))
+      .innerJoin(
+        workspaceMembers,
+        and(
+          eq(workspaceMembers.workspaceId, notes.workspaceId),
+          eq(workspaceMembers.userId, userId),
+        ),
+      )
+      .leftJoin(
+        pagePermissions,
+        and(
+          eq(pagePermissions.pageId, notes.id),
+          eq(pagePermissions.userId, userId),
+        ),
+      )
+      .leftJoin(
+        projectPermissions,
+        and(
+          eq(projectPermissions.projectId, notes.projectId),
+          eq(projectPermissions.userId, userId),
+        ),
+      )
+      .where(
+        and(
+          eq(notes.workspaceId, workspaceId),
+          isNull(notes.deletedAt),
+          readableNoteSql(),
+        ),
+      )
       .orderBy(desc(notes.updatedAt))
       .limit(limit);
+
     return c.json({ notes: rows });
   },
 );
@@ -417,3 +472,18 @@ workspaceRoutes.get(
     return c.json({ members: rows });
   },
 );
+
+function readableNoteSql() {
+  return sql`(
+    ${workspaceMembers.role} IN ('owner', 'admin')
+    OR (${pagePermissions.role} IS NOT NULL AND ${pagePermissions.role} <> 'none')
+    OR (
+      ${pagePermissions.role} IS NULL
+      AND ${notes.inheritParent} = true
+      AND (
+        ${projectPermissions.role} IS NOT NULL
+        OR ${workspaceMembers.role} = 'member'
+      )
+    )
+  )`;
+}
