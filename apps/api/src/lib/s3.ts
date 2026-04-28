@@ -27,6 +27,17 @@ function parseEndpoint(raw: string | undefined): { host: string; port: number; u
 
 let _client: Client | null = null;
 
+function requiredS3Env(name: "S3_ACCESS_KEY" | "S3_SECRET_KEY"): string {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    throw new Error(
+      `${name} is required to initialize the S3 client. ` +
+        "Set S3_ACCESS_KEY and S3_SECRET_KEY explicitly.",
+    );
+  }
+  return value;
+}
+
 export function getS3Client(): Client {
   if (_client) return _client;
   const { host, port, useSSL } = parseEndpoint(process.env.S3_ENDPOINT);
@@ -34,8 +45,8 @@ export function getS3Client(): Client {
     endPoint: host,
     port,
     useSSL,
-    accessKey: process.env.S3_ACCESS_KEY ?? "minioadmin",
-    secretKey: process.env.S3_SECRET_KEY ?? "minioadmin",
+    accessKey: requiredS3Env("S3_ACCESS_KEY"),
+    secretKey: requiredS3Env("S3_SECRET_KEY"),
   });
   return _client;
 }
