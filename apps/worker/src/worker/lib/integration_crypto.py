@@ -74,6 +74,15 @@ def decrypt_token(blob: bytes) -> str:
         # operator misconfig and must surface, not be swallowed as a routine
         # "wrong key" GCM auth failure.
         old_key = _get_old_key()
-        if old_key is None:
-            raise current_err
-        return AESGCM(old_key).decrypt(iv, ct + tag, None).decode("utf-8")
+        if old_key is not None:
+            try:
+                return (
+                    AESGCM(old_key).decrypt(iv, ct + tag, None).decode("utf-8")
+                )
+            except Exception:
+                # Both keys failed. Fall through to re-raise current_err so
+                # the caller's error identity stays stable regardless of
+                # whether _OLD was set — see
+                # docs/contributing/byok-key-rotation.md "Both keys wrong".
+                pass
+        raise current_err

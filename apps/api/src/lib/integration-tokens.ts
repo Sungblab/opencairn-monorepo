@@ -79,7 +79,17 @@ export function decryptToken(encrypted: Buffer): string {
     // length). That's an operator misconfig and must surface, not be
     // swallowed as a routine "wrong key" GCM auth failure.
     const oldKey = getOldKey();
-    if (!oldKey) throw currentErr;
-    return tryDecryptWith(oldKey, iv, tag, ct);
+    if (oldKey) {
+      try {
+        return tryDecryptWith(oldKey, iv, tag, ct);
+      } catch {
+        // Both keys failed. Fall through to re-throw currentErr so the
+        // caller's error identity stays stable regardless of whether _OLD
+        // was set — see docs/contributing/byok-key-rotation.md "Both keys
+        // wrong". users.ts:165's `{registered: false}` branch depends on
+        // this being the canonical current-key auth failure.
+      }
+    }
+    throw currentErr;
   }
 }

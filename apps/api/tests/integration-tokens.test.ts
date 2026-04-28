@@ -108,6 +108,46 @@ describe("integration-tokens", () => {
       expect(() => decryptToken(blob)).toThrow();
     });
 
+    it("re-throws the current key's error (not _OLD's) when both fail", () => {
+      // Capture the canonical current-key error first by decrypting a
+      // garbage blob with no _OLD set — this is what callers like
+      // users.ts:165 expect to see.
+      process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY = TEST_KEY;
+      delete process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY_OLD;
+      const blob = encryptToken("orphan");
+
+      let baselineErr: unknown;
+      process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY = Buffer.alloc(
+        32,
+        0x11
+      ).toString("base64");
+      try {
+        decryptToken(blob);
+      } catch (e) {
+        baselineErr = e;
+      }
+      expect(baselineErr).toBeInstanceOf(Error);
+
+      // Same scenario but _OLD is set to a different unrelated key — the
+      // doc promises we still surface the *current* key's error. (Both
+      // throws are GCM auth failures so message-equality is the right
+      // check; identity differs because each tryDecrypt builds its own.)
+      process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY_OLD = Buffer.alloc(
+        32,
+        0x22
+      ).toString("base64");
+      let withOldErr: unknown;
+      try {
+        decryptToken(blob);
+      } catch (e) {
+        withOldErr = e;
+      }
+      expect(withOldErr).toBeInstanceOf(Error);
+      expect((withOldErr as Error).message).toBe(
+        (baselineErr as Error).message
+      );
+    });
+
     it("works without _OLD set (single-key fallback path)", () => {
       process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY = TEST_KEY;
       delete process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY_OLD;

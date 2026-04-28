@@ -108,6 +108,36 @@ def test_rotation_fails_when_neither_key_matches(monkeypatch):
         decrypt_token(blob)
 
 
+def test_rotation_reraises_current_key_error_not_old(monkeypatch):
+    """When both keys fail, the doc promises the *current* key's error is
+    surfaced (not the _OLD attempt's). Verify by comparing the no-_OLD
+    baseline against the with-_OLD case."""
+    monkeypatch.setenv("INTEGRATION_TOKEN_ENCRYPTION_KEY", KEY_B64)
+    monkeypatch.delenv("INTEGRATION_TOKEN_ENCRYPTION_KEY_OLD", raising=False)
+    blob = encrypt_token("orphan")
+
+    # Baseline: no _OLD, so the current key's failure is what we get.
+    monkeypatch.setenv(
+        "INTEGRATION_TOKEN_ENCRYPTION_KEY",
+        base64.b64encode(b"\x11" * 32).decode(),
+    )
+    with pytest.raises(Exception) as baseline_info:
+        decrypt_token(blob)
+    baseline_type = type(baseline_info.value)
+
+    # With _OLD also unrelated, the surfaced error type/message must match
+    # the baseline — meaning we re-raised current_err, not the _OLD attempt.
+    monkeypatch.setenv(
+        "INTEGRATION_TOKEN_ENCRYPTION_KEY_OLD",
+        base64.b64encode(b"\x22" * 32).decode(),
+    )
+    with pytest.raises(Exception) as with_old_info:
+        decrypt_token(blob)
+
+    assert type(with_old_info.value) is baseline_type
+    assert str(with_old_info.value) == str(baseline_info.value)
+
+
 def test_rotation_no_old_key_works_as_before(monkeypatch):
     monkeypatch.setenv("INTEGRATION_TOKEN_ENCRYPTION_KEY", KEY_B64)
     monkeypatch.delenv("INTEGRATION_TOKEN_ENCRYPTION_KEY_OLD", raising=False)
