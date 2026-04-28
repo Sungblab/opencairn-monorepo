@@ -126,3 +126,13 @@ async def test_ollama_stream_interaction_raises(provider):
 async def test_ollama_cancel_interaction_raises(provider):
     with pytest.raises(NotImplementedError):
         await provider.cancel_interaction("int_1")
+
+
+def test_ollama_supports_ocr_false(provider):
+    assert provider.supports_ocr() is False
+
+
+@pytest.mark.asyncio
+async def test_ollama_ocr_raises_with_actionable_message(provider):
+    with pytest.raises(NotImplementedError, match="Gemini provider"):
+        await provider.ocr(b"\x89PNG\r\n", mime_type="image/png")
