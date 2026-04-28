@@ -5,7 +5,15 @@ import { signSessionCookie } from "./helpers/session.js";
 import { _resetRateLimits } from "../src/lib/rate-limit.js";
 
 // Mock Temporal client — unit tests must not require a running server.
-const startSpy = vi.fn().mockResolvedValue(undefined);
+//
+// `vi.hoisted` is required: vitest hoists `vi.mock(...)` calls above all
+// imports + top-level statements, so a plain `const startSpy = vi.fn()`
+// at module scope was still in the temporal dead zone when the factory
+// ran (`Cannot access 'startSpy' before initialization`). Wrapping the
+// declaration in `vi.hoisted` lifts it above the hoisted mock factory.
+const { startSpy } = vi.hoisted(() => ({
+  startSpy: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock("../src/lib/temporal-client.js", () => ({
   getTemporalClient: vi.fn().mockResolvedValue({
     workflow: { start: startSpy },

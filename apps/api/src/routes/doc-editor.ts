@@ -23,9 +23,18 @@ import type { AppEnv } from "../lib/types";
 
 export const docEditorRoutes = new Hono<AppEnv>();
 
-// Whole-router feature gate. Off by default — flag flip happens manually
-// after staging verification. Mirrors research route's pattern.
-docEditorRoutes.use("*", async (c, next) => {
+// Feature gate scoped to doc-editor's own paths.
+//
+// IMPORTANT: this MUST NOT be `use("*")`. The router is mounted with
+// `app.route("/api", docEditorRoutes)`, so a wildcard middleware also fires
+// on every other `/api/*` request — comments, share, etc. — and the off
+// branch's 404 leaked into all of them, breaking 15 unrelated tests in
+// `comments.test.ts` + `comment-reply-notification.test.ts` (PR #67/#84
+// surfaced this once the API tests could actually run).
+//
+// Scope to doc-editor's own routes via the path pattern instead, so the
+// gate only sees requests intended for this router.
+docEditorRoutes.use("/notes/:noteId/doc-editor/*", async (c, next) => {
   const enabled =
     (process.env.FEATURE_DOC_EDITOR_SLASH ?? "false").toLowerCase() === "true";
   if (!enabled) return c.json({ error: "not_found" }, 404);
