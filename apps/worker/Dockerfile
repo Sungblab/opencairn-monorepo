@@ -5,7 +5,7 @@
 # the LangGraph agent runtime (Plan 12/Plan 4). The CMD starts the Temporal
 # worker entrypoint; the agent runtime is imported by activities, not run as a
 # standalone process, so a single container suffices for v0.1.
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
