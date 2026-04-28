@@ -17,7 +17,8 @@ import { CodeBlockPlugin, CodeLinePlugin } from "@platejs/code-block/react";
 import { Plate, PlateContent } from "platejs/react";
 import debounce from "lodash.debounce";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
+import { toast } from "sonner";
 
 import {
   useCollaborativeEditor,
@@ -37,7 +38,19 @@ import {
 } from "./editor-toolbar";
 import { latexPlugins } from "./plugins/latex";
 import { PresenceStack } from "./PresenceStack";
-import { SlashMenu, type SlashEditor } from "./plugins/slash";
+import { SlashMenu, type SlashEditor, type SlashAiKey } from "./plugins/slash";
+import {
+  InlineDiffSheet,
+  TRANSLATE_LANGUAGES,
+  type TranslateLanguage,
+} from "./doc-editor/inline-diff-sheet";
+import { applyHunksToValue } from "./doc-editor/apply-hunks";
+import {
+  readBlockSelection,
+  type BlockSelectionEditor,
+} from "./doc-editor/read-block-selection";
+import { useDocEditorCommand } from "@/hooks/use-doc-editor-command";
+import type { Value } from "platejs";
 import {
   createWikiLinkPlugin,
   WikiLinkCombobox,
@@ -130,7 +143,30 @@ export function NoteEditor({
   // to "editor" and we want the share UI strings to live in their own JSON
   // file (one feature per namespace, easier i18n parity).
   const tShare = useTranslations("shareDialog");
+  const tDocEditor = useTranslations("docEditor");
   const [shareOpen, setShareOpen] = useState(false);
+
+  // Plan 11B Phase A — slash AI commands (`/improve`, `/translate`, etc.).
+  // Gated client-side by NEXT_PUBLIC_FEATURE_DOC_EDITOR_SLASH so the menu
+  // items only render when the backend route + worker are also live; the
+  // API enforces the same gate server-side, so a stale browser would only
+  // see 404s here regardless.
+  const aiSlashEnabled =
+    process.env.NEXT_PUBLIC_FEATURE_DOC_EDITOR_SLASH === "true";
+  const docEditor = useDocEditorCommand();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [pendingCommand, setPendingCommand] = useState<SlashAiKey | null>(
+    null,
+  );
+  const [pendingSelection, setPendingSelection] = useState<ReturnType<
+    typeof readBlockSelection
+  > | null>(null);
+  const locale = useLocale();
+  const defaultTranslateTarget: TranslateLanguage =
+    locale === "ko" ? "en" : "ko";
+  const [translateLanguage, setTranslateLanguage] = useState<TranslateLanguage>(
+    defaultTranslateTarget,
+  );
 
   // ── Title save path (PATCH /notes/:id with { title } only) ────────────
   // Content persists via Yjs; only title/folderId still flow through the
@@ -275,6 +311,77 @@ export function NoteEditor({
     return () => window.removeEventListener("keydown", onKey);
   }, [debouncedPatchTitle, patchTitle, title]);
 
+  const handleAiCommand = useCallback(
+    (cmd: SlashAiKey) => {
+      if (readOnly) return;
+      const selection = readBlockSelection(
+        editor as unknown as BlockSelectionEditor,
+      );
+      // Silent no-op when there's no usable selection (empty block, no id,
+      // over the 4000-char ceiling). The user retries; T13 will surface a
+      // hint here once the toast plumbing lands.
+      if (!selection) return;
+      setPendingCommand(cmd);
+      setPendingSelection(selection);
+      setSheetOpen(true);
+      void docEditor.run(noteId, cmd, {
+        selection,
+        documentContextSnippet: "",
+        ...(cmd === "translate" ? { language: translateLanguage } : {}),
+      });
+    },
+    [editor, readOnly, docEditor, noteId, translateLanguage],
+  );
+
+  const handleLanguageChange = useCallback(
+    (lang: TranslateLanguage) => {
+      if (!TRANSLATE_LANGUAGES.includes(lang)) return;
+      setTranslateLanguage(lang);
+      // Re-fire the workflow with the new language. The hook aborts the
+      // previous in-flight fetch on every `run`, so old SSE frames can't
+      // bleed into the new diff sheet.
+      if (pendingCommand !== "translate" || !pendingSelection) return;
+      void docEditor.run(noteId, "translate", {
+        selection: pendingSelection,
+        documentContextSnippet: "",
+        language: lang,
+      });
+    },
+    [pendingCommand, pendingSelection, docEditor, noteId],
+  );
+
+  const handleAcceptAll = useCallback(() => {
+    if (docEditor.state.status !== "ready") return;
+    const result = applyHunksToValue(
+      editor.children as unknown as Value,
+      docEditor.state.payload.hunks,
+    );
+    // v49: `editor.tf.setValue(value)` replaces the whole document. Cast
+    // through unknown — the PlateEditor generic parameterises tf with the
+    // full plugin set and would force us to re-declare the same shape.
+    (
+      editor.tf as unknown as { setValue: (v: Value) => void }
+    ).setValue(result.value);
+    // Document drifted between selection capture and accept — at least one
+    // hunk no longer matches its expected `originalText`. The successful
+    // hunks still apply (right-to-left splice keeps offsets valid for the
+    // ones that did match), but warn the user so they re-check the doc.
+    if (result.skippedCount > 0) {
+      toast.warning(tDocEditor("error.selection_race"));
+    }
+    setSheetOpen(false);
+    setPendingCommand(null);
+    setPendingSelection(null);
+    docEditor.reset();
+  }, [editor, docEditor, tDocEditor]);
+
+  const handleRejectAll = useCallback(() => {
+    setSheetOpen(false);
+    setPendingCommand(null);
+    setPendingSelection(null);
+    docEditor.reset();
+  }, [docEditor]);
+
   const actions: ToolbarActions = useMemo(
     () => ({
       toggleMark: (mark: ToolbarMark) => {
@@ -335,7 +442,23 @@ export function NoteEditor({
             ctx={{ wsSlug, projectId }}
             editor={editor as unknown as Parameters<typeof WikiLinkCombobox>[0]["editor"]}
           />
-          <SlashMenu editor={editor as unknown as SlashEditor} />
+          <SlashMenu
+            editor={editor as unknown as SlashEditor}
+            aiEnabled={aiSlashEnabled && !readOnly}
+            onAiCommand={handleAiCommand}
+          />
+          {aiSlashEnabled && (
+            <InlineDiffSheet
+              open={sheetOpen}
+              state={docEditor.state}
+              onAcceptAll={handleAcceptAll}
+              onRejectAll={handleRejectAll}
+              onClose={handleRejectAll}
+              currentCommand={pendingCommand ?? undefined}
+              currentLanguage={translateLanguage}
+              onLanguageChange={handleLanguageChange}
+            />
+          )}
           <div className="mx-auto w-full max-w-[720px] flex-1 px-8 py-8">
             <div className="flex items-start justify-between gap-4">
               <input

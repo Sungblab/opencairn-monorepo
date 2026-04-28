@@ -40,21 +40,25 @@ test.describe("Plan 11A — Chat Scope Foundation", () => {
     await expect(page.getByRole("button", { name: "보내기" })).toBeVisible();
   });
 
-  test("sends a message and receives the placeholder reply with cost badge", async ({
+  test.skip("sends a message and receives the placeholder reply with cost badge", async ({
     page,
   }) => {
     await page.goto(`/ko/app/w/${session.wsSlug}/chat-scope`);
     await page.getByPlaceholder("어떻게 도와드릴까요?").fill("test prompt");
     await page.getByRole("button", { name: "보내기" }).click();
-    // Placeholder reply text: see apps/api/src/routes/chat.ts (the SSE
-    // route writes "(11A placeholder reply)" verbatim).
+    // SKIPPED: Placeholder reply "(11A placeholder reply)" was removed in
+    // Plan 11B-A real-LLM wiring. Responses from Gemini are non-deterministic
+    // and cannot be asserted on a literal text match. Follow-up: mock Gemini
+    // API to return a deterministic fixture. See docs/review/2026-04-28-completion-claims-audit.md.
     await expect(page.getByText("(11A placeholder reply)")).toBeVisible();
     // Cost badge format: `−<amount>원`. The placeholder reply produces a
     // sub-1원 cost so we assert the "원" suffix is present.
     await expect(page.getByText(/원/)).toBeVisible();
   });
 
-  test("switching to Expand mode flips the dropdown label", async ({ page }) => {
+  test("switching to Expand mode flips the dropdown label", async ({
+    page,
+  }) => {
     await page.goto(`/ko/app/w/${session.wsSlug}/chat-scope`);
     // Open the RAG toggle.
     await page.getByRole("button", { name: "엄격" }).click();

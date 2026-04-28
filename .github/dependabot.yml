@@ -1,0 +1,161 @@
+version: 2
+
+# Monthly cadence — weekly was producing ~10 PRs every Monday across the six
+# ecosystems below. Monthly + aggressive grouping keeps the merge queue
+# tractable for a small team. Security updates ship continuously regardless
+# of this schedule — Dependabot's security alert track is independent.
+#
+# Companion: `.github/workflows/dependabot-auto-merge.yml` auto-merges
+# minor+patch PRs once CI is green, so most of these never need a human.
+# Majors still open as individual PRs and require manual review.
+#
+# NOTE: Dependabot's config parser does NOT support YAML aliases / merge keys
+# (`&anchor` + `<<: *anchor`), nor does it allow custom top-level keys. Every
+# `schedule:` block must be inlined verbatim — repetition is the cost of a
+# parseable config. See:
+# https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference
+updates:
+  # Root + every workspace pnpm manifest. Setting `directory: "/"` with the
+  # pnpm package-ecosystem covers the workspace lockfile + every package.json
+  # under `apps/*` / `packages/*` automatically.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    # Foundational deps where a major bump touches runtime behavior across
+    # the whole monorepo — autonomous merge isn't safe even when CI is
+    # green (most of the surface is type-level or covered by happy-path
+    # tests). Patch + minor still flow normally; majors get a manual
+    # migration plan.
+    #   - zod: every Hono zValidator + packages/shared schema
+    #   - pino: log fmt/transport API
+    #   - @sentry/node: APM init/transport
+    #   - @hocuspocus/server: collab protocol
+    #   - lucide-react: icon API surface
+    #   - pdfjs-dist: ESM/worker URL changes since v4
+    ignore:
+      - dependency-name: "zod"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "pino"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@sentry/node"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@sentry/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@hocuspocus/server"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@hocuspocus/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "lucide-react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "pdfjs-dist"
+        update-types: ["version-update:semver-major"]
+    groups:
+      # Single catch-all for minor + patch across the entire JS workspace.
+      # Previously split into typescript / eslint / next / plate / testing
+      # groups — that produced 5–6 PRs/week. One bundled PR is fine because
+      # the auto-merge workflow handles the green case without humans.
+      # Majors continue to open as individual PRs (which we want — majors
+      # deserve human review).
+      npm-minor-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Python worker.
+  - package-ecosystem: "pip"
+    directory: "/apps/worker"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+    open-pull-requests-limit: 2
+    # langgraph + langchain-core were removed from the worker in commit
+    # b4d716b ("retire unused langgraph integration"). Dependabot kept
+    # opening bumps for them — silence the noise here. Re-enable if/when
+    # the agent runtime swaps back to LangGraph.
+    ignore:
+      - dependency-name: "langgraph"
+      - dependency-name: "langgraph-*"
+      - dependency-name: "langchain-core"
+      - dependency-name: "langchain-*"
+    groups:
+      python-minor-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions versions.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+    open-pull-requests-limit: 1
+    groups:
+      actions-minor-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Docker base images for the four Dockerfiles.
+  #
+  # Major-version bumps for `node` and `python` are ignored across all four
+  # services because:
+  #   - `node` 22 → 25 alpine (PR #68/#69/#71) broke the Docker build job in
+  #     CI and skipped the active LTS (24); upgrade in one deliberate step.
+  #   - `python` 3.12 → 3.14 (PR #75) breaks the worker — the system
+  #     `python3-uno` bridge that unoserver depends on is pinned to whatever
+  #     Debian ships, and the `uv.lock` resolves against 3.12.
+  # Patch + minor bumps still flow normally.
+  #
+  # Each Dockerfile gets its own ecosystem entry (Dependabot requires it),
+  # but `open-pull-requests-limit: 1` per service caps the noise — at most
+  # 4 docker PRs per month, and most months will produce 0–1 since base
+  # images don't churn that often.
+  - package-ecosystem: "docker"
+    directory: "/apps/api"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+    open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: "docker"
+    directory: "/apps/web"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+    open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: "docker"
+    directory: "/apps/hocuspocus"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+    open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: "docker"
+    directory: "/apps/worker"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+    open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major"]

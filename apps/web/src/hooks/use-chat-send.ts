@@ -15,6 +15,8 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { createParser } from "eventsource-parser";
 
 const isObj = (v: unknown): v is Record<string, unknown> =>
@@ -29,6 +31,11 @@ export interface StreamingAgentMessage {
   status: { phrase?: string } | null;
   citations: unknown[];
   save_suggestion: unknown | null;
+  // Populated when the route emits `event: error` mid-stream. `done` still
+  // arrives separately and triggers the live → null reset; this field lives
+  // on the in-flight preview only and is not persisted (the agent row is
+  // finalized server-side with status='failed').
+  error: { message: string; code?: string } | null;
 }
 
 const initialLive: StreamingAgentMessage = {
@@ -38,6 +45,7 @@ const initialLive: StreamingAgentMessage = {
   status: null,
   citations: [],
   save_suggestion: null,
+  error: null,
 };
 
 export interface SendInput {
@@ -48,6 +56,7 @@ export interface SendInput {
 
 export function useChatSend(threadId: string | null) {
   const qc = useQueryClient();
+  const t = useTranslations("chat.errors");
   const [live, setLive] = useState<StreamingAgentMessage | null>(null);
   const controller = useRef<AbortController | null>(null);
 
@@ -130,6 +139,23 @@ export function useChatSend(threadId: string | null) {
                 return isObj(payload)
                   ? { ...prev, save_suggestion: payload }
                   : prev;
+              case "error": {
+                // Surface the failure to the user via the existing toast
+                // surface. The route still emits `done` after `error` (with
+                // status='failed') — that's what clears `live`, not this
+                // branch. Toast text is i18n'd via `chat.errors.streamFailed`.
+                toast.error(t("streamFailed"));
+                const err =
+                  isObj(payload) && typeof payload.message === "string"
+                    ? {
+                        message: payload.message,
+                        ...(typeof payload.code === "string"
+                          ? { code: payload.code }
+                          : {}),
+                      }
+                    : { message: "stream_failed" };
+                return { ...prev, error: err };
+              }
               case "done":
                 return isObj(payload) && typeof payload.id === "string"
                   ? { ...prev, id: payload.id }

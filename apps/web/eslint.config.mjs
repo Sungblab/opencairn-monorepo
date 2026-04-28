@@ -40,6 +40,11 @@ export default [
               "^⌘ K$",
               ":\\s*\\[",
               "\\]",
+              // decorative glyphs in icon buttons — spoken label is on aria-label,
+              // not the visible character. `×` is U+00D7 (close), `🤖` is U+1F916
+              // (AI accent prefix beside a translated label).
+              "^×$",
+              "🤖",
             ],
           },
         },

@@ -24,6 +24,10 @@ import type { AppEnv } from "../lib/types";
 
 const SCOPE_TARGETS_LIMIT = 10;
 
+function notNull<T>(value: T | null): value is T {
+  return value !== null;
+}
+
 const scopeTargetsQuery = z.object({
   workspaceId: z.string().uuid(),
   q: z.string().trim().min(1).max(64),
@@ -92,7 +96,7 @@ export const searchRoutes = new Hono<AppEnv>()
           }),
         )
       )
-        .filter((n): n is ScopeTargetSearchHit => n !== null)
+        .filter(notNull)
         .slice(0, SCOPE_TARGETS_LIMIT);
 
       const visibleProjects: ScopeTargetSearchHit[] = (
@@ -104,7 +108,7 @@ export const searchRoutes = new Hono<AppEnv>()
               : null;
           }),
         )
-      ).filter((p): p is ScopeTargetSearchHit => p !== null);
+      ).filter(notNull);
 
       // Pages first, then projects — chips usually anchor on the most
       // specific scope, and project rows are less common anyway.

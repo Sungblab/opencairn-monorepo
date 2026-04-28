@@ -268,6 +268,14 @@ describe("GET /api/code/runs/:runId/stream", () => {
     expect(res.status).toBe(404);
   });
 
+  it("returns 404 when runId is not a UUID", async () => {
+    const res = await authedFetch(
+      "/api/code/runs/not-a-uuid/stream",
+      { method: "GET", userId: ctx.userId },
+    );
+    expect(res.status).toBe(404);
+  });
+
   it("returns 404 when run belongs to a different user", async () => {
     const noteId = await createCanvasNote(ctx);
     const runId = randomUUID();

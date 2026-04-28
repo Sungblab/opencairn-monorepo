@@ -1,4 +1,9 @@
 import { serve } from "@hono/node-server";
+import { initSentry } from "./lib/sentry";
+// Initialize Sentry BEFORE createApp() so any module-load-time exceptions in
+// downstream imports get captured. No-op when SENTRY_DSN is unset.
+initSentry();
+
 import { createApp } from "./app";
 import { ensureBucket } from "./lib/s3";
 

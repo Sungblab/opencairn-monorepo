@@ -47,6 +47,8 @@ from worker.activities.notion_activities import (
     unzip_notion_export,
     upload_staging_to_minio,
 )
+from worker.activities.hwp_activity import parse_hwp
+from worker.activities.office_activity import parse_office
 from worker.activities.pdf_activity import parse_pdf
 from worker.activities.quarantine_activity import quarantine_source
 from worker.activities.curator_activity import run_curator
@@ -149,6 +151,8 @@ def build_worker_config() -> WorkerConfig:
     activities: list[Any] = [
         emit_started,
         parse_pdf,
+        parse_office,
+        parse_hwp,
         transcribe_audio,
         analyze_image,
         ingest_youtube,
@@ -228,6 +232,18 @@ def build_worker_config() -> WorkerConfig:
         activities.extend(
             [detect_content_type, enrich_document, store_enrichment_artifact]
         )
+
+    # Plan 11B Phase A — DocEditor slash commands. Same flag-gated
+    # registration as Deep Research / Code Agent. Appended at the END so
+    # parallel sessions adding their own registrations merge cleanly.
+    if os.environ.get("FEATURE_DOC_EDITOR_SLASH", "false").lower() == "true":
+        from worker.workflows.doc_editor_workflow import DocEditorWorkflow
+        from worker.activities.doc_editor_activity import (
+            run_doc_editor as _run_doc_editor,
+        )
+
+        workflows.append(DocEditorWorkflow)
+        activities.append(_run_doc_editor)
 
     return WorkerConfig(workflows=workflows, activities=activities)
 

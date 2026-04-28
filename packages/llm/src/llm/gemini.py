@@ -226,6 +226,32 @@ class GeminiProvider(LLMProvider):
         )
         return response.text
 
+    def supports_ocr(self) -> bool:
+        return True
+
+    async def ocr(self, image_bytes: bytes, mime_type: str = "image/png") -> str:
+        """Vision OCR for a single rendered page (scan PDF / image text extraction).
+
+        Inlines the image as a ``Blob`` part followed by a strict
+        extraction-only prompt — the worker concatenates per-page outputs
+        verbatim, so any model commentary would corrupt the resulting note.
+        """
+        response = await self._client.aio.models.generate_content(
+            model=self.config.model,
+            contents=[
+                types.Part(
+                    inline_data=types.Blob(mime_type=mime_type, data=image_bytes)
+                ),
+                types.Part(
+                    text=(
+                        "Extract all text from this scanned document page. "
+                        "Preserve line breaks. Output text only, no commentary."
+                    )
+                ),
+            ],
+        )
+        return response.text or ""
+
     async def generate_multimodal(
         self,
         prompt: str,

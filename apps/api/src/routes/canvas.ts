@@ -17,7 +17,7 @@ import {
   MAX_CANVAS_OUTPUT_BYTES,
 } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
-import { canRead } from "../lib/permissions";
+import { canRead, canWrite } from "../lib/permissions";
 import { uploadObject } from "../lib/s3";
 import { streamObject } from "../lib/s3-get";
 import { isUuid } from "../lib/validators";
@@ -170,7 +170,7 @@ canvasRoutes.post(
     // 404 instead of 403 to match /api/code/run — hide note existence across
     // workspaces so a probe can't enumerate ids.
     if (
-      !(await canRead(userId, { type: "note", id: parsed.data.noteId }))
+      !(await canWrite(userId, { type: "note", id: parsed.data.noteId }))
     ) {
       return c.json({ error: "notFound" }, 404);
     }

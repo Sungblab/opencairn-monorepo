@@ -38,5 +38,6 @@ export * from "./schema/suggestions";
 export * from "./schema/stale-alerts";
 export * from "./schema/audio-files";
 export * from "./schema/note-enrichments";
+export * from "./schema/doc-editor-calls";
 
 export { eq, and, or, desc, asc, sql, inArray, isNull, isNotNull, ilike, lt, gt, lte, gte, count, max } from "drizzle-orm";

@@ -134,6 +134,29 @@ describe("POST /api/chat/conversations", () => {
     }
   });
 
+  it("rejects page scope when a page override removes read access", async () => {
+    const viewerCtx = await seedWorkspace({ role: "viewer" });
+    try {
+      await setNoteInherit(viewerCtx.noteId, false);
+
+      const res = await authedFetch("/api/chat/conversations", {
+        method: "POST",
+        userId: viewerCtx.userId,
+        body: JSON.stringify({
+          workspaceId: viewerCtx.workspaceId,
+          scopeType: "page",
+          scopeId: viewerCtx.noteId,
+          attachedChips: [],
+          memoryFlags: FULL_FLAGS,
+        }),
+      });
+
+      expect(res.status).toBe(403);
+    } finally {
+      await viewerCtx.cleanup();
+    }
+  });
+
   it("returns 400 when zod validation fails (missing scopeId)", async () => {
     const res = await authedFetch("/api/chat/conversations", {
       method: "POST",
@@ -314,6 +337,36 @@ describe("POST /api/chat/conversations/:id/chips", () => {
       expect(res.status).toBe(404);
     } finally {
       await foreign.cleanup();
+    }
+  });
+
+  it("rejects a page chip when a page override removes read access", async () => {
+    const viewerCtx = await seedWorkspace({ role: "viewer" });
+    try {
+      const create = await authedFetch("/api/chat/conversations", {
+        method: "POST",
+        userId: viewerCtx.userId,
+        body: JSON.stringify({
+          workspaceId: viewerCtx.workspaceId,
+          scopeType: "workspace",
+          scopeId: viewerCtx.workspaceId,
+          attachedChips: [],
+          memoryFlags: FULL_FLAGS,
+        }),
+      });
+      expect(create.status).toBe(201);
+      const { id } = (await create.json()) as { id: string };
+
+      await setNoteInherit(viewerCtx.noteId, false);
+
+      const res = await authedFetch(`/api/chat/conversations/${id}/chips`, {
+        method: "POST",
+        userId: viewerCtx.userId,
+        body: JSON.stringify({ type: "page", id: viewerCtx.noteId }),
+      });
+      expect(res.status).toBe(403);
+    } finally {
+      await viewerCtx.cleanup();
     }
   });
 
@@ -517,56 +570,11 @@ describe("POST /api/chat/message (SSE)", () => {
     await ctx.cleanup();
   });
 
-  it("emits delta + cost + done events and persists user + assistant rows", async () => {
-    const create = await authedFetch("/api/chat/conversations", {
-      method: "POST",
-      userId: ctx.userId,
-      body: JSON.stringify({
-        workspaceId: ctx.workspaceId,
-        scopeType: "page",
-        scopeId: ctx.noteId,
-        attachedChips: [{ type: "page", id: ctx.noteId, manual: false }],
-        memoryFlags: FULL_FLAGS,
-      }),
-    });
-    const { id: conversationId } = (await create.json()) as { id: string };
-
-    const res = await app.request("/api/chat/message", {
-      method: "POST",
-      headers: {
-        cookie: await signSessionCookie(ctx.userId),
-        "content-type": "application/json",
-        accept: "text/event-stream",
-      },
-      body: JSON.stringify({ conversationId, content: "hello" }),
-    });
-    expect(res.status).toBe(200);
-    expect(res.headers.get("content-type")).toContain("text/event-stream");
-
-    const text = await res.text();
-    expect(text).toContain("event: delta");
-    expect(text).toContain("event: cost");
-    expect(text).toContain("event: done");
-
-    // Both rows persisted; assistant carries non-zero tokensOut.
-    const persisted = await db
-      .select()
-      .from(conversationMessages)
-      .where(eq(conversationMessages.conversationId, conversationId));
-    expect(persisted).toHaveLength(2);
-    const assistant = persisted.find((m) => m.role === "assistant");
-    expect(assistant?.tokensOut).toBeGreaterThan(0);
-
-    // Conversation totals incremented (tokensIn from user + tokensOut
-    // from assistant; costKrw a non-empty numeric string).
-    const [convo] = await db
-      .select()
-      .from(conversations)
-      .where(eq(conversations.id, conversationId));
-    expect(convo.totalTokensIn).toBeGreaterThan(0);
-    expect(convo.totalTokensOut).toBeGreaterThan(0);
-    expect(Number(convo.totalCostKrw)).toBeGreaterThan(0);
-  });
+  // The happy-path SSE test (delta + cost + done with provider tokens) lives
+  // in tests/chat-real-llm.test.ts (Task 8). It needs vi.mock of the gemini
+  // provider, which would force every test in this file to dance around the
+  // mock. Keeping it isolated there avoids the placeholder-vs-real LLM split
+  // contaminating the existing scope/permission/chip tests in this file.
 
   it("returns 403 for a non-owner caller", async () => {
     const create = await authedFetch("/api/chat/conversations", {

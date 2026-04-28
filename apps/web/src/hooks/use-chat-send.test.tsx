@@ -3,6 +3,19 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { ReactNode } from "react";
 
+// Same shim as composer.test.tsx — keeps assertions stable across locales
+// and avoids dragging the real next-intl provider into the hook test.
+vi.mock("next-intl", () => ({
+  useTranslations: (ns?: string) => (k: string) => (ns ? `${ns}.${k}` : k),
+}));
+
+const toastErrorMock = vi.fn();
+vi.mock("sonner", () => ({
+  toast: {
+    error: (...args: unknown[]) => toastErrorMock(...args),
+  },
+}));
+
 import { useChatSend } from "./use-chat-send";
 
 // Build a ReadableStream<Uint8Array> from a list of pre-encoded SSE frames.
@@ -35,6 +48,7 @@ beforeEach(() => {
 
 afterEach(() => {
   fetchMock.mockReset();
+  toastErrorMock.mockReset();
   vi.unstubAllGlobals();
 });
 
@@ -97,6 +111,32 @@ describe("useChatSend", () => {
     });
 
     expect(result.current.live).toBeNull();
+  });
+
+  it("surfaces `event: error` SSE frames via the toast", async () => {
+    const body = mkSseBody([
+      'event: agent_placeholder\ndata: {"id":"m3"}\n\n',
+      'event: text\ndata: {"delta":"partial"}\n\n',
+      'event: error\ndata: {"message":"provider blew up","code":"provider_error"}\n\n',
+      'event: done\ndata: {"id":"m3","status":"failed"}\n\n',
+    ]);
+    fetchMock.mockResolvedValueOnce({ ok: true, body } as Partial<Response>);
+
+    const { result } = renderHook(() => useChatSend("t1"), {
+      wrapper: makeWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.send({ content: "fail me" });
+    });
+
+    // Toast was triggered with the i18n key (shimmed namespace.key).
+    expect(toastErrorMock).toHaveBeenCalledTimes(1);
+    expect(toastErrorMock).toHaveBeenCalledWith("chat.errors.streamFailed");
+
+    // `done` still resets `live` after `error` — error doesn't preempt
+    // completion in the route's contract.
+    await waitFor(() => expect(result.current.live).toBeNull());
   });
 
   it("aborts in-flight when a new send begins", async () => {

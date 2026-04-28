@@ -1,3 +1,4 @@
+import * as React from "react";
 import { Text } from "react-email";
 import { Layout } from "../components/Layout";
 import { Button } from "../components/Button";
