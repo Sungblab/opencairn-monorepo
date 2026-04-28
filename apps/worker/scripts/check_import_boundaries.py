@@ -1,8 +1,10 @@
 #!/usr/bin/env python
-"""Fail if apps/worker/src/worker/agents/**/*.py imports langgraph or langchain_core directly.
+"""Fail if apps/worker/src/worker/agents/**/*.py imports langgraph or langchain_core.
 
-Agents must import only from `runtime`. See Plan 12 antipatterns:
-docs/contributing/llm-antipatterns.md §4.
+We don't depend on those packages anymore — agents must build on the local
+``runtime`` facade (Plan 12 + Agent Runtime v2 Sub-A). This guard catches
+accidental reintroductions before they hit a Docker build. Architectural
+decision: ``docs/architecture/agent-platform-roadmap.md`` §A5.
 """
 from __future__ import annotations
 

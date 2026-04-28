@@ -1,4 +1,4 @@
-"""Custom LangGraph reducers."""
+"""Stateful list reducers for agent message history."""
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -8,9 +8,9 @@ T = TypeVar("T")
 
 
 def keep_last_n(n: int) -> Callable[[list[T], list[T] | T], list[T]]:
-    """Return a LangGraph reducer that appends updates and keeps the last N items.
+    """Return a reducer that appends updates and keeps the last N items.
 
-    Usage in state TypedDict:
+    Usage in agent state:
         messages: Annotated[list[Message], keep_last_n(50)]
     """
     if n <= 0:

@@ -121,7 +121,7 @@ services:
       - temporal
 
   worker:
-    # Python worker hosting Temporal workflows + LangGraph agents
+    # Python worker hosting Temporal workflows + `runtime.Agent` agents
     # (Plan 3 ingest + Plan 4 Compiler/Research/Librarian).
     #
     # Behind a profile so default `docker compose up -d` only starts infra —

@@ -1,7 +1,9 @@
-"""OpenCairn agent runtime — thin facade over LangGraph + langchain-core.
+"""OpenCairn agent runtime.
 
-12 agents import only from this module. Direct imports of langgraph or
-langchain_core from apps/worker/src/worker/agents/ are forbidden (see lint rule in Task 14).
+자체 ToolLoopExecutor 기반 (Plan 12 + Agent Runtime v2 Sub-A). LangGraph/LangChain은
+사용하지 않음 — 신규 도입 검토는 ``docs/architecture/agent-platform-roadmap.md`` 참조.
+
+12 agents import only from this module.
 """
 from runtime.agent import Agent
 from runtime.default_hooks import (
@@ -45,7 +47,6 @@ from runtime.hooks import (
     ModelResponse,
     ToolHook,
 )
-from runtime.langgraph_bridge import stream_graph_as_events
 from runtime.reducers import keep_last_n
 from runtime.temporal import AgentAwaitingInputError, make_thread_id
 from runtime.tool_declarations import (
@@ -116,6 +117,5 @@ __all__ = [
     "make_thread_id",
     "resolve_storage_from_env",
     "score_trajectory",
-    "stream_graph_as_events",
     "tool",
 ]
