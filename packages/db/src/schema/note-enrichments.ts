@@ -5,6 +5,7 @@ import {
   timestamp,
   jsonb,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { notes } from "./notes";
 import { workspaces } from "./workspaces";
@@ -13,6 +14,9 @@ export const noteEnrichments = pgTable(
   "note_enrichments",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    // One artifact per note. The unique index on note_id lets the writer
+    // POST endpoint use ON CONFLICT (note_id) DO UPDATE so concurrent
+    // ingest retries land on a single row instead of stacking duplicates.
     noteId: uuid("note_id")
       .notNull()
       .references(() => notes.id, { onDelete: "cascade" }),
@@ -34,7 +38,7 @@ export const noteEnrichments = pgTable(
       .$onUpdate(() => new Date()),
   },
   (t) => [
-    index("note_enrichments_note_id_idx").on(t.noteId),
+    uniqueIndex("note_enrichments_note_id_unique").on(t.noteId),
     index("note_enrichments_workspace_id_idx").on(t.workspaceId),
   ],
 );
