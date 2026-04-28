@@ -38,7 +38,7 @@ def test_n_must_be_positive() -> None:
 
 
 def test_handles_single_update_not_list() -> None:
-    """LangGraph often passes a single item; reducer must tolerate it."""
+    """Reducer must tolerate a single-item update (not just lists)."""
     reducer = keep_last_n(3)
     merged = reducer([1, 2], 3)
     assert merged == [1, 2, 3]

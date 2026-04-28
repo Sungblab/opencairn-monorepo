@@ -57,8 +57,8 @@
   v
 [7] Temporal → Python Worker (run_compiler_agent Activity)
   |  *** 프로젝트 세마포어 획득 ***
-  |  - LangGraph 상태 머신:
-  |    a. 개념 추출 (Pydantic AI)
+  |  - Compiler Agent (`runtime.Agent` tool-use loop):
+  |    a. 개념 추출 (Pydantic 스키마 검증)
   |    b. 기존 위키 검색 (벡터 + BM25 + 그래프)
   |    c. 새 개념 → 위키 페이지 생성
   |    d. 기존 개념 보완 → 위키 페이지 업데이트
@@ -163,7 +163,7 @@ backend always publishes so flipping the flag is UI-only.
   v
 [3] Python Worker
   |  - 선택된 위키 페이지 컨텍스트 수집
-  |  - Socratic Agent (LangGraph):
+  |  - Socratic Agent (`runtime.Agent`):
   |    a. 개념 추출
   |    b. 난이도 분배 (쉬움 30%, 보통 50%, 어려움 20%)
   |    c. 문제 생성 (Pydantic 스키마 검증)

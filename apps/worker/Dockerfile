@@ -1,10 +1,10 @@
 # syntax=docker/dockerfile:1.7
 
 # OpenCairn Python worker image.
-# Hosts both the Temporal worker (ingest pipeline, Plan 3) and — going forward —
-# the LangGraph agent runtime (Plan 12/Plan 4). The CMD starts the Temporal
-# worker entrypoint; the agent runtime is imported by activities, not run as a
-# standalone process, so a single container suffices for v0.1.
+# Hosts both the Temporal worker (ingest pipeline, Plan 3) and the
+# `runtime.Agent` runtime (Plan 12 + Agent Runtime v2 Sub-A). The CMD starts the
+# Temporal worker entrypoint; the agent runtime is imported by activities, not
+# run as a standalone process, so a single container suffices for v0.1.
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \

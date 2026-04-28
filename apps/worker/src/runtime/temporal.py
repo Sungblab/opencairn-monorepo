@@ -3,7 +3,7 @@ from __future__ import annotations
 
 
 def make_thread_id(workflow_id: str, agent_name: str, parent_run_id: str | None) -> str:
-    """LangGraph thread_id naming convention.
+    """Agent thread_id naming convention.
 
     - Standalone:   "{workflow_id}:{agent_name}"
     - Sub-agent:    "{parent_run_id}:{agent_name}"

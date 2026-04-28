@@ -11,7 +11,7 @@
 | Unit (순수 로직) | Vitest | `PyodideRunner` 훅, `useCanvasMessages`, `sandbox-html-template` 문자열 생성 |
 | Component (렌더) | Vitest + `@testing-library/react` + jsdom | `<CanvasFrame>` props 변경 시 렌더링, Blob URL revoke |
 | E2E (보안 경계) | Playwright | iframe sandbox 속성, postMessage origin, Pyodide 실제 실행 |
-| Worker 단위 | pytest | Code Agent LangGraph 노드 (`generate`, `analyze_feedback`) |
+| Worker 단위 | pytest | Code Agent (`runtime.Agent` tool-use loop, `generate` / `analyze_feedback` 단계) |
 | Agent golden | pytest + 고정 fixture | 프롬프트 → 코드 생성 스냅샷 비교 |
 
 ---
@@ -175,34 +175,28 @@ test("iframe이 허용되지 않은 origin에 fetch 시도 시 CSP가 차단", a
 
 ## 5. Worker / Agent 테스트
 
-### 5.1 Code Agent LangGraph 노드
+### 5.1 Code Agent (`runtime.Agent`)
 
 ```python
 # apps/worker/tests/agents/test_code_agent.py
 import pytest
-from worker.agents.code.graph import build_code_agent
-from worker.agents.code.state import CodeAgentState
+from worker.agents.code.agent import CodeAgent
+from runtime.tools import ToolContext
 
 @pytest.mark.asyncio
-async def test_generate_node_emits_python_without_fences(monkeypatch):
+async def test_generate_strips_python_fences(monkeypatch):
     async def fake_generate(messages, **kw): return "```python\nprint('hi')\n```"
     monkeypatch.setattr("llm.get_provider", lambda: MagicMock(generate=fake_generate))
-    graph = build_code_agent()
-    result = await graph.ainvoke(CodeAgentState(user_id="u", prompt="x", language="python"))
-    assert "```" not in result.generated_source
-    assert "print('hi')" in result.generated_source
-
-
-@pytest.mark.asyncio
-async def test_analyze_feedback_retries_on_syntax_error():
-    state = CodeAgentState(
-        user_id="u", prompt="x", language="python",
-        iteration=1, client_stderr="SyntaxError: invalid syntax"
-    )
-    from worker.agents.code.nodes.analyze_feedback import analyze_feedback
-    out = await analyze_feedback(state)
-    assert out.should_retry is True
+    agent = CodeAgent()
+    ctx = ToolContext(workspace_id="w", project_id=None, page_id=None,
+                      user_id="u", run_id="r", scope="project", emit=lambda _: None)
+    events = [ev async for ev in agent.run({"prompt": "x", "language": "python"}, ctx)]
+    end = next(ev for ev in events if ev.type == "agent_end")
+    assert "```" not in end.output["generated_source"]
+    assert "print('hi')" in end.output["generated_source"]
 ```
+
+피드백 루프 분기는 별도 단계 함수가 아니라 agent 내부 tool-use 루프의 분기 — 트랜스크립트(trajectory) 이벤트로 검증한다.
 
 ### 5.2 Golden 스냅샷 (LLM 회귀)
 

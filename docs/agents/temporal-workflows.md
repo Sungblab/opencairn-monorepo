@@ -22,7 +22,7 @@ Temporal Server (temporalio/auto-setup)
   v
 Python Worker (Temporal Worker)
   ├── Activities: parse_pdf, transcribe_audio, compile_wiki, ...
-  └── LangGraph: agent internal state machines
+  └── runtime.Agent: tool-use loops 및 LLM 호출 (Plan 12 + v2 Sub-A)
 ```
 
 ---

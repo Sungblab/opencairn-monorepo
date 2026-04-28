@@ -51,15 +51,15 @@ Provider별 VECTOR_DIM 기본값: Gemini(embedding-001 MRL)=768, Ollama(nomic)=7
 ## 4. Agent
 
 - ❌ Temporal Activity에서 LLM 직접 호출 → ✅ `runtime.Agent` 서브클래스 + `@tool` 데코레이터 경유
-- ❌ `from langgraph.graph import StateGraph` in 에이전트 파일 → ✅ `from runtime import Agent, tool, AgentEvent` (Plan 12 facade)
+- ❌ `from langgraph...` / `from langchain_core...` import (둘 다 worker 의존성에서 제거됨, 2026-04-28) → ✅ `from runtime import Agent, tool, AgentEvent`
 - ❌ Visualization과 Temporal 에이전트 둘 다 timeline 생성 → ✅ **Visualization 단독**. Temporal은 stale 감지만.
 - ❌ 에이전트 핸드오프에 thread_id 재사용 → ✅ `make_thread_id(workflow_id, agent_name, parent_run_id)`
-- ❌ LangGraph channel state mutation (`state["messages"].append(msg)`) → ✅ 리듀서 위임 (`return {"messages": [msg]}`)
+- ❌ 메시지 히스토리 직접 mutate (`state["messages"].append(msg)`) → ✅ 리듀서 위임 (`return {"messages": [msg]}`)
 - ❌ `messages: Annotated[list, operator.add]` (unbounded 누적) → ✅ `keep_last_n(50)` 윈도우 리듀서
-- ❌ LangGraph `interrupt()`로 HITL → ✅ `AwaitingInput` 이벤트 yield + Temporal signal wait
-- ❌ `graph.compile(callbacks=[MyCallback()])` → ✅ `HookRegistry.register(hook, scope="agent", agent_filter=[...])`
+- ❌ HITL을 워크플로 외부에서 처리 → ✅ `AwaitingInput` 이벤트 yield + Temporal signal wait
+- ❌ Hook을 LLM SDK 콜백에 박기 → ✅ `HookRegistry.register(hook, scope="agent", agent_filter=[...])`
 
-**Enforcement:** `apps/worker/scripts/check_import_boundaries.py` (alias: `uv run check-import-boundaries`) fails CI when any file under `apps/worker/src/worker/agents/**/*.py` imports `langgraph`, `langchain_core`, or `langchain` directly. Spec: `docs/superpowers/specs/2026-04-20-agent-runtime-standard-design.md`.
+**Enforcement:** `apps/worker/scripts/check_import_boundaries.py` (alias: `uv run check-import-boundaries`) fails CI when any file under `apps/worker/src/worker/agents/**/*.py` imports `langgraph`, `langchain_core`, or `langchain`. 신규 도입 검토는 `docs/architecture/agent-platform-roadmap.md` §A5 거쳐서.
 
 ---
 
