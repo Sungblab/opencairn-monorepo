@@ -197,6 +197,12 @@ async def parse_pdf(inp: dict[str, Any]) -> dict[str, Any]:
             "text": full_text,
             "has_complex_layout": has_complex_layout,
             "is_scan": is_scan,
+            # Spec B — enrich_document reads pages[].text for type detection
+            # and pages[].figures[] for caption / page metadata. Live-ingest-
+            # visualization already uploaded each figure under
+            # uploads/{user_id}/figures/{workflow_id}/p{p}-f{f}.png; the
+            # enrichment activity does not re-upload.
+            "pages": pages,
         }
 
     finally:
