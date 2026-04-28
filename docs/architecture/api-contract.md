@@ -226,9 +226,24 @@ Public — Better Auth 세션 + `canWrite(noteId)`. `FEATURE_DOC_EDITOR_SLASH=fa
 
 `run_with_tools(...)` (`apps/worker/src/runtime/loop_runner.py`)은 Temporal activity 내부에서 호출되는 러너. 시그니처는 `provider, initial_messages, tools, tool_context (dict), config: LoopConfig | None, hooks: LoopHooks | None`. 한 activity = 한 loop이며 `LoopConfig.max_turns (default 8)`, `max_tool_calls (12)`, `max_total_input_tokens (200_000)`, per-tool timeout, 소프트 루프 detection으로 bounded. Provider가 tool calling을 지원하지 않으면 `ToolCallingNotSupported` fail-fast.
 
+### Chat Threads (App Shell Phase 4 agent panel)
+
+> ✅ **Status: Phase 4 merged + Plan 11B Phase A second commit — Agent panel now calls real LLM.** `apps/api/src/lib/agent-pipeline.ts` no longer returns the `(stub agent response to: <input>)` echo (audit Tier 1 #1 closure); `defaultRunAgent` delegates to `chat-llm.runChat()` against `gemini-2.5-flash` with workspace-scoped retrieval, and `chat_messages.token_usage` is populated from provider-reported `tokensIn`/`tokensOut` + `model` (`provider="gemini"`). `AGENT_STUB_EMIT_SAVE_SUGGESTION` env removed; `save_suggestion` chunks are now produced by the LLM-fence parser at `apps/api/src/lib/save-suggestion-fence.ts` (audit Tier 1 #3 closure).
+
+| Method | Path | Auth | Description | Body |
+|--------|------|------|-------------|------|
+| GET    | /api/threads | Better Auth + workspace 멤버 | List threads for a workspace | `?workspaceId=` |
+| POST   | /api/threads | Better Auth + workspace 멤버 | Create thread | `{ workspaceId, title? }` |
+| PATCH  | /api/threads/:id | owner | Update thread title | `{ title }` |
+| DELETE | /api/threads/:id | owner | Delete thread (cascade messages + feedback) | - |
+| GET    | /api/threads/:id/messages | owner | List messages (oldest → newest) | - |
+| POST   | /api/threads/:id/messages | owner | Send message. SSE order: `user_persisted` (`{ id }`) → `agent_placeholder` (`{ id }`) → (`status` / `thought` / `text` (delta) / `citation` / `usage` / `save_suggestion?`)\* → `error?` → `done` (`{ id, status }`). Single canonical `done` is emitted by the route after persistence — `runChat`'s sentinel `done` is suppressed. Real `gemini-2.5-flash`; citations from workspace-scoped RAG retrieval. On runtime exception (or `LLMNotConfiguredError` surfaced via `chat-llm`'s `error` chunk) the agent row is finalized with `status='failed'` and an `error` SSE frame is forwarded. `usage` payload uses provider-reported `tokensIn`/`tokensOut`/`model` and is hoisted into `chat_messages.token_usage` by `finalizeAgentMessage`. | `{ content, scope?, mode? }` |
+| GET    | /api/message-feedback | owner | List feedback rows for current user (filtered by `messageId`) | `?messageId=` |
+| POST   | /api/message-feedback | owner | Upsert feedback (one row per `(message_id, user_id)`, `sentiment ∈ {up,down}`) | `{ messageId, sentiment, comment? }` |
+
 ### Chat
 
-> ✅ **Status: Plan 11A merged — Chat Scope Foundation.** 라우트는 `apps/api/src/routes/chat.ts`에 구현되어 있고 DB는 `conversations`/`conversation_messages`/`pinned_answers` (migration 0029, `scope_type` / `rag_mode` / `conversation_message_role` enums). SSE 메시지 라우트는 placeholder 응답을 흘려보내며 실제 LLM 통합은 Plan 11B에서 Plan 4 worker로 위임된다. Pin은 인용 가시성 델타 검사(409 → /pin/confirm) 포함.
+> ✅ **Status: Plan 11A merged + Plan 11B Phase A second commit — Chat Scope Foundation with real LLM.** 라우트는 `apps/api/src/routes/chat.ts`에 구현되어 있고 DB는 `conversations`/`conversation_messages`/`pinned_answers` (migration 0029, `scope_type` / `rag_mode` / `conversation_message_role` enums). `/message` 는 더 이상 placeholder 가 아니다 — `chat-llm.runChat()` 가 `gemini-2.5-flash` 를 호출하고, retrieval 은 `attachedChips` + `ragMode` 를 읽어 workspace-scoped RAG 로 답변한다. Token 회계는 provider 가 보고한 `usageMetadata` (promptTokens/candidatesTokens) 를 그대로 user/assistant row 에 분배해 `conversation_messages.tokensIn`/`tokensOut` + `conversations.totalCostKrw` 에 반영한다 (audit Tier 1 #2 closure). `LLMNotConfiguredError` 는 SSE `event: error` (`code: "llm_not_configured"`) 로 매핑되어 misconfigured operator 에게 가시 신호. Pin은 인용 가시성 델타 검사(409 → /pin/confirm) 포함.
 
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
@@ -238,7 +253,7 @@ Public — Better Auth 세션 + `canWrite(noteId)`. `FEATURE_DOC_EDITOR_SLASH=fa
 | PATCH | /api/chat/conversations/:id | owner | Update ragMode / memoryFlags / title | `{ ragMode?, memoryFlags?, title? }` |
 | POST | /api/chat/conversations/:id/chips | owner | Add chip (workspace boundary enforced for page/project/workspace; memory:l* accepted as-is) | `{ type: ChipType, id }` |
 | DELETE | /api/chat/conversations/:id/chips/:chipKey | owner | Remove chip by composite key `<type>:<id>` (lastIndexOf separator handles `memory:l*` types) | - |
-| POST | /api/chat/message | owner | Send message (SSE stream `delta` / `cost` / `done`; placeholder reply in 11A) | `{ conversationId, content }` |
+| POST | /api/chat/message | owner | Send message. SSE: `delta` (text deltas) / `save_suggestion?` (LLM fence parsed by `save-suggestion-fence.ts`) / `cost` (`{ messageId, tokensIn:0, tokensOut, costKrw }` for assistant row) / `error` (`{ code: 'llm_not_configured'\|'llm_failed', message }` on `LLMNotConfiguredError` or runtime exception) / `done`. Real `gemini-2.5-flash` via `chat-llm.runChat()`; citations from workspace-scoped RAG retrieval. `usage` payload uses provider-reported `tokensIn`/`tokensOut`/`model` (no more `Math.ceil(len/4)` estimate). | `{ conversationId, content }` |
 | POST | /api/chat/messages/:id/pin | owner of convo + write on target page | Pin assistant message to a page block. Returns `200 { pinned:true }` if no permission delta, otherwise `409 { requireConfirm:true, warning: { hiddenSources, hiddenUsers } }` | `{ noteId, blockId }` |
 | POST | /api/chat/messages/:id/pin/confirm | owner of convo + write on target page | Force-pin after the user accepts the visibility warning (records `reason='user_confirmed_permission_warning'` on the row) | `{ noteId, blockId }` |
 | GET | /api/search/scope-targets | workspace 멤버 | Chip combobox backing search (pages + projects matching `q`, per-row canRead filtered) | `?workspaceId=&q=` |
