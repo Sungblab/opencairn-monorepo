@@ -22,6 +22,7 @@ import {
   startCodeRun,
   signalCodeFeedback,
 } from "../lib/code-agent-client";
+import { isUuid } from "../lib/validators";
 import type { AppEnv } from "../lib/types";
 
 // Plan 7 Canvas Phase 2 — public Code Agent API.
@@ -143,7 +144,9 @@ codeRoutes.post(
 codeRoutes.get("/runs/:runId/stream", requireAuth, async (c) => {
   const userId = c.get("userId");
   const runId = c.req.param("runId");
-  if (!runId) return c.json({ error: "runId required" }, 400);
+  if (!runId || !isUuid(runId)) {
+    return c.json({ error: "notFound" }, 404);
+  }
 
   const [run] = await db.select().from(codeRuns).where(eq(codeRuns.id, runId));
   if (!run || run.userId !== userId) {

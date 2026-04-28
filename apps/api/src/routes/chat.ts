@@ -55,7 +55,9 @@ chatRoutes.post(
     }
 
     try {
-      await validateScope(body.workspaceId, body.scopeType, body.scopeId);
+      await validateScope(body.workspaceId, body.scopeType, body.scopeId, {
+        userId,
+      });
     } catch (e) {
       if (e instanceof ScopeValidationError) {
         return c.json({ error: e.message }, e.status);
@@ -176,7 +178,9 @@ chatRoutes.post(
     if (type === "page" || type === "project" || type === "workspace") {
       // Workspace-scoped chip → resolve label and enforce boundary.
       try {
-        const resolved = await validateScope(convo.workspaceId, type, chipId);
+        const resolved = await validateScope(convo.workspaceId, type, chipId, {
+          userId,
+        });
         label = resolved.label;
       } catch (e) {
         if (e instanceof ScopeValidationError) {
