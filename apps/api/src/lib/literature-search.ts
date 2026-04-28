@@ -254,13 +254,41 @@ export function mergeResults(
 
 // ─── Unpaywall batch enrichment ───────────────────────────────────────────────
 
-async function enrichWithUnpaywall(results: PaperResult[]): Promise<PaperResult[]> {
+// Cap concurrent Unpaywall requests so a 50-result page doesn't fire 50
+// simultaneous calls. Unpaywall publishes a 100k/day soft limit but is
+// known to 429 on bursts; without throttling a single page load could
+// blow the budget for the whole worker. 8 keeps wall-clock close to the
+// per-call 5s timeout while staying well under any reasonable burst cap.
+const UNPAYWALL_CONCURRENCY = 8;
+
+async function mapWithLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let cursor = 0;
+  async function worker(): Promise<void> {
+    while (true) {
+      const i = cursor++;
+      if (i >= items.length) return;
+      out[i] = await fn(items[i], i);
+    }
+  }
+  const workerCount = Math.min(limit, items.length);
+  await Promise.all(Array.from({ length: workerCount }, worker));
+  return out;
+}
+
+async function enrichWithUnpaywall(
+  results: PaperResult[],
+): Promise<PaperResult[]> {
   const needsCheck = results.filter((r) => !r.openAccessPdfUrl && r.doi);
-  const resolved = await Promise.all(
-    needsCheck.map(async (r) => ({
-      id: r.id,
-      url: await resolveOaUrl(r.doi as string),
-    })),
+  if (needsCheck.length === 0) return results;
+  const resolved = await mapWithLimit(
+    needsCheck,
+    UNPAYWALL_CONCURRENCY,
+    async (r) => ({ id: r.id, url: await resolveOaUrl(r.doi as string) }),
   );
   const byId = new Map(resolved.map((r) => [r.id, r.url]));
   return results.map((r) =>
@@ -325,6 +353,9 @@ function decodeXml(s: string): string {
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
+    // Both forms: &apos; (XML named) and &#39; (numeric). Crossref
+    // metadata uses the named form for author/title apostrophes.
+    .replace(/&apos;/g, "'")
     .replace(/&#39;/g, "'");
 }
 
