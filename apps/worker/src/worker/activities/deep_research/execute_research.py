@@ -149,6 +149,24 @@ async def _run_execute_research(
     )
 
 
+def _to_api_payload(kind: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Translate provider snake_case event keys to the API's camelCase schema.
+
+    The Gemini stream emits ``mime_type`` for images and ``url`` for citations,
+    but ``researchArtifactWriteSchema`` (apps/api/src/routes/internal.ts) is a
+    strict discriminated union expecting ``mimeType`` / ``sourceUrl``. Without
+    this mapping every image/citation POST 400s and gets swallowed by the
+    ``except`` below — image-bytes lookups then 404 forever (audit S4-008
+    follow-up to PR #151).
+    """
+    p = dict(payload)
+    if kind == "image" and "mime_type" in p:
+        p["mimeType"] = p.pop("mime_type")
+    if kind == "citation" and "url" in p:
+        p["sourceUrl"] = p.pop("url")
+    return p
+
+
 async def _default_persist_event(kind: str, payload: dict[str, Any]) -> None:
     """Write a streamed artifact through to the API's internal endpoint.
 
@@ -164,7 +182,7 @@ async def _default_persist_event(kind: str, payload: dict[str, Any]) -> None:
     try:
         await post_internal(
             f"/api/internal/research/runs/{run_id}/artifacts",
-            {"kind": kind, "payload": payload},
+            {"kind": kind, "payload": _to_api_payload(kind, payload)},
         )
     except Exception:  # pragma: no cover — keep the stream resilient
         if activity.in_activity():
