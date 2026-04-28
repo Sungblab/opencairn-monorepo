@@ -51,10 +51,22 @@ export function getGeminiProvider(): LLMProvider {
   const chatModel = process.env.GEMINI_CHAT_MODEL ?? CHAT_MODEL_DEFAULT;
 
   return {
-    async embed(_text: string): Promise<number[]> {
-      // Stub — implemented in Task 2.5
-      void client;
-      throw new Error("not implemented yet");
+    async embed(text: string): Promise<number[]> {
+      const res = await client.models.embedContent({
+        model: EMBED_MODEL,
+        contents: [{ parts: [{ text }] }],
+        config: {
+          taskType: "RETRIEVAL_QUERY",
+          outputDimensionality: EMBED_DIM,
+        },
+      });
+      const values = res.embeddings?.[0]?.values;
+      if (!values || values.length !== EMBED_DIM) {
+        throw new Error(
+          `Gemini returned no embedding (got ${values?.length ?? 0}d, expected ${EMBED_DIM}d)`,
+        );
+      }
+      return values;
     },
     async *streamGenerate(_opts) {
       // Stub — implemented in Task 2.6
