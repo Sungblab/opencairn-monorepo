@@ -308,6 +308,20 @@ per claim using the triggering user as `authorId` and stores agent metadata in
 | POST | /api/settings/api-key | Yes | Set BYOK Gemini API key | `{ apiKey }` |
 | DELETE | /api/settings/api-key | Yes | Remove BYOK key | - |
 
+### MCP Client (Phase 1, feature-flag `FEATURE_MCP_CLIENT`)
+
+Public API is user-owned, not workspace-owned. When `FEATURE_MCP_CLIENT=false`,
+all routes below return 404. Responses never include plaintext auth header
+values; summaries expose `hasAuth` only.
+
+| Method | Path | Auth | Description | Body |
+|--------|------|------|-------------|------|
+| GET | /api/mcp/servers | Yes | List current user's MCP server registrations. | - |
+| POST | /api/mcp/servers | Yes | Register one streamable-HTTP MCP server. Server slug is generated from `displayName`; route auto-runs `list_tools` and rejects unreachable or >50-tool servers. | `{ displayName, serverUrl, authHeaderName?, authHeaderValue? }` |
+| PATCH | /api/mcp/servers/:id | owner | Update display name/auth header/status. URL changes are intentionally rejected; create a new server instead. | `{ displayName?, authHeaderName?, authHeaderValue?, status? }` |
+| DELETE | /api/mcp/servers/:id | owner | Delete one registration. Cross-user IDs return 404. | - |
+| POST | /api/mcp/servers/:id/test | owner | Run `list_tools` once and update `lastSeenToolCount`, `lastSeenAt`, and auth-expired status. | - |
+
 ### Billing
 
 > **결제 레일 TBD (사업자등록 후 확정, 현재 BLOCKED)**. 후보: Toss Payments / 포트원(아임포트) / Stripe. 아래 스키마는 provider-agnostic core — 구체 PSP 웹훅 이벤트 이름은 확정 후 치환.

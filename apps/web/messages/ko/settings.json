@@ -31,5 +31,42 @@
         "load_failed": "키 정보를 불러오지 못했습니다."
       }
     }
+  },
+  "mcp": {
+    "title": "MCP 서버",
+    "subtitle": "외부 MCP 서버를 등록하고 에이전트 도구로 사용할 준비를 합니다.",
+    "feature_disabled": "MCP 클라이언트 기능이 꺼져 있습니다.",
+    "form": {
+      "add_button": "MCP 서버 추가",
+      "display_name": "표시 이름",
+      "server_url": "서버 URL",
+      "auth_header_name": "인증 헤더 이름",
+      "auth_header_value": "인증 헤더 값",
+      "save": "저장",
+      "cancel": "취소",
+      "saved": "MCP 서버가 저장되었습니다.",
+      "save_failed": "MCP 서버를 저장하지 못했습니다."
+    },
+    "list": {
+      "empty": "등록된 MCP 서버가 없습니다.",
+      "loading": "MCP 서버를 불러오는 중…",
+      "load_failed": "MCP 서버를 불러오지 못했습니다.",
+      "tool_count": "{count}개 도구",
+      "test_button": "테스트",
+      "edit_button": "수정",
+      "delete_button": "삭제",
+      "delete_confirm_body": "이 MCP 서버를 삭제할까요?",
+      "deleted": "MCP 서버가 삭제되었습니다."
+    },
+    "status": {
+      "active": "활성",
+      "disabled": "비활성",
+      "auth_expired": "인증 만료"
+    },
+    "test_result": {
+      "ok": "{count}개 도구를 확인했습니다.",
+      "auth_failed": "인증이 실패했습니다.",
+      "transport_error": "서버에 연결하지 못했습니다."
+    }
   }
 }

@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from runtime.loop_runner import run_with_tools
+from runtime.mcp import build_mcp_tools_for_user
 from runtime.tool_loop import LoopConfig, LoopResult
 from worker.tools_builtin import (
     BUILTIN_TOOLS,
@@ -54,12 +55,21 @@ class ToolDemoAgent:
         user_prompt: str,
         tool_context: dict,
         config: LoopConfig | None = None,
+        db_session=None,
     ) -> LoopResult:
         messages = [{"role": "user", "text": user_prompt}]
+        tools = list(self.tools)
+        if db_session is not None and tuple(self.tools) == tuple(BUILTIN_TOOLS):
+            tools.extend(
+                await build_mcp_tools_for_user(
+                    tool_context["user_id"],
+                    db_session=db_session,
+                )
+            )
         return await run_with_tools(
             provider=self.provider,
             initial_messages=messages,
-            tools=list(self.tools),
+            tools=tools,
             tool_context=tool_context,
             config=config,
         )

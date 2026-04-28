@@ -31,5 +31,42 @@
         "load_failed": "Couldn't load the key status. Try refreshing."
       }
     }
+  },
+  "mcp": {
+    "title": "MCP servers",
+    "subtitle": "Register external MCP servers so agents can use their tools.",
+    "feature_disabled": "MCP client is currently turned off.",
+    "form": {
+      "add_button": "Add MCP server",
+      "display_name": "Display name",
+      "server_url": "Server URL",
+      "auth_header_name": "Header name",
+      "auth_header_value": "Header value",
+      "save": "Save",
+      "cancel": "Cancel",
+      "saved": "MCP server saved.",
+      "save_failed": "Could not save the MCP server."
+    },
+    "list": {
+      "empty": "No MCP servers registered.",
+      "loading": "Loading MCP servers…",
+      "load_failed": "Could not load MCP servers.",
+      "tool_count": "{count} tools",
+      "test_button": "Test",
+      "edit_button": "Edit",
+      "delete_button": "Delete",
+      "delete_confirm_body": "Delete this MCP server?",
+      "deleted": "MCP server deleted."
+    },
+    "status": {
+      "active": "Active",
+      "disabled": "Disabled",
+      "auth_expired": "Auth expired"
+    },
+    "test_result": {
+      "ok": "Detected {count} tools.",
+      "auth_failed": "Authentication failed.",
+      "transport_error": "Could not reach the server."
+    }
   }
 }
