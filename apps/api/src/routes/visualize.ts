@@ -111,22 +111,21 @@ export const visualizeRouter = new Hono<AppEnv>().post(
       const inner = streamBuildView(handle);
 
       // Wrap the inner stream so we always release the lock when the
-      // response stream is done — covers both natural end-of-stream and
-      // client cancellation. `flush` runs after the last chunk on a clean
-      // close; `cancel` runs when the consumer aborts (browser disconnect,
-      // tab close, fetch abort). Both are part of the WHATWG Streams
-      // standard and supported on every runtime we ship to (Node 18+,
-      // modern browsers); without `cancel` the lock would otherwise wait
+      // response stream is done. `flush` runs after the last chunk on a
+      // clean close. Consumer-side cancellation propagates upstream through
+      // pipeThrough → the inner ReadableStream's `cancel` runs and we
+      // release there (see streamBuildView). Without that, the lock waits
       // for visualize-lock.ts's TTL (≈2 minutes) before releasing.
+      //
+      // Note: WHATWG Transformer has no `cancel` hook — only start/transform/
+      // flush. Earlier code added `cancel` here and TS accepted it under
+      // looser settings; tighter lib.dom checks now reject it.
       const wrapped = inner.pipeThrough(
         new TransformStream<Uint8Array, Uint8Array>({
           transform(chunk, controller) {
             controller.enqueue(chunk);
           },
           flush() {
-            release();
-          },
-          cancel() {
             release();
           },
         }),

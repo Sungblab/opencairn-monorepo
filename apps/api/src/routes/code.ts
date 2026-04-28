@@ -143,6 +143,7 @@ codeRoutes.post(
 codeRoutes.get("/runs/:runId/stream", requireAuth, async (c) => {
   const userId = c.get("userId");
   const runId = c.req.param("runId");
+  if (!runId) return c.json({ error: "runId required" }, 400);
 
   const [run] = await db.select().from(codeRuns).where(eq(codeRuns.id, runId));
   if (!run || run.userId !== userId) {
