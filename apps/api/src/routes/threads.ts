@@ -310,6 +310,19 @@ export const threadRoutes = new Hono<AppEnv>()
                 ];
               } else if (chunk.type === "save_suggestion") {
                 meta.save_suggestion = chunk.payload;
+              } else if (chunk.type === "usage") {
+                // Lifted out of `content` and into `chat_messages.token_usage`
+                // by finalizeAgentMessage — kept here only as a sidecar so
+                // the route doesn't have to know the column shape.
+                meta.usage = chunk.payload;
+              } else if (chunk.type === "error") {
+                // chat-llm yields a single `error` chunk before its terminal
+                // `done`. Mark the persistence status as failed and record
+                // the error context in meta; the SSE frame is forwarded
+                // below via the regular `send`, so the client renderer sees
+                // the failure without an extra branch.
+                streamStatus = "failed";
+                meta.error = chunk.payload;
               }
               send(chunk.type, chunk.payload);
             }

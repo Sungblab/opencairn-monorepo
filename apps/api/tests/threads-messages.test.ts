@@ -53,15 +53,34 @@ async function createThread(workspaceId: string, userId: string): Promise<string
   return id;
 }
 
+// Fake runAgent injected for the happy-path tests below — keeps them
+// hermetic now that the real pipeline calls Gemini. We inject a known
+// stream of chunks so the route's SSE/persistence wiring is exercised
+// without an external API dependency. The "real LLM" path has its own
+// dedicated test file (threads-real-llm.test.ts).
+async function* fakeAgentStream(opts: {
+  userMessage: { content: string };
+}): AsyncGenerator<AgentChunk> {
+  yield { type: "status", payload: { phrase: "fake status" } };
+  yield { type: "thought", payload: { summary: "fake thought" } };
+  // Multiple text frames so "true streaming, not single-chunk" still holds.
+  for (const ch of `echo:${opts.userMessage.content}`) {
+    yield { type: "text", payload: { delta: ch } };
+  }
+  yield { type: "done", payload: {} };
+}
+
 describe("Threads messages — happy path", () => {
   let ctx: SeedResult;
 
   beforeEach(async () => {
     ctx = await seedWorkspace({ role: "owner" });
+    __setRunAgentForTest(fakeAgentStream);
   });
 
   afterEach(async () => {
     await ctx.cleanup();
+    __setRunAgentForTest(null);
   });
 
   it("POST streams expected events and persists user + agent rows", async () => {
@@ -85,9 +104,7 @@ describe("Threads messages — happy path", () => {
 
     const events = parseSseEvents(text);
     const textEvents = events.filter((e) => e.event === "text");
-    // The stub yields one text event per character of "(stub agent
-    // response to: hi)" — i.e. > 1 chunk, which is the property worth
-    // asserting (true streaming, not single-chunk).
+    // Multiple text frames — true streaming, not single-chunk.
     expect(textEvents.length).toBeGreaterThan(1);
 
     // GET returns user + agent rows in order, both complete.
@@ -110,9 +127,7 @@ describe("Threads messages — happy path", () => {
     expect(body.messages[0].content).toMatchObject({ body: "hi" });
     expect(body.messages[1].role).toBe("agent");
     expect(body.messages[1].status).toBe("complete");
-    expect(body.messages[1].content).toMatchObject({
-      body: "(stub agent response to: hi)",
-    });
+    expect(body.messages[1].content).toMatchObject({ body: "echo:hi" });
   });
 
   it("POST bumps thread updated_at", async () => {
@@ -234,60 +249,12 @@ describe("Threads messages — multi-user scoping", () => {
   });
 });
 
-describe("POST /threads/:id/messages — save_suggestion stub flag", () => {
-  let ctx: SeedResult;
-
-  beforeEach(async () => {
-    ctx = await seedWorkspace({ role: "owner" });
-  });
-
-  afterEach(async () => {
-    await ctx.cleanup();
-    // Restore the env var in case the test left it set.
-    delete process.env.AGENT_STUB_EMIT_SAVE_SUGGESTION;
-  });
-
-  it("emits a save_suggestion chunk when /test-save is sent and flag is set", async () => {
-    const prev = process.env.AGENT_STUB_EMIT_SAVE_SUGGESTION;
-    process.env.AGENT_STUB_EMIT_SAVE_SUGGESTION = "1";
-    try {
-      const threadId = await createThread(ctx.workspaceId, ctx.userId);
-      const res = await authedFetch(`/api/threads/${threadId}/messages`, {
-        method: "POST",
-        userId: ctx.userId,
-        body: JSON.stringify({ content: "hello /test-save world", mode: "auto" }),
-      });
-      expect(res.status).toBe(200);
-      const text = await res.text();
-      const frames = parseSseEvents(text);
-      const savedFrames = frames.filter((f) => f.event === "save_suggestion");
-      expect(savedFrames).toHaveLength(1);
-      const payload = savedFrames[0].data as { title: string; body_markdown: string };
-      expect(payload.title).toBeDefined();
-      expect(payload.body_markdown).toContain("# ");
-    } finally {
-      if (prev === undefined) {
-        delete process.env.AGENT_STUB_EMIT_SAVE_SUGGESTION;
-      } else {
-        process.env.AGENT_STUB_EMIT_SAVE_SUGGESTION = prev;
-      }
-    }
-  });
-
-  it("does NOT emit save_suggestion when the flag is not set", async () => {
-    delete process.env.AGENT_STUB_EMIT_SAVE_SUGGESTION;
-    const threadId = await createThread(ctx.workspaceId, ctx.userId);
-    const res = await authedFetch(`/api/threads/${threadId}/messages`, {
-      method: "POST",
-      userId: ctx.userId,
-      body: JSON.stringify({ content: "hello /test-save world", mode: "auto" }),
-    });
-    expect(res.status).toBe(200);
-    const text = await res.text();
-    const frames = parseSseEvents(text);
-    expect(frames.find((f) => f.event === "save_suggestion")).toBeUndefined();
-  });
-});
+// The legacy `AGENT_STUB_EMIT_SAVE_SUGGESTION` env-gated stub describe block
+// was removed when Task 7 wired runAgent to chat-llm.runChat — save_suggestion
+// now arrives via the LLM fence parser (Task 5, save-suggestion-fence.ts).
+// Fence parsing is covered by save-suggestion-fence.test.ts; the end-to-end
+// path through the SSE route is exercised by threads-real-llm.test.ts via an
+// injected fake provider.
 
 describe("Threads messages — pipeline failure", () => {
   let ctx: SeedResult;
