@@ -74,3 +74,4 @@ secrets/
 docker-compose.prod.yml
 
 # Database migrations
+.claude/scheduled_tasks.lock
