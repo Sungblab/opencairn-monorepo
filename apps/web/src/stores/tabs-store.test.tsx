@@ -59,6 +59,13 @@ describe("tabs-store", () => {
     expect(useTabsStore.getState().activeId).toBe("t1");
   });
 
+  it("addTab focuses the newly added tab", () => {
+    useTabsStore.getState().setWorkspace("ws-a");
+    useTabsStore.getState().addTab(mkTab({ id: "t1" }));
+    useTabsStore.getState().addTab(mkTab({ id: "t2" }));
+    expect(useTabsStore.getState().activeId).toBe("t2");
+  });
+
   it("closeTab selects right neighbor", () => {
     useTabsStore.getState().setWorkspace("ws-a");
     useTabsStore.getState().addTab(mkTab({ id: "t1" }));
