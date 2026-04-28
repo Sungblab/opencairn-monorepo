@@ -98,7 +98,7 @@
     "jszip": "^3.10.1",
     "pyodide": "0.27.0",
     "tailwindcss": "^4.0.0",
-    "typescript": "^5.8.0",
+    "typescript": "^6.0.3",
     "typescript-eslint": "^8.58.2",
     "vitest": "^4.1.5"
   }
