@@ -74,6 +74,26 @@ class LLMProvider(ABC):
     async def transcribe(self, audio: bytes) -> str | None:
         return None
 
+    def supports_ocr(self) -> bool:
+        """True if the provider can extract text from a rendered page image.
+
+        Used by ingest to decide whether scan PDFs (no embedded text layer)
+        can be processed at all — Ollama returns False so the worker can
+        surface a clear error instead of silently producing empty notes.
+        """
+        return False
+
+    async def ocr(self, image_bytes: bytes, mime_type: str = "image/png") -> str:
+        """Extract text from a single page image (스캔 PDF / 이미지 텍스트 추출).
+
+        Providers that support vision OCR override this. The default raises
+        ``NotImplementedError`` so scan-PDF callers fail fast instead of
+        receiving an empty string they'd interpret as "no text on page".
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not support OCR"
+        )
+
     async def generate_multimodal(
         self,
         prompt: str,

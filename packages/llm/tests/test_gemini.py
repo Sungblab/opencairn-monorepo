@@ -227,3 +227,38 @@ async def test_generate_multimodal_pdf_sends_pdf_mime(provider):
     )
     assert pdf_part is not None
     assert pdf_part.inline_data.mime_type == "application/pdf"
+
+
+@pytest.mark.asyncio
+async def test_ocr_sends_image_inline_data_and_returns_text(provider):
+    """Gemini OCR must inline image bytes + a text prompt, return response.text."""
+    from google.genai import types
+
+    mock_response = MagicMock()
+    mock_response.text = "Page 1 line one\nPage 1 line two"
+    with patch.object(
+        provider._client.aio.models,
+        "generate_content",
+        new=AsyncMock(return_value=mock_response),
+    ) as mocked:
+        result = await provider.ocr(b"\x89PNG\r\nfake", mime_type="image/png")
+    assert result == "Page 1 line one\nPage 1 line two"
+    parts = mocked.await_args.kwargs["contents"]
+    image_part = next(
+        (p for p in parts if isinstance(p, types.Part) and p.inline_data),
+        None,
+    )
+    assert image_part is not None
+    assert image_part.inline_data.mime_type == "image/png"
+    assert image_part.inline_data.data == b"\x89PNG\r\nfake"
+    text_part = next(
+        (p for p in parts if isinstance(p, types.Part) and getattr(p, "text", None)),
+        None,
+    )
+    assert text_part is not None
+    # Must instruct extraction-only output (no commentary, no summarisation).
+    assert "extract" in text_part.text.lower()
+
+
+def test_gemini_supports_ocr_true(provider):
+    assert provider.supports_ocr() is True

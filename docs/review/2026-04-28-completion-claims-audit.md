@@ -48,12 +48,13 @@ Plan 3 ingest pipeline이 ✅ 완료로 머지됐는데, plan 헤더에 "Office/
 
 ### 1.4 Plan 3 Office/HWP — calibration case (위 §0 참조)
 
-### 1.5 Plan 3 Scan PDF OCR — 아키텍처 자체가 부재
+### 1.5 Plan 3 Scan PDF OCR — ~~아키텍처 자체가 부재~~ → **resolved 2026-04-28** (`feat/plan-3-scan-pdf-ocr`)
 
-- **증거**: `pdf_activity.py:18` 모듈 docstring — `"OCR for scans is **out of scope**"`
-- spec(`docs/superpowers/specs/2026-04-09-opencairn-design.md:712`)은 `provider.ocr()` 약속
-- `packages/llm/src/llm/base.py`에 `ocr` 메서드 없음, `grep provider.ocr apps/worker/src` 0 hits
-- 스캔 PDF는 `is_scan: True` + 빈 텍스트로 **성공 응답** — 에러 없음, 빈 노트 생성, 유저는 왜 안 되는지 모름
+- **(2026-04-28 리졸브)** `LLMProvider.ocr()` + `supports_ocr()` 추가, `GeminiProvider.ocr()` Vision inline image part 구현, `OllamaProvider.ocr()` 명시적 `NotImplementedError("Ollama OCR not supported. Use Gemini provider for scan PDF.")` 처리. `pdf_activity._ocr_scan_pdf`가 `pymupdf` 200dpi 렌더링 → 페이지마다 `provider.ocr()` 호출 → 페이지 단위 `unit_started`/`unit_parsed` SSE 이벤트. OCR 미지원 provider 또는 mid-loop `NotImplementedError` 시 `ApplicationError(non_retryable=True, "Scan PDF requires Gemini provider...")` — silent 빈 노트 차단. 4 신규 pytest (base 2 + gemini 2 + ollama 2 + pdf_activity 2). 잔여: 실제 스캔 PDF E2E (apps/web 업로드 UI 부재 → `/api/ingest/upload` 활성화 후 별도 follow-up).
+- ~~증거~~: ~~`pdf_activity.py:18` 모듈 docstring — `"OCR for scans is **out of scope**"`~~ (제거됨)
+- spec(`docs/superpowers/specs/2026-04-09-opencairn-design.md:712`)은 `provider.ocr()` 약속 → 충족
+- ~~`packages/llm/src/llm/base.py`에 `ocr` 메서드 없음~~ → 추가됨
+- ~~스캔 PDF는 `is_scan: True` + 빈 텍스트로 **성공 응답**~~ → 이제 OCR 텍스트 반환 또는 non-retryable 실패
 
 ---
 

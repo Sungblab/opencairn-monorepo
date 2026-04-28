@@ -1,21 +1,22 @@
 """PDF parsing activity — opendataloader-pdf + per-page event emission.
 
-Plan 3 Task 3 + Plan: live-ingest-visualization Task 4.
+Plan 3 Task 3 + Plan: live-ingest-visualization Task 4 + Plan 3 Scan PDF OCR.
 
 Flow:
     1. Download the uploaded object from MinIO/R2 to a temp file.
     2. Use :mod:`pymupdf` to check whether the PDF is a scan (no extractable
        text but images present on majority of pages).
-    3. Run opendataloader-pdf (Java JAR) via :mod:`subprocess` with image
-       extraction enabled, producing JSON + per-figure PNGs.
+    3a. Text PDFs: run opendataloader-pdf (Java JAR) via :mod:`subprocess`
+        with image extraction enabled, producing JSON + per-figure PNGs.
+    3b. Scan PDFs: render each page to PNG via :mod:`pymupdf` and call
+        ``provider.ocr()`` per page. Providers without OCR support raise
+        ``ApplicationError(non_retryable=True)`` so the user gets a clear
+        "Gemini provider required" error instead of a silent empty note.
     4. Walk pages emitting per-page IngestEvents (unit_started/unit_parsed/
        figure_extracted) via :func:`publish_safe` so Redis downtime never
        breaks parsing itself.
     5. Concatenate text and flag complex layout for the downstream enhance
        step, same as before.
-
-OCR for scans is **out of scope** — we still return whatever text the JAR
-extracted (usually empty for scans) plus the ``is_scan`` flag.
 """
 from __future__ import annotations
 
@@ -31,6 +32,9 @@ from typing import Any
 
 import pymupdf
 from temporalio import activity
+from temporalio.exceptions import ApplicationError
+
+from llm.factory import get_provider
 
 from worker.lib.ingest_events import publish_safe
 from worker.lib.s3_client import download_to_tempfile, upload_object
@@ -53,6 +57,21 @@ def _detect_scan(pdf_path: Path) -> bool:
             if not text and images:
                 scan_pages += 1
         return scan_pages >= (total // 2 + 1)
+    finally:
+        doc.close()
+
+
+def _render_pages_to_png(pdf_path: Path, dpi: int = 200) -> list[bytes]:
+    """Render each page of the PDF to PNG bytes for vision OCR.
+
+    Test seam — patched in unit tests so we don't need a readable fixture.
+    200 DPI is the rule-of-thumb sweet spot for OCR quality vs. token cost
+    on Gemini Vision; smaller pages would lose fine print, larger ones
+    inflate request size without measurable accuracy gains.
+    """
+    doc = pymupdf.open(str(pdf_path))
+    try:
+        return [page.get_pixmap(dpi=dpi).tobytes("png") for page in doc]
     finally:
         doc.close()
 
@@ -116,6 +135,74 @@ def _classify_figure(fig: dict[str, Any]) -> str:
     return "image"
 
 
+async def _ocr_scan_pdf(pdf_path: Path, workflow_id: str) -> dict[str, Any]:
+    """Render each page + OCR via the configured LLM provider.
+
+    Skipped when ``provider.supports_ocr()`` is False — we fail fast with
+    a non-retryable ``ApplicationError`` so the user gets "Gemini provider
+    required" instead of a silent empty note. The same error is raised if
+    ``provider.ocr()`` itself signals ``NotImplementedError`` mid-loop
+    (defensive: subclasses may forget to keep ``supports_ocr`` in sync).
+    """
+    provider = get_provider()
+    if not provider.supports_ocr():
+        raise ApplicationError(
+            "Scan PDF requires Gemini provider with OCR support. "
+            "Set LLM_PROVIDER=gemini and provide GEMINI_API_KEY.",
+            non_retryable=True,
+        )
+
+    png_pages: list[bytes] = await asyncio.to_thread(_render_pages_to_png, pdf_path)
+    total_pages = len(png_pages)
+
+    await publish_safe(
+        workflow_id, "stage_changed", {"stage": "parsing", "pct": 0.0}
+    )
+
+    text_parts: list[str] = []
+    pages_meta: list[dict[str, Any]] = []
+
+    for page_idx, png_bytes in enumerate(png_pages):
+        await publish_safe(workflow_id, "unit_started", {
+            "index": page_idx,
+            "total": total_pages,
+            "label": f"Page {page_idx + 1}/{total_pages}",
+        })
+
+        t_start = time.time()
+        try:
+            page_text = await provider.ocr(png_bytes, mime_type="image/png")
+        except NotImplementedError as e:
+            raise ApplicationError(
+                f"Scan PDF requires Gemini provider: {e}",
+                non_retryable=True,
+            ) from e
+
+        text_parts.append(page_text)
+        # Mirror the JAR-text return shape so downstream Spec B enrichment
+        # can iterate ``pages[].text`` uniformly across both branches.
+        pages_meta.append({"text": page_text, "figures": [], "tables": []})
+
+        duration_ms = int((time.time() - t_start) * 1000)
+        await publish_safe(workflow_id, "unit_parsed", {
+            "index": page_idx,
+            "unitKind": "page",
+            "charCount": len(page_text),
+            "durationMs": duration_ms,
+        })
+
+    full_text = "\n\n".join(text_parts)
+    activity.logger.info(
+        "Scan PDF OCR done: %d pages, %d chars", total_pages, len(full_text)
+    )
+    return {
+        "text": full_text,
+        "has_complex_layout": False,
+        "is_scan": True,
+        "pages": pages_meta,
+    }
+
+
 @activity.defn(name="parse_pdf")
 async def parse_pdf(inp: dict[str, Any]) -> dict[str, Any]:
     """Parse a PDF + emit per-page IngestEvents.
@@ -137,6 +224,7 @@ async def parse_pdf(inp: dict[str, Any]) -> dict[str, Any]:
         is_scan = _detect_scan(pdf_path)
         if is_scan:
             activity.logger.warning("PDF appears to be a scan: %s", object_key)
+            return await _ocr_scan_pdf(pdf_path, workflow_id)
 
         out_dir = await asyncio.to_thread(_run_jar, pdf_path, out_dir)
 

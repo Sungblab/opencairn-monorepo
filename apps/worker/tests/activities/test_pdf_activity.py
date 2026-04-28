@@ -7,9 +7,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from temporalio.exceptions import ApplicationError
 
 from worker.activities.pdf_activity import parse_pdf
 
@@ -108,3 +109,114 @@ async def test_parse_pdf_skips_missing_figure_files(tmp_path: Path):
 
     kinds = [c[0] for c in publish_calls]
     assert "figure_extracted" not in kinds
+
+
+@pytest.mark.asyncio
+async def test_parse_pdf_scan_ocrs_each_page(tmp_path: Path):
+    """Scan PDFs (no text layer) get OCR'd page-by-page via provider.ocr.
+
+    Each page emits unit_started + unit_parsed; the JAR is *not* invoked
+    because its text output would be empty for image-only pages anyway,
+    and skipping it keeps Java off the worker's hot path for scans.
+    """
+    fake_pdf = tmp_path / "scan.pdf"
+    fake_pdf.write_bytes(b"%PDF-1.4\n...")
+
+    publish_calls: list[tuple[str, dict]] = []
+
+    async def fake_publish(_wfid, kind, payload):
+        publish_calls.append((kind, payload))
+
+    fake_provider = MagicMock()
+    fake_provider.supports_ocr.return_value = True
+    fake_provider.ocr = AsyncMock(side_effect=["page one text", "page two text"])
+
+    with (
+        patch("worker.activities.pdf_activity.download_to_tempfile", return_value=fake_pdf),
+        patch("worker.activities.pdf_activity._detect_scan", return_value=True),
+        patch(
+            "worker.activities.pdf_activity._render_pages_to_png",
+            return_value=[b"\x89PNG\r\np1", b"\x89PNG\r\np2"],
+        ),
+        patch("worker.activities.pdf_activity.get_provider", return_value=fake_provider),
+        patch("worker.activities.pdf_activity.publish_safe", side_effect=fake_publish),
+    ):
+        result = await parse_pdf({
+            "object_key": "uploads/u/scan.pdf",
+            "user_id": "u",
+            "project_id": "p",
+            "note_id": None,
+            "file_name": "scan.pdf",
+            "mime_type": "application/pdf",
+            "url": None,
+            "workflow_id": "wf-scan",
+        })
+
+    assert result["is_scan"] is True
+    # Concatenated text preserves page order.
+    assert "page one text" in result["text"]
+    assert "page two text" in result["text"]
+    assert result["text"].index("page one text") < result["text"].index("page two text")
+
+    # OCR was called once per page with the rendered PNG bytes.
+    assert fake_provider.ocr.await_count == 2
+    first_call_args = fake_provider.ocr.await_args_list[0]
+    assert first_call_args.args[0] == b"\x89PNG\r\np1"
+
+    kinds = [c[0] for c in publish_calls]
+    assert kinds.count("unit_started") == 2
+    assert kinds.count("unit_parsed") == 2
+    # Per-page metadata uses unitKind="page" so the dock UI labels match
+    # the JAR-text path.
+    parsed_payloads = [p for k, p in publish_calls if k == "unit_parsed"]
+    assert all(p["unitKind"] == "page" for p in parsed_payloads)
+
+
+@pytest.mark.asyncio
+async def test_parse_pdf_scan_without_ocr_provider_raises_non_retryable(
+    tmp_path: Path,
+):
+    """A scan PDF on a provider without OCR support must fail loudly.
+
+    Silent empty-text returns would create a blank note and leave the user
+    debugging in the dark; ApplicationError(non_retryable=True) surfaces
+    "Scan PDF requires Gemini provider" through the workflow.
+    """
+    fake_pdf = tmp_path / "scan.pdf"
+    fake_pdf.write_bytes(b"%PDF-1.4\n...")
+
+    fake_provider = MagicMock()
+    fake_provider.supports_ocr.return_value = False
+    fake_provider.ocr = AsyncMock(
+        side_effect=NotImplementedError(
+            "Ollama OCR not supported. Use Gemini provider for scan PDF."
+        )
+    )
+
+    async def fake_publish(_wfid, _kind, _payload):
+        return None
+
+    with (
+        patch("worker.activities.pdf_activity.download_to_tempfile", return_value=fake_pdf),
+        patch("worker.activities.pdf_activity._detect_scan", return_value=True),
+        patch(
+            "worker.activities.pdf_activity._render_pages_to_png",
+            return_value=[b"\x89PNG"],
+        ),
+        patch("worker.activities.pdf_activity.get_provider", return_value=fake_provider),
+        patch("worker.activities.pdf_activity.publish_safe", side_effect=fake_publish),
+    ):
+        with pytest.raises(ApplicationError) as info:
+            await parse_pdf({
+                "object_key": "uploads/u/scan.pdf",
+                "user_id": "u",
+                "project_id": "p",
+                "note_id": None,
+                "file_name": "scan.pdf",
+                "mime_type": "application/pdf",
+                "url": None,
+                "workflow_id": "wf-scan-fail",
+            })
+
+    assert info.value.non_retryable is True
+    assert "Gemini" in str(info.value)
