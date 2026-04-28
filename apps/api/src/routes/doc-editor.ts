@@ -82,6 +82,31 @@ docEditorRoutes.post(
     const { selection, language, documentContextSnippet } = bodyParsed.data;
     const runId = randomUUID();
 
+    const startedAt = Date.now();
+    // Plan 11B Phase A T15 — structured terminal-event log for the
+    // doc-editor surface. Mirrors the audit row in `doc_editor_calls`
+    // but lands in stdout where Promtail / Loki can collect without a
+    // DB read. Single line per request (start vs end is recoverable from
+    // `duration_ms` + the request-id Hono assigns upstream).
+    const logEvent = (
+      status: "ok" | "failed",
+      extras: { tokens_in?: number; tokens_out?: number; error_code?: string },
+    ) =>
+      console.info(
+        JSON.stringify({
+          event: "doc_editor.invoked",
+          note_id: noteId,
+          workspace_id: note.workspaceId,
+          user_id: userId,
+          command: cmdParsed.data,
+          status,
+          duration_ms: Date.now() - startedAt,
+          tokens_in: extras.tokens_in ?? 0,
+          tokens_out: extras.tokens_out ?? 0,
+          ...(extras.error_code ? { error_code: extras.error_code } : {}),
+        }),
+      );
+
     return streamSSE(c, async (stream) => {
       const writeEvent = (ev: DocEditorSseEvent) =>
         stream.writeSSE({
@@ -119,6 +144,7 @@ docEditorRoutes.post(
           status: "failed",
           errorCode: "temporal_unreachable",
         });
+        logEvent("failed", { error_code: "temporal_unreachable" });
         return;
       }
 
@@ -174,6 +200,10 @@ docEditorRoutes.post(
           costKrw: "0",
           status: "ok",
         });
+        logEvent("ok", {
+          tokens_in: result.tokens_in,
+          tokens_out: result.tokens_out,
+        });
       } catch (err) {
         const errName = err instanceof Error ? err.name : String(err);
         const isCancel =
@@ -197,6 +227,7 @@ docEditorRoutes.post(
           status: "failed",
           errorCode: isCancel ? "cancelled" : errName,
         });
+        logEvent("failed", { error_code: isCancel ? "cancelled" : errName });
       }
     });
   },
