@@ -45,33 +45,66 @@ describe("chat-retrieval ragMode", () => {
   });
 
   it("ragMode=strict uses CHAT_RAG_TOP_K_STRICT (default 5)", async () => {
-    delete process.env.CHAT_RAG_TOP_K_STRICT;
-    search.projectHybridSearch.mockResolvedValue([]);
-    await retrieve({
-      workspaceId: "ws-1",
-      query: "x",
-      ragMode: "strict",
-      scope: { type: "project", workspaceId: "ws-1", projectId: "p-1" },
-      chips: [],
-    });
-    expect(search.projectHybridSearch).toHaveBeenCalledWith(
-      expect.objectContaining({ k: 5 }),
-    );
+    const original = process.env.CHAT_RAG_TOP_K_STRICT;
+    try {
+      delete process.env.CHAT_RAG_TOP_K_STRICT;
+      search.projectHybridSearch.mockResolvedValue([]);
+      await retrieve({
+        workspaceId: "ws-1",
+        query: "x",
+        ragMode: "strict",
+        scope: { type: "project", workspaceId: "ws-1", projectId: "p-1" },
+        chips: [],
+      });
+      expect(search.projectHybridSearch).toHaveBeenCalledWith(
+        expect.objectContaining({ k: 5 }),
+      );
+    } finally {
+      if (original === undefined) delete process.env.CHAT_RAG_TOP_K_STRICT;
+      else process.env.CHAT_RAG_TOP_K_STRICT = original;
+    }
   });
 
   it("ragMode=expand uses CHAT_RAG_TOP_K_EXPAND (default 12)", async () => {
-    delete process.env.CHAT_RAG_TOP_K_EXPAND;
-    search.projectHybridSearch.mockResolvedValue([]);
-    await retrieve({
-      workspaceId: "ws-1",
-      query: "x",
-      ragMode: "expand",
-      scope: { type: "project", workspaceId: "ws-1", projectId: "p-1" },
-      chips: [],
-    });
-    expect(search.projectHybridSearch).toHaveBeenCalledWith(
-      expect.objectContaining({ k: 12 }),
-    );
+    const original = process.env.CHAT_RAG_TOP_K_EXPAND;
+    try {
+      delete process.env.CHAT_RAG_TOP_K_EXPAND;
+      search.projectHybridSearch.mockResolvedValue([]);
+      await retrieve({
+        workspaceId: "ws-1",
+        query: "x",
+        ragMode: "expand",
+        scope: { type: "project", workspaceId: "ws-1", projectId: "p-1" },
+        chips: [],
+      });
+      expect(search.projectHybridSearch).toHaveBeenCalledWith(
+        expect.objectContaining({ k: 12 }),
+      );
+    } finally {
+      if (original === undefined) delete process.env.CHAT_RAG_TOP_K_EXPAND;
+      else process.env.CHAT_RAG_TOP_K_EXPAND = original;
+    }
+  });
+
+  it("non-numeric CHAT_RAG_TOP_K_STRICT falls back to default 5", async () => {
+    const original = process.env.CHAT_RAG_TOP_K_STRICT;
+    try {
+      process.env.CHAT_RAG_TOP_K_STRICT = "five";
+      search.projectHybridSearch.mockResolvedValue([]);
+      await retrieve({
+        workspaceId: "ws-1",
+        query: "q",
+        ragMode: "strict",
+        scope: { type: "project", workspaceId: "ws-1", projectId: "p-1" },
+        chips: [],
+      });
+      expect(search.projectHybridSearch).toHaveBeenCalledWith(
+        expect.objectContaining({ k: 5 }),
+      );
+    } finally {
+      if (original === undefined) delete process.env.CHAT_RAG_TOP_K_STRICT;
+      else process.env.CHAT_RAG_TOP_K_STRICT = original;
+    }
   });
 });
 
@@ -123,5 +156,48 @@ describe("chat-retrieval chip union", () => {
       (c) => (c[0] as { projectId: string }).projectId,
     );
     expect(calls).toEqual(["p-chip"]);
+  });
+
+  it("workspace chip with matching id expands to all projects in workspace", async () => {
+    // First db.execute call: allProjectsInWorkspace returns 2 projects
+    dbMod.db.execute.mockResolvedValueOnce({
+      rows: [{ id: "p-a" }, { id: "p-b" }],
+    });
+    await retrieve({
+      workspaceId: "ws-1",
+      query: "q",
+      ragMode: "strict",
+      scope: { type: "workspace", workspaceId: "ws-1" },
+      chips: [{ type: "workspace", id: "ws-1" }],
+    });
+    const calls = search.projectHybridSearch.mock.calls.map(
+      (c) => (c[0] as { projectId: string }).projectId,
+    );
+    expect(calls.sort()).toEqual(["p-a", "p-b"]);
+  });
+
+  it("workspace chip with foreign id is silently dropped (no DB call, no search)", async () => {
+    await retrieve({
+      workspaceId: "ws-1",
+      query: "q",
+      ragMode: "strict",
+      scope: { type: "workspace", workspaceId: "ws-1" },
+      chips: [{ type: "workspace", id: "ws-other" }],
+    });
+    expect(dbMod.db.execute).not.toHaveBeenCalled();
+    expect(search.projectHybridSearch).not.toHaveBeenCalled();
+  });
+
+  it("page chip pointing at note in different workspace is silently dropped", async () => {
+    // projectIdForNote returns no rows because the JOIN's workspace_id filter excludes it
+    dbMod.db.execute.mockResolvedValue({ rows: [] });
+    await retrieve({
+      workspaceId: "ws-1",
+      query: "q",
+      ragMode: "strict",
+      scope: { type: "workspace", workspaceId: "ws-1" },
+      chips: [{ type: "page", id: "n-foreign" }],
+    });
+    expect(search.projectHybridSearch).not.toHaveBeenCalled();
   });
 });

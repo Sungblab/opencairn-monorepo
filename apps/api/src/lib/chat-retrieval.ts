@@ -25,14 +25,28 @@ export type RetrievalHit = {
 
 // ── Top-k routing ────────────────────────────────────────────────────────
 
+function envInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") return fallback;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[chat-retrieval] env ${name}=${JSON.stringify(raw)} is not a non-negative finite number; using fallback ${fallback}`,
+    );
+    return fallback;
+  }
+  return parsed;
+}
+
 function topK(mode: RagMode): number {
   if (mode === "off") return 0;
-  if (mode === "strict") return Number(process.env.CHAT_RAG_TOP_K_STRICT ?? 5);
-  return Number(process.env.CHAT_RAG_TOP_K_EXPAND ?? 12);
+  if (mode === "strict") return envInt("CHAT_RAG_TOP_K_STRICT", 5);
+  return envInt("CHAT_RAG_TOP_K_EXPAND", 12);
 }
 
 function maxProjects(): number {
-  return Number(process.env.CHAT_RAG_MAX_PROJECTS ?? 64);
+  return envInt("CHAT_RAG_MAX_PROJECTS", 64);
 }
 
 // ── Public surface ───────────────────────────────────────────────────────
@@ -48,11 +62,11 @@ export async function retrieve(opts: {
   const k = topK(opts.ragMode);
   if (k === 0) return [];
 
-  const provider = getGeminiProvider();
-  const queryEmbedding = await provider.embed(opts.query);
-
   const projectIds = await resolveProjectIds(opts);
   if (projectIds.length === 0) return [];
+
+  const provider = getGeminiProvider();
+  const queryEmbedding = await provider.embed(opts.query);
 
   const fanout = projectIds.slice(0, maxProjects());
   const perProjectK = Math.max(k, 5);
@@ -68,9 +82,9 @@ export async function retrieve(opts: {
     ),
   );
 
-  // Re-merge: union by noteId, sum RRF scores, sort, slice. If a noteId
-  // appears in multiple projects (it can't — note↔project is 1:1) we still
-  // keep the first occurrence.
+  // Re-merge: keep first occurrence per noteId, then sort by RRF score and
+  // slice. Note↔project is 1:1 so duplicates across projects shouldn't
+  // happen; the dedup is defensive.
   const merged = new Map<string, HybridHit>();
   for (const hits of projectHits) {
     for (const h of hits) {
