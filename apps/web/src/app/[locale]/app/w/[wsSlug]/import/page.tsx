@@ -1,16 +1,16 @@
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { isImportEnabled } from "@/lib/feature-flags";
 import { ImportTabs } from "./ImportTabs";
 
-// Import feature is behind FEATURE_IMPORT_ENABLED so the route is a 404
-// until an admin explicitly turns it on. Keeps the surface narrow during
-// the multi-plan rollout.
+// Import is production-ready by default, but operators can still hide it with
+// FEATURE_IMPORT_ENABLED=false for hosted rollout control.
 export default async function ImportPage({
   params,
 }: {
   params: Promise<{ locale: string; wsSlug: string }>;
 }) {
-  if (process.env.FEATURE_IMPORT_ENABLED !== "true") {
+  if (!isImportEnabled()) {
     notFound();
   }
   const { wsSlug } = await params;

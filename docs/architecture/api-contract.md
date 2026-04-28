@@ -192,7 +192,7 @@ Cookie: better-auth.session_token=<token>
 
 ### Deep Research (Phase C, feature-flag `FEATURE_DEEP_RESEARCH`)
 
-Public — Better Auth 세션 + `canWrite`(project, 생성/변경) 또는 `canRead`(workspace, 조회/스트림). `FEATURE_DEEP_RESEARCH=false` 시 모든 경로 404. `billingPath: "managed"`는 `FEATURE_MANAGED_DEEP_RESEARCH` 필요 (off 시 403 `{error:"managed_disabled"}`).
+Public — Better Auth 세션 + `canWrite`(project, 생성/변경) 또는 `canRead`(workspace, 조회/스트림). 기본 활성화이며, `FEATURE_DEEP_RESEARCH=false` 시 모든 경로 404. `billingPath: "managed"`는 `FEATURE_MANAGED_DEEP_RESEARCH` 필요 (off 시 403 `{error:"managed_disabled"}`).
 
 | Method | Path                                     | Body / Query                | Response |
 |--------|------------------------------------------|-----------------------------|----------|

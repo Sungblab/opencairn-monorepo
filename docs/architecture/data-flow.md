@@ -377,7 +377,8 @@ Workflow ─> create_deep_research_plan (activity)
 DeepResearchOutput { status="completed", noteId, totalCostUsdCents }
 ```
 
-Feature flag `FEATURE_DEEP_RESEARCH` gates everything (worker registration, api,
-web). Managed PAYG path further gated by `FEATURE_MANAGED_DEEP_RESEARCH` until
-Plan 9b (billing) lands. BYOK key stored in `user_preferences.byok_api_key_encrypted`
+Feature flag `FEATURE_DEEP_RESEARCH` defaults on and gates everything (worker
+registration, api, web) only when explicitly set to `false`. Managed PAYG path
+is further gated by `FEATURE_MANAGED_DEEP_RESEARCH` until Plan 9b (billing)
+lands. BYOK key stored in `user_preferences.byok_api_key_encrypted`
 using the same AES-256-GCM scheme as `user_integrations.access_token_encrypted`.

@@ -119,7 +119,7 @@ class DeepResearchWorkflow:
 
     @workflow.run
     async def run(self, inp: DeepResearchInput) -> DeepResearchOutput:
-        if os.environ.get("FEATURE_DEEP_RESEARCH", "false").lower() != "true":
+        if os.environ.get("FEATURE_DEEP_RESEARCH", "true").lower() != "true":
             return _feature_disabled()
         if (
             inp.billing_path == "managed"

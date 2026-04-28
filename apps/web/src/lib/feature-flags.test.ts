@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   isDeepResearchEnabled,
+  isImportEnabled,
   isManagedDeepResearchEnabled,
 } from "./feature-flags";
 
@@ -13,9 +14,9 @@ describe("feature-flags", () => {
     process.env = saved;
   });
 
-  it("isDeepResearchEnabled defaults false", () => {
+  it("isDeepResearchEnabled defaults true", () => {
     delete process.env.FEATURE_DEEP_RESEARCH;
-    expect(isDeepResearchEnabled()).toBe(false);
+    expect(isDeepResearchEnabled()).toBe(true);
   });
 
   it("isDeepResearchEnabled returns true for 'true' (case-insensitive)", () => {
@@ -36,5 +37,15 @@ describe("feature-flags", () => {
   it("isManagedDeepResearchEnabled true for 'true'", () => {
     process.env.FEATURE_MANAGED_DEEP_RESEARCH = "true";
     expect(isManagedDeepResearchEnabled()).toBe(true);
+  });
+
+  it("isImportEnabled defaults true", () => {
+    delete process.env.FEATURE_IMPORT_ENABLED;
+    expect(isImportEnabled()).toBe(true);
+  });
+
+  it("isImportEnabled can be disabled explicitly", () => {
+    process.env.FEATURE_IMPORT_ENABLED = "false";
+    expect(isImportEnabled()).toBe(false);
   });
 });

@@ -1,8 +1,7 @@
 // Phase 4 agent panel pipeline. Resolves the chat thread's workspace, then
 // drives chat-llm.runChat with workspace-scoped RAG defaults and forwards
 // every chunk type to the SSE route. The chunk shape (`{type, payload}`)
-// matches what apps/web's agent panel reader expects, so the SSE contract
-// is unchanged from the prior stub.
+// matches what apps/web's agent panel reader expects.
 //
 // History reload is out of scope for v1 — the agent panel renders prior
 // turns from chat_messages on its own. Multi-turn reasoning over older
