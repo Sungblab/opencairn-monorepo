@@ -44,8 +44,8 @@ const postMessageBody = z.object({
 });
 
 // Test seam — vitest swaps this via `__setRunAgentForTest` to inject failure
-// paths without monkey-patching the module graph. Defaults to the stub
-// generator from agent-pipeline.ts.
+// paths without monkey-patching the module graph. Defaults to the real
+// chat-llm pipeline from agent-pipeline.ts.
 type RunAgentFn = (opts: {
   threadId: string;
   userMessage: { content: string; scope?: unknown };

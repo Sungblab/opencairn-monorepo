@@ -4,9 +4,8 @@ import { seedFullStackSession } from "./helpers/full-stack";
 
 // App Shell Phase 4 Task 12 — Agent Panel happy paths.
 //
-// NOTE: The stub echo ("(stub agent response to: ...)") was killed in
-// Plan 11B-A Task 7/8. These smoke tests assert deterministic shell behavior
-// and the SSE route opening, not literal LLM text.
+// These smoke tests assert deterministic shell behavior and the SSE route
+// opening, not literal LLM text.
 //
 // All visible strings are pulled from the i18n keys in
 // apps/web/messages/ko/agent-panel.json — keep this file in sync if the
@@ -63,12 +62,8 @@ test.describe("App Shell Phase 4 — Agent Panel", () => {
     const ta = page.getByPlaceholder("메시지를 입력하세요...");
     await ta.fill("hi");
     await ta.press("Enter");
-    // SKIPPED: Stub echo retired in Plan 11B-A real-LLM wiring. Follow-up:
-    // mock Gemini API to return a deterministic fixture for testing.
-    // See docs/review/2026-04-28-completion-claims-audit.md.
-    await expect(page.getByText(/stub agent response to: hi/)).toBeVisible({
-      timeout: 5000,
-    });
+    // SKIPPED: needs a deterministic LLM fixture before it can assert the
+    // agent bubble and feedback controls reliably in full-stack mode.
 
     // bubble.actions.thumbs_down_aria — flipping reasonOpen renders the
     // four feedback chips inline.
@@ -85,12 +80,8 @@ test.describe("App Shell Phase 4 — Agent Panel", () => {
     const ta = page.getByPlaceholder("메시지를 입력하세요...");
     await ta.fill("first thread message");
     await ta.press("Enter");
-    // SKIPPED: Stub echo retired in Plan 11B-A real-LLM wiring. Follow-up:
-    // mock Gemini API to return a deterministic fixture for testing.
-    // See docs/review/2026-04-28-completion-claims-audit.md.
-    await expect(
-      page.getByText(/stub agent response to: first thread message/),
-    ).toBeVisible({ timeout: 5000 });
+    // SKIPPED: needs a deterministic LLM fixture before it can assert the
+    // previous thread's completed agent bubble reliably in full-stack mode.
 
     // header.new_thread_aria — spawns a second thread and activates it.
     await page.getByRole("button", { name: "새 대화" }).click();
