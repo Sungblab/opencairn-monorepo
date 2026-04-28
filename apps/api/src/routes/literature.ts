@@ -2,7 +2,16 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { randomUUID } from "node:crypto";
-import { db, importJobs, notes, projects, eq, and, isNull } from "@opencairn/db";
+import {
+  db,
+  importJobs,
+  notes,
+  projects,
+  eq,
+  and,
+  isNull,
+  inArray,
+} from "@opencairn/db";
 import { requireAuth } from "../middleware/auth";
 import { checkRateLimit } from "../lib/rate-limit";
 import {
@@ -158,6 +167,11 @@ export const literatureRoutes = new Hono<AppEnv>()
     // this check inside the workflow (lit_dedupe_check) — both layers
     // exist because the workflow is the authoritative race-free path,
     // and this layer just trims the user-facing surface.
+    //
+    // Bound the query to the candidate doiIds (route already caps ids at
+    // 50), not the whole workspace — earlier draft fetched every notes.doi
+    // in the workspace into memory which scales O(workspace size) and
+    // misses the partial index entirely.
     const doiIds = ids.filter((id) => !id.startsWith("arxiv:"));
     let skipped: string[] = [];
     if (doiIds.length > 0) {
@@ -168,10 +182,7 @@ export const literatureRoutes = new Hono<AppEnv>()
           and(
             eq(notes.workspaceId, workspaceId),
             isNull(notes.deletedAt),
-            // pgvector inArray fails on enums sometimes — but doi is plain
-            // text, so a single SQL with `in (...)` would work. Looping
-            // here keeps it readable for batches of ≤50 ids and avoids
-            // a second `inArray` import.
+            inArray(notes.doi, doiIds),
           ),
         );
       const existingDois = new Set(

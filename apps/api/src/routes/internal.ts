@@ -31,6 +31,7 @@ import {
   sql,
   lt,
   count,
+  inArray,
 } from "@opencairn/db";
 import { getTemporalClient, taskQueue } from "../lib/temporal-client";
 import { signSessionForUser } from "../lib/test-session";
@@ -1612,7 +1613,10 @@ internal.post("/literature/import", async (c) => {
     return c.json({ error: "workspace_mismatch" }, 400);
   }
 
-  // DOI dedupe pre-check (same shape as the public route).
+  // DOI dedupe pre-check (same shape as the public route). Bound to the
+  // candidate doiIds (route caps ids at 50) so we don't scan the entire
+  // workspace and bypass notes_workspace_doi_idx. Same fix as PR review
+  // #1/#2 for the public route.
   const skipped: string[] = [];
   const doiIds = ids.filter((id) => !id.startsWith("arxiv:"));
   if (doiIds.length > 0) {
@@ -1620,7 +1624,11 @@ internal.post("/literature/import", async (c) => {
       .select({ doi: notes.doi })
       .from(notes)
       .where(
-        and(eq(notes.workspaceId, workspaceId), isNull(notes.deletedAt)),
+        and(
+          eq(notes.workspaceId, workspaceId),
+          isNull(notes.deletedAt),
+          inArray(notes.doi, doiIds),
+        ),
       );
     const existing = new Set(
       rows.map((r) => r.doi).filter((d): d is string => !!d),
