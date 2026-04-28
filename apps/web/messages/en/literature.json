@@ -4,6 +4,7 @@
     "button": "Search",
     "reSearch": "Re-search",
     "resultCount": "{count} results",
+    "moreCount": "+{count} more",
     "openInEditor": "Open full results in editor",
     "noResults": "No results found.",
     "loading": "Searching...",
