@@ -19,6 +19,34 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 8
+    # Foundational deps where a major bump touches runtime behavior across
+    # the whole monorepo — autonomous merge isn't safe even when CI is
+    # green (most of the surface is type-level or covered by happy-path
+    # tests). Patch + minor still flow normally; majors get a manual
+    # migration plan.
+    #   - zod: every Hono zValidator + packages/shared schema
+    #   - pino: log fmt/transport API
+    #   - @sentry/node: APM init/transport
+    #   - @hocuspocus/server: collab protocol
+    #   - lucide-react: icon API surface
+    #   - pdfjs-dist: ESM/worker URL changes since v4
+    ignore:
+      - dependency-name: "zod"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "pino"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@sentry/node"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@sentry/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@hocuspocus/server"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@hocuspocus/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "lucide-react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "pdfjs-dist"
+        update-types: ["version-update:semver-major"]
     groups:
       typescript:
         patterns:
