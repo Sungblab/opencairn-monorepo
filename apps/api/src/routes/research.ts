@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { randomUUID } from "node:crypto";
 import { zValidator } from "@hono/zod-validator";
 import {
@@ -13,6 +13,8 @@ import {
   desc,
   max,
   gt,
+  type Tx,
+  type ResearchRunTurnInsert,
 } from "@opencairn/db";
 import {
   createResearchRunSchema,
@@ -243,25 +245,77 @@ researchRouter.get("/runs/:id", requireAuth, async (c) => {
 // don't have a malformed string flowing through canRead either.
 // Strict regex lives in lib/validators.ts.
 
-// Postgres SQLSTATE 23505 = unique_violation. We bump into this on
-// research_run_turns_run_seq_idx when two concurrent writes (e.g. user
-// hammering POST /turns, or POST /turns racing against POST /approve) both
-// compute the same max(seq)+1. Surfacing as 500 told the client "server is
-// broken"; converting to 409 tells it "you raced, retry once with a fresh
-// max(seq)" — which is the actual remediation.
+// Postgres SQLSTATE 23505 = unique_violation. The normal turn-writing paths
+// now hold the run row FOR UPDATE before max(seq)+1 allocation, but keep this
+// mapper as defence-in-depth for any stale writer or unexpected constraint
+// race so the client sees retryable 409 rather than a generic 500.
 function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    "code" in err &&
-    (err as { code: unknown }).code === "23505"
-  );
+  if (typeof err !== "object" || err === null) return false;
+  if ("code" in err && (err as { code: unknown }).code === "23505") {
+    return true;
+  }
+  if ("cause" in err) {
+    const cause = (err as { cause?: unknown }).cause;
+    return cause !== err && isUniqueViolation(cause);
+  }
+  return false;
 }
 
 const concurrentWriteResponse = {
   error: "concurrent_write",
   retryable: true,
 } as const satisfies ResearchConcurrentWriteError;
+
+function isNegotiableStatus(status: string): boolean {
+  return status === "planning" || status === "awaiting_approval";
+}
+
+async function lockRunForMutation(tx: Tx, runId: string) {
+  const [run] = await tx
+    .select()
+    .from(researchRuns)
+    .where(eq(researchRuns.id, runId))
+    .for("update");
+  return run ?? null;
+}
+
+async function appendResearchTurn(
+  tx: Tx,
+  values: Omit<ResearchRunTurnInsert, "id" | "seq" | "createdAt">,
+): Promise<string> {
+  const [{ nextSeq }] = await tx
+    .select({ nextSeq: max(researchRunTurns.seq) })
+    .from(researchRunTurns)
+    .where(eq(researchRunTurns.runId, values.runId));
+  const [turn] = await tx
+    .insert(researchRunTurns)
+    .values({
+      ...values,
+      seq: (nextSeq ?? -1) + 1,
+    })
+    .returning({ id: researchRunTurns.id });
+  return turn.id;
+}
+
+type ResearchRunStatus = (typeof researchRuns.$inferSelect)["status"];
+type CommonMutationError =
+  | { type: "not_found" }
+  | { type: "invalid_state"; status: ResearchRunStatus };
+
+function respondCommonMutationError(
+  c: Context<AppEnv>,
+  result: CommonMutationError,
+): Response {
+  if (result.type === "not_found") return c.json({ error: "not_found" }, 404);
+
+  return c.json(
+    {
+      error: "invalid_state",
+      status: result.status,
+    } satisfies ResearchInvalidStateError,
+    409,
+  );
+}
 
 async function loadRunForUser(runId: string | undefined, userId: string) {
   if (!isUuid(runId)) return null;
@@ -292,38 +346,25 @@ researchRouter.post(
       return c.json({ error: "forbidden" }, 403);
     }
 
-    // Plan feedback only valid while the plan is still being negotiated.
-    if (
-      run.status !== "planning" &&
-      run.status !== "awaiting_approval"
-    ) {
-      return c.json(
-        {
-          error: "invalid_state",
-          status: run.status,
-        } satisfies ResearchInvalidStateError,
-        409,
-      );
-    }
-
-    const [{ nextSeq }] = await db
-      .select({ nextSeq: max(researchRunTurns.seq) })
-      .from(researchRunTurns)
-      .where(eq(researchRunTurns.runId, run.id));
-
-    let turnId: string;
+    let result:
+      | { type: "ok"; turnId: string; workflowId: string }
+      | { type: "not_found" }
+      | { type: "invalid_state"; status: typeof run.status };
     try {
-      const [turn] = await db
-        .insert(researchRunTurns)
-        .values({
-          runId: run.id,
-          seq: (nextSeq ?? -1) + 1,
+      result = await db.transaction(async (tx) => {
+        const locked = await lockRunForMutation(tx, run.id);
+        if (!locked) return { type: "not_found" as const };
+        if (!isNegotiableStatus(locked.status)) {
+          return { type: "invalid_state" as const, status: locked.status };
+        }
+        const turnId = await appendResearchTurn(tx, {
+          runId: locked.id,
           role: "user",
           kind: "user_feedback",
           content: feedback,
-        })
-        .returning({ id: researchRunTurns.id });
-      turnId = turn.id;
+        });
+        return { type: "ok" as const, turnId, workflowId: locked.workflowId };
+      });
     } catch (err) {
       if (isUniqueViolation(err)) {
         return c.json(concurrentWriteResponse, 409);
@@ -331,11 +372,13 @@ researchRouter.post(
       throw err;
     }
 
-    const client = await getTemporalClient();
-    const handle = client.workflow.getHandle(run.workflowId);
-    await handle.signal("user_feedback", feedback, turnId);
+    if (result.type !== "ok") return respondCommonMutationError(c, result);
 
-    return c.json({ turnId }, 202);
+    const client = await getTemporalClient();
+    const handle = client.workflow.getHandle(result.workflowId);
+    await handle.signal("user_feedback", feedback, result.turnId);
+
+    return c.json({ turnId: result.turnId }, 202);
   },
 );
 
@@ -354,42 +397,34 @@ researchRouter.patch(
     if (!(await canWrite(userId, { type: "project", id: run.projectId }))) {
       return c.json({ error: "forbidden" }, 403);
     }
-    if (
-      run.status !== "planning" &&
-      run.status !== "awaiting_approval"
-    ) {
-      return c.json(
-        {
-          error: "invalid_state",
-          status: run.status,
-        } satisfies ResearchInvalidStateError,
-        409,
-      );
-    }
-
-    const [{ nextSeq }] = await db
-      .select({ nextSeq: max(researchRunTurns.seq) })
-      .from(researchRunTurns)
-      .where(eq(researchRunTurns.runId, run.id));
-
+    let result:
+      | { type: "ok"; turnId: string }
+      | { type: "not_found" }
+      | { type: "invalid_state"; status: typeof run.status };
     try {
-      const [turn] = await db
-        .insert(researchRunTurns)
-        .values({
-          runId: run.id,
-          seq: (nextSeq ?? -1) + 1,
+      result = await db.transaction(async (tx) => {
+        const locked = await lockRunForMutation(tx, run.id);
+        if (!locked) return { type: "not_found" as const };
+        if (!isNegotiableStatus(locked.status)) {
+          return { type: "invalid_state" as const, status: locked.status };
+        }
+        const turnId = await appendResearchTurn(tx, {
+          runId: locked.id,
           role: "user",
           kind: "user_edit",
           content: editedText,
-        })
-        .returning({ id: researchRunTurns.id });
-      return c.json({ turnId: turn.id }, 200);
+        });
+        return { type: "ok" as const, turnId };
+      });
     } catch (err) {
       if (isUniqueViolation(err)) {
         return c.json(concurrentWriteResponse, 409);
       }
       throw err;
     }
+
+    if (result.type !== "ok") return respondCommonMutationError(c, result);
+    return c.json({ turnId: result.turnId }, 200);
   },
 );
 
@@ -408,85 +443,63 @@ researchRouter.post(
     if (!(await canWrite(userId, { type: "project", id: run.projectId }))) {
       return c.json({ error: "forbidden" }, 403);
     }
-    if (
-      run.status !== "planning" &&
-      run.status !== "awaiting_approval"
-    ) {
-      return c.json(
-        {
-          error: "invalid_state",
-          status: run.status,
-        } satisfies ResearchInvalidStateError,
-        409,
-      );
-    }
-
-    // Idempotent double-click guard. The first approve already committed
-    // (approval turn + approvedPlanText set in a single tx) but the workflow
-    // hasn't yet flipped status to researching, so a second click would slip
-    // past the status guard above and insert another approval turn + signal
-    // approve_plan twice. Echo the previously-approved text and skip both
-    // writes and the signal.
-    if (run.approvedPlanText !== null) {
-      return c.json(
-        {
-          approved: true,
-          alreadyApproved: true,
-        } satisfies ResearchApproveResponse,
-        202,
-      );
-    }
-
-    // Resolve the plan text to approve.
-    let approved = finalPlanText;
-    if (!approved) {
-      const [latestEdit] = await db
-        .select({ content: researchRunTurns.content })
-        .from(researchRunTurns)
-        .where(
-          and(
-            eq(researchRunTurns.runId, run.id),
-            eq(researchRunTurns.kind, "user_edit"),
-          ),
-        )
-        .orderBy(desc(researchRunTurns.seq))
-        .limit(1);
-      if (latestEdit) {
-        approved = latestEdit.content;
-      } else {
-        const [latestProp] = await db
-          .select({ content: researchRunTurns.content })
-          .from(researchRunTurns)
-          .where(
-            and(
-              eq(researchRunTurns.runId, run.id),
-              eq(researchRunTurns.kind, "plan_proposal"),
-            ),
-          )
-          .orderBy(desc(researchRunTurns.seq))
-          .limit(1);
-        approved = latestProp?.content;
-      }
-    }
-    if (!approved) {
-      return c.json({ error: "no_plan_yet" }, 409);
-    }
-
-    // Approval must land atomically: either the approval turn AND
-    // approvedPlanText both commit, or neither does. Otherwise a crash
-    // between the INSERT and UPDATE leaves an orphan approval turn with
-    // approvedPlanText still null, and the subsequent signal fires against
-    // a half-committed state. Temporal signal stays OUTSIDE the tx because
-    // the SDK call is not transactional and shouldn't hold DB locks.
+    // Approval must land atomically and under the run-row lock: either the
+    // approval turn AND approvedPlanText both commit, or neither does. The
+    // lock also makes concurrent approves idempotent: the second request
+    // observes approvedPlanText after the first commit and skips writes/signal.
+    let result:
+      | { type: "approved"; approved: string; workflowId: string }
+      | { type: "already_approved" }
+      | { type: "not_found" }
+      | { type: "invalid_state"; status: typeof run.status }
+      | { type: "no_plan_yet" };
     try {
-      await db.transaction(async (tx) => {
-        const [{ nextSeq }] = await tx
-          .select({ nextSeq: max(researchRunTurns.seq) })
-          .from(researchRunTurns)
-          .where(eq(researchRunTurns.runId, run.id));
-        await tx.insert(researchRunTurns).values({
-          runId: run.id,
-          seq: (nextSeq ?? -1) + 1,
+      result = await db.transaction(async (tx) => {
+        const locked = await lockRunForMutation(tx, run.id);
+        if (!locked) return { type: "not_found" as const };
+        if (locked.approvedPlanText !== null) {
+          return { type: "already_approved" as const };
+        }
+        if (!isNegotiableStatus(locked.status)) {
+          return { type: "invalid_state" as const, status: locked.status };
+        }
+
+        // Resolve the plan text to approve while holding the same lock that
+        // protects turn sequence allocation.
+        let approved = finalPlanText;
+        if (!approved) {
+          const [latestEdit] = await tx
+            .select({ content: researchRunTurns.content })
+            .from(researchRunTurns)
+            .where(
+              and(
+                eq(researchRunTurns.runId, locked.id),
+                eq(researchRunTurns.kind, "user_edit"),
+              ),
+            )
+            .orderBy(desc(researchRunTurns.seq))
+            .limit(1);
+          if (latestEdit) {
+            approved = latestEdit.content;
+          } else {
+            const [latestProp] = await tx
+              .select({ content: researchRunTurns.content })
+              .from(researchRunTurns)
+              .where(
+                and(
+                  eq(researchRunTurns.runId, locked.id),
+                  eq(researchRunTurns.kind, "plan_proposal"),
+                ),
+              )
+              .orderBy(desc(researchRunTurns.seq))
+              .limit(1);
+            approved = latestProp?.content;
+          }
+        }
+        if (!approved) return { type: "no_plan_yet" as const };
+
+        await appendResearchTurn(tx, {
+          runId: locked.id,
           role: "user",
           kind: "approval",
           content: approved,
@@ -494,7 +507,12 @@ researchRouter.post(
         await tx
           .update(researchRuns)
           .set({ approvedPlanText: approved })
-          .where(eq(researchRuns.id, run.id));
+          .where(eq(researchRuns.id, locked.id));
+        return {
+          type: "approved" as const,
+          approved,
+          workflowId: locked.workflowId,
+        };
       });
     } catch (err) {
       if (isUniqueViolation(err)) {
@@ -503,9 +521,25 @@ researchRouter.post(
       throw err;
     }
 
+    if (result.type === "not_found" || result.type === "invalid_state") {
+      return respondCommonMutationError(c, result);
+    }
+    if (result.type === "already_approved") {
+      return c.json(
+        {
+          approved: true,
+          alreadyApproved: true,
+        } satisfies ResearchApproveResponse,
+        202,
+      );
+    }
+    if (result.type === "no_plan_yet") {
+      return c.json({ error: "no_plan_yet" }, 409);
+    }
+
     const client = await getTemporalClient();
-    const handle = client.workflow.getHandle(run.workflowId);
-    await handle.signal("approve_plan", approved);
+    const handle = client.workflow.getHandle(result.workflowId);
+    await handle.signal("approve_plan", result.approved);
 
     return c.json(
       { approved: true } satisfies ResearchApproveResponse,
