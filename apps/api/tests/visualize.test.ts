@@ -275,4 +275,37 @@ describe("POST /api/visualize", () => {
     expect(res2.status).toBe(200);
     await res2.text();
   });
+
+  it("releases the lock when the source stream errors", async () => {
+    streamCtrl.nextStream = () =>
+      new ReadableStream<Uint8Array>({
+        pull(controller) {
+          controller.error(new Error("mock stream failed"));
+        },
+      });
+
+    const res1 = await postVisualize(
+      { projectId: ctx.projectId, prompt: "first" },
+      { cookie },
+    );
+    expect(res1.status).toBe(200);
+    await expect(res1.text()).rejects.toThrow("mock stream failed");
+
+    streamCtrl.nextStream = () => {
+      const enc = new TextEncoder();
+      return new ReadableStream<Uint8Array>({
+        start(c) {
+          c.enqueue(enc.encode(`event: done\ndata: {}\n\n`));
+          c.close();
+        },
+      });
+    };
+
+    const res2 = await postVisualize(
+      { projectId: ctx.projectId, prompt: "second" },
+      { cookie },
+    );
+    expect(res2.status).toBe(200);
+    await res2.text();
+  });
 });
