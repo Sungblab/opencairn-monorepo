@@ -53,6 +53,11 @@ integrationsRouter.get("/google/callback", async (c) => {
     .insert(userIntegrations)
     .values({
       userId: parsed.userId,
+      // Pin the token to the workspace the user was in when they hit
+      // /google/connect. Different workspaces require separate consent so
+      // a member of A can't silently use their token from inside B
+      // (Ralph audit S3-022).
+      workspaceId: parsed.workspaceId,
       provider: "google_drive",
       accessTokenEncrypted: encryptToken(tokens.access_token),
       refreshTokenEncrypted: tokens.refresh_token
@@ -63,7 +68,11 @@ integrationsRouter.get("/google/callback", async (c) => {
       scopes,
     })
     .onConflictDoUpdate({
-      target: [userIntegrations.userId, userIntegrations.provider],
+      target: [
+        userIntegrations.userId,
+        userIntegrations.workspaceId,
+        userIntegrations.provider,
+      ],
       set: {
         accessTokenEncrypted: encryptToken(tokens.access_token),
         // Preserve existing refresh token if Google omits it on re-consent.
@@ -109,12 +118,17 @@ integrationsRouter.get("/google/connect", requireAuth, async (c) => {
 
 integrationsRouter.get("/google", requireAuth, async (c) => {
   const userId = c.get("userId");
+  const workspaceId = c.req.query("workspaceId");
+  if (!workspaceId) {
+    return c.json({ error: "workspaceId required" }, 400);
+  }
   const [row] = await db
     .select()
     .from(userIntegrations)
     .where(
       and(
         eq(userIntegrations.userId, userId),
+        eq(userIntegrations.workspaceId, workspaceId),
         eq(userIntegrations.provider, "google_drive"),
       ),
     )
@@ -129,12 +143,17 @@ integrationsRouter.get("/google", requireAuth, async (c) => {
 
 integrationsRouter.delete("/google", requireAuth, async (c) => {
   const userId = c.get("userId");
+  const workspaceId = c.req.query("workspaceId");
+  if (!workspaceId) {
+    return c.json({ error: "workspaceId required" }, 400);
+  }
   const [row] = await db
     .select()
     .from(userIntegrations)
     .where(
       and(
         eq(userIntegrations.userId, userId),
+        eq(userIntegrations.workspaceId, workspaceId),
         eq(userIntegrations.provider, "google_drive"),
       ),
     )

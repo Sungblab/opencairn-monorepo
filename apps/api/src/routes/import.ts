@@ -107,14 +107,18 @@ importRouter.post(
     });
     if (!allowed) return c.json({ error: "Forbidden" }, 403);
 
-    // Drive integration must exist before we queue a discovery activity
-    // that will just 401 against Google anyway.
+    // Drive integration must exist for THIS workspace before we queue a
+    // discovery activity that will just 401 against Google anyway. The
+    // workspace_id scope is the audit S3-022 isolation gate — connecting
+    // Drive in workspace A no longer implicitly authorizes imports from
+    // workspace B.
     const [integ] = await db
       .select({ id: userIntegrations.id })
       .from(userIntegrations)
       .where(
         and(
           eq(userIntegrations.userId, userId),
+          eq(userIntegrations.workspaceId, body.workspaceId),
           eq(userIntegrations.provider, "google_drive"),
         ),
       )

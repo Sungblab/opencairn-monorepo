@@ -1,8 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { randomUUID } from "node:crypto";
 import { createApp } from "../src/app.js";
 import { createUser } from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
-import { db, user, eq } from "@opencairn/db";
+import {
+  db,
+  user,
+  userIntegrations,
+  workspaces,
+  workspaceMembers,
+  eq,
+} from "@opencairn/db";
+import { encryptToken } from "../src/lib/integration-tokens.js";
 
 const TEST_KEY = Buffer.alloc(32, 0x42).toString("base64");
 
@@ -121,6 +130,7 @@ describe("GET /api/integrations/google/callback", () => {
 
 describe("GET /api/integrations/google (status)", () => {
   let userId: string;
+  const wsId = "550e8400-e29b-41d4-a716-446655440000";
 
   beforeEach(async () => {
     process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY = TEST_KEY;
@@ -132,11 +142,12 @@ describe("GET /api/integrations/google (status)", () => {
     await db.delete(user).where(eq(user.id, userId));
   });
 
-  it("returns disconnected for a user with no integration", async () => {
+  it("returns disconnected for a user with no integration in this workspace", async () => {
     const app = createApp();
-    const res = await app.request("/api/integrations/google", {
-      headers: { cookie: await signSessionCookie(userId) },
-    });
+    const res = await app.request(
+      `/api/integrations/google?workspaceId=${wsId}`,
+      { headers: { cookie: await signSessionCookie(userId) } },
+    );
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json).toEqual({
@@ -146,15 +157,147 @@ describe("GET /api/integrations/google (status)", () => {
     });
   });
 
+  it("returns 400 without workspaceId — connections are per-workspace (S3-022)", async () => {
+    const app = createApp();
+    const res = await app.request("/api/integrations/google", {
+      headers: { cookie: await signSessionCookie(userId) },
+    });
+    expect(res.status).toBe(400);
+  });
+
   it("returns 401 without a session", async () => {
     const app = createApp();
-    const res = await app.request("/api/integrations/google");
+    const res = await app.request(
+      `/api/integrations/google?workspaceId=${wsId}`,
+    );
     expect(res.status).toBe(401);
+  });
+});
+
+describe("S3-022 cross-workspace isolation", () => {
+  // One user that belongs to two separate workspaces — the canonical setup
+  // for the audit's "member of A is also member of B" leak path.
+  let userId: string;
+  let wsA: string;
+  let wsB: string;
+
+  beforeEach(async () => {
+    process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY = TEST_KEY;
+    const u = await createUser();
+    userId = u.id;
+    wsA = randomUUID();
+    wsB = randomUUID();
+    await db.insert(workspaces).values([
+      {
+        id: wsA,
+        slug: `ws-a-${wsA.slice(0, 8)}`,
+        name: "Workspace A",
+        ownerId: userId,
+        planType: "free",
+      },
+      {
+        id: wsB,
+        slug: `ws-b-${wsB.slice(0, 8)}`,
+        name: "Workspace B",
+        ownerId: userId,
+        planType: "free",
+      },
+    ]);
+    await db.insert(workspaceMembers).values([
+      { workspaceId: wsA, userId, role: "owner" },
+      { workspaceId: wsB, userId, role: "owner" },
+    ]);
+  });
+
+  afterEach(async () => {
+    await db
+      .delete(userIntegrations)
+      .where(eq(userIntegrations.userId, userId));
+    await db.delete(workspaces).where(eq(workspaces.id, wsA));
+    await db.delete(workspaces).where(eq(workspaces.id, wsB));
+    await db.delete(user).where(eq(user.id, userId));
+  });
+
+  it("an integration in workspace A is invisible from workspace B", async () => {
+    await db.insert(userIntegrations).values({
+      userId,
+      workspaceId: wsA,
+      provider: "google_drive",
+      accessTokenEncrypted: encryptToken("token-a"),
+      refreshTokenEncrypted: encryptToken("refresh-a"),
+      tokenExpiresAt: new Date(Date.now() + 3_600_000),
+      accountEmail: "user@example.com",
+      scopes: ["https://www.googleapis.com/auth/drive.file"],
+    });
+
+    const app = createApp();
+    const cookie = await signSessionCookie(userId);
+
+    const aRes = await app.request(
+      `/api/integrations/google?workspaceId=${wsA}`,
+      { headers: { cookie } },
+    );
+    expect(aRes.status).toBe(200);
+    expect(((await aRes.json()) as { connected: boolean }).connected).toBe(
+      true,
+    );
+
+    const bRes = await app.request(
+      `/api/integrations/google?workspaceId=${wsB}`,
+      { headers: { cookie } },
+    );
+    expect(bRes.status).toBe(200);
+    expect(((await bRes.json()) as { connected: boolean }).connected).toBe(
+      false,
+    );
+  });
+
+  it("DELETE in workspace A leaves workspace B's connection intact", async () => {
+    await db.insert(userIntegrations).values([
+      {
+        userId,
+        workspaceId: wsA,
+        provider: "google_drive",
+        accessTokenEncrypted: encryptToken("token-a"),
+        refreshTokenEncrypted: null,
+        tokenExpiresAt: new Date(Date.now() + 3_600_000),
+        accountEmail: "a@example.com",
+        scopes: ["https://www.googleapis.com/auth/drive.file"],
+      },
+      {
+        userId,
+        workspaceId: wsB,
+        provider: "google_drive",
+        accessTokenEncrypted: encryptToken("token-b"),
+        refreshTokenEncrypted: null,
+        tokenExpiresAt: new Date(Date.now() + 3_600_000),
+        accountEmail: "b@example.com",
+        scopes: ["https://www.googleapis.com/auth/drive.file"],
+      },
+    ]);
+
+    const app = createApp();
+    const cookie = await signSessionCookie(userId);
+
+    const delRes = await app.request(
+      `/api/integrations/google?workspaceId=${wsA}`,
+      { method: "DELETE", headers: { cookie } },
+    );
+    expect(delRes.status).toBe(200);
+
+    const bRes = await app.request(
+      `/api/integrations/google?workspaceId=${wsB}`,
+      { headers: { cookie } },
+    );
+    expect(((await bRes.json()) as { connected: boolean }).connected).toBe(
+      true,
+    );
   });
 });
 
 describe("DELETE /api/integrations/google", () => {
   let userId: string;
+  const wsId = "550e8400-e29b-41d4-a716-446655440000";
 
   beforeEach(async () => {
     process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY = TEST_KEY;
@@ -166,22 +309,35 @@ describe("DELETE /api/integrations/google", () => {
     await db.delete(user).where(eq(user.id, userId));
   });
 
-  it("is a no-op and returns ok when no integration exists", async () => {
+  it("is a no-op and returns ok when no integration exists in this workspace", async () => {
     const app = createApp();
-    const res = await app.request("/api/integrations/google", {
-      method: "DELETE",
-      headers: { cookie: await signSessionCookie(userId) },
-    });
+    const res = await app.request(
+      `/api/integrations/google?workspaceId=${wsId}`,
+      {
+        method: "DELETE",
+        headers: { cookie: await signSessionCookie(userId) },
+      },
+    );
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json).toEqual({ ok: true });
   });
 
-  it("returns 401 without a session", async () => {
+  it("returns 400 without workspaceId (S3-022)", async () => {
     const app = createApp();
     const res = await app.request("/api/integrations/google", {
       method: "DELETE",
+      headers: { cookie: await signSessionCookie(userId) },
     });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 401 without a session", async () => {
+    const app = createApp();
+    const res = await app.request(
+      `/api/integrations/google?workspaceId=${wsId}`,
+      { method: "DELETE" },
+    );
     expect(res.status).toBe(401);
   });
 });
