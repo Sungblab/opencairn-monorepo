@@ -1191,7 +1191,7 @@ requires-dist = [
     { name = "pymupdf", specifier = ">=1.24.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pyyaml", specifier = ">=6.0" },
-    { name = "redis", specifier = ">=5.0,<6" },
+    { name = "redis", specifier = ">=5.0,<8" },
     { name = "sentry-sdk", marker = "extra == 'sentry'", specifier = ">=2.0.0" },
     { name = "temporalio", specifier = ">=1.8.0" },
     { name = "trafilatura", specifier = ">=1.12.0" },

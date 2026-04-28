@@ -30,6 +30,21 @@ describe("lib/email transport selection", () => {
     expect(getEmailProvider()).toBe("console");
   });
 
+  it("fails closed in production when nothing is configured", async () => {
+    const { getEmailProvider, sendVerificationEmail } = await loadEmail({
+      NODE_ENV: "production",
+      EMAIL_PROVIDER: undefined,
+      RESEND_API_KEY: undefined,
+      SMTP_HOST: undefined,
+    });
+    expect(getEmailProvider()).toBe("unconfigured");
+    await expect(
+      sendVerificationEmail("test@example.com", {
+        verifyUrl: "https://opencairn.example/verify?t=abc123",
+      }),
+    ).rejects.toThrow(/Email transport is not configured in production/);
+  });
+
   it("auto-detects resend from RESEND_API_KEY", async () => {
     const { getEmailProvider } = await loadEmail({
       RESEND_API_KEY: "re_test_dummy",

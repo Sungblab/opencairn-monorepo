@@ -14,11 +14,13 @@ import type { ReactElement } from "react";
 //   "smtp"    → nodemailer over SMTP (requires SMTP_HOST/PORT/USER/PASS)
 //   "console" → log to stdout, never deliver (dev fallback)
 //
-// Unset: auto-detect — RESEND_API_KEY wins, then SMTP_HOST, else console.
+// Unset: auto-detect — RESEND_API_KEY wins, then SMTP_HOST, else console in
+// development. Production fails closed instead of silently printing account
+// verification/reset links to server logs.
 //
 // Selection is computed once at module load. Process restart is required
 // after changing env, which matches every other env-gated component.
-type Provider = "resend" | "smtp" | "console";
+type Provider = "resend" | "smtp" | "console" | "unconfigured";
 
 const explicit = (process.env.EMAIL_PROVIDER ?? "").toLowerCase();
 const provider: Provider = (() => {
@@ -27,6 +29,7 @@ const provider: Provider = (() => {
   }
   if (process.env.RESEND_API_KEY) return "resend";
   if (process.env.SMTP_HOST) return "smtp";
+  if (process.env.NODE_ENV === "production") return "unconfigured";
   return "console";
 })();
 
@@ -91,6 +94,12 @@ async function send({ to, subject, react }: SendArgs): Promise<void> {
     console.log("[email:console]", { to, subject });
     console.log(text);
     return;
+  }
+
+  if (provider === "unconfigured") {
+    throw new Error(
+      "Email transport is not configured in production. Set EMAIL_PROVIDER=console explicitly for log-only delivery, or configure Resend/SMTP.",
+    );
   }
 
   if (provider === "resend") {

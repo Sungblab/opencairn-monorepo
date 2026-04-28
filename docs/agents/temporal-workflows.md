@@ -274,33 +274,28 @@ class ConnectorWorkflow:
 
 ## 3. Temporal Schedules (Cron)
 
-```python
-# Worker 시작 시 등록
-async def register_schedules(client: Client):
-    # 일간 유지보수 (매일 03:00 UTC)
-    await client.create_schedule(
-        "daily-maintenance",
-        Schedule(
-            action=ScheduleActionStartWorkflow(
-                MaintenanceWorkflow.run,
-                MaintenanceInput(trigger="daily"),
-            ),
-            spec=ScheduleSpec(cron_expressions=["0 3 * * *"]),
-        ),
-    )
+Plan 8 유지보수 에이전트는 `apps/worker/scripts/ensure_plan8_schedules.py`
+로 Temporal Schedule을 등록한다. 스크립트는 idempotent하며 기존 Schedule은
+현재 cron, workflow 입력, task queue 기준으로 갱신한다.
 
-    # 주간 Connector (매주 일요일 04:00 UTC)
-    await client.create_schedule(
-        "weekly-connector",
-        Schedule(
-            action=ScheduleActionStartWorkflow(
-                ConnectorWorkflow.run,
-                ConnectorInput(),
-            ),
-            spec=ScheduleSpec(cron_expressions=["0 4 * * 0"]),
-        ),
-    )
+| Agent | Workflow | 기본 Cron | 입력 |
+|-------|----------|-----------|------|
+| Curator | `CuratorWorkflow` | `CURATOR_CRON` 또는 `0 3 * * *` | workspace/project/user + staleness 옵션 |
+| Staleness | `StalenessWorkflow` | `STALENESS_CRON` 또는 curator cron | workspace/project/user + `STALE_DAYS` |
+| Connector | `ConnectorWorkflow` | `CONNECTOR_CRON` 또는 `0 4 * * 0` | workspace/project/user + concept id |
+
+예시:
+
+```bash
+python -m scripts.ensure_plan8_schedules \
+  --workspace-id <uuid> \
+  --project-id <uuid> \
+  --user-id <workspace-owner-user-id> \
+  --connector-concept-id <uuid>
 ```
+
+입력별 에이전트인 Synthesis, Narrator, Deep Research는 사용자의 명시적
+액션이나 API 요청이 workflow를 시작한다.
 
 ---
 

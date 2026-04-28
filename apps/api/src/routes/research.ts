@@ -32,27 +32,20 @@ import { requireAuth } from "../middleware/auth";
 import { canWrite, canRead } from "../lib/permissions";
 import { getTemporalClient, taskQueue } from "../lib/temporal-client";
 import { isUuid } from "../lib/validators";
+import {
+  isDeepResearchEnabled,
+  isManagedDeepResearchEnabled,
+} from "../lib/feature-flags";
 import type { AppEnv } from "../lib/types";
 
 const researchRouter = new Hono<AppEnv>();
-
-function isFeatureEnabled(): boolean {
-  return (process.env.FEATURE_DEEP_RESEARCH ?? "false").toLowerCase() === "true";
-}
-
-function isManagedEnabled(): boolean {
-  return (
-    (process.env.FEATURE_MANAGED_DEEP_RESEARCH ?? "false").toLowerCase() ===
-    "true"
-  );
-}
 
 // Whole-router feature gate. If off, nothing under this router responds.
 // Internal endpoints (under /api/internal) are NOT gated — those follow the
 // shared-secret model and are used by the worker which already respects the
 // python-side FEATURE_DEEP_RESEARCH check.
 researchRouter.use("*", async (c, next) => {
-  if (!isFeatureEnabled()) return c.json({ error: "not_found" }, 404);
+  if (!isDeepResearchEnabled()) return c.json({ error: "not_found" }, 404);
   await next();
 });
 
@@ -67,7 +60,7 @@ researchRouter.post(
 
     // managed path is gated at BOTH the API and the workflow. API gate gives
     // a better UX error; the workflow gate is defence-in-depth.
-    if (body.billingPath === "managed" && !isManagedEnabled()) {
+    if (body.billingPath === "managed" && !isManagedDeepResearchEnabled()) {
       return c.json({ error: "managed_disabled" }, 403);
     }
 

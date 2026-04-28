@@ -126,10 +126,10 @@ class WorkerConfig:
 def build_worker_config() -> WorkerConfig:
     """Resolve the workflow + activity set the Temporal worker should register.
 
-    Reads ``FEATURE_DEEP_RESEARCH`` and ``FEATURE_CODE_AGENT`` from the
-    environment so feature-flagged components are added only when their flag
-    is on. The base set (ingest/compiler/research/librarian/batch/import) is
-    always registered.
+    Reads feature flags from the environment so feature-gated components are
+    added according to their rollout defaults. Deep Research is on by default
+    and can be disabled with ``FEATURE_DEEP_RESEARCH=false``; Code Agent stays
+    opt-in.
     """
     workflows: list[Any] = [
         IngestWorkflow,
@@ -198,7 +198,7 @@ def build_worker_config() -> WorkerConfig:
 
     # Deep Research Phase B — feature-flag gated so the worker boots cleanly
     # when the flag is off without warning about activities that never fire.
-    if os.environ.get("FEATURE_DEEP_RESEARCH", "false").lower() == "true":
+    if os.environ.get("FEATURE_DEEP_RESEARCH", "true").lower() == "true":
         workflows.append(DeepResearchWorkflow)
         activities.extend(
             [

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { isImportEnabled } from "@/lib/feature-flags";
 import { JobProgress } from "./JobProgress";
 
 export default async function JobPage({
@@ -7,7 +8,7 @@ export default async function JobPage({
 }: {
   params: Promise<{ locale: string; wsSlug: string; id: string }>;
 }) {
-  if (process.env.FEATURE_IMPORT_ENABLED !== "true") notFound();
+  if (!isImportEnabled()) notFound();
   const { wsSlug, id } = await params;
   const t = await getTranslations("import.progress");
   return (
