@@ -292,9 +292,11 @@ def test_to_api_payload_maps_citation_url_to_source_url():
 def test_to_api_payload_passthrough_for_text_delta():
     from worker.activities.deep_research.execute_research import _to_api_payload
 
-    out = _to_api_payload("text_delta", {"text": "hi"})
+    payload = {"text": "hi"}
+    out = _to_api_payload("text_delta", payload)
 
     assert out == {"text": "hi"}
+    assert out is payload
 
 
 def test_default_persist_event_remaps_image_payload(monkeypatch):
