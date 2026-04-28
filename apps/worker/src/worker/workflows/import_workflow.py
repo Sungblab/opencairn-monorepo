@@ -92,6 +92,7 @@ class ImportWorkflow:
                 "discover_drive_tree",
                 {
                     "user_id": inp.user_id,
+                    "workspace_id": inp.workspace_id,
                     "file_ids": inp.source_metadata.get("file_ids", []),
                     "folder_ids": inp.source_metadata.get("folder_ids", []),
                 },
@@ -207,6 +208,7 @@ class ImportWorkflow:
                     "mime": node["meta"]["mime"],
                     "export_from": node["meta"].get("export_from"),
                     "import_job_id": inp.job_id,
+                    "workspace_id": inp.workspace_id,
                 },
                 schedule_to_close_timeout=_LONG,
                 retry_policy=_RETRY,
@@ -241,6 +243,7 @@ class ImportWorkflow:
                 user_id=inp.user_id,
                 project_id=target["project_id"],
                 note_id=parent_note_id,
+                workspace_id=inp.workspace_id,
             ),
             id=f"ingest-child-{inp.job_id}-{node['idx']}",
         )

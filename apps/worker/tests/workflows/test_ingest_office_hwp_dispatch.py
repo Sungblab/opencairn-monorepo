@@ -64,7 +64,7 @@ async def test_office_hwp_mimes_dispatch_to_correct_activity(
 
     called: list[str] = []
 
-    async def fake_activity(name, *args, **kwargs):
+    async def fake_activity(name, *args, **_kwargs):
         called.append(name)
         if name in {"parse_office", "parse_hwp"}:
             return {
@@ -86,3 +86,59 @@ async def test_office_hwp_mimes_dispatch_to_correct_activity(
         f"MIME {mime} should dispatch {expected_activity}, called={called}"
     )
     assert note_id == "note-1"
+
+
+@pytest.mark.parametrize("mime", ["text/plain", "text/markdown"])
+@pytest.mark.asyncio
+async def test_text_mimes_dispatch_to_text_reader(monkeypatch, mime: str):
+    """Text MIME types are accepted by the API and must not fall through to
+    the unsupported-MIME quarantine path."""
+    monkeypatch.delenv("FEATURE_CONTENT_ENRICHMENT", raising=False)
+
+    from worker.workflows.ingest_workflow import IngestWorkflow
+
+    called: list[str] = []
+
+    async def fake_activity(name, *args, **kwargs):
+        called.append(name)
+        if name == "read_text_object":
+            return {"text": "# hello"}
+        if name == "create_source_note":
+            body = args[0]
+            assert body["text"] == "# hello"
+            return "note-1"
+        return {}
+
+    wf = IngestWorkflow()
+    with patch(
+        "temporalio.workflow.execute_activity", side_effect=fake_activity
+    ), patch("temporalio.workflow.logger", _TEST_LOGGER):
+        note_id = await wf._run_pipeline(_inp(mime), "wf-text", 0)
+
+    assert "read_text_object" in called
+    assert note_id == "note-1"
+
+
+@pytest.mark.asyncio
+async def test_read_text_object_moves_blocking_io_to_thread(monkeypatch):
+    from worker.workflows import ingest_workflow
+
+    calls = []
+
+    async def fake_to_thread(fn, *args):
+        calls.append((fn, args))
+        return b"\xef\xbb\xbfhello"
+
+    monkeypatch.setattr(ingest_workflow.asyncio, "to_thread", fake_to_thread)
+
+    result = await ingest_workflow.read_text_object(
+        {"object_key": "uploads/user-1/note.md"},
+    )
+
+    assert result == {"text": "hello"}
+    assert calls == [
+        (
+            ingest_workflow._read_text_object_bytes,
+            ("uploads/user-1/note.md",),
+        ),
+    ]

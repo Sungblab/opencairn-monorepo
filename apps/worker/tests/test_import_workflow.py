@@ -8,6 +8,8 @@ the import line catches any future symbol rename.
 """
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 
@@ -37,3 +39,40 @@ def test_import_workflow_module_imports() -> None:
         source_metadata={"zip_object_key": "k"},
     )
     assert inp.source == "notion_zip"
+
+
+@pytest.mark.asyncio
+async def test_import_workflow_threads_workspace_id_to_child_ingest() -> None:
+    from worker.workflows.import_workflow import ImportInput, ImportWorkflow
+
+    inp = ImportInput(
+        job_id="job-1",
+        user_id="user-1",
+        workspace_id="ws-1",
+        source="notion_zip",
+        source_metadata={"zip_object_key": "k"},
+    )
+    node = {
+        "idx": 7,
+        "kind": "binary",
+        "display_name": "notes.md",
+        "meta": {"staged_path": "notes.md", "mime": "text/markdown"},
+    }
+    captured: dict[str, object] = {}
+
+    async def fake_activity(name, *args, **_kwargs):
+        assert name == "upload_staging_to_minio"
+        return {"object_key": "imports/notion/job-1/notes.md", "mime": "text/markdown"}
+
+    async def fake_child(_run, child_input, **_kwargs):
+        captured["child_input"] = child_input
+        return "note-1"
+
+    wf = ImportWorkflow()
+    with patch("temporalio.workflow.execute_activity", side_effect=fake_activity), patch(
+        "temporalio.workflow.execute_child_workflow", side_effect=fake_child
+    ):
+        await wf._run_binary(inp, node, "parent-1", {"project_id": "proj-1"})
+
+    child_input = captured["child_input"]
+    assert child_input.workspace_id == "ws-1"

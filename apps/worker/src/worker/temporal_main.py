@@ -28,58 +28,8 @@ from worker.activities.code_activity import (
     generate_code_activity,
 )
 from worker.activities.compiler_activity import compile_note
-from worker.activities.drive_activities import (
-    discover_drive_tree,
-    upload_drive_file_to_minio,
-)
-from worker.activities.emit_event import emit_started
-from worker.activities.enhance_activity import enhance_with_gemini
-from worker.activities.image_activity import analyze_image
-from worker.activities.import_activities import (
-    finalize_import_job,
-    materialize_page_tree,
-    resolve_target,
-)
-from worker.activities.librarian_activity import run_librarian
-from worker.activities.note_activity import create_source_note, report_ingest_failure
-from worker.activities.notion_activities import (
-    convert_notion_md_to_plate,
-    unzip_notion_export,
-    upload_staging_to_minio,
-)
-from worker.activities.hwp_activity import parse_hwp
-from worker.activities.office_activity import parse_office
-from worker.activities.pdf_activity import parse_pdf
-from worker.activities.quarantine_activity import quarantine_source
-from worker.activities.curator_activity import run_curator
 from worker.activities.connector_activity import run_connector as run_connector_activity
-from worker.activities.research_activity import run_research
-from worker.activities.staleness_activity import run_staleness as run_staleness_activity
-from worker.activities.synthesis_activity import run_synthesis
-from worker.activities.narrator_activity import run_narrator
-from worker.activities.semaphore_activity import (
-    acquire_project_semaphore,
-    release_project_semaphore,
-)
-from worker.activities.stt_activity import transcribe_audio
-from worker.activities.socratic_activity import evaluate_answer, generate_questions
-from worker.activities.visualize_activity import build_view
-from worker.activities.web_activity import scrape_web_url
-from worker.activities.youtube_activity import ingest_youtube
-from worker.workflows.batch_embed_workflow import BatchEmbedWorkflow
-from worker.workflows.code_workflow import CodeAgentWorkflow
-from worker.workflows.compiler_workflow import CompilerWorkflow
-from worker.workflows.import_workflow import ImportWorkflow
-from worker.workflows.ingest_workflow import IngestWorkflow
-from worker.workflows.librarian_workflow import LibrarianWorkflow
-from worker.workflows.research_workflow import ResearchWorkflow
-from worker.workflows.curator_workflow import CuratorWorkflow
-from worker.workflows.connector_workflow import ConnectorWorkflow
-from worker.workflows.synthesis_workflow import SynthesisWorkflow
-from worker.workflows.narrator_workflow import NarratorWorkflow
-from worker.workflows.socratic_workflow import SocraticEvaluateWorkflow, SocraticGenerateWorkflow
-from worker.workflows.staleness_workflow import StalenessWorkflow
-from worker.workflows.visualize_workflow import VisualizeWorkflow
+from worker.activities.curator_activity import run_curator
 
 # Deep Research (Spec 2026-04-22) — registered only when FEATURE_DEEP_RESEARCH
 # is on. Importing here is cheap and keeps the conditional small below.
@@ -90,7 +40,20 @@ from worker.activities.deep_research import (
     iterate_deep_research_plan,
     persist_deep_research_report,
 )
-from worker.workflows.deep_research_workflow import DeepResearchWorkflow
+from worker.activities.drive_activities import (
+    discover_drive_tree,
+    upload_drive_file_to_minio,
+)
+from worker.activities.emit_event import emit_started
+from worker.activities.enhance_activity import enhance_with_gemini
+from worker.activities.hwp_activity import parse_hwp
+from worker.activities.image_activity import analyze_image
+from worker.activities.import_activities import (
+    finalize_import_job,
+    materialize_page_tree,
+    resolve_target,
+)
+from worker.activities.librarian_activity import run_librarian
 
 # Plan: Literature Search & Auto-Import. Registered unconditionally — the
 # UI-side feature gate lives at the Hono route layer (Task 3/7), so the
@@ -104,7 +67,44 @@ from worker.activities.lit_import_activities import (
     fetch_paper_metadata,
     lit_dedupe_check,
 )
+from worker.activities.narrator_activity import run_narrator
+from worker.activities.note_activity import create_source_note, report_ingest_failure
+from worker.activities.notion_activities import (
+    convert_notion_md_to_plate,
+    unzip_notion_export,
+    upload_staging_to_minio,
+)
+from worker.activities.office_activity import parse_office
+from worker.activities.pdf_activity import parse_pdf
+from worker.activities.quarantine_activity import quarantine_source
+from worker.activities.research_activity import run_research
+from worker.activities.semaphore_activity import (
+    acquire_project_semaphore,
+    release_project_semaphore,
+)
+from worker.activities.socratic_activity import evaluate_answer, generate_questions
+from worker.activities.staleness_activity import run_staleness as run_staleness_activity
+from worker.activities.stt_activity import transcribe_audio
+from worker.activities.synthesis_activity import run_synthesis
+from worker.activities.visualize_activity import build_view
+from worker.activities.web_activity import scrape_web_url
+from worker.activities.youtube_activity import ingest_youtube
+from worker.workflows.batch_embed_workflow import BatchEmbedWorkflow
+from worker.workflows.code_workflow import CodeAgentWorkflow
+from worker.workflows.compiler_workflow import CompilerWorkflow
+from worker.workflows.connector_workflow import ConnectorWorkflow
+from worker.workflows.curator_workflow import CuratorWorkflow
+from worker.workflows.deep_research_workflow import DeepResearchWorkflow
+from worker.workflows.import_workflow import ImportWorkflow
+from worker.workflows.ingest_workflow import IngestWorkflow, read_text_object
+from worker.workflows.librarian_workflow import LibrarianWorkflow
 from worker.workflows.lit_import_workflow import LitImportWorkflow
+from worker.workflows.narrator_workflow import NarratorWorkflow
+from worker.workflows.research_workflow import ResearchWorkflow
+from worker.workflows.socratic_workflow import SocraticEvaluateWorkflow, SocraticGenerateWorkflow
+from worker.workflows.staleness_workflow import StalenessWorkflow
+from worker.workflows.synthesis_workflow import SynthesisWorkflow
+from worker.workflows.visualize_workflow import VisualizeWorkflow
 
 load_dotenv()
 
@@ -157,6 +157,7 @@ def build_worker_config() -> WorkerConfig:
         analyze_image,
         ingest_youtube,
         scrape_web_url,
+        read_text_object,
         enhance_with_gemini,
         create_source_note,
         quarantine_source,
@@ -237,10 +238,10 @@ def build_worker_config() -> WorkerConfig:
     # registration as Deep Research / Code Agent. Appended at the END so
     # parallel sessions adding their own registrations merge cleanly.
     if os.environ.get("FEATURE_DOC_EDITOR_SLASH", "false").lower() == "true":
-        from worker.workflows.doc_editor_workflow import DocEditorWorkflow
         from worker.activities.doc_editor_activity import (
             run_doc_editor as _run_doc_editor,
         )
+        from worker.workflows.doc_editor_workflow import DocEditorWorkflow
 
         workflows.append(DocEditorWorkflow)
         activities.append(_run_doc_editor)

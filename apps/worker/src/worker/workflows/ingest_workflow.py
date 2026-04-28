@@ -10,10 +10,12 @@ activity exists for the same reason: it forwards to ``publish_safe`` for us.
 """
 from __future__ import annotations
 
+import asyncio
+import contextlib
 from dataclasses import dataclass
 from datetime import timedelta
 
-from temporalio import workflow
+from temporalio import activity, workflow
 from temporalio.common import RetryPolicy
 from temporalio.exceptions import ActivityError, ApplicationError
 
@@ -66,6 +68,11 @@ _HWP_MIMES = frozenset({
     "application/vnd.hancom.hwpx",
 })
 
+_TEXT_MIMES = frozenset({
+    "text/plain",
+    "text/markdown",
+})
+
 
 def _activity_input(inp: IngestInput, workflow_id: str, started_at_ms: int, **extra) -> dict:
     """Build the dict passed to an ingest activity, with workflow context fields."""
@@ -77,6 +84,39 @@ def _activity_input(inp: IngestInput, workflow_id: str, started_at_ms: int, **ex
     }
 
 
+def _read_text_object_bytes(object_key: str) -> bytes:
+    """Download and read a text object using blocking object-store/file APIs."""
+    from worker.lib.s3_client import download_to_tempfile
+
+    path = download_to_tempfile(object_key)
+    try:
+        return path.read_bytes()
+    finally:
+        path.unlink(missing_ok=True)
+
+
+@activity.defn(name="read_text_object")
+async def read_text_object(inp: dict) -> dict[str, str]:
+    """Read a UTF-8 text/markdown upload from object storage."""
+    object_key = inp.get("object_key")
+    if not object_key:
+        raise ApplicationError(
+            "object_key is required for text ingest",
+            non_retryable=True,
+        )
+
+    raw = await asyncio.to_thread(_read_text_object_bytes, str(object_key))
+
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise ApplicationError(
+            "text ingest supports UTF-8 encoded text only",
+            non_retryable=True,
+        ) from exc
+    return {"text": text}
+
+
 @workflow.defn(name="IngestWorkflow")
 class IngestWorkflow:
     @workflow.run
@@ -86,7 +126,7 @@ class IngestWorkflow:
 
         # Best-effort: emit the started event before parsing kicks off so
         # the spotlight overlay can paint a frame immediately.
-        try:
+        with contextlib.suppress(ActivityError):
             await workflow.execute_activity(
                 "emit_started",
                 {
@@ -101,9 +141,6 @@ class IngestWorkflow:
                 schedule_to_close_timeout=_SHORT_TIMEOUT,
                 retry_policy=_QUARANTINE_RETRY,
             )
-        except ActivityError:
-            # Visibility layer must never break ingest. Fall through.
-            pass
 
         try:
             return await self._run_pipeline(inp, workflow_id, started_at_ms)
@@ -128,7 +165,7 @@ class IngestWorkflow:
                     quarantine_key = result.get("quarantine_key")
                 except ActivityError:
                     pass  # quarantine best-effort; don't mask original error
-            try:
+            with contextlib.suppress(ActivityError):
                 await workflow.execute_activity(
                     "report_ingest_failure",
                     {
@@ -143,8 +180,6 @@ class IngestWorkflow:
                     schedule_to_close_timeout=_SHORT_TIMEOUT,
                     retry_policy=_QUARANTINE_RETRY,
                 )
-            except ActivityError:
-                pass  # reporting is best-effort
             raise
 
     async def _run_pipeline(
@@ -199,6 +234,14 @@ class IngestWorkflow:
             )
             text = result["text"]
             needs_enhance = result.get("has_complex_layout", False)
+        elif mime in _TEXT_MIMES:
+            result = await workflow.execute_activity(
+                "read_text_object",
+                activity_input,
+                schedule_to_close_timeout=_SHORT_TIMEOUT,
+                retry_policy=_RETRY,
+            )
+            text = result["text"]
         elif mime in _OFFICE_MIMES:
             # Plan 3 follow-up Office/HWP. parse_office returns
             # {text, viewer_pdf_object_key, has_complex_layout}; we drop

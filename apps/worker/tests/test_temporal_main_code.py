@@ -6,9 +6,12 @@ entrypoint at ``worker.temporal_main``.
 """
 from __future__ import annotations
 
-import pytest
+from typing import TYPE_CHECKING
 
 from worker.temporal_main import build_worker_config
+
+if TYPE_CHECKING:
+    import pytest
 
 
 def test_deep_research_registered_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -45,6 +48,12 @@ def test_code_agent_registered_when_flag_on(monkeypatch: pytest.MonkeyPatch) -> 
     activity_names = [a.__name__ for a in cfg.activities]
     assert "generate_code_activity" in activity_names
     assert "analyze_feedback_activity" in activity_names
+
+
+def test_text_ingest_activity_registered() -> None:
+    cfg = build_worker_config()
+    activity_names = [a.__name__ for a in cfg.activities]
+    assert "read_text_object" in activity_names
 
 
 def test_enrichment_activities_omitted_when_flag_off(
