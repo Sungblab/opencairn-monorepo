@@ -1,6 +1,7 @@
 import type { Citation } from "@opencairn/db";
 import { retrieve, type RagMode, type RetrievalScope, type RetrievalChip } from "./chat-retrieval";
 import { extractSaveSuggestion } from "./save-suggestion-fence";
+import { envInt } from "./env";
 import {
   getGeminiProvider,
   type ChatMsg,
@@ -18,6 +19,7 @@ export type ChatChunk =
       payload: { title: string; body_markdown: string };
     }
   | { type: "usage"; payload: Usage }
+  | { type: "error"; payload: { message: string; code?: string } }
   | { type: "done"; payload: Record<string, never> };
 
 const SYSTEM_PROMPT = [
@@ -48,90 +50,115 @@ export async function* runChat(opts: {
 }): AsyncGenerator<ChatChunk> {
   const provider = opts.provider ?? getGeminiProvider();
 
-  yield { type: "status", payload: { phrase: "관련 문서 훑는 중..." } };
+  // try/finally guarantees `done` always fires on natural completion AND
+  // when the body throws. The `error` chunk in the catch is the signal
+  // for "render failure" before close. Note: when the caller invokes
+  // gen.return() to early-close, the finally still runs but the yielded
+  // chunks are discarded — standard generator semantics.
+  try {
+    yield { type: "status", payload: { phrase: "관련 문서 훑는 중..." } };
 
-  const hits =
-    opts.ragMode === "off"
-      ? []
-      : await retrieve({
-          workspaceId: opts.workspaceId,
-          query: opts.userMessage,
-          ragMode: opts.ragMode,
-          scope: opts.scope,
-          chips: opts.chips,
-          signal: opts.signal,
-        });
+    const hits =
+      opts.ragMode === "off"
+        ? []
+        : await retrieve({
+            workspaceId: opts.workspaceId,
+            query: opts.userMessage,
+            ragMode: opts.ragMode,
+            scope: opts.scope,
+            chips: opts.chips,
+            signal: opts.signal,
+          });
 
-  // Emit citations up-front. The renderer reconciles [^N] markers in the
-  // generated text against this ordered list.
-  const citations: Citation[] = hits.map((h) => ({
-    source_type: "note",
-    source_id: h.noteId,
-    snippet: h.snippet,
-  }));
-  for (const c of citations) yield { type: "citation", payload: c };
-
-  // Build the prompt. RAG context block lives in the system message so it
-  // doesn't burn through the user-history truncation budget below.
-  const ragBlock =
-    hits.length === 0
-      ? ""
-      : "\n\n<context>\n" +
-        hits
-          .map((h, i) => `[${i + 1}] ${h.title}\n${h.snippet}`)
-          .join("\n\n") +
-        "\n</context>";
-  const system: ChatMsg = {
-    role: "system",
-    content: SYSTEM_PROMPT + ragBlock,
-  };
-
-  const history = truncateHistory(opts.history);
-  const messages: ChatMsg[] = [
-    system,
-    ...history,
-    { role: "user", content: opts.userMessage },
-  ];
-
-  yield {
-    type: "thought",
-    payload: { summary: "사용자의 질문 분석 중" },
-  };
-
-  const buffer: string[] = [];
-  let usage: Usage | null = null;
-  for await (const chunk of provider.streamGenerate({
-    messages,
-    signal: opts.signal,
-    maxOutputTokens: Number(process.env.CHAT_MAX_OUTPUT_TOKENS ?? 2048),
-  })) {
-    if ("delta" in chunk) {
-      buffer.push(chunk.delta);
-      yield { type: "text", payload: { delta: chunk.delta } };
-    } else if ("usage" in chunk) {
-      usage = chunk.usage;
+    // retrieve() does not check the signal itself; if the user already
+    // aborted by the time the embedding+search fanout returns, skip the
+    // LLM call so we don't burn tokens.
+    if (opts.signal?.aborted) {
+      throw new DOMException("aborted", "AbortError");
     }
-  }
 
-  // Save-suggestion fence is parsed once at the end (system prompt asks
-  // for at most one). The fence text was already yielded as part of the
-  // text deltas; the renderer strips unrecognized fences itself.
-  const full = buffer.join("");
-  const suggestion = extractSaveSuggestion(full);
-  if (suggestion) {
-    yield { type: "save_suggestion", payload: suggestion };
-  }
+    // Emit citations up-front. The renderer reconciles [^N] markers in the
+    // generated text against this ordered list.
+    const citations: Citation[] = hits.map((h) => ({
+      source_type: "note",
+      source_id: h.noteId,
+      snippet: h.snippet,
+    }));
+    for (const c of citations) yield { type: "citation", payload: c };
 
-  if (usage) yield { type: "usage", payload: usage };
-  yield { type: "done", payload: {} };
+    // Build the prompt. RAG context block lives in the system message so it
+    // doesn't burn through the user-history truncation budget below.
+    const ragBlock =
+      hits.length === 0
+        ? ""
+        : "\n\n<context>\n" +
+          hits
+            .map((h, i) => `[${i + 1}] ${h.title}\n${h.snippet}`)
+            .join("\n\n") +
+          "\n</context>";
+    const system: ChatMsg = {
+      role: "system",
+      content: SYSTEM_PROMPT + ragBlock,
+    };
+
+    const history = truncateHistory(opts.history);
+    const messages: ChatMsg[] = [
+      system,
+      ...history,
+      { role: "user", content: opts.userMessage },
+    ];
+
+    yield {
+      type: "thought",
+      payload: { summary: "사용자의 질문 분석 중" },
+    };
+
+    const buffer: string[] = [];
+    let usage: Usage | null = null;
+    for await (const chunk of provider.streamGenerate({
+      messages,
+      signal: opts.signal,
+      maxOutputTokens: envInt("CHAT_MAX_OUTPUT_TOKENS", 2048),
+    })) {
+      if ("delta" in chunk) {
+        buffer.push(chunk.delta);
+        yield { type: "text", payload: { delta: chunk.delta } };
+      } else if ("usage" in chunk) {
+        usage = chunk.usage;
+      }
+    }
+
+    // Save-suggestion fence is parsed once at the end (system prompt asks
+    // for at most one). The fence text was already yielded as part of the
+    // text deltas; the renderer strips unrecognized fences itself.
+    const full = buffer.join("");
+    const suggestion = extractSaveSuggestion(full);
+    if (suggestion) {
+      yield { type: "save_suggestion", payload: suggestion };
+    }
+
+    if (usage) yield { type: "usage", payload: usage };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const code =
+      err instanceof Error && "code" in err
+        ? String((err as { code: unknown }).code)
+        : undefined;
+    yield {
+      type: "error",
+      payload: { message, ...(code ? { code } : {}) },
+    };
+  } finally {
+    yield { type: "done", payload: {} };
+  }
 }
 
 // Drop oldest user/assistant turns until the rough character budget for
 // history fits under CHAT_MAX_INPUT_TOKENS. Crude but bounded — billing
 // uses the provider-reported usage, not this estimate.
 function truncateHistory(history: ChatMsg[]): ChatMsg[] {
-  const maxTurns = Number(process.env.CHAT_MAX_HISTORY_TURNS ?? 12);
-  const maxTokens = Number(process.env.CHAT_MAX_INPUT_TOKENS ?? 32000);
+  const maxTurns = envInt("CHAT_MAX_HISTORY_TURNS", 12);
+  const maxTokens = envInt("CHAT_MAX_INPUT_TOKENS", 32000);
   let kept = history.slice(-maxTurns);
 
   const estimate = (msgs: ChatMsg[]) =>

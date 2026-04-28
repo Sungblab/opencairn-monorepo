@@ -58,6 +58,9 @@ describe("runChat happy path", () => {
     const usage = events.find((e) => e.type === "usage");
     expect(usage?.payload).toMatchObject({ tokensIn: 30, tokensOut: 7 });
     expect(types[types.length - 1]).toBe("done");
+    // Thought sits between citation and text deltas.
+    expect(types.indexOf("thought")).toBeGreaterThan(types.indexOf("citation"));
+    expect(types.indexOf("thought")).toBeLessThan(types.indexOf("text"));
   });
 
   it("ragMode=off skips retrieval and emits zero citations", async () => {
@@ -102,6 +105,8 @@ describe("runChat save_suggestion", () => {
     );
     const sugg = events.find((e) => e.type === "save_suggestion");
     expect(sugg?.payload).toEqual({ title: "Test", body_markdown: "Body" });
+    const types = events.map((e) => e.type);
+    expect(types.indexOf("save_suggestion")).toBeLessThan(types.indexOf("usage"));
   });
 
   it("does NOT emit save_suggestion on malformed fence", async () => {
@@ -165,5 +170,87 @@ describe("runChat history truncation", () => {
 
     delete process.env.CHAT_MAX_INPUT_TOKENS;
     delete process.env.CHAT_MAX_HISTORY_TURNS;
+  });
+});
+
+describe("runChat error contract", () => {
+  it("yields error+done when retrieve() rejects", async () => {
+    retrievalMod.retrieve.mockRejectedValue(new Error("retrieve boom"));
+    fakeProvider.streamGenerate.mockImplementation(async function* () {
+      yield { delta: "should not reach" };
+    });
+    const events = await collect(
+      runChat({
+        workspaceId: "ws-1",
+        scope: { type: "workspace", workspaceId: "ws-1" },
+        ragMode: "strict",
+        chips: [],
+        history: [],
+        userMessage: "hi",
+        provider: fakeProvider,
+      }),
+    );
+    const types = events.map((e) => e.type);
+    expect(fakeProvider.streamGenerate).not.toHaveBeenCalled();
+    expect(types[types.length - 1]).toBe("done");
+    const errorEvt = events.find((e) => e.type === "error");
+    expect(errorEvt).toBeDefined();
+    expect((errorEvt!.payload as { message: string }).message).toBe("retrieve boom");
+    expect(events.find((e) => e.type === "text")).toBeUndefined();
+  });
+
+  it("yields error+done when streamGenerate throws mid-stream", async () => {
+    retrievalMod.retrieve.mockResolvedValue([]);
+    fakeProvider.streamGenerate.mockImplementation(async function* () {
+      yield { delta: "partial" };
+      throw new Error("stream boom");
+    });
+    const events = await collect(
+      runChat({
+        workspaceId: "ws-1",
+        scope: { type: "workspace", workspaceId: "ws-1" },
+        ragMode: "strict",
+        chips: [],
+        history: [],
+        userMessage: "hi",
+        provider: fakeProvider,
+      }),
+    );
+    const types = events.map((e) => e.type);
+    expect(types[types.length - 1]).toBe("done");
+    expect(types).toContain("error");
+    expect(types).toContain("text"); // partial delta was yielded before throw
+    const errorEvt = events.find((e) => e.type === "error");
+    expect((errorEvt!.payload as { message: string }).message).toBe("stream boom");
+    // error must come after the partial text and before done.
+    expect(types.indexOf("error")).toBeGreaterThan(types.indexOf("text"));
+    expect(types.indexOf("error")).toBeLessThan(types.indexOf("done"));
+  });
+
+  it("aborting before LLM stream skips streamGenerate and ends in error+done", async () => {
+    retrievalMod.retrieve.mockImplementation(async () => {
+      return [];
+    });
+    const controller = new AbortController();
+    controller.abort(); // pre-aborted
+    fakeProvider.streamGenerate.mockImplementation(async function* () {
+      yield { delta: "should not see this" };
+    });
+    const events = await collect(
+      runChat({
+        workspaceId: "ws-1",
+        scope: { type: "workspace", workspaceId: "ws-1" },
+        ragMode: "off",
+        chips: [],
+        history: [],
+        userMessage: "hi",
+        provider: fakeProvider,
+        signal: controller.signal,
+      }),
+    );
+    expect(fakeProvider.streamGenerate).not.toHaveBeenCalled();
+    expect(events.find((e) => e.type === "text")).toBeUndefined();
+    expect(events[events.length - 1].type).toBe("done");
+    expect(events.some((e) => e.type === "error")).toBe(true);
   });
 });

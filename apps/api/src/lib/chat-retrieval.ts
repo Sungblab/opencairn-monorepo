@@ -1,6 +1,7 @@
 import { db, sql } from "@opencairn/db";
 import { getGeminiProvider } from "./llm/gemini";
 import { projectHybridSearch, type HybridHit } from "./internal-hybrid-search";
+import { envInt } from "./env";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -24,20 +25,6 @@ export type RetrievalHit = {
 };
 
 // ── Top-k routing ────────────────────────────────────────────────────────
-
-function envInt(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (raw === undefined || raw === "") return fallback;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      `[chat-retrieval] env ${name}=${JSON.stringify(raw)} is not a non-negative finite number; using fallback ${fallback}`,
-    );
-    return fallback;
-  }
-  return parsed;
-}
 
 function topK(mode: RagMode): number {
   if (mode === "off") return 0;
