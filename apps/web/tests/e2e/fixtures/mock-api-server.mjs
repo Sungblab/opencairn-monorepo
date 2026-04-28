@@ -3,12 +3,11 @@ import { randomUUID } from "node:crypto";
 
 const port = Number(process.env.PORT ?? 4000);
 
-const seed = {
+const seedBase = {
   userId: "00000000-0000-4000-8000-000000000001",
   email: "e2e-mock@example.com",
   cookieName: "opencairn-e2e-session",
   cookieValue: "mock-session",
-  expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
   wsSlug: "e2e-mock-ws",
   workspaceId: "00000000-0000-4000-8000-000000000002",
   projectId: "00000000-0000-4000-8000-000000000003",
@@ -22,7 +21,12 @@ const fixtureThread = {
   created_at: new Date("2026-04-29T00:00:00.000Z").toISOString(),
 };
 
-const threads = new Map([[fixtureThread.id, fixtureThread]]);
+function currentSeed() {
+  return {
+    ...seedBase,
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+  };
+}
 
 function json(res, status, body) {
   res.writeHead(status, {
@@ -39,20 +43,30 @@ function notFound(res) {
 
 function readBody(req) {
   return new Promise((resolve) => {
+    let settled = false;
     const chunks = [];
-    req.on("data", (chunk) => chunks.push(chunk));
+    const finish = (body) => {
+      if (settled) return;
+      settled = true;
+      resolve(body);
+    };
+
+    req.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    req.on("error", () => finish({}));
+    req.on("aborted", () => finish({}));
     req.on("end", () => {
       const raw = Buffer.concat(chunks).toString("utf8");
       try {
-        resolve(raw ? JSON.parse(raw) : {});
+        finish(raw ? JSON.parse(raw) : {});
       } catch {
-        resolve({});
+        finish({});
       }
     });
   });
 }
 
 const server = http.createServer(async (req, res) => {
+  const seed = currentSeed();
   const url = new URL(req.url ?? "/", `http://localhost:${port}`);
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
@@ -149,20 +163,16 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (url.pathname === "/api/threads" && req.method === "GET") {
-    return json(res, 200, { threads: Array.from(threads.values()) });
+    return json(res, 200, { threads: [fixtureThread] });
   }
 
   if (url.pathname === "/api/threads" && req.method === "POST") {
     await readBody(req);
     const id = randomUUID();
-    const thread = {
+    return json(res, 201, {
       id,
       title: "",
-      updated_at: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-    };
-    threads.set(id, thread);
-    return json(res, 201, { id, title: "" });
+    });
   }
 
   if (url.pathname === "/api/chat/conversations") {

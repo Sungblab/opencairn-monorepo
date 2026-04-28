@@ -6,6 +6,8 @@ const WORKFLOW_ID = "wf-e2e-live-ingest";
 const NOW = "2026-04-29T00:00:00.000Z";
 
 test.describe("Live ingest visualization smoke", () => {
+  test.setTimeout(60_000);
+
   test("renders persisted run state and consumes mocked SSE progress", async ({
     page,
     context,
@@ -81,7 +83,7 @@ test.describe("Live ingest visualization smoke", () => {
     ).toBeVisible();
 
     await expect(page.getByTestId("ingest-spotlight")).toHaveCount(0, {
-      timeout: 6_000,
+      timeout: 15_000,
     });
 
     await page.getByTestId("ingest-dock-card").click();

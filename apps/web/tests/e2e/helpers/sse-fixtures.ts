@@ -101,49 +101,99 @@ export async function installMockEventSource(
       }),
     );
 
-    class MockEventSource {
+    const NativeEventSource = window.EventSource;
+
+    class MockIngestEventSource {
       url: string;
       withCredentials: boolean;
       readyState = 0;
+      onopen: ((ev: Event) => void) | null = null;
       onmessage: ((ev: MessageEvent) => void) | null = null;
       onerror: ((ev: Event) => void) | null = null;
       private timers: number[] = [];
+      private listeners = new Map<
+        string,
+        Set<EventListenerOrEventListenerObject>
+      >();
 
       constructor(url: string | URL, init?: EventSourceInit) {
         this.url = String(url);
         this.withCredentials = Boolean(init?.withCredentials);
-        if (!this.url.endsWith(`/api/ingest/stream/${workflowId}`)) return;
-        this.timers = events.map(({ delayMs, event }) =>
+        this.timers.push(
           window.setTimeout(() => {
-            this.readyState = 1;
-            this.onmessage?.(
-              new MessageEvent("message", { data: JSON.stringify(event) }),
-            );
-          }, delayMs),
+            if (this.readyState === NativeEventSource.CLOSED) return;
+            this.readyState = NativeEventSource.OPEN;
+            this.emit("open", new Event("open"));
+          }, 0),
+        );
+        this.timers.push(
+          ...events.map(({ delayMs, event }) =>
+            window.setTimeout(() => {
+              if (this.readyState === NativeEventSource.CLOSED) return;
+              this.readyState = NativeEventSource.OPEN;
+              this.emit(
+                "message",
+                new MessageEvent("message", { data: JSON.stringify(event) }),
+              );
+            }, delayMs),
+          ),
         );
       }
 
       close() {
-        this.readyState = 2;
+        this.readyState = NativeEventSource.CLOSED;
         for (const timer of this.timers) window.clearTimeout(timer);
       }
 
-      addEventListener(type: string, listener: EventListener) {
-        if (type === "message") {
-          const previous = this.onmessage;
-          this.onmessage = (ev) => {
-            previous?.(ev);
-            listener(ev);
-          };
-        }
+      addEventListener(
+        type: string,
+        listener: EventListenerOrEventListenerObject,
+      ) {
+        const existing = this.listeners.get(type) ?? new Set();
+        existing.add(listener);
+        this.listeners.set(type, existing);
       }
 
-      removeEventListener() {}
-      dispatchEvent() {
-        return true;
+      removeEventListener(
+        type: string,
+        listener: EventListenerOrEventListenerObject,
+      ) {
+        this.listeners.get(type)?.delete(listener);
+      }
+
+      dispatchEvent(event: Event) {
+        this.emit(event.type, event);
+        return !event.defaultPrevented;
+      }
+
+      private emit(type: string, event: Event) {
+        if (type === "open") this.onopen?.(event);
+        if (type === "message" && event instanceof MessageEvent) {
+          this.onmessage?.(event);
+        }
+        if (type === "error") this.onerror?.(event);
+        for (const listener of this.listeners.get(type) ?? []) {
+          if (typeof listener === "function") {
+            listener.call(this, event);
+          } else {
+            listener.handleEvent(event);
+          }
+        }
       }
     }
 
-    window.EventSource = MockEventSource as unknown as typeof EventSource;
+    const EventSourceShim = function (
+      this: EventSource,
+      url: string | URL,
+      init?: EventSourceInit,
+    ) {
+      const href = String(url);
+      if (!href.endsWith(`/api/ingest/stream/${workflowId}`)) {
+        return new NativeEventSource(url, init);
+      }
+      return new MockIngestEventSource(href, init) as unknown as EventSource;
+    } as unknown as typeof EventSource;
+
+    window.EventSource = EventSourceShim;
   }, opts);
 }
