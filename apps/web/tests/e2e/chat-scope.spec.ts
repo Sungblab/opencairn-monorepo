@@ -1,14 +1,10 @@
 import { test, expect } from "@playwright/test";
-import {
-  applySessionCookie,
-  seedAndSignIn,
-  type SeededSession,
-} from "./helpers/seed-session";
+import { type SeededSession } from "./helpers/seed-session";
+import { seedFullStackSession } from "./helpers/full-stack";
 
 // Plan 11A — chat scope foundation E2E. Covers:
 //   1. Workspace-scope chat auto-attaches the workspace chip.
-//   2. Sending a message creates a conversation and renders the
-//      assistant placeholder reply with a cost badge.
+//   2. Sending a message reaches the full-stack chat SSE route.
 //   3. Switching RAG mode persists across the PATCH round trip (the
 //      label flips immediately and survives a navigation).
 //
@@ -24,8 +20,7 @@ test.describe("Plan 11A — Chat Scope Foundation", () => {
   let session: SeededSession;
 
   test.beforeEach(async ({ context, request }) => {
-    session = await seedAndSignIn(request);
-    await applySessionCookie(context, session);
+    session = await seedFullStackSession(request, context);
   });
 
   test("workspace-scope chat auto-attaches the workspace chip", async ({
@@ -40,20 +35,22 @@ test.describe("Plan 11A — Chat Scope Foundation", () => {
     await expect(page.getByRole("button", { name: "보내기" })).toBeVisible();
   });
 
-  test.skip("sends a message and receives the placeholder reply with cost badge", async ({
+  test("sends a message through the full-stack chat SSE route", async ({
     page,
   }) => {
     await page.goto(`/ko/app/w/${session.wsSlug}/chat-scope`);
-    await page.getByPlaceholder("어떻게 도와드릴까요?").fill("test prompt");
+    await page.getByPlaceholder("어떻게 도와드릴까요?").fill("e2e chat smoke");
+
+    const responsePromise = page.waitForResponse(
+      (res) =>
+        res.url().endsWith("/api/chat/message") &&
+        res.request().method() === "POST",
+    );
     await page.getByRole("button", { name: "보내기" }).click();
-    // SKIPPED: Placeholder reply "(11A placeholder reply)" was removed in
-    // Plan 11B-A real-LLM wiring. Responses from Gemini are non-deterministic
-    // and cannot be asserted on a literal text match. Follow-up: mock Gemini
-    // API to return a deterministic fixture. See docs/review/2026-04-28-completion-claims-audit.md.
-    await expect(page.getByText("(11A placeholder reply)")).toBeVisible();
-    // Cost badge format: `−<amount>원`. The placeholder reply produces a
-    // sub-1원 cost so we assert the "원" suffix is present.
-    await expect(page.getByText(/원/)).toBeVisible();
+
+    const response = await responsePromise;
+    expect(response.status()).toBe(200);
+    await expect(page.getByText("e2e chat smoke")).toBeVisible();
   });
 
   test("switching to Expand mode flips the dropdown label", async ({

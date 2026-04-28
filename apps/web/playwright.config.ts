@@ -12,6 +12,35 @@ try {
   // .env missing is fine — env may already be exported by the shell (CI).
 }
 
+const repoRoot = resolve(__dirname, "../..");
+const webUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+const apiUrl = process.env.API_BASE ?? "http://localhost:4000";
+const reuseExistingServer =
+  !process.env.CI && process.env.OPENCAIRN_E2E_REUSE_SERVERS !== "0";
+const allowLiveLlm = process.env.OPENCAIRN_E2E_ALLOW_LLM === "1";
+
+// Keep full-stack E2E runnable on a fresh dev shell. Real infra still needs
+// Postgres/Redis/etc.; these defaults only cover app secrets and local URLs.
+process.env.INTERNAL_API_SECRET ??= "opencairn-e2e-internal-secret";
+process.env.BETTER_AUTH_SECRET ??= "opencairn-e2e-better-auth-secret";
+process.env.BETTER_AUTH_URL ??= apiUrl;
+process.env.INTERNAL_API_URL ??= apiUrl;
+process.env.CORS_ORIGIN ??= webUrl;
+process.env.DATABASE_URL ??=
+  "postgresql://opencairn:changeme-dev-only@localhost:5432/opencairn";
+process.env.REDIS_URL ??= "redis://localhost:6379";
+
+const serverEnv = {
+  ...process.env,
+  BETTER_AUTH_URL: apiUrl,
+  INTERNAL_API_URL: apiUrl,
+  CORS_ORIGIN: webUrl,
+  // Default to a deterministic "LLM unavailable" smoke path so E2E never
+  // burns Gemini tokens. Set OPENCAIRN_E2E_ALLOW_LLM=1 for live LLM runs.
+  GEMINI_API_KEY: allowLiveLlm ? (process.env.GEMINI_API_KEY ?? "") : "",
+  GOOGLE_API_KEY: allowLiveLlm ? (process.env.GOOGLE_API_KEY ?? "") : "",
+};
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: true,
@@ -19,7 +48,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: "list",
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000",
+    baseURL: webUrl,
     trace: "on-first-retry",
   },
   projects: [
@@ -28,29 +57,28 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  // Both web (3000) and api (4000) must be up — the editor E2E seeds via
-  // /api/internal/test-seed on the API, then drives the browser against
-  // web. `reuseExistingServer` means running `pnpm dev` from the repo root
-  // before `pnpm test:e2e` is the normal dev loop.
+  // Both web (3000) and api (4000) must be up. Local runs reuse existing
+  // servers by default; set OPENCAIRN_E2E_REUSE_SERVERS=0 to make Playwright
+  // spawn a controlled full-stack pair with the env above.
   webServer: [
     {
       command: "pnpm --filter @opencairn/web dev",
-      url: "http://localhost:3000",
-      reuseExistingServer: !process.env.CI,
+      cwd: repoRoot,
+      url: webUrl,
+      reuseExistingServer,
       timeout: 120_000,
       env: {
-        ...process.env,
+        ...serverEnv,
         FEATURE_DEEP_RESEARCH: "true",
       },
     },
     {
-      command: "pnpm --filter @opencairn/api dev",
-      url: "http://localhost:4000/api/health",
-      reuseExistingServer: !process.env.CI,
+      command: "pnpm --filter @opencairn/api exec tsx watch src/index.ts",
+      cwd: repoRoot,
+      url: `${apiUrl}/api/health`,
+      reuseExistingServer,
       timeout: 120_000,
-      env: {
-        ...process.env,
-      },
+      env: serverEnv,
     },
   ],
 });

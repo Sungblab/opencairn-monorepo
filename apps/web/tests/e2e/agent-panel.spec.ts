@@ -1,16 +1,12 @@
 import { test, expect } from "@playwright/test";
-import {
-  applySessionCookie,
-  seedAndSignIn,
-  type SeededSession,
-} from "./helpers/seed-session";
+import { type SeededSession } from "./helpers/seed-session";
+import { seedFullStackSession } from "./helpers/full-stack";
 
 // App Shell Phase 4 Task 12 — Agent Panel happy paths.
 //
-// NOTE: These tests reference the stub echo ("(stub agent response to: ...)")
-// killed in Plan 11B-A Task 7/8. Real-LLM responses are non-deterministic and
-// cannot be asserted against. Tests are marked test.skip with follow-ups to
-// add deterministic mock fixtures. See docs/review/2026-04-28-completion-claims-audit.md.
+// NOTE: The stub echo ("(stub agent response to: ...)") was killed in
+// Plan 11B-A Task 7/8. These smoke tests assert deterministic shell behavior
+// and the SSE route opening, not literal LLM text.
 //
 // All visible strings are pulled from the i18n keys in
 // apps/web/messages/ko/agent-panel.json — keep this file in sync if the
@@ -19,8 +15,7 @@ test.describe("App Shell Phase 4 — Agent Panel", () => {
   let session: SeededSession;
 
   test.beforeEach(async ({ context, request }) => {
-    session = await seedAndSignIn(request);
-    await applySessionCookie(context, session);
+    session = await seedFullStackSession(request, context);
   });
 
   test("empty state shows on first visit and starts a thread", async ({
@@ -39,23 +34,27 @@ test.describe("App Shell Phase 4 — Agent Panel", () => {
     await expect(page.getByPlaceholder("메시지를 입력하세요...")).toBeEnabled();
   });
 
-  test.skip("sends a message and receives streamed stub response", async ({
+  test("sends a message through the full-stack thread SSE route", async ({
     page,
   }) => {
     await page.goto(`/ko/app/w/${session.wsSlug}/`);
     await page.getByRole("button", { name: "첫 대화 시작" }).click();
 
     const ta = page.getByPlaceholder("메시지를 입력하세요...");
-    await ta.fill("hello");
+    await expect(ta).toBeEnabled();
+
+    const responsePromise = page.waitForResponse(
+      (res) =>
+        res.url().includes("/api/threads/") &&
+        res.url().endsWith("/messages") &&
+        res.request().method() === "POST",
+    );
+    await ta.fill("e2e agent smoke");
     await ta.press("Enter");
 
-    // SKIPPED: Stub stub echo retired in Plan 11B-A real-LLM wiring. Responses
-    // from Gemini are non-deterministic and cannot be asserted on a literal
-    // text match. Follow-up: mock Gemini API to return a deterministic fixture
-    // for testing. See docs/review/2026-04-28-completion-claims-audit.md.
-    await expect(page.getByText(/stub agent response to: hello/)).toBeVisible({
-      timeout: 5000,
-    });
+    const response = await responsePromise;
+    expect(response.status()).toBe(200);
+    await expect(ta).toHaveValue("");
   });
 
   test.skip("thumbs-down exposes reason chips", async ({ page }) => {
