@@ -584,6 +584,41 @@ describe("GET /api/workspaces/:workspaceId/recent-notes", () => {
     ]);
   });
 
+  it("fills the requested limit even when private notes exceed the old overfetch window", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const { workspaceId } = await seedMembership(u.id, { role: "member" });
+    const projectId = await seedProject(workspaceId, u.id);
+
+    for (let i = 0; i < 5; i++) {
+      await seedNote(
+        workspaceId,
+        projectId,
+        `private-${i}`,
+        new Date(Date.now() + (10 - i) * 60 * 1000),
+        { inheritParent: false },
+      );
+    }
+    await seedNote(
+      workspaceId,
+      projectId,
+      "public newer",
+      new Date(Date.now() + 60 * 1000),
+    );
+    await seedNote(workspaceId, projectId, "public older", new Date());
+
+    const res = await authedGet(
+      `/api/workspaces/${workspaceId}/recent-notes?limit=2`,
+      u.id,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { notes: Array<{ title: string }> };
+    expect(body.notes.map((n) => n.title)).toEqual([
+      "public newer",
+      "public older",
+    ]);
+  });
+
   it("clamps limit to 1..50 and defaults to 5", async () => {
     const u = await createUser();
     createdUserIds.add(u.id);
@@ -746,6 +781,37 @@ describe("GET /api/workspaces/:workspaceId/notes/search", () => {
     expect(body.results.map((r) => r.title)).toEqual([
       "needle public middle",
       "needle public oldest",
+    ]);
+  });
+
+  it("fills the requested search limit even when private notes exceed the old overfetch window", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const { workspaceId } = await seedMembership(u.id, { role: "member" });
+    const projectId = await seedProject(workspaceId, u.id);
+
+    for (let i = 0; i < 5; i++) {
+      await seedNote(workspaceId, projectId, `needle private-${i}`, {
+        inheritParent: false,
+        updatedAt: new Date(Date.now() + (10 - i) * 60 * 1000),
+      });
+    }
+    await seedNote(workspaceId, projectId, "needle public newer", {
+      updatedAt: new Date(Date.now() + 60 * 1000),
+    });
+    await seedNote(workspaceId, projectId, "needle public older", {
+      updatedAt: new Date(),
+    });
+
+    const res = await authedGet(
+      `/api/workspaces/${workspaceId}/notes/search?q=needle&limit=2`,
+      u.id,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { results: Array<{ title: string }> };
+    expect(body.results.map((r) => r.title)).toEqual([
+      "needle public newer",
+      "needle public older",
     ]);
   });
 

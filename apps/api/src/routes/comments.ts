@@ -109,28 +109,29 @@ export const commentsRouter = new Hono<AppEnv>()
         return c.json({ error: "Invalid mention" }, 400);
       }
 
-      let parentAuthorId: string | null = null;
-      if (body.parentId) {
-        const [parent] = await db
-          .select({
-            authorId: comments.authorId,
-            noteId: comments.noteId,
-            workspaceId: comments.workspaceId,
-          })
-          .from(comments)
-          .where(eq(comments.id, body.parentId));
-        if (
-          !parent ||
-          parent.noteId !== noteId ||
-          parent.workspaceId !== note.workspaceId
-        ) {
-          return c.json({ error: "Invalid parent" }, 400);
-        }
-        parentAuthorId = parent.authorId;
-      }
-
       // Atomic: insert comment + all mention rows in one tx.
-      const inserted = await db.transaction(async (tx) => {
+      const result = await db.transaction(async (tx) => {
+        let parentAuthorId: string | null = null;
+        if (body.parentId) {
+          const [parent] = await tx
+            .select({
+              authorId: comments.authorId,
+              noteId: comments.noteId,
+              workspaceId: comments.workspaceId,
+            })
+            .from(comments)
+            .where(eq(comments.id, body.parentId))
+            .for("update");
+          if (
+            !parent ||
+            parent.noteId !== noteId ||
+            parent.workspaceId !== note.workspaceId
+          ) {
+            return { error: "Invalid parent" as const };
+          }
+          parentAuthorId = parent.authorId;
+        }
+
         const [row] = await tx
           .insert(comments)
           .values({
@@ -153,8 +154,12 @@ export const commentsRouter = new Hono<AppEnv>()
           );
         }
 
-        return row!;
+        return { inserted: row!, parentAuthorId };
       });
+      if ("error" in result) {
+        return c.json({ error: result.error }, 400);
+      }
+      const { inserted, parentAuthorId } = result;
 
       const response: CommentResponse = {
         ...serialize(inserted),
@@ -322,53 +327,57 @@ async function mentionsAreValidForWorkspace(
   workspaceId: string,
   mentions: MentionToken[],
 ): Promise<boolean> {
-  for (const mention of mentions) {
-    if (mention.type === "user") {
-      const [member] = await db
-        .select({ userId: workspaceMembers.userId })
-        .from(workspaceMembers)
-        .where(
-          and(
-            eq(workspaceMembers.workspaceId, workspaceId),
-            eq(workspaceMembers.userId, mention.id),
-          ),
-        )
-        .limit(1);
-      if (!member) return false;
-      continue;
-    }
+  const results = await Promise.all(
+    mentions.map((mention) =>
+      mentionIsValidForWorkspace(userId, workspaceId, mention),
+    ),
+  );
+  return results.every(Boolean);
+}
 
-    if (mention.type === "page") {
-      if (!isUuid(mention.id)) return false;
-      const [page] = await db
-        .select({ workspaceId: notes.workspaceId })
-        .from(notes)
-        .where(and(eq(notes.id, mention.id), isNull(notes.deletedAt)))
-        .limit(1);
-      if (!page || page.workspaceId !== workspaceId) return false;
-      if (!(await canRead(userId, { type: "note", id: mention.id }))) {
-        return false;
-      }
-      continue;
-    }
+async function mentionIsValidForWorkspace(
+  userId: string,
+  workspaceId: string,
+  mention: MentionToken,
+): Promise<boolean> {
+  if (mention.type === "user") {
+    const [member] = await db
+      .select({ userId: workspaceMembers.userId })
+      .from(workspaceMembers)
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, workspaceId),
+          eq(workspaceMembers.userId, mention.id),
+        ),
+      )
+      .limit(1);
+    return !!member;
+  }
 
-    if (mention.type === "concept") {
-      if (!isUuid(mention.id)) return false;
-      const [concept] = await db
-        .select({
-          projectId: concepts.projectId,
-          workspaceId: projects.workspaceId,
-        })
-        .from(concepts)
-        .innerJoin(projects, eq(projects.id, concepts.projectId))
-        .where(eq(concepts.id, mention.id))
-        .limit(1);
-      if (!concept || concept.workspaceId !== workspaceId) return false;
-      if (!(await canRead(userId, { type: "project", id: concept.projectId }))) {
-        return false;
-      }
-      continue;
-    }
+  if (mention.type === "page") {
+    if (!isUuid(mention.id)) return false;
+    const [page] = await db
+      .select({ workspaceId: notes.workspaceId })
+      .from(notes)
+      .where(and(eq(notes.id, mention.id), isNull(notes.deletedAt)))
+      .limit(1);
+    if (!page || page.workspaceId !== workspaceId) return false;
+    return canRead(userId, { type: "note", id: mention.id });
+  }
+
+  if (mention.type === "concept") {
+    if (!isUuid(mention.id)) return false;
+    const [concept] = await db
+      .select({
+        projectId: concepts.projectId,
+        workspaceId: projects.workspaceId,
+      })
+      .from(concepts)
+      .innerJoin(projects, eq(projects.id, concepts.projectId))
+      .where(eq(concepts.id, mention.id))
+      .limit(1);
+    if (!concept || concept.workspaceId !== workspaceId) return false;
+    return canRead(userId, { type: "project", id: concept.projectId });
   }
 
   return true;

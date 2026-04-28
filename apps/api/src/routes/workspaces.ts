@@ -8,7 +8,9 @@ import {
   workspaceMembers,
   workspaceInvites,
   projects,
+  projectPermissions,
   notes,
+  pagePermissions,
   researchRuns,
   user,
   userPreferences,
@@ -23,7 +25,6 @@ import {
 } from "@opencairn/db";
 import { requireAuth } from "../middleware/auth";
 import { requireWorkspaceRole } from "../middleware/require-role";
-import { canRead } from "../lib/permissions";
 import { isUuid } from "../lib/validators";
 import type { AppEnv } from "../lib/types";
 
@@ -331,6 +332,7 @@ workspaceRoutes.get(
     const limit = Number.isFinite(limitParsed)
       ? Math.max(1, Math.min(50, limitParsed))
       : 20;
+    const userId = c.get("user").id;
     const rows = await db
       .select({
         id: notes.id,
@@ -341,25 +343,39 @@ workspaceRoutes.get(
       })
       .from(notes)
       .innerJoin(projects, eq(projects.id, notes.projectId))
+      .innerJoin(
+        workspaceMembers,
+        and(
+          eq(workspaceMembers.workspaceId, notes.workspaceId),
+          eq(workspaceMembers.userId, userId),
+        ),
+      )
+      .leftJoin(
+        pagePermissions,
+        and(
+          eq(pagePermissions.pageId, notes.id),
+          eq(pagePermissions.userId, userId),
+        ),
+      )
+      .leftJoin(
+        projectPermissions,
+        and(
+          eq(projectPermissions.projectId, notes.projectId),
+          eq(projectPermissions.userId, userId),
+        ),
+      )
       .where(
         and(
           eq(notes.workspaceId, workspaceId),
           isNull(notes.deletedAt),
           sql`${notes.title} ILIKE ${"%" + q + "%"}`,
+          readableNoteSql(),
         ),
       )
       .orderBy(desc(notes.updatedAt))
-      .limit(limit * 2);
+      .limit(limit);
 
-    const visible: typeof rows = [];
-    for (const row of rows) {
-      if (await canRead(c.get("user").id, { type: "note", id: row.id })) {
-        visible.push(row);
-      }
-      if (visible.length >= limit) break;
-    }
-
-    return c.json({ results: visible });
+    return c.json({ results: rows });
   },
 );
 
@@ -378,6 +394,7 @@ workspaceRoutes.get(
     const limit = Number.isFinite(limitParsed)
       ? Math.max(1, Math.min(50, limitParsed))
       : 5;
+    const userId = c.get("user").id;
 
     const rows = await db
       .select({
@@ -389,19 +406,38 @@ workspaceRoutes.get(
       })
       .from(notes)
       .innerJoin(projects, eq(projects.id, notes.projectId))
-      .where(and(eq(notes.workspaceId, workspaceId), isNull(notes.deletedAt)))
+      .innerJoin(
+        workspaceMembers,
+        and(
+          eq(workspaceMembers.workspaceId, notes.workspaceId),
+          eq(workspaceMembers.userId, userId),
+        ),
+      )
+      .leftJoin(
+        pagePermissions,
+        and(
+          eq(pagePermissions.pageId, notes.id),
+          eq(pagePermissions.userId, userId),
+        ),
+      )
+      .leftJoin(
+        projectPermissions,
+        and(
+          eq(projectPermissions.projectId, notes.projectId),
+          eq(projectPermissions.userId, userId),
+        ),
+      )
+      .where(
+        and(
+          eq(notes.workspaceId, workspaceId),
+          isNull(notes.deletedAt),
+          readableNoteSql(),
+        ),
+      )
       .orderBy(desc(notes.updatedAt))
-      .limit(limit * 2);
+      .limit(limit);
 
-    const visible: typeof rows = [];
-    for (const row of rows) {
-      if (await canRead(c.get("user").id, { type: "note", id: row.id })) {
-        visible.push(row);
-      }
-      if (visible.length >= limit) break;
-    }
-
-    return c.json({ notes: visible });
+    return c.json({ notes: rows });
   },
 );
 
@@ -436,3 +472,18 @@ workspaceRoutes.get(
     return c.json({ members: rows });
   },
 );
+
+function readableNoteSql() {
+  return sql`(
+    ${workspaceMembers.role} IN ('owner', 'admin')
+    OR (${pagePermissions.role} IS NOT NULL AND ${pagePermissions.role} <> 'none')
+    OR (
+      ${pagePermissions.role} IS NULL
+      AND ${notes.inheritParent} = true
+      AND (
+        ${projectPermissions.role} IS NOT NULL
+        OR ${workspaceMembers.role} = 'member'
+      )
+    )
+  )`;
+}
