@@ -67,6 +67,12 @@
       "fontSize": "폰트 크기",
       "readingTime": "약 {min}분"
     },
+    "source": {
+      "title": "원본 PDF",
+      "frameTitle": "{title} PDF 뷰어",
+      "open": "새 탭에서 열기",
+      "download": "다운로드"
+    },
     "data": {
       "empty": "데이터 없음"
     }

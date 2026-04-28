@@ -3,10 +3,12 @@ import createNextIntlPlugin from "next-intl/plugin";
 import { readFileSync } from "fs";
 import { join } from "path";
 
+const MONOREPO_ROOT = join(process.cwd(), "../..");
+
 // Next.js reads .env only from its own app directory, not the monorepo root.
 // Load the root .env manually so NEXT_PUBLIC_* vars are available at build time.
 try {
-  const raw = readFileSync(join(process.cwd(), "../../.env"), "utf8");
+  const raw = readFileSync(join(MONOREPO_ROOT, ".env"), "utf8");
   for (const line of raw.split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
@@ -25,6 +27,8 @@ const withNextIntl = createNextIntlPlugin("./src/i18n.ts");
 // CSP allowlist supporting Plan 7 canvas runtime:
 // - 'unsafe-eval' is required by Pyodide's WASM compilation path (ADR-006).
 // - script-src + connect-src allow Pyodide + esm.sh CDN loads.
+// - connect-src keeps jsDelivr open because EmbedPDF/PDFium fetches optional
+//   CJK/Latin font fallback packages from the same CDN when a PDF lacks fonts.
 // - frame-src 'self' blob: + worker-src 'self' blob: cover the iframe Blob URL
 //   pattern used by CanvasFrame and any future Pyodide Web Worker.
 // - 'unsafe-inline' on style-src is preserved for Tailwind's runtime
@@ -42,13 +46,17 @@ const CSP_HEADER = [
   "frame-src 'self' blob:",
   "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net/pyodide/ https://esm.sh",
   "worker-src 'self' blob:",
-  "connect-src 'self' https://esm.sh https://cdn.jsdelivr.net/pyodide/",
+  "connect-src 'self' https://esm.sh https://cdn.jsdelivr.net",
   "img-src 'self' data: blob: https:",
+  "font-src 'self' data: https://cdn.jsdelivr.net",
   "style-src 'self' 'unsafe-inline'",
 ].join("; ");
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  turbopack: {
+    root: MONOREPO_ROOT,
+  },
   async headers() {
     return [
       {

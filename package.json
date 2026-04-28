@@ -17,7 +17,10 @@
   "packageManager": "pnpm@9.15.0",
   "pnpm": {
     "overrides": {
-      "pdfjs-dist": "3.11.174"
+      "@esbuild-kit/core-utils>esbuild": "0.25.12",
+      "dompurify": "^3.4.0",
+      "postcss": "^8.5.10",
+      "uuid": "14.0.0"
     },
     "neverBuiltDependencies": [
       "canvas"

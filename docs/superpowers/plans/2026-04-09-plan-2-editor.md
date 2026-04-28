@@ -23,12 +23,12 @@
 | `plate` | Plate v49 rich-text 에디터 | JSON (Plate Value) |
 | `artifact` | sandboxed iframe (ADR-006 패턴) | HTML/React/SVG 문자열 |
 | `data` | JSON 트리 뷰어 + 편집기 | JSON |
-| `source` | PDF 뷰어 (`@react-pdf-viewer`) | R2 URL → PDF |
+| `source` | EmbedPDF/PDFium PDF 뷰어 + 앱 toolbar chrome | R2 URL → PDF |
 | `canvas` | Pyodide WASM + iframe (Plan 7) | Python 코드 문자열 |
 
 **Architecture:** 탭 프레임(`TabShell`)이 `notes.tab_mode`를 읽어 렌더러를 결정한다. 모든 탭 모드는 같은 note row를 공유하며 `content` 컬럼의 의미만 `tab_mode`에 따라 달라진다. AI 채팅이 `<artifact>` 블록을 생성하면 SSE 스트림에서 클라이언트가 감지해 탭을 자동 열거나 업데이트한다. Server Actions 없음, DB 접근 없음 — 모든 퍼시스턴스는 Hono API 경유.
 
-**Tech Stack:** Plate v49 (Yjs 플러그인 + comments 플러그인), shadcn/ui, KaTeX, @platejs/math (MathKit), **Yjs**, **Hocuspocus 서버 + Provider + Awareness**, TanStack Query, Tailwind CSS 4, Hono 4, Zod, React 19, Next.js 16, Resend (이메일 알림), **react-json-view** (JSON 뷰어), **@react-pdf-viewer/core** (PDF), **isomorphic-dompurify** (artifact 정화).
+**Tech Stack:** Plate v49 (Yjs 플러그인 + comments 플러그인), shadcn/ui, KaTeX, @platejs/math (MathKit), **Yjs**, **Hocuspocus 서버 + Provider + Awareness**, TanStack Query, Tailwind CSS 4, Hono 4, Zod, React 19, Next.js 16, Resend (이메일 알림), **react-json-view** (JSON 뷰어), **EmbedPDF/PDFium** (PDF), **isomorphic-dompurify** (artifact 정화).
 
 > **Task 개요 (1~7 에디터 + 8~17 협업 + 18~20 렌더링 고도화 + 21 멀티모드 탭)**:
 > - Task 1~7: Plate 에디터, LaTeX, wiki-links, slash, save/load, sidebar
@@ -77,12 +77,12 @@ apps/web/
   components/
     source-viewer/
       SourceViewer.tsx              -- 소스 파일 뷰어 라우터 (파일 타입별 분기)
-      PdfViewer.tsx                 -- @react-pdf-viewer/core (PDF 뷰어, 검색/하이라이트)
+      PdfViewer.tsx                 -- EmbedPDF/PDFium viewer (검색/줌/페이지 탐색/썸네일/선택)
       HtmlViewer.tsx                -- iframe + sandbox 속성 (HTML 파일 안전 렌더링)
 ```
 
 > **Source Viewer 뷰어 라이브러리:**
-> - PDF: `@react-pdf-viewer/core` (툴바, 줌, 페이지 네비, PDF 내 텍스트 검색 내장)
+> - PDF: EmbedPDF/PDFium 뷰어 (툴바/줌/페이지 네비/검색/썸네일/선택) + 앱 toolbar chrome + agent registry event
 > - HTML: `<iframe sandbox="allow-scripts allow-same-origin">` (별도 라이브러리 없음)
 > - 모든 업로드 파일(DOCX/PPTX/XLSX/HWP)은 인제스트 시 PDF로 변환되어 R2 저장 → PdfViewer 단일 뷰어로 처리
 

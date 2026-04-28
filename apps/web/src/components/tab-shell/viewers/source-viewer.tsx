@@ -1,59 +1,119 @@
 "use client";
-import { useMemo } from "react";
-import { Viewer, Worker } from "@react-pdf-viewer/core";
-import { defaultLayoutPlugin } from "@react-pdf-viewer/default-layout";
-import "@react-pdf-viewer/core/lib/styles/index.css";
-import "@react-pdf-viewer/default-layout/lib/styles/index.css";
+import { useCallback, useMemo } from "react";
+import dynamic from "next/dynamic";
+import type {
+  PDFViewerConfig,
+  PDFViewerProps,
+  PluginRegistry,
+} from "@embedpdf/react-pdf-viewer";
+import { Download, ExternalLink, FileText } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { Tab } from "@/stores/tabs-store";
 
-// pdfjs-dist worker URL resolved at build time via Next's
-// `new URL + import.meta.url`. Version is pinned to 3.11.174 in the
-// root package.json's pnpm.overrides — @react-pdf-viewer/core@3 does
-// not support pdfjs-dist v4+ (ESM boundary changes). Do NOT bump
-// pdfjs-dist without also swapping the viewer package.
-const WORKER_URL =
-  typeof window !== "undefined"
-    ? new URL("pdfjs-dist/build/pdf.worker.min.js", import.meta.url).toString()
-    : "";
+const EmbedPDFViewer = dynamic<PDFViewerProps>(
+  () => import("@embedpdf/react-pdf-viewer").then((mod) => mod.PDFViewer),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        aria-hidden="true"
+        className="h-full w-full animate-pulse bg-neutral-200 dark:bg-neutral-900"
+      />
+    ),
+  },
+);
 
-// CVE-2024-4367 mitigation: pdfjs-dist < 4.2.67 is vulnerable to
-// arbitrary JS execution via a crafted font in a PDF. `isEvalSupported:
-// false` disables the eval-based font path that is the attack vector,
-// turning the CVE into a non-issue for our pinned v3 build. See
-// mozilla.github.io/pdf.js/api/draft/global.html#getDocument for the
-// supported options. The trade-off is slightly slower font rendering
-// on old PDFs that rely on eval'd CFF glyphs — acceptable.
-const SECURE_DOCUMENT_PARAMS = <T,>(options: T): T => ({
-  ...options,
-  isEvalSupported: false,
-});
+const READ_ONLY_DISABLED_CATEGORIES = [
+  "annotation",
+  "redaction",
+  "signature",
+  "stamp",
+] as const;
+
+function emitViewerReady(tab: Tab, registry: PluginRegistry) {
+  if (!tab.targetId || typeof window === "undefined") return;
+
+  window.dispatchEvent(
+    new CustomEvent("opencairn:source-pdf-ready", {
+      detail: {
+        tabId: tab.id,
+        noteId: tab.targetId,
+        title: tab.title,
+        registry,
+      },
+    }),
+  );
+}
 
 export function SourceViewer({ tab }: { tab: Tab }) {
-  const url = useMemo(
+  const t = useTranslations("appShell.viewers.source");
+  const fileUrl = useMemo(
     () => (tab.targetId ? `/api/notes/${tab.targetId}/file` : null),
     [tab.targetId],
   );
-  // defaultLayoutPlugin is the MIT-licensed preset: toolbar (zoom, page
-  // nav, search, download, print) + sidebar (thumbnails, bookmarks).
-  // Gives users the same reading affordances they expect from the
-  // browser's built-in PDF viewer. Restoration of the spec-designated
-  // viewer — see specs/2026-04-09-opencairn-design.md §tech-stack.
-  const defaultLayout = defaultLayoutPlugin();
+  const title = tab.title || t("title");
+  const viewerConfig = useMemo<PDFViewerConfig | null>(
+    () =>
+      fileUrl
+        ? {
+            src: fileUrl,
+            tabBar: "never",
+            theme: { preference: "system" },
+            disabledCategories: [...READ_ONLY_DISABLED_CATEGORIES],
+            export: { defaultFileName: title },
+          }
+        : null,
+    [fileUrl, title],
+  );
+  const onReady = useCallback(
+    (registry: PluginRegistry) => {
+      emitViewerReady(tab, registry);
+    },
+    [tab],
+  );
 
-  if (!url) return null;
+  if (!fileUrl || !viewerConfig) return null;
 
   return (
     <div
       data-testid="source-viewer"
-      className="h-full overflow-hidden bg-neutral-100 dark:bg-neutral-900"
+      className="flex h-full min-h-0 flex-col overflow-hidden bg-neutral-200 text-neutral-950 dark:bg-neutral-950 dark:text-neutral-50"
     >
-      <Worker workerUrl={WORKER_URL}>
-        <Viewer
-          fileUrl={url}
-          plugins={[defaultLayout]}
-          transformGetDocumentParams={SECURE_DOCUMENT_PARAMS}
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-neutral-200 bg-white px-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
+        <FileText aria-hidden="true" className="size-4 shrink-0 text-rose-600" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-medium">{title}</div>
+        </div>
+        <a
+          aria-label={t("open")}
+          title={t("open")}
+          href={fileUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex size-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-700 transition hover:bg-neutral-100 hover:text-neutral-950 dark:border-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-900 dark:hover:text-neutral-50"
+        >
+          <ExternalLink aria-hidden="true" className="size-4" />
+        </a>
+        <a
+          aria-label={t("download")}
+          title={t("download")}
+          href={fileUrl}
+          download={title}
+          className="inline-flex size-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-700 transition hover:bg-neutral-100 hover:text-neutral-950 dark:border-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-900 dark:hover:text-neutral-50"
+        >
+          <Download aria-hidden="true" className="size-4" />
+        </a>
+      </div>
+      <section
+        aria-label={t("frameTitle", { title })}
+        className="min-h-0 flex-1 bg-neutral-100 dark:bg-neutral-950"
+      >
+        <EmbedPDFViewer
+          config={viewerConfig}
+          onReady={onReady}
+          style={{ width: "100%", height: "100%" }}
         />
-      </Worker>
+      </section>
     </div>
   );
 }

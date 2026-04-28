@@ -145,7 +145,7 @@ opencairn.com/invite/<token>              -> 초대 수락
 | Mermaid | latest | 다이어그램 렌더링 |
 | MDX | latest | 블로그 콘텐츠 |
 | Pyodide (WASM) | latest | 브라우저 내 Python 실행 (Canvas 샌드박스) |
-| @react-pdf-viewer/core | latest | PDF 뷰어 |
+| EmbedPDF React Viewer (PDFium/WASM) | 2.14.x | PDF 뷰어 (검색/줌/페이지 탐색/썸네일/선택 UI, 앱 toolbar chrome + agent registry event 제공) |
 
 ### Backend API
 
