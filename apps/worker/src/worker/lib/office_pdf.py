@@ -61,6 +61,10 @@ def convert_to_pdf_unoconvert(src_path: Path, out_path: Path) -> None:
     so a wedged LibreOffice can't hang the activity indefinitely.
     """
     activity.heartbeat("running unoconvert")
+    # encoding="utf-8" is explicit because unoconvert / LibreOffice can
+    # emit non-ASCII filenames or error messages and the system default
+    # encoding (cp1252 / cp949 etc) would raise UnicodeDecodeError that
+    # masks the real conversion failure.
     result = subprocess.run(
         [
             "unoconvert",
@@ -72,6 +76,7 @@ def convert_to_pdf_unoconvert(src_path: Path, out_path: Path) -> None:
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=300,
     )
     if result.returncode != 0:

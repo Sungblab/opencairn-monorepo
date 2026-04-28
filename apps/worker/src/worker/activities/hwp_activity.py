@@ -68,6 +68,10 @@ def _run_opendataloader(pdf_path: Path, out_dir: Path) -> Path:
     yet — Spec B figure enrichment runs only for PDFs).
     """
     activity.heartbeat("running opendataloader-pdf for HWP")
+    # encoding="utf-8" is explicit because the JAR's stderr can include
+    # Korean characters (HWP is a KR format) and the system default would
+    # be cp1252 / cp949 on some hosts — UnicodeDecodeError there would
+    # mask the real conversion failure.
     result = subprocess.run(
         [
             "java", "-jar", JAR_PATH,
@@ -78,6 +82,7 @@ def _run_opendataloader(pdf_path: Path, out_dir: Path) -> Path:
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=300,
     )
     if result.returncode != 0:

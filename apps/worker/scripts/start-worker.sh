@@ -38,16 +38,36 @@ unoserver --interface "${UNOSERVER_HOST}" --port "${UNOSERVER_PORT}" \
     >"${UNOSERVER_LOG}" 2>&1 &
 UNOSERVER_PID=$!
 
-# Give LibreOffice a moment to register the UNO bridge before any activity
-# tries to connect. Two seconds is sufficient on a modern container; the
-# first conversion still pays a small extra warm-up cost on the LO side.
-sleep 2
+# Wait for unoserver to actually accept TCP connections before exec'ing
+# the worker. A fixed sleep is unreliable: on a heavily-loaded host or a
+# cold-cache LibreOffice the bridge can take >10s to register, and any
+# activity dispatched in that window dies with ``ConnectionRefusedError``.
+# Probe the port directly instead — python3 is always present (this is
+# the worker image), no extra ``nc``/``bash`` dependency required.
+#
+# Doubles as a liveness check: if unoserver died during startup the port
+# is closed too, so we still catch the H2-review crash case without a
+# separate ``kill -0`` step.
+echo "[entrypoint] Waiting for unoserver to accept connections..."
+ready=0
+for i in $(seq 1 30); do
+    if python3 -c "import socket; s=socket.socket(); s.settimeout(1); s.connect(('${UNOSERVER_HOST}', int('${UNOSERVER_PORT}'))); s.close()" 2>/dev/null; then
+        echo "[entrypoint] unoserver listening on ${UNOSERVER_HOST}:${UNOSERVER_PORT} (ready after ${i}s)"
+        ready=1
+        break
+    fi
+    # Fast-fail if the daemon already died — no point waiting the full 30s
+    # window when the PID is gone.
+    if ! kill -0 "${UNOSERVER_PID}" 2>/dev/null; then
+        echo "[entrypoint] FATAL: unoserver exited during startup. Last lines from ${UNOSERVER_LOG}:" >&2
+        tail -20 "${UNOSERVER_LOG}" >&2 || true
+        exit 1
+    fi
+    sleep 1
+done
 
-# Sanity check — if unoserver died during startup we exit so the container
-# restarts (per docker-compose ``restart: unless-stopped``) instead of
-# silently accepting work that will all fail downstream.
-if ! kill -0 "${UNOSERVER_PID}" 2>/dev/null; then
-    echo "[entrypoint] FATAL: unoserver exited during startup. Last lines from ${UNOSERVER_LOG}:" >&2
+if [ "${ready}" -ne 1 ]; then
+    echo "[entrypoint] FATAL: unoserver did not start listening on ${UNOSERVER_HOST}:${UNOSERVER_PORT} within 30s. Last lines from ${UNOSERVER_LOG}:" >&2
     tail -20 "${UNOSERVER_LOG}" >&2 || true
     exit 1
 fi

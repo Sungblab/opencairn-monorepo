@@ -65,7 +65,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # --break-system-packages is intentional: PEP-668 marks Debian's Python as
 # "externally managed" but we deliberately want a system-wide install for
 # the UNO bridge. The package is small (pure Python).
-RUN /usr/bin/python3 -m pip install --break-system-packages --no-cache-dir 'unoserver==3.5'
+#
+# python3-pip is purged in the same layer so it doesn't bloat the final
+# image. Once unoserver is installed into /usr/lib/python3/dist-packages
+# we never need pip again — the rest of the image uses uv against the
+# venv-managed Python (3.12) interpreter, not the system one.
+RUN /usr/bin/python3 -m pip install --break-system-packages --no-cache-dir 'unoserver==3.5' \
+    && apt-get purge -y --auto-remove python3-pip \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # H2Orestart — LibreOffice extension that adds HWP/HWPX import filters. The
 # ``unopkg add --shared`` writes the extension to the shared user profile so
