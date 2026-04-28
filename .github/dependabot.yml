@@ -1,0 +1,70 @@
+version: 2
+
+# Shared schedule reused by every package-ecosystem entry below via the YAML
+# merge anchor. Single source of truth — bump cadence here when needed.
+x-weekly-schedule: &weekly-schedule
+  schedule:
+    interval: "weekly"
+    day: "monday"
+
+# Weekly cadence keeps PR noise tolerable for a small team while still catching
+# CVEs within ~7 days. Security updates ship continuously regardless of this
+# schedule — Dependabot's security alert track is independent.
+updates:
+  # Root + every workspace pnpm manifest. Setting `directory: "/"` with the
+  # pnpm package-ecosystem covers the workspace lockfile + every package.json
+  # under `apps/*` / `packages/*` automatically.
+  - package-ecosystem: "npm"
+    directory: "/"
+    <<: *weekly-schedule
+    open-pull-requests-limit: 8
+    groups:
+      typescript:
+        patterns:
+          - "typescript"
+          - "@types/*"
+      eslint:
+        patterns:
+          - "eslint*"
+          - "@typescript-eslint/*"
+          - "typescript-eslint"
+      next:
+        patterns:
+          - "next"
+          - "@next/*"
+          - "next-intl"
+      plate:
+        patterns:
+          - "platejs"
+          - "@platejs/*"
+      testing:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+          - "@playwright/*"
+          - "@testing-library/*"
+
+  # Python worker.
+  - package-ecosystem: "pip"
+    directory: "/apps/worker"
+    <<: *weekly-schedule
+    open-pull-requests-limit: 4
+
+  # GitHub Actions versions.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    <<: *weekly-schedule
+
+  # Docker base images for the four Dockerfiles.
+  - package-ecosystem: "docker"
+    directory: "/apps/api"
+    <<: *weekly-schedule
+  - package-ecosystem: "docker"
+    directory: "/apps/web"
+    <<: *weekly-schedule
+  - package-ecosystem: "docker"
+    directory: "/apps/hocuspocus"
+    <<: *weekly-schedule
+  - package-ecosystem: "docker"
+    directory: "/apps/worker"
+    <<: *weekly-schedule
