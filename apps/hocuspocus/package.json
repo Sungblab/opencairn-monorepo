@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@hocuspocus/extension-database": "^3.1.1",
-    "@hocuspocus/server": "^3.1.1",
+    "@hocuspocus/server": "^4.0.0",
     "@opencairn/api": "workspace:*",
     "@opencairn/db": "workspace:*",
     "@opencairn/shared": "workspace:*",
