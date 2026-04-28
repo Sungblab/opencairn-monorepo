@@ -25,7 +25,7 @@
     "@sentry/node": "^9.0.0",
     "@temporalio/client": "^1.16.1",
     "better-auth": "^1.6.9",
-    "hono": "^4.12.0",
+    "hono": "^4.12.15",
     "ioredis": "^5.6.0",
     "minio": "^8.0.7",
     "nodemailer": "^8.0.7",
