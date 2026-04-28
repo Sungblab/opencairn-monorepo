@@ -18,6 +18,14 @@ const apiUrl = process.env.API_BASE ?? "http://localhost:4000";
 const reuseExistingServer =
   !process.env.CI && process.env.OPENCAIRN_E2E_REUSE_SERVERS !== "0";
 const allowLiveLlm = process.env.OPENCAIRN_E2E_ALLOW_LLM === "1";
+const mockApiSpecs = [
+  "plan-2d-save-suggestion.spec.ts",
+  "source-viewer-smoke.spec.ts",
+  "live-ingest-visualization.spec.ts",
+];
+const useMockApi =
+  process.env.OPENCAIRN_E2E_MOCK_API === "1" ||
+  mockApiSpecs.some((spec) => process.argv.some((arg) => arg.includes(spec)));
 
 // Keep full-stack E2E runnable on a fresh dev shell. Real infra still needs
 // Postgres/Redis/etc.; these defaults only cover app secrets and local URLs.
@@ -62,7 +70,7 @@ export default defineConfig({
   // spawn a controlled full-stack pair with the env above.
   webServer: [
     {
-      command: "pnpm --filter @opencairn/web dev",
+      command: "pnpm --filter @opencairn/web exec next dev --webpack --port 3000",
       cwd: repoRoot,
       url: webUrl,
       reuseExistingServer,
@@ -70,15 +78,21 @@ export default defineConfig({
       env: {
         ...serverEnv,
         FEATURE_DEEP_RESEARCH: "true",
+        NEXT_PUBLIC_FEATURE_LIVE_INGEST: "true",
       },
     },
     {
-      command: "pnpm --filter @opencairn/api exec tsx watch src/index.ts",
+      command: useMockApi
+        ? "node apps/web/tests/e2e/fixtures/mock-api-server.mjs"
+        : "pnpm --filter @opencairn/api exec tsx watch src/index.ts",
       cwd: repoRoot,
       url: `${apiUrl}/api/health`,
       reuseExistingServer,
       timeout: 120_000,
-      env: serverEnv,
+      env: {
+        ...serverEnv,
+        PORT: String(new URL(apiUrl).port || 4000),
+      },
     },
   ],
 });
