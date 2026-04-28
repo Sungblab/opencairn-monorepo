@@ -37,6 +37,7 @@ Thumbs.db
 # Logs
 logs/
 *.log
+.vitest-ws.log
 npm-debug.log*
 yarn-debug.log*
 
@@ -49,9 +50,14 @@ playwright-report/
 
 # Session artifacts
 .playwright-mcp/
+.claude/
 .claude/local/
+.obsidian/
 .worktrees/
 .superpowers/
+
+# Local reference docs
+references/Gemini_API_docs/
 
 # Docker volumes (local dev)
 backups/
