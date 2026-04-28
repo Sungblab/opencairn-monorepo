@@ -317,6 +317,21 @@ describe("POST /api/internal/research/runs/:id/artifacts", () => {
     expect(res.status).toBe(400);
   });
 
+  it("rejects an image payload missing url/mimeType", async () => {
+    // Per-kind shape validation — see researchArtifactWriteSchema in
+    // internal.ts. A buggy worker emitting `{kind:"image", payload:{}}`
+    // would otherwise poison the image-bytes lookup which matches on
+    // payload->>'url'.
+    const res = await internalFetch(
+      `/api/internal/research/runs/${runId}/artifacts`,
+      {
+        method: "POST",
+        body: JSON.stringify({ kind: "image", payload: {} }),
+      },
+    );
+    expect(res.status).toBe(400);
+  });
+
   it("rejects missing secret header", async () => {
     const res = await app.request(
       `/api/internal/research/runs/${runId}/artifacts`,
