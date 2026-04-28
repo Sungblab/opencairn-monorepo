@@ -39,7 +39,9 @@ const isObj = (v: unknown): v is Record<string, unknown> =>
 // the same fetch + ReadableStream + eventsource-parser pattern as AgentPanel.
 export function ChatPanel() {
   const ctx = useScopeContext();
-  const streamErrorText = useTranslations("chat.errors")("streamFailed");
+  const chatErrorT = useTranslations("chat.errors");
+  const streamErrorText = chatErrorT("streamFailed");
+  const timeoutErrorText = chatErrorT("executionTimeout");
   const saveT = useTranslations("agentPanel.bubble");
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [chips, setChips] = useState<AttachedChip[]>(ctx.initialChips);
@@ -113,27 +115,40 @@ export function ChatPanel() {
 
   const resolveProjectId = useCallback(async (): Promise<string | null> => {
     if (ctx.scopeType === "project") return ctx.scopeId;
-    if (ctx.scopeType === "page") {
-      try {
-        const note = await api.getNote(ctx.scopeId);
-        return note.projectId;
-      } catch {
-        return null;
-      }
-    }
     if (activeTab?.kind === "project" && activeTab.targetId) {
       return activeTab.targetId;
     }
-    if (activeTab?.kind === "note" && activeTab.targetId) {
-      try {
-        const note = await api.getNote(activeTab.targetId);
-        return note.projectId;
-      } catch {
-        return null;
-      }
+
+    const noteId =
+      ctx.scopeType === "page"
+        ? ctx.scopeId
+        : activeTab?.kind === "note"
+          ? activeTab.targetId
+          : undefined;
+    if (!noteId) return null;
+
+    try {
+      const note = await api.getNote(noteId);
+      return note.projectId;
+    } catch {
+      return null;
     }
-    return null;
   }, [activeTab, ctx.scopeId, ctx.scopeType]);
+
+  function getStreamErrorText(payload: unknown): string {
+    if (!isObj(payload) || typeof payload.code !== "string") {
+      return streamErrorText;
+    }
+    const code = payload.code.toUpperCase();
+    if (
+      code === "TIMEOUT" ||
+      code === "EXECUTION_TIMEOUT" ||
+      code === "LLM_TIMEOUT"
+    ) {
+      return timeoutErrorText;
+    }
+    return streamErrorText;
+  }
 
   const handleSaveSuggestion = useCallback(
     async (raw: unknown) => {
@@ -279,7 +294,7 @@ export function ChatPanel() {
             case "error":
               updateMessage(assistantKey, (message) => ({
                 ...message,
-                error: streamErrorText,
+                error: getStreamErrorText(payload),
               }));
               break;
             default:

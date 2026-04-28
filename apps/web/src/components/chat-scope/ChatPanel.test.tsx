@@ -140,6 +140,32 @@ describe("<ChatPanel>", () => {
     );
   });
 
+  it("maps timeout SSE errors to the dedicated chat error string", async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/api/chat/conversations")) return mkConversationResponse();
+      if (url.endsWith("/api/chat/message")) {
+        return {
+          ok: true,
+          status: 200,
+          body: mkSseBody([
+            'event: error\ndata: {"code":"TIMEOUT","message":"deadline exceeded"}\n\n',
+            'event: done\ndata: {}\n\n',
+          ]),
+        };
+      }
+      return { ok: false, status: 404 };
+    });
+
+    render(<ChatPanel />);
+    await submitMessage("slow");
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("chat.errors.executionTimeout"),
+      ).toBeInTheDocument(),
+    );
+  });
+
   it("applies the SSE cost event to the streamed assistant message", async () => {
     fetchMock.mockImplementation(async (url: string) => {
       if (url.endsWith("/api/chat/conversations")) return mkConversationResponse();
