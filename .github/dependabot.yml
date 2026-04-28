@@ -52,6 +52,15 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 4
+    # langgraph + langchain-core were removed from the worker in commit
+    # b4d716b ("retire unused langgraph integration"). Dependabot kept
+    # opening bumps for them — silence the noise here. Re-enable if/when
+    # the agent runtime swaps back to LangGraph.
+    ignore:
+      - dependency-name: "langgraph"
+      - dependency-name: "langgraph-*"
+      - dependency-name: "langchain-core"
+      - dependency-name: "langchain-*"
 
   # GitHub Actions versions.
   - package-ecosystem: "github-actions"
@@ -61,23 +70,44 @@ updates:
       day: "monday"
 
   # Docker base images for the four Dockerfiles.
+  #
+  # Major-version bumps for `node` and `python` are ignored across all four
+  # services because:
+  #   - `node` 22 → 25 alpine (PR #68/#69/#71) broke the Docker build job in
+  #     CI and skipped the active LTS (24); upgrade in one deliberate step.
+  #   - `python` 3.12 → 3.14 (PR #75) breaks the worker — the system
+  #     `python3-uno` bridge that unoserver depends on is pinned to whatever
+  #     Debian ships, and the `uv.lock` resolves against 3.12.
+  # Patch + minor bumps still flow normally.
   - package-ecosystem: "docker"
     directory: "/apps/api"
     schedule:
       interval: "weekly"
       day: "monday"
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "docker"
     directory: "/apps/web"
     schedule:
       interval: "weekly"
       day: "monday"
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "docker"
     directory: "/apps/hocuspocus"
     schedule:
       interval: "weekly"
       day: "monday"
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "docker"
     directory: "/apps/worker"
     schedule:
       interval: "weekly"
       day: "monday"
+    ignore:
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major"]
