@@ -32,6 +32,58 @@ def test_normalize_doi_none_and_empty():
     assert lia._normalize_doi("   ") is None
 
 
+# ── _fetch_arxiv_metadata (regression: PR #57 review #3) ────────────────────
+
+
+@pytest.mark.asyncio
+async def test_fetch_arxiv_metadata_picks_entry_title_not_feed_title():
+    """Regression for PR #57 review #3.
+
+    arXiv Atom feeds carry a feed-level <title> ("ArXiv Query: ...") *before*
+    the per-paper <entry><title>. An unscoped re.search would return the
+    feed title and every paper note would be saved as "ArXiv Query: ...".
+    """
+    fake_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>ArXiv Query: id_list=1706.03762</title>
+  <author><name>arXiv.org</name></author>
+  <entry>
+    <id>http://arxiv.org/abs/1706.03762v5</id>
+    <published>2017-06-12T17:57:34Z</published>
+    <title>Attention Is All You Need</title>
+    <summary>The dominant sequence transduction models...</summary>
+    <author><name>Ashish Vaswani</name></author>
+    <author><name>Noam Shazeer</name></author>
+  </entry>
+</feed>
+"""
+
+    class _Resp:
+        text = fake_xml
+
+        def raise_for_status(self) -> None:
+            return None
+
+    class _Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return None
+
+        async def get(self, _url):
+            return _Resp()
+
+    with patch.object(lia.httpx, "AsyncClient", lambda *a, **kw: _Client()):
+        result = await lia._fetch_arxiv_metadata("1706.03762")
+
+    assert result is not None
+    assert result["title"] == "Attention Is All You Need"
+    # And we don't pull "arXiv.org" from the feed-level <author>.
+    assert "arXiv.org" not in result["authors"]
+    assert "Ashish Vaswani" in result["authors"]
+
+
 # ── fetch_paper_metadata ─────────────────────────────────────────────────────
 
 

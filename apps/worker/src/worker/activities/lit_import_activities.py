@@ -49,11 +49,20 @@ async def _fetch_arxiv_metadata(arxiv_id: str) -> dict[str, Any] | None:
         return None
 
     xml = r.text
-    title_m = re.search(r"<title>([\s\S]*?)</title>", xml)
-    abstract_m = re.search(r"<summary>([\s\S]*?)</summary>", xml)
-    year_m = re.search(r"<published>(\d{4})", xml)
-    doi_m = re.search(r"<arxiv:doi[^>]*>(.*?)</arxiv:doi>", xml)
-    authors = re.findall(r"<name>([\s\S]*?)</name>", xml)
+    # arXiv Atom feeds wrap each paper in <entry>...</entry>. The feed
+    # itself also has a <title> ("ArXiv Query: id_list=...") and <author>
+    # block at the top level — searching the whole doc would pick those
+    # up first. Scope every per-paper field to the entry block instead.
+    entry_m = re.search(r"<entry>([\s\S]*?)</entry>", xml)
+    if entry_m is None:
+        return None
+    entry = entry_m.group(1)
+
+    title_m = re.search(r"<title>([\s\S]*?)</title>", entry)
+    abstract_m = re.search(r"<summary>([\s\S]*?)</summary>", entry)
+    year_m = re.search(r"<published>(\d{4})", entry)
+    doi_m = re.search(r"<arxiv:doi[^>]*>(.*?)</arxiv:doi>", entry)
+    authors = re.findall(r"<name>([\s\S]*?)</name>", entry)
 
     title = (title_m.group(1).strip() if title_m else "Untitled").replace("\n", " ")
     abstract = abstract_m.group(1).strip() if abstract_m else None
