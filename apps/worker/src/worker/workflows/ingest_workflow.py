@@ -10,6 +10,7 @@ activity exists for the same reason: it forwards to ``publish_safe`` for us.
 """
 from __future__ import annotations
 
+import asyncio
 import contextlib
 from dataclasses import dataclass
 from datetime import timedelta
@@ -83,6 +84,17 @@ def _activity_input(inp: IngestInput, workflow_id: str, started_at_ms: int, **ex
     }
 
 
+def _read_text_object_bytes(object_key: str) -> bytes:
+    """Download and read a text object using blocking object-store/file APIs."""
+    from worker.lib.s3_client import download_to_tempfile
+
+    path = download_to_tempfile(object_key)
+    try:
+        return path.read_bytes()
+    finally:
+        path.unlink(missing_ok=True)
+
+
 @activity.defn(name="read_text_object")
 async def read_text_object(inp: dict) -> dict[str, str]:
     """Read a UTF-8 text/markdown upload from object storage."""
@@ -93,13 +105,7 @@ async def read_text_object(inp: dict) -> dict[str, str]:
             non_retryable=True,
         )
 
-    from worker.lib.s3_client import download_to_tempfile
-
-    path = download_to_tempfile(str(object_key))
-    try:
-        raw = path.read_bytes()
-    finally:
-        path.unlink(missing_ok=True)
+    raw = await asyncio.to_thread(_read_text_object_bytes, str(object_key))
 
     try:
         text = raw.decode("utf-8-sig")

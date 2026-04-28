@@ -117,3 +117,28 @@ async def test_text_mimes_dispatch_to_text_reader(monkeypatch, mime: str):
 
     assert "read_text_object" in called
     assert note_id == "note-1"
+
+
+@pytest.mark.asyncio
+async def test_read_text_object_moves_blocking_io_to_thread(monkeypatch):
+    from worker.workflows import ingest_workflow
+
+    calls = []
+
+    async def fake_to_thread(fn, *args):
+        calls.append((fn, args))
+        return b"\xef\xbb\xbfhello"
+
+    monkeypatch.setattr(ingest_workflow.asyncio, "to_thread", fake_to_thread)
+
+    result = await ingest_workflow.read_text_object(
+        {"object_key": "uploads/user-1/note.md"},
+    )
+
+    assert result == {"text": "hello"}
+    assert calls == [
+        (
+            ingest_workflow._read_text_object_bytes,
+            ("uploads/user-1/note.md",),
+        ),
+    ]

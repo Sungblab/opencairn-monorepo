@@ -95,7 +95,14 @@ async def fetch_google_drive_access_token(user_id: str) -> str:
     if not user_id:
         raise ApplicationError("user_id is required for Drive import", non_retryable=True)
 
-    conn = await asyncpg.connect(_asyncpg_url(os.environ["DATABASE_URL"]))
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        raise ApplicationError(
+            "DATABASE_URL environment variable is not set",
+            non_retryable=True,
+        )
+
+    conn = await asyncpg.connect(_asyncpg_url(db_url))
     try:
         row = await conn.fetchrow(
             """
@@ -127,7 +134,13 @@ def _build_service(access_token: str) -> Any:
 
 
 async def _build_service_from_payload(payload: dict[str, Any]) -> Any:
-    access_token = await fetch_google_drive_access_token(str(payload.get("user_id", "")))
+    user_id = payload.get("user_id")
+    if not isinstance(user_id, str) or not user_id:
+        raise ApplicationError(
+            "user_id must be a non-empty string",
+            non_retryable=True,
+        )
+    access_token = await fetch_google_drive_access_token(user_id)
     return _build_service(access_token)
 
 

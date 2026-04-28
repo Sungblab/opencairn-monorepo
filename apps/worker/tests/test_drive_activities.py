@@ -11,6 +11,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from temporalio.exceptions import ApplicationError
 
 from worker.activities import drive_activities
 from worker.activities.drive_activities import _build_service, _walk_drive
@@ -91,6 +92,14 @@ async def test_fetch_google_drive_access_token_decrypts_db_ciphertext(monkeypatc
 
 
 @pytest.mark.asyncio
+async def test_fetch_google_drive_access_token_requires_database_url(monkeypatch) -> None:
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
+    with pytest.raises(ApplicationError, match="DATABASE_URL"):
+        await drive_activities.fetch_google_drive_access_token("user-1")
+
+
+@pytest.mark.asyncio
 async def test_drive_service_from_payload_fetches_token_per_activity(monkeypatch) -> None:
     calls: list[str] = []
 
@@ -111,6 +120,15 @@ async def test_drive_service_from_payload_fetches_token_per_activity(monkeypatch
 
     assert svc == "svc"
     assert calls == ["user-1"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("payload", [{}, {"user_id": None}, {"user_id": 123}, {"user_id": ""}])
+async def test_drive_service_from_payload_rejects_invalid_user_id(
+    payload: dict[str, Any],
+) -> None:
+    with pytest.raises(ApplicationError, match="user_id"):
+        await drive_activities._build_service_from_payload(payload)
 
 
 def test_walk_drive_single_file() -> None:
