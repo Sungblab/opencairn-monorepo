@@ -181,6 +181,17 @@ importRouter.post(
     });
     if (!allowed) return c.json({ error: "Forbidden" }, 403);
 
+    // Bind the zip to its issuer. `/notion/upload-url` writes the object as
+    // `imports/notion/<workspaceId>/<userId>/<ts>-<uuid>.zip`, so a key under
+    // any other workspace OR any other user is necessarily a key the caller
+    // didn't issue — accepting it would let a workspace member import another
+    // user's uploaded zip into their own workspace (S3-024). Workspace-write
+    // permission isn't enough; the user must own the upload too.
+    const expectedPrefix = `imports/notion/${body.workspaceId}/${userId}/`;
+    if (!body.zipObjectKey.startsWith(expectedPrefix)) {
+      return c.json({ error: "zip_object_key_not_owned" }, 403);
+    }
+
     if ((await runningImportCount(userId)) >= MAX_CONCURRENT_IMPORTS) {
       return c.json(
         { error: "import_limit_exceeded", limit: MAX_CONCURRENT_IMPORTS },
