@@ -15,7 +15,7 @@ from datetime import timedelta
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
-from temporalio.exceptions import ActivityError
+from temporalio.exceptions import ActivityError, ApplicationError
 
 
 @dataclass
@@ -205,23 +205,29 @@ class IngestWorkflow:
                 )
                 enrich_result = await workflow.execute_activity(
                     "enrich_document",
-                    {
-                        **inp.__dict__,
-                        "content_type": ct_result["content_type"],
-                        "parsed_pages": parse_result.get("pages", []),
-                        "requested_enrichments": [
+                    _activity_input(
+                        inp,
+                        workflow_id,
+                        started_at_ms,
+                        content_type=ct_result["content_type"],
+                        parsed_pages=parse_result.get("pages", []),
+                        requested_enrichments=[
                             "outline",
                             "figures",
                             "tables",
                             "translation",
                         ],
-                    },
+                    ),
                     schedule_to_close_timeout=timedelta(minutes=20),
                     retry_policy=RetryPolicy(
                         maximum_attempts=2, backoff_coefficient=2.0
                     ),
                 )
-            except Exception:  # noqa: BLE001 — enrichment is best-effort
+            except (ActivityError, ApplicationError):
+                # Enrichment is best-effort. We catch only Temporal-surfaced
+                # activity errors, not bare Exception — workflow-level bugs
+                # (typos, missing keys) should still crash so they surface
+                # in dev. The feature flag protects prod regardless.
                 workflow.logger.warning(
                     "enrichment failed, continuing without artifact"
                 )
@@ -269,7 +275,7 @@ class IngestWorkflow:
                         maximum_attempts=3, backoff_coefficient=2.0
                     ),
                 )
-            except Exception:  # noqa: BLE001 — artifact store is best-effort
+            except (ActivityError, ApplicationError):
                 workflow.logger.warning(
                     "store_enrichment_artifact failed, artifact lost"
                 )

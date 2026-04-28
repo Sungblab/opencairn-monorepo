@@ -19,9 +19,6 @@ broken enrichment never blocks note creation. (See Task 7.)
 from __future__ import annotations
 
 import ast
-import asyncio
-import base64
-import io
 import json
 import os
 import re
@@ -32,9 +29,9 @@ from llm import get_provider
 from llm.base import ProviderConfig
 from worker.lib.enrichment_artifact import EnrichmentArtifact
 
-# s3_client is imported lazily inside _upload_figures / enrich_document so this
-# module remains importable in unit tests where the optional `minio` dep
-# isn't installed.
+# s3_client.download_to_tempfile is imported lazily inside enrich_document so
+# this module remains importable in unit tests where the optional `minio`
+# dep isn't installed.
 
 # ── LLM prompts ───────────────────────────────────────────────────────────────
 
@@ -75,8 +72,8 @@ _IMAGE_PROMPT = (
     '{"outline": [{"level": 1, "title": "..."}], "word_count": 0}'
 )
 
-_TRANSLATION_PROMPT = (
-    "다음 영어 텍스트를 자연스러운 한국어로 번역해줘. 번역문만 출력:\n\n{text}"
+_TRANSLATION_HEADER = (
+    "다음 영어 텍스트를 자연스러운 한국어로 번역해줘. 번역문만 출력:\n\n"
 )
 
 
@@ -135,60 +132,39 @@ def _parse_json_response(raw: str) -> dict:
         return {}
 
 
-# ── MinIO figure upload ───────────────────────────────────────────────────────
+# ── Figure metadata ───────────────────────────────────────────────────────────
+#
+# parse_pdf (live-ingest-visualization) already uploads every extracted figure
+# under  uploads/{user_id}/figures/{workflow_id}/p{page_idx}-f{fig_idx}.png
+# during the parse step, so the enrichment activity only records caption /
+# page metadata + the deterministic object_key. We do NOT re-upload here —
+# duplicating bytes would be wasteful and racy on retries.
 
 
-async def _upload_figures(
-    raw_figs: list[dict],
-    workspace_id: str,
-    note_id: str | None,
+def _build_figure_items(
+    pages: list[dict],
+    *,
+    user_id: str,
+    workflow_id: str,
 ) -> list[dict]:
-    """Upload base64 image bytes from opendataloader to MinIO; return FigureItem dicts."""
-    from worker.lib.s3_client import get_s3_client
-
-    bucket = os.environ.get("S3_BUCKET", "opencairn-uploads")
-    client = get_s3_client()
-    result: list[dict] = []
-
-    for i, fig in enumerate(raw_figs):
-        image_data: str | None = fig.get("image_data")
-        if not image_data:
-            result.append(
+    """Mirror live-ingest-visualization's per-page figure key formula."""
+    figures: list[dict] = []
+    for page_idx, page in enumerate(pages):
+        for fig_idx, fig in enumerate(page.get("figures") or []):
+            obj_key: str | None = None
+            if user_id and workflow_id and fig.get("file"):
+                obj_key = (
+                    f"uploads/{user_id}/figures/{workflow_id}"
+                    f"/p{page_idx}-f{fig_idx}.png"
+                )
+            figures.append(
                 {
-                    "page": fig.get("page"),
+                    "page": page_idx,
                     "caption": fig.get("caption"),
-                    "object_key": None,
+                    "object_key": obj_key,
                 }
             )
-            continue
-        try:
-            img_bytes = base64.b64decode(image_data)
-            key = f"enrichments/{workspace_id}/{note_id}/fig-{i}.png"
-            await asyncio.to_thread(
-                client.put_object,
-                bucket,
-                key,
-                io.BytesIO(img_bytes),
-                len(img_bytes),
-                content_type="image/png",
-            )
-            result.append(
-                {
-                    "page": fig.get("page"),
-                    "caption": fig.get("caption"),
-                    "object_key": key,
-                }
-            )
-        except Exception as exc:  # noqa: BLE001
-            _log_warning("figure upload failed (fig %d): %s", i, exc)
-            result.append(
-                {
-                    "page": fig.get("page"),
-                    "caption": fig.get("caption"),
-                    "object_key": None,
-                }
-            )
-    return result
+    return figures
 
 
 # ── per-type LLM caller ───────────────────────────────────────────────────────
@@ -261,9 +237,10 @@ async def enrich_document(inp: dict) -> dict:
     pages: list[dict] = inp.get("parsed_pages", [])
     object_key: str | None = inp.get("object_key")
     workspace_id: str = inp.get("workspace_id", "")
-    note_id: str | None = inp.get("note_id")
     requested: list[str] = inp.get("requested_enrichments", [])
     mime_type: str = inp.get("mime_type", "")
+    user_id: str = inp.get("user_id", "")
+    workflow_id: str = inp.get("workflow_id", "")
 
     provider = _make_provider()
     provider_name = os.environ.get("LLM_PROVIDER", "gemini")
@@ -333,16 +310,13 @@ async def enrich_document(inp: dict) -> dict:
                     provider=provider,
                 )
 
-        # ── figures → MinIO ───────────────────────────────────────────────
-        all_raw_figs = [
-            fig for page in pages for fig in (page.get("figures") or [])
-        ]
-        if all_raw_figs and "figures" in requested:
-            _heartbeat(f"uploading {len(all_raw_figs)} figures")
-            uploaded_figs = await _upload_figures(
-                all_raw_figs, workspace_id, note_id
+        # ── figure metadata ───────────────────────────────────────────────
+        # parse_pdf already uploaded each figure to its own MinIO key during
+        # the parse step; we only record caption / page / object_key here.
+        if "figures" in requested:
+            raw_data["figures"] = _build_figure_items(
+                pages, user_id=user_id, workflow_id=workflow_id
             )
-            raw_data["figures"] = uploaded_figs
         elif "figures" not in raw_data:
             raw_data["figures"] = []
 
@@ -364,11 +338,14 @@ async def enrich_document(inp: dict) -> dict:
                     src = full_text[:30_000]
                 if src.strip():
                     _heartbeat("translating to Korean")
+                    # Concatenate (not .format) — abstracts and JSON-rich
+                    # papers commonly contain stray `{` / `}` that would
+                    # crash str.format on a positional substitution.
                     ko = await provider.generate(
                         [
                             {
                                 "role": "user",
-                                "content": _TRANSLATION_PROMPT.format(text=src),
+                                "content": _TRANSLATION_HEADER + src,
                             }
                         ]
                     )

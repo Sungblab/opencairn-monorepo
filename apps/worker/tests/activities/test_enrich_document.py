@@ -4,13 +4,12 @@ Covers:
 - document/paper/slide/code/table/image content-type branches
 - Gemini multimodal preferred → text-only fallback
 - Ollama: translation + image content type marked skipped
-- Figure base64 → MinIO upload
+- Figure object_keys reconstructed from live-ingest-visualization upload path
 """
 
 from __future__ import annotations
 
-import base64
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -41,17 +40,17 @@ async def test_document_enrichment_returns_outline(gemini_provider):
     with patch(
         "worker.activities.enrich_document_activity.get_provider",
         return_value=gemini_provider,
-    ), patch(
-        "worker.activities.enrich_document_activity._upload_figures",
-        new=AsyncMock(return_value=[]),
     ):
         inp = {
             "mime_type": "application/pdf",
             "content_type": "document",
             "object_key": None,
             "workspace_id": "ws-1",
-            "note_id": None,
-            "parsed_pages": [{"text": "hello world " * 100, "figures": [], "tables": []}],
+            "user_id": "user-1",
+            "workflow_id": "wf-abc",
+            "parsed_pages": [
+                {"text": "hello world " * 100, "figures": [], "tables": []}
+            ],
             "requested_enrichments": ["outline"],
         }
         result = await enrich_document(inp)
@@ -72,16 +71,14 @@ async def test_paper_enrichment_has_sections():
     with patch(
         "worker.activities.enrich_document_activity.get_provider",
         return_value=provider,
-    ), patch(
-        "worker.activities.enrich_document_activity._upload_figures",
-        new=AsyncMock(return_value=[]),
     ):
         inp = {
             "mime_type": "application/pdf",
             "content_type": "paper",
             "object_key": None,
             "workspace_id": "ws-1",
-            "note_id": None,
+            "user_id": "user-1",
+            "workflow_id": "wf-abc",
             "parsed_pages": [
                 {"text": "abstract methods results", "figures": [], "tables": []}
             ],
@@ -106,16 +103,14 @@ async def test_ollama_translation_skipped(monkeypatch):
     with patch(
         "worker.activities.enrich_document_activity.get_provider",
         return_value=provider,
-    ), patch(
-        "worker.activities.enrich_document_activity._upload_figures",
-        new=AsyncMock(return_value=[]),
     ):
         inp = {
             "mime_type": "application/pdf",
             "content_type": "document",
             "object_key": None,
             "workspace_id": "ws-1",
-            "note_id": None,
+            "user_id": "user-1",
+            "workflow_id": "wf-abc",
             "parsed_pages": [{"text": "hello", "figures": [], "tables": []}],
             "requested_enrichments": ["translation"],
         }
@@ -126,16 +121,21 @@ async def test_ollama_translation_skipped(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_figure_uploaded_to_minio():
+async def test_figure_object_keys_match_parse_pdf_layout():
+    """parse_pdf already uploaded figures; enrich just records the keys."""
     from worker.activities.enrich_document_activity import enrich_document
 
-    fake_b64 = base64.b64encode(b"fake_png_bytes").decode()
     pages = [
         {
             "text": "fig page",
-            "figures": [{"image_data": fake_b64, "caption": "Fig 1"}],
+            "figures": [{"file": "p0-f0.png", "caption": "Fig 1"}],
             "tables": [],
-        }
+        },
+        {
+            "text": "another",
+            "figures": [{"file": "p1-f0.png", "caption": "Fig 2"}],
+            "tables": [],
+        },
     ]
 
     provider = AsyncMock()
@@ -144,39 +144,30 @@ async def test_figure_uploaded_to_minio():
         return_value='{"outline":[],"figures":[],"tables":[],"word_count":0}'
     )
 
-    upload_calls: list[list[dict]] = []
-
-    async def fake_upload(figs, ws_id, note_id):
-        upload_calls.append(figs)
-        return [
-            {
-                "page": 0,
-                "caption": "Fig 1",
-                "object_key": f"enrichments/{ws_id}/{note_id}/fig-0.png",
-            }
-        ]
-
     with patch(
         "worker.activities.enrich_document_activity.get_provider",
         return_value=provider,
-    ), patch(
-        "worker.activities.enrich_document_activity._upload_figures",
-        side_effect=fake_upload,
     ):
         inp = {
             "mime_type": "application/pdf",
             "content_type": "document",
             "object_key": None,
             "workspace_id": "ws-1",
-            "note_id": "note-1",
+            "user_id": "user-1",
+            "workflow_id": "wf-abc",
             "parsed_pages": pages,
             "requested_enrichments": ["figures"],
         }
         result = await enrich_document(inp)
 
-    assert len(upload_calls) == 1
-    assert len(upload_calls[0]) == 1
-    assert result["artifact"]["figures"][0]["object_key"].startswith("enrichments/")
+    figures = result["artifact"]["figures"]
+    assert len(figures) == 2
+    assert (
+        figures[0]["object_key"]
+        == "uploads/user-1/figures/wf-abc/p0-f0.png"
+    )
+    assert figures[1]["page"] == 1
+    assert figures[1]["caption"] == "Fig 2"
 
 
 @pytest.mark.asyncio
@@ -198,16 +189,14 @@ async def test_slide_enrichment_constructs_cards_without_llm():
     with patch(
         "worker.activities.enrich_document_activity.get_provider",
         return_value=provider,
-    ), patch(
-        "worker.activities.enrich_document_activity._upload_figures",
-        new=AsyncMock(return_value=[]),
     ):
         inp = {
             "mime_type": "application/pdf",
             "content_type": "slide",
             "object_key": None,
             "workspace_id": "ws-1",
-            "note_id": None,
+            "user_id": "user-1",
+            "workflow_id": "wf-abc",
             "parsed_pages": pages,
             "requested_enrichments": [],
         }
@@ -242,16 +231,14 @@ class Greeter:
     with patch(
         "worker.activities.enrich_document_activity.get_provider",
         return_value=provider,
-    ), patch(
-        "worker.activities.enrich_document_activity._upload_figures",
-        new=AsyncMock(return_value=[]),
     ):
         inp = {
             "mime_type": "text/x-python",
             "content_type": "code",
             "object_key": None,
             "workspace_id": "ws-1",
-            "note_id": None,
+            "user_id": "user-1",
+            "workflow_id": "wf-abc",
             "parsed_pages": [{"text": code, "figures": [], "tables": []}],
             "requested_enrichments": [],
         }
@@ -276,19 +263,56 @@ async def test_ollama_image_skipped(monkeypatch):
     with patch(
         "worker.activities.enrich_document_activity.get_provider",
         return_value=provider,
-    ), patch(
-        "worker.activities.enrich_document_activity._upload_figures",
-        new=AsyncMock(return_value=[]),
     ):
         inp = {
             "mime_type": "image/png",
             "content_type": "image",
             "object_key": "img.png",
             "workspace_id": "ws-1",
-            "note_id": None,
+            "user_id": "user-1",
+            "workflow_id": "wf-abc",
             "parsed_pages": [],
             "requested_enrichments": [],
         }
         result = await enrich_document(inp)
 
     assert "image_provider_unsupported" in result["skip_reasons"]
+
+
+@pytest.mark.asyncio
+async def test_translation_with_braces_in_source():
+    """Regression: paper sections with stray `{` in JSON-like math must not
+    crash the prompt builder (str.format would fail; we now concatenate)."""
+    from worker.activities.enrich_document_activity import enrich_document
+
+    paper_with_braces = (
+        '{"outline":[],"figures":[],"tables":[],"word_count":1000,'
+        '"sections":{"abstract":"Let f(x) = {x | x \\\\in R}. We show..."}}'
+    )
+
+    provider = AsyncMock()
+    provider.generate_multimodal = AsyncMock(return_value=None)
+    # First call returns the artifact JSON; second call returns the translation.
+    provider.generate = AsyncMock(
+        side_effect=[paper_with_braces, "한국어 번역"]
+    )
+
+    with patch(
+        "worker.activities.enrich_document_activity.get_provider",
+        return_value=provider,
+    ):
+        inp = {
+            "mime_type": "application/pdf",
+            "content_type": "paper",
+            "object_key": None,
+            "workspace_id": "ws-1",
+            "user_id": "user-1",
+            "workflow_id": "wf-abc",
+            "parsed_pages": [
+                {"text": "abstract", "figures": [], "tables": []}
+            ],
+            "requested_enrichments": ["sections", "translation"],
+        }
+        result = await enrich_document(inp)
+
+    assert result["artifact"]["translation"]["text"] == "한국어 번역"

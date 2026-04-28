@@ -84,7 +84,7 @@ async def test_enrichment_activities_called_when_flag_on(monkeypatch):
 
     wf = IngestWorkflow()
     with patch("temporalio.workflow.execute_activity", side_effect=fake_activity):
-        note_id = await wf._run_pipeline(_make_inp())
+        note_id = await wf._run_pipeline(_make_inp(), "wf-test", 0)
 
     assert "detect_content_type" in called
     assert "enrich_document" in called
@@ -95,6 +95,8 @@ async def test_enrichment_activities_called_when_flag_on(monkeypatch):
 @pytest.mark.asyncio
 async def test_enrichment_failure_does_not_block_note_creation(monkeypatch):
     monkeypatch.setenv("FEATURE_CONTENT_ENRICHMENT", "true")
+    from temporalio.exceptions import ApplicationError
+
     from worker.workflows.ingest_workflow import IngestWorkflow
 
     call_seq: list[str] = []
@@ -109,11 +111,10 @@ async def test_enrichment_failure_does_not_block_note_creation(monkeypatch):
                 "pages": [],
             }
         if name == "detect_content_type":
-            # Activity-side errors surface to the workflow as Temporal
-            # wraps them in ActivityError; in this unit test we mock
-            # execute_activity directly so any exception suffices to
-            # exercise the best-effort catch.
-            raise RuntimeError("boom")
+            # Real Temporal wraps activity exceptions in ActivityError;
+            # ApplicationError is the canonical activity-side raise and
+            # is also in the workflow's narrow catch list.
+            raise ApplicationError("boom", non_retryable=True)
         if name == "create_source_note":
             return "note-xyz"
         return {}
@@ -122,7 +123,7 @@ async def test_enrichment_failure_does_not_block_note_creation(monkeypatch):
     with patch(
         "temporalio.workflow.execute_activity", side_effect=fake_activity
     ), patch("temporalio.workflow.logger", _TEST_LOGGER):
-        note_id = await wf._run_pipeline(_make_inp())
+        note_id = await wf._run_pipeline(_make_inp(), "wf-test", 0)
 
     assert note_id == "note-xyz"
     assert "create_source_note" in call_seq
@@ -150,7 +151,7 @@ async def test_enrichment_not_called_when_flag_off(monkeypatch):
 
     wf = IngestWorkflow()
     with patch("temporalio.workflow.execute_activity", side_effect=fake_activity):
-        note_id = await wf._run_pipeline(_make_inp())
+        note_id = await wf._run_pipeline(_make_inp(), "wf-test", 0)
 
     assert "detect_content_type" not in called
     assert "enrich_document" not in called
