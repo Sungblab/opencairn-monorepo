@@ -50,6 +50,7 @@ type RunAgentFn = (opts: {
   threadId: string;
   userMessage: { content: string; scope?: unknown };
   mode: ChatMode;
+  signal?: AbortSignal;
 }) => AsyncGenerator<AgentChunk>;
 
 let runAgentImpl: RunAgentFn = defaultRunAgent;
@@ -289,6 +290,10 @@ export const threadRoutes = new Hono<AppEnv>()
               threadId: id,
               userMessage: { content, scope },
               mode,
+              // Forward the underlying Request abort signal so a client
+              // disconnect cancels the in-flight provider fetch instead of
+              // waiting for the next yield boundary.
+              signal: c.req.raw.signal,
             })) {
               // Break early on client abort — async generators handle this
               // naturally on `break` (the generator's `return()` is invoked
@@ -296,7 +301,15 @@ export const threadRoutes = new Hono<AppEnv>()
               // row. Without this, we'd keep pulling chunks while every
               // `send` no-ops.
               if (closed) break;
-              if (chunk.type === "text") {
+              if (chunk.type === "done") {
+                // chat-llm.runChat emits a sentinel `done` in its `finally`
+                // block; the route emits its own canonical `done` after
+                // persistence (with the agent message id + final status), so
+                // suppress this one to avoid two `event: done` frames.
+                // `done` is always the last chunk per runChat's contract, so
+                // breaking is safe and skips the trailing iteration overhead.
+                break;
+              } else if (chunk.type === "text") {
                 const p = chunk.payload as { delta: string };
                 buffer.push(p.delta);
               } else if (chunk.type === "status") {
@@ -310,6 +323,19 @@ export const threadRoutes = new Hono<AppEnv>()
                 ];
               } else if (chunk.type === "save_suggestion") {
                 meta.save_suggestion = chunk.payload;
+              } else if (chunk.type === "usage") {
+                // Lifted out of `content` and into `chat_messages.token_usage`
+                // by finalizeAgentMessage — kept here only as a sidecar so
+                // the route doesn't have to know the column shape.
+                meta.usage = chunk.payload;
+              } else if (chunk.type === "error") {
+                // chat-llm yields a single `error` chunk before its terminal
+                // `done`. Mark the persistence status as failed and record
+                // the error context in meta; the SSE frame is forwarded
+                // below via the regular `send`, so the client renderer sees
+                // the failure without an extra branch.
+                streamStatus = "failed";
+                meta.error = chunk.payload;
               }
               send(chunk.type, chunk.payload);
             }

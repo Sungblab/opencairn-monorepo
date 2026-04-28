@@ -224,3 +224,13 @@ App Shell Phase 5 메모리: "Plan Task 3·4·5 SKIP (Phase D + ingest expansion
 이 문서를 박제해두는 이유: **다음 세션이 plans-status.md만 보고 "Phase 4 ✅ done"이라고 답변하면 다시 같은 거짓말 시작**. 새 세션 시작 시 이 문서를 의무적으로 참조할 수 있도록 `MEMORY.md` 인덱스에 추가하고, 위 우선순위 1~3 작업이 완료되면 해당 Tier 항목을 closed로 마킹.
 
 상위 Tier 항목이 다 닫히기 전까지 **랜딩 카피·README의 "12 에이전트" / "AI 채팅" 광고 표현 검토** 권장.
+
+---
+
+### Update (2026-04-28 — Plan 11B Phase A second commit)
+
+- Tier 1 #1 (Phase 4 stub) — **CLOSED** in `<merge-sha>`. `agent-pipeline.ts:39` echo replaced with `chat-llm.runChat()` call; `chat_messages.token_usage` persisted from provider-reported numbers; `provider="gemini"`. Real-LLM integration test at `apps/api/tests/threads-real-llm.test.ts`.
+- Tier 1 #2 (11A placeholder) — **CLOSED** in `<merge-sha>`. `chat.ts /message` body rewritten; provider-reported tokens drive `conversation_messages.tokensIn`/`tokensOut` and conversation totals. `LLMNotConfiguredError` maps to SSE `event: error\ndata: {code: "llm_not_configured"}` instead of the prior placeholder echo. Real-LLM integration test at `apps/api/tests/chat-real-llm.test.ts`.
+- Tier 1 #3 (env-gated save_suggestion) — **CLOSED** in `<merge-sha>`. `AGENT_STUB_EMIT_SAVE_SUGGESTION` removed from `.env.example`, `playwright.config.ts`, and the codepath in `agent-pipeline.ts`. Producer is now LLM fence parser (`apps/api/src/lib/save-suggestion-fence.ts`). LLM emits the fence opportunistically; the renderer + `meta.save_suggestion` wire (already correct from Plan 2D) stays unchanged.
+- Coverage gap tracked as Plan 11B-A follow-up: E2E specs (`agent-panel.spec.ts`, `chat-scope.spec.ts`, `plan-2d-save-suggestion.spec.ts`) marked `test.skip` until a deterministic Gemini mock fixture is added.
+- Manual `pnpm dev` smoke is the user's acceptance check (Task 11 step 3-7) and is not part of the test suite.

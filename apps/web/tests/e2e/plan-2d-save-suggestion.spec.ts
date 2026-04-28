@@ -7,10 +7,10 @@ import {
 
 // Plan 2D Task 25 — save_suggestion flow E2E.
 //
-// Requires AGENT_STUB_EMIT_SAVE_SUGGESTION=1 on the API server — injected via
-// the `webServer[1].env` block in playwright.config.ts. When the user sends a
-// message containing "/test-save", the stub emits a save_suggestion SSE chunk
-// with title "Test note from chat" before the done frame.
+// NOTE: AGENT_STUB_EMIT_SAVE_SUGGESTION env var was removed in Plan 11B-A
+// Task 9. save_suggestion now comes from the real Gemini LLM and is no longer
+// deterministic. Tests are marked test.skip pending addition of deterministic
+// Gemini API mocks.
 //
 // The SaveSuggestionCard (components/agent-panel/save-suggestion-card.tsx)
 // renders the i18n text from agentPanel.bubble.save_suggestion_prefix:
@@ -24,12 +24,7 @@ import {
 //     toast with a "새 노트로 만들기" / "Create new note" action fires,
 //     and clicking it creates a new note tab showing the content.
 //
-// Both tests are deferred to CI full-stack runs (same as App Shell Phase 4
-// and Plan 7 Phase 2). The bodies are realistic so unblocking is just
-// ensuring the infra (Postgres, API, web) is running with the stub flag.
-//
-// Infra required: Postgres + API on :4000 + web on :3000 with
-//   AGENT_STUB_EMIT_SAVE_SUGGESTION=1 exported to the API process.
+// Follow-up: add deterministic Gemini API mocks. See docs/review/2026-04-28-completion-claims-audit.md.
 
 test.describe("Plan 2D — save_suggestion flow", () => {
   let session: SeededSession;
@@ -41,15 +36,18 @@ test.describe("Plan 2D — save_suggestion flow", () => {
 
   // ─── Insert into active Plate note ────────────────────────────────────────
 
-  test("inserts markdown into the active note when Save is clicked on the card", async ({
+  test.skip("inserts markdown into the active note when Save is clicked on the card", async ({
     page,
   }) => {
+    // SKIPPED: AGENT_STUB_EMIT_SAVE_SUGGESTION env var was removed in Plan 11B-A
+    // Task 9. save_suggestion now comes from real Gemini and is non-deterministic.
+    // Follow-up: add deterministic Gemini API mocks. See docs/review/2026-04-28-completion-claims-audit.md.
+
     // 1. Open a note tab so the agent panel has a Plate target.
     await page.goto(`/ko/app/w/${session.wsSlug}/`);
-    await expect(page).toHaveURL(
-      new RegExp(`/(ko/)?app/w/${session.wsSlug}`),
-      { timeout: 15_000 },
-    );
+    await expect(page).toHaveURL(new RegExp(`/(ko/)?app/w/${session.wsSlug}`), {
+      timeout: 15_000,
+    });
     await page.getByTestId("new-note-button").click();
     await expect(page).toHaveURL(/\/notes\/[0-9a-f-]{36}$/, {
       timeout: 10_000,
@@ -92,9 +90,13 @@ test.describe("Plan 2D — save_suggestion flow", () => {
 
   // ─── Offer create-new toast for non-Plate tab ──────────────────────────────
 
-  test("offers create-new toast when no active Plate note tab is open", async ({
+  test.skip("offers create-new toast when no active Plate note tab is open", async ({
     page,
   }) => {
+    // SKIPPED: AGENT_STUB_EMIT_SAVE_SUGGESTION env var was removed in Plan 11B-A
+    // Task 9. save_suggestion now comes from real Gemini and is non-deterministic.
+    // Follow-up: add deterministic Gemini API mocks. See docs/review/2026-04-28-completion-claims-audit.md.
+
     // 1. Navigate to the workspace shell without opening a note tab — the
     //    dashboard landing is not a Plate editor.
     await page.goto(`/ko/app/w/${session.wsSlug}/`);

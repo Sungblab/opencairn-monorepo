@@ -50,10 +50,6 @@ export default defineConfig({
       timeout: 120_000,
       env: {
         ...process.env,
-        // Plan 2D Task 22: enables the stub to emit save_suggestion chunks
-        // when the user message contains "/test-save". Required for the
-        // plan-2d-save-suggestion.spec.ts E2E tests.
-        AGENT_STUB_EMIT_SAVE_SUGGESTION: "1",
       },
     },
   ],

@@ -42,6 +42,7 @@ import { plateValueToText } from "../lib/plate-text";
 import { labelFromId } from "../lib/tree-queries";
 import { canRead } from "../lib/permissions";
 import { expandFromConcept } from "../lib/expand-graph";
+import { projectHybridSearch } from "../lib/internal-hybrid-search";
 import type { AppEnv } from "../lib/types";
 import {
   assertResourceWorkspace,
@@ -556,124 +557,18 @@ const hybridSearchSchema = z.object({
   k: z.number().int().positive().max(50).default(10),
 });
 
-type HybridHit = {
-  noteId: string;
-  title: string;
-  snippet: string;
-  sourceType: string | null;
-  sourceUrl: string | null;
-  vectorScore: number | null;
-  bm25Score: number | null;
-  rrfScore: number;
-};
-
-const RRF_K = 60;
-const SNIPPET_MAX = 400;
-
-function clipSnippet(text: string | null): string {
-  if (!text) return "";
-  const compact = text.replace(/\s+/g, " ").trim();
-  return compact.length > SNIPPET_MAX
-    ? compact.slice(0, SNIPPET_MAX) + "…"
-    : compact;
-}
-
 internal.post(
   "/notes/hybrid-search",
   zValidator("json", hybridSearchSchema),
   async (c) => {
     const body = c.req.valid("json");
-    const vec = vectorLiteral(body.queryEmbedding);
-    const fetchLimit = body.k * 2;
-
-    // Vector channel — cosine distance (<=>). We cap to notes with an
-    // embedding to avoid returning rows that haven't been embedded yet
-    // (e.g. a note created before Plan 13 or pending backfill).
-    const vectorRowsRaw = await db.execute(sql`
-      SELECT
-        id,
-        title,
-        content_text,
-        source_type,
-        source_url,
-        1 - (embedding <=> ${vec}::vector) AS score
-      FROM notes
-      WHERE project_id = ${body.projectId}
-        AND deleted_at IS NULL
-        AND embedding IS NOT NULL
-      ORDER BY embedding <=> ${vec}::vector ASC
-      LIMIT ${fetchLimit}
-    `);
-    const vectorRows =
-      (vectorRowsRaw as unknown as { rows: Array<Record<string, unknown>> })
-        .rows ?? (vectorRowsRaw as unknown as Array<Record<string, unknown>>);
-
-    // BM25 channel — tsvector ranking with plainto_tsquery (safe against
-    // punctuation, avoids injection). We use the `simple` config to stay
-    // multilingual (matches migration 0006). Rows without a usable tsv
-    // match are filtered by `@@`.
-    const bm25RowsRaw = await db.execute(sql`
-      SELECT
-        id,
-        title,
-        content_text,
-        source_type,
-        source_url,
-        ts_rank(content_tsv, plainto_tsquery('simple', ${body.queryText})) AS score
-      FROM notes
-      WHERE project_id = ${body.projectId}
-        AND deleted_at IS NULL
-        AND content_tsv @@ plainto_tsquery('simple', ${body.queryText})
-      ORDER BY score DESC
-      LIMIT ${fetchLimit}
-    `);
-    const bm25Rows =
-      (bm25RowsRaw as unknown as { rows: Array<Record<string, unknown>> })
-        .rows ?? (bm25RowsRaw as unknown as Array<Record<string, unknown>>);
-
-    const hits = new Map<string, HybridHit>();
-    const rrf = new Map<string, number>();
-
-    const addRow = (
-      row: Record<string, unknown>,
-      rank: number,
-      channel: "vector" | "bm25",
-    ) => {
-      const noteId = String(row.id);
-      const existing = hits.get(noteId);
-      const rawScore = Number(row.score ?? 0);
-      if (!existing) {
-        hits.set(noteId, {
-          noteId,
-          title: String(row.title ?? "Untitled"),
-          snippet: clipSnippet(row.content_text as string | null),
-          sourceType: (row.source_type as string | null) ?? null,
-          sourceUrl: (row.source_url as string | null) ?? null,
-          vectorScore: channel === "vector" ? rawScore : null,
-          bm25Score: channel === "bm25" ? rawScore : null,
-          rrfScore: 0,
-        });
-      } else if (channel === "vector") {
-        existing.vectorScore = rawScore;
-      } else {
-        existing.bm25Score = rawScore;
-      }
-      rrf.set(noteId, (rrf.get(noteId) ?? 0) + 1 / (RRF_K + rank));
-    };
-
-    vectorRows.forEach((r, i) => addRow(r, i + 1, "vector"));
-    bm25Rows.forEach((r, i) => addRow(r, i + 1, "bm25"));
-
-    for (const [noteId, score] of rrf.entries()) {
-      const hit = hits.get(noteId);
-      if (hit) hit.rrfScore = score;
-    }
-
-    const merged = Array.from(hits.values())
-      .sort((a, b) => b.rrfScore - a.rrfScore)
-      .slice(0, body.k);
-
-    return c.json({ results: merged });
+    const results = await projectHybridSearch({
+      projectId: body.projectId,
+      queryText: body.queryText,
+      queryEmbedding: body.queryEmbedding,
+      k: body.k,
+    });
+    return c.json({ results });
   },
 );
 
