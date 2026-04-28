@@ -229,6 +229,18 @@ def build_worker_config() -> WorkerConfig:
             [detect_content_type, enrich_document, store_enrichment_artifact]
         )
 
+    # Plan 11B Phase A — DocEditor slash commands. Same flag-gated
+    # registration as Deep Research / Code Agent. Appended at the END so
+    # parallel sessions adding their own registrations merge cleanly.
+    if os.environ.get("FEATURE_DOC_EDITOR_SLASH", "false").lower() == "true":
+        from worker.workflows.doc_editor_workflow import DocEditorWorkflow
+        from worker.activities.doc_editor_activity import (
+            run_doc_editor as _run_doc_editor,
+        )
+
+        workflows.append(DocEditorWorkflow)
+        activities.append(_run_doc_editor)
+
     return WorkerConfig(workflows=workflows, activities=activities)
 
 

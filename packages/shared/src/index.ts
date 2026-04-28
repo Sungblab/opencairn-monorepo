@@ -8,3 +8,4 @@ export * from "./research-types";
 export * from "./code-types";
 export * from "./chat";
 export * from "./ingest-events";
+export * from "./doc-editor";
