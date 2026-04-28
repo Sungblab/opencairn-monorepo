@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
 import {
   isDeepResearchEnabled,
+  isImportEnabled,
   isManagedDeepResearchEnabled,
 } from "../src/lib/feature-flags.js";
 
@@ -24,6 +25,16 @@ describe("api feature flags", () => {
   it("allows Deep Research to be explicitly disabled", () => {
     process.env.FEATURE_DEEP_RESEARCH = "false";
     expect(isDeepResearchEnabled()).toBe(false);
+  });
+
+  it("enables Import by default", () => {
+    delete process.env.FEATURE_IMPORT_ENABLED;
+    expect(isImportEnabled()).toBe(true);
+  });
+
+  it("allows Import to be explicitly disabled", () => {
+    process.env.FEATURE_IMPORT_ENABLED = "false";
+    expect(isImportEnabled()).toBe(false);
   });
 
   it("keeps managed Deep Research disabled by default", () => {
