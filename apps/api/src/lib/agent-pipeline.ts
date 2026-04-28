@@ -35,6 +35,9 @@ export async function* runAgent(opts: {
   threadId: string;
   userMessage: { content: string; scope?: unknown };
   mode: ChatMode;
+  // Forwarded into runChat so client aborts cancel the underlying Gemini
+  // fetch immediately instead of waiting for the next yield boundary.
+  signal?: AbortSignal;
 }): AsyncGenerator<AgentChunk> {
   const [thread] = await db
     .select({ workspaceId: chatThreads.workspaceId })
@@ -52,6 +55,7 @@ export async function* runAgent(opts: {
     chips: [],
     history: [],
     userMessage: opts.userMessage.content,
+    signal: opts.signal,
   })) {
     yield mapChunk(chunk);
   }

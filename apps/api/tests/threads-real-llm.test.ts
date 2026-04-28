@@ -108,6 +108,9 @@ describe("POST /api/threads/:id/messages — real LLM path (Task 7)", () => {
         chips: [],
         history: [],
         userMessage: opts.userMessage.content,
+        // Forward the route's request abort signal so the abort-mid-stream
+        // test can observe propagation into the provider fetch.
+        signal: opts.signal,
         provider: fakeProvider,
       })) {
         yield { type: c.type, payload: c.payload } as AgentChunk;
@@ -187,6 +190,108 @@ describe("POST /api/threads/:id/messages — real LLM path (Task 7)", () => {
     // content (lives in token_usage column).
     expect(rows[1]!.content).toMatchObject({ body: "real answer" });
     expect((rows[1]!.content as Record<string, unknown>).usage).toBeUndefined();
+  });
+
+  it("emits exactly one `event: done` frame per stream", async () => {
+    // Regression: chat-llm.runChat yields a sentinel `done` in its finally
+    // block, and the route emits its own canonical `done` post-persistence.
+    // The route now suppresses the chat-llm one — confirm by counting frames.
+    fakeProvider.streamGenerate.mockImplementation(async function* () {
+      yield { delta: "hi" };
+      yield {
+        usage: { tokensIn: 1, tokensOut: 1, model: "gemini-2.5-flash" },
+      };
+    });
+
+    const threadId = await createThread(ctx.workspaceId, ctx.userId);
+    const res = await authedFetch(`/api/threads/${threadId}/messages`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ content: "hi", mode: "auto" }),
+    });
+    expect(res.status).toBe(200);
+    const text = await res.text();
+
+    // Match `event: done\n` lines exactly — `\n` rules out `event: done_xyz`
+    // accidental subname matches (none today, but defensive).
+    const doneFrames = text.match(/^event: done$/gm) ?? [];
+    expect(doneFrames).toHaveLength(1);
+
+    // The single done frame the client sees is the route's canonical one,
+    // carrying the persisted message id + status.
+    const events = parseSseEvents(text);
+    const done = events.find((e) => e.event === "done");
+    expect(done).toBeDefined();
+    expect((done!.data as { id: string; status: string }).id).toMatch(/.+/);
+    expect((done!.data as { id: string; status: string }).status).toBe(
+      "complete",
+    );
+  });
+
+  it("forwards AbortSignal from request → runAgent → provider.streamGenerate", async () => {
+    // The route now passes c.req.raw.signal into runAgent, which forwards it
+    // to runChat, which forwards it to provider.streamGenerate. We assert
+    // the provider's streamGenerate was invoked with a signal — that's the
+    // observable contract for "client aborts cancel the in-flight fetch".
+    let receivedSignal: AbortSignal | undefined;
+    fakeProvider.streamGenerate.mockImplementation(
+      async function* (args: { signal?: AbortSignal }) {
+        receivedSignal = args.signal;
+        yield { delta: "first" };
+        yield {
+          usage: { tokensIn: 1, tokensOut: 1, model: "gemini-2.5-flash" },
+        };
+      },
+    );
+
+    const threadId = await createThread(ctx.workspaceId, ctx.userId);
+    const res = await authedFetch(`/api/threads/${threadId}/messages`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ content: "signal me", mode: "auto" }),
+    });
+    expect(res.status).toBe(200);
+    await res.text();
+
+    // Provider received an AbortSignal — proves the wiring runs end to end.
+    expect(receivedSignal).toBeDefined();
+    expect(receivedSignal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("persists status='failed' when the provider throws an AbortError mid-stream", async () => {
+    // Simulates the production case: the provider fetch is aborted mid-stream
+    // (DOMException AbortError) — runChat catches, yields an `error` chunk,
+    // and the route flips streamStatus to 'failed' before the finally writes
+    // the row. The route also breaks on its own canonical `done`, so only
+    // one done frame goes out.
+    fakeProvider.streamGenerate.mockImplementation(async function* () {
+      yield { delta: "first" };
+      throw new DOMException("aborted", "AbortError");
+    });
+
+    const threadId = await createThread(ctx.workspaceId, ctx.userId);
+    const res = await authedFetch(`/api/threads/${threadId}/messages`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ content: "abort me", mode: "auto" }),
+    });
+    expect(res.status).toBe(200);
+    const text = await res.text();
+
+    // First delta made it out; chat-llm wraps the AbortError into an `error`
+    // chunk and the route does NOT emit a duplicate `done` from chat-llm.
+    expect(text).toContain('event: text\ndata: {"delta":"first"}');
+    expect(text).toContain("event: error");
+    expect((text.match(/^event: done$/gm) ?? [])).toHaveLength(1);
+
+    const rows = await db
+      .select()
+      .from(chatMessages)
+      .where(eq(chatMessages.threadId, threadId))
+      .orderBy(asc(chatMessages.createdAt));
+    expect(rows[1]!.status).toBe("failed");
+    // Only the first delta persisted in the body — the second never yielded.
+    expect((rows[1]!.content as { body: string }).body).toBe("first");
   });
 
   it("persists status='failed' when provider yields an error chunk", async () => {
