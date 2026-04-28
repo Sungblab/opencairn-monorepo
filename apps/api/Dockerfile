@@ -7,7 +7,7 @@
 # Multi-arch (linux/amd64, linux/arm64) is driven by `docker buildx` in the
 # release workflow — the Dockerfile itself is platform-neutral.
 
-FROM node:22-alpine AS builder
+FROM node:25-alpine AS builder
 
 # `libc6-compat` keeps Node native modules (better-sqlite3 / pg native /
 # nodemailer DNS, etc.) loadable on Alpine's musl libc.
@@ -36,7 +36,7 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @opencairn/api build
 
 # ────────────────────────────────────────────────────────────────────────────
-FROM node:22-alpine AS runner
+FROM node:25-alpine AS runner
 
 RUN apk add --no-cache libc6-compat
 RUN corepack enable
