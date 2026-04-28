@@ -68,8 +68,10 @@ def test_happy_path_uploads_images_and_creates_note():
     assert len(uploaded) == 1
     assert uploaded[0][0].startswith("research/ws-1/run-1/")
 
-    # Internal POST shape.
-    assert posted[0]["path"] == "/internal/notes"
+    # Internal POST shape. The path must include the `/api` prefix the Hono
+    # router mounts at (`app.route("/api/internal", internalRoutes)`); the
+    # `/internal/notes` form silently 404s in production (audit S4-008).
+    assert posted[0]["path"] == "/api/internal/notes"
     body = posted[0]["body"]
     assert body["title"] == "Topic"
     assert body["projectId"] == "proj-1"

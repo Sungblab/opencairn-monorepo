@@ -1992,6 +1992,104 @@ internal.post("/test-seed-multi-role", async (c) => {
   });
 });
 
+// POST /internal/research/runs/:id/artifacts — streamed artifact write. The
+// worker's execute_deep_research activity calls this once per Google
+// Interactions stream event (thought/text/citation/image) so the row lands
+// in `research_run_artifacts` immediately and the UI / persist_report can
+// replay it later. `seq` is auto-assigned inside a transaction holding a
+// row-level lock on the parent run, so a Temporal activity retry that
+// re-streams events while a previous attempt is still in flight cannot
+// produce two inserts at the same seq (the (run_id, seq) unique index would
+// reject the second one and 500 the caller; the lock keeps each insert
+// monotonic instead).
+//
+// Audit S4-008 (2026-04-28): this endpoint was promised by the Phase C
+// comment in execute_research.py but never implemented; the worker side
+// also pointed at `/internal/...` instead of `/api/internal/...`. Both paths
+// are repaired here + in the worker call sites.
+//
+// Payload shapes are documented at `packages/db/src/schema/research.ts:123`
+// and enforced here via a discriminated union so a buggy worker can't poison
+// downstream lookups (e.g. the image-bytes endpoint matches on
+// `payload->>'url'`, which would silently 404 if `image` payloads omitted
+// the field).
+const researchArtifactWriteSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("thought_summary"),
+    payload: z.object({ text: z.string().min(1).max(20000) }),
+  }),
+  z.object({
+    kind: z.literal("text_delta"),
+    payload: z.object({ text: z.string().max(20000) }),
+  }),
+  z.object({
+    kind: z.literal("image"),
+    payload: z.object({
+      url: z.string().min(1).max(4096),
+      mimeType: z.string().min(1).max(128),
+      base64: z.string().optional(),
+    }),
+  }),
+  z.object({
+    kind: z.literal("citation"),
+    payload: z.object({
+      sourceUrl: z.string().min(1).max(4096),
+      title: z.string().max(2000),
+    }),
+  }),
+]);
+
+internal.post(
+  "/research/runs/:id/artifacts",
+  zValidator("json", researchArtifactWriteSchema),
+  async (c) => {
+    const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "invalid uuid" }, 400);
+    const body = c.req.valid("json");
+
+    // Wrap the MAX(seq) read + INSERT in a transaction with FOR UPDATE on
+    // the parent run row. Without the lock a Temporal activity retry that
+    // overlaps the previous attempt could read stale MAX and insert at a
+    // duplicate seq, hitting the (run_id, seq) unique index.
+    const result = await db.transaction(async (tx) => {
+      const [run] = await tx
+        .select({ id: researchRuns.id })
+        .from(researchRuns)
+        .where(eq(researchRuns.id, id))
+        .for("update");
+      if (!run) return { found: false as const };
+
+      const [seqRow] = await tx
+        .select({
+          maxSeq: sql<number | null>`MAX(${researchRunArtifacts.seq})`,
+        })
+        .from(researchRunArtifacts)
+        .where(eq(researchRunArtifacts.runId, id));
+      const nextSeq = (seqRow?.maxSeq ?? -1) + 1;
+
+      const [inserted] = await tx
+        .insert(researchRunArtifacts)
+        .values({
+          runId: id,
+          seq: nextSeq,
+          kind: body.kind,
+          payload: body.payload as Record<string, unknown>,
+        })
+        .returning({
+          id: researchRunArtifacts.id,
+          seq: researchRunArtifacts.seq,
+        });
+      return { found: true as const, inserted };
+    });
+
+    if (!result.found) return c.json({ error: "research_run_not_found" }, 404);
+    return c.json(
+      { id: result.inserted.id, seq: result.inserted.seq },
+      201,
+    );
+  },
+);
+
 // POST /internal/research/image-bytes — replay image bytes captured during
 // execute_deep_research. Matches against researchRunArtifacts.payload->>'url'.
 // The worker's persist_report reads this back, uploads to MinIO, and only

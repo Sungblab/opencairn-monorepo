@@ -208,3 +208,139 @@ describe("POST /api/internal/research/image-bytes", () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe("POST /api/internal/research/runs/:id/artifacts", () => {
+  let ctx: SeedResult;
+  let runId: string;
+  beforeEach(async () => {
+    ctx = await seedWorkspace({ role: "owner" });
+    const [run] = await db
+      .insert(researchRuns)
+      .values({
+        workspaceId: ctx.workspaceId,
+        projectId: ctx.projectId,
+        userId: ctx.userId,
+        topic: "t",
+        model: "deep-research-preview-04-2026",
+        billingPath: "byok",
+        status: "researching",
+        workflowId: "wf-art",
+      })
+      .returning({ id: researchRuns.id });
+    runId = run.id;
+  });
+  afterEach(async () => {
+    await db.delete(researchRuns).where(eq(researchRuns.id, runId));
+    await ctx.cleanup();
+  });
+
+  it("inserts a streamed artifact with auto-assigned seq", async () => {
+    const res = await internalFetch(
+      `/api/internal/research/runs/${runId}/artifacts`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          kind: "text_delta",
+          payload: { text: "first chunk" },
+        }),
+      },
+    );
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { id: string; seq: number };
+    expect(body.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(body.seq).toBe(0);
+
+    const [row] = await db
+      .select()
+      .from(researchRunArtifacts)
+      .where(eq(researchRunArtifacts.id, body.id));
+    expect(row).toBeDefined();
+    expect(row!.runId).toBe(runId);
+    expect(row!.kind).toBe("text_delta");
+    expect(row!.payload).toEqual({ text: "first chunk" });
+  });
+
+  it("monotonically increases seq across calls in the same run", async () => {
+    const a = await internalFetch(
+      `/api/internal/research/runs/${runId}/artifacts`,
+      {
+        method: "POST",
+        body: JSON.stringify({ kind: "thought_summary", payload: { text: "a" } }),
+      },
+    );
+    const b = await internalFetch(
+      `/api/internal/research/runs/${runId}/artifacts`,
+      {
+        method: "POST",
+        body: JSON.stringify({ kind: "text_delta", payload: { text: "b" } }),
+      },
+    );
+    expect(a.status).toBe(201);
+    expect(b.status).toBe(201);
+    const ja = (await a.json()) as { seq: number };
+    const jb = (await b.json()) as { seq: number };
+    expect(ja.seq).toBe(0);
+    expect(jb.seq).toBe(1);
+  });
+
+  it("returns 404 when the run does not exist", async () => {
+    const fakeId = randomUUID();
+    const res = await internalFetch(
+      `/api/internal/research/runs/${fakeId}/artifacts`,
+      {
+        method: "POST",
+        body: JSON.stringify({ kind: "text_delta", payload: { text: "x" } }),
+      },
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("rejects non-uuid run ids", async () => {
+    const res = await internalFetch(
+      `/api/internal/research/runs/not-a-uuid/artifacts`,
+      {
+        method: "POST",
+        body: JSON.stringify({ kind: "text_delta", payload: { text: "x" } }),
+      },
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects unknown kinds via Zod", async () => {
+    const res = await internalFetch(
+      `/api/internal/research/runs/${runId}/artifacts`,
+      {
+        method: "POST",
+        body: JSON.stringify({ kind: "garbage", payload: {} }),
+      },
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects an image payload missing url/mimeType", async () => {
+    // Per-kind shape validation — see researchArtifactWriteSchema in
+    // internal.ts. A buggy worker emitting `{kind:"image", payload:{}}`
+    // would otherwise poison the image-bytes lookup which matches on
+    // payload->>'url'.
+    const res = await internalFetch(
+      `/api/internal/research/runs/${runId}/artifacts`,
+      {
+        method: "POST",
+        body: JSON.stringify({ kind: "image", payload: {} }),
+      },
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects missing secret header", async () => {
+    const res = await app.request(
+      `/api/internal/research/runs/${runId}/artifacts`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ kind: "text_delta", payload: { text: "x" } }),
+      },
+    );
+    expect(res.status).toBe(401);
+  });
+});
