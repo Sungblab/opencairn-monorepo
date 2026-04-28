@@ -13,6 +13,19 @@ export type Usage = {
   model: string;
 };
 
+/**
+ * Streaming chunk yielded by {@link LLMProvider.streamGenerate}.
+ *
+ * Contract: a generator yields zero or more `{delta}` chunks followed by
+ * exactly one `{usage}` chunk on normal completion. If the SDK does not
+ * surface usage metadata, providers MUST yield a fallback `{usage}` chunk
+ * with `tokensIn: 0`, `tokensOut: 0`, and the model name so callers can
+ * always rely on receiving exactly one usage chunk.
+ *
+ * On abort (caller cancels via `AbortSignal`), the stream may end without
+ * a `{usage}` chunk — aborts are special and consumers must handle that
+ * case explicitly.
+ */
 export type StreamChunk = { delta: string } | { usage: Usage };
 
 export interface LLMProvider {
@@ -112,7 +125,12 @@ export function getGeminiProvider(): LLMProvider {
           };
         }
       }
-      if (lastUsage) yield { usage: lastUsage };
+      // Contract: always emit exactly one usage chunk on normal completion.
+      // If the SDK never surfaced usageMetadata, fall back to zeros so
+      // consumers (e.g. cost trackers) can rely on a terminal usage event.
+      yield {
+        usage: lastUsage ?? { tokensIn: 0, tokensOut: 0, model: chatModel },
+      };
     },
   };
 }

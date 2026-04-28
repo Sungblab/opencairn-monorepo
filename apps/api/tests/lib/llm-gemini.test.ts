@@ -24,17 +24,39 @@ vi.mock("@google/genai", () => {
   };
 });
 
-describe("getGeminiProvider", () => {
-  const originalKey = process.env.GEMINI_API_KEY;
-  const originalGoogleKey = process.env.GOOGLE_API_KEY;
+// ── File-level env snapshots ─────────────────────────────────────────────
+// Captured once at module load so cleanup is symmetric across all describe
+// blocks. If a test throws before its inline restore line, the per-block
+// afterEach below still runs unconditionally and resets the env.
+const originalKey = process.env.GEMINI_API_KEY;
+const originalGoogleKey = process.env.GOOGLE_API_KEY;
+const originalChatModel = process.env.GEMINI_CHAT_MODEL;
 
+function restoreEnv() {
+  if (originalKey === undefined) {
+    delete process.env.GEMINI_API_KEY;
+  } else {
+    process.env.GEMINI_API_KEY = originalKey;
+  }
+  if (originalGoogleKey === undefined) {
+    delete process.env.GOOGLE_API_KEY;
+  } else {
+    process.env.GOOGLE_API_KEY = originalGoogleKey;
+  }
+  if (originalChatModel === undefined) {
+    delete process.env.GEMINI_CHAT_MODEL;
+  } else {
+    process.env.GEMINI_CHAT_MODEL = originalChatModel;
+  }
+}
+
+describe("getGeminiProvider", () => {
   beforeEach(() => {
     delete process.env.GEMINI_API_KEY;
     delete process.env.GOOGLE_API_KEY;
   });
   afterEach(() => {
-    process.env.GEMINI_API_KEY = originalKey;
-    process.env.GOOGLE_API_KEY = originalGoogleKey;
+    restoreEnv();
     vi.restoreAllMocks();
   });
 
@@ -68,6 +90,9 @@ describe("GeminiProvider.embed", () => {
     fakeEmbed = mod.__fakeEmbed;
     fakeEmbed.mockReset();
   });
+  afterEach(() => {
+    restoreEnv();
+  });
 
   it("calls embedContent with gemini-embedding-001 + RETRIEVAL_QUERY + 768d", async () => {
     fakeEmbed.mockResolvedValue({
@@ -91,6 +116,14 @@ describe("GeminiProvider.embed", () => {
     const provider = getGeminiProvider();
     await expect(provider.embed("x")).rejects.toThrow(/embedding/i);
   });
+
+  it("throws when SDK returns wrong-dimension embedding", async () => {
+    fakeEmbed.mockResolvedValue({
+      embeddings: [{ values: new Array(3072).fill(0.1) }],
+    });
+    const provider = getGeminiProvider();
+    await expect(provider.embed("x")).rejects.toThrow(/3072.*expected 768|expected.*768/i);
+  });
 });
 
 describe("GeminiProvider.streamGenerate", () => {
@@ -102,6 +135,12 @@ describe("GeminiProvider.streamGenerate", () => {
     };
     fakeStream = mod.__fakeStream;
     fakeStream.mockReset();
+  });
+  afterEach(() => {
+    // Runs unconditionally even if a test throws before its inline restore.
+    // This is the symmetric cleanup that prevents GEMINI_CHAT_MODEL (or any
+    // key override) from leaking into subsequent tests in the same worker.
+    restoreEnv();
   });
 
   it("yields delta chunks then a single usage chunk", async () => {
@@ -157,6 +196,67 @@ describe("GeminiProvider.streamGenerate", () => {
     expect(fakeStream).toHaveBeenCalledWith(
       expect.objectContaining({ model: "gemini-2.5-pro" }),
     );
-    delete process.env.GEMINI_CHAT_MODEL;
+    // No inline delete needed — afterEach restoreEnv() handles cleanup
+    // unconditionally, so even if assertions above throw, the env is reset.
+  });
+
+  it("yields fallback usage chunk when SDK never emits usageMetadata", async () => {
+    async function* noUsage() {
+      yield { text: "alpha" };
+      yield { text: "beta" };
+    }
+    fakeStream.mockReturnValue(noUsage());
+
+    const provider = getGeminiProvider();
+    const out: StreamChunk[] = [];
+    for await (const c of provider.streamGenerate({
+      messages: [{ role: "user", content: "x" }],
+    })) {
+      out.push(c);
+    }
+
+    const usages = out.filter((c): c is { usage: Usage } => "usage" in c);
+    expect(usages).toHaveLength(1);
+    expect(usages[0].usage).toEqual({
+      tokensIn: 0,
+      tokensOut: 0,
+      model: "gemini-2.5-flash",
+    });
+  });
+
+  it("short-circuits on abort mid-stream and emits no further chunks", async () => {
+    const controller = new AbortController();
+    async function* threeChunks() {
+      yield { text: "first" };
+      yield { text: "second" };
+      yield {
+        text: "third",
+        usageMetadata: { promptTokenCount: 9, candidatesTokenCount: 9 },
+      };
+    }
+    fakeStream.mockReturnValue(threeChunks());
+
+    const provider = getGeminiProvider();
+    const iter = provider.streamGenerate({
+      messages: [{ role: "user", content: "go" }],
+      signal: controller.signal,
+    });
+
+    const collected: StreamChunk[] = [];
+    let firstSeen = false;
+    for await (const chunk of iter) {
+      collected.push(chunk);
+      if (!firstSeen) {
+        firstSeen = true;
+        controller.abort();
+      }
+    }
+
+    // Exactly one delta consumed (the first); no further deltas, no usage.
+    expect(collected).toHaveLength(1);
+    expect(collected[0]).toEqual({ delta: "first" });
+    expect(
+      collected.filter((c): c is { usage: Usage } => "usage" in c),
+    ).toHaveLength(0);
   });
 });
