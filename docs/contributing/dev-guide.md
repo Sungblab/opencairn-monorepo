@@ -51,8 +51,11 @@ cp .env.example .env
 
 | 변수 | 설명 | 생성/획득 방법 |
 |------|------|--------------|
-| `DATABASE_URL` | Postgres 연결 | docker-compose 기본값 (`postgresql://opencairn:opencairn@localhost:5432/opencairn`) |
+| `DATABASE_URL` | Host dev용 Postgres 연결 | `.env`의 `POSTGRES_PASSWORD`와 같은 비밀번호 사용 |
+| `POSTGRES_PASSWORD` | Compose Postgres 비밀번호 | `openssl rand -base64 32` |
 | `BETTER_AUTH_SECRET` | 세션 서명키 | `openssl rand -base64 32` |
+| `INTERNAL_API_SECRET` | worker → API 내부 콜백 서명 | `openssl rand -base64 32` |
+| `S3_SECRET_KEY` | Compose MinIO / S3 client secret | `openssl rand -base64 32` |
 | `BETTER_AUTH_URL` | Better Auth 서버 URL (= API 포트) | `http://localhost:4000` |
 | `GEMINI_API_KEY` | Gemini | aistudio.google.com/apikey |
 | `VECTOR_DIM` | 임베딩 차원 | `768` 기본 (Gemini embedding-001 MRL / Ollama nomic). ADR-007 참조 |
@@ -63,7 +66,7 @@ cp .env.example .env
 ### 4. 인프라 기동
 
 ```bash
-docker-compose up -d     # Postgres, Redis, MinIO, Temporal (hocuspocus/worker/ollama는 profile-gated)
+docker compose up -d     # Postgres, Redis, MinIO, Temporal (hocuspocus/worker/ollama는 profile-gated)
 pnpm db:migrate          # 스키마 적용
 pnpm db:seed             # (선택) 테스트 데이터
 ```
@@ -88,12 +91,12 @@ pnpm dev
 
 | 증상 | 원인 | 해결 |
 |------|------|------|
-| `DATABASE_URL` 연결 실패 | Docker 미기동 | `docker-compose up -d db` |
+| `DATABASE_URL` 연결 실패 | Docker 미기동 | `docker compose up -d postgres` |
 | `pnpm install` EACCES | 권한 문제 | corepack 활성화: `corepack enable` |
 | `uv sync` 실패 | Python 버전 낮음 | `uv python install 3.12` |
-| Temporal 연결 거부 | Temporal UI 기동 안 됨 | `docker-compose logs temporal` 확인 |
+| Temporal 연결 거부 | Temporal UI 기동 안 됨 | `docker compose logs temporal` 확인 |
 | `pgvector` extension 에러 | 기본 postgres 이미지 사용 중 | compose가 `pgvector/pgvector:pg16` 쓰는지 확인 |
-| M1/ARM Mac에서 이미지 오류 | amd64 이미지 강제 | `docker-compose pull --platform linux/amd64` |
+| M1/ARM Mac에서 이미지 오류 | amd64 이미지 강제 | `docker compose pull --platform linux/amd64` |
 | Port 3000/4000 in use | 기존 프로세스가 점유 | kill 또는 `.env`에서 포트 변경 |
 | `Cannot find module @opencairn/db` | 의존성 미설치 | 루트에서 `pnpm install` 재실행 |
 
@@ -239,20 +242,52 @@ export const yourRoutes = new Hono()
 
 ```bash
 # Start all infrastructure
-docker-compose up -d
+docker compose up -d
 
 # Stop
-docker-compose down
+docker compose down
 
 # View logs
-docker-compose logs -f postgres
-docker-compose logs -f temporal
+docker compose logs -f postgres
+docker compose logs -f temporal
 
 # Reset database
-docker-compose down -v  # WARNING: deletes all data
-docker-compose up -d
+docker compose down -v  # WARNING: deletes all data
+docker compose up -d
 pnpm db:migrate
 ```
+
+### Self-hosted Compose Smoke
+
+The default compose command intentionally starts only shared infrastructure.
+Production-ish API/Web containers are behind profiles so local development does
+not suddenly build Node images.
+
+1. Fill the required secrets in `.env`: `POSTGRES_PASSWORD`,
+   `BETTER_AUTH_SECRET`, `INTERNAL_API_SECRET`, and `S3_SECRET_KEY`.
+2. Validate interpolation before booting:
+
+```bash
+docker compose --profile app --profile worker --profile hocuspocus config
+```
+
+3. Start infra and apply migrations from the host:
+
+```bash
+docker compose up -d postgres redis minio temporal temporal-ui
+pnpm db:migrate
+```
+
+4. Build and run the app containers:
+
+```bash
+docker compose --profile app --profile worker --profile hocuspocus up -d --build
+```
+
+This starts `api` on `http://localhost:4000`, `web` on
+`http://localhost:3000`, `hocuspocus` on `ws://localhost:1234`, and the worker
+against `temporal:7233`. Use `--profile ollama` as well when running the local
+LLM service.
 
 ## Import (Drive + Notion)
 
