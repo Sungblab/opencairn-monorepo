@@ -65,7 +65,7 @@
       "title": "opencairn — live compile",
       "compiling": "● compiling",
       "input": "INPUT",
-      "inputItems": ["Paper PDF", "Podcast audio", "Video · YouTube", "Web URL · HWP", "Scanned image"],
+      "inputItems": ["Paper PDF", "Podcast audio", "Video · YouTube", "DOCX · PPTX", "Scanned image"],
       "agentsHeader": "12 AGENTS",
       "orchestration": "orchestration",
       "status": "● running · 12/12",
@@ -114,7 +114,7 @@
     "title3": "in six steps.",
     "sub": "Instead of one giant prompt, narrow-responsibility steps hand off the baton. That way the system knows when to stop and what to fix. Every sentence traces back to the source.",
     "steps": [
-      { "n": "01 · INGEST", "title": "Intake", "body": "PDF · HWP · audio · video · URL · scanned images. Format-agnostic." },
+      { "n": "01 · INGEST", "title": "Intake", "body": "PDF · DOCX · audio · video · URL · scanned images. Format-agnostic." },
       { "n": "02 · PARSE", "title": "Break down", "body": "OCR · captions · table structure. Normalized to Markdown." },
       { "n": "03 · EMBED", "title": "Meaning", "body": "Mapped to vector space. Similar things end up close." },
       { "n": "04 · COMPILE", "title": "Weave", "body": "12 agents draft wiki pages per topic." },
