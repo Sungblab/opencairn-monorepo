@@ -37,6 +37,7 @@ import { curatorRoutes } from "./routes/curator";
 import { connectorRoutes } from "./routes/connector";
 import { stalenessRoutes } from "./routes/staleness";
 import { notificationRoutes } from "./routes/notifications";
+import { literatureRoutes } from "./routes/literature";
 
 export function createApp() {
   const app = new Hono();
@@ -112,6 +113,7 @@ export function createApp() {
   app.route("/api/users", userRoutes);
   app.route("/api/notifications", notificationRoutes);
   app.route("/api/stream", streamRoutes);  // SSE: project tree (Phase 2) + notifications (Phase 5)
+  app.route("/api/literature", literatureRoutes);
   app.route("/api", commentsRouter);  // /api/notes/:noteId/comments (Plan 2B)
   app.route("/api", mentionsRouter);  // /api/mentions/search (Plan 2B)
 
