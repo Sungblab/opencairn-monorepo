@@ -201,3 +201,73 @@ describe("chat-retrieval chip union", () => {
     expect(search.projectHybridSearch).not.toHaveBeenCalled();
   });
 });
+
+describe("chat-retrieval fanout concurrency", () => {
+  let dbMod: { db: { execute: ReturnType<typeof vi.fn> } };
+  beforeEach(async () => {
+    dbMod = (await import("@opencairn/db")) as unknown as typeof dbMod;
+    dbMod.db.execute.mockReset();
+    search.projectHybridSearch.mockReset();
+  });
+
+  it("caps in-flight projectHybridSearch calls at CHAT_RAG_FANOUT_CONCURRENCY", async () => {
+    const original = process.env.CHAT_RAG_FANOUT_CONCURRENCY;
+    try {
+      process.env.CHAT_RAG_FANOUT_CONCURRENCY = "3";
+      // Workspace expansion → 20 projects.
+      const projects = Array.from({ length: 20 }, (_, i) => ({ id: `p-${i}` }));
+      dbMod.db.execute.mockResolvedValueOnce({ rows: projects });
+
+      let inflight = 0;
+      let maxInflight = 0;
+      search.projectHybridSearch.mockImplementation(async () => {
+        inflight += 1;
+        if (inflight > maxInflight) maxInflight = inflight;
+        // Yield to the event loop so the worker pool actually has a chance
+        // to schedule competing fns; without this, the synchronous mock
+        // resolves before the next worker even picks up its task.
+        await new Promise((r) => setTimeout(r, 5));
+        inflight -= 1;
+        return [];
+      });
+
+      await retrieve({
+        workspaceId: "ws-1",
+        query: "q",
+        ragMode: "strict",
+        scope: { type: "workspace", workspaceId: "ws-1" },
+        chips: [],
+      });
+
+      expect(search.projectHybridSearch).toHaveBeenCalledTimes(20);
+      expect(maxInflight).toBeGreaterThan(0);
+      expect(maxInflight).toBeLessThanOrEqual(3);
+    } finally {
+      if (original === undefined) delete process.env.CHAT_RAG_FANOUT_CONCURRENCY;
+      else process.env.CHAT_RAG_FANOUT_CONCURRENCY = original;
+    }
+  });
+});
+
+describe("chat-retrieval abort signal", () => {
+  beforeEach(() => {
+    search.projectHybridSearch.mockReset();
+    search.projectHybridSearch.mockResolvedValue([]);
+  });
+
+  it("pre-aborted signal short-circuits before any projectHybridSearch call", async () => {
+    const ctrl = new AbortController();
+    ctrl.abort();
+    await expect(
+      retrieve({
+        workspaceId: "ws-1",
+        query: "q",
+        ragMode: "strict",
+        scope: { type: "project", workspaceId: "ws-1", projectId: "p-1" },
+        chips: [],
+        signal: ctrl.signal,
+      }),
+    ).rejects.toThrow(/abort/i);
+    expect(search.projectHybridSearch).not.toHaveBeenCalled();
+  });
+});

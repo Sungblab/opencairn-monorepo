@@ -36,6 +36,40 @@ function maxProjects(): number {
   return envInt("CHAT_RAG_MAX_PROJECTS", 64);
 }
 
+function fanoutConcurrency(): number {
+  return envInt("CHAT_RAG_FANOUT_CONCURRENCY", 8);
+}
+
+function checkAbort(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw new DOMException("aborted", "AbortError");
+  }
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+  signal?: AbortSignal,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let cursor = 0;
+  async function worker(): Promise<void> {
+    while (true) {
+      if (signal?.aborted) throw new DOMException("aborted", "AbortError");
+      const i = cursor++;
+      if (i >= items.length) return;
+      results[i] = await fn(items[i], i);
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, () =>
+      worker(),
+    ),
+  );
+  return results;
+}
+
 // ── Public surface ───────────────────────────────────────────────────────
 
 export async function retrieve(opts: {
@@ -50,23 +84,27 @@ export async function retrieve(opts: {
   if (k === 0) return [];
 
   const projectIds = await resolveProjectIds(opts);
+  checkAbort(opts.signal);
   if (projectIds.length === 0) return [];
 
   const provider = getGeminiProvider();
   const queryEmbedding = await provider.embed(opts.query);
+  checkAbort(opts.signal);
 
   const fanout = projectIds.slice(0, maxProjects());
   const perProjectK = Math.max(k, 5);
 
-  const projectHits = await Promise.all(
-    fanout.map((projectId) =>
+  const projectHits = await mapWithConcurrency(
+    fanout,
+    fanoutConcurrency(),
+    (projectId) =>
       projectHybridSearch({
         projectId,
         queryText: opts.query,
         queryEmbedding,
         k: perProjectK,
       }).catch(() => [] as HybridHit[]),
-    ),
+    opts.signal,
   );
 
   // Re-merge: keep first occurrence per noteId, then sort by RRF score and
@@ -163,10 +201,12 @@ async function projectIdForNote(
 }
 
 async function allProjectsInWorkspace(workspaceId: string): Promise<string[]> {
+  const cap = maxProjects();
   const rowsRaw = await db.execute(sql`
     SELECT id FROM projects
     WHERE workspace_id = ${workspaceId}
     ORDER BY created_at DESC
+    LIMIT ${cap}
   `);
   const rows =
     ((rowsRaw as unknown as { rows: Array<Record<string, unknown>> }).rows ??

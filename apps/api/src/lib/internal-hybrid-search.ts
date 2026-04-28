@@ -20,7 +20,10 @@ function vectorLiteral(values: number[]): string {
 
 function clipSnippet(text: string | null): string {
   if (!text) return "";
-  const compact = text.replace(/\s+/g, " ").trim();
+  // Slice to a 2× buffer first to avoid regexing the entire content_text;
+  // worst-case-relevant content is in the head of the field.
+  const buffer = text.slice(0, SNIPPET_MAX * 2);
+  const compact = buffer.replace(/\s+/g, " ").trim();
   return compact.length > SNIPPET_MAX
     ? compact.slice(0, SNIPPET_MAX) + "…"
     : compact;
@@ -38,40 +41,41 @@ export async function projectHybridSearch(opts: HybridSearchOpts): Promise<Hybri
   const vec = vectorLiteral(queryEmbedding);
   const fetchLimit = k * 2;
 
-  const vectorRowsRaw = await db.execute(sql`
-    SELECT
-      id,
-      title,
-      content_text,
-      source_type,
-      source_url,
-      1 - (embedding <=> ${vec}::vector) AS score
-    FROM notes
-    WHERE project_id = ${projectId}
-      AND deleted_at IS NULL
-      AND embedding IS NOT NULL
-    ORDER BY embedding <=> ${vec}::vector ASC
-    LIMIT ${fetchLimit}
-  `);
+  const [vectorRowsRaw, bm25RowsRaw] = await Promise.all([
+    db.execute(sql`
+      SELECT
+        id,
+        title,
+        content_text,
+        source_type,
+        source_url,
+        1 - (embedding <=> ${vec}::vector) AS score
+      FROM notes
+      WHERE project_id = ${projectId}
+        AND deleted_at IS NULL
+        AND embedding IS NOT NULL
+      ORDER BY embedding <=> ${vec}::vector ASC
+      LIMIT ${fetchLimit}
+    `),
+    db.execute(sql`
+      SELECT
+        id,
+        title,
+        content_text,
+        source_type,
+        source_url,
+        ts_rank(content_tsv, plainto_tsquery('simple', ${queryText})) AS score
+      FROM notes
+      WHERE project_id = ${projectId}
+        AND deleted_at IS NULL
+        AND content_tsv @@ plainto_tsquery('simple', ${queryText})
+      ORDER BY score DESC
+      LIMIT ${fetchLimit}
+    `),
+  ]);
   const vectorRows =
     (vectorRowsRaw as unknown as { rows: Array<Record<string, unknown>> })
       .rows ?? (vectorRowsRaw as unknown as Array<Record<string, unknown>>);
-
-  const bm25RowsRaw = await db.execute(sql`
-    SELECT
-      id,
-      title,
-      content_text,
-      source_type,
-      source_url,
-      ts_rank(content_tsv, plainto_tsquery('simple', ${queryText})) AS score
-    FROM notes
-    WHERE project_id = ${projectId}
-      AND deleted_at IS NULL
-      AND content_tsv @@ plainto_tsquery('simple', ${queryText})
-    ORDER BY score DESC
-    LIMIT ${fetchLimit}
-  `);
   const bm25Rows =
     (bm25RowsRaw as unknown as { rows: Array<Record<string, unknown>> })
       .rows ?? (bm25RowsRaw as unknown as Array<Record<string, unknown>>);
