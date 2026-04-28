@@ -37,7 +37,15 @@ import {
 } from "./editor-toolbar";
 import { latexPlugins } from "./plugins/latex";
 import { PresenceStack } from "./PresenceStack";
-import { SlashMenu, type SlashEditor } from "./plugins/slash";
+import { SlashMenu, type SlashEditor, type SlashAiKey } from "./plugins/slash";
+import { InlineDiffSheet } from "./doc-editor/inline-diff-sheet";
+import { applyHunksToValue } from "./doc-editor/apply-hunks";
+import {
+  readBlockSelection,
+  type BlockSelectionEditor,
+} from "./doc-editor/read-block-selection";
+import { useDocEditorCommand } from "@/hooks/use-doc-editor-command";
+import type { Value } from "platejs";
 import {
   createWikiLinkPlugin,
   WikiLinkCombobox,
@@ -131,6 +139,16 @@ export function NoteEditor({
   // file (one feature per namespace, easier i18n parity).
   const tShare = useTranslations("shareDialog");
   const [shareOpen, setShareOpen] = useState(false);
+
+  // Plan 11B Phase A — slash AI commands (`/improve`, `/translate`, etc.).
+  // Gated client-side by NEXT_PUBLIC_FEATURE_DOC_EDITOR_SLASH so the menu
+  // items only render when the backend route + worker are also live; the
+  // API enforces the same gate server-side, so a stale browser would only
+  // see 404s here regardless.
+  const aiSlashEnabled =
+    process.env.NEXT_PUBLIC_FEATURE_DOC_EDITOR_SLASH === "true";
+  const docEditor = useDocEditorCommand();
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   // ── Title save path (PATCH /notes/:id with { title } only) ────────────
   // Content persists via Yjs; only title/folderId still flow through the
@@ -275,6 +293,46 @@ export function NoteEditor({
     return () => window.removeEventListener("keydown", onKey);
   }, [debouncedPatchTitle, patchTitle, title]);
 
+  const handleAiCommand = useCallback(
+    (cmd: SlashAiKey) => {
+      if (readOnly) return;
+      const selection = readBlockSelection(
+        editor as unknown as BlockSelectionEditor,
+      );
+      // Silent no-op when there's no usable selection (empty block, no id,
+      // over the 4000-char ceiling). The user retries; T13 will surface a
+      // hint here once the toast plumbing lands.
+      if (!selection) return;
+      setSheetOpen(true);
+      void docEditor.run(noteId, cmd, {
+        selection,
+        documentContextSnippet: "",
+      });
+    },
+    [editor, readOnly, docEditor, noteId],
+  );
+
+  const handleAcceptAll = useCallback(() => {
+    if (docEditor.state.status !== "ready") return;
+    const next = applyHunksToValue(
+      editor.children as unknown as Value,
+      docEditor.state.payload.hunks,
+    );
+    // v49: `editor.tf.setValue(value)` replaces the whole document. Cast
+    // through unknown — the PlateEditor generic parameterises tf with the
+    // full plugin set and would force us to re-declare the same shape.
+    (
+      editor.tf as unknown as { setValue: (v: Value) => void }
+    ).setValue(next);
+    setSheetOpen(false);
+    docEditor.reset();
+  }, [editor, docEditor]);
+
+  const handleRejectAll = useCallback(() => {
+    setSheetOpen(false);
+    docEditor.reset();
+  }, [docEditor]);
+
   const actions: ToolbarActions = useMemo(
     () => ({
       toggleMark: (mark: ToolbarMark) => {
@@ -335,7 +393,20 @@ export function NoteEditor({
             ctx={{ wsSlug, projectId }}
             editor={editor as unknown as Parameters<typeof WikiLinkCombobox>[0]["editor"]}
           />
-          <SlashMenu editor={editor as unknown as SlashEditor} />
+          <SlashMenu
+            editor={editor as unknown as SlashEditor}
+            aiEnabled={aiSlashEnabled && !readOnly}
+            onAiCommand={handleAiCommand}
+          />
+          {aiSlashEnabled && (
+            <InlineDiffSheet
+              open={sheetOpen}
+              state={docEditor.state}
+              onAcceptAll={handleAcceptAll}
+              onRejectAll={handleRejectAll}
+              onClose={handleRejectAll}
+            />
+          )}
           <div className="mx-auto w-full max-w-[720px] flex-1 px-8 py-8">
             <div className="flex items-start justify-between gap-4">
               <input

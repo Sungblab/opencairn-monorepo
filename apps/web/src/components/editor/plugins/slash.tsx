@@ -35,7 +35,7 @@ import { createPortal } from "react-dom";
 //     Plan 2A). Re-enable once Plan 2D provides a TeX input UX — the
 //     `editor.slash.math` i18n key is kept in the bundle for that.
 
-export type SlashKey =
+export type SlashBlockKey =
   | "h1"
   | "h2"
   | "h3"
@@ -50,10 +50,15 @@ export type SlashKey =
   | "table"
   | "columns";
 
+export type SlashAiKey = "improve" | "translate" | "summarize" | "expand";
+
+export type SlashKey = SlashBlockKey | SlashAiKey;
+
 // `tNode` helper keeps the menu as an ordered list so the E2E can assert a
 // stable sequence.
-interface SlashCommandDef {
-  key: SlashKey;
+interface SlashBlockDef {
+  key: SlashBlockKey;
+  section: "block";
   labelKey:
     | "heading_1"
     | "heading_2"
@@ -70,20 +75,38 @@ interface SlashCommandDef {
     | "columns";
 }
 
-const COMMANDS: SlashCommandDef[] = [
-  { key: "h1", labelKey: "heading_1" },
-  { key: "h2", labelKey: "heading_2" },
-  { key: "h3", labelKey: "heading_3" },
-  { key: "ul", labelKey: "bulleted_list" },
-  { key: "ol", labelKey: "numbered_list" },
-  { key: "blockquote", labelKey: "quote" },
-  { key: "code", labelKey: "code" },
-  { key: "hr", labelKey: "divider" },
-  { key: "mermaid", labelKey: "mermaid" },
-  { key: "callout", labelKey: "callout" },
-  { key: "toggle", labelKey: "toggle" },
-  { key: "table", labelKey: "table" },
-  { key: "columns", labelKey: "columns" },
+interface SlashAiDef {
+  key: SlashAiKey;
+  section: "ai";
+  // Plan 11B Phase A — labels live in the dedicated `docEditor.command`
+  // namespace so the AI section can be re-skinned independent of the
+  // editor block menu.
+  labelKey: SlashAiKey;
+}
+
+type SlashCommandDef = SlashBlockDef | SlashAiDef;
+
+const BLOCK_COMMANDS: SlashBlockDef[] = [
+  { key: "h1", section: "block", labelKey: "heading_1" },
+  { key: "h2", section: "block", labelKey: "heading_2" },
+  { key: "h3", section: "block", labelKey: "heading_3" },
+  { key: "ul", section: "block", labelKey: "bulleted_list" },
+  { key: "ol", section: "block", labelKey: "numbered_list" },
+  { key: "blockquote", section: "block", labelKey: "quote" },
+  { key: "code", section: "block", labelKey: "code" },
+  { key: "hr", section: "block", labelKey: "divider" },
+  { key: "mermaid", section: "block", labelKey: "mermaid" },
+  { key: "callout", section: "block", labelKey: "callout" },
+  { key: "toggle", section: "block", labelKey: "toggle" },
+  { key: "table", section: "block", labelKey: "table" },
+  { key: "columns", section: "block", labelKey: "columns" },
+];
+
+const AI_COMMANDS: SlashAiDef[] = [
+  { key: "improve", section: "ai", labelKey: "improve" },
+  { key: "translate", section: "ai", labelKey: "translate" },
+  { key: "summarize", section: "ai", labelKey: "summarize" },
+  { key: "expand", section: "ai", labelKey: "expand" },
 ];
 
 // The editor surface we actually use. Plate's fully-typed `PlateEditor` drags
@@ -108,10 +131,28 @@ export interface SlashEditor {
 
 export interface SlashMenuProps {
   editor: SlashEditor;
+  /**
+   * Plan 11B Phase A — when true, an "AI" section is appended after the
+   * block-conversion list. Off by default so the menu shape stays
+   * unchanged when the doc-editor flag is disabled.
+   */
+  aiEnabled?: boolean;
+  /**
+   * Fired when the user picks an AI command. The slash menu still removes
+   * the triggering `/`, but the actual workflow (selection capture,
+   * worker call, InlineDiffSheet) lives in the consumer so the slash
+   * plugin stays free of any LLM/data-layer coupling.
+   */
+  onAiCommand?: (key: SlashAiKey) => void;
 }
 
-export function SlashMenu({ editor }: SlashMenuProps) {
+export function SlashMenu({
+  editor,
+  aiEnabled = false,
+  onAiCommand,
+}: SlashMenuProps) {
   const t = useTranslations("editor.slash");
+  const tAi = useTranslations("docEditor");
 
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -145,6 +186,20 @@ export function SlashMenu({ editor }: SlashMenuProps) {
     (key: SlashKey) => {
       // Step 1: remove the triggering `/` that Plate already inserted.
       editor.tf.deleteBackward("character");
+
+      // AI commands are dispatched to the consumer — the slash plugin
+      // stays free of LLM/data-layer coupling. The consumer reads the
+      // selection, calls the worker, and renders the diff sheet.
+      if (
+        key === "improve" ||
+        key === "translate" ||
+        key === "summarize" ||
+        key === "expand"
+      ) {
+        onAiCommand?.(key);
+        setOpen(false);
+        return;
+      }
 
       // Step 2: dispatch the command.
       switch (key) {
@@ -272,10 +327,22 @@ export function SlashMenu({ editor }: SlashMenuProps) {
 
       setOpen(false);
     },
-    [editor],
+    [editor, onAiCommand],
   );
 
-  const items = useMemo(() => COMMANDS, []);
+  const items = useMemo<SlashCommandDef[]>(
+    () =>
+      aiEnabled ? [...BLOCK_COMMANDS, ...AI_COMMANDS] : [...BLOCK_COMMANDS],
+    [aiEnabled],
+  );
+
+  // Pre-compute the index of the first row in the AI section so the
+  // section header renders inline without a second pass.
+  const firstAiIndex = useMemo(
+    () => items.findIndex((c) => c.section === "ai"),
+    [items],
+  );
+
   if (!mounted || !open) return null;
 
   return createPortal(
@@ -297,6 +364,15 @@ export function SlashMenu({ editor }: SlashMenuProps) {
                   aria-hidden="true"
                 />
               )}
+              {firstAiIndex !== -1 && i === firstAiIndex && (
+                <li
+                  className="my-1 border-t border-[color:var(--border)] pt-1 text-[10px] font-medium uppercase tracking-wide text-fg-muted"
+                  data-testid="slash-section-ai"
+                  aria-hidden="true"
+                >
+                  <span className="px-3">{tAi("section.ai")}</span>
+                </li>
+              )}
               <li>
                 <button
                   type="button"
@@ -309,7 +385,9 @@ export function SlashMenu({ editor }: SlashMenuProps) {
                   }}
                   className="hover:bg-bg-muted w-full px-3 py-2 text-left text-sm"
                 >
-                  {t(cmd.labelKey)}
+                  {cmd.section === "ai"
+                    ? tAi(`command.${cmd.labelKey}`)
+                    : t(cmd.labelKey)}
                 </button>
               </li>
             </Fragment>
