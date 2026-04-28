@@ -1,0 +1,78 @@
+{
+  "title": "에이전트",
+  "subtitle": "이 프로젝트에서 실행한 Plan 8 에이전트 작업과 결과를 확인합니다.",
+  "refresh": "새로고침",
+  "loading": "에이전트 상태를 불러오는 중입니다.",
+  "error": "에이전트 상태를 불러오지 못했습니다.",
+  "scoreSuffix": "%",
+  "defaults": {
+    "synthesisTitle": "종합 노트"
+  },
+  "toast": {
+    "started": "{agent} 실행을 시작했습니다.",
+    "failed": "에이전트 실행을 시작하지 못했습니다."
+  },
+  "launch": {
+    "run": "실행",
+    "noNotes": "선택할 노트가 없습니다.",
+    "noConcepts": "선택할 개념이 없습니다.",
+    "synthesis": {
+      "name": "Synthesis"
+    },
+    "curator": {
+      "name": "Curator"
+    },
+    "connector": {
+      "name": "Connector",
+      "select": "Connector 개념 선택"
+    },
+    "staleness": {
+      "name": "Staleness"
+    },
+    "narrator": {
+      "name": "Narrator",
+      "select": "Narrator 노트 선택"
+    }
+  },
+  "sections": {
+    "runs": "Agent runs",
+    "suggestions": "Suggestions",
+    "staleAlerts": "Stale alerts",
+    "audioFiles": "Audio files"
+  },
+  "tables": {
+    "agent": "에이전트",
+    "status": "상태",
+    "started": "시작",
+    "type": "유형",
+    "detail": "내용",
+    "created": "생성",
+    "note": "노트",
+    "score": "점수",
+    "detected": "감지"
+  },
+  "empty": {
+    "runs": "표시할 실행 기록이 없습니다.",
+    "suggestions": "검토할 제안이 없습니다.",
+    "staleAlerts": "표시할 오래된 노트 알림이 없습니다.",
+    "audioFiles": "생성된 오디오가 없습니다.",
+    "payload": "세부 정보 없음"
+  },
+  "status": {
+    "running": "실행 중",
+    "completed": "완료",
+    "failed": "실패",
+    "awaiting_input": "입력 대기"
+  },
+  "suggestionTypes": {
+    "connector_link": "연결 제안",
+    "curator_orphan": "고립 개념",
+    "curator_duplicate": "중복 후보",
+    "curator_contradiction": "모순 후보",
+    "curator_external_source": "외부 자료",
+    "synthesis_insight": "종합 인사이트"
+  },
+  "audio": {
+    "aria": "{title} 오디오"
+  }
+}

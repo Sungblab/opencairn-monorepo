@@ -353,6 +353,127 @@ export const projectsApi = {
     ),
 };
 
+// ---------- Plan 8 agent entrypoints ----------
+
+export type Plan8AgentName =
+  | "synthesis"
+  | "curator"
+  | "connector"
+  | "staleness"
+  | "narrator";
+
+export interface Plan8LaunchNote {
+  id: string;
+  title: string;
+  type: "note" | "wiki" | "source";
+  updatedAt: string;
+}
+
+export interface Plan8LaunchConcept {
+  id: string;
+  name: string;
+  description: string | null;
+  createdAt: string;
+}
+
+export interface Plan8AgentRun {
+  runId: string;
+  agentName: Plan8AgentName;
+  workflowId: string;
+  status: string;
+  startedAt: string;
+  endedAt: string | null;
+  totalCostKrw: number;
+  errorMessage: string | null;
+}
+
+export interface Plan8Suggestion {
+  id: string;
+  type:
+    | "connector_link"
+    | "curator_orphan"
+    | "curator_duplicate"
+    | "curator_contradiction"
+    | "curator_external_source"
+    | "synthesis_insight";
+  payload: Record<string, unknown>;
+  status: string;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
+export interface Plan8StaleAlert {
+  id: string;
+  noteId: string;
+  noteTitle: string;
+  stalenessScore: number;
+  reason: string;
+  detectedAt: string;
+  reviewedAt: string | null;
+}
+
+export interface Plan8AudioFile {
+  id: string;
+  noteId: string;
+  noteTitle: string;
+  durationSec: number | null;
+  voices: Array<{ name: string; style?: string }> | null;
+  createdAt: string;
+  urlPath: string;
+}
+
+export interface Plan8Overview {
+  project: { id: string; workspaceId: string };
+  launch: {
+    notes: Plan8LaunchNote[];
+    concepts: Plan8LaunchConcept[];
+  };
+  agentRuns: Plan8AgentRun[];
+  suggestions: Plan8Suggestion[];
+  staleAlerts: Plan8StaleAlert[];
+  audioFiles: Plan8AudioFile[];
+}
+
+export const plan8AgentsApi = {
+  overview: (projectId: string) =>
+    apiClient<Plan8Overview>(
+      `/agents/plan8/overview?projectId=${encodeURIComponent(projectId)}`,
+    ),
+  runSynthesis: (body: {
+    projectId: string;
+    noteIds: string[];
+    title?: string;
+    style?: string;
+  }) =>
+    apiClient<{ workflowId: string }>(`/synthesis/run`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  runCurator: (body: { projectId: string }) =>
+    apiClient<{ workflowId: string }>(`/curator/run`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  runConnector: (body: { projectId: string; conceptId: string }) =>
+    apiClient<{ workflowId: string }>(`/connector/run`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  runStaleness: (body: { projectId: string }) =>
+    apiClient<{ workflowId: string }>(`/agents/temporal/stale-check`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  runNarrator: (body: {
+    noteId: string;
+    style?: "conversational" | "educational" | "debate";
+  }) =>
+    apiClient<{ workflowId: string }>(`/narrator/run`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+};
+
 // ---------- Workspace settings (Phase 5 Task 6) ----------
 
 export type WorkspaceRole = "owner" | "admin" | "member" | "guest";

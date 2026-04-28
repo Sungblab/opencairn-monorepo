@@ -51,6 +51,12 @@ export function ProjectView({
           >
             {t("actions.import")}
           </Link>
+          <Link
+            href={`/${locale}/app/w/${wsSlug}/p/${projectId}/agents`}
+            className="rounded border border-border px-3 py-1.5 text-sm hover:bg-accent"
+          >
+            {t("actions.agents")}
+          </Link>
           <button
             type="button"
             className="rounded bg-foreground px-3 py-1.5 text-sm text-background"

@@ -1,0 +1,78 @@
+{
+  "title": "Agents",
+  "subtitle": "Review Plan 8 agent runs and outputs for this project.",
+  "refresh": "Refresh",
+  "loading": "Loading agent status.",
+  "error": "Couldn't load agent status.",
+  "scoreSuffix": "%",
+  "defaults": {
+    "synthesisTitle": "Synthesis note"
+  },
+  "toast": {
+    "started": "{agent} run started.",
+    "failed": "Couldn't start the agent run."
+  },
+  "launch": {
+    "run": "Run",
+    "noNotes": "No notes available.",
+    "noConcepts": "No concepts available.",
+    "synthesis": {
+      "name": "Synthesis"
+    },
+    "curator": {
+      "name": "Curator"
+    },
+    "connector": {
+      "name": "Connector",
+      "select": "Select Connector concept"
+    },
+    "staleness": {
+      "name": "Staleness"
+    },
+    "narrator": {
+      "name": "Narrator",
+      "select": "Select Narrator note"
+    }
+  },
+  "sections": {
+    "runs": "Agent runs",
+    "suggestions": "Suggestions",
+    "staleAlerts": "Stale alerts",
+    "audioFiles": "Audio files"
+  },
+  "tables": {
+    "agent": "Agent",
+    "status": "Status",
+    "started": "Started",
+    "type": "Type",
+    "detail": "Detail",
+    "created": "Created",
+    "note": "Note",
+    "score": "Score",
+    "detected": "Detected"
+  },
+  "empty": {
+    "runs": "No runs to show.",
+    "suggestions": "No suggestions to review.",
+    "staleAlerts": "No stale alerts to show.",
+    "audioFiles": "No audio files generated.",
+    "payload": "No detail"
+  },
+  "status": {
+    "running": "Running",
+    "completed": "Completed",
+    "failed": "Failed",
+    "awaiting_input": "Awaiting input"
+  },
+  "suggestionTypes": {
+    "connector_link": "Connector link",
+    "curator_orphan": "Orphan concept",
+    "curator_duplicate": "Duplicate candidate",
+    "curator_contradiction": "Contradiction candidate",
+    "curator_external_source": "External source",
+    "synthesis_insight": "Synthesis insight"
+  },
+  "audio": {
+    "aria": "{title} audio"
+  }
+}

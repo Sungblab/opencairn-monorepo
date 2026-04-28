@@ -7,7 +7,8 @@
   "actions": {
     "newDoc": "새 문서",
     "import": "가져오기",
-    "research": "Deep Research 시작"
+    "research": "Deep Research 시작",
+    "agents": "에이전트"
   },
   "tabs": {
     "all": "전체",
