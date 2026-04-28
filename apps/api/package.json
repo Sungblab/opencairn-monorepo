@@ -21,7 +21,7 @@
     "@opencairn/emails": "workspace:*",
     "@opencairn/shared": "workspace:*",
     "@react-email/render": "^2.0.0",
-    "@sentry/node": "^9.0.0",
+    "@sentry/node": "^10.50.0",
     "@temporalio/client": "^1.16.0",
     "better-auth": "^1.2.0",
     "hono": "^4.12.0",
