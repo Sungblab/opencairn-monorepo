@@ -1401,13 +1401,16 @@ const internalNoteCreateSchema = z
     title: z.string().min(1).max(512).default("Untitled"),
     type: z.enum(["note", "source"]).default("note"),
     sourceType: z
-      .enum(["pdf", "audio", "video", "image", "youtube", "web", "unknown", "notion"])
+      .enum(["pdf", "audio", "video", "image", "youtube", "web", "unknown", "notion", "paper"])
       .nullable()
       .optional(),
     content: z.unknown().nullable().optional(),
     contentText: z.string().nullable().optional(),
     importJobId: z.string().uuid().optional(),
     importPath: z.string().max(1024).optional(),
+    // Plan: Literature Search & Auto-Import — paper notes carry their DOI
+    // for cross-workspace dedupe (notes_workspace_doi_idx partial unique).
+    doi: z.string().max(255).nullable().optional(),
     // --- Phase C additions ---
     idempotencyKey: z.string().min(1).max(128).optional(),
     workspaceId: z.string().uuid().optional(),
@@ -1472,6 +1475,7 @@ internal.post(
       content,
       contentText,
       isAuto: true,
+      doi: body.doi ?? null,
     });
 
     // Back-fill researchRuns.noteId so a retry of this call hits the
@@ -1490,6 +1494,32 @@ internal.post(
   },
 );
 
+// GET /internal/notes?workspaceId=<uuid>&doi=<doi>
+// Plan: Literature Search & Auto-Import — DOI dedupe lookup. Worker calls
+// this before fetching/inserting a paper so a second import of the same DOI
+// (in the same workspace) returns the existing noteId instead of producing
+// a duplicate row. The partial unique index notes_workspace_doi_idx is the
+// hard floor; this endpoint is the cooperative check that lets the worker
+// short-circuit upstream of the I/O for PDF download.
+internal.get("/notes", async (c) => {
+  const workspaceId = c.req.query("workspaceId");
+  const doi = c.req.query("doi");
+  if (!workspaceId || !isUuid(workspaceId) || !doi) {
+    return c.json({ error: "workspaceId (uuid) and doi are required" }, 400);
+  }
+  const [row] = await db
+    .select({ id: notes.id })
+    .from(notes)
+    .where(
+      and(
+        eq(notes.workspaceId, workspaceId),
+        eq(notes.doi, doi),
+        isNull(notes.deletedAt),
+      ),
+    );
+  return c.json({ exists: !!row, noteId: row?.id ?? null });
+});
+
 // PATCH /internal/notes/:id — worker backfills content after the Markdown
 // converter (Task 8) finishes. Narrow allowlist so the same endpoint can't
 // be (ab)used to rewrite arbitrary columns like workspace_id.
@@ -1498,7 +1528,7 @@ const internalNotePatchSchema = z.object({
   contentText: z.string().optional(),
   title: z.string().min(1).max(512).optional(),
   sourceType: z
-    .enum(["pdf", "audio", "video", "image", "youtube", "web", "unknown", "notion"])
+    .enum(["pdf", "audio", "video", "image", "youtube", "web", "unknown", "notion", "paper"])
     .nullable()
     .optional(),
 });
