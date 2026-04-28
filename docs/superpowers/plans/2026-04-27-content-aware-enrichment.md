@@ -44,7 +44,7 @@
 - Modify: `packages/db/src/index.ts`
 - Test: `packages/db/tests/note-enrichments.test.ts`
 
-- [ ] **Step 1: Drizzle 스키마 파일 작성**
+- [x] **Step 1: Drizzle 스키마 파일 작성**
 
 ```typescript
 // packages/db/src/schema/note-enrichments.ts
@@ -93,7 +93,7 @@ export type NoteEnrichment = typeof noteEnrichments.$inferSelect;
 export type NoteEnrichmentInsert = typeof noteEnrichments.$inferInsert;
 ```
 
-- [ ] **Step 2: 마이그레이션 SQL 작성**
+- [x] **Step 2: 마이그레이션 SQL 작성**
 
 ```sql
 -- packages/db/drizzle/0029_note_enrichments.sql
@@ -115,14 +115,14 @@ CREATE INDEX "note_enrichments_note_id_idx" ON "note_enrichments"("note_id");
 CREATE INDEX "note_enrichments_workspace_id_idx" ON "note_enrichments"("workspace_id");
 ```
 
-- [ ] **Step 3: `packages/db/src/index.ts`에 export 추가**
+- [x] **Step 3: `packages/db/src/index.ts`에 export 추가**
 
 기존 마지막 `export * from "./schema/share-links";` 줄 바로 다음에 추가:
 ```typescript
 export * from "./schema/note-enrichments";
 ```
 
-- [ ] **Step 4: 스키마 타입 테스트 작성**
+- [x] **Step 4: 스키마 타입 테스트 작성**
 
 ```typescript
 // packages/db/tests/note-enrichments.test.ts
@@ -148,7 +148,7 @@ describe("noteEnrichments schema", () => {
 });
 ```
 
-- [ ] **Step 5: 테스트 실행**
+- [x] **Step 5: 테스트 실행**
 
 ```bash
 pnpm --filter @opencairn/db test
@@ -156,7 +156,7 @@ pnpm --filter @opencairn/db test
 
 Expected: PASS (타입 체크만, DB 없음)
 
-- [ ] **Step 6: 마이그레이션 메타 파일 생성**
+- [x] **Step 6: 마이그레이션 메타 파일 생성**
 
 ```bash
 pnpm db:generate
@@ -164,7 +164,7 @@ pnpm db:generate
 
 `packages/db/drizzle/meta/0029_snapshot.json`이 생성되는지 확인.
 
-- [ ] **Step 7: 마이그레이션 적용 (로컬 dev DB)**
+- [x] **Step 7: 마이그레이션 적용 (로컬 dev DB)**
 
 ```bash
 pnpm db:migrate
@@ -172,7 +172,7 @@ pnpm db:migrate
 
 Expected: `Applying migration 0029_note_enrichments` 출력
 
-- [ ] **Step 8: 커밋**
+- [x] **Step 8: 커밋**
 
 ```bash
 git add packages/db/src/schema/note-enrichments.ts \
@@ -193,7 +193,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 - Create: `apps/worker/src/worker/lib/enrichment_artifact.py`
 - Test: `apps/worker/tests/test_enrichment_artifact_schema.py`
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+- [x] **Step 1: 실패하는 테스트 작성**
 
 ```python
 # apps/worker/tests/test_enrichment_artifact_schema.py
@@ -247,7 +247,7 @@ def test_artifact_round_trip():
     assert restored.outline[0].title == "Intro"
 ```
 
-- [ ] **Step 2: 테스트가 실패하는지 확인**
+- [x] **Step 2: 테스트가 실패하는지 확인**
 
 ```bash
 cd apps/worker && python -m pytest tests/test_enrichment_artifact_schema.py -v 2>&1 | head -20
@@ -255,7 +255,7 @@ cd apps/worker && python -m pytest tests/test_enrichment_artifact_schema.py -v 2
 
 Expected: `ImportError: No module named 'worker.lib.enrichment_artifact'`
 
-- [ ] **Step 3: Pydantic 모델 구현**
+- [x] **Step 3: Pydantic 모델 구현**
 
 ```python
 # apps/worker/src/worker/lib/enrichment_artifact.py
@@ -348,7 +348,7 @@ class EnrichmentArtifact(BaseModel):
     pivot_suggestions: list[PivotSuggestion] = []
 ```
 
-- [ ] **Step 4: 테스트 통과 확인**
+- [x] **Step 4: 테스트 통과 확인**
 
 ```bash
 cd apps/worker && python -m pytest tests/test_enrichment_artifact_schema.py -v
@@ -356,7 +356,7 @@ cd apps/worker && python -m pytest tests/test_enrichment_artifact_schema.py -v
 
 Expected: 6 passed
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add apps/worker/src/worker/lib/enrichment_artifact.py \
@@ -374,7 +374,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 - Create: `apps/worker/src/worker/activities/detect_content_type_activity.py`
 - Test: `apps/worker/tests/activities/test_detect_content_type.py`
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+- [x] **Step 1: 실패하는 테스트 작성**
 
 ```python
 # apps/worker/tests/activities/test_detect_content_type.py
@@ -462,7 +462,7 @@ async def test_no_pages_returns_document():
     assert result["content_type"] == "document"
 ```
 
-- [ ] **Step 2: 실패 확인**
+- [x] **Step 2: 실패 확인**
 
 ```bash
 cd apps/worker && python -m pytest tests/activities/test_detect_content_type.py -v 2>&1 | head -10
@@ -470,7 +470,7 @@ cd apps/worker && python -m pytest tests/activities/test_detect_content_type.py 
 
 Expected: `ImportError: No module named 'worker.activities.detect_content_type_activity'`
 
-- [ ] **Step 3: Activity 구현**
+- [x] **Step 3: Activity 구현**
 
 ```python
 # apps/worker/src/worker/activities/detect_content_type_activity.py
@@ -565,7 +565,7 @@ async def detect_content_type(inp: dict) -> dict:
     return {"content_type": content_type, "confidence": confidence, "used_llm": used_llm}
 ```
 
-- [ ] **Step 4: 테스트 통과 확인**
+- [x] **Step 4: 테스트 통과 확인**
 
 ```bash
 cd apps/worker && python -m pytest tests/activities/test_detect_content_type.py -v
@@ -573,7 +573,7 @@ cd apps/worker && python -m pytest tests/activities/test_detect_content_type.py 
 
 Expected: 7 passed
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add apps/worker/src/worker/activities/detect_content_type_activity.py \
@@ -590,7 +590,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 **Files:**
 - Modify: `apps/worker/src/worker/activities/pdf_activity.py`
 
-- [ ] **Step 1: 변경 사항 적용**
+- [x] **Step 1: 변경 사항 적용**
 
 `pdf_activity.py`의 두 곳을 수정한다.
 
@@ -619,7 +619,7 @@ return {
 }
 ```
 
-- [ ] **Step 2: 기존 테스트 확인 (있다면)**
+- [x] **Step 2: 기존 테스트 확인 (있다면)**
 
 ```bash
 cd apps/worker && python -m pytest tests/ -k "pdf" -v 2>&1
@@ -627,7 +627,7 @@ cd apps/worker && python -m pytest tests/ -k "pdf" -v 2>&1
 
 Expected: 기존 테스트가 있다면 모두 PASS (반환 dict에 key 추가는 비파괴적)
 
-- [ ] **Step 3: 커밋**
+- [x] **Step 3: 커밋**
 
 ```bash
 git add apps/worker/src/worker/activities/pdf_activity.py
@@ -646,7 +646,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 - Create: `apps/worker/src/worker/activities/enrich_document_activity.py`
 - Test: `apps/worker/tests/activities/test_enrich_document.py`
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+- [x] **Step 1: 실패하는 테스트 작성**
 
 ```python
 # apps/worker/tests/activities/test_enrich_document.py
@@ -755,7 +755,7 @@ async def test_figure_uploaded_to_minio():
     assert result["artifact"]["figures"][0]["object_key"].startswith("enrichments/")
 ```
 
-- [ ] **Step 2: 실패 확인**
+- [x] **Step 2: 실패 확인**
 
 ```bash
 cd apps/worker && python -m pytest tests/activities/test_enrich_document.py -v 2>&1 | head -10
@@ -763,7 +763,7 @@ cd apps/worker && python -m pytest tests/activities/test_enrich_document.py -v 2
 
 Expected: `ImportError: No module named 'worker.activities.enrich_document_activity'`
 
-- [ ] **Step 3: Activity 구현**
+- [x] **Step 3: Activity 구현**
 
 ```python
 # apps/worker/src/worker/activities/enrich_document_activity.py
@@ -1072,7 +1072,7 @@ def _extract_symbols(text: str) -> dict:
     return {"symbol_tree": symbols}
 ```
 
-- [ ] **Step 4: 테스트 통과 확인**
+- [x] **Step 4: 테스트 통과 확인**
 
 ```bash
 cd apps/worker && python -m pytest tests/activities/test_enrich_document.py -v
@@ -1080,7 +1080,7 @@ cd apps/worker && python -m pytest tests/activities/test_enrich_document.py -v
 
 Expected: 4 passed
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add apps/worker/src/worker/activities/enrich_document_activity.py \
@@ -1101,7 +1101,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 - Create: `apps/worker/src/worker/activities/store_enrichment_activity.py`
 - Modify: `apps/api/src/routes/internal.ts`
 
-- [ ] **Step 1: `internal.ts`에 enrichment 엔드포인트 추가**
+- [x] **Step 1: `internal.ts`에 enrichment 엔드포인트 추가**
 
 `apps/api/src/routes/internal.ts` 상단 import 블록에 `noteEnrichments` 추가:
 ```typescript
@@ -1174,7 +1174,7 @@ internal.get("/notes/:noteId/enrichment", async (c) => {
 });
 ```
 
-- [ ] **Step 2: `store_enrichment_artifact` activity 작성**
+- [x] **Step 2: `store_enrichment_artifact` activity 작성**
 
 ```python
 # apps/worker/src/worker/activities/store_enrichment_activity.py
@@ -1209,7 +1209,7 @@ async def store_enrichment_artifact(inp: dict) -> dict:
     return result
 ```
 
-- [ ] **Step 3: API 타입체크 확인**
+- [x] **Step 3: API 타입체크 확인**
 
 ```bash
 pnpm --filter @opencairn/api tsc --noEmit
@@ -1217,7 +1217,7 @@ pnpm --filter @opencairn/api tsc --noEmit
 
 Expected: 에러 없음
 
-- [ ] **Step 4: API 단위 테스트 (있는 경우 기존 패턴 따라)**
+- [x] **Step 4: API 단위 테스트 (있는 경우 기존 패턴 따라)**
 
 ```bash
 pnpm --filter @opencairn/api test 2>&1 | tail -5
@@ -1225,7 +1225,7 @@ pnpm --filter @opencairn/api test 2>&1 | tail -5
 
 Expected: 기존 테스트 통과 유지
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add apps/api/src/routes/internal.ts \
@@ -1246,7 +1246,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 - Modify: `apps/worker/src/worker/workflows/ingest_workflow.py`
 - Test: `apps/worker/tests/workflows/test_ingest_enrichment.py`
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+- [x] **Step 1: 실패하는 테스트 작성**
 
 ```python
 # apps/worker/tests/workflows/test_ingest_enrichment.py
@@ -1358,7 +1358,7 @@ async def test_enrichment_not_called_when_flag_off(monkeypatch):
     assert note_id == "note-000"
 ```
 
-- [ ] **Step 2: 실패 확인**
+- [x] **Step 2: 실패 확인**
 
 ```bash
 cd apps/worker && python -m pytest tests/workflows/test_ingest_enrichment.py -v 2>&1 | head -20
@@ -1366,7 +1366,7 @@ cd apps/worker && python -m pytest tests/workflows/test_ingest_enrichment.py -v 
 
 Expected: `test_workspace_id_field_exists` 실패 (`workspace_id` 필드 없음)
 
-- [ ] **Step 3: `IngestInput`에 `workspace_id` 추가 + 워크플로우 수정**
+- [x] **Step 3: `IngestInput`에 `workspace_id` 추가 + 워크플로우 수정**
 
 `apps/worker/src/worker/workflows/ingest_workflow.py`:
 
@@ -1487,7 +1487,7 @@ async def _run_pipeline(self, inp: IngestInput) -> str:
     return note_id
 ```
 
-- [ ] **Step 4: 테스트 통과 확인**
+- [x] **Step 4: 테스트 통과 확인**
 
 ```bash
 cd apps/worker && python -m pytest tests/workflows/test_ingest_enrichment.py -v
@@ -1495,7 +1495,7 @@ cd apps/worker && python -m pytest tests/workflows/test_ingest_enrichment.py -v
 
 Expected: 4 passed
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add apps/worker/src/worker/workflows/ingest_workflow.py \
@@ -1516,7 +1516,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 - Modify: `apps/worker/src/worker/temporal_main.py`
 - Modify: `apps/worker/tests/test_temporal_main_code.py`
 
-- [ ] **Step 1: 기존 temporal_main 테스트 확인**
+- [x] **Step 1: 기존 temporal_main 테스트 확인**
 
 ```bash
 cd apps/worker && python -m pytest tests/test_temporal_main_code.py -v
@@ -1524,7 +1524,7 @@ cd apps/worker && python -m pytest tests/test_temporal_main_code.py -v
 
 Expected: 기존 테스트 PASS (베이스라인 확인)
 
-- [ ] **Step 2: 테스트에 FEATURE_CONTENT_ENRICHMENT 케이스 추가**
+- [x] **Step 2: 테스트에 FEATURE_CONTENT_ENRICHMENT 케이스 추가**
 
 `tests/test_temporal_main_code.py`에 아래 두 테스트 추가:
 
@@ -1554,7 +1554,7 @@ def test_enrichment_activities_not_registered_when_flag_off(monkeypatch):
     assert "enrich_document" not in activity_names
 ```
 
-- [ ] **Step 3: 테스트 실패 확인**
+- [x] **Step 3: 테스트 실패 확인**
 
 ```bash
 cd apps/worker && python -m pytest tests/test_temporal_main_code.py::test_enrichment_activities_registered_when_flag_on -v 2>&1 | tail -10
@@ -1562,7 +1562,7 @@ cd apps/worker && python -m pytest tests/test_temporal_main_code.py::test_enrich
 
 Expected: FAIL — activities not yet registered
 
-- [ ] **Step 4: `temporal_main.py`에 등록 코드 추가**
+- [x] **Step 4: `temporal_main.py`에 등록 코드 추가**
 
 `build_worker_config()` 함수 내 `if os.environ.get("FEATURE_DEEP_RESEARCH") == "true":` 블록 아래에 추가:
 
@@ -1574,7 +1574,7 @@ if os.environ.get("FEATURE_CONTENT_ENRICHMENT") == "true":
     activities.extend([detect_content_type, enrich_document, store_enrichment_artifact])
 ```
 
-- [ ] **Step 5: 테스트 통과 확인**
+- [x] **Step 5: 테스트 통과 확인**
 
 ```bash
 cd apps/worker && python -m pytest tests/test_temporal_main_code.py -v
@@ -1582,7 +1582,7 @@ cd apps/worker && python -m pytest tests/test_temporal_main_code.py -v
 
 Expected: 기존 + 신규 2개 모두 PASS
 
-- [ ] **Step 6: 전체 worker 테스트 확인**
+- [x] **Step 6: 전체 worker 테스트 확인**
 
 ```bash
 cd apps/worker && python -m pytest tests/ -v --tb=short 2>&1 | tail -20
@@ -1590,7 +1590,7 @@ cd apps/worker && python -m pytest tests/ -v --tb=short 2>&1 | tail -20
 
 Expected: 기존 테스트 회귀 없음
 
-- [ ] **Step 7: 최종 커밋**
+- [x] **Step 7: 최종 커밋**
 
 ```bash
 git add apps/worker/src/worker/temporal_main.py \
