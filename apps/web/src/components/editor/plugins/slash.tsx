@@ -109,6 +109,13 @@ const AI_COMMANDS: SlashAiDef[] = [
   { key: "expand", section: "ai", labelKey: "expand" },
 ];
 
+// Type predicate so the AI dispatch path narrows `key` from `SlashKey`
+// to `SlashAiKey` without re-listing each member. Adding a new AI
+// command is a one-line edit to AI_COMMANDS — the dispatch site
+// stays correct.
+const isAiKey = (key: SlashKey): key is SlashAiKey =>
+  AI_COMMANDS.some((cmd) => cmd.key === key);
+
 // The editor surface we actually use. Plate's fully-typed `PlateEditor` drags
 // in deep generics; narrow to exactly the transforms this menu touches so the
 // caller can pass the editor without an `as any` cast at the usage site (the
@@ -190,12 +197,7 @@ export function SlashMenu({
       // AI commands are dispatched to the consumer — the slash plugin
       // stays free of LLM/data-layer coupling. The consumer reads the
       // selection, calls the worker, and renders the diff sheet.
-      if (
-        key === "improve" ||
-        key === "translate" ||
-        key === "summarize" ||
-        key === "expand"
-      ) {
+      if (isAiKey(key)) {
         onAiCommand?.(key);
         setOpen(false);
         return;

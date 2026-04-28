@@ -19,7 +19,6 @@ import {
   startDocEditorWorkflow,
   type DocEditorWorkflowOutput,
 } from "../lib/doc-editor-client";
-import { encodeSseEvent } from "../lib/doc-editor-sse";
 import type { AppEnv } from "../lib/types";
 
 export const docEditorRoutes = new Hono<AppEnv>();
@@ -108,19 +107,13 @@ docEditorRoutes.post(
       );
 
     return streamSSE(c, async (stream) => {
-      const writeEvent = (ev: DocEditorSseEvent) =>
-        stream.writeSSE({
-          event: ev.type,
-          data: JSON.stringify(
-            (() => {
-              const { type: _ignored, ...rest } = ev as {
-                type: string;
-                [k: string]: unknown;
-              };
-              return rest;
-            })(),
-          ),
+      const writeEvent = (ev: DocEditorSseEvent) => {
+        const { type, ...rest } = ev;
+        return stream.writeSSE({
+          event: type,
+          data: JSON.stringify(rest),
         });
+      };
 
       let aborted = false;
       let temporalClient;
