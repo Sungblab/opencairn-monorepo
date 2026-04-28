@@ -1,7 +1,8 @@
 # OpenCairn
 
+**English** | [한국어](README.ko.md)
+
 > Self-hosted, multi-LLM, agent-driven knowledge OS for individuals and teams.
-> 자체 호스팅 가능한 멀티 LLM · AI 에이전트 기반 개인/팀 지식 OS.
 
 > ⚠️ **Alpha.** Schemas, APIs, and migrations may break between commits. Evaluate on a private instance before relying on it.
 
@@ -95,13 +96,3 @@ Report vulnerabilities privately via GitHub Security Advisories. Details in [SEC
 [AGPL-3.0-or-later](LICENSE).
 
 If you run a modified OpenCairn as a network service for other users (for example as a hosted SaaS), the AGPL's network-use clause requires that the modified source be available to those users under the same license. Self-host privately, fork, modify, or contribute back — your choice within those terms.
-
----
-
-## 한국어 요약
-
-OpenCairn은 PDF / DOCX / PPTX / XLSX / HWP / Markdown / Notion ZIP / Google Drive 등 다양한 입력을 받아 연결된 지식 그래프로 정리하고, 12개 AI 에이전트(Compiler · Research · Librarian · Curator · Connector · Synthesis · Staleness · Narrator · Visualization · Socratic · Code · DocEditor)가 그 위에서 읽고 추론하고 쓰는 **자체 호스팅 지식 OS**입니다. Docker Compose 한 번으로 워크스테이션이나 사내 서버에서 그대로 동작하며, Google Gemini 또는 로컬 Ollama 모델을 통합 프로바이더 계층 뒤에서 사용합니다.
-
-설치는 위 **Quick start** 섹션을 따르시면 되고, 한국어 환경에서 자주 마주치는 함정·운영 정보는 `docs/contributing/dev-guide.md`, `docs/contributing/ops.md`, `docs/contributing/llm-antipatterns.md` 에 정리되어 있습니다. 알파 단계라 마이그레이션과 API가 자주 바뀔 수 있으니, 운영 환경에 도입하시기 전에는 별도 테스트 인스턴스에서 충분히 확인해 주세요.
-
-기여(이슈 · PR)를 환영합니다. 커밋 컨벤션과 작업 흐름은 [CONTRIBUTING.md](CONTRIBUTING.md) 를, 보안 이슈 신고는 [SECURITY.md](SECURITY.md) 를 참고해 주세요.
