@@ -3,9 +3,9 @@ import { canvasLanguageSchema } from "./api-types";
 
 // Re-uses the Zod enum from api-types (single source of truth for
 // canvas-language strings) so `CanvasLanguage` lives in exactly one
-// module. `canvasLanguages` stays local because the rest of this file
-// uses it as a const tuple for further `z.enum(...)` derivations.
-const canvasLanguages = canvasLanguageSchema.options;
+// module. Export the runtime tuple for UI/test consumers that need to
+// enumerate the accepted languages without duplicating the literals.
+export const canvasLanguages = canvasLanguageSchema.options;
 
 export const codeAgentRunRequestSchema = z.object({
   noteId: z.string().uuid(),
