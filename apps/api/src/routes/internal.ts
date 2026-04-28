@@ -2065,7 +2065,10 @@ internal.post(
         })
         .from(researchRunArtifacts)
         .where(eq(researchRunArtifacts.runId, id));
-      const nextSeq = (seqRow?.maxSeq ?? -1) + 1;
+      // node-postgres returns aggregate results as strings by default; an
+      // un-cast `"5" + 1` would concatenate to `"51"` and explode the seq
+      // space. Mirror the `Number()` pattern used for `count()` on line 998.
+      const nextSeq = Number(seqRow?.maxSeq ?? -1) + 1;
 
       const [inserted] = await tx
         .insert(researchRunArtifacts)
