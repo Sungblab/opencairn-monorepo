@@ -134,6 +134,29 @@ describe("POST /api/chat/conversations", () => {
     }
   });
 
+  it("rejects page scope when a page override removes read access", async () => {
+    const viewerCtx = await seedWorkspace({ role: "viewer" });
+    try {
+      await setNoteInherit(viewerCtx.noteId, false);
+
+      const res = await authedFetch("/api/chat/conversations", {
+        method: "POST",
+        userId: viewerCtx.userId,
+        body: JSON.stringify({
+          workspaceId: viewerCtx.workspaceId,
+          scopeType: "page",
+          scopeId: viewerCtx.noteId,
+          attachedChips: [],
+          memoryFlags: FULL_FLAGS,
+        }),
+      });
+
+      expect(res.status).toBe(403);
+    } finally {
+      await viewerCtx.cleanup();
+    }
+  });
+
   it("returns 400 when zod validation fails (missing scopeId)", async () => {
     const res = await authedFetch("/api/chat/conversations", {
       method: "POST",
@@ -314,6 +337,36 @@ describe("POST /api/chat/conversations/:id/chips", () => {
       expect(res.status).toBe(404);
     } finally {
       await foreign.cleanup();
+    }
+  });
+
+  it("rejects a page chip when a page override removes read access", async () => {
+    const viewerCtx = await seedWorkspace({ role: "viewer" });
+    try {
+      const create = await authedFetch("/api/chat/conversations", {
+        method: "POST",
+        userId: viewerCtx.userId,
+        body: JSON.stringify({
+          workspaceId: viewerCtx.workspaceId,
+          scopeType: "workspace",
+          scopeId: viewerCtx.workspaceId,
+          attachedChips: [],
+          memoryFlags: FULL_FLAGS,
+        }),
+      });
+      expect(create.status).toBe(201);
+      const { id } = (await create.json()) as { id: string };
+
+      await setNoteInherit(viewerCtx.noteId, false);
+
+      const res = await authedFetch(`/api/chat/conversations/${id}/chips`, {
+        method: "POST",
+        userId: viewerCtx.userId,
+        body: JSON.stringify({ type: "page", id: viewerCtx.noteId }),
+      });
+      expect(res.status).toBe(403);
+    } finally {
+      await viewerCtx.cleanup();
     }
   });
 

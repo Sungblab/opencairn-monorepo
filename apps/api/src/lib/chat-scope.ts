@@ -9,6 +9,7 @@ import {
   type DB,
 } from "@opencairn/db";
 import type { ScopeType } from "@opencairn/shared";
+import { canRead } from "./permissions";
 
 export class ScopeValidationError extends Error {
   constructor(
@@ -33,7 +34,7 @@ export async function validateScope(
   workspaceId: string,
   scopeType: ScopeType,
   scopeId: string,
-  options?: { db?: DB },
+  options?: { db?: DB; userId?: string },
 ): Promise<{ label: string }> {
   const conn = options?.db ?? defaultDb;
 
@@ -65,6 +66,16 @@ export async function validateScope(
     if (!row || row.workspaceId !== workspaceId) {
       throw new ScopeValidationError(404, "scope target not found");
     }
+    if (
+      options?.userId &&
+      !(await canRead(
+        options.userId,
+        { type: "project", id: scopeId },
+        { db: conn },
+      ))
+    ) {
+      throw new ScopeValidationError(403, "forbidden");
+    }
     return { label: row.name };
   }
 
@@ -77,6 +88,16 @@ export async function validateScope(
     .where(and(eq(notes.id, scopeId), isNull(notes.deletedAt)));
   if (!row || row.workspaceId !== workspaceId) {
     throw new ScopeValidationError(404, "scope target not found");
+  }
+  if (
+    options?.userId &&
+    !(await canRead(
+      options.userId,
+      { type: "note", id: scopeId },
+      { db: conn },
+    ))
+  ) {
+    throw new ScopeValidationError(403, "forbidden");
   }
   return { label: row.title || "Untitled" };
 }

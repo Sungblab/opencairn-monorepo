@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useIngestStore } from "@/stores/ingest-store";
 import { useIngestStream } from "@/hooks/use-ingest-stream";
@@ -96,7 +97,7 @@ export function IngestDock() {
             aria-label={t("dismiss")}
             onClick={() => dismiss(r.workflowId)}
           >
-            ×
+            <X aria-hidden="true" className="size-4" />
           </button>
         </div>
       ))}

@@ -306,6 +306,22 @@ describe("POST /api/canvas/output", () => {
     }
   });
 
+  it("404 when caller can read but cannot write the canvas note", async () => {
+    const viewer = await seedWorkspace({ role: "viewer" });
+    try {
+      await makeCanvas(viewer.noteId);
+      const fd = buildOutputFormData({
+        noteId: viewer.noteId,
+        mimeType: "image/png",
+        file: PNG_BYTES,
+      });
+      const res = await postOutput(viewer.userId, fd);
+      expect(res.status).toBe(404);
+    } finally {
+      await viewer.cleanup();
+    }
+  });
+
   it("409 notCanvas when note.sourceType !== 'canvas'", async () => {
     // Reset the seed note to a regular page.
     await db

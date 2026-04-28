@@ -1,4 +1,5 @@
 "use client";
+import { Bot } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { ViewType } from "@opencairn/shared";
@@ -51,7 +52,8 @@ export function ViewSwitcher({ onAiClick }: Props) {
         onClick={onAiClick}
         className="rounded text-sm text-accent-foreground hover:underline"
       >
-        🤖 {tAi("trigger")}
+        <Bot aria-hidden="true" className="mr-1 inline size-4" />
+        {tAi("trigger")}
       </button>
     </div>
   );
