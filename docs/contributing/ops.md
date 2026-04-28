@@ -104,6 +104,70 @@ python -m scripts.purge_embedding_jsonl --dry-run
 
 ---
 
+## Plan 8 scheduled agents
+
+Plan 8의 Curator / Connector / Staleness 에이전트는 Temporal Schedule로 자동 실행한다. worker는 이미 `CuratorWorkflow`, `ConnectorWorkflow`, `StalenessWorkflow`를 등록하므로, 운영자는 아래 ensure 스크립트로 Temporal 서버에 스케줄을 생성하거나 갱신한다.
+
+### 환경변수
+
+| 환경변수 | 기본값 | 역할 |
+|---|---:|---|
+| `CURATOR_CRON` | `0 3 * * *` | 프로젝트별 CuratorWorkflow 실행 주기 |
+| `CONNECTOR_CRON` | `0 4 * * 0` | concept별 ConnectorWorkflow 실행 주기 |
+| `STALENESS_CRON` | `CURATOR_CRON` 값 | 프로젝트별 StalenessWorkflow 실행 주기 |
+| `STALE_DAYS` | `90` | StalenessWorkflow 입력의 `stale_days` |
+| `TEMPORAL_ADDRESS` | `localhost:7233` | Temporal endpoint |
+| `TEMPORAL_NAMESPACE` | `default` | Temporal namespace |
+| `TEMPORAL_TASK_QUEUE` | `ingest` | worker task queue |
+
+자동 스케줄은 사용자 트리거가 아니므로 `--user-id`에는 해당 workspace owner 또는 운영용 service user를 넣는다. 권한 우회용 API를 새로 만들지 않고 기존 workflow 입력만 예약하므로, 대상 프로젝트와 concept 목록은 운영자가 명시적으로 제공한다.
+
+### 단일 프로젝트 ensure
+
+```bash
+cd apps/worker
+python -m scripts.ensure_plan8_schedules \
+  --workspace-id <workspace-uuid> \
+  --project-id <project-uuid> \
+  --user-id <workspace-owner-user-id> \
+  --connector-concept-id <concept-uuid>
+```
+
+`--connector-concept-id`는 반복 가능하다. ConnectorWorkflow는 현재 concept 단위 workflow라 concept id가 없으면 기본 `all` 실행에서 connector 스케줄만 건너뛴다. connector만 명시한 경우에는 concept id가 없으면 실패한다.
+
+### 여러 프로젝트 ensure
+
+```json
+[
+  {
+    "workspace_id": "workspace-uuid",
+    "project_id": "project-uuid",
+    "user_id": "workspace-owner-user-id",
+    "connector_concept_ids": ["concept-uuid-1", "concept-uuid-2"]
+  }
+]
+```
+
+```bash
+cd apps/worker
+python -m scripts.ensure_plan8_schedules --targets-file plan8-targets.json
+```
+
+특정 에이전트만 갱신할 때는 `--target curator`, `--target staleness`, `--target connector`를 사용한다. 같은 schedule id에 대해 다시 실행하면 create 대신 update가 수행되므로 cron이나 `STALE_DAYS` 변경 후 같은 명령을 재실행하면 된다.
+
+### 삭제
+
+```bash
+cd apps/worker
+python -m scripts.ensure_plan8_schedules \
+  --targets-file plan8-targets.json \
+  --delete
+```
+
+삭제도 idempotent하게 처리한다. 이미 없는 스케줄은 `missing`으로 출력하고 계속 진행한다.
+
+---
+
 ## canvas_outputs ops (Plan 7 Phase 2)
 
 - **Bucket layout**: `canvas-outputs/<workspaceId>/<noteId>/<contentHash>.{png|svg}` under the shared `S3_BUCKET` (default `opencairn-uploads`).
