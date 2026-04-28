@@ -15,7 +15,7 @@ from datetime import timedelta
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
-from temporalio.exceptions import ActivityError
+from temporalio.exceptions import ActivityError, ApplicationError
 
 
 @dataclass
@@ -34,6 +34,8 @@ class IngestInput:
     project_id: str
     note_id: str | None
     url: str | None = None
+    # Spec B — needed by the enrichment activities to scope artifact storage.
+    workspace_id: str | None = None
 
 
 _RETRY = RetryPolicy(maximum_attempts=3, backoff_coefficient=2.0)
@@ -130,18 +132,19 @@ class IngestWorkflow:
         mime = inp.mime_type
         text: str = ""
         needs_enhance = False
+        parse_result: dict = {}
 
         activity_input = _activity_input(inp, workflow_id, started_at_ms)
 
         if mime == "application/pdf":
-            result = await workflow.execute_activity(
+            parse_result = await workflow.execute_activity(
                 "parse_pdf",
                 activity_input,
                 schedule_to_close_timeout=_LONG_TIMEOUT,
                 retry_policy=_RETRY,
             )
-            text = result["text"]
-            needs_enhance = result.get("has_complex_layout", False)
+            text = parse_result["text"]
+            needs_enhance = parse_result.get("has_complex_layout", False)
         elif mime.startswith("audio/") or mime.startswith("video/"):
             result = await workflow.execute_activity(
                 "transcribe_audio",
@@ -178,6 +181,57 @@ class IngestWorkflow:
         else:
             raise ValueError(f"Unsupported mime_type: {mime}")
 
+        # [Spec B] Content-aware enrichment compute. Runs *before* the source
+        # note is created so we don't have to retroactively patch the row,
+        # but the result is stored only after we know the note_id (below).
+        # Failures are caught — enrichment is best-effort and never blocks
+        # note creation.
+        import os as _os
+
+        enrich_result: dict | None = None
+        if _os.environ.get("FEATURE_CONTENT_ENRICHMENT") == "true":
+            try:
+                ct_result = await workflow.execute_activity(
+                    "detect_content_type",
+                    {
+                        "object_key": inp.object_key,
+                        "mime_type": inp.mime_type,
+                        "parsed_pages": parse_result.get("pages", []),
+                    },
+                    schedule_to_close_timeout=timedelta(minutes=2),
+                    retry_policy=RetryPolicy(
+                        maximum_attempts=2, backoff_coefficient=2.0
+                    ),
+                )
+                enrich_result = await workflow.execute_activity(
+                    "enrich_document",
+                    _activity_input(
+                        inp,
+                        workflow_id,
+                        started_at_ms,
+                        content_type=ct_result["content_type"],
+                        parsed_pages=parse_result.get("pages", []),
+                        requested_enrichments=[
+                            "outline",
+                            "figures",
+                            "tables",
+                            "translation",
+                        ],
+                    ),
+                    schedule_to_close_timeout=timedelta(minutes=20),
+                    retry_policy=RetryPolicy(
+                        maximum_attempts=2, backoff_coefficient=2.0
+                    ),
+                )
+            except (ActivityError, ApplicationError):
+                # Enrichment is best-effort. We catch only Temporal-surfaced
+                # activity errors, not bare Exception — workflow-level bugs
+                # (typos, missing keys) should still crash so they surface
+                # in dev. The feature flag protects prod regardless.
+                workflow.logger.warning(
+                    "enrichment failed, continuing without artifact"
+                )
+
         if needs_enhance:
             enhanced = await workflow.execute_activity(
                 "enhance_with_gemini",
@@ -204,4 +258,26 @@ class IngestWorkflow:
             schedule_to_close_timeout=_SHORT_TIMEOUT,
             retry_policy=_RETRY,
         )
+
+        # [Spec B] Persist artifact once we have the note_id. Best-effort —
+        # if storage fails the artifact is lost but the note is fine.
+        if enrich_result is not None:
+            try:
+                await workflow.execute_activity(
+                    "store_enrichment_artifact",
+                    {
+                        "note_id": note_id,
+                        "workspace_id": inp.workspace_id or "",
+                        **enrich_result,
+                    },
+                    schedule_to_close_timeout=timedelta(minutes=1),
+                    retry_policy=RetryPolicy(
+                        maximum_attempts=3, backoff_coefficient=2.0
+                    ),
+                )
+            except (ActivityError, ApplicationError):
+                workflow.logger.warning(
+                    "store_enrichment_artifact failed, artifact lost"
+                )
+
         return note_id

@@ -25,6 +25,7 @@ import {
   suggestions,
   staleAlerts,
   audioFiles,
+  noteEnrichments,
   eq,
   and,
   isNull,
@@ -2511,5 +2512,96 @@ internal.post(
     return c.json({ id: row.id }, 201);
   },
 );
+
+// ---------------------------------------------------------------------------
+// Spec B — Content-Aware Enrichment artifact
+// ---------------------------------------------------------------------------
+
+const enrichmentStoreSchema = z.object({
+  workspaceId: z.string().uuid(),
+  contentType: z.string().min(1),
+  status: z.enum(["pending", "processing", "done", "failed"]).default("done"),
+  artifact: z.record(z.unknown()).optional(),
+  provider: z.string().optional(),
+  skipReasons: z.array(z.string()).optional(),
+  error: z.string().optional(),
+});
+
+internal.post(
+  "/notes/:noteId/enrichment",
+  zValidator("json", enrichmentStoreSchema),
+  async (c) => {
+    const noteId = c.req.param("noteId");
+    if (!isUuid(noteId)) return c.json({ error: "invalid_note_id" }, 400);
+
+    const body = c.req.valid("json");
+
+    // Defence-in-depth: confirm the note actually lives in the claimed
+    // workspace before storing. Workers run with the shared internal
+    // secret, so a misrouted message could otherwise plant artifacts in
+    // the wrong workspace.
+    const [noteRow] = await db
+      .select({ workspaceId: notes.workspaceId })
+      .from(notes)
+      .where(eq(notes.id, noteId))
+      .limit(1);
+    if (!noteRow) return c.json({ error: "note_not_found" }, 404);
+    if (noteRow.workspaceId !== body.workspaceId) {
+      return c.json({ error: "workspace_mismatch" }, 400);
+    }
+
+    await db
+      .insert(noteEnrichments)
+      .values({
+        noteId,
+        workspaceId: body.workspaceId,
+        contentType: body.contentType,
+        status: body.status,
+        artifact: body.artifact ?? null,
+        provider: body.provider ?? null,
+        skipReasons: body.skipReasons ?? [],
+        error: body.error ?? null,
+      })
+      .onConflictDoUpdate({
+        target: noteEnrichments.noteId,
+        set: {
+          contentType: body.contentType,
+          status: body.status,
+          artifact: body.artifact ?? null,
+          provider: body.provider ?? null,
+          skipReasons: body.skipReasons ?? [],
+          error: body.error ?? null,
+          updatedAt: new Date(),
+        },
+      });
+
+    return c.json({ ok: true }, 201);
+  },
+);
+
+internal.get("/notes/:noteId/enrichment", async (c) => {
+  const noteId = c.req.param("noteId");
+  if (!isUuid(noteId)) return c.json({ error: "invalid_note_id" }, 400);
+
+  // Defence-in-depth — caller must declare the workspace it expects, so
+  // a buggy worker passing a stale note_id can't accidentally read out
+  // an artifact belonging to another workspace.
+  const expectedWs = c.req.query("workspaceId");
+  if (!expectedWs || !isUuid(expectedWs)) {
+    return c.json({ error: "workspaceId query required" }, 400);
+  }
+
+  const [row] = await db
+    .select()
+    .from(noteEnrichments)
+    .where(eq(noteEnrichments.noteId, noteId))
+    .limit(1);
+
+  if (!row) return c.json({ error: "not_found" }, 404);
+  if (row.workspaceId !== expectedWs) {
+    return c.json({ error: "workspace_mismatch" }, 400);
+  }
+  return c.json(row);
+});
 
 export const internalRoutes = internal;
