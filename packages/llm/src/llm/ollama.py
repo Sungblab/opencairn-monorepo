@@ -115,3 +115,15 @@ class OllamaProvider(LLMProvider):
         raise ToolCallingNotSupported(
             "OllamaProvider.tool_result_to_message is not implemented yet."
         )
+
+    def supports_ocr(self) -> bool:
+        return False
+
+    async def ocr(self, image_bytes: bytes, mime_type: str = "image/png") -> str:
+        # Vision models on Ollama vary widely in OCR quality and aren't
+        # reliable enough to silently substitute for Gemini Vision; fail
+        # fast with an actionable message so scan-PDF ingest surfaces the
+        # need to switch providers instead of producing empty notes.
+        raise NotImplementedError(
+            "Ollama OCR not supported. Use Gemini provider for scan PDF."
+        )

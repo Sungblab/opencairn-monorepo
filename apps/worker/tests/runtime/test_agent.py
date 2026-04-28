@@ -1,4 +1,4 @@
-"""Tests for Agent ABC and stream_graph_as_events adapter."""
+"""Tests for the Agent ABC."""
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator

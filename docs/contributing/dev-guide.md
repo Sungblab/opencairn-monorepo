@@ -102,7 +102,7 @@ pnpm dev
 ```
 apps/web         — Next.js 16 (UI + 브라우저 샌드박스: Pyodide + iframe)
 apps/api         — Hono 4 (all business logic)
-apps/worker      — Python (AI agents, LangGraph + Temporal)
+apps/worker      — Python (AI agents, Temporal + 자체 `runtime.Agent`)
 apps/hocuspocus  — Yjs 협업 서버 (Node, Better Auth 연동)
 
 packages/db      — Drizzle ORM (pgvector 포함)
@@ -227,12 +227,13 @@ export const yourRoutes = new Hono()
 
 ### Adding a New Agent
 
-1. Create `apps/worker/src/agents/your_agent.py`
-2. Define LangGraph state machine
-3. Create Temporal Activity wrapper
-4. Add to appropriate Temporal Workflow
-5. Define guardrails in `docs/agents/agent-behavior-spec.md`
-6. Write tests (Pydantic schema validation + workflow order)
+1. `apps/worker/src/worker/agents/<agent_name>/agent.py` 생성, `runtime.Agent` 서브클래스 작성 (Plan 12 + Agent Runtime v2 Sub-A)
+2. 도구는 `@tool` 데코레이터로 등록 (`runtime.tools`), provider 호출은 `packages/llm` `get_provider()` 경유
+3. Temporal Activity wrapper 작성 (`apps/worker/src/worker/activities/`) — 비결정적 LLM/IO를 격리
+4. 적절한 Temporal Workflow에 등록
+5. `docs/agents/agent-behavior-spec.md`에 가드레일 정의
+6. Pytest로 입력 스키마 + trajectory 이벤트 시퀀스 검증
+7. 신규 라이브러리 도입은 `docs/architecture/agent-platform-roadmap.md` 우선순위표 통과 필요
 
 ## Docker
 

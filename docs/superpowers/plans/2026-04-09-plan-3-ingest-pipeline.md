@@ -1,6 +1,10 @@
 # Plan 3: Ingest Pipeline 단계별 Implementation Plan
 
-> **✅ 완료 (2026-04-20)** — Tasks 1-10 구현 완료, plan-3/ingest 브랜치에서 master 머지. 60/60 worker pytest + 29/29 llm pytest pass. Office/HWP 변환(markitdown/unoserver/H2Orestart), scan PDF OCR, streaming upload은 follow-up task로 분리.
+> **✅ 완료 (2026-04-20)** — Tasks 1-10 구현 완료, plan-3/ingest 브랜치에서 master 머지. 60/60 worker pytest + 29/29 llm pytest pass. ~~Office/HWP 변환(markitdown/unoserver/H2Orestart)~~ ~~scan PDF OCR~~, streaming upload은 follow-up task로 분리.
+
+> **✅ Office/HWP follow-up 완료 (2026-04-28, branch `feat/plan-3-office-hwp-followup`)** — `apps/worker/src/worker/activities/office_activity.py` (`parse_office`: markitdown for OOXML docx/pptx/xlsx/xls + unoserver→pymupdf 레거시 doc/ppt) + `hwp_activity.py` (`parse_hwp`: unoserver+H2Orestart→opendataloader-pdf), `ingest_workflow.py` MIME 분기, `temporal_main.py` 활동 등록, `Dockerfile`에 `libreoffice-{core,writer,impress,calc} + libreoffice-java-common + python3-uno + unoserver==3.5` + H2Orestart 0.7 oxt + `scripts/start-worker.sh` entrypoint(unoserver daemon → exec worker). 18 신규 pytest pass (4 office + 4 hwp + 10 dispatch parametrize). 잔여 follow-up: streaming upload. 이미지 사이즈 +500MB. ARM64 buildx 검증 + dev 서버 실 업로드 검증은 docker-compose worker profile 빌드 후 별도 작업.
+
+> **✅ Scan PDF OCR follow-up 완료 (2026-04-28, branch `feat/plan-3-scan-pdf-ocr`, PR #92)** — `LLMProvider.ocr()` + `supports_ocr()` 추가, `GeminiProvider.ocr()` Vision inline image Blob + 추출 전용 프롬프트, `OllamaProvider.ocr()` 명시적 `NotImplementedError("Ollama OCR not supported. Use Gemini provider for scan PDF.")`. `pdf_activity._ocr_scan_pdf` 브랜치: 스캔 감지 시 `pymupdf` 200dpi 렌더링 → `provider.ocr()` per page → 페이지 단위 `unit_started`/`unit_parsed` SSE 이벤트 발화. OCR 미지원 provider 또는 mid-loop `NotImplementedError` 시 `ApplicationError(non_retryable=True)` — silent empty-note 차단. 4 신규 pytest (base 2 + gemini 2 + ollama 2 + pdf_activity 2). 잔여: 실제 스캔 PDF E2E (apps/web 업로드 UI 부재 → `/api/ingest/upload` 활성화 후 별도 follow-up). OCR 토큰 예산 가드는 BYOK cost philosophy 따라 의도적 out-of-scope.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

@@ -82,6 +82,8 @@ export const searchRoutes = new Hono<AppEnv>()
       // `label` is the raw title — clients render the empty-title
       // fallback in their own locale instead of the API hardcoding
       // "Untitled".
+      type PageHit = { type: "page"; id: string; label: string };
+      type ProjectHit = { type: "project"; id: string; label: string };
       const visibleNotes: ScopeTargetSearchHit[] = (
         await Promise.all(
           noteRows.map(async (row) => {
@@ -92,7 +94,7 @@ export const searchRoutes = new Hono<AppEnv>()
           }),
         )
       )
-        .filter((n): n is ScopeTargetSearchHit => n !== null)
+        .filter((n): n is PageHit => n !== null)
         .slice(0, SCOPE_TARGETS_LIMIT);
 
       const visibleProjects: ScopeTargetSearchHit[] = (
@@ -104,7 +106,7 @@ export const searchRoutes = new Hono<AppEnv>()
               : null;
           }),
         )
-      ).filter((p): p is ScopeTargetSearchHit => p !== null);
+      ).filter((p): p is ProjectHit => p !== null);
 
       // Pages first, then projects — chips usually anchor on the most
       // specific scope, and project rows are less common anyway.

@@ -21,21 +21,25 @@
     "@opencairn/db": "workspace:*",
     "@opencairn/emails": "workspace:*",
     "@opencairn/shared": "workspace:*",
-    "@temporalio/client": "^1.16.0",
-    "better-auth": "^1.2.0",
+    "@react-email/render": "^2.0.0",
+    "@sentry/node": "^9.0.0",
+    "@temporalio/client": "^1.16.1",
+    "better-auth": "^1.6.9",
     "hono": "^4.12.0",
     "ioredis": "^5.6.0",
     "minio": "^8.0.7",
-    "resend": "^6.12.0",
+    "nodemailer": "^7.0.0",
+    "resend": "^6.12.2",
+    "tsx": "^4.19.0",
     "yjs": "^13.6.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^25.6.0",
+    "@types/nodemailer": "^7.0.0",
     "@types/react": "^19.0.0",
     "dotenv": "^16.4.0",
-    "tsx": "^4.19.0",
-    "typescript": "^5.8.0",
-    "vitest": "^4.1.4"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
   }
 }

@@ -2,12 +2,14 @@
 
 AI-powered personal + team knowledge OS. **Notion 대체 포지션**, 12 에이전트, multi-LLM (Gemini/Ollama), Docker self-hosted, AGPLv3.
 
+> ⚠️ **완료 표기 신뢰도** — `plans-status.md` ✅ 다수가 silent stub/placeholder/cron 미스케줄 상태로 마감됐다. 새 세션은 박제된 audit를 먼저 본다: **`docs/review/2026-04-28-completion-claims-audit.md`**. production 실제 LLM user-facing 경로 0개 (Phase 4 챗 stub · 11A placeholder · 2D save_suggestion test-only · Plan 8 cron 미설치).
+
 ## Architecture
 
 ```
 apps/web        — Next.js 16. UI + 브라우저 샌드박스 (Pyodide + iframe).
 apps/api        — Hono 4. ALL business logic + 권한 헬퍼.
-apps/worker     — Python. LangGraph + Temporal. 12 AI 에이전트.
+apps/worker     — Python. Temporal + 자체 `runtime.Agent` (`apps/worker/src/runtime/`). 12 AI 에이전트.
 apps/hocuspocus — Yjs 협업 서버 (Better Auth + page-level 권한 hook).
 packages/db     — Drizzle ORM + pgvector + workspace 3계층 권한.
 packages/emails — react-email v6 템플릿 + Resend. Layout/Button/InviteEmail.
@@ -49,6 +51,7 @@ Full index: **`docs/README.md`**. 고빈도:
 | 탭 시스템 설계                    | `docs/superpowers/specs/2026-04-20-tab-system-design.md`       |
 | 컨텍스트 예산 정책 (RAG/wiki 주입) | `docs/architecture/context-budget.md`                          |
 | Claude 반복 실수 목록             | `docs/contributing/llm-antipatterns.md`                        |
+| **완료 표기 audit (2026-04-28)** — silent gap 박제 | `docs/review/2026-04-28-completion-claims-audit.md` |
 
 ## Plans
 

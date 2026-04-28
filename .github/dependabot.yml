@@ -1,0 +1,141 @@
+version: 2
+
+# Weekly cadence keeps PR noise tolerable for a small team while still catching
+# CVEs within ~7 days. Security updates ship continuously regardless of this
+# schedule — Dependabot's security alert track is independent.
+#
+# NOTE: Dependabot's config parser does NOT support YAML aliases / merge keys
+# (`&anchor` + `<<: *anchor`), nor does it allow custom top-level keys. Every
+# `schedule:` block must be inlined verbatim — repetition is the cost of a
+# parseable config. See:
+# https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference
+updates:
+  # Root + every workspace pnpm manifest. Setting `directory: "/"` with the
+  # pnpm package-ecosystem covers the workspace lockfile + every package.json
+  # under `apps/*` / `packages/*` automatically.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 8
+    # Foundational deps where a major bump touches runtime behavior across
+    # the whole monorepo — autonomous merge isn't safe even when CI is
+    # green (most of the surface is type-level or covered by happy-path
+    # tests). Patch + minor still flow normally; majors get a manual
+    # migration plan.
+    #   - zod: every Hono zValidator + packages/shared schema
+    #   - pino: log fmt/transport API
+    #   - @sentry/node: APM init/transport
+    #   - @hocuspocus/server: collab protocol
+    #   - lucide-react: icon API surface
+    #   - pdfjs-dist: ESM/worker URL changes since v4
+    ignore:
+      - dependency-name: "zod"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "pino"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@sentry/node"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@sentry/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@hocuspocus/server"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@hocuspocus/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "lucide-react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "pdfjs-dist"
+        update-types: ["version-update:semver-major"]
+    groups:
+      typescript:
+        patterns:
+          - "typescript"
+          - "@types/*"
+      eslint:
+        patterns:
+          - "eslint*"
+          - "@typescript-eslint/*"
+          - "typescript-eslint"
+      next:
+        patterns:
+          - "next"
+          - "@next/*"
+          - "next-intl"
+      plate:
+        patterns:
+          - "platejs"
+          - "@platejs/*"
+      testing:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+          - "@playwright/*"
+          - "@testing-library/*"
+
+  # Python worker.
+  - package-ecosystem: "pip"
+    directory: "/apps/worker"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 4
+    # langgraph + langchain-core were removed from the worker in commit
+    # b4d716b ("retire unused langgraph integration"). Dependabot kept
+    # opening bumps for them — silence the noise here. Re-enable if/when
+    # the agent runtime swaps back to LangGraph.
+    ignore:
+      - dependency-name: "langgraph"
+      - dependency-name: "langgraph-*"
+      - dependency-name: "langchain-core"
+      - dependency-name: "langchain-*"
+
+  # GitHub Actions versions.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+
+  # Docker base images for the four Dockerfiles.
+  #
+  # Major-version bumps for `node` and `python` are ignored across all four
+  # services because:
+  #   - `node` 22 → 25 alpine (PR #68/#69/#71) broke the Docker build job in
+  #     CI and skipped the active LTS (24); upgrade in one deliberate step.
+  #   - `python` 3.12 → 3.14 (PR #75) breaks the worker — the system
+  #     `python3-uno` bridge that unoserver depends on is pinned to whatever
+  #     Debian ships, and the `uv.lock` resolves against 3.12.
+  # Patch + minor bumps still flow normally.
+  - package-ecosystem: "docker"
+    directory: "/apps/api"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: "docker"
+    directory: "/apps/web"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: "docker"
+    directory: "/apps/hocuspocus"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: "docker"
+    directory: "/apps/worker"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    ignore:
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major"]
