@@ -52,7 +52,7 @@ jobs:
       INTERNAL_API_SECRET: ci-internal-api-secret-do-not-use-anywhere
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -111,7 +111,7 @@ jobs:
     # buildx multi-arch lives in release.yml to keep PR turnaround under a
     # couple minutes per build.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: docker/setup-buildx-action@v3
 
