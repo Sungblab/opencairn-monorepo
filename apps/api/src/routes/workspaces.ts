@@ -23,6 +23,7 @@ import {
 } from "@opencairn/db";
 import { requireAuth } from "../middleware/auth";
 import { requireWorkspaceRole } from "../middleware/require-role";
+import { canRead } from "../lib/permissions";
 import { isUuid } from "../lib/validators";
 import type { AppEnv } from "../lib/types";
 
@@ -348,15 +349,24 @@ workspaceRoutes.get(
         ),
       )
       .orderBy(desc(notes.updatedAt))
-      .limit(limit);
-    return c.json({ results: rows });
+      .limit(limit * 2);
+
+    const visible: typeof rows = [];
+    for (const row of rows) {
+      if (await canRead(c.get("user").id, { type: "note", id: row.id })) {
+        visible.push(row);
+      }
+      if (visible.length >= limit) break;
+    }
+
+    return c.json({ results: visible });
   },
 );
 
 // 대시보드 우측 카드 — 최근 업데이트된 노트 N개 (App Shell Phase 5 Task 1).
-// limit 1~50 (기본 5). 권한: workspace member이면 충분 (사이드바와 동일하게
-// per-note canRead는 클라이언트에서 라우팅 시점에 다시 확인). project 이름까지
-// JOIN해서 한 번에 평탄화 — 카드에서 라벨로 사용.
+// limit 1~50 (기본 5). Workspace member gate 뒤에도 private page 제목이
+// 새지 않도록 note 단위 canRead로 한 번 더 필터링한다. mentions/search와
+// 동일하게 overfetch 후 limit까지 잘라 response shape는 유지한다.
 workspaceRoutes.get(
   "/:workspaceId/recent-notes",
   requireWorkspaceRole("member"),
@@ -381,8 +391,17 @@ workspaceRoutes.get(
       .innerJoin(projects, eq(projects.id, notes.projectId))
       .where(and(eq(notes.workspaceId, workspaceId), isNull(notes.deletedAt)))
       .orderBy(desc(notes.updatedAt))
-      .limit(limit);
-    return c.json({ notes: rows });
+      .limit(limit * 2);
+
+    const visible: typeof rows = [];
+    for (const row of rows) {
+      if (await canRead(c.get("user").id, { type: "note", id: row.id })) {
+        visible.push(row);
+      }
+      if (visible.length >= limit) break;
+    }
+
+    return c.json({ notes: visible });
   },
 );
 

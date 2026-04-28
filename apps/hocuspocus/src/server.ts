@@ -17,7 +17,7 @@
 
 import { Server } from "@hocuspocus/server";
 import { createDb } from "@opencairn/db";
-import { loadEnv } from "./config.js";
+import { isAllowedOrigin, loadEnv } from "./config.js";
 import { logger } from "./logger.js";
 import { makePermissionsAdapter } from "./permissions-adapter.js";
 import { makeAuthenticate, makeVerifySession } from "./auth.js";
@@ -42,6 +42,13 @@ async function main(): Promise<void> {
   const server = new Server({
     port: env.HOCUSPOCUS_PORT,
     name: "opencairn-hocuspocus",
+    async onUpgrade({ request }) {
+      const origin = request.headers.origin;
+      if (!isAllowedOrigin(origin, env.HOCUSPOCUS_ORIGINS)) {
+        logger.warn({ origin }, "blocked hocuspocus origin");
+        throw new Error("Forbidden origin");
+      }
+    },
     async onAuthenticate(payload) {
       // Our `authenticate` resolves the caller's role on the note and returns
       // an AuthContext (userId, userName, readOnly). Returning it attaches

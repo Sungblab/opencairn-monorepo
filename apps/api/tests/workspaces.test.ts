@@ -494,7 +494,7 @@ describe("GET /api/workspaces/:workspaceId/recent-notes", () => {
     projectId: string,
     title: string,
     updatedAt: Date,
-    opts: { deletedAt?: Date } = {},
+    opts: { deletedAt?: Date; inheritParent?: boolean } = {},
   ): Promise<string> {
     const id = randomUUID();
     await db.insert(notes).values({
@@ -502,7 +502,7 @@ describe("GET /api/workspaces/:workspaceId/recent-notes", () => {
       projectId,
       workspaceId,
       title,
-      inheritParent: true,
+      inheritParent: opts.inheritParent ?? true,
       createdAt: updatedAt,
       updatedAt,
       deletedAt: opts.deletedAt ?? null,
@@ -549,6 +549,39 @@ describe("GET /api/workspaces/:workspaceId/recent-notes", () => {
     );
     const body = (await res.json()) as { notes: Array<{ title: string }> };
     expect(body.notes.map((n) => n.title)).toEqual(["alive"]);
+  });
+
+  it("excludes private notes the member cannot read and still fills the requested limit", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const { workspaceId } = await seedMembership(u.id, { role: "member" });
+    const projectId = await seedProject(workspaceId, u.id);
+
+    await seedNote(
+      workspaceId,
+      projectId,
+      "private newest",
+      new Date(Date.now() + 2 * 60 * 1000),
+      { inheritParent: false },
+    );
+    await seedNote(
+      workspaceId,
+      projectId,
+      "public middle",
+      new Date(Date.now() + 60 * 1000),
+    );
+    await seedNote(workspaceId, projectId, "public oldest", new Date());
+
+    const res = await authedGet(
+      `/api/workspaces/${workspaceId}/recent-notes?limit=2`,
+      u.id,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { notes: Array<{ title: string }> };
+    expect(body.notes.map((n) => n.title)).toEqual([
+      "public middle",
+      "public oldest",
+    ]);
   });
 
   it("clamps limit to 1..50 and defaults to 5", async () => {
@@ -625,7 +658,7 @@ describe("GET /api/workspaces/:workspaceId/notes/search", () => {
     workspaceId: string,
     projectId: string,
     title: string,
-    opts: { deletedAt?: Date } = {},
+    opts: { deletedAt?: Date; inheritParent?: boolean; updatedAt?: Date } = {},
   ): Promise<string> {
     const id = randomUUID();
     await db.insert(notes).values({
@@ -633,7 +666,8 @@ describe("GET /api/workspaces/:workspaceId/notes/search", () => {
       projectId,
       workspaceId,
       title,
-      inheritParent: true,
+      inheritParent: opts.inheritParent ?? true,
+      updatedAt: opts.updatedAt,
       deletedAt: opts.deletedAt ?? null,
     });
     return id;
@@ -685,6 +719,34 @@ describe("GET /api/workspaces/:workspaceId/notes/search", () => {
     );
     const body = (await res.json()) as { results: Array<{ title: string }> };
     expect(body.results.map((r) => r.title)).toEqual(["alive"]);
+  });
+
+  it("excludes private notes the member cannot read and still fills the requested limit", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const { workspaceId } = await seedMembership(u.id, { role: "member" });
+    const projectId = await seedProject(workspaceId, u.id);
+    await seedNote(workspaceId, projectId, "needle private newest", {
+      inheritParent: false,
+      updatedAt: new Date(Date.now() + 2 * 60 * 1000),
+    });
+    await seedNote(workspaceId, projectId, "needle public middle", {
+      updatedAt: new Date(Date.now() + 60 * 1000),
+    });
+    await seedNote(workspaceId, projectId, "needle public oldest", {
+      updatedAt: new Date(),
+    });
+
+    const res = await authedGet(
+      `/api/workspaces/${workspaceId}/notes/search?q=needle&limit=2`,
+      u.id,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { results: Array<{ title: string }> };
+    expect(body.results.map((r) => r.title)).toEqual([
+      "needle public middle",
+      "needle public oldest",
+    ]);
   });
 
   it("returns 403 for non-member", async () => {
