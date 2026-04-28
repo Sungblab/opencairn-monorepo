@@ -17,7 +17,7 @@ import { CodeBlockPlugin, CodeLinePlugin } from "@platejs/code-block/react";
 import { Plate, PlateContent } from "platejs/react";
 import debounce from "lodash.debounce";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 
 import {
   useCollaborativeEditor,
@@ -38,7 +38,11 @@ import {
 import { latexPlugins } from "./plugins/latex";
 import { PresenceStack } from "./PresenceStack";
 import { SlashMenu, type SlashEditor, type SlashAiKey } from "./plugins/slash";
-import { InlineDiffSheet } from "./doc-editor/inline-diff-sheet";
+import {
+  InlineDiffSheet,
+  TRANSLATE_LANGUAGES,
+  type TranslateLanguage,
+} from "./doc-editor/inline-diff-sheet";
 import { applyHunksToValue } from "./doc-editor/apply-hunks";
 import {
   readBlockSelection,
@@ -149,6 +153,18 @@ export function NoteEditor({
     process.env.NEXT_PUBLIC_FEATURE_DOC_EDITOR_SLASH === "true";
   const docEditor = useDocEditorCommand();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [pendingCommand, setPendingCommand] = useState<SlashAiKey | null>(
+    null,
+  );
+  const [pendingSelection, setPendingSelection] = useState<ReturnType<
+    typeof readBlockSelection
+  > | null>(null);
+  const locale = useLocale();
+  const defaultTranslateTarget: TranslateLanguage =
+    locale === "ko" ? "en" : "ko";
+  const [translateLanguage, setTranslateLanguage] = useState<TranslateLanguage>(
+    defaultTranslateTarget,
+  );
 
   // ── Title save path (PATCH /notes/:id with { title } only) ────────────
   // Content persists via Yjs; only title/folderId still flow through the
@@ -303,13 +319,33 @@ export function NoteEditor({
       // over the 4000-char ceiling). The user retries; T13 will surface a
       // hint here once the toast plumbing lands.
       if (!selection) return;
+      setPendingCommand(cmd);
+      setPendingSelection(selection);
       setSheetOpen(true);
       void docEditor.run(noteId, cmd, {
         selection,
         documentContextSnippet: "",
+        ...(cmd === "translate" ? { language: translateLanguage } : {}),
       });
     },
-    [editor, readOnly, docEditor, noteId],
+    [editor, readOnly, docEditor, noteId, translateLanguage],
+  );
+
+  const handleLanguageChange = useCallback(
+    (lang: TranslateLanguage) => {
+      if (!TRANSLATE_LANGUAGES.includes(lang)) return;
+      setTranslateLanguage(lang);
+      // Re-fire the workflow with the new language. The hook aborts the
+      // previous in-flight fetch on every `run`, so old SSE frames can't
+      // bleed into the new diff sheet.
+      if (pendingCommand !== "translate" || !pendingSelection) return;
+      void docEditor.run(noteId, "translate", {
+        selection: pendingSelection,
+        documentContextSnippet: "",
+        language: lang,
+      });
+    },
+    [pendingCommand, pendingSelection, docEditor, noteId],
   );
 
   const handleAcceptAll = useCallback(() => {
@@ -325,11 +361,15 @@ export function NoteEditor({
       editor.tf as unknown as { setValue: (v: Value) => void }
     ).setValue(next);
     setSheetOpen(false);
+    setPendingCommand(null);
+    setPendingSelection(null);
     docEditor.reset();
   }, [editor, docEditor]);
 
   const handleRejectAll = useCallback(() => {
     setSheetOpen(false);
+    setPendingCommand(null);
+    setPendingSelection(null);
     docEditor.reset();
   }, [docEditor]);
 
@@ -405,6 +445,9 @@ export function NoteEditor({
               onAcceptAll={handleAcceptAll}
               onRejectAll={handleRejectAll}
               onClose={handleRejectAll}
+              currentCommand={pendingCommand ?? undefined}
+              currentLanguage={translateLanguage}
+              onLanguageChange={handleLanguageChange}
             />
           )}
           <div className="mx-auto w-full max-w-[720px] flex-1 px-8 py-8">

@@ -122,4 +122,70 @@ describe("InlineDiffSheet", () => {
     );
     expect(screen.getByText(/Working/i)).toBeInTheDocument();
   });
+
+  it("renders the translate language picker for /translate before result", () => {
+    const onLanguageChange = vi.fn();
+    render(
+      withIntl(
+        <InlineDiffSheet
+          open
+          state={{ status: "running" }}
+          currentCommand="translate"
+          currentLanguage="en"
+          onLanguageChange={onLanguageChange}
+          onAcceptAll={vi.fn()}
+          onRejectAll={vi.fn()}
+          onClose={vi.fn()}
+        />,
+      ),
+    );
+    const picker = screen.getByTestId("translate-language-picker");
+    expect(picker).toBeInTheDocument();
+    expect((picker as HTMLSelectElement).value).toBe("en");
+    fireEvent.change(picker, { target: { value: "ja" } });
+    expect(onLanguageChange).toHaveBeenCalledWith("ja");
+  });
+
+  it("hides the language picker for non-translate commands", () => {
+    render(
+      withIntl(
+        <InlineDiffSheet
+          open
+          state={{ status: "running" }}
+          currentCommand="improve"
+          onLanguageChange={vi.fn()}
+          onAcceptAll={vi.fn()}
+          onRejectAll={vi.fn()}
+          onClose={vi.fn()}
+        />,
+      ),
+    );
+    expect(
+      screen.queryByTestId("translate-language-picker"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the language picker once a translate result is ready", () => {
+    render(
+      withIntl(
+        <InlineDiffSheet
+          open
+          state={{
+            status: "ready",
+            payload: { hunks: [sampleHunk], summary: "translated" },
+            cost: { tokens_in: 0, tokens_out: 0, cost_krw: 0 },
+          }}
+          currentCommand="translate"
+          currentLanguage="en"
+          onLanguageChange={vi.fn()}
+          onAcceptAll={vi.fn()}
+          onRejectAll={vi.fn()}
+          onClose={vi.fn()}
+        />,
+      ),
+    );
+    expect(
+      screen.queryByTestId("translate-language-picker"),
+    ).not.toBeInTheDocument();
+  });
 });

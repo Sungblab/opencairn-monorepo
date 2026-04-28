@@ -17,6 +17,10 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import type { DocEditorState } from "@/hooks/use-doc-editor-command";
+import type { DocEditorCommand } from "@opencairn/shared";
+
+export const TRANSLATE_LANGUAGES = ["ko", "en", "ja", "zh"] as const;
+export type TranslateLanguage = (typeof TRANSLATE_LANGUAGES)[number];
 
 type Props = {
   open: boolean;
@@ -24,6 +28,15 @@ type Props = {
   onAcceptAll: () => void;
   onRejectAll: () => void;
   onClose: () => void;
+  /**
+   * Plan 11B Phase A T12 — when set, the sheet shows a small language
+   * picker for `/translate`. Currently scoped to the four shipped
+   * languages (ko/en/ja/zh) so we don't have to maintain a separate
+   * locale-name catalog.
+   */
+  currentCommand?: DocEditorCommand;
+  currentLanguage?: TranslateLanguage;
+  onLanguageChange?: (lang: TranslateLanguage) => void;
 };
 
 const ERROR_KEYS = new Set([
@@ -39,9 +52,22 @@ export function InlineDiffSheet({
   onAcceptAll,
   onRejectAll,
   onClose,
+  currentCommand,
+  currentLanguage,
+  onLanguageChange,
 }: Props) {
   const t = useTranslations("docEditor.sheet");
   const tErr = useTranslations("docEditor.error");
+  const tLang = useTranslations("docEditor.translate.language");
+
+  // Show the picker only for /translate before a result lands. Once the
+  // result is in the user accepts or rejects — re-translating is "open
+  // the slash menu again", which is a faster mental model than another
+  // round-trip from the same sheet.
+  const showLanguagePicker =
+    currentCommand === "translate" &&
+    state.status !== "ready" &&
+    !!onLanguageChange;
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
@@ -52,6 +78,28 @@ export function InlineDiffSheet({
         <SheetHeader>
           <SheetTitle>{t("title")}</SheetTitle>
         </SheetHeader>
+
+        {showLanguagePicker && (
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">
+              {t("hunkReplacement")}
+            </span>
+            <select
+              value={currentLanguage ?? ""}
+              onChange={(e) =>
+                onLanguageChange?.(e.target.value as TranslateLanguage)
+              }
+              className="rounded border bg-background px-2 py-1 text-sm"
+              data-testid="translate-language-picker"
+            >
+              {TRANSLATE_LANGUAGES.map((lang) => (
+                <option key={lang} value={lang}>
+                  {tLang(lang)}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         {state.status === "running" && (
           <p className="text-sm text-muted-foreground">{t("loading")}</p>
