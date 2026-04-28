@@ -147,15 +147,19 @@ def _build_figure_items(
     user_id: str,
     workflow_id: str,
 ) -> list[dict]:
-    """Mirror live-ingest-visualization's per-page figure key formula."""
+    """Use the shared key formula so this stays in lockstep with parse_pdf."""
+    from worker.lib.ingest_paths import figure_object_key
+
     figures: list[dict] = []
     for page_idx, page in enumerate(pages):
         for fig_idx, fig in enumerate(page.get("figures") or []):
             obj_key: str | None = None
             if user_id and workflow_id and fig.get("file"):
-                obj_key = (
-                    f"uploads/{user_id}/figures/{workflow_id}"
-                    f"/p{page_idx}-f{fig_idx}.png"
+                obj_key = figure_object_key(
+                    user_id=user_id,
+                    workflow_id=workflow_id,
+                    page_idx=page_idx,
+                    fig_idx=fig_idx,
                 )
             figures.append(
                 {
@@ -181,11 +185,25 @@ async def _enrich_with_llm(
     if pdf_path and not _is_ollama():
         _heartbeat("calling generate_multimodal")
         try:
-            with open(pdf_path, "rb") as f:
-                pdf_bytes = f.read()
-            raw = await provider.generate_multimodal(prompt, pdf_bytes=pdf_bytes)
-            if raw:
-                return _parse_json_response(raw)
+            # Guard against pathological PDFs blowing the activity worker
+            # (Gemini multimodal accepts ~32 MiB inline; we cap at 25 MiB
+            # to keep memory headroom for the JSON response). Larger PDFs
+            # fall through to the text-only path which works on the
+            # opendataloader-extracted string only.
+            file_size = os.path.getsize(pdf_path)
+            max_pdf_bytes = int(os.environ.get("ENRICHMENT_MAX_PDF_BYTES", str(25 * 1024 * 1024)))
+            if file_size > max_pdf_bytes:
+                _log_warning(
+                    "PDF %d bytes exceeds %d max; falling back to text-only",
+                    file_size,
+                    max_pdf_bytes,
+                )
+            else:
+                with open(pdf_path, "rb") as f:
+                    pdf_bytes = f.read()
+                raw = await provider.generate_multimodal(prompt, pdf_bytes=pdf_bytes)
+                if raw:
+                    return _parse_json_response(raw)
         except Exception as exc:  # noqa: BLE001
             _log_warning("multimodal failed, falling back to text: %s", exc)
 
@@ -359,12 +377,24 @@ async def enrich_document(inp: dict) -> dict:
 
         # Validate against pydantic; fall back to raw on validation errors so
         # a partial artifact still reaches the DB rather than vanishing.
+        # The `_validation_error` field tags un-validated rows so downstream
+        # consumers can decide to render-with-warning or skip, and so prompt
+        # tuning can target the recurring shape mismatches in observability.
         try:
             artifact = EnrichmentArtifact.model_validate(raw_data)
             artifact_dict = artifact.model_dump(exclude_none=True)
         except Exception as exc:  # noqa: BLE001
-            _log_warning("artifact validation failed: %s", exc)
-            artifact_dict = raw_data
+            _log_warning(
+                "artifact validation failed (type=%s, provider=%s): %s",
+                content_type,
+                provider_name,
+                exc,
+            )
+            artifact_dict = {
+                **raw_data,
+                "_validation_error": str(exc)[:1000],
+            }
+            skip_reasons.append("artifact_validation_failed")
 
     finally:
         if pdf_path:

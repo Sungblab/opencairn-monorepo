@@ -87,8 +87,19 @@ def _upload_figure(
     page_idx: int,
     fig_idx: int,
 ) -> str:
-    """Upload an extracted figure to MinIO and return its object_key."""
-    object_key = f"uploads/{user_id}/figures/{workflow_id}/p{page_idx}-f{fig_idx}.png"
+    """Upload an extracted figure to MinIO and return its object_key.
+
+    Uses ``worker.lib.ingest_paths.figure_object_key`` so the path stays in
+    lockstep with the consumer (Spec B enrichment artifact).
+    """
+    from worker.lib.ingest_paths import figure_object_key
+
+    object_key = figure_object_key(
+        user_id=user_id,
+        workflow_id=workflow_id,
+        page_idx=page_idx,
+        fig_idx=fig_idx,
+    )
     upload_object(object_key, local_path.read_bytes(), "image/png")
     return object_key
 
