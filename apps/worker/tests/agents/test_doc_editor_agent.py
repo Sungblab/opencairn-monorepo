@@ -70,6 +70,7 @@ async def test_improve_happy_path_yields_diff_payload():
     assert out.payload["hunks"][0]["replacementText"] == "Hello there"
     assert out.tokens_in >= 0
     assert out.tokens_out >= 0
+    assert out.tools_used == 0
 
 
 @pytest.mark.asyncio
@@ -157,3 +158,41 @@ async def test_translate_passes_language_to_user_message():
     args, _ = provider.generate.call_args
     user_msg = args[0][1]["content"]
     assert "Target language: ko" in user_msg
+
+
+@pytest.mark.asyncio
+async def test_phase_a_command_uses_single_shot_generate():
+    raw = json.dumps(
+        {
+            "hunks": [
+                {
+                    "blockId": "b1",
+                    "originalRange": {"start": 0, "end": 5},
+                    "originalText": "hello",
+                    "replacementText": "Hello",
+                }
+            ],
+            "summary": "capitalized",
+        }
+    )
+    provider = AsyncMock()
+    provider.generate = AsyncMock(return_value=raw)
+    provider.generate_with_tools = AsyncMock()
+    provider.config.model = "gemini-2.5-flash"
+    agent = DocEditorAgent(provider=provider)
+
+    async for _ in agent.run(
+        {
+            "command": "improve",
+            "selection": {"blockId": "b1", "start": 0, "end": 5, "text": "hello"},
+            "documentContextSnippet": "",
+            "note_id": "n",
+            "project_id": "p",
+            "user_id": "u",
+        },
+        _ctx(),
+    ):
+        pass
+
+    provider.generate.assert_awaited_once()
+    provider.generate_with_tools.assert_not_called()

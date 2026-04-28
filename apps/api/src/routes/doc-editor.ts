@@ -4,11 +4,14 @@ import { randomUUID } from "node:crypto";
 import {
   db,
   notes,
+  comments,
   docEditorCalls,
   eq,
 } from "@opencairn/db";
 import {
   docEditorCommandSchema,
+  docEditorCommentPayloadSchema,
+  docEditorDiffPayloadSchema,
   docEditorRequestSchema,
 } from "@opencairn/shared";
 import type { DocEditorSseEvent } from "@opencairn/shared";
@@ -19,6 +22,7 @@ import {
   startDocEditorWorkflow,
   type DocEditorWorkflowOutput,
 } from "../lib/doc-editor-client";
+import { buildFactcheckCommentRows } from "../lib/doc-editor-comments";
 import type { AppEnv } from "../lib/types";
 
 export const docEditorRoutes = new Hono<AppEnv>();
@@ -60,9 +64,20 @@ docEditorRoutes.post(
     if (!cmdParsed.success) {
       return c.json({ error: "command_unknown" }, 400);
     }
+    const isRagCommand =
+      cmdParsed.data === "cite" || cmdParsed.data === "factcheck";
+    const ragEnabled =
+      (process.env.FEATURE_DOC_EDITOR_RAG ?? "false").toLowerCase() === "true";
+    if (isRagCommand && !ragEnabled) {
+      return c.json({ error: "not_found" }, 404);
+    }
 
     const [note] = await db
-      .select({ id: notes.id, workspaceId: notes.workspaceId })
+      .select({
+        id: notes.id,
+        workspaceId: notes.workspaceId,
+        projectId: notes.projectId,
+      })
       .from(notes)
       .where(eq(notes.id, noteId));
     // 404 hides existence when the caller has no access — same convention
@@ -154,6 +169,7 @@ docEditorRoutes.post(
         command: cmdParsed.data,
         note_id: noteId,
         workspace_id: note.workspaceId,
+        project_id: note.projectId,
         user_id: userId,
         selection_block_id: selection.blockId,
         selection_start: selection.start,
@@ -177,11 +193,47 @@ docEditorRoutes.post(
           (await handle.result()) as unknown as DocEditorWorkflowOutput;
         if (aborted) return;
 
-        await writeEvent({
-          type: "doc_editor_result",
-          output_mode: "diff",
-          payload: result.payload,
-        });
+        for (let i = 1; i <= (result.tools_used ?? 0); i += 1) {
+          await writeEvent({
+            type: "tool_progress",
+            tool: "search_notes",
+            callCount: i,
+          });
+        }
+
+        if (result.output_mode === "comment" && cmdParsed.data === "factcheck") {
+          const eventPayload = docEditorCommentPayloadSchema.parse(
+            result.payload,
+          );
+          const rows = buildFactcheckCommentRows({
+            claims: eventPayload.claims,
+            workspaceId: note.workspaceId,
+            noteId,
+            userId,
+          });
+          const inserted = rows.length
+            ? await db
+                .insert(comments)
+                .values(rows)
+                .returning({ id: comments.id })
+            : [];
+          await writeEvent({
+            type: "doc_editor_result",
+            output_mode: "comment",
+            payload: eventPayload,
+          });
+          await writeEvent({
+            type: "factcheck_comments_inserted",
+            commentIds: inserted.map((row) => row.id),
+          });
+        } else {
+          const eventPayload = docEditorDiffPayloadSchema.parse(result.payload);
+          await writeEvent({
+            type: "doc_editor_result",
+            output_mode: "diff",
+            payload: eventPayload,
+          });
+        }
         await writeEvent({
           type: "cost",
           tokens_in: result.tokens_in,

@@ -50,7 +50,13 @@ export type SlashBlockKey =
   | "table"
   | "columns";
 
-export type SlashAiKey = "improve" | "translate" | "summarize" | "expand";
+export type SlashAiKey =
+  | "improve"
+  | "translate"
+  | "summarize"
+  | "expand"
+  | "cite"
+  | "factcheck";
 
 export type SlashKey = SlashBlockKey | SlashAiKey;
 
@@ -109,12 +115,17 @@ const AI_COMMANDS: SlashAiDef[] = [
   { key: "expand", section: "ai", labelKey: "expand" },
 ];
 
+const RAG_AI_COMMANDS: SlashAiDef[] = [
+  { key: "cite", section: "ai", labelKey: "cite" },
+  { key: "factcheck", section: "ai", labelKey: "factcheck" },
+];
+
 // Type predicate so the AI dispatch path narrows `key` from `SlashKey`
 // to `SlashAiKey` without re-listing each member. Adding a new AI
 // command is a one-line edit to AI_COMMANDS — the dispatch site
 // stays correct.
 const isAiKey = (key: SlashKey): key is SlashAiKey =>
-  AI_COMMANDS.some((cmd) => cmd.key === key);
+  [...AI_COMMANDS, ...RAG_AI_COMMANDS].some((cmd) => cmd.key === key);
 
 // The editor surface we actually use. Plate's fully-typed `PlateEditor` drags
 // in deep generics; narrow to exactly the transforms this menu touches so the
@@ -144,6 +155,7 @@ export interface SlashMenuProps {
    * unchanged when the doc-editor flag is disabled.
    */
   aiEnabled?: boolean;
+  ragEnabled?: boolean;
   /**
    * Fired when the user picks an AI command. The slash menu still removes
    * the triggering `/`, but the actual workflow (selection capture,
@@ -156,6 +168,7 @@ export interface SlashMenuProps {
 export function SlashMenu({
   editor,
   aiEnabled = false,
+  ragEnabled = false,
   onAiCommand,
 }: SlashMenuProps) {
   const t = useTranslations("editor.slash");
@@ -334,8 +347,14 @@ export function SlashMenu({
 
   const items = useMemo<SlashCommandDef[]>(
     () =>
-      aiEnabled ? [...BLOCK_COMMANDS, ...AI_COMMANDS] : [...BLOCK_COMMANDS],
-    [aiEnabled],
+      aiEnabled
+        ? [
+            ...BLOCK_COMMANDS,
+            ...AI_COMMANDS,
+            ...(ragEnabled ? RAG_AI_COMMANDS : []),
+          ]
+        : [...BLOCK_COMMANDS],
+    [aiEnabled, ragEnabled],
   );
 
   // Pre-compute the index of the first row in the AI section so the

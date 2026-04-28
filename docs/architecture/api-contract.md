@@ -222,6 +222,16 @@ Public — Better Auth 세션 + `canWrite(noteId)`. `FEATURE_DOC_EDITOR_SLASH=fa
 |--------|------|------|----------|
 | POST | `/api/notes/:noteId/doc-editor/commands/:command` | `{ selection: { blockId, start, end, text ≤4000 }, language?, documentContextSnippet ≤4000 }` | `200 text/event-stream` — events: `doc_editor_result` (`{ output_mode:"diff", payload: { hunks[], summary } }`), `cost` (`{ tokens_in, tokens_out, cost_krw }`), `error` (`{ code: "llm_failed"\|"selection_race"\|"command_unknown"\|"internal", message }`), `done`. `command` enum: `improve`/`translate`/`summarize`/`expand` (Phase A). `/cite` + `/factcheck` ship in Phase B (Research/factcheck builtin tools). Audit row written to `doc_editor_calls` on every terminal path (ok/failed/cancelled). Client `AbortController` 가 fetch 를 끊으면 `stream.onAbort` → `handle.cancel()` 가 워크플로를 cancel 하고 `error_code='cancelled'` 로 audit. `language` 는 `/translate` 에서만 의미. `tokens_in`/`out` 은 zero placeholder until `LLMProvider.Usage` (Plan 12 follow-up). |
 
+Phase B adds `cite` and `factcheck` behind `FEATURE_DOC_EDITOR_RAG`, layered on
+`FEATURE_DOC_EDITOR_SLASH`. `cite` returns the same `output_mode:"diff"` payload
+with citation markers and references. `factcheck` returns
+`output_mode:"comment"` with `{ claims[] }`; the API inserts one `comments` row
+per claim using the triggering user as `authorId` and stores agent metadata in
+`bodyAst.agentKind="doc_editor"`, `bodyAst.command="factcheck"`,
+`bodyAst.verdict`, `bodyAst.evidence`, `bodyAst.range`, and
+`bodyAst.triggeredBy`. Phase B SSE also includes `tool_progress` and
+`factcheck_comments_inserted`.
+
 #### Tool-calling loop (worker runtime, Agent Runtime v2 · A)
 
 `run_with_tools(...)` (`apps/worker/src/runtime/loop_runner.py`)은 Temporal activity 내부에서 호출되는 러너. 시그니처는 `provider, initial_messages, tools, tool_context (dict), config: LoopConfig | None, hooks: LoopHooks | None`. 한 activity = 한 loop이며 `LoopConfig.max_turns (default 8)`, `max_tool_calls (12)`, `max_total_input_tokens (200_000)`, per-tool timeout, 소프트 루프 detection으로 bounded. Provider가 tool calling을 지원하지 않으면 `ToolCallingNotSupported` fail-fast.

@@ -30,6 +30,7 @@ describe("InlineDiffSheet", () => {
           open
           state={{
             status: "ready",
+            outputMode: "diff",
             payload: {
               hunks: [sampleHunk],
               summary: "tightened",
@@ -55,6 +56,7 @@ describe("InlineDiffSheet", () => {
           open
           state={{
             status: "ready",
+            outputMode: "diff",
             payload: { hunks: [sampleHunk], summary: "tightened" },
             cost: { tokens_in: 0, tokens_out: 0, cost_krw: 0 },
           }}
@@ -76,6 +78,7 @@ describe("InlineDiffSheet", () => {
           open
           state={{
             status: "ready",
+            outputMode: "diff",
             payload: { hunks: [sampleHunk], summary: "tightened" },
             cost: { tokens_in: 0, tokens_out: 0, cost_krw: 0 },
           }}
@@ -172,6 +175,7 @@ describe("InlineDiffSheet", () => {
           open
           state={{
             status: "ready",
+            outputMode: "diff",
             payload: { hunks: [sampleHunk], summary: "translated" },
             cost: { tokens_in: 0, tokens_out: 0, cost_krw: 0 },
           }}
@@ -187,5 +191,43 @@ describe("InlineDiffSheet", () => {
     expect(
       screen.queryByTestId("translate-language-picker"),
     ).not.toBeInTheDocument();
+  });
+
+  it("renders factcheck comment output and show-comments callback", () => {
+    const onShowComments = vi.fn();
+    render(
+      withIntl(
+        <InlineDiffSheet
+          open
+          state={{
+            status: "ready",
+            outputMode: "comment",
+            payload: {
+              claims: [
+                {
+                  blockId: "b1",
+                  range: { start: 0, end: 5 },
+                  verdict: "unclear",
+                  evidence: [],
+                  note: "No evidence found.",
+                },
+              ],
+            },
+            commentIds: ["00000000-0000-0000-0000-000000000001"],
+            toolCallCount: 1,
+            cost: { tokens_in: 0, tokens_out: 0, cost_krw: 0 },
+          }}
+          onAcceptAll={vi.fn()}
+          onRejectAll={vi.fn()}
+          onClose={vi.fn()}
+          onShowComments={onShowComments}
+        />,
+      ),
+    );
+    expect(screen.getByText("No evidence found.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /show comments/i }));
+    expect(onShowComments).toHaveBeenCalledWith([
+      "00000000-0000-0000-0000-000000000001",
+    ]);
   });
 });

@@ -19,6 +19,7 @@ class DocEditorActivityInput:
     command: str
     note_id: str
     workspace_id: str
+    project_id: str | None
     user_id: str
     selection_block_id: str
     selection_start: int
@@ -40,7 +41,7 @@ async def _invoke_agent(payload: DocEditorActivityInput) -> dict[str, Any]:
     agent = DocEditorAgent(provider=provider)
     ctx = ToolContext(
         workspace_id=payload.workspace_id,
-        project_id=None,
+        project_id=payload.project_id,
         page_id=payload.note_id,
         user_id=payload.user_id,
         run_id=f"doc-editor-{uuid.uuid4().hex[:12]}",
@@ -60,6 +61,7 @@ async def _invoke_agent(payload: DocEditorActivityInput) -> dict[str, Any]:
             "documentContextSnippet": payload.document_context_snippet,
             "language": payload.language,
             "note_id": payload.note_id,
+            "project_id": payload.project_id,
             "user_id": payload.user_id,
         },
         ctx,

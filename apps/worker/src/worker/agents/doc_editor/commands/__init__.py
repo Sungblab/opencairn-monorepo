@@ -1,7 +1,14 @@
-"""Plan 11B Phase A command registry."""
+"""Plan 11B command registry."""
 from __future__ import annotations
 
-from worker.agents.doc_editor.commands import improve, translate, summarize, expand
+from worker.agents.doc_editor.commands import (
+    cite,
+    expand,
+    factcheck,
+    improve,
+    summarize,
+    translate,
+)
 from worker.agents.doc_editor.commands.spec import CommandSpec, OutputMode
 
 COMMANDS: dict[str, CommandSpec] = {
@@ -9,6 +16,8 @@ COMMANDS: dict[str, CommandSpec] = {
     translate.SPEC.name: translate.SPEC,
     summarize.SPEC.name: summarize.SPEC,
     expand.SPEC.name: expand.SPEC,
+    cite.SPEC.name: cite.SPEC,
+    factcheck.SPEC.name: factcheck.SPEC,
 }
 
 

@@ -19,6 +19,7 @@ import debounce from "lodash.debounce";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 import {
   useCollaborativeEditor,
@@ -153,7 +154,11 @@ export function NoteEditor({
   // see 404s here regardless.
   const aiSlashEnabled =
     process.env.NEXT_PUBLIC_FEATURE_DOC_EDITOR_SLASH === "true";
+  const ragSlashEnabled =
+    aiSlashEnabled &&
+    process.env.NEXT_PUBLIC_FEATURE_DOC_EDITOR_RAG === "true";
   const docEditor = useDocEditorCommand();
+  const queryClient = useQueryClient();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pendingCommand, setPendingCommand] = useState<SlashAiKey | null>(
     null,
@@ -351,7 +356,12 @@ export function NoteEditor({
   );
 
   const handleAcceptAll = useCallback(() => {
-    if (docEditor.state.status !== "ready") return;
+    if (
+      docEditor.state.status !== "ready" ||
+      docEditor.state.outputMode !== "diff"
+    ) {
+      return;
+    }
     const result = applyHunksToValue(
       editor.children as unknown as Value,
       docEditor.state.payload.hunks,
@@ -381,6 +391,28 @@ export function NoteEditor({
     setPendingSelection(null);
     docEditor.reset();
   }, [docEditor]);
+
+  useEffect(() => {
+    if (
+      docEditor.state.status === "ready" &&
+      docEditor.state.outputMode === "comment"
+    ) {
+      void queryClient.invalidateQueries({ queryKey: ["comments", noteId] });
+    }
+  }, [docEditor.state, noteId, queryClient]);
+
+  const handleShowComments = useCallback(
+    (commentIds: string[]) => {
+      if (commentIds[0]) {
+        document.getElementById(`comment-${commentIds[0]}`)?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }
+      handleRejectAll();
+    },
+    [handleRejectAll],
+  );
 
   const actions: ToolbarActions = useMemo(
     () => ({
@@ -445,6 +477,7 @@ export function NoteEditor({
           <SlashMenu
             editor={editor as unknown as SlashEditor}
             aiEnabled={aiSlashEnabled && !readOnly}
+            ragEnabled={ragSlashEnabled && !readOnly}
             onAiCommand={handleAiCommand}
           />
           {aiSlashEnabled && (
@@ -457,6 +490,7 @@ export function NoteEditor({
               currentCommand={pendingCommand ?? undefined}
               currentLanguage={translateLanguage}
               onLanguageChange={handleLanguageChange}
+              onShowComments={handleShowComments}
             />
           )}
           <div className="mx-auto w-full max-w-[720px] flex-1 px-8 py-8">
