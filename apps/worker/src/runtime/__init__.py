@@ -67,6 +67,7 @@ from runtime.trajectory import (
     TrajectoryWriter,
     resolve_storage_from_env,
 )
+from runtime.mcp import MCPCatalogResolver, build_mcp_tools_for_user
 
 __all__ = [
     "Agent",
@@ -93,6 +94,7 @@ __all__ = [
     "ModelHook",
     "ModelRequest",
     "ModelResponse",
+    "MCPCatalogResolver",
     "RunTotals",
     "Scope",
     "ScoreResult",
@@ -107,6 +109,7 @@ __all__ = [
     "TrajectoryWriter",
     "TrajectoryWriterHook",
     "build_gemini_declarations",
+    "build_mcp_tools_for_user",
     "build_ollama_declarations",
     "get_tool",
     "get_tools_for_agent",

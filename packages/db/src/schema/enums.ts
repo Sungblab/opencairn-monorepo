@@ -165,6 +165,12 @@ export const notificationKindEnum = pgEnum("notification_kind", [
   "system",
 ]);
 
+export const mcpServerStatusEnum = pgEnum("mcp_server_status", [
+  "active",
+  "disabled",
+  "auth_expired",
+]);
+
 // Plan 8 — Connector/Curator/Synthesis agents surface actionable insights as
 // suggestions. `type` encodes which agent produced the row and what the user
 // should do; `status` tracks the lifecycle through acceptance or dismissal.

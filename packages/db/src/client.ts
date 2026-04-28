@@ -25,6 +25,7 @@ import * as wikiLinks from "./schema/wiki-links";
 import * as suggestions from "./schema/suggestions";
 import * as staleAlerts from "./schema/stale-alerts";
 import * as audioFiles from "./schema/audio-files";
+import * as userMcpServers from "./schema/user-mcp-servers";
 
 const schema = {
   ...users,
@@ -52,6 +53,7 @@ const schema = {
   ...suggestions,
   ...staleAlerts,
   ...audioFiles,
+  ...userMcpServers,
 };
 
 // 명시적 factory — 소비자가 자체 pool을 소유하고 싶을 때 사용.
