@@ -72,6 +72,18 @@ updates:
           - "@vitest/*"
           - "@playwright/*"
           - "@testing-library/*"
+      # Catch-all for everything else — minor + patch only, so each individual
+      # package upgrade still ships but they're bundled into a single weekly
+      # PR instead of one PR per package. Majors continue to open as
+      # individual PRs (which we want — majors deserve human review).
+      # The named groups above match first; this one mops up the rest.
+      misc-minor-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   # Python worker.
   - package-ecosystem: "pip"
@@ -89,6 +101,14 @@ updates:
       - dependency-name: "langgraph-*"
       - dependency-name: "langchain-core"
       - dependency-name: "langchain-*"
+    groups:
+      python-minor-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   # GitHub Actions versions.
   - package-ecosystem: "github-actions"
