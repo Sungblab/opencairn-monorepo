@@ -91,6 +91,17 @@ Issues, discussions, and pull requests are welcome — please skim [CONTRIBUTING
 
 Report vulnerabilities privately via GitHub Security Advisories. Details in [SECURITY.md](SECURITY.md).
 
+## Acknowledgments
+
+Built on top of excellent open-source work, including [Plate](https://platejs.org/), [Hocuspocus](https://tiptap.dev/hocuspocus) / [Yjs](https://github.com/yjs/yjs), [Temporal](https://temporal.io/), [Drizzle ORM](https://orm.drizzle.team/), [pgvector](https://github.com/pgvector/pgvector), [Better Auth](https://www.better-auth.com/), [Hono](https://hono.dev/), [Next.js](https://nextjs.org/), [react-email](https://react.email/), [Cytoscape.js](https://js.cytoscape.org/), [Pyodide](https://pyodide.org/), and [MarkItDown](https://github.com/microsoft/markitdown).
+
+## Contact
+
+- Author: [@Sungblab](https://github.com/Sungblab) — <sungblab@gmail.com>
+- Bugs & feature requests: [GitHub Issues](https://github.com/Sungblab/opencairn-monorepo/issues)
+- Questions & ideas: [GitHub Discussions](https://github.com/Sungblab/opencairn-monorepo/discussions)
+- Security: see [SECURITY.md](SECURITY.md) (please do **not** email security reports)
+
 ## License
 
 [AGPL-3.0-or-later](LICENSE).
