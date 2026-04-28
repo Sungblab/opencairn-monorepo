@@ -64,7 +64,7 @@ async def test_office_hwp_mimes_dispatch_to_correct_activity(
 
     called: list[str] = []
 
-    async def fake_activity(name, *args, **kwargs):
+    async def fake_activity(name, *args, **_kwargs):
         called.append(name)
         if name in {"parse_office", "parse_hwp"}:
             return {
@@ -85,4 +85,35 @@ async def test_office_hwp_mimes_dispatch_to_correct_activity(
     assert expected_activity in called, (
         f"MIME {mime} should dispatch {expected_activity}, called={called}"
     )
+    assert note_id == "note-1"
+
+
+@pytest.mark.parametrize("mime", ["text/plain", "text/markdown"])
+@pytest.mark.asyncio
+async def test_text_mimes_dispatch_to_text_reader(monkeypatch, mime: str):
+    """Text MIME types are accepted by the API and must not fall through to
+    the unsupported-MIME quarantine path."""
+    monkeypatch.delenv("FEATURE_CONTENT_ENRICHMENT", raising=False)
+
+    from worker.workflows.ingest_workflow import IngestWorkflow
+
+    called: list[str] = []
+
+    async def fake_activity(name, *args, **kwargs):
+        called.append(name)
+        if name == "read_text_object":
+            return {"text": "# hello"}
+        if name == "create_source_note":
+            body = args[0]
+            assert body["text"] == "# hello"
+            return "note-1"
+        return {}
+
+    wf = IngestWorkflow()
+    with patch(
+        "temporalio.workflow.execute_activity", side_effect=fake_activity
+    ), patch("temporalio.workflow.logger", _TEST_LOGGER):
+        note_id = await wf._run_pipeline(_inp(mime), "wf-text", 0)
+
+    assert "read_text_object" in called
     assert note_id == "note-1"

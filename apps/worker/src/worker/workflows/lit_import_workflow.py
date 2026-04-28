@@ -154,6 +154,7 @@ class LitImportWorkflow:
                         user_id=inp.user_id,
                         project_id=project_id,
                         note_id=None,
+                        workspace_id=inp.workspace_id,
                     ),
                     id=f"ingest-lit-{inp.job_id}-{wf_safe}",
                 )

@@ -11,11 +11,10 @@ ingest-source-expansion plan:
   under a per-job prefix so the existing Plan 3 IngestWorkflow can pick it
   up without knowing Drive exists.
 
-The token-loading path is intentionally thin: the activity reads the
-encrypted access token from an env var the workflow populates just before
-each batch of activity calls. Doing full DB lookups inside each activity
-(30+ calls per import) would be chatty and hard to test — the workflow
-owns one DB round-trip per user per run instead. Task 9 wires this up.
+The token-loading path is intentionally per-activity: each Drive activity
+looks up the encrypted user integration row, decrypts it in-process, and
+builds a short-lived Drive client. This keeps plaintext OAuth tokens out of
+Temporal workflow history and avoids process-global environment variables.
 """
 from __future__ import annotations
 
@@ -24,10 +23,12 @@ import os
 from dataclasses import dataclass
 from typing import Any
 
+import asyncpg
 from google.oauth2.credentials import Credentials  # type: ignore[import-untyped]
 from googleapiclient.discovery import build  # type: ignore[import-untyped]
 from googleapiclient.http import MediaIoBaseDownload  # type: ignore[import-untyped]
 from temporalio import activity
+from temporalio.exceptions import ApplicationError
 
 from worker.lib.integration_crypto import decrypt_token
 from worker.lib.s3_client import get_s3_client
@@ -79,23 +80,55 @@ class TreeNode:
     meta: dict[str, Any]
 
 
-def _build_service(access_token_env: str = "_DRIVE_ACCESS_TOKEN_HEX") -> Any:
-    """Build a Drive v3 service client from an encrypted token in the env.
+def _asyncpg_url(url: str) -> str:
+    if url.startswith("postgresql+"):
+        return "postgresql://" + url.split("://", 1)[1]
+    return url
 
-    The workflow loads the encrypted token from ``user_integrations`` and
-    exposes the hex-encoded bytes via ``_DRIVE_ACCESS_TOKEN_HEX`` before
-    invoking this activity. Keeping the env-indirect makes the activity
-    itself free of DB coupling and trivially mockable in unit tests.
+
+async def fetch_google_drive_access_token(user_id: str) -> str:
+    """Return a decrypted Google Drive access token for ``user_id``.
+
+    The activity performs this lookup itself so no plaintext token (and no
+    ciphertext blob) is serialized into Temporal history.
     """
-    raw_hex = os.environ.get(access_token_env)
-    if not raw_hex:
-        raise RuntimeError(
-            f"{access_token_env} not set — the ImportWorkflow must populate "
-            "it with hex(encrypted_access_token) before calling this activity."
+    if not user_id:
+        raise ApplicationError("user_id is required for Drive import", non_retryable=True)
+
+    conn = await asyncpg.connect(_asyncpg_url(os.environ["DATABASE_URL"]))
+    try:
+        row = await conn.fetchrow(
+            """
+            SELECT access_token_encrypted
+            FROM user_integrations
+            WHERE user_id = $1 AND provider = $2
+            LIMIT 1
+            """,
+            user_id,
+            "google_drive",
         )
-    access_token = decrypt_token(bytes.fromhex(raw_hex))
+    finally:
+        await conn.close()
+
+    if row is None or row["access_token_encrypted"] is None:
+        raise ApplicationError(
+            "google_drive integration is not connected",
+            non_retryable=True,
+        )
+
+    access_token = decrypt_token(bytes(row["access_token_encrypted"]))
+    return access_token
+
+
+def _build_service(access_token: str) -> Any:
+    """Build a Drive v3 service client from a decrypted access token."""
     creds = Credentials(token=access_token)
     return build("drive", "v3", credentials=creds, cache_discovery=False)
+
+
+async def _build_service_from_payload(payload: dict[str, Any]) -> Any:
+    access_token = await fetch_google_drive_access_token(str(payload.get("user_id", "")))
+    return _build_service(access_token)
 
 
 def _walk_drive(
@@ -154,26 +187,30 @@ def _walk_drive(
             display_name=display_name,
             meta={"drive_file_id": folder_id},
         )
-        resp = (
-            svc.files()
-            .list(
-                q=f"'{folder_id}' in parents and trashed=false",
-                fields="files(id, name, mimeType, size)",
-                pageSize=1000,
-            )
-            .execute()
-        )
-        for child in resp.get("files", []):
-            child_path = f"{path}/{child['name']}"
-            if child["mimeType"] == _FOLDER_MIME:
-                walk_folder(
-                    child["id"],
-                    self_idx,
-                    child_path,
-                    display_name=child["name"],
-                )
-            else:
-                emit_file(child, parent_idx=self_idx, path=child_path)
+        page_token: str | None = None
+        while True:
+            params: dict[str, Any] = {
+                "q": f"'{folder_id}' in parents and trashed=false",
+                "fields": "nextPageToken, files(id, name, mimeType, size)",
+                "pageSize": 1000,
+            }
+            if page_token:
+                params["pageToken"] = page_token
+            resp = svc.files().list(**params).execute()
+            for child in resp.get("files", []):
+                child_path = f"{path}/{child['name']}"
+                if child["mimeType"] == _FOLDER_MIME:
+                    walk_folder(
+                        child["id"],
+                        self_idx,
+                        child_path,
+                        display_name=child["name"],
+                    )
+                else:
+                    emit_file(child, parent_idx=self_idx, path=child_path)
+            page_token = resp.get("nextPageToken")
+            if not page_token:
+                break
 
     for fid in file_ids:
         meta = file_metadata.get(fid)
@@ -196,7 +233,7 @@ async def discover_drive_tree(payload: dict[str, Any]) -> dict[str, Any]:
     Input: ``{ user_id: str, file_ids: list[str], folder_ids: list[str] }``
     Output: ``{ root_display_name, nodes: [TreeNode dicts], uuid_link_map }``
     """
-    svc = _build_service()
+    svc = await _build_service_from_payload(payload)
     root_ids = list(payload.get("file_ids", [])) + list(payload.get("folder_ids", []))
     file_metadata: dict[str, dict[str, Any]] = {}
     for fid in root_ids:
@@ -231,7 +268,7 @@ async def upload_drive_file_to_minio(payload: dict[str, Any]) -> dict[str, str]:
     (Docs/Slides/Sheets) go through ``export_media`` with the effective MIME
     chosen by ``_GOOGLE_NATIVE_EXPORT_MIMES``.
     """
-    svc = _build_service()
+    svc = await _build_service_from_payload(payload)
     import_job_id = payload["import_job_id"]
     drive_file_id = payload["drive_file_id"]
     mime = payload["mime"]
@@ -264,7 +301,9 @@ async def upload_drive_file_to_minio(payload: dict[str, Any]) -> dict[str, str]:
 
 __all__ = [
     "TreeNode",
+    "_build_service_from_payload",
     "_walk_drive",
     "discover_drive_tree",
+    "fetch_google_drive_access_token",
     "upload_drive_file_to_minio",
 ]

@@ -10,7 +10,10 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock
 
-from worker.activities.drive_activities import _walk_drive
+import pytest
+
+from worker.activities import drive_activities
+from worker.activities.drive_activities import _build_service, _walk_drive
 
 
 def _mock_drive_service(files_by_parent: dict[str, list[dict[str, Any]]]) -> MagicMock:
@@ -33,6 +36,81 @@ def _mock_drive_service(files_by_parent: dict[str, list[dict[str, Any]]]) -> Mag
 
     svc.files.return_value.list.side_effect = list_side_effect
     return svc
+
+
+def test_build_service_uses_access_token_argument_not_process_env(monkeypatch) -> None:
+    """Drive activities must not read user tokens from process-global env."""
+    monkeypatch.delenv("_DRIVE_ACCESS_TOKEN_HEX", raising=False)
+    built: dict[str, Any] = {}
+
+    def fake_build(api: str, version: str, **kwargs: Any) -> str:
+        built["api"] = api
+        built["version"] = version
+        built["credentials"] = kwargs["credentials"]
+        return "svc"
+
+    monkeypatch.setattr(drive_activities, "build", fake_build)
+
+    svc = _build_service("token-user-a")
+
+    assert svc == "svc"
+    assert built["api"] == "drive"
+    assert built["version"] == "v3"
+    assert built["credentials"].token == "token-user-a"
+
+
+@pytest.mark.asyncio
+async def test_fetch_google_drive_access_token_decrypts_db_ciphertext(monkeypatch) -> None:
+    ciphertext = b"encrypted-token"
+    queries: list[tuple[str, tuple[Any, ...]]] = []
+
+    class FakeConn:
+        async def fetchrow(self, query: str, *args: Any) -> dict[str, bytes]:
+            queries.append((query, args))
+            return {"access_token_encrypted": ciphertext}
+
+        async def close(self) -> None:
+            queries.append(("close", ()))
+
+    async def fake_connect(url: str) -> FakeConn:
+        assert url == "postgresql://db/opencairn"
+        return FakeConn()
+
+    def fake_decrypt(blob: bytes) -> str:
+        assert blob == ciphertext
+        return "plain-token"
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://db/opencairn")
+    monkeypatch.setattr(drive_activities.asyncpg, "connect", fake_connect)
+    monkeypatch.setattr(drive_activities, "decrypt_token", fake_decrypt)
+
+    token = await drive_activities.fetch_google_drive_access_token("user-1")
+
+    assert token == "plain-token"
+    assert queries[0][1] == ("user-1", "google_drive")
+
+
+@pytest.mark.asyncio
+async def test_drive_service_from_payload_fetches_token_per_activity(monkeypatch) -> None:
+    calls: list[str] = []
+
+    async def fake_fetch(user_id: str) -> str:
+        calls.append(user_id)
+        return "fresh-token"
+
+    def fake_build_service(access_token: str) -> str:
+        assert access_token == "fresh-token"
+        return "svc"
+
+    monkeypatch.setattr(
+        drive_activities, "fetch_google_drive_access_token", fake_fetch
+    )
+    monkeypatch.setattr(drive_activities, "_build_service", fake_build_service)
+
+    svc = await drive_activities._build_service_from_payload({"user_id": "user-1"})
+
+    assert svc == "svc"
+    assert calls == ["user-1"]
 
 
 def test_walk_drive_single_file() -> None:
@@ -104,6 +182,53 @@ def test_walk_drive_folder_recursion() -> None:
     nested = next(n for n in nodes if n.display_name == "nested")
     root = next(n for n in nodes if n.display_name == "root")
     assert nested.parent_idx == root.idx
+
+
+def test_walk_drive_folder_paginates_all_children() -> None:
+    svc = MagicMock()
+    first_req = MagicMock()
+    first_req.execute.return_value = {
+        "files": [
+            {
+                "id": "file-1",
+                "name": "a.pdf",
+                "mimeType": "application/pdf",
+                "size": "1",
+            },
+        ],
+        "nextPageToken": "page-2",
+    }
+    second_req = MagicMock()
+    second_req.execute.return_value = {
+        "files": [
+            {
+                "id": "file-2",
+                "name": "b.pdf",
+                "mimeType": "application/pdf",
+                "size": "1",
+            },
+        ],
+    }
+    svc.files.return_value.list.side_effect = [first_req, second_req]
+
+    nodes = _walk_drive(
+        svc,
+        file_ids=[],
+        folder_ids=["root-folder"],
+        file_metadata={
+            "root-folder": {
+                "id": "root-folder",
+                "name": "root",
+                "mimeType": "application/vnd.google-apps.folder",
+            },
+        },
+    )
+
+    assert [n.display_name for n in nodes if n.kind == "binary"] == [
+        "a.pdf",
+        "b.pdf",
+    ]
+    assert svc.files.return_value.list.call_args_list[1].kwargs["pageToken"] == "page-2"
 
 
 def test_walk_drive_rejects_unsupported_mime() -> None:

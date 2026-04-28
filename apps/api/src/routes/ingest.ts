@@ -190,6 +190,7 @@ export const ingestRoutes = new Hono<AppEnv>()
             userId: user.id,
             projectId,
             noteId: noteId ?? null,
+            workspace_id: workspaceId,
           },
         ],
       });
@@ -241,6 +242,7 @@ export const ingestRoutes = new Hono<AppEnv>()
           userId: user.id,
           projectId,
           noteId: noteId ?? null,
+          workspace_id: workspaceId,
         },
       ],
     });
