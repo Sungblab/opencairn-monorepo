@@ -13,10 +13,10 @@
 | 3 | Ingest Pipeline & Sources | 8 | **1** | 13 | 22 | 26 + 7 info |
 | 4 | Agent Runtime (LLM/Compiler/Research/DocEditor/Code/Viz) | 5 | 0 | 3 | 3 | 7 |
 | 5 | Backend API & Auth & Permissions | 3 | 0 | 1 | 3 | 11 |
-| 6 | Data Layer & Infra & DX | 5 | 0 | 1¹ | 6 | 18 |
-| **Total** | | 28 | **1** | **24** (S6-011 already fixed → 23 unfixed) | **51** | **81 + 7 info** |
+| 6 | Data Layer & Infra & DX | 5 | 0 | 2¹ | 6 | 18 |
+| **Total** | | 28 | **1** | **26** (S6-011 already fixed → 25 unfixed) | **51** | **81 + 7 info** |
 
-¹ S6-011 (MinIO root password default) — fixed in commit `a1f6bc6`. S6-022 (CI removed) is unfixed High.
+¹ Session 6 Highs = S6-011 + S6-022. S6-011 (MinIO root password default) is fixed in commit `a1f6bc6`; S6-022 (CI removed) is unfixed.
 
 ---
 
@@ -28,7 +28,7 @@
 
 ---
 
-## High (24, 23 unfixed)
+## High (26, 25 unfixed)
 
 ### Session 1 — Editor & Realtime Collab (3)
 
