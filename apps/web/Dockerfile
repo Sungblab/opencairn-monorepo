@@ -8,7 +8,7 @@
 # Multi-arch (linux/amd64, linux/arm64) is driven by `docker buildx` in the
 # release workflow — the Dockerfile itself is platform-neutral.
 
-FROM node:22-alpine AS builder
+FROM node:25-alpine AS builder
 
 RUN apk add --no-cache libc6-compat
 RUN corepack enable
@@ -41,7 +41,7 @@ RUN pnpm --filter @opencairn/web build
 RUN mkdir -p apps/web/public
 
 # ────────────────────────────────────────────────────────────────────────────
-FROM node:22-alpine AS runner
+FROM node:25-alpine AS runner
 
 RUN apk add --no-cache libc6-compat
 
