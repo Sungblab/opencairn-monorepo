@@ -24,7 +24,7 @@
     "titleLine2": "도구는 많습니다.",
     "titleBrand": "OpenCairn은",
     "titleLine3": "읽은 것까지 이해합니다",
-    "sub": "PDF · 논문 · 영상 · 강의 녹음을 올리면 12개의 AI 에이전트가 <b>알아서 위키로 엮어내고</b>, 묻기 전에 <b>연결을 발견</b>하며, 이해의 깊이를 <b>스스로 측정</b>합니다.",
+    "sub": "PDF · 논문 · 영상 · 강의 녹음을 올리면 AI가 <b>위키로 엮고</b>, <b>연결을 제안</b>하며, <b>이해의 깊이를 점검</b>합니다. 12 에이전트 백본은 단계적으로 활성화됩니다.",
     "ctaPrimary": "시작하기",
     "ctaSecondary": "요금 보기",
     "noCard": "12개 에이전트 · 파일 올리면 바로 시작",
@@ -33,7 +33,7 @@
       "agents": "agents",
       "agentsVal": "12",
       "parsers": "parsers",
-      "parsersVal": "pdf · docx · hwp · epub · mp3 · mp4 · m4a",
+      "parsersVal": "pdf · mp3 · mp4 · m4a",
       "runtime": "runtime",
       "runtimeVal": "docker",
       "vector": "vector",
@@ -42,9 +42,9 @@
       "licenseVal": "agplv3"
     },
     "activity": {
-      "title": "LIVE · 워크스페이스",
-      "meta": "12 에이전트 활동 중",
-      "footer": "방금 전까지의 실제 에이전트 활동 로그",
+      "title": "PREVIEW · 워크스페이스",
+      "meta": "12 에이전트 백본 · 데모 로그",
+      "footer": "에이전트 활동 데모 (실 동작은 단계적 활성화)",
       "timeLabels": ["방금", "1분 전", "3분 전", "6분 전"],
       "items": [
         { "agent": "Compiler", "text": "<b>attention_is_all_you_need.pdf</b> 컴파일 완료 · 17 개념" },
@@ -141,7 +141,7 @@
     "label": "AGENTS",
     "title1": "12명의 전문가가",
     "title2": "분업합니다.",
-    "sub": "열두 에이전트가 각자 맡은 역할을 백그라운드에서 쉬지 않고 처리합니다. 브라우저를 닫아도 지식은 계속 자랍니다.",
+    "sub": "열두 에이전트가 각자 맡은 역할로 정의되어 있고, 자동 스케줄과 UI 통합은 단계적으로 활성화됩니다. 현재 켜진 범위는 docs의 plans-status.md 에서 확인합니다.",
     "items": [
       { "n": "01", "cat": "core", "name": "Compiler", "body": "업로드한 자료에서 개념을 뽑아 위키로 엮습니다. 오디오·영상은 전사 후 처리. 양방향 링크까지 자동." },
       { "n": "02", "cat": "core", "name": "Research", "body": "여러 검색 방식을 조합한 하이브리드 Q&A. 모든 답변에 출처." },
