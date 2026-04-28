@@ -6,7 +6,9 @@
     "improve": "Improve",
     "translate": "Translate",
     "summarize": "Summarize",
-    "expand": "Expand"
+    "expand": "Expand",
+    "cite": "Add citation",
+    "factcheck": "Fact-check"
   },
   "translate": {
     "language": {
@@ -23,13 +25,24 @@
     "hunkReplacement": "Replacement",
     "acceptAll": "Accept all",
     "rejectAll": "Reject all",
+    "close": "Close",
+    "showComments": "Show comments",
+    "commentsAdded": "Added {count} fact-check comments",
+    "evidenceCount": "{count} evidence items",
     "cost": "Tokens {tokensIn}/{tokensOut}",
-    "noChange": "Nothing to change"
+    "noChange": "Nothing to change",
+    "verdict": {
+      "supported": "Supported",
+      "unclear": "Needs review",
+      "contradicted": "Contradicted"
+    }
   },
   "error": {
     "llm_failed": "AI call failed. Please retry.",
     "selection_race": "The document changed; the edit no longer applies.",
     "command_unknown": "Unsupported command.",
-    "internal": "Unexpected error."
+    "internal": "Unexpected error.",
+    "rag_no_results": "No supporting evidence was found.",
+    "rag_quota_exceeded": "Search quota exceeded."
   }
 }

@@ -16,6 +16,7 @@ import type {
   DocEditorCommand,
   DocEditorRequest,
   DocEditorDiffPayload,
+  DocEditorCommentPayload,
 } from "@opencairn/shared";
 import { runDocEditorCommand } from "@/lib/api-client-doc-editor";
 
@@ -30,7 +31,16 @@ export type DocEditorState =
   | { status: "running" }
   | {
       status: "ready";
+      outputMode: "diff";
       payload: DocEditorDiffPayload;
+      cost: DocEditorCost;
+    }
+  | {
+      status: "ready";
+      outputMode: "comment";
+      payload: DocEditorCommentPayload;
+      commentIds: string[];
+      toolCallCount: number;
       cost: DocEditorCost;
     }
   | { status: "error"; code: string; message: string };
@@ -50,7 +60,10 @@ export function useDocEditorCommand() {
       abortRef.current = ac;
       setState({ status: "running" });
 
-      let payload: DocEditorDiffPayload | null = null;
+      let diffPayload: DocEditorDiffPayload | null = null;
+      let commentPayload: DocEditorCommentPayload | null = null;
+      let commentIds: string[] = [];
+      let toolCallCount = 0;
       let cost: DocEditorCost = { tokens_in: 0, tokens_out: 0, cost_krw: 0 };
       try {
         for await (const ev of runDocEditorCommand(
@@ -62,8 +75,18 @@ export function useDocEditorCommand() {
           // A newer `run` superseded us — drop everything; the new run owns
           // state from here.
           if (abortRef.current !== ac) return;
-          if (ev.type === "doc_editor_result") payload = ev.payload;
-          else if (ev.type === "cost") {
+          if (ev.type === "doc_editor_result") {
+            if (ev.output_mode === "comment") {
+              commentPayload = ev.payload as DocEditorCommentPayload;
+            } else {
+              diffPayload = ev.payload as DocEditorDiffPayload;
+            }
+          } else if (ev.type === "factcheck_comments_inserted") {
+            commentIds = ev.commentIds;
+          } else if (ev.type === "tool_progress") {
+            toolCallCount = ev.callCount;
+            setState({ status: "running" });
+          } else if (ev.type === "cost") {
             cost = {
               tokens_in: ev.tokens_in,
               tokens_out: ev.tokens_out,
@@ -78,8 +101,22 @@ export function useDocEditorCommand() {
           // previews.
         }
         if (abortRef.current !== ac) return;
-        if (payload) {
-          setState({ status: "ready", payload, cost });
+        if (commentPayload) {
+          setState({
+            status: "ready",
+            outputMode: "comment",
+            payload: commentPayload,
+            commentIds,
+            toolCallCount,
+            cost,
+          });
+        } else if (diffPayload) {
+          setState({
+            status: "ready",
+            outputMode: "diff",
+            payload: diffPayload,
+            cost,
+          });
         } else {
           setState({
             status: "error",

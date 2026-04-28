@@ -37,6 +37,7 @@ type Props = {
   currentCommand?: DocEditorCommand;
   currentLanguage?: TranslateLanguage;
   onLanguageChange?: (lang: TranslateLanguage) => void;
+  onShowComments?: (commentIds: string[]) => void;
 };
 
 const ERROR_KEYS = new Set([
@@ -55,6 +56,7 @@ export function InlineDiffSheet({
   currentCommand,
   currentLanguage,
   onLanguageChange,
+  onShowComments,
 }: Props) {
   const t = useTranslations("docEditor.sheet");
   const tErr = useTranslations("docEditor.error");
@@ -111,7 +113,41 @@ export function InlineDiffSheet({
           </p>
         )}
 
-        {state.status === "ready" && (
+        {state.status === "ready" && state.outputMode === "comment" && (
+          <>
+            <p className="text-sm text-muted-foreground">
+              {t("commentsAdded", { count: state.commentIds.length })}
+            </p>
+            <div className="flex-1 space-y-3 overflow-y-auto">
+              {state.payload.claims.map((claim, i) => (
+                <div
+                  key={`${claim.blockId}-${claim.range.start}-${i}`}
+                  className="rounded border p-2 text-sm"
+                >
+                  <div className="mb-1 text-xs text-muted-foreground">
+                    {t(`verdict.${claim.verdict}`)}
+                  </div>
+                  <p>{claim.note}</p>
+                  {claim.evidence.length > 0 && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {t("evidenceCount", { count: claim.evidence.length })}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2 border-t pt-3">
+              <Button variant="ghost" onClick={onRejectAll}>
+                {t("close")}
+              </Button>
+              <Button onClick={() => onShowComments?.(state.commentIds)}>
+                {t("showComments")}
+              </Button>
+            </div>
+          </>
+        )}
+
+        {state.status === "ready" && state.outputMode === "diff" && (
           <>
             <p className="mb-2 text-sm text-muted-foreground">
               {state.payload.summary || t("noChange")}

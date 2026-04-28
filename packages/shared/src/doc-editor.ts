@@ -1,12 +1,14 @@
 import { z } from "zod";
 
-// v1 command set — Plan 11B Phase A. /cite + /factcheck land in Phase B
-// when ResearchAgent.hybrid_search is exposed as a builtin tool.
+// v2 command set — Plan 11B Phase B layers RAG-backed /cite and /factcheck
+// on top of the four Phase A LLM-only commands.
 export const docEditorCommandSchema = z.enum([
   "improve",
   "translate",
   "summarize",
   "expand",
+  "cite",
+  "factcheck",
 ]);
 export type DocEditorCommand = z.infer<typeof docEditorCommandSchema>;
 
@@ -46,6 +48,33 @@ export const docEditorDiffPayloadSchema = z.object({
 });
 export type DocEditorDiffPayload = z.infer<typeof docEditorDiffPayloadSchema>;
 
+export const docEditorEvidenceSchema = z.object({
+  source_id: z.string().min(1).max(128),
+  snippet: z.string().max(800),
+  url_or_ref: z.string().max(512).optional(),
+  confidence: z.number().min(0).max(1).optional(),
+});
+export type DocEditorEvidence = z.infer<typeof docEditorEvidenceSchema>;
+
+export const docEditorClaimSchema = z.object({
+  blockId: z.string().min(1).max(64),
+  range: z.object({
+    start: z.number().int().nonnegative(),
+    end: z.number().int().positive(),
+  }),
+  verdict: z.enum(["supported", "unclear", "contradicted"]),
+  evidence: z.array(docEditorEvidenceSchema).max(8),
+  note: z.string().max(280),
+});
+export type DocEditorClaim = z.infer<typeof docEditorClaimSchema>;
+
+export const docEditorCommentPayloadSchema = z.object({
+  claims: z.array(docEditorClaimSchema).min(1).max(20),
+});
+export type DocEditorCommentPayload = z.infer<
+  typeof docEditorCommentPayloadSchema
+>;
+
 // SSE wire format. `delta` carries token-by-token text only (UI may
 // optionally render a running preview); the authoritative result is
 // `doc_editor_result`. `cost` mirrors chat.ts.
@@ -53,8 +82,17 @@ export const docEditorSseEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("delta"), text: z.string() }),
   z.object({
     type: z.literal("doc_editor_result"),
-    output_mode: z.enum(["diff"]),
-    payload: docEditorDiffPayloadSchema,
+    output_mode: z.enum(["diff", "comment"]),
+    payload: z.union([docEditorDiffPayloadSchema, docEditorCommentPayloadSchema]),
+  }),
+  z.object({
+    type: z.literal("factcheck_comments_inserted"),
+    commentIds: z.array(z.string().uuid()).max(20),
+  }),
+  z.object({
+    type: z.literal("tool_progress"),
+    tool: z.literal("search_notes"),
+    callCount: z.number().int().nonnegative(),
   }),
   z.object({
     type: z.literal("cost"),
@@ -69,6 +107,8 @@ export const docEditorSseEventSchema = z.discriminatedUnion("type", [
       "selection_race",
       "command_unknown",
       "internal",
+      "rag_no_results",
+      "rag_quota_exceeded",
     ]),
     message: z.string(),
   }),

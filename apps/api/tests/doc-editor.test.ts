@@ -41,15 +41,19 @@ const { Hono } = await import("hono");
 const { docEditorRoutes } = await import("../src/routes/doc-editor");
 
 const ORIG = process.env.FEATURE_DOC_EDITOR_SLASH;
+const ORIG_RAG = process.env.FEATURE_DOC_EDITOR_RAG;
 
 afterAll(() => {
   if (ORIG === undefined) delete process.env.FEATURE_DOC_EDITOR_SLASH;
   else process.env.FEATURE_DOC_EDITOR_SLASH = ORIG;
+  if (ORIG_RAG === undefined) delete process.env.FEATURE_DOC_EDITOR_RAG;
+  else process.env.FEATURE_DOC_EDITOR_RAG = ORIG_RAG;
 });
 
 describe("doc-editor flag gate", () => {
   beforeEach(() => {
     delete process.env.FEATURE_DOC_EDITOR_SLASH;
+    delete process.env.FEATURE_DOC_EDITOR_RAG;
   });
 
   it("returns 404 when FEATURE_DOC_EDITOR_SLASH is unset", async () => {
@@ -88,5 +92,23 @@ describe("doc-editor flag gate", () => {
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error: string };
     expect(body.error).toBe("command_unknown");
+  });
+
+  it("returns 404 for RAG commands when FEATURE_DOC_EDITOR_RAG is off", async () => {
+    process.env.FEATURE_DOC_EDITOR_SLASH = "true";
+    process.env.FEATURE_DOC_EDITOR_RAG = "false";
+    const app = new Hono().route("/api", docEditorRoutes);
+    const res = await app.request(
+      "/api/notes/00000000-0000-0000-0000-000000000000/doc-editor/commands/cite",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          selection: { blockId: "b1", start: 0, end: 5, text: "hello" },
+          documentContextSnippet: "",
+        }),
+      },
+    );
+    expect(res.status).toBe(404);
   });
 });

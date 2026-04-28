@@ -39,6 +39,7 @@ async def test_run_doc_editor_returns_payload():
                 command="improve",
                 note_id="n1",
                 workspace_id="ws1",
+                project_id="p1",
                 user_id="u1",
                 selection_block_id="b1",
                 selection_start=0,

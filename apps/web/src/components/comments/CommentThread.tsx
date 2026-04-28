@@ -93,7 +93,7 @@ function CommentItem({
   deleteLabel?: string;
 }) {
   return (
-    <article className="space-y-1">
+    <article id={`comment-${c.id}`} className="space-y-1">
       <header className="text-fg-muted flex items-center gap-2 text-xs">
         {/* authorId shown truncated as a placeholder; user profile lookup
             (name + avatar) lands with the mention combobox in Task 19. */}

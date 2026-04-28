@@ -6,9 +6,10 @@ const FORTY_FIVE_SECONDS_MS = 45_000;
 export const workflowIdFor = (runId: string) => `doc-editor-${runId}`;
 
 export type DocEditorWorkflowInput = {
-  command: "improve" | "translate" | "summarize" | "expand";
+  command: "improve" | "translate" | "summarize" | "expand" | "cite" | "factcheck";
   note_id: string;
   workspace_id: string;
+  project_id: string | null;
   user_id: string;
   selection_block_id: string;
   selection_start: number;
@@ -20,18 +21,11 @@ export type DocEditorWorkflowInput = {
 
 export type DocEditorWorkflowOutput = {
   command: string;
-  output_mode: "diff";
-  payload: {
-    hunks: Array<{
-      blockId: string;
-      originalRange: { start: number; end: number };
-      originalText: string;
-      replacementText: string;
-    }>;
-    summary: string;
-  };
+  output_mode: "diff" | "comment";
+  payload: unknown;
   tokens_in: number;
   tokens_out: number;
+  tools_used?: number;
 };
 
 export async function startDocEditorWorkflow(
