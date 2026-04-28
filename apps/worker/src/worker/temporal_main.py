@@ -213,6 +213,22 @@ def build_worker_config() -> WorkerConfig:
         workflows.append(CodeAgentWorkflow)
         activities.extend([generate_code_activity, analyze_feedback_activity])
 
+    # Spec B — Content-Aware Enrichment. Three activities slot into
+    # IngestWorkflow's pipeline (detect → enrich → store). No separate
+    # workflow; everything runs inside IngestWorkflow.
+    if os.environ.get("FEATURE_CONTENT_ENRICHMENT", "false").lower() == "true":
+        from worker.activities.detect_content_type_activity import (
+            detect_content_type,
+        )
+        from worker.activities.enrich_document_activity import enrich_document
+        from worker.activities.store_enrichment_activity import (
+            store_enrichment_artifact,
+        )
+
+        activities.extend(
+            [detect_content_type, enrich_document, store_enrichment_artifact]
+        )
+
     return WorkerConfig(workflows=workflows, activities=activities)
 
 

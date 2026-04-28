@@ -27,3 +27,25 @@ def test_code_agent_registered_when_flag_on(monkeypatch: pytest.MonkeyPatch) -> 
     activity_names = [a.__name__ for a in cfg.activities]
     assert "generate_code_activity" in activity_names
     assert "analyze_feedback_activity" in activity_names
+
+
+def test_enrichment_activities_omitted_when_flag_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("FEATURE_CONTENT_ENRICHMENT", raising=False)
+    cfg = build_worker_config()
+    activity_names = [a.__name__ for a in cfg.activities]
+    assert "detect_content_type" not in activity_names
+    assert "enrich_document" not in activity_names
+    assert "store_enrichment_artifact" not in activity_names
+
+
+def test_enrichment_activities_registered_when_flag_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FEATURE_CONTENT_ENRICHMENT", "true")
+    cfg = build_worker_config()
+    activity_names = [a.__name__ for a in cfg.activities]
+    assert "detect_content_type" in activity_names
+    assert "enrich_document" in activity_names
+    assert "store_enrichment_artifact" in activity_names
