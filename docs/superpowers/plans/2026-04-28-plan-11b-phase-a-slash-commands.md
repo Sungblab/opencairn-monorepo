@@ -825,8 +825,17 @@ class DocEditorAgent(Agent):
             )
             latency_ms = int((time.time() - started) * 1000)
 
-            tokens_in = len(user_msg) // 4  # provisional — Plan 12 follow-up
-            tokens_out = len(raw) // 4
+            # Token counts: the provider base interface does not yet return
+            # usage (Plan 12 follow-up — same gap CompilerAgent documents).
+            # We deliberately do NOT apply a `len(text) // 4` heuristic
+            # because it under-counts Korean / CJK by 2-3× and would mis-bill
+            # workspaces. Emit zeros — `cost_krw=0` already; the
+            # `doc_editor_calls` audit row records the placeholder until
+            # provider.generate is upgraded to return `Usage`. When the
+            # upgrade lands, replace the two assignments with the
+            # provider-reported counts (`raw.usage.prompt_tokens` / etc.).
+            tokens_in = 0
+            tokens_out = 0
             yield ModelEnd(
                 run_id=ctx.run_id,
                 workspace_id=ctx.workspace_id,
@@ -924,8 +933,13 @@ class DocEditorAgent(Agent):
                 continue
             block_id = h.get("blockId") or fallback_block_id
             rng = h.get("originalRange") or {}
-            start = int(rng.get("start", fallback_start))
-            end = int(rng.get("end", fallback_end))
+            # `dict.get(k, default)` returns `default` only when the key is
+            # absent — if the LLM emits `{"start": null}` we still get None
+            # and `int(None)` would crash. Use the `or` short-circuit so
+            # null/0/missing all fall back; the legitimate `0` start case
+            # is preserved by the explicit fallback being non-None.
+            start = int(rng.get("start") if rng.get("start") is not None else fallback_start)
+            end = int(rng.get("end") if rng.get("end") is not None else fallback_end)
             original = str(h.get("originalText") or fallback_text)
             replacement = str(h.get("replacementText") or "")
             clean.append(
@@ -1372,24 +1386,27 @@ describe("POST /api/notes/:id/doc-editor/commands/:command", () => {
     const { auth, noteId } = await seedNote();
     vi.spyOn(
       await import("../src/lib/temporal-client"),
-      "executeDocEditorWorkflow",
+      "startDocEditorWorkflow",
     ).mockResolvedValue({
-      command: "improve",
-      output_mode: "diff",
-      payload: {
-        hunks: [
-          {
-            blockId: "b1",
-            originalRange: { start: 0, end: 5 },
-            originalText: "hello",
-            replacementText: "Hello there",
-          },
-        ],
-        summary: "1 word adjusted",
-      },
-      tokens_in: 100,
-      tokens_out: 30,
-    });
+      result: async () => ({
+        command: "improve",
+        output_mode: "diff",
+        payload: {
+          hunks: [
+            {
+              blockId: "b1",
+              originalRange: { start: 0, end: 5 },
+              originalText: "hello",
+              replacementText: "Hello there",
+            },
+          ],
+          summary: "1 word adjusted",
+        },
+        tokens_in: 100,
+        tokens_out: 30,
+      }),
+      cancel: async () => undefined,
+    } as unknown as Awaited<ReturnType<typeof import("../src/lib/temporal-client").startDocEditorWorkflow>>);
 
     const res = await app.request(
       `/api/notes/${noteId}/doc-editor/commands/improve`,
@@ -1409,6 +1426,38 @@ describe("POST /api/notes/:id/doc-editor/commands/:command", () => {
     expect(body).toContain("event: cost");
     expect(body).toContain("event: done");
   });
+
+  it("cancels the workflow when the client aborts mid-stream", async () => {
+    const { auth, noteId } = await seedNote();
+    const cancel = vi.fn().mockResolvedValue(undefined);
+    // result() never resolves — simulate a long-running generation.
+    const result = vi.fn().mockReturnValue(new Promise(() => {}));
+    vi.spyOn(
+      await import("../src/lib/temporal-client"),
+      "startDocEditorWorkflow",
+    ).mockResolvedValue({ result, cancel } as never);
+
+    const ac = new AbortController();
+    const reqPromise = app.request(
+      `/api/notes/${noteId}/doc-editor/commands/improve`,
+      {
+        method: "POST",
+        headers: { ...auth, "content-type": "application/json" },
+        body: JSON.stringify({
+          selection: { blockId: "b1", start: 0, end: 5, text: "hello" },
+          documentContextSnippet: "",
+        }),
+        signal: ac.signal,
+      },
+    );
+    // Give the handler a tick to register onAbort, then abort.
+    await new Promise((r) => setTimeout(r, 10));
+    ac.abort();
+    await expect(reqPromise).rejects.toThrow();
+    // Allow the onAbort handler to run.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(cancel).toHaveBeenCalled();
+  });
 });
 ```
 
@@ -1419,7 +1468,7 @@ describe("POST /api/notes/:id/doc-editor/commands/:command", () => {
 ```
 pnpm --filter @opencairn/api test -- doc-editor
 ```
-Expected: 4 FAILs.
+Expected: 5 FAILs (4 happy/auth/validation + 1 client-abort).
 
 - [ ] **Step 3: Implement SSE encoder**
 
@@ -1450,7 +1499,11 @@ import { docEditorCalls } from "@opencairn/db";
 import { encodeSseEvent } from "../lib/doc-editor-sse";
 import { canWrite, getNoteOrNotFound } from "../lib/permissions";
 import { db } from "../db";
-import { executeDocEditorWorkflow } from "../lib/temporal-client";
+// startDocEditorWorkflow returns the Temporal handle so the SSE handler can
+// cancel the workflow if the client disconnects (avoids paying for an LLM
+// generation the user already navigated away from). Implement in
+// `lib/temporal-client.ts`: `client.workflow.start("DocEditorWorkflow", { ... })`.
+import { startDocEditorWorkflow } from "../lib/temporal-client";
 
 export const docEditorRouter = new Hono();
 
@@ -1484,19 +1537,39 @@ docEditorRouter.post(
 
     return streamSSE(c, async (stream) => {
       const startedAt = Date.now();
+      // Start the workflow and capture the handle BEFORE awaiting its
+      // result — the handle lets us cancel on client disconnect.
+      const handle = await startDocEditorWorkflow({
+        command: cmdParsed.data,
+        note_id: noteId,
+        workspace_id: note.workspaceId,
+        user_id: user.id,
+        selection_block_id: selection.blockId,
+        selection_start: selection.start,
+        selection_end: selection.end,
+        selection_text: selection.text,
+        document_context_snippet: documentContextSnippet,
+        language: language ?? null,
+      });
+
+      // Hono's streamSSE exposes `onAbort` for client disconnects (browser
+      // close, fetch AbortController, navigate away). Without this, the
+      // workflow runs to completion + bills the user for a generation
+      // they'll never see. `.cancel()` is idempotent; swallow errors so a
+      // race with normal completion doesn't break the response.
+      let aborted = false;
+      stream.onAbort(async () => {
+        aborted = true;
+        try {
+          await handle.cancel();
+        } catch {
+          // already terminal — fine.
+        }
+      });
+
       try {
-        const result = await executeDocEditorWorkflow({
-          command: cmdParsed.data,
-          note_id: noteId,
-          workspace_id: note.workspaceId,
-          user_id: user.id,
-          selection_block_id: selection.blockId,
-          selection_start: selection.start,
-          selection_end: selection.end,
-          selection_text: selection.text,
-          document_context_snippet: documentContextSnippet,
-          language: language ?? null,
-        });
+        const result = await handle.result();
+        if (aborted) return; // client gone — don't try to write.
 
         await stream.write(
           encodeSseEvent({
@@ -1526,14 +1599,22 @@ docEditorRouter.post(
           status: "ok",
         });
       } catch (err) {
-        await stream.write(
-          encodeSseEvent({
-            type: "error",
-            code: "llm_failed",
-            message: err instanceof Error ? err.message : "unknown",
-          }),
+        // CancelledFailure path: the audit row records `status='cancelled'`
+        // so dashboards can distinguish wasted-cost (we did pay tokens
+        // for the partial generation) from genuine failure.
+        const isCancel = aborted || /CancelledFailure|TerminatedFailure/.test(
+          err instanceof Error ? err.name : String(err),
         );
-        await stream.write(encodeSseEvent({ type: "done" }));
+        if (!aborted) {
+          await stream.write(
+            encodeSseEvent({
+              type: "error",
+              code: isCancel ? "selection_race" : "llm_failed",
+              message: err instanceof Error ? err.message : "unknown",
+            }),
+          );
+          await stream.write(encodeSseEvent({ type: "done" }));
+        }
         await db.insert(docEditorCalls).values({
           noteId,
           workspaceId: note.workspaceId,
@@ -1543,7 +1624,7 @@ docEditorRouter.post(
           tokensOut: 0,
           costKrw: "0",
           status: "failed",
-          errorCode: err instanceof Error ? err.name : "internal",
+          errorCode: isCancel ? "cancelled" : (err instanceof Error ? err.name : "internal"),
         });
       } finally {
         c.executionCtx?.waitUntil?.(
@@ -1573,13 +1654,13 @@ if (process.env.FEATURE_DOC_EDITOR_SLASH === "true") {
 ```
 pnpm --filter @opencairn/api test -- doc-editor
 ```
-Expected: 4 PASS.
+Expected: 5 PASS (incl. client-abort cancellation).
 
 - [ ] **Step 7: Commit**
 
 ```bash
 git add apps/api/src/lib/doc-editor-sse.ts apps/api/src/routes/doc-editor.ts apps/api/src/app.ts apps/api/tests/doc-editor.test.ts
-git commit -m "feat(api): doc-editor SSE route + audit + flag gate (Plan 11B-A)"
+git commit -m "feat(api): doc-editor SSE route + abort-cancel + audit + flag gate (Plan 11B-A)"
 ```
 
 ---
@@ -1872,6 +1953,34 @@ describe("applyHunksToValue", () => {
     ]);
     expect(next).toEqual(initial);
   });
+
+  it("preserves marks on text outside the hunk range", () => {
+    // Block: "hello world" where "world" is bold.
+    const styled: Value = [
+      {
+        type: "p",
+        id: "b1",
+        children: [
+          { text: "hello " },
+          { text: "world", bold: true },
+        ],
+      },
+    ];
+    // Replace the "hello" prefix only.
+    const next = applyHunksToValue(styled, [
+      {
+        blockId: "b1",
+        originalRange: { start: 0, end: 5 },
+        originalText: "hello",
+        replacementText: "Hi",
+      },
+    ]);
+    // "world" must retain its bold mark.
+    const block = next[0] as { children: Array<{ text: string; bold?: boolean }> };
+    const bolded = block.children.find((c) => c.bold === true);
+    expect(bolded).toBeDefined();
+    expect(bolded?.text).toBe("world");
+  });
 });
 ```
 
@@ -1890,11 +1999,15 @@ import type { Value, TElement, TText } from "platejs";
 import type { DocEditorHunk } from "@opencairn/shared";
 
 // Plan 11B Phase A — pure transform, no Plate editor instance required.
-// Strategy: walk the top-level blocks, match by `id`, then concatenate
-// child text into a single string for range-replace. Mixed-mark spans
-// inside a hunk collapse to a single plain text node — acceptable for
-// /improve/translate/summarize/expand because the LLM rewrites the prose;
-// per-mark preservation is a Phase C concern (Diff View).
+//
+// Strategy: walk the top-level blocks, match by `id`, then splice the
+// hunk into the children array PRESERVING marks on text outside the hunk
+// range. The replacement text itself drops marks (the LLM rewrites prose
+// — we don't know how to map source marks onto a different sentence);
+// per-mark preservation INSIDE the hunk is a Phase C concern (real Diff
+// View where the model returns a styled inline-AST). Crucially, marks
+// OUTSIDE the hunk range survive — bold/italic/link in unrelated parts
+// of the same block stay intact.
 export function applyHunksToValue(
   value: Value,
   hunks: DocEditorHunk[],
@@ -1904,24 +2017,26 @@ export function applyHunksToValue(
     if (!isElementWithId(node)) return node;
     const blockHunks = hunks.filter((h) => h.blockId === node.id);
     if (blockHunks.length === 0) return node;
-    const flat = flattenChildren(node.children);
-    let mutated = flat;
-    let drift = 0;
-    for (const h of blockHunks.sort(
-      (a, b) => a.originalRange.start - b.originalRange.start,
-    )) {
-      const start = h.originalRange.start + drift;
-      const end = h.originalRange.end + drift;
-      const slice = mutated.slice(start, end);
-      if (slice !== h.originalText) {
-        // Document drifted (user edited concurrently). Skip this hunk.
-        continue;
-      }
-      mutated = mutated.slice(0, start) + h.replacementText + mutated.slice(end);
-      drift += h.replacementText.length - h.originalText.length;
+    // Build a flat offset map so each hunk's [start, end] maps back to
+    // the original child segments. Then apply hunks in reverse order
+    // (right-to-left) so earlier offsets stay valid.
+    const sorted = [...blockHunks].sort(
+      (a, b) => b.originalRange.start - a.originalRange.start,
+    );
+    let children = node.children as (TElement | TText)[];
+    for (const h of sorted) {
+      const result = spliceTextRange(
+        children,
+        h.originalRange.start,
+        h.originalRange.end,
+        h.originalText,
+        h.replacementText,
+      );
+      if (result === null) continue; // drift — skip
+      children = result;
     }
-    if (mutated === flat) return node;
-    return { ...node, children: [{ text: mutated }] as TText[] };
+    if (children === node.children) return node;
+    return { ...node, children };
   });
 }
 
@@ -1937,6 +2052,95 @@ function isElementWithId(
   );
 }
 
+// Splice [start, end) inside the flattened concatenation of `children`
+// with `replacement`. Returns a new children array where text segments
+// outside the splice keep their original marks; only the spliced span is
+// emitted as a plain `{ text: replacement }` node (or merged into an
+// adjacent unmarked segment when possible). Returns `null` when the
+// substring at [start, end) does not match `expected` — the document
+// drifted and the caller must skip this hunk.
+function spliceTextRange(
+  children: (TElement | TText)[],
+  start: number,
+  end: number,
+  expected: string,
+  replacement: string,
+): (TElement | TText)[] | null {
+  // Guard: only operate when the entire range is covered by leaf TText
+  // siblings. Element children (e.g. inline mentions, links wrapping
+  // text) need a recursive descent — Phase A scopes to flat text.
+  let cursor = 0;
+  let actual = "";
+  for (const c of children) {
+    if (!("text" in c)) {
+      // Non-text inline node inside the range — fall through and
+      // rebuild via flatten + plain-text replace (lossy fallback).
+      return spliceTextRangeFallback(
+        children,
+        start,
+        end,
+        expected,
+        replacement,
+      );
+    }
+    const segLen = (c as TText).text.length;
+    if (cursor + segLen > start) break;
+    cursor += segLen;
+  }
+  // Concatenate, validate, and re-fragment.
+  const flat = (children as TText[]).map((c) => c.text).join("");
+  if (flat.slice(start, end) !== expected) return null;
+  const out: TText[] = [];
+  let pos = 0;
+  for (const c of children as TText[]) {
+    const segStart = pos;
+    const segEnd = pos + c.text.length;
+    if (segEnd <= start || segStart >= end) {
+      // Outside hunk — keep as-is (with all marks).
+      out.push(c);
+    } else {
+      // Intersects: keep the un-affected prefix/suffix slices with
+      // original marks, drop the overlap.
+      if (segStart < start) {
+        out.push({ ...c, text: c.text.slice(0, start - segStart) });
+      }
+      if (segEnd > end) {
+        out.push({ ...c, text: c.text.slice(end - segStart) });
+      }
+    }
+    pos = segEnd;
+  }
+  // Insert replacement as a plain text node where the hunk was. Find
+  // index by scanning prefix length.
+  let idx = 0;
+  let acc = 0;
+  for (; idx < out.length; idx++) {
+    if (acc >= start) break;
+    acc += out[idx].text.length;
+  }
+  out.splice(idx, 0, { text: replacement });
+  return out.filter((n) => n.text.length > 0 || replacement === "");
+}
+
+// Fallback for blocks containing inline elements (links, mentions) that
+// intersect the hunk range. We currently collapse the whole block to
+// plain text — same lossy behavior the original implementation had.
+// Phase C's Diff View revisits this with a structured replacement AST.
+function spliceTextRangeFallback(
+  children: (TElement | TText)[],
+  start: number,
+  end: number,
+  expected: string,
+  replacement: string,
+): (TElement | TText)[] | null {
+  const flat = children
+    .map((c) => ("text" in c ? c.text : flattenChildren(c.children ?? [])))
+    .join("");
+  if (flat.slice(start, end) !== expected) return null;
+  const next = flat.slice(0, start) + replacement + flat.slice(end);
+  return [{ text: next }];
+}
+
 function flattenChildren(children: (TElement | TText)[]): string {
   return children
     .map((c) => ("text" in c ? c.text : flattenChildren(c.children ?? [])))
@@ -1949,13 +2153,13 @@ function flattenChildren(children: (TElement | TText)[]): string {
 ```
 pnpm --filter @opencairn/web test -- applyHunks
 ```
-Expected: 3 PASS.
+Expected: 4 PASS (incl. mark-preservation outside hunk range).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/components/editor/doc-editor/applyHunks.ts apps/web/src/components/editor/doc-editor/__tests__/applyHunks.test.ts
-git commit -m "feat(web): applyHunks pure Plate transform with drift-skip (Plan 11B-A)"
+git commit -m "feat(web): applyHunks pure Plate transform with drift-skip + outside-hunk mark preservation (Plan 11B-A)"
 ```
 
 ---
@@ -2641,5 +2845,7 @@ git commit -m "docs: Plan 11B Phase A — api-contract row + plans-status entry"
 - **Phase D** — Save Suggestion (§4): `save_suggestion_ready` SSE event in chat stream + `concept_source_links` + Compiler signal path.
 - **Phase E** — Page Provenance (§5): `created_from_conversation_id` on concepts + `GET /api/notes/:id/conversations` + popover UI + suggest-from-conversations.
 - **Phase F** — Related Pages (§7): `notes.title_summary_embedding` + backfill + suggestion bar.
-- **Cost / Token usage** — `tokens_in/out` are currently character-based heuristics; replace with provider-reported counts (Plan 12 follow-up that several agents already need).
-- **Mark preservation** — `applyHunksToValue` collapses inline marks inside replaced ranges. Acceptable for prose rewrites; if a Phase B/C user complaint surfaces, revisit by walking child nodes and re-applying marks token-by-token.
+- **Cost / Token usage** — `tokens_in/out` are zero placeholders (the heuristic `len(text)//4` was removed because it under-counts Korean / CJK by 2-3×). Real counts arrive when `LLMProvider.generate` returns `Usage`; that is a Plan 12 follow-up that several agents already need.
+- **Mark preservation INSIDE the hunk** — Phase A keeps marks on text *outside* the changed range, but the replacement itself ships as plain text (no way to map rewritten prose to source spans). Phase C's real Diff View can return a structured replacement AST instead.
+- **Inline elements (links, mentions) intersecting a hunk** — currently fall back to a flat-text collapse for that block (Phase C revisit).
+- **Workflow cancellation on client abort** — wired in Phase A via `stream.onAbort` + Temporal handle. Outstanding: emit a `cancelled` signal to long-running RAG commands (Phase B `/cite` / `/factcheck`) so they can release vector-DB connections before exit.
