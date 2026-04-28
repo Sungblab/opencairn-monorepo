@@ -24,7 +24,7 @@
     "titleLine2": "what you write.",
     "titleBrand": "OpenCairn",
     "titleLine3": "knows what you read.",
-    "sub": "Drop in PDFs, papers, videos, and podcasts. 12 AI agents <b>weave them into a wiki</b>, <b>surface connections</b> before you ask, and <b>measure how well you actually understand</b> what's there.",
+    "sub": "Drop in PDFs, papers, videos, and podcasts. AI <b>weaves them into a wiki</b>, <b>suggests connections</b>, and <b>checks how well you understand</b> what's there. The 12-agent backbone activates in stages.",
     "ctaPrimary": "Get started",
     "ctaSecondary": "See pricing",
     "noCard": "All 12 agents included",
@@ -33,7 +33,7 @@
       "agents": "agents",
       "agentsVal": "12",
       "parsers": "parsers",
-      "parsersVal": "pdf · docx · hwp · epub · mp3 · mp4",
+      "parsersVal": "pdf · mp3 · mp4 · m4a",
       "runtime": "runtime",
       "runtimeVal": "docker",
       "vector": "vector",
@@ -42,9 +42,9 @@
       "licenseVal": "agplv3"
     },
     "activity": {
-      "title": "LIVE · WORKSPACE",
-      "meta": "12 agents active",
-      "footer": "Real agent activity, up to seconds ago",
+      "title": "PREVIEW · WORKSPACE",
+      "meta": "12-agent backbone · demo log",
+      "footer": "Agent activity demo (real runs ship in stages)",
       "timeLabels": ["just now", "1m ago", "3m ago", "6m ago"],
       "items": [
         { "agent": "Compiler", "text": "<b>attention_is_all_you_need.pdf</b> compiled · 17 concepts" },
@@ -140,7 +140,7 @@
     "label": "AGENTS",
     "title1": "Twelve specialists,",
     "title2": "each with a narrow job.",
-    "sub": "Instead of one giant prompt, narrow-responsibility agents hand off the baton. Each runs in a background that doesn't die — close the browser and your knowledge keeps growing.",
+    "sub": "Twelve specialists are defined with narrow roles. Auto-schedules and UI integrations ship in stages — check docs/contributing/plans-status.md for what's currently active.",
     "items": [
       { "n": "01", "cat": "core", "name": "Compiler", "body": "Extracts concepts from uploads into wiki pages, with two-way links built in." },
       { "n": "02", "cat": "core", "name": "Research", "body": "Hybrid Q&A across multiple search strategies. Every answer cited." },

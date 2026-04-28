@@ -42,3 +42,4 @@
 | 장애 대응 / 온콜 / 알럿 채널                             | `runbooks/incident-response.md`        |
 | **Super Admin 콘솔** (운영자 전용, 이상 사용자 대응 MVP)  | `superpowers/specs/2026-04-22-super-admin-console-design.md` |
 | **Plan별 완료 상태 + 커밋**                              | `contributing/plans-status.md`         |
+| **⚠️ 완료 표기 audit (2026-04-28)** — Phase 0/1/2 silent gap 박제 (`plans-status.md` ✅ 신뢰 금지) | `review/2026-04-28-completion-claims-audit.md` |
