@@ -68,12 +68,51 @@ export function getGeminiProvider(): LLMProvider {
       }
       return values;
     },
-    async *streamGenerate(_opts) {
-      // Stub — implemented in Task 2.6
-      void chatModel;
-      throw new Error("not implemented yet");
-      // unreachable yield to satisfy AsyncGenerator return type
-      yield { delta: "" };
+    async *streamGenerate(opts) {
+      const { messages, signal, maxOutputTokens, temperature } = opts;
+
+      // Gemini chat is "single-turn with history" via `contents` array. We
+      // collapse system messages into a leading systemInstruction (the SDK
+      // path) and map user/assistant to user/model roles.
+      const systemMsgs = messages.filter((m) => m.role === "system");
+      const turns = messages.filter((m) => m.role !== "system");
+      const contents = turns.map((m) => ({
+        role: m.role === "assistant" ? "model" : "user",
+        parts: [{ text: m.content }],
+      }));
+
+      const stream = await client.models.generateContentStream({
+        model: chatModel,
+        contents,
+        config: {
+          ...(systemMsgs.length > 0
+            ? { systemInstruction: systemMsgs.map((m) => m.content).join("\n\n") }
+            : {}),
+          ...(maxOutputTokens ? { maxOutputTokens } : {}),
+          ...(temperature !== undefined ? { temperature } : {}),
+          ...(signal ? { abortSignal: signal } : {}),
+        },
+      });
+
+      let lastUsage: Usage | null = null;
+      for await (const chunk of stream as AsyncIterable<{
+        text?: string;
+        usageMetadata?: {
+          promptTokenCount?: number;
+          candidatesTokenCount?: number;
+        };
+      }>) {
+        if (signal?.aborted) return;
+        if (chunk.text) yield { delta: chunk.text };
+        if (chunk.usageMetadata) {
+          lastUsage = {
+            tokensIn: chunk.usageMetadata.promptTokenCount ?? 0,
+            tokensOut: chunk.usageMetadata.candidatesTokenCount ?? 0,
+            model: chatModel,
+          };
+        }
+      }
+      if (lastUsage) yield { usage: lastUsage };
     },
   };
 }
