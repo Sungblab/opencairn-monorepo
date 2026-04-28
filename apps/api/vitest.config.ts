@@ -9,6 +9,7 @@ configDotenv({ path: resolve(__dirname, "../../.env") });
 
 export default defineConfig({
   test: {
+    pool: "forks",
     environment: "node",
     setupFiles: ["./tests/setup.ts"],
     // 타임아웃: 실 DB 쿼리 포함이므로 여유 있게

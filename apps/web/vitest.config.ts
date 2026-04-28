@@ -16,6 +16,7 @@ export default defineConfig({
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
   test: {
+    pool: "forks",
     projects: [
       {
         extends: true,
