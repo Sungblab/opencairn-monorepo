@@ -54,7 +54,8 @@ Self-host 시:
 - 결제/과금 모듈은 비활성화 가능 (`DISABLE_BILLING=true`)
 - 블로그는 삭제 또는 자체 콘텐츠로 교체
 
-설치 절차는 [`dev-guide.md`](./dev-guide.md).
+설치 절차와 production-ish compose profile 경로는
+[`dev-guide.md`](./dev-guide.md#self-hosted-compose-smoke).
 
 ---
 

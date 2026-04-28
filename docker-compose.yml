@@ -14,7 +14,7 @@ services:
       # [Tier 1 item 1-6 / Plan 1 C-6]
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U opencairn -d opencairn"]
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -25,6 +25,127 @@ services:
       - "6379:6379"
     volumes:
       - redisdata:/data
+
+  api:
+    # Production-ish Hono API image. Profile-gated so the default
+    # `docker compose up -d` path still starts only shared infrastructure.
+    # Self-host app smoke:
+    #   docker compose --profile app up -d api
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 4000
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://${POSTGRES_USER:-opencairn}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-opencairn}}
+      REDIS_URL: ${COMPOSE_REDIS_URL:-redis://redis:6379}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:4000}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      WEB_URL: ${WEB_URL:-http://localhost:3000}
+      WEB_BASE_URL: ${WEB_BASE_URL:-http://localhost:3000}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:4000}
+      PUBLIC_WEB_URL: ${PUBLIC_WEB_URL:-http://localhost:3000}
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:?set INTERNAL_API_SECRET in .env}
+      TEMPORAL_ADDRESS: ${COMPOSE_TEMPORAL_ADDRESS:-temporal:7233}
+      TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
+      TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-ingest}
+      S3_ENDPOINT: ${COMPOSE_S3_ENDPOINT:-minio:9000}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-${MINIO_ROOT_USER:-opencairn-minio}}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
+      S3_BUCKET: ${S3_BUCKET:-opencairn-uploads}
+      S3_USE_SSL: ${S3_USE_SSL:-false}
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-gemini-3-flash-preview}
+      EMBED_MODEL: ${EMBED_MODEL:-gemini-embedding-001}
+      TTS_MODEL: ${TTS_MODEL:-gemini-2.5-flash-preview-tts}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_CHAT_MODEL: ${GEMINI_CHAT_MODEL:-gemini-2.5-flash}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      VECTOR_DIM: ${VECTOR_DIM:-768}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
+      EMAIL_FROM: ${EMAIL_FROM:-OpenCairn <noreply@example.com>}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.1}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      INTEGRATION_TOKEN_ENCRYPTION_KEY: ${INTEGRATION_TOKEN_ENCRYPTION_KEY:-}
+      FEATURE_CODE_AGENT: ${FEATURE_CODE_AGENT:-false}
+      FEATURE_CANVAS_TEMPLATES: ${FEATURE_CANVAS_TEMPLATES:-false}
+      FEATURE_CANVAS_OUTPUT_STORE: ${FEATURE_CANVAS_OUTPUT_STORE:-true}
+      FEATURE_IMPORT_ENABLED: ${FEATURE_IMPORT_ENABLED:-false}
+      FEATURE_DEEP_RESEARCH: ${FEATURE_DEEP_RESEARCH:-false}
+      FEATURE_MANAGED_DEEP_RESEARCH: ${FEATURE_MANAGED_DEEP_RESEARCH:-false}
+      FEATURE_DOC_EDITOR_SLASH: ${FEATURE_DOC_EDITOR_SLASH:-false}
+      SEMANTIC_SCHOLAR_API_KEY: ${SEMANTIC_SCHOLAR_API_KEY:-}
+      UNPAYWALL_EMAIL: ${UNPAYWALL_EMAIL:-}
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-209715200}
+      MAX_IMAGE_BYTES: ${MAX_IMAGE_BYTES:-20971520}
+      MAX_AUDIO_VIDEO_BYTES: ${MAX_AUDIO_VIDEO_BYTES:-524288000}
+      INGEST_QUARANTINE_PREFIX: ${INGEST_QUARANTINE_PREFIX:-quarantine/}
+      INGEST_REPLAY_TTL_SECONDS: ${INGEST_REPLAY_TTL_SECONDS:-3600}
+      INGEST_REPLAY_MAX_LEN: ${INGEST_REPLAY_MAX_LEN:-1000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      temporal:
+        condition: service_started
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    # Production-ish Next.js standalone image. Build-time NEXT_PUBLIC_* args
+    # are explicit because Next inlines browser-visible values during `next build`.
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:-http://localhost:3000}
+        NEXT_PUBLIC_HOCUSPOCUS_URL: ${NEXT_PUBLIC_HOCUSPOCUS_URL:-ws://localhost:1234}
+        NEXT_PUBLIC_FEATURE_LIVE_INGEST: ${NEXT_PUBLIC_FEATURE_LIVE_INGEST:-true}
+        NEXT_PUBLIC_FEATURE_DOC_EDITOR_SLASH: ${NEXT_PUBLIC_FEATURE_DOC_EDITOR_SLASH:-false}
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
+        FEATURE_IMPORT_ENABLED: ${FEATURE_IMPORT_ENABLED:-false}
+        FEATURE_DEEP_RESEARCH: ${FEATURE_DEEP_RESEARCH:-false}
+        FEATURE_MANAGED_DEEP_RESEARCH: ${FEATURE_MANAGED_DEEP_RESEARCH:-false}
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      INTERNAL_API_URL: ${COMPOSE_INTERNAL_API_URL:-http://api:4000}
+      FEATURE_IMPORT_ENABLED: ${FEATURE_IMPORT_ENABLED:-false}
+      FEATURE_DEEP_RESEARCH: ${FEATURE_DEEP_RESEARCH:-false}
+      FEATURE_MANAGED_DEEP_RESEARCH: ${FEATURE_MANAGED_DEEP_RESEARCH:-false}
+      NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:-http://localhost:3000}
+      NEXT_PUBLIC_HOCUSPOCUS_URL: ${NEXT_PUBLIC_HOCUSPOCUS_URL:-ws://localhost:1234}
+      NEXT_PUBLIC_FEATURE_LIVE_INGEST: ${NEXT_PUBLIC_FEATURE_LIVE_INGEST:-true}
+      NEXT_PUBLIC_FEATURE_DOC_EDITOR_SLASH: ${NEXT_PUBLIC_FEATURE_DOC_EDITOR_SLASH:-false}
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
 
   hocuspocus:
     # Yjs-over-WebSocket collaboration backend (Plan 2B).
@@ -45,12 +166,12 @@ services:
       # If DATABASE_URL is unset, build it from the same POSTGRES_USER /
       # POSTGRES_PASSWORD that the `postgres` service requires above — no
       # more baked-in `changeme` fallback. [Tier 1 item 1-6]
-      - DATABASE_URL=${DATABASE_URL:-postgres://${POSTGRES_USER:-opencairn}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-opencairn}}
-      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env}
-      - HOCUSPOCUS_ORIGINS=${HOCUSPOCUS_ORIGINS:-http://localhost:3000}
-      - HOCUSPOCUS_PORT=1234
-      - NODE_ENV=${NODE_ENV:-production}
-      - LOG_LEVEL=${LOG_LEVEL:-info}
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://${POSTGRES_USER:-opencairn}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-opencairn}}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env}
+      HOCUSPOCUS_ORIGINS: ${HOCUSPOCUS_ORIGINS:-http://localhost:3000}
+      HOCUSPOCUS_PORT: 1234
+      NODE_ENV: ${NODE_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,8 +185,8 @@ services:
       - "9000:9000"
       - "9001:9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-${S3_ACCESS_KEY:-opencairn-minio}}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-${S3_SECRET_KEY}}
     volumes:
       - miniodata:/data
     healthcheck:
@@ -105,7 +226,7 @@ services:
       # No literal fallback — POSTGRES_PASSWORD is already required at the
       # `postgres` service above (`:?`), so compose fails parse before
       # reaching a stale default. [Tier 1 item 1-6]
-      - POSTGRES_PWD=${POSTGRES_PASSWORD}
+      - POSTGRES_PWD=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       - POSTGRES_SEEDS=postgres
     depends_on:
       postgres:
@@ -137,25 +258,48 @@ services:
       context: .
       dockerfile: apps/worker/Dockerfile
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgres://${POSTGRES_USER:-opencairn}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-opencairn}}
-      - TEMPORAL_ADDRESS=${TEMPORAL_ADDRESS:-temporal:7233}
+      - DATABASE_URL=${COMPOSE_DATABASE_URL:-postgresql://${POSTGRES_USER:-opencairn}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-opencairn}}
+      - REDIS_URL=${COMPOSE_REDIS_URL:-redis://redis:6379}
+      - TEMPORAL_ADDRESS=${COMPOSE_TEMPORAL_ADDRESS:-temporal:7233}
       - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
       - TEMPORAL_TASK_QUEUE=${TEMPORAL_TASK_QUEUE:-ingest}
       # INTERNAL_API_URL points at the Hono API. For dev where api runs on
       # the host outside compose, use host.docker.internal; production
       # deployments set this to the internal service DNS.
-      - INTERNAL_API_URL=${INTERNAL_API_URL:-http://host.docker.internal:4000}
+      - INTERNAL_API_URL=${COMPOSE_INTERNAL_API_URL:-http://api:4000}
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:?set INTERNAL_API_SECRET in .env}
       - LLM_PROVIDER=${LLM_PROVIDER:-gemini}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_MODEL=${LLM_MODEL:-gemini-3-flash-preview}
+      - EMBED_MODEL=${EMBED_MODEL:-gemini-embedding-001}
+      - TTS_MODEL=${TTS_MODEL:-gemini-2.5-flash-preview-tts}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
       - VECTOR_DIM=${VECTOR_DIM:-768}
       - TRAJECTORY_DIR=/var/opencairn/trajectories
-      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-minio:9000}
-      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
-      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - S3_ENDPOINT=${COMPOSE_S3_ENDPOINT:-minio:9000}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-${MINIO_ROOT_USER:-opencairn-minio}}
+      - S3_SECRET_KEY=${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
+      - S3_BUCKET=${S3_BUCKET:-opencairn-uploads}
+      - S3_USE_SSL=${S3_USE_SSL:-false}
+      - MINIO_ENDPOINT=${COMPOSE_S3_ENDPOINT:-minio:9000}
+      - MINIO_ACCESS_KEY=${S3_ACCESS_KEY:-${MINIO_ROOT_USER:-opencairn-minio}}
+      - MINIO_SECRET_KEY=${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
+      - FEATURE_CODE_AGENT=${FEATURE_CODE_AGENT:-false}
+      - FEATURE_CONTENT_ENRICHMENT=${FEATURE_CONTENT_ENRICHMENT:-false}
+      - FEATURE_DEEP_RESEARCH=${FEATURE_DEEP_RESEARCH:-false}
+      - FEATURE_MANAGED_DEEP_RESEARCH=${FEATURE_MANAGED_DEEP_RESEARCH:-false}
+      - FEATURE_DOC_EDITOR_SLASH=${FEATURE_DOC_EDITOR_SLASH:-false}
+      - GEMINI_MANAGED_API_KEY=${GEMINI_MANAGED_API_KEY:-}
+      - MANAGED_MARGIN=${MANAGED_MARGIN:-1.3}
+      - INTEGRATION_TOKEN_ENCRYPTION_KEY=${INTEGRATION_TOKEN_ENCRYPTION_KEY:-}
+      - NOTION_IMPORT_STAGING_DIR=${NOTION_IMPORT_STAGING_DIR:-/var/opencairn/import-staging}
+      - SEMANTIC_SCHOLAR_API_KEY=${SEMANTIC_SCHOLAR_API_KEY:-}
+      - UNPAYWALL_EMAIL=${UNPAYWALL_EMAIL:-}
+      - SENTRY_DSN=${SENTRY_DSN:-}
     volumes:
       - worker_trajectories:/var/opencairn/trajectories
+      - worker_import_staging:/var/opencairn/import-staging
     extra_hosts:
       # Linux docker engines don't resolve host.docker.internal by default.
       - "host.docker.internal:host-gateway"
@@ -174,3 +318,4 @@ volumes:
   miniodata:
   ollama_data:
   worker_trajectories:
+  worker_import_staging:
