@@ -55,13 +55,13 @@
 | S3-002 | `ImportWorkflow._run_binary` omits `workspace_id` in child `IngestInput` | `apps/worker/src/worker/workflows/import_workflow.py:235-246` |
 | S3-003 | `LitImportWorkflow._handle_paper` omits `workspace_id` in child `IngestInput` | `apps/worker/src/worker/workflows/lit_import_workflow.py:150-157` |
 | S3-004 | `text/plain` and `text/markdown` MIME hit `raise ValueError` in workflow | `apps/worker/src/worker/workflows/ingest_workflow.py:225-226` |
-| S3-006 | No `heartbeat_timeout` on any IngestWorkflow activity | `apps/worker/src/worker/workflows/ingest_workflow.py` |
+| ~~S3-006~~ | ~~No `heartbeat_timeout` on any IngestWorkflow activity~~ — **FIXED** on `fix/ralph-reliability-compose`. Every `workflow.execute_activity(...)` now passes `_LONG_HEARTBEAT` (60 s) or `_SHORT_HEARTBEAT` (30 s); `office_activity` calls `activity.heartbeat()` between LibreOffice/markitdown steps; static + dynamic regression in `apps/worker/tests/workflows/test_ingest_heartbeat.py` | `apps/worker/src/worker/workflows/ingest_workflow.py` |
 | S3-021 | Drive token via `os.environ` in shared worker process (cross-user race) | `apps/worker/src/worker/activities/drive_activities.py:82-98` |
 | S3-022 | Drive OAuth token stored per-user, not per-workspace | `packages/db/src/schema/user-integrations.ts:9-32` |
 | S3-023 | Drive token refresh not implemented; expiry → silent failure | `apps/worker/src/worker/activities/drive_activities.py` |
 | S3-024 | Notion ZIP `zipObjectKey` not validated against issuer's prefix | `apps/api/src/routes/import.ts:170-228` |
 | S3-025 | Drive folder walk does not paginate `nextPageToken` (silent truncation > 1000) | `apps/worker/src/worker/activities/drive_activities.py:157-176` |
-| S3-052 | Redis 6379 + Temporal gRPC 7233 + Temporal UI 8080 + MinIO 9001 — all unauthenticated, host-published | `docker-compose.yml` |
+| ~~S3-052~~ | ~~Redis 6379 + Temporal gRPC 7233 + Temporal UI 8080 + MinIO 9001 — all unauthenticated, host-published~~ — **FIXED** on `fix/ralph-reliability-compose`. `postgres`, `temporal`, `temporal-ui`, `minio`, `ollama` all default to `host_ip: 127.0.0.1`; matching `*_HOST_BIND` knobs in `.env.example`; policy + override guidance in `docs/contributing/hosted-service.md § Compose port exposure policy`. Verified via `docker compose config`. Auth status per service is documented; `temporal`/`temporal-ui`/`ollama` remain auth-less (out of scope for this fix), so they require SSH tunnel or reverse-proxy auth before any host_bind override. | `docker-compose.yml` |
 | S3-056 | `startRun` has no UI call site — Live Ingest Visualization completely dead in production | `apps/web/src/stores/ingest-store.ts:71` |
 | S3-073 | MinIO/Worker S3 client hardcoded `minioadmin` fallback credentials | `apps/api/src/lib/s3.ts:37-38`, `apps/worker/src/worker/lib/s3_client.py:30-31` |
 | S3-089 | `INTERNAL_API_SECRET` defaults to `"change-me-in-production"` in worker | `apps/worker/src/worker/lib/api_client.py:21` |
@@ -117,9 +117,9 @@ Selection criteria (in order): (1) Critical first; (2) anyone-can-exploit securi
 
 ### Deferred (not in this session)
 
-- **S3-052** (open ports / docker-compose) — separate infra session: needs operator policy decision (loopback bind vs. profiles guard).
+- ~~**S3-052** (open ports / docker-compose)~~ — **closed** on `fix/ralph-reliability-compose`: loopback bind chosen, knobs documented in `hosted-service.md`.
 - **S3-021/022/023/024/025** — Drive cluster, deferred until S3-020 token-by-payload landing; full hardening is a multi-day workstream.
-- **S3-006** (heartbeat_timeout) — reliability hardening, separate batch.
+- ~~**S3-006** (heartbeat_timeout)~~ — **closed** on `fix/ralph-reliability-compose`: every IngestWorkflow dispatch now carries a heartbeat budget; office activity heartbeats between LibreOffice steps.
 - **S3-056** (Live Ingest Viz `startRun` dead) — Plan Phase E flip; tracked there.
 - **S6-022** (CI restoration) — needs workflow file design + secrets review; separate operations session.
 - **S1-001/002/003**, **S2-001/026** — separate "frontend hardening" batch after this fix wave.
