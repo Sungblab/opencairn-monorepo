@@ -5,9 +5,9 @@ version: 2
 # tractable for a small team. Security updates ship continuously regardless
 # of this schedule — Dependabot's security alert track is independent.
 #
-# Companion: `.github/workflows/dependabot-auto-merge.yml` auto-merges
-# minor+patch PRs once CI is green, so most of these never need a human.
-# Majors still open as individual PRs and require manual review.
+# All PRs are merged manually — the previous auto-merge workflow was removed.
+# Majors continue to open as individual PRs (which we want — majors deserve
+# human review); minor + patch are bundled into one grouped PR per ecosystem.
 #
 # NOTE: Dependabot's config parser does NOT support YAML aliases / merge keys
 # (`&anchor` + `<<: *anchor`), nor does it allow custom top-level keys. Every
@@ -55,10 +55,9 @@ updates:
     groups:
       # Single catch-all for minor + patch across the entire JS workspace.
       # Previously split into typescript / eslint / next / plate / testing
-      # groups — that produced 5–6 PRs/week. One bundled PR is fine because
-      # the auto-merge workflow handles the green case without humans.
-      # Majors continue to open as individual PRs (which we want — majors
-      # deserve human review).
+      # groups — that produced 5–6 PRs/week. One bundled PR per ecosystem
+      # keeps the merge queue manageable. Majors continue to open as
+      # individual PRs (which we want — majors deserve human review).
       npm-minor-patch:
         applies-to: version-updates
         patterns:
