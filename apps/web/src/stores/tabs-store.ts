@@ -151,7 +151,7 @@ export const useTabsStore = create<State>((set, get) => ({
   addTab: (tab) => {
     const s = get();
     const tabs = [...s.tabs, tab];
-    const activeId = s.activeId ?? tab.id;
+    const activeId = tab.id;
     set({ tabs, activeId });
     if (s.workspaceId)
       flush(s.workspaceId, { tabs, activeId, closedStack: s.closedStack });

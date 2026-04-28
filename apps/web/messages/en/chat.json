@@ -7,6 +7,7 @@
     "code_language_label": "{lang}"
   },
   "errors": {
-    "streamFailed": "Something went wrong while generating the response."
+    "streamFailed": "Something went wrong while generating the response.",
+    "executionTimeout": "The response timed out."
   }
 }
