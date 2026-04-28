@@ -196,9 +196,13 @@ class ToolLoopExecutor:
                     )
 
                 for tu in turn.tool_uses:
-                    if reason := self._check_soft_guards(state, tu):
+                    repeat_count = self._repeat_count(state, tu)
+                    if reason := self._check_soft_guards(repeat_count):
                         return self._finalize(state, reason)
-                    result = await self._execute_tool(tu)
+                    if self._should_warn_loop(repeat_count):
+                        result = self._build_loop_warning(tu)
+                    else:
+                        result = await self._execute_tool(tu)
                     state.messages.append(
                         self._provider.tool_result_to_message(result)
                     )
@@ -294,19 +298,20 @@ class ToolLoopExecutor:
             return "budget_exceeded"
         return None
 
-    def _check_soft_guards(
-        self, state: LoopState, tool_use,
-    ) -> TerminationReason | None:
+    def _repeat_count(self, state: LoopState, tool_use) -> int:
         key = CallKey(tool_use.name, tool_use.args_hash())
-        repeat = state.call_history.count(key)
-        if repeat >= self._config.loop_detection_stop_threshold - 1:
+        return state.call_history.count(key)
+
+    def _check_soft_guards(self, repeat_count: int) -> TerminationReason | None:
+        if repeat_count >= self._config.loop_detection_stop_threshold - 1:
             return "loop_detected_hard"
-        if repeat >= self._config.loop_detection_threshold - 1:
-            self._inject_loop_warning(state, tool_use)
         return None
 
-    def _inject_loop_warning(self, state: LoopState, tool_use) -> None:
-        warn = ToolResult(
+    def _should_warn_loop(self, repeat_count: int) -> bool:
+        return repeat_count >= self._config.loop_detection_threshold - 1
+
+    def _build_loop_warning(self, tool_use) -> ToolResult:
+        return ToolResult(
             tool_use_id=tool_use.id, name=tool_use.name,
             data={
                 "warning": (
@@ -315,7 +320,4 @@ class ToolLoopExecutor:
                 )
             },
             is_error=True,
-        )
-        state.messages.append(
-            self._provider.tool_result_to_message(warn)
         )

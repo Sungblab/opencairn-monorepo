@@ -166,6 +166,36 @@ async def test_abandons_after_idle():
 
 
 @pytest.mark.asyncio
+async def test_wait_condition_false_abandons_without_assertion(monkeypatch):
+    """Temporal wait_condition may return False on timeout; treat it as idle."""
+
+    async def fake_execute_activity(*args, **kwargs) -> CodeOutput:
+        return CodeOutput(
+            language="python",
+            source="print('gen')",
+            explanation="initial generate",
+        )
+
+    async def fake_wait_condition(*args, **kwargs) -> bool:
+        return False
+
+    monkeypatch.setattr(
+        "worker.workflows.code_workflow.workflow.execute_activity",
+        fake_execute_activity,
+    )
+    monkeypatch.setattr(
+        "worker.workflows.code_workflow.workflow.wait_condition",
+        fake_wait_condition,
+    )
+
+    result = await CodeAgentWorkflow().run(_params())
+
+    assert result.status == "abandoned"
+    assert len(result.history) == 1
+    assert result.history[0].kind == "generate"
+
+
+@pytest.mark.asyncio
 async def test_cancel_signal_terminates():
     """A ``cancel`` signal should short-circuit the loop with ``cancelled``."""
     async with await WorkflowEnvironment.start_time_skipping() as env:

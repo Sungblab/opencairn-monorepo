@@ -36,6 +36,26 @@ class _FakeRegistry:
         return await self._handlers[name](args)
 
 
+class _CaptureHooks:
+    def __init__(self):
+        self.messages: list[Any] = []
+
+    async def on_run_start(self, state) -> None:
+        pass
+
+    async def on_turn_start(self, state) -> None:
+        pass
+
+    async def on_tool_start(self, state, tool_use) -> None:
+        pass
+
+    async def on_tool_end(self, state, tool_use, result) -> None:
+        pass
+
+    async def on_run_end(self, state) -> None:
+        self.messages = list(state.messages)
+
+
 def _turn(text: str | None = None, tool_uses=(), stop="STOP"):
     return AssistantTurn(
         final_text=text, tool_uses=tuple(tool_uses),
@@ -79,3 +99,37 @@ async def test_tool_use_then_model_stopped():
     assert result.termination_reason == "model_stopped"
     assert result.tool_call_count == 1
     assert result.final_text == "done"
+
+
+async def test_loop_warning_emits_one_response_per_tool_use_id():
+    first = ToolUse(id="repeat-1", name="search", args={"q": "same"})
+    second = ToolUse(id="repeat-2", name="search", args={"q": "same"})
+    hooks = _CaptureHooks()
+    provider = _FakeProvider(scripted=[
+        _turn(tool_uses=[first]),
+        _turn(tool_uses=[second]),
+        _turn(text="done"),
+    ])
+
+    async def search_handler(args):
+        return {"hits": ["concept_42"]}
+
+    registry = _FakeRegistry(handlers={"search": search_handler})
+    executor = ToolLoopExecutor(
+        provider=provider,
+        tool_registry=registry,
+        config=LoopConfig(
+            loop_detection_threshold=2,
+            loop_detection_stop_threshold=10,
+        ),
+        tool_context={"workspace_id": "ws"},
+        hooks=hooks,
+    )
+    result = await executor.run(initial_messages=[{"role": "user", "text": "find"}])
+
+    assert result.termination_reason == "model_stopped"
+    tool_messages = [
+        msg for msg in hooks.messages
+        if isinstance(msg, dict) and msg.get("role") == "tool"
+    ]
+    assert [msg["id"] for msg in tool_messages].count("repeat-2") == 1

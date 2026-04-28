@@ -15,21 +15,35 @@ from minio import Minio
 _client: Minio | None = None
 
 
+def _required_s3_env(name: str) -> str:
+    value = os.environ.get(name, "").strip()
+    if not value:
+        raise RuntimeError(
+            f"{name} is required to initialize the S3 client. "
+            "Set S3_ACCESS_KEY and S3_SECRET_KEY explicitly."
+        )
+    return value
+
+
 def get_s3_client() -> Minio:
     """Return a process-wide :class:`Minio` client, initialised from env vars."""
     global _client
     if _client is None:
         endpoint = os.environ.get("S3_ENDPOINT", "localhost:9000")
+        secure = os.environ.get("S3_USE_SSL", "false").lower() == "true"
         # Strip protocol if present (matches apps/api/src/lib/s3.ts parser).
         if endpoint.startswith("http://"):
             endpoint = endpoint[7:]
+            secure = False
         elif endpoint.startswith("https://"):
             endpoint = endpoint[8:]
+            secure = True
+        endpoint = endpoint.split("/")[0]
         _client = Minio(
             endpoint,
-            access_key=os.environ.get("S3_ACCESS_KEY", "minioadmin"),
-            secret_key=os.environ.get("S3_SECRET_KEY", "minioadmin"),
-            secure=os.environ.get("S3_USE_SSL", "false").lower() == "true",
+            access_key=_required_s3_env("S3_ACCESS_KEY"),
+            secret_key=_required_s3_env("S3_SECRET_KEY"),
+            secure=secure,
         )
     return _client
 

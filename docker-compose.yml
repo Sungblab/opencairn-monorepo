@@ -21,8 +21,20 @@ services:
 
   redis:
     image: redis:7-alpine
+    command:
+      - sh
+      - -c
+      - |
+        if [ -n "$${REDIS_PASSWORD:-}" ]; then
+          exec redis-server --requirepass "$$REDIS_PASSWORD"
+        fi
+        exec redis-server
     ports:
-      - "6379:6379"
+      # Keep unauthenticated dev Redis off non-loopback host interfaces.
+      # Set REDIS_HOST_BIND=0.0.0.0 only with REDIS_PASSWORD + matching URLs.
+      - "${REDIS_HOST_BIND:-127.0.0.1}:${REDIS_HOST_PORT:-6379}:6379"
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     volumes:
       - redisdata:/data
 

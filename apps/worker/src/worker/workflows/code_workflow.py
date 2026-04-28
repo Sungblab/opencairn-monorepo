@@ -94,11 +94,14 @@ class CodeAgentWorkflow:
         # --- Up to MAX_FIX_TURNS fix turns ------------------------------------
         for _ in range(MAX_FIX_TURNS):
             try:
-                await workflow.wait_condition(
+                signalled = await workflow.wait_condition(
                     lambda: self._feedback is not None or self._cancelled,
                     timeout=IDLE_ABANDON,
                 )
             except asyncio.TimeoutError:
+                return CodeRunResult(status="abandoned", history=history)
+
+            if signalled is False:
                 return CodeRunResult(status="abandoned", history=history)
 
             if self._cancelled:
@@ -107,7 +110,8 @@ class CodeAgentWorkflow:
             fb = self._feedback
             self._feedback = None  # consume — next iteration waits afresh
 
-            assert fb is not None  # invariant: wait_condition would have looped
+            if fb is None:
+                return CodeRunResult(status="abandoned", history=history)
             if fb.kind == "ok":
                 return CodeRunResult(status="completed", history=history)
 
