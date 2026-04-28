@@ -1,0 +1,35 @@
+{
+  "section": {
+    "ai": "AI"
+  },
+  "command": {
+    "improve": "Improve",
+    "translate": "Translate",
+    "summarize": "Summarize",
+    "expand": "Expand"
+  },
+  "translate": {
+    "language": {
+      "ko": "Korean",
+      "en": "English",
+      "ja": "Japanese",
+      "zh": "Chinese"
+    }
+  },
+  "sheet": {
+    "title": "AI edit preview",
+    "loading": "Working…",
+    "hunkOriginal": "Original",
+    "hunkReplacement": "Replacement",
+    "acceptAll": "Accept all",
+    "rejectAll": "Reject all",
+    "cost": "Tokens {tokensIn}/{tokensOut}",
+    "noChange": "Nothing to change"
+  },
+  "error": {
+    "llm_failed": "AI call failed. Please retry.",
+    "selection_race": "The document changed; the edit no longer applies.",
+    "command_unknown": "Unsupported command.",
+    "internal": "Unexpected error."
+  }
+}
