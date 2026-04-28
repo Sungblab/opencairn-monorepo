@@ -14,6 +14,8 @@ from .emit_structured_output import emit_structured_output
 from .fetch_url import fetch_url
 from .get_concept_graph import get_concept_graph
 from .list_project_topics import list_project_topics
+from .literature_import import literature_import
+from .literature_search import literature_search
 from .read_note import read_note
 from .search_concepts import search_concepts
 from .search_notes import search_notes
@@ -26,6 +28,8 @@ BUILTIN_TOOLS: tuple = (
     fetch_url,
     emit_structured_output,
     get_concept_graph,
+    literature_search,
+    literature_import,
 )
 
 __all__ = [
@@ -34,6 +38,8 @@ __all__ = [
     "fetch_url",
     "get_concept_graph",
     "list_project_topics",
+    "literature_import",
+    "literature_search",
     "read_note",
     "search_concepts",
     "search_notes",

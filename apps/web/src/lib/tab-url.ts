@@ -29,6 +29,11 @@ export function tabToUrl(slug: string, route: TabRoute): string {
       return route.targetId
         ? `${base}/settings/${route.targetId}`
         : `${base}/settings`;
+    case "ingest":
+    case "lit_search":
+      // Transient in-app tabs without canonical URLs — fall back to the
+      // workspace base so URL sync doesn't drop the user on /undefined.
+      return base;
   }
 }
 

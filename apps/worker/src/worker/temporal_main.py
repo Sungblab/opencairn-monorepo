@@ -90,6 +90,20 @@ from worker.activities.deep_research import (
 )
 from worker.workflows.deep_research_workflow import DeepResearchWorkflow
 
+# Plan: Literature Search & Auto-Import. Registered unconditionally — the
+# UI-side feature gate lives at the Hono route layer (Task 3/7), so the
+# worker is always ready to drain a LitImportWorkflow if the route writes
+# a job. Imports kept as a contiguous block at the END of the imports list
+# to minimise merge surface against parallel sessions adding their own
+# workflows here (e.g. content-aware-enrichment).
+from worker.activities.lit_import_activities import (
+    create_metadata_note,
+    fetch_and_upload_oa_pdf,
+    fetch_paper_metadata,
+    lit_dedupe_check,
+)
+from worker.workflows.lit_import_workflow import LitImportWorkflow
+
 load_dotenv()
 
 
@@ -130,6 +144,7 @@ def build_worker_config() -> WorkerConfig:
         ConnectorWorkflow,
         StalenessWorkflow,
         NarratorWorkflow,
+        LitImportWorkflow,  # Plan: Literature Search & Auto-Import
     ]
     activities: list[Any] = [
         emit_started,
@@ -168,6 +183,13 @@ def build_worker_config() -> WorkerConfig:
         resolve_target,
         materialize_page_tree,
         finalize_import_job,
+        # Plan: Literature Search & Auto-Import — appended at the END of
+        # the activities list so adjacent parallel sessions adding their
+        # own activities here merge cleanly (no interleaving).
+        fetch_paper_metadata,
+        lit_dedupe_check,
+        create_metadata_note,
+        fetch_and_upload_oa_pdf,
     ]
 
     # Deep Research Phase B — feature-flag gated so the worker boots cleanly

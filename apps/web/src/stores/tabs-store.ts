@@ -11,7 +11,8 @@ export type TabKind =
   | "research_run"
   | "import"
   | "ws_settings"
-  | "ingest";
+  | "ingest"
+  | "lit_search";
 
 export type TabMode =
   | "plate"
@@ -27,7 +28,8 @@ export type TabMode =
   | "graph"
   | "mindmap"
   | "flashcard"
-  | "ingest";
+  | "ingest"
+  | "lit-search";
 
 /**
  * Map a note's `sourceType` (DB enum) to the Tab Mode that should render it.

@@ -32,7 +32,7 @@ import {
   lt,
   count,
 } from "@opencairn/db";
-import { getTemporalClient } from "../lib/temporal-client";
+import { getTemporalClient, taskQueue } from "../lib/temporal-client";
 import { signSessionForUser } from "../lib/test-session";
 import { createMultiRoleSeed } from "../lib/test-seed-multi";
 import { isUuid } from "../lib/validators";
@@ -47,6 +47,7 @@ import {
   WorkspaceMismatchError,
 } from "../lib/internal-assert";
 import { persistAndPublish } from "../lib/notification-events";
+import { federatedSearch } from "../lib/literature-search";
 
 // Internal-only routes — reachable by worker callbacks on the docker network.
 // Auth is a shared secret (INTERNAL_API_SECRET) carried in `X-Internal-Secret`;
@@ -1401,13 +1402,16 @@ const internalNoteCreateSchema = z
     title: z.string().min(1).max(512).default("Untitled"),
     type: z.enum(["note", "source"]).default("note"),
     sourceType: z
-      .enum(["pdf", "audio", "video", "image", "youtube", "web", "unknown", "notion"])
+      .enum(["pdf", "audio", "video", "image", "youtube", "web", "unknown", "notion", "paper"])
       .nullable()
       .optional(),
     content: z.unknown().nullable().optional(),
     contentText: z.string().nullable().optional(),
     importJobId: z.string().uuid().optional(),
     importPath: z.string().max(1024).optional(),
+    // Plan: Literature Search & Auto-Import — paper notes carry their DOI
+    // for cross-workspace dedupe (notes_workspace_doi_idx partial unique).
+    doi: z.string().max(255).nullable().optional(),
     // --- Phase C additions ---
     idempotencyKey: z.string().min(1).max(128).optional(),
     workspaceId: z.string().uuid().optional(),
@@ -1472,6 +1476,7 @@ internal.post(
       content,
       contentText,
       isAuto: true,
+      doi: body.doi ?? null,
     });
 
     // Back-fill researchRuns.noteId so a retry of this call hits the
@@ -1490,6 +1495,172 @@ internal.post(
   },
 );
 
+// GET /internal/notes?workspaceId=<uuid>&doi=<doi>
+// Plan: Literature Search & Auto-Import — DOI dedupe lookup. Worker calls
+// this before fetching/inserting a paper so a second import of the same DOI
+// (in the same workspace) returns the existing noteId instead of producing
+// a duplicate row. The partial unique index notes_workspace_doi_idx is the
+// hard floor; this endpoint is the cooperative check that lets the worker
+// short-circuit upstream of the I/O for PDF download.
+internal.get("/notes", async (c) => {
+  const workspaceId = c.req.query("workspaceId");
+  const doi = c.req.query("doi");
+  if (!workspaceId || !isUuid(workspaceId) || !doi) {
+    return c.json({ error: "workspaceId (uuid) and doi are required" }, 400);
+  }
+  const [row] = await db
+    .select({ id: notes.id })
+    .from(notes)
+    .where(
+      and(
+        eq(notes.workspaceId, workspaceId),
+        eq(notes.doi, doi),
+        isNull(notes.deletedAt),
+      ),
+    );
+  return c.json({ exists: !!row, noteId: row?.id ?? null });
+});
+
+// ── Literature Search & Auto-Import — agent-tool surface ─────────────────────
+// Public endpoints (apps/api/src/routes/literature.ts) are session-gated.
+// These mirror them for the worker's literature_search / literature_import
+// tools, which run inside Temporal activities and authenticate via the
+// shared internal secret instead of a session cookie.
+
+// GET /internal/literature/search?q=&workspaceId=&limit=&sources=
+internal.get("/literature/search", async (c) => {
+  const q = c.req.query("q");
+  const workspaceId = c.req.query("workspaceId");
+  const limitRaw = c.req.query("limit");
+  const sourcesRaw = c.req.query("sources");
+  if (!q || !workspaceId || !isUuid(workspaceId)) {
+    return c.json({ error: "q and workspaceId (uuid) required" }, 400);
+  }
+  const limit = Math.min(Number(limitRaw) || 10, 50);
+  const allowed = new Set(["arxiv", "semantic_scholar", "crossref"] as const);
+  const srcList = (sourcesRaw
+    ?.split(",")
+    .map((s) => s.trim())
+    .filter((s): s is "arxiv" | "semantic_scholar" | "crossref" =>
+      allowed.has(s as "arxiv" | "semantic_scholar" | "crossref"),
+    ) ?? ["arxiv", "semantic_scholar"]) as (
+    | "arxiv"
+    | "semantic_scholar"
+    | "crossref"
+  )[];
+
+  const { results, sourceMeta } = await federatedSearch({
+    query: q,
+    sources: srcList,
+    limit,
+  });
+  return c.json({ results, total: results.length, sources: sourceMeta });
+});
+
+// POST /internal/literature/import
+// Body: { ids, projectId, userId, workspaceId }. The worker tool forwards
+// ToolContext fields verbatim; we still validate that projectId belongs to
+// workspaceId so a buggy agent can't smuggle a write into the wrong tenant.
+internal.post("/literature/import", async (c) => {
+  let body: {
+    ids?: unknown;
+    projectId?: unknown;
+    userId?: unknown;
+    workspaceId?: unknown;
+  };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+
+  if (
+    !Array.isArray(body.ids) ||
+    body.ids.length === 0 ||
+    body.ids.length > 50 ||
+    !body.ids.every((id) => typeof id === "string" && id.length > 0)
+  ) {
+    return c.json({ error: "ids must be 1..50 non-empty strings" }, 400);
+  }
+  if (
+    typeof body.projectId !== "string" ||
+    typeof body.workspaceId !== "string" ||
+    typeof body.userId !== "string" ||
+    !isUuid(body.projectId) ||
+    !isUuid(body.workspaceId) ||
+    body.userId.length === 0
+  ) {
+    return c.json(
+      { error: "projectId (uuid), workspaceId (uuid), userId required" },
+      400,
+    );
+  }
+
+  const ids = body.ids as string[];
+  const { projectId, workspaceId, userId } = body;
+
+  // Workspace consistency — projectId must live inside the claimed
+  // workspaceId. Internal API workspace-scope rule (see
+  // feedback_internal_api_workspace_scope memory) — every write route
+  // cross-checks projects.workspaceId.
+  const [proj] = await db
+    .select({ workspaceId: projects.workspaceId })
+    .from(projects)
+    .where(eq(projects.id, projectId));
+  if (!proj) return c.json({ error: "project_not_found" }, 404);
+  if (proj.workspaceId !== workspaceId) {
+    return c.json({ error: "workspace_mismatch" }, 400);
+  }
+
+  // DOI dedupe pre-check (same shape as the public route).
+  const skipped: string[] = [];
+  const doiIds = ids.filter((id) => !id.startsWith("arxiv:"));
+  if (doiIds.length > 0) {
+    const rows = await db
+      .select({ doi: notes.doi })
+      .from(notes)
+      .where(
+        and(eq(notes.workspaceId, workspaceId), isNull(notes.deletedAt)),
+      );
+    const existing = new Set(
+      rows.map((r) => r.doi).filter((d): d is string => !!d),
+    );
+    for (const d of doiIds) if (existing.has(d)) skipped.push(d);
+  }
+  const freshIds = ids.filter((id) => !skipped.includes(id));
+  if (freshIds.length === 0) {
+    return c.json(
+      { jobId: null, workflowId: null, skipped, queued: 0 },
+      202,
+    );
+  }
+
+  const jobId = randomUUID();
+  const workflowId = `lit-import-${randomUUID()}`;
+  await db.insert(importJobs).values({
+    id: jobId,
+    workspaceId,
+    userId,
+    source: "literature_search",
+    workflowId,
+    sourceMetadata: { selectedIds: freshIds, viaAgent: true },
+  });
+  const client = await getTemporalClient();
+  await client.workflow.start("LitImportWorkflow", {
+    taskQueue: taskQueue(),
+    workflowId,
+    args: [
+      {
+        job_id: jobId,
+        user_id: userId,
+        workspace_id: workspaceId,
+        ids: freshIds,
+      },
+    ],
+  });
+  return c.json({ jobId, workflowId, skipped, queued: freshIds.length }, 202);
+});
+
 // PATCH /internal/notes/:id — worker backfills content after the Markdown
 // converter (Task 8) finishes. Narrow allowlist so the same endpoint can't
 // be (ab)used to rewrite arbitrary columns like workspace_id.
@@ -1498,7 +1669,7 @@ const internalNotePatchSchema = z.object({
   contentText: z.string().optional(),
   title: z.string().min(1).max(512).optional(),
   sourceType: z
-    .enum(["pdf", "audio", "video", "image", "youtube", "web", "unknown", "notion"])
+    .enum(["pdf", "audio", "video", "image", "youtube", "web", "unknown", "notion", "paper"])
     .nullable()
     .optional(),
 });

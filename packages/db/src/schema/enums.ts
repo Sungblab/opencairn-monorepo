@@ -15,6 +15,7 @@ export const sourceTypeEnum = pgEnum("source_type", [
   "notion",
   "unknown",
   "canvas",
+  "paper",
 ]);
 
 // Plan 7 Canvas Phase 1 — language pinned at note creation. The CHECK on
@@ -35,6 +36,7 @@ export const integrationProviderEnum = pgEnum("integration_provider", [
 export const importSourceEnum = pgEnum("import_source", [
   "google_drive",
   "notion_zip",
+  "literature_search",
 ]);
 
 export const jobStatusEnum = pgEnum("job_status", [

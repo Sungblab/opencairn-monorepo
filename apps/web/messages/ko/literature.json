@@ -1,0 +1,44 @@
+{
+  "search": {
+    "placeholder": "논문 제목, 저자, 키워드로 검색",
+    "button": "검색",
+    "reSearch": "다시 검색",
+    "resultCount": "{count}개 결과",
+    "moreCount": "+{count}개 더",
+    "openInEditor": "에디터에서 전체 결과 보기",
+    "noResults": "검색 결과가 없습니다.",
+    "loading": "검색 중...",
+    "error": "검색 중 오류가 발생했습니다."
+  },
+  "filter": {
+    "sources": "소스",
+    "arxiv": "arXiv",
+    "semanticScholar": "Semantic Scholar",
+    "crossref": "Crossref"
+  },
+  "result": {
+    "citations": "인용 {count}회",
+    "year": "{year}년",
+    "abstract": "초록",
+    "openPdf": "PDF 보기",
+    "doiLink": "DOI 링크"
+  },
+  "badge": {
+    "openAccess": "OA",
+    "paywalled": "페이월"
+  },
+  "import": {
+    "selected": "{count}개 선택됨",
+    "button": "가져오기",
+    "importing": "가져오는 중...",
+    "done": "가져오기 완료",
+    "skipped": "{count}개는 이미 워크스페이스에 존재하여 건너뜀",
+    "skippedNone": "건너뜀 없음",
+    "project": "프로젝트",
+    "selectProject": "프로젝트 선택",
+    "paywallNotice": "OA PDF를 찾지 못했습니다. 직접 업로드하거나 기관 구독으로 접근하세요."
+  },
+  "tab": {
+    "title": "문헌 검색"
+  }
+}
