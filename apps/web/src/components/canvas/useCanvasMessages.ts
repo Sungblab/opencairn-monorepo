@@ -4,10 +4,14 @@ import { useEffect, useRef, type RefObject } from "react";
 // Discriminated union of every message kind the iframe is allowed to post.
 // Anything else is ignored. CANVAS_RESIZE is reserved for Phase 2 height
 // auto-grow; Phase 1 only emits READY/ERROR but the type pins the surface.
+// CANVAS_PYTHON_RESULT is emitted by the python sandbox template when a run
+// finishes (success, error, or timeout) so the parent can save the captured
+// matplotlib figures to the note's outputs gallery.
 export type CanvasMessage =
   | { type: "CANVAS_READY" }
   | { type: "CANVAS_ERROR"; error: string }
-  | { type: "CANVAS_RESIZE"; height: number };
+  | { type: "CANVAS_RESIZE"; height: number }
+  | { type: "CANVAS_PYTHON_RESULT"; figures: string[]; timedOut: boolean };
 
 /**
  * Blob URL iframes always report `event.origin === "null"`.

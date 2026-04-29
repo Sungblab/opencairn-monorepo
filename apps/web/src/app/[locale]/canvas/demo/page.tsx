@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
-import { PyodideRunner } from "@/components/canvas/PyodideRunner";
 import { CanvasFrame } from "@/components/canvas/CanvasFrame";
 
 type DemoLang = "python" | "javascript" | "html" | "react";
@@ -75,11 +74,7 @@ export default function CanvasDemoPage() {
           spellCheck={false}
         />
         <div className="flex-1 p-3 overflow-auto">
-          {language === "python" ? (
-            <PyodideRunner key={runId} source={source} />
-          ) : (
-            <CanvasFrame key={runId} source={source} language={language} />
-          )}
+          <CanvasFrame key={runId} source={source} language={language} />
         </div>
       </div>
     </div>

@@ -9,7 +9,6 @@ import { useTranslations } from "next-intl";
 import { MAX_CANVAS_SOURCE_BYTES } from "@opencairn/shared";
 import { apiClient } from "@/lib/api-client";
 import type { Tab } from "@/stores/tabs-store";
-import { PyodideRunner } from "@/components/canvas/PyodideRunner";
 import { CanvasFrame } from "@/components/canvas/CanvasFrame";
 import { MonacoEditor } from "@/components/canvas/MonacoEditor";
 import { CodeAgentPanel } from "@/components/canvas/CodeAgentPanel";
@@ -59,8 +58,9 @@ export function CanvasViewer({ tab }: { tab: Tab }) {
   // `currentRunId` is the SSE handle returned by `POST /api/code/run`; it
   // drives `useCodeAgentStream` and is forwarded to the outputs gallery so
   // saved figures get attributed to the right run.
-  // `pendingFigures` is the latest set of base64 PNGs harvested from
-  // `PyodideRunner.onResult`; the gallery renders them with a Save button.
+  // `pendingFigures` is the latest set of base64 PNGs harvested from the
+  // python iframe's CANVAS_PYTHON_RESULT message; the gallery renders them
+  // with a Save button.
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const [pendingFigures, setPendingFigures] = useState<string[]>([]);
   const runResult = useCodeAgentStream(currentRunId);
@@ -194,14 +194,13 @@ export function CanvasViewer({ tab }: { tab: Tab }) {
               <div className="text-destructive text-sm">
                 {t("errors.sourceTooLarge")}
               </div>
-            ) : language === "python" ? (
-              <PyodideRunner
+            ) : (
+              <CanvasFrame
                 key={runId}
                 source={source}
-                onResult={(r) => setPendingFigures(r.figures)}
+                language={language}
+                onPythonResult={(r) => setPendingFigures(r.figures)}
               />
-            ) : (
-              <CanvasFrame key={runId} source={source} language={language} />
             )}
           </div>
           <div className="border-t p-2">
