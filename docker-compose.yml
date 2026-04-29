@@ -356,6 +356,26 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  tectonic:
+    # LaTeX→PDF compiler MSA (Plan: 2026-04-27-multi-format-synthesis-export
+    # Phase D). Behind a profile so default `docker compose up -d` doesn't
+    # pull a 1GB+ tectonic image; self-hosters opt in via:
+    #   docker compose --profile pro up tectonic
+    profiles: ["pro"]
+    build:
+      context: ./apps/tectonic
+      dockerfile: Dockerfile
+    image: opencairn/tectonic:dev
+    container_name: opencairn-tectonic
+    volumes:
+      - tectonic-cache:/app/cache
+    environment:
+      DEFAULT_TIMEOUT_MS: 60000
+      TECTONIC_MAX_INPUT_BYTES: 2097152
+    ports:
+      - "8888:8888"
+    restart: unless-stopped
+
 volumes:
   pgdata:
   redisdata:
@@ -363,3 +383,4 @@ volumes:
   ollama_data:
   worker_trajectories:
   worker_import_staging:
+  tectonic-cache:
