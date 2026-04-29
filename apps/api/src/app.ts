@@ -46,6 +46,7 @@ import { notificationRoutes } from "./routes/notifications";
 import { literatureRoutes } from "./routes/literature";
 import { docEditorRoutes } from "./routes/doc-editor";
 import { mcpRoutes } from "./routes/mcp";
+import { connectorRoutes as connectorFoundationRoutes } from "./routes/connectors";
 
 export function createApp() {
   const app = new Hono();
@@ -95,6 +96,7 @@ export function createApp() {
   // below don't intercept this with their own requireAuth chains.
   app.route("/api/message-feedback", messageFeedbackRoutes);
   app.route("/api/mcp/servers", mcpRoutes);
+  app.route("/api/connectors", connectorFoundationRoutes);
   // Plan 2C share-link routes. Same public-then-auth shape as inviteRoutes.
   // Mounted FIRST among `/api` wildcard sub-apps so its public route
   // (`/api/public/share/:token`) is dispatched before any other sub-app's

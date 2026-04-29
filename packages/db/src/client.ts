@@ -26,6 +26,7 @@ import * as suggestions from "./schema/suggestions";
 import * as staleAlerts from "./schema/stale-alerts";
 import * as audioFiles from "./schema/audio-files";
 import * as userMcpServers from "./schema/user-mcp-servers";
+import * as connectors from "./schema/connectors";
 
 const schema = {
   ...users,
@@ -54,6 +55,7 @@ const schema = {
   ...staleAlerts,
   ...audioFiles,
   ...userMcpServers,
+  ...connectors,
 };
 
 // 명시적 factory — 소비자가 자체 pool을 소유하고 싶을 때 사용.

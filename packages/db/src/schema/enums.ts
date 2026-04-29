@@ -171,6 +171,82 @@ export const mcpServerStatusEnum = pgEnum("mcp_server_status", [
   "auth_expired",
 ]);
 
+export const connectorProviderEnum = pgEnum("connector_provider", [
+  "google_drive",
+  "github",
+  "notion",
+  "mcp_custom",
+]);
+
+export const connectorAuthTypeEnum = pgEnum("connector_auth_type", [
+  "oauth",
+  "pat",
+  "static_header",
+  "none",
+]);
+
+export const connectorAccountStatusEnum = pgEnum("connector_account_status", [
+  "active",
+  "disabled",
+  "auth_expired",
+  "revoked",
+]);
+
+export const connectorSourceKindEnum = pgEnum("connector_source_kind", [
+  "drive_folder",
+  "drive_file",
+  "github_repo",
+  "notion_workspace",
+  "notion_page_tree",
+  "mcp_server",
+]);
+
+export const connectorSyncModeEnum = pgEnum("connector_sync_mode", [
+  "one_shot",
+  "manual_resync",
+  "scheduled",
+]);
+
+export const connectorSourceStatusEnum = pgEnum("connector_source_status", [
+  "active",
+  "disabled",
+  "auth_expired",
+  "deleted",
+]);
+
+export const connectorJobTypeEnum = pgEnum("connector_job_type", [
+  "import",
+  "sync",
+  "refresh_tools",
+  "preview",
+]);
+
+export const connectorRiskLevelEnum = pgEnum("connector_risk_level", [
+  "safe_read",
+  "import",
+  "write",
+  "destructive",
+  "external_send",
+  "unknown",
+]);
+
+export const connectorExternalObjectTypeEnum = pgEnum(
+  "connector_external_object_type",
+  [
+    "file",
+    "folder",
+    "page",
+    "database",
+    "repo",
+    "issue",
+    "pull_request",
+    "comment",
+    "action_run",
+    "code_file",
+    "mcp_result",
+  ],
+);
+
 // Plan 8 — Connector/Curator/Synthesis agents surface actionable insights as
 // suggestions. `type` encodes which agent produced the row and what the user
 // should do; `status` tracks the lifecycle through acceptance or dismissal.

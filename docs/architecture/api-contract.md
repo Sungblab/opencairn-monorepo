@@ -322,6 +322,23 @@ values; summaries expose `hasAuth` only.
 | DELETE | /api/mcp/servers/:id | owner | Delete one registration. Cross-user IDs return 404. | - |
 | POST | /api/mcp/servers/:id/test | owner | Run `list_tools` once and update `lastSeenToolCount`, `lastSeenAt`, and auth-expired status. | - |
 
+### Connector Foundation (feature-flag `FEATURE_CONNECTOR_PLATFORM`)
+
+Connector routes are hosted-SaaS-first and workspace-scoped at the source grant
+layer. Responses never include plaintext token material; account summaries
+expose token presence as booleans only.
+
+| Method | Path | Auth | Description | Body |
+|--------|------|------|-------------|------|
+| GET | `/api/connectors/accounts` | Yes | List current user's connector accounts. Token values are redacted. | - |
+| GET | `/api/connectors/sources?workspaceId=` | workspace writer | List connector sources granted to a workspace. | - |
+| POST | `/api/connectors/sources` | workspace writer + account owner | Grant one connector source to a workspace/project. Emits `source.granted` audit event. | `{ workspaceId, projectId?, accountId, provider, sourceKind, externalId, displayName, syncMode?, permissions? }` |
+| GET | `/api/connectors/audit?workspaceId=` | workspace writer | List connector audit events for a workspace. | - |
+
+Provider-specific connect/import routes are implemented in follow-up plans.
+Existing `/api/integrations/google`, `/api/import/*`, and `/api/mcp/servers`
+remain available until their compatibility bridges are complete.
+
 ### Billing
 
 > **결제 레일 TBD (사업자등록 후 확정, 현재 BLOCKED)**. 후보: Toss Payments / 포트원(아임포트) / Stripe. 아래 스키마는 provider-agnostic core — 구체 PSP 웹훅 이벤트 이름은 확정 후 치환.
