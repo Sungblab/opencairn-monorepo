@@ -8,6 +8,8 @@ function escapeHtml(s: string): string {
 }
 
 function buildHtml(out: SynthesisOutputJson): string {
+  // Section content is trusted per ResearchAgent prompt contract (a small
+  // HTML subset). page.route blocks all network as defense-in-depth.
   const sections = out.sections
     .map((s) => `<section><h2>${escapeHtml(s.title)}</h2>${s.content}</section>`)
     .join("\n");
@@ -42,12 +44,25 @@ ${bibliography}
 </html>`;
 }
 
+function chromiumLaunchArgs(): string[] {
+  const noSandbox =
+    process.env.PLAYWRIGHT_NO_SANDBOX === "1" ||
+    process.env.NODE_ENV === "production";
+  return noSandbox ? ["--no-sandbox"] : [];
+}
+
 export async function compilePdf(out: SynthesisOutputJson): Promise<Buffer> {
-  const browser = await chromium.launch({ args: ["--no-sandbox"] });
+  // TODO(perf): browser-per-call is fine for v1; consider a module-level
+  // singleton + mutex if synthesis throughput becomes a bottleneck.
+  const browser = await chromium.launch({ args: chromiumLaunchArgs() });
+  let ctx;
   try {
-    const ctx = await browser.newContext();
+    ctx = await browser.newContext();
     const page = await ctx.newPage();
-    await page.setContent(buildHtml(out), { waitUntil: "load" });
+    // Defense-in-depth: HTML is fully self-contained (inline CSS).
+    // Block all network so a stray <img>/<script src> can't exfiltrate.
+    await page.route("**", (route) => route.abort());
+    await page.setContent(buildHtml(out), { waitUntil: "domcontentloaded" });
     const buf = await page.pdf({
       format: "A4",
       printBackground: true,
@@ -55,6 +70,7 @@ export async function compilePdf(out: SynthesisOutputJson): Promise<Buffer> {
     });
     return buf;
   } finally {
+    if (ctx) await ctx.close();
     await browser.close();
   }
 }
