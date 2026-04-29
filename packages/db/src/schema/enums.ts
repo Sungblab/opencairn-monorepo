@@ -165,6 +165,16 @@ export const notificationKindEnum = pgEnum("notification_kind", [
   "system",
 ]);
 
+// Email-dispatcher cadence per notification kind (Plan 2 Task 14, 2026-04-29).
+// instant       → next dispatcher tick (≤ 90s)
+// digest_15min  → flushed at every quarter-hour wallclock boundary
+// digest_daily  → flushed at 09:00 in the user's timezone
+export const notificationFrequencyEnum = pgEnum("notification_frequency", [
+  "instant",
+  "digest_15min",
+  "digest_daily",
+]);
+
 export const mcpServerStatusEnum = pgEnum("mcp_server_status", [
   "active",
   "disabled",

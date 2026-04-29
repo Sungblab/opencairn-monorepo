@@ -378,8 +378,10 @@ remain available until their compatibility bridges are complete.
 | GET | /api/notifications | Yes | 내 알림 목록 | `?unread=true&limit=50&cursor=` |
 | GET | /api/notifications/stream | Yes | SSE 실시간 스트림 | — (event-stream) |
 | POST | /api/notifications/mark-read | Yes | 일괄 읽음 | `{ ids: [] }` or `{ all: true }` |
-| GET | /api/notification-preferences | Yes | 선호도 조회 | - |
-| PUT | /api/notification-preferences | Yes | 선호도 업데이트 | `{ type, channelInapp, channelEmail, frequency }` |
+| GET | /api/notification-preferences | Yes | 5개 kind effective 선호도 (defaults merged). | — |
+| PUT | /api/notification-preferences/:kind | Yes | 한 kind 선호도 upsert. `:kind ∈ {mention,comment_reply,share_invite,research_complete,system}` | `{ emailEnabled: boolean, frequency: 'instant'\|'digest_15min'\|'digest_daily' }` |
+| GET | /api/notification-preferences/profile | Yes | 이메일 본문 locale + digest_daily timezone. | — |
+| PUT | /api/notification-preferences/profile | Yes | 부분 업데이트. `locale ∈ {ko,en}`, `timezone` ∈ SUPPORTED_TIMEZONES (packages/shared). | `{ locale?, timezone? }` |
 
 ### Activity Feed
 

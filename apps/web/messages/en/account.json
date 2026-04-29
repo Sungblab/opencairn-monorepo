@@ -5,6 +5,7 @@
     "profile": "Profile",
     "providers": "BYOK",
     "security": "Security",
+    "notifications": "Notifications",
     "billing": "Billing & credits"
   },
   "profile": {

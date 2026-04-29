@@ -582,6 +582,46 @@ export const meApi = {
     }),
 };
 
+// ---------- Notification preferences (Plan 2 Task 14) ----------
+
+export type NotificationFrequency = "instant" | "digest_15min" | "digest_daily";
+export type NotificationPreferenceKind =
+  | "mention"
+  | "comment_reply"
+  | "research_complete"
+  | "share_invite"
+  | "system";
+
+export interface NotificationPreferenceRow {
+  kind: NotificationPreferenceKind;
+  emailEnabled: boolean;
+  frequency: NotificationFrequency;
+}
+
+export interface NotificationProfileRow {
+  locale: "ko" | "en";
+  timezone: string;
+}
+
+export const notificationPreferencesApi = {
+  list: () =>
+    apiClient<{ preferences: NotificationPreferenceRow[] }>(
+      `/notification-preferences`,
+    ),
+  upsert: (kind: NotificationPreferenceKind, body: Omit<NotificationPreferenceRow, "kind">) =>
+    apiClient<NotificationPreferenceRow>(`/notification-preferences/${kind}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  profile: () =>
+    apiClient<NotificationProfileRow>(`/notification-preferences/profile`),
+  updateProfile: (body: Partial<NotificationProfileRow>) =>
+    apiClient<NotificationProfileRow>(`/notification-preferences/profile`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+};
+
 // ---------- Workspace text search (Phase 5 Task 8 / palette) ----------
 
 export interface WorkspaceNoteSearchHit {

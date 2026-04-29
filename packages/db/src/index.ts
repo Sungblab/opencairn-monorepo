@@ -31,6 +31,7 @@ export * from "./schema/ingest-jobs";
 export * from "./schema/research";
 export * from "./schema/wiki-links";
 export * from "./schema/notifications";
+export * from "./schema/notification-preferences";
 export * from "./schema/code-runs";
 export * from "./schema/share-links";
 export * from "./schema/conversations";

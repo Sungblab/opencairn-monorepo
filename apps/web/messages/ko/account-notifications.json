@@ -1,0 +1,49 @@
+{
+  "title": "알림 설정",
+  "description": "어떤 알림을 이메일로 받을지 선택할 수 있어요. 기본값은 즉시 발송이며, 시스템 알림만 매일 한 번 묶어서 보내드려요.",
+  "preferences": {
+    "heading": "알림 종류",
+    "tableHeaders": {
+      "kind": "종류",
+      "email": "이메일 받기",
+      "frequency": "빈도"
+    },
+    "kinds": {
+      "mention": {
+        "label": "멘션",
+        "description": "내가 노트나 코멘트에서 언급되었을 때"
+      },
+      "comment_reply": {
+        "label": "코멘트 답글",
+        "description": "내 코멘트에 답글이 달렸을 때"
+      },
+      "share_invite": {
+        "label": "공유 초대",
+        "description": "다른 회원이 노트를 공유했을 때"
+      },
+      "research_complete": {
+        "label": "딥리서치 완료",
+        "description": "내가 시작한 리서치 결과가 준비됐을 때"
+      },
+      "system": {
+        "label": "시스템 알림",
+        "description": "워크스페이스 가져오기 완료, 운영 공지 등"
+      }
+    },
+    "frequencies": {
+      "instant": "즉시",
+      "digest_15min": "15분 묶음",
+      "digest_daily": "매일 한 번"
+    }
+  },
+  "profile": {
+    "heading": "이메일 본문 설정",
+    "description": "이메일 본문 언어와 디지털 뭉치 발송 시간을 사용자 시간대에 맞춥니다.",
+    "locale": "이메일 언어",
+    "timezone": "표준 시간대",
+    "save": "저장",
+    "saved": "저장됐어요.",
+    "saveFailed": "저장에 실패했어요. 잠시 후 다시 시도해 주세요."
+  },
+  "tab": "알림"
+}
