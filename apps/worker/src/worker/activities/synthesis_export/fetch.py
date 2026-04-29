@@ -17,9 +17,16 @@ from worker.activities.synthesis_export.types import (
     SourceItem,
     SynthesisRunParams,
 )
-from worker.lib.api_client import post_internal
+from worker.lib.api_client import patch_internal, post_internal
 
 TOKEN_BUDGET = 180_000
+
+
+async def _set_status(run_id: str, status: str) -> None:
+    await patch_internal(
+        f"/api/internal/synthesis-export/runs/{run_id}",
+        {"status": status},
+    )
 
 
 def _approx_tokens(text: str) -> int:
@@ -58,6 +65,7 @@ async def _persist_sources(run_id: str, rows: list[dict]) -> None:
 @activity.defn(name="fetch_sources_activity")
 async def fetch_sources_activity(params: SynthesisRunParams) -> SourceBundle:
     activity.heartbeat("fetching sources")
+    await _set_status(params.run_id, "fetching")
     items: list[SourceItem] = []
 
     for sid in params.explicit_source_ids:

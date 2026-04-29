@@ -17,12 +17,20 @@ async def _patch_run_tokens(run_id: str, tokens_used: int) -> None:
     )
 
 
+async def _set_status(run_id: str, status: str) -> None:
+    await patch_internal(
+        f"/api/internal/synthesis-export/runs/{run_id}",
+        {"status": status},
+    )
+
+
 @activity.defn(name="synthesize_activity")
 async def synthesize_activity(
     params: SynthesisRunParams,
     sources: SourceBundle,
 ) -> SynthesisOutputSchema:
     activity.heartbeat("starting synthesis")
+    await _set_status(params.run_id, "synthesizing")
     provider = await resolve_llm_provider(
         user_id=params.user_id,
         workspace_id=params.workspace_id,

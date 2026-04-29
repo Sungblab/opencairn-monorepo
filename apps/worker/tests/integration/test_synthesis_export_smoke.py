@@ -77,10 +77,19 @@ async def test_synthesis_export_smoke_md_path():
         "worker.activities.synthesis_export.fetch._persist_sources",
         new=AsyncMock(),
     ), patch(
+        "worker.activities.synthesis_export.fetch._set_status",
+        new=AsyncMock(),
+    ), patch(
         "worker.activities.synthesis_export.synthesize._patch_run_tokens",
         new=AsyncMock(),
     ), patch(
+        "worker.activities.synthesis_export.synthesize._set_status",
+        new=AsyncMock(),
+    ), patch(
         "worker.activities.synthesis_export.compile._record_document",
+        new=AsyncMock(),
+    ), patch(
+        "worker.activities.synthesis_export.compile._set_status",
         new=AsyncMock(),
     ), patch(
         "worker.activities.synthesis_export.compile.upload_bytes",
