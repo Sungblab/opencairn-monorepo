@@ -8,7 +8,7 @@
 
 | Session | Domain | Iterations | Critical | High | Med | Low |
 |---|---|---|---|---|---|---|
-| 1 | Editor & Realtime Collab | 3 | 0 | 3 | 6 | 5 |
+| 1 | Editor & Realtime Collab | 3 | 0 | 3 (✅ all closed) | 6 | 5 |
 | 2 | App Shell & Chat & Agent UI | 4 | 0 | 4 | 11 | 14 |
 | 3 | Ingest Pipeline & Sources | 8 | **1** | 13 | 22 | 26 + 7 info |
 | 4 | Agent Runtime (LLM/Compiler/Research/DocEditor/Code/Viz) | 5 | 0 | 3 | 3 | 7 |
@@ -30,13 +30,13 @@
 
 ## High (26, 25 unfixed)
 
-### Session 1 — Editor & Realtime Collab (3)
+### Session 1 — Editor & Realtime Collab (3 — all closed)
 
-| ID | Title | File |
-|---|---|---|
-| S1-001 | SlashMenu global keydown lacks `PlateContent` focus check — title/comment input may delete editor characters | `apps/web/src/components/editor/.../slash-menu.tsx` |
-| S1-002 | Hocuspocus client `token: ""` — server auth path may be bypassed or fully rejected | `apps/web/src/lib/yjs-provider.ts` |
-| S1-003 | `HOCUSPOCUS_ORIGINS` env parsed but `Server({ origins })` never receives it | `apps/hocuspocus/src/index.ts` |
+| ID | Title | File | Status |
+|---|---|---|---|
+| ~~S1-001~~ | ~~SlashMenu global keydown lacks `PlateContent` focus check~~ | `apps/web/src/components/editor/plugins/slash.tsx` | ✅ Fixed (`fix/ralph-frontend-collab` `639e7dc`) — focus gated on `[data-slate-editor="true"]`; jsdom regression test in `slash.test.tsx`. |
+| ~~S1-002~~ | ~~Hocuspocus client `token: ""` — server auth path may be bypassed~~ | `apps/web/src/hooks/useCollaborativeEditor.ts` + `apps/hocuspocus/src/{auth,server}.ts` | ✅ Fixed (`fbc0821` + `6985e22`) — server falls back to WS upgrade Cookie header; client emits `"ws-auth-fallback"` sentinel; auth.test.ts covers cookie-fallback path. |
+| ~~S1-003~~ | ~~`HOCUSPOCUS_ORIGINS` env parsed but `Server({ origins })` never receives it~~ | `apps/hocuspocus/src/server.ts` | ✅ Fixed (`60fe7cf` + `6985e22`) — `onUpgrade` writes 403 + destroys socket + aborts via `throw null`; `tests/origins.test.ts` boots a real server and asserts disallowed/missing/allowed origin outcomes plus an unhandled-rejection contract. (Original `onUpgrade` allowlist landed in PR #147.) |
 
 ### Session 2 — App Shell & Chat & Agent UI (4)
 
@@ -122,7 +122,8 @@ Selection criteria (in order): (1) Critical first; (2) anyone-can-exploit securi
 - **S3-006** (heartbeat_timeout) — reliability hardening, separate batch.
 - **S3-056** (Live Ingest Viz `startRun` dead) — Plan Phase E flip; tracked there.
 - **S6-022** (CI restoration) — needs workflow file design + secrets review; separate operations session.
-- **S1-001/002/003**, **S2-001/026** — separate "frontend hardening" batch after this fix wave.
+- ~~**S1-001/002/003**~~ — closed in `fix/ralph-frontend-collab` (commits `639e7dc`, `fbc0821`, `60fe7cf`, `6985e22`).
+- **S2-001/026** — separate "frontend hardening" batch after this fix wave.
 
 ---
 
