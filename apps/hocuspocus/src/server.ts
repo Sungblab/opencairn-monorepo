@@ -23,6 +23,7 @@ import { makePermissionsAdapter } from "./permissions-adapter.js";
 import { makeAuthenticate, makeVerifySession } from "./auth.js";
 import { makePersistence } from "./persistence.js";
 import { makeReadonlyGuard } from "./readonly-guard.js";
+import { makeStaleRoleGuard } from "./stale-role-guard.js";
 import { makeBlockOrphanReaper } from "./block-orphan-reaper.js";
 
 async function main(): Promise<void> {
@@ -87,6 +88,12 @@ async function main(): Promise<void> {
       return ctx;
     },
     extensions: [
+      // priority 250: re-checks role + session expiry on every incoming
+      // message (TTL-cached). Closes the connection if the user lost access
+      // mid-session; flips readOnly if they were demoted. Runs first so any
+      // mutated readOnly is visible to readonly-guard + persistence.
+      // 2026-04-29 audit Finding 6.
+      makeStaleRoleGuard({ resolveRole: perms.resolveRole }),
       // priority 200: must fire before persistence on both
       // beforeHandleMessage + onChange.
       makeReadonlyGuard(),

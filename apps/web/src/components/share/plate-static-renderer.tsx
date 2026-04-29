@@ -17,42 +17,14 @@
 
 import { Fragment, type ReactElement, type ReactNode } from "react";
 
+import { safeHref } from "@/lib/url/safe-href";
+
 type Node = Record<string, unknown>;
 type Value = Node[];
 
 interface ElementProps {
   children: ReactNode;
   node: Node;
-}
-
-// Allowlist for inline `a` URLs. The public viewer is unauthenticated and
-// public-internet-visible; a malicious imported note must not be able to
-// smuggle `javascript:`, `data:`, `vbscript:`, or `file:` URLs through the
-// renderer. Schemeless URLs (relative or `//host`) are kept as-is so notes
-// referencing in-app routes still work. Anything that can't be parsed falls
-// back to `#`.
-function safeHref(raw: unknown): string {
-  if (typeof raw !== "string") return "#";
-  const trimmed = raw.trim();
-  if (trimmed === "") return "#";
-  // Schemeless / relative — let the browser resolve against the share page.
-  if (
-    trimmed.startsWith("/") ||
-    trimmed.startsWith("#") ||
-    trimmed.startsWith("?")
-  ) {
-    return trimmed;
-  }
-  try {
-    // Use a base so relative URLs still parse without throwing.
-    const u = new URL(trimmed, "https://share.local/");
-    if (u.protocol === "http:" || u.protocol === "https:" || u.protocol === "mailto:") {
-      return trimmed;
-    }
-    return "#";
-  } catch {
-    return "#";
-  }
 }
 
 const ELEMENTS: Record<string, (props: ElementProps) => ReactElement> = {
