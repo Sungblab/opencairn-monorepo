@@ -6,6 +6,20 @@
 - **Baseline**: `docs/review/2026-04-28-ralph-audit/CONSOLIDATED.md`
 - **Method**: 1 full-scope enumeration pass + 5 parallel false-positive verification passes; only findings with verifier confidence ≥8 (or Low severity but verified-real) included.
 
+## Resolution status (fix branch `fix/security-2026-04-29-frontend`, off `origin/main`)
+
+| # | Severity | Finding | Status |
+|---|----------|---------|--------|
+| 1 | High     | S1-001 slash menu keydown | ✅ Already in `origin/main` via PR #162 (`3f1449c`) |
+| 2 | Critical | S1-002 Hocuspocus cookie auth | ✅ Already in `origin/main` via PR #162 |
+| 3 | Low      | S1-003 onUpgrade clean reject | ✅ Already in `origin/main` via PR #162 |
+| 4 | High     | Pyodide same-origin sandbox escape | ✅ Fixed — commit `acfb92d` |
+| 5 | Medium   | Citation chips `javascript:` URL | ✅ Fixed — commit `8707d2e` |
+| 6 | Medium   | Research-meta `javascript:` URL | ✅ Fixed — commit `8707d2e` |
+| 7 | Medium   | Hocuspocus stale role / session | ✅ Fixed — commit `c5c7f2f` |
+
+`codex/connector-platform-spec` (where the audit ran) diverged from `main` before PR #162 landed, so the S1-* findings looked open during enumeration. The fix branch is off `origin/main` which already has PR #162, so the actual fix work was Findings 4-7.
+
 ## Summary
 
 | Severity | Count |
