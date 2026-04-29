@@ -12,10 +12,19 @@ const baseUrl = () =>
 // API receives no session and rightly returns 401. Read Better Auth's cookie
 // jar via `next/headers` and forward it. Dynamic-import keeps the client
 // bundle from pulling a server-only module.
+//
+// Vitest's node environment satisfies `typeof window === "undefined"` but
+// has no Next.js request scope, so `cookies()` throws. The try/catch swallows
+// that branch and returns the empty header — tests that mock `fetch` directly
+// don't care about cookies anyway.
 async function getServerCookieHeader(): Promise<string> {
   if (typeof window !== "undefined") return "";
-  const { cookies } = await import("next/headers");
-  return (await cookies()).toString();
+  try {
+    const { cookies } = await import("next/headers");
+    return (await cookies()).toString();
+  } catch {
+    return "";
+  }
 }
 
 export class ApiError extends Error {
@@ -310,6 +319,7 @@ export interface RecentNoteSummary {
   project_id: string;
   project_name: string;
   updated_at: string;
+  excerpt: string | null;
 }
 
 export interface ResearchRunSummary {
