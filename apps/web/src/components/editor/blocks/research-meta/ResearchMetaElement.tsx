@@ -2,6 +2,8 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import type { PlateElementProps } from "platejs/react";
+
+import { safeHref } from "@/lib/url/safe-href";
 import {
   isResearchMetaElement,
   type ResearchMetaElement as ResearchMetaElementType,
@@ -87,10 +89,14 @@ export function ResearchMetaElement({
                 <ol className="ml-4 list-decimal text-xs">
                   {meta.sources.map((s) => (
                     <li key={s.seq}>
+                      {/* s.url originates from Deep Research / Gemini
+                          grounding output — i.e. URLs scraped from arbitrary
+                          web pages. Run through safeHref so `javascript:` /
+                          `data:` URIs cannot execute on click. */}
                       <a
-                        href={s.url}
+                        href={safeHref(s.url)}
                         target="_blank"
-                        rel="noreferrer"
+                        rel="noopener noreferrer nofollow"
                         className="underline"
                       >
                         {s.title}
