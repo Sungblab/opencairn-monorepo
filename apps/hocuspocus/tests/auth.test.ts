@@ -116,9 +116,10 @@ describe("makeAuthenticate", () => {
   });
 
   it("non-cookie token + valid cookieHeader → authenticates from cookie", async () => {
-    // The new client passes a sentinel like "ws-auth-fallback" that exists
-    // only to trigger the AUTH handshake — the server must skip it and use
-    // the upgrade Cookie header instead of throwing.
+    // The browser client passes a literal "ws-auth-fallback" sentinel
+    // (httpOnly cookies are unreadable from document.cookie) — verifySession
+    // returns null on that string and the server must fall through to the
+    // upgrade Cookie header rather than throwing unauthenticated.
     const { cookieHeader } = await signSessionForUser(seed.editorUserId);
     const r = await authenticate({
       documentName: `page:${seed.noteId}`,

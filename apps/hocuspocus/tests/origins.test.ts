@@ -100,14 +100,28 @@ function attemptUpgrade(
 describe("hocuspocus origin allowlist", () => {
   let server: Server | null = null;
   let port = 0;
+  // M-1 from review — the production server (and this test) abort the
+  // upgrade via `throw null`, which @hocuspocus/server's setupHttpUpgrade
+  // catches and silently swallows because of `if (error) throw error;`.
+  // Pin that contract: if a future upstream version flips the check (e.g.
+  // `error !== undefined`), the rejected hook would emit an unhandled
+  // rejection on the EventEmitter listener and we'd start surfacing
+  // warnings on every blocked connection. Trip the test in that case.
+  const rejections: unknown[] = [];
+  const onRejection = (reason: unknown) => {
+    rejections.push(reason);
+  };
 
   beforeEach(async () => {
+    rejections.length = 0;
+    process.on("unhandledRejection", onRejection);
     server = makeServer();
     await server.listen();
     port = server.address.port;
   });
 
   afterEach(async () => {
+    process.off("unhandledRejection", onRejection);
     if (server) {
       await server.destroy();
       server = null;
@@ -117,16 +131,23 @@ describe("hocuspocus origin allowlist", () => {
   it("rejects WS upgrade from a disallowed origin", async () => {
     const r = await attemptUpgrade(port, "https://evil.example.com");
     expect(r.upgraded).toBe(false);
+    // Give the EventEmitter a tick to surface any swallowed rejection.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(rejections).toEqual([]);
   });
 
   it("rejects WS upgrade with no Origin header at all", async () => {
     const r = await attemptUpgrade(port, undefined);
     expect(r.upgraded).toBe(false);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(rejections).toEqual([]);
   });
 
   it("upgrades WS request from an allowed origin", async () => {
     const r = await attemptUpgrade(port, "http://allowed.example.com");
     expect(r.upgraded).toBe(true);
     expect(r.status).toBe(101);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(rejections).toEqual([]);
   });
 });
