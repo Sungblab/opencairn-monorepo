@@ -1,0 +1,63 @@
+{
+  "panel": {
+    "title": "Synthesis Export",
+    "format": "Output format",
+    "template": "Template",
+    "sources": "Sources ({count} selected)",
+    "autoSearch": "Auto-include related notes",
+    "prompt": "Prompt",
+    "placeholder": "What document should we produce? e.g. \"IEEE format, write the introduction and related work sections first.\"",
+    "start": "Start synthesis",
+    "resynthesize": "Resynthesize"
+  },
+  "status": {
+    "pending": "Pending",
+    "fetching": "Fetching sources",
+    "synthesizing": "Synthesizing",
+    "compiling": "Compiling document",
+    "completed": "Completed",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  },
+  "download": {
+    "tex": "Download .tex",
+    "pdf": "Download PDF",
+    "docx": "Download DOCX",
+    "md": "Download Markdown",
+    "zip": ".tex + .bib (zip)",
+    "pdfProOnly": "PDF (Pro)",
+    "overleafTip": "Download the .tex and compile on Overleaf if you don't have Pro."
+  },
+  "sources": {
+    "add": "Add source",
+    "remove": "Remove",
+    "drResult": "Deep Research result",
+    "note": "Note",
+    "file": "Uploaded file",
+    "tokenBudgetExceeded": "Some sources may be auto-excluded.",
+    "autoIncluded": "Auto-included"
+  },
+  "errors": {
+    "noSources": "Please select at least one source or enable auto-search.",
+    "promptRequired": "Prompt is required.",
+    "tooManyTokens": "Token budget exceeded.",
+    "compileFailed": "Document compile failed. Please try again.",
+    "proRequired": "This feature is available on the Pro plan.",
+    "workflowFailed": "Synthesis workflow failed."
+  },
+  "templates": {
+    "ieee": "IEEE academic paper",
+    "acm": "ACM academic paper",
+    "apa": "APA format",
+    "korean_thesis": "Korean thesis",
+    "report": "General report"
+  },
+  "token": {
+    "estimated": "~{used} / {budget} tokens",
+    "exceeded": "Budget exceeded — some sources will be skipped.",
+    "unit": "tokens"
+  },
+  "result": {
+    "summary": "{count} sources · {tokens} tokens used"
+  }
+}
