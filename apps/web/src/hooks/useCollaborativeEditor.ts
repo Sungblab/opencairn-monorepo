@@ -57,10 +57,21 @@ export function useCollaborativeEditor({
                   url:
                     process.env.NEXT_PUBLIC_HOCUSPOCUS_URL ??
                     "ws://localhost:1234",
-                  // Better Auth cookie flows automatically on same-origin WS.
-                  // For cross-origin deployments, swap this for a short-lived
-                  // token and validate it in the Hocuspocus `onAuthenticate`.
-                  token: "",
+                  // S1-002 — the AUTH-message handshake only fires when this
+                  // string is non-empty, so an empty token historically left
+                  // `onAuthenticate` un-invoked and the connection in an
+                  // unauthenticated state. The Better Auth session cookie is
+                  // httpOnly so it's not readable from `document.cookie`;
+                  // emit `document.cookie` (any non-httpOnly fragments) plus
+                  // a sentinel so the handshake fires, and let the server
+                  // fall back to the WS upgrade Cookie header — which DOES
+                  // include the httpOnly session — for actual verification.
+                  // Cross-origin deployments must swap this for a short-lived
+                  // token + matching server validation path.
+                  token:
+                    typeof document !== "undefined"
+                      ? document.cookie || "ws-auth-fallback"
+                      : "ws-auth-fallback",
                 },
               },
             ],

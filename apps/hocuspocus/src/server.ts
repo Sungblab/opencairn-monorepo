@@ -58,9 +58,15 @@ async function main(): Promise<void> {
       // that flag is what Hocuspocus's internal MessageReceiver checks to
       // silently-ack (not apply) sync-step-2 / update messages. Context-only
       // readOnly does not activate the internal gate.
+      //
+      // S1-002 — pass the WS upgrade Cookie header so `authenticate` can fall
+      // back to the Better Auth session cookie when the client's `token`
+      // field is empty (httpOnly cookies aren't readable from JS, so the
+      // browser provider can't put the session into `token` directly).
       const ctx = await authenticate({
         documentName: payload.documentName,
         token: payload.token,
+        cookieHeader: payload.requestHeaders.cookie,
       });
       payload.connectionConfig.readOnly = ctx.readOnly;
       return ctx;
