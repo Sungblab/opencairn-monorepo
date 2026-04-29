@@ -197,7 +197,7 @@ describe("/api/internal/synthesis-export/*", () => {
     expect(body.kind).toBe("note");
   });
 
-  it("fetch-source returns a placeholder for kind=s3_object (TODO: real extracted-text lookup)", async () => {
+  it("fetch-source falls back to a placeholder for kind=s3_object when no note matches", async () => {
     const fakeKey = crypto.randomUUID();
     const res = await app.request(
       "/api/internal/synthesis-export/fetch-source",
@@ -217,6 +217,50 @@ describe("/api/internal/synthesis-export/*", () => {
     expect(body.id).toBe(fakeKey);
     expect(body.kind).toBe("s3_object");
     expect(body.body).toBe("");
+  });
+
+  it("fetch-source returns the linked note's content for kind=s3_object when sourceFileKey matches", async () => {
+    const [n] = await db
+      .insert(notes)
+      .values({
+        workspaceId: seed.workspaceId,
+        projectId: seed.projectId,
+        title: "Ingested PDF",
+        contentText: "extracted body of the PDF",
+      })
+      .returning();
+
+    // The route's source_id is Zod-validated as a UUID. The worker passes
+    // note UUIDs today (not raw S3 keys), so we look up by note id and
+    // expect the s3_object branch to find the same row via sourceFileKey
+    // when given a UUID-shaped key. Until the worker→API contract for
+    // s3_object lands in Task 18, exercise the fallback by using a UUID
+    // that we wrote into source_file_key:
+    const fakeUuidKey = crypto.randomUUID();
+    await db
+      .update(notes)
+      .set({ sourceFileKey: fakeUuidKey })
+      .where(eq(notes.id, n!.id));
+
+    const res = await app.request(
+      "/api/internal/synthesis-export/fetch-source",
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ source_id: fakeUuidKey, kind: "s3_object" }),
+      },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      id: string;
+      title: string;
+      body: string;
+      kind: string;
+    };
+    expect(body.id).toBe(n!.id);
+    expect(body.title).toBe("Ingested PDF");
+    expect(body.body).toContain("extracted body of the PDF");
+    expect(body.kind).toBe("s3_object");
   });
 
   it("fetch-source rejects unsupported kinds (dr_result is a 501 placeholder)", async () => {

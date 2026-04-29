@@ -2782,10 +2782,24 @@ internal.post(
     }
 
     if (kind === "s3_object") {
-      // TODO(synthesis-export, followup #2): the worker passes the picker's
-      // resolved id; today there's no extracted-text store keyed by S3 key,
-      // so we ship a placeholder. The synthesizer still has the title and
-      // any other fetched sources to work with.
+      // The ingest pipeline writes the resulting note with source_file_key
+      // set to the S3 object key, so a single read finds the extracted text
+      // when it exists. If no note has been backfilled yet (or the picker
+      // passed a key we don't track), fall back to the placeholder so the
+      // synthesizer still has the id + can proceed with other sources.
+      const [row] = await db
+        .select()
+        .from(notes)
+        .where(eq(notes.sourceFileKey, source_id))
+        .limit(1);
+      if (row) {
+        return c.json({
+          id: row.id,
+          title: row.title ?? source_id,
+          body: row.contentText ?? "",
+          kind: "s3_object",
+        });
+      }
       return c.json({ id: source_id, title: source_id, body: "", kind: "s3_object" });
     }
 
