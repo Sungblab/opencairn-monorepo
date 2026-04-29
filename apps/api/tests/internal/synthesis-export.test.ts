@@ -4,6 +4,7 @@ import {
   synthesisRuns,
   synthesisDocuments,
   synthesisSources,
+  notes,
   eq,
 } from "@opencairn/db";
 
@@ -152,13 +153,82 @@ describe("/api/internal/synthesis-export/*", () => {
     expect(rows).toHaveLength(2);
   });
 
-  it("fetch-source is a 501 stub (Task 17 will replace)", async () => {
+  it("fetch-source returns 404 for kind=note when the note doesn't exist", async () => {
     const res = await app.request(
       "/api/internal/synthesis-export/fetch-source",
       {
         method: "POST",
         headers,
         body: JSON.stringify({ source_id: crypto.randomUUID(), kind: "note" }),
+      },
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("fetch-source returns the note title + content for kind=note", async () => {
+    const [n] = await db
+      .insert(notes)
+      .values({
+        workspaceId: seed.workspaceId,
+        projectId: seed.projectId,
+        title: "Seeded note",
+        contentText: "note body for synthesis fetch",
+      })
+      .returning();
+
+    const res = await app.request(
+      "/api/internal/synthesis-export/fetch-source",
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ source_id: n!.id, kind: "note" }),
+      },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      id: string;
+      title: string;
+      body: string;
+      kind: string;
+    };
+    expect(body.id).toBe(n!.id);
+    expect(body.title).toBe("Seeded note");
+    expect(body.body).toContain("note body for synthesis fetch");
+    expect(body.kind).toBe("note");
+  });
+
+  it("fetch-source returns a placeholder for kind=s3_object (TODO: real extracted-text lookup)", async () => {
+    const fakeKey = crypto.randomUUID();
+    const res = await app.request(
+      "/api/internal/synthesis-export/fetch-source",
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ source_id: fakeKey, kind: "s3_object" }),
+      },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      id: string;
+      title: string;
+      body: string;
+      kind: string;
+    };
+    expect(body.id).toBe(fakeKey);
+    expect(body.kind).toBe("s3_object");
+    expect(body.body).toBe("");
+  });
+
+  it("fetch-source rejects unsupported kinds (dr_result is a 501 placeholder)", async () => {
+    const res = await app.request(
+      "/api/internal/synthesis-export/fetch-source",
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          source_id: crypto.randomUUID(),
+          kind: "dr_result",
+        }),
       },
     );
     expect(res.status).toBe(501);
@@ -197,7 +267,7 @@ describe("/api/internal/synthesis-export/*", () => {
     expect(res.status).toBe(404);
   });
 
-  it("auto-search returns empty hits stub (Task 17 will replace)", async () => {
+  it("auto-search returns empty hits (real semantic search is a followup)", async () => {
     const res = await app.request(
       "/api/internal/synthesis-export/auto-search",
       {
@@ -213,5 +283,21 @@ describe("/api/internal/synthesis-export/*", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { hits: unknown[] };
     expect(body.hits).toEqual([]);
+  });
+
+  it("auto-search rejects an empty query string with 400", async () => {
+    const res = await app.request(
+      "/api/internal/synthesis-export/auto-search",
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          workspace_id: seed.workspaceId,
+          query: "",
+          limit: 5,
+        }),
+      },
+    );
+    expect(res.status).toBe(400);
   });
 });

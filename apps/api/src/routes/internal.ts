@@ -2755,14 +2755,62 @@ internal.post(
   },
 );
 
-// fetch-source / auto-search ship as stubs; Task 17 replaces them with the
-// real reads against existing tables. Worker tests already cover these paths
-// with mocks.
-internal.post("/synthesis-export/fetch-source", async (c) =>
-  c.json({ error: "not_implemented" }, 501),
+const fetchSourceSchema = z.object({
+  source_id: z.string().uuid(),
+  kind: z.enum(["s3_object", "note", "dr_result"]),
+});
+
+internal.post(
+  "/synthesis-export/fetch-source",
+  zValidator("json", fetchSourceSchema),
+  async (c) => {
+    const { source_id, kind } = c.req.valid("json");
+
+    if (kind === "note") {
+      const [row] = await db
+        .select()
+        .from(notes)
+        .where(eq(notes.id, source_id))
+        .limit(1);
+      if (!row) return c.json({ error: "not_found" }, 404);
+      return c.json({
+        id: row.id,
+        title: row.title ?? "Untitled",
+        body: row.contentText ?? "",
+        kind: "note",
+      });
+    }
+
+    if (kind === "s3_object") {
+      // TODO(synthesis-export, followup #2): the worker passes the picker's
+      // resolved id; today there's no extracted-text store keyed by S3 key,
+      // so we ship a placeholder. The synthesizer still has the title and
+      // any other fetched sources to work with.
+      return c.json({ id: source_id, title: source_id, body: "", kind: "s3_object" });
+    }
+
+    // dr_result: deep-research artifacts; wiring deferred until research →
+    // synthesis-export handoff is specified.
+    return c.json({ error: "kind_not_supported" }, 501);
+  },
 );
-internal.post("/synthesis-export/auto-search", async (c) =>
-  c.json({ hits: [] }),
+
+const autoSearchSchema = z.object({
+  workspace_id: z.string().uuid(),
+  query: z.string().min(1),
+  limit: z.number().int().positive().max(20).default(10),
+});
+
+internal.post(
+  "/synthesis-export/auto-search",
+  zValidator("json", autoSearchSchema),
+  async (c) => {
+    // TODO(synthesis-export, followup #1): swap in the real semantic-search
+    // helper once the chat-scope variant is generalized for workspace
+    // queries. Until then, returning empty hits causes the synthesizer to
+    // proceed with explicit sources only — graceful degradation.
+    return c.json({ hits: [] satisfies Array<{ id: string; title: string; body: string }> });
+  },
 );
 
 export const internalRoutes = internal;
