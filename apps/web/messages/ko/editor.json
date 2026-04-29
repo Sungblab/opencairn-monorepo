@@ -47,6 +47,22 @@
     "quote": "인용",
     "wikilink": "노트 연결"
   },
+  "table": {
+    "menu": {
+      "row_above": "위에 행 삽입",
+      "row_below": "아래에 행 삽입",
+      "col_left": "왼쪽에 열 삽입",
+      "col_right": "오른쪽에 열 삽입",
+      "row_delete": "행 삭제",
+      "col_delete": "열 삭제",
+      "table_delete": "표 삭제",
+      "merge": "셀 병합",
+      "split": "셀 분할"
+    }
+  },
+  "paste": {
+    "normalized": "붙여넣은 내용에서 마크다운 이스케이프를 정리했어요."
+  },
   "blocks": {
     "mermaid": {
       "placeholder": "여기에 mermaid 코드를 입력하세요…",
