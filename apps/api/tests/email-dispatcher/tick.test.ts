@@ -15,7 +15,7 @@ vi.mock("../../src/lib/email", () => ({
 }));
 
 import { sendEmail } from "../../src/lib/email";
-import { runDispatcherTick } from "../../src/lib/email-dispatcher";
+import { _internals, runDispatcherTick } from "../../src/lib/email-dispatcher";
 import { upsertPreference } from "../../src/lib/notification-preferences";
 import { createUser } from "../helpers/seed";
 
@@ -70,6 +70,12 @@ async function seedNotification(opts: {
 }
 
 describe("runDispatcherTick", () => {
+  it("normalizes WEB_BASE_URL before composing deep links", () => {
+    expect(_internals.cleanWebBaseUrl("https://example.com///")).toBe(
+      "https://example.com",
+    );
+  });
+
   it("acquires the lock and reports zero work when there is nothing pending", async () => {
     const result = await runDispatcherTick({ now: new Date(Date.now() + 1000) });
     expect(result.lockAcquired).toBe(true);
