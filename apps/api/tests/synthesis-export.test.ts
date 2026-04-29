@@ -243,6 +243,14 @@ describe("synthesis-export run list/detail/document/resynth/delete", () => {
     expect(res.status).toBe(400);
   });
 
+  it("GET /runs returns 400 when workspaceId is not a uuid", async () => {
+    const res = await authedRequest(
+      "/api/synthesis-export/runs?workspaceId=not-a-uuid",
+      { method: "GET", userId: seed.userId },
+    );
+    expect(res.status).toBe(400);
+  });
+
   it("GET /runs/:id returns detail with sources + documents arrays", async () => {
     const res = await authedRequest(`/api/synthesis-export/runs/${runId}`, {
       method: "GET",

@@ -1,7 +1,9 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
+import { z } from "zod";
 import {
   and,
+  asc,
   db,
   desc,
   eq,
@@ -30,6 +32,10 @@ import {
 
 type SynthesisFormat = (typeof synthesisFormatValues)[number];
 type SynthesisTemplate = (typeof synthesisTemplateValues)[number];
+
+const listRunsQuerySchema = z.object({
+  workspaceId: z.string().uuid(),
+});
 
 export const synthesisExportRouter = new Hono<AppEnv>();
 
@@ -218,11 +224,19 @@ synthesisExportRouter.get("/runs/:id/stream", requireAuth, async (c) => {
 
 synthesisExportRouter.get("/runs", requireAuth, async (c) => {
   const userId = c.get("userId")!;
-  const workspaceId = c.req.query("workspaceId");
-  if (!workspaceId) return c.json({ error: "workspaceId required" }, 400);
+  const parsed = listRunsQuerySchema.safeParse({
+    workspaceId: c.req.query("workspaceId"),
+  });
+  if (!parsed.success)
+    return c.json({ error: "workspaceId required (uuid)" }, 400);
+  const { workspaceId } = parsed.data;
   if (!(await canWrite(userId, { type: "workspace", id: workspaceId }))) {
     return c.json({ error: "forbidden" }, 403);
   }
+  // Workspace-scoped visibility: any editor sees all runs in the workspace.
+  // Matches the deep-research model — synthesis runs are collaborative
+  // artefacts, not per-user inboxes. Filter by userId in a future "My runs"
+  // view if needed.
   const rows = await db
     .select()
     .from(synthesisRuns)
@@ -257,11 +271,13 @@ synthesisExportRouter.get("/runs/:id", requireAuth, async (c) => {
   const sources = await db
     .select()
     .from(synthesisSources)
-    .where(eq(synthesisSources.runId, id));
+    .where(eq(synthesisSources.runId, id))
+    .orderBy(asc(synthesisSources.id));
   const documents = await db
     .select()
     .from(synthesisDocuments)
-    .where(eq(synthesisDocuments.runId, id));
+    .where(eq(synthesisDocuments.runId, id))
+    .orderBy(desc(synthesisDocuments.createdAt));
   return c.json({
     id: run.id,
     workspaceId: run.workspaceId,
@@ -397,10 +413,16 @@ synthesisExportRouter.delete("/runs/:id", requireAuth, async (c) => {
   try {
     const client = await getTemporalClient();
     await signalSynthesisExportCancel(client, id);
-  } catch {
+  } catch (err) {
     // Workflow may already be terminal (completed/failed/cancelled). The
     // signal failure should not block deletion; the row is the source of
-    // truth for "this run no longer exists from the user's POV."
+    // truth for "this run no longer exists from the user's POV." Log so
+    // a Temporal outage doesn't silently disappear.
+    console.warn(
+      `[synthesis-export] cancel signal failed for run ${id}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
   }
   await db.delete(synthesisRuns).where(eq(synthesisRuns.id, id));
   return c.body(null, 204);
