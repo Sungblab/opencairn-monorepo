@@ -8,7 +8,12 @@
     "db:generate": "turbo db:generate --filter=@opencairn/db",
     "db:migrate": "turbo db:migrate --filter=@opencairn/db",
     "db:studio": "turbo db:studio --filter=@opencairn/db",
-    "canvas:guard": "bash scripts/canvas-regression-guard.sh"
+    "canvas:guard": "bash scripts/canvas-regression-guard.sh",
+    "dev:docker": "docker compose up -d postgres redis minio temporal temporal-ui && pnpm db:migrate && docker compose --profile app --profile worker --profile hocuspocus up -d --build",
+    "dev:docker:down": "docker compose --profile app --profile worker --profile hocuspocus --profile ollama down",
+    "dev:docker:logs": "docker compose --profile app --profile worker --profile hocuspocus logs -f",
+    "dev:docker:rebuild": "docker compose --profile app --profile worker --profile hocuspocus build --no-cache",
+    "dev:docker:reset": "docker compose --profile app --profile worker --profile hocuspocus --profile ollama down -v"
   },
   "devDependencies": {
     "turbo": "^2.5.0",
