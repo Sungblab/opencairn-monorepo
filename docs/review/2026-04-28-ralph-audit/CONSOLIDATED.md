@@ -56,11 +56,11 @@
 | S3-003 | `LitImportWorkflow._handle_paper` omits `workspace_id` in child `IngestInput` | `apps/worker/src/worker/workflows/lit_import_workflow.py:150-157` |
 | S3-004 | `text/plain` and `text/markdown` MIME hit `raise ValueError` in workflow | `apps/worker/src/worker/workflows/ingest_workflow.py:225-226` |
 | S3-006 | No `heartbeat_timeout` on any IngestWorkflow activity | `apps/worker/src/worker/workflows/ingest_workflow.py` |
-| S3-021 | Drive token via `os.environ` in shared worker process (cross-user race) | `apps/worker/src/worker/activities/drive_activities.py:82-98` |
-| S3-022 | Drive OAuth token stored per-user, not per-workspace | `packages/db/src/schema/user-integrations.ts:9-32` |
-| S3-023 | Drive token refresh not implemented; expiry → silent failure | `apps/worker/src/worker/activities/drive_activities.py` |
-| S3-024 | Notion ZIP `zipObjectKey` not validated against issuer's prefix | `apps/api/src/routes/import.ts:170-228` |
-| S3-025 | Drive folder walk does not paginate `nextPageToken` (silent truncation > 1000) | `apps/worker/src/worker/activities/drive_activities.py:157-176` |
+| ~~S3-021~~ | ~~Drive token via `os.environ` in shared worker process~~ | ✅ Closed by PR #146 `053d9de` (same change as S3-020). `fetch_google_drive_access_token` decrypts per-activity and returns the token via the activity's return value; no `os.environ` write path remains. |
+| ~~S3-022~~ | ~~Drive OAuth token stored per-user, not per-workspace~~ | ✅ Closed by PR `fix/ralph-drive-cluster`. Schema migration 0037 adds `workspace_id` (nullable) + new unique on `(user_id, workspace_id, provider)`; OAuth callback persists `workspace_id` from the signed state; GET/DELETE `/api/integrations/google` and `/api/import/drive` filter by it; worker `fetch_google_drive_access_token` requires both keys. Cross-workspace isolation regression test (`integrations-google.test.ts > S3-022 cross-workspace isolation`). Legacy NULL `workspace_id` rows remain as orphans (filtered by API) until a follow-up sweep. |
+| ~~S3-023~~ | ~~Drive token refresh not implemented; expiry → silent failure~~ | ✅ Closed by PR `fix/ralph-drive-cluster`. `fetch_google_drive_access_token` reads `token_expires_at`/`refresh_token_encrypted`; when expiry is at-or-past `now + 60s`, calls `https://oauth2.googleapis.com/token` with the stored refresh token + `GOOGLE_OAUTH_CLIENT_ID/SECRET` (added to the worker compose env), persists new ciphertext + expiry (and rotated refresh token if Google sends one). Hard fail with `non_retryable=True` when no refresh token is on file or Google returns non-2xx — UI surfaces "reconnect Drive" rather than silent retry-storms. 7 new pytest cases. |
+| ~~S3-024~~ | ~~Notion ZIP `zipObjectKey` not validated against issuer's prefix~~ | ✅ Closed by PR `fix/ralph-drive-cluster`. POST `/api/import/notion` requires `body.zipObjectKey` to start with `imports/notion/<workspaceId>/<userId>/`; mismatch returns 403. |
+| ~~S3-025~~ | ~~Drive folder walk does not paginate `nextPageToken`~~ | ✅ `walk_folder` already uses a `while True: ... page_token = resp.get("nextPageToken")` loop (drive_activities.py:204-226). The audit description was either obsolete by review time or the loop landed alongside S3-020. Either way, current code paginates correctly with a regression test (`test_walk_drive_folder_paginates_all_children`). |
 | S3-052 | Redis 6379 + Temporal gRPC 7233 + Temporal UI 8080 + MinIO 9001 — all unauthenticated, host-published | `docker-compose.yml` |
 | S3-056 | `startRun` has no UI call site — Live Ingest Visualization completely dead in production | `apps/web/src/stores/ingest-store.ts:71` |
 | S3-073 | MinIO/Worker S3 client hardcoded `minioadmin` fallback credentials | `apps/api/src/lib/s3.ts:37-38`, `apps/worker/src/worker/lib/s3_client.py:30-31` |
@@ -118,7 +118,7 @@ Selection criteria (in order): (1) Critical first; (2) anyone-can-exploit securi
 ### Deferred (not in this session)
 
 - **S3-052** (open ports / docker-compose) — separate infra session: needs operator policy decision (loopback bind vs. profiles guard).
-- **S3-021/022/023/024/025** — Drive cluster, deferred until S3-020 token-by-payload landing; full hardening is a multi-day workstream.
+- ~~**S3-021/022/023/024/025** — Drive cluster~~ — ✅ All five closed. S3-020/021 + walk pagination by PR #146; S3-022/023/024 by PR `fix/ralph-drive-cluster` (per-workspace migration 0037, token refresh with `GOOGLE_OAUTH_CLIENT_ID/SECRET` on the worker, Notion zip prefix bind).
 - **S3-006** (heartbeat_timeout) — reliability hardening, separate batch.
 - **S3-056** (Live Ingest Viz `startRun` dead) — Plan Phase E flip; tracked there.
 - **S6-022** (CI restoration) — needs workflow file design + secrets review; separate operations session.
