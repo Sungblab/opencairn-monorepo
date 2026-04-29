@@ -3,7 +3,7 @@ import path from "node:path";
 
 const messagesDir = new URL("../messages/", import.meta.url);
 const locale = "en";
-const koreanPattern = /[가-힣]/;
+const koreanPattern = /\p{Script=Hangul}/u;
 
 function flatten(value, prefix = "", out = []) {
   if (value && typeof value === "object" && !Array.isArray(value)) {
