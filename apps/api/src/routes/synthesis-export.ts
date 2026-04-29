@@ -1,8 +1,10 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import {
+  and,
   db,
   eq,
+  sql,
   synthesisRuns,
   synthesisSources,
 } from "@opencairn/db";
@@ -50,9 +52,15 @@ synthesisExportRouter.post(
       return c.json({ error: "forbidden" }, 403);
     }
 
+    // Generate the run id up front so we can persist the deterministic
+    // workflowId at INSERT time. This avoids an "orphan workflow" window
+    // where the workflow has been fired but the row UPDATE hasn't landed.
+    const runId = crypto.randomUUID();
+
     const [run] = await db
       .insert(synthesisRuns)
       .values({
+        id: runId,
         workspaceId: body.workspaceId,
         projectId: body.projectId ?? null,
         userId,
@@ -61,6 +69,7 @@ synthesisExportRouter.post(
         userPrompt: body.userPrompt,
         autoSearch: body.autoSearch,
         status: "pending",
+        workflowId: workflowIdFor(runId),
       })
       .returning();
 
@@ -78,11 +87,6 @@ synthesisExportRouter.post(
       autoSearch: body.autoSearch,
       byokKeyHandle: null,
     });
-
-    await db
-      .update(synthesisRuns)
-      .set({ workflowId: workflowIdFor(run!.id) })
-      .where(eq(synthesisRuns.id, run!.id));
 
     return c.json({ runId: run!.id });
   },
@@ -118,9 +122,13 @@ synthesisExportRouter.get("/runs/:id/stream", requireAuth, async (c) => {
 
       let lastStatus = run.status;
       let aborted = false;
-      c.req.raw.signal?.addEventListener("abort", () => {
-        aborted = true;
-      });
+      c.req.raw.signal?.addEventListener(
+        "abort",
+        () => {
+          aborted = true;
+        },
+        { once: true },
+      );
 
       try {
         for (let tick = 0; tick < MAX_TICKS; tick++) {
@@ -152,15 +160,23 @@ synthesisExportRouter.get("/runs/:id/stream", requireAuth, async (c) => {
           }
 
           if (latest.status === "completed") {
-            const sources = await db
-              .select()
+            // Count only included sources — the synthesizer's filter pushed
+            // others to included=false. Avoids hauling the full row set just
+            // to length-filter in JS.
+            const [{ count }] = await db
+              .select({ count: sql<number>`count(*)::int` })
               .from(synthesisSources)
-              .where(eq(synthesisSources.runId, id));
+              .where(
+                and(
+                  eq(synthesisSources.runId, id),
+                  eq(synthesisSources.included, true),
+                ),
+              );
             send({
               kind: "done",
               docUrl: `/api/synthesis-export/runs/${id}/document?format=${latest.format}`,
               format: latest.format as SynthesisFormat,
-              sourceCount: sources.filter((s) => s.included).length,
+              sourceCount: count,
               tokensUsed: latest.tokensUsed ?? 0,
             });
             break;
