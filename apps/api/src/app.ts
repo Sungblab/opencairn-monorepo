@@ -48,6 +48,7 @@ import { literatureRoutes } from "./routes/literature";
 import { docEditorRoutes } from "./routes/doc-editor";
 import { mcpRoutes } from "./routes/mcp";
 import { connectorRoutes as connectorFoundationRoutes } from "./routes/connectors";
+import { notificationPreferenceRoutes } from "./routes/notification-preferences";
 
 export function createApp() {
   const app = new Hono();
@@ -130,6 +131,7 @@ export function createApp() {
   app.route("/api/canvas", canvasRoutes);
   app.route("/api/users", userRoutes);
   app.route("/api/notifications", notificationRoutes);
+  app.route("/api/notification-preferences", notificationPreferenceRoutes);
   app.route("/api/stream", streamRoutes); // SSE: project tree (Phase 2) + notifications (Phase 5)
   app.route("/api/literature", literatureRoutes);
   app.route("/api", docEditorRoutes); // /api/notes/:id/doc-editor/commands/:cmd (flag-gated inside the router)
