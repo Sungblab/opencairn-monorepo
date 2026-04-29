@@ -50,7 +50,14 @@ export function OnboardingShell({
   }
 
   const banner: string | null = (() => {
-    if (!inviteResult || mode === "create") return null;
+    // Suppress when there's no invite to report on, or the user has
+    // explicitly switched to "create" after seeing a valid invite (decline
+    // path). For error states the banner must show regardless of mode —
+    // an invalid/expired token starts the user in `mode === "create"`
+    // because there's no AcceptInviteCard to render, and they'd otherwise
+    // have no idea why they landed on the create form.
+    if (!inviteResult) return null;
+    if (inviteResult.status === "ok") return null;
     switch (inviteResult.status) {
       case "not_found":
         return t("invite.errors.not_found");

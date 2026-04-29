@@ -19,7 +19,8 @@ test.describe("onboarding invite accept", () => {
     await expect(page.getByTestId("invite-accept")).toBeVisible();
 
     await page.getByTestId("invite-accept").click();
-    await expect(page).toHaveURL(new RegExp(`/ko/app/w/${slug}`), {
+    // next-intl strips the `/ko` prefix for the default locale.
+    await expect(page).toHaveURL(new RegExp(`/app/w/${slug}`), {
       timeout: 10_000,
     });
   });

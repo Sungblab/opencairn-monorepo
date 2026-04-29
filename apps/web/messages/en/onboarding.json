@@ -8,6 +8,7 @@
     "eyebrow": "Workspace",
     "title": "Create your first workspace",
     "desc": "A workspace is where your documents and projects live. You can rename it later.",
+    "defaultName": "{name}'s workspace",
     "nameLabel": "Name",
     "submit": "Create workspace",
     "autoSlugHint": "The address is generated for you — change it in settings later.",

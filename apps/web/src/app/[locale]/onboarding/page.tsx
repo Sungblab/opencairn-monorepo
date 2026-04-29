@@ -1,8 +1,22 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { setRequestLocale } from "next-intl/server";
+import { setRequestLocale, getTranslations } from "next-intl/server";
 import type { Locale } from "@/i18n";
 import { OnboardingShell } from "./OnboardingShell";
+
+// Server-side mutation calls to the API need an Origin header that the
+// API's csrfOriginGuard recognizes as trusted — server fetch doesn't set
+// one automatically. Derive it from incoming request headers (matches what
+// the browser would send), falling back to PUBLIC_WEB_URL for edge cases
+// where the host header is absent.
+function deriveOrigin(headerList: Awaited<ReturnType<typeof headers>>): string {
+  const origin = headerList.get("origin");
+  if (origin) return origin;
+  const host = headerList.get("x-forwarded-host") ?? headerList.get("host");
+  const proto = headerList.get("x-forwarded-proto") ?? "http";
+  if (host) return `${proto}://${host}`;
+  return process.env.PUBLIC_WEB_URL ?? "http://localhost:3000";
+}
 
 interface InviteInfo {
   workspaceId: string;
@@ -58,6 +72,7 @@ export default async function OnboardingPage({
   setRequestLocale(locale as Locale);
 
   const cookieHeader = (await cookies()).toString();
+  const requestHeaders = await headers();
   const apiBase = process.env.INTERNAL_API_URL ?? "http://localhost:4000";
 
   // Guard 1: session
@@ -101,6 +116,35 @@ export default async function OnboardingPage({
   // User already belongs to a workspace AND no invite → send to /app.
   if (workspaces.length > 0 && !invite) {
     redirect(`/${locale}/app/w/${workspaces[0]!.slug}`);
+  }
+
+  // No workspace AND no invite → auto-provision a personal workspace named
+  // after the signed-in user. The user can rename later in workspace settings.
+  // We only render the shell when we have something for the user to decide
+  // (an invite token to accept/decline). Slug derivation runs server-side in
+  // /api/workspaces; non-ASCII names fall back to `w-{random}` automatically.
+  if (workspaces.length === 0 && !invite) {
+    const t = await getTranslations({
+      locale: locale as Locale,
+      namespace: "onboarding.create",
+    });
+    const defaultName = t("defaultName", { name: me.name });
+    const createRes = await fetch(`${apiBase}/api/workspaces`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: cookieHeader,
+        origin: deriveOrigin(requestHeaders),
+      },
+      body: JSON.stringify({ name: defaultName }),
+      cache: "no-store",
+    });
+    if (createRes.status === 201) {
+      const ws = (await createRes.json()) as { slug: string };
+      redirect(`/${locale}/app/w/${ws.slug}`);
+    }
+    // Fall through to the shell if auto-provision unexpectedly failed —
+    // user can retry via the manual form.
   }
 
   // Otherwise: resolve invite (if any), render shell.
