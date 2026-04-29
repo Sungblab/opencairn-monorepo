@@ -2,6 +2,11 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { errorHandler } from "./middleware/error";
+import {
+  csrfOriginGuard,
+  securityHeaders,
+  trustedOriginsFromEnv,
+} from "./lib/security";
 import { healthRoutes } from "./routes/health";
 import { authRoutes } from "./routes/auth";
 import { workspaceRoutes } from "./routes/workspaces";
@@ -32,6 +37,7 @@ import { learningRoutes } from "./routes/learning";
 import { socraticRoutes } from "./routes/socratic";
 import { visualizeRouter } from "./routes/visualize";
 import { synthesisRoutes } from "./routes/synthesis";
+import { synthesisExportRouter } from "./routes/synthesis-export";
 import { narratorRoutes } from "./routes/narrator";
 import { curatorRoutes } from "./routes/curator";
 import { connectorRoutes } from "./routes/connector";
@@ -41,19 +47,22 @@ import { notificationRoutes } from "./routes/notifications";
 import { literatureRoutes } from "./routes/literature";
 import { docEditorRoutes } from "./routes/doc-editor";
 import { mcpRoutes } from "./routes/mcp";
+import { connectorRoutes as connectorFoundationRoutes } from "./routes/connectors";
 
 export function createApp() {
   const app = new Hono();
 
   app.use("*", logger());
+  app.use("*", securityHeaders());
 
   app.use(
     "*",
     cors({
-      origin: process.env.CORS_ORIGIN?.split(",") ?? ["http://localhost:3000"],
+      origin: trustedOriginsFromEnv(),
       credentials: true,
-    })
+    }),
   );
+  app.use("*", csrfOriginGuard());
 
   // /api/internal must be mounted BEFORE the generic /api routes
   // (inviteRoutes, projectRoutes) — those sub-apps use requireAuth as a
@@ -88,12 +97,13 @@ export function createApp() {
   // below don't intercept this with their own requireAuth chains.
   app.route("/api/message-feedback", messageFeedbackRoutes);
   app.route("/api/mcp/servers", mcpRoutes);
+  app.route("/api/connectors", connectorFoundationRoutes);
   // Plan 2C share-link routes. Same public-then-auth shape as inviteRoutes.
   // Mounted FIRST among `/api` wildcard sub-apps so its public route
   // (`/api/public/share/:token`) is dispatched before any other sub-app's
   // wildcard auth middleware (e.g. inviteRoutes' or commentsRouter's).
-  app.route("/api", shareRouter);  // /api/public/share/:token + /api/notes/:id/share + /api/share/:shareId + /api/workspaces/:workspaceId/share
-  app.route("/api", inviteRoutes);  // /api/workspaces/:id/invites and /api/invites/:token/*
+  app.route("/api", shareRouter); // /api/public/share/:token + /api/notes/:id/share + /api/share/:shareId + /api/workspaces/:workspaceId/share
+  app.route("/api", inviteRoutes); // /api/workspaces/:id/invites and /api/invites/:token/*
   app.route("/api", projectRoutes);
   app.route("/api/projects", graphRoutes);
   app.route("/api/projects", learningRoutes);
@@ -112,6 +122,7 @@ export function createApp() {
   app.route("/api/visualize", visualizeRouter);
   app.route("/api/code", codeRoutes);
   app.route("/api/synthesis", synthesisRoutes);
+  app.route("/api/synthesis-export", synthesisExportRouter);
   app.route("/api/narrator", narratorRoutes);
   app.route("/api/curator", curatorRoutes);
   app.route("/api/connector", connectorRoutes);
@@ -119,11 +130,11 @@ export function createApp() {
   app.route("/api/canvas", canvasRoutes);
   app.route("/api/users", userRoutes);
   app.route("/api/notifications", notificationRoutes);
-  app.route("/api/stream", streamRoutes);  // SSE: project tree (Phase 2) + notifications (Phase 5)
+  app.route("/api/stream", streamRoutes); // SSE: project tree (Phase 2) + notifications (Phase 5)
   app.route("/api/literature", literatureRoutes);
   app.route("/api", docEditorRoutes); // /api/notes/:id/doc-editor/commands/:cmd (flag-gated inside the router)
-  app.route("/api", commentsRouter);  // /api/notes/:noteId/comments (Plan 2B)
-  app.route("/api", mentionsRouter);  // /api/mentions/search (Plan 2B)
+  app.route("/api", commentsRouter); // /api/notes/:noteId/comments (Plan 2B)
+  app.route("/api", mentionsRouter); // /api/mentions/search (Plan 2B)
 
   app.onError(errorHandler);
 

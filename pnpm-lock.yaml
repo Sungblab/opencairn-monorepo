@@ -56,6 +56,9 @@ importers:
       better-auth:
         specifier: ^1.6.9
         version: 1.6.9(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(kysely@0.28.16)(postgres@3.4.9))(next@16.2.4(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(svelte@5.55.5(@typescript-eslint/types@8.59.1))(vitest@4.1.5)(vue@3.5.33(typescript@6.0.3))
+      docx:
+        specifier: ^9.6.1
+        version: 9.6.1
       hono:
         specifier: ^4.12.15
         version: 4.12.15
@@ -68,6 +71,9 @@ importers:
       nodemailer:
         specifier: ^8.0.7
         version: 8.0.7
+      playwright:
+        specifier: ^1.59.1
+        version: 1.59.1
       resend:
         specifier: ^6.12.2
         version: 6.12.2(@react-email/render@2.0.7(react-dom@19.2.5(react@19.2.5))(react@19.2.5))
@@ -93,6 +99,9 @@ importers:
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
+      jszip:
+        specifier: ^3.10.1
+        version: 3.10.1
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -4445,6 +4454,10 @@ packages:
   dnd-core@14.0.1:
     resolution: {integrity: sha512-+PVS2VPTgKFPYWo3vAFEA8WPbTf7/xo43TifH9G8S1KqnrQu0o77A3unrF5yOugy4mIz7K5wAVFHUcha7wsz6A==}
 
+  docx@9.6.1:
+    resolution: {integrity: sha512-ZJja9/KBUuFC109sCMzovoq2GR2wCG/AuxivjA+OHj/q0TEgJIm3S7yrlUxIy3B+bV8YDj/BiHfWyrRFmyWpDQ==}
+    engines: {node: '>=10'}
+
   dom-accessibility-api@0.5.16:
     resolution: {integrity: sha512-X7BJ2yElsnOJ30pZF4uIIDfBEVgF4XEBxL9Bxhy6dnrm5hkzqmsWHGTiHqRiITNhMyFLyAiWndIJP7Z1NTteDg==}
 
@@ -5028,6 +5041,9 @@ packages:
   has-symbols@1.1.0:
     resolution: {integrity: sha512-1cDNdwJ2Jaohmb3sg4OmKaMBwuC48sYni5HUw2DvsC8LjGTLK9h+eb1X6RyuOHe4hT0ULCW68iomhjUoKUqlPQ==}
     engines: {node: '>= 0.4'}
+
+  hash.js@1.1.7:
+    resolution: {integrity: sha512-taOaskGt4z4SOANNseOviYDvjEJinIkRgmp7LbKP2YTTmVxWBl87s/uzK9r+44BclBSp2X7K1hqeNfz9JbBeXA==}
 
   hasown@2.0.3:
     resolution: {integrity: sha512-ej4AhfhfL2Q2zpMmLo7U1Uv9+PyhIZpgQLGT1F9miIGmiCJIoCgSmczFdrc97mWT4kVY72KA+WnnhJ5pghSvSg==}
@@ -5863,6 +5879,9 @@ packages:
   min-indent@1.0.1:
     resolution: {integrity: sha512-I9jwMn07Sy/IwOj3zVkVik2JTvgpaykDZEigL6Rx6N9LbMywwUSMtxET+7lVoDLLd3O3IXwJwvuuns8UB/HeAg==}
     engines: {node: '>=4'}
+
+  minimalistic-assert@1.0.1:
+    resolution: {integrity: sha512-UtJcAD4yEaGtjPezWuO9wC4nwUnVH/8/Im3yEHQP4b67cXlD/Qr9hdITCU1xDbSEXg2XKNaP8jsReV7vQd00/A==}
 
   minimatch@10.2.5:
     resolution: {integrity: sha512-MULkVLfKGYDFYejP07QOurDLLQpcjk7Fw+7jXS2R2czRQzR56yHRveU5NDJEOviH+hETZKSkIk5c+T23GjFUMg==}
@@ -7400,6 +7419,10 @@ packages:
     resolution: {integrity: sha512-g/eziiSUNBSsdDJtCLB8bdYEUMj4jR7AGeUo96p/3dTafgjHhpF4RiCFPiRILwjQoDXx5MqkBr4fwWtR3Ky4Wg==}
     engines: {node: '>=20'}
 
+  xml-js@1.6.11:
+    resolution: {integrity: sha512-7rVi2KMfwfWFl+GpPg6m80IVMWXLRjO+PxTq7V2CDhoGak0wzYzFgUY2m4XJ47OGdXd8eLE8EmwfAmdjw7lC1g==}
+    hasBin: true
+
   xml-name-validator@5.0.0:
     resolution: {integrity: sha512-EvGK8EJ3DhaHfbRlETOWAS5pO9MZITeauHKJyb8wyajUfQUenkIg2MvLDTZ4T/TgIcm3HU0TFBgWWboAZ30UHg==}
     engines: {node: '>=18'}
@@ -7407,6 +7430,9 @@ packages:
   xml2js@0.6.2:
     resolution: {integrity: sha512-T4rieHaC1EXcES0Kxxj4JWgaUQHDk+qwHcYOCFHfiwKz7tOVPLq7Hjq9dM1WCMhylqMEfP7hMcOIChvotiZegA==}
     engines: {node: '>=4.0.0'}
+
+  xml@1.0.1:
+    resolution: {integrity: sha512-huCv9IH9Tcf95zuYCsQraZtWnJvBtLVE0QHMOs8bWyZAFZNDcYjsPq1nEx8jKA9y+Beo9v+7OBPRisQTjinQMw==}
 
   xmlbuilder@11.0.1:
     resolution: {integrity: sha512-fDlsI/kFEx7gLvbecc0/ohLG50fugQp8ryHzMTuW9vSa1GJ0XYWKnhsUx7oie3G98+r56aTQIUB4kht42R3JvA==}
@@ -11285,6 +11311,15 @@ snapshots:
       '@react-dnd/invariant': 2.0.0
       redux: 4.2.1
 
+  docx@9.6.1:
+    dependencies:
+      '@types/node': 25.6.0
+      hash.js: 1.1.7
+      jszip: 3.10.1
+      nanoid: 5.1.9
+      xml: 1.0.1
+      xml-js: 1.6.11
+
   dom-accessibility-api@0.5.16: {}
 
   dom-accessibility-api@0.6.3: {}
@@ -11910,6 +11945,11 @@ snapshots:
   hachure-fill@0.5.2: {}
 
   has-symbols@1.1.0: {}
+
+  hash.js@1.1.7:
+    dependencies:
+      inherits: 2.0.4
+      minimalistic-assert: 1.0.1
 
   hasown@2.0.3:
     dependencies:
@@ -13022,6 +13062,8 @@ snapshots:
   mimic-function@5.0.1: {}
 
   min-indent@1.0.1: {}
+
+  minimalistic-assert@1.0.1: {}
 
   minimatch@10.2.5:
     dependencies:
@@ -14728,12 +14770,18 @@ snapshots:
       is-wsl: 3.1.1
       powershell-utils: 0.1.0
 
+  xml-js@1.6.11:
+    dependencies:
+      sax: 1.6.0
+
   xml-name-validator@5.0.0: {}
 
   xml2js@0.6.2:
     dependencies:
       sax: 1.6.0
       xmlbuilder: 11.0.1
+
+  xml@1.0.1: {}
 
   xmlbuilder@11.0.1: {}
 

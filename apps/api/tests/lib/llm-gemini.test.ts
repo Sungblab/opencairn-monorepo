@@ -31,6 +31,7 @@ vi.mock("@google/genai", () => {
 const originalKey = process.env.GEMINI_API_KEY;
 const originalGoogleKey = process.env.GOOGLE_API_KEY;
 const originalChatModel = process.env.GEMINI_CHAT_MODEL;
+const originalVectorDim = process.env.VECTOR_DIM;
 
 function restoreEnv() {
   if (originalKey === undefined) {
@@ -47,6 +48,11 @@ function restoreEnv() {
     delete process.env.GEMINI_CHAT_MODEL;
   } else {
     process.env.GEMINI_CHAT_MODEL = originalChatModel;
+  }
+  if (originalVectorDim === undefined) {
+    delete process.env.VECTOR_DIM;
+  } else {
+    process.env.VECTOR_DIM = originalVectorDim;
   }
 }
 
@@ -95,6 +101,7 @@ describe("GeminiProvider.embed", () => {
   });
 
   it("calls embedContent with gemini-embedding-001 + RETRIEVAL_QUERY + 768d", async () => {
+    delete process.env.VECTOR_DIM;
     fakeEmbed.mockResolvedValue({
       embeddings: [{ values: new Array(768).fill(0.1) }],
     });
@@ -111,6 +118,24 @@ describe("GeminiProvider.embed", () => {
     });
   });
 
+  it("honors VECTOR_DIM for Gemini embedding truncation", async () => {
+    process.env.VECTOR_DIM = "1024";
+    fakeEmbed.mockResolvedValue({
+      embeddings: [{ values: new Array(1024).fill(0.1) }],
+    });
+    const provider = getGeminiProvider();
+    const out = await provider.embed("hello world");
+    expect(out).toHaveLength(1024);
+    expect(fakeEmbed).toHaveBeenCalledWith({
+      model: "gemini-embedding-001",
+      contents: [{ parts: [{ text: "hello world" }] }],
+      config: {
+        taskType: "RETRIEVAL_QUERY",
+        outputDimensionality: 1024,
+      },
+    });
+  });
+
   it("throws when SDK returns no embedding", async () => {
     fakeEmbed.mockResolvedValue({ embeddings: [] });
     const provider = getGeminiProvider();
@@ -121,6 +146,7 @@ describe("GeminiProvider.embed", () => {
     fakeEmbed.mockResolvedValue({
       embeddings: [{ values: new Array(3072).fill(0.1) }],
     });
+    delete process.env.VECTOR_DIM;
     const provider = getGeminiProvider();
     await expect(provider.embed("x")).rejects.toThrow(/3072.*expected 768|expected.*768/i);
   });

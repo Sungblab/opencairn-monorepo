@@ -10,13 +10,13 @@ export function IntegrationsTab({ wsId }: { wsId: string }) {
   const t = useTranslations("workspaceSettings.integrations");
   const qc = useQueryClient();
   const { data } = useQuery({
-    queryKey: ["integrations-google"],
-    queryFn: () => integrationsApi.google(),
+    queryKey: ["integrations-google", wsId],
+    queryFn: () => integrationsApi.google(wsId),
   });
   const disconnect = useMutation({
-    mutationFn: () => integrationsApi.disconnectGoogle(),
+    mutationFn: () => integrationsApi.disconnectGoogle(wsId),
     onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ["integrations-google"] }),
+      qc.invalidateQueries({ queryKey: ["integrations-google", wsId] }),
   });
 
   // The /api/integrations/google/connect endpoint requires a workspaceId so

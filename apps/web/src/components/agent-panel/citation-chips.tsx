@@ -7,6 +7,8 @@
 
 import { useLocale } from "next-intl";
 
+import { safeHref } from "@/lib/url/safe-href";
+
 export interface Citation {
   index: number;
   title: string;
@@ -22,13 +24,22 @@ export function CitationChips({ citations }: { citations: Citation[] }) {
   return (
     <div className="flex flex-wrap gap-1 pt-1">
       {citations.map((c) => {
-        const href = c.url ?? (c.noteId ? `/${locale}/app/notes/${c.noteId}` : "#");
+        // c.url comes from chat-llm citations which are populated from RAG
+        // hits — i.e. user-imported documents and LLM-grounded sources. Run
+        // it through safeHref so a `javascript:` URL emitted by the model
+        // (or smuggled through prompt-injected ingest content) cannot fire
+        // on click.
+        const href = c.url
+          ? safeHref(c.url)
+          : c.noteId
+            ? `/${locale}/app/notes/${c.noteId}`
+            : "#";
         return (
           <a
             key={c.index}
             href={href}
             target={c.url ? "_blank" : undefined}
-            rel={c.url ? "noreferrer" : undefined}
+            rel={c.url ? "noopener noreferrer nofollow" : undefined}
             className="rounded border border-border px-1.5 text-[10px] hover:bg-accent"
           >
             [{c.index}] {c.title}

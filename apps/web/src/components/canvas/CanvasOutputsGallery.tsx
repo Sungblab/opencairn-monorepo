@@ -3,9 +3,10 @@
 // Plan 7 Canvas Phase 2 — outputs gallery + Save button.
 //
 // Two layers of figures:
-//   1. `pendingFigures` — base64 PNGs harvested by `PyodideRunner` from the
-//      most recent run. These are not persisted yet; we render them with a
-//      Save button that POSTs the bytes via `useCanvasOutputs.upload`.
+//   1. `pendingFigures` — base64 PNGs forwarded by the python CanvasFrame
+//      (CANVAS_PYTHON_RESULT message) from the most recent run. These are
+//      not persisted yet; we render them with a Save button that POSTs the
+//      bytes via `useCanvasOutputs.upload`.
 //   2. `data.outputs` — already-saved outputs returned by the GET list. The
 //      server gives us `urlPath` (S3 presigned proxy), so we render
 //      `<img src={urlPath}>` directly.

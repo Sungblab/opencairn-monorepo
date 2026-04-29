@@ -253,6 +253,27 @@
       "when": 1777390364404,
       "tag": "0036_user_mcp_servers",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1777419961954,
+      "tag": "0037_drive_per_workspace",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1777425250389,
+      "tag": "0037_connector_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1777466853713,
+      "tag": "0038_synthesis",
+      "breakpoints": true
     }
   ]
 }

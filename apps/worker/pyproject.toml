@@ -66,6 +66,7 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "pytest-cov>=5.0",
+    "pytest-httpx>=0.30",
     "ruff>=0.5.0",
     "pyright>=1.1.360",
     "testcontainers[postgres]>=4.0",

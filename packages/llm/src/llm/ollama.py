@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import base64
+import json
 import os
-from typing import Any
+from collections.abc import Sequence
+from typing import Any, Literal
 
 import httpx
+from pydantic import BaseModel
 
 from .base import EmbedInput, LLMProvider, ProviderConfig
-from .errors import ToolCallingNotSupported
+from .tool_types import AssistantTurn, ToolResult, ToolUse, UsageCounts
 
 OLLAMA_DEFAULT_URL = "http://localhost:11434"
 
@@ -27,14 +30,73 @@ class OllamaProvider(LLMProvider):
     async def aclose(self) -> None:
         await self._http.aclose()
 
+    @staticmethod
+    def _schema_to_format(schema: Any) -> Any:
+        if schema is None:
+            return None
+        if isinstance(schema, dict):
+            return schema
+        if isinstance(schema, type) and issubclass(schema, BaseModel):
+            return schema.model_json_schema()
+        if hasattr(schema, "model_json_schema"):
+            return schema.model_json_schema()
+        return schema
+
+    @staticmethod
+    def _normalise_options(kwargs: dict[str, Any]) -> dict[str, Any] | None:
+        options = dict(kwargs.pop("options", {}) or {})
+        option_key_map = {
+            "temperature": "temperature",
+            "top_p": "top_p",
+            "top_k": "top_k",
+            "max_output_tokens": "num_predict",
+        }
+        for source, target in option_key_map.items():
+            if source in kwargs and kwargs[source] is not None:
+                options[target] = kwargs.pop(source)
+        return options or None
+
+    def _apply_common_chat_kwargs(
+        self,
+        payload: dict[str, Any],
+        kwargs: dict[str, Any],
+        *,
+        final_response_schema: type[BaseModel] | None = None,
+    ) -> None:
+        options = self._normalise_options(kwargs)
+        if options:
+            payload["options"] = options
+
+        response_schema = (
+            final_response_schema
+            or kwargs.pop("response_schema", None)
+            or kwargs.pop("response_json_schema", None)
+        )
+        response_format = kwargs.pop("format", None)
+        if response_format is None:
+            response_format = self._schema_to_format(response_schema)
+        if (
+            response_format is None
+            and kwargs.pop("response_mime_type", None) == "application/json"
+        ):
+            response_format = "json"
+        if response_format is not None:
+            payload["format"] = response_format
+
+        think = kwargs.pop("think", self.config.extra.get("think"))
+        if think is not None:
+            payload["think"] = think
+
     async def generate(self, messages: list[dict], **kwargs) -> str:
+        payload: dict[str, Any] = {
+            "model": self.config.model,
+            "messages": messages,
+            "stream": False,
+        }
+        self._apply_common_chat_kwargs(payload, kwargs)
         response = await self._http.post(
             "/api/chat",
-            json={
-                "model": self.config.model,
-                "messages": messages,
-                "stream": False,
-            },
+            json=payload,
         )
         response.raise_for_status()
         return response.json()["message"]["content"]
@@ -97,24 +159,95 @@ class OllamaProvider(LLMProvider):
 
         return build_ollama_declarations(tools)
 
-    # Ollama tool calling is deferred to a later sub-project. The stub
-    # raises an explicit error so callers that route an agent requiring
-    # tools to LLM_PROVIDER=ollama fail fast with a useful message
-    # instead of silently returning no tool calls.
-
     def supports_tool_calling(self) -> bool:
-        return False
+        return True
 
-    async def generate_with_tools(self, *args, **kwargs):
-        raise ToolCallingNotSupported(
-            "OllamaProvider.generate_with_tools is not implemented yet. "
-            "Set LLM_PROVIDER=gemini or implement this method."
+    async def generate_with_tools(
+        self,
+        messages: list,
+        tools: list,
+        *,
+        mode: Literal["auto", "any", "none"] = "auto",
+        allowed_tool_names: Sequence[str] | None = None,
+        final_response_schema: type[BaseModel] | None = None,
+        cached_context_id: str | None = None,
+        temperature: float | None = None,
+        max_output_tokens: int | None = None,
+    ) -> AssistantTurn:
+        # Ollama has no context-cache equivalent; degrade gracefully.
+        _ = cached_context_id
+
+        declarations = self.build_tool_declarations(tools)
+        if allowed_tool_names:
+            allowed = set(allowed_tool_names)
+            declarations = [
+                d for d in declarations
+                if d.get("function", {}).get("name") in allowed
+            ]
+
+        kwargs: dict[str, Any] = {
+            "temperature": temperature,
+            "max_output_tokens": max_output_tokens,
+        }
+        payload: dict[str, Any] = {
+            "model": self.config.model,
+            "messages": messages,
+            "stream": False,
+        }
+        if mode != "none" and declarations:
+            payload["tools"] = declarations
+        self._apply_common_chat_kwargs(
+            payload,
+            kwargs,
+            final_response_schema=final_response_schema,
+        )
+        response = await self._http.post("/api/chat", json=payload)
+        response.raise_for_status()
+        data = response.json()
+        message = data.get("message") or {}
+
+        tool_uses: list[ToolUse] = []
+        for index, call in enumerate(message.get("tool_calls") or []):
+            fn = call.get("function") or {}
+            name = fn.get("name")
+            if not name:
+                continue
+            raw_args = fn.get("arguments") or {}
+            args = json.loads(raw_args) if isinstance(raw_args, str) else dict(raw_args)
+            raw_id = fn.get("index", call.get("id"))
+            call_id = str(raw_id) if raw_id not in (None, "") else str(index)
+            tool_uses.append(ToolUse(id=call_id, name=name, args=args))
+
+        final_text = message.get("content") or None
+        structured: dict | None = None
+        if final_response_schema is not None and final_text:
+            try:
+                parsed = json.loads(final_text)
+                structured = parsed if isinstance(parsed, dict) else None
+            except json.JSONDecodeError:
+                structured = None
+
+        return AssistantTurn(
+            final_text=final_text,
+            tool_uses=tuple(tool_uses),
+            assistant_message=message,
+            structured_output=structured,
+            usage=UsageCounts(
+                input_tokens=data.get("prompt_eval_count") or 0,
+                output_tokens=data.get("eval_count") or 0,
+                cached_input_tokens=0,
+            ),
+            stop_reason=str(data.get("done_reason") or "STOP"),
         )
 
-    def tool_result_to_message(self, result):
-        raise ToolCallingNotSupported(
-            "OllamaProvider.tool_result_to_message is not implemented yet."
+    def tool_result_to_message(self, result: ToolResult):
+        payload = result.data if not result.is_error else {"error": result.data}
+        content = (
+            payload
+            if isinstance(payload, str)
+            else json.dumps(payload, ensure_ascii=False, default=str)
         )
+        return {"role": "tool", "tool_name": result.name, "content": content}
 
     def supports_ocr(self) -> bool:
         return False

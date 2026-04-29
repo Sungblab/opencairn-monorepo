@@ -23,6 +23,7 @@ import { makePermissionsAdapter } from "./permissions-adapter.js";
 import { makeAuthenticate, makeVerifySession } from "./auth.js";
 import { makePersistence } from "./persistence.js";
 import { makeReadonlyGuard } from "./readonly-guard.js";
+import { makeStaleRoleGuard } from "./stale-role-guard.js";
 import { makeBlockOrphanReaper } from "./block-orphan-reaper.js";
 
 async function main(): Promise<void> {
@@ -42,11 +43,26 @@ async function main(): Promise<void> {
   const server = new Server({
     port: env.HOCUSPOCUS_PORT,
     name: "opencairn-hocuspocus",
-    async onUpgrade({ request }) {
+    async onUpgrade({ request, socket }) {
+      // S1-003 — Hocuspocus has no `Server({ origins })` constructor option;
+      // origin enforcement lives in this hook and is exercised by the
+      // `tests/origins.test.ts` suite. The browser only honours the
+      // close-handshake from a clean 403, so write the response + destroy
+      // the socket BEFORE aborting (otherwise the client just hangs until
+      // the WS handshake times out).
       const origin = request.headers.origin;
       if (!isAllowedOrigin(origin, env.HOCUSPOCUS_ORIGINS)) {
         logger.warn({ origin }, "blocked hocuspocus origin");
-        throw new Error("Forbidden origin");
+        socket.write(
+          "HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
+        );
+        socket.destroy();
+        // @hocuspocus/server's setupHttpUpgrade rethrows any truthy hook
+        // rejection on the EventEmitter listener — that becomes an
+        // unhandled rejection. Throwing a falsy value short-circuits the
+        // hook and skips webSocketServer.handleUpgrade without the noise.
+        // eslint-disable-next-line no-throw-literal
+        throw null;
       }
     },
     async onAuthenticate(payload) {
@@ -58,14 +74,26 @@ async function main(): Promise<void> {
       // that flag is what Hocuspocus's internal MessageReceiver checks to
       // silently-ack (not apply) sync-step-2 / update messages. Context-only
       // readOnly does not activate the internal gate.
+      //
+      // S1-002 — pass the WS upgrade Cookie header so `authenticate` can fall
+      // back to the Better Auth session cookie when the client's `token`
+      // field is empty (httpOnly cookies aren't readable from JS, so the
+      // browser provider can't put the session into `token` directly).
       const ctx = await authenticate({
         documentName: payload.documentName,
         token: payload.token,
+        cookieHeader: payload.requestHeaders.cookie,
       });
       payload.connectionConfig.readOnly = ctx.readOnly;
       return ctx;
     },
     extensions: [
+      // priority 250: re-checks role + session expiry on every incoming
+      // message (TTL-cached). Closes the connection if the user lost access
+      // mid-session; flips readOnly if they were demoted. Runs first so any
+      // mutated readOnly is visible to readonly-guard + persistence.
+      // 2026-04-29 audit Finding 6.
+      makeStaleRoleGuard({ resolveRole: perms.resolveRole }),
       // priority 200: must fire before persistence on both
       // beforeHandleMessage + onChange.
       makeReadonlyGuard(),

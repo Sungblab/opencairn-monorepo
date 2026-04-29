@@ -26,6 +26,9 @@ import {
   staleAlerts,
   audioFiles,
   noteEnrichments,
+  synthesisRuns,
+  synthesisSources,
+  synthesisDocuments,
   eq,
   and,
   isNull,
@@ -51,6 +54,12 @@ import {
 } from "../lib/internal-assert";
 import { persistAndPublish } from "../lib/notification-events";
 import { federatedSearch } from "../lib/literature-search";
+import {
+  compileDocx,
+  compilePdf,
+  type SynthesisOutputJson,
+} from "../lib/document-compilers";
+import { uploadObject } from "../lib/s3";
 
 // Internal-only routes — reachable by worker callbacks on the docker network.
 // Auth is a shared secret (INTERNAL_API_SECRET) carried in `X-Internal-Secret`;
@@ -2599,5 +2608,223 @@ internal.get("/notes/:noteId/enrichment", async (c) => {
   }
   return c.json(row);
 });
+
+// ===== Synthesis Export internal endpoints (Plan: synthesis-export Task 15) =====
+
+// latex compile is owned by the worker (zip / tectonic), not this API.
+const synthesisExportCompileSchema = z.object({
+  run_id: z.string().uuid(),
+  format: z.enum(["docx", "pdf", "md"]),
+  output: z.any(),
+});
+
+internal.post(
+  "/synthesis-export/compile",
+  zValidator("json", synthesisExportCompileSchema),
+  async (c) => {
+    const { run_id, format, output } = c.req.valid("json");
+    const out = output as SynthesisOutputJson;
+
+    let buf: Buffer;
+    let contentType: string;
+    let ext: string;
+
+    switch (format) {
+      case "docx":
+        buf = await compileDocx(out);
+        contentType =
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        ext = "docx";
+        break;
+      case "pdf":
+        buf = await compilePdf(out);
+        contentType = "application/pdf";
+        ext = "pdf";
+        break;
+      case "md": {
+        const text = `# ${out.title}\n\n${(out.sections ?? [])
+          .map((s) => `## ${s.title}\n${s.content}\n`)
+          .join("\n")}`;
+        buf = Buffer.from(text, "utf-8");
+        contentType = "text/markdown; charset=utf-8";
+        ext = "md";
+        break;
+      }
+      default: {
+        // Exhaustiveness: zod enum already excludes anything else.
+        const _exhaustive: never = format;
+        throw new Error(`unreachable compile format: ${String(_exhaustive)}`);
+      }
+    }
+
+    const s3Key = `synthesis/runs/${run_id}/document.${ext}`;
+    await uploadObject(s3Key, buf, contentType);
+    return c.json({ s3Key, bytes: buf.length });
+  },
+);
+
+const synthesisExportDocumentInsertSchema = z.object({
+  run_id: z.string().uuid(),
+  format: z.enum(["latex", "docx", "pdf", "md", "bibtex", "zip"]),
+  s3_key: z.string(),
+  bytes: z.number().int().nonnegative(),
+});
+
+internal.post(
+  "/synthesis-export/documents",
+  zValidator("json", synthesisExportDocumentInsertSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    await db.insert(synthesisDocuments).values({
+      runId: body.run_id,
+      format: body.format,
+      s3Key: body.s3_key,
+      bytes: body.bytes,
+    });
+    return c.json({ ok: true });
+  },
+);
+
+const synthesisExportRunPatchSchema = z.object({
+  tokens_used: z.number().int().nonnegative().optional(),
+  status: z
+    .enum([
+      "pending",
+      "fetching",
+      "synthesizing",
+      "compiling",
+      "completed",
+      "failed",
+      "cancelled",
+    ])
+    .optional(),
+});
+
+internal.patch(
+  "/synthesis-export/runs/:id",
+  zValidator("json", synthesisExportRunPatchSchema),
+  async (c) => {
+    const id = c.req.param("id");
+    const body = c.req.valid("json");
+    const patch: Record<string, unknown> = {};
+    if (body.tokens_used !== undefined) patch.tokensUsed = body.tokens_used;
+    if (body.status !== undefined) patch.status = body.status;
+    if (Object.keys(patch).length === 0) return c.json({ ok: true });
+    const updated = await db
+      .update(synthesisRuns)
+      .set(patch)
+      .where(eq(synthesisRuns.id, id))
+      .returning({ id: synthesisRuns.id });
+    if (updated.length === 0) {
+      return c.json({ error: "run not found" }, 404);
+    }
+    return c.json({ ok: true });
+  },
+);
+
+const synthesisExportSourcesUpsertSchema = z.object({
+  run_id: z.string().uuid(),
+  rows: z.array(
+    z.object({
+      source_id: z.string().uuid(),
+      kind: z.enum(["s3_object", "note", "dr_result"]),
+      title: z.string().nullable(),
+      token_count: z.number().int().nonnegative().nullable(),
+      included: z.boolean(),
+    }),
+  ),
+});
+
+internal.post(
+  "/synthesis-export/sources",
+  zValidator("json", synthesisExportSourcesUpsertSchema),
+  async (c) => {
+    const { run_id, rows } = c.req.valid("json");
+    if (rows.length === 0) return c.json({ ok: true });
+    await db.insert(synthesisSources).values(
+      rows.map((r) => ({
+        runId: run_id,
+        sourceType: r.kind,
+        sourceId: r.source_id,
+        title: r.title,
+        tokenCount: r.token_count,
+        included: r.included,
+      })),
+    );
+    return c.json({ ok: true });
+  },
+);
+
+const fetchSourceSchema = z.object({
+  source_id: z.string().uuid(),
+  kind: z.enum(["s3_object", "note", "dr_result"]),
+});
+
+internal.post(
+  "/synthesis-export/fetch-source",
+  zValidator("json", fetchSourceSchema),
+  async (c) => {
+    const { source_id, kind } = c.req.valid("json");
+
+    if (kind === "note") {
+      const [row] = await db
+        .select()
+        .from(notes)
+        .where(eq(notes.id, source_id))
+        .limit(1);
+      if (!row) return c.json({ error: "not_found" }, 404);
+      return c.json({
+        id: row.id,
+        title: row.title ?? "Untitled",
+        body: row.contentText ?? "",
+        kind: "note",
+      });
+    }
+
+    if (kind === "s3_object") {
+      // The ingest pipeline writes the resulting note with source_file_key
+      // set to the S3 object key, so a single read finds the extracted text
+      // when it exists. If no note has been backfilled yet (or the picker
+      // passed a key we don't track), fall back to the placeholder so the
+      // synthesizer still has the id + can proceed with other sources.
+      const [row] = await db
+        .select()
+        .from(notes)
+        .where(eq(notes.sourceFileKey, source_id))
+        .limit(1);
+      if (row) {
+        return c.json({
+          id: row.id,
+          title: row.title ?? source_id,
+          body: row.contentText ?? "",
+          kind: "s3_object",
+        });
+      }
+      return c.json({ id: source_id, title: source_id, body: "", kind: "s3_object" });
+    }
+
+    // dr_result: deep-research artifacts; wiring deferred until research →
+    // synthesis-export handoff is specified.
+    return c.json({ error: "kind_not_supported" }, 501);
+  },
+);
+
+const autoSearchSchema = z.object({
+  workspace_id: z.string().uuid(),
+  query: z.string().min(1),
+  limit: z.number().int().positive().max(20).default(10),
+});
+
+internal.post(
+  "/synthesis-export/auto-search",
+  zValidator("json", autoSearchSchema),
+  async (c) => {
+    // TODO(synthesis-export, followup #1): swap in the real semantic-search
+    // helper once the chat-scope variant is generalized for workspace
+    // queries. Until then, returning empty hits causes the synthesizer to
+    // proceed with explicit sources only — graceful degradation.
+    return c.json({ hits: [] satisfies Array<{ id: string; title: string; body: string }> });
+  },
+);
 
 export const internalRoutes = internal;

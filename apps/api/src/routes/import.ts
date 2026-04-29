@@ -107,14 +107,18 @@ importRouter.post(
     });
     if (!allowed) return c.json({ error: "Forbidden" }, 403);
 
-    // Drive integration must exist before we queue a discovery activity
-    // that will just 401 against Google anyway.
+    // Drive integration must exist for THIS workspace before we queue a
+    // discovery activity that will just 401 against Google anyway. The
+    // workspace_id scope is the audit S3-022 isolation gate — connecting
+    // Drive in workspace A no longer implicitly authorizes imports from
+    // workspace B.
     const [integ] = await db
       .select({ id: userIntegrations.id })
       .from(userIntegrations)
       .where(
         and(
           eq(userIntegrations.userId, userId),
+          eq(userIntegrations.workspaceId, body.workspaceId),
           eq(userIntegrations.provider, "google_drive"),
         ),
       )
@@ -180,6 +184,29 @@ importRouter.post(
       id: body.workspaceId,
     });
     if (!allowed) return c.json({ error: "Forbidden" }, 403);
+
+    // Bind the zip to its issuer. `/notion/upload-url` writes the object as
+    // `imports/notion/<workspaceId>/<userId>/<ts>-<uuid>.zip`, so a key under
+    // any other workspace OR any other user is necessarily a key the caller
+    // didn't issue — accepting it would let a workspace member import another
+    // user's uploaded zip into their own workspace (S3-024). Workspace-write
+    // permission isn't enough; the user must own the upload too.
+    //
+    // `startsWith` alone is bypassable with `..` traversal segments: a key
+    // like `imports/notion/<myWs>/<me>/../../../<victim>/x.zip` passes the
+    // prefix but anchors elsewhere if anything in the chain normalizes the
+    // path (a future presigned helper, a worker fs join, etc). MinIO itself
+    // doesn't normalize so the bypass is latent today, but we reject it
+    // anyway to harden against any layer that does.
+    const expectedPrefix = `imports/notion/${body.workspaceId}/${userId}/`;
+    if (
+      !body.zipObjectKey.startsWith(expectedPrefix) ||
+      body.zipObjectKey.includes("..") ||
+      body.zipObjectKey.includes("//") ||
+      body.zipObjectKey.includes("\\")
+    ) {
+      return c.json({ error: "zip_object_key_not_owned" }, 403);
+    }
 
     if ((await runningImportCount(userId)) >= MAX_CONCURRENT_IMPORTS) {
       return c.json(

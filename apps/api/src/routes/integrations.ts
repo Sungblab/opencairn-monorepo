@@ -12,6 +12,7 @@ import {
   revokeToken,
 } from "../lib/google-oauth";
 import { encryptToken, decryptToken } from "../lib/integration-tokens";
+import { canRead, canWrite } from "../lib/permissions";
 import type { AppEnv } from "../lib/types";
 
 // Base URL the browser is redirected BACK to after Google's consent screen.
@@ -53,6 +54,11 @@ integrationsRouter.get("/google/callback", async (c) => {
     .insert(userIntegrations)
     .values({
       userId: parsed.userId,
+      // Pin the token to the workspace the user was in when they hit
+      // /google/connect. Different workspaces require separate consent so
+      // a member of A can't silently use their token from inside B
+      // (Ralph audit S3-022).
+      workspaceId: parsed.workspaceId,
       provider: "google_drive",
       accessTokenEncrypted: encryptToken(tokens.access_token),
       refreshTokenEncrypted: tokens.refresh_token
@@ -63,7 +69,11 @@ integrationsRouter.get("/google/callback", async (c) => {
       scopes,
     })
     .onConflictDoUpdate({
-      target: [userIntegrations.userId, userIntegrations.provider],
+      target: [
+        userIntegrations.userId,
+        userIntegrations.workspaceId,
+        userIntegrations.provider,
+      ],
       set: {
         accessTokenEncrypted: encryptToken(tokens.access_token),
         // Preserve existing refresh token if Google omits it on re-consent.
@@ -109,12 +119,28 @@ integrationsRouter.get("/google/connect", requireAuth, async (c) => {
 
 integrationsRouter.get("/google", requireAuth, async (c) => {
   const userId = c.get("userId");
+  const workspaceId = c.req.query("workspaceId");
+  if (!workspaceId) {
+    return c.json({ error: "workspaceId required" }, 400);
+  }
+  // Workspace membership check: matches the rest of the codebase's
+  // per-route discipline ("Internal API workspaceId 강제 원칙"). Without
+  // it a former member who still knows wsId could probe whether the
+  // current user has Drive connected there. The query itself is
+  // already userId-scoped so blast radius is small, but consistency
+  // with the canRead/canWrite pattern matters more than the bytes.
+  const allowed = await canRead(userId, {
+    type: "workspace",
+    id: workspaceId,
+  });
+  if (!allowed) return c.json({ error: "Forbidden" }, 403);
   const [row] = await db
     .select()
     .from(userIntegrations)
     .where(
       and(
         eq(userIntegrations.userId, userId),
+        eq(userIntegrations.workspaceId, workspaceId),
         eq(userIntegrations.provider, "google_drive"),
       ),
     )
@@ -129,12 +155,26 @@ integrationsRouter.get("/google", requireAuth, async (c) => {
 
 integrationsRouter.delete("/google", requireAuth, async (c) => {
   const userId = c.get("userId");
+  const workspaceId = c.req.query("workspaceId");
+  if (!workspaceId) {
+    return c.json({ error: "workspaceId required" }, 400);
+  }
+  // canWrite for DELETE — disconnecting an integration is a workspace
+  // mutation. A former member should not be able to wipe their own row
+  // in a workspace they no longer belong to (low blast radius but
+  // consistent with the rest of the codebase).
+  const allowed = await canWrite(userId, {
+    type: "workspace",
+    id: workspaceId,
+  });
+  if (!allowed) return c.json({ error: "Forbidden" }, 403);
   const [row] = await db
     .select()
     .from(userIntegrations)
     .where(
       and(
         eq(userIntegrations.userId, userId),
+        eq(userIntegrations.workspaceId, workspaceId),
         eq(userIntegrations.provider, "google_drive"),
       ),
     )

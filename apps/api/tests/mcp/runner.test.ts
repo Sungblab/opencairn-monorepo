@@ -44,6 +44,9 @@ describe("mcp runner SSRF guard", () => {
     await expect(validateMcpServerUrl("https://[::1]/mcp")).rejects.toThrow(
       /private/i,
     );
+    await expect(
+      validateMcpServerUrl("https://169.254.169.254/mcp"),
+    ).rejects.toThrow(/private/i);
     expect(lookupMock).not.toHaveBeenCalledWith(
       "127.0.0.1",
       expect.anything(),

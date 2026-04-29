@@ -20,11 +20,17 @@ export interface AuthContext {
   userId: string;
   userName: string | null;
   readOnly: boolean;
+  // Epoch-ms expiry copied from the Better Auth session row at connect time.
+  // Stored on `connection.context` so the stale-role-guard extension can reject
+  // messages received past expiry without re-running verifySession on every
+  // beforeHandleMessage (DB hit per message).
+  sessionExpiresAt: number;
 }
 
 export interface VerifiedSession {
   userId: string;
   name: string | null;
+  expiresAt: Date;
 }
 
 export interface AuthDeps {
@@ -40,13 +46,24 @@ export function makeAuthenticate({ resolveRole, verifySession }: AuthDeps) {
   return async function authenticate(payload: {
     documentName: string;
     token: string;
+    /**
+     * S1-002 — Browsers cannot read httpOnly cookies via document.cookie, so
+     * the @hocuspocus/provider client cannot put the Better Auth session
+     * into the WS AUTH-message `token` field. The browser DOES send the
+     * cookie in the WS upgrade request, however — pass that header here so
+     * we fall back to it when the AUTH `token` field doesn't verify.
+     */
+    cookieHeader?: string;
   }): Promise<AuthContext> {
-    const { documentName, token } = payload;
+    const { documentName, token, cookieHeader } = payload;
     const m = DOC_RE.exec(documentName);
     if (!m) throw new Error("unsupported_document_name");
     const noteId = m[1]!;
 
-    const session = await verifySession(token);
+    let session = await verifySession(token);
+    if (!session && cookieHeader && cookieHeader !== token) {
+      session = await verifySession(cookieHeader);
+    }
     if (!session) throw new Error("unauthenticated");
 
     const role = await resolveRole(session.userId, {
@@ -64,6 +81,7 @@ export function makeAuthenticate({ resolveRole, verifySession }: AuthDeps) {
       userId: session.userId,
       userName: session.name,
       readOnly,
+      sessionExpiresAt: session.expiresAt.getTime(),
     };
   };
 }
@@ -101,6 +119,7 @@ export function makeVerifySession({
       .select({
         userId: sessionTable.userId,
         name: userTable.name,
+        expiresAt: sessionTable.expiresAt,
       })
       .from(sessionTable)
       .innerJoin(userTable, eq(userTable.id, sessionTable.userId))
@@ -112,7 +131,11 @@ export function makeVerifySession({
       )
       .limit(1);
     if (!row) return null;
-    return { userId: row.userId, name: row.name ?? null };
+    return {
+      userId: row.userId,
+      name: row.name ?? null,
+      expiresAt: row.expiresAt,
+    };
   };
 }
 

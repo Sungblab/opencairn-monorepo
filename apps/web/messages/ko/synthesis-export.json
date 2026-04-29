@@ -1,0 +1,63 @@
+{
+  "panel": {
+    "title": "종합 내보내기",
+    "format": "출력 형식",
+    "template": "템플릿",
+    "sources": "소스 ({count}개 선택됨)",
+    "autoSearch": "관련 노트 자동 포함",
+    "prompt": "프롬프트",
+    "placeholder": "어떤 문서를 만들어 드릴까요? 예: IEEE 형식으로 서론과 관련연구 섹션 먼저 작성해주세요.",
+    "start": "합성 시작",
+    "resynthesize": "재합성"
+  },
+  "status": {
+    "pending": "대기 중",
+    "fetching": "소스 수집 중",
+    "synthesizing": "합성 중",
+    "compiling": "문서 생성 중",
+    "completed": "완료",
+    "failed": "실패",
+    "cancelled": "취소됨"
+  },
+  "download": {
+    "tex": ".tex 다운로드",
+    "pdf": "PDF 다운로드",
+    "docx": "DOCX 다운로드",
+    "md": "Markdown 다운로드",
+    "zip": ".tex + .bib (zip)",
+    "pdfProOnly": "PDF (Pro)",
+    "overleafTip": ".tex 파일을 다운로드해 Overleaf에서 컴파일하실 수 있습니다."
+  },
+  "sources": {
+    "add": "소스 추가",
+    "remove": "제거",
+    "drResult": "Deep Research 결과",
+    "note": "노트",
+    "file": "업로드 파일",
+    "tokenBudgetExceeded": "일부 소스가 자동으로 제외될 수 있습니다.",
+    "autoIncluded": "자동 포함됨"
+  },
+  "errors": {
+    "noSources": "최소 1개 소스 또는 자동 검색을 선택해 주세요.",
+    "promptRequired": "프롬프트를 입력해 주세요.",
+    "tooManyTokens": "토큰 예산을 초과했습니다.",
+    "compileFailed": "문서 생성에 실패했습니다. 다시 시도해 주세요.",
+    "proRequired": "이 기능은 Pro 플랜에서 사용하실 수 있습니다.",
+    "workflowFailed": "합성 워크플로우가 실패했습니다."
+  },
+  "templates": {
+    "ieee": "IEEE 학술 논문",
+    "acm": "ACM 학술 논문",
+    "apa": "APA 형식",
+    "korean_thesis": "한국 학위논문",
+    "report": "일반 보고서"
+  },
+  "token": {
+    "estimated": "추정 {used} / {budget} 토큰",
+    "exceeded": "예산 초과 — 일부 소스가 제외됩니다.",
+    "unit": "토큰"
+  },
+  "result": {
+    "summary": "{count}개 소스 · {tokens}토큰 사용"
+  }
+}

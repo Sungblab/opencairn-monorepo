@@ -150,7 +150,7 @@ Added 2026-04-22. Bit us during Agent Runtime v2 · Sub-project A and must not b
 - ❌ `GenerateContentConfig`에 `automatic_function_calling` 생략 → ✅ Python `google-genai` SDK의 **기본값은 Python callable을 자동 실행**. 모든 guard/hook/log를 우회함. 런타임이 loop의 주인일 때 `types.AutomaticFunctionCallingConfig(disable=True)`를 **반드시** 명시.
 - ❌ `function_response`에 `function_call.id`를 빠뜨림 → ✅ Gemini 3는 각 function call마다 고유 `id`를 생성하고 이걸로 response를 원래 call에 매핑함. 생략하면 single-tool turn만 동작하고 parallel/compositional call과 thought signature context가 깨짐.
 - ❌ `thought_signature`를 옮길 때 part를 쪼개거나 합침 → ✅ Gemini 3는 assistant content의 임의 part에 thought signature를 embed함. Function Calling §497-504는 signature가 든 part를 이웃과 분리하거나 두 signature를 병합하는 것을 금지. 가장 안전한 건 `content` 전체를 opaque로 취급하고 다음 turn에 그대로 re-inject.
-- ❌ `OllamaProvider.generate_with_tools`에 fallback 구현을 추가 → ✅ Sub-project A에서는 `ToolCallingNotSupported` stub으로 두고 **fail fast**. `LLM_PROVIDER=ollama`로 툴 요구 agent가 라우팅되면 `runtime.loop_runner.run_with_tools`가 즉시 예외를 던져야 함. Text-only로 조용히 fallback 금지.
+- ❌ Ollama tool 호출을 text-only fallback으로 처리 → ✅ `OllamaProvider.generate_with_tools`는 공식 `/api/chat` `tools` / `message.tool_calls` / `role="tool"` 응답 루프를 사용해야 함. Tool을 요구했는데 content만 읽고 넘어가면 agent guard와 tool accounting이 깨짐.
 - ❌ `google.genai.errors.APIError`를 테스트에서 `APIError(code=429, response=MagicMock())` 식으로 생성 → ✅ 현재 SDK 시그니처는 `APIError(code, response_json, response=None)`로 `response_json` 필수. `response_json={"error": {"message": "..."}}` 전달.
 
 ---
