@@ -182,3 +182,33 @@ python -m scripts.ensure_plan8_schedules \
 - **Mime allow-list**: `image/png`, `image/svg+xml` only — 400 `outputBadType` on others.
 - **Workflow `failed` status**: if `agent.run` raises and `set_run_status("failed")` itself raises, the original exception still propagates (best-effort status flip). Worst case: status remains `running` and the workflow's `RetryPolicy(maximum_attempts=2)` plus the 1-hour `workflowExecutionTimeout` bound the damage.
 - **SSE keep-alive**: every poll iteration sends either a data event or `: keepalive\n\n` comment frame, so proxies (nginx 60s, Cloudflare 100s defaults) won't drop long `awaiting_feedback` waits.
+
+---
+
+## Compose port exposure (S3-052)
+
+`docker-compose.yml`은 인프라 포트(`postgres`, `redis`, `temporal`, `temporal-ui`, `minio`, `ollama`)를 디폴트로 `127.0.0.1` 에 published 한다. 운영자가 명시적으로 override 하지 않는 한 호스트 인터넷 노출이 인프라 노출로 이어지지 않는다. 정책·override 기준·인증 상태표는 [`hosted-service.md` § Compose port exposure policy](./hosted-service.md#compose-port-exposure-policy-s3-052) 참고.
+
+운영 점검 1줄:
+
+```bash
+docker compose config | grep -E "host_ip|published"
+```
+
+모두 `host_ip: 127.0.0.1` 이어야 정상. 의도적으로 외부 노출이 필요한 서비스만 `0.0.0.0` 으로 보여야 한다.
+
+## Ingest reliability — heartbeat budgets (S3-006)
+
+`IngestWorkflow`의 모든 activity dispatch 는 `heartbeat_timeout` 을 명시한다.
+워커 프로세스가 hang 되면 `heartbeat_timeout` 안에 Temporal 이 detect → retry,
+LLM/LibreOffice 가 정상적으로 오래 걸리는 경우는 activity 본체가 `activity.heartbeat()`
+로 살아있다는 신호를 보낸다.
+
+| 위치 | heartbeat_timeout |
+|------|-------------------|
+| `_LONG_HEARTBEAT` (120 s) — `parse_pdf`, `transcribe_audio`, `ingest_youtube`, `parse_office`, `parse_hwp`, `enhance_with_gemini`, `enrich_document` | 120 s |
+| `_SHORT_HEARTBEAT` (30 s) — `analyze_image`, `scrape_web_url`, `read_text_object`, `emit_started`, `quarantine_source`, `report_ingest_failure`, `create_source_note`, `detect_content_type`, `store_enrichment_artifact` | 30 s |
+
+`_LONG_HEARTBEAT` 이 120 s 인 이유: Gemini `generate_multimodal` / `markitdown` / `unoconvert` 같은 단발 blocking 호출이 await 도중 heartbeat 을 부를 수 없으니 budget 이 그 호출 자체의 p99 latency 를 커버해야 한다. 향후 background-heartbeat helper 가 들어오면 30 s 로 좁힐 수 있다.
+
+활동 본체의 heartbeat 호출 contract: 각 활동은 자기 heartbeat_timeout 안에 적어도 한 번 `activity.heartbeat()` 를 호출해야 한다 (`apps/worker/src/worker/activities/office_activity.py` 가 reference 패턴). 새 activity 추가 시 `apps/worker/tests/workflows/test_ingest_heartbeat.py` 의 정적 + 동적 회귀가 누락을 잡는다.
