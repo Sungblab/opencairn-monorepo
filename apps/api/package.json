@@ -26,6 +26,7 @@
     "@sentry/node": "^10.50.0",
     "@temporalio/client": "^1.16.1",
     "better-auth": "^1.6.9",
+    "docx": "^9.6.1",
     "hono": "^4.12.15",
     "ioredis": "^5.6.0",
     "minio": "^8.0.7",
