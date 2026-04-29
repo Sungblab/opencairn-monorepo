@@ -5,8 +5,14 @@
 // The function is text-only. Callers (`paste-norm` plugin and
 // `markdownToPlate`) are responsible for skipping it on text inside fenced
 // code blocks — escape sequences inside <code> are intentional.
-
-const MARKDOWN_SIGNIFICANT_ESCAPES = /\\([*_#\[\]()`!.])/g;
+//
+// Char class kept conservative: covers what real-world exporters (Slack,
+// Notion, ChatGPT) actually escape. `+`, `/` deliberately omitted because
+// they appear in normal prose without markdown intent (math expressions,
+// URL paths) and would cause too many false-positives. `-` IS included
+// because Slack escapes line-leading `\-` for list markers, and the false-
+// positive cost on a hyphen mid-sentence is just one missing backslash.
+const MARKDOWN_SIGNIFICANT_ESCAPES = /\\([*_#\[\]()`!.>|~\\-])/g;
 
 export function normalizeEscapes(input: string): string {
   if (!input) return input;

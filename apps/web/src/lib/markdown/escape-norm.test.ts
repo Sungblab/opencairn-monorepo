@@ -16,6 +16,13 @@ describe("normalizeEscapes", () => {
     ["mixed \\* and _ ", "mixed * and _ "],
     ["\\`code\\`", "`code`"],
     ["double \\\\* should not collapse fully", "double \\* should not collapse fully"],
+    // Plan 2E follow-up — broader char class for Slack/Notion exports.
+    ["\\> blockquote", "> blockquote"],
+    ["col1 \\| col2 \\| col3", "col1 | col2 | col3"],
+    ["\\~strike\\~", "~strike~"],
+    ["\\- list item", "- list item"],
+    ["plus stays + intact", "plus stays + intact"],
+    ["slash stays / intact", "slash stays / intact"],
   ])("%j → %j", (input, expected) => {
     expect(normalizeEscapes(input)).toBe(expected);
   });
