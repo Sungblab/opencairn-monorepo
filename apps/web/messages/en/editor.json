@@ -47,6 +47,22 @@
     "quote": "Quote",
     "wikilink": "Link note"
   },
+  "table": {
+    "menu": {
+      "row_above": "Insert row above",
+      "row_below": "Insert row below",
+      "col_left": "Insert column left",
+      "col_right": "Insert column right",
+      "row_delete": "Delete row",
+      "col_delete": "Delete column",
+      "table_delete": "Delete table",
+      "merge": "Merge cells",
+      "split": "Split cell"
+    }
+  },
+  "paste": {
+    "normalized": "Cleaned up markdown escape sequences in the pasted text."
+  },
   "blocks": {
     "mermaid": {
       "placeholder": "Enter mermaid code here…",

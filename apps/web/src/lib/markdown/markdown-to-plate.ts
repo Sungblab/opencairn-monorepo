@@ -14,6 +14,8 @@ import {
 import { BaseCodeBlockPlugin, BaseCodeLinePlugin } from "@platejs/code-block";
 import { BaseListPlugin } from "@platejs/list";
 
+import { normalizeEscapes } from "./escape-norm";
+
 // Plan 2D — Markdown → Plate v49 Value converter.
 //
 // Used by:
@@ -181,5 +183,27 @@ export function markdownToPlate(markdown: string): PlateNode[] {
     return [{ type: "p", children: [{ text: "" }] }];
   }
 
-  return postprocessCallout(postprocessMermaid(value));
+  return postprocessEscapes(postprocessCallout(postprocessMermaid(value)));
+}
+
+// Plan 2E Phase A — collapse JSON-escape artifacts in pasted markdown
+// (e.g., `\\*foo\\*` → `*foo*`). Walks every text node whose ancestor
+// chain does not include a fenced code block, since escape sequences
+// inside <code> are intentional.
+function postprocessEscapes(nodes: PlateNode[]): PlateNode[] {
+  const visit = (node: PlateNode, insideCode: boolean): PlateNode => {
+    const nextInsideCode =
+      insideCode || node.type === "code_block" || node.type === "code_line";
+    if (typeof node.text === "string" && !nextInsideCode) {
+      return { ...node, text: normalizeEscapes(node.text) };
+    }
+    if (Array.isArray(node.children)) {
+      return {
+        ...node,
+        children: node.children.map((child) => visit(child, nextInsideCode)),
+      };
+    }
+    return node;
+  };
+  return nodes.map((n) => visit(n, false));
 }

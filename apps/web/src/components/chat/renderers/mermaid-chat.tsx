@@ -1,7 +1,8 @@
 "use client";
 import { useTranslations } from "next-intl";
-import { useMermaidRender } from "@/hooks/useMermaidRender";
+import { useMermaidRender, mermaidThemeFor } from "@/hooks/useMermaidRender";
 import { proseClasses } from "@/lib/markdown/shared-prose";
+import { useTheme } from "@/lib/theme/provider";
 
 interface MermaidChatProps {
   code: string;
@@ -9,7 +10,8 @@ interface MermaidChatProps {
 
 export function MermaidChat({ code }: MermaidChatProps) {
   const t = useTranslations("chat.renderer");
-  const { svg, error, loading } = useMermaidRender(code);
+  const { theme } = useTheme();
+  const { svg, error, loading } = useMermaidRender(code, mermaidThemeFor(theme));
 
   if (loading) {
     return (

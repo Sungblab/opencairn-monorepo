@@ -2,8 +2,9 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import type { PlateElementProps } from "platejs/react";
-import { useMermaidRender } from "@/hooks/useMermaidRender";
+import { useMermaidRender, mermaidThemeFor } from "@/hooks/useMermaidRender";
 import { proseClasses } from "@/lib/markdown/shared-prose";
+import { useTheme } from "@/lib/theme/provider";
 
 interface MermaidElementProps extends Omit<PlateElementProps, "element"> {
   element: PlateElementProps["element"] & {
@@ -20,7 +21,11 @@ export function MermaidElement({
 }: MermaidElementProps) {
   const t = useTranslations("editor.blocks.mermaid");
   const [showSource, setShowSource] = useState(false);
-  const { svg, error, loading } = useMermaidRender(element.code);
+  const { theme } = useTheme();
+  const { svg, error, loading } = useMermaidRender(
+    element.code,
+    mermaidThemeFor(theme),
+  );
 
   return (
     <div
