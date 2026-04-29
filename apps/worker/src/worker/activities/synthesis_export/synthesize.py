@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from temporalio import activity
 
+from worker.activities.synthesis_export._status import set_status
 from worker.activities.synthesis_export.types import SourceBundle, SynthesisRunParams
 from worker.agents.synthesis_export.agent import SynthesisExportAgent, SynthesisExportContext
 from worker.agents.synthesis_export.schemas import SynthesisOutputSchema
@@ -17,20 +18,13 @@ async def _patch_run_tokens(run_id: str, tokens_used: int) -> None:
     )
 
 
-async def _set_status(run_id: str, status: str) -> None:
-    await patch_internal(
-        f"/api/internal/synthesis-export/runs/{run_id}",
-        {"status": status},
-    )
-
-
 @activity.defn(name="synthesize_activity")
 async def synthesize_activity(
     params: SynthesisRunParams,
     sources: SourceBundle,
 ) -> SynthesisOutputSchema:
     activity.heartbeat("starting synthesis")
-    await _set_status(params.run_id, "synthesizing")
+    await set_status(params.run_id, "synthesizing")
     provider = await resolve_llm_provider(
         user_id=params.user_id,
         workspace_id=params.workspace_id,

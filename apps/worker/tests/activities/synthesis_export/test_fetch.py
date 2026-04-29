@@ -13,7 +13,7 @@ async def test_fetch_explicit_only_no_auto_search():
         explicit_source_ids=["src-a", "src-b"], note_ids=[],
         auto_search=False, byok_key_handle=None,
     )
-    with patch("worker.activities.synthesis_export.fetch._set_status", new=AsyncMock()), \
+    with patch("worker.activities.synthesis_export.fetch.set_status", new=AsyncMock()), \
          patch("worker.activities.synthesis_export.fetch._fetch_s3_object",
                new=AsyncMock(side_effect=lambda sid: {"id": sid, "title": f"T-{sid}", "body": "x" * 100, "kind": "s3_object"})):
         with patch("worker.activities.synthesis_export.fetch._persist_sources", new=AsyncMock()):
@@ -32,7 +32,7 @@ async def test_fetch_token_budget_excludes_overflow():
         auto_search=False, byok_key_handle=None,
     )
     big_body = "word " * 50_000
-    with patch("worker.activities.synthesis_export.fetch._set_status", new=AsyncMock()), \
+    with patch("worker.activities.synthesis_export.fetch.set_status", new=AsyncMock()), \
          patch("worker.activities.synthesis_export.fetch._fetch_s3_object",
                new=AsyncMock(side_effect=lambda sid: {"id": sid, "title": sid, "body": big_body, "kind": "s3_object"})):
         with patch("worker.activities.synthesis_export.fetch._persist_sources", new=AsyncMock()) as persist:
@@ -56,7 +56,7 @@ async def test_fetch_sets_status_fetching():
         auto_search=False, byok_key_handle=None,
     )
     with patch(
-        "worker.activities.synthesis_export.fetch._set_status", new=AsyncMock(),
+        "worker.activities.synthesis_export.fetch.set_status", new=AsyncMock(),
     ) as flip, patch(
         "worker.activities.synthesis_export.fetch._persist_sources", new=AsyncMock(),
     ):

@@ -23,7 +23,7 @@ async def test_synthesize_returns_output_and_records_tokens():
         "bibliography": [], "template": "report",
     })
 
-    with patch("worker.activities.synthesis_export.synthesize._set_status", new=AsyncMock()), \
+    with patch("worker.activities.synthesis_export.synthesize.set_status", new=AsyncMock()), \
          patch("worker.activities.synthesis_export.synthesize.resolve_llm_provider", new=AsyncMock(return_value=MagicMock())):
         with patch("worker.activities.synthesis_export.synthesize.SynthesisExportAgent") as agent_cls:
             agent = agent_cls.return_value
@@ -49,7 +49,7 @@ async def test_synthesize_sets_status_synthesizing():
         "bibliography": [], "template": "report",
     })
 
-    with patch("worker.activities.synthesis_export.synthesize._set_status", new=AsyncMock()) as flip, \
+    with patch("worker.activities.synthesis_export.synthesize.set_status", new=AsyncMock()) as flip, \
          patch("worker.activities.synthesis_export.synthesize.resolve_llm_provider", new=AsyncMock(return_value=MagicMock())), \
          patch("worker.activities.synthesis_export.synthesize.SynthesisExportAgent") as agent_cls, \
          patch("worker.activities.synthesis_export.synthesize._patch_run_tokens", new=AsyncMock()):

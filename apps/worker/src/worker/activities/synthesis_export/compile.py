@@ -10,6 +10,7 @@ import os
 
 from temporalio import activity
 
+from worker.activities.synthesis_export._status import set_status
 from worker.activities.synthesis_export.latex_assemble import (
     assemble_bib, assemble_tex, package_zip,
 )
@@ -17,19 +18,12 @@ from worker.activities.synthesis_export.types import (
     CompiledArtifact, SynthesisRunParams,
 )
 from worker.agents.synthesis_export.schemas import SynthesisOutputSchema
-from worker.lib.api_client import patch_internal, post_internal
+from worker.lib.api_client import post_internal
 from worker.lib.s3_client import upload_bytes
 
 
 def _is_tectonic_enabled() -> bool:
     return os.environ.get("FEATURE_TECTONIC_COMPILE", "false").lower() == "true"
-
-
-async def _set_status(run_id: str, status: str) -> None:
-    await patch_internal(
-        f"/api/internal/synthesis-export/runs/{run_id}",
-        {"status": status},
-    )
 
 
 def _markdown_text(output: SynthesisOutputSchema) -> str:
@@ -64,7 +58,7 @@ async def compile_activity(
     output: SynthesisOutputSchema,
 ) -> CompiledArtifact:
     activity.heartbeat(f"compiling {params.format}")
-    await _set_status(params.run_id, "compiling")
+    await set_status(params.run_id, "compiling")
     fmt = params.format
 
     if fmt == "md":
@@ -72,7 +66,7 @@ async def compile_activity(
         key = f"synthesis/runs/{params.run_id}/document.md"
         upload_bytes(key, body, "text/markdown; charset=utf-8")
         await _record_document(params.run_id, "md", key, len(body))
-        await _set_status(params.run_id, "completed")
+        await set_status(params.run_id, "completed")
         return CompiledArtifact(s3_key=key, bytes=len(body), format="md")
 
     if fmt == "latex":
@@ -84,14 +78,14 @@ async def compile_activity(
             key = f"synthesis/runs/{params.run_id}/document.pdf"
             upload_bytes(key, pdf_bytes, "application/pdf")
             await _record_document(params.run_id, "pdf", key, len(pdf_bytes))
-            await _set_status(params.run_id, "completed")
+            await set_status(params.run_id, "completed")
             return CompiledArtifact(s3_key=key, bytes=len(pdf_bytes), format="pdf")
 
         zip_bytes = package_zip(tex, bib)
         key = f"synthesis/runs/{params.run_id}/document.zip"
         upload_bytes(key, zip_bytes, "application/zip")
         await _record_document(params.run_id, "zip", key, len(zip_bytes))
-        await _set_status(params.run_id, "completed")
+        await set_status(params.run_id, "completed")
         return CompiledArtifact(s3_key=key, bytes=len(zip_bytes), format="zip")
 
     if fmt in ("docx", "pdf"):
@@ -106,7 +100,7 @@ async def compile_activity(
         s3_key = res["s3Key"]
         byte_count = res.get("bytes", 0)
         await _record_document(params.run_id, fmt, s3_key, byte_count)
-        await _set_status(params.run_id, "completed")
+        await set_status(params.run_id, "completed")
         return CompiledArtifact(s3_key=s3_key, bytes=byte_count, format=fmt)
 
     raise ValueError(f"Unsupported format: {fmt}")
