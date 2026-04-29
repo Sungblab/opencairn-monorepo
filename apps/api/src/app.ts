@@ -49,6 +49,7 @@ import { docEditorRoutes } from "./routes/doc-editor";
 import { mcpRoutes } from "./routes/mcp";
 import { connectorRoutes as connectorFoundationRoutes } from "./routes/connectors";
 import { notificationPreferenceRoutes } from "./routes/notification-preferences";
+import { startEmailDispatcher } from "./lib/email-dispatcher";
 
 export function createApp() {
   const app = new Hono();
@@ -139,6 +140,11 @@ export function createApp() {
   app.route("/api", mentionsRouter); // /api/mentions/search (Plan 2B)
 
   app.onError(errorHandler);
+
+  // Plan 2 Task 14 — boot the email-dispatcher loop. No-op when
+  // EMAIL_DISPATCHER_ENABLED!=true or NODE_ENV==='test'. Idempotent so
+  // multiple createApp() calls (tests) don't stack interval handlers.
+  startEmailDispatcher();
 
   return app;
 }
