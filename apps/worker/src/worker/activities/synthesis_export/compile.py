@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 
+import httpx
 from temporalio import activity
 
 from worker.activities.synthesis_export._status import set_status
@@ -20,6 +21,10 @@ from worker.activities.synthesis_export.types import (
 from worker.agents.synthesis_export.schemas import SynthesisOutputSchema
 from worker.lib.api_client import post_internal
 from worker.lib.s3_client import upload_bytes
+
+
+TECTONIC_URL = os.environ.get("TECTONIC_URL", "http://tectonic:8888")
+TECTONIC_TIMEOUT_S = float(os.environ.get("TECTONIC_TIMEOUT_S", "120"))
 
 
 def _is_tectonic_enabled() -> bool:
@@ -41,8 +46,21 @@ def _markdown_text(output: SynthesisOutputSchema) -> str:
 
 
 async def _post_tectonic(tex_source: str, bib_source: str) -> bytes:
-    """Stub: Task 21/23 replaces with httpx POST to apps/tectonic /compile."""
-    return b"%PDF-stub-replaced-in-task-23"
+    async with httpx.AsyncClient(timeout=TECTONIC_TIMEOUT_S) as client:
+        res = await client.post(
+            f"{TECTONIC_URL}/compile",
+            json={
+                "tex_source": tex_source,
+                "bib_source": bib_source or None,
+                "engine": "xelatex",
+                "timeout_ms": int(TECTONIC_TIMEOUT_S * 1000),
+            },
+        )
+        if res.status_code == 504:
+            raise RuntimeError("tectonic_timeout")
+        if res.status_code != 200:
+            raise RuntimeError(f"tectonic_failed: {res.text[:300]}")
+        return res.content
 
 
 async def _record_document(run_id: str, format_: str, s3_key: str, byte_count: int) -> None:

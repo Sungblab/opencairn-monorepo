@@ -76,3 +76,43 @@ async def test_compile_md_flips_compiling_then_completed():
         env = ActivityEnvironment()
         await env.run(compile_activity, _params("md"), _output("md"))
         assert flip.await_args_list == [call("r1", "compiling"), call("r1", "completed")]
+
+
+@pytest.mark.asyncio
+async def test_post_tectonic_returns_pdf_bytes(httpx_mock):
+    pdf_body = b"%PDF-1.4\nfake pdf"
+    httpx_mock.add_response(
+        method="POST",
+        url="http://tectonic:8888/compile",
+        content=pdf_body,
+        headers={"Content-Type": "application/pdf"},
+    )
+    from worker.activities.synthesis_export.compile import _post_tectonic
+    out = await _post_tectonic(r"\documentclass{article}\begin{document}x\end{document}", "")
+    assert out == pdf_body
+
+
+@pytest.mark.asyncio
+async def test_post_tectonic_504_raises_timeout(httpx_mock):
+    httpx_mock.add_response(
+        method="POST",
+        url="http://tectonic:8888/compile",
+        status_code=504,
+        json={"detail": "compile timeout"},
+    )
+    from worker.activities.synthesis_export.compile import _post_tectonic
+    with pytest.raises(RuntimeError, match="tectonic_timeout"):
+        await _post_tectonic("\\doc{}", "")
+
+
+@pytest.mark.asyncio
+async def test_post_tectonic_400_raises_failed(httpx_mock):
+    httpx_mock.add_response(
+        method="POST",
+        url="http://tectonic:8888/compile",
+        status_code=400,
+        json={"detail": {"error": "compile_failed", "log": "boom"}},
+    )
+    from worker.activities.synthesis_export.compile import _post_tectonic
+    with pytest.raises(RuntimeError, match="tectonic_failed"):
+        await _post_tectonic("\\doc{}", "")
