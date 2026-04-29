@@ -24,6 +24,13 @@ export const user = pgTable("user", {
   // so we need a forward-declared FK via the inline `references()` helper.
   lastViewedWorkspaceId: uuid("last_viewed_workspace_id"),
 
+  // Plan 2 Task 14 — email-dispatcher needs the recipient's locale to pick
+  // a template variant and the timezone to schedule digest_daily emails.
+  // CHECK constraint on the locale column lives in the migration SQL —
+  // drizzle 0.45 doesn't surface CHECKs in the schema builder.
+  locale: text("locale").notNull().default("ko"),
+  timezone: text("timezone").notNull().default("Asia/Seoul"),
+
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
 });
