@@ -8,7 +8,7 @@
 
 | Session | Domain | Iterations | Critical | High | Med | Low |
 |---|---|---|---|---|---|---|
-| 1 | Editor & Realtime Collab | 3 | 0 | 3 | 6 | 5 |
+| 1 | Editor & Realtime Collab | 3 | 0 | 3 (✅ all closed) | 6 | 5 |
 | 2 | App Shell & Chat & Agent UI | 4 | 0 | 4 | 11 | 14 |
 | 3 | Ingest Pipeline & Sources | 8 | **1** | 13 | 22 | 26 + 7 info |
 | 4 | Agent Runtime (LLM/Compiler/Research/DocEditor/Code/Viz) | 5 | 0 | 3 | 3 | 7 |
@@ -17,6 +17,8 @@
 | **Total** | | 28 | **1** | **26** (S6-011 already fixed → 25 unfixed) | **51** | **81 + 7 info** |
 
 ¹ Session 6 Highs = S6-011 + S6-022. S6-011 (MinIO root password default) is fixed in commit `a1f6bc6`; S6-022 (CI removed) is unfixed.
+
+**Update 2026-04-29:** S2-026 + S3-056 fixed in branch `fix/ralph-chat-ingest-ux` — see entries below for closure notes.
 
 ---
 
@@ -30,13 +32,13 @@
 
 ## High (26, 25 unfixed)
 
-### Session 1 — Editor & Realtime Collab (3)
+### Session 1 — Editor & Realtime Collab (3 — all closed)
 
-| ID | Title | File |
-|---|---|---|
-| S1-001 | SlashMenu global keydown lacks `PlateContent` focus check — title/comment input may delete editor characters | `apps/web/src/components/editor/.../slash-menu.tsx` |
-| S1-002 | Hocuspocus client `token: ""` — server auth path may be bypassed or fully rejected | `apps/web/src/lib/yjs-provider.ts` |
-| S1-003 | `HOCUSPOCUS_ORIGINS` env parsed but `Server({ origins })` never receives it | `apps/hocuspocus/src/index.ts` |
+| ID | Title | File | Status |
+|---|---|---|---|
+| ~~S1-001~~ | ~~SlashMenu global keydown lacks `PlateContent` focus check~~ | `apps/web/src/components/editor/plugins/slash.tsx` | ✅ Fixed (`fix/ralph-frontend-collab` `639e7dc`) — focus gated on `[data-slate-editor="true"]`; jsdom regression test in `slash.test.tsx`. |
+| ~~S1-002~~ | ~~Hocuspocus client `token: ""` — server auth path may be bypassed~~ | `apps/web/src/hooks/useCollaborativeEditor.ts` + `apps/hocuspocus/src/{auth,server}.ts` | ✅ Fixed (`fbc0821` + `6985e22`) — server falls back to WS upgrade Cookie header; client emits `"ws-auth-fallback"` sentinel; auth.test.ts covers cookie-fallback path. |
+| ~~S1-003~~ | ~~`HOCUSPOCUS_ORIGINS` env parsed but `Server({ origins })` never receives it~~ | `apps/hocuspocus/src/server.ts` | ✅ Fixed (`60fe7cf` + `6985e22`) — `onUpgrade` writes 403 + destroys socket + aborts via `throw null`; `tests/origins.test.ts` boots a real server and asserts disallowed/missing/allowed origin outcomes plus an unhandled-rejection contract. (Original `onUpgrade` allowlist landed in PR #147.) |
 
 ### Session 2 — App Shell & Chat & Agent UI (4)
 
@@ -45,7 +47,7 @@
 | S2-001 | `addTab` does not focus new tab (keeps `activeId ?? tab.id`) | `apps/web/src/stores/tabs-store.ts` |
 | S2-006 | ChatPanel uses `res.text()` — no SSE streaming, full buffering | `apps/web/src/components/chat/ChatPanel.tsx` |
 | S2-007 | ChatPanel ignores SSE `event: error` — empty response on LLM misconfig | same |
-| S2-026 | Agent Panel `history: []` hardcoded — multi-turn LLM context = 0 | `apps/api/src/lib/agent-pipeline.ts:56` |
+| ~~S2-026~~ | ~~Agent Panel `history: []` hardcoded — multi-turn LLM context = 0~~ | Fixed in `fix/ralph-chat-ingest-ux` — `loadHistory()` reads `chat_messages` (status=complete, body present, excluding current-turn IDs) and forwards to `runChat`. Capped by `CHAT_MAX_HISTORY_TURNS` (default 12, unified with `chat-llm.truncateHistory`). |
 
 ### Session 3 — Ingest Pipeline & Sources (13 unfixed)
 
@@ -56,12 +58,20 @@
 | S3-003 | `LitImportWorkflow._handle_paper` omits `workspace_id` in child `IngestInput` | `apps/worker/src/worker/workflows/lit_import_workflow.py:150-157` |
 | S3-004 | `text/plain` and `text/markdown` MIME hit `raise ValueError` in workflow | `apps/worker/src/worker/workflows/ingest_workflow.py:225-226` |
 | S3-006 | No `heartbeat_timeout` on any IngestWorkflow activity | `apps/worker/src/worker/workflows/ingest_workflow.py` |
+| ~~S3-021~~ | ~~Drive token via `os.environ` in shared worker process~~ | ✅ Closed by PR #146 `053d9de` (same change as S3-020). `fetch_google_drive_access_token` decrypts per-activity and returns the token via the activity's return value; no `os.environ` write path remains. |
+| ~~S3-022~~ | ~~Drive OAuth token stored per-user, not per-workspace~~ | ✅ Closed by PR `fix/ralph-drive-cluster`. Schema migration 0037 adds `workspace_id` (nullable) + new unique on `(user_id, workspace_id, provider)`; OAuth callback persists `workspace_id` from the signed state; GET/DELETE `/api/integrations/google` and `/api/import/drive` filter by it; worker `fetch_google_drive_access_token` requires both keys. Cross-workspace isolation regression test (`integrations-google.test.ts > S3-022 cross-workspace isolation`). Legacy NULL `workspace_id` rows remain as orphans (filtered by API) until a follow-up sweep. |
+| ~~S3-023~~ | ~~Drive token refresh not implemented; expiry → silent failure~~ | ✅ Closed by PR `fix/ralph-drive-cluster`. `fetch_google_drive_access_token` reads `token_expires_at`/`refresh_token_encrypted`; when expiry is at-or-past `now + 60s`, calls `https://oauth2.googleapis.com/token` with the stored refresh token + `GOOGLE_OAUTH_CLIENT_ID/SECRET` (added to the worker compose env), persists new ciphertext + expiry (and rotated refresh token if Google sends one). Hard fail with `non_retryable=True` when no refresh token is on file or Google returns non-2xx — UI surfaces "reconnect Drive" rather than silent retry-storms. 7 new pytest cases. |
+| ~~S3-024~~ | ~~Notion ZIP `zipObjectKey` not validated against issuer's prefix~~ | ✅ Closed by PR `fix/ralph-drive-cluster`. POST `/api/import/notion` requires `body.zipObjectKey` to start with `imports/notion/<workspaceId>/<userId>/`; mismatch returns 403. |
+| ~~S3-025~~ | ~~Drive folder walk does not paginate `nextPageToken`~~ | ✅ `walk_folder` already uses a `while True: ... page_token = resp.get("nextPageToken")` loop (drive_activities.py:204-226). The audit description was either obsolete by review time or the loop landed alongside S3-020. Either way, current code paginates correctly with a regression test (`test_walk_drive_folder_paginates_all_children`). |
+| ~~S3-006~~ | ~~No `heartbeat_timeout` on any IngestWorkflow activity~~ — **FIXED** on `fix/ralph-reliability-compose`. Every `workflow.execute_activity(...)` now passes `_LONG_HEARTBEAT` (120 s) or `_SHORT_HEARTBEAT` (30 s); `office_activity` calls `activity.heartbeat()` between LibreOffice/markitdown steps; static + dynamic regression in `apps/worker/tests/workflows/test_ingest_heartbeat.py`. Long budget covers Gemini multimodal / markitdown / unoconvert single blocking calls that cannot heartbeat mid-await (PR #160 review). | `apps/worker/src/worker/workflows/ingest_workflow.py` |
 | S3-021 | Drive token via `os.environ` in shared worker process (cross-user race) | `apps/worker/src/worker/activities/drive_activities.py:82-98` |
 | S3-022 | Drive OAuth token stored per-user, not per-workspace | `packages/db/src/schema/user-integrations.ts:9-32` |
 | S3-023 | Drive token refresh not implemented; expiry → silent failure | `apps/worker/src/worker/activities/drive_activities.py` |
 | S3-024 | Notion ZIP `zipObjectKey` not validated against issuer's prefix | `apps/api/src/routes/import.ts:170-228` |
 | S3-025 | Drive folder walk does not paginate `nextPageToken` (silent truncation > 1000) | `apps/worker/src/worker/activities/drive_activities.py:157-176` |
 | S3-052 | Redis 6379 + Temporal gRPC 7233 + Temporal UI 8080 + MinIO 9001 — all unauthenticated, host-published | `docker-compose.yml` |
+| ~~S3-056~~ | ~~`startRun` has no UI call site — Live Ingest Visualization completely dead in production~~ | Fixed in `fix/ralph-chat-ingest-ux` — new `useIngestUpload` hook + `IngestUploadButton` mounted in ProjectView. POST /api/ingest/upload → store.startRun() fires spotlight. Button gated by `NEXT_PUBLIC_FEATURE_LIVE_INGEST` to match `IngestOverlays` (whole-pathway switch — flag off = no entry point AND no progress UI). |
+| ~~S3-052~~ | ~~Redis 6379 + Temporal gRPC 7233 + Temporal UI 8080 + MinIO 9001 — all unauthenticated, host-published~~ — **FIXED** on `fix/ralph-reliability-compose`. `postgres`, `temporal`, `temporal-ui`, `minio`, `ollama` all default to `host_ip: 127.0.0.1`; matching `*_HOST_BIND` knobs in `.env.example`; policy + override guidance in `docs/contributing/hosted-service.md § Compose port exposure policy`. Verified via `docker compose config`. Auth status per service is documented; `temporal`/`temporal-ui`/`ollama` remain auth-less (out of scope for this fix), so they require SSH tunnel or reverse-proxy auth before any host_bind override. | `docker-compose.yml` |
 | S3-056 | `startRun` has no UI call site — Live Ingest Visualization completely dead in production | `apps/web/src/stores/ingest-store.ts:71` |
 | S3-073 | MinIO/Worker S3 client hardcoded `minioadmin` fallback credentials | `apps/api/src/lib/s3.ts:37-38`, `apps/worker/src/worker/lib/s3_client.py:30-31` |
 | S3-089 | `INTERNAL_API_SECRET` defaults to `"change-me-in-production"` in worker | `apps/worker/src/worker/lib/api_client.py:21` |
@@ -118,11 +128,15 @@ Selection criteria (in order): (1) Critical first; (2) anyone-can-exploit securi
 ### Deferred (not in this session)
 
 - **S3-052** (open ports / docker-compose) — separate infra session: needs operator policy decision (loopback bind vs. profiles guard).
-- **S3-021/022/023/024/025** — Drive cluster, deferred until S3-020 token-by-payload landing; full hardening is a multi-day workstream.
+- ~~**S3-021/022/023/024/025** — Drive cluster~~ — ✅ All five closed. S3-020/021 + walk pagination by PR #146; S3-022/023/024 by PR `fix/ralph-drive-cluster` (per-workspace migration 0037, token refresh with `GOOGLE_OAUTH_CLIENT_ID/SECRET` on the worker, Notion zip prefix bind).
 - **S3-006** (heartbeat_timeout) — reliability hardening, separate batch.
+- ~~**S3-052** (open ports / docker-compose)~~ — **closed** on `fix/ralph-reliability-compose`: loopback bind chosen, knobs documented in `hosted-service.md`.
+- **S3-021/022/023/024/025** — Drive cluster, deferred until S3-020 token-by-payload landing; full hardening is a multi-day workstream.
+- ~~**S3-006** (heartbeat_timeout)~~ — **closed** on `fix/ralph-reliability-compose`: every IngestWorkflow dispatch now carries a heartbeat budget; office activity heartbeats between LibreOffice steps.
 - **S3-056** (Live Ingest Viz `startRun` dead) — Plan Phase E flip; tracked there.
 - **S6-022** (CI restoration) — needs workflow file design + secrets review; separate operations session.
-- **S1-001/002/003**, **S2-001/026** — separate "frontend hardening" batch after this fix wave.
+- ~~**S1-001/002/003**~~ — closed in `fix/ralph-frontend-collab` (commits `639e7dc`, `fbc0821`, `60fe7cf`, `6985e22`).
+- **S2-001/026** — separate "frontend hardening" batch after this fix wave.
 
 ---
 

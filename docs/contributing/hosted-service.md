@@ -57,6 +57,49 @@ Self-host 시:
 설치 절차와 production-ish compose profile 경로는
 [`dev-guide.md`](./dev-guide.md#self-hosted-compose-smoke).
 
+### Compose port exposure policy (S3-052)
+
+Ralph audit 2026-04-28 (`docs/review/2026-04-28-ralph-audit/CONSOLIDATED.md`
+**S3-052**) 가 `docker-compose.yml` 의 인프라 포트가 `0.0.0.0` 에 전부 published
+되어 있고 단일 노드 dev/self-host 구성에서 인증 레이어가 없음을 지적. 호스트가
+인터넷에 노출된 self-host 환경에서 외부 직결이 가능했음.
+
+**현재 정책 — 인프라 포트는 디폴트 loopback bind, 운영자 명시 override만 외부 노출**:
+
+| Service | 디폴트 host bind | 환경 변수 | 인증 상태 |
+|---------|-----------------|----------|-----------|
+| `postgres` (5432) | `127.0.0.1` | `POSTGRES_HOST_BIND`, `POSTGRES_HOST_PORT` | `POSTGRES_PASSWORD` `:?` enforced |
+| `redis` (6379)    | `127.0.0.1` | `REDIS_HOST_BIND`, `REDIS_HOST_PORT` (PR #145) | `REDIS_PASSWORD` (선택) |
+| `temporal` gRPC (7233) | `127.0.0.1` | `TEMPORAL_HOST_BIND`, `TEMPORAL_HOST_PORT` | none (단일 노드) |
+| `temporal-ui` (8080)   | `127.0.0.1` | `TEMPORAL_UI_HOST_BIND`, `TEMPORAL_UI_HOST_PORT` | none |
+| `minio` S3 (9000) + console (9001) | `127.0.0.1` | `MINIO_HOST_BIND`, `MINIO_HOST_PORT_S3`, `MINIO_HOST_PORT_CONSOLE` | `MINIO_ROOT_PASSWORD` (S3_SECRET_KEY 재사용, `:?` enforced — PR #145) |
+| `ollama` (11434) | `127.0.0.1` | `OLLAMA_HOST_BIND`, `OLLAMA_HOST_PORT` | none |
+
+내부 컨테이너 간 통신은 영향 없음 — `api`/`worker` 등은 compose 내부 DNS
+(`postgres`, `redis`, `temporal`, `minio`)로 붙고 host port와 무관함. 위 변수는
+**호스트에서 보이는** 포트 매핑만 제어한다.
+
+**언제 override 해야 하나?**
+
+- **하지 마라**: 같은 머신에서 `pnpm dev` 로 host-side worker/api 를 띄우는
+  경우 — `127.0.0.1:5432` / `127.0.0.1:9000` / `127.0.0.1:7233` 로 충분히 닿는다.
+- **신중히**: 다른 머신에서 접속해야 하는 경우 (e.g. worker 가 다른 호스트).
+  override 전 인증/암호화 레이어가 추가되어 있는지 확인:
+  - **postgres**: 강한 비밀번호 + 방화벽 ACL + 가능하면 `pg_hba.conf` 에서 IP 제한.
+  - **redis**: `REDIS_PASSWORD` 설정 + 매칭되는 `REDIS_URL` 갱신.
+  - **temporal**: 외부 노출 시 mTLS 권장. SSH 터널 (`ssh -L 7233:localhost:7233`)
+    이 더 빠르고 안전한 옵션.
+  - **temporal-ui**: 인증 없는 community 이미지. 워크플로우 ID·입력·스택
+    트레이스가 누출되니 reverse proxy with auth 또는 SSH 터널 필수.
+  - **minio**: console (9001) 은 기본 root 계정으로 들어가니 `MINIO_ROOT_PASSWORD`
+    회전 후만 외부 노출. S3 endpoint (9000) 은 사용자 access key/secret 으로
+    보호되지만 그것조차 회전된 값이어야 함.
+  - **ollama**: 인증 없음. reverse proxy + bearer token 추가 후 override.
+
+**검증**: `docker compose config | grep -E "host_ip|published"` 로 모든 포트가
+`host_ip: 127.0.0.1` 인지 확인할 수 있다. 외부 노출이 의도라면 변경한 서비스만
+`0.0.0.0` 으로 표시되어야 한다.
+
 ---
 
 ## Branding & SEO: env 패턴 (하드코딩 금지)

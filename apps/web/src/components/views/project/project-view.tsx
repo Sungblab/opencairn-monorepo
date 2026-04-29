@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { projectsApi, type ProjectNoteRow } from "@/lib/api-client";
+import { IngestUploadButton } from "@/components/ingest/ingest-upload-button";
 import { ProjectMetaRow } from "./project-meta-row";
 import { ProjectNotesTable } from "./project-notes-table";
 
@@ -51,6 +52,7 @@ export function ProjectView({
           >
             {t("actions.import")}
           </Link>
+          <IngestUploadButton projectId={projectId} />
           <Link
             href={`/${locale}/app/w/${wsSlug}/p/${projectId}/agents`}
             className="rounded border border-border px-3 py-1.5 text-sm hover:bg-accent"

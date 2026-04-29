@@ -3,14 +3,19 @@
 // every chunk type to the SSE route. The chunk shape (`{type, payload}`)
 // matches what apps/web's agent panel reader expects.
 //
-// History reload is out of scope for v1 — the agent panel renders prior
-// turns from chat_messages on its own. Multi-turn reasoning over older
-// turns is a follow-up (Phase 4 doesn't yet have a per-thread chip/ragMode
-// column either; the agent panel UX is "ask anything in the workspace",
-// hence ragMode='strict' + scope='workspace').
+// Multi-turn history (audit S2-026): prior chat_messages rows are loaded
+// in chronological order and forwarded to runChat so the LLM can resolve
+// pronouns / callbacks across turns. The route persists the new user row
+// and a streaming agent placeholder BEFORE invoking runAgent, so callers
+// pass `excludeMessageIds` to skip those two from the loaded history.
+// The agent panel still defaults to ragMode='strict' + workspace scope
+// because Phase 4 has no per-thread chip/ragMode column yet.
 
-import { db, chatMessages, chatThreads, eq } from "@opencairn/db";
+import { db, chatMessages, chatThreads, and, desc, eq, notInArray, sql } from "@opencairn/db";
 import { runChat, type ChatChunk } from "./chat-llm";
+import type { RagMode } from "./chat-retrieval";
+import type { ChatMsg, LLMProvider } from "./llm/gemini";
+import { envInt } from "./env";
 import { tokensToKrw } from "./cost";
 
 export type AgentChunkType =
@@ -37,6 +42,17 @@ export async function* runAgent(opts: {
   // Forwarded into runChat so client aborts cancel the underlying Gemini
   // fetch immediately instead of waiting for the next yield boundary.
   signal?: AbortSignal;
+  // chat_messages.id values to skip when reconstructing history. Threads.ts
+  // passes the just-inserted user row + streaming agent placeholder so the
+  // current turn doesn't leak into prior history.
+  excludeMessageIds?: string[];
+  // Test seam — production callers omit this and runChat falls through to
+  // getGeminiProvider(). Tests inject a capturing provider to assert the
+  // assembled messages[] without hitting the real Gemini endpoint.
+  provider?: LLMProvider;
+  // Optional override; defaults to 'strict'. Tests pass 'off' to skip the
+  // retrieval embed call (same intent as the real-llm test pattern).
+  ragMode?: RagMode;
 }): AsyncGenerator<AgentChunk> {
   const [thread] = await db
     .select({ workspaceId: chatThreads.workspaceId })
@@ -47,18 +63,103 @@ export async function* runAgent(opts: {
   }
   const workspaceId = thread.workspaceId;
 
+  const history = await loadHistory(opts.threadId, opts.excludeMessageIds ?? []);
+
   for await (const chunk of runChat({
     workspaceId,
     scope: { type: "workspace", workspaceId },
-    ragMode: "strict",
+    ragMode: opts.ragMode ?? "strict",
     chips: [],
-    history: [],
+    history,
     userMessage: opts.userMessage.content,
     signal: opts.signal,
+    provider: opts.provider,
   })) {
     yield mapChunk(chunk);
   }
 }
+
+// Loads the most recent N completed chat_messages and shapes them into the
+// ChatMsg[] runChat expects.
+//
+// Filters (all SQL-side so LIMIT applies to *viable* rows — without the
+// `body` filter, malformed rows in the top-N slice would silently shorten
+// the history that reaches the LLM):
+//   - status='complete' — skips the streaming agent placeholder the route
+//     just inserted, plus any orphaned streaming rows from crashed turns,
+//     plus failed rows (partial/garbage bodies from mid-stream provider
+//     crashes).
+//   - content->>'body' IS NOT NULL AND length > 0 — `->>` returns NULL when
+//     the key is absent or the value isn't a string, so this drops legacy
+//     rows / future structured payloads / empty replies in one predicate.
+//   - id NOT IN excludeIds — caller-supplied current-turn IDs.
+//
+// Limit binding: env CHAT_MAX_HISTORY_TURNS (default 12) is the same knob
+// chat-llm.truncateHistory() reads at runChat time, so the DB cap and the
+// in-memory cap stay aligned. Using a separate env name would silently
+// override truncateHistory for the agent-panel path only.
+async function loadHistory(
+  threadId: string,
+  excludeIds: string[],
+): Promise<ChatMsg[]> {
+  const limit = envInt("CHAT_MAX_HISTORY_TURNS", 12);
+  if (limit === 0) return [];
+
+  const bodyPresent = sql`length(${chatMessages.content}->>'body') > 0`;
+  const filter = excludeIds.length > 0
+    ? and(
+        eq(chatMessages.threadId, threadId),
+        eq(chatMessages.status, "complete"),
+        bodyPresent,
+        notInArray(chatMessages.id, excludeIds),
+      )
+    : and(
+        eq(chatMessages.threadId, threadId),
+        eq(chatMessages.status, "complete"),
+        bodyPresent,
+      );
+
+  // Pull the newest N then reverse to chronological so the LLM reads the
+  // turns in the order they happened. Sorting in SQL is safer than sorting
+  // in JS by timestamp because Drizzle returns the timestamp field as Date
+  // and tie-breaks across same-millisecond inserts are still index-stable.
+  const rows = await db
+    .select({
+      id: chatMessages.id,
+      role: chatMessages.role,
+      content: chatMessages.content,
+      createdAt: chatMessages.createdAt,
+    })
+    .from(chatMessages)
+    .where(filter)
+    .orderBy(desc(chatMessages.createdAt), desc(chatMessages.id))
+    .limit(limit);
+
+  return rows
+    .slice()
+    .reverse()
+    .map((r) => ({
+      role: r.role === "user" ? ("user" as const) : ("assistant" as const),
+      content: extractBody(r.content),
+    }));
+}
+
+// Defensive extraction — the SQL filter already guarantees content has a
+// non-empty string body, but typeof narrowing for TypeScript still needs
+// the runtime check. Returns "" only on impossible-in-prod shapes.
+function extractBody(content: unknown): string {
+  if (
+    content !== null &&
+    typeof content === "object" &&
+    !Array.isArray(content) &&
+    "body" in content
+  ) {
+    const body = (content as { body: unknown }).body;
+    return typeof body === "string" ? body : "";
+  }
+  return "";
+}
+
 
 function mapChunk(c: ChatChunk): AgentChunk {
   return { type: c.type, payload: c.payload };

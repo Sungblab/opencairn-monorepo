@@ -35,6 +35,7 @@ class EmbedInput:
     audio_bytes: bytes | None = None
     pdf_bytes: bytes | None = None
     task: str = "retrieval_document"
+    title: str | None = None
 
 
 @dataclass

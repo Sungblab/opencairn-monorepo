@@ -25,7 +25,8 @@ export function DriveTab({ wsSlug }: { wsSlug: string }) {
   const t = useTranslations("import");
   const router = useRouter();
   const workspaceId = useWorkspaceId(wsSlug);
-  const { status, loading, connectUrl, disconnect } = useGoogleIntegration();
+  const { status, loading, connectUrl, disconnect } =
+    useGoogleIntegration(workspaceId);
   const [fileIdInput, setFileIdInput] = useState("");
   const [target, setTarget] = useState<ImportTarget>({ kind: "new" });
   const [submitting, setSubmitting] = useState(false);

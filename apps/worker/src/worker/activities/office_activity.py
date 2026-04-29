@@ -146,14 +146,19 @@ async def parse_office(inp: dict[str, Any]) -> dict[str, Any]:
         )
 
         # Step 1: text extraction — branch on whether markitdown can handle
-        # the format natively.
+        # the format natively. Each branch can take well over the 60 s
+        # heartbeat budget on large PPTX/DOCX or LibreOffice cold-starts, so
+        # bracket the calls with explicit heartbeats (S3-006).
         t_text_start = time.time()
         if ext in _MARKITDOWN_NATIVE_EXTS:
+            activity.heartbeat("extracting text via markitdown")
             text = await asyncio.to_thread(_extract_text_markitdown, src_path)
             text_path_used = "markitdown"
         else:
             # Legacy binary: convert to PDF first, then read text from PDF.
+            activity.heartbeat("converting legacy office to PDF via unoconvert")
             await asyncio.to_thread(convert_to_pdf_unoconvert, src_path, pdf_tmp)
+            activity.heartbeat("extracting text via pymupdf")
             text = await asyncio.to_thread(_extract_text_pymupdf, pdf_tmp)
             text_path_used = "unoconvert+pymupdf"
 
@@ -171,11 +176,13 @@ async def parse_office(inp: dict[str, Any]) -> dict[str, Any]:
         viewer_pdf_key: str | None = None
         try:
             if ext in _MARKITDOWN_NATIVE_EXTS:
+                activity.heartbeat("rendering viewer PDF via unoconvert")
                 await asyncio.to_thread(convert_to_pdf_unoconvert, src_path, pdf_tmp)
             viewer_pdf_key = viewer_pdf_object_key(
                 user_id=user_id, workflow_id=workflow_id
             )
             pdf_bytes = pdf_tmp.read_bytes()
+            activity.heartbeat("uploading viewer PDF")
             await asyncio.to_thread(
                 upload_object, viewer_pdf_key, pdf_bytes, "application/pdf"
             )

@@ -3,14 +3,12 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { oneTap } from "better-auth/plugins";
 import { db } from "@opencairn/db";
 import { sendResetPasswordEmail, sendVerificationEmail } from "./email";
+import { trustedOriginsFromEnv } from "./security";
 
 // trustedOrigins must include the web app URL; otherwise proxied requests
 // from :3000 are rejected by Better Auth's origin validation. Reuse
 // CORS_ORIGIN to keep origin trust and CORS allowlists in sync.
-const trustedOrigins =
-  process.env.CORS_ORIGIN?.split(",")
-    .map((s) => s.trim())
-    .filter(Boolean) ?? ["http://localhost:3000"];
+const trustedOrigins = trustedOriginsFromEnv();
 
 const webUrl = process.env.WEB_URL ?? "http://localhost:3000";
 

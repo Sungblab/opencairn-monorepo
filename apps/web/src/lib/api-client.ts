@@ -549,9 +549,15 @@ export const wsSettingsApi = {
 };
 
 export const integrationsApi = {
-  google: () => apiClient<GoogleIntegrationStatus>(`/integrations/google`),
-  disconnectGoogle: () =>
-    apiClient<{ ok: true }>(`/integrations/google`, { method: "DELETE" }),
+  google: (workspaceId: string) =>
+    apiClient<GoogleIntegrationStatus>(
+      `/integrations/google?workspaceId=${encodeURIComponent(workspaceId)}`,
+    ),
+  disconnectGoogle: (workspaceId: string) =>
+    apiClient<{ ok: true }>(
+      `/integrations/google?workspaceId=${encodeURIComponent(workspaceId)}`,
+      { method: "DELETE" },
+    ),
 };
 
 // ---------- Account / current user (Phase 5 Task 7) ----------

@@ -24,6 +24,42 @@ async def test_generate_returns_text(provider):
 
 
 @pytest.mark.asyncio
+async def test_generate_forwards_think_format_and_options(provider):
+    captured: dict = {}
+
+    def _capture(request: httpx.Request) -> httpx.Response:
+        import json
+
+        captured["payload"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={"message": {"role": "assistant", "content": '{"ok": true}'}},
+        )
+
+    schema = {
+        "type": "object",
+        "properties": {"ok": {"type": "boolean"}},
+        "required": ["ok"],
+    }
+    with respx.mock:
+        respx.post("http://localhost:11434/api/chat").mock(side_effect=_capture)
+        result = await provider.generate(
+            [{"role": "user", "content": "hi"}],
+            format=schema,
+            think="low",
+            temperature=0.1,
+            max_output_tokens=64,
+        )
+    assert result == '{"ok": true}'
+    assert captured["payload"]["format"] == schema
+    assert captured["payload"]["think"] == "low"
+    assert captured["payload"]["options"] == {
+        "temperature": 0.1,
+        "num_predict": 64,
+    }
+
+
+@pytest.mark.asyncio
 async def test_embed_returns_vectors(provider):
     with respx.mock:
         respx.post("http://localhost:11434/api/embed").mock(

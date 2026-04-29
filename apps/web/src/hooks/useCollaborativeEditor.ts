@@ -57,10 +57,21 @@ export function useCollaborativeEditor({
                   url:
                     process.env.NEXT_PUBLIC_HOCUSPOCUS_URL ??
                     "ws://localhost:1234",
-                  // Better Auth cookie flows automatically on same-origin WS.
-                  // For cross-origin deployments, swap this for a short-lived
-                  // token and validate it in the Hocuspocus `onAuthenticate`.
-                  token: "",
+                  // S1-002 — @hocuspocus/provider always sends the AUTH
+                  // message regardless of token value (see
+                  // hocuspocus-provider.esm.js sendToken: `token ?? ""`),
+                  // so this string only acts as input to the server's
+                  // verifySession call. The Better Auth session cookie is
+                  // httpOnly and not readable from JS, so we emit a
+                  // sentinel that verifySession will reject; the server
+                  // (apps/hocuspocus/src/auth.ts) then falls back to the
+                  // WS upgrade Cookie header — which the browser DOES
+                  // include even for httpOnly cookies — for the actual
+                  // verification. Cross-origin deployments must swap this
+                  // for a short-lived bearer issued by the API and add a
+                  // matching server validation path; the upgrade Cookie
+                  // header is unavailable across third-party origins.
+                  token: "ws-auth-fallback",
                 },
               },
             ],

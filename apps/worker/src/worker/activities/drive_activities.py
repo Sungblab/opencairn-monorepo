@@ -21,17 +21,31 @@ from __future__ import annotations
 import io
 import os
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import asyncpg
+import httpx
 from google.oauth2.credentials import Credentials  # type: ignore[import-untyped]
 from googleapiclient.discovery import build  # type: ignore[import-untyped]
 from googleapiclient.http import MediaIoBaseDownload  # type: ignore[import-untyped]
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
-from worker.lib.integration_crypto import decrypt_token
+from worker.lib.integration_crypto import decrypt_token, encrypt_token
 from worker.lib.s3_client import get_s3_client
+
+# Google's OAuth refresh endpoint. Hardcoded (not env-overridable) because
+# any "alternate URL" path is also an exfiltration path for refresh tokens —
+# tests monkeypatch the httpx call instead of redirecting at runtime.
+_GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+
+# How close to expiry we proactively refresh. Google access tokens are
+# valid for ~1 hour; a 60s skew protects against clock drift between
+# the worker and Google's auth servers, and against tokens minted just
+# before a long-running activity that would otherwise exceed the
+# remaining budget.
+_REFRESH_SKEW = timedelta(seconds=60)
 
 # MIME allowlist — mirrors the Plan 3 ingest allowlist. Folders are
 # handled separately (see _FOLDER_MIME). Anything outside this set is
@@ -86,14 +100,77 @@ def _asyncpg_url(url: str) -> str:
     return url
 
 
-async def fetch_google_drive_access_token(user_id: str) -> str:
-    """Return a decrypted Google Drive access token for ``user_id``.
+async def _exchange_refresh_token(refresh_token: str) -> dict[str, Any]:
+    """Call Google's /token endpoint with grant_type=refresh_token.
+
+    Returns the parsed JSON body on success. Raises ApplicationError
+    (non-retryable) on any non-2xx response — Google distinguishes
+    "transient" 5xx from "your refresh_token is dead" 400, but in
+    practice both surface as a hard stop for the user (re-connect
+    Drive). Retrying a dead refresh_token at the activity level just
+    eats budget.
+    """
+    client_id = os.environ.get("GOOGLE_OAUTH_CLIENT_ID")
+    client_secret = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET")
+    if not client_id or not client_secret:
+        raise ApplicationError(
+            "GOOGLE_OAUTH_CLIENT_ID/SECRET not configured — cannot refresh "
+            "Drive token",
+            non_retryable=True,
+        )
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            _GOOGLE_TOKEN_URL,
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": refresh_token,
+                "client_id": client_id,
+                "client_secret": client_secret,
+            },
+        )
+    if resp.status_code != 200:
+        # Google's /token returns 4xx for "your refresh_token is dead" and
+        # 5xx/429 for transient infra hiccups. Code review caught that the
+        # original blanket non_retryable=True trains users to dismiss the
+        # "reconnect Drive" prompt for blips that would resolve on a
+        # Temporal retry. Differentiate so 5xx/429 ride the activity's
+        # default retry policy and only true 4xx auth failures surface.
+        body = resp.text[:500]
+        is_transient = (
+            500 <= resp.status_code < 600 or resp.status_code == 429
+        )
+        raise ApplicationError(
+            f"Drive token refresh failed: HTTP {resp.status_code} — {body}",
+            non_retryable=not is_transient,
+        )
+    return resp.json()
+
+
+async def fetch_google_drive_access_token(
+    user_id: str, workspace_id: str
+) -> str:
+    """Return a decrypted, fresh Google Drive access token for ``(user_id, workspace_id)``.
 
     The activity performs this lookup itself so no plaintext token (and no
-    ciphertext blob) is serialized into Temporal history.
+    ciphertext blob) is serialized into Temporal history. The
+    ``workspace_id`` scope is the audit S3-022 isolation gate: a token
+    connected from workspace A is invisible to imports running in B.
+
+    When ``token_expires_at`` is at or past ``now + _REFRESH_SKEW``, calls
+    Google's /token endpoint with the stored ``refresh_token`` and
+    persists the new ``access_token`` + ``token_expires_at`` (and the new
+    ``refresh_token`` if Google rotates it) before returning. This is the
+    audit S3-023 fix — without it, an access_token minted at OAuth time
+    silently 401s after the ~1h Google validity window.
     """
     if not user_id:
         raise ApplicationError("user_id is required for Drive import", non_retryable=True)
+    if not workspace_id:
+        raise ApplicationError(
+            "workspace_id is required for Drive import",
+            non_retryable=True,
+        )
 
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
@@ -104,27 +181,109 @@ async def fetch_google_drive_access_token(user_id: str) -> str:
 
     conn = await asyncpg.connect(_asyncpg_url(db_url))
     try:
-        row = await conn.fetchrow(
-            """
-            SELECT access_token_encrypted
-            FROM user_integrations
-            WHERE user_id = $1 AND provider = $2
-            LIMIT 1
-            """,
-            user_id,
-            "google_drive",
-        )
+        # Serialize concurrent refresh attempts for the SAME (user_id,
+        # workspace_id). Without the advisory lock, N parallel Drive
+        # download activities can all see an expired token, all POST
+        # the same refresh_token to Google, and the slow path ends up
+        # persisting a stale access_token while Google has already
+        # invalidated everyone else's response. With the lock the first
+        # activity refreshes; the rest queue, then re-read inside the
+        # lock and find a fresh token (the double-checked-locking
+        # second SELECT below). hashtext() returns a Postgres int4 —
+        # collisions across different (user, ws) pairs only ever cause
+        # spurious queueing, never a correctness gap.
+        async with conn.transaction():
+            await conn.execute(
+                "SELECT pg_advisory_xact_lock(hashtext($1 || ':' || $2))",
+                user_id,
+                workspace_id,
+            )
+            row = await conn.fetchrow(
+                """
+                SELECT id,
+                       access_token_encrypted,
+                       refresh_token_encrypted,
+                       token_expires_at
+                FROM user_integrations
+                WHERE user_id = $1
+                  AND workspace_id = $2
+                  AND provider = $3
+                LIMIT 1
+                """,
+                user_id,
+                workspace_id,
+                "google_drive",
+            )
+            if row is None or row["access_token_encrypted"] is None:
+                raise ApplicationError(
+                    "google_drive integration is not connected",
+                    non_retryable=True,
+                )
+
+            access_token = decrypt_token(bytes(row["access_token_encrypted"]))
+            expires_at = row["token_expires_at"]
+            now = datetime.now(timezone.utc)
+            # Treat NULL expires_at as "unknown — assume fresh-ish".
+            # OAuth callbacks always write expires_at, so a NULL row
+            # would only show up if someone hand-edited the DB; refusing
+            # to use it is hostile.
+            if expires_at is None or expires_at - _REFRESH_SKEW > now:
+                return access_token
+
+            refresh_blob = row["refresh_token_encrypted"]
+            if refresh_blob is None:
+                raise ApplicationError(
+                    "google_drive token expired and no refresh_token is on"
+                    " file — user must reconnect Drive",
+                    non_retryable=True,
+                )
+            refresh_token = decrypt_token(bytes(refresh_blob))
+            tokens = await _exchange_refresh_token(refresh_token)
+            new_access = tokens.get("access_token")
+            expires_in = tokens.get("expires_in")
+            if not isinstance(new_access, str) or not isinstance(
+                expires_in, int
+            ):
+                raise ApplicationError(
+                    "Drive token refresh response missing access_token/expires_in",
+                    non_retryable=True,
+                )
+            new_expires_at = now + timedelta(seconds=expires_in)
+            # Google occasionally rotates the refresh_token. When it
+            # does, we MUST persist the new one — the old one is
+            # invalidated server-side.
+            new_refresh = tokens.get("refresh_token")
+            if isinstance(new_refresh, str) and new_refresh:
+                await conn.execute(
+                    """
+                    UPDATE user_integrations
+                    SET access_token_encrypted = $1,
+                        refresh_token_encrypted = $2,
+                        token_expires_at = $3,
+                        updated_at = NOW()
+                    WHERE id = $4
+                    """,
+                    encrypt_token(new_access),
+                    encrypt_token(new_refresh),
+                    new_expires_at,
+                    row["id"],
+                )
+            else:
+                await conn.execute(
+                    """
+                    UPDATE user_integrations
+                    SET access_token_encrypted = $1,
+                        token_expires_at = $2,
+                        updated_at = NOW()
+                    WHERE id = $3
+                    """,
+                    encrypt_token(new_access),
+                    new_expires_at,
+                    row["id"],
+                )
+            return new_access
     finally:
         await conn.close()
-
-    if row is None or row["access_token_encrypted"] is None:
-        raise ApplicationError(
-            "google_drive integration is not connected",
-            non_retryable=True,
-        )
-
-    access_token = decrypt_token(bytes(row["access_token_encrypted"]))
-    return access_token
 
 
 def _build_service(access_token: str) -> Any:
@@ -135,12 +294,18 @@ def _build_service(access_token: str) -> Any:
 
 async def _build_service_from_payload(payload: dict[str, Any]) -> Any:
     user_id = payload.get("user_id")
+    workspace_id = payload.get("workspace_id")
     if not isinstance(user_id, str) or not user_id:
         raise ApplicationError(
             "user_id must be a non-empty string",
             non_retryable=True,
         )
-    access_token = await fetch_google_drive_access_token(user_id)
+    if not isinstance(workspace_id, str) or not workspace_id:
+        raise ApplicationError(
+            "workspace_id must be a non-empty string",
+            non_retryable=True,
+        )
+    access_token = await fetch_google_drive_access_token(user_id, workspace_id)
     return _build_service(access_token)
 
 

@@ -191,6 +191,17 @@ export function SlashMenu({
       // modern `isComposing` flag and the legacy `keyCode === 229` signal.
       if (e.isComposing || e.keyCode === 229) return;
       if (e.key === "/" && !open && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        // S1-001: the listener is window-scoped, so a `/` typed in the note
+        // title input or a comment composer would otherwise pop the menu.
+        // Selecting a command then calls `editor.tf.deleteBackward("character")`
+        // against the editor and silently destroys an unrelated character of
+        // editor content. Plate's `Editable` sets `data-slate-editor="true"`
+        // on the contenteditable surface — gate on that.
+        const focused = document.activeElement;
+        const inEditor =
+          focused instanceof Element &&
+          focused.closest('[data-slate-editor="true"]') !== null;
+        if (!inEditor) return;
         // Let Plate process the `/` insertion first, then open on the next
         // tick. setTimeout(0) is sufficient — no need to read DOM state.
         setTimeout(() => setOpen(true), 0);

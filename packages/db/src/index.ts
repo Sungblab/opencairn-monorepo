@@ -42,4 +42,4 @@ export * from "./schema/doc-editor-calls";
 export * from "./schema/user-mcp-servers";
 export * from "./schema/connectors";
 
-export { eq, and, or, desc, asc, sql, inArray, isNull, isNotNull, ilike, lt, gt, lte, gte, count, max } from "drizzle-orm";
+export { eq, and, or, desc, asc, sql, inArray, notInArray, isNull, isNotNull, ilike, lt, gt, lte, gte, count, max } from "drizzle-orm";

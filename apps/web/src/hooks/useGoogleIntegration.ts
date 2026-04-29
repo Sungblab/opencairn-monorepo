@@ -8,10 +8,13 @@ export interface GoogleIntegrationStatus {
   scopes: string[] | null;
 }
 
-async function fetchStatus(): Promise<GoogleIntegrationStatus> {
-  const res = await fetch("/api/integrations/google", {
-    credentials: "include",
-  });
+async function fetchStatus(
+  workspaceId: string,
+): Promise<GoogleIntegrationStatus> {
+  const res = await fetch(
+    `/api/integrations/google?workspaceId=${encodeURIComponent(workspaceId)}`,
+    { credentials: "include" },
+  );
   if (!res.ok) {
     // 401 = not signed in. Rather than crashing the import page we report
     // "not connected" — the ProtectedRoute wrapper will have already sent
@@ -21,31 +24,37 @@ async function fetchStatus(): Promise<GoogleIntegrationStatus> {
   return (await res.json()) as GoogleIntegrationStatus;
 }
 
-export function useGoogleIntegration() {
+// `workspaceId` is the audit S3-022 isolation gate: a Drive connection in
+// workspace A is no longer visible from workspace B even for the same user,
+// so the hook needs the current workspace id to ask the right question.
+// Callers that don't have one yet (e.g. layout still resolving the slug)
+// should pass `null`/`undefined` — the query stays disabled until it lands.
+export function useGoogleIntegration(workspaceId: string | null | undefined) {
   const qc = useQueryClient();
   const status = useQuery({
-    queryKey: ["google-integration"],
-    queryFn: fetchStatus,
-    // Reasonable while the user is actively on the Import page — stale cache
-    // makes the "just finished OAuth" redirect feel laggy otherwise.
+    queryKey: ["google-integration", workspaceId],
+    queryFn: () => fetchStatus(workspaceId!),
+    enabled: Boolean(workspaceId),
     staleTime: 10_000,
   });
   const disconnect = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/integrations/google", {
-        method: "DELETE",
-        credentials: "include",
-      });
+      if (!workspaceId) throw new Error("workspaceId required");
+      const res = await fetch(
+        `/api/integrations/google?workspaceId=${encodeURIComponent(workspaceId)}`,
+        { method: "DELETE", credentials: "include" },
+      );
       if (!res.ok) throw new Error(`disconnect failed: ${res.status}`);
       return res.json();
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["google-integration"] }),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["google-integration", workspaceId] }),
   });
   return {
     status: status.data,
     loading: status.isLoading,
     disconnect: disconnect.mutate,
-    connectUrl: (workspaceId: string) =>
-      `/api/integrations/google/connect?workspaceId=${encodeURIComponent(workspaceId)}`,
+    connectUrl: (wsId: string) =>
+      `/api/integrations/google/connect?workspaceId=${encodeURIComponent(wsId)}`,
   };
 }

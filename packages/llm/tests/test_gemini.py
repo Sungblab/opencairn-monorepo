@@ -23,6 +23,29 @@ async def test_generate_returns_text(provider):
 
 
 @pytest.mark.asyncio
+async def test_generate_maps_system_messages_to_system_instruction(provider):
+    from google.genai import types
+
+    mock_response = MagicMock()
+    mock_response.text = "Hello, world!"
+    with patch.object(
+        provider._client.aio.models,
+        "generate_content",
+        new=AsyncMock(return_value=mock_response),
+    ) as mocked:
+        await provider.generate([
+            {"role": "system", "content": "Be terse."},
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": "hello"},
+        ])
+    kwargs = mocked.await_args.kwargs
+    assert [c.role for c in kwargs["contents"]] == ["user", "model"]
+    config = kwargs["config"]
+    assert isinstance(config, types.GenerateContentConfig)
+    assert config.system_instruction == "Be terse."
+
+
+@pytest.mark.asyncio
 async def test_embed_text_only(provider):
     mock_response = MagicMock()
     mock_response.embeddings = [MagicMock(values=[0.1, 0.2, 0.3])]
@@ -58,6 +81,21 @@ async def test_embed_forwards_vector_dim_as_output_dimensionality(
     config = mocked.await_args.kwargs["config"]
     assert isinstance(config, types.EmbedContentConfig)
     assert config.output_dimensionality == 768
+
+
+@pytest.mark.asyncio
+async def test_embed_forwards_single_document_title(provider):
+    mock_response = MagicMock()
+    mock_response.embeddings = [MagicMock(values=[0.1, 0.2, 0.3])]
+    with patch.object(
+        provider._client.aio.models,
+        "embed_content",
+        new=AsyncMock(return_value=mock_response),
+    ) as mocked:
+        await provider.embed([
+            EmbedInput(text="hello", task="retrieval_document", title="Note title")
+        ])
+    assert mocked.await_args.kwargs["config"].title == "Note title"
 
 
 @pytest.mark.asyncio
@@ -106,6 +144,30 @@ async def test_think_returns_thinking_result(provider):
     assert result is not None
     assert result.final_answer == "final answer"
     assert result.thinking == "step 1"
+
+
+@pytest.mark.asyncio
+async def test_think_accepts_gemini3_thinking_level(provider):
+    mock_response = MagicMock()
+    mock_response.candidates = [MagicMock()]
+    mock_response.candidates[0].content.parts = [
+        MagicMock(thought=True, text="step"),
+        MagicMock(thought=False, text="final"),
+    ]
+    with patch.object(
+        provider._client.aio.models,
+        "generate_content",
+        new=AsyncMock(return_value=mock_response),
+    ) as mocked:
+        await provider.think("what is 2+2?", thinking_level="low")
+    config = mocked.await_args.kwargs["config"]
+    assert config.thinking_config.thinking_level == "LOW"
+
+
+@pytest.mark.asyncio
+async def test_think_rejects_mixed_budget_and_level(provider):
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        await provider.think("what is 2+2?", thinking_level="low", thinking_budget=128)
 
 
 @pytest.mark.asyncio

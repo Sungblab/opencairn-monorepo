@@ -2,6 +2,11 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { errorHandler } from "./middleware/error";
+import {
+  csrfOriginGuard,
+  securityHeaders,
+  trustedOriginsFromEnv,
+} from "./lib/security";
 import { healthRoutes } from "./routes/health";
 import { authRoutes } from "./routes/auth";
 import { workspaceRoutes } from "./routes/workspaces";
@@ -47,14 +52,16 @@ export function createApp() {
   const app = new Hono();
 
   app.use("*", logger());
+  app.use("*", securityHeaders());
 
   app.use(
     "*",
     cors({
-      origin: process.env.CORS_ORIGIN?.split(",") ?? ["http://localhost:3000"],
+      origin: trustedOriginsFromEnv(),
       credentials: true,
-    })
+    }),
   );
+  app.use("*", csrfOriginGuard());
 
   // /api/internal must be mounted BEFORE the generic /api routes
   // (inviteRoutes, projectRoutes) — those sub-apps use requireAuth as a
@@ -94,8 +101,8 @@ export function createApp() {
   // Mounted FIRST among `/api` wildcard sub-apps so its public route
   // (`/api/public/share/:token`) is dispatched before any other sub-app's
   // wildcard auth middleware (e.g. inviteRoutes' or commentsRouter's).
-  app.route("/api", shareRouter);  // /api/public/share/:token + /api/notes/:id/share + /api/share/:shareId + /api/workspaces/:workspaceId/share
-  app.route("/api", inviteRoutes);  // /api/workspaces/:id/invites and /api/invites/:token/*
+  app.route("/api", shareRouter); // /api/public/share/:token + /api/notes/:id/share + /api/share/:shareId + /api/workspaces/:workspaceId/share
+  app.route("/api", inviteRoutes); // /api/workspaces/:id/invites and /api/invites/:token/*
   app.route("/api", projectRoutes);
   app.route("/api/projects", graphRoutes);
   app.route("/api/projects", learningRoutes);
@@ -121,11 +128,11 @@ export function createApp() {
   app.route("/api/canvas", canvasRoutes);
   app.route("/api/users", userRoutes);
   app.route("/api/notifications", notificationRoutes);
-  app.route("/api/stream", streamRoutes);  // SSE: project tree (Phase 2) + notifications (Phase 5)
+  app.route("/api/stream", streamRoutes); // SSE: project tree (Phase 2) + notifications (Phase 5)
   app.route("/api/literature", literatureRoutes);
   app.route("/api", docEditorRoutes); // /api/notes/:id/doc-editor/commands/:cmd (flag-gated inside the router)
-  app.route("/api", commentsRouter);  // /api/notes/:noteId/comments (Plan 2B)
-  app.route("/api", mentionsRouter);  // /api/mentions/search (Plan 2B)
+  app.route("/api", commentsRouter); // /api/notes/:noteId/comments (Plan 2B)
+  app.route("/api", mentionsRouter); // /api/mentions/search (Plan 2B)
 
   app.onError(errorHandler);
 
