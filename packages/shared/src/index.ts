@@ -10,3 +10,4 @@ export * from "./chat";
 export * from "./ingest-events";
 export * from "./doc-editor";
 export * from "./mcp";
+export * from "./connectors";
