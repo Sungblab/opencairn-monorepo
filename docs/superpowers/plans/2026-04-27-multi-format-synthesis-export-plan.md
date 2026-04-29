@@ -57,7 +57,7 @@
 - Create: `packages/db/src/schema/synthesis.ts`
 - Modify: `packages/db/src/index.ts` (export new module)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/db/tests/synthesis.test.ts`:
 
@@ -115,11 +115,11 @@ describe("synthesis schema", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 `pnpm --filter @opencairn/db test synthesis` — expect import error: cannot find `../src/schema/synthesis`.
 
-- [ ] **Step 3: Implement schema file**
+- [x] **Step 3: Implement schema file**
 
 Create `packages/db/src/schema/synthesis.ts`:
 
@@ -175,11 +175,11 @@ export const synthesisDocuments = pgTable("synthesis_documents", {
 
 Append `export * from "./schema/synthesis";` to `packages/db/src/index.ts` (after the last existing export line).
 
-- [ ] **Step 4: Run test — still fails (no migration applied)**
+- [x] **Step 4: Run test — still fails (no migration applied)**
 
 `pnpm --filter @opencairn/db test synthesis` — expect "relation synthesis_runs does not exist".
 
-- [ ] **Step 5: Generate + apply migration**
+- [x] **Step 5: Generate + apply migration**
 
 ```bash
 pnpm --filter @opencairn/db db:generate -- --name synthesis
@@ -188,11 +188,11 @@ pnpm --filter @opencairn/db db:migrate
 
 Verify a new file `packages/db/drizzle/0032_synthesis.sql` exists and `_journal.json` lists tag `0032_synthesis`.
 
-- [ ] **Step 6: Run test — verify PASS**
+- [x] **Step 6: Run test — verify PASS**
 
 `pnpm --filter @opencairn/db test synthesis` — expect 3/3 passing.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/db/src/schema/synthesis.ts packages/db/src/index.ts packages/db/drizzle/0032_synthesis.sql packages/db/drizzle/meta packages/db/tests/synthesis.test.ts
@@ -215,7 +215,7 @@ EOF
 - Create: `packages/shared/src/synthesis-types.ts`
 - Modify: `packages/shared/src/index.ts` (re-export)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/shared/tests/synthesis-types.test.ts`:
 
@@ -294,11 +294,11 @@ describe("synthesis types", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 `pnpm --filter @opencairn/shared test synthesis-types` — expect module-not-found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/shared/src/synthesis-types.ts`:
 
@@ -388,11 +388,11 @@ export interface SynthesisRunDetail extends SynthesisRunSummary {
 
 Append `export * from "./synthesis-types";` to `packages/shared/src/index.ts`.
 
-- [ ] **Step 4: Run test — verify PASS**
+- [x] **Step 4: Run test — verify PASS**
 
 `pnpm --filter @opencairn/shared test synthesis-types` — expect 6/6.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/shared/src/synthesis-types.ts packages/shared/src/index.ts packages/shared/tests/synthesis-types.test.ts
@@ -416,7 +416,7 @@ EOF
 - Create: `apps/worker/src/worker/agents/synthesis/schemas.py`
 - Modify: `apps/worker/src/worker/tools_builtin/schema_registry.py` (register `SynthesisOutputSchema`)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/worker/tests/agents/synthesis/test_schemas.py`:
 
@@ -473,11 +473,11 @@ def test_registered_in_schema_registry():
     assert SCHEMA_REGISTRY["SynthesisOutputSchema"] is SynthesisOutputSchema
 ```
 
-- [ ] **Step 2: Run — verify fails**
+- [x] **Step 2: Run — verify fails**
 
 `pnpm --filter @opencairn/worker test -- tests/agents/synthesis/test_schemas.py` (or `cd apps/worker && uv run pytest tests/agents/synthesis/test_schemas.py -v`). Expected: ImportError.
 
-- [ ] **Step 3: Implement schema**
+- [x] **Step 3: Implement schema**
 
 Create `apps/worker/src/worker/agents/synthesis/schemas.py`:
 
@@ -534,11 +534,11 @@ from worker.agents.synthesis.schemas import SynthesisOutputSchema  # noqa: E402
 register_schema("SynthesisOutputSchema", SynthesisOutputSchema)
 ```
 
-- [ ] **Step 4: Run — verify PASS**
+- [x] **Step 4: Run — verify PASS**
 
 3/3 passing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/worker/src/worker/agents/synthesis/__init__.py apps/worker/src/worker/agents/synthesis/schemas.py apps/worker/src/worker/tools_builtin/schema_registry.py apps/worker/tests/agents/synthesis/
@@ -566,7 +566,7 @@ EOF
 
 **Pattern note**: Despite the spec wording "SynthesisAgent(runtime.Agent)" with `max_turns=1`, the existing one-shot exemplar is `CodeAgent` (NOT a `runtime.Agent` subclass) — `apps/worker/src/worker/agents/code/agent.py`. Use that pattern: a tiny `_EmitStructuredOutputTool` sentinel + direct `provider.generate_with_tools(mode="any", allowed_tool_names=["emit_structured_output"])` call. Rationale: `runtime.Agent` is for multi-turn async-generator tool loops; one-shot synthesis doesn't need the loop machinery.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/worker/tests/agents/synthesis/test_agent.py`:
 
@@ -626,11 +626,11 @@ async def test_raises_when_tool_not_called():
         await agent.run(ctx)
 ```
 
-- [ ] **Step 2: Run — verify fails (ImportError)**
+- [x] **Step 2: Run — verify fails (ImportError)**
 
 `cd apps/worker && uv run pytest tests/agents/synthesis/test_agent.py -v`
 
-- [ ] **Step 3: Implement prompts**
+- [x] **Step 3: Implement prompts**
 
 Create `apps/worker/src/worker/agents/synthesis/prompts.py`:
 
@@ -708,7 +708,7 @@ Now call `emit_structured_output` with `schema_name="SynthesisOutputSchema"` and
 """
 ```
 
-- [ ] **Step 4: Implement agent**
+- [x] **Step 4: Implement agent**
 
 Create `apps/worker/src/worker/agents/synthesis/agent.py`:
 
@@ -811,11 +811,11 @@ class SynthesisAgent:
         raise RuntimeError("SynthesisAgent did not call emit_structured_output")
 ```
 
-- [ ] **Step 5: Run — verify PASS**
+- [x] **Step 5: Run — verify PASS**
 
 2/2.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/worker/src/worker/agents/synthesis/agent.py apps/worker/src/worker/agents/synthesis/prompts.py apps/worker/tests/agents/synthesis/test_agent.py
@@ -840,7 +840,7 @@ TASK4
 - Create: `apps/worker/src/worker/activities/synthesis/__init__.py` (empty)
 - Create: `apps/worker/src/worker/activities/synthesis/types.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/worker/tests/activities/synthesis/test_types.py`:
 
@@ -896,9 +896,9 @@ def test_upload_bytes_calls_put_object():
         assert key == "synthesis/runs/abc/doc.docx"
 ```
 
-- [ ] **Step 2: Run — verify both fail**
+- [x] **Step 2: Run — verify both fail**
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `apps/worker/src/worker/activities/synthesis/types.py`:
 
@@ -984,11 +984,11 @@ def upload_bytes(object_key: str, data: bytes, content_type: str) -> str:
 
 Create empty `apps/worker/src/worker/activities/synthesis/__init__.py`.
 
-- [ ] **Step 4: Run — verify PASS**
+- [x] **Step 4: Run — verify PASS**
 
 4/4 across both files.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/worker/src/worker/activities/synthesis/__init__.py apps/worker/src/worker/activities/synthesis/types.py apps/worker/src/worker/lib/s3_client.py apps/worker/tests/activities/synthesis/test_types.py apps/worker/tests/lib/test_s3_upload_bytes.py
@@ -1013,7 +1013,7 @@ TASK5
 
 **Spec section 4.3.** Two-mode source collection (explicit + auto_search), token budget capping, persistence via `/api/internal/synthesis/sources` (wired in Task 18).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/worker/tests/activities/synthesis/test_fetch.py`:
 
@@ -1065,9 +1065,9 @@ async def test_fetch_token_budget_excludes_overflow():
             assert sum(r["token_count"] for r in included) <= 180_000
 ```
 
-- [ ] **Step 2: Run — verify fails**
+- [x] **Step 2: Run — verify fails**
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `apps/worker/src/worker/activities/synthesis/fetch.py`:
 
@@ -1185,11 +1185,11 @@ async def fetch_sources_activity(params: SynthesisRunParams) -> SourceBundle:
     return SourceBundle(items=included)
 ```
 
-- [ ] **Step 4: Run — verify PASS**
+- [x] **Step 4: Run — verify PASS**
 
 2/2.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/worker/src/worker/activities/synthesis/fetch.py apps/worker/tests/activities/synthesis/test_fetch.py
@@ -1212,7 +1212,7 @@ TASK6
 **Files:**
 - Create: `apps/worker/src/worker/activities/synthesis/synthesize.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/worker/tests/activities/synthesis/test_synthesize.py`:
 
@@ -1253,9 +1253,9 @@ async def test_synthesize_returns_output_and_records_tokens():
                 patch_tokens.assert_awaited_once_with("r1", 1794)
 ```
 
-- [ ] **Step 2: Run — verify fails**
+- [x] **Step 2: Run — verify fails**
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `apps/worker/src/worker/activities/synthesis/synthesize.py`:
 
@@ -1306,9 +1306,9 @@ async def synthesize_activity(
     return output
 ```
 
-- [ ] **Step 4: Run — verify PASS**
+- [x] **Step 4: Run — verify PASS**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/worker/src/worker/activities/synthesis/synthesize.py apps/worker/tests/activities/synthesis/test_synthesize.py
@@ -1333,7 +1333,7 @@ TASK7
 
 Pure functions used by `compile_activity` for LaTeX-format runs. Tested in isolation.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/worker/tests/activities/synthesis/test_latex_assemble.py`:
 
@@ -1384,9 +1384,9 @@ def test_package_zip_contains_main_tex_and_bib():
     assert "refs.bib" in names
 ```
 
-- [ ] **Step 2: Run — verify fails**
+- [x] **Step 2: Run — verify fails**
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `apps/worker/src/worker/activities/synthesis/latex_assemble.py`:
 
@@ -1485,11 +1485,11 @@ def package_zip(tex_source: str, bib_source: str | None) -> bytes:
     return buf.getvalue()
 ```
 
-- [ ] **Step 4: Run — verify PASS**
+- [x] **Step 4: Run — verify PASS**
 
 4/4.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/worker/src/worker/activities/synthesis/latex_assemble.py apps/worker/tests/activities/synthesis/test_latex_assemble.py
@@ -1516,7 +1516,7 @@ Dispatches by `params.format`:
 - `latex` → assemble + upload zip (or PDF via Tectonic when flag ON, **stubbed** until Task 21)
 - `docx` / `pdf` → POST `/api/internal/synthesis/compile`, API renders + uploads
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/worker/tests/activities/synthesis/test_compile.py`:
 
@@ -1579,9 +1579,9 @@ async def test_compile_docx_routes_to_internal_api():
             assert post.await_args.args[0] == "/api/internal/synthesis/compile"
 ```
 
-- [ ] **Step 2: Run — verify fails**
+- [x] **Step 2: Run — verify fails**
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `apps/worker/src/worker/activities/synthesis/compile.py`:
 
@@ -1688,11 +1688,11 @@ async def compile_activity(
     raise ValueError(f"Unsupported format: {fmt}")
 ```
 
-- [ ] **Step 4: Run — verify PASS**
+- [x] **Step 4: Run — verify PASS**
 
 3/3.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/worker/src/worker/activities/synthesis/compile.py apps/worker/tests/activities/synthesis/test_compile.py
@@ -1714,7 +1714,7 @@ TASK9
 **Files:**
 - Create: `apps/worker/src/worker/workflows/synthesis_workflow.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/worker/tests/workflows/test_synthesis_workflow.py`:
 
@@ -1772,9 +1772,9 @@ async def test_workflow_happy_path():
             assert result.format == "md"
 ```
 
-- [ ] **Step 2: Run — verify fails**
+- [x] **Step 2: Run — verify fails**
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `apps/worker/src/worker/workflows/synthesis_workflow.py`:
 
@@ -1849,9 +1849,9 @@ class SynthesisWorkflow:
             return SynthesisResult(status="failed", error_code="workflow_failed")
 ```
 
-- [ ] **Step 4: Run — verify PASS**
+- [x] **Step 4: Run — verify PASS**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/worker/src/worker/workflows/synthesis_workflow.py apps/worker/tests/workflows/test_synthesis_workflow.py
@@ -1874,11 +1874,11 @@ TASK10
 **Files:**
 - Modify: `apps/worker/src/worker/temporal_main.py`
 
-- [ ] **Step 1: Read current registration**
+- [x] **Step 1: Read current registration**
 
 Open `apps/worker/src/worker/temporal_main.py` and locate the existing workflow + activity lists (look for the `Worker(...)` constructor in `start_worker`). Note the import patterns and where Code Agent / Deep Research are registered behind their flags.
 
-- [ ] **Step 2: Add synthesis registration behind FEATURE_SYNTHESIS**
+- [x] **Step 2: Add synthesis registration behind FEATURE_SYNTHESIS**
 
 Add imports near the top with other workflow/activity imports:
 
@@ -1901,11 +1901,11 @@ if os.environ.get("FEATURE_SYNTHESIS", "false").lower() == "true":
     ])
 ```
 
-- [ ] **Step 3: Run worker tests to ensure nothing else broke**
+- [x] **Step 3: Run worker tests to ensure nothing else broke**
 
 `cd apps/worker && uv run pytest -x`
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/worker/src/worker/temporal_main.py
@@ -1927,7 +1927,7 @@ TASK11
 **Files:**
 - Create: `apps/worker/tests/integration/test_synthesis_smoke.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 import pytest
@@ -1984,9 +1984,9 @@ async def test_synthesis_smoke_md_path():
                 assert res.format == "md"
 ```
 
-- [ ] **Step 2: Run — verify PASS**
+- [x] **Step 2: Run — verify PASS**
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/worker/tests/integration/test_synthesis_smoke.py
@@ -2012,7 +2012,7 @@ TASK12
 - Create: `apps/api/src/lib/document-compilers/docx.ts`
 - Create: `apps/api/src/lib/document-compilers/index.ts` (barrel export)
 
-- [ ] **Step 1: Add dependency**
+- [x] **Step 1: Add dependency**
 
 ```bash
 pnpm --filter @opencairn/api add docx
@@ -2020,7 +2020,7 @@ pnpm --filter @opencairn/api add docx
 
 Verify `docx` shows up in `apps/api/package.json` under `dependencies`.
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 Create `apps/api/tests/document-compilers/docx.test.ts`:
 
@@ -2059,11 +2059,11 @@ describe("compileDocx", () => {
 });
 ```
 
-- [ ] **Step 3: Run — verify fails**
+- [x] **Step 3: Run — verify fails**
 
 `pnpm --filter @opencairn/api test document-compilers/docx`
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 Create `apps/api/src/lib/document-compilers/docx.ts`:
 
@@ -2152,11 +2152,11 @@ Create `apps/api/src/lib/document-compilers/index.ts`:
 export { compileDocx, type SynthesisOutputJson } from "./docx";
 ```
 
-- [ ] **Step 5: Run — verify PASS**
+- [x] **Step 5: Run — verify PASS**
 
 2/2.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/api/package.json apps/api/src/lib/document-compilers/ apps/api/tests/document-compilers/docx.test.ts
@@ -2182,14 +2182,14 @@ TASK13
 
 **Pre-flight note**: Playwright requires a one-time browser download — `pnpm exec playwright install chromium` in CI/dev. Document this in the PR description.
 
-- [ ] **Step 1: Add dependency**
+- [x] **Step 1: Add dependency**
 
 ```bash
 pnpm --filter @opencairn/api add playwright
 pnpm --filter @opencairn/api exec playwright install --with-deps chromium
 ```
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 Create `apps/api/tests/document-compilers/pdf.test.ts`:
 
@@ -2215,9 +2215,9 @@ describe("compilePdf", () => {
 });
 ```
 
-- [ ] **Step 3: Run — verify fails**
+- [x] **Step 3: Run — verify fails**
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 Create `apps/api/src/lib/document-compilers/pdf.ts`:
 
@@ -2291,11 +2291,11 @@ export { compileDocx, type SynthesisOutputJson } from "./docx";
 export { compilePdf } from "./pdf";
 ```
 
-- [ ] **Step 5: Run — verify PASS**
+- [x] **Step 5: Run — verify PASS**
 
 (Test takes ~5–15s. If chromium is missing locally, install via the command in Step 1.)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/api/package.json apps/api/src/lib/document-compilers/pdf.ts apps/api/src/lib/document-compilers/index.ts apps/api/tests/document-compilers/pdf.test.ts
@@ -2320,7 +2320,7 @@ TASK14
 
 This task wires the worker's `post_internal("/api/internal/synthesis/compile", ...)` from Task 9 and `post_internal("/api/internal/synthesis/documents", ...)` from Task 9 + `synthesize_activity._patch_run_tokens` from Task 7.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/api/tests/internal/synthesis.test.ts`:
 
@@ -2407,9 +2407,9 @@ describe("/api/internal/synthesis/*", () => {
 });
 ```
 
-- [ ] **Step 2: Run — verify fails**
+- [x] **Step 2: Run — verify fails**
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `apps/api/src/routes/internal.ts` (use existing `internal` Hono router; reuse the existing `X-Internal-Secret` middleware):
 
@@ -2517,11 +2517,11 @@ internal.post("/api/internal/synthesis/auto-search", async (c) => {
 });
 ```
 
-- [ ] **Step 4: Run — verify PASS**
+- [x] **Step 4: Run — verify PASS**
 
 4/4.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/routes/internal.ts apps/api/tests/internal/synthesis.test.ts
@@ -2544,7 +2544,7 @@ TASK15
 **Files:**
 - Create: `apps/api/src/lib/synthesis-client.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/api/tests/lib/synthesis-client.test.ts`:
 
@@ -2583,9 +2583,9 @@ describe("synthesis-client", () => {
 });
 ```
 
-- [ ] **Step 2: Run — verify fails**
+- [x] **Step 2: Run — verify fails**
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `apps/api/src/lib/synthesis-client.ts`:
 
@@ -2641,11 +2641,11 @@ export async function signalSynthesisCancel(client: Client, runId: string) {
 }
 ```
 
-- [ ] **Step 4: Run — verify PASS**
+- [x] **Step 4: Run — verify PASS**
 
 3/3.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/lib/synthesis-client.ts apps/api/tests/lib/synthesis-client.test.ts
@@ -2670,7 +2670,7 @@ TASK16
 
 This task replaces the 501 stubs in Task 15 with real reads against `s3.ts` (for s3_object kind) + `notes` (for note kind) + a thin semantic-search call.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `apps/api/tests/internal/synthesis.test.ts`:
 
@@ -2697,9 +2697,9 @@ describe("/api/internal/synthesis/fetch-source", () => {
 
 (Add `notes` to the existing `@opencairn/db` import line at top of file.)
 
-- [ ] **Step 2: Run — verify fails**
+- [x] **Step 2: Run — verify fails**
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Replace the two stubs added in Task 15. The `fetch-source` handler reads from `notes` (when kind=note) or `ingest_jobs`/object metadata for `s3_object`. The `auto-search` handler defers to existing semantic search if available, else returns `hits: []`.
 
@@ -2764,9 +2764,9 @@ internal.post("/api/internal/synthesis/auto-search",
 
 (Adjust column names — `ingestJobs.objectKey`, `ingestJobs.fileName`, `ingestJobs.extractedText` — to whatever the actual schema uses. If those columns don't exist, fall back to `id: source_id, title: source_id, body: ""` and document as followup #2.)
 
-- [ ] **Step 4: Run — verify PASS**
+- [x] **Step 4: Run — verify PASS**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/routes/internal.ts apps/api/tests/internal/synthesis.test.ts
@@ -2790,7 +2790,7 @@ TASK17
 - Create: `apps/api/src/routes/synthesis.ts`
 - Modify: `apps/api/src/index.ts` (mount router behind `FEATURE_SYNTHESIS`)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/api/tests/synthesis.test.ts`:
 
@@ -2895,9 +2895,9 @@ describe("GET /api/synthesis/runs/:id/stream", () => {
 
 (`x-test-user-id` is your test session shim; if your harness uses a different name, look at `apps/api/tests/research.test.ts` and copy the convention.)
 
-- [ ] **Step 2: Run — verify fails**
+- [x] **Step 2: Run — verify fails**
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `apps/api/src/routes/synthesis.ts`:
 
@@ -3049,9 +3049,9 @@ import { synthesisRouter } from "./routes/synthesis";
 app.route("/api/synthesis", synthesisRouter);
 ```
 
-- [ ] **Step 4: Run — verify PASS**
+- [x] **Step 4: Run — verify PASS**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/routes/synthesis.ts apps/api/src/index.ts apps/api/tests/synthesis.test.ts
@@ -3074,7 +3074,7 @@ TASK18
 **Files:**
 - Modify: `apps/api/src/routes/synthesis.ts` (append routes)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `apps/api/tests/synthesis.test.ts`:
 
@@ -3134,9 +3134,9 @@ describe("synthesis run list/detail/document/resynth/delete", () => {
 });
 ```
 
-- [ ] **Step 2: Run — verify fails**
+- [x] **Step 2: Run — verify fails**
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `apps/api/src/routes/synthesis.ts`:
 
@@ -3278,9 +3278,9 @@ synthesisRouter.delete("/runs/:id", requireAuth, async (c) => {
 });
 ```
 
-- [ ] **Step 4: Run — verify PASS**
+- [x] **Step 4: Run — verify PASS**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/routes/synthesis.ts apps/api/tests/synthesis.test.ts
@@ -3307,7 +3307,7 @@ TASK19
 
 The SSE stream in Task 18 reacts to `status` column changes. Activities need to flip status at their boundaries — currently they don't. Add lightweight `_set_status(run_id, status)` calls.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `apps/worker/tests/activities/synthesis/test_fetch.py`:
 
@@ -3328,9 +3328,9 @@ async def test_fetch_sets_status_fetching():
 
 Append parallel tests to `test_synthesize.py` and `test_compile.py` for `synthesizing` and `compiling` respectively.
 
-- [ ] **Step 2: Run — verify fails**
+- [x] **Step 2: Run — verify fails**
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add to each activity file (e.g., `fetch.py`):
 
@@ -3348,9 +3348,9 @@ Call at the top of each `@activity.defn` body:
 - `synthesize_activity`: `await _set_status(params.run_id, "synthesizing")`
 - `compile_activity`: `await _set_status(params.run_id, "compiling")` (and `"completed"` at the very end of the success path)
 
-- [ ] **Step 4: Run — verify PASS**
+- [x] **Step 4: Run — verify PASS**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/worker/src/worker/activities/synthesis/
@@ -3378,7 +3378,7 @@ TASK20
 - Create: `apps/tectonic/requirements.txt`
 - Create: `apps/tectonic/README.md`
 
-- [ ] **Step 1: Create files**
+- [x] **Step 1: Create files**
 
 `apps/tectonic/Dockerfile`:
 
@@ -3467,7 +3467,7 @@ POST /compile  — see server.py
 GET  /healthz  — liveness
 ```
 
-- [ ] **Step 2: Validate Dockerfile builds**
+- [x] **Step 2: Validate Dockerfile builds**
 
 ```bash
 docker build -t opencairn/tectonic:dev apps/tectonic
@@ -3475,7 +3475,7 @@ docker build -t opencairn/tectonic:dev apps/tectonic
 
 Expect a successful build that produces an image containing `/usr/local/bin/tectonic`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/tectonic/Dockerfile apps/tectonic/.dockerignore apps/tectonic/requirements.txt apps/tectonic/README.md
@@ -3499,7 +3499,7 @@ TASK21A
 - Create: `apps/tectonic/tests/test_compile.py`
 - Create: `apps/tectonic/tests/fixtures/hello-ko.tex`
 
-- [ ] **Step 1: Write the failing golden test**
+- [x] **Step 1: Write the failing golden test**
 
 Create `apps/tectonic/tests/fixtures/hello-ko.tex`:
 
@@ -3568,7 +3568,7 @@ def test_compile_returns_400_on_invalid_tex():
     assert res.status_code in (400, 500)
 ```
 
-- [ ] **Step 2: Implement server**
+- [x] **Step 2: Implement server**
 
 Create `apps/tectonic/server.py`:
 
@@ -3662,13 +3662,13 @@ async def compile_tex(req: CompileRequest) -> Response:
         shutil.rmtree(workdir, ignore_errors=True)
 ```
 
-- [ ] **Step 3: Run — verify PASS (skip-marked tests stay skipped without TECTONIC_BIN)**
+- [x] **Step 3: Run — verify PASS (skip-marked tests stay skipped without TECTONIC_BIN)**
 
 ```bash
 cd apps/tectonic && python3 -m pytest tests -v
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/tectonic/server.py apps/tectonic/tests/
@@ -3693,7 +3693,7 @@ TASK22
 
 Replace the stub from Task 9 with an httpx POST to `apps/tectonic`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `apps/worker/tests/activities/synthesis/test_compile.py`:
 
@@ -3715,9 +3715,9 @@ async def test_post_tectonic_returns_pdf_bytes(httpx_mock):
 (Add `pytest-httpx` to `apps/worker/pyproject.toml` dev deps if not already present:
 `pnpm --filter @opencairn/worker exec uv add --dev pytest-httpx` or edit pyproject manually.)
 
-- [ ] **Step 2: Run — verify fails**
+- [x] **Step 2: Run — verify fails**
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Replace `_post_tectonic` in `apps/worker/src/worker/activities/synthesis/compile.py`:
 
@@ -3747,9 +3747,9 @@ async def _post_tectonic(tex_source: str, bib_source: str) -> bytes:
         return res.content
 ```
 
-- [ ] **Step 4: Run — verify PASS**
+- [x] **Step 4: Run — verify PASS**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/worker/src/worker/activities/synthesis/compile.py apps/worker/tests/activities/synthesis/test_compile.py apps/worker/pyproject.toml
@@ -3773,7 +3773,7 @@ TASK23
 - Modify: `docker-compose.yml`
 - Modify: `.env.example`
 
-- [ ] **Step 1: Append service entry**
+- [x] **Step 1: Append service entry**
 
 Add to `docker-compose.yml` (preserve existing structure; place under `services:` near the worker block):
 
@@ -3802,7 +3802,7 @@ volumes:
 
 (If `volumes:` already exists at the bottom, append `tectonic-cache:` under it instead of duplicating the top-level key.)
 
-- [ ] **Step 2: Document env vars**
+- [x] **Step 2: Document env vars**
 
 Append to `.env.example`:
 
@@ -3814,7 +3814,7 @@ TECTONIC_URL=http://tectonic:8888
 TECTONIC_TIMEOUT_S=120
 ```
 
-- [ ] **Step 3: Smoke compose up**
+- [x] **Step 3: Smoke compose up**
 
 ```bash
 docker compose --profile pro up -d tectonic
@@ -3824,7 +3824,7 @@ docker compose --profile pro down
 
 Expect `{"status":"ok"}`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docker-compose.yml .env.example
@@ -3850,7 +3850,7 @@ TASK24
 - Create: `apps/web/messages/en/synthesis.json`
 - Modify: `apps/web/src/lib/feature-flags.ts` (add `isSynthesisEnabled`)
 
-- [ ] **Step 1: Create i18n keys (ko first per i18n discipline)**
+- [x] **Step 1: Create i18n keys (ko first per i18n discipline)**
 
 Create `apps/web/messages/ko/synthesis.json`:
 
@@ -3988,7 +3988,7 @@ Create `apps/web/messages/en/synthesis.json` (mirror identical key set; English 
 }
 ```
 
-- [ ] **Step 2: Run i18n parity**
+- [x] **Step 2: Run i18n parity**
 
 ```bash
 pnpm --filter @opencairn/web i18n:parity
@@ -3996,7 +3996,7 @@ pnpm --filter @opencairn/web i18n:parity
 
 Expect both files to have identical key sets (parity passes).
 
-- [ ] **Step 3: Add feature flag helper**
+- [x] **Step 3: Add feature flag helper**
 
 Append to `apps/web/src/lib/feature-flags.ts`:
 
@@ -4009,7 +4009,7 @@ export function isTectonicCompileEnabled(): boolean {
 }
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/web/messages/ko/synthesis.json apps/web/messages/en/synthesis.json apps/web/src/lib/feature-flags.ts
@@ -4032,7 +4032,7 @@ TASK25
 - Create: `apps/web/src/hooks/use-synthesis-stream.ts`
 - Create: `apps/web/src/hooks/__tests__/use-synthesis-stream.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create the test:
 
@@ -4087,9 +4087,9 @@ describe("useSynthesisStream", () => {
 });
 ```
 
-- [ ] **Step 2: Run — verify fails**
+- [x] **Step 2: Run — verify fails**
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `apps/web/src/hooks/use-synthesis-stream.ts`:
 
@@ -4164,9 +4164,9 @@ export function useSynthesisStream(runId: string | null): SynthesisStreamState {
 }
 ```
 
-- [ ] **Step 4: Run — verify PASS**
+- [x] **Step 4: Run — verify PASS**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/hooks/use-synthesis-stream.ts apps/web/src/hooks/__tests__/use-synthesis-stream.test.tsx
@@ -4191,7 +4191,7 @@ TASK26
 
 These are presentational; tests verify rendering + emitted callbacks.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/web/src/components/synthesis/__tests__/FormatSelector.test.tsx`:
 
@@ -4251,9 +4251,9 @@ describe("TokenBudgetBar", () => {
 });
 ```
 
-- [ ] **Step 2: Run — verify fails**
+- [x] **Step 2: Run — verify fails**
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `apps/web/src/components/synthesis/FormatSelector.tsx`:
 
@@ -4329,9 +4329,9 @@ export function TokenBudgetBar({ used, budget }: { used: number; budget: number 
 }
 ```
 
-- [ ] **Step 4: Run — verify PASS**
+- [x] **Step 4: Run — verify PASS**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/components/synthesis/FormatSelector.tsx apps/web/src/components/synthesis/TokenBudgetBar.tsx apps/web/src/components/synthesis/__tests__/
@@ -4355,7 +4355,7 @@ TASK27
 - Create: `apps/web/src/components/synthesis/SynthesisProgress.tsx`
 - Create: `apps/web/src/components/synthesis/SynthesisResult.tsx`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `apps/web/src/components/synthesis/__tests__/SourcePicker.test.tsx`:
 
@@ -4401,9 +4401,9 @@ describe("SourcePicker", () => {
 
 Create `__tests__/SynthesisProgress.test.tsx` and `__tests__/SynthesisResult.test.tsx` (small smoke tests verifying status text + download buttons).
 
-- [ ] **Step 2: Run — verify fails**
+- [x] **Step 2: Run — verify fails**
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `apps/web/src/components/synthesis/SourcePicker.tsx`:
 
@@ -4550,9 +4550,9 @@ function ResynthesizeBox({ onSubmit }: { onSubmit: (p: string) => void }) {
 }
 ```
 
-- [ ] **Step 4: Run — verify PASS**
+- [x] **Step 4: Run — verify PASS**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/components/synthesis/
@@ -4575,7 +4575,7 @@ TASK28
 - Create: `apps/web/src/components/synthesis/SynthesisPanel.tsx`
 - Create: `apps/web/src/app/[locale]/app/w/[wsSlug]/(shell)/synthesis/page.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/web/src/components/synthesis/__tests__/SynthesisPanel.test.tsx`:
 
@@ -4608,9 +4608,9 @@ describe("SynthesisPanel", () => {
 });
 ```
 
-- [ ] **Step 2: Run — verify fails**
+- [x] **Step 2: Run — verify fails**
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `apps/web/src/components/synthesis/SynthesisPanel.tsx`:
 
@@ -4755,9 +4755,9 @@ export default async function SynthesisPage({ params }: PageProps) {
 }
 ```
 
-- [ ] **Step 4: Run — verify PASS**
+- [x] **Step 4: Run — verify PASS**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/components/synthesis/SynthesisPanel.tsx apps/web/src/app/\[locale\]/app/w/\[wsSlug\]/
@@ -4780,7 +4780,7 @@ TASK29
 **Files:**
 - (verify only) `apps/web/messages/ko/synthesis.json` ↔ `apps/web/messages/en/synthesis.json`
 
-- [ ] **Step 1: Run full web test suite**
+- [x] **Step 1: Run full web test suite**
 
 ```bash
 pnpm --filter @opencairn/web test
@@ -4791,7 +4791,7 @@ pnpm --filter @opencairn/web build
 
 All must pass. If `next/eslint` `i18next/no-literal-string` flags any string, replace with a translation key.
 
-- [ ] **Step 2: Commit (if fixes were made)**
+- [x] **Step 2: Commit (if fixes were made)**
 
 ```bash
 git add apps/web/
@@ -4818,7 +4818,7 @@ TASK30
 - Modify: `docs/contributing/plans-status.md`
 - Verify: `docs/contributing/llm-antipatterns.md` (add a section if any new pitfall surfaced)
 
-- [ ] **Step 1: Update plans-status.md**
+- [x] **Step 1: Update plans-status.md**
 
 Add to the Active section:
 
@@ -4828,7 +4828,7 @@ Add to the Active section:
 
 Mark Plan 10 in any "Pending" / "Phase 2" section as **Superseded by `2026-04-27-multi-format-synthesis-export`**.
 
-- [ ] **Step 2: Run full verification suite (verification-before-completion)**
+- [x] **Step 2: Run full verification suite (verification-before-completion)**
 
 ```bash
 pnpm --filter @opencairn/db test
@@ -4842,7 +4842,7 @@ cd apps/worker && uv run pytest
 
 Expect everything green.
 
-- [ ] **Step 3: Smoke flow with services up**
+- [x] **Step 3: Smoke flow with services up**
 
 ```bash
 docker compose up -d postgres redis minio temporal
@@ -4862,7 +4862,7 @@ FEATURE_TECTONIC_COMPILE=true pnpm --filter @opencairn/worker dev
 # Submit a latex format run, expect a PDF in MinIO console (bucket opencairn-uploads/synthesis/runs/<id>/document.pdf)
 ```
 
-- [ ] **Step 4: Document follow-ups**
+- [x] **Step 4: Document follow-ups**
 
 Append to `docs/contributing/plans-status.md` under a "Synthesis Followups" subsection:
 
@@ -4875,7 +4875,7 @@ Append to `docs/contributing/plans-status.md` under a "Synthesis Followups" subs
 7. PPTX format (out of v1 scope per spec § 2.3).
 8. Synthesis-into-Plate-note integration (Plan 11B-style save_suggestion for synthesized output).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/contributing/plans-status.md

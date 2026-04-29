@@ -692,4 +692,61 @@ synthesis.token.{estimated, exceeded, unit}
 
 ---
 
+## E2E smoke captures (Phase F)
+
+The Phase F prompt asked for four operator captures of the v1 happy path
+(`/synthesis-export` UI → in-progress → done → downloaded file thumbnail)
+attached as path references only — binary screenshots stay outside the
+repo.
+
+**Status at branch head `feat/plan-synthesis-export`:** The synthesis-export
+worktree could not run a live capture because all four infrastructure
+ports (`5432` postgres, `6379` redis, `9000` minio, `7233` temporal) were
+already bound on the host by a parallel worktree's compose stack — see
+`netstat` capture in the Phase F session log. Bringing this worktree's
+compose up would have collided with the live one, so we deferred the
+capture rather than risk corrupting a parallel session's state.
+
+The plumbing it would have exercised is covered by:
+
+- `apps/web/src/components/synthesis-export/__tests__/*` — 19 component +
+  hook unit tests asserting the UI state machine reacts to every
+  `synthesisStreamEventSchema` `kind`.
+- `apps/worker/tests/integration/test_synthesis_export_smoke.py` — md
+  format end-to-end smoke against an in-process Temporal harness.
+- `apps/api/tests/synthesis-export.test.ts` — public route `canWrite`
+  gate + flag-off 404 + workflow start happy path.
+
+**Operator handoff (post-merge):**
+
+```bash
+# Pick free ports if a parallel worktree owns the defaults.
+docker compose up -d postgres redis minio temporal
+pnpm db:migrate                       # apply migration 0038
+FEATURE_SYNTHESIS_EXPORT=true \
+  NEXT_PUBLIC_FEATURE_SYNTHESIS_EXPORT=true \
+  pnpm dev
+# Browse to /<locale>/app/w/<wsSlug>/synthesis-export, run an `md`
+# dry-run, then a `docx` run, and capture four screenshots:
+#   1. UI before submit
+#   2. in-progress (`fetching_sources` or `synthesizing` frame visible)
+#   3. done (`docUrl` link rendered)
+#   4. downloaded file thumbnail
+# Record the local paths in this file's appendix below.
+```
+
+**Capture paths (operator-local, fill in after the smoke run):**
+
+- 1 / pre-submit:    _<operator path here>_
+- 2 / in-progress:   _<operator path here>_
+- 3 / done:          _<operator path here>_
+- 4 / downloaded:    _<operator path here>_
+
+This deferral matches the established convention from Onboarding (Plan
+2026-04-22) and App Shell Phase 4 (PR #34), where E2E smoke ran outside
+the merge-gating CI loop because port-conflicting parallel worktrees
+were the norm.
+
+---
+
 *End of spec.*
