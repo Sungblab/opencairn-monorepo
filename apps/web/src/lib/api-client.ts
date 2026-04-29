@@ -7,6 +7,17 @@ const baseUrl = () =>
     ? (process.env.INTERNAL_API_URL ?? "http://localhost:4000")
     : "";
 
+// Server Components: `credentials: "include"` is a browser-only directive and
+// does nothing inside Node `fetch`. Without an explicit `cookie` header the
+// API receives no session and rightly returns 401. Read Better Auth's cookie
+// jar via `next/headers` and forward it. Dynamic-import keeps the client
+// bundle from pulling a server-only module.
+async function getServerCookieHeader(): Promise<string> {
+  if (typeof window !== "undefined") return "";
+  const { cookies } = await import("next/headers");
+  return (await cookies()).toString();
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -31,13 +42,21 @@ export async function apiClient<T>(
     ? {}
     : { "Content-Type": "application/json" };
 
+  const cookieHeader = await getServerCookieHeader();
+  // Build a single Record<string,string> so the spread types collapse cleanly
+  // and don't wander into the `Headers | string[][]` branches of HeadersInit.
+  // Caller-provided headers go in last so they can still override.
+  const mergedHeaders: Record<string, string> = { ...baseHeaders };
+  if (cookieHeader) mergedHeaders.cookie = cookieHeader;
+  if (options?.headers) {
+    const ch = options.headers as Record<string, string>;
+    Object.assign(mergedHeaders, ch);
+  }
+
   const res = await fetch(`${baseUrl()}/api${path}`, {
     credentials: "include",
     ...options,
-    // Apply the merged headers AFTER the spread so caller-provided headers
-    // can still override but the JSON default isn't reintroduced when the
-    // body is FormData.
-    headers: { ...baseHeaders, ...options?.headers },
+    headers: mergedHeaders,
   });
 
   if (!res.ok) {
