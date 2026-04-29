@@ -10,11 +10,23 @@ describe("markdownToPlate — escape normalization (Plan 2E Phase A)", () => {
   });
 
   it("preserves escape sequences inside fenced code blocks", () => {
+    // Markdown source (literally — code fences are verbatim):
+    //   const x = '\\*literal\\*';
+    // i.e. two backslashes + asterisk, twice. The deserializer keeps fenced
+    // content untouched, so the AST text leaf must still contain those two
+    // backslashes. If `postprocessEscapes` ever leaks into `code_block` /
+    // `code_line`, the leading backslashes get collapsed and this assertion
+    // fails.
     const md = "```\nconst x = '\\\\*literal\\\\*';\n```";
     const result = markdownToPlate(md);
-    // Walk to the first text leaf inside the code block.
+
     const codeBlock = result.find((n) => n.type === "code_block");
     expect(codeBlock).toBeTruthy();
+
+    // code_block → code_line → { text: "..." }
+    const codeLine = codeBlock?.children?.[0];
+    const textNode = codeLine?.children?.[0];
+    expect(textNode?.text).toBe("const x = '\\\\*literal\\\\*';");
   });
 });
 
