@@ -20,10 +20,12 @@ import { newTab } from "@/lib/tab-factory";
 export function ShellProviders({
   wsSlug,
   deepResearchEnabled,
+  synthesisExportEnabled = false,
   children,
 }: {
   wsSlug: string;
   deepResearchEnabled: boolean;
+  synthesisExportEnabled?: boolean;
   children: React.ReactNode;
 }) {
   useUrlTabSync();
@@ -92,6 +94,11 @@ export function ShellProviders({
   // back to a profile-only action set when the path has no `/app/w/<slug>`
   // segment.
   return (
-    <AppShell deepResearchEnabled={deepResearchEnabled}>{children}</AppShell>
+    <AppShell
+      deepResearchEnabled={deepResearchEnabled}
+      synthesisExportEnabled={synthesisExportEnabled}
+    >
+      {children}
+    </AppShell>
   );
 }

@@ -4,6 +4,7 @@
   "tabs": {
     "profile": "Profile",
     "providers": "BYOK",
+    "mcp": "MCP servers",
     "security": "Security",
     "notifications": "Notifications",
     "billing": "Billing & credits"
@@ -19,6 +20,7 @@
   },
   "providers": {
     "heading": "BYOK",
+    "description": "Register your own Gemini API key to power Deep Research and chat features using your own billing.",
     "stub": "BYOK key registration ships with Deep Research Phase E."
   },
   "security": {

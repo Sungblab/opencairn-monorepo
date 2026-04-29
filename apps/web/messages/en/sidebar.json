@@ -28,6 +28,7 @@
     "settings": "Workspace settings",
     "templates": "Template gallery",
     "shared_links": "Shared links",
+    "synthesis_export": "Document export",
     "trash": "Trash",
     "feedback": "Send feedback",
     "changelog": "What's new"
@@ -66,5 +67,8 @@
   },
   "agents": {
     "entry": "View this project's agents"
+  },
+  "learn": {
+    "entry": "Learn (flashcards · scores)"
   }
 }

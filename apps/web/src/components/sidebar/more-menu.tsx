@@ -11,13 +11,18 @@ import {
 
 export interface MoreMenuProps {
   base: string;
+  synthesisExportEnabled?: boolean;
 }
 
 // Overflow popover for the sidebar's global nav. Items route with
 // router.push for workspace-scoped entries and fall through to plain
 // window navigation for cross-product destinations (feedback/changelog)
 // that may live on a marketing subdomain.
-export function MoreMenu({ base }: MoreMenuProps) {
+//
+// `synthesisExportEnabled` mirrors the API gate at
+// apps/api/src/routes/synthesis-export.ts; when the server flag is off
+// the route 404s, so the menu item must not appear.
+export function MoreMenu({ base, synthesisExportEnabled = false }: MoreMenuProps) {
   const router = useRouter();
   const t = useTranslations("sidebar");
 
@@ -49,6 +54,11 @@ export function MoreMenu({ base }: MoreMenuProps) {
         <DropdownMenuItem onClick={goto(`${base}/shared-links`)}>
           {t("more_menu.shared_links")}
         </DropdownMenuItem>
+        {synthesisExportEnabled ? (
+          <DropdownMenuItem onClick={goto(`${base}/synthesis-export`)}>
+            {t("more_menu.synthesis_export")}
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem onClick={goto(`${base}/trash`)}>
           {t("more_menu.trash")}
         </DropdownMenuItem>

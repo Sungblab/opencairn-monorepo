@@ -7,6 +7,7 @@ import { MoreMenu } from "./more-menu";
 export interface GlobalNavProps {
   wsSlug: string;
   deepResearchEnabled: boolean;
+  synthesisExportEnabled?: boolean;
 }
 
 // Icon rail that sits at the top of the sidebar. Links go to workspace-scoped
@@ -16,7 +17,11 @@ export interface GlobalNavProps {
 // `deepResearchEnabled` mirrors the API-side gate at
 // apps/api/src/routes/research.ts:52. When the flag is off the route 404s,
 // so the icon must not appear in the rail.
-export function GlobalNav({ wsSlug, deepResearchEnabled }: GlobalNavProps) {
+export function GlobalNav({
+  wsSlug,
+  deepResearchEnabled,
+  synthesisExportEnabled = false,
+}: GlobalNavProps) {
   const locale = useLocale();
   const t = useTranslations("sidebar.nav");
   const base = `/${locale}/app/w/${wsSlug}`;
@@ -51,7 +56,7 @@ export function GlobalNav({ wsSlug, deepResearchEnabled }: GlobalNavProps) {
           <Icon aria-hidden className="h-4 w-4" />
         </Link>
       ))}
-      <MoreMenu base={base} />
+      <MoreMenu base={base} synthesisExportEnabled={synthesisExportEnabled} />
     </nav>
   );
 }

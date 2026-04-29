@@ -4,7 +4,14 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
 
-const TABS = ["profile", "providers", "security", "notifications", "billing"] as const;
+const TABS = [
+  "profile",
+  "providers",
+  "mcp",
+  "security",
+  "notifications",
+  "billing",
+] as const;
 type TabId = (typeof TABS)[number];
 
 export function AccountShell({ children }: { children: React.ReactNode }) {

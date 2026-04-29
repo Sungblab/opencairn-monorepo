@@ -9,9 +9,11 @@ import { SidebarEmptyState } from "./sidebar-empty-state";
 import { useCurrentProjectContext } from "./use-current-project";
 import { ProjectGraphLink } from "./project-graph-link";
 import { ProjectAgentsLink } from "./project-agents-link";
+import { ProjectLearnLink } from "./project-learn-link";
 
 export interface ShellSidebarProps {
   deepResearchEnabled: boolean;
+  synthesisExportEnabled?: boolean;
 }
 
 // App Shell Phase 2 assembled sidebar (distinct from the legacy
@@ -19,7 +21,10 @@ export interface ShellSidebarProps {
 // six Phase 2 subcomponents in spec order; the tree slot renders either
 // <ProjectTree> or the empty-state CTA depending on whether the URL has an
 // active projectId. The testid matches what Phase 1's e2e already watches.
-export function ShellSidebar({ deepResearchEnabled }: ShellSidebarProps) {
+export function ShellSidebar({
+  deepResearchEnabled,
+  synthesisExportEnabled = false,
+}: ShellSidebarProps) {
   const { wsSlug, projectId } = useCurrentProjectContext();
 
   return (
@@ -32,12 +37,14 @@ export function ShellSidebar({ deepResearchEnabled }: ShellSidebarProps) {
         <GlobalNav
           wsSlug={wsSlug}
           deepResearchEnabled={deepResearchEnabled}
+          synthesisExportEnabled={synthesisExportEnabled}
         />
       ) : null}
       <ProjectHero />
       <ScopedSearch />
       <ProjectGraphLink />
       <ProjectAgentsLink />
+      <ProjectLearnLink />
       {projectId ? (
         <ProjectTree projectId={projectId} />
       ) : (

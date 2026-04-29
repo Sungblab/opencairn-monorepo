@@ -28,6 +28,7 @@
     "settings": "워크스페이스 설정",
     "templates": "템플릿 갤러리",
     "shared_links": "공유 링크 관리",
+    "synthesis_export": "문서 내보내기",
     "trash": "휴지통",
     "feedback": "피드백 보내기",
     "changelog": "업데이트 소식"
@@ -66,5 +67,8 @@
   },
   "agents": {
     "entry": "이 프로젝트 에이전트 보기"
+  },
+  "learn": {
+    "entry": "학습 모드 (플래시카드 · 이해도)"
   }
 }

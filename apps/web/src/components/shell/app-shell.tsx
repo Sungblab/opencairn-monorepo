@@ -12,6 +12,7 @@ import { useBreakpoint } from "@/hooks/use-breakpoint";
 export interface AppShellProps {
   children: React.ReactNode;
   deepResearchEnabled: boolean;
+  synthesisExportEnabled?: boolean;
 }
 
 // 3-panel desktop shell on `lg`, Sheet overlays everywhere else. The
@@ -19,7 +20,11 @@ export interface AppShellProps {
 // the shell needs different state semantics in the two modes — overlays
 // always start closed on viewport entry, inline columns stay where the
 // panel-store left them.
-export function AppShell({ children, deepResearchEnabled }: AppShellProps) {
+export function AppShell({
+  children,
+  deepResearchEnabled,
+  synthesisExportEnabled = false,
+}: AppShellProps) {
   const bp = useBreakpoint();
   const t = useTranslations("appShell.placeholders");
   const sidebarWidth = usePanelStore((s) => s.sidebarWidth);
@@ -49,7 +54,10 @@ export function AppShell({ children, deepResearchEnabled }: AppShellProps) {
         >
           <SheetContent side="left" className="w-[280px] p-0">
             <SheetTitle className="sr-only">{t("sidebar")}</SheetTitle>
-            <ShellSidebar deepResearchEnabled={deepResearchEnabled} />
+            <ShellSidebar
+              deepResearchEnabled={deepResearchEnabled}
+              synthesisExportEnabled={synthesisExportEnabled}
+            />
           </SheetContent>
         </Sheet>
         <TabShell>{children}</TabShell>
@@ -76,7 +84,10 @@ export function AppShell({ children, deepResearchEnabled }: AppShellProps) {
       {sidebarOpen && (
         <>
           <div style={{ width: sidebarWidth, flexShrink: 0 }}>
-            <ShellSidebar deepResearchEnabled={deepResearchEnabled} />
+            <ShellSidebar
+              deepResearchEnabled={deepResearchEnabled}
+              synthesisExportEnabled={synthesisExportEnabled}
+            />
           </div>
           <ShellResizeHandle
             onDrag={(d) => setSidebarWidth(sidebarWidth + d)}
