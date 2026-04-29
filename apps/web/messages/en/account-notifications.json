@@ -1,0 +1,49 @@
+{
+  "title": "Notifications",
+  "description": "Choose which notifications you want to receive by email. Most default to instant; system alerts are bundled into a daily digest.",
+  "preferences": {
+    "heading": "Notification kinds",
+    "tableHeaders": {
+      "kind": "Kind",
+      "email": "Email",
+      "frequency": "Frequency"
+    },
+    "kinds": {
+      "mention": {
+        "label": "Mentions",
+        "description": "When you are mentioned in a note or comment"
+      },
+      "comment_reply": {
+        "label": "Comment replies",
+        "description": "When someone replies to your comment"
+      },
+      "share_invite": {
+        "label": "Share invites",
+        "description": "When someone shares a note with you"
+      },
+      "research_complete": {
+        "label": "Research complete",
+        "description": "When a deep research run you started is ready"
+      },
+      "system": {
+        "label": "System alerts",
+        "description": "Workspace import outcomes, operational notices"
+      }
+    },
+    "frequencies": {
+      "instant": "Instant",
+      "digest_15min": "Every 15 minutes",
+      "digest_daily": "Daily digest"
+    }
+  },
+  "profile": {
+    "heading": "Email body settings",
+    "description": "Set the language used in email bodies and the timezone the daily digest fires in.",
+    "locale": "Email language",
+    "timezone": "Timezone",
+    "save": "Save",
+    "saved": "Saved.",
+    "saveFailed": "Couldn't save. Please try again."
+  },
+  "tab": "Notifications"
+}

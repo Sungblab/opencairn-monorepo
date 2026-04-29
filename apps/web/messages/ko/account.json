@@ -5,6 +5,7 @@
     "profile": "프로필",
     "providers": "BYOK",
     "security": "보안",
+    "notifications": "알림",
     "billing": "청구·크레딧"
   },
   "profile": {
