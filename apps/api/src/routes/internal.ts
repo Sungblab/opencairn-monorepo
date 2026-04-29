@@ -26,6 +26,9 @@ import {
   staleAlerts,
   audioFiles,
   noteEnrichments,
+  synthesisRuns,
+  synthesisSources,
+  synthesisDocuments,
   eq,
   and,
   isNull,
@@ -51,6 +54,12 @@ import {
 } from "../lib/internal-assert";
 import { persistAndPublish } from "../lib/notification-events";
 import { federatedSearch } from "../lib/literature-search";
+import {
+  compileDocx,
+  compilePdf,
+  type SynthesisOutputJson,
+} from "../lib/document-compilers";
+import { uploadObject } from "../lib/s3";
 
 // Internal-only routes — reachable by worker callbacks on the docker network.
 // Auth is a shared secret (INTERNAL_API_SECRET) carried in `X-Internal-Secret`;
@@ -2599,5 +2608,146 @@ internal.get("/notes/:noteId/enrichment", async (c) => {
   }
   return c.json(row);
 });
+
+// ===== Synthesis Export internal endpoints (Plan: synthesis-export Task 15) =====
+
+const synthesisExportCompileSchema = z.object({
+  run_id: z.string().uuid(),
+  format: z.enum(["latex", "docx", "pdf", "md"]),
+  output: z.any(),
+});
+
+internal.post(
+  "/synthesis-export/compile",
+  zValidator("json", synthesisExportCompileSchema),
+  async (c) => {
+    const { run_id, format, output } = c.req.valid("json");
+    const out = output as SynthesisOutputJson;
+
+    let buf: Buffer;
+    let contentType: string;
+    let ext: string;
+
+    if (format === "docx") {
+      buf = await compileDocx(out);
+      contentType =
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      ext = "docx";
+    } else if (format === "pdf") {
+      buf = await compilePdf(out);
+      contentType = "application/pdf";
+      ext = "pdf";
+    } else if (format === "md") {
+      const text = `# ${out.title}\n\n${(out.sections ?? [])
+        .map((s) => `## ${s.title}\n${s.content}\n`)
+        .join("\n")}`;
+      buf = Buffer.from(text, "utf-8");
+      contentType = "text/markdown; charset=utf-8";
+      ext = "md";
+    } else {
+      // latex compile is owned by the worker (zip / tectonic), not the API.
+      return c.json({ error: "format not supported by api compile" }, 400);
+    }
+
+    const s3Key = `synthesis/runs/${run_id}/document.${ext}`;
+    await uploadObject(s3Key, buf, contentType);
+    return c.json({ s3Key, bytes: buf.length });
+  },
+);
+
+const synthesisExportDocumentInsertSchema = z.object({
+  run_id: z.string().uuid(),
+  format: z.enum(["latex", "docx", "pdf", "md", "bibtex", "zip"]),
+  s3_key: z.string(),
+  bytes: z.number().int().nonnegative(),
+});
+
+internal.post(
+  "/synthesis-export/documents",
+  zValidator("json", synthesisExportDocumentInsertSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    await db.insert(synthesisDocuments).values({
+      runId: body.run_id,
+      format: body.format,
+      s3Key: body.s3_key,
+      bytes: body.bytes,
+    });
+    return c.json({ ok: true });
+  },
+);
+
+const synthesisExportRunPatchSchema = z.object({
+  tokens_used: z.number().int().nonnegative().optional(),
+  status: z
+    .enum([
+      "pending",
+      "fetching",
+      "synthesizing",
+      "compiling",
+      "completed",
+      "failed",
+      "cancelled",
+    ])
+    .optional(),
+});
+
+internal.patch(
+  "/synthesis-export/runs/:id",
+  zValidator("json", synthesisExportRunPatchSchema),
+  async (c) => {
+    const id = c.req.param("id");
+    const body = c.req.valid("json");
+    const patch: Record<string, unknown> = {};
+    if (body.tokens_used !== undefined) patch.tokensUsed = body.tokens_used;
+    if (body.status !== undefined) patch.status = body.status;
+    if (Object.keys(patch).length === 0) return c.json({ ok: true });
+    await db.update(synthesisRuns).set(patch).where(eq(synthesisRuns.id, id));
+    return c.json({ ok: true });
+  },
+);
+
+const synthesisExportSourcesUpsertSchema = z.object({
+  run_id: z.string().uuid(),
+  rows: z.array(
+    z.object({
+      source_id: z.string().uuid(),
+      kind: z.enum(["s3_object", "note", "dr_result"]),
+      title: z.string().nullable(),
+      token_count: z.number().int().nonnegative().nullable(),
+      included: z.boolean(),
+    }),
+  ),
+});
+
+internal.post(
+  "/synthesis-export/sources",
+  zValidator("json", synthesisExportSourcesUpsertSchema),
+  async (c) => {
+    const { run_id, rows } = c.req.valid("json");
+    if (rows.length === 0) return c.json({ ok: true });
+    await db.insert(synthesisSources).values(
+      rows.map((r) => ({
+        runId: run_id,
+        sourceType: r.kind,
+        sourceId: r.source_id,
+        title: r.title,
+        tokenCount: r.token_count,
+        included: r.included,
+      })),
+    );
+    return c.json({ ok: true });
+  },
+);
+
+// fetch-source / auto-search ship as stubs; Task 17 replaces them with the
+// real reads against existing tables. Worker tests already cover these paths
+// with mocks.
+internal.post("/synthesis-export/fetch-source", async (c) =>
+  c.json({ error: "not_implemented" }, 501),
+);
+internal.post("/synthesis-export/auto-search", async (c) =>
+  c.json({ hits: [] }),
+);
 
 export const internalRoutes = internal;
