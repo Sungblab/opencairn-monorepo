@@ -93,6 +93,79 @@
   color-scheme: dark;
 }
 
+/* ═══ App-shell interaction utilities ═══
+ * Calmer than the landing/auth pages. The auth surface uses dramatic
+ * black↔white flips with 2px borders + 3px offset shadows
+ * (`.auth-btn-primary`). Inside the workspace shell that drama would fight
+ * the long sessions users spend here, so primary actions get a subtle
+ * `color-mix` brightness shift on hover, ghost actions get a 6% fg wash,
+ * and there are no transforms or shadow movements.
+ *
+ * Use:
+ *   - `.app-btn-primary` — solid neutral CTA (e.g. "새 프로젝트")
+ *   - `.app-btn-ghost`   — borderless icon/text action (e.g. tab close,
+ *     sidebar item)
+ *   - `.app-hover`       — applies the subtle hover wash to any element
+ *     (rows, cards, list items)
+ *
+ * None of these set border-radius, padding, or size — caller composes
+ * those so the class works for square icon buttons (rounded-full),
+ * pill chips, and rectangular CTAs alike. */
+.app-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--theme-fg);
+  color: var(--theme-bg);
+  transition: background 0.12s ease;
+  cursor: pointer;
+}
+.app-btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--theme-fg) 88%, var(--theme-bg));
+}
+.app-btn-primary:active:not(:disabled) { background: var(--theme-fg); }
+.app-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.app-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: transparent;
+  color: var(--theme-fg);
+  transition: background 0.12s ease;
+  cursor: pointer;
+}
+.app-btn-ghost:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--theme-fg) 6%, transparent);
+}
+.app-btn-ghost:active:not(:disabled) {
+  background: color-mix(in srgb, var(--theme-fg) 10%, transparent);
+}
+.app-btn-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.app-hover {
+  transition: background 0.12s ease;
+}
+.app-hover:hover {
+  background: color-mix(in srgb, var(--theme-fg) 6%, transparent);
+}
+
+/* ═══ Radius scale ═══
+ * The 3-panel shell itself is *flush* (Notion-like — see
+ * `docs/mockups/2026-04-23-app-shell/index.html`), so radius is reserved
+ * for content units inside the panels: KPI cards, suggestion chips,
+ * buttons, inputs. Each tier signals a different intent — chip = "removable
+ * token", control = "click me", card = "discrete content unit".
+ * No `--radius-panel` for the shell itself; sidebars and main are flush
+ * against screen edges and against each other (border-r / border-l). */
+:root {
+  --radius-card: 12px;        /* KPI cards, document cards, callouts */
+  --radius-control: 8px;      /* buttons, inputs, hover hit areas */
+  --radius-chip: 9999px;      /* pills, chips, avatars */
+}
+
 /* ═══ Landing-only brand tokens (neutral editorial — ember kept as alias only) ═══ */
 [data-brand="landing"] {
   --brand-paper: #FFFFFF;

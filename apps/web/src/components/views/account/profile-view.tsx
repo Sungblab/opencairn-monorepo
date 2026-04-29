@@ -63,7 +63,7 @@ export function ProfileView() {
       <button
         type="submit"
         disabled={save.isPending || !name.trim()}
-        className="self-start rounded bg-foreground px-3 py-1.5 text-sm text-background disabled:opacity-50"
+        className="app-btn-primary self-start rounded px-3 py-1.5 text-sm"
       >
         {t("save")}
       </button>

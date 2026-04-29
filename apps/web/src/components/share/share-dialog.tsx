@@ -191,7 +191,7 @@ export function ShareDialog({
                   },
                 )
               }
-              className="rounded bg-foreground px-3 py-1 text-sm text-background disabled:opacity-50"
+              className="app-btn-primary rounded px-3 py-1 text-sm"
             >
               {t("addButton")}
             </button>

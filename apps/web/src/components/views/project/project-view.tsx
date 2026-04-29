@@ -61,7 +61,7 @@ export function ProjectView({
           </Link>
           <button
             type="button"
-            className="rounded bg-foreground px-3 py-1.5 text-sm text-background"
+            className="app-btn-primary rounded px-3 py-1.5 text-sm"
           >
             {t("actions.newDoc")}
           </button>

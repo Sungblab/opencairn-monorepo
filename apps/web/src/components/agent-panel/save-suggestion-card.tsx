@@ -27,7 +27,7 @@ export function SaveSuggestionCard({
       <button
         type="button"
         onClick={onSave}
-        className="rounded bg-foreground px-2 py-0.5 text-background"
+        className="app-btn-primary rounded px-2 py-0.5"
       >
         {t("save_suggestion_save")}
       </button>

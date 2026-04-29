@@ -87,7 +87,7 @@ export function InvitesTab({ wsId }: { wsId: string }) {
         <button
           type="submit"
           disabled={!email || create.isPending}
-          className="rounded bg-foreground px-3 py-1.5 text-sm text-background disabled:opacity-50"
+          className="app-btn-primary rounded px-3 py-1.5 text-sm"
         >
           {t("send")}
         </button>

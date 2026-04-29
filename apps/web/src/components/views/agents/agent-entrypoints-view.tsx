@@ -310,7 +310,7 @@ function LaunchPanel({
         type="button"
         onClick={onLaunch}
         disabled={disabled}
-        className="inline-flex h-8 items-center justify-center gap-2 rounded bg-foreground px-3 text-xs text-background disabled:opacity-50"
+        className="app-btn-primary h-8 rounded px-3 text-xs"
       >
         <Play aria-hidden className="h-3.5 w-3.5" />
         {t("launch.run")}

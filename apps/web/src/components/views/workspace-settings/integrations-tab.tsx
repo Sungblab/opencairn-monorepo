@@ -50,7 +50,7 @@ export function IntegrationsTab({ wsId }: { wsId: string }) {
         ) : (
           <a
             href={connectHref}
-            className="rounded bg-foreground px-3 py-1.5 text-xs text-background"
+            className="app-btn-primary rounded px-3 py-1.5 text-xs"
           >
             {t("google.connect")}
           </a>

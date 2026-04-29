@@ -87,7 +87,7 @@ export function Composer({ onSend, disabled }: Props) {
             aria-label={t("send_aria")}
             onClick={submit}
             disabled={disabled}
-            className="flex h-7 w-7 items-center justify-center rounded-full bg-foreground text-background disabled:opacity-50"
+            className="app-btn-primary flex h-7 w-7 items-center justify-center rounded-full"
           >
             <ArrowUp className="h-4 w-4" />
           </button>
