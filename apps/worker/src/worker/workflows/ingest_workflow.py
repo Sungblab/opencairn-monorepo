@@ -44,6 +44,33 @@ _RETRY = RetryPolicy(maximum_attempts=3, backoff_coefficient=2.0)
 _LONG_TIMEOUT = timedelta(minutes=30)
 _SHORT_TIMEOUT = timedelta(minutes=5)
 
+# Heartbeat budgets (S3-006). Without ``heartbeat_timeout`` Temporal can't
+# distinguish a hung worker from a long-running activity; it would wait the
+# full ``schedule_to_close_timeout`` (5-30 min) before retrying. We pair every
+# activity dispatch below with a heartbeat budget proportional to its work
+# shape:
+#
+# * ``_LONG_HEARTBEAT`` (120 s) — for activities backed by long external work
+#   (LibreOffice / markitdown / Gemini multimodal / STT / opendataloader-pdf).
+#   The budget has to cover a single blocking call that cannot heartbeat from
+#   inside (Gemini ``generate_multimodal`` on a large PDF, ``markitdown`` on
+#   a heavy PPTX, ``unoconvert`` cold-start). 60 s tripped on Gemini p99 +
+#   LibreOffice cold paths in review (PR #160 review thread); 120 s holds
+#   p99 with margin while still detecting a wedged worker an order of
+#   magnitude faster than the 5-30 min schedule_to_close. A robust
+#   background-heartbeat helper that pings every N seconds during awaited
+#   single calls is a separate follow-up and would let us drop this budget
+#   back toward 30 s.
+# * ``_SHORT_HEARTBEAT`` (30 s) — for activities that are mostly DB writes,
+#   Redis publishes, or short LLM calls under the 5-min schedule.
+#
+# Activity bodies that span multiple sub-steps still call
+# ``activity.heartbeat()`` between them — see ``office_activity.py`` for the
+# canonical pattern. ``test_ingest_heartbeat.py`` pins both the static
+# dispatch sites and the runtime kwarg.
+_LONG_HEARTBEAT = timedelta(seconds=120)
+_SHORT_HEARTBEAT = timedelta(seconds=30)
+
 
 _QUARANTINE_RETRY = RetryPolicy(maximum_attempts=2, backoff_coefficient=2.0)
 
@@ -139,6 +166,7 @@ class IngestWorkflow:
                     },
                 },
                 schedule_to_close_timeout=_SHORT_TIMEOUT,
+                heartbeat_timeout=_SHORT_HEARTBEAT,
                 retry_policy=_QUARANTINE_RETRY,
             )
 
@@ -160,6 +188,7 @@ class IngestWorkflow:
                             "reason": reason,
                         },
                         schedule_to_close_timeout=_SHORT_TIMEOUT,
+                        heartbeat_timeout=_SHORT_HEARTBEAT,
                         retry_policy=_QUARANTINE_RETRY,
                     )
                     quarantine_key = result.get("quarantine_key")
@@ -178,6 +207,7 @@ class IngestWorkflow:
                         "workflow_id": workflow_id,
                     },
                     schedule_to_close_timeout=_SHORT_TIMEOUT,
+                    heartbeat_timeout=_SHORT_HEARTBEAT,
                     retry_policy=_QUARANTINE_RETRY,
                 )
             raise
@@ -197,6 +227,7 @@ class IngestWorkflow:
                 "parse_pdf",
                 activity_input,
                 schedule_to_close_timeout=_LONG_TIMEOUT,
+                heartbeat_timeout=_LONG_HEARTBEAT,
                 retry_policy=_RETRY,
             )
             text = parse_result["text"]
@@ -206,6 +237,7 @@ class IngestWorkflow:
                 "transcribe_audio",
                 activity_input,
                 schedule_to_close_timeout=_LONG_TIMEOUT,
+                heartbeat_timeout=_LONG_HEARTBEAT,
                 retry_policy=_RETRY,
             )
             text = result["transcript"]
@@ -214,6 +246,7 @@ class IngestWorkflow:
                 "analyze_image",
                 activity_input,
                 schedule_to_close_timeout=_SHORT_TIMEOUT,
+                heartbeat_timeout=_SHORT_HEARTBEAT,
                 retry_policy=_RETRY,
             )
             text = result["description"]
@@ -222,6 +255,7 @@ class IngestWorkflow:
                 "ingest_youtube",
                 activity_input,
                 schedule_to_close_timeout=_LONG_TIMEOUT,
+                heartbeat_timeout=_LONG_HEARTBEAT,
                 retry_policy=_RETRY,
             )
             text = result["transcript"]
@@ -230,6 +264,7 @@ class IngestWorkflow:
                 "scrape_web_url",
                 activity_input,
                 schedule_to_close_timeout=_SHORT_TIMEOUT,
+                heartbeat_timeout=_SHORT_HEARTBEAT,
                 retry_policy=_RETRY,
             )
             text = result["text"]
@@ -239,6 +274,7 @@ class IngestWorkflow:
                 "read_text_object",
                 activity_input,
                 schedule_to_close_timeout=_SHORT_TIMEOUT,
+                heartbeat_timeout=_SHORT_HEARTBEAT,
                 retry_policy=_RETRY,
             )
             text = result["text"]
@@ -251,6 +287,7 @@ class IngestWorkflow:
                 "parse_office",
                 activity_input,
                 schedule_to_close_timeout=_LONG_TIMEOUT,
+                heartbeat_timeout=_LONG_HEARTBEAT,
                 retry_policy=_RETRY,
             )
             text = result["text"]
@@ -261,6 +298,7 @@ class IngestWorkflow:
                 "parse_hwp",
                 activity_input,
                 schedule_to_close_timeout=_LONG_TIMEOUT,
+                heartbeat_timeout=_LONG_HEARTBEAT,
                 retry_policy=_RETRY,
             )
             text = result["text"]
@@ -286,6 +324,7 @@ class IngestWorkflow:
                         "parsed_pages": parse_result.get("pages", []),
                     },
                     schedule_to_close_timeout=timedelta(minutes=2),
+                    heartbeat_timeout=_SHORT_HEARTBEAT,
                     retry_policy=RetryPolicy(
                         maximum_attempts=2, backoff_coefficient=2.0
                     ),
@@ -306,6 +345,7 @@ class IngestWorkflow:
                         ],
                     ),
                     schedule_to_close_timeout=timedelta(minutes=20),
+                    heartbeat_timeout=_LONG_HEARTBEAT,
                     retry_policy=RetryPolicy(
                         maximum_attempts=2, backoff_coefficient=2.0
                     ),
@@ -324,6 +364,7 @@ class IngestWorkflow:
                 "enhance_with_gemini",
                 _activity_input(inp, workflow_id, started_at_ms, raw_text=text),
                 schedule_to_close_timeout=_SHORT_TIMEOUT,
+                heartbeat_timeout=_SHORT_HEARTBEAT,
                 retry_policy=_RETRY,
             )
             text = enhanced.get("text", text)
@@ -343,6 +384,7 @@ class IngestWorkflow:
                 "started_at_ms": started_at_ms,
             },
             schedule_to_close_timeout=_SHORT_TIMEOUT,
+            heartbeat_timeout=_SHORT_HEARTBEAT,
             retry_policy=_RETRY,
         )
 
@@ -358,6 +400,7 @@ class IngestWorkflow:
                         **enrich_result,
                     },
                     schedule_to_close_timeout=timedelta(minutes=1),
+                    heartbeat_timeout=_SHORT_HEARTBEAT,
                     retry_policy=RetryPolicy(
                         maximum_attempts=3, backoff_coefficient=2.0
                     ),

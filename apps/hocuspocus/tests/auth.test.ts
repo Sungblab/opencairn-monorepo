@@ -99,6 +99,46 @@ describe("makeAuthenticate", () => {
     ).rejects.toThrow(/unauthenticated/);
   });
 
+  // S1-002 — Browsers cannot read httpOnly cookies via document.cookie, so
+  // the @hocuspocus/provider client cannot put the Better Auth session into
+  // the AUTH-message `token` field. The browser DOES send the cookie in the
+  // WS upgrade request, however, so the server must fall back to
+  // `requestHeaders.cookie` (passed as `cookieHeader`) when token is empty.
+  it("empty token + valid cookieHeader → authenticates from cookie", async () => {
+    const { cookieHeader } = await signSessionForUser(seed.editorUserId);
+    const r = await authenticate({
+      documentName: `page:${seed.noteId}`,
+      token: "",
+      cookieHeader: `theme=dark; ${cookieHeader}; locale=ko`,
+    });
+    expect(r.readOnly).toBe(false);
+    expect(r.userId).toBe(seed.editorUserId);
+  });
+
+  it("non-cookie token + valid cookieHeader → authenticates from cookie", async () => {
+    // The browser client passes a literal "ws-auth-fallback" sentinel
+    // (httpOnly cookies are unreadable from document.cookie) — verifySession
+    // returns null on that string and the server must fall through to the
+    // upgrade Cookie header rather than throwing unauthenticated.
+    const { cookieHeader } = await signSessionForUser(seed.editorUserId);
+    const r = await authenticate({
+      documentName: `page:${seed.noteId}`,
+      token: "ws-auth-fallback",
+      cookieHeader,
+    });
+    expect(r.userId).toBe(seed.editorUserId);
+  });
+
+  it("empty token + empty cookieHeader → throws unauthenticated", async () => {
+    await expect(
+      authenticate({
+        documentName: `page:${seed.noteId}`,
+        token: "",
+        cookieHeader: "theme=dark; locale=ko",
+      }),
+    ).rejects.toThrow(/unauthenticated/);
+  });
+
   it("tampered HMAC → throws unauthenticated", async () => {
     const { cookieHeader } = await signSessionForUser(seed.editorUserId);
     // Flip the last non-`=` byte of the signature to force HMAC mismatch.

@@ -51,6 +51,7 @@ type RunAgentFn = (opts: {
   userMessage: { content: string; scope?: unknown };
   mode: ChatMode;
   signal?: AbortSignal;
+  excludeMessageIds?: string[];
 }) => AsyncGenerator<AgentChunk>;
 
 let runAgentImpl: RunAgentFn = defaultRunAgent;
@@ -294,6 +295,10 @@ export const threadRoutes = new Hono<AppEnv>()
               // disconnect cancels the in-flight provider fetch instead of
               // waiting for the next yield boundary.
               signal: c.req.raw.signal,
+              // Skip the just-inserted user row + streaming agent placeholder
+              // when reconstructing prior history — otherwise the current
+              // turn would appear in its own context window (audit S2-026).
+              excludeMessageIds: [userRow.id, agentId],
             })) {
               // Break early on client abort — async generators handle this
               // naturally on `break` (the generator's `return()` is invoked

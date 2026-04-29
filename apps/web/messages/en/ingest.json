@@ -41,5 +41,11 @@
     "generic": "Something went wrong while processing.",
     "unsupported": "This file type may not be supported.",
     "retryHint": "Please try again in a moment."
+  },
+  "uploadButton": {
+    "label": "Upload file",
+    "uploading": "Uploading...",
+    "errorGeneric": "Upload failed. Please try again in a moment.",
+    "errorUnsupported": "This file type is not supported."
   }
 }

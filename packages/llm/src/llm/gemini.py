@@ -23,7 +23,6 @@ from .batch_types import (
     BatchEmbedHandle,
     BatchEmbedPoll,
     BatchEmbedResult,
-    BatchNotSupported,
 )
 from .errors import ProviderFatalError, ProviderRetryableError
 from .interactions import InteractionEvent, InteractionHandle, InteractionState
@@ -51,6 +50,39 @@ _GEMINI_STATE_MAP: dict[str, str] = {
 def _normalise_state(raw: Any) -> str:
     key = getattr(raw, "value", None) or getattr(raw, "name", None) or str(raw or "")
     return _GEMINI_STATE_MAP.get(key, BATCH_STATE_PENDING)
+
+
+def _messages_to_contents_and_system(
+    messages: list,
+) -> tuple[list[Any], str | None]:
+    """Translate provider-neutral chat dicts to Gemini Content objects.
+
+    Runtime tool loops append Gemini-native Content objects after the first
+    model turn. Those objects must pass through untouched so thought
+    signatures and function-call metadata survive the next request.
+    """
+    contents: list[Any] = []
+    system_messages: list[str] = []
+    for message in messages:
+        if not isinstance(message, dict):
+            contents.append(message)
+            continue
+        role = message.get("role")
+        content = message.get("content")
+        if role == "system":
+            if content:
+                system_messages.append(str(content))
+            continue
+        if role in ("user", "assistant", "model"):
+            contents.append(
+                types.Content(
+                    role="model" if role == "assistant" else role,
+                    parts=[types.Part(text=str(content or ""))],
+                )
+            )
+            continue
+        contents.append(message)
+    return contents, "\n\n".join(system_messages) or None
 
 GEMINI_MODELS = {
     "pro": "gemini-3.1-pro-preview",
@@ -86,17 +118,27 @@ class GeminiProvider(LLMProvider):
         forwarded into ``config=GenerateContentConfig(...)`` — the SDK no
         longer accepts them as top-level kwargs on ``generate_content``.
         """
-        contents = [
-            types.Content(
-                role=m["role"],
-                parts=[types.Part(text=m["content"])],
-            )
-            for m in messages
-        ]
+        contents, system_instruction = _messages_to_contents_and_system(messages)
         config_kwargs = {}
-        for key in ("response_mime_type", "response_schema", "temperature", "max_output_tokens", "top_p", "top_k"):
+        for key in (
+            "cached_content",
+            "media_resolution",
+            "response_json_schema",
+            "response_mime_type",
+            "response_schema",
+            "system_instruction",
+            "temperature",
+            "thinking_config",
+            "tool_config",
+            "tools",
+            "top_k",
+            "top_p",
+            "max_output_tokens",
+        ):
             if key in kwargs:
                 config_kwargs[key] = kwargs.pop(key)
+        if system_instruction and "system_instruction" not in config_kwargs:
+            config_kwargs["system_instruction"] = system_instruction
         call_kwargs: dict = dict(kwargs)
         if config_kwargs:
             call_kwargs["config"] = types.GenerateContentConfig(**config_kwargs)
@@ -121,11 +163,14 @@ class GeminiProvider(LLMProvider):
         persist matches the pgvector column width (see
         ``packages/db/src/schema/custom-types.ts``). Unset env → no truncation.
         """
-        texts = [inp.text for inp in inputs if inp.text]
+        text_inputs = [inp for inp in inputs if inp.text]
+        texts = [inp.text for inp in text_inputs]
         if not texts:
             return []
         task_type = inputs[0].task if inputs else "retrieval_document"
         config_kwargs: dict[str, Any] = {"task_type": task_type}
+        if len(text_inputs) == 1 and text_inputs[0].title:
+            config_kwargs["title"] = text_inputs[0].title
         dim = os.getenv("VECTOR_DIM")
         if dim:
             config_kwargs["output_dimensionality"] = int(dim)
@@ -151,12 +196,25 @@ class GeminiProvider(LLMProvider):
         )
         return cached.name
 
-    async def think(self, prompt: str) -> ThinkingResult | None:
+    async def think(
+        self,
+        prompt: str,
+        *,
+        thinking_level: Literal["minimal", "low", "medium", "high"] | None = None,
+        thinking_budget: int | None = None,
+    ) -> ThinkingResult | None:
+        if thinking_level is not None and thinking_budget is not None:
+            raise ValueError("thinking_level and thinking_budget are mutually exclusive")
+        thinking_kwargs: dict[str, Any] = {"include_thoughts": True}
+        if thinking_level is not None:
+            thinking_kwargs["thinking_level"] = thinking_level.upper()
+        if thinking_budget is not None:
+            thinking_kwargs["thinking_budget"] = thinking_budget
         response = await self._client.aio.models.generate_content(
             model=self.config.model,
             contents=prompt,
             config=types.GenerateContentConfig(
-                thinking_config=types.ThinkingConfig(include_thoughts=True)
+                thinking_config=types.ThinkingConfig(**thinking_kwargs)
             ),
         )
         thinking_parts: list[str] = []
@@ -488,12 +546,16 @@ class GeminiProvider(LLMProvider):
             config_kwargs["response_mime_type"] = "application/json"
             config_kwargs["response_schema"] = final_response_schema
 
+        contents, system_instruction = _messages_to_contents_and_system(messages)
+        if system_instruction and "system_instruction" not in config_kwargs:
+            config_kwargs["system_instruction"] = system_instruction
+
         config = types.GenerateContentConfig(**config_kwargs)
 
         try:
             response = await self._client.aio.models.generate_content(
                 model=self.config.model,
-                contents=messages,
+                contents=contents,
                 config=config,
             )
         except genai_errors.APIError as e:

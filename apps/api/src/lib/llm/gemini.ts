@@ -54,7 +54,17 @@ export class LLMNotConfiguredError extends Error {
 
 const CHAT_MODEL_DEFAULT = "gemini-2.5-flash";
 const EMBED_MODEL = "gemini-embedding-001";
-const EMBED_DIM = 768; // ADR-007
+const EMBED_DIM_DEFAULT = 768; // ADR-007
+
+function readEmbedDim(): number {
+  const raw = process.env.VECTOR_DIM;
+  if (!raw) return EMBED_DIM_DEFAULT;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0 || `${parsed}` !== raw.trim()) {
+    throw new Error(`Invalid VECTOR_DIM: ${raw}`);
+  }
+  return parsed;
+}
 
 export function getGeminiProvider(): LLMProvider {
   const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
@@ -62,6 +72,7 @@ export function getGeminiProvider(): LLMProvider {
 
   const client = new GoogleGenAI({ apiKey });
   const chatModel = process.env.GEMINI_CHAT_MODEL ?? CHAT_MODEL_DEFAULT;
+  const embedDim = readEmbedDim();
 
   return {
     async embed(text: string): Promise<number[]> {
@@ -70,13 +81,13 @@ export function getGeminiProvider(): LLMProvider {
         contents: [{ parts: [{ text }] }],
         config: {
           taskType: "RETRIEVAL_QUERY",
-          outputDimensionality: EMBED_DIM,
+          outputDimensionality: embedDim,
         },
       });
       const values = res.embeddings?.[0]?.values;
-      if (!values || values.length !== EMBED_DIM) {
+      if (!values || values.length !== embedDim) {
         throw new Error(
-          `Gemini returned no embedding (got ${values?.length ?? 0}d, expected ${EMBED_DIM}d)`,
+          `Gemini returned no embedding (got ${values?.length ?? 0}d, expected ${embedDim}d)`,
         );
       }
       return values;
