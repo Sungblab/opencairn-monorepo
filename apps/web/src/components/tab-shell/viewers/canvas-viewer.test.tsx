@@ -45,14 +45,6 @@ vi.mock("@/lib/api-client", () => ({
   },
 }));
 
-// Speed up Pyodide-related rendering: the loader's real CDN fetch isn't useful
-// in this test. We assert on the loading-status text rendered before any
-// resolve happens, so the mock just needs to exist.
-vi.mock("@/lib/pyodide-loader", () => ({
-  PYODIDE_VERSION: "0.27.0",
-  loadPyodide: vi.fn(() => new Promise(() => {})), // never resolves — we only check the loading text
-}));
-
 // Stub MonacoEditor with a plain textarea so the existing role-based queries
 // (e.g. `findByRole("textbox")`) keep working without spinning up Monaco's
 // worker + DOM canvas in jsdom.
@@ -108,9 +100,17 @@ const tab = {
 } as unknown as Tab;
 
 describe("CanvasViewer", () => {
-  it("python language → PyodideRunner mounts (shows Pyodide loading text)", async () => {
-    const { findByText } = render(wrap(<CanvasViewer tab={tab} />));
-    await findByText(/Pyodide 로드 중/);
+  it("python language → CanvasFrame iframe (sandboxed Pyodide path, no main-page execution)", async () => {
+    // Post-2026-04-29 Finding 3 fix: the python branch must mount inside the
+    // cross-origin Blob iframe (sandbox=allow-scripts) just like the
+    // react/html/javascript branches. Mounting Pyodide directly in the
+    // parent React tree would re-introduce the same-origin sandbox escape.
+    const { container } = render(wrap(<CanvasViewer tab={tab} />));
+    await waitFor(() => {
+      const iframe = container.querySelector("iframe");
+      expect(iframe).not.toBeNull();
+      expect(iframe!.getAttribute("sandbox")).toBe("allow-scripts");
+    });
   });
 
   it("language='html' note → CanvasFrame mounts (iframe present)", async () => {

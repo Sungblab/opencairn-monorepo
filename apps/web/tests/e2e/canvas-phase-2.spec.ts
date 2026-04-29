@@ -17,7 +17,8 @@ import {
 //   - code-agent-panel / agent-*      components/canvas/CodeAgentPanel.tsx
 //   - canvas-outputs-gallery, output-save, saved-output, pending-figure
 //                                     components/canvas/CanvasOutputsGallery.tsx
-//   - status, stdout, stderr          components/canvas/PyodideRunner.tsx
+//   - python iframe status/stdout/stderr now live inside the sandboxed
+//     CanvasFrame iframe (sandbox-html-template.ts), not in the main page.
 // Mode-switch UI lives behind the tab context menu (right-click) → "모드 변경"
 // submenu → "읽기 전용" radio item, per components/tab-shell/tab-mode-submenu.tsx.
 
@@ -121,8 +122,9 @@ test.describe("Plan 7 Canvas Phase 2 — Code Agent + outputs", () => {
       await page.getByTestId("agent-apply").click();
       await page.getByRole("button", { name: /실행|Run/i }).click();
 
-      // PyodideRunner.onResult harvests figures into pendingFigures; the
-      // gallery shows them with a Save button until the user persists.
+      // CanvasFrame's CANVAS_PYTHON_RESULT message harvests figures into
+      // pendingFigures; the gallery shows them with a Save button until the
+      // user persists.
       await expect(page.getByTestId("pending-figure").first()).toBeVisible({
         timeout: 60_000,
       });

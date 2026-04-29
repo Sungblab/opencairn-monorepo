@@ -20,11 +20,17 @@ export interface AuthContext {
   userId: string;
   userName: string | null;
   readOnly: boolean;
+  // Epoch-ms expiry copied from the Better Auth session row at connect time.
+  // Stored on `connection.context` so the stale-role-guard extension can reject
+  // messages received past expiry without re-running verifySession on every
+  // beforeHandleMessage (DB hit per message).
+  sessionExpiresAt: number;
 }
 
 export interface VerifiedSession {
   userId: string;
   name: string | null;
+  expiresAt: Date;
 }
 
 export interface AuthDeps {
@@ -75,6 +81,7 @@ export function makeAuthenticate({ resolveRole, verifySession }: AuthDeps) {
       userId: session.userId,
       userName: session.name,
       readOnly,
+      sessionExpiresAt: session.expiresAt.getTime(),
     };
   };
 }
@@ -112,6 +119,7 @@ export function makeVerifySession({
       .select({
         userId: sessionTable.userId,
         name: userTable.name,
+        expiresAt: sessionTable.expiresAt,
       })
       .from(sessionTable)
       .innerJoin(userTable, eq(userTable.id, sessionTable.userId))
@@ -123,7 +131,11 @@ export function makeVerifySession({
       )
       .limit(1);
     if (!row) return null;
-    return { userId: row.userId, name: row.name ?? null };
+    return {
+      userId: row.userId,
+      name: row.name ?? null,
+      expiresAt: row.expiresAt,
+    };
   };
 }
 
