@@ -6,6 +6,7 @@ LaTeX → PDF (Pro, flag-gated): worker POSTs to Tectonic MSA, uploads PDF.
 """
 from __future__ import annotations
 
+import logging
 import os
 
 import httpx
@@ -25,6 +26,12 @@ from worker.lib.s3_client import upload_bytes
 
 TECTONIC_URL = os.environ.get("TECTONIC_URL", "http://tectonic:8888")
 TECTONIC_TIMEOUT_S = float(os.environ.get("TECTONIC_TIMEOUT_S", "120"))
+
+# Workflow surfaces a short summary; full body lands in the worker log so an
+# operator can debug malformed LaTeX without reading Tectonic's container logs.
+TECTONIC_ERROR_SUMMARY_CHARS = 2000
+
+_logger = logging.getLogger(__name__)
 
 
 def _is_tectonic_enabled() -> bool:
@@ -59,7 +66,14 @@ async def _post_tectonic(tex_source: str, bib_source: str) -> bytes:
         if res.status_code == 504:
             raise RuntimeError("tectonic_timeout")
         if res.status_code != 200:
-            raise RuntimeError(f"tectonic_failed: {res.text[:300]}")
+            _logger.warning(
+                "tectonic_failed status=%s body=%s",
+                res.status_code,
+                res.text,
+            )
+            raise RuntimeError(
+                f"tectonic_failed: {res.text[:TECTONIC_ERROR_SUMMARY_CHARS]}"
+            )
         return res.content
 
 
