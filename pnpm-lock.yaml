@@ -71,6 +71,9 @@ importers:
       nodemailer:
         specifier: ^8.0.7
         version: 8.0.7
+      playwright:
+        specifier: ^1.59.1
+        version: 1.59.1
       resend:
         specifier: ^6.12.2
         version: 6.12.2(@react-email/render@2.0.7(react-dom@19.2.5(react@19.2.5))(react@19.2.5))
