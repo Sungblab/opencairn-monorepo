@@ -253,6 +253,13 @@
       "when": 1777390364404,
       "tag": "0036_user_mcp_servers",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1777423242024,
+      "tag": "0036_connector_foundation",
+      "breakpoints": true
     }
   ]
 }
