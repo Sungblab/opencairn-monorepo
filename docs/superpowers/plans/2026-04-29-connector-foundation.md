@@ -60,7 +60,7 @@ Do not modify in this plan:
 - Create: `packages/shared/tests/connectors.test.ts`
 - Modify: `packages/shared/src/index.ts`
 
-- [ ] **Step 1: Write the failing shared schema tests**
+- [x] **Step 1: Write the failing shared schema tests**
 
 Create `packages/shared/tests/connectors.test.ts`:
 
@@ -153,7 +153,7 @@ describe("connector shared schemas", () => {
 });
 ```
 
-- [ ] **Step 2: Run the shared test and confirm it fails**
+- [x] **Step 2: Run the shared test and confirm it fails**
 
 Run:
 
@@ -163,7 +163,7 @@ pnpm --filter @opencairn/shared test -- connectors.test.ts
 
 Expected: fail because `packages/shared/src/connectors.ts` does not exist.
 
-- [ ] **Step 3: Add connector schemas**
+- [x] **Step 3: Add connector schemas**
 
 Create `packages/shared/src/connectors.ts`:
 
@@ -332,7 +332,7 @@ export type ConnectorMcpTool = z.infer<typeof ConnectorMcpToolSchema>;
 export type ConnectorAuditEvent = z.infer<typeof ConnectorAuditEventSchema>;
 ```
 
-- [ ] **Step 4: Export schemas**
+- [x] **Step 4: Export schemas**
 
 Modify `packages/shared/src/index.ts`:
 
@@ -352,7 +352,7 @@ export * from "./mcp";
 export * from "./connectors";
 ```
 
-- [ ] **Step 5: Run shared tests**
+- [x] **Step 5: Run shared tests**
 
 Run:
 
@@ -362,7 +362,7 @@ pnpm --filter @opencairn/shared test -- connectors.test.ts mcp.test.ts
 
 Expected: pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/shared/src/connectors.ts packages/shared/src/index.ts packages/shared/tests/connectors.test.ts
@@ -383,7 +383,7 @@ git commit -m "feat(shared): add connector foundation schemas"
 - Generate: one new `packages/db/drizzle/meta/*_snapshot.json` file
 - Modify: `packages/db/drizzle/meta/_journal.json`
 
-- [ ] **Step 1: Write the failing DB schema tests**
+- [x] **Step 1: Write the failing DB schema tests**
 
 Create `packages/db/tests/connectors.test.ts`:
 
@@ -485,7 +485,7 @@ describe("connector foundation schema", () => {
 });
 ```
 
-- [ ] **Step 2: Run the DB test and confirm it fails**
+- [x] **Step 2: Run the DB test and confirm it fails**
 
 Run:
 
@@ -495,7 +495,7 @@ pnpm --filter @opencairn/db test -- connectors.test.ts
 
 Expected: fail because connector tables/enums are not exported.
 
-- [ ] **Step 3: Add connector enums**
+- [x] **Step 3: Add connector enums**
 
 Append these enums to `packages/db/src/schema/enums.ts` near `mcpServerStatusEnum`:
 
@@ -574,7 +574,7 @@ export const connectorExternalObjectTypeEnum = pgEnum("connector_external_object
 ]);
 ```
 
-- [ ] **Step 4: Add connector tables**
+- [x] **Step 4: Add connector tables**
 
 Create `packages/db/src/schema/connectors.ts`:
 
@@ -776,7 +776,7 @@ export type ConnectorMcpTool = typeof connectorMcpTools.$inferSelect;
 export type ConnectorAuditEvent = typeof connectorAuditEvents.$inferSelect;
 ```
 
-- [ ] **Step 5: Export connector schema**
+- [x] **Step 5: Export connector schema**
 
 Modify `packages/db/src/index.ts`:
 
@@ -786,7 +786,7 @@ export * from "./schema/user-mcp-servers";
 export * from "./schema/connectors";
 ```
 
-- [ ] **Step 6: Run schema tests**
+- [x] **Step 6: Run schema tests**
 
 Run:
 
@@ -796,7 +796,7 @@ pnpm --filter @opencairn/db test -- connectors.test.ts user-mcp-servers.test.ts
 
 Expected: pass.
 
-- [ ] **Step 7: Generate migration**
+- [x] **Step 7: Generate migration**
 
 Run:
 
@@ -819,7 +819,7 @@ git status --short packages/db/drizzle packages/db/src/schema packages/db/tests 
 
 If Drizzle chooses a migration number already used by another branch, stop and re-run after rebasing onto the current target branch.
 
-- [ ] **Step 8: Run DB checks**
+- [x] **Step 8: Run DB checks**
 
 Run:
 
@@ -830,7 +830,7 @@ pnpm --filter @opencairn/db db:generate
 
 Expected: test pass, second `db:generate` does not create another migration.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add packages/db/src/schema/enums.ts packages/db/src/schema/connectors.ts packages/db/src/index.ts packages/db/tests/connectors.test.ts packages/db/drizzle packages/db/drizzle/meta
@@ -847,7 +847,7 @@ git commit -m "feat(db): add connector foundation tables"
 - Create: `apps/api/src/lib/connector-permissions.ts`
 - Create: `apps/api/tests/connectors/helpers.test.ts`
 
-- [ ] **Step 1: Write failing helper tests**
+- [x] **Step 1: Write failing helper tests**
 
 Create `apps/api/tests/connectors/helpers.test.ts`:
 
@@ -966,7 +966,7 @@ describe("connector helpers", () => {
 });
 ```
 
-- [ ] **Step 2: Run helper tests and confirm they fail**
+- [x] **Step 2: Run helper tests and confirm they fail**
 
 Run:
 
@@ -976,7 +976,7 @@ pnpm --filter @opencairn/api test -- connectors/helpers.test.ts
 
 Expected: fail because helper modules do not exist.
 
-- [ ] **Step 3: Add audit helper**
+- [x] **Step 3: Add audit helper**
 
 Create `apps/api/src/lib/connector-audit.ts`:
 
@@ -1012,7 +1012,7 @@ export async function recordConnectorAuditEvent(event: ConnectorAuditEvent): Pro
 }
 ```
 
-- [ ] **Step 4: Add permission helper**
+- [x] **Step 4: Add permission helper**
 
 Create `apps/api/src/lib/connector-permissions.ts`:
 
@@ -1066,7 +1066,7 @@ export async function assertConnectorSourceWorkspace(
 }
 ```
 
-- [ ] **Step 5: Run helper tests**
+- [x] **Step 5: Run helper tests**
 
 Run:
 
@@ -1076,7 +1076,7 @@ pnpm --filter @opencairn/api test -- connectors/helpers.test.ts
 
 Expected: pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/api/src/lib/connector-audit.ts apps/api/src/lib/connector-permissions.ts apps/api/tests/connectors/helpers.test.ts packages/db/src/schema/connectors.ts
@@ -1093,7 +1093,7 @@ git commit -m "feat(api): add connector audit and guard helpers"
 - Modify: `apps/api/src/app.ts`
 - Create: `apps/api/tests/connectors/routes.test.ts`
 
-- [ ] **Step 1: Write failing route tests**
+- [x] **Step 1: Write failing route tests**
 
 Create `apps/api/tests/connectors/routes.test.ts`:
 
@@ -1271,7 +1271,7 @@ describe("connector foundation API", () => {
 });
 ```
 
-- [ ] **Step 2: Run route tests and confirm they fail**
+- [x] **Step 2: Run route tests and confirm they fail**
 
 Run:
 
@@ -1281,7 +1281,7 @@ pnpm --filter @opencairn/api test -- connectors/routes.test.ts
 
 Expected: fail because `/api/connectors/*` is not mounted.
 
-- [ ] **Step 3: Add connector routes**
+- [x] **Step 3: Add connector routes**
 
 Create `apps/api/src/routes/connectors.ts`:
 
@@ -1437,7 +1437,7 @@ connectorRoutes.get(
 
 If TypeScript flags `and` as unused, remove it from the import.
 
-- [ ] **Step 4: Mount routes**
+- [x] **Step 4: Mount routes**
 
 Modify `apps/api/src/app.ts`.
 
@@ -1456,7 +1456,7 @@ Mount near the specific `/api/mcp/servers` route, before wildcard `/api` routers
 
 Use the alias `connectorFoundationRoutes` because `connectorRoutes` is already imported from `./routes/connector` for Plan 8.
 
-- [ ] **Step 5: Run route tests**
+- [x] **Step 5: Run route tests**
 
 Run:
 
@@ -1466,7 +1466,7 @@ pnpm --filter @opencairn/api test -- connectors/routes.test.ts connectors/helper
 
 Expected: pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/api/src/routes/connectors.ts apps/api/src/app.ts apps/api/tests/connectors/routes.test.ts
@@ -1483,7 +1483,7 @@ git commit -m "feat(api): add connector foundation routes"
 - Create: `apps/api/src/lib/mcp-tool-catalog.ts`
 - Create: `apps/api/tests/connectors/mcp-tool-risk.test.ts`
 
-- [ ] **Step 1: Write failing MCP risk/catalog tests**
+- [x] **Step 1: Write failing MCP risk/catalog tests**
 
 Create `apps/api/tests/connectors/mcp-tool-risk.test.ts`:
 
@@ -1579,7 +1579,7 @@ describe("MCP tool catalog cache", () => {
 });
 ```
 
-- [ ] **Step 2: Run tests and confirm they fail**
+- [x] **Step 2: Run tests and confirm they fail**
 
 Run:
 
@@ -1589,7 +1589,7 @@ pnpm --filter @opencairn/api test -- connectors/mcp-tool-risk.test.ts
 
 Expected: fail because classifier/catalog modules do not exist.
 
-- [ ] **Step 3: Add MCP tool risk classifier**
+- [x] **Step 3: Add MCP tool risk classifier**
 
 Create `apps/api/src/lib/mcp-tool-risk.ts`:
 
@@ -1630,7 +1630,7 @@ export function defaultEnabledForRisk(risk: ConnectorRiskLevel): boolean {
 }
 ```
 
-- [ ] **Step 4: Add MCP catalog cache helper**
+- [x] **Step 4: Add MCP catalog cache helper**
 
 Create `apps/api/src/lib/mcp-tool-catalog.ts`:
 
@@ -1681,7 +1681,7 @@ export async function upsertMcpToolCatalog(
 
 If Drizzle rejects the conflict target array, change the target to the unique index columns using the same pattern used elsewhere in the repo for `onConflictDoUpdate`.
 
-- [ ] **Step 5: Run MCP risk/catalog tests**
+- [x] **Step 5: Run MCP risk/catalog tests**
 
 Run:
 
@@ -1691,7 +1691,7 @@ pnpm --filter @opencairn/api test -- connectors/mcp-tool-risk.test.ts
 
 Expected: pass.
 
-- [ ] **Step 6: Add SSRF regression tests for existing MCP URL validator**
+- [x] **Step 6: Add SSRF regression tests for existing MCP URL validator**
 
 Create `apps/api/tests/mcp/runner.test.ts`:
 
@@ -1729,7 +1729,7 @@ pnpm --filter @opencairn/api test -- connectors/mcp-tool-risk.test.ts mcp/runner
 
 Expected: pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/api/src/lib/mcp-tool-risk.ts apps/api/src/lib/mcp-tool-catalog.ts apps/api/tests/connectors/mcp-tool-risk.test.ts apps/api/tests/mcp/runner.test.ts
@@ -1744,7 +1744,7 @@ git commit -m "feat(api): add connector mcp tool catalog"
 
 - Modify: `docs/architecture/api-contract.md`
 
-- [ ] **Step 1: Add connector API contract section**
+- [x] **Step 1: Add connector API contract section**
 
 Insert this section near the existing MCP Client section in `docs/architecture/api-contract.md`:
 
@@ -1763,7 +1763,7 @@ Connector routes are hosted-SaaS-first and workspace-scoped at the source grant 
 Provider-specific connect/import routes are implemented in follow-up plans. Existing `/api/integrations/google`, `/api/import/*`, and `/api/mcp/servers` remain available until their compatibility bridges are complete.
 ```
 
-- [ ] **Step 2: Review docs for contradictions**
+- [x] **Step 2: Review docs for contradictions**
 
 Run:
 
@@ -1776,7 +1776,7 @@ Expected:
 - API contract contains the new route section.
 - Connector platform design still describes this plan as foundation-only.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/architecture/api-contract.md
@@ -1791,7 +1791,7 @@ git commit -m "docs(docs): document connector foundation api"
 
 - All files touched by Tasks 1-6
 
-- [ ] **Step 1: Run focused package tests**
+- [x] **Step 1: Run focused package tests**
 
 Run:
 
@@ -1803,7 +1803,7 @@ pnpm --filter @opencairn/api test -- connectors/helpers.test.ts connectors/route
 
 Expected: all pass.
 
-- [ ] **Step 2: Run API typecheck**
+- [x] **Step 2: Run API typecheck**
 
 Run:
 
@@ -1813,7 +1813,7 @@ pnpm --filter @opencairn/api build
 
 Expected: TypeScript build passes.
 
-- [ ] **Step 3: Run DB migration idempotency check**
+- [x] **Step 3: Run DB migration idempotency check**
 
 Run:
 
@@ -1827,7 +1827,7 @@ Expected:
 - no new migration appears after the already-generated connector migration
 - status only shows the connector foundation files already committed or clean working tree
 
-- [ ] **Step 4: Diff review**
+- [x] **Step 4: Diff review**
 
 Run:
 
@@ -1841,7 +1841,7 @@ Expected:
 - diff contains connector foundation files, API contract docs, and generated migration only
 - no whitespace errors
 
-- [ ] **Step 5: Security review checklist**
+- [x] **Step 5: Security review checklist**
 
 Manually verify:
 
@@ -1852,7 +1852,7 @@ Manually verify:
 - existing `/api/mcp/servers` tests still pass
 - existing Drive/Notion import code is untouched
 
-- [ ] **Step 6: Final commit if verification required small fixes**
+- [x] **Step 6: Final commit if verification required small fixes**
 
 If Steps 1-5 required fixes, commit them:
 
