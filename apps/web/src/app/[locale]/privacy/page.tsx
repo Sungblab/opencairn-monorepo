@@ -1,4 +1,9 @@
 import { useTranslations } from "next-intl";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 export default function PrivacyPage() {
   const tLegal = useTranslations("common.footer.legal");

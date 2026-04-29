@@ -4,6 +4,11 @@
 **Status:** Draft
 **Scope:** `apps/web` — theme system, i18n infra, landing page port from `landing/landing.html`
 
+> 2026-04-29 update: the v0.1 English copy pass has been applied to current
+> `apps/web/messages/en`, `/en` is allowed in `robots.ts`, and sitemap/hreflang
+> alternates include both `ko` and `en`. Historical Plan 9a sections below still
+> describe the pre-launch ko-first policy that originally blocked `/en`.
+
 ## Overview
 
 Plan 1 (Foundation) 완료 직후, `apps/web`의 프레젠테이션 기반을 세 축으로 세팅한다: (1) CSS variables + `data-theme` 기반 멀티테마, (2) next-intl 기반 i18n 인프라, (3) 기존 `landing/landing.html`(1936줄, warm editorial, stone+ember)을 Next.js 16 App Router 컴포넌트로 포트.

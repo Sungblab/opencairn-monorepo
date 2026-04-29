@@ -183,8 +183,8 @@ export function NotificationsView() {
                 })
               }
             >
-              <option value="ko">한국어</option>
-              <option value="en">English</option>
+              <option value="ko">{t("profile.localeOptions.ko")}</option>
+              <option value="en">{t("profile.localeOptions.en")}</option>
             </select>
           </label>
           <label className="block text-sm">
