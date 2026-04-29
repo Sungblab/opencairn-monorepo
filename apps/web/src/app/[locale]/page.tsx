@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import type { Locale } from "@/i18n";
+import { siteUrl } from "@/lib/site-config";
 import { LandingHeader } from "@/components/landing/chrome/Header";
 import { LandingFooter } from "@/components/landing/chrome/Footer";
 import { Hero } from "@/components/landing/Hero";
@@ -92,13 +93,25 @@ export async function generateMetadata({
   const title = t("title");
   const description = t("description");
   const ogDescription = t("ogDescription");
+  const path = locale === "ko" ? "/" : "/en";
   return {
+    metadataBase: new URL(siteUrl),
     title,
     description,
+    alternates: {
+      canonical: path,
+      languages: {
+        ko: "/",
+        en: "/en",
+        "x-default": "/",
+      },
+    },
     openGraph: {
       title,
       description: ogDescription,
       locale: locale === "ko" ? "ko_KR" : "en_US",
+      alternateLocale: locale === "ko" ? ["en_US"] : ["ko_KR"],
+      url: path,
     },
     twitter: {
       title,

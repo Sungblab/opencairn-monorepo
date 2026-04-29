@@ -55,6 +55,7 @@ const INSTANT_DELAY_SECONDS = 30;
 const MAX_EMAIL_ATTEMPTS = 3;
 
 let intervalHandle: NodeJS.Timeout | null = null;
+let isTickInProgress = false;
 
 export interface DispatcherTickResult {
   lockAcquired: boolean;
@@ -135,7 +136,13 @@ function pickReact(
   }
 }
 
-const WEB_BASE = process.env.WEB_BASE_URL ?? "http://localhost:3000";
+function cleanWebBaseUrl(value: string): string {
+  return value.replace(/\/+$/, "");
+}
+
+const WEB_BASE = cleanWebBaseUrl(
+  process.env.WEB_BASE_URL ?? "http://localhost:3000",
+);
 
 // Compose a deep link from the notification payload. Falls back to the
 // app root when the payload doesn't have a kind-specific identifier —
@@ -526,11 +533,17 @@ export function startEmailDispatcher(): void {
   if (intervalHandle) return; // idempotent
 
   intervalHandle = setInterval(() => {
-    runDispatcherTick().catch((err) => {
-      console.error("[email_dispatcher.tick_error]", {
-        message: err instanceof Error ? err.message : String(err),
+    if (isTickInProgress) return;
+    isTickInProgress = true;
+    runDispatcherTick()
+      .catch((err) => {
+        console.error("[email_dispatcher.tick_error]", {
+          message: err instanceof Error ? err.message : String(err),
+        });
+      })
+      .finally(() => {
+        isTickInProgress = false;
       });
-    });
   }, TICK_INTERVAL_MS);
   intervalHandle.unref?.();
   console.log("[email_dispatcher.started]", { intervalMs: TICK_INTERVAL_MS });
@@ -540,6 +553,7 @@ export function stopEmailDispatcher(): void {
   if (intervalHandle) {
     clearInterval(intervalHandle);
     intervalHandle = null;
+    isTickInProgress = false;
     console.log("[email_dispatcher.stopped]", {});
   }
 }
@@ -549,6 +563,8 @@ export const _internals = {
   INSTANT_DELAY_SECONDS,
   MAX_EMAIL_ATTEMPTS,
   selectPending,
+  cleanWebBaseUrl,
+  deepLinkFor,
   processInstant,
   processDigest,
   markSent,

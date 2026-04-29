@@ -40,6 +40,10 @@
     "heading": "이메일 본문 설정",
     "description": "이메일 본문 언어와 디지털 뭉치 발송 시간을 사용자 시간대에 맞춥니다.",
     "locale": "이메일 언어",
+    "localeOptions": {
+      "ko": "한국어",
+      "en": "English"
+    },
     "timezone": "표준 시간대",
     "save": "저장",
     "saved": "저장됐어요.",

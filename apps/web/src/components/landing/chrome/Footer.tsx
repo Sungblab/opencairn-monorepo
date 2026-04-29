@@ -1,8 +1,24 @@
 "use client";
 import { useTranslations } from "next-intl";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
+import { externalSiteUrls } from "@/lib/site-config";
 
 type Link = { label: string; href: string };
+
+function resolveExternalHref(href: string): string {
+  switch (href) {
+    case "/privacy":
+      return externalSiteUrls.privacy;
+    case "/terms":
+      return externalSiteUrls.terms;
+    case "/refund":
+      return externalSiteUrls.refund;
+    case "/blog":
+      return externalSiteUrls.blog;
+    default:
+      return href;
+  }
+}
 
 export function LandingFooter() {
   const t = useTranslations("landing.footer");
@@ -57,7 +73,7 @@ export function LandingFooter() {
                 {col.links.map((l, j) => (
                   <li key={j}>
                     <a
-                      href={l.href}
+                      href={resolveExternalHref(l.href)}
                       className="inline-flex items-center text-stone-200 hover:bg-stone-50 hover:text-stone-900 px-2 py-1 -mx-2 rounded-md transition-colors"
                     >
                       {l.label}

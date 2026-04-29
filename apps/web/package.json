@@ -9,6 +9,7 @@
     "lint": "eslint src --max-warnings 0",
     "i18n:sync": "node scripts/i18n-sync.mjs",
     "i18n:parity": "node scripts/i18n-parity.mjs",
+    "i18n:quality": "node scripts/i18n-quality.mjs",
     "test:e2e": "playwright test",
     "test:unit": "vitest run",
     "test": "vitest run"

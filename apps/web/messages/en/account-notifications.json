@@ -40,6 +40,10 @@
     "heading": "Email body settings",
     "description": "Set the language used in email bodies and the timezone the daily digest fires in.",
     "locale": "Email language",
+    "localeOptions": {
+      "ko": "Korean",
+      "en": "English"
+    },
     "timezone": "Timezone",
     "save": "Save",
     "saved": "Saved.",

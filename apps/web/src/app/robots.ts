@@ -1,6 +1,5 @@
 import type { MetadataRoute } from "next";
-
-const BASE = process.env.NEXT_PUBLIC_BASE_URL ?? "https://opencairn.com";
+import { siteUrl } from "@/lib/site-config";
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -8,10 +7,9 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        // Plan 9a phase: en not translated, block search. Flip to allow at v0.1 launch.
-        disallow: ["/en", "/api/"],
+        disallow: ["/api/"],
       },
     ],
-    sitemap: `${BASE}/sitemap.xml`,
+    sitemap: `${siteUrl}/sitemap.xml`,
   };
 }
