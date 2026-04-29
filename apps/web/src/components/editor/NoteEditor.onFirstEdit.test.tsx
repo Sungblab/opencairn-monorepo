@@ -90,6 +90,9 @@ vi.mock("./blocks/columns/columns-plugin", () => ({ columnsPlugins: [] }));
 // object so the platejs/react partial mock holds for this headless test suite.
 vi.mock("./plugins/mermaid-fence", () => ({ MermaidFencePlugin: {} }));
 
+// paste-norm calls `createPlatePlugin` at module scope. Same treatment.
+vi.mock("./plugins/paste-norm", () => ({ PasteNormPlugin: {} }));
+
 import { renderNoteEditor } from "./NoteEditor.test-rig";
 
 describe("NoteEditor.onFirstEdit", () => {

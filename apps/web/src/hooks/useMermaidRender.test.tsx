@@ -43,11 +43,12 @@ describe("useMermaidRender", () => {
   });
 
   it("re-initializes mermaid with the new theme on theme change", async () => {
+    type Theme = "default" | "dark" | "neutral";
     const { rerender, result } = renderHook(
-      ({ code, theme }: { code: string; theme: "default" | "dark" | "neutral" }) =>
+      ({ code, theme }: { code: string; theme: Theme }) =>
         useMermaidRender(code, theme),
       {
-        initialProps: { code: "graph TD\nA --> B", theme: "default" as const },
+        initialProps: { code: "graph TD\nA --> B", theme: "default" as Theme },
       },
     );
 

@@ -63,6 +63,7 @@ import { TogglePlugin } from "./blocks/toggle/toggle-plugin";
 import { tablePlugins } from "./blocks/table/table-plugin";
 import { columnsPlugins } from "./blocks/columns/columns-plugin";
 import { MermaidFencePlugin } from "./plugins/mermaid-fence";
+import { PasteNormPlugin } from "./plugins/paste-norm";
 import { useActiveEditorStore } from "@/stores/activeEditorStore";
 
 // Basic marks + blocks. Lists are handled by the indent-based ListPlugin; the
@@ -91,6 +92,7 @@ const basePlugins = [
   ...tablePlugins,
   ...columnsPlugins,
   MermaidFencePlugin,
+  PasteNormPlugin,
 ];
 
 type TitleSaveStatus = "idle" | "saving" | "saved" | "error";
