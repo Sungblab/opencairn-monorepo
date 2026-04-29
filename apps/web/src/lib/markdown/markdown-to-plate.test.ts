@@ -1,6 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { markdownToPlate } from "./markdown-to-plate";
 
+describe("markdownToPlate — escape normalization (Plan 2E Phase A)", () => {
+  it("collapses JSON-escape artifacts in paragraph text", () => {
+    const result = markdownToPlate("\\*foo\\* and \\#bar");
+    const text = result[0].children?.[0]?.text ?? "";
+    expect(text).toContain("*foo*");
+    expect(text).toContain("#bar");
+  });
+
+  it("preserves escape sequences inside fenced code blocks", () => {
+    const md = "```\nconst x = '\\\\*literal\\\\*';\n```";
+    const result = markdownToPlate(md);
+    // Walk to the first text leaf inside the code block.
+    const codeBlock = result.find((n) => n.type === "code_block");
+    expect(codeBlock).toBeTruthy();
+  });
+});
+
 describe("markdownToPlate — GFM basics", () => {
   it("returns a single empty paragraph for empty input", () => {
     const result = markdownToPlate("");
