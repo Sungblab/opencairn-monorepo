@@ -86,14 +86,23 @@ def _asyncpg_url(url: str) -> str:
     return url
 
 
-async def fetch_google_drive_access_token(user_id: str) -> str:
-    """Return a decrypted Google Drive access token for ``user_id``.
+async def fetch_google_drive_access_token(
+    user_id: str, workspace_id: str
+) -> str:
+    """Return a decrypted Google Drive access token for ``(user_id, workspace_id)``.
 
     The activity performs this lookup itself so no plaintext token (and no
-    ciphertext blob) is serialized into Temporal history.
+    ciphertext blob) is serialized into Temporal history. The
+    ``workspace_id`` scope is the audit S3-022 isolation gate: a token
+    connected from workspace A is invisible to imports running in B.
     """
     if not user_id:
         raise ApplicationError("user_id is required for Drive import", non_retryable=True)
+    if not workspace_id:
+        raise ApplicationError(
+            "workspace_id is required for Drive import",
+            non_retryable=True,
+        )
 
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
@@ -108,10 +117,13 @@ async def fetch_google_drive_access_token(user_id: str) -> str:
             """
             SELECT access_token_encrypted
             FROM user_integrations
-            WHERE user_id = $1 AND provider = $2
+            WHERE user_id = $1
+              AND workspace_id = $2
+              AND provider = $3
             LIMIT 1
             """,
             user_id,
+            workspace_id,
             "google_drive",
         )
     finally:
@@ -135,12 +147,18 @@ def _build_service(access_token: str) -> Any:
 
 async def _build_service_from_payload(payload: dict[str, Any]) -> Any:
     user_id = payload.get("user_id")
+    workspace_id = payload.get("workspace_id")
     if not isinstance(user_id, str) or not user_id:
         raise ApplicationError(
             "user_id must be a non-empty string",
             non_retryable=True,
         )
-    access_token = await fetch_google_drive_access_token(user_id)
+    if not isinstance(workspace_id, str) or not workspace_id:
+        raise ApplicationError(
+            "workspace_id must be a non-empty string",
+            non_retryable=True,
+        )
+    access_token = await fetch_google_drive_access_token(user_id, workspace_id)
     return _build_service(access_token)
 
 

@@ -85,10 +85,15 @@ async def test_fetch_google_drive_access_token_decrypts_db_ciphertext(monkeypatc
     monkeypatch.setattr(drive_activities.asyncpg, "connect", fake_connect)
     monkeypatch.setattr(drive_activities, "decrypt_token", fake_decrypt)
 
-    token = await drive_activities.fetch_google_drive_access_token("user-1")
+    token = await drive_activities.fetch_google_drive_access_token(
+        "user-1", "ws-1"
+    )
 
     assert token == "plain-token"
-    assert queries[0][1] == ("user-1", "google_drive")
+    # SQL is parameterised on (user_id, workspace_id, provider) — this is
+    # the audit S3-022 isolation gate. A user in workspace A imports get a
+    # different row from the same user's workspace B import.
+    assert queries[0][1] == ("user-1", "ws-1", "google_drive")
 
 
 @pytest.mark.asyncio
@@ -96,15 +101,50 @@ async def test_fetch_google_drive_access_token_requires_database_url(monkeypatch
     monkeypatch.delenv("DATABASE_URL", raising=False)
 
     with pytest.raises(ApplicationError, match="DATABASE_URL"):
-        await drive_activities.fetch_google_drive_access_token("user-1")
+        await drive_activities.fetch_google_drive_access_token(
+            "user-1", "ws-1"
+        )
+
+
+@pytest.mark.asyncio
+async def test_fetch_google_drive_access_token_requires_workspace_id() -> None:
+    with pytest.raises(ApplicationError, match="workspace_id"):
+        await drive_activities.fetch_google_drive_access_token("user-1", "")
+
+
+@pytest.mark.asyncio
+async def test_fetch_returns_not_connected_when_workspace_lookup_misses(
+    monkeypatch,
+) -> None:
+    """Wrong workspace_id must NOT fall back to a different workspace's row."""
+
+    class FakeConn:
+        async def fetchrow(
+            self, _query: str, *_args: Any
+        ) -> dict[str, bytes] | None:
+            return None
+
+        async def close(self) -> None:
+            return None
+
+    async def fake_connect(_url: str) -> FakeConn:
+        return FakeConn()
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql://db/opencairn")
+    monkeypatch.setattr(drive_activities.asyncpg, "connect", fake_connect)
+
+    with pytest.raises(ApplicationError, match="not connected"):
+        await drive_activities.fetch_google_drive_access_token(
+            "user-1", "wrong-ws"
+        )
 
 
 @pytest.mark.asyncio
 async def test_drive_service_from_payload_fetches_token_per_activity(monkeypatch) -> None:
-    calls: list[str] = []
+    calls: list[tuple[str, str]] = []
 
-    async def fake_fetch(user_id: str) -> str:
-        calls.append(user_id)
+    async def fake_fetch(user_id: str, workspace_id: str) -> str:
+        calls.append((user_id, workspace_id))
         return "fresh-token"
 
     def fake_build_service(access_token: str) -> str:
@@ -116,10 +156,12 @@ async def test_drive_service_from_payload_fetches_token_per_activity(monkeypatch
     )
     monkeypatch.setattr(drive_activities, "_build_service", fake_build_service)
 
-    svc = await drive_activities._build_service_from_payload({"user_id": "user-1"})
+    svc = await drive_activities._build_service_from_payload(
+        {"user_id": "user-1", "workspace_id": "ws-1"}
+    )
 
     assert svc == "svc"
-    assert calls == ["user-1"]
+    assert calls == [("user-1", "ws-1")]
 
 
 @pytest.mark.asyncio
@@ -128,6 +170,23 @@ async def test_drive_service_from_payload_rejects_invalid_user_id(
     payload: dict[str, Any],
 ) -> None:
     with pytest.raises(ApplicationError, match="user_id"):
+        await drive_activities._build_service_from_payload(payload)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"user_id": "u"},
+        {"user_id": "u", "workspace_id": None},
+        {"user_id": "u", "workspace_id": ""},
+        {"user_id": "u", "workspace_id": 123},
+    ],
+)
+async def test_drive_service_from_payload_rejects_invalid_workspace_id(
+    payload: dict[str, Any],
+) -> None:
+    with pytest.raises(ApplicationError, match="workspace_id"):
         await drive_activities._build_service_from_payload(payload)
 
 
