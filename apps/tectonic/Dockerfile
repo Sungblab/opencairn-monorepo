@@ -7,6 +7,7 @@ ENV TECTONIC_CACHE_DIR=/app/cache
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
+        fontconfig \
         fonts-nanum \
         fonts-nanum-coding \
         fonts-noto-cjk \
