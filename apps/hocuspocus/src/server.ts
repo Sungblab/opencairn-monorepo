@@ -42,11 +42,26 @@ async function main(): Promise<void> {
   const server = new Server({
     port: env.HOCUSPOCUS_PORT,
     name: "opencairn-hocuspocus",
-    async onUpgrade({ request }) {
+    async onUpgrade({ request, socket }) {
+      // S1-003 — Hocuspocus has no `Server({ origins })` constructor option;
+      // origin enforcement lives in this hook and is exercised by the
+      // `tests/origins.test.ts` suite. The browser only honours the
+      // close-handshake from a clean 403, so write the response + destroy
+      // the socket BEFORE aborting (otherwise the client just hangs until
+      // the WS handshake times out).
       const origin = request.headers.origin;
       if (!isAllowedOrigin(origin, env.HOCUSPOCUS_ORIGINS)) {
         logger.warn({ origin }, "blocked hocuspocus origin");
-        throw new Error("Forbidden origin");
+        socket.write(
+          "HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
+        );
+        socket.destroy();
+        // @hocuspocus/server's setupHttpUpgrade rethrows any truthy hook
+        // rejection on the EventEmitter listener — that becomes an
+        // unhandled rejection. Throwing a falsy value short-circuits the
+        // hook and skips webSocketServer.handleUpgrade without the noise.
+        // eslint-disable-next-line no-throw-literal
+        throw null;
       }
     },
     async onAuthenticate(payload) {
