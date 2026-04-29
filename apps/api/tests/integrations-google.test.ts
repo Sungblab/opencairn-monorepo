@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { randomUUID } from "node:crypto";
 import { createApp } from "../src/app.js";
-import { createUser } from "./helpers/seed.js";
+import {
+  createUser,
+  seedWorkspace,
+  type SeedResult,
+} from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
 import {
   db,
@@ -12,6 +16,18 @@ import {
   eq,
 } from "@opencairn/db";
 import { encryptToken } from "../src/lib/integration-tokens.js";
+
+// Lightweight wrapper so the GET/DELETE describe blocks can reuse a member
+// of a real workspace (canRead/canWrite need it now after the review fix).
+type SeedResultLocal = Pick<SeedResult, "userId" | "workspaceId" | "cleanup">;
+async function seedWorkspaceLocal(): Promise<SeedResultLocal> {
+  const seed = await seedWorkspace({ role: "owner" });
+  return {
+    userId: seed.userId,
+    workspaceId: seed.workspaceId,
+    cleanup: seed.cleanup,
+  };
+}
 
 const TEST_KEY = Buffer.alloc(32, 0x42).toString("base64");
 
@@ -129,24 +145,23 @@ describe("GET /api/integrations/google/callback", () => {
 });
 
 describe("GET /api/integrations/google (status)", () => {
-  let userId: string;
+  let seed: SeedResultLocal;
   const wsId = "550e8400-e29b-41d4-a716-446655440000";
 
   beforeEach(async () => {
     process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY = TEST_KEY;
-    const u = await createUser();
-    userId = u.id;
+    seed = await seedWorkspaceLocal();
   });
 
   afterEach(async () => {
-    await db.delete(user).where(eq(user.id, userId));
+    await seed.cleanup();
   });
 
-  it("returns disconnected for a user with no integration in this workspace", async () => {
+  it("returns disconnected for a member with no integration in this workspace", async () => {
     const app = createApp();
     const res = await app.request(
-      `/api/integrations/google?workspaceId=${wsId}`,
-      { headers: { cookie: await signSessionCookie(userId) } },
+      `/api/integrations/google?workspaceId=${seed.workspaceId}`,
+      { headers: { cookie: await signSessionCookie(seed.userId) } },
     );
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -160,15 +175,27 @@ describe("GET /api/integrations/google (status)", () => {
   it("returns 400 without workspaceId — connections are per-workspace (S3-022)", async () => {
     const app = createApp();
     const res = await app.request("/api/integrations/google", {
-      headers: { cookie: await signSessionCookie(userId) },
+      headers: { cookie: await signSessionCookie(seed.userId) },
     });
     expect(res.status).toBe(400);
+  });
+
+  it("returns 403 for a non-member probing a foreign workspace's integration status", async () => {
+    // Audit S3-022 review fix: even though the query is userId-scoped,
+    // the route enforces canRead so a former/never-member can't
+    // distinguish "workspace doesn't exist" from "you're connected".
+    const app = createApp();
+    const res = await app.request(
+      `/api/integrations/google?workspaceId=${wsId}`,
+      { headers: { cookie: await signSessionCookie(seed.userId) } },
+    );
+    expect(res.status).toBe(403);
   });
 
   it("returns 401 without a session", async () => {
     const app = createApp();
     const res = await app.request(
-      `/api/integrations/google?workspaceId=${wsId}`,
+      `/api/integrations/google?workspaceId=${seed.workspaceId}`,
     );
     expect(res.status).toBe(401);
   });
@@ -296,26 +323,25 @@ describe("S3-022 cross-workspace isolation", () => {
 });
 
 describe("DELETE /api/integrations/google", () => {
-  let userId: string;
+  let seed: SeedResultLocal;
   const wsId = "550e8400-e29b-41d4-a716-446655440000";
 
   beforeEach(async () => {
     process.env.INTEGRATION_TOKEN_ENCRYPTION_KEY = TEST_KEY;
-    const u = await createUser();
-    userId = u.id;
+    seed = await seedWorkspaceLocal();
   });
 
   afterEach(async () => {
-    await db.delete(user).where(eq(user.id, userId));
+    await seed.cleanup();
   });
 
   it("is a no-op and returns ok when no integration exists in this workspace", async () => {
     const app = createApp();
     const res = await app.request(
-      `/api/integrations/google?workspaceId=${wsId}`,
+      `/api/integrations/google?workspaceId=${seed.workspaceId}`,
       {
         method: "DELETE",
-        headers: { cookie: await signSessionCookie(userId) },
+        headers: { cookie: await signSessionCookie(seed.userId) },
       },
     );
     expect(res.status).toBe(200);
@@ -327,15 +353,28 @@ describe("DELETE /api/integrations/google", () => {
     const app = createApp();
     const res = await app.request("/api/integrations/google", {
       method: "DELETE",
-      headers: { cookie: await signSessionCookie(userId) },
+      headers: { cookie: await signSessionCookie(seed.userId) },
     });
     expect(res.status).toBe(400);
+  });
+
+  it("returns 403 when the caller is not a member of the workspace", async () => {
+    // Review fix: DELETE requires canWrite, not just userId scope.
+    const app = createApp();
+    const res = await app.request(
+      `/api/integrations/google?workspaceId=${wsId}`,
+      {
+        method: "DELETE",
+        headers: { cookie: await signSessionCookie(seed.userId) },
+      },
+    );
+    expect(res.status).toBe(403);
   });
 
   it("returns 401 without a session", async () => {
     const app = createApp();
     const res = await app.request(
-      `/api/integrations/google?workspaceId=${wsId}`,
+      `/api/integrations/google?workspaceId=${seed.workspaceId}`,
       { method: "DELETE" },
     );
     expect(res.status).toBe(401);

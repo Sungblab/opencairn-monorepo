@@ -191,8 +191,20 @@ importRouter.post(
     // didn't issue — accepting it would let a workspace member import another
     // user's uploaded zip into their own workspace (S3-024). Workspace-write
     // permission isn't enough; the user must own the upload too.
+    //
+    // `startsWith` alone is bypassable with `..` traversal segments: a key
+    // like `imports/notion/<myWs>/<me>/../../../<victim>/x.zip` passes the
+    // prefix but anchors elsewhere if anything in the chain normalizes the
+    // path (a future presigned helper, a worker fs join, etc). MinIO itself
+    // doesn't normalize so the bypass is latent today, but we reject it
+    // anyway to harden against any layer that does.
     const expectedPrefix = `imports/notion/${body.workspaceId}/${userId}/`;
-    if (!body.zipObjectKey.startsWith(expectedPrefix)) {
+    if (
+      !body.zipObjectKey.startsWith(expectedPrefix) ||
+      body.zipObjectKey.includes("..") ||
+      body.zipObjectKey.includes("//") ||
+      body.zipObjectKey.includes("\\")
+    ) {
       return c.json({ error: "zip_object_key_not_owned" }, 403);
     }
 

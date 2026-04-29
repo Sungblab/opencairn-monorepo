@@ -12,6 +12,7 @@ import {
   revokeToken,
 } from "../lib/google-oauth";
 import { encryptToken, decryptToken } from "../lib/integration-tokens";
+import { canRead, canWrite } from "../lib/permissions";
 import type { AppEnv } from "../lib/types";
 
 // Base URL the browser is redirected BACK to after Google's consent screen.
@@ -122,6 +123,17 @@ integrationsRouter.get("/google", requireAuth, async (c) => {
   if (!workspaceId) {
     return c.json({ error: "workspaceId required" }, 400);
   }
+  // Workspace membership check: matches the rest of the codebase's
+  // per-route discipline ("Internal API workspaceId 강제 원칙"). Without
+  // it a former member who still knows wsId could probe whether the
+  // current user has Drive connected there. The query itself is
+  // already userId-scoped so blast radius is small, but consistency
+  // with the canRead/canWrite pattern matters more than the bytes.
+  const allowed = await canRead(userId, {
+    type: "workspace",
+    id: workspaceId,
+  });
+  if (!allowed) return c.json({ error: "Forbidden" }, 403);
   const [row] = await db
     .select()
     .from(userIntegrations)
@@ -147,6 +159,15 @@ integrationsRouter.delete("/google", requireAuth, async (c) => {
   if (!workspaceId) {
     return c.json({ error: "workspaceId required" }, 400);
   }
+  // canWrite for DELETE — disconnecting an integration is a workspace
+  // mutation. A former member should not be able to wipe their own row
+  // in a workspace they no longer belong to (low blast radius but
+  // consistent with the rest of the codebase).
+  const allowed = await canWrite(userId, {
+    type: "workspace",
+    id: workspaceId,
+  });
+  if (!allowed) return c.json({ error: "Forbidden" }, 403);
   const [row] = await db
     .select()
     .from(userIntegrations)

@@ -126,4 +126,36 @@ describe("POST /api/import/notion — zipObjectKey prefix validation (S3-024)", 
     expect(res.status).toBe(403);
     expect(startSpy).not.toHaveBeenCalled();
   });
+
+  // Review fix: `startsWith` alone allowed traversal segments. These
+  // would all pass the prefix anchor but resolve elsewhere if a future
+  // layer normalizes the path (presigned helper, fs join, etc).
+  const traversalKeys = [
+    `imports/notion/${"<wsId>"}/${"<userId>"}/../../../other-ws/other-user/abc.zip`,
+    `imports/notion/${"<wsId>"}/${"<userId>"}//etc/passwd`,
+    `imports/notion/${"<wsId>"}/${"<userId>"}/sub\\..\\victim.zip`,
+  ];
+  for (const tpl of traversalKeys) {
+    it(`rejects path-traversal in zipObjectKey: ${tpl}`, async () => {
+      const app = createApp();
+      const key = tpl
+        .replace("<wsId>", seed.workspaceId)
+        .replace("<userId>", seed.userId);
+      const res = await app.request("/api/import/notion", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: await signSessionCookie(seed.userId),
+        },
+        body: JSON.stringify({
+          workspaceId: seed.workspaceId,
+          zipObjectKey: key,
+          originalName: "export.zip",
+          target: { kind: "new" },
+        }),
+      });
+      expect(res.status).toBe(403);
+      expect(startSpy).not.toHaveBeenCalled();
+    });
+  }
 });
