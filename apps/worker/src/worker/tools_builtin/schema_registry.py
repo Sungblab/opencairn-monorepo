@@ -34,3 +34,10 @@ class ResearchAnswer(BaseModel):
 
 register_schema("ConceptSummary", ConceptSummary)
 register_schema("ResearchAnswer", ResearchAnswer)
+
+
+# Synthesis Export schema ----------------------------------------------
+
+from worker.agents.synthesis_export.schemas import SynthesisOutputSchema  # noqa: E402
+
+register_schema("SynthesisOutputSchema", SynthesisOutputSchema)

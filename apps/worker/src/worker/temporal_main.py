@@ -106,6 +106,15 @@ from worker.workflows.staleness_workflow import StalenessWorkflow
 from worker.workflows.synthesis_workflow import SynthesisWorkflow
 from worker.workflows.visualize_workflow import VisualizeWorkflow
 
+# Multi-format Synthesis Export — registered only when FEATURE_SYNTHESIS_EXPORT
+# is on. Distinct from Plan 8's always-on ``run_synthesis`` essay activity:
+# this is the LaTeX/DOCX/PDF/MD compiler pipeline (fetch → synthesize →
+# compile). Imports are cheap and keep the conditional below small.
+from worker.activities.synthesis_export.compile import compile_activity
+from worker.activities.synthesis_export.fetch import fetch_sources_activity
+from worker.activities.synthesis_export.synthesize import synthesize_activity
+from worker.workflows.synthesis_export_workflow import SynthesisExportWorkflow
+
 load_dotenv()
 
 
@@ -245,6 +254,17 @@ def build_worker_config() -> WorkerConfig:
 
         workflows.append(DocEditorWorkflow)
         activities.append(_run_doc_editor)
+
+    # Multi-format Synthesis Export — fetch_sources → synthesize → compile.
+    # Off by default so production workers keep narrow surface area until
+    # the api+web feature ships.
+    if os.environ.get("FEATURE_SYNTHESIS_EXPORT", "false").lower() == "true":
+        workflows.append(SynthesisExportWorkflow)
+        activities.extend([
+            fetch_sources_activity,
+            synthesize_activity,
+            compile_activity,
+        ])
 
     return WorkerConfig(workflows=workflows, activities=activities)
 
