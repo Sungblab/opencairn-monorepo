@@ -1,265 +1,272 @@
 {
-	"version": "7",
-	"dialect": "postgresql",
-	"entries": [
-		{
-			"idx": 0,
-			"version": "7",
-			"when": 1776667831873,
-			"tag": "0000_steady_paper_doll",
-			"breakpoints": true
-		},
-		{
-			"idx": 1,
-			"version": "7",
-			"when": 1776670519875,
-			"tag": "0001_lovely_bullseye",
-			"breakpoints": true
-		},
-		{
-			"idx": 2,
-			"version": "7",
-			"when": 1776682513095,
-			"tag": "0002_long_catseye",
-			"breakpoints": true
-		},
-		{
-			"idx": 3,
-			"version": "7",
-			"when": 1776683306174,
-			"tag": "0003_powerful_hydra",
-			"breakpoints": true
-		},
-		{
-			"idx": 4,
-			"version": "7",
-			"when": 1776685179965,
-			"tag": "0004_daffy_reavers",
-			"breakpoints": true
-		},
-		{
-			"idx": 5,
-			"version": "7",
-			"when": 1776691954271,
-			"tag": "0005_cheerful_kabuki",
-			"breakpoints": true
-		},
-		{
-			"idx": 6,
-			"version": "7",
-			"when": 1776699860299,
-			"tag": "0006_flimsy_metal_master",
-			"breakpoints": true
-		},
-		{
-			"idx": 7,
-			"version": "7",
-			"when": 1776705736711,
-			"tag": "0007_natural_proemial_gods",
-			"breakpoints": true
-		},
-		{
-			"idx": 8,
-			"version": "7",
-			"when": 1776790117906,
-			"tag": "0008_natural_baron_zemo",
-			"breakpoints": true
-		},
-		{
-			"idx": 9,
-			"version": "7",
-			"when": 1776834138077,
-			"tag": "0009_noisy_silver_sable",
-			"breakpoints": true
-		},
-		{
-			"idx": 10,
-			"version": "7",
-			"when": 1776844557700,
-			"tag": "0010_plan_2b_collab",
-			"breakpoints": true
-		},
-		{
-			"idx": 11,
-			"version": "7",
-			"when": 1776845234582,
-			"tag": "0011_plan_2b_commenter_role",
-			"breakpoints": true
-		},
-		{
-			"idx": 12,
-			"version": "7",
-			"when": 1776853580606,
-			"tag": "0012_lovely_bloodstorm",
-			"breakpoints": true
-		},
-		{
-			"idx": 13,
-			"version": "7",
-			"when": 1776878394536,
-			"tag": "0013_loving_nico_minoru",
-			"breakpoints": true
-		},
-		{
-			"idx": 14,
-			"version": "7",
-			"when": 1776928277839,
-			"tag": "0014_plans_1_to_4_tier_2",
-			"breakpoints": true
-		},
-		{
-			"idx": 15,
-			"version": "7",
-			"when": 1776929367491,
-			"tag": "0015_plans_1_to_4_tier_2_followups",
-			"breakpoints": true
-		},
-		{
-			"idx": 16,
-			"version": "7",
-			"when": 1776930684599,
-			"tag": "0016_ingest_jobs_owner_tracking",
-			"breakpoints": true
-		},
-		{
-			"idx": 17,
-			"version": "7",
-			"when": 1776939436961,
-			"tag": "0017_users_last_viewed_workspace",
-			"breakpoints": true
-		},
-		{
-			"idx": 18,
-			"version": "7",
-			"when": 1776952020451,
-			"tag": "0018_folders_ltree_path",
-			"breakpoints": true
-		},
-		{
-			"idx": 19,
-			"version": "7",
-			"when": 1777052565406,
-			"tag": "0019_drop_chat_scope_stub",
-			"breakpoints": true
-		},
-		{
-			"idx": 20,
-			"version": "7",
-			"when": 1777117410770,
-			"tag": "0020_chat_redesign",
-			"breakpoints": true
-		},
-		{
-			"idx": 21,
-			"version": "7",
-			"when": 1777121536306,
-			"tag": "0021_canvas_source_type_value",
-			"breakpoints": true
-		},
-		{
-			"idx": 22,
-			"version": "7",
-			"when": 1777121536307,
-			"tag": "0022_canvas_language_column",
-			"breakpoints": true
-		},
-		{
-			"idx": 23,
-			"version": "7",
-			"when": 1777129390745,
-			"tag": "0023_wiki_links_table",
-			"breakpoints": true
-		},
-		{
-			"idx": 24,
-			"version": "7",
-			"when": 1777186985710,
-			"tag": "0024_notifications",
-			"breakpoints": true
-		},
-		{
-			"idx": 25,
-			"version": "7",
-			"when": 1777206404589,
-			"tag": "0025_canvas_code_runs_outputs",
-			"breakpoints": true
-		},
-		{
-			"idx": 26,
-			"version": "7",
-			"when": 1777211684759,
-			"tag": "0026_lowly_blink",
-			"breakpoints": true
-		},
-		{
-			"idx": 27,
-			"version": "7",
-			"when": 1777223715852,
-			"tag": "0027_share_links",
-			"breakpoints": true
-		},
-		{
-			"idx": 28,
-			"version": "7",
-			"when": 1777224351017,
-			"tag": "0028_share_links_active_unique",
-			"breakpoints": true
-		},
-		{
-			"idx": 29,
-			"version": "7",
-			"when": 1777248369351,
-			"tag": "0029_loving_miracleman",
-			"breakpoints": true
-		},
-		{
-			"idx": 30,
-			"version": "7",
-			"when": 1777264800000,
-			"tag": "0031_chat_scope_search_trgm",
-			"breakpoints": true
-		},
-		{
-			"idx": 31,
-			"version": "7",
-			"when": 1777299046568,
-			"tag": "0032_yummy_rick_jones",
-			"breakpoints": true
-		},
-		{
-			"idx": 32,
-			"version": "7",
-			"when": 1777400000000,
-			"tag": "0033_literature_search",
-			"breakpoints": true
-		},
-		{
-			"idx": 33,
-			"version": "7",
-			"when": 1777450000000,
-			"tag": "0034_note_enrichments",
-			"breakpoints": true
-		},
-		{
-			"idx": 34,
-			"version": "7",
-			"when": 1777347379123,
-			"tag": "0035_doc_editor_calls",
-			"breakpoints": true
-		},
-		{
-			"idx": 35,
-			"version": "7",
-			"when": 1777390364404,
-			"tag": "0036_user_mcp_servers",
-			"breakpoints": true
-		},
-		{
-			"idx": 36,
-			"version": "7",
-			"when": 1777419961954,
-			"tag": "0037_drive_per_workspace",
-			"breakpoints": true
-		}
-	]
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1776667831873,
+      "tag": "0000_steady_paper_doll",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1776670519875,
+      "tag": "0001_lovely_bullseye",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776682513095,
+      "tag": "0002_long_catseye",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1776683306174,
+      "tag": "0003_powerful_hydra",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1776685179965,
+      "tag": "0004_daffy_reavers",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1776691954271,
+      "tag": "0005_cheerful_kabuki",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1776699860299,
+      "tag": "0006_flimsy_metal_master",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1776705736711,
+      "tag": "0007_natural_proemial_gods",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1776790117906,
+      "tag": "0008_natural_baron_zemo",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1776834138077,
+      "tag": "0009_noisy_silver_sable",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1776844557700,
+      "tag": "0010_plan_2b_collab",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1776845234582,
+      "tag": "0011_plan_2b_commenter_role",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1776853580606,
+      "tag": "0012_lovely_bloodstorm",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1776878394536,
+      "tag": "0013_loving_nico_minoru",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1776928277839,
+      "tag": "0014_plans_1_to_4_tier_2",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1776929367491,
+      "tag": "0015_plans_1_to_4_tier_2_followups",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1776930684599,
+      "tag": "0016_ingest_jobs_owner_tracking",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1776939436961,
+      "tag": "0017_users_last_viewed_workspace",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1776952020451,
+      "tag": "0018_folders_ltree_path",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1777052565406,
+      "tag": "0019_drop_chat_scope_stub",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1777117410770,
+      "tag": "0020_chat_redesign",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1777121536306,
+      "tag": "0021_canvas_source_type_value",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1777121536307,
+      "tag": "0022_canvas_language_column",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1777129390745,
+      "tag": "0023_wiki_links_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1777186985710,
+      "tag": "0024_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1777206404589,
+      "tag": "0025_canvas_code_runs_outputs",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1777211684759,
+      "tag": "0026_lowly_blink",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1777223715852,
+      "tag": "0027_share_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1777224351017,
+      "tag": "0028_share_links_active_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1777248369351,
+      "tag": "0029_loving_miracleman",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1777264800000,
+      "tag": "0031_chat_scope_search_trgm",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1777299046568,
+      "tag": "0032_yummy_rick_jones",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1777400000000,
+      "tag": "0033_literature_search",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1777450000000,
+      "tag": "0034_note_enrichments",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1777347379123,
+      "tag": "0035_doc_editor_calls",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1777390364404,
+      "tag": "0036_user_mcp_servers",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1777419961954,
+      "tag": "0037_drive_per_workspace",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1777424748875,
+      "tag": "0038_synthesis",
+      "breakpoints": true
+    }
+  ]
 }
