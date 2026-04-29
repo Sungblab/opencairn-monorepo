@@ -17,3 +17,15 @@ export function isManagedDeepResearchEnabled(): boolean {
 export function isImportEnabled(): boolean {
   return (process.env.FEATURE_IMPORT_ENABLED ?? "true").toLowerCase() === "true";
 }
+
+export function isSynthesisExportEnabled(): boolean {
+  return (
+    (process.env.FEATURE_SYNTHESIS_EXPORT ?? "false").toLowerCase() === "true"
+  );
+}
+
+export function isTectonicCompileEnabled(): boolean {
+  return (
+    (process.env.FEATURE_TECTONIC_COMPILE ?? "false").toLowerCase() === "true"
+  );
+}
