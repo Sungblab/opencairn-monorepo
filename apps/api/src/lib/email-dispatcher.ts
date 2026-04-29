@@ -442,6 +442,17 @@ async function processDigest(
   }
 }
 
+// Drizzle's `db.execute` return shape varies by driver — postgres-js (the
+// driver used in production) returns the row array directly, while
+// node-pg returns `{ rows: [...] }`. The `??` form mirrors the convention
+// already in apps/api/src/lib/chat-retrieval.ts so both shapes resolve
+// without a per-callsite ternary. If we ever standardize on a single
+// driver, drop the second arm of the coalesce.
+function rowsOf<T>(raw: unknown): T[] {
+  const rs = (raw as { rows?: T[] } | undefined)?.rows;
+  return rs ?? (raw as T[]);
+}
+
 export async function runDispatcherTick(opts: { now?: Date } = {}): Promise<DispatcherTickResult> {
   const now = opts.now ?? new Date();
 
@@ -450,13 +461,9 @@ export async function runDispatcherTick(opts: { now?: Date } = {}): Promise<Disp
   const lockRows = await db.execute<{ pg_try_advisory_lock: boolean }>(
     sql`SELECT pg_try_advisory_lock(${LOCK_KEY}) AS pg_try_advisory_lock`,
   );
-  // postgres-js returns rows directly; drizzle's execute returns {rows} or
-  // an array depending on the driver. Normalize both.
-  const row = (lockRows as unknown as { rows?: { pg_try_advisory_lock: boolean }[] })
-    .rows
-    ? (lockRows as unknown as { rows: { pg_try_advisory_lock: boolean }[] }).rows[0]
-    : (lockRows as unknown as { pg_try_advisory_lock: boolean }[])[0];
-  const acquired = row?.pg_try_advisory_lock === true;
+  const acquired =
+    rowsOf<{ pg_try_advisory_lock: boolean }>(lockRows)[0]
+      ?.pg_try_advisory_lock === true;
 
   if (!acquired) {
     console.log("[email_dispatcher.locked]", { now: now.toISOString() });
