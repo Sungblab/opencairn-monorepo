@@ -15,6 +15,17 @@ export interface SynthesisOutputJson {
   template: string;
 }
 
+// Decode the five standard XML/HTML entities. `&amp;` must come last so
+// we don't double-decode (e.g. `&amp;lt;` → `&lt;` → `<`).
+function decodeXmlEntities(s: string): string {
+  return s
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
 // Strip a tiny HTML subset (h1/h2/p/strong/em/li/code) into plain runs.
 // Production-grade HTML→DOCX is out of scope; the LLM is instructed to
 // emit the supported subset.
@@ -24,7 +35,9 @@ function htmlToParagraphs(html: string): Paragraph[] {
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<[^>]+>/g, "")
     .trim();
-  return stripped.split(/\n+/).map((line) => new Paragraph({
+  if (stripped === "") return [];
+  const decoded = decodeXmlEntities(stripped);
+  return decoded.split(/\n+/).map((line) => new Paragraph({
     children: [new TextRun({ text: line })],
   }));
 }
@@ -52,8 +65,10 @@ export async function compileDocx(out: SynthesisOutputJson): Promise<Buffer> {
     out.bibliography.forEach((b, i) => {
       const yr = b.year ? `, ${b.year}` : "";
       const url = b.url ? `, ${b.url}` : "";
+      const author = decodeXmlEntities(b.author);
+      const title = decodeXmlEntities(b.title);
       children.push(new Paragraph({
-        children: [new TextRun({ text: `[${i + 1}] ${b.author}, “${b.title}”${yr}${url}` })],
+        children: [new TextRun({ text: `[${i + 1}] ${author}, “${title}”${yr}${url}` })],
       }));
     });
   }
