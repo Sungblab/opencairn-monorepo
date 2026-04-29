@@ -43,7 +43,7 @@ export function GlobalNav({
   return (
     <nav
       aria-label={t("dashboard")}
-      className="flex items-center gap-1 border-b border-border px-2 py-1"
+      className="flex items-center gap-1 px-3"
     >
       {items.map(({ href, label, Icon }) => (
         <Link
@@ -51,9 +51,9 @@ export function GlobalNav({
           href={href}
           title={label}
           aria-label={label}
-          className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:outline-none"
+          className="app-hover flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none"
         >
-          <Icon aria-hidden className="h-4 w-4" />
+          <Icon aria-hidden className="h-[15px] w-[15px]" />
         </Link>
       ))}
       <MoreMenu base={base} synthesisExportEnabled={synthesisExportEnabled} />

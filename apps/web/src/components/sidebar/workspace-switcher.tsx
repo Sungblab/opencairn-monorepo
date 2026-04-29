@@ -62,20 +62,20 @@ export function WorkspaceSwitcher() {
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label={t("switcher.trigger_aria")}
-        className="flex w-full items-center gap-2 border-b border-border px-3 py-2 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+        className="app-hover mx-3 mb-2 mt-3 flex items-center gap-2 rounded border-[1.5px] border-muted-foreground/40 bg-background px-2.5 py-1.5 text-left transition-colors hover:border-foreground focus-visible:border-foreground focus-visible:outline-none"
       >
         <span
           aria-hidden
-          className="flex h-6 w-6 items-center justify-center rounded bg-muted text-xs font-semibold"
+          className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-foreground text-[10px] font-semibold text-background"
         >
           {initial}
         </span>
-        <span className="flex-1 truncate text-sm font-semibold">
+        <span className="flex-1 truncate text-[12.5px] font-medium">
           {isLoading ? t("switcher.placeholder") : triggerLabel}
         </span>
         <ChevronDown
           aria-hidden
-          className="h-4 w-4 shrink-0 text-muted-foreground"
+          className="h-3 w-3 shrink-0 text-muted-foreground"
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-64">

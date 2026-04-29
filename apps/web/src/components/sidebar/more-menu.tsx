@@ -40,9 +40,9 @@ export function MoreMenu({ base, synthesisExportEnabled = false }: MoreMenuProps
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label={t("nav.more_aria")}
-        className="ml-auto flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:outline-none"
+        className="app-hover ml-auto flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none"
       >
-        <MoreHorizontal aria-hidden className="h-4 w-4" />
+        <MoreHorizontal aria-hidden className="h-[15px] w-[15px]" />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56">
         <DropdownMenuItem onClick={goto(`${base}/settings`)}>

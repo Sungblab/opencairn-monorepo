@@ -42,7 +42,10 @@
   "footer": {
     "notifications_aria": "알림",
     "settings_aria": "워크스페이스 설정",
-    "guest_name": "게스트"
+    "guest_name": "게스트",
+    "plan_free": "Free",
+    "plan_byok": "BYOK",
+    "credits_amount": "₩{value, number}"
   },
   "search": {
     "placeholder": "이 프로젝트에서 검색",
