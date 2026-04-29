@@ -14,6 +14,16 @@ import pytest
 from worker.activities.office_activity import parse_office
 
 
+@pytest.fixture(autouse=True)
+def _mock_activity_heartbeat():
+    """``parse_office`` calls ``activity.heartbeat()`` between conversion steps
+    (S3-006). The Temporal call raises ``RuntimeError("Not in activity context")``
+    outside the worker, so unit tests stub it. Production wiring is verified by
+    the workflow-level test in ``tests/workflows/test_ingest_heartbeat.py``."""
+    with patch("worker.activities.office_activity.activity.heartbeat"):
+        yield
+
+
 def _base_input(*, mime: str, workflow_id: str = "wf-office-1") -> dict:
     return {
         "object_key": "uploads/u/x.docx",

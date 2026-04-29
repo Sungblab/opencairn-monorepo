@@ -91,6 +91,17 @@ pnpm dev
 
 취약점은 GitHub Security Advisories 비공개 채널로 제보해 주세요. 자세한 내용은 [SECURITY.md](SECURITY.md).
 
+## 감사의 말
+
+다음과 같은 훌륭한 오픈소스 프로젝트 위에 만들어졌습니다 — [Plate](https://platejs.org/), [Hocuspocus](https://tiptap.dev/hocuspocus) / [Yjs](https://github.com/yjs/yjs), [Temporal](https://temporal.io/), [Drizzle ORM](https://orm.drizzle.team/), [pgvector](https://github.com/pgvector/pgvector), [Better Auth](https://www.better-auth.com/), [Hono](https://hono.dev/), [Next.js](https://nextjs.org/), [react-email](https://react.email/), [Cytoscape.js](https://js.cytoscape.org/), [Pyodide](https://pyodide.org/), [MarkItDown](https://github.com/microsoft/markitdown).
+
+## 연락처
+
+- 메인테이너: [@Sungblab](https://github.com/Sungblab) — <sungblab@gmail.com>
+- 버그 · 기능 제안: [GitHub Issues](https://github.com/Sungblab/opencairn-monorepo/issues)
+- 질문 · 아이디어: [GitHub Discussions](https://github.com/Sungblab/opencairn-monorepo/discussions)
+- 보안 제보: [SECURITY.md](SECURITY.md) 참고 (이메일 제보는 받지 **않습니다**)
+
 ## 라이선스
 
 [AGPL-3.0-or-later](LICENSE).
