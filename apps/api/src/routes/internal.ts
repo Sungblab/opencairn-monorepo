@@ -2611,9 +2611,10 @@ internal.get("/notes/:noteId/enrichment", async (c) => {
 
 // ===== Synthesis Export internal endpoints (Plan: synthesis-export Task 15) =====
 
+// latex compile is owned by the worker (zip / tectonic), not this API.
 const synthesisExportCompileSchema = z.object({
   run_id: z.string().uuid(),
-  format: z.enum(["latex", "docx", "pdf", "md"]),
+  format: z.enum(["docx", "pdf", "md"]),
   output: z.any(),
 });
 
@@ -2628,25 +2629,32 @@ internal.post(
     let contentType: string;
     let ext: string;
 
-    if (format === "docx") {
-      buf = await compileDocx(out);
-      contentType =
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-      ext = "docx";
-    } else if (format === "pdf") {
-      buf = await compilePdf(out);
-      contentType = "application/pdf";
-      ext = "pdf";
-    } else if (format === "md") {
-      const text = `# ${out.title}\n\n${(out.sections ?? [])
-        .map((s) => `## ${s.title}\n${s.content}\n`)
-        .join("\n")}`;
-      buf = Buffer.from(text, "utf-8");
-      contentType = "text/markdown; charset=utf-8";
-      ext = "md";
-    } else {
-      // latex compile is owned by the worker (zip / tectonic), not the API.
-      return c.json({ error: "format not supported by api compile" }, 400);
+    switch (format) {
+      case "docx":
+        buf = await compileDocx(out);
+        contentType =
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        ext = "docx";
+        break;
+      case "pdf":
+        buf = await compilePdf(out);
+        contentType = "application/pdf";
+        ext = "pdf";
+        break;
+      case "md": {
+        const text = `# ${out.title}\n\n${(out.sections ?? [])
+          .map((s) => `## ${s.title}\n${s.content}\n`)
+          .join("\n")}`;
+        buf = Buffer.from(text, "utf-8");
+        contentType = "text/markdown; charset=utf-8";
+        ext = "md";
+        break;
+      }
+      default: {
+        // Exhaustiveness: zod enum already excludes anything else.
+        const _exhaustive: never = format;
+        throw new Error(`unreachable compile format: ${String(_exhaustive)}`);
+      }
     }
 
     const s3Key = `synthesis/runs/${run_id}/document.${ext}`;
@@ -2702,7 +2710,14 @@ internal.patch(
     if (body.tokens_used !== undefined) patch.tokensUsed = body.tokens_used;
     if (body.status !== undefined) patch.status = body.status;
     if (Object.keys(patch).length === 0) return c.json({ ok: true });
-    await db.update(synthesisRuns).set(patch).where(eq(synthesisRuns.id, id));
+    const updated = await db
+      .update(synthesisRuns)
+      .set(patch)
+      .where(eq(synthesisRuns.id, id))
+      .returning({ id: synthesisRuns.id });
+    if (updated.length === 0) {
+      return c.json({ error: "run not found" }, 404);
+    }
     return c.json({ ok: true });
   },
 );

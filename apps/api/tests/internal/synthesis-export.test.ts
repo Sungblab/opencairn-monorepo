@@ -164,6 +164,39 @@ describe("/api/internal/synthesis-export/*", () => {
     expect(res.status).toBe(501);
   });
 
+  it("compile rejects format=latex via Zod (no API latex compile)", async () => {
+    const res = await app.request("/api/internal/synthesis-export/compile", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        run_id: runId,
+        format: "latex",
+        output: {
+          format: "latex",
+          title: "T",
+          abstract: null,
+          sections: [],
+          bibliography: [],
+          template: "report",
+        },
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("PATCH /runs/:id returns 404 when the run does not exist", async () => {
+    const ghostId = crypto.randomUUID();
+    const res = await app.request(
+      `/api/internal/synthesis-export/runs/${ghostId}`,
+      {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ status: "completed" }),
+      },
+    );
+    expect(res.status).toBe(404);
+  });
+
   it("auto-search returns empty hits stub (Task 17 will replace)", async () => {
     const res = await app.request(
       "/api/internal/synthesis-export/auto-search",
