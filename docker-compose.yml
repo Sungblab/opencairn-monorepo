@@ -329,6 +329,14 @@ services:
       - GEMINI_MANAGED_API_KEY=${GEMINI_MANAGED_API_KEY:-}
       - MANAGED_MARGIN=${MANAGED_MARGIN:-1.3}
       - INTEGRATION_TOKEN_ENCRYPTION_KEY=${INTEGRATION_TOKEN_ENCRYPTION_KEY:-}
+      # Drive token refresh (audit S3-023): when an expired access_token is
+      # encountered, the worker calls Google's /token endpoint with the
+      # stored refresh_token + these credentials. Required for any
+      # long-running Drive import; without them the worker can read the
+      # initial access_token but every import that takes longer than the
+      # ~1h Google grace would 401 silently.
+      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
+      - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET:-}
       - NOTION_IMPORT_STAGING_DIR=${NOTION_IMPORT_STAGING_DIR:-/var/opencairn/import-staging}
       - SEMANTIC_SCHOLAR_API_KEY=${SEMANTIC_SCHOLAR_API_KEY:-}
       - UNPAYWALL_EMAIL=${UNPAYWALL_EMAIL:-}
