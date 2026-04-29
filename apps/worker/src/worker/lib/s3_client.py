@@ -110,6 +110,18 @@ def upload_jsonl(object_key: str, lines: list[dict]) -> None:
     )
 
 
+def upload_bytes(object_key: str, data: bytes, content_type: str) -> str:
+    """Upload raw bytes and return the object key. Used by synthesis compile."""
+    import io
+    bucket = os.environ.get("S3_BUCKET", "opencairn-uploads")
+    client = get_s3_client()
+    client.put_object(
+        bucket, object_key, data=io.BytesIO(data), length=len(data),
+        content_type=content_type,
+    )
+    return object_key
+
+
 def download_jsonl(object_key: str) -> list[dict]:
     """Read a JSONL blob and return one dict per line.
 
