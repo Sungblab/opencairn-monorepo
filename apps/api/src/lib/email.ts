@@ -161,3 +161,11 @@ export async function sendResetPasswordEmail(
 export function getEmailProvider(): Provider {
   return provider;
 }
+
+// Plan 2 Task 14 — generic send surface for the email-dispatcher. Unlike
+// the specific `sendInviteEmail` / `sendVerificationEmail` callers, the
+// dispatcher composes the subject + react element from the notification
+// kind and the recipient's locale, so it needs an unbranded entry point.
+export async function sendEmail(args: SendArgs): Promise<void> {
+  await send(args);
+}
