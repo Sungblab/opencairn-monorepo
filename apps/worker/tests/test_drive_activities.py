@@ -70,18 +70,44 @@ def _past_expiry(seconds: int = 600) -> datetime:
     return datetime.now(timezone.utc) - timedelta(seconds=seconds)
 
 
+class _FakeTxn:
+    """asyncpg.connection.Transaction stub — minimal async-context-manager."""
+
+    async def __aenter__(self) -> "_FakeTxn":
+        return self
+
+    async def __aexit__(self, *_a: Any) -> None:
+        return None
+
+
 class _FakeConn:
     """In-memory asyncpg connection stub.
 
-    `row` is the (single) row returned by fetchrow. `update_calls` records
-    every UPDATE arg tuple so refresh-path tests can verify what was
-    persisted. close() is a no-op.
+    `row` is the (single) row returned by fetchrow. `execute` calls land in
+    `execute_calls` (split below into advisory locks vs. UPDATEs by the
+    `update_calls` view) so refresh-path tests can verify what was
+    persisted and that the advisory lock fired. close() is a no-op.
     """
 
     def __init__(self, row: dict[str, Any] | None) -> None:
         self.row = row
         self.fetch_calls: list[tuple[str, tuple[Any, ...]]] = []
-        self.update_calls: list[tuple[str, tuple[Any, ...]]] = []
+        self.execute_calls: list[tuple[str, tuple[Any, ...]]] = []
+
+    @property
+    def update_calls(self) -> list[tuple[str, tuple[Any, ...]]]:
+        return [
+            c for c in self.execute_calls if "UPDATE" in c[0]
+        ]
+
+    @property
+    def advisory_lock_calls(self) -> list[tuple[str, tuple[Any, ...]]]:
+        return [
+            c for c in self.execute_calls if "pg_advisory_xact_lock" in c[0]
+        ]
+
+    def transaction(self) -> _FakeTxn:
+        return _FakeTxn()
 
     async def fetchrow(
         self, query: str, *args: Any
@@ -90,7 +116,7 @@ class _FakeConn:
         return self.row
 
     async def execute(self, query: str, *args: Any) -> str:
-        self.update_calls.append((query, args))
+        self.execute_calls.append((query, args))
         return "UPDATE 1"
 
     async def close(self) -> None:
@@ -175,6 +201,42 @@ async def test_fetch_returns_not_connected_when_workspace_lookup_misses(
 # ────────────────────────────────────────────────────────────────────────
 # S3-023: token refresh
 # ────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_fetch_acquires_advisory_lock_before_select(monkeypatch) -> None:
+    """Review fix: serialize concurrent refreshes per (user, workspace).
+
+    Verifies the SQL-level guarantee: the advisory lock is taken BEFORE
+    the row SELECT, so two concurrent activities can't both decide to
+    refresh at the same time. We don't test true concurrency here (that
+    needs a real DB) — only that the call sequence emitted to asyncpg
+    starts with the lock.
+    """
+    fake_conn = _FakeConn(
+        {
+            "id": "row-1",
+            "access_token_encrypted": b"old",
+            "refresh_token_encrypted": b"rt-cipher",
+            "token_expires_at": _future_expiry(),
+        },
+    )
+
+    async def fake_connect(_url: str) -> _FakeConn:
+        return fake_conn
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql://db/opencairn")
+    monkeypatch.setattr(drive_activities.asyncpg, "connect", fake_connect)
+    monkeypatch.setattr(drive_activities, "decrypt_token", lambda _b: "tok")
+
+    await drive_activities.fetch_google_drive_access_token("u", "w")
+
+    # First execute call must be the advisory lock with the user+workspace
+    # composed key. Subsequent SELECT happens via fetchrow afterward.
+    assert len(fake_conn.advisory_lock_calls) == 1
+    lock_args = fake_conn.advisory_lock_calls[0][1]
+    assert lock_args == ("u", "w")
+    assert fake_conn.fetch_calls, "SELECT should follow the lock"
 
 
 @pytest.mark.asyncio
@@ -390,10 +452,17 @@ async def test_exchange_refresh_token_posts_to_google(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_exchange_refresh_token_raises_on_non_200(monkeypatch) -> None:
+@pytest.mark.parametrize("status_code", [400, 401, 403])
+async def test_exchange_refresh_token_4xx_is_non_retryable(
+    monkeypatch, status_code: int
+) -> None:
+    """4xx from Google's /token = your refresh_token is dead, do not retry."""
+
     class FakeResponse:
-        status_code = 400
         text = '{"error":"invalid_grant"}'
+
+        def __init__(self, code: int) -> None:
+            self.status_code = code
 
     class FakeClient:
         def __init__(self, *_a: Any, **_kw: Any) -> None:
@@ -406,14 +475,53 @@ async def test_exchange_refresh_token_raises_on_non_200(monkeypatch) -> None:
             return None
 
         async def post(self, *_a: Any, **_kw: Any) -> FakeResponse:
-            return FakeResponse()
+            return FakeResponse(status_code)
 
     monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "cid")
     monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_SECRET", "csecret")
     monkeypatch.setattr(drive_activities.httpx, "AsyncClient", FakeClient)
 
-    with pytest.raises(ApplicationError, match="HTTP 400"):
+    with pytest.raises(ApplicationError) as excinfo:
         await drive_activities._exchange_refresh_token("rt")
+    assert f"HTTP {status_code}" in str(excinfo.value)
+    # ApplicationError surfaces non_retryable via the .non_retryable attribute.
+    assert excinfo.value.non_retryable is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status_code", [429, 500, 502, 503, 504])
+async def test_exchange_refresh_token_5xx_and_429_are_retryable(
+    monkeypatch, status_code: int
+) -> None:
+    """5xx + 429 are transient — Temporal's default retry handles them."""
+
+    class FakeResponse:
+        text = "Service Unavailable"
+
+        def __init__(self, code: int) -> None:
+            self.status_code = code
+
+    class FakeClient:
+        def __init__(self, *_a: Any, **_kw: Any) -> None:
+            pass
+
+        async def __aenter__(self) -> "FakeClient":
+            return self
+
+        async def __aexit__(self, *_a: Any) -> None:
+            return None
+
+        async def post(self, *_a: Any, **_kw: Any) -> FakeResponse:
+            return FakeResponse(status_code)
+
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "cid")
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_SECRET", "csecret")
+    monkeypatch.setattr(drive_activities.httpx, "AsyncClient", FakeClient)
+
+    with pytest.raises(ApplicationError) as excinfo:
+        await drive_activities._exchange_refresh_token("rt")
+    assert f"HTTP {status_code}" in str(excinfo.value)
+    assert excinfo.value.non_retryable is False
 
 
 @pytest.mark.asyncio

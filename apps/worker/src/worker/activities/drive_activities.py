@@ -130,13 +130,19 @@ async def _exchange_refresh_token(refresh_token: str) -> dict[str, Any]:
             },
         )
     if resp.status_code != 200:
-        # Google returns a JSON body with `error`/`error_description` we
-        # surface for ops triage but the user sees just "needs reauth"
-        # via the ApplicationError type — handler maps to a UI banner.
+        # Google's /token returns 4xx for "your refresh_token is dead" and
+        # 5xx/429 for transient infra hiccups. Code review caught that the
+        # original blanket non_retryable=True trains users to dismiss the
+        # "reconnect Drive" prompt for blips that would resolve on a
+        # Temporal retry. Differentiate so 5xx/429 ride the activity's
+        # default retry policy and only true 4xx auth failures surface.
         body = resp.text[:500]
+        is_transient = (
+            500 <= resp.status_code < 600 or resp.status_code == 429
+        )
         raise ApplicationError(
             f"Drive token refresh failed: HTTP {resp.status_code} — {body}",
-            non_retryable=True,
+            non_retryable=not is_transient,
         )
     return resp.json()
 
@@ -175,86 +181,107 @@ async def fetch_google_drive_access_token(
 
     conn = await asyncpg.connect(_asyncpg_url(db_url))
     try:
-        row = await conn.fetchrow(
-            """
-            SELECT id,
-                   access_token_encrypted,
-                   refresh_token_encrypted,
-                   token_expires_at
-            FROM user_integrations
-            WHERE user_id = $1
-              AND workspace_id = $2
-              AND provider = $3
-            LIMIT 1
-            """,
-            user_id,
-            workspace_id,
-            "google_drive",
-        )
-        if row is None or row["access_token_encrypted"] is None:
-            raise ApplicationError(
-                "google_drive integration is not connected",
-                non_retryable=True,
-            )
-
-        access_token = decrypt_token(bytes(row["access_token_encrypted"]))
-        expires_at = row["token_expires_at"]
-        now = datetime.now(timezone.utc)
-        # Treat NULL expires_at as "unknown — assume fresh-ish". OAuth
-        # callbacks always write expires_at, so a NULL row would only show
-        # up if someone hand-edited the DB; refusing to use it is hostile.
-        if expires_at is None or expires_at - _REFRESH_SKEW > now:
-            return access_token
-
-        refresh_blob = row["refresh_token_encrypted"]
-        if refresh_blob is None:
-            raise ApplicationError(
-                "google_drive token expired and no refresh_token is on file"
-                " — user must reconnect Drive",
-                non_retryable=True,
-            )
-        refresh_token = decrypt_token(bytes(refresh_blob))
-        tokens = await _exchange_refresh_token(refresh_token)
-        new_access = tokens.get("access_token")
-        expires_in = tokens.get("expires_in")
-        if not isinstance(new_access, str) or not isinstance(expires_in, int):
-            raise ApplicationError(
-                "Drive token refresh response missing access_token/expires_in",
-                non_retryable=True,
-            )
-        new_expires_at = now + timedelta(seconds=expires_in)
-        # Google occasionally rotates the refresh_token. When it does, we
-        # MUST persist the new one — the old one is invalidated server-side.
-        new_refresh = tokens.get("refresh_token")
-        if isinstance(new_refresh, str) and new_refresh:
+        # Serialize concurrent refresh attempts for the SAME (user_id,
+        # workspace_id). Without the advisory lock, N parallel Drive
+        # download activities can all see an expired token, all POST
+        # the same refresh_token to Google, and the slow path ends up
+        # persisting a stale access_token while Google has already
+        # invalidated everyone else's response. With the lock the first
+        # activity refreshes; the rest queue, then re-read inside the
+        # lock and find a fresh token (the double-checked-locking
+        # second SELECT below). hashtext() returns a Postgres int4 —
+        # collisions across different (user, ws) pairs only ever cause
+        # spurious queueing, never a correctness gap.
+        async with conn.transaction():
             await conn.execute(
-                """
-                UPDATE user_integrations
-                SET access_token_encrypted = $1,
-                    refresh_token_encrypted = $2,
-                    token_expires_at = $3,
-                    updated_at = NOW()
-                WHERE id = $4
-                """,
-                encrypt_token(new_access),
-                encrypt_token(new_refresh),
-                new_expires_at,
-                row["id"],
+                "SELECT pg_advisory_xact_lock(hashtext($1 || ':' || $2))",
+                user_id,
+                workspace_id,
             )
-        else:
-            await conn.execute(
+            row = await conn.fetchrow(
                 """
-                UPDATE user_integrations
-                SET access_token_encrypted = $1,
-                    token_expires_at = $2,
-                    updated_at = NOW()
-                WHERE id = $3
+                SELECT id,
+                       access_token_encrypted,
+                       refresh_token_encrypted,
+                       token_expires_at
+                FROM user_integrations
+                WHERE user_id = $1
+                  AND workspace_id = $2
+                  AND provider = $3
+                LIMIT 1
                 """,
-                encrypt_token(new_access),
-                new_expires_at,
-                row["id"],
+                user_id,
+                workspace_id,
+                "google_drive",
             )
-        return new_access
+            if row is None or row["access_token_encrypted"] is None:
+                raise ApplicationError(
+                    "google_drive integration is not connected",
+                    non_retryable=True,
+                )
+
+            access_token = decrypt_token(bytes(row["access_token_encrypted"]))
+            expires_at = row["token_expires_at"]
+            now = datetime.now(timezone.utc)
+            # Treat NULL expires_at as "unknown — assume fresh-ish".
+            # OAuth callbacks always write expires_at, so a NULL row
+            # would only show up if someone hand-edited the DB; refusing
+            # to use it is hostile.
+            if expires_at is None or expires_at - _REFRESH_SKEW > now:
+                return access_token
+
+            refresh_blob = row["refresh_token_encrypted"]
+            if refresh_blob is None:
+                raise ApplicationError(
+                    "google_drive token expired and no refresh_token is on"
+                    " file — user must reconnect Drive",
+                    non_retryable=True,
+                )
+            refresh_token = decrypt_token(bytes(refresh_blob))
+            tokens = await _exchange_refresh_token(refresh_token)
+            new_access = tokens.get("access_token")
+            expires_in = tokens.get("expires_in")
+            if not isinstance(new_access, str) or not isinstance(
+                expires_in, int
+            ):
+                raise ApplicationError(
+                    "Drive token refresh response missing access_token/expires_in",
+                    non_retryable=True,
+                )
+            new_expires_at = now + timedelta(seconds=expires_in)
+            # Google occasionally rotates the refresh_token. When it
+            # does, we MUST persist the new one — the old one is
+            # invalidated server-side.
+            new_refresh = tokens.get("refresh_token")
+            if isinstance(new_refresh, str) and new_refresh:
+                await conn.execute(
+                    """
+                    UPDATE user_integrations
+                    SET access_token_encrypted = $1,
+                        refresh_token_encrypted = $2,
+                        token_expires_at = $3,
+                        updated_at = NOW()
+                    WHERE id = $4
+                    """,
+                    encrypt_token(new_access),
+                    encrypt_token(new_refresh),
+                    new_expires_at,
+                    row["id"],
+                )
+            else:
+                await conn.execute(
+                    """
+                    UPDATE user_integrations
+                    SET access_token_encrypted = $1,
+                        token_expires_at = $2,
+                        updated_at = NOW()
+                    WHERE id = $3
+                    """,
+                    encrypt_token(new_access),
+                    new_expires_at,
+                    row["id"],
+                )
+            return new_access
     finally:
         await conn.close()
 
