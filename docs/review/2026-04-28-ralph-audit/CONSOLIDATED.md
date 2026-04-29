@@ -18,6 +18,8 @@
 
 ¹ Session 6 Highs = S6-011 + S6-022. S6-011 (MinIO root password default) is fixed in commit `a1f6bc6`; S6-022 (CI removed) is unfixed.
 
+**Update 2026-04-29:** S2-026 + S3-056 fixed in branch `fix/ralph-chat-ingest-ux` — see entries below for closure notes.
+
 ---
 
 ## Critical (1)
@@ -45,7 +47,7 @@
 | S2-001 | `addTab` does not focus new tab (keeps `activeId ?? tab.id`) | `apps/web/src/stores/tabs-store.ts` |
 | S2-006 | ChatPanel uses `res.text()` — no SSE streaming, full buffering | `apps/web/src/components/chat/ChatPanel.tsx` |
 | S2-007 | ChatPanel ignores SSE `event: error` — empty response on LLM misconfig | same |
-| S2-026 | Agent Panel `history: []` hardcoded — multi-turn LLM context = 0 | `apps/api/src/lib/agent-pipeline.ts:56` |
+| ~~S2-026~~ | ~~Agent Panel `history: []` hardcoded — multi-turn LLM context = 0~~ | Fixed in `fix/ralph-chat-ingest-ux` — `loadHistory()` reads `chat_messages` (status=complete, body present, excluding current-turn IDs) and forwards to `runChat`. Capped by `CHAT_MAX_HISTORY_TURNS` (default 12, unified with `chat-llm.truncateHistory`). |
 
 ### Session 3 — Ingest Pipeline & Sources (13 unfixed)
 
@@ -62,7 +64,7 @@
 | S3-024 | Notion ZIP `zipObjectKey` not validated against issuer's prefix | `apps/api/src/routes/import.ts:170-228` |
 | S3-025 | Drive folder walk does not paginate `nextPageToken` (silent truncation > 1000) | `apps/worker/src/worker/activities/drive_activities.py:157-176` |
 | S3-052 | Redis 6379 + Temporal gRPC 7233 + Temporal UI 8080 + MinIO 9001 — all unauthenticated, host-published | `docker-compose.yml` |
-| S3-056 | `startRun` has no UI call site — Live Ingest Visualization completely dead in production | `apps/web/src/stores/ingest-store.ts:71` |
+| ~~S3-056~~ | ~~`startRun` has no UI call site — Live Ingest Visualization completely dead in production~~ | Fixed in `fix/ralph-chat-ingest-ux` — new `useIngestUpload` hook + `IngestUploadButton` mounted in ProjectView. POST /api/ingest/upload → store.startRun() fires spotlight. Button gated by `NEXT_PUBLIC_FEATURE_LIVE_INGEST` to match `IngestOverlays` (whole-pathway switch — flag off = no entry point AND no progress UI). |
 | S3-073 | MinIO/Worker S3 client hardcoded `minioadmin` fallback credentials | `apps/api/src/lib/s3.ts:37-38`, `apps/worker/src/worker/lib/s3_client.py:30-31` |
 | S3-089 | `INTERNAL_API_SECRET` defaults to `"change-me-in-production"` in worker | `apps/worker/src/worker/lib/api_client.py:21` |
 

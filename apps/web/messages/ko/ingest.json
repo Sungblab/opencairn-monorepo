@@ -41,5 +41,11 @@
     "generic": "처리 중 오류가 발생했습니다.",
     "unsupported": "지원되지 않는 파일일 수 있습니다.",
     "retryHint": "잠시 후 다시 시도해 주세요."
+  },
+  "uploadButton": {
+    "label": "파일 업로드",
+    "uploading": "업로드 중...",
+    "errorGeneric": "업로드에 실패했어요. 잠시 후 다시 시도해 주세요.",
+    "errorUnsupported": "지원되지 않는 파일 형식입니다."
   }
 }
