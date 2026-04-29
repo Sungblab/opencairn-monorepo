@@ -289,6 +289,23 @@ This starts `api` on `http://localhost:4000`, `web` on
 against `temporal:7233`. Use `--profile ollama` as well when running the local
 LLM service.
 
+#### Full-stack Docker shortcut
+
+Steps 3–4 above are wrapped into a single command for end-to-end smoke tests
+where you don't need hot-reload:
+
+```bash
+pnpm dev:docker          # infra → migrate → web/api/worker/hocuspocus 빌드+기동
+pnpm dev:docker:logs     # 모든 앱 컨테이너 로그 follow
+pnpm dev:docker:rebuild  # 코드 수정 후 캐시 없이 다시 빌드 (이후 dev:docker로 기동)
+pnpm dev:docker:down     # 컨테이너 정리 (볼륨 유지)
+pnpm dev:docker:reset    # 컨테이너 + 볼륨까지 삭제 (DB/MinIO 초기화)
+```
+
+코드를 자주 고치는 흐름이면 호스트 hot-reload 경로 (`docker compose up -d`
++ `pnpm dev`)가 빠릅니다. `dev:docker`는 production-ish 이미지를 빌드하므로
+소스 변경 반영에 매번 `dev:docker:rebuild` → `dev:docker`가 필요합니다.
+
 ## Import (Drive + Notion)
 
 One-shot bulk import at `/app/w/[slug]/import`. Feature flag:
