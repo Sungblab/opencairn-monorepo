@@ -1,6 +1,6 @@
 import pytest
 from pydantic import ValidationError
-from worker.agents.synthesis.schemas import (
+from worker.agents.synthesis_export.schemas import (
     SynthesisOutputSchema,
     BibEntry,
     SynthesisSection,

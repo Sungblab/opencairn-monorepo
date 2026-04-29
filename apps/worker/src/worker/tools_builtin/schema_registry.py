@@ -36,8 +36,8 @@ register_schema("ConceptSummary", ConceptSummary)
 register_schema("ResearchAnswer", ResearchAnswer)
 
 
-# Synthesis schema ------------------------------------------------------
+# Synthesis Export schema ----------------------------------------------
 
-from worker.agents.synthesis.schemas import SynthesisOutputSchema  # noqa: E402
+from worker.agents.synthesis_export.schemas import SynthesisOutputSchema  # noqa: E402
 
 register_schema("SynthesisOutputSchema", SynthesisOutputSchema)
