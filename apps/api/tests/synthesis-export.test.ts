@@ -20,8 +20,21 @@ vi.mock("../src/lib/temporal-client.js", () => ({
   taskQueue: () => "ingest",
 }));
 
+vi.mock("../src/lib/s3-get.js", () => ({
+  streamObject: vi.fn().mockResolvedValue({
+    stream: new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("# fake doc"));
+        controller.close();
+      },
+    }),
+    contentType: "text/markdown; charset=utf-8",
+    contentLength: 10,
+  }),
+}));
+
 import { createApp } from "../src/app.js";
-import { db, synthesisRuns, eq } from "@opencairn/db";
+import { db, synthesisRuns, synthesisDocuments, eq } from "@opencairn/db";
 import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
 
@@ -180,6 +193,150 @@ describe("GET /api/synthesis-export/runs/:id/stream", () => {
         headers: { cookie },
       },
     );
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("synthesis-export run list/detail/document/resynth/delete", () => {
+  let seed: SeedResult;
+  let runId: string;
+
+  beforeEach(async () => {
+    seed = await seedWorkspace({ role: "owner" });
+    cancelSpy.mockClear();
+    const res = await authedRequest("/api/synthesis-export/run", {
+      method: "POST",
+      userId: seed.userId,
+      body: JSON.stringify({
+        workspaceId: seed.workspaceId,
+        format: "md",
+        template: "report",
+        userPrompt: "x",
+        explicitSourceIds: [],
+        noteIds: [],
+        autoSearch: false,
+      }),
+    });
+    const body = (await res.json()) as { runId: string };
+    runId = body.runId;
+  });
+
+  afterEach(async () => {
+    await seed.cleanup();
+  });
+
+  it("GET /runs lists workspace runs", async () => {
+    const res = await authedRequest(
+      `/api/synthesis-export/runs?workspaceId=${seed.workspaceId}`,
+      { method: "GET", userId: seed.userId },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { runs: Array<{ id: string }> };
+    expect(body.runs.find((r) => r.id === runId)).toBeDefined();
+  });
+
+  it("GET /runs requires workspaceId query", async () => {
+    const res = await authedRequest("/api/synthesis-export/runs", {
+      method: "GET",
+      userId: seed.userId,
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("GET /runs/:id returns detail with sources + documents arrays", async () => {
+    const res = await authedRequest(`/api/synthesis-export/runs/${runId}`, {
+      method: "GET",
+      userId: seed.userId,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      id: string;
+      sources: unknown[];
+      documents: unknown[];
+    };
+    expect(body.id).toBe(runId);
+    expect(Array.isArray(body.sources)).toBe(true);
+    expect(Array.isArray(body.documents)).toBe(true);
+  });
+
+  it("GET /runs/:id returns 404 for unknown run", async () => {
+    const ghost = crypto.randomUUID();
+    const res = await authedRequest(`/api/synthesis-export/runs/${ghost}`, {
+      method: "GET",
+      userId: seed.userId,
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("GET /document returns 404 when no document is recorded", async () => {
+    const res = await authedRequest(
+      `/api/synthesis-export/runs/${runId}/document?format=md`,
+      { method: "GET", userId: seed.userId },
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("GET /document streams the recorded document for the requested format", async () => {
+    await db.insert(synthesisDocuments).values({
+      runId,
+      format: "md",
+      s3Key: `synthesis/runs/${runId}/document.md`,
+      bytes: 10,
+    });
+
+    const res = await authedRequest(
+      `/api/synthesis-export/runs/${runId}/document?format=md`,
+      { method: "GET", userId: seed.userId },
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/markdown");
+    expect(res.headers.get("content-disposition")).toContain(
+      `synthesis-${runId}.md`,
+    );
+    const text = await res.text();
+    expect(text).toContain("# fake doc");
+  });
+
+  it("POST /resynthesize creates a fresh run with a new id", async () => {
+    const res = await authedRequest(
+      `/api/synthesis-export/runs/${runId}/resynthesize`,
+      {
+        method: "POST",
+        userId: seed.userId,
+        body: JSON.stringify({ userPrompt: "Try again with a longer intro." }),
+      },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { runId: string };
+    expect(body.runId).not.toBe(runId);
+    expect(body.runId).toMatch(/^[0-9a-f-]{36}$/);
+    const [row] = await db
+      .select()
+      .from(synthesisRuns)
+      .where(eq(synthesisRuns.id, body.runId));
+    expect(row!.workflowId).toBe(`synthesis-export-${body.runId}`);
+  });
+
+  it("DELETE /runs/:id signals cancel, removes the row, and returns 204", async () => {
+    const res = await authedRequest(`/api/synthesis-export/runs/${runId}`, {
+      method: "DELETE",
+      userId: seed.userId,
+    });
+    expect(res.status).toBe(204);
+    expect(cancelSpy).toHaveBeenCalledOnce();
+    const [row] = await db
+      .select()
+      .from(synthesisRuns)
+      .where(eq(synthesisRuns.id, runId));
+    expect(row).toBeUndefined();
+  });
+
+  it("DELETE /runs/:id returns 404 for unknown run", async () => {
+    const ghost = crypto.randomUUID();
+    const res = await authedRequest(`/api/synthesis-export/runs/${ghost}`, {
+      method: "DELETE",
+      userId: seed.userId,
+    });
     expect(res.status).toBe(404);
   });
 });
