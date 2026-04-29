@@ -403,6 +403,7 @@ workspaceRoutes.get(
         project_id: notes.projectId,
         project_name: projects.name,
         updated_at: notes.updatedAt,
+        content_text: notes.contentText,
       })
       .from(notes)
       .innerJoin(projects, eq(projects.id, notes.projectId))
@@ -437,7 +438,19 @@ workspaceRoutes.get(
       .orderBy(desc(notes.updatedAt))
       .limit(limit);
 
-    return c.json({ notes: rows });
+    // Mockup §dashboard recent-docs cards show a 1-line excerpt; we slice
+    // the indexed `content_text` to ~120 chars and collapse whitespace so
+    // the API doesn't ship full note bodies down. Note that `content_text`
+    // can be empty for a brand-new note — fall back to null in that case.
+    const shaped = rows.map(({ content_text, ...rest }) => ({
+      ...rest,
+      excerpt:
+        typeof content_text === "string" && content_text.trim().length > 0
+          ? content_text.replace(/\s+/g, " ").trim().slice(0, 120)
+          : null,
+    }));
+
+    return c.json({ notes: shaped });
   },
 );
 

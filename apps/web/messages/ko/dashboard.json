@@ -17,19 +17,42 @@
     "weekDelta": "+{n} 이번 주",
     "research": "Deep Research",
     "researchInProgress": "{n} 진행 중",
+    "researchActiveSuffix": "진행 중",
+    "researchHint": "관리형 + BYOK 통합",
     "credits": "남은 크레딧",
     "creditsAmount": "₩{value}",
+    "creditsEstimate": "≈ Deep Research {n}회",
+    "creditsEmpty": "BYOK 사용 시 무료",
     "byok": "BYOK 키",
+    "byokProvider": "Gemini API",
     "connected": "연결됨",
     "disconnected": "미연결"
   },
   "sections": {
     "activeResearch": "진행 중인 Deep Research",
-    "recentDocs": "최근 작업한 문서"
+    "recentDocs": "최근 작업한 문서",
+    "viewAll": "전체 보기"
+  },
+  "statusChip": {
+    "planning": "planning",
+    "awaiting_approval": "awaiting approval",
+    "researching": "researching",
+    "completed": "completed",
+    "failed": "failed",
+    "cancelled": "cancelled"
+  },
+  "statusHint": {
+    "planning": "플랜 작성 중",
+    "awaiting_approval": "플랜 승인 대기",
+    "researching": "리서치 실행 중",
+    "completed": "완료",
+    "failed": "실패",
+    "cancelled": "취소됨"
   },
   "lists": {
     "noResearch": "진행 중인 리서치가 없습니다.",
     "noDocs": "최근 노트가 없습니다.",
+    "emptyExcerpt": "본문이 비어 있어요.",
     "openLink": "열기"
   }
 }

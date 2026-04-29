@@ -17,19 +17,42 @@
     "weekDelta": "+{n} this week",
     "research": "Deep Research",
     "researchInProgress": "{n} in progress",
+    "researchActiveSuffix": "in progress",
+    "researchHint": "Managed + BYOK combined",
     "credits": "Credits",
     "creditsAmount": "₩{value}",
+    "creditsEstimate": "≈ {n} Deep Research runs",
+    "creditsEmpty": "Free with BYOK",
     "byok": "BYOK key",
+    "byokProvider": "Gemini API",
     "connected": "Connected",
     "disconnected": "Not connected"
   },
   "sections": {
     "activeResearch": "Active Deep Research",
-    "recentDocs": "Recent documents"
+    "recentDocs": "Recent documents",
+    "viewAll": "View all"
+  },
+  "statusChip": {
+    "planning": "planning",
+    "awaiting_approval": "awaiting approval",
+    "researching": "researching",
+    "completed": "completed",
+    "failed": "failed",
+    "cancelled": "cancelled"
+  },
+  "statusHint": {
+    "planning": "Drafting plan",
+    "awaiting_approval": "Awaiting plan approval",
+    "researching": "Researching",
+    "completed": "Completed",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
   },
   "lists": {
     "noResearch": "No active research.",
     "noDocs": "No recent notes.",
+    "emptyExcerpt": "No content yet.",
     "openLink": "Open"
   }
 }

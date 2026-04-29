@@ -27,22 +27,32 @@ export function DashboardView({
         </div>
         <Link
           href={`/${locale}/app/w/${wsSlug}/new-project`}
-          className="rounded bg-foreground px-3 py-1.5 text-sm text-background"
+          className="app-btn-primary rounded px-3 py-1.5 text-sm"
         >
           {t("newProject")}
         </Link>
       </header>
       <StatsRow wsId={wsId} />
       <section>
-        <h2 className="mb-2 text-sm font-semibold">
-          {t("sections.activeResearch")}
-        </h2>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold">
+            {t("sections.activeResearch")}
+          </h2>
+          <Link
+            href={`/${locale}/app/w/${wsSlug}/research`}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            {t("sections.viewAll")} →
+          </Link>
+        </div>
         <ActiveResearchList wsId={wsId} wsSlug={wsSlug} />
       </section>
       <section>
-        <h2 className="mb-2 text-sm font-semibold">
-          {t("sections.recentDocs")}
-        </h2>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold">
+            {t("sections.recentDocs")}
+          </h2>
+        </div>
         <RecentDocsGrid wsId={wsId} wsSlug={wsSlug} />
       </section>
     </div>
