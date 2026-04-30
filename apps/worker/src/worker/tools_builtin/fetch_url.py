@@ -9,7 +9,9 @@ worker where ingress is controlled).
 from __future__ import annotations
 
 import ipaddress
+import re
 import socket
+from html.parser import HTMLParser
 from urllib.parse import urlparse
 
 import httpx
@@ -68,6 +70,37 @@ async def _fetch_bytes(url: str) -> tuple[bytes, str]:
     return b"".join(chunks), content_type.split(";")[0].strip()
 
 
+class _HtmlTextExtractor(HTMLParser):
+    """Tokeniser-based stripper. Regex-based `<script.*?</script>` filtering
+    (CodeQL py/bad-tag-filter) is fooled by case/whitespace tricks like
+    `<scrIPT >`, self-closing `<script />`, or unclosed tags — but it's also
+    just the wrong tool: the stdlib parser tokenises consistently with how a
+    browser would handle the same input.
+    """
+
+    _SKIP_TAGS = frozenset({"script", "style", "noscript", "template"})
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._parts: list[str] = []
+        self._skip_depth = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() in self._SKIP_TAGS:
+            self._skip_depth += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() in self._SKIP_TAGS and self._skip_depth > 0:
+            self._skip_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if self._skip_depth == 0:
+            self._parts.append(data)
+
+    def text(self) -> str:
+        return " ".join(self._parts)
+
+
 def _extract_text(body: bytes, content_type: str) -> str:
     if not content_type.startswith("text/"):
         return "[binary content omitted]"
@@ -76,12 +109,15 @@ def _extract_text(body: bytes, content_type: str) -> str:
     except Exception:
         return "[decoding failed]"
     if content_type == "text/html":
-        import re
-        stripped = re.sub(r"<script.*?</script>|<style.*?</style>", " ",
-                          html, flags=re.DOTALL | re.IGNORECASE)
-        stripped = re.sub(r"<[^>]+>", " ", stripped)
-        stripped = re.sub(r"\s+", " ", stripped).strip()
-        return stripped
+        parser = _HtmlTextExtractor()
+        try:
+            parser.feed(html)
+            parser.close()
+        except Exception:
+            # Malformed HTML — fall back to whatever the parser collected
+            # before bailing rather than dropping the response.
+            pass
+        return re.sub(r"\s+", " ", parser.text()).strip()
     return html
 
 

@@ -108,7 +108,13 @@ async def transcribe_audio(inp: dict) -> dict:
         await publish_safe(workflow_id, "stage_changed", {"stage": "downloading", "pct": None})
 
     media_path = download_to_tempfile(object_key)
-    wav_path = Path(tempfile.mktemp(suffix=".wav"))
+    # `tempfile.mktemp` returns a name that may be created by another process
+    # before we open it (CodeQL py/insecure-temporary-file). `mkstemp` opens
+    # the file atomically with O_EXCL+0600; ffmpeg overwrites the path via
+    # `-y`, which is fine because the inode we just created is owned by us.
+    _wav_fd, _wav_name = tempfile.mkstemp(suffix=".wav")
+    os.close(_wav_fd)
+    wav_path = Path(_wav_name)
 
     try:
         if workflow_id:

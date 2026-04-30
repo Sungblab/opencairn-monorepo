@@ -1,6 +1,9 @@
 import type { MentionToken } from "@opencairn/shared";
 
-const TOKEN_RE = /@\[(user|page|concept|date):([^\]\s]+)\]/g;
+// Bounded quantifier (`{1,128}`) keeps matchAll/replace linear on hostile
+// input — e.g. `@[user:` followed by 100k chars with no closing `]`. An
+// unbounded `+` triggers polynomial backtracking on every `@[user:` prefix.
+const TOKEN_RE = /@\[(user|page|concept|date):([^\]\s]{1,128})\]/g;
 
 export function parseMentions(body: string): MentionToken[] {
   const seen = new Set<string>();

@@ -27,13 +27,13 @@ test.describe("notion zip import end-to-end", () => {
     const session = await seedAndSignIn(request);
     await applySessionCookie(context, session);
 
-    // Build a fresh Notion-like fixture ZIP in os.tmpdir. We don't ship a
-    // committed binary — rebuilding per run keeps the shape obvious and
-    // avoids diffing opaque zip bytes in reviews.
-    const zipPath = path.join(
-      os.tmpdir(),
-      `notion-e2e-${Date.now()}.zip`,
-    );
+    // Build a fresh Notion-like fixture ZIP in a per-test mkdtemp directory.
+    // We don't ship a committed binary — rebuilding per run keeps the shape
+    // obvious and avoids diffing opaque zip bytes in reviews. `mkdtempSync`
+    // gives us an unpredictable directory name (CodeQL js/insecure-temporary-file
+    // — `Date.now()` would let a co-tenant on the runner pre-create the path).
+    const zipDir = fs.mkdtempSync(path.join(os.tmpdir(), "notion-e2e-"));
+    const zipPath = path.join(zipDir, "import.zip");
     const ROOT_ID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     const CHILD_ID = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
     const zip = new JSZip();
@@ -74,7 +74,7 @@ test.describe("notion zip import end-to-end", () => {
         timeout: 60_000,
       });
     } finally {
-      fs.unlink(zipPath, () => {
+      fs.rm(zipDir, { recursive: true, force: true }, () => {
         /* best-effort */
       });
     }

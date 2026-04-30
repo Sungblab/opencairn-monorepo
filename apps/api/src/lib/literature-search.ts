@@ -347,18 +347,30 @@ export async function federatedSearch(
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
+// `&amp;` must be decoded LAST. Decoding it first turns `&amp;lt;` into
+// `&lt;` and then `<`, which is double-decoding (CodeQL js/double-escaping).
 function decodeXml(s: string): string {
   return s
-    .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     // Both forms: &apos; (XML named) and &#39; (numeric). Crossref
     // metadata uses the named form for author/title apostrophes.
     .replace(/&apos;/g, "'")
-    .replace(/&#39;/g, "'");
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
 }
 
+// A single pass of `<[^>]+>` is incomplete on overlapping tags like `<a<b>c>`
+// — first match strips `<a<b>`, leaving `c>` plus any synthesised `<` from
+// the inner residue. Loop until the string stabilises so the output is
+// guaranteed tag-free.
 function stripHtml(s: string): string {
-  return s.replace(/<[^>]+>/g, "");
+  let prev: string;
+  let curr = s;
+  do {
+    prev = curr;
+    curr = curr.replace(/<[^>]+>/g, "");
+  } while (curr !== prev);
+  return curr;
 }

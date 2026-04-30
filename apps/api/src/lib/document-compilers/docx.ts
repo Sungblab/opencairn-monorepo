@@ -26,15 +26,27 @@ function decodeXmlEntities(s: string): string {
     .replace(/&amp;/g, "&");
 }
 
+// A single pass of `<[^>]+>` is incomplete on overlapping tags like
+// `<a<b>c>` — first match strips `<a<b>` leaving `c>`. Loop until stable
+// so the output is guaranteed tag-free (CodeQL js/incomplete-multi-character-sanitization).
+function stripAllTags(s: string): string {
+  let prev: string;
+  let curr = s;
+  do {
+    prev = curr;
+    curr = curr.replace(/<[^>]+>/g, "");
+  } while (curr !== prev);
+  return curr;
+}
+
 // Strip a tiny HTML subset (h1/h2/p/strong/em/li/code) into plain runs.
 // Production-grade HTML→DOCX is out of scope; the LLM is instructed to
 // emit the supported subset.
 function htmlToParagraphs(html: string): Paragraph[] {
-  const stripped = html
+  const blockBreaks = html
     .replace(/<\/(p|div|li)>/gi, "\n")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .trim();
+    .replace(/<br\s*\/?>/gi, "\n");
+  const stripped = stripAllTags(blockBreaks).trim();
   if (stripped === "") return [];
   const decoded = decodeXmlEntities(stripped);
   return decoded.split(/\n+/).map((line) => new Paragraph({

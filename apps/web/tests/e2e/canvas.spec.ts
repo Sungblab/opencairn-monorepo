@@ -77,12 +77,21 @@ test.describe("Canvas Phase 1 — /canvas/demo", () => {
     const msg = await page.evaluate(
       () =>
         new Promise<unknown>((resolve) => {
-          window.addEventListener(
-            "message",
-            (e) => resolve(e.data),
-            { once: true },
-          );
-          setTimeout(() => resolve({ type: "TIMEOUT" }), 8000);
+          // The CanvasFrame iframe is `sandbox="allow-scripts"` (no
+          // allow-same-origin), so its postMessage events arrive with
+          // `origin === "null"`. Filtering on that origin (CodeQL
+          // js/missing-origin-check) keeps the test from accidentally
+          // resolving on a stray message from devtools/extensions.
+          const handler = (e: MessageEvent) => {
+            if (e.origin !== "null") return;
+            window.removeEventListener("message", handler);
+            resolve(e.data);
+          };
+          window.addEventListener("message", handler);
+          setTimeout(() => {
+            window.removeEventListener("message", handler);
+            resolve({ type: "TIMEOUT" });
+          }, 8000);
         }),
     );
     expect((msg as { type: string }).type).toBe("BLOCKED");
