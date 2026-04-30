@@ -533,7 +533,11 @@ export function NoteEditor({
             />
             <PlateContent
               data-testid="note-body"
-              placeholder={t("placeholder.body")}
+              placeholder={
+                aiSlashEnabled && !readOnly
+                  ? t("placeholder.body_with_slash")
+                  : t("placeholder.body")
+              }
               className="prose prose-stone mt-6 min-h-[60vh] max-w-none focus:outline-none"
               readOnly={readOnly}
             />

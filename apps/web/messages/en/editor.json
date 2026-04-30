@@ -1,7 +1,8 @@
 {
   "placeholder": {
     "title": "Untitled",
-    "body": "Start typing…"
+    "body": "Start typing…",
+    "body_with_slash": "Start typing… Press / to open AI tools."
   },
   "save": {
     "saving": "Saving…",
