@@ -9,6 +9,7 @@ import {
   isInsideCodeContext,
   applyDollarInlineTrigger,
   applyDollarBlockTrigger,
+  triggerMathShortcut,
 } from "./math-trigger";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -44,6 +45,22 @@ function makeEditorWithCodeBlockText(text: string) {
         children: [{ type: "code_line", children: [{ text }] }],
       },
     ],
+    tf: {
+      delete: vi.fn(),
+      insertNodes: vi.fn(),
+      removeNodes: vi.fn(),
+    },
+  };
+}
+
+/** Build an editor with a non-collapsed selection at [offset1..offset2] in first text leaf. */
+function makeEditorWithSelection(text: string, startOffset: number, endOffset: number) {
+  return {
+    selection: {
+      anchor: { path: [0, 0], offset: startOffset },
+      focus: { path: [0, 0], offset: endOffset },
+    },
+    children: [{ type: "paragraph", children: [{ text }] }],
     tf: {
       delete: vi.fn(),
       insertNodes: vi.fn(),
@@ -167,5 +184,40 @@ describe("applyDollarBlockTrigger", () => {
     };
     applyDollarBlockTrigger(editor as never);
     expect(editor.tf.removeNodes).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Task 4.4 — triggerMathShortcut ──────────────────────────────────────────
+
+describe("Ctrl+Shift+M shortcut", () => {
+  it("replaces selected text with an inline_equation node containing that text as LaTeX", () => {
+    // "alpha to omega" → select "to" at offsets 6..8
+    const editor = makeEditorWithSelection("alpha to omega", 6, 8);
+    triggerMathShortcut(editor as never);
+    expect(editor.tf.delete).toHaveBeenCalledTimes(1);
+    expect(editor.tf.insertNodes).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "inline_equation", texExpression: "to" }),
+    );
+  });
+
+  it("no-ops on collapsed selection", () => {
+    const editor = makeEditorWithSelection("alpha", 0, 0);
+    triggerMathShortcut(editor as never);
+    expect(editor.tf.delete).not.toHaveBeenCalled();
+    expect(editor.tf.insertNodes).not.toHaveBeenCalled();
+  });
+
+  it("no-ops when selection is null", () => {
+    const editor = {
+      selection: null,
+      children: [{ type: "paragraph", children: [{ text: "hello" }] }],
+      tf: {
+        delete: vi.fn(),
+        insertNodes: vi.fn(),
+        removeNodes: vi.fn(),
+      },
+    };
+    triggerMathShortcut(editor as never);
+    expect(editor.tf.delete).not.toHaveBeenCalled();
   });
 });
