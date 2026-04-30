@@ -13,6 +13,7 @@
 
 import { db, chatMessages, chatThreads, and, desc, eq, notInArray, sql } from "@opencairn/db";
 import { runChat, type ChatChunk } from "./chat-llm";
+import type { ChatMode } from "./chat-runtime-policy";
 import type { RagMode } from "./chat-retrieval";
 import type { ChatMsg, LLMProvider } from "./llm/gemini";
 import { envInt } from "./env";
@@ -33,7 +34,7 @@ export interface AgentChunk {
   payload: unknown;
 }
 
-export type ChatMode = "auto" | "fast" | "balanced" | "accurate" | "research";
+export type { ChatMode };
 
 export async function* runAgent(opts: {
   threadId: string;
@@ -74,6 +75,7 @@ export async function* runAgent(opts: {
     userMessage: opts.userMessage.content,
     signal: opts.signal,
     provider: opts.provider,
+    mode: opts.mode,
   })) {
     yield mapChunk(chunk);
   }
