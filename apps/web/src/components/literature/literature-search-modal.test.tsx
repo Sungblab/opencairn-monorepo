@@ -103,8 +103,10 @@ describe("LiteratureSearchModal", () => {
     );
     expect(searchCall).toBeDefined();
     const calledUrl = String(searchCall![0]);
-    expect(calledUrl).toContain("workspaceId=ws-1");
-    expect(calledUrl).toContain("q=diffusion%20models");
+    const parsed = new URL(calledUrl, "http://localhost");
+    expect(parsed.searchParams.get("workspaceId")).toBe("ws-1");
+    expect(parsed.searchParams.get("q")).toBe("diffusion models");
+    expect(parsed.searchParams.get("limit")).toBe("20");
   });
 
   it("calls /api/literature/import with selected ids + projectId, then surfaces queued count", async () => {

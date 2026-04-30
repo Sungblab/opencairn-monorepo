@@ -108,10 +108,15 @@ export function LiteratureSearchModal({
   const searchM = useMutation({
     mutationFn: async (q: string): Promise<SearchResponse> => {
       if (!workspaceId) throw new Error("missing workspaceId");
-      const url = `/api/literature/search?q=${encodeURIComponent(
+      const params = new URLSearchParams({
         q,
-      )}&workspaceId=${workspaceId}&limit=20`;
-      const res = await fetch(url, { credentials: "include" });
+        workspaceId,
+        limit: "20",
+      });
+      const res = await fetch(
+        `/api/literature/search?${params.toString()}`,
+        { credentials: "include" },
+      );
       if (!res.ok) throw new Error(`search ${res.status}`);
       return (await res.json()) as SearchResponse;
     },
@@ -315,7 +320,9 @@ export function LiteratureSearchModal({
           <select
             value={projectId}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!workspaceId || projectsQ.isLoading}
+            disabled={
+              !workspaceId || projectsQ.isLoading || projectsQ.isError
+            }
             aria-label={t("import.selectProject")}
             data-testid="lit-modal-project"
             className="flex-1 rounded border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
