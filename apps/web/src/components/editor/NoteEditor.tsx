@@ -76,6 +76,10 @@ import {
   insertImageNode,
   type ImageInsertData,
 } from "./blocks/image/image-insert-popover";
+import {
+  imageDropDeferredPlugin,
+  useImageUploadDeferredToast,
+} from "./plugins/image-drop-deferred";
 import { useActiveEditorStore } from "@/stores/activeEditorStore";
 
 // Basic marks + blocks. Lists are handled by the indent-based ListPlugin; the
@@ -107,6 +111,7 @@ const basePlugins = [
   PasteNormPlugin,
   embedPlugin,
   imagePlugin,
+  imageDropDeferredPlugin,
 ];
 
 type TitleSaveStatus = "idle" | "saving" | "saved" | "error";
@@ -160,6 +165,9 @@ export function NoteEditor({
   // to "editor" and we want the share UI strings to live in their own JSON
   // file (one feature per namespace, easier i18n parity).
   const tShare = useTranslations("shareDialog");
+  // Plan 2E Phase B-2 Task 2.5 — show deferred-upload toast when the user
+  // drags or pastes an image file (instead of an image URL).
+  useImageUploadDeferredToast();
   const tDocEditor = useTranslations("docEditor");
   const [shareOpen, setShareOpen] = useState(false);
 
