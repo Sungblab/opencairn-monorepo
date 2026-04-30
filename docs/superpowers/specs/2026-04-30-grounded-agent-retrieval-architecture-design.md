@@ -1,7 +1,7 @@
 # Grounded Agent Retrieval Architecture
 
 > Date: 2026-04-30
-> Status: Draft for implementation planning
+> Status: Phase 1 implementation planned
 > Scope: OpenCairn chat, research, document-agent, retrieval, grounding, and agent reliability
 
 ## 1. Problem
@@ -393,6 +393,9 @@ Metrics:
 - token and cost by mode.
 
 ## 18. Implementation Phases
+
+The first implementation plan is `docs/superpowers/plans/2026-04-30-grounded-agent-retrieval-reliability.md`.
+It intentionally ships runtime reliability before chunk storage or graph expansion.
 
 ### Phase 1: Reliability Policy
 
