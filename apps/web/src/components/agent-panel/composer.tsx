@@ -52,7 +52,10 @@ export function Composer({ onSend, disabled }: Props) {
   const hasText = value.trim().length > 0;
 
   return (
-    <div className="m-2 flex flex-col gap-1 rounded-xl border border-border p-2">
+    <div
+      className="m-2 flex flex-col gap-1 rounded-xl bg-background p-2 transition-colors focus-within:border-foreground"
+      style={{ border: "1.5px solid var(--theme-border)" }}
+    >
       <textarea
         ref={ref}
         rows={1}
@@ -69,13 +72,13 @@ export function Composer({ onSend, disabled }: Props) {
             submit();
           }
         }}
-        className="resize-none bg-transparent text-sm outline-none"
+        className="resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
       />
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1">
         <button
           type="button"
           aria-label={t("attach_aria")}
-          className="rounded p-1 hover:bg-accent"
+          className="app-btn-ghost rounded-[var(--radius-control)] p-1.5"
         >
           <Paperclip className="h-4 w-4" />
         </button>
@@ -87,7 +90,7 @@ export function Composer({ onSend, disabled }: Props) {
             aria-label={t("send_aria")}
             onClick={submit}
             disabled={disabled}
-            className="app-btn-primary flex h-7 w-7 items-center justify-center rounded-full"
+            className="app-btn-primary ml-1 flex h-7 w-7 items-center justify-center rounded-full"
           >
             <ArrowUp className="h-4 w-4" />
           </button>
@@ -95,7 +98,7 @@ export function Composer({ onSend, disabled }: Props) {
           <button
             type="button"
             aria-label={t("voice_aria")}
-            className="rounded p-1 hover:bg-accent"
+            className="app-btn-ghost ml-1 rounded-[var(--radius-control)] p-1.5"
           >
             <Mic className="h-4 w-4" />
           </button>

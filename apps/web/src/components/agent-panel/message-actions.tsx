@@ -27,11 +27,12 @@ export function MessageActions({
   const [reasonOpen, setReasonOpen] = useState(false);
 
   return (
-    <div className="mt-1 flex items-center gap-2 text-muted-foreground">
+    <div className="mt-1.5 flex items-center gap-1 text-muted-foreground">
       <button
         type="button"
         aria-label={t("actions.copy_aria")}
         onClick={() => navigator.clipboard.writeText(text)}
+        className="app-btn-ghost rounded-[var(--radius-control)] p-1"
       >
         <Copy className="h-3.5 w-3.5" />
       </button>
@@ -39,6 +40,7 @@ export function MessageActions({
         type="button"
         aria-label={t("actions.regenerate_aria")}
         onClick={onRegenerate}
+        className="app-btn-ghost rounded-[var(--radius-control)] p-1"
       >
         <RotateCcw className="h-3.5 w-3.5" />
       </button>
@@ -46,6 +48,7 @@ export function MessageActions({
         type="button"
         aria-label={t("actions.thumbs_up_aria")}
         onClick={() => onFeedback("positive")}
+        className="app-btn-ghost rounded-[var(--radius-control)] p-1"
       >
         <ThumbsUp className="h-3.5 w-3.5" />
       </button>
@@ -53,6 +56,7 @@ export function MessageActions({
         type="button"
         aria-label={t("actions.thumbs_down_aria")}
         onClick={() => setReasonOpen((o) => !o)}
+        className="app-btn-ghost rounded-[var(--radius-control)] p-1"
       >
         <ThumbsDown className="h-3.5 w-3.5" />
       </button>

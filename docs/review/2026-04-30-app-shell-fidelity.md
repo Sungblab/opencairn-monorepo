@@ -219,6 +219,51 @@ were intentionally left for later.
   billing.*, cost.actual}` ko/en parity. The original `hub.subtitle`
   copy was replaced with the mockup's longer explainer.
 
+### G5. Tab bar + agent panel pixel sweep
+- **Before**:
+  - `TabBar` used `bg-muted/20` for the bar and `hover:bg-accent` on the
+    "+" button (a tonal wash, not the shell's neutral language).
+  - `TabItem` distinguished the active tab only by `bg-background`; no
+    underline. Inactive tabs used `bg-muted/40 hover:bg-muted/70` — two
+    distinct grey washes that don't match the rest of the shell.
+  - `PanelHeader` icon buttons all used `hover:bg-accent`.
+  - `Composer`: 1px border, no `focus-within` accent, attach + mic both
+    on `hover:bg-accent`.
+  - `ScopeChipsRow`: square chips with `border-foreground` for the active
+    state — no fill, no rounded-full, no hover affordance. Strict toggle
+    used a static border.
+  - `SaveSuggestionCard`: dismiss button `hover:bg-accent`.
+  - `CitationChips`: square `hover:bg-accent` chips with no `[N]`
+    weighting.
+  - `MessageActions`: bare icon buttons with no hover hit area.
+- **After**:
+  - `TabBar` runs on `bg-surface`; the "+" button uses `app-btn-ghost`.
+  - `TabItem` active state lifts to `bg-background` AND gets a 1.5px
+    foreground bottom underline (`-mb-[1.5px]` collapses the bar's own
+    border so the underline replaces it instead of stacking). Inactive
+    tabs use `bg-transparent` + `app-hover` for a single hover language
+    matching the sidebar/dashboard rows.
+  - `PanelHeader` icon buttons all run on `app-btn-ghost`.
+  - `Composer`: 1.5px border that hardens to `foreground` on
+    `focus-within`, single rounded container (already), attach + mic on
+    `app-btn-ghost`.
+  - `ScopeChipsRow`: rounded-full 1.5px-bordered chips, active chip is
+    filled (`bg-foreground text-background`), inactive uses `app-hover`.
+    Strict toggle uses `app-btn-ghost`.
+  - `SaveSuggestionCard`: tighter 1px-bordered card with rounded
+    `--radius-control`, ghost dismiss button.
+  - `CitationChips`: rounded-full chips with `[N]` rendered in
+    `font-medium` so the citation index reads as a numeral, not part of
+    the title.
+  - `MessageActions`: each icon button picks up `app-btn-ghost` so the
+    hover hit area matches the rest of the panel.
+- **No prop / handler changes**: tab store, SSE chat send, scope DB
+  writes are all untouched — visual chrome only, per the sweep brief.
+- **Verification**: 674/674 web tests pass; lint + tsc clean; the
+  Composer + ScopeChipsRow snapshot tests still match because the
+  visible test selectors (placeholder text, aria labels, send/voice
+  toggle) are unchanged.
+
 ### G. SSR cookie forwarding (carried over from prior session)
 - Was sitting modified in the working copy. SSR fetches relied on
   `credentials: "include"` which is browser-only, so the dashboard's

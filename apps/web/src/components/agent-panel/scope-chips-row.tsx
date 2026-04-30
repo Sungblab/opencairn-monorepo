@@ -76,8 +76,8 @@ export function ScopeChipsRow({
   // component a pure controlled view.
   void tab;
   return (
-    <div className="flex items-center gap-1 border-t border-border px-2 py-1 text-[10px]">
-      <div className="flex flex-1 flex-wrap gap-1">
+    <div className="flex items-center gap-1 border-t border-border px-3 py-2 text-[10.5px]">
+      <div className="flex flex-1 flex-wrap items-center gap-1">
         {ALL_KINDS.map((kind) => {
           const on = selected.includes(kind);
           return (
@@ -91,7 +91,11 @@ export function ScopeChipsRow({
                     : [...selected, kind],
                 )
               }
-              className={`rounded border px-2 py-0.5 ${on ? "border-foreground" : "border-border"}`}
+              className={
+                on
+                  ? "rounded-[var(--radius-chip)] border-[1.5px] border-foreground bg-foreground px-2 py-0.5 text-background"
+                  : "app-hover rounded-[var(--radius-chip)] border-[1.5px] border-border px-2 py-0.5 text-foreground"
+              }
             >
               {t(`chips.${kind}`)}
             </button>
@@ -100,7 +104,7 @@ export function ScopeChipsRow({
         <button
           type="button"
           aria-label={t("add_aria")}
-          className="rounded border border-dashed border-border px-2 py-0.5 text-muted-foreground"
+          className="app-hover rounded-[var(--radius-chip)] border border-dashed border-border px-2 py-0.5 text-muted-foreground"
         >
           +
         </button>
@@ -109,7 +113,7 @@ export function ScopeChipsRow({
         type="button"
         aria-label={t("strict_aria")}
         onClick={() => onStrictChange(strict === "strict" ? "loose" : "strict")}
-        className="rounded border border-border px-2 py-0.5 uppercase"
+        className="app-btn-ghost rounded-[var(--radius-control)] px-2 py-0.5 uppercase tracking-wide text-muted-foreground"
       >
         {t(strict)}
       </button>

@@ -111,7 +111,7 @@ export function TabBar() {
     <div
       role="tablist"
       data-testid="tab-bar"
-      className="flex h-10 shrink-0 items-stretch border-b border-border bg-muted/20"
+      className="flex h-10 shrink-0 items-stretch border-b border-border bg-surface"
     >
       <div className="flex min-w-0 flex-1 overflow-x-auto">
         <DndContext
@@ -148,7 +148,7 @@ export function TabBar() {
             }),
           )
         }
-        className="flex h-10 w-10 shrink-0 items-center justify-center border-l border-border text-muted-foreground hover:bg-accent"
+        className="app-btn-ghost flex h-10 w-10 shrink-0 items-center justify-center border-l border-border text-muted-foreground"
       >
         <Plus className="h-4 w-4" />
       </button>

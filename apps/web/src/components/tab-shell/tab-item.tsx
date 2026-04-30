@@ -27,8 +27,20 @@ export function TabItem({ tab, active, onClick, onClose }: TabItemProps) {
         }
       }}
       className={`group flex h-full min-w-[120px] max-w-[220px] shrink-0 cursor-pointer items-center gap-1.5 border-r border-border px-2 text-xs transition-colors ${
-        active ? "bg-background" : "bg-muted/40 hover:bg-muted/70"
+        active
+          ? // Active tab "lifts" out of the bar (bg-background matches the
+            // editor surface) and gets a 1.5px bottom underline. `-mb-[1.5px]`
+            // collapses the parent bar's `border-b` so the underline visually
+            // replaces it instead of stacking; the inline border-bottom uses
+            // the foreground token so the underline reads against any palette.
+            "bg-background -mb-[1.5px]"
+          : "app-hover bg-transparent"
       }`}
+      style={
+        active
+          ? { borderBottom: "1.5px solid var(--theme-fg)" }
+          : undefined
+      }
     >
       <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       <span

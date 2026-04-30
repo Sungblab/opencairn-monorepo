@@ -32,14 +32,14 @@ export function PanelHeader({ onNewThread }: { onNewThread(): void }) {
           type="button"
           aria-label={t("new_thread_aria")}
           onClick={onNewThread}
-          className="rounded p-1 hover:bg-accent"
+          className="app-btn-ghost rounded-[var(--radius-control)] p-1 inline-flex items-center justify-center"
         >
           <Plus className="h-4 w-4" />
         </button>
         <DropdownMenu>
           <DropdownMenuTrigger
             aria-label={t("thread_list_aria")}
-            className="rounded p-1 hover:bg-accent"
+            className="app-btn-ghost rounded-[var(--radius-control)] p-1 inline-flex items-center justify-center"
           >
             <MoreHorizontal className="h-4 w-4" />
           </DropdownMenuTrigger>
@@ -51,7 +51,7 @@ export function PanelHeader({ onNewThread }: { onNewThread(): void }) {
           type="button"
           aria-label={t("collapse_aria")}
           onClick={togglePanel}
-          className="rounded p-1 hover:bg-accent"
+          className="app-btn-ghost rounded-[var(--radius-control)] p-1 inline-flex items-center justify-center"
         >
           <ChevronRight className="h-4 w-4" />
         </button>

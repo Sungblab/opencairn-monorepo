@@ -40,9 +40,10 @@ export function CitationChips({ citations }: { citations: Citation[] }) {
             href={href}
             target={c.url ? "_blank" : undefined}
             rel={c.url ? "noopener noreferrer nofollow" : undefined}
-            className="rounded border border-border px-1.5 text-[10px] hover:bg-accent"
+            className="app-hover inline-flex max-w-[180px] items-center gap-1 rounded-[var(--radius-chip)] border border-border px-2 py-0.5 text-[10px]"
           >
-            [{c.index}] {c.title}
+            <span className="font-medium">[{c.index}]</span>
+            <span className="truncate">{c.title}</span>
           </a>
         );
       })}
