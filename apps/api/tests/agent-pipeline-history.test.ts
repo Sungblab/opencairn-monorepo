@@ -9,18 +9,23 @@ import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
 // of sending an empty history (audit S2-026).
 function buildCapturingProvider(): {
   provider: LLMProvider;
-  captured: { messages: ChatMsg[] | null };
+  captured: { messages: ChatMsg[] | null; thinkingLevel: unknown };
 } {
-  const captured: { messages: ChatMsg[] | null } = { messages: null };
+  const captured: { messages: ChatMsg[] | null; thinkingLevel: unknown } = {
+    messages: null,
+    thinkingLevel: undefined,
+  };
   const provider: LLMProvider = {
     embed: vi.fn().mockResolvedValue(new Array(768).fill(0)),
     streamGenerate: vi.fn().mockImplementation(async function* (args: {
       messages: ChatMsg[];
+      thinkingLevel?: unknown;
     }) {
       captured.messages = args.messages;
+      captured.thinkingLevel = args.thinkingLevel;
       yield { delta: "ok" };
       yield {
-        usage: { tokensIn: 1, tokensOut: 1, model: "gemini-2.5-flash" },
+        usage: { tokensIn: 1, tokensOut: 1, model: "gemini-3-flash-preview" },
       };
     }) as unknown as LLMProvider["streamGenerate"],
   };
@@ -141,6 +146,34 @@ describe("agent-pipeline runAgent — multi-turn history (S2-026)", () => {
       role: "user",
       content: "내 이름이 뭐였지?",
     });
+    expect(captured.thinkingLevel).toBe("medium");
+  });
+
+  it("passes accurate mode through as high thinking", async () => {
+    ctx = await seedWorkspace({ role: "owner" });
+
+    const [thread] = await db
+      .insert(chatThreads)
+      .values({
+        workspaceId: ctx.workspaceId,
+        userId: ctx.userId,
+        title: "mode test",
+      })
+      .returning({ id: chatThreads.id });
+
+    const { provider, captured } = buildCapturingProvider();
+
+    for await (const _chunk of runAgent({
+      threadId: thread.id,
+      userMessage: { content: "정확하게 분석해줘" },
+      mode: "accurate",
+      provider,
+      ragMode: "off",
+    })) {
+      // consume
+    }
+
+    expect(captured.thinkingLevel).toBe("high");
   });
 
   it("respects CHAT_MAX_HISTORY_TURNS by keeping only the most recent N messages", async () => {
