@@ -160,6 +160,42 @@ function postprocessCallout(nodes: PlateNode[]): PlateNode[] {
   });
 }
 
+// Plan 2E Phase B-2 — convert `img` nodes from the markdown deserializer
+// into our custom `image` void node shape.
+//
+// The Plate @platejs/markdown plugin emits:
+//   { type: "img", url: "...", caption: [{ text: "alt text" }], children: [{ text: "" }] }
+// Note: alt text lands in `caption` (array of text nodes), not in `alt`.
+// data: / javascript: URLs are silently dropped (zod also blocks them; this
+// is a belt-and-suspenders guard for the static renderer path).
+function postprocessImages(nodes: PlateNode[]): PlateNode[] {
+  const result: PlateNode[] = [];
+  for (const n of nodes) {
+    if (n.type === "img" || n.type === "image") {
+      const url = String(n.url ?? "");
+      if (!/^https?:\/\//i.test(url)) {
+        // Drop data: / javascript: / protocol-relative image refs.
+        continue;
+      }
+      // @platejs/markdown stores the markdown alt text as caption leaf nodes.
+      // Flatten to a plain string for our image element schema.
+      const captionNodes = n.caption as PlateNode[] | undefined;
+      const altText = captionNodes
+        ?.map((leaf) => String(leaf.text ?? ""))
+        .join("") ?? "";
+      result.push({
+        type: "image",
+        url,
+        ...(altText ? { alt: altText } : {}),
+        children: [{ text: "" }],
+      });
+    } else {
+      result.push(n);
+    }
+  }
+  return result;
+}
+
 export function markdownToPlate(markdown: string): PlateNode[] {
   if (!markdown || !markdown.trim()) {
     return [{ type: "p", children: [{ text: "" }] }];
@@ -183,7 +219,9 @@ export function markdownToPlate(markdown: string): PlateNode[] {
     return [{ type: "p", children: [{ text: "" }] }];
   }
 
-  return postprocessEscapes(postprocessCallout(postprocessMermaid(value)));
+  return postprocessEscapes(
+    postprocessImages(postprocessCallout(postprocessMermaid(value))),
+  );
 }
 
 // Plan 2E Phase A — collapse JSON-escape artifacts in pasted markdown

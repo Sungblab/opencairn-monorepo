@@ -28,6 +28,32 @@ interface ElementProps {
 }
 
 const ELEMENTS: Record<string, (props: ElementProps) => ReactElement> = {
+  // Plan 2E Phase B-2 — image block: <figure> with lazy-loaded <img>.
+  // alt defaults to "" (decorative) when absent — satisfies jsx-a11y.
+  image: ({ node }) => {
+    const url = String(node.url ?? "");
+    const alt = String(node.alt ?? "");
+    const caption = node.caption ? String(node.caption) : undefined;
+    const width = typeof node.width === "number" ? node.width : undefined;
+    return (
+      <figure className="my-4">
+        <img
+          src={url}
+          alt={alt}
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          style={width ? { width: `${width * 100}%` } : undefined}
+          className="rounded-md max-w-full h-auto"
+        />
+        {caption && (
+          <figcaption className="text-sm text-muted-foreground mt-1">
+            {caption}
+          </figcaption>
+        )}
+      </figure>
+    );
+  },
   // Plan 2E Phase B — embed block: sandboxed iframe in an aspect-video container.
   // CSP frame-src in next.config.ts allows the 3 provider origins.
   embed: ({ node }) => {

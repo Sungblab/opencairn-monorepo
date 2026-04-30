@@ -125,3 +125,21 @@ describe("markdownToPlate — callout post-processing", () => {
     expect(result[0]).toMatchObject({ type: "callout", kind: "info" });
   });
 });
+
+describe("markdownToPlate — image post-processing (Plan 2E Phase B-2)", () => {
+  it("converts ![alt](url) markdown image to image element", () => {
+    const out = markdownToPlate("![A photo](https://example.com/p.png)");
+    expect(out).toMatchObject([
+      {
+        type: "image",
+        url: "https://example.com/p.png",
+        alt: "A photo",
+      },
+    ]);
+  });
+
+  it("ignores ![alt](data:...) data URL images", () => {
+    const out = markdownToPlate("![x](data:image/png;base64,iVBOR...)");
+    expect(out).not.toContainEqual(expect.objectContaining({ type: "image" }));
+  });
+});
