@@ -108,7 +108,6 @@ export function MathEditPopover({
               ) : previewHtml ? (
                 <span
                   // KaTeX output is sanitised; renderToString does not execute scripts
-                  // eslint-disable-next-line react/no-danger
                   dangerouslySetInnerHTML={{ __html: previewHtml }}
                 />
               ) : null}

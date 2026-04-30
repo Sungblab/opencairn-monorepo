@@ -69,6 +69,48 @@ function makeEditorWithSelection(text: string, startOffset: number, endOffset: n
   };
 }
 
+/** Build an editor with a selection spanning two text leaves. */
+function makeEditorWithCrossLeafSelection() {
+  return {
+    selection: {
+      anchor: { path: [0, 0], offset: 1 },
+      focus: { path: [0, 1], offset: 2 },
+    },
+    children: [{ type: "paragraph", children: [{ text: "a" }, { text: "bc" }] }],
+    tf: {
+      delete: vi.fn(),
+      insertNodes: vi.fn(),
+      removeNodes: vi.fn(),
+    },
+  };
+}
+
+/** Build a nested column editor whose paragraph text is inside a column item. */
+function makeEditorWithColumnParagraph(text: string) {
+  return {
+    selection: {
+      anchor: { path: [0, 0, 0, 0], offset: text.length },
+      focus: { path: [0, 0, 0, 0], offset: text.length },
+    },
+    children: [
+      {
+        type: "column_group",
+        children: [
+          {
+            type: "column",
+            children: [{ type: "paragraph", children: [{ text }] }],
+          },
+        ],
+      },
+    ],
+    tf: {
+      delete: vi.fn(),
+      insertNodes: vi.fn(),
+      removeNodes: vi.fn(),
+    },
+  };
+}
+
 // ─── Task 4.1 — isInsideCodeContext ───────────────────────────────────────────
 
 describe("isInsideCodeContext", () => {
@@ -158,6 +200,16 @@ describe("applyDollarBlockTrigger", () => {
     );
   });
 
+  it("converts nested column paragraphs containing only `$$`", () => {
+    const editor = makeEditorWithColumnParagraph("$$");
+    applyDollarBlockTrigger(editor as never);
+    expect(editor.tf.removeNodes).toHaveBeenCalledWith({ at: [0, 0, 0] });
+    expect(editor.tf.insertNodes).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "equation", texExpression: "" }),
+      expect.objectContaining({ at: [0, 0, 0] }),
+    );
+  });
+
   it("ignores `$$` inside a paragraph with other text", () => {
     const editor = makeEditorWithText("foo $$ bar");
     applyDollarBlockTrigger(editor as never);
@@ -198,6 +250,22 @@ describe("Ctrl+Shift+M shortcut", () => {
     expect(editor.tf.insertNodes).toHaveBeenCalledWith(
       expect.objectContaining({ type: "inline_equation", texExpression: "to" }),
     );
+  });
+
+  it("handles backwards selections in a single text leaf", () => {
+    const editor = makeEditorWithSelection("alpha to omega", 8, 6);
+    triggerMathShortcut(editor as never);
+    expect(editor.tf.delete).toHaveBeenCalledTimes(1);
+    expect(editor.tf.insertNodes).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "inline_equation", texExpression: "to" }),
+    );
+  });
+
+  it("does not delete cross-leaf selections", () => {
+    const editor = makeEditorWithCrossLeafSelection();
+    triggerMathShortcut(editor as never);
+    expect(editor.tf.delete).not.toHaveBeenCalled();
+    expect(editor.tf.insertNodes).not.toHaveBeenCalled();
   });
 
   it("no-ops on collapsed selection", () => {

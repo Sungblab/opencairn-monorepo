@@ -77,6 +77,24 @@ function resolveLeaf(
   return leaf as { text: string };
 }
 
+function resolveNode(
+  editor: { children: unknown[] },
+  path: number[],
+): unknown | null {
+  let node: unknown = { children: editor.children };
+  for (const idx of path) {
+    const n = node as { children?: unknown[] };
+    if (!n.children) return null;
+    node = n.children[idx];
+    if (!node) return null;
+  }
+  return node;
+}
+
+function samePath(left: number[], right: number[]): boolean {
+  return left.length === right.length && left.every((idx, i) => idx === right[i]);
+}
+
 export function applyDollarInlineTrigger(editor: MathTriggerEditor): void {
   if (isInsideCodeContext(editor)) return;
 
@@ -113,7 +131,7 @@ export function applyDollarInlineTrigger(editor: MathTriggerEditor): void {
 
 // ─── applyDollarBlockTrigger ──────────────────────────────────────────────────
 // Pattern: paragraph containing exactly `$$` → equation block node.
-// Fires at the top-level block level; ignores nested structures.
+// Replaces the nearest paragraph ancestor so nested blocks (columns, etc.) work.
 
 export function applyDollarBlockTrigger(editor: MathTriggerEditor): void {
   if (isInsideCodeContext(editor)) return;
@@ -121,25 +139,36 @@ export function applyDollarBlockTrigger(editor: MathTriggerEditor): void {
   const anchorPath = editor.selection?.anchor?.path;
   if (!anchorPath || anchorPath.length === 0) return;
 
-  const blockIdx = anchorPath[0];
-  const block = editor.children[blockIdx] as
+  let paragraphPath: number[] | null = null;
+  let block:
     | { type?: string; children?: Array<{ text?: string }> }
-    | undefined;
-  if (!block) return;
+    | null = null;
+  for (let depth = anchorPath.length - 1; depth >= 1; depth -= 1) {
+    const candidatePath = anchorPath.slice(0, depth);
+    const candidate = resolveNode(editor, candidatePath) as
+      | { type?: string; children?: Array<{ text?: string }> }
+      | null;
+    if (candidate?.type === "paragraph" || candidate?.type === "p") {
+      paragraphPath = candidatePath;
+      block = candidate;
+      break;
+    }
+  }
+
+  if (!paragraphPath || !block) return;
   // Accept both "paragraph" (generic) and "p" (Plate's internal key)
-  if (block.type !== "paragraph" && block.type !== "p") return;
   if (!block.children || block.children.length !== 1) return;
   const text = block.children[0]?.text ?? "";
   if (text !== "$$") return;
 
-  editor.tf.removeNodes({ at: [blockIdx] });
+  editor.tf.removeNodes({ at: paragraphPath });
   editor.tf.insertNodes(
     {
       type: "equation",
       texExpression: "",
       children: [{ text: "" }],
     },
-    { at: [blockIdx] },
+    { at: paragraphPath },
   );
 }
 
@@ -165,23 +194,27 @@ function getEditorString(
   editor: ShortcutEditor,
   anchor: { path: number[]; offset: number },
   focus: { path: number[]; offset: number },
-): string {
+): string | null {
   // Simple case: selection is within a single text leaf
-  if (anchor.path.join(",") === focus.path.join(",")) {
+  if (samePath(anchor.path, focus.path)) {
     let node: unknown = { children: editor.children };
     for (const idx of anchor.path) {
       const n = node as { children?: unknown[] };
-      if (!n.children) return "";
+      if (!n.children) return null;
       node = n.children[idx];
-      if (!node) return "";
+      if (!node) return null;
     }
     const leaf = node as { text?: string };
-    if (typeof leaf.text !== "string") return "";
-    return leaf.text.slice(anchor.offset, focus.offset);
+    if (typeof leaf.text !== "string") return null;
+    const [start, end] =
+      anchor.offset < focus.offset
+        ? [anchor.offset, focus.offset]
+        : [focus.offset, anchor.offset];
+    return leaf.text.slice(start, end);
   }
   // Cross-leaf selections — not supported in this implementation;
-  // returns empty string so the shortcut is a no-op for that case.
-  return "";
+  // returning null prevents the caller from deleting unsupported selections.
+  return null;
 }
 
 export function triggerMathShortcut(editor: ShortcutEditor): void {
@@ -203,6 +236,7 @@ export function triggerMathShortcut(editor: ShortcutEditor): void {
     { path: anchor.path, offset: anchor.offset ?? 0 },
     { path: focus.path, offset: focus.offset ?? 0 },
   );
+  if (fragment === null) return;
 
   editor.tf.delete({ at: sel });
   editor.tf.insertNodes({
