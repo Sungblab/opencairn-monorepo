@@ -64,6 +64,12 @@ import { tablePlugins } from "./blocks/table/table-plugin";
 import { columnsPlugins } from "./blocks/columns/columns-plugin";
 import { MermaidFencePlugin } from "./plugins/mermaid-fence";
 import { PasteNormPlugin } from "./plugins/paste-norm";
+import { embedPlugin } from "./blocks/embed/embed-plugin";
+import {
+  EmbedInsertPopover,
+  insertEmbedNode,
+  type EmbedInsertResolution,
+} from "./blocks/embed/embed-insert-popover";
 import { useActiveEditorStore } from "@/stores/activeEditorStore";
 
 // Basic marks + blocks. Lists are handled by the indent-based ListPlugin; the
@@ -93,6 +99,7 @@ const basePlugins = [
   ...columnsPlugins,
   MermaidFencePlugin,
   PasteNormPlugin,
+  embedPlugin,
 ];
 
 type TitleSaveStatus = "idle" | "saving" | "saved" | "error";
@@ -161,6 +168,8 @@ export function NoteEditor({
     process.env.NEXT_PUBLIC_FEATURE_DOC_EDITOR_RAG === "true";
   const docEditor = useDocEditorCommand();
   const queryClient = useQueryClient();
+  // Plan 2E Phase B — embed insert popover state (Task 1.4).
+  const [embedPopoverOpen, setEmbedPopoverOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pendingCommand, setPendingCommand] = useState<SlashAiKey | null>(
     null,
@@ -416,6 +425,24 @@ export function NoteEditor({
     [handleRejectAll],
   );
 
+  // Plan 2E Phase B — embed insert popover handlers (Task 1.4).
+  const handleRequestPopover = useCallback(
+    (_kind: "embed") => {
+      setEmbedPopoverOpen(true);
+    },
+    [],
+  );
+
+  const handleEmbedInsert = useCallback(
+    (resolution: EmbedInsertResolution) => {
+      insertEmbedNode(
+        editor as unknown as Parameters<typeof insertEmbedNode>[0],
+        resolution,
+      );
+    },
+    [editor],
+  );
+
   const actions: ToolbarActions = useMemo(
     () => ({
       toggleMark: (mark: ToolbarMark) => {
@@ -481,6 +508,16 @@ export function NoteEditor({
             aiEnabled={aiSlashEnabled && !readOnly}
             ragEnabled={ragSlashEnabled && !readOnly}
             onAiCommand={handleAiCommand}
+            onRequestPopover={readOnly ? undefined : handleRequestPopover}
+          />
+          {/* Plan 2E Phase B — embed URL input popover (Task 1.4).
+              The anchor is invisible; the popover is opened programmatically
+              via embedPopoverOpen state set by onRequestPopover. */}
+          <EmbedInsertPopover
+            open={embedPopoverOpen}
+            onOpenChange={setEmbedPopoverOpen}
+            anchor={<span />}
+            onInsert={handleEmbedInsert}
           />
           {aiSlashEnabled && (
             <InlineDiffSheet
