@@ -111,6 +111,107 @@ export function applyDollarInlineTrigger(editor: MathTriggerEditor): void {
   );
 }
 
+// ─── applyDollarBlockTrigger ──────────────────────────────────────────────────
+// Pattern: paragraph containing exactly `$$` → equation block node.
+// Fires at the top-level block level; ignores nested structures.
+
+export function applyDollarBlockTrigger(editor: MathTriggerEditor): void {
+  if (isInsideCodeContext(editor)) return;
+
+  const anchorPath = editor.selection?.anchor?.path;
+  if (!anchorPath || anchorPath.length === 0) return;
+
+  const blockIdx = anchorPath[0];
+  const block = editor.children[blockIdx] as
+    | { type?: string; children?: Array<{ text?: string }> }
+    | undefined;
+  if (!block) return;
+  // Accept both "paragraph" (generic) and "p" (Plate's internal key)
+  if (block.type !== "paragraph" && block.type !== "p") return;
+  if (!block.children || block.children.length !== 1) return;
+  const text = block.children[0]?.text ?? "";
+  if (text !== "$$") return;
+
+  editor.tf.removeNodes({ at: [blockIdx] });
+  editor.tf.insertNodes(
+    {
+      type: "equation",
+      texExpression: "",
+      children: [{ text: "" }],
+    },
+    { at: [blockIdx] },
+  );
+}
+
+// ─── triggerMathShortcut ───────────────────────────────────────────────────────
+// Ctrl+Shift+M (Mac: Cmd+Shift+M) wraps the current non-collapsed selection
+// as an inline_equation node whose texExpression is the selected text.
+// Wired into the plugin's onKeyDown in task 4.4.
+
+interface ShortcutEditor {
+  selection: {
+    anchor?: { path?: number[]; offset?: number };
+    focus?: { path?: number[]; offset?: number };
+  } | null;
+  children: Array<{ type?: string; children?: unknown[] }>;
+  tf: {
+    delete: (opts?: { at?: unknown }) => void;
+    insertNodes: (node: unknown, opts?: unknown) => void;
+  };
+}
+
+/** Extract the selected string from a within-leaf selection (same path). */
+function getEditorString(
+  editor: ShortcutEditor,
+  anchor: { path: number[]; offset: number },
+  focus: { path: number[]; offset: number },
+): string {
+  // Simple case: selection is within a single text leaf
+  if (anchor.path.join(",") === focus.path.join(",")) {
+    let node: unknown = { children: editor.children };
+    for (const idx of anchor.path) {
+      const n = node as { children?: unknown[] };
+      if (!n.children) return "";
+      node = n.children[idx];
+      if (!node) return "";
+    }
+    const leaf = node as { text?: string };
+    if (typeof leaf.text !== "string") return "";
+    return leaf.text.slice(anchor.offset, focus.offset);
+  }
+  // Cross-leaf selections — not supported in this implementation;
+  // returns empty string so the shortcut is a no-op for that case.
+  return "";
+}
+
+export function triggerMathShortcut(editor: ShortcutEditor): void {
+  const sel = editor.selection;
+  if (!sel) return;
+  const anchor = sel.anchor;
+  const focus = sel.focus;
+  if (!anchor?.path || !focus?.path) return;
+
+  // Collapsed selection = no-op
+  const anchorKey = `${anchor.path.join(",")},${anchor.offset ?? 0}`;
+  const focusKey = `${focus.path.join(",")},${focus.offset ?? 0}`;
+  if (anchorKey === focusKey) return;
+
+  if (isInsideCodeContext(editor as never)) return;
+
+  const fragment = getEditorString(
+    editor,
+    { path: anchor.path, offset: anchor.offset ?? 0 },
+    { path: focus.path, offset: focus.offset ?? 0 },
+  );
+
+  editor.tf.delete({ at: sel });
+  editor.tf.insertNodes({
+    type: "inline_equation",
+    texExpression: fragment,
+    children: [{ text: "" }],
+  });
+}
+
 // ─── Plugin definition ────────────────────────────────────────────────────────
 
 export const mathTriggerPlugin = createPlatePlugin({
@@ -119,7 +220,19 @@ export const mathTriggerPlugin = createPlatePlugin({
     onChange: ({ editor }) => {
       const e = editor as unknown as MathTriggerEditor;
       applyDollarInlineTrigger(e);
-      // applyDollarBlockTrigger(e) — added in task 4.3
+      applyDollarBlockTrigger(e);
+    },
+    onKeyDown: ({ editor, event }) => {
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        event.shiftKey &&
+        event.key.toLowerCase() === "m"
+      ) {
+        event.preventDefault();
+        triggerMathShortcut(editor as unknown as ShortcutEditor);
+        return true;
+      }
+      return false;
     },
   },
 });

@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   isInsideCodeContext,
   applyDollarInlineTrigger,
+  applyDollarBlockTrigger,
 } from "./math-trigger";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -124,5 +125,47 @@ describe("applyDollarInlineTrigger", () => {
     };
     applyDollarInlineTrigger(editor as never);
     expect(editor.tf.delete).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Task 4.3 — applyDollarBlockTrigger ──────────────────────────────────────
+
+describe("applyDollarBlockTrigger", () => {
+  it("converts a paragraph containing only `$$` to an empty equation block", () => {
+    const editor = makeEditorWithText("$$");
+    applyDollarBlockTrigger(editor as never);
+    expect(editor.tf.removeNodes).toHaveBeenCalledWith({ at: [0] });
+    expect(editor.tf.insertNodes).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "equation", texExpression: "" }),
+      expect.objectContaining({ at: [0] }),
+    );
+  });
+
+  it("ignores `$$` inside a paragraph with other text", () => {
+    const editor = makeEditorWithText("foo $$ bar");
+    applyDollarBlockTrigger(editor as never);
+    expect(editor.tf.removeNodes).not.toHaveBeenCalled();
+    expect(editor.tf.insertNodes).not.toHaveBeenCalled();
+  });
+
+  it("ignores `$$` inside code block", () => {
+    const editor = makeEditorWithCodeBlockText("$$");
+    applyDollarBlockTrigger(editor as never);
+    expect(editor.tf.removeNodes).not.toHaveBeenCalled();
+    expect(editor.tf.insertNodes).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when selection is null", () => {
+    const editor = {
+      selection: null,
+      children: [{ type: "paragraph", children: [{ text: "$$" }] }],
+      tf: {
+        delete: vi.fn(),
+        insertNodes: vi.fn(),
+        removeNodes: vi.fn(),
+      },
+    };
+    applyDollarBlockTrigger(editor as never);
+    expect(editor.tf.removeNodes).not.toHaveBeenCalled();
   });
 });
