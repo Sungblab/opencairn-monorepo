@@ -1,7 +1,8 @@
 {
   "placeholder": {
     "title": "제목 없음",
-    "body": "무엇이든 적어보세요…"
+    "body": "무엇이든 적어보세요…",
+    "body_with_slash": "무엇이든 적어보세요. / 를 누르면 AI 도구가 열려요."
   },
   "save": {
     "saving": "저장 중…",
