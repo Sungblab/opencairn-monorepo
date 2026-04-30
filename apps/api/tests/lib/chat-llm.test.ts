@@ -82,6 +82,92 @@ describe("runChat happy path", () => {
     expect(events.find((e) => e.type === "citation")).toBeUndefined();
     expect(retrievalMod.retrieve).not.toHaveBeenCalled();
   });
+
+  it("injects runtime current time into the system message", async () => {
+    retrievalMod.retrieve.mockResolvedValue([]);
+    let receivedMessages: unknown[] = [];
+    fakeProvider.streamGenerate.mockImplementation(async function* (opts: {
+      messages: unknown[];
+    }) {
+      receivedMessages = opts.messages;
+      yield { delta: "ok" };
+      yield { usage: { tokensIn: 1, tokensOut: 1, model: "gemini-3-flash-preview" } };
+    });
+
+    await collect(
+      runChat({
+        workspaceId: "ws-1",
+        scope: { type: "workspace", workspaceId: "ws-1" },
+        ragMode: "off",
+        chips: [],
+        history: [],
+        userMessage: "hi",
+        provider: fakeProvider,
+        mode: "balanced",
+        now: new Date("2026-04-30T00:00:00.000Z"),
+      }),
+    );
+
+    expect((receivedMessages[0] as { content: string }).content).toContain(
+      "Current server time: 2026-04-30T00:00:00.000Z",
+    );
+  });
+
+  it("passes selected thinkingLevel to the provider", async () => {
+    retrievalMod.retrieve.mockResolvedValue([]);
+    let thinkingLevel: unknown;
+    fakeProvider.streamGenerate.mockImplementation(async function* (opts: {
+      thinkingLevel?: unknown;
+    }) {
+      thinkingLevel = opts.thinkingLevel;
+      yield { delta: "ok" };
+      yield { usage: { tokensIn: 1, tokensOut: 1, model: "gemini-3-flash-preview" } };
+    });
+
+    await collect(
+      runChat({
+        workspaceId: "ws-1",
+        scope: { type: "workspace", workspaceId: "ws-1" },
+        ragMode: "off",
+        chips: [],
+        history: [],
+        userMessage: "정확하게 분석해줘",
+        provider: fakeProvider,
+        mode: "accurate",
+      }),
+    );
+
+    expect(thinkingLevel).toBe("high");
+  });
+
+  it("blocks freshness-required answers when no grounding source is available", async () => {
+    retrievalMod.retrieve.mockResolvedValue([]);
+    fakeProvider.streamGenerate.mockImplementation(async function* () {
+      yield { delta: "This should not be generated" };
+      yield { usage: { tokensIn: 1, tokensOut: 1, model: "gemini-3-flash-preview" } };
+    });
+
+    const events = await collect(
+      runChat({
+        workspaceId: "ws-1",
+        scope: { type: "workspace", workspaceId: "ws-1" },
+        ragMode: "off",
+        chips: [],
+        history: [],
+        userMessage: "오늘 OpenAI CEO가 누구야?",
+        provider: fakeProvider,
+        mode: "auto",
+        now: new Date("2026-04-30T00:00:00.000Z"),
+      }),
+    );
+
+    expect(fakeProvider.streamGenerate).not.toHaveBeenCalled();
+    const errorEvt = events.find((e) => e.type === "error");
+    expect(errorEvt?.payload).toMatchObject({
+      code: "grounding_required",
+    });
+    expect(events[events.length - 1].type).toBe("done");
+  });
 });
 
 describe("runChat save_suggestion", () => {
@@ -158,14 +244,14 @@ describe("runChat history truncation", () => {
         ragMode: "strict",
         chips: [],
         history,
-        userMessage: "now",
+        userMessage: "followup",
         provider: fakeProvider,
       }),
     );
     const userTexts = (receivedMessages as { role: string; content: string }[])
       .filter((m) => m.role === "user")
       .map((m) => m.content);
-    expect(userTexts).toContain("now");
+    expect(userTexts).toContain("followup");
     expect(userTexts.some((t) => t === big)).toBe(false);
 
     delete process.env.CHAT_MAX_INPUT_TOKENS;
