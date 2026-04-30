@@ -47,6 +47,7 @@ import { notificationRoutes } from "./routes/notifications";
 import { literatureRoutes } from "./routes/literature";
 import { docEditorRoutes } from "./routes/doc-editor";
 import { mcpRoutes } from "./routes/mcp";
+import { mcpProtectedResourceRoutes, mcpServerRoutes } from "./routes/mcp-server";
 import { connectorRoutes as connectorFoundationRoutes } from "./routes/connectors";
 import { notificationPreferenceRoutes } from "./routes/notification-preferences";
 import { startEmailDispatcher } from "./lib/email-dispatcher";
@@ -99,6 +100,8 @@ export function createApp() {
   // below don't intercept this with their own requireAuth chains.
   app.route("/api/message-feedback", messageFeedbackRoutes);
   app.route("/api/mcp/servers", mcpRoutes);
+  app.route("/api/mcp", mcpServerRoutes);
+  app.route("/.well-known/oauth-protected-resource", mcpProtectedResourceRoutes);
   app.route("/api/connectors", connectorFoundationRoutes);
   // Plan 2C share-link routes. Same public-then-auth shape as inviteRoutes.
   // Mounted FIRST among `/api` wildcard sub-apps so its public route

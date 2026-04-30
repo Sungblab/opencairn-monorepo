@@ -10,6 +10,7 @@ export * from "./chat";
 export * from "./ingest-events";
 export * from "./doc-editor";
 export * from "./mcp";
+export * from "./mcp-server";
 export * from "./connectors";
 export * from "./synthesis-types";
 export * from "./notifications";

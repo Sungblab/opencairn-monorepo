@@ -42,6 +42,7 @@ export * from "./schema/note-enrichments";
 export * from "./schema/doc-editor-calls";
 export * from "./schema/user-mcp-servers";
 export * from "./schema/connectors";
+export * from "./schema/mcp-server-tokens";
 export * from "./schema/synthesis";
 
 export { eq, and, or, desc, asc, sql, inArray, notInArray, isNull, isNotNull, ilike, lt, gt, lte, gte, count, max } from "drizzle-orm";

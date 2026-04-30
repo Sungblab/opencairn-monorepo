@@ -322,6 +322,34 @@ values; summaries expose `hasAuth` only.
 | DELETE | /api/mcp/servers/:id | owner | Delete one registration. Cross-user IDs return 404. | - |
 | POST | /api/mcp/servers/:id/test | owner | Run `list_tools` once and update `lastSeenToolCount`, `lastSeenAt`, and auth-expired status. | - |
 
+### MCP Server Read-Only Phase 1 (feature-flag `FEATURE_MCP_SERVER`)
+
+OpenCairn can expose workspace knowledge as a read-only MCP Streamable HTTP
+server. When `FEATURE_MCP_SERVER=false`, `/api/mcp` and `/api/mcp/tokens*`
+return 404. The existing MCP client routes at `/api/mcp/servers*` remain
+separate and keep their own `FEATURE_MCP_CLIENT` flag.
+
+Token management uses the user's Better Auth session and requires workspace
+`owner` or `admin`. Plaintext tokens are returned once on create and are never
+stored; the database stores only a SHA-256 hash and a redacted prefix.
+
+| Method | Path | Auth | Description | Body |
+|--------|------|------|-------------|------|
+| GET | `/.well-known/oauth-protected-resource` | No | OAuth Protected Resource Metadata for the OpenCairn MCP resource server. | - |
+| GET | `/.well-known/oauth-protected-resource/api/mcp` | No | Path-specific protected resource metadata for `/api/mcp`. | - |
+| GET/POST/DELETE | `/api/mcp` | MCP bearer token | Streamable HTTP MCP endpoint. Exposes `search_notes`, `get_note`, and `list_projects`; all tools are read-only and scoped to the token workspace. | MCP JSON-RPC |
+| GET | `/api/mcp/tokens?workspaceId=` | workspace `admin` | List token metadata for a workspace. Response omits plaintext token values. | - |
+| POST | `/api/mcp/tokens` | workspace `admin` | Create one read-only workspace token. Response includes `token` exactly once. | `{ workspaceId, label, expiresAt? }` |
+| DELETE | `/api/mcp/tokens/:id` | workspace `admin` | Revoke a token by setting `revokedAt`. | - |
+
+MCP tools:
+
+| Tool | Input | Output |
+|------|-------|--------|
+| `search_notes` | `{ query, limit?, projectId? }` | `{ hits: [{ noteId, title, projectId, projectName, snippet, sourceType, sourceUrl, updatedAt, vectorScore, bm25Score, rrfScore }] }` |
+| `get_note` | `{ noteId }` | `{ noteId, title, projectId, projectName, sourceType, sourceUrl, contentText, updatedAt }` |
+| `list_projects` | `{ limit? }` | `{ projects: [{ projectId, name, description, updatedAt }] }` |
+
 ### Connector Foundation (feature-flag `FEATURE_CONNECTOR_PLATFORM`)
 
 Connector routes are hosted-SaaS-first and workspace-scoped at the source grant
