@@ -10,6 +10,7 @@
     "toggleAria": "Toggle note metadata panel",
     "loading": "Loading…",
     "loadError": "Failed to load metadata ({msg})",
+    "failureGeneric": "Analysis failed.",
     "empty": "No automatic analysis available for this note yet.",
     "outline": "Outline",
     "figures": "Figures ({count})",

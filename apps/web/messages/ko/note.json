@@ -10,6 +10,7 @@
     "toggleAria": "노트 메타데이터 패널 펼치기/접기",
     "loading": "불러오는 중...",
     "loadError": "메타데이터를 불러오지 못했습니다 ({msg})",
+    "failureGeneric": "분석 도중 오류가 발생했습니다.",
     "empty": "이 노트에는 자동 분석 결과가 아직 없습니다.",
     "outline": "아웃라인",
     "figures": "그림 {count}개",

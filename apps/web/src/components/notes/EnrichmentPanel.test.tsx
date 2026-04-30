@@ -99,7 +99,7 @@ describe("EnrichmentPanel", () => {
     );
   });
 
-  it("renders failed state with error message", async () => {
+  it("renders failed state with generic error message (raw worker error withheld)", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -109,6 +109,8 @@ describe("EnrichmentPanel", () => {
           status: "failed",
           provider: null,
           skipReasons: [],
+          // The raw worker string can leak internals (e.g. exception text);
+          // the panel must surface a translated generic line instead.
           error: "OCR timed out",
           updatedAt: new Date().toISOString(),
           artifact: null,
@@ -117,8 +119,11 @@ describe("EnrichmentPanel", () => {
     );
     wrap(<EnrichmentPanel noteId="00000000-0000-0000-0000-000000000004" />);
     await waitFor(() =>
-      expect(screen.getByText("OCR timed out")).toBeInTheDocument(),
+      expect(
+        screen.getByText(koNote.enrichment.failureGeneric),
+      ).toBeInTheDocument(),
     );
+    expect(screen.queryByText("OCR timed out")).not.toBeInTheDocument();
     expect(
       screen.getByTestId("enrichment-status-failed"),
     ).toBeInTheDocument();

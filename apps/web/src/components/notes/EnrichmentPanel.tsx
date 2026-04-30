@@ -41,8 +41,8 @@ export function EnrichmentPanel({ noteId }: Props) {
     enabled: !!noteId,
     staleTime: 30_000,
     retry: false,
-    queryFn: async () => {
-      const res = await fetch(`/api/notes/${noteId}/enrichment`);
+    queryFn: async ({ signal }) => {
+      const res = await fetch(`/api/notes/${noteId}/enrichment`, { signal });
       // 404 is a normal "no artifact" state, not an error.
       if (res.status === 404) return null;
       if (!res.ok) throw new Error(`enrichment ${res.status}`);
@@ -113,8 +113,11 @@ function ArtifactBody({ data }: { data: EnrichmentResponse }) {
       <StatusRow status={data.status} />
 
       {data.status === "failed" && data.error ? (
+        // Worker emits free-form error strings (schema: `error: string | null`)
+        // that can leak internal exception text. Render a generic translated
+        // line; full diagnostics stay in server logs for triage.
         <p className="rounded border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">
-          {data.error}
+          {t("failureGeneric")}
         </p>
       ) : null}
 
@@ -124,9 +127,9 @@ function ArtifactBody({ data }: { data: EnrichmentResponse }) {
             {t("skipReasons")}
           </h4>
           <ul className="flex flex-col gap-0.5 text-xs">
-            {data.skipReasons.map((r) => (
+            {data.skipReasons.map((r, i) => (
               <li
-                key={r}
+                key={`${r}-${i}`}
                 className="text-muted-foreground"
                 data-testid="enrichment-skip-reason"
               >
@@ -206,6 +209,11 @@ function ArtifactBody({ data }: { data: EnrichmentResponse }) {
                   : ""}
               </li>
             ))}
+            {tables.length > 6 ? (
+              <li className="text-[11px] text-muted-foreground">
+                {t("moreCount", { count: tables.length - 6 })}
+              </li>
+            ) : null}
           </ul>
         </section>
       ) : null}
