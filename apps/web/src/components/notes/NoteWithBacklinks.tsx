@@ -2,29 +2,37 @@
 import { useEffect, type ReactNode } from "react";
 import { usePanelStore } from "@/stores/panel-store";
 import { BacklinksPanel } from "./BacklinksPanel";
+import { EnrichmentPanel } from "./EnrichmentPanel";
 
 interface Props {
   noteId: string;
   children: ReactNode;
 }
 
-// Splits the note view into a primary content column + an optional
-// BacklinksPanel rail. Exposes Cmd+Shift+B / Ctrl+Shift+B to toggle the
-// panel through the shared panel-store. Mounted by the note route page so
-// BacklinksPanel sits beside whatever primary surface the page renders
-// (placeholder today, the real Plate editor once Plan 2D ships).
+// Splits the note view into a primary content column + optional right-rail
+// panels: BacklinksPanel (Cmd+Shift+B) and the Spec-B EnrichmentPanel
+// (Cmd+Shift+I — "info" / metadata). Both panels are independent toggles
+// so a power user can stack them; on narrow viewports the editor will
+// shrink first, which matches the existing BacklinksPanel behaviour.
+//
+// EnrichmentPanel renders even when the note has no `note_enrichments`
+// row — the empty state is a useful "this note hasn't been enriched yet"
+// signal and avoids the toggle becoming silent on pre-Spec-B notes.
 export function NoteWithBacklinks({ noteId, children }: Props) {
   const backlinksOpen = usePanelStore((s) => s.backlinksOpen);
+  const enrichmentOpen = usePanelStore((s) => s.enrichmentOpen);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (
-        (e.metaKey || e.ctrlKey) &&
-        e.shiftKey &&
-        (e.key === "B" || e.key === "b")
-      ) {
+      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey) return;
+      if (e.key === "B" || e.key === "b") {
         e.preventDefault();
         usePanelStore.getState().toggleBacklinks();
+        return;
+      }
+      if (e.key === "I" || e.key === "i") {
+        e.preventDefault();
+        usePanelStore.getState().toggleEnrichment();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -34,6 +42,7 @@ export function NoteWithBacklinks({ noteId, children }: Props) {
   return (
     <div className="flex h-full">
       <div className="flex-1 overflow-auto">{children}</div>
+      {enrichmentOpen ? <EnrichmentPanel noteId={noteId} /> : null}
       {backlinksOpen ? <BacklinksPanel noteId={noteId} /> : null}
     </div>
   );

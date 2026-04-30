@@ -4,5 +4,36 @@
     "empty": "이 노트를 가리키는 다른 노트가 없습니다.",
     "countAria": "{count}개의 백링크",
     "toggleAria": "백링크 패널 펼치기/접기"
+  },
+  "enrichment": {
+    "title": "메타데이터",
+    "toggleAria": "노트 메타데이터 패널 펼치기/접기",
+    "loading": "불러오는 중...",
+    "loadError": "메타데이터를 불러오지 못했습니다 ({msg})",
+    "empty": "이 노트에는 자동 분석 결과가 아직 없습니다.",
+    "outline": "아웃라인",
+    "figures": "그림 {count}개",
+    "tables": "표 {count}개",
+    "skipReasons": "건너뛴 항목",
+    "untitled": "(제목 없음)",
+    "moreCount": "외 {count}개",
+    "wordCount": "단어 수: {count}",
+    "pageRef": "p.{page}",
+    "provider": "분석: {provider}",
+    "status": {
+      "pending": "대기",
+      "processing": "분석 중",
+      "done": "완료",
+      "failed": "실패"
+    },
+    "contentType": {
+      "document": "문서",
+      "paper": "논문",
+      "slide": "슬라이드",
+      "book": "도서",
+      "code": "코드",
+      "table": "표",
+      "image": "이미지"
+    }
   }
 }
