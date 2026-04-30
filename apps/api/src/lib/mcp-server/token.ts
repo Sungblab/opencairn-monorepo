@@ -6,6 +6,7 @@ import {
   eq,
   gt,
   isNull,
+  lt,
   mcpServerTokens,
   or,
   type DB,
@@ -13,6 +14,7 @@ import {
 
 export const MCP_SERVER_TOKEN_PREFIX = "ocmcp_";
 const TOKEN_BYTES = 32;
+const LAST_USED_UPDATE_INTERVAL_MS = 5 * 60 * 1000;
 
 export type VerifiedMcpServerToken = {
   id: string;
@@ -56,6 +58,7 @@ export async function verifyMcpServerToken(
       workspaceId: mcpServerTokens.workspaceId,
       scopes: mcpServerTokens.scopes,
       expiresAt: mcpServerTokens.expiresAt,
+      lastUsedAt: mcpServerTokens.lastUsedAt,
     })
     .from(mcpServerTokens)
     .where(
@@ -68,9 +71,20 @@ export async function verifyMcpServerToken(
     .limit(1);
 
   if (!row) return null;
-  await conn
-    .update(mcpServerTokens)
-    .set({ lastUsedAt: now })
-    .where(eq(mcpServerTokens.id, row.id));
+  const lastUsedCutoff = new Date(now.getTime() - LAST_USED_UPDATE_INTERVAL_MS);
+  if (!row.lastUsedAt || row.lastUsedAt < lastUsedCutoff) {
+    await conn
+      .update(mcpServerTokens)
+      .set({ lastUsedAt: now })
+      .where(
+        and(
+          eq(mcpServerTokens.id, row.id),
+          or(
+            isNull(mcpServerTokens.lastUsedAt),
+            lt(mcpServerTokens.lastUsedAt, lastUsedCutoff),
+          ),
+        ),
+      );
+  }
   return row;
 }

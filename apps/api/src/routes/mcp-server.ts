@@ -118,7 +118,7 @@ mcpServerRoutes.delete("/tokens/:id", requireAuth, async (c) => {
   const [row] = await db.select().from(mcpServerTokens).where(eq(mcpServerTokens.id, id)).limit(1);
   if (!row) return c.json({ error: "Not found" }, 404);
   if (!(await canAdmin(userId, row.workspaceId))) {
-    return c.json({ error: "forbidden" }, 403);
+    return c.json({ error: "Not found" }, 404);
   }
   await db
     .update(mcpServerTokens)

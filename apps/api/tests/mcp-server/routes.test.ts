@@ -80,6 +80,26 @@ describe("MCP server token routes", () => {
     }
   });
 
+  it("hides token ids from users without workspace admin access", async () => {
+    const created = await authed(seed.userId, "/api/mcp/tokens", {
+      method: "POST",
+      body: JSON.stringify({
+        workspaceId: seed.workspaceId,
+        label: "Claude Code",
+      }),
+    });
+    const body = await created.json();
+    const viewer = await seedWorkspace({ role: "viewer" });
+    try {
+      const res = await authed(viewer.userId, `/api/mcp/tokens/${body.id}`, {
+        method: "DELETE",
+      });
+      expect(res.status).toBe(404);
+    } finally {
+      await viewer.cleanup();
+    }
+  });
+
   it("serves OAuth protected resource metadata", async () => {
     const res = await app.request("/.well-known/oauth-protected-resource/api/mcp");
     expect(res.status).toBe(200);

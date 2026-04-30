@@ -27,13 +27,15 @@ function vectorLiteral(values: number[]): string {
 }
 
 function rows<T>(raw: unknown): T[] {
-  return ((raw as { rows?: T[] }).rows ?? raw) as T[];
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw as T[];
+  return ((raw as { rows?: T[] }).rows ?? []) as T[];
 }
 
-function clip(text: string | null | undefined, max: number): string {
+function clip(text: string | null | undefined, max: number, compact = true): string {
   if (!text) return "";
-  const compact = text.replace(/\s+/g, " ").trim();
-  return compact.length > max ? `${compact.slice(0, max)}...` : compact;
+  const processed = compact ? text.replace(/\s+/g, " ").trim() : text;
+  return processed.length > max ? `${processed.slice(0, max)}...` : processed;
 }
 
 async function embedQuery(query: string): Promise<number[] | null> {
@@ -200,7 +202,7 @@ export async function getMcpNote(opts: {
   if (!row) return null;
   return {
     ...row,
-    contentText: clip(row.contentText, NOTE_CONTENT_MAX),
+    contentText: clip(row.contentText, NOTE_CONTENT_MAX, false),
     updatedAt: row.updatedAt.toISOString(),
   };
 }

@@ -13,7 +13,7 @@ describe("MCP read-only tools", () => {
       .update(notes)
       .set({
         title: "Hybrid search note",
-        contentText: "OpenCairn exposes read only MCP search over workspace notes",
+        contentText: "OpenCairn exposes read only MCP search.\n\n- preserve lists\n\n```ts\nconst ok = true;\n```",
       })
       .where(eq(notes.id, seed.noteId));
   });
@@ -28,6 +28,7 @@ describe("MCP read-only tools", () => {
 
     const note = await getMcpNote({ workspaceId: seed.workspaceId, noteId: seed.noteId });
     expect(note?.noteId).toBe(seed.noteId);
+    expect(note?.contentText).toContain("\n\n- preserve lists\n\n```ts");
   });
 
   it("returns empty search hits for an out-of-workspace project filter", async () => {
