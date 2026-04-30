@@ -346,9 +346,15 @@ MCP tools:
 
 | Tool | Input | Output |
 |------|-------|--------|
+| `search` | `{ query }` | OpenAI/ChatGPT data-only alias: `{ results: [{ id, title, url, text, metadata }] }` as JSON text content. Calls the same search service as `search_notes`. |
+| `fetch` | `{ id }` | OpenAI/ChatGPT data-only alias: `{ id, title, url, text, metadata }` as JSON text content. Calls the same note service as `get_note`; `text` preserves note formatting. |
 | `search_notes` | `{ query, limit?, projectId? }` | `{ hits: [{ noteId, title, projectId, projectName, snippet, sourceType, sourceUrl, updatedAt, vectorScore, bm25Score, rrfScore }] }` |
 | `get_note` | `{ noteId }` | `{ noteId, title, projectId, projectName, sourceType, sourceUrl, contentText, updatedAt }` |
 | `list_projects` | `{ limit? }` | `{ projects: [{ projectId, name, description, updatedAt }] }` |
+
+Interop docs for Claude Code, Codex, ChatGPT/OpenAI Apps, hosted endpoint
+readiness, and OAuth Phase 2-B gaps live in
+[`mcp-server.md`](./mcp-server.md).
 
 ### Connector Foundation (feature-flag `FEATURE_CONNECTOR_PLATFORM`)
 
