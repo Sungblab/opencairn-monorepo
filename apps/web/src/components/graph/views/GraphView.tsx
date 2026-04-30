@@ -6,7 +6,7 @@ import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
 import { useRouter, useParams } from "next/navigation";
 import { toast } from "sonner";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useTabsStore } from "@/stores/tabs-store";
 import { useProjectGraph } from "../useProjectGraph";
 import { toCytoscapeElements } from "../to-cytoscape-elements";
@@ -33,6 +33,7 @@ if (typeof window !== "undefined") {
 
 export default function GraphView({ projectId }: { projectId: string }) {
   const t = useTranslations("graph");
+  const locale = useLocale();
   const router = useRouter();
   const params = useParams<{ wsSlug: string }>();
   const wsSlug = params?.wsSlug;
@@ -78,9 +79,10 @@ export default function GraphView({ projectId }: { projectId: string }) {
         splitSide: null,
         scrollY: 0,
       });
-      router.push(`/w/${wsSlug}/n/${firstNoteId}`);
+      if (!wsSlug) return;
+      router.push(`/${locale}/app/w/${wsSlug}/n/${firstNoteId}`);
     },
-    [addOrReplacePreview, router, wsSlug, t],
+    [addOrReplacePreview, router, wsSlug, locale, t],
   );
 
   // Park the latest handler in a ref so the cytoscape `dbltap` binding

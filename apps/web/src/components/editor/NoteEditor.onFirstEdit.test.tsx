@@ -18,6 +18,10 @@ vi.mock("platejs/react", () => ({
   PlateContent: (props: React.HTMLAttributes<HTMLDivElement>) => (
     <div {...props} />
   ),
+  createPlatePlugin: (plugin: unknown) => ({
+    ...((plugin ?? {}) as object),
+    withComponent: () => plugin,
+  }),
 }));
 
 // CommentsPanel, PresenceStack, banners, toolbar, wiki-link combobox, and

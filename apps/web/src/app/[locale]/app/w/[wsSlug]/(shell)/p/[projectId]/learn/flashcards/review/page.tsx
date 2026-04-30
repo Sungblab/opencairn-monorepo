@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { FlashcardReview } from "@/components/learn/FlashcardReview";
 
 type Card = { id: string; front: string; back: string };
@@ -13,6 +13,7 @@ export default function ReviewPage() {
     projectId: string;
   }>();
   const router = useRouter();
+  const locale = useLocale();
   const t = useTranslations("learn.review");
   const [cards, setCards] = useState<Card[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,7 +64,7 @@ export default function ReviewPage() {
       cards={cards}
       onReview={handleReview}
       onComplete={() =>
-        router.push(`/app/w/${wsSlug}/p/${projectId}/learn/flashcards`)
+        router.push(`/${locale}/app/w/${wsSlug}/p/${projectId}/learn/flashcards`)
       }
     />
   );

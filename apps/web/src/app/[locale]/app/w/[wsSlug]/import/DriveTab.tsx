@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useGoogleIntegration } from "@/hooks/useGoogleIntegration";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
@@ -23,6 +23,7 @@ function parseFileIds(raw: string): string[] {
 
 export function DriveTab({ wsSlug }: { wsSlug: string }) {
   const t = useTranslations("import");
+  const locale = useLocale();
   const router = useRouter();
   const workspaceId = useWorkspaceId(wsSlug);
   const { status, loading, connectUrl, disconnect } =
@@ -84,7 +85,7 @@ export function DriveTab({ wsSlug }: { wsSlug: string }) {
         return;
       }
       const { jobId } = (await res.json()) as { jobId: string };
-      router.push(`/app/w/${wsSlug}/import/jobs/${jobId}`);
+      router.push(`/${locale}/app/w/${wsSlug}/import/jobs/${jobId}`);
     } finally {
       setSubmitting(false);
     }

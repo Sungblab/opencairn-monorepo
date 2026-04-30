@@ -11,7 +11,7 @@ export interface PickedSource {
 interface Props {
   sources: PickedSource[];
   autoSearch: boolean;
-  onAddSource: () => void;
+  onAddSource?: () => void;
   onRemoveSource: (id: string) => void;
   onAutoSearchChange: (v: boolean) => void;
 }
@@ -31,13 +31,15 @@ export function SourcePicker({
         <span className="text-xs font-medium text-neutral-500">
           {t("panel.sources", { count: sources.length })}
         </span>
-        <button
-          type="button"
-          onClick={onAddSource}
-          className="rounded px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
-        >
-          {t("sources.add")}
-        </button>
+        {onAddSource && (
+          <button
+            type="button"
+            onClick={onAddSource}
+            className="rounded px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+          >
+            {t("sources.add")}
+          </button>
+        )}
       </div>
 
       <ul className="flex flex-col gap-1">
