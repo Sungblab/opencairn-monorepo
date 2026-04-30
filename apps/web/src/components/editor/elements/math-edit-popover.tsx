@@ -124,7 +124,7 @@ export function MathEditPopover({
           >
             {t("cancel")}
           </Button>
-          <Button type="button" size="sm" onClick={handleSave}>
+          <Button type="button" size="sm" onClick={handleSave} data-save-math>
             {t("save")}
           </Button>
         </div>
