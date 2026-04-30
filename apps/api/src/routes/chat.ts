@@ -468,6 +468,7 @@ chatRoutes.post(
           history,
           userMessage: content,
           provider,
+          mode: "auto",
           // Forward request abort signal so client cancels stop the
           // in-flight provider fetch instead of waiting for the next
           // yield boundary (matches Task 7's threads.ts pattern).
