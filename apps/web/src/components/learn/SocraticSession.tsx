@@ -155,6 +155,12 @@ export function SocraticSession({
             type="text"
             value={concept}
             onChange={(e) => setConcept(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && concept.trim() && !pending) {
+                e.preventDefault();
+                void generate();
+              }
+            }}
             placeholder={t("input.concept_placeholder")}
             maxLength={200}
             className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -325,6 +331,17 @@ export function SocraticSession({
             <textarea
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
+              onKeyDown={(e) => {
+                if (
+                  e.key === "Enter" &&
+                  (e.metaKey || e.ctrlKey) &&
+                  answer.trim() &&
+                  !pending
+                ) {
+                  e.preventDefault();
+                  void evaluate();
+                }
+              }}
               placeholder={t("questions.answer_placeholder")}
               rows={5}
               maxLength={4000}

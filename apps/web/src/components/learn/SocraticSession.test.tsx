@@ -189,4 +189,93 @@ describe("<SocraticSession>", () => {
       screen.getByPlaceholderText("learn.socratic.input.concept_placeholder"),
     ).toBeInTheDocument();
   });
+
+  it("submits concept input on Enter key", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        questions: [{ text: "Q1", hint: null, difficulty: "easy" }],
+      }),
+    );
+    render(<SocraticSession projectId="proj-1" initialConcept="Bayes" />);
+    fireEvent.keyDown(
+      screen.getByPlaceholderText("learn.socratic.input.concept_placeholder"),
+      { key: "Enter" },
+    );
+    await waitFor(() => {
+      expect(screen.getByText("Q1")).toBeInTheDocument();
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/projects/proj-1/socratic/generate",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("does not submit on Enter when concept is empty", () => {
+    render(<SocraticSession projectId="proj-1" />);
+    fireEvent.keyDown(
+      screen.getByPlaceholderText("learn.socratic.input.concept_placeholder"),
+      { key: "Enter" },
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("submits answer on Cmd+Enter (textarea)", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          questions: [{ text: "Q1", hint: null, difficulty: "easy" }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          score: 88,
+          is_correct: true,
+          feedback: "Nice.",
+          should_create_flashcard: false,
+        }),
+      );
+    render(<SocraticSession projectId="proj-1" initialConcept="Bayes" />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "learn.socratic.input.generate" }),
+    );
+    await waitFor(() => {
+      expect(screen.getByText("Q1")).toBeInTheDocument();
+    });
+    const textarea = screen.getByPlaceholderText(
+      "learn.socratic.questions.answer_placeholder",
+    );
+    fireEvent.change(textarea, {
+      target: { value: "The prior is the marginal." },
+    });
+    fireEvent.keyDown(textarea, { key: "Enter", metaKey: true });
+    await waitFor(() => {
+      expect(screen.getByText("88")).toBeInTheDocument();
+    });
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/projects/proj-1/socratic/evaluate",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("does not submit answer on plain Enter (allows newline)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        questions: [{ text: "Q1", hint: null, difficulty: "easy" }],
+      }),
+    );
+    render(<SocraticSession projectId="proj-1" initialConcept="Bayes" />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "learn.socratic.input.generate" }),
+    );
+    await waitFor(() => {
+      expect(screen.getByText("Q1")).toBeInTheDocument();
+    });
+    const textarea = screen.getByPlaceholderText(
+      "learn.socratic.questions.answer_placeholder",
+    );
+    fireEvent.change(textarea, { target: { value: "Partial answer" } });
+    fireEvent.keyDown(textarea, { key: "Enter" });
+    // Only the generate call should have happened — no evaluate yet.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
