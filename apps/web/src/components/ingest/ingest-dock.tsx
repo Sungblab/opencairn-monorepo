@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
 import { X } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { useParams } from "next/navigation";
 import { useIngestStore } from "@/stores/ingest-store";
 import { useIngestStream } from "@/hooks/use-ingest-stream";
 import { useTabsStore, type Tab } from "@/stores/tabs-store";
@@ -44,6 +45,8 @@ export function IngestDock() {
   const runs = useIngestStore((s) => s.runs);
   const dismiss = useIngestStore((s) => s.dismissDockCard);
   const t = useTranslations("ingest.dock");
+  const locale = useLocale();
+  const { wsSlug } = useParams<{ wsSlug?: string }>();
 
   const cards = Object.values(runs).sort(
     (a, b) => b.startedAt - a.startedAt,
@@ -79,8 +82,11 @@ export function IngestDock() {
               <IngestProgressView wfid={r.workflowId} mode="dock" />
             </button>
           )}
-          {r.status === "completed" && r.noteId && (
-            <Link href={`/notes/${r.noteId}`} className="ingest-dock-link">
+          {r.status === "completed" && r.noteId && wsSlug && (
+            <Link
+              href={`/${locale}/app/w/${wsSlug}/n/${r.noteId}`}
+              className="ingest-dock-link"
+            >
               {t("openNote")}
             </Link>
           )}

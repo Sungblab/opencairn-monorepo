@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 
 type UpdatedEvent = {
@@ -29,6 +29,7 @@ export function JobProgress({
   jobId: string;
 }) {
   const t = useTranslations("import");
+  const locale = useLocale();
   const [state, setState] = useState<JobState>({
     status: "queued",
     total: 0,
@@ -109,7 +110,7 @@ export function JobProgress({
 
       {done && (
         <Link
-          href={`/app/w/${wsSlug}`}
+          href={`/${locale}/app/w/${wsSlug}`}
           className="inline-flex rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90"
         >
           {t("actions.openResult")}

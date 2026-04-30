@@ -11,6 +11,7 @@ import {
   desc,
   asc,
   sql,
+  user,
   type AttachedChip,
   type Citation,
 } from "@opencairn/db";
@@ -376,6 +377,10 @@ chatRoutes.post(
     if (convo.ownerUserId !== userId) {
       return c.json({ error: "forbidden" }, 403);
     }
+    const [profile] = await db
+      .select({ locale: user.locale, timezone: user.timezone })
+      .from(user)
+      .where(eq(user.id, userId));
 
     // Map conversation scope to retrieval scope.
     const scope: RetrievalScope =
@@ -468,6 +473,9 @@ chatRoutes.post(
           history,
           userMessage: content,
           provider,
+          mode: "auto",
+          locale: profile?.locale ?? "ko",
+          timezone: profile?.timezone ?? "Asia/Seoul",
           // Forward request abort signal so client cancels stop the
           // in-flight provider fetch instead of waiting for the next
           // yield boundary (matches Task 7's threads.ts pattern).
@@ -490,12 +498,17 @@ chatRoutes.post(
               body_markdown: string;
             };
           } else if (chunk.type === "error") {
-            const e = chunk.payload as { message: string; code?: string };
+            const e = chunk.payload as {
+              message: string;
+              code?: string;
+              messageKey?: string;
+            };
             await stream.writeSSE({
               event: "error",
               data: JSON.stringify({
                 code: e.code ?? "llm_failed",
                 message: e.message,
+                ...(e.messageKey ? { messageKey: e.messageKey } : {}),
               }),
             });
             await stream.writeSSE({ event: "done", data: "{}" });

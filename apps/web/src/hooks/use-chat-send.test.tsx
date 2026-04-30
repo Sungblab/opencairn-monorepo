@@ -90,6 +90,40 @@ describe("useChatSend", () => {
     expect(sent).toMatchObject({ content: "hi", mode: "auto" });
   });
 
+  it("passes concrete retrieval scope through the request body", async () => {
+    const body = mkSseBody([
+      'event: done\ndata: {"id":"m1","status":"complete"}\n\n',
+    ]);
+    fetchMock.mockResolvedValueOnce({ ok: true, body } as Partial<Response>);
+
+    const { result } = renderHook(() => useChatSend("t1"), {
+      wrapper: makeWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.send({
+        content: "with scope",
+        scope: {
+          strict: "loose",
+          chips: [
+            { type: "page", id: "n1" },
+            { type: "workspace", id: "w1" },
+          ],
+        },
+      });
+    });
+
+    const [, init] = fetchMock.mock.calls[0];
+    const sent = JSON.parse(init.body as string);
+    expect(sent.scope).toEqual({
+      strict: "loose",
+      chips: [
+        { type: "page", id: "n1" },
+        { type: "workspace", id: "w1" },
+      ],
+    });
+  });
+
   it("does nothing when threadId is null", async () => {
     const { result } = renderHook(() => useChatSend(null), {
       wrapper: makeWrapper(),

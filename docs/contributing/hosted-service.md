@@ -24,6 +24,12 @@ Legal 문서와 블로그는 OSS 앱 모노레포에 넣지 않는다. hosted se
 이 앱은 `NEXT_PUBLIC_LEGAL_*_URL`, `NEXT_PUBLIC_BLOG_URL` 같은 공개 env URL로
 연결만 한다.
 
+현재 운영 기준으로 회사 사이트 도메인은 `sungblab.com`이고, 별도
+marketing/legal 사이트의 소스는
+`C:\Users\Sungbin\Documents\GitHub\sungblab-nextjs`다. OpenCairn 앱은
+`/privacy`, `/terms`, `/refund`, `/blog` 페이지를 직접 구현하지 않고,
+회사 사이트의 OpenCairn 섹션(`/opencairn/*`)으로 연결한다.
+
 ---
 
 ## What's not in this repo
@@ -40,10 +46,10 @@ Legal 문서와 블로그는 OSS 앱 모노레포에 넣지 않는다. hosted se
 
 | Content | URL |
 |---------|-----|
-| Privacy Policy | `(host)/legal/privacy` |
-| Terms of Service | `(host)/legal/terms` |
+| Privacy Policy | `sungblab.com/opencairn/legal/privacy` |
+| Terms of Service | `sungblab.com/opencairn/legal/terms` |
 | Pricing & Billing | `(host)/pricing` |
-| Blog | 별도 marketing/blog 사이트 (`(host)/blog` 또는 `blog.opencairn.com`) |
+| Blog | `sungblab.com/opencairn/blog` |
 
 `(host)`는 현재 `sungblab.com/opencairn`, 정식 출시 시 `opencairn.com`.
 

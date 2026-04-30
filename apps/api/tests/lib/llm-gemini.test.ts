@@ -19,6 +19,11 @@ vi.mock("@google/genai", () => {
   }
   return {
     GoogleGenAI,
+    ThinkingLevel: {
+      LOW: "LOW",
+      MEDIUM: "MEDIUM",
+      HIGH: "HIGH",
+    },
     __fakeEmbed: fakeEmbed,
     __fakeStream: fakeStream,
   };
@@ -204,7 +209,7 @@ describe("GeminiProvider.streamGenerate", () => {
       tokensIn: 12,
       tokensOut: 5,
     });
-    expect(usages[0].usage.model).toMatch(/gemini-2\.5-flash/);
+    expect(usages[0].usage.model).toMatch(/gemini-3-flash-preview/);
   });
 
   it("respects GEMINI_CHAT_MODEL env override", async () => {
@@ -246,8 +251,32 @@ describe("GeminiProvider.streamGenerate", () => {
     expect(usages[0].usage).toEqual({
       tokensIn: 0,
       tokensOut: 0,
-      model: "gemini-2.5-flash",
+      model: "gemini-3-flash-preview",
     });
+  });
+
+  it("forwards Gemini 3 thinkingLevel to generateContentStream", async () => {
+    async function* one() {
+      yield { text: "ok", usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 } };
+    }
+    fakeStream.mockReturnValue(one());
+
+    const provider = getGeminiProvider();
+    for await (const _ of provider.streamGenerate({
+      messages: [{ role: "user", content: "x" }],
+      thinkingLevel: "high",
+    })) {
+      // drain
+    }
+
+    expect(fakeStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "gemini-3-flash-preview",
+        config: expect.objectContaining({
+          thinkingConfig: { thinkingLevel: "HIGH" },
+        }),
+      }),
+    );
   });
 
   it("short-circuits on abort mid-stream and emits no further chunks", async () => {

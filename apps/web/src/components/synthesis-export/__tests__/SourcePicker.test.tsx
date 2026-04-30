@@ -51,4 +51,9 @@ describe("SourcePicker", () => {
     fireEvent.click(checkbox);
     expect(onAutoSearchChange).toHaveBeenCalledWith(true);
   });
+
+  it("hides add source action when no handler is wired", () => {
+    setup({ onAddSource: undefined });
+    expect(screen.queryByRole("button", { name: /추가|add/i })).not.toBeInTheDocument();
+  });
 });

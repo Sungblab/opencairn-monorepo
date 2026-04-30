@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import type { NoteRow } from "@/lib/api-client";
 
 export function NoteList({
@@ -14,12 +14,14 @@ export function NoteList({
   projectId: string;
 }) {
   const t = useTranslations("sidebar");
+  const locale = useLocale();
   const path = usePathname();
   return (
     <ul className="space-y-0.5">
       {notes.map((n) => {
-        const href = `/app/w/${workspaceSlug}/p/${projectId}/notes/${n.id}`;
-        const active = path?.endsWith(`/notes/${n.id}`);
+        const href = `/${locale}/app/w/${workspaceSlug}/n/${n.id}`;
+        const active =
+          path?.endsWith(`/n/${n.id}`) || path?.endsWith(`/notes/${n.id}`);
         return (
           <li key={n.id}>
             <Link

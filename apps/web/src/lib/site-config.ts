@@ -9,18 +9,24 @@ export const siteUrl =
   clean(process.env.NEXT_PUBLIC_BASE_URL) ??
   "https://opencairn.com";
 
-const externalPath = (path: string) => `${siteUrl}${path}`;
+const companySiteUrl =
+  clean(process.env.NEXT_PUBLIC_COMPANY_SITE_URL) ?? "https://sungblab.com";
+
+const companyPath = (path: string) => `${companySiteUrl}${path}`;
 
 export const externalSiteUrls = {
   privacy:
     clean(process.env.NEXT_PUBLIC_LEGAL_PRIVACY_URL) ??
-    externalPath("/privacy"),
+    companyPath("/opencairn/legal/privacy"),
   terms:
-    clean(process.env.NEXT_PUBLIC_LEGAL_TERMS_URL) ?? externalPath("/terms"),
+    clean(process.env.NEXT_PUBLIC_LEGAL_TERMS_URL) ??
+    companyPath("/opencairn/legal/terms"),
   refund:
     clean(process.env.NEXT_PUBLIC_LEGAL_REFUND_URL) ??
-    externalPath("/refund"),
-  blog: clean(process.env.NEXT_PUBLIC_BLOG_URL) ?? externalPath("/blog"),
+    companyPath("/opencairn/legal/refund"),
+  blog:
+    clean(process.env.NEXT_PUBLIC_BLOG_URL) ??
+    companyPath("/opencairn/blog"),
 } as const;
 
 export const analyticsConfig = {

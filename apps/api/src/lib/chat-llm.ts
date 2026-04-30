@@ -1,5 +1,10 @@
 import type { Citation } from "@opencairn/db";
 import { retrieve, type RagMode, type RetrievalScope, type RetrievalChip } from "./chat-retrieval";
+import { buildRuntimeContext } from "./chat-runtime-context";
+import {
+  selectChatRuntimePolicy,
+  type ChatMode,
+} from "./chat-runtime-policy";
 import { extractSaveSuggestion } from "./save-suggestion-fence";
 import { envInt } from "./env";
 import {
@@ -19,7 +24,10 @@ export type ChatChunk =
       payload: { title: string; body_markdown: string };
     }
   | { type: "usage"; payload: Usage }
-  | { type: "error"; payload: { message: string; code?: string } }
+  | {
+      type: "error";
+      payload: { message: string; code?: string; messageKey?: string };
+    }
   | { type: "done"; payload: Record<string, never> };
 
 const SYSTEM_PROMPT = [
@@ -47,8 +55,21 @@ export async function* runChat(opts: {
   userMessage: string;
   signal?: AbortSignal;
   provider?: LLMProvider;
+  mode?: ChatMode;
+  now?: Date;
+  locale?: string;
+  timezone?: string;
 }): AsyncGenerator<ChatChunk> {
   const provider = opts.provider ?? getGeminiProvider();
+  const policy = selectChatRuntimePolicy({
+    mode: opts.mode ?? "auto",
+    userMessage: opts.userMessage,
+  });
+  const runtimeContext = buildRuntimeContext({
+    now: opts.now,
+    locale: opts.locale,
+    timezone: opts.timezone,
+  });
 
   // try/finally guarantees `done` always fires on natural completion AND
   // when the body throws. The `error` chunk in the catch is the signal
@@ -86,6 +107,18 @@ export async function* runChat(opts: {
     }));
     for (const c of citations) yield { type: "citation", payload: c };
 
+    if (policy.externalGroundingRequired && citations.length === 0) {
+      yield {
+        type: "error",
+        payload: {
+          code: "grounding_required",
+          messageKey: "chat.errors.groundingRequired",
+          message: groundingRequiredMessage(opts.locale),
+        },
+      };
+      return;
+    }
+
     // Build the prompt. RAG context block lives in the system message so it
     // doesn't burn through the user-history truncation budget below.
     const ragBlock =
@@ -98,7 +131,7 @@ export async function* runChat(opts: {
           "\n</context>";
     const system: ChatMsg = {
       role: "system",
-      content: SYSTEM_PROMPT + ragBlock,
+      content: [SYSTEM_PROMPT, runtimeContext, ragBlock].filter(Boolean).join("\n\n"),
     };
 
     const history = truncateHistory(opts.history);
@@ -119,6 +152,7 @@ export async function* runChat(opts: {
       messages,
       signal: opts.signal,
       maxOutputTokens: envInt("CHAT_MAX_OUTPUT_TOKENS", 2048),
+      thinkingLevel: policy.thinkingLevel,
     })) {
       if ("delta" in chunk) {
         buffer.push(chunk.delta);
@@ -168,4 +202,11 @@ function truncateHistory(history: ChatMsg[]): ChatMsg[] {
     kept = kept.slice(1);
   }
   return kept;
+}
+
+function groundingRequiredMessage(locale?: string): string {
+  if (locale === "en") {
+    return "This question needs current verified sources, but no grounding source is connected. No answer was generated.";
+  }
+  return "최신 정보가 필요한 질문이라 확인 가능한 근거가 필요합니다. 현재 연결된 검색 근거가 없어 답변을 생성하지 않았습니다.";
 }

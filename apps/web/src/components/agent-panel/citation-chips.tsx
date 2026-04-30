@@ -6,6 +6,7 @@
 // /ko, otherwise English users would silently flip languages on click.
 
 import { useLocale } from "next-intl";
+import { useParams } from "next/navigation";
 
 import { safeHref } from "@/lib/url/safe-href";
 
@@ -18,6 +19,7 @@ export interface Citation {
 
 export function CitationChips({ citations }: { citations: Citation[] }) {
   const locale = useLocale();
+  const { wsSlug } = useParams<{ wsSlug?: string }>();
 
   if (!citations?.length) return null;
 
@@ -32,7 +34,9 @@ export function CitationChips({ citations }: { citations: Citation[] }) {
         const href = c.url
           ? safeHref(c.url)
           : c.noteId
-            ? `/${locale}/app/notes/${c.noteId}`
+            ? wsSlug
+              ? `/${locale}/app/w/${wsSlug}/n/${c.noteId}`
+              : "#"
             : "#";
         return (
           <a

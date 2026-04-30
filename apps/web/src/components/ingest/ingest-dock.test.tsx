@@ -1,8 +1,12 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { IngestDock } from "./ingest-dock";
 import { useIngestStore } from "@/stores/ingest-store";
+
+vi.mock("next/navigation", () => ({
+  useParams: () => ({ wsSlug: "acme" }),
+}));
 
 class FakeEventSource {
   url: string;
@@ -82,7 +86,10 @@ describe("<IngestDock>", () => {
       });
     });
     wrap();
-    expect(screen.getByText("노트 열기")).toBeInTheDocument();
+    expect(screen.getByText("노트 열기")).toHaveAttribute(
+      "href",
+      "/ko/app/w/acme/n/00000000-0000-0000-0000-000000000001",
+    );
   });
 
   it("dismiss button removes the card from the dock", () => {

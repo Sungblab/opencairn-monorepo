@@ -1,5 +1,5 @@
 "use client";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Workflow } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import { useTabsStore } from "@/stores/tabs-store";
@@ -7,6 +7,7 @@ import { useCurrentProjectContext } from "./use-current-project";
 
 export function ProjectGraphLink() {
   const t = useTranslations("sidebar.graph");
+  const locale = useLocale();
   const { projectId } = useCurrentProjectContext();
   const router = useRouter();
   const params = useParams<{ wsSlug: string }>();
@@ -31,7 +32,7 @@ export function ProjectGraphLink() {
       splitSide: null,
       scrollY: 0,
     });
-    router.push(`/w/${wsSlug}/p/${projectId}/graph`);
+    router.push(`/${locale}/app/w/${wsSlug}/p/${projectId}/graph`);
   }
 
   return (

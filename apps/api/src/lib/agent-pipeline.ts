@@ -13,7 +13,8 @@
 
 import { db, chatMessages, chatThreads, and, desc, eq, notInArray, sql } from "@opencairn/db";
 import { runChat, type ChatChunk } from "./chat-llm";
-import type { RagMode } from "./chat-retrieval";
+import type { ChatMode } from "./chat-runtime-policy";
+import type { RagMode, RetrievalChip, RetrievalScope } from "./chat-retrieval";
 import type { ChatMsg, LLMProvider } from "./llm/gemini";
 import { envInt } from "./env";
 import { tokensToKrw } from "./cost";
@@ -33,7 +34,32 @@ export interface AgentChunk {
   payload: unknown;
 }
 
-export type ChatMode = "auto" | "fast" | "balanced" | "accurate" | "research";
+export type { ChatMode };
+
+type RawAgentScope = {
+  strict?: unknown;
+  chips?: unknown;
+};
+
+export function resolveAgentRetrievalOptions(opts: {
+  workspaceId: string;
+  rawScope?: unknown;
+  ragMode?: RagMode;
+}): {
+  scope: RetrievalScope;
+  chips: RetrievalChip[];
+  ragMode: RagMode;
+} {
+  const raw = isRecord(opts.rawScope) ? (opts.rawScope as RawAgentScope) : {};
+  const chips = Array.isArray(raw.chips)
+    ? raw.chips.flatMap((chip) => normalizeRetrievalChip(chip, opts.workspaceId))
+    : [];
+  return {
+    scope: { type: "workspace", workspaceId: opts.workspaceId },
+    chips,
+    ragMode: opts.ragMode ?? (raw.strict === "loose" ? "expand" : "strict"),
+  };
+}
 
 export async function* runAgent(opts: {
   threadId: string;
@@ -64,19 +90,43 @@ export async function* runAgent(opts: {
   const workspaceId = thread.workspaceId;
 
   const history = await loadHistory(opts.threadId, opts.excludeMessageIds ?? []);
+  const retrieval = resolveAgentRetrievalOptions({
+    workspaceId,
+    rawScope: opts.userMessage.scope,
+    ragMode: opts.ragMode,
+  });
 
   for await (const chunk of runChat({
     workspaceId,
-    scope: { type: "workspace", workspaceId },
-    ragMode: opts.ragMode ?? "strict",
-    chips: [],
+    scope: retrieval.scope,
+    ragMode: retrieval.ragMode,
+    chips: retrieval.chips,
     history,
     userMessage: opts.userMessage.content,
     signal: opts.signal,
     provider: opts.provider,
+    mode: opts.mode,
   })) {
     yield mapChunk(chunk);
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeRetrievalChip(
+  raw: unknown,
+  workspaceId: string,
+): RetrievalChip[] {
+  if (!isRecord(raw) || typeof raw.id !== "string") return [];
+  if (raw.type === "page" || raw.type === "project") {
+    return [{ type: raw.type, id: raw.id }];
+  }
+  if (raw.type === "workspace" && raw.id === workspaceId) {
+    return [{ type: "workspace", id: raw.id }];
+  }
+  return [];
 }
 
 // Loads the most recent N completed chat_messages and shapes them into the

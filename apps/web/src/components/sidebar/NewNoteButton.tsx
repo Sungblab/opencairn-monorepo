@@ -1,5 +1,5 @@
 "use client";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
@@ -14,6 +14,7 @@ export function NewNoteButton({
   projectId: string;
 }) {
   const t = useTranslations("sidebar");
+  const locale = useLocale();
   const router = useRouter();
   const qc = useQueryClient();
   const m = useMutation({
@@ -22,7 +23,7 @@ export function NewNoteButton({
       await qc.invalidateQueries({
         queryKey: ["notes-by-project", projectId],
       });
-      router.push(`/app/w/${workspaceSlug}/p/${projectId}/notes/${note.id}`);
+      router.push(`/${locale}/app/w/${workspaceSlug}/n/${note.id}`);
     },
   });
   return (

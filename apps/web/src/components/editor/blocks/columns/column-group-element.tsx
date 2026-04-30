@@ -35,7 +35,7 @@ export function ColumnGroupElement({
       node.widths && node.widths.length === n
         ? normalize(node.widths)
         : defaultEqualWidths(n),
-    [JSON.stringify(node.widths), n],
+    [node.widths, n],
   );
 
   const [localWidths, setLocalWidths] = useState<number[] | null>(null);
