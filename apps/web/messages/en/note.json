@@ -4,5 +4,37 @@
     "empty": "No other notes link to this one.",
     "countAria": "{count} backlinks",
     "toggleAria": "Toggle backlinks panel"
+  },
+  "enrichment": {
+    "title": "Metadata",
+    "toggleAria": "Toggle note metadata panel",
+    "loading": "Loading…",
+    "loadError": "Failed to load metadata ({msg})",
+    "failureGeneric": "Analysis failed.",
+    "empty": "No automatic analysis available for this note yet.",
+    "outline": "Outline",
+    "figures": "Figures ({count})",
+    "tables": "Tables ({count})",
+    "skipReasons": "Skipped",
+    "untitled": "(untitled)",
+    "moreCount": "+{count} more",
+    "wordCount": "Word count: {count}",
+    "pageRef": "p.{page}",
+    "provider": "Analyzed by {provider}",
+    "status": {
+      "pending": "Pending",
+      "processing": "Processing",
+      "done": "Done",
+      "failed": "Failed"
+    },
+    "contentType": {
+      "document": "Document",
+      "paper": "Paper",
+      "slide": "Slides",
+      "book": "Book",
+      "code": "Code",
+      "table": "Table",
+      "image": "Image"
+    }
   }
 }

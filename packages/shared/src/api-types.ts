@@ -217,6 +217,60 @@ export const backlinksResponseSchema = z.object({
 });
 export type BacklinksResponse = z.infer<typeof backlinksResponseSchema>;
 
+// ─── Spec B: Content-Aware Enrichment artifact (read API) ───────────────
+//
+// Surface for the H4 enrichment side panel. Mirrors `note_enrichments` row
+// shape but is intentionally permissive on `artifact`: the Spec-B JSONB
+// schema is type-dependent (paper has `sections`, slide has `slides`, etc.)
+// and the worker may grow it in follow-ups, so we accept any record on the
+// wire and let the panel do narrow runtime checks for the keys it knows.
+
+export const enrichmentStatus = z.enum([
+  "pending",
+  "processing",
+  "done",
+  "failed",
+]);
+export type EnrichmentStatus = z.infer<typeof enrichmentStatus>;
+
+export const enrichmentOutlineItemSchema = z.object({
+  level: z.number().int().min(1).max(6),
+  title: z.string(),
+  page: z.number().int().nonnegative().optional(),
+});
+export type EnrichmentOutlineItem = z.infer<
+  typeof enrichmentOutlineItemSchema
+>;
+
+export const enrichmentFigureSchema = z.object({
+  page: z.number().int().nonnegative().optional(),
+  caption: z.string().optional(),
+  objectKey: z.string().optional(),
+});
+export type EnrichmentFigure = z.infer<typeof enrichmentFigureSchema>;
+
+export const enrichmentTableSchema = z.object({
+  page: z.number().int().nonnegative().optional(),
+  caption: z.string().optional(),
+  markdown: z.string().optional(),
+});
+export type EnrichmentTable = z.infer<typeof enrichmentTableSchema>;
+
+// `artifact` is `Record<string,unknown>` on the wire to stay forward-compat
+// with worker schema additions; the panel uses safeParse on the slices it
+// actually renders.
+export const enrichmentResponseSchema = z.object({
+  noteId: z.string().uuid(),
+  contentType: z.string(),
+  status: enrichmentStatus,
+  artifact: z.record(z.unknown()).nullable(),
+  provider: z.string().nullable(),
+  skipReasons: z.array(z.string()),
+  error: z.string().nullable(),
+  updatedAt: z.string().datetime(),
+});
+export type EnrichmentResponse = z.infer<typeof enrichmentResponseSchema>;
+
 // ─── Plan 5 Phase 2: ViewSpec ────────────────────────────────────────
 
 export const ViewType = z.enum([

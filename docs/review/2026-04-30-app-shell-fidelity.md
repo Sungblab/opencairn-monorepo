@@ -152,7 +152,7 @@ product decision before the UI ships.
 | H1 | Notification preferences UI grid | **Already shipped** — `NotificationsView` already renders the per-kind email + frequency selector grid. Audit error. |
 | H2 | Staleness Agent manual trigger | **Already shipped** — `agent-entrypoints-view.tsx:100-101` mounts the staleness launch panel with a "Run" button. Audit error. |
 | H3 | Literature search trigger UI | Needs a search modal + import flow. The backend is fully wired (`lit_import_activities.py` + 4 provider integrations), but the UI scope is large enough to warrant its own plan rather than bundling here. |
-| H4 | Note view enrichment panel | `note_enrichments` table populated by Spec B (PR #58) is never displayed. `FEATURE_CONTENT_ENRICHMENT` is OFF by default + a display panel needs the note view layout to accommodate it. Both belong in a follow-up. |
+| H4 | Note view enrichment panel | **CLOSED 2026-04-30**. `EnrichmentPanel` ships beside `BacklinksPanel` as a right-rail (Cmd+Shift+I to toggle). Reads from new `GET /api/notes/:id/enrichment` (`canRead`-gated, 404 → panel empty state). Renders status pill, content-type chip, outline (level-indented), figures (caption · pageRef), tables (caption · pageRef), word count, provider, skip reasons, error. Forward-compat with worker artifact additions: `artifact` is wire-typed `Record<string,unknown>` and the panel `safeParse`s only the slices it renders. Deviation from mockup: the 2026-04-23 mockup didn't model an enrichment surface, so the panel adopts `BacklinksPanel`'s `w-72 border-l` chrome verbatim. Flag-OFF stays correct: with `FEATURE_CONTENT_ENRICHMENT=false` no rows exist → 404 → "no analysis yet" empty state, so the toggle is never silently broken. |
 | H5 | Doc Editor slash menu UI hint | `FEATURE_DOC_EDITOR_SLASH=false` gates the four LLM-only slash commands (PR #61). Even with the flag on, no UI hint surfaces the feature. Needs a slash menu or composer placeholder edit. |
 | H6 | Socratic Agent learning trigger | `POST /socratic/run` exists but no frontend caller. Belongs in a Learning page polish PR. |
 | H7 | Plan 9b billing — real `credits_krw` and plan tier | Footer + dashboard show ₩0/Free until billing lands. Layout is stable for the swap. |
@@ -187,12 +187,14 @@ pass.
 
 Candidates ordered by user-visible impact:
 
-1. **H4** — Surface enrichments in the note view (mockup TBD).
-2. **H3** — Literature search modal + import flow.
-3. **H5** — Doc editor slash menu hint + flag flip for dogfooding.
-4. **H7** — Plan 9b billing wires up real credit + tier values.
-5. **H6** — Socratic Agent trigger in the learning UI.
-6. **H8** — Decide Code Agent prod flag flip with rollback playbook.
+1. **H3** — Literature search modal + import flow.
+2. **H5** — Doc editor slash menu hint + flag flip for dogfooding.
+3. **H7** — Plan 9b billing wires up real credit + tier values.
+4. **H6** — Socratic Agent trigger in the learning UI.
+5. **H8** — Decide Code Agent prod flag flip with rollback playbook.
+
+H4 closed 2026-04-30 in the same fidelity sweep — see the closed row in the
+table above for the implementation summary.
 
 Each warrants its own plan; bundling them here would have made this
 PR unreviewable.

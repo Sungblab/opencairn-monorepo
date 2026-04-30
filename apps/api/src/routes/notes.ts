@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { db, notes, projects, wikiLinks, eq, and, desc, isNull, sql } from "@opencairn/db";
+import { db, notes, noteEnrichments, projects, wikiLinks, eq, and, desc, isNull, sql } from "@opencairn/db";
 import { createNoteSchema, updateNoteSchema, patchCanvasSchema } from "@opencairn/shared";
 
 // PATCH body ignores `content` — Yjs (via Hocuspocus) is canonical (Plan 2B).
@@ -145,6 +145,36 @@ export const noteRoutes = new Hono<AppEnv>()
     }
 
     return c.json({ data: visible, total: visible.length });
+  })
+
+  // Spec B (Content-Aware Enrichment) — read-side for the H4 panel. Single
+  // row per note (unique index on note_id), so this is a point lookup.
+  // Returns 404 when no artifact exists; the panel renders an empty state in
+  // that case rather than hiding itself, so the toggle stays useful even on
+  // notes ingested before the worker enrichment branch was on.
+  .get("/:id/enrichment", async (c) => {
+    const user = c.get("user");
+    const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "bad-request" }, 400);
+    if (!(await canRead(user.id, { type: "note", id }))) {
+      return c.json({ error: "forbidden" }, 403);
+    }
+    const [row] = await db
+      .select()
+      .from(noteEnrichments)
+      .where(eq(noteEnrichments.noteId, id))
+      .limit(1);
+    if (!row) return c.json({ error: "no_enrichment" }, 404);
+    return c.json({
+      noteId: row.noteId,
+      contentType: row.contentType,
+      status: row.status,
+      artifact: row.artifact,
+      provider: row.provider,
+      skipReasons: row.skipReasons ?? [],
+      error: row.error,
+      updatedAt: row.updatedAt.toISOString(),
+    });
   })
 
   .get("/:id", async (c) => {

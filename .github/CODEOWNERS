@@ -1,0 +1,13 @@
+# OpenCairn ownership map. Branch protection isn't enforced on this repo
+# (PR #136 rationale), so this file is informational — GitHub still
+# auto-requests review from the listed owners but cannot block merges.
+#
+# Single-owner solo project. Add team handles here when contributors
+# pick up specific surfaces.
+
+* @Sungblab
+
+# CI/CD + dependency automation — keep ownership explicit so audits like
+# `docs/review/2026-04-28-completion-claims-audit.md` § 11 stay traceable
+# to a person.
+/.github/                @Sungblab
