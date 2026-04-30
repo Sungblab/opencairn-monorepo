@@ -1,0 +1,52 @@
+{
+  "open": "Open history",
+  "title": "Version history",
+  "currentVersion": "Current v{version}",
+  "currentVersionEmpty": "No saved versions yet.",
+  "createCheckpoint": "Create checkpoint",
+  "checkpointCreated": "Checkpoint created.",
+  "checkpointFailed": "Could not create a checkpoint.",
+  "source": {
+    "auto_save": "Auto-save",
+    "title_change": "Title change",
+    "ai_edit": "AI edit",
+    "restore": "Restored",
+    "manual_checkpoint": "Checkpoint",
+    "import": "Import"
+  },
+  "actor": {
+    "user": "User",
+    "agent": "Agent",
+    "system": "System"
+  },
+  "preview": "Preview",
+  "compareWithCurrent": "Compare with current",
+  "restore": "Restore this version",
+  "restorePending": "Restoring",
+  "restoreConfirmTitle": "Restore this version?",
+  "restoreConfirmBody": "The current content will be preserved as a new version before restoring v{version}.",
+  "restoreSuccess": "Restored the selected version.",
+  "restoreFailed": "Could not restore this version. Try again.",
+  "cancel": "Cancel",
+  "empty": "No saved versions yet.",
+  "loadFailed": "Could not load version history.",
+  "diffTooLarge": "This change is too large to compare, so only the preview is shown.",
+  "readOnlyRestoreHint": "You have read-only access, so checkpoint and restore controls are unavailable.",
+  "loading": "Loading.",
+  "retry": "Try again",
+  "selectVersion": "Select a version from the left.",
+  "versionLabel": "v{version}",
+  "emptyDiff": "No changes to compare with the current content.",
+  "summary": {
+    "addedBlocks": "Added blocks",
+    "removedBlocks": "Removed blocks",
+    "changedBlocks": "Changed blocks",
+    "addedWords": "Added words",
+    "removedWords": "Removed words"
+  },
+  "status": {
+    "added": "Added",
+    "removed": "Removed",
+    "changed": "Changed"
+  }
+}

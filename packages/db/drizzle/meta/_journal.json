@@ -288,6 +288,13 @@
       "when": 1777560528474,
       "tag": "0040_tranquil_captain_flint",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1777565765161,
+      "tag": "0041_flashy_mister_sinister",
+      "breakpoints": true
     }
   ]
 }
