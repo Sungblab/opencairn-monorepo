@@ -1,0 +1,62 @@
+name: CodeQL
+
+# Static analysis for the JS/TS surface (apps/web, apps/api, apps/hocuspocus,
+# packages/*) and the Python surface (apps/worker, packages/llm,
+# apps/tectonic). Runs on push/PR to main plus a weekly schedule so newly
+# disclosed CVEs in the GitHub-hosted query packs surface even on weeks
+# without merges.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Mondays 03:17 UTC — picks up weekend rule updates without colliding
+    # with the Dependabot Monday window (00:00 UTC default).
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # `javascript-typescript` covers both JS and TS source files in one
+        # database build. `python` handles apps/worker + packages/llm +
+        # apps/tectonic. No build step is needed for either language —
+        # CodeQL infers from source.
+        language: [javascript-typescript, python]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # `security-extended` adds rules that flag common web-app issues
+          # the default suite skips (open redirects, prototype pollution,
+          # tainted SQL). `security-and-quality` would also include style
+          # findings — too noisy for a small team's review queue.
+          queries: security-extended
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}
