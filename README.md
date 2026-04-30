@@ -104,6 +104,9 @@ Built on top of excellent open-source work, including [Plate](https://platejs.or
 
 ## License
 
-[AGPL-3.0-or-later](LICENSE).
+OpenCairn is **dual-licensed**:
 
-If you run a modified OpenCairn as a network service for other users (for example as a hosted SaaS), the AGPL's network-use clause requires that the modified source be available to those users under the same license. Self-host privately, fork, modify, or contribute back — your choice within those terms.
+- **Default**: [AGPL-3.0-or-later](LICENSE). Self-host, fork, modify, redistribute, or run as a network service — all permitted under AGPL terms, including the network-use clause that requires modified source to be available to network users.
+- **Commercial license**: available for organizations that cannot comply with AGPLv3's network-use clause or whose internal open-source policy prohibits AGPL components. See [`LICENSE-COMMERCIAL.md`](LICENSE-COMMERCIAL.md) for scope and how to inquire.
+
+For most users — individuals, internal-only deployments, organizations comfortable with AGPL — no commercial license is needed. Non-trivial contributors are asked to accept the [Contributor License Agreement](CLA.md), which lets the project distribute their contribution under both licenses.

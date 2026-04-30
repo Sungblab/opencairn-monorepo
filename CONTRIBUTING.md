@@ -51,6 +51,40 @@ docs(architecture): document context budget policy
 - **Tests** — integration tests use a real database, not mocks. The mock/prod divergence rationale is in `docs/contributing/llm-antipatterns.md`.
 - **i18n** — under `apps/web`, user-facing strings live in `messages/{locale}/*.json`. ESLint enforces this and `pnpm --filter @opencairn/web i18n:parity` runs in CI.
 
-## License
+## License & Contributor License Agreement
 
-By submitting a contribution you agree it will be licensed under AGPL-3.0-or-later, the project's license. See [LICENSE](LICENSE).
+OpenCairn is **dual-licensed** under [AGPL-3.0-or-later](LICENSE) and an
+optional commercial license (see [`LICENSE-COMMERCIAL.md`](LICENSE-COMMERCIAL.md)).
+
+For the dual-license model to work, the project must be able to distribute every
+contribution under both licenses. We therefore ask non-trivial contributors to
+accept the [Contributor License Agreement (CLA)](CLA.md). The CLA grants the
+project the right to relicense your contribution; you retain copyright.
+
+**How to accept the CLA** until the automated CLA-Assistant bot is enabled:
+
+1. Read [`CLA.md`](CLA.md) v1.0.
+2. Add this trailer to every commit in your pull request:
+
+   ```
+   Signed-off-by: Your Real Name <your-email@example.com>
+   OpenCairn-CLA: accepted v1.0
+   ```
+
+   The `OpenCairn-CLA: accepted v1.0` line is the explicit acceptance; the
+   `Signed-off-by` line is the standard DCO sign-off attesting that you have
+   the right to submit the work.
+
+3. Alternatively, post a comment on your pull request stating: *"I have read
+   and accept the OpenCairn Contributor License Agreement v1.0."*
+
+**Trivial contributions** (typo fixes, minor doc edits, small dependency bumps)
+do **not** require a signed CLA, but the maintainer may request one for any
+contribution at their discretion. If unsure, accept the CLA — it is a one-line
+trailer.
+
+**Why CLA, not just AGPL?** The AGPL alone does not authorize the project to
+relicense your contribution under non-AGPL terms (such as a commercial license
+for organizations that cannot use AGPL-licensed software). The CLA explicitly
+grants that authorization while leaving you as the copyright holder of your
+work.
