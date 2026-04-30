@@ -11,7 +11,12 @@
     },
     "note": {
       "heading": "Note {id}",
-      "placeholder": "Phase 3 will fill this in."
+      "placeholder": "Phase 3 will fill this in.",
+      "chrome": {
+        "breadcrumb_label": "Note location",
+        "project_unknown": "—",
+        "autosave": "Autosaved {at}"
+      }
     },
     "ws_settings": {
       "heading": "Workspace settings — {sub}",

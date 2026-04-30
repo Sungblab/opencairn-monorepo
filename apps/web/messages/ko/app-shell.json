@@ -11,7 +11,12 @@
     },
     "note": {
       "heading": "노트 {id}",
-      "placeholder": "Phase 3가 이 자리를 채웁니다."
+      "placeholder": "Phase 3가 이 자리를 채웁니다.",
+      "chrome": {
+        "breadcrumb_label": "이 노트의 위치",
+        "project_unknown": "—",
+        "autosave": "{at} 자동 저장"
+      }
     },
     "ws_settings": {
       "heading": "워크스페이스 설정 — {sub}",

@@ -158,6 +158,34 @@ were intentionally left for later.
 - **Test fix**: `project-notes-table.test.tsx` now mocks `useFormatter` so
   `format.relativeTime` resolves under jsdom.
 
+### G3. Note editor route (`(shell)/n/[noteId]`) wired to real editor + chrome
+- **Before**: `(shell)/n/[noteId]/page.tsx` rendered a `NoteBody` placeholder
+  with the i18n string `appShell.routes.note.placeholder` ("Phase 3가 이
+  자리를 채웁니다."). The real editor only worked from the legacy
+  `p/[projectId]/notes/[noteId]/page.tsx` deep-link route, which the
+  App Shell sidebar never linked to. Tabs that promoted from preview to
+  sticky on first edit landed on the placeholder.
+- **After**: Page now mirrors the SSR fan-out from the legacy route —
+  parallel `GET /notes/:id`, `/notes/:id/role`, `/auth/me` — but derives
+  `projectId` from the note JSON since the URL doesn't carry it. The
+  project name is fetched separately for the breadcrumb (best-effort, the
+  page renders if the project is unreadable). Result: real `NoteEditorClient`
+  mount inside `NoteWithBacklinks` (Backlinks/Enrichment toggles already
+  wired), prefixed by a new `NoteRouteChrome` component.
+- **`NoteRouteChrome`**: sticky breadcrumb row above the editor (mockup
+  §screen-note line 889~899). Project name is a link back to
+  `/p/[projectId]`, current title in foreground, autosave pill renders
+  `format.relativeTime(updated_at)`. Lives in `components/notes/` so the
+  legacy route can pick it up later if we delete the placeholder there.
+- **Deviation D5** (added below): the mockup chrome row also carries
+  ghost icon buttons for 댓글/공유/더보기. The existing NoteEditor
+  already owns the comments panel and Share dialog inside its title row;
+  duplicating those handlers in chrome would either be misleading
+  (two share buttons, only one opens the dialog) or require lifting
+  state out of NoteEditor (out of scope for this chrome-only sweep).
+- **i18n**: new `appShell.routes.note.chrome.{breadcrumb_label,
+  project_unknown,autosave}` ko/en parity.
+
 ### G. SSR cookie forwarding (carried over from prior session)
 - Was sitting modified in the working copy. SSR fetches relied on
   `credentials: "include"` which is browser-only, so the dashboard's
@@ -192,6 +220,7 @@ product decision before the UI ships.
 | D2 | KPI card border = `1px var(--theme-border)` | KPI card border = `1.5px var(--theme-border)` (inline style) | Tailwind's `border-border` rounds to 1px on the edge between accent and surface in some palettes; bumping to 1.5px makes the cards read as cards in cairn-light without darkening the divider tokens. |
 | D3 | Recent docs excerpt always present (mock data) | Recent docs excerpt nullable + italic empty placeholder | Real notes can be created without a body; the mockup didn't model that branch. |
 | D4 | Footer = "Pro · ₩12,300" | Footer = "BYOK · ₩0" / "Free · ₩0" until Plan 9b | No real plan tier or credit value yet; layout is stable for the swap. |
+| D5 | Note chrome row carries ghost icon buttons (댓글/공유/더보기) | Chrome row carries breadcrumb + autosave pill only | NoteEditor already owns comments + Share inside its title row. Duplicating handlers in chrome would be misleading; lifting them out is a separate refactor. |
 
 ## Verification
 

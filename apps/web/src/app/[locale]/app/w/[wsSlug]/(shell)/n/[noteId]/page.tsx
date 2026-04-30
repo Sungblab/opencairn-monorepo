@@ -1,27 +1,110 @@
-import { useTranslations } from "next-intl";
+import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
+import { NoteEditorClient } from "@/components/editor/note-editor-client";
 import { NoteWithBacklinks } from "@/components/notes/NoteWithBacklinks";
+import { NoteRouteChrome } from "@/components/notes/NoteRouteChrome";
 
-export default async function NotePlaceholder({
-  params,
-}: {
-  params: Promise<{ noteId: string }>;
-}) {
-  const { noteId } = await params;
-  return (
-    <NoteWithBacklinks noteId={noteId}>
-      <NoteBody noteId={noteId} />
-    </NoteWithBacklinks>
-  );
+interface PageProps {
+  params: Promise<{
+    locale: string;
+    wsSlug: string;
+    noteId: string;
+  }>;
 }
 
-function NoteBody({ noteId }: { noteId: string }) {
-  const t = useTranslations("appShell.routes.note");
+interface NoteDTO {
+  id: string;
+  title: string;
+  projectId: string;
+  workspaceId: string;
+  updatedAt: string;
+}
+
+interface RoleDTO {
+  role: "owner" | "admin" | "editor" | "commenter" | "viewer";
+}
+
+interface MeDTO {
+  userId: string;
+  email: string;
+  name?: string | null;
+}
+
+interface ProjectDTO {
+  id: string;
+  name: string;
+}
+
+// App Shell Phase 3-B uses this `(shell)/n/[noteId]` route for plate-mode
+// notes — TabModeRouter dispatches the other viewer modes (reading/source/
+// data/canvas) and skips this page (`isRoutedByTabModeRouter`). The legacy
+// `p/[projectId]/notes/[noteId]` route still exists for existing deep
+// links + the `not-found` boundary; it stays in sync with this page.
+export default async function NotePage({ params }: PageProps) {
+  const { noteId, wsSlug } = await params;
+  const cookieHeader = (await cookies()).toString();
+  const base = process.env.INTERNAL_API_URL ?? "http://localhost:4000";
+  const headers = { cookie: cookieHeader } as const;
+
+  // Parallel fan-out — three cheap, independent reads. Mirrors the legacy
+  // p/[projectId]/notes/[noteId]/page.tsx pattern; project name is fetched
+  // in a follow-up because we need notes.projectId before we can ask for it.
+  const [noteRes, roleRes, meRes] = await Promise.all([
+    fetch(`${base}/api/notes/${noteId}`, { headers, cache: "no-store" }),
+    fetch(`${base}/api/notes/${noteId}/role`, { headers, cache: "no-store" }),
+    fetch(`${base}/api/auth/me`, { headers, cache: "no-store" }),
+  ]);
+
+  if (
+    noteRes.status === 403 ||
+    noteRes.status === 404 ||
+    roleRes.status === 403 ||
+    roleRes.status === 404
+  ) {
+    notFound();
+  }
+  if (!noteRes.ok) throw new Error(`Failed to load note (${noteRes.status})`);
+  if (!roleRes.ok) throw new Error(`Failed to load role (${roleRes.status})`);
+  if (!meRes.ok) throw new Error(`Failed to load session (${meRes.status})`);
+
+  const note = (await noteRes.json()) as NoteDTO;
+  const { role } = (await roleRes.json()) as RoleDTO;
+  const me = (await meRes.json()) as MeDTO;
+
+  // Project name powers the breadcrumb. Tolerated to fail silently because
+  // a project that the user can read a note from but can't read the project
+  // shouldn't crash the whole page; the chrome falls back to "—".
+  const projectRes = await fetch(`${base}/api/projects/${note.projectId}`, {
+    headers,
+    cache: "no-store",
+  });
+  const project = projectRes.ok
+    ? ((await projectRes.json()) as ProjectDTO)
+    : null;
+
+  const readOnly = role === "viewer" || role === "commenter";
+  const canComment = role !== "viewer";
+
   return (
-    <div data-testid="route-note" className="p-6">
-      <h1 className="text-2xl font-semibold">
-        {t("heading", { id: noteId })}
-      </h1>
-      <p className="text-sm text-muted-foreground">{t("placeholder")}</p>
-    </div>
+    <NoteWithBacklinks noteId={note.id}>
+      <NoteRouteChrome
+        wsSlug={wsSlug}
+        projectId={note.projectId}
+        projectName={project?.name ?? null}
+        title={note.title}
+        updatedAtIso={note.updatedAt}
+      />
+      <NoteEditorClient
+        noteId={note.id}
+        initialTitle={note.title}
+        wsSlug={wsSlug}
+        workspaceId={note.workspaceId}
+        projectId={note.projectId}
+        userId={me.userId}
+        userName={me.name ?? me.email ?? "Anonymous"}
+        readOnly={readOnly}
+        canComment={canComment}
+      />
+    </NoteWithBacklinks>
   );
 }
