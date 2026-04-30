@@ -286,7 +286,7 @@ product decision before the UI ships.
 | H3 | Literature search trigger UI | Needs a search modal + import flow. The backend is fully wired (`lit_import_activities.py` + 4 provider integrations), but the UI scope is large enough to warrant its own plan rather than bundling here. |
 | H4 | Note view enrichment panel | **CLOSED 2026-04-30**. `EnrichmentPanel` ships beside `BacklinksPanel` as a right-rail (Cmd+Shift+I to toggle). Reads from new `GET /api/notes/:id/enrichment` (`canRead`-gated, 404 → panel empty state). Renders status pill, content-type chip, outline (level-indented), figures (caption · pageRef), tables (caption · pageRef), word count, provider, skip reasons, error. Forward-compat with worker artifact additions: `artifact` is wire-typed `Record<string,unknown>` and the panel `safeParse`s only the slices it renders. Deviation from mockup: the 2026-04-23 mockup didn't model an enrichment surface, so the panel adopts `BacklinksPanel`'s `w-72 border-l` chrome verbatim. Flag-OFF stays correct: with `FEATURE_CONTENT_ENRICHMENT=false` no rows exist → 404 → "no analysis yet" empty state, so the toggle is never silently broken. |
 | H5 | Doc Editor slash menu UI hint | `FEATURE_DOC_EDITOR_SLASH=false` gates the four LLM-only slash commands (PR #61). Even with the flag on, no UI hint surfaces the feature. Needs a slash menu or composer placeholder edit. |
-| H6 | Socratic Agent learning trigger | `POST /socratic/run` exists but no frontend caller. Belongs in a Learning page polish PR. |
+| H6 | Socratic Agent learning trigger | **CLOSED 2026-04-30**. New `/p/:projectId/learn/socratic` route mounts a `SocraticSession` client component that drives both `POST /api/projects/:projectId/socratic/{generate,evaluate}` (the routes mounted under `socraticRoutes` since Plan 6 / PR #50). The Learn hub now lists three cards (flashcards · socratic · scores) so the session is reachable from the project sidebar's GraduationCap link without typing a URL. UX: 3-stage state machine — concept input (with optional 8 KB note context) → question list (multi-difficulty chips, optional hint reveal) → evaluation (score + feedback + flashcard hint when `should_create_flashcard` is true). Errors surface as i18n strings (`forbidden` / `no_questions` / `network` / `generic`), so 403 from `canRead` and empty-array LLM responses both render gracefully without leaving the user stuck on a spinner. The page accepts `?concept=` / `?note=` query params so future deep-links from a note's "ask Socratic about this" affordance can preload the session. |
 | H7 | Plan 9b billing — real `credits_krw` and plan tier | Footer + dashboard show ₩0/Free until billing lands. Layout is stable for the swap. |
 | H8 | Code Agent (Canvas Phase 2) flag flip | `FEATURE_CODE_AGENT=false` keeps the route 404'd. Phase 2 is technically complete (PR #47) but the prod env flip is a separate decision. |
 
@@ -323,11 +323,10 @@ Candidates ordered by user-visible impact:
 1. **H3** — Literature search modal + import flow.
 2. **H5** — Doc editor slash menu hint + flag flip for dogfooding.
 3. **H7** — Plan 9b billing wires up real credit + tier values.
-4. **H6** — Socratic Agent trigger in the learning UI.
-5. **H8** — Decide Code Agent prod flag flip with rollback playbook.
+4. **H8** — Decide Code Agent prod flag flip with rollback playbook.
 
-H4 closed 2026-04-30 in the same fidelity sweep — see the closed row in the
-table above for the implementation summary.
+H4 + H6 closed 2026-04-30 — see the closed rows in the table above for the
+implementation summaries.
 
 Each warrants its own plan; bundling them here would have made this
 PR unreviewable.
