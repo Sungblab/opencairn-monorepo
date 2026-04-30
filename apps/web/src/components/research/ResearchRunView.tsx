@@ -108,7 +108,7 @@ export function ResearchRunView({ runId, wsSlug }: ResearchRunViewProps) {
         )}
         {code === "managed_credits_short" && (
           <Link
-            href={`/${locale}/app/settings/billing`}
+            href={`/${locale}/settings/billing`}
             className="text-primary mt-2 inline-block underline"
           >
             {t("error.managed_credits_cta")}
