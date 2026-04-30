@@ -24,7 +24,10 @@ export type ChatChunk =
       payload: { title: string; body_markdown: string };
     }
   | { type: "usage"; payload: Usage }
-  | { type: "error"; payload: { message: string; code?: string } }
+  | {
+      type: "error";
+      payload: { message: string; code?: string; messageKey?: string };
+    }
   | { type: "done"; payload: Record<string, never> };
 
 const SYSTEM_PROMPT = [
@@ -109,8 +112,8 @@ export async function* runChat(opts: {
         type: "error",
         payload: {
           code: "grounding_required",
-          message:
-            "최신 정보가 필요한 질문이라 확인 가능한 근거가 필요합니다. 현재 연결된 검색 근거가 없어 답변을 생성하지 않았습니다.",
+          messageKey: "chat.errors.groundingRequired",
+          message: groundingRequiredMessage(opts.locale),
         },
       };
       return;
@@ -199,4 +202,11 @@ function truncateHistory(history: ChatMsg[]): ChatMsg[] {
     kept = kept.slice(1);
   }
   return kept;
+}
+
+function groundingRequiredMessage(locale?: string): string {
+  if (locale === "en") {
+    return "This question needs current verified sources, but no grounding source is connected. No answer was generated.";
+  }
+  return "최신 정보가 필요한 질문이라 확인 가능한 근거가 필요합니다. 현재 연결된 검색 근거가 없어 답변을 생성하지 않았습니다.";
 }

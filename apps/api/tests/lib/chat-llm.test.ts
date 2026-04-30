@@ -165,8 +165,35 @@ describe("runChat happy path", () => {
     const errorEvt = events.find((e) => e.type === "error");
     expect(errorEvt?.payload).toMatchObject({
       code: "grounding_required",
+      messageKey: "chat.errors.groundingRequired",
     });
     expect(events[events.length - 1].type).toBe("done");
+  });
+
+  it("localizes the grounding guard fallback message", async () => {
+    retrievalMod.retrieve.mockResolvedValue([]);
+
+    const events = await collect(
+      runChat({
+        workspaceId: "ws-1",
+        scope: { type: "workspace", workspaceId: "ws-1" },
+        ragMode: "off",
+        chips: [],
+        history: [],
+        userMessage: "latest OpenAI CEO?",
+        provider: fakeProvider,
+        mode: "auto",
+        locale: "en",
+      }),
+    );
+
+    const errorEvt = events.find((e) => e.type === "error");
+    expect(errorEvt?.payload).toMatchObject({
+      code: "grounding_required",
+      messageKey: "chat.errors.groundingRequired",
+      message:
+        "This question needs current verified sources, but no grounding source is connected. No answer was generated.",
+    });
   });
 });
 

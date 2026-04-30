@@ -8,7 +8,7 @@ export type ChatIntent = {
 };
 
 const FRESHNESS_RE =
-  /(오늘|현재|최신|최근|방금|지금|뉴스|가격|주가|환율|일정|법|규정|릴리즈|버전|current|latest|recent|today|now|news|price|stock|exchange rate|schedule|law|regulation|release|version|CEO)/i;
+  /(오늘|현재|최신|최근|방금|지금|뉴스|가격|주가|환율|일정|법|규정|릴리즈|버전|current|latest|recent|today|now|news|price|stock|exchange rate|schedule|law|regulation|release|version)/i;
 
 const WORKSPACE_RE =
   /(내 문서|내 노트|이 문서|이 노트|이 프로젝트|워크스페이스|첨부|위키|workspace|project|note|document|attached|wiki)/i;
@@ -33,7 +33,7 @@ export function classifyChatIntent(input: string): ChatIntent {
     freshnessRequired,
     workspaceGrounded,
     toolAction,
-    ambiguous: text.length <= 6 || /^(해줘|ㄱㄱ|go|do it)$/i.test(text),
+    ambiguous: text.length <= 3 || /^(해줘|ㄱㄱ|go|do it)$/i.test(text),
     highRisk: HIGH_RISK_RE.test(text),
     researchDepth,
   };

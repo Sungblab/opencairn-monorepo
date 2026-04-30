@@ -11,6 +11,13 @@ describe("classifyChatIntent", () => {
     });
   });
 
+  it("does not treat CEO alone as a freshness signal", () => {
+    expect(classifyChatIntent("What did my CEO say in the last meeting?")).toMatchObject({
+      freshnessRequired: false,
+      workspaceGrounded: false,
+    });
+  });
+
   it("detects workspace-grounded requests", () => {
     expect(classifyChatIntent("내 문서에서 Plan 11B가 뭐였는지 찾아줘")).toMatchObject({
       workspaceGrounded: true,
@@ -37,8 +44,11 @@ describe("classifyChatIntent", () => {
   });
 
   it("detects ambiguous short requests", () => {
-    expect(classifyChatIntent("해줘")).toMatchObject({
+    expect(classifyChatIntent("ㄱㄱ")).toMatchObject({
       ambiguous: true,
+    });
+    expect(classifyChatIntent("요약해줘")).toMatchObject({
+      ambiguous: false,
     });
   });
 });

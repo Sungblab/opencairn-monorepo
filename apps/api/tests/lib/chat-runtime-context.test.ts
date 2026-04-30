@@ -10,7 +10,9 @@ describe("buildRuntimeContext", () => {
       timezone: "Asia/Seoul",
     });
 
-    expect(context).toContain("Current server time: 2026-04-30T14:30:00.000Z");
+    expect(context).toContain("Current server time: 2026-04-30T14:30:00.000Z (UTC)");
+    expect(context).toContain("User local time: 2026-04-30T23:30:00");
+    expect(context).toContain("(Asia/Seoul)");
     expect(context).toContain("User locale: ko");
     expect(context).toContain("User timezone: Asia/Seoul");
   });
