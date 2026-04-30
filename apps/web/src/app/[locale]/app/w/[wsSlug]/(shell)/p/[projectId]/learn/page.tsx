@@ -16,6 +16,11 @@ export default async function LearnHubPage({
       descKey: "flashcards.description" as const,
     },
     {
+      href: `/app/w/${wsSlug}/p/${projectId}/learn/socratic`,
+      titleKey: "socratic.title" as const,
+      descKey: "socratic.description" as const,
+    },
+    {
       href: `/app/w/${wsSlug}/p/${projectId}/learn/scores`,
       titleKey: "scores.title" as const,
       descKey: "scores.description" as const,

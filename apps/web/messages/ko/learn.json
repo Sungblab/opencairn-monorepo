@@ -6,6 +6,10 @@
       "title": "플래시카드 덱",
       "description": "SM-2 간격 반복으로 미룬 카드를 복습하세요."
     },
+    "socratic": {
+      "title": "소크라테스식 질문",
+      "description": "개념을 직접 설명하면서 이해도를 점검해 보세요."
+    },
     "scores": {
       "title": "이해도 점수",
       "description": "소크라테스 세션에서 측정된 개념별 이해도를 확인하세요."
@@ -34,6 +38,55 @@
       "2": "어려움",
       "3": "알겠음",
       "4": "쉬움"
+    }
+  },
+  "socratic": {
+    "input": {
+      "title": "심화 질문 받기",
+      "subtitle": "개념을 입력하면 소크라테스식 질문이 생성됩니다. 질문에 답하면 이해도를 점수와 피드백으로 받아볼 수 있습니다.",
+      "empty_guide": "이 노트에 대해 소크라테스식 질문을 받아보세요. 직접 설명해 보면서 부족한 부분을 찾는 데 도움이 됩니다.",
+      "concept_label": "개념",
+      "concept_placeholder": "예: 베이지안 추론, 트랜스포머 어텐션",
+      "note_label": "참고 노트 (선택)",
+      "note_placeholder": "관련 노트 본문이나 요약을 붙여넣으면 질문이 더 정확해집니다.",
+      "note_hint": "최대 8,000자. 비워 두면 개념만으로 일반적인 질문이 생성됩니다.",
+      "generate": "질문 생성",
+      "generating": "질문 생성 중…"
+    },
+    "questions": {
+      "title": "소크라테스식 질문",
+      "subtitle": "개념: {concept}",
+      "back": "처음으로",
+      "number": "질문 {n}",
+      "show_hint": "힌트 보기",
+      "hint_prefix": "힌트:",
+      "answer_label": "내 답변",
+      "answer_placeholder": "직접 설명하듯이 작성해 주세요.",
+      "submit": "답변 평가",
+      "evaluating": "평가 중…"
+    },
+    "result": {
+      "title": "평가 결과",
+      "score_label": "이해도 점수",
+      "is_correct_true": "정답입니다",
+      "is_correct_false": "보완이 필요합니다",
+      "question_label": "질문",
+      "your_answer_label": "내 답변",
+      "feedback_label": "피드백",
+      "flashcard_hint": "이 부분은 플래시카드로 만들어 반복 학습하시는 것을 추천합니다.",
+      "try_another": "다른 질문 시도",
+      "new_concept": "새 개념으로 시작"
+    },
+    "difficulty": {
+      "easy": "쉬움",
+      "medium": "보통",
+      "hard": "어려움"
+    },
+    "errors": {
+      "generic": "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+      "forbidden": "이 프로젝트에 접근할 권한이 없습니다.",
+      "no_questions": "질문을 생성하지 못했습니다. 개념을 더 구체적으로 입력해 보세요.",
+      "network": "네트워크 오류가 발생했습니다."
     }
   },
   "scores": {
