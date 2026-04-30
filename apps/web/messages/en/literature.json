@@ -40,5 +40,16 @@
   },
   "tab": {
     "title": "Literature Search"
+  },
+  "modal": {
+    "title": "Search papers and import",
+    "subtitle": "Find work across arXiv, Semantic Scholar, and Crossref, then import into the workspace.",
+    "close": "Close",
+    "emptyHint": "Enter a query to see results here.",
+    "missingProject": "Pick a destination project first.",
+    "missingWorkspace": "Select a workspace first.",
+    "loadProjectsError": "Couldn't load the project list.",
+    "importError": "Import request failed.",
+    "queued": "{count} queued for import"
   }
 }

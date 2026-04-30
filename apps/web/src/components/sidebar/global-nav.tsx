@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { Home, FlaskConical, DownloadCloud } from "lucide-react";
 import { MoreMenu } from "./more-menu";
+import { LiteratureSearchButton } from "@/components/literature/literature-search-button";
 
 export interface GlobalNavProps {
   wsSlug: string;
@@ -56,6 +57,7 @@ export function GlobalNav({
           <Icon aria-hidden className="h-[15px] w-[15px]" />
         </Link>
       ))}
+      <LiteratureSearchButton wsSlug={wsSlug} />
       <MoreMenu base={base} synthesisExportEnabled={synthesisExportEnabled} />
     </nav>
   );
