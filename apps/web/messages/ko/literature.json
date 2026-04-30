@@ -40,5 +40,16 @@
   },
   "tab": {
     "title": "문헌 검색"
+  },
+  "modal": {
+    "title": "논문 검색해서 가져오기",
+    "subtitle": "arXiv · Semantic Scholar · Crossref에서 찾고 워크스페이스로 가져옵니다.",
+    "close": "닫기",
+    "emptyHint": "검색어를 입력하면 결과가 여기에 표시됩니다.",
+    "missingProject": "가져올 프로젝트가 필요합니다.",
+    "missingWorkspace": "워크스페이스를 먼저 선택하세요.",
+    "loadProjectsError": "프로젝트 목록을 불러오지 못했습니다.",
+    "importError": "가져오기 요청이 실패했습니다.",
+    "queued": "{count}개 가져오기 시작됨"
   }
 }

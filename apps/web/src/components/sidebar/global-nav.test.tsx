@@ -12,6 +12,13 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
+// LiteratureSearchButton renders its own modal + react-query hooks. This
+// suite is scoped to GlobalNav's link layout, so stub the button to a tiny
+// marker that the assertions can ignore.
+vi.mock("@/components/literature/literature-search-button", () => ({
+  LiteratureSearchButton: () => null,
+}));
+
 describe("GlobalNav", () => {
   it("renders three locale-prefixed workspace links and a more button", () => {
     render(<GlobalNav wsSlug="acme" deepResearchEnabled={true} />);
