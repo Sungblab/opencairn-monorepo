@@ -25,6 +25,18 @@ describe("MoreMenu", () => {
     const settings = await screen.findByText("sidebar.more_menu.settings");
     fireEvent.click(settings);
     expect(push).toHaveBeenCalledWith("/ko/app/w/acme/settings");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
+    );
+    fireEvent.click(await screen.findByText("sidebar.more_menu.shared_links"));
+    expect(push).toHaveBeenCalledWith("/ko/app/w/acme/settings/shared-links");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
+    );
+    fireEvent.click(await screen.findByText("sidebar.more_menu.trash"));
+    expect(push).toHaveBeenCalledWith("/ko/app/w/acme/settings/trash");
   });
 
   it("opens external items in a new window", async () => {

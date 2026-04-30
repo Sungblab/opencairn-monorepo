@@ -48,10 +48,7 @@ export function MoreMenu({ base, synthesisExportEnabled = false }: MoreMenuProps
         <DropdownMenuItem onClick={goto(`${base}/settings`)}>
           {t("more_menu.settings")}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={goto(`${base}/templates`)}>
-          {t("more_menu.templates")}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={goto(`${base}/shared-links`)}>
+        <DropdownMenuItem onClick={goto(`${base}/settings/shared-links`)}>
           {t("more_menu.shared_links")}
         </DropdownMenuItem>
         {synthesisExportEnabled ? (
@@ -59,7 +56,7 @@ export function MoreMenu({ base, synthesisExportEnabled = false }: MoreMenuProps
             {t("more_menu.synthesis_export")}
           </DropdownMenuItem>
         ) : null}
-        <DropdownMenuItem onClick={goto(`${base}/trash`)}>
+        <DropdownMenuItem onClick={goto(`${base}/settings/trash`)}>
           {t("more_menu.trash")}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={external("/feedback")}>

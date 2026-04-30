@@ -142,7 +142,7 @@ describe("ResearchRunView", () => {
     );
     expect(
       screen.getByRole("link", { name: /결제로 이동/ }),
-    ).toHaveAttribute("href", "/ko/app/settings/billing");
+    ).toHaveAttribute("href", "/ko/settings/billing");
   });
 
   it("renders managed_disabled copy", async () => {
