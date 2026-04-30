@@ -19,6 +19,14 @@ export const McpListProjectsInputSchema = z.object({
   limit: z.number().int().positive().max(100).default(50),
 });
 
+export const McpOpenAiSearchInputSchema = z.object({
+  query: z.string().trim().min(1).max(2000),
+});
+
+export const McpOpenAiFetchInputSchema = z.object({
+  id: z.string().trim().min(1).max(2000),
+});
+
 export const McpSearchNoteHitSchema = z.object({
   noteId: uuid,
   title: z.string(),
@@ -59,6 +67,26 @@ export const McpListProjectsResultSchema = z.object({
   projects: z.array(McpProjectSummarySchema),
 });
 
+export const McpOpenAiSearchResultSchema = z.object({
+  results: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      url: z.string().url().optional(),
+      text: z.string(),
+      metadata: z.record(z.unknown()).optional(),
+    }),
+  ),
+});
+
+export const McpOpenAiFetchResultSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  url: z.string().url().optional(),
+  text: z.string(),
+  metadata: z.record(z.unknown()).optional(),
+});
+
 export const McpTokenCreateSchema = z.object({
   workspaceId: uuid,
   label: z.string().trim().min(1).max(80),
@@ -85,11 +113,15 @@ export type McpServerScope = z.infer<typeof McpServerScopeSchema>;
 export type McpSearchNotesInput = z.infer<typeof McpSearchNotesInputSchema>;
 export type McpGetNoteInput = z.infer<typeof McpGetNoteInputSchema>;
 export type McpListProjectsInput = z.infer<typeof McpListProjectsInputSchema>;
+export type McpOpenAiSearchInput = z.infer<typeof McpOpenAiSearchInputSchema>;
+export type McpOpenAiFetchInput = z.infer<typeof McpOpenAiFetchInputSchema>;
 export type McpSearchNoteHit = z.infer<typeof McpSearchNoteHitSchema>;
 export type McpSearchNotesResult = z.infer<typeof McpSearchNotesResultSchema>;
 export type McpGetNoteResult = z.infer<typeof McpGetNoteResultSchema>;
 export type McpProjectSummary = z.infer<typeof McpProjectSummarySchema>;
 export type McpListProjectsResult = z.infer<typeof McpListProjectsResultSchema>;
+export type McpOpenAiSearchResult = z.infer<typeof McpOpenAiSearchResultSchema>;
+export type McpOpenAiFetchResult = z.infer<typeof McpOpenAiFetchResultSchema>;
 export type McpTokenCreate = z.infer<typeof McpTokenCreateSchema>;
 export type McpTokenSummary = z.infer<typeof McpTokenSummarySchema>;
 export type McpTokenCreated = z.infer<typeof McpTokenCreatedSchema>;
