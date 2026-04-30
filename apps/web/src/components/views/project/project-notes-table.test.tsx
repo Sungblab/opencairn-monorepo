@@ -5,6 +5,9 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("next-intl", () => ({
   useLocale: () => "ko",
   useTranslations: (ns?: string) => (k: string) => (ns ? `${ns}.${k}` : k),
+  useFormatter: () => ({
+    relativeTime: (d: Date) => d.toISOString(),
+  }),
 }));
 
 vi.mock("next/link", () => ({

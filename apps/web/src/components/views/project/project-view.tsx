@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -24,44 +24,52 @@ export function ProjectView({
   });
   // Page count + last activity are derived from the unfiltered notes list to
   // avoid a third endpoint just for two scalars. The notes table publishes
-  // its `filter=all` payload back here when it fires.
+  // its `filter=all` payload back here when it fires; counts also feed the
+  // chip labels in the table header so the two surfaces stay in sync.
   const [allNotes, setAllNotes] = useState<ProjectNoteRow[] | null>(null);
-  const pageCount = allNotes?.length ?? 0;
+  const counts = useMemo(() => {
+    const acc = { all: 0, imported: 0, research: 0, manual: 0 };
+    for (const row of allNotes ?? []) {
+      acc.all += 1;
+      acc[row.kind] += 1;
+    }
+    return acc;
+  }, [allNotes]);
   const lastActivityIso = allNotes && allNotes.length > 0
     ? allNotes[0].updated_at
     : null;
 
   return (
-    <div data-testid="route-project" className="flex flex-col gap-6 p-6">
-      <header className="flex items-start justify-between gap-4">
+    <div data-testid="route-project" className="mx-auto flex max-w-6xl flex-col gap-6 px-8 py-8">
+      <header className="flex items-end justify-between gap-4">
         <ProjectMetaRow
           name={meta?.name ?? ""}
-          pageCount={pageCount}
+          pageCount={counts.all}
           lastActivityIso={lastActivityIso}
         />
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link
             href={`/${locale}/app/w/${wsSlug}/research?project=${projectId}`}
-            className="rounded border border-border px-3 py-1.5 text-sm hover:bg-accent"
+            className="app-hover rounded-[var(--radius-control)] border-[1.5px] border-border px-3 py-1.5 text-sm"
           >
             {t("actions.research")}
           </Link>
           <Link
             href={`/${locale}/app/w/${wsSlug}/import?project=${projectId}`}
-            className="rounded border border-border px-3 py-1.5 text-sm hover:bg-accent"
+            className="app-hover rounded-[var(--radius-control)] border-[1.5px] border-border px-3 py-1.5 text-sm"
           >
             {t("actions.import")}
           </Link>
           <IngestUploadButton projectId={projectId} />
           <Link
             href={`/${locale}/app/w/${wsSlug}/p/${projectId}/agents`}
-            className="rounded border border-border px-3 py-1.5 text-sm hover:bg-accent"
+            className="app-hover rounded-[var(--radius-control)] border-[1.5px] border-border px-3 py-1.5 text-sm"
           >
             {t("actions.agents")}
           </Link>
           <button
             type="button"
-            className="app-btn-primary rounded px-3 py-1.5 text-sm"
+            className="app-btn-primary rounded-[var(--radius-control)] px-3 py-1.5 text-sm"
           >
             {t("actions.newDoc")}
           </button>
@@ -70,6 +78,7 @@ export function ProjectView({
       <ProjectNotesTable
         wsSlug={wsSlug}
         projectId={projectId}
+        counts={counts}
         onLoaded={(rows) => setAllNotes(rows)}
       />
     </div>

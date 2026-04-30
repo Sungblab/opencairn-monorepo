@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import {
@@ -13,13 +13,27 @@ import {
 type Filter = "all" | ProjectNoteKind;
 const TABS: readonly Filter[] = ["all", "imported", "research", "manual"];
 
+export interface ProjectNoteCounts {
+  all: number;
+  imported: number;
+  research: number;
+  manual: number;
+}
+
 export function ProjectNotesTable({
   wsSlug,
   projectId,
+  counts,
   onLoaded,
 }: {
   wsSlug: string;
   projectId: string;
+  /**
+   * Filter chip counts derived by the parent from the unfiltered list. Passed
+   * down so the chips stay numeric while the active query may be a slice.
+   * `undefined` while the unfiltered query is still in flight.
+   */
+  counts?: ProjectNoteCounts;
   /**
    * Bubble the unfiltered list back to the parent so the meta row can derive
    * page_count + last_activity_at without a second fetch. Only fires for
@@ -29,6 +43,7 @@ export function ProjectNotesTable({
 }) {
   const locale = useLocale();
   const t = useTranslations("project");
+  const format = useFormatter();
   const [filter, setFilter] = useState<Filter>("all");
   const { data } = useQuery({
     queryKey: ["project-notes", projectId, filter],
@@ -47,53 +62,93 @@ export function ProjectNotesTable({
   }, [data, filter]);
 
   return (
-    <div>
-      <div className="mb-3 flex gap-1 text-xs">
-        {TABS.map((id) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setFilter(id)}
-            className={`rounded border px-2 py-1 ${
-              filter === id ? "border-foreground" : "border-border"
-            }`}
-          >
-            {t(`tabs.${id}`)}
-          </button>
-        ))}
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+        {TABS.map((id) => {
+          const isActive = filter === id;
+          const count = counts?.[id];
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setFilter(id)}
+              className={
+                isActive
+                  ? "rounded-[var(--radius-chip)] border-[1.5px] border-foreground bg-foreground px-3 py-1 text-background"
+                  : "app-hover rounded-[var(--radius-chip)] border-[1.5px] border-border px-3 py-1 text-foreground"
+              }
+            >
+              <span>{t(`tabs.${id}`)}</span>
+              {count !== undefined ? (
+                <span
+                  className={
+                    isActive
+                      ? "ml-1.5 text-background/80"
+                      : "ml-1.5 text-muted-foreground"
+                  }
+                >
+                  {count}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
       </div>
       {data && data.length === 0 ? (
-        <p className="text-xs text-muted-foreground">{t("table.empty")}</p>
+        <div
+          className="rounded-[var(--radius-card)] px-4 py-12 text-center text-xs text-muted-foreground"
+          style={{ border: "1.5px solid var(--theme-border)" }}
+        >
+          {t("table.empty")}
+        </div>
       ) : (
-        <table className="w-full text-sm">
-          <thead className="text-[11px] uppercase text-muted-foreground">
-            <tr>
-              <th className="pb-2 text-left">{t("table.headerTitle")}</th>
-              <th className="pb-2 text-left">{t("table.headerKind")}</th>
-              <th className="pb-2 text-left">{t("table.headerUpdated")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(data ?? []).map((n) => (
-              <tr key={n.id} className="border-t border-border">
-                <td className="py-2">
-                  <Link
-                    href={`/${locale}/app/w/${wsSlug}/n/${n.id}`}
-                    className="hover:underline"
-                  >
-                    {n.title}
-                  </Link>
-                </td>
-                <td className="py-2 text-xs text-muted-foreground">
-                  {t(`table.kindLabels.${n.kind}`)}
-                </td>
-                <td className="py-2 text-xs text-muted-foreground">
-                  {new Date(n.updated_at).toLocaleString()}
-                </td>
+        <div
+          className="overflow-hidden rounded-[var(--radius-card)]"
+          style={{ border: "1.5px solid var(--theme-border)" }}
+        >
+          <table className="w-full text-sm">
+            <thead className="bg-surface text-[11px] uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-4 py-2 text-left font-medium">
+                  {t("table.headerTitle")}
+                </th>
+                <th className="w-32 px-4 py-2 text-left font-medium">
+                  {t("table.headerKind")}
+                </th>
+                <th className="w-28 px-4 py-2 text-left font-medium">
+                  {t("table.headerUpdated")}
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {(data ?? []).map((n) => (
+                <tr
+                  key={n.id}
+                  className="app-hover border-t border-border"
+                >
+                  <td className="px-4 py-2.5">
+                    <Link
+                      href={`/${locale}/app/w/${wsSlug}/n/${n.id}`}
+                      className="block truncate font-medium"
+                    >
+                      {n.title}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <span
+                      className="rounded-[var(--radius-chip)] border border-border px-2 py-0.5 text-[11px] text-muted-foreground"
+                    >
+                      {t(`table.kindLabels.${n.kind}`)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                    {format.relativeTime(new Date(n.updated_at))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

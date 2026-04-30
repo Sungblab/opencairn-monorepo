@@ -132,6 +132,32 @@ were intentionally left for later.
 - **Commits**: `0f64942` (feat), `d575a40` (test fix for
   `next/headers` in node test env).
 
+### G2. Project view fidelity to 2026-04-23 mockup
+- **Before**: `ProjectView` used `hover:bg-accent` on header buttons (forbidden
+  full-tone wash inside the workspace shell), generic `border-border` rounded
+  rectangles for the filter tabs, and a bare `<table>` with no surrounding
+  card. The notes table had no per-row hover affordance, no chip column for
+  the kind, and rendered timestamps as raw `toLocaleString()` strings instead
+  of relative times.
+- **After**:
+  - Header actions all run on the `app-hover` 1.5px-bordered control rhythm;
+    "새 문서" stays the lone `app-btn-primary` CTA. Layout shifted to
+    `max-w-6xl mx-auto px-8 py-8` to match the mockup container.
+  - `ProjectMetaRow` renders a tracked-tight `text-2xl` heading; serif is
+    deliberately omitted (brand rule: only the logo uses serif).
+  - Filter chips are rounded-full with the active state filled
+    (`bg-foreground text-background`) and inactive chips on `app-hover`.
+    Counts derive from the unfiltered list — `ProjectView` reduces the
+    `allNotes` payload into per-kind totals and passes them down so the
+    chip labels stay in sync with `filter=all` without a second fetch.
+  - Notes table is now wrapped in a `1.5px` rounded card with a
+    `bg-surface` header and `app-hover` rows; kind cell carries a chip,
+    update column shows `format.relativeTime` instead of full timestamp.
+- **i18n**: existing `project.tabs.*` / `project.table.*` keys reused —
+  no new strings.
+- **Test fix**: `project-notes-table.test.tsx` now mocks `useFormatter` so
+  `format.relativeTime` resolves under jsdom.
+
 ### G. SSR cookie forwarding (carried over from prior session)
 - Was sitting modified in the working copy. SSR fetches relied on
   `credentials: "include"` which is browser-only, so the dashboard's

@@ -20,9 +20,9 @@ export function ProjectMetaRow({
     ? new Date(lastActivityIso).toLocaleString()
     : null;
   return (
-    <div>
-      <h1 className="text-2xl font-semibold">{name}</h1>
-      <p className="text-sm text-muted-foreground">
+    <div className="min-w-0">
+      <h1 className="truncate text-2xl font-semibold tracking-tight">{name}</h1>
+      <p className="mt-1 text-sm text-muted-foreground">
         {t("pageCount", { n: pageCount })}
         {" · "}
         {lastActivity
