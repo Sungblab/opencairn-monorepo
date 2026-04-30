@@ -29,10 +29,47 @@
     "callout": "알림 박스",
     "toggle": "토글",
     "table": "표",
-    "columns": "다단"
+    "columns": "다단",
+    "image": "이미지",
+    "embed": "임베드"
   },
   "math": {
-    "parse_error": "수식 파싱 오류"
+    "parse_error": "수식 파싱 오류",
+    "editPopover": {
+      "title": "수식 편집",
+      "placeholder": "LaTeX 수식을 입력하세요 (예: x^2 + y^2 = z^2)",
+      "invalid": "LaTeX 구문 오류",
+      "save": "저장",
+      "cancel": "취소",
+      "previewLabel": "미리보기"
+    },
+    "shortcut": {
+      "hint": "Ctrl+Shift+M으로 인라인 수식 변환"
+    }
+  },
+  "image": {
+    "slashLabel": "이미지",
+    "slashDescription": "URL로 이미지를 삽입해요",
+    "urlPlaceholder": "이미지 URL을 입력하세요 (https://…)",
+    "altPlaceholder": "대체 텍스트 (선택)",
+    "captionPlaceholder": "캡션 (선택)",
+    "invalidUrl": "이미지 URL이 올바르지 않아요.",
+    "uploadDeferred": "이미지 업로드는 곧 지원돼요. 지금은 이미지 URL을 붙여 넣어 주세요.",
+    "editAlt": "대체 텍스트 편집",
+    "editCaption": "캡션 편집",
+    "insert": "삽입",
+    "cancel": "취소"
+  },
+  "embed": {
+    "slashLabel": "임베드",
+    "slashDescription": "YouTube, Vimeo, Loom 영상을 삽입해요",
+    "urlPlaceholder": "동영상 URL을 입력하세요",
+    "unsupportedHost": "지원되는 임베드 URL이 아니에요. (YouTube, Vimeo, Loom)",
+    "providerYoutube": "YouTube",
+    "providerVimeo": "Vimeo",
+    "providerLoom": "Loom",
+    "insert": "삽입",
+    "cancel": "취소"
   },
   "toolbar": {
     "aria_label": "에디터 도구 모음",
@@ -93,6 +130,12 @@
     "columns": {
       "two": "2단",
       "three": "3단"
+    }
+  },
+  "columns": {
+    "resize": {
+      "aria": "column 너비 조절",
+      "reset": "균등 분배로 재설정"
     }
   }
 }
