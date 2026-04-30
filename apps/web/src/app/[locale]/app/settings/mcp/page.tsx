@@ -37,6 +37,9 @@ export default async function SettingsMcpPage({
     headers: { cookie: cookieHeader },
     cache: "no-store",
   });
+  const mcpClientEnabled = probe.status !== 404;
+  const mcpServerEnabled =
+    (process.env.FEATURE_MCP_SERVER ?? "false").toLowerCase() === "true";
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-8">
@@ -44,12 +47,15 @@ export default async function SettingsMcpPage({
         <h1 className="text-xl font-semibold">{t("title")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t("subtitle")}</p>
       </header>
-      {probe.status === 404 ? (
+      {!mcpClientEnabled && !mcpServerEnabled ? (
         <p className="text-sm text-muted-foreground">
           {t("feature_disabled")}
         </p>
       ) : (
-        <McpSettingsClient />
+        <McpSettingsClient
+          mcpClientEnabled={mcpClientEnabled}
+          mcpServerEnabled={mcpServerEnabled}
+        />
       )}
     </main>
   );

@@ -67,6 +67,29 @@
       "ok": "{count}개 도구를 확인했습니다.",
       "auth_failed": "인증이 실패했습니다.",
       "transport_error": "서버에 연결하지 못했습니다."
+    },
+    "server_tokens": {
+      "heading": "OpenCairn MCP 접근 토큰",
+      "description": "외부 MCP 클라이언트가 이 워크스페이스 지식을 읽을 수 있는 읽기 전용 토큰을 발급합니다.",
+      "workspace": "워크스페이스",
+      "workspaces_loading": "워크스페이스를 불러오는 중…",
+      "workspaces_failed": "워크스페이스를 불러오지 못했습니다.",
+      "no_admin_workspace": "관리 권한이 있는 워크스페이스가 없습니다.",
+      "label": "라벨",
+      "placeholder": "Claude Code",
+      "create": "토큰 발급",
+      "creating": "발급 중…",
+      "created": "토큰이 발급되었습니다.",
+      "create_failed": "토큰을 발급하지 못했습니다.",
+      "copy_once": "지금 토큰을 복사해주세요. 이 값은 다시 표시되지 않습니다.",
+      "copy": "복사",
+      "empty": "발급된 토큰이 없습니다.",
+      "loading": "토큰을 불러오는 중…",
+      "load_failed": "토큰을 불러오지 못했습니다.",
+      "revoke": "폐기",
+      "revoked": "토큰이 폐기되었습니다.",
+      "revoked_label": "폐기됨",
+      "revoke_failed": "토큰을 폐기하지 못했습니다."
     }
   }
 }

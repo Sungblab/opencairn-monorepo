@@ -67,6 +67,29 @@
       "ok": "Detected {count} tools.",
       "auth_failed": "Authentication failed.",
       "transport_error": "Could not reach the server."
+    },
+    "server_tokens": {
+      "heading": "OpenCairn MCP access tokens",
+      "description": "Create read-only tokens so external MCP clients can read workspace knowledge.",
+      "workspace": "Workspace",
+      "workspaces_loading": "Loading workspaces…",
+      "workspaces_failed": "Could not load workspaces.",
+      "no_admin_workspace": "You do not have an admin workspace.",
+      "label": "Label",
+      "placeholder": "Claude Code",
+      "create": "Create token",
+      "creating": "Creating…",
+      "created": "Token created.",
+      "create_failed": "Could not create the token.",
+      "copy_once": "Copy this token now. It will not be shown again.",
+      "copy": "Copy",
+      "empty": "No tokens created.",
+      "loading": "Loading tokens…",
+      "load_failed": "Could not load tokens.",
+      "revoke": "Revoke",
+      "revoked": "Token revoked.",
+      "revoked_label": "Revoked",
+      "revoke_failed": "Could not revoke the token."
     }
   }
 }
