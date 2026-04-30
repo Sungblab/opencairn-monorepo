@@ -1,5 +1,5 @@
 "use client";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { MoreHorizontal } from "lucide-react";
 import {
@@ -14,27 +14,14 @@ export interface MoreMenuProps {
   synthesisExportEnabled?: boolean;
 }
 
-// Overflow popover for the sidebar's global nav. Items route with
-// router.push for workspace-scoped entries and fall through to plain
-// window navigation for cross-product destinations (feedback/changelog)
-// that may live on a marketing subdomain.
+// Overflow popover for the sidebar's global nav. Link-rendered items keep
+// native browser affordances such as Cmd/Ctrl-click and copy-link.
 //
 // `synthesisExportEnabled` mirrors the API gate at
 // apps/api/src/routes/synthesis-export.ts; when the server flag is off
 // the route 404s, so the menu item must not appear.
 export function MoreMenu({ base, synthesisExportEnabled = false }: MoreMenuProps) {
-  const router = useRouter();
   const t = useTranslations("sidebar");
-
-  const goto = (href: string) => () => {
-    router.push(href);
-  };
-
-  const external = (href: string) => () => {
-    if (typeof window !== "undefined") {
-      window.open(href, "_blank", "noopener,noreferrer");
-    }
-  };
 
   return (
     <DropdownMenu>
@@ -45,27 +32,30 @@ export function MoreMenu({ base, synthesisExportEnabled = false }: MoreMenuProps
         <MoreHorizontal aria-hidden className="h-[15px] w-[15px]" />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56">
-        <DropdownMenuItem onClick={goto(`${base}/settings`)}>
+        <DropdownMenuItem render={<Link href={`${base}/settings`} />}>
           {t("more_menu.settings")}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={goto(`${base}/templates`)}>
-          {t("more_menu.templates")}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={goto(`${base}/shared-links`)}>
+        <DropdownMenuItem
+          render={<Link href={`${base}/settings/shared-links`} />}
+        >
           {t("more_menu.shared_links")}
         </DropdownMenuItem>
         {synthesisExportEnabled ? (
-          <DropdownMenuItem onClick={goto(`${base}/synthesis-export`)}>
+          <DropdownMenuItem render={<Link href={`${base}/synthesis-export`} />}>
             {t("more_menu.synthesis_export")}
           </DropdownMenuItem>
         ) : null}
-        <DropdownMenuItem onClick={goto(`${base}/trash`)}>
+        <DropdownMenuItem render={<Link href={`${base}/settings/trash`} />}>
           {t("more_menu.trash")}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={external("/feedback")}>
+        <DropdownMenuItem
+          render={<a href="/feedback" target="_blank" rel="noreferrer" />}
+        >
           {t("more_menu.feedback")}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={external("/changelog")}>
+        <DropdownMenuItem
+          render={<a href="/changelog" target="_blank" rel="noreferrer" />}
+        >
           {t("more_menu.changelog")}
         </DropdownMenuItem>
       </DropdownMenuContent>
