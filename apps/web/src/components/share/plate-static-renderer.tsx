@@ -10,14 +10,43 @@
 // future-Plate-version document never crashes the share page.
 //
 // Block coverage matches the slash-command set shipped in Plan 2A
-// (paragraph, h1/h2/h3, blockquote, ul/ol/li, code_block). Math, wiki-link,
+// (paragraph, h1/h2/h3, blockquote, ul/ol/li, code_block). Wiki-link,
 // research-meta, and other custom block types still render — they just
 // fall through to the generic `<div>` path until we decide to add bespoke
-// read-only renderers for them.
+// read-only renderers for them. Math (equation/inline_equation), image, and
+// embed have dedicated static renderers (see ELEMENTS dict).
+//
+// Plan 2E Phase B-5 Task 5.1 — added static math renderers for "equation"
+// (block) and "inline_equation" (inline) node types. These use katex directly
+// without `useEditorRef()` so they are safe in contexts that have no Plate
+// editor context (share page, chat renderer). The `MathInline`/`MathBlock`
+// components that live in apps/web/src/components/editor/elements/ call
+// `useEditorRef()` at the top level and must NOT be imported here.
 
 import { Fragment, type ReactElement, type ReactNode } from "react";
+import katex from "katex";
+import "katex/dist/katex.min.css";
 
 import { safeHref } from "@/lib/url/safe-href";
+
+/**
+ * Render a LaTeX string to HTML via katex. Returns null if tex is empty or
+ * unparseable; callers render a fallback error span in that case.
+ */
+function renderKatexHtml(
+  tex: string,
+  opts?: { displayMode?: boolean },
+): string | null {
+  if (!tex) return null;
+  try {
+    return katex.renderToString(tex, {
+      throwOnError: true,
+      displayMode: opts?.displayMode,
+    });
+  } catch {
+    return null;
+  }
+}
 
 type Node = Record<string, unknown>;
 type Value = Node[];
@@ -28,6 +57,36 @@ interface ElementProps {
 }
 
 const ELEMENTS: Record<string, (props: ElementProps) => ReactElement> = {
+  // Plan 2E Phase B-5 — static math renderers. These do NOT call useEditorRef()
+  // and are therefore safe outside of a Plate editor context (share page, etc.).
+  //
+  // "equation" = EquationPlugin key (block math node, texExpression attr)
+  // "inline_equation" = InlineEquationPlugin key (inline math, texExpression attr)
+  equation: ({ node }) => {
+    const tex = String(node.texExpression ?? "");
+    const html = renderKatexHtml(tex, { displayMode: true });
+    return (
+      <div className="my-3 rounded border border-border p-3 overflow-x-auto">
+        {html ? (
+          <span dangerouslySetInnerHTML={{ __html: html }} />
+        ) : (
+          <span className="text-sm text-red-600">{`$$${tex}$$`}</span>
+        )}
+      </div>
+    );
+  },
+  inline_equation: ({ node }) => {
+    const tex = String(node.texExpression ?? "");
+    const html = renderKatexHtml(tex);
+    return html ? (
+      <span
+        className="mx-0.5 inline-block"
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+    ) : (
+      <span className="text-xs text-red-600">{`$${tex}$`}</span>
+    );
+  },
   // Plan 2E Phase B-2 — image block: <figure> with lazy-loaded <img>.
   // alt defaults to "" (decorative) when absent — satisfies jsx-a11y.
   image: ({ node }) => {
