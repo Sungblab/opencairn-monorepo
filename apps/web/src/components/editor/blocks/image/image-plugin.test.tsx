@@ -15,14 +15,15 @@ function withIntl(ui: React.ReactNode) {
 describe("ImageElement", () => {
   it("renders an img with given URL and lazy loading", () => {
     const element = {
-      type: "image",
+      type: "image" as const,
       url: "https://example.com/photo.png",
       alt: "A photo",
       caption: "Sunset",
-      children: [{ text: "" }],
-    } as const;
+      children: [{ text: "" }] as [{ text: "" }],
+    };
     const { container } = render(
       withIntl(
+        // @ts-expect-error — test mock omits Plate's full editor context
         <ImageElement
           attributes={{ "data-slate-node": "element", ref: () => {} } as never}
           element={element as never}
@@ -41,12 +42,13 @@ describe("ImageElement", () => {
 
   it("uses empty alt when alt is missing", () => {
     const element = {
-      type: "image",
+      type: "image" as const,
       url: "https://example.com/decorative.png",
-      children: [{ text: "" }],
-    } as const;
+      children: [{ text: "" }] as [{ text: "" }],
+    };
     const { container } = render(
       withIntl(
+        // @ts-expect-error — test mock omits Plate's full editor context
         <ImageElement
           attributes={{ "data-slate-node": "element", ref: () => {} } as never}
           element={element as never}
@@ -60,13 +62,14 @@ describe("ImageElement", () => {
 
   it("hides figcaption when caption is missing", () => {
     const element = {
-      type: "image",
+      type: "image" as const,
       url: "https://example.com/photo.png",
       alt: "x",
-      children: [{ text: "" }],
-    } as const;
+      children: [{ text: "" }] as [{ text: "" }],
+    };
     const { container } = render(
       withIntl(
+        // @ts-expect-error — test mock omits Plate's full editor context
         <ImageElement
           attributes={{ "data-slate-node": "element", ref: () => {} } as never}
           element={element as never}

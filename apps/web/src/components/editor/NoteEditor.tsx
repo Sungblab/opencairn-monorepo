@@ -70,6 +70,12 @@ import {
   insertEmbedNode,
   type EmbedInsertResolution,
 } from "./blocks/embed/embed-insert-popover";
+import { imagePlugin } from "./blocks/image/image-plugin";
+import {
+  ImageInsertPopover,
+  insertImageNode,
+  type ImageInsertData,
+} from "./blocks/image/image-insert-popover";
 import { useActiveEditorStore } from "@/stores/activeEditorStore";
 
 // Basic marks + blocks. Lists are handled by the indent-based ListPlugin; the
@@ -100,6 +106,7 @@ const basePlugins = [
   MermaidFencePlugin,
   PasteNormPlugin,
   embedPlugin,
+  imagePlugin,
 ];
 
 type TitleSaveStatus = "idle" | "saving" | "saved" | "error";
@@ -170,6 +177,8 @@ export function NoteEditor({
   const queryClient = useQueryClient();
   // Plan 2E Phase B — embed insert popover state (Task 1.4).
   const [embedPopoverOpen, setEmbedPopoverOpen] = useState(false);
+  // Plan 2E Phase B-2 — image insert popover state (Task 2.3).
+  const [imagePopoverOpen, setImagePopoverOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pendingCommand, setPendingCommand] = useState<SlashAiKey | null>(
     null,
@@ -425,10 +434,11 @@ export function NoteEditor({
     [handleRejectAll],
   );
 
-  // Plan 2E Phase B — embed insert popover handlers (Task 1.4).
+  // Plan 2E Phase B — embed + image insert popover handlers (Tasks 1.4 + 2.3).
   const handleRequestPopover = useCallback(
-    (_kind: "embed") => {
-      setEmbedPopoverOpen(true);
+    (kind: "embed" | "image") => {
+      if (kind === "embed") setEmbedPopoverOpen(true);
+      if (kind === "image") setImagePopoverOpen(true);
     },
     [],
   );
@@ -438,6 +448,16 @@ export function NoteEditor({
       insertEmbedNode(
         editor as unknown as Parameters<typeof insertEmbedNode>[0],
         resolution,
+      );
+    },
+    [editor],
+  );
+
+  const handleImageInsert = useCallback(
+    (data: ImageInsertData) => {
+      insertImageNode(
+        editor as unknown as Parameters<typeof insertImageNode>[0],
+        data,
       );
     },
     [editor],
@@ -518,6 +538,13 @@ export function NoteEditor({
             onOpenChange={setEmbedPopoverOpen}
             anchor={<span />}
             onInsert={handleEmbedInsert}
+          />
+          {/* Plan 2E Phase B-2 — image URL input popover (Task 2.3). */}
+          <ImageInsertPopover
+            open={imagePopoverOpen}
+            onOpenChange={setImagePopoverOpen}
+            anchor={<span />}
+            onInsert={handleImageInsert}
           />
           {aiSlashEnabled && (
             <InlineDiffSheet
