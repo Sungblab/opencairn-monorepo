@@ -64,6 +64,7 @@ import { tablePlugins } from "./blocks/table/table-plugin";
 import { columnsPlugins } from "./blocks/columns/columns-plugin";
 import { MermaidFencePlugin } from "./plugins/mermaid-fence";
 import { PasteNormPlugin } from "./plugins/paste-norm";
+import { mathTriggerPlugin } from "./plugins/math-trigger";
 import { embedPlugin } from "./blocks/embed/embed-plugin";
 import {
   EmbedInsertPopover,
@@ -109,6 +110,7 @@ const basePlugins = [
   ...columnsPlugins,
   MermaidFencePlugin,
   PasteNormPlugin,
+  mathTriggerPlugin,
   embedPlugin,
   imagePlugin,
   imageDropDeferredPlugin,

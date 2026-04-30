@@ -35,7 +35,6 @@ export function ColumnGroupElement({
       node.widths && node.widths.length === n
         ? normalize(node.widths)
         : defaultEqualWidths(n),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [JSON.stringify(node.widths), n],
   );
 
