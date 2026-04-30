@@ -1,0 +1,52 @@
+{
+  "open": "기록 열기",
+  "title": "버전 기록",
+  "currentVersion": "현재 v{version}",
+  "currentVersionEmpty": "저장된 버전이 아직 없습니다.",
+  "createCheckpoint": "체크포인트 만들기",
+  "checkpointCreated": "체크포인트를 만들었어요.",
+  "checkpointFailed": "체크포인트를 만들지 못했어요.",
+  "source": {
+    "auto_save": "자동 저장",
+    "title_change": "제목 변경",
+    "ai_edit": "AI 편집",
+    "restore": "복원됨",
+    "manual_checkpoint": "체크포인트",
+    "import": "가져오기"
+  },
+  "actor": {
+    "user": "사용자",
+    "agent": "에이전트",
+    "system": "시스템"
+  },
+  "preview": "미리보기",
+  "compareWithCurrent": "현재와 비교",
+  "restore": "이 버전으로 복원",
+  "restorePending": "복원 중",
+  "restoreConfirmTitle": "이 버전으로 복원할까요?",
+  "restoreConfirmBody": "현재 내용은 새 버전으로 보존한 뒤 v{version}의 내용으로 복원합니다.",
+  "restoreSuccess": "선택한 버전으로 복원했어요.",
+  "restoreFailed": "복원하지 못했어요. 다시 시도해주세요.",
+  "cancel": "취소",
+  "empty": "아직 저장된 버전이 없어요.",
+  "loadFailed": "버전 기록을 불러오지 못했어요.",
+  "diffTooLarge": "비교할 변경량이 너무 커서 미리보기만 표시합니다.",
+  "readOnlyRestoreHint": "읽기 권한만 있어 체크포인트 생성과 복원은 사용할 수 없어요.",
+  "loading": "불러오는 중입니다.",
+  "retry": "다시 시도",
+  "selectVersion": "왼쪽에서 버전을 선택해주세요.",
+  "versionLabel": "v{version}",
+  "emptyDiff": "현재 내용과 비교할 변경 사항이 없어요.",
+  "summary": {
+    "addedBlocks": "추가 블록",
+    "removedBlocks": "삭제 블록",
+    "changedBlocks": "변경 블록",
+    "addedWords": "추가 단어",
+    "removedWords": "삭제 단어"
+  },
+  "status": {
+    "added": "추가됨",
+    "removed": "삭제됨",
+    "changed": "변경됨"
+  }
+}

@@ -44,5 +44,8 @@ export * from "./schema/user-mcp-servers";
 export * from "./schema/connectors";
 export * from "./schema/mcp-server-tokens";
 export * from "./schema/synthesis";
+export * from "./schema/note-versions";
+export * from "./lib/note-version-hash";
+export * from "./lib/note-version-capture";
 
 export { eq, and, or, desc, asc, sql, inArray, notInArray, isNull, isNotNull, ilike, lt, gt, lte, gte, count, max } from "drizzle-orm";

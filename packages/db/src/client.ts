@@ -28,6 +28,7 @@ import * as audioFiles from "./schema/audio-files";
 import * as userMcpServers from "./schema/user-mcp-servers";
 import * as connectors from "./schema/connectors";
 import * as mcpServerTokens from "./schema/mcp-server-tokens";
+import * as noteVersions from "./schema/note-versions";
 
 const schema = {
   ...users,
@@ -58,6 +59,7 @@ const schema = {
   ...userMcpServers,
   ...connectors,
   ...mcpServerTokens,
+  ...noteVersions,
 };
 
 // 명시적 factory — 소비자가 자체 pool을 소유하고 싶을 때 사용.

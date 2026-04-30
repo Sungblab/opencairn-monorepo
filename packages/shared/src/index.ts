@@ -15,3 +15,4 @@ export * from "./connectors";
 export * from "./synthesis-types";
 export * from "./notifications";
 export * from "./editor";
+export * from "./note-versions";

@@ -88,6 +88,8 @@ export default async function NotePage({ params }: PageProps) {
   return (
     <NoteWithBacklinks noteId={note.id}>
       <NoteRouteChrome
+        noteId={note.id}
+        readOnly={readOnly}
         wsSlug={wsSlug}
         projectId={note.projectId}
         projectName={project?.name ?? null}

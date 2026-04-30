@@ -16,6 +16,7 @@
 import { Database } from "@hocuspocus/extension-database";
 import * as Y from "yjs";
 import {
+  captureNoteVersion,
   yjsDocuments,
   YJS_DOCUMENT_MAX_BYTES,
   notes,
@@ -125,9 +126,9 @@ export function makePersistence({ db }: PersistenceDeps): Persistence {
     }
 
     // First load for this note: seed Y.Doc from legacy notes.content.
-    const seedValue =
-      (note.content as unknown[] | null) ??
-      [{ type: "p", children: [{ text: "" }] }];
+    const seedValue = (note.content as unknown[] | null) ?? [
+      { type: "p", children: [{ text: "" }] },
+    ];
     const doc = new Y.Doc();
     plateToYDoc(doc, seedValue);
     const state = Y.encodeStateAsUpdate(doc);
@@ -199,6 +200,10 @@ export function makePersistence({ db }: PersistenceDeps): Persistence {
     const plateValue = yDocToPlate(doc);
     const contentText = extractText(plateValue);
     const stateVector = Y.encodeStateVector(doc);
+    const noteRow = await db.query.notes.findFirst({
+      where: eq(notes.id, noteId),
+    });
+    const noteTitle = noteRow?.title ?? "Untitled";
 
     await db.transaction(async (tx) => {
       await tx
@@ -237,6 +242,28 @@ export function makePersistence({ db }: PersistenceDeps): Persistence {
         await syncWikiLinks(tx, noteId, targets, workspaceId);
       }
     });
+
+    try {
+      await captureNoteVersion({
+        database: db,
+        noteId,
+        title: noteTitle,
+        content: plateValue as unknown,
+        contentText,
+        yjsState: state,
+        yjsStateVector: stateVector,
+        source: "auto_save",
+        actorType: "system",
+        actorId: null,
+        reason: null,
+        force: false,
+      });
+    } catch (error) {
+      logger.warn(
+        { noteId, error },
+        "persistence.store: note version capture failed",
+      );
+    }
   };
 
   return {
