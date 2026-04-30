@@ -6,6 +6,10 @@
       "title": "Flashcard Decks",
       "description": "Review due cards using spaced repetition (SM-2)."
     },
+    "socratic": {
+      "title": "Socratic Questions",
+      "description": "Probe your understanding by explaining a concept in your own words."
+    },
     "scores": {
       "title": "Understanding Scores",
       "description": "See how well you know each concept based on Socratic sessions."
@@ -34,6 +38,55 @@
       "2": "Hard",
       "3": "Good",
       "4": "Easy"
+    }
+  },
+  "socratic": {
+    "input": {
+      "title": "Get Socratic Questions",
+      "subtitle": "Enter a concept to receive Socratic questions. Answer one and we'll score your understanding with feedback.",
+      "empty_guide": "Receive Socratic-style questions about this note. Explaining things in your own words surfaces the gaps you didn't know you had.",
+      "concept_label": "Concept",
+      "concept_placeholder": "e.g. Bayesian inference, Transformer attention",
+      "note_label": "Reference note (optional)",
+      "note_placeholder": "Paste related note content or a summary so the questions stay grounded.",
+      "note_hint": "Up to 8,000 characters. Leave empty to get general questions about the concept alone.",
+      "generate": "Generate Questions",
+      "generating": "Generating questions…"
+    },
+    "questions": {
+      "title": "Socratic Questions",
+      "subtitle": "Concept: {concept}",
+      "back": "Start over",
+      "number": "Question {n}",
+      "show_hint": "Show hint",
+      "hint_prefix": "Hint:",
+      "answer_label": "Your answer",
+      "answer_placeholder": "Explain it as if you were teaching someone.",
+      "submit": "Evaluate Answer",
+      "evaluating": "Evaluating…"
+    },
+    "result": {
+      "title": "Evaluation",
+      "score_label": "Understanding score",
+      "is_correct_true": "On track",
+      "is_correct_false": "Needs work",
+      "question_label": "Question",
+      "your_answer_label": "Your answer",
+      "feedback_label": "Feedback",
+      "flashcard_hint": "Consider creating a flashcard for this concept and reviewing it on a spaced-repetition schedule.",
+      "try_another": "Try another question",
+      "new_concept": "Start a new concept"
+    },
+    "difficulty": {
+      "easy": "Easy",
+      "medium": "Medium",
+      "hard": "Hard"
+    },
+    "errors": {
+      "generic": "Could not process the request. Please try again in a moment.",
+      "forbidden": "You don't have access to this project.",
+      "no_questions": "No questions were generated. Try a more specific concept.",
+      "network": "Network error."
     }
   },
   "scores": {
