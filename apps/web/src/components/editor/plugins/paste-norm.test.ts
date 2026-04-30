@@ -6,7 +6,7 @@
 // normalizeEscapes tests (pure-function, no editor fixture).
 
 import { describe, it, expect, vi } from "vitest";
-import { tryInsertEmbed, isInsideCodeBlockOrLine } from "./paste-norm";
+import { tryInsertEmbed, tryInsertImage, isInsideCodeBlockOrLine } from "./paste-norm";
 
 // ─── Minimal editor fixture ───────────────────────────────────────────────
 
@@ -48,6 +48,71 @@ describe("isInsideCodeBlockOrLine", () => {
 });
 
 // ─── tryInsertEmbed ───────────────────────────────────────────────────────
+
+// ─── tryInsertImage ───────────────────────────────────────────────────────
+
+describe("paste-norm: image URL auto-insertion", () => {
+  it("converts pasted .png URL to image node", () => {
+    const editor = makeEditor();
+    const result = tryInsertImage(editor as never, "https://example.com/cat.png");
+    expect(result).toBe(true);
+    expect(editor.tf.insertNodes).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "image", url: "https://example.com/cat.png" }),
+    );
+  });
+
+  it("converts .jpg, .jpeg, .gif, .webp, .svg URLs", () => {
+    for (const ext of ["jpg", "jpeg", "gif", "webp", "svg"]) {
+      const editor = makeEditor();
+      const result = tryInsertImage(editor as never, `https://example.com/x.${ext}`);
+      expect(result).toBe(true);
+      expect(editor.tf.insertNodes).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "image" }),
+      );
+    }
+  });
+
+  it("does not transform pasted image URL inside code block", () => {
+    // Simulate a code_block editor: selection points into a code_block node
+    const editor = {
+      selection: { anchor: { path: [0, 0], offset: 0 }, focus: { path: [0, 0], offset: 0 } },
+      children: [{ type: "code_block", children: [{ type: "code_line", children: [{ text: "" }] }] }],
+      tf: { insertNodes: vi.fn() },
+    };
+    // isInsideCodeBlockOrLine walks children[0] → type=code_block → true
+    const result = tryInsertImage(editor as never, "https://example.com/cat.png");
+    expect(result).toBe(false);
+    expect(editor.tf.insertNodes).not.toHaveBeenCalled();
+  });
+
+  it("ignores URL with extra surrounding text", () => {
+    const editor = makeEditor();
+    const result = tryInsertImage(editor as never, "look: https://example.com/cat.png cute");
+    expect(result).toBe(false);
+    expect(editor.tf.insertNodes).not.toHaveBeenCalled();
+  });
+
+  it("prefers embed over image when both could match (embed URL check)", () => {
+    // youtube URL doesn't end in image extension so this falls to embed
+    const editor = makeEditor();
+    const imageResult = tryInsertImage(editor as never, "https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+    expect(imageResult).toBe(false);
+    // embed detection should then succeed
+    const embedResult = tryInsertEmbed(editor as never, "https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+    expect(embedResult).toBe(true);
+  });
+
+  it("inserts a trailing paragraph node after the image", () => {
+    const editor = makeEditor();
+    tryInsertImage(editor as never, "https://example.com/cat.png");
+    // First call = image node, second call = paragraph
+    expect(editor.tf.insertNodes).toHaveBeenCalledTimes(2);
+    expect(editor.tf.insertNodes).toHaveBeenLastCalledWith({
+      type: "p",
+      children: [{ text: "" }],
+    });
+  });
+});
 
 describe("tryInsertEmbed: embed URL auto-insertion", () => {
   it("inserts an embed node for a YouTube URL", () => {

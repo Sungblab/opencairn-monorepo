@@ -62,6 +62,32 @@ interface PlateEditorForPaste {
   [key: string]: unknown;
 }
 
+// Plan 2E Phase B-2 — Image URL paste detection (Task 2.4).
+// Must be checked BEFORE embed detection so image-extension URLs are handled
+// correctly (they won't match embed providers, but ordering keeps it explicit).
+const IMAGE_URL_RE = /^https?:\/\/\S+\.(png|jpe?g|gif|webp|svg)(?:\?\S*)?$/i;
+
+/**
+ * Attempt to insert an image node for a pasted image URL.
+ * Returns true if an image was inserted (caller should stop processing).
+ */
+export function tryInsertImage(
+  editor: PlateEditorForPaste,
+  plainText: string,
+): boolean {
+  const trimmed = plainText.trim();
+  if (!IMAGE_URL_RE.test(trimmed)) return false;
+  if (isInsideCodeBlockOrLine(editor)) return false;
+  editor.tf.insertNodes({
+    type: "image",
+    url: trimmed,
+    children: [{ text: "" }],
+  });
+  // Insert an empty paragraph after so the caret isn't trapped in the void.
+  editor.tf.insertNodes({ type: "p", children: [{ text: "" }] });
+  return true;
+}
+
 /**
  * Attempt to insert an embed node for a pasted URL.
  * Returns true if an embed was inserted (caller should stop processing).
@@ -118,6 +144,16 @@ export const PasteNormPlugin = createPlatePlugin({
         if (dt.getData("text/html")) return; // defer to HTML path
         const plainText = dt.getData("text/plain");
         if (!plainText) return;
+        // Try image URL first (more specific), then embed URL.
+        const insertedImage = tryInsertImage(
+          editor as unknown as PlateEditorForPaste,
+          plainText,
+        );
+        if (insertedImage) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
         const inserted = tryInsertEmbed(
           editor as unknown as PlateEditorForPaste,
           plainText,
