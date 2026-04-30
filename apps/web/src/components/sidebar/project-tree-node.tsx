@@ -1,4 +1,5 @@
 "use client";
+import { urls } from "@/lib/urls";
 import { useEffect, useRef } from "react";
 import type { NodeRendererProps } from "react-arborist";
 import { ChevronRight, Folder, FileText } from "lucide-react";
@@ -59,7 +60,7 @@ export function ProjectTreeNode({
     const tabs = useTabsStore.getState();
     const existing = tabs.findTabByTarget("note", node.data.id);
     if (existing) tabs.setActive(existing.id);
-    router.push(`/${locale}/app/w/${wsSlug}/n/${node.data.id}`);
+    router.push(urls.workspace.note(locale, wsSlug, node.data.id));
   }
 
   function handleRowDoubleClick() {

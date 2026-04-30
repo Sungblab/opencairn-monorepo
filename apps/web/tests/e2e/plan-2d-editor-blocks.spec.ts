@@ -36,15 +36,15 @@ test.describe("Plan 2D — editor blocks", () => {
     await applySessionCookie(context, session);
 
     // Navigate to the app shell and open an existing note.
-    await page.goto(`/ko/app/w/${session.wsSlug}/`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/`);
     await expect(page).toHaveURL(
-      new RegExp(`/(ko/)?app/w/${session.wsSlug}`),
+      new RegExp(`/(ko/)?workspace/${session.wsSlug}`),
       { timeout: 15_000 },
     );
 
     // Create a fresh note so each test starts with an empty editor.
     await page.getByTestId("new-note-button").click();
-    await expect(page).toHaveURL(/\/notes\/[0-9a-f-]{36}$/, {
+    await expect(page).toHaveURL(/\/note\/[0-9a-f-]{36}$/, {
       timeout: 10_000,
     });
     // Wait for the editor body to be ready before each test.

@@ -8,7 +8,7 @@ const replace = vi.fn();
 // Mutable path lets a single test simulate a URL change between renders —
 // usePathname returns whatever `currentPath` is at call time, and
 // `renderHook`'s rerender triggers the effect that reads it.
-let currentPath = "/w/acme/n/n-1";
+let currentPath = "/ko/workspace/acme/note/n-1";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, replace }),
@@ -22,6 +22,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string, vars?: Record<string, unknown>) =>
     vars && "id" in vars ? `${key}:${vars.id}` : key,
+  useLocale: () => "ko",
 }));
 
 describe("useUrlTabSync", () => {
@@ -30,7 +31,7 @@ describe("useUrlTabSync", () => {
     useTabsStore.setState(useTabsStore.getInitialState(), true);
     push.mockClear();
     replace.mockClear();
-    currentPath = "/w/acme/n/n-1";
+    currentPath = "/ko/workspace/acme/note/n-1";
   });
 
   it("creates a tab matching the current URL on mount", () => {
@@ -75,7 +76,7 @@ describe("useUrlTabSync", () => {
         { mode: "push" },
       ),
     );
-    expect(push).toHaveBeenCalledWith("/w/acme/n/n-5");
+    expect(push).toHaveBeenCalledWith("/ko/workspace/acme/note/n-5");
   });
 
   it("note URL adds a preview tab", () => {
@@ -93,7 +94,7 @@ describe("useUrlTabSync", () => {
     // Simulate the user single-clicking a second note in the sidebar while
     // the first is still in preview mode. Only one preview tab should exist.
     act(() => {
-      currentPath = "/w/acme/n/n-2";
+      currentPath = "/ko/workspace/acme/note/n-2";
     });
     rerender();
 
@@ -137,7 +138,7 @@ describe("useUrlTabSync", () => {
     // Navigate to dashboard — a non-preview kind. The note preview should
     // stay; dashboard is appended.
     act(() => {
-      currentPath = "/w/acme/";
+      currentPath = "/ko/workspace/acme/";
     });
     rerender();
 
@@ -155,6 +156,6 @@ describe("useUrlTabSync", () => {
         { mode: "replace" },
       ),
     );
-    expect(replace).toHaveBeenCalledWith("/w/acme/");
+    expect(replace).toHaveBeenCalledWith("/ko/workspace/acme/");
   });
 });

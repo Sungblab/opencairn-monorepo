@@ -4,6 +4,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useRouter, useParams } from "next/navigation";
 import type { BacklinksResponse } from "@opencairn/shared";
 import { useTabsStore } from "@/stores/tabs-store";
+import { urls } from "@/lib/urls";
 
 interface Props {
   noteId: string;
@@ -42,8 +43,7 @@ export function BacklinksPanel({ noteId }: Props) {
       splitSide: null,
       scrollY: 0,
     });
-    if (!wsSlug) return;
-    router.push(`/${locale}/app/w/${wsSlug}/n/${b.id}`);
+    if (wsSlug) router.push(urls.workspace.note(locale, wsSlug, b.id));
   }
 
   return (

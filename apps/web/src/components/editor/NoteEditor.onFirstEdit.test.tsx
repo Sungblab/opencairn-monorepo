@@ -18,10 +18,6 @@ vi.mock("platejs/react", () => ({
   PlateContent: (props: React.HTMLAttributes<HTMLDivElement>) => (
     <div {...props} />
   ),
-  createPlatePlugin: (plugin: unknown) => ({
-    ...((plugin ?? {}) as object),
-    withComponent: () => plugin,
-  }),
 }));
 
 // CommentsPanel, PresenceStack, banners, toolbar, wiki-link combobox, and
@@ -96,6 +92,14 @@ vi.mock("./plugins/mermaid-fence", () => ({ MermaidFencePlugin: {} }));
 
 // paste-norm calls `createPlatePlugin` at module scope. Same treatment.
 vi.mock("./plugins/paste-norm", () => ({ PasteNormPlugin: {} }));
+
+// embed/image plugins also call `createPlatePlugin` at module scope.
+vi.mock("./blocks/embed/embed-plugin", () => ({ embedPlugin: {} }));
+vi.mock("./blocks/image/image-plugin", () => ({ imagePlugin: {} }));
+vi.mock("./plugins/image-drop-deferred", () => ({
+  imageDropDeferredPlugin: {},
+  useImageUploadDeferredToast: () => undefined,
+}));
 
 import { renderNoteEditor } from "./NoteEditor.test-rig";
 

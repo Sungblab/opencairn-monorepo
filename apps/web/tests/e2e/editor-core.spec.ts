@@ -20,13 +20,13 @@ test.describe("editor core (Plan 2A Task 14)", () => {
     const session = await seedAndSignIn(request);
     await applySessionCookie(context, session);
 
-    // 1. Redirect chain: /ko/app → /ko/app/w/:slug → /ko/app/w/:slug/p/:id.
-    //    Start explicit at /ko/ to keep the locale deterministic regardless
-    //    of the test browser's Accept-Language header.
-    await page.goto(`/ko/app`);
+    // 1. Start on the project route that owns the editor sidebar.
+    await page.goto(
+      `/ko/workspace/${session.wsSlug}/project/${session.projectId}`,
+    );
     await expect(page).toHaveURL(
       new RegExp(
-        `/(ko/)?app/w/${session.wsSlug}/p/${session.projectId}(/|$)`,
+        `/(ko/)?workspace/${session.wsSlug}/project/${session.projectId}(/|$)`,
       ),
       { timeout: 15_000 },
     );
@@ -34,7 +34,7 @@ test.describe("editor core (Plan 2A Task 14)", () => {
     // 2. New note via the sidebar button — seeded "Welcome" note already
     //    exists, so this creates a second one and navigates to it.
     await page.getByTestId("new-note-button").click();
-    await expect(page).toHaveURL(/\/notes\/[0-9a-f-]{36}$/, {
+    await expect(page).toHaveURL(/\/note\/[0-9a-f-]{36}$/, {
       timeout: 10_000,
     });
 
@@ -90,10 +90,12 @@ test.describe("editor core (Plan 2A Task 14)", () => {
     const session = await seedAndSignIn(request);
     await applySessionCookie(context, session);
 
-    await page.goto("/ko/app");
+    await page.goto(
+      `/ko/workspace/${session.wsSlug}/project/${session.projectId}`,
+    );
     await expect(page).toHaveURL(
       new RegExp(
-        `/(ko/)?app/w/${session.wsSlug}/p/${session.projectId}(/|$)`,
+        `/(ko/)?workspace/${session.wsSlug}/project/${session.projectId}(/|$)`,
       ),
       { timeout: 15_000 },
     );
@@ -101,7 +103,7 @@ test.describe("editor core (Plan 2A Task 14)", () => {
     // Create a fresh note so we can write into it without racing the seed
     // note's initial hydration.
     await page.getByTestId("new-note-button").click();
-    await expect(page).toHaveURL(/\/notes\/[0-9a-f-]{36}$/, {
+    await expect(page).toHaveURL(/\/note\/[0-9a-f-]{36}$/, {
       timeout: 10_000,
     });
 
@@ -129,16 +131,18 @@ test.describe("editor core (Plan 2A Task 14)", () => {
     const session = await seedAndSignIn(request);
     await applySessionCookie(context, session);
 
-    await page.goto("/ko/app");
+    await page.goto(
+      `/ko/workspace/${session.wsSlug}/project/${session.projectId}`,
+    );
     await expect(page).toHaveURL(
       new RegExp(
-        `/(ko/)?app/w/${session.wsSlug}/p/${session.projectId}(/|$)`,
+        `/(ko/)?workspace/${session.wsSlug}/project/${session.projectId}(/|$)`,
       ),
       { timeout: 15_000 },
     );
 
     await page.getByTestId("new-note-button").click();
-    await expect(page).toHaveURL(/\/notes\/[0-9a-f-]{36}$/, {
+    await expect(page).toHaveURL(/\/note\/[0-9a-f-]{36}$/, {
       timeout: 10_000,
     });
 

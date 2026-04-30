@@ -1,5 +1,6 @@
 "use client";
 
+import { urls } from "@/lib/urls";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import { StatsRow } from "./stats-row";
@@ -26,7 +27,7 @@ export function DashboardView({
           <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         <Link
-          href={`/${locale}/app/w/${wsSlug}/new-project`}
+          href={urls.workspace.newProject(locale, wsSlug)}
           className="app-btn-primary rounded px-3 py-1.5 text-sm"
         >
           {t("newProject")}
@@ -39,7 +40,7 @@ export function DashboardView({
             {t("sections.activeResearch")}
           </h2>
           <Link
-            href={`/${locale}/app/w/${wsSlug}/research`}
+            href={urls.workspace.research(locale, wsSlug)}
             className="text-xs text-muted-foreground hover:text-foreground"
           >
             {t("sections.viewAll")} →

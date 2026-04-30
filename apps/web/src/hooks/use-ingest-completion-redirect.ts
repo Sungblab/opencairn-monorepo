@@ -3,9 +3,10 @@ import { useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import { useIngestStore } from "@/stores/ingest-store";
+import { urls } from "@/lib/urls";
 
 /**
- * Auto-redirect to the workspace note route 5 seconds after completion,
+ * Auto-redirect to the workspace note URL 5 seconds after a run reaches `completed`,
  * unless cancelled (component unmount, opts.enabled = false).
  *
  * The ref-based cancellation guard handles fast unmount cycles where the
@@ -18,7 +19,8 @@ export function useIngestCompletionRedirect(
   const run = useIngestStore((s) => (wfid ? s.runs[wfid] : null));
   const router = useRouter();
   const locale = useLocale();
-  const { wsSlug } = useParams<{ wsSlug?: string }>();
+  const params = useParams<{ wsSlug?: string }>() ?? {};
+  const wsSlug = params.wsSlug;
   const cancelled = useRef(false);
 
   const status = run?.status ?? null;
@@ -28,14 +30,16 @@ export function useIngestCompletionRedirect(
 
   useEffect(() => {
     if (!enabled) return;
-    if (status !== "completed" || !noteId || !wsSlug) return;
+    if (status !== "completed" || !noteId) return;
     cancelled.current = false;
     const timer = setTimeout(() => {
-      if (!cancelled.current) router.push(`/${locale}/app/w/${wsSlug}/n/${noteId}`);
+      if (!cancelled.current && wsSlug) {
+        router.push(urls.workspace.note(locale, wsSlug, noteId));
+      }
     }, delay);
     return () => {
       cancelled.current = true;
       clearTimeout(timer);
     };
-  }, [status, noteId, wsSlug, router, locale, delay, enabled]);
+  }, [status, noteId, router, delay, enabled, locale, wsSlug]);
 }

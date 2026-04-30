@@ -8,7 +8,7 @@ test.describe("onboarding guards", () => {
     await expect(page).toHaveURL(/\/auth\/login/, { timeout: 10_000 });
   });
 
-  test("authed + no workspace + no invite → auto-provisions and redirects to /app/w/:slug", async ({
+  test("authed + no workspace + no invite → auto-provisions and redirects to /workspace/:slug", async ({
     page,
     request,
     context,
@@ -21,13 +21,13 @@ test.describe("onboarding guards", () => {
     // Server-side auto-create runs before the shell renders; the manual
     // create form is now reserved for invite-error fallback paths only.
     // `localePrefix: "as-needed"` strips the `/ko` segment for the default
-    // locale, so the redirected URL is `/app/w/:slug`.
-    await expect(page).toHaveURL(/\/app\/w\/[a-z0-9-]+/, {
+    // locale, so the redirected URL is `/workspace/:slug`.
+    await expect(page).toHaveURL(/\/workspace\/[a-z0-9-]+/, {
       timeout: 10_000,
     });
   });
 
-  test("authed + has workspace + no invite → /app/w/:slug", async ({
+  test("authed + has workspace + no invite → /workspace/:slug", async ({
     page,
     request,
     context,
@@ -36,7 +36,7 @@ test.describe("onboarding guards", () => {
     await applySessionCookie(context, session);
     await page.goto("/ko/onboarding");
     await expect(page).toHaveURL(
-      new RegExp(`/app/w/${session.wsSlug}`),
+      new RegExp(`/workspace/${session.wsSlug}`),
       { timeout: 10_000 },
     );
   });

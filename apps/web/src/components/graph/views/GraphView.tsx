@@ -7,6 +7,7 @@ import fcose from "cytoscape-fcose";
 import { useRouter, useParams } from "next/navigation";
 import { toast } from "sonner";
 import { useLocale, useTranslations } from "next-intl";
+import { urls } from "@/lib/urls";
 import { useTabsStore } from "@/stores/tabs-store";
 import { useProjectGraph } from "../useProjectGraph";
 import { toCytoscapeElements } from "../to-cytoscape-elements";
@@ -79,10 +80,9 @@ export default function GraphView({ projectId }: { projectId: string }) {
         splitSide: null,
         scrollY: 0,
       });
-      if (!wsSlug) return;
-      router.push(`/${locale}/app/w/${wsSlug}/n/${firstNoteId}`);
+      router.push(urls.workspace.note(locale, wsSlug, firstNoteId));
     },
-    [addOrReplacePreview, router, wsSlug, locale, t],
+    [addOrReplacePreview, locale, router, wsSlug, t],
   );
 
   // Park the latest handler in a ref so the cytoscape `dbltap` binding

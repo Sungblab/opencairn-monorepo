@@ -42,7 +42,7 @@ test.describe("Plan 2B collab E2E", () => {
     request,
   }) => {
     const seed = await seedMultiRoleAndSignIn(request);
-    const noteUrl = `/ko/app/w/${seed.wsSlug}/p/${seed.projectId}/notes/${seed.noteId}`;
+    const noteUrl = `/ko/workspace/${seed.wsSlug}/project/${seed.projectId}/note/${seed.noteId}`;
 
     // Three browser contexts — one per role user. commenter and viewer are
     // both readonly for the Yjs editor; commenter can still post comments.

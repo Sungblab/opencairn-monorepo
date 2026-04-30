@@ -1,5 +1,6 @@
 "use client";
 
+import { urls } from "@/lib/urls";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import type { PlateElementProps } from "platejs/react";
@@ -35,8 +36,8 @@ export function WikiLinkElement({
   wsSlug,
   projectId,
 }: PlateElementProps & WikiLinkContext) {
-  const t = useTranslations("editor.wikilink");
   const locale = useLocale();
+  const t = useTranslations("editor.wikilink");
   const el = element as unknown as WikiLinkElement;
   const { targetId, title, deleted } = el;
 
@@ -58,7 +59,7 @@ export function WikiLinkElement({
   return (
     <Link
       {...attributes}
-      href={`/${locale}/app/w/${wsSlug}/n/${targetId}`}
+      href={urls.workspace.projectNote(locale, wsSlug, projectId, targetId)}
       className="text-[color:var(--accent-ember)] underline underline-offset-2 hover:opacity-80"
       data-target-id={targetId}
     >

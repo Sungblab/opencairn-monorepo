@@ -15,7 +15,7 @@ const LANDING_PATHS = new Set<string>(["/", ...locales.flatMap((l) => [`/${l}`, 
 
 // Better Auth sets the session cookie with the `__Secure-` prefix over HTTPS
 // and the bare name over HTTP. Presence (not validity) is enough — stale
-// cookies round-trip through /app's server-side session check and bounce to
+// cookies round-trip through /dashboard's server-side session check and bounce to
 // /auth/login. False positives are harmless.
 const SESSION_COOKIE_NAMES = [
   "better-auth.session_token",
@@ -34,7 +34,7 @@ export default function proxy(req: NextRequest) {
     const hasSession = SESSION_COOKIE_NAMES.some((n) => req.cookies.has(n));
     if (hasSession) {
       const target = req.nextUrl.clone();
-      target.pathname = `/${pickLocale(req.nextUrl.pathname)}/app`;
+      target.pathname = `/${pickLocale(req.nextUrl.pathname)}/dashboard`;
       return NextResponse.redirect(target);
     }
   }

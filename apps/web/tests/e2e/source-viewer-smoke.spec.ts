@@ -55,7 +55,7 @@ test.describe("Source PDF viewer smoke", () => {
       });
     });
 
-    await page.goto(`/ko/app/w/${session.wsSlug}/chat-scope`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/chat-scope`);
 
     await expect(page.getByTestId("source-viewer")).toBeVisible();
     await expect(

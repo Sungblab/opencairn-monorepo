@@ -103,7 +103,7 @@ describe("WorkspaceSwitcher", () => {
     );
     const betaItem = await screen.findByText("Beta");
     fireEvent.click(betaItem);
-    expect(push).toHaveBeenCalledWith("/ko/app/w/beta");
+    expect(push).toHaveBeenCalledWith("/ko/workspace/beta");
   });
 
   it("renders pending invites under a dedicated label", async () => {

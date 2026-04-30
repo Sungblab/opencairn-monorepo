@@ -20,7 +20,7 @@ test.describe("onboarding invite accept", () => {
 
     await page.getByTestId("invite-accept").click();
     // next-intl strips the `/ko` prefix for the default locale.
-    await expect(page).toHaveURL(new RegExp(`/app/w/${slug}`), {
+    await expect(page).toHaveURL(new RegExp(`/workspace/${slug}`), {
       timeout: 10_000,
     });
   });

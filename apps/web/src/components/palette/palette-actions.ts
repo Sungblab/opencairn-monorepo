@@ -1,3 +1,4 @@
+import { urls } from "@/lib/urls";
 import type { useRouter } from "next/navigation";
 import { usePanelStore } from "@/stores/panel-store";
 
@@ -22,7 +23,7 @@ export function buildActions(opts: {
   wsSlug?: string;
 }): PaletteAction[] {
   const { locale, wsSlug } = opts;
-  const wsBase = wsSlug ? `/${locale}/app/w/${wsSlug}` : null;
+  const wsBase = wsSlug ? urls.workspace.root(locale, wsSlug) : null;
   const actions: PaletteAction[] = [];
   if (wsBase) {
     actions.push(

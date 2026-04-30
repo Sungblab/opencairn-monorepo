@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { applySessionCookie, seedAndSignIn } from "./helpers/seed-session";
 
 test.describe("onboarding auto-provision", () => {
-  test("authed + no workspace + no invite → /onboarding auto-creates and redirects to /app/w/:slug", async ({
+  test("authed + no workspace + no invite → /onboarding auto-creates and redirects to /workspace/:slug", async ({
     page,
     request,
     context,
@@ -18,7 +18,7 @@ test.describe("onboarding auto-provision", () => {
     // back to `w-{random}` when no ASCII letters survive — so accept either.
     // next-intl is configured with `localePrefix: "as-needed"` and `ko` as
     // the default, so the redirected URL has no `/ko` prefix.
-    await expect(page).toHaveURL(/\/app\/w\/[a-z0-9-]+/, {
+    await expect(page).toHaveURL(/\/workspace\/[a-z0-9-]+/, {
       timeout: 10_000,
     });
   });

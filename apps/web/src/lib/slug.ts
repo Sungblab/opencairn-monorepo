@@ -3,6 +3,8 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "app", "api", "admin", "auth", "www", "assets", "static", "public",
   "health", "onboarding", "settings", "billing", "share",
   "invite", "invites", "help", "docs", "blog",
+  // 2026-04-30 URL restructure: new top-level + workspace path segments.
+  "workspace", "dashboard", "project", "note",
 ]);
 
 const MIN_LEN = 3;

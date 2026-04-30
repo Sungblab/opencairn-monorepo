@@ -13,7 +13,7 @@ import {
   type EmailNotificationKind,
 } from "../src";
 
-const cta = "https://example.com/ko/app/w/test/n/note-id";
+const cta = "https://example.com/ko/workspace/test/note/note-id";
 
 describe("per-kind notification templates", () => {
   for (const locale of ["ko", "en"] as EmailLocale[]) {

@@ -1,5 +1,6 @@
 "use client";
 
+import { urls } from "@/lib/urls";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { MembersTab } from "./members-tab";
@@ -80,7 +81,7 @@ export function WorkspaceSettingsView({
           {TABS.map((id) => (
             <Link
               key={id}
-              href={`/${locale}/app/w/${wsSlug}/settings/${SLUGS[id]}`}
+              href={urls.workspace.settingsSection(locale, wsSlug, SLUGS[id])}
               className={`block rounded px-2 py-1 text-sm ${
                 current === id
                   ? "bg-accent font-medium"

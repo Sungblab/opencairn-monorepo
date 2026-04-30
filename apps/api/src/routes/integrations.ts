@@ -91,11 +91,13 @@ integrationsRouter.get("/google/callback", async (c) => {
     wsSlug = await lookupWorkspaceSlug(parsed.workspaceId);
   } catch {
     // Workspace may have been deleted between connect and callback. Fall
-    // through to a generic /app landing — user can pick a workspace manually.
+    // through to a generic dashboard landing — user can pick a workspace manually.
   }
+  // TODO: carry locale through OAuth state; callbacks default to ko for now.
+  const locale = "ko";
   const target = wsSlug
-    ? `${webBase()}/app/w/${wsSlug}/import?connected=true`
-    : `${webBase()}/app?integration=connected`;
+    ? `${webBase()}/${locale}/workspace/${wsSlug}/import?connected=true`
+    : `${webBase()}/${locale}/dashboard?integration=connected`;
   return c.redirect(target);
 });
 
@@ -113,6 +115,11 @@ integrationsRouter.get("/google/connect", requireAuth, async (c) => {
   if (!workspaceId) {
     return c.json({ error: "workspaceId required" }, 400);
   }
+  const allowed = await canRead(userId, {
+    type: "workspace",
+    id: workspaceId,
+  });
+  if (!allowed) return c.json({ error: "Forbidden" }, 403);
   const state = signState({ userId, workspaceId });
   return c.redirect(authorizationUrl(state, redirectUri()));
 });

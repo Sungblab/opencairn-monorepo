@@ -24,8 +24,7 @@ export default async function LocaleLayout({
 
   // Toaster, ReactQueryProvider, and CommandPalette all live at the locale
   // boundary so non-(shell) routes (/settings, /onboarding, /auth, /s/<token>)
-  // get toasts, can use react-query, and can open ⌘K. The palette derives
-  // its workspace context from the URL, so a global mount needs no prop drill.
+  // get toasts, can use react-query, and can open the global palette.
   // Theme tokens come from the root layout's `data-theme`, so colours track
   // palette changes without re-mounting either provider.
   return (

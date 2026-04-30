@@ -34,7 +34,7 @@ test.describe("Plan 5 Phase 2 — view switcher", () => {
 
   test("renders all 5 view buttons + AI trigger", async ({ page }) => {
     await page.goto(
-      `/ko/app/w/${session.wsSlug}/p/${session.projectId}/graph`,
+      `/ko/workspace/${session.wsSlug}/project/${session.projectId}/graph`,
     );
     await expect(page.getByTestId("project-graph-viewer")).toBeVisible();
     // i18n keys come from messages/ko/graph.json views.{graph,mindmap,...}.
@@ -53,7 +53,7 @@ test.describe("Plan 5 Phase 2 — view switcher", () => {
     page,
   }) => {
     await page.goto(
-      `/ko/app/w/${session.wsSlug}/p/${session.projectId}/graph`,
+      `/ko/workspace/${session.wsSlug}/project/${session.projectId}/graph`,
     );
     // Cards view doesn't need a root, so it renders the noConcepts empty
     // state immediately for an empty seed. We use it as the click target.
@@ -65,7 +65,7 @@ test.describe("Plan 5 Phase 2 — view switcher", () => {
     page,
   }) => {
     await page.goto(
-      `/ko/app/w/${session.wsSlug}/p/${session.projectId}/graph?view=cards`,
+      `/ko/workspace/${session.wsSlug}/project/${session.projectId}/graph?view=cards`,
     );
     await expect(page.getByTestId("project-graph-viewer")).toBeVisible();
     // graph.views.noConcepts copy
@@ -78,7 +78,7 @@ test.describe("Plan 5 Phase 2 — view switcher", () => {
     page,
   }) => {
     await page.goto(
-      `/ko/app/w/${session.wsSlug}/p/${session.projectId}/graph?view=timeline`,
+      `/ko/workspace/${session.wsSlug}/project/${session.projectId}/graph?view=timeline`,
     );
     await expect(page.getByTestId("project-graph-viewer")).toBeVisible();
     await expect(
@@ -88,7 +88,7 @@ test.describe("Plan 5 Phase 2 — view switcher", () => {
 
   test("pressing 3 swaps to ?view=cards", async ({ page }) => {
     await page.goto(
-      `/ko/app/w/${session.wsSlug}/p/${session.projectId}/graph`,
+      `/ko/workspace/${session.wsSlug}/project/${session.projectId}/graph`,
     );
     await expect(page.getByTestId("project-graph-viewer")).toBeVisible();
     // Click the body so the keydown listener (window-level) fires; Playwright
@@ -100,7 +100,7 @@ test.describe("Plan 5 Phase 2 — view switcher", () => {
 
   test("AI trigger opens the VisualizeDialog modal", async ({ page }) => {
     await page.goto(
-      `/ko/app/w/${session.wsSlug}/p/${session.projectId}/graph`,
+      `/ko/workspace/${session.wsSlug}/project/${session.projectId}/graph`,
     );
     await page.getByRole("button", { name: /AI로 만들기/ }).click();
     // graph.ai.dialogTitle

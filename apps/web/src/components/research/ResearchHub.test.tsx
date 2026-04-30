@@ -106,7 +106,7 @@ describe("ResearchHub", () => {
 
     fireEvent.keyDown(row, { key: "Enter" });
     expect(pushMock).toHaveBeenLastCalledWith(
-      "/ko/app/w/acme/research/r-key",
+      "/ko/workspace/acme/research/r-key",
     );
 
     fireEvent.keyDown(row, { key: " " });
