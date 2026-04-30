@@ -186,6 +186,39 @@ were intentionally left for later.
 - **i18n**: new `appShell.routes.note.chrome.{breadcrumb_label,
   project_unknown,autosave}` ko/en parity.
 
+### G4. Research hub fidelity to 2026-04-23 mockup
+- **Before**: `ResearchHub` rendered runs as a `<table>` with three text
+  columns and a single "new run" button styled with `bg-primary`. Status
+  was a plain word in a cell, no progress affordance, no filter strip,
+  no empty hint at the bottom.
+- **After**:
+  - Header: title without serif (brand rule), `app-btn-primary` CTA on the
+    right, subtitle promoted to its own row with the mockup's longer
+    explanatory copy.
+  - Status filter strip: 5 buckets matching the mockup (전체/진행 중/
+    승인 대기/완료/실패·취소). `bucketOf()` collapses
+    `planning + researching → active` and `failed + cancelled → terminal`
+    so the count math stays readable. Counts derive from the unfiltered
+    list — same pattern as the project view.
+  - Card rows replace the table: 1.5px-bordered `app-hover` cards with
+    `StatusIndicator` (pulse-dot for `researching`, checkmark for
+    `completed`, danger dot for `failed`, quiet steady dot otherwise),
+    title + `StatusChip` pair, model + relative-time meta, and a right
+    column for cost + billing path. The whole card stays clickable
+    (`role=link` + `Enter`/`Space`), preserving the existing keyboard
+    contract the test asserts.
+  - Bottom hint mirrors the mockup's "이전 리서치는 해당 프로젝트의
+    문서로 보관됩니다…" copy so the user understands where completed
+    runs go.
+- **Deviation**: the mockup row also surfaces a project label per run
+  (`투자노트 · deep-research-max · 12분 전`). `ResearchRunSummary`
+  doesn't carry `projectId`, so the live row drops the project segment
+  rather than triggering a per-row N+1 fetch. Tracked as a future API
+  payload extension.
+- **i18n**: new `research.hub.{empty_filtered, footer_hint, filter.*,
+  billing.*, cost.actual}` ko/en parity. The original `hub.subtitle`
+  copy was replaced with the mockup's longer explainer.
+
 ### G. SSR cookie forwarding (carried over from prior session)
 - Was sitting modified in the working copy. SSR fetches relied on
   `credentials: "include"` which is browser-only, so the dashboard's

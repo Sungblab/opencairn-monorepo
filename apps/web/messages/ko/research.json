@@ -1,9 +1,25 @@
 {
   "hub": {
     "title": "Deep Research",
-    "subtitle": "심층 조사를 자동으로 실행하고 결과를 노트로 받아보세요.",
+    "subtitle": "주제를 입력하면 플랜을 검토하고, 최종 리포트가 워크스페이스에 문서로 저장됩니다.",
     "new_button": "새 리서치 시작",
     "empty": "아직 시작한 리서치가 없습니다.",
+    "empty_filtered": "이 필터에 해당하는 리서치가 없습니다.",
+    "footer_hint": "이전 리서치는 해당 프로젝트의 문서로 보관됩니다. 소스·플랜·생각 요약은 문서 상단의 접이식 블록에서 확인할 수 있습니다.",
+    "filter": {
+      "all": "전체",
+      "active": "진행 중",
+      "awaiting": "승인 대기",
+      "completed": "완료",
+      "terminal": "실패·취소"
+    },
+    "billing": {
+      "byok": "BYOK",
+      "managed": "크레딧"
+    },
+    "cost": {
+      "actual": "${value}"
+    },
     "list": {
       "topic": "주제",
       "model": "모델",

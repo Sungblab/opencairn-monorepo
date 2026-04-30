@@ -1,9 +1,25 @@
 {
   "hub": {
     "title": "Deep Research",
-    "subtitle": "Run automated research and get the result delivered as a note.",
+    "subtitle": "Submit a topic, review the plan, and get the final report saved as a workspace document.",
     "new_button": "New research",
     "empty": "You have no research runs yet.",
+    "empty_filtered": "No runs match this filter.",
+    "footer_hint": "Past runs are kept as documents inside their project. Sources, plan, and thought summaries live in the collapsible blocks at the top of each document.",
+    "filter": {
+      "all": "All",
+      "active": "Running",
+      "awaiting": "Awaiting approval",
+      "completed": "Completed",
+      "terminal": "Failed / Cancelled"
+    },
+    "billing": {
+      "byok": "BYOK",
+      "managed": "Credits"
+    },
+    "cost": {
+      "actual": "${value}"
+    },
     "list": {
       "topic": "Topic",
       "model": "Model",
