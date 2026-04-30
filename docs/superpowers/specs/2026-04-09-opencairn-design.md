@@ -1225,13 +1225,13 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 ## 17. License
 
-**AGPLv3 + CLA + 듀얼 라이선싱 준비**
+**AGPLv3 + CLA + 듀얼 라이선싱 (2026-04-30 활성화 — ADR-005, commit `cbe8f5f`)**
 
-- AGPLv3: 네트워크 사용 시에도 소스 공개 의무 (SaaS 판매를 방지)
-- CLA: 기여자 라이선스 의향 (저작권 모기업 귀속)
-- 듀얼 라이선싱: CLA에 의해 보유된 저작권으로, 이후 엔터프라이즈 고객에게 AGPL 감염 우려 없는 상용 라이선스 판매 가능
+- AGPLv3: 네트워크 사용 시에도 소스 공개 의무 (SaaS 재판매를 방지)
+- CLA(Individual CLA v1.0, Apache ICLA 변형): §2 "any license terms, including but not limited to AGPL-3.0-or-later and proprietary commercial licenses" — 듀얼 배포의 법적 기반
+- 듀얼 라이선싱:
   - 오픈소스 버전: AGPLv3 (커뮤니티, 개인, 소규모 기업)
-  - 상용 라이선스: 이후 (엔터프라이즈, 금융, 헬스케어 등 AGPL 제한 조직)
+  - 상용 라이선스: 활성. AGPLv3 네트워크 사용 조항을 따를 수 없거나 내부 OSS 정책상 AGPL 컴포넌트 사용이 금지된 조직 대상 (`LICENSE-COMMERCIAL.md`)
 
 ---
 
@@ -1285,4 +1285,4 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 - 고급 권한 (IP 화이트리스트, session 타임아웃 정책)
 - Ollama 완전 로컬 프리셋 (규제 산업용 "데이터 외부 송신 없음" 배포 가이드)
 - 다중 PSP 지원 (글로벌 확장 시 Stripe 등)
-- 엔터프라이즈 상용 라이선스 (AGPLv3 대신)
+- ~~엔터프라이즈 상용 라이선스 (AGPLv3 대신)~~ — 2026-04-30 활성화 (ADR-005, `LICENSE-COMMERCIAL.md`)

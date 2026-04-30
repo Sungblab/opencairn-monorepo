@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "OpenCairn — AI Knowledge OS",
-    "description": "Drop in your sources and 12 AI agents weave them into a wiki, surface connections before you ask, and measure your depth of understanding. Self-hosted, AGPLv3.",
+    "description": "Drop in your sources and 12 AI agents weave them into a wiki, surface connections before you ask, and measure your depth of understanding. Self-hosted · AGPLv3 + commercial license.",
     "ogDescription": "12 AI agents weave your PDFs, papers, and videos into a wiki, and surface connections before you ask."
   },
   "nav": {
@@ -19,7 +19,7 @@
   },
   "hero": {
     "label": "HERO",
-    "labelMeta": "2026.04 · SEOUL · AI KNOWLEDGE OS · AGPLV3",
+    "labelMeta": "2026.04 · SEOUL · AI KNOWLEDGE OS · DUAL LICENSE",
     "titleLine1": "Plenty of tools hold",
     "titleLine2": "what you write.",
     "titleBrand": "OpenCairn",
@@ -39,7 +39,7 @@
       "vector": "vector",
       "vectorVal": "pgvector",
       "license": "license",
-      "licenseVal": "agplv3"
+      "licenseVal": "agplv3 + commercial"
     },
     "activity": {
       "title": "PREVIEW · WORKSPACE",
@@ -104,7 +104,7 @@
       { "value": 12, "suffix": "", "caption": "AI agents" },
       { "value": 5, "suffix": " views", "caption": "One graph · five lenses" },
       { "value": 0, "suffix": "", "caption": "External calls · local mode" },
-      { "value": "AGPLv3", "suffix": "", "caption": "Open-source license" }
+      { "value": "AGPLv3", "suffix": "", "caption": "Open-source + commercial" }
     ]
   },
   "pipeline": {
@@ -263,8 +263,8 @@
       {
         "tag": "[ d ]",
         "cat": "open·forever",
-        "title": "AGPLv3 in the open; exit always available.",
-        "body": "Fork, modify, deploy yourself — whenever you want. Internal company use is unrestricted; commercial licenses exist if source disclosure is a problem. No risk of the service disappearing."
+        "title": "Dual-licensed; exit always available.",
+        "body": "Default is AGPLv3 — fork, modify, deploy yourself whenever you want. A separate commercial license is available for organizations that can't take an AGPL component. No risk of the service disappearing."
       }
     ]
   },
@@ -392,7 +392,7 @@
       "selfHost": {
         "cat": "SELF-HOSTED · DEVELOPERS",
         "title": "Run it yourself with Docker",
-        "body": "Full open-source code (AGPLv3) · unlimited workspaces and members · fully-local LLM option. Hardware and ops are on you.",
+        "body": "Full open-source code (AGPLv3, with separate commercial license available) · unlimited workspaces and members · fully-local LLM option. Hardware and ops are on you.",
         "cmd": "$ docker-compose up -d"
       },
       "enterprise": {
@@ -413,7 +413,7 @@
       },
       {
         "q": "Doesn't AGPLv3 mean my company can't use it?",
-        "a": "Internal company use is entirely fine. AGPLv3 triggers source-disclosure only when you serve third parties over a network. Sharing within a company counts as use, not distribution. A commercial license is available if source disclosure would be a problem."
+        "a": "OpenCairn is dual-licensed. Even on the default AGPLv3, internal company use is entirely fine — the source-disclosure obligation only triggers when you serve third parties over a network, and sharing within a company counts as use, not distribution. For organizations whose internal policy disallows AGPL components, or where source disclosure would be a problem, a separate commercial license is available."
       },
       {
         "q": "Why not OpenAI instead of Gemini?",

@@ -1,6 +1,6 @@
 # OpenCairn
 
-AI-powered personal + team knowledge OS. **Notion 대체 포지션**, 12 에이전트, multi-LLM (Gemini/Ollama), Docker self-hosted, AGPLv3.
+AI-powered personal + team knowledge OS. **Notion 대체 포지션**, 12 에이전트, multi-LLM (Gemini/Ollama), Docker self-hosted, **dual-licensed (AGPL-3.0-or-later + commercial)**.
 
 ## Architecture
 

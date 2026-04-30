@@ -1,6 +1,6 @@
 # Hosted Service
 
-OpenCairn is open-source (AGPLv3). Sungblab also operates a managed hosted service.
+OpenCairn is dual-licensed (AGPL-3.0-or-later by default + optional commercial license — see [ADR-005](../architecture/adr/005-agplv3-dual-licensing.md), `LICENSE`, `LICENSE-COMMERCIAL.md`). Sungblab also operates a managed hosted service.
 
 **Hosting URL (임시)**: 상업 서비스 정식 출시 전에는 **`sungblab.com/opencairn`** 경로로 운영. 정식 출시 시 **`opencairn.com`**으로 이전 (도메인 확보 후).
 
@@ -10,7 +10,7 @@ OpenCairn is open-source (AGPLv3). Sungblab also operates a managed hosted servi
 
 | Content | Path | 비고 |
 |---------|------|------|
-| Application source code | `apps/*`, `packages/*` | AGPLv3 |
+| Application source code | `apps/*`, `packages/*` | AGPLv3 (or commercial, ADR-005) |
 | Database schema and migrations | `packages/db/` | |
 | Configuration examples | `.env.example` | |
 | **Landing page** | `apps/web/src/app/[locale]/*` | Next.js locale route, repo 포함 |

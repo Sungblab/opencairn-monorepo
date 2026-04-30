@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: "OpenCairn — AI Knowledge OS",
   description:
-    "12개의 AI 에이전트가 PDF·논문·영상·팟캐스트를 위키로 엮고, 연결을 먼저 발견하며, 이해의 깊이를 스스로 측정합니다. Docker 셀프호스팅, AGPLv3.",
+    "12개의 AI 에이전트가 PDF·논문·영상·팟캐스트를 위키로 엮고, 연결을 먼저 발견하며, 이해의 깊이를 스스로 측정합니다. Docker 셀프호스팅 · AGPLv3 + 상용 라이선스.",
   openGraph: {
     type: "website",
     siteName: "OpenCairn",

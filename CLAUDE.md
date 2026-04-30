@@ -1,6 +1,6 @@
 # OpenCairn
 
-AI-powered personal + team knowledge OS. **Notion 대체 포지션**, 12 에이전트, multi-LLM (Gemini/Ollama), Docker self-hosted, AGPLv3.
+AI-powered personal + team knowledge OS. **Notion 대체 포지션**, 12 에이전트, multi-LLM (Gemini/Ollama), Docker self-hosted, **dual-licensed (AGPL-3.0-or-later + commercial)**.
 
 > ⚠️ **완료 표기 신뢰도** — `plans-status.md` ✅ 다수가 silent stub/placeholder/cron 미스케줄 상태로 마감된 적이 있어, 박제된 audit로 추적: **`docs/review/2026-04-28-completion-claims-audit.md`**. 2026-04-29 시점 Tier 1 #1·#2·#3 (chat real LLM, PR #116), Tier 2 #2.1 (인증 이메일 실송신), Tier 3 #3.1 (Plan 8 cron + UI hooks, PR #141·#143), Tier 4 (Phase 5 라우트 기본 ON, PR #144), Tier 5 §5.1 (research transactions) **모두 closed**. 남은 갭: BYOK key rotation (Tier 5 §5.2), CI/CD (`.github/`), Ralph audit Critical S3-020 + High 23 (S3-006 + S3-052 closed on `fix/ralph-reliability-compose`; `docs/review/2026-04-28-ralph-audit/CONSOLIDATED.md`).
 

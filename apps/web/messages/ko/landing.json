@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "OpenCairn — AI 지식 OS",
-    "description": "파일을 올리면 12개의 AI 에이전트가 위키로 엮고, 연결을 먼저 발견하는 개인·팀 지식 OS. 셀프호스팅, AGPLv3.",
+    "description": "파일을 올리면 12개의 AI 에이전트가 위키로 엮고, 연결을 먼저 발견하는 개인·팀 지식 OS. 셀프호스팅 · AGPLv3 + 상용 라이선스.",
     "ogDescription": "PDF·논문·강의 녹음을 올리면 AI가 위키로 엮고, 번역하고, 그래프로 시각화합니다."
   },
   "nav": {
@@ -19,7 +19,7 @@
   },
   "hero": {
     "label": "HERO",
-    "labelMeta": "2026.04 · SEOUL · AI KNOWLEDGE OS · AGPLV3",
+    "labelMeta": "2026.04 · SEOUL · AI KNOWLEDGE OS · DUAL LICENSE",
     "titleLine1": "쓴 것만 담아두는",
     "titleLine2": "도구는 많습니다.",
     "titleBrand": "OpenCairn은",
@@ -39,7 +39,7 @@
       "vector": "vector",
       "vectorVal": "pgvector",
       "license": "license",
-      "licenseVal": "agplv3"
+      "licenseVal": "agplv3 + 상용"
     },
     "activity": {
       "title": "PREVIEW · 워크스페이스",
@@ -105,7 +105,7 @@
       { "value": 12, "suffix": "", "caption": "AI 에이전트" },
       { "value": 5, "suffix": "뷰", "caption": "하나의 그래프 · 다섯 렌즈" },
       { "value": 0, "suffix": "건", "caption": "외부 송신 · 로컬 모드" },
-      { "value": "AGPLv3", "suffix": "", "caption": "오픈소스 라이선스" }
+      { "value": "AGPLv3", "suffix": "", "caption": "오픈소스 + 상용 라이선스" }
     ]
   },
   "pipeline": {
@@ -264,8 +264,8 @@
       {
         "tag": "[ d ]",
         "cat": "open·forever",
-        "title": "AGPLv3로 공개, 나가는 길 항상 열림.",
-        "body": "원하면 포크하고 고치고 직접 배포할 수 있습니다. 사내 사용에는 제약이 없으며, 상용 계약이 필요한 경우 별도 라이선스도 준비되어 있습니다. 서비스가 끊길 걱정이 없습니다."
+        "title": "듀얼 라이선스, 나가는 길 항상 열림.",
+        "body": "기본은 AGPLv3로 공개되어 포크 · 수정 · 자체 배포가 자유롭습니다. AGPL을 받아들이기 어려운 조직을 위한 상용 라이선스도 함께 운영합니다. 서비스가 끊길 걱정이 없습니다."
       }
     ]
   },
@@ -393,7 +393,7 @@
       "selfHost": {
         "cat": "SELF-HOSTED · 개발자용",
         "title": "Docker로 직접 운영",
-        "body": "오픈소스(AGPLv3) 전체 코드 · 무제한 워크스페이스·멤버 · 완전 로컬 LLM 옵션. 하드웨어와 운영은 여러분 책임입니다.",
+        "body": "오픈소스 전체 코드(AGPLv3, 상용 라이선스 옵션 별도) · 무제한 워크스페이스·멤버 · 완전 로컬 LLM 옵션. 하드웨어와 운영은 여러분 책임입니다.",
         "cmd": "$ docker-compose up -d"
       },
       "enterprise": {
@@ -418,7 +418,7 @@
       },
       {
         "q": "AGPLv3면 회사에서 못 쓰는 거 아닌가요?",
-        "a": "사내 사용은 전혀 문제없습니다. AGPLv3는 \"네트워크를 통해 외부 제3자에게 서비스할 때\" 소스 공개 의무가 생깁니다. 사내 직원 간 공유는 배포가 아니라 사용으로 간주됩니다. 소스 공개가 곤란한 경우 상용 라이선스로 전환 가능."
+        "a": "OpenCairn은 듀얼 라이선스입니다. 기본 AGPLv3에서도 사내 사용은 전혀 문제없습니다 — AGPLv3의 소스 공개 의무는 \"네트워크를 통해 외부 제3자에게 서비스할 때\" 발동되며, 사내 직원 간 공유는 배포가 아니라 사용으로 간주됩니다. 그래도 내부 정책상 AGPL 컴포넌트 사용이 어렵거나 소스 공개가 곤란한 조직을 위해 별도 상용 라이선스를 운영합니다."
       },
       {
         "q": "Gemini 말고 OpenAI는 안 되나요?",
