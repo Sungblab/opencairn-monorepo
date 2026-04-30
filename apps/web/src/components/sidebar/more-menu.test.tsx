@@ -1,11 +1,6 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { MoreMenu } from "./more-menu";
-
-const push = vi.fn();
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push }),
-}));
 
 vi.mock("next-intl", () => ({
   useTranslations: (ns?: string) => (key: string) =>
@@ -13,46 +8,49 @@ vi.mock("next-intl", () => ({
 }));
 
 describe("MoreMenu", () => {
-  beforeEach(() => {
-    push.mockClear();
-  });
-
-  it("opens and routes workspace-scoped items via router.push", async () => {
+  it("opens workspace-scoped items as native links", async () => {
     render(<MoreMenu base="/ko/app/w/acme" />);
     fireEvent.click(
       screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
     );
     const settings = await screen.findByText("sidebar.more_menu.settings");
-    fireEvent.click(settings);
-    expect(push).toHaveBeenCalledWith("/ko/app/w/acme/settings");
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
+    expect(settings.closest("a")).toHaveAttribute(
+      "href",
+      "/ko/app/w/acme/settings",
     );
-    fireEvent.click(await screen.findByText("sidebar.more_menu.shared_links"));
-    expect(push).toHaveBeenCalledWith("/ko/app/w/acme/settings/shared-links");
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
+    expect(
+      (await screen.findByText("sidebar.more_menu.shared_links")).closest("a"),
+    ).toHaveAttribute(
+      "href",
+      "/ko/app/w/acme/settings/shared-links",
     );
-    fireEvent.click(await screen.findByText("sidebar.more_menu.trash"));
-    expect(push).toHaveBeenCalledWith("/ko/app/w/acme/settings/trash");
+
+    expect(
+      (await screen.findByText("sidebar.more_menu.trash")).closest("a"),
+    ).toHaveAttribute(
+      "href",
+      "/ko/app/w/acme/settings/trash",
+    );
   });
 
-  it("opens external items in a new window", async () => {
-    const openSpy = vi
-      .spyOn(window, "open")
-      .mockImplementation(() => null as unknown as Window);
+  it("renders external items as new-tab links", async () => {
     render(<MoreMenu base="/ko/app/w/acme" />);
     fireEvent.click(
       screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
     );
-    fireEvent.click(await screen.findByText("sidebar.more_menu.feedback"));
-    expect(openSpy).toHaveBeenCalledWith(
-      "/feedback",
-      "_blank",
-      "noopener,noreferrer",
-    );
-    openSpy.mockRestore();
+    const feedback = (
+      await screen.findByText("sidebar.more_menu.feedback")
+    ).closest("a");
+    expect(feedback).toHaveAttribute("href", "/feedback");
+    expect(feedback).toHaveAttribute("target", "_blank");
+    expect(feedback).toHaveAttribute("rel", "noreferrer");
+
+    const changelog = (
+      await screen.findByText("sidebar.more_menu.changelog")
+    ).closest("a");
+    expect(changelog).toHaveAttribute("href", "/changelog");
+    expect(changelog).toHaveAttribute("target", "_blank");
+    expect(changelog).toHaveAttribute("rel", "noreferrer");
   });
 });
