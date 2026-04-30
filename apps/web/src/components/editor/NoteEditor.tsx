@@ -64,6 +64,22 @@ import { tablePlugins } from "./blocks/table/table-plugin";
 import { columnsPlugins } from "./blocks/columns/columns-plugin";
 import { MermaidFencePlugin } from "./plugins/mermaid-fence";
 import { PasteNormPlugin } from "./plugins/paste-norm";
+import { embedPlugin } from "./blocks/embed/embed-plugin";
+import {
+  EmbedInsertPopover,
+  insertEmbedNode,
+  type EmbedInsertResolution,
+} from "./blocks/embed/embed-insert-popover";
+import { imagePlugin } from "./blocks/image/image-plugin";
+import {
+  ImageInsertPopover,
+  insertImageNode,
+  type ImageInsertData,
+} from "./blocks/image/image-insert-popover";
+import {
+  imageDropDeferredPlugin,
+  useImageUploadDeferredToast,
+} from "./plugins/image-drop-deferred";
 import { useActiveEditorStore } from "@/stores/activeEditorStore";
 
 // Basic marks + blocks. Lists are handled by the indent-based ListPlugin; the
@@ -93,6 +109,9 @@ const basePlugins = [
   ...columnsPlugins,
   MermaidFencePlugin,
   PasteNormPlugin,
+  embedPlugin,
+  imagePlugin,
+  imageDropDeferredPlugin,
 ];
 
 type TitleSaveStatus = "idle" | "saving" | "saved" | "error";
@@ -146,6 +165,9 @@ export function NoteEditor({
   // to "editor" and we want the share UI strings to live in their own JSON
   // file (one feature per namespace, easier i18n parity).
   const tShare = useTranslations("shareDialog");
+  // Plan 2E Phase B-2 Task 2.5 — show deferred-upload toast when the user
+  // drags or pastes an image file (instead of an image URL).
+  useImageUploadDeferredToast();
   const tDocEditor = useTranslations("docEditor");
   const [shareOpen, setShareOpen] = useState(false);
 
@@ -161,6 +183,10 @@ export function NoteEditor({
     process.env.NEXT_PUBLIC_FEATURE_DOC_EDITOR_RAG === "true";
   const docEditor = useDocEditorCommand();
   const queryClient = useQueryClient();
+  // Plan 2E Phase B — embed insert popover state (Task 1.4).
+  const [embedPopoverOpen, setEmbedPopoverOpen] = useState(false);
+  // Plan 2E Phase B-2 — image insert popover state (Task 2.3).
+  const [imagePopoverOpen, setImagePopoverOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pendingCommand, setPendingCommand] = useState<SlashAiKey | null>(
     null,
@@ -416,6 +442,35 @@ export function NoteEditor({
     [handleRejectAll],
   );
 
+  // Plan 2E Phase B — embed + image insert popover handlers (Tasks 1.4 + 2.3).
+  const handleRequestPopover = useCallback(
+    (kind: "embed" | "image") => {
+      if (kind === "embed") setEmbedPopoverOpen(true);
+      if (kind === "image") setImagePopoverOpen(true);
+    },
+    [],
+  );
+
+  const handleEmbedInsert = useCallback(
+    (resolution: EmbedInsertResolution) => {
+      insertEmbedNode(
+        editor as unknown as Parameters<typeof insertEmbedNode>[0],
+        resolution,
+      );
+    },
+    [editor],
+  );
+
+  const handleImageInsert = useCallback(
+    (data: ImageInsertData) => {
+      insertImageNode(
+        editor as unknown as Parameters<typeof insertImageNode>[0],
+        data,
+      );
+    },
+    [editor],
+  );
+
   const actions: ToolbarActions = useMemo(
     () => ({
       toggleMark: (mark: ToolbarMark) => {
@@ -481,6 +536,23 @@ export function NoteEditor({
             aiEnabled={aiSlashEnabled && !readOnly}
             ragEnabled={ragSlashEnabled && !readOnly}
             onAiCommand={handleAiCommand}
+            onRequestPopover={readOnly ? undefined : handleRequestPopover}
+          />
+          {/* Plan 2E Phase B — embed URL input popover (Task 1.4).
+              The anchor is invisible; the popover is opened programmatically
+              via embedPopoverOpen state set by onRequestPopover. */}
+          <EmbedInsertPopover
+            open={embedPopoverOpen}
+            onOpenChange={setEmbedPopoverOpen}
+            anchor={<span />}
+            onInsert={handleEmbedInsert}
+          />
+          {/* Plan 2E Phase B-2 — image URL input popover (Task 2.3). */}
+          <ImageInsertPopover
+            open={imagePopoverOpen}
+            onOpenChange={setImagePopoverOpen}
+            anchor={<span />}
+            onInsert={handleImageInsert}
           />
           {aiSlashEnabled && (
             <InlineDiffSheet

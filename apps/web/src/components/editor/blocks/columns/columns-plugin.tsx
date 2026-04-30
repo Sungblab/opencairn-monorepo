@@ -1,5 +1,6 @@
 "use client";
 import { ColumnPlugin, ColumnItemPlugin } from "@platejs/layout/react";
+import { ColumnGroupElement } from "./column-group-element";
 
 // Plan 2D — Columns layout block. @platejs/layout already provides the
 // element types and transforms; we expose them as a single registration
@@ -10,9 +11,10 @@ import { ColumnPlugin, ColumnItemPlugin } from "@platejs/layout/react";
 //   ColumnItemPlugin — the individual column item   (node key: "column")
 // There is no "ColumnGroupPlugin" in this version.
 //
-// Insert via the slash menu (Task 14) which calls
-//   editor.tf.insertNodes({
-//     type: 'column_group',
-//     children: [<column_item>, <column_item>],
-//   })
-export const columnsPlugins = [ColumnPlugin, ColumnItemPlugin];
+// Plan 2E Phase B-3 — ColumnPlugin is extended with a custom renderer
+// (ColumnGroupElement) that displays resize handles between columns and
+// persists the widths[] array to the Slate/Yjs document on pointerup.
+export const columnsPlugins = [
+  ColumnPlugin.withComponent(ColumnGroupElement),
+  ColumnItemPlugin,
+];

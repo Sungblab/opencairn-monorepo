@@ -28,6 +28,51 @@ interface ElementProps {
 }
 
 const ELEMENTS: Record<string, (props: ElementProps) => ReactElement> = {
+  // Plan 2E Phase B-2 — image block: <figure> with lazy-loaded <img>.
+  // alt defaults to "" (decorative) when absent — satisfies jsx-a11y.
+  image: ({ node }) => {
+    const url = String(node.url ?? "");
+    const alt = String(node.alt ?? "");
+    const caption = node.caption ? String(node.caption) : undefined;
+    const width = typeof node.width === "number" ? node.width : undefined;
+    return (
+      <figure className="my-4">
+        <img
+          src={url}
+          alt={alt}
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          style={width ? { width: `${width * 100}%` } : undefined}
+          className="rounded-md max-w-full h-auto"
+        />
+        {caption && (
+          <figcaption className="text-sm text-muted-foreground mt-1">
+            {caption}
+          </figcaption>
+        )}
+      </figure>
+    );
+  },
+  // Plan 2E Phase B — embed block: sandboxed iframe in an aspect-video container.
+  // CSP frame-src in next.config.ts allows the 3 provider origins.
+  embed: ({ node }) => {
+    const embedUrl = String(node.embedUrl ?? "");
+    const provider = String(node.provider ?? "");
+    return (
+      <div className="my-4 aspect-video w-full">
+        <iframe
+          src={embedUrl}
+          title={`${provider} embed`}
+          sandbox="allow-scripts allow-same-origin allow-presentation"
+          allow="autoplay; fullscreen; picture-in-picture"
+          referrerPolicy="strict-origin-when-cross-origin"
+          loading="lazy"
+          className="h-full w-full rounded-md border-0"
+        />
+      </div>
+    );
+  },
   p: ({ children }) => <p className="my-2 leading-7">{children}</p>,
   h1: ({ children }) => (
     <h1 className="mt-6 mb-3 text-2xl font-semibold">{children}</h1>

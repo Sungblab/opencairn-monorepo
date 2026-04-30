@@ -29,10 +29,47 @@
     "callout": "Callout",
     "toggle": "Toggle",
     "table": "Table",
-    "columns": "Columns"
+    "columns": "Columns",
+    "image": "Image",
+    "embed": "Embed"
   },
   "math": {
-    "parse_error": "Math parse error"
+    "parse_error": "Math parse error",
+    "editPopover": {
+      "title": "Edit equation",
+      "placeholder": "Enter LaTeX (e.g. x^2 + y^2 = z^2)",
+      "invalid": "Invalid LaTeX",
+      "save": "Save",
+      "cancel": "Cancel",
+      "previewLabel": "Preview"
+    },
+    "shortcut": {
+      "hint": "Press Ctrl+Shift+M to convert to inline math"
+    }
+  },
+  "image": {
+    "slashLabel": "Image",
+    "slashDescription": "Insert an image from a URL",
+    "urlPlaceholder": "Image URL (https://…)",
+    "altPlaceholder": "Alt text (optional)",
+    "captionPlaceholder": "Caption (optional)",
+    "invalidUrl": "Invalid image URL.",
+    "uploadDeferred": "Image uploads are coming soon. For now, paste an image URL.",
+    "editAlt": "Edit alt text",
+    "editCaption": "Edit caption",
+    "insert": "Insert",
+    "cancel": "Cancel"
+  },
+  "embed": {
+    "slashLabel": "Embed",
+    "slashDescription": "Embed a YouTube, Vimeo, or Loom video",
+    "urlPlaceholder": "Video URL",
+    "unsupportedHost": "Unsupported embed URL. (YouTube, Vimeo, Loom)",
+    "providerYoutube": "YouTube",
+    "providerVimeo": "Vimeo",
+    "providerLoom": "Loom",
+    "insert": "Insert",
+    "cancel": "Cancel"
   },
   "toolbar": {
     "aria_label": "Editor toolbar",
@@ -93,6 +130,12 @@
     "columns": {
       "two": "Two columns",
       "three": "Three columns"
+    }
+  },
+  "columns": {
+    "resize": {
+      "aria": "Resize column width",
+      "reset": "Reset to equal widths"
     }
   }
 }

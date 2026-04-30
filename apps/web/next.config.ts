@@ -43,7 +43,10 @@ const withNextIntl = createNextIntlPlugin("./src/i18n.ts");
 //   both directives accept inline.
 const CSP_HEADER = [
   "default-src 'self'",
-  "frame-src 'self' blob:",
+  // Plan 2E Phase B — add embed provider origins so iframes load in production.
+  // Dev (`next dev`) doesn't enforce CSP; without these the iframes are blocked
+  // in production by the default-src 'self' fallback.
+  "frame-src 'self' blob: https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com",
   "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net/pyodide/ https://esm.sh",
   "worker-src 'self' blob:",
   "connect-src 'self' https://esm.sh https://cdn.jsdelivr.net",

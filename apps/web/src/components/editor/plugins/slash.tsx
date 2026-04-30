@@ -48,7 +48,9 @@ export type SlashBlockKey =
   | "callout"
   | "toggle"
   | "table"
-  | "columns";
+  | "columns"
+  | "image"
+  | "embed";
 
 export type SlashAiKey =
   | "improve"
@@ -78,7 +80,9 @@ interface SlashBlockDef {
     | "callout"
     | "toggle"
     | "table"
-    | "columns";
+    | "columns"
+    | "image"
+    | "embed";
 }
 
 interface SlashAiDef {
@@ -106,6 +110,8 @@ const BLOCK_COMMANDS: SlashBlockDef[] = [
   { key: "toggle", section: "block", labelKey: "toggle" },
   { key: "table", section: "block", labelKey: "table" },
   { key: "columns", section: "block", labelKey: "columns" },
+  { key: "image", section: "block", labelKey: "image" },
+  { key: "embed", section: "block", labelKey: "embed" },
 ];
 
 const AI_COMMANDS: SlashAiDef[] = [
@@ -163,6 +169,14 @@ export interface SlashMenuProps {
    * plugin stays free of any LLM/data-layer coupling.
    */
   onAiCommand?: (key: SlashAiKey) => void;
+  /**
+   * Plan 2E Phase B — called when a slash command requires a popover UI
+   * before insertion (e.g. `/embed` or `/image` needs a URL input). The
+   * slash menu removes the triggering `/` and delegates to the caller; the
+   * caller owns the popover open/close state and calls the appropriate
+   * insert helper on confirm.
+   */
+  onRequestPopover?: (kind: "embed" | "image") => void;
 }
 
 export function SlashMenu({
@@ -170,6 +184,7 @@ export function SlashMenu({
   aiEnabled = false,
   ragEnabled = false,
   onAiCommand,
+  onRequestPopover,
 }: SlashMenuProps) {
   const t = useTranslations("editor.slash");
   const tAi = useTranslations("docEditor");
@@ -223,6 +238,20 @@ export function SlashMenu({
       // selection, calls the worker, and renders the diff sheet.
       if (isAiKey(key)) {
         onAiCommand?.(key);
+        setOpen(false);
+        return;
+      }
+
+      // Popover commands require a UI dialog before insertion. The slash
+      // menu removes the triggering `/` and delegates; the caller owns
+      // the popover state and performs the actual node insertion.
+      if (key === "embed") {
+        onRequestPopover?.("embed");
+        setOpen(false);
+        return;
+      }
+      if (key === "image") {
+        onRequestPopover?.("image");
         setOpen(false);
         return;
       }
@@ -353,7 +382,7 @@ export function SlashMenu({
 
       setOpen(false);
     },
-    [editor, onAiCommand],
+    [editor, onAiCommand, onRequestPopover],
   );
 
   const items = useMemo<SlashCommandDef[]>(
