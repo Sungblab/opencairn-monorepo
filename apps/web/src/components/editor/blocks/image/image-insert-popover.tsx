@@ -120,13 +120,20 @@ export function ImageInsertPopover({
  * Called from NoteEditor after the user confirms in ImageInsertPopover.
  */
 export function insertImageNode(editor: PlateEditor, data: ImageInsertData) {
-  editor.tf.insertNodes({
-    type: "image",
-    url: data.url,
-    ...(data.alt ? { alt: data.alt } : {}),
-    ...(data.caption ? { caption: data.caption } : {}),
-    children: [{ text: "" }],
-  });
-  // Insert an empty paragraph after the void so the caret isn't trapped.
-  editor.tf.insertNodes({ type: "p", children: [{ text: "" }] });
+  // Batched so the image + trailing paragraph land as one history step;
+  // `select: true` parks the caret in the new paragraph (the last node)
+  // so the user can keep typing without a manual click.
+  editor.tf.insertNodes(
+    [
+      {
+        type: "image",
+        url: data.url,
+        ...(data.alt ? { alt: data.alt } : {}),
+        ...(data.caption ? { caption: data.caption } : {}),
+        children: [{ text: "" }],
+      },
+      { type: "p", children: [{ text: "" }] },
+    ],
+    { select: true },
+  );
 }

@@ -57,7 +57,10 @@ describe("paste-norm: image URL auto-insertion", () => {
     const result = tryInsertImage(editor as never, "https://example.com/cat.png");
     expect(result).toBe(true);
     expect(editor.tf.insertNodes).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "image", url: "https://example.com/cat.png" }),
+      expect.arrayContaining([
+        expect.objectContaining({ type: "image", url: "https://example.com/cat.png" }),
+      ]),
+      expect.objectContaining({ select: true }),
     );
   });
 
@@ -67,7 +70,8 @@ describe("paste-norm: image URL auto-insertion", () => {
       const result = tryInsertImage(editor as never, `https://example.com/x.${ext}`);
       expect(result).toBe(true);
       expect(editor.tf.insertNodes).toHaveBeenCalledWith(
-        expect.objectContaining({ type: "image" }),
+        expect.arrayContaining([expect.objectContaining({ type: "image" })]),
+        expect.objectContaining({ select: true }),
       );
     }
   });
@@ -102,15 +106,16 @@ describe("paste-norm: image URL auto-insertion", () => {
     expect(embedResult).toBe(true);
   });
 
-  it("inserts a trailing paragraph node after the image", () => {
+  it("inserts the image and trailing paragraph as one batched call", () => {
     const editor = makeEditor();
     tryInsertImage(editor as never, "https://example.com/cat.png");
-    // First call = image node, second call = paragraph
-    expect(editor.tf.insertNodes).toHaveBeenCalledTimes(2);
-    expect(editor.tf.insertNodes).toHaveBeenLastCalledWith({
-      type: "p",
-      children: [{ text: "" }],
-    });
+    // Single batched call: [image, p] with { select: true }
+    expect(editor.tf.insertNodes).toHaveBeenCalledTimes(1);
+    const [nodes, options] = editor.tf.insertNodes.mock.calls[0];
+    expect(Array.isArray(nodes)).toBe(true);
+    expect(nodes[0]).toMatchObject({ type: "image" });
+    expect(nodes[1]).toEqual({ type: "p", children: [{ text: "" }] });
+    expect(options).toMatchObject({ select: true });
   });
 });
 
@@ -124,12 +129,15 @@ describe("tryInsertEmbed: embed URL auto-insertion", () => {
     );
     expect(result).toBe(true);
     expect(editor.tf.insertNodes).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "embed",
-        provider: "youtube",
-        url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-        embedUrl: "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
-      }),
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "embed",
+          provider: "youtube",
+          url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+          embedUrl: "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+        }),
+      ]),
+      expect.objectContaining({ select: true }),
     );
   });
 
@@ -138,11 +146,14 @@ describe("tryInsertEmbed: embed URL auto-insertion", () => {
     const result = tryInsertEmbed(editor as never, "https://vimeo.com/123456789");
     expect(result).toBe(true);
     expect(editor.tf.insertNodes).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "embed",
-        provider: "vimeo",
-        embedUrl: "https://player.vimeo.com/video/123456789",
-      }),
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "embed",
+          provider: "vimeo",
+          embedUrl: "https://player.vimeo.com/video/123456789",
+        }),
+      ]),
+      expect.objectContaining({ select: true }),
     );
   });
 
@@ -154,11 +165,14 @@ describe("tryInsertEmbed: embed URL auto-insertion", () => {
     );
     expect(result).toBe(true);
     expect(editor.tf.insertNodes).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "embed",
-        provider: "loom",
-        embedUrl: "https://www.loom.com/embed/abc123def456",
-      }),
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "embed",
+          provider: "loom",
+          embedUrl: "https://www.loom.com/embed/abc123def456",
+        }),
+      ]),
+      expect.objectContaining({ select: true }),
     );
   });
 
@@ -185,17 +199,18 @@ describe("tryInsertEmbed: embed URL auto-insertion", () => {
     expect(result).toBe(false);
   });
 
-  it("inserts a trailing paragraph node after the embed", () => {
+  it("inserts the embed and trailing paragraph as one batched call", () => {
     const editor = makeEditor();
     tryInsertEmbed(
       editor as never,
       "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
     );
-    // First call = embed node, second call = paragraph
-    expect(editor.tf.insertNodes).toHaveBeenCalledTimes(2);
-    expect(editor.tf.insertNodes).toHaveBeenLastCalledWith({
-      type: "p",
-      children: [{ text: "" }],
-    });
+    // Single batched call: [embed, p] with { select: true }
+    expect(editor.tf.insertNodes).toHaveBeenCalledTimes(1);
+    const [nodes, options] = editor.tf.insertNodes.mock.calls[0];
+    expect(Array.isArray(nodes)).toBe(true);
+    expect(nodes[0]).toMatchObject({ type: "embed" });
+    expect(nodes[1]).toEqual({ type: "p", children: [{ text: "" }] });
+    expect(options).toMatchObject({ select: true });
   });
 });

@@ -78,13 +78,16 @@ export function tryInsertImage(
   const trimmed = plainText.trim();
   if (!IMAGE_URL_RE.test(trimmed)) return false;
   if (isInsideCodeBlockOrLine(editor)) return false;
-  editor.tf.insertNodes({
-    type: "image",
-    url: trimmed,
-    children: [{ text: "" }],
-  });
-  // Insert an empty paragraph after so the caret isn't trapped in the void.
-  editor.tf.insertNodes({ type: "p", children: [{ text: "" }] });
+  // Batched so the void + trailing paragraph land as one history step;
+  // `select: true` parks the caret at the end (= the new paragraph) so
+  // typing immediately after paste works without a manual click.
+  editor.tf.insertNodes(
+    [
+      { type: "image", url: trimmed, children: [{ text: "" }] },
+      { type: "p", children: [{ text: "" }] },
+    ],
+    { select: true },
+  );
   return true;
 }
 
@@ -103,15 +106,19 @@ export function tryInsertEmbed(
   if (isInsideCodeBlockOrLine(editor)) return false;
   const resolution = toEmbedUrl(trimmed);
   if (!resolution) return false;
-  editor.tf.insertNodes({
-    type: "embed",
-    provider: resolution.provider,
-    url: trimmed,
-    embedUrl: resolution.embedUrl,
-    children: [{ text: "" }],
-  });
-  // Insert an empty paragraph after so the caret isn't trapped in the void.
-  editor.tf.insertNodes({ type: "p", children: [{ text: "" }] });
+  editor.tf.insertNodes(
+    [
+      {
+        type: "embed",
+        provider: resolution.provider,
+        url: trimmed,
+        embedUrl: resolution.embedUrl,
+        children: [{ text: "" }],
+      },
+      { type: "p", children: [{ text: "" }] },
+    ],
+    { select: true },
+  );
   return true;
 }
 

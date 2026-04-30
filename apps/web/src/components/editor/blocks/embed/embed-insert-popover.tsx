@@ -104,13 +104,20 @@ export function insertEmbedNode(
   editor: PlateEditor,
   resolution: EmbedInsertResolution,
 ) {
-  editor.tf.insertNodes({
-    type: "embed",
-    provider: resolution.provider,
-    url: resolution.url,
-    embedUrl: resolution.embedUrl,
-    children: [{ text: "" }],
-  });
-  // Insert an empty paragraph after the void so the caret isn't trapped.
-  editor.tf.insertNodes({ type: "p", children: [{ text: "" }] });
+  // Batched so the embed + trailing paragraph land as one history step;
+  // `select: true` parks the caret in the new paragraph (the last node)
+  // so the user can keep typing without a manual click.
+  editor.tf.insertNodes(
+    [
+      {
+        type: "embed",
+        provider: resolution.provider,
+        url: resolution.url,
+        embedUrl: resolution.embedUrl,
+        children: [{ text: "" }],
+      },
+      { type: "p", children: [{ text: "" }] },
+    ],
+    { select: true },
+  );
 }

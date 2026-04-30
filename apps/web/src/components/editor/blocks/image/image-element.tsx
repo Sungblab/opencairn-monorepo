@@ -38,7 +38,8 @@ export function ImageElement({ attributes, children, element }: PlateElementProp
           {node.caption}
         </figcaption>
       )}
-      {children}
+      {/* Slate requires void elements to render `children` for selection. */}
+      <span style={{ display: "none" }}>{children}</span>
     </figure>
   );
 }
