@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { Tab } from "@/stores/tabs-store";
 import {
@@ -16,6 +17,11 @@ interface LitSearchViewerProps {
   tab: Tab;
 }
 
+interface ProjectOption {
+  id: string;
+  name: string;
+}
+
 export function LitSearchViewer({ tab }: LitSearchViewerProps) {
   const t = useTranslations("literature");
   const seed = useLitSearchStore((s) => s.byTabId[tab.id] ?? null);
@@ -29,6 +35,18 @@ export function LitSearchViewer({ tab }: LitSearchViewerProps) {
   const [skippedCount, setSkippedCount] = useState(0);
   const [importDone, setImportDone] = useState(false);
   const workspaceId = seed?.workspaceId ?? null;
+  const { data: projects } = useQuery({
+    queryKey: ["projects", workspaceId],
+    enabled: Boolean(workspaceId),
+    staleTime: 30_000,
+    queryFn: async (): Promise<ProjectOption[]> => {
+      const res = await fetch(`/api/workspaces/${workspaceId}/projects`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(`projects ${res.status}`);
+      return (await res.json()) as ProjectOption[];
+    },
+  });
 
   const handleSearch = useCallback(async () => {
     if (!query.trim() || !workspaceId) return;
@@ -188,13 +206,18 @@ export function LitSearchViewer({ tab }: LitSearchViewerProps) {
         <span className="text-sm text-muted-foreground ml-auto">
           {t("import.selected", { count: selected.size })}
         </span>
-        <input
-          type="text"
+        <select
           value={projectId}
           onChange={(e) => setProjectId(e.target.value)}
-          placeholder={t("import.selectProject")}
-          className="w-48 bg-background border border-input rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-        />
+          className="w-52 bg-background border border-input rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+        >
+          <option value="">{t("import.selectProject")}</option>
+          {(projects ?? []).map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.name}
+            </option>
+          ))}
+        </select>
         <button
           type="button"
           onClick={handleImport}

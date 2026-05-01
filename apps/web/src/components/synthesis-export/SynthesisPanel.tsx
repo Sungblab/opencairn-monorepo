@@ -100,10 +100,6 @@ export function SynthesisPanel({ workspaceId, projectId }: SynthesisPanelProps) 
     setRunId(body.runId);
   }
 
-  function handleAddSource() {
-    // TODO: open source picker dialog — followup #3
-  }
-
   function handleRemoveSource(id: string) {
     setSources((prev) => prev.filter((s) => s.id !== id));
   }
@@ -122,9 +118,16 @@ export function SynthesisPanel({ workspaceId, projectId }: SynthesisPanelProps) 
       />
 
       <SourcePicker
+        workspaceId={workspaceId}
         sources={sources}
         autoSearch={autoSearch}
-        onAddSource={handleAddSource}
+        onAddSource={(source) =>
+          setSources((prev) =>
+            prev.some((item) => item.id === source.id)
+              ? prev
+              : [...prev, source],
+          )
+        }
         onRemoveSource={handleRemoveSource}
         onAutoSearchChange={setAutoSearch}
       />

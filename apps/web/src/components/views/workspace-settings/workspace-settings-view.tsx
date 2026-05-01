@@ -67,7 +67,7 @@ export function WorkspaceSettingsView({
       case "sharedLinks":
         return <SharedLinksTab wsId={wsId} />;
       case "trash":
-        return <TrashTab />;
+        return <TrashTab wsId={wsId} />;
     }
   })();
 

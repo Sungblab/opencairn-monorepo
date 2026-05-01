@@ -25,7 +25,24 @@
   },
   "security": {
     "heading": "Security",
-    "stub": "Password change and session management are coming soon."
+    "description": "Manage the current login state and email verification actions.",
+    "loading": "Checking session.",
+    "verificationSent": "Verification email sent.",
+    "resetSent": "Password reset email sent.",
+    "actionFailed": "Could not process the request.",
+    "session": {
+      "heading": "Current session",
+      "email": "Email",
+      "verified": "Email verification",
+      "yes": "Complete",
+      "no": "Required"
+    },
+    "actions": {
+      "heading": "Account actions",
+      "verify": "Send verification email",
+      "reset": "Reset password",
+      "sending": "Sending..."
+    }
   },
   "billing": {
     "heading": "Billing & credits",

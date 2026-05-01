@@ -34,6 +34,8 @@
     "drResult": "Deep Research result",
     "note": "Note",
     "file": "Uploaded file",
+    "searchPlaceholder": "Search notes by title",
+    "drResultPolicy": "Add Deep Research output after saving it as a report note.",
     "tokenBudgetExceeded": "Some sources may be auto-excluded.",
     "autoIncluded": "Auto-included"
   },

@@ -26,14 +26,13 @@ import type { AppEnv } from "../lib/types";
 // Plan 7 Canvas Phase 2 — public Canvas API.
 //
 // Hosts three concerns:
-//   1. POST /from-template     — Plan 6 stub (501 templatesNotAvailable).
+//   1. POST /from-template     — hidden until a template catalog exists.
 //   2. POST /output            — matplotlib/SVG artifact upload (idempotent).
 //   3. GET  /outputs[/:id/file] — listing + binary stream for the viewer.
 //
 // `/output` and `/outputs*` are gated by FEATURE_CANVAS_OUTPUT_STORE — when
-// off, those routes 404 so a redeploy can disable persistence without taking
-// the from-template stub down with it. The template stub has its own
-// flag-shaped 501 so Plan 6 can flip it on without touching this file.
+// off, those routes 404 so a redeploy can disable persistence while the
+// hidden template endpoint remains isolated until the catalog ships.
 
 export const canvasRoutes = new Hono<AppEnv>();
 
@@ -41,9 +40,9 @@ export const canvasRoutes = new Hono<AppEnv>();
 // Task 10 — POST /api/canvas/from-template
 //
 // Body schema validated up-front so probing with garbage payloads gets a 400
-// before the auth check resolves. Per spec, the route returns 501 in BOTH
-// flag positions for now: when the flag is off, it's a feature-gate; when on,
-// the template engine isn't implemented yet (Plan 6 will swap the body).
+// before the auth check resolves. The template catalog is not exposed in the
+// product surface yet, so this route is isolated as a 404 rather than exposed
+// as an unfinished action.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const fromTemplateSchema = z.object({
@@ -57,11 +56,7 @@ canvasRoutes.post(
   requireAuth,
   zValidator("json", fromTemplateSchema),
   async (c) => {
-    // Plan 6 will replace this body with the real template-instantiation
-    // workflow. Until then both flag positions return 501 — see the design
-    // spec § Task 10. Keeping the schema validation in front means the
-    // contract doesn't drift when the impl lands.
-    return c.json({ error: "templatesNotAvailable" }, 501);
+    return c.json({ error: "notFound" }, 404);
   },
 );
 

@@ -93,6 +93,42 @@ async function runningImportCount(userId: string): Promise<number> {
   return rows.length;
 }
 
+async function startImportWorkflow(args: {
+  jobId: string;
+  workflowId: string;
+  userId: string;
+  workspaceId: string;
+  source: "google_drive" | "notion_zip";
+  sourceMetadata: Record<string, unknown>;
+}) {
+  const client = await getTemporalClient();
+  try {
+    await client.workflow.start("ImportWorkflow", {
+      workflowId: args.workflowId,
+      taskQueue: taskQueue(),
+      args: [
+        {
+          job_id: args.jobId,
+          user_id: args.userId,
+          workspace_id: args.workspaceId,
+          source: args.source,
+          source_metadata: args.sourceMetadata,
+        },
+      ],
+    });
+  } catch (err) {
+    await db
+      .update(importJobs)
+      .set({
+        status: "failed",
+        errorSummary: "Import could not be started. Please try again.",
+        finishedAt: new Date(),
+      })
+      .where(eq(importJobs.id, args.jobId));
+    throw err;
+  }
+}
+
 importRouter.post(
   "/drive",
   requireAuth,
@@ -153,19 +189,13 @@ importRouter.post(
       })
       .returning({ id: importJobs.id });
 
-    const client = await getTemporalClient();
-    await client.workflow.start("ImportWorkflow", {
+    await startImportWorkflow({
+      jobId: job.id,
       workflowId,
-      taskQueue: taskQueue(),
-      args: [
-        {
-          job_id: job.id,
-          user_id: userId,
-          workspace_id: body.workspaceId,
-          source: "google_drive",
-          source_metadata: sourceMetadata,
-        },
-      ],
+      userId,
+      workspaceId: body.workspaceId,
+      source: "google_drive",
+      sourceMetadata,
     });
     return c.json({ jobId: job.id }, 201);
   },
@@ -236,19 +266,13 @@ importRouter.post(
       })
       .returning({ id: importJobs.id });
 
-    const client = await getTemporalClient();
-    await client.workflow.start("ImportWorkflow", {
+    await startImportWorkflow({
+      jobId: job.id,
       workflowId,
-      taskQueue: taskQueue(),
-      args: [
-        {
-          job_id: job.id,
-          user_id: userId,
-          workspace_id: body.workspaceId,
-          source: "notion_zip",
-          source_metadata: sourceMetadata,
-        },
-      ],
+      userId,
+      workspaceId: body.workspaceId,
+      source: "notion_zip",
+      sourceMetadata,
     });
     return c.json({ jobId: job.id }, 201);
   },
@@ -454,16 +478,55 @@ importRouter.delete("/jobs/:id", requireAuth, async (c) => {
   return c.json({ ok: true });
 });
 
-// Retry is deferred — the plan marks it as follow-up work and the MVP UX
-// asks the user to re-upload the ZIP / re-pick the Drive files instead.
-// Keeping a stub route so the UI can surface a clear 501 rather than a 404
-// and client code doesn't need to feature-detect.
 importRouter.post("/jobs/:id/retry", requireAuth, async (c) => {
-  return c.json(
-    {
-      error: "retry_not_implemented",
-      hint: "Re-submit via /api/import/drive or /api/import/notion with the same inputs",
-    },
-    501,
-  );
+  const userId = c.get("userId");
+  const id = c.req.param("id");
+  if (!isUuid(id)) return c.json({ error: "bad_request" }, 400);
+  const [job] = await db
+    .select()
+    .from(importJobs)
+    .where(eq(importJobs.id, id))
+    .limit(1);
+  if (!job) return c.json({ error: "not_found" }, 404);
+  if (job.status !== "failed") {
+    return c.json({ error: "retry_requires_failed_job" }, 409);
+  }
+  if (!(await canWrite(userId, { type: "workspace", id: job.workspaceId }))) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+  if (job.source !== "google_drive" && job.source !== "notion_zip") {
+    return c.json({ error: "retry_not_supported" }, 409);
+  }
+  if ((await runningImportCount(userId)) >= MAX_CONCURRENT_IMPORTS) {
+    return c.json(
+      { error: "import_limit_exceeded", limit: MAX_CONCURRENT_IMPORTS },
+      429,
+    );
+  }
+
+  const workflowId = `import-${randomUUID()}`;
+  const sourceMetadata = (job.sourceMetadata ?? {}) as Record<string, unknown>;
+  const [retryJob] = await db
+    .insert(importJobs)
+    .values({
+      workspaceId: job.workspaceId,
+      userId,
+      source: job.source,
+      targetProjectId: job.targetProjectId,
+      targetParentNoteId: job.targetParentNoteId,
+      workflowId,
+      status: "queued",
+      sourceMetadata,
+    })
+    .returning({ id: importJobs.id });
+
+  await startImportWorkflow({
+    jobId: retryJob.id,
+    workflowId,
+    userId,
+    workspaceId: job.workspaceId,
+    source: job.source,
+    sourceMetadata,
+  });
+  return c.json({ jobId: retryJob.id }, 201);
 });

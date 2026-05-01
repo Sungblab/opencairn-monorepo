@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { urls } from "@/lib/urls";
 
 type UpdatedEvent = {
@@ -30,6 +31,7 @@ export function JobProgress({
   jobId: string;
 }) {
   const locale = useLocale();
+  const router = useRouter();
   const t = useTranslations("import");
   const [state, setState] = useState<JobState>({
     status: "queued",
@@ -37,6 +39,8 @@ export function JobProgress({
     completed: 0,
     failed: 0,
   });
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState(false);
 
   useEffect(() => {
     // EventSource sends cookies by default on same-origin — no extra config
@@ -77,6 +81,25 @@ export function JobProgress({
 
   const done = state.status === "completed" || state.status === "failed";
 
+  async function retry() {
+    setRetrying(true);
+    setRetryError(false);
+    try {
+      const res = await fetch(`/api/import/jobs/${jobId}/retry`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        setRetryError(true);
+        return;
+      }
+      const body = (await res.json()) as { jobId: string };
+      router.push(urls.workspace.importJob(locale, wsSlug, body.jobId));
+    } finally {
+      setRetrying(false);
+    }
+  }
+
   return (
     <div className="mt-6 space-y-4">
       <div className="h-2 w-full overflow-hidden rounded bg-muted">
@@ -104,9 +127,22 @@ export function JobProgress({
         </p>
       )}
       {state.status === "failed" && (
-        <p className="text-sm font-medium text-destructive" role="alert">
-          {t("progress.failed")}
-        </p>
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-destructive" role="alert">
+            {t("progress.failed")}
+          </p>
+          <button
+            type="button"
+            onClick={retry}
+            disabled={retrying}
+            className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+          >
+            {retrying ? t("actions.retrying") : t("actions.retry")}
+          </button>
+          {retryError && (
+            <p className="text-sm text-destructive">{t("errors.retryFailed")}</p>
+          )}
+        </div>
       )}
 
       {done && (

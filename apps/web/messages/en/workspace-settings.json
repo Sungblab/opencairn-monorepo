@@ -60,6 +60,11 @@
   },
   "trash": {
     "heading": "Trash",
-    "stub": "Activates once the trash API ships."
+    "loading": "Loading deleted notes.",
+    "loadFailed": "Could not load trash.",
+    "empty": "No deleted notes.",
+    "meta": "{project} · deleted {date}",
+    "restore": "Restore",
+    "deleteForever": "Delete forever"
   }
 }

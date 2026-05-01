@@ -34,6 +34,8 @@
     "drResult": "Deep Research 결과",
     "note": "노트",
     "file": "업로드 파일",
+    "searchPlaceholder": "노트 제목으로 검색",
+    "drResultPolicy": "Deep Research 결과는 보고서 노트로 저장한 뒤 노트 소스로 추가해 주세요.",
     "tokenBudgetExceeded": "일부 소스가 자동으로 제외될 수 있습니다.",
     "autoIncluded": "자동 포함됨"
   },

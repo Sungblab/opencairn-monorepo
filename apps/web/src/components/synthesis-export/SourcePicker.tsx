@@ -1,6 +1,9 @@
 "use client";
 
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
+import { searchApi } from "@/lib/api-client";
 
 export interface PickedSource {
   id: string;
@@ -9,14 +12,16 @@ export interface PickedSource {
 }
 
 interface Props {
+  workspaceId: string;
   sources: PickedSource[];
   autoSearch: boolean;
-  onAddSource?: () => void;
+  onAddSource: (source: PickedSource) => void;
   onRemoveSource: (id: string) => void;
   onAutoSearchChange: (v: boolean) => void;
 }
 
 export function SourcePicker({
+  workspaceId,
   sources,
   autoSearch,
   onAddSource,
@@ -24,6 +29,13 @@ export function SourcePicker({
   onAutoSearchChange,
 }: Props) {
   const t = useTranslations("synthesisExport");
+  const [query, setQuery] = useState("");
+  const { data } = useQuery({
+    queryKey: ["synthesis-source-search", workspaceId, query],
+    enabled: query.trim().length > 0,
+    staleTime: 15_000,
+    queryFn: () => searchApi.workspaceNotes(workspaceId, query.trim(), 8),
+  });
 
   return (
     <div className="flex flex-col gap-2">
@@ -31,14 +43,38 @@ export function SourcePicker({
         <span className="text-xs font-medium text-neutral-500">
           {t("panel.sources", { count: sources.length })}
         </span>
-        {onAddSource && (
-          <button
-            type="button"
-            onClick={onAddSource}
-            className="rounded px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
-          >
-            {t("sources.add")}
-          </button>
+      </div>
+
+      <div className="rounded border border-neutral-200 p-2 dark:border-neutral-700">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t("sources.searchPlaceholder")}
+          className="w-full rounded border border-neutral-200 bg-white px-2 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-900"
+        />
+        {(data?.results ?? []).length > 0 && (
+          <ul className="mt-2 max-h-44 overflow-auto">
+            {data!.results.map((hit) => (
+              <li key={hit.id}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onAddSource({
+                      id: hit.id,
+                      title: hit.title,
+                      kind: "note",
+                    })
+                  }
+                  className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                >
+                  <span className="truncate">{hit.title}</span>
+                  <span className="shrink-0 text-xs text-neutral-500">
+                    {hit.project_name}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
 
@@ -70,6 +106,7 @@ export function SourcePicker({
         />
         {t("panel.autoSearch")}
       </label>
+      <p className="text-xs text-neutral-500">{t("sources.drResultPolicy")}</p>
     </div>
   );
 }

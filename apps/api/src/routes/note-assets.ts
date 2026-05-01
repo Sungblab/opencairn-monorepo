@@ -1,8 +1,11 @@
 import { Hono } from "hono";
+import crypto from "node:crypto";
+import { bodyLimit } from "hono/body-limit";
 import { db, notes, and, eq, isNull } from "@opencairn/db";
 import { requireAuth } from "../middleware/auth";
-import { canRead } from "../lib/permissions";
+import { canRead, canWrite } from "../lib/permissions";
 import { isUuid } from "../lib/validators";
+import { uploadObject } from "../lib/s3";
 import { streamObject } from "../lib/s3-get";
 import type { AppEnv } from "../lib/types";
 
@@ -15,6 +18,77 @@ import type { AppEnv } from "../lib/types";
 // canRead → 404 note missing → content-specific 404.
 export const noteAssetRoutes = new Hono<AppEnv>()
   .use("*", requireAuth)
+
+  .post(
+    "/:id/images",
+    bodyLimit({
+      maxSize: 10 * 1024 * 1024,
+      onError: (c) => c.json({ error: "image_too_large" }, 413),
+    }),
+    async (c) => {
+      const user = c.get("user");
+      const id = c.req.param("id");
+      if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+      if (!(await canWrite(user.id, { type: "note", id }))) {
+        return c.json({ error: "Forbidden" }, 403);
+      }
+      const [note] = await db
+        .select({ workspaceId: notes.workspaceId })
+        .from(notes)
+        .where(and(eq(notes.id, id), isNull(notes.deletedAt)));
+      if (!note) return c.json({ error: "Not Found" }, 404);
+
+      const form = await c.req.parseBody();
+      const file = form["file"];
+      if (!(file instanceof File)) {
+        return c.json({ error: "image_required" }, 400);
+      }
+      if (!file.type.startsWith("image/")) {
+        return c.json({ error: "unsupported_image_type" }, 415);
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        return c.json({ error: "image_too_large" }, 413);
+      }
+
+      const ext = imageExtension(file.type);
+      const assetId = crypto.randomUUID();
+      const key = `note-assets/${note.workspaceId}/${id}/${assetId}.${ext}`;
+      const buffer = Buffer.from(await file.arrayBuffer());
+      await uploadObject(key, buffer, file.type);
+      return c.json(
+        {
+          id: assetId,
+          url: `/api/notes/${id}/images/${assetId}.${ext}`,
+        },
+        201,
+      );
+    },
+  )
+
+  .get("/:id/images/:asset", async (c) => {
+    const user = c.get("user");
+    const id = c.req.param("id");
+    const asset = c.req.param("asset");
+    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+    if (!/^[0-9a-f-]+\.(png|jpg|jpeg|gif|webp|avif)$/i.test(asset)) {
+      return c.json({ error: "Bad Request" }, 400);
+    }
+    if (!(await canRead(user.id, { type: "note", id }))) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+    const [note] = await db
+      .select({ workspaceId: notes.workspaceId })
+      .from(notes)
+      .where(and(eq(notes.id, id), isNull(notes.deletedAt)));
+    if (!note) return c.json({ error: "Not Found" }, 404);
+
+    const obj = await streamObject(`note-assets/${note.workspaceId}/${id}/${asset}`);
+    return c.body(obj.stream, 200, {
+      "Content-Type": obj.contentType,
+      "Content-Length": String(obj.contentLength),
+      "Cache-Control": "private, max-age=31536000, immutable",
+    });
+  })
 
   // Streams the MinIO object bound to notes.source_file_key. Used by the
   // source-mode viewer (PDF). Content-Type / Length come from statObject so
@@ -93,3 +167,18 @@ export const noteAssetRoutes = new Hono<AppEnv>()
     }
     return c.json({ data });
   });
+
+function imageExtension(contentType: string): string {
+  switch (contentType) {
+    case "image/jpeg":
+      return "jpg";
+    case "image/gif":
+      return "gif";
+    case "image/webp":
+      return "webp";
+    case "image/avif":
+      return "avif";
+    default:
+      return "png";
+  }
+}

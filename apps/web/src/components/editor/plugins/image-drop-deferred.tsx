@@ -1,6 +1,6 @@
 "use client";
 
-// Plan 2E Phase B-2 Task 2.5 — deferred image drag-drop / file-paste toast.
+// Plan 2E Phase B-2 Task 2.5 — image drag-drop / file-paste upload.
 //
 // The upload pipeline (MinIO, presigned URLs, MIME checks) is its own future
 // plan (see spec § 3.4 / § 10). Until then, intercepting File payloads with
@@ -17,7 +17,9 @@ import { createPlatePlugin } from "platejs/react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 
-const DEFERRED_EVENT = "opencairn:image-upload-deferred";
+const IMAGE_UPLOAD_EVENT = "opencairn:image-upload-requested";
+
+type ImageUploadEvent = CustomEvent<{ file: File }>;
 
 /** Plate plugin that intercepts image File drops and file-pastes. */
 export const imageDropDeferredPlugin = createPlatePlugin({
@@ -31,18 +33,20 @@ export const imageDropDeferredPlugin = createPlatePlugin({
       );
       if (!hasImageFile) return false;
       event.preventDefault();
-      window.dispatchEvent(new CustomEvent(DEFERRED_EVENT));
+      const file = Array.from(dt.files).find((f) => f.type.startsWith("image/"));
+      if (file) window.dispatchEvent(new CustomEvent(IMAGE_UPLOAD_EVENT, { detail: { file } }));
       return true;
     },
     onPaste: ({ event }) => {
       const items = (event as unknown as ClipboardEvent).clipboardData?.items;
       if (!items) return false;
-      const hasImageFile = Array.from(items).some(
+      const item = Array.from(items).find(
         (it) => it.kind === "file" && it.type.startsWith("image/"),
       );
-      if (!hasImageFile) return false;
+      if (!item) return false;
       event.preventDefault();
-      window.dispatchEvent(new CustomEvent(DEFERRED_EVENT));
+      const file = item.getAsFile();
+      if (file) window.dispatchEvent(new CustomEvent(IMAGE_UPLOAD_EVENT, { detail: { file } }));
       return true;
     },
   },
@@ -54,11 +58,46 @@ export const imageDropDeferredPlugin = createPlatePlugin({
  * Splitting this from the plugin handler avoids the "hook inside a
  * non-component" problem.
  */
-export function useImageUploadDeferredToast() {
+export function useImageUploadDeferredToast(
+  noteId: string,
+  editor: { tf: { insertNodes: (nodes: unknown, options?: unknown) => void } } | null,
+) {
   const t = useTranslations("editor.image");
   useEffect(() => {
-    const handler = () => toast.info(t("uploadDeferred"));
-    window.addEventListener(DEFERRED_EVENT, handler);
-    return () => window.removeEventListener(DEFERRED_EVENT, handler);
-  }, [t]);
+    const handler = (event: Event) => {
+      const file = (event as ImageUploadEvent).detail?.file;
+      if (!file || !editor) return;
+      const form = new FormData();
+      form.set("file", file);
+      toast.promise(
+        fetch(`/api/notes/${noteId}/images`, {
+          method: "POST",
+          credentials: "include",
+          body: form,
+        }).then(async (res) => {
+          if (!res.ok) throw new Error(`image upload ${res.status}`);
+          const body = (await res.json()) as { url: string };
+          editor.tf.insertNodes(
+            [
+              {
+                type: "image",
+                url: body.url,
+                alt: file.name,
+                children: [{ text: "" }],
+              },
+              { type: "p", children: [{ text: "" }] },
+            ],
+            { select: true },
+          );
+        }),
+        {
+          loading: t("uploading"),
+          success: t("uploaded"),
+          error: t("uploadFailed"),
+        },
+      );
+    };
+    window.addEventListener(IMAGE_UPLOAD_EVENT, handler);
+    return () => window.removeEventListener(IMAGE_UPLOAD_EVENT, handler);
+  }, [editor, noteId, t]);
 }
