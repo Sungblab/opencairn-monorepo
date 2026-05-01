@@ -11,6 +11,7 @@ import * as pagePermissions from "./schema/page-permissions";
 import * as folders from "./schema/folders";
 import * as tags from "./schema/tags";
 import * as notes from "./schema/notes";
+import * as noteChunks from "./schema/note-chunks";
 import * as concepts from "./schema/concepts";
 import * as wikiLogs from "./schema/wiki-logs";
 import * as learning from "./schema/learning";
@@ -42,6 +43,7 @@ const schema = {
   ...folders,
   ...tags,
   ...notes,
+  ...noteChunks,
   ...concepts,
   ...wikiLogs,
   ...learning,

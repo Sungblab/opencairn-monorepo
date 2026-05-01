@@ -12,6 +12,7 @@ export * from "./schema/page-permissions";
 export * from "./schema/folders";
 export * from "./schema/tags";
 export * from "./schema/notes";
+export * from "./schema/note-chunks";
 export * from "./schema/concepts";
 export * from "./schema/wiki-logs";
 export * from "./schema/learning";
