@@ -69,6 +69,22 @@ function mapEntry(row: EvidenceBundleChunkReadRow): EvidenceEntry {
   };
 }
 
+async function readableNoteIdsForRows(
+  userId: string,
+  rows: Array<{ noteId: string }>,
+): Promise<Set<string>> {
+  const uniqueNoteIds = [...new Set(rows.map((row) => row.noteId))];
+  const checks = await Promise.all(
+    uniqueNoteIds.map(async (noteId) => ({
+      noteId,
+      readable: await canRead(userId, { type: "note", id: noteId }),
+    })),
+  );
+  return new Set(
+    checks.filter((check) => check.readable).map((check) => check.noteId),
+  );
+}
+
 export async function validateEvidenceBundleInput(
   input: CreateEvidenceBundleInput,
 ): Promise<"ok" | "project_not_found" | "workspace_mismatch" | "chunk_mismatch"> {
@@ -191,12 +207,8 @@ export async function getEvidenceBundleForUser(
       ),
     );
 
-  const readableRows: EvidenceBundleChunkReadRow[] = [];
-  for (const row of rows) {
-    if (await canRead(userId, { type: "note", id: row.noteId })) {
-      readableRows.push(row);
-    }
-  }
+  const readableNoteIds = await readableNoteIdsForRows(userId, rows);
+  const readableRows = rows.filter((row) => readableNoteIds.has(row.noteId));
 
   return {
     id: bundle.id,
@@ -293,8 +305,9 @@ export async function getGraphEdgeEvidenceForUser(
     string,
     GraphEdgeEvidenceResponse["claims"][number]
   >();
+  const readableNoteIds = await readableNoteIdsForRows(userId, evidenceRows);
   for (const row of evidenceRows) {
-    if (!(await canRead(userId, { type: "note", id: row.noteId }))) {
+    if (!readableNoteIds.has(row.noteId)) {
       continue;
     }
     const existing = claims.get(row.claimId);

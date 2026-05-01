@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+export const MAX_EVIDENCE_BUNDLE_ENTRIES = 100;
+export const MAX_CONCEPT_EXTRACTION_CHUNKS = 100;
+
 export const evidencePurposeSchema = z.enum([
   "rag_answer",
   "wiki_update",
@@ -84,7 +87,10 @@ export type EvidenceBundle = z.infer<typeof evidenceBundleSchema>;
 export const createEvidenceBundleSchema = evidenceBundleSchema
   .omit({ id: true, createdAt: true })
   .extend({
-    entries: z.array(evidenceEntrySchema).min(1),
+    entries: z
+      .array(evidenceEntrySchema)
+      .min(1)
+      .max(MAX_EVIDENCE_BUNDLE_ENTRIES),
   });
 export type CreateEvidenceBundleInput = z.infer<
   typeof createEvidenceBundleSchema
@@ -159,7 +165,8 @@ export const createConceptExtractionSchema = z.object({
         quote: z.string().min(1).max(1200),
       }),
     )
-    .min(1),
+    .min(1)
+    .max(MAX_CONCEPT_EXTRACTION_CHUNKS),
 });
 export type CreateConceptExtractionInput = z.infer<
   typeof createConceptExtractionSchema
