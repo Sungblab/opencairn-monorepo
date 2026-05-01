@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { db, notes, noteEnrichments, projects, wikiLinks, eq, and, desc, isNull, sql } from "@opencairn/db";
+import { db, notes, noteEnrichments, projects, wikiLinks, eq, and, desc, isNull, isNotNull, sql } from "@opencairn/db";
 import { createNoteSchema, updateNoteSchema, patchCanvasSchema } from "@opencairn/shared";
 
 // PATCH body ignores `content` — Yjs (via Hocuspocus) is canonical (Plan 2B).
@@ -74,6 +74,39 @@ export const noteRoutes = new Hono<AppEnv>()
       .orderBy(desc(notes.updatedAt))
       .limit(10);
     return c.json(rows);
+  })
+
+  .get("/trash", async (c) => {
+    const user = c.get("user");
+    const workspaceId = c.req.query("workspaceId") ?? "";
+    if (!isUuid(workspaceId)) return c.json({ error: "Bad Request" }, 400);
+    if (!(await canWrite(user.id, { type: "workspace", id: workspaceId }))) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+    const rows = await db
+      .select({
+        id: notes.id,
+        title: notes.title,
+        projectId: notes.projectId,
+        projectName: projects.name,
+        deletedAt: notes.deletedAt,
+        updatedAt: notes.updatedAt,
+      })
+      .from(notes)
+      .innerJoin(projects, eq(projects.id, notes.projectId))
+      .where(and(eq(notes.workspaceId, workspaceId), isNotNull(notes.deletedAt)))
+      .orderBy(desc(notes.deletedAt))
+      .limit(100);
+    return c.json({
+      notes: rows.map((n) => ({
+        id: n.id,
+        title: n.title,
+        projectId: n.projectId,
+        projectName: n.projectName,
+        deletedAt: n.deletedAt?.toISOString() ?? null,
+        updatedAt: n.updatedAt.toISOString(),
+      })),
+    });
   })
 
   // Role lookup — server-rendered note page uses this to compute `readOnly`
@@ -369,4 +402,56 @@ export const noteRoutes = new Hono<AppEnv>()
     });
 
     return c.json({ success: true });
+  })
+
+  .post("/:id/restore", async (c) => {
+    const user = c.get("user");
+    const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+    const [current] = await db
+      .select({ workspaceId: notes.workspaceId, projectId: notes.projectId })
+      .from(notes)
+      .where(and(eq(notes.id, id), isNotNull(notes.deletedAt)));
+    if (!current) return c.json({ error: "Not found" }, 404);
+    if (!(await canWrite(user.id, { type: "workspace", id: current.workspaceId }))) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+    const [note] = await db
+      .update(notes)
+      .set({ deletedAt: null })
+      .where(eq(notes.id, id))
+      .returning();
+
+    emitTreeEvent({
+      kind: "tree.note_created",
+      projectId: current.projectId,
+      id,
+      parentId: note!.folderId,
+      label: note!.title,
+      at: new Date().toISOString(),
+    });
+    return c.json(note);
+  })
+
+  .delete("/:id/permanent", async (c) => {
+    const user = c.get("user");
+    const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+    const [current] = await db
+      .select({ workspaceId: notes.workspaceId, projectId: notes.projectId, folderId: notes.folderId })
+      .from(notes)
+      .where(and(eq(notes.id, id), isNotNull(notes.deletedAt)));
+    if (!current) return c.json({ error: "Not found" }, 404);
+    if (!(await canWrite(user.id, { type: "workspace", id: current.workspaceId }))) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+    await db.delete(notes).where(eq(notes.id, id));
+    emitTreeEvent({
+      kind: "tree.note_deleted",
+      projectId: current.projectId,
+      id,
+      parentId: current.folderId,
+      at: new Date().toISOString(),
+    });
+    return c.body(null, 204);
   });

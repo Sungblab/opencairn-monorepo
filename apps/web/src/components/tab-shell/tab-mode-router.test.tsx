@@ -30,7 +30,7 @@ const mk = (mode: Tab["mode"]): Tab => ({
 });
 
 const messages = {
-  appShell: { viewers: { stub: { comingSoon: "{mode} coming" } } },
+  appShell: { viewers: { stub: { unavailable: "{mode} unavailable" } } },
 };
 
 function wrap(node: React.ReactNode) {

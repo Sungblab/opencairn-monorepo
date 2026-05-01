@@ -2803,9 +2803,48 @@ internal.post(
       return c.json({ id: source_id, title: source_id, body: "", kind: "s3_object" });
     }
 
-    // dr_result: deep-research artifacts; wiring deferred until research →
-    // synthesis-export handoff is specified.
-    return c.json({ error: "kind_not_supported" }, 501);
+    const [run] = await db
+      .select({
+        id: researchRuns.id,
+        topic: researchRuns.topic,
+        workspaceId: researchRuns.workspaceId,
+        noteId: researchRuns.noteId,
+      })
+      .from(researchRuns)
+      .where(eq(researchRuns.id, source_id))
+      .limit(1);
+    if (!run) return c.json({ error: "not_found" }, 404);
+    if (run.noteId) {
+      const [note] = await db
+        .select()
+        .from(notes)
+        .where(eq(notes.id, run.noteId))
+        .limit(1);
+      if (note) {
+        return c.json({
+          id: run.id,
+          title: note.title ?? run.topic,
+          body: note.contentText ?? "",
+          kind: "dr_result",
+        });
+      }
+    }
+    const artifacts = await db
+      .select({
+        kind: researchRunArtifacts.kind,
+        payload: researchRunArtifacts.payload,
+      })
+      .from(researchRunArtifacts)
+      .where(eq(researchRunArtifacts.runId, run.id))
+      .orderBy(researchRunArtifacts.seq);
+    const body = artifacts
+      .map((artifact) => {
+        const payload = artifact.payload as Record<string, unknown>;
+        return typeof payload.text === "string" ? payload.text : "";
+      })
+      .filter(Boolean)
+      .join("\n\n");
+    return c.json({ id: run.id, title: run.topic, body, kind: "dr_result" });
   },
 );
 
@@ -2819,11 +2858,30 @@ internal.post(
   "/synthesis-export/auto-search",
   zValidator("json", autoSearchSchema),
   async (c) => {
-    // TODO(synthesis-export, followup #1): swap in the real semantic-search
-    // helper once the chat-scope variant is generalized for workspace
-    // queries. Until then, returning empty hits causes the synthesizer to
-    // proceed with explicit sources only — graceful degradation.
-    return c.json({ hits: [] satisfies Array<{ id: string; title: string; body: string }> });
+    const { workspace_id, query, limit } = c.req.valid("json");
+    const q = `%${query}%`;
+    const rows = await db
+      .select({
+        id: notes.id,
+        title: notes.title,
+        body: notes.contentText,
+      })
+      .from(notes)
+      .where(
+        and(
+          eq(notes.workspaceId, workspace_id),
+          isNull(notes.deletedAt),
+          sql`(${notes.title} ILIKE ${q} OR ${notes.contentText} ILIKE ${q})`,
+        ),
+      )
+      .limit(limit);
+    return c.json({
+      hits: rows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        body: row.body ?? "",
+      })),
+    });
   },
 );
 

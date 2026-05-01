@@ -12,6 +12,7 @@ import {
   useResolveComment,
 } from "@/hooks/useComments";
 import type { CommentResponse } from "@/lib/api-client";
+import { parseOne } from "@/lib/mention-format";
 
 import { CommentComposer } from "./CommentComposer";
 
@@ -92,19 +93,23 @@ function CommentItem({
   resolveLabel?: string;
   deleteLabel?: string;
 }) {
+  const authorLabel = c.authorName?.trim() || c.authorId.slice(0, 8);
   return (
     <article id={`comment-${c.id}`} className="space-y-1">
       <header className="text-fg-muted flex items-center gap-2 text-xs">
-        {/* authorId shown truncated as a placeholder; user profile lookup
-            (name + avatar) lands with the mention combobox in Task 19. */}
-        <span>{c.authorId.slice(0, 8)}</span>
+        <span className="bg-muted text-foreground inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-medium">
+          {authorLabel.slice(0, 1).toUpperCase()}
+        </span>
+        <span>{authorLabel}</span>
         <span>·</span>
         <time dateTime={c.createdAt}>
           {new Date(c.createdAt).toLocaleString()}
         </time>
         {c.resolvedAt && <span className="text-emerald-600">✓</span>}
       </header>
-      <p className="text-sm whitespace-pre-wrap">{c.body}</p>
+      <p className="text-sm whitespace-pre-wrap">
+        <MentionText body={c.body} mentions={c.mentions} />
+      </p>
       {(onResolve || onDelete) && (
         <div className="flex gap-3 text-xs">
           {onResolve && resolveLabel && (
@@ -129,4 +134,39 @@ function CommentItem({
       )}
     </article>
   );
+}
+
+function MentionText({
+  body,
+  mentions,
+}: {
+  body: string;
+  mentions: CommentResponse["mentions"];
+}) {
+  const labels = new Map(
+    mentions.map((m) => [`${m.type}:${m.id}`, m.label ?? mentionFallback(m)]),
+  );
+  const parts = body.split(/(@\[(?:user|page|concept|date):[^\]\s]+\])/g);
+  return (
+    <>
+      {parts.map((part, i) => {
+        const parsed = parseOne(part);
+        if (!parsed) return <span key={`${i}:text`}>{part}</span>;
+        const label = labels.get(`${parsed.type}:${parsed.id}`) ?? mentionFallback(parsed);
+        return (
+          <span
+            key={`${i}:${parsed.type}:${parsed.id}`}
+            className="bg-accent text-accent-foreground inline-flex max-w-full items-center rounded px-1.5 py-0.5 text-xs font-medium align-baseline"
+          >
+            @{label}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
+function mentionFallback(m: { type: string; id: string }): string {
+  if (m.type === "date") return m.id;
+  return m.id.slice(0, 8);
 }

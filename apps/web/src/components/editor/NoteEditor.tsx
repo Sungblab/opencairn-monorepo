@@ -167,9 +167,6 @@ export function NoteEditor({
   // to "editor" and we want the share UI strings to live in their own JSON
   // file (one feature per namespace, easier i18n parity).
   const tShare = useTranslations("shareDialog");
-  // Plan 2E Phase B-2 Task 2.5 — show deferred-upload toast when the user
-  // drags or pastes an image file (instead of an image URL).
-  useImageUploadDeferredToast();
   const tDocEditor = useTranslations("docEditor");
   const [shareOpen, setShareOpen] = useState(false);
 
@@ -313,6 +310,7 @@ export function NoteEditor({
     readOnly,
     basePlugins: plugins,
   });
+  useImageUploadDeferredToast(noteId, editor as never);
 
   const setEditor = useActiveEditorStore((s) => s.setEditor);
   const removeEditor = useActiveEditorStore((s) => s.removeEditor);

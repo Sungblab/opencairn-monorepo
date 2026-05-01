@@ -60,6 +60,11 @@
   },
   "trash": {
     "heading": "휴지통",
-    "stub": "휴지통 API 합류 후 활성화됩니다."
+    "loading": "삭제된 노트를 불러오고 있어요.",
+    "loadFailed": "휴지통을 불러오지 못했어요.",
+    "empty": "삭제된 노트가 없습니다.",
+    "meta": "{project} · 삭제됨 {date}",
+    "restore": "복원",
+    "deleteForever": "완전 삭제"
   }
 }

@@ -177,6 +177,7 @@ export interface FolderRow {
 export type MentionToken = {
   type: "user" | "page" | "concept" | "date";
   id: string;
+  label?: string;
 };
 
 export interface CommentResponse {
@@ -185,6 +186,8 @@ export interface CommentResponse {
   parentId: string | null;
   anchorBlockId: string | null;
   authorId: string;
+  authorName?: string | null;
+  authorAvatarUrl?: string | null;
   body: string;
   resolvedAt: string | null;
   resolvedBy: string | null;

@@ -8,7 +8,7 @@ export function StubViewer({ mode }: { mode: string }) {
       data-testid="stub-viewer"
       className="flex h-full items-center justify-center text-sm text-muted-foreground"
     >
-      {t("comingSoon", { mode })}
+      {t("unavailable", { mode })}
     </div>
   );
 }

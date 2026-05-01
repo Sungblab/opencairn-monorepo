@@ -3,6 +3,7 @@ import { z } from "zod";
 export const mentionTokenSchema = z.object({
   type: z.enum(["user", "page", "concept", "date"]),
   id: z.string().min(1),
+  label: z.string().optional(),
 });
 export type MentionToken = z.infer<typeof mentionTokenSchema>;
 
@@ -24,6 +25,8 @@ export const commentResponseSchema = z.object({
   parentId: z.string().uuid().nullable(),
   anchorBlockId: z.string().nullable(),
   authorId: z.string(),
+  authorName: z.string().nullable().optional(),
+  authorAvatarUrl: z.string().nullable().optional(),
   body: z.string(),
   resolvedAt: z.string().datetime().nullable(),
   resolvedBy: z.string().nullable(),

@@ -118,8 +118,16 @@ export function SynthesisPanel({ workspaceId, projectId }: SynthesisPanelProps) 
       />
 
       <SourcePicker
+        workspaceId={workspaceId}
         sources={sources}
         autoSearch={autoSearch}
+        onAddSource={(source) =>
+          setSources((prev) =>
+            prev.some((item) => item.id === source.id)
+              ? prev
+              : [...prev, source],
+          )
+        }
         onRemoveSource={handleRemoveSource}
         onAutoSearchChange={setAutoSearch}
       />

@@ -2,6 +2,7 @@ import type React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SourcePicker } from "../SourcePicker";
 import type { PickedSource } from "../SourcePicker";
 import messages from "../../../../messages/ko/synthesis-export.json";
@@ -20,19 +21,22 @@ function setup(overrides: Partial<Parameters<typeof SourcePicker>[0]> = {}) {
     onRemoveSource,
     onAutoSearchChange,
     ...render(
-      <NextIntlClientProvider
-        locale="ko"
-        messages={{ synthesisExport: messages }}
-      >
-        <SourcePicker
-          sources={defaultSources}
-          autoSearch={false}
-          onAddSource={onAddSource}
-          onRemoveSource={onRemoveSource}
-          onAutoSearchChange={onAutoSearchChange}
-          {...overrides}
-        />
-      </NextIntlClientProvider>,
+      <QueryClientProvider client={new QueryClient()}>
+        <NextIntlClientProvider
+          locale="ko"
+          messages={{ synthesisExport: messages }}
+        >
+          <SourcePicker
+            workspaceId="ws-1"
+            sources={defaultSources}
+            autoSearch={false}
+            onAddSource={onAddSource}
+            onRemoveSource={onRemoveSource}
+            onAutoSearchChange={onAutoSearchChange}
+            {...overrides}
+          />
+        </NextIntlClientProvider>
+      </QueryClientProvider>,
     ),
   };
 }
@@ -52,8 +56,8 @@ describe("SourcePicker", () => {
     expect(onAutoSearchChange).toHaveBeenCalledWith(true);
   });
 
-  it("hides add source action when no handler is wired", () => {
-    setup({ onAddSource: undefined });
-    expect(screen.queryByRole("button", { name: /추가|add/i })).not.toBeInTheDocument();
+  it("renders the note search input", () => {
+    setup();
+    expect(screen.getByPlaceholderText("노트 제목으로 검색")).toBeInTheDocument();
   });
 });

@@ -66,7 +66,7 @@
   },
   "viewers": {
     "stub": {
-      "comingSoon": "{mode} viewer ships in a later plan."
+      "unavailable": "{mode} mode is not available for this tab."
     },
     "reading": {
       "fontSize": "Font size",

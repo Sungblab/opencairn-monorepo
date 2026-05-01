@@ -5,6 +5,7 @@ import {
   comments,
   commentMentions,
   notes,
+  user,
   workspaceMembers,
   concepts,
   projects,
@@ -63,8 +64,22 @@ export const commentsRouter = new Hono<AppEnv>()
       }
     }
 
+    const authorIds = Array.from(new Set(rows.map((r) => r.authorId)));
+    const authors = new Map<string, { name: string | null; image: string | null }>();
+    if (authorIds.length) {
+      const authorRows = await db
+        .select({ id: user.id, name: user.name, image: user.image })
+        .from(user)
+        .where(inArray(user.id, authorIds));
+      for (const a of authorRows) {
+        authors.set(a.id, { name: a.name, image: a.image });
+      }
+    }
+
     const response: CommentResponse[] = rows.map((r) => ({
       ...serialize(r),
+      authorName: authors.get(r.authorId)?.name ?? null,
+      authorAvatarUrl: authors.get(r.authorId)?.image ?? null,
       mentions: mentionsByComment.get(r.id) ?? [],
     }));
 
@@ -160,9 +175,12 @@ export const commentsRouter = new Hono<AppEnv>()
         return c.json({ error: result.error }, 400);
       }
       const { inserted, parentAuthorId } = result;
+      const currentUser = c.get("user") as { name?: string | null; image?: string | null };
 
       const response: CommentResponse = {
         ...serialize(inserted),
+        authorName: currentUser.name ?? null,
+        authorAvatarUrl: currentUser.image ?? null,
         mentions,
       };
 

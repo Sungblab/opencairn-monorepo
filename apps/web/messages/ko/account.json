@@ -25,7 +25,24 @@
   },
   "security": {
     "heading": "보안",
-    "stub": "비밀번호 변경 / 세션 관리는 곧 추가됩니다."
+    "description": "현재 로그인 상태와 이메일 인증 작업을 관리합니다.",
+    "loading": "세션을 확인하고 있어요.",
+    "verificationSent": "인증 메일을 보냈어요.",
+    "resetSent": "비밀번호 재설정 메일을 보냈어요.",
+    "actionFailed": "요청을 처리하지 못했어요.",
+    "session": {
+      "heading": "현재 세션",
+      "email": "이메일",
+      "verified": "이메일 인증",
+      "yes": "완료",
+      "no": "필요"
+    },
+    "actions": {
+      "heading": "계정 작업",
+      "verify": "인증 메일 보내기",
+      "reset": "비밀번호 재설정",
+      "sending": "전송 중..."
+    }
   },
   "billing": {
     "heading": "청구·크레딧",

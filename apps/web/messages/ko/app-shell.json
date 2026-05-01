@@ -66,7 +66,7 @@
   },
   "viewers": {
     "stub": {
-      "comingSoon": "{mode} 뷰어는 다음 Plan 에서 준비됩니다."
+      "unavailable": "{mode} 모드는 이 탭에서 사용할 수 없습니다."
     },
     "reading": {
       "fontSize": "폰트 크기",
