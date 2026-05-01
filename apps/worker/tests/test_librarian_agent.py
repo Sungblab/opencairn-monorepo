@@ -6,18 +6,16 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from llm.base import LLMProvider, ProviderConfig
 
 from runtime.tools import ToolContext
-
 from worker.agents.librarian.agent import (
     LibrarianAgent,
     _build_clusters,
     _collect_concept_details,
+    _evidence_entries_from_pair_chunks,
     _parse_contradiction,
 )
-
 
 # ---------------------------------------------------------------------------
 # Pure helpers
@@ -86,6 +84,44 @@ def test_parse_contradiction_returns_empty_dict_on_garbage() -> None:
     assert _parse_contradiction("") == {}
 
 
+def test_evidence_entries_from_pair_chunks_maps_citations() -> None:
+    entries = _evidence_entries_from_pair_chunks(
+        [
+            {
+                "id": "chunk-1",
+                "noteId": "note-1",
+                "noteTitle": "Source",
+                "noteType": "source",
+                "sourceType": "pdf",
+                "headingPath": "Intro",
+                "sourceOffsets": {"start": 0, "end": 42},
+                "quote": "Alpha and Beta co-occur.",
+            }
+        ]
+    )
+
+    assert entries == [
+        {
+            "noteChunkId": "chunk-1",
+            "noteId": "note-1",
+            "noteType": "source",
+            "sourceType": "pdf",
+            "headingPath": "Intro",
+            "sourceOffsets": {"start": 0, "end": 42},
+            "score": 1.0,
+            "rank": 1,
+            "retrievalChannel": "graph",
+            "quote": "Alpha and Beta co-occur.",
+            "citation": {
+                "label": "S1",
+                "title": "Source",
+                "locator": "Intro",
+            },
+            "metadata": {"producer": "librarian"},
+        }
+    ]
+
+
 # ---------------------------------------------------------------------------
 # LibrarianAgent.run — end-to-end with mocked collaborators
 # ---------------------------------------------------------------------------
@@ -121,6 +157,11 @@ def _make_api() -> MagicMock:
     api.list_orphan_concepts = AsyncMock(return_value=[])
     api.list_concept_pairs = AsyncMock(return_value=[])
     api.list_link_candidates = AsyncMock(return_value=[])
+    api.list_concept_pair_chunks = AsyncMock(return_value={"chunks": []})
+    api.create_evidence_bundle = AsyncMock(return_value={"id": "bundle-1"})
+    api.create_knowledge_claim = AsyncMock(
+        return_value={"claimId": "claim-1", "edgeEvidenceIds": ["ee-1"]}
+    )
     api.merge_concepts = AsyncMock(return_value=0)
     api.upsert_concept = AsyncMock(return_value=("primary-id", False))
     api.upsert_edge = AsyncMock(return_value=("edge-id", True))
@@ -326,3 +367,77 @@ async def test_librarian_strengthens_links() -> None:
         c.kwargs["relation_type"] == "co-occurs"
         for c in api.upsert_edge.await_args_list
     )
+
+
+@pytest.mark.asyncio
+async def test_librarian_strengthen_links_creates_evidence_backed_claim() -> None:
+    provider = _make_provider([])
+    api = _make_api()
+    api.list_link_candidates = AsyncMock(
+        return_value=[
+            {"sourceId": "s1", "targetId": "t1", "coOccurrenceCount": 4},
+        ]
+    )
+    api.upsert_edge = AsyncMock(return_value=("edge-1", True))
+    api.list_concept_pair_chunks = AsyncMock(
+        return_value={
+            "source": {"id": "s1", "name": "Alpha"},
+            "target": {"id": "t1", "name": "Beta"},
+            "chunks": [
+                {
+                    "id": "chunk-1",
+                    "noteId": "note-1",
+                    "noteTitle": "Source",
+                    "noteType": "source",
+                    "sourceType": "pdf",
+                    "headingPath": "Intro",
+                    "sourceOffsets": {"start": 0, "end": 24},
+                    "quote": "Alpha and Beta co-occur.",
+                }
+            ],
+        }
+    )
+    api.create_evidence_bundle = AsyncMock(return_value={"id": "bundle-1"})
+    api.create_knowledge_claim = AsyncMock(
+        return_value={"claimId": "claim-1", "edgeEvidenceIds": ["ee-1"]}
+    )
+    agent = LibrarianAgent(provider=provider, api=api)
+
+    events = await _collect(agent)
+
+    assert events[-1].output["links_strengthened"] == 1
+    api.create_evidence_bundle.assert_awaited_once()
+    bundle_kwargs = api.create_evidence_bundle.await_args.kwargs
+    assert bundle_kwargs["purpose"] == "kg_edge"
+    assert bundle_kwargs["producer"]["tool"] == "librarian.strengthen_links"
+    api.create_knowledge_claim.assert_awaited_once()
+    claim_kwargs = api.create_knowledge_claim.await_args.kwargs
+    assert claim_kwargs["produced_by"] == "wiki_maintenance"
+    assert claim_kwargs["subject_concept_id"] == "s1"
+    assert claim_kwargs["object_concept_id"] == "t1"
+    assert claim_kwargs["edge_evidence"][0] == {
+        "conceptEdgeId": "edge-1",
+        "noteChunkId": "chunk-1",
+        "supportScore": 0.5,
+        "stance": "mentions",
+        "quote": "Alpha and Beta co-occur.",
+    }
+
+
+@pytest.mark.asyncio
+async def test_librarian_strengthen_links_skips_claim_without_chunks() -> None:
+    provider = _make_provider([])
+    api = _make_api()
+    api.list_link_candidates = AsyncMock(
+        return_value=[
+            {"sourceId": "s1", "targetId": "t1", "coOccurrenceCount": 4},
+        ]
+    )
+    api.list_concept_pair_chunks = AsyncMock(return_value={"chunks": []})
+    agent = LibrarianAgent(provider=provider, api=api)
+
+    events = await _collect(agent)
+
+    assert events[-1].output["links_strengthened"] == 1
+    api.create_evidence_bundle.assert_not_awaited()
+    api.create_knowledge_claim.assert_not_awaited()

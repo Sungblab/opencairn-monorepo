@@ -2,7 +2,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from worker.activities.compiler_activity import _record_concept_extraction_evidence
+from worker.activities.compiler_activity import (
+    _record_compiler_relation_claims,
+    _record_concept_extraction_evidence,
+)
 from worker.agents.compiler import CompilerOutput
 
 
@@ -104,7 +107,10 @@ async def test_record_concept_extraction_evidence_records_each_concept():
     api.get_concept.side_effect = [
         {"id": "concept-a", "name": "Alpha", "description": "A"},
         {"id": "concept-b", "name": "Beta", "description": "B"},
+        {"id": "concept-a", "name": "Alpha", "description": "A"},
+        {"id": "concept-b", "name": "Beta", "description": "B"},
     ]
+    api.upsert_edge.return_value = ("edge-1", True)
 
     await _record_concept_extraction_evidence(
         api,
@@ -124,9 +130,9 @@ async def test_record_concept_extraction_evidence_records_each_concept():
         "compiler-run-1",
     )
 
-    assert api.get_concept.await_count == 2
+    assert api.get_concept.await_count == 4
     assert api.create_concept_extraction.await_count == 2
-    assert api.create_knowledge_claim.await_count == 2
+    assert api.create_knowledge_claim.await_count == 3
     concept_ids = {
         call.kwargs["concept_id"]
         for call in api.create_concept_extraction.await_args_list
@@ -207,3 +213,95 @@ async def test_record_concept_extraction_evidence_ignores_claim_failures():
 
     api.create_concept_extraction.assert_awaited_once()
     api.create_knowledge_claim.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_record_compiler_relation_claims_creates_edge_claims():
+    api = AsyncMock()
+    api.get_concept.side_effect = [
+        {"id": "concept-a", "name": "Alpha"},
+        {"id": "concept-b", "name": "Beta"},
+    ]
+    api.upsert_edge.return_value = ("edge-1", True)
+    api.create_knowledge_claim.return_value = {
+        "claimId": "claim-1",
+        "edgeEvidenceIds": ["edge-evidence-1"],
+    }
+
+    await _record_compiler_relation_claims(
+        api=api,
+        inp={
+            "workspace_id": "ws-1",
+            "project_id": "proj-1",
+        },
+        output=CompilerOutput(
+            note_id="note-1",
+            extracted_count=2,
+            created_count=2,
+            merged_count=0,
+            linked_count=2,
+            concept_ids=["concept-a", "concept-b"],
+        ),
+        run_id="compiler-run-1",
+        bundle_id="bundle-1",
+        extraction_chunks=[
+            {
+                "noteChunkId": "chunk-1",
+                "supportScore": 1.0,
+                "quote": "Alpha and Beta appear together.",
+            }
+        ],
+        concept_ids=["concept-a", "concept-b"],
+    )
+
+    api.upsert_edge.assert_awaited_once_with(
+        source_id="concept-a",
+        target_id="concept-b",
+        relation_type="co-mentioned",
+        weight=0.5,
+        evidence_note_id="note-1",
+    )
+    api.create_knowledge_claim.assert_awaited_once()
+    claim_kwargs = api.create_knowledge_claim.await_args.kwargs
+    assert claim_kwargs["claim_type"] == "relation"
+    assert claim_kwargs["produced_by"] == "ingest"
+    assert claim_kwargs["edge_evidence"] == [
+        {
+            "conceptEdgeId": "edge-1",
+            "noteChunkId": "chunk-1",
+            "supportScore": 0.7,
+            "stance": "mentions",
+            "quote": "Alpha and Beta appear together.",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_record_compiler_relation_claims_ignores_edge_failures():
+    api = AsyncMock()
+    api.get_concept.side_effect = [
+        {"id": "concept-a", "name": "Alpha"},
+        {"id": "concept-b", "name": "Beta"},
+    ]
+    api.upsert_edge.side_effect = RuntimeError("edge writer down")
+
+    await _record_compiler_relation_claims(
+        api=api,
+        inp={"workspace_id": "ws-1", "project_id": "proj-1"},
+        output=CompilerOutput(
+            note_id="note-1",
+            extracted_count=2,
+            created_count=2,
+            merged_count=0,
+            linked_count=2,
+            concept_ids=["concept-a", "concept-b"],
+        ),
+        run_id="compiler-run-1",
+        bundle_id="bundle-1",
+        extraction_chunks=[
+            {"noteChunkId": "chunk-1", "supportScore": 1.0, "quote": "quote"}
+        ],
+        concept_ids=["concept-a", "concept-b"],
+    )
+
+    api.create_knowledge_claim.assert_not_awaited()

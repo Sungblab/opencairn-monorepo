@@ -29,9 +29,8 @@ import logging
 import re
 import time
 import uuid
-from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from llm import ENV_BATCH_ENABLED_LIBRARIAN, LLMProvider, embed_many
 from llm.base import EmbedInput
@@ -48,7 +47,6 @@ from runtime.events import (
     ToolUse,
 )
 from runtime.tools import ToolContext, hash_input
-
 from worker.agents.librarian.prompts import (
     CONTRADICTION_SYSTEM,
     MERGE_SUMMARY_SYSTEM,
@@ -56,6 +54,9 @@ from worker.agents.librarian.prompts import (
     build_merge_summary_prompt,
 )
 from worker.lib.api_client import AgentApiClient
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -641,7 +642,7 @@ class LibrarianAgent(Agent):
             # upsert takes max(existing, incoming) so edges only ever grow.
             weight = min(cnt * 0.05, 1.0)
             try:
-                await self.api.upsert_edge(
+                edge_id, _created = await self.api.upsert_edge(
                     source_id=str(row["sourceId"]),
                     target_id=str(row["targetId"]),
                     relation_type="co-occurs",
@@ -651,6 +652,21 @@ class LibrarianAgent(Agent):
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Librarian: upsert_edge failed: %s", exc)
                 continue
+            try:
+                await self._record_strengthened_link_claim(
+                    input=input,
+                    ctx=ctx,
+                    row=row,
+                    edge_id=edge_id,
+                    support_score=weight,
+                )
+            except Exception as exc:  # noqa: BLE001 - evidence is best-effort
+                logger.warning(
+                    "Librarian: strengthened link evidence skipped for %s -> %s: %s",
+                    row.get("sourceId"),
+                    row.get("targetId"),
+                    exc,
+                )
         output.links_strengthened = strengthened
 
         yield CustomEvent(
@@ -662,6 +678,76 @@ class LibrarianAgent(Agent):
             type="custom",
             label="librarian.links_strengthened",
             payload={"count": strengthened},
+        )
+
+    async def _record_strengthened_link_claim(
+        self,
+        *,
+        input: LibrarianInput,
+        ctx: ToolContext,
+        row: dict[str, Any],
+        edge_id: str,
+        support_score: float,
+    ) -> None:
+        source_id = str(row["sourceId"])
+        target_id = str(row["targetId"])
+        payload = await self.api.list_concept_pair_chunks(
+            project_id=input.project_id,
+            source_id=source_id,
+            target_id=target_id,
+            limit=3,
+        )
+        chunks = list(payload.get("chunks", []))
+        if not chunks:
+            return
+
+        entries = _evidence_entries_from_pair_chunks(chunks)
+        if not entries:
+            return
+
+        source = payload.get("source") or {}
+        target = payload.get("target") or {}
+        source_name = str(source.get("name") or source_id)
+        target_name = str(target.get("name") or target_id)
+
+        bundle = await self.api.create_evidence_bundle(
+            workspace_id=input.workspace_id,
+            project_id=input.project_id,
+            purpose="kg_edge",
+            producer={
+                "kind": "worker",
+                "runId": ctx.run_id,
+                "tool": "librarian.strengthen_links",
+            },
+            created_by=input.user_id,
+            entries=entries,
+        )
+        bundle_id = str(bundle["id"])
+        first = entries[0]
+        await self.api.create_knowledge_claim(
+            workspace_id=input.workspace_id,
+            project_id=input.project_id,
+            claim_text=(
+                f"{source_name} co-occurs with {target_name} "
+                f"across {int(row.get('coOccurrenceCount', 0))} shared notes."
+            )[:4000],
+            claim_type="relation",
+            status="active",
+            confidence=max(0.5, min(support_score, 1.0)),
+            evidence_bundle_id=bundle_id,
+            produced_by="wiki_maintenance",
+            produced_by_run_id=ctx.run_id,
+            subject_concept_id=source_id,
+            object_concept_id=target_id,
+            edge_evidence=[
+                {
+                    "conceptEdgeId": edge_id,
+                    "noteChunkId": first["noteChunkId"],
+                    "supportScore": max(0.5, min(support_score, 1.0)),
+                    "stance": "mentions",
+                    "quote": first["quote"],
+                }
+            ],
         )
 
 
@@ -756,6 +842,40 @@ def _collect_concept_details(
     return out
 
 
+def _evidence_entries_from_pair_chunks(
+    chunks: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
+    for rank, chunk in enumerate(chunks, start=1):
+        quote = str(chunk.get("quote") or "")[:1200]
+        if not quote:
+            continue
+        entries.append(
+            {
+                "noteChunkId": str(chunk["id"]),
+                "noteId": str(chunk["noteId"]),
+                "noteType": str(chunk.get("noteType") or "source"),
+                "sourceType": chunk.get("sourceType"),
+                "headingPath": str(chunk.get("headingPath") or ""),
+                "sourceOffsets": chunk.get("sourceOffsets") or {
+                    "start": 0,
+                    "end": len(quote),
+                },
+                "score": 1.0,
+                "rank": rank,
+                "retrievalChannel": "graph",
+                "quote": quote,
+                "citation": {
+                    "label": f"S{rank}",
+                    "title": str(chunk.get("noteTitle") or "Source"),
+                    "locator": str(chunk.get("headingPath") or f"chunk {rank}"),
+                },
+                "metadata": {"producer": "librarian"},
+            }
+        )
+    return entries
+
+
 def _output_to_dict(out: LibrarianOutput) -> dict[str, Any]:
     return {
         "project_id": out.project_id,
@@ -778,6 +898,4 @@ def _is_retryable(exc: Exception) -> bool:
 
     if isinstance(exc, httpx.HTTPStatusError):
         return 500 <= exc.response.status_code < 600
-    if isinstance(exc, (httpx.TimeoutException, httpx.NetworkError)):
-        return True
-    return False
+    return isinstance(exc, (httpx.TimeoutException, httpx.NetworkError))

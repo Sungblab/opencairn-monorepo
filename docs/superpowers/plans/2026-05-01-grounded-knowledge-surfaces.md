@@ -1016,3 +1016,35 @@ Slice A: evidence bundle + KG edge evidence schema/API 를 구현해.
 - If `packages/db` already has local uncommitted edits, inspect before modifying and preserve user changes.
 - If implementing DB schema in a separate worktree, create it under `.worktrees/grounded-knowledge-surfaces-a` with branch `codex/grounded-knowledge-surfaces-a`.
 - Keep this slice API/data-contract focused. The future UI should consume these APIs, but this slice should not add UI.
+
+## Producer Follow-Up Handoff
+
+PR #190 added the evidence schema/API foundation, PR #191 added the
+knowledge-surface retrieval API, and PR #192 added the first producer hardening
+pass for compiler definition claims. The next producer layer should focus on
+raising evidence-backed data volume without widening schema or UI scope.
+
+Implemented in the follow-up branch `codex/grounded-knowledge-producers-next`:
+
+- compiler concept extraction now also creates bounded adjacent concept
+  relation claims using the existing extraction evidence bundle;
+- compiler relation producer upserts `co-mentioned` edges and attaches
+  `concept_edge_evidence` through `POST /api/internal/knowledge/claims`;
+- librarian `strengthen_links` now keeps edge upsert behavior but, when shared
+  note chunks exist, creates a `kg_edge` evidence bundle plus relation claim
+  with `producedBy="wiki_maintenance"`;
+- internal API gained a focused `GET /api/internal/projects/:id/concept-pair-chunks`
+  helper so the worker can fetch source/target concept metadata and shared
+  chunk evidence without changing existing `list_link_candidates` response
+  shape;
+- producer failures remain best-effort: missing chunks or evidence writer
+  errors warn/skip and do not fail compiler or librarian runs.
+
+Still out of scope after this producer pass:
+
+- Knowledge Surface UI in `apps/web`;
+- a dedicated wiki/card summary producer beyond the existing claim/card
+  consumption path;
+- Vitest Windows startup issue around `#module-evaluator`;
+- `docs/contributing/plans-status.md` cleanup after the implementation PR is
+  merged.

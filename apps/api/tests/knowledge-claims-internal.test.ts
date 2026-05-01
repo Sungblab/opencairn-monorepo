@@ -4,6 +4,7 @@ import { createApp } from "../src/app.js";
 import {
   conceptEdges,
   conceptEdgeEvidence,
+  conceptNotes,
   concepts,
   db,
   eq,
@@ -272,5 +273,37 @@ describe("POST /api/internal/knowledge/claims", () => {
     });
 
     expect(res.status).toBe(400);
+  });
+
+  it("returns shared chunks for a concept pair", async () => {
+    const seeded = await seedClaimEvidence(ctx);
+    await db.insert(conceptNotes).values([
+      { conceptId: seeded.sourceConceptId, noteId: ctx.noteId },
+      { conceptId: seeded.targetConceptId, noteId: ctx.noteId },
+    ]);
+
+    const res = await app.request(
+      `/api/internal/projects/${ctx.projectId}/concept-pair-chunks` +
+        `?sourceId=${seeded.sourceConceptId}&targetId=${seeded.targetConceptId}`,
+      {
+        headers: {
+          "X-Internal-Secret": SECRET,
+        },
+      },
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      source: { id: string; name: string };
+      target: { id: string; name: string };
+      chunks: Array<{ id: string; noteId: string; quote: string }>;
+    };
+    expect(body.source.id).toBe(seeded.sourceConceptId);
+    expect(body.target.id).toBe(seeded.targetConceptId);
+    expect(body.chunks).toHaveLength(1);
+    expect(body.chunks[0]).toMatchObject({
+      noteId: ctx.noteId,
+      quote: "This paragraph supports the edge.",
+    });
   });
 });
