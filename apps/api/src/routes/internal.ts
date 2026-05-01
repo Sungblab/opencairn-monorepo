@@ -37,6 +37,10 @@ import {
   count,
   inArray,
 } from "@opencairn/db";
+import {
+  createConceptExtractionSchema,
+  createEvidenceBundleSchema,
+} from "@opencairn/shared";
 import { getTemporalClient, taskQueue } from "../lib/temporal-client";
 import { signSessionForUser } from "../lib/test-session";
 import { createMultiRoleSeed } from "../lib/test-seed-multi";
@@ -60,6 +64,11 @@ import {
   type SynthesisOutputJson,
 } from "../lib/document-compilers";
 import { uploadObject } from "../lib/s3";
+import {
+  createConceptExtractionEvidence,
+  createEvidenceBundle,
+  validateEvidenceBundleInput,
+} from "../lib/evidence-bundles";
 
 // Internal-only routes — reachable by worker callbacks on the docker network.
 // Auth is a shared secret (INTERNAL_API_SECRET) carried in `X-Internal-Secret`;
@@ -234,6 +243,57 @@ internal.post(
     const body = c.req.valid("json");
     console.warn("[ingest-failure]", JSON.stringify(body));
     return c.json({ ok: true }, 202);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Grounded Knowledge Surfaces — internal evidence writers
+// ---------------------------------------------------------------------------
+
+internal.post(
+  "/evidence/bundles",
+  zValidator("json", createEvidenceBundleSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const validation = await validateEvidenceBundleInput(body);
+    if (validation === "project_not_found") {
+      return c.json({ error: "project_not_found" }, 404);
+    }
+    if (validation === "workspace_mismatch") {
+      return c.json({ error: "workspace_mismatch" }, 403);
+    }
+    if (validation === "chunk_mismatch") {
+      return c.json({ error: "chunk_mismatch" }, 400);
+    }
+
+    const row = await createEvidenceBundle(body);
+    return c.json({ id: row.id, createdAt: row.createdAt.toISOString() }, 201);
+  },
+);
+
+internal.post(
+  "/concepts/extractions",
+  zValidator("json", createConceptExtractionSchema),
+  async (c) => {
+    try {
+      const row = await createConceptExtractionEvidence(c.req.valid("json"));
+      return c.json({ id: row.id }, 201);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message === "project_not_found") {
+        return c.json({ error: "project_not_found" }, 404);
+      }
+      if (
+        message === "workspace_mismatch" ||
+        message === "bundle_mismatch" ||
+        message === "concept_mismatch" ||
+        message === "note_mismatch" ||
+        message === "chunk_mismatch"
+      ) {
+        return c.json({ error: message }, 400);
+      }
+      throw err;
+    }
   },
 );
 

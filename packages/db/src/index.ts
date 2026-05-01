@@ -14,6 +14,7 @@ export * from "./schema/tags";
 export * from "./schema/notes";
 export * from "./schema/note-chunks";
 export * from "./schema/concepts";
+export * from "./schema/evidence";
 export * from "./schema/wiki-logs";
 export * from "./schema/learning";
 export * from "./schema/jobs";

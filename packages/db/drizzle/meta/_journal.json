@@ -302,6 +302,13 @@
       "when": 1777612210448,
       "tag": "0042_regular_daredevil",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1777614436711,
+      "tag": "0043_rich_vector",
+      "breakpoints": true
     }
   ]
 }
