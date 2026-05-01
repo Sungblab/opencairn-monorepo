@@ -10,6 +10,7 @@ import {
   workspaceInvites,
   folders,
   notes,
+  noteChunks,
   projects,
   concepts,
   conceptEdges,
@@ -327,6 +328,74 @@ internal.get("/notes/:id", async (c) => {
     .where(and(eq(notes.id, id), isNull(notes.deletedAt)));
   if (!row) return c.json({ error: "Not found" }, 404);
   return c.json(row);
+});
+
+internal.get("/notes/:id/chunks", async (c) => {
+  const id = c.req.param("id");
+  if (!z.string().uuid().safeParse(id).success) {
+    return c.json({ error: "Invalid note id" }, 400);
+  }
+  const workspaceId = c.req.query("workspaceId");
+  const projectId = c.req.query("projectId");
+  if (
+    !workspaceId ||
+    !projectId ||
+    !z.string().uuid().safeParse(workspaceId).success ||
+    !z.string().uuid().safeParse(projectId).success
+  ) {
+    return c.json({ error: "workspaceId and projectId query required" }, 400);
+  }
+
+  const [note] = await db
+    .select({
+      id: notes.id,
+      title: notes.title,
+      type: notes.type,
+      sourceType: notes.sourceType,
+    })
+    .from(notes)
+    .where(
+      and(
+        eq(notes.id, id),
+        eq(notes.workspaceId, workspaceId),
+        eq(notes.projectId, projectId),
+        isNull(notes.deletedAt),
+      ),
+    );
+  if (!note) return c.json({ error: "not_found" }, 404);
+
+  const limit = Math.max(
+    1,
+    Math.min(20, parseInt(c.req.query("limit") ?? "5", 10) || 5),
+  );
+  const chunks = await db
+    .select({
+      id: noteChunks.id,
+      noteId: noteChunks.noteId,
+      headingPath: noteChunks.headingPath,
+      sourceOffsets: noteChunks.sourceOffsets,
+      contentText: noteChunks.contentText,
+      chunkIndex: noteChunks.chunkIndex,
+    })
+    .from(noteChunks)
+    .where(
+      and(
+        eq(noteChunks.noteId, id),
+        eq(noteChunks.workspaceId, workspaceId),
+        eq(noteChunks.projectId, projectId),
+        isNull(noteChunks.deletedAt),
+      ),
+    )
+    .orderBy(noteChunks.chunkIndex)
+    .limit(limit);
+
+  return c.json({
+    note,
+    chunks: chunks.map((chunk) => ({
+      ...chunk,
+      quote: chunk.contentText.replace(/\s+/g, " ").trim().slice(0, 1200),
+    })),
+  });
 });
 
 // GET /internal/concepts/:id — fetch a single concept row including its
