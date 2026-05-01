@@ -37,7 +37,7 @@ export function chunkNoteText(input: ChunkNoteTextInput): NoteTextChunk[] {
       return;
     }
     chunks.push({
-      headingPath: headingStack.join(" > "),
+      headingPath: headingStack.filter(Boolean).join(" > "),
       contentText: text,
       tokenCount: Math.max(1, Math.ceil(text.length / 4)),
       contentHash: hashText(text),
@@ -74,7 +74,11 @@ export function chunkNoteText(input: ChunkNoteTextInput): NoteTextChunk[] {
         buffer = next;
       }
     }
-    cursor += rawLine.length + 1;
+    const nextNewline = input.contentText.indexOf(
+      "\n",
+      cursor + rawLine.length,
+    );
+    cursor = nextNewline === -1 ? input.contentText.length : nextNewline + 1;
   }
   flush(input.contentText.length);
 

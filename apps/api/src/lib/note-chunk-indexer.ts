@@ -21,9 +21,8 @@ export async function indexNoteChunks(opts: IndexNoteChunksOpts): Promise<void> 
     maxChars: opts.maxChars,
   });
 
-  const rows: NewNoteChunk[] = [];
-  for (const chunk of chunks) {
-    rows.push({
+  const rows: NewNoteChunk[] = await Promise.all(
+    chunks.map(async (chunk) => ({
       workspaceId: opts.note.workspaceId,
       projectId: opts.note.projectId,
       noteId: opts.note.id,
@@ -35,8 +34,8 @@ export async function indexNoteChunks(opts: IndexNoteChunksOpts): Promise<void> 
       sourceOffsets: chunk.sourceOffsets,
       contentHash: chunk.contentHash,
       deletedAt: opts.note.deletedAt,
-    });
-  }
+    })),
+  );
 
   await db.transaction(async (tx) => {
     await tx.delete(noteChunks).where(eq(noteChunks.noteId, opts.note.id));

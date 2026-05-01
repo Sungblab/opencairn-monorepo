@@ -14,6 +14,15 @@ describe("chunkNoteText", () => {
     ]);
   });
 
+  it("omits missing parent heading levels from heading paths", () => {
+    const chunks = chunkNoteText({
+      contentText: "### Deep\nAlpha text.",
+      maxChars: 30,
+    });
+
+    expect(chunks[0]?.headingPath).toBe("Deep");
+  });
+
   it("splits long paragraphs without producing empty chunks", () => {
     const chunks = chunkNoteText({
       contentText: "A".repeat(90),
@@ -35,5 +44,19 @@ describe("chunkNoteText", () => {
     expect(chunks[0]?.sourceOffsets.end).toBeGreaterThan(
       chunks[0]?.sourceOffsets.start ?? 0,
     );
+  });
+
+  it("preserves source offsets when the note uses CRLF line endings", () => {
+    const contentText = "# Title\r\n\r\nFirst paragraph.\r\n\r\nSecond paragraph.";
+    const chunks = chunkNoteText({
+      contentText,
+      maxChars: 32,
+    });
+
+    for (const chunk of chunks) {
+      expect(
+        contentText.slice(chunk.sourceOffsets.start, chunk.sourceOffsets.end),
+      ).toContain(chunk.contentText);
+    }
   });
 });

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const insertValues = vi.fn();
 const deleteWhere = vi.fn();
@@ -19,6 +19,12 @@ vi.mock("@opencairn/db", async (orig) => {
 const { indexNoteChunks } = await import("../../src/lib/note-chunk-indexer.js");
 
 describe("indexNoteChunks", () => {
+  beforeEach(() => {
+    insertValues.mockReset();
+    deleteWhere.mockReset();
+    dbMock.transaction.mockClear();
+  });
+
   it("builds MIME-agnostic chunk rows from note contentText and metadata", async () => {
     insertValues.mockResolvedValue(undefined);
 
@@ -45,6 +51,44 @@ describe("indexNoteChunks", () => {
         deletedAt: null,
         embedding: [0.1, 0.2, 0.3],
       }),
+    ]);
+  });
+
+  it("requests chunk embeddings in parallel before writing rows", async () => {
+    insertValues.mockResolvedValue(undefined);
+    const started: string[] = [];
+    const releases: Array<(value: number[]) => void> = [];
+    const embed = vi.fn(
+      (text: string) =>
+        new Promise<number[]>((resolve) => {
+          started.push(text);
+          releases.push(resolve);
+        }),
+    );
+
+    const indexing = indexNoteChunks({
+      note: {
+        id: "note-1",
+        workspaceId: "ws-1",
+        projectId: "project-1",
+        contentText: "# Paper\nFirst paragraph.\n\nSecond paragraph.",
+        deletedAt: null,
+      },
+      embed,
+      maxChars: 24,
+    });
+
+    await Promise.resolve();
+    expect(started).toEqual(["First paragraph.", "Second paragraph."]);
+    expect(dbMock.transaction).not.toHaveBeenCalled();
+
+    releases[0]?.([0.1]);
+    releases[1]?.([0.2]);
+    await indexing;
+
+    expect(insertValues).toHaveBeenCalledWith([
+      expect.objectContaining({ chunkIndex: 0, embedding: [0.1] }),
+      expect.objectContaining({ chunkIndex: 1, embedding: [0.2] }),
     ]);
   });
 });

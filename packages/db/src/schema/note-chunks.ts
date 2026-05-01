@@ -36,6 +36,8 @@ export const noteChunks = pgTable(
     headingPath: text("heading_path").notNull().default(""),
     contentText: text("content_text").notNull(),
     contentTsv: tsvector("content_tsv").notNull().default(sql`''::tsvector`),
+    // `vector3072` is a legacy helper name; the actual pgvector dimension is
+    // controlled by VECTOR_DIM in custom-types.ts and defaults to vector(768).
     embedding: vector3072("embedding"),
     tokenCount: integer("token_count").notNull(),
     sourceOffsets: jsonb("source_offsets")
