@@ -1,4 +1,9 @@
 import type { CytoscapeElement, FilterState, GraphSnapshot } from "./graph-types";
+import type { EdgeSupport, GroundedEdge } from "./grounded-types";
+
+function edgeSupport(edge: GraphSnapshot["edges"][number]): EdgeSupport | undefined {
+  return "support" in edge ? (edge as GroundedEdge).support : undefined;
+}
 
 /**
  * Project the GraphResponse + active filters into the Cytoscape elements
@@ -32,6 +37,7 @@ export function toCytoscapeElements(
   }
   const edgeElements: CytoscapeElement[] = [];
   for (const e of snap.edges) {
+    const support = edgeSupport(e);
     if (!visibleNodeIds.has(e.sourceId)) continue;
     if (!visibleNodeIds.has(e.targetId)) continue;
     if (filters.relation && e.relationType !== filters.relation) continue;
@@ -47,6 +53,10 @@ export function toCytoscapeElements(
         type: "edge",
         relationType: e.relationType,
         weight: e.weight,
+        supportStatus: support?.status,
+        supportScore: support?.supportScore,
+        citationCount: support?.citationCount,
+        evidenceBundleId: support?.evidenceBundleId,
       },
     });
   }

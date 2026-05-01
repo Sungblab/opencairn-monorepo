@@ -41,6 +41,22 @@
     "needsRoot": "This view needs a focus concept. Pick one from search or use 'Generate with AI'.",
     "noConcepts": "This project has no concepts yet."
   },
+  "evidence": {
+    "title": "Relation evidence",
+    "close": "Close evidence",
+    "score": "Support {score}%",
+    "citationCount": "{count} citations",
+    "noEntries": "No evidence passages to show.",
+    "noBundle": "No evidence",
+    "showSources": "Show sources",
+    "status": {
+      "supported": "Supported",
+      "weak": "Weak",
+      "stale": "Stale",
+      "disputed": "Disputed",
+      "missing": "No evidence"
+    }
+  },
   "ai": {
     "trigger": "Generate with AI",
     "dialogTitle": "Generate a view with AI",

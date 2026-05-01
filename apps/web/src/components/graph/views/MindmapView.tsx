@@ -1,11 +1,13 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import cytoscape from "cytoscape";
 import dagre from "cytoscape-dagre";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useProjectGraph } from "../useProjectGraph";
+import { evidenceBundleById, type GroundedEdge } from "../grounded-types";
+import { EdgeEvidencePanel } from "./EdgeEvidencePanel";
 
 // react-cytoscapejs imports cytoscape at module top level. Disable SSR — the
 // underlying renderer needs DOM/window. Same pattern as ProjectGraph + Phase 1
@@ -34,6 +36,7 @@ export default function MindmapView({ projectId, root }: Props) {
     view: "mindmap",
     root,
   });
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
 
   const elements = useMemo(() => {
     if (!data) return [];
@@ -48,14 +51,26 @@ export default function MindmapView({ projectId, root }: Props) {
       })),
       ...data.edges.map((e) => ({
         data: {
-          id: `${e.sourceId}-${e.targetId}`,
+          id: e.id ?? `${e.sourceId}-${e.targetId}`,
           source: e.sourceId,
           target: e.targetId,
           type: "edge",
+          supportStatus: e.support?.status,
         },
       })),
     ];
   }, [data]);
+
+  const selectedEdge = useMemo(
+    () => data?.edges.find((edge) => edge.id === selectedEdgeId) as
+      | GroundedEdge
+      | undefined,
+    [data?.edges, selectedEdgeId],
+  );
+  const bundlesById = useMemo(
+    () => evidenceBundleById(data?.evidenceBundles),
+    [data?.evidenceBundles],
+  );
 
   const cyRef = useRef<cytoscape.Core | null>(null);
 
@@ -94,11 +109,15 @@ export default function MindmapView({ projectId, root }: Props) {
       const node = evt.target;
       if (node?.isNode?.()) {
         handlerRef.current(node.id());
+      } else if (node?.isEdge?.()) {
+        setSelectedEdgeId(node.id());
       }
     };
     cy.on("tap", "node", onTap);
+    cy.on("tap", "edge", onTap);
     return () => {
       cy.off("tap", "node", onTap);
+      cy.off("tap", "edge", onTap);
     };
   }, [data]);
 
@@ -124,7 +143,8 @@ export default function MindmapView({ projectId, root }: Props) {
   }
 
   return (
-    <CytoscapeComponent
+    <div className="relative h-full">
+      <CytoscapeComponent
       elements={elements as cytoscape.ElementDefinition[]}
       layout={
         {
@@ -154,12 +174,36 @@ export default function MindmapView({ projectId, root }: Props) {
               "line-color": "#bbb",
             },
           },
+          {
+            selector: 'edge[supportStatus = "supported"]',
+            style: { "line-color": "hsl(var(--primary))", "target-arrow-color": "hsl(var(--primary))" },
+          },
+          {
+            selector: 'edge[supportStatus = "weak"], edge[supportStatus = "missing"]',
+            style: { "line-style": "dotted", opacity: 0.65 },
+          },
+          {
+            selector: 'edge[supportStatus = "disputed"]',
+            style: { "line-color": "hsl(var(--destructive))", "target-arrow-color": "hsl(var(--destructive))" },
+          },
         ] as cytoscape.StylesheetJsonBlock[]
       }
       cy={(cy: cytoscape.Core) => {
         cyRef.current = cy;
       }}
       style={{ width: "100%", height: "100%" }}
-    />
+      />
+      {selectedEdge && (
+        <EdgeEvidencePanel
+          edge={selectedEdge}
+          bundle={
+            selectedEdge.support?.evidenceBundleId
+              ? bundlesById.get(selectedEdge.support.evidenceBundleId)
+              : null
+          }
+          onClose={() => setSelectedEdgeId(null)}
+        />
+      )}
+    </div>
   );
 }
