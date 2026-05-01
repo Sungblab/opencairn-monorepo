@@ -38,6 +38,8 @@ _TRAJECTORY_DIR = Path(
     os.environ.get("TRAJECTORY_DIR", "/var/opencairn/trajectories")
 )
 _EVIDENCE_CONCEPT_WRITE_CONCURRENCY = 8
+_EVIDENCE_RELATION_WRITE_CONCURRENCY = 4
+_EVIDENCE_RELATION_PAIR_LIMIT = 50
 
 
 class _ActivityTrajectoryHook(TrajectoryWriterHook):
@@ -254,6 +256,15 @@ async def _record_concept_extraction_evidence(
             )
 
     await asyncio.gather(*(_record_one(concept_id) for concept_id in concept_ids))
+    await _record_compiler_relation_claims(
+        api=api,
+        inp=inp,
+        output=output,
+        run_id=run_id,
+        bundle_id=bundle_id,
+        extraction_chunks=extraction_chunks,
+        concept_ids=concept_ids,
+    )
 
 
 async def _record_one_concept_extraction(
@@ -305,5 +316,103 @@ async def _record_one_concept_extraction(
         activity.logger.warning(
             "compile_note concept extraction evidence skipped for concept=%s: %s",
             concept_id,
+            exc,
+        )
+
+
+async def _record_compiler_relation_claims(
+    *,
+    api: AgentApiClient,
+    inp: dict[str, Any],
+    output: CompilerOutput,
+    run_id: str,
+    bundle_id: str,
+    extraction_chunks: list[dict[str, Any]],
+    concept_ids: list[str],
+) -> None:
+    """Create source-note co-mention relation claims for adjacent concepts."""
+    if len(concept_ids) < 2 or not extraction_chunks:
+        return
+
+    pairs = list(zip(concept_ids, concept_ids[1:], strict=False))[
+        :_EVIDENCE_RELATION_PAIR_LIMIT
+    ]
+    if not pairs:
+        return
+
+    semaphore = asyncio.Semaphore(_EVIDENCE_RELATION_WRITE_CONCURRENCY)
+
+    async def _record_pair(source_id: str, target_id: str) -> None:
+        async with semaphore:
+            await _record_one_compiler_relation_claim(
+                api=api,
+                inp=inp,
+                output=output,
+                run_id=run_id,
+                bundle_id=bundle_id,
+                extraction_chunks=extraction_chunks,
+                source_id=source_id,
+                target_id=target_id,
+            )
+
+    await asyncio.gather(*(_record_pair(a, b) for a, b in pairs if a != b))
+
+
+async def _record_one_compiler_relation_claim(
+    *,
+    api: AgentApiClient,
+    inp: dict[str, Any],
+    output: CompilerOutput,
+    run_id: str,
+    bundle_id: str,
+    extraction_chunks: list[dict[str, Any]],
+    source_id: str,
+    target_id: str,
+) -> None:
+    try:
+        source, target = await asyncio.gather(
+            api.get_concept(source_id),
+            api.get_concept(target_id),
+        )
+        source_name = str(source.get("name") or source_id)
+        target_name = str(target.get("name") or target_id)
+        edge_id, _created = await api.upsert_edge(
+            source_id=source_id,
+            target_id=target_id,
+            relation_type="co-mentioned",
+            weight=0.5,
+            evidence_note_id=output.note_id,
+        )
+        chunk = extraction_chunks[0]
+        await api.create_knowledge_claim(
+            workspace_id=inp["workspace_id"],
+            project_id=inp["project_id"],
+            subject_concept_id=source_id,
+            object_concept_id=target_id,
+            claim_text=(
+                f"{source_name} is co-mentioned with {target_name} "
+                "in the source note."
+            )[:4000],
+            claim_type="relation",
+            status="active",
+            confidence=0.7,
+            evidence_bundle_id=bundle_id,
+            produced_by="ingest",
+            produced_by_run_id=run_id,
+            edge_evidence=[
+                {
+                    "conceptEdgeId": edge_id,
+                    "noteChunkId": chunk["noteChunkId"],
+                    "supportScore": 0.7,
+                    "stance": "mentions",
+                    "quote": chunk["quote"],
+                }
+            ],
+        )
+    except Exception as exc:  # noqa: BLE001 - relation evidence is best-effort
+        activity.logger.warning(
+            "compile_note relation evidence skipped for %s -> %s: %s",
+            source_id,
+            target_id,
             exc,
         )

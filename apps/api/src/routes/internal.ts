@@ -1074,6 +1074,104 @@ internal.get("/projects/:id/link-candidates", async (c) => {
   });
 });
 
+// GET /internal/projects/:id/concept-pair-chunks — chunk evidence for a
+// concept pair that co-occurs through concept_notes. Used by best-effort
+// worker producers after they upsert a graph edge.
+internal.get("/projects/:id/concept-pair-chunks", async (c) => {
+  const projectId = c.req.param("id");
+  const sourceId = c.req.query("sourceId");
+  const targetId = c.req.query("targetId");
+  const limitRaw = c.req.query("limit");
+  if (
+    !z.string().uuid().safeParse(projectId).success ||
+    !sourceId ||
+    !targetId ||
+    !z.string().uuid().safeParse(sourceId).success ||
+    !z.string().uuid().safeParse(targetId).success
+  ) {
+    return c.json({ error: "projectId, sourceId, and targetId required" }, 400);
+  }
+  const limit = Math.min(Math.max(Number(limitRaw ?? 3), 1), 10);
+
+  const conceptRows = await db
+    .select({
+      id: concepts.id,
+      name: concepts.name,
+      description: concepts.description,
+    })
+    .from(concepts)
+    .where(
+      and(
+        inArray(concepts.id, [sourceId, targetId]),
+        eq(concepts.projectId, projectId),
+      ),
+    );
+  if (conceptRows.length !== 2) {
+    return c.json({ error: "concept_not_found" }, 404);
+  }
+
+  const sharedNoteRows = await db
+    .select({ noteId: conceptNotes.noteId })
+    .from(conceptNotes)
+    .where(
+      and(
+        eq(conceptNotes.conceptId, sourceId),
+        sql`${conceptNotes.noteId} IN (
+          SELECT note_id FROM concept_notes WHERE concept_id = ${targetId}
+        )`,
+      ),
+    )
+    .limit(50);
+  const sharedNoteIds = sharedNoteRows.map((row) => row.noteId);
+  if (sharedNoteIds.length === 0) {
+    return c.json({
+      source: conceptRows.find((row) => row.id === sourceId),
+      target: conceptRows.find((row) => row.id === targetId),
+      chunks: [],
+    });
+  }
+
+  const chunkRows = await db
+    .select({
+      id: noteChunks.id,
+      noteId: noteChunks.noteId,
+      headingPath: noteChunks.headingPath,
+      sourceOffsets: noteChunks.sourceOffsets,
+      contentText: noteChunks.contentText,
+      chunkIndex: noteChunks.chunkIndex,
+      noteTitle: notes.title,
+      noteType: notes.type,
+      sourceType: notes.sourceType,
+    })
+    .from(noteChunks)
+    .innerJoin(notes, eq(notes.id, noteChunks.noteId))
+    .where(
+      and(
+        inArray(noteChunks.noteId, sharedNoteIds),
+        eq(noteChunks.projectId, projectId),
+        isNull(noteChunks.deletedAt),
+        isNull(notes.deletedAt),
+      ),
+    )
+    .orderBy(noteChunks.noteId, noteChunks.chunkIndex)
+    .limit(limit);
+
+  return c.json({
+    source: conceptRows.find((row) => row.id === sourceId),
+    target: conceptRows.find((row) => row.id === targetId),
+    chunks: chunkRows.map((chunk) => ({
+      id: chunk.id,
+      noteId: chunk.noteId,
+      headingPath: chunk.headingPath,
+      sourceOffsets: chunk.sourceOffsets,
+      quote: chunk.contentText.replace(/\s+/g, " ").trim().slice(0, 1200),
+      noteTitle: chunk.noteTitle,
+      noteType: chunk.noteType,
+      sourceType: chunk.sourceType,
+    })),
+  });
+});
+
 // POST /internal/notes/:id/refresh-tsv — safety valve: force-regenerate
 // content_tsv for a single note. The trigger keeps the column fresh
 // automatically; this endpoint exists so Librarian can rebuild after a

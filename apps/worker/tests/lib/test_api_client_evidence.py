@@ -140,3 +140,23 @@ async def test_list_note_chunks_uses_scoped_query():
     get_mock.assert_awaited_once_with(
         "/api/internal/notes/note-1/chunks?workspaceId=ws-1&projectId=proj-1&limit=3"
     )
+
+
+@pytest.mark.asyncio
+async def test_list_concept_pair_chunks_uses_pair_query():
+    client = AgentApiClient()
+    with patch(
+        "worker.lib.api_client.get_internal",
+        new=AsyncMock(return_value={"chunks": []}),
+    ) as get_mock:
+        result = await client.list_concept_pair_chunks(
+            project_id="proj-1",
+            source_id="source-1",
+            target_id="target-1",
+            limit=2,
+        )
+
+    assert result == {"chunks": []}
+    get_mock.assert_awaited_once_with(
+        "/api/internal/projects/proj-1/concept-pair-chunks?sourceId=source-1&targetId=target-1&limit=2"
+    )

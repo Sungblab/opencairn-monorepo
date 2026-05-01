@@ -429,6 +429,29 @@ class AgentApiClient:
         )
         return list(res.get("results", []))
 
+    async def list_concept_pair_chunks(
+        self,
+        *,
+        project_id: str,
+        source_id: str,
+        target_id: str,
+        limit: int = 3,
+    ) -> dict[str, Any]:
+        """Fetch shared note chunks for a co-occurring concept pair.
+
+        Returns ``{source, target, chunks}``. ``chunks`` may be empty when
+        concepts co-occur through older concept_note rows but chunk indexing
+        has not produced paragraph evidence yet.
+        """
+        params = (
+            f"sourceId={source_id}"
+            f"&targetId={target_id}"
+            f"&limit={int(limit)}"
+        )
+        return await get_internal(
+            f"/api/internal/projects/{project_id}/concept-pair-chunks?{params}"
+        )
+
     async def merge_concepts(
         self,
         *,
