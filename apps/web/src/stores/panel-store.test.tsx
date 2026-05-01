@@ -24,6 +24,13 @@ describe("panel-store", () => {
     expect(usePanelStore.getState().sidebarOpen).toBe(true);
   });
 
+  it("setSidebarOpen assigns an explicit open state", () => {
+    usePanelStore.getState().setSidebarOpen(false);
+    expect(usePanelStore.getState().sidebarOpen).toBe(false);
+    usePanelStore.getState().setSidebarOpen(true);
+    expect(usePanelStore.getState().sidebarOpen).toBe(true);
+  });
+
   it("setSidebarWidth clamps to [180,400]", () => {
     usePanelStore.getState().setSidebarWidth(50);
     expect(usePanelStore.getState().sidebarWidth).toBe(180);
@@ -54,6 +61,13 @@ describe("panel-store", () => {
   it("toggleAgentPanel flips agentPanelOpen", () => {
     usePanelStore.getState().toggleAgentPanel();
     expect(usePanelStore.getState().agentPanelOpen).toBe(false);
+  });
+
+  it("setAgentPanelOpen assigns an explicit open state", () => {
+    usePanelStore.getState().setAgentPanelOpen(false);
+    expect(usePanelStore.getState().agentPanelOpen).toBe(false);
+    usePanelStore.getState().setAgentPanelOpen(true);
+    expect(usePanelStore.getState().agentPanelOpen).toBe(true);
   });
 
   it("resetAgentPanelWidth restores 360", () => {

@@ -48,6 +48,7 @@ export function ActiveResearchList({
   const locale = useLocale();
   const t = useTranslations("dashboard");
   const format = useFormatter();
+  const now = new Date();
   const { data } = useQuery({
     queryKey: ["dashboard-research-runs", wsId],
     queryFn: () => dashboardApi.researchRuns(wsId, 20),
@@ -74,7 +75,7 @@ export function ActiveResearchList({
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium">{run.topic}</div>
             <div className="mt-0.5 truncate text-xs text-muted-foreground">
-              {format.relativeTime(new Date(run.createdAt))}
+              {format.relativeTime(new Date(run.createdAt), now)}
               {" · "}
               {t(`statusHint.${run.status}`)}
             </div>

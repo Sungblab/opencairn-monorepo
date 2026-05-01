@@ -23,6 +23,7 @@ export function RecentDocsGrid({
   const locale = useLocale();
   const t = useTranslations("dashboard");
   const format = useFormatter();
+  const now = new Date();
   const { data } = useQuery({
     queryKey: ["dashboard-recent-notes", wsId, limit],
     queryFn: () => dashboardApi.recentNotes(wsId, limit),
@@ -58,7 +59,7 @@ export function RecentDocsGrid({
             </div>
           )}
           <div className="mt-3 text-[11px] text-muted-foreground">
-            {format.relativeTime(new Date(note.updated_at))}
+            {format.relativeTime(new Date(note.updated_at), now)}
           </div>
         </Link>
       ))}

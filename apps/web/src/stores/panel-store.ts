@@ -26,6 +26,8 @@ interface PanelState {
   toggleAgentPanel(): void;
   toggleBacklinks(): void;
   toggleEnrichment(): void;
+  setSidebarOpen(open: boolean): void;
+  setAgentPanelOpen(open: boolean): void;
   setSidebarWidth(w: number): void;
   setAgentPanelWidth(w: number): void;
   resetSidebarWidth(): void;
@@ -51,6 +53,8 @@ export const usePanelStore = create<PanelState>()(
         set((s) => ({ backlinksOpen: !s.backlinksOpen })),
       toggleEnrichment: () =>
         set((s) => ({ enrichmentOpen: !s.enrichmentOpen })),
+      setSidebarOpen: (open) => set({ sidebarOpen: open }),
+      setAgentPanelOpen: (open) => set({ agentPanelOpen: open }),
       setSidebarWidth: (w) =>
         set({ sidebarWidth: clamp(w, SIDEBAR_MIN, SIDEBAR_MAX) }),
       setAgentPanelWidth: (w) =>

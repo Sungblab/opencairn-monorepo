@@ -18,9 +18,7 @@ export function useBreakpoint(): Breakpoint {
   // for the >99% of visitors on >=1024px viewports — narrow viewports get a
   // one-frame layout shift after hydration, which is the right tradeoff
   // versus locking everyone behind a "loading" gate.
-  const [bp, setBp] = useState<Breakpoint>(() =>
-    typeof window === "undefined" ? "lg" : compute(window.innerWidth),
-  );
+  const [bp, setBp] = useState<Breakpoint>("lg");
 
   useEffect(() => {
     const handler = () => setBp(compute(window.innerWidth));

@@ -1,4 +1,5 @@
 "use client";
+import { useEffect } from "react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useTranslations } from "next-intl";
 import { ShellSidebar } from "@/components/sidebar/shell-sidebar";
@@ -30,15 +31,23 @@ export function AppShell({
   const sidebarWidth = usePanelStore((s) => s.sidebarWidth);
   const sidebarOpen = usePanelStore((s) => s.sidebarOpen);
   const toggleSidebar = usePanelStore((s) => s.toggleSidebar);
+  const setSidebarOpen = usePanelStore((s) => s.setSidebarOpen);
   const agentPanelWidth = usePanelStore((s) => s.agentPanelWidth);
   const agentPanelOpen = usePanelStore((s) => s.agentPanelOpen);
   const toggleAgentPanel = usePanelStore((s) => s.toggleAgentPanel);
+  const setAgentPanelOpen = usePanelStore((s) => s.setAgentPanelOpen);
   const setSidebarWidth = usePanelStore((s) => s.setSidebarWidth);
   const resetSidebarWidth = usePanelStore((s) => s.resetSidebarWidth);
   const setAgentPanelWidth = usePanelStore((s) => s.setAgentPanelWidth);
   const resetAgentPanelWidth = usePanelStore((s) => s.resetAgentPanelWidth);
 
   const isCompact = bp !== "lg";
+
+  useEffect(() => {
+    if (!isCompact) return;
+    setSidebarOpen(false);
+    setAgentPanelOpen(false);
+  }, [isCompact, setAgentPanelOpen, setSidebarOpen]);
 
   if (isCompact) {
     return (

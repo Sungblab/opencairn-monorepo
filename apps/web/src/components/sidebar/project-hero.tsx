@@ -19,7 +19,7 @@ export function ProjectHero() {
   const { projectId } = useCurrentProjectContext();
   const { data: project } = useCurrentProjectData(projectId);
   const t = useTranslations("sidebar.project");
-  const triggerLabel = project?.name ?? t("empty");
+  const triggerLabel = project?.name ?? (projectId ? t("empty") : t("select"));
 
   return (
     <Popover>
