@@ -283,6 +283,24 @@ async def _record_one_concept_extraction(
             created_by_run_id=run_id,
             chunks=extraction_chunks,
         )
+        description = str(concept.get("description") or "").strip()
+        claim_text = (
+            f"{name}: {description}"
+            if description
+            else f"{name} is a concept extracted from the source note."
+        )
+        await api.create_knowledge_claim(
+            workspace_id=inp["workspace_id"],
+            project_id=inp["project_id"],
+            subject_concept_id=concept_id,
+            claim_text=claim_text[:4000],
+            claim_type="definition",
+            status="active",
+            confidence=1.0,
+            evidence_bundle_id=bundle_id,
+            produced_by="ingest",
+            produced_by_run_id=run_id,
+        )
     except Exception as exc:  # noqa: BLE001 - one concept must not block the rest
         activity.logger.warning(
             "compile_note concept extraction evidence skipped for concept=%s: %s",

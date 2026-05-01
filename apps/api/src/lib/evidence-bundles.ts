@@ -442,3 +442,194 @@ async function validateConceptExtractionInput(
 
   return "ok";
 }
+
+export type CreateKnowledgeClaimInput = {
+  workspaceId: string;
+  projectId: string;
+  claimText: string;
+  claimType: string;
+  status: string;
+  confidence: number;
+  subjectConceptId?: string;
+  objectConceptId?: string;
+  evidenceBundleId: string;
+  producedBy: string;
+  producedByRunId?: string;
+  edgeEvidence?: Array<{
+    conceptEdgeId: string;
+    noteChunkId: string;
+    supportScore: number;
+    stance: string;
+    quote: string;
+  }>;
+};
+
+export async function createKnowledgeClaim(
+  input: CreateKnowledgeClaimInput,
+): Promise<{ claimId: string; edgeEvidenceIds: string[] }> {
+  const validation = await validateKnowledgeClaimInput(input);
+  if (validation !== "ok") {
+    throw new Error(validation);
+  }
+
+  return await db.transaction(async (tx) => {
+    const [claim] = await tx
+      .insert(knowledgeClaims)
+      .values({
+        workspaceId: input.workspaceId,
+        projectId: input.projectId,
+        claimText: input.claimText,
+        claimType: input.claimType,
+        status: input.status,
+        confidence: input.confidence,
+        subjectConceptId: input.subjectConceptId ?? null,
+        objectConceptId: input.objectConceptId ?? null,
+        evidenceBundleId: input.evidenceBundleId,
+        producedBy: input.producedBy,
+        producedByRunId: input.producedByRunId ?? null,
+      })
+      .returning({ id: knowledgeClaims.id });
+    if (!claim) throw new Error("knowledge_claim_insert_failed");
+
+    const edgeEvidence = input.edgeEvidence ?? [];
+    if (edgeEvidence.length === 0) {
+      return { claimId: claim.id, edgeEvidenceIds: [] };
+    }
+
+    const rows = await tx
+      .insert(conceptEdgeEvidence)
+      .values(
+        edgeEvidence.map((entry) => ({
+          conceptEdgeId: entry.conceptEdgeId,
+          claimId: claim.id,
+          evidenceBundleId: input.evidenceBundleId,
+          noteChunkId: entry.noteChunkId,
+          supportScore: entry.supportScore,
+          stance: entry.stance,
+          quote: entry.quote,
+        })),
+      )
+      .returning({ id: conceptEdgeEvidence.id });
+
+    return { claimId: claim.id, edgeEvidenceIds: rows.map((row) => row.id) };
+  });
+}
+
+async function validateKnowledgeClaimInput(
+  input: CreateKnowledgeClaimInput,
+): Promise<
+  | "ok"
+  | "project_not_found"
+  | "workspace_mismatch"
+  | "bundle_mismatch"
+  | "concept_mismatch"
+  | "edge_mismatch"
+  | "chunk_mismatch"
+> {
+  const conceptIds = [
+    input.subjectConceptId,
+    input.objectConceptId,
+  ].filter((value): value is string => Boolean(value));
+  const uniqueConceptIds = [...new Set(conceptIds)];
+  const edgeEvidence = input.edgeEvidence ?? [];
+  const edgeIds = [...new Set(edgeEvidence.map((entry) => entry.conceptEdgeId))];
+  const chunkIds = [...new Set(edgeEvidence.map((entry) => entry.noteChunkId))];
+
+  const [
+    [project],
+    [bundle],
+    conceptRows,
+    edgeRows,
+    bundleChunkRows,
+  ] = await Promise.all([
+    db
+      .select({ workspaceId: projects.workspaceId })
+      .from(projects)
+      .where(eq(projects.id, input.projectId)),
+    db
+      .select({ id: evidenceBundles.id })
+      .from(evidenceBundles)
+      .where(
+        and(
+          eq(evidenceBundles.id, input.evidenceBundleId),
+          eq(evidenceBundles.workspaceId, input.workspaceId),
+          eq(evidenceBundles.projectId, input.projectId),
+        ),
+      ),
+    uniqueConceptIds.length > 0
+      ? db
+          .select({ id: concepts.id })
+          .from(concepts)
+          .where(
+            and(
+              inArray(concepts.id, uniqueConceptIds),
+              eq(concepts.projectId, input.projectId),
+            ),
+          )
+      : Promise.resolve([]),
+    edgeIds.length > 0
+      ? db
+          .select({
+            id: conceptEdges.id,
+            sourceId: conceptEdges.sourceId,
+            targetId: conceptEdges.targetId,
+          })
+          .from(conceptEdges)
+          .where(inArray(conceptEdges.id, edgeIds))
+      : Promise.resolve([]),
+    chunkIds.length > 0
+      ? db
+          .select({ noteChunkId: evidenceBundleChunks.noteChunkId })
+          .from(evidenceBundleChunks)
+          .innerJoin(
+            noteChunks,
+            eq(noteChunks.id, evidenceBundleChunks.noteChunkId),
+          )
+          .innerJoin(notes, eq(notes.id, evidenceBundleChunks.noteId))
+          .where(
+            and(
+              eq(evidenceBundleChunks.bundleId, input.evidenceBundleId),
+              inArray(evidenceBundleChunks.noteChunkId, chunkIds),
+              eq(noteChunks.workspaceId, input.workspaceId),
+              eq(noteChunks.projectId, input.projectId),
+              isNull(noteChunks.deletedAt),
+              isNull(notes.deletedAt),
+            ),
+          )
+      : Promise.resolve([]),
+  ]);
+
+  if (!project) return "project_not_found";
+  if (project.workspaceId !== input.workspaceId) return "workspace_mismatch";
+  if (!bundle) return "bundle_mismatch";
+
+  if (conceptRows.length !== uniqueConceptIds.length) {
+    return "concept_mismatch";
+  }
+
+  if (edgeEvidence.length === 0) return "ok";
+
+  if (edgeRows.length !== edgeIds.length) return "edge_mismatch";
+
+  const edgeConceptIds = [
+    ...new Set(edgeRows.flatMap((row) => [row.sourceId, row.targetId])),
+  ];
+  const edgeConceptRows = await db
+    .select({ id: concepts.id })
+    .from(concepts)
+    .where(
+      and(
+        inArray(concepts.id, edgeConceptIds),
+        eq(concepts.projectId, input.projectId),
+      ),
+    );
+  if (edgeConceptRows.length !== edgeConceptIds.length) {
+    return "edge_mismatch";
+  }
+
+  if (new Set(bundleChunkRows.map((row) => row.noteChunkId)).size !== chunkIds.length) {
+    return "chunk_mismatch";
+  }
+
+  return "ok";
+}
