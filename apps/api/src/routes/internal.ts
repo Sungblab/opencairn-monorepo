@@ -1110,28 +1110,19 @@ internal.get("/projects/:id/concept-pair-chunks", async (c) => {
     return c.json({ error: "concept_not_found" }, 404);
   }
 
-  const conceptNoteRows = await db
-    .select({
-      conceptId: conceptNotes.conceptId,
-      noteId: conceptNotes.noteId,
-    })
+  const sharedNoteRows = await db
+    .select({ noteId: conceptNotes.noteId })
     .from(conceptNotes)
-    .where(inArray(conceptNotes.conceptId, [sourceId, targetId]));
-
-  const sourceNoteIds = new Set(
-    conceptNoteRows
-      .filter((row) => row.conceptId === sourceId)
-      .map((row) => row.noteId),
-  );
-  const sharedNoteIds = [
-    ...new Set(
-      conceptNoteRows
-        .filter(
-          (row) => row.conceptId === targetId && sourceNoteIds.has(row.noteId),
-        )
-        .map((row) => row.noteId),
-    ),
-  ];
+    .where(
+      and(
+        eq(conceptNotes.conceptId, sourceId),
+        sql`${conceptNotes.noteId} IN (
+          SELECT note_id FROM concept_notes WHERE concept_id = ${targetId}
+        )`,
+      ),
+    )
+    .limit(50);
+  const sharedNoteIds = sharedNoteRows.map((row) => row.noteId);
   if (sharedNoteIds.length === 0) {
     return c.json({
       source: conceptRows.find((row) => row.id === sourceId),

@@ -24,6 +24,7 @@ a missing edge — not corruption.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -71,6 +72,7 @@ DUPLICATE_MIN = 0.97
 MAX_CONTRADICTION_PAIRS = 30
 MAX_DUPLICATE_PAIRS = 100
 MAX_LINK_CANDIDATES = 200
+LINK_STRENGTHEN_CONCURRENCY = 8
 
 
 @dataclass(frozen=True)
@@ -635,38 +637,11 @@ class LibrarianAgent(Agent):
             duration_ms=int((time.time() - started) * 1000),
         )
 
-        strengthened = 0
-        for row in candidates:
-            cnt = int(row.get("coOccurrenceCount", 0))
-            # 2 co-occurrences → 0.1; 10 → 0.5; 20+ → 1.0. The server-side
-            # upsert takes max(existing, incoming) so edges only ever grow.
-            weight = min(cnt * 0.05, 1.0)
-            try:
-                edge_id, _created = await self.api.upsert_edge(
-                    source_id=str(row["sourceId"]),
-                    target_id=str(row["targetId"]),
-                    relation_type="co-occurs",
-                    weight=weight,
-                )
-                strengthened += 1
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("Librarian: upsert_edge failed: %s", exc)
-                continue
-            try:
-                await self._record_strengthened_link_claim(
-                    input=input,
-                    ctx=ctx,
-                    row=row,
-                    edge_id=edge_id,
-                    support_score=weight,
-                )
-            except Exception as exc:  # noqa: BLE001 - evidence is best-effort
-                logger.warning(
-                    "Librarian: strengthened link evidence skipped for %s -> %s: %s",
-                    row.get("sourceId"),
-                    row.get("targetId"),
-                    exc,
-                )
+        strengthened = await self._strengthen_link_candidates(
+            input=input,
+            ctx=ctx,
+            candidates=candidates,
+        )
         output.links_strengthened = strengthened
 
         yield CustomEvent(
@@ -679,6 +654,66 @@ class LibrarianAgent(Agent):
             label="librarian.links_strengthened",
             payload={"count": strengthened},
         )
+
+    async def _strengthen_link_candidates(
+        self,
+        *,
+        input: LibrarianInput,
+        ctx: ToolContext,
+        candidates: list[dict[str, Any]],
+    ) -> int:
+        semaphore = asyncio.Semaphore(LINK_STRENGTHEN_CONCURRENCY)
+
+        async def _strengthen_one(row: dict[str, Any]) -> int:
+            async with semaphore:
+                return await self._strengthen_one_link_candidate(
+                    input=input,
+                    ctx=ctx,
+                    row=row,
+                )
+
+        results = await asyncio.gather(
+            *(_strengthen_one(row) for row in candidates),
+        )
+        return sum(results)
+
+    async def _strengthen_one_link_candidate(
+        self,
+        *,
+        input: LibrarianInput,
+        ctx: ToolContext,
+        row: dict[str, Any],
+    ) -> int:
+        cnt = int(row.get("coOccurrenceCount", 0))
+        # 2 co-occurrences → 0.1; 10 → 0.5; 20+ → 1.0. The server-side
+        # upsert takes max(existing, incoming) so edges only ever grow.
+        weight = min(cnt * 0.05, 1.0)
+        try:
+            edge_id, _created = await self.api.upsert_edge(
+                source_id=str(row["sourceId"]),
+                target_id=str(row["targetId"]),
+                relation_type="co-occurs",
+                weight=weight,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Librarian: upsert_edge failed: %s", exc)
+            return 0
+        try:
+            await self._record_strengthened_link_claim(
+                input=input,
+                ctx=ctx,
+                row=row,
+                edge_id=edge_id,
+                support_score=weight,
+            )
+        except Exception as exc:  # noqa: BLE001 - evidence is best-effort
+            logger.warning(
+                "Librarian: strengthened link evidence skipped for %s -> %s: %s",
+                row.get("sourceId"),
+                row.get("targetId"),
+                exc,
+            )
+        return 1
 
     async def _record_strengthened_link_claim(
         self,
