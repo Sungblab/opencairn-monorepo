@@ -6,6 +6,10 @@ import { useIngestCompletionRedirect } from "./use-ingest-completion-redirect";
 const push = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
+  useParams: () => ({ wsSlug: "acme" }),
+}));
+vi.mock("next-intl", () => ({
+  useLocale: () => "ko",
 }));
 
 function Probe({ wfid }: { wfid: string | null }) {
@@ -30,7 +34,7 @@ describe("useIngestCompletionRedirect", () => {
     expect(push).not.toHaveBeenCalled();
   });
 
-  it("pushes /notes/:id 5 s after completed", async () => {
+  it("pushes the workspace note URL 5 s after completed", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     useIngestStore.getState().startRun("wf-1", "application/pdf", "x.pdf");
     render(<Probe wfid="wf-1" />);
@@ -51,7 +55,7 @@ describe("useIngestCompletionRedirect", () => {
     });
     await waitFor(() => expect(push).toHaveBeenCalledTimes(1));
     expect(push).toHaveBeenCalledWith(
-      "/notes/00000000-0000-0000-0000-000000000001",
+      "/ko/workspace/acme/note/00000000-0000-0000-0000-000000000001",
     );
   });
 

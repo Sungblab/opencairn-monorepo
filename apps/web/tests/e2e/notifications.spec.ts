@@ -17,7 +17,7 @@ test.describe("Notifications drawer", () => {
   }) => {
     const session = await seedAndSignIn(request);
     await applySessionCookie(context, session);
-    await page.goto(`/ko/app/w/${session.wsSlug}/`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/`);
 
     await page.getByLabel("알림").click();
     await expect(page.getByText("알림이 없습니다.")).toBeVisible();

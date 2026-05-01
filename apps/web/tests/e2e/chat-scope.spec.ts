@@ -26,7 +26,7 @@ test.describe("Plan 11A — Chat Scope Foundation", () => {
   test("workspace-scope chat auto-attaches the workspace chip", async ({
     page,
   }) => {
-    await page.goto(`/ko/app/w/${session.wsSlug}/chat-scope`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/chat-scope`);
     // The auto-attached chip carries the workspace id (or the slug while
     // useWorkspaceId resolves). Either way the chip renders inside the
     // chip row. We assert the input placeholder + send button are
@@ -38,7 +38,7 @@ test.describe("Plan 11A — Chat Scope Foundation", () => {
   test("sends a message through the full-stack chat SSE route", async ({
     page,
   }) => {
-    await page.goto(`/ko/app/w/${session.wsSlug}/chat-scope`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/chat-scope`);
     await page.getByPlaceholder("어떻게 도와드릴까요?").fill("e2e chat smoke");
 
     const responsePromise = page.waitForResponse(
@@ -56,7 +56,7 @@ test.describe("Plan 11A — Chat Scope Foundation", () => {
   test("switching to Expand mode flips the dropdown label", async ({
     page,
   }) => {
-    await page.goto(`/ko/app/w/${session.wsSlug}/chat-scope`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/chat-scope`);
     // Open the RAG toggle.
     await page.getByRole("button", { name: "엄격" }).click();
     // Click the Expand option (rendered by description, not just label).

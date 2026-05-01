@@ -4,6 +4,7 @@ import { setRequestLocale } from "next-intl/server";
 import type { Locale } from "@/i18n";
 import { SignupForm } from "@/components/auth/SignupForm";
 import { GoogleOneTap } from "@/components/auth/GoogleOneTap";
+import { urls } from "@/lib/urls";
 
 export default async function SignupPage({
   params,
@@ -27,7 +28,7 @@ export default async function SignupPage({
     if (invite) {
       redirect(`/${locale}/onboarding?invite=${encodeURIComponent(invite)}`);
     }
-    redirect(`/${locale}/app`);
+    redirect(urls.dashboard(locale));
   }
 
   return (

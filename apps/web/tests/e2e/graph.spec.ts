@@ -12,7 +12,7 @@ import {
 // concept_edges / wiki_links — those come from the Compiler agent, which
 // is not invoked synchronously. So this spec exercises:
 //   1. Sidebar `<ProjectGraphLink/>` entry is reachable when a project
-//      is in scope, click navigates to /w/<slug>/p/<id>/graph, viewer
+//      is in scope, click navigates to /workspace/<slug>/project/<id>/graph, viewer
 //      mounts and shows the empty state (concepts: 0).
 //   2. Direct URL → graph route mounts the viewer.
 //   3. ⌘⇧B / Ctrl+Shift+B on a note route opens the BacklinksPanel and
@@ -30,12 +30,14 @@ test.describe("Plan 5 Phase 1 — Graph + Backlinks", () => {
     await applySessionCookie(context, session);
   });
 
-  test("sidebar entry navigates to /p/<id>/graph and viewer mounts", async ({
+  test("sidebar entry navigates to /project/<id>/graph and viewer mounts", async ({
     page,
   }) => {
     // Land on a project page so `useCurrentProjectContext` returns the
     // projectId; otherwise <ProjectGraphLink/> renders nothing.
-    await page.goto(`/ko/app/w/${session.wsSlug}/p/${session.projectId}`);
+    await page.goto(
+      `/ko/workspace/${session.wsSlug}/project/${session.projectId}`,
+    );
 
     // Sidebar entry — i18n key sidebar.graph.entry / "이 프로젝트 그래프 보기"
     await page
@@ -43,7 +45,9 @@ test.describe("Plan 5 Phase 1 — Graph + Backlinks", () => {
       .click();
 
     await expect(page).toHaveURL(
-      new RegExp(`/w/${session.wsSlug}/p/${session.projectId}/graph$`),
+      new RegExp(
+        `/workspace/${session.wsSlug}/project/${session.projectId}/graph$`,
+      ),
     );
     await expect(page.getByTestId("project-graph-viewer")).toBeVisible();
     // Empty state copy from messages/ko/graph.json viewer.empty.title
@@ -52,9 +56,9 @@ test.describe("Plan 5 Phase 1 — Graph + Backlinks", () => {
     ).toBeVisible();
   });
 
-  test("direct URL to /p/<id>/graph mounts the viewer", async ({ page }) => {
+  test("direct URL to /project/<id>/graph mounts the viewer", async ({ page }) => {
     await page.goto(
-      `/ko/app/w/${session.wsSlug}/p/${session.projectId}/graph`,
+      `/ko/workspace/${session.wsSlug}/project/${session.projectId}/graph`,
     );
     await expect(page.getByTestId("project-graph-viewer")).toBeVisible();
   });
@@ -63,7 +67,7 @@ test.describe("Plan 5 Phase 1 — Graph + Backlinks", () => {
     page,
     browserName,
   }) => {
-    await page.goto(`/ko/app/w/${session.wsSlug}/n/${session.noteId}`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/note/${session.noteId}`);
     // Mac uses Meta, Win/Linux uses Control. Playwright's Meta also maps
     // correctly on the macOS WebKit channel.
     const cmd = browserName === "webkit" ? "Meta" : "Control";

@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import { authClient, googleOAuthEnabled } from "@/lib/auth-client";
+import { urls } from "@/lib/urls";
 
 // authClient is typed as the base return type; oneTapClient plugin adds
 // .oneTap() at runtime. Cast here to call it without widening the export type.
@@ -39,7 +40,7 @@ export function GoogleOneTap() {
 
     void client.oneTap({
       fetchOptions: {
-        onSuccess: () => router.push(`/${locale}/app`),
+        onSuccess: () => router.push(urls.dashboard(locale)),
         // Swallow — dismissal, blocked third-party cookies, or multiple
         // signed-in accounts all surface here as non-actionable noise.
         onError: () => {},

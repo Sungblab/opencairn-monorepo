@@ -28,12 +28,14 @@ import {
   db,
   conversations,
   conversationMessages,
+  user,
   eq,
   asc,
 } from "@opencairn/db";
 import {
   getGeminiProvider,
   LLMNotConfiguredError,
+  type ChatMsg,
   type LLMProvider,
 } from "../src/lib/llm/gemini.js";
 import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
@@ -243,6 +245,50 @@ describe("POST /api/chat/message — real LLM path (Task 8)", () => {
 
     expect(receivedSignal).toBeDefined();
     expect(receivedSignal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("passes user locale and timezone into runtime context", async () => {
+    await db
+      .update(user)
+      .set({ locale: "en", timezone: "America/Los_Angeles" })
+      .where(eq(user.id, ctx.userId));
+
+    let receivedMessages: ChatMsg[] | undefined;
+    fakeProvider.streamGenerate.mockImplementation(
+      async function* (args: { messages: ChatMsg[] }) {
+        receivedMessages = args.messages;
+        yield { delta: "ok" };
+        yield {
+          usage: { tokensIn: 1, tokensOut: 1, model: "gemini-3-flash-preview" },
+        };
+      },
+    );
+
+    const conversationId = await createConversation(
+      ctx.userId,
+      ctx.workspaceId,
+      ctx.noteId,
+    );
+
+    const res = await app.request("/api/chat/message", {
+      method: "POST",
+      headers: {
+        cookie: await signSessionCookie(ctx.userId),
+        "content-type": "application/json",
+        accept: "text/event-stream",
+      },
+      body: JSON.stringify({ conversationId, content: "hello" }),
+    });
+    expect(res.status).toBe(200);
+    await res.text();
+
+    expect(receivedMessages?.[0]?.content).toContain("User locale: en");
+    expect(receivedMessages?.[0]?.content).toContain(
+      "User timezone: America/Los_Angeles",
+    );
+    expect(receivedMessages?.[0]?.content).toContain(
+      "User local time:",
+    );
   });
 
   it("emits SSE error event when provider raises LLMNotConfiguredError", async () => {

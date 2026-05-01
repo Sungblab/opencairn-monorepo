@@ -1,5 +1,6 @@
 "use client";
 
+import { urls } from "@/lib/urls";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -88,7 +89,7 @@ export function ActiveResearchList({
             {t(`statusChip.${run.status}`)}
           </span>
           <Link
-            href={`/${locale}/app/w/${wsSlug}/research/${run.id}`}
+            href={urls.workspace.researchRun(locale, wsSlug, run.id)}
             className="app-btn-ghost shrink-0 rounded px-3 py-1 text-xs"
           >
             {t("lists.openLink")} →

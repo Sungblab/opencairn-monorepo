@@ -51,6 +51,8 @@ describe("ProjectGraphLink", () => {
     expect(mocks.addTab).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "project", mode: "graph", targetId: "p-1" }),
     );
-    expect(mocks.push).toHaveBeenCalledWith("/w/w-slug/p/p-1/graph");
+    expect(mocks.push).toHaveBeenCalledWith(
+      "/ko/workspace/w-slug/project/p-1/graph",
+    );
   });
 });

@@ -1,7 +1,8 @@
 "use client";
 
+import { urls } from "@/lib/urls";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import type { PlateElementProps } from "platejs/react";
 
 // Inline wiki-link node. Non-void — Slate keeps a zero-width text child for
@@ -35,6 +36,7 @@ export function WikiLinkElement({
   wsSlug,
   projectId,
 }: PlateElementProps & WikiLinkContext) {
+  const locale = useLocale();
   const t = useTranslations("editor.wikilink");
   const el = element as unknown as WikiLinkElement;
   const { targetId, title, deleted } = el;
@@ -57,7 +59,7 @@ export function WikiLinkElement({
   return (
     <Link
       {...attributes}
-      href={`/app/w/${wsSlug}/p/${projectId}/notes/${targetId}`}
+      href={urls.workspace.projectNote(locale, wsSlug, projectId, targetId)}
       className="text-[color:var(--accent-ember)] underline underline-offset-2 hover:opacity-80"
       data-target-id={targetId}
     >

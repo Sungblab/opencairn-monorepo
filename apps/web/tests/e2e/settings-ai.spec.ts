@@ -20,7 +20,7 @@ test.describe("Settings AI BYOK", () => {
   });
 
   test("register → masked display → replace → delete", async ({ page }) => {
-    await page.goto("/ko/app/settings/ai");
+    await page.goto("/ko/settings/ai");
     await expect(page.getByRole("heading", { name: "AI 설정" })).toBeVisible();
 
     // Empty state — input visible.

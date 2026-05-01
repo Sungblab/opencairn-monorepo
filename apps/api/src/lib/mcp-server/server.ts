@@ -3,10 +3,18 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import {
   McpGetNoteInputSchema,
   McpListProjectsInputSchema,
+  McpOpenAiFetchInputSchema,
+  McpOpenAiSearchInputSchema,
   McpSearchNotesInputSchema,
+  type McpGetNoteResult,
+  type McpOpenAiFetchResult,
+  type McpOpenAiSearchResult,
+  type McpSearchNotesResult,
 } from "@opencairn/shared";
 
+import { publicApiBaseUrl } from "./metadata";
 import { getMcpNote, listMcpProjects, searchMcpNotes } from "./search";
+import { isUuid } from "../validators";
 
 export type OpenCairnMcpAccess = {
   tokenId: string;
@@ -14,10 +22,60 @@ export type OpenCairnMcpAccess = {
   scopes: string[];
 };
 
-function result(payload: Record<string, unknown>): CallToolResult {
+export function jsonTextResult(payload: Record<string, unknown>): CallToolResult {
   return {
     content: [{ type: "text", text: JSON.stringify(payload, null, 2) }],
     structuredContent: payload,
+  };
+}
+
+function noteUrl(noteId: string, sourceUrl?: string | null): string {
+  if (sourceUrl) {
+    try {
+      return new URL(sourceUrl).toString();
+    } catch {
+      // Fall through to a stable OpenCairn API URL.
+    }
+  }
+  return `${publicApiBaseUrl()}/api/notes/${noteId}`;
+}
+
+export function openAiSearchResultPayload(
+  searchResult: McpSearchNotesResult,
+): McpOpenAiSearchResult {
+  return {
+    results: searchResult.hits.map((hit) => ({
+      id: hit.noteId,
+      title: hit.title,
+      url: noteUrl(hit.noteId, hit.sourceUrl),
+      text: hit.snippet,
+      metadata: {
+        source: "opencairn",
+        sourceType: hit.sourceType,
+        projectId: hit.projectId,
+        projectName: hit.projectName,
+        updatedAt: hit.updatedAt,
+        vectorScore: hit.vectorScore,
+        bm25Score: hit.bm25Score,
+        rrfScore: hit.rrfScore,
+      },
+    })),
+  };
+}
+
+export function openAiFetchResultPayload(note: McpGetNoteResult): McpOpenAiFetchResult {
+  return {
+    id: note.noteId,
+    title: note.title,
+    url: noteUrl(note.noteId, note.sourceUrl),
+    text: note.contentText,
+    metadata: {
+      source: "opencairn",
+      sourceType: note.sourceType,
+      projectId: note.projectId,
+      projectName: note.projectName,
+      updatedAt: note.updatedAt,
+    },
   };
 }
 
@@ -50,6 +108,50 @@ export function createOpenCairnMcpServer(): McpServer {
   );
 
   server.registerTool(
+    "search",
+    {
+      title: "Search",
+      description:
+        "OpenAI/ChatGPT-compatible alias for searching read-only OpenCairn notes.",
+      inputSchema: McpOpenAiSearchInputSchema,
+      annotations: { readOnlyHint: true },
+    },
+    async (input, extra) => {
+      const access = accessFromExtra(extra);
+      return jsonTextResult(
+        openAiSearchResultPayload(
+          await searchMcpNotes({
+            workspaceId: access.workspaceId,
+            query: input.query,
+          }),
+        ),
+      );
+    },
+  );
+
+  server.registerTool(
+    "fetch",
+    {
+      title: "Fetch",
+      description:
+        "OpenAI/ChatGPT-compatible alias for fetching one read-only OpenCairn note by id.",
+      inputSchema: McpOpenAiFetchInputSchema,
+      annotations: { readOnlyHint: true },
+    },
+    async (input, extra) => {
+      const access = accessFromExtra(extra);
+      if (!isUuid(input.id)) return toolError("Document not found or not visible.");
+      const note = await getMcpNote({
+        workspaceId: access.workspaceId,
+        noteId: input.id,
+      });
+      return note
+        ? jsonTextResult(openAiFetchResultPayload(note))
+        : toolError("Document not found or not visible.");
+    },
+  );
+
+  server.registerTool(
     "search_notes",
     {
       title: "Search notes",
@@ -59,7 +161,7 @@ export function createOpenCairnMcpServer(): McpServer {
     },
     async (input, extra) => {
       const access = accessFromExtra(extra);
-      return result(
+      return jsonTextResult(
         await searchMcpNotes({
           workspaceId: access.workspaceId,
           query: input.query,
@@ -84,7 +186,7 @@ export function createOpenCairnMcpServer(): McpServer {
         workspaceId: access.workspaceId,
         noteId: input.noteId,
       });
-      return note ? result(note) : toolError("Note not found or not visible.");
+      return note ? jsonTextResult(note) : toolError("Note not found or not visible.");
     },
   );
 
@@ -98,7 +200,7 @@ export function createOpenCairnMcpServer(): McpServer {
     },
     async (input, extra) => {
       const access = accessFromExtra(extra);
-      return result(
+      return jsonTextResult(
         await listMcpProjects({
           workspaceId: access.workspaceId,
           limit: input.limit,

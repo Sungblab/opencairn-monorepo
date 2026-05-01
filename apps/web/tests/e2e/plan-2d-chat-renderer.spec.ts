@@ -30,7 +30,7 @@ test.describe("Plan 2D — chat renderer", () => {
     await applySessionCookie(context, session);
 
     // Navigate to the workspace shell — the agent panel is always visible here.
-    await page.goto(`/ko/app/w/${session.wsSlug}/`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/`);
     await expect(page.getByTestId("app-shell-agent-panel")).toBeVisible({
       timeout: 15_000,
     });

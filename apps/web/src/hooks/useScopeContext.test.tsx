@@ -39,7 +39,7 @@ describe("useScopeContext", () => {
       projectId: "proj_1",
       noteId: "note_123",
     };
-    navState.pathname = "/ko/app/w/acme/n/note_123";
+    navState.pathname = "/ko/workspace/acme/note/note_123";
 
     const { result } = renderHook(() => useScopeContext(), { wrapper });
     expect(result.current.scopeType).toBe("page");
@@ -53,7 +53,7 @@ describe("useScopeContext", () => {
 
   it("returns project scope when only projectId is present", () => {
     navState.params = { wsSlug: "acme", projectId: "proj_1" };
-    navState.pathname = "/ko/app/w/acme/p/proj_1";
+    navState.pathname = "/ko/workspace/acme/project/proj_1";
 
     const { result } = renderHook(() => useScopeContext(), { wrapper });
     expect(result.current.scopeType).toBe("project");
@@ -67,7 +67,7 @@ describe("useScopeContext", () => {
 
   it("returns workspace scope when neither projectId nor noteId is present", () => {
     navState.params = { wsSlug: "acme" };
-    navState.pathname = "/ko/app/w/acme/chat";
+    navState.pathname = "/ko/workspace/acme/chat";
 
     const { result } = renderHook(() => useScopeContext(), { wrapper });
     expect(result.current.scopeType).toBe("workspace");
@@ -78,7 +78,7 @@ describe("useScopeContext", () => {
 
   it("falls back to wsSlug as scopeId when workspaceId hasn't resolved yet", async () => {
     navState.params = { wsSlug: "loading" };
-    navState.pathname = "/ko/app/w/loading";
+    navState.pathname = "/ko/workspace/loading";
 
     // Override the mock once to simulate the pre-resolve state. The
     // module mock at the top returns `ws-id-of-<slug>` for non-empty

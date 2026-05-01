@@ -54,7 +54,7 @@ describe("SidebarFooter", () => {
     expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "sidebar.footer.settings_aria" }),
-    ).toHaveAttribute("href", "/ko/app/w/acme/settings");
+    ).toHaveAttribute("href", "/ko/workspace/acme/settings");
   });
 
   it("renders nothing while the session is still loading", () => {

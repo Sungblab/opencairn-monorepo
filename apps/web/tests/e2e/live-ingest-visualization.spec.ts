@@ -72,7 +72,7 @@ test.describe("Live ingest visualization smoke", () => {
       ],
     });
 
-    await page.goto(`/ko/app/w/${session.wsSlug}/chat-scope`, {
+    await page.goto(`/ko/workspace/${session.wsSlug}/chat-scope`, {
       waitUntil: "domcontentloaded",
     });
 

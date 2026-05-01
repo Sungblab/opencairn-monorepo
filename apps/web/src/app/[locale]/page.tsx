@@ -1,3 +1,4 @@
+import { urls } from "@/lib/urls";
 import { setRequestLocale, getTranslations } from "next-intl/server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -68,7 +69,7 @@ async function redirectAuthed(locale: string): Promise<void> {
     const { workspace } = (await lvRes.json()) as {
       workspace: { id: string; slug: string } | null;
     };
-    if (workspace) redirect(`/${locale}/app/w/${workspace.slug}/`);
+    if (workspace) redirect(urls.workspace.root(locale, workspace.slug));
   }
 
   const wsRes = await safeFetch(`${base}/api/workspaces`, {
@@ -77,7 +78,7 @@ async function redirectAuthed(locale: string): Promise<void> {
   });
   if (wsRes?.ok) {
     const list = (await wsRes.json()) as Array<{ slug: string }>;
-    if (list[0]?.slug) redirect(`/${locale}/app/w/${list[0].slug}/`);
+    if (list[0]?.slug) redirect(urls.workspace.root(locale, list[0].slug));
   }
 
   redirect(`/${locale}/onboarding`);

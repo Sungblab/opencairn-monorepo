@@ -1,4 +1,5 @@
 "use client";
+import { urls } from "@/lib/urls";
 import { useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
@@ -68,7 +69,7 @@ export function SidebarFooter() {
           <Bell aria-hidden className="h-3.5 w-3.5" />
         </button>
         <Link
-          href={`/${locale}/app/w/${wsSlug}/settings`}
+          href={urls.workspace.settings(locale, wsSlug)}
           aria-label={t("settings_aria")}
           className="app-btn-ghost flex h-7 w-7 shrink-0 items-center justify-center rounded p-1.5"
         >

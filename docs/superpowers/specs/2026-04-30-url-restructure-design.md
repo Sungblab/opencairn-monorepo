@@ -22,7 +22,7 @@
 
 1. URL을 자명한 단어로 — `/{locale}/workspace/{slug}/project/{id}/note/{nid}`
 2. 다음 rename은 **한 파일** 수정으로 끝나도록 중앙 빌더(`apps/web/src/lib/urls.ts`)로 흡수
-3. 기존 북마크/공유링크는 301 redirect로 한 릴리스 유지
+3. 기존 북마크/공유링크는 temporary redirect로 한 릴리스 유지
 
 ## Non-Goals
 
@@ -177,7 +177,7 @@ WHERE slug IN ('workspace', 'dashboard', 'project', 'note');
 - 0건 → 마이그레이션 스킵, 코드만 업데이트
 - ≥1건 → 마이그 0040에서 충돌 워크스페이스 slug에 `-renamed-{shortid}` 접미사 부여 + 영향 받은 사용자 알림 메일 (`packages/emails`의 새 템플릿 또는 admin이 수동 처리)
 
-## 301 Redirects
+## Temporary Redirects
 
 `apps/web/next.config.mjs`의 `async redirects()`:
 
@@ -185,41 +185,43 @@ WHERE slug IN ('workspace', 'dashboard', 'project', 'note');
 {
   source: "/:locale/app/w/:slug/p/:pid/notes/:nid",
   destination: "/:locale/workspace/:slug/project/:pid/note/:nid",
-  permanent: true,
+  permanent: false,
 },
 {
   source: "/:locale/app/w/:slug/p/:pid/:rest*",
   destination: "/:locale/workspace/:slug/project/:pid/:rest*",
-  permanent: true,
+  permanent: false,
 },
 {
   source: "/:locale/app/w/:slug/n/:nid",
   destination: "/:locale/workspace/:slug/note/:nid",
-  permanent: true,
+  permanent: false,
 },
 {
   source: "/:locale/app/w/:slug/:rest*",
   destination: "/:locale/workspace/:slug/:rest*",
-  permanent: true,
+  permanent: false,
 },
 {
   source: "/:locale/app/dashboard",
   destination: "/:locale/dashboard",
-  permanent: true,
+  permanent: false,
 },
 {
   source: "/:locale/app/settings/:rest*",
   destination: "/:locale/settings/:rest*",
-  permanent: true,
+  permanent: false,
 },
 {
   source: "/:locale/app",
   destination: "/:locale/dashboard",
-  permanent: true,
+  permanent: false,
 },
 ```
 
 순서 중요: `notes/:nid` 룰이 `:rest*` 룰보다 먼저. `p/:pid/:rest*` 룰이 워크스페이스 일반 룰보다 먼저.
+
+Next.js는 `permanent: false`를 307로 내보낸다. 이 호환 블록은 제거 예정이므로 브라우저/중간 캐시에 오래 남는 308 permanent redirect를 쓰지 않는다.
 
 **Sunset:** 2026-05-14 (2주 후) redirect 블록 제거 PR을 `/schedule`로 박제.
 
@@ -256,14 +258,14 @@ URL path는 영문 고정이라 `messages/{locale}/*.json`은 영향 없음. 다
     - `/ko/dashboard` 200
     - `/ko/workspace/{slug}` 200
     - `/ko/workspace/{slug}/note/{noteId}` 200
-    - `/ko/app/w/{slug}` → 301 → `/ko/workspace/{slug}` (redirect 동작)
+    - `/ko/app/w/{slug}` → 307 → `/ko/workspace/{slug}` (redirect 동작)
 11. **변경사항 박제** — `docs/contributing/plans-status.md` + `CLAUDE.md` Hierarchy 섹션 업데이트
 
 ## Risks
 
 - **OAuth callback URL**: provider 콘솔 등록 URL은 `/api/...` 콜백 (예: `/api/integrations/google/callback`)으로 web 라우트가 아니라 영향 없음. **점검만**.
 - **이메일 invite/공유 링크**: `packages/emails` 템플릿에 박힌 URL이 있을 수 있음. sweep 9번에 포함.
-- **Bookmarks/share links 외부 유입**: 301로 한 릴리스 흡수.
+- **Bookmarks/share links 외부 유입**: temporary redirect로 한 릴리스 흡수.
 - **Reserved slug 추가로 기존 워크스페이스 깨짐**: DB 사전 점검(2번)으로 차단.
 - **next.config 리다이렉트 순서 버그**: 순서 의존적이라 테스트 필요. E2E에 redirect 검증 케이스 추가.
 - **codemod 부작용**: 템플릿 리터럴 치환 시 변수명이 다른 경우(예: `wsId` vs `slug`) 컴파일 에러 → 수동 보정 비용. `tsc` + ESLint로 잡는다.
@@ -273,7 +275,7 @@ URL path는 영문 고정이라 `messages/{locale}/*.json`은 영향 없음. 다
 - **단위**: `urls.ts` 모든 helper에 대한 snapshot test (locale ko/en × ws/project/note 조합).
 - **단위**: `parseWorkspacePath`에 대한 round-trip test (urls.* output → parser → 동일한 컴포넌트 복원).
 - **E2E**: 기존 86곳 path 업데이트. 추가로 `tests/e2e/url-redirects.spec.ts` 신설:
-  - 옛 path 5종 → 새 path 301 검증
+  - 옛 path 5종 → 새 path 307 검증
   - 옛 path가 다른 locale에서도 redirect 되는지
 - **수동**: dev 서버에서 user-facing 1-call (memory rule).
 
@@ -286,7 +288,7 @@ URL path는 영문 고정이라 `messages/{locale}/*.json`은 영향 없음. 다
 
 ## Sunset Schedule
 
-- **2026-04-30**: 본 PR 머지, 301 redirect 활성
+- **2026-04-30**: 본 PR 머지, temporary redirect 활성
 - **2026-05-14**: redirect 블록 제거 PR (`/schedule` 박제)
 
 ---

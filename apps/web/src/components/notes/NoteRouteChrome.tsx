@@ -1,5 +1,6 @@
 "use client";
 
+import { urls } from "@/lib/urls";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 
@@ -41,7 +42,7 @@ export function NoteRouteChrome({
   const format = useFormatter();
   const t = useTranslations("appShell.routes.note.chrome");
   const updatedAt = format.relativeTime(new Date(updatedAtIso));
-  const projectHref = `/${locale}/app/w/${wsSlug}/p/${projectId}`;
+  const projectHref = urls.workspace.project(locale, wsSlug, projectId);
 
   return (
     <div

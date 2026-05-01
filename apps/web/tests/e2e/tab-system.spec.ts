@@ -37,7 +37,7 @@ test.describe("App Shell tab system (Phase 3-A)", () => {
   });
 
   test("tab bar renders with the new-tab trigger", async ({ page }) => {
-    await page.goto(`/ko/app/w/${session.wsSlug}/`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/`);
     await expect(page.getByTestId("tab-bar")).toBeVisible();
     await expect(page.getByTestId("tab-bar-new")).toBeVisible();
   });
@@ -45,7 +45,7 @@ test.describe("App Shell tab system (Phase 3-A)", () => {
   test("sidebar click opens a preview tab (italic), first edit promotes", async ({
     page,
   }) => {
-    await page.goto(`/ko/app/w/${session.wsSlug}/`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/`);
     const tree = page.getByTestId("project-tree");
     // Click the first treeitem — it's a note created by test-seed. Using
     // the locator rather than a specific title keeps the test resilient to
@@ -66,7 +66,7 @@ test.describe("App Shell tab system (Phase 3-A)", () => {
     page,
   }) => {
     await page.goto(
-      `/ko/app/w/${session.wsSlug}/n/${extraNotes[0].id}`,
+      `/ko/workspace/${session.wsSlug}/note/${extraNotes[0].id}`,
     );
     // Let the URL-driven tab sync settle.
     await expect(page.locator('[role="tab"]')).toHaveCount(1);
@@ -74,14 +74,14 @@ test.describe("App Shell tab system (Phase 3-A)", () => {
     // Navigate to a different note via URL — the use-url-tab-sync hook
     // must call addOrReplacePreview, keeping the total at 1.
     await page.goto(
-      `/ko/app/w/${session.wsSlug}/n/${extraNotes[1].id}`,
+      `/ko/workspace/${session.wsSlug}/note/${extraNotes[1].id}`,
     );
     await expect(page.locator('[role="tab"]')).toHaveCount(1);
   });
 
   test("Ctrl+W closes the active tab", async ({ page }) => {
     await page.goto(
-      `/ko/app/w/${session.wsSlug}/n/${extraNotes[0].id}`,
+      `/ko/workspace/${session.wsSlug}/note/${extraNotes[0].id}`,
     );
     await expect(page.locator('[role="tab"]')).toHaveCount(1);
     await page.keyboard.press("Control+w");
@@ -89,7 +89,7 @@ test.describe("App Shell tab system (Phase 3-A)", () => {
   });
 
   test("Ctrl+T opens a new blank tab", async ({ page }) => {
-    await page.goto(`/ko/app/w/${session.wsSlug}/`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/`);
     const before = await page.locator('[role="tab"]').count();
     await page.keyboard.press("Control+t");
     await expect(page.locator('[role="tab"]')).toHaveCount(before + 1);
@@ -99,7 +99,7 @@ test.describe("App Shell tab system (Phase 3-A)", () => {
     page,
   }) => {
     await page.goto(
-      `/ko/app/w/${session.wsSlug}/n/${extraNotes[0].id}`,
+      `/ko/workspace/${session.wsSlug}/note/${extraNotes[0].id}`,
     );
     const tab = page.locator('[role="tab"]').first();
     await expect(tab).toBeVisible();
@@ -117,7 +117,7 @@ test.describe("App Shell tab system (Phase 3-A)", () => {
 
   test("overflow menu lists every open tab", async ({ page }) => {
     // Open all 3 notes (Welcome + 2 extras) then open the overflow menu.
-    await page.goto(`/ko/app/w/${session.wsSlug}/`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/`);
     const tree = page.getByTestId("project-tree");
     const rows = await tree.getByRole("treeitem").all();
     for (const row of rows.slice(0, 3)) {

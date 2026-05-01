@@ -1,9 +1,10 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter, useParams } from "next/navigation";
 import type { BacklinksResponse } from "@opencairn/shared";
 import { useTabsStore } from "@/stores/tabs-store";
+import { urls } from "@/lib/urls";
 
 interface Props {
   noteId: string;
@@ -11,6 +12,7 @@ interface Props {
 
 export function BacklinksPanel({ noteId }: Props) {
   const t = useTranslations("note.backlinks");
+  const locale = useLocale();
   const router = useRouter();
   const params = useParams<{ wsSlug: string }>();
   const wsSlug = params?.wsSlug;
@@ -41,7 +43,7 @@ export function BacklinksPanel({ noteId }: Props) {
       splitSide: null,
       scrollY: 0,
     });
-    router.push(`/w/${wsSlug}/n/${b.id}`);
+    if (wsSlug) router.push(urls.workspace.note(locale, wsSlug, b.id));
   }
 
   return (

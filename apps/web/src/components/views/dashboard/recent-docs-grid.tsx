@@ -1,5 +1,6 @@
 "use client";
 
+import { urls } from "@/lib/urls";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -37,7 +38,7 @@ export function RecentDocsGrid({
       {data.notes.map((note) => (
         <Link
           key={note.id}
-          href={`/${locale}/app/w/${wsSlug}/n/${note.id}`}
+          href={urls.workspace.note(locale, wsSlug, note.id)}
           className="app-hover block rounded p-4"
           style={{ border: "1.5px solid var(--theme-border)" }}
         >

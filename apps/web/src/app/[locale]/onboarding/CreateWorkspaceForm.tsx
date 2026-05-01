@@ -1,4 +1,5 @@
 "use client";
+import { urls } from "@/lib/urls";
 import { useState, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { AuthCard } from "@/components/auth/AuthCard";
@@ -36,7 +37,7 @@ export function CreateWorkspaceForm({ locale }: { locale: string }) {
       });
       if (res.status === 201) {
         const ws = (await res.json()) as { slug: string };
-        window.location.href = `/${locale}/app/w/${ws.slug}`;
+        window.location.href = urls.workspace.root(locale, ws.slug);
         return;
       }
       setError("generic");

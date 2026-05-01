@@ -1,3 +1,4 @@
+import { urls } from "@/lib/urls";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { setRequestLocale, getTranslations } from "next-intl/server";
@@ -115,7 +116,7 @@ export default async function OnboardingPage({
 
   // User already belongs to a workspace AND no invite → send to /app.
   if (workspaces.length > 0 && !invite) {
-    redirect(`/${locale}/app/w/${workspaces[0]!.slug}`);
+    redirect(urls.workspace.root(locale, workspaces[0]!.slug));
   }
 
   // No workspace AND no invite → auto-provision a personal workspace named
@@ -141,7 +142,7 @@ export default async function OnboardingPage({
     });
     if (createRes.status === 201) {
       const ws = (await createRes.json()) as { slug: string };
-      redirect(`/${locale}/app/w/${ws.slug}`);
+      redirect(urls.workspace.root(locale, ws.slug));
     }
     // Fall through to the shell if auto-provision unexpectedly failed —
     // user can retry via the manual form.

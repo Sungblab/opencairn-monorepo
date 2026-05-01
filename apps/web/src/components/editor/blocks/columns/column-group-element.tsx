@@ -29,13 +29,14 @@ export function ColumnGroupElement({
   const editor = useEditorRef();
   const node = element as unknown as TColumnGroup;
   const n = Array.isArray(node.children) ? node.children.length : 0;
+  const widthsKey = JSON.stringify(node.widths);
 
   const persistedWidths = useMemo(
     () =>
       node.widths && node.widths.length === n
         ? normalize(node.widths)
         : defaultEqualWidths(n),
-    [JSON.stringify(node.widths), n],
+    [widthsKey, n],
   );
 
   const [localWidths, setLocalWidths] = useState<number[] | null>(null);

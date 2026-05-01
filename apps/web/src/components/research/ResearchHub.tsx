@@ -1,4 +1,5 @@
 "use client";
+import { urls } from "@/lib/urls";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations, useLocale } from "next-intl";
@@ -223,7 +224,7 @@ export function ResearchHub({
       ) : (
         <ul className="flex flex-col gap-2">
           {visible.map((r) => {
-            const href = `/${locale}/app/w/${wsSlug}/research/${r.id}`;
+            const href = urls.workspace.researchRun(locale, wsSlug, r.id);
             const open = () => router.push(href);
             const modelLabel =
               r.model === "deep-research-max-preview-04-2026"
@@ -302,7 +303,7 @@ export function ResearchHub({
         onClose={() => setDialogOpen(false)}
         onCreated={(runId) => {
           setDialogOpen(false);
-          router.push(`/${locale}/app/w/${wsSlug}/research/${runId}`);
+          router.push(urls.workspace.researchRun(locale, wsSlug, runId));
         }}
         workspaceId={workspaceId}
         projects={projects}

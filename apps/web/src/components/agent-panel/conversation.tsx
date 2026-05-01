@@ -13,7 +13,7 @@ import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 
 import { useChatMessages } from "@/hooks/use-chat-messages";
-import { useChatSend } from "@/hooks/use-chat-send";
+import type { StreamingAgentMessage } from "@/hooks/use-chat-send";
 import { chatApi } from "@/lib/api-client";
 
 import { MessageBubble } from "./message-bubble";
@@ -22,13 +22,13 @@ import { ThoughtBubble } from "./thought-bubble";
 
 interface Props {
   threadId: string | null;
+  live?: StreamingAgentMessage | null;
   onSaveSuggestion?: (payload: unknown) => void;
 }
 
-export function Conversation({ threadId, onSaveSuggestion }: Props) {
+export function Conversation({ threadId, live = null, onSaveSuggestion }: Props) {
   const t = useTranslations("agentPanel.bubble");
   const { data: messages = [] } = useChatMessages(threadId);
-  const { live } = useChatSend(threadId);
 
   // Ref-based scroll keeps the DOM cheap on long threads — no per-message
   // ref. We re-run on `messages.length` (new turn arrived) and `live?.body`

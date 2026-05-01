@@ -33,6 +33,7 @@ const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "app", "api", "admin", "auth", "www", "assets", "static", "public",
   "health", "onboarding", "settings", "billing", "share",
   "invite", "invites", "help", "docs", "blog",
+  "workspace", "dashboard", "project", "note",
 ]);
 
 const createSchema = z.object({
@@ -125,7 +126,7 @@ workspaceRoutes.get("/me", async (c) => {
   return c.json({ workspaces: ws, invites });
 });
 
-// slug → workspace 조회 (멤버만 접근). /app/w/:wsSlug redirect chain 용.
+// slug → workspace 조회 (멤버만 접근). /:locale/workspace/:wsSlug redirect chain 용.
 workspaceRoutes.get("/by-slug/:slug", async (c) => {
   const user = c.get("user");
   const slug = c.req.param("slug");

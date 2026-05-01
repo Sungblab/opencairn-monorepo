@@ -1,4 +1,5 @@
 "use client";
+import { urls } from "@/lib/urls";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { Home, FlaskConical, DownloadCloud } from "lucide-react";
@@ -25,7 +26,7 @@ export function GlobalNav({
 }: GlobalNavProps) {
   const locale = useLocale();
   const t = useTranslations("sidebar.nav");
-  const base = `/${locale}/app/w/${wsSlug}`;
+  const base = urls.workspace.root(locale, wsSlug);
 
   const items = [
     { href: `${base}/`, label: t("dashboard"), Icon: Home },

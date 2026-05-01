@@ -53,7 +53,7 @@ export function AgentPanel() {
   const activeThreadId = useThreadsStore((s) => s.activeThreadId);
   const setActive = useThreadsStore((s) => s.setActiveThread);
   const { create } = useChatThreads(workspaceId);
-  const { send } = useChatSend(activeThreadId);
+  const { send, live } = useChatSend(activeThreadId);
 
   // Initial scope selection follows whatever the user is currently looking
   // at: a note tab seeds [page, project], a project view seeds [project], etc.
@@ -65,6 +65,26 @@ export function AgentPanel() {
   );
   const [scope, setScope] = useState<string[]>(initialScope);
   const [strict, setStrict] = useState<"strict" | "loose">("strict");
+  const buildScopePayload = useCallback(() => {
+    const chips: Array<{
+      type: "page" | "project" | "workspace";
+      id: string;
+    }> = [];
+    if (scope.includes("page") && activeTab?.kind === "note" && activeTab.targetId) {
+      chips.push({ type: "page", id: activeTab.targetId });
+    }
+    if (
+      scope.includes("project") &&
+      activeTab?.kind === "project" &&
+      activeTab.targetId
+    ) {
+      chips.push({ type: "project", id: activeTab.targetId });
+    }
+    if (scope.includes("workspace") && workspaceId) {
+      chips.push({ type: "workspace", id: workspaceId });
+    }
+    return { chips, strict };
+  }, [activeTab, scope, strict, workspaceId]);
 
   // Reset scope when the user switches tabs to a different kind. Only
   // reactive to tab kind so we don't stomp on manual scope edits while the
@@ -183,6 +203,7 @@ export function AgentPanel() {
       {activeThreadId ? (
         <Conversation
           threadId={activeThreadId}
+          live={live}
           onSaveSuggestion={handleSaveSuggestion}
         />
       ) : (
@@ -200,7 +221,7 @@ export function AgentPanel() {
           send({
             content: input.content,
             mode: input.mode,
-            scope: { chips: scope, strict },
+            scope: buildScopePayload(),
           })
         }
       />

@@ -4,7 +4,7 @@ import { setRequestLocale, getTranslations } from "next-intl/server";
 import type { Locale } from "@/i18n";
 import { McpSettingsClient } from "@/components/settings/mcp/McpSettingsClient";
 
-// Account-tab variant of the standalone /app/settings/mcp page. Wraps the
+// Account-tab variant of the standalone /settings/mcp page. Wraps the
 // same client so users find MCP server registration where they expect it
 // (account nav) instead of a deep direct URL only. Auth is enforced by
 // settings/layout.tsx via requireSession.

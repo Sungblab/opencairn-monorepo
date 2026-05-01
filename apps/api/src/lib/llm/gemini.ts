@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel as GeminiThinkingLevel } from "@google/genai";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -12,6 +12,8 @@ export type Usage = {
   tokensOut: number;
   model: string;
 };
+
+export type ThinkingLevel = "low" | "medium" | "high";
 
 /**
  * Streaming chunk yielded by {@link LLMProvider.streamGenerate}.
@@ -35,6 +37,7 @@ export interface LLMProvider {
     signal?: AbortSignal;
     maxOutputTokens?: number;
     temperature?: number;
+    thinkingLevel?: ThinkingLevel;
   }): AsyncGenerator<StreamChunk>;
 }
 
@@ -52,9 +55,14 @@ export class LLMNotConfiguredError extends Error {
 
 // ── Factory ──────────────────────────────────────────────────────────────
 
-const CHAT_MODEL_DEFAULT = "gemini-2.5-flash";
+const CHAT_MODEL_DEFAULT = "gemini-3-flash-preview";
 const EMBED_MODEL = "gemini-embedding-001";
 const EMBED_DIM_DEFAULT = 768; // ADR-007
+const GEMINI_THINKING_LEVEL: Record<ThinkingLevel, GeminiThinkingLevel> = {
+  low: GeminiThinkingLevel.LOW,
+  medium: GeminiThinkingLevel.MEDIUM,
+  high: GeminiThinkingLevel.HIGH,
+};
 
 function readEmbedDim(): number {
   const raw = process.env.VECTOR_DIM;
@@ -93,7 +101,7 @@ export function getGeminiProvider(): LLMProvider {
       return values;
     },
     async *streamGenerate(opts) {
-      const { messages, signal, maxOutputTokens, temperature } = opts;
+      const { messages, signal, maxOutputTokens, temperature, thinkingLevel } = opts;
 
       // Gemini chat is "single-turn with history" via `contents` array. We
       // collapse system messages into a leading systemInstruction (the SDK
@@ -114,6 +122,9 @@ export function getGeminiProvider(): LLMProvider {
             : {}),
           ...(maxOutputTokens ? { maxOutputTokens } : {}),
           ...(temperature !== undefined ? { temperature } : {}),
+          ...(thinkingLevel
+            ? { thinkingConfig: { thinkingLevel: GEMINI_THINKING_LEVEL[thinkingLevel] } }
+            : {}),
           ...(signal ? { abortSignal: signal } : {}),
         },
       });

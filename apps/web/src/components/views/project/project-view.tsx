@@ -1,5 +1,6 @@
 "use client";
 
+import { urls } from "@/lib/urls";
 import { useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
@@ -49,20 +50,20 @@ export function ProjectView({
         />
         <div className="flex flex-wrap items-center gap-2">
           <Link
-            href={`/${locale}/app/w/${wsSlug}/research?project=${projectId}`}
+            href={`${urls.workspace.research(locale, wsSlug)}?project=${projectId}`}
             className="app-hover rounded-[var(--radius-control)] border-[1.5px] border-border px-3 py-1.5 text-sm"
           >
             {t("actions.research")}
           </Link>
           <Link
-            href={`/${locale}/app/w/${wsSlug}/import?project=${projectId}`}
+            href={`${urls.workspace.import(locale, wsSlug)}?project=${projectId}`}
             className="app-hover rounded-[var(--radius-control)] border-[1.5px] border-border px-3 py-1.5 text-sm"
           >
             {t("actions.import")}
           </Link>
           <IngestUploadButton projectId={projectId} />
           <Link
-            href={`/${locale}/app/w/${wsSlug}/p/${projectId}/agents`}
+            href={urls.workspace.projectAgents(locale, wsSlug, projectId)}
             className="app-hover rounded-[var(--radius-control)] border-[1.5px] border-border px-3 py-1.5 text-sm"
           >
             {t("actions.agents")}

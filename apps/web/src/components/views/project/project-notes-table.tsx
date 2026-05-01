@@ -1,5 +1,6 @@
 "use client";
 
+import { urls } from "@/lib/urls";
 import { useEffect, useRef, useState } from "react";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
@@ -128,7 +129,7 @@ export function ProjectNotesTable({
                 >
                   <td className="px-4 py-2.5">
                     <Link
-                      href={`/${locale}/app/w/${wsSlug}/n/${n.id}`}
+                      href={urls.workspace.note(locale, wsSlug, n.id)}
                       className="block truncate font-medium"
                     >
                       {n.title}
