@@ -16,20 +16,21 @@ from __future__ import annotations
 import os
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from llm import get_provider
 from temporalio import activity
 
 from runtime.default_hooks import TokenCounterHook, TrajectoryWriterHook
-from runtime.events import AgentEvent
 from runtime.hooks import HookRegistry
 from runtime.tools import ToolContext
 from runtime.trajectory import LocalFSTrajectoryStorage, TrajectoryWriter
-
 from worker.agents.compiler import CompilerAgent, CompilerOutput
 from worker.lib.api_client import AgentApiClient
 from worker.lib.batch_submit import make_batch_submit
+
+if TYPE_CHECKING:
+    from runtime.events import AgentEvent
 
 
 _TRAJECTORY_DIR = Path(
@@ -110,9 +111,10 @@ async def compile_note(inp: dict[str, Any]) -> dict[str, Any]:
     # the agent only exercises it when BATCH_EMBED_COMPILER_ENABLED=true
     # and the candidate count crosses BATCH_EMBED_MIN_ITEMS. Otherwise
     # it's unused and the sync provider.embed path runs unchanged.
+    api = AgentApiClient()
     agent = CompilerAgent(
         provider=provider,
-        api=AgentApiClient(),
+        api=api,
         batch_submit=make_batch_submit(),
     )
 
@@ -146,4 +148,116 @@ async def compile_note(inp: dict[str, Any]) -> dict[str, Any]:
         output.merged_count,
         output.linked_count,
     )
+    try:
+        await _record_concept_extraction_evidence(api, inp, output, run_id)
+    except Exception as exc:  # noqa: BLE001 - evidence is best-effort
+        activity.logger.warning(
+            "compile_note evidence recording skipped: %s",
+            exc,
+        )
     return asdict(output)
+
+
+async def _record_concept_extraction_evidence(
+    api: AgentApiClient,
+    inp: dict[str, Any],
+    output: CompilerOutput,
+    run_id: str,
+) -> None:
+    """Persist chunk-backed concept extraction evidence for a compiler run.
+
+    This path is intentionally best-effort. During rollout, source-note chunk
+    indexing may lag behind source-note creation; in that case we skip rather
+    than failing the compiler workflow.
+    """
+    concept_ids = list(dict.fromkeys(output.concept_ids))
+    if not concept_ids:
+        return
+
+    chunks_payload = await api.list_note_chunks(
+        note_id=output.note_id,
+        workspace_id=inp["workspace_id"],
+        project_id=inp["project_id"],
+        limit=5,
+    )
+    chunks = list(chunks_payload.get("chunks", []))
+    if not chunks:
+        activity.logger.info(
+            "compile_note evidence skipped: no indexed chunks for note=%s",
+            output.note_id,
+        )
+        return
+
+    note = chunks_payload.get("note", {})
+    entries: list[dict[str, Any]] = []
+    extraction_chunks: list[dict[str, Any]] = []
+    for rank, chunk in enumerate(chunks, start=1):
+        quote = str(chunk.get("quote") or chunk.get("contentText") or "")[:1200]
+        if not quote:
+            continue
+        note_chunk_id = str(chunk["id"])
+        entries.append(
+            {
+                "noteChunkId": note_chunk_id,
+                "noteId": str(chunk.get("noteId") or output.note_id),
+                "noteType": str(note.get("type") or "source"),
+                "sourceType": note.get("sourceType"),
+                "headingPath": str(chunk.get("headingPath") or ""),
+                "sourceOffsets": chunk.get("sourceOffsets") or {"start": 0, "end": len(quote)},
+                "score": 1.0,
+                "rank": rank,
+                "retrievalChannel": "generated",
+                "quote": quote,
+                "citation": {
+                    "label": f"S{rank}",
+                    "title": str(note.get("title") or "Source"),
+                    "locator": str(chunk.get("headingPath") or f"chunk {rank}"),
+                },
+                "metadata": {"producer": "compiler"},
+            }
+        )
+        extraction_chunks.append(
+            {
+                "noteChunkId": note_chunk_id,
+                "supportScore": 1.0,
+                "quote": quote,
+            }
+        )
+
+    if not entries:
+        return
+
+    bundle = await api.create_evidence_bundle(
+        workspace_id=inp["workspace_id"],
+        project_id=inp["project_id"],
+        purpose="concept_extraction",
+        producer={"kind": "worker", "runId": run_id, "tool": "compile_note"},
+        created_by=inp.get("user_id"),
+        entries=entries,
+    )
+    bundle_id = str(bundle["id"])
+
+    for concept_id in concept_ids:
+        try:
+            concept = await api.get_concept(concept_id)
+            name = str(concept.get("name") or concept_id)
+            await api.create_concept_extraction(
+                workspace_id=inp["workspace_id"],
+                project_id=inp["project_id"],
+                concept_id=concept_id,
+                name=name,
+                kind="concept",
+                normalized_name=name.strip().lower(),
+                description=str(concept.get("description") or ""),
+                confidence=1.0,
+                evidence_bundle_id=bundle_id,
+                source_note_id=output.note_id,
+                created_by_run_id=run_id,
+                chunks=extraction_chunks,
+            )
+        except Exception as exc:  # noqa: BLE001 - one concept must not block the rest
+            activity.logger.warning(
+                "compile_note concept extraction evidence skipped for concept=%s: %s",
+                concept_id,
+                exc,
+            )

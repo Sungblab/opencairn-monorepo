@@ -36,6 +36,7 @@ import { streamRoutes } from "./routes/stream";
 import { evidenceRoutes } from "./routes/evidence";
 import { graphRoutes } from "./routes/graph";
 import { graphEvidenceRoutes } from "./routes/graph-evidence";
+import { knowledgeSurfaceRoutes } from "./routes/knowledge-surface";
 import { learningRoutes } from "./routes/learning";
 import { socraticRoutes } from "./routes/socratic";
 import { visualizeRouter } from "./routes/visualize";
@@ -115,6 +116,7 @@ export function createApp() {
   app.route("/api", inviteRoutes); // /api/workspaces/:id/invites and /api/invites/:token/*
   app.route("/api", projectRoutes);
   app.route("/api/projects", graphEvidenceRoutes);
+  app.route("/api/projects", knowledgeSurfaceRoutes);
   app.route("/api/projects", graphRoutes);
   app.route("/api/projects", learningRoutes);
   app.route("/api/projects", socraticRoutes);

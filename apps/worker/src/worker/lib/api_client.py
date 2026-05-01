@@ -100,6 +100,89 @@ class AgentApiClient:
         """
         return await get_internal(f"/api/internal/notes/{note_id}")
 
+    async def list_note_chunks(
+        self,
+        *,
+        note_id: str,
+        workspace_id: str,
+        project_id: str,
+        limit: int = 5,
+    ) -> dict[str, Any]:
+        """Fetch indexed chunks for one note, scoped by workspace + project.
+
+        This is used by best-effort evidence producers after ingest/compiler
+        work. A note may legitimately have no chunks yet during rollout; callers
+        should treat an empty list as a skip condition.
+        """
+        return await get_internal(
+            f"/api/internal/notes/{note_id}/chunks"
+            f"?workspaceId={workspace_id}&projectId={project_id}&limit={int(limit)}"
+        )
+
+    async def get_concept(self, concept_id: str) -> dict[str, Any]:
+        """Fetch one concept row from the internal concept endpoint."""
+        return await get_internal(f"/api/internal/concepts/{concept_id}")
+
+    async def create_evidence_bundle(
+        self,
+        *,
+        workspace_id: str,
+        project_id: str,
+        purpose: str,
+        producer: dict[str, Any],
+        entries: list[dict[str, Any]],
+        created_by: str | None = None,
+        query: str | None = None,
+    ) -> dict[str, Any]:
+        """POST an EvidenceBundle to the internal writer."""
+        body: dict[str, Any] = {
+            "workspaceId": workspace_id,
+            "projectId": project_id,
+            "purpose": purpose,
+            "producer": producer,
+            "createdBy": created_by,
+            "entries": entries,
+        }
+        if query is not None:
+            body["query"] = query
+        return await post_internal("/api/internal/evidence/bundles", body)
+
+    async def create_concept_extraction(
+        self,
+        *,
+        workspace_id: str,
+        project_id: str,
+        name: str,
+        kind: str,
+        normalized_name: str,
+        confidence: float,
+        evidence_bundle_id: str,
+        chunks: list[dict[str, Any]],
+        concept_id: str | None = None,
+        description: str = "",
+        source_note_id: str | None = None,
+        created_by_run_id: str | None = None,
+    ) -> dict[str, Any]:
+        """POST concept extraction provenance to the internal writer."""
+        body: dict[str, Any] = {
+            "workspaceId": workspace_id,
+            "projectId": project_id,
+            "name": name,
+            "kind": kind,
+            "normalizedName": normalized_name,
+            "description": description,
+            "confidence": confidence,
+            "evidenceBundleId": evidence_bundle_id,
+            "chunks": chunks,
+        }
+        if concept_id is not None:
+            body["conceptId"] = concept_id
+        if source_note_id is not None:
+            body["sourceNoteId"] = source_note_id
+        if created_by_run_id is not None:
+            body["createdByRunId"] = created_by_run_id
+        return await post_internal("/api/internal/concepts/extractions", body)
+
     async def search_concepts(
         self,
         *,
