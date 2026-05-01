@@ -33,7 +33,9 @@ import { searchRoutes } from "./routes/search";
 import { messageFeedbackRoutes } from "./routes/message-feedback";
 import { userRoutes } from "./routes/users";
 import { streamRoutes } from "./routes/stream";
+import { evidenceRoutes } from "./routes/evidence";
 import { graphRoutes } from "./routes/graph";
+import { graphEvidenceRoutes } from "./routes/graph-evidence";
 import { learningRoutes } from "./routes/learning";
 import { socraticRoutes } from "./routes/socratic";
 import { visualizeRouter } from "./routes/visualize";
@@ -94,6 +96,7 @@ export function createApp() {
   // Plan 11A — chip combobox search. Specific path so the `/api/*`
   // wildcard sub-apps don't intercept it with their own auth chain.
   app.route("/api/search", searchRoutes);
+  app.route("/api/evidence", evidenceRoutes);
   // Plan 8 agent entrypoints. Keep this above the wildcard `/api` routers so
   // the overview/audio paths do not get swallowed by their auth middlewares.
   app.route("/api/agents/plan8", plan8AgentRoutes);
@@ -111,6 +114,7 @@ export function createApp() {
   app.route("/api", shareRouter); // /api/public/share/:token + /api/notes/:id/share + /api/share/:shareId + /api/workspaces/:workspaceId/share
   app.route("/api", inviteRoutes); // /api/workspaces/:id/invites and /api/invites/:token/*
   app.route("/api", projectRoutes);
+  app.route("/api/projects", graphEvidenceRoutes);
   app.route("/api/projects", graphRoutes);
   app.route("/api/projects", learningRoutes);
   app.route("/api/projects", socraticRoutes);
