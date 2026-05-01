@@ -1,14 +1,13 @@
 import { getRequestConfig } from "next-intl/server";
 import { notFound } from "next/navigation";
+import { defaultLocale, locales, type Locale } from "./i18n-locales";
 
-export const locales = ["ko", "en"] as const;
-export const defaultLocale = "ko" as const;
-export type Locale = (typeof locales)[number];
-
-export const localeNames: Record<Locale, string> = {
-  ko: "한국어",
-  en: "English",
-};
+export {
+  defaultLocale,
+  localeNames,
+  locales,
+  type Locale,
+} from "./i18n-locales";
 
 export default getRequestConfig(async ({ requestLocale }) => {
   const requested = (await requestLocale) ?? defaultLocale;
@@ -49,6 +48,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
     agents,
     synthesisExport,
     accountNotifications,
+    noteHistory,
   ] = await Promise.all([
     import(`../messages/${locale}/common.json`).then((m) => m.default),
     import(`../messages/${locale}/landing.json`).then((m) => m.default),
@@ -83,10 +83,13 @@ export default getRequestConfig(async ({ requestLocale }) => {
     import(`../messages/${locale}/ingest.json`).then((m) => m.default),
     import(`../messages/${locale}/doc-editor.json`).then((m) => m.default),
     import(`../messages/${locale}/agents.json`).then((m) => m.default),
-    import(`../messages/${locale}/synthesis-export.json`).then((m) => m.default),
+    import(`../messages/${locale}/synthesis-export.json`).then(
+      (m) => m.default,
+    ),
     import(`../messages/${locale}/account-notifications.json`).then(
       (m) => m.default,
     ),
+    import(`../messages/${locale}/note-history.json`).then((m) => m.default),
   ]);
 
   return {
@@ -125,6 +128,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
       agents,
       synthesisExport,
       accountNotifications,
+      noteHistory,
     },
   };
 });

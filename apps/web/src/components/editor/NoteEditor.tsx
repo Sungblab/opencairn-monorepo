@@ -52,10 +52,7 @@ import {
 } from "./doc-editor/read-block-selection";
 import { useDocEditorCommand } from "@/hooks/use-doc-editor-command";
 import type { Value } from "platejs";
-import {
-  createWikiLinkPlugin,
-  WikiLinkCombobox,
-} from "./plugins/wiki-link";
+import { createWikiLinkPlugin, WikiLinkCombobox } from "./plugins/wiki-link";
 import { researchMetaPlugin } from "./blocks/research-meta/research-meta-plugin";
 import { MermaidPlugin } from "./blocks/mermaid/mermaid-plugin";
 import { CalloutPlugin } from "./blocks/callout/callout-plugin";
@@ -64,6 +61,7 @@ import { tablePlugins } from "./blocks/table/table-plugin";
 import { columnsPlugins } from "./blocks/columns/columns-plugin";
 import { MermaidFencePlugin } from "./plugins/mermaid-fence";
 import { PasteNormPlugin } from "./plugins/paste-norm";
+import { mathTriggerPlugin } from "./plugins/math-trigger";
 import { embedPlugin } from "./blocks/embed/embed-plugin";
 import {
   EmbedInsertPopover,
@@ -109,6 +107,7 @@ const basePlugins = [
   ...columnsPlugins,
   MermaidFencePlugin,
   PasteNormPlugin,
+  mathTriggerPlugin,
   embedPlugin,
   imagePlugin,
   imageDropDeferredPlugin,
@@ -179,8 +178,7 @@ export function NoteEditor({
   const aiSlashEnabled =
     process.env.NEXT_PUBLIC_FEATURE_DOC_EDITOR_SLASH === "true";
   const ragSlashEnabled =
-    aiSlashEnabled &&
-    process.env.NEXT_PUBLIC_FEATURE_DOC_EDITOR_RAG === "true";
+    aiSlashEnabled && process.env.NEXT_PUBLIC_FEATURE_DOC_EDITOR_RAG === "true";
   const docEditor = useDocEditorCommand();
   const queryClient = useQueryClient();
   // Plan 2E Phase B — embed insert popover state (Task 1.4).
@@ -188,9 +186,7 @@ export function NoteEditor({
   // Plan 2E Phase B-2 — image insert popover state (Task 2.3).
   const [imagePopoverOpen, setImagePopoverOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [pendingCommand, setPendingCommand] = useState<SlashAiKey | null>(
-    null,
-  );
+  const [pendingCommand, setPendingCommand] = useState<SlashAiKey | null>(null);
   const [pendingSelection, setPendingSelection] = useState<ReturnType<
     typeof readBlockSelection
   > | null>(null);
@@ -397,9 +393,9 @@ export function NoteEditor({
     // v49: `editor.tf.setValue(value)` replaces the whole document. Cast
     // through unknown — the PlateEditor generic parameterises tf with the
     // full plugin set and would force us to re-declare the same shape.
-    (
-      editor.tf as unknown as { setValue: (v: Value) => void }
-    ).setValue(result.value);
+    (editor.tf as unknown as { setValue: (v: Value) => void }).setValue(
+      result.value,
+    );
     // Document drifted between selection capture and accept — at least one
     // hunk no longer matches its expected `originalText`. The successful
     // hunks still apply (right-to-left splice keeps offsets valid for the
@@ -443,13 +439,10 @@ export function NoteEditor({
   );
 
   // Plan 2E Phase B — embed + image insert popover handlers (Tasks 1.4 + 2.3).
-  const handleRequestPopover = useCallback(
-    (kind: "embed" | "image") => {
-      if (kind === "embed") setEmbedPopoverOpen(true);
-      if (kind === "image") setImagePopoverOpen(true);
-    },
-    [],
-  );
+  const handleRequestPopover = useCallback((kind: "embed" | "image") => {
+    if (kind === "embed") setEmbedPopoverOpen(true);
+    if (kind === "image") setImagePopoverOpen(true);
+  }, []);
 
   const handleEmbedInsert = useCallback(
     (resolution: EmbedInsertResolution) => {
@@ -513,129 +506,133 @@ export function NoteEditor({
         onDropCapture={readOnly ? undefined : notifyFirstEditOnDrop}
         className="contents"
       >
-      {/* Outer flex row: editor column (flex-1) on the left, CommentsPanel
+        {/* Outer flex row: editor column (flex-1) on the left, CommentsPanel
           (fixed 320px) on the right. The panel is outside the Plate content
           flow but still inside <Plate> so future block-anchored jumps can
           use the editor context without prop drilling. */}
-      <div className="flex min-h-full">
-        <div className="flex min-w-0 flex-1 flex-col">
-          {/* Banners live inside <Plate> so they can read the editor context
+        <div className="flex min-h-full">
+          <div className="flex min-w-0 flex-1 flex-col">
+            {/* Banners live inside <Plate> so they can read the editor context
               via useEditorRef / usePluginOption. `DisconnectedBanner`
               self-hides when connected; `ReadOnlyBanner` is gated by the
               server-resolved `readOnly` prop. */}
-          <DisconnectedBanner />
-          {readOnly && <ReadOnlyBanner />}
+            <DisconnectedBanner />
+            {readOnly && <ReadOnlyBanner />}
 
-          <EditorToolbar actions={actions} />
-          <WikiLinkCombobox
-            ctx={{ wsSlug, projectId }}
-            editor={editor as unknown as Parameters<typeof WikiLinkCombobox>[0]["editor"]}
-          />
-          <SlashMenu
-            editor={editor as unknown as SlashEditor}
-            aiEnabled={aiSlashEnabled && !readOnly}
-            ragEnabled={ragSlashEnabled && !readOnly}
-            onAiCommand={handleAiCommand}
-            onRequestPopover={readOnly ? undefined : handleRequestPopover}
-          />
-          {/* Plan 2E Phase B — embed URL input popover (Task 1.4).
+            <EditorToolbar actions={actions} />
+            <WikiLinkCombobox
+              ctx={{ wsSlug, projectId }}
+              editor={
+                editor as unknown as Parameters<
+                  typeof WikiLinkCombobox
+                >[0]["editor"]
+              }
+            />
+            <SlashMenu
+              editor={editor as unknown as SlashEditor}
+              aiEnabled={aiSlashEnabled && !readOnly}
+              ragEnabled={ragSlashEnabled && !readOnly}
+              onAiCommand={handleAiCommand}
+              onRequestPopover={readOnly ? undefined : handleRequestPopover}
+            />
+            {/* Plan 2E Phase B — embed URL input popover (Task 1.4).
               The anchor is invisible; the popover is opened programmatically
               via embedPopoverOpen state set by onRequestPopover. */}
-          <EmbedInsertPopover
-            open={embedPopoverOpen}
-            onOpenChange={setEmbedPopoverOpen}
-            anchor={<span />}
-            onInsert={handleEmbedInsert}
-          />
-          {/* Plan 2E Phase B-2 — image URL input popover (Task 2.3). */}
-          <ImageInsertPopover
-            open={imagePopoverOpen}
-            onOpenChange={setImagePopoverOpen}
-            anchor={<span />}
-            onInsert={handleImageInsert}
-          />
-          {aiSlashEnabled && (
-            <InlineDiffSheet
-              open={sheetOpen}
-              state={docEditor.state}
-              onAcceptAll={handleAcceptAll}
-              onRejectAll={handleRejectAll}
-              onClose={handleRejectAll}
-              currentCommand={pendingCommand ?? undefined}
-              currentLanguage={translateLanguage}
-              onLanguageChange={handleLanguageChange}
-              onShowComments={handleShowComments}
+            <EmbedInsertPopover
+              open={embedPopoverOpen}
+              onOpenChange={setEmbedPopoverOpen}
+              anchor={<span />}
+              onInsert={handleEmbedInsert}
             />
-          )}
-          <div className="mx-auto w-full max-w-[720px] flex-1 px-8 py-8">
-            <div className="flex items-start justify-between gap-4">
-              <input
-                value={title}
-                onChange={(e) => handleTitleChange(e.target.value)}
-                placeholder={t("placeholder.title")}
-                disabled={readOnly}
-                className="placeholder:text-fg-muted w-full bg-transparent text-3xl font-semibold outline-none"
-                data-testid="note-title"
+            {/* Plan 2E Phase B-2 — image URL input popover (Task 2.3). */}
+            <ImageInsertPopover
+              open={imagePopoverOpen}
+              onOpenChange={setImagePopoverOpen}
+              anchor={<span />}
+              onInsert={handleImageInsert}
+            />
+            {aiSlashEnabled && (
+              <InlineDiffSheet
+                open={sheetOpen}
+                state={docEditor.state}
+                onAcceptAll={handleAcceptAll}
+                onRejectAll={handleRejectAll}
+                onClose={handleRejectAll}
+                currentCommand={pendingCommand ?? undefined}
+                currentLanguage={translateLanguage}
+                onLanguageChange={handleLanguageChange}
+                onShowComments={handleShowComments}
               />
-              {/* PresenceStack shows remote collaborators; self-hides when
+            )}
+            <div className="mx-auto w-full max-w-[720px] flex-1 px-8 py-8">
+              <div className="flex items-start justify-between gap-4">
+                <input
+                  value={title}
+                  onChange={(e) => handleTitleChange(e.target.value)}
+                  placeholder={t("placeholder.title")}
+                  disabled={readOnly}
+                  className="placeholder:text-fg-muted w-full bg-transparent text-3xl font-semibold outline-none"
+                  data-testid="note-title"
+                />
+                {/* PresenceStack shows remote collaborators; self-hides when
                   alone. Positioned in the title row's top-right for minimal
                   layout disruption. The Share button only renders for
                   writers — the route-level `readOnly` flag already strips it
                   for viewer/commenter roles, so we don't need an explicit
                   perms check here. */}
-              <div className="flex shrink-0 items-center gap-2 pt-2">
-                {!readOnly ? (
-                  <button
-                    type="button"
-                    onClick={() => setShareOpen(true)}
-                    className="rounded border border-border px-3 py-1 text-xs hover:bg-accent"
-                    data-testid="share-button"
-                  >
-                    {tShare("title")}
-                  </button>
-                ) : null}
-                <PresenceStack />
+                <div className="flex shrink-0 items-center gap-2 pt-2">
+                  {!readOnly ? (
+                    <button
+                      type="button"
+                      onClick={() => setShareOpen(true)}
+                      className="rounded border border-border px-3 py-1 text-xs hover:bg-accent"
+                      data-testid="share-button"
+                    >
+                      {tShare("title")}
+                    </button>
+                  ) : null}
+                  <PresenceStack />
+                </div>
+              </div>
+              <ShareDialog
+                noteId={noteId}
+                workspaceId={workspaceId}
+                open={shareOpen}
+                onOpenChange={setShareOpen}
+              />
+              <PlateContent
+                data-testid="note-body"
+                placeholder={
+                  aiSlashEnabled && !readOnly
+                    ? t("placeholder.body_with_slash")
+                    : t("placeholder.body")
+                }
+                className="prose prose-stone mt-6 min-h-[60vh] max-w-none focus:outline-none"
+                readOnly={readOnly}
+              />
+              <div
+                className="text-fg-muted mt-4 text-xs"
+                data-testid="save-status"
+                role="status"
+                aria-live="polite"
+              >
+                {titleStatus === "saving" && t("save.saving")}
+                {titleStatus === "saved" && t("save.saved")}
+                {titleStatus === "error" && (
+                  <span className="text-red-600">
+                    {t("save.failed")}
+                    {titleError ? `: ${titleError}` : null}
+                  </span>
+                )}
               </div>
             </div>
-            <ShareDialog
-              noteId={noteId}
-              workspaceId={workspaceId}
-              open={shareOpen}
-              onOpenChange={setShareOpen}
-            />
-            <PlateContent
-              data-testid="note-body"
-              placeholder={
-                aiSlashEnabled && !readOnly
-                  ? t("placeholder.body_with_slash")
-                  : t("placeholder.body")
-              }
-              className="prose prose-stone mt-6 min-h-[60vh] max-w-none focus:outline-none"
-              readOnly={readOnly}
-            />
-            <div
-              className="text-fg-muted mt-4 text-xs"
-              data-testid="save-status"
-              role="status"
-              aria-live="polite"
-            >
-              {titleStatus === "saving" && t("save.saving")}
-              {titleStatus === "saved" && t("save.saved")}
-              {titleStatus === "error" && (
-                <span className="text-red-600">
-                  {t("save.failed")}
-                  {titleError ? `: ${titleError}` : null}
-                </span>
-              )}
-            </div>
           </div>
+          <CommentsPanel
+            noteId={noteId}
+            workspaceId={workspaceId}
+            canComment={canComment}
+          />
         </div>
-        <CommentsPanel
-          noteId={noteId}
-          workspaceId={workspaceId}
-          canComment={canComment}
-        />
-      </div>
       </div>
     </Plate>
   );

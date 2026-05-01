@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import createIntlMiddleware from "next-intl/middleware";
-import { locales, defaultLocale } from "./i18n";
+import { defaultLocale, locales } from "./i18n-locales";
 
 const intl = createIntlMiddleware({
   locales: [...locales],
@@ -11,7 +11,10 @@ const intl = createIntlMiddleware({
 
 // Landing routes: root and any locale-prefixed root. Keep this tight — users
 // should still be able to reach /privacy, /terms, /auth/* even when signed in.
-const LANDING_PATHS = new Set<string>(["/", ...locales.flatMap((l) => [`/${l}`, `/${l}/`])]);
+const LANDING_PATHS = new Set<string>([
+  "/",
+  ...locales.flatMap((l) => [`/${l}`, `/${l}/`]),
+]);
 
 // Better Auth sets the session cookie with the `__Secure-` prefix over HTTPS
 // and the bare name over HTTP. Presence (not validity) is enough — stale

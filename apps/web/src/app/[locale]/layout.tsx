@@ -1,7 +1,7 @@
 import { NextIntlClientProvider, hasLocale } from "next-intl";
 import { getMessages, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
-import { locales, type Locale } from "@/i18n";
+import { locales, type Locale } from "@/i18n-locales";
 import { Toaster } from "@/components/ui/toaster";
 import { ReactQueryProvider } from "@/lib/react-query";
 import { CommandPalette } from "@/components/palette/command-palette";

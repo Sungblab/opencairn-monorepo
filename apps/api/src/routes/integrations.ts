@@ -31,6 +31,10 @@ function webBase(): string {
   return process.env.PUBLIC_WEB_URL ?? "http://localhost:3000";
 }
 
+function normalizeLocale(locale: string | undefined): "ko" | "en" {
+  return locale === "en" ? "en" : "ko";
+}
+
 export const integrationsRouter = new Hono<AppEnv>();
 
 // --- Unauthenticated: OAuth callback. Identity derives from the HMAC state.
@@ -93,8 +97,7 @@ integrationsRouter.get("/google/callback", async (c) => {
     // Workspace may have been deleted between connect and callback. Fall
     // through to a generic dashboard landing — user can pick a workspace manually.
   }
-  // TODO: carry locale through OAuth state; callbacks default to ko for now.
-  const locale = "ko";
+  const locale = normalizeLocale(parsed.locale);
   const target = wsSlug
     ? `${webBase()}/${locale}/workspace/${wsSlug}/import?connected=true`
     : `${webBase()}/${locale}/dashboard?integration=connected`;
@@ -120,7 +123,11 @@ integrationsRouter.get("/google/connect", requireAuth, async (c) => {
     id: workspaceId,
   });
   if (!allowed) return c.json({ error: "Forbidden" }, 403);
-  const state = signState({ userId, workspaceId });
+  const state = signState({
+    userId,
+    workspaceId,
+    locale: normalizeLocale(c.req.query("locale")),
+  });
   return c.redirect(authorizationUrl(state, redirectUri()));
 });
 

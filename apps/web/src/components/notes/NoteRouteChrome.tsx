@@ -4,7 +4,11 @@ import { urls } from "@/lib/urls";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 
+import { NoteHistoryButton } from "@/components/notes/history/note-history-button";
+
 interface Props {
+  noteId: string;
+  readOnly: boolean;
   wsSlug: string;
   projectId: string;
   projectName: string | null;
@@ -26,6 +30,8 @@ interface Props {
 // D5; the row reserves vertical space so the swap is invisible when
 // the buttons are added in a follow-up.
 export function NoteRouteChrome({
+  noteId,
+  readOnly,
   wsSlug,
   projectId,
   projectName,
@@ -61,12 +67,15 @@ export function NoteRouteChrome({
         <span className="mx-1.5">›</span>
         <span className="text-foreground">{title}</span>
       </nav>
-      <span
-        className="shrink-0 text-[11px] text-muted-foreground"
-        data-testid="note-autosave-pill"
-      >
-        {t("autosave", { at: updatedAt })}
-      </span>
+      <div className="flex shrink-0 items-center gap-2">
+        <span
+          className="text-[11px] text-muted-foreground"
+          data-testid="note-autosave-pill"
+        >
+          {t("autosave", { at: updatedAt })}
+        </span>
+        <NoteHistoryButton noteId={noteId} readOnly={readOnly} />
+      </div>
     </div>
   );
 }

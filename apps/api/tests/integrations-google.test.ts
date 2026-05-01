@@ -1,11 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { randomUUID } from "node:crypto";
 import { createApp } from "../src/app.js";
-import {
-  createUser,
-  seedWorkspace,
-  type SeedResult,
-} from "./helpers/seed.js";
+import { createUser, seedWorkspace, type SeedResult } from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
 import {
   db,
@@ -16,6 +12,7 @@ import {
   eq,
 } from "@opencairn/db";
 import { encryptToken } from "../src/lib/integration-tokens.js";
+import { verifyState } from "../src/lib/google-oauth.js";
 
 // Lightweight wrapper so the GET/DELETE describe blocks can reuse a member
 // of a real workspace (canRead/canWrite need it now after the review fix).
@@ -80,21 +77,34 @@ describe("GET /api/integrations/google/connect", () => {
   });
 
   it("redirects to Google OAuth when configured", async () => {
+    const seed = await seedWorkspaceLocal();
     const app = createApp();
-    const res = await app.request(
-      "/api/integrations/google/connect?workspaceId=550e8400-e29b-41d4-a716-446655440000",
-      { headers: { cookie: await signSessionCookie(userId) } },
-    );
-    expect(res.status).toBe(302);
-    const location = res.headers.get("location");
-    expect(location).toBeTruthy();
-    expect(location!).toContain("accounts.google.com");
-    expect(location!).toContain("scope=");
-    expect(location!).toContain(encodeURIComponent("drive.file"));
-    expect(location!).toContain("state=");
-    expect(location!).toContain(
-      encodeURIComponent("http://api.test/api/integrations/google/callback"),
-    );
+    try {
+      const res = await app.request(
+        `/api/integrations/google/connect?workspaceId=${seed.workspaceId}&locale=en`,
+        { headers: { cookie: await signSessionCookie(seed.userId) } },
+      );
+      expect(res.status).toBe(302);
+      const location = res.headers.get("location");
+      expect(location).toBeTruthy();
+      expect(location!).toContain("accounts.google.com");
+      expect(location!).toContain("scope=");
+      expect(location!).toContain(encodeURIComponent("drive.file"));
+      expect(location!).toContain("state=");
+      expect(location!).toContain(
+        encodeURIComponent("http://api.test/api/integrations/google/callback"),
+      );
+      const parsed = new URL(location!);
+      const state = parsed.searchParams.get("state");
+      expect(state).toBeTruthy();
+      expect(verifyState(state!)).toMatchObject({
+        userId: seed.userId,
+        workspaceId: seed.workspaceId,
+        locale: "en",
+      });
+    } finally {
+      await seed.cleanup();
+    }
   });
 
   it("returns 503 when Google OAuth is not configured", async () => {
@@ -110,8 +120,8 @@ describe("GET /api/integrations/google/connect", () => {
   it("returns 400 without workspaceId", async () => {
     const app = createApp();
     const res = await app.request("/api/integrations/google/connect", {
-      headers: { cookie: await signSessionCookie(userId) } },
-    );
+      headers: { cookie: await signSessionCookie(userId) },
+    });
     expect(res.status).toBe(400);
   });
 

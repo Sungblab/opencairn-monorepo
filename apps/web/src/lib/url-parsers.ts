@@ -1,7 +1,7 @@
+import { locales } from "@/i18n-locales";
+
 // Reverse of urls.ts. Reads URL pathname to structured workspace context.
 // Used by useScopeContext and command palette.
-
-const LOCALE_RE = /^(ko|en)$/;
 
 export type WorkspacePath = {
   locale: string | null;
@@ -23,7 +23,7 @@ export function parseWorkspacePath(pathname: string): WorkspacePath {
 
   if (parts.length === 0) return out;
 
-  const hasLocale = LOCALE_RE.test(parts[0]!);
+  const hasLocale = (locales as readonly string[]).includes(parts[0]!);
   if (hasLocale) {
     out.locale = parts[0]!;
   }
