@@ -22,6 +22,7 @@ async function seedSupportedEdge(ctx: SeedResult): Promise<{
   edgeId: string;
   bundleId: string;
   sourceConceptId: string;
+  targetConceptId: string;
 }> {
   const [source] = await db
     .insert(concepts)
@@ -114,7 +115,12 @@ async function seedSupportedEdge(ctx: SeedResult): Promise<{
     quote: "This paragraph supports the edge.",
   });
 
-  return { edgeId: edge.id, bundleId: bundle.id, sourceConceptId: source.id };
+  return {
+    edgeId: edge.id,
+    bundleId: bundle.id,
+    sourceConceptId: source.id,
+    targetConceptId: target.id,
+  };
 }
 
 describe("GET /api/projects/:projectId/knowledge-surface", () => {
@@ -168,6 +174,12 @@ describe("GET /api/projects/:projectId/knowledge-surface", () => {
     const card = body.cards.find((item) => item.conceptId === seeded.sourceConceptId);
     expect(card?.evidenceBundleId).toBe(seeded.bundleId);
     expect(card?.citationCount).toBe(1);
+
+    const objectCard = body.cards.find(
+      (item) => item.conceptId === seeded.targetConceptId,
+    );
+    expect(objectCard?.evidenceBundleId).toBe(seeded.bundleId);
+    expect(objectCard?.citationCount).toBe(1);
   });
 
   it("does not expose knowledge surfaces to non-members", async () => {

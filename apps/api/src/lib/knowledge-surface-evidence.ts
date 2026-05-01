@@ -38,6 +38,7 @@ const MINDMAP_DEPTH = 3;
 const MINDMAP_PER_PARENT_CAP = 8;
 const MINDMAP_TOTAL_CAP = 50;
 const CARDS_LIMIT = 80;
+const EVIDENCE_BUNDLE_FETCH_CONCURRENCY = 8;
 
 export type KnowledgeSurfaceView = Extract<
   GraphViewType,
@@ -224,9 +225,10 @@ async function selectCards(nodes: GraphNode[]): Promise<KnowledgeSurfaceCard[]> 
 
   const claimByConcept = new Map<string, (typeof claimRows)[number]>();
   for (const row of claimRows) {
-    const conceptId = row.subjectConceptId ?? row.objectConceptId;
-    if (conceptId && !claimByConcept.has(conceptId)) {
-      claimByConcept.set(conceptId, row);
+    for (const conceptId of [row.subjectConceptId, row.objectConceptId]) {
+      if (conceptId && !claimByConcept.has(conceptId)) {
+        claimByConcept.set(conceptId, row);
+      }
     }
   }
 
@@ -241,6 +243,28 @@ async function selectCards(nodes: GraphNode[]): Promise<KnowledgeSurfaceCard[]> 
       citationCount: claim ? citationCounts.get(claim.evidenceBundleId) ?? 0 : 0,
     };
   });
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let cursor = 0;
+  async function worker(): Promise<void> {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await fn(items[index]);
+    }
+  }
+  await Promise.all(
+    Array.from(
+      { length: Math.min(Math.max(concurrency, 1), items.length) },
+      () => worker(),
+    ),
+  );
+  return results;
 }
 
 async function selectSurfaceBase(
@@ -372,8 +396,10 @@ export async function getKnowledgeSurfaceForUser(
     for (const card of cards ?? []) {
       if (card.evidenceBundleId) bundleIds.add(card.evidenceBundleId);
     }
-    const bundles = await Promise.all(
-      [...bundleIds].map((bundleId) => getEvidenceBundleForUser(userId, bundleId)),
+    const bundles = await mapWithConcurrency(
+      [...bundleIds],
+      EVIDENCE_BUNDLE_FETCH_CONCURRENCY,
+      (bundleId) => getEvidenceBundleForUser(userId, bundleId),
     );
     response.evidenceBundles = bundles.filter(
       (bundle): bundle is EvidenceBundle => bundle !== null,

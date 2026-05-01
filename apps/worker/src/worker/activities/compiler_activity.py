@@ -13,6 +13,7 @@ identically to how it would be under a future direct-invocation path
 """
 from __future__ import annotations
 
+import asyncio
 import os
 from dataclasses import asdict
 from pathlib import Path
@@ -36,6 +37,7 @@ if TYPE_CHECKING:
 _TRAJECTORY_DIR = Path(
     os.environ.get("TRAJECTORY_DIR", "/var/opencairn/trajectories")
 )
+_EVIDENCE_CONCEPT_WRITE_CONCURRENCY = 8
 
 
 class _ActivityTrajectoryHook(TrajectoryWriterHook):
@@ -237,27 +239,53 @@ async def _record_concept_extraction_evidence(
     )
     bundle_id = str(bundle["id"])
 
-    for concept_id in concept_ids:
-        try:
-            concept = await api.get_concept(concept_id)
-            name = str(concept.get("name") or concept_id)
-            await api.create_concept_extraction(
-                workspace_id=inp["workspace_id"],
-                project_id=inp["project_id"],
+    semaphore = asyncio.Semaphore(_EVIDENCE_CONCEPT_WRITE_CONCURRENCY)
+
+    async def _record_one(concept_id: str) -> None:
+        async with semaphore:
+            await _record_one_concept_extraction(
+                api=api,
+                inp=inp,
+                output=output,
+                run_id=run_id,
+                bundle_id=bundle_id,
+                extraction_chunks=extraction_chunks,
                 concept_id=concept_id,
-                name=name,
-                kind="concept",
-                normalized_name=name.strip().lower(),
-                description=str(concept.get("description") or ""),
-                confidence=1.0,
-                evidence_bundle_id=bundle_id,
-                source_note_id=output.note_id,
-                created_by_run_id=run_id,
-                chunks=extraction_chunks,
             )
-        except Exception as exc:  # noqa: BLE001 - one concept must not block the rest
-            activity.logger.warning(
-                "compile_note concept extraction evidence skipped for concept=%s: %s",
-                concept_id,
-                exc,
-            )
+
+    await asyncio.gather(*(_record_one(concept_id) for concept_id in concept_ids))
+
+
+async def _record_one_concept_extraction(
+    *,
+    api: AgentApiClient,
+    inp: dict[str, Any],
+    output: CompilerOutput,
+    run_id: str,
+    bundle_id: str,
+    extraction_chunks: list[dict[str, Any]],
+    concept_id: str,
+) -> None:
+    try:
+        concept = await api.get_concept(concept_id)
+        name = str(concept.get("name") or concept_id)
+        await api.create_concept_extraction(
+            workspace_id=inp["workspace_id"],
+            project_id=inp["project_id"],
+            concept_id=concept_id,
+            name=name,
+            kind="concept",
+            normalized_name=name.strip().lower(),
+            description=str(concept.get("description") or ""),
+            confidence=1.0,
+            evidence_bundle_id=bundle_id,
+            source_note_id=output.note_id,
+            created_by_run_id=run_id,
+            chunks=extraction_chunks,
+        )
+    except Exception as exc:  # noqa: BLE001 - one concept must not block the rest
+        activity.logger.warning(
+            "compile_note concept extraction evidence skipped for concept=%s: %s",
+            concept_id,
+            exc,
+        )
