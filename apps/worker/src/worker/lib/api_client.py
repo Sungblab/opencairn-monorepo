@@ -183,6 +183,43 @@ class AgentApiClient:
             body["createdByRunId"] = created_by_run_id
         return await post_internal("/api/internal/concepts/extractions", body)
 
+    async def create_knowledge_claim(
+        self,
+        *,
+        workspace_id: str,
+        project_id: str,
+        claim_text: str,
+        claim_type: str,
+        status: str,
+        confidence: float,
+        evidence_bundle_id: str,
+        produced_by: str,
+        subject_concept_id: str | None = None,
+        object_concept_id: str | None = None,
+        produced_by_run_id: str | None = None,
+        edge_evidence: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """POST a source-backed knowledge claim to the internal writer."""
+        body: dict[str, Any] = {
+            "workspaceId": workspace_id,
+            "projectId": project_id,
+            "claimText": claim_text,
+            "claimType": claim_type,
+            "status": status,
+            "confidence": confidence,
+            "evidenceBundleId": evidence_bundle_id,
+            "producedBy": produced_by,
+        }
+        if subject_concept_id is not None:
+            body["subjectConceptId"] = subject_concept_id
+        if object_concept_id is not None:
+            body["objectConceptId"] = object_concept_id
+        if produced_by_run_id is not None:
+            body["producedByRunId"] = produced_by_run_id
+        if edge_evidence is not None:
+            body["edgeEvidence"] = edge_evidence
+        return await post_internal("/api/internal/knowledge/claims", body)
+
     async def search_concepts(
         self,
         *,

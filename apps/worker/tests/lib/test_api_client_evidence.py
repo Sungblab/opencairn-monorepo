@@ -66,6 +66,64 @@ async def test_create_concept_extraction_posts_internal_payload():
 
 
 @pytest.mark.asyncio
+async def test_create_knowledge_claim_posts_internal_payload():
+    client = AgentApiClient()
+    with patch(
+        "worker.lib.api_client.post_internal",
+        new=AsyncMock(return_value={"claimId": "claim-1", "edgeEvidenceIds": ["ee-1"]}),
+    ) as post_mock:
+        result = await client.create_knowledge_claim(
+            workspace_id="ws",
+            project_id="proj",
+            claim_text="Alpha is related to Beta.",
+            claim_type="relation",
+            status="active",
+            confidence=0.8,
+            evidence_bundle_id="bundle-1",
+            produced_by="ingest",
+            produced_by_run_id="run-1",
+            subject_concept_id="alpha",
+            object_concept_id="beta",
+            edge_evidence=[
+                {
+                    "conceptEdgeId": "edge-1",
+                    "noteChunkId": "chunk-1",
+                    "supportScore": 0.8,
+                    "stance": "supports",
+                    "quote": "quote",
+                }
+            ],
+        )
+
+    assert result == {"claimId": "claim-1", "edgeEvidenceIds": ["ee-1"]}
+    post_mock.assert_awaited_once_with(
+        "/api/internal/knowledge/claims",
+        {
+            "workspaceId": "ws",
+            "projectId": "proj",
+            "claimText": "Alpha is related to Beta.",
+            "claimType": "relation",
+            "status": "active",
+            "confidence": 0.8,
+            "evidenceBundleId": "bundle-1",
+            "producedBy": "ingest",
+            "producedByRunId": "run-1",
+            "subjectConceptId": "alpha",
+            "objectConceptId": "beta",
+            "edgeEvidence": [
+                {
+                    "conceptEdgeId": "edge-1",
+                    "noteChunkId": "chunk-1",
+                    "supportScore": 0.8,
+                    "stance": "supports",
+                    "quote": "quote",
+                }
+            ],
+        },
+    )
+
+
+@pytest.mark.asyncio
 async def test_list_note_chunks_uses_scoped_query():
     client = AgentApiClient()
     with patch(

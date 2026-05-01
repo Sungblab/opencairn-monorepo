@@ -68,6 +68,7 @@ import { uploadObject } from "../lib/s3";
 import {
   createConceptExtractionEvidence,
   createEvidenceBundle,
+  createKnowledgeClaim,
   validateEvidenceBundleInput,
 } from "../lib/evidence-bundles";
 
@@ -289,6 +290,66 @@ internal.post(
         message === "bundle_mismatch" ||
         message === "concept_mismatch" ||
         message === "note_mismatch" ||
+        message === "chunk_mismatch"
+      ) {
+        return c.json({ error: message }, 400);
+      }
+      throw err;
+    }
+  },
+);
+
+const knowledgeClaimSchema = z.object({
+  workspaceId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  claimText: z.string().min(1).max(4000),
+  claimType: z.enum([
+    "relation",
+    "summary",
+    "definition",
+    "contradiction",
+    "synthesis",
+  ]),
+  status: z.enum(["active", "stale", "disputed", "retracted"]),
+  confidence: z.number().min(0).max(1),
+  subjectConceptId: z.string().uuid().optional(),
+  objectConceptId: z.string().uuid().optional(),
+  evidenceBundleId: z.string().uuid(),
+  producedBy: z.enum(["ingest", "wiki_maintenance", "chat_save", "lint"]),
+  producedByRunId: z.string().max(200).optional(),
+  edgeEvidence: z
+    .array(
+      z.object({
+        conceptEdgeId: z.string().uuid(),
+        noteChunkId: z.string().uuid(),
+        supportScore: z.number().min(0).max(1),
+        stance: z.enum(["supports", "contradicts", "mentions"]),
+        quote: z.string().min(1).max(1200),
+      }),
+    )
+    .max(50)
+    .optional(),
+});
+
+internal.post(
+  "/knowledge/claims",
+  zValidator("json", knowledgeClaimSchema),
+  async (c) => {
+    try {
+      const row = await createKnowledgeClaim(c.req.valid("json"));
+      return c.json(row, 201);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message === "project_not_found") {
+        return c.json({ error: "project_not_found" }, 404);
+      }
+      if (message === "workspace_mismatch") {
+        return c.json({ error: "workspace_mismatch" }, 403);
+      }
+      if (
+        message === "bundle_mismatch" ||
+        message === "concept_mismatch" ||
+        message === "edge_mismatch" ||
         message === "chunk_mismatch"
       ) {
         return c.json({ error: message }, 400);
