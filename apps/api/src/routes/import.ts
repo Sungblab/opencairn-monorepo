@@ -102,19 +102,31 @@ async function startImportWorkflow(args: {
   sourceMetadata: Record<string, unknown>;
 }) {
   const client = await getTemporalClient();
-  await client.workflow.start("ImportWorkflow", {
-    workflowId: args.workflowId,
-    taskQueue: taskQueue(),
-    args: [
-      {
-        job_id: args.jobId,
-        user_id: args.userId,
-        workspace_id: args.workspaceId,
-        source: args.source,
-        source_metadata: args.sourceMetadata,
-      },
-    ],
-  });
+  try {
+    await client.workflow.start("ImportWorkflow", {
+      workflowId: args.workflowId,
+      taskQueue: taskQueue(),
+      args: [
+        {
+          job_id: args.jobId,
+          user_id: args.userId,
+          workspace_id: args.workspaceId,
+          source: args.source,
+          source_metadata: args.sourceMetadata,
+        },
+      ],
+    });
+  } catch (err) {
+    await db
+      .update(importJobs)
+      .set({
+        status: "failed",
+        errorSummary: "Import could not be started. Please try again.",
+        finishedAt: new Date(),
+      })
+      .where(eq(importJobs.id, args.jobId));
+    throw err;
+  }
 }
 
 importRouter.post(

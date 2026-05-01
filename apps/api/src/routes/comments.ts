@@ -28,6 +28,8 @@ import { isUuid } from "../lib/validators";
 import { persistAndPublish } from "../lib/notification-events";
 import type { AppEnv } from "../lib/types";
 
+const IN_QUERY_CHUNK_SIZE = 500;
+
 export const commentsRouter = new Hono<AppEnv>()
   .use("*", requireAuth)
 
@@ -45,35 +47,39 @@ export const commentsRouter = new Hono<AppEnv>()
       .where(eq(comments.noteId, noteId))
       .orderBy(desc(comments.createdAt));
 
-    // Bucketize mentions by commentId in a single IN query
-    // (plan pseudocode used rows[0].id as the only key — bug).
     const mentionsByComment = new Map<string, MentionToken[]>();
-    if (rows.length) {
-      const ids = rows.map((r) => r.id);
-      const allMentions = await db
-        .select()
-        .from(commentMentions)
-        .where(inArray(commentMentions.commentId, ids));
-      for (const m of allMentions) {
-        const arr = mentionsByComment.get(m.commentId) ?? [];
-        arr.push({
-          type: m.mentionedType as MentionToken["type"],
-          id: m.mentionedId,
-        });
-        mentionsByComment.set(m.commentId, arr);
-      }
-    }
-
     const authorIds = Array.from(new Set(rows.map((r) => r.authorId)));
     const authors = new Map<string, { name: string | null; image: string | null }>();
-    if (authorIds.length) {
-      const authorRows = await db
-        .select({ id: user.id, name: user.name, image: user.image })
-        .from(user)
-        .where(inArray(user.id, authorIds));
-      for (const a of authorRows) {
-        authors.set(a.id, { name: a.name, image: a.image });
-      }
+
+    const [allMentions, authorRows] = await Promise.all([
+      Promise.all(
+        chunkIds(rows.map((r) => r.id)).map((ids) =>
+          db
+            .select()
+            .from(commentMentions)
+            .where(inArray(commentMentions.commentId, ids)),
+        ),
+      ).then((chunks) => chunks.flat()),
+      Promise.all(
+        chunkIds(authorIds).map((ids) =>
+          db
+            .select({ id: user.id, name: user.name, image: user.image })
+            .from(user)
+            .where(inArray(user.id, ids)),
+        ),
+      ).then((chunks) => chunks.flat()),
+    ]);
+
+    for (const m of allMentions) {
+      const arr = mentionsByComment.get(m.commentId) ?? [];
+      arr.push({
+        type: m.mentionedType as MentionToken["type"],
+        id: m.mentionedId,
+      });
+      mentionsByComment.set(m.commentId, arr);
+    }
+    for (const a of authorRows) {
+      authors.set(a.id, { name: a.name, image: a.image });
     }
 
     const response: CommentResponse[] = rows.map((r) => ({
@@ -339,6 +345,14 @@ export const commentsRouter = new Hono<AppEnv>()
       .returning();
     return c.json(serialize(updated!));
   });
+
+function chunkIds(ids: string[]): string[][] {
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += IN_QUERY_CHUNK_SIZE) {
+    chunks.push(ids.slice(i, i + IN_QUERY_CHUNK_SIZE));
+  }
+  return chunks;
+}
 
 async function mentionsAreValidForWorkspace(
   userId: string,
