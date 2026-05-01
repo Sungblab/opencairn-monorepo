@@ -6,6 +6,9 @@ vi.mock("../../src/lib/llm/gemini", () => ({
 vi.mock("../../src/lib/internal-hybrid-search", () => ({
   projectHybridSearch: vi.fn(),
 }));
+vi.mock("../../src/lib/chunk-hybrid-search", () => ({
+  projectChunkHybridSearch: vi.fn(),
+}));
 vi.mock("@opencairn/db", async (orig) => {
   const real = (await orig()) as object;
   return { ...real, db: { execute: vi.fn() } };
@@ -18,6 +21,9 @@ const llm = (await import("../../src/lib/llm/gemini.js")) as unknown as {
 const search = (await import("../../src/lib/internal-hybrid-search.js")) as unknown as {
   projectHybridSearch: ReturnType<typeof vi.fn>;
 };
+const chunkSearch = (await import("../../src/lib/chunk-hybrid-search.js")) as unknown as {
+  projectChunkHybridSearch: ReturnType<typeof vi.fn>;
+};
 
 const fakeProvider = {
   embed: vi.fn().mockResolvedValue(new Array(768).fill(0)),
@@ -28,6 +34,8 @@ beforeEach(() => {
   llm.getGeminiProvider.mockReturnValue(fakeProvider);
   fakeProvider.embed.mockClear();
   search.projectHybridSearch.mockReset();
+  chunkSearch.projectChunkHybridSearch.mockReset();
+  chunkSearch.projectChunkHybridSearch.mockResolvedValue([]);
 });
 
 describe("chat-retrieval ragMode", () => {
@@ -42,6 +50,7 @@ describe("chat-retrieval ragMode", () => {
     expect(hits).toEqual([]);
     expect(fakeProvider.embed).not.toHaveBeenCalled();
     expect(search.projectHybridSearch).not.toHaveBeenCalled();
+    expect(chunkSearch.projectChunkHybridSearch).not.toHaveBeenCalled();
   });
 
   it("ragMode=strict uses CHAT_RAG_TOP_K_STRICT (default 5)", async () => {
@@ -114,6 +123,8 @@ describe("chat-retrieval chip union", () => {
     dbMod = (await import("@opencairn/db")) as unknown as typeof dbMod;
     dbMod.db.execute.mockReset();
     search.projectHybridSearch.mockReset();
+    chunkSearch.projectChunkHybridSearch.mockReset();
+    chunkSearch.projectChunkHybridSearch.mockResolvedValue([]);
     search.projectHybridSearch.mockResolvedValue([]);
   });
 
@@ -208,9 +219,11 @@ describe("chat-retrieval fanout concurrency", () => {
     dbMod = (await import("@opencairn/db")) as unknown as typeof dbMod;
     dbMod.db.execute.mockReset();
     search.projectHybridSearch.mockReset();
+    chunkSearch.projectChunkHybridSearch.mockReset();
+    chunkSearch.projectChunkHybridSearch.mockResolvedValue([]);
   });
 
-  it("caps in-flight projectHybridSearch calls at CHAT_RAG_FANOUT_CONCURRENCY", async () => {
+  it("caps in-flight project search calls at CHAT_RAG_FANOUT_CONCURRENCY", async () => {
     const original = process.env.CHAT_RAG_FANOUT_CONCURRENCY;
     try {
       process.env.CHAT_RAG_FANOUT_CONCURRENCY = "3";
@@ -220,7 +233,7 @@ describe("chat-retrieval fanout concurrency", () => {
 
       let inflight = 0;
       let maxInflight = 0;
-      search.projectHybridSearch.mockImplementation(async () => {
+      chunkSearch.projectChunkHybridSearch.mockImplementation(async () => {
         inflight += 1;
         if (inflight > maxInflight) maxInflight = inflight;
         // Yield to the event loop so the worker pool actually has a chance
@@ -230,6 +243,7 @@ describe("chat-retrieval fanout concurrency", () => {
         inflight -= 1;
         return [];
       });
+      search.projectHybridSearch.mockResolvedValue([]);
 
       await retrieve({
         workspaceId: "ws-1",
@@ -239,6 +253,7 @@ describe("chat-retrieval fanout concurrency", () => {
         chips: [],
       });
 
+      expect(chunkSearch.projectChunkHybridSearch).toHaveBeenCalledTimes(20);
       expect(search.projectHybridSearch).toHaveBeenCalledTimes(20);
       expect(maxInflight).toBeGreaterThan(0);
       expect(maxInflight).toBeLessThanOrEqual(3);
@@ -253,6 +268,8 @@ describe("chat-retrieval abort signal", () => {
   beforeEach(() => {
     search.projectHybridSearch.mockReset();
     search.projectHybridSearch.mockResolvedValue([]);
+    chunkSearch.projectChunkHybridSearch.mockReset();
+    chunkSearch.projectChunkHybridSearch.mockResolvedValue([]);
   });
 
   it("pre-aborted signal short-circuits before any projectHybridSearch call", async () => {
@@ -269,5 +286,68 @@ describe("chat-retrieval abort signal", () => {
       }),
     ).rejects.toThrow(/abort/i);
     expect(search.projectHybridSearch).not.toHaveBeenCalled();
+    expect(chunkSearch.projectChunkHybridSearch).not.toHaveBeenCalled();
+  });
+});
+
+describe("chat-retrieval chunk fallback", () => {
+  it("prefers chunk hits before falling back to note hits", async () => {
+    chunkSearch.projectChunkHybridSearch.mockResolvedValue([
+      {
+        chunkId: "c1",
+        noteId: "n1",
+        title: "Chunked",
+        headingPath: "Intro",
+        snippet: "chunk hit",
+        rrfScore: 1,
+        vectorScore: 0.9,
+        bm25Score: null,
+      },
+    ]);
+
+    const hits = await retrieve({
+      workspaceId: "ws1",
+      query: "alpha",
+      ragMode: "strict",
+      scope: { type: "project", workspaceId: "ws1", projectId: "p1" },
+      chips: [],
+    });
+
+    expect(hits[0]).toMatchObject({
+      noteId: "n1",
+      title: "Chunked · Intro",
+      snippet: "chunk hit",
+    });
+    expect(search.projectHybridSearch).not.toHaveBeenCalled();
+  });
+
+  it("falls back to note hits when a project has no chunk hits", async () => {
+    chunkSearch.projectChunkHybridSearch.mockResolvedValue([]);
+    search.projectHybridSearch.mockResolvedValue([
+      {
+        noteId: "n2",
+        title: "Fallback",
+        snippet: "note hit",
+        sourceType: null,
+        sourceUrl: null,
+        vectorScore: null,
+        bm25Score: 0.7,
+        rrfScore: 0.5,
+      },
+    ]);
+
+    const hits = await retrieve({
+      workspaceId: "ws1",
+      query: "alpha",
+      ragMode: "strict",
+      scope: { type: "project", workspaceId: "ws1", projectId: "p1" },
+      chips: [],
+    });
+
+    expect(hits[0]).toMatchObject({
+      noteId: "n2",
+      title: "Fallback",
+      snippet: "note hit",
+    });
   });
 });

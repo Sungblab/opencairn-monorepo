@@ -6,6 +6,7 @@ import { authClient, googleOAuthEnabled } from "@/lib/auth-client";
 import { GoogleButton } from "./GoogleButton";
 import { AuthEyebrow } from "./AuthEyebrow";
 import { isSafeReturnTo } from "@/lib/return-to";
+import { urls } from "@/lib/urls";
 
 type Step = 1 | 2;
 
@@ -76,7 +77,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       return;
     }
 
-    router.push(`/${locale}/app`);
+    router.push(urls.dashboard(locale));
   };
 
   const Progress = () => (

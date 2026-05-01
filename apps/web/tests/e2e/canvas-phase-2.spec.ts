@@ -39,7 +39,7 @@ test.describe("Plan 7 Canvas Phase 2 — Code Agent + outputs", () => {
     test.beforeEach(async ({ context, request, page }) => {
       session = await seedAndSignIn(request, { mode: "canvas-phase2" });
       await applySessionCookie(context, session);
-      await page.goto(`/ko/app/w/${session.wsSlug}/n/${session.noteId}`);
+      await page.goto(`/ko/workspace/${session.wsSlug}/note/${session.noteId}`);
     });
 
     test("1. New Canvas → generate → turn_complete + Apply enabled", async ({
@@ -162,7 +162,7 @@ test.describe("Plan 7 Canvas Phase 2 — Code Agent + outputs", () => {
     });
 
     test("6. Tab Mode switch canvas → reading", async ({ page }) => {
-      await page.goto(`/ko/app/w/${session.wsSlug}/n/${session.noteId}`);
+      await page.goto(`/ko/workspace/${session.wsSlug}/note/${session.noteId}`);
       // Canvas viewer is the default for sourceType='canvas' notes — confirm
       // the viewer toolbar mounts before we attempt the mode switch.
       await expect(page.getByTestId("canvas-viewer-toolbar")).toBeVisible({

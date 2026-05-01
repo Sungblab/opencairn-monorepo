@@ -1,4 +1,5 @@
 "use client";
+import { urls } from "@/lib/urls";
 import Link from "next/link";
 import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
@@ -68,7 +69,7 @@ export function ResearchRunView({ runId, wsSlug }: ResearchRunViewProps) {
   // takes a tick.
   useEffect(() => {
     if (data?.status === "completed" && data.noteId) {
-      router.push(`/${locale}/app/w/${wsSlug}/n/${data.noteId}`);
+      router.push(urls.workspace.note(locale, wsSlug, data.noteId));
     }
   }, [data?.status, data?.noteId, locale, wsSlug, router]);
 
@@ -100,7 +101,7 @@ export function ResearchRunView({ runId, wsSlug }: ResearchRunViewProps) {
         <p>{message}</p>
         {code === "invalid_byok_key" && (
           <Link
-            href={`/${locale}/app/settings/ai`}
+            href={`/${locale}/settings/ai`}
             className="text-primary mt-2 inline-block underline"
           >
             {t("error.invalid_byok_cta")}
@@ -108,7 +109,7 @@ export function ResearchRunView({ runId, wsSlug }: ResearchRunViewProps) {
         )}
         {code === "managed_credits_short" && (
           <Link
-            href={`/${locale}/settings/billing`}
+            href={urls.settings.billing(locale)}
             className="text-primary mt-2 inline-block underline"
           >
             {t("error.managed_credits_cta")}

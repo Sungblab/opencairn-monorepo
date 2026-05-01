@@ -49,7 +49,7 @@ test.describe("notion zip import end-to-end", () => {
     fs.writeFileSync(zipPath, zipBuffer);
 
     try {
-      await page.goto(`/ko/app/w/${session.wsSlug}/import`);
+      await page.goto(`/ko/workspace/${session.wsSlug}/import`);
       await expect(
         page.getByRole("heading", { name: /가져오기|Import/ }),
       ).toBeVisible();

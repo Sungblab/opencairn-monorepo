@@ -1,4 +1,5 @@
 "use client";
+import { urls } from "@/lib/urls";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter, useParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
@@ -84,7 +85,7 @@ export function WorkspaceSwitcher() {
           {data?.workspaces.map((w) => (
             <DropdownMenuItem
               key={w.id}
-              onClick={() => router.push(`/${locale}/app/w/${w.slug}`)}
+              onClick={() => router.push(urls.workspace.root(locale, w.slug))}
               className="flex items-center justify-between gap-2"
             >
               <span className="truncate">{w.name}</span>

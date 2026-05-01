@@ -124,7 +124,7 @@ describe("ProjectTreeNode", () => {
     });
     renderNode(node);
     fireEvent.click(screen.getByRole("treeitem"));
-    expect(push).toHaveBeenCalledWith("/ko/app/w/acme/n/n-1");
+    expect(push).toHaveBeenCalledWith("/ko/workspace/acme/note/n-1");
   });
 
   it("activates an existing tab when its note is clicked again", () => {

@@ -9,36 +9,35 @@ vi.mock("next-intl", () => ({
 
 describe("MoreMenu", () => {
   it("opens workspace-scoped items as native links", async () => {
-    render(<MoreMenu base="/ko/app/w/acme" />);
+    render(<MoreMenu base="/ko/workspace/acme" />);
     fireEvent.click(
       screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
     );
+
     const settings = await screen.findByText("sidebar.more_menu.settings");
     expect(settings.closest("a")).toHaveAttribute(
       "href",
-      "/ko/app/w/acme/settings",
+      "/ko/workspace/acme/settings",
     );
 
     expect(
       (await screen.findByText("sidebar.more_menu.shared_links")).closest("a"),
     ).toHaveAttribute(
       "href",
-      "/ko/app/w/acme/settings/shared-links",
+      "/ko/workspace/acme/settings/shared-links",
     );
 
     expect(
       (await screen.findByText("sidebar.more_menu.trash")).closest("a"),
-    ).toHaveAttribute(
-      "href",
-      "/ko/app/w/acme/settings/trash",
-    );
+    ).toHaveAttribute("href", "/ko/workspace/acme/settings/trash");
   });
 
   it("renders external items as new-tab links", async () => {
-    render(<MoreMenu base="/ko/app/w/acme" />);
+    render(<MoreMenu base="/ko/workspace/acme" />);
     fireEvent.click(
       screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
     );
+
     const feedback = (
       await screen.findByText("sidebar.more_menu.feedback")
     ).closest("a");

@@ -88,7 +88,7 @@ describe("<IngestDock>", () => {
     wrap();
     expect(screen.getByText("노트 열기")).toHaveAttribute(
       "href",
-      "/ko/app/w/acme/n/00000000-0000-0000-0000-000000000001",
+      "/ko/workspace/acme/note/00000000-0000-0000-0000-000000000001",
     );
   });
 

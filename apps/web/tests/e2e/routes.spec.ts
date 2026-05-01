@@ -10,7 +10,7 @@ import { applySessionCookie, seedAndSignIn } from "./helpers/seed-session";
 test.describe("Phase 5 routes", () => {
   const SHELL_ROUTES = [
     { path: "/", testId: "route-dashboard" },
-    { path: "/research", testId: "route-research-hub" },
+    { path: "/research", heading: "Deep Research" },
     { path: "/settings", testId: "route-ws-settings" },
   ] as const;
 
@@ -19,12 +19,16 @@ test.describe("Phase 5 routes", () => {
       test(`renders ${r.path}`, async ({ page, context, request }) => {
         const session = await seedAndSignIn(request);
         await applySessionCookie(context, session);
-        await page.goto(`/ko/app/w/${session.wsSlug}${r.path}`);
-        await expect(page.getByTestId(r.testId)).toBeVisible();
+        await page.goto(`/ko/workspace/${session.wsSlug}${r.path}`);
+        if ("testId" in r) {
+          await expect(page.getByTestId(r.testId)).toBeVisible();
+        } else {
+          await expect(page.getByRole("heading", { name: r.heading })).toBeVisible();
+        }
       });
     }
 
-    test("renders /p/[projectId] inside (shell)", async ({
+    test("renders /project/[projectId] inside (shell)", async ({
       page,
       context,
       request,
@@ -32,7 +36,7 @@ test.describe("Phase 5 routes", () => {
       const session = await seedAndSignIn(request);
       await applySessionCookie(context, session);
       await page.goto(
-        `/ko/app/w/${session.wsSlug}/p/${session.projectId}`,
+        `/ko/workspace/${session.wsSlug}/project/${session.projectId}`,
       );
       await expect(page.getByTestId("route-project")).toBeVisible();
     });

@@ -4,7 +4,7 @@
 
 **Goal:** Rename `/{locale}/app/w/{slug}/p/{id}/notes/{nid}` → `/{locale}/workspace/{slug}/project/{id}/note/{nid}` and centralize 162 hardcoded path literals into `apps/web/src/lib/urls.ts` so the next rename is a one-file edit.
 
-**Architecture:** Tools-first (urls + parser + tests) → filesystem `git mv` → callsite sweep → 301 redirects in `next.config.ts` → ESLint guard against regressions. Reserved slug list synced web↔api. Conditional DB migration only if existing slugs collide with new reserved words.
+**Architecture:** Tools-first (urls + parser + tests) → filesystem `git mv` → callsite sweep → temporary redirects in `next.config.ts` → ESLint guard against regressions. Reserved slug list synced web↔api. Conditional DB migration only if existing slugs collide with new reserved words.
 
 **Tech Stack:** Next.js 16 (App Router, file-based routing, `next.config.ts`), Hono 4 API, Drizzle ORM, ESLint flat config, Vitest + Playwright.
 
@@ -16,13 +16,13 @@
 
 ## Pre-flight: branch + worktree
 
-- [ ] **Step 0.1:** Create worktree
+- [x] **Step 0.1:** Create worktree
 
 ```bash
 git worktree add .worktrees/url-restructure -b feat/url-restructure main
 ```
 
-- [ ] **Step 0.2:** Verify clean state
+- [x] **Step 0.2:** Verify clean state
 
 Run: `git status` inside `.worktrees/url-restructure`
 Expected: `nothing to commit, working tree clean`
@@ -35,7 +35,7 @@ Expected: `nothing to commit, working tree clean`
 - Create: `apps/web/src/lib/urls.ts`
 - Create: `apps/web/src/lib/urls.test.ts`
 
-- [ ] **Step 1.1: Write failing tests**
+- [x] **Step 1.1: Write failing tests**
 
 Create `apps/web/src/lib/urls.test.ts`:
 
@@ -143,12 +143,12 @@ describe("urls", () => {
 });
 ```
 
-- [ ] **Step 1.2: Run tests to verify they fail**
+- [x] **Step 1.2: Run tests to verify they fail**
 
 Run: `pnpm --filter @opencairn/web test -- urls.test`
 Expected: FAIL — module `./urls` not found.
 
-- [ ] **Step 1.3: Implement `urls.ts`**
+- [x] **Step 1.3: Implement `urls.ts`**
 
 Create `apps/web/src/lib/urls.ts`:
 
@@ -222,12 +222,12 @@ export const urls = {
 } as const;
 ```
 
-- [ ] **Step 1.4: Run tests to verify pass**
+- [x] **Step 1.4: Run tests to verify pass**
 
 Run: `pnpm --filter @opencairn/web test -- urls.test`
 Expected: PASS — all `urls.*` cases.
 
-- [ ] **Step 1.5: Commit**
+- [x] **Step 1.5: Commit**
 
 ```bash
 git add apps/web/src/lib/urls.ts apps/web/src/lib/urls.test.ts
@@ -252,7 +252,7 @@ EOF
 
 `useScopeContext` and `palette/extract-ws-slug` both reverse-parse `pathname` today. Centralize so future renames flip one file.
 
-- [ ] **Step 2.1: Write failing tests**
+- [x] **Step 2.1: Write failing tests**
 
 Create `apps/web/src/lib/url-parsers.test.ts`:
 
@@ -336,12 +336,12 @@ describe("parseWorkspacePath", () => {
 });
 ```
 
-- [ ] **Step 2.2: Run tests to verify failure**
+- [x] **Step 2.2: Run tests to verify failure**
 
 Run: `pnpm --filter @opencairn/web test -- url-parsers.test`
 Expected: FAIL — module not found.
 
-- [ ] **Step 2.3: Implement parser**
+- [x] **Step 2.3: Implement parser**
 
 Create `apps/web/src/lib/url-parsers.ts`:
 
@@ -396,12 +396,12 @@ export function parseWorkspacePath(pathname: string): WorkspacePath {
 }
 ```
 
-- [ ] **Step 2.4: Run tests to verify pass**
+- [x] **Step 2.4: Run tests to verify pass**
 
 Run: `pnpm --filter @opencairn/web test -- url-parsers.test`
 Expected: PASS.
 
-- [ ] **Step 2.5: Commit**
+- [x] **Step 2.5: Commit**
 
 ```bash
 git add apps/web/src/lib/url-parsers.ts apps/web/src/lib/url-parsers.test.ts
@@ -424,7 +424,7 @@ EOF
 - Modify: `apps/web/src/lib/slug.ts`
 - Modify: `apps/api/src/routes/workspaces.ts:32` (RESERVED_SLUGS)
 
-- [ ] **Step 3.1: DB sanity check**
+- [x] **Step 3.1: DB sanity check**
 
 Run against dev DB (env: see `docker-compose.yml`):
 
@@ -440,7 +440,9 @@ Expected output paths:
 
 Record the result count in your task notes. If non-zero, also check `prod` DB before merge — flag in PR description.
 
-- [ ] **Step 3.2: Add to web `RESERVED_SLUGS`**
+Task note: dev DB sanity check returned **0 rows** for `workspace`, `dashboard`, `project`, `note`; Task 4 skipped.
+
+- [x] **Step 3.2: Add to web `RESERVED_SLUGS`**
 
 Edit `apps/web/src/lib/slug.ts:2-6`:
 
@@ -454,16 +456,16 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
 ]);
 ```
 
-- [ ] **Step 3.3: Add to api `RESERVED_SLUGS`**
+- [x] **Step 3.3: Add to api `RESERVED_SLUGS`**
 
 Edit `apps/api/src/routes/workspaces.ts` (around line 32) — add the same 4 entries to the matching set. Re-read the file first to get exact formatting.
 
-- [ ] **Step 3.4: Run lint + types**
+- [x] **Step 3.4: Run lint + types**
 
 Run: `pnpm --filter @opencairn/web lint && pnpm --filter @opencairn/api typecheck`
 Expected: PASS.
 
-- [ ] **Step 3.5: Commit**
+- [x] **Step 3.5: Commit**
 
 ```bash
 git add apps/web/src/lib/slug.ts apps/api/src/routes/workspaces.ts
@@ -486,7 +488,10 @@ EOF
 **Files:**
 - Create: `packages/db/migrations/0040_reserved_slug_rename.sql`
 
-- [ ] **Step 4.1: Write migration**
+**Skipped:** Task 3.1 dev DB sanity check returned **0 rows**, so no migration file or
+Drizzle metadata is required for this branch.
+
+- [x] **Step 4.1: Skipped — Task 3.1 returned 0 rows**
 
 Create `packages/db/migrations/0040_reserved_slug_rename.sql`:
 
@@ -501,19 +506,19 @@ SET slug = slug || '-' || substring(id::text, 1, 6)
 WHERE slug IN ('workspace', 'dashboard', 'project', 'note');
 ```
 
-- [ ] **Step 4.2: Generate Drizzle metadata if needed**
+- [x] **Step 4.2: Skipped — no migration needed**
 
 If the project uses `drizzle-kit migrate` from a metadata journal, regenerate:
 
 Run: `pnpm db:generate`
 Expected: new entry in `packages/db/migrations/meta/` referencing 0040. Inspect the diff before committing.
 
-- [ ] **Step 4.3: Apply migration on dev**
+- [x] **Step 4.3: Skipped — no migration needed**
 
 Run: `pnpm db:migrate`
 Expected: `0040_reserved_slug_rename` applied. Re-run Task 3.1 query — should return 0 rows.
 
-- [ ] **Step 4.4: Commit**
+- [x] **Step 4.4: Skipped — no migration commit needed**
 
 ```bash
 git add packages/db/migrations/0040_reserved_slug_rename.sql packages/db/migrations/meta
@@ -540,14 +545,14 @@ Use `git mv` so history is preserved. **All Step 5.x are one commit at the end**
 - Move: `apps/web/src/app/[locale]/app/w/[wsSlug]/` → `apps/web/src/app/[locale]/workspace/[wsSlug]/`
 - Rename inside: `(shell)/n/` → `(shell)/note/`, `(shell)/p/` → `(shell)/project/`, `p/[projectId]/notes/` → `project/[projectId]/note/`
 
-- [ ] **Step 5.1: Move workspace root**
+- [x] **Step 5.1: Move workspace root**
 
 ```bash
 mkdir -p apps/web/src/app/\[locale\]/workspace
 git mv "apps/web/src/app/[locale]/app/w/[wsSlug]" "apps/web/src/app/[locale]/workspace/[wsSlug]"
 ```
 
-- [ ] **Step 5.2: Rename inner shorthand**
+- [x] **Step 5.2: Rename inner shorthand**
 
 ```bash
 git mv "apps/web/src/app/[locale]/workspace/[wsSlug]/(shell)/n" "apps/web/src/app/[locale]/workspace/[wsSlug]/(shell)/note"
@@ -558,12 +563,12 @@ git mv "apps/web/src/app/[locale]/workspace/[wsSlug]/project/[projectId]/notes" 
 
 (If a directory does not exist due to prior cleanup, skip that line.)
 
-- [ ] **Step 5.3: Verify resulting structure**
+- [x] **Step 5.3: Verify resulting structure**
 
 Run: `find "apps/web/src/app/[locale]/workspace" -maxdepth 6 -type d | sort`
 Expected: paths show `note/` and `project/` segments, no `n/` or `p/` or `notes/` remaining.
 
-- [ ] **Step 5.4: Move `app/dashboard`, `app/settings/ai`; delete `app/settings/mcp` + `app/page.tsx`**
+- [x] **Step 5.4: Move `app/dashboard`, `app/settings/ai`; delete `app/settings/mcp` + `app/page.tsx`**
 
 ```bash
 git mv "apps/web/src/app/[locale]/app/dashboard" "apps/web/src/app/[locale]/dashboard"
@@ -575,7 +580,7 @@ rmdir "apps/web/src/app/[locale]/app/settings" 2>/dev/null || true
 rmdir "apps/web/src/app/[locale]/app" 2>/dev/null || true
 ```
 
-- [ ] **Step 5.5: Stop and do NOT commit yet**
+- [x] **Step 5.5: Stop and do NOT commit yet**
 
 The codebase is broken (callsites still reference old paths). Continue to Task 6.
 
@@ -587,7 +592,7 @@ The codebase is broken (callsites still reference old paths). Continue to Task 6
 
 **Files affected:** see Task 6.1 grep output.
 
-- [ ] **Step 6.1: Re-baseline the grep**
+- [x] **Step 6.1: Re-baseline the grep**
 
 Run:
 ```bash
@@ -595,7 +600,7 @@ git grep -nE '/app/w/|/app/dashboard|/app/settings/ai|/app/settings/mcp' -- 'app
 ```
 Expected: list of pre-sweep occurrences. Save the count: `wc -l /tmp/url-sweep-web.txt`.
 
-- [ ] **Step 6.2: Codemod template-literal forms**
+- [x] **Step 6.2: Codemod template-literal forms**
 
 For each file in the grep output, replace by hand or via `sed -i` using these patterns. Always verify with `git diff` before next file.
 
@@ -617,17 +622,17 @@ import { urls } from "@/lib/urls";
 
 When the variable holding the slug is named differently (e.g., `wsSlug`, `workspace.slug`, `params.wsSlug`), keep the existing identifier — only the URL shape changes.
 
-- [ ] **Step 6.3: Replace `useScopeContext` reverse-parse with `parseWorkspacePath`**
+- [x] **Step 6.3: Replace `useScopeContext` reverse-parse with `parseWorkspacePath`**
 
 Edit `apps/web/src/hooks/useScopeContext.ts`:
 1. Replace inline `pathname.match(...)` regex with a call to `parseWorkspacePath(pathname)`.
 2. Update the route-map comment to reflect new paths (`/workspace/{slug}/note/{noteId}` etc.).
 
-- [ ] **Step 6.4: Replace `palette/extract-ws-slug.ts`**
+- [x] **Step 6.4: Replace `palette/extract-ws-slug.ts`**
 
 Edit `apps/web/src/components/palette/extract-ws-slug.ts` and `extract-ws-slug.test.ts` to use `parseWorkspacePath`. If `extract-ws-slug` becomes a 1-line wrapper, decide whether to inline at callsites and delete the file. Update tests in either case.
 
-- [ ] **Step 6.5: Re-run grep — should be zero**
+- [x] **Step 6.5: Re-run grep — should be zero**
 
 Run:
 ```bash
@@ -635,17 +640,17 @@ git grep -nE '/app/w/|/app/dashboard|/app/settings/ai|/app/settings/mcp' -- 'app
 ```
 Expected: empty (excluding redirect destinations in `next.config.ts`, which we add in Task 8).
 
-- [ ] **Step 6.6: Run web tests**
+- [x] **Step 6.6: Run web tests**
 
 Run: `pnpm --filter @opencairn/web test`
 Expected: all unit tests pass. Fix any path-string-asserting tests.
 
-- [ ] **Step 6.7: Run typecheck**
+- [x] **Step 6.7: Run typecheck**
 
 Run: `pnpm --filter @opencairn/web typecheck`
 Expected: PASS.
 
-- [ ] **Step 6.8: Commit (with Task 5)**
+- [x] **Step 6.8: Commit (with Task 5)**
 
 ```bash
 git add -A apps/web/src
@@ -661,7 +666,7 @@ refactor(web): rename /app/w → /workspace + sweep callsites
 
 Hardcoded paths swept to urls.* helper.
 useScopeContext + extract-ws-slug 통합 to parseWorkspacePath.
-301 redirects + ESLint guard 후속 task.
+Temporary redirects + ESLint guard 후속 task.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -679,7 +684,7 @@ EOF
 
 These are the 3 known external-to-web hardcoded references found by `grep -rn "/app/w/\|/app/dashboard" packages/emails/ apps/api/src/`. Re-run the grep to confirm.
 
-- [ ] **Step 7.1: Confirm grep**
+- [x] **Step 7.1: Confirm grep**
 
 Run:
 ```bash
@@ -687,7 +692,7 @@ git grep -nE '/app/w/|/app/dashboard|/app/settings' -- 'apps/api/src/**' 'packag
 ```
 Expected: 3 matches above (re-confirm; flag any new ones).
 
-- [ ] **Step 7.2: Update `apps/api/src/routes/integrations.ts:97`**
+- [x] **Step 7.2: Update `apps/api/src/routes/integrations.ts:97`**
 
 Replace:
 ```ts
@@ -700,20 +705,22 @@ with:
 
 **Locale source:** check if the route already has access to a `locale` param. If not, fall back to a server-side default (`'ko'`) and add a TODO comment — locale-aware OAuth callbacks are a separate concern. Document the choice in the commit message.
 
-- [ ] **Step 7.3: Update `apps/api/src/routes/workspaces.ts:128` comment**
+- [x] **Step 7.3: Update `apps/api/src/routes/workspaces.ts:128` comment**
 
 Replace `// slug → workspace 조회 (멤버만 접근). /app/w/:wsSlug redirect chain 용.` with `// slug → workspace 조회 (멤버만 접근). /:locale/workspace/:wsSlug redirect chain 용.`
 
-- [ ] **Step 7.4: Update `packages/emails/tests/notification-templates.test.tsx:16`**
+- [x] **Step 7.4: Update `packages/emails/tests/notification-templates.test.tsx:16`**
 
 Replace `"https://example.com/ko/app/w/test/n/note-id"` with `"https://example.com/ko/workspace/test/note/note-id"`.
 
-- [ ] **Step 7.5: Run API + emails tests**
+- [x] **Step 7.5: Run API + emails tests**
 
 Run: `pnpm --filter @opencairn/api test && pnpm --filter @opencairn/emails test`
 Expected: PASS.
 
-- [ ] **Step 7.6: Commit**
+Evidence note: full `@opencairn/api test` was attempted with root env loaded and reached the suite, but existing infra/baseline failures outside this URL change remained (Redis/MinIO-dependent tests, email console expectation drift, timestamp assertions, unrelated cleanup FK). Task 7 impact checks passed with `pnpm --filter @opencairn/api exec vitest run tests/integrations-google.test.ts tests/workspaces.test.ts` (56 tests), `pnpm --filter @opencairn/api build`, `pnpm --filter @opencairn/emails test` (30 tests), and the external hardcoded URL grep returned no matches.
+
+- [x] **Step 7.6: Commit**
 
 ```bash
 git add apps/api/src/routes/integrations.ts apps/api/src/routes/workspaces.ts packages/emails/tests/notification-templates.test.tsx
@@ -731,12 +738,12 @@ EOF
 
 ---
 
-## Task 8: Add 301 redirects in `next.config.ts`
+## Task 8: Add temporary redirects in `next.config.ts`
 
 **Files:**
 - Modify: `apps/web/next.config.ts`
 
-- [ ] **Step 8.1: Add `redirects()` to `nextConfig`**
+- [x] **Step 8.1: Add `redirects()` to `nextConfig`**
 
 Edit `apps/web/next.config.ts` — add a new `async redirects()` adjacent to `headers()`:
 
@@ -761,49 +768,49 @@ const nextConfig: NextConfig = {
       {
         source: "/:locale/app/w/:slug/p/:pid/notes/:nid",
         destination: "/:locale/workspace/:slug/project/:pid/note/:nid",
-        permanent: true,
+        permanent: false,
       },
       {
         source: "/:locale/app/w/:slug/p/:pid/:rest*",
         destination: "/:locale/workspace/:slug/project/:pid/:rest*",
-        permanent: true,
+        permanent: false,
       },
       {
         source: "/:locale/app/w/:slug/n/:nid",
         destination: "/:locale/workspace/:slug/note/:nid",
-        permanent: true,
+        permanent: false,
       },
       {
         source: "/:locale/app/w/:slug/:rest*",
         destination: "/:locale/workspace/:slug/:rest*",
-        permanent: true,
+        permanent: false,
       },
       {
         source: "/:locale/app/w/:slug",
         destination: "/:locale/workspace/:slug",
-        permanent: true,
+        permanent: false,
       },
       {
         source: "/:locale/app/dashboard",
         destination: "/:locale/dashboard",
-        permanent: true,
+        permanent: false,
       },
       {
         source: "/:locale/app/settings/:rest*",
         destination: "/:locale/settings/:rest*",
-        permanent: true,
+        permanent: false,
       },
       {
         source: "/:locale/app",
         destination: "/:locale/dashboard",
-        permanent: true,
+        permanent: false,
       },
     ];
   },
 };
 ```
 
-- [ ] **Step 8.2: Add E2E redirect spec**
+- [x] **Step 8.2: Add E2E redirect spec**
 
 Create `apps/web/tests/e2e/url-redirects.spec.ts`:
 
@@ -824,22 +831,22 @@ const cases = [
 ] as const;
 
 for (const [from, to] of cases) {
-  test(`301: ${from} → ${to}`, async ({ request }) => {
+  test(`307: ${from} → ${to}`, async ({ request }) => {
     const res = await request.get(from, { maxRedirects: 0 });
-    expect(res.status()).toBe(308); // Next.js permanent: true uses 308
+    expect(res.status()).toBe(307); // Next.js permanent: false uses 307
     expect(res.headers()["location"]).toBe(to);
   });
 }
 ```
 
-(308 vs 301: Next.js `permanent: true` emits 308. Confirm with one manual `curl -I` after deploy and adjust if your version differs.)
+(307 vs 308: these redirects are temporary because the compatibility block is scheduled for sunset. Confirm with one manual `curl -I` after deploy and adjust if your version differs.)
 
-- [ ] **Step 8.3: Build to verify**
+- [x] **Step 8.3: Build to verify**
 
 Run: `pnpm --filter @opencairn/web build`
 Expected: build succeeds; no missing route warnings.
 
-- [ ] **Step 8.4: Run redirect E2E**
+- [x] **Step 8.4: Run redirect E2E**
 
 Bring up the prod-style server and run the new spec.
 
@@ -851,12 +858,14 @@ pnpm --filter @opencairn/web test:e2e -- url-redirects.spec.ts
 
 Expected: all 10 cases pass. Kill background server when done.
 
-- [ ] **Step 8.5: Commit**
+Evidence note: redirect compatibility is scheduled for removal on 2026-05-14, so implementation uses `permanent: false` and E2E expects Next's 307 temporary redirects rather than cacheable 308 permanent redirects.
+
+- [x] **Step 8.5: Commit**
 
 ```bash
 git add apps/web/next.config.ts apps/web/tests/e2e/url-redirects.spec.ts
 git commit -m "$(cat <<'EOF'
-feat(web): 308 redirects /app/w → /workspace (sunset 2026-05-14)
+feat(web): temporary redirects /app/w → /workspace (sunset 2026-05-14)
 
 8 패턴, 가장 구체적인 룰 우선. Bookmark + 공유 링크 흡수용.
 2주 후 제거 PR 은 /schedule 박제 (plan Sunset 항).
@@ -873,7 +882,7 @@ EOF
 **Files:**
 - Modify: `apps/web/eslint.config.mjs`
 
-- [ ] **Step 9.1: Add `no-restricted-syntax` rule**
+- [x] **Step 9.1: Add `no-restricted-syntax` rule**
 
 Append to the main rules block in `apps/web/eslint.config.mjs:20-51` (right after `i18next/no-literal-string`):
 
@@ -912,16 +921,16 @@ The existing test-file override (`src/**/*.test.{ts,tsx}`, `tests/**/*.{ts,tsx}`
 },
 ```
 
-- [ ] **Step 9.2: Run lint — must be clean**
+- [x] **Step 9.2: Run lint — must be clean**
 
 Run: `pnpm --filter @opencairn/web lint`
 Expected: PASS (the Task 6 sweep should leave zero violations; if any remain, fix and re-run).
 
-- [ ] **Step 9.3: Verify the guard catches regressions**
+- [x] **Step 9.3: Verify the guard catches regressions**
 
 Temporarily add `const x = "/ko/app/w/test"` to any non-test file. Re-run lint — expect ERROR. Remove the line.
 
-- [ ] **Step 9.4: Commit**
+- [x] **Step 9.4: Commit**
 
 ```bash
 git add apps/web/eslint.config.mjs
@@ -944,7 +953,7 @@ EOF
 
 **Files:** see Task 10.1 grep output.
 
-- [ ] **Step 10.1: Re-baseline grep**
+- [x] **Step 10.1: Re-baseline grep**
 
 Run:
 ```bash
@@ -952,7 +961,7 @@ git grep -nE '/app/w/|/app/dashboard|/app/settings/ai|/app/settings/mcp' -- 'app
 ```
 Expected: list of E2E occurrences.
 
-- [ ] **Step 10.2: Codemod E2E paths**
+- [x] **Step 10.2: Codemod E2E paths**
 
 For each match, replace using the same mapping as Task 6.2. E2E specs typically use string literals (no `urls.*` helper — the test boundary). Plain-text replace is safe here:
 
@@ -973,7 +982,7 @@ done
 
 (Inspect each diff with `git diff` — sed is line-based and may miss multi-line template literals; fix by hand.)
 
-- [ ] **Step 10.3: Confirm zero hits**
+- [x] **Step 10.3: Confirm zero hits**
 
 Run:
 ```bash
@@ -981,7 +990,7 @@ git grep -nE '/app/w/|/app/dashboard|/app/settings/ai|/app/settings/mcp' -- 'app
 ```
 Expected: empty (excluding `url-redirects.spec.ts` which intentionally hits old paths).
 
-- [ ] **Step 10.4: Run a representative subset**
+- [x] **Step 10.4: Run a representative subset**
 
 Some E2E specs need the dev stack. Smoke a few first:
 
@@ -990,14 +999,16 @@ pnpm --filter @opencairn/web test:e2e -- routes.spec.ts app-shell-phase1.spec.ts
 ```
 Expected: PASS. If a spec fails because a UI element URL changed, fix the spec.
 
-- [ ] **Step 10.5: Commit**
+Evidence note: both the direct grep and escaped-regex sweep returned zero old web-route hits outside `url-redirects.spec.ts`: `rg -n "/app/w/|app/w/|/app/dashboard|/app/settings/ai|/app/settings/mcp" apps/web/tests/e2e -g "*.ts" -g "!url-redirects.spec.ts"` and `rg -n "app\\/w|app/w|/app|/w/|\\/w\\/|/p/|\\/p\\/|/n/|\\/n\\/|/notes/|notes/" apps/web/tests/e2e -g "*.ts" -g "!url-redirects.spec.ts"` (remaining `/notes/` hits are API endpoints only). `pnpm --filter @opencairn/web exec tsc --noEmit` passed. The representative real-API E2E command passed 16/16 after running with the root `.env`, spawned web/API servers, Postgres, and Redis: `pnpm --filter @opencairn/web exec playwright test tests/e2e/routes.spec.ts tests/e2e/app-shell-phase1.spec.ts tests/e2e/sidebar.spec.ts --project=chromium --workers=1`.
+
+- [x] **Step 10.5: Commit**
 
 ```bash
 git add apps/web/tests/e2e
 git commit -m "$(cat <<'EOF'
 test(web,e2e): sweep /app/w/ → /workspace/ in E2E specs
 
-86 spec 갱신. url-redirects.spec.ts 는 의도적으로 옛 path 유지 (308 검증).
+86 spec 갱신. url-redirects.spec.ts 는 의도적으로 옛 path 유지 (307 검증).
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -1010,7 +1021,7 @@ EOF
 
 CLAUDE.md memory: **"완료 표기 전 user-facing 1-call 검증 의무"**.
 
-- [ ] **Step 11.1: Bring up dev stack**
+- [x] **Step 11.1: Bring up dev stack**
 
 ```bash
 docker-compose up -d
@@ -1018,21 +1029,38 @@ pnpm dev &
 sleep 15
 ```
 
-- [ ] **Step 11.2: Hit each new path with curl**
+Task note: `pnpm dev` package-script pathing was not reliable from the
+worktree, so the same dev stack was started explicitly with root `.env`:
+Docker Postgres/Redis/MinIO, `@opencairn/api` via `tsx src/index.ts`, and
+`@opencairn/web` via `next dev --webpack --port 3000`. API health returned
+200 before browser verification.
+
+- [x] **Step 11.2: Hit each new path with curl**
 
 ```bash
 # Login required for app routes — for this verification the redirect chain is enough.
 curl -sI http://localhost:3000/ko/dashboard | head -1                        # 200 or 307→login
 curl -sI http://localhost:3000/ko/workspace/test | head -1                    # 200 or 307
 curl -sI http://localhost:3000/ko/settings/ai | head -1                       # 200 or 307
-curl -sI http://localhost:3000/ko/app/w/test 2>&1 | grep -E '^(HTTP|location)' # 308 → /ko/workspace/test
-curl -sI http://localhost:3000/ko/app/dashboard 2>&1 | grep -E '^(HTTP|location)' # 308 → /ko/dashboard
-curl -sI http://localhost:3000/ko/app/settings/ai 2>&1 | grep -E '^(HTTP|location)' # 308 → /ko/settings/ai
+curl -sI http://localhost:3000/ko/app/w/test 2>&1 | grep -E '^(HTTP|location)' # 307 → /ko/workspace/test
+curl -sI http://localhost:3000/ko/app/dashboard 2>&1 | grep -E '^(HTTP|location)' # 307 → /ko/dashboard
+curl -sI http://localhost:3000/ko/app/settings/ai 2>&1 | grep -E '^(HTTP|location)' # 307 → /ko/settings/ai
 ```
 
 Capture the output in your verification notes. **Do not declare task complete without this evidence.**
 
-- [ ] **Step 11.3: Browser sanity (Playwright MCP if available, or manual)**
+Evidence captured on 2026-05-01 KST:
+
+```text
+/ko/dashboard       -> HTTP/1.1 307 Temporary Redirect, location: /dashboard
+/ko/workspace/test  -> HTTP/1.1 307 Temporary Redirect, location: /workspace/test
+/ko/settings/ai     -> HTTP/1.1 307 Temporary Redirect, location: /settings/ai
+/ko/app/w/test      -> HTTP/1.1 307 Temporary Redirect, location: /ko/workspace/test
+/ko/app/dashboard   -> HTTP/1.1 307 Temporary Redirect, location: /ko/dashboard
+/ko/app/settings/ai -> HTTP/1.1 307 Temporary Redirect, location: /ko/settings/ai
+```
+
+- [x] **Step 11.3: Browser sanity (Playwright MCP if available, or manual)**
 
 Open `http://localhost:3000/ko/workspace/{your-dev-ws-slug}` in a browser. Verify:
 1. Sidebar links point to `/workspace/...`
@@ -1040,7 +1068,16 @@ Open `http://localhost:3000/ko/workspace/{your-dev-ws-slug}` in a browser. Verif
 3. Open `/ko/app/w/{your-dev-ws-slug}` → browser redirects to `/ko/workspace/{slug}`.
 4. Command palette navigation lands on new URLs.
 
-- [ ] **Step 11.4: Stop dev**
+Task note: a focused Playwright browser sanity against the live dev stack
+passed. It verified sidebar links contain `/workspace/...` and no `/app/`,
+direct note navigation lands on `/workspace/{slug}/note/{id}`, old
+`/ko/app/w/{slug}` redirects to the workspace route, and command palette
+dashboard navigation lands on the new workspace dashboard URL. During this
+manual pass, two URL bugs were fixed: default-locale canonical
+`/workspace/...` parsing and `/workspace/{slug}/project/{id}/note/{id}` tab
+sync.
+
+- [x] **Step 11.4: Stop dev**
 
 ```bash
 pkill -f "pnpm dev" || true
@@ -1056,29 +1093,41 @@ docker-compose stop
 - Modify: `docs/contributing/plans-status.md`
 - Modify: `docs/architecture/api-contract.md` (any path examples)
 
-- [ ] **Step 12.1: Update CLAUDE.md**
+- [x] **Step 12.1: Update CLAUDE.md**
 
 The `Hierarchy: Workspace → Project → Page` line is unchanged. But scan CLAUDE.md for any URL reference (`/app/w/`, `/app/dashboard`, `/app/settings/`) and update.
 
 Run: `git grep -nE '/app/w/|/app/dashboard|/app/settings/' -- CLAUDE.md docs/`
 Expected: any matches in human-readable docs need updating. Skip changelogs/audits — those are historical records.
 
-- [ ] **Step 12.2: Update plans-status.md**
+Task note: `CLAUDE.md` had no live old-URL hits. Live docs updated:
+`docs/contributing/dev-guide.md` import path and
+`docs/architecture/collaboration-model.md` deep-link example. Remaining old
+URL hits are historical plans/specs/review records or this plan/spec's own
+before/redirect examples.
+
+- [x] **Step 12.2: Update plans-status.md**
 
 Add a new entry under "Active / next" or as completed:
 
 ```markdown
 - ✅ Complete: ... URL Restructure (2026-04-30, plan 2026-04-30-url-restructure):
   /app/w/{slug}/p/{id}/notes/{nid} → /workspace/{slug}/project/{id}/note/{nid},
-  central urls.ts builder, 308 redirect sunset 2026-05-14.
+  central urls.ts builder, temporary redirect sunset 2026-05-14.
 ```
 
-- [ ] **Step 12.3: Update api-contract / data-flow path examples if any**
+Task note: added the URL Restructure completion entry and updated the live App
+Shell fidelity status note from `/app/settings/ai` to `/settings/ai`.
+
+- [x] **Step 12.3: Update api-contract / data-flow path examples if any**
 
 Run: `git grep -nE '/app/w/|/app/dashboard|/app/settings/' -- docs/architecture/`
 Expected: update any non-historical examples.
 
-- [ ] **Step 12.4: Commit docs**
+Task note: `docs/architecture/collaboration-model.md` was the only live
+architecture hit and now points to `/workspace/<ws>/project/<proj>/note/<note>`.
+
+- [x] **Step 12.4: Commit docs**
 
 ```bash
 git add CLAUDE.md docs
@@ -1111,7 +1160,7 @@ gh pr create --title "refactor: /app/w → /workspace + central URL builder" --b
 - Renames `/{locale}/app/w/{slug}/p/{id}/notes/{nid}` → `/{locale}/workspace/{slug}/project/{id}/note/{nid}`
 - Drops `/app/` from dashboard + settings
 - Centralizes 162 hardcoded path literals into `apps/web/src/lib/urls.ts`
-- 308 redirects from old paths (sunset 2026-05-14)
+- Temporary redirects from old paths (sunset 2026-05-14)
 - ESLint `no-restricted-syntax` guard against regressions
 - Reserved slugs: + workspace/dashboard/project/note (DB sanity check: <fill in row count>)
 
@@ -1127,11 +1176,14 @@ EOF
 )"
 ```
 
-- [ ] **Step 13.3: Schedule sunset agent**
+- [x] **Step 13.3: Schedule sunset agent**
 
 Use the `schedule` skill to register a one-time agent for 2026-05-14:
 
 > Cleanup PR: remove the `/app/w → /workspace` redirect block from `apps/web/next.config.ts` and the `url-redirects.spec.ts` cases. Verify access logs do not show meaningful traffic on the old paths first.
+
+Task note: registered Codex app automation `url-redirect-sunset-cleanup-pr`
+for 2026-05-14 09:00 KST.
 
 ---
 
@@ -1147,7 +1199,7 @@ Spec sections vs tasks:
 | Path parser (url-parsers.ts) | Task 2 |
 | Reserved Slugs + DB check | Task 3 |
 | Migration 0040 (conditional) | Task 4 |
-| 301 Redirects | Task 8 |
+| Temporary redirects | Task 8 |
 | ESLint guard | Task 9 |
 | External URLs (api/emails) | Task 7 |
 | i18n grep | Task 12.3 |

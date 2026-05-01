@@ -13,7 +13,7 @@ test.describe("Command Palette", () => {
   }) => {
     const session = await seedAndSignIn(request);
     await applySessionCookie(context, session);
-    await page.goto(`/ko/app/w/${session.wsSlug}/research`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/research`);
 
     // Open the palette
     await page.keyboard.press("Control+k");
@@ -24,9 +24,9 @@ test.describe("Command Palette", () => {
     // cmdk auto-selects the first match; Enter runs it.
     await page.keyboard.press("Enter");
 
-    // We landed on /ko/app/w/<slug>/ (dashboard).
+    // We landed on /ko/workspace/<slug>/ (dashboard).
     await page.waitForURL(
-      new RegExp(`/ko/app/w/${session.wsSlug}/?$`),
+      new RegExp(`/ko/workspace/${session.wsSlug}/?$`),
     );
     await expect(page.getByTestId("route-dashboard")).toBeVisible();
   });

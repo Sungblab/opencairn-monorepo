@@ -2,6 +2,10 @@ import { db, sql } from "@opencairn/db";
 import { getGeminiProvider } from "./llm/gemini";
 import { projectHybridSearch, type HybridHit } from "./internal-hybrid-search";
 import { envInt } from "./env";
+import {
+  projectChunkHybridSearch,
+  type ChunkHybridHit,
+} from "./chunk-hybrid-search";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -22,6 +26,10 @@ export type RetrievalHit = {
   title: string;
   snippet: string;
   score: number;
+};
+
+type ProjectRetrievalHit = RetrievalHit & {
+  sourceKey: string;
 };
 
 // ── Top-k routing ────────────────────────────────────────────────────────
@@ -98,33 +106,63 @@ export async function retrieve(opts: {
     fanout,
     fanoutConcurrency(),
     (projectId) =>
-      projectHybridSearch({
+      retrieveProjectHits({
         projectId,
         queryText: opts.query,
         queryEmbedding,
         k: perProjectK,
-      }).catch(() => [] as HybridHit[]),
+      }),
     opts.signal,
   );
 
-  // Re-merge: keep first occurrence per noteId, then sort by RRF score and
-  // slice. Note↔project is 1:1 so duplicates across projects shouldn't
-  // happen; the dedup is defensive.
-  const merged = new Map<string, HybridHit>();
+  // Re-merge: chunk hits use chunk ids for citation-level identity; fallback
+  // note hits use note ids.
+  const merged = new Map<string, ProjectRetrievalHit>();
   for (const hits of projectHits) {
     for (const h of hits) {
-      if (!merged.has(h.noteId)) merged.set(h.noteId, h);
+      if (!merged.has(h.sourceKey)) merged.set(h.sourceKey, h);
     }
   }
   return Array.from(merged.values())
-    .sort((a, b) => b.rrfScore - a.rrfScore)
+    .sort((a, b) => b.score - a.score)
     .slice(0, k)
     .map((h) => ({
       noteId: h.noteId,
       title: h.title,
       snippet: h.snippet,
+      score: h.score,
+    }));
+}
+
+async function retrieveProjectHits(opts: {
+  projectId: string;
+  queryText: string;
+  queryEmbedding: number[];
+  k: number;
+}): Promise<ProjectRetrievalHit[]> {
+  const chunkHits = await projectChunkHybridSearch(opts).catch(
+    () => [] as ChunkHybridHit[],
+  );
+  if (chunkHits.length > 0) {
+    return chunkHits.map((h) => ({
+      sourceKey: `chunk:${h.chunkId}`,
+      noteId: h.noteId,
+      title: h.headingPath ? `${h.title} · ${h.headingPath}` : h.title,
+      snippet: h.snippet,
       score: h.rrfScore,
     }));
+  }
+
+  const noteHits = await projectHybridSearch(opts).catch(
+    () => [] as HybridHit[],
+  );
+  return noteHits.map((h) => ({
+    sourceKey: `note:${h.noteId}`,
+    noteId: h.noteId,
+    title: h.title,
+    snippet: h.snippet,
+    score: h.rrfScore,
+  }));
 }
 
 // ── Scope/chip resolution ────────────────────────────────────────────────

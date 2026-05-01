@@ -4,6 +4,7 @@ import { Workflow } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import { useTabsStore } from "@/stores/tabs-store";
 import { useCurrentProjectContext } from "./use-current-project";
+import { urls } from "@/lib/urls";
 
 export function ProjectGraphLink() {
   const t = useTranslations("sidebar.graph");
@@ -32,7 +33,7 @@ export function ProjectGraphLink() {
       splitSide: null,
       scrollY: 0,
     });
-    router.push(`/${locale}/app/w/${wsSlug}/p/${projectId}/graph`);
+    router.push(urls.workspace.projectGraph(locale, wsSlug, projectId));
   }
 
   return (

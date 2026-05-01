@@ -10,6 +10,7 @@ import { useTabsStore, type Tab } from "@/stores/tabs-store";
 
 vi.mock("next-intl", () => ({
   useTranslations: (_ns?: string) => (key: string) => key,
+  useLocale: () => "ko",
 }));
 
 // Base UI's MenuItem requires an enclosing MenuRoot context. We wrap in a
@@ -144,7 +145,7 @@ describe("TabContextMenuItems", () => {
     );
     fireEvent.click(screen.getByText("copyLink"));
     expect(writeText).toHaveBeenCalledWith(
-      `${window.location.origin}/w/acme/n/n-42`,
+      `${window.location.origin}/ko/workspace/acme/note/n-42`,
     );
   });
 });

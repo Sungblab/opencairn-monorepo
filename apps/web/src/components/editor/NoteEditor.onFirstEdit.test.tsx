@@ -18,10 +18,6 @@ vi.mock("platejs/react", () => ({
   PlateContent: (props: React.HTMLAttributes<HTMLDivElement>) => (
     <div {...props} />
   ),
-  createPlatePlugin: (plugin: unknown) => ({
-    ...((plugin ?? {}) as object),
-    withComponent: () => plugin,
-  }),
 }));
 
 // CommentsPanel, PresenceStack, banners, toolbar, wiki-link combobox, and
@@ -97,6 +93,17 @@ vi.mock("./plugins/mermaid-fence", () => ({ MermaidFencePlugin: {} }));
 // paste-norm calls `createPlatePlugin` at module scope. Same treatment.
 vi.mock("./plugins/paste-norm", () => ({ PasteNormPlugin: {} }));
 
+// math-trigger calls `createPlatePlugin` at module scope. Same treatment.
+vi.mock("./plugins/math-trigger", () => ({ mathTriggerPlugin: {} }));
+
+// embed/image plugins also call `createPlatePlugin` at module scope.
+vi.mock("./blocks/embed/embed-plugin", () => ({ embedPlugin: {} }));
+vi.mock("./blocks/image/image-plugin", () => ({ imagePlugin: {} }));
+vi.mock("./plugins/image-drop-deferred", () => ({
+  imageDropDeferredPlugin: {},
+  useImageUploadDeferredToast: () => undefined,
+}));
+
 import { renderNoteEditor } from "./NoteEditor.test-rig";
 
 describe("NoteEditor.onFirstEdit", () => {
@@ -116,7 +123,9 @@ describe("NoteEditor.onFirstEdit", () => {
     const onFirstEdit = vi.fn();
     renderNoteEditor({ onFirstEdit });
     const body = screen.getByTestId("note-body");
-    fireEvent.drop(body, { dataTransfer: { files: [], types: ["text/plain"] } });
+    fireEvent.drop(body, {
+      dataTransfer: { files: [], types: ["text/plain"] },
+    });
     expect(onFirstEdit).toHaveBeenCalledOnce();
   });
 

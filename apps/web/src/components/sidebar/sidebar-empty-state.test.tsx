@@ -22,6 +22,6 @@ describe("SidebarEmptyState", () => {
       name: "sidebar.project.create_cta",
     });
     fireEvent.click(cta);
-    expect(push).toHaveBeenCalledWith("/ko/app/w/acme/new-project");
+    expect(push).toHaveBeenCalledWith("/ko/workspace/acme/new-project");
   });
 });

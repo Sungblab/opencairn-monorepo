@@ -1,5 +1,6 @@
 "use client";
 
+import { urls } from "@/lib/urls";
 import { useRouter, useParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import {
@@ -15,10 +16,10 @@ import type { NotificationRow } from "@/lib/api-client";
 // Plan 2C Task 11 — click routing.
 //
 // The drawer lives inside ShellSidebar, which only mounts under
-// /[locale]/app/w/[wsSlug]/(shell)/..., so wsSlug is always reachable via
+// /[locale]/workspace/[wsSlug]/(shell)/..., so wsSlug is always reachable via
 // useParams(). The notification payload carries `noteId` but no
 // projectId/wsSlug, so we route through the shell-level
-// /app/w/<wsSlug>/n/<noteId> stub (same path the command palette uses for
+// /workspace/<wsSlug>/note/<noteId> stub (same path the command palette uses for
 // note jumps) and let the shell resolve the project for the full editor URL.
 //
 // `system` notifications get a `linkUrl` if the publisher set one — they're
@@ -35,13 +36,13 @@ function notificationHref(
       if (typeof p.noteId === "string" && wsSlug) {
         const fragment =
           typeof p.commentId === "string" ? `#comment-${p.commentId}` : "";
-        return `/${locale}/app/w/${wsSlug}/n/${p.noteId}${fragment}`;
+        return `${urls.workspace.note(locale, wsSlug, p.noteId)}${fragment}`;
       }
       return null;
     case "share_invite":
     case "research_complete":
       if (typeof p.noteId === "string" && wsSlug) {
-        return `/${locale}/app/w/${wsSlug}/n/${p.noteId}`;
+        return urls.workspace.note(locale, wsSlug, p.noteId);
       }
       return null;
     case "system":

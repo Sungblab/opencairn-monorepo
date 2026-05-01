@@ -1,4 +1,5 @@
 "use client";
+import { urls } from "@/lib/urls";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { AuthCard } from "@/components/auth/AuthCard";
@@ -59,8 +60,8 @@ export function AcceptInviteCard({
         }>;
         const match = list.find((w) => w.id === info.workspaceId);
         window.location.href = match
-          ? `/${locale}/app/w/${match.slug}`
-          : `/${locale}/app`;
+          ? urls.workspace.root(locale, match.slug)
+          : urls.dashboard(locale);
         return;
       }
       if (res.status === 403) setError("email_mismatch");

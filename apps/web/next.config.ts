@@ -68,6 +68,51 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // 2026-04-30 URL restructure. Sunset 2026-05-14.
+  async redirects() {
+    return [
+      {
+        source: "/:locale/app/w/:slug/p/:pid/notes/:nid",
+        destination: "/:locale/workspace/:slug/project/:pid/note/:nid",
+        permanent: false,
+      },
+      {
+        source: "/:locale/app/w/:slug/p/:pid/:rest*",
+        destination: "/:locale/workspace/:slug/project/:pid/:rest*",
+        permanent: false,
+      },
+      {
+        source: "/:locale/app/w/:slug/n/:nid",
+        destination: "/:locale/workspace/:slug/note/:nid",
+        permanent: false,
+      },
+      {
+        source: "/:locale/app/w/:slug/:rest*",
+        destination: "/:locale/workspace/:slug/:rest*",
+        permanent: false,
+      },
+      {
+        source: "/:locale/app/w/:slug",
+        destination: "/:locale/workspace/:slug",
+        permanent: false,
+      },
+      {
+        source: "/:locale/app/dashboard",
+        destination: "/:locale/dashboard",
+        permanent: false,
+      },
+      {
+        source: "/:locale/app/settings/:rest*",
+        destination: "/:locale/settings/:rest*",
+        permanent: false,
+      },
+      {
+        source: "/:locale/app",
+        destination: "/:locale/dashboard",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default withNextIntl(nextConfig);

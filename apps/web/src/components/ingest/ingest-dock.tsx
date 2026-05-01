@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { useIngestStore } from "@/stores/ingest-store";
 import { useIngestStream } from "@/hooks/use-ingest-stream";
 import { useTabsStore, type Tab } from "@/stores/tabs-store";
+import { urls } from "@/lib/urls";
 import { IngestProgressView } from "./ingest-progress-view";
 
 const DOCK_MAX = 12;
@@ -44,9 +45,10 @@ function openInTab(wfid: string, fileName: string | null) {
 export function IngestDock() {
   const runs = useIngestStore((s) => s.runs);
   const dismiss = useIngestStore((s) => s.dismissDockCard);
-  const t = useTranslations("ingest.dock");
   const locale = useLocale();
-  const { wsSlug } = useParams<{ wsSlug?: string }>();
+  const params = useParams<{ wsSlug?: string }>() ?? {};
+  const wsSlug = params.wsSlug;
+  const t = useTranslations("ingest.dock");
 
   const cards = Object.values(runs).sort(
     (a, b) => b.startedAt - a.startedAt,
@@ -84,7 +86,7 @@ export function IngestDock() {
           )}
           {r.status === "completed" && r.noteId && wsSlug && (
             <Link
-              href={`/${locale}/app/w/${wsSlug}/n/${r.noteId}`}
+              href={urls.workspace.note(locale, wsSlug, r.noteId)}
               className="ingest-dock-link"
             >
               {t("openNote")}

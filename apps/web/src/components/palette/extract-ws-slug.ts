@@ -2,14 +2,13 @@
 // (mounted at the locale boundary) can scope its note search and shell
 // actions without a prop drill from a server-rendered layout.
 //
-// Routes: `/<locale>/app/w/<wsSlug>/...` — wsSlug sits at index 4 (after the
-// leading "/"). Any other shape (`/settings/*`, `/onboarding`, `/s/<token>`)
-// returns null and the palette renders the "no workspace" action set.
+import { parseWorkspacePath } from "@/lib/url-parsers";
 
-const WS_SEGMENT_RE = /^\/[^/]+\/app\/w\/([^/]+)(?:\/|$)/;
+// Routes: `/<locale>/workspace/<wsSlug>/...`. Any other shape
+// (`/settings/*`, `/onboarding`, `/s/<token>`)
+// returns null and the palette renders the "no workspace" action set.
 
 export function extractWsSlug(pathname: string | null | undefined): string | null {
   if (!pathname) return null;
-  const match = pathname.match(WS_SEGMENT_RE);
-  return match?.[1] ?? null;
+  return parseWorkspacePath(pathname).wsSlug;
 }

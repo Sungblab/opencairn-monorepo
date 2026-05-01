@@ -154,7 +154,7 @@ test.describe("Deep Research smoke", () => {
       });
     });
 
-    await page.goto(`/ko/app/w/${session.wsSlug}/research`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/research`);
     await expect(page.getByText("Deep Research")).toBeVisible();
     await page.getByRole("button", { name: /새 리서치 시작/ }).click();
     await page.getByTestId("research-topic").fill("Smoke topic");
@@ -168,8 +168,8 @@ test.describe("Deep Research smoke", () => {
 
     await page.getByRole("button", { name: /승인하고 시작/ }).click();
 
-    // After completion, we redirect to /n/n-smoke. Wait for that.
-    await page.waitForURL(/\/n\/n-smoke/);
+    // After completion, we redirect to /note/n-smoke. Wait for that.
+    await page.waitForURL(/\/note\/n-smoke/);
     await expect(page.getByText("Smoke topic")).toBeVisible();
   });
 });

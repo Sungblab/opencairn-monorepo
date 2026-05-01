@@ -72,7 +72,7 @@ describe("ProjectSwitcher", () => {
     const btn = await screen.findByText("Roadmap");
     fireEvent.click(btn);
     await waitFor(() => {
-      expect(push).toHaveBeenCalledWith("/ko/app/w/acme/p/p-1");
+      expect(push).toHaveBeenCalledWith("/ko/workspace/acme/project/p-1");
     });
   });
 
@@ -88,7 +88,7 @@ describe("ProjectSwitcher", () => {
     const newBtn = await screen.findByText(/sidebar\.project\.new/);
     fireEvent.click(newBtn);
     await waitFor(() => {
-      expect(push).toHaveBeenCalledWith("/ko/app/w/acme/new-project");
+      expect(push).toHaveBeenCalledWith("/ko/workspace/acme/new-project");
     });
   });
 });

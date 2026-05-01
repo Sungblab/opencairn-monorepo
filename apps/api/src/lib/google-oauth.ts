@@ -10,7 +10,7 @@ const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 export function isConfigured(): boolean {
   return Boolean(
     process.env.GOOGLE_OAUTH_CLIENT_ID &&
-      process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+    process.env.GOOGLE_OAUTH_CLIENT_SECRET,
   );
 }
 
@@ -27,6 +27,7 @@ function stateSecret(): Buffer {
 export function signState(payload: {
   userId: string;
   workspaceId: string;
+  locale?: string;
 }): string {
   const nonce = randomBytes(12).toString("hex");
   const body = Buffer.from(
@@ -41,6 +42,7 @@ export function signState(payload: {
 export function verifyState(state: string): {
   userId: string;
   workspaceId: string;
+  locale?: string;
   nonce: string;
   ts: number;
 } {
@@ -55,10 +57,7 @@ export function verifyState(state: string): {
     throw new Error("state signature mismatch");
   }
   const parsed = JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
-  if (
-    typeof parsed.ts !== "number" ||
-    Date.now() - parsed.ts > STATE_TTL_MS
-  ) {
+  if (typeof parsed.ts !== "number" || Date.now() - parsed.ts > STATE_TTL_MS) {
     throw new Error("state expired");
   }
   return parsed;

@@ -69,7 +69,7 @@ test.describe("Plan 2D — save_suggestion flow", () => {
       await fulfillPersistedSaveSuggestionMessages(route, sent);
     });
 
-    await page.goto(`/ko/app/w/${session.wsSlug}/chat-scope`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/chat-scope`);
     await page.evaluate(
       ({ workspaceId, threadId }) => {
         localStorage.setItem(
@@ -113,7 +113,7 @@ test.describe("Plan 2D — save_suggestion flow", () => {
   test.skip("inserts markdown into the active note when Save is clicked on the card", async ({
     page: _page,
   }) => {
-    // SKIPPED: the current (shell)/n/[noteId] route renders a placeholder
+    // SKIPPED: the current (shell)/note/[noteId] route renders a placeholder
     // rather than the real Plate editor, while the legacy Plate editor route
     // does not mount the Agent Panel. Keep this as manual-only debt until
     // the editor and AgentPanel share one shell route.
