@@ -1,4 +1,5 @@
 "use client";
+import { urls } from "@/lib/urls";
 import { useQuery } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import { useParams, useRouter } from "next/navigation";
@@ -55,10 +56,10 @@ export function ProjectSwitcher() {
   });
 
   const goto = (projectId: string) => () => {
-    router.push(`/${locale}/app/w/${wsSlug}/p/${projectId}`);
+    router.push(urls.workspace.project(locale, wsSlug, projectId));
   };
   const gotoNew = () => {
-    router.push(`/${locale}/app/w/${wsSlug}/new-project`);
+    router.push(urls.workspace.newProject(locale, wsSlug));
   };
 
   return (

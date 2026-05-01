@@ -1,6 +1,7 @@
 "use client";
 import { useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useLocale } from "next-intl";
 import { tabToUrl, type TabRoute } from "@/lib/tab-url";
 
 // Narrow companion to useUrlTabSync: returns ONLY the navigator and skips
@@ -10,6 +11,7 @@ import { tabToUrl, type TabRoute } from "@/lib/tab-url";
 // useUrlTabSync stays mounted once at ShellProviders level.
 export function useTabNavigate() {
   const router = useRouter();
+  const locale = useLocale();
   const params = useParams<{ wsSlug?: string }>();
   const slug = params?.wsSlug ?? "";
 
@@ -19,10 +21,10 @@ export function useTabNavigate() {
       opts: { mode: "push" | "replace" } = { mode: "push" },
     ) => {
       if (!slug) return;
-      const url = tabToUrl(slug, route);
+      const url = tabToUrl(slug, route, locale);
       if (opts.mode === "replace") router.replace(url);
       else router.push(url);
     },
-    [router, slug],
+    [router, slug, locale],
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { urls } from "@/lib/urls";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
@@ -14,7 +15,7 @@ import { extractWsSlug } from "./extract-ws-slug";
 
 // Mounted at the [locale]/layout boundary so /settings, /onboarding, and the
 // rest of the non-shell routes pick up ⌘K too. The active workspace is
-// derived from the URL — we only have a wsSlug under `/<locale>/app/w/<slug>`
+// derived from the URL — we only have a wsSlug under `/<locale>/workspace/<slug>`
 // — and the palette degrades gracefully (action-only, no note search) when
 // the path doesn't have one.
 //
@@ -97,7 +98,7 @@ export function CommandPalette() {
                 key={n.id}
                 value={`note-${n.id}-${n.title}`}
                 onSelect={() => {
-                  router.push(`/${locale}/app/w/${wsSlug}/n/${n.id}`);
+                  router.push(urls.workspace.note(locale, wsSlug, n.id));
                   close();
                 }}
                 className="flex cursor-pointer items-center justify-between rounded px-2 py-1.5 text-sm aria-selected:bg-accent"

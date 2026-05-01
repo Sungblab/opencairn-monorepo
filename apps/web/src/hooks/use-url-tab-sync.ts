@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef } from "react";
 import { useParams, usePathname, useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useTabsStore, type TabKind } from "@/stores/tabs-store";
 import { tabToUrl, urlToTabTarget, type TabRoute } from "@/lib/tab-url";
 import { newTab } from "@/lib/tab-factory";
@@ -78,6 +78,7 @@ function resolveDefaultTitle(
 export function useUrlTabSync() {
   const router = useRouter();
   const pathname = usePathname() ?? "/";
+  const locale = useLocale();
   const tabTitle = useTranslations("appShell.tabTitles");
   const params = useParams<{ wsSlug?: string }>();
   const slug = params?.wsSlug ?? "";
@@ -138,11 +139,11 @@ export function useUrlTabSync() {
       opts: { mode: "push" | "replace" } = { mode: "push" },
     ) => {
       if (!slug) return;
-      const url = tabToUrl(slug, route);
+      const url = tabToUrl(slug, route, locale);
       if (opts.mode === "replace") router.replace(url);
       else router.push(url);
     },
-    [router, slug],
+    [router, slug, locale],
   );
 
   return { tabs, activeId, navigateToTab };

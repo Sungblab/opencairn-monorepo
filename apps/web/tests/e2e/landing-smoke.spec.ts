@@ -17,7 +17,7 @@ test.describe("Landing smoke", () => {
   test("dashboard theme toggle cycles 4 themes and persists", async ({ page }) => {
     test.skip(!process.env.E2E_TEST_USER, "E2E_TEST_USER not set");
 
-    await page.goto("/app/dashboard");
+    await page.goto("/dashboard");
     const select = page.getByRole("combobox", { name: "Theme" });
     for (const theme of ["cairn-dark", "sepia", "high-contrast", "cairn-light"]) {
       await select.selectOption(theme);

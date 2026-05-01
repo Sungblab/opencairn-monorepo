@@ -3,10 +3,10 @@ import { extractWsSlug } from "./extract-ws-slug";
 
 describe("extractWsSlug", () => {
   it("returns the slug for a workspace-scoped path", () => {
-    expect(extractWsSlug("/ko/app/w/acme/research")).toBe("acme");
-    expect(extractWsSlug("/en/app/w/team-1")).toBe("team-1");
+    expect(extractWsSlug("/ko/workspace/acme/research")).toBe("acme");
+    expect(extractWsSlug("/en/workspace/team-1")).toBe("team-1");
     // Trailing slash on the slug-only path
-    expect(extractWsSlug("/ko/app/w/acme/")).toBe("acme");
+    expect(extractWsSlug("/ko/workspace/acme/")).toBe("acme");
   });
 
   it("returns null for non-workspace paths", () => {
@@ -24,7 +24,7 @@ describe("extractWsSlug", () => {
     expect(extractWsSlug("")).toBeNull();
   });
 
-  it("does not partial-match `/app/w` mid-path", () => {
-    expect(extractWsSlug("/ko/marketing/app/w/acme")).toBeNull();
+  it("does not partial-match `/workspace` mid-path", () => {
+    expect(extractWsSlug("/ko/marketing/workspace/acme")).toBeNull();
   });
 });

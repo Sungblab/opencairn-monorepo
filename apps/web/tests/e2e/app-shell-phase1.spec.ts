@@ -5,10 +5,10 @@ import {
   type SeededSession,
 } from "./helpers/seed-session";
 
-// App Shell Phase 1 — verifies the empty 3-panel shell renders, the two
-// global shortcuts toggle their panels, the placeholder routes mount under
-// the (shell) group, and the root `/` redirect lands authed users on
-// their last-viewed workspace.
+// App Shell Phase 1 — verifies the 3-panel shell renders, the two global
+// shortcuts toggle their panels, representative workspace routes mount under
+// the (shell) group, and the locale root sends authed users to the app-level
+// dashboard per proxy.ts.
 //
 // The compact-viewport test asserts the actual Phase 1 behavior: the
 // panel-store defaults (sidebarOpen: true, agentPanelOpen: true) apply in
@@ -24,16 +24,18 @@ test.describe("App Shell Phase 1", () => {
   });
 
   test("renders 3-panel shell with placeholders", async ({ page }) => {
-    await page.goto(`/ko/app/w/${session.wsSlug}/`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/settings`, {
+      waitUntil: "domcontentloaded",
+    });
     await expect(page.getByTestId("app-shell")).toBeVisible();
     await expect(page.getByTestId("app-shell-sidebar")).toBeVisible();
     await expect(page.getByTestId("app-shell-main")).toBeVisible();
     await expect(page.getByTestId("app-shell-agent-panel")).toBeVisible();
-    await expect(page.getByTestId("route-dashboard")).toBeVisible();
+    await expect(page.getByTestId("route-ws-settings")).toBeVisible();
   });
 
   test("Ctrl+\\ toggles sidebar", async ({ page }) => {
-    await page.goto(`/ko/app/w/${session.wsSlug}/`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/settings`);
     await expect(page.getByTestId("app-shell-sidebar")).toBeVisible();
     await page.keyboard.press("Control+\\");
     await expect(page.getByTestId("app-shell-sidebar")).not.toBeVisible();
@@ -42,7 +44,7 @@ test.describe("App Shell Phase 1", () => {
   });
 
   test("Ctrl+J toggles agent panel", async ({ page }) => {
-    await page.goto(`/ko/app/w/${session.wsSlug}/`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/settings`);
     await expect(page.getByTestId("app-shell-agent-panel")).toBeVisible();
     await page.keyboard.press("Control+j");
     await expect(
@@ -50,23 +52,24 @@ test.describe("App Shell Phase 1", () => {
     ).not.toBeVisible();
   });
 
-  test("placeholder routes mount under the shell layout", async ({
+  test("workspace routes mount under the shell layout", async ({
     page,
   }) => {
-    await page.goto(`/ko/app/w/${session.wsSlug}/n/n-abc`);
-    await expect(page.getByTestId("route-note")).toBeVisible();
+    await page.goto(`/ko/workspace/${session.wsSlug}/settings`);
+    await expect(page.getByTestId("route-ws-settings")).toBeVisible();
     await expect(page.getByTestId("app-shell-sidebar")).toBeVisible();
 
-    await page.goto(`/ko/app/w/${session.wsSlug}/research`);
-    await expect(page.getByTestId("route-research-hub")).toBeVisible();
+    await page.goto(`/ko/workspace/${session.wsSlug}/research`);
+    await expect(
+      page.getByRole("heading", { name: "Deep Research" }),
+    ).toBeVisible();
 
-    await page.goto(`/ko/app/w/${session.wsSlug}/research/r-77`);
-    await expect(page.getByTestId("route-research-run")).toBeVisible();
-
-    await page.goto(`/ko/app/w/${session.wsSlug}/settings`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/settings`);
     await expect(page.getByTestId("route-ws-settings")).toBeVisible();
 
-    await page.goto(`/ko/app/w/${session.wsSlug}/settings/members`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/settings/members`, {
+      waitUntil: "domcontentloaded",
+    });
     await expect(page.getByTestId("route-ws-settings")).toBeVisible();
   });
 
@@ -74,7 +77,7 @@ test.describe("App Shell Phase 1", () => {
     page,
   }) => {
     await page.setViewportSize({ width: 800, height: 700 });
-    await page.goto(`/ko/app/w/${session.wsSlug}/`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/settings`);
     await expect(page.getByTestId("app-shell-main")).toBeVisible();
     // Sheet content uses Radix dialog semantics — the sidebar/agent regions
     // exist inside the Sheet portal once the dialog opens. Toggle once via
@@ -85,22 +88,11 @@ test.describe("App Shell Phase 1", () => {
     await expect(page.getByTestId("app-shell-sidebar")).toBeVisible();
   });
 
-  test("root / redirects authed user to last-viewed workspace", async ({
+  test("locale root redirects authed user to dashboard", async ({
     page,
   }) => {
-    // Prime last-viewed via the API the same way the dashboard would.
-    const patchRes = await page.request.patch(
-      "http://localhost:4000/api/users/me/last-viewed-workspace",
-      { data: { workspaceId: session.workspaceId } },
-    );
-    expect(patchRes.ok()).toBe(true);
-
-    // next-intl `localePrefix: "as-needed"` strips `/ko` for the default
-    // locale, so the URL after redirect is `/app/w/<slug>`. Also tolerate
-    // an optional trailing slash since Next sometimes normalizes one.
+    // The proxy redirects any authed locale root to the app-level dashboard.
     await page.goto("/ko");
-    await page.waitForURL(
-      new RegExp(`(?:/ko)?/app/w/${session.wsSlug}/?$`),
-    );
+    await page.waitForURL(/(?:\/ko)?\/dashboard\/?$/);
   });
 });

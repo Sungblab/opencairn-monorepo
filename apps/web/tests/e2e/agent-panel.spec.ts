@@ -20,7 +20,7 @@ test.describe("App Shell Phase 4 — Agent Panel", () => {
   test("empty state shows on first visit and starts a thread", async ({
     page,
   }) => {
-    await page.goto(`/ko/app/w/${session.wsSlug}/`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/`);
     await expect(page.getByTestId("app-shell-agent-panel")).toBeVisible();
     // empty_state.start_cta — both the CTA text and the role=button label.
     await expect(
@@ -36,7 +36,7 @@ test.describe("App Shell Phase 4 — Agent Panel", () => {
   test("sends a message through the full-stack thread SSE route", async ({
     page,
   }) => {
-    await page.goto(`/ko/app/w/${session.wsSlug}/`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/`);
     await page.getByRole("button", { name: "첫 대화 시작" }).click();
 
     const ta = page.getByPlaceholder("메시지를 입력하세요...");
@@ -57,7 +57,7 @@ test.describe("App Shell Phase 4 — Agent Panel", () => {
   });
 
   test.skip("thumbs-down exposes reason chips", async ({ page }) => {
-    await page.goto(`/ko/app/w/${session.wsSlug}/`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/`);
     await page.getByRole("button", { name: "첫 대화 시작" }).click();
     const ta = page.getByPlaceholder("메시지를 입력하세요...");
     await ta.fill("hi");
@@ -75,7 +75,7 @@ test.describe("App Shell Phase 4 — Agent Panel", () => {
   test.skip("new thread via + preserves previous thread in list", async ({
     page,
   }) => {
-    await page.goto(`/ko/app/w/${session.wsSlug}/`);
+    await page.goto(`/ko/workspace/${session.wsSlug}/`);
     await page.getByRole("button", { name: "첫 대화 시작" }).click();
     const ta = page.getByPlaceholder("메시지를 입력하세요...");
     await ta.fill("first thread message");

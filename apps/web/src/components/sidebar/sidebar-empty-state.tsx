@@ -1,4 +1,5 @@
 "use client";
+import { urls } from "@/lib/urls";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter, useParams } from "next/navigation";
 
@@ -18,7 +19,7 @@ export function SidebarEmptyState() {
       <button
         type="button"
         onClick={() =>
-          router.push(`/${locale}/app/w/${wsSlug}/new-project`)
+          router.push(urls.workspace.newProject(locale, wsSlug))
         }
         className="rounded border border-border px-3 py-1 text-xs text-foreground transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
       >

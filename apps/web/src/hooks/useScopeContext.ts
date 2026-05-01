@@ -3,6 +3,7 @@
 import { useParams, usePathname } from "next/navigation";
 import type { AttachedChip, ScopeType } from "@opencairn/shared";
 
+import { parseWorkspacePath } from "@/lib/url-parsers";
 import { useWorkspaceId } from "./useWorkspaceId";
 
 // Plan 11A — derive the chat scope from the current route. The hook does
@@ -11,11 +12,11 @@ import { useWorkspaceId } from "./useWorkspaceId";
 // auto-attached chip set so the chat input can show the page / project /
 // workspace pill without an extra round trip.
 //
-// Route map (matches apps/web/src/app/[locale]/app/w/[wsSlug]/...):
-//   /app/w/<wsSlug>/n/<noteId>             → page scope
-//   /app/w/<wsSlug>/p/<projectId>/...      → project scope
-//   /app/w/<wsSlug>/chat                   → workspace scope
-//   /app/w/<wsSlug>                        → workspace scope (fallback)
+// Route map (matches apps/web/src/app/[locale]/workspace/[wsSlug]/...):
+//   /workspace/<wsSlug>/note/<noteId>             → page scope
+//   /workspace/<wsSlug>/project/<projectId>/...      → project scope
+//   /workspace/<wsSlug>/chat                   → workspace scope
+//   /workspace/<wsSlug>                        → workspace scope (fallback)
 //
 // `manual: false` on the auto chip is what the chip row uses to mark it
 // as auto-attached so the UI can render a softer style; users can still
@@ -37,26 +38,29 @@ export function useScopeContext(): ScopeContext {
   // pathname check disambiguates the workspace-chat route from the bare
   // workspace landing page; both lack noteId/projectId.
   const pathname = usePathname() ?? "";
-  const wsSlug = params.wsSlug ?? "";
+  const parsed = parseWorkspacePath(pathname);
+  const wsSlug = params.wsSlug ?? parsed.wsSlug ?? "";
+  const noteId = params.noteId ?? parsed.noteId ?? undefined;
+  const projectId = params.projectId ?? parsed.projectId ?? undefined;
   const workspaceId = useWorkspaceId(wsSlug || undefined);
 
-  if (params.noteId) {
+  if (noteId) {
     return {
       scopeType: "page",
-      scopeId: params.noteId,
+      scopeId: noteId,
       workspaceId,
       workspaceSlug: wsSlug,
-      initialChips: [{ type: "page", id: params.noteId, manual: false }],
+      initialChips: [{ type: "page", id: noteId, manual: false }],
     };
   }
 
-  if (params.projectId) {
+  if (projectId) {
     return {
       scopeType: "project",
-      scopeId: params.projectId,
+      scopeId: projectId,
       workspaceId,
       workspaceSlug: wsSlug,
-      initialChips: [{ type: "project", id: params.projectId, manual: false }],
+      initialChips: [{ type: "project", id: projectId, manual: false }],
     };
   }
 

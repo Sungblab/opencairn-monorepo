@@ -1,5 +1,5 @@
 "use client";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   ContextMenuItem,
   ContextMenuSeparator,
@@ -20,6 +20,7 @@ export interface TabContextMenuItemsProps {
 // for the trigger.
 export function TabContextMenuItems({ tab, wsSlug }: TabContextMenuItemsProps) {
   const t = useTranslations("appShell.tabs.menu");
+  const locale = useLocale();
   const togglePin = useTabsStore((s) => s.togglePin);
   const closeTab = useTabsStore((s) => s.closeTab);
   const closeOthers = useTabsStore((s) => s.closeOthers);
@@ -39,10 +40,14 @@ export function TabContextMenuItems({ tab, wsSlug }: TabContextMenuItemsProps) {
   const copyLink = () => {
     if (typeof navigator === "undefined") return;
     if (!navigator.clipboard) return;
-    const path = tabToUrl(wsSlug, {
-      kind: tab.kind,
-      targetId: tab.targetId,
-    });
+    const path = tabToUrl(
+      wsSlug,
+      {
+        kind: tab.kind,
+        targetId: tab.targetId,
+      },
+      locale,
+    );
     const origin =
       typeof window !== "undefined" ? window.location.origin : "";
     void navigator.clipboard.writeText(`${origin}${path}`);

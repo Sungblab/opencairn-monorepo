@@ -391,7 +391,7 @@ viewer는 WebSocket은 열리지만 Yjs update message를 서버가 drop. Hocusp
 
 ### 7.4 Deep linking
 
-이메일 알림의 링크는 deep link: `/app/w/<ws>/p/<proj>/notes/<note>?commentId=<c>&focus=true` → 브라우저가 해당 코멘트까지 스크롤 + 하이라이트.
+이메일 알림의 링크는 deep link: `/workspace/<ws>/project/<proj>/note/<note>?commentId=<c>&focus=true` → 브라우저가 해당 코멘트까지 스크롤 + 하이라이트.
 
 ---
 

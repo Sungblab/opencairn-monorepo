@@ -105,7 +105,7 @@ describe("ResearchRunView", () => {
     setup(detail({ status: "completed", noteId: "n1" }));
     await waitFor(() => {
       expect(pushMock).toHaveBeenCalledWith(
-        expect.stringMatching(/\/app\/w\/acme\/n\/n1$/),
+        "/ko/workspace/acme/note/n1",
       );
     });
   });

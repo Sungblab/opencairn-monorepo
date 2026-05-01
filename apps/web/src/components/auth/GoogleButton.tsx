@@ -2,6 +2,7 @@
 import { useTranslations, useLocale } from "next-intl";
 import { authClient, googleOAuthEnabled } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
+import { urls } from "@/lib/urls";
 
 interface GoogleButtonProps {
   className?: string;
@@ -20,7 +21,7 @@ export function GoogleButton({ className }: GoogleButtonProps) {
     // (the API at :4000), which would 404. Anchor to the web origin.
     await authClient.signIn.social({
       provider: "google",
-      callbackURL: `${window.location.origin}/${locale}/app`,
+      callbackURL: `${window.location.origin}${urls.dashboard(locale)}`,
     });
   };
 

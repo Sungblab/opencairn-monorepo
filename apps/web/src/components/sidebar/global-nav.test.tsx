@@ -24,11 +24,11 @@ describe("GlobalNav", () => {
     render(<GlobalNav wsSlug="acme" deepResearchEnabled={true} />);
     const links = screen.getAllByRole("link");
     const hrefs = links.map((a) => a.getAttribute("href"));
-    // Next.js Link strips the trailing slash from "/ko/app/w/acme/" on render.
+    // Next.js Link strips the trailing slash from "/ko/workspace/acme/" on render.
     expect(hrefs).toEqual([
-      "/ko/app/w/acme",
-      "/ko/app/w/acme/research",
-      "/ko/app/w/acme/import",
+      "/ko/workspace/acme",
+      "/ko/workspace/acme/research",
+      "/ko/workspace/acme/import",
     ]);
     expect(
       screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
@@ -40,8 +40,8 @@ describe("GlobalNav", () => {
     const links = screen.getAllByRole("link");
     const hrefs = links.map((a) => a.getAttribute("href"));
     expect(hrefs).toEqual([
-      "/ko/app/w/acme",
-      "/ko/app/w/acme/import",
+      "/ko/workspace/acme",
+      "/ko/workspace/acme/import",
     ]);
     expect(
       screen.queryByLabelText("sidebar.nav.research"),

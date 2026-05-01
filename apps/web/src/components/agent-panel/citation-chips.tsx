@@ -9,6 +9,7 @@ import { useLocale } from "next-intl";
 import { useParams } from "next/navigation";
 
 import { safeHref } from "@/lib/url/safe-href";
+import { urls } from "@/lib/urls";
 
 export interface Citation {
   index: number;
@@ -33,10 +34,8 @@ export function CitationChips({ citations }: { citations: Citation[] }) {
         // on click.
         const href = c.url
           ? safeHref(c.url)
-          : c.noteId
-            ? wsSlug
-              ? `/${locale}/app/w/${wsSlug}/n/${c.noteId}`
-              : "#"
+          : c.noteId && wsSlug
+            ? urls.workspace.note(locale, wsSlug, c.noteId)
             : "#";
         return (
           <a

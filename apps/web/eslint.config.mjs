@@ -49,11 +49,38 @@ export default [
           },
         },
       ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "Literal[value=/^(\\/[a-z]{2}\\/(app\\/w\\/|app\\/dashboard|app\\/settings\\/(ai|mcp)|workspace\\/)|\\/workspace\\/)/]",
+          message:
+            "Use urls.* helper from @/lib/urls instead of hardcoded paths.",
+        },
+        {
+          selector:
+            "TemplateElement[value.raw=/\\/app\\/w\\/|\\/app\\/dashboard|\\/app\\/settings\\/(ai|mcp)|\\/workspace\\//]",
+          message:
+            "Use urls.* helper from @/lib/urls instead of hardcoded paths.",
+        },
+      ],
     },
   },
   {
     files: ["src/**/*.test.{ts,tsx}", "tests/**/*.{ts,tsx}"],
-    rules: { "i18next/no-literal-string": "off" },
+    rules: {
+      "i18next/no-literal-string": "off",
+      "no-restricted-syntax": "off",
+    },
+  },
+  {
+    files: [
+      "next.config.ts",
+      "src/lib/urls.ts",
+      "src/lib/url-parsers.ts",
+      "tests/e2e/url-redirects.spec.ts",
+    ],
+    rules: { "no-restricted-syntax": "off" },
   },
   {
     // shadcn/ui primitives — library-style components; literal strings (e.g., screen-reader "Close")

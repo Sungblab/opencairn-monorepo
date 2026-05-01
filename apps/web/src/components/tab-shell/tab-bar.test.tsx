@@ -8,12 +8,13 @@ const replace = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, replace }),
-  usePathname: () => "/w/acme/",
+  usePathname: () => "/ko/workspace/acme/",
   useParams: () => ({ wsSlug: "acme" }),
 }));
 
 vi.mock("next-intl", () => ({
   useTranslations: (_ns?: string) => (key: string) => key,
+  useLocale: () => "ko",
 }));
 
 const mk = (p: Partial<Tab> = {}): Tab => ({
@@ -71,7 +72,7 @@ describe("TabBar", () => {
     useTabsStore.getState().addTab(mk({ id: "a", targetId: "n1" }));
     render(<TabBar />);
     fireEvent.click(screen.getByText("Alpha"));
-    expect(replace).toHaveBeenCalledWith("/w/acme/n/n1");
+    expect(replace).toHaveBeenCalledWith("/ko/workspace/acme/note/n1");
   });
 
   it("marks the active tab with aria-selected=true", () => {

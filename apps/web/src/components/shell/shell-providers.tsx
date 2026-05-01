@@ -91,7 +91,7 @@ export function ShellProviders({
   // [locale]/layout.tsx boundary so /settings, /onboarding, /auth —
   // anything outside the (shell) route group — also gets them. The palette
   // derives its workspace context from the URL (`extractWsSlug`) and falls
-  // back to a profile-only action set when the path has no `/app/w/<slug>`
+  // back to a profile-only action set when the path has no `/workspace/<slug>`
   // segment.
   return (
     <AppShell
