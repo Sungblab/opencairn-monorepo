@@ -6,6 +6,10 @@ import {
   projectChunkHybridSearch,
   type ChunkHybridHit,
 } from "./chunk-hybrid-search";
+import {
+  expandGraphCandidates,
+  type GraphExpansionHit,
+} from "./retrieval-graph-expansion";
 import { candidateFromRetrievalHit } from "./retrieval-candidates";
 import { rerankCandidates } from "./retrieval-rerank";
 import type {
@@ -128,10 +132,12 @@ export async function retrieve(opts: {
     fanoutConcurrency(),
     (projectId) =>
       retrieveProjectHits({
+        workspaceId: opts.workspaceId,
         projectId,
         queryText: opts.query,
         queryEmbedding,
         k: perProjectK,
+        ragMode: opts.ragMode,
       }),
     opts.signal,
   );
@@ -181,16 +187,18 @@ export async function retrieve(opts: {
 }
 
 async function retrieveProjectHits(opts: {
+  workspaceId: string;
   projectId: string;
   queryText: string;
   queryEmbedding: number[];
   k: number;
+  ragMode: RagMode;
 }): Promise<ProjectRetrievalHit[]> {
   const chunkHits = await projectChunkHybridSearch(opts).catch(
     () => [] as ChunkHybridHit[],
   );
   if (chunkHits.length > 0) {
-    return chunkHits.map((h) => ({
+    const seedHits: ProjectRetrievalHit[] = chunkHits.map((h) => ({
       sourceKey: `chunk:${h.chunkId}`,
       noteId: h.noteId,
       chunkId: h.chunkId,
@@ -209,12 +217,16 @@ async function retrieveProjectHits(opts: {
       evidenceId: `chunk:${h.chunkId}`,
       support: "supports",
     }));
+    return [
+      ...seedHits,
+      ...(await graphExpansionHits({ ...opts, seedHits })),
+    ];
   }
 
   const noteHits = await projectHybridSearch(opts).catch(
     () => [] as HybridHit[],
   );
-  return noteHits.map((h) => ({
+  const seedHits: ProjectRetrievalHit[] = noteHits.map((h) => ({
     sourceKey: `note:${h.noteId}`,
     noteId: h.noteId,
     title: h.title,
@@ -232,6 +244,57 @@ async function retrieveProjectHits(opts: {
     evidenceId: `note:${h.noteId}`,
     support: "supports",
   }));
+  return [
+    ...seedHits,
+    ...(await graphExpansionHits({ ...opts, seedHits })),
+  ];
+}
+
+async function graphExpansionHits(opts: {
+  workspaceId: string;
+  projectId: string;
+  k: number;
+  ragMode: RagMode;
+  seedHits: ProjectRetrievalHit[];
+}): Promise<ProjectRetrievalHit[]> {
+  if (opts.ragMode !== "expand" || opts.seedHits.length === 0) return [];
+
+  const seedNoteIds = Array.from(
+    new Set(opts.seedHits.map((hit) => hit.noteId)),
+  );
+  const graphHits = await expandGraphCandidates({
+    workspaceId: opts.workspaceId,
+    projectId: opts.projectId,
+    seedNoteIds,
+    maxDepth: 2,
+    limit: Math.max(opts.k, 10),
+  }).catch(() => [] as GraphExpansionHit[]);
+
+  return graphHits.map((hit): ProjectRetrievalHit => {
+    const sourceKey = hit.chunkId ? `chunk:${hit.chunkId}` : `note:${hit.noteId}`;
+    const evidenceId = hit.chunkId
+      ? `graph:chunk:${hit.chunkId}`
+      : `graph:note:${hit.noteId}`;
+    return {
+      sourceKey,
+      noteId: hit.noteId,
+      chunkId: hit.chunkId,
+      title: hit.title,
+      headingPath: hit.headingPath,
+      snippet: hit.snippet,
+      score: hit.graphScore * 0.5,
+      channelScores: { graph: hit.graphScore },
+      sourceType: hit.sourceType,
+      sourceUrl: hit.sourceUrl,
+      updatedAt: hit.updatedAt,
+      provenance: "inferred",
+      producer: { kind: "api", tool: "retrieval-graph-expansion" },
+      confidence: hit.graphScore * 0.75,
+      sourceSpan: null,
+      evidenceId,
+      support: "mentions",
+    };
+  });
 }
 
 function channelScores(hit: {

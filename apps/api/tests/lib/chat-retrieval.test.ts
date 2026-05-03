@@ -9,6 +9,9 @@ vi.mock("../../src/lib/internal-hybrid-search", () => ({
 vi.mock("../../src/lib/chunk-hybrid-search", () => ({
   projectChunkHybridSearch: vi.fn(),
 }));
+vi.mock("../../src/lib/retrieval-graph-expansion", () => ({
+  expandGraphCandidates: vi.fn(),
+}));
 vi.mock("@opencairn/db", async (orig) => {
   const real = (await orig()) as object;
   return { ...real, db: { execute: vi.fn() } };
@@ -24,6 +27,11 @@ const search = (await import("../../src/lib/internal-hybrid-search.js")) as unkn
 const chunkSearch = (await import("../../src/lib/chunk-hybrid-search.js")) as unknown as {
   projectChunkHybridSearch: ReturnType<typeof vi.fn>;
 };
+const graphExpansion = (await import(
+  "../../src/lib/retrieval-graph-expansion.js"
+)) as unknown as {
+  expandGraphCandidates: ReturnType<typeof vi.fn>;
+};
 
 const fakeProvider = {
   embed: vi.fn().mockResolvedValue(new Array(768).fill(0)),
@@ -36,6 +44,8 @@ beforeEach(() => {
   search.projectHybridSearch.mockReset();
   chunkSearch.projectChunkHybridSearch.mockReset();
   chunkSearch.projectChunkHybridSearch.mockResolvedValue([]);
+  graphExpansion.expandGraphCandidates.mockReset();
+  graphExpansion.expandGraphCandidates.mockResolvedValue([]);
 });
 
 describe("chat-retrieval ragMode", () => {
@@ -353,5 +363,59 @@ describe("chat-retrieval chunk fallback", () => {
       title: "Fallback",
       snippet: "note hit",
     });
+  });
+
+  it("adds graph expansion candidates in expand mode through the candidate pipeline", async () => {
+    chunkSearch.projectChunkHybridSearch.mockResolvedValue([
+      {
+        chunkId: "c1",
+        noteId: "n1",
+        title: "Seed",
+        headingPath: "Intro",
+        snippet: "seed alpha",
+        rrfScore: 1,
+        vectorScore: 0.9,
+        bm25Score: null,
+      },
+    ]);
+    graphExpansion.expandGraphCandidates.mockResolvedValue([
+      {
+        chunkId: "c2",
+        noteId: "n2",
+        title: "Related",
+        headingPath: "Graph",
+        snippet: "related alpha",
+        graphScore: 0.8,
+        sourceType: "manual",
+        sourceUrl: null,
+        updatedAt: "2026-05-03T00:00:00.000Z",
+      },
+    ]);
+
+    const hits = await retrieve({
+      workspaceId: "ws1",
+      query: "alpha",
+      ragMode: "expand",
+      scope: { type: "project", workspaceId: "ws1", projectId: "p1" },
+      chips: [],
+    });
+
+    expect(hits.map((h) => h.noteId)).toContain("n2");
+    expect(hits.find((h) => h.noteId === "n2")).toMatchObject({
+      chunkId: "c2",
+      channelScores: { graph: 0.8 },
+      evidenceId: "graph:chunk:c2",
+      provenance: "inferred",
+      producer: { kind: "api", tool: "retrieval-graph-expansion" },
+      support: "mentions",
+    });
+    expect(graphExpansion.expandGraphCandidates).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: "ws1",
+        projectId: "p1",
+        seedNoteIds: ["n1"],
+        maxDepth: 2,
+      }),
+    );
   });
 });
