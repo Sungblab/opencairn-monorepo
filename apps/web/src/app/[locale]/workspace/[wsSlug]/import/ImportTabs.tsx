@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { DriveTab } from "./DriveTab";
+import { MarkdownTab } from "./MarkdownTab";
 import { NotionTab } from "./NotionTab";
 
-const TABS = ["drive", "notion"] as const;
+const TABS = ["drive", "notion", "markdown"] as const;
 type TabId = (typeof TABS)[number];
 
 export function ImportTabs({ wsSlug }: { wsSlug: string }) {
@@ -34,8 +35,10 @@ export function ImportTabs({ wsSlug }: { wsSlug: string }) {
       <div className="mt-6">
         {tab === "drive" ? (
           <DriveTab wsSlug={wsSlug} />
-        ) : (
+        ) : tab === "notion" ? (
           <NotionTab wsSlug={wsSlug} />
+        ) : (
+          <MarkdownTab wsSlug={wsSlug} />
         )}
       </div>
     </div>

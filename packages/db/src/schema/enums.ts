@@ -13,6 +13,7 @@ export const sourceTypeEnum = pgEnum("source_type", [
   "youtube",
   "web",
   "notion",
+  "markdown",
   "unknown",
   "canvas",
   "paper",
@@ -36,6 +37,7 @@ export const integrationProviderEnum = pgEnum("integration_provider", [
 export const importSourceEnum = pgEnum("import_source", [
   "google_drive",
   "notion_zip",
+  "markdown_zip",
   "literature_search",
 ]);
 

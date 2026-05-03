@@ -2,7 +2,11 @@ import { z } from "zod";
 
 // Source of a one-shot import. Extend carefully — each value pairs with
 // a worker ImportWorkflow branch + source-specific discovery activity.
-export const importSourceSchema = z.enum(["google_drive", "notion_zip"]);
+export const importSourceSchema = z.enum([
+  "google_drive",
+  "notion_zip",
+  "markdown_zip",
+]);
 export type ImportSource = z.infer<typeof importSourceSchema>;
 
 // Where the import lands. 'new' creates a fresh project under the workspace;
@@ -31,6 +35,16 @@ export const startNotionImportSchema = z.object({
   target: importTargetSchema,
 });
 export type StartNotionImportInput = z.infer<typeof startNotionImportSchema>;
+
+export const startMarkdownImportSchema = z.object({
+  workspaceId: z.string().uuid(),
+  zipObjectKey: z.string().min(1),
+  originalName: z.string().min(1).max(255),
+  target: importTargetSchema,
+});
+export type StartMarkdownImportInput = z.infer<
+  typeof startMarkdownImportSchema
+>;
 
 export const importJobStatusSchema = z.object({
   id: z.string().uuid(),
@@ -63,6 +77,19 @@ export const notionUploadUrlSchema = z.object({
   originalName: z.string().min(1).max(255),
 });
 export type NotionUploadUrlInput = z.infer<typeof notionUploadUrlSchema>;
+
+export const markdownUploadUrlSchema = z.object({
+  workspaceId: z.string().uuid(),
+  size: z
+    .number()
+    .int()
+    .positive()
+    .max(5 * 1024 * 1024 * 1024),
+  originalName: z.string().min(1).max(255),
+});
+export type MarkdownUploadUrlInput = z.infer<
+  typeof markdownUploadUrlSchema
+>;
 
 export const integrationStatusSchema = z.object({
   connected: z.boolean(),

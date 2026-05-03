@@ -180,6 +180,7 @@ async def materialize_page_tree(payload: dict[str, Any]) -> dict[str, Any]:
 _SOURCE_LABELS_KO = {
     "google_drive": "Google Drive",
     "notion_zip": "Notion",
+    "markdown_zip": "Markdown ZIP",
 }
 
 

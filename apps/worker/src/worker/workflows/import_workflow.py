@@ -1,13 +1,14 @@
-"""Hybrid import workflow — Notion ZIP fast-path + Drive fan-out.
+"""Hybrid import workflow — ZIP fast-paths + Drive fan-out.
 
 Drives the end-to-end one-shot import flow:
 
 1. resolve_target           — lock in the landing project
-2. unzip_notion_export       (zip_object_key path)
+2. unzip_notion_export       (Notion zip_object_key path)
+   or unzip_markdown_export  (Markdown zip_object_key path)
    or discover_drive_tree    (drive file_ids/folder_ids path)
 3. materialize_page_tree     — insert notes + collect idx→note_id
 4. per-node fan-out:
-      page    → convert_notion_md_to_plate (Notion only; Drive pages go
+      page    → convert_notion_md_to_plate (ZIP pages; Drive pages go
                 through the IngestWorkflow as binaries and get their
                 content built by the existing MIME-specific activity)
       binary  → upload_*_to_minio → child IngestWorkflow
@@ -19,10 +20,13 @@ import asyncio
 import os
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
 with workflow.unsafe.imports_passed_through():
     # IngestWorkflow is itself Temporal-deterministic, but importing it here
@@ -42,7 +46,7 @@ class ImportInput:
     job_id: str
     user_id: str
     workspace_id: str
-    source: str  # "google_drive" | "notion_zip"
+    source: str  # "google_drive" | "notion_zip" | "markdown_zip"
     source_metadata: dict[str, Any]
 
 
@@ -87,7 +91,24 @@ class ImportWorkflow:
                 schedule_to_close_timeout=_LONG,
                 retry_policy=_RETRY,
             )
-        else:  # google_drive
+        elif inp.source == "markdown_zip":
+            manifest = await workflow.execute_activity(
+                "unzip_markdown_export",
+                {
+                    "job_id": inp.job_id,
+                    "zip_object_key": inp.source_metadata["zip_object_key"],
+                    "original_name": inp.source_metadata.get(
+                        "original_name", "Markdown export"
+                    ),
+                    "max_files": inp.source_metadata.get("max_files", 10_000),
+                    "max_uncompressed": inp.source_metadata.get(
+                        "max_uncompressed", 5 * 1024 * 1024 * 1024
+                    ),
+                },
+                schedule_to_close_timeout=_LONG,
+                retry_policy=_RETRY,
+            )
+        elif inp.source == "google_drive":
             manifest = await workflow.execute_activity(
                 "discover_drive_tree",
                 {
@@ -99,6 +120,8 @@ class ImportWorkflow:
                 schedule_to_close_timeout=_LONG,
                 retry_policy=_RETRY,
             )
+        else:
+            raise ValueError(f"unsupported import source: {inp.source}")
 
         maps = await workflow.execute_activity(
             "materialize_page_tree",
@@ -118,15 +141,23 @@ class ImportWorkflow:
             int(k): v for k, v in maps["binary_effective_parent"].items()
         }
 
-        # Fan-out per node. Pages convert Markdown in parallel; binaries
-        # each upload + kick a child IngestWorkflow. We gather with
-        # return_exceptions so one stray file can't abort the whole import
-        # — the failure count surfaces in the UI instead.
-        tasks: list[Any] = []
+        # Fan-out per node. Pages convert Markdown in bounded batches;
+        # binaries each upload + kick a child IngestWorkflow. return_exceptions
+        # keeps one stray file from aborting the whole import.
+        max_concurrent_items = int(
+            inp.source_metadata.get("max_concurrent_items", 16)
+        )
+        max_concurrent_items = max(1, min(max_concurrent_items, 64))
+        factories: list[
+            tuple[dict[str, Any], Callable[[], Awaitable[Any]]]
+        ] = []
         for node in manifest["nodes"]:
-            if node["kind"] == "page" and inp.source == "notion_zip":
-                tasks.append(
-                    workflow.execute_activity(
+            if node["kind"] == "page" and inp.source in {
+                "notion_zip",
+                "markdown_zip",
+            }:
+                def page_factory(node: dict[str, Any] = node) -> Awaitable[Any]:
+                    return workflow.execute_activity(
                         "convert_notion_md_to_plate",
                         {
                             "staging_dir": f"{_staging_base()}/{inp.job_id}",
@@ -135,30 +166,53 @@ class ImportWorkflow:
                             ),
                             "note_id": idx_to_note_id[node["idx"]],
                             "uuid_link_map": manifest["uuid_link_map"],
+                            "link_title_map": manifest.get("link_title_map", {}),
                             "idx_to_note_id": {
                                 str(k): v for k, v in idx_to_note_id.items()
                             },
                             "job_id": inp.job_id,
+                            "source_type": (
+                                "markdown"
+                                if inp.source == "markdown_zip"
+                                else "notion"
+                            ),
                         },
                         schedule_to_close_timeout=_SHORT,
                         retry_policy=_RETRY,
                     )
-                )
+
+                factories.append((node, page_factory))
             elif node["kind"] == "binary":
                 parent = effective_parents.get(
                     node["idx"], target["parent_note_id"]
                 )
-                tasks.append(
-                    self._run_binary(inp, node, parent, target)
-                )
+                def binary_factory(
+                    node: dict[str, Any] = node,
+                    parent: str | None = parent,
+                ) -> Awaitable[Any]:
+                    return self._run_binary(
+                        inp, node, parent, target
+                    )
+
+                factories.append((node, binary_factory))
             # page nodes on the Drive side are already bound to the note
             # row by materialize_page_tree — no markdown content to convert.
 
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        results_with_nodes: list[tuple[dict[str, Any], Any]] = []
+        for start in range(0, len(factories), max_concurrent_items):
+            batch = factories[start : start + max_concurrent_items]
+            batch_results = await asyncio.gather(
+                *(factory() for _, factory in batch),
+                return_exceptions=True,
+            )
+            results_with_nodes.extend(
+                zip((node for node, _ in batch), batch_results, strict=False)
+            )
+
         failed: list[tuple[dict[str, Any], BaseException]] = [
-            (node, exc)
-            for node, exc in zip(manifest["nodes"], results, strict=False)
-            if isinstance(exc, BaseException)
+            (node, result)
+            for node, result in results_with_nodes
+            if isinstance(result, BaseException)
         ]
         error_summary: str | None = None
         if failed:
@@ -215,10 +269,11 @@ class ImportWorkflow:
             )
             object_key = upload["object_key"]
             mime = upload["mime"]
-        else:  # notion_zip — copy staged file out to MinIO so the existing
+        else:  # ZIP imports copy staged files out to MinIO so the existing
                # IngestWorkflow can treat it the same as a user upload.
+            source_dir = "markdown" if inp.source == "markdown_zip" else "notion"
             object_key = (
-                f"imports/notion/{inp.job_id}/"
+                f"imports/{source_dir}/{inp.job_id}/"
                 f"{node['meta']['staged_path']}"
             )
             mime = node["meta"]["mime"]

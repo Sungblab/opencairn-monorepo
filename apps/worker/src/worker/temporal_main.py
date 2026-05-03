@@ -67,6 +67,7 @@ from worker.activities.lit_import_activities import (
     fetch_paper_metadata,
     lit_dedupe_check,
 )
+from worker.activities.markdown_import_activities import unzip_markdown_export
 from worker.activities.narrator_activity import run_narrator
 from worker.activities.note_activity import create_source_note, report_ingest_failure
 from worker.activities.notion_activities import (
@@ -188,10 +189,11 @@ def build_worker_config() -> WorkerConfig:
         poll_batch_embed,
         fetch_batch_embed_results,
         cancel_batch_embed,
-        # Ingest Source Expansion — Drive + Notion one-shot import.
+        # Ingest Source Expansion — Drive + ZIP one-shot import.
         discover_drive_tree,
         upload_drive_file_to_minio,
         unzip_notion_export,
+        unzip_markdown_export,
         convert_notion_md_to_plate,
         upload_staging_to_minio,
         resolve_target,

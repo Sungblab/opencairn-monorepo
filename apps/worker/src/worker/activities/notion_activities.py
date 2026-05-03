@@ -263,6 +263,7 @@ async def unzip_notion_export(payload: dict[str, Any]) -> dict[str, Any]:
 # We match the 32-char hex id immediately before `.md` at the end of the
 # URL path. Narrower than _UUID_RE above (no leading space, end-anchored).
 _UUID_IN_LINK = re.compile(r"([0-9a-f]{32})(?=\.md$)", re.IGNORECASE)
+_WIKILINK_RE = re.compile(r"\[\[([^\]\|#]+)(?:[#\|][^\]]*)?\]\]")
 
 
 def _text_leaf(text: str, **marks: Any) -> dict[str, Any]:
@@ -274,6 +275,7 @@ def _flatten_inline(
     *,
     uuid_link_map: dict[str, int],
     idx_to_note_id: dict[int, str],
+    link_title_map: dict[str, int] | None = None,
 ) -> list[dict[str, Any]]:
     """Walk markdown-it inline tokens and emit Plate leaves + link elements.
 
@@ -293,7 +295,34 @@ def _flatten_inline(
         return link_stack[-1]["children"] if link_stack else out
 
     def push_text(text: str) -> None:
-        sink().append(_text_leaf(text, **marks))
+        if not link_title_map or "[[" not in text:
+            sink().append(_text_leaf(text, **marks))
+            return
+        pos = 0
+        for match in _WIKILINK_RE.finditer(text):
+            if match.start() > pos:
+                sink().append(_text_leaf(text[pos : match.start()], **marks))
+            target = match.group(1).strip()
+            key = target.lower().replace("\\", "/").removesuffix(".md").removesuffix(
+                ".markdown"
+            )
+            idx = link_title_map.get(key)
+            note_id = idx_to_note_id.get(idx) if idx is not None else None
+            label = target.rsplit("/", 1)[-1]
+            if note_id:
+                sink().append(
+                    {
+                        "type": "wikilink",
+                        "noteId": note_id,
+                        "label": label,
+                        "children": [_text_leaf(label)],
+                    }
+                )
+            else:
+                sink().append(_text_leaf(match.group(0), **marks))
+            pos = match.end()
+        if pos < len(text):
+            sink().append(_text_leaf(text[pos:], **marks))
 
     for t in tokens:
         if t.type == "text":
@@ -357,6 +386,7 @@ def md_to_plate(
     uuid_link_map: dict[str, int],
     idx_to_note_id: dict[int, str],
     resolve_asset: Callable[[str], str | None],
+    link_title_map: dict[str, int] | None = None,
 ) -> list[dict[str, Any]]:
     """Convert a Markdown string into a list of Plate JSON blocks.
 
@@ -375,6 +405,7 @@ def md_to_plate(
             tok.children or [],
             uuid_link_map=uuid_link_map,
             idx_to_note_id=idx_to_note_id,
+            link_title_map=link_title_map,
         )
 
     i = 0
@@ -520,10 +551,11 @@ async def convert_notion_md_to_plate(payload: dict[str, Any]) -> None:
         uuid_link_map=payload["uuid_link_map"],
         idx_to_note_id=payload["idx_to_note_id"],
         resolve_asset=resolve_asset,
+        link_title_map=payload.get("link_title_map"),
     )
     await patch_internal(
         f"/api/internal/notes/{payload['note_id']}",
-        {"content": plate, "sourceType": "notion"},
+        {"content": plate, "sourceType": payload.get("source_type", "notion")},
     )
 
 
