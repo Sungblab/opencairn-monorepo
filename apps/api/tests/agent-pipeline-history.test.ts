@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { db, chatThreads, chatMessages } from "@opencairn/db";
 import { runAgent } from "../src/lib/agent-pipeline.js";
-import type { ChatMsg, LLMProvider } from "../src/lib/llm/gemini.js";
+import type { ChatMsg, LLMProvider } from "../src/lib/llm/provider.js";
 import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
 
 // Captures the messages[] passed into provider.streamGenerate so we can

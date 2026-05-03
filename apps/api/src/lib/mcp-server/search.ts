@@ -16,7 +16,8 @@ import type {
   McpSearchNotesResult,
 } from "@opencairn/shared";
 
-import { LLMNotConfiguredError, getGeminiProvider } from "../llm/gemini";
+import { getChatProvider } from "../llm";
+import { LLMNotConfiguredError } from "../llm/provider";
 
 const RRF_K = 60;
 const SNIPPET_MAX = 400;
@@ -40,7 +41,7 @@ function clip(text: string | null | undefined, max: number, compact = true): str
 
 async function embedQuery(query: string): Promise<number[] | null> {
   try {
-    return await getGeminiProvider().embed(query);
+    return await getChatProvider().embed(query);
   } catch (error) {
     if (error instanceof LLMNotConfiguredError) return null;
     return null;

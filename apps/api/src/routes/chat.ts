@@ -28,12 +28,12 @@ import { validateScope, ScopeValidationError } from "../lib/chat-scope";
 import { computePinDelta } from "../lib/pin-permissions";
 import { tokensToKrw } from "../lib/cost";
 import { runChat } from "../lib/chat-llm";
+import { getChatProvider } from "../lib/llm";
 import {
-  getGeminiProvider,
   LLMNotConfiguredError,
   type ChatMsg,
   type Usage,
-} from "../lib/llm/gemini";
+} from "../lib/llm/provider";
 import type { RetrievalScope, RetrievalChip } from "../lib/chat-retrieval";
 import type { AppEnv } from "../lib/types";
 
@@ -441,7 +441,7 @@ chatRoutes.post(
     return streamSSE(c, async (stream) => {
       let provider;
       try {
-        provider = getGeminiProvider();
+        provider = getChatProvider();
       } catch (err) {
         const code =
           err instanceof LLMNotConfiguredError

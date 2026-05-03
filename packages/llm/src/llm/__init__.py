@@ -19,6 +19,7 @@ from .embed_helper import (
     embed_many,
 )
 from .factory import get_provider
+from .openai_compatible import OpenAICompatibleProvider
 from .interactions import (
     InteractionEvent,
     InteractionEventKind,
@@ -34,6 +35,7 @@ __all__ = [
     "SearchResult",
     "ProviderConfig",
     "get_provider",
+    "OpenAICompatibleProvider",
     # Batch embedding surface (Plan 3b)
     "BatchEmbedHandle",
     "BatchEmbedPoll",

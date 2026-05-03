@@ -8,18 +8,18 @@ import {
 } from "vitest";
 
 // vi.mock must run before the modules under test (chat.ts, chat-llm.ts,
-// chat-retrieval.ts) load. Since chat.ts and chat-retrieval both call
-// getGeminiProvider() directly, mocking the module catches both code paths
+// chat-retrieval.ts) load. Since chat.ts and chat-retrieval resolve the API
+// chat provider through getChatProvider(), mocking the factory catches both paths
 // — runChat's optional `provider` parameter is the route's primary
 // injection point, but the retrieval embed() call also resolves through
 // this mock.
-vi.mock("../src/lib/llm/gemini.js", async () => {
+vi.mock("../src/lib/llm/index.js", async () => {
   const actual = await vi.importActual<
-    typeof import("../src/lib/llm/gemini.js")
-  >("../src/lib/llm/gemini.js");
+    typeof import("../src/lib/llm/index.js")
+  >("../src/lib/llm/index.js");
   return {
     ...actual,
-    getGeminiProvider: vi.fn(),
+    getChatProvider: vi.fn(),
   };
 });
 
@@ -33,11 +33,11 @@ import {
   asc,
 } from "@opencairn/db";
 import {
-  getGeminiProvider,
   LLMNotConfiguredError,
   type ChatMsg,
   type LLMProvider,
-} from "../src/lib/llm/gemini.js";
+} from "../src/lib/llm/provider.js";
+import { getChatProvider } from "../src/lib/llm/index.js";
 import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
 
@@ -115,7 +115,7 @@ async function createConversation(
   return id;
 }
 
-const mockedGetGeminiProvider = getGeminiProvider as unknown as ReturnType<
+const mockedGetChatProvider = getChatProvider as unknown as ReturnType<
   typeof vi.fn
 >;
 
@@ -126,12 +126,12 @@ describe("POST /api/chat/message — real LLM path (Task 8)", () => {
   beforeEach(async () => {
     ctx = await seedWorkspace({ role: "owner" });
     fakeProvider = buildFakeProvider();
-    mockedGetGeminiProvider.mockReturnValue(fakeProvider);
+    mockedGetChatProvider.mockReturnValue(fakeProvider);
   });
 
   afterEach(async () => {
     await ctx.cleanup();
-    mockedGetGeminiProvider.mockReset();
+    mockedGetChatProvider.mockReset();
   });
 
   it("emits real text deltas + cost event and persists provider tokens", async () => {
@@ -292,7 +292,7 @@ describe("POST /api/chat/message — real LLM path (Task 8)", () => {
   });
 
   it("emits SSE error event when provider raises LLMNotConfiguredError", async () => {
-    mockedGetGeminiProvider.mockImplementation(() => {
+    mockedGetChatProvider.mockImplementation(() => {
       throw new LLMNotConfiguredError();
     });
 
