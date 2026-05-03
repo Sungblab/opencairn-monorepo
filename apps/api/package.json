@@ -12,6 +12,7 @@
     "build": "tsc",
     "start": "node --env-file=../../.env dist/index.js",
     "test": "vitest run",
+    "test:eval": "vitest run --config vitest.eval.config.ts tests/lib/answer-verifier.eval.test.ts",
     "test:watch": "vitest"
   },
   "dependencies": {
