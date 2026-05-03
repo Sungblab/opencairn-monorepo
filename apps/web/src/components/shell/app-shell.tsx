@@ -1,4 +1,5 @@
 "use client";
+import { useEffect } from "react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useTranslations } from "next-intl";
 import { ShellSidebar } from "@/components/sidebar/shell-sidebar";
@@ -29,16 +30,28 @@ export function AppShell({
   const t = useTranslations("appShell.placeholders");
   const sidebarWidth = usePanelStore((s) => s.sidebarWidth);
   const sidebarOpen = usePanelStore((s) => s.sidebarOpen);
-  const toggleSidebar = usePanelStore((s) => s.toggleSidebar);
+  const compactSidebarOpen = usePanelStore((s) => s.compactSidebarOpen);
+  const setCompactSidebarOpen = usePanelStore(
+    (s) => s.setCompactSidebarOpen,
+  );
   const agentPanelWidth = usePanelStore((s) => s.agentPanelWidth);
   const agentPanelOpen = usePanelStore((s) => s.agentPanelOpen);
-  const toggleAgentPanel = usePanelStore((s) => s.toggleAgentPanel);
+  const compactAgentPanelOpen = usePanelStore((s) => s.compactAgentPanelOpen);
+  const setCompactAgentPanelOpen = usePanelStore(
+    (s) => s.setCompactAgentPanelOpen,
+  );
   const setSidebarWidth = usePanelStore((s) => s.setSidebarWidth);
   const resetSidebarWidth = usePanelStore((s) => s.resetSidebarWidth);
   const setAgentPanelWidth = usePanelStore((s) => s.setAgentPanelWidth);
   const resetAgentPanelWidth = usePanelStore((s) => s.resetAgentPanelWidth);
 
   const isCompact = bp !== "lg";
+
+  useEffect(() => {
+    if (!isCompact) return;
+    setCompactSidebarOpen(false);
+    setCompactAgentPanelOpen(false);
+  }, [isCompact, setCompactAgentPanelOpen, setCompactSidebarOpen]);
 
   if (isCompact) {
     return (
@@ -47,10 +60,8 @@ export function AppShell({
         data-testid="app-shell"
       >
         <Sheet
-          open={sidebarOpen}
-          onOpenChange={(open) => {
-            if (open !== sidebarOpen) toggleSidebar();
-          }}
+          open={compactSidebarOpen}
+          onOpenChange={setCompactSidebarOpen}
         >
           <SheetContent side="left" className="w-[280px] p-0">
             <SheetTitle className="sr-only">{t("sidebar")}</SheetTitle>
@@ -62,10 +73,8 @@ export function AppShell({
         </Sheet>
         <TabShell>{children}</TabShell>
         <Sheet
-          open={agentPanelOpen}
-          onOpenChange={(open) => {
-            if (open !== agentPanelOpen) toggleAgentPanel();
-          }}
+          open={compactAgentPanelOpen}
+          onOpenChange={setCompactAgentPanelOpen}
         >
           <SheetContent side="right" className="w-[360px] p-0">
             <SheetTitle className="sr-only">{t("agent_panel")}</SheetTitle>

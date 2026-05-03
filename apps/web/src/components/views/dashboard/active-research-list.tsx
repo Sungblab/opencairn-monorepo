@@ -5,6 +5,7 @@ import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { dashboardApi, type ResearchRunSummary } from "@/lib/api-client";
+import { useHydratedNow } from "@/hooks/use-hydrated-now";
 
 // "Active" = anything not yet terminal. Filtering client-side because the
 // /api/research/runs endpoint doesn't accept a status filter today; the
@@ -48,6 +49,7 @@ export function ActiveResearchList({
   const locale = useLocale();
   const t = useTranslations("dashboard");
   const format = useFormatter();
+  const now = useHydratedNow();
   const { data } = useQuery({
     queryKey: ["dashboard-research-runs", wsId],
     queryFn: () => dashboardApi.researchRuns(wsId, 20),
@@ -74,8 +76,12 @@ export function ActiveResearchList({
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium">{run.topic}</div>
             <div className="mt-0.5 truncate text-xs text-muted-foreground">
-              {format.relativeTime(new Date(run.createdAt))}
-              {" · "}
+              {now ? (
+                <>
+                  {format.relativeTime(new Date(run.createdAt), now)}
+                  {" · "}
+                </>
+              ) : null}
               {t(`statusHint.${run.status}`)}
             </div>
           </div>

@@ -3,8 +3,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectHero } from "./project-hero";
 
+let routeParams = { wsSlug: "acme", projectId: "p-1" as string | undefined };
+
 vi.mock("next/navigation", () => ({
-  useParams: () => ({ wsSlug: "acme", projectId: "p-1" }),
+  useParams: () => routeParams,
   useRouter: () => ({ push: vi.fn() }),
 }));
 
@@ -27,6 +29,7 @@ function renderHero() {
 
 describe("ProjectHero", () => {
   beforeEach(() => {
+    routeParams = { wsSlug: "acme", projectId: "p-1" };
     (global.fetch as unknown) = undefined;
   });
 
@@ -42,7 +45,8 @@ describe("ProjectHero", () => {
     });
   });
 
-  it("falls back to an empty-state label when no project is selected", async () => {
+  it("uses a select-project label when no project is selected", async () => {
+    routeParams = { wsSlug: "acme", projectId: undefined };
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 404,
@@ -50,7 +54,7 @@ describe("ProjectHero", () => {
 
     renderHero();
     expect(
-      await screen.findByText("sidebar.project.empty"),
+      await screen.findByText("sidebar.project.select"),
     ).toBeInTheDocument();
   });
 });

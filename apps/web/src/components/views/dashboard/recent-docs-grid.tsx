@@ -5,6 +5,7 @@ import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { dashboardApi } from "@/lib/api-client";
+import { useHydratedNow } from "@/hooks/use-hydrated-now";
 
 // Mockup §recent-docs cards stack four lines: project label (small caps),
 // title (medium), excerpt (muted), relative timestamp (xs muted). The
@@ -23,6 +24,7 @@ export function RecentDocsGrid({
   const locale = useLocale();
   const t = useTranslations("dashboard");
   const format = useFormatter();
+  const now = useHydratedNow();
   const { data } = useQuery({
     queryKey: ["dashboard-recent-notes", wsId, limit],
     queryFn: () => dashboardApi.recentNotes(wsId, limit),
@@ -58,7 +60,7 @@ export function RecentDocsGrid({
             </div>
           )}
           <div className="mt-3 text-[11px] text-muted-foreground">
-            {format.relativeTime(new Date(note.updated_at))}
+            {now ? format.relativeTime(new Date(note.updated_at), now) : null}
           </div>
         </Link>
       ))}

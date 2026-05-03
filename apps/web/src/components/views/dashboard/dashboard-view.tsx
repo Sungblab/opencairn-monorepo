@@ -21,14 +21,14 @@ export function DashboardView({
   const t = useTranslations("dashboard");
   return (
     <div data-testid="route-dashboard" className="flex flex-col gap-6 p-6">
-      <header className="flex items-center justify-between gap-4">
-        <div>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold">{t("title")}</h1>
           <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         <Link
           href={urls.workspace.newProject(locale, wsSlug)}
-          className="app-btn-primary rounded px-3 py-1.5 text-sm"
+          className="app-btn-primary w-fit shrink-0 whitespace-nowrap rounded px-3 py-1.5 text-sm"
         >
           {t("newProject")}
         </Link>

@@ -57,13 +57,27 @@ export function buildActions(opts: {
         id: "toggle-sidebar",
         labelKey: "toggleSidebar",
         shortcut: "⌘\\",
-        run: () => usePanelStore.getState().toggleSidebar(),
+        run: () => {
+          const state = usePanelStore.getState();
+          if (typeof window !== "undefined" && window.innerWidth < 1024) {
+            state.toggleCompactSidebar();
+            return;
+          }
+          state.toggleSidebar();
+        },
       },
       {
         id: "toggle-agent",
         labelKey: "toggleAgent",
         shortcut: "⌘J",
-        run: () => usePanelStore.getState().toggleAgentPanel(),
+        run: () => {
+          const state = usePanelStore.getState();
+          if (typeof window !== "undefined" && window.innerWidth < 1024) {
+            state.toggleCompactAgentPanel();
+            return;
+          }
+          state.toggleAgentPanel();
+        },
       },
     );
   }

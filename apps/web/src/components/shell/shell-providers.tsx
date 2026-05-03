@@ -6,6 +6,7 @@ import { useUrlTabSync } from "@/hooks/use-url-tab-sync";
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
 import { useTabKeyboard } from "@/hooks/use-tab-keyboard";
 import { useTabModeShortcut } from "@/hooks/use-tab-mode-shortcut";
+import { useBreakpoint } from "@/hooks/use-breakpoint";
 import { usePanelStore } from "@/stores/panel-store";
 import { useThreadsStore } from "@/stores/threads-store";
 import { useSidebarStore } from "@/stores/sidebar-store";
@@ -32,23 +33,30 @@ export function ShellProviders({
   useTabKeyboard();
   useTabModeShortcut();
 
+  const isCompact = useBreakpoint() !== "lg";
   const toggleSidebar = usePanelStore((s) => s.toggleSidebar);
+  const toggleCompactSidebar = usePanelStore((s) => s.toggleCompactSidebar);
   const toggleAgentPanel = usePanelStore((s) => s.toggleAgentPanel);
+  const toggleCompactAgentPanel = usePanelStore(
+    (s) => s.toggleCompactAgentPanel,
+  );
   const tabBarT = useTranslations("appShell.tabs.bar");
 
   const onSidebarShortcut = useCallback(
     (e: KeyboardEvent) => {
       e.preventDefault();
-      toggleSidebar();
+      if (isCompact) toggleCompactSidebar();
+      else toggleSidebar();
     },
-    [toggleSidebar],
+    [isCompact, toggleCompactSidebar, toggleSidebar],
   );
   const onAgentPanelShortcut = useCallback(
     (e: KeyboardEvent) => {
       e.preventDefault();
-      toggleAgentPanel();
+      if (isCompact) toggleCompactAgentPanel();
+      else toggleAgentPanel();
     },
-    [toggleAgentPanel],
+    [isCompact, toggleAgentPanel, toggleCompactAgentPanel],
   );
   // mod+T and mod+shift+T are generally captured by the browser chrome,
   // so these handlers are effectively best-effort on the web target — they
