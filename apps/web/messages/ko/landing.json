@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "OpenCairn — AI 지식 OS",
-    "description": "파일을 올리면 12개의 AI 에이전트가 위키로 엮고, 연결을 먼저 발견하는 개인·팀 지식 OS. 셀프호스팅 · AGPLv3 + 상용 라이선스.",
+    "description": "파일을 올리면 AI 워크플로가 위키로 엮고, 연결을 먼저 발견하는 개인·팀 지식 OS. 셀프호스팅 · AGPLv3 + 상용 라이선스.",
     "ogDescription": "PDF·논문·강의 녹음을 올리면 AI가 위키로 엮고, 번역하고, 그래프로 시각화합니다."
   },
   "nav": {
@@ -24,14 +24,14 @@
     "titleLine2": "도구는 많습니다.",
     "titleBrand": "OpenCairn은",
     "titleLine3": "읽은 것까지 이해합니다",
-    "sub": "PDF · 논문 · 영상 · 강의 녹음을 올리면 AI가 <b>위키로 엮고</b>, <b>연결을 제안</b>하며, <b>이해의 깊이를 점검</b>합니다. 12 에이전트 백본은 단계적으로 활성화됩니다.",
+    "sub": "PDF · 논문 · 영상 · 강의 녹음을 올리면 AI가 <b>위키로 엮고</b>, <b>연결을 제안</b>하며, <b>이해의 깊이를 점검</b>합니다. AI 워크플로 백본은 단계적으로 활성화됩니다.",
     "ctaPrimary": "시작하기",
     "ctaSecondary": "요금 보기",
-    "noCard": "12개 에이전트 · 파일 올리면 바로 시작",
+    "noCard": "AI 워크플로 · 파일 올리면 바로 시작",
     "selfhostLink": "개발자이신가요? 셀프호스팅 가이드 ↗",
     "spec": {
-      "agents": "agents",
-      "agentsVal": "12",
+      "agents": "ai roles",
+      "agentsVal": "staged",
       "parsers": "parsers",
       "parsersVal": "pdf · mp3 · mp4 · m4a",
       "runtime": "runtime",
@@ -43,7 +43,7 @@
     },
     "activity": {
       "title": "PREVIEW · 워크스페이스",
-      "meta": "12 에이전트 백본 · 데모 로그",
+      "meta": "AI 역할 백본 · 데모 로그",
       "footer": "에이전트 활동 데모 (실 동작은 단계적 활성화)",
       "timeLabels": ["방금", "1분 전", "3분 전", "6분 전"],
       "items": [
@@ -66,9 +66,9 @@
       "compiling": "● compiling",
       "input": "INPUT",
       "inputItems": ["논문 PDF", "강의·회의 녹음", "영상 · YouTube", "팟캐스트 오디오", "DOCX · PPTX"],
-      "agentsHeader": "12 AGENTS",
+      "agentsHeader": "AI WORKFLOWS",
       "orchestration": "오케스트레이션",
-      "status": "● running · 12/12",
+      "status": "● running · staged",
       "output": "OUTPUT",
       "outWikiTitle": "위키 페이지",
       "outWikiDesc": "개념 그래프 · 백링크",
@@ -102,7 +102,7 @@
   "metrics": {
     "label": "METRICS",
     "items": [
-      { "value": 12, "suffix": "", "caption": "AI 에이전트" },
+      { "value": "AI", "suffix": "", "caption": "워크플로와 역할" },
       { "value": 5, "suffix": "뷰", "caption": "하나의 그래프 · 다섯 렌즈" },
       { "value": 0, "suffix": "건", "caption": "외부 송신 · 로컬 모드" },
       { "value": "AGPLv3", "suffix": "", "caption": "오픈소스 + 상용 라이선스" }
@@ -113,12 +113,12 @@
     "title1": "자료 한 개를",
     "title2": "위키 페이지로 바꾸는",
     "title3": "여섯 단계.",
-    "sub": "올리는 것이 전부입니다. 나머지 여섯 단계는 에이전트가 알아서 처리합니다. 모든 문장의 출처는 원본 자료로 이어집니다.",
+    "sub": "올리는 것이 시작입니다. 파싱, 임베딩, 위키 초안, 그래프 연결, Q&A까지 좁은 단계가 이어지고, 답변과 그래프에는 출처 칩과 근거 패널이 붙습니다.",
     "steps": [
-      { "n": "01 · INGEST", "title": "가져오기", "body": "PDF · DOCX · 오디오 · 영상 · URL · 스캔 이미지. 형식 무관." },
+      { "n": "01 · INGEST", "title": "가져오기", "body": "PDF · DOCX · PPTX · XLSX · HWP/HWPX · Markdown · 오디오 · 영상 · URL. OCR은 provider 역량에 따라 달라집니다." },
       { "n": "02 · PARSE", "title": "해체", "body": "OCR · 강의 전사 · 자막 · 표 구조. 마크다운으로 정규화." },
       { "n": "03 · EMBED", "title": "의미화", "body": "벡터 공간으로 변환. 비슷한 것끼리 가까워짐." },
-      { "n": "04 · COMPILE", "title": "엮기", "body": "12 에이전트가 주제별 위키 초안을 작성합니다." },
+      { "n": "04 · COMPILE", "title": "엮기", "body": "컴파일 워크플로가 주제별 위키 초안을 작성합니다." },
       { "n": "05 · CONNECT", "title": "연결", "body": "백링크 · 대척점 · 인과 관계를 지식 그래프로." },
       { "n": "06 · SERVE", "title": "사용", "body": "Q&A · 플래시카드 · 소크라테스식 튜터 · 팟캐스트." }
     ],
@@ -130,8 +130,8 @@
     },
     "citation": {
       "label": "CITATION",
-      "title": "모든 문장은 원본 자료로 되돌아갑니다.",
-      "body": "AI가 작성한 문장에는 인용이 붙고, 인용은 실제 읽은 자료로 이어집니다. 환각 없이, 표절 없이, 실제로 여러분이 가진 자료만으로.",
+      "title": "답변과 그래프는 원본 근거로 되돌아갑니다.",
+      "body": "AI 답변에는 출처 칩이 붙고, 그래프·카드·마인드맵에는 근거 패널이 연결됩니다. 문장 단위 강제 검증은 아직 런타임 전체에 적용되지 않았습니다.",
       "pillKey": "citation.sources",
       "pillA": "\"note: attention-is-all-you-need\"",
       "pillB": "\"note: rotary-embedding\""
@@ -139,12 +139,12 @@
   },
   "agents": {
     "label": "AGENTS",
-    "title1": "12명의 전문가가",
-    "title2": "분업합니다.",
-    "sub": "열두 에이전트가 각자 맡은 역할로 정의되어 있고, 자동 스케줄과 UI 통합은 단계적으로 활성화됩니다. 현재 켜진 범위는 docs/contributing/plans-status.md 에서 확인합니다.",
+    "title1": "AI 역할들이",
+    "title2": "좁게 나뉘어 움직입니다.",
+    "sub": "열두 역할은 장기 아키텍처로 정의되어 있고, 실제 제품에는 런타임 에이전트·워크플로·기능 플래그가 섞여 단계적으로 켜집니다. 현재 켜진 범위는 docs/contributing/plans-status.md 에서 확인합니다.",
     "items": [
       { "n": "01", "cat": "core", "name": "Compiler", "body": "업로드한 자료에서 개념을 뽑아 위키로 엮습니다. 오디오·영상은 전사 후 처리. 양방향 링크까지 자동." },
-      { "n": "02", "cat": "core", "name": "Research", "body": "여러 검색 방식을 조합한 하이브리드 Q&A. 모든 답변에 출처." },
+      { "n": "02", "cat": "core", "name": "Research", "body": "여러 검색 방식을 조합한 하이브리드 Q&A. 답변에는 출처 칩을 표시합니다." },
       { "n": "03", "cat": "maintain", "name": "Librarian", "body": "고아 페이지·모순·중복을 찾아냅니다. 위키 건강을 주기 점검." },
       { "n": "04", "cat": "discover", "name": "Synthesis", "body": "서로 다른 분야의 구조적 유사성을 발견. 면역계 ↔ 회복성처럼." },
       { "n": "05", "cat": "discover", "name": "Connector", "body": "프로젝트 간 연결을 제안합니다. 승인하면 크로스 링크 생성." },
@@ -208,7 +208,7 @@
         { "label": "Pages", "count": "214", "active": false },
         { "label": "Graph", "count": "", "active": false },
         { "label": "Library", "count": "78", "active": false },
-        { "label": "Agents", "count": "12", "active": false }
+        { "label": "AI", "count": "roles", "active": false }
       ],
       "sideProjects": "PROJECTS",
       "projects": ["· Research Wiki", "· Thesis Draft", "· Lab Meeting", "· Reading List"],
@@ -300,13 +300,13 @@
   },
   "install": {
     "label": "INSTALL",
-    "title1": "한 번의 명령어로",
-    "title2": "여러분의 서버에서.",
-    "sub": "Docker Compose 한 줄이면 충분합니다. 데이터베이스 · 파일 스토리지 · 워크플로 엔진까지 한 번에 기동되고, 완전 로컬 LLM 모드도 프로필 하나로 전환됩니다.",
+    "title1": "직접 운영할 수 있게",
+    "title2": "구성되어 있습니다.",
+    "sub": "Docker Compose로 데이터베이스 · 파일 스토리지 · 워크플로 엔진을 올리고, 의존성 설치와 마이그레이션 후 앱을 실행합니다. 완전 로컬 LLM 모드는 Ollama 프로필로 전환합니다.",
     "bullets": [
       "최소 4 vCPU · 8GB RAM, 권장 8 vCPU · 16GB RAM",
       "x86_64 + ARM64 멀티아키 (Raspberry Pi · Apple Silicon · Oracle Ampere)",
-      "월 1회 자동 백업 복구 리허설 스크립트 포함",
+      "백업·복구 전략 문서화 완료, 자동 스크립트는 후속 작업",
       "Cloudflare R2 / MinIO / S3 중 선택"
     ],
     "terminalLabel": "TERMINAL",
@@ -315,7 +315,9 @@
       "$ cd opencairn-monorepo",
       "$ cp .env.example .env",
       "# .env에 LLM_API_KEY 설정 (Gemini) 또는 LLM_PROVIDER=ollama",
-      "$ docker-compose up -d",
+      "$ docker compose up -d postgres redis minio temporal",
+      "$ pnpm install && pnpm db:migrate",
+      "$ pnpm dev",
       "# Ollama 완전 로컬:",
       "$ docker-compose --profile ollama up -d"
     ],
@@ -325,22 +327,22 @@
       "헬스체크 통과",
       "첫 워크스페이스 생성 대기 중"
     ],
-    "terminalTail": "$ docker compose up → http://localhost:3000 → it just runs."
+    "terminalTail": "$ docker compose up infra → pnpm db:migrate → pnpm dev"
   },
   "pricing": {
     "label": "PRICING",
-    "title1": "구독 없는 AI 노트.",
-    "title2": "충전한 캐시는 만료되지 않습니다.",
-    "sub": "솔로는 ₩0, BYOK는 ₩3,900, 협업 Team은 ₩9,900/석. 캐시는 영구 보유되고, 작업 전 비용을 미리 알려드립니다.",
+    "title1": "호스티드 요금은",
+    "title2": "아직 준비 중입니다.",
+    "sub": "오픈소스 셀프호스팅은 바로 사용할 수 있습니다. 관리형 클라우드 요금, 크레딧, 환불, 자동 충전은 Plan 9b와 사업자 등록 이후 확정됩니다.",
     "solo": {
       "name": "Solo",
-      "cat": "payg · 캐시",
+      "cat": "self-host · dev",
       "price": "₩0",
-      "tagline": "구독 없이 · 충전한 만큼만",
+      "tagline": "직접 운영 · 빌링 없음",
       "bullets": [
-        "신규 가입 시 <b>₩3,000 캐시</b> 증정",
-        "충전한 캐시는 <b>영구 보유 · 만료 없음</b>",
-        "12 에이전트 전체 접근",
+        "AGPLv3 셀프호스팅",
+        "Gemini 또는 Ollama provider 설정",
+        "AI 워크플로는 기능 플래그와 설정에 따라 활성화",
         "노트 무제한 · 스토리지 100 MB",
         "본인 Gemini 키 (BYOK) 옵션"
       ],
@@ -349,34 +351,34 @@
     },
     "team": {
       "name": "Team",
-      "cat": "team · 워크스페이스 공유",
-      "price": "₩9,900",
+      "cat": "planned · hosted",
+      "price": "TBD",
       "unit": "/석/월",
-      "tagline": "협업 · 워크스페이스 캐시 공유",
+      "tagline": "협업 호스팅 · 요금 미확정",
       "payg": {
         "label": "캐시",
-        "line1": "최소 충전 ₩5,000 · <b>영구 보유 · 만료 없음</b>",
-        "line2": "작업 전 비용 미리 보기 · hard cap 기본"
+        "line1": "크레딧과 결제 레일은 아직 비활성",
+        "line2": "작업 전 비용 미리 보기와 hard cap은 계획"
       },
       "bullets": [
         "팀 워크스페이스 · 게스트 · 공개 링크",
         "Deep Research 우선 큐",
         "스토리지 <b>10 GB</b>",
         "1년 활동 로그 보존",
-        "워크스페이스 캐시 풀 · 자동 재충전",
+        "워크스페이스 사용량·한도 UI 예정",
         "이메일 지원"
       ],
-      "cta": "TEAM 시작하기",
-      "guarantee": "14일간 정액 환불 보장"
+      "cta": "호스티드 계획 보기",
+      "guarantee": "환불 정책은 결제 레일 이후 확정"
     },
     "byok": {
       "name": "BYOK",
       "cat": "본인 키 · 1인",
-      "price": "₩3,900",
+      "price": "TBD",
       "unit": "/월",
-      "tagline": "본인 Gemini 키 · 1인 호스팅",
+      "tagline": "본인 Gemini 키 · 지원 경로부터",
       "bullets": [
-        "저희가 호스팅 · 1인 계정",
+        "호스티드 BYOK는 계획 중",
         "본인 Gemini 키 (암호화 저장)",
         "API 사용료는 본인 결제",
         "스토리지 10 GB"
@@ -384,7 +386,7 @@
       "bulletsMuted": ["협업이 필요하면 Team으로"],
       "cta": "BYOK로 시작"
     },
-    "footnote": "국내 카드·간편결제 지원 · VAT 별도 · 언제든 해지 · 환불 정책",
+    "footnote": "관리형 결제, VAT, 환불, 자동 충전은 아직 제품에 연결되지 않았습니다.",
     "refundLinkLabel": "환불 정책",
     "secondary": {
       "label": "OTHER ROUTES",
@@ -426,7 +428,7 @@
       },
       {
         "q": "기존 노트 앱에서 마이그레이션할 수 있나요?",
-        "a": "Markdown 형태로 내보낸 파일을 업로드하면 Compiler가 위키로 다시 엮습니다. 손으로 정리하던 기존 페이지들이 연결된 위키로 되살아납니다. Notion · Obsidian · Bear 등 주요 앱의 내보내기 포맷을 지원합니다."
+        "a": "Markdown 형태로 내보낸 파일과 Notion ZIP을 업로드하면 Compiler가 위키로 다시 엮습니다. Google Drive는 현재 파일 ID 기반 가져오기가 구현되어 있습니다. 다른 노트 앱별 전용 가져오기는 후속 계획입니다."
       },
       {
         "q": "AI가 위키를 잘못 쓰면 어떻게 되나요?",
@@ -451,7 +453,7 @@
   },
   "footer": {
     "tagline": "AI 지식 OS. 혼자서도, 팀으로도. 셀프호스팅으로 영원히.",
-    "taglineMono": "구독 없는 AI 노트. 만료 없는 캐시.",
+    "taglineMono": "셀프호스팅 가능한 AI 노트. 호스티드 요금은 준비 중.",
     "colProduct": "Product",
     "colDev": "Developers",
     "colCommunity": "Community",

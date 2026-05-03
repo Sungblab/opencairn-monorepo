@@ -2,22 +2,22 @@
 
 **English** | [한국어](README.ko.md)
 
-> Self-hosted, multi-LLM, agent-driven knowledge OS for individuals and teams.
+> Self-hostable, multi-LLM knowledge OS for individuals and teams.
 
 > ⚠️ **Alpha.** Schemas, APIs, and migrations may break between commits. Evaluate on a private instance before relying on it.
 
 ## What it does
 
-OpenCairn ingests your documents (PDF, DOCX, PPTX, XLSX, HWP, Markdown, Notion ZIP, Google Drive, …), turns them into a navigable knowledge graph, and lets a fleet of AI agents — Compiler, Research, Librarian, Curator, Connector, Synthesis, Staleness, Narrator, Visualization, Socratic, Code, DocEditor — read, reason, and write across that graph. It runs on your own Docker host, behind a unified provider layer that speaks Google Gemini or a local Ollama model.
+OpenCairn ingests documents such as PDF, Office files, HWP/HWPX, Markdown, Notion ZIP exports, and Google Drive file-ID imports, then turns them into editable notes, a navigable knowledge graph, and grounded Q&A surfaces. Its long-term architecture defines AI roles for compiling, research, learning, synthesis, narration, visualization, code, and maintenance, but not every role is a default-on product agent today. It runs on your own Docker host, behind a provider layer that speaks Google Gemini or a local Ollama model.
 
 ## Highlights
 
-- **Self-hosted by default** — `docker compose up` brings up Postgres + pgvector, MinIO, Temporal, Redis, and optionally Ollama.
-- **Multi-LLM** — Gemini (default) or Ollama, selected via environment. Per-user BYOK keys layer on top of workspace defaults.
-- **12 AI agents** orchestrated by Temporal and a custom agent runtime in `apps/worker/src/runtime/`.
+- **Self-hostable by default** — Docker Compose brings up Postgres + pgvector, MinIO, Temporal, Redis, and optionally Ollama; the local dev path still runs migrations and app processes explicitly.
+- **Multi-LLM** — Gemini (default) or Ollama, selected via environment. User-level Gemini BYOK is implemented for supported AI paths.
+- **AI workflows and agent roles** — Temporal workflows plus `apps/worker/src/runtime/` power a staged set of runtime agents, workflow-backed features, and gated product surfaces.
 - **Knowledge graph + wiki editor** — Plate v49 with `[[wiki-link]]`, backlinks, Cytoscape multi-view (graph / board / table / timeline), and automatic concept extraction.
 - **Real-time collaboration** — Hocuspocus / Yjs with multi-cursor, comments, `@mentions`, share links, per-note permissions.
-- **Deep research mode** — multi-step planning with citations and provenance; BYOK or managed PAYG path.
+- **Deep research mode** — multi-step research with citations and provenance; hosted billing/PAYG remains a later Plan 9b surface.
 - **Three-tier permission model** — Workspace → Project → Page, with inheritance and override.
 
 ## Architecture
@@ -25,7 +25,7 @@ OpenCairn ingests your documents (PDF, DOCX, PPTX, XLSX, HWP, Markdown, Notion Z
 ```
 apps/web         Next.js 16. UI + browser sandbox (Pyodide + iframe).
 apps/api         Hono 4. Business logic, auth, permission helpers.
-apps/worker      Python. Temporal worker + agent runtime + 12 agents.
+apps/worker      Python. Temporal worker + agent runtime + workflow-backed AI features.
 apps/hocuspocus  Yjs collaboration server with page-level auth hooks.
 packages/db      Drizzle ORM + pgvector + 3-tier workspace permissions.
 packages/llm     Python LLM provider abstraction (Gemini / Ollama).
