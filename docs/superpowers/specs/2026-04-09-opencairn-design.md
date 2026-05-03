@@ -5,11 +5,12 @@
 > "What Karpathy described, as a product"
 
 > **2026-04-14~20 업데이트**: 본 원본은 2026-04-09 작성. 이후 주요 변경:
-> - 2026-04-14: gVisor/apps/sandbox 폐기 → Pyodide/iframe (ADR-006). 12 에이전트 (Visualization 추가). Toss Payments (원화).
+> - 2026-04-14: gVisor/apps/sandbox 폐기 → Pyodide/iframe (ADR-006). 12개 AI 역할 설계 (Visualization 추가). Toss Payments는 당시 후보.
 > - 2026-04-15: OpenAI provider 제거. Gemini+Ollama 2개만.
 > - 2026-04-18: Workspace 3계층 (Workspace→Project→Page). Notion급 협업 (코멘트/@mention/알림/공개링크/게스트).
-> - 2026-04-19: 가격 개편. Pro ₩4,900 + PAYG (₩5,000 선불, 만료X, $1=₩1,650). BYOK ₩2,900 (본인 Gemini 키, 단일 사용자 호스팅).
+> - 2026-04-19: 가격 개편 설계안. 실제 결제, credit, refund rail은 Plan 9b까지 blocked.
 > - 2026-04-20: Agent Chat Scope (Page/Project/Workspace 3계층, L1-L4 메모리, Strict/Expand RAG, Pin). Agent Runtime Standard (@tool, AgentEvent, Agent ABC, Hook 3계층, Trajectory). 결제 레일은 사업자등록 후 결정 — BLOCKED.
+> - 2026-05-03 claim audit: 이 문서는 원본 설계와 제품 비전을 포함한다. 현재 구현은 일부 기능이 feature flag, workflow/activity, MVP UI, 또는 계획 상태에 있으므로 public copy의 source of truth로 그대로 쓰지 않는다. 현재 상태는 `docs/contributing/plans-status.md`, `docs/contributing/feature-registry.md`, `docs/review/2026-05-03-claim-reality-master-audit.md`를 우선한다.
 >
 > 상세: CLAUDE.md, collaboration-model.md, billing-model.md, agent-chat-scope-design.md, agent-runtime-standard-design.md.
 
@@ -27,7 +28,7 @@ NotebookLM + Notion + Cursor를 합친 **개인·팀 지식 OS**.
 - **학습 시스템**: 플래시카드, 간격 반복, 소크라테스식 문답, 오디오 팟캐스트
 - **캔버스**: 인터랙티브 React/HTML 렌더링 (Claude Artifacts 스타일)
 - **코드 실행**: 샌드박스에서 코드 실행, 과제 채점
-- **딥 리서치**: Gemini Deep Research API + 위키 자동 통합
+- **딥 리서치**: workflow-backed research 기능. 결과 저장/통합 표면은 현재 구현 상태와 feature flag를 확인한다.
 - **지식 인터뷰**: 특정 노트/개념을 에이전트로 취급해 직접 대화 — "이 논문 저자 관점에서 대답해줘" (NotebookLM에도 없는 기능)
 - **시나리오 시뮬레이션**: "내 지식베이스 기준으로 이 가설 적용하면?" — 지식 그래프 위에서 What-if 시나리오 실행
 - **도메인 온톨로지 자동 설계**: 프로젝트 생성 시 LLM이 도메인 맞춤 엔티티 스키마 설계 → LightRAG KG 품질 향상
@@ -66,7 +67,7 @@ Hono (Backend API, TypeScript)
   |--- Temporal (Durable Workflow Orchestration)
   |--- Redis (Cache + Session)
   |--- Cloudflare R2 / MinIO (File Storage, S3 compatible)
-  |--- Toss Payments (Billing, Korea)
+  |--- Billing rail (Plan 9b; payment provider not wired yet)
   |
   v (Temporal Activities)
 Python Worker (AI Processing)
@@ -99,7 +100,7 @@ Browser (Code Execution)
 - **Next.js는 UI + 마케팅** -- SSG(랜딩/블로그), CSR(앱). Server Action 없음
 - **Hono가 모든 비즈니스 로직의 게이트웨이** -- 인증, CRUD, 파일 프로세싱, 워크플로우 트리거
 - **무거운 AI 처리는 전부 Python Worker** -- 에이전트, 위키 생성, 이벤트 실행
-- **Temporal로 에이전트 워크플로우 오케스트레이션** -- 영구적 실행, 자동 복구, 타임아웃, 동시성 제어. 12개 에이전트 간 충돌 방지
+- **Temporal로 AI 워크플로우 오케스트레이션** -- 영구적 실행, 자동 복구, 타임아웃, 동시성 제어. 12개 역할 설계는 있으나 모든 역할이 동일한 `runtime.Agent` 제품 표면은 아니다.
 - **Gemini 네이티브 기능 최대한 활용** -- TTS, Deep Research, 검색 그라운딩, 캐싱을 직접 구축하지 않음
 - **브라우저 샌드박스** -- AI 생성 코드는 Pyodide (WASM) / `<iframe sandbox>`로 클라이언트에서 실행. 서버는 코드를 한 줄도 실행하지 않는다. 근거는 [ADR-006](../../architecture/adr/006-pyodide-iframe-sandbox.md)
 - **Workspace가 격리 경계** -- 모든 데이터·에이전트·검색·Yjs 문서·알림은 workspace 스코프로 제한. 개인 워크스페이스와 회사 워크스페이스 데이터는 절대 섞이지 않는다. 상세: [collaboration-model.md](../../architecture/collaboration-model.md)
@@ -154,7 +155,7 @@ opencairn.com/invite/<token>              -> 초대 수락
 | Hono | 4.x | HTTP API 서버 |
 | Drizzle ORM | 0.45.x | DB 접근 (PostgreSQL) |
 | Better Auth | latest | 인증/세션 (OAuth, Magic Link, Passkeys) |
-| Toss Payments | latest | 빌링 (Free/Pro/BYOK, 한국 시장) |
+| Billing provider | TBD | Plan 9b 이후 결정. 현재 결제/환불/캐시 rail은 제품에 연결되지 않음 |
 | Resend (+SMTP fallback) | latest | 이메일 (가입 인증, 알림) |
 | Hocuspocus Server | latest | Yjs 협업 서버 (PostgreSQL 영속화, Better Auth 인증 연동) |
 | Sentry (optional) | latest | 에러/로깅 (셀프호스트는 GlitchTip 대안) |
@@ -218,7 +219,7 @@ opencairn.com/invite/<token>              -> 초대 수락
 
 **~~sandbox 서비스 제거됨 (2026-04-14):** 코드 실행이 전부 브라우저 내부(Pyodide + iframe sandbox)로 이동. gVisor, Docker 샌드박스, Vite 빌더 전부 폐기.*
 
-총 8~9개 서비스 (Ollama 옵션 포함). `docker-compose up -d` 한 방.
+총 8~9개 서비스 (Ollama 옵션 포함). Compose 파일은 존재하지만 현재 self-host quick start는 infra 기동, 의존성 설치, 마이그레이션, 앱 실행을 나눠 수행한다. 단일 명령 production install처럼 홍보하지 않는다.
 
 **호스팅 전략:**
 - **호스팅 환경 미정** — Oracle Cloud, Hetzner, AWS, Fly.io 등 후보. Production 결정은 Plan 후반에서 베이스라인 부하 측정 후 선택.
@@ -461,9 +462,9 @@ messages
 
 ## 6. Agent System
 
-12개 에이전트 (v0.1 전체). Temporal이 에이전트 간 워크플로우 오케스트레이션을 담당하고, 각 에이전트 내부 로직은 LangGraph로 구현.
+12개 AI 역할은 원본 v0.1 설계의 분업 모델이다. 2026-05-03 기준 실제 구현은 `runtime.Agent` 서브클래스, Temporal workflow/activity, plain tool-loop class, feature-flagged product surface가 섞여 있으며, 모든 역할이 기본 활성 production agent는 아니다.
 
-> **2026-04-14 명단 확정**: Compiler / Librarian / Research / Connector / Socratic / Temporal / Synthesis / Curator / Narrator / Deep Research / Code / Visualization = 12개.
+> **2026-04-14 역할 명단**: Compiler / Librarian / Research / Connector / Socratic / Temporal / Synthesis / Curator / Narrator / Deep Research / Code / Visualization.
 > **Visualization Agent**가 5뷰 피봇과 함께 v0.1에 추가되었고 (이전 설계의 "11개"에서 +1), 초기 설계의 **Hunter Agent**는 v0.2로 이관 (Curator의 Search Grounding이 v0.1 기능을 커버).
 > 다른 문서에서 "11개 에이전트"라고 기술된 부분은 순차적으로 업데이트되고 있음 (CLAUDE.md, prd, agent-behavior-spec 등).
 
@@ -994,19 +995,19 @@ Python Worker
 
 ## 13. Billing
 
-> **2026-04-19 전면 개편**: 기존 "Pro ₩X 미정 / BYOK ₩Y 미정" 구조는 폐기. 아래 3단 요금제가 캐논이며, 상세는 [billing-model.md](../../architecture/billing-model.md). 결제 레일(PG)은 사업자등록 후 결정이므로 Plan 9의 결제 연동 task는 **BLOCKED** 상태 — 그 전에는 provider-agnostic core (크레딧 잔액·차감·환율 고정·BYOK 키 암호화)만 구현.
+> **2026-05-03 claim audit 반영**: 아래 가격표는 hosted SaaS 설계안이다. 현재 앱의 billing/credits UI와 API는 stub이고, 결제 레일(PG)은 사업자등록 후 결정이므로 Plan 9b까지 **BLOCKED** 상태다. public copy에서는 구체 가격, cash 만료, 환불, 카드/간편결제, auto top-up을 실제 제품 동작처럼 표현하지 않는다.
 
-### Plans (v0.1 캐논)
+### Plans (hosted SaaS design draft)
 
 | 플랜 | 월 구독료 | AI 비용 | 대상 | 핵심 제약 |
 |------|----------|--------|------|----------|
 | **Free** | ₩0 | OpenCairn 부담 (하드 쿼터) | 평가용 개인 | 프로젝트 10 / Q&A 50 / 스토리지 100MB |
-| **Pro** | **₩4,900 + PAYG** | 선불 크레딧 차감 | 정식 개인·팀 | 최소 ₩5,000 선불, 만료 없음, `$1 = ₩1,650` 고정 환율로 차감 |
+| **Pro** | 설계안 | 선불 크레딧 차감 예정 | 정식 개인·팀 | Plan 9b에서 최소 충전, 만료, 환율, 환불 정책 확정 |
 | **BYOK** | **₩2,900** (서버 임대비) | 본인 Gemini API 키 | 솔로 사용자 | 단일 사용자 호스팅, **팀/협업 기능 제외**, 토큰 비용 본인 부담 |
 | Self-host | ₩0 | 본인 부담 | OSS 유저 | AGPLv3, `BILLING_ENABLED=false` 기본 무제한 |
 | Enterprise | 별도 협의 | 별도 협의 | v0.3 규제 산업 | SSO/감사 로그/온프레미스 |
 
-- **PAYG 크레딧**: 사용자가 ₩5,000 이상 선불 충전 → `usage_records`의 토큰 비용만큼 잔액 차감. 만료 없음, 환불 규정은 billing-model.md.
+- **PAYG 크레딧**: 설계안. 실제 충전/차감/환불/만료 정책은 Plan 9b 구현 전까지 제품 기능이 아니다.
 - **BYOK ≠ Self-host**: BYOK는 OpenCairn이 운영하는 서버의 단일 사용자 계정을 임대하는 모델 (Pro의 팀 기능·공유 제외). Self-host는 사용자가 직접 Docker를 띄우는 별개 트랙.
 - **PG 미확정**: Toss Payments가 후보지만 사업자등록·계약 전까지 결제 레일 미연동. 잔액·차감·환율·BYOK 키 암호화 등 결제-무관 코어는 먼저 구현.
 - **VAT 별도**, 부가세는 billing-model.md의 산정 규칙을 따름.
@@ -1195,16 +1196,19 @@ INTERNAL_API_URL=http://api:4000
 INTERNAL_API_SECRET=change-me-in-production
 ```
 
-### Quick Start (셀프호스팅)
+### Quick Start (셀프호스팅, 현재 repo 기준)
 
 ```bash
 git clone https://github.com/opencairn/opencairn.git
 cd opencairn
 cp .env.example .env
 # .env에 LLM_API_KEY(Gemini)를 설정 — Ollama만 쓰려면 LLM_PROVIDER=ollama
-docker-compose up -d
-# Ollama 로컬 LLM까지 원하면:
-docker-compose --profile ollama up -d
+docker compose up -d postgres redis minio temporal
+pnpm install
+pnpm db:migrate
+pnpm dev
+# Ollama 로컬 LLM까지 원하면 별도 profile 사용:
+docker compose --profile ollama up -d
 # http://localhost:3000
 ```
 
@@ -1244,24 +1248,17 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 - [x] 프로젝트 / 폴더 / 태그 조직
 - [x] Plate 블록 에디터 (LaTeX, 위키링크, 슬래시 커맨드)
 - [x] 자료 업로드 (opendataloader + Gemini 하이브리드)
-- [x] Compiler Agent (자료 -> 위키 자동 컴파일)
-- [x] Librarian Agent (위키 건강 관리)
-- [x] Research Agent (Graph RAG Q&A)
-- [x] Connector Agent (프로젝트 간 메모리 연결)
-- [x] Socratic Agent (이해도 시험 + 플래시카드)
-- [x] Temporal Agent (지식 변화 추적)
-- [x] Synthesis Agent (창발적 연결)
-- [x] Curator Agent (새로운 자료 추천, Gemini Search Grounding)
-- [x] Narrator Agent (오디오 팟캐스트, Gemini TTS)
-- [x] Deep Research Agent (Gemini Deep Research API)
-- [x] Code Agent (코드 실행, 과제, 분석)
+- [~] AI 역할/워크플로 (Compiler, Research, Librarian, Connector, Staleness, Synthesis, Curator, Narrator 등은 구현 형태가 다르며 일부는 runtime.Agent, 일부는 workflow/activity, 일부는 feature flag 기반)
+- [~] Socratic 학습 기능 (workflow/activity 기반; `runtime.Agent` 클래스는 아님)
+- [~] Deep Research 기능 (workflow-backed; product flag와 실제 route 상태 확인 필요)
+- [~] Code 기능 (브라우저 실행 경계는 설계됨; `FEATURE_CODE_AGENT=false` 기본값)
 - [x] 지식 그래프 시각화 (인터랙티브)
 - [x] 캔버스 (인터랙티브 React/HTML, 브라우저 Pyodide + iframe sandbox)
 - [x] Tool Template System (퀴즈, 슬라이드, 마인드맵 등)
 - [x] 비동기 작업 실행 (브라우저 꺼도 진행, 각 스텝 DB 저장)
-- [x] 빌링 (Free/Pro/BYOK, Toss Payments)
+- [ ] 빌링 (Free/Pro/BYOK, 결제/환불/크레딧 rail은 Plan 9b까지 blocked)
 - [x] Visualization Agent (Cytoscape 5뷰 — Graph/Mindmap/Cards/Canvas/Timeline)
-- [x] Docker Compose 원클릭 배포
+- [~] Docker Compose 기반 self-hosting (infra/app 컨테이너는 존재하나 현재 quick start는 infra + migration + dev server 단계형)
 - [x] **협업 기반 (Workspace + Permissions + Hocuspocus + Presence + Comments + @mention + Notifications + Activity feed)** — Notion 대체 포지션의 테이블 스테이크
 
 ### v0.2+

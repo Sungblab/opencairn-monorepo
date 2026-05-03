@@ -1,8 +1,8 @@
 {
   "meta": {
     "title": "OpenCairn — AI Knowledge OS",
-    "description": "Drop in your sources and 12 AI agents weave them into a wiki, surface connections before you ask, and measure your depth of understanding. Self-hosted · AGPLv3 + commercial license.",
-    "ogDescription": "12 AI agents weave your PDFs, papers, and videos into a wiki, and surface connections before you ask."
+    "description": "Drop in your sources and AI workflows weave them into a wiki, surface connections before you ask, and measure your depth of understanding. Self-hostable · AGPLv3 + commercial license.",
+    "ogDescription": "AI workflows weave your PDFs, papers, and videos into a wiki, then surface connections before you ask."
   },
   "nav": {
     "logoTitle": "Try clicking",
@@ -24,14 +24,14 @@
     "titleLine2": "what you write.",
     "titleBrand": "OpenCairn",
     "titleLine3": "knows what you read.",
-    "sub": "Drop in PDFs, papers, videos, and podcasts. AI <b>weaves them into a wiki</b>, <b>suggests connections</b>, and <b>checks how well you understand</b> what's there. The 12-agent backbone activates in stages.",
+    "sub": "Drop in PDFs, papers, videos, and podcasts. AI <b>weaves them into a wiki</b>, <b>suggests connections</b>, and <b>checks how well you understand</b> what's there. The AI workflow backbone activates in stages.",
     "ctaPrimary": "Get started",
     "ctaSecondary": "See pricing",
-    "noCard": "All 12 agents included",
+    "noCard": "AI workflows included",
     "selfhostLink": "Developer? Self-hosting guide ↗",
     "spec": {
-      "agents": "agents",
-      "agentsVal": "12",
+      "agents": "ai roles",
+      "agentsVal": "staged",
       "parsers": "parsers",
       "parsersVal": "pdf · mp3 · mp4 · m4a",
       "runtime": "runtime",
@@ -43,7 +43,7 @@
     },
     "activity": {
       "title": "PREVIEW · WORKSPACE",
-      "meta": "12-agent backbone · demo log",
+      "meta": "AI role backbone · demo log",
       "footer": "Agent activity demo (real runs ship in stages)",
       "timeLabels": ["just now", "1m ago", "3m ago", "6m ago"],
       "items": [
@@ -66,9 +66,9 @@
       "compiling": "● compiling",
       "input": "INPUT",
       "inputItems": ["Paper PDF", "Podcast audio", "Video · YouTube", "DOCX · PPTX", "Scanned image"],
-      "agentsHeader": "12 AGENTS",
+      "agentsHeader": "AI WORKFLOWS",
       "orchestration": "orchestration",
-      "status": "● running · 12/12",
+      "status": "● running · staged",
       "output": "OUTPUT",
       "outWikiTitle": "Wiki pages",
       "outWikiDesc": "Concept graph · backlinks",
@@ -101,7 +101,7 @@
   "metrics": {
     "label": "METRICS",
     "items": [
-      { "value": 12, "suffix": "", "caption": "AI agents" },
+      { "value": "AI", "suffix": "", "caption": "Workflows and roles" },
       { "value": 5, "suffix": " views", "caption": "One graph · five lenses" },
       { "value": 0, "suffix": "", "caption": "External calls · local mode" },
       { "value": "AGPLv3", "suffix": "", "caption": "Open-source + commercial" }
@@ -112,12 +112,12 @@
     "title1": "Turning one source",
     "title2": "into a wiki page,",
     "title3": "in six steps.",
-    "sub": "Instead of one giant prompt, narrow-responsibility steps hand off the baton. That way the system knows when to stop and what to fix. Every sentence traces back to the source.",
+    "sub": "Instead of one giant prompt, narrow-responsibility steps parse, embed, draft, link, and serve the knowledge base. Answers and graph surfaces carry source chips and evidence panels.",
     "steps": [
-      { "n": "01 · INGEST", "title": "Intake", "body": "PDF · DOCX · audio · video · URL · scanned images. Format-agnostic." },
+      { "n": "01 · INGEST", "title": "Intake", "body": "PDF · DOCX · PPTX · XLSX · HWP/HWPX · Markdown · audio · video · URL. OCR depends on provider capability." },
       { "n": "02 · PARSE", "title": "Break down", "body": "OCR · captions · table structure. Normalized to Markdown." },
       { "n": "03 · EMBED", "title": "Meaning", "body": "Mapped to vector space. Similar things end up close." },
-      { "n": "04 · COMPILE", "title": "Weave", "body": "12 agents draft wiki pages per topic." },
+      { "n": "04 · COMPILE", "title": "Weave", "body": "The compile workflow drafts wiki pages per topic." },
       { "n": "05 · CONNECT", "title": "Link", "body": "Backlinks · opposing views · causal edges into a knowledge graph." },
       { "n": "06 · SERVE", "title": "Use", "body": "Q&A · flashcards · Socratic tutor · podcasts." }
     ],
@@ -129,8 +129,8 @@
     },
     "citation": {
       "label": "CITATION",
-      "title": "Every sentence traces back to the source.",
-      "body": "AI-written sentences carry citations, and citations point to the materials you actually read. No hallucinations, no plagiarism — just what you already have.",
+      "title": "Answers and graph views trace back to source evidence.",
+      "body": "AI answers carry source chips, while graph, card, and mindmap surfaces expose evidence panels. Sentence-level runtime verification is not yet enforced across every writer path.",
       "pillKey": "citation.sources",
       "pillA": "\"note: attention-is-all-you-need\"",
       "pillB": "\"note: rotary-embedding\""
@@ -138,12 +138,12 @@
   },
   "agents": {
     "label": "AGENTS",
-    "title1": "Twelve specialists,",
+    "title1": "AI roles,",
     "title2": "each with a narrow job.",
-    "sub": "Twelve specialists are defined with narrow roles. Auto-schedules and UI integrations ship in stages — check docs/contributing/plans-status.md for what's currently active.",
+    "sub": "Twelve roles are defined in the long-term architecture. The shipped product mixes runtime agents, workflow-backed features, and feature-flagged surfaces — check docs/contributing/plans-status.md for what's currently active.",
     "items": [
       { "n": "01", "cat": "core", "name": "Compiler", "body": "Extracts concepts from uploads into wiki pages, with two-way links built in." },
-      { "n": "02", "cat": "core", "name": "Research", "body": "Hybrid Q&A across multiple search strategies. Every answer cited." },
+      { "n": "02", "cat": "core", "name": "Research", "body": "Hybrid Q&A across multiple search strategies, with source chips on answers." },
       { "n": "03", "cat": "maintain", "name": "Librarian", "body": "Finds orphan pages, contradictions, and duplicates. Wiki health on a schedule." },
       { "n": "04", "cat": "discover", "name": "Synthesis", "body": "Finds structural analogies across domains — immune system ↔ resilience." },
       { "n": "05", "cat": "discover", "name": "Connector", "body": "Suggests cross-project links; accept to create them." },
@@ -207,7 +207,7 @@
         { "label": "Pages", "count": "214", "active": false },
         { "label": "Graph", "count": "", "active": false },
         { "label": "Library", "count": "78", "active": false },
-        { "label": "Agents", "count": "12", "active": false }
+        { "label": "AI", "count": "roles", "active": false }
       ],
       "sideProjects": "PROJECTS",
       "projects": ["· Research Wiki", "· Thesis Draft", "· Lab Meeting", "· Reading List"],
@@ -299,13 +299,13 @@
   },
   "install": {
     "label": "INSTALL",
-    "title1": "One command,",
-    "title2": "your server.",
-    "sub": "One Docker Compose line is enough. Database, file storage, and workflow engine all come up together, and a single profile flag switches to fully-local LLM mode.",
+    "title1": "Built to run",
+    "title2": "on your server.",
+    "sub": "Docker Compose brings up the database, file storage, and workflow engine. After installing dependencies and running migrations, start the app processes; a profile flag enables fully-local Ollama mode.",
     "bullets": [
       "Minimum 4 vCPU · 8GB RAM, recommended 8 vCPU · 16GB RAM",
       "x86_64 + ARM64 multi-arch (Raspberry Pi · Apple Silicon · Oracle Ampere)",
-      "Monthly automated backup-restore rehearsal script included",
+      "Backup and restore strategy documented; automation scripts are follow-up work",
       "Choose Cloudflare R2 / MinIO / S3"
     ],
     "terminalLabel": "TERMINAL",
@@ -314,7 +314,9 @@
       "$ cd opencairn-monorepo",
       "$ cp .env.example .env",
       "# set LLM_API_KEY (Gemini) or LLM_PROVIDER=ollama in .env",
-      "$ docker-compose up -d",
+      "$ docker compose up -d postgres redis minio temporal",
+      "$ pnpm install && pnpm db:migrate",
+      "$ pnpm dev",
       "# fully-local Ollama:",
       "$ docker-compose --profile ollama up -d"
     ],
@@ -324,22 +326,22 @@
       "health checks passed",
       "waiting for first workspace"
     ],
-    "terminalTail": "$ docker compose up → http://localhost:3000 → it just runs."
+    "terminalTail": "$ docker compose up infra → pnpm db:migrate → pnpm dev"
   },
   "pricing": {
     "label": "PRICING",
-    "title1": "Notes without subscriptions.",
-    "title2": "Cash that doesn't expire.",
-    "sub": "Solo at ₩0, BYOK at ₩3,900, Team at ₩9,900/seat. Prepaid cash never expires, and we preview costs before each run.",
+    "title1": "Hosted pricing",
+    "title2": "is still in planning.",
+    "sub": "Open-source self-hosting is usable today. Managed cloud pricing, credits, refunds, and auto top-up will be finalized after Plan 9b and business registration.",
     "solo": {
       "name": "Solo",
-      "cat": "payg · cash",
+      "cat": "self-host · dev",
       "price": "₩0",
-      "tagline": "No subscription · just prepaid cash",
+      "tagline": "Run it yourself · no app billing",
       "bullets": [
-        "<b>₩3,000 cash</b> on signup",
-        "Prepaid cash <b>never expires</b>",
-        "All 12 agents",
+        "AGPLv3 self-hosting",
+        "Gemini or Ollama provider configuration",
+        "AI workflows activate by flag and configuration",
         "Unlimited notes · 100 MB storage",
         "Bring your own Gemini key (BYOK) optional"
       ],
@@ -348,34 +350,34 @@
     },
     "team": {
       "name": "Team",
-      "cat": "team · shared workspace",
-      "price": "₩9,900",
+      "cat": "planned · hosted",
+      "price": "TBD",
       "unit": "/seat/mo",
-      "tagline": "Collaboration · shared workspace cash",
+      "tagline": "Collaborative hosting · pricing TBD",
       "payg": {
         "label": "CASH",
-        "line1": "Minimum ₩5,000 prepaid · <b>permanent · never expires</b>",
-        "line2": "Cost preview before each run · hard cap by default"
+        "line1": "Credits and payment rail are not active yet",
+        "line2": "Cost previews and hard caps are planned"
       },
       "bullets": [
         "Team workspaces · guests · public links",
         "Deep Research priority queue",
         "<b>10 GB</b> storage",
         "1-year activity log retention",
-        "Shared workspace cash · auto top-up",
+        "Workspace usage and quota UI planned",
         "Email support"
       ],
-      "cta": "Start Team",
-      "guarantee": "14-day subscription refund guarantee"
+      "cta": "View hosted plan",
+      "guarantee": "Refund policy comes after payment integration"
     },
     "byok": {
       "name": "BYOK",
       "cat": "your key · solo",
-      "price": "₩3,900",
+      "price": "TBD",
       "unit": "/mo",
-      "tagline": "Your own Gemini key · single seat",
+      "tagline": "Your Gemini key · supported paths first",
       "bullets": [
-        "We host · single seat",
+        "Hosted BYOK is planned",
         "Your Gemini key (encrypted at rest)",
         "API usage billed by you",
         "10 GB storage"
@@ -383,7 +385,7 @@
       "bulletsMuted": ["For collaboration, see Team"],
       "cta": "Start with BYOK"
     },
-    "footnote": "Domestic cards & easy pay · VAT separate · cancel anytime · refund policy",
+    "footnote": "Managed billing, VAT, refunds, and auto top-up are not connected to the product yet.",
     "refundLinkLabel": "Refund policy",
     "secondary": {
       "label": "OTHER ROUTES",
@@ -421,7 +423,7 @@
       },
       {
         "q": "Can I migrate from my existing note app?",
-        "a": "Export to Markdown, upload, and Compiler re-weaves it into a wiki. The pages you organized by hand come back as a connected wiki. Notion · Obsidian · Bear and other major export formats are supported."
+        "a": "Export to Markdown or upload a Notion ZIP, and Compiler re-weaves it into a wiki. Google Drive currently supports file-ID import. Other app-specific importers are planned follow-ups."
       },
       {
         "q": "What if the AI gets the wiki wrong?",
@@ -446,7 +448,7 @@
   },
   "footer": {
     "tagline": "AI knowledge OS. Solo or team. Self-hosted, forever.",
-    "taglineMono": "Subscription-free notes. Cash that doesn't expire.",
+    "taglineMono": "Self-hostable AI notes. Hosted pricing is in planning.",
     "colProduct": "Product",
     "colDev": "Developers",
     "colCommunity": "Community",

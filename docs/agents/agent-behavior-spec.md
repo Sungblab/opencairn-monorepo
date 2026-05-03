@@ -1,14 +1,38 @@
 # Agent Behavior Specification
 
-> Plan 12 (agent-runtime-standard-design.md) 기준. 모든 에이전트는 `runtime.Agent` ABC를 상속하고, `@tool` 데코레이터로 도구를 선언하며, `AgentEvent` 스트림을 yield한다.
+> Plan 12 (agent-runtime-standard-design.md) 기준의 목표 계약. `runtime.Agent` ABC, `@tool` 데코레이터, `AgentEvent` 스트림은 새 런타임 에이전트의 표준이다.
 >
 > **2026-04-14 명단**: Compiler / Librarian / Research / Connector / Socratic / Temporal / Synthesis / Curator / Narrator / Deep Research / Code / Visualization (12개). Hunter는 v0.2로 이관됨.
+>
+> **2026-05-03 claim audit 반영**: 위 명단은 제품/설계 역할 목록이며, 현재 구현의 모든 항목이 `runtime.Agent` 서브클래스이거나 기본 활성 UI 엔트리포인트인 것은 아니다. 자세한 근거는 `docs/review/2026-05-03-agent-system-claim-audit.md`와 `docs/review/2026-05-03-claim-reality-master-audit.md`를 본다.
+
+---
+
+## 0. 현재 구현 인벤토리
+
+이 표는 public copy에서 "12 production agents"처럼 읽히지 않도록 현재 구현 형태를 구분한다. 상태는 2026-05-03 감사 스냅샷 기준이며, 변경 시 코드와 `docs/contributing/plans-status.md`를 다시 확인한다.
+
+| 역할 | 현재 구현 형태 | 제품 노출 상태 |
+| --- | --- | --- |
+| Compiler | `runtime.Agent` + ingest-triggered workflow | 업로드/컴파일 경로에서 간접 실행 |
+| Research | `runtime.Agent` 존재, 최신 chat은 API-side retrieval 경로 중심 | 독립 에이전트 카드가 아니라 Q&A 표면 |
+| Librarian | `runtime.Agent` maintenance role | 사용자 run 버튼보다 유지보수 역할 |
+| Connector | `runtime.Agent` + Plan 8 API/UI | 프로젝트 Agents 페이지의 5개 카드 중 하나 |
+| Socratic | workflow/activity 기반, `runtime.Agent` 클래스 없음 | Learn/Socratic 제품 표면 |
+| Temporal/Staleness | `StalenessAgent` 구현, 이름은 Temporal Agent와 다름 | 프로젝트 Agents 페이지의 staleness 카드 |
+| Synthesis | `runtime.Agent` + Plan 8 API/UI | 제안 생성 표면, Synthesis Export와 별개 |
+| Curator | `runtime.Agent` + Plan 8 API/UI | 프로젝트 Agents 페이지의 5개 카드 중 하나 |
+| Narrator | `runtime.Agent` + Plan 8 API/UI | 프로젝트 Agents 페이지의 5개 카드 중 하나 |
+| Deep Research | workflow/activity 기반, `DeepResearchAgent` 클래스 없음 | 기능 플래그/route 기반 research 표면 |
+| Code | workflow 기반, 명시적으로 `runtime.Agent` 아님 | `FEATURE_CODE_AGENT=false` 기본값 |
+| Visualization | plain class + tool loop, `runtime.Agent` 아님 | 그래프 시각화 경로 |
+| DocEditor | `runtime.Agent` 서브클래스, 원래 12개 명단 외 | slash/RAG command flag 기반 |
 
 ---
 
 ## 1. 공통 계약
 
-- **인터페이스**: `Agent.run(input) -> AsyncGenerator[AgentEvent]`. 모든 에이전트는 동일한 비동기 스트림 프로토콜을 따른다.
+- **인터페이스**: `Agent.run(input) -> AsyncGenerator[AgentEvent]`. `runtime.Agent`로 구현된 에이전트는 동일한 비동기 스트림 프로토콜을 따른다. workflow/activity 기반 기능은 이 목표 계약에 맞춰 점진 통합한다.
 - **도구 호출**: 모든 LLM function call은 `@tool` 등록된 함수만 호출 가능 (화이트리스트). 각 도구는 `ToolContext`(`user_id`, `workspace_id`, `permissions`, `run_id`)를 통과받으며, context 없이 호출되면 `ToolError` 발생.
 - **이벤트 타입 9종**: `RunStart`, `ModelStart`, `ModelEnd`, `ToolUse`, `ToolResult`, `StateUpdate`, `HandoffRequest`, `AgentError`, `RunEnd`. SSE로 UI에 스트리밍.
 - **훅 3계층**: global / agent-level / run-level. 권한 검증, 비용 추적, 로깅 훅이 기본 global. `HookRegistry.register(hook, scope, agent_filter)`로 등록.
@@ -30,7 +54,7 @@
 
 ### Stop 조건
 - `max_iterations` 기본 10 (agent-level override 가능). Deep Research만 30+.
-- **Cost ceiling (per-run)**: Free ₩100, BYOK ₩0 (본인 키, 집계 제외), Pro ₩500. 초과 예상 시 `AgentError(cost_exceeded)` 후 RunEnd. Pre-flight는 토큰 견적 × provider 단가 기반.
+- **Cost ceiling (per-run, 계획)**: hosted billing/credit rail은 Plan 9b 전까지 제품에 연결되지 않았다. 런타임은 비용 집계와 hard-cap hook을 목표로 하지만, public copy에서 실제 결제/환불/캐시 동작처럼 표현하지 않는다.
 - 구조화 출력(Pydantic) 검증 실패 → 최대 2회 재시도 후 실패.
 
 ### 충돌 해결
@@ -163,9 +187,9 @@
 
 | 티어 | Per-run 기본 | 예외 |
 |------|------------|------|
-| Free | ₩100 | Deep Research/Narrator 불가 |
-| BYOK | ₩0 (본인 Gemini 키) | 팀 기능 제외 |
-| Pro | ₩500 | Deep Research 건당 별도 과금 |
+| Free | 계획 | Deep Research/Narrator 제한 예정 |
+| BYOK | 계획 | 현재는 user-level Gemini BYOK 설정부터 구현 |
+| Pro | 계획 | Plan 9b 이후 hosted billing에서 확정 |
 | Enterprise | Custom | 협의 |
 
 ---
