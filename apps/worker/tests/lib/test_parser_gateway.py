@@ -90,6 +90,55 @@ def test_normalize_current_pages_uses_loop_index_for_stable_block_ids() -> None:
     assert [block.page_number for block in doc.blocks] == [1, 1]
 
 
+def test_normalize_current_huge_transcript_without_pages() -> None:
+    now = datetime.now(UTC)
+    transcript = "x" * 250_000
+    doc = normalize_current_parser_output(
+        {"transcript": transcript},
+        _inp("audio/mp3"),
+        parser="current.transcribe_audio",
+        parser_version=None,
+        parse_started_at=now,
+        parse_completed_at=now,
+    )
+
+    assert len(doc.blocks) == 1
+    assert doc.as_plain_text() == transcript
+    assert doc.blocks[0].source_offsets is not None
+    assert doc.blocks[0].source_offsets.end == len(transcript)
+
+
+def test_normalize_current_handles_empty_captions_and_malformed_payloads() -> None:
+    now = datetime.now(UTC)
+    doc = normalize_current_parser_output(
+        {
+            "pages": [
+                {
+                    "text": "body",
+                    "tables": [{"caption": ""}, "not-a-table"],
+                    "figures": [{"caption": None}, "not-a-figure"],
+                }
+            ],
+        },
+        _inp(),
+        parser="current.parse_pdf",
+        parser_version=None,
+        parse_started_at=now,
+        parse_completed_at=now,
+    )
+
+    assert [block.content for block in doc.blocks] == ["body", "", "", "", ""]
+    assert [block.source_offsets is None for block in doc.blocks] == [
+        False,
+        True,
+        True,
+        True,
+        True,
+    ]
+    assert [table.caption for table in doc.tables] == [None, None]
+    assert [figure.caption for figure in doc.figures] == [None, None]
+
+
 @pytest.mark.asyncio
 async def test_parser_gateway_wraps_current_adapter() -> None:
     async def fake_parse(_inp: dict) -> dict:
