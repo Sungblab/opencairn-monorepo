@@ -15,7 +15,7 @@ import { db, chatMessages, chatThreads, and, desc, eq, notInArray, sql } from "@
 import { runChat, type ChatChunk } from "./chat-llm";
 import type { ChatMode } from "./chat-runtime-policy";
 import type { RagMode, RetrievalChip, RetrievalScope } from "./chat-retrieval";
-import type { ChatMsg, LLMProvider } from "./llm/gemini";
+import type { ChatMsg, LLMProvider } from "./llm/provider";
 import { envInt } from "./env";
 import { tokensToKrw } from "./cost";
 

@@ -2,6 +2,7 @@ import pytest
 from llm.factory import get_provider
 from llm.base import ProviderConfig
 from llm.gemini import GeminiProvider
+from llm.openai_compatible import OpenAICompatibleProvider
 from llm.ollama import OllamaProvider
 
 
@@ -39,6 +40,18 @@ def test_get_provider_unknown_raises():
         get_provider(config)
 
 
+def test_get_provider_openai_compatible():
+    config = ProviderConfig(
+        provider="openai_compatible",
+        api_key="key",
+        model="qwen",
+        embed_model="embed",
+        base_url="http://localhost:8000",
+    )
+    provider = get_provider(config)
+    assert isinstance(provider, OpenAICompatibleProvider)
+
+
 def test_get_provider_openai_raises():
     # OpenAI is intentionally unsupported (2026-04-15 decision)
     config = ProviderConfig(
@@ -59,6 +72,19 @@ def test_get_provider_from_env(monkeypatch):
     monkeypatch.setenv("OLLAMA_BASE_URL", "http://localhost:11434")
     provider = get_provider()
     assert isinstance(provider, OllamaProvider)
+
+
+def test_get_provider_openai_compatible_from_env(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openai_compatible")
+    monkeypatch.setenv("OPENAI_COMPAT_BASE_URL", "http://localhost:8000")
+    monkeypatch.setenv("OPENAI_COMPAT_CHAT_MODEL", "qwen")
+    monkeypatch.setenv("OPENAI_COMPAT_EMBED_MODEL", "embed")
+    monkeypatch.delenv("OPENAI_COMPAT_API_KEY", raising=False)
+    provider = get_provider()
+    assert isinstance(provider, OpenAICompatibleProvider)
+    assert provider.config.model == "qwen"
+    assert provider.config.embed_model == "embed"
+    assert provider.base_url == "http://localhost:8000/v1"
 
 
 def test_get_provider_missing_env_raises(monkeypatch):

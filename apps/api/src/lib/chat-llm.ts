@@ -12,12 +12,8 @@ import {
 } from "./chat-runtime-policy";
 import { extractSaveSuggestion } from "./save-suggestion-fence";
 import { envInt } from "./env";
-import {
-  getGeminiProvider,
-  type ChatMsg,
-  type LLMProvider,
-  type Usage,
-} from "./llm/gemini";
+import { getChatProvider } from "./llm";
+import type { ChatMsg, LLMProvider, Usage } from "./llm/provider";
 
 export type ChatChunk =
   | { type: "status"; payload: { phrase: string } }
@@ -65,7 +61,7 @@ export async function* runChat(opts: {
   locale?: string;
   timezone?: string;
 }): AsyncGenerator<ChatChunk> {
-  const provider = opts.provider ?? getGeminiProvider();
+  const provider = opts.provider ?? getChatProvider();
   const policy = selectChatRuntimePolicy({
     mode: opts.mode ?? "auto",
     userMessage: opts.userMessage,

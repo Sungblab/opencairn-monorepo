@@ -1,5 +1,5 @@
 import { db, sql } from "@opencairn/db";
-import { getGeminiProvider } from "./llm/gemini";
+import { getChatProvider } from "./llm";
 import { projectHybridSearch, type HybridHit } from "./internal-hybrid-search";
 import { envInt } from "./env";
 import {
@@ -116,7 +116,7 @@ export async function retrieve(opts: {
   checkAbort(opts.signal);
   if (projectIds.length === 0) return [];
 
-  const provider = getGeminiProvider();
+  const provider = getChatProvider();
   const queryEmbedding = await provider.embed(opts.query);
   checkAbort(opts.signal);
 

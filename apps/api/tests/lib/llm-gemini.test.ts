@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   getGeminiProvider,
-  LLMNotConfiguredError,
-  type Usage,
-  type StreamChunk,
 } from "../../src/lib/llm/gemini.js";
+import {
+  LLMNotConfiguredError,
+  type StreamChunk,
+  type Usage,
+} from "../../src/lib/llm/provider.js";
 
 vi.mock("@google/genai", () => {
   // Hoisted mock — vi.mock factories must be self-contained. We use a class

@@ -12,7 +12,7 @@ import { db, chatMessages, eq, asc } from "@opencairn/db";
 import { __setRunAgentForTest } from "../src/routes/threads.js";
 import type { AgentChunk } from "../src/lib/agent-pipeline.js";
 import { runChat } from "../src/lib/chat-llm.js";
-import type { LLMProvider } from "../src/lib/llm/gemini.js";
+import type { LLMProvider } from "../src/lib/llm/provider.js";
 import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
 
