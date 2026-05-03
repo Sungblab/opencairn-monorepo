@@ -5,8 +5,11 @@ import type {
   SourceSpan,
 } from "./retrieval-candidates";
 
+const ESTIMATED_CHARS_PER_TOKEN = 2;
+const ESTIMATED_METADATA_TOKENS_PER_ITEM = 32;
+
 function estimateTokens(text: string): number {
-  return Math.max(1, Math.ceil(text.length / 4));
+  return Math.max(1, Math.ceil(text.length / ESTIMATED_CHARS_PER_TOKEN));
 }
 
 export function packEvidence(input: {
@@ -23,9 +26,10 @@ export function packEvidence(input: {
     const noteCount = perNote.get(candidate.noteId) ?? 0;
     if (noteCount >= maxChunksPerNote) continue;
 
-    const cost = estimateTokens(
-      `${candidate.title}\n${candidate.headingPath}\n${candidate.snippet}`,
-    );
+    const cost =
+      estimateTokens(
+        `${candidate.title}\n${candidate.headingPath}\n${candidate.snippet}`,
+      ) + ESTIMATED_METADATA_TOKENS_PER_ITEM;
     if (totalEstimatedTokens + cost > input.maxTokens) continue;
 
     items.push({

@@ -14,7 +14,7 @@ export function rerankCandidates(input: {
   query: string;
   candidates: RetrievalCandidate[];
 }): RetrievalCandidate[] {
-  const terms = termsOf(input.query);
+  const terms = wordSetOf(input.query);
 
   return input.candidates
     .map((candidate, index) => ({
@@ -26,7 +26,10 @@ export function rerankCandidates(input: {
     .map((item) => item.candidate);
 }
 
-function scoreCandidate(candidate: RetrievalCandidate, terms: string[]): number {
+function scoreCandidate(
+  candidate: RetrievalCandidate,
+  terms: Set<string>,
+): number {
   const base = (
     Object.entries(candidate.channelScores) as Array<
       [RetrievalChannel, number | undefined]
@@ -37,7 +40,8 @@ function scoreCandidate(candidate: RetrievalCandidate, terms: string[]): number 
   );
   const haystack =
     `${candidate.title} ${candidate.headingPath} ${candidate.snippet}`.toLowerCase();
-  const overlap = terms.filter((term) => haystack.includes(term)).length;
+  const haystackWords = wordSetOf(haystack);
+  const overlap = [...terms].filter((term) => haystackWords.has(term)).length;
   const multiChannelBoost =
     Object.keys(candidate.channelScores).filter(
       (channel) =>
@@ -70,6 +74,6 @@ function scoreCandidate(candidate: RetrievalCandidate, terms: string[]): number 
   );
 }
 
-function termsOf(query: string): string[] {
-  return query.toLowerCase().split(/\s+/).filter(Boolean);
+function wordSetOf(text: string): Set<string> {
+  return new Set(text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []);
 }

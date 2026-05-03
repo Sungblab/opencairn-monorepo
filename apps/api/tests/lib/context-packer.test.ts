@@ -43,6 +43,16 @@ describe("packEvidence", () => {
     expect(bundle.items[0]!.citationIndex).toBe(1);
   });
 
+  it("uses a conservative budget for Korean text and prompt metadata overhead", () => {
+    const bundle = packEvidence({
+      candidates: [candidate("ko", "n-ko", "가".repeat(120))],
+      maxTokens: 80,
+    });
+
+    expect(bundle.items).toHaveLength(0);
+    expect(bundle.omittedCandidates).toBe(1);
+  });
+
   it("limits repeated chunks from one note", () => {
     const bundle = packEvidence({
       candidates: [

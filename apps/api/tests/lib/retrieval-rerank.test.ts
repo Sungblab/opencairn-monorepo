@@ -45,6 +45,18 @@ describe("rerankCandidates", () => {
     expect(out[0]!.id).toBe("strong");
   });
 
+  it("does not count substring matches as keyword overlap", () => {
+    const out = rerankCandidates({
+      query: "ai",
+      candidates: [
+        candidate("substring", "mountain pain", { vector: 0.7 }),
+        candidate("exact", "ai model", { vector: 0.7 }),
+      ],
+    });
+
+    expect(out[0]!.id).toBe("exact");
+  });
+
   it("prefers extracted confident evidence over ambiguous inferred evidence at similar score", () => {
     const out = rerankCandidates({
       query: "indexed provenance",

@@ -148,21 +148,19 @@ export async function retrieve(opts: {
     hit,
     candidate: candidateFromRetrievalHit(hit, index),
   }));
-  const rerankedIds = rerankCandidates({
+  const rerankedCandidates = rerankCandidates({
     query: opts.query,
     candidates: hitCandidates.map((item) => item.candidate),
-  }).map((candidate) => candidate.id);
-  const rank = new Map(rerankedIds.map((id, index) => [id, index]));
+  });
+  const hitByCandidateId = new Map(
+    hitCandidates.map((item) => [item.candidate.id, item.hit]),
+  );
 
-  return hitCandidates
-    .sort(
-      (a, b) =>
-        (rank.get(a.candidate.id) ?? Number.MAX_SAFE_INTEGER) -
-          (rank.get(b.candidate.id) ?? Number.MAX_SAFE_INTEGER) ||
-        b.hit.score - a.hit.score,
-    )
+  return rerankedCandidates
     .slice(0, k)
-    .map(({ hit: h }) => ({
+    .map((candidate) => hitByCandidateId.get(candidate.id))
+    .filter((h): h is ProjectRetrievalHit => h != null)
+    .map((h) => ({
       noteId: h.noteId,
       chunkId: h.chunkId,
       title: h.title,
