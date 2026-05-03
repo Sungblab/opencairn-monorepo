@@ -26,6 +26,14 @@ function renderEmptyState() {
   );
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
+}
+
 describe("SidebarEmptyState", () => {
   beforeEach(() => {
     push.mockClear();
@@ -53,6 +61,29 @@ describe("SidebarEmptyState", () => {
     });
     fireEvent.click(cta);
     expect(push).toHaveBeenCalledWith("/ko/workspace/acme/new-project");
+  });
+
+  it("keeps the loading state while the workspace lookup is pending", async () => {
+    const workspace = deferred<Response>();
+    global.fetch = vi.fn().mockReturnValueOnce(workspace.promise) as unknown as
+      typeof fetch;
+
+    renderEmptyState();
+    expect(screen.getByText("sidebar.project.loading")).toBeInTheDocument();
+    expect(screen.queryByText("sidebar.project.empty")).not.toBeInTheDocument();
+
+    workspace.resolve({
+      ok: true,
+      json: async () => ({ id: "ws-1" }),
+    } as Response);
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => [],
+    }) as unknown as typeof fetch;
+
+    expect(
+      await screen.findByText("sidebar.project.empty"),
+    ).toBeInTheDocument();
   });
 
   it("lists existing projects on workspace-level routes", async () => {

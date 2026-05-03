@@ -18,16 +18,22 @@ const clamp = (v: number, lo: number, hi: number) =>
 interface PanelState {
   sidebarWidth: number;
   sidebarOpen: boolean;
+  compactSidebarOpen: boolean;
   agentPanelWidth: number;
   agentPanelOpen: boolean;
+  compactAgentPanelOpen: boolean;
   backlinksOpen: boolean;
   enrichmentOpen: boolean;
   toggleSidebar(): void;
+  toggleCompactSidebar(): void;
   toggleAgentPanel(): void;
+  toggleCompactAgentPanel(): void;
   toggleBacklinks(): void;
   toggleEnrichment(): void;
   setSidebarOpen(open: boolean): void;
+  setCompactSidebarOpen(open: boolean): void;
   setAgentPanelOpen(open: boolean): void;
+  setCompactAgentPanelOpen(open: boolean): void;
   setSidebarWidth(w: number): void;
   setAgentPanelWidth(w: number): void;
   resetSidebarWidth(): void;
@@ -42,19 +48,28 @@ export const usePanelStore = create<PanelState>()(
     (set) => ({
       sidebarWidth: SIDEBAR_DEFAULT,
       sidebarOpen: true,
+      compactSidebarOpen: false,
       agentPanelWidth: AGENT_DEFAULT,
       agentPanelOpen: true,
+      compactAgentPanelOpen: false,
       backlinksOpen: false,
       enrichmentOpen: false,
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+      toggleCompactSidebar: () =>
+        set((s) => ({ compactSidebarOpen: !s.compactSidebarOpen })),
       toggleAgentPanel: () =>
         set((s) => ({ agentPanelOpen: !s.agentPanelOpen })),
+      toggleCompactAgentPanel: () =>
+        set((s) => ({ compactAgentPanelOpen: !s.compactAgentPanelOpen })),
       toggleBacklinks: () =>
         set((s) => ({ backlinksOpen: !s.backlinksOpen })),
       toggleEnrichment: () =>
         set((s) => ({ enrichmentOpen: !s.enrichmentOpen })),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
+      setCompactSidebarOpen: (open) => set({ compactSidebarOpen: open }),
       setAgentPanelOpen: (open) => set({ agentPanelOpen: open }),
+      setCompactAgentPanelOpen: (open) =>
+        set({ compactAgentPanelOpen: open }),
       setSidebarWidth: (w) =>
         set({ sidebarWidth: clamp(w, SIDEBAR_MIN, SIDEBAR_MAX) }),
       setAgentPanelWidth: (w) =>
@@ -62,6 +77,13 @@ export const usePanelStore = create<PanelState>()(
       resetSidebarWidth: () => set({ sidebarWidth: SIDEBAR_DEFAULT }),
       resetAgentPanelWidth: () => set({ agentPanelWidth: AGENT_DEFAULT }),
     }),
-    { name: "oc:panel" },
+    {
+      name: "oc:panel",
+      partialize: (state) => ({
+        ...state,
+        compactSidebarOpen: false,
+        compactAgentPanelOpen: false,
+      }),
+    },
   ),
 );

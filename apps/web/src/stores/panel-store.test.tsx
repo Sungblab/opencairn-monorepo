@@ -13,8 +13,10 @@ describe("panel-store", () => {
     const s = usePanelStore.getState();
     expect(s.sidebarWidth).toBe(240);
     expect(s.sidebarOpen).toBe(true);
+    expect(s.compactSidebarOpen).toBe(false);
     expect(s.agentPanelWidth).toBe(360);
     expect(s.agentPanelOpen).toBe(true);
+    expect(s.compactAgentPanelOpen).toBe(false);
   });
 
   it("toggleSidebar flips sidebarOpen", () => {
@@ -29,6 +31,16 @@ describe("panel-store", () => {
     expect(usePanelStore.getState().sidebarOpen).toBe(false);
     usePanelStore.getState().setSidebarOpen(true);
     expect(usePanelStore.getState().sidebarOpen).toBe(true);
+  });
+
+  it("compact sidebar state does not mutate the desktop preference", () => {
+    usePanelStore.getState().setSidebarOpen(true);
+    usePanelStore.getState().setCompactSidebarOpen(true);
+    expect(usePanelStore.getState().sidebarOpen).toBe(true);
+    expect(usePanelStore.getState().compactSidebarOpen).toBe(true);
+    usePanelStore.getState().toggleCompactSidebar();
+    expect(usePanelStore.getState().sidebarOpen).toBe(true);
+    expect(usePanelStore.getState().compactSidebarOpen).toBe(false);
   });
 
   it("setSidebarWidth clamps to [180,400]", () => {
@@ -68,6 +80,16 @@ describe("panel-store", () => {
     expect(usePanelStore.getState().agentPanelOpen).toBe(false);
     usePanelStore.getState().setAgentPanelOpen(true);
     expect(usePanelStore.getState().agentPanelOpen).toBe(true);
+  });
+
+  it("compact agent panel state does not mutate the desktop preference", () => {
+    usePanelStore.getState().setAgentPanelOpen(true);
+    usePanelStore.getState().setCompactAgentPanelOpen(true);
+    expect(usePanelStore.getState().agentPanelOpen).toBe(true);
+    expect(usePanelStore.getState().compactAgentPanelOpen).toBe(true);
+    usePanelStore.getState().toggleCompactAgentPanel();
+    expect(usePanelStore.getState().agentPanelOpen).toBe(true);
+    expect(usePanelStore.getState().compactAgentPanelOpen).toBe(false);
   });
 
   it("resetAgentPanelWidth restores 360", () => {

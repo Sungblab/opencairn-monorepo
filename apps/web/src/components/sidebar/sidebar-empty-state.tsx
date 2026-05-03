@@ -22,7 +22,7 @@ export function SidebarEmptyState() {
   const router = useRouter();
   const t = useTranslations("sidebar.project");
 
-  const { data: workspace } = useQuery({
+  const { data: workspace, isLoading: isWorkspaceLoading } = useQuery({
     queryKey: ["workspace-by-slug", wsSlug],
     enabled: Boolean(wsSlug),
     staleTime: 60_000,
@@ -38,7 +38,7 @@ export function SidebarEmptyState() {
 
   const workspaceId = workspace?.id ?? null;
 
-  const { data: projects, isLoading } = useQuery({
+  const { data: projects, isLoading: isProjectsLoading } = useQuery({
     queryKey: ["projects", workspaceId],
     enabled: Boolean(workspaceId),
     staleTime: 30_000,
@@ -51,6 +51,8 @@ export function SidebarEmptyState() {
       return (await res.json()) as Project[];
     },
   });
+
+  const isLoading = isWorkspaceLoading || isProjectsLoading;
 
   if (projects?.length) {
     return (
