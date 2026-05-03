@@ -30,6 +30,27 @@ beforeEach(async () => {
 });
 
 describe("CodeAgentPanel", () => {
+  it("renders a disabled experimental state without a run button", async () => {
+    const { queryByTestId, getByTestId } = render(
+      withIntl(
+        <CodeAgentPanel
+          enabled={false}
+          noteId={NOTE_ID}
+          language="python"
+          runResult={null}
+          onApply={vi.fn()}
+        />,
+      ),
+    );
+
+    expect(getByTestId("agent-disabled").textContent).toContain("실험 기능");
+    expect(queryByTestId("agent-prompt")).toBeNull();
+    expect(queryByTestId("agent-run")).toBeNull();
+
+    const { codeApi } = await import("@/lib/api-client-code");
+    expect(codeApi.startRun).not.toHaveBeenCalled();
+  });
+
   it("idle → submitting prompt triggers codeApi.startRun and onStart", async () => {
     const onApply = vi.fn();
     const onStart = vi.fn();

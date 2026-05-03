@@ -27,6 +27,7 @@ export type CodeAgentRunResult = {
 };
 
 type Props = {
+  enabled?: boolean;
   noteId: string;
   language: CanvasLanguage;
   runResult: CodeAgentRunResult | null;
@@ -35,6 +36,7 @@ type Props = {
 };
 
 export function CodeAgentPanel({
+  enabled = true,
   noteId,
   language,
   runResult,
@@ -83,7 +85,24 @@ export function CodeAgentPanel({
     >
       <div className="text-sm font-medium">{t("agent.title")}</div>
 
-      {isRunning ? (
+      {!enabled ? (
+        <div
+          className="rounded border border-dashed bg-muted/40 p-3"
+          data-testid="agent-disabled"
+        >
+          <div className="mb-1 flex items-center gap-2">
+            <span className="rounded border bg-background px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              {t("agent.disabledBadge")}
+            </span>
+            <span className="text-xs font-medium">
+              {t("agent.disabledTitle")}
+            </span>
+          </div>
+          <p className="text-xs leading-5 text-muted-foreground">
+            {t("agent.disabledDescription")}
+          </p>
+        </div>
+      ) : isRunning ? (
         <div className="text-xs text-muted-foreground" data-testid="agent-running">
           {t("agent.running")}
         </div>

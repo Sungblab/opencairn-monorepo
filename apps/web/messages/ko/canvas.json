@@ -40,6 +40,9 @@
   },
   "agent": {
     "title": "코드 에이전트",
+    "disabledBadge": "실험 기능",
+    "disabledTitle": "기본 설치에서는 비활성화되어 있습니다.",
+    "disabledDescription": "코드 에이전트는 아직 실험 단계라서 관리자가 기능 플래그를 켠 환경에서만 실행할 수 있습니다. 캔버스 코드는 직접 작성하고 실행할 수 있습니다.",
     "placeholder": "원하는 동작을 자연어로 입력해 주세요. 예: matplotlib으로 sin 그래프를 그려 줘",
     "run": "AI에게 부탁",
     "running": "코드 작성 중…",
