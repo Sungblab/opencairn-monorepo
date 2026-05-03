@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "notes": [
+    "Example manifest only. Real benchmark fixtures should live in object storage or a private fixture bucket, not as committed binaries.",
+    "Marker remains an optional external parser-service candidate; do not install it in worker core for this benchmark skeleton."
+  ],
+  "fixtures": [
+    {
+      "id": "digital-pdf-paper",
+      "description": "Clean digital PDF paper with headings, citations, formulas, and figures.",
+      "source_type": "file",
+      "mime_type": "application/pdf",
+      "object_key": "benchmarks/parser-fixtures/digital-pdf-paper.pdf",
+      "expected_features": ["headings", "figures", "formulas", "citations"]
+    },
+    {
+      "id": "scanned-korean-pdf",
+      "description": "Image-only Korean PDF that requires OCR and preserves reading order.",
+      "source_type": "file",
+      "mime_type": "application/pdf",
+      "object_key": "benchmarks/parser-fixtures/scanned-korean.pdf",
+      "expected_features": ["ocr", "korean_text", "page_order"]
+    },
+    {
+      "id": "slide-heavy-pdf",
+      "description": "PDF exported from slides with diagrams and sparse text.",
+      "source_type": "file",
+      "mime_type": "application/pdf",
+      "object_key": "benchmarks/parser-fixtures/slide-heavy.pdf",
+      "expected_features": ["figures", "captions", "reading_order"]
+    },
+    {
+      "id": "table-heavy-pdf",
+      "description": "Financial or spreadsheet-style PDF with dense tables.",
+      "source_type": "file",
+      "mime_type": "application/pdf",
+      "object_key": "benchmarks/parser-fixtures/table-heavy.pdf",
+      "expected_features": ["tables", "cell_order", "numeric_text"]
+    },
+    {
+      "id": "docx-headings-tables",
+      "description": "DOCX with nested headings and tables.",
+      "source_type": "file",
+      "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "object_key": "benchmarks/parser-fixtures/headings-tables.docx",
+      "expected_features": ["headings", "tables"]
+    },
+    {
+      "id": "pptx-images-speaker-structure",
+      "description": "PPTX with images and speaker-style structure.",
+      "source_type": "file",
+      "mime_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "object_key": "benchmarks/parser-fixtures/images-speaker-structure.pptx",
+      "expected_features": ["figures", "slide_order", "captions"]
+    },
+    {
+      "id": "xlsx-table-workbook",
+      "description": "XLSX workbook with multiple table sheets.",
+      "source_type": "file",
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "object_key": "benchmarks/parser-fixtures/table-workbook.xlsx",
+      "expected_features": ["tables", "sheet_order"]
+    },
+    {
+      "id": "hwp-converted-path",
+      "description": "HWP/HWPX document that exercises the unoconvert plus opendataloader path.",
+      "source_type": "file",
+      "mime_type": "application/vnd.hancom.hwpx",
+      "object_key": "benchmarks/parser-fixtures/korean-doc.hwpx",
+      "expected_features": ["korean_text", "tables", "converted_pdf"]
+    },
+    {
+      "id": "web-article",
+      "description": "Static web article with headings, links, and tables.",
+      "source_type": "web",
+      "mime_type": "x-opencairn/web-url",
+      "url": "https://example.com/parser-benchmark-article",
+      "expected_features": ["headings", "links", "tables"]
+    },
+    {
+      "id": "image-only-document",
+      "description": "Single image document containing mixed Korean and English text.",
+      "source_type": "file",
+      "mime_type": "image/png",
+      "object_key": "benchmarks/parser-fixtures/image-only-document.png",
+      "expected_features": ["ocr", "korean_text"]
+    }
+  ]
+}
