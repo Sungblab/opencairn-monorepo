@@ -8,8 +8,9 @@ Use the same routing discipline as `AGENTS.md`:
 
 1. `docs/README.md`
 2. `docs/contributing/plans-status.md`
-3. `docs/contributing/project-history.md`
-4. Relevant plan/spec files
-5. Linked audits when implementation claims matter
+3. `docs/contributing/feature-registry.md`
+4. `docs/contributing/project-history.md`
+5. Relevant plan/spec files
+6. Linked audits when implementation claims matter
 
 Known caveat: old completion markers were sometimes ahead of reality. Check `docs/review/2026-04-28-completion-claims-audit.md` before relying on historical "complete" labels.

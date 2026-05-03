@@ -7,6 +7,7 @@
 | Need | Read |
 | ---- | ---- |
 | 문서 구조와 전체 개발 흐름을 먼저 파악 | `contributing/project-history.md` |
+| 이미 있는 기능/소유 경로 확인, 중복 구현 방지 | `contributing/feature-registry.md` |
 | 현재 plan별 완료/진행/보류 상태 확인 | `contributing/plans-status.md` |
 | 완료 표기와 실제 구현 사이의 known gap 확인 | `review/2026-04-28-completion-claims-audit.md` |
 
@@ -44,6 +45,7 @@
 | Need                                                    | Read                                   |
 | ------------------------------------------------------- | -------------------------------------- |
 | Dev setup, conventions, troubleshooting                 | `contributing/dev-guide.md`            |
+| 기능 registry, owning paths, 중복 구현 방지              | `contributing/feature-registry.md`     |
 | Test strategy, CI pipeline                              | `testing/strategy.md`                  |
 | 브라우저 샌드박스 E2E (Pyodide/iframe)                   | `testing/sandbox-testing.md`           |
 | Claude 반복 실수, 하지 말 것 목록                        | `contributing/llm-antipatterns.md`     |

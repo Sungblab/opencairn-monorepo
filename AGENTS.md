@@ -10,11 +10,12 @@ Do not ask the user to brief status that can be read locally. Start with:
 
 1. `docs/README.md`
 2. `docs/contributing/plans-status.md`
-3. `docs/contributing/project-history.md`
-4. Relevant `docs/superpowers/plans/*` and `docs/superpowers/specs/*`
-5. Linked audits under `docs/review/*` when implementation claims matter
+3. `docs/contributing/feature-registry.md`
+4. `docs/contributing/project-history.md`
+5. Relevant `docs/superpowers/plans/*` and `docs/superpowers/specs/*`
+6. Linked audits under `docs/review/*` when implementation claims matter
 
-`plans-status.md` is the current status router. `project-history.md` is the long-form history map. Treat "complete" claims as hypotheses until code, tests, and product surface have been checked.
+`plans-status.md` is the current status router. `feature-registry.md` is the duplicate-work guard and owning-path map. `project-history.md` is the long-form history map. Treat "complete" claims as hypotheses until code, tests, and product surface have been checked.
 
 ## Architecture
 
@@ -45,7 +46,7 @@ Hierarchy: **Workspace -> Project -> Page**. Workspace is the isolation boundary
 
 - Claude Code skills live in `~/.claude/skills/`; repo-local `.claude/` is runtime state, not project instructions.
 - Codex skills live in `~/.codex/skills/`. Use the equivalent local skill when referenced: `opencairn-rules`, `opencairn-next-plan`, `opencairn-parallel-sessions`, `opencairn-post-feature`, `opencairn-commit`.
-- For next work, detect branch, recent commits, worktrees, `plans-status.md`, `project-history.md`, and relevant plans before recommending. Exclude Plan 9b unless explicitly requested.
+- For next work, detect branch, recent commits, worktrees, `plans-status.md`, `feature-registry.md`, `project-history.md`, and relevant plans before recommending. Exclude Plan 9b unless explicitly requested.
 - For parallel or isolated feature work, create a git worktree under `.worktrees/<task>` and implement from that worktree. Do not mix concurrent plans in one working tree.
 - Avoid concurrent edits to migration files, `packages/db/src/schema.ts`, `packages/shared`, or the same i18n message sections.
 - After feature-sized work, run focused verification, review for security/convention drift, update relevant docs/status, then commit using OpenCairn commit conventions.
@@ -68,6 +69,7 @@ docker compose up -d               # infra
 | --- | --- |
 | Full docs index | `docs/README.md` |
 | Current plan status | `docs/contributing/plans-status.md` |
+| Feature duplicate guard | `docs/contributing/feature-registry.md` |
 | Project history map | `docs/contributing/project-history.md` |
 | System architecture | `docs/superpowers/specs/2026-04-09-opencairn-design.md` |
 | API contract | `docs/architecture/api-contract.md` |
