@@ -25,17 +25,14 @@ dotenv_value() {
   fi
 
   if [[ -f "$REPO_ROOT/.env" ]]; then
-    value="$(
-      awk -F= -v key="$key" '
-        $0 ~ "^[[:space:]]*#" { next }
-        $1 == key {
-          sub(/^[^=]*=/, "", $0)
-          gsub(/\r$/, "", $0)
-          print $0
-          exit
-        }
-      ' "$REPO_ROOT/.env"
-    )"
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      line="${line%$'\r'}"
+      [[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue
+      [[ "$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=(.*)$ ]] || continue
+      [[ "${BASH_REMATCH[1]}" == "$key" ]] || continue
+      value="$(parse_dotenv_value "${BASH_REMATCH[2]}")"
+      break
+    done < "$REPO_ROOT/.env"
   fi
 
   if [[ -n "$value" ]]; then
@@ -43,6 +40,45 @@ dotenv_value() {
   else
     printf "%s\n" "$fallback"
   fi
+}
+
+parse_dotenv_value() {
+  local raw="$1"
+  local quote=""
+  local char prev
+  local i
+
+  raw="${raw#"${raw%%[![:space:]]*}"}"
+
+  for ((i = 0; i < ${#raw}; i++)); do
+    char="${raw:i:1}"
+    prev=""
+    if ((i > 0)); then
+      prev="${raw:i-1:1}"
+    fi
+
+    if [[ -z "$quote" && ( "$char" == '"' || "$char" == "'" ) ]]; then
+      quote="$char"
+      continue
+    fi
+    if [[ -n "$quote" && "$char" == "$quote" && "$prev" != "\\" ]]; then
+      quote=""
+      continue
+    fi
+    if [[ -z "$quote" && "$char" == "#" && ( "$i" -eq 0 || "$prev" =~ [[:space:]] ) ]]; then
+      raw="${raw:0:i}"
+      break
+    fi
+  done
+
+  raw="${raw%"${raw##*[![:space:]]}"}"
+  if [[ "${#raw}" -ge 2 ]]; then
+    if [[ ( "${raw:0:1}" == '"' && "${raw: -1}" == '"' ) || ( "${raw:0:1}" == "'" && "${raw: -1}" == "'" ) ]]; then
+      raw="${raw:1:${#raw}-2}"
+    fi
+  fi
+
+  printf "%s\n" "$raw"
 }
 
 compose() {
