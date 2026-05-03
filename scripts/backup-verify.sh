@@ -27,6 +27,36 @@ keep_db=0
 dry_run=0
 backup_file=""
 verify_db="opencairn_verify_$(date +%Y%m%d_%H%M%S)_$$"
+CORE_TABLES=(user session workspaces projects notes yjs_documents agent_runs)
+
+core_table_values_sql() {
+  local table
+  local first=1
+
+  for table in "${CORE_TABLES[@]}"; do
+    if [[ "$first" == "1" ]]; then
+      printf "    ('%s')" "$table"
+      first=0
+    else
+      printf ",\n    ('%s')" "$table"
+    fi
+  done
+}
+
+core_table_row_count_sql() {
+  local table
+  local first=1
+
+  for table in "${CORE_TABLES[@]}"; do
+    if [[ "$first" == "1" ]]; then
+      printf "SELECT '%s' AS table_name, count(*) FROM \"%s\"\n" "$table" "$table"
+      first=0
+    else
+      printf "UNION ALL SELECT '%s', count(*) FROM \"%s\"\n" "$table" "$table"
+    fi
+  done
+  printf "ORDER BY table_name;\n"
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -118,7 +148,7 @@ else
   cat "$backup_file" | compose exec -T postgres psql -v ON_ERROR_STOP=1 -U "$user" -d "$verify_db"
 fi
 
-compose exec -T postgres psql -v ON_ERROR_STOP=1 -U "$user" -d "$verify_db" <<'SQL'
+compose exec -T postgres psql -v ON_ERROR_STOP=1 -U "$user" -d "$verify_db" <<SQL
 \echo [verify] counting public tables
 SELECT count(*) AS public_table_count
 FROM information_schema.tables
@@ -129,13 +159,7 @@ WHERE table_schema = 'public'
 SELECT required.table_name
 FROM (
   VALUES
-    ('user'),
-    ('session'),
-    ('workspaces'),
-    ('projects'),
-    ('notes'),
-    ('yjs_documents'),
-    ('agent_runs')
+$(core_table_values_sql)
 ) AS required(table_name)
 LEFT JOIN information_schema.tables t
   ON t.table_schema = 'public'
@@ -144,17 +168,11 @@ WHERE t.table_name IS NULL;
 SQL
 
 missing_tables="$(
-  compose exec -T postgres psql -v ON_ERROR_STOP=1 -U "$user" -d "$verify_db" -At <<'SQL'
+  compose exec -T postgres psql -v ON_ERROR_STOP=1 -U "$user" -d "$verify_db" -At <<SQL
 SELECT count(*)
 FROM (
   VALUES
-    ('user'),
-    ('session'),
-    ('workspaces'),
-    ('projects'),
-    ('notes'),
-    ('yjs_documents'),
-    ('agent_runs')
+$(core_table_values_sql)
 ) AS required(table_name)
 LEFT JOIN information_schema.tables t
   ON t.table_schema = 'public'
@@ -168,16 +186,8 @@ if [[ "$missing_tables" != "0" ]]; then
   exit 1
 fi
 
-compose exec -T postgres psql -v ON_ERROR_STOP=1 -U "$user" -d "$verify_db" <<'SQL'
-\echo [verify] row counts for core tables
-SELECT 'user' AS table_name, count(*) FROM "user"
-UNION ALL SELECT 'workspaces', count(*) FROM workspaces
-UNION ALL SELECT 'projects', count(*) FROM projects
-UNION ALL SELECT 'notes', count(*) FROM notes
-UNION ALL SELECT 'yjs_documents', count(*) FROM yjs_documents
-UNION ALL SELECT 'agent_runs', count(*) FROM agent_runs
-ORDER BY table_name;
-SQL
+echo "[verify] row counts for core tables"
+core_table_row_count_sql | compose exec -T postgres psql -v ON_ERROR_STOP=1 -U "$user" -d "$verify_db"
 
 if [[ "$keep_db" == "1" ]]; then
   trap - EXIT
