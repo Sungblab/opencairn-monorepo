@@ -1,0 +1,231 @@
+# Parser Gateway And CanonicalDocument Benchmark
+
+> Date: 2026-05-03
+> Status: Draft plan
+> Scope: LLM/ingest modernization Phase B
+> Branch: `codex/parser-gateway-benchmark`
+> Worktree: `.worktrees/parser-gateway-benchmark`
+
+## Goal
+
+Introduce a worker-local Parser Gateway and `CanonicalDocument` benchmark path
+without replacing OpenCairn's current ingest defaults.
+
+Phase B is a measurement and contract-building step. The existing Temporal
+ingest workflow still dispatches directly to `parse_pdf`, `parse_office`,
+`parse_hwp`, `scrape_web_url`, `transcribe_audio`, `analyze_image`, and related
+current activities until benchmark data proves a better default.
+
+## Current Baseline
+
+Current parser paths to preserve:
+
+- PDF: `parse_pdf` with scan detection, opendataloader-pdf JSON, PyMuPDF, figure
+  upload, Gemini OCR for scan PDFs.
+- Office: `parse_office` with MarkItDown for OOXML/XLS plus unoconvert viewer
+  PDF, and unoconvert + PyMuPDF for legacy DOC/PPT.
+- HWP/HWPX: `parse_hwp` with H2Orestart/unoconvert to PDF and
+  opendataloader-pdf text extraction.
+- Web: `scrape_web_url` with SSRF guard, response-size cap, and trafilatura.
+- Media/image: `transcribe_audio`, `ingest_youtube`, and `analyze_image` through
+  provider/native or local fallback paths.
+
+The first Parser Gateway adapter must wrap these as the baseline rather than
+forking or deleting them.
+
+## Parser Gateway Scope
+
+Add the gateway under worker-local code:
+
+- `apps/worker/src/worker/lib/parser_gateway.py`
+- `apps/worker/src/worker/lib/canonical_document.py`
+- `apps/worker/scripts/parser_benchmark.py`
+- `apps/worker/benchmarks/parser-fixtures.example.json`
+- focused worker tests under `apps/worker/tests/`
+
+Out of scope for this PR:
+
+- changing `IngestWorkflow` default dispatch
+- adding DB migrations
+- adding Docling, Marker, MinerU, PyTorch, CUDA, or model weights to worker core
+- changing API upload/import behavior
+- committing binary benchmark fixture documents
+
+## CanonicalDocument Schema
+
+`CanonicalDocument` starts as a worker-local Pydantic v2 model. It can move to a
+shared/API contract only after benchmark output and downstream chunking needs
+settle.
+
+Shape:
+
+- `source`: source type, MIME, original object key, parser name/version, parse
+  start/end timestamps.
+- `pages[]`: page number, optional dimensions, bounded page-local blocks.
+- `blocks[]`: globally ordered blocks with id, type, `content`,
+  `content_type`, bbox, page number, reading order, confidence, source offsets,
+  relationships, metadata.
+- `tables[]`, `figures[]`, `formulas[]`: structured side arrays for richer
+  parser output.
+- `warnings[]`: bounded parse warnings such as scan PDF, complex layout, OCR
+  fallback, missing bbox coverage.
+- `raw_artifact_key`: optional pointer to a parser-native JSON artifact.
+
+Important constraints:
+
+- Arrays have hard upper bounds: pages, blocks, per-page blocks, tables,
+  figures, formulas, warnings, relationships.
+- Blocks use `content` + `content_type` as the primary representation. Do not
+  store duplicate `text`/`markdown`/`html` fields on every block unless a later
+  benchmark proves the duplication is necessary.
+- `as_plain_text()` provides a projection for existing note/chunk paths.
+- The schema rejects duplicate block ids and invalid bbox/offset ordering.
+
+## Baseline Adapter
+
+Wrap current parser output as the baseline:
+
+1. Call the current parser activity function in benchmark-only code.
+2. Normalize today's return dicts:
+   - `pages[].text` -> paragraph blocks
+   - `pages[].tables[]` -> table side array + table block
+   - `pages[].figures[]` -> figure side array + figure block
+   - plain `text` / `transcript` / `description` -> one document block
+   - `has_complex_layout` / `is_scan` -> warnings
+3. Preserve current parser names such as `current.parse_pdf`,
+   `current.parse_office`, and `current.parse_hwp` in `source.parser`.
+4. Keep this adapter outside `IngestWorkflow` until a later PR explicitly
+   gates and verifies default-path replacement.
+
+## Candidate Policy
+
+Docling, Marker, and MinerU are benchmark candidates only.
+
+- Docling: likely strongest structured parser candidate, but CPU/RAM runtime
+  must be measured before adding it to worker dependencies.
+- Marker: optional external parser service candidate only. License, model
+  weight, GPU/VRAM, and PyTorch footprint risks make it unsuitable as a worker
+  core dependency in this phase.
+- MinerU: benchmark candidate only until license, output quality, runtime, and
+  deployment footprint are measured.
+
+The benchmark CLI may list these candidates and later call external services,
+but this plan does not install them.
+
+## Fixture Set
+
+The committed manifest is a skeleton, not the binary fixture corpus. Real
+fixtures should live in an object-storage prefix or private benchmark bucket.
+
+Required fixture classes:
+
+- clean digital PDF paper
+- scanned Korean PDF
+- slide-heavy PDF
+- table-heavy PDF
+- DOCX with headings and tables
+- PPTX with images and speaker-style structure
+- XLSX table workbook
+- HWP/HWPX converted path
+- web article
+- image-only document
+
+Each fixture records MIME, source type, object key or URL, and expected features
+such as OCR, tables, heading structure, formulas, figure captions, Korean text,
+reading order, and bbox coverage.
+
+## Repeatable Command
+
+Initial dry-run command:
+
+```bash
+cd apps/worker
+uv run python -m scripts.parser_benchmark \
+  --manifest benchmarks/parser-fixtures.example.json \
+  --parser current \
+  --out benchmarks/results/parser-benchmark.jsonl \
+  --dry-run
+```
+
+Target non-dry command after real fixture wiring:
+
+```bash
+cd apps/worker
+uv run python -m scripts.parser_benchmark \
+  --manifest benchmarks/parser-fixtures.local.json \
+  --parser current \
+  --out benchmarks/results/current.jsonl
+```
+
+Metrics per fixture:
+
+- success/failure and error
+- wall-clock milliseconds
+- peak Python heap
+- peak process RSS where the OS exposes it
+- pages, blocks, tables, figures, warnings
+- later scoring fields: table fidelity, heading/reading-order fidelity,
+  figure/caption fidelity, formula fidelity, Korean text quality, output size,
+  source-offset/bbox coverage, downstream chunk quality
+
+Peak RSS is best-effort without adding `psutil`; Linux/self-host runs should
+report it via `resource.getrusage`, while Windows dry-run may return `null`.
+
+## Fly.io And Self-Host Constraints
+
+Benchmark decisions must fit small hosted and self-host profiles:
+
+- no GPU assumption
+- no huge persistent disk assumption
+- no local MinIO-only assumption; object storage may be R2/S3-compatible
+- no single all-in-one Docker Compose assumption for hosted deployments
+- external parser services must be opt-in and explicitly configured
+- parser output artifacts must be bounded and eligible for object storage
+
+The benchmark should record dependency footprint and operational notes before
+any parser becomes a default.
+
+## Regression Strategy
+
+No default ingest source changes in this phase.
+
+Regression guardrails:
+
+- keep current `IngestWorkflow` MIME dispatch tests intact
+- add schema tests for `CanonicalDocument` bounds and projection behavior
+- add gateway tests for current parser normalization
+- add CLI dry-run tests for repeatable benchmark output
+- when non-dry benchmark lands, run current parser fixtures first and compare
+  text projection counts before testing candidates
+- Drive/Notion/literature imports remain source producers; they should not be
+  rewritten to call a new parser service in this PR
+
+## Implementation Checklist
+
+- [x] Confirm PR #203 is merged and start from latest `origin/main`.
+- [x] Create isolated worktree at `.worktrees/parser-gateway-benchmark`.
+- [x] Draft Phase B plan.
+- [x] Add worker-local `CanonicalDocument` schema skeleton.
+- [x] Add baseline Parser Gateway adapter skeleton.
+- [x] Add benchmark command dry-run skeleton.
+- [x] Add fixture manifest skeleton.
+- [x] Add focused tests for schema/gateway/benchmark dry-run.
+- [ ] Add real fixture wiring for current parser benchmark.
+- [ ] Add benchmark scoring fields for quality and downstream chunk checks.
+- [ ] Decide, with benchmark output, whether Docling belongs in worker core or
+      an optional parser service.
+
+## Verification
+
+Focused commands:
+
+```bash
+cd apps/worker
+uv run pytest tests/lib/test_canonical_document.py tests/lib/test_parser_gateway.py tests/test_parser_benchmark.py
+uv run python -m scripts.parser_benchmark --manifest benchmarks/parser-fixtures.example.json --parser current --out benchmarks/results/parser-benchmark.jsonl --dry-run
+git diff --check
+```
+
+If worker dependency changes are proposed later, document the reason and run the
+worker dependency/type/test subset before asking for review. This plan adds no
+heavy parser dependency.
