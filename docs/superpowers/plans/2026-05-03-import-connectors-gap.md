@@ -140,7 +140,7 @@ describe("markdown import schemas", () => {
     expect(() =>
       markdownUploadUrlSchema.parse({
         workspaceId: "550e8400-e29b-41d4-a716-446655440000",
-        size: 11 * 1024 * 1024 * 1024,
+        size: 6 * 1024 * 1024 * 1024,
         originalName: "too-big.zip",
       }),
     ).toThrow();
@@ -178,7 +178,7 @@ export const startMarkdownImportSchema = z.object({
 
 export const markdownUploadUrlSchema = z.object({
   workspaceId: z.string().uuid(),
-  size: z.number().int().positive().max(10 * 1024 * 1024 * 1024),
+  size: z.number().int().positive().max(5 * 1024 * 1024 * 1024),
   originalName: z.string().min(1).max(255),
 });
 ```
@@ -392,10 +392,10 @@ Implement a pure helper:
 
 ```python
 def normalize_markdown_link_target(value: str) -> str:
-    return value.strip().removesuffix(".md").removesuffix(".markdown").replace("\\", "/").lower()
+    return value.strip().lower().replace("\\", "/").removesuffix(".md").removesuffix(".markdown")
 ```
 
-Tests should assert that `[[My Note]]`, `My Note.md`, and `folder/My Note.md` can resolve to the intended manifest node when unambiguous.
+Tests should assert that `[[My Note]]`, `My Note.md`, `My Note.MD`, `My Note.Markdown`, and `folder/My Note.md` can resolve to the intended manifest node when unambiguous.
 
 - [ ] **Step 5: Run activity tests**
 
@@ -459,7 +459,7 @@ elif inp.source == "markdown_zip":
             "max_files": inp.source_metadata.get("max_files", 10_000),
             "max_uncompressed": inp.source_metadata.get(
                 "max_uncompressed",
-                10 * 1024 * 1024 * 1024,
+                5 * 1024 * 1024 * 1024,
             ),
         },
         schedule_to_close_timeout=_LONG,
@@ -469,7 +469,41 @@ elif inp.source == "markdown_zip":
 
 Keep the Drive branch explicit; do not let unknown sources fall into Drive.
 
-- [ ] **Step 4: Reuse Markdown conversion safely**
+- [ ] **Step 4: Bound node fan-out concurrency**
+
+Before adding Markdown's 10,000-file path, replace the current unbounded `tasks.append(...); await asyncio.gather(*tasks)` fan-out with bounded batches or an equivalent deterministic workflow-safe limiter. Do not create all node coroutines up front.
+
+Use a small default such as 16 concurrent node operations, configurable through `source_metadata["max_concurrent_items"]` only for tests/operators:
+
+```python
+# from typing import Any, Awaitable, Callable
+
+max_concurrent_items = int(inp.source_metadata.get("max_concurrent_items", 16))
+max_concurrent_items = max(1, min(max_concurrent_items, 64))
+
+factories: list[tuple[dict[str, Any], Callable[[], Awaitable[Any]]]] = []
+# append `(node, lambda node=node: workflow.execute_activity(...))`
+# append `(node, lambda node=node, parent=parent: self._run_binary(...))`
+
+results: list[tuple[dict[str, Any], Any]] = []
+for start in range(0, len(factories), max_concurrent_items):
+    batch = factories[start : start + max_concurrent_items]
+    batch_results = await asyncio.gather(
+        *(factory() for _, factory in batch),
+        return_exceptions=True,
+    )
+    results.extend(zip((node for node, _ in batch), batch_results, strict=False))
+
+failed: list[tuple[dict[str, Any], BaseException]] = [
+    (node, result)
+    for node, result in results
+    if isinstance(result, BaseException)
+]
+```
+
+The workflow test should include enough page/binary nodes to assert that the maximum in-flight conversion or binary-ingest operations never exceeds `max_concurrent_items`. Keep `return_exceptions=True` behavior so per-file failures surface in `finalize_import_job` instead of aborting the whole import.
+
+- [ ] **Step 5: Reuse Markdown conversion safely**
 
 If `convert_notion_md_to_plate` is Notion-specific only in name, pass Markdown package data through it with `source_format="markdown"`. If it rewrites Notion UUID links in a way that breaks generic Markdown, extract a shared `convert_markdown_md_to_plate` helper and keep `convert_notion_md_to_plate` as a thin wrapper.
 
@@ -480,7 +514,7 @@ The worker result must preserve:
 - `[[wikilinks]]` as wiki links when a local target exists
 - attachments as binary source notes through child ingest, not inline base64
 
-- [ ] **Step 5: Run worker tests**
+- [ ] **Step 6: Run worker tests**
 
 Run:
 
@@ -491,7 +525,7 @@ uv run pytest tests/test_import_workflow.py tests/test_markdown_import_activitie
 
 Expected: pass.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add apps/worker/src/worker/workflows/import_workflow.py apps/worker/src/worker/activities apps/worker/tests
