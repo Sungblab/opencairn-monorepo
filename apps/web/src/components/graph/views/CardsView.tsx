@@ -1,6 +1,7 @@
 "use client";
 import { useTranslations } from "next-intl";
 import { useProjectGraph } from "../useProjectGraph";
+import { evidenceBundleById } from "../grounded-types";
 import { ConceptCard } from "./ConceptCard";
 
 interface Props {
@@ -37,11 +38,22 @@ export default function CardsView({ projectId }: Props) {
     );
   }
 
+  const bundles = evidenceBundleById(data.evidenceBundles);
+  const cardsByConceptId = new Map(
+    (data.cards ?? []).map((card) => [card.conceptId, card]),
+  );
+
   return (
     <div className="grid grid-cols-2 gap-4 overflow-y-auto p-4 lg:grid-cols-3 xl:grid-cols-4">
-      {data.nodes.map((n) => (
-        <ConceptCard key={n.id} node={n} />
-      ))}
+      {data.nodes.map((n) => {
+        const card = cardsByConceptId.get(n.id);
+        const bundle = card?.evidenceBundleId
+          ? bundles.get(card.evidenceBundleId)
+          : undefined;
+        return (
+          <ConceptCard key={n.id} node={n} card={card} bundle={bundle} />
+        );
+      })}
     </div>
   );
 }

@@ -3,9 +3,9 @@ import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   GraphExpandResponse,
-  GraphViewResponse,
   ViewType,
 } from "@opencairn/shared";
+import type { GroundedGraphResponse } from "./grounded-types";
 import { useViewStateStore } from "./view-state-store";
 
 const STALE_MS = 30_000;
@@ -15,24 +15,33 @@ interface Options {
   root?: string;
 }
 
+const GROUNDED_VIEWS = new Set<ViewType>(["graph", "mindmap", "cards"]);
+
 async function fetchGraphView(
   projectId: string,
   opts: Options,
   signal?: AbortSignal,
-): Promise<GraphViewResponse> {
+): Promise<GroundedGraphResponse> {
   const params = new URLSearchParams();
   // Phase 1 default: ?view=graph + degree-ordered top-500. Stays regression-zero
   // for callers that pass no opts (e.g. ProjectGraph from Phase 1).
-  params.set("view", opts.view ?? "graph");
-  params.set("limit", "500");
-  params.set("order", "degree");
+  const view = opts.view ?? "graph";
+  params.set("view", view);
   if (opts.root) params.set("root", opts.root);
+  let path = `/api/projects/${projectId}/graph`;
+  if (GROUNDED_VIEWS.has(view)) {
+    path = `/api/projects/${projectId}/knowledge-surface`;
+    params.set("includeEvidence", "true");
+  } else {
+    params.set("limit", "500");
+    params.set("order", "degree");
+  }
   const res = await fetch(
-    `/api/projects/${projectId}/graph?${params.toString()}`,
+    `${path}?${params.toString()}`,
     { credentials: "include", signal },
   );
   if (!res.ok) throw new Error(`graph ${res.status}`);
-  return (await res.json()) as GraphViewResponse;
+  return (await res.json()) as GroundedGraphResponse;
 }
 
 export function useProjectGraph(projectId: string, opts: Options = {}) {
@@ -47,7 +56,7 @@ export function useProjectGraph(projectId: string, opts: Options = {}) {
   // doesn't blow away the previous view's data and triggers an isolated fetch.
   const queryKey = ["project-graph", projectId, view, root] as const;
 
-  const query = useQuery<GraphViewResponse>({
+  const query = useQuery<GroundedGraphResponse>({
     queryKey,
     enabled: !!projectId,
     staleTime: STALE_MS,
@@ -70,7 +79,7 @@ export function useProjectGraph(projectId: string, opts: Options = {}) {
       );
       if (!res.ok) throw new Error(`expand ${res.status}`);
       const slice = (await res.json()) as GraphExpandResponse;
-      qc.setQueryData<GraphViewResponse>(queryKey, (prev) => {
+      qc.setQueryData<GroundedGraphResponse>(queryKey, (prev) => {
         if (!prev) return prev;
         const nodeMap = new Map(prev.nodes.map((n) => [n.id, n]));
         for (const n of slice.nodes) nodeMap.set(n.id, n);

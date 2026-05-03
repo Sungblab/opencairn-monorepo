@@ -41,6 +41,22 @@
     "needsRoot": "이 뷰는 중심 개념이 필요합니다. 검색에서 개념을 선택하거나 'AI로 만들기'를 사용하세요.",
     "noConcepts": "이 프로젝트에는 아직 개념이 없습니다."
   },
+  "evidence": {
+    "title": "관계 근거",
+    "close": "근거 닫기",
+    "score": "지지도 {score}%",
+    "citationCount": "근거 {count}개",
+    "noEntries": "표시할 근거 문단이 없습니다.",
+    "noBundle": "근거 없음",
+    "showSources": "근거 보기",
+    "status": {
+      "supported": "근거 있음",
+      "weak": "근거 약함",
+      "stale": "오래된 근거",
+      "disputed": "충돌 가능",
+      "missing": "근거 없음"
+    }
+  },
   "ai": {
     "trigger": "AI로 만들기",
     "dialogTitle": "AI로 뷰 만들기",

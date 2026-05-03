@@ -42,4 +42,36 @@ describe("toCytoscapeElements", () => {
     expect(out.filter((e) => e.data.type === "edge")).toHaveLength(0);
     expect(out.filter((e) => e.data.type === "node")).toHaveLength(2);
   });
+
+  it("carries grounded edge support metadata into edge elements", () => {
+    const out = toCytoscapeElements(
+      {
+        ...seed,
+        edges: [
+          {
+            id: "e1",
+            sourceId: "n1",
+            targetId: "n2",
+            relationType: "is-a",
+            weight: 1,
+            support: {
+              claimId: "claim-1",
+              evidenceBundleId: "bundle-1",
+              supportScore: 0.42,
+              citationCount: 2,
+              status: "weak",
+            },
+          },
+        ],
+      },
+      { search: "", relation: null },
+    );
+    const edge = out.find((e) => e.data.type === "edge");
+    expect(edge?.data).toMatchObject({
+      supportStatus: "weak",
+      supportScore: 0.42,
+      citationCount: 2,
+      evidenceBundleId: "bundle-1",
+    });
+  });
 });

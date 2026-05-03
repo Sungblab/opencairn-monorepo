@@ -17,6 +17,8 @@ import { GraphSkeleton } from "../GraphSkeleton";
 import { GraphError } from "../GraphError";
 import { GraphEmpty } from "../GraphEmpty";
 import { INITIAL_FILTERS, type FilterState } from "../graph-types";
+import { evidenceBundleById, type GroundedEdge } from "../grounded-types";
+import { EdgeEvidencePanel } from "./EdgeEvidencePanel";
 
 // react-cytoscapejs ships an ESM build that imports cytoscape at top level.
 // Disable SSR — Cytoscape needs DOM/window. Plan 7 Canvas does the same for
@@ -40,6 +42,7 @@ export default function GraphView({ projectId }: { projectId: string }) {
   const wsSlug = params?.wsSlug;
   const { data, isLoading, error, expand } = useProjectGraph(projectId);
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
 
   const elements = useMemo(
@@ -58,6 +61,17 @@ export default function GraphView({ projectId }: { projectId: string }) {
     for (const e of data.edges) set.add(e.relationType);
     return [...set].sort();
   }, [data]);
+
+  const selectedEdge = useMemo(
+    () => data?.edges.find((edge) => edge.id === selectedEdgeId) as
+      | GroundedEdge
+      | undefined,
+    [data?.edges, selectedEdgeId],
+  );
+  const bundlesById = useMemo(
+    () => evidenceBundleById(data?.evidenceBundles),
+    [data?.evidenceBundles],
+  );
 
   const addOrReplacePreview = useTabsStore((s) => s.addOrReplacePreview);
 
@@ -108,10 +122,16 @@ export default function GraphView({ projectId }: { projectId: string }) {
         const fid = node.data("firstNoteId") as string | null;
         const lbl = node.data("label") as string;
         handlerRef.current(fid, lbl);
+      } else if (node?.isEdge?.()) {
+        setSelectedEdgeId(node.id());
       }
     };
     cy.on("dbltap", "node", onTap);
-    return () => { cy.off("dbltap", "node", onTap); };
+    cy.on("tap", "edge", onTap);
+    return () => {
+      cy.off("dbltap", "node", onTap);
+      cy.off("tap", "edge", onTap);
+    };
   }, [data]);
 
   if (isLoading) return <GraphSkeleton />;
@@ -138,6 +158,17 @@ export default function GraphView({ projectId }: { projectId: string }) {
           cy={(cy: cytoscape.Core) => { cyRef.current = cy; }}
           style={{ width: "100%", height: "100%" }}
         />
+        {selectedEdge && (
+          <EdgeEvidencePanel
+            edge={selectedEdge}
+            bundle={
+              selectedEdge.support?.evidenceBundleId
+                ? bundlesById.get(selectedEdge.support.evidenceBundleId)
+                : null
+            }
+            onClose={() => setSelectedEdgeId(null)}
+          />
+        )}
       </div>
     </div>
   );

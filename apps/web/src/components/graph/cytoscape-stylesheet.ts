@@ -36,4 +36,49 @@ export const GRAPH_STYLESHEET: StylesheetStyle[] = [
       "target-arrow-color": "hsl(var(--border))",
     },
   },
+  {
+    selector: 'edge[supportStatus = "supported"]',
+    style: {
+      "line-color": "hsl(var(--primary))",
+      "target-arrow-color": "hsl(var(--primary))",
+    },
+  },
+  {
+    selector: 'edge[supportStatus = "weak"]',
+    style: {
+      "line-style": "dashed",
+      "line-color": "hsl(var(--muted-foreground))",
+      "target-arrow-color": "hsl(var(--muted-foreground))",
+    },
+  },
+  {
+    selector: 'edge[supportStatus = "stale"]',
+    style: {
+      "line-style": "dotted",
+      "line-color": "#7c6f64",
+      "target-arrow-color": "#7c6f64",
+    },
+  },
+  {
+    selector: 'edge[supportStatus = "disputed"]',
+    style: {
+      "line-style": "dashed",
+      "line-color": "hsl(var(--destructive))",
+      "target-arrow-color": "hsl(var(--destructive))",
+    },
+  },
+  {
+    selector: 'edge[supportStatus = "missing"]',
+    style: {
+      opacity: 0.55,
+      "line-style": "dotted",
+    },
+  },
+  {
+    selector: "edge:selected",
+    style: {
+      width: 5,
+      "z-index": 10,
+    },
+  },
 ];

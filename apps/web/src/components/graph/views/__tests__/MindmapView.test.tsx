@@ -10,8 +10,17 @@ import MindmapView from "../MindmapView";
 // Returning a constant component sidesteps both the async hydration in jsdom
 // and the canvas-not-implemented warning from real react-cytoscapejs.
 vi.mock("next/dynamic", () => ({
-  default: () => (props: { layout?: { name: string } }) => (
-    <div data-testid="cy" data-layout={props.layout?.name} />
+  default: () => (props: {
+    elements?: unknown;
+    layout?: { name: string };
+    stylesheet?: unknown;
+  }) => (
+    <div
+      data-testid="cy"
+      data-elements={JSON.stringify(props.elements)}
+      data-layout={props.layout?.name}
+      data-stylesheet={JSON.stringify(props.stylesheet)}
+    />
   ),
 }));
 
@@ -83,6 +92,94 @@ describe("MindmapView", () => {
     expect(screen.getByTestId("cy").getAttribute("data-layout")).toBe(
       "dagre",
     );
+  });
+
+  it("uses relation-aware fallback edge ids for parallel edges", () => {
+    (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: {
+        viewType: "mindmap",
+        layout: "dagre",
+        rootId: "11111111-1111-4111-8111-111111111111",
+        nodes: [
+          { id: "11111111-1111-4111-8111-111111111111", name: "Root" },
+          { id: "22222222-2222-4222-8222-222222222222", name: "Child" },
+        ],
+        edges: [
+          {
+            sourceId: "11111111-1111-4111-8111-111111111111",
+            targetId: "22222222-2222-4222-8222-222222222222",
+            relationType: "supports",
+            weight: 1,
+          },
+          {
+            sourceId: "11111111-1111-4111-8111-111111111111",
+            targetId: "22222222-2222-4222-8222-222222222222",
+            relationType: "contradicts",
+            weight: 1,
+          },
+        ],
+        truncated: false,
+        totalConcepts: 2,
+      },
+      isLoading: false,
+      error: null,
+    });
+    wrap(
+      <MindmapView
+        projectId="p-1"
+        root="11111111-1111-4111-8111-111111111111"
+      />,
+    );
+    const elements = JSON.parse(
+      screen.getByTestId("cy").getAttribute("data-elements") ?? "[]",
+    ) as Array<{ data: { id: string; type: string } }>;
+    expect(
+      elements
+        .filter((element) => element.data.type === "edge")
+        .map((element) => element.data.id),
+    ).toEqual([
+      "11111111-1111-4111-8111-111111111111->22222222-2222-4222-8222-222222222222:supports",
+      "11111111-1111-4111-8111-111111111111->22222222-2222-4222-8222-222222222222:contradicts",
+    ]);
+  });
+
+  it("keeps weak and missing support styles distinct", () => {
+    (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: {
+        viewType: "mindmap",
+        layout: "dagre",
+        rootId: "11111111-1111-4111-8111-111111111111",
+        nodes: [
+          { id: "11111111-1111-4111-8111-111111111111", name: "Root" },
+        ],
+        edges: [],
+        truncated: false,
+        totalConcepts: 1,
+      },
+      isLoading: false,
+      error: null,
+    });
+    wrap(
+      <MindmapView
+        projectId="p-1"
+        root="11111111-1111-4111-8111-111111111111"
+      />,
+    );
+    const stylesheet = JSON.parse(
+      screen.getByTestId("cy").getAttribute("data-stylesheet") ?? "[]",
+    ) as Array<{ selector: string; style: { "line-style"?: string } }>;
+    expect(
+      stylesheet.find(
+        (style) => style.selector === 'edge[supportStatus = "weak"]',
+      )
+        ?.style["line-style"],
+    ).toBe("dashed");
+    expect(
+      stylesheet.find(
+        (style) => style.selector === 'edge[supportStatus = "missing"]',
+      )
+        ?.style["line-style"],
+    ).toBe("dotted");
   });
 
   it("calls useProjectGraph with view='mindmap' + root", () => {

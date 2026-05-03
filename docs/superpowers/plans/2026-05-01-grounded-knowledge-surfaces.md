@@ -1040,11 +1040,21 @@ Implemented in the follow-up branch `codex/grounded-knowledge-producers-next`:
 - producer failures remain best-effort: missing chunks or evidence writer
   errors warn/skip and do not fail compiler or librarian runs.
 
-Still out of scope after this producer pass:
+Implemented in the UI branch `codex/grounded-knowledge-surfaces-ui`:
 
-- Knowledge Surface UI in `apps/web`;
+- graph, mindmap, and cards viewers now request
+  `/api/projects/:projectId/knowledge-surface?includeEvidence=true` while
+  timeline/board keep the existing `/graph` path;
+- graph and mindmap edges carry support status into Cytoscape styling and open a
+  compact evidence detail panel on edge selection;
+- cards consume `cards[]` plus `evidenceBundles[]`, display
+  `evidenceBundleId`/citation counts, and expose a small source summary;
+- missing or unreadable evidence bundles render as "no evidence" instead of
+  crashing the view.
+
+Still out of scope after this UI pass:
+
 - a dedicated wiki/card summary producer beyond the existing claim/card
   consumption path;
 - Vitest Windows startup issue around `#module-evaluator`;
-- `docs/contributing/plans-status.md` cleanup after the implementation PR is
-  merged.
+- full browser E2E against seeded evidence data.

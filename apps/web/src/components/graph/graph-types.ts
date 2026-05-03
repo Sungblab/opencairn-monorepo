@@ -1,4 +1,5 @@
 import type { GraphViewResponse } from "@opencairn/shared";
+import type { EdgeSupport, GroundedGraphResponse } from "./grounded-types";
 
 export type FilterState = {
   search: string;
@@ -9,7 +10,20 @@ export const INITIAL_FILTERS: FilterState = { search: "", relation: null };
 
 export type CytoscapeElement =
   | { data: { id: string; label: string; type: "node"; degree: number; firstNoteId: string | null } }
-  | { data: { id: string; source: string; target: string; type: "edge"; relationType: string; weight: number } };
+  | {
+      data: {
+        id: string;
+        source: string;
+        target: string;
+        type: "edge";
+        relationType: string;
+        weight: number;
+        supportStatus?: EdgeSupport["status"];
+        supportScore?: number;
+        citationCount?: number;
+        evidenceBundleId?: string | null;
+      };
+    };
 
 // `GraphSnapshot` is the in-cache shape used by useProjectGraph + the
 // Cytoscape converter. Plan 5 Phase 2 widens this to `GraphViewResponse`
@@ -18,4 +32,4 @@ export type CytoscapeElement =
 // as Phase 1 graph fetches. ViewNode's `degree`/`noteCount`/`firstNoteId`
 // are optional vs Phase 1's required GraphNode — consumers should default
 // missing fields (see `to-cytoscape-elements.ts`).
-export type GraphSnapshot = GraphViewResponse;
+export type GraphSnapshot = GraphViewResponse | GroundedGraphResponse;

@@ -50,6 +50,18 @@ describe("useProjectGraph", () => {
     expect(result.current.data?.nodes).toHaveLength(1);
   });
 
+  it("requests grounded graph data with evidence included", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const { result } = renderHook(() => useProjectGraph("proj-1"), {
+      wrapper: wrap(),
+    });
+    await waitFor(() => expect(result.current.data).toBeTruthy());
+    const url = (fetchSpy.mock.calls[0]?.[0] as string) ?? "";
+    expect(url).toContain("/api/projects/proj-1/knowledge-surface?");
+    expect(url).toContain("view=graph");
+    expect(url).toContain("includeEvidence=true");
+  });
+
   it("merges expand result into the cached snapshot (dedup by id)", async () => {
     const { result } = renderHook(() => useProjectGraph("p1"), { wrapper });
     await waitFor(() => expect(result.current.data).toBeTruthy());
@@ -95,8 +107,27 @@ describe("useProjectGraph view+root extension", () => {
     );
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     const url = (fetchSpy.mock.calls[0]?.[0] as string) ?? "";
+    expect(url).toContain("/api/projects/proj-1/knowledge-surface?");
     expect(url).toContain("view=mindmap");
     expect(url).toContain("root=11111111-1111-4111-8111-111111111111");
+    expect(url).toContain("includeEvidence=true");
+  });
+
+  it("keeps timeline on the legacy graph endpoint", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({
+        viewType: "timeline", layout: "preset", rootId: null,
+        nodes: [], edges: [], truncated: false, totalConcepts: 0,
+      })),
+    );
+    const { result } = renderHook(
+      () => useProjectGraph("proj-1", { view: "timeline" }),
+      { wrapper: wrap() },
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    const url = (fetchSpy.mock.calls[0]?.[0] as string) ?? "";
+    expect(url).toContain("/api/projects/proj-1/graph?");
+    expect(url).not.toContain("knowledge-surface");
   });
 
   it("uses inline ViewSpec from store when present, skips fetch", async () => {
