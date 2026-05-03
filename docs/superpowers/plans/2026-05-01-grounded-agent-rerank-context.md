@@ -8,6 +8,14 @@
 
 **Tech Stack:** TypeScript, Vitest, existing `chat-retrieval.ts`, existing `runChat()` SSE path.
 
+**Implementation note (2026-05-03):** Implemented on
+`feat/grounded-rerank-context`. The runtime contract now carries
+Graphify-style provenance fields on both `RetrievalCandidate` and
+`EvidenceItem`: `provenance` (`extracted`/`inferred`/`ambiguous`),
+`producer`, `confidence`, `sourceSpan`, `evidenceId`, and `support`.
+`chat-retrieval.ts` keeps its existing hit shape compatible while adding
+optional metadata for chunk-level evidence.
+
 ---
 
 ## File Structure
@@ -34,7 +42,7 @@ Modify:
 
 - Create: `apps/api/src/lib/retrieval-candidates.ts`
 
-- [ ] **Step 1: Create shared types**
+- [x] **Step 1: Create shared types**
 
 Create `apps/api/src/lib/retrieval-candidates.ts`:
 
@@ -71,7 +79,7 @@ export type EvidenceBundle = {
 };
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/api/src/lib/retrieval-candidates.ts
@@ -87,7 +95,7 @@ git commit -m "feat(api): define retrieval evidence bundle"
 - Create: `apps/api/src/lib/retrieval-rerank.ts`
 - Test: `apps/api/tests/lib/retrieval-rerank.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `apps/api/tests/lib/retrieval-rerank.test.ts`:
 
@@ -125,7 +133,7 @@ describe("rerankCandidates", () => {
 });
 ```
 
-- [ ] **Step 2: Run failing test**
+- [x] **Step 2: Run failing test**
 
 ```bash
 pnpm --filter @opencairn/api test -- tests/lib/retrieval-rerank.test.ts
@@ -133,7 +141,7 @@ pnpm --filter @opencairn/api test -- tests/lib/retrieval-rerank.test.ts
 
 Expected: FAIL because file does not exist.
 
-- [ ] **Step 3: Implement reranker**
+- [x] **Step 3: Implement reranker**
 
 Create `apps/api/src/lib/retrieval-rerank.ts`:
 
@@ -161,7 +169,7 @@ export function rerankCandidates(input: {
 }
 ```
 
-- [ ] **Step 4: Run reranker test**
+- [x] **Step 4: Run reranker test**
 
 ```bash
 pnpm --filter @opencairn/api test -- tests/lib/retrieval-rerank.test.ts
@@ -169,7 +177,7 @@ pnpm --filter @opencairn/api test -- tests/lib/retrieval-rerank.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/lib/retrieval-rerank.ts apps/api/tests/lib/retrieval-rerank.test.ts
@@ -185,7 +193,7 @@ git commit -m "feat(api): rerank retrieval candidates"
 - Create: `apps/api/src/lib/context-packer.ts`
 - Test: `apps/api/tests/lib/context-packer.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `apps/api/tests/lib/context-packer.test.ts`:
 
@@ -230,7 +238,7 @@ describe("packEvidence", () => {
 });
 ```
 
-- [ ] **Step 2: Run failing test**
+- [x] **Step 2: Run failing test**
 
 ```bash
 pnpm --filter @opencairn/api test -- tests/lib/context-packer.test.ts
@@ -238,7 +246,7 @@ pnpm --filter @opencairn/api test -- tests/lib/context-packer.test.ts
 
 Expected: FAIL because file does not exist.
 
-- [ ] **Step 3: Implement packer**
+- [x] **Step 3: Implement packer**
 
 Create `apps/api/src/lib/context-packer.ts`:
 
@@ -294,7 +302,7 @@ export function evidenceBundleToPrompt(bundle: EvidenceBundle): string {
 }
 ```
 
-- [ ] **Step 4: Run packer test**
+- [x] **Step 4: Run packer test**
 
 ```bash
 pnpm --filter @opencairn/api test -- tests/lib/context-packer.test.ts
@@ -302,7 +310,7 @@ pnpm --filter @opencairn/api test -- tests/lib/context-packer.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/lib/context-packer.ts apps/api/tests/lib/context-packer.test.ts
@@ -319,7 +327,7 @@ git commit -m "feat(api): pack retrieval evidence for chat"
 - Modify: `apps/api/src/lib/chat-retrieval.ts`
 - Modify: `apps/api/tests/lib/chat-llm.test.ts`
 
-- [ ] **Step 1: Add failing prompt test**
+- [x] **Step 1: Add failing prompt test**
 
 In `apps/api/tests/lib/chat-llm.test.ts`, update an existing citation test to assert prompt context uses packed evidence:
 
@@ -328,7 +336,7 @@ expect((receivedMessages[0] as { content: string }).content).toContain("<context
 expect((receivedMessages[0] as { content: string }).content).toContain("[1] alpha");
 ```
 
-- [ ] **Step 2: Run failing test**
+- [x] **Step 2: Run failing test**
 
 ```bash
 pnpm --filter @opencairn/api test -- tests/lib/chat-llm.test.ts
@@ -336,7 +344,7 @@ pnpm --filter @opencairn/api test -- tests/lib/chat-llm.test.ts
 
 Expected: FAIL until `runChat()` uses `EvidenceBundle`.
 
-- [ ] **Step 3: Convert hits to candidates and pack evidence**
+- [x] **Step 3: Convert hits to candidates and pack evidence**
 
 In `apps/api/src/lib/chat-llm.ts`, import:
 
@@ -369,7 +377,7 @@ const ragBlock = evidenceBundleToPrompt(evidenceBundle);
 
 Then derive citations from `evidenceBundle.items` instead of raw `hits`.
 
-- [ ] **Step 4: Run chat tests**
+- [x] **Step 4: Run chat tests**
 
 ```bash
 pnpm --filter @opencairn/api test -- tests/lib/chat-llm.test.ts tests/lib/context-packer.test.ts
@@ -377,7 +385,7 @@ pnpm --filter @opencairn/api test -- tests/lib/chat-llm.test.ts tests/lib/contex
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/lib/chat-llm.ts apps/api/tests/lib/chat-llm.test.ts
@@ -397,4 +405,3 @@ git diff --check
 ```
 
 Expected: all pass.
-

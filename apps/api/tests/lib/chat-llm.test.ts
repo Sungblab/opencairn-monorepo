@@ -29,9 +29,24 @@ async function collect<T>(gen: AsyncGenerator<T>): Promise<T[]> {
 describe("runChat happy path", () => {
   it("emits status → citation → text → usage → done in order", async () => {
     retrievalMod.retrieve.mockResolvedValue([
-      { noteId: "n1", title: "alpha", snippet: "first hit", score: 0.9 },
+      {
+        noteId: "n1",
+        chunkId: "c1",
+        title: "alpha",
+        headingPath: "Intro",
+        snippet: "first hit",
+        score: 0.9,
+        provenance: "extracted",
+        confidence: 0.9,
+        evidenceId: "chunk:c1",
+        sourceSpan: { start: 0, end: 9, locator: "p.1" },
+      },
     ]);
-    fakeProvider.streamGenerate.mockImplementation(async function* () {
+    let receivedMessages: unknown[] = [];
+    fakeProvider.streamGenerate.mockImplementation(async function* (opts: {
+      messages: unknown[];
+    }) {
+      receivedMessages = opts.messages;
       yield { delta: "Hello" };
       yield { delta: " world" };
       yield { usage: { tokensIn: 30, tokensOut: 7, model: "gemini-2.5-flash" } };
@@ -61,6 +76,12 @@ describe("runChat happy path", () => {
     // Thought sits between citation and text deltas.
     expect(types.indexOf("thought")).toBeGreaterThan(types.indexOf("citation"));
     expect(types.indexOf("thought")).toBeLessThan(types.indexOf("text"));
+    const systemPrompt = (receivedMessages[0] as { content: string }).content;
+    expect(systemPrompt).toContain("<context>");
+    expect(systemPrompt).toContain("[1] alpha · Intro");
+    expect(systemPrompt).toContain("evidenceId=chunk:c1");
+    expect(systemPrompt).toContain("provenance=extracted");
+    expect(systemPrompt).toContain("span=p.1:0-9");
   });
 
   it("ragMode=off skips retrieval and emits zero citations", async () => {

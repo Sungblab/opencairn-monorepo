@@ -1,5 +1,10 @@
 import type { Citation } from "@opencairn/db";
 import { retrieve, type RagMode, type RetrievalScope, type RetrievalChip } from "./chat-retrieval";
+import {
+  evidenceBundleToPrompt,
+  packEvidence,
+} from "./context-packer";
+import { candidateFromRetrievalHit } from "./retrieval-candidates";
 import { buildRuntimeContext } from "./chat-runtime-context";
 import {
   selectChatRuntimePolicy,
@@ -100,10 +105,18 @@ export async function* runChat(opts: {
 
     // Emit citations up-front. The renderer reconciles [^N] markers in the
     // generated text against this ordered list.
-    const citations: Citation[] = hits.map((h) => ({
+    const candidates = hits.map((hit, index) =>
+      candidateFromRetrievalHit(hit, index),
+    );
+    const evidenceBundle = packEvidence({
+      candidates,
+      maxTokens: envInt("CHAT_CONTEXT_MAX_TOKENS", 6000),
+    });
+
+    const citations: Citation[] = evidenceBundle.items.map((item) => ({
       source_type: "note",
-      source_id: h.noteId,
-      snippet: h.snippet,
+      source_id: item.noteId,
+      snippet: item.snippet,
     }));
     for (const c of citations) yield { type: "citation", payload: c };
 
@@ -121,14 +134,7 @@ export async function* runChat(opts: {
 
     // Build the prompt. RAG context block lives in the system message so it
     // doesn't burn through the user-history truncation budget below.
-    const ragBlock =
-      hits.length === 0
-        ? ""
-        : "\n\n<context>\n" +
-          hits
-            .map((h, i) => `[${i + 1}] ${h.title}\n${h.snippet}`)
-            .join("\n\n") +
-          "\n</context>";
+    const ragBlock = evidenceBundleToPrompt(evidenceBundle);
     const system: ChatMsg = {
       role: "system",
       content: [SYSTEM_PROMPT, runtimeContext, ragBlock].filter(Boolean).join("\n\n"),
