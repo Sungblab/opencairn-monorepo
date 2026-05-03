@@ -138,6 +138,89 @@ docs(agents): add compiler agent behavior spec
 web, api, worker, hocuspocus, db, llm, shared, ui, config, infra, canvas, docs
 ```
 
+### Agent Workflow Hygiene
+
+Use `.worktrees/<task>` for isolated or parallel feature work. Before creating a
+project-local worktree, verify `.worktrees` is ignored:
+
+```bash
+git check-ignore -q .worktrees
+git worktree add .worktrees/<task> -b <branch> origin/main
+```
+
+Do not run two active plans in the same working tree. Avoid parallel edits to
+migration files, `packages/db/src/schema.ts`, `packages/shared`, or the same
+`apps/web/messages/*.json` namespace.
+
+When publishing from WSL, prefer the Windows GitHub CLI credential bridge:
+
+```bash
+git config --global credential.helper /home/sungbin/.local/bin/git-credential-gh-windows
+git config --global --get-all credential.helper
+git ls-remote --heads origin main
+git push --dry-run origin <branch>
+```
+
+The helper calls `'/mnt/c/Program Files/GitHub CLI/gh.exe' auth token` and does
+not store a token file. If WSL Git still fails with `could not read Username` or
+Windows Git Credential Manager cannot read a `/mnt/c/.../.git/worktrees/...`
+path, run Windows Git/GitHub CLI from the repo root instead:
+
+```powershell
+cmd.exe /C "cd /d C:\Users\Sungbin\Documents\GitHub\opencairn-monorepo && git push -u origin <branch>"
+& "C:\Program Files\GitHub CLI\gh.exe" pr create --repo Sungblab/opencairn-monorepo --base main --head <branch> --draft --title "<title>" --body-file <file>
+```
+
+If the GitHub connector returns `Resource not accessible by integration` or
+403, but local `gh auth status` has the `Sungblab` account with `repo` scope and
+`gh repo view Sungblab/opencairn-monorepo --json viewerPermission` says `ADMIN`,
+treat it as a connector installation-permission limit and use `gh`/`gh.exe`.
+
+### Windows Verification Notes
+
+In a new Windows worktree, smoke-test ripgrep once before broad searches:
+
+```powershell
+rg --version
+rg --files -g package.json
+```
+
+If `rg.exe` fails with access denied or execution-block errors, switch to
+PowerShell fallback instead of retrying:
+
+```powershell
+Get-ChildItem -Recurse -File -Filter package.json
+Get-ChildItem -Recurse -File | Select-String -Pattern '<term>'
+```
+
+Keep `.npmrc` `virtual-store-dir=.pnpm`. Long
+`.worktrees/.../node_modules/.pnpm/...` paths can break Node/Vitest package
+imports on Windows.
+
+For `packages/db`, use Node-oriented checks:
+
+```bash
+pnpm --filter @opencairn/db exec tsc --noEmit
+```
+
+If `packages/db` tests fail with auth/schema startup errors, verify services and
+migrations before treating the test as a code failure:
+
+```bash
+docker compose up -d postgres
+pnpm --filter @opencairn/db db:migrate
+pnpm --filter @opencairn/db test
+```
+
+If PowerShell or Python reads GitHub Actions logs, `gh run view`, or subprocess
+output containing UTF-8, do not rely on CP949 defaults. Set UTF-8 explicitly:
+
+```powershell
+$OutputEncoding = [Console]::OutputEncoding = [Text.UTF8Encoding]::new()
+$env:PYTHONUTF8 = '1'
+$env:PYTHONIOENCODING = 'utf-8'
+```
+
 ### TypeScript
 
 - Strict mode always

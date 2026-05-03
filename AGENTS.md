@@ -1,81 +1,79 @@
-# OpenCairn
+# OpenCairn Agent Guide
 
-AI-powered personal + team knowledge OS. **Notion 대체 포지션**, 12 에이전트, multi-LLM (Gemini/Ollama), Docker self-hosted, **dual-licensed (AGPL-3.0-or-later + commercial)**.
+Respond in Korean.
+
+AI-powered personal + team knowledge OS. **Notion replacement position**, 12 agents, multi-LLM, Docker self-hosted, **dual-licensed (AGPL-3.0-or-later + commercial)**.
+
+## Read Order
+
+Do not ask the user to brief status that can be read locally. Start with:
+
+1. `docs/README.md`
+2. `docs/contributing/plans-status.md`
+3. `docs/contributing/project-history.md`
+4. Relevant `docs/superpowers/plans/*` and `docs/superpowers/specs/*`
+5. Linked audits under `docs/review/*` when implementation claims matter
+
+`plans-status.md` is the current status router. `project-history.md` is the long-form history map. Treat "complete" claims as hypotheses until code, tests, and product surface have been checked.
 
 ## Architecture
 
 ```
-apps/web        — Next.js 16. UI + 브라우저 샌드박스 (Pyodide + iframe).
-apps/api        — Hono 4. ALL business logic + 권한 헬퍼.
-apps/worker     — Python. Temporal + 자체 `runtime.Agent` (`apps/worker/src/runtime/`). 12 AI 에이전트.
-apps/hocuspocus — Yjs 협업 서버 (Better Auth + page-level 권한 hook).
-packages/db     — Drizzle ORM + pgvector + workspace 3계층 권한.
-packages/emails — react-email v6 템플릿 + Resend. Layout/Button/InviteEmail.
-packages/llm    — Python. LLM provider 추상화 (Gemini/Ollama).
-packages/shared — Zod 스키마 (API 계약).
+apps/web        - Next.js 16 UI + browser sandbox (Pyodide + iframe)
+apps/api        - Hono 4 business logic + permission helpers
+apps/worker     - Python Temporal + runtime.Agent based AI agents
+apps/hocuspocus - Yjs collaboration server
+packages/db     - Drizzle ORM + pgvector + workspace permission schema
+packages/emails - react-email templates + Resend/SMTP/console transports
+packages/llm    - Python LLM provider abstraction
+packages/shared - Zod API contracts
 ```
 
-Hierarchy: **Workspace → Project → Page**. Workspace가 격리 경계, 하위는 상속 + override.
+Hierarchy: **Workspace -> Project -> Page**. Workspace is the isolation boundary; lower levels inherit and override.
 
-## Rules & Workflow
+## Non-Negotiable Rules
 
-- **Claude skill source**: Claude Code skills live in `~/.claude/skills/`, not this repo's `.claude/`. The repo-local `.claude/` currently only contains runtime lock/state files and should not be treated as project instructions.
-- **Codex behavior**: when a Claude skill is referenced below, read this `AGENTS.md` section plus the linked repo docs and execute the equivalent workflow directly.
-- **Project rules** (`opencairn:rules` equivalent):
-  - Frontend: no Server Actions, no DB imports; call API via TanStack Query. Next.js 16 uses `proxy.ts`, never `middleware.ts`.
-  - i18n: `apps/web` user-facing strings must use `messages/{locale}/*.json`; default `ko`, secondary `en`; run `pnpm --filter @opencairn/web i18n:parity` when touching copy.
-  - Backend: Hono routes use Zod validation, `requireAuth`, and user/workspace-scoped queries.
-  - DB: Drizzle only; raw SQL only in migrations. Vector dimension comes from `VECTOR_DIM`; text search uses DB triggers.
-  - Worker/AI: long-running work uses Temporal; agents extend `runtime.Agent`; use `packages/llm` `get_provider()`; Gemini/Ollama only.
-  - Sandbox/Security/Collab: browser-only Pyodide + iframe execution, no server-side code execution; preserve BYOK encryption/CORS/WAF assumptions; Yjs + Hocuspocus for collaboration.
-- **Post-feature workflow** (`opencairn:post-feature` equivalent): after implementation, run focused verification (`build`/`test`/`typecheck` as applicable), review for bugs/security/convention drift, update relevant docs or plan checkboxes, then commit only after checks are clean.
-- **Branch finish rule**: 개발 브랜치는 작업 완료 후 항상 검증 결과를 정리하고 커밋·push·PR 생성까지 마감한다. 머지는 사용자가 직접 한다.
-- **PR publish on Windows/WSL**: WSL Git은 Windows GitHub CLI 로그인 토큰을 재사용하도록 `git config --global credential.helper /home/sungbin/.local/bin/git-credential-gh-windows`로 설정한다. 이 helper는 토큰을 파일에 저장하지 않고 `'/mnt/c/Program Files/GitHub CLI/gh.exe' auth token`을 호출한다. 설정 확인은 `git config --global --get-all credential.helper`, 인증 확인은 `git ls-remote --heads origin main`, push 확인은 `git push --dry-run origin <branch>`. 그래도 WSL worktree에서 `git push`가 `could not read Username`로 실패하거나 Windows Git Credential Manager가 `/mnt/c/.../.git/worktrees/...`를 못 읽으면 Windows Git/GitHub CLI를 repo 루트에서 실행한다. 예: `cmd.exe /C "cd /d C:\Users\Sungbin\Documents\GitHub\opencairn-monorepo && git push -u origin <branch>"`, 이후 `'/mnt/c/Program Files/GitHub CLI/gh.exe' pr create --repo Sungblab/opencairn-monorepo --base main --head <branch> --draft --title "<title>" --body-file <file>`. GitHub connector가 PR 생성에서 403을 내면 인증된 `gh.exe` fallback을 우선 사용한다.
-  - GitHub connector의 repository/permission API가 `Resource not accessible by integration` 또는 403을 반환해도, 로컬 `gh auth status`가 `Sungblab` + `repo` scope이고 `gh repo view Sungblab/opencairn-monorepo --json viewerPermission`이 `ADMIN`이면 사용자 권한 문제가 아니라 connector GitHub App installation 권한 한계다. 이 경우 connector 재시도에 시간을 쓰지 말고 `gh`/`gh.exe`로 PR을 만든다.
-- **Commit conventions** (`opencairn:commit` equivalent): `<type>(<scope>): <subject>` with type `feat|fix|chore|docs|refactor|test|perf|style`, scope `web|api|worker|db|shared|llm|infra|docs`, imperative lowercase subject, one logical change per commit, body explains why.
-- **Next plan workflow** (`opencairn-next-plan` equivalent): detect current branch, recent commits, `docs/contributing/plans-status.md`, and `docs/superpowers/plans/`; do not ask the user to brief status that can be read locally. Exclude Plan 9b unless explicitly requested.
-- **Parallel session workflow** (`opencairn-parallel-sessions` equivalent): when running multiple dev sessions, inspect `git worktree list` and split into non-conflicting worktrees. Avoid concurrent edits to migration numbers, `packages/db/src/schema.ts`, `packages/shared`, or the same i18n message sections.
-- **병렬 세션 = 워크트리 필수** → Phase 1/2처럼 병렬 가능한 플랜을 동시에 진행하거나, 다른 세션과 별개 작업을 돌릴 때는 `git worktree`로 분리 (`superpowers:using-git-worktrees` skill). 같은 워킹트리에서 두 플랜을 섞으면 빌드/테스트/i18n parity가 서로 깨짐. 사례: `.worktrees/plan-5-kg-impl`, `opencairn-v2a`, `feat/plan-3b-prod-gates` (App Shell 3-B와 병렬).
-  - Codex 세션 안에서 worktree 생성을 요청해도 된다. 단, 생성 후에는 새 터미널/분할 패널에서 `cd .worktrees/<task>` 후 별도 Codex 세션을 시작한다. 기존 Codex 세션이 같은 워킹트리에서 계속 편집하지 않도록 한다.
-  - 병렬 작업 프롬프트 기본형: `현재 repo에서 .worktrees/<task> worktree를 codex/<task> 브랜치로 만들고, 생성 후 내가 새 터미널에서 들어갈 명령까지 알려줘.`
-- **Windows search tooling**: 새 Windows worktree에서는 넓은 코드 검색 전에 `rg --version` 또는 `rg --files -g package.json`을 1회만 smoke test한다. `rg.exe`가 `Access is denied`, 권한 오류, 실행 차단으로 실패하면 같은 명령을 반복하지 말고 즉시 PowerShell fallback을 쓴다: 파일명은 `Get-ChildItem -Recurse -File -Filter <name>`, 본문 검색은 `Get-ChildItem -Recurse -File | Select-String -Pattern '<term>'`. 이 fallback은 정상 경로이며 구현 범위를 막는 blocker로 취급하지 않는다.
-- **Windows verification hygiene**:
-  - pnpm virtual store는 `.npmrc`의 `virtual-store-dir=.pnpm`을 유지한다. Windows의 긴 `.worktrees/.../node_modules/.pnpm/...` 경로는 Node/Vitest package imports(`#module-evaluator`) 해석을 깨뜨릴 수 있다. `.pnpm/`은 gitignore 대상이다.
-  - `packages/db`는 Node 전용 패키지다. 직접 타입체크는 `pnpm --filter @opencairn/db exec tsc --noEmit`을 사용하고, `process`/`Buffer`/`node:*` 오류가 나면 `packages/db/tsconfig.json`의 `types: ["node"]`와 `packages/db/package.json`의 `@types/node` devDependency를 먼저 확인한다.
-  - `packages/db` Vitest는 루트 `.env`와 최신 local Postgres schema가 필요하다. `password authentication failed for user "Sungbin"`은 보통 `DATABASE_URL`이 테스트 import 전에 안 들어간 신호이고, `relation "... " does not exist`는 `pnpm --filter @opencairn/db db:migrate`가 필요한 신호다. focused test가 본문 전 startup에서 막혔다고 바로 코드 blocker로 결론내지 말고 `docker compose up -d postgres`, `pnpm --filter @opencairn/db db:migrate`, focused Vitest 순서로 재확인한다.
-  - Windows `node_modules`가 pnpm optional dependency(`fsevents`) 권한/잠금 문제로 반쯤 설치된 상태가 되면 `vitest`/`drizzle-orm`/`postgres` 링크까지 사라질 수 있다. 이때는 워크스페이스 내부 경로인지 먼저 확인한 뒤 `node_modules`를 재설치하고, 이후 `pnpm install`, `pnpm --filter @opencairn/db exec tsc --noEmit`, `pnpm --filter @opencairn/db test`로 복구를 확인한다.
-- **i18n** (Plan 9a 이후): `apps/web`의 user-facing 문자열은 모두 `messages/{locale}/*.json` 키. ESLint `i18next/no-literal-string` + `pnpm --filter @opencairn/web i18n:parity` CI enforced. 카피: 존댓말 · 경쟁사 미언급 · 기술 스택 상세 최소화. 상세 + 예외: `docs/superpowers/specs/2026-04-20-web-foundation-design.md` § i18n 규율.
-- **OSS/호스팅 분리**: 브랜드·도메인·연락처·SEO 메타는 하드코딩 금지, env + 디폴트 패턴. 시크릿만 `.gitignore`. 상세: `docs/contributing/hosted-service.md` § Branding & SEO. 실제 sweep은 Plan 9b.
+- Frontend: no Server Actions, no DB imports in `apps/web`; call API via TanStack Query or existing API clients. Next.js 16 uses `proxy.ts`, never `middleware.ts`.
+- i18n: `apps/web` user-facing strings must use `messages/{locale}/*.json`; default `ko`, secondary `en`; run `pnpm --filter @opencairn/web i18n:parity` when touching copy.
+- Backend: Hono routes use Zod validation, `requireAuth`, and user/workspace/project/page-scoped queries.
+- DB: Drizzle only in app code; raw SQL belongs in migrations. Do not guess migration numbers manually.
+- Worker/AI: long-running work uses Temporal; agents extend `runtime.Agent`; worker/provider calls go through `packages/llm` `get_provider()`.
+- Sandbox/Security/Collab: browser-only Pyodide + iframe execution; no server-side arbitrary code execution. Preserve BYOK encryption, CORS/WAF assumptions, Yjs/Hocuspocus permission hooks, and workspace isolation.
+- OSS/hosting split: brand/domain/contact/SEO metadata must be env/default-pattern driven, not hardcoded. Legal/blog/marketing surfaces live outside the OSS app unless explicitly scoped.
+
+## Workflow
+
+- Claude Code skills live in `~/.claude/skills/`; repo-local `.claude/` is runtime state, not project instructions.
+- Codex skills live in `~/.codex/skills/`. Use the equivalent local skill when referenced: `opencairn-rules`, `opencairn-next-plan`, `opencairn-parallel-sessions`, `opencairn-post-feature`, `opencairn-commit`.
+- For next work, detect branch, recent commits, worktrees, `plans-status.md`, `project-history.md`, and relevant plans before recommending. Exclude Plan 9b unless explicitly requested.
+- For parallel or isolated feature work, create a git worktree under `.worktrees/<task>` and implement from that worktree. Do not mix concurrent plans in one working tree.
+- Avoid concurrent edits to migration files, `packages/db/src/schema.ts`, `packages/shared`, or the same i18n message sections.
+- After feature-sized work, run focused verification, review for security/convention drift, update relevant docs/status, then commit using OpenCairn commit conventions.
+- Branch finish rule: when a development branch is complete, summarize verification, commit, push, and open a PR. The user owns merge approval.
+
+Windows/WSL troubleshooting, PR publish fallback, search fallback, and local verification hygiene live in `docs/contributing/dev-guide.md`.
 
 ## Commands
 
 ```bash
 pnpm dev                           # all services
-pnpm --filter @opencairn/<pkg> dev # 개별 패키지 (api/web/worker)
+pnpm --filter @opencairn/<pkg> dev # package dev server
 pnpm db:generate / db:migrate      # Drizzle
-docker-compose up -d               # infra
+docker compose up -d               # infra
 ```
 
-## Docs
+## High-Value Docs
 
-Full index: **`docs/README.md`**. 고빈도:
-
-| Need                             | Read                                                           |
-| -------------------------------- | -------------------------------------------------------------- |
-| System design, architecture      | `docs/superpowers/specs/2026-04-09-opencairn-design.md`        |
-| API contract                     | `docs/architecture/api-contract.md`                            |
-| Data flow (ingest → wiki → Q&A)  | `docs/architecture/data-flow.md`                               |
-| 협업 모델 (권한/Hocuspocus/코멘트) | `docs/architecture/collaboration-model.md`                     |
-| Agent Runtime Standard           | `docs/superpowers/specs/2026-04-20-agent-runtime-standard-design.md` |
-| 탭 시스템 설계                    | `docs/superpowers/specs/2026-04-20-tab-system-design.md`       |
-| 컨텍스트 예산 정책 (RAG/wiki 주입) | `docs/architecture/context-budget.md`                          |
-| Codex 반복 실수 목록             | `docs/contributing/llm-antipatterns.md`                        |
-
-## Plans
-
-Critical path: **0 (1 → 13 → 12) → 1 (2/3/4/9 병렬) → 2 (5/6/7/8 병렬) → 3**. 완료 커밋 + 상세 상태는 `docs/contributing/plans-status.md`.
-
-- ✅ Complete: Plan 1, 13, 12, 3, 3b, 4, 9a, 2A (editor core, solo), 2B (Hocuspocus + comments + @mention), 2C (share links + per-note permissions + comment_reply/share_invite/research_complete notification wiring), 2D (chat renderer + 5 editor blocks + save_suggestion), 5 (KG Phase 1 + Phase 2: Cytoscape 5-view + Backlinks + Visualization Agent), 6 (Learning System: SM-2 flashcards + Socratic Agent + Tool Templates + Review UI), 8 (Synthesis + Curator + Connector + Staleness + Narrator agents), Live Ingest Visualization (Redis pub/sub + SSE + spotlight/dock UI, PR #56), Literature Search & Auto-Import (arXiv+SS+Crossref+Unpaywall federation + LitImportWorkflow + DOI dedupe, PR #57+#59), Content-Aware Enrichment Spec B (note_enrichments + 3 worker activities + IngestWorkflow splice, PR #58), Ingest Source Expansion, Onboarding, Agent Runtime v2 Sub-A, React Email, Deep Research Phase A/B/C/D/E (features), App Shell Phase 1 (shell frame) + Phase 2 (sidebar) + Phase 3-A (tab bar chrome) + Phase 3-B (mode router + viewers) + Phase 4 (agent panel) + Phase 5 (routes + palette + notifications), Plan 7 Phase 1 (Canvas web runtime + Tab Mode Router) + Phase 2 (Code Agent + /api/code/run + Monaco), Plan 11A (Chat Scope Foundation: conversations table + chip UI + RAG modes + pin permission warning + cost tracking), Plan 11B Phase A (DocEditorAgent + 4 LLM-only slash commands + InlineDiffSheet + `doc_editor_calls` audit, PR #61) + Chat Real LLM Wiring (audit Tier 1 #1·#2·#3 마감, PR #116), Tech Debt Sprint 1 (Phase 5 a/c/f + Plan 7 Tier-S).
-- 🟡 Active / next: Synthesis Export (plan only, branch `feat/plan-synthesis-export` 미실행), Deep Research prod release (manual env flip), Plan 11B Phase B (`/cite` + `/factcheck` RAG slash commands — plan-only on `docs/plan-11b-phase-b` worktree, depends on Phase A merge + ResearchAgent.hybrid_search builtin tool), MCP Client Phase 1 (spec/plan main `f80372a`, 구현 미시작).
-- 🔴 Blocked: Plan 9b (사업자등록 필요).
-- ⚠️ Superseded: Plan 10 (document-skills) → Synthesis Export.
+| Need | Read |
+| --- | --- |
+| Full docs index | `docs/README.md` |
+| Current plan status | `docs/contributing/plans-status.md` |
+| Project history map | `docs/contributing/project-history.md` |
+| System architecture | `docs/superpowers/specs/2026-04-09-opencairn-design.md` |
+| API contract | `docs/architecture/api-contract.md` |
+| Ingest -> wiki -> Q&A flow | `docs/architecture/data-flow.md` |
+| Collaboration model | `docs/architecture/collaboration-model.md` |
+| Agent Runtime Standard | `docs/superpowers/specs/2026-04-20-agent-runtime-standard-design.md` |
+| Context budget policy | `docs/architecture/context-budget.md` |
+| Repeated LLM mistakes | `docs/contributing/llm-antipatterns.md` |
+| Completion-claim audit | `docs/review/2026-04-28-completion-claims-audit.md` |
