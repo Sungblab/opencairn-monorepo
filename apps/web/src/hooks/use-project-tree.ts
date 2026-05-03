@@ -7,11 +7,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 // `kind` is a stable discriminator so the sidebar component can switch on
 // rendering + drag-drop behavior without inspecting other fields.
 export interface TreeNode {
-  kind: "folder" | "note";
+  kind: "folder" | "note" | "agent_file";
   id: string;
   parent_id: string | null; // folder.parent_id OR note.folder_id
   label: string;            // folder.name OR note.title
   child_count: number;      // 0 for notes
+  file_kind?: string | null;
+  mime_type?: string | null;
   children?: TreeNode[];    // folders only, prefetched one level deep
 }
 
@@ -108,10 +110,14 @@ export function useProjectTree(opts: { projectId: string }) {
       "tree.note_renamed",
       "tree.note_deleted",
       "tree.note_restored",
+      "tree.agent_file_created",
+      "tree.agent_file_renamed",
+      "tree.agent_file_deleted",
     ];
     const projectScoped: string[] = [
       "tree.folder_moved",
       "tree.note_moved",
+      "tree.agent_file_moved",
     ];
 
     for (const kind of parentScoped) {

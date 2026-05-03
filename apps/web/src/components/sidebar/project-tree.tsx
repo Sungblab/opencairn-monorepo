@@ -32,7 +32,7 @@ export interface ProjectTreeProps {
 //    Deeper levels are loaded on demand via handleToggle → loadChildren.
 function deriveData(roots: TreeNode[], expanded: Set<string>): TreeNode[] {
   function mark(n: TreeNode): TreeNode {
-    if (n.kind === "note") return n;
+    if (n.kind !== "folder") return n;
     if (n.child_count === 0) return { ...n, children: undefined };
     if (!expanded.has(n.id)) {
       return {
@@ -56,6 +56,16 @@ async function persistMove(node: TreeNode, parentId: string | null, index: numbe
     if (!res.ok) throw new Error(`folders PATCH ${res.status}`);
     return;
   }
+  if (node.kind === "agent_file") {
+    const res = await fetch(`/api/agent-files/${node.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ folderId: parentId }),
+    });
+    if (!res.ok) throw new Error(`agent file move ${res.status}`);
+    return;
+  }
   // notes: position isn't tracked server-side — only parent (folder) matters.
   const res = await fetch(`/api/notes/${node.id}/move`, {
     method: "PATCH",
@@ -72,9 +82,17 @@ async function persistRename(
   label: string,
 ) {
   const url =
-    kind === "folder" ? `/api/folders/${id}` : `/api/notes/${id}`;
+    kind === "folder"
+      ? `/api/folders/${id}`
+      : kind === "agent_file"
+        ? `/api/agent-files/${id}`
+        : `/api/notes/${id}`;
   const body =
-    kind === "folder" ? { name: label } : { title: label };
+    kind === "folder"
+      ? { name: label }
+      : kind === "agent_file"
+        ? { title: label, filename: label }
+        : { title: label };
   const res = await fetch(url, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
@@ -86,7 +104,11 @@ async function persistRename(
 
 async function persistDelete(id: string, kind: TreeNode["kind"]) {
   const url =
-    kind === "folder" ? `/api/folders/${id}` : `/api/notes/${id}`;
+    kind === "folder"
+      ? `/api/folders/${id}`
+      : kind === "agent_file"
+        ? `/api/agent-files/${id}`
+        : `/api/notes/${id}`;
   const res = await fetch(url, { method: "DELETE", credentials: "include" });
   if (!res.ok) throw new Error(`${kind} delete ${res.status}`);
 }

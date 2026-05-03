@@ -15,22 +15,26 @@ import { and, eq, sql, db, folders, notes } from "@opencairn/db";
 export const labelFromId = (uuid: string): string => uuid.replace(/-/g, "_");
 
 export interface TreeRow {
-  kind: "folder" | "note";
+  kind: "folder" | "note" | "agent_file";
   id: string;
   parentId: string | null;
   label: string;
   pathText: string | null;
   childCount: number;
+  fileKind?: string | null;
+  mimeType?: string | null;
 }
 
 // Must satisfy `Record<string, unknown>` — drizzle's `db.execute<T>` constrains T.
 type RawRow = {
-  kind: "folder" | "note";
+  kind: "folder" | "note" | "agent_file";
   id: string;
   parentId: string | null;
   label: string;
   pathText: string | null;
   childCount: number;
+  fileKind: string | null;
+  mimeType: string | null;
 } & Record<string, unknown>;
 
 const projectScope = (projectId: string) =>
@@ -74,7 +78,11 @@ export async function listChildren(opts: {
         (SELECT COUNT(*)::int FROM folders c WHERE c.parent_id = p.id)
       + (SELECT COUNT(*)::int FROM notes cn
            WHERE cn.folder_id = p.id AND cn.deleted_at IS NULL)
+      + (SELECT COUNT(*)::int FROM agent_files af
+           WHERE af.folder_id = p.id AND af.deleted_at IS NULL)
       )                                                     AS "childCount",
+      NULL                                                  AS "fileKind",
+      NULL                                                  AS "mimeType",
       0                                                     AS "sortGroup",
       p.path::text                                          AS "sortKey"
     FROM folders p
@@ -89,6 +97,8 @@ export async function listChildren(opts: {
       p.title                                               AS "label",
       NULL                                                  AS "pathText",
       0                                                     AS "childCount",
+      NULL                                                  AS "fileKind",
+      NULL                                                  AS "mimeType",
       1                                                     AS "sortGroup",
       lpad(
         coalesce(extract(epoch FROM p.created_at)::bigint::text, '0'),
@@ -96,6 +106,28 @@ export async function listChildren(opts: {
         '0'
       )                                                     AS "sortKey"
     FROM notes p
+    WHERE ${projectScope(opts.projectId)}
+      AND ${noteParent}
+      AND p.deleted_at IS NULL
+
+    UNION ALL
+
+    SELECT
+      'agent_file'::text,
+      p.id,
+      p.folder_id                                           AS "parentId",
+      p.title                                               AS "label",
+      NULL                                                  AS "pathText",
+      0                                                     AS "childCount",
+      p.kind                                                AS "fileKind",
+      p.mime_type                                           AS "mimeType",
+      2                                                     AS "sortGroup",
+      lpad(
+        coalesce(extract(epoch FROM p.created_at)::bigint::text, '0'),
+        16,
+        '0'
+      )                                                     AS "sortKey"
+    FROM agent_files p
     WHERE ${projectScope(opts.projectId)}
       AND ${noteParent}
       AND p.deleted_at IS NULL
@@ -130,7 +162,11 @@ export async function listChildrenForParents(opts: {
         (SELECT COUNT(*)::int FROM folders c WHERE c.parent_id = p.id)
       + (SELECT COUNT(*)::int FROM notes cn
            WHERE cn.folder_id = p.id AND cn.deleted_at IS NULL)
+      + (SELECT COUNT(*)::int FROM agent_files af
+           WHERE af.folder_id = p.id AND af.deleted_at IS NULL)
       )                                                     AS "childCount",
+      NULL                                                  AS "fileKind",
+      NULL                                                  AS "mimeType",
       0                                                     AS "sortGroup",
       p.path::text                                          AS "sortKey"
     FROM folders p
@@ -146,6 +182,8 @@ export async function listChildrenForParents(opts: {
       p.title,
       NULL,
       0,
+      NULL,
+      NULL,
       1,
       lpad(
         coalesce(extract(epoch FROM p.created_at)::bigint::text, '0'),
@@ -153,6 +191,28 @@ export async function listChildrenForParents(opts: {
         '0'
       )
     FROM notes p
+    WHERE ${projectScope(opts.projectId)}
+      AND p.folder_id IN (${sql.join(opts.parentIds.map((id) => sql`${id}::uuid`), sql`, `)})
+      AND p.deleted_at IS NULL
+
+    UNION ALL
+
+    SELECT
+      'agent_file'::text,
+      p.id,
+      p.folder_id,
+      p.title,
+      NULL,
+      0,
+      p.kind,
+      p.mime_type,
+      2,
+      lpad(
+        coalesce(extract(epoch FROM p.created_at)::bigint::text, '0'),
+        16,
+        '0'
+      )
+    FROM agent_files p
     WHERE ${projectScope(opts.projectId)}
       AND p.folder_id IN (${sql.join(opts.parentIds.map((id) => sql`${id}::uuid`), sql`, `)})
       AND p.deleted_at IS NULL
@@ -191,20 +251,24 @@ export async function getFolderSubtree(opts: {
       f.parent_id    AS "parentId",
       f.name         AS "label",
       f.path::text   AS "pathText",
-      0              AS "childCount"
+      0              AS "childCount",
+      NULL           AS "fileKind",
+      NULL           AS "mimeType"
     FROM folders f, root r
     WHERE f.path <@ r.path
       AND f.project_id = ${opts.projectId}::uuid
     ORDER BY nlevel(f.path), f.path
   `);
 
-  return asRows<RawRow>(result).map(({ kind, id, parentId, label, pathText, childCount }) => ({
+  return asRows<RawRow>(result).map(({ kind, id, parentId, label, pathText, childCount, fileKind, mimeType }) => ({
     kind,
     id,
     parentId,
     label,
     pathText,
     childCount,
+    fileKind,
+    mimeType,
   }));
 }
 
@@ -328,5 +392,7 @@ function stripSortFields(raw: RawRow): TreeRow {
     label: raw.label,
     pathText: raw.pathText,
     childCount: raw.childCount,
+    fileKind: raw.fileKind,
+    mimeType: raw.mimeType,
   };
 }

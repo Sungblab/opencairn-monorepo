@@ -2,11 +2,12 @@
 import { urls } from "@/lib/urls";
 import { useEffect, useRef } from "react";
 import type { NodeRendererProps } from "react-arborist";
-import { ChevronRight, Folder, FileText } from "lucide-react";
+import { ChevronRight, Folder, FileText, FileCode, FileImage, FileJson } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import { useLocale } from "next-intl";
 import type { TreeNode } from "@/hooks/use-project-tree";
 import { useTabsStore } from "@/stores/tabs-store";
+import { newTab } from "@/lib/tab-factory";
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -55,6 +56,24 @@ export function ProjectTreeNode({
     if (isRenaming) return;
     if (kind === "folder") {
       node.toggle();
+      return;
+    }
+    if (kind === "agent_file") {
+      const tabs = useTabsStore.getState();
+      const existing = tabs.findTabByTarget("agent_file", node.data.id);
+      if (existing) {
+        tabs.setActive(existing.id);
+        return;
+      }
+      tabs.addTab(
+        newTab({
+          kind: "agent_file",
+          targetId: node.data.id,
+          title: node.data.label,
+          mode: "agent-file",
+          preview: false,
+        }),
+      );
       return;
     }
     const tabs = useTabsStore.getState();
@@ -113,6 +132,11 @@ export function ProjectTreeNode({
             aria-hidden
             className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
           />
+        ) : kind === "agent_file" ? (
+          <AgentFileIcon
+            fileKind={node.data.file_kind}
+            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+          />
         ) : (
           <FileText
             aria-hidden
@@ -168,4 +192,21 @@ export function ProjectTreeNode({
       </ContextMenuContent>
     </ContextMenu>
   );
+}
+
+function AgentFileIcon({
+  fileKind,
+  className,
+}: {
+  fileKind?: string | null;
+  className: string;
+}) {
+  if (fileKind === "code" || fileKind === "html" || fileKind === "latex") {
+    return <FileCode aria-hidden className={className} />;
+  }
+  if (fileKind === "image") return <FileImage aria-hidden className={className} />;
+  if (fileKind === "json" || fileKind === "csv") {
+    return <FileJson aria-hidden className={className} />;
+  }
+  return <FileText aria-hidden className={className} />;
 }

@@ -1,0 +1,11 @@
+{
+  "viewer": {
+    "loading": "파일을 불러오는 중...",
+    "error": "파일을 열 수 없습니다.",
+    "meta": "{kind} · v{version} · {bytes}",
+    "download": "원본 다운로드",
+    "ingest": "인제스트 실행",
+    "compile": "LaTeX 컴파일",
+    "canvas": "캔버스로 실행"
+  }
+}

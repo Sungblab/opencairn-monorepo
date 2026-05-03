@@ -68,6 +68,7 @@ function resolveDefaultTitle(
       return t("ws_settings");
     case "ingest":
     case "lit_search":
+    case "agent_file":
       // Both kinds always set `titleKey` at construction time
       // (ingest.tab.title / literature.tab.title), so this branch is
       // unreachable at runtime — kept here purely for switch exhaustiveness.

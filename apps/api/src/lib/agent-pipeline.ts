@@ -25,6 +25,7 @@ export type AgentChunkType =
   | "text"
   | "citation"
   | "save_suggestion"
+  | "agent_file"
   | "usage"
   | "error"
   | "done";

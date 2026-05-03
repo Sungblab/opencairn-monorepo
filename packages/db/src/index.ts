@@ -47,6 +47,7 @@ export * from "./schema/connectors";
 export * from "./schema/mcp-server-tokens";
 export * from "./schema/synthesis";
 export * from "./schema/note-versions";
+export * from "./schema/agent-files";
 export * from "./lib/note-version-hash";
 export * from "./lib/note-version-capture";
 

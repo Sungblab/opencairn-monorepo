@@ -1,0 +1,11 @@
+{
+  "viewer": {
+    "loading": "Loading file...",
+    "error": "Unable to open this file.",
+    "meta": "{kind} · v{version} · {bytes}",
+    "download": "Download original",
+    "ingest": "Run ingest",
+    "compile": "Compile LaTeX",
+    "canvas": "Run in canvas"
+  }
+}
