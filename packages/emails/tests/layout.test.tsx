@@ -32,11 +32,11 @@ describe("Layout", () => {
 
   it("includes a footer contact line", async () => {
     const html = await render(
-      <Layout preview="p">
+      <Layout preview="p" contactEmail="hello@example.com">
         <p>x</p>
       </Layout>,
     );
-    expect(html).toContain("hello@opencairn.com");
+    expect(html).toContain("hello@example.com");
   });
 
   it("applies the declared lang attribute", async () => {

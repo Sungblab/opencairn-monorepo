@@ -2,6 +2,7 @@
 import { useRef } from "react";
 import { useTranslations } from "next-intl";
 import { useScrollReveal } from "@/lib/landing/hooks/useScrollReveal";
+import { publicLinks } from "@/lib/site-config";
 
 export function Cta() {
   const t = useTranslations("landing.cta");
@@ -41,7 +42,7 @@ export function Cta() {
             </div>
             <p className="font-sans text-[13px] text-stone-600 tracking-wider">
               <a
-                href="https://github.com/Sungblab/opencairn-monorepo"
+                href={publicLinks.repository}
                 className="hover:text-stone-900 underline underline-offset-2 decoration-stone-400"
               >
                 {t("bottomGithub")}

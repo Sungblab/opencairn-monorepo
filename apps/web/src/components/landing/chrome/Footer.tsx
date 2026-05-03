@@ -1,20 +1,48 @@
 "use client";
 import { useTranslations } from "next-intl";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
-import { externalSiteUrls } from "@/lib/site-config";
+import { externalSiteUrls, publicLinks, siteConfig } from "@/lib/site-config";
 
 type Link = { label: string; href: string };
 
-function resolveExternalHref(href: string): string {
+function resolveExternalHref(href: string): string | undefined {
   switch (href) {
     case "/privacy":
+    case "privacy":
       return externalSiteUrls.privacy;
     case "/terms":
+    case "terms":
       return externalSiteUrls.terms;
     case "/refund":
+    case "refund":
       return externalSiteUrls.refund;
     case "/blog":
+    case "blog":
       return externalSiteUrls.blog;
+    case "repo":
+      return publicLinks.repository;
+    case "repoDocs":
+      return publicLinks.repositoryDocs;
+    case "repoAdrs":
+      return publicLinks.repositoryAdrs;
+    case "repoIssues":
+      return publicLinks.repositoryIssues;
+    case "license":
+      return publicLinks.license;
+    case "contactEmail":
+      return publicLinks.contactEmail;
+    case "support":
+      return publicLinks.support;
+    case "changelog":
+      return publicLinks.changelog;
+    case "cla":
+      return publicLinks.cla;
+    case "discord":
+      return publicLinks.discord;
+    case "twitter":
+      return publicLinks.twitter;
+    case "roadmap":
+      return publicLinks.roadmap;
     default:
       return href;
   }
@@ -70,16 +98,20 @@ export function LandingFooter() {
                 {col.h}
               </h4>
               <ul className="space-y-2.5 font-sans text-[13px]">
-                {col.links.map((l, j) => (
-                  <li key={j}>
-                    <a
-                      href={resolveExternalHref(l.href)}
-                      className="inline-flex items-center text-stone-200 hover:bg-stone-50 hover:text-stone-900 px-2 py-1 -mx-2 rounded-md transition-colors"
-                    >
-                      {l.label}
-                    </a>
-                  </li>
-                ))}
+                {col.links.map((l, j) => {
+                  const href = resolveExternalHref(l.href);
+                  if (!href || href === "#") return null;
+                  return (
+                    <li key={j}>
+                      <a
+                        href={href}
+                        className="inline-flex items-center text-stone-200 hover:bg-stone-50 hover:text-stone-900 px-2 py-1 -mx-2 rounded-md transition-colors"
+                      >
+                        {l.label}
+                      </a>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ))}
@@ -93,15 +125,20 @@ export function LandingFooter() {
           <div className="font-sans text-[11px] tracking-[0.16em] uppercase text-stone-400">
             {t.rich("copyright", {
               author: (chunks) => (
-                <a
-                  href="https://sungblab.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-stone-100 underline decoration-stone-600 underline-offset-2 hover:bg-stone-50 hover:text-stone-900 hover:no-underline px-1.5 py-0.5 rounded-md transition-colors"
-                >
-                  {chunks}
-                </a>
+                publicLinks.author ? (
+                  <a
+                    href={publicLinks.author}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-stone-100 underline decoration-stone-600 underline-offset-2 hover:bg-stone-50 hover:text-stone-900 hover:no-underline px-1.5 py-0.5 rounded-md transition-colors"
+                  >
+                    {chunks}
+                  </a>
+                ) : (
+                  <span>{chunks}</span>
+                )
               ),
+              authorName: siteConfig.authorName,
             })}
           </div>
           <LanguageSwitcher tone="dark" />

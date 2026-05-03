@@ -138,17 +138,27 @@ OSS/호스팅 양쪽 모두 동작해야 하므로 브랜드·도메인·연락�
 - Search Console 인증 파일 (`google*.html`) — 또는 env로 meta tag 주입
 - 운영 prod의 analytics/ad 키, Sentry DSN
 
-### 표준 env 키 (Plan 9b sweep 시 일괄 추출)
+### 표준 env 키
 
 ```
 NEXT_PUBLIC_SITE_NAME=OpenCairn
-NEXT_PUBLIC_SITE_URL=https://opencairn.com
-SITE_OWNER=
-SITE_DESCRIPTION_KO=
-SITE_DESCRIPTION_EN=
-OG_IMAGE_URL=
-CONTACT_EMAIL=
-SUPPORT_URL=
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+NEXT_PUBLIC_SITE_DESCRIPTION_KO=
+NEXT_PUBLIC_SITE_DESCRIPTION_EN=
+NEXT_PUBLIC_REPOSITORY_URL=https://github.com/opencairn/opencairn
+NEXT_PUBLIC_DOCS_URL=
+NEXT_PUBLIC_ADR_URL=
+NEXT_PUBLIC_ISSUES_URL=
+NEXT_PUBLIC_LICENSE_URL=
+NEXT_PUBLIC_CONTACT_EMAIL=
+NEXT_PUBLIC_SITE_AUTHOR_NAME=OpenCairn contributors
+NEXT_PUBLIC_SITE_AUTHOR_URL=
+NEXT_PUBLIC_SUPPORT_URL=
+NEXT_PUBLIC_CHANGELOG_URL=
+NEXT_PUBLIC_CLA_URL=
+NEXT_PUBLIC_DISCORD_URL=
+NEXT_PUBLIC_TWITTER_URL=
+NEXT_PUBLIC_ROADMAP_URL=
 NEXT_PUBLIC_LEGAL_PRIVACY_URL=
 NEXT_PUBLIC_LEGAL_TERMS_URL=
 NEXT_PUBLIC_LEGAL_REFUND_URL=
@@ -157,14 +167,16 @@ NEXT_PUBLIC_PLAUSIBLE_DOMAIN=
 NEXT_PUBLIC_GOOGLE_ANALYTICS_ID=
 NEXT_PUBLIC_GOOGLE_ADS_ID=
 NEXT_PUBLIC_META_PIXEL_ID=
+CONTACT_EMAIL=contact@example.com
 GOOGLE_SITE_VERIFICATION=
 TWITTER_HANDLE=
 ```
 
 ### 지금부터 적용
 
-- 신규 카피·메타·이메일 템플릿은 처음부터 `siteConfig`/i18n 키로 추출. "OpenCairn"·고정 도메인·연락처 직접 박지 말 것.
-- 실제 `lib/site-config.ts` 모듈 추출 + `.env.example` 키 추가 + 기존 하드코딩 sweep은 **Plan 9b 빌링과 묶어서 한 번에**. 그때까지는 위 규칙만 준수.
+- 신규 카피·메타·이메일 템플릿은 처음부터 `siteConfig`/i18n 키로 추출. 개인 도메인·고정 repo URL·연락처 직접 박지 말 것.
+- `apps/web/src/lib/site-config.ts`가 public site URL, repo/docs/issues/license 링크, legal/blog 링크, footer author/contact/social 링크의 단일 출처다.
+- 이메일 기본 연락처와 literature API contact fallback은 `CONTACT_EMAIL`을 쓴다. 운영 환경은 반드시 실제 수신 가능한 주소를 설정한다.
 
 ---
 

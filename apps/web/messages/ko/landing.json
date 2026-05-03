@@ -311,7 +311,7 @@
     ],
     "terminalLabel": "TERMINAL",
     "terminalLines": [
-      "$ git clone https://github.com/Sungblab/opencairn-monorepo.git",
+      "$ git clone <your-fork-url>",
       "$ cd opencairn-monorepo",
       "$ cp .env.example .env",
       "# .env에 LLM_API_KEY 설정 (Gemini) 또는 LLM_PROVIDER=ollama",
@@ -464,26 +464,26 @@
       { "label": "pricing", "href": "#pricing" }
     ],
     "devLinks": [
-      { "label": "github", "href": "https://github.com/Sungblab/opencairn-monorepo" },
-      { "label": "docs", "href": "https://github.com/Sungblab/opencairn-monorepo/tree/main/docs" },
-      { "label": "adrs", "href": "https://github.com/Sungblab/opencairn-monorepo/tree/main/docs/architecture/adr" },
-      { "label": "issues", "href": "https://github.com/Sungblab/opencairn-monorepo/issues" },
-      { "label": "changelog", "href": "#" }
+      { "label": "github", "href": "repo" },
+      { "label": "docs", "href": "repoDocs" },
+      { "label": "adrs", "href": "repoAdrs" },
+      { "label": "issues", "href": "repoIssues" },
+      { "label": "changelog", "href": "changelog" }
     ],
     "communityLinks": [
-      { "label": "discord", "href": "#" },
-      { "label": "twitter", "href": "#" },
-      { "label": "roadmap", "href": "#" },
-      { "label": "email", "href": "mailto:hello@opencairn.dev" }
+      { "label": "discord", "href": "discord" },
+      { "label": "twitter", "href": "twitter" },
+      { "label": "roadmap", "href": "roadmap" },
+      { "label": "email", "href": "contactEmail" }
     ],
     "legalLinks": [
-      { "label": "agplv3", "href": "https://github.com/Sungblab/opencairn-monorepo/blob/main/LICENSE" },
-      { "label": "privacy", "href": "/privacy" },
-      { "label": "refund", "href": "/refund" },
-      { "label": "cla", "href": "#" },
-      { "label": "terms", "href": "/terms" }
+      { "label": "agplv3", "href": "license" },
+      { "label": "privacy", "href": "privacy" },
+      { "label": "refund", "href": "refund" },
+      { "label": "cla", "href": "cla" },
+      { "label": "terms", "href": "terms" }
     ],
-    "copyright": "© 2026 OpenCairn · Built by <author>Sungblab</author>",
+    "copyright": "© 2026 OpenCairn · Built by <author>{authorName}</author>",
     "badges": ["Gemini", "Ollama", "Docker", "Self-Hosted"],
     "endline": "< end of document / 읽어주셔서 감사합니다 >"
   }

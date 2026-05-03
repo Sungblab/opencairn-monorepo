@@ -33,7 +33,9 @@ const provider: Provider = (() => {
   return "console";
 })();
 
-const from = process.env.EMAIL_FROM ?? "OpenCairn <hello@opencairn.com>";
+const from =
+  process.env.EMAIL_FROM ??
+  `OpenCairn <${process.env.CONTACT_EMAIL ?? "support@example.com"}>`;
 const webBase = process.env.WEB_BASE_URL ?? "http://localhost:3000";
 const DEFAULT_LOCALE = "ko"; // Plan 9a default; recipient-locale 추론은 후속.
 

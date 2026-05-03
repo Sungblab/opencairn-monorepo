@@ -119,7 +119,9 @@ async def _fetch_ss_metadata(doi: str) -> dict[str, Any] | None:
 
 
 async def _resolve_oa_url(doi: str) -> str | None:
-    email = os.environ.get("UNPAYWALL_EMAIL", "contact@opencairn.app")
+    email = os.environ.get("UNPAYWALL_EMAIL") or os.environ.get(
+        "CONTACT_EMAIL", "contact@example.com"
+    )
     url = f"https://api.unpaywall.org/v2/{doi}?email={email}"
     try:
         async with httpx.AsyncClient(timeout=5) as client:

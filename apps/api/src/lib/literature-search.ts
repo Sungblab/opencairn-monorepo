@@ -22,7 +22,7 @@ export interface PaperResult {
   alreadyImported: boolean; // filled in by route layer, default false here
 }
 
-const DEFAULT_CONTACT = "contact@opencairn.app";
+const DEFAULT_CONTACT = process.env.CONTACT_EMAIL ?? "contact@example.com";
 
 function contactEmail(envVar: "UNPAYWALL_EMAIL" | "CROSSREF_MAILTO"): string {
   return process.env[envVar] ?? DEFAULT_CONTACT;
