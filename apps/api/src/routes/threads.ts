@@ -10,6 +10,7 @@ import {
   desc,
   asc,
   isNull,
+  notes,
 } from "@opencairn/db";
 import { requireAuth } from "../middleware/auth";
 import { canRead } from "../lib/permissions";
@@ -331,7 +332,7 @@ export const threadRoutes = new Hono<AppEnv>()
               } else if (chunk.type === "save_suggestion") {
                 meta.save_suggestion = chunk.payload;
               } else if (chunk.type === "agent_file") {
-                const projectId = projectIdFromScope(scope);
+                const projectId = await projectIdFromScope(scope);
                 if (!projectId) {
                   streamStatus = "failed";
                   meta.error = {
@@ -427,11 +428,25 @@ export const threadRoutes = new Hono<AppEnv>()
     },
   );
 
-function projectIdFromScope(scope: unknown): string | null {
+async function projectIdFromScope(scope: unknown): Promise<string | null> {
   if (!scope || typeof scope !== "object" || Array.isArray(scope)) return null;
   const obj = scope as Record<string, unknown>;
   if (typeof obj.projectId === "string") return obj.projectId;
   if (typeof obj.id === "string" && obj.type === "project") return obj.id;
+  const noteId =
+    typeof obj.noteId === "string"
+      ? obj.noteId
+      : typeof obj.id === "string" && obj.type === "page"
+        ? obj.id
+        : null;
+  if (noteId) {
+    const [note] = await db
+      .select({ projectId: notes.projectId })
+      .from(notes)
+      .where(and(eq(notes.id, noteId), isNull(notes.deletedAt)))
+      .limit(1);
+    return note?.projectId ?? null;
+  }
   const chips = Array.isArray(obj.chips) ? obj.chips : [];
   for (const chip of chips) {
     if (
@@ -442,6 +457,20 @@ function projectIdFromScope(scope: unknown): string | null {
       typeof (chip as Record<string, unknown>).id === "string"
     ) {
       return (chip as Record<string, string>).id;
+    }
+    if (
+      chip &&
+      typeof chip === "object" &&
+      !Array.isArray(chip) &&
+      (chip as Record<string, unknown>).type === "page" &&
+      typeof (chip as Record<string, unknown>).id === "string"
+    ) {
+      const [note] = await db
+        .select({ projectId: notes.projectId })
+        .from(notes)
+        .where(and(eq(notes.id, (chip as Record<string, string>).id), isNull(notes.deletedAt)))
+        .limit(1);
+      if (note?.projectId) return note.projectId;
     }
   }
   return null;

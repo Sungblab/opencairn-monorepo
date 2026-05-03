@@ -181,7 +181,7 @@ export async function createAgentFileVersion(input: {
   const [latest] = await db
     .select({ version: agentFiles.version })
     .from(agentFiles)
-    .where(and(eq(agentFiles.versionGroupId, current.versionGroupId), isNull(agentFiles.deletedAt)))
+    .where(eq(agentFiles.versionGroupId, current.versionGroupId))
     .orderBy(desc(agentFiles.version))
     .limit(1);
 
@@ -371,6 +371,22 @@ export async function createCanvasFromAgentFile(id: string, userId: string): Pro
   const obj = await streamObject(row.objectKey);
   const source = await new Response(obj.stream).text();
   const language = canvasLanguageFor(row.filename);
+
+  if (row.canvasNoteId) {
+    const [updated] = await db
+      .update(notes)
+      .set({
+        title: row.title,
+        contentText: source,
+        canvasLanguage: language,
+        mimeType: row.mimeType,
+        deletedAt: null,
+      })
+      .where(eq(notes.id, row.canvasNoteId))
+      .returning({ id: notes.id });
+    if (updated) return { noteId: updated.id };
+  }
+
   const [note] = await db
     .insert(notes)
     .values({
@@ -397,6 +413,7 @@ export async function registerExistingObjectAsAgentFile(input: RegisterExistingO
   const filename = normalizeFilename(input.filename);
   const kind = input.kind ?? inferAgentFileKind(filename, input.mimeType);
   const mimeType = input.mimeType ?? inferAgentFileMimeType(filename, kind);
+  const contentHash = input.contentHash ?? (await hashObject(input.objectKey));
   const [row] = await db
     .insert(agentFiles)
     .values({
@@ -411,7 +428,7 @@ export async function registerExistingObjectAsAgentFile(input: RegisterExistingO
       mimeType,
       objectKey: input.objectKey,
       bytes: input.bytes,
-      contentHash: input.contentHash ?? crypto.createHash("sha256").update(input.objectKey).digest("hex"),
+      contentHash,
       source: input.source,
       versionGroupId: crypto.randomUUID(),
       version: 1,
@@ -419,6 +436,12 @@ export async function registerExistingObjectAsAgentFile(input: RegisterExistingO
     .returning();
   if (!row) throw new AgentFileError("bad_request", "agent_file_insert_failed");
   return toSummary(row);
+}
+
+async function hashObject(objectKey: string): Promise<string> {
+  const obj = await streamObject(objectKey);
+  const bytes = Buffer.from(await new Response(obj.stream).arrayBuffer());
+  return crypto.createHash("sha256").update(bytes).digest("hex");
 }
 
 export function toSummary(row: AgentFileRecord): AgentFileSummary {
