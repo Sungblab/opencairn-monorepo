@@ -1,7 +1,10 @@
 {
   "version": 1,
   "notes": [
-    "Example manifest only. Real benchmark fixtures should live in object storage or a private fixture bucket, not as committed binaries.",
+    "Example manifest only. Real benchmark fixture binaries are not committed.",
+    "For S3/R2/MinIO-backed runs, set object_key and configure S3 env as usual.",
+    "For local runs without object storage, set local_path relative to this manifest or pass --local-root.",
+    "The example local_path values point at a private fixture directory that operators create outside git.",
     "Marker remains an optional external parser-service candidate; do not install it in worker core for this benchmark skeleton."
   ],
   "fixtures": [
@@ -10,6 +13,7 @@
       "description": "Clean digital PDF paper with headings, citations, formulas, and figures.",
       "source_type": "file",
       "mime_type": "application/pdf",
+      "local_path": "parser-fixtures.local/digital-pdf-paper.pdf",
       "object_key": "benchmarks/parser-fixtures/digital-pdf-paper.pdf",
       "expected_features": ["headings", "figures", "formulas", "citations"]
     },
@@ -18,6 +22,7 @@
       "description": "Image-only Korean PDF that requires OCR and preserves reading order.",
       "source_type": "file",
       "mime_type": "application/pdf",
+      "local_path": "parser-fixtures.local/scanned-korean.pdf",
       "object_key": "benchmarks/parser-fixtures/scanned-korean.pdf",
       "expected_features": ["ocr", "korean_text", "page_order"]
     },
@@ -26,6 +31,7 @@
       "description": "PDF exported from slides with diagrams and sparse text.",
       "source_type": "file",
       "mime_type": "application/pdf",
+      "local_path": "parser-fixtures.local/slide-heavy.pdf",
       "object_key": "benchmarks/parser-fixtures/slide-heavy.pdf",
       "expected_features": ["figures", "captions", "reading_order"]
     },
@@ -34,6 +40,7 @@
       "description": "Financial or spreadsheet-style PDF with dense tables.",
       "source_type": "file",
       "mime_type": "application/pdf",
+      "local_path": "parser-fixtures.local/table-heavy.pdf",
       "object_key": "benchmarks/parser-fixtures/table-heavy.pdf",
       "expected_features": ["tables", "cell_order", "numeric_text"]
     },
@@ -42,6 +49,7 @@
       "description": "DOCX with nested headings and tables.",
       "source_type": "file",
       "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "local_path": "parser-fixtures.local/headings-tables.docx",
       "object_key": "benchmarks/parser-fixtures/headings-tables.docx",
       "expected_features": ["headings", "tables"]
     },
@@ -50,6 +58,7 @@
       "description": "PPTX with images and speaker-style structure.",
       "source_type": "file",
       "mime_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "local_path": "parser-fixtures.local/images-speaker-structure.pptx",
       "object_key": "benchmarks/parser-fixtures/images-speaker-structure.pptx",
       "expected_features": ["figures", "slide_order", "captions"]
     },
@@ -58,6 +67,7 @@
       "description": "XLSX workbook with multiple table sheets.",
       "source_type": "file",
       "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "local_path": "parser-fixtures.local/table-workbook.xlsx",
       "object_key": "benchmarks/parser-fixtures/table-workbook.xlsx",
       "expected_features": ["tables", "sheet_order"]
     },
@@ -66,6 +76,7 @@
       "description": "HWP/HWPX document that exercises the unoconvert plus opendataloader path.",
       "source_type": "file",
       "mime_type": "application/vnd.hancom.hwpx",
+      "local_path": "parser-fixtures.local/korean-doc.hwpx",
       "object_key": "benchmarks/parser-fixtures/korean-doc.hwpx",
       "expected_features": ["korean_text", "tables", "converted_pdf"]
     },
@@ -82,6 +93,7 @@
       "description": "Single image document containing mixed Korean and English text.",
       "source_type": "file",
       "mime_type": "image/png",
+      "local_path": "parser-fixtures.local/image-only-document.png",
       "object_key": "benchmarks/parser-fixtures/image-only-document.png",
       "expected_features": ["ocr", "korean_text"]
     }

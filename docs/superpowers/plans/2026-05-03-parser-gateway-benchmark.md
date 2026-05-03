@@ -147,15 +147,30 @@ uv run python -m scripts.parser_benchmark \
   --dry-run
 ```
 
-Target non-dry command after real fixture wiring:
+Current parser non-dry command:
 
 ```bash
 cd apps/worker
 uv run python -m scripts.parser_benchmark \
   --manifest benchmarks/parser-fixtures.local.json \
+  --local-root /path/to/private/parser-fixtures \
   --parser current \
   --out benchmarks/results/current.jsonl
 ```
+
+Fixture input modes:
+
+- `local_path`: benchmark-only local file input, relative to the manifest
+  directory or `--local-root`. This path avoids S3/MinIO and patches only the
+  benchmark process' activity I/O calls.
+- `object_key`: production-like object storage input. This requires the normal
+  S3/R2/MinIO env and uses the current activities' object-store download path.
+- `url`: web fixture input for `x-opencairn/web-url`.
+
+The current baseline executes PDF, Office, HWP/HWPX, web URL, and text/Markdown
+fixtures. Image, audio, video, and YouTube fixture rows are recorded as
+`skipped` until those multimodal/provider paths have deterministic local
+fixtures. Existing `IngestWorkflow` dispatch is unchanged.
 
 Metrics per fixture:
 
@@ -164,6 +179,7 @@ Metrics per fixture:
 - peak Python heap
 - peak process RSS where the OS exposes it
 - pages, blocks, tables, figures, warnings
+- plain text projection character count
 - later scoring fields: table fidelity, heading/reading-order fidelity,
   figure/caption fidelity, formula fidelity, Korean text quality, output size,
   source-offset/bbox coverage, downstream chunk quality
@@ -210,10 +226,33 @@ Regression guardrails:
 - [x] Add benchmark command dry-run skeleton.
 - [x] Add fixture manifest skeleton.
 - [x] Add focused tests for schema/gateway/benchmark dry-run.
-- [ ] Add real fixture wiring for current parser benchmark.
+- [x] Add real fixture wiring for current parser benchmark.
 - [ ] Add benchmark scoring fields for quality and downstream chunk checks.
 - [ ] Decide, with benchmark output, whether Docling belongs in worker core or
       an optional parser service.
+
+## Current Parser Wiring Notes
+
+The non-dry `current` benchmark path is intentionally benchmark-local:
+
+- PDF/Office/HWP/HWPX local fixtures patch activity `download_to_tempfile` to
+  copy from `local_path` into a temp file. Activity event publishing, uploads,
+  and heartbeats are patched to no-op only inside the benchmark context.
+- Text/Markdown local fixtures are read directly and normalized through the
+  same `CurrentParserAdapter` path as activity outputs.
+- Web fixtures call the current SSRF-safe `scrape_web_url` activity.
+- Missing `local_path` rows are `skipped`, not failed, so the committed example
+  manifest remains runnable without binary fixtures.
+- Rows for image/audio/video/YouTube are `skipped` in this phase. They need
+  deterministic provider or local-media fixtures before they are useful as a
+  baseline.
+
+Remaining gaps:
+
+- no committed binary corpus
+- no table/heading/figure/formula quality scoring yet
+- no downstream chunk-quality scoring yet
+- no Docling/Marker/MinerU candidate execution
 
 ## Verification
 
@@ -223,6 +262,7 @@ Focused commands:
 cd apps/worker
 uv run pytest tests/lib/test_canonical_document.py tests/lib/test_parser_gateway.py tests/test_parser_benchmark.py
 uv run python -m scripts.parser_benchmark --manifest benchmarks/parser-fixtures.example.json --parser current --out benchmarks/results/parser-benchmark.jsonl --dry-run
+uv run python -m scripts.parser_benchmark --manifest benchmarks/parser-fixtures.local.json --local-root /path/to/private/parser-fixtures --parser current --out benchmarks/results/current.jsonl
 git diff --check
 ```
 
