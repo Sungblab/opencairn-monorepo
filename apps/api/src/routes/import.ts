@@ -11,8 +11,10 @@ import {
   userIntegrations,
 } from "@opencairn/db";
 import {
+  markdownUploadUrlSchema,
   notionUploadUrlSchema,
   startDriveImportSchema,
+  startMarkdownImportSchema,
   startNotionImportSchema,
 } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
@@ -26,11 +28,26 @@ import type { AppEnv } from "../lib/types";
 // zod schema cap). Deployments can lower it via env — useful for local dev
 // or free-tier plans. A separate 413 branch exists so the schema's own 400
 // doesn't have to double as a "too big" signal.
-function maxZipBytes(): number {
-  const raw = process.env.IMPORT_NOTION_ZIP_MAX_BYTES;
+function maxZipBytes(envName = "IMPORT_NOTION_ZIP_MAX_BYTES"): number {
+  const raw = process.env[envName];
   if (!raw) return 5 * 1024 * 1024 * 1024;
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? n : 5 * 1024 * 1024 * 1024;
+}
+
+function ownsIssuedZipObjectKey(args: {
+  key: string;
+  sourcePrefix: "notion" | "markdown";
+  workspaceId: string;
+  userId: string;
+}): boolean {
+  const expectedPrefix = `imports/${args.sourcePrefix}/${args.workspaceId}/${args.userId}/`;
+  return (
+    args.key.startsWith(expectedPrefix) &&
+    !args.key.includes("..") &&
+    !args.key.includes("//") &&
+    !args.key.includes("\\")
+  );
 }
 
 export const importRouter = new Hono<AppEnv>();
@@ -69,6 +86,37 @@ importRouter.post(
   },
 );
 
+importRouter.post(
+  "/markdown/upload-url",
+  requireAuth,
+  zValidator("json", markdownUploadUrlSchema),
+  async (c) => {
+    const userId = c.get("userId");
+    const body = c.req.valid("json");
+
+    const ceiling = maxZipBytes("IMPORT_MARKDOWN_ZIP_MAX_BYTES");
+    if (body.size > ceiling) {
+      return c.json({ error: "zip_too_large", maxBytes: ceiling }, 413);
+    }
+
+    const allowed = await canWrite(userId, {
+      type: "workspace",
+      id: body.workspaceId,
+    });
+    if (!allowed) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+
+    const objectKey = `imports/markdown/${body.workspaceId}/${userId}/${Date.now()}-${randomUUID()}.zip`;
+    const uploadUrl = await getPresignedPutUrl(objectKey, {
+      expiresSeconds: 30 * 60,
+      contentType: "application/zip",
+      maxSize: body.size,
+    });
+    return c.json({ objectKey, uploadUrl });
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Start import — /api/import/drive and /api/import/notion
 // ─────────────────────────────────────────────────────────────────────────────
@@ -98,7 +146,7 @@ async function startImportWorkflow(args: {
   workflowId: string;
   userId: string;
   workspaceId: string;
-  source: "google_drive" | "notion_zip";
+  source: "google_drive" | "notion_zip" | "markdown_zip";
   sourceMetadata: Record<string, unknown>;
 }) {
   const client = await getTemporalClient();
@@ -228,12 +276,13 @@ importRouter.post(
     // path (a future presigned helper, a worker fs join, etc). MinIO itself
     // doesn't normalize so the bypass is latent today, but we reject it
     // anyway to harden against any layer that does.
-    const expectedPrefix = `imports/notion/${body.workspaceId}/${userId}/`;
     if (
-      !body.zipObjectKey.startsWith(expectedPrefix) ||
-      body.zipObjectKey.includes("..") ||
-      body.zipObjectKey.includes("//") ||
-      body.zipObjectKey.includes("\\")
+      !ownsIssuedZipObjectKey({
+        key: body.zipObjectKey,
+        sourcePrefix: "notion",
+        workspaceId: body.workspaceId,
+        userId,
+      })
     ) {
       return c.json({ error: "zip_object_key_not_owned" }, 403);
     }
@@ -278,6 +327,71 @@ importRouter.post(
   },
 );
 
+importRouter.post(
+  "/markdown",
+  requireAuth,
+  zValidator("json", startMarkdownImportSchema),
+  async (c) => {
+    const userId = c.get("userId");
+    const body = c.req.valid("json");
+
+    const allowed = await canWrite(userId, {
+      type: "workspace",
+      id: body.workspaceId,
+    });
+    if (!allowed) return c.json({ error: "Forbidden" }, 403);
+
+    if (
+      !ownsIssuedZipObjectKey({
+        key: body.zipObjectKey,
+        sourcePrefix: "markdown",
+        workspaceId: body.workspaceId,
+        userId,
+      })
+    ) {
+      return c.json({ error: "zip_object_key_not_owned" }, 403);
+    }
+
+    if ((await runningImportCount(userId)) >= MAX_CONCURRENT_IMPORTS) {
+      return c.json(
+        { error: "import_limit_exceeded", limit: MAX_CONCURRENT_IMPORTS },
+        429,
+      );
+    }
+
+    const workflowId = `import-${randomUUID()}`;
+    const sourceMetadata = {
+      zip_object_key: body.zipObjectKey,
+      original_name: body.originalName,
+    };
+    const [job] = await db
+      .insert(importJobs)
+      .values({
+        workspaceId: body.workspaceId,
+        userId,
+        source: "markdown_zip",
+        targetProjectId:
+          body.target.kind === "existing" ? body.target.projectId : null,
+        targetParentNoteId:
+          body.target.kind === "existing" ? body.target.parentNoteId : null,
+        workflowId,
+        status: "queued",
+        sourceMetadata,
+      })
+      .returning({ id: importJobs.id });
+
+    await startImportWorkflow({
+      jobId: job.id,
+      workflowId,
+      userId,
+      workspaceId: body.workspaceId,
+      source: "markdown_zip",
+      sourceMetadata,
+    });
+    return c.json({ jobId: job.id }, 201);
+  },
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // List / detail / SSE / cancel — consumed by the /import page (Task 14+)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -290,6 +404,11 @@ type RawSourceMeta = Record<string, unknown>;
 function safeSourceMetadata(source: string, meta: unknown): RawSourceMeta {
   const m = (meta ?? {}) as RawSourceMeta;
   if (source === "notion_zip") {
+    return {
+      originalName: typeof m.original_name === "string" ? m.original_name : null,
+    };
+  }
+  if (source === "markdown_zip") {
     return {
       originalName: typeof m.original_name === "string" ? m.original_name : null,
     };
@@ -494,7 +613,11 @@ importRouter.post("/jobs/:id/retry", requireAuth, async (c) => {
   if (!(await canWrite(userId, { type: "workspace", id: job.workspaceId }))) {
     return c.json({ error: "Forbidden" }, 403);
   }
-  if (job.source !== "google_drive" && job.source !== "notion_zip") {
+  if (
+    job.source !== "google_drive" &&
+    job.source !== "notion_zip" &&
+    job.source !== "markdown_zip"
+  ) {
     return c.json({ error: "retry_not_supported" }, 409);
   }
   if ((await runningImportCount(userId)) >= MAX_CONCURRENT_IMPORTS) {

@@ -3,7 +3,8 @@
   "pageDescription": "Bring content from external services into this workspace.",
   "tabs": {
     "drive": "Google Drive",
-    "notion": "Notion ZIP"
+    "notion": "Notion ZIP",
+    "markdown": "Markdown ZIP"
   },
   "drive": {
     "notConnected": "Connect Google Drive",
@@ -20,6 +21,12 @@
     "uploading": "Uploading... {progress}%",
     "uploaded": "Uploaded: {name} ({size})",
     "tooLarge": "ZIP is too large (max {max})."
+  },
+  "markdown": {
+    "instructions": "Upload a Markdown export ZIP. OpenCairn imports folder structure, .md files, and relative-path attachments.",
+    "dropZone": "Select Markdown ZIP",
+    "uploading": "Uploading... {progress}%",
+    "uploaded": "Uploaded: {name} ({size})"
   },
   "target": {
     "label": "Import to",

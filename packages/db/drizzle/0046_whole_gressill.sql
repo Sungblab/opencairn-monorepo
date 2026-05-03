@@ -1,0 +1,1 @@
+ALTER TYPE "public"."source_type" ADD VALUE 'markdown' BEFORE 'unknown';

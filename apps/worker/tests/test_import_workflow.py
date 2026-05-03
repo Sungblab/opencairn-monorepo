@@ -76,3 +76,80 @@ async def test_import_workflow_threads_workspace_id_to_child_ingest() -> None:
 
     child_input = captured["child_input"]
     assert child_input.workspace_id == "ws-1"
+
+
+@pytest.mark.asyncio
+async def test_import_workflow_routes_markdown_zip_branch() -> None:
+    from worker.workflows.import_workflow import ImportInput, ImportWorkflow
+
+    inp = ImportInput(
+        job_id="job-1",
+        user_id="user-1",
+        workspace_id="ws-1",
+        source="markdown_zip",
+        source_metadata={
+            "zip_object_key": "imports/markdown/ws-1/user-1/vault.zip",
+            "original_name": "vault.zip",
+            "max_concurrent_items": 1,
+        },
+    )
+    manifest = {
+        "nodes": [
+            {
+                "idx": 0,
+                "kind": "page",
+                "path": "Index.md",
+                "display_name": "Index",
+                "meta": {"md_path": "Index.md"},
+            },
+            {
+                "idx": 1,
+                "kind": "binary",
+                "path": "assets/a.png",
+                "display_name": "a.png",
+                "meta": {"staged_path": "assets/a.png", "mime": "image/png"},
+            },
+        ],
+        "uuid_link_map": {},
+        "link_title_map": {"index": 0},
+    }
+    calls: list[tuple[str, dict]] = []
+    captured_child: dict[str, object] = {}
+
+    async def fake_activity(name, payload, **_kwargs):
+        calls.append((name, payload))
+        if name == "resolve_target":
+            return {"project_id": "proj-1", "parent_note_id": None}
+        if name == "unzip_markdown_export":
+            return manifest
+        if name == "materialize_page_tree":
+            return {
+                "idx_to_note_id": {"0": "note-1"},
+                "binary_effective_parent": {"1": "note-1"},
+            }
+        if name == "convert_notion_md_to_plate":
+            assert payload["source_type"] == "markdown"
+            assert payload["link_title_map"] == {"index": 0}
+            return None
+        if name == "upload_staging_to_minio":
+            assert payload["object_key"] == "imports/markdown/job-1/assets/a.png"
+            return {"object_key": payload["object_key"], "mime": "image/png"}
+        if name == "finalize_import_job":
+            return None
+        raise AssertionError(f"unexpected activity {name}")
+
+    async def fake_child(_run, child_input, **_kwargs):
+        captured_child["child_input"] = child_input
+        return "ok"
+
+    wf = ImportWorkflow()
+    with patch("temporalio.workflow.execute_activity", side_effect=fake_activity), patch(
+        "temporalio.workflow.execute_child_workflow", side_effect=fake_child
+    ):
+        result = await wf.run(inp)
+
+    assert result == {"total": 2, "completed": 2, "failed": 0}
+    assert [name for name, _ in calls].count("unzip_markdown_export") == 1
+    child_input = captured_child["child_input"]
+    assert child_input.workspace_id == "ws-1"
+    assert child_input.note_id == "note-1"

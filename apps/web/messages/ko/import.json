@@ -3,7 +3,8 @@
   "pageDescription": "외부 서비스에서 자료를 워크스페이스로 옮겨옵니다.",
   "tabs": {
     "drive": "Google Drive",
-    "notion": "Notion ZIP"
+    "notion": "Notion ZIP",
+    "markdown": "Markdown ZIP"
   },
   "drive": {
     "notConnected": "Google Drive 연결하기",
@@ -20,6 +21,12 @@
     "uploading": "업로드 중... {progress}%",
     "uploaded": "업로드 완료: {name} ({size})",
     "tooLarge": "ZIP 파일이 너무 큽니다 (최대 {max})."
+  },
+  "markdown": {
+    "instructions": "Markdown 내보내기 ZIP을 업로드하세요. 폴더 구조, .md 파일, 상대 경로 첨부파일을 가져옵니다.",
+    "dropZone": "Markdown ZIP 선택",
+    "uploading": "업로드 중... {progress}%",
+    "uploaded": "업로드 완료: {name} ({size})"
   },
   "target": {
     "label": "가져올 위치",

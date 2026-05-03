@@ -1870,7 +1870,18 @@ const internalNotePatchSchema = z.object({
   contentText: z.string().optional(),
   title: z.string().min(1).max(512).optional(),
   sourceType: z
-    .enum(["pdf", "audio", "video", "image", "youtube", "web", "unknown", "notion", "paper"])
+    .enum([
+      "pdf",
+      "audio",
+      "video",
+      "image",
+      "youtube",
+      "web",
+      "unknown",
+      "notion",
+      "markdown",
+      "paper",
+    ])
     .nullable()
     .optional(),
 });
