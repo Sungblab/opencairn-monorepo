@@ -28,6 +28,10 @@ interface Props {
   root?: string;
 }
 
+function edgeElementId(edge: GroundedEdge) {
+  return edge.id ?? `${edge.sourceId}->${edge.targetId}:${edge.relationType}`;
+}
+
 export default function MindmapView({ projectId, root }: Props) {
   const t = useTranslations("graph");
   const router = useRouter();
@@ -51,7 +55,7 @@ export default function MindmapView({ projectId, root }: Props) {
       })),
       ...data.edges.map((e) => ({
         data: {
-          id: e.id ?? `${e.sourceId}-${e.targetId}`,
+          id: edgeElementId(e),
           source: e.sourceId,
           target: e.targetId,
           type: "edge",
@@ -62,7 +66,7 @@ export default function MindmapView({ projectId, root }: Props) {
   }, [data]);
 
   const selectedEdge = useMemo(
-    () => data?.edges.find((edge) => edge.id === selectedEdgeId) as
+    () => data?.edges.find((edge) => edgeElementId(edge) === selectedEdgeId) as
       | GroundedEdge
       | undefined,
     [data?.edges, selectedEdgeId],
@@ -179,7 +183,11 @@ export default function MindmapView({ projectId, root }: Props) {
             style: { "line-color": "hsl(var(--primary))", "target-arrow-color": "hsl(var(--primary))" },
           },
           {
-            selector: 'edge[supportStatus = "weak"], edge[supportStatus = "missing"]',
+            selector: 'edge[supportStatus = "weak"]',
+            style: { "line-style": "dashed", opacity: 0.65 },
+          },
+          {
+            selector: 'edge[supportStatus = "missing"]',
             style: { "line-style": "dotted", opacity: 0.65 },
           },
           {

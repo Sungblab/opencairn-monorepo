@@ -39,11 +39,14 @@ export default function CardsView({ projectId }: Props) {
   }
 
   const bundles = evidenceBundleById(data.evidenceBundles);
+  const cardsByConceptId = new Map(
+    (data.cards ?? []).map((card) => [card.conceptId, card]),
+  );
 
   return (
     <div className="grid grid-cols-2 gap-4 overflow-y-auto p-4 lg:grid-cols-3 xl:grid-cols-4">
       {data.nodes.map((n) => {
-        const card = data.cards?.find((item) => item.conceptId === n.id);
+        const card = cardsByConceptId.get(n.id);
         const bundle = card?.evidenceBundleId
           ? bundles.get(card.evidenceBundleId)
           : undefined;
