@@ -315,8 +315,12 @@ describe("chat-retrieval chunk fallback", () => {
 
     expect(hits[0]).toMatchObject({
       noteId: "n1",
-      title: "Chunked · Intro",
+      chunkId: "c1",
+      title: "Chunked",
+      headingPath: "Intro",
       snippet: "chunk hit",
+      evidenceId: "chunk:c1",
+      provenance: "extracted",
     });
     expect(search.projectHybridSearch).not.toHaveBeenCalled();
   });

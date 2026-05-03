@@ -6,6 +6,15 @@ import {
   projectChunkHybridSearch,
   type ChunkHybridHit,
 } from "./chunk-hybrid-search";
+import { candidateFromRetrievalHit } from "./retrieval-candidates";
+import { rerankCandidates } from "./retrieval-rerank";
+import type {
+  EvidenceProducer,
+  EvidenceProvenance,
+  EvidenceSupport,
+  RetrievalChannel,
+  SourceSpan,
+} from "./retrieval-candidates";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -23,9 +32,21 @@ export type RetrievalChip =
 
 export type RetrievalHit = {
   noteId: string;
+  chunkId?: string | null;
   title: string;
+  headingPath?: string;
   snippet: string;
   score: number;
+  channelScores?: Partial<Record<RetrievalChannel, number>>;
+  sourceType?: string | null;
+  sourceUrl?: string | null;
+  updatedAt?: string | null;
+  provenance?: EvidenceProvenance;
+  producer?: EvidenceProducer;
+  confidence?: number;
+  sourceSpan?: SourceSpan | null;
+  evidenceId?: string;
+  support?: EvidenceSupport;
 };
 
 type ProjectRetrievalHit = RetrievalHit & {
@@ -123,14 +144,41 @@ export async function retrieve(opts: {
       if (!merged.has(h.sourceKey)) merged.set(h.sourceKey, h);
     }
   }
-  return Array.from(merged.values())
-    .sort((a, b) => b.score - a.score)
+  const hitCandidates = Array.from(merged.values()).map((hit, index) => ({
+    hit,
+    candidate: candidateFromRetrievalHit(hit, index),
+  }));
+  const rerankedIds = rerankCandidates({
+    query: opts.query,
+    candidates: hitCandidates.map((item) => item.candidate),
+  }).map((candidate) => candidate.id);
+  const rank = new Map(rerankedIds.map((id, index) => [id, index]));
+
+  return hitCandidates
+    .sort(
+      (a, b) =>
+        (rank.get(a.candidate.id) ?? Number.MAX_SAFE_INTEGER) -
+          (rank.get(b.candidate.id) ?? Number.MAX_SAFE_INTEGER) ||
+        b.hit.score - a.hit.score,
+    )
     .slice(0, k)
-    .map((h) => ({
+    .map(({ hit: h }) => ({
       noteId: h.noteId,
+      chunkId: h.chunkId,
       title: h.title,
+      headingPath: h.headingPath,
       snippet: h.snippet,
       score: h.score,
+      channelScores: h.channelScores,
+      sourceType: h.sourceType,
+      sourceUrl: h.sourceUrl,
+      updatedAt: h.updatedAt,
+      provenance: h.provenance,
+      producer: h.producer,
+      confidence: h.confidence,
+      sourceSpan: h.sourceSpan,
+      evidenceId: h.evidenceId,
+      support: h.support,
     }));
 }
 
@@ -147,9 +195,21 @@ async function retrieveProjectHits(opts: {
     return chunkHits.map((h) => ({
       sourceKey: `chunk:${h.chunkId}`,
       noteId: h.noteId,
-      title: h.headingPath ? `${h.title} · ${h.headingPath}` : h.title,
+      chunkId: h.chunkId,
+      title: h.title,
+      headingPath: h.headingPath,
       snippet: h.snippet,
       score: h.rrfScore,
+      channelScores: channelScores(h),
+      sourceType: null,
+      sourceUrl: null,
+      updatedAt: null,
+      provenance: "extracted",
+      producer: { kind: "api", tool: "chat-retrieval" },
+      confidence: confidenceFromScores(h),
+      sourceSpan: null,
+      evidenceId: `chunk:${h.chunkId}`,
+      support: "supports",
     }));
   }
 
@@ -160,9 +220,38 @@ async function retrieveProjectHits(opts: {
     sourceKey: `note:${h.noteId}`,
     noteId: h.noteId,
     title: h.title,
+    headingPath: "",
     snippet: h.snippet,
     score: h.rrfScore,
+    channelScores: channelScores(h),
+    sourceType: h.sourceType,
+    sourceUrl: h.sourceUrl,
+    updatedAt: null,
+    provenance: "extracted",
+    producer: { kind: "api", tool: "chat-retrieval" },
+    confidence: confidenceFromScores(h),
+    sourceSpan: null,
+    evidenceId: `note:${h.noteId}`,
+    support: "supports",
   }));
+}
+
+function channelScores(hit: {
+  vectorScore: number | null;
+  bm25Score: number | null;
+}): Partial<Record<RetrievalChannel, number>> {
+  return {
+    ...(hit.vectorScore == null ? {} : { vector: hit.vectorScore }),
+    ...(hit.bm25Score == null ? {} : { bm25: hit.bm25Score }),
+  };
+}
+
+function confidenceFromScores(hit: {
+  vectorScore: number | null;
+  bm25Score: number | null;
+  rrfScore: number;
+}): number {
+  return Math.max(hit.vectorScore ?? 0, hit.bm25Score ?? 0, hit.rrfScore);
 }
 
 // ── Scope/chip resolution ────────────────────────────────────────────────
