@@ -11,9 +11,11 @@ import {
   type ChatMode,
 } from "./chat-runtime-policy";
 import { extractSaveSuggestion } from "./save-suggestion-fence";
+import { extractAgentFileFence } from "./agent-file-fence";
 import { envInt } from "./env";
 import { getChatProvider } from "./llm";
 import type { ChatMsg, LLMProvider, Usage } from "./llm/provider";
+import type { CreateAgentFilePayload } from "@opencairn/shared";
 
 export type ChatChunk =
   | { type: "status"; payload: { phrase: string } }
@@ -24,6 +26,7 @@ export type ChatChunk =
       type: "save_suggestion";
       payload: { title: string; body_markdown: string };
     }
+  | { type: "agent_file"; payload: { files: CreateAgentFilePayload[] } }
   | { type: "usage"; payload: Usage }
   | {
       type: "error";
@@ -45,6 +48,16 @@ const SYSTEM_PROMPT = [
   "```",
   "",
   "Skip the block when in doubt. The body must be valid JSON on a single physical block.",
+  "",
+  "If the user asks you to create, export, download, render, compile, or save a real file,",
+  "append exactly one fenced block at the very end of your reply, in this exact form:",
+  "",
+  "```agent-file",
+  `{"files":[{"filename":"example.md","kind":"markdown","mimeType":"text/markdown","content":"# Example\\n..."}]}`,
+  "```",
+  "",
+  "Use this for Markdown, text, LaTeX, HTML, code, JSON, CSV, PDF/DOCX/PPTX base64, and images.",
+  "Do not invent object keys or URLs. The server stores the bytes, indexes the file, and returns links.",
 ].join("\n");
 
 export async function* runChat(opts: {
@@ -171,6 +184,10 @@ export async function* runChat(opts: {
     const suggestion = extractSaveSuggestion(full);
     if (suggestion) {
       yield { type: "save_suggestion", payload: suggestion };
+    }
+    const agentFile = extractAgentFileFence(full);
+    if (agentFile) {
+      yield { type: "agent_file", payload: agentFile };
     }
 
     if (usage) yield { type: "usage", payload: usage };

@@ -54,6 +54,7 @@ import { mcpRoutes } from "./routes/mcp";
 import { mcpProtectedResourceRoutes, mcpServerRoutes } from "./routes/mcp-server";
 import { connectorRoutes as connectorFoundationRoutes } from "./routes/connectors";
 import { notificationPreferenceRoutes } from "./routes/notification-preferences";
+import { agentFileRoutes } from "./routes/agent-files";
 import { startEmailDispatcher } from "./lib/email-dispatcher";
 
 export function createApp() {
@@ -108,6 +109,7 @@ export function createApp() {
   app.route("/api/mcp", mcpServerRoutes);
   app.route("/.well-known/oauth-protected-resource", mcpProtectedResourceRoutes);
   app.route("/api/connectors", connectorFoundationRoutes);
+  app.route("/api/agent-files", agentFileRoutes);
   // Plan 2C share-link routes. Same public-then-auth shape as inviteRoutes.
   // Mounted FIRST among `/api` wildcard sub-apps so its public route
   // (`/api/public/share/:token`) is dispatched before any other sub-app's

@@ -31,6 +31,7 @@ import * as userMcpServers from "./schema/user-mcp-servers";
 import * as connectors from "./schema/connectors";
 import * as mcpServerTokens from "./schema/mcp-server-tokens";
 import * as noteVersions from "./schema/note-versions";
+import * as agentFiles from "./schema/agent-files";
 
 const schema = {
   ...users,
@@ -64,6 +65,7 @@ const schema = {
   ...connectors,
   ...mcpServerTokens,
   ...noteVersions,
+  ...agentFiles,
 };
 
 // 명시적 factory — 소비자가 자체 pool을 소유하고 싶을 때 사용.

@@ -12,7 +12,8 @@ export type TabKind =
   | "import"
   | "ws_settings"
   | "ingest"
-  | "lit_search";
+  | "lit_search"
+  | "agent_file";
 
 export type TabMode =
   | "plate"
@@ -25,6 +26,7 @@ export type TabMode =
   | "whiteboard"
   | "source"
   | "canvas"
+  | "agent-file"
   | "graph"
   | "mindmap"
   | "flashcard"

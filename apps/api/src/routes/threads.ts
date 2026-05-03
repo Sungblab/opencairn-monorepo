@@ -15,6 +15,8 @@ import { requireAuth } from "../middleware/auth";
 import { canRead } from "../lib/permissions";
 import { isUuid } from "../lib/validators";
 import type { AppEnv } from "../lib/types";
+import { createAgentFile } from "../lib/agent-files";
+import { emitTreeEvent } from "../lib/tree-events";
 import {
   runAgent as defaultRunAgent,
   createStreamingAgentMessage,
@@ -328,6 +330,54 @@ export const threadRoutes = new Hono<AppEnv>()
                 ];
               } else if (chunk.type === "save_suggestion") {
                 meta.save_suggestion = chunk.payload;
+              } else if (chunk.type === "agent_file") {
+                const projectId = projectIdFromScope(scope);
+                if (!projectId) {
+                  streamStatus = "failed";
+                  meta.error = {
+                    code: "agent_file_project_required",
+                    message: "A project scope is required to create files.",
+                  };
+                  send("error", meta.error);
+                  continue;
+                }
+                const payload = chunk.payload as {
+                  files: Array<{
+                    filename: string;
+                    title?: string;
+                    kind?: import("@opencairn/shared").AgentFileKind;
+                    mimeType?: string;
+                    content?: string;
+                    base64?: string;
+                    folderId?: string | null;
+                    startIngest?: boolean;
+                  }>;
+                };
+                const created = [];
+                for (const file of payload.files) {
+                  const summary = await createAgentFile({
+                    userId,
+                    projectId,
+                    source: "agent_chat",
+                    chatThreadId: id,
+                    chatMessageId: agentId,
+                    file,
+                  });
+                  emitTreeEvent({
+                    kind: "tree.agent_file_created",
+                    projectId: summary.projectId,
+                    id: summary.id,
+                    parentId: summary.folderId,
+                    label: summary.title,
+                    at: new Date().toISOString(),
+                  });
+                  created.push(summary);
+                  send("agent_file_created", { file: summary });
+                }
+                meta.agent_files = [
+                  ...((meta.agent_files as unknown[]) ?? []),
+                  ...created,
+                ];
               } else if (chunk.type === "usage") {
                 // Lifted out of `content` and into `chat_messages.token_usage`
                 // by finalizeAgentMessage — kept here only as a sidecar so
@@ -376,3 +426,23 @@ export const threadRoutes = new Hono<AppEnv>()
       });
     },
   );
+
+function projectIdFromScope(scope: unknown): string | null {
+  if (!scope || typeof scope !== "object" || Array.isArray(scope)) return null;
+  const obj = scope as Record<string, unknown>;
+  if (typeof obj.projectId === "string") return obj.projectId;
+  if (typeof obj.id === "string" && obj.type === "project") return obj.id;
+  const chips = Array.isArray(obj.chips) ? obj.chips : [];
+  for (const chip of chips) {
+    if (
+      chip &&
+      typeof chip === "object" &&
+      !Array.isArray(chip) &&
+      (chip as Record<string, unknown>).type === "project" &&
+      typeof (chip as Record<string, unknown>).id === "string"
+    ) {
+      return (chip as Record<string, string>).id;
+    }
+  }
+  return null;
+}

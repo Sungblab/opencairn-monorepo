@@ -170,6 +170,23 @@ Cookie: better-auth.session_token=<token>
 | PATCH | /api/notes/:id/move | page `editor` | 폴더 간 이동(또는 프로젝트 루트로). `moveNote()`가 cross-project 타겟을 거절. | `{ folderId: uuid \| null }` |
 | DELETE | /api/notes/:id | page `editor` | 소프트 삭제 | - |
 
+### Agent Files
+
+Agent-generated files are first-class project objects stored in MinIO/R2 and surfaced in the project tree as `kind:"agent_file"`. They are not Plate notes, but may link to a source note after ingest or to a Canvas note after code materialization.
+
+| Method | Path | Auth | Description | Body |
+|--------|------|------|-------------|------|
+| POST | /api/agent-files | project `editor` | Create 1-5 stored files from inline UTF-8 content or base64 bytes. Uploads bytes, inserts `agent_files`, optionally starts ingest, emits tree event. | `{ projectId, source?, threadId?, messageId?, files: [{ filename, title?, kind?, mimeType?, content? XOR base64?, folderId?, startIngest? }] }` |
+| GET | /api/agent-files/:id | project `viewer` | Read metadata for an undeleted generated file. | - |
+| GET | /api/agent-files/:id/file | project `viewer` | Stream original bytes with safe `Content-Disposition`; inline for previewable kinds, attachment for opaque binaries. | - |
+| GET | /api/agent-files/:id/compiled | project `viewer` | Stream compiled derivative, currently LaTeX PDF when `compiled_object_key` exists. | - |
+| PATCH | /api/agent-files/:id | project `editor` | Rename title/filename or move folder. Never overwrites original bytes. | `{ title?, filename?, folderId? }` |
+| POST | /api/agent-files/:id/versions | project `editor` | Create a new immutable version row with a new object key. | `{ title?, filename?, content? XOR base64?, startIngest? }` |
+| POST | /api/agent-files/:id/ingest | project `editor` | Start or retry existing `IngestWorkflow` against the stored object. | - |
+| POST | /api/agent-files/:id/compile | project `editor` | Compile LaTeX through Tectonic when `FEATURE_TECTONIC_COMPILE=true`; otherwise `409 { error:"compile_disabled" }`. | - |
+| POST | /api/agent-files/:id/canvas | project `editor` | Materialize code/html source into a Canvas note and link `agent_files.canvas_note_id`. Execution remains browser sandboxed. | - |
+| DELETE | /api/agent-files/:id | project `editor` | Soft delete generated file row; stored bytes remain immutable. | - |
+
 ### Ingest
 
 | Method | Path | Auth | Description | Body |

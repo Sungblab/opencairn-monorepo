@@ -237,6 +237,8 @@ export const projectRoutes = new Hono<AppEnv>()
         parent_id: r.parentId,
         label: r.label,
         child_count: r.childCount,
+        file_kind: r.fileKind ?? null,
+        mime_type: r.mimeType ?? null,
         children:
           r.kind === "folder"
             ? (grouped.get(r.id) ?? []).map((ch) => ({
@@ -245,6 +247,8 @@ export const projectRoutes = new Hono<AppEnv>()
                 parent_id: ch.parentId,
                 label: ch.label,
                 child_count: ch.childCount,
+                file_kind: ch.fileKind ?? null,
+                mime_type: ch.mimeType ?? null,
               }))
             : [],
       })),

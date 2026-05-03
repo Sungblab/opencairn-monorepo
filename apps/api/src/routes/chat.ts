@@ -12,6 +12,7 @@ import {
   asc,
   sql,
   user,
+  notes,
   type AttachedChip,
   type Citation,
 } from "@opencairn/db";
@@ -36,6 +37,8 @@ import {
 } from "../lib/llm/provider";
 import type { RetrievalScope, RetrievalChip } from "../lib/chat-retrieval";
 import type { AppEnv } from "../lib/types";
+import { createAgentFile } from "../lib/agent-files";
+import { emitTreeEvent } from "../lib/tree-events";
 
 // Plan 11A — /api/chat router. Each conversation is owned by exactly one
 // user (`owner_user_id`). Workspace boundary is checked at every entry
@@ -497,6 +500,54 @@ chatRoutes.post(
               title: string;
               body_markdown: string;
             };
+          } else if (chunk.type === "agent_file") {
+            const projectId = await projectIdForConversationScope({
+              scopeType: convo.scopeType,
+              scopeId: convo.scopeId,
+            });
+            if (!projectId) {
+              await stream.writeSSE({
+                event: "error",
+                data: JSON.stringify({
+                  code: "agent_file_project_required",
+                  message: "A project scope is required to create files.",
+                }),
+              });
+              await stream.writeSSE({ event: "done", data: "{}" });
+              return;
+            }
+            const payload = chunk.payload as {
+              files: Array<{
+                filename: string;
+                title?: string;
+                kind?: import("@opencairn/shared").AgentFileKind;
+                mimeType?: string;
+                content?: string;
+                base64?: string;
+                folderId?: string | null;
+                startIngest?: boolean;
+              }>;
+            };
+            for (const file of payload.files) {
+              const summary = await createAgentFile({
+                userId,
+                projectId,
+                source: "agent_chat",
+                file,
+              });
+              emitTreeEvent({
+                kind: "tree.agent_file_created",
+                projectId: summary.projectId,
+                id: summary.id,
+                parentId: summary.folderId,
+                label: summary.title,
+                at: new Date().toISOString(),
+              });
+              await stream.writeSSE({
+                event: "agent_file_created",
+                data: JSON.stringify({ file: summary }),
+              });
+            }
           } else if (chunk.type === "error") {
             const e = chunk.payload as {
               message: string;
@@ -634,3 +685,17 @@ chatRoutes.post(
     return c.json({ pinned: true });
   },
 );
+
+async function projectIdForConversationScope(input: {
+  scopeType: string;
+  scopeId: string;
+}): Promise<string | null> {
+  if (input.scopeType === "project") return input.scopeId;
+  if (input.scopeType !== "page") return null;
+  const [note] = await db
+    .select({ projectId: notes.projectId })
+    .from(notes)
+    .where(eq(notes.id, input.scopeId))
+    .limit(1);
+  return note?.projectId ?? null;
+}

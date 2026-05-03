@@ -19,7 +19,11 @@ export type TreeEventKind =
   | "tree.note_renamed"
   | "tree.note_moved"
   | "tree.note_deleted"
-  | "tree.note_restored";
+  | "tree.note_restored"
+  | "tree.agent_file_created"
+  | "tree.agent_file_renamed"
+  | "tree.agent_file_moved"
+  | "tree.agent_file_deleted";
 
 export interface TreeEvent {
   kind: TreeEventKind;
