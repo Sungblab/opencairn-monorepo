@@ -31,7 +31,9 @@ export type ChatChunk =
   | { type: "agent_file"; payload: { files: CreateAgentFilePayload[] } }
   | {
       type: "verification";
-      payload: AnswerVerificationResult & { action: "pass" | "warn" };
+      payload: AnswerVerificationResult & {
+        action: AnswerVerificationResult["verdict"];
+      };
     }
   | { type: "usage"; payload: Usage }
   | {
@@ -223,7 +225,9 @@ export async function* runChat(opts: {
 function verifyRuntimeAnswer(input: {
   answer: string;
   evidenceBundle: ReturnType<typeof packEvidence>;
-}): (AnswerVerificationResult & { action: "pass" | "warn" }) | null {
+}): (AnswerVerificationResult & {
+  action: AnswerVerificationResult["verdict"];
+}) | null {
   if (input.evidenceBundle.items.length === 0) return null;
 
   const ledger = buildChatSourceLedger(
@@ -244,7 +248,7 @@ function verifyRuntimeAnswer(input: {
 
   return {
     ...result,
-    action: result.verdict === "pass" ? "pass" : "warn",
+    action: result.verdict,
   };
 }
 

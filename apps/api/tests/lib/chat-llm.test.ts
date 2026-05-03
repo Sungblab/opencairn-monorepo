@@ -217,7 +217,7 @@ describe("runChat happy path", () => {
     });
   });
 
-  it("soft-warns when a grounded answer omits sentence citations", async () => {
+  it("marks missing sentence citations as a fail action without blocking streamed text", async () => {
     retrievalMod.retrieve.mockResolvedValue([
       {
         noteId: "n1",
@@ -253,8 +253,47 @@ describe("runChat happy path", () => {
     const verification = events.find((e) => e.type === "verification");
     expect(verification?.payload).toMatchObject({
       verdict: "fail",
-      action: "warn",
+      action: "fail",
       findings: [{ reason: "missing_citation" }],
+    });
+  });
+
+  it("keeps weak support as a warn action", async () => {
+    retrievalMod.retrieve.mockResolvedValue([
+      {
+        noteId: "n1",
+        chunkId: "c1",
+        title: "Alpha policy",
+        headingPath: "Grounding",
+        snippet: "Alpha policy requires runtime answer verification.",
+        score: 0.9,
+        provenance: "extracted",
+        confidence: 0.9,
+        evidenceId: "chunk:c1",
+      },
+    ]);
+    fakeProvider.streamGenerate.mockImplementation(async function* () {
+      yield { delta: "A different unsupported claim appears here [^1]." };
+      yield { usage: { tokensIn: 30, tokensOut: 7, model: "gemini-2.5-flash" } };
+    });
+
+    const events = await collect(
+      runChat({
+        workspaceId: "ws-1",
+        scope: { type: "workspace", workspaceId: "ws-1" },
+        ragMode: "strict",
+        chips: [],
+        history: [],
+        userMessage: "what is the alpha policy?",
+        provider: fakeProvider,
+      }),
+    );
+
+    const verification = events.find((e) => e.type === "verification");
+    expect(verification?.payload).toMatchObject({
+      verdict: "warn",
+      action: "warn",
+      findings: [{ reason: "weak_support" }],
     });
   });
 });
