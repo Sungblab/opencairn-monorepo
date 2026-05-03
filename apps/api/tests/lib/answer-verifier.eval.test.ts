@@ -109,3 +109,24 @@ describe("answer verifier multilingual support", () => {
     expect(result.verdict).toBe("pass");
   });
 });
+
+describe("answer verifier runtime citation formats", () => {
+  it("accepts chat runtime numeric footnote citations", () => {
+    const ledger = buildChatSourceLedger([
+      {
+        noteId: "note-runtime",
+        noteChunkId: "chunk-runtime",
+        title: "Runtime policy",
+        quote: "Runtime verification uses retrieved source evidence.",
+      },
+    ]);
+
+    const result = verifyGroundedAnswer({
+      answer: "Runtime verification uses retrieved source evidence [^1].",
+      ledger,
+    });
+
+    expect(result.verdict).toBe("pass");
+    expect(result.citedLabels).toEqual(["S1"]);
+  });
+});

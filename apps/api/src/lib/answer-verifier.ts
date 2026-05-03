@@ -29,8 +29,8 @@ export type VerifyGroundedAnswerInput = {
   minOverlap?: number;
 };
 
-const CITATION_RE = /\[(S\d+)(?:\s*,\s*S\d+)*\]/g;
-const LABEL_RE = /S\d+/g;
+const CITATION_RE = /\[(?:\^?\d+|S\d+)(?:\s*,\s*(?:\^?\d+|S\d+))*\]/g;
+const RAW_LABEL_RE = /S\d+|\^?\d+/g;
 const REFUSAL_RE =
   /(근거가 부족|답변할 수 없|확인할 수 없|no answer|not enough|insufficient|cannot verify)/i;
 
@@ -58,8 +58,8 @@ function sentenceFragments(answer: string): string[] {
 function citationLabels(sentence: string): string[] {
   const labels = new Set<string>();
   for (const group of sentence.matchAll(CITATION_RE)) {
-    for (const label of group[0].matchAll(LABEL_RE)) {
-      labels.add(label[0]);
+    for (const label of group[0].matchAll(RAW_LABEL_RE)) {
+      labels.add(normalizeLabel(label[0]));
     }
   }
   return [...labels];
@@ -102,7 +102,18 @@ function overlapRatio(
 }
 
 function uniqueLabels(answer: string): string[] {
-  return [...new Set([...answer.matchAll(LABEL_RE)].map((match) => match[0]))];
+  const labels = new Set<string>();
+  for (const group of answer.matchAll(CITATION_RE)) {
+    for (const label of group[0].matchAll(RAW_LABEL_RE)) {
+      labels.add(normalizeLabel(label[0]));
+    }
+  }
+  return [...labels];
+}
+
+function normalizeLabel(label: string): string {
+  if (label.startsWith("S")) return label;
+  return `S${label.replace(/^\^/, "")}`;
 }
 
 export function verifyGroundedAnswer(

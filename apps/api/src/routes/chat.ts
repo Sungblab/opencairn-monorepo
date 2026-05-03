@@ -548,6 +548,11 @@ chatRoutes.post(
                 data: JSON.stringify({ file: summary }),
               });
             }
+          } else if (chunk.type === "verification") {
+            await stream.writeSSE({
+              event: "verification",
+              data: JSON.stringify(chunk.payload),
+            });
           } else if (chunk.type === "error") {
             const e = chunk.payload as {
               message: string;

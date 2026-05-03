@@ -216,6 +216,47 @@ describe("runChat happy path", () => {
         "This question needs current verified sources, but no grounding source is connected. No answer was generated.",
     });
   });
+
+  it("soft-warns when a grounded answer omits sentence citations", async () => {
+    retrievalMod.retrieve.mockResolvedValue([
+      {
+        noteId: "n1",
+        chunkId: "c1",
+        title: "Alpha policy",
+        headingPath: "Grounding",
+        snippet: "Alpha policy requires runtime answer verification.",
+        score: 0.9,
+        provenance: "extracted",
+        confidence: 0.9,
+        evidenceId: "chunk:c1",
+      },
+    ]);
+    fakeProvider.streamGenerate.mockImplementation(async function* () {
+      yield { delta: "Alpha policy requires runtime answer verification." };
+      yield { usage: { tokensIn: 30, tokensOut: 7, model: "gemini-2.5-flash" } };
+    });
+
+    const events = await collect(
+      runChat({
+        workspaceId: "ws-1",
+        scope: { type: "workspace", workspaceId: "ws-1" },
+        ragMode: "strict",
+        chips: [],
+        history: [],
+        userMessage: "what is the alpha policy?",
+        provider: fakeProvider,
+      }),
+    );
+
+    expect(events.filter((e) => e.type === "text")).toHaveLength(1);
+    expect(events.find((e) => e.type === "error")).toBeUndefined();
+    const verification = events.find((e) => e.type === "verification");
+    expect(verification?.payload).toMatchObject({
+      verdict: "fail",
+      action: "warn",
+      findings: [{ reason: "missing_citation" }],
+    });
+  });
 });
 
 describe("runChat save_suggestion", () => {
