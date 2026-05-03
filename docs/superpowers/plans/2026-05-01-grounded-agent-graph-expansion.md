@@ -19,9 +19,10 @@ Create:
 
 Modify:
 
-- `apps/api/src/lib/chunk-hybrid-search.ts` — accept graph candidate boosts or expose shared RRF merge helpers.
-- `apps/api/src/lib/chat-retrieval.ts` — include graph-expanded candidates for `accurate`/`research` and eventually `expand`.
+- `apps/api/src/lib/chat-retrieval.ts` — include graph-expanded candidates for `expand` mode.
 - `apps/api/tests/lib/chat-retrieval.test.ts`
+
+No change was needed in `apps/api/src/lib/chunk-hybrid-search.ts`; graph hits are merged after seed chunk/note retrieval and then flow through the existing `RetrievalCandidate` rerank/context-packing contract.
 
 No Neo4j, no new service, and no cross-workspace traversal.
 
@@ -34,7 +35,7 @@ No Neo4j, no new service, and no cross-workspace traversal.
 - Create: `apps/api/src/lib/retrieval-graph-expansion.ts`
 - Test: `apps/api/tests/lib/retrieval-graph-expansion.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `apps/api/tests/lib/retrieval-graph-expansion.test.ts`:
 
@@ -76,7 +77,7 @@ describe("expandGraphCandidates", () => {
 });
 ```
 
-- [ ] **Step 2: Run failing test**
+- [x] **Step 2: Run failing test**
 
 ```bash
 pnpm --filter @opencairn/api test -- tests/lib/retrieval-graph-expansion.test.ts
@@ -84,7 +85,7 @@ pnpm --filter @opencairn/api test -- tests/lib/retrieval-graph-expansion.test.ts
 
 Expected: FAIL because file does not exist.
 
-- [ ] **Step 3: Implement graph expansion**
+- [x] **Step 3: Implement graph expansion**
 
 Create `apps/api/src/lib/retrieval-graph-expansion.ts`:
 
@@ -164,7 +165,7 @@ export async function expandGraphCandidates(opts: GraphExpansionOpts): Promise<G
 
 These table names match the current Drizzle schema in `packages/db/src/schema/concepts.ts`.
 
-- [ ] **Step 4: Run graph expansion test**
+- [x] **Step 4: Run graph expansion test**
 
 ```bash
 pnpm --filter @opencairn/api test -- tests/lib/retrieval-graph-expansion.test.ts
@@ -172,7 +173,7 @@ pnpm --filter @opencairn/api test -- tests/lib/retrieval-graph-expansion.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/lib/retrieval-graph-expansion.ts apps/api/tests/lib/retrieval-graph-expansion.test.ts
@@ -188,7 +189,7 @@ git commit -m "feat(api): add bounded retrieval graph expansion"
 - Modify: `apps/api/src/lib/chat-retrieval.ts`
 - Modify: `apps/api/tests/lib/chat-retrieval.test.ts`
 
-- [ ] **Step 1: Add failing test**
+- [x] **Step 1: Add failing test**
 
 In `apps/api/tests/lib/chat-retrieval.test.ts`, mock `expandGraphCandidates()` and assert it is called when initial hits exist and `ragMode="expand"`:
 
@@ -216,7 +217,7 @@ it("adds graph expansion candidates in expand mode", async () => {
 });
 ```
 
-- [ ] **Step 2: Run failing retrieval test**
+- [x] **Step 2: Run failing retrieval test**
 
 ```bash
 pnpm --filter @opencairn/api test -- tests/lib/chat-retrieval.test.ts
@@ -224,7 +225,7 @@ pnpm --filter @opencairn/api test -- tests/lib/chat-retrieval.test.ts
 
 Expected: FAIL until retrieval calls graph expansion.
 
-- [ ] **Step 3: Implement merge**
+- [x] **Step 3: Implement merge**
 
 In `apps/api/src/lib/chat-retrieval.ts`, after seed hits per project are collected:
 
@@ -254,7 +255,7 @@ graphHits.map((h) => ({
 
 Deduplicate by `noteId + snippet` and sort by score descending before slicing.
 
-- [ ] **Step 4: Run retrieval tests**
+- [x] **Step 4: Run retrieval tests**
 
 ```bash
 pnpm --filter @opencairn/api test -- tests/lib/chat-retrieval.test.ts tests/lib/retrieval-graph-expansion.test.ts
@@ -262,7 +263,7 @@ pnpm --filter @opencairn/api test -- tests/lib/chat-retrieval.test.ts tests/lib/
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/lib/chat-retrieval.ts apps/api/tests/lib/chat-retrieval.test.ts
