@@ -40,6 +40,9 @@
   },
   "agent": {
     "title": "Code Agent",
+    "disabledBadge": "Experimental",
+    "disabledTitle": "Disabled in the default install.",
+    "disabledDescription": "Code Agent is still experimental and can only run when an administrator enables the feature flag. You can still write and run canvas code manually.",
     "placeholder": "Describe what you want in natural language. e.g. Plot sin(x) with matplotlib.",
     "run": "Ask AI",
     "running": "Writing code…",

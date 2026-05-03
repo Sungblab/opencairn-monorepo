@@ -26,6 +26,8 @@ type CanvasNote = {
 };
 
 const SAVE_DEBOUNCE_MS = 1500;
+const CODE_AGENT_ENABLED =
+  process.env.NEXT_PUBLIC_FEATURE_CODE_AGENT === "true";
 
 export function CanvasViewer({ tab }: { tab: Tab }) {
   const t = useTranslations("canvas");
@@ -171,6 +173,7 @@ export function CanvasViewer({ tab }: { tab: Tab }) {
           </div>
           <div className="border-t p-2">
             <CodeAgentPanel
+              enabled={CODE_AGENT_ENABLED}
               noteId={noteId}
               language={language}
               runResult={
