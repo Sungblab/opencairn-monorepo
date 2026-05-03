@@ -75,6 +75,7 @@ For the all-in-Docker path (including the worker container, Ollama profile, BYOK
 | Topic                                                  | Path                                                                  |
 | ------------------------------------------------------ | --------------------------------------------------------------------- |
 | Doc index                                              | `docs/README.md`                                                      |
+| Project history and decision log                       | `docs/contributing/project-history.md`                                |
 | System design                                          | `docs/superpowers/specs/2026-04-09-opencairn-design.md`               |
 | API contract                                           | `docs/architecture/api-contract.md`                                   |
 | Data flow (ingest → wiki → Q&A)                        | `docs/architecture/data-flow.md`                                      |
