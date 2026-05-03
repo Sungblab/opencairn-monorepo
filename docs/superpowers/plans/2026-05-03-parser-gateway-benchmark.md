@@ -112,6 +112,62 @@ Docling, Marker, and MinerU are benchmark candidates only.
 The benchmark CLI may list these candidates and later call external services,
 but this plan does not install them.
 
+## Docling Candidate Wiring
+
+The first Docling wiring is benchmark-only and intentionally optional:
+
+- `--parser docling` is accepted by `apps/worker/scripts/parser_benchmark.py`
+  for non-dry runs.
+- The production Temporal ingest workflow does not call Docling.
+- The worker dependency set is unchanged. `docling` is imported lazily only when
+  the benchmark command selects `--parser docling`.
+- If Docling is not installed, not importable, or a fixture has no local file,
+  the JSONL row is recorded as `status="skipped"` with `parser="docling"`.
+- The result schema remains identical to the current parser rows:
+  `wall_clock_ms`, `peak_python_heap_bytes`, `peak_rss_bytes`, `pages`,
+  `blocks`, `tables`, `figures`, `warnings`, `plain_text_chars`, `status`, and
+  `error` are always present.
+- Docling's native structured payload is normalized through
+  `normalize_docling_output()` into the same worker-local `CanonicalDocument`
+  contract used by the current baseline.
+
+Command:
+
+```bash
+cd apps/worker
+uv run python -m scripts.parser_benchmark \
+  --manifest benchmarks/parser-fixtures.local.json \
+  --local-root /path/to/private/parser-fixtures \
+  --parser docling \
+  --out benchmarks/results/docling.jsonl
+```
+
+This does not add an optional dependency extra yet. That is deliberate: Docling
+can pull a large dependency tree depending on conversion options, and this PR's
+job is candidate wiring plus skipped behavior in the default environment. A
+future PR can add an explicit `docling` extra only after benchmark output and
+deployment notes justify the footprint.
+
+### Local In-Process vs External Service
+
+The initial adapter uses local in-process Docling when the benchmark environment
+has already installed it. This is the lowest-friction way to measure output
+shape, wall-clock time, Python heap, and process RSS with the current fixture
+manifest.
+
+Tradeoffs:
+
+- In-process is simple and keeps fixture I/O local, but it shares worker memory
+  and CPU with Temporal activities if later promoted.
+- An external parser service isolates memory spikes, allows a separate image
+  with Docling/OCR dependencies, and can be scaled independently, but adds
+  network failure modes, auth, artifact transfer, and service lifecycle costs.
+- For Fly.io and small self-host profiles, an external service is likely safer
+  if Docling requires high RSS or OCR-heavy CPU time on representative fixtures.
+
+The benchmark should decide between these options with fixture data. This PR
+does not promote either option into the production default path.
+
 ## Fixture Set
 
 The committed manifest is a skeleton, not the binary fixture corpus. Real
@@ -252,7 +308,21 @@ Remaining gaps:
 - no committed binary corpus
 - no table/heading/figure/formula quality scoring yet
 - no downstream chunk-quality scoring yet
-- no Docling/Marker/MinerU candidate execution
+- Docling candidate execution exists only when Docling is installed externally;
+  default developer environments should record `skipped`
+- Marker remains an external-service-only gap because licensing, model weights,
+  PyTorch footprint, GPU/VRAM expectations, and commercial compatibility are not
+  resolved
+- MinerU remains a benchmark gap because license, model/dependency footprint,
+  CPU viability, and output-quality normalization are not measured
+
+## Production Default Path
+
+This phase does not change the production ingest default path. PDF, Office,
+HWP/HWPX, web, media, and image ingest continue through the existing activity
+dispatch described in "Current Baseline". Docling rows are benchmark evidence
+only until a later PR explicitly gates, tests, and documents any default-path
+replacement.
 
 ## Verification
 

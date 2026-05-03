@@ -30,7 +30,9 @@ if TYPE_CHECKING:
 from worker.lib.parser_gateway import (
     PARSER_CANDIDATES,
     CurrentParserAdapter,
+    DoclingParserAdapter,
     ParserAdapter,
+    ParserUnavailableError,
     parse_with_metrics,
 )
 
@@ -144,6 +146,7 @@ async def run_current_fixture(fixture: BenchmarkFixture) -> BenchmarkResult:
         if fixture.local_path is not None and not fixture.local_path.exists():
             return _result(
                 fixture,
+                parser="current",
                 status="skipped",
                 started_at=start,
                 peak_python_heap_bytes=_stop_tracemalloc(),
@@ -153,6 +156,7 @@ async def run_current_fixture(fixture: BenchmarkFixture) -> BenchmarkResult:
         if adapter is None:
             return _result(
                 fixture,
+                parser="current",
                 status="skipped",
                 started_at=start,
                 peak_python_heap_bytes=_stop_tracemalloc(),
@@ -172,6 +176,62 @@ async def run_current_fixture(fixture: BenchmarkFixture) -> BenchmarkResult:
     except Exception as exc:  # noqa: BLE001 - benchmark rows should capture per-fixture failures.
         return _result(
             fixture,
+            parser="current",
+            status="failed",
+            started_at=start,
+            peak_python_heap_bytes=_stop_tracemalloc(),
+            error=f"{type(exc).__name__}: {exc}",
+        )
+
+
+async def run_docling_fixture(fixture: BenchmarkFixture) -> BenchmarkResult:
+    """Run one fixture through Docling when it is installed in the benchmark env."""
+    start = perf_counter()
+    tracemalloc.start()
+    try:
+        if fixture.local_path is None:
+            return _result(
+                fixture,
+                parser="docling",
+                status="skipped",
+                started_at=start,
+                peak_python_heap_bytes=_stop_tracemalloc(),
+                error="docling benchmark requires local_path; object storage wiring is not enabled",
+            )
+        if not fixture.local_path.exists():
+            return _result(
+                fixture,
+                parser="docling",
+                status="skipped",
+                started_at=start,
+                peak_python_heap_bytes=_stop_tracemalloc(),
+                error=f"local_path not found: {fixture.local_path}",
+            )
+        doc, wall_clock_s = await parse_with_metrics(
+            DoclingParserAdapter(),
+            _activity_input_for(fixture),
+        )
+        _current, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+        return _result_from_doc(
+            fixture,
+            doc,
+            wall_clock_ms=int(wall_clock_s * 1000),
+            peak_python_heap_bytes=peak,
+        )
+    except ParserUnavailableError as exc:
+        return _result(
+            fixture,
+            parser="docling",
+            status="skipped",
+            started_at=start,
+            peak_python_heap_bytes=_stop_tracemalloc(),
+            error=str(exc),
+        )
+    except Exception as exc:  # noqa: BLE001 - benchmark rows should capture per-fixture failures.
+        return _result(
+            fixture,
+            parser="docling",
             status="failed",
             started_at=start,
             peak_python_heap_bytes=_stop_tracemalloc(),
@@ -241,15 +301,17 @@ def build_parser() -> argparse.ArgumentParser:
 async def async_main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fixtures = load_fixtures(args.manifest, local_root=args.local_root)
-    if args.parser != "current" and not args.dry_run:
+    if args.parser in {"marker", "mineru"} and not args.dry_run:
         raise SystemExit(
-            "Only the current parser baseline has non-dry execution wiring. "
-            "Docling, Marker, and MinerU remain benchmark candidates only."
+            "Only current and Docling have non-dry execution wiring. "
+            "Marker and MinerU remain benchmark gap candidates only."
         )
-    if not args.dry_run:
-        results = [await run_current_fixture(fixture) for fixture in fixtures]
-    else:
+    if args.dry_run:
         results = [await run_dry_fixture(fixture, args.parser) for fixture in fixtures]
+    elif args.parser == "docling":
+        results = [await run_docling_fixture(fixture) for fixture in fixtures]
+    else:
+        results = [await run_current_fixture(fixture) for fixture in fixtures]
 
     write_jsonl(args.out, results)
     print(f"Wrote {len(results)} parser benchmark rows to {args.out}")
@@ -402,6 +464,7 @@ def _result_from_doc(
 def _result(
     fixture: BenchmarkFixture,
     *,
+    parser: str,
     status: str,
     started_at: float,
     peak_python_heap_bytes: int,
@@ -409,7 +472,7 @@ def _result(
 ) -> BenchmarkResult:
     return BenchmarkResult(
         fixture_id=fixture.id,
-        parser="current",
+        parser=parser,
         status=status,
         wall_clock_ms=int((perf_counter() - started_at) * 1000),
         peak_python_heap_bytes=peak_python_heap_bytes,

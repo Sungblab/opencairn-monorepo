@@ -5,6 +5,7 @@
     "For S3/R2/MinIO-backed runs, set object_key and configure S3 env as usual.",
     "For local runs without object storage, set local_path relative to this manifest or pass --local-root.",
     "The example local_path values point at a private fixture directory that operators create outside git.",
+    "Docling can be run with --parser docling only when installed in the benchmark environment; otherwise rows are skipped.",
     "Marker remains an optional external parser-service candidate; do not install it in worker core for this benchmark skeleton."
   ],
   "fixtures": [

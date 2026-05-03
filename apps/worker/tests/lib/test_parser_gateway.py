@@ -10,6 +10,7 @@ from worker.lib.parser_gateway import (
     CurrentParserAdapter,
     ParserGateway,
     normalize_current_parser_output,
+    normalize_docling_output,
 )
 
 
@@ -137,6 +138,88 @@ def test_normalize_current_handles_empty_captions_and_malformed_payloads() -> No
     ]
     assert [table.caption for table in doc.tables] == [None, None]
     assert [figure.caption for figure in doc.figures] == [None, None]
+
+
+def test_normalize_docling_output_to_canonical_document() -> None:
+    now = datetime.now(UTC)
+    doc = normalize_docling_output(
+        {
+            "pages": [{"page_no": 1, "size": {"width": 612, "height": 792}}],
+            "texts": [
+                {
+                    "id": "heading-1",
+                    "label": "section_header",
+                    "text": "Introduction",
+                    "prov": [{"page_no": 1, "bbox": {"l": 10, "t": 20, "r": 200, "b": 40}}],
+                },
+                {
+                    "id": "para-1",
+                    "label": "text",
+                    "text": "Body text",
+                    "prov": [{"page_no": 1}],
+                },
+            ],
+            "tables": [
+                {
+                    "id": "table-1",
+                    "caption": "Table caption",
+                    "cells": [["A", "B"]],
+                    "prov": [{"page_no": 1}],
+                }
+            ],
+            "pictures": [{"id": "fig-1", "caption": "Figure caption", "prov": [{"page_no": 1}]}],
+        },
+        _inp(),
+        parser="docling",
+        parser_version="mock",
+        parse_started_at=now,
+        parse_completed_at=now,
+    )
+
+    assert doc.source.parser == "docling"
+    assert doc.pages[0].width == 612
+    assert [block.type for block in doc.blocks] == [
+        CanonicalBlockType.HEADING,
+        CanonicalBlockType.PARAGRAPH,
+        CanonicalBlockType.TABLE,
+        CanonicalBlockType.FIGURE,
+    ]
+    assert doc.blocks[0].bbox is not None
+    assert doc.tables[0].cells == [["A", "B"]]
+    assert doc.figures[0].caption == "Figure caption"
+    assert doc.as_plain_text().startswith("Introduction")
+
+
+def test_normalize_docling_output_rejects_malformed_root_payload() -> None:
+    now = datetime.now(UTC)
+
+    with pytest.raises(ValueError, match="Docling payload must be a JSON object"):
+        normalize_docling_output(
+            "not-a-dict",  # type: ignore[arg-type]
+            _inp(),
+            parser="docling",
+            parser_version=None,
+            parse_started_at=now,
+            parse_completed_at=now,
+        )
+
+
+def test_normalize_docling_output_records_malformed_items_as_warnings() -> None:
+    now = datetime.now(UTC)
+    doc = normalize_docling_output(
+        {"texts": ["bad-text"], "tables": ["bad-table"], "figures": ["bad-figure"]},
+        _inp(),
+        parser="docling",
+        parser_version=None,
+        parse_started_at=now,
+        parse_completed_at=now,
+    )
+
+    assert [warning.code for warning in doc.warnings] == [
+        "docling_malformed_text_item",
+        "docling_malformed_table_item",
+        "docling_malformed_figure_item",
+    ]
 
 
 @pytest.mark.asyncio
