@@ -12,6 +12,24 @@ Read order for new work:
 
 Status legend: `complete` means the main implementation exists; `active` means recently implemented or in review; `planned` means spec/plan exists but code should be checked before assuming availability; `blocked` means do not start without explicit user instruction.
 
+## Maintenance Rules
+
+Update this registry when a change introduces or materially changes any of these:
+
+- user-visible feature surface
+- API route family
+- DB table or migration-owned domain
+- worker workflow, activity family, or agent
+- feature flag
+- shared schema or contract used by multiple packages
+- superseded plan, renamed route, or compatibility redirect
+
+Do not use this file as the only source of truth. It is the fast lookup layer.
+Stable architecture belongs in `docs/architecture/`, current status belongs in
+`docs/contributing/plans-status.md`, historical context belongs in
+`docs/contributing/project-history.md`, and repeated mistakes belong in
+`docs/contributing/llm-antipatterns.md`.
+
 | Feature ID | Status | Owning paths | Source of truth | Duplicate guard |
 | --- | --- | --- | --- | --- |
 | workspace-auth-permissions | complete | `apps/api/src/routes/workspaces.ts`, `packages/db/src/schema/`, `apps/api/src/lib/permissions*` | `docs/superpowers/plans/2026-04-09-plan-1-foundation.md`, `docs/architecture/security-model.md` | Do not add direct DB permission checks in route handlers; use existing permission helpers. |

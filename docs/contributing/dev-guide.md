@@ -152,6 +152,9 @@ Do not run two active plans in the same working tree. Avoid parallel edits to
 migration files, `packages/db/src/schema.ts`, `packages/shared`, or the same
 `apps/web/messages/*.json` namespace.
 
+GitHub operations use local `git` and `gh`/`gh.exe`. Do not rely on a GitHub
+connector/plugin for commits, pushes, PRs, or issue updates.
+
 When publishing from WSL, prefer the Windows GitHub CLI credential bridge:
 
 ```bash
@@ -170,11 +173,6 @@ path, run Windows Git/GitHub CLI from the repo root instead:
 cmd.exe /C "cd /d C:\Users\Sungbin\Documents\GitHub\opencairn-monorepo && git push -u origin <branch>"
 & "C:\Program Files\GitHub CLI\gh.exe" pr create --repo Sungblab/opencairn-monorepo --base main --head <branch> --draft --title "<title>" --body-file <file>
 ```
-
-If the GitHub connector returns `Resource not accessible by integration` or
-403, but local `gh auth status` has the `Sungblab` account with `repo` scope and
-`gh repo view Sungblab/opencairn-monorepo --json viewerPermission` says `ADMIN`,
-treat it as a connector installation-permission limit and use `gh`/`gh.exe`.
 
 ### Windows Verification Notes
 

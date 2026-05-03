@@ -50,9 +50,10 @@ Hierarchy: **Workspace -> Project -> Page**. Workspace is the isolation boundary
 - For parallel or isolated feature work, create a git worktree under `.worktrees/<task>` and implement from that worktree. Do not mix concurrent plans in one working tree.
 - Avoid concurrent edits to migration files, `packages/db/src/schema.ts`, `packages/shared`, or the same i18n message sections.
 - After feature-sized work, run focused verification, review for security/convention drift, update relevant docs/status, then commit using OpenCairn commit conventions.
+- GitHub operations use local `git` and `gh`/`gh.exe`. Do not rely on a GitHub connector/plugin for commits, pushes, PRs, or issue updates.
 - Branch finish rule: when a development branch is complete, summarize verification, commit, push, and open a PR. The user owns merge approval.
 
-Windows/WSL troubleshooting, PR publish fallback, search fallback, and local verification hygiene live in `docs/contributing/dev-guide.md`.
+Windows/WSL troubleshooting, local GitHub workflow, search fallback, and local verification hygiene live in `docs/contributing/dev-guide.md`.
 
 ## Commands
 
