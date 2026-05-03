@@ -5,6 +5,8 @@ import {
   packEvidence,
 } from "./context-packer";
 import { candidateFromRetrievalHit } from "./retrieval-candidates";
+import { verifyGroundedAnswer, type AnswerVerificationResult } from "./answer-verifier";
+import { buildChatSourceLedger } from "./chat-source-ledger";
 import { buildRuntimeContext } from "./chat-runtime-context";
 import {
   selectChatRuntimePolicy,
@@ -27,6 +29,10 @@ export type ChatChunk =
       payload: { title: string; body_markdown: string };
     }
   | { type: "agent_file"; payload: { files: CreateAgentFilePayload[] } }
+  | {
+      type: "verification";
+      payload: AnswerVerificationResult & { action: "pass" | "warn" };
+    }
   | { type: "usage"; payload: Usage }
   | {
       type: "error";
@@ -181,6 +187,14 @@ export async function* runChat(opts: {
     // for at most one). The fence text was already yielded as part of the
     // text deltas; the renderer strips unrecognized fences itself.
     const full = buffer.join("");
+    const verification = verifyRuntimeAnswer({
+      answer: full,
+      evidenceBundle,
+    });
+    if (verification) {
+      yield { type: "verification", payload: verification };
+    }
+
     const suggestion = extractSaveSuggestion(full);
     if (suggestion) {
       yield { type: "save_suggestion", payload: suggestion };
@@ -204,6 +218,34 @@ export async function* runChat(opts: {
   } finally {
     yield { type: "done", payload: {} };
   }
+}
+
+function verifyRuntimeAnswer(input: {
+  answer: string;
+  evidenceBundle: ReturnType<typeof packEvidence>;
+}): (AnswerVerificationResult & { action: "pass" | "warn" }) | null {
+  if (input.evidenceBundle.items.length === 0) return null;
+
+  const ledger = buildChatSourceLedger(
+    input.evidenceBundle.items.map((item) => ({
+      noteId: item.noteId,
+      noteChunkId: item.chunkId ?? undefined,
+      title: item.title,
+      headingPath: item.headingPath,
+      quote: item.snippet,
+      score: item.confidence,
+      producer: item.producer.kind,
+    })),
+  );
+  const result = verifyGroundedAnswer({
+    answer: input.answer,
+    ledger,
+  });
+
+  return {
+    ...result,
+    action: result.verdict === "pass" ? "pass" : "warn",
+  };
 }
 
 // Drop oldest user/assistant turns until the rough character budget for

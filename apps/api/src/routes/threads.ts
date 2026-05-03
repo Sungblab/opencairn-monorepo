@@ -384,6 +384,8 @@ export const threadRoutes = new Hono<AppEnv>()
                 // by finalizeAgentMessage — kept here only as a sidecar so
                 // the route doesn't have to know the column shape.
                 meta.usage = chunk.payload;
+              } else if (chunk.type === "verification") {
+                meta.verification = chunk.payload;
               } else if (chunk.type === "error") {
                 // chat-llm yields a single `error` chunk before its terminal
                 // `done`. Mark the persistence status as failed and record
