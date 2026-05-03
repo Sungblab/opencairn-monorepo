@@ -75,6 +75,7 @@ pnpm dev
 | 주제                                              | 경로                                                                  |
 | ------------------------------------------------- | --------------------------------------------------------------------- |
 | 문서 인덱스                                       | `docs/README.md`                                                      |
+| 개발 히스토리와 의사결정 로그                      | `docs/contributing/project-history.md`                                |
 | 시스템 설계                                       | `docs/superpowers/specs/2026-04-09-opencairn-design.md`               |
 | API 계약                                          | `docs/architecture/api-contract.md`                                   |
 | 데이터 흐름 (ingest → wiki → Q&A)                 | `docs/architecture/data-flow.md`                                      |

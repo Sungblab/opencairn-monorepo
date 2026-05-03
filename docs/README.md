@@ -2,6 +2,14 @@
 
 필요할 때 읽기. 한 번에 다 로드하지 말 것.
 
+## Start here
+
+| Need | Read |
+| ---- | ---- |
+| 문서 구조와 전체 개발 흐름을 먼저 파악 | `contributing/project-history.md` |
+| 현재 plan별 완료/진행/보류 상태 확인 | `contributing/plans-status.md` |
+| 완료 표기와 실제 구현 사이의 known gap 확인 | `review/2026-04-28-completion-claims-audit.md` |
+
 ## Core architecture & product
 
 | Need                                                       | Read                                                                 |
