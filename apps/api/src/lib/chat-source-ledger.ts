@@ -46,13 +46,25 @@ function cleanText(value: string | null | undefined): string {
   return (value ?? "").replace(/\s+/g, " ").trim();
 }
 
-function sourceKey(input: ChatSourceLedgerInput): string {
+function sourceKey(input: ChatSourceLedgerInput, index: number): string {
   const noteChunkId =
     input.noteChunkId ?? input.chunkId ?? input.provenance?.noteChunkId ?? input.provenance?.chunkId;
   if (noteChunkId) return `chunk:${noteChunkId}`;
   const noteId = input.noteId ?? input.provenance?.noteId;
   if (noteId) return `note:${noteId}`;
-  return `source:${input.id ?? cleanText(input.quote ?? input.snippet ?? input.contentText)}`;
+  const fallbackParts = [
+    input.id,
+    input.quote,
+    input.snippet,
+    input.contentText,
+    input.provenance?.quote,
+    input.provenance?.snippet,
+    input.title,
+    input.provenance?.title,
+  ]
+    .map(cleanText)
+    .filter(Boolean);
+  return `source:${fallbackParts.length > 0 ? fallbackParts.join(":") : index}`;
 }
 
 function entryFromInput(input: ChatSourceLedgerInput, index: number): ChatSourceLedgerEntry {
@@ -68,7 +80,7 @@ function entryFromInput(input: ChatSourceLedgerInput, index: number): ChatSource
 
   return {
     label: `S${index + 1}`,
-    sourceId: sourceKey(input),
+    sourceId: sourceKey(input, index),
     noteId,
     noteChunkId,
     title,
@@ -87,7 +99,7 @@ export function buildChatSourceLedger(
   const deduped = new Map<string, ChatSourceLedgerInput>();
   for (const source of sources) {
     if (deduped.size >= maxSources) break;
-    const key = sourceKey(source);
+    const key = sourceKey(source, deduped.size);
     if (!deduped.has(key)) deduped.set(key, source);
   }
 

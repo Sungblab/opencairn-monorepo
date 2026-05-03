@@ -43,7 +43,7 @@ function tokens(value: string): Set<string> {
     normalize(value)
       .split(/\s+/)
       .map((token) => token.trim())
-      .filter((token) => token.length >= 2),
+      .filter((token) => token.length >= 1),
   );
 }
 
@@ -76,13 +76,27 @@ function isMaterialSentence(sentence: string): boolean {
   return true;
 }
 
-function overlapRatio(sentence: string, entry: ChatSourceLedgerEntry): number {
-  const sentenceTokens = tokens(stripCitations(sentence));
+function sourceTokens(
+  entry: ChatSourceLedgerEntry,
+  cache: Map<string, Set<string>>,
+): Set<string> {
+  const cached = cache.get(entry.sourceId);
+  if (cached) return cached;
+  const computed = tokens(`${entry.title} ${entry.headingPath ?? ""} ${entry.quote}`);
+  cache.set(entry.sourceId, computed);
+  return computed;
+}
+
+function overlapRatio(
+  sentenceTokens: Set<string>,
+  entry: ChatSourceLedgerEntry,
+  cache: Map<string, Set<string>>,
+): number {
   if (sentenceTokens.size === 0) return 0;
-  const sourceTokens = tokens(`${entry.title} ${entry.headingPath ?? ""} ${entry.quote}`);
+  const entryTokens = sourceTokens(entry, cache);
   let overlap = 0;
   for (const token of sentenceTokens) {
-    if (sourceTokens.has(token)) overlap += 1;
+    if (entryTokens.has(token)) overlap += 1;
   }
   return overlap / sentenceTokens.size;
 }
@@ -98,6 +112,7 @@ export function verifyGroundedAnswer(
   const citedLabels = uniqueLabels(input.answer);
   const findings: AnswerVerificationFinding[] = [];
   const materialSentences = sentenceFragments(input.answer).filter(isMaterialSentence);
+  const sourceTokenCache = new Map<string, Set<string>>();
 
   if (input.ledger.entries.length === 0) {
     if (REFUSAL_RE.test(input.answer)) {
@@ -144,10 +159,11 @@ export function verifyGroundedAnswer(
       continue;
     }
 
+    const sentenceTokens = tokens(stripCitations(sentence));
     const bestOverlap = Math.max(
       ...entries
         .filter((entry): entry is ChatSourceLedgerEntry => entry !== undefined)
-        .map((entry) => overlapRatio(sentence, entry)),
+        .map((entry) => overlapRatio(sentenceTokens, entry, sourceTokenCache)),
     );
     if (bestOverlap < minOverlap) {
       findings.push({ sentence, reason: "weak_support", labels });

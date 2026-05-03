@@ -64,6 +64,16 @@ describe("chat source ledger", () => {
     });
   });
 
+  it("keeps sparse sources distinct when metadata is empty", () => {
+    const ledger = buildChatSourceLedger([{}, {}]);
+
+    expect(ledger.entries).toHaveLength(2);
+    expect(ledger.entries.map((entry) => entry.sourceId)).toEqual([
+      "source:0",
+      "source:1",
+    ]);
+  });
+
   it("formats prompt sources with citation labels", () => {
     const ledger = buildChatSourceLedger([
       {
@@ -77,5 +87,25 @@ describe("chat source ledger", () => {
     expect(formatChatSourceLedgerForPrompt(ledger)).toBe(
       "[S1] Policy · Limits: Every factual sentence needs a source label.",
     );
+  });
+});
+
+describe("answer verifier multilingual support", () => {
+  it("counts single-character Korean evidence tokens", () => {
+    const ledger = buildChatSourceLedger([
+      {
+        noteId: "note-ko",
+        title: "한국어 메모",
+        quote: "꿈 삶 산 강",
+      },
+    ]);
+
+    const result = verifyGroundedAnswer({
+      answer: "꿈 삶 산 강 내용입니다 [S1].",
+      ledger,
+      minOverlap: 0.5,
+    });
+
+    expect(result.verdict).toBe("pass");
   });
 });
