@@ -10,6 +10,7 @@ import importlib
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Protocol, cast
@@ -208,6 +209,7 @@ def normalize_docling_output(
         source_offsets = _source_offsets_from_payload(raw_item)
         if source_offsets is None:
             source_offsets = CanonicalSourceOffsets(start=offset, end=offset + len(content))
+        reading_order = _int_or_none(raw_item.get("reading_order"))
         block = CanonicalBlock(
             id=str(raw_item.get("id") or f"docling-b{index}"),
             type=_docling_block_type(raw_item),
@@ -215,7 +217,7 @@ def normalize_docling_output(
             content_type=_docling_content_type(raw_item),
             bbox=_bbox_from_docling_item(raw_item),
             page_number=_page_number_from_docling_item(raw_item),
-            reading_order=_int_or_none(raw_item.get("reading_order")) or index,
+            reading_order=reading_order if reading_order is not None else index,
             confidence=_float_or_none(raw_item.get("confidence")),
             source_offsets=source_offsets,
             metadata=_docling_metadata(raw_item),
@@ -527,6 +529,7 @@ def _source_type_for_mime(mime_type: str) -> str:
     return "file"
 
 
+@lru_cache(maxsize=1)
 def _load_docling_converter() -> Any:
     try:
         module = importlib.import_module("docling.document_converter")
@@ -538,6 +541,7 @@ def _load_docling_converter() -> Any:
     return converter_cls()
 
 
+@lru_cache(maxsize=1)
 def _docling_version() -> str | None:
     try:
         module = importlib.import_module("docling")
@@ -579,10 +583,10 @@ def _docling_pages(raw: dict[str, Any]) -> list[CanonicalPage]:
         size = raw_size if isinstance(raw_size, dict) else {}
         width = raw_page.get("width") or size.get("width")
         height = raw_page.get("height") or size.get("height")
+        page_number = _first_int_or_none(raw_page, ("page_no", "page_number"))
         pages.append(
             CanonicalPage(
-                page_number=_int_or_none(raw_page.get("page_no") or raw_page.get("page_number"))
-                or index,
+                page_number=page_number if page_number is not None else index,
                 width=_float_or_none(width),
                 height=_float_or_none(height),
                 blocks=[],
@@ -635,12 +639,12 @@ def _docling_content_type(item: dict[str, Any]) -> CanonicalContentType:
 
 
 def _page_number_from_docling_item(item: dict[str, Any]) -> int | None:
-    direct = _int_or_none(item.get("page_no") or item.get("page_number"))
+    direct = _first_int_or_none(item, ("page_no", "page_number"))
     if direct is not None:
         return direct
     prov = item.get("prov")
     if isinstance(prov, list) and prov and isinstance(prov[0], dict):
-        return _int_or_none(prov[0].get("page_no") or prov[0].get("page_number"))
+        return _first_int_or_none(prov[0], ("page_no", "page_number"))
     return None
 
 
@@ -738,4 +742,13 @@ def _first_present(payload: dict[str, Any], keys: tuple[str, ...]) -> Any:
     for key in keys:
         if key in payload:
             return payload[key]
+    return None
+
+
+def _first_int_or_none(payload: dict[str, Any], keys: tuple[str, ...]) -> int | None:
+    for key in keys:
+        if key in payload:
+            value = _int_or_none(payload[key])
+            if value is not None:
+                return value
     return None

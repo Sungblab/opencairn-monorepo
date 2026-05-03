@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
+from pydantic import ValidationError
 
 from worker.lib.canonical_document import CanonicalBlockType
 from worker.lib.parser_gateway import (
@@ -156,6 +157,7 @@ def test_normalize_docling_output_to_canonical_document() -> None:
                     "id": "para-1",
                     "label": "text",
                     "text": "Body text",
+                    "reading_order": 0,
                     "prov": [{"page_no": 1}],
                 },
             ],
@@ -185,6 +187,7 @@ def test_normalize_docling_output_to_canonical_document() -> None:
         CanonicalBlockType.FIGURE,
     ]
     assert doc.blocks[0].bbox is not None
+    assert doc.blocks[1].reading_order == 0
     assert doc.tables[0].cells == [["A", "B"]]
     assert doc.figures[0].caption == "Figure caption"
     assert doc.as_plain_text().startswith("Introduction")
@@ -199,6 +202,20 @@ def test_normalize_docling_output_rejects_malformed_root_payload() -> None:
             _inp(),
             parser="docling",
             parser_version=None,
+            parse_started_at=now,
+            parse_completed_at=now,
+        )
+
+
+def test_normalize_docling_output_does_not_override_explicit_zero_page_number() -> None:
+    now = datetime.now(UTC)
+
+    with pytest.raises(ValidationError):
+        normalize_docling_output(
+            {"pages": [{"page_no": 0}]},
+            _inp(),
+            parser="docling",
+            parser_version="mock",
             parse_started_at=now,
             parse_completed_at=now,
         )
