@@ -1,12 +1,34 @@
 {
   "viewer": {
     "loading": "Loading file...",
+    "loadingInline": "Loading...",
     "error": "Unable to open this file.",
     "meta": "{kind} · v{version} · {bytes}",
+    "version": "v{version}",
+    "preview": "Preview",
+    "source": "Source",
+    "jsonTree": "JSON tree",
+    "csvTable": "CSV table · {rows} rows",
+    "column": "Column {index}",
     "download": "Download original",
     "ingest": "Run ingest",
     "compile": "Compile LaTeX",
-    "canvas": "Run in canvas"
+    "canvas": "Run in canvas",
+    "compileStatus": {
+      "not_started": "Compile idle",
+      "queued": "Compile queued",
+      "running": "Compiling",
+      "completed": "Compile complete",
+      "failed": "Compile failed",
+      "disabled": "No compile"
+    },
+    "ingestStatus": {
+      "not_started": "Not ingested",
+      "queued": "Ingest queued",
+      "running": "Ingesting",
+      "completed": "Ingested",
+      "failed": "Ingest failed"
+    }
   },
   "card": {
     "created": "{filename} created",
