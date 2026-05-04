@@ -153,6 +153,7 @@ export function useChatSend(threadId: string | null) {
           qc.invalidateQueries({ queryKey: ["chat-messages", threadId] });
           setLive(null);
           controller.current = null;
+          resumedRun.current = null;
         }
       }
     },
@@ -174,6 +175,7 @@ export function useChatSend(threadId: string | null) {
       if (!stream.ok || !stream.body) {
         setLive(null);
         controller.current = null;
+        resumedRun.current = null;
         return;
       }
       await consumeStream(stream, ac);

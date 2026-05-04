@@ -173,13 +173,43 @@ describe("useChatSend", () => {
     await waitFor(() => expect(result.current.live).toBeNull());
   });
 
+  it("allows retrying a resumed run after a failed replay response", async () => {
+    const body = mkSseBody([
+      'event: done\ndata: {"id":"m1","status":"complete"}\n\n',
+    ]);
+    fetchMock
+      .mockResolvedValueOnce({ ok: false, body: null } as Partial<Response>)
+      .mockResolvedValueOnce({ ok: true, body } as Partial<Response>);
+
+    const { result } = renderHook(() => useChatSend("t1"), {
+      wrapper: makeWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.resumeRun("run-1", "m1");
+    });
+    await act(async () => {
+      await result.current.resumeRun("run-1", "m1");
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/chat-runs/run-1/events?after=0");
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/chat-runs/run-1/events?after=0");
+    await waitFor(() => expect(result.current.live).toBeNull());
+  });
+
   it("aborts in-flight when a new send begins", async () => {
     // First call returns a stream that pauses indefinitely. We track abort
     // by listening for the AbortSignal the hook passes in `init.signal`.
     let firstSignal: AbortSignal | undefined;
+    let slowController: ReadableStreamDefaultController<Uint8Array> | null =
+      null;
     const slowBody = new ReadableStream({
       // Never enqueues — simulates a stream that hasn't produced any frames
       // yet. The reader will hang on `.read()` until the request is aborted.
+      start(controller) {
+        slowController = controller;
+      },
       pull() {
         /* no-op */
       },
@@ -190,6 +220,9 @@ describe("useChatSend", () => {
     fetchMock
       .mockImplementationOnce((_url: string, init: RequestInit) => {
         firstSignal = init.signal ?? undefined;
+        init.signal?.addEventListener("abort", () => {
+          slowController?.close();
+        }, { once: true });
         return Promise.resolve({ ok: true, body: slowBody } as Response);
       })
       .mockResolvedValueOnce({ ok: true, body: fastBody } as Partial<Response>);
@@ -219,4 +252,5 @@ describe("useChatSend", () => {
     // The first request's signal should now be aborted by the second send.
     expect(firstSignal?.aborted).toBe(true);
   });
+
 });

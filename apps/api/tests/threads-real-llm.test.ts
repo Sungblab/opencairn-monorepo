@@ -229,7 +229,7 @@ describe("POST /api/threads/:id/messages — real LLM path (Task 7)", () => {
     );
   });
 
-  it("does not forward the browser AbortSignal into durable provider execution", async () => {
+  it("uses an executor-owned AbortSignal for durable provider execution", async () => {
     // The route now creates a durable run and subscribes to its event log.
     // Browser disconnects detach from the stream; only explicit cancel should
     // cancel execution.
@@ -253,7 +253,8 @@ describe("POST /api/threads/:id/messages — real LLM path (Task 7)", () => {
     expect(res.status).toBe(200);
     await res.text();
 
-    expect(receivedSignal).toBeUndefined();
+    expect(receivedSignal).toBeInstanceOf(AbortSignal);
+    expect(receivedSignal!.aborted).toBe(false);
   });
 
   it("persists status='failed' when the provider throws an AbortError mid-stream", async () => {

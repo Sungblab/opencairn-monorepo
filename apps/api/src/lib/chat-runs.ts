@@ -134,7 +134,8 @@ export async function appendChatRunEvent(
     const [run] = await tx
       .select({ currentAttempt: chatRuns.currentAttempt })
       .from(chatRuns)
-      .where(eq(chatRuns.id, runId));
+      .where(eq(chatRuns.id, runId))
+      .for("update");
     const [current] = await tx
       .select({ seq: max(chatRunEvents.seq) })
       .from(chatRunEvents)
@@ -152,21 +153,25 @@ export async function appendChatRunEvent(
 }
 
 export async function listChatRunEvents(runId: string, after: number) {
-  const [run] = await db
-    .select({ currentAttempt: chatRuns.currentAttempt })
-    .from(chatRuns)
-    .where(eq(chatRuns.id, runId));
-  const currentAttempt = run?.currentAttempt ?? 0;
   return db
-    .select()
+    .select({
+      id: chatRunEvents.id,
+      runId: chatRunEvents.runId,
+      seq: chatRunEvents.seq,
+      executionAttempt: chatRunEvents.executionAttempt,
+      event: chatRunEvents.event,
+      payload: chatRunEvents.payload,
+      createdAt: chatRunEvents.createdAt,
+    })
     .from(chatRunEvents)
+    .innerJoin(chatRuns, eq(chatRuns.id, chatRunEvents.runId))
     .where(
       and(
         eq(chatRunEvents.runId, runId),
         gt(chatRunEvents.seq, after),
         or(
           eq(chatRunEvents.executionAttempt, 0),
-          eq(chatRunEvents.executionAttempt, currentAttempt),
+          eq(chatRunEvents.executionAttempt, chatRuns.currentAttempt),
         ),
       ),
     )
@@ -282,11 +287,6 @@ export async function executeChatRun(runId: string): Promise<void> {
     .where(eq(chatMessages.id, run.userMessageId));
   if (!userMessage) throw new Error(`chat run user message missing: ${runId}`);
 
-  await db
-    .update(chatRuns)
-    .set({ status: "running", startedAt: new Date() })
-    .where(eq(chatRuns.id, runId));
-
   const body = extractBody(userMessage.content);
   const scope = extractScope(userMessage.content);
   const buffer: string[] = [];
@@ -311,15 +311,10 @@ export async function executeChatRun(runId: string): Promise<void> {
       signal: abortController.signal,
       excludeMessageIds: [run.userMessageId, run.agentMessageId],
     })) {
-      const state = await getExecutionState(runId, leaseId);
-      if (state === "cancelled") {
-        cancelled = true;
-        abortController.abort();
-        break;
-      }
-      if (state !== "active") {
-        leaseLost = true;
-        abortController.abort();
+      if (abortController.signal.aborted) {
+        const state = await getExecutionState(runId, leaseId);
+        cancelled = state === "cancelled";
+        leaseLost = state !== "active" && state !== "cancelled";
         break;
       }
       if (chunk.type === "done") break;
