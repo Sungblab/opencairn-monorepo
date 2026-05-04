@@ -90,4 +90,27 @@ describe("project object action contracts", () => {
 
     expect(parsed.object.objectType).toBe("agent_file");
   });
+
+  it("describes an OpenCairn download export-ready event", () => {
+    const parsed = projectObjectActionEventSchema.parse({
+      type: "project_object_export_ready",
+      object: {
+        id: projectObjectId,
+        objectType: "agent_file",
+        title: "Brief",
+        filename: "brief.md",
+        kind: "markdown",
+        mimeType: "text/markdown",
+        projectId: "00000000-0000-4000-8000-000000000011",
+      },
+      provider: "opencairn_download",
+      downloadUrl: `/api/agent-files/${projectObjectId}/file`,
+      filename: "brief.md",
+      mimeType: "text/markdown",
+      bytes: 42,
+    });
+
+    expect(parsed.type).toBe("project_object_export_ready");
+    expect(parsed.downloadUrl).toBe(`/api/agent-files/${projectObjectId}/file`);
+  });
 });

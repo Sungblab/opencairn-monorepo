@@ -1,4 +1,5 @@
 import {
+  type AgentFileKind,
   type AgentFileCreatedEvent,
   type AgentFileSummary,
   type ProjectObjectAction,
@@ -9,6 +10,7 @@ import {
   compileAgentFile,
   createAgentFile,
   createAgentFileVersion,
+  exportAgentFileForDownload,
 } from "./agent-files";
 
 export interface ProjectObjectActionContext {
@@ -23,6 +25,7 @@ export interface ProjectObjectActionDeps {
   createAgentFile: typeof createAgentFile;
   createAgentFileVersion: typeof createAgentFileVersion;
   compileAgentFile: typeof compileAgentFile;
+  exportAgentFileForDownload: typeof exportAgentFileForDownload;
 }
 
 export interface ExecuteProjectObjectActionOptions {
@@ -36,10 +39,16 @@ export interface ProjectObjectActionResult {
   file?: AgentFileSummary;
 }
 
+type ExportReadyFormat = Extract<
+  ProjectObjectActionEvent,
+  { type: "project_object_export_ready" }
+>["format"];
+
 const defaultDeps: ProjectObjectActionDeps = {
   createAgentFile,
   createAgentFileVersion,
   compileAgentFile,
+  exportAgentFileForDownload,
 };
 
 export async function executeProjectObjectAction(
@@ -97,7 +106,28 @@ export async function executeProjectObjectAction(
           target: action.target,
         },
       };
-    case "export_project_object":
+    case "export_project_object": {
+      const exported = await deps.exportAgentFileForDownload(
+        action.objectId,
+        context.userId,
+      );
+      assertContextMatch(exported.file, context);
+
+      if (action.provider === "opencairn_download") {
+        return {
+          event: {
+            type: "project_object_export_ready",
+            object: toProjectObjectSummary(exported.file),
+            provider: "opencairn_download",
+            format: exportFormatForAgentFileKind(exported.file.kind),
+            downloadUrl: exported.downloadUrl,
+            filename: exported.filename,
+            mimeType: exported.mimeType,
+            bytes: exported.bytes,
+          },
+          file: exported.file,
+        };
+      }
       return {
         event: {
           type: "project_object_export_requested",
@@ -105,7 +135,9 @@ export async function executeProjectObjectAction(
           provider: action.provider,
           format: action.format,
         },
+        file: exported.file,
       };
+    }
   }
 }
 
@@ -124,5 +156,25 @@ export function toProjectObjectSummary(file: AgentFileSummary): ProjectObjectSum
 function assertContextMatch(file: AgentFileSummary, context: ProjectObjectActionContext): void {
   if (file.workspaceId !== context.workspaceId || file.projectId !== context.projectId) {
     throw new Error("project_object_context_mismatch");
+  }
+}
+
+function exportFormatForAgentFileKind(kind: AgentFileKind): ExportReadyFormat {
+  switch (kind) {
+    case "markdown":
+    case "latex":
+    case "html":
+    case "json":
+    case "csv":
+    case "xlsx":
+    case "pdf":
+    case "docx":
+    case "pptx":
+    case "image":
+      return kind;
+    case "text":
+    case "code":
+    case "binary":
+      return undefined;
   }
 }

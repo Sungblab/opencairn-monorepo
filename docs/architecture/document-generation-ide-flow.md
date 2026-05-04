@@ -178,8 +178,10 @@ Current implementation boundary:
   `agent_files` service while returning typed `project_object_created` events.
 - The legacy `agent_file_created` SSE event is still emitted so existing web
   consumers and saved message metadata keep working during the migration.
-- `export_project_object` is a typed skeleton event until provider export work
-  is implemented; Google Workspace remains optional.
+- `export_project_object` returns an OpenCairn stored-file download event for
+  `provider: "opencairn_download"` and remains a typed skeleton for optional
+  provider exports until those provider capabilities are implemented. Google
+  Workspace remains optional.
 
 ### Phase 3: General Document Generation
 
