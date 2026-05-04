@@ -38,8 +38,8 @@ shape is:
 - Improve grounded retrieval quality and evidence presentation.
 - Use the OpenAI-compatible provider and parser gateway benchmark path to guide
   later provider routing and ingest-default changes.
-- Add adaptive RAG routing only after retrieval, parser, and chunk-quality
-  contracts are stable enough to compare.
+- Tune adaptive RAG routing now that retrieval expansion, reranking, and
+  context-packing contracts are stable enough to compare.
 - Polish import/export flows without adding provider-specific UX too early.
 - Keep the OSS app clean: legal, blog, hosted analytics, and product marketing
   copy are linked from external hosted URLs.

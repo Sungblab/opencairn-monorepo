@@ -1,5 +1,10 @@
 import type { Citation } from "@opencairn/db";
-import { retrieve, type RagMode, type RetrievalScope, type RetrievalChip } from "./chat-retrieval";
+import {
+  retrieveWithPolicy,
+  type RagMode,
+  type RetrievalScope,
+  type RetrievalChip,
+} from "./chat-retrieval";
 import {
   evidenceBundleToPrompt,
   packEvidence,
@@ -101,10 +106,10 @@ export async function* runChat(opts: {
   try {
     yield { type: "status", payload: { phrase: "관련 문서 훑는 중..." } };
 
-    const hits =
+    const retrieval =
       opts.ragMode === "off"
-        ? []
-        : await retrieve({
+        ? null
+        : await retrieveWithPolicy({
             workspaceId: opts.workspaceId,
             query: opts.userMessage,
             ragMode: opts.ragMode,
@@ -112,6 +117,7 @@ export async function* runChat(opts: {
             chips: opts.chips,
             signal: opts.signal,
           });
+    const hits = retrieval?.hits ?? [];
 
     // retrieve() does not check the signal itself; if the user already
     // aborted by the time the embedding+search fanout returns, skip the
@@ -127,7 +133,9 @@ export async function* runChat(opts: {
     );
     const evidenceBundle = packEvidence({
       candidates,
-      maxTokens: envInt("CHAT_CONTEXT_MAX_TOKENS", 6000),
+      maxTokens:
+        retrieval?.policy.contextMaxTokens ?? envInt("CHAT_CONTEXT_MAX_TOKENS", 6000),
+      maxChunksPerNote: retrieval?.policy.maxChunksPerNote,
     });
 
     const citations: Citation[] = evidenceBundle.items.map((item) => ({

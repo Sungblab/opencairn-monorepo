@@ -394,7 +394,7 @@ describe("chat-retrieval chunk fallback", () => {
 
     const hits = await retrieve({
       workspaceId: "ws1",
-      query: "alpha",
+      query: "alpha 관련 문서 연결 흐름",
       ragMode: "expand",
       scope: { type: "project", workspaceId: "ws1", projectId: "p1" },
       chips: [],
@@ -417,5 +417,31 @@ describe("chat-retrieval chunk fallback", () => {
         maxDepth: 2,
       }),
     );
+  });
+
+  it("skips graph expansion for simple expand-mode lookups", async () => {
+    chunkSearch.projectChunkHybridSearch.mockResolvedValue([
+      {
+        chunkId: "c-simple",
+        noteId: "n-simple",
+        title: "Simple",
+        headingPath: "Intro",
+        snippet: "simple alpha",
+        rrfScore: 1,
+        vectorScore: 0.9,
+        bm25Score: null,
+      },
+    ]);
+
+    const hits = await retrieve({
+      workspaceId: "ws1",
+      query: "alpha 정의",
+      ragMode: "expand",
+      scope: { type: "project", workspaceId: "ws1", projectId: "p1" },
+      chips: [],
+    });
+
+    expect(hits.map((h) => h.noteId)).toEqual(["n-simple"]);
+    expect(graphExpansion.expandGraphCandidates).not.toHaveBeenCalled();
   });
 });
