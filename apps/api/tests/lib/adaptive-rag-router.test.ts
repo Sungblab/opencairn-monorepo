@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { planAdaptiveRagPolicy } from "../../src/lib/adaptive-rag-router.js";
+import {
+  summarizeAdaptiveRagPolicy,
+  planAdaptiveRagPolicy,
+} from "../../src/lib/adaptive-rag-router.js";
 
 const workspaceScope = { type: "workspace" as const, workspaceId: "ws-1" };
 const projectScope = {
@@ -88,4 +91,82 @@ describe("planAdaptiveRagPolicy", () => {
       expect.arrayContaining(["comparison", "research_depth"]),
     );
   });
+
+  it.each([
+    {
+      name: "simple",
+      query: "alpha 정의",
+      expectedRoute: "simple",
+      expectedDepth: 0,
+      expectedReasons: ["simple_query"],
+    },
+    {
+      name: "comparison",
+      query: "alpha와 beta의 차이와 장단점을 비교해줘",
+      expectedRoute: "comparison",
+      expectedDepth: 1,
+      expectedReasons: ["comparison"],
+    },
+    {
+      name: "research",
+      query: "alpha 정책의 근거와 출처를 분석해줘",
+      expectedRoute: "research",
+      expectedDepth: 1,
+      expectedReasons: ["research_depth"],
+    },
+    {
+      name: "relationship",
+      query: "alpha가 beta와 어떤 관계로 연결되는지 알려줘",
+      expectedRoute: "relationship",
+      expectedDepth: 2,
+      expectedReasons: ["relationship"],
+    },
+    {
+      name: "multi-hop",
+      query: "alpha 결정의 원인과 결과 흐름을 여러 문서에서 추적해줘",
+      expectedRoute: "multi_hop",
+      expectedDepth: 2,
+      expectedReasons: ["multi_hop"],
+    },
+    {
+      name: "workspace fanout",
+      query: "workspace 전체에서 alpha 근거를 정리해줘",
+      expectedRoute: "workspace_fanout",
+      expectedDepth: 1,
+      expectedReasons: ["research_depth", "workspace_fanout"],
+      projectCount: 3,
+    },
+  ])(
+    "summarizes the $name retrieval shape for eval traces",
+    ({
+      query,
+      expectedRoute,
+      expectedDepth,
+      expectedReasons,
+      projectCount,
+    }) => {
+      const policy = planAdaptiveRagPolicy({
+        query,
+        ragMode: "expand",
+        scope: workspaceScope,
+        chips: [],
+        projectCount,
+      });
+
+      const summary = summarizeAdaptiveRagPolicy(policy);
+
+      expect(summary.route).toBe(expectedRoute);
+      expect(summary.retrievalShape.graphDepth).toBe(expectedDepth);
+      expect(summary.retrievalShape.resultTopK).toBe(policy.resultTopK);
+      expect(summary.retrievalShape.seedTopK).toBe(policy.seedTopK);
+      expect(summary.retrievalShape.graphLimit).toBe(policy.graphLimit);
+      expect(summary.retrievalShape.contextMaxTokens).toBe(
+        policy.contextMaxTokens,
+      );
+      expect(summary.retrievalShape.maxChunksPerNote).toBe(
+        policy.maxChunksPerNote,
+      );
+      expect(summary.reasons).toEqual(expect.arrayContaining(expectedReasons));
+    },
+  );
 });

@@ -6,10 +6,11 @@ vi.mock("../../src/lib/chat-retrieval", () => ({
 }));
 
 const { runChat } = await import("../../src/lib/chat-llm.js");
-const retrievalMod = (await import("../../src/lib/chat-retrieval.js")) as unknown as {
-  retrieve: ReturnType<typeof vi.fn>;
-  retrieveWithPolicy: ReturnType<typeof vi.fn>;
-};
+const retrievalMod =
+  (await import("../../src/lib/chat-retrieval.js")) as unknown as {
+    retrieve: ReturnType<typeof vi.fn>;
+    retrieveWithPolicy: ReturnType<typeof vi.fn>;
+  };
 
 const fakeProvider = {
   embed: vi.fn(),
@@ -40,7 +41,10 @@ function retrievalResult(hits: unknown[]) {
   };
 }
 
-function retrievalResultWithPolicy(hits: unknown[], policy: Record<string, unknown>) {
+function retrievalResultWithPolicy(
+  hits: unknown[],
+  policy: Record<string, unknown>,
+) {
   return {
     ...retrievalResult(hits),
     policy: {
@@ -58,20 +62,22 @@ async function collect<T>(gen: AsyncGenerator<T>): Promise<T[]> {
 
 describe("runChat happy path", () => {
   it("emits status → citation → text → usage → done in order", async () => {
-    retrievalMod.retrieveWithPolicy.mockResolvedValue(retrievalResult([
-      {
-        noteId: "n1",
-        chunkId: "c1",
-        title: "alpha",
-        headingPath: "Intro",
-        snippet: "first hit",
-        score: 0.9,
-        provenance: "extracted",
-        confidence: 0.9,
-        evidenceId: "chunk:c1",
-        sourceSpan: { start: 0, end: 9, locator: "p.1" },
-      },
-    ]));
+    retrievalMod.retrieveWithPolicy.mockResolvedValue(
+      retrievalResult([
+        {
+          noteId: "n1",
+          chunkId: "c1",
+          title: "alpha",
+          headingPath: "Intro",
+          snippet: "first hit",
+          score: 0.9,
+          provenance: "extracted",
+          confidence: 0.9,
+          evidenceId: "chunk:c1",
+          sourceSpan: { start: 0, end: 9, locator: "p.1" },
+        },
+      ]),
+    );
     let receivedMessages: unknown[] = [];
     fakeProvider.streamGenerate.mockImplementation(async function* (opts: {
       messages: unknown[];
@@ -79,7 +85,9 @@ describe("runChat happy path", () => {
       receivedMessages = opts.messages;
       yield { delta: "Hello" };
       yield { delta: " world" };
-      yield { usage: { tokensIn: 30, tokensOut: 7, model: "gemini-2.5-flash" } };
+      yield {
+        usage: { tokensIn: 30, tokensOut: 7, model: "gemini-2.5-flash" },
+      };
     });
 
     const events = await collect(
@@ -97,9 +105,9 @@ describe("runChat happy path", () => {
     expect(types[0]).toBe("status");
     expect(types).toContain("citation");
     const texts = events.filter((e) => e.type === "text");
-    expect(texts.map((e) => (e.payload as { delta: string }).delta).join("")).toBe(
-      "Hello world",
-    );
+    expect(
+      texts.map((e) => (e.payload as { delta: string }).delta).join(""),
+    ).toBe("Hello world");
     const usage = events.find((e) => e.type === "usage");
     expect(usage?.payload).toMatchObject({ tokensIn: 30, tokensOut: 7 });
     expect(types[types.length - 1]).toBe("done");
@@ -142,7 +150,9 @@ describe("runChat happy path", () => {
     }) {
       receivedMessages = opts.messages;
       yield { delta: "ok" };
-      yield { usage: { tokensIn: 1, tokensOut: 1, model: "gemini-3-flash-preview" } };
+      yield {
+        usage: { tokensIn: 1, tokensOut: 1, model: "gemini-3-flash-preview" },
+      };
     });
 
     await collect(
@@ -172,7 +182,9 @@ describe("runChat happy path", () => {
     }) {
       thinkingLevel = opts.thinkingLevel;
       yield { delta: "ok" };
-      yield { usage: { tokensIn: 1, tokensOut: 1, model: "gemini-3-flash-preview" } };
+      yield {
+        usage: { tokensIn: 1, tokensOut: 1, model: "gemini-3-flash-preview" },
+      };
     });
 
     await collect(
@@ -195,7 +207,9 @@ describe("runChat happy path", () => {
     retrievalMod.retrieveWithPolicy.mockResolvedValue(retrievalResult([]));
     fakeProvider.streamGenerate.mockImplementation(async function* () {
       yield { delta: "This should not be generated" };
-      yield { usage: { tokensIn: 1, tokensOut: 1, model: "gemini-3-flash-preview" } };
+      yield {
+        usage: { tokensIn: 1, tokensOut: 1, model: "gemini-3-flash-preview" },
+      };
     });
 
     const events = await collect(
@@ -290,23 +304,62 @@ describe("runChat happy path", () => {
     expect(events.filter((e) => e.type === "citation")).toHaveLength(1);
   });
 
+  it("uses adaptive retrieval token budget when packing evidence", async () => {
+    retrievalMod.retrieveWithPolicy.mockResolvedValue(
+      retrievalResultWithPolicy(
+        [
+          {
+            noteId: "n1",
+            chunkId: "c1",
+            title: "Alpha",
+            headingPath: "One",
+            snippet: "first alpha hit with enough text to exceed a tiny budget",
+            score: 0.9,
+          },
+        ],
+        { contextMaxTokens: 10, maxChunksPerNote: 3 },
+      ),
+    );
+    fakeProvider.streamGenerate.mockImplementation(async function* () {
+      yield { delta: "no context packed" };
+    });
+
+    const events = await collect(
+      runChat({
+        workspaceId: "ws-1",
+        scope: { type: "project", workspaceId: "ws-1", projectId: "p1" },
+        ragMode: "expand",
+        chips: [],
+        history: [],
+        userMessage: "research alpha",
+        provider: fakeProvider,
+      }),
+    );
+
+    expect(events.find((e) => e.type === "citation")).toBeUndefined();
+  });
+
   it("marks missing sentence citations as a fail action without blocking streamed text", async () => {
-    retrievalMod.retrieveWithPolicy.mockResolvedValue(retrievalResult([
-      {
-        noteId: "n1",
-        chunkId: "c1",
-        title: "Alpha policy",
-        headingPath: "Grounding",
-        snippet: "Alpha policy requires runtime answer verification.",
-        score: 0.9,
-        provenance: "extracted",
-        confidence: 0.9,
-        evidenceId: "chunk:c1",
-      },
-    ]));
+    retrievalMod.retrieveWithPolicy.mockResolvedValue(
+      retrievalResult([
+        {
+          noteId: "n1",
+          chunkId: "c1",
+          title: "Alpha policy",
+          headingPath: "Grounding",
+          snippet: "Alpha policy requires runtime answer verification.",
+          score: 0.9,
+          provenance: "extracted",
+          confidence: 0.9,
+          evidenceId: "chunk:c1",
+        },
+      ]),
+    );
     fakeProvider.streamGenerate.mockImplementation(async function* () {
       yield { delta: "Alpha policy requires runtime answer verification." };
-      yield { usage: { tokensIn: 30, tokensOut: 7, model: "gemini-2.5-flash" } };
+      yield {
+        usage: { tokensIn: 30, tokensOut: 7, model: "gemini-2.5-flash" },
+      };
     });
 
     const events = await collect(
@@ -332,22 +385,26 @@ describe("runChat happy path", () => {
   });
 
   it("keeps weak support as a warn action", async () => {
-    retrievalMod.retrieveWithPolicy.mockResolvedValue(retrievalResult([
-      {
-        noteId: "n1",
-        chunkId: "c1",
-        title: "Alpha policy",
-        headingPath: "Grounding",
-        snippet: "Alpha policy requires runtime answer verification.",
-        score: 0.9,
-        provenance: "extracted",
-        confidence: 0.9,
-        evidenceId: "chunk:c1",
-      },
-    ]));
+    retrievalMod.retrieveWithPolicy.mockResolvedValue(
+      retrievalResult([
+        {
+          noteId: "n1",
+          chunkId: "c1",
+          title: "Alpha policy",
+          headingPath: "Grounding",
+          snippet: "Alpha policy requires runtime answer verification.",
+          score: 0.9,
+          provenance: "extracted",
+          confidence: 0.9,
+          evidenceId: "chunk:c1",
+        },
+      ]),
+    );
     fakeProvider.streamGenerate.mockImplementation(async function* () {
       yield { delta: "A different unsupported claim appears here [^1]." };
-      yield { usage: { tokensIn: 30, tokensOut: 7, model: "gemini-2.5-flash" } };
+      yield {
+        usage: { tokensIn: 30, tokensOut: 7, model: "gemini-2.5-flash" },
+      };
     });
 
     const events = await collect(
@@ -393,7 +450,9 @@ describe("runChat save_suggestion", () => {
     const sugg = events.find((e) => e.type === "save_suggestion");
     expect(sugg?.payload).toEqual({ title: "Test", body_markdown: "Body" });
     const types = events.map((e) => e.type);
-    expect(types.indexOf("save_suggestion")).toBeLessThan(types.indexOf("usage"));
+    expect(types.indexOf("save_suggestion")).toBeLessThan(
+      types.indexOf("usage"),
+    );
   });
 
   it("does NOT emit save_suggestion on malformed fence", async () => {
@@ -462,7 +521,9 @@ describe("runChat history truncation", () => {
 
 describe("runChat error contract", () => {
   it("yields error+done when retrieve() rejects", async () => {
-    retrievalMod.retrieveWithPolicy.mockRejectedValue(new Error("retrieve boom"));
+    retrievalMod.retrieveWithPolicy.mockRejectedValue(
+      new Error("retrieve boom"),
+    );
     fakeProvider.streamGenerate.mockImplementation(async function* () {
       yield { delta: "should not reach" };
     });
@@ -482,7 +543,9 @@ describe("runChat error contract", () => {
     expect(types[types.length - 1]).toBe("done");
     const errorEvt = events.find((e) => e.type === "error");
     expect(errorEvt).toBeDefined();
-    expect((errorEvt!.payload as { message: string }).message).toBe("retrieve boom");
+    expect((errorEvt!.payload as { message: string }).message).toBe(
+      "retrieve boom",
+    );
     expect(events.find((e) => e.type === "text")).toBeUndefined();
   });
 
@@ -508,7 +571,9 @@ describe("runChat error contract", () => {
     expect(types).toContain("error");
     expect(types).toContain("text"); // partial delta was yielded before throw
     const errorEvt = events.find((e) => e.type === "error");
-    expect((errorEvt!.payload as { message: string }).message).toBe("stream boom");
+    expect((errorEvt!.payload as { message: string }).message).toBe(
+      "stream boom",
+    );
     // error must come after the partial text and before done.
     expect(types.indexOf("error")).toBeGreaterThan(types.indexOf("text"));
     expect(types.indexOf("error")).toBeLessThan(types.indexOf("done"));
