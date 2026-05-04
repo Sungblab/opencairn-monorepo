@@ -18,6 +18,24 @@ Start with the public docs that describe stable project behavior:
 The historical execution plans, raw review logs, private agent notes, and local
 operator handoffs are intentionally not part of the public repository.
 
+## Private Maintainer Docs
+
+For local maintainer work in this checkout, also read the private docs under
+`.private-docs/` and ignored Superpowers docs under `docs/superpowers/` when the
+task is about current development status, historical implementation plans,
+audits, handoffs, or product direction. These files are local operator context
+and should not be copied into public docs or user-facing copy unless explicitly
+requested.
+
+Recommended private read order:
+
+1. `.private-docs/docs/contributing/plans-status.md`
+2. `.private-docs/docs/contributing/project-history.md`
+3. `.private-docs/docs/contributing/llm-antipatterns.md`
+4. Relevant `docs/superpowers/specs/` and `docs/superpowers/plans/`
+5. Relevant `.private-docs/docs/review/` audit notes when verifying claims or
+   implementation status
+
 ## Architecture
 
 ```text

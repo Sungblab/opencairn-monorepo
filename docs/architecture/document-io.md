@@ -1,6 +1,9 @@
-# Document I/O (exploring — not a decision)
+# Document I/O (superseded exploration)
 
-> **Status: exploring** (2026-04-23). 문서 **생성**(DOCX/PPTX/XLSX/PDF 등)과 **뷰**(미리보기) 전략 논의 정리. **결정 아님.** 결정되는 시점에 spec/ADR로 승격.
+> **Status: superseded.** 이 문서는 2026-04-23 당시 문서 **생성**
+> (DOCX/PPTX/XLSX/PDF 등)과 **뷰**(미리보기) 전략을 탐색한 기록이다.
+> 현재 결정은 [ADR 010](./adr/010-document-generation-ide-flow.md)과
+> [Document Generation IDE Flow](./document-generation-ide-flow.md)를 따른다.
 
 ## 1. 두 가지 문제 분리
 

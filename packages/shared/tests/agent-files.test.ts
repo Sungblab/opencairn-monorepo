@@ -54,6 +54,10 @@ describe("agent file shared contracts", () => {
   it("infers viewer kind and MIME from filenames", () => {
     expect(inferAgentFileKind("report.md")).toBe("markdown");
     expect(inferAgentFileKind("analysis.py")).toBe("code");
+    expect(inferAgentFileKind("budget.xlsx")).toBe("xlsx");
+    expect(inferAgentFileMimeType("budget.xlsx")).toBe(
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
     expect(inferAgentFileMimeType("deck.pptx")).toBe(
       "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     );

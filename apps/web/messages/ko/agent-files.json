@@ -7,5 +7,9 @@
     "ingest": "인제스트 실행",
     "compile": "LaTeX 컴파일",
     "canvas": "캔버스로 실행"
+  },
+  "card": {
+    "created": "{filename} 생성됨",
+    "open": "열기"
   }
 }

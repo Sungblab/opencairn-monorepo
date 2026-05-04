@@ -4,7 +4,11 @@ import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { Download, FileCode, Play, RefreshCcw, UploadCloud } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import { JsonView, defaultStyles } from "react-json-view-lite";
+import remarkGfm from "remark-gfm";
 import type { AgentFileSummary } from "@opencairn/shared";
+import "react-json-view-lite/dist/index.css";
 import type { Tab } from "@/stores/tabs-store";
 import { useTabsStore } from "@/stores/tabs-store";
 import { newTab } from "@/lib/tab-factory";
@@ -159,7 +163,7 @@ function FileBody({
   compiledUrl: string;
 }) {
   const textLike = useMemo(
-    () => ["markdown", "text", "latex", "code", "json", "csv"].includes(file.kind),
+    () => ["text", "latex", "code"].includes(file.kind),
     [file.kind],
   );
 
@@ -184,6 +188,9 @@ function FileBody({
       </div>
     );
   }
+  if (file.kind === "markdown") return <MarkdownPreview fileUrl={fileUrl} />;
+  if (file.kind === "json") return <JsonPreview fileUrl={fileUrl} />;
+  if (file.kind === "csv") return <CsvPreview fileUrl={fileUrl} />;
   if (textLike) return <TextPreview fileUrl={fileUrl} />;
   return (
     <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -193,8 +200,116 @@ function FileBody({
   );
 }
 
+function MarkdownPreview({ fileUrl }: { fileUrl: string }) {
+  const { data, isLoading } = useTextFile(fileUrl);
+
+  return (
+    <div className="h-full overflow-auto p-6">
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">...</p>
+      ) : (
+        <article className="max-w-4xl space-y-4 text-sm leading-7">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              h1: ({ children }) => <h1 className="text-2xl font-semibold leading-tight">{children}</h1>,
+              h2: ({ children }) => <h2 className="text-xl font-semibold leading-tight">{children}</h2>,
+              h3: ({ children }) => <h3 className="text-base font-semibold leading-tight">{children}</h3>,
+              p: ({ children }) => <p>{children}</p>,
+              ul: ({ children }) => <ul className="ml-5 list-disc space-y-1">{children}</ul>,
+              ol: ({ children }) => <ol className="ml-5 list-decimal space-y-1">{children}</ol>,
+              blockquote: ({ children }) => (
+                <blockquote className="border-l-2 pl-4 text-muted-foreground">{children}</blockquote>
+              ),
+              code: ({ children }) => (
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">{children}</code>
+              ),
+              pre: ({ children }) => (
+                <pre className="overflow-auto rounded border bg-muted/40 p-3 text-xs leading-5">{children}</pre>
+              ),
+              table: ({ children }) => <table className="min-w-full border-collapse text-xs">{children}</table>,
+              th: ({ children }) => <th className="border-b px-3 py-2 text-left font-medium">{children}</th>,
+              td: ({ children }) => <td className="border-b px-3 py-2 align-top">{children}</td>,
+            }}
+          >
+            {data ?? ""}
+          </ReactMarkdown>
+        </article>
+      )}
+    </div>
+  );
+}
+
+function JsonPreview({ fileUrl }: { fileUrl: string }) {
+  const { data, isLoading } = useTextFile(fileUrl);
+  const parsed = useMemo(() => {
+    if (!data) return null;
+    try {
+      return JSON.parse(data) as object;
+    } catch {
+      return null;
+    }
+  }, [data]);
+
+  if (isLoading) return <div className="h-full p-4 text-sm text-muted-foreground">...</div>;
+  if (parsed == null) return <TextPreview fileUrl={fileUrl} />;
+
+  return (
+    <div className="h-full overflow-auto p-4 text-sm">
+      <JsonView data={parsed} style={defaultStyles} />
+    </div>
+  );
+}
+
+function CsvPreview({ fileUrl }: { fileUrl: string }) {
+  const { data, isLoading } = useTextFile(fileUrl);
+  const table = useMemo(() => parseCsv(data ?? ""), [data]);
+
+  if (isLoading) return <div className="h-full p-4 text-sm text-muted-foreground">...</div>;
+  if (table.length === 0) return <TextPreview fileUrl={fileUrl} />;
+
+  const headers = table[0] ?? [];
+  const rows = table.slice(1);
+  return (
+    <div className="h-full overflow-auto p-4">
+      <table className="min-w-full border-collapse text-left text-xs">
+        <thead className="sticky top-0 bg-background">
+          <tr>
+            {headers.map((cell, index) => (
+              <th key={index} className="border-b px-3 py-2 font-medium text-muted-foreground">
+                {cell || `Column ${index + 1}`}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, rowIndex) => (
+            <tr key={rowIndex} className="border-b last:border-0">
+              {headers.map((_, cellIndex) => (
+                <td key={cellIndex} className="max-w-80 truncate px-3 py-2 align-top">
+                  {row[cellIndex] ?? ""}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function TextPreview({ fileUrl }: { fileUrl: string }) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useTextFile(fileUrl);
+
+  return (
+    <pre className="h-full overflow-auto whitespace-pre-wrap p-4 font-mono text-xs leading-5">
+      {isLoading ? "..." : data}
+    </pre>
+  );
+}
+
+function useTextFile(fileUrl: string) {
+  return useQuery({
     queryKey: ["agent-file-text", fileUrl],
     queryFn: async () => {
       const res = await fetch(fileUrl, { credentials: "include" });
@@ -202,12 +317,46 @@ function TextPreview({ fileUrl }: { fileUrl: string }) {
       return res.text();
     },
   });
+}
 
-  return (
-    <pre className="h-full overflow-auto whitespace-pre-wrap p-4 font-mono text-xs leading-5">
-      {isLoading ? "..." : data}
-    </pre>
-  );
+function parseCsv(input: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < input.length; i += 1) {
+    const ch = input[i];
+    const next = input[i + 1];
+
+    if (ch === '"' && inQuotes && next === '"') {
+      cell += '"';
+      i += 1;
+      continue;
+    }
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+    if (ch === "," && !inQuotes) {
+      row.push(cell);
+      cell = "";
+      continue;
+    }
+    if ((ch === "\n" || ch === "\r") && !inQuotes) {
+      if (ch === "\r" && next === "\n") i += 1;
+      row.push(cell);
+      if (row.length > 1 || row[0].length > 0) rows.push(row);
+      row = [];
+      cell = "";
+      continue;
+    }
+    cell += ch;
+  }
+
+  row.push(cell);
+  if (row.length > 1 || row[0].length > 0) rows.push(row);
+  return rows.slice(0, 500);
 }
 
 function formatBytes(bytes: number): string {

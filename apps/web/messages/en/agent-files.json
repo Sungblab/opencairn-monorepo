@@ -7,5 +7,9 @@
     "ingest": "Run ingest",
     "compile": "Compile LaTeX",
     "canvas": "Run in canvas"
+  },
+  "card": {
+    "created": "{filename} created",
+    "open": "Open"
   }
 }

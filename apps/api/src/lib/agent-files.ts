@@ -540,6 +540,7 @@ function isIngestible(kind: AgentFileKind, mimeType: string): boolean {
     "code",
     "json",
     "csv",
+    "xlsx",
     "pdf",
     "docx",
     "pptx",
@@ -548,7 +549,7 @@ function isIngestible(kind: AgentFileKind, mimeType: string): boolean {
 
 function ingestMimeFor(kind: AgentFileKind, mimeType: string): string {
   if (kind === "markdown") return "text/markdown";
-  if (kind === "pdf" || kind === "docx" || kind === "pptx" || mimeType.startsWith("image/")) {
+  if (kind === "pdf" || kind === "docx" || kind === "pptx" || kind === "xlsx" || mimeType.startsWith("image/")) {
     return mimeType;
   }
   return "text/plain";

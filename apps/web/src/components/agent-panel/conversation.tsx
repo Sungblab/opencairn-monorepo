@@ -16,7 +16,7 @@ import { useChatMessages } from "@/hooks/use-chat-messages";
 import type { StreamingAgentMessage } from "@/hooks/use-chat-send";
 import { chatApi } from "@/lib/api-client";
 
-import { MessageBubble } from "./message-bubble";
+import { AgentFileCards, MessageBubble, asAgentFileCards } from "./message-bubble";
 import { StatusLine } from "./status-line";
 import { ThoughtBubble } from "./thought-bubble";
 
@@ -75,6 +75,11 @@ export function Conversation({ threadId, live = null, onSaveSuggestion }: Props)
             <StatusLine phrase={live.status.phrase} />
           ) : null}
           <p className="whitespace-pre-wrap text-sm">{live.body}</p>
+          {live.agent_files.length > 0 || live.project_objects.length > 0 ? (
+            <AgentFileCards
+              files={asAgentFileCards(live.agent_files, live.project_objects)}
+            />
+          ) : null}
         </div>
       ) : null}
       <div ref={endRef} />

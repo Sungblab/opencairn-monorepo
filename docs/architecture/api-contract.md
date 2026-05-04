@@ -176,7 +176,7 @@ Agent-generated files are first-class project objects stored in MinIO/R2 and sur
 
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
-| POST | /api/agent-files | project `editor` | Create 1-5 stored files from inline UTF-8 content or base64 bytes. Uploads bytes, inserts `agent_files`, optionally starts ingest, emits tree event. | `{ projectId, source?, threadId?, messageId?, files: [{ filename, title?, kind?, mimeType?, content? XOR base64?, folderId?, startIngest? }] }` |
+| POST | /api/agent-files | project `editor` | Create 1-5 stored files from inline UTF-8 content or base64 bytes. Supported kinds include `markdown`, `text`, `latex`, `html`, `code`, `json`, `csv`, `xlsx`, `pdf`, `docx`, `pptx`, `image`, and `binary`. Uploads bytes, inserts `agent_files`, optionally starts ingest, emits tree event. | `{ projectId, source?, threadId?, messageId?, files: [{ filename, title?, kind?, mimeType?, content? XOR base64?, folderId?, startIngest? }] }` |
 | GET | /api/agent-files/:id | project `viewer` | Read metadata for an undeleted generated file. | - |
 | GET | /api/agent-files/:id/file | project `viewer` | Stream original bytes with safe `Content-Disposition`; inline for previewable kinds, attachment for opaque binaries. | - |
 | GET | /api/agent-files/:id/compiled | project `viewer` | Stream compiled derivative, currently LaTeX PDF when `compiled_object_key` exists. | - |

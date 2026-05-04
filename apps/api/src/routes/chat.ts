@@ -37,7 +37,7 @@ import {
 } from "../lib/llm/provider";
 import type { RetrievalScope, RetrievalChip } from "../lib/chat-retrieval";
 import type { AppEnv } from "../lib/types";
-import { createAgentFile } from "../lib/agent-files";
+import { executeProjectObjectAction } from "../lib/project-object-actions";
 import { emitTreeEvent } from "../lib/tree-events";
 
 // /api/chat router. Each conversation is owned by exactly one
@@ -528,12 +528,18 @@ chatRoutes.post(
               }>;
             };
             for (const file of payload.files) {
-              const summary = await createAgentFile({
-                userId,
-                projectId,
-                source: "agent_chat",
-                file,
-              });
+              const result = await executeProjectObjectAction(
+                { type: "create_project_object", object: file },
+                {
+                  context: {
+                    userId,
+                    workspaceId: convo.workspaceId,
+                    projectId,
+                  },
+                },
+              );
+              if (!result.file || !result.compatibilityEvent) continue;
+              const summary = result.file;
               emitTreeEvent({
                 kind: "tree.agent_file_created",
                 projectId: summary.projectId,
@@ -543,8 +549,12 @@ chatRoutes.post(
                 at: new Date().toISOString(),
               });
               await stream.writeSSE({
-                event: "agent_file_created",
-                data: JSON.stringify({ file: summary }),
+                event: result.event.type,
+                data: JSON.stringify(result.event),
+              });
+              await stream.writeSSE({
+                event: result.compatibilityEvent.type,
+                data: JSON.stringify(result.compatibilityEvent),
               });
             }
           } else if (chunk.type === "verification") {

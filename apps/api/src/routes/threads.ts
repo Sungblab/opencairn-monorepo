@@ -16,7 +16,7 @@ import { requireAuth } from "../middleware/auth";
 import { canRead } from "../lib/permissions";
 import { isUuid } from "../lib/validators";
 import type { AppEnv } from "../lib/types";
-import { createAgentFile } from "../lib/agent-files";
+import { executeProjectObjectAction, toProjectObjectSummary } from "../lib/project-object-actions";
 import { emitTreeEvent } from "../lib/tree-events";
 import {
   runAgent as defaultRunAgent,
@@ -222,7 +222,7 @@ export const threadRoutes = new Hono<AppEnv>()
       if (!isUuid(id)) return c.json({ error: "bad_request" }, 400);
 
       const [thread] = await db
-        .select({ userId: chatThreads.userId })
+        .select({ userId: chatThreads.userId, workspaceId: chatThreads.workspaceId })
         .from(chatThreads)
         .where(eq(chatThreads.id, id));
       if (!thread) return c.json({ error: "not_found" }, 404);
@@ -356,14 +356,20 @@ export const threadRoutes = new Hono<AppEnv>()
                 };
                 const created = [];
                 for (const file of payload.files) {
-                  const summary = await createAgentFile({
-                    userId,
-                    projectId,
-                    source: "agent_chat",
-                    chatThreadId: id,
-                    chatMessageId: agentId,
-                    file,
-                  });
+                  const result = await executeProjectObjectAction(
+                    { type: "create_project_object", object: file },
+                    {
+                      context: {
+                        userId,
+                        workspaceId: thread.workspaceId,
+                        projectId,
+                        chatThreadId: id,
+                        chatMessageId: agentId,
+                      },
+                    },
+                  );
+                  if (!result.file || !result.compatibilityEvent) continue;
+                  const summary = result.file;
                   emitTreeEvent({
                     kind: "tree.agent_file_created",
                     projectId: summary.projectId,
@@ -372,12 +378,17 @@ export const threadRoutes = new Hono<AppEnv>()
                     label: summary.title,
                     at: new Date().toISOString(),
                   });
+                  send(result.event.type, result.event);
                   created.push(summary);
-                  send("agent_file_created", { file: summary });
+                  send(result.compatibilityEvent.type, result.compatibilityEvent);
                 }
                 meta.agent_files = [
                   ...((meta.agent_files as unknown[]) ?? []),
                   ...created,
+                ];
+                meta.project_objects = [
+                  ...((meta.project_objects as unknown[]) ?? []),
+                  ...created.map(toProjectObjectSummary),
                 ];
               } else if (chunk.type === "usage") {
                 // Lifted out of `content` and into `chat_messages.token_usage`

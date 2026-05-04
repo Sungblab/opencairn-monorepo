@@ -19,6 +19,7 @@ import { ChatInput } from "./ChatInput";
 import { CostBadge } from "./CostBadge";
 import { PinButton } from "./PinButton";
 import type { RagModeValue } from "./RagModeToggle";
+import { AgentFileCards, asAgentFileCards } from "../agent-panel/message-bubble";
 import { SaveSuggestionCard } from "../agent-panel/save-suggestion-card";
 
 type Message = {
@@ -29,6 +30,8 @@ type Message = {
   costKrw?: number;
   error?: string;
   saveSuggestion?: SaveSuggestion;
+  agentFiles?: unknown[];
+  projectObjects?: unknown[];
 };
 
 const isObj = (v: unknown): v is Record<string, unknown> =>
@@ -291,6 +294,22 @@ export function ChatPanel() {
               }
               break;
             }
+            case "agent_file_created":
+              if (isObj(payload)) {
+                updateMessage(assistantKey, (message) => ({
+                  ...message,
+                  agentFiles: [...(message.agentFiles ?? []), payload.file ?? payload],
+                }));
+              }
+              break;
+            case "project_object_created":
+              if (isObj(payload)) {
+                updateMessage(assistantKey, (message) => ({
+                  ...message,
+                  projectObjects: [...(message.projectObjects ?? []), payload.object ?? payload],
+                }));
+              }
+              break;
             case "error":
               updateMessage(assistantKey, (message) => ({
                 ...message,
@@ -399,6 +418,11 @@ export function ChatPanel() {
                     saveSuggestion: undefined,
                   }))
                 }
+              />
+            )}
+            {m.role === "assistant" && ((m.agentFiles?.length ?? 0) > 0 || (m.projectObjects?.length ?? 0) > 0) && (
+              <AgentFileCards
+                files={asAgentFileCards(m.agentFiles, m.projectObjects)}
               />
             )}
           </div>
