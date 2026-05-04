@@ -51,6 +51,26 @@
     "score": "Score",
     "detected": "Detected"
   },
+  "detail": {
+    "title": "{agent} run detail",
+    "runId": "Run ID",
+    "workflowId": "Workflow ID",
+    "ended": "Ended",
+    "notEnded": "Not ended yet",
+    "cost": "Cost",
+    "costValue": "₩{value}",
+    "outputs": "Created outputs",
+    "pollingLive": "Running work refreshes status every 5 seconds.",
+    "pollingTerminal": "This run has ended. Refresh to check the latest outputs.",
+    "retry": "Retry",
+    "cancel": "Cancel run",
+    "cancelUnavailable": "The current Plan 8 API does not expose a cancel endpoint yet, so this is an affordance only.",
+    "links": {
+      "suggestions": "View Suggestions",
+      "staleAlerts": "View Stale alerts",
+      "audioFiles": "View Audio files"
+    }
+  },
   "empty": {
     "runs": "No runs to show.",
     "suggestions": "No suggestions to review.",

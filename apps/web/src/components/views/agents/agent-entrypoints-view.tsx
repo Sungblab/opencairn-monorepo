@@ -7,21 +7,34 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Bot,
+  ExternalLink,
   FileAudio,
   Lightbulb,
   Play,
   RefreshCw,
   Rows3,
+  RotateCw,
+  Square,
   Volume2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
   plan8AgentsApi,
   type Plan8AgentName,
+  type Plan8AgentRun,
   type Plan8AudioFile,
   type Plan8StaleAlert,
   type Plan8Suggestion,
 } from "@/lib/api-client";
+import { urls } from "@/lib/urls";
 
 type LaunchKind = Plan8AgentName;
 
@@ -53,6 +66,32 @@ function formatDuration(seconds: number | null): string | null {
   return `${min}:${sec.toString().padStart(2, "0")}`;
 }
 
+const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "cancelled"]);
+
+function isRunTerminal(status: string): boolean {
+  return TERMINAL_RUN_STATUSES.has(status);
+}
+
+function workspaceSlugFromPathname(): string | null {
+  if (typeof window === "undefined") return null;
+  const match = window.location.pathname.match(/\/workspace\/([^/]+)/);
+  return match?.[1] ? decodeURIComponent(match[1]) : null;
+}
+
+function usePlan8RunPolling({
+  run,
+  refetch,
+}: {
+  run: Plan8AgentRun | null;
+  refetch: () => void;
+}) {
+  useEffect(() => {
+    if (!run || isRunTerminal(run.status)) return;
+    const interval = window.setInterval(refetch, 5000);
+    return () => window.clearInterval(interval);
+  }, [refetch, run]);
+}
+
 export function AgentEntryPointsView({ projectId }: { projectId: string }) {
   const locale = useLocale();
   const t = useTranslations("agents");
@@ -62,10 +101,21 @@ export function AgentEntryPointsView({ projectId }: { projectId: string }) {
   const [synthesisNoteIds, setSynthesisNoteIds] = useState<string[]>([]);
   const [connectorConceptId, setConnectorConceptId] = useState("");
   const [narratorNoteId, setNarratorNoteId] = useState("");
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const workspaceSlug = useMemo(workspaceSlugFromPathname, []);
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey,
     queryFn: () => plan8AgentsApi.overview(projectId),
+  });
+  const selectedRun =
+    data?.agentRuns.find((run) => run.runId === selectedRunId) ?? null;
+
+  usePlan8RunPolling({
+    run: selectedRun,
+    refetch: () => {
+      void refetch();
+    },
   });
 
   useEffect(() => {
@@ -254,23 +304,47 @@ export function AgentEntryPointsView({ projectId }: { projectId: string }) {
               rows={data.agentRuns}
               formatDate={formatDate}
               empty={t("empty.runs")}
+              onSelectRun={setSelectedRunId}
             />
             <SuggestionsTable
               rows={data.suggestions}
               formatDate={formatDate}
               empty={t("empty.suggestions")}
+              locale={locale}
+              projectId={projectId}
+              workspaceSlug={workspaceSlug}
             />
             <StaleAlertsTable
               rows={data.staleAlerts}
               formatDate={formatDate}
               empty={t("empty.staleAlerts")}
+              locale={locale}
+              projectId={projectId}
+              workspaceSlug={workspaceSlug}
             />
             <AudioFilesList
               rows={data.audioFiles}
               formatDate={formatDate}
               empty={t("empty.audioFiles")}
+              locale={locale}
+              projectId={projectId}
+              workspaceSlug={workspaceSlug}
             />
           </section>
+          <RunDetailSheet
+            run={selectedRun}
+            open={Boolean(selectedRun)}
+            onOpenChange={(open) => {
+              if (!open) setSelectedRunId(null);
+            }}
+            formatDate={formatDate}
+            onRetry={(agentName) => launch.mutate(agentName)}
+            retryDisabled={
+              !selectedRun ||
+              launch.isPending ||
+              !canLaunch(selectedRun.agentName)
+            }
+          />
         </>
       )}
     </div>
@@ -323,16 +397,12 @@ function RunsTable({
   rows,
   formatDate,
   empty,
+  onSelectRun,
 }: {
-  rows: Array<{
-    runId: string;
-    agentName: Plan8AgentName;
-    workflowId: string;
-    status: string;
-    startedAt: string;
-  }>;
+  rows: Plan8AgentRun[];
   formatDate: (value: string) => string;
   empty: string;
+  onSelectRun: (runId: string) => void;
 }) {
   const t = useTranslations("agents");
   return (
@@ -352,7 +422,19 @@ function RunsTable({
           <tbody>
             {rows.map((row) => (
               <tr key={row.runId} className="border-t border-border">
-                <td className="py-2">{t(`launch.${row.agentName}.name`)}</td>
+                <td className="py-2">
+                  <button
+                    type="button"
+                    aria-label={row.runId}
+                    onClick={() => onSelectRun(row.runId)}
+                    className="inline-flex flex-col items-start gap-0.5 text-left hover:text-primary"
+                  >
+                    <span>{t(`launch.${row.agentName}.name`)}</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {row.runId}
+                    </span>
+                  </button>
+                </td>
                 <td className="py-2 text-xs text-muted-foreground">
                   {t.has(`status.${row.status}`)
                     ? t(`status.${row.status}`)
@@ -374,14 +456,20 @@ function SuggestionsTable({
   rows,
   formatDate,
   empty,
+  locale,
+  projectId,
+  workspaceSlug,
 }: {
   rows: Plan8Suggestion[];
   formatDate: (value: string) => string;
   empty: string;
+  locale: string;
+  projectId: string;
+  workspaceSlug: string | null;
 }) {
   const t = useTranslations("agents");
   return (
-    <section>
+    <section id="plan8-suggestions">
       <h2 className="mb-3 text-lg font-semibold">
         {t("sections.suggestions")}
       </h2>
@@ -401,7 +489,13 @@ function SuggestionsTable({
               <tr key={row.id} className="border-t border-border">
                 <td className="py-2">{t(`suggestionTypes.${row.type}`)}</td>
                 <td className="max-w-72 truncate py-2 text-xs text-muted-foreground">
-                  {formatPayload(row.payload) || t("empty.payload")}
+                  <OutputDetail
+                    payload={row.payload}
+                    fallback={formatPayload(row.payload) || t("empty.payload")}
+                    locale={locale}
+                    projectId={projectId}
+                    workspaceSlug={workspaceSlug}
+                  />
                 </td>
                 <td className="py-2 text-xs text-muted-foreground">
                   {formatDate(row.createdAt)}
@@ -419,14 +513,20 @@ function StaleAlertsTable({
   rows,
   formatDate,
   empty,
+  locale,
+  projectId,
+  workspaceSlug,
 }: {
   rows: Plan8StaleAlert[];
   formatDate: (value: string) => string;
   empty: string;
+  locale: string;
+  projectId: string;
+  workspaceSlug: string | null;
 }) {
   const t = useTranslations("agents");
   return (
-    <section>
+    <section id="plan8-stale-alerts">
       <h2 className="mb-3 text-lg font-semibold">
         {t("sections.staleAlerts")}
       </h2>
@@ -444,7 +544,15 @@ function StaleAlertsTable({
           <tbody>
             {rows.map((row) => (
               <tr key={row.id} className="border-t border-border">
-                <td className="py-2">{row.noteTitle}</td>
+                <td className="py-2">
+                  <NoteLink
+                    noteId={row.noteId}
+                    title={row.noteTitle}
+                    locale={locale}
+                    projectId={projectId}
+                    workspaceSlug={workspaceSlug}
+                  />
+                </td>
                 <td className="py-2 text-xs text-muted-foreground">
                   {Math.round(row.stalenessScore * 100)}
                   {t("scoreSuffix")}
@@ -465,14 +573,20 @@ function AudioFilesList({
   rows,
   formatDate,
   empty,
+  locale,
+  projectId,
+  workspaceSlug,
 }: {
   rows: Plan8AudioFile[];
   formatDate: (value: string) => string;
   empty: string;
+  locale: string;
+  projectId: string;
+  workspaceSlug: string | null;
 }) {
   const t = useTranslations("agents");
   return (
-    <section>
+    <section id="plan8-audio-files">
       <h2 className="mb-3 text-lg font-semibold">
         {t("sections.audioFiles")}
       </h2>
@@ -491,9 +605,14 @@ function AudioFilesList({
                     aria-hidden
                     className="h-4 w-4 shrink-0 text-muted-foreground"
                   />
-                  <span className="truncate text-sm font-medium">
-                    {row.noteTitle}
-                  </span>
+                  <NoteLink
+                    noteId={row.noteId}
+                    title={row.noteTitle}
+                    locale={locale}
+                    projectId={projectId}
+                    workspaceSlug={workspaceSlug}
+                    className="truncate text-sm font-medium"
+                  />
                 </div>
                 <span className="text-xs text-muted-foreground">
                   {formatDuration(row.durationSec) ?? formatDate(row.createdAt)}
@@ -511,5 +630,160 @@ function AudioFilesList({
         </div>
       )}
     </section>
+  );
+}
+
+function NoteLink({
+  noteId,
+  title,
+  locale,
+  projectId,
+  workspaceSlug,
+  className,
+}: {
+  noteId: string;
+  title: string;
+  locale: string;
+  projectId: string;
+  workspaceSlug: string | null;
+  className?: string;
+}) {
+  if (!workspaceSlug) return <span className={className}>{title}</span>;
+  return (
+    <a
+      href={urls.workspace.projectNote(locale, workspaceSlug, projectId, noteId)}
+      className={`inline-flex items-center gap-1 hover:text-primary ${className ?? ""}`}
+    >
+      <span className="truncate">{title}</span>
+      <ExternalLink aria-hidden className="h-3 w-3 shrink-0" />
+    </a>
+  );
+}
+
+function OutputDetail({
+  payload,
+  fallback,
+  locale,
+  projectId,
+  workspaceSlug,
+}: {
+  payload: Record<string, unknown>;
+  fallback: string;
+  locale: string;
+  projectId: string;
+  workspaceSlug: string | null;
+}) {
+  const noteId = typeof payload.noteId === "string" ? payload.noteId : null;
+  const title = typeof payload.title === "string" ? payload.title : fallback;
+  if (!noteId || !workspaceSlug) return <>{fallback}</>;
+  return (
+    <NoteLink
+      noteId={noteId}
+      title={title}
+      locale={locale}
+      projectId={projectId}
+      workspaceSlug={workspaceSlug}
+    />
+  );
+}
+
+function RunDetailSheet({
+  run,
+  open,
+  onOpenChange,
+  formatDate,
+  onRetry,
+  retryDisabled,
+}: {
+  run: Plan8AgentRun | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  formatDate: (value: string) => string;
+  onRetry: (agentName: Plan8AgentName) => void;
+  retryDisabled: boolean;
+}) {
+  const t = useTranslations("agents");
+  if (!run) return null;
+  const terminal = isRunTerminal(run.status);
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>
+            {t("detail.title", { agent: t(`launch.${run.agentName}.name`) })}
+          </SheetTitle>
+          <SheetDescription>
+            {terminal ? t("detail.pollingTerminal") : t("detail.pollingLive")}
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="flex flex-1 flex-col gap-5 overflow-auto px-4">
+          <dl className="grid grid-cols-[7rem_1fr] gap-x-3 gap-y-2 text-sm">
+            <dt className="text-muted-foreground">{t("detail.runId")}</dt>
+            <dd className="break-all font-mono text-xs">{run.runId}</dd>
+            <dt className="text-muted-foreground">{t("detail.workflowId")}</dt>
+            <dd className="break-all font-mono text-xs">{run.workflowId}</dd>
+            <dt className="text-muted-foreground">{t("tables.status")}</dt>
+            <dd>
+              {t.has(`status.${run.status}`)
+                ? t(`status.${run.status}`)
+                : run.status}
+            </dd>
+            <dt className="text-muted-foreground">{t("tables.started")}</dt>
+            <dd>{formatDate(run.startedAt)}</dd>
+            <dt className="text-muted-foreground">{t("detail.ended")}</dt>
+            <dd>{run.endedAt ? formatDate(run.endedAt) : t("detail.notEnded")}</dd>
+            <dt className="text-muted-foreground">{t("detail.cost")}</dt>
+            <dd>{t("detail.costValue", { value: run.totalCostKrw })}</dd>
+          </dl>
+
+          {run.errorMessage ? (
+            <div className="rounded border border-destructive/40 p-3 text-sm text-destructive">
+              {run.errorMessage}
+            </div>
+          ) : null}
+
+          <section>
+            <h3 className="mb-2 text-sm font-semibold">
+              {t("detail.outputs")}
+            </h3>
+            <div className="grid gap-2">
+              <a className="app-btn-secondary h-8 rounded px-3 text-xs" href="#plan8-suggestions">
+                {t("detail.links.suggestions")}
+              </a>
+              <a className="app-btn-secondary h-8 rounded px-3 text-xs" href="#plan8-stale-alerts">
+                {t("detail.links.staleAlerts")}
+              </a>
+              <a className="app-btn-secondary h-8 rounded px-3 text-xs" href="#plan8-audio-files">
+                {t("detail.links.audioFiles")}
+              </a>
+            </div>
+          </section>
+        </div>
+
+        <SheetFooter>
+          <button
+            type="button"
+            className="app-btn-primary h-9 rounded px-3 text-sm"
+            disabled={retryDisabled}
+            onClick={() => onRetry(run.agentName)}
+          >
+            <RotateCw aria-hidden className="h-4 w-4" />
+            {t("detail.retry")}
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded border border-border px-3 text-sm text-muted-foreground"
+            disabled
+          >
+            <Square aria-hidden className="h-4 w-4" />
+            {t("detail.cancel")}
+          </button>
+          <p className="text-xs text-muted-foreground">
+            {t("detail.cancelUnavailable")}
+          </p>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
