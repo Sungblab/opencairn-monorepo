@@ -120,6 +120,7 @@ describe("executeProjectObjectAction", () => {
       {
         type: "export_project_object",
         objectId: fileId,
+        format: "pdf",
         provider: "opencairn_download",
       },
       {
@@ -146,6 +147,7 @@ describe("executeProjectObjectAction", () => {
         projectId,
       },
       provider: "opencairn_download",
+      format: "markdown",
       downloadUrl: `/api/agent-files/${fileId}/file`,
       filename: "brief.md",
       mimeType: "text/markdown",
