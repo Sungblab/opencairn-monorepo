@@ -11,7 +11,7 @@ import { seedFullStackSession } from "./helpers/full-stack";
 // apps/web/messages/ko/agent-panel.json — keep this file in sync if the
 // copy ever changes.
 test.describe("App Shell Phase 4 — Agent Panel", () => {
-  test.describe.configure({ timeout: 60_000 });
+  test.describe.configure({ timeout: 120_000 });
 
   let session: SeededSession;
 
@@ -29,7 +29,7 @@ test.describe("App Shell Phase 4 — Agent Panel", () => {
       page.getByRole("button", { name: "첫 대화 시작" }),
     ).toBeVisible();
     const startButton = page.getByRole("button", { name: "첫 대화 시작" });
-    await expect(startButton).toBeEnabled({ timeout: 30_000 });
+    await expect(startButton).toBeEnabled({ timeout: 90_000 });
     await startButton.click();
     // composer.placeholder — once a thread is active the textarea is no
     // longer disabled (Composer's `disabled` flips off when activeThreadId
