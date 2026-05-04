@@ -50,7 +50,7 @@ class LoopConfig:
     temperature: float | None = None
     max_output_tokens: int | None = None
     budget_policy: BudgetPolicy | None = None
-    permission_mode: PermissionMode = "auto"
+    permission_mode: PermissionMode = "ask"
 
 
 @dataclass

@@ -44,6 +44,24 @@ def test_broker_requires_approval_for_write_tool_in_ask_mode() -> None:
     assert decision.action == "needs_approval"
 
 
+def test_broker_display_args_excludes_runtime_context_keys() -> None:
+    broker = PermissionBroker(mode="ask")
+    write_tool = SimpleNamespace(name="update_page", read_only=False, risk="write")
+
+    decision = broker.evaluate(
+        write_tool,
+        {
+            "title": "x",
+            "workspace_id": "ws",
+            "user_id": "u1",
+            "emit": "internal-callable",
+        },
+        context={"workspace_id": "ws", "user_id": "u1", "emit": object()},
+    )
+
+    assert decision.display_args == {"title": "x"}
+
+
 def test_dynamic_policy_receives_model_args() -> None:
     tool = SimpleNamespace(
         name="update_page",

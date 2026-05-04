@@ -72,9 +72,9 @@ class PermissionBroker:
         *,
         context: dict[str, Any] | None = None,
     ) -> PermissionDecision:
-        del context
         policy = get_tool_policy(tool, args)
-        display_args = dict(args)
+        context_keys = set(context.keys()) if context else set()
+        display_args = {k: v for k, v in args.items() if k not in context_keys}
 
         if policy.risk == "destructive":
             return PermissionDecision(
