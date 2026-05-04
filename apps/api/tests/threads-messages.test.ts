@@ -249,9 +249,11 @@ describe("Threads messages — happy path", () => {
       .orderBy(asc(chatMessages.createdAt));
     expect(rows).toHaveLength(2);
     const content = rows[1]!.content as {
+      body: string;
       agent_files?: Array<{ id: string }>;
       project_objects?: Array<{ id: string; objectType: string }>;
     };
+    expect(content.body).toBe("Created Agent Brief.");
     expect(content.agent_files?.[0]?.id).toBe(fileId);
     expect(content.project_objects?.[0]).toMatchObject({
       id: fileId,
