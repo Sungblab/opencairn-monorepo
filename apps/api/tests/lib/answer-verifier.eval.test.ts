@@ -18,6 +18,7 @@ type GroundedChatCase = {
   answer: string;
   expectedVerdict: AnswerVerifierVerdict;
   expectedReasons?: AnswerVerificationFinding["reason"][];
+  minCitedProjects?: number;
 };
 
 function loadCases(): GroundedChatCase[] {
@@ -36,6 +37,7 @@ describe("grounded chat verifier eval cases", () => {
       const result = verifyGroundedAnswer({
         answer: testCase.answer,
         ledger,
+        minCitedProjects: testCase.minCitedProjects,
       });
 
       expect(result.verdict).toBe(testCase.expectedVerdict);
@@ -87,6 +89,80 @@ describe("chat source ledger", () => {
     expect(formatChatSourceLedgerForPrompt(ledger)).toBe(
       "[S1] Policy · Limits: Every factual sentence needs a source label.",
     );
+  });
+
+  it("preserves project and graph provenance metadata for verifier paths", () => {
+    const ledger = buildChatSourceLedger([
+      {
+        noteId: "note-graph",
+        noteChunkId: "chunk-graph",
+        projectId: "project-graph",
+        title: "Graph relationship",
+        quote: "Graph evidence links alpha to beta through an inferred edge.",
+        producer: "graph",
+        provenance: {
+          kind: "inferred",
+          support: "mentions",
+          evidenceId: "edge-alpha-beta",
+        },
+      },
+    ]);
+
+    expect(ledger.entries[0]).toMatchObject({
+      projectId: "project-graph",
+      producer: "graph",
+      provenance: "inferred",
+      support: "mentions",
+      evidenceId: "edge-alpha-beta",
+    });
+  });
+});
+
+describe("answer verifier project diversity", () => {
+  const ledger = buildChatSourceLedger([
+    {
+      noteId: "note-alpha",
+      noteChunkId: "chunk-alpha",
+      projectId: "project-alpha",
+      title: "Alpha project",
+      quote: "Alpha project evidence says workspace fanout should cite alpha rollout details.",
+    },
+    {
+      noteId: "note-beta",
+      noteChunkId: "chunk-beta",
+      projectId: "project-beta",
+      title: "Beta project",
+      quote: "Beta project evidence says workspace fanout should cite beta adoption risks.",
+    },
+  ]);
+
+  it("warns when a workspace fanout answer cites only one project", () => {
+    const result = verifyGroundedAnswer({
+      answer:
+        "Workspace fanout should cite alpha rollout details [S1]. Alpha project evidence covers rollout details [S1].",
+      ledger,
+      minCitedProjects: 2,
+    });
+
+    expect(result.verdict).toBe("warn");
+    expect(result.findings).toContainEqual({
+      sentence:
+        "Workspace fanout should cite alpha rollout details [S1]. Alpha project evidence covers rollout details [S1].",
+      reason: "insufficient_project_coverage",
+      labels: ["S1"],
+    });
+  });
+
+  it("passes when a workspace fanout answer cites evidence from multiple projects", () => {
+    const result = verifyGroundedAnswer({
+      answer:
+        "Workspace fanout should cite alpha rollout details [S1]. Workspace fanout should also cite beta adoption risks [S2].",
+      ledger,
+      minCitedProjects: 2,
+    });
+
+    expect(result.verdict).toBe("pass");
+    expect(result.citedProjects).toEqual(["project-alpha", "project-beta"]);
   });
 });
 

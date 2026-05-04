@@ -426,6 +426,70 @@ describe("runChat happy path", () => {
       findings: [{ reason: "weak_support" }],
     });
   });
+
+  it("warns when workspace fanout evidence spans projects but the answer cites one project", async () => {
+    retrievalMod.retrieveWithPolicy.mockResolvedValue(
+      retrievalResultWithPolicy(
+        [
+          {
+            noteId: "n-alpha",
+            projectId: "p-alpha",
+            chunkId: "c-alpha",
+            title: "Alpha project",
+            headingPath: "Rollout",
+            snippet: "Alpha project evidence says workspace fanout should cite alpha rollout details.",
+            score: 0.92,
+            provenance: "extracted",
+            confidence: 0.92,
+            evidenceId: "chunk:c-alpha",
+          },
+          {
+            noteId: "n-beta",
+            projectId: "p-beta",
+            chunkId: "c-beta",
+            title: "Beta project",
+            headingPath: "Adoption",
+            snippet: "Beta project evidence says workspace fanout should cite beta adoption risks.",
+            score: 0.86,
+            provenance: "inferred",
+            confidence: 0.86,
+            evidenceId: "edge:beta-risk",
+            channelScores: { graph: 0.86 },
+            support: "mentions",
+            producer: { kind: "api", tool: "graph-expansion" },
+          },
+        ],
+        { maxChunksPerProject: 1, maxChunksPerNote: 1 },
+      ),
+    );
+    fakeProvider.streamGenerate.mockImplementation(async function* () {
+      yield {
+        delta:
+          "Workspace fanout should cite alpha rollout details [^1]. Alpha project evidence covers rollout details [^1].",
+      };
+    });
+
+    const events = await collect(
+      runChat({
+        workspaceId: "ws-1",
+        scope: { type: "workspace", workspaceId: "ws-1" },
+        ragMode: "expand",
+        chips: [],
+        history: [],
+        userMessage: "workspace 전체에서 alpha 근거를 정리해줘",
+        provider: fakeProvider,
+      }),
+    );
+
+    expect(events.filter((e) => e.type === "citation")).toHaveLength(2);
+    const verification = events.find((e) => e.type === "verification");
+    expect(verification?.payload).toMatchObject({
+      verdict: "warn",
+      action: "warn",
+      citedProjects: ["p-alpha"],
+      findings: [{ reason: "insufficient_project_coverage", labels: ["S1"] }],
+    });
+  });
 });
 
 describe("runChat save_suggestion", () => {

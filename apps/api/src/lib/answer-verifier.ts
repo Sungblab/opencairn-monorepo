@@ -9,13 +9,15 @@ export type AnswerVerificationFinding = {
     | "unknown_citation"
     | "weak_support"
     | "empty_ledger"
-    | "refusal_without_sources";
+    | "refusal_without_sources"
+    | "insufficient_project_coverage";
   labels: string[];
 };
 
 export type AnswerVerificationResult = {
   verdict: AnswerVerifierVerdict;
   citedLabels: string[];
+  citedProjects: string[];
   findings: AnswerVerificationFinding[];
   coverage: {
     materialSentences: number;
@@ -27,6 +29,7 @@ export type VerifyGroundedAnswerInput = {
   answer: string;
   ledger: ChatSourceLedger;
   minOverlap?: number;
+  minCitedProjects?: number;
 };
 
 const CITATION_RE = /\[(?:\^?\d+|S\d+)(?:\s*,\s*(?:\^?\d+|S\d+))*\]/g;
@@ -121,6 +124,7 @@ export function verifyGroundedAnswer(
 ): AnswerVerificationResult {
   const minOverlap = input.minOverlap ?? 0.18;
   const citedLabels = uniqueLabels(input.answer);
+  const citedProjects = citedProjectIds(citedLabels, input.ledger);
   const findings: AnswerVerificationFinding[] = [];
   const materialSentences = sentenceFragments(input.answer).filter(isMaterialSentence);
   const sourceTokenCache = new Map<string, Set<string>>();
@@ -130,6 +134,7 @@ export function verifyGroundedAnswer(
       return {
         verdict: "pass",
         citedLabels,
+        citedProjects,
         findings: [],
         coverage: {
           materialSentences: materialSentences.length,
@@ -140,6 +145,7 @@ export function verifyGroundedAnswer(
     return {
       verdict: "fail",
       citedLabels,
+      citedProjects,
       findings: [
         {
           sentence: input.answer.trim(),
@@ -181,6 +187,18 @@ export function verifyGroundedAnswer(
     }
   }
 
+  const requiredProjectCount = requiredCitedProjectCount(
+    input.minCitedProjects,
+    input.ledger,
+  );
+  if (requiredProjectCount > 0 && citedProjects.length < requiredProjectCount) {
+    findings.push({
+      sentence: input.answer.trim(),
+      reason: "insufficient_project_coverage",
+      labels: citedLabels,
+    });
+  }
+
   const hasFailure = findings.some((finding) =>
     ["missing_citation", "unknown_citation", "empty_ledger"].includes(finding.reason),
   );
@@ -190,10 +208,32 @@ export function verifyGroundedAnswer(
   return {
     verdict,
     citedLabels,
+    citedProjects,
     findings,
     coverage: {
       materialSentences: materialSentences.length,
       citedMaterialSentences,
     },
   };
+}
+
+function citedProjectIds(labels: string[], ledger: ChatSourceLedger): string[] {
+  const projects = new Set<string>();
+  for (const label of labels) {
+    const projectId = ledger.byLabel.get(label)?.projectId;
+    if (projectId) projects.add(projectId);
+  }
+  return [...projects];
+}
+
+function requiredCitedProjectCount(
+  minCitedProjects: number | undefined,
+  ledger: ChatSourceLedger,
+): number {
+  if (!minCitedProjects || minCitedProjects < 2) return 0;
+  const availableProjects = new Set<string>();
+  for (const entry of ledger.entries) {
+    if (entry.projectId) availableProjects.add(entry.projectId);
+  }
+  return Math.min(minCitedProjects, availableProjects.size);
 }

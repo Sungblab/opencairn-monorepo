@@ -242,23 +242,43 @@ function verifyRuntimeAnswer(input: {
   const ledger = buildChatSourceLedger(
     input.evidenceBundle.items.map((item) => ({
       noteId: item.noteId,
+      projectId: item.projectId,
       noteChunkId: item.chunkId ?? undefined,
       title: item.title,
       headingPath: item.headingPath,
       quote: item.snippet,
       score: item.confidence,
       producer: item.producer.kind,
+      evidenceId: item.evidenceId,
+      support: item.support,
+      provenance: {
+        kind: item.provenance,
+        evidenceId: item.evidenceId,
+        support: item.support,
+      },
     })),
   );
+  const citedProjectRequirement = minCitedProjectsForBundle(input.evidenceBundle);
   const result = verifyGroundedAnswer({
     answer: input.answer,
     ledger,
+    minCitedProjects: citedProjectRequirement,
   });
 
   return {
     ...result,
     action: result.verdict,
   };
+}
+
+function minCitedProjectsForBundle(
+  evidenceBundle: ReturnType<typeof packEvidence>,
+): number | undefined {
+  const projects = new Set<string>();
+  for (const item of evidenceBundle.items) {
+    if (item.projectId) projects.add(item.projectId);
+  }
+  return projects.size > 1 ? 2 : undefined;
 }
 
 // Drop oldest user/assistant turns until the rough character budget for
