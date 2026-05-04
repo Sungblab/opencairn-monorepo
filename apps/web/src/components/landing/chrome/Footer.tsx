@@ -121,8 +121,8 @@ export function LandingFooter() {
         <div className="h-px bg-gradient-to-r from-transparent via-stone-700 to-transparent" />
 
         {/* ─── BOTTOM ─── copyright + language */}
-        <div className="pt-8 flex flex-wrap items-center justify-between gap-6">
-          <div className="font-sans text-[11px] tracking-[0.16em] uppercase text-stone-400">
+        <div className="pt-8 flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-center sm:gap-6">
+          <div className="max-w-full font-sans text-[11px] leading-relaxed tracking-[0.16em] uppercase text-stone-400">
             {t.rich("copyright", {
               author: (chunks) => (
                 publicLinks.author ? (
@@ -141,7 +141,11 @@ export function LandingFooter() {
               authorName: siteConfig.authorName,
             })}
           </div>
-          <LanguageSwitcher tone="dark" />
+          <LanguageSwitcher
+            tone="dark"
+            className="w-full justify-center sm:w-auto"
+            contentClassName="!w-[min(16rem,calc(100vw-2rem))] sm:!w-56"
+          />
         </div>
       </div>
     </footer>

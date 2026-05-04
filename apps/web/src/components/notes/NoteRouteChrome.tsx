@@ -61,7 +61,7 @@ export function NoteRouteChrome({
         {projectName ? (
           <Link
             href={projectHref}
-            className="hover:text-foreground hover:underline"
+            className="inline-flex min-h-7 items-center rounded px-1 hover:bg-accent hover:text-foreground"
           >
             {projectName}
           </Link>

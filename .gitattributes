@@ -1,2 +1,13 @@
 * text=auto eol=lf
 *.md text eol=lf
+
+# Keep release archives focused on source, public docs, and deployment files.
+.codex/** export-ignore
+.claude/** export-ignore
+.private-docs/** export-ignore
+.superpowers/** export-ignore
+.worktrees/** export-ignore
+docs/superpowers/** export-ignore
+docs/review/** export-ignore
+docs/mockups/** export-ignore
+references/Gemini_API_docs/** export-ignore

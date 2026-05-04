@@ -218,7 +218,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   return (
     <aside
       data-testid="app-shell-agent-panel"
-      className="flex h-full flex-col border-l border-border bg-background"
+      className="flex h-full flex-col border-l border-border bg-[var(--theme-surface)]"
     >
       <PanelHeader
         onNewThread={startNewThread}

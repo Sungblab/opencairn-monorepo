@@ -1,4 +1,5 @@
 "use client";
+import { ArrowRight, FileText } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useTabsStore } from "@/stores/tabs-store";
 import {
@@ -61,9 +62,10 @@ export function LitResultCard({
       {papers.slice(0, 5).map((paper) => (
         <div key={paper.id} className="space-y-0.5">
           <div className="flex items-start gap-2">
-            {/* Decorative — purely visual, role=img with empty label so SR skips it. */}
-            {/* eslint-disable-next-line i18next/no-literal-string */}
-            <span aria-hidden="true" className="text-muted-foreground mt-0.5">📄</span>
+            <FileText
+              aria-hidden="true"
+              className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+            />
             <div className="flex-1 min-w-0">
               <p className="font-medium text-foreground truncate">
                 {paper.title}
@@ -102,9 +104,10 @@ export function LitResultCard({
         <button
           type="button"
           onClick={handleOpenInEditor}
-          className="text-xs text-primary hover:underline"
+          className="app-btn-ghost rounded-[var(--radius-control)] px-2 py-1 text-xs font-medium text-foreground"
         >
-          {t("search.openInEditor")} →
+          <span>{t("search.openInEditor")}</span>
+          <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
         </button>
       </div>
     </div>

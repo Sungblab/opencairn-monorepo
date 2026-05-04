@@ -145,4 +145,9 @@ describe("NoteEditor.onFirstEdit", () => {
     fireEvent.paste(body, { clipboardData: { getData: () => "x" } });
     expect(onFirstEdit).not.toHaveBeenCalled();
   });
+
+  it("renders the share button as a full-height control", () => {
+    renderNoteEditor();
+    expect(screen.getByTestId("share-button").className).toContain("min-h-7");
+  });
 });

@@ -8,15 +8,15 @@
     "preview": "미리보기",
     "source": "원본",
     "jsonTree": "JSON 트리",
-    "csvTable": "CSV 테이블 · {rows}행",
+    "csvTable": "표 형식 · {rows}행",
     "column": "열 {index}",
     "download": "원본 다운로드",
     "ingest": "인제스트 실행",
     "compile": "LaTeX 컴파일",
     "canvas": "캔버스로 실행",
     "compileStatus": {
-      "not_started": "컴파일 대기",
-      "queued": "컴파일 대기열",
+      "not_started": "컴파일 전",
+      "queued": "컴파일 대기",
       "running": "컴파일 중",
       "completed": "컴파일 완료",
       "failed": "컴파일 실패",
@@ -24,7 +24,7 @@
     },
     "ingestStatus": {
       "not_started": "인제스트 전",
-      "queued": "인제스트 대기열",
+      "queued": "인제스트 대기",
       "running": "인제스트 중",
       "completed": "인제스트 완료",
       "failed": "인제스트 실패"

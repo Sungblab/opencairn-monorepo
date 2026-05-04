@@ -54,7 +54,7 @@ docs(architecture): document context budget policy
 ## License & Contributor License Agreement
 
 OpenCairn is **dual-licensed** under [AGPL-3.0-or-later](LICENSE) and an
-optional commercial license (see [`LICENSE-COMMERCIAL.md`](LICENSE-COMMERCIAL.md)).
+optional commercial license (see [`COMMERCIAL-LICENSING.md`](COMMERCIAL-LICENSING.md)).
 
 For the dual-license model to work, the project must be able to distribute every
 contribution under both licenses. We therefore ask non-trivial contributors to

@@ -63,7 +63,7 @@ export function SecurityView() {
         <p className="text-sm text-muted-foreground">{t("description")}</p>
       </div>
 
-      <div className="rounded border border-border p-4">
+      <div className="rounded-[var(--radius-card)] border border-border bg-background p-4">
         <h2 className="text-sm font-semibold">{t("session.heading")}</h2>
         {isPending ? (
           <p className="mt-2 text-sm text-muted-foreground">{t("loading")}</p>
@@ -85,14 +85,14 @@ export function SecurityView() {
         )}
       </div>
 
-      <div className="rounded border border-border p-4">
+      <div className="rounded-[var(--radius-card)] border border-border bg-background p-4">
         <h2 className="text-sm font-semibold">{t("actions.heading")}</h2>
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
             onClick={sendVerification}
             disabled={!email || busy !== null || session?.user.emailVerified}
-            className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+            className="app-btn-primary rounded-[var(--radius-control)] px-3 py-1.5 text-sm font-medium disabled:opacity-50"
           >
             {busy === "verify" ? t("actions.sending") : t("actions.verify")}
           </button>
@@ -100,7 +100,7 @@ export function SecurityView() {
             type="button"
             onClick={sendReset}
             disabled={!email || busy !== null}
-            className="rounded border border-border px-3 py-1.5 text-sm transition hover:bg-accent disabled:opacity-50"
+            className="app-btn-ghost rounded-[var(--radius-control)] border border-border px-3 py-1.5 text-sm disabled:opacity-50"
           >
             {busy === "reset" ? t("actions.sending") : t("actions.reset")}
           </button>

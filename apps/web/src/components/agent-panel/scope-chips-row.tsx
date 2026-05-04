@@ -12,6 +12,8 @@
 // strict mode.
 
 import { useTranslations } from "next-intl";
+import type { LucideIcon } from "lucide-react";
+import { Brain, FileText, Folder, Home, Plus, Search } from "lucide-react";
 
 import { useTabsStore } from "@/stores/tabs-store";
 
@@ -60,6 +62,14 @@ const ALL_KINDS: ScopeKind[] = [
   "research",
 ];
 
+const SCOPE_ICONS: Record<ScopeKind, LucideIcon> = {
+  page: FileText,
+  project: Folder,
+  workspace: Home,
+  memory: Brain,
+  research: Search,
+};
+
 export function ScopeChipsRow({
   selected,
   onChange,
@@ -80,6 +90,7 @@ export function ScopeChipsRow({
       <div className="flex flex-1 flex-wrap items-center gap-1">
         {ALL_KINDS.map((kind) => {
           const on = selected.includes(kind);
+          const Icon = SCOPE_ICONS[kind];
           return (
             <button
               key={kind}
@@ -93,10 +104,11 @@ export function ScopeChipsRow({
               }
               className={
                 on
-                  ? "rounded-[var(--radius-chip)] border-[1.5px] border-foreground bg-foreground px-2 py-0.5 text-background"
-                  : "app-hover rounded-[var(--radius-chip)] border-[1.5px] border-border px-2 py-0.5 text-foreground"
+                  ? "inline-flex min-h-7 items-center gap-1.5 rounded-[var(--radius-control)] border-[1.5px] border-foreground bg-foreground px-2.5 py-1 text-background"
+                  : "app-hover inline-flex min-h-7 items-center gap-1.5 rounded-[var(--radius-control)] border-[1.5px] border-border px-2.5 py-1 text-foreground"
               }
             >
+              <Icon aria-hidden="true" className="h-3.5 w-3.5" />
               {t(`chips.${kind}`)}
             </button>
           );
@@ -104,16 +116,16 @@ export function ScopeChipsRow({
         <button
           type="button"
           aria-label={t("add_aria")}
-          className="app-hover rounded-[var(--radius-chip)] border border-dashed border-border px-2 py-0.5 text-muted-foreground"
+          className="app-hover inline-flex min-h-7 items-center rounded-[var(--radius-control)] border border-dashed border-border px-2.5 py-1 text-muted-foreground"
         >
-          +
+          <Plus aria-hidden="true" className="h-3.5 w-3.5" />
         </button>
       </div>
       <button
         type="button"
         aria-label={t("strict_aria")}
         onClick={() => onStrictChange(strict === "strict" ? "loose" : "strict")}
-        className="app-btn-ghost rounded-[var(--radius-control)] px-2 py-0.5 uppercase tracking-wide text-muted-foreground"
+        className="app-btn-ghost min-h-7 rounded-[var(--radius-control)] px-2.5 py-1 uppercase tracking-wide text-muted-foreground"
       >
         {t(strict)}
       </button>

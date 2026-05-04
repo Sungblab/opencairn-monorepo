@@ -23,14 +23,16 @@ export function TabShell({ children }: { children: React.ReactNode }) {
   return (
     <main
       data-testid="app-shell-main"
-      className="flex min-h-0 flex-1 flex-col bg-background"
+      className="flex min-h-0 flex-1 flex-col border-x border-border bg-background shadow-[0_0_0_1px_color-mix(in_srgb,var(--theme-border)_45%,transparent)]"
     >
       <TabBar />
       <div className="flex min-h-0 flex-1 overflow-auto">
         {active && isRoutedByTabModeRouter(active) ? (
-          <TabModeRouter tab={active} />
+          <div className="min-w-0 flex-1 w-full">
+            <TabModeRouter tab={active} />
+          </div>
         ) : (
-          children
+          <div className="min-w-0 flex-1 w-full">{children}</div>
         )}
       </div>
     </main>

@@ -23,26 +23,32 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
     "profile";
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="w-56 shrink-0 border-r border-border p-4">
+    <div
+      data-testid="account-shell"
+      className="flex min-h-screen min-w-0 flex-col overflow-x-hidden bg-[var(--theme-surface)] text-foreground md:flex-row"
+    >
+      <aside className="w-full shrink-0 border-b border-border bg-[var(--theme-surface)] p-4 md:w-56 md:border-b-0 md:border-r">
         <Link
           href={`/${locale}`}
-          className="mb-6 block text-xs text-muted-foreground hover:text-foreground"
+          className="app-btn-ghost mb-4 inline-flex min-h-8 items-center rounded-[var(--radius-control)] px-2 text-xs text-muted-foreground md:mb-6"
         >
           {t("back")}
         </Link>
         <p className="mb-3 text-xs uppercase tracking-wide text-muted-foreground">
           {t("title")}
         </p>
-        <nav className="flex flex-col gap-1">
+        <nav
+          aria-label={t("title")}
+          className="flex flex-row gap-1 overflow-x-auto pb-1 md:flex-col md:overflow-x-visible md:pb-0"
+        >
           {TABS.map((id) => (
             <Link
               key={id}
               href={`/${locale}/settings/${id}`}
-              className={`block rounded px-2 py-1 text-sm ${
+              className={`block shrink-0 rounded-[var(--radius-control)] px-2.5 py-1.5 text-sm transition-colors ${
                 current === id
-                  ? "bg-accent font-medium"
-                  : "text-muted-foreground hover:bg-accent/50"
+                  ? "bg-foreground font-medium text-background"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
               {t(`tabs.${id}`)}
@@ -50,7 +56,7 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
       </aside>
-      <main className="flex-1 p-6">{children}</main>
+      <main className="min-w-0 flex-1 bg-background p-4 sm:p-6">{children}</main>
     </div>
   );
 }

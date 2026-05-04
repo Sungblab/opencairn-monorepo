@@ -25,7 +25,7 @@ export default async function ProjectLayout({
   return (
     <>
       <Sidebar workspaceSlug={wsSlug} projectId={projectId} projectName={project.name} />
-      <main className="flex-1 overflow-auto">{children}</main>
+      <main className="min-w-0 flex-1 overflow-auto">{children}</main>
     </>
   );
 }

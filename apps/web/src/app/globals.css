@@ -118,11 +118,11 @@
   gap: 6px;
   background: var(--theme-fg);
   color: var(--theme-bg);
-  transition: background 0.12s ease;
+  transition: background-color 0.14s ease, color 0.14s ease, border-color 0.14s ease;
   cursor: pointer;
 }
 .app-btn-primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--theme-fg) 88%, var(--theme-bg));
+  background: color-mix(in srgb, var(--theme-fg) 92%, var(--theme-bg));
 }
 .app-btn-primary:active:not(:disabled) { background: var(--theme-fg); }
 .app-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -134,22 +134,22 @@
   gap: 6px;
   background: transparent;
   color: var(--theme-fg);
-  transition: background 0.12s ease;
+  transition: background-color 0.14s ease, color 0.14s ease, border-color 0.14s ease;
   cursor: pointer;
 }
 .app-btn-ghost:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--theme-fg) 6%, transparent);
+  background: color-mix(in srgb, var(--theme-fg) 8%, var(--theme-bg));
 }
 .app-btn-ghost:active:not(:disabled) {
-  background: color-mix(in srgb, var(--theme-fg) 10%, transparent);
+  background: color-mix(in srgb, var(--theme-fg) 12%, var(--theme-bg));
 }
 .app-btn-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .app-hover {
-  transition: background 0.12s ease;
+  transition: background-color 0.14s ease, color 0.14s ease, border-color 0.14s ease;
 }
 .app-hover:hover {
-  background: color-mix(in srgb, var(--theme-fg) 6%, transparent);
+  background: color-mix(in srgb, var(--theme-fg) 8%, var(--theme-bg));
 }
 
 /* ═══ Radius scale ═══
@@ -161,9 +161,9 @@
  * No `--radius-panel` for the shell itself; sidebars and main are flush
  * against screen edges and against each other (border-r / border-l). */
 :root {
-  --radius-card: 12px;        /* KPI cards, document cards, callouts */
+  --radius-card: 8px;         /* KPI cards, document cards, callouts */
   --radius-control: 8px;      /* buttons, inputs, hover hit areas */
-  --radius-chip: 9999px;      /* pills, chips, avatars */
+  --radius-chip: 8px;         /* chips and compact segmented controls */
 }
 
 /* ═══ Landing-only brand tokens (neutral editorial — ember kept as alias only) ═══ */
@@ -890,7 +890,8 @@ details[open] .chev { transform: rotate(180deg); }
  * respect the active [data-theme="..."] (cairn-light/cairn-dark/sepia/
  * high-contrast). Per OpenCairn design memory:
  *   - Primary CTA is --theme-fg (#171717 in light), NOT a colored accent.
- *   - --theme-accent is a darker neutral for --accent / --ring only.
+ *   - --accent is intentionally soft because shadcn uses it for hover and
+ *     menu focus states. High-contrast actions use --primary/--ring instead.
  */
 :root {
   --background: var(--theme-bg);
@@ -905,8 +906,8 @@ details[open] .chev { transform: rotate(180deg); }
   --secondary-foreground: var(--theme-fg);
   --muted: var(--theme-surface);
   --muted-foreground: var(--theme-fg-muted);
-  --accent: var(--theme-accent);            /* neutral-700 — highlight only */
-  --accent-foreground: var(--theme-accent-fg);
+  --accent: var(--theme-surface);
+  --accent-foreground: var(--theme-fg);
   --destructive: var(--theme-danger);
   --border: var(--theme-border);
   --input: var(--theme-border);
@@ -921,8 +922,8 @@ details[open] .chev { transform: rotate(180deg); }
   --sidebar-foreground: var(--theme-fg);
   --sidebar-primary: var(--theme-fg);
   --sidebar-primary-foreground: var(--theme-bg);
-  --sidebar-accent: var(--theme-accent);
-  --sidebar-accent-foreground: var(--theme-accent-fg);
+  --sidebar-accent: var(--theme-surface);
+  --sidebar-accent-foreground: var(--theme-fg);
   --sidebar-border: var(--theme-border);
   --sidebar-ring: var(--theme-accent);
 }
@@ -944,8 +945,8 @@ details[open] .chev { transform: rotate(180deg); }
   --secondary-foreground: var(--theme-fg);
   --muted: var(--theme-surface);
   --muted-foreground: var(--theme-fg-muted);
-  --accent: var(--theme-accent);
-  --accent-foreground: var(--theme-accent-fg);
+  --accent: var(--theme-surface);
+  --accent-foreground: var(--theme-fg);
   --destructive: var(--theme-danger);
   --border: var(--theme-border);
   --input: var(--theme-border);
@@ -959,8 +960,8 @@ details[open] .chev { transform: rotate(180deg); }
   --sidebar-foreground: var(--theme-fg);
   --sidebar-primary: var(--theme-fg);
   --sidebar-primary-foreground: var(--theme-bg);
-  --sidebar-accent: var(--theme-accent);
-  --sidebar-accent-foreground: var(--theme-accent-fg);
+  --sidebar-accent: var(--theme-surface);
+  --sidebar-accent-foreground: var(--theme-fg);
   --sidebar-border: var(--theme-border);
   --sidebar-ring: var(--theme-accent);
 }
