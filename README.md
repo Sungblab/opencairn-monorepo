@@ -82,7 +82,7 @@ For the all-in-Docker path (including the worker container, Ollama profile, BYOK
 | Collaboration model (permissions, Hocuspocus, comments) | `docs/architecture/collaboration-model.md`                            |
 | Agent runtime                                          | `docs/contributing/roadmap.md`  |
 | Operations                                             | `docs/contributing/ops.md`, `docs/runbooks/`                          |
-| Plan status                                            | `docs/contributing/plans-status.md`                                   |
+| Feature ownership and duplicate-work guard              | `docs/contributing/feature-registry.md`                               |
 
 ## Contributing
 
@@ -108,6 +108,6 @@ Built on top of excellent open-source work, including [Plate](https://platejs.or
 OpenCairn is **dual-licensed**:
 
 - **Default**: [AGPL-3.0-or-later](LICENSE). Self-host, fork, modify, redistribute, or run as a network service — all permitted under AGPL terms, including the network-use clause that requires modified source to be available to network users.
-- **Commercial license**: available for organizations that cannot comply with AGPLv3's network-use clause or whose internal open-source policy prohibits AGPL components. See [`LICENSE-COMMERCIAL.md`](LICENSE-COMMERCIAL.md) for scope and how to inquire.
+- **Commercial license**: available for organizations that cannot comply with AGPLv3's network-use clause or whose internal open-source policy prohibits AGPL components. See [`COMMERCIAL-LICENSING.md`](COMMERCIAL-LICENSING.md) for scope and how to inquire.
 
 For most users — individuals, internal-only deployments, organizations comfortable with AGPL — no commercial license is needed. Non-trivial contributors are asked to accept the [Contributor License Agreement](CLA.md), which lets the project distribute their contribution under both licenses.

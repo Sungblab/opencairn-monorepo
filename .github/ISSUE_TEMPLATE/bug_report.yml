@@ -1,0 +1,76 @@
+name: Bug report
+description: Report a reproducible problem in OpenCairn.
+title: "fix: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Do not include secrets, API keys, private documents, or security exploit details here. For vulnerabilities, use GitHub Security Advisories instead.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong?
+      placeholder: "Describe the broken behavior and the expected behavior."
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include the smallest sequence that reproduces the issue.
+      placeholder: |
+        1. Start services with ...
+        2. Open ...
+        3. Click ...
+        4. See ...
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit or version
+      description: Paste the commit SHA, branch, release tag, or container tag.
+      placeholder: "main @ <sha>"
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      multiple: true
+      options:
+        - web
+        - api
+        - worker
+        - hocuspocus
+        - db
+        - self-hosting / docker
+        - docs
+        - unsure
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, Node, pnpm, Python, Docker, browser, and deployment mode where relevant.
+      placeholder: |
+        OS:
+        Node:
+        pnpm:
+        Python:
+        Docker:
+        Browser:
+        Deployment:
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Redact secrets before pasting logs.
+      render: shell
+    validations:
+      required: false

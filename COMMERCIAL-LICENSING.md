@@ -1,4 +1,4 @@
-# OpenCairn Commercial License
+# OpenCairn Commercial Licensing
 
 OpenCairn is dual-licensed.
 
