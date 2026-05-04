@@ -26,7 +26,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-
 WORKFLOW_FILE = (
     Path(__file__).resolve().parents[2]
     / "src"
@@ -98,7 +97,7 @@ def _walk_blocks(stmts: list[ast.stmt]) -> list[list[ast.stmt]]:
     """
     out: list[list[ast.stmt]] = [stmts]
     for stmt in stmts:
-        for field, value in ast.iter_fields(stmt):
+        for _field, value in ast.iter_fields(stmt):
             if isinstance(value, list) and value and isinstance(value[0], ast.stmt):
                 out.extend(_walk_blocks(value))
             elif isinstance(value, ast.ExceptHandler):

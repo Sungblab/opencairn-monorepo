@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Awaitable, Callable, Protocol, Sequence
+from typing import Protocol, Sequence
 
 from .base import EmbedInput, LLMProvider
 from .batch_types import BatchNotSupported
