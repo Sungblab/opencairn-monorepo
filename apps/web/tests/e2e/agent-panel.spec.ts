@@ -93,7 +93,8 @@ test.describe("App Shell Phase 4 — Agent Panel", () => {
     // thread_list.untitled. We assert >= 2 untitled entries to tolerate
     // either-or thread ordering and the fact that both threads show the
     // placeholder title.
-    const untitledCount = await page.getByText("(제목 없음)").count();
-    expect(untitledCount).toBeGreaterThanOrEqual(2);
+    await expect(
+      page.getByRole("menuitem").filter({ hasText: "(제목 없음)" }),
+    ).toHaveCount(2);
   });
 });

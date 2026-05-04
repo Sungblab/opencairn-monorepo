@@ -14,7 +14,7 @@
 //      note" toast action when no Plate editor is open.
 // Children (Conversation, Composer, ScopeChipsRow) stay controlled views.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { saveSuggestionSchema } from "@opencairn/shared";
@@ -64,6 +64,8 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   );
   const [scope, setScope] = useState<string[]>(initialScope);
   const [strict, setStrict] = useState<"strict" | "loose">("strict");
+  const [isSending, setIsSending] = useState(false);
+  const sendInFlightRef = useRef(false);
   const buildScopePayload = useCallback(
     () =>
       buildAgentScopePayload({
@@ -95,6 +97,28 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
     setActive(id);
   }
   const threadActionsDisabled = !workspaceId || create.isPending;
+  const composerDisabled = !activeThreadId || isSending;
+
+  const handleSend = useCallback(
+    (input: { content: string; mode: string }) => {
+      if (sendInFlightRef.current) return;
+      sendInFlightRef.current = true;
+      setIsSending(true);
+      void (async () => {
+        try {
+          await send({
+            content: input.content,
+            mode: input.mode,
+            scope: await buildScopePayload(),
+          });
+        } finally {
+          sendInFlightRef.current = false;
+          setIsSending(false);
+        }
+      })();
+    },
+    [buildScopePayload, send],
+  );
 
   // i18n for save-suggestion toasts (Task 21).
   const t = useTranslations("agentPanel.bubble");
@@ -219,16 +243,8 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
         onStrictChange={setStrict}
       />
       <Composer
-        disabled={!activeThreadId}
-        onSend={(input) => {
-          void (async () => {
-            await send({
-              content: input.content,
-              mode: input.mode,
-              scope: await buildScopePayload(),
-            });
-          })();
-        }}
+        disabled={composerDisabled}
+        onSend={handleSend}
       />
     </aside>
   );
