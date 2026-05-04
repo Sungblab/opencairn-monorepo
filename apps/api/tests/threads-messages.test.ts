@@ -3,11 +3,24 @@ import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vites
 vi.mock("../src/lib/s3.js", () => ({
   uploadObject: vi.fn().mockResolvedValue(undefined),
 }));
-
 import { createApp } from "../src/app.js";
-import { db, agentFiles, chatThreads, chatMessages, eq, asc } from "@opencairn/db";
+import {
+  db,
+  agentFiles,
+  chatThreads,
+  chatMessages,
+  chatRuns,
+  chatRunEvents,
+  eq,
+  asc,
+} from "@opencairn/db";
 import { __setRunAgentForTest } from "../src/routes/threads.js";
 import type { AgentChunk } from "../src/lib/agent-pipeline.js";
+import {
+  cancelChatRun,
+  createDurableChatRun,
+  executeChatRun,
+} from "../src/lib/chat-runs.js";
 import { seedWorkspace, seedMultiRoleWorkspace, type SeedResult, type SeedMultiRoleResult } from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
 
@@ -156,34 +169,195 @@ describe("Threads messages — happy path", () => {
     expect(body.messages[1].content).toMatchObject({ body: "echo:hi" });
   });
 
-  it("POST bumps thread updated_at", async () => {
+  it("creates a durable run and replays persisted stream events", async () => {
     const threadId = await createThread(ctx.workspaceId, ctx.userId);
-
-    const [before] = await db
-      .select({ updatedAt: chatThreads.updatedAt })
-      .from(chatThreads)
-      .where(eq(chatThreads.id, threadId));
-
-    // Ensure a clock tick — Postgres TIMESTAMPTZ has microsecond
-    // resolution but the JS Date side rounds to ms; a tiny wait avoids
-    // false equality on fast machines.
-    await new Promise((r) => setTimeout(r, 10));
 
     const res = await authedFetch(`/api/threads/${threadId}/messages`, {
       method: "POST",
       userId: ctx.userId,
-      body: JSON.stringify({ content: "tick", mode: "auto" }),
+      body: JSON.stringify({ content: "durable", mode: "auto" }),
     });
     expect(res.status).toBe(200);
-    await res.text(); // drain the stream
+    const text = await res.text();
+    const done = parseSseEvents(text).find((e) => e.event === "done");
+    expect(done?.data).toMatchObject({ status: "complete" });
 
-    const [after] = await db
-      .select({ updatedAt: chatThreads.updatedAt })
-      .from(chatThreads)
-      .where(eq(chatThreads.id, threadId));
-    expect(after!.updatedAt.getTime()).toBeGreaterThan(
-      before!.updatedAt.getTime(),
+    const [run] = await db
+      .select()
+      .from(chatRuns)
+      .where(eq(chatRuns.threadId, threadId));
+    expect(run).toBeDefined();
+    expect(run!.status).toBe("complete");
+
+    const storedEvents = await db
+      .select()
+      .from(chatRunEvents)
+      .where(eq(chatRunEvents.runId, run!.id))
+      .orderBy(asc(chatRunEvents.seq));
+    expect(storedEvents.map((e) => e.event)).toEqual(
+      expect.arrayContaining([
+        "user_persisted",
+        "agent_placeholder",
+        "status",
+        "thought",
+        "text",
+        "done",
+      ]),
     );
+
+    const replay = await authedFetch(`/api/chat-runs/${run!.id}/events?after=0`, {
+      method: "GET",
+      userId: ctx.userId,
+      headers: { accept: "text/event-stream" },
+    });
+    expect(replay.status).toBe(200);
+    const replayText = await replay.text();
+    expect(replayText).toContain("event: user_persisted");
+    expect(replayText).toContain("event: done");
+  });
+
+  it("passes an executor-owned AbortSignal instead of the browser request signal", async () => {
+    let receivedSignal: AbortSignal | undefined;
+    async function* signalCapturingAgent(opts: {
+      signal?: AbortSignal;
+    }): AsyncGenerator<AgentChunk> {
+      receivedSignal = opts.signal;
+      yield { type: "text", payload: { delta: "detached" } };
+      yield { type: "done", payload: {} };
+    }
+    __setRunAgentForTest(signalCapturingAgent);
+
+    const threadId = await createThread(ctx.workspaceId, ctx.userId);
+    const res = await authedFetch(`/api/threads/${threadId}/messages`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ content: "do not cancel on refresh", mode: "auto" }),
+    });
+    expect(res.status).toBe(200);
+    await res.text();
+
+    expect(receivedSignal).toBeInstanceOf(AbortSignal);
+    expect(receivedSignal!.aborted).toBe(false);
+  });
+
+  it("re-execution hides stale partial attempt events and keeps the agent body idempotent", async () => {
+    const threadId = await createThread(ctx.workspaceId, ctx.userId);
+    const { runId, agentMessageId } = await createDurableChatRun({
+      threadId,
+      workspaceId: ctx.workspaceId,
+      userId: ctx.userId,
+      content: "retry me",
+      mode: "auto",
+    });
+
+    await db.insert(chatRunEvents).values({
+      runId,
+      seq: 3,
+      executionAttempt: 1,
+      event: "text",
+      payload: { delta: "stale partial" },
+    });
+    await db
+      .update(chatRuns)
+      .set({ status: "running" })
+      .where(eq(chatRuns.id, runId));
+
+    async function* retryAgent(): AsyncGenerator<AgentChunk> {
+      yield { type: "text", payload: { delta: "fresh" } };
+      yield { type: "done", payload: {} };
+    }
+    __setRunAgentForTest(retryAgent);
+
+    await executeChatRun(runId);
+
+    const replay = await authedFetch(`/api/chat-runs/${runId}/events?after=0`, {
+      method: "GET",
+      userId: ctx.userId,
+      headers: { accept: "text/event-stream" },
+    });
+    const replayText = await replay.text();
+    expect(replayText).not.toContain("stale partial");
+    expect(replayText).toContain('"delta":"fresh"');
+
+    const [agent] = await db
+      .select()
+      .from(chatMessages)
+      .where(eq(chatMessages.id, agentMessageId));
+    expect(agent!.content).toMatchObject({ body: "fresh" });
+  });
+
+  it("stops execution after mid-run cancellation and does not overwrite cancelled status", async () => {
+    const threadId = await createThread(ctx.workspaceId, ctx.userId);
+    const { runId } = await createDurableChatRun({
+      threadId,
+      workspaceId: ctx.workspaceId,
+      userId: ctx.userId,
+      content: "cancel me",
+      mode: "auto",
+    });
+
+    async function* cancellingAgent(): AsyncGenerator<AgentChunk> {
+      yield { type: "text", payload: { delta: "before" } };
+      await cancelChatRun(runId, ctx.userId);
+      yield { type: "text", payload: { delta: "after" } };
+      yield { type: "done", payload: {} };
+    }
+    __setRunAgentForTest(cancellingAgent);
+
+    await executeChatRun(runId);
+
+    const [run] = await db.select().from(chatRuns).where(eq(chatRuns.id, runId));
+    expect(run!.status).toBe("cancelled");
+
+    const replay = await authedFetch(`/api/chat-runs/${runId}/events?after=0`, {
+      method: "GET",
+      userId: ctx.userId,
+      headers: { accept: "text/event-stream" },
+    });
+    const replayText = await replay.text();
+    expect(replayText).toContain('"delta":"before"');
+    expect(replayText).not.toContain('"delta":"after"');
+    expect(replayText).toContain('"status":"cancelled"');
+  });
+
+  it("aborts the executor-owned signal after mid-run cancellation", async () => {
+    const threadId = await createThread(ctx.workspaceId, ctx.userId);
+    const { runId } = await createDurableChatRun({
+      threadId,
+      workspaceId: ctx.workspaceId,
+      userId: ctx.userId,
+      content: "abort me",
+      mode: "auto",
+    });
+
+    let receivedSignal: AbortSignal | undefined;
+    async function* abortAwareAgent(opts: {
+      signal?: AbortSignal;
+    }): AsyncGenerator<AgentChunk> {
+      receivedSignal = opts.signal;
+      yield { type: "text", payload: { delta: "before" } };
+      await cancelChatRun(runId, ctx.userId);
+      await new Promise<void>((resolve) => {
+        if (opts.signal?.aborted) {
+          resolve();
+          return;
+        }
+        opts.signal?.addEventListener("abort", () => resolve(), { once: true });
+      });
+      yield { type: "text", payload: { delta: "after" } };
+      yield { type: "done", payload: {} };
+    }
+    __setRunAgentForTest(abortAwareAgent);
+
+    await executeChatRun(runId);
+
+    expect(receivedSignal?.aborted).toBe(true);
+    const events = await db
+      .select()
+      .from(chatRunEvents)
+      .where(eq(chatRunEvents.runId, runId))
+      .orderBy(asc(chatRunEvents.seq));
+    expect(JSON.stringify(events.map((e) => e.payload))).not.toContain("after");
   });
 
   it("turns an agent file chunk into project object events, tree-backed row, and persisted metadata", async () => {
@@ -260,6 +434,36 @@ describe("Threads messages — happy path", () => {
       objectType: "agent_file",
     });
     expect(file!.chatMessageId).toBe(rows[1]!.id);
+  });
+
+  it("POST bumps thread updated_at", async () => {
+    const threadId = await createThread(ctx.workspaceId, ctx.userId);
+
+    const [before] = await db
+      .select({ updatedAt: chatThreads.updatedAt })
+      .from(chatThreads)
+      .where(eq(chatThreads.id, threadId));
+
+    // Ensure a clock tick — Postgres TIMESTAMPTZ has microsecond
+    // resolution but the JS Date side rounds to ms; a tiny wait avoids
+    // false equality on fast machines.
+    await new Promise((r) => setTimeout(r, 10));
+
+    const res = await authedFetch(`/api/threads/${threadId}/messages`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ content: "tick", mode: "auto" }),
+    });
+    expect(res.status).toBe(200);
+    await res.text(); // drain the stream
+
+    const [after] = await db
+      .select({ updatedAt: chatThreads.updatedAt })
+      .from(chatThreads)
+      .where(eq(chatThreads.id, threadId));
+    expect(after!.updatedAt.getTime()).toBeGreaterThan(
+      before!.updatedAt.getTime(),
+    );
   });
 });
 

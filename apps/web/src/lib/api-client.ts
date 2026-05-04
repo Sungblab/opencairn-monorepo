@@ -258,6 +258,8 @@ export interface ChatMessage {
   id: string;
   role: "user" | "agent";
   status: "streaming" | "complete" | "failed";
+  run_id?: string | null;
+  run_status?: "queued" | "running" | "complete" | "failed" | "cancelled" | null;
   content: ChatMessageContent;
   mode: string | null;
   provider: string | null;

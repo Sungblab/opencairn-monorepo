@@ -6,6 +6,7 @@ entrypoint at ``worker.temporal_main``.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from worker.temporal_main import build_worker_config
@@ -54,6 +55,18 @@ def test_text_ingest_activity_registered() -> None:
     cfg = build_worker_config()
     activity_names = [a.__name__ for a in cfg.activities]
     assert "read_text_object" in activity_names
+
+
+def test_chat_agent_workflow_registered() -> None:
+    cfg = build_worker_config()
+    assert "ChatAgentWorkflow" in [w.__name__ for w in cfg.workflows]
+    activity_names = [a.__name__ for a in cfg.activities]
+    assert "execute_chat_run" in activity_names
+
+
+def test_chat_agent_activity_has_no_heartbeat_timeout() -> None:
+    source = Path("src/worker/workflows/chat_run_workflow.py").read_text()
+    assert "heartbeat_timeout" not in source
 
 
 def test_enrichment_activities_omitted_when_flag_off(
