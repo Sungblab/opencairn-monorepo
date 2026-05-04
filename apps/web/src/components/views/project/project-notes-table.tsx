@@ -77,8 +77,8 @@ export function ProjectNotesTable({
               onClick={() => setFilter(id)}
               className={
                 isActive
-                  ? "rounded-[var(--radius-chip)] border-[1.5px] border-foreground bg-foreground px-3 py-1 text-background"
-                  : "app-hover rounded-[var(--radius-chip)] border-[1.5px] border-border px-3 py-1 text-foreground"
+                  ? "inline-flex min-h-7 items-center rounded-[var(--radius-control)] border-[1.5px] border-foreground bg-foreground px-3 py-1 text-background"
+                  : "app-hover inline-flex min-h-7 items-center rounded-[var(--radius-control)] border-[1.5px] border-border px-3 py-1 text-foreground"
               }
             >
               <span>{t(`tabs.${id}`)}</span>
@@ -132,14 +132,14 @@ export function ProjectNotesTable({
                   <td className="px-4 py-2.5">
                     <Link
                       href={urls.workspace.note(locale, wsSlug, n.id)}
-                      className="block truncate font-medium"
+                      className="flex min-h-7 items-center truncate font-medium"
                     >
                       {n.title}
                     </Link>
                   </td>
                   <td className="px-4 py-2.5">
                     <span
-                      className="rounded-[var(--radius-chip)] border border-border px-2 py-0.5 text-[11px] text-muted-foreground"
+                      className="rounded-[var(--radius-control)] border border-border px-2 py-0.5 text-[11px] text-muted-foreground"
                     >
                       {t(`table.kindLabels.${n.kind}`)}
                     </span>

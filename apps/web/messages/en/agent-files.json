@@ -6,7 +6,29 @@
     "download": "Download original",
     "ingest": "Run ingest",
     "compile": "Compile LaTeX",
-    "canvas": "Run in canvas"
+    "canvas": "Run in canvas",
+    "version": "v{version}",
+    "compileStatus": {
+      "not_started": "Not compiled",
+      "queued": "Compile queued",
+      "running": "Compiling",
+      "completed": "Compiled",
+      "failed": "Compile failed",
+      "disabled": "No compile"
+    },
+    "ingestStatus": {
+      "not_started": "Not ingested",
+      "queued": "Ingest queued",
+      "running": "Ingesting",
+      "completed": "Ingested",
+      "failed": "Ingest failed"
+    },
+    "source": "Source",
+    "preview": "Preview",
+    "loadingInline": "Loading...",
+    "jsonTree": "JSON tree",
+    "csvTable": "Table view · {rows} rows",
+    "column": "Column {index}"
   },
   "card": {
     "created": "{filename} created",

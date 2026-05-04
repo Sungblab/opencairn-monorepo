@@ -40,7 +40,7 @@ export function ProfileView() {
         e.preventDefault();
         if (name.trim()) save.mutate();
       }}
-      className="flex max-w-md flex-col gap-4"
+      className="flex max-w-xl flex-col gap-4 rounded-[var(--radius-card)] border border-border bg-background p-4"
     >
       <h1 className="text-xl font-semibold">{t("heading")}</h1>
       <label className="flex flex-col gap-1 text-sm">
@@ -48,7 +48,7 @@ export function ProfileView() {
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="rounded border border-border bg-transparent px-2 py-1"
+          className="min-h-9 rounded-[var(--radius-control)] border border-border bg-transparent px-2 py-1"
         />
       </label>
       <label className="flex flex-col gap-1 text-sm">
@@ -56,14 +56,14 @@ export function ProfileView() {
         <input
           value={data.email}
           readOnly
-          className="rounded border border-border bg-muted/30 px-2 py-1 text-muted-foreground"
+          className="min-h-9 rounded-[var(--radius-control)] border border-border bg-muted/30 px-2 py-1 text-muted-foreground"
         />
       </label>
       <p className="text-xs text-muted-foreground">{t("localeNote")}</p>
       <button
         type="submit"
         disabled={save.isPending || !name.trim()}
-        className="app-btn-primary self-start rounded px-3 py-1.5 text-sm"
+        className="app-btn-primary self-start rounded-[var(--radius-control)] px-3 py-1.5 text-sm"
       >
         {t("save")}
       </button>

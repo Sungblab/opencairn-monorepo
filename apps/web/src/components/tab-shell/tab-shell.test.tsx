@@ -69,6 +69,14 @@ describe("TabShell", () => {
     expect(screen.queryByTestId(/^router-/)).toBeNull();
   });
 
+  it("lets routed children fill the available shell width", () => {
+    act(() => useTabsStore.getState().addTab(mk({ mode: "plate" })));
+    wrap(<div data-testid="route-child" />);
+    const contentSlot = screen.getByTestId("route-child").parentElement;
+    expect(contentSlot?.className).toContain("flex-1");
+    expect(contentSlot?.className).toContain("w-full");
+  });
+
   it("renders TabModeRouter when active tab is non-plate (reading)", () => {
     act(() =>
       useTabsStore

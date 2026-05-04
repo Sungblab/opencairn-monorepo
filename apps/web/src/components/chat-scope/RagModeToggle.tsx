@@ -26,7 +26,7 @@ export function RagModeToggle({
     <div className="relative ml-auto">
       <button
         type="button"
-        className="flex items-center gap-1 rounded px-2 py-0.5 text-sm text-stone-700 hover:bg-stone-50"
+        className="app-btn-ghost flex items-center gap-1 rounded-[var(--radius-control)] px-2 py-0.5 text-sm text-muted-foreground"
         onClick={() => setOpen(!open)}
       >
         <Icon size={12} />
@@ -34,7 +34,7 @@ export function RagModeToggle({
         <ChevronDown size={12} />
       </button>
       {open && (
-        <div className="absolute right-0 z-10 mt-1 w-56 rounded-md border border-stone-200 bg-white shadow-md">
+        <div className="absolute right-0 z-10 mt-1 w-56 rounded-[var(--radius-card)] border border-border bg-background shadow-md">
           {(["strict", "expand"] as const).map((m) => {
             const ItemIcon = m === "strict" ? Target : Globe;
             const description =
@@ -43,7 +43,7 @@ export function RagModeToggle({
               <button
                 key={m}
                 type="button"
-                className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-sm hover:bg-stone-50"
+                className="app-hover flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-sm"
                 onClick={() => {
                   onChange(m);
                   setOpen(false);

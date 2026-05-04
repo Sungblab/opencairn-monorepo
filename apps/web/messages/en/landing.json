@@ -215,7 +215,7 @@
       "pageTitle": "Attention Mechanism",
       "pageMeta": ["compiled by 3 agents", "12 sources", "updated 2h ago"],
       "body": "Attention weights the tokens of an input sequence by relevance. Vaswani et al. (2017) — \"Attention Is All You Need\" — introduced it as the foundation of the transformer architecture; self-attention and multi-head attention followed.",
-      "calloutTitle": "⚠ CONTRADICTION",
+      "calloutTitle": "CONTRADICTION",
       "calloutBody": "Three sources disagree on quadratic complexity. The Linear Attention family challenges this assumption.",
       "related": "Related pages:",
       "relatedItems": ["Transformer", "Scaled Dot-Product", "Linear Attention"],

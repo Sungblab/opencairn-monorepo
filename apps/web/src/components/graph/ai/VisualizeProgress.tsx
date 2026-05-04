@@ -7,6 +7,7 @@
 // yet (a fresh tool can land before i18n catches up — Task 27 gap).
 
 import { useTranslations } from "next-intl";
+import { AlertTriangle, CheckCircle2, ChevronRight } from "lucide-react";
 import type { ProgressEvent } from "./useVisualizeMutation";
 
 export function VisualizeProgress({ events }: { events: ProgressEvent[] }) {
@@ -21,13 +22,15 @@ export function VisualizeProgress({ events }: { events: ProgressEvent[] }) {
         const name = (ev.payload as { name?: string }).name ?? "";
         const ok = (ev.payload as { ok?: boolean }).ok;
         const label = name && t.has(name) ? t(name) : name || ev.event;
-        const icon =
-          ev.event === "tool_use" ? "▸" : ok === false ? "⚠" : "✓";
+        const Icon =
+          ev.event === "tool_use"
+            ? ChevronRight
+            : ok === false
+              ? AlertTriangle
+              : CheckCircle2;
         return (
           <li key={i}>
-            <span aria-hidden className="mr-2">
-              {icon}
-            </span>
+            <Icon aria-hidden="true" className="mr-2 inline h-3.5 w-3.5" />
             {label}
           </li>
         );

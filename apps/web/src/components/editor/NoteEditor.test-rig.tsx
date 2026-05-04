@@ -13,6 +13,9 @@ const messages = {
     placeholder: { body: "내용 입력", title: "제목" },
     save: { saving: "저장 중", saved: "저장됨", failed: "저장 실패" },
   },
+  shareDialog: {
+    title: "공유",
+  },
 };
 
 const defaults: NoteEditorProps = {

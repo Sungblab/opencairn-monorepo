@@ -39,8 +39,8 @@ export function ViewSwitcher({ onAiClick }: Props) {
             onClick={() => setView(v)}
             className={
               current === v
-                ? "rounded bg-accent px-3 py-1 text-sm font-medium"
-                : "rounded px-3 py-1 text-sm text-muted-foreground hover:bg-muted"
+                ? "min-h-7 rounded bg-accent px-3 py-1 text-sm font-medium"
+                : "min-h-7 rounded px-3 py-1 text-sm text-muted-foreground hover:bg-muted"
             }
           >
             {tViews(v)}
@@ -50,7 +50,7 @@ export function ViewSwitcher({ onAiClick }: Props) {
       <button
         type="button"
         onClick={onAiClick}
-        className="rounded text-sm text-accent-foreground hover:underline"
+        className="inline-flex min-h-7 items-center rounded px-2 text-sm text-accent-foreground hover:bg-muted"
       >
         <Bot aria-hidden="true" className="mr-1 inline size-4" />
         {tAi("trigger")}

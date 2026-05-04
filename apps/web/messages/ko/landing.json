@@ -216,7 +216,7 @@
       "pageTitle": "Attention Mechanism",
       "pageMeta": ["compiled by 3 agents", "12 sources", "updated 2h ago"],
       "body": "Attention은 입력 시퀀스의 각 토큰에 가중치를 부여해 관련성을 계산하는 메커니즘입니다. Vaswani et al. (2017)의 \"Attention Is All You Need\"가 transformer 아키텍처의 기반을 제시했으며, 이후 self-attention과 multi-head attention으로 확장되었습니다.",
-      "calloutTitle": "⚠ CONTRADICTION",
+      "calloutTitle": "CONTRADICTION",
       "calloutBody": "자료 3개가 quadratic complexity에 대해 다른 수치를 제시합니다. Linear Attention 계열은 이 가정을 건드립니다.",
       "related": "관련 문서:",
       "relatedItems": ["Transformer", "Scaled Dot-Product", "Linear Attention"],

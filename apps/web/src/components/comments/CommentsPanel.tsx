@@ -59,7 +59,10 @@ export function CommentsPanel({
   if (isLoading) return null;
 
   return (
-    <aside className="bg-background flex w-80 flex-col border-l">
+    <aside
+      aria-label={t("panel_title")}
+      className="bg-background flex w-full flex-col border-t xl:w-80 xl:border-l xl:border-t-0"
+    >
       <header className="border-b px-4 py-3 font-medium">
         {t("panel_title")}
       </header>

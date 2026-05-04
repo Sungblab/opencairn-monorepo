@@ -38,12 +38,12 @@ export function DisconnectedBanner() {
   return (
     <div
       role="alert"
-      className="border-destructive/30 bg-destructive/10 text-destructive flex items-center justify-between border-b px-4 py-2 text-sm"
+      className="border-destructive/30 bg-destructive/10 text-destructive flex flex-col items-stretch justify-between gap-2 border-b px-4 py-2 text-sm sm:flex-row sm:items-center"
     >
       <span>{t("disconnected_banner")}</span>
       <button
         type="button"
-        className="underline hover:no-underline"
+        className="min-h-9 shrink-0 rounded border border-destructive/30 px-3 text-sm font-medium transition-colors hover:bg-destructive/10"
         onClick={handleRetry}
       >
         {t("restore_connection")}

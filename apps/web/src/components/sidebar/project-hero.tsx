@@ -30,7 +30,7 @@ export function ProjectHero() {
         // 2026-04-23-app-shell §sidebar). Hover is the workspace `app-hover`
         // 6% wash, NOT the mockup's full invert (deviation: full flips are
         // reserved for landing/auth surfaces).
-        className="app-hover mx-3 mb-2 mt-3 flex items-center justify-between gap-2 rounded-lg border-[1.5px] border-foreground bg-background px-3 py-2 text-left transition-colors focus-visible:outline-none"
+        className="app-hover mx-3 mb-2 mt-3 flex items-center justify-between gap-2 rounded-[var(--radius-control)] border-[1.5px] border-foreground bg-background px-3 py-2 text-left transition-colors focus-visible:outline-none"
         style={{ boxShadow: "0 2px 0 0 var(--theme-fg)" }}
       >
         <span className="truncate text-[14px] font-semibold tracking-tight">

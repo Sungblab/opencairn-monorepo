@@ -38,6 +38,7 @@
   },
   "composer": {
     "placeholder": "메시지를 입력하세요...",
+    "input_aria": "메시지 입력",
     "attach_aria": "첨부",
     "voice_aria": "음성 입력",
     "send_aria": "전송",
@@ -56,11 +57,11 @@
     "loose": "LOOSE",
     "strict_aria": "스코프 모드 전환",
     "chips": {
-      "page": "📄 페이지",
-      "project": "📂 프로젝트",
-      "workspace": "🏠 워크스페이스",
-      "memory": "🧠 메모리",
-      "research": "🔬 이 리서치"
+      "page": "페이지",
+      "project": "프로젝트",
+      "workspace": "워크스페이스",
+      "memory": "메모리",
+      "research": "이 리서치"
     }
   },
   "empty_state": {

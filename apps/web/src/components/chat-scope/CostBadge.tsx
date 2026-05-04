@@ -11,7 +11,7 @@ export function CostBadge({ costKrw }: { costKrw: number }) {
   const formatted = costKrw < 1 ? `${costKrw.toFixed(2)}원` : `${Math.round(costKrw)}원`;
   return (
     <span
-      className="ml-2 text-xs text-stone-500"
+      className="ml-2 text-xs text-muted-foreground"
       aria-label={t("badge_aria")}
       title={t("badge_title", { cost: costKrw.toFixed(4) })}
     >
