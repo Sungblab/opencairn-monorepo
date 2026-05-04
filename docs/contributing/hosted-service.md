@@ -1,6 +1,6 @@
 # Hosted Service
 
-OpenCairn is dual-licensed (AGPL-3.0-or-later by default + optional commercial license — see [ADR-005](../architecture/adr/005-agplv3-dual-licensing.md), `LICENSE`, `LICENSE-COMMERCIAL.md`). Sungblab also operates a managed hosted service.
+OpenCairn is dual-licensed (AGPL-3.0-or-later by default + optional commercial license — see [ADR-005](../architecture/adr/005-agplv3-dual-licensing.md), `LICENSE`, `COMMERCIAL-LICENSING.md`). Sungblab also operates a managed hosted service.
 
 **Product URL**: hosted OpenCairn의 제품 도메인은 **`opencairn.com`**이다. 회사/블로그/법무 문서는 Sungblab 사이트에서 운영하고, OpenCairn 앱은 공개 env URL로 그 문서들을 링크한다.
 
