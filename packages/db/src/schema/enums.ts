@@ -19,7 +19,7 @@ export const sourceTypeEnum = pgEnum("source_type", [
   "paper",
 ]);
 
-// Plan 7 Canvas Phase 1 — language pinned at note creation. The CHECK on
+// Canvas runtime language pinned at note creation. The CHECK on
 // `notes` enforces `canvasLanguage IS NOT NULL ↔ sourceType = 'canvas'`,
 // so adding a value here without a matching runtime route is harmless but
 // every value MUST have a sandbox runtime in apps/web.
@@ -56,14 +56,11 @@ export const wikiActionEnum = pgEnum("wiki_action", [
   "unlink",
 ]);
 
-// Chat schema (conversations/messages tables + conversation_scope/message_role
-// enums) was a Plan 1 stub that never had any code referencing it. Plan 11A
-// (`2026-04-20-plan-11a-chat-scope-foundation.md`) replaces the table shape
-// entirely — new `scope_type` enum with `['page','project','workspace']`,
-// separate `scopeType`+`scopeId` columns, plus rag_mode/chips/memory_flags.
-// Removed here (migration 0019) so Plan 11A starts from a clean slate.
+// The original chat stub was removed before the current scoped-chat schema.
+// The scoped-chat schema uses `scope_type`, split `scopeType`+`scopeId`
+// columns, plus rag_mode/chips/memory_flags.
 
-// Phase 4 (App Shell agent panel, plan 2026-04-23) reintroduces a slimmer
+// The app shell agent panel reintroduces a slimmer
 // chat schema — `chat_threads` + `chat_messages` + `message_feedback`. The
 // new `message_role` enum drops the legacy `assistant` value in favour of
 // `agent` (matches the rest of the runtime/UI vocabulary).
@@ -80,13 +77,13 @@ export const messageStatusEnum = pgEnum("message_status", [
   "failed",
 ]);
 
-// OpenAI is intentionally excluded (2026-04-15 decision — see
-// docs/superpowers/specs/2026-04-13-multi-llm-provider-design.md). Enforced
-// at DB layer so API routes can't write a string the factory will reject
-// at request time.
+// OpenAI is intentionally excluded from this legacy enum. OpenAI-compatible
+// gateways use the newer provider boundary and env configuration instead.
+// The enum is enforced at DB layer so API routes can't write a string the
+// factory will reject at request time.
 export const llmProviderEnum = pgEnum("llm_provider_kind", ["gemini", "ollama"]);
 
-// Plan 3b batch-embedding lifecycle. Values mirror
+// Batch-embedding lifecycle. Values mirror
 // packages/llm/src/llm/batch_types.py BATCH_STATE_* constants so Python and
 // TypeScript sides can round-trip without a lookup table. `timeout` is
 // OpenCairn-specific (caller gave up waiting) and has no provider state.
@@ -100,7 +97,7 @@ export const embeddingBatchStateEnum = pgEnum("embedding_batch_state", [
   "timeout",
 ]);
 
-// Deep Research (Spec 2026-04-22) — run lifecycle.
+// Deep Research run lifecycle.
 // Most values map 1:1 to a Google Interactions API state. Exceptions:
 // - awaiting_approval: local UX state (plan received, user hasn't approved yet)
 // - cancelled: user cancel OR 24h abandonment timeout (distinguished via error.code)
@@ -156,7 +153,7 @@ export const researchBillingPathEnum = pgEnum("research_billing_path", [
   "managed",
 ]);
 
-// App Shell Phase 5 Task 9 — notification kinds. New rows MUST add a
+// Notification kinds. New rows MUST add a
 // matching renderer branch in apps/web NotificationItem; an unmapped kind
 // renders the raw payload summary which is fine but unbranded.
 export const notificationKindEnum = pgEnum("notification_kind", [
@@ -167,7 +164,7 @@ export const notificationKindEnum = pgEnum("notification_kind", [
   "system",
 ]);
 
-// Email-dispatcher cadence per notification kind (Plan 2 Task 14, 2026-04-29).
+// Email-dispatcher cadence per notification kind.
 // instant       → next dispatcher tick (≤ 90s)
 // digest_15min  → flushed at every quarter-hour wallclock boundary
 // digest_daily  → flushed at 09:00 in the user's timezone
@@ -259,7 +256,7 @@ export const connectorExternalObjectTypeEnum = pgEnum(
   ],
 );
 
-// Plan 8 — Connector/Curator/Synthesis agents surface actionable insights as
+// Connector/Curator/Synthesis agents surface actionable insights as
 // suggestions. `type` encodes which agent produced the row and what the user
 // should do; `status` tracks the lifecycle through acceptance or dismissal.
 export const suggestionTypeEnum = pgEnum("suggestion_type", [

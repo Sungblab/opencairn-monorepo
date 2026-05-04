@@ -38,4 +38,4 @@ We credit reporters in the public advisory and release notes once a fix ships, u
 
 ## Out-of-band contact
 
-Operational security details for self-hosted deployments — key rotation, secret management, ingress hardening — are tracked in `docs/contributing/byok-key-rotation.md` and `docs/contributing/ops.md`. Those are not vulnerability channels; please still use Security Advisories for anything exploit-class.
+Operational security details for self-hosted deployments — key rotation, secret management, ingress hardening — are tracked in `docs/contributing/byok-key-rotation.md`, `docs/contributing/ops.md`, and `docs/runbooks/incident-response.md`. Those are not vulnerability channels; please still use Security Advisories for anything exploit-class.

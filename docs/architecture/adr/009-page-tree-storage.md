@@ -2,8 +2,8 @@
 
 **Date:** 2026-04-23
 **Status:** Accepted
-**Context spec:** `docs/superpowers/specs/2026-04-23-app-shell-redesign-design.md` §4.6
-**Implementation plan:** `docs/superpowers/plans/2026-04-23-app-shell-phase-2-sidebar.md`
+**Context spec:** `../../contributing/roadmap.md` §4.6
+**Implementation plan:** `../../contributing/roadmap.md`
 
 ## Context
 

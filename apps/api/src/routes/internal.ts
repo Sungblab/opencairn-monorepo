@@ -75,7 +75,7 @@ import {
 // Internal-only routes — reachable by worker callbacks on the docker network.
 // Auth is a shared secret (INTERNAL_API_SECRET) carried in `X-Internal-Secret`;
 // this header must NEVER be exposed on the public ingress. See
-// docs/superpowers/plans/2026-04-09-plan-3-ingest-pipeline.md Task 9.
+// See docs/architecture/api-contract.md for internal route boundaries.
 
 const internal = new Hono<AppEnv>();
 

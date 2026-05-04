@@ -103,7 +103,6 @@ import {
 
 describe("ResearchMetaElement — Yjs serialization", () => {
   // Same canonical key apps/hocuspocus and the Plate Yjs plugin agree on.
-  // See docs/contributing/llm-antipatterns.md §11.
   const ROOT_KEY = "content";
 
   it("survives a round-trip through Yjs", () => {
@@ -161,4 +160,3 @@ describe("ResearchMetaElement — Yjs serialization", () => {
     expect(restoredMeta.sources).toEqual([]);
   });
 });
-

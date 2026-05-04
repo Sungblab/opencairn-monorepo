@@ -1,5 +1,5 @@
 // OpenCairn brand tokens for email templates.
-// Palette: neutral monochrome only (CLAUDE.md brand rules forbid warm/ember/cream in emails).
+// Palette: neutral monochrome only.
 // All colors inline-safe for email client rendering (no CSS variables — Outlook doesn't resolve them).
 
 export const colors = {

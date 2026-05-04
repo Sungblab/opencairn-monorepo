@@ -2,22 +2,22 @@
 
 [English](README.md) | **한국어**
 
-> 자체 호스팅 가능한 멀티 LLM · AI 에이전트 기반 개인 / 팀 지식 OS.
+> 자체 호스팅 가능한 멀티 LLM 기반 개인 / 팀 지식 OS.
 
 > ⚠️ **알파 단계입니다.** 스키마, API, 마이그레이션이 커밋 사이에 깨질 수 있습니다. 운영 환경에 도입하시기 전 별도 인스턴스에서 충분히 검증해 주세요.
 
 ## 무엇을 하는 도구인가요
 
-OpenCairn은 PDF, DOCX, PPTX, XLSX, HWP, Markdown, Notion ZIP, Google Drive 등 다양한 입력을 받아 탐색 가능한 지식 그래프로 정리하고, 12개의 AI 에이전트 — Compiler · Research · Librarian · Curator · Connector · Synthesis · Staleness · Narrator · Visualization · Socratic · Code · DocEditor — 가 그 위에서 읽고 추론하고 글을 쓰도록 합니다. Docker 호스트에서 직접 동작하며, Google Gemini 또는 로컬 Ollama 모델을 통합 프로바이더 계층 뒤에서 사용합니다.
+OpenCairn은 PDF, DOCX, PPTX, XLSX, HWP, Markdown, Notion ZIP, Google Drive 등 다양한 입력을 받아 편집 가능한 노트, 탐색 가능한 지식 그래프, grounded Q&A 화면으로 정리합니다. 장기 아키텍처는 컴파일, 리서치, 학습, 종합, 내레이션, 시각화, 코드, 유지보수 역할의 AI 에이전트를 정의하지만, 모든 역할이 오늘 기본 활성 제품 에이전트인 것은 아닙니다. Docker 호스트에서 직접 동작하며, Google Gemini 또는 로컬 Ollama 모델을 통합 프로바이더 계층 뒤에서 사용합니다.
 
 ## 주요 특징
 
 - **자체 호스팅 기본** — `docker compose up` 한 번이면 Postgres + pgvector, MinIO, Temporal, Redis, 선택적으로 Ollama가 모두 기동됩니다.
 - **멀티 LLM** — Gemini(기본) 또는 Ollama를 환경 변수로 선택합니다. 워크스페이스 기본값 위에 사용자별 BYOK 키가 얹힙니다.
-- **12개의 AI 에이전트** — Temporal과 자체 에이전트 런타임(`apps/worker/src/runtime/`)이 오케스트레이션합니다.
+- **AI 워크플로우와 에이전트 역할** — Temporal과 자체 에이전트 런타임(`apps/worker/src/runtime/`)이 단계적으로 제공되는 런타임 에이전트, 워크플로우 기반 기능, feature flag 뒤의 제품 화면을 오케스트레이션합니다.
 - **지식 그래프 + 위키 에디터** — Plate v49 기반 `[[wiki-link]]`, 백링크, Cytoscape 다중 뷰(그래프 / 보드 / 테이블 / 타임라인), 자동 개념 추출.
 - **실시간 협업** — Hocuspocus / Yjs 기반 멀티 커서, 코멘트, `@mention`, 공유 링크, 페이지별 권한.
-- **Deep research 모드** — 다단계 추론과 인용 · provenance 추적. BYOK 또는 managed PAYG 경로.
+- **Deep research 모드** — 다단계 추론과 인용 · provenance 추적. managed hosted billing은 이후 호스팅 서비스 범위로 남아 있습니다.
 - **3계층 권한 모델** — Workspace → Project → Page, 상속과 override 지원.
 
 ## 아키텍처
@@ -25,7 +25,7 @@ OpenCairn은 PDF, DOCX, PPTX, XLSX, HWP, Markdown, Notion ZIP, Google Drive 등 
 ```
 apps/web         Next.js 16. UI + 브라우저 샌드박스 (Pyodide + iframe).
 apps/api         Hono 4. 비즈니스 로직, 인증, 권한 헬퍼.
-apps/worker      Python. Temporal 워커 + 에이전트 런타임 + 12개 에이전트.
+apps/worker      Python. Temporal 워커 + 에이전트 런타임 + 워크플로우 기반 AI 기능.
 apps/hocuspocus  Yjs 협업 서버. 페이지 수준 인증 hook.
 packages/db      Drizzle ORM + pgvector + 3계층 워크스페이스 권한.
 packages/llm     Python LLM 프로바이더 추상화 (Gemini / Ollama).
@@ -33,7 +33,7 @@ packages/emails  react-email v6 템플릿 + Resend.
 packages/shared  Zod 스키마 (API 계약).
 ```
 
-상세 설계: `docs/superpowers/specs/2026-04-09-opencairn-design.md`.
+상세 설계: `docs/contributing/roadmap.md`.
 
 ## Quick start
 
@@ -76,11 +76,11 @@ pnpm dev
 | ------------------------------------------------- | --------------------------------------------------------------------- |
 | 문서 인덱스                                       | `docs/README.md`                                                      |
 | 개발 히스토리와 의사결정 로그                      | `docs/contributing/project-history.md`                                |
-| 시스템 설계                                       | `docs/superpowers/specs/2026-04-09-opencairn-design.md`               |
+| 시스템 설계                                       | `docs/contributing/roadmap.md`               |
 | API 계약                                          | `docs/architecture/api-contract.md`                                   |
 | 데이터 흐름 (ingest → wiki → Q&A)                 | `docs/architecture/data-flow.md`                                      |
 | 협업 모델 (권한 · Hocuspocus · 코멘트)            | `docs/architecture/collaboration-model.md`                            |
-| 에이전트 런타임                                    | `docs/superpowers/specs/2026-04-20-agent-runtime-standard-design.md`  |
+| 에이전트 런타임                                    | `docs/contributing/roadmap.md`  |
 | 운영                                              | `docs/contributing/ops.md`, `docs/runbooks/`                          |
 | Plan 상태                                         | `docs/contributing/plans-status.md`                                   |
 

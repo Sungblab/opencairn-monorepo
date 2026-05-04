@@ -9,7 +9,7 @@ import { integrationProviderEnum } from "./enums";
 // INTEGRATION_TOKEN_ENCRYPTION_KEY — never stored in plaintext. See
 // apps/api/src/lib/integration-tokens.ts.
 //
-// `workspaceId` is nullable for migration safety (Ralph audit S3-022): rows
+// `workspaceId` is nullable for migration safety: rows
 // created before the per-workspace split cannot be reattributed to a
 // specific workspace, so they remain as orphans and the API filters them
 // out by always querying with `eq(workspaceId, ...)`. New OAuth callbacks

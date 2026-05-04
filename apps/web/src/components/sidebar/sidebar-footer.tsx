@@ -12,8 +12,8 @@ import { byokKeyQueryKey, getByokKey } from "@/lib/api-client-byok-key";
 
 // Bottom row of the sidebar — user identity + plan/credit chip + bell +
 // settings. The plan label resolves to "BYOK" when the user has a Gemini
-// key registered, otherwise "Free". Credits stay at ₩0 until Plan 9b
-// billing lands; the subtitle still renders so the layout doesn't shift
+// key registered, otherwise "Free". Credits stay at ₩0 until hosted billing
+// lands; the subtitle still renders so the layout doesn't shift
 // when billing flips on. Mockup ref: docs/mockups/2026-04-23-app-shell
 // §sidebar footer.
 export function SidebarFooter() {

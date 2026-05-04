@@ -60,8 +60,7 @@ integrationsRouter.get("/google/callback", async (c) => {
       userId: parsed.userId,
       // Pin the token to the workspace the user was in when they hit
       // /google/connect. Different workspaces require separate consent so
-      // a member of A can't silently use their token from inside B
-      // (Ralph audit S3-022).
+      // a member of A can't silently use their token from inside B.
       workspaceId: parsed.workspaceId,
       provider: "google_drive",
       accessTokenEncrypted: encryptToken(tokens.access_token),

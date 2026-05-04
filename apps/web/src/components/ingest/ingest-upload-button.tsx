@@ -6,7 +6,7 @@ import { useIngestUpload } from "@/hooks/use-ingest-upload";
 
 // "Add source" entry point in the project header. Without this, /api/ingest
 // has no UI call site and the live-ingest spotlight + dock + tab viewer all
-// remain unreachable in production (Ralph audit S3-056).
+// remain unreachable in production.
 //
 // Gating: NEXT_PUBLIC_FEATURE_LIVE_INGEST controls visibility because the
 // spotlight/dock UX (the actual feedback users see during ingestion) is

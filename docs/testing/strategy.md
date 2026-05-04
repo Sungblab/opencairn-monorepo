@@ -74,7 +74,7 @@
 
 ### Trajectory 기반 Eval (2026-04-20 추가, Plan 12 이후)
 
-Runtime facade가 구축되면 위 방법에 **`AgentEvent` trajectory 매칭**이 추가된다. 스펙: [`2026-04-20-agent-runtime-standard-design.md`](../superpowers/specs/2026-04-20-agent-runtime-standard-design.md) §7.
+Runtime facade가 구축되면 위 방법에 **`AgentEvent` trajectory 매칭**이 추가된다. 스펙: [`2026-04-20-agent-runtime-standard-design.md`](../contributing/roadmap.md) §7.
 
 **3가지 eval 실행 모드**:
 

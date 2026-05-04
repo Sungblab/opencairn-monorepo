@@ -12,7 +12,9 @@ dist/
 build/
 .next/
 .turbo/
+.cache/
 out/
+*.tsbuildinfo
 
 # Next.js auto-generated (path flips between `next dev` and `next build`)
 apps/web/next-env.d.ts
@@ -54,7 +56,9 @@ apps/worker/benchmarks/results/
 .playwright-mcp/
 .claude/
 .claude/local/
+.codex/
 .obsidian/
+.private-docs/
 .worktrees/
 .superpowers/
 

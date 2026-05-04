@@ -2,9 +2,8 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     ports:
-      # Loopback-only by default (S3-052 / CLAUDE.md Security § "PostgreSQL not
-      # exposed to internet"). Set POSTGRES_HOST_BIND=0.0.0.0 only with a
-      # strong POSTGRES_PASSWORD AND a network ACL in front; the default keeps
+      # Loopback-only by default. Set POSTGRES_HOST_BIND=0.0.0.0 only with a
+      # strong POSTGRES_PASSWORD and a network ACL in front; the default keeps
       # the database off the public interface even when the host is.
       - "${POSTGRES_HOST_BIND:-127.0.0.1}:${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
@@ -15,7 +14,7 @@ services:
       # Required. `:?` fails `docker compose` at parse time if unset, so
       # dev/prod never silently boot a database with a shared default
       # password. Set in `.env` (gitignored) or export in the shell.
-      # [Tier 1 item 1-6 / Plan 1 C-6]
+      # Avoids a silent shared default password in dev or self-host installs.
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
@@ -111,7 +110,6 @@ services:
       FEATURE_DOC_EDITOR_SLASH: ${FEATURE_DOC_EDITOR_SLASH:-true}
       SEMANTIC_SCHOLAR_API_KEY: ${SEMANTIC_SCHOLAR_API_KEY:-}
       UNPAYWALL_EMAIL: ${UNPAYWALL_EMAIL:-}
-      CONTACT_EMAIL: ${CONTACT_EMAIL:-contact@example.com}
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-209715200}
       MAX_IMAGE_BYTES: ${MAX_IMAGE_BYTES:-20971520}
       MAX_AUDIO_VIDEO_BYTES: ${MAX_AUDIO_VIDEO_BYTES:-524288000}
@@ -210,7 +208,7 @@ services:
     restart: unless-stopped
 
   hocuspocus:
-    # Yjs-over-WebSocket collaboration backend (Plan 2B).
+    # Yjs-over-WebSocket collaboration backend.
     # Build context is the monorepo root because the Dockerfile copies
     # @opencairn/api + @opencairn/db + @opencairn/shared workspace packages.
     #
@@ -244,7 +242,7 @@ services:
     image: minio/minio:RELEASE.2024-11-07T00-52-20Z
     command: server /data --console-address ":9001"
     ports:
-      # Loopback-only by default (S3-052). MINIO_ROOT_PASSWORD is enforced via
+      # Loopback-only by default. MINIO_ROOT_PASSWORD is enforced via
       # S3_SECRET_KEY's `:?` guard, so the credential layer is in place — but
       # putting an unauthenticated console (9001) or S3 endpoint (9000) on
       # 0.0.0.0 turns every Compose host into a self-service object store.
@@ -272,7 +270,7 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     ports:
-      # Loopback-only by default (S3-052). Ollama has no built-in auth, so
+      # Loopback-only by default. Ollama has no built-in auth, so
       # exposing 11434 on a public interface lets anyone on the network drain
       # GPU/CPU and read your local models. Override with OLLAMA_HOST_BIND=0.0.0.0
       # only behind a reverse proxy that adds authentication.
@@ -280,7 +278,7 @@ services:
     restart: unless-stopped
 
   temporal:
-    # Temporal server for workflow orchestration (Plan 3+).
+    # Temporal server for workflow orchestration.
     # auto-setup image creates the temporal/temporal_visibility schemas in
     # the shared pgvector Postgres on first boot.
     image: temporalio/auto-setup:1.24
@@ -292,7 +290,7 @@ services:
       # running inside compose keep using 7233. Local-only dev (worker on
       # host) must mirror the override in TEMPORAL_ADDRESS.
       #
-      # Loopback-only by default (S3-052). Temporal's gRPC port has no built-in
+      # Loopback-only by default. Temporal's gRPC port has no built-in
       # auth in this single-node dev/self-host configuration; override
       # TEMPORAL_HOST_BIND=0.0.0.0 only behind mTLS or a network ACL.
       - "${TEMPORAL_HOST_BIND:-127.0.0.1}:${TEMPORAL_HOST_PORT:-7233}:7233"
@@ -312,7 +310,7 @@ services:
   temporal-ui:
     image: temporalio/ui:2.26.2
     ports:
-      # Loopback-only by default (S3-052). The UI ships without auth in the
+      # Loopback-only by default. The UI ships without auth in the
       # community image; exposing port 8080 publicly leaks workflow IDs,
       # inputs, and stack traces. Use SSH tunnel or a reverse proxy with auth
       # if remote access is needed; override with TEMPORAL_UI_HOST_BIND=0.0.0.0
@@ -325,7 +323,7 @@ services:
 
   worker:
     # Python worker hosting Temporal workflows + `runtime.Agent` agents
-    # (Plan 3 ingest + Plan 4 Compiler/Research/Librarian).
+    # (ingest + Compiler/Research/Librarian workflows).
     #
     # Behind a profile so default `docker compose up -d` only starts infra —
     # during development we usually run the worker on the host via
@@ -375,7 +373,7 @@ services:
       - GEMINI_MANAGED_API_KEY=${GEMINI_MANAGED_API_KEY:-}
       - MANAGED_MARGIN=${MANAGED_MARGIN:-1.3}
       - INTEGRATION_TOKEN_ENCRYPTION_KEY=${INTEGRATION_TOKEN_ENCRYPTION_KEY:-}
-      # Drive token refresh (audit S3-023): when an expired access_token is
+      # Drive token refresh: when an expired access_token is
       # encountered, the worker calls Google's /token endpoint with the
       # stored refresh_token + these credentials. Required for any
       # long-running Drive import; without them the worker can read the
@@ -404,8 +402,7 @@ services:
     restart: unless-stopped
 
   tectonic:
-    # LaTeX→PDF compiler MSA (Plan: 2026-04-27-multi-format-synthesis-export
-    # Phase D). Behind a profile so default `docker compose up -d` doesn't
+    # LaTeX→PDF compiler MSA. Behind a profile so default `docker compose up -d` doesn't
     # pull a 1GB+ tectonic image; self-hosters opt in via:
     #   docker compose --profile pro up tectonic
     profiles: ["pro"]

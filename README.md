@@ -17,7 +17,7 @@ OpenCairn ingests documents such as PDF, Office files, HWP/HWPX, Markdown, Notio
 - **AI workflows and agent roles** — Temporal workflows plus `apps/worker/src/runtime/` power a staged set of runtime agents, workflow-backed features, and gated product surfaces.
 - **Knowledge graph + wiki editor** — Plate v49 with `[[wiki-link]]`, backlinks, Cytoscape multi-view (graph / board / table / timeline), and automatic concept extraction.
 - **Real-time collaboration** — Hocuspocus / Yjs with multi-cursor, comments, `@mentions`, share links, per-note permissions.
-- **Deep research mode** — multi-step research with citations and provenance; hosted billing/PAYG remains a later Plan 9b surface.
+- **Deep research mode** — multi-step research with citations and provenance; managed hosted billing remains a later hosted-service surface.
 - **Three-tier permission model** — Workspace → Project → Page, with inheritance and override.
 
 ## Architecture
@@ -33,7 +33,7 @@ packages/emails  react-email v6 templates + Resend.
 packages/shared  Zod schemas (API contract).
 ```
 
-Detailed design: `docs/superpowers/specs/2026-04-09-opencairn-design.md`.
+Detailed design: `docs/contributing/roadmap.md`.
 
 ## Quick start
 
@@ -76,11 +76,11 @@ For the all-in-Docker path (including the worker container, Ollama profile, BYOK
 | ------------------------------------------------------ | --------------------------------------------------------------------- |
 | Doc index                                              | `docs/README.md`                                                      |
 | Project history and decision log                       | `docs/contributing/project-history.md`                                |
-| System design                                          | `docs/superpowers/specs/2026-04-09-opencairn-design.md`               |
+| System design                                          | `docs/contributing/roadmap.md`               |
 | API contract                                           | `docs/architecture/api-contract.md`                                   |
 | Data flow (ingest → wiki → Q&A)                        | `docs/architecture/data-flow.md`                                      |
 | Collaboration model (permissions, Hocuspocus, comments) | `docs/architecture/collaboration-model.md`                            |
-| Agent runtime                                          | `docs/superpowers/specs/2026-04-20-agent-runtime-standard-design.md`  |
+| Agent runtime                                          | `docs/contributing/roadmap.md`  |
 | Operations                                             | `docs/contributing/ops.md`, `docs/runbooks/`                          |
 | Plan status                                            | `docs/contributing/plans-status.md`                                   |
 

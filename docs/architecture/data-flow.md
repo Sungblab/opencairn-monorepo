@@ -340,7 +340,7 @@ usage_records에 기록 (tokens_used, action, is_byok 플래그)
 
 ## 7. Deep Research Flow
 
-Spec: `docs/superpowers/specs/2026-04-22-deep-research-integration-design.md`.
+Spec: `../contributing/roadmap.md`.
 
 ```
 user types topic + model
@@ -379,6 +379,6 @@ DeepResearchOutput { status="completed", noteId, totalCostUsdCents }
 
 Feature flag `FEATURE_DEEP_RESEARCH` defaults on and gates everything (worker
 registration, api, web) only when explicitly set to `false`. Managed PAYG path
-is further gated by `FEATURE_MANAGED_DEEP_RESEARCH` until Plan 9b (billing)
+is further gated by `FEATURE_MANAGED_DEEP_RESEARCH` until hosted billing
 lands. BYOK key stored in `user_preferences.byok_api_key_encrypted`
 using the same AES-256-GCM scheme as `user_integrations.access_token_encrypted`.

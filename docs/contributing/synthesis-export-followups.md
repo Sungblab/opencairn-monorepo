@@ -189,5 +189,5 @@ should not bloat the git history; the design spec has a small footer
 appendix listing the absolute paths each operator chose, so this doc
 cross-references that appendix.
 
-See `docs/superpowers/specs/2026-04-27-multi-format-synthesis-export-design.md`
+See `roadmap.md`
 § "E2E smoke captures (Phase F)" for the path list.

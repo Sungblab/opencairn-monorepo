@@ -1,10 +1,10 @@
 # Agent Behavior Specification
 
-> Plan 12 (agent-runtime-standard-design.md) 기준의 목표 계약. `runtime.Agent` ABC, `@tool` 데코레이터, `AgentEvent` 스트림은 새 런타임 에이전트의 표준이다.
+> Agent runtime 표준 기준의 목표 계약. `runtime.Agent` ABC, `@tool` 데코레이터, `AgentEvent` 스트림은 새 런타임 에이전트의 표준이다.
 >
 > **2026-04-14 명단**: Compiler / Librarian / Research / Connector / Socratic / Temporal / Synthesis / Curator / Narrator / Deep Research / Code / Visualization (12개). Hunter는 v0.2로 이관됨.
 >
-> **2026-05-03 claim audit 반영**: 위 명단은 제품/설계 역할 목록이며, 현재 구현의 모든 항목이 `runtime.Agent` 서브클래스이거나 기본 활성 UI 엔트리포인트인 것은 아니다. 자세한 근거는 `docs/review/2026-05-03-agent-system-claim-audit.md`와 `docs/review/2026-05-03-claim-reality-master-audit.md`를 본다.
+> **Public implementation note**: 위 명단은 제품/설계 역할 목록이며, 현재 구현의 모든 항목이 `runtime.Agent` 서브클래스이거나 기본 활성 UI 엔트리포인트인 것은 아니다. 자세한 현재 상태는 `../contributing/roadmap.md`를 본다.
 
 ---
 
@@ -17,12 +17,12 @@
 | Compiler | `runtime.Agent` + ingest-triggered workflow | 업로드/컴파일 경로에서 간접 실행 |
 | Research | `runtime.Agent` 존재, 최신 chat은 API-side retrieval 경로 중심 | 독립 에이전트 카드가 아니라 Q&A 표면 |
 | Librarian | `runtime.Agent` maintenance role | 사용자 run 버튼보다 유지보수 역할 |
-| Connector | `runtime.Agent` + Plan 8 API/UI | 프로젝트 Agents 페이지의 5개 카드 중 하나 |
+| Connector | `runtime.Agent` + connector API/UI | 프로젝트 Agents 페이지의 5개 카드 중 하나 |
 | Socratic | workflow/activity 기반, `runtime.Agent` 클래스 없음 | Learn/Socratic 제품 표면 |
 | Temporal/Staleness | `StalenessAgent` 구현, 이름은 Temporal Agent와 다름 | 프로젝트 Agents 페이지의 staleness 카드 |
-| Synthesis | `runtime.Agent` + Plan 8 API/UI | 제안 생성 표면, Synthesis Export와 별개 |
-| Curator | `runtime.Agent` + Plan 8 API/UI | 프로젝트 Agents 페이지의 5개 카드 중 하나 |
-| Narrator | `runtime.Agent` + Plan 8 API/UI | 프로젝트 Agents 페이지의 5개 카드 중 하나 |
+| Synthesis | `runtime.Agent` + synthesis API/UI | 제안 생성 표면, Synthesis Export와 별개 |
+| Curator | `runtime.Agent` + curator API/UI | 프로젝트 Agents 페이지의 5개 카드 중 하나 |
+| Narrator | `runtime.Agent` + narrator API/UI | 프로젝트 Agents 페이지의 5개 카드 중 하나 |
 | Deep Research | workflow/activity 기반, `DeepResearchAgent` 클래스 없음 | 기능 플래그/route 기반 research 표면 |
 | Code | workflow 기반, 명시적으로 `runtime.Agent` 아님 | `FEATURE_CODE_AGENT=false` 기본값 |
 | Visualization | plain class + tool loop, `runtime.Agent` 아님 | 그래프 시각화 경로 |
@@ -54,11 +54,11 @@
 
 ### Stop 조건
 - `max_iterations` 기본 10 (agent-level override 가능). Deep Research만 30+.
-- **Cost ceiling (per-run, 계획)**: hosted billing/credit rail은 Plan 9b 전까지 제품에 연결되지 않았다. 런타임은 비용 집계와 hard-cap hook을 목표로 하지만, public copy에서 실제 결제/환불/캐시 동작처럼 표현하지 않는다.
+- **Cost ceiling (per-run, 계획)**: hosted billing/credit rail은 아직 제품에 연결되지 않았다. 런타임은 비용 집계와 hard-cap hook을 목표로 하지만, public copy에서 실제 결제/환불/캐시 동작처럼 표현하지 않는다.
 - 구조화 출력(Pydantic) 검증 실패 → 최대 2회 재시도 후 실패.
 
 ### 충돌 해결
-- 동일 리소스 동시 쓰기 시 Temporal semaphore (`workspace:{wsId}:project:{pid}` max=1) — plan-3/4 workflow 레벨에서 적용.
+- 동일 리소스 동시 쓰기 시 Temporal semaphore (`workspace:{wsId}:project:{pid}` max=1) — ingest/agent workflow 레벨에서 적용.
 - 우선순위: Compiler > Librarian > 나머지.
 - `wiki_logs`에 변경 기록 (agent, action, diff, reason). 사용자 직접 편집(`is_auto=false`)은 에이전트가 덮어쓰지 못함 — 제안/리뷰 PR 경로만.
 
@@ -93,7 +93,7 @@
 - **제약**: Synthesis가 만든 페이지는 24시간 보호 기간 (삭제 방지)
 - **Cost ceiling**: ₩500/run (정기 스케줄은 일 1회)
 
-### 3.4 Visualization (Plan 5 M1)
+### 3.4 Visualization
 - **역할**: ViewSpec 빌드 (Graph/Mindmap/Cards/Canvas/Timeline 5뷰)
 - **Tools**: `view.build_graph`, `view.build_mindmap`, `view.build_cards`, `view.build_canvas`, `view.build_timeline`
 - **Stop**: 단일 호출 (비반복)
@@ -101,56 +101,56 @@
 - **제약**: 최대 500 노드. 읽기 전용. Canvas 좌표는 `concept_positions`에 upsert만.
 - **Cost ceiling**: ₩50/run
 
-### 3.5 Socratic (Plan 6)
+### 3.5 Socratic
 - **역할**: 학습 문답 — 퀴즈, 플래시카드 생성
 - **Tools**: `flashcard.sm2_update`, `quiz.generate`, `wiki.read_page`
 - **Stop**: 템플릿 충족 / max_iter=3
 - **제약**: 위키에 없는 내용으로 문제 출제 금지. 한 번에 최대 30 카드.
 - **Cost ceiling**: ₩150/run
 
-### 3.6 Code (Plan 7)
+### 3.6 Code
 - **역할**: 코드 문자열 **생성만**. 실행은 브라우저 샌드박스 (Pyodide/iframe postMessage, ADR-006)
 - **Tools**: `sandbox.run_python`, `sandbox.run_js` (둘 다 브라우저 위임)
 - **Stop**: self-healing 3회 / max_iter=5
 - **제약**: iframe sandbox는 `allow-scripts`만. `allow-same-origin` 절대 금지. 서버 코드 실행 없음.
 - **Cost ceiling**: ₩200/run
 
-### 3.7 Connector (Plan 8)
+### 3.7 Connector
 - **역할**: 외부 URL/API 연결, cross-project 연결 제안
 - **Tools**: `external.fetch_url`, `external.oauth_call`, `kg.suggest_link`
 - **Stop**: 제안 최대 10개 / max_iter=5
 - **제약**: 같은 workspace 내에서만 연결 제안. 자동 연결 금지 (제안만).
 - **Cost ceiling**: ₩300/run
 
-### 3.8 Temporal (Plan 8)
+### 3.8 Temporal
 - **역할**: **stale 감지 + 스케줄링만**. 지식 변화 추적.
 - **Tools**: `kg.find_stale`, `schedule.create`, `notify.send`
 - **Stop**: stale 없음 / max_iter=3
 - **제약**: **Timeline 생성 금지 — Visualization Agent 담당.** 읽기 전용.
 - **Cost ceiling**: ₩100/run
 
-### 3.9 Synthesis (Plan 8)
+### 3.9 Synthesis
 - **역할**: 다중 소스 종합, 창발적 연결 제안
 - **Tools**: `kg.query`, `doc.compile`, `wiki.suggest_page`
 - **Stop**: 개념 10개 미만이면 즉시 종료 / max_iter=5
 - **제약**: 제안만. 사용자 확인 후 Compiler가 실제 페이지 생성.
 - **Cost ceiling**: ₩500/run (주간 스케줄)
 
-### 3.10 Curator (Plan 8)
+### 3.10 Curator
 - **역할**: KG 품질 개선 제안 — 태그, 링크, 외부 자료 추천
 - **Tools**: `kg.suggest_tags`, `kg.suggest_links`, `external.search_grounding`
 - **Stop**: 제안 10개 / max_iter=3
 - **제약**: Gemini Google Search Grounding만 사용 (직접 크롤링 금지).
 - **Cost ceiling**: ₩150/run
 
-### 3.11 Narrator (Plan 8)
+### 3.11 Narrator
 - **역할**: 서술형 문서/오디오 생성
 - **Tools**: `doc.compile`, `tts.synthesize` (Gemini MultiSpeakerVoiceConfig)
 - **Stop**: 단일 호출
 - **제약**: 오디오 50MB 제한. Free 티어 월 3회.
 - **Cost ceiling**: ₩800/run (TTS 비용 지배적)
 
-### 3.12 Deep Research (Plan 8)
+### 3.12 Deep Research
 - **역할**: 장문 리서치. child workflow 생성 가능.
 - **Tools**: `gemini.deep_research_start`, `gemini.deep_research_poll`
 - **Stop**: Gemini API 완료 / 30분 타임아웃 / max_iter=30+
@@ -161,7 +161,7 @@
 
 ## 4. 재시도 / 타임아웃
 
-### Temporal Activity 레벨 (plan-3/4에서 정의)
+### Temporal Activity 레벨
 - 기본 재시도 3회, 초기 간격 5s, 지수 backoff (계수 2.0), 최대 간격 60s
 - Deep Research: 재시도 무제한 + 30분 타임아웃 (Gemini background API 폴링)
 
@@ -189,7 +189,7 @@
 |------|------------|------|
 | Free | 계획 | Deep Research/Narrator 제한 예정 |
 | BYOK | 계획 | 현재는 user-level Gemini BYOK 설정부터 구현 |
-| Pro | 계획 | Plan 9b 이후 hosted billing에서 확정 |
+| Pro | 계획 | hosted billing에서 확정 |
 | Enterprise | Custom | 협의 |
 
 ---

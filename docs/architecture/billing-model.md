@@ -272,7 +272,7 @@ async function deductUsage(params: {
 
 ## 7. 연관 문서
 
-- [plan-9 billing-marketing](../superpowers/plans/2026-04-09-plan-9-billing-marketing.md) — 구현 플랜 (본 문서에 맞춰 후속 업데이트 필요)
+- [plan-9 billing-marketing](../contributing/roadmap.md) — 구현 플랜 (본 문서에 맞춰 후속 업데이트 필요)
 - [security-model.md](./security-model.md) — BYOK 키 암호화, rate limit (Pro/BYOK 600 req/min)
 - [agent-behavior-spec.md](../agents/agent-behavior-spec.md) — Deep Research 비용 guard, Free 티어 cost-heavy 에이전트 차단
 - [backup-strategy.md](./backup-strategy.md) — 데이터 export, 계정 삭제 시 잔액 환불 플로우

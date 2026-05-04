@@ -1,5 +1,5 @@
--- Tier 2 hardening bundle from the 2026-04-23 Plan 1~4 post-hoc review.
--- docs/review/2026-04-23-plans-1-to-4-review.md §Tier 2 lists the drivers.
+-- Hardening bundle for invite indexes, slug constraints, and Yjs document
+-- size limits.
 --
 -- Ordering matters for yjs_documents: the column must be added nullable,
 -- backfilled from octet_length(state), then promoted to NOT NULL, otherwise
@@ -7,8 +7,8 @@
 
 -- 2-1/2-2: HNSW vector indexes. Without these, similarity queries against
 -- notes.embedding / concepts.embedding fall back to a sequential scan that
--- gets dramatically slower as the row count grows — Plan 5/6/7/8 hits this
--- cliff the day they land. `vector_cosine_ops` matches the cosine-distance
+-- gets dramatically slower as the row count grows. `vector_cosine_ops`
+-- matches the cosine-distance
 -- operators the hybrid-search path uses today. drizzle-kit cannot emit the
 -- opclass through a customType column, so these two are hand-written here
 -- and the snapshot records them as plain btree placeholders — the database
