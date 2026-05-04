@@ -148,7 +148,12 @@ export function planAdaptiveRagPolicy(input: {
       comparison,
       workspaceFanout,
     }),
-    maxChunksPerNote: graphDepth === 2 || comparison ? 3 : 2,
+    maxChunksPerNote: maxChunksPerNote({
+      graphDepth,
+      researchDepth,
+      comparison,
+      workspaceFanout,
+    }),
     verifierRequired:
       graphDepth > 0 || comparison || researchDepth || workspaceFanout,
     reasons: Array.from(reasons),
@@ -220,13 +225,25 @@ function contextBudget(input: {
   comparison: boolean;
   workspaceFanout: boolean;
 }): number {
-  if (input.graphDepth === 2 || input.researchDepth) {
+  if (input.graphDepth === 2) {
     return envInt("CHAT_RAG_ADAPTIVE_DEEP_CONTEXT_TOKENS", 8000);
   }
   if (input.graphDepth === 1 || input.comparison || input.workspaceFanout) {
     return envInt("CHAT_RAG_ADAPTIVE_CONTEXT_TOKENS", 6000);
   }
-  return envInt("CHAT_RAG_ADAPTIVE_SIMPLE_CONTEXT_TOKENS", 4500);
+  return envInt("CHAT_RAG_ADAPTIVE_SIMPLE_CONTEXT_TOKENS", 3000);
+}
+
+function maxChunksPerNote(input: {
+  graphDepth: 0 | 1 | 2;
+  researchDepth: boolean;
+  comparison: boolean;
+  workspaceFanout: boolean;
+}): number {
+  if (input.graphDepth === 2) return 3;
+  if (input.workspaceFanout) return 1;
+  if (input.comparison || input.researchDepth) return 3;
+  return 2;
 }
 
 function topK(mode: RagMode): number {
