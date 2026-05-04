@@ -51,6 +51,7 @@ describe("executeProjectObjectAction", () => {
           createAgentFile,
           createAgentFileVersion: vi.fn(),
           compileAgentFile: vi.fn(),
+          exportAgentFileForDownload: vi.fn(),
         },
       },
     );
@@ -78,6 +79,7 @@ describe("executeProjectObjectAction", () => {
       createAgentFile: vi.fn(),
       createAgentFileVersion,
       compileAgentFile,
+      exportAgentFileForDownload: vi.fn(),
     };
 
     const update = await executeProjectObjectAction(
@@ -105,12 +107,19 @@ describe("executeProjectObjectAction", () => {
     expect(compile.event.type).toBe("project_object_compile_requested");
   });
 
-  it("keeps export_project_object as a typed skeleton event", async () => {
+  it("turns opencairn_download export_project_object into a stored file download event", async () => {
+    const exportAgentFileForDownload = vi.fn().mockResolvedValue({
+      file: summary,
+      downloadUrl: `/api/agent-files/${fileId}/file`,
+      filename: "brief.md",
+      mimeType: "text/markdown",
+      bytes: 7,
+    });
+
     const result = await executeProjectObjectAction(
       {
         type: "export_project_object",
         objectId: fileId,
-        format: "pdf",
         provider: "opencairn_download",
       },
       {
@@ -119,15 +128,64 @@ describe("executeProjectObjectAction", () => {
           createAgentFile: vi.fn(),
           createAgentFileVersion: vi.fn(),
           compileAgentFile: vi.fn(),
+          exportAgentFileForDownload,
         },
       },
     );
 
+    expect(exportAgentFileForDownload).toHaveBeenCalledWith(fileId, userId);
+    expect(result.event).toEqual({
+      type: "project_object_export_ready",
+      object: {
+        id: fileId,
+        objectType: "agent_file",
+        title: "Brief",
+        filename: "brief.md",
+        kind: "markdown",
+        mimeType: "text/markdown",
+        projectId,
+      },
+      provider: "opencairn_download",
+      downloadUrl: `/api/agent-files/${fileId}/file`,
+      filename: "brief.md",
+      mimeType: "text/markdown",
+      bytes: 7,
+    });
+  });
+
+  it("keeps provider export as an optional gated skeleton event", async () => {
+    const exportAgentFileForDownload = vi.fn().mockResolvedValue({
+      file: summary,
+      downloadUrl: `/api/agent-files/${fileId}/file`,
+      filename: "brief.md",
+      mimeType: "text/markdown",
+      bytes: 7,
+    });
+
+    const result = await executeProjectObjectAction(
+      {
+        type: "export_project_object",
+        objectId: fileId,
+        format: "docx",
+        provider: "google_drive",
+      },
+      {
+        context: { userId, workspaceId, projectId },
+        deps: {
+          createAgentFile: vi.fn(),
+          createAgentFileVersion: vi.fn(),
+          compileAgentFile: vi.fn(),
+          exportAgentFileForDownload,
+        },
+      },
+    );
+
+    expect(exportAgentFileForDownload).toHaveBeenCalledWith(fileId, userId);
     expect(result.event).toEqual({
       type: "project_object_export_requested",
       objectId: fileId,
-      provider: "opencairn_download",
-      format: "pdf",
+      provider: "google_drive",
+      format: "docx",
     });
   });
 });

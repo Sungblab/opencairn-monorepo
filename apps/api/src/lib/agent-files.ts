@@ -90,6 +90,14 @@ export interface RegisterExistingObjectInput {
 
 export type AgentFileRecord = typeof agentFiles.$inferSelect;
 
+export interface AgentFileDownloadExport {
+  file: AgentFileSummary;
+  downloadUrl: string;
+  filename: string;
+  mimeType: string;
+  bytes: number;
+}
+
 export async function createAgentFile(input: CreateAgentFileInput): Promise<AgentFileSummary> {
   if (!input.skipPermissionCheck && !(await canWrite(input.userId, { type: "project", id: input.projectId }))) {
     throw new AgentFileError("forbidden");
@@ -235,6 +243,20 @@ export async function streamAgentFile(id: string, userId: string): Promise<Respo
       disposition: inlineDisposition(row.kind as AgentFileKind) ? "inline" : "attachment",
     }),
   });
+}
+
+export async function exportAgentFileForDownload(
+  id: string,
+  userId: string,
+): Promise<AgentFileDownloadExport> {
+  const row = await getAgentFileForRead(id, userId);
+  return {
+    file: toSummary(row),
+    downloadUrl: `/api/agent-files/${row.id}/file`,
+    filename: row.filename,
+    mimeType: row.mimeType,
+    bytes: row.bytes,
+  };
 }
 
 export async function streamCompiledAgentFile(id: string, userId: string): Promise<Response> {

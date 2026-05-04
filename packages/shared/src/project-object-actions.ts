@@ -115,6 +115,16 @@ export const projectObjectActionEventSchema = z.discriminatedUnion("type", [
     format: exportFormatSchema.optional(),
   }),
   z.object({
+    type: z.literal("project_object_export_ready"),
+    object: projectObjectSummarySchema,
+    provider: z.literal("opencairn_download"),
+    format: exportFormatSchema.optional(),
+    downloadUrl: z.string().min(1),
+    filename: z.string().min(1),
+    mimeType: z.string().min(1),
+    bytes: z.number().int().nonnegative(),
+  }),
+  z.object({
     type: z.literal("project_object_compile_requested"),
     objectId: objectIdSchema,
     target: z.literal("pdf"),
