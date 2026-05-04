@@ -25,8 +25,8 @@ function formatUsdCents(cents: number): string {
 // the body `contentEditable={false}` so Slate doesn't try to place a
 // selection inside the metadata UI.
 //
-// llm-antipatterns.md §8: do NOT use `<PlateElement>` wrapper here — its
-// typing rejects `contentEditable` and the codebase convention is the plain
+// Do NOT use `<PlateElement>` wrapper here — its typing rejects
+// `contentEditable` and the codebase convention is the plain
 // `<div {...attributes}>` form (see math-block.tsx).
 export function ResearchMetaElement({
   attributes,

@@ -257,7 +257,7 @@ workspaceRoutes.delete("/:workspaceId/members/:userId", requireWorkspaceRole("ad
 
 // 대시보드 헤더 카드 4장 집계 (App Shell Phase 5 Task 1).
 // 응답은 snake_case로 고정 — 클라이언트에서 그대로 분해해 카드에 매핑한다.
-// credits_krw 는 Plan 9b billing 도착 전까지 stub 0. byok_connected 는 사용자
+// credits_krw 는 hosted billing 도착 전까지 stub 0. byok_connected 는 사용자
 // 본인의 BYOK 키 (legacy users 컬럼 또는 user_preferences 신규 컬럼) 어느 쪽이든
 // 등록되어 있으면 true.
 workspaceRoutes.get(

@@ -140,7 +140,7 @@
     "label": "AGENTS",
     "title1": "AI roles,",
     "title2": "each with a narrow job.",
-    "sub": "Twelve roles are defined in the long-term architecture. The shipped product mixes runtime agents, workflow-backed features, and feature-flagged surfaces — check docs/contributing/plans-status.md for what's currently active.",
+    "sub": "Twelve roles are defined in the long-term architecture. The shipped product mixes runtime agents, workflow-backed features, and feature-flagged surfaces — check the public roadmap for what's currently active.",
     "items": [
       { "n": "01", "cat": "core", "name": "Compiler", "body": "Extracts concepts from uploads into wiki pages, with two-way links built in." },
       { "n": "02", "cat": "core", "name": "Research", "body": "Hybrid Q&A across multiple search strategies, with source chips on answers." },
@@ -332,7 +332,7 @@
     "label": "PRICING",
     "title1": "Hosted pricing",
     "title2": "is still in planning.",
-    "sub": "Open-source self-hosting is usable today. Managed cloud pricing, credits, refunds, and auto top-up will be finalized after Plan 9b and business registration.",
+    "sub": "Open-source self-hosting is usable today. Managed cloud pricing, credits, refunds, and auto top-up will be finalized after the hosted billing rail and business registration.",
     "solo": {
       "name": "Solo",
       "cat": "self-host · dev",

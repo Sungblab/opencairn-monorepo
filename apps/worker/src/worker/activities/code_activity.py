@@ -45,7 +45,7 @@ CanvasLanguage = Literal["python", "javascript", "html", "react"]
 class CodeRunParams:
     """Identity + prompt envelope shared across both activities.
 
-    ``byok_key_handle`` is plumbed through for Plan 9b billing routing
+    ``byok_key_handle`` is plumbed through for hosted billing routing
     but ignored today (see ``llm_routing.resolve_llm_provider``).
     """
 

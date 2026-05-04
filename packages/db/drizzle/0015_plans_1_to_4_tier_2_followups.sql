@@ -1,4 +1,4 @@
--- PR #13 (migration 0014) gemini review follow-ups.
+-- PR #13 (migration 0014) review follow-ups.
 --
 -- Gemini flagged two issues on 0014 that we did not catch at author time:
 --
@@ -12,9 +12,7 @@
 --       run against a DB with any uppercase slug would fail the CHECK
 --       before the row could be normalised. Retro-adding the UPDATE to
 --       0015 cannot rescue that path — 0014 runs first and aborts — so the
---       mitigation lives in the deploy runbook instead (see
---       docs/review/2026-04-23-plans-1-to-4-review.md § Tier 2). This
---       migration intentionally does NOT run an UPDATE; it is a no-op for
---       slug data.
+--       mitigation lives in the deploy runbook instead. This migration
+--       intentionally does NOT run an UPDATE; it is a no-op for slug data.
 
 DROP INDEX "workspace_invites_token_idx";

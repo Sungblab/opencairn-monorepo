@@ -4,8 +4,8 @@ import { bytea } from "./custom-types";
 import { llmProviderEnum } from "./enums";
 
 // Per-user LLM provider configuration. Gemini by default; switch to Ollama
-// for fully-local BYOK stacks. `openai` is intentionally not supported
-// (2026-04-15 decision — see docs/superpowers/specs/2026-04-13-multi-llm-provider-design.md).
+// for fully-local BYOK stacks. OpenAI-compatible gateways are configured
+// through the newer provider boundary instead of this legacy enum.
 export const userPreferences = pgTable("user_preferences", {
   // Better Auth user.id is text, not uuid — FK type must match.
   userId: text("user_id")
@@ -16,7 +16,7 @@ export const userPreferences = pgTable("user_preferences", {
   embedModel: text("embed_model").notNull().default("gemini-embedding-001"),
   ttsModel: text("tts_model"),
   ollamaBaseUrl: text("ollama_base_url"),
-  // Deep Research (Spec 2026-04-22) BYOK key. AES-256-GCM encrypted, wire
+  // Deep Research BYOK key. AES-256-GCM encrypted, wire
   // layout iv(12)||tag(16)||ct — same scheme as user_integrations so the
   // existing worker decrypt helper round-trips. Nullable until the user
   // registers a key via Settings (Phase D).

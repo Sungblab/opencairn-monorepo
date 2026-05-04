@@ -1,11 +1,9 @@
-"""S3-006 — every IngestWorkflow activity dispatch must specify
+"""Every IngestWorkflow activity dispatch must specify
 ``heartbeat_timeout``.
 
 Without ``heartbeat_timeout`` Temporal can't distinguish a hung worker from a
 long-running activity, so the controller waits the full
-``schedule_to_close_timeout`` (5-30 min) before retrying. The audit at
-``docs/review/2026-04-28-ralph-audit/CONSOLIDATED.md#high (26, 25 unfixed)``
-flagged this as a reliability gap.
+``schedule_to_close_timeout`` (5-30 min) before retrying.
 
 We pin both layers:
 
@@ -44,7 +42,7 @@ def test_every_execute_activity_call_passes_heartbeat_timeout():
     """Static: every ``workflow.execute_activity(...)`` block in
     ``ingest_workflow.py`` must contain a ``heartbeat_timeout=`` kwarg.
     Failing here means a new dispatch was added without the kwarg —
-    a silent S3-006 regression."""
+    a silent heartbeat regression."""
     from worker.workflows import ingest_workflow
 
     src = getsource(ingest_workflow)
@@ -72,7 +70,7 @@ def test_every_execute_activity_call_passes_heartbeat_timeout():
     assert blocks, "expected at least one execute_activity call in ingest_workflow.py"
     missing = [b[:120].replace("\n", " ") for b in blocks if "heartbeat_timeout" not in b]
     assert not missing, (
-        "execute_activity calls without heartbeat_timeout — S3-006 regression: "
+        "execute_activity calls without heartbeat_timeout — heartbeat regression: "
         + " | ".join(missing)
     )
 
@@ -134,7 +132,7 @@ async def test_dispatch_activity_receives_heartbeat_timeout(
         f"captured={[n for n, _ in captured]}"
     )
     assert "heartbeat_timeout" in primary, (
-        f"{activity_name} missing heartbeat_timeout (S3-006)"
+        f"{activity_name} missing heartbeat_timeout"
     )
     ht = primary["heartbeat_timeout"]
     assert isinstance(ht, timedelta), f"expected timedelta, got {type(ht)!r}"
@@ -181,5 +179,5 @@ async def test_emit_started_call_passes_heartbeat_timeout(monkeypatch):
     emit = next((kw for n, kw in captured if n == "emit_started"), None)
     assert emit is not None, "emit_started should be called once at run() start"
     assert "heartbeat_timeout" in emit, (
-        "emit_started missing heartbeat_timeout (S3-006)"
+        "emit_started missing heartbeat_timeout"
     )

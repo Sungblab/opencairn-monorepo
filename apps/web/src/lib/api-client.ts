@@ -109,7 +109,7 @@ export interface NoteRow {
   sourceUrl: string | null;
   mimeType: string | null;
   /**
-   * Plan 7 Canvas Phase 1: non-null only when sourceType='canvas'. The DB
+   * Canvas runtime: non-null only when sourceType='canvas'. The DB
    * CHECK constraint enforces the iff between sourceType='canvas' and
    * canvasLanguage IS NOT NULL.
    */
@@ -137,7 +137,7 @@ export interface CreateNoteBody {
   folderId?: string | null;
   title?: string;
   content?: unknown[] | null;
-  // Plan 7 Canvas Phase 1: canvas notes carry source code in contentText
+  // Canvas runtime: canvas notes carry source code in contentText
   // and a non-null canvasLanguage. The DB CHECK constraint enforces the
   // iff between sourceType='canvas' and canvasLanguage IS NOT NULL.
   sourceType?:
@@ -311,7 +311,7 @@ export interface WorkspaceStats {
   docs: number;
   docs_week_delta: number;
   research_in_progress: number;
-  /** KRW. 0 until Plan 9b billing engine ships. */
+  /** KRW. 0 until hosted billing ships. */
   credits_krw: number;
   byok_connected: boolean;
 }

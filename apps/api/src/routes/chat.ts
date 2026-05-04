@@ -40,11 +40,10 @@ import type { AppEnv } from "../lib/types";
 import { createAgentFile } from "../lib/agent-files";
 import { emitTreeEvent } from "../lib/tree-events";
 
-// Plan 11A — /api/chat router. Each conversation is owned by exactly one
+// /api/chat router. Each conversation is owned by exactly one
 // user (`owner_user_id`). Workspace boundary is checked at every entry
 // point: scopeId via validateScope, and the workspace itself via canRead.
-// Chips and pin sub-routes are appended in their own route files (Plan 11A
-// Tasks 4–6).
+// Chips and pin sub-routes are appended in their own route files.
 export const chatRoutes = new Hono<AppEnv>().use("*", requireAuth);
 
 chatRoutes.post(
@@ -144,7 +143,7 @@ chatRoutes.get("/conversations", async (c) => {
   return c.json(rows);
 });
 
-// ── Chip add/remove (Plan 11A Task 4) ───────────────────────────────────
+// ── Chip add/remove ─────────────────────────────────────────────────────
 //
 // Composite key for delete = `<type>:<id>`. The chipKey path param URL-
 // encodes the colon, but Hono's parser hands us the decoded form. The
@@ -194,7 +193,7 @@ chatRoutes.post(
       }
     }
     // Memory chips (memory:l3 / memory:l4 / memory:l2) accepted as-is in
-    // 11A — Plan 11B owns the workspace+user-scoped lookup. No label
+    // Memory chips are accepted as-is here. No label
     // because the UI does not render them yet.
 
     const next = dedupeChips([
@@ -216,8 +215,8 @@ chatRoutes.delete("/conversations/:id/chips/:chipKey", async (c) => {
   const chipKey = c.req.param("chipKey");
   // Anchor the type extraction on the closed enum of chip types instead
   // of inferring from `lastIndexOf(":")`. The latter quietly corrupted
-  // memory chip ids that themselves contain a colon (Plan 11B promised
-  // broader id formats and `lastIndexOf` would have happily mis-parsed
+  // memory chip ids that themselves contain a colon. `lastIndexOf` would
+  // have happily mis-parsed
   // `memory:l3:user:bob@example.com:l3-pin` → type=`memory:l3:user:...`).
   const KNOWN_TYPES = [
     "page",
@@ -256,7 +255,7 @@ chatRoutes.delete("/conversations/:id/chips/:chipKey", async (c) => {
   return c.json(row);
 });
 
-// ── Pin (Plan 11A Task 5) ────────────────────────────────────────────────
+// ── Pin ─────────────────────────────────────────────────────────────────
 //
 // /pin runs the citation-visibility check; if any citation is hidden from
 // a target-page reader, returns 409 with the delta payload so the client
@@ -357,14 +356,14 @@ chatRoutes.post(
   },
 );
 
-// ── Message SSE (Plan 11A Task 6 + Plan 11B-A Task 8) ──────────────────
+// ── Message SSE ─────────────────────────────────────────────────────────
 //
 // Streams real Gemini responses via runChat(): retrieval reads
 // attachedChips + ragMode, the provider streams text deltas, and token
 // accounting comes from the provider-reported usageMetadata.
 // LLMNotConfiguredError is mapped to an SSE `event: error` with code
 // `llm_not_configured` so misconfigured operators get a visible signal
-// rather than a silent failure. Refs: docs/review/2026-04-28-completion-claims-audit.md §1.2.
+// rather than a silent failure.
 chatRoutes.post(
   "/message",
   zValidator("json", SendMessageBodySchema),
@@ -429,7 +428,7 @@ chatRoutes.post(
     // Persist the user row synchronously. We do NOT yet know the prompt
     // token count — fill it in below once Gemini reports usage. Leaving
     // tokensIn null means a mid-stream crash leaves an unbilled but
-    // recoverable row (Plan 11B/Spec B AI Usage Visibility can backfill).
+    // recoverable row for later usage backfill.
     const [userRow] = await db
       .insert(conversationMessages)
       .values({

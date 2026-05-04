@@ -1,7 +1,6 @@
 """ToolLoopExecutor — runtime-owned tool-calling loop.
 
-Umbrella: docs/superpowers/specs/2026-04-22-agent-runtime-v2-umbrella.md
-Spec:     docs/superpowers/specs/2026-04-22-agent-runtime-v2a-core-tool-loop-design.md
+Public contract: docs/agents/agent-behavior-spec.md
 
 The executor consumes a provider's `generate_with_tools` one turn at a
 time, dispatches any requested tool uses through a `ToolRegistry`, and
@@ -231,7 +230,8 @@ class ToolLoopExecutor:
 
     async def _execute_tool(self, tool_use) -> ToolResult:
         # Merge system-managed scope values over LLM-supplied args
-        # (Umbrella §3 C3 — workspace isolation enforcement).
+        # Workspace isolation enforcement: caller-supplied scope values win
+        # over LLM-supplied arguments.
         timeout = self._config.per_tool_timeout_overrides.get(
             tool_use.name, self._config.per_tool_timeout_sec,
         )

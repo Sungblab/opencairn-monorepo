@@ -5,7 +5,7 @@ import { useIngestStore } from "@/stores/ingest-store";
 // Bridges the project-view "Add source" button to /api/ingest/upload and the
 // in-app live ingest store. Without this hook the spotlight + dock + tab
 // viewer added by PR #56 had no UI call site to fire `startRun()` from, so
-// the entire live-ingest UX was dead in production (Ralph audit S3-056).
+// the entire live-ingest UX was dead in production.
 //
 // API contract: POST /api/ingest/upload returns 202 { workflowId, objectKey }.
 // We feed the workflowId into the store so the SSE listener attaches and the

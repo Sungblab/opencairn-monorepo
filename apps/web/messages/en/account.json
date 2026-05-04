@@ -21,7 +21,7 @@
   "providers": {
     "heading": "BYOK",
     "description": "Register your own Gemini API key to power Deep Research and chat features using your own billing.",
-    "stub": "BYOK key registration ships with Deep Research Phase E."
+    "stub": "BYOK key registration ships with the public Deep Research path."
   },
   "security": {
     "heading": "Security",
@@ -46,6 +46,6 @@
   },
   "billing": {
     "heading": "Billing & credits",
-    "stub": "Paid plan and credits ship with Plan 9b."
+    "stub": "Paid plans and credits ship after the hosted billing rail is connected."
   }
 }
