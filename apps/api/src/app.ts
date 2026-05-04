@@ -43,6 +43,7 @@ import { socraticRoutes } from "./routes/socratic";
 import { visualizeRouter } from "./routes/visualize";
 import { synthesisRoutes } from "./routes/synthesis";
 import { synthesisExportRouter } from "./routes/synthesis-export";
+import { librarianRoutes } from "./routes/librarian";
 import { narratorRoutes } from "./routes/narrator";
 import { curatorRoutes } from "./routes/curator";
 import { connectorRoutes } from "./routes/connector";
@@ -140,6 +141,7 @@ export function createApp() {
   app.route("/api/code", codeRoutes);
   app.route("/api/synthesis", synthesisRoutes);
   app.route("/api/synthesis-export", synthesisExportRouter);
+  app.route("/api/librarian", librarianRoutes);
   app.route("/api/narrator", narratorRoutes);
   app.route("/api/curator", curatorRoutes);
   app.route("/api/connector", connectorRoutes);

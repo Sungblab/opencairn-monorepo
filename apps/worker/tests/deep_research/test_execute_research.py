@@ -66,7 +66,7 @@ class _FakeProvider:
     async def stream_interaction(self, _interaction_id, *, last_event_id=None):
         events_copy = list(self._events)
 
-        async def _gen() -> AsyncGenerator[_FakeEvent, None]:
+        async def _gen():
             for ev in events_copy:
                 yield ev
 
@@ -173,6 +173,90 @@ def test_happy_path_streams_and_collects(monkeypatch):
     ]
     # heartbeat called at least once (initial) plus once per event.
     assert len(heartbeats) >= 1
+
+
+def test_current_interactions_content_delta_events_are_normalised(monkeypatch):
+    monkeypatch.setenv("GEMINI_MANAGED_API_KEY", "fake")
+
+    events = [
+        _FakeEvent(
+            "1",
+            "content.delta",
+            {"delta": {"type": "thought_summary", "content": {"type": "text", "text": "thinking"}}},
+        ),
+        _FakeEvent(
+            "2",
+            "content.delta",
+            {"delta": {"type": "text", "text": "Report body... "}},
+        ),
+        _FakeEvent(
+            "3",
+            "content.delta",
+            {
+                "delta": {
+                    "type": "image",
+                    "uri": "gs://img/a.png",
+                    "mime_type": "image/png",
+                    "data": "BASE64PNG==",
+                },
+            },
+        ),
+        _FakeEvent(
+            "4",
+            "content.delta",
+            {
+                "delta": {
+                    "type": "text_annotation",
+                    "annotations": [
+                        {
+                            "type": "url_citation",
+                            "url": "https://example.com/s1",
+                            "title": "Source 1",
+                        }
+                    ],
+                },
+            },
+        ),
+        _FakeEvent("5", "interaction.complete", {"interaction": {"status": "completed"}}),
+    ]
+    final = _FakeState(
+        id="int-exec",
+        status="completed",
+        outputs=[{"type": "text", "text": "Report body... "}],
+    )
+    provider = _FakeProvider(events, final)
+
+    forwarded: list[tuple[str, dict]] = []
+
+    async def on_event(kind, payload):
+        forwarded.append((kind, payload))
+
+    result = asyncio.run(
+        _run_execute_research(
+            ExecuteResearchInput(
+                run_id="run-1",
+                user_id="user-1",
+                approved_plan="Go do research.",
+                model="deep-research-preview-04-2026",
+                billing_path="managed",
+                previous_interaction_id="int-plan",
+            ),
+            provider_factory=lambda _api_key: provider,
+            fetch_byok_ciphertext=_fake_fetch,
+            on_event=on_event,
+            on_heartbeat=lambda: None,
+        )
+    )
+
+    assert [kind for kind, _payload in forwarded] == [
+        "thought_summary",
+        "text_delta",
+        "image",
+        "citation",
+    ]
+    assert forwarded[2][1]["base64"] == "BASE64PNG=="
+    assert [i["url"] for i in result.images] == ["gs://img/a.png"]
+    assert [c["url"] for c in result.citations] == ["https://example.com/s1"]
 
 
 def test_failed_final_state_raises(monkeypatch):

@@ -2,6 +2,7 @@ import { GoogleGenAI, ThinkingLevel as GeminiThinkingLevel } from "@google/genai
 import {
   LLMNotConfiguredError,
   type ChatMsg,
+  type GroundedSearchResult,
   type LLMProvider,
   type ThinkingLevel,
   type Usage,
@@ -10,9 +11,10 @@ import {
 // ── Factory ──────────────────────────────────────────────────────────────
 
 const CHAT_MODEL_DEFAULT = "gemini-3-flash-preview";
-const EMBED_MODEL = "gemini-embedding-001";
+const EMBED_MODEL_DEFAULT = "gemini-embedding-001";
 const EMBED_DIM_DEFAULT = 768; // ADR-007
 const GEMINI_THINKING_LEVEL: Record<ThinkingLevel, GeminiThinkingLevel> = {
+  minimal: "MINIMAL" as GeminiThinkingLevel,
   low: GeminiThinkingLevel.LOW,
   medium: GeminiThinkingLevel.MEDIUM,
   high: GeminiThinkingLevel.HIGH,
@@ -28,6 +30,15 @@ function readEmbedDim(): number {
   return parsed;
 }
 
+function isGeminiEmbedding2Model(model: string): boolean {
+  return model.replace(/^models\//, "").startsWith("gemini-embedding-2");
+}
+
+function embedQueryText(text: string, model: string): string {
+  if (!isGeminiEmbedding2Model(model)) return text;
+  return `task: search result | query: ${text}`;
+}
+
 export function getGeminiProvider(): LLMProvider {
   const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
   if (!apiKey) {
@@ -36,16 +47,19 @@ export function getGeminiProvider(): LLMProvider {
 
   const client = new GoogleGenAI({ apiKey });
   const chatModel = process.env.GEMINI_CHAT_MODEL ?? CHAT_MODEL_DEFAULT;
+  const embedModel =
+    process.env.GEMINI_EMBED_MODEL ?? process.env.EMBED_MODEL ?? EMBED_MODEL_DEFAULT;
   const embedDim = readEmbedDim();
 
   return {
     async embed(text: string): Promise<number[]> {
+      const embedding2 = isGeminiEmbedding2Model(embedModel);
       const res = await client.models.embedContent({
-        model: EMBED_MODEL,
-        contents: [{ parts: [{ text }] }],
+        model: embedModel,
+        contents: [{ parts: [{ text: embedQueryText(text, embedModel) }] }],
         config: {
-          taskType: "RETRIEVAL_QUERY",
           outputDimensionality: embedDim,
+          ...(embedding2 ? {} : { taskType: "RETRIEVAL_QUERY" }),
         },
       });
       const values = res.embeddings?.[0]?.values;
@@ -56,8 +70,54 @@ export function getGeminiProvider(): LLMProvider {
       }
       return values;
     },
+    async groundSearch(query, opts): Promise<GroundedSearchResult | null> {
+      const res = await client.models.generateContent({
+        model: chatModel,
+        contents: query,
+        config: {
+          tools: [{ googleSearch: {} }],
+          ...(opts?.maxOutputTokens ? { maxOutputTokens: opts.maxOutputTokens } : {}),
+          ...(opts?.thinkingLevel
+            ? { thinkingConfig: { thinkingLevel: GEMINI_THINKING_LEVEL[opts.thinkingLevel] } }
+            : {}),
+          ...(opts?.cachedContent ? { cachedContent: opts.cachedContent } : {}),
+          ...(opts?.signal ? { abortSignal: opts.signal } : {}),
+        },
+      });
+      const grounding = res.candidates?.[0]?.groundingMetadata;
+      const sources =
+        grounding?.groundingChunks
+          ?.flatMap((chunk) => {
+            const web = chunk.web;
+            if (!web?.uri) return [];
+            return [{
+              title: web.title || web.domain || web.uri,
+              url: web.uri,
+              ...(web.domain ? { snippet: web.domain } : {}),
+            }];
+          }) ?? [];
+      const usage = res.usageMetadata
+        ? {
+            tokensIn: res.usageMetadata.promptTokenCount ?? 0,
+            tokensOut: res.usageMetadata.candidatesTokenCount ?? 0,
+            model: chatModel,
+          }
+        : undefined;
+      return {
+        answer: res.text ?? "",
+        sources,
+        ...(usage ? { usage } : {}),
+      };
+    },
     async *streamGenerate(opts) {
-      const { messages, signal, maxOutputTokens, temperature, thinkingLevel } = opts;
+      const {
+        messages,
+        signal,
+        maxOutputTokens,
+        temperature,
+        thinkingLevel,
+        cachedContent,
+      } = opts;
 
       // Gemini chat is "single-turn with history" via `contents` array. We
       // collapse system messages into a leading systemInstruction (the SDK
@@ -81,6 +141,7 @@ export function getGeminiProvider(): LLMProvider {
           ...(thinkingLevel
             ? { thinkingConfig: { thinkingLevel: GEMINI_THINKING_LEVEL[thinkingLevel] } }
             : {}),
+          ...(cachedContent ? { cachedContent } : {}),
           ...(signal ? { abortSignal: signal } : {}),
         },
       });

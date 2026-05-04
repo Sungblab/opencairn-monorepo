@@ -22,6 +22,7 @@ import { streamObject } from "../lib/s3-get";
 import type { AppEnv } from "../lib/types";
 
 const PLAN8_AGENT_NAMES = [
+  "librarian",
   "synthesis",
   "curator",
   "connector",
@@ -45,6 +46,10 @@ const overviewQuerySchema = z.object({
 
 const idParamSchema = z.object({
   id: z.string().uuid(),
+});
+
+const suggestionStatusSchema = z.object({
+  status: z.enum(["accepted", "rejected"]),
 });
 
 export const plan8AgentRoutes = new Hono<AppEnv>();
@@ -149,6 +154,7 @@ plan8AgentRoutes.get(
           eq(suggestions.userId, userId),
           eq(suggestions.projectId, projectId),
           inArray(suggestions.type, [...PLAN8_SUGGESTION_TYPES]),
+          eq(suggestions.status, "pending"),
         ),
       )
       .orderBy(desc(suggestions.createdAt))
@@ -166,7 +172,13 @@ plan8AgentRoutes.get(
       })
       .from(staleAlerts)
       .innerJoin(notes, eq(notes.id, staleAlerts.noteId))
-      .where(and(eq(notes.projectId, projectId), isNull(notes.deletedAt)))
+      .where(
+        and(
+          eq(notes.projectId, projectId),
+          isNull(notes.deletedAt),
+          isNull(staleAlerts.reviewedAt),
+        ),
+      )
       .orderBy(desc(staleAlerts.detectedAt))
       .limit(limit);
     const readableStaleRows = await filterReadableNoteRows(userId, staleRows);
@@ -240,6 +252,73 @@ plan8AgentRoutes.get(
         urlPath: `/api/agents/plan8/audio-files/${audio.id}/file`,
       })),
     });
+  },
+);
+
+plan8AgentRoutes.patch(
+  "/suggestions/:id",
+  requireAuth,
+  zValidator("param", idParamSchema),
+  zValidator("json", suggestionStatusSchema),
+  async (c) => {
+    const userId = c.get("userId");
+    const { id } = c.req.valid("param");
+    const { status } = c.req.valid("json");
+
+    const [row] = await db
+      .select({
+        id: suggestions.id,
+        projectId: suggestions.projectId,
+      })
+      .from(suggestions)
+      .where(and(eq(suggestions.id, id), eq(suggestions.userId, userId)))
+      .limit(1);
+    if (!row || !row.projectId) return c.json({ error: "notFound" }, 404);
+
+    if (!(await canRead(userId, { type: "project", id: row.projectId }))) {
+      return c.json({ error: "notFound" }, 404);
+    }
+
+    await db
+      .update(suggestions)
+      .set({
+        status,
+        resolvedAt: new Date(),
+      })
+      .where(eq(suggestions.id, row.id));
+
+    return c.json({ ok: true, status });
+  },
+);
+
+plan8AgentRoutes.patch(
+  "/stale-alerts/:id/review",
+  requireAuth,
+  zValidator("param", idParamSchema),
+  async (c) => {
+    const userId = c.get("userId");
+    const { id } = c.req.valid("param");
+
+    const [row] = await db
+      .select({
+        id: staleAlerts.id,
+        noteId: staleAlerts.noteId,
+      })
+      .from(staleAlerts)
+      .where(eq(staleAlerts.id, id))
+      .limit(1);
+    if (!row) return c.json({ error: "notFound" }, 404);
+
+    if (!(await canRead(userId, { type: "note", id: row.noteId }))) {
+      return c.json({ error: "notFound" }, 404);
+    }
+
+    await db
+      .update(staleAlerts)
+      .set({ reviewedAt: new Date() })
+      .where(eq(staleAlerts.id, row.id));
+
+    return c.json({ ok: true });
   },
 );
 

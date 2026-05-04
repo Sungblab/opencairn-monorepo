@@ -21,14 +21,26 @@ import { extractSaveSuggestion } from "./save-suggestion-fence";
 import { extractAgentFileFence } from "./agent-file-fence";
 import { envInt } from "./env";
 import { getChatProvider } from "./llm";
-import type { ChatMsg, LLMProvider, Usage } from "./llm/provider";
+import type {
+  ChatMsg,
+  GroundedSearchSource,
+  LLMProvider,
+  Usage,
+} from "./llm/provider";
 import type { CreateAgentFilePayload } from "@opencairn/shared";
+
+export type ChatCitation = Citation & {
+  index: number;
+  title: string;
+  noteId?: string;
+  url?: string;
+};
 
 export type ChatChunk =
   | { type: "status"; payload: { phrase: string } }
   | { type: "thought"; payload: { summary: string } }
   | { type: "text"; payload: { delta: string } }
-  | { type: "citation"; payload: Citation }
+  | { type: "citation"; payload: ChatCitation }
   | {
       type: "save_suggestion";
       payload: { title: string; body_markdown: string };
@@ -139,14 +151,36 @@ export async function* runChat(opts: {
       maxChunksPerProject: retrieval?.policy.maxChunksPerProject,
     });
 
-    const citations: Citation[] = evidenceBundle.items.map((item) => ({
+    const citations: ChatCitation[] = evidenceBundle.items.map((item) => ({
       source_type: "note",
       source_id: item.noteId,
       snippet: item.snippet,
+      index: item.citationIndex,
+      title: item.title,
+      noteId: item.noteId,
     }));
     for (const c of citations) yield { type: "citation", payload: c };
 
     if (policy.externalGroundingRequired && citations.length === 0) {
+      const grounded = provider.groundSearch
+        ? await provider.groundSearch(opts.userMessage, {
+            signal: opts.signal,
+            maxOutputTokens: envInt("CHAT_MAX_OUTPUT_TOKENS", 2048),
+            thinkingLevel: policy.thinkingLevel,
+          })
+        : null;
+      if (grounded?.answer && grounded.sources.length > 0) {
+        yield {
+          type: "thought",
+          payload: { summary: "최신 외부 근거 확인 중" },
+        };
+        for (const c of groundedSourcesToCitations(grounded.sources)) {
+          yield { type: "citation", payload: c };
+        }
+        yield { type: "text", payload: { delta: grounded.answer } };
+        if (grounded.usage) yield { type: "usage", payload: grounded.usage };
+        return;
+      }
       yield {
         type: "error",
         payload: {
@@ -303,4 +337,17 @@ function groundingRequiredMessage(locale?: string): string {
     return "This question needs current verified sources, but no grounding source is connected. No answer was generated.";
   }
   return "최신 정보가 필요한 질문이라 확인 가능한 근거가 필요합니다. 현재 연결된 검색 근거가 없어 답변을 생성하지 않았습니다.";
+}
+
+function groundedSourcesToCitations(
+  sources: GroundedSearchSource[],
+): ChatCitation[] {
+  return sources.map((source, index) => ({
+    source_type: "external",
+    source_id: source.url,
+    snippet: source.snippet ?? source.title,
+    index: index + 1,
+    title: source.title || source.url,
+    url: source.url,
+  }));
 }

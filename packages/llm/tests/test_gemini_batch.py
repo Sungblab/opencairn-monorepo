@@ -4,6 +4,7 @@ Mocks ``client.aio.batches.*`` at the SDK boundary so we validate shape
 transformations (JobState → normalised state, inlined responses → aligned
 vectors with ``None`` on per-item error) without hitting the network.
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -100,8 +101,33 @@ async def test_embed_batch_submit_returns_handle(provider, monkeypatch):
     assert isinstance(src, types.EmbeddingsBatchJobSource)
     assert src.inlined_requests.contents == ["a", "b", "c"]
     assert src.inlined_requests.config.output_dimensionality == 768
-    assert src.inlined_requests.config.task_type == "retrieval_document"
+    assert src.inlined_requests.config.task_type == "RETRIEVAL_DOCUMENT"
     assert call.kwargs["config"].display_name == "test-run"
+
+
+@pytest.mark.asyncio
+async def test_embed_batch_submit_gemini_embedding_2_uses_content_prefixes(provider, monkeypatch):
+    provider.config.embed_model = "gemini-embedding-2"
+    monkeypatch.setenv("VECTOR_DIM", "768")
+    job = MagicMock()
+    job.name = "batches/abc123"
+    with patch.object(
+        provider._client.aio.batches,
+        "create_embeddings",
+        new=AsyncMock(return_value=job),
+    ) as mocked:
+        await provider.embed_batch_submit(
+            [
+                EmbedInput(text="query", task="retrieval_query"),
+                EmbedInput(text="doc", task="retrieval_document", title="Doc title"),
+            ]
+        )
+    src = mocked.await_args.kwargs["src"]
+    contents = src.inlined_requests.contents
+    assert contents[0].parts[0].text == "task: search result | query: query"
+    assert contents[1].parts[0].text == "title: Doc title | text: doc"
+    assert src.inlined_requests.config.output_dimensionality == 768
+    assert src.inlined_requests.config.task_type is None
 
 
 @pytest.mark.asyncio
@@ -173,12 +199,8 @@ async def test_embed_batch_poll_succeeded_counts_success_and_failure(provider):
             embedding=types.ContentEmbedding(values=[0.1, 0.2])
         ),
     )
-    r_err = types.InlinedEmbedContentResponse(
-        error=types.JobError(code=13, message="internal")
-    )
-    job.dest = types.BatchJobDestination(
-        inlined_embed_content_responses=[r_ok, r_ok, r_err]
-    )
+    r_err = types.InlinedEmbedContentResponse(error=types.JobError(code=13, message="internal"))
+    job.dest = types.BatchJobDestination(inlined_embed_content_responses=[r_ok, r_ok, r_err])
     with patch.object(
         provider._client.aio.batches,
         "get",
@@ -227,9 +249,7 @@ async def test_embed_batch_fetch_aligns_vectors_and_errors(provider):
             embedding=types.ContentEmbedding(values=[0.3, 0.4])
         ),
     )
-    job.dest = types.BatchJobDestination(
-        inlined_embed_content_responses=[r_ok_a, r_err, r_ok_b]
-    )
+    job.dest = types.BatchJobDestination(inlined_embed_content_responses=[r_ok_a, r_err, r_ok_b])
     with patch.object(
         provider._client.aio.batches,
         "get",
@@ -294,6 +314,4 @@ async def test_embed_batch_cancel_delegates(provider):
 def _handle(name: str = "batches/test", input_count: int = 1):
     from llm.batch_types import BatchEmbedHandle
 
-    return BatchEmbedHandle(
-        provider_batch_name=name, submitted_at=0.0, input_count=input_count
-    )
+    return BatchEmbedHandle(provider_batch_name=name, submitted_at=0.0, input_count=input_count)

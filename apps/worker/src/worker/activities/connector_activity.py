@@ -9,19 +9,20 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from llm import get_provider
 from temporalio import activity
 
 from runtime.default_hooks import TokenCounterHook, TrajectoryWriterHook
-from runtime.events import AgentEvent
 from runtime.tools import ToolContext
 from runtime.trajectory import LocalFSTrajectoryStorage, TrajectoryWriter
-
 from worker.agents.connector import ConnectorAgent
+from worker.lib.agent_run_tracking import make_agent_run_tracker
 from worker.lib.api_client import AgentApiClient
 
+if TYPE_CHECKING:
+    from runtime.events import AgentEvent
 
 _TRAJECTORY_DIR = Path(
     os.environ.get("TRAJECTORY_DIR", "/var/opencairn/trajectories")
@@ -57,7 +58,7 @@ async def run_connector(inp: dict[str, Any]) -> dict[str, Any]:
         - suggestion_ids: list[str]
         - candidates_found: int
     """
-    run_id = activity.info().workflow_id
+    run_id = activity.info().workflow_id or activity.info().activity_id
 
     activity.logger.info(
         "run_connector start: concept=%s project=%s workspace=%s run=%s",
@@ -86,13 +87,25 @@ async def run_connector(inp: dict[str, Any]) -> dict[str, Any]:
     )
 
     provider = get_provider()
-    agent = ConnectorAgent(provider=provider, api=AgentApiClient())
+    api = AgentApiClient()
+    run_tracker = make_agent_run_tracker(
+        api=api,
+        agent_name="connector",
+        inp=inp,
+        workflow_id=run_id,
+    )
+    await run_tracker.start()
+    agent = ConnectorAgent(provider=provider, api=api)
 
     final_output: dict[str, Any] | None = None
-    async for ev in agent.run(inp, ctx):
-        await _emit(ev)
-        if ev.type == "agent_end":
-            final_output = dict(ev.output)  # type: ignore[arg-type]
+    try:
+        async for ev in agent.run(inp, ctx):
+            await _emit(ev)
+            if ev.type == "agent_end":
+                final_output = dict(ev.output)  # type: ignore[arg-type]
+    except Exception as exc:
+        await run_tracker.finish(status="failed", token_hook=token_hook, error=exc)
+        raise
 
     if final_output is None:
         final_output = {
@@ -107,4 +120,5 @@ async def run_connector(inp: dict[str, Any]) -> dict[str, Any]:
         len(final_output.get("suggestion_ids", [])),
         final_output.get("candidates_found", 0),
     )
+    await run_tracker.finish(status="completed", token_hook=token_hook)
     return final_output

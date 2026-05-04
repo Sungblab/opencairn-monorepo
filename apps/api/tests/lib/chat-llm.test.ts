@@ -14,6 +14,7 @@ const retrievalMod =
 
 const fakeProvider = {
   embed: vi.fn(),
+  groundSearch: vi.fn(),
   streamGenerate: vi.fn(),
 };
 
@@ -21,6 +22,7 @@ beforeEach(() => {
   retrievalMod.retrieve.mockReset();
   retrievalMod.retrieveWithPolicy.mockReset();
   fakeProvider.embed.mockReset();
+  fakeProvider.groundSearch.mockReset();
   fakeProvider.streamGenerate.mockReset();
 });
 
@@ -110,6 +112,14 @@ describe("runChat happy path", () => {
     ).toBe("Hello world");
     const usage = events.find((e) => e.type === "usage");
     expect(usage?.payload).toMatchObject({ tokensIn: 30, tokensOut: 7 });
+    const citation = events.find((e) => e.type === "citation");
+    expect(citation?.payload).toMatchObject({
+      source_type: "note",
+      source_id: "n1",
+      index: 1,
+      title: "alpha",
+      noteId: "n1",
+    });
     expect(types[types.length - 1]).toBe("done");
     // Thought sits between citation and text deltas.
     expect(types.indexOf("thought")).toBeGreaterThan(types.indexOf("citation"));
@@ -205,6 +215,7 @@ describe("runChat happy path", () => {
 
   it("blocks freshness-required answers when no grounding source is available", async () => {
     retrievalMod.retrieveWithPolicy.mockResolvedValue(retrievalResult([]));
+    fakeProvider.groundSearch.mockResolvedValue(null);
     fakeProvider.streamGenerate.mockImplementation(async function* () {
       yield { delta: "This should not be generated" };
       yield {
@@ -227,6 +238,10 @@ describe("runChat happy path", () => {
     );
 
     expect(fakeProvider.streamGenerate).not.toHaveBeenCalled();
+    expect(fakeProvider.groundSearch).toHaveBeenCalledWith(
+      "오늘 OpenAI CEO가 누구야?",
+      expect.objectContaining({ thinkingLevel: "high" }),
+    );
     const errorEvt = events.find((e) => e.type === "error");
     expect(errorEvt?.payload).toMatchObject({
       code: "grounding_required",
@@ -235,8 +250,58 @@ describe("runChat happy path", () => {
     expect(events[events.length - 1].type).toBe("done");
   });
 
+  it("uses provider grounding for freshness-required answers with external sources", async () => {
+    retrievalMod.retrieveWithPolicy.mockResolvedValue(retrievalResult([]));
+    fakeProvider.groundSearch.mockResolvedValue({
+      answer: "검증된 최신 답변입니다.",
+      sources: [
+        {
+          title: "Official source",
+          url: "https://example.com/source",
+          snippet: "source snippet",
+        },
+      ],
+      usage: { tokensIn: 11, tokensOut: 7, model: "gemini-3-flash-preview" },
+    });
+
+    const events = await collect(
+      runChat({
+        workspaceId: "ws-1",
+        scope: { type: "workspace", workspaceId: "ws-1" },
+        ragMode: "off",
+        chips: [],
+        history: [],
+        userMessage: "오늘 OpenAI CEO가 누구야?",
+        provider: fakeProvider,
+        mode: "auto",
+        now: new Date("2026-04-30T00:00:00.000Z"),
+      }),
+    );
+
+    expect(fakeProvider.streamGenerate).not.toHaveBeenCalled();
+    expect(events.find((e) => e.type === "error")).toBeUndefined();
+    expect(events.find((e) => e.type === "citation")?.payload).toMatchObject({
+      source_type: "external",
+      source_id: "https://example.com/source",
+      index: 1,
+      title: "Official source",
+      url: "https://example.com/source",
+    });
+    expect(
+      events
+        .filter((e) => e.type === "text")
+        .map((e) => (e.payload as { delta: string }).delta)
+        .join(""),
+    ).toBe("검증된 최신 답변입니다.");
+    expect(events.find((e) => e.type === "usage")?.payload).toMatchObject({
+      tokensIn: 11,
+      tokensOut: 7,
+    });
+  });
+
   it("localizes the grounding guard fallback message", async () => {
     retrievalMod.retrieveWithPolicy.mockResolvedValue(retrievalResult([]));
+    fakeProvider.groundSearch.mockResolvedValue(null);
 
     const events = await collect(
       runChat({

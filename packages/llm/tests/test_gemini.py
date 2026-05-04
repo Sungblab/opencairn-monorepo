@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from llm.gemini import GeminiProvider
 from llm.base import EmbedInput
+from llm.gemini import GeminiProvider, _normalise_embed_task_type
 
 
 @pytest.fixture
@@ -33,11 +33,13 @@ async def test_generate_maps_system_messages_to_system_instruction(provider):
         "generate_content",
         new=AsyncMock(return_value=mock_response),
     ) as mocked:
-        await provider.generate([
-            {"role": "system", "content": "Be terse."},
-            {"role": "user", "content": "hi"},
-            {"role": "assistant", "content": "hello"},
-        ])
+        await provider.generate(
+            [
+                {"role": "system", "content": "Be terse."},
+                {"role": "user", "content": "hi"},
+                {"role": "assistant", "content": "hello"},
+            ]
+        )
     kwargs = mocked.await_args.kwargs
     assert [c.role for c in kwargs["contents"]] == ["user", "model"]
     config = kwargs["config"]
@@ -61,9 +63,7 @@ async def test_embed_text_only(provider):
 
 
 @pytest.mark.asyncio
-async def test_embed_forwards_vector_dim_as_output_dimensionality(
-    provider, monkeypatch
-):
+async def test_embed_forwards_vector_dim_as_output_dimensionality(provider, monkeypatch):
     # gemini-embedding-001은 3072 native지만 MRL로 앞 N dim을 잘라 쓸 수 있음.
     # VECTOR_DIM 환경변수를 EmbedContentConfig.output_dimensionality로 전달해
     # 저장할 pgvector 컬럼 폭(768 기본)에 맞춰야 ADR-005 정책대로 동작.
@@ -92,10 +92,40 @@ async def test_embed_forwards_single_document_title(provider):
         "embed_content",
         new=AsyncMock(return_value=mock_response),
     ) as mocked:
-        await provider.embed([
-            EmbedInput(text="hello", task="retrieval_document", title="Note title")
-        ])
+        await provider.embed(
+            [EmbedInput(text="hello", task="retrieval_document", title="Note title")]
+        )
     assert mocked.await_args.kwargs["config"].title == "Note title"
+    assert mocked.await_args.kwargs["config"].task_type == "RETRIEVAL_DOCUMENT"
+
+
+def test_embed_task_type_normalises_legacy_lowercase_values():
+    assert _normalise_embed_task_type("retrieval_document") == "RETRIEVAL_DOCUMENT"
+    assert _normalise_embed_task_type("retrieval_query") == "RETRIEVAL_QUERY"
+    assert _normalise_embed_task_type("RETRIEVAL_QUERY") == "RETRIEVAL_QUERY"
+
+
+@pytest.mark.asyncio
+async def test_embed_gemini_embedding_2_uses_task_prefix_not_task_type(provider, monkeypatch):
+    from google.genai import types
+
+    provider.config.embed_model = "gemini-embedding-2"
+    monkeypatch.setenv("VECTOR_DIM", "768")
+    mock_response = MagicMock()
+    mock_response.embeddings = [MagicMock(values=[0.1] * 768)]
+    with patch.object(
+        provider._client.aio.models,
+        "embed_content",
+        new=AsyncMock(return_value=mock_response),
+    ) as mocked:
+        await provider.embed([EmbedInput(text="hello", task="retrieval_query")])
+    contents = mocked.await_args.kwargs["contents"]
+    assert isinstance(contents[0], types.Content)
+    assert contents[0].parts[0].text == "task: search result | query: hello"
+    config = mocked.await_args.kwargs["config"]
+    assert config.output_dimensionality == 768
+    assert config.task_type is None
+    assert config.title is None
 
 
 @pytest.mark.asyncio
@@ -259,9 +289,7 @@ async def test_generate_multimodal_image_requires_mime(provider):
         "generate_content",
         new=AsyncMock(),
     ) as mocked:
-        result = await provider.generate_multimodal(
-            "describe", image_bytes=b"x", image_mime=None
-        )
+        result = await provider.generate_multimodal("describe", image_bytes=b"x", image_mime=None)
     assert result is None
     mocked.assert_not_awaited()
 

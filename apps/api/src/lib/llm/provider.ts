@@ -9,7 +9,19 @@ export type Usage = {
   model: string;
 };
 
-export type ThinkingLevel = "low" | "medium" | "high";
+export type ThinkingLevel = "minimal" | "low" | "medium" | "high";
+
+export type GroundedSearchSource = {
+  title: string;
+  url: string;
+  snippet?: string;
+};
+
+export type GroundedSearchResult = {
+  answer: string;
+  sources: GroundedSearchSource[];
+  usage?: Usage;
+};
 
 /**
  * Streaming chunk yielded by {@link LLMProvider.streamGenerate}.
@@ -25,12 +37,19 @@ export type StreamChunk = { delta: string } | { usage: Usage };
 
 export interface LLMProvider {
   embed(text: string): Promise<number[]>;
+  groundSearch?(query: string, opts?: {
+    signal?: AbortSignal;
+    maxOutputTokens?: number;
+    thinkingLevel?: ThinkingLevel;
+    cachedContent?: string;
+  }): Promise<GroundedSearchResult | null>;
   streamGenerate(opts: {
     messages: ChatMsg[];
     signal?: AbortSignal;
     maxOutputTokens?: number;
     temperature?: number;
     thinkingLevel?: ThinkingLevel;
+    cachedContent?: string;
   }): AsyncGenerator<StreamChunk>;
 }
 

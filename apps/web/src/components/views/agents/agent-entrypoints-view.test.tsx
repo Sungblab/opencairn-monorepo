@@ -24,11 +24,14 @@ vi.mock("sonner", () => ({
 vi.mock("@/lib/api-client", () => ({
   plan8AgentsApi: {
     overview: vi.fn(),
+    runLibrarian: vi.fn(),
     runSynthesis: vi.fn(),
     runCurator: vi.fn(),
     runConnector: vi.fn(),
     runStaleness: vi.fn(),
     runNarrator: vi.fn(),
+    resolveSuggestion: vi.fn(),
+    reviewStaleAlert: vi.fn(),
   },
 }));
 
@@ -142,11 +145,21 @@ describe("AgentEntryPointsView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(plan8AgentsApi.overview).mockResolvedValue(overview);
+    vi.mocked(plan8AgentsApi.runLibrarian).mockResolvedValue({
+      workflowId: "librarian-workflow",
+    });
     vi.mocked(plan8AgentsApi.runSynthesis).mockResolvedValue({
       workflowId: "workflow-started",
     });
     vi.mocked(plan8AgentsApi.runCurator).mockResolvedValue({
       workflowId: "curator-workflow",
+    });
+    vi.mocked(plan8AgentsApi.resolveSuggestion).mockResolvedValue({
+      ok: true,
+      status: "accepted",
+    });
+    vi.mocked(plan8AgentsApi.reviewStaleAlert).mockResolvedValue({
+      ok: true,
     });
   });
 
@@ -158,6 +171,7 @@ describe("AgentEntryPointsView", () => {
     setup();
 
     expect(screen.getByText("에이전트 상태를 불러오는 중입니다.")).toBeInTheDocument();
+    expect(await screen.findByText("Librarian")).toBeInTheDocument();
     expect(await screen.findAllByText("Synthesis")).toHaveLength(2);
     expect(screen.getByText("Curator")).toBeInTheDocument();
     expect(screen.getByText("Connector")).toBeInTheDocument();
@@ -216,6 +230,7 @@ describe("AgentEntryPointsView", () => {
       expect(screen.getAllByText("선택할 노트가 없습니다.")).toHaveLength(2);
     });
     expect(runButtonFor("Synthesis")).toBeDisabled();
+    expect(runButtonFor("Librarian")).toBeEnabled();
     expect(runButtonFor("Curator")).toBeEnabled();
     expect(runButtonFor("Connector")).toBeDisabled();
     expect(runButtonFor("Staleness")).toBeEnabled();
@@ -225,16 +240,16 @@ describe("AgentEntryPointsView", () => {
   it("shows a success toast and invalidates after launch", async () => {
     setup();
 
-    await screen.findByRole("heading", { name: "Curator" });
-    fireEvent.click(runButtonFor("Curator"));
+    await screen.findByRole("heading", { name: "Librarian" });
+    fireEvent.click(runButtonFor("Librarian"));
 
     await waitFor(() => {
-      expect(plan8AgentsApi.runCurator).toHaveBeenCalledWith({
+      expect(plan8AgentsApi.runLibrarian).toHaveBeenCalledWith({
         projectId: "project-1",
       });
     });
-    expect(toast.success).toHaveBeenCalledWith("Curator 실행을 시작했습니다.", {
-      description: "curator-workflow",
+    expect(toast.success).toHaveBeenCalledWith("Librarian 실행을 시작했습니다.", {
+      description: "librarian-workflow",
     });
     await waitFor(() => {
       expect(plan8AgentsApi.overview).toHaveBeenCalledTimes(2);
@@ -285,6 +300,55 @@ describe("AgentEntryPointsView", () => {
         noteIds: ["note-1", "note-2"],
         title: "종합 노트",
       });
+    });
+  });
+
+  it("resolves suggestions and refreshes the overview", async () => {
+    setup();
+
+    const suggestions = (await screen.findByRole("heading", {
+      name: "Suggestions",
+    })).closest("section");
+    expect(suggestions).not.toBeNull();
+    fireEvent.click(
+      within(suggestions as HTMLElement).getByRole("button", {
+        name: "제안 수락",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(plan8AgentsApi.resolveSuggestion).toHaveBeenCalledWith(
+        "suggestion-1",
+        "accepted",
+      );
+    });
+    expect(toast.success).toHaveBeenCalledWith("제안을 수락했습니다.");
+    await waitFor(() => {
+      expect(plan8AgentsApi.overview).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("marks stale alerts reviewed and refreshes the overview", async () => {
+    setup();
+
+    const staleAlerts = (await screen.findByRole("heading", {
+      name: "Stale alerts",
+    })).closest("section");
+    expect(staleAlerts).not.toBeNull();
+    fireEvent.click(
+      within(staleAlerts as HTMLElement).getByRole("button", {
+        name: "검토 완료",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(plan8AgentsApi.reviewStaleAlert).toHaveBeenCalledWith("stale-1");
+    });
+    expect(toast.success).toHaveBeenCalledWith(
+      "오래된 노트 알림을 검토 완료로 표시했습니다.",
+    );
+    await waitFor(() => {
+      expect(plan8AgentsApi.overview).toHaveBeenCalledTimes(2);
     });
   });
 

@@ -13,7 +13,7 @@ Hono API
 Temporal Server (temporalio/auto-setup)
   |
   ├── IngestWorkflow          (자료 업로드 → 파싱 → Compiler → Librarian)
-  ├── ResearchWorkflow        (사용자 질문 → 검색 → 응답 → 업류)
+  ├── ResearchWorkflow        (legacy/internal single-query research wrapper)
   ├── DeepResearchWorkflow    (딥 리서치 요청 → Gemini API → 위키 통합)
   ├── LearningWorkflow        (Tool Template 실행 → Socratic/Narrator/Code)
   ├── MaintenanceWorkflow     (일간 유지보수 → Librarian + Temporal + Synthesis + Curator)
@@ -90,6 +90,12 @@ class IngestWorkflow:
 ```
 
 ### 2.2 ResearchWorkflow
+
+This worker remains registered for the single-query Research agent, but it is
+not the current shipped product Q&A path. Browser chat is served by the
+Hono/API chat LLM pipeline, and long-form research is served by
+`DeepResearchWorkflow` through `/api/research`. Do not treat `ResearchWorkflow`
+as user-facing unless an explicit API and web launch surface is added.
 
 실시간 Q&A. 스트리밍이 필요하기 때문에 Temporal은 오케스트레이션만, 실제 스트리밍은 SSE로.
 

@@ -117,19 +117,20 @@ backend always publishes so flipping the flag is UI-only.
   |  - usage_records 기록
   |
   v
-[2] Hono → Temporal (ResearchWorkflow 시작)
+[2] Hono API chat pipeline
+  |  - project/note scoped retrieval + LLM provider streaming
   |  - SSE 연결 열어두고 스트리밍 준비
   |
   v
-[3] Python Worker (hybrid_search Activity)
+[3] Hono retrieval helpers
   |  - [벡터] 질문 임베딩 → pgvector cosine similarity
   |  - [BM25] 질문 → tsvector plainto_tsquery
   |  - [그래프] 관련 개념 → 2-hop 탐색 → 연결된 노트
   |  - [RRF] 세 결과 합산 → 상위 10개
   |
   v
-[4] Python Worker (run_research_agent Activity)
-  |  - Context Caching에 위키 + 검색 결과 주입
+[4] API LLM provider
+  |  - packed wiki/search context로 응답 생성
   |  - Gemini API 호출 (Thinking Mode 선택적)
   |  - 응답 생성 + 출처 링크
   |  - 캔버스 필요 시 React/HTML 코드 생성
