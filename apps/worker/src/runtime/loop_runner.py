@@ -8,6 +8,7 @@ adaptation (Spec Reconciliation item 7).
 """
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 from llm.errors import ToolCallingNotSupported
@@ -18,6 +19,7 @@ from runtime.tool_loop import (
     LoopResult,
     ToolLoopExecutor,
 )
+from runtime.tool_policy import PermissionMode  # noqa: TC001
 from runtime.tool_registry import ToolContextRegistry
 from runtime.tools import ToolContext
 
@@ -46,6 +48,7 @@ async def run_with_tools(
     tool_context: dict,
     config: LoopConfig | None = None,
     hooks: LoopHooks | None = None,
+    permission_mode: PermissionMode | None = None,
 ) -> LoopResult:
     """Run a tool-calling loop bound to `provider`.
 
@@ -60,10 +63,13 @@ async def run_with_tools(
 
     ctx = _build_ctx(tool_context)
     registry = ToolContextRegistry(tools=tools, ctx=ctx)
+    loop_config = config or LoopConfig(permission_mode=permission_mode or "ask")
+    if config is not None and permission_mode is not None:
+        loop_config = replace(config, permission_mode=permission_mode)
     executor = ToolLoopExecutor(
         provider=provider,
         tool_registry=registry,
-        config=config or LoopConfig(),
+        config=loop_config,
         tool_context=tool_context,
         tools=tools,
         hooks=hooks,

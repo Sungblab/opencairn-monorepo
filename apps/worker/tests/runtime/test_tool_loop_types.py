@@ -19,6 +19,7 @@ def test_loop_config_defaults():
     assert c.loop_detection_threshold == 3
     assert c.loop_detection_stop_threshold == 5
     assert c.mode == "auto"
+    assert c.permission_mode == "ask"
 
 
 def test_callkey_equality_via_args_hash():

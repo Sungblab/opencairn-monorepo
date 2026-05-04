@@ -14,8 +14,8 @@ from runtime.default_hooks import (
     TrajectoryWriterHook,
 )
 from runtime.eval import (
-    AgentEvaluator,
     DEFAULT_CRITERIA,
+    AgentEvaluator,
     EvalCase,
     EvalResult,
     ExpectedHandoff,
@@ -47,11 +47,20 @@ from runtime.hooks import (
     ModelResponse,
     ToolHook,
 )
+from runtime.mcp import MCPCatalogResolver, build_mcp_tools_for_user
 from runtime.reducers import keep_last_n
 from runtime.temporal import AgentAwaitingInputError, make_thread_id
 from runtime.tool_declarations import (
     build_gemini_declarations,
     build_ollama_declarations,
+)
+from runtime.tool_policy import (
+    PermissionBroker,
+    PermissionDecision,
+    PermissionMode,
+    ToolPolicy,
+    ToolRisk,
+    get_tool_policy,
 )
 from runtime.tools import (
     Tool,
@@ -67,7 +76,6 @@ from runtime.trajectory import (
     TrajectoryWriter,
     resolve_storage_from_env,
 )
-from runtime.mcp import MCPCatalogResolver, build_mcp_tools_for_user
 
 __all__ = [
     "Agent",
@@ -95,6 +103,9 @@ __all__ = [
     "ModelRequest",
     "ModelResponse",
     "MCPCatalogResolver",
+    "PermissionBroker",
+    "PermissionDecision",
+    "PermissionMode",
     "RunTotals",
     "Scope",
     "ScoreResult",
@@ -103,7 +114,9 @@ __all__ = [
     "Tool",
     "ToolContext",
     "ToolHook",
+    "ToolPolicy",
     "ToolResult",
+    "ToolRisk",
     "ToolUse",
     "TrajectoryStorage",
     "TrajectoryWriter",
@@ -112,6 +125,7 @@ __all__ = [
     "build_mcp_tools_for_user",
     "build_ollama_declarations",
     "get_tool",
+    "get_tool_policy",
     "get_tools_for_agent",
     "hash_input",
     "keep_last_n",

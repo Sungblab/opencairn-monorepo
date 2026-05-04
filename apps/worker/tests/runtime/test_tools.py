@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import pytest
 
-from runtime.events import AgentEvent
+from runtime.events import AgentEvent  # noqa: TC001
+from runtime.tool_policy import ToolPolicy
 from runtime.tools import (
     Tool,
     ToolContext,
@@ -82,6 +83,36 @@ async def test_supports_parallel_default_false() -> None:
         return x
 
     assert default_op.supports_parallel({"x": 1}) is False
+
+
+async def test_tool_decorator_exposes_static_policy_metadata() -> None:
+    @tool(name="read_note", read_only=True, risk="read")
+    async def read_note(note_id: str) -> dict:
+        return {"note_id": note_id}
+
+    t = get_tool("read_note")
+
+    assert t.read_only is True
+    assert t.risk == "read"
+
+
+async def test_tool_decorator_exposes_dynamic_policy() -> None:
+    @tool(
+        name="write_note",
+        read_only=False,
+        risk="write",
+        policy=lambda args: ToolPolicy(
+            read_only=False,
+            risk="write",
+            resource=args["note_id"],
+        ),
+    )
+    async def write_note(note_id: str, body: str) -> dict:
+        return {"ok": True}
+
+    t = get_tool("write_note")
+
+    assert t.policy({"note_id": "n1"}).resource == "n1"
 
 
 async def test_redact_fields(fake_ctx: ToolContext) -> None:

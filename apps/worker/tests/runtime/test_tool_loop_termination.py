@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 
 import pytest
-
 from llm.errors import ProviderFatalError, ProviderRetryableError
 from llm.tool_types import ToolUse
+
 from runtime.tool_loop import LoopConfig, ToolLoopExecutor
 
 from .test_tool_loop_core import _FakeProvider, _FakeRegistry, _turn
@@ -38,7 +39,9 @@ async def test_structured_submitted_ends_immediately():
     registry = _FakeRegistry(handlers={"emit_structured_output": emit})
     executor = ToolLoopExecutor(
         provider=provider, tool_registry=registry,
-        config=LoopConfig(), tool_context={},
+        config=LoopConfig(),
+        tool_context={},
+        tools=[SimpleNamespace(name="emit_structured_output", read_only=True, risk="read")],
     )
     result = await executor.run(initial_messages=[])
     assert result.termination_reason == "structured_submitted"

@@ -251,7 +251,9 @@ per claim using the triggering user as `authorId` and stores agent metadata in
 
 #### Tool-calling loop (worker runtime, Agent Runtime v2 · A)
 
-`run_with_tools(...)` (`apps/worker/src/runtime/loop_runner.py`)은 Temporal activity 내부에서 호출되는 러너. 시그니처는 `provider, initial_messages, tools, tool_context (dict), config: LoopConfig | None, hooks: LoopHooks | None`. 한 activity = 한 loop이며 `LoopConfig.max_turns (default 8)`, `max_tool_calls (12)`, `max_total_input_tokens (200_000)`, per-tool timeout, 소프트 루프 detection으로 bounded. Provider가 tool calling을 지원하지 않으면 `ToolCallingNotSupported` fail-fast.
+`run_with_tools(...)` (`apps/worker/src/runtime/loop_runner.py`)은 Temporal activity 내부에서 호출되는 러너. 시그니처는 `provider, initial_messages, tools, tool_context (dict), config: LoopConfig | None, hooks: LoopHooks | None, permission_mode: "read_only" | "ask" | "auto" | None`. 한 activity = 한 loop이며 `LoopConfig.max_turns (default 8)`, `max_tool_calls (12)`, `max_total_input_tokens (200_000)`, per-tool timeout, 소프트 루프 detection으로 bounded. Provider가 tool calling을 지원하지 않으면 `ToolCallingNotSupported` fail-fast.
+
+Tool call 실행 전 runtime `PermissionBroker`가 `@tool` policy metadata (`read_only`, `risk`, `resource`, optional dynamic `policy`)를 평가한다. `run_with_tools`의 기본 `permission_mode`는 `ask`이며 read-only tool은 실행, write/network/external/sensitive tool은 approval-needed `ToolResult(is_error=true)`로 반환, destructive tool은 deny된다. `read_only` mode는 read-only tool만 실행하고, `auto` mode는 destructive 외 등록 tool을 실행한다. `workspace_id`, `project_id`, `page_id`, `user_id`, `run_id`, `scope`는 항상 runtime `tool_context` 값이 model-supplied args를 덮어쓰며, deny/approval-needed 결과는 handler를 호출하지 않는다.
 
 ### Chat Threads (App Shell Phase 4 agent panel)
 
