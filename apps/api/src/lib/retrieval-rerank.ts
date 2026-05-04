@@ -6,7 +6,7 @@ import type {
 const CHANNEL_WEIGHTS = {
   vector: 1,
   bm25: 1,
-  graph: 0.85,
+  graph: 1.15,
   active_context: 0.7,
 } satisfies Record<RetrievalChannel, number>;
 

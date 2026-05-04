@@ -540,10 +540,10 @@ describe("retrieveWithPolicy adaptive policy propagation", () => {
 
   it("replans workspace fanout after resolving project count and exposes context packing limits", async () => {
     const env = {
-      context: process.env.CHAT_RAG_ADAPTIVE_DEEP_CONTEXT_TOKENS,
+      context: process.env.CHAT_RAG_ADAPTIVE_CONTEXT_TOKENS,
     };
     try {
-      process.env.CHAT_RAG_ADAPTIVE_DEEP_CONTEXT_TOKENS = "4321";
+      process.env.CHAT_RAG_ADAPTIVE_CONTEXT_TOKENS = "4321";
       dbMod.db.execute.mockResolvedValueOnce({
         rows: [{ id: "p-a" }, { id: "p-b" }],
       });
@@ -560,12 +560,12 @@ describe("retrieveWithPolicy adaptive policy propagation", () => {
         expect.arrayContaining(["research_depth", "workspace_fanout"]),
       );
       expect(result.policy.contextMaxTokens).toBe(4321);
-      expect(result.policy.maxChunksPerNote).toBe(2);
+      expect(result.policy.maxChunksPerNote).toBe(1);
       expect(chunkSearch.projectChunkHybridSearch).toHaveBeenCalledTimes(2);
     } finally {
       if (env.context === undefined)
-        delete process.env.CHAT_RAG_ADAPTIVE_DEEP_CONTEXT_TOKENS;
-      else process.env.CHAT_RAG_ADAPTIVE_DEEP_CONTEXT_TOKENS = env.context;
+        delete process.env.CHAT_RAG_ADAPTIVE_CONTEXT_TOKENS;
+      else process.env.CHAT_RAG_ADAPTIVE_CONTEXT_TOKENS = env.context;
     }
   });
 });

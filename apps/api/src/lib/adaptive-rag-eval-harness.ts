@@ -1,0 +1,92 @@
+import {
+  planAdaptiveRagPolicy,
+  summarizeAdaptiveRagPolicy,
+  type AdaptiveRagPolicySummary,
+} from "./adaptive-rag-router";
+import {
+  candidateFromRetrievalHit,
+  type RetrievalHitLike,
+} from "./retrieval-candidates";
+import { rerankCandidates } from "./retrieval-rerank";
+import { packEvidence } from "./context-packer";
+import type { RagMode, RetrievalChip, RetrievalScope } from "./chat-retrieval";
+
+export type AdaptiveRagEvalReport = {
+  policySummary: AdaptiveRagPolicySummary;
+  candidateStats: {
+    inputCount: number;
+    rerankedCandidateIds: string[];
+  };
+  packedEvidenceStats: {
+    contextMaxTokens: number;
+    maxChunksPerNote: number;
+    itemCount: number;
+    totalCandidates: number;
+    omittedCandidates: number;
+    itemEvidenceIds: string[];
+    perNoteCounts: Record<string, number>;
+  };
+};
+
+export type AdaptiveRagEvalFixture = {
+  name: string;
+  query: string;
+  ragMode: RagMode;
+  scope: RetrievalScope;
+  chips: RetrievalChip[];
+  projectCount?: number;
+  hits: RetrievalHitLike[];
+  expectedReport: Partial<AdaptiveRagEvalReport>;
+};
+
+export function runAdaptiveRagEvalFixture(
+  fixture: Pick<
+    AdaptiveRagEvalFixture,
+    "query" | "ragMode" | "scope" | "chips" | "projectCount" | "hits"
+  >,
+): AdaptiveRagEvalReport {
+  const policy = planAdaptiveRagPolicy({
+    query: fixture.query,
+    ragMode: fixture.ragMode,
+    scope: fixture.scope,
+    chips: fixture.chips,
+    projectCount: fixture.projectCount,
+  });
+  const rerankedCandidates = rerankCandidates({
+    query: fixture.query,
+    candidates: fixture.hits.map((item, index) =>
+      candidateFromRetrievalHit(item, index),
+    ),
+  });
+  const evidenceBundle = packEvidence({
+    candidates: rerankedCandidates,
+    maxTokens: policy.contextMaxTokens,
+    maxChunksPerNote: policy.maxChunksPerNote,
+  });
+
+  return {
+    policySummary: summarizeAdaptiveRagPolicy(policy),
+    candidateStats: {
+      inputCount: fixture.hits.length,
+      rerankedCandidateIds: rerankedCandidates.map((item) => item.id),
+    },
+    packedEvidenceStats: {
+      contextMaxTokens: policy.contextMaxTokens,
+      maxChunksPerNote: policy.maxChunksPerNote,
+      itemCount: evidenceBundle.items.length,
+      totalCandidates: evidenceBundle.totalCandidates,
+      omittedCandidates: evidenceBundle.omittedCandidates,
+      itemEvidenceIds: evidenceBundle.items.map((item) => item.evidenceId),
+      perNoteCounts: countItemsByNote(evidenceBundle.items),
+    },
+  };
+}
+
+function countItemsByNote(
+  items: Array<{ noteId: string }>,
+): Record<string, number> {
+  return items.reduce<Record<string, number>>((acc, item) => {
+    acc[item.noteId] = (acc[item.noteId] ?? 0) + 1;
+    return acc;
+  }, {});
+}

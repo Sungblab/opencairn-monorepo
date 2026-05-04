@@ -45,6 +45,25 @@ describe("planAdaptiveRagPolicy", () => {
     );
   });
 
+  it("keeps strict research queries on the standard adaptive context budget", () => {
+    const policy = planAdaptiveRagPolicy({
+      query: "alpha 정책의 근거와 출처를 분석해줘",
+      ragMode: "strict",
+      scope: projectScope,
+      chips: [],
+    });
+
+    expect(policy.graphDepth).toBe(0);
+    expect(policy.contextMaxTokens).toBe(6000);
+    expect(policy.reasons).toEqual(
+      expect.arrayContaining([
+        "strict_mode",
+        "explicit_scope",
+        "research_depth",
+      ]),
+    );
+  });
+
   it("skips graph expansion for simple expand-mode lookups", () => {
     const policy = planAdaptiveRagPolicy({
       query: "alpha 정의",
@@ -71,7 +90,7 @@ describe("planAdaptiveRagPolicy", () => {
     expect(policy.seedTopK).toBeGreaterThanOrEqual(policy.resultTopK);
     expect(policy.graphLimit).toBeGreaterThanOrEqual(policy.seedTopK);
     expect(policy.verifierRequired).toBe(true);
-    expect(policy.maxChunksPerNote).toBe(3);
+    expect(policy.maxChunksPerNote).toBe(1);
     expect(policy.reasons).toEqual(
       expect.arrayContaining(["relationship", "multi_hop", "workspace_fanout"]),
     );
