@@ -21,7 +21,7 @@ vi.mock("../src/lib/temporal-client.js", () => ({
 }));
 
 vi.mock("../src/lib/s3-get.js", () => ({
-  streamObject: vi.fn().mockResolvedValue({
+  streamObject: vi.fn().mockImplementation(async () => ({
     stream: new ReadableStream({
       start(controller) {
         controller.enqueue(new TextEncoder().encode("# fake doc"));
@@ -30,11 +30,17 @@ vi.mock("../src/lib/s3-get.js", () => ({
     }),
     contentType: "text/markdown; charset=utf-8",
     contentLength: 10,
-  }),
+  })),
 }));
 
 import { createApp } from "../src/app.js";
-import { db, synthesisRuns, synthesisDocuments, eq } from "@opencairn/db";
+import {
+  agentFiles,
+  db,
+  synthesisRuns,
+  synthesisDocuments,
+  eq,
+} from "@opencairn/db";
 import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
 
@@ -303,6 +309,102 @@ describe("synthesis-export run list/detail/document/resynth/delete", () => {
     );
     const text = await res.text();
     expect(text).toContain("# fake doc");
+  });
+
+  it("POST /project-object registers a completed synthesis document as an agent file without reuploading", async () => {
+    await db
+      .update(synthesisRuns)
+      .set({ status: "completed", projectId: seed.projectId })
+      .where(eq(synthesisRuns.id, runId));
+    const objectKey = `synthesis/runs/${runId}/document.md`;
+    await db.insert(synthesisDocuments).values({
+      runId,
+      format: "md",
+      s3Key: objectKey,
+      bytes: 10,
+    });
+
+    const res = await authedRequest(
+      `/api/synthesis-export/runs/${runId}/project-object`,
+      {
+        method: "POST",
+        userId: seed.userId,
+        body: JSON.stringify({ format: "md" }),
+      },
+    );
+
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as {
+      event: { type: string; object: { id: string; projectId: string } };
+      compatibilityEvent: { type: string; file: { id: string } };
+      file: { id: string; source: string; objectKey?: string };
+    };
+    expect(body.event.type).toBe("project_object_created");
+    expect(body.event.object.projectId).toBe(seed.projectId);
+    expect(body.compatibilityEvent.type).toBe("agent_file_created");
+    expect(body.compatibilityEvent.file.id).toBe(body.file.id);
+    expect(body.file.source).toBe("synthesis_export");
+
+    const [row] = await db
+      .select()
+      .from(agentFiles)
+      .where(eq(agentFiles.id, body.file.id));
+    expect(row!.objectKey).toBe(objectKey);
+    expect(row!.workspaceId).toBe(seed.workspaceId);
+    expect(row!.projectId).toBe(seed.projectId);
+  });
+
+  it("POST /project-object restores a previously deleted published agent file", async () => {
+    await db
+      .update(synthesisRuns)
+      .set({ status: "completed", projectId: seed.projectId })
+      .where(eq(synthesisRuns.id, runId));
+    const objectKey = `synthesis/runs/${runId}/document.md`;
+    await db.insert(synthesisDocuments).values({
+      runId,
+      format: "md",
+      s3Key: objectKey,
+      bytes: 10,
+    });
+
+    const first = await authedRequest(
+      `/api/synthesis-export/runs/${runId}/project-object`,
+      {
+        method: "POST",
+        userId: seed.userId,
+        body: JSON.stringify({ format: "md" }),
+      },
+    );
+    expect(first.status).toBe(201);
+    const firstBody = (await first.json()) as { file: { id: string } };
+
+    await db
+      .update(agentFiles)
+      .set({ deletedAt: new Date() })
+      .where(eq(agentFiles.id, firstBody.file.id));
+
+    const restored = await authedRequest(
+      `/api/synthesis-export/runs/${runId}/project-object`,
+      {
+        method: "POST",
+        userId: seed.userId,
+        body: JSON.stringify({ format: "md" }),
+      },
+    );
+
+    expect(restored.status).toBe(201);
+    const restoredBody = (await restored.json()) as {
+      file: { id: string };
+      compatibilityEvent: { file: { id: string } };
+    };
+    expect(restoredBody.file.id).toBe(firstBody.file.id);
+    expect(restoredBody.compatibilityEvent.file.id).toBe(firstBody.file.id);
+
+    const [row] = await db
+      .select()
+      .from(agentFiles)
+      .where(eq(agentFiles.id, firstBody.file.id));
+    expect(row!.deletedAt).toBeNull();
   });
 
   it("POST /resynthesize creates a fresh run with a new id", async () => {

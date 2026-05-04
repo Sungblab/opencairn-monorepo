@@ -3,6 +3,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import {
   and,
+  agentFiles,
   asc,
   db,
   desc,
@@ -14,14 +15,22 @@ import {
 } from "@opencairn/db";
 import {
   createSynthesisRunSchema,
+  publishSynthesisDocumentSchema,
   resynthesizeSchema,
   synthesisFormatValues,
   synthesisTemplateValues,
+  type AgentFileSummary,
   type SynthesisStreamEvent,
 } from "@opencairn/shared";
 import type { AppEnv } from "../lib/types";
 import { requireAuth } from "../middleware/auth";
 import { canWrite } from "../lib/permissions";
+import {
+  registerExistingObjectAsAgentFile,
+  toSummary,
+  type AgentFileRecord,
+} from "../lib/agent-files";
+import { toProjectObjectSummary } from "../lib/project-object-actions";
 import { getTemporalClient } from "../lib/temporal-client";
 import { streamObject } from "../lib/s3-get";
 import {
@@ -29,6 +38,7 @@ import {
   startSynthesisExportRun,
   workflowIdFor,
 } from "../lib/synthesis-export-client";
+import { emitTreeEvent } from "../lib/tree-events";
 
 type SynthesisFormat = (typeof synthesisFormatValues)[number];
 type SynthesisTemplate = (typeof synthesisTemplateValues)[number];
@@ -340,6 +350,103 @@ synthesisExportRouter.get("/runs/:id/document", requireAuth, async (c) => {
 });
 
 synthesisExportRouter.post(
+  "/runs/:id/project-object",
+  requireAuth,
+  zValidator("json", publishSynthesisDocumentSchema),
+  async (c) => {
+    const id = c.req.param("id");
+    if (!id) return c.json({ error: "not_found" }, 404);
+    const userId = c.get("userId")!;
+    const body = c.req.valid("json");
+
+    const [run] = await db
+      .select()
+      .from(synthesisRuns)
+      .where(eq(synthesisRuns.id, id));
+    if (!run) return c.json({ error: "not_found" }, 404);
+    if (!(await canWrite(userId, { type: "workspace", id: run.workspaceId }))) {
+      return c.json({ error: "forbidden" }, 403);
+    }
+    if (!run.projectId) return c.json({ error: "missing_project" }, 409);
+    if (!(await canWrite(userId, { type: "project", id: run.projectId }))) {
+      return c.json({ error: "forbidden" }, 403);
+    }
+    if (run.status !== "completed") {
+      return c.json({ error: "run_not_completed" }, 409);
+    }
+
+    const docs = await db
+      .select()
+      .from(synthesisDocuments)
+      .where(eq(synthesisDocuments.runId, id))
+      .orderBy(desc(synthesisDocuments.createdAt));
+    const target = body.format
+      ? docs.find((d) => d.format === body.format)
+      : docs[0];
+    if (!target?.s3Key) return c.json({ error: "no_document" }, 404);
+
+    const existing = await findPublishedAgentFile(target.s3Key);
+    let file: AgentFileSummary;
+    let shouldEmitCreated = false;
+
+    if (existing) {
+      if (existing.workspaceId !== run.workspaceId || existing.projectId !== run.projectId) {
+        return c.json({ error: "project_object_context_mismatch" }, 409);
+      }
+      if (existing.deletedAt) {
+        const [restored] = await db
+          .update(agentFiles)
+          .set({ deletedAt: null })
+          .where(eq(agentFiles.id, existing.id))
+          .returning();
+        if (!restored) return c.json({ error: "not_found" }, 404);
+        file = toSummary(restored as AgentFileRecord);
+        shouldEmitCreated = true;
+      } else {
+        file = toSummary(existing);
+      }
+    } else {
+      file = await registerExistingObjectAsAgentFile({
+        userId,
+        workspaceId: run.workspaceId,
+        projectId: run.projectId,
+        filename: filenameForSynthesisDocument(id, target.format),
+        title: titleForSynthesisDocument(run.userPrompt, target.format),
+        objectKey: target.s3Key,
+        bytes: target.bytes ?? 0,
+        source: "synthesis_export",
+      });
+      shouldEmitCreated = true;
+    }
+
+    if (file.workspaceId !== run.workspaceId || file.projectId !== run.projectId) {
+      return c.json({ error: "project_object_context_mismatch" }, 409);
+    }
+
+    if (shouldEmitCreated) {
+      emitTreeEvent({
+        kind: "tree.agent_file_created",
+        projectId: file.projectId,
+        id: file.id,
+        parentId: file.folderId,
+        label: file.title,
+        at: new Date().toISOString(),
+      });
+    }
+
+    const projectObject = toProjectObjectSummary(file);
+    return c.json(
+      {
+        event: { type: "project_object_created", object: projectObject },
+        compatibilityEvent: { type: "agent_file_created", file },
+        file,
+      },
+      shouldEmitCreated ? 201 : 200,
+    );
+  },
+);
+
+synthesisExportRouter.post(
   "/runs/:id/resynthesize",
   requireAuth,
   zValidator("json", resynthesizeSchema),
@@ -427,3 +534,27 @@ synthesisExportRouter.delete("/runs/:id", requireAuth, async (c) => {
   await db.delete(synthesisRuns).where(eq(synthesisRuns.id, id));
   return c.body(null, 204);
 });
+
+async function findPublishedAgentFile(
+  objectKey: string,
+): Promise<AgentFileRecord | null> {
+  const [row] = await db
+    .select()
+    .from(agentFiles)
+    .where(eq(agentFiles.objectKey, objectKey))
+    .limit(1);
+  return (row as AgentFileRecord | undefined) ?? null;
+}
+
+function filenameForSynthesisDocument(runId: string, format: string): string {
+  const extension =
+    format === "latex" ? "tex"
+    : format === "bibtex" ? "bib"
+    : format;
+  return `synthesis-${runId}.${extension}`;
+}
+
+function titleForSynthesisDocument(prompt: string, format: string): string {
+  const title = prompt.trim().replace(/\s+/g, " ").slice(0, 96);
+  return title ? `${title} (${format})` : filenameForSynthesisDocument("document", format);
+}

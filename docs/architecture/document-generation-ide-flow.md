@@ -200,6 +200,21 @@ Initial targets:
 Reuse Synthesis Export where it fits, but expose generation through the project
 explorer and agent action surface rather than only through a separate page.
 
+Current implementation boundary:
+
+- Completed Synthesis Export runs can publish an existing `synthesis_documents`
+  object as an `agent_files` project object through the API.
+- The publish path reuses the stored object key instead of re-uploading bytes,
+  registers the file with `source: "synthesis_export"`, and emits the project
+  tree update needed for explorer discovery.
+- The response includes the typed `project_object_created` event and the legacy
+  `agent_file_created` compatibility event so existing consumers can migrate
+  incrementally.
+- The existing `/api/synthesis-export/runs/:id/document` download path remains
+  unchanged.
+- Provider export remains optional; OpenCairn stored files and download remain
+  the core self-host path.
+
 ### Phase 4: Google Export
 
 Goal: generated outputs can be sent to Google Workspace without making Google a
