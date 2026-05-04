@@ -7,7 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import messages from "../../../../messages/ko/agents.json";
@@ -150,6 +150,10 @@ describe("AgentEntryPointsView", () => {
     });
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("renders loading, launch controls, empty states, and overview rows", async () => {
     setup();
 
@@ -234,6 +238,53 @@ describe("AgentEntryPointsView", () => {
     });
     await waitFor(() => {
       expect(plan8AgentsApi.overview).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("opens a run detail drawer with workflow metadata and output links", async () => {
+    setup();
+
+    await screen.findByRole("heading", { name: "Synthesis" });
+    fireEvent.click(screen.getByRole("button", { name: "run-1" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Synthesis 실행 상세" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("wf-1")).toBeInTheDocument();
+    expect(screen.getAllByText("run-1")).toHaveLength(2);
+    expect(
+      screen.getByRole("link", { name: "Suggestions 보기" }),
+    ).toHaveAttribute("href", "#plan8-suggestions");
+    expect(
+      screen.getByRole("button", { name: "실행 취소" }),
+    ).toBeDisabled();
+  });
+
+  it("polls the overview while a non-terminal run is selected", async () => {
+    const setIntervalSpy = vi.spyOn(window, "setInterval");
+    setup();
+
+    await screen.findByRole("heading", { name: "Synthesis" });
+    fireEvent.click(screen.getByRole("button", { name: "run-1" }));
+
+    await waitFor(() => {
+      expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 5000);
+    });
+  });
+
+  it("retries a selected run through the current launch endpoint", async () => {
+    setup();
+
+    await screen.findByRole("heading", { name: "Synthesis" });
+    fireEvent.click(screen.getByRole("button", { name: "run-1" }));
+    fireEvent.click(await screen.findByRole("button", { name: "다시 실행" }));
+
+    await waitFor(() => {
+      expect(plan8AgentsApi.runSynthesis).toHaveBeenCalledWith({
+        projectId: "project-1",
+        noteIds: ["note-1", "note-2"],
+        title: "종합 노트",
+      });
     });
   });
 
