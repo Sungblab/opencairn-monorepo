@@ -24,6 +24,32 @@ export type AdaptiveRagPolicy = {
   reasons: AdaptiveRagReason[];
 };
 
+export type AdaptiveRagRoute =
+  | "off"
+  | "strict"
+  | "simple"
+  | "comparison"
+  | "research"
+  | "relationship"
+  | "multi_hop"
+  | "workspace_fanout";
+
+export type AdaptiveRagPolicySummary = {
+  route: AdaptiveRagRoute;
+  reasons: AdaptiveRagReason[];
+  retrievalShape: Pick<
+    AdaptiveRagPolicy,
+    | "ragMode"
+    | "resultTopK"
+    | "seedTopK"
+    | "graphDepth"
+    | "graphLimit"
+    | "contextMaxTokens"
+    | "maxChunksPerNote"
+    | "verifierRequired"
+  >;
+};
+
 const RELATIONSHIP_RE =
   /(관련|연결|관계|영향|의존|참조|링크|연관|이어지|연결된|related|relation|relationship|link|linked|dependency|depends|influence|impact)/i;
 
@@ -63,7 +89,9 @@ export function planAdaptiveRagPolicy(input: {
 
   const query = input.query.trim();
   const explicitScope =
-    input.chips.length > 0 || input.scope.type === "page" || input.scope.type === "project";
+    input.chips.length > 0 ||
+    input.scope.type === "page" ||
+    input.scope.type === "project";
   const relationship = RELATIONSHIP_RE.test(query);
   const multiHop = MULTI_HOP_RE.test(query);
   const comparison = COMPARISON_RE.test(query);
@@ -121,9 +149,54 @@ export function planAdaptiveRagPolicy(input: {
       workspaceFanout,
     }),
     maxChunksPerNote: graphDepth === 2 || comparison ? 3 : 2,
-    verifierRequired: graphDepth > 0 || comparison || researchDepth || workspaceFanout,
+    verifierRequired:
+      graphDepth > 0 || comparison || researchDepth || workspaceFanout,
     reasons: Array.from(reasons),
   };
+}
+
+export function summarizeAdaptiveRagPolicy(
+  policy: AdaptiveRagPolicy,
+): AdaptiveRagPolicySummary {
+  return {
+    route: routeForPolicy(policy),
+    reasons: policy.reasons,
+    retrievalShape: {
+      ragMode: policy.ragMode,
+      resultTopK: policy.resultTopK,
+      seedTopK: policy.seedTopK,
+      graphDepth: policy.graphDepth,
+      graphLimit: policy.graphLimit,
+      contextMaxTokens: policy.contextMaxTokens,
+      maxChunksPerNote: policy.maxChunksPerNote,
+      verifierRequired: policy.verifierRequired,
+    },
+  };
+}
+
+function routeForPolicy(policy: AdaptiveRagPolicy): AdaptiveRagRoute {
+  if (policy.ragMode === "off" || policy.reasons.includes("rag_off")) {
+    return "off";
+  }
+  if (policy.ragMode === "strict" || policy.reasons.includes("strict_mode")) {
+    return "strict";
+  }
+  if (policy.reasons.includes("workspace_fanout")) {
+    return "workspace_fanout";
+  }
+  if (policy.reasons.includes("multi_hop")) {
+    return "multi_hop";
+  }
+  if (policy.reasons.includes("relationship")) {
+    return "relationship";
+  }
+  if (policy.reasons.includes("comparison")) {
+    return "comparison";
+  }
+  if (policy.reasons.includes("research_depth")) {
+    return "research";
+  }
+  return "simple";
 }
 
 function chooseGraphDepth(input: {

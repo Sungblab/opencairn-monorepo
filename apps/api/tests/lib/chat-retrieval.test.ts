@@ -17,21 +17,23 @@ vi.mock("@opencairn/db", async (orig) => {
   return { ...real, db: { execute: vi.fn() } };
 });
 
-const { retrieve } = await import("../../src/lib/chat-retrieval.js");
+const { retrieve, retrieveWithPolicy } =
+  await import("../../src/lib/chat-retrieval.js");
 const llm = (await import("../../src/lib/llm/gemini.js")) as unknown as {
   getGeminiProvider: ReturnType<typeof vi.fn>;
 };
-const search = (await import("../../src/lib/internal-hybrid-search.js")) as unknown as {
-  projectHybridSearch: ReturnType<typeof vi.fn>;
-};
-const chunkSearch = (await import("../../src/lib/chunk-hybrid-search.js")) as unknown as {
-  projectChunkHybridSearch: ReturnType<typeof vi.fn>;
-};
-const graphExpansion = (await import(
-  "../../src/lib/retrieval-graph-expansion.js"
-)) as unknown as {
-  expandGraphCandidates: ReturnType<typeof vi.fn>;
-};
+const search =
+  (await import("../../src/lib/internal-hybrid-search.js")) as unknown as {
+    projectHybridSearch: ReturnType<typeof vi.fn>;
+  };
+const chunkSearch =
+  (await import("../../src/lib/chunk-hybrid-search.js")) as unknown as {
+    projectChunkHybridSearch: ReturnType<typeof vi.fn>;
+  };
+const graphExpansion =
+  (await import("../../src/lib/retrieval-graph-expansion.js")) as unknown as {
+    expandGraphCandidates: ReturnType<typeof vi.fn>;
+  };
 
 const fakeProvider = {
   embed: vi.fn().mockResolvedValue(new Array(768).fill(0)),
@@ -268,7 +270,8 @@ describe("chat-retrieval fanout concurrency", () => {
       expect(maxInflight).toBeGreaterThan(0);
       expect(maxInflight).toBeLessThanOrEqual(3);
     } finally {
-      if (original === undefined) delete process.env.CHAT_RAG_FANOUT_CONCURRENCY;
+      if (original === undefined)
+        delete process.env.CHAT_RAG_FANOUT_CONCURRENCY;
       else process.env.CHAT_RAG_FANOUT_CONCURRENCY = original;
     }
   });
@@ -443,5 +446,126 @@ describe("chat-retrieval chunk fallback", () => {
 
     expect(hits.map((h) => h.noteId)).toEqual(["n-simple"]);
     expect(graphExpansion.expandGraphCandidates).not.toHaveBeenCalled();
+  });
+});
+
+describe("retrieveWithPolicy adaptive policy propagation", () => {
+  let dbMod: { db: { execute: ReturnType<typeof vi.fn> } };
+
+  beforeEach(async () => {
+    dbMod = (await import("@opencairn/db")) as unknown as typeof dbMod;
+    dbMod.db.execute.mockReset();
+    search.projectHybridSearch.mockReset();
+    chunkSearch.projectChunkHybridSearch.mockReset();
+    graphExpansion.expandGraphCandidates.mockReset();
+    chunkSearch.projectChunkHybridSearch.mockResolvedValue([
+      {
+        chunkId: "c-seed",
+        noteId: "n-seed",
+        title: "Seed alpha",
+        headingPath: "Intro",
+        snippet: "seed alpha relationship",
+        rrfScore: 1,
+        vectorScore: 0.9,
+        bm25Score: null,
+      },
+    ]);
+    graphExpansion.expandGraphCandidates.mockResolvedValue([
+      {
+        chunkId: "c-graph",
+        noteId: "n-graph",
+        title: "Graph alpha",
+        headingPath: "Related",
+        snippet: "graph alpha relationship",
+        graphScore: 0.8,
+        sourceType: "manual",
+        sourceUrl: null,
+        updatedAt: "2026-05-03T00:00:00.000Z",
+      },
+    ]);
+  });
+
+  it("passes seedTopK, graphDepth, and graphLimit into retrieval and graph expansion", async () => {
+    const env = {
+      deepSeed: process.env.CHAT_RAG_ADAPTIVE_DEEP_SEED_K,
+      deepLimit: process.env.CHAT_RAG_ADAPTIVE_DEEP_GRAPH_LIMIT,
+    };
+    try {
+      process.env.CHAT_RAG_ADAPTIVE_DEEP_SEED_K = "21";
+      process.env.CHAT_RAG_ADAPTIVE_DEEP_GRAPH_LIMIT = "34";
+
+      const result = await retrieveWithPolicy({
+        workspaceId: "ws-1",
+        query: "alpha가 beta와 어떤 관계로 연결되는지 알려줘",
+        ragMode: "expand",
+        scope: { type: "project", workspaceId: "ws-1", projectId: "p-1" },
+        chips: [],
+      });
+
+      expect(result.policy).toMatchObject({
+        seedTopK: 21,
+        graphDepth: 2,
+        graphLimit: 34,
+      });
+      expect(result.policySummary).toMatchObject({
+        route: "relationship",
+        retrievalShape: {
+          seedTopK: 21,
+          graphDepth: 2,
+          graphLimit: 34,
+        },
+      });
+      expect(chunkSearch.projectChunkHybridSearch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          k: 21,
+          policy: expect.objectContaining({ seedTopK: 21, graphDepth: 2 }),
+        }),
+      );
+      expect(graphExpansion.expandGraphCandidates).toHaveBeenCalledWith(
+        expect.objectContaining({
+          maxDepth: 2,
+          limit: 34,
+          seedNoteIds: ["n-seed"],
+        }),
+      );
+    } finally {
+      if (env.deepSeed === undefined)
+        delete process.env.CHAT_RAG_ADAPTIVE_DEEP_SEED_K;
+      else process.env.CHAT_RAG_ADAPTIVE_DEEP_SEED_K = env.deepSeed;
+      if (env.deepLimit === undefined)
+        delete process.env.CHAT_RAG_ADAPTIVE_DEEP_GRAPH_LIMIT;
+      else process.env.CHAT_RAG_ADAPTIVE_DEEP_GRAPH_LIMIT = env.deepLimit;
+    }
+  });
+
+  it("replans workspace fanout after resolving project count and exposes context packing limits", async () => {
+    const env = {
+      context: process.env.CHAT_RAG_ADAPTIVE_DEEP_CONTEXT_TOKENS,
+    };
+    try {
+      process.env.CHAT_RAG_ADAPTIVE_DEEP_CONTEXT_TOKENS = "4321";
+      dbMod.db.execute.mockResolvedValueOnce({
+        rows: [{ id: "p-a" }, { id: "p-b" }],
+      });
+
+      const result = await retrieveWithPolicy({
+        workspaceId: "ws-1",
+        query: "workspace 전체에서 alpha 근거 정리해줘",
+        ragMode: "expand",
+        scope: { type: "workspace", workspaceId: "ws-1" },
+        chips: [],
+      });
+
+      expect(result.policy.reasons).toEqual(
+        expect.arrayContaining(["research_depth", "workspace_fanout"]),
+      );
+      expect(result.policy.contextMaxTokens).toBe(4321);
+      expect(result.policy.maxChunksPerNote).toBe(2);
+      expect(chunkSearch.projectChunkHybridSearch).toHaveBeenCalledTimes(2);
+    } finally {
+      if (env.context === undefined)
+        delete process.env.CHAT_RAG_ADAPTIVE_DEEP_CONTEXT_TOKENS;
+      else process.env.CHAT_RAG_ADAPTIVE_DEEP_CONTEXT_TOKENS = env.context;
+    }
   });
 });

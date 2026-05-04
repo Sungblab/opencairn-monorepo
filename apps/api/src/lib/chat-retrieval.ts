@@ -12,7 +12,9 @@ import {
 } from "./retrieval-graph-expansion";
 import {
   planAdaptiveRagPolicy,
+  summarizeAdaptiveRagPolicy,
   type AdaptiveRagPolicy,
+  type AdaptiveRagPolicySummary,
 } from "./adaptive-rag-router";
 import { candidateFromRetrievalHit } from "./retrieval-candidates";
 import { rerankCandidates } from "./retrieval-rerank";
@@ -59,6 +61,12 @@ export type RetrievalHit = {
 
 type ProjectRetrievalHit = RetrievalHit & {
   sourceKey: string;
+};
+
+export type RetrievalWithPolicyResult = {
+  hits: RetrievalHit[];
+  policy: AdaptiveRagPolicy;
+  policySummary: AdaptiveRagPolicySummary;
 };
 
 // ── Retrieval routing ────────────────────────────────────────────────────
@@ -122,16 +130,18 @@ export async function retrieveWithPolicy(opts: {
   scope: RetrievalScope;
   chips: RetrievalChip[];
   signal?: AbortSignal;
-}): Promise<{ hits: RetrievalHit[]; policy: AdaptiveRagPolicy }> {
+}): Promise<RetrievalWithPolicyResult> {
   const initialPolicy = planAdaptiveRagPolicy(opts);
-  if (initialPolicy.resultTopK === 0) return { hits: [], policy: initialPolicy };
+  if (initialPolicy.resultTopK === 0) {
+    return retrievalResult([], initialPolicy);
+  }
   const projectIds = await resolveProjectIds(opts);
   checkAbort(opts.signal);
   const policy = planAdaptiveRagPolicy({
     ...opts,
     projectCount: projectIds.length,
   });
-  if (projectIds.length === 0) return { hits: [], policy };
+  if (projectIds.length === 0) return retrievalResult([], policy);
 
   const provider = getChatProvider();
   const queryEmbedding = await provider.embed(opts.query);
@@ -198,7 +208,18 @@ export async function retrieveWithPolicy(opts: {
       evidenceId: h.evidenceId,
       support: h.support,
     }));
-  return { hits, policy };
+  return retrievalResult(hits, policy);
+}
+
+function retrievalResult(
+  hits: RetrievalHit[],
+  policy: AdaptiveRagPolicy,
+): RetrievalWithPolicyResult {
+  return {
+    hits,
+    policy,
+    policySummary: summarizeAdaptiveRagPolicy(policy),
+  };
 }
 
 async function retrieveProjectHits(opts: {
@@ -233,10 +254,7 @@ async function retrieveProjectHits(opts: {
       evidenceId: `chunk:${h.chunkId}`,
       support: "supports",
     }));
-    return [
-      ...seedHits,
-      ...(await graphExpansionHits({ ...opts, seedHits })),
-    ];
+    return [...seedHits, ...(await graphExpansionHits({ ...opts, seedHits }))];
   }
 
   const noteHits = await projectHybridSearch(opts).catch(
@@ -260,10 +278,7 @@ async function retrieveProjectHits(opts: {
     evidenceId: `note:${h.noteId}`,
     support: "supports",
   }));
-  return [
-    ...seedHits,
-    ...(await graphExpansionHits({ ...opts, seedHits })),
-  ];
+  return [...seedHits, ...(await graphExpansionHits({ ...opts, seedHits }))];
 }
 
 async function graphExpansionHits(opts: {
@@ -286,7 +301,9 @@ async function graphExpansionHits(opts: {
   }).catch(() => [] as GraphExpansionHit[]);
 
   return graphHits.map((hit): ProjectRetrievalHit => {
-    const sourceKey = hit.chunkId ? `chunk:${hit.chunkId}` : `note:${hit.noteId}`;
+    const sourceKey = hit.chunkId
+      ? `chunk:${hit.chunkId}`
+      : `note:${hit.noteId}`;
     const evidenceId = hit.chunkId
       ? `graph:chunk:${hit.chunkId}`
       : `graph:note:${hit.noteId}`;
@@ -395,11 +412,10 @@ async function projectIdForNote(
     WHERE n.id = ${noteId} AND p.workspace_id = ${workspaceId} AND n.deleted_at IS NULL
     LIMIT 1
   `);
-  const rows =
-    ((rowsRaw as unknown as { rows: Array<Record<string, unknown>> }).rows ??
-      (rowsRaw as unknown as Array<Record<string, unknown>>)) as Array<{
-      pid: string;
-    }>;
+  const rows = ((rowsRaw as unknown as { rows: Array<Record<string, unknown>> })
+    .rows ?? (rowsRaw as unknown as Array<Record<string, unknown>>)) as Array<{
+    pid: string;
+  }>;
   return rows[0]?.pid ?? null;
 }
 
@@ -411,10 +427,9 @@ async function allProjectsInWorkspace(workspaceId: string): Promise<string[]> {
     ORDER BY created_at DESC
     LIMIT ${cap}
   `);
-  const rows =
-    ((rowsRaw as unknown as { rows: Array<Record<string, unknown>> }).rows ??
-      (rowsRaw as unknown as Array<Record<string, unknown>>)) as Array<{
-      id: string;
-    }>;
+  const rows = ((rowsRaw as unknown as { rows: Array<Record<string, unknown>> })
+    .rows ?? (rowsRaw as unknown as Array<Record<string, unknown>>)) as Array<{
+    id: string;
+  }>;
   return rows.map((r) => r.id);
 }
