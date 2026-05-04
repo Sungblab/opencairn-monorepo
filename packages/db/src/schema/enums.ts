@@ -77,6 +77,14 @@ export const messageStatusEnum = pgEnum("message_status", [
   "failed",
 ]);
 
+export const chatRunStatusEnum = pgEnum("chat_run_status", [
+  "queued",
+  "running",
+  "complete",
+  "failed",
+  "cancelled",
+]);
+
 // OpenAI is intentionally excluded from this legacy enum. OpenAI-compatible
 // gateways use the newer provider boundary and env configuration instead.
 // The enum is enforced at DB layer so API routes can't write a string the

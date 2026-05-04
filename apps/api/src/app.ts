@@ -28,6 +28,7 @@ import { researchRouter } from "./routes/research";
 import { codeRoutes } from "./routes/code";
 import { canvasRoutes } from "./routes/canvas";
 import { threadRoutes } from "./routes/threads";
+import { chatRunRoutes } from "./routes/chat-runs";
 import { chatRoutes } from "./routes/chat";
 import { searchRoutes } from "./routes/search";
 import { messageFeedbackRoutes } from "./routes/message-feedback";
@@ -91,6 +92,7 @@ export function createApp() {
   // own per-route requireAuth and surface a 401 before zValidator can run.
   app.route("/api/import", importRouter);
   app.route("/api/threads", threadRoutes);
+  app.route("/api/chat-runs", chatRunRoutes);
   // Plan 11A — scoped chat with attached chips, RAG mode, pin, cost.
   // Mounted as a specific path (not a wildcard /api router) so it does
   // not race the share/invite/comments wildcard auth middlewares.

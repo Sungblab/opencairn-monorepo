@@ -52,7 +52,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const activeThreadId = useThreadsStore((s) => s.activeThreadId);
   const setActive = useThreadsStore((s) => s.setActiveThread);
   const { create } = useChatThreads(workspaceId);
-  const { send, live } = useChatSend(activeThreadId);
+  const { send, live, resumeRun } = useChatSend(activeThreadId);
 
   // Initial scope selection follows whatever the user is currently looking
   // at: a note tab seeds [page, project], a project view seeds [project], etc.
@@ -228,6 +228,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
         <Conversation
           threadId={activeThreadId}
           live={live}
+          onResumeRun={resumeRun}
           onSaveSuggestion={handleSaveSuggestion}
         />
       ) : (

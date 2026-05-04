@@ -63,48 +63,10 @@ export function useChatSend(threadId: string | null) {
   const t = useTranslations("chat.errors");
   const [live, setLive] = useState<StreamingAgentMessage | null>(null);
   const controller = useRef<AbortController | null>(null);
+  const resumedRun = useRef<string | null>(null);
 
-  const send = useCallback(
-    async (input: SendInput) => {
-      if (!threadId) return;
-      // Aborting any in-flight stream guarantees the next send starts from
-      // a clean live state (no interleaving of two assistant turns).
-      controller.current?.abort();
-      const ac = new AbortController();
-      controller.current = ac;
-
-      setLive({ ...initialLive });
-
-      let res: Response;
-      try {
-        res = await fetch(`/api/threads/${threadId}/messages`, {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "content-type": "application/json",
-            accept: "text/event-stream",
-          },
-          body: JSON.stringify({
-            content: input.content,
-            scope: input.scope,
-            mode: input.mode ?? "auto",
-          }),
-          signal: ac.signal,
-        });
-      } catch (err) {
-        // AbortError fires here when a newer send superseded us before the
-        // fetch resolved. Leave `live` as the newer send already set it,
-        // and bail without invalidating (the newer send owns invalidation).
-        if ((err as Error).name === "AbortError") return;
-        setLive(null);
-        return;
-      }
-
-      if (!res.ok || !res.body) {
-        setLive(null);
-        return;
-      }
-
+  const consumeStream = useCallback(
+    async (res: Response, ac: AbortController) => {
       const parser = createParser({
         onEvent: (ev) => {
           if (!ev.event) return;
@@ -152,10 +114,6 @@ export function useChatSend(threadId: string | null) {
                   ? { ...prev, project_objects: [...prev.project_objects, payload.object ?? payload] }
                   : prev;
               case "error": {
-                // Surface the failure to the user via the existing toast
-                // surface. The route still emits `done` after `error` (with
-                // status='failed') — that's what clears `live`, not this
-                // branch. Toast text is i18n'd via `chat.errors.streamFailed`.
                 toast.error(t("streamFailed"));
                 const err =
                   isObj(payload) && typeof payload.message === "string"
@@ -179,6 +137,7 @@ export function useChatSend(threadId: string | null) {
         },
       });
 
+      if (!res.body) return;
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       try {
@@ -188,11 +147,8 @@ export function useChatSend(threadId: string | null) {
           parser.feed(decoder.decode(value, { stream: true }));
         }
       } catch {
-        // SSE read errors (incl. AbortError on supersede) leave live state
-        // intact for the next send to overwrite or finally to clear.
+        // SSE read errors leave live state intact for the next send/resume.
       } finally {
-        // Only the *current* send should invalidate + clear `live`. If a
-        // newer send aborted us, it owns the next round of state.
         if (controller.current === ac) {
           qc.invalidateQueries({ queryKey: ["chat-messages", threadId] });
           setLive(null);
@@ -200,8 +156,76 @@ export function useChatSend(threadId: string | null) {
         }
       }
     },
-    [threadId, qc],
+    [qc, threadId, t],
   );
 
-  return { send, live };
+  const resumeRun = useCallback(
+    async (runId: string, messageId: string) => {
+      if (!threadId || controller.current || resumedRun.current === runId) return;
+      resumedRun.current = runId;
+      const ac = new AbortController();
+      controller.current = ac;
+      setLive({ ...initialLive, id: messageId });
+      const stream = await fetch(`/api/chat-runs/${runId}/events?after=0`, {
+        credentials: "include",
+        headers: { accept: "text/event-stream" },
+        signal: ac.signal,
+      });
+      if (!stream.ok || !stream.body) {
+        setLive(null);
+        controller.current = null;
+        return;
+      }
+      await consumeStream(stream, ac);
+    },
+    [threadId, consumeStream],
+  );
+
+  const send = useCallback(
+    async (input: SendInput) => {
+      if (!threadId) return;
+      // Aborting any in-flight stream guarantees the next send starts from
+      // a clean live state (no interleaving of two assistant turns).
+      controller.current?.abort();
+      const ac = new AbortController();
+      controller.current = ac;
+
+      setLive({ ...initialLive });
+
+      let res: Response;
+      try {
+        res = await fetch(`/api/threads/${threadId}/messages`, {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "content-type": "application/json",
+            accept: "text/event-stream",
+          },
+          body: JSON.stringify({
+            content: input.content,
+            scope: input.scope,
+            mode: input.mode ?? "auto",
+          }),
+          signal: ac.signal,
+        });
+      } catch (err) {
+        // AbortError fires here when a newer send superseded us before the
+        // fetch resolved. Leave `live` as the newer send already set it,
+        // and bail without invalidating (the newer send owns invalidation).
+        if ((err as Error).name === "AbortError") return;
+        setLive(null);
+        return;
+      }
+
+      if (!res.ok || !res.body) {
+        setLive(null);
+        return;
+      }
+
+      await consumeStream(res, ac);
+    },
+    [threadId, consumeStream],
+  );
+
+  return { send, live, resumeRun };
 }

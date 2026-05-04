@@ -23,10 +23,16 @@ import { ThoughtBubble } from "./thought-bubble";
 interface Props {
   threadId: string | null;
   live?: StreamingAgentMessage | null;
+  onResumeRun?: (runId: string, messageId: string) => void;
   onSaveSuggestion?: (payload: unknown) => void;
 }
 
-export function Conversation({ threadId, live = null, onSaveSuggestion }: Props) {
+export function Conversation({
+  threadId,
+  live = null,
+  onResumeRun,
+  onSaveSuggestion,
+}: Props) {
   const t = useTranslations("agentPanel.bubble");
   const { data: messages = [] } = useChatMessages(threadId);
 
@@ -42,6 +48,23 @@ export function Conversation({ threadId, live = null, onSaveSuggestion }: Props)
     const behavior: ScrollBehavior = live ? "auto" : "smooth";
     endRef.current?.scrollIntoView({ block: "end", behavior });
   }, [messages.length, live?.body]);
+
+  useEffect(() => {
+    if (live) return;
+    const running = [...messages]
+      .reverse()
+      .find(
+        (m) =>
+          m.role === "agent" &&
+          m.run_id &&
+          (m.status === "streaming" ||
+            m.run_status === "queued" ||
+            m.run_status === "running"),
+      );
+    if (running?.run_id) {
+      onResumeRun?.(running.run_id, running.id);
+    }
+  }, [messages, live, onResumeRun]);
 
   async function onFeedback(
     msgId: string,

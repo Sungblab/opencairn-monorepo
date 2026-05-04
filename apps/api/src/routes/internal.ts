@@ -64,6 +64,7 @@ import {
   compilePdf,
   type SynthesisOutputJson,
 } from "../lib/document-compilers";
+import { executeChatRun } from "../lib/chat-runs";
 import { uploadObject } from "../lib/s3";
 import {
   createConceptExtractionEvidence,
@@ -162,6 +163,13 @@ const COMPILER_TASK_QUEUE =
   process.env.TEMPORAL_COMPILER_TASK_QUEUE ??
   process.env.TEMPORAL_TASK_QUEUE ??
   "ingest";
+
+internal.post("/chat-runs/:id/execute", async (c) => {
+  const id = c.req.param("id");
+  if (!isUuid(id)) return c.json({ error: "bad_request" }, 400);
+  await executeChatRun(id);
+  return c.json({ ok: true });
+});
 
 internal.post(
   "/source-notes",

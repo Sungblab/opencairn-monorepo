@@ -108,8 +108,9 @@ describe("POST /api/threads/:id/messages — real LLM path (Task 7)", () => {
         chips: [],
         history: [],
         userMessage: opts.userMessage.content,
-        // Forward the route's request abort signal so the abort-mid-stream
-        // test can observe propagation into the provider fetch.
+        // Durable chat runs intentionally detach provider execution from the
+        // browser request. A refresh should drop the subscription, not cancel
+        // the model call.
         signal: opts.signal,
         provider: fakeProvider,
       })) {
@@ -228,11 +229,10 @@ describe("POST /api/threads/:id/messages — real LLM path (Task 7)", () => {
     );
   });
 
-  it("forwards AbortSignal from request → runAgent → provider.streamGenerate", async () => {
-    // The route now passes c.req.raw.signal into runAgent, which forwards it
-    // to runChat, which forwards it to provider.streamGenerate. We assert
-    // the provider's streamGenerate was invoked with a signal — that's the
-    // observable contract for "client aborts cancel the in-flight fetch".
+  it("does not forward the browser AbortSignal into durable provider execution", async () => {
+    // The route now creates a durable run and subscribes to its event log.
+    // Browser disconnects detach from the stream; only explicit cancel should
+    // cancel execution.
     let receivedSignal: AbortSignal | undefined;
     fakeProvider.streamGenerate.mockImplementation(
       async function* (args: { signal?: AbortSignal }) {
@@ -253,9 +253,7 @@ describe("POST /api/threads/:id/messages — real LLM path (Task 7)", () => {
     expect(res.status).toBe(200);
     await res.text();
 
-    // Provider received an AbortSignal — proves the wiring runs end to end.
-    expect(receivedSignal).toBeDefined();
-    expect(receivedSignal).toBeInstanceOf(AbortSignal);
+    expect(receivedSignal).toBeUndefined();
   });
 
   it("persists status='failed' when the provider throws an AbortError mid-stream", async () => {

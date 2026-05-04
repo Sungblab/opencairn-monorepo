@@ -27,6 +27,7 @@ from worker.activities.code_activity import (
     analyze_feedback_activity,
     generate_code_activity,
 )
+from worker.activities.chat_run_activity import execute_chat_run
 from worker.activities.compiler_activity import compile_note
 from worker.activities.connector_activity import run_connector as run_connector_activity
 from worker.activities.curator_activity import run_curator
@@ -91,6 +92,7 @@ from worker.activities.visualize_activity import build_view
 from worker.activities.web_activity import scrape_web_url
 from worker.activities.youtube_activity import ingest_youtube
 from worker.workflows.batch_embed_workflow import BatchEmbedWorkflow
+from worker.workflows.chat_run_workflow import ChatAgentWorkflow
 from worker.workflows.code_workflow import CodeAgentWorkflow
 from worker.workflows.compiler_workflow import CompilerWorkflow
 from worker.workflows.connector_workflow import ConnectorWorkflow
@@ -148,6 +150,7 @@ def build_worker_config() -> WorkerConfig:
         SynthesisWorkflow,
         LibrarianWorkflow,
         BatchEmbedWorkflow,
+        ChatAgentWorkflow,
         ImportWorkflow,
         VisualizeWorkflow,
         SocraticGenerateWorkflow,
@@ -189,6 +192,7 @@ def build_worker_config() -> WorkerConfig:
         poll_batch_embed,
         fetch_batch_embed_results,
         cancel_batch_embed,
+        execute_chat_run,
         # Ingest Source Expansion — Drive + ZIP one-shot import.
         discover_drive_tree,
         upload_drive_file_to_minio,

@@ -56,6 +56,13 @@ def test_text_ingest_activity_registered() -> None:
     assert "read_text_object" in activity_names
 
 
+def test_chat_agent_workflow_registered() -> None:
+    cfg = build_worker_config()
+    assert "ChatAgentWorkflow" in [w.__name__ for w in cfg.workflows]
+    activity_names = [a.__name__ for a in cfg.activities]
+    assert "execute_chat_run" in activity_names
+
+
 def test_enrichment_activities_omitted_when_flag_off(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
