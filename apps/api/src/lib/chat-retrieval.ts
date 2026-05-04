@@ -16,7 +16,10 @@ import {
   type AdaptiveRagPolicy,
   type AdaptiveRagPolicySummary,
 } from "./adaptive-rag-router";
-import { candidateFromRetrievalHit } from "./retrieval-candidates";
+import {
+  candidateFromRetrievalHit,
+  spreadByProject,
+} from "./retrieval-candidates";
 import { rerankCandidates } from "./retrieval-rerank";
 import type {
   EvidenceProducer,
@@ -42,6 +45,7 @@ export type RetrievalChip =
 
 export type RetrievalHit = {
   noteId: string;
+  projectId?: string;
   chunkId?: string | null;
   title: string;
   headingPath?: string;
@@ -182,16 +186,21 @@ export async function retrieveWithPolicy(opts: {
     query: opts.query,
     candidates: hitCandidates.map((item) => item.candidate),
   });
+  const orderedCandidates =
+    policy.reasons.includes("workspace_fanout")
+      ? spreadByProject(rerankedCandidates)
+      : rerankedCandidates;
   const hitByCandidateId = new Map(
     hitCandidates.map((item) => [item.candidate.id, item.hit]),
   );
 
-  const hits = rerankedCandidates
+  const hits = orderedCandidates
     .slice(0, policy.resultTopK)
     .map((candidate) => hitByCandidateId.get(candidate.id))
     .filter((h): h is ProjectRetrievalHit => h != null)
     .map((h) => ({
       noteId: h.noteId,
+      projectId: h.projectId,
       chunkId: h.chunkId,
       title: h.title,
       headingPath: h.headingPath,
@@ -238,6 +247,7 @@ async function retrieveProjectHits(opts: {
     const seedHits: ProjectRetrievalHit[] = chunkHits.map((h) => ({
       sourceKey: `chunk:${h.chunkId}`,
       noteId: h.noteId,
+      projectId: opts.projectId,
       chunkId: h.chunkId,
       title: h.title,
       headingPath: h.headingPath,
@@ -263,6 +273,7 @@ async function retrieveProjectHits(opts: {
   const seedHits: ProjectRetrievalHit[] = noteHits.map((h) => ({
     sourceKey: `note:${h.noteId}`,
     noteId: h.noteId,
+    projectId: opts.projectId,
     title: h.title,
     headingPath: "",
     snippet: h.snippet,
@@ -310,6 +321,7 @@ async function graphExpansionHits(opts: {
     return {
       sourceKey,
       noteId: hit.noteId,
+      projectId: opts.projectId,
       chunkId: hit.chunkId,
       title: hit.title,
       headingPath: hit.headingPath,

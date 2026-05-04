@@ -67,6 +67,32 @@ describe("packEvidence", () => {
     expect(bundle.items.map((i) => i.noteId)).toEqual(["same", "other"]);
   });
 
+  it("round-robins and caps workspace fanout chunks by project", () => {
+    const bundle = packEvidence({
+      candidates: [
+        candidate("hot-1", "hot-note-1", "alpha", { projectId: "p-hot" }),
+        candidate("hot-2", "hot-note-2", "alpha", { projectId: "p-hot" }),
+        candidate("hot-3", "hot-note-3", "alpha", { projectId: "p-hot" }),
+        candidate("cold-1", "cold-note-1", "alpha", { projectId: "p-cold-1" }),
+        candidate("cold-2", "cold-note-2", "alpha", { projectId: "p-cold-2" }),
+      ],
+      maxTokens: 1000,
+      maxChunksPerNote: 1,
+      maxChunksPerProject: 1,
+    });
+
+    expect(bundle.items.map((i) => i.evidenceId)).toEqual([
+      "ev-hot-1",
+      "ev-cold-1",
+      "ev-cold-2",
+    ]);
+    expect(bundle.items.map((i) => i.projectId)).toEqual([
+      "p-hot",
+      "p-cold-1",
+      "p-cold-2",
+    ]);
+  });
+
   it("preserves graphify-style provenance in evidence items and prompt metadata", () => {
     const bundle = packEvidence({
       candidates: [

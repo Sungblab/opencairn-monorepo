@@ -4,6 +4,7 @@ import type {
   RetrievalCandidate,
   SourceSpan,
 } from "./retrieval-candidates";
+import { spreadByProject } from "./retrieval-candidates";
 
 const ESTIMATED_CHARS_PER_TOKEN = 2;
 const ESTIMATED_METADATA_TOKENS_PER_ITEM = 32;
@@ -16,15 +17,30 @@ export function packEvidence(input: {
   candidates: RetrievalCandidate[];
   maxTokens: number;
   maxChunksPerNote?: number;
+  maxChunksPerProject?: number;
 }): EvidenceBundle {
   const maxChunksPerNote = input.maxChunksPerNote ?? 2;
+  const maxChunksPerProject = input.maxChunksPerProject;
   const perNote = new Map<string, number>();
+  const perProject = new Map<string, number>();
   const items: EvidenceItem[] = [];
   let totalEstimatedTokens = 0;
 
-  for (const candidate of input.candidates) {
+  for (const candidate of maxChunksPerProject == null
+    ? input.candidates
+    : spreadByProject(input.candidates)) {
     const noteCount = perNote.get(candidate.noteId) ?? 0;
     if (noteCount >= maxChunksPerNote) continue;
+    const projectCount = candidate.projectId
+      ? (perProject.get(candidate.projectId) ?? 0)
+      : 0;
+    if (
+      candidate.projectId &&
+      maxChunksPerProject != null &&
+      projectCount >= maxChunksPerProject
+    ) {
+      continue;
+    }
 
     const cost =
       estimateTokens(
@@ -35,6 +51,7 @@ export function packEvidence(input: {
     items.push({
       citationIndex: items.length + 1,
       noteId: candidate.noteId,
+      projectId: candidate.projectId,
       chunkId: candidate.chunkId,
       title: candidate.title,
       headingPath: candidate.headingPath,
@@ -50,6 +67,9 @@ export function packEvidence(input: {
     });
     totalEstimatedTokens += cost;
     perNote.set(candidate.noteId, noteCount + 1);
+    if (candidate.projectId) {
+      perProject.set(candidate.projectId, projectCount + 1);
+    }
   }
 
   return {

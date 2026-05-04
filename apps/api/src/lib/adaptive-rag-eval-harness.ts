@@ -20,11 +20,13 @@ export type AdaptiveRagEvalReport = {
   packedEvidenceStats: {
     contextMaxTokens: number;
     maxChunksPerNote: number;
+    maxChunksPerProject: number | null;
     itemCount: number;
     totalCandidates: number;
     omittedCandidates: number;
     itemEvidenceIds: string[];
     perNoteCounts: Record<string, number>;
+    perProjectCounts: Record<string, number>;
   };
 };
 
@@ -62,6 +64,7 @@ export function runAdaptiveRagEvalFixture(
     candidates: rerankedCandidates,
     maxTokens: policy.contextMaxTokens,
     maxChunksPerNote: policy.maxChunksPerNote,
+    maxChunksPerProject: policy.maxChunksPerProject,
   });
 
   return {
@@ -73,11 +76,13 @@ export function runAdaptiveRagEvalFixture(
     packedEvidenceStats: {
       contextMaxTokens: policy.contextMaxTokens,
       maxChunksPerNote: policy.maxChunksPerNote,
+      maxChunksPerProject: policy.maxChunksPerProject ?? null,
       itemCount: evidenceBundle.items.length,
       totalCandidates: evidenceBundle.totalCandidates,
       omittedCandidates: evidenceBundle.omittedCandidates,
       itemEvidenceIds: evidenceBundle.items.map((item) => item.evidenceId),
       perNoteCounts: countItemsByNote(evidenceBundle.items),
+      perProjectCounts: countItemsByProject(evidenceBundle.items),
     },
   };
 }
@@ -87,6 +92,16 @@ function countItemsByNote(
 ): Record<string, number> {
   return items.reduce<Record<string, number>>((acc, item) => {
     acc[item.noteId] = (acc[item.noteId] ?? 0) + 1;
+    return acc;
+  }, {});
+}
+
+function countItemsByProject(
+  items: Array<{ projectId?: string }>,
+): Record<string, number> {
+  return items.reduce<Record<string, number>>((acc, item) => {
+    if (!item.projectId) return acc;
+    acc[item.projectId] = (acc[item.projectId] ?? 0) + 1;
     return acc;
   }, {});
 }
