@@ -103,6 +103,7 @@ export function ShellProviders({
   // segment.
   return (
     <AppShell
+      wsSlug={wsSlug}
       deepResearchEnabled={deepResearchEnabled}
       synthesisExportEnabled={synthesisExportEnabled}
     >

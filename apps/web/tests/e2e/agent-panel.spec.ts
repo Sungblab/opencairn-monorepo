@@ -11,6 +11,8 @@ import { seedFullStackSession } from "./helpers/full-stack";
 // apps/web/messages/ko/agent-panel.json — keep this file in sync if the
 // copy ever changes.
 test.describe("App Shell Phase 4 — Agent Panel", () => {
+  test.describe.configure({ timeout: 60_000 });
+
   let session: SeededSession;
 
   test.beforeEach(async ({ context, request }) => {
@@ -26,7 +28,9 @@ test.describe("App Shell Phase 4 — Agent Panel", () => {
     await expect(
       page.getByRole("button", { name: "첫 대화 시작" }),
     ).toBeVisible();
-    await page.getByRole("button", { name: "첫 대화 시작" }).click();
+    const startButton = page.getByRole("button", { name: "첫 대화 시작" });
+    await expect(startButton).toBeEnabled({ timeout: 30_000 });
+    await startButton.click();
     // composer.placeholder — once a thread is active the textarea is no
     // longer disabled (Composer's `disabled` flips off when activeThreadId
     // is set).
@@ -56,14 +60,13 @@ test.describe("App Shell Phase 4 — Agent Panel", () => {
     await expect(ta).toHaveValue("");
   });
 
-  test.skip("thumbs-down exposes reason chips", async ({ page }) => {
+  test("thumbs-down exposes reason chips", async ({ page }) => {
     await page.goto(`/ko/workspace/${session.wsSlug}/`);
     await page.getByRole("button", { name: "첫 대화 시작" }).click();
     const ta = page.getByPlaceholder("메시지를 입력하세요...");
     await ta.fill("hi");
     await ta.press("Enter");
-    // SKIPPED: needs a deterministic LLM fixture before it can assert the
-    // agent bubble and feedback controls reliably in full-stack mode.
+    await expect(page.getByText("Mock agent response.")).toBeVisible();
 
     // bubble.actions.thumbs_down_aria — flipping reasonOpen renders the
     // four feedback chips inline.
@@ -72,7 +75,7 @@ test.describe("App Shell Phase 4 — Agent Panel", () => {
     await expect(page.getByRole("button", { name: "부정확" })).toBeVisible();
   });
 
-  test.skip("new thread via + preserves previous thread in list", async ({
+  test("new thread via + preserves previous thread in list", async ({
     page,
   }) => {
     await page.goto(`/ko/workspace/${session.wsSlug}/`);
@@ -80,8 +83,7 @@ test.describe("App Shell Phase 4 — Agent Panel", () => {
     const ta = page.getByPlaceholder("메시지를 입력하세요...");
     await ta.fill("first thread message");
     await ta.press("Enter");
-    // SKIPPED: needs a deterministic LLM fixture before it can assert the
-    // previous thread's completed agent bubble reliably in full-stack mode.
+    await expect(page.getByText("Mock agent response.")).toBeVisible();
 
     // header.new_thread_aria — spawns a second thread and activates it.
     await page.getByRole("button", { name: "새 대화" }).click();

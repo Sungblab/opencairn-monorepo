@@ -5,6 +5,7 @@ import { useFormatter, useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 
 import { NoteHistoryButton } from "@/components/notes/history/note-history-button";
+import { useHydratedNow } from "@/hooks/use-hydrated-now";
 
 interface Props {
   noteId: string;
@@ -41,7 +42,10 @@ export function NoteRouteChrome({
   const locale = useLocale();
   const format = useFormatter();
   const t = useTranslations("appShell.routes.note.chrome");
-  const updatedAt = format.relativeTime(new Date(updatedAtIso));
+  const now = useHydratedNow();
+  const updatedAt = now
+    ? format.relativeTime(new Date(updatedAtIso), now)
+    : "";
   const projectHref = urls.workspace.project(locale, wsSlug, projectId);
 
   return (

@@ -53,7 +53,7 @@ export function ProjectGraph({ projectId }: Props) {
   }, [router, params]);
 
   return (
-    <div className="flex h-full flex-col">
+    <div data-testid="project-graph-viewer" className="flex h-full flex-col">
       <ViewSwitcher onAiClick={() => setAiOpen(true)} />
       <div className="min-h-0 flex-1">
         <ViewRenderer projectId={projectId} />

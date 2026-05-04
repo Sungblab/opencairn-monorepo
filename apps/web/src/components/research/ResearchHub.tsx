@@ -6,6 +6,7 @@ import { useFormatter, useTranslations, useLocale } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { researchApi, researchKeys } from "@/lib/api-client-research";
 import type { ResearchRunSummary } from "@opencairn/shared";
+import { useHydratedNow } from "@/hooks/use-hydrated-now";
 import { NewResearchDialog } from "./NewResearchDialog";
 
 export interface ResearchHubProps {
@@ -145,6 +146,7 @@ export function ResearchHub({
   const tHub = useTranslations("research.hub");
   const locale = useLocale();
   const format = useFormatter();
+  const now = useHydratedNow();
   const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [filter, setFilter] = useState<StatusFilter>("all");
@@ -271,8 +273,7 @@ export function ResearchHub({
                       suppressHydrationWarning
                     >
                       {modelLabel}
-                      {" · "}
-                      {format.relativeTime(new Date(r.createdAt))}
+                      {now ? ` · ${format.relativeTime(new Date(r.createdAt), now)}` : null}
                     </div>
                   </div>
                   <div className="shrink-0 text-right text-xs text-muted-foreground">

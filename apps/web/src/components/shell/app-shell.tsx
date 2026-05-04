@@ -12,6 +12,7 @@ import { useBreakpoint } from "@/hooks/use-breakpoint";
 
 export interface AppShellProps {
   children: React.ReactNode;
+  wsSlug: string;
   deepResearchEnabled: boolean;
   synthesisExportEnabled?: boolean;
 }
@@ -23,6 +24,7 @@ export interface AppShellProps {
 // panel-store left them.
 export function AppShell({
   children,
+  wsSlug,
   deepResearchEnabled,
   synthesisExportEnabled = false,
 }: AppShellProps) {
@@ -78,7 +80,7 @@ export function AppShell({
         >
           <SheetContent side="right" className="w-[360px] p-0">
             <SheetTitle className="sr-only">{t("agent_panel")}</SheetTitle>
-            <AgentPanel />
+            <AgentPanel wsSlug={wsSlug} />
           </SheetContent>
         </Sheet>
       </div>
@@ -112,7 +114,7 @@ export function AppShell({
             onReset={resetAgentPanelWidth}
           />
           <div style={{ width: agentPanelWidth, flexShrink: 0 }}>
-            <AgentPanel />
+            <AgentPanel wsSlug={wsSlug} />
           </div>
         </>
       )}

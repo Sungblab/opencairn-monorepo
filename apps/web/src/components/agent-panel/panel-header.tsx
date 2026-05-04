@@ -20,7 +20,13 @@ import { usePanelStore } from "@/stores/panel-store";
 
 import { ThreadList } from "./thread-list";
 
-export function PanelHeader({ onNewThread }: { onNewThread(): void }) {
+export function PanelHeader({
+  onNewThread,
+  newThreadDisabled,
+}: {
+  onNewThread(): void;
+  newThreadDisabled?: boolean;
+}) {
   const t = useTranslations("agentPanel.header");
   const togglePanel = usePanelStore((s) => s.toggleAgentPanel);
 
@@ -32,6 +38,7 @@ export function PanelHeader({ onNewThread }: { onNewThread(): void }) {
           type="button"
           aria-label={t("new_thread_aria")}
           onClick={onNewThread}
+          disabled={newThreadDisabled}
           className="app-btn-ghost rounded-[var(--radius-control)] p-1 inline-flex items-center justify-center"
         >
           <Plus className="h-4 w-4" />
