@@ -4,6 +4,9 @@ This document is the implementation guide for ADR 010. It keeps the product and
 engineering context in one public place so future work can extend the same
 surface instead of creating parallel chat-only file artifacts.
 
+For the broader note, file, code, import, export, and workflow action model, see
+`agentic-workflow-roadmap.md`.
+
 ## Goal
 
 OpenCairn should behave like a knowledge OS with an IDE-grade document generation

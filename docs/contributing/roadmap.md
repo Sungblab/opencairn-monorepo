@@ -12,6 +12,8 @@ shape is:
 - collaborative note editing with comments and mentions
 - source ingest through API and Temporal workflows
 - AI chat, scoped retrieval, and grounded evidence surfaces
+- agentic actions for generated project files, workflow runs, and future note,
+  code, import, and export operations
 - browser sandbox execution for generated code
 - self-hosting through Docker Compose
 - hosted-service configuration through env-driven public URLs
@@ -38,6 +40,9 @@ shape is:
 - Polish the Document Generation IDE flow so generated project files are easier
   to preview, edit, version, download, and bridge into existing Canvas/code
   surfaces.
+- Build the Agentic Workflow roadmap so note operations, generated files, code
+  projects, import, export, approvals, and workflow status use one auditable
+  action model.
 - Improve grounded retrieval quality and evidence presentation.
 - Use the OpenAI-compatible provider and parser gateway benchmark path to guide
   later provider routing and ingest-default changes.
@@ -52,16 +57,26 @@ shape is:
 The current next slices are intentionally split so contributors can work without
 creating duplicate surfaces:
 
-1. Document Generation IDE Flow Phase 1: deepen the existing generated-file
-   viewer and project-object UX instead of adding another artifact store.
-2. Agentic workflow E2E reliability: keep mock API fixtures aligned with the
-   current AppShell, Agent Panel, Plan8, and graph contracts.
-3. Grounded evidence browser coverage: add seeded graph/card evidence smokes
-   around the already implemented evidence APIs and UI states.
-4. Parser Gateway benchmark quality scoring: keep it benchmark-only until
-   fixture data justifies changing ingest defaults.
-5. Live-stack E2E split: separate DB, Temporal, and object-storage smokes from
-   lightweight mocked browser checks.
+1. Unified Agent Action Ledger: introduce the shared action/job substrate for
+   note, file, document generation, import, export, code, approval, and status
+   workflows.
+2. Note Agent Actions Phase 1: let agents create, update, rename, move,
+   soft-delete, and restore notes through permission-checked actions and note
+   version history.
+3. Document Generation Export Pipeline Phase 1: generate PDF, DOCX, PPTX, and
+   XLSX through workers and object storage instead of LLM base64.
+4. Import/Export Agent Actions Phase 1: wrap existing import and export flows in
+   the same action/status model and avoid queued orphan jobs.
+5. Code Project Workspace Phase 1: represent generated code as mini projects
+   with file trees, multi-file patches, snapshots, and downloads.
+6. Code Agent Execution Loop Phase 1: run approved test/build/lint commands,
+   feed failures back to the agent, and show final diffs and logs.
+7. Hosted Preview Phase 1: add safe generated-app previews after the code
+   workspace and execution loop are stable.
+8. Google Workspace Export Phase 1: optionally upload or convert generated
+   files to Drive, Docs, Sheets, and Slides without making Google required.
+9. Workflow Console Unification: converge Agent Panel, Plan8, project object
+   jobs, import/export jobs, and code agent loops into one run surface.
 
 ## Public Completion Standard
 

@@ -25,6 +25,7 @@ workflow files are intentionally excluded from the public repository.
 | Context budget policy | `architecture/context-budget.md` |
 | Backup and data portability | `architecture/backup-strategy.md` |
 | Billing model | `architecture/billing-model.md` |
+| Agentic workflows across notes, files, code, import, and export | `architecture/agentic-workflow-roadmap.md` |
 | Document generation and file IDE flow | `architecture/document-generation-ide-flow.md` |
 | Architecture decisions | `architecture/adr/` |
 
