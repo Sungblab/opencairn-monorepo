@@ -60,6 +60,10 @@
     "unit": "tokens"
   },
   "result": {
-    "summary": "{count} sources · {tokens} tokens used"
+    "summary": "{count} sources · {tokens} tokens used",
+    "addToProject": "Add to project",
+    "adding": "Adding",
+    "added": "Added to the project.",
+    "addFailed": "Could not add to the project. Please try again."
   }
 }

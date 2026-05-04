@@ -210,6 +210,10 @@ Current implementation boundary:
 - The response includes the typed `project_object_created` event and the legacy
   `agent_file_created` compatibility event so existing consumers can migrate
   incrementally.
+- The Synthesis Export result panel exposes a completed-document action that
+  publishes the generated document to the project and opens the returned
+  `agent_file` in the existing tab shell viewer. The download action remains
+  available as the self-host friendly file escape hatch.
 - The existing `/api/synthesis-export/runs/:id/document` download path remains
   unchanged.
 - Provider export remains optional; OpenCairn stored files and download remain

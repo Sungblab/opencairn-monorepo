@@ -2,6 +2,11 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { FilePlus, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import type { AgentFileSummary } from "@opencairn/shared";
+import { newTab } from "../../lib/tab-factory";
+import { useTabsStore } from "../../stores/tabs-store";
 import type { SynthesisStreamState } from "../../hooks/use-synthesis-stream";
 
 interface ResynthesizeBoxProps {
@@ -57,14 +62,63 @@ function downloadKey(format: string): string {
   return `download.${format}`;
 }
 
+interface PublishResponse {
+  file: AgentFileSummary;
+}
+
 export function SynthesisResult({ runId, state, onResynthesize }: Props) {
   const t = useTranslations("synthesisExport");
+  const addTab = useTabsStore((s) => s.addTab);
+  const findTabByTarget = useTabsStore((s) => s.findTabByTarget);
+  const setActive = useTabsStore((s) => s.setActive);
+  const [publishing, setPublishing] = useState(false);
 
   if (state.status !== "done" || !state.format) {
     return null;
   }
 
   const href = `/api/synthesis-export/runs/${runId}/document?format=${state.format}`;
+
+  async function publishToProject() {
+    if (!state.format || publishing) return;
+    setPublishing(true);
+    try {
+      const res = await fetch(
+        `/api/synthesis-export/runs/${runId}/project-object`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ format: state.format }),
+        },
+      );
+      if (!res.ok) {
+        toast.error(t("result.addFailed"));
+        return;
+      }
+
+      const body = (await res.json()) as PublishResponse;
+      const file = body.file;
+      const existing = findTabByTarget("agent_file", file.id);
+      if (existing) {
+        setActive(existing.id);
+      } else {
+        addTab(
+          newTab({
+            kind: "agent_file",
+            targetId: file.id,
+            title: file.title,
+            mode: "agent-file",
+            preview: false,
+          }),
+        );
+      }
+      toast.success(t("result.added"));
+    } catch {
+      toast.error(t("result.addFailed"));
+    } finally {
+      setPublishing(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -75,13 +129,28 @@ export function SynthesisResult({ runId, state, onResynthesize }: Props) {
         })}
       </p>
 
-      <a
-        href={href}
-        download
-        className="inline-flex items-center gap-1 rounded bg-neutral-900 px-3 py-2 text-sm text-white hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-300"
-      >
-        {t(downloadKey(state.format))}
-      </a>
+      <div className="flex flex-wrap items-center gap-2">
+        <a
+          href={href}
+          download
+          className="inline-flex items-center gap-1 rounded bg-neutral-900 px-3 py-2 text-sm text-white hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-300"
+        >
+          {t(downloadKey(state.format))}
+        </a>
+        <button
+          type="button"
+          disabled={publishing}
+          onClick={publishToProject}
+          className="inline-flex items-center gap-1 rounded border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-neutral-800"
+        >
+          {publishing ? (
+            <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+          ) : (
+            <FilePlus aria-hidden className="h-4 w-4" />
+          )}
+          {publishing ? t("result.adding") : t("result.addToProject")}
+        </button>
+      </div>
 
       <ResynthesizeBox
         onSubmit={onResynthesize}
