@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Any
 
 from llm.tool_types import AssistantTurn, ToolResult, ToolUse, UsageCounts
+
 from runtime.tool_loop import LoopConfig, ToolLoopExecutor
+from runtime.tool_policy import ToolPolicy
 
 
 @dataclass
@@ -99,6 +102,109 @@ async def test_tool_use_then_model_stopped():
     assert result.termination_reason == "model_stopped"
     assert result.tool_call_count == 1
     assert result.final_text == "done"
+
+
+async def test_read_only_permission_denies_write_tool_without_invoking_registry():
+    tu = ToolUse(id="t1", name="update_page", args={"title": "x"})
+    provider = _FakeProvider(scripted=[
+        _turn(tool_uses=[tu]),
+        _turn(text="done"),
+    ])
+    called = False
+
+    async def handler(args):
+        nonlocal called
+        called = True
+        return {"ok": True}
+
+    registry = _FakeRegistry({"update_page": handler})
+    write_tool = SimpleNamespace(name="update_page", read_only=False, risk="write")
+    executor = ToolLoopExecutor(
+        provider=provider,
+        tool_registry=registry,
+        config=LoopConfig(permission_mode="read_only"),
+        tool_context={"workspace_id": "ws"},
+        tools=[write_tool],
+    )
+
+    result = await executor.run(initial_messages=[{"role": "user", "text": "update"}])
+
+    assert result.termination_reason == "model_stopped"
+    assert called is False
+
+
+async def test_ask_mode_returns_approval_needed_result_for_write_tool():
+    tu = ToolUse(id="t1", name="update_page", args={"title": "x"})
+    hooks = _CaptureHooks()
+    provider = _FakeProvider(scripted=[
+        _turn(tool_uses=[tu]),
+        _turn(text="done"),
+    ])
+
+    async def handler(args):
+        return {"ok": True}
+
+    registry = _FakeRegistry({"update_page": handler})
+    write_tool = SimpleNamespace(name="update_page", read_only=False, risk="write")
+    executor = ToolLoopExecutor(
+        provider=provider,
+        tool_registry=registry,
+        config=LoopConfig(permission_mode="ask"),
+        tool_context={"workspace_id": "ws"},
+        tools=[write_tool],
+        hooks=hooks,
+    )
+
+    await executor.run(initial_messages=[{"role": "user", "text": "update"}])
+
+    tool_messages = [
+        msg for msg in hooks.messages
+        if isinstance(msg, dict) and msg.get("role") == "tool"
+    ]
+    assert tool_messages[0]["is_error"] is True
+    assert tool_messages[0]["data"]["permission"]["action"] == "needs_approval"
+
+
+async def test_permission_policy_uses_runtime_context_over_model_scope_args():
+    tu = ToolUse(
+        id="t1",
+        name="update_page",
+        args={"page_id": "model-page", "title": "x"},
+    )
+    hooks = _CaptureHooks()
+    provider = _FakeProvider(scripted=[
+        _turn(tool_uses=[tu]),
+        _turn(text="done"),
+    ])
+
+    async def handler(args):
+        return {"ok": True}
+
+    registry = _FakeRegistry({"update_page": handler})
+    write_tool = SimpleNamespace(
+        name="update_page",
+        policy=lambda args: ToolPolicy(
+            read_only=False,
+            risk="write",
+            resource=f"page:{args['page_id']}",
+        ),
+    )
+    executor = ToolLoopExecutor(
+        provider=provider,
+        tool_registry=registry,
+        config=LoopConfig(permission_mode="ask"),
+        tool_context={"workspace_id": "ws", "page_id": "runtime-page"},
+        tools=[write_tool],
+        hooks=hooks,
+    )
+
+    await executor.run(initial_messages=[{"role": "user", "text": "update"}])
+
+    tool_messages = [
+        msg for msg in hooks.messages
+        if isinstance(msg, dict) and msg.get("role") == "tool"
+    ]
+    assert tool_messages[0]["data"]["permission"]["policy"]["resource"] == "page:runtime-page"
 
 
 async def test_loop_warning_emits_one_response_per_tool_use_id():

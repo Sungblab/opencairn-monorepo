@@ -45,6 +45,7 @@
 
 ### 도구 화이트리스트
 - 각 에이전트는 자신의 `allowed_tools` 외에는 호출 불가. LLM이 미등록 도구를 요청하면 runtime이 `ToolError` 주입 후 재계획 유도.
+- 새 tool-loop 에이전트는 `@tool` policy metadata와 `PermissionBroker`를 통과해야 한다. 런타임이 주입한 workspace/project/page/user/run/scope 값은 모델이 넘긴 같은 이름의 인자를 항상 덮어쓴다.
 
 ### Permission 검증
 - 모든 툴은 실행 전 `ToolContext.permissions` 확인. `canRead`/`canWrite` 위반 시 `ToolError` 발생 → `AgentEvent.ToolResult(error=...)` yield.

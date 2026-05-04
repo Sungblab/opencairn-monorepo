@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import inspect
 import json
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable  # noqa: TC003
 from typing import Any, Protocol, get_type_hints, runtime_checkable
 
 import xxhash
 from pydantic import BaseModel, ConfigDict, create_model
 
-from runtime.events import AgentEvent, Scope
+from runtime.events import AgentEvent, Scope  # noqa: TC001
+from runtime.tool_policy import ToolPolicy, ToolRisk  # noqa: TC001
 
 
 class ToolContext(BaseModel):
@@ -90,6 +91,10 @@ def tool(
     redact_fields: tuple[str, ...] = (),
     allowed_agents: tuple[str, ...] = (),
     allowed_scopes: tuple[Scope, ...] = (),
+    read_only: bool = False,
+    risk: ToolRisk = "sensitive",
+    resource: str | None = None,
+    policy: ToolPolicy | Callable[[dict[str, Any]], ToolPolicy] | None = None,
 ) -> Callable[[Callable[..., Awaitable[Any]]], Tool]:
     """Decorate an async function to register it as a Tool.
 
@@ -99,6 +104,7 @@ def tool(
     - `redact_fields`: field names replaced with "[REDACTED]" in trajectory
     - `allowed_agents`: tuple of agent names that can use this tool (empty = all)
     - `allowed_scopes`: scope whitelist
+    - `read_only` / `risk` / `resource` / `policy`: optional policy metadata
     """
 
     def decorator(func: Callable[..., Awaitable[Any]]) -> Tool:
@@ -123,6 +129,11 @@ def tool(
                 self._func = func
                 self._parallel_spec = parallel
                 self._redact_fields = redact_fields
+                self.read_only = read_only
+                self.risk = risk
+                self.resource = resource
+                if policy is not None:
+                    self.policy = policy
 
             def supports_parallel(self, args: dict[str, Any]) -> bool:
                 if callable(self._parallel_spec):

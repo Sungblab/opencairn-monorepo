@@ -10,11 +10,18 @@ owned here so providers stay trivial.
 """
 from __future__ import annotations
 
+import asyncio
+import json
+import logging
+from collections.abc import Sequence  # noqa: TC003
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol, Sequence
+from typing import Any, Literal, Protocol
 
-from pydantic import BaseModel
+from llm.errors import ProviderFatalError, ProviderRetryableError
+from llm.tool_types import ToolResult
+from pydantic import BaseModel  # noqa: TC002
 
+from runtime.tool_policy import PermissionBroker, PermissionMode
 
 # ── Types ───────────────────────────────────────────────────────────────
 
@@ -42,7 +49,8 @@ class LoopConfig:
     cached_context_id: str | None = None
     temperature: float | None = None
     max_output_tokens: int | None = None
-    budget_policy: "BudgetPolicy | None" = None
+    budget_policy: BudgetPolicy | None = None
+    permission_mode: PermissionMode = "auto"
 
 
 @dataclass
@@ -117,14 +125,6 @@ class NoopHooks:
 
 # ── Executor ────────────────────────────────────────────────────────────
 
-
-import asyncio  # noqa: E402
-import json  # noqa: E402 (kept near executor so types block stays tidy)
-import logging  # noqa: E402
-
-from llm.errors import ProviderFatalError, ProviderRetryableError  # noqa: E402
-from llm.tool_types import ToolResult  # noqa: E402
-
 logger = logging.getLogger(__name__)
 
 
@@ -147,14 +147,19 @@ class ToolLoopExecutor:
         *,
         tools: list | None = None,
         hooks: LoopHooks | None = None,
+        permission_broker: PermissionBroker | None = None,
     ) -> None:
         self._provider = provider
         self._tool_registry = tool_registry
         self._config = config
         self._tool_context = dict(tool_context)
         self._tools = tools or []
+        self._tools_by_name = {getattr(t, "name", ""): t for t in self._tools}
         self._hooks: LoopHooks = hooks or NoopHooks()
         self._budget = config.budget_policy or NullBudgetPolicy()
+        self._permission_broker = permission_broker or PermissionBroker(
+            mode=config.permission_mode
+        )
 
     async def run(self, initial_messages: list[Any]) -> LoopResult:
         state = LoopState(messages=list(initial_messages))
@@ -236,6 +241,24 @@ class ToolLoopExecutor:
             tool_use.name, self._config.per_tool_timeout_sec,
         )
         args = {**tool_use.args, **self._tool_context}
+        tool = self._tools_by_name.get(tool_use.name)
+        if tool is None:
+            tool = type("_UnknownPolicyTool", (), {"name": tool_use.name})()
+        decision = self._permission_broker.evaluate(
+            tool,
+            args,
+            context=self._tool_context,
+        )
+        if decision.action != "allow":
+            return ToolResult(
+                tool_use_id=tool_use.id,
+                name=tool_use.name,
+                data={
+                    "error": decision.reason,
+                    "permission": decision.model_dump(),
+                },
+                is_error=True,
+            )
         try:
             async with asyncio.timeout(timeout):
                 raw = await self._tool_registry.execute(tool_use.name, args)
@@ -244,7 +267,7 @@ class ToolLoopExecutor:
                 tool_use_id=tool_use.id, name=tool_use.name,
                 data=data, is_error=False,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return ToolResult(
                 tool_use_id=tool_use.id, name=tool_use.name,
                 data={"error": f"Tool timed out after {timeout}s"},
