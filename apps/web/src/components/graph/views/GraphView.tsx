@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import type CytoscapeComponentType from "react-cytoscapejs";
 import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { useLocale, useTranslations } from "next-intl";
 import { urls } from "@/lib/urls";
@@ -39,10 +39,13 @@ export default function GraphView({ projectId }: { projectId: string }) {
   const locale = useLocale();
   const router = useRouter();
   const params = useParams<{ wsSlug: string }>();
+  const searchParams = useSearchParams();
   const wsSlug = params?.wsSlug;
   const { data, isLoading, error, expand } = useProjectGraph(projectId);
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const selectedEdgeParam = searchParams.get("edge");
+  const consumedEdgeParam = useRef<string | null>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
 
   const elements = useMemo(
@@ -74,6 +77,18 @@ export default function GraphView({ projectId }: { projectId: string }) {
   );
 
   const addOrReplacePreview = useTabsStore((s) => s.addOrReplacePreview);
+
+  useEffect(() => {
+    if (!selectedEdgeParam) {
+      consumedEdgeParam.current = null;
+      return;
+    }
+    if (selectedEdgeParam === consumedEdgeParam.current) return;
+    if (data?.edges.some((edge) => edge.id === selectedEdgeParam)) {
+      setSelectedEdgeId(selectedEdgeParam);
+      consumedEdgeParam.current = selectedEdgeParam;
+    }
+  }, [data?.edges, selectedEdgeParam]);
 
   const onNodeDoubleClick = useCallback(
     (firstNoteId: string | null, conceptName: string) => {
