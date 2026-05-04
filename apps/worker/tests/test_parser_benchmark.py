@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pytest
@@ -11,6 +12,13 @@ from scripts.parser_benchmark import (
     load_fixtures,
     run_current_fixture,
     run_docling_fixture,
+)
+from worker.lib.canonical_document import (
+    CanonicalBlock,
+    CanonicalBlockType,
+    CanonicalDocument,
+    CanonicalDocumentSource,
+    CanonicalSourceOffsets,
 )
 from worker.lib.parser_gateway import ParserUnavailableError
 
@@ -77,6 +85,17 @@ async def test_parser_benchmark_dry_run_writes_jsonl(tmp_path: Path) -> None:
     assert row["parser"] == "current"
     assert row["status"] == "dry_run"
     assert row["plain_text_chars"] == 0
+    assert set(row["quality_scores"]) == {
+        "table_structure",
+        "heading_structure",
+        "reading_order",
+        "figure_coverage",
+        "formula_coverage",
+        "korean_text",
+        "source_offset_coverage",
+        "downstream_chunk_quality",
+        "overall",
+    }
 
 
 @pytest.mark.asyncio
@@ -116,6 +135,8 @@ async def test_parser_benchmark_current_text_local_fixture_writes_success(
     assert row["status"] == "success"
     assert row["blocks"] == 1
     assert row["plain_text_chars"] == len(fixture_path.read_text(encoding="utf-8"))
+    assert row["quality_scores"]["source_offset_coverage"] == 1.0
+    assert row["quality_scores"]["downstream_chunk_quality"] == 1.0
 
 
 @pytest.mark.asyncio
@@ -215,7 +236,9 @@ async def test_parser_benchmark_docling_jsonl_schema_matches_current(
             blocks=1,
             tables=0,
             figures=0,
+            formulas=0,
             plain_text_chars=4,
+            expected_features=("headings",),
             warnings=(),
             error=None,
         )
@@ -254,11 +277,95 @@ async def test_parser_benchmark_docling_jsonl_schema_matches_current(
         "blocks",
         "tables",
         "figures",
+        "formulas",
         "warnings",
         "plain_text_chars",
+        "expected_features",
+        "quality_scores",
+        "quality_notes",
         "status",
         "error",
     } <= set(docling_row)
+
+
+def test_quality_scores_capture_expected_feature_gaps() -> None:
+    now = datetime.now(UTC)
+    doc = CanonicalDocument(
+        source=CanonicalDocumentSource(
+            source_type="file",
+            mime_type="application/pdf",
+            parser="current.fake",
+            parse_started_at=now,
+            parse_completed_at=now,
+        ),
+        blocks=[
+            CanonicalBlock(
+                id="b1",
+                type=CanonicalBlockType.PARAGRAPH,
+                content="영어 없는 한국어 본문",
+                reading_order=0,
+                source_offsets=CanonicalSourceOffsets(start=0, end=11),
+            )
+        ],
+    )
+    fixture = parser_benchmark.BenchmarkFixture(
+        id="fixture",
+        description="fixture",
+        source_type="file",
+        mime_type="application/pdf",
+        expected_features=("tables", "headings", "korean_text"),
+    )
+
+    result = parser_benchmark._result_from_doc(
+        fixture,
+        doc,
+        wall_clock_ms=1,
+        peak_python_heap_bytes=1,
+    )
+
+    assert result.quality_scores["table_structure"] == 0.0
+    assert result.quality_scores["heading_structure"] == 0.0
+    assert result.quality_scores["korean_text"] > 0
+    assert "expected_tables_missing" in result.quality_notes
+    assert "expected_headings_missing" in result.quality_notes
+
+
+def test_downstream_chunk_quality_counts_all_headings_in_chunk() -> None:
+    now = datetime.now(UTC)
+    doc = CanonicalDocument(
+        source=CanonicalDocumentSource(
+            source_type="file",
+            mime_type="text/markdown",
+            parser="current.fake",
+            parse_started_at=now,
+            parse_completed_at=now,
+        ),
+        blocks=[
+            CanonicalBlock(
+                id="h1",
+                type=CanonicalBlockType.HEADING,
+                content="First heading",
+                reading_order=0,
+                source_offsets=CanonicalSourceOffsets(start=0, end=13),
+            ),
+            CanonicalBlock(
+                id="p1",
+                type=CanonicalBlockType.PARAGRAPH,
+                content="Short body",
+                reading_order=1,
+                source_offsets=CanonicalSourceOffsets(start=15, end=25),
+            ),
+            CanonicalBlock(
+                id="h2",
+                type=CanonicalBlockType.HEADING,
+                content="Second heading",
+                reading_order=2,
+                source_offsets=CanonicalSourceOffsets(start=27, end=41),
+            ),
+        ],
+    )
+
+    assert parser_benchmark._downstream_chunk_quality_score(doc) == 1.0
 
 
 @pytest.mark.asyncio

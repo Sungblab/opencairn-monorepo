@@ -146,6 +146,14 @@ def test_normalize_docling_output_to_canonical_document() -> None:
     doc = normalize_docling_output(
         {
             "pages": [{"page_no": 1, "size": {"width": 612, "height": 792}}],
+            "tables": [
+                {
+                    "id": "table-1",
+                    "caption": "Table caption",
+                    "cells": [["A", "B"]],
+                    "prov": [{"page_no": 1}],
+                },
+            ],
             "texts": [
                 {
                     "id": "heading-1",
@@ -160,14 +168,13 @@ def test_normalize_docling_output_to_canonical_document() -> None:
                     "reading_order": 0,
                     "prov": [{"page_no": 1}],
                 },
-            ],
-            "tables": [
                 {
-                    "id": "table-1",
-                    "caption": "Table caption",
-                    "cells": [["A", "B"]],
+                    "id": "formula-1",
+                    "label": "formula",
+                    "text": "E = mc^2",
+                    "content_type": "latex",
                     "prov": [{"page_no": 1}],
-                }
+                },
             ],
             "pictures": [{"id": "fig-1", "caption": "Figure caption", "prov": [{"page_no": 1}]}],
         },
@@ -183,6 +190,7 @@ def test_normalize_docling_output_to_canonical_document() -> None:
     assert [block.type for block in doc.blocks] == [
         CanonicalBlockType.HEADING,
         CanonicalBlockType.PARAGRAPH,
+        CanonicalBlockType.FORMULA,
         CanonicalBlockType.TABLE,
         CanonicalBlockType.FIGURE,
     ]
@@ -190,6 +198,8 @@ def test_normalize_docling_output_to_canonical_document() -> None:
     assert doc.blocks[1].reading_order == 0
     assert doc.tables[0].cells == [["A", "B"]]
     assert doc.figures[0].caption == "Figure caption"
+    assert doc.formulas[0].content == "E = mc^2"
+    assert doc.formulas[0].content_type == "latex"
     assert doc.as_plain_text().startswith("Introduction")
 
 

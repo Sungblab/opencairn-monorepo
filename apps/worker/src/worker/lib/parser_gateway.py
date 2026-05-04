@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
 from time import perf_counter
-from typing import Any, Protocol, cast
+from typing import Any, Literal, Protocol, cast
 
 from worker.lib.canonical_document import (
     CanonicalBBox,
@@ -23,6 +23,7 @@ from worker.lib.canonical_document import (
     CanonicalDocument,
     CanonicalDocumentSource,
     CanonicalFigure,
+    CanonicalFormula,
     CanonicalPage,
     CanonicalSourceOffsets,
     CanonicalTable,
@@ -190,6 +191,7 @@ def normalize_docling_output(
     blocks: list[CanonicalBlock] = []
     tables: list[CanonicalTable] = []
     figures: list[CanonicalFigure] = []
+    formulas: list[CanonicalFormula] = []
     warnings: list[CanonicalWarning] = []
     offset = 0
 
@@ -210,9 +212,10 @@ def normalize_docling_output(
         if source_offsets is None:
             source_offsets = CanonicalSourceOffsets(start=offset, end=offset + len(content))
         reading_order = _int_or_none(raw_item.get("reading_order"))
+        block_type = _docling_block_type(raw_item)
         block = CanonicalBlock(
             id=str(raw_item.get("id") or f"docling-b{index}"),
-            type=_docling_block_type(raw_item),
+            type=block_type,
             content=content,
             content_type=_docling_content_type(raw_item),
             bbox=_bbox_from_docling_item(raw_item),
@@ -223,6 +226,16 @@ def normalize_docling_output(
             metadata=_docling_metadata(raw_item),
         )
         blocks.append(block)
+        if block_type == CanonicalBlockType.FORMULA:
+            formulas.append(
+                CanonicalFormula(
+                    id=f"{block.id}-formula",
+                    page_number=block.page_number,
+                    content=content,
+                    content_type=_formula_content_type(raw_item),
+                    bbox=block.bbox,
+                )
+            )
         offset = block.source_offsets.end + 2 if block.source_offsets else offset
 
     table_items = _payload_list(raw, "tables")
@@ -317,6 +330,7 @@ def normalize_docling_output(
         blocks=blocks,
         tables=tables,
         figures=figures,
+        formulas=formulas,
         warnings=warnings,
         raw_artifact_key=_string_or_none(raw.get("raw_artifact_key")),
     )
@@ -348,6 +362,7 @@ def normalize_current_parser_output(
     blocks: list[CanonicalBlock] = []
     tables: list[CanonicalTable] = []
     figures: list[CanonicalFigure] = []
+    formulas: list[CanonicalFormula] = []
 
     offset = 0
 
@@ -433,6 +448,39 @@ def normalize_current_parser_output(
                 ),
             )
 
+        raw_formulas = page.get("formulas")
+        formula_payloads: list[Any] = (
+            cast("list[Any]", raw_formulas) if isinstance(raw_formulas, list) else []
+        )
+        for formula_index, raw_formula_payload in enumerate(formula_payloads):
+            formula_payload = raw_formula_payload if isinstance(raw_formula_payload, dict) else {}
+            formula_id = f"{page_id}-m{formula_index}"
+            formula_content = str(
+                formula_payload.get("content")
+                or formula_payload.get("latex")
+                or formula_payload.get("text")
+                or ""
+            ).strip()
+            formulas.append(
+                CanonicalFormula(
+                    id=formula_id,
+                    page_number=page_number,
+                    content=formula_content,
+                    content_type=_formula_content_type(formula_payload),
+                )
+            )
+            append_block(
+                page_blocks,
+                _block(
+                    formula_id,
+                    CanonicalBlockType.FORMULA,
+                    formula_content,
+                    page_number=page_number,
+                    reading_order=len(page_blocks),
+                    source_start=offset if formula_content else None,
+                ),
+            )
+
         pages.append(
             CanonicalPage(
                 page_number=page_number,
@@ -478,6 +526,7 @@ def normalize_current_parser_output(
         blocks=blocks,
         tables=tables,
         figures=figures,
+        formulas=formulas,
         warnings=warnings,
     )
 
@@ -636,6 +685,15 @@ def _docling_content_type(item: dict[str, Any]) -> CanonicalContentType:
     if value == "html":
         return CanonicalContentType.HTML
     return CanonicalContentType.TEXT
+
+
+def _formula_content_type(item: dict[str, Any]) -> Literal["latex", "mathml", "text"]:
+    value = str(item.get("formula_content_type") or item.get("content_type") or "").lower()
+    if value in {"latex", "mathml"}:
+        return value
+    if item.get("latex") is not None:
+        return "latex"
+    return "text"
 
 
 def _page_number_from_docling_item(item: dict[str, Any]) -> int | None:
