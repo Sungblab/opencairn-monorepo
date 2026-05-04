@@ -4,7 +4,6 @@
     "loadingInline": "Loading...",
     "error": "Unable to open this file.",
     "meta": "{kind} · v{version} · {bytes}",
-    "version": "v{version}",
     "preview": "Preview",
     "source": "Source",
     "jsonTree": "JSON tree",

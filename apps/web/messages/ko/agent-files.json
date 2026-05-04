@@ -4,7 +4,6 @@
     "loadingInline": "불러오는 중...",
     "error": "파일을 열 수 없습니다.",
     "meta": "{kind} · v{version} · {bytes}",
-    "version": "v{version}",
     "preview": "미리보기",
     "source": "원본",
     "jsonTree": "JSON 트리",

@@ -5,7 +5,6 @@ import type { ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import {
-  Code2,
   Download,
   Eye,
   FileCode,
@@ -117,8 +116,9 @@ export function AgentFileViewer({ tab }: { tab: Tab }) {
               version: file.version,
               bytes: formatBytes(file.bytes),
             })}
-            <StatusPill label={t("version", { version: file.version })} />
-            <StatusPill label={t(`compileStatus.${file.compileStatus}`)} />
+            {file.kind === "latex" ? (
+              <StatusPill label={t(`compileStatus.${file.compileStatus}`)} />
+            ) : null}
             <StatusPill label={t(`ingestStatus.${file.ingestStatus}`)} />
           </div>
         </div>
@@ -247,19 +247,11 @@ function PreviewSourceFrame({
   fileUrl: string;
   sourceLabel: string;
 }) {
-  const t = useTranslations("agentFiles.viewer");
-  const { data, isLoading } = useTextFile(fileUrl);
   return (
     <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-2">
-      <div className="min-h-0 border-r">{children}</div>
-      <div className="flex min-h-0 flex-col">
-        <div className="flex h-9 items-center gap-2 border-b px-3 text-xs font-medium text-muted-foreground">
-          <Code2 className="h-3.5 w-3.5" />
-          {sourceLabel}
-        </div>
-        <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap p-4 font-mono text-xs leading-5">
-          {isLoading ? t("loadingInline") : data}
-        </pre>
+      <div className="min-h-0">{children}</div>
+      <div className="min-h-0 border-l">
+        <TextPreview fileUrl={fileUrl} label={sourceLabel} />
       </div>
     </div>
   );
@@ -379,9 +371,9 @@ function CsvPreview({ fileUrl }: { fileUrl: string }) {
                 {headers.map((_, cellIndex) => (
                   <td
                     key={cellIndex}
-                    className={cn("max-w-80 truncate px-3 py-2 align-top", rowIndex % 2 === 1 && "bg-muted/20")}
+                    className={cn("px-3 py-2 align-top", rowIndex % 2 === 1 && "bg-muted/20")}
                   >
-                    {row[cellIndex] ?? ""}
+                    <div className="max-w-80 truncate">{row[cellIndex] ?? ""}</div>
                   </td>
                 ))}
               </tr>

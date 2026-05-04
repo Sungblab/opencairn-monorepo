@@ -13,7 +13,6 @@ const messages = {
       loadingInline: "불러오는 중...",
       error: "파일을 열 수 없습니다.",
       meta: "{kind} · v{version} · {bytes}",
-      version: "v{version}",
       preview: "미리보기",
       source: "원본",
       jsonTree: "JSON 트리",
@@ -129,8 +128,8 @@ describe("AgentFileViewer", () => {
     renderViewer(file, "# Report\n\n- first");
 
     expect(await screen.findByText("report.md")).toBeInTheDocument();
-    expect(screen.getByText("v3")).toBeInTheDocument();
-    expect(screen.getByText("컴파일 없음")).toBeInTheDocument();
+    expect(screen.getByText(/markdown · v3 · 2.0 KB/)).toBeInTheDocument();
+    expect(screen.queryByText("컴파일 없음")).not.toBeInTheDocument();
     expect(screen.getByLabelText("원본 다운로드")).toHaveAttribute(
       "href",
       `/api/agent-files/${file.id}/file`,
