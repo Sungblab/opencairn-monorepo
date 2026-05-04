@@ -198,7 +198,7 @@ GitHub stars → HN/Reddit/Product Hunt 1회 spike → docs 조회 → self-host
 | +2주 | **CLA 도입 + `/ee` 1% 디렉터리 분리** (closed 1%는 비워두고 inbound 발생 시 채움) | §5.2 P2, §4.2 한국 대기업 천장 |
 | +1개월 | **Claude Code Skill 패키지 + Anthropic Skills 마켓 등록** (Codex/Cursor도 동일 spec → multi-platform) | §A.2 ai-native-research, §6.4 분산 |
 | +2개월 | **MCP server write Phase 2** (`create_note`, `start_research` 등) | Notion MCP 패리티 |
-| +3개월 | **Plan 9b billing engine + hosted tier 첫 출시** ($9~19/user/mo flat + BYOK 기본) | §5.1 Plausible 모델 |
+| +3개월 | **Hosted billing engine + hosted tier 첫 출시** ($9~19/user/mo flat + BYOK 기본) | §5.1 Plausible 모델 |
 | +6개월 | **Discord 커뮤니티 + 한국어/영어 콘텐츠 동시 운영** + HN/Product Hunt 1회 spike | §5.4 funnel |
 | +9~12개월 | **CSAP 파트너 IaaS(NHN/네이버클라우드) + ISMS-P 호스팅 법인 취득 검토** | §4.1 공공 진입, ARR 견인 시점에만 |
 

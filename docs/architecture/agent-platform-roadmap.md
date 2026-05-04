@@ -156,4 +156,4 @@ OpenCairn agent runtime/observability/integration 백로그. **2026-04-28 시점
 
 - 미사용 (production 호출 0건)
 - `runtime/langgraph_bridge.py` 는 외부 LangGraph 그래프를 받았을 때 동일한 `AgentEvent` 스트림으로 변환하는 호환 레이어로만 남김 — 외부 컨트리뷰터 호환성 차원
-- `CLAUDE.md` 의 "LangGraph per agent" 문구는 실제와 불일치 — **"Temporal + runtime.Agent"** 로 정정 필요 (별도 commit)
+- Older internal notes referred to "LangGraph per agent"; the public runtime direction is **Temporal + runtime.Agent**.

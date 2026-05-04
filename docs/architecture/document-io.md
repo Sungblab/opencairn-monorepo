@@ -104,4 +104,4 @@
 1. **Pyodide POC 먼저** (문서 수정 전에): python-docx/openpyxl/reportlab 휠 로드, 한글 DOCX 1개 생성, 각주/이미지 조합 검증
 2. POC 결과에 따라 §2.3 방향성 확정
 3. 뷰어 라이브러리 번들 크기·라이선스 실측
-4. 결정 완료 시점에 본 문서 → `docs/superpowers/specs/` 또는 ADR로 승격
+4. 결정 완료 시점에 본 문서 → `../contributing/roadmap.md` 또는 ADR로 승격

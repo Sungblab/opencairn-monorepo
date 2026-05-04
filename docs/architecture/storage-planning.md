@@ -1,7 +1,7 @@
 # Storage Planning
 
 > 마지막 업데이트: 2026-04-14
-> 관련 문서: `docs/superpowers/specs/2026-04-13-multi-llm-provider-design.md`
+> 관련 문서: `../contributing/roadmap.md`
 
 OpenCairn의 임베딩/벡터 DB 스토리지 요구사항과 Production 사이징 가이드.
 

@@ -4,10 +4,10 @@ Thanks for considering a contribution. OpenCairn is alpha — interfaces, schema
 
 ## Before you start
 
-1. Read `CLAUDE.md` and `docs/README.md` for orientation.
+1. Read `AGENTS.md` and `docs/README.md` for orientation.
 2. Walk through `docs/contributing/dev-guide.md` to set up your environment and learn the test commands you will be expected to pass.
-3. Check `docs/contributing/plans-status.md` — work is coordinated via numbered "plans" so you can see what is already in flight.
-4. If you use LLM coding tools, skim `docs/contributing/llm-antipatterns.md`. It captures recurring failure modes specific to this codebase (Plate v49, Drizzle, Gemini SDK, Hocuspocus, Temporal, Pyodide, …) and will save you hours.
+3. Check `docs/contributing/roadmap.md` and `docs/contributing/feature-registry.md` so you can see what is already implemented or in flight.
+4. If you use LLM coding tools, keep changes narrow and verify against the owning package tests. Internal agent handoffs and raw failure logs are not part of the public repo.
 
 ## Filing issues
 
@@ -48,7 +48,7 @@ docs(architecture): document context budget policy
 
 - **TypeScript** — ESLint + Prettier wired through Turbo. `pnpm lint` at the repo root runs everything.
 - **Python (worker)** — `ruff` for lint + format. `pytest` for tests, with the real Postgres / pgvector services running.
-- **Tests** — integration tests use a real database, not mocks. The mock/prod divergence rationale is in `docs/contributing/llm-antipatterns.md`.
+- **Tests** — integration tests use a real database, not mocks. Keep test setup close to the production boundary unless a unit test is intentionally isolating one function.
 - **i18n** — under `apps/web`, user-facing strings live in `messages/{locale}/*.json`. ESLint enforces this and `pnpm --filter @opencairn/web i18n:parity` runs in CI.
 
 ## License & Contributor License Agreement

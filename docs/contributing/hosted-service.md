@@ -2,7 +2,7 @@
 
 OpenCairn is dual-licensed (AGPL-3.0-or-later by default + optional commercial license — see [ADR-005](../architecture/adr/005-agplv3-dual-licensing.md), `LICENSE`, `LICENSE-COMMERCIAL.md`). Sungblab also operates a managed hosted service.
 
-**Hosting URL (임시)**: 상업 서비스 정식 출시 전에는 **`sungblab.com/opencairn`** 경로로 운영. 정식 출시 시 **`opencairn.com`**으로 이전 (도메인 확보 후).
+**Product URL**: hosted OpenCairn의 제품 도메인은 **`opencairn.com`**이다. 회사/블로그/법무 문서는 Sungblab 사이트에서 운영하고, OpenCairn 앱은 공개 env URL로 그 문서들을 링크한다.
 
 ---
 
@@ -24,11 +24,11 @@ Legal 문서와 블로그는 OSS 앱 모노레포에 넣지 않는다. hosted se
 이 앱은 `NEXT_PUBLIC_LEGAL_*_URL`, `NEXT_PUBLIC_BLOG_URL` 같은 공개 env URL로
 연결만 한다.
 
-현재 운영 기준으로 회사 사이트 도메인은 `sungblab.com`이고, 별도
-marketing/legal 사이트의 소스는
-`C:\Users\Sungbin\Documents\GitHub\sungblab-nextjs`다. OpenCairn 앱은
+현재 운영 기준으로 제품 랜딩/앱 도메인은 `opencairn.com`, 회사 사이트 도메인은
+`sungblab.com`이다. 별도 marketing/legal 사이트의 소스는 이 OSS 저장소에
+포함하지 않는다. OpenCairn 앱은
 `/privacy`, `/terms`, `/refund`, `/blog` 페이지를 직접 구현하지 않고,
-회사 사이트의 OpenCairn 섹션(`/opencairn/*`)으로 연결한다.
+회사 사이트의 OpenCairn 법무/블로그 페이지로 연결한다.
 
 ---
 
@@ -42,16 +42,20 @@ marketing/legal 사이트의 소스는
 - 운영 로그 / 사용자 데이터
 - hosted service 법적 문서 원문, 블로그/CMS, Meta/Google 광고·분석 운영 설정
 
-호스팅 서비스의 라이브 URL 예시 (정식 출시 시):
+호스팅 서비스의 라이브 URL 예시:
 
 | Content | URL |
 |---------|-----|
-| Privacy Policy | `sungblab.com/opencairn/legal/privacy` |
-| Terms of Service | `sungblab.com/opencairn/legal/terms` |
-| Pricing & Billing | `(host)/pricing` |
-| Blog | `sungblab.com/opencairn/blog` |
+| Product landing | `opencairn.com` |
+| Hosted app | `opencairn.com` (authenticated users redirect into the workspace app) |
+| API | `api.opencairn.com` |
+| Privacy Policy | `sungblab.com/legal/privacy` |
+| Terms of Service | `sungblab.com/legal/terms` |
+| Pricing & Billing | `opencairn.com/pricing` |
+| Blog | `sungblab.com/blog` |
 
-`(host)`는 현재 `sungblab.com/opencairn`, 정식 출시 시 `opencairn.com`.
+운영 환경에서는 위 URL을 `NEXT_PUBLIC_LEGAL_PRIVACY_URL`,
+`NEXT_PUBLIC_LEGAL_TERMS_URL`, `NEXT_PUBLIC_BLOG_URL` 등으로 주입한다.
 
 ---
 
@@ -66,12 +70,12 @@ Self-host 시:
 설치 절차와 production-ish compose profile 경로는
 [`dev-guide.md`](./dev-guide.md#self-hosted-compose-smoke).
 
-### Compose port exposure policy (S3-052)
+### Compose port exposure policy
 
-Ralph audit 2026-04-28 (`docs/review/2026-04-28-ralph-audit/CONSOLIDATED.md`
-**S3-052**) 가 `docker-compose.yml` 의 인프라 포트가 `0.0.0.0` 에 전부 published
-되어 있고 단일 노드 dev/self-host 구성에서 인증 레이어가 없음을 지적. 호스트가
-인터넷에 노출된 self-host 환경에서 외부 직결이 가능했음.
+OpenCairn의 단일 노드 dev/self-host 구성은 Postgres, Redis, Temporal, MinIO,
+Ollama 같은 인프라 서비스를 기본적으로 loopback에만 publish한다. 호스트가
+인터넷에 노출된 self-host 환경에서 인증 없는 인프라 포트가 외부 직결되지 않게
+하기 위한 정책이다.
 
 **현재 정책 — 인프라 포트는 디폴트 loopback bind, 운영자 명시 override만 외부 노출**:
 
@@ -183,4 +187,4 @@ TWITTER_HANDLE=
 ## Operator
 
 - 현재: **Sungblab** (개인) — `sungblab.com`
-- 정식 출시 후: **OpenCairn** (법인 또는 개인사업자) — `opencairn.com` (도메인 확보 + 사업자등록 완료 후 이관)
+- 제품 도메인: **OpenCairn** — `opencairn.com`

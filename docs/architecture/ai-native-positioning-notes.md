@@ -9,10 +9,10 @@
 ### 1. Company Brain
 - 분산 소스(이메일·Slack·티켓·DB·논문·웹) → ingest → enrichment(note_enrichments) → KG → 에이전트가 쿼리/실행
   가능한 "살아있는 지도"가 핵심. 단순 검색·문서 챗봇이 아니라 **운영 방식 자체의 표상**.
-- OpenCairn은 이미 ingest 8 activity + 12 agent + KG Phase 1·2 + Synthesis/Curator/Connector/Staleness/Narrator
+- OpenCairn은 이미 ingest activity, agent role inventory, KG surfaces, Synthesis/Curator/Connector/Staleness/Narrator
   까지 갖춰 Personal Brain으로는 작동 가능. **Team Brain으로 확장**할 때 진짜 그림이 됨.
 - 미진한 부분: 운영 의사결정 트레이스(환불 예외·인시던트 대응 등)를 캡처할 connector가 아직 없음.
-  Plan 8 Connector Foundation의 후속이 여기서 의미를 가짐.
+  connector foundation의 후속이 여기서 의미를 가짐.
 
 ### 2. Software for Agents
 - 인터넷 다음 1조 사용자는 사람이 아닌 에이전트. Forms·dashboard 대신 API/MCP/CLI 일급 시민화.
@@ -46,21 +46,21 @@
 ## 행동 가능한 것 (정식 plan 진입 시점)
 
 1. **MCP 서버** — read-only Phase 1 (`search_notes` + `get_note` + `list_projects` + workspace-scope 토큰).
-   현재 Plan 9b 이전 시점에서도 가능. spec 자료는 이미 충분.
-2. **Tool Template 공개 포맷** — Plan 6의 `packages/templates`를 외부 에이전트가 import 할 수 있는
+   hosted billing과 독립적으로 진행 가능. 공개 아키텍처 자료는 이미 충분.
+2. **Tool Template 공개 포맷** — `packages/templates`를 외부 에이전트가 import 할 수 있는
    "skill file" 포맷(MCP prompt resource? AGENTS.md 표준? Claude Code skill?)으로 정리.
    에세이의 "원시 노하우 → 스킬 파일" 메타포와 직결.
 3. **Closed-loop connector 확장** — 회의 녹화·티켓·인시던트 트레이스를 ingest 한 뒤 Synthesis 가
-   "산출물 ↔ 의도 차이"를 자동 플래그하는 루프. Plan 8 Connector Foundation 위 후속 spec.
+   "산출물 ↔ 의도 차이"를 자동 플래그하는 루프. connector foundation 위 후속 spec.
 
 ## 현실 체크
 
-- 위 3개 모두 **현재 진행 중인 두 병렬 세션(H6 + Plan 2E Phase B) 이후** 진입 가능.
+- 위 3개 모두 현재 진행 중인 feature work가 정리된 뒤 진입 가능.
 - 1번이 가장 작고 가장 큰 포지셔닝 효과 — 다음 plan 후보 0순위로 박아둠.
 - 2·3번은 1번 머지 후 brainstorming 필요.
 
 ## 출처
 - 외부 에세이 (2026-04-30 사용자 공유), 제목 미상.
 - 사내 연관 자료: `docs/architecture/agent-platform-roadmap.md`,
-  `docs/superpowers/specs/2026-04-09-opencairn-design.md`,
-  `docs/superpowers/specs/2026-04-20-agent-runtime-standard-design.md`.
+  `../contributing/roadmap.md`,
+  `../contributing/roadmap.md`.

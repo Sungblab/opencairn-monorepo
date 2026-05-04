@@ -63,23 +63,6 @@ function checkDocsIndexCodePaths(source) {
   }
 }
 
-function checkPlanStatusPlanFiles() {
-  const source = "docs/contributing/plans-status.md";
-  const text = read(source);
-  const planPattern = /`(20\d{2}-\d{2}-\d{2}[^`]+\.md)`/g;
-  for (const match of text.matchAll(planPattern)) {
-    const filename = match[1];
-    if (filename.includes("*")) continue;
-    const candidates = [
-      `docs/superpowers/plans/${filename}`,
-      `docs/superpowers/specs/${filename}`,
-    ];
-    if (!candidates.some((candidate) => exists(candidate))) {
-      report(source, filename, "missing plan/spec file referenced by status");
-    }
-  }
-}
-
 function checkFeatureRegistryPaths() {
   const source = "docs/contributing/feature-registry.md";
   const text = read(source);
@@ -96,7 +79,7 @@ function checkFeatureRegistryPaths() {
     ) {
       continue;
     }
-    if (!/^(apps|packages|docs|scripts|references|AGENTS\.md|CLAUDE\.md)/.test(raw)) {
+    if (!/^(apps|packages|docs|scripts|references|AGENTS\.md)/.test(raw)) {
       continue;
     }
     if (!exists(raw)) report(source, raw, "missing feature registry path");
@@ -112,7 +95,6 @@ for (const source of [
   checkDocsIndexCodePaths(source);
 }
 
-checkPlanStatusPlanFiles();
 checkFeatureRegistryPaths();
 
 if (errors.length > 0) {

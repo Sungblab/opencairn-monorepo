@@ -4,10 +4,9 @@
 `user_integrations.access_token_encrypted` (Google Drive, Notion, future
 providers). It also encrypts BYOK provider keys held in the same table.
 
-Until 2026-04-29 the key was effectively non-rotatable: decrypt only knew the
-current key, so swapping it silently turned every existing token into
-`{ registered: false }` (audit `2026-04-28-completion-claims-audit.md` Tier 5
-§5.2). This document covers the rotation procedure now that
+Earlier versions treated the key as effectively non-rotatable: decrypt only
+knew the current key, so swapping it silently turned every existing token into
+`{ registered: false }`. This document covers the rotation procedure now that
 `INTEGRATION_TOKEN_ENCRYPTION_KEY_OLD` is supported as a decrypt-only fallback.
 
 ## When to rotate

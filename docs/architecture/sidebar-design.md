@@ -2,7 +2,7 @@
 
 > **Status: Superseded (2026-04-23)**
 > This exploring draft was absorbed into the authoritative spec at
-> [`../superpowers/specs/2026-04-23-app-shell-redesign-design.md`](../superpowers/specs/2026-04-23-app-shell-redesign-design.md).
+> [`../contributing/roadmap.md`](../contributing/roadmap.md).
 > Kept for context on original decisions and iteration history.
 >
 > The superseding spec inherits:

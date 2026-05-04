@@ -70,7 +70,7 @@
 3. **MCP 서버로 OpenCairn 자체를 노출 → ChatGPT/Cursor/Claude/Codex 사용자의 self-host backing store** 가 됨. **Notion MCP의 OSS+self-host 대안 자리는 현재 비어있음**.
 
 ### C.3 진입 우선순위 (기술적)
-- **Tier 1 (작고 ROI 큼)**: Claude Code Skill 패키지 (`opencairn` skill — CLAUDE.md 요약 + invocable 패턴) → Anthropic Skills 마켓 등록. Codex/Cursor도 같은 spec 채택했으니 한 번 만들면 multi-platform.
+- **Tier 1 (작고 ROI 큼)**: 공개 contributor guide 기반의 `opencairn` coding-assistant skill 패키지. Codex/Cursor/Claude 계열 도구가 같은 public guide를 읽도록 맞춘다.
 - **Tier 2 (장기 표준)**: MCP 서버 (read-only Phase 1 → write Phase 2). OAuth 2.1 + workspace-scope 토큰. `mcp.opencairn.example.com` remote hosting + stdio 로컬 모두.
 - **Tier 3 (차별화)**: "decision trace" 1급 객체화 — Glean Knowledge Graph가 닿지 못한 영역(환불/인시던트/예외 결정 경로)을 12-agent + KG + provenance로 표상.
 

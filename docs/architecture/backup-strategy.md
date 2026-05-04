@@ -1,7 +1,7 @@
 # Backup & Recovery Strategy
 
 > 마지막 업데이트: 2026-05-03
-> 관련 문서: `docs/architecture/storage-planning.md`, `docs/superpowers/plans/2026-04-09-plan-1-foundation.md`
+> 관련 문서: `docs/architecture/storage-planning.md`, `../contributing/roadmap.md`
 
 OpenCairn의 데이터 백업, 복구, 사용자 데이터 포터빌리티 전략.
 
@@ -270,7 +270,7 @@ systemctl start postgresql
 
 ## 8a. Agent Runtime 리텐션 (2026-04-20 추가)
 
-Plan 12 (Agent Runtime Standard) 관련 데이터는 독립된 리텐션 정책을 가진다. 자세한 맥락: [`docs/superpowers/specs/2026-04-20-agent-runtime-standard-design.md`](../superpowers/specs/2026-04-20-agent-runtime-standard-design.md).
+Plan 12 (Agent Runtime Standard) 관련 데이터는 독립된 리텐션 정책을 가진다. 자세한 맥락: [`../contributing/roadmap.md`](../contributing/roadmap.md).
 
 | 데이터 | 위치 | 리텐션 | 삭제 주체 | 근거 |
 |---|---|---|---|---|

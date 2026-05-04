@@ -155,23 +155,23 @@ migration files, `packages/db/src/schema.ts`, `packages/shared`, or the same
 GitHub operations use local `git` and `gh`/`gh.exe`. Do not rely on a GitHub
 connector/plugin for commits, pushes, PRs, or issue updates.
 
-When publishing from WSL, prefer the Windows GitHub CLI credential bridge:
+When publishing from WSL on Windows, you can bridge to the Windows GitHub CLI
+credential helper. Adjust paths for your local installation:
 
 ```bash
-git config --global credential.helper /home/sungbin/.local/bin/git-credential-gh-windows
+git config --global credential.helper ~/.local/bin/git-credential-gh-windows
 git config --global --get-all credential.helper
 git ls-remote --heads origin main
 git push --dry-run origin <branch>
 ```
 
-The helper calls `'/mnt/c/Program Files/GitHub CLI/gh.exe' auth token` and does
-not store a token file. If WSL Git still fails with `could not read Username` or
-Windows Git Credential Manager cannot read a `/mnt/c/.../.git/worktrees/...`
-path, run Windows Git/GitHub CLI from the repo root instead:
+The helper should call the Windows `gh.exe auth token` command and should not
+store a token file. If WSL Git still fails with `could not read Username`, run
+Windows Git/GitHub CLI from the repo root instead:
 
 ```powershell
-cmd.exe /C "cd /d C:\Users\Sungbin\Documents\GitHub\opencairn-monorepo && git push -u origin <branch>"
-& "C:\Program Files\GitHub CLI\gh.exe" pr create --repo Sungblab/opencairn-monorepo --base main --head <branch> --draft --title "<title>" --body-file <file>
+cmd.exe /C "cd /d <repo-root> && git push -u origin <branch>"
+& "<path-to-gh.exe>" pr create --repo <owner>/<repo> --base main --head <branch> --draft --title "<title>" --body-file <file>
 ```
 
 ### Windows Verification Notes
@@ -391,8 +391,8 @@ pnpm dev:docker:reset    # 컨테이너 + 볼륨까지 삭제 (DB/MinIO 초기�
 
 One-shot bulk import at `/workspace/[slug]/import`. Feature flag:
 `FEATURE_IMPORT_ENABLED=true`. Full design in
-`docs/superpowers/specs/2026-04-22-ingest-source-expansion-design.md`
-(spec) and `docs/superpowers/plans/2026-04-22-ingest-source-expansion.md`
+`roadmap.md`
+(spec) and `roadmap.md`
 (plan).
 
 ### Google Drive setup
