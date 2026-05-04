@@ -84,6 +84,21 @@ def test_markdown_pages_and_attachments_become_manifest_nodes(tmp_path: Path) ->
     assert binaries[0]["meta"]["mime"] == "image/png"
 
 
+def test_markdown_parent_page_is_processed_before_child_page(tmp_path: Path) -> None:
+    manifest = _manifest(
+        tmp_path,
+        {
+            "Folder/File.md": "# Child",
+            "Folder.markdown": "# Parent",
+        },
+    )
+
+    parent = next(n for n in manifest["nodes"] if n["path"] == "Folder.markdown")
+    child = next(n for n in manifest["nodes"] if n["path"] == "Folder/File.md")
+    assert parent["idx"] < child["idx"]
+    assert child["parent_idx"] == parent["idx"]
+
+
 def test_frontmatter_is_captured(tmp_path: Path) -> None:
     manifest = _manifest(
         tmp_path,
@@ -93,6 +108,44 @@ def test_frontmatter_is_captured(tmp_path: Path) -> None:
     page = manifest["nodes"][0]
     assert page["meta"]["frontmatter"] == {"tags": ["research"], "draft": True}
     assert page["meta"]["source_format"] == "markdown"
+
+
+def test_malformed_frontmatter_is_ignored(tmp_path: Path) -> None:
+    manifest = _manifest(
+        tmp_path,
+        {"Note.md": "---\ntags: [broken\n---\n# Body"},
+    )
+
+    page = manifest["nodes"][0]
+    assert "frontmatter" not in page["meta"]
+    assert page["meta"]["source_format"] == "markdown"
+
+
+def test_invalid_utf8_markdown_does_not_crash_discovery(tmp_path: Path) -> None:
+    manifest = _manifest(
+        tmp_path,
+        {"Note.md": b"# Title\n\nbad byte: \xff\n"},
+    )
+
+    assert manifest["nodes"][0]["path"] == "Note.md"
+    assert manifest["nodes"][0]["kind"] == "page"
+
+
+def test_rejects_manifest_above_temporal_payload_budget(tmp_path: Path) -> None:
+    zip_path = tmp_path / "large.zip"
+    staging = tmp_path / "staging"
+    _zip(zip_path, {"Note.md": "# Body"})
+
+    with pytest.raises(ZipDefenseError, match="manifest_too_large"):
+        unzip_and_walk_markdown(
+            str(zip_path),
+            str(staging),
+            job_id="job-1",
+            original_name="vault.zip",
+            max_files=100,
+            max_uncompressed=1024 * 1024,
+            max_manifest_bytes=1,
+        )
 
 
 def test_wikilink_targets_are_normalized_and_unambiguous(tmp_path: Path) -> None:
