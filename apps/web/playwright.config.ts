@@ -22,6 +22,9 @@ const mockApiSpecs = [
   "plan-2d-save-suggestion.spec.ts",
   "source-viewer-smoke.spec.ts",
   "live-ingest-visualization.spec.ts",
+  "graph-views.spec.ts",
+  "graph.spec.ts",
+  "plan8-agents.spec.ts",
 ];
 const useMockApi =
   process.env.OPENCAIRN_E2E_MOCK_API === "1" ||

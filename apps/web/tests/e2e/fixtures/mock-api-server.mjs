@@ -214,6 +214,13 @@ const server = http.createServer(async (req, res) => {
     });
   }
 
+  const graphExpandMatch = url.pathname.match(
+    /^\/api\/projects\/([^/]+)\/graph\/expand\/([^/]+)$/,
+  );
+  if (graphExpandMatch && graphExpandMatch[1] === seed.projectId) {
+    return json(res, 200, { nodes: [], edges: [] });
+  }
+
   if (url.pathname === `/api/notes/${seed.noteId}`) {
     return json(res, 200, {
       id: seed.noteId,
@@ -501,10 +508,50 @@ const server = http.createServer(async (req, res) => {
           },
         ],
       },
-      agentRuns: [],
-      suggestions: [],
-      staleAlerts: [],
-      audioFiles: [],
+      agentRuns: [
+        {
+          runId: "e2e-run-synthesis",
+          agentName: "synthesis",
+          workflowId: "e2e-synthesis-workflow",
+          status: "completed",
+          startedAt: new Date("2026-05-04T00:20:00.000Z").toISOString(),
+          endedAt: new Date("2026-05-04T00:21:00.000Z").toISOString(),
+          totalCostKrw: 0,
+          errorMessage: null,
+        },
+      ],
+      suggestions: [
+        {
+          id: "e2e-suggestion",
+          type: "synthesis_insight",
+          payload: { title: "E2E insight", confidence: 0.9 },
+          status: "open",
+          createdAt: new Date("2026-05-04T00:22:00.000Z").toISOString(),
+          resolvedAt: null,
+        },
+      ],
+      staleAlerts: [
+        {
+          id: "e2e-stale-alert",
+          noteId: seed.noteId,
+          noteTitle: "E2E Mock Note",
+          stalenessScore: 0.37,
+          reason: "Fixture stale signal",
+          detectedAt: new Date("2026-05-04T00:23:00.000Z").toISOString(),
+          reviewedAt: null,
+        },
+      ],
+      audioFiles: [
+        {
+          id: "e2e-audio",
+          noteId: seed.noteId,
+          noteTitle: "E2E Mock Note",
+          durationSec: 92,
+          voices: [{ name: "Host", style: "educational" }],
+          createdAt: new Date("2026-05-04T00:24:00.000Z").toISOString(),
+          urlPath: "/api/agents/plan8/audio-files/e2e-audio/file",
+        },
+      ],
     });
   }
 
