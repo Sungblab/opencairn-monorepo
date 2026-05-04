@@ -3,6 +3,7 @@ import {
   synthesisFormatValues,
   synthesisTemplateValues,
   createSynthesisRunSchema,
+  publishSynthesisDocumentSchema,
   synthesisStreamEventSchema,
 } from "../src/synthesis-types";
 
@@ -68,5 +69,10 @@ describe("synthesis types", () => {
     expect([...synthesisTemplateValues].sort()).toEqual(
       ["acm", "apa", "ieee", "korean_thesis", "report"],
     );
+  });
+
+  it("parses a project-object publish request for a completed document", () => {
+    const parsed = publishSynthesisDocumentSchema.parse({ format: "md" });
+    expect(parsed.format).toBe("md");
   });
 });

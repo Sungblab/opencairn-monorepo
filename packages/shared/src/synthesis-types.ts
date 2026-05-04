@@ -29,6 +29,11 @@ export const resynthesizeSchema = z.object({
   userPrompt: z.string().min(1).max(4000),
 });
 
+export const publishSynthesisDocumentSchema = z.object({
+  format: z.enum(synthesisDocumentFormatValues).optional(),
+});
+export type PublishSynthesisDocumentInput = z.infer<typeof publishSynthesisDocumentSchema>;
+
 export const synthesisStreamEventSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("queued"), runId: z.string().uuid() }),
   z.object({ kind: z.literal("fetching_sources"), count: z.number().int().nonnegative() }),
