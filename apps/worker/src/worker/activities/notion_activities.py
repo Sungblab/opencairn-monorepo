@@ -537,7 +537,7 @@ async def convert_notion_md_to_plate(payload: dict[str, Any]) -> None:
 
     staging_dir = Path(payload["staging_dir"])
     md_path = staging_dir / payload["staging_path"]
-    md_text = md_path.read_text(encoding="utf-8")
+    md_text = md_path.read_text(encoding="utf-8-sig", errors="replace")
 
     def resolve_asset(_href: str) -> str | None:
         # Placeholder: Task 9 will upload referenced assets to MinIO and

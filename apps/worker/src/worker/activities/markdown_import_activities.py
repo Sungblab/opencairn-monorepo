@@ -5,6 +5,7 @@ exports all enter as a Markdown package rather than provider identities.
 """
 from __future__ import annotations
 
+import json
 import os
 import zipfile
 from pathlib import Path
@@ -44,6 +45,20 @@ def _is_markdown_file(path: Path) -> bool:
     return path.is_file() and path.suffix.lower() in {".md", ".markdown"}
 
 
+def _walk_sort_key(staging: Path, path: Path) -> tuple[tuple[str, ...], str, str]:
+    rel = path.relative_to(staging)
+    logical_path = rel.parent / path.stem if _is_markdown_file(path) else rel
+    return (
+        tuple(part.lower() for part in logical_path.parts),
+        path.suffix.lower(),
+        str(rel).lower(),
+    )
+
+
+_DEFAULT_MAX_MANIFEST_BYTES = 3_500_000
+_MAX_FRONTMATTER_BYTES = 4096
+
+
 def _parse_frontmatter(text: str) -> dict[str, Any]:
     if not text.startswith("---\n") and not text.startswith("---\r\n"):
         return {}
@@ -52,7 +67,15 @@ def _parse_frontmatter(text: str) -> dict[str, Any]:
     if end < 0:
         return {}
     raw = normalized[4:end]
-    parsed = yaml.safe_load(raw) if raw.strip() else {}
+    if (
+        len(raw) > _MAX_FRONTMATTER_BYTES
+        or len(raw.encode("utf-8", errors="replace")) > _MAX_FRONTMATTER_BYTES
+    ):
+        return {}
+    try:
+        parsed = yaml.safe_load(raw) if raw.strip() else {}
+    except yaml.YAMLError:
+        return {}
     return parsed if isinstance(parsed, dict) else {}
 
 
@@ -70,6 +93,7 @@ def unzip_and_walk_markdown(
     original_name: str,
     max_files: int,
     max_uncompressed: int,
+    max_manifest_bytes: int = _DEFAULT_MAX_MANIFEST_BYTES,
 ) -> dict[str, Any]:
     staging = Path(staging_dir)
     with zipfile.ZipFile(zip_path) as zf:
@@ -84,29 +108,42 @@ def unzip_and_walk_markdown(
         nodes.append({"idx": idx, **kw})
         return idx
 
-    markdown_files = sorted(p for p in staging.rglob("*") if _is_markdown_file(p))
+    markdown_files: list[Path] = []
+    binary_files: list[Path] = []
+    for path in sorted(
+        (p for p in staging.rglob("*") if p.is_file()),
+        key=lambda p: _walk_sort_key(staging, p),
+    ):
+        if _is_markdown_file(path):
+            markdown_files.append(path)
+        else:
+            binary_files.append(path)
+
     for md in markdown_files:
         rel = md.relative_to(staging)
         rel_path = str(rel).replace(os.sep, "/")
         parent_idx = dir_page.get(rel.parent)
-        text = md.read_text(encoding="utf-8-sig")
+        text = md.read_text(encoding="utf-8-sig", errors="replace")
         display = _display_name(md)
+        meta = {
+            "md_path": rel_path,
+            "source_format": "markdown",
+        }
+        frontmatter = _parse_frontmatter(text)
+        if frontmatter:
+            meta["frontmatter"] = frontmatter
         page_idx = emit(
             parent_idx=parent_idx,
             kind="page",
             path=rel_path,
             display_name=display,
-            meta={
-                "md_path": rel_path,
-                "frontmatter": _parse_frontmatter(text),
-                "source_format": "markdown",
-            },
+            meta=meta,
         )
         dir_page[rel.parent / md.stem] = page_idx
         for key in _link_keys_for_page(rel_path, display):
             candidate_links.setdefault(key, []).append(page_idx)
 
-    for f in sorted(p for p in staging.rglob("*") if p.is_file() and not _is_markdown_file(p)):
+    for f in binary_files:
         rel = f.relative_to(staging)
         rel_path = str(rel).replace(os.sep, "/")
         parent_idx = dir_page.get(rel.parent)
@@ -127,13 +164,21 @@ def unzip_and_walk_markdown(
         key: values[0] for key, values in candidate_links.items() if len(values) == 1
     }
 
-    return {
+    manifest = {
         "job_id": job_id,
         "root_display_name": original_name,
         "nodes": nodes,
         "uuid_link_map": {},
         "link_title_map": link_title_map,
     }
+    manifest_bytes = len(
+        json.dumps(manifest, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    )
+    if manifest_bytes > max_manifest_bytes:
+        raise ZipDefenseError(
+            f"manifest_too_large:{manifest_bytes}>{max_manifest_bytes}"
+        )
+    return manifest
 
 
 @activity.defn(name="unzip_markdown_export")
@@ -149,6 +194,9 @@ async def unzip_markdown_export(payload: dict[str, Any]) -> dict[str, Any]:
         original_name=payload.get("original_name", "Markdown export"),
         max_files=int(payload["max_files"]),
         max_uncompressed=int(payload["max_uncompressed"]),
+        max_manifest_bytes=int(
+            payload.get("max_manifest_bytes", _DEFAULT_MAX_MANIFEST_BYTES)
+        ),
     )
 
 
