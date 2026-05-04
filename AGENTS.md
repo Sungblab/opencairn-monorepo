@@ -68,6 +68,12 @@ lower levels inherit and refine permissions.
   values must be env/default-pattern driven. Hosted-service legal and blog
   pages live outside the OSS app and are linked by public env URLs.
 
+## GitHub Operations
+
+Do not use GitHub connector/MCP tools for this repository. Use local `git` and
+the authenticated `gh` CLI for PR creation, PR inspection, review replies,
+review-thread resolution, reruns, and merge-state checks.
+
 ## Commands
 
 ```bash
