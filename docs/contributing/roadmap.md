@@ -35,6 +35,9 @@ shape is:
 
 ## Active Themes
 
+- Polish the Document Generation IDE flow so generated project files are easier
+  to preview, edit, version, download, and bridge into existing Canvas/code
+  surfaces.
 - Improve grounded retrieval quality and evidence presentation.
 - Use the OpenAI-compatible provider and parser gateway benchmark path to guide
   later provider routing and ingest-default changes.
@@ -43,6 +46,22 @@ shape is:
 - Polish import/export flows without adding provider-specific UX too early.
 - Keep the OSS app clean: legal, blog, hosted analytics, and product marketing
   copy are linked from external hosted URLs.
+
+## Near-Term Development Queue
+
+The current next slices are intentionally split so contributors can work without
+creating duplicate surfaces:
+
+1. Document Generation IDE Flow Phase 1: deepen the existing generated-file
+   viewer and project-object UX instead of adding another artifact store.
+2. Agentic workflow E2E reliability: keep mock API fixtures aligned with the
+   current AppShell, Agent Panel, Plan8, and graph contracts.
+3. Grounded evidence browser coverage: add seeded graph/card evidence smokes
+   around the already implemented evidence APIs and UI states.
+4. Parser Gateway benchmark quality scoring: keep it benchmark-only until
+   fixture data justifies changing ingest defaults.
+5. Live-stack E2E split: separate DB, Temporal, and object-storage smokes from
+   lightweight mocked browser checks.
 
 ## Public Completion Standard
 
