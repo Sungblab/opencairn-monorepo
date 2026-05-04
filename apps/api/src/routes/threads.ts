@@ -11,6 +11,7 @@ import {
   asc,
   isNull,
   notes,
+  sql,
 } from "@opencairn/db";
 import { requireAuth } from "../middleware/auth";
 import { canRead } from "../lib/permissions";
@@ -249,7 +250,7 @@ export const threadRoutes = new Hono<AppEnv>()
       // pre-send slot for the entire stream window.
       await db
         .update(chatThreads)
-        .set({ updatedAt: new Date() })
+        .set({ updatedAt: sql`now()` })
         .where(eq(chatThreads.id, id));
 
       const { id: agentId } = await createStreamingAgentMessage(id, mode);

@@ -1,6 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vitest";
+
+vi.mock("../src/lib/s3.js", () => ({
+  uploadObject: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { createApp } from "../src/app.js";
-import { db, chatThreads, chatMessages, eq, asc } from "@opencairn/db";
+import { db, agentFiles, chatThreads, chatMessages, eq, asc } from "@opencairn/db";
 import { __setRunAgentForTest } from "../src/routes/threads.js";
 import type { AgentChunk } from "../src/lib/agent-pipeline.js";
 import { seedWorkspace, seedMultiRoleWorkspace, type SeedResult, type SeedMultiRoleResult } from "./helpers/seed.js";
@@ -67,6 +72,27 @@ async function* fakeAgentStream(opts: {
   for (const ch of `echo:${opts.userMessage.content}`) {
     yield { type: "text", payload: { delta: ch } };
   }
+  yield { type: "done", payload: {} };
+}
+
+async function* fakeAgentFileStream(): AsyncGenerator<AgentChunk> {
+  yield { type: "status", payload: { phrase: "writing file" } };
+  yield {
+    type: "agent_file",
+    payload: {
+      files: [
+        {
+          filename: "agent-brief.md",
+          title: "Agent Brief",
+          kind: "markdown",
+          mimeType: "text/markdown",
+          content: "# Agent Brief\n\nGenerated from the agent workflow.",
+          startIngest: false,
+        },
+      ],
+    },
+  };
+  yield { type: "text", payload: { delta: "Created Agent Brief." } };
   yield { type: "done", payload: {} };
 }
 
@@ -158,6 +184,80 @@ describe("Threads messages — happy path", () => {
     expect(after!.updatedAt.getTime()).toBeGreaterThan(
       before!.updatedAt.getTime(),
     );
+  });
+
+  it("turns an agent file chunk into project object events, tree-backed row, and persisted metadata", async () => {
+    __setRunAgentForTest(fakeAgentFileStream);
+    const threadId = await createThread(ctx.workspaceId, ctx.userId);
+
+    const res = await authedFetch(`/api/threads/${threadId}/messages`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({
+        content: "make a brief",
+        mode: "auto",
+        scope: { projectId: ctx.projectId },
+      }),
+    });
+    expect(res.status).toBe(200);
+
+    const events = parseSseEvents(await res.text());
+    const created = events.find((e) => e.event === "project_object_created");
+    const legacy = events.find((e) => e.event === "agent_file_created");
+    expect(created?.data).toMatchObject({
+      type: "project_object_created",
+      object: {
+        objectType: "agent_file",
+        title: "Agent Brief",
+        filename: "agent-brief.md",
+        kind: "markdown",
+        mimeType: "text/markdown",
+        projectId: ctx.projectId,
+      },
+    });
+    expect(legacy?.data).toMatchObject({
+      type: "agent_file_created",
+      file: {
+        title: "Agent Brief",
+        filename: "agent-brief.md",
+        projectId: ctx.projectId,
+        workspaceId: ctx.workspaceId,
+        source: "agent_chat",
+      },
+    });
+
+    const fileId = (created!.data as { object: { id: string } }).object.id;
+    const [file] = await db
+      .select()
+      .from(agentFiles)
+      .where(eq(agentFiles.id, fileId));
+    expect(file).toMatchObject({
+      id: fileId,
+      workspaceId: ctx.workspaceId,
+      projectId: ctx.projectId,
+      title: "Agent Brief",
+      filename: "agent-brief.md",
+      source: "agent_chat",
+      ingestStatus: "not_started",
+    });
+    expect(file!.chatThreadId).toBe(threadId);
+
+    const rows = await db
+      .select()
+      .from(chatMessages)
+      .where(eq(chatMessages.threadId, threadId))
+      .orderBy(asc(chatMessages.createdAt));
+    expect(rows).toHaveLength(2);
+    const content = rows[1]!.content as {
+      agent_files?: Array<{ id: string }>;
+      project_objects?: Array<{ id: string; objectType: string }>;
+    };
+    expect(content.agent_files?.[0]?.id).toBe(fileId);
+    expect(content.project_objects?.[0]).toMatchObject({
+      id: fileId,
+      objectType: "agent_file",
+    });
+    expect(file!.chatMessageId).toBe(rows[1]!.id);
   });
 });
 
