@@ -136,6 +136,7 @@ export async function* runChat(opts: {
       maxTokens:
         retrieval?.policy.contextMaxTokens ?? envInt("CHAT_CONTEXT_MAX_TOKENS", 6000),
       maxChunksPerNote: retrieval?.policy.maxChunksPerNote,
+      maxChunksPerProject: retrieval?.policy.maxChunksPerProject,
     });
 
     const citations: Citation[] = evidenceBundle.items.map((item) => ({

@@ -20,6 +20,7 @@ export type AdaptiveRagPolicy = {
   graphLimit: number;
   contextMaxTokens: number;
   maxChunksPerNote: number;
+  maxChunksPerProject?: number;
   verifierRequired: boolean;
   reasons: AdaptiveRagReason[];
 };
@@ -46,6 +47,7 @@ export type AdaptiveRagPolicySummary = {
     | "graphLimit"
     | "contextMaxTokens"
     | "maxChunksPerNote"
+    | "maxChunksPerProject"
     | "verifierRequired"
   >;
 };
@@ -82,6 +84,7 @@ export function planAdaptiveRagPolicy(input: {
       graphLimit: 0,
       contextMaxTokens: 0,
       maxChunksPerNote: 0,
+      maxChunksPerProject: undefined,
       verifierRequired: false,
       reasons: ["rag_off"],
     };
@@ -154,6 +157,7 @@ export function planAdaptiveRagPolicy(input: {
       comparison,
       workspaceFanout,
     }),
+    maxChunksPerProject: maxChunksPerProject({ workspaceFanout }),
     verifierRequired:
       graphDepth > 0 || comparison || researchDepth || workspaceFanout,
     reasons: Array.from(reasons),
@@ -174,6 +178,7 @@ export function summarizeAdaptiveRagPolicy(
       graphLimit: policy.graphLimit,
       contextMaxTokens: policy.contextMaxTokens,
       maxChunksPerNote: policy.maxChunksPerNote,
+      maxChunksPerProject: policy.maxChunksPerProject,
       verifierRequired: policy.verifierRequired,
     },
   };
@@ -249,6 +254,12 @@ function maxChunksPerNote(input: {
   if (input.graphDepth === 2) return 3;
   if (input.comparison || input.researchDepth) return 3;
   return 2;
+}
+
+function maxChunksPerProject(input: {
+  workspaceFanout: boolean;
+}): number | undefined {
+  return input.workspaceFanout ? 1 : undefined;
 }
 
 function topK(mode: RagMode): number {

@@ -24,6 +24,7 @@ export type SourceSpan = {
 export type RetrievalCandidate = {
   id: string;
   noteId: string;
+  projectId?: string;
   chunkId: string | null;
   title: string;
   headingPath: string;
@@ -43,6 +44,7 @@ export type RetrievalCandidate = {
 export type EvidenceItem = {
   citationIndex: number;
   noteId: string;
+  projectId?: string;
   chunkId: string | null;
   title: string;
   headingPath: string;
@@ -66,6 +68,7 @@ export type EvidenceBundle = {
 
 export type RetrievalHitLike = {
   noteId: string;
+  projectId?: string;
   title: string;
   snippet: string;
   score: number;
@@ -94,6 +97,7 @@ export function candidateFromRetrievalHit(
   return {
     id,
     noteId: hit.noteId,
+    projectId: hit.projectId,
     chunkId,
     title: hit.title,
     headingPath: hit.headingPath ?? "",
@@ -109,6 +113,33 @@ export function candidateFromRetrievalHit(
     evidenceId: hit.evidenceId ?? id,
     support: hit.support ?? "supports",
   };
+}
+
+export function spreadByProject<T extends { id: string; projectId?: string }>(
+  candidates: T[],
+): T[] {
+  const buckets = new Map<string, T[]>();
+  const order: string[] = [];
+  for (const candidate of candidates) {
+    const key = candidate.projectId ?? `candidate:${candidate.id}`;
+    if (!buckets.has(key)) {
+      buckets.set(key, []);
+      order.push(key);
+    }
+    buckets.get(key)!.push(candidate);
+  }
+
+  const result: T[] = [];
+  for (let depth = 0; ; depth += 1) {
+    let added = false;
+    for (const key of order) {
+      const candidate = buckets.get(key)![depth];
+      if (!candidate) continue;
+      result.push(candidate);
+      added = true;
+    }
+    if (!added) return result;
+  }
 }
 
 export function clamp01(value: number): number {

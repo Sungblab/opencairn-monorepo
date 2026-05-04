@@ -390,6 +390,89 @@ const ADAPTIVE_RAG_EVAL_FIXTURES: AdaptiveRagEvalFixture[] = [
       },
     },
   },
+  {
+    name: "workspace fanout project diversity",
+    query: "workspace 전체에서 alpha 근거를 정리해줘",
+    ragMode: "expand",
+    scope: workspaceScope,
+    chips: [],
+    projectCount: 3,
+    hits: [
+      hit(
+        "fanout-hot-a",
+        "note-hot-a",
+        "Hot project strongest",
+        "alpha evidence strongest",
+        { vector: 0.99, bm25: 0.95 },
+        "p-hot",
+      ),
+      hit(
+        "fanout-hot-b",
+        "note-hot-b",
+        "Hot project second",
+        "alpha evidence second",
+        { vector: 0.98 },
+        "p-hot",
+      ),
+      hit(
+        "fanout-hot-c",
+        "note-hot-c",
+        "Hot project third",
+        "alpha evidence third",
+        { vector: 0.97 },
+        "p-hot",
+      ),
+      hit(
+        "fanout-cold-a",
+        "note-cold-a",
+        "Cold project evidence",
+        "alpha workspace evidence",
+        { vector: 0.72 },
+        "p-cold-a",
+      ),
+      hit(
+        "fanout-cold-b",
+        "note-cold-b",
+        "Another project evidence",
+        "alpha source summary",
+        { bm25: 0.7 },
+        "p-cold-b",
+      ),
+    ],
+    expectedReport: {
+      policySummary: {
+        route: "workspace_fanout",
+        reasons: ["research_depth", "workspace_fanout"],
+        retrievalShape: {
+          ragMode: "expand",
+          resultTopK: 12,
+          seedTopK: 12,
+          graphDepth: 1,
+          graphLimit: 12,
+          contextMaxTokens: 6000,
+          maxChunksPerNote: 1,
+          verifierRequired: true,
+        },
+      },
+      packedEvidenceStats: {
+        contextMaxTokens: 6000,
+        maxChunksPerNote: 1,
+        itemCount: 3,
+        totalCandidates: 5,
+        omittedCandidates: 2,
+        itemEvidenceIds: [
+          "fanout-hot-a",
+          "fanout-cold-a",
+          "fanout-cold-b",
+        ],
+        perNoteCounts: {
+          "note-hot-a": 1,
+          "note-cold-a": 1,
+          "note-cold-b": 1,
+        },
+      },
+    },
+  },
 ];
 
 describe("adaptive RAG eval harness", () => {
@@ -409,6 +492,7 @@ function hit(
   title: string,
   snippet: string,
   channelScores: RetrievalCandidate["channelScores"],
+  projectId?: string,
 ): RetrievalHitLike {
   const maxScore = Math.max(
     ...Object.values(channelScores).map((value) => value ?? 0),
@@ -430,5 +514,6 @@ function hit(
     sourceSpan: null,
     evidenceId: id,
     support: channelScores.graph != null ? "mentions" : "supports",
-  };
+    ...(projectId ? { projectId } : {}),
+  } as RetrievalHitLike;
 }

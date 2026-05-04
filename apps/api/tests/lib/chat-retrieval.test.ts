@@ -568,4 +568,64 @@ describe("retrieveWithPolicy adaptive policy propagation", () => {
       else process.env.CHAT_RAG_ADAPTIVE_CONTEXT_TOKENS = env.context;
     }
   });
+
+  it("spreads workspace fanout hits by project before resultTopK truncation", async () => {
+    const env = {
+      topK: process.env.CHAT_RAG_TOP_K_EXPAND,
+    };
+    try {
+      process.env.CHAT_RAG_TOP_K_EXPAND = "3";
+      dbMod.db.execute.mockResolvedValueOnce({
+        rows: [{ id: "p-hot" }, { id: "p-cold" }],
+      });
+      chunkSearch.projectChunkHybridSearch.mockImplementation(
+        async (opts: { projectId: string }) => {
+          if (opts.projectId === "p-hot") {
+            return [
+              chunkHit("hot-1", "hot-note-1", 0.99),
+              chunkHit("hot-2", "hot-note-2", 0.98),
+              chunkHit("hot-3", "hot-note-3", 0.97),
+            ];
+          }
+          return [chunkHit("cold-1", "cold-note-1", 0.72)];
+        },
+      );
+
+      const result = await retrieveWithPolicy({
+        workspaceId: "ws-1",
+        query: "workspace 전체에서 alpha 근거 정리해줘",
+        ragMode: "expand",
+        scope: { type: "workspace", workspaceId: "ws-1" },
+        chips: [],
+      });
+
+      expect(result.policySummary.route).toBe("workspace_fanout");
+      expect(result.hits.map((hit) => hit.noteId)).toEqual([
+        "hot-note-1",
+        "cold-note-1",
+        "hot-note-2",
+      ]);
+      expect(result.hits.map((hit) => hit.projectId)).toEqual([
+        "p-hot",
+        "p-cold",
+        "p-hot",
+      ]);
+    } finally {
+      if (env.topK === undefined) delete process.env.CHAT_RAG_TOP_K_EXPAND;
+      else process.env.CHAT_RAG_TOP_K_EXPAND = env.topK;
+    }
+  });
 });
+
+function chunkHit(chunkId: string, noteId: string, score: number) {
+  return {
+    chunkId,
+    noteId,
+    title: noteId,
+    headingPath: "Eval",
+    snippet: "alpha workspace evidence",
+    rrfScore: score,
+    vectorScore: score,
+    bm25Score: null,
+  };
+}
