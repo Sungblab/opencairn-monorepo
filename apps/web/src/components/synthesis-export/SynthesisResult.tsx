@@ -77,14 +77,16 @@ export function SynthesisResult({ runId, state, onResynthesize }: Props) {
     return null;
   }
 
-  const href = `/api/synthesis-export/runs/${runId}/document?format=${state.format}`;
+  const encodedRunId = encodeURIComponent(runId);
+  const encodedFormat = encodeURIComponent(state.format);
+  const href = `/api/synthesis-export/runs/${encodedRunId}/document?format=${encodedFormat}`;
 
   async function publishToProject() {
     if (!state.format || publishing) return;
     setPublishing(true);
     try {
       const res = await fetch(
-        `/api/synthesis-export/runs/${runId}/project-object`,
+        `/api/synthesis-export/runs/${encodedRunId}/project-object`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
