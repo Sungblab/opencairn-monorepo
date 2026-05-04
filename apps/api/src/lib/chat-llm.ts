@@ -274,11 +274,10 @@ function verifyRuntimeAnswer(input: {
 function minCitedProjectsForBundle(
   evidenceBundle: ReturnType<typeof packEvidence>,
 ): number | undefined {
-  const projects = new Set(
-    evidenceBundle.items
-      .map((item) => item.projectId)
-      .filter((projectId): projectId is string => Boolean(projectId)),
-  );
+  const projects = new Set<string>();
+  for (const item of evidenceBundle.items) {
+    if (item.projectId) projects.add(item.projectId);
+  }
   return projects.size > 1 ? 2 : undefined;
 }
 

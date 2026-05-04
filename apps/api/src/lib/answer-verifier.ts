@@ -193,7 +193,7 @@ export function verifyGroundedAnswer(
   );
   if (requiredProjectCount > 0 && citedProjects.length < requiredProjectCount) {
     findings.push({
-      sentence: "cited project coverage",
+      sentence: input.answer.trim(),
       reason: "insufficient_project_coverage",
       labels: citedLabels,
     });
@@ -231,10 +231,9 @@ function requiredCitedProjectCount(
   ledger: ChatSourceLedger,
 ): number {
   if (!minCitedProjects || minCitedProjects < 2) return 0;
-  const availableProjects = new Set(
-    ledger.entries
-      .map((entry) => entry.projectId)
-      .filter((projectId): projectId is string => Boolean(projectId)),
-  );
+  const availableProjects = new Set<string>();
+  for (const entry of ledger.entries) {
+    if (entry.projectId) availableProjects.add(entry.projectId);
+  }
   return Math.min(minCitedProjects, availableProjects.size);
 }

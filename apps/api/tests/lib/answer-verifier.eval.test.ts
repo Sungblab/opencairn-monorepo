@@ -146,7 +146,8 @@ describe("answer verifier project diversity", () => {
 
     expect(result.verdict).toBe("warn");
     expect(result.findings).toContainEqual({
-      sentence: "cited project coverage",
+      sentence:
+        "Workspace fanout should cite alpha rollout details [S1]. Alpha project evidence covers rollout details [S1].",
       reason: "insufficient_project_coverage",
       labels: ["S1"],
     });
