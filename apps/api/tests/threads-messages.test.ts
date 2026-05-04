@@ -338,6 +338,10 @@ describe("Threads messages — happy path", () => {
       yield { type: "text", payload: { delta: "before" } };
       await cancelChatRun(runId, ctx.userId);
       await new Promise<void>((resolve) => {
+        if (opts.signal?.aborted) {
+          resolve();
+          return;
+        }
         opts.signal?.addEventListener("abort", () => resolve(), { once: true });
       });
       yield { type: "text", payload: { delta: "after" } };
