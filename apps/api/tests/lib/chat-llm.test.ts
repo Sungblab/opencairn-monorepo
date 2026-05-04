@@ -2,11 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("../../src/lib/chat-retrieval", () => ({
   retrieve: vi.fn(),
+  retrieveWithPolicy: vi.fn(),
 }));
 
 const { runChat } = await import("../../src/lib/chat-llm.js");
 const retrievalMod = (await import("../../src/lib/chat-retrieval.js")) as unknown as {
   retrieve: ReturnType<typeof vi.fn>;
+  retrieveWithPolicy: ReturnType<typeof vi.fn>;
 };
 
 const fakeProvider = {
@@ -16,9 +18,37 @@ const fakeProvider = {
 
 beforeEach(() => {
   retrievalMod.retrieve.mockReset();
+  retrievalMod.retrieveWithPolicy.mockReset();
   fakeProvider.embed.mockReset();
   fakeProvider.streamGenerate.mockReset();
 });
+
+function retrievalResult(hits: unknown[]) {
+  return {
+    hits,
+    policy: {
+      ragMode: "strict",
+      resultTopK: 5,
+      seedTopK: 5,
+      graphDepth: 0,
+      graphLimit: 0,
+      contextMaxTokens: 6000,
+      maxChunksPerNote: 2,
+      verifierRequired: false,
+      reasons: [],
+    },
+  };
+}
+
+function retrievalResultWithPolicy(hits: unknown[], policy: Record<string, unknown>) {
+  return {
+    ...retrievalResult(hits),
+    policy: {
+      ...retrievalResult([]).policy,
+      ...policy,
+    },
+  };
+}
 
 async function collect<T>(gen: AsyncGenerator<T>): Promise<T[]> {
   const out: T[] = [];
@@ -28,7 +58,7 @@ async function collect<T>(gen: AsyncGenerator<T>): Promise<T[]> {
 
 describe("runChat happy path", () => {
   it("emits status → citation → text → usage → done in order", async () => {
-    retrievalMod.retrieve.mockResolvedValue([
+    retrievalMod.retrieveWithPolicy.mockResolvedValue(retrievalResult([
       {
         noteId: "n1",
         chunkId: "c1",
@@ -41,7 +71,7 @@ describe("runChat happy path", () => {
         evidenceId: "chunk:c1",
         sourceSpan: { start: 0, end: 9, locator: "p.1" },
       },
-    ]);
+    ]));
     let receivedMessages: unknown[] = [];
     fakeProvider.streamGenerate.mockImplementation(async function* (opts: {
       messages: unknown[];
@@ -101,11 +131,11 @@ describe("runChat happy path", () => {
       }),
     );
     expect(events.find((e) => e.type === "citation")).toBeUndefined();
-    expect(retrievalMod.retrieve).not.toHaveBeenCalled();
+    expect(retrievalMod.retrieveWithPolicy).not.toHaveBeenCalled();
   });
 
   it("injects runtime current time into the system message", async () => {
-    retrievalMod.retrieve.mockResolvedValue([]);
+    retrievalMod.retrieveWithPolicy.mockResolvedValue(retrievalResult([]));
     let receivedMessages: unknown[] = [];
     fakeProvider.streamGenerate.mockImplementation(async function* (opts: {
       messages: unknown[];
@@ -135,7 +165,7 @@ describe("runChat happy path", () => {
   });
 
   it("passes selected thinkingLevel to the provider", async () => {
-    retrievalMod.retrieve.mockResolvedValue([]);
+    retrievalMod.retrieveWithPolicy.mockResolvedValue(retrievalResult([]));
     let thinkingLevel: unknown;
     fakeProvider.streamGenerate.mockImplementation(async function* (opts: {
       thinkingLevel?: unknown;
@@ -162,7 +192,7 @@ describe("runChat happy path", () => {
   });
 
   it("blocks freshness-required answers when no grounding source is available", async () => {
-    retrievalMod.retrieve.mockResolvedValue([]);
+    retrievalMod.retrieveWithPolicy.mockResolvedValue(retrievalResult([]));
     fakeProvider.streamGenerate.mockImplementation(async function* () {
       yield { delta: "This should not be generated" };
       yield { usage: { tokensIn: 1, tokensOut: 1, model: "gemini-3-flash-preview" } };
@@ -192,7 +222,7 @@ describe("runChat happy path", () => {
   });
 
   it("localizes the grounding guard fallback message", async () => {
-    retrievalMod.retrieve.mockResolvedValue([]);
+    retrievalMod.retrieveWithPolicy.mockResolvedValue(retrievalResult([]));
 
     const events = await collect(
       runChat({
@@ -217,8 +247,51 @@ describe("runChat happy path", () => {
     });
   });
 
+  it("uses adaptive retrieval policy limits when packing citations", async () => {
+    retrievalMod.retrieveWithPolicy.mockResolvedValue(
+      retrievalResultWithPolicy(
+        [
+          {
+            noteId: "n1",
+            chunkId: "c1",
+            title: "Alpha",
+            headingPath: "One",
+            snippet: "first alpha hit",
+            score: 0.9,
+          },
+          {
+            noteId: "n1",
+            chunkId: "c2",
+            title: "Alpha",
+            headingPath: "Two",
+            snippet: "second alpha hit",
+            score: 0.8,
+          },
+        ],
+        { maxChunksPerNote: 1, contextMaxTokens: 1000 },
+      ),
+    );
+    fakeProvider.streamGenerate.mockImplementation(async function* () {
+      yield { delta: "ok [^1]" };
+    });
+
+    const events = await collect(
+      runChat({
+        workspaceId: "ws-1",
+        scope: { type: "project", workspaceId: "ws-1", projectId: "p1" },
+        ragMode: "expand",
+        chips: [],
+        history: [],
+        userMessage: "compare alpha",
+        provider: fakeProvider,
+      }),
+    );
+
+    expect(events.filter((e) => e.type === "citation")).toHaveLength(1);
+  });
+
   it("marks missing sentence citations as a fail action without blocking streamed text", async () => {
-    retrievalMod.retrieve.mockResolvedValue([
+    retrievalMod.retrieveWithPolicy.mockResolvedValue(retrievalResult([
       {
         noteId: "n1",
         chunkId: "c1",
@@ -230,7 +303,7 @@ describe("runChat happy path", () => {
         confidence: 0.9,
         evidenceId: "chunk:c1",
       },
-    ]);
+    ]));
     fakeProvider.streamGenerate.mockImplementation(async function* () {
       yield { delta: "Alpha policy requires runtime answer verification." };
       yield { usage: { tokensIn: 30, tokensOut: 7, model: "gemini-2.5-flash" } };
@@ -259,7 +332,7 @@ describe("runChat happy path", () => {
   });
 
   it("keeps weak support as a warn action", async () => {
-    retrievalMod.retrieve.mockResolvedValue([
+    retrievalMod.retrieveWithPolicy.mockResolvedValue(retrievalResult([
       {
         noteId: "n1",
         chunkId: "c1",
@@ -271,7 +344,7 @@ describe("runChat happy path", () => {
         confidence: 0.9,
         evidenceId: "chunk:c1",
       },
-    ]);
+    ]));
     fakeProvider.streamGenerate.mockImplementation(async function* () {
       yield { delta: "A different unsupported claim appears here [^1]." };
       yield { usage: { tokensIn: 30, tokensOut: 7, model: "gemini-2.5-flash" } };
@@ -300,7 +373,7 @@ describe("runChat happy path", () => {
 
 describe("runChat save_suggestion", () => {
   it("emits save_suggestion when LLM appends a fence", async () => {
-    retrievalMod.retrieve.mockResolvedValue([]);
+    retrievalMod.retrieveWithPolicy.mockResolvedValue(retrievalResult([]));
     fakeProvider.streamGenerate.mockImplementation(async function* () {
       yield { delta: "Here is the answer.\n\n```save-suggestion\n" };
       yield { delta: '{"title": "Test", "body_markdown": "Body"}\n```\n' };
@@ -324,7 +397,7 @@ describe("runChat save_suggestion", () => {
   });
 
   it("does NOT emit save_suggestion on malformed fence", async () => {
-    retrievalMod.retrieve.mockResolvedValue([]);
+    retrievalMod.retrieveWithPolicy.mockResolvedValue(retrievalResult([]));
     fakeProvider.streamGenerate.mockImplementation(async function* () {
       yield { delta: "```save-suggestion\n{not json}\n```" };
       yield { usage: { tokensIn: 1, tokensOut: 1, model: "gemini-2.5-flash" } };
@@ -348,7 +421,7 @@ describe("runChat history truncation", () => {
   it("drops oldest turns when over CHAT_MAX_INPUT_TOKENS", async () => {
     process.env.CHAT_MAX_INPUT_TOKENS = "100";
     process.env.CHAT_MAX_HISTORY_TURNS = "100";
-    retrievalMod.retrieve.mockResolvedValue([]);
+    retrievalMod.retrieveWithPolicy.mockResolvedValue(retrievalResult([]));
     let receivedMessages: unknown[] = [];
     fakeProvider.streamGenerate.mockImplementation(async function* (opts: {
       messages: unknown[];
@@ -389,7 +462,7 @@ describe("runChat history truncation", () => {
 
 describe("runChat error contract", () => {
   it("yields error+done when retrieve() rejects", async () => {
-    retrievalMod.retrieve.mockRejectedValue(new Error("retrieve boom"));
+    retrievalMod.retrieveWithPolicy.mockRejectedValue(new Error("retrieve boom"));
     fakeProvider.streamGenerate.mockImplementation(async function* () {
       yield { delta: "should not reach" };
     });
@@ -414,7 +487,7 @@ describe("runChat error contract", () => {
   });
 
   it("yields error+done when streamGenerate throws mid-stream", async () => {
-    retrievalMod.retrieve.mockResolvedValue([]);
+    retrievalMod.retrieveWithPolicy.mockResolvedValue(retrievalResult([]));
     fakeProvider.streamGenerate.mockImplementation(async function* () {
       yield { delta: "partial" };
       throw new Error("stream boom");
@@ -442,8 +515,8 @@ describe("runChat error contract", () => {
   });
 
   it("aborting before LLM stream skips streamGenerate and ends in error+done", async () => {
-    retrievalMod.retrieve.mockImplementation(async () => {
-      return [];
+    retrievalMod.retrieveWithPolicy.mockImplementation(async () => {
+      return retrievalResult([]);
     });
     const controller = new AbortController();
     controller.abort(); // pre-aborted

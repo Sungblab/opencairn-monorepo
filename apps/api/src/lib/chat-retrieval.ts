@@ -10,6 +10,10 @@ import {
   expandGraphCandidates,
   type GraphExpansionHit,
 } from "./retrieval-graph-expansion";
+import {
+  planAdaptiveRagPolicy,
+  type AdaptiveRagPolicy,
+} from "./adaptive-rag-router";
 import { candidateFromRetrievalHit } from "./retrieval-candidates";
 import { rerankCandidates } from "./retrieval-rerank";
 import type {
@@ -57,13 +61,7 @@ type ProjectRetrievalHit = RetrievalHit & {
   sourceKey: string;
 };
 
-// ── Top-k routing ────────────────────────────────────────────────────────
-
-function topK(mode: RagMode): number {
-  if (mode === "off") return 0;
-  if (mode === "strict") return envInt("CHAT_RAG_TOP_K_STRICT", 5);
-  return envInt("CHAT_RAG_TOP_K_EXPAND", 12);
-}
+// ── Retrieval routing ────────────────────────────────────────────────────
 
 function maxProjects(): number {
   return envInt("CHAT_RAG_MAX_PROJECTS", 64);
@@ -113,19 +111,34 @@ export async function retrieve(opts: {
   chips: RetrievalChip[];
   signal?: AbortSignal;
 }): Promise<RetrievalHit[]> {
-  const k = topK(opts.ragMode);
-  if (k === 0) return [];
+  const result = await retrieveWithPolicy(opts);
+  return result.hits;
+}
 
+export async function retrieveWithPolicy(opts: {
+  workspaceId: string;
+  query: string;
+  ragMode: RagMode;
+  scope: RetrievalScope;
+  chips: RetrievalChip[];
+  signal?: AbortSignal;
+}): Promise<{ hits: RetrievalHit[]; policy: AdaptiveRagPolicy }> {
+  const initialPolicy = planAdaptiveRagPolicy(opts);
+  if (initialPolicy.resultTopK === 0) return { hits: [], policy: initialPolicy };
   const projectIds = await resolveProjectIds(opts);
   checkAbort(opts.signal);
-  if (projectIds.length === 0) return [];
+  const policy = planAdaptiveRagPolicy({
+    ...opts,
+    projectCount: projectIds.length,
+  });
+  if (projectIds.length === 0) return { hits: [], policy };
 
   const provider = getChatProvider();
   const queryEmbedding = await provider.embed(opts.query);
   checkAbort(opts.signal);
 
   const fanout = projectIds.slice(0, maxProjects());
-  const perProjectK = Math.max(k, 5);
+  const perProjectK = Math.max(policy.seedTopK, 5);
 
   const projectHits = await mapWithConcurrency(
     fanout,
@@ -138,6 +151,7 @@ export async function retrieve(opts: {
         queryEmbedding,
         k: perProjectK,
         ragMode: opts.ragMode,
+        policy,
       }),
     opts.signal,
   );
@@ -162,8 +176,8 @@ export async function retrieve(opts: {
     hitCandidates.map((item) => [item.candidate.id, item.hit]),
   );
 
-  return rerankedCandidates
-    .slice(0, k)
+  const hits = rerankedCandidates
+    .slice(0, policy.resultTopK)
     .map((candidate) => hitByCandidateId.get(candidate.id))
     .filter((h): h is ProjectRetrievalHit => h != null)
     .map((h) => ({
@@ -184,6 +198,7 @@ export async function retrieve(opts: {
       evidenceId: h.evidenceId,
       support: h.support,
     }));
+  return { hits, policy };
 }
 
 async function retrieveProjectHits(opts: {
@@ -193,6 +208,7 @@ async function retrieveProjectHits(opts: {
   queryEmbedding: number[];
   k: number;
   ragMode: RagMode;
+  policy: AdaptiveRagPolicy;
 }): Promise<ProjectRetrievalHit[]> {
   const chunkHits = await projectChunkHybridSearch(opts).catch(
     () => [] as ChunkHybridHit[],
@@ -253,11 +269,10 @@ async function retrieveProjectHits(opts: {
 async function graphExpansionHits(opts: {
   workspaceId: string;
   projectId: string;
-  k: number;
-  ragMode: RagMode;
+  policy: AdaptiveRagPolicy;
   seedHits: ProjectRetrievalHit[];
 }): Promise<ProjectRetrievalHit[]> {
-  if (opts.ragMode !== "expand" || opts.seedHits.length === 0) return [];
+  if (opts.policy.graphDepth === 0 || opts.seedHits.length === 0) return [];
 
   const seedNoteIds = Array.from(
     new Set(opts.seedHits.map((hit) => hit.noteId)),
@@ -266,8 +281,8 @@ async function graphExpansionHits(opts: {
     workspaceId: opts.workspaceId,
     projectId: opts.projectId,
     seedNoteIds,
-    maxDepth: 2,
-    limit: Math.max(opts.k, 10),
+    maxDepth: opts.policy.graphDepth,
+    limit: opts.policy.graphLimit,
   }).catch(() => [] as GraphExpansionHit[]);
 
   return graphHits.map((hit): ProjectRetrievalHit => {
