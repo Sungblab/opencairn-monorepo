@@ -43,6 +43,17 @@ test.describe("Plan8 Agents page", () => {
     await expect(page.getByText("37%")).toBeVisible();
     await expect(page.getByLabel("E2E Mock Note 오디오")).toBeVisible();
 
+    await page.getByRole("button", { name: "e2e-run-synthesis" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Synthesis 실행 상세" }),
+    ).toBeVisible();
+    await expect(page.getByText("e2e-synthesis-workflow")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Suggestions 보기" })).toHaveAttribute(
+      "href",
+      "#plan8-suggestions",
+    );
+    await expect(page.getByRole("button", { name: "실행 취소" })).toBeDisabled();
+
     await page.getByRole("button", { name: "실행" }).first().click();
     await expect(page.getByText(/Synthesis 실행을 시작했습니다/)).toBeVisible();
   });

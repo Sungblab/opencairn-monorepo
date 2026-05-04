@@ -41,6 +41,8 @@ export default function MindmapView({ projectId, root }: Props) {
     root,
   });
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const selectedEdgeParam = params.get("edge");
+  const consumedEdgeParam = useRef<string | null>(null);
 
   const elements = useMemo(() => {
     if (!data) return [];
@@ -77,6 +79,18 @@ export default function MindmapView({ projectId, root }: Props) {
   );
 
   const cyRef = useRef<cytoscape.Core | null>(null);
+
+  useEffect(() => {
+    if (!selectedEdgeParam) {
+      consumedEdgeParam.current = null;
+      return;
+    }
+    if (selectedEdgeParam === consumedEdgeParam.current) return;
+    if (data?.edges.some((edge) => edgeElementId(edge) === selectedEdgeParam)) {
+      setSelectedEdgeId(selectedEdgeParam);
+      consumedEdgeParam.current = selectedEdgeParam;
+    }
+  }, [data?.edges, selectedEdgeParam]);
 
   // Latest tap handler. Closes over `params`, `router`, `data?.rootId` —
   // all of which can change while the cytoscape instance is mounted (e.g.

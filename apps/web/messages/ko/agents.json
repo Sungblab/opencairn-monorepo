@@ -51,6 +51,26 @@
     "score": "점수",
     "detected": "감지"
   },
+  "detail": {
+    "title": "{agent} 실행 상세",
+    "runId": "Run ID",
+    "workflowId": "Workflow ID",
+    "ended": "종료",
+    "notEnded": "아직 종료되지 않음",
+    "cost": "비용",
+    "costValue": "₩{value}",
+    "outputs": "생성된 결과",
+    "pollingLive": "실행 중인 작업은 5초마다 상태를 새로 확인합니다.",
+    "pollingTerminal": "종료된 실행입니다. 새로고침으로 최신 결과를 확인할 수 있습니다.",
+    "retry": "다시 실행",
+    "cancel": "실행 취소",
+    "cancelUnavailable": "현재 Plan 8 API에는 실행 취소 엔드포인트가 없어 버튼만 노출합니다.",
+    "links": {
+      "suggestions": "Suggestions 보기",
+      "staleAlerts": "Stale alerts 보기",
+      "audioFiles": "Audio files 보기"
+    }
+  },
   "empty": {
     "runs": "표시할 실행 기록이 없습니다.",
     "suggestions": "검토할 제안이 없습니다.",

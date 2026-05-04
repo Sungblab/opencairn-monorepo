@@ -1,8 +1,14 @@
 {
   "viewer": {
     "loading": "파일을 불러오는 중...",
+    "loadingInline": "불러오는 중...",
     "error": "파일을 열 수 없습니다.",
     "meta": "{kind} · v{version} · {bytes}",
+    "preview": "미리보기",
+    "source": "원본",
+    "jsonTree": "JSON 트리",
+    "csvTable": "표 형식 · {rows}행",
+    "column": "열 {index}",
     "download": "원본 다운로드",
     "ingest": "인제스트 실행",
     "compile": "LaTeX 컴파일",
@@ -22,13 +28,7 @@
       "running": "인제스트 중",
       "completed": "인제스트 완료",
       "failed": "인제스트 실패"
-    },
-    "source": "원본",
-    "preview": "미리보기",
-    "loadingInline": "불러오는 중...",
-    "jsonTree": "JSON 트리",
-    "csvTable": "표 형식 · {rows}행",
-    "column": "열 {index}"
+    }
   },
   "card": {
     "created": "{filename} 생성됨",

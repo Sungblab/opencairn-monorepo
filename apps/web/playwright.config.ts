@@ -24,6 +24,7 @@ const mockApiSpecs = [
   "live-ingest-visualization.spec.ts",
   "graph-views.spec.ts",
   "graph.spec.ts",
+  "grounded-evidence-browser.spec.ts",
   "plan8-agents.spec.ts",
 ];
 const useMockApi =

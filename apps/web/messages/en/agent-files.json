@@ -1,8 +1,14 @@
 {
   "viewer": {
     "loading": "Loading file...",
+    "loadingInline": "Loading...",
     "error": "Unable to open this file.",
     "meta": "{kind} · v{version} · {bytes}",
+    "preview": "Preview",
+    "source": "Source",
+    "jsonTree": "JSON tree",
+    "csvTable": "Table view · {rows} rows",
+    "column": "Column {index}",
     "download": "Download original",
     "ingest": "Run ingest",
     "compile": "Compile LaTeX",
@@ -22,13 +28,7 @@
       "running": "Ingesting",
       "completed": "Ingested",
       "failed": "Ingest failed"
-    },
-    "source": "Source",
-    "preview": "Preview",
-    "loadingInline": "Loading...",
-    "jsonTree": "JSON tree",
-    "csvTable": "Table view · {rows} rows",
-    "column": "Column {index}"
+    }
   },
   "card": {
     "created": "{filename} created",
