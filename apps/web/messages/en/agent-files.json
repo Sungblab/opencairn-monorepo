@@ -13,6 +13,7 @@
     "ingest": "Run ingest",
     "compile": "Compile LaTeX",
     "canvas": "Run in canvas",
+    "version": "v{version}",
     "compileStatus": {
       "not_started": "Not compiled",
       "queued": "Compile queued",
