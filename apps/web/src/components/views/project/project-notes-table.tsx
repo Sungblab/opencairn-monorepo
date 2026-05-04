@@ -10,6 +10,7 @@ import {
   type ProjectNoteKind,
   type ProjectNoteRow,
 } from "@/lib/api-client";
+import { useHydratedNow } from "@/hooks/use-hydrated-now";
 
 type Filter = "all" | ProjectNoteKind;
 const TABS: readonly Filter[] = ["all", "imported", "research", "manual"];
@@ -45,6 +46,7 @@ export function ProjectNotesTable({
   const locale = useLocale();
   const t = useTranslations("project");
   const format = useFormatter();
+  const now = useHydratedNow();
   const [filter, setFilter] = useState<Filter>("all");
   const { data } = useQuery({
     queryKey: ["project-notes", projectId, filter],
@@ -143,7 +145,7 @@ export function ProjectNotesTable({
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-xs text-muted-foreground">
-                    {format.relativeTime(new Date(n.updated_at))}
+                    {now ? format.relativeTime(new Date(n.updated_at), now) : null}
                   </td>
                 </tr>
               ))}

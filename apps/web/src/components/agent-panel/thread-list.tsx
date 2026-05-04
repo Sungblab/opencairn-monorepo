@@ -13,6 +13,7 @@ import { useFormatter, useTranslations } from "next-intl";
 
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { useChatThreads } from "@/hooks/use-chat-threads";
+import { useHydratedNow } from "@/hooks/use-hydrated-now";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
 import { useThreadsStore } from "@/stores/threads-store";
 
@@ -23,6 +24,7 @@ export function ThreadList() {
   const setActive = useThreadsStore((s) => s.setActiveThread);
   const t = useTranslations("agentPanel.thread_list");
   const format = useFormatter();
+  const now = useHydratedNow();
 
   if (isLoading) {
     return <p className="p-2 text-xs text-muted-foreground">{t("loading")}</p>;
@@ -46,7 +48,7 @@ export function ThreadList() {
             {thread.title || t("untitled")}
           </span>
           <span className="text-[10px] text-muted-foreground">
-            {format.relativeTime(new Date(thread.updated_at))}
+            {now ? format.relativeTime(new Date(thread.updated_at), now) : null}
           </span>
         </DropdownMenuItem>
       ))}

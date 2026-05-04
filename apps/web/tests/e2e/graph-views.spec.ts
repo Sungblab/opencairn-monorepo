@@ -113,11 +113,21 @@ test.describe("Plan 5 Phase 2 — view switcher", () => {
     ).toBeVisible();
   });
 
-  test.skip(
-    "AI dialog SSE → ViewSpec → URL navigate flow",
-    // Requires a `plan-5` seed mode that populates concepts + a mocked
-    // Vis Agent fixture. Plan 5 Phase 2 follow-up (Task 30).
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    async () => {},
-  );
+  test("AI dialog SSE → ViewSpec → URL navigate flow", async ({ page }) => {
+    await page.goto(
+      `/ko/workspace/${session.wsSlug}/project/${session.projectId}/graph`,
+    );
+    await page.getByRole("button", { name: /AI로 만들기/ }).click();
+    await page
+      .getByPlaceholder(/트랜스포머 주제로 마인드맵/)
+      .fill("딥러닝 역사 타임라인");
+    await page.getByRole("button", { name: "타임라인" }).click();
+    await page.getByRole("button", { name: "생성하기" }).click();
+
+    await expect(page).toHaveURL(/[?&]view=timeline\b/);
+    await expect(
+      page.getByRole("dialog", { name: /AI로 뷰 만들기/ }),
+    ).toBeHidden();
+    await expect(page.getByText("E2E Concept")).toBeVisible();
+  });
 });

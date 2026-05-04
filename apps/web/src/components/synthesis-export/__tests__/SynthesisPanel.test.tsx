@@ -2,6 +2,7 @@ import type React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SynthesisPanel } from "../SynthesisPanel";
 import messages from "../../../../messages/ko/synthesis-export.json";
 
@@ -18,13 +19,18 @@ vi.mock("../../../hooks/use-synthesis-stream", () => ({
 }));
 
 function setup() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  });
   return render(
-    <NextIntlClientProvider
-      locale="ko"
-      messages={{ synthesisExport: messages }}
-    >
-      <SynthesisPanel workspaceId="ws-1" projectId={null} />
-    </NextIntlClientProvider>,
+    <QueryClientProvider client={queryClient}>
+      <NextIntlClientProvider
+        locale="ko"
+        messages={{ synthesisExport: messages }}
+      >
+        <SynthesisPanel workspaceId="ws-1" projectId={null} />
+      </NextIntlClientProvider>
+    </QueryClientProvider>,
   );
 }
 

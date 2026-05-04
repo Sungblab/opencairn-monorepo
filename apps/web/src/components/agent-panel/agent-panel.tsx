@@ -15,7 +15,6 @@
 // Children (Conversation, Composer, ScopeChipsRow) stay controlled views.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { saveSuggestionSchema } from "@opencairn/shared";
@@ -37,9 +36,9 @@ import { Conversation } from "./conversation";
 import { AgentPanelEmptyState } from "./empty-state";
 import { PanelHeader } from "./panel-header";
 import { ScopeChipsRow, defaultScopeIds } from "./scope-chips-row";
+import { buildAgentScopePayload } from "./scope-payload";
 
-export function AgentPanel() {
-  const { wsSlug } = useParams<{ wsSlug?: string }>();
+export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const workspaceId = useWorkspaceId(wsSlug);
 
   // setWorkspace bootstraps the active-thread restore from localStorage on
@@ -65,26 +64,23 @@ export function AgentPanel() {
   );
   const [scope, setScope] = useState<string[]>(initialScope);
   const [strict, setStrict] = useState<"strict" | "loose">("strict");
-  const buildScopePayload = useCallback(() => {
-    const chips: Array<{
-      type: "page" | "project" | "workspace";
-      id: string;
-    }> = [];
-    if (scope.includes("page") && activeTab?.kind === "note" && activeTab.targetId) {
-      chips.push({ type: "page", id: activeTab.targetId });
-    }
-    if (
-      scope.includes("project") &&
-      activeTab?.kind === "project" &&
-      activeTab.targetId
-    ) {
-      chips.push({ type: "project", id: activeTab.targetId });
-    }
-    if (scope.includes("workspace") && workspaceId) {
-      chips.push({ type: "workspace", id: workspaceId });
-    }
-    return { chips, strict };
-  }, [activeTab, scope, strict, workspaceId]);
+  const buildScopePayload = useCallback(
+    () =>
+      buildAgentScopePayload({
+        selectedScopeIds: scope,
+        activeTab,
+        workspaceId,
+        strict,
+        resolveNoteProjectId: async (noteId) => {
+          try {
+            return (await api.getNote(noteId)).projectId;
+          } catch {
+            return null;
+          }
+        },
+      }),
+    [activeTab, scope, strict, workspaceId],
+  );
 
   // Reset scope when the user switches tabs to a different kind. Only
   // reactive to tab kind so we don't stomp on manual scope edits while the
@@ -98,6 +94,7 @@ export function AgentPanel() {
     const { id } = await create.mutateAsync({});
     setActive(id);
   }
+  const threadActionsDisabled = !workspaceId || create.isPending;
 
   // i18n for save-suggestion toasts (Task 21).
   const t = useTranslations("agentPanel.bubble");
@@ -199,7 +196,10 @@ export function AgentPanel() {
       data-testid="app-shell-agent-panel"
       className="flex h-full flex-col border-l border-border bg-background"
     >
-      <PanelHeader onNewThread={startNewThread} />
+      <PanelHeader
+        onNewThread={startNewThread}
+        newThreadDisabled={threadActionsDisabled}
+      />
       {activeThreadId ? (
         <Conversation
           threadId={activeThreadId}
@@ -207,7 +207,10 @@ export function AgentPanel() {
           onSaveSuggestion={handleSaveSuggestion}
         />
       ) : (
-        <AgentPanelEmptyState onStart={startNewThread} busy={create.isPending} />
+        <AgentPanelEmptyState
+          onStart={startNewThread}
+          busy={threadActionsDisabled}
+        />
       )}
       <ScopeChipsRow
         selected={scope}
@@ -217,13 +220,15 @@ export function AgentPanel() {
       />
       <Composer
         disabled={!activeThreadId}
-        onSend={(input) =>
-          send({
-            content: input.content,
-            mode: input.mode,
-            scope: buildScopePayload(),
-          })
-        }
+        onSend={(input) => {
+          void (async () => {
+            await send({
+              content: input.content,
+              mode: input.mode,
+              scope: await buildScopePayload(),
+            });
+          })();
+        }}
       />
     </aside>
   );

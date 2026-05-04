@@ -21,11 +21,60 @@ const fixtureThread = {
   created_at: new Date("2026-04-29T00:00:00.000Z").toISOString(),
 };
 
-function currentSeed() {
+const sessions = new Map();
+
+const emptyGraphResponse = {
+  viewType: "graph",
+  layout: "fcose",
+  rootId: null,
+  nodes: [],
+  edges: [],
+  cards: [],
+  evidenceBundles: [],
+  truncated: false,
+  totalConcepts: 0,
+};
+
+function makeSeed() {
   return {
     ...seedBase,
+    cookieValue: `mock-session-${randomUUID()}`,
     expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
   };
+}
+
+function makeSession() {
+  const seed = makeSeed();
+  return {
+    seed,
+    researchApproved: false,
+    threads: [{ ...fixtureThread }],
+    messages: new Map([[fixtureThread.id, []]]),
+  };
+}
+
+function cookieValue(req) {
+  const header = req.headers.cookie ?? "";
+  const cookie = header
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${seedBase.cookieName}=`));
+  return cookie?.slice(seedBase.cookieName.length + 1);
+}
+
+function sessionFor(req) {
+  const value = cookieValue(req);
+  if (value && sessions.has(value)) return sessions.get(value);
+  const fallback = {
+    seed: {
+      ...seedBase,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    },
+    researchApproved: false,
+    threads: [{ ...fixtureThread }],
+    messages: new Map([[fixtureThread.id, []]]),
+  };
+  return fallback;
 }
 
 function json(res, status, body) {
@@ -66,7 +115,8 @@ function readBody(req) {
 }
 
 const server = http.createServer(async (req, res) => {
-  const seed = currentSeed();
+  let session = sessionFor(req);
+  let seed = session.seed;
   const url = new URL(req.url ?? "/", `http://localhost:${port}`);
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
@@ -89,6 +139,9 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (url.pathname === "/api/internal/test-seed" && req.method === "POST") {
+    session = makeSession();
+    seed = session.seed;
+    sessions.set(seed.cookieValue, session);
     return json(res, 200, {
       ...seed,
       sessionCookie: `${seed.cookieName}=${seed.cookieValue}; Path=/; HttpOnly; SameSite=Lax`,
@@ -129,16 +182,35 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === `/api/projects/${seed.projectId}/tree`) {
     return json(res, 200, {
-      folders: [],
-      notes: [
+      nodes: [
         {
+          kind: "note",
           id: seed.noteId,
-          title: "E2E Mock Note",
-          projectId: seed.projectId,
-          folderId: null,
-          sourceType: null,
+          parent_id: null,
+          label: "E2E Mock Note",
+          child_count: 0,
+          file_kind: null,
+          mime_type: null,
         },
       ],
+    });
+  }
+
+  if (url.pathname === `/api/projects/${seed.projectId}/knowledge-surface`) {
+    return json(res, 200, {
+      ...emptyGraphResponse,
+      viewType: url.searchParams.get("view") ?? "graph",
+      layout: url.searchParams.get("view") === "mindmap" ? "dagre" : "fcose",
+      rootId: url.searchParams.get("root"),
+    });
+  }
+
+  if (url.pathname === `/api/projects/${seed.projectId}/graph`) {
+    return json(res, 200, {
+      ...emptyGraphResponse,
+      viewType: url.searchParams.get("view") ?? "timeline",
+      layout: "preset",
+      rootId: url.searchParams.get("root"),
     });
   }
 
@@ -162,17 +234,129 @@ const server = http.createServer(async (req, res) => {
     });
   }
 
+  if (url.pathname === "/api/notes/n-smoke") {
+    return json(res, 200, {
+      id: "n-smoke",
+      projectId: seed.projectId,
+      workspaceId: seed.workspaceId,
+      folderId: null,
+      inheritParent: false,
+      title: "Smoke topic",
+      content: [
+        {
+          type: "research-meta",
+          runId: "r-smoke",
+          model: "deep-research-preview-04-2026",
+          plan: "Plan body",
+          sources: [],
+          children: [{ text: "" }],
+        },
+        { type: "p", children: [{ text: "Report body" }] },
+      ],
+      contentText: "Report body",
+      type: "note",
+      sourceType: null,
+      sourceFileKey: null,
+      sourceUrl: null,
+      mimeType: null,
+      isAuto: true,
+      createdAt: "2026-04-25T00:30:00Z",
+      updatedAt: "2026-04-25T00:30:00Z",
+      deletedAt: null,
+    });
+  }
+
+  if (url.pathname === "/api/notes/n-smoke/role") {
+    return json(res, 200, { role: "owner" });
+  }
+
   if (url.pathname === "/api/threads" && req.method === "GET") {
-    return json(res, 200, { threads: [fixtureThread] });
+    return json(res, 200, { threads: session.threads });
   }
 
   if (url.pathname === "/api/threads" && req.method === "POST") {
     await readBody(req);
+    const now = new Date().toISOString();
     const id = randomUUID();
+    session.threads.unshift({
+      id,
+      title: "",
+      updated_at: now,
+      created_at: now,
+    });
+    session.messages.set(id, []);
     return json(res, 201, {
       id,
       title: "",
     });
+  }
+
+  const messageMatch = url.pathname.match(/^\/api\/threads\/([^/]+)\/messages$/);
+  if (messageMatch && req.method === "GET") {
+    return json(res, 200, { messages: session.messages.get(messageMatch[1]) ?? [] });
+  }
+
+  if (messageMatch && req.method === "POST") {
+    const body = await readBody(req);
+    const threadId = messageMatch[1];
+    const now = new Date().toISOString();
+    const userId = randomUUID();
+    const agentId = randomUUID();
+    const content =
+      typeof body.content === "string" && body.content.trim()
+        ? body.content
+        : "Mock user message";
+    const messages = session.messages.get(threadId) ?? [];
+    messages.push(
+      {
+        id: userId,
+        role: "user",
+        status: "complete",
+        content: {
+          body: content,
+          ...(body.scope ? { scope: body.scope } : {}),
+        },
+        mode: body.mode ?? null,
+        provider: null,
+        created_at: now,
+      },
+      {
+        id: agentId,
+        role: "agent",
+        status: "complete",
+        content: {
+          body: "Mock agent response.",
+          status: { phrase: "mock" },
+          citations: [],
+          agent_files: [],
+          project_objects: [],
+        },
+        mode: body.mode ?? null,
+        provider: "mock",
+        created_at: now,
+      },
+    );
+    session.messages.set(threadId, messages);
+    const thread = session.threads.find((item) => item.id === threadId);
+    if (thread) thread.updated_at = now;
+    res.writeHead(200, {
+      "content-type": "text/event-stream",
+      "cache-control": "no-cache",
+      connection: "keep-alive",
+      "access-control-allow-origin": process.env.CORS_ORIGIN ?? "http://localhost:3000",
+      "access-control-allow-credentials": "true",
+    });
+    res.write(`event: agent_placeholder\ndata: ${JSON.stringify({ id: agentId })}\n\n`);
+    res.write(`event: status\ndata: ${JSON.stringify({ phrase: "mock" })}\n\n`);
+    res.write(`event: text\ndata: ${JSON.stringify({ delta: "Mock agent response." })}\n\n`);
+    res.write(`event: done\ndata: ${JSON.stringify({ id: agentId })}\n\n`);
+    res.end();
+    return;
+  }
+
+  if (url.pathname === "/api/message-feedback" && req.method === "POST") {
+    await readBody(req);
+    return json(res, 200, { ok: true });
   }
 
   if (url.pathname === "/api/chat/conversations") {
@@ -191,6 +375,155 @@ const server = http.createServer(async (req, res) => {
         memoryFlags: {},
       });
     }
+  }
+
+  if (url.pathname === "/api/research/runs" && req.method === "GET") {
+    return json(res, 200, { runs: [] });
+  }
+
+  if (url.pathname === "/api/research/runs" && req.method === "POST") {
+    session.researchApproved = false;
+    await readBody(req);
+    return json(res, 201, { runId: "r-smoke" });
+  }
+
+  if (url.pathname === "/api/research/runs/r-smoke" && req.method === "GET") {
+    const status = session.researchApproved ? "completed" : "awaiting_approval";
+    return json(res, 200, {
+      id: "r-smoke",
+      workspaceId: seed.workspaceId,
+      projectId: seed.projectId,
+      topic: "Smoke topic",
+      model: "deep-research-preview-04-2026",
+      billingPath: "byok",
+      status,
+      currentInteractionId: null,
+      approvedPlanText: status === "completed" ? "Plan body" : null,
+      error: null,
+      totalCostUsdCents: null,
+      noteId: status === "completed" ? "n-smoke" : null,
+      createdAt: "2026-04-25T00:00:00Z",
+      updatedAt: "2026-04-25T00:00:00Z",
+      completedAt: status === "completed" ? "2026-04-25T00:30:00Z" : null,
+      turns: [
+        {
+          id: "t1",
+          seq: 0,
+          role: "agent",
+          kind: "plan_proposal",
+          interactionId: null,
+          content: "1) Step\n2) Step",
+          createdAt: "2026-04-25T00:00:00Z",
+        },
+      ],
+      artifacts: [],
+    });
+  }
+
+  if (
+    url.pathname === "/api/research/runs/r-smoke/approve" &&
+    req.method === "POST"
+  ) {
+    session.researchApproved = true;
+    await readBody(req);
+    return json(res, 202, { approved: true });
+  }
+
+  if (url.pathname === "/api/research/runs/r-smoke/stream") {
+    res.writeHead(200, {
+      "content-type": "text/event-stream",
+      "cache-control": "no-cache",
+      connection: "keep-alive",
+      "access-control-allow-origin": process.env.CORS_ORIGIN ?? "http://localhost:3000",
+      "access-control-allow-credentials": "true",
+    });
+    res.end();
+    return;
+  }
+
+  if (url.pathname === "/api/visualize" && req.method === "POST") {
+    await readBody(req);
+    res.writeHead(200, {
+      "content-type": "text/event-stream",
+      "cache-control": "no-cache",
+      connection: "keep-alive",
+      "access-control-allow-origin": process.env.CORS_ORIGIN ?? "http://localhost:3000",
+      "access-control-allow-credentials": "true",
+    });
+    const viewSpec = {
+      viewType: "timeline",
+      layout: "preset",
+      rootId: null,
+      nodes: [
+        {
+          id: "00000000-0000-4000-8000-000000000020",
+          name: "E2E Concept",
+          description: "",
+          degree: 0,
+          noteCount: 0,
+          firstNoteId: seed.noteId,
+        },
+      ],
+      edges: [],
+    };
+    res.write(
+      `event: tool_use\ndata: ${JSON.stringify({ tool: "search_concepts" })}\n\n`,
+    );
+    res.write(
+      `event: tool_result\ndata: ${JSON.stringify({ tool: "search_concepts", ok: true })}\n\n`,
+    );
+    res.write(
+      `event: view_spec\ndata: ${JSON.stringify({ viewSpec })}\n\n`,
+    );
+    res.write("event: done\ndata: {}\n\n");
+    res.end();
+    return;
+  }
+
+  if (url.pathname === "/api/agents/plan8/overview") {
+    return json(res, 200, {
+      project: { id: seed.projectId, workspaceId: seed.workspaceId },
+      launch: {
+        notes: [
+          {
+            id: seed.noteId,
+            title: "E2E Mock Note",
+            type: "note",
+            updatedAt: new Date("2026-05-04T00:00:00.000Z").toISOString(),
+          },
+        ],
+        concepts: [
+          {
+            id: "00000000-0000-4000-8000-000000000020",
+            name: "E2E Concept",
+            description: null,
+            createdAt: new Date("2026-05-04T00:00:00.000Z").toISOString(),
+          },
+        ],
+      },
+      agentRuns: [],
+      suggestions: [],
+      staleAlerts: [],
+      audioFiles: [],
+    });
+  }
+
+  if (url.pathname === "/api/synthesis/run" && req.method === "POST") {
+    await readBody(req);
+    return json(res, 202, { workflowId: "e2e-synthesis-workflow" });
+  }
+
+  if (
+    [
+      "/api/curator/run",
+      "/api/connector/run",
+      "/api/agents/temporal/stale-check",
+      "/api/narrator/run",
+    ].includes(url.pathname) &&
+    req.method === "POST"
+  ) {
+    await readBody(req);
+    return json(res, 202, { workflowId: "e2e-agent-workflow" });
   }
 
   notFound(res);
