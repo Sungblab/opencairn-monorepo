@@ -392,6 +392,7 @@ export const projectsApi = {
 // ---------- Plan 8 agent entrypoints ----------
 
 export type Plan8AgentName =
+  | "librarian"
   | "synthesis"
   | "curator"
   | "connector"
@@ -485,6 +486,11 @@ export const plan8AgentsApi = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  runLibrarian: (body: { projectId: string }) =>
+    apiClient<{ workflowId: string }>(`/librarian/run`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   runCurator: (body: { projectId: string }) =>
     apiClient<{ workflowId: string }>(`/curator/run`, {
       method: "POST",
@@ -508,6 +514,24 @@ export const plan8AgentsApi = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  resolveSuggestion: (
+    id: string,
+    status: "accepted" | "rejected",
+  ) =>
+    apiClient<{ ok: true; status: "accepted" | "rejected" }>(
+      `/agents/plan8/suggestions/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      },
+    ),
+  reviewStaleAlert: (id: string) =>
+    apiClient<{ ok: true }>(
+      `/agents/plan8/stale-alerts/${encodeURIComponent(id)}/review`,
+      {
+        method: "PATCH",
+      },
+    ),
 };
 
 // ---------- Workspace settings (Phase 5 Task 6) ----------

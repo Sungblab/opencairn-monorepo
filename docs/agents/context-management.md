@@ -12,52 +12,53 @@
 > The policy below is the intended design boundary, not current default
 > runtime behavior.
 
-### 사용 이유
+### 현재 상태
 
-Research Agent가 대규모 프로젝트의 위키 문서를 반복 참조할 때, 매번 위키 전체를 컨텍스트에 넣으면 비용 낭비가 크다.
+Gemini Context Caching은 두 층으로 나눠서 봐야 한다.
 
-```
-기본 토큰: 100만 토큰당 $2.00
-캐시 토큰: 100만 토큰당 $0.20  → 90% 절감
-```
+- **Implicit caching**: Gemini 2.5+ 및 Gemini 3 계열에서 provider가 자동 적용한다.
+  OpenCairn은 기본 모델을 `gemini-3-flash-preview`로 두기 때문에 별도 API 없이도
+  provider-side implicit cache hit 대상이다. 단, hit는 Google 측 prefix cache 정책에
+  달려 있고 OpenCairn이 cache id를 소유하거나 TTL을 관리하지 않는다.
+- **Explicit caching**: **제품 기능으로 shipped 상태가 아니다.** Python provider와
+  worker runtime에는 배관이 있고 API TypeScript provider도 `cachedContent` pass-through를
+  지원하지만, production call site가 캐시를 생성하거나 cache id lifecycle을 관리하지 않는다.
 
-### 캐시 정책
+현재 확인된 배관:
 
-> **최소 4096 토큰 필요 (Gemini spec).** 이보다 적으면 `caches.create`가 실패하므로, 작은 프로젝트는 캐시 없이 직접 주입한다.
+- `packages/llm/src/llm/gemini.py`는 `cache_context()`를 구현하고
+  `generate_with_tools()`에서 `cached_context_id`를 Gemini SDK의
+  `cached_content`로 넘길 수 있다.
+- `apps/worker/src/runtime/tool_loop.py`는 `LoopConfig.cached_context_id`를
+  provider 호출까지 전달할 수 있다.
+- `apps/api/src/lib/llm/gemini.ts`는 Gemini `cachedContent`를
+  `streamGenerate()`/`groundSearch()` config로 전달할 수 있다.
+- 이 배관만으로 Research, Socratic, chat, Deep Research가 context cache를
+  사용한다고 문서화하거나 feature registry에서 `complete`로 표시하면 안 된다.
 
-```python
-# 프로젝트별 위키 캐시 생성
-cache = client.caches.create(
-    model="gemini-3.1-flash-lite-preview",
-    system_instruction="You are a knowledge base assistant...",
-    contents=[
-        # 프로젝트의 모든 위키 페이지 (최대 1M 토큰, 최소 4096 토큰)
-        {"role": "user", "parts": [wiki_page.content for wiki_page in pages]}
-    ],
-    config=CreateCachedContentConfig(
-        display_name=f"project:{project_id}",
-        ttl="3600s",  # 1시간
-    ),
-)
-```
+### 적용 조건
 
-### 캐시 갱신 정책
+Context Caching을 실제 기능으로 켜기 전에는 아래 항목이 함께 설계되어야 한다.
 
-| 이벤트                        | 정책                               |
-| ------------------------------ | ---------------------------------- |
-| 위키 페이지 생성/수정/삭제 | 해당 프로젝트 캐시 삭제       |
-| Compiler Agent 완료           | 캐시 재생성 (다음 Research에서) |
-| TTL 만료 (1시간)            | 자동 삭제                         |
+| 항목 | 필요 조건 |
+| --- | --- |
+| 캐시 생성 기준 | Gemini 3 Flash Preview는 1024 tokens, Gemini 3 Pro Preview는 4096 tokens 이상일 때 explicit/implicit cache 효율 검토 |
+| 소유권 | user, workspace, project, provider, model별 캐시 격리 |
+| 수명 | TTL, 수동 삭제, provider-side cache id 보관 위치 |
+| 무효화 | 노트, 위키, 프로젝트 knowledge source 변경 시 cache invalidation |
+| 권한 | 캐시 생성 시점과 사용 시점 모두 workspace permission 재검증 |
+| 비용/관측 | `cached_content_token_count`와 일반 input token을 분리 기록 |
+| 제품 표면 | API route 또는 internal worker-only 정책 중 하나를 명시 |
 
-### 캐시 적용 에이전트
+### 적용 후보
 
-| 에이전트    | 현재 제품 캐시 사용 | 비고                                 |
-| ------------- | ------------------- | ------------------------------------- |
-| Research      | X                   | provider plumbing만 있음            |
-| Socratic      | X                   | provider plumbing만 있음            |
-| Compiler      | X                   | 단일 완료 처리, 캐시 비효율 없음     |
-| Librarian     | X                   | 전체 위키 탐색, 캐시 비효율 있음 |
-| Deep Research | X                   | Gemini API가 직접 검색              |
+| 에이전트/표면 | 현재 캐시 사용 | 비고 |
+| --- | --- | --- |
+| Research/chat RAG | implicit만 가능 | API provider는 `cachedContent` 전달을 지원하지만 chat call site는 explicit cache id를 생성/보관하지 않는다. |
+| Socratic | 아니오 | worker runtime 배관만 있고 생성/전달 call site가 없다. |
+| Compiler | 아니오 | 단발성 처리라 캐시 효율은 별도 근거가 필요하다. |
+| Librarian | 아니오 | batch embedding/internal search 최적화와 CAG는 별개다. |
+| Deep Research | 아니오 | Gemini Interactions API 기반이며 cache lifecycle을 별도로 관리하지 않는다. |
 
 ---
 

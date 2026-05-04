@@ -52,6 +52,81 @@ def _normalise_state(raw: Any) -> str:
     return _GEMINI_STATE_MAP.get(key, BATCH_STATE_PENDING)
 
 
+_EMBED_TASK_MAP: dict[str, str] = {
+    "retrieval_document": "RETRIEVAL_DOCUMENT",
+    "retrieval_query": "RETRIEVAL_QUERY",
+    "semantic_similarity": "SEMANTIC_SIMILARITY",
+    "classification": "CLASSIFICATION",
+    "clustering": "CLUSTERING",
+    "question_answering": "QUESTION_ANSWERING",
+    "fact_verification": "FACT_VERIFICATION",
+    "code_retrieval_query": "CODE_RETRIEVAL_QUERY",
+}
+
+
+def _is_gemini_embedding_2_model(model: str) -> bool:
+    name = (model or "").removeprefix("models/")
+    return name.startswith("gemini-embedding-2")
+
+
+def _normalise_embed_task_type(raw: str | None) -> str | None:
+    """Return the Gemini Embeddings API enum spelling for a task type.
+
+    OpenCairn historically used lowercase snake_case values on ``EmbedInput``.
+    The current Gemini docs define uppercase enum values (for example
+    ``RETRIEVAL_DOCUMENT``), so normalize at the provider boundary and keep
+    callers/backfilled Temporal payloads compatible.
+    """
+    if not raw:
+        return None
+    task = raw.strip()
+    if not task:
+        return None
+    return _EMBED_TASK_MAP.get(task.lower(), task.upper())
+
+
+def _gemini_embedding_2_text(inp: EmbedInput) -> str:
+    """Format text using Gemini Embedding 2's task-instruction convention."""
+    text = inp.text or ""
+    task = (inp.task or "").strip().lower()
+    if task == "retrieval_query":
+        return f"task: search result | query: {text}"
+    if task == "retrieval_document":
+        return f"title: {inp.title or 'none'} | text: {text}"
+    if task == "question_answering":
+        return f"task: question answering | query: {text}"
+    if task == "fact_verification":
+        return f"task: fact checking | query: {text}"
+    if task == "code_retrieval_query":
+        return f"task: code retrieval | query: {text}"
+    if task == "classification":
+        return f"task: classification | query: {text}"
+    if task == "clustering":
+        return f"task: clustering | query: {text}"
+    if task == "semantic_similarity":
+        return f"task: sentence similarity | query: {text}"
+    return text
+
+
+def _embed_content_inputs(
+    inputs: list[EmbedInput],
+    *,
+    model: str,
+) -> list[str | types.Content]:
+    if not _is_gemini_embedding_2_model(model):
+        return [inp.text or "" for inp in inputs]
+    # Gemini Embedding 2 aggregates multiple direct inputs into one embedding.
+    # Wrapping each text in a Content object keeps one output per OpenCairn
+    # chunk/query while following the current docs' task-prefix convention.
+    return [
+        types.Content(
+            role="user",
+            parts=[types.Part(text=_gemini_embedding_2_text(inp))],
+        )
+        for inp in inputs
+    ]
+
+
 def _messages_to_contents_and_system(
     messages: list,
 ) -> tuple[list[Any], str | None]:
@@ -83,6 +158,7 @@ def _messages_to_contents_and_system(
             continue
         contents.append(message)
     return contents, "\n\n".join(system_messages) or None
+
 
 GEMINI_MODELS = {
     "pro": "gemini-3.1-pro-preview",
@@ -157,26 +233,30 @@ class GeminiProvider(LLMProvider):
         paths (image/audio/pdf) should go through `generate` with the document
         understanding prompt, not the embedding endpoint.
 
-        Matryoshka (MRL) truncation: ``gemini-embedding-001`` emits a 3072-dim
-        vector natively but the first ``output_dimensionality`` dims form a
-        self-contained embedding. We forward ``VECTOR_DIM`` so the vector we
-        persist matches the pgvector column width (see
-        ``packages/db/src/schema/custom-types.ts``). Unset env → no truncation.
+        ``gemini-embedding-001`` uses the API ``task_type`` enum. Current
+        Gemini Embedding 2 docs instead require task instructions in the input
+        text and separate ``Content`` objects for one embedding per item. Both
+        paths still forward ``VECTOR_DIM`` as ``output_dimensionality`` so the
+        persisted vector matches the pgvector column width (see
+        ``packages/db/src/schema/custom-types.ts``). Unset env -> no truncation.
         """
         text_inputs = [inp for inp in inputs if inp.text]
-        texts = [inp.text for inp in text_inputs]
-        if not texts:
+        if not text_inputs:
             return []
-        task_type = inputs[0].task if inputs else "retrieval_document"
-        config_kwargs: dict[str, Any] = {"task_type": task_type}
-        if len(text_inputs) == 1 and text_inputs[0].title:
-            config_kwargs["title"] = text_inputs[0].title
+        is_embedding_2 = _is_gemini_embedding_2_model(self.config.embed_model)
+        config_kwargs: dict[str, Any] = {}
+        if not is_embedding_2:
+            task_type = _normalise_embed_task_type(inputs[0].task if inputs else None)
+            if task_type:
+                config_kwargs["task_type"] = task_type
+            if len(text_inputs) == 1 and text_inputs[0].title:
+                config_kwargs["title"] = text_inputs[0].title
         dim = os.getenv("VECTOR_DIM")
         if dim:
             config_kwargs["output_dimensionality"] = int(dim)
         response = await self._client.aio.models.embed_content(
             model=self.config.embed_model,
-            contents=texts,
+            contents=_embed_content_inputs(text_inputs, model=self.config.embed_model),
             config=types.EmbedContentConfig(**config_kwargs),
         )
         return [list(e.values) for e in response.embeddings]
@@ -297,9 +377,7 @@ class GeminiProvider(LLMProvider):
         response = await self._client.aio.models.generate_content(
             model=self.config.model,
             contents=[
-                types.Part(
-                    inline_data=types.Blob(mime_type=mime_type, data=image_bytes)
-                ),
+                types.Part(inline_data=types.Blob(mime_type=mime_type, data=image_bytes)),
                 types.Part(
                     text=(
                         "Extract all text from this scanned document page. "
@@ -329,18 +407,10 @@ class GeminiProvider(LLMProvider):
         if image_bytes:
             if not image_mime:
                 return None  # caller error — mime required
-            parts.append(
-                types.Part(
-                    inline_data=types.Blob(mime_type=image_mime, data=image_bytes)
-                )
-            )
+            parts.append(types.Part(inline_data=types.Blob(mime_type=image_mime, data=image_bytes)))
         if pdf_bytes:
             parts.append(
-                types.Part(
-                    inline_data=types.Blob(
-                        mime_type="application/pdf", data=pdf_bytes
-                    )
-                )
+                types.Part(inline_data=types.Blob(mime_type="application/pdf", data=pdf_bytes))
             )
         parts.append(types.Part(text=prompt))
         response = await self._client.aio.models.generate_content(
@@ -371,24 +441,34 @@ class GeminiProvider(LLMProvider):
         """Submit an async batch embed job.
 
         Uses ``client.aio.batches.create_embeddings`` with inlined requests.
-        All items share one :class:`EmbedContentConfig` — ``task_type`` is
-        taken from the first input (matching the single-call ``embed()``
-        convention) and ``output_dimensionality`` is sourced from
-        ``VECTOR_DIM`` so the produced vectors match the pgvector column.
+        All items share one :class:`EmbedContentConfig`. For
+        ``gemini-embedding-001``, ``task_type`` is taken from the first input
+        (matching the single-call ``embed()`` convention). For Gemini
+        Embedding 2, task instructions are embedded into each input Content
+        because the current docs no longer support ``task_type`` there.
+        ``output_dimensionality`` is sourced from ``VECTOR_DIM`` so the
+        produced vectors match the pgvector column.
 
         Raises :class:`ValueError` if the list is empty or contains no text.
         """
-        texts = [inp.text for inp in inputs if inp.text]
-        if not texts:
+        text_inputs = [inp for inp in inputs if inp.text]
+        if not text_inputs:
             raise ValueError("embed_batch_submit requires at least one text input")
-        task_type = inputs[0].task if inputs else "retrieval_document"
-        config_kwargs: dict[str, Any] = {"task_type": task_type}
+        is_embedding_2 = _is_gemini_embedding_2_model(self.config.embed_model)
+        config_kwargs: dict[str, Any] = {}
+        if not is_embedding_2:
+            task_type = _normalise_embed_task_type(inputs[0].task if inputs else None)
+            if task_type:
+                config_kwargs["task_type"] = task_type
         dim = os.getenv("VECTOR_DIM")
         if dim:
             config_kwargs["output_dimensionality"] = int(dim)
         src = types.EmbeddingsBatchJobSource(
             inlined_requests=types.EmbedContentBatch(
-                contents=texts,
+                contents=_embed_content_inputs(
+                    text_inputs,
+                    model=self.config.embed_model,
+                ),
                 config=types.EmbedContentConfig(**config_kwargs),
             )
         )
@@ -401,13 +481,11 @@ class GeminiProvider(LLMProvider):
             config=create_config,
         )
         if not job.name:
-            raise RuntimeError(
-                "Gemini batch submit returned a BatchJob with no .name"
-            )
+            raise RuntimeError("Gemini batch submit returned a BatchJob with no .name")
         return BatchEmbedHandle(
             provider_batch_name=job.name,
             submitted_at=time.time(),
-            input_count=len(texts),
+            input_count=len(text_inputs),
         )
 
     async def embed_batch_poll(self, handle: BatchEmbedHandle) -> BatchEmbedPoll:
@@ -496,11 +574,13 @@ class GeminiProvider(LLMProvider):
         `ToolContext` params (handled by the @tool decorator)."""
         decls: list[dict[str, Any]] = []
         for t in tools:
-            decls.append({
-                "name": t.name,
-                "description": t.description,
-                "parameters": t.input_schema(),
-            })
+            decls.append(
+                {
+                    "name": t.name,
+                    "description": t.description,
+                    "parameters": t.input_schema(),
+                }
+            )
         return decls
 
     async def generate_with_tools(
@@ -521,9 +601,7 @@ class GeminiProvider(LLMProvider):
         tool_config = types.ToolConfig(
             function_calling_config=types.FunctionCallingConfig(
                 mode=mode_map[mode],
-                allowed_function_names=(
-                    list(allowed_tool_names) if allowed_tool_names else None
-                ),
+                allowed_function_names=(list(allowed_tool_names) if allowed_tool_names else None),
             )
         )
 
@@ -532,9 +610,7 @@ class GeminiProvider(LLMProvider):
             "tool_config": tool_config,
             # CRITICAL: runtime owns the loop. Docs default is auto-exec,
             # which would bypass our instrumentation + guards.
-            "automatic_function_calling": types.AutomaticFunctionCallingConfig(
-                disable=True
-            ),
+            "automatic_function_calling": types.AutomaticFunctionCallingConfig(disable=True),
         }
         if temperature is not None:
             config_kwargs["temperature"] = temperature
@@ -574,12 +650,14 @@ class GeminiProvider(LLMProvider):
         for part in assistant_content.parts:
             fc = getattr(part, "function_call", None)
             if fc is not None:
-                tool_uses.append(ToolUse(
-                    id=fc.id or uuid.uuid4().hex,
-                    name=fc.name,
-                    args=dict(fc.args) if fc.args else {},
-                    thought_signature=getattr(part, "thought_signature", None),
-                ))
+                tool_uses.append(
+                    ToolUse(
+                        id=fc.id or uuid.uuid4().hex,
+                        name=fc.name,
+                        args=dict(fc.args) if fc.args else {},
+                        thought_signature=getattr(part, "thought_signature", None),
+                    )
+                )
                 continue
             txt = getattr(part, "text", None)
             if txt:
@@ -589,6 +667,7 @@ class GeminiProvider(LLMProvider):
         structured: dict | None = None
         if final_response_schema is not None and final_text:
             import json as _json
+
             try:
                 structured = _json.loads(final_text)
             except _json.JSONDecodeError:
@@ -613,20 +692,18 @@ class GeminiProvider(LLMProvider):
         can be appended to the conversation history for the next turn.
         Uses `FunctionResponse.id` to match Gemini 3's id-keyed mapping
         (Function Calling docs §207-210)."""
-        payload = (
-            {"result": result.data}
-            if not result.is_error
-            else {"error": result.data}
-        )
+        payload = {"result": result.data} if not result.is_error else {"error": result.data}
         return types.Content(
             role="user",
-            parts=[types.Part(
-                function_response=types.FunctionResponse(
-                    id=result.tool_use_id,
-                    name=result.name,
-                    response=payload,
+            parts=[
+                types.Part(
+                    function_response=types.FunctionResponse(
+                        id=result.tool_use_id,
+                        name=result.name,
+                        response=payload,
+                    )
                 )
-            )]
+            ],
         )
 
     # --- Interactions API (Deep Research) -------------------------------
@@ -675,10 +752,7 @@ class GeminiProvider(LLMProvider):
         # (``state.outputs[0]["type"]``) so we ``model_dump`` at the boundary
         # — never let SDK BaseModels escape ``packages/llm``.
         outputs_raw = resp.outputs or []
-        outputs = [
-            o.model_dump() if hasattr(o, "model_dump") else dict(o)
-            for o in outputs_raw
-        ]
+        outputs = [o.model_dump() if hasattr(o, "model_dump") else dict(o) for o in outputs_raw]
         # The SDK ``Interaction`` schema does not declare ``error``; the field
         # is absent in normal completed/failed paths. Server-side may attach
         # one via pydantic ``extra`` for non-spec failure modes — getattr

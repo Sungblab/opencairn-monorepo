@@ -109,11 +109,11 @@ async function* parseOpenAICompatibleSse(
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
-      const frames = buffer.split("\n\n");
+      const frames = buffer.split(/\r?\n\r?\n/);
       buffer = frames.pop() ?? "";
       for (const frame of frames) {
         const dataLines = frame
-          .split("\n")
+          .split(/\r?\n/)
           .filter((line) => line.startsWith("data:"));
         for (const line of dataLines) {
           const raw = line.slice("data:".length).trim();

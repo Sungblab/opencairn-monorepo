@@ -343,6 +343,69 @@ class AgentApiClient:
         )
         return res["id"]
 
+    async def start_agent_run(
+        self,
+        *,
+        workspace_id: str,
+        project_id: str | None,
+        page_id: str | None = None,
+        user_id: str,
+        agent_name: str,
+        workflow_id: str,
+        trajectory_uri: str,
+        parent_run_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Create or reset an ``agent_runs`` summary row for a worker run."""
+        body: dict[str, Any] = {
+            "workspaceId": workspace_id,
+            "projectId": project_id,
+            "pageId": page_id,
+            "userId": user_id,
+            "agentName": agent_name,
+            "workflowId": workflow_id,
+            "trajectoryUri": trajectory_uri,
+        }
+        if parent_run_id is not None:
+            body["parentRunId"] = parent_run_id
+        return await post_internal("/api/internal/agent-runs", body)
+
+    async def finish_agent_run(
+        self,
+        *,
+        agent_name: str,
+        workflow_id: str,
+        status: str,
+        total_tokens_in: int = 0,
+        total_tokens_out: int = 0,
+        total_tokens_cached: int = 0,
+        total_cost_krw: int = 0,
+        tool_call_count: int = 0,
+        model_call_count: int = 0,
+        trajectory_uri: str | None = None,
+        trajectory_bytes: int = 0,
+        error_class: str | None = None,
+        error_message: str | None = None,
+    ) -> dict[str, Any]:
+        """Patch the terminal metrics for an ``agent_runs`` summary row."""
+        body: dict[str, Any] = {
+            "agentName": agent_name,
+            "status": status,
+            "totalTokensIn": total_tokens_in,
+            "totalTokensOut": total_tokens_out,
+            "totalTokensCached": total_tokens_cached,
+            "totalCostKrw": total_cost_krw,
+            "toolCallCount": tool_call_count,
+            "modelCallCount": model_call_count,
+            "trajectoryBytes": trajectory_bytes,
+        }
+        if trajectory_uri is not None:
+            body["trajectoryUri"] = trajectory_uri
+        if error_class is not None:
+            body["errorClass"] = error_class
+        if error_message is not None:
+            body["errorMessage"] = error_message
+        return await patch_internal(f"/api/internal/agent-runs/{workflow_id}", body)
+
     # -- Plan 4 Phase B -----------------------------------------------------
 
     async def hybrid_search_notes(

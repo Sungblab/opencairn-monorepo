@@ -7,21 +7,22 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from llm import get_provider
 from temporalio import activity
 
 from runtime.default_hooks import TokenCounterHook, TrajectoryWriterHook
-from runtime.events import AgentEvent
 from runtime.hooks import HookRegistry
 from runtime.tools import ToolContext
 from runtime.trajectory import LocalFSTrajectoryStorage, TrajectoryWriter
-
 from worker.agents.librarian import LibrarianAgent
+from worker.lib.agent_run_tracking import make_agent_run_tracker
 from worker.lib.api_client import AgentApiClient
 from worker.lib.batch_submit import make_batch_submit
 
+if TYPE_CHECKING:
+    from runtime.events import AgentEvent
 
 _TRAJECTORY_DIR = Path(
     os.environ.get("TRAJECTORY_DIR", "/var/opencairn/trajectories")
@@ -52,7 +53,7 @@ async def run_librarian(inp: dict[str, Any]) -> dict[str, Any]:
 
     Output: :class:`LibrarianOutput` fields.
     """
-    run_id = activity.info().workflow_id
+    run_id = activity.info().workflow_id or activity.info().activity_id
 
     activity.logger.info(
         "run_librarian start: project=%s workspace=%s run=%s",
@@ -84,17 +85,29 @@ async def run_librarian(inp: dict[str, Any]) -> dict[str, Any]:
     )
 
     provider = get_provider()
+    api = AgentApiClient()
+    run_tracker = make_agent_run_tracker(
+        api=api,
+        agent_name="librarian",
+        inp=inp,
+        workflow_id=run_id,
+    )
+    await run_tracker.start()
     agent = LibrarianAgent(
         provider=provider,
-        api=AgentApiClient(),
+        api=api,
         batch_submit=make_batch_submit(),
     )
 
     final_output: dict[str, Any] | None = None
-    async for ev in agent.run(inp, ctx):
-        await _emit(ev)
-        if ev.type == "agent_end":
-            final_output = dict(ev.output)  # type: ignore[arg-type]
+    try:
+        async for ev in agent.run(inp, ctx):
+            await _emit(ev)
+            if ev.type == "agent_end":
+                final_output = dict(ev.output)  # type: ignore[arg-type]
+    except Exception as exc:
+        await run_tracker.finish(status="failed", token_hook=token_hook, error=exc)
+        raise
 
     if final_output is None:
         final_output = {
@@ -112,4 +125,5 @@ async def run_librarian(inp: dict[str, Any]) -> dict[str, Any]:
         final_output.get("duplicates_merged", 0),
         final_output.get("links_strengthened", 0),
     )
+    await run_tracker.finish(status="completed", token_hook=token_hook)
     return final_output

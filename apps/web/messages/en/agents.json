@@ -10,12 +10,24 @@
   },
   "toast": {
     "started": "{agent} run started.",
-    "failed": "Couldn't start the agent run."
+    "failed": "Couldn't start the agent run.",
+    "suggestion": {
+      "accepted": "Suggestion accepted.",
+      "rejected": "Suggestion dismissed.",
+      "failed": "Could not update the suggestion."
+    },
+    "staleAlert": {
+      "reviewed": "Stale alert marked reviewed.",
+      "failed": "Could not update the stale alert."
+    }
   },
   "launch": {
     "run": "Run",
     "noNotes": "No notes available.",
     "noConcepts": "No concepts available.",
+    "librarian": {
+      "name": "Librarian"
+    },
     "synthesis": {
       "name": "Synthesis"
     },
@@ -47,6 +59,7 @@
     "type": "Type",
     "detail": "Detail",
     "created": "Created",
+    "actions": "Actions",
     "note": "Note",
     "score": "Score",
     "detected": "Detected"
@@ -91,6 +104,13 @@
     "curator_contradiction": "Contradiction candidate",
     "curator_external_source": "External source",
     "synthesis_insight": "Synthesis insight"
+  },
+  "suggestions": {
+    "accept": "Accept suggestion",
+    "reject": "Dismiss suggestion"
+  },
+  "staleAlerts": {
+    "review": "Mark reviewed"
   },
   "audio": {
     "aria": "{title} audio"

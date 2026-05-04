@@ -27,6 +27,7 @@ from runtime.hooks import HookRegistry
 from runtime.tools import ToolContext
 from runtime.trajectory import LocalFSTrajectoryStorage, TrajectoryWriter
 from worker.agents.compiler import CompilerAgent, CompilerOutput
+from worker.lib.agent_run_tracking import make_agent_run_tracker
 from worker.lib.api_client import AgentApiClient
 from worker.lib.batch_submit import make_batch_submit
 
@@ -77,7 +78,7 @@ async def compile_note(inp: dict[str, Any]) -> dict[str, Any]:
     them retryable. 4xx from the internal API surface as non-retryable
     and fail the activity immediately.
     """
-    run_id = activity.info().workflow_id  # 1 workflow = 1 compile run
+    run_id = activity.info().workflow_id or activity.info().activity_id
     ctx_ws = inp["workspace_id"]
 
     activity.logger.info(
@@ -116,6 +117,14 @@ async def compile_note(inp: dict[str, Any]) -> dict[str, Any]:
     # and the candidate count crosses BATCH_EMBED_MIN_ITEMS. Otherwise
     # it's unused and the sync provider.embed path runs unchanged.
     api = AgentApiClient()
+    run_tracker = make_agent_run_tracker(
+        api=api,
+        agent_name="compiler",
+        inp=inp,
+        workflow_id=run_id,
+        page_id=inp.get("note_id"),
+    )
+    await run_tracker.start()
     agent = CompilerAgent(
         provider=provider,
         api=api,
@@ -123,12 +132,16 @@ async def compile_note(inp: dict[str, Any]) -> dict[str, Any]:
     )
 
     output: CompilerOutput | None = None
-    async for ev in agent.run(inp, ctx):
-        await _emit(ev)
-        if ev.type == "agent_end":
-            # AgentEnd.output is already a plain dict of CompilerOutput
-            # fields; stash the whole thing so the workflow can return it.
-            output = CompilerOutput(**ev.output)  # type: ignore[arg-type]
+    try:
+        async for ev in agent.run(inp, ctx):
+            await _emit(ev)
+            if ev.type == "agent_end":
+                # AgentEnd.output is already a plain dict of CompilerOutput
+                # fields; stash the whole thing so the workflow can return it.
+                output = CompilerOutput(**ev.output)  # type: ignore[arg-type]
+    except Exception as exc:
+        await run_tracker.finish(status="failed", token_hook=token_hook, error=exc)
+        raise
 
     # If the agent raised, the error event was already emitted; re-raising
     # below would lose the trajectory writer's close step. `finally` via
@@ -159,6 +172,7 @@ async def compile_note(inp: dict[str, Any]) -> dict[str, Any]:
             "compile_note evidence recording skipped: %s",
             exc,
         )
+    await run_tracker.finish(status="completed", token_hook=token_hook)
     return asdict(output)
 
 

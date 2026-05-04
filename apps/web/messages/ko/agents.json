@@ -10,12 +10,24 @@
   },
   "toast": {
     "started": "{agent} 실행을 시작했습니다.",
-    "failed": "에이전트 실행을 시작하지 못했습니다."
+    "failed": "에이전트 실행을 시작하지 못했습니다.",
+    "suggestion": {
+      "accepted": "제안을 수락했습니다.",
+      "rejected": "제안을 기각했습니다.",
+      "failed": "제안 상태를 변경하지 못했습니다."
+    },
+    "staleAlert": {
+      "reviewed": "오래된 노트 알림을 검토 완료로 표시했습니다.",
+      "failed": "오래된 노트 알림 상태를 변경하지 못했습니다."
+    }
   },
   "launch": {
     "run": "실행",
     "noNotes": "선택할 노트가 없습니다.",
     "noConcepts": "선택할 개념이 없습니다.",
+    "librarian": {
+      "name": "Librarian"
+    },
     "synthesis": {
       "name": "Synthesis"
     },
@@ -47,6 +59,7 @@
     "type": "유형",
     "detail": "내용",
     "created": "생성",
+    "actions": "작업",
     "note": "노트",
     "score": "점수",
     "detected": "감지"
@@ -91,6 +104,13 @@
     "curator_contradiction": "모순 후보",
     "curator_external_source": "외부 자료",
     "synthesis_insight": "종합 인사이트"
+  },
+  "suggestions": {
+    "accept": "제안 수락",
+    "reject": "제안 기각"
+  },
+  "staleAlerts": {
+    "review": "검토 완료"
   },
   "audio": {
     "aria": "{title} 오디오"

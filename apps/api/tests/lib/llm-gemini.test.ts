@@ -13,9 +13,11 @@ vi.mock("@google/genai", () => {
   // (not vi.fn().mockImplementation) so `new GoogleGenAI(...)` works.
   const fakeEmbed = vi.fn();
   const fakeStream = vi.fn();
+  const fakeGenerate = vi.fn();
   class GoogleGenAI {
     models = {
       embedContent: fakeEmbed,
+      generateContent: fakeGenerate,
       generateContentStream: fakeStream,
     };
   }
@@ -27,6 +29,7 @@ vi.mock("@google/genai", () => {
       HIGH: "HIGH",
     },
     __fakeEmbed: fakeEmbed,
+    __fakeGenerate: fakeGenerate,
     __fakeStream: fakeStream,
   };
 });
@@ -38,6 +41,8 @@ vi.mock("@google/genai", () => {
 const originalKey = process.env.GEMINI_API_KEY;
 const originalGoogleKey = process.env.GOOGLE_API_KEY;
 const originalChatModel = process.env.GEMINI_CHAT_MODEL;
+const originalGeminiEmbedModel = process.env.GEMINI_EMBED_MODEL;
+const originalEmbedModel = process.env.EMBED_MODEL;
 const originalVectorDim = process.env.VECTOR_DIM;
 
 function restoreEnv() {
@@ -55,6 +60,16 @@ function restoreEnv() {
     delete process.env.GEMINI_CHAT_MODEL;
   } else {
     process.env.GEMINI_CHAT_MODEL = originalChatModel;
+  }
+  if (originalGeminiEmbedModel === undefined) {
+    delete process.env.GEMINI_EMBED_MODEL;
+  } else {
+    process.env.GEMINI_EMBED_MODEL = originalGeminiEmbedModel;
+  }
+  if (originalEmbedModel === undefined) {
+    delete process.env.EMBED_MODEL;
+  } else {
+    process.env.EMBED_MODEL = originalEmbedModel;
   }
   if (originalVectorDim === undefined) {
     delete process.env.VECTOR_DIM;
@@ -109,6 +124,8 @@ describe("GeminiProvider.embed", () => {
 
   it("calls embedContent with gemini-embedding-001 + RETRIEVAL_QUERY + 768d", async () => {
     delete process.env.VECTOR_DIM;
+    delete process.env.GEMINI_EMBED_MODEL;
+    delete process.env.EMBED_MODEL;
     fakeEmbed.mockResolvedValue({
       embeddings: [{ values: new Array(768).fill(0.1) }],
     });
@@ -127,6 +144,8 @@ describe("GeminiProvider.embed", () => {
 
   it("honors VECTOR_DIM for Gemini embedding truncation", async () => {
     process.env.VECTOR_DIM = "1024";
+    delete process.env.GEMINI_EMBED_MODEL;
+    delete process.env.EMBED_MODEL;
     fakeEmbed.mockResolvedValue({
       embeddings: [{ values: new Array(1024).fill(0.1) }],
     });
@@ -156,6 +175,104 @@ describe("GeminiProvider.embed", () => {
     delete process.env.VECTOR_DIM;
     const provider = getGeminiProvider();
     await expect(provider.embed("x")).rejects.toThrow(/3072.*expected 768|expected.*768/i);
+  });
+
+  it("honors GEMINI_EMBED_MODEL then EMBED_MODEL env overrides", async () => {
+    process.env.GEMINI_EMBED_MODEL = "gemini-embedding-001";
+    process.env.EMBED_MODEL = "ignored-by-gemini-specific-override";
+    fakeEmbed.mockResolvedValue({
+      embeddings: [{ values: new Array(768).fill(0.1) }],
+    });
+    const provider = getGeminiProvider();
+    await provider.embed("hello world");
+    expect(fakeEmbed).toHaveBeenCalledWith(expect.objectContaining({
+      model: "gemini-embedding-001",
+    }));
+  });
+
+  it("uses Gemini Embedding 2 task prefix instead of taskType when configured", async () => {
+    process.env.GEMINI_EMBED_MODEL = "gemini-embedding-2";
+    process.env.VECTOR_DIM = "1536";
+    fakeEmbed.mockResolvedValue({
+      embeddings: [{ values: new Array(1536).fill(0.1) }],
+    });
+    const provider = getGeminiProvider();
+    const out = await provider.embed("search this");
+    expect(out).toHaveLength(1536);
+    expect(fakeEmbed).toHaveBeenCalledWith({
+      model: "gemini-embedding-2",
+      contents: [{ parts: [{ text: "task: search result | query: search this" }] }],
+      config: {
+        outputDimensionality: 1536,
+      },
+    });
+  });
+});
+
+describe("GeminiProvider.groundSearch", () => {
+  let fakeGenerate: ReturnType<typeof vi.fn>;
+  beforeEach(async () => {
+    process.env.GEMINI_API_KEY = "AI" + "za-test-ground";
+    const mod = (await import("@google/genai")) as unknown as {
+      __fakeGenerate: ReturnType<typeof vi.fn>;
+    };
+    fakeGenerate = mod.__fakeGenerate;
+    fakeGenerate.mockReset();
+  });
+  afterEach(() => {
+    restoreEnv();
+  });
+
+  it("uses Google Search grounding and returns citation metadata", async () => {
+    fakeGenerate.mockResolvedValue({
+      text: "grounded answer",
+      candidates: [{
+        groundingMetadata: {
+          groundingChunks: [{
+            web: {
+              uri: "https://example.com/source",
+              title: "Source",
+              domain: "example.com",
+            },
+          }],
+        },
+      }],
+      usageMetadata: {
+        promptTokenCount: 11,
+        candidatesTokenCount: 7,
+      },
+    });
+
+    const provider = getGeminiProvider();
+    const result = await provider.groundSearch("latest?", {
+      maxOutputTokens: 512,
+      thinkingLevel: "low",
+      cachedContent: "cachedContents/context-1",
+    });
+
+    expect(result).toEqual({
+      answer: "grounded answer",
+      sources: [{
+        title: "Source",
+        url: "https://example.com/source",
+        snippet: "example.com",
+      }],
+      usage: {
+        tokensIn: 11,
+        tokensOut: 7,
+        model: "gemini-3-flash-preview",
+      },
+    });
+    expect(fakeGenerate).toHaveBeenCalledWith({
+      model: "gemini-3-flash-preview",
+      contents: "latest?",
+      config: {
+        tools: [{ googleSearch: {} }],
+        maxOutputTokens: 512,
+        thinkingConfig: { thinkingLevel: "LOW" },
+        cachedContent: "cachedContents/context-1",
+      },
+    });
   });
 });
 
@@ -276,6 +393,52 @@ describe("GeminiProvider.streamGenerate", () => {
         model: "gemini-3-flash-preview",
         config: expect.objectContaining({
           thinkingConfig: { thinkingLevel: "HIGH" },
+        }),
+      }),
+    );
+  });
+
+  it("forwards Gemini 3 minimal thinkingLevel to generateContentStream", async () => {
+    async function* one() {
+      yield { text: "ok", usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 } };
+    }
+    fakeStream.mockReturnValue(one());
+
+    const provider = getGeminiProvider();
+    for await (const _ of provider.streamGenerate({
+      messages: [{ role: "user", content: "x" }],
+      thinkingLevel: "minimal",
+    })) {
+      // drain
+    }
+
+    expect(fakeStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: expect.objectContaining({
+          thinkingConfig: { thinkingLevel: "MINIMAL" },
+        }),
+      }),
+    );
+  });
+
+  it("forwards cachedContent when provided by the caller", async () => {
+    async function* one() {
+      yield { text: "ok", usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 } };
+    }
+    fakeStream.mockReturnValue(one());
+
+    const provider = getGeminiProvider();
+    for await (const _ of provider.streamGenerate({
+      messages: [{ role: "user", content: "x" }],
+      cachedContent: "cachedContents/context-123",
+    })) {
+      // drain
+    }
+
+    expect(fakeStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: expect.objectContaining({
+          cachedContent: "cachedContents/context-123",
         }),
       }),
     );

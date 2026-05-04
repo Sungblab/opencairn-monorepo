@@ -30,6 +30,7 @@ import {
   synthesisRuns,
   synthesisSources,
   synthesisDocuments,
+  agentRuns,
   eq,
   and,
   isNull,
@@ -114,6 +115,155 @@ async function guardWorkspace(
     throw err;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Agent runtime run summary callbacks
+// ---------------------------------------------------------------------------
+
+const agentRunStartSchema = z.object({
+  workspaceId: z.string().uuid(),
+  projectId: z.string().uuid().nullable().optional(),
+  pageId: z.string().uuid().nullable().optional(),
+  userId: z.string().min(1),
+  agentName: z.string().min(1).max(100),
+  workflowId: z.string().min(1).max(200),
+  parentRunId: z.string().uuid().nullable().optional(),
+  trajectoryUri: z.string().min(1).max(2000),
+});
+
+internal.post(
+  "/agent-runs",
+  zValidator("json", agentRunStartSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+
+    if (body.projectId) {
+      const guard = await guardWorkspace(c, () =>
+        assertResourceWorkspace(db, body.workspaceId, {
+          type: "project",
+          id: body.projectId!,
+        }),
+      );
+      if (guard) return guard;
+    }
+    if (body.pageId) {
+      const guard = await guardWorkspace(c, () =>
+        assertResourceWorkspace(db, body.workspaceId, {
+          type: "note",
+          id: body.pageId!,
+        }),
+      );
+      if (guard) return guard;
+    }
+
+    const [existing] = await db
+      .select({ runId: agentRuns.runId })
+      .from(agentRuns)
+      .where(
+        and(
+          eq(agentRuns.workflowId, body.workflowId),
+          eq(agentRuns.agentName, body.agentName),
+        ),
+      )
+      .limit(1);
+
+    if (existing) {
+      await db
+        .update(agentRuns)
+        .set({
+          status: "running",
+          errorClass: null,
+          errorMessage: null,
+          endedAt: null,
+          durationMs: null,
+          trajectoryUri: body.trajectoryUri,
+        })
+        .where(eq(agentRuns.runId, existing.runId));
+      return c.json({ runId: existing.runId, created: false });
+    }
+
+    const runId = randomUUID();
+    await db.insert(agentRuns).values({
+      runId,
+      workspaceId: body.workspaceId,
+      projectId: body.projectId ?? null,
+      pageId: body.pageId ?? null,
+      userId: body.userId,
+      agentName: body.agentName,
+      parentRunId: body.parentRunId ?? null,
+      workflowId: body.workflowId,
+      status: "running",
+      trajectoryUri: body.trajectoryUri,
+    });
+
+    return c.json({ runId, created: true }, 201);
+  },
+);
+
+const agentRunFinishSchema = z.object({
+  agentName: z.string().min(1).max(100),
+  status: z.enum(["completed", "failed", "awaiting_input", "running"]),
+  totalTokensIn: z.number().int().min(0).optional(),
+  totalTokensOut: z.number().int().min(0).optional(),
+  totalTokensCached: z.number().int().min(0).optional(),
+  totalCostKrw: z.number().int().min(0).optional(),
+  toolCallCount: z.number().int().min(0).optional(),
+  modelCallCount: z.number().int().min(0).optional(),
+  trajectoryUri: z.string().min(1).max(2000).optional(),
+  trajectoryBytes: z.number().int().min(0).optional(),
+  errorClass: z.string().max(300).nullable().optional(),
+  errorMessage: z.string().max(2000).nullable().optional(),
+});
+
+internal.patch(
+  "/agent-runs/:workflowId",
+  zValidator("json", agentRunFinishSchema),
+  async (c) => {
+    const workflowId = c.req.param("workflowId");
+    const body = c.req.valid("json");
+
+    const [existing] = await db
+      .select({
+        runId: agentRuns.runId,
+        startedAt: agentRuns.startedAt,
+        trajectoryUri: agentRuns.trajectoryUri,
+      })
+      .from(agentRuns)
+      .where(
+        and(
+          eq(agentRuns.workflowId, workflowId),
+          eq(agentRuns.agentName, body.agentName),
+        ),
+      )
+      .limit(1);
+    if (!existing) return c.json({ error: "not_found" }, 404);
+
+    const endedAt = new Date();
+    await db
+      .update(agentRuns)
+      .set({
+        status: body.status,
+        endedAt: body.status === "running" ? null : endedAt,
+        durationMs:
+          body.status === "running"
+            ? null
+            : Math.max(0, endedAt.getTime() - existing.startedAt.getTime()),
+        totalTokensIn: body.totalTokensIn ?? 0,
+        totalTokensOut: body.totalTokensOut ?? 0,
+        totalTokensCached: body.totalTokensCached ?? 0,
+        totalCostKrw: body.totalCostKrw ?? 0,
+        toolCallCount: body.toolCallCount ?? 0,
+        modelCallCount: body.modelCallCount ?? 0,
+        trajectoryUri: body.trajectoryUri ?? existing.trajectoryUri,
+        trajectoryBytes: body.trajectoryBytes ?? 0,
+        errorClass: body.errorClass ?? null,
+        errorMessage: body.errorMessage ?? null,
+      })
+      .where(eq(agentRuns.runId, existing.runId));
+
+    return c.json({ ok: true, runId: existing.runId });
+  },
+);
 
 // ---------------------------------------------------------------------------
 // Plan 3 — source note ingestion callback

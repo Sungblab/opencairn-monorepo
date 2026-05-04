@@ -11,12 +11,14 @@ import {
   ExternalLink,
   FileAudio,
   Lightbulb,
+  Library,
   Play,
   RefreshCw,
   Rows3,
   RotateCw,
   Square,
   Volume2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -40,6 +42,7 @@ import { urls } from "@/lib/urls";
 type LaunchKind = Plan8AgentName;
 
 const LAUNCH_ORDER: LaunchKind[] = [
+  "librarian",
   "synthesis",
   "curator",
   "connector",
@@ -135,6 +138,8 @@ export function AgentEntryPointsView({ projectId }: { projectId: string }) {
   const launch = useMutation({
     mutationFn: async (kind: LaunchKind) => {
       switch (kind) {
+        case "librarian":
+          return plan8AgentsApi.runLibrarian({ projectId });
         case "synthesis":
           return plan8AgentsApi.runSynthesis({
             projectId,
@@ -162,6 +167,34 @@ export function AgentEntryPointsView({ projectId }: { projectId: string }) {
     },
     onError: () => {
       toast.error(t("toast.failed"));
+    },
+  });
+
+  const resolveSuggestion = useMutation({
+    mutationFn: async ({
+      id,
+      status,
+    }: {
+      id: string;
+      status: "accepted" | "rejected";
+    }) => plan8AgentsApi.resolveSuggestion(id, status),
+    onSuccess: (_result, variables) => {
+      toast.success(t(`toast.suggestion.${variables.status}`));
+      void queryClient.invalidateQueries({ queryKey });
+    },
+    onError: () => {
+      toast.error(t("toast.suggestion.failed"));
+    },
+  });
+
+  const reviewStaleAlert = useMutation({
+    mutationFn: (id: string) => plan8AgentsApi.reviewStaleAlert(id),
+    onSuccess: () => {
+      toast.success(t("toast.staleAlert.reviewed"));
+      void queryClient.invalidateQueries({ queryKey });
+    },
+    onError: () => {
+      toast.error(t("toast.staleAlert.failed"));
     },
   });
 
@@ -323,6 +356,10 @@ export function AgentEntryPointsView({ projectId }: { projectId: string }) {
               locale={locale}
               projectId={projectId}
               workspaceSlug={workspaceSlug}
+              disabled={resolveSuggestion.isPending}
+              onResolve={(id, status) =>
+                resolveSuggestion.mutate({ id, status })
+              }
             />
             <StaleAlertsTable
               rows={data.staleAlerts}
@@ -331,6 +368,8 @@ export function AgentEntryPointsView({ projectId }: { projectId: string }) {
               locale={locale}
               projectId={projectId}
               workspaceSlug={workspaceSlug}
+              disabled={reviewStaleAlert.isPending}
+              onReview={(id) => reviewStaleAlert.mutate(id)}
             />
             <AudioFilesList
               rows={data.audioFiles}
@@ -374,7 +413,9 @@ function LaunchPanel({
 }) {
   const t = useTranslations("agents");
   const Icon =
-    kind === "synthesis"
+    kind === "librarian"
+      ? Library
+      : kind === "synthesis"
       ? Bot
       : kind === "curator"
         ? Lightbulb
@@ -469,6 +510,8 @@ function SuggestionsTable({
   locale,
   projectId,
   workspaceSlug,
+  disabled,
+  onResolve,
 }: {
   rows: Plan8Suggestion[];
   formatDate: (value: string) => string;
@@ -476,6 +519,8 @@ function SuggestionsTable({
   locale: string;
   projectId: string;
   workspaceSlug: string | null;
+  disabled: boolean;
+  onResolve: (id: string, status: "accepted" | "rejected") => void;
 }) {
   const t = useTranslations("agents");
   return (
@@ -492,6 +537,7 @@ function SuggestionsTable({
               <th className="pb-2 text-left">{t("tables.type")}</th>
               <th className="pb-2 text-left">{t("tables.detail")}</th>
               <th className="pb-2 text-left">{t("tables.created")}</th>
+              <th className="pb-2 text-right">{t("tables.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -510,6 +556,30 @@ function SuggestionsTable({
                 <td className="py-2 text-xs text-muted-foreground">
                   {formatDate(row.createdAt)}
                 </td>
+                <td className="py-2">
+                  <div className="flex justify-end gap-1">
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => onResolve(row.id, "accepted")}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded border border-border hover:bg-accent disabled:opacity-50"
+                      aria-label={t("suggestions.accept")}
+                      title={t("suggestions.accept")}
+                    >
+                      <Check aria-hidden className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => onResolve(row.id, "rejected")}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded border border-border hover:bg-accent disabled:opacity-50"
+                      aria-label={t("suggestions.reject")}
+                      title={t("suggestions.reject")}
+                    >
+                      <X aria-hidden className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -526,6 +596,8 @@ function StaleAlertsTable({
   locale,
   projectId,
   workspaceSlug,
+  disabled,
+  onReview,
 }: {
   rows: Plan8StaleAlert[];
   formatDate: (value: string) => string;
@@ -533,6 +605,8 @@ function StaleAlertsTable({
   locale: string;
   projectId: string;
   workspaceSlug: string | null;
+  disabled: boolean;
+  onReview: (id: string) => void;
 }) {
   const t = useTranslations("agents");
   return (
@@ -549,6 +623,7 @@ function StaleAlertsTable({
               <th className="pb-2 text-left">{t("tables.note")}</th>
               <th className="pb-2 text-left">{t("tables.score")}</th>
               <th className="pb-2 text-left">{t("tables.detected")}</th>
+              <th className="pb-2 text-right">{t("tables.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -569,6 +644,18 @@ function StaleAlertsTable({
                 </td>
                 <td className="py-2 text-xs text-muted-foreground">
                   {formatDate(row.detectedAt)}
+                </td>
+                <td className="py-2 text-right">
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onReview(row.id)}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded border border-border hover:bg-accent disabled:opacity-50"
+                    aria-label={t("staleAlerts.review")}
+                    title={t("staleAlerts.review")}
+                  >
+                    <Check aria-hidden className="h-3.5 w-3.5" />
+                  </button>
                 </td>
               </tr>
             ))}

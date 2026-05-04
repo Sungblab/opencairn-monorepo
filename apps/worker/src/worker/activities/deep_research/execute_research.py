@@ -178,28 +178,22 @@ async def _run_execute_research(
 
     stream = await provider.stream_interaction(handle.id)
     async for ev in stream:
-        artifact = _interaction_event_to_artifact(ev.kind, ev.payload)
-        if artifact is None:
-            # Status / lifecycle events are advisory only — authoritative
-            # final status comes from get_interaction after the stream closes.
-            on_heartbeat()
-            continue
-        artifact_kind, artifact_payload = artifact
-        await on_event(artifact_kind, artifact_payload)
-        if artifact_kind == "image":
-            images.append(
-                {
-                    "url": artifact_payload["url"],
-                    "mime_type": artifact_payload.get("mime_type", "image/png"),
-                }
-            )
-        elif artifact_kind == "citation":
-            citations.append(
-                {
-                    "url": artifact_payload["url"],
-                    "title": artifact_payload.get("title", ""),
-                }
-            )
+        for kind, payload in _normalise_stream_event(ev):
+            await on_event(kind, payload)
+            if kind == "image":
+                images.append(
+                    {
+                        "url": payload["url"],
+                        "mime_type": payload.get("mime_type", "image/png"),
+                    }
+                )
+            elif kind == "citation":
+                citations.append(
+                    {
+                        "url": payload["url"],
+                        "title": payload.get("title", ""),
+                    }
+                )
         on_heartbeat()
 
     final = await provider.get_interaction(handle.id)
@@ -219,6 +213,42 @@ async def _run_execute_research(
         images=images,
         citations=citations,
     )
+
+
+def _normalise_stream_event(ev: Any) -> list[tuple[str, dict[str, Any]]]:
+    """Map Gemini Interactions stream events to OpenCairn artifact kinds.
+
+    Current Gemini docs stream model output as ``content.delta`` events whose
+    typed ``delta`` payload can be text, thought_summary, image, or
+    text_annotation. Older tests/fakes used direct OpenCairn kind names; keep
+    those accepted so retries and unit seams stay compatible.
+    """
+    kind = getattr(ev, "kind", "")
+    payload = getattr(ev, "payload", {}) or {}
+
+    if kind == "content.delta":
+        delta = payload.get("delta") if isinstance(payload, dict) else None
+        if isinstance(delta, dict) and delta.get("type") == "text_annotation":
+            out: list[tuple[str, dict[str, Any]]] = []
+            for annotation in delta.get("annotations") or []:
+                if not isinstance(annotation, dict):
+                    continue
+                url = annotation.get("url") or annotation.get("sourceUrl")
+                if not url:
+                    continue
+                out.append(
+                    (
+                        "citation",
+                        {
+                            "url": str(url),
+                            "title": str(annotation.get("title") or ""),
+                        },
+                    )
+                )
+            return out
+
+    artifact = _interaction_event_to_artifact(kind, payload)
+    return [artifact] if artifact is not None else []
 
 
 def _to_api_payload(kind: str, payload: dict[str, Any]) -> dict[str, Any]:

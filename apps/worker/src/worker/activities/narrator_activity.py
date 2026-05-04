@@ -9,20 +9,21 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from llm import get_provider
 from temporalio import activity
 
 from runtime.default_hooks import TokenCounterHook, TrajectoryWriterHook
-from runtime.events import AgentEvent
 from runtime.hooks import HookRegistry
 from runtime.tools import ToolContext
 from runtime.trajectory import LocalFSTrajectoryStorage, TrajectoryWriter
-
 from worker.agents.narrator import NarratorAgent
+from worker.lib.agent_run_tracking import make_agent_run_tracker
 from worker.lib.api_client import AgentApiClient
 
+if TYPE_CHECKING:
+    from runtime.events import AgentEvent
 
 _TRAJECTORY_DIR = Path(
     os.environ.get("TRAJECTORY_DIR", "/var/opencairn/trajectories")
@@ -60,7 +61,7 @@ async def run_narrator(inp: dict[str, Any]) -> dict[str, Any]:
         - audio_file_id: str  (present only when has_audio=True)
         - r2_key: str         (present only when has_audio=True)
     """
-    run_id = activity.info().workflow_id
+    run_id = activity.info().workflow_id or activity.info().activity_id
 
     activity.logger.info(
         "run_narrator start: note_id=%r workspace=%s run=%s",
@@ -92,13 +93,26 @@ async def run_narrator(inp: dict[str, Any]) -> dict[str, Any]:
     )
 
     provider = get_provider()
-    agent = NarratorAgent(provider=provider, api=AgentApiClient())
+    api = AgentApiClient()
+    run_tracker = make_agent_run_tracker(
+        api=api,
+        agent_name="narrator",
+        inp=inp,
+        workflow_id=run_id,
+        page_id=inp.get("note_id"),
+    )
+    await run_tracker.start()
+    agent = NarratorAgent(provider=provider, api=api)
 
     final_output: dict[str, Any] | None = None
-    async for ev in agent.run(inp, ctx):
-        await _emit(ev)
-        if ev.type == "agent_end":
-            final_output = dict(ev.output)  # type: ignore[arg-type]
+    try:
+        async for ev in agent.run(inp, ctx):
+            await _emit(ev)
+            if ev.type == "agent_end":
+                final_output = dict(ev.output)  # type: ignore[arg-type]
+    except Exception as exc:
+        await run_tracker.finish(status="failed", token_hook=token_hook, error=exc)
+        raise
 
     if final_output is None:
         final_output = {
@@ -111,4 +125,5 @@ async def run_narrator(inp: dict[str, Any]) -> dict[str, Any]:
         final_output.get("has_audio", False),
         len(final_output.get("script", [])),
     )
+    await run_tracker.finish(status="completed", token_hook=token_hook)
     return final_output

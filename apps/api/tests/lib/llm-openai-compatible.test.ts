@@ -168,6 +168,34 @@ describe("getOpenAICompatibleProvider", () => {
     ]);
   });
 
+  it("parses CRLF-delimited SSE frames", async () => {
+    const body = new ReadableStream({
+      start(ctrl) {
+        ctrl.enqueue(
+          new TextEncoder().encode(
+            'data: {"choices":[{"delta":{"content":"ok"}}]}\r\n\r\n',
+          ),
+        );
+        ctrl.enqueue(new TextEncoder().encode("data: [DONE]\r\n\r\n"));
+        ctrl.close();
+      },
+    });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status: 200 })));
+
+    const provider = getOpenAICompatibleProvider();
+    const out: StreamChunk[] = [];
+    for await (const chunk of provider.streamGenerate({
+      messages: [{ role: "user", content: "hi" }],
+    })) {
+      out.push(chunk);
+    }
+
+    expect(out).toEqual([
+      { delta: "ok" },
+      { usage: { tokensIn: 0, tokensOut: 0, model: "qwen" } },
+    ]);
+  });
+
   it("does not expose raw HTTP status codes for chat failures", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("nope", { status: 502 })));
 
