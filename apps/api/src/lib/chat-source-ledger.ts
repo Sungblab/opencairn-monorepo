@@ -5,6 +5,7 @@ export type ChatSourceLedgerInput = {
   noteId?: string;
   noteChunkId?: string;
   chunkId?: string;
+  projectId?: string;
   title?: string;
   headingPath?: string | null;
   snippet?: string;
@@ -14,14 +15,20 @@ export type ChatSourceLedgerInput = {
   channel?: ChatSourceProducer;
   retrievalChannel?: ChatSourceProducer;
   producer?: ChatSourceProducer | string;
+  evidenceId?: string;
+  support?: "supports" | "contradicts" | "mentions";
   provenance?: {
     noteId?: string;
     noteChunkId?: string;
     chunkId?: string;
+    projectId?: string;
     title?: string;
     headingPath?: string | null;
     quote?: string;
     snippet?: string;
+    kind?: "extracted" | "inferred" | "ambiguous";
+    evidenceId?: string;
+    support?: "supports" | "contradicts" | "mentions";
   };
 };
 
@@ -30,11 +37,15 @@ export type ChatSourceLedgerEntry = {
   sourceId: string;
   noteId: string | null;
   noteChunkId: string | null;
+  projectId: string | null;
   title: string;
   headingPath: string | null;
   quote: string;
   score: number | null;
   producer: string;
+  provenance: "extracted" | "inferred" | "ambiguous" | null;
+  evidenceId: string | null;
+  support: "supports" | "contradicts" | "mentions" | null;
 };
 
 export type ChatSourceLedger = {
@@ -72,6 +83,7 @@ function entryFromInput(input: ChatSourceLedgerInput, index: number): ChatSource
   const noteId = input.noteId ?? provenance?.noteId ?? null;
   const noteChunkId =
     input.noteChunkId ?? input.chunkId ?? provenance?.noteChunkId ?? provenance?.chunkId ?? null;
+  const projectId = input.projectId ?? provenance?.projectId ?? null;
   const title = cleanText(input.title ?? provenance?.title) || "Untitled source";
   const headingPath = input.headingPath ?? provenance?.headingPath ?? null;
   const quote =
@@ -83,11 +95,15 @@ function entryFromInput(input: ChatSourceLedgerInput, index: number): ChatSource
     sourceId: sourceKey(input, index),
     noteId,
     noteChunkId,
+    projectId,
     title,
     headingPath,
     quote,
     score: typeof input.score === "number" ? input.score : null,
     producer: String(input.producer ?? input.retrievalChannel ?? input.channel ?? "retrieval"),
+    provenance: provenance?.kind ?? null,
+    evidenceId: input.evidenceId ?? provenance?.evidenceId ?? null,
+    support: input.support ?? provenance?.support ?? null,
   };
 }
 
