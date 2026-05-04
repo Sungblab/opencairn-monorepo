@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Bot,
+  Check,
   ExternalLink,
   FileAudio,
   Lightbulb,
@@ -205,7 +206,7 @@ export function AgentEntryPointsView({ projectId }: { projectId: string }) {
         <button
           type="button"
           onClick={() => void refetch()}
-          className="inline-flex h-9 items-center gap-2 rounded border border-border px-3 text-sm hover:bg-accent disabled:opacity-50"
+          className="app-btn-ghost inline-flex h-9 items-center gap-2 rounded-[var(--radius-control)] border border-border px-3 text-sm disabled:opacity-50"
           disabled={isFetching}
         >
           <RefreshCw
@@ -246,11 +247,20 @@ export function AgentEntryPointsView({ projectId }: { projectId: string }) {
                           key={note.id}
                           className="flex items-center gap-2 text-xs"
                         >
-                          <input
-                            type="checkbox"
-                            checked={synthesisNoteIds.includes(note.id)}
-                            onChange={() => toggleSynthesisNote(note.id)}
-                          />
+                          <span className="relative inline-flex h-7 w-7 items-center justify-center">
+                            <input
+                              type="checkbox"
+                              className="peer absolute inset-0 h-7 w-7 cursor-pointer opacity-0"
+                              checked={synthesisNoteIds.includes(note.id)}
+                              onChange={() => toggleSynthesisNote(note.id)}
+                            />
+                            <span
+                              aria-hidden="true"
+                              className="pointer-events-none flex h-5 w-5 items-center justify-center rounded-[var(--radius-control)] border border-border bg-background text-background transition-colors peer-checked:border-foreground peer-checked:bg-foreground"
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                            </span>
+                          </span>
                           <span className="truncate">{note.title}</span>
                         </label>
                       ))
@@ -264,7 +274,7 @@ export function AgentEntryPointsView({ projectId }: { projectId: string }) {
                     onChange={(event) =>
                       setConnectorConceptId(event.target.value)
                     }
-                    className="h-8 w-full rounded border border-border bg-background px-2 text-xs"
+                    className="h-8 w-full rounded-[var(--radius-control)] border border-border bg-background px-2 text-xs"
                   >
                     {data.launch.concepts.length === 0 ? (
                       <option value="">{t("launch.noConcepts")}</option>
@@ -282,7 +292,7 @@ export function AgentEntryPointsView({ projectId }: { projectId: string }) {
                     aria-label={t("launch.narrator.select")}
                     value={narratorNoteId}
                     onChange={(event) => setNarratorNoteId(event.target.value)}
-                    className="h-8 w-full rounded border border-border bg-background px-2 text-xs"
+                    className="h-8 w-full rounded-[var(--radius-control)] border border-border bg-background px-2 text-xs"
                   >
                     {data.launch.notes.length === 0 ? (
                       <option value="">{t("launch.noNotes")}</option>
@@ -374,7 +384,7 @@ function LaunchPanel({
             ? AlertTriangle
             : Volume2;
   return (
-    <div className="flex min-h-40 flex-col gap-3 rounded border border-border p-3">
+    <div className="flex min-h-40 flex-col gap-3 rounded-[var(--radius-card)] border border-border p-3">
       <div className="flex items-center gap-2">
         <Icon aria-hidden className="h-4 w-4 text-muted-foreground" />
         <h2 className="text-sm font-semibold">{t(`launch.${kind}.name`)}</h2>
@@ -384,7 +394,7 @@ function LaunchPanel({
         type="button"
         onClick={onLaunch}
         disabled={disabled}
-        className="app-btn-primary h-8 rounded px-3 text-xs"
+        className="app-btn-primary h-8 rounded-[var(--radius-control)] px-3 text-xs"
       >
         <Play aria-hidden className="h-3.5 w-3.5" />
         {t("launch.run")}
@@ -597,7 +607,7 @@ function AudioFilesList({
           {rows.map((row) => (
             <div
               key={row.id}
-              className="flex flex-col gap-2 rounded border border-border p-3"
+              className="flex flex-col gap-2 rounded-[var(--radius-card)] border border-border p-3"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">

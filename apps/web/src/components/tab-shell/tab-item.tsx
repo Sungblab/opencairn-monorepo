@@ -68,7 +68,7 @@ export function TabItem({ tab, active, onClick, onClose }: TabItemProps) {
             e.stopPropagation();
             onClose();
           }}
-          className="shrink-0 rounded opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded opacity-0 transition-colors hover:bg-muted hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
         >
           <X className="h-3 w-3" />
         </button>

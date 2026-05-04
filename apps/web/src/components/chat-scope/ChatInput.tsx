@@ -33,7 +33,7 @@ export function ChatInput({
   const t = useTranslations("chatScope.input");
   const [text, setText] = useState("");
   return (
-    <div className="rounded-md border border-stone-200">
+    <div className="rounded-[var(--radius-card)] border border-border bg-background">
       <div className="flex items-center">
         <ChipRow
           chips={chips}
@@ -45,7 +45,7 @@ export function ChatInput({
       </div>
       <div className="flex items-end gap-2 p-2">
         <textarea
-          className="flex-1 resize-none text-sm outline-none"
+          className="min-h-14 flex-1 resize-none bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
           rows={2}
           placeholder={t("placeholder")}
           value={text}
@@ -54,7 +54,7 @@ export function ChatInput({
         />
         <button
           type="button"
-          className="rounded bg-stone-900 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+          className="app-btn-primary rounded-[var(--radius-control)] px-3 py-1.5 text-sm disabled:opacity-50"
           disabled={disabled || text.trim().length === 0}
           onClick={() => {
             onSend(text);

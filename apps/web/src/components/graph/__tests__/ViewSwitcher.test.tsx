@@ -37,7 +37,7 @@ describe("ViewSwitcher", () => {
     }
     expect(screen.getByRole("button", {
       name: new RegExp(koGraph.ai.trigger),
-    })).toBeInTheDocument();
+    })).toHaveClass("min-h-7");
   });
 
   it("clicking a view replaces ?view= and preserves other params", () => {

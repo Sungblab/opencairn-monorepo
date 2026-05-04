@@ -16,10 +16,18 @@ export default async function ImportPage({
   const { wsSlug } = await params;
   const t = await getTranslations("import");
   return (
-    <div className="mx-auto max-w-3xl p-6">
-      <h1 className="text-2xl font-semibold">{t("pageTitle")}</h1>
-      <p className="mt-1 text-muted-foreground">{t("pageDescription")}</p>
-      <ImportTabs wsSlug={wsSlug} />
+    <div className="min-h-full bg-background px-8 py-7">
+      <div className="max-w-4xl">
+        <h1 className="text-2xl font-semibold tracking-normal">
+          {t("pageTitle")}
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {t("pageDescription")}
+        </p>
+        <div className="mt-7">
+          <ImportTabs wsSlug={wsSlug} />
+        </div>
+      </div>
     </div>
   );
 }

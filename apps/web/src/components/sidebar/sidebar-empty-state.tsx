@@ -67,7 +67,7 @@ export function SidebarEmptyState() {
             onClick={() =>
               router.push(urls.workspace.project(locale, wsSlug, project.id))
             }
-            className="truncate rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+            className="min-h-7 truncate rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
           >
             {project.name}
           </button>
@@ -75,7 +75,7 @@ export function SidebarEmptyState() {
         <button
           type="button"
           onClick={() => router.push(urls.workspace.newProject(locale, wsSlug))}
-          className="mt-1 rounded px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+          className="mt-1 min-h-7 rounded px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
         >
           + {t("new")}
         </button>
@@ -93,7 +93,7 @@ export function SidebarEmptyState() {
         onClick={() =>
           router.push(urls.workspace.newProject(locale, wsSlug))
         }
-        className="rounded border border-border px-3 py-1 text-xs text-foreground transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+        className="min-h-7 rounded border border-border px-3 py-1 text-xs text-foreground transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
       >
         {t("create_cta")}
       </button>

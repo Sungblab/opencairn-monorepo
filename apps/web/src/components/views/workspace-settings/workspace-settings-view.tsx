@@ -72,20 +72,23 @@ export function WorkspaceSettingsView({
   })();
 
   return (
-    <div data-testid="route-ws-settings" className="flex gap-6 p-6">
-      <aside className="w-44 shrink-0 border-r border-border pr-4">
+    <div
+      data-testid="route-ws-settings"
+      className="flex min-h-full min-w-0 flex-col bg-background md:flex-row"
+    >
+      <aside className="w-full shrink-0 border-b border-border bg-[var(--theme-surface)] p-4 md:w-48 md:border-b-0 md:border-r">
         <p className="mb-3 text-xs uppercase tracking-wide text-muted-foreground">
           {t("title")}
         </p>
-        <nav className="flex flex-col gap-1">
+        <nav className="flex flex-row gap-1 overflow-x-auto pb-1 md:flex-col md:overflow-x-visible md:pb-0">
           {TABS.map((id) => (
             <Link
               key={id}
               href={urls.workspace.settingsSection(locale, wsSlug, SLUGS[id])}
-              className={`block rounded px-2 py-1 text-sm ${
+              className={`block shrink-0 rounded-[var(--radius-control)] px-2.5 py-1.5 text-sm transition-colors ${
                 current === id
-                  ? "bg-accent font-medium"
-                  : "text-muted-foreground hover:bg-accent/50"
+                  ? "bg-foreground font-medium text-background"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
               {t(`tabs.${id}`)}
@@ -93,7 +96,7 @@ export function WorkspaceSettingsView({
           ))}
         </nav>
       </aside>
-      <main className="flex-1">{body}</main>
+      <main className="min-w-0 flex-1 p-6">{body}</main>
     </div>
   );
 }

@@ -6,5 +6,5 @@ export default async function WorkspaceLayout({
   children: React.ReactNode;
 }) {
   await requireSession();
-  return <div className="flex min-h-screen">{children}</div>;
+  return <div className="flex min-h-screen min-w-0 flex-col lg:flex-row">{children}</div>;
 }

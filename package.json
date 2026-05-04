@@ -1,6 +1,8 @@
 {
   "name": "opencairn",
   "private": true,
+  "description": "Self-hostable, multi-LLM knowledge OS for individuals and teams.",
+  "license": "AGPL-3.0-or-later",
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",

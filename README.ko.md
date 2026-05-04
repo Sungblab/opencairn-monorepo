@@ -82,7 +82,7 @@ pnpm dev
 | 협업 모델 (권한 · Hocuspocus · 코멘트)            | `docs/architecture/collaboration-model.md`                            |
 | 에이전트 런타임                                    | `docs/contributing/roadmap.md`  |
 | 운영                                              | `docs/contributing/ops.md`, `docs/runbooks/`                          |
-| Plan 상태                                         | `docs/contributing/plans-status.md`                                   |
+| 기능 소유권과 중복 작업 방지                       | `docs/contributing/feature-registry.md`                               |
 
 ## 기여
 
@@ -108,6 +108,6 @@ pnpm dev
 OpenCairn은 **듀얼 라이선스**로 배포됩니다:
 
 - **기본**: [AGPL-3.0-or-later](LICENSE). 자체 호스팅, 포크, 수정, 재배포, 네트워크 서비스 운영 모두 AGPL 조건 내에서 자유이며, 네트워크 사용 조항에 따라 수정한 소스를 네트워크 너머 사용자에게 동일 라이선스로 공개해야 합니다.
-- **상업용 라이선스**: AGPLv3의 네트워크 사용 조항을 따를 수 없거나, 내부 오픈소스 정책상 AGPL 컴포넌트 사용이 금지된 조직을 위해 별도 제공. 상세 범위와 문의 방법은 [`LICENSE-COMMERCIAL.md`](LICENSE-COMMERCIAL.md).
+- **상업용 라이선스**: AGPLv3의 네트워크 사용 조항을 따를 수 없거나, 내부 오픈소스 정책상 AGPL 컴포넌트 사용이 금지된 조직을 위해 별도 제공. 상세 범위와 문의 방법은 [`COMMERCIAL-LICENSING.md`](COMMERCIAL-LICENSING.md).
 
 대부분의 사용자(개인, 내부 전용 배포, AGPL을 받아들일 수 있는 조직)에게는 상업용 라이선스가 필요하지 않습니다. 외부 기여자는 [Contributor License Agreement (CLA)](CLA.md) 승인이 요청되며, 이는 프로젝트가 기여분을 두 라이선스로 모두 배포할 수 있도록 허용합니다.

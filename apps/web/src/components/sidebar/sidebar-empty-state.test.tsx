@@ -59,6 +59,7 @@ describe("SidebarEmptyState", () => {
     const cta = screen.getByRole("button", {
       name: "sidebar.project.create_cta",
     });
+    expect(cta).toHaveClass("min-h-7");
     fireEvent.click(cta);
     expect(push).toHaveBeenCalledWith("/ko/workspace/acme/new-project");
   });
@@ -100,6 +101,7 @@ describe("SidebarEmptyState", () => {
 
     renderEmptyState();
     const project = await screen.findByRole("button", { name: "Roadmap" });
+    expect(project).toHaveClass("min-h-7");
     fireEvent.click(project);
     expect(push).toHaveBeenCalledWith("/ko/workspace/acme/project/p-1");
   });

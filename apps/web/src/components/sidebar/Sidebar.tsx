@@ -21,9 +21,9 @@ export function Sidebar({
     <aside
       data-testid="sidebar"
       data-project-id={projectId}
-      className="w-64 shrink-0 border-r border-border bg-card flex flex-col"
+      className="flex max-h-[42vh] w-full shrink-0 flex-col border-b border-border bg-card lg:max-h-none lg:w-64 lg:border-b-0 lg:border-r"
     >
-      <header className="p-4 border-b border-border">
+      <header className="border-b border-border p-4">
         <p className="text-xs text-fg-muted uppercase tracking-wide">
           {workspaceSlug}
         </p>
@@ -31,7 +31,7 @@ export function Sidebar({
           {projectName}
         </h2>
       </header>
-      <div className="p-2 space-y-1">
+      <div className="space-y-1 p-2">
         <NewNoteButton workspaceSlug={workspaceSlug} projectId={projectId} />
         <NewCanvasButton workspaceSlug={workspaceSlug} projectId={projectId} />
       </div>

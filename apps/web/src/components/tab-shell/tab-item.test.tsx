@@ -110,6 +110,15 @@ describe("TabItem", () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
+  it("uses a full-size close target", () => {
+    render(
+      <TabItem tab={mk()} active={false} onClick={() => {}} onClose={() => {}} />,
+    );
+    const close = screen.getByLabelText("close");
+    expect(close.className).toContain("h-7");
+    expect(close.className).toContain("w-7");
+  });
+
   it("middle-click closes the tab (standard browser gesture)", () => {
     const onClose = vi.fn();
     render(

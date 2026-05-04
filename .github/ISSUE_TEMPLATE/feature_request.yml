@@ -1,0 +1,50 @@
+name: Feature request
+description: Suggest a product or self-hosting improvement.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please describe the user problem first. Concrete API or UI ideas are welcome, but the problem statement is more important.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user-visible problem should OpenCairn solve?
+      placeholder: "As a self-hosting admin / researcher / team member, I need ..."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed shape
+      description: What should the experience or API look like?
+      placeholder: "A good solution might ..."
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - ingest
+        - editor / collaboration
+        - knowledge graph
+        - chat / RAG
+        - agents
+        - self-hosting
+        - security / permissions
+        - import / export
+        - docs
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Existing tools, workflows, or workarounds that almost solve this.
+    validations:
+      required: false
