@@ -16,7 +16,7 @@ import shutil
 import sys
 import tempfile
 import tracemalloc
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from time import perf_counter
 from typing import TYPE_CHECKING, Any
@@ -82,8 +82,12 @@ class BenchmarkResult:
     blocks: int
     tables: int
     figures: int
+    formulas: int
     plain_text_chars: int
+    expected_features: tuple[str, ...]
     warnings: tuple[str, ...]
+    quality_scores: dict[str, float] = field(default_factory=dict)
+    quality_notes: tuple[str, ...] = ()
     error: str | None = None
 
 
@@ -133,7 +137,10 @@ async def run_dry_fixture(fixture: BenchmarkFixture, parser: str) -> BenchmarkRe
         blocks=0,
         tables=0,
         figures=0,
+        formulas=0,
         plain_text_chars=0,
+        expected_features=fixture.expected_features,
+        quality_scores=_empty_quality_scores(),
         warnings=(),
     )
 
@@ -437,6 +444,195 @@ async def _benchmark_activity_patches(fixture: BenchmarkFixture) -> AsyncIterato
                 temp_file.unlink(missing_ok=True)
 
 
+_QUALITY_SCORE_KEYS = (
+    "table_structure",
+    "heading_structure",
+    "reading_order",
+    "figure_coverage",
+    "formula_coverage",
+    "korean_text",
+    "source_offset_coverage",
+    "downstream_chunk_quality",
+    "overall",
+)
+
+
+def _empty_quality_scores() -> dict[str, float]:
+    return dict.fromkeys(_QUALITY_SCORE_KEYS, 0.0)
+
+
+def _quality_scores_for_doc(doc: CanonicalDocument, fixture: BenchmarkFixture) -> dict[str, float]:
+    scores = {
+        "table_structure": _table_structure_score(doc, fixture),
+        "heading_structure": _heading_structure_score(doc, fixture),
+        "reading_order": _reading_order_score(doc),
+        "figure_coverage": _feature_presence_score(
+            expected=_expects(fixture, "figures", "images"),
+            count=len(doc.figures) + _block_count(doc, "figure"),
+        ),
+        "formula_coverage": _feature_presence_score(
+            expected=_expects(fixture, "formulas", "formula", "equations"),
+            count=len(doc.formulas) + _block_count(doc, "formula"),
+        ),
+        "korean_text": _korean_text_score(doc, fixture),
+        "source_offset_coverage": _source_offset_coverage_score(doc),
+        "downstream_chunk_quality": _downstream_chunk_quality_score(doc),
+    }
+    scores["overall"] = _average(scores.values())
+    return {key: round(value, 4) for key, value in scores.items()}
+
+
+def _quality_notes_for_doc(doc: CanonicalDocument, fixture: BenchmarkFixture) -> tuple[str, ...]:
+    notes: list[str] = []
+    if _expects(fixture, "tables") and not doc.tables:
+        notes.append("expected_tables_missing")
+    if _expects(fixture, "headings") and _block_count(doc, "heading") == 0:
+        notes.append("expected_headings_missing")
+    if _expects(fixture, "figures") and not doc.figures:
+        notes.append("expected_figures_missing")
+    if _expects(fixture, "formulas") and len(doc.formulas) + _block_count(doc, "formula") == 0:
+        notes.append("expected_formulas_missing")
+    if _expects(fixture, "korean_text") and _korean_char_count(doc.as_plain_text()) == 0:
+        notes.append("expected_korean_text_missing")
+    if _source_offset_coverage_score(doc) < 0.9:
+        notes.append("source_offset_coverage_below_90_percent")
+    if _downstream_chunk_quality_score(doc) < 0.8:
+        notes.append("downstream_chunk_quality_below_80_percent")
+    return tuple(notes)
+
+
+def _table_structure_score(doc: CanonicalDocument, fixture: BenchmarkFixture) -> float:
+    expected = _expects(fixture, "tables", "cell_order", "sheet_order")
+    if not doc.tables:
+        return 0.0 if expected else 1.0
+    structured_tables = sum(1 for table in doc.tables if table.cells and any(table.cells))
+    if _expects(fixture, "tables", "cell_order", "sheet_order"):
+        return structured_tables / len(doc.tables)
+    return 1.0 if structured_tables else 0.5
+
+
+def _heading_structure_score(doc: CanonicalDocument, fixture: BenchmarkFixture) -> float:
+    heading_blocks = [block for block in doc.blocks if str(block.type) == "heading"]
+    expected = _expects(fixture, "headings")
+    if not heading_blocks:
+        return 0.0 if expected else 1.0
+    with_order = sum(1 for block in heading_blocks if block.reading_order is not None)
+    return with_order / len(heading_blocks)
+
+
+def _reading_order_score(doc: CanonicalDocument) -> float:
+    if not doc.blocks:
+        return 0.0
+    blocks_with_order = [block for block in doc.blocks if block.reading_order is not None]
+    coverage = len(blocks_with_order) / len(doc.blocks)
+    page_groups: dict[int, list[int]] = {}
+    for block in blocks_with_order:
+        page_groups.setdefault(block.page_number or 0, []).append(block.reading_order or 0)
+    if not page_groups:
+        return coverage
+    monotonic_groups = sum(1 for values in page_groups.values() if values == sorted(values))
+    return (coverage + monotonic_groups / len(page_groups)) / 2
+
+
+def _feature_presence_score(*, expected: bool, count: int) -> float:
+    if count > 0:
+        return 1.0
+    return 0.0 if expected else 1.0
+
+
+def _korean_text_score(doc: CanonicalDocument, fixture: BenchmarkFixture) -> float:
+    text = doc.as_plain_text()
+    korean_chars = _korean_char_count(text)
+    if korean_chars == 0:
+        return 0.0 if _expects(fixture, "korean_text") else 1.0
+    if not text:
+        return 0.0
+    return min(korean_chars / max(len(text), 1) * 20, 1.0)
+
+
+def _source_offset_coverage_score(doc: CanonicalDocument) -> float:
+    content_blocks = [block for block in doc.blocks if block.content]
+    if not content_blocks:
+        return 0.0
+    covered = sum(1 for block in content_blocks if block.source_offsets is not None)
+    return covered / len(content_blocks)
+
+
+def _downstream_chunk_quality_score(doc: CanonicalDocument) -> float:
+    plain_text = doc.as_plain_text()
+    if not plain_text:
+        return 0.0
+    chunks = _project_downstream_chunks(doc)
+    if not chunks:
+        return 0.0
+    non_empty_score = sum(1 for chunk in chunks if chunk.strip()) / len(chunks)
+    size_score = sum(1 for chunk in chunks if 120 <= len(chunk) <= 1_800) / len(chunks)
+    if len(plain_text) < 120:
+        size_score = 1.0
+    heading_blocks = _block_count(doc, "heading")
+    heading_score = 1.0
+    if heading_blocks:
+        heading_score = min(
+            sum(
+                1
+                for chunk in chunks
+                for block_text in chunk.split("\n\n")
+                if block_text.startswith("# ")
+            )
+            / heading_blocks,
+            1.0,
+        )
+    offset_score = _source_offset_coverage_score(doc)
+    return _average((non_empty_score, size_score, heading_score, offset_score))
+
+
+def _project_downstream_chunks(doc: CanonicalDocument, *, max_chars: int = 1_200) -> list[str]:
+    chunks: list[str] = []
+    current: list[str] = []
+    current_len = 0
+    for block in sorted(
+        doc.blocks,
+        key=lambda b: (
+            b.page_number or 0,
+            b.reading_order if b.reading_order is not None else 1_000_000,
+            b.id,
+        ),
+    ):
+        if not block.content:
+            continue
+        prefix = "# " if str(block.type) == "heading" else ""
+        text = f"{prefix}{block.content.strip()}"
+        if current and current_len + len(text) + 2 > max_chars:
+            chunks.append("\n\n".join(current))
+            current = []
+            current_len = 0
+        current.append(text)
+        current_len += len(text) + 2
+    if current:
+        chunks.append("\n\n".join(current))
+    return chunks
+
+
+def _expects(fixture: BenchmarkFixture, *features: str) -> bool:
+    expected = {feature.lower() for feature in fixture.expected_features}
+    return any(feature in expected for feature in features)
+
+
+def _block_count(doc: CanonicalDocument, block_type: str) -> int:
+    return sum(1 for block in doc.blocks if str(block.type) == block_type)
+
+
+def _korean_char_count(text: str) -> int:
+    return sum(1 for char in text if "\uac00" <= char <= "\ud7a3")
+
+
+def _average(values: Any) -> float:
+    items = list(values)
+    if not items:
+        return 0.0
+    return sum(float(value) for value in items) / len(items)
+
+
 def _result_from_doc(
     fixture: BenchmarkFixture,
     doc: CanonicalDocument,
@@ -456,7 +652,11 @@ def _result_from_doc(
         blocks=len(doc.blocks),
         tables=len(doc.tables),
         figures=len(doc.figures),
+        formulas=len(doc.formulas),
         plain_text_chars=len(plain_text),
+        expected_features=fixture.expected_features,
+        quality_scores=_quality_scores_for_doc(doc, fixture),
+        quality_notes=_quality_notes_for_doc(doc, fixture),
         warnings=tuple(warning.code for warning in doc.warnings),
     )
 
@@ -481,7 +681,10 @@ def _result(
         blocks=0,
         tables=0,
         figures=0,
+        formulas=0,
         plain_text_chars=0,
+        expected_features=fixture.expected_features,
+        quality_scores=_empty_quality_scores(),
         warnings=(),
         error=error,
     )
