@@ -250,6 +250,8 @@ export interface ChatMessageContent {
   status?: { phrase?: string };
   citations?: unknown[];
   save_suggestion?: unknown;
+  agent_files?: unknown[];
+  project_objects?: unknown[];
 }
 
 export interface ChatMessage {

@@ -8,6 +8,7 @@ export const AGENT_FILE_KINDS = [
   "code",
   "json",
   "csv",
+  "xlsx",
   "pdf",
   "docx",
   "pptx",
@@ -164,6 +165,10 @@ export function inferAgentFileKind(filename: string, mimeType?: string): AgentFi
     mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
     extension === "pptx"
   ) return "pptx";
+  if (
+    mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    extension === "xlsx"
+  ) return "xlsx";
   if (mimeType?.startsWith("image/") || ["png", "jpg", "jpeg", "webp", "gif", "svg"].includes(extension)) {
     return "image";
   }
@@ -186,6 +191,9 @@ export function inferAgentFileMimeType(filename: string, kind?: AgentFileKind): 
   }
   if (kind === "pptx" || extension === "pptx") {
     return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+  }
+  if (kind === "xlsx" || extension === "xlsx") {
+    return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
   }
   if (kind === "markdown" || extension === "md" || extension === "markdown") return "text/markdown";
   if (kind === "latex" || extension === "tex" || extension === "bib") return "application/x-tex";

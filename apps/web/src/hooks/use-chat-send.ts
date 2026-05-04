@@ -31,6 +31,8 @@ export interface StreamingAgentMessage {
   status: { phrase?: string } | null;
   citations: unknown[];
   save_suggestion: unknown | null;
+  agent_files: unknown[];
+  project_objects: unknown[];
   // Populated when the route emits `event: error` mid-stream. `done` still
   // arrives separately and triggers the live → null reset; this field lives
   // on the in-flight preview only and is not persisted (the agent row is
@@ -45,6 +47,8 @@ const initialLive: StreamingAgentMessage = {
   status: null,
   citations: [],
   save_suggestion: null,
+  agent_files: [],
+  project_objects: [],
   error: null,
 };
 
@@ -138,6 +142,14 @@ export function useChatSend(threadId: string | null) {
               case "save_suggestion":
                 return isObj(payload)
                   ? { ...prev, save_suggestion: payload }
+                  : prev;
+              case "agent_file_created":
+                return isObj(payload)
+                  ? { ...prev, agent_files: [...prev.agent_files, payload.file ?? payload] }
+                  : prev;
+              case "project_object_created":
+                return isObj(payload)
+                  ? { ...prev, project_objects: [...prev.project_objects, payload.object ?? payload] }
                   : prev;
               case "error": {
                 // Surface the failure to the user via the existing toast

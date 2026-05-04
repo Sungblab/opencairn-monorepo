@@ -62,6 +62,10 @@ apps/worker/benchmarks/results/
 .worktrees/
 .superpowers/
 
+# Private agent execution docs. Superpowers defaults to docs/superpowers/*;
+# keep that local workflow while excluding plans/specs/handoffs from the public repo.
+docs/superpowers/
+
 # Local reference docs
 references/Gemini_API_docs/
 
