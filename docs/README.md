@@ -36,6 +36,8 @@ workflow files are intentionally excluded from the public repository.
 | Agent behavior guardrails | `agents/agent-behavior-spec.md` |
 | Temporal workflows | `agents/temporal-workflows.md` |
 | Context management and RAG | `agents/context-management.md` |
+| Gemini provider surface | `agents/gemini-docs-audit.md` |
+| LLM provider parity | `agents/llm-provider-surface-parity.md` |
 
 ## Operations
 

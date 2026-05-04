@@ -6,6 +6,12 @@
 
 ## 1. Gemini Context Caching
 
+> **Implementation status:** `packages/llm` exposes Gemini context-cache
+> plumbing, but OpenCairn does not currently ship a product flow that creates,
+> invalidates, and reuses project-level caches for Research/Socratic queries.
+> The policy below is the intended design boundary, not current default
+> runtime behavior.
+
 ### 사용 이유
 
 Research Agent가 대규모 프로젝트의 위키 문서를 반복 참조할 때, 매번 위키 전체를 컨텍스트에 넣으면 비용 낭비가 크다.
@@ -45,13 +51,13 @@ cache = client.caches.create(
 
 ### 캐시 적용 에이전트
 
-| 에이전트    | 캐시 사용 | 비고                                 |
-| ------------- | ----------- | ------------------------------------- |
-| Research      | O           | 대규모 위키를 반복 참조             |
-| Socratic      | O           | 대규모 위키에서 문제 생성          |
-| Compiler      | X           | 단일 완료 처리, 캐시 비효율 없음     |
-| Librarian     | X           | 전체 위키 탐색, 캐시 비효율 있음 |
-| Deep Research | X           | Gemini API가 직접 검색              |
+| 에이전트    | 현재 제품 캐시 사용 | 비고                                 |
+| ------------- | ------------------- | ------------------------------------- |
+| Research      | X                   | provider plumbing만 있음            |
+| Socratic      | X                   | provider plumbing만 있음            |
+| Compiler      | X                   | 단일 완료 처리, 캐시 비효율 없음     |
+| Librarian     | X                   | 전체 위키 탐색, 캐시 비효율 있음 |
+| Deep Research | X                   | Gemini API가 직접 검색              |
 
 ---
 
@@ -72,7 +78,10 @@ result = client.models.embed_content(
 )
 ```
 
-멀티모달(이미지/음성/영상) 임베딩이 필요하면 `gemini-embedding-2-preview`로 env 교체 — 단 해당 모델은 **Batch API 미지원, TPM 상한 낮음**. 저장 비용·품질 손실 tradeoff는 ADR-007 참조.
+멀티모달(이미지/음성/영상) 임베딩이 필요하면 별도 모델로 env를
+교체해야 한다. 현재 shipped default는 `gemini-embedding-001` 텍스트
+임베딩이며, 멀티모달 Gemini Embedding 2를 기본 제품 경로로 제공하지
+않는다. 저장 비용·품질 손실 tradeoff는 ADR-007 참조.
 
 ### 임베딩 시점
 

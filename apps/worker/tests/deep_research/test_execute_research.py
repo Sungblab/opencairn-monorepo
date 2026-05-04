@@ -10,19 +10,24 @@ The activity:
   4. After the stream closes, fetches the final state and returns the
      consolidated report.
 """
+
 from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Any, AsyncGenerator
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from worker.activities.deep_research.execute_research import (
     ExecuteResearchInput,
     ExecuteResearchOutput,
+    _interaction_event_to_artifact,
     _run_execute_research,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 
 @dataclass
@@ -49,9 +54,7 @@ class _FakeEvent:
 
 class _FakeProvider:
     def __init__(self, events: list[_FakeEvent], final_state: _FakeState) -> None:
-        self._handle = _FakeHandle(
-            id="int-exec", agent="deep-research-preview-04-2026"
-        )
+        self._handle = _FakeHandle(id="int-exec", agent="deep-research-preview-04-2026")
         self._events = list(events)
         self._final = final_state
         self.start_calls: list[dict[str, Any]] = []
@@ -81,18 +84,36 @@ def test_happy_path_streams_and_collects(monkeypatch):
     monkeypatch.setenv("GEMINI_MANAGED_API_KEY", "fake")
 
     events = [
-        _FakeEvent("1", "thought_summary", {"text": "considering X"}),
-        _FakeEvent("2", "text", {"text": "Report body... "}),
         _FakeEvent(
-            "3", "image", {"url": "gs://img/a.png", "mime_type": "image/png"}
+            "1",
+            "content.delta",
+            {"delta": {"type": "thought_summary", "content": {"text": "considering X"}}},
         ),
-        _FakeEvent("4", "text", {"text": "more body."}),
+        _FakeEvent("2", "content.delta", {"delta": {"type": "text", "text": "Report body... "}}),
+        _FakeEvent(
+            "3",
+            "content.delta",
+            {
+                "delta": {
+                    "type": "image",
+                    "url": "gs://img/a.png",
+                    "mime_type": "image/png",
+                }
+            },
+        ),
+        _FakeEvent("4", "content.delta", {"delta": {"type": "text", "text": "more body."}}),
         _FakeEvent(
             "5",
-            "citation",
-            {"url": "https://example.com/s1", "title": "Source 1"},
+            "content.delta",
+            {
+                "delta": {
+                    "type": "citation",
+                    "url": "https://example.com/s1",
+                    "title": "Source 1",
+                }
+            },
         ),
-        _FakeEvent("6", "status", {"status": "completed"}),
+        _FakeEvent("6", "interaction.status_update", {"status": "completed"}),
     ]
     final = _FakeState(
         id="int-exec",
@@ -141,8 +162,15 @@ def test_happy_path_streams_and_collects(monkeypatch):
     assert call["previous_interaction_id"] == "int-plan"
     assert "stream" not in call  # SDK drops stream kwarg — streaming is via stream_interaction()
 
-    # status events are not forwarded; the other 5 are.
-    assert len(forwarded) == 5
+    # lifecycle/status events are not forwarded; content deltas are normalized
+    # into the product artifact kinds accepted by the API and rendered by web.
+    assert [kind for kind, _payload in forwarded] == [
+        "thought_summary",
+        "text_delta",
+        "image",
+        "text_delta",
+        "citation",
+    ]
     # heartbeat called at least once (initial) plus once per event.
     assert len(heartbeats) >= 1
 
@@ -222,6 +250,32 @@ def test_quota_exceeded_is_non_retryable(monkeypatch):
     assert excinfo.value.non_retryable is True
 
 
+def test_interaction_event_to_artifact_maps_official_content_delta_shapes():
+    assert _interaction_event_to_artifact(
+        "content.delta", {"delta": {"type": "text", "text": "hello"}}
+    ) == ("text_delta", {"text": "hello"})
+    assert _interaction_event_to_artifact(
+        "content.delta",
+        {"delta": {"type": "thought_summary", "content": {"text": "thinking"}}},
+    ) == ("thought_summary", {"text": "thinking"})
+    assert _interaction_event_to_artifact(
+        "content.delta",
+        {"delta": {"type": "image", "url": "gs://img/a.png", "mime_type": "image/png"}},
+    ) == ("image", {"url": "gs://img/a.png", "mime_type": "image/png"})
+    assert _interaction_event_to_artifact(
+        "content.delta",
+        {
+            "delta": {
+                "type": "citation",
+                "sourceUrl": "https://example.com/s1",
+                "title": "Source 1",
+            }
+        },
+    ) == ("citation", {"url": "https://example.com/s1", "title": "Source 1"})
+    assert (
+        _interaction_event_to_artifact("interaction.status_update", {"status": "running"}) is None
+    )
+
 
 # --- S4-008 regression: production wiring URL paths ---------------------
 
@@ -252,7 +306,8 @@ def test_default_persist_event_posts_to_api_internal_artifacts(monkeypatch):
 
     monkeypatch.setenv("INTERNAL_API_SECRET", "test-secret")
     monkeypatch.setattr(
-        "worker.lib.api_client.post_internal", _capturing_post,
+        "worker.lib.api_client.post_internal",
+        _capturing_post,
     )
     monkeypatch.setattr(mod.activity, "info", _stub_info)
     monkeypatch.setattr(mod.activity, "in_activity", _in_activity)
@@ -268,9 +323,7 @@ def test_default_persist_event_posts_to_api_internal_artifacts(monkeypatch):
 def test_to_api_payload_maps_image_mime_type():
     from worker.activities.deep_research.execute_research import _to_api_payload
 
-    out = _to_api_payload(
-        "image", {"url": "gs://img/a.png", "mime_type": "image/png"}
-    )
+    out = _to_api_payload("image", {"url": "gs://img/a.png", "mime_type": "image/png"})
 
     # API's discriminated-union schema requires `mimeType` (camelCase). The
     # provider's raw event uses `mime_type`, and without translation every
@@ -281,9 +334,7 @@ def test_to_api_payload_maps_image_mime_type():
 def test_to_api_payload_maps_citation_url_to_source_url():
     from worker.activities.deep_research.execute_research import _to_api_payload
 
-    out = _to_api_payload(
-        "citation", {"url": "https://example.com/s1", "title": "Source 1"}
-    )
+    out = _to_api_payload("citation", {"url": "https://example.com/s1", "title": "Source 1"})
 
     # citation payload renames `url` -> `sourceUrl` to match the API schema.
     assert out == {"sourceUrl": "https://example.com/s1", "title": "Source 1"}
@@ -322,9 +373,7 @@ def test_default_persist_event_remaps_image_payload(monkeypatch):
     monkeypatch.setattr(mod.activity, "in_activity", lambda: False)
 
     asyncio.run(
-        mod._default_persist_event(
-            "image", {"url": "gs://img/a.png", "mime_type": "image/png"}
-        )
+        mod._default_persist_event("image", {"url": "gs://img/a.png", "mime_type": "image/png"})
     )
 
     assert captured == [

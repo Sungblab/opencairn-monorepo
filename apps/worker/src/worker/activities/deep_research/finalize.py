@@ -10,8 +10,9 @@ a transient API outage doesn't drop a final-state update on the floor.
 """
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 from temporalio import activity
 

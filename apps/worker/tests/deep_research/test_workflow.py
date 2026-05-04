@@ -23,7 +23,6 @@ from worker.workflows.deep_research_workflow import (
     DeepResearchWorkflow,
 )
 
-
 # --- Activity stubs. Names must match the real @activity.defn registrations.
 
 

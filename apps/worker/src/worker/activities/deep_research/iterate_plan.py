@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
@@ -24,6 +24,9 @@ from worker.activities.deep_research.keys import (
     KeyResolutionError,
     resolve_api_key,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
 
 @dataclass

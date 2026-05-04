@@ -8,7 +8,8 @@ default ``fetch_byok_ciphertext_from_db`` wired up in db_readonly.
 from __future__ import annotations
 
 import os
-from typing import Awaitable, Callable, Literal
+from collections.abc import Awaitable, Callable
+from typing import Literal
 
 from worker.lib.integration_crypto import decrypt_token
 

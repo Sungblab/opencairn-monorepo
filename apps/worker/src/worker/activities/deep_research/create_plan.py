@@ -11,14 +11,14 @@ lets the workflow hold the authoritative projection.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Protocol
-
-from temporalio import activity
-from temporalio.exceptions import ApplicationError
+from typing import Any, Protocol
 
 from llm.base import ProviderConfig
 from llm.factory import get_provider
+from temporalio import activity
+from temporalio.exceptions import ApplicationError
 
 from worker.activities.deep_research.keys import (
     KeyResolutionError,
@@ -83,8 +83,10 @@ async def _run_create_plan(
             break
         if state.status in ("failed", "cancelled"):
             err = state.error or {}
+            code = err.get("code", "unknown")
+            message = err.get("message", "")
             raise ApplicationError(
-                f"interaction {state.status}: {err.get('code', 'unknown')}: {err.get('message', '')}",
+                f"interaction {state.status}: {code}: {message}",
                 type=err.get("code", state.status),
                 non_retryable=True,
             )

@@ -15,10 +15,12 @@ Returns dicts (not dataclasses) in ``images``/``citations`` so the @activity.def
 payload is plain JSON — avoids needing to register nested dataclasses with
 the Temporal data converter.
 """
+
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Protocol
+from typing import Any, Protocol
 
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
@@ -69,6 +71,77 @@ class _ProviderLike(Protocol):
 
 OnEvent = Callable[[str, dict[str, Any]], Awaitable[None]]
 OnHeartbeat = Callable[[], None]
+ProductArtifact = tuple[str, dict[str, Any]]
+
+
+_RAW_INTERACTION_EVENTS = {
+    "interaction.start",
+    "interaction.status_update",
+    "interaction.complete",
+    "content.start",
+    "content.stop",
+    "error",
+}
+
+
+def _nested_text(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        for key in ("text", "summary", "content"):
+            text = _nested_text(value.get(key))
+            if text:
+                return text
+    return ""
+
+
+def _interaction_event_to_artifact(kind: str, payload: dict[str, Any]) -> ProductArtifact | None:
+    """Map Gemini Interactions stream events to stored product artifacts.
+
+    The Gemini Interactions API streams transport-level events such as
+    ``content.delta``. The API/web surface stores product-level artifacts
+    (``text_delta``, ``thought_summary``, ``image``, ``citation``). Tests used
+    to feed already-normalized events, which hid the missing adapter.
+    """
+    if kind in {"thought_summary", "text_delta", "image", "citation"}:
+        return kind, payload
+    if kind == "text":
+        return "text_delta", payload
+    if kind == "status" or kind in _RAW_INTERACTION_EVENTS:
+        return None
+    if kind != "content.delta":
+        return None
+
+    delta = payload.get("delta")
+    if not isinstance(delta, dict):
+        return None
+
+    delta_type = delta.get("type")
+    if delta_type == "text":
+        text = _nested_text(delta)
+        return ("text_delta", {"text": text}) if text else None
+    if delta_type == "thought_summary":
+        text = _nested_text(delta.get("content")) or _nested_text(delta)
+        return ("thought_summary", {"text": text}) if text else None
+    if delta_type == "image":
+        url = delta.get("url") or delta.get("image_url") or delta.get("uri")
+        if not isinstance(url, str) or not url:
+            return None
+        mime_type = (
+            delta.get("mime_type") or delta.get("mimeType") or delta.get("mime") or "image/png"
+        )
+        artifact: dict[str, Any] = {"url": url, "mime_type": str(mime_type)}
+        base64_data = delta.get("base64") or delta.get("data")
+        if isinstance(base64_data, str) and base64_data:
+            artifact["base64"] = base64_data
+        return "image", artifact
+    if delta_type == "citation":
+        url = delta.get("url") or delta.get("source_url") or delta.get("sourceUrl")
+        if not isinstance(url, str) or not url:
+            return None
+        title = delta.get("title") or delta.get("source_title") or ""
+        return "citation", {"url": url, "title": str(title)}
+    return None
 
 
 async def _run_execute_research(
@@ -86,9 +159,7 @@ async def _run_execute_research(
             fetch_byok_ciphertext=fetch_byok_ciphertext,
         )
     except KeyResolutionError as exc:
-        raise ApplicationError(
-            str(exc), type="key_resolution", non_retryable=True
-        ) from exc
+        raise ApplicationError(str(exc), type="key_resolution", non_retryable=True) from exc
 
     provider = provider_factory(api_key)
     handle = await provider.start_interaction(
@@ -107,23 +178,26 @@ async def _run_execute_research(
 
     stream = await provider.stream_interaction(handle.id)
     async for ev in stream:
-        if ev.kind == "status":
-            # Status is advisory only — authoritative final status comes
-            # from get_interaction after the stream closes.
+        artifact = _interaction_event_to_artifact(ev.kind, ev.payload)
+        if artifact is None:
+            # Status / lifecycle events are advisory only — authoritative
+            # final status comes from get_interaction after the stream closes.
+            on_heartbeat()
             continue
-        await on_event(ev.kind, ev.payload)
-        if ev.kind == "image":
+        artifact_kind, artifact_payload = artifact
+        await on_event(artifact_kind, artifact_payload)
+        if artifact_kind == "image":
             images.append(
                 {
-                    "url": ev.payload["url"],
-                    "mime_type": ev.payload.get("mime_type", "image/png"),
+                    "url": artifact_payload["url"],
+                    "mime_type": artifact_payload.get("mime_type", "image/png"),
                 }
             )
-        elif ev.kind == "citation":
+        elif artifact_kind == "citation":
             citations.append(
                 {
-                    "url": ev.payload["url"],
-                    "title": ev.payload.get("title", ""),
+                    "url": artifact_payload["url"],
+                    "title": artifact_payload.get("title", ""),
                 }
             )
         on_heartbeat()
@@ -138,9 +212,7 @@ async def _run_execute_research(
             type=code,
             non_retryable=code in _NON_RETRYABLE_CODES,
         )
-    report_text = "".join(
-        o.get("text", "") for o in final.outputs if o.get("type") == "text"
-    )
+    report_text = "".join(o.get("text", "") for o in final.outputs if o.get("type") == "text")
     return ExecuteResearchOutput(
         interaction_id=handle.id,
         report_text=report_text,
@@ -189,9 +261,7 @@ async def _default_persist_event(kind: str, payload: dict[str, Any]) -> None:
         )
     except Exception:  # pragma: no cover — keep the stream resilient
         if activity.in_activity():
-            activity.logger.warning(
-                "artifact persist failed — see /api/internal/research/runs"
-            )
+            activity.logger.warning("artifact persist failed — see /api/internal/research/runs")
 
 
 def _default_heartbeat() -> None:
