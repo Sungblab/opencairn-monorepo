@@ -1,9 +1,12 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
-import { readFileSync } from "fs";
+import { readFileSync, realpathSync } from "fs";
+import { createRequire } from "module";
 import { join } from "path";
 
+const require = createRequire(import.meta.url);
 const MONOREPO_ROOT = join(process.cwd(), "../..");
+const YJS_SINGLETON_MODULE = realpathSync(require.resolve("yjs"));
 
 // Next.js reads .env only from its own app directory, not the monorepo root.
 // Load the root .env manually so NEXT_PUBLIC_* vars are available at build time.
@@ -57,8 +60,31 @@ const CSP_HEADER = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  transpilePackages: [
+    "@hocuspocus/provider",
+    "@platejs/yjs",
+    "@slate-yjs/core",
+    "y-protocols",
+  ],
   turbopack: {
     root: MONOREPO_ROOT,
+  },
+  webpack(config, { isServer }) {
+    if (isServer) {
+      config.externals ??= [];
+      config.externals.push({ yjs: "commonjs yjs" });
+    }
+    config.resolve ??= {};
+    if (!isServer) {
+      config.resolve.alias = {
+        ...(config.resolve.alias ?? {}),
+        // Yjs warns when both its ESM and CJS bundles are evaluated in the same
+        // browser realm. Plate/Yjs and Hocuspocus have mixed import styles, so
+        // pin the bare package import to one browser module.
+        yjs: YJS_SINGLETON_MODULE,
+      };
+    }
+    return config;
   },
   async headers() {
     return [
