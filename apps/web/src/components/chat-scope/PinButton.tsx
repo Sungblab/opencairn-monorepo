@@ -54,7 +54,7 @@ export function PinButton({
       <button
         type="button"
         aria-label={t("button")}
-        className="inline-flex items-center gap-1 text-sm text-stone-600 hover:text-stone-900"
+        className="app-btn-ghost inline-flex items-center gap-1 rounded-[var(--radius-control)] px-1.5 py-1 text-sm text-muted-foreground"
         onClick={() => void pin(false)}
         disabled={pinned}
       >

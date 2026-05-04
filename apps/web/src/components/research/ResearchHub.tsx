@@ -97,7 +97,7 @@ function StatusChip({
   // an explicit danger tone via inline style because Tailwind doesn't have
   // a `bg-danger` token bound to the theme.
   const baseClass =
-    "rounded-[var(--radius-chip)] border px-2 py-0.5 text-[10px] uppercase tracking-wide";
+    "rounded-[var(--radius-control)] border px-2 py-0.5 text-[10px] uppercase tracking-wide";
   if (status === "researching") {
     return (
       <span

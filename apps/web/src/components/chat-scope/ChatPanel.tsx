@@ -388,7 +388,7 @@ export function ChatPanel() {
         {messages.map((m) => (
           <div
             key={m.key}
-            className={m.role === "user" ? "text-stone-900" : "text-stone-700"}
+            className={m.role === "user" ? "text-foreground" : "text-muted-foreground"}
           >
             <p className="whitespace-pre-wrap">{m.content}</p>
             {m.error && (
@@ -428,7 +428,7 @@ export function ChatPanel() {
           </div>
         ))}
       </div>
-      <div className="border-t border-stone-200 p-2">
+      <div className="border-t border-border p-2">
         <ChatInput
           chips={chips}
           workspaceId={ctx.workspaceId}

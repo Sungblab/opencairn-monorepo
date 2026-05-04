@@ -71,33 +71,33 @@ export function AddChipCombobox({
       <button
         type="button"
         aria-label={t("add_aria")}
-        className="rounded-md border border-dashed border-stone-300 px-1.5 py-0.5 text-stone-500 hover:text-stone-800"
+        className="app-hover rounded-[var(--radius-control)] border border-dashed border-border px-1.5 py-0.5 text-muted-foreground"
         onClick={() => setOpen(!open)}
       >
         <Plus size={12} />
       </button>
       {open && (
-        <div className="absolute z-10 mt-1 w-64 rounded-md border border-stone-200 bg-white shadow-md">
+        <div className="absolute z-10 mt-1 w-64 rounded-[var(--radius-card)] border border-border bg-background shadow-md">
           <input
             autoFocus
             value={q}
             onChange={(e) => void search(e.target.value)}
             placeholder={t("placeholder")}
-            className="w-full border-b border-stone-200 px-2 py-1.5 text-sm outline-none"
+            className="w-full border-b border-border bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted-foreground"
           />
           <ul className="max-h-64 overflow-auto">
             {q.length < 2 ? (
-              <li className="px-2 py-1 text-xs text-stone-400">
+              <li className="px-2 py-1 text-xs text-muted-foreground">
                 {t("min_chars_hint")}
               </li>
             ) : results.length === 0 ? (
-              <li className="px-2 py-1 text-xs text-stone-400">{t("empty")}</li>
+              <li className="px-2 py-1 text-xs text-muted-foreground">{t("empty")}</li>
             ) : (
               results.map((r) => (
                 <li key={`${r.type}:${r.id}`}>
                   <button
                     type="button"
-                    className="w-full px-2 py-1 text-left text-sm hover:bg-stone-50"
+                    className="app-hover w-full px-2 py-1 text-left text-sm"
                     onClick={() => {
                       onAdd({ type: r.type, id: r.id });
                       setOpen(false);

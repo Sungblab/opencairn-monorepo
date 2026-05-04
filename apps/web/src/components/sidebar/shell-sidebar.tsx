@@ -30,7 +30,7 @@ export function ShellSidebar({
   return (
     <aside
       data-testid="app-shell-sidebar"
-      className="flex h-full min-h-0 flex-col border-r border-border bg-background"
+      className="flex h-full min-h-0 flex-col border-r border-border bg-[var(--theme-surface)]"
     >
       <WorkspaceSwitcher />
       {wsSlug ? (

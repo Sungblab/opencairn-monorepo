@@ -38,6 +38,7 @@
   },
   "composer": {
     "placeholder": "Type a message...",
+    "input_aria": "Message input",
     "attach_aria": "Attach",
     "voice_aria": "Voice input",
     "send_aria": "Send",
@@ -56,11 +57,11 @@
     "loose": "LOOSE",
     "strict_aria": "Toggle scope mode",
     "chips": {
-      "page": "📄 Page",
-      "project": "📂 Project",
-      "workspace": "🏠 Workspace",
-      "memory": "🧠 Memory",
-      "research": "🔬 This research"
+      "page": "Page",
+      "project": "Project",
+      "workspace": "Workspace",
+      "memory": "Memory",
+      "research": "This research"
     }
   },
   "empty_state": {

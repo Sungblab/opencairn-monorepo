@@ -3,6 +3,7 @@ import createNextIntlPlugin from "next-intl/plugin";
 import { readFileSync, realpathSync } from "fs";
 import { createRequire } from "module";
 import { join } from "path";
+import { buildCspHeader } from "./src/lib/security/csp";
 
 const require = createRequire(import.meta.url);
 const MONOREPO_ROOT = join(process.cwd(), "../..");
@@ -44,19 +45,10 @@ const withNextIntl = createNextIntlPlugin("./src/i18n.ts");
 //   (Edge runtime — `next.config.ts` static headers cannot generate one) —
 //   tracked as Phase 2+ alongside the style-src nonce migration. Until then,
 //   both directives accept inline.
-const CSP_HEADER = [
-  "default-src 'self'",
-  // Plan 2E Phase B — add embed provider origins so iframes load in production.
-  // Dev (`next dev`) doesn't enforce CSP; without these the iframes are blocked
-  // in production by the default-src 'self' fallback.
-  "frame-src 'self' blob: https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com",
-  "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net/pyodide/ https://esm.sh",
-  "worker-src 'self' blob:",
-  "connect-src 'self' https://esm.sh https://cdn.jsdelivr.net",
-  "img-src 'self' data: blob: https:",
-  "font-src 'self' data: https://cdn.jsdelivr.net",
-  "style-src 'self' 'unsafe-inline'",
-].join("; ");
+const CSP_HEADER = buildCspHeader({
+  hocuspocusUrl:
+    process.env.NEXT_PUBLIC_HOCUSPOCUS_URL ?? "ws://localhost:1234",
+});
 
 const nextConfig: NextConfig = {
   output: "standalone",

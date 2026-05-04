@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { AlertTriangle } from "lucide-react";
 import type { PinDelta } from "@opencairn/shared";
 
 // Plan 11A — citation visibility warning. Surfaced when /pin returns 409
@@ -27,26 +28,29 @@ export function PinPermissionModal({
       aria-modal
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
     >
-      <div className="w-full max-w-md rounded-md bg-white p-4">
-        <h2 className="mb-2 font-semibold text-stone-900">⚠ {t("modal_title")}</h2>
-        <p className="mb-3 text-sm text-stone-700">
+      <div className="w-full max-w-md rounded-[var(--radius-card)] border border-border bg-background p-4">
+        <h2 className="mb-2 flex items-center gap-2 font-semibold text-foreground">
+          <AlertTriangle aria-hidden="true" className="h-4 w-4" />
+          <span>{t("modal_title")}</span>
+        </h2>
+        <p className="mb-3 text-sm text-muted-foreground">
           {t("modal_body", {
             sources: warning.hiddenSources.length,
             users: warning.hiddenUsers.length,
           })}
         </p>
-        <p className="mb-4 text-sm text-stone-700">{t("modal_note")}</p>
+        <p className="mb-4 text-sm text-muted-foreground">{t("modal_note")}</p>
         <div className="flex justify-end gap-2">
           <button
             type="button"
-            className="rounded border border-stone-300 px-3 py-1.5"
+            className="app-btn-ghost rounded-[var(--radius-control)] border border-border px-3 py-1.5 text-sm"
             onClick={onCancel}
           >
             {t("cancel")}
           </button>
           <button
             type="button"
-            className="rounded bg-stone-900 px-3 py-1.5 text-white"
+            className="app-btn-primary rounded-[var(--radius-control)] px-3 py-1.5 text-sm"
             onClick={onConfirm}
           >
             {t("confirm")}

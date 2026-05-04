@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 
@@ -11,7 +11,13 @@ vi.mock("next-intl", () => ({
 }));
 
 vi.mock("next/link", () => ({
-  default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  default: ({
+    children,
+    className,
+  }: {
+    children: React.ReactNode;
+    className?: string;
+  }) => <a className={className}>{children}</a>,
 }));
 
 const notes = vi.fn();
@@ -67,5 +73,38 @@ describe("ProjectNotesTable onLoaded", () => {
     renderWith(qc, onLoaded);
     await waitFor(() => expect(onLoaded).toHaveBeenCalled());
     expect(onLoaded.mock.calls[0][0]).toEqual(cached);
+  });
+
+  it("renders filter chips as full-height controls", async () => {
+    notes.mockResolvedValue({ notes: [] });
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    renderWith(qc);
+
+    const all = await screen.findByRole("button", {
+      name: "project.tabs.all",
+    });
+    expect(all.className).toContain("min-h-7");
+  });
+
+  it("renders note links as full-height row controls", async () => {
+    notes.mockResolvedValue({
+      notes: [
+        {
+          id: "n1",
+          title: "Welcome",
+          kind: "manual",
+          updated_at: new Date().toISOString(),
+        },
+      ],
+    });
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    renderWith(qc);
+
+    const link = await screen.findByText("Welcome");
+    expect(link.className).toContain("min-h-7");
   });
 });

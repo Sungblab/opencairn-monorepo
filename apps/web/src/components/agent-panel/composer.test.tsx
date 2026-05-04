@@ -11,10 +11,21 @@ vi.mock("next-intl", () => ({
 }));
 
 const PLACEHOLDER = "agentPanel.composer.placeholder";
+const INPUT_LABEL = "agentPanel.composer.input_aria";
 const VOICE_LABEL = "agentPanel.composer.voice_aria";
 const SEND_LABEL = "agentPanel.composer.send_aria";
 
 describe("Composer", () => {
+  it("labels the message textarea for assistive technology", () => {
+    render(<Composer onSend={vi.fn()} />);
+    expect(screen.getByLabelText(INPUT_LABEL)).toBeInTheDocument();
+  });
+
+  it("keeps the textarea at a usable desktop click height", () => {
+    render(<Composer onSend={vi.fn()} />);
+    expect(screen.getByLabelText(INPUT_LABEL)).toHaveClass("min-h-11");
+  });
+
   it("shows mic when empty, send when non-empty", () => {
     const onSend = vi.fn();
     render(<Composer onSend={onSend} />);

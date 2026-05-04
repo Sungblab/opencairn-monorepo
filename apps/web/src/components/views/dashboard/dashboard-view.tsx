@@ -41,7 +41,7 @@ export function DashboardView({
           </h2>
           <Link
             href={urls.workspace.research(locale, wsSlug)}
-            className="text-xs text-muted-foreground hover:text-foreground"
+            className="inline-flex min-h-7 items-center rounded px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             {t("sections.viewAll")} →
           </Link>

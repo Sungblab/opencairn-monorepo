@@ -53,10 +53,11 @@ export function Composer({ onSend, disabled }: Props) {
 
   return (
     <div
-      className="m-2 flex flex-col gap-1 rounded-xl bg-background p-2 transition-colors focus-within:border-foreground"
+      className="m-2 flex flex-col gap-1 rounded-[var(--radius-card)] bg-background p-2 transition-colors focus-within:border-foreground"
       style={{ border: "1.5px solid var(--theme-border)" }}
     >
       <textarea
+        aria-label={t("input_aria")}
         ref={ref}
         rows={1}
         value={value}
@@ -72,7 +73,7 @@ export function Composer({ onSend, disabled }: Props) {
             submit();
           }
         }}
-        className="resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+        className="min-h-11 resize-none bg-transparent py-1.5 text-sm leading-5 outline-none placeholder:text-muted-foreground"
       />
       <div className="flex items-center gap-1">
         <button
@@ -90,7 +91,7 @@ export function Composer({ onSend, disabled }: Props) {
             aria-label={t("send_aria")}
             onClick={submit}
             disabled={disabled}
-            className="app-btn-primary ml-1 flex h-7 w-7 items-center justify-center rounded-full"
+            className="app-btn-primary ml-1 flex h-7 w-7 items-center justify-center rounded-[var(--radius-control)]"
           >
             <ArrowUp className="h-4 w-4" />
           </button>

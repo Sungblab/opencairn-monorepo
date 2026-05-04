@@ -508,7 +508,7 @@ export function NoteEditor({
           (fixed 320px) on the right. The panel is outside the Plate content
           flow but still inside <Plate> so future block-anchored jumps can
           use the editor context without prop drilling. */}
-        <div className="flex min-h-full">
+        <div className="flex min-h-full flex-col xl:flex-row">
           <div className="flex min-w-0 flex-1 flex-col">
             {/* Banners live inside <Plate> so they can read the editor context
               via useEditorRef / usePluginOption. `DisconnectedBanner`
@@ -562,7 +562,7 @@ export function NoteEditor({
                 onShowComments={handleShowComments}
               />
             )}
-            <div className="mx-auto w-full max-w-[720px] flex-1 px-8 py-8">
+            <div className="mx-auto w-full max-w-[720px] flex-1 px-4 py-6 sm:px-8 sm:py-8">
               <div className="flex items-start justify-between gap-4">
                 <input
                   value={title}
@@ -583,7 +583,7 @@ export function NoteEditor({
                     <button
                       type="button"
                       onClick={() => setShareOpen(true)}
-                      className="rounded border border-border px-3 py-1 text-xs hover:bg-accent"
+                      className="inline-flex min-h-7 items-center rounded border border-border px-3 py-1 text-xs hover:bg-accent"
                       data-testid="share-button"
                     >
                       {tShare("title")}
