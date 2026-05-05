@@ -67,6 +67,7 @@ import {
 } from "./code-workspace-command-runner";
 import { createTemporalCodeRepairPlanner } from "./code-workspace-repair-planner";
 import { canWrite } from "./permissions";
+import { streamObject } from "./s3-get";
 import { diffPlateValues } from "./note-version-diff";
 import { plateValueToText } from "./plate-text";
 import { emitTreeEvent } from "./tree-events";
@@ -138,6 +139,7 @@ export interface AgentActionServiceOptions {
   noteUpdateApplier?: NoteUpdateApplier;
   now?: () => Date;
   codePreviewTtlMs?: number;
+  codePreviewObjectReader?: CodePreviewObjectReader;
 }
 
 export interface WorkflowAgentActionInput {
@@ -229,8 +231,13 @@ export interface CodeRepairPlanner {
 }
 
 export interface CodePreviewAsset {
-  content: string;
+  body: BodyInit;
   contentType: string;
+  contentLength?: number;
+}
+
+export interface CodePreviewObjectReader {
+  read(objectKey: string): Promise<CodePreviewAsset>;
 }
 
 export function createDrizzleAgentActionRepository(conn: DB = defaultDb): AgentActionRepository {
@@ -646,13 +653,17 @@ export async function readCodeProjectPreviewAsset(
   if (!entry || entry.kind !== "file") {
     throw new AgentActionError("code_workspace_preview_asset_not_found", 404);
   }
-  if (!("inlineContent" in entry) || entry.inlineContent == null) {
-    throw new AgentActionError("code_workspace_preview_asset_unavailable", 409);
+  if ("inlineContent" in entry && entry.inlineContent != null) {
+    return {
+      body: entry.inlineContent,
+      contentType: entry.mimeType ?? contentTypeForPreviewPath(entry.path),
+      contentLength: Buffer.byteLength(entry.inlineContent, "utf8"),
+    };
   }
-  return {
-    content: entry.inlineContent,
-    contentType: entry.mimeType ?? contentTypeForPreviewPath(entry.path),
-  };
+  if ("objectKey" in entry && entry.objectKey) {
+    return readPreviewObject(entry.objectKey, options);
+  }
+  throw new AgentActionError("code_workspace_preview_asset_unavailable", 409);
 }
 
 export async function createCodeProjectRepairAction(
@@ -1264,6 +1275,27 @@ function codePreviewTtlMs(
   options?: Pick<AgentActionServiceOptions, "codePreviewTtlMs">,
 ): number {
   return options?.codePreviewTtlMs ?? 24 * 60 * 60 * 1000;
+}
+
+async function readPreviewObject(
+  objectKey: string,
+  options?: Pick<AgentActionServiceOptions, "codePreviewObjectReader">,
+): Promise<CodePreviewAsset> {
+  const reader = options?.codePreviewObjectReader ?? createDefaultCodePreviewObjectReader();
+  return reader.read(objectKey);
+}
+
+function createDefaultCodePreviewObjectReader(): CodePreviewObjectReader {
+  return {
+    async read(objectKey) {
+      const object = await streamObject(objectKey);
+      return {
+        body: object.stream as BodyInit,
+        contentType: object.contentType,
+        contentLength: object.contentLength,
+      };
+    },
+  };
 }
 
 function normalizePreviewAssetPath(path: string): string {

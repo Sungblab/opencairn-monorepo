@@ -299,6 +299,8 @@ project commands, install dependencies, host previews, or deploy external apps.
   Agent Panel before adding a separate preview dashboard.
 - Add expiry to private preview results before treating preview links as
   durable project artifacts. Expired internal preview URLs should fail closed.
+- Serve object-backed static preview assets through the existing storage reader
+  before adding public preview hostnames or process-backed servers.
 - Add Vite/Next preview only after process lifecycle and cleanup are safe.
 - Capture browser smoke results and screenshots.
 - Keep unrestricted server-side arbitrary code execution out of scope.

@@ -5,6 +5,7 @@ import type { AppEnv } from "../lib/types";
 import type { AgentAction } from "@opencairn/shared";
 import type {
   AgentActionRepository,
+  AgentActionServiceOptions,
   CodeCommandCanceller,
   CodeCommandRunner,
   CodeRepairPlanner,
@@ -581,6 +582,83 @@ describe("agent action routes", () => {
     expect(await asset.text()).toBe("<h1>Preview</h1>");
   });
 
+  it("serves object-backed static code_project.preview assets", async () => {
+    const repo = createMemoryRepo();
+    const codeWorkspaceRepo = createMemoryCodeWorkspaceRepository();
+    const { workspace, snapshot } = await codeWorkspaceRepo.createWorkspaceDraft({
+      scope: { workspaceId, projectId, actorUserId: userId },
+      requestId: "00000000-0000-4000-8000-000000000089",
+      snapshotId: "00000000-0000-4000-8000-000000000090",
+      treeHash: "sha256:preview-object",
+      request: {
+        name: "Preview app",
+        manifest: {
+          entries: [
+            {
+              path: "index.html",
+              kind: "file",
+              mimeType: "text/html",
+              bytes: 16,
+              contentHash: "sha256:index",
+              inlineContent: "<link rel=\"stylesheet\" href=\"style.css\">",
+            },
+            {
+              path: "style.css",
+              kind: "file",
+              mimeType: "text/css",
+              bytes: 15,
+              contentHash: "sha256:css",
+              objectKey: "code-workspaces/demo/style.css",
+            },
+          ],
+        },
+      },
+    });
+    const app = appWith({
+      repo,
+      codeWorkspaceRepo,
+      codePreviewObjectReader: {
+        async read(objectKey) {
+          expect(objectKey).toBe("code-workspaces/demo/style.css");
+          return {
+            body: "body{color:red}",
+            contentType: "text/css; charset=utf-8",
+            contentLength: 15,
+          };
+        },
+      },
+    });
+    const create = await app.request(`/api/projects/${projectId}/agent-actions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        requestId: "00000000-0000-4000-8000-000000000091",
+        kind: "code_project.preview",
+        risk: "external",
+        input: {
+          codeWorkspaceId: workspace.id,
+          snapshotId: snapshot.id,
+          mode: "static",
+          entryPath: "index.html",
+        },
+      }),
+    });
+    const created = await create.json() as { action: AgentAction };
+    await app.request(`/api/agent-actions/${created.action.id}/apply`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    const asset = await app.request(
+      `/api/agent-actions/${created.action.id}/preview/style.css`,
+    );
+
+    expect(asset.status).toBe(200);
+    expect(asset.headers.get("content-type")).toContain("text/css");
+    expect(await asset.text()).toBe("body{color:red}");
+  });
+
   it("rejects expired static code_project.preview assets", async () => {
     const repo = createMemoryRepo();
     const codeWorkspaceRepo = createMemoryCodeWorkspaceRepository();
@@ -850,6 +928,7 @@ function appWith(options: {
   noteUpdateApplier?: NoteUpdateApplier;
   now?: () => Date;
   codePreviewTtlMs?: number;
+  codePreviewObjectReader?: AgentActionServiceOptions["codePreviewObjectReader"];
 }) {
   return new Hono<AppEnv>().route(
     "/api",
@@ -864,6 +943,7 @@ function appWith(options: {
       noteUpdateApplier: options.noteUpdateApplier,
       now: options.now,
       codePreviewTtlMs: options.codePreviewTtlMs,
+      codePreviewObjectReader: options.codePreviewObjectReader,
       auth: async (c, next) => {
         c.set("userId", userId);
         c.set("user", { id: userId, email: "user@example.com", name: "User" });

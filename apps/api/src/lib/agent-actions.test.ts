@@ -9,6 +9,7 @@ import {
   applyNoteUpdateAction,
   createQueuedWorkflowAgentAction,
   markWorkflowAgentActionFailed,
+  readCodeProjectPreviewAsset,
   transitionAgentActionStatus,
   type AgentActionRepository,
   type NoteActionExecutor,
@@ -426,6 +427,91 @@ describe("agent action service", () => {
         previewUrl: `/api/agent-actions/${action.id}/preview/index.html`,
         expiresAt: "2026-05-05T00:01:00.000Z",
       },
+    });
+  });
+
+  it("reads object-backed static code_project.preview assets through the object reader", async () => {
+    const repo = createMemoryRepo();
+    const codeWorkspaceRepo = createMemoryCodeWorkspaceRepository();
+    const { workspace, snapshot } = await codeWorkspaceRepo.createWorkspaceDraft({
+      scope: { workspaceId, projectId, actorUserId: userId },
+      requestId: "00000000-0000-4000-8000-000000000032",
+      snapshotId: "00000000-0000-4000-8000-000000000033",
+      treeHash: "sha256:preview-object",
+      request: {
+        name: "Preview app",
+        manifest: {
+          entries: [
+            {
+              path: "index.html",
+              kind: "file",
+              bytes: 16,
+              contentHash: "sha256:index",
+              inlineContent: "<link rel=\"stylesheet\" href=\"style.css\">",
+            },
+            {
+              path: "style.css",
+              kind: "file",
+              bytes: 19,
+              mimeType: "text/css",
+              contentHash: "sha256:css",
+              objectKey: "code-workspaces/demo/style.css",
+            },
+          ],
+        },
+      },
+    });
+    const { action } = await createAgentAction(
+      projectId,
+      userId,
+      {
+        requestId,
+        kind: "code_project.preview",
+        risk: "external",
+        input: {
+          codeWorkspaceId: workspace.id,
+          snapshotId: snapshot.id,
+          mode: "static",
+          entryPath: "index.html",
+        },
+      },
+      { repo, codeWorkspaceRepo, canWriteProject: async () => true },
+    );
+    await applyAgentAction(action.id, userId, {}, {
+      repo,
+      codeWorkspaceRepo,
+      canWriteProject: async () => true,
+      now: () => new Date("2026-05-05T00:00:00.000Z"),
+    });
+    const calls: string[] = [];
+
+    const asset = await readCodeProjectPreviewAsset(
+      action.id,
+      userId,
+      "style.css",
+      {
+        repo,
+        codeWorkspaceRepo,
+        canWriteProject: async () => true,
+        now: () => new Date("2026-05-05T00:00:30.000Z"),
+        codePreviewObjectReader: {
+          async read(objectKey) {
+            calls.push(objectKey);
+            return {
+              body: "body{color:red}",
+              contentType: "text/css; charset=utf-8",
+              contentLength: 15,
+            };
+          },
+        },
+      },
+    );
+
+    expect(calls).toEqual(["code-workspaces/demo/style.css"]);
+    expect(asset).toMatchObject({
+      body: "body{color:red}",
+      contentType: "text/css; charset=utf-8",
+      contentLength: 15,
     });
   });
 
