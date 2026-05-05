@@ -219,17 +219,19 @@ run sources. They do not create, cancel, retry, or mutate runs in this phase.
 The API checks project read access first, then adapts source rows into the
 shared Workflow Console envelope from `@opencairn/shared`.
 
-Current sources:
+Current sources for the requesting user:
 
 - chat runs whose stored scope points at the project;
 - agent action ledger rows in the project, including document-generation
   `file.generate` actions;
-- Plan8 agent run summaries in the project.
+- Plan8 agent run summaries in the project;
+- import jobs started by the user whose target project is the project;
+- synthesis export runs started by the user and document outputs in the project.
 
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
 | GET | /api/projects/:projectId/workflow-console/runs | project `viewer` | List newest normalized project runs. Optional `?limit=1..100`, default 50. Response: `{ runs: WorkflowConsoleRun[] }`. | - |
-| GET | /api/projects/:projectId/workflow-console/runs/:runId | project `viewer` | Read one normalized run by prefixed run id such as `chat:<uuid>`, `agent_action:<uuid>`, or `plan8_agent:<uuid>`. Runs whose source row belongs to another project return 404. | - |
+| GET | /api/projects/:projectId/workflow-console/runs/:runId | project `viewer` | Read one normalized run by prefixed run id such as `chat:<uuid>`, `agent_action:<uuid>`, `plan8_agent:<uuid>`, `import:<uuid>`, or `export:<uuid>`. Runs whose source row belongs to another project return 404. | - |
 
 ### Document Generation Actions
 

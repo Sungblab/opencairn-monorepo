@@ -7,7 +7,9 @@ import {
   workflowConsoleRunSchema,
   workflowConsoleRunFromAgentAction,
   workflowConsoleRunFromChatRun,
+  workflowConsoleRunFromImportJob,
   workflowConsoleRunFromPlan8AgentRun,
+  workflowConsoleRunFromSynthesisExportRun,
 } from "../src/workflow-console";
 
 const workspaceId = "00000000-0000-4000-8000-000000000001";
@@ -206,6 +208,95 @@ describe("workflow console contracts", () => {
       cost: {
         krw: 17,
       },
+    });
+  });
+
+  it("normalizes import jobs with progress and terminal error details", () => {
+    const run = workflowConsoleRunFromImportJob({
+      id: "00000000-0000-4000-8000-000000000050",
+      workspaceId,
+      projectId,
+      userId,
+      source: "markdown_zip",
+      workflowId: "import/00000000-0000-4000-8000-000000000050",
+      status: "failed",
+      totalItems: 10,
+      completedItems: 6,
+      failedItems: 2,
+      sourceMetadata: { filename: "vault.zip" },
+      errorSummary: "Import could not be started. Please try again.",
+      createdAt,
+      updatedAt,
+      completedAt,
+    });
+
+    expect(workflowConsoleRunSchema.parse(run)).toMatchObject({
+      runId: "import:00000000-0000-4000-8000-000000000050",
+      runType: "import",
+      status: "failed",
+      sourceStatus: "failed",
+      title: "Import markdown_zip",
+      progress: {
+        current: 8,
+        total: 10,
+        percent: 80,
+      },
+      error: {
+        code: "import_failed",
+        message: "Import could not be started. Please try again.",
+        retryable: true,
+      },
+      outputs: [
+        {
+          outputType: "import",
+          id: "00000000-0000-4000-8000-000000000050",
+          label: "vault.zip",
+        },
+      ],
+    });
+  });
+
+  it("normalizes synthesis export runs with document outputs", () => {
+    const run = workflowConsoleRunFromSynthesisExportRun({
+      runId: "00000000-0000-4000-8000-000000000060",
+      workspaceId,
+      projectId,
+      userId,
+      workflowId: "synthesis-export/00000000-0000-4000-8000-000000000060",
+      status: "completed",
+      format: "pdf",
+      template: "report",
+      userPrompt: "Generate an implementation report",
+      tokensUsed: 1200,
+      createdAt,
+      updatedAt,
+      documents: [
+        {
+          id: "00000000-0000-4000-8000-000000000061",
+          format: "pdf",
+          bytes: 4096,
+          url: "/api/synthesis-export/runs/00000000-0000-4000-8000-000000000060/document",
+        },
+      ],
+    });
+
+    expect(workflowConsoleRunSchema.parse(run)).toMatchObject({
+      runId: "export:00000000-0000-4000-8000-000000000060",
+      runType: "export",
+      status: "completed",
+      sourceStatus: "completed",
+      title: "Export pdf",
+      cost: {
+        outputTokens: 1200,
+      },
+      outputs: [
+        {
+          outputType: "export",
+          id: "00000000-0000-4000-8000-000000000061",
+          label: "pdf export",
+          bytes: 4096,
+        },
+      ],
     });
   });
 });
