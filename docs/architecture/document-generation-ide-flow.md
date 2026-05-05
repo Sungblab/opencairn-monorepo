@@ -241,6 +241,25 @@ Current implementation boundary:
   types, objects over the worker extraction limit, corrupt files, scanned PDFs
   without embedded text, and parser failures remain per-source metadata
   fallbacks instead of workflow-level failures.
+- The Agent Panel and Chat Scope now render the worker-backed
+  `generate_project_object` lifecycle inside the existing message surfaces.
+  Request, queued/running, completed, and failed events are merged by
+  `requestId`; cards show the target format, filename, current status, selected
+  source kinds (`note`, `agent_file`, `chat_thread`, `research_run`,
+  `synthesis_run`), and the worker error code when a run fails. Completed
+  outputs expose both the existing agent-file viewer action and the direct
+  OpenCairn download link without adding a new document-generation screen.
+
+Remaining Phase 3C/3D work:
+
+- Add a first-class generation request form when the product is ready for a
+  visible picker, reusing the same `generate_project_object` contract instead
+  of adding chat-only payloads.
+- Keep running the live smoke script against source selection, Temporal, object
+  storage, project tree update, callback registration, and download when these
+  boundaries change.
+- Expand Phase 3D quality signals only after the current event/result contract
+  has been exercised with real user prompts.
 
 ### Phase 4: Google Export
 
