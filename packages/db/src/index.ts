@@ -50,6 +50,7 @@ export * from "./schema/mcp-server-tokens";
 export * from "./schema/synthesis";
 export * from "./schema/note-versions";
 export * from "./schema/agent-files";
+export * from "./schema/agent-file-provider-exports";
 export * from "./lib/note-version-hash";
 export * from "./lib/note-version-capture";
 export * from "./lib/wiki-link-sync";

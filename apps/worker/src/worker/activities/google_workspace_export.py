@@ -7,12 +7,13 @@ error handling are covered without making Google API calls.
 from __future__ import annotations
 
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
+from worker.lib.api_client import post_internal
 from worker.lib.s3_client import download_to_tempfile
 
 if TYPE_CHECKING:
@@ -204,6 +205,27 @@ async def export_project_object_to_google_workspace(
             tmp_path.unlink()
 
 
+@activity.defn(name="finalize_google_workspace_export")
+async def finalize_google_workspace_export(
+    raw_params: GoogleWorkspaceExportParams | dict[str, Any],
+    raw_result: GoogleWorkspaceExportTerminalResult | dict[str, Any],
+) -> dict[str, Any]:
+    params = normalize_google_workspace_export_params(raw_params)
+    result = (
+        asdict(raw_result)
+        if is_dataclass(raw_result)
+        else dict(raw_result)
+    )
+    body = {
+        **result,
+        "actionId": params.action_id,
+        "workspaceId": params.workspace_id,
+        "projectId": params.project_id,
+        "userId": params.user_id,
+    }
+    return await post_internal("/api/internal/google-workspace/export-results", body)
+
+
 __all__ = [
     "GOOGLE_NATIVE_MIME_TYPES",
     "GoogleWorkspaceExportErrorResult",
@@ -213,6 +235,7 @@ __all__ = [
     "GoogleWorkspaceExportTerminalResult",
     "GoogleWorkspaceExportUploadResult",
     "export_project_object_to_google_workspace",
+    "finalize_google_workspace_export",
     "normalize_google_workspace_export_params",
     "reset_google_workspace_export_client",
     "set_google_workspace_export_client",

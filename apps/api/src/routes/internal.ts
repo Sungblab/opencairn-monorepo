@@ -16,6 +16,7 @@ import {
   conceptEdges,
   conceptNotes,
   agentFiles,
+  agentFileProviderExports,
   chatMessages,
   chatThreads,
   wikiLogs,
@@ -34,6 +35,7 @@ import {
   synthesisSources,
   synthesisDocuments,
   agentRuns,
+  agentActions,
   eq,
   and,
   isNull,
@@ -49,6 +51,8 @@ import {
   createConceptExtractionSchema,
   createEvidenceBundleSchema,
   documentGenerationSourceSchema,
+  googleWorkspaceExportErrorResultSchema,
+  googleWorkspaceExportResultSchema,
 } from "@opencairn/shared";
 import { getTemporalClient, taskQueue } from "../lib/temporal-client";
 import { signSessionForUser } from "../lib/test-session";
@@ -139,6 +143,22 @@ const documentGenerationHydrateSourceSchema = z.object({
   userId: z.string().min(1),
   source: documentGenerationSourceSchema,
 });
+
+const googleWorkspaceExportFinalizeScopeSchema = z.object({
+  actionId: z.string().uuid(),
+  workspaceId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  userId: z.string().min(1),
+});
+
+const finalizeGoogleWorkspaceExportSchema = z.discriminatedUnion("ok", [
+  googleWorkspaceExportResultSchema.extend(
+    googleWorkspaceExportFinalizeScopeSchema.shape,
+  ),
+  googleWorkspaceExportErrorResultSchema.extend(
+    googleWorkspaceExportFinalizeScopeSchema.shape,
+  ),
+]);
 
 const DOCUMENT_GENERATION_TEXT_FILE_KINDS = new Set([
   "markdown",
@@ -630,6 +650,112 @@ internal.post(
       });
       return c.json({ error: "document_generation_registration_failed" }, 500);
     }
+  },
+);
+
+internal.post(
+  "/google-workspace/export-results",
+  zValidator("json", finalizeGoogleWorkspaceExportSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const guard = await guardWorkspace(c, () =>
+      assertResourceWorkspace(db, body.workspaceId, {
+        type: "project",
+        id: body.projectId,
+      }),
+    );
+    if (guard) return guard;
+
+    const repo = createDrizzleAgentActionRepository();
+    const action = await repo.findById(body.actionId);
+    if (!action) return c.json({ error: "action_not_found" }, 404);
+    if (
+      action.requestId !== body.requestId ||
+      action.workspaceId !== body.workspaceId ||
+      action.projectId !== body.projectId ||
+      action.actorUserId !== body.userId ||
+      action.kind !== "file.export"
+    ) {
+      return c.json({ error: "google_workspace_export_action_mismatch" }, 409);
+    }
+    const actionInput = action.input as Record<string, unknown>;
+    if (
+      actionInput.objectId !== body.objectId ||
+      actionInput.provider !== body.provider
+    ) {
+      return c.json({ error: "google_workspace_export_action_mismatch" }, 409);
+    }
+
+    const [file] = await db
+      .select({
+        id: agentFiles.id,
+        workspaceId: agentFiles.workspaceId,
+        projectId: agentFiles.projectId,
+      })
+      .from(agentFiles)
+      .where(and(eq(agentFiles.id, body.objectId), isNull(agentFiles.deletedAt)))
+      .limit(1);
+    if (!file) return c.json({ error: "agent_file_not_found" }, 404);
+    if (file.workspaceId !== body.workspaceId || file.projectId !== body.projectId) {
+      return c.json({ error: "workspace_mismatch" }, 403);
+    }
+
+    const now = new Date();
+    const status = body.ok ? "completed" : "failed";
+    const result = await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(agentActions)
+        .set({
+          status,
+          result: body,
+          errorCode: body.ok ? null : body.errorCode,
+          updatedAt: now,
+        })
+        .where(eq(agentActions.id, body.actionId))
+        .returning();
+      if (!updated) return null;
+
+      const [record] = await tx
+        .insert(agentFileProviderExports)
+        .values({
+          workspaceId: body.workspaceId,
+          projectId: body.projectId,
+          agentFileId: body.objectId,
+          actionId: body.actionId,
+          userId: body.userId,
+          provider: body.provider,
+          status,
+          workflowId: body.workflowId ?? null,
+          externalObjectId: body.ok ? body.externalObjectId : null,
+          externalUrl: body.ok ? body.externalUrl : null,
+          exportedMimeType: body.ok ? body.exportedMimeType : null,
+          errorCode: body.ok ? null : body.errorCode,
+          retryable: body.ok ? false : body.retryable,
+          metadata: { requestId: body.requestId },
+          completedAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: agentFileProviderExports.actionId,
+          set: {
+            status,
+            workflowId: body.workflowId ?? null,
+            externalObjectId: body.ok ? body.externalObjectId : null,
+            externalUrl: body.ok ? body.externalUrl : null,
+            exportedMimeType: body.ok ? body.exportedMimeType : null,
+            errorCode: body.ok ? null : body.errorCode,
+            retryable: body.ok ? false : body.retryable,
+            metadata: { requestId: body.requestId },
+            completedAt: now,
+            updatedAt: now,
+          },
+        })
+        .returning();
+      return { updated, record };
+    });
+    if (!result) return c.json({ error: "action_not_found" }, 404);
+
+    return c.json({ ok: true, action: result.updated, export: result.record }, 200);
   },
 );
 
