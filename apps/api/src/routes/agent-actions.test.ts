@@ -8,6 +8,7 @@ import type {
   AgentActionServiceOptions,
   CodeCommandCanceller,
   CodeCommandRunner,
+  CodeInstallRunner,
   CodeRepairPlanner,
   NoteUpdateApplier,
   NoteUpdatePreviewer,
@@ -481,6 +482,93 @@ describe("agent action routes", () => {
     });
   });
 
+  it("applies an approved code_project.install action through the install runner seam", async () => {
+    const codeWorkspaceRepo = createMemoryCodeWorkspaceRepository();
+    const codeInstallRunner = createMemoryCodeInstallRunner({ exitCode: 0 });
+    const app = appWith({
+      repo: createMemoryRepo(),
+      codeWorkspaceRepo,
+      codeInstallRunner,
+    });
+
+    const createWorkspace = await app.request(`/api/projects/${projectId}/agent-actions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "code_project.create",
+        risk: "write",
+        input: {
+          name: "Installable app",
+          manifest: {
+            entries: [
+              {
+                path: "package.json",
+                kind: "file",
+                bytes: 16,
+                contentHash: "sha256:pkg",
+                inlineContent: "{\"dependencies\":{}}",
+              },
+            ],
+          },
+        },
+      }),
+    });
+    const created = (await createWorkspace.json()) as { action: AgentAction };
+    const workspace = created.action.result?.workspace as {
+      id: string;
+      currentSnapshotId: string;
+    };
+
+    const createInstall = await app.request(`/api/projects/${projectId}/agent-actions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        requestId: "00000000-0000-4000-8000-000000000077",
+        kind: "code_project.install",
+        risk: "external",
+        input: {
+          codeWorkspaceId: workspace.id,
+          snapshotId: workspace.currentSnapshotId,
+          packageManager: "pnpm",
+          packages: [{ name: "@vitejs/plugin-react", dev: true }],
+          network: "required",
+          reason: "Build needs the React plugin",
+        },
+      }),
+    });
+    expect(createInstall.status).toBe(201);
+    const install = (await createInstall.json()) as { action: AgentAction };
+    expect(install.action.status).toBe("approval_required");
+
+    const apply = await app.request(`/api/agent-actions/${install.action.id}/apply`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(apply.status).toBe(200);
+    expect(codeInstallRunner.calls).toEqual([
+      {
+        packageManager: "pnpm",
+        packages: ["@vitejs/plugin-react"],
+        devPackages: ["@vitejs/plugin-react"],
+        entries: ["package.json"],
+      },
+    ]);
+    const applied = (await apply.json()) as { action: AgentAction };
+    expect(applied.action).toMatchObject({
+      kind: "code_project.install",
+      status: "completed",
+      errorCode: null,
+      result: {
+        ok: true,
+        packageManager: "pnpm",
+        installed: [{ name: "@vitejs/plugin-react", dev: true }],
+        exitCode: 0,
+      },
+    });
+  });
+
   it("creates an approval-required static code_project.preview action", async () => {
     const app = appWith({
       repo: createMemoryRepo(),
@@ -922,6 +1010,7 @@ function appWith(options: {
   repo: AgentActionRepository;
   codeWorkspaceRepo?: CodeWorkspaceRepository;
   codeCommandRunner?: CodeCommandRunner;
+  codeInstallRunner?: CodeInstallRunner;
   codeCommandCanceller?: CodeCommandCanceller;
   codeRepairPlanner?: CodeRepairPlanner;
   noteUpdatePreviewer?: NoteUpdatePreviewer;
@@ -936,6 +1025,7 @@ function appWith(options: {
       repo: options.repo,
       codeWorkspaceRepo: options.codeWorkspaceRepo,
       codeCommandRunner: options.codeCommandRunner,
+      codeInstallRunner: options.codeInstallRunner,
       codeCommandCanceller: options.codeCommandCanceller,
       codeRepairPlanner: options.codeRepairPlanner,
       canWriteProject: async () => true,
@@ -951,6 +1041,44 @@ function appWith(options: {
       },
     }),
   );
+}
+
+function createMemoryCodeInstallRunner(result: {
+  exitCode: number;
+}): CodeInstallRunner & {
+  calls: Array<{
+    packageManager: string;
+    packages: string[];
+    devPackages: string[];
+    entries: string[];
+  }>;
+} {
+  const calls: Array<{
+    packageManager: string;
+    packages: string[];
+    devPackages: string[];
+    entries: string[];
+  }> = [];
+  return {
+    calls,
+    async install(input) {
+      calls.push({
+        packageManager: input.request.packageManager,
+        packages: input.request.packages.map((pkg) => pkg.name),
+        devPackages: input.request.packages
+          .filter((pkg) => pkg.dev)
+          .map((pkg) => pkg.name),
+        entries: input.snapshot.manifest.entries.map((entry) => entry.path),
+      });
+      return {
+        ok: result.exitCode === 0,
+        packageManager: input.request.packageManager,
+        installed: input.request.packages,
+        exitCode: result.exitCode,
+        logs: [{ stream: "stdout", text: result.exitCode === 0 ? "install passed" : "install failed" }],
+      };
+    },
+  };
 }
 
 function createMemoryCodeRepairPlanner(): CodeRepairPlanner & {

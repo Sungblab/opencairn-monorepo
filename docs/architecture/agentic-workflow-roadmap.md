@@ -790,6 +790,12 @@ Install actions must use `risk:"external"` and are stored as
 reject caller-supplied network fields, so networked execution remains gated by
 future approval-aware install/run work.
 
+Phase 6I adds the first approved install execution seam. Applying an approved
+`code_project.install` action now resolves the target code workspace snapshot,
+calls an injected install runner, and stores a typed terminal install result on
+the ledger. The default runner remains unavailable until worker-backed package
+manager execution is wired behind an explicit feature flag.
+
 Phase 7A starts the hosted-preview substrate without allocating public preview
 URLs or starting app processes. `code_project.preview` accepts static preview
 intent against an immutable code workspace snapshot, defaults `entryPath` to

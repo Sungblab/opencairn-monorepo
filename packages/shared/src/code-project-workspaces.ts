@@ -370,6 +370,33 @@ export const codeWorkspaceCommandRunLogSchema = z
   })
   .strict();
 
+export const codeWorkspaceInstallResultSchema = z
+  .object({
+    ok: z.boolean(),
+    codeWorkspaceId: z.string().uuid().optional(),
+    snapshotId: z.string().uuid().optional(),
+    packageManager: codeWorkspacePackageManagerSchema,
+    installed: z
+      .array(
+        z
+          .object({
+            name: z.string().trim().min(1).max(214),
+            version: z.string().trim().min(1).max(120).optional(),
+            dev: z.boolean().default(false),
+          })
+          .strict(),
+      )
+      .max(50),
+    exitCode: z.number().int(),
+    durationMs: z.number().int().nonnegative().optional(),
+    logs: z.array(codeWorkspaceCommandRunLogSchema).max(200),
+    summary: z.string().trim().max(2000).optional(),
+  })
+  .strict();
+export type CodeWorkspaceInstallResult = z.infer<
+  typeof codeWorkspaceInstallResultSchema
+>;
+
 export const codeWorkspaceCommandRunResultSchema = z
   .object({
     ok: z.boolean(),
@@ -446,6 +473,7 @@ export type CodeWorkspaceManifest = z.infer<typeof codeWorkspaceManifestSchema>;
 export type CodeWorkspaceCreateRequest = z.infer<typeof codeWorkspaceCreateRequestSchema>;
 export type CodeWorkspacePatch = z.infer<typeof codeWorkspacePatchSchema>;
 export type CodeWorkspaceCommand = z.infer<typeof codeWorkspaceCommandSchema>;
+export type CodeWorkspaceInstallRequest = z.infer<typeof codeWorkspaceInstallRequestSchema>;
 export type CodeWorkspaceCommandRunRequest = z.infer<typeof codeWorkspaceCommandRunRequestSchema>;
 export type CodeWorkspaceCommandRunLog = z.infer<typeof codeWorkspaceCommandRunLogSchema>;
 export type CodeWorkspaceCommandRunResult = z.infer<typeof codeWorkspaceCommandRunResultSchema>;
