@@ -69,7 +69,7 @@ The file tree is a normalized manifest, not a chat transcript. Each file entry
 should include:
 
 - path relative to the code workspace root
-- kind: file or directory
+- kind: file or directory, enforced as a database-level enum when persisted
 - MIME type or language hint
 - byte size and content hash for files
 - optional object-storage key when content is not inline
@@ -77,6 +77,17 @@ should include:
 Paths must be normalized. No absolute paths, drive letters, `..`, control
 characters, duplicate normalized paths, or case-insensitive collisions on
 Windows-like paths are allowed.
+
+The manifest must also be bounded before storage or traversal:
+
+- maximum tree depth: 16 segments from the code workspace root
+- maximum entries: 2,000 files or directories per workspace snapshot
+- maximum normalized relative path length: 512 characters
+
+Implementation should validate these limits in the shared schema/API boundary
+and, when file entries are persisted as rows, use a Drizzle/PostgreSQL enum such
+as `pgEnum("code_workspace_entry_kind", ["file", "directory"])` rather than a
+free-text `kind` column.
 
 ### Patch
 
@@ -169,8 +180,10 @@ or hosted-preview phases.
 - Add shared schemas for code workspace manifests, file entries, patches,
   snapshots, and archive package results.
 - Add API validation for server-injected scope, path normalization, duplicate
-  guards, idempotency, and stale-base rejection.
+  guards, manifest depth/entry/path-length limits, idempotency, and stale-base
+  rejection.
 - Add storage for workspace metadata, file contents, patches, and snapshots.
+- Use database-level enums for persisted closed sets such as file entry kind.
 - Keep execution, dependency install, and hosted preview out of scope.
 
 ### Phase 1B: API And Project Surface
@@ -224,7 +237,8 @@ Scope:
 - Add shared schemas for code workspace manifest/file tree/patch/snapshot/package result.
 - Add storage schema only if needed; let pnpm db:generate choose migration number.
 - Validate server-injected scope, path normalization, duplicate paths,
-  idempotency, and stale base behavior.
+  manifest depth/entry/path-length limits, idempotency, and stale base behavior.
+- Use database-level enums for persisted closed sets such as file entry kind.
 - Add focused shared/db/API-lib tests.
 
 Avoid:
