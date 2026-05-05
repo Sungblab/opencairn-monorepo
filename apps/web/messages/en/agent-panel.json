@@ -53,7 +53,7 @@
   "documentGeneration": {
     "toggle": "Generate document",
     "selectedNone": "No sources selected",
-    "selectedCount": "{count} sources selected",
+    "selectedCount": "{count, plural, one {# source selected} other {# sources selected}}",
     "format": "Format",
     "filename": "Filename",
     "promptPlaceholder": "Describe the document goal and what it should include.",

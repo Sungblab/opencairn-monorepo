@@ -112,12 +112,14 @@ export function DocumentGenerationForm({ projectId, onEvent }: Props) {
   }
 
   async function submit(): Promise<void> {
-    if (!projectId || !prompt.trim() || busy) return;
+    if (!canSubmit) return;
+    const currentProjectId = projectId;
+    if (!currentProjectId) return;
     setBusy(true);
     setError(null);
     const finalFilename = filenameForFormat(filename, format);
     try {
-      const response = await documentGenerationApi.generate(projectId, {
+      const response = await documentGenerationApi.generate(currentProjectId, {
         type: "generate_project_object",
         requestId: crypto.randomUUID(),
         generation: {
