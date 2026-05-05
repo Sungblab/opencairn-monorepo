@@ -27,6 +27,13 @@ audits, handoffs, or product direction. These files are local operator context
 and should not be copied into public docs or user-facing copy unless explicitly
 requested.
 
+Because `.private-docs/` and `docs/superpowers/` are local maintainer context
+outside the public repository diff, update them directly when they are the right
+place to record status, handoffs, audit findings, or next-session prompts. Do
+not avoid private doc updates merely because the active feature work is in a
+separate worktree; just keep those private notes out of public docs and PR copy
+unless the maintainer asks otherwise.
+
 Recommended private read order:
 
 1. `.private-docs/docs/contributing/plans-status.md`
@@ -35,6 +42,29 @@ Recommended private read order:
 4. Relevant `docs/superpowers/specs/` and `docs/superpowers/plans/`
 5. Relevant `.private-docs/docs/review/` audit notes when verifying claims or
    implementation status
+
+When working from a Git worktree, remember that ignored maintainer docs are not
+checked out automatically. Treat the root checkout at
+`C:\Users\Sungbin\Documents\GitHub\opencairn-monorepo` as the canonical source
+for `.private-docs/` and `docs/superpowers/`. If those paths are missing in a
+worktree, either read them from the root checkout or create Windows junctions
+back to the root copies before planning or auditing:
+
+```powershell
+$root = "C:\Users\Sungbin\Documents\GitHub\opencairn-monorepo"
+$wt = (Get-Location).Path
+New-Item -ItemType Junction -Path "$wt\.private-docs" -Target "$root\.private-docs"
+New-Item -ItemType Junction -Path "$wt\docs\superpowers" -Target "$root\docs\superpowers"
+```
+
+When a task requires updating private maintainer docs from a worktree, update
+the canonical root copies or the worktree junctions that point to them. Do not
+create duplicate private docs inside a feature branch, and do not move private
+planning, status, audit, or handoff notes into public docs just to make them
+visible from a worktree. Public repository docs, such as `docs/README.md`,
+`docs/contributing/*`, `docs/architecture/*`, `docs/agents/*`, and
+`docs/testing/*`, should still be edited in the active feature worktree when
+they are part of the public change being proposed.
 
 ## Architecture
 
@@ -85,3 +115,52 @@ docker compose up -d               # local infra
 
 Use the narrowest verification that covers the changed package. When touching
 copy, run the web i18n parity check.
+
+## Local Worktree Test Notes
+
+- After creating a worktree, verify whether `.private-docs/` and
+  `docs/superpowers/` exist. If they are missing, use the root checkout copies
+  or create junctions as described in the Private Maintainer Docs section before
+  claiming private plan/status context is unavailable.
+- Do not edit the root checkout `.env` just to make a feature worktree test
+  pass. Prefer per-process environment variables or a worktree-local ignored
+  `.env` file.
+- On Windows, if `127.0.0.1:5432` is already bound, start Postgres with a
+  worktree-specific host port, for example `POSTGRES_HOST_PORT=15432`, and make
+  the test process `DATABASE_URL` point at the same port.
+- Vitest and Drizzle configs load `../../.env`, but existing process
+  environment values should win. When running DB/API tests from a worktree,
+  explicitly pass the adjusted `DATABASE_URL` plus required API secrets such as
+  `BETTER_AUTH_SECRET` instead of assuming the worktree has its own `.env`.
+- If a worktree has no `.env`, do not fail over to the default `5432` database
+  accidentally. Read the canonical root `.env` into process environment only,
+  then override the worktree-specific port before running DB/API tests. Example
+  PowerShell pattern:
+
+```powershell
+$envFile = "C:\Users\Sungbin\Documents\GitHub\opencairn-monorepo\.env"
+Get-Content -LiteralPath $envFile | ForEach-Object {
+  if ($_ -match '^\s*([^#][^=]+)=(.*)$') {
+    $name = $matches[1].Trim()
+    $value = $matches[2].Trim()
+    if (($value.StartsWith('"') -and $value.EndsWith('"')) -or
+        ($value.StartsWith("'") -and $value.EndsWith("'"))) {
+      $value = $value.Substring(1, $value.Length - 2)
+    }
+    [Environment]::SetEnvironmentVariable($name, $value, "Process")
+  }
+}
+$env:DATABASE_URL = $env:DATABASE_URL `
+  -replace 'localhost:5432', 'localhost:15432' `
+  -replace '127\.0\.0\.1:5432', '127.0.0.1:15432'
+pnpm --filter @opencairn/api exec vitest run <test-files>
+```
+
+- If `pnpm db:migrate` through Turbo does not forward the adjusted
+  `DATABASE_URL`, run `pnpm exec drizzle-kit migrate` from `packages/db` with
+  the same process environment and record that deviation in the handoff.
+- When creating PRs from PowerShell with `gh pr create`, avoid inline bodies
+  that contain quotes, backticks, or multi-line Markdown. Put the body in a
+  here-string variable or a temporary body file and pass that value to
+  `--body`/`--body-file`; this prevents PowerShell from splitting quoted test
+  commands into stray CLI arguments.
