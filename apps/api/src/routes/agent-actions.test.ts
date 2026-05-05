@@ -747,6 +747,77 @@ describe("agent action routes", () => {
     expect(await asset.text()).toBe("body{color:red}");
   });
 
+  it("serves object-backed static code_project.preview entry assets", async () => {
+    const repo = createMemoryRepo();
+    const codeWorkspaceRepo = createMemoryCodeWorkspaceRepository();
+    const { workspace, snapshot } = await codeWorkspaceRepo.createWorkspaceDraft({
+      scope: { workspaceId, projectId, actorUserId: userId },
+      requestId: "00000000-0000-4000-8000-000000000092",
+      snapshotId: "00000000-0000-4000-8000-000000000093",
+      treeHash: "sha256:preview-object-entry",
+      request: {
+        name: "Preview app",
+        manifest: {
+          entries: [
+            {
+              path: "index.html",
+              kind: "file",
+              mimeType: "text/html",
+              bytes: 16,
+              contentHash: "sha256:index",
+              objectKey: "code-workspaces/demo/index.html",
+            },
+          ],
+        },
+      },
+    });
+    const app = appWith({
+      repo,
+      codeWorkspaceRepo,
+      codePreviewObjectReader: {
+        async read(objectKey) {
+          expect(objectKey).toBe("code-workspaces/demo/index.html");
+          return {
+            body: "<h1>Preview</h1>",
+            contentType: "text/html; charset=utf-8",
+            contentLength: 16,
+          };
+        },
+      },
+    });
+    const create = await app.request(`/api/projects/${projectId}/agent-actions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        requestId: "00000000-0000-4000-8000-000000000094",
+        kind: "code_project.preview",
+        risk: "external",
+        input: {
+          codeWorkspaceId: workspace.id,
+          snapshotId: snapshot.id,
+          mode: "static",
+          entryPath: "index.html",
+        },
+      }),
+    });
+    const created = await create.json() as { action: AgentAction };
+    const apply = await app.request(`/api/agent-actions/${created.action.id}/apply`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(apply.status).toBe(200);
+
+    const asset = await app.request(
+      `/api/agent-actions/${created.action.id}/preview/index.html`,
+    );
+
+    expect(asset.status).toBe(200);
+    expect(asset.headers.get("content-type")).toContain("text/html");
+    expect(asset.headers.get("content-security-policy")).toContain("sandbox");
+    expect(await asset.text()).toBe("<h1>Preview</h1>");
+  });
+
   it("rejects expired static code_project.preview assets", async () => {
     const repo = createMemoryRepo();
     const codeWorkspaceRepo = createMemoryCodeWorkspaceRepository();

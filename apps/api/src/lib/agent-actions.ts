@@ -1117,9 +1117,6 @@ async function applyCodeProjectPreviewAction(
     if (!entry || entry.kind !== "file") {
       throw new AgentActionError("code_workspace_preview_entry_not_found", 404);
     }
-    if (!("inlineContent" in entry) || entry.inlineContent == null) {
-      throw new AgentActionError("code_workspace_preview_entry_unavailable", 409);
-    }
 
     const assetsBaseUrl = `/api/agent-actions/${current.id}/preview/`;
     const expiresAt = new Date(
