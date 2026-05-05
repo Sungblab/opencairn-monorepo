@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AgentFileSummary } from "@opencairn/shared";
 import type { Tab } from "@/stores/tabs-store";
+import { useTabsStore } from "@/stores/tabs-store";
 import { AgentFileViewer } from "./agent-file-viewer";
 
 const messages = {
@@ -24,6 +25,7 @@ const messages = {
       canvas: "캔버스로 실행",
       googleExport: "Google Workspace로 내보내기",
       googleExportConnectRequired: "Google Drive 연결 필요",
+      googleSettingsTitle: "Google Drive 설정",
       compileStatus: {
         not_started: "컴파일 대기",
         queued: "컴파일 대기열",
@@ -158,6 +160,12 @@ function renderViewer(
 describe("AgentFileViewer", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    useTabsStore.setState({
+      workspaceId: null,
+      tabs: [],
+      activeId: null,
+      closedStack: [],
+    });
   });
 
   it("renders markdown preview beside the source and version toolbar", async () => {
@@ -237,6 +245,29 @@ describe("AgentFileViewer", () => {
           }),
         }),
       );
+    });
+  });
+
+  it("opens workspace integration settings when Google Drive is not connected", async () => {
+    const file = fileSummary({
+      filename: "brief.docx",
+      extension: "docx",
+      kind: "docx",
+      mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+    renderViewer(file, "binary", { googleConnected: false });
+
+    const button = await screen.findByLabelText("Google Drive 연결 필요");
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(useTabsStore.getState().tabs).toEqual([
+        expect.objectContaining({
+          kind: "ws_settings",
+          targetId: "integrations",
+        }),
+      ]);
     });
   });
 });

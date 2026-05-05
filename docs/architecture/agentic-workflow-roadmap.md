@@ -871,9 +871,10 @@ Implement optional provider handoff:
 Agent-file viewer now exposes a Google Workspace export action when the
 workspace has a connected Google Drive grant. DOCX, XLSX, and PPTX files start
 native Docs, Sheets, and Slides exports; other files start a raw Drive upload.
-The export action preserves the OpenCairn source file and relies on Workflow
-Console projections for queued/running/completed/failed status and final
-provider links.
+When the workspace is disconnected, the same toolbar affordance opens workspace
+integration settings instead of becoming a dead disabled control. The export
+action preserves the OpenCairn source file and relies on Workflow Console
+projections for queued/running/completed/failed status and final provider links.
 
 This should build on Phase 3 and Phase 4 rather than becoming a separate file
 artifact system.
