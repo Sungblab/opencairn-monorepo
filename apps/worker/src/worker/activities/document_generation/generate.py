@@ -16,6 +16,7 @@ from worker.activities.document_generation.types import (
     DocumentGenerationDestination,
     DocumentGenerationRequest,
     DocumentGenerationSourceBundle,
+    DocumentGenerationSourceItem,
     DocumentGenerationWorkflowParams,
     GeneratedDocumentArtifact,
     normalize_source_bundle,
@@ -29,11 +30,55 @@ PDF_MARGIN_TOP = 56
 PDF_MARGIN_BOTTOM = 56
 PDF_FONT_SIZE = 11
 PDF_LINE_HEIGHT = 16
-PDF_WRAP_CHARS = 78
 PDF_CJK_FONT = "korea"
 MAX_SOURCE_CHARS = 4000
 PPTX_WRAP_CHARS = 82
 PPTX_LINES_PER_SLIDE = 8
+
+TEMPLATE_LABELS: dict[str, dict[str, str]] = {
+    "report": {
+        "prompt": "Objective",
+        "context": "Generation Context",
+        "sources": "Source Register",
+        "quality": "Source Quality Notes",
+        "body": "Source Detail",
+    },
+    "brief": {
+        "prompt": "Brief",
+        "context": "Generation Context",
+        "sources": "Source Register",
+        "quality": "Source Quality Notes",
+        "body": "Supporting Notes",
+    },
+    "research_summary": {
+        "prompt": "Research Question",
+        "context": "Generation Context",
+        "sources": "Evidence Register",
+        "quality": "Evidence Quality Notes",
+        "body": "Evidence Detail",
+    },
+    "deck": {
+        "prompt": "Deck Goal",
+        "context": "Generation Context",
+        "sources": "Slide Source Register",
+        "quality": "Source Quality Notes",
+        "body": "Slide Notes",
+    },
+    "spreadsheet": {
+        "prompt": "Workbook Goal",
+        "context": "Generation Context",
+        "sources": "Data Source Register",
+        "quality": "Data Quality Notes",
+        "body": "Source Detail",
+    },
+    "custom": {
+        "prompt": "Custom Instructions",
+        "context": "Generation Context",
+        "sources": "Source Register",
+        "quality": "Source Quality Notes",
+        "body": "Source Detail",
+    },
+}
 
 
 def _value(data: dict[str, Any], snake: str, camel: str | None = None, default: Any = None) -> Any:
@@ -134,6 +179,37 @@ def _truncate_cell_text(value: str, limit: int = MAX_SOURCE_CHARS) -> str:
     return f"{normalized[:limit].rstrip()}\n..."
 
 
+def _template_labels(template: str) -> dict[str, str]:
+    return TEMPLATE_LABELS.get(template, TEMPLATE_LABELS["custom"])
+
+
+def _source_summary(source: DocumentGenerationSourceItem) -> str:
+    status = "included" if source.included else "omitted"
+    signal_text = (
+        f"; signals: {', '.join(dict.fromkeys(source.quality_signals))}"
+        if source.quality_signals
+        else ""
+    )
+    return f"{source.kind}: {source.title} ({source.id}; {status}{signal_text})"
+
+
+def _source_quality_bullets(sources: list[DocumentGenerationSourceItem]) -> list[str]:
+    bullets: list[str] = []
+    for source in sources:
+        signals = list(dict.fromkeys(source.quality_signals))
+        if not source.included:
+            signals.append("source_omitted")
+        if signals:
+            bullets.append(f"{source.kind}: {source.title} - {', '.join(dict.fromkeys(signals))}")
+    return bullets
+
+
+def _source_excerpt(source: DocumentGenerationSourceItem, *, chars: int) -> str:
+    if not source.included:
+        return "Source omitted from body because it exceeded the document generation budget."
+    return _truncate_cell_text(source.body, chars)
+
+
 def _document_model(
     params: DocumentGenerationWorkflowParams,
     generation: DocumentGenerationRequest,
@@ -142,48 +218,67 @@ def _document_model(
     destination = normalize_destination(generation.destination)
     title = destination.title or destination.filename
     included_sources = [source for source in sources.items if source.included]
+    all_sources = list(sources.items)
     reference_lines = _source_reference_lines(generation)
+    labels = _template_labels(generation.template)
+    context_bullets = [
+        f"Format: {generation.format}",
+        f"Template: {generation.template}",
+        f"Locale: {generation.locale}",
+        f"Request: {params.request_id}",
+    ]
+    source_quality_bullets = _source_quality_bullets(all_sources)
     sections = [
         {
-            "title": "Prompt",
+            "title": labels["prompt"],
             "body": generation.prompt,
             "bullets": [],
+            "kind": "prompt",
         },
         {
-            "title": "Generation Context",
+            "title": labels["context"],
             "body": "",
-            "bullets": [
-                f"Format: {generation.format}",
-                f"Template: {generation.template}",
-                f"Locale: {generation.locale}",
-                f"Request: {params.request_id}",
-            ],
+            "bullets": context_bullets,
+            "kind": "context",
         },
     ]
-    if included_sources:
+    if all_sources:
         sections.append(
             {
-                "title": "Sources",
+                "title": labels["sources"],
                 "body": "",
-                "bullets": [
-                    f"{source.kind}: {source.title} ({source.id})" for source in included_sources
-                ],
+                "bullets": [_source_summary(source) for source in all_sources],
+                "kind": "sources",
             }
         )
+        if source_quality_bullets:
+            sections.append(
+                {
+                    "title": labels["quality"],
+                    "body": "",
+                    "bullets": source_quality_bullets,
+                    "kind": "quality",
+                }
+            )
         sections.extend(
             {
-                "title": source.title,
-                "body": source.body.strip(),
+                "title": f"{labels['body']}: {source.title}",
+                "body": _source_excerpt(
+                    source,
+                    chars=1800 if generation.template == "brief" else MAX_SOURCE_CHARS,
+                ),
                 "bullets": [],
+                "kind": "source_body",
             }
             for source in included_sources
         )
     else:
         sections.append(
             {
-                "title": "Sources",
+                "title": labels["sources"],
                 "body": "",
                 "bullets": reference_lines or ["No explicit sources provided"],
+                "kind": "sources",
             }
         )
     return {
@@ -195,79 +290,154 @@ def _document_model(
         "request_id": params.request_id,
         "sections": sections,
         "sources": included_sources,
+        "all_sources": all_sources,
+        "quality_bullets": source_quality_bullets,
     }
 
 
-def _document_text(model: dict[str, Any]) -> str:
-    parts = [str(model["title"])]
-    for section in model["sections"]:
-        parts.append(str(section["title"]))
-        if section.get("body"):
-            parts.append(str(section["body"]))
-        if section.get("bullets"):
-            parts.extend(f"- {bullet}" for bullet in section["bullets"])
-    return (
-        "\n\n".join(parts)
-        .replace("\r\n", "\n")
-        .replace("\r", "\n")
-    )
-
-
-def _pdf_lines(text: str) -> list[str]:
-    lines: list[str] = []
-    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
-    for paragraph in normalized.split("\n"):
-        if not paragraph:
-            lines.append("")
-            continue
-        lines.extend(
-            textwrap.wrap(
-                paragraph,
-                width=PDF_WRAP_CHARS,
-                break_long_words=True,
-                replace_whitespace=False,
-                drop_whitespace=False,
-            )
-        )
-    return lines or [""]
-
-
-def _render_pdf(text: str) -> bytes:
+def _render_pdf_model(model: dict[str, Any]) -> bytes:
     import pymupdf
 
     doc = pymupdf.open()
     page = None
-    y = PDF_MARGIN_TOP + PDF_FONT_SIZE
+    y = PDF_MARGIN_TOP
     page_bottom = PDF_PAGE_HEIGHT - PDF_MARGIN_BOTTOM
+    font = pymupdf.Font(PDF_CJK_FONT)
 
-    for line in _pdf_lines(text):
-        if page is None or y > page_bottom:
-            page = doc.new_page(width=PDF_PAGE_WIDTH, height=PDF_PAGE_HEIGHT)
-            y = PDF_MARGIN_TOP + PDF_FONT_SIZE
-        if line:
-            page.insert_text(
-                (PDF_MARGIN_LEFT, y),
-                line,
-                fontsize=PDF_FONT_SIZE,
-                fontname=PDF_CJK_FONT,
+    def new_page() -> Any:
+        nonlocal page, y
+        page = doc.new_page(width=PDF_PAGE_WIDTH, height=PDF_PAGE_HEIGHT)
+        y = PDF_MARGIN_TOP
+        return page
+
+    def overflow_text(overflow: list[tuple[str, float]]) -> str:
+        return " ".join(token for token, _width in overflow).strip()
+
+    def split_oversized_token(text: str, *, size: int, width: float) -> tuple[str, str]:
+        head = ""
+        tail_start = 0
+        for index, char in enumerate(text):
+            candidate = f"{head}{char}"
+            if head and font.text_length(candidate, fontsize=size) > width:
+                tail_start = index
+                break
+            head = candidate
+        else:
+            return text, ""
+        return head, text[tail_start:]
+
+    def add_line(
+        line: str,
+        *,
+        size: int = PDF_FONT_SIZE,
+        line_height: int = PDF_LINE_HEIGHT,
+        indent: int = 0,
+        after: int = 0,
+    ) -> None:
+        nonlocal page, y
+        available_width = PDF_PAGE_WIDTH - PDF_MARGIN_LEFT - PDF_MARGIN_LEFT - indent
+        remaining = line
+        if not remaining:
+            if page is None or y + line_height > page_bottom:
+                new_page()
+            y += line_height
+            y += after
+            return
+        while remaining:
+            if page is None or y + line_height > page_bottom:
+                new_page()
+            rect = pymupdf.Rect(
+                PDF_MARGIN_LEFT + indent,
+                y,
+                PDF_PAGE_WIDTH - PDF_MARGIN_LEFT,
+                page_bottom,
             )
-        y += PDF_LINE_HEIGHT
+            writer = pymupdf.TextWriter(page.rect)
+            overflow = writer.fill_textbox(
+                rect,
+                remaining,
+                font=font,
+                fontsize=size,
+                lineheight=line_height,
+            )
+            wrote_text = not overflow or writer.text_rect.height > 0
+            if wrote_text:
+                writer.write_text(page)
+                y = max(y + line_height, min(writer.text_rect.y1 + 2, page_bottom + 1))
+                remaining = overflow_text(overflow)
+                if remaining:
+                    new_page()
+                continue
+
+            head, tail = split_oversized_token(remaining, size=size, width=available_width)
+            if not head:
+                raise ValueError("document_generation_pdf_text_does_not_fit")
+            writer = pymupdf.TextWriter(page.rect)
+            overflow = writer.fill_textbox(
+                rect,
+                head,
+                font=font,
+                fontsize=size,
+                lineheight=line_height,
+            )
+            if overflow:
+                raise ValueError("document_generation_pdf_text_does_not_fit")
+            writer.write_text(page)
+            y = max(y + line_height, min(writer.text_rect.y1 + 2, page_bottom + 1))
+            remaining = tail
+            if remaining:
+                new_page()
+        y += after
+
+    add_line(str(model["title"]), size=16, line_height=22, after=10)
+    add_line(
+        f"Template: {model['template']} / Locale: {model['locale']} / Request: {model['request_id']}",
+        size=9,
+        line_height=13,
+        after=12,
+    )
+    for section in model["sections"]:
+        add_line(str(section["title"]), size=13, line_height=19, after=3)
+        if section.get("body"):
+            for paragraph in str(section["body"]).splitlines() or [""]:
+                add_line(paragraph, size=PDF_FONT_SIZE, line_height=PDF_LINE_HEIGHT)
+            y += 5
+        for bullet in section.get("bullets", []):
+            add_line(f"- {bullet}", size=PDF_FONT_SIZE, line_height=PDF_LINE_HEIGHT, indent=10)
+        y += 7
 
     return doc.tobytes(garbage=4, deflate=True)
 
 
 def _render_docx(model: dict[str, Any]) -> bytes:
     from docx import Document
+    from docx.enum.text import WD_BREAK
+    from docx.shared import Pt
 
     document = Document()
+    styles = document.styles
+    styles["Normal"].font.name = "Malgun Gothic"
+    styles["Normal"].font.size = Pt(10.5)
     document.add_heading(str(model["title"]), level=0)
-    for section in model["sections"]:
+    meta = document.add_table(rows=0, cols=2)
+    for field, value in (
+        ("Template", model["template"]),
+        ("Locale", model["locale"]),
+        ("Request", model["request_id"]),
+    ):
+        cells = meta.add_row().cells
+        cells[0].text = field
+        cells[1].text = str(value)
+    for index, section in enumerate(model["sections"]):
         document.add_heading(str(section["title"]), level=1)
         if section.get("body"):
-            for paragraph in str(section["body"]).splitlines() or [""]:
+            paragraphs = str(section["body"]).splitlines() or [""]
+            for paragraph in paragraphs:
                 document.add_paragraph(paragraph)
         for bullet in section.get("bullets", []):
             document.add_paragraph(str(bullet), style="List Bullet")
+        if section.get("kind") == "source_body" and index < len(model["sections"]) - 1:
+            document.paragraphs[-1].runs[-1].add_break(WD_BREAK.PAGE)
 
     out = BytesIO()
     document.save(out)
@@ -306,7 +476,9 @@ def _render_pptx(model: dict[str, Any]) -> bytes:
     presentation = Presentation()
     title_slide = presentation.slides.add_slide(presentation.slide_layouts[0])
     title_slide.shapes.title.text = str(model["title"])
-    title_slide.placeholders[1].text = f"{model['template']} / {model['locale']}"
+    title_slide.placeholders[1].text = (
+        f"{model['template']} / {model['locale']} / {len(model['sources'])} sources"
+    )
 
     for section in model["sections"]:
         content = []
@@ -324,21 +496,19 @@ def _render_pptx(model: dict[str, Any]) -> bytes:
             for index, line in enumerate(lines):
                 paragraph = body.paragraphs[0] if index == 0 else body.add_paragraph()
                 paragraph.text = line
-                paragraph.font.size = Pt(16)
+                paragraph.font.size = Pt(17 if section.get("kind") != "source_body" else 14)
+                paragraph.level = 0
 
-    for source in model["sources"]:
-        source_lines = _pptx_wrapped_lines([source.body])
-        for page_index, lines in enumerate(_chunked(source_lines, PPTX_LINES_PER_SLIDE)):
-            slide = presentation.slides.add_slide(presentation.slide_layouts[5])
-            title_suffix = f" ({page_index + 1})" if page_index else ""
-            slide.shapes.title.text = f"{source.title}{title_suffix}"
-            box = slide.shapes.add_textbox(Inches(0.7), Inches(1.4), Inches(8.6), Inches(4.6))
-            frame = box.text_frame
-            frame.clear()
-            for index, line in enumerate(lines):
-                paragraph = frame.paragraphs[0] if index == 0 else frame.add_paragraph()
-                paragraph.text = line
-                paragraph.font.size = Pt(15)
+    if model.get("quality_bullets"):
+        slide = presentation.slides.add_slide(presentation.slide_layouts[5])
+        slide.shapes.title.text = "Quality Notes"
+        box = slide.shapes.add_textbox(Inches(0.7), Inches(1.4), Inches(8.6), Inches(4.6))
+        frame = box.text_frame
+        frame.clear()
+        for index, line in enumerate(_pptx_wrapped_lines(model["quality_bullets"])):
+            paragraph = frame.paragraphs[0] if index == 0 else frame.add_paragraph()
+            paragraph.text = line
+            paragraph.font.size = Pt(14)
 
     out = BytesIO()
     presentation.save(out)
@@ -347,7 +517,7 @@ def _render_pptx(model: dict[str, Any]) -> bytes:
 
 def _render_xlsx(model: dict[str, Any]) -> bytes:
     from openpyxl import Workbook
-    from openpyxl.styles import Font
+    from openpyxl.styles import Alignment, Font
 
     workbook = Workbook()
     summary = workbook.active
@@ -357,14 +527,43 @@ def _render_xlsx(model: dict[str, Any]) -> bytes:
     summary.append(["Prompt", model["prompt"]])
     summary.append(["Template", model["template"]])
     summary.append(["Locale", model["locale"]])
+    summary.append(["Request", model["request_id"]])
+    summary.append(["Source Count", len(model["all_sources"])])
     summary.append(["Generated At", datetime.now(UTC).isoformat()])
 
-    sources = workbook.create_sheet("Sources")
-    sources.append(["Source ID", "Kind", "Title", "Excerpt"])
-    for source in model["sources"]:
-        sources.append([source.id, source.kind, source.title, _truncate_cell_text(source.body, 1000)])
+    outline = workbook.create_sheet("Outline")
+    outline.append(["Section", "Type", "Content"])
+    for section in model["sections"]:
+        if section.get("body"):
+            outline.append(
+                [section["title"], section.get("kind", "section"), _truncate_cell_text(section["body"])]
+            )
+        for bullet in section.get("bullets", []):
+            outline.append([section["title"], "bullet", str(bullet)])
 
-    for sheet in (summary, sources):
+    sources = workbook.create_sheet("Sources")
+    sources.append(["Source ID", "Kind", "Title", "Included", "Quality Signals", "Excerpt"])
+    for source in model["all_sources"]:
+        sources.append(
+            [
+                source.id,
+                source.kind,
+                source.title,
+                source.included,
+                ", ".join(dict.fromkeys(source.quality_signals)),
+                _source_excerpt(source, chars=1000),
+            ]
+        )
+
+    if model.get("quality_bullets"):
+        quality = workbook.create_sheet("Quality")
+        quality.append(["Source Quality Signal"])
+        for bullet in model["quality_bullets"]:
+            quality.append([bullet])
+
+    for sheet in workbook.worksheets:
+        sheet.freeze_panes = "A2"
+        sheet.auto_filter.ref = sheet.dimensions
         for cell in sheet[1]:
             cell.font = Font(bold=True)
         for column in sheet.columns:
@@ -373,6 +572,9 @@ def _render_xlsx(model: dict[str, Any]) -> bytes:
                 max(len(str(cell.value or "")) for cell in column) + 2,
                 72,
             )
+        for row in sheet.iter_rows():
+            for cell in row:
+                cell.alignment = Alignment(vertical="top", wrap_text=True)
 
     out = BytesIO()
     workbook.save(out)
@@ -390,9 +592,8 @@ def render_document_bytes(
         return _render_pptx(model)
     if generation.format == "xlsx":
         return _render_xlsx(model)
-    text = _document_text(model)
     if generation.format == "pdf":
-        return _render_pdf(text)
+        return _render_pdf_model(model)
     if generation.format == "docx":
         return _render_docx(model)
     raise ValueError(f"Unsupported document generation format: {generation.format}")
