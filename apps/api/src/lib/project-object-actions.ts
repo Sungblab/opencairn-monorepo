@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   type AgentFileKind,
   type AgentFileCreatedEvent,
@@ -104,6 +105,15 @@ export async function executeProjectObjectAction(
           type: "project_object_compile_requested",
           objectId: action.objectId,
           target: action.target,
+        },
+      };
+    case "generate_project_object":
+      return {
+        event: {
+          type: "project_object_generation_requested",
+          requestId: action.requestId ?? randomUUID(),
+          generation: action.generation,
+          workflowHint: "document_generation",
         },
       };
     case "export_project_object": {
