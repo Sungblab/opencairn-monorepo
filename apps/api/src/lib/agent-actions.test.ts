@@ -3,8 +3,10 @@ import {
   AgentActionError,
   canTransition,
   createAgentAction,
+  executeAgentAction,
   transitionAgentActionStatus,
   type AgentActionRepository,
+  type NoteActionExecutor,
 } from "./agent-actions";
 import type { AgentAction } from "@opencairn/shared";
 
@@ -106,6 +108,143 @@ describe("agent action service", () => {
       ),
     ).rejects.toMatchObject(new AgentActionError("invalid_status_transition", 409));
   });
+
+  it("executes a note.create action once and stores the completed result", async () => {
+    const repo = createMemoryRepo();
+    const noteExecutor = createMemoryNoteExecutor();
+
+    const first = await createAgentAction(
+      projectId,
+      userId,
+      {
+        requestId,
+        kind: "note.create",
+        risk: "write",
+        input: { title: "Agent brief", folderId: null },
+      },
+      { repo, canWriteProject: async () => true, noteExecutor },
+    );
+    const second = await createAgentAction(
+      projectId,
+      userId,
+      {
+        requestId,
+        kind: "note.create",
+        risk: "write",
+        input: { title: "Agent brief", folderId: null },
+      },
+      { repo, canWriteProject: async () => true, noteExecutor },
+    );
+
+    expect(first.idempotent).toBe(false);
+    expect(second.idempotent).toBe(true);
+    expect(noteExecutor.createdNoteIds).toEqual(["00000000-0000-4000-8000-000000000090"]);
+    expect(second.action).toMatchObject({
+      status: "completed",
+      result: {
+        ok: true,
+        note: {
+          id: "00000000-0000-4000-8000-000000000090",
+          projectId,
+          folderId: null,
+          title: "Agent brief",
+        },
+      },
+      errorCode: null,
+    });
+  });
+
+  it("marks note action execution failures on the ledger", async () => {
+    const repo = createMemoryRepo();
+    const noteExecutor = createMemoryNoteExecutor({
+      failWith: new AgentActionError("note_not_found", 404),
+    });
+
+    const { action } = await createAgentAction(
+      projectId,
+      userId,
+      {
+        requestId,
+        kind: "note.rename",
+        risk: "write",
+        input: {
+          noteId: "00000000-0000-4000-8000-000000000021",
+          title: "Renamed brief",
+        },
+      },
+      { repo, canWriteProject: async () => true, noteExecutor },
+    );
+
+    expect(action.status).toBe("failed");
+    expect(action.errorCode).toBe("note_not_found");
+    expect(action.result).toEqual({ ok: false, errorCode: "note_not_found" });
+  });
+
+  it("executes Phase 2A note mutations through typed action inputs", async () => {
+    const repo = createMemoryRepo();
+    const noteExecutor = createMemoryNoteExecutor();
+
+    const rename = await executeAgentAction(
+      projectId,
+      userId,
+      {
+        requestId,
+        kind: "note.rename",
+        risk: "write",
+        input: {
+          noteId: "00000000-0000-4000-8000-000000000021",
+          title: "Renamed brief",
+        },
+      },
+      { repo, canWriteProject: async () => true, noteExecutor },
+    );
+    expect(rename.action.status).toBe("completed");
+    expect(noteExecutor.calls.map((call) => call.kind)).toEqual(["note.rename"]);
+
+    await executeAgentAction(
+      projectId,
+      userId,
+      {
+        requestId: "00000000-0000-4000-8000-000000000005",
+        kind: "note.move",
+        risk: "write",
+        input: {
+          noteId: "00000000-0000-4000-8000-000000000021",
+          folderId: null,
+        },
+      },
+      { repo, canWriteProject: async () => true, noteExecutor },
+    );
+    await executeAgentAction(
+      projectId,
+      userId,
+      {
+        requestId: "00000000-0000-4000-8000-000000000006",
+        kind: "note.delete",
+        risk: "destructive",
+        input: { noteId: "00000000-0000-4000-8000-000000000021" },
+      },
+      { repo, canWriteProject: async () => true, noteExecutor },
+    );
+    await executeAgentAction(
+      projectId,
+      userId,
+      {
+        requestId: "00000000-0000-4000-8000-000000000007",
+        kind: "note.restore",
+        risk: "write",
+        input: { noteId: "00000000-0000-4000-8000-000000000021" },
+      },
+      { repo, canWriteProject: async () => true, noteExecutor },
+    );
+
+    expect(noteExecutor.calls.map((call) => call.kind)).toEqual([
+      "note.rename",
+      "note.move",
+      "note.delete",
+      "note.restore",
+    ]);
+  });
 });
 
 function createMemoryRepo(): AgentActionRepository {
@@ -135,7 +274,7 @@ function createMemoryRepo(): AgentActionRepository {
         values.actorUserId,
         values.requestId,
       );
-      if (existing) return existing;
+      if (existing) return { action: existing, inserted: false };
       const now = new Date("2026-05-05T00:00:00.000Z").toISOString();
       const row: AgentAction = {
         id: rows.size === 0 ? actionId : `00000000-0000-4000-8000-${String(rows.size + 3).padStart(12, "0")}`,
@@ -155,7 +294,7 @@ function createMemoryRepo(): AgentActionRepository {
         updatedAt: now,
       };
       rows.set(row.id, row);
-      return row;
+      return { action: row, inserted: true };
     },
     async updateStatus(id, values) {
       const current = rows.get(id);
@@ -170,6 +309,52 @@ function createMemoryRepo(): AgentActionRepository {
       };
       rows.set(id, next);
       return next;
+    },
+  };
+}
+
+function createMemoryNoteExecutor(options?: {
+  failWith?: AgentActionError;
+}): NoteActionExecutor & {
+  calls: Array<{ kind: string }>;
+  createdNoteIds: string[];
+} {
+  const calls: Array<{ kind: string }> = [];
+  const createdNoteIds: string[] = [];
+  return {
+    calls,
+    createdNoteIds,
+    async execute(input) {
+      calls.push({ kind: input.kind });
+      if (options?.failWith) throw options.failWith;
+      if (input.kind === "note.create") {
+        const payload = input.payload as { title: string; folderId: string | null };
+        const id = "00000000-0000-4000-8000-000000000090";
+        createdNoteIds.push(id);
+        return {
+          ok: true,
+          note: {
+            id,
+            projectId: input.projectId,
+            folderId: payload.folderId ?? null,
+            title: payload.title,
+          },
+        };
+      }
+      const payload = input.payload as {
+        noteId: string;
+        folderId?: string | null;
+        title?: string;
+      };
+      return {
+        ok: true,
+        note: {
+          id: payload.noteId,
+          projectId: input.projectId,
+          folderId: payload.folderId ?? null,
+          title: payload.title ?? "test",
+        },
+      };
     },
   };
 }

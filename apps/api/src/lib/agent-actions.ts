@@ -4,20 +4,33 @@ import {
   db as defaultDb,
   desc,
   eq,
+  folders,
+  isNotNull,
+  isNull,
+  notes,
   projects,
   type AgentActionRow,
   type DB,
 } from "@opencairn/db";
+import { noteActionInputByKind } from "@opencairn/shared";
 import type {
   AgentAction,
   AgentActionKind,
   AgentActionRisk,
   AgentActionStatus,
   CreateAgentActionRequest,
+  NoteCreateActionInput,
+  NoteDeleteActionInput,
+  NoteMoveActionInput,
+  NoteRenameActionInput,
+  NoteRestoreActionInput,
+  Phase2ANoteActionKind,
+  Phase2ANoteActionInput,
   TransitionAgentActionStatusRequest,
 } from "@opencairn/shared";
 import { randomUUID } from "node:crypto";
 import { canWrite } from "./permissions";
+import { emitTreeEvent } from "./tree-events";
 
 export class AgentActionError extends Error {
   constructor(
@@ -52,7 +65,7 @@ export interface AgentActionRepository {
     preview?: Record<string, unknown> | null;
     result?: Record<string, unknown> | null;
     errorCode?: string | null;
-  }): Promise<AgentAction>;
+  }): Promise<{ action: AgentAction; inserted: boolean }>;
   updateStatus(
     id: string,
     values: {
@@ -67,6 +80,19 @@ export interface AgentActionRepository {
 export interface AgentActionServiceOptions {
   repo?: AgentActionRepository;
   canWriteProject?: (userId: string, projectId: string) => Promise<boolean>;
+  noteExecutor?: NoteActionExecutor;
+}
+
+export interface NoteActionExecutorInput {
+  workspaceId: string;
+  projectId: string;
+  actorUserId: string;
+  kind: Phase2ANoteActionKind;
+  payload: Phase2ANoteActionInput;
+}
+
+export interface NoteActionExecutor {
+  execute(input: NoteActionExecutorInput): Promise<Record<string, unknown>>;
 }
 
 export function createDrizzleAgentActionRepository(conn: DB = defaultDb): AgentActionRepository {
@@ -121,7 +147,7 @@ export function createDrizzleAgentActionRepository(conn: DB = defaultDb): AgentA
           ],
         })
         .returning();
-      if (inserted) return toAgentAction(inserted);
+      if (inserted) return { action: toAgentAction(inserted), inserted: true };
 
       const existing = await this.findByRequestId(
         values.projectId,
@@ -131,7 +157,7 @@ export function createDrizzleAgentActionRepository(conn: DB = defaultDb): AgentA
       if (!existing) {
         throw new AgentActionError("idempotency_conflict", 409);
       }
-      return existing;
+      return { action: existing, inserted: false };
     },
     async updateStatus(id, values) {
       const [row] = await conn
@@ -165,22 +191,32 @@ export async function createAgentAction(
   if (existing) return { action: existing, idempotent: true };
 
   const placeholder = request.kind === "workflow.placeholder";
-  const action = await repo.insert({
+  const executableNoteAction = isPhase2ANoteAction(request.kind);
+  const { action, inserted } = await repo.insert({
     requestId,
     workspaceId: scope.workspaceId,
     projectId,
     actorUserId,
     sourceRunId: request.sourceRunId ?? null,
     kind: request.kind,
-    status: placeholder ? "completed" : initialStatusForRisk(request.risk),
+    status: placeholder ? "completed" : executableNoteAction ? "running" : initialStatusForRisk(request.risk),
     risk: request.risk,
     input: request.input ?? {},
     preview: request.preview ?? (placeholder ? placeholderPreview(request.input ?? {}) : null),
     result: placeholder ? placeholderResult(request.input ?? {}) : null,
     errorCode: null,
   });
+  if (!inserted) return { action, idempotent: true };
+  if (executableNoteAction) {
+    return {
+      action: await executePersistedNoteAction(action, request, options),
+      idempotent: false,
+    };
+  }
   return { action, idempotent: false };
 }
+
+export const executeAgentAction = createAgentAction;
 
 export async function listAgentActions(
   projectId: string,
@@ -257,6 +293,267 @@ export function canTransition(from: AgentActionStatus, to: AgentActionStatus): b
 
 function initialStatusForRisk(risk: AgentActionRisk): AgentActionStatus {
   return risk === "low" ? "draft" : "approval_required";
+}
+
+function isPhase2ANoteAction(kind: AgentActionKind): kind is Phase2ANoteActionKind {
+  return kind === "note.create"
+    || kind === "note.rename"
+    || kind === "note.move"
+    || kind === "note.delete"
+    || kind === "note.restore";
+}
+
+async function executePersistedNoteAction(
+  action: AgentAction,
+  request: CreateAgentActionRequest,
+  options?: AgentActionServiceOptions,
+): Promise<AgentAction> {
+  const repo = options?.repo ?? createDrizzleAgentActionRepository();
+  const executor = options?.noteExecutor ?? createDrizzleNoteActionExecutor();
+  try {
+    const result = await executor.execute({
+      workspaceId: action.workspaceId,
+      projectId: action.projectId,
+      actorUserId: action.actorUserId,
+      kind: action.kind as Phase2ANoteActionKind,
+      payload: parseNoteActionPayload(action.kind as Phase2ANoteActionKind, request.input ?? {}),
+    });
+    const updated = await repo.updateStatus(action.id, {
+      status: "completed",
+      result,
+      errorCode: null,
+    });
+    if (!updated) throw new AgentActionError("action_not_found", 404);
+    return updated;
+  } catch (err) {
+    const errorCode = err instanceof AgentActionError ? err.code : "note_action_failed";
+    const updated = await repo.updateStatus(action.id, {
+      status: "failed",
+      result: { ok: false, errorCode },
+      errorCode,
+    });
+    if (!updated) throw new AgentActionError("action_not_found", 404);
+    return updated;
+  }
+}
+
+function parseNoteActionPayload(
+  kind: Phase2ANoteActionKind,
+  input: Record<string, unknown>,
+): Phase2ANoteActionInput {
+  return noteActionInputByKind[kind].parse(input) as Phase2ANoteActionInput;
+}
+
+export function createDrizzleNoteActionExecutor(conn: DB = defaultDb): NoteActionExecutor {
+  return {
+    async execute(input) {
+      switch (input.kind) {
+        case "note.create":
+          return createNoteFromAction(conn, input);
+        case "note.rename":
+          return renameNoteFromAction(conn, input);
+        case "note.move":
+          return moveNoteFromAction(conn, input);
+        case "note.delete":
+          return deleteNoteFromAction(conn, input);
+        case "note.restore":
+          return restoreNoteFromAction(conn, input);
+      }
+    },
+  };
+}
+
+async function createNoteFromAction(
+  conn: DB,
+  input: NoteActionExecutorInput,
+): Promise<Record<string, unknown>> {
+  if (!(await canWrite(input.actorUserId, { type: "project", id: input.projectId }, { db: conn }))) {
+    throw new AgentActionError("forbidden", 403);
+  }
+  const payload = input.payload as NoteCreateActionInput;
+  if (payload.folderId) {
+    const [folder] = await conn
+      .select({ id: folders.id })
+      .from(folders)
+      .where(and(eq(folders.id, payload.folderId), eq(folders.projectId, input.projectId)));
+    if (!folder) throw new AgentActionError("folder_not_found", 404);
+  }
+  const [note] = await conn
+    .insert(notes)
+    .values({
+      projectId: input.projectId,
+      workspaceId: input.workspaceId,
+      folderId: payload.folderId,
+      title: payload.title,
+      content: null,
+      contentText: "",
+      type: "note",
+      sourceType: "manual",
+    })
+    .returning({
+      id: notes.id,
+      projectId: notes.projectId,
+      folderId: notes.folderId,
+      title: notes.title,
+    });
+  if (!note) throw new AgentActionError("note_create_failed", 409);
+
+  emitTreeEvent({
+    kind: "tree.note_created",
+    projectId: note.projectId,
+    id: note.id,
+    parentId: note.folderId,
+    label: note.title,
+    at: new Date().toISOString(),
+  });
+  return { ok: true, note };
+}
+
+async function renameNoteFromAction(
+  conn: DB,
+  input: NoteActionExecutorInput,
+): Promise<Record<string, unknown>> {
+  const payload = input.payload as NoteRenameActionInput;
+  if (!(await canWrite(input.actorUserId, { type: "note", id: payload.noteId }, { db: conn }))) {
+    throw new AgentActionError("forbidden", 403);
+  }
+  const [note] = await conn
+    .update(notes)
+    .set({ title: payload.title })
+    .where(and(eq(notes.id, payload.noteId), eq(notes.projectId, input.projectId), isNull(notes.deletedAt)))
+    .returning({
+      id: notes.id,
+      projectId: notes.projectId,
+      folderId: notes.folderId,
+      title: notes.title,
+    });
+  if (!note) throw new AgentActionError("note_not_found", 404);
+
+  emitTreeEvent({
+    kind: "tree.note_renamed",
+    projectId: note.projectId,
+    id: note.id,
+    parentId: note.folderId,
+    label: note.title,
+    at: new Date().toISOString(),
+  });
+  return { ok: true, note };
+}
+
+async function moveNoteFromAction(
+  conn: DB,
+  input: NoteActionExecutorInput,
+): Promise<Record<string, unknown>> {
+  const payload = input.payload as NoteMoveActionInput;
+  if (!(await canWrite(input.actorUserId, { type: "note", id: payload.noteId }, { db: conn }))) {
+    throw new AgentActionError("forbidden", 403);
+  }
+  if (payload.folderId) {
+    const [folder] = await conn
+      .select({ id: folders.id })
+      .from(folders)
+      .where(and(eq(folders.id, payload.folderId), eq(folders.projectId, input.projectId)));
+    if (!folder) throw new AgentActionError("folder_not_found", 404);
+  }
+  const [note] = await conn
+    .update(notes)
+    .set({ folderId: payload.folderId })
+    .where(and(eq(notes.id, payload.noteId), eq(notes.projectId, input.projectId), isNull(notes.deletedAt)))
+    .returning({
+      id: notes.id,
+      projectId: notes.projectId,
+      folderId: notes.folderId,
+    });
+  if (!note) throw new AgentActionError("note_not_found", 404);
+
+  emitTreeEvent({
+    kind: "tree.note_moved",
+    projectId: note.projectId,
+    id: note.id,
+    parentId: note.folderId,
+    at: new Date().toISOString(),
+  });
+  return { ok: true, note };
+}
+
+async function deleteNoteFromAction(
+  conn: DB,
+  input: NoteActionExecutorInput,
+): Promise<Record<string, unknown>> {
+  const payload = input.payload as NoteDeleteActionInput;
+  if (!(await canWrite(input.actorUserId, { type: "note", id: payload.noteId }, { db: conn }))) {
+    throw new AgentActionError("forbidden", 403);
+  }
+  const [note] = await conn
+    .update(notes)
+    .set({ deletedAt: new Date() })
+    .where(and(eq(notes.id, payload.noteId), eq(notes.projectId, input.projectId), isNull(notes.deletedAt)))
+    .returning({
+      id: notes.id,
+      projectId: notes.projectId,
+      folderId: notes.folderId,
+      deletedAt: notes.deletedAt,
+    });
+  if (!note) throw new AgentActionError("note_not_found", 404);
+
+  emitTreeEvent({
+    kind: "tree.note_deleted",
+    projectId: note.projectId,
+    id: note.id,
+    parentId: note.folderId,
+    at: new Date().toISOString(),
+  });
+  return {
+    ok: true,
+    note: {
+      id: note.id,
+      projectId: note.projectId,
+      folderId: note.folderId,
+      deletedAt: note.deletedAt?.toISOString() ?? null,
+    },
+  };
+}
+
+async function restoreNoteFromAction(
+  conn: DB,
+  input: NoteActionExecutorInput,
+): Promise<Record<string, unknown>> {
+  const payload = input.payload as NoteRestoreActionInput;
+  const [current] = await conn
+    .select({
+      id: notes.id,
+      projectId: notes.projectId,
+      folderId: notes.folderId,
+      title: notes.title,
+    })
+    .from(notes)
+    .where(and(eq(notes.id, payload.noteId), eq(notes.projectId, input.projectId), isNotNull(notes.deletedAt)));
+  if (!current) throw new AgentActionError("note_not_found", 404);
+  if (!(await canWrite(input.actorUserId, { type: "project", id: current.projectId }, { db: conn }))) {
+    throw new AgentActionError("forbidden", 403);
+  }
+
+  const [note] = await conn
+    .update(notes)
+    .set({ deletedAt: null })
+    .where(and(eq(notes.id, payload.noteId), eq(notes.projectId, input.projectId), isNotNull(notes.deletedAt)))
+    .returning({
+      id: notes.id,
+      projectId: notes.projectId,
+      folderId: notes.folderId,
+      title: notes.title,
+    });
+  if (!note) throw new AgentActionError("note_not_found", 404);
+
+  emitTreeEvent({
+    kind: "tree.note_restored",
+    projectId: note.projectId,
+    id: note.id,
+    parentId: note.folderId,
+    label: note.title,
+    at: new Date().toISOString(),
+  });
+  return { ok: true, note };
 }
 
 function placeholderPreview(input: Record<string, unknown>): Record<string, unknown> {

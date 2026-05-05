@@ -66,4 +66,90 @@ describe("agent action schemas", () => {
       result: { retryable: true },
     });
   });
+
+  it("accepts the Phase 2A note action input contracts", () => {
+    expect(
+      createAgentActionRequestSchema.parse({
+        kind: "note.create",
+        risk: "write",
+        input: { title: "Agent brief", folderId: null },
+      }).input,
+    ).toEqual({ title: "Agent brief", folderId: null });
+
+    expect(
+      createAgentActionRequestSchema.parse({
+        kind: "note.rename",
+        risk: "write",
+        input: {
+          noteId: "00000000-0000-4000-8000-000000000021",
+          title: "Renamed brief",
+        },
+      }).input,
+    ).toEqual({
+      noteId: "00000000-0000-4000-8000-000000000021",
+      title: "Renamed brief",
+    });
+
+    expect(
+      createAgentActionRequestSchema.parse({
+        kind: "note.move",
+        risk: "write",
+        input: {
+          noteId: "00000000-0000-4000-8000-000000000021",
+          folderId: "00000000-0000-4000-8000-000000000022",
+        },
+      }).input,
+    ).toEqual({
+      noteId: "00000000-0000-4000-8000-000000000021",
+      folderId: "00000000-0000-4000-8000-000000000022",
+    });
+
+    expect(
+      createAgentActionRequestSchema.parse({
+        kind: "note.delete",
+        risk: "destructive",
+        input: { noteId: "00000000-0000-4000-8000-000000000021" },
+      }).input,
+    ).toEqual({ noteId: "00000000-0000-4000-8000-000000000021" });
+
+    expect(
+      createAgentActionRequestSchema.parse({
+        kind: "note.restore",
+        risk: "write",
+        input: { noteId: "00000000-0000-4000-8000-000000000021" },
+      }).input,
+    ).toEqual({ noteId: "00000000-0000-4000-8000-000000000021" });
+  });
+
+  it("rejects note.update and non-note input shapes in Phase 2A", () => {
+    expect(
+      createAgentActionRequestSchema.safeParse({
+        kind: "note.update",
+        risk: "write",
+        input: {
+          noteId: "00000000-0000-4000-8000-000000000021",
+          content: [{ type: "p", children: [{ text: "not yet" }] }],
+        },
+      }).success,
+    ).toBe(false);
+
+    expect(
+      createAgentActionRequestSchema.safeParse({
+        kind: "note.rename",
+        risk: "write",
+        input: { noteId: "00000000-0000-4000-8000-000000000021" },
+      }).success,
+    ).toBe(false);
+
+    expect(
+      createAgentActionRequestSchema.safeParse({
+        kind: "note.create",
+        risk: "write",
+        input: {
+          title: "Scoped",
+          projectId: "00000000-0000-4000-8000-000000000099",
+        },
+      }).success,
+    ).toBe(false);
+  });
 });
