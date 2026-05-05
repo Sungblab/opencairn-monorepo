@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   AgentActionError,
+  applyAgentAction,
   cancelCodeProjectRunAction,
   canTransition,
   createAgentAction,
@@ -15,6 +16,7 @@ import {
   type NoteUpdatePreviewer,
 } from "./agent-actions";
 import type { AgentAction } from "@opencairn/shared";
+import { createMemoryCodeWorkspaceRepository } from "./code-project-workspaces";
 
 const userId = "user-1";
 const workspaceId = "00000000-0000-4000-8000-000000000001";
@@ -361,6 +363,66 @@ describe("agent action service", () => {
         },
       },
       errorCode: null,
+    });
+  });
+
+  it("materializes an approved static code_project.preview action", async () => {
+    const repo = createMemoryRepo();
+    const codeWorkspaceRepo = createMemoryCodeWorkspaceRepository();
+    const { workspace, snapshot } = await codeWorkspaceRepo.createWorkspaceDraft({
+      scope: { workspaceId, projectId, actorUserId: userId },
+      requestId: "00000000-0000-4000-8000-000000000030",
+      snapshotId: "00000000-0000-4000-8000-000000000031",
+      treeHash: "sha256:preview",
+      request: {
+        name: "Preview app",
+        manifest: {
+          entries: [
+            {
+              path: "index.html",
+              kind: "file",
+              bytes: 16,
+              contentHash: "sha256:index",
+              inlineContent: "<h1>Preview</h1>",
+            },
+          ],
+        },
+      },
+    });
+    const { action } = await createAgentAction(
+      projectId,
+      userId,
+      {
+        requestId,
+        kind: "code_project.preview",
+        risk: "external",
+        input: {
+          codeWorkspaceId: workspace.id,
+          snapshotId: snapshot.id,
+          mode: "static",
+          entryPath: "index.html",
+        },
+      },
+      { repo, codeWorkspaceRepo, canWriteProject: async () => true },
+    );
+
+    const applied = await applyAgentAction(action.id, userId, {}, {
+      repo,
+      codeWorkspaceRepo,
+      canWriteProject: async () => true,
+    });
+
+    expect(applied).toMatchObject({
+      status: "completed",
+      result: {
+        ok: true,
+        kind: "code_project.preview",
+        mode: "static",
+        codeWorkspaceId: workspace.id,
+        snapshotId: snapshot.id,
+        entryPath: "index.html",
+        previewUrl: `/api/agent-actions/${action.id}/preview/index.html`,
+      },
     });
   });
 

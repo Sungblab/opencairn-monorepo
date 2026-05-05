@@ -232,7 +232,8 @@ implemented.
 | GET | /api/projects/:projectId/agent-actions | project `editor` | List newest actions in a project. Optional filters: `?status=&kind=&limit=`. | - |
 | GET | /api/agent-actions/:id | project `editor` | Read one action after checking the action's project scope. | - |
 | PATCH | /api/agent-actions/:id/status | project `editor` | Transition action status using the shared status state machine; invalid transitions return `409 invalid_status_transition`. | `{ status, preview?, result?, errorCode? }` |
-| POST | /api/agent-actions/:id/apply | project `editor` | Apply a draft review action. For `note.update`, the server validates the stored action kind/status, rejects stale previews with `409 note_update_stale_preview`, captures note versions around the Yjs transform, and completes or fails the ledger row. For `code_project.patch`, the server validates the stored base snapshot, rejects stale code workspaces with `409 code_workspace_stale_base`, creates a new immutable snapshot, updates the workspace current snapshot, and completes with archive metadata. | `{ yjsStateVectorBase64 }` for `note.update`; `{}` for `code_project.patch` |
+| POST | /api/agent-actions/:id/apply | project `editor` | Apply a review action. For `note.update`, the server validates the stored action kind/status, rejects stale previews with `409 note_update_stale_preview`, captures note versions around the Yjs transform, and completes or fails the ledger row. For `code_project.patch`, the server validates the stored base snapshot, rejects stale code workspaces with `409 code_workspace_stale_base`, creates a new immutable snapshot, updates the workspace current snapshot, and completes with archive metadata. For `code_project.preview`, the server validates the approved static preview request, verifies the inline snapshot entry exists, and completes with an internal sandboxed preview URL. | `{ yjsStateVectorBase64 }` for `note.update`; `{}` for `code_project.patch` and `code_project.preview` |
+| GET | /api/agent-actions/:id/preview/* | project `editor` | Serve a completed static `code_project.preview` asset from the immutable snapshot manifest. The route is private, `no-store`, and adds a CSP sandbox header; Phase 7B serves inline snapshot content only and returns `409 code_workspace_preview_asset_unavailable` for object-backed entries until object storage reads and lifecycle cleanup are added. | - |
 | POST | /api/agent-actions/:id/cancel | project `editor` | Cancel a queued or running `code_project.run` action. Running command actions best-effort cancel the stable worker workflow when `FEATURE_CODE_WORKSPACE_COMMANDS=true`; the ledger row becomes `cancelled` with `{ ok: false, errorCode: "cancelled" }`. Already cancelled run actions are idempotent. | - |
 | POST | /api/agent-actions/:id/repair | project `editor` | Create a draft `code_project.patch` repair action from a failed `code_project.run` action. The API parses stored run logs/results, resolves the server-owned snapshot manifest, calls the configured repair planner, stores the patch with `sourceRunId` pointing at the failed run, and caps repair drafts at three per failed run. | `{ requestId? }` |
 
@@ -383,10 +384,15 @@ install executor is added.
 }
 ```
 
-Preview actions must use `risk:"external"`. Phase 7A is an approval substrate
-only: the API records `approval_required` review metadata for a static preview
-request and rejects process-backed modes such as Vite or Next until preview URL
-allocation, lifecycle cleanup, and browser smoke checks are implemented.
+Preview actions must use `risk:"external"`. Phase 7A records
+`approval_required` review metadata for a static preview request and rejects
+process-backed modes such as Vite or Next. Phase 7B lets approved static
+preview actions complete with a result shaped like
+`{ ok:true, kind:"code_project.preview", mode:"static", codeWorkspaceId,
+snapshotId, entryPath, previewUrl, assetsBaseUrl }`. The preview URL is an
+authenticated internal API route with sandbox CSP and no-store caching; public
+hostnames, URL expiration, object-backed asset reads, browser smoke checks, and
+process lifecycle cleanup remain later hosted-preview work.
 
 ### Ingest
 

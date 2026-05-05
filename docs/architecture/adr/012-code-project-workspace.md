@@ -292,6 +292,9 @@ project commands, install dependencies, host previews, or deploy external apps.
 - Add typed `code_project.preview` static approval substrate first. Phase 7A
   records static preview intent with `risk:"external"` but does not allocate
   hosted URLs or start app processes.
+- Materialize approved static previews as private sandboxed API assets before
+  introducing public preview hostnames. Phase 7B completes the action with an
+  internal preview URL only for inline snapshot entries.
 - Add Vite/Next preview only after process lifecycle and cleanup are safe.
 - Capture browser smoke results and screenshots.
 - Keep unrestricted server-side arbitrary code execution out of scope.

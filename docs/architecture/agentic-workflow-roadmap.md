@@ -789,6 +789,14 @@ review preview. Process-backed preview modes such as Vite and Next remain out
 of scope until lifecycle cleanup, browser smoke checks, and URL expiration are
 implemented.
 
+Phase 7B materializes approved static previews without exposing public hosting.
+Applying an approved `code_project.preview` validates the immutable snapshot
+and inline entry file, completes the ledger row with a private
+`/api/agent-actions/:id/preview/*` URL, and serves the asset with no-store
+caching plus a CSP sandbox. This keeps static HTML previewable while leaving
+object-backed asset reads, expiring external URLs, process-backed preview
+servers, cleanup, and browser smoke screenshots for later Phase 7 slices.
+
 ### Phase 7: Hosted Preview
 
 Add generated app previews:

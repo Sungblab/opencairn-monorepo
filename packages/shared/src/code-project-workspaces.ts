@@ -324,6 +324,19 @@ export const codeWorkspacePreviewRequestSchema = z
     );
   });
 
+export const codeWorkspacePreviewResultSchema = z
+  .object({
+    ok: z.literal(true),
+    kind: z.literal("code_project.preview"),
+    mode: z.literal("static"),
+    codeWorkspaceId: z.string().uuid(),
+    snapshotId: z.string().uuid(),
+    entryPath: normalizedPathSchema,
+    previewUrl: z.string().trim().min(1).max(1024),
+    assetsBaseUrl: z.string().trim().min(1).max(1024),
+  })
+  .strict();
+
 export const codeWorkspaceCommandRunRequestSchema = z
   .object({
     requestId: z.string().uuid().optional(),
@@ -435,5 +448,6 @@ export type CodeWorkspaceCommand = z.infer<typeof codeWorkspaceCommandSchema>;
 export type CodeWorkspaceCommandRunRequest = z.infer<typeof codeWorkspaceCommandRunRequestSchema>;
 export type CodeWorkspaceCommandRunLog = z.infer<typeof codeWorkspaceCommandRunLogSchema>;
 export type CodeWorkspaceCommandRunResult = z.infer<typeof codeWorkspaceCommandRunResultSchema>;
+export type CodeWorkspacePreviewResult = z.infer<typeof codeWorkspacePreviewResultSchema>;
 export type CodeWorkspaceSnapshot = z.infer<typeof codeWorkspaceSnapshotSchema>;
 export type CodeWorkspacePackageResult = z.infer<typeof codeWorkspacePackageResultSchema>;
