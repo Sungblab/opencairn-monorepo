@@ -486,6 +486,40 @@ export async function markWorkflowAgentActionFailed(
   });
 }
 
+export async function cancelWorkflowAgentActionsBySourceRunId(
+  args: {
+    projectId: string | null | undefined;
+    sourceRunId: string;
+    result?: Record<string, unknown>;
+  },
+  options?: Pick<AgentActionServiceOptions, "repo">,
+): Promise<AgentAction[]> {
+  if (!args.projectId) return [];
+  const repo = options?.repo ?? createDrizzleAgentActionRepository();
+  const actions = await repo.listBySourceRunId({
+    projectId: args.projectId,
+    sourceRunId: args.sourceRunId,
+  });
+  const cancellable = actions.filter((action) =>
+    action.status === "queued" || action.status === "running"
+  );
+  const updated = await Promise.all(
+    cancellable.map((action) =>
+      repo.updateStatus(action.id, {
+        status: "cancelled",
+        result: args.result ?? {
+          ok: false,
+          sourceRunId: args.sourceRunId,
+          errorCode: "cancelled",
+          retryable: false,
+        },
+        errorCode: "cancelled",
+      }),
+    ),
+  );
+  return updated.filter((action): action is AgentAction => action !== null);
+}
+
 export async function listAgentActions(
   projectId: string,
   actorUserId: string,

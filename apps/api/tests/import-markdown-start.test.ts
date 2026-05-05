@@ -7,15 +7,19 @@ import {
   type SeedResult,
 } from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
-import { db, importJobs, eq, user } from "@opencairn/db";
+import { agentActions, db, importJobs, eq, user } from "@opencairn/db";
 
-const { startSpy } = vi.hoisted(() => ({
+const { cancelSpy, startSpy } = vi.hoisted(() => ({
+  cancelSpy: vi.fn().mockResolvedValue(undefined),
   startSpy: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../src/lib/temporal-client.js", () => ({
   getTemporalClient: vi.fn().mockResolvedValue({
-    workflow: { start: startSpy },
+    workflow: {
+      getHandle: vi.fn(() => ({ cancel: cancelSpy })),
+      start: startSpy,
+    },
   }),
   taskQueue: () => "opencairn",
 }));
@@ -25,6 +29,7 @@ describe("POST /api/import/markdown — zipObjectKey prefix validation", () => {
 
   beforeEach(async () => {
     seed = await seedWorkspace({ role: "editor" });
+    cancelSpy.mockClear();
     startSpy.mockClear();
   });
 
@@ -54,6 +59,54 @@ describe("POST /api/import/markdown — zipObjectKey prefix validation", () => {
     expect(startSpy.mock.calls[0]?.[1]?.args?.[0]?.source).toBe(
       "markdown_zip",
     );
+  });
+
+  it("cancels the queued import action when cancelling the import job", async () => {
+    const app = createApp();
+    const objectKey = `imports/markdown/${seed.workspaceId}/${seed.userId}/${Date.now()}-${randomUUID()}.zip`;
+    const cookie = await signSessionCookie(seed.userId);
+    const createRes = await app.request("/api/import/markdown", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie,
+      },
+      body: JSON.stringify({
+        workspaceId: seed.workspaceId,
+        zipObjectKey: objectKey,
+        originalName: "vault.zip",
+        target: {
+          kind: "existing",
+          projectId: seed.projectId,
+          parentNoteId: null,
+        },
+      }),
+    });
+    expect(createRes.status).toBe(201);
+    const body = (await createRes.json()) as {
+      jobId: string;
+      action: { id: string };
+    };
+
+    const cancelRes = await app.request(`/api/import/jobs/${body.jobId}`, {
+      method: "DELETE",
+      headers: { cookie },
+    });
+
+    expect(cancelRes.status).toBe(200);
+    const [action] = await db
+      .select()
+      .from(agentActions)
+      .where(eq(agentActions.id, body.action.id));
+    expect(action).toMatchObject({
+      status: "cancelled",
+      errorCode: "cancelled",
+      result: {
+        ok: false,
+        jobId: body.jobId,
+        errorCode: "cancelled",
+      },
+    });
   });
 
   it("rejects a zipObjectKey issued for a different user with 403", async () => {

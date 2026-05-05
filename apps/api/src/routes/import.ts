@@ -24,6 +24,7 @@ import { getTemporalClient, taskQueue } from "../lib/temporal-client";
 import { isUuid } from "../lib/validators";
 import type { AppEnv } from "../lib/types";
 import {
+  cancelWorkflowAgentActionsBySourceRunId,
   createQueuedWorkflowAgentAction,
   markWorkflowAgentActionFailed,
 } from "../lib/agent-actions";
@@ -708,6 +709,16 @@ importRouter.delete("/jobs/:id", requireAuth, async (c) => {
     .update(importJobs)
     .set({ status: "failed", errorSummary: "Cancelled by user" })
     .where(eq(importJobs.id, id));
+  await cancelWorkflowAgentActionsBySourceRunId({
+    projectId: job.targetProjectId,
+    sourceRunId: job.id,
+    result: {
+      ok: false,
+      jobId: job.id,
+      errorCode: "cancelled",
+      retryable: false,
+    },
+  });
   return c.json({ ok: true });
 });
 
