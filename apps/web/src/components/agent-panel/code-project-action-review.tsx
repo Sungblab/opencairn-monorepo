@@ -5,6 +5,7 @@ import { Check, ExternalLink, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  parseCodeWorkspaceInstallRequest,
   parseCodeWorkspacePatchPreview,
   parseCodeWorkspacePreviewRequest,
   parseCodeWorkspacePreviewResult,
@@ -20,7 +21,7 @@ interface Props {
 
 const listKey = (
   projectId: string | null,
-  kind: "code_project.patch" | "code_project.preview",
+  kind: "code_project.patch" | "code_project.preview" | "code_project.install",
   status: "draft" | "approval_required" | "completed",
 ) => [
   "agent-actions",
@@ -49,6 +50,18 @@ export function CodeProjectActionReviewList({ projectId }: Props) {
       if (!projectId) return { actions: [] };
       return agentActionsApi.list(projectId, {
         kind: "code_project.preview",
+        status: "approval_required",
+        limit: 10,
+      });
+    },
+  });
+  const pendingInstallQuery = useQuery({
+    queryKey: listKey(projectId, "code_project.install", "approval_required"),
+    enabled: Boolean(projectId),
+    queryFn: async () => {
+      if (!projectId) return { actions: [] };
+      return agentActionsApi.list(projectId, {
+        kind: "code_project.install",
         status: "approval_required",
         limit: 10,
       });
@@ -89,6 +102,16 @@ export function CodeProjectActionReviewList({ projectId }: Props) {
       request: NonNullable<ReturnType<typeof parseCodeWorkspacePreviewRequest>>;
     } => Boolean(item.request));
 
+  const pendingInstalls = (pendingInstallQuery.data?.actions ?? [])
+    .map((action) => ({
+      action,
+      request: parseCodeWorkspaceInstallRequest(action.input),
+    }))
+    .filter((item): item is {
+      action: AgentAction;
+      request: NonNullable<ReturnType<typeof parseCodeWorkspaceInstallRequest>>;
+    } => Boolean(item.request));
+
   const completedPreviews = (completedPreviewQuery.data?.actions ?? [])
     .map((action) => ({
       action,
@@ -99,7 +122,15 @@ export function CodeProjectActionReviewList({ projectId }: Props) {
       result: NonNullable<ReturnType<typeof parseCodeWorkspacePreviewResult>>;
     } => Boolean(item.result));
 
-  if (!projectId || (actions.length === 0 && pendingPreviews.length === 0 && completedPreviews.length === 0)) {
+  if (
+    !projectId ||
+    (
+      actions.length === 0 &&
+      pendingPreviews.length === 0 &&
+      pendingInstalls.length === 0 &&
+      completedPreviews.length === 0
+    )
+  ) {
     return null;
   }
 
@@ -116,6 +147,13 @@ export function CodeProjectActionReviewList({ projectId }: Props) {
         ))}
         {pendingPreviews.map(({ action, request }) => (
           <CodeProjectPreviewReviewCard
+            key={action.id}
+            action={action}
+            request={request}
+          />
+        ))}
+        {pendingInstalls.map(({ action, request }) => (
+          <CodeProjectInstallReviewCard
             key={action.id}
             action={action}
             request={request}
@@ -237,6 +275,99 @@ function CodeProjectActionReviewCard({
       ) : null}
 
       <p className="mt-3 text-xs text-muted-foreground">{t("staleWarning")}</p>
+      {message ? (
+        <p className="mt-2 text-xs font-medium" role="status">
+          {message}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function CodeProjectInstallReviewCard({
+  action,
+  request,
+}: {
+  action: AgentAction;
+  request: NonNullable<ReturnType<typeof parseCodeWorkspaceInstallRequest>>;
+}) {
+  const t = useTranslations("agentPanel.codeInstallReview");
+  const queryClient = useQueryClient();
+  const [message, setMessage] = useState<string | null>(null);
+  const packages = request.packages
+    .map((pkg) => (pkg.version ? `${pkg.name}@${pkg.version}` : pkg.name))
+    .join(", ");
+  const queryKeys = useMemo(
+    () => ({
+      pending: listKey(action.projectId, "code_project.install", "approval_required"),
+      action: ["agent-action", action.id],
+    }),
+    [action.id, action.projectId],
+  );
+
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.pending });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.action });
+  };
+
+  const apply = useMutation({
+    mutationFn: () => agentActionsApi.applyCodeProjectInstall(action.id),
+    onSuccess: () => {
+      setMessage(t("installApplied"));
+      invalidate();
+    },
+    onError: () => setMessage(t("installApplyFailed")),
+  });
+
+  const reject = useMutation({
+    mutationFn: () =>
+      agentActionsApi.transitionStatus(action.id, { status: "cancelled" }),
+    onSuccess: () => {
+      setMessage(t("installCancelled"));
+      invalidate();
+    },
+    onError: () => setMessage(t("installCancelFailed")),
+  });
+
+  return (
+    <section
+      aria-label={t("installTitle")}
+      className="rounded-[var(--radius-card)] border border-border bg-[var(--theme-surface)] p-3"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold">{t("installTitle")}</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t("installPackageManager", { packageManager: request.packageManager })}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            aria-label={t("installReject")}
+            disabled={reject.isPending || apply.isPending}
+            onClick={() => reject.mutate()}
+            className="app-btn-ghost flex h-8 w-8 items-center justify-center rounded-[var(--radius-control)]"
+          >
+            <X className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            aria-label={t("installApply")}
+            disabled={apply.isPending || reject.isPending}
+            onClick={() => apply.mutate()}
+            className="app-btn-primary flex h-8 w-8 items-center justify-center rounded-[var(--radius-control)]"
+          >
+            <Check className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      <p className="mt-3 truncate text-xs text-foreground">{packages}</p>
+      {request.reason ? (
+        <p className="mt-2 text-xs text-muted-foreground">{request.reason}</p>
+      ) : null}
+      <p className="mt-3 text-xs text-muted-foreground">{t("installNetworkWarning")}</p>
       {message ? (
         <p className="mt-2 text-xs font-medium" role="status">
           {message}

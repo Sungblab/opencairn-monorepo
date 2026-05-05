@@ -3,6 +3,7 @@ import { NoteVersionDiffSchema } from "./note-versions";
 import {
   codeWorkspaceCommandRunRequestSchema,
   codeWorkspaceCreateRequestSchema,
+  codeWorkspaceInstallResultSchema,
   codeWorkspaceInstallRequestSchema,
   codeWorkspacePatchPreviewSchema,
   codeWorkspacePatchSchema,
@@ -318,6 +319,16 @@ export function parseNoteUpdateApplyResult(value: unknown): NoteUpdateApplyResul
 
 export function parseCodeWorkspacePatchPreview(value: unknown) {
   const parsed = codeWorkspacePatchPreviewSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+export function parseCodeWorkspaceInstallRequest(value: unknown) {
+  const parsed = codeWorkspaceInstallRequestSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+export function parseCodeWorkspaceInstallResult(value: unknown) {
+  const parsed = codeWorkspaceInstallResultSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
 }
 
