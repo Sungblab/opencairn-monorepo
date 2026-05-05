@@ -10,6 +10,7 @@ import type {
   DocumentGenerationSource,
   GenerateProjectObjectAction,
   NoteUpdateApplyRequest,
+  ProjectObjectAction,
   TransitionAgentActionStatusRequest,
   WorkflowConsoleRun,
 } from "@opencairn/shared";
@@ -381,6 +382,10 @@ export type GenerateProjectObjectResponse = {
   idempotent: boolean;
   workflowId?: string;
 };
+type ExportProjectObjectAction = Extract<
+  ProjectObjectAction,
+  { type: "export_project_object" }
+>;
 
 export const documentGenerationApi = {
   sources: (projectId: string) =>
@@ -390,6 +395,14 @@ export const documentGenerationApi = {
   generate: (projectId: string, body: GenerateProjectObjectAction) =>
     apiClient<GenerateProjectObjectResponse>(
       `/projects/${projectId}/project-object-actions/generate`,
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    ),
+  exportProjectObject: (projectId: string, body: ExportProjectObjectAction) =>
+    apiClient<GenerateProjectObjectResponse>(
+      `/projects/${projectId}/project-object-actions/export`,
       {
         method: "POST",
         body: JSON.stringify(body),

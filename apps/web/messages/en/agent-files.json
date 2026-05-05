@@ -13,6 +13,8 @@
     "ingest": "Run ingest",
     "compile": "Compile LaTeX",
     "canvas": "Run in canvas",
+    "googleExport": "Export to Google Workspace",
+    "googleExportConnectRequired": "Google Drive connection required",
     "version": "v{version}",
     "compileStatus": {
       "not_started": "Not compiled",

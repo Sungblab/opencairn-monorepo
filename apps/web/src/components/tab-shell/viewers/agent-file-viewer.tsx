@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import {
   Download,
   Eye,
+  ExternalLink,
   FileCode,
   FileText,
   GitBranch,
@@ -22,6 +23,10 @@ import type { AgentFileSummary } from "@opencairn/shared";
 import "react-json-view-lite/dist/index.css";
 import type { Tab } from "@/stores/tabs-store";
 import { useTabsStore } from "@/stores/tabs-store";
+import {
+  documentGenerationApi,
+  integrationsApi,
+} from "@/lib/api-client";
 import { newTab } from "@/lib/tab-factory";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -44,6 +49,11 @@ export function AgentFileViewer({ tab }: { tab: Tab }) {
       if (!res.ok) throw new Error(`agent-file ${res.status}`);
       return (await res.json()) as AgentFileResponse;
     },
+  });
+  const googleIntegration = useQuery({
+    queryKey: ["integrations", "google", data?.file.workspaceId],
+    enabled: Boolean(data?.file.workspaceId),
+    queryFn: () => integrationsApi.google(data!.file.workspaceId),
   });
 
   const compile = useMutation({
@@ -90,6 +100,16 @@ export function AgentFileViewer({ tab }: { tab: Tab }) {
           preview: false,
         }),
       );
+    },
+  });
+  const googleExport = useMutation({
+    mutationFn: async (file: AgentFileSummary) =>
+      documentGenerationApi.exportProjectObject(
+        file.projectId,
+        googleExportActionForFile(file),
+      ),
+    onSuccess: (_result, file) => {
+      void qc.invalidateQueries({ queryKey: ["workflow-console-runs", file.projectId] });
     },
   });
 
@@ -141,6 +161,24 @@ export function AgentFileViewer({ tab }: { tab: Tab }) {
         >
           <UploadCloud className="h-4 w-4" />
         </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          title={
+            googleIntegration.data?.connected
+              ? t("googleExport")
+              : t("googleExportConnectRequired")
+          }
+          aria-label={
+            googleIntegration.data?.connected
+              ? t("googleExport")
+              : t("googleExportConnectRequired")
+          }
+          onClick={() => googleExport.mutate(file)}
+          disabled={!googleIntegration.data?.connected || googleExport.isPending}
+        >
+          <ExternalLink className="h-4 w-4" />
+        </Button>
         {file.kind === "latex" ? (
           <Button
             size="sm"
@@ -171,6 +209,38 @@ export function AgentFileViewer({ tab }: { tab: Tab }) {
       </div>
     </div>
   );
+}
+
+function googleExportActionForFile(file: AgentFileSummary) {
+  if (file.kind === "docx") {
+    return {
+      type: "export_project_object" as const,
+      objectId: file.id,
+      provider: "google_docs" as const,
+      format: "docx" as const,
+    };
+  }
+  if (file.kind === "xlsx") {
+    return {
+      type: "export_project_object" as const,
+      objectId: file.id,
+      provider: "google_sheets" as const,
+      format: "xlsx" as const,
+    };
+  }
+  if (file.kind === "pptx") {
+    return {
+      type: "export_project_object" as const,
+      objectId: file.id,
+      provider: "google_slides" as const,
+      format: "pptx" as const,
+    };
+  }
+  return {
+    type: "export_project_object" as const,
+    objectId: file.id,
+    provider: "google_drive" as const,
+  };
 }
 
 function StatusPill({ label }: { label: string }) {

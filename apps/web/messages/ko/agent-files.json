@@ -13,6 +13,8 @@
     "ingest": "인제스트 실행",
     "compile": "LaTeX 컴파일",
     "canvas": "캔버스로 실행",
+    "googleExport": "Google Workspace로 내보내기",
+    "googleExportConnectRequired": "Google Drive 연결 필요",
     "version": "v{version}",
     "compileStatus": {
       "not_started": "컴파일 전",
