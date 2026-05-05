@@ -61,6 +61,45 @@ class DocumentGenerationWorkflowParams:
 
 
 @dataclass(frozen=True)
+class DocumentGenerationSourceItem:
+    id: str
+    title: str
+    body: str
+    kind: str
+    token_count: int
+    included: bool = True
+
+
+@dataclass
+class DocumentGenerationSourceBundle:
+    items: list[DocumentGenerationSourceItem] = field(default_factory=list)
+
+
+def normalize_source_bundle(
+    raw: DocumentGenerationSourceBundle | dict[str, Any] | None,
+) -> DocumentGenerationSourceBundle:
+    if raw is None:
+        return DocumentGenerationSourceBundle()
+    if isinstance(raw, DocumentGenerationSourceBundle):
+        return raw
+    return DocumentGenerationSourceBundle(
+        items=[
+            item
+            if isinstance(item, DocumentGenerationSourceItem)
+            else DocumentGenerationSourceItem(
+                id=str(item["id"]),
+                title=str(item.get("title") or item["id"]),
+                body=str(item.get("body") or ""),
+                kind=str(item.get("kind") or "source"),
+                token_count=int(item.get("token_count", item.get("tokenCount", 1))),
+                included=bool(item.get("included", True)),
+            )
+            for item in raw.get("items", [])
+        ]
+    )
+
+
+@dataclass(frozen=True)
 class GeneratedDocumentArtifact:
     objectKey: str
     mimeType: str

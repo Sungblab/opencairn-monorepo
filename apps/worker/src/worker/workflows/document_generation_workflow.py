@@ -16,6 +16,7 @@ with workflow.unsafe.imports_passed_through():
     from worker.activities.document_generation.types import (
         DocumentGenerationErrorResult,
         DocumentGenerationResult,
+        DocumentGenerationSourceBundle,
         DocumentGenerationTerminalResult,
         DocumentGenerationWorkflowParams,
         GeneratedDocumentArtifact,
@@ -36,9 +37,17 @@ class DocumentGenerationWorkflow:
         retry = RetryPolicy(maximum_attempts=2)
 
         try:
+            sources: DocumentGenerationSourceBundle = await workflow.execute_activity(
+                "hydrate_document_generation_sources",
+                normalized,
+                result_type=DocumentGenerationSourceBundle,
+                start_to_close_timeout=timedelta(minutes=2),
+                heartbeat_timeout=timedelta(seconds=30),
+                retry_policy=retry,
+            )
             artifact: GeneratedDocumentArtifact = await workflow.execute_activity(
                 "generate_document_artifact",
-                normalized,
+                args=[normalized, sources],
                 result_type=GeneratedDocumentArtifact,
                 start_to_close_timeout=timedelta(minutes=5),
                 heartbeat_timeout=timedelta(seconds=30),

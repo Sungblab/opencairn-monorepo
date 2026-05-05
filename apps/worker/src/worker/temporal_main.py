@@ -23,11 +23,11 @@ from worker.activities.batch_embed_activities import (
     poll_batch_embed,
     submit_batch_embed,
 )
+from worker.activities.chat_run_activity import execute_chat_run
 from worker.activities.code_activity import (
     analyze_feedback_activity,
     generate_code_activity,
 )
-from worker.activities.chat_run_activity import execute_chat_run
 from worker.activities.compiler_activity import compile_note
 from worker.activities.connector_activity import run_connector as run_connector_activity
 from worker.activities.curator_activity import run_curator
@@ -43,6 +43,7 @@ from worker.activities.deep_research import (
 )
 from worker.activities.document_generation import (
     generate_document_artifact,
+    hydrate_document_generation_sources,
     register_document_generation_result,
 )
 from worker.activities.drive_activities import (
@@ -92,6 +93,14 @@ from worker.activities.socratic_activity import evaluate_answer, generate_questi
 from worker.activities.staleness_activity import run_staleness as run_staleness_activity
 from worker.activities.stt_activity import transcribe_audio
 from worker.activities.synthesis_activity import run_synthesis
+
+# Multi-format Synthesis Export — registered only when FEATURE_SYNTHESIS_EXPORT
+# is on. Distinct from Plan 8's always-on ``run_synthesis`` essay activity:
+# this is the LaTeX/DOCX/PDF/MD compiler pipeline (fetch → synthesize →
+# compile). Imports are cheap and keep the conditional below small.
+from worker.activities.synthesis_export.compile import compile_activity
+from worker.activities.synthesis_export.fetch import fetch_sources_activity
+from worker.activities.synthesis_export.synthesize import synthesize_activity
 from worker.activities.visualize_activity import build_view
 from worker.activities.web_activity import scrape_web_url
 from worker.activities.youtube_activity import ingest_youtube
@@ -111,17 +120,9 @@ from worker.workflows.narrator_workflow import NarratorWorkflow
 from worker.workflows.research_workflow import ResearchWorkflow
 from worker.workflows.socratic_workflow import SocraticEvaluateWorkflow, SocraticGenerateWorkflow
 from worker.workflows.staleness_workflow import StalenessWorkflow
+from worker.workflows.synthesis_export_workflow import SynthesisExportWorkflow
 from worker.workflows.synthesis_workflow import SynthesisWorkflow
 from worker.workflows.visualize_workflow import VisualizeWorkflow
-
-# Multi-format Synthesis Export — registered only when FEATURE_SYNTHESIS_EXPORT
-# is on. Distinct from Plan 8's always-on ``run_synthesis`` essay activity:
-# this is the LaTeX/DOCX/PDF/MD compiler pipeline (fetch → synthesize →
-# compile). Imports are cheap and keep the conditional below small.
-from worker.activities.synthesis_export.compile import compile_activity
-from worker.activities.synthesis_export.fetch import fetch_sources_activity
-from worker.activities.synthesis_export.synthesize import synthesize_activity
-from worker.workflows.synthesis_export_workflow import SynthesisExportWorkflow
 
 load_dotenv()
 
@@ -284,6 +285,7 @@ def build_worker_config() -> WorkerConfig:
         workflows.append(DocumentGenerationWorkflow)
         activities.extend(
             [
+                hydrate_document_generation_sources,
                 generate_document_artifact,
                 register_document_generation_result,
             ]

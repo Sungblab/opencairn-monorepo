@@ -221,6 +221,17 @@ Current implementation boundary:
   unchanged.
 - Provider export remains optional; OpenCairn stored files and download remain
   the core self-host path.
+- Worker-backed `generate_project_object` jobs now run a first quality slice:
+  the workflow hydrates note sources through the internal worker/API source
+  boundary, builds a structured intermediate document model, preserves Korean
+  and English text, renders multi-page PDFs, source-aware DOCX files, readable
+  PPTX decks, and structured XLSX workbooks, then registers the final object
+  through the existing `agent_files` callback contract.
+- Non-note source references such as generated project objects, chat threads,
+  research runs, and synthesis runs remain reference-only in this slice. A
+  later Phase 3B follow-up should add a dedicated internal hydration endpoint
+  for those project-object and run sources before expanding UI generation
+  prompts.
 
 ### Phase 4: Google Export
 

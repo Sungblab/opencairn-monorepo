@@ -3,10 +3,8 @@
 
 from __future__ import annotations
 
-import html
 import re
 import textwrap
-import zipfile
 from datetime import UTC, datetime
 from io import BytesIO
 from typing import Any
@@ -17,8 +15,10 @@ from worker.activities.document_generation.types import (
     MIME_TYPES,
     DocumentGenerationDestination,
     DocumentGenerationRequest,
+    DocumentGenerationSourceBundle,
     DocumentGenerationWorkflowParams,
     GeneratedDocumentArtifact,
+    normalize_source_bundle,
 )
 from worker.lib.s3_client import upload_bytes
 
@@ -31,6 +31,9 @@ PDF_FONT_SIZE = 11
 PDF_LINE_HEIGHT = 16
 PDF_WRAP_CHARS = 78
 PDF_CJK_FONT = "korea"
+MAX_SOURCE_CHARS = 4000
+PPTX_WRAP_CHARS = 82
+PPTX_LINES_PER_SLIDE = 8
 
 
 def _value(data: dict[str, Any], snake: str, camel: str | None = None, default: Any = None) -> Any:
@@ -109,12 +112,8 @@ def _artifact_key(
     return f"agent-files/{project_id}/document-generation/{request_id}/{filename}"
 
 
-def _document_text(
-    params: DocumentGenerationWorkflowParams, generation: DocumentGenerationRequest
-) -> str:
-    destination = normalize_destination(generation.destination)
-    title = destination.title or destination.filename
-    source_lines = []
+def _source_reference_lines(generation: DocumentGenerationRequest) -> list[str]:
+    lines = []
     for source in generation.sources:
         label = source.get("type", "source")
         source_id = (
@@ -124,26 +123,94 @@ def _document_text(
             or source.get("runId")
             or "unknown"
         )
-        source_lines.append(f"- {label}: {source_id}")
-    sources = "\n".join(source_lines) if source_lines else "- No explicit sources provided"
+        lines.append(f"- {label}: {source_id}")
+    return lines
+
+
+def _truncate_cell_text(value: str, limit: int = MAX_SOURCE_CHARS) -> str:
+    normalized = value.strip()
+    if len(normalized) <= limit:
+        return normalized
+    return f"{normalized[:limit].rstrip()}\n..."
+
+
+def _document_model(
+    params: DocumentGenerationWorkflowParams,
+    generation: DocumentGenerationRequest,
+    sources: DocumentGenerationSourceBundle,
+) -> dict[str, Any]:
+    destination = normalize_destination(generation.destination)
+    title = destination.title or destination.filename
+    included_sources = [source for source in sources.items if source.included]
+    reference_lines = _source_reference_lines(generation)
+    sections = [
+        {
+            "title": "Prompt",
+            "body": generation.prompt,
+            "bullets": [],
+        },
+        {
+            "title": "Generation Context",
+            "body": "",
+            "bullets": [
+                f"Format: {generation.format}",
+                f"Template: {generation.template}",
+                f"Locale: {generation.locale}",
+                f"Request: {params.request_id}",
+            ],
+        },
+    ]
+    if included_sources:
+        sections.append(
+            {
+                "title": "Sources",
+                "body": "",
+                "bullets": [
+                    f"{source.kind}: {source.title} ({source.id})" for source in included_sources
+                ],
+            }
+        )
+        sections.extend(
+            {
+                "title": source.title,
+                "body": source.body.strip(),
+                "bullets": [],
+            }
+            for source in included_sources
+        )
+    else:
+        sections.append(
+            {
+                "title": "Sources",
+                "body": "",
+                "bullets": reference_lines or ["No explicit sources provided"],
+            }
+        )
+    return {
+        "title": title,
+        "prompt": generation.prompt,
+        "format": generation.format,
+        "template": generation.template,
+        "locale": generation.locale,
+        "request_id": params.request_id,
+        "sections": sections,
+        "sources": included_sources,
+    }
+
+
+def _document_text(model: dict[str, Any]) -> str:
+    parts = [str(model["title"])]
+    for section in model["sections"]:
+        parts.append(str(section["title"]))
+        if section.get("body"):
+            parts.append(str(section["body"]))
+        if section.get("bullets"):
+            parts.extend(f"- {bullet}" for bullet in section["bullets"])
     return (
-        f"{title}\n\n"
-        f"Prompt\n{generation.prompt}\n\n"
-        f"Format: {generation.format}\n"
-        f"Template: {generation.template}\n"
-        f"Locale: {generation.locale}\n"
-        f"Request: {params.request_id}\n\n"
-        f"Sources\n{sources}\n"
+        "\n\n".join(parts)
+        .replace("\r\n", "\n")
+        .replace("\r", "\n")
     )
-
-
-def _zip_bytes(files: dict[str, str | bytes]) -> bytes:
-    out = BytesIO()
-    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
-        for name, body in files.items():
-            payload = body if isinstance(body, bytes) else body.encode("utf-8")
-            zf.writestr(name, payload)
-    return out.getvalue()
 
 
 def _pdf_lines(text: str) -> list[str]:
@@ -189,153 +256,146 @@ def _render_pdf(text: str) -> bytes:
     return doc.tobytes(garbage=4, deflate=True)
 
 
-def _render_docx(text: str) -> bytes:
-    paragraphs = "".join(
-        f"<w:p><w:r><w:t>{html.escape(line)}</w:t></w:r></w:p>" for line in text.splitlines()
-    )
-    return _zip_bytes(
-        {
-            "[Content_Types].xml": (
-                '<?xml version="1.0" encoding="UTF-8"?>'
-                '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-                '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
-                '<Default Extension="xml" ContentType="application/xml"/>'
-                '<Override PartName="/word/document.xml" '
-                'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
-                "</Types>"
-            ),
-            "_rels/.rels": (
-                '<?xml version="1.0" encoding="UTF-8"?>'
-                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-                '<Relationship Id="rId1" '
-                'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" '
-                'Target="word/document.xml"/></Relationships>'
-            ),
-            "word/document.xml": (
-                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-                '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
-                f"<w:body>{paragraphs}<w:sectPr/></w:body></w:document>"
-            ),
-        }
-    )
+def _render_docx(model: dict[str, Any]) -> bytes:
+    from docx import Document
+
+    document = Document()
+    document.add_heading(str(model["title"]), level=0)
+    for section in model["sections"]:
+        document.add_heading(str(section["title"]), level=1)
+        if section.get("body"):
+            for paragraph in str(section["body"]).splitlines() or [""]:
+                document.add_paragraph(paragraph)
+        for bullet in section.get("bullets", []):
+            document.add_paragraph(str(bullet), style="List Bullet")
+
+    out = BytesIO()
+    document.save(out)
+    return out.getvalue()
 
 
-def _render_pptx(text: str) -> bytes:
-    title = html.escape(text.splitlines()[0] if text.splitlines() else "Document")
-    body = html.escape("\n".join(text.splitlines()[1:20]))
-    slide = (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
-        'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">'
-        "<p:cSld><p:spTree><p:nvGrpSpPr/><p:grpSpPr/>"
-        '<p:sp><p:nvSpPr><p:cNvPr id="2" name="Title"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>'
-        "<p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>"
-        f"{title}</a:t></a:r></a:p><a:p><a:r><a:t>{body}</a:t></a:r></a:p>"
-        "</p:txBody></p:sp></p:spTree></p:cSld></p:sld>"
-    )
-    return _zip_bytes(
-        {
-            "[Content_Types].xml": (
-                '<?xml version="1.0" encoding="UTF-8"?>'
-                '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-                '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
-                '<Default Extension="xml" ContentType="application/xml"/>'
-                '<Override PartName="/ppt/presentation.xml" '
-                'ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>'
-                '<Override PartName="/ppt/slides/slide1.xml" '
-                'ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>'
-                "</Types>"
-            ),
-            "_rels/.rels": (
-                '<?xml version="1.0" encoding="UTF-8"?>'
-                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-                '<Relationship Id="rId1" '
-                'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" '
-                'Target="ppt/presentation.xml"/></Relationships>'
-            ),
-            "ppt/presentation.xml": (
-                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-                '<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" '
-                'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-                '<p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst></p:presentation>'
-            ),
-            "ppt/_rels/presentation.xml.rels": (
-                '<?xml version="1.0" encoding="UTF-8"?>'
-                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-                '<Relationship Id="rId1" '
-                'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" '
-                'Target="slides/slide1.xml"/></Relationships>'
-            ),
-            "ppt/slides/slide1.xml": slide,
-        }
-    )
+def _chunked(values: list[str], size: int) -> list[list[str]]:
+    if not values:
+        return [[]]
+    return [values[index : index + size] for index in range(0, len(values), size)]
 
 
-def _render_xlsx(text: str) -> bytes:
-    rows = [
-        ("Generated At", datetime.now(UTC).isoformat()),
-        ("Prompt", text.split("Prompt\n", 1)[-1].split("\n\n", 1)[0]),
-        ("Summary", text[:200]),
-    ]
-    sheet_rows = "".join(
-        "<row>"
-        f'<c t="inlineStr"><is><t>{html.escape(k)}</t></is></c>'
-        f'<c t="inlineStr"><is><t>{html.escape(v)}</t></is></c>'
-        "</row>"
-        for k, v in rows
-    )
-    return _zip_bytes(
-        {
-            "[Content_Types].xml": (
-                '<?xml version="1.0" encoding="UTF-8"?>'
-                '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-                '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
-                '<Default Extension="xml" ContentType="application/xml"/>'
-                '<Override PartName="/xl/workbook.xml" '
-                'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
-                '<Override PartName="/xl/worksheets/sheet1.xml" '
-                'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
-                "</Types>"
-            ),
-            "_rels/.rels": (
-                '<?xml version="1.0" encoding="UTF-8"?>'
-                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-                '<Relationship Id="rId1" '
-                'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" '
-                'Target="xl/workbook.xml"/></Relationships>'
-            ),
-            "xl/workbook.xml": (
-                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-                '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
-                'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-                '<sheets><sheet name="Generated" sheetId="1" r:id="rId1"/></sheets></workbook>'
-            ),
-            "xl/_rels/workbook.xml.rels": (
-                '<?xml version="1.0" encoding="UTF-8"?>'
-                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-                '<Relationship Id="rId1" '
-                'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" '
-                'Target="worksheets/sheet1.xml"/></Relationships>'
-            ),
-            "xl/worksheets/sheet1.xml": (
-                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-                '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-                f"<sheetData>{sheet_rows}</sheetData></worksheet>"
-            ),
-        }
-    )
+def _pptx_wrapped_lines(values: list[str]) -> list[str]:
+    lines: list[str] = []
+    for value in values:
+        text = value.strip()
+        if not text:
+            lines.append("")
+            continue
+        for raw_line in text.splitlines():
+            wrapped = textwrap.wrap(
+                raw_line,
+                width=PPTX_WRAP_CHARS,
+                break_long_words=True,
+                replace_whitespace=False,
+                drop_whitespace=False,
+            )
+            lines.extend(wrapped or [""])
+    return lines
 
 
-def render_document_bytes(params: DocumentGenerationWorkflowParams) -> bytes:
+def _render_pptx(model: dict[str, Any]) -> bytes:
+    from pptx import Presentation
+    from pptx.util import Inches, Pt
+
+    presentation = Presentation()
+    title_slide = presentation.slides.add_slide(presentation.slide_layouts[0])
+    title_slide.shapes.title.text = str(model["title"])
+    title_slide.placeholders[1].text = f"{model['template']} / {model['locale']}"
+
+    for section in model["sections"]:
+        content = []
+        if section.get("body"):
+            content.append(str(section["body"]))
+        content.extend(str(bullet) for bullet in section.get("bullets", []))
+        for page_index, lines in enumerate(
+            _chunked(_pptx_wrapped_lines(content), PPTX_LINES_PER_SLIDE)
+        ):
+            slide = presentation.slides.add_slide(presentation.slide_layouts[1])
+            title_suffix = f" ({page_index + 1})" if page_index else ""
+            slide.shapes.title.text = f"{section['title']}{title_suffix}"
+            body = slide.placeholders[1].text_frame
+            body.clear()
+            for index, line in enumerate(lines):
+                paragraph = body.paragraphs[0] if index == 0 else body.add_paragraph()
+                paragraph.text = line
+                paragraph.font.size = Pt(16)
+
+    for source in model["sources"]:
+        source_lines = _pptx_wrapped_lines([source.body])
+        for page_index, lines in enumerate(_chunked(source_lines, PPTX_LINES_PER_SLIDE)):
+            slide = presentation.slides.add_slide(presentation.slide_layouts[5])
+            title_suffix = f" ({page_index + 1})" if page_index else ""
+            slide.shapes.title.text = f"{source.title}{title_suffix}"
+            box = slide.shapes.add_textbox(Inches(0.7), Inches(1.4), Inches(8.6), Inches(4.6))
+            frame = box.text_frame
+            frame.clear()
+            for index, line in enumerate(lines):
+                paragraph = frame.paragraphs[0] if index == 0 else frame.add_paragraph()
+                paragraph.text = line
+                paragraph.font.size = Pt(15)
+
+    out = BytesIO()
+    presentation.save(out)
+    return out.getvalue()
+
+
+def _render_xlsx(model: dict[str, Any]) -> bytes:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    workbook = Workbook()
+    summary = workbook.active
+    summary.title = "Summary"
+    summary.append(["Field", "Value"])
+    summary.append(["Title", model["title"]])
+    summary.append(["Prompt", model["prompt"]])
+    summary.append(["Template", model["template"]])
+    summary.append(["Locale", model["locale"]])
+    summary.append(["Generated At", datetime.now(UTC).isoformat()])
+
+    sources = workbook.create_sheet("Sources")
+    sources.append(["Source ID", "Kind", "Title", "Excerpt"])
+    for source in model["sources"]:
+        sources.append([source.id, source.kind, source.title, _truncate_cell_text(source.body, 1000)])
+
+    for sheet in (summary, sources):
+        for cell in sheet[1]:
+            cell.font = Font(bold=True)
+        for column in sheet.columns:
+            letter = column[0].column_letter
+            sheet.column_dimensions[letter].width = min(
+                max(len(str(cell.value or "")) for cell in column) + 2,
+                72,
+            )
+
+    out = BytesIO()
+    workbook.save(out)
+    return out.getvalue()
+
+
+def render_document_bytes(
+    params: DocumentGenerationWorkflowParams,
+    source_bundle: DocumentGenerationSourceBundle | dict[str, Any] | None = None,
+) -> bytes:
     generation = normalize_generation(params.generation)
-    text = _document_text(params, generation)
-    renderers = {
-        "pdf": _render_pdf,
-        "docx": _render_docx,
-        "pptx": _render_pptx,
-        "xlsx": _render_xlsx,
-    }
-    return renderers[generation.format](text)
+    sources = normalize_source_bundle(source_bundle)
+    model = _document_model(params, generation, sources)
+    if generation.format == "pptx":
+        return _render_pptx(model)
+    if generation.format == "xlsx":
+        return _render_xlsx(model)
+    text = _document_text(model)
+    if generation.format == "pdf":
+        return _render_pdf(text)
+    if generation.format == "docx":
+        return _render_docx(model)
+    raise ValueError(f"Unsupported document generation format: {generation.format}")
 
 
 def heartbeat_safe(message: str) -> None:
@@ -349,6 +409,7 @@ def heartbeat_safe(message: str) -> None:
 @activity.defn(name="generate_document_artifact")
 async def generate_document_artifact(
     params: DocumentGenerationWorkflowParams | dict[str, Any],
+    source_bundle: DocumentGenerationSourceBundle | dict[str, Any] | None = None,
 ) -> GeneratedDocumentArtifact:
     normalized = normalize_params(params)
     generation = normalize_generation(normalized.generation)
@@ -356,7 +417,7 @@ async def generate_document_artifact(
         raise ValueError("document_generation_requires_object_storage")
 
     heartbeat_safe(f"generating {generation.format}")
-    body = render_document_bytes(normalized)
+    body = render_document_bytes(normalized, source_bundle)
     object_key = _artifact_key(normalized, generation)
     mime_type = MIME_TYPES[generation.format]
     upload_bytes(object_key, body, mime_type)

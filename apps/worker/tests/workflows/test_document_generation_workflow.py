@@ -6,6 +6,7 @@ from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 
 from worker.activities.document_generation.types import (
+    DocumentGenerationSourceBundle,
     GeneratedDocumentArtifact,
     ProjectObjectSummary,
 )
@@ -36,8 +37,16 @@ def _request() -> dict:
     }
 
 
+@activity.defn(name="hydrate_document_generation_sources")
+async def fake_hydrate(_params: dict) -> DocumentGenerationSourceBundle:
+    return DocumentGenerationSourceBundle()
+
+
 @activity.defn(name="generate_document_artifact")
-async def fake_generate(_params: dict) -> GeneratedDocumentArtifact:
+async def fake_generate(
+    _params: dict,
+    _sources: DocumentGenerationSourceBundle,
+) -> GeneratedDocumentArtifact:
     return GeneratedDocumentArtifact(
         objectKey="agent-files/project/document-generation/request/project-report.pdf",
         mimeType="application/pdf",
@@ -75,7 +84,7 @@ async def test_document_generation_workflow_returns_terminal_success_result() ->
             env.client,
             task_queue="doc-gen-test-q",
             workflows=[DocumentGenerationWorkflow],
-            activities=[fake_generate, fake_register],
+            activities=[fake_hydrate, fake_generate, fake_register],
         ),
     ):
         result = await env.client.execute_workflow(
@@ -101,7 +110,7 @@ async def test_document_generation_workflow_returns_terminal_failure_result() ->
             env.client,
             task_queue="doc-gen-test-q",
             workflows=[DocumentGenerationWorkflow],
-            activities=[fake_generate, fake_register_fails],
+            activities=[fake_hydrate, fake_generate, fake_register_fails],
         ),
     ):
         result = await env.client.execute_workflow(

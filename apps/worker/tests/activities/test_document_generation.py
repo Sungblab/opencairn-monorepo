@@ -1,14 +1,18 @@
 from __future__ import annotations
 
-import zipfile
+import asyncio
 from io import BytesIO
 from unittest.mock import patch
 
 import pymupdf
 import pytest
+from docx import Document
+from openpyxl import load_workbook
+from pptx import Presentation
 
 from worker.activities.document_generation.generate import generate_document_artifact
 from worker.activities.document_generation.register import register_document_generation_result
+from worker.activities.document_generation.sources import hydrate_document_generation_sources
 from worker.activities.document_generation.types import GeneratedDocumentArtifact
 
 
@@ -63,6 +67,68 @@ async def test_generate_document_artifact_uploads_pdf_to_object_storage() -> Non
 
 
 @pytest.mark.asyncio
+async def test_hydrate_document_generation_sources_fetches_note_bodies() -> None:
+    calls: list[tuple[str, dict]] = []
+
+    async def fake_post(path: str, body: dict) -> dict:
+        calls.append((path, body))
+        return {
+            "id": body["source_id"],
+            "title": "시장 조사 노트",
+            "body": "핵심 근거: 한국어 문서 생성 품질을 검증합니다.",
+            "kind": "note",
+        }
+
+    with patch("worker.activities.document_generation.sources.post_internal", fake_post):
+        result = await hydrate_document_generation_sources(_request("pdf"))
+
+    assert calls == [
+        (
+            "/api/internal/synthesis-export/fetch-source",
+            {
+                "source_id": "00000000-0000-4000-8000-000000000021",
+                "kind": "note",
+            },
+        )
+    ]
+    assert result.items[0].title == "시장 조사 노트"
+    assert "한국어 문서 생성 품질" in result.items[0].body
+
+
+@pytest.mark.asyncio
+async def test_hydrate_document_generation_sources_fetches_notes_with_bounded_concurrency() -> None:
+    request = _request("pdf")
+    request["generation"]["sources"] = [
+        {
+            "type": "note",
+            "noteId": f"00000000-0000-4000-8000-0000000000{index:02d}",
+        }
+        for index in range(21, 27)
+    ]
+    in_flight = 0
+    max_in_flight = 0
+
+    async def fake_post(_path: str, body: dict) -> dict:
+        nonlocal in_flight, max_in_flight
+        in_flight += 1
+        max_in_flight = max(max_in_flight, in_flight)
+        await asyncio.sleep(0.01)
+        in_flight -= 1
+        return {
+            "id": body["source_id"],
+            "title": f"노트 {body['source_id'][-2:]}",
+            "body": "동시 hydration 검증 본문",
+            "kind": "note",
+        }
+
+    with patch("worker.activities.document_generation.sources.post_internal", fake_post):
+        result = await hydrate_document_generation_sources(request)
+
+    assert len(result.items) == 6
+    assert max_in_flight > 1
+
+
+@pytest.mark.asyncio
 async def test_generate_document_artifact_preserves_korean_and_long_pdf_content() -> None:
     uploaded: dict[str, object] = {}
     request = _request("pdf")
@@ -86,18 +152,40 @@ async def test_generate_document_artifact_preserves_korean_and_long_pdf_content(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("format_", "member"),
-    [
-        ("docx", "word/document.xml"),
-        ("pptx", "ppt/slides/slide1.xml"),
-        ("xlsx", "xl/worksheets/sheet1.xml"),
-    ],
-)
-async def test_generate_document_artifact_creates_office_zip_package(
-    format_: str,
-    member: str,
-) -> None:
+async def test_generate_document_artifact_creates_source_aware_docx() -> None:
+    uploaded: dict[str, object] = {}
+    request = _request("docx")
+
+    def fake_upload(key: str, data: bytes, content_type: str) -> str:
+        uploaded.update({"key": key, "data": data, "content_type": content_type})
+        return key
+
+    with patch("worker.activities.document_generation.generate.upload_bytes", fake_upload):
+        result = await generate_document_artifact(
+            request,
+            {
+                "items": [
+                    {
+                        "id": "00000000-0000-4000-8000-000000000021",
+                        "title": "시장 조사 노트",
+                        "body": "핵심 근거: 한국어 DOCX 본문입니다.",
+                        "kind": "note",
+                        "token_count": 16,
+                        "included": True,
+                    }
+                ]
+            },
+        )
+
+    assert result.objectKey.endswith("/project-report.docx")
+    document = Document(BytesIO(bytes(uploaded["data"])))
+    document_text = "\n".join(paragraph.text for paragraph in document.paragraphs)
+    assert "시장 조사 노트" in document_text
+    assert "한국어 DOCX 본문입니다" in document_text
+
+
+@pytest.mark.asyncio
+async def test_generate_document_artifact_creates_readable_pptx_deck() -> None:
     uploaded: dict[str, object] = {}
 
     def fake_upload(key: str, data: bytes, content_type: str) -> str:
@@ -105,11 +193,101 @@ async def test_generate_document_artifact_creates_office_zip_package(
         return key
 
     with patch("worker.activities.document_generation.generate.upload_bytes", fake_upload):
-        result = await generate_document_artifact(_request(format_))
+        await generate_document_artifact(
+            _request("pptx"),
+            {
+                "items": [
+                    {
+                        "id": "00000000-0000-4000-8000-000000000021",
+                        "title": "시장 조사 노트",
+                        "body": "첫 번째 근거\n두 번째 근거",
+                        "kind": "note",
+                        "token_count": 8,
+                        "included": True,
+                    }
+                ]
+            },
+        )
 
-    assert result.objectKey.endswith(f"/project-report.{format_}")
-    with zipfile.ZipFile(BytesIO(bytes(uploaded["data"]))) as zf:
-        assert member in zf.namelist()
+    presentation = Presentation(BytesIO(bytes(uploaded["data"])))
+    slide_text = "\n".join(
+        shape.text
+        for slide in presentation.slides
+        for shape in slide.shapes
+        if hasattr(shape, "text")
+    )
+    assert len(presentation.slides) >= 3
+    assert "Project report" in slide_text
+    assert "시장 조사 노트" in slide_text
+
+
+@pytest.mark.asyncio
+async def test_generate_document_artifact_pptx_preserves_long_sources() -> None:
+    uploaded: dict[str, object] = {}
+    sources = [
+        {
+            "id": f"00000000-0000-4000-8000-0000000001{index:02d}",
+            "title": f"소스 {index}",
+            "body": "\n".join(f"소스 {index} 라인 {line}" for line in range(10)),
+            "kind": "note",
+            "token_count": 20,
+            "included": True,
+        }
+        for index in range(10)
+    ]
+
+    def fake_upload(key: str, data: bytes, content_type: str) -> str:
+        uploaded.update({"key": key, "data": data, "content_type": content_type})
+        return key
+
+    with patch("worker.activities.document_generation.generate.upload_bytes", fake_upload):
+        await generate_document_artifact(_request("pptx"), {"items": sources})
+
+    presentation = Presentation(BytesIO(bytes(uploaded["data"])))
+    slide_text = "\n".join(
+        shape.text
+        for slide in presentation.slides
+        for shape in slide.shapes
+        if hasattr(shape, "text")
+    )
+    assert "소스 0 라인 9" in slide_text
+    assert "소스 9 라인 9" in slide_text
+
+
+@pytest.mark.asyncio
+async def test_generate_document_artifact_creates_structured_xlsx_workbook() -> None:
+    uploaded: dict[str, object] = {}
+
+    def fake_upload(key: str, data: bytes, content_type: str) -> str:
+        uploaded.update({"key": key, "data": data, "content_type": content_type})
+        return key
+
+    with patch("worker.activities.document_generation.generate.upload_bytes", fake_upload):
+        await generate_document_artifact(
+            _request("xlsx"),
+            {
+                "items": [
+                    {
+                        "id": "00000000-0000-4000-8000-000000000021",
+                        "title": "시장 조사 노트",
+                        "body": "핵심 근거: 스프레드시트 검증",
+                        "kind": "note",
+                        "token_count": 10,
+                        "included": True,
+                    }
+                ]
+            },
+        )
+
+    workbook = load_workbook(BytesIO(bytes(uploaded["data"])))
+    assert workbook.sheetnames == ["Summary", "Sources"]
+    summary = workbook["Summary"]
+    sources = workbook["Sources"]
+    assert summary["A1"].value == "Field"
+    assert summary["B1"].value == "Value"
+    assert sources["A1"].value == "Source ID"
+    assert sources["B2"].value == "note"
+    assert sources["C2"].value == "시장 조사 노트"
 
 
 @pytest.mark.asyncio
