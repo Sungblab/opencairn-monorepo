@@ -14,6 +14,7 @@ const TERMINAL_STATUSES = new Set([
   "completed",
   "failed",
   "cancelled",
+  "expired",
   "reverted",
 ]);
 
@@ -186,7 +187,10 @@ function StatusDot({ status }: { status: WorkflowConsoleRun["status"] }) {
   const tone =
     status === "completed"
       ? "bg-emerald-500"
-      : status === "failed" || status === "cancelled" || status === "reverted"
+      : status === "failed"
+          || status === "cancelled"
+          || status === "expired"
+          || status === "reverted"
         ? "bg-destructive"
         : status === "approval_required" || status === "blocked"
           ? "bg-amber-500"

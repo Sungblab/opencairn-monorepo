@@ -73,7 +73,7 @@ function formatDuration(seconds: number | null): string | null {
   return `${min}:${sec.toString().padStart(2, "0")}`;
 }
 
-const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "cancelled"]);
+const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "cancelled", "expired"]);
 const WORKFLOW_CONSOLE_FILTERS = ["all", "active", "failed", "completed"] as const;
 
 function isRunTerminal(status: string): boolean {

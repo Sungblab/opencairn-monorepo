@@ -845,8 +845,14 @@ entries, including the requested `entryPath` document itself, through the
 existing storage reader. Inline entries are still served directly, while entries
 with `objectKey` stream from object storage with their stored content type and
 length. Public preview hostnames, signed external URLs, process-backed app
-servers, cleanup scheduling, and browser smoke screenshots remain later Phase 7
+servers, scheduled cleanup, and browser smoke screenshots remain later Phase 7
 work.
+
+Phase 7F adds an internal cleanup sweep for expired static preview actions.
+The sweep promotes completed `code_project.preview` rows whose `expiresAt` has
+passed to `expired`, records `code_project_preview_expired`, and makes Workflow
+Console treat that status as terminal. This still does not delete immutable
+snapshot objects or introduce public preview URL lifecycle automation.
 
 ### Phase 7: Hosted Preview
 
@@ -855,7 +861,7 @@ Add generated app previews:
 - static preview first
 - Vite/Next preview after process lifecycle is safe
 - browser smoke and screenshots
-- preview URL cleanup
+- scheduled preview cleanup
 
 This is the phase that starts approaching Replit/Lovable-style app building.
 

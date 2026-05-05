@@ -20,6 +20,7 @@ export const workflowConsoleStatusSchema = z.enum([
   "completed",
   "failed",
   "cancelled",
+  "expired",
   "reverted",
 ]);
 

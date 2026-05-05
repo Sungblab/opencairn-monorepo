@@ -547,6 +547,9 @@ function createMemoryRepo(seed: AgentAction[] = []): AgentActionRepository {
           (!kind || row.kind === kind),
       );
     },
+    async listExpiredCodePreviewActions() {
+      return [];
+    },
     async insert(values) {
       const existing = await this.findByRequestId(
         values.projectId,

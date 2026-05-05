@@ -1,6 +1,7 @@
 import {
   agentActions,
   and,
+  asc,
   captureNoteVersion,
   db as defaultDb,
   desc,
@@ -11,6 +12,7 @@ import {
   isNull,
   notes,
   projects,
+  sql,
   syncWikiLinks,
   type AgentActionRow,
   type DB,
@@ -105,6 +107,10 @@ export interface AgentActionRepository {
     projectId: string;
     sourceRunId: string;
     kind?: AgentActionKind;
+  }): Promise<AgentAction[]>;
+  listExpiredCodePreviewActions(options: {
+    now: Date;
+    limit: number;
   }): Promise<AgentAction[]>;
   insert(values: {
     requestId: string;
@@ -307,6 +313,22 @@ export function createDrizzleAgentActionRepository(conn: DB = defaultDb): AgentA
         .from(agentActions)
         .where(and(...filters))
         .orderBy(desc(agentActions.createdAt));
+      return rows.map(toAgentAction);
+    },
+    async listExpiredCodePreviewActions({ now, limit }) {
+      const rows = await conn
+        .select()
+        .from(agentActions)
+        .where(
+          and(
+            eq(agentActions.kind, "code_project.preview"),
+            eq(agentActions.status, "completed"),
+            isNotNull(agentActions.result),
+            sql`(${agentActions.result}->>'expiresAt')::timestamptz <= ${now}`,
+          ),
+        )
+        .orderBy(asc(agentActions.updatedAt))
+        .limit(limit);
       return rows.map(toAgentAction);
     },
     async insert(values) {
@@ -682,6 +704,9 @@ export async function readCodeProjectPreviewAsset(
   if (current.kind !== "code_project.preview") {
     throw new AgentActionError("action_kind_not_applicable", 409);
   }
+  if (current.status === "expired") {
+    throw new AgentActionError("code_project_preview_expired", 409);
+  }
   if (current.status !== "completed") {
     throw new AgentActionError("code_project_preview_not_ready", 409);
   }
@@ -717,6 +742,32 @@ export async function readCodeProjectPreviewAsset(
     return readPreviewObject(entry.objectKey, options);
   }
   throw new AgentActionError("code_workspace_preview_asset_unavailable", 409);
+}
+
+export async function cleanupExpiredCodeProjectPreviews(
+  options?: Pick<AgentActionServiceOptions, "repo" | "now"> & { limit?: number },
+): Promise<{ expiredCount: number; actionIds: string[] }> {
+  const repo = options?.repo ?? createDrizzleAgentActionRepository();
+  const currentNow = now(options);
+  const candidates = await repo.listExpiredCodePreviewActions({
+    now: currentNow,
+    limit: options?.limit ?? 100,
+  });
+  const actionIds: string[] = [];
+
+  for (const action of candidates) {
+    const result = parseCodeWorkspacePreviewResult(action.result);
+    if (new Date(result.expiresAt).getTime() > currentNow.getTime()) continue;
+
+    const updated = await repo.updateStatus(action.id, {
+      status: "expired",
+      result,
+      errorCode: "code_project_preview_expired",
+    });
+    if (updated?.status === "expired") actionIds.push(updated.id);
+  }
+
+  return { expiredCount: actionIds.length, actionIds };
 }
 
 export async function createCodeProjectRepairAction(
@@ -864,6 +915,7 @@ export function canTransition(from: AgentActionStatus, to: AgentActionStatus): b
     completed: ["reverted"],
     failed: ["queued"],
     cancelled: ["queued"],
+    expired: [],
     reverted: [],
   };
   return allowed[from].includes(to);

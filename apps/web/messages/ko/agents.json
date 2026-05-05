@@ -90,6 +90,7 @@
       "completed": "완료",
       "failed": "실패",
       "cancelled": "취소됨",
+      "expired": "만료됨",
       "reverted": "되돌림"
     }
   },

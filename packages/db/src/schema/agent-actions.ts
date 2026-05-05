@@ -21,6 +21,7 @@ export const agentActionStatusEnum = pgEnum("agent_action_status", [
   "completed",
   "failed",
   "cancelled",
+  "expired",
   "reverted",
 ]);
 
