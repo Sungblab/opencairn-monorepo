@@ -259,7 +259,11 @@ project commands, install dependencies, host previews, or deploy external apps.
   only when `FEATURE_CODE_WORKSPACE_COMMANDS=true`; the API uses a stable
   workflow id per Agent Action row and passes the resolved snapshot manifest
   rather than trusting request-owned file data.
-- Keep the default executor unavailable until a sandbox implementation is wired.
+- Keep the default executor unavailable until an executor is explicitly
+  configured. `CODE_WORKSPACE_COMMAND_EXECUTOR=docker` is the first opt-in
+  executor and runs approved commands in a networkless `node:20-alpine`
+  container with bounded CPU/memory flags and the snapshot mounted at
+  `/workspace`.
 - Implement approved sandbox commands for test/build/lint.
 - Store logs and command artifacts.
 - Feed failures back into the agent for bounded repair loops.

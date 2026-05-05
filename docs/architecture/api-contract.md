@@ -336,8 +336,10 @@ exit code marks it `completed`. When `FEATURE_CODE_WORKSPACE_COMMANDS=true`,
 the default API runner starts `CodeWorkspaceCommandWorkflow` with the resolved
 snapshot manifest and a stable workflow id based on the Agent Action row. When
 the flag is off, the action fails closed with `code_command_runner_unavailable`.
-The worker workflow still depends on a future sandbox executor before it can
-perform real command execution.
+The worker workflow fails closed unless `CODE_WORKSPACE_COMMAND_EXECUTOR=docker`
+is configured on a worker with intentional Docker runtime access. That executor
+runs approved commands in `node:20-alpine` with `--network none`, bounded
+CPU/memory flags, and the resolved snapshot mounted at `/workspace`.
 
 ### Ingest
 

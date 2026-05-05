@@ -9,9 +9,12 @@ commands are out of scope until a real sandbox executor is wired in.
 from __future__ import annotations
 
 import os
+import shlex
 import tempfile
+from asyncio import create_subprocess_exec, wait_for
 from collections.abc import Awaitable, Callable
 from pathlib import Path, PurePosixPath
+from subprocess import PIPE
 from time import monotonic
 from typing import Any
 
@@ -24,10 +27,72 @@ APPROVED_COMMANDS: dict[str, list[str]] = {
 }
 
 CommandExecutor = Callable[..., Awaitable[dict[str, Any]]]
+ProcessFactory = Callable[..., Awaitable[Any]]
 
 
 class CodeWorkspaceCommandError(RuntimeError):
     """Raised for contract or sandbox-readiness failures."""
+
+
+class DockerCodeWorkspaceCommandExecutor:
+    """Run approved commands inside a networkless Docker container."""
+
+    def __init__(
+        self,
+        *,
+        image: str = "node:20-alpine",
+        cpus: str = "1",
+        memory: str = "512m",
+        process_factory: ProcessFactory = create_subprocess_exec,
+    ) -> None:
+        self.image = image
+        self.cpus = cpus
+        self.memory = memory
+        self.process_factory = process_factory
+
+    async def __call__(
+        self,
+        *,
+        argv: list[str],
+        cwd: Path,
+        timeout_ms: int,
+    ) -> dict[str, Any]:
+        command = _container_shell_command(argv)
+        docker_argv = [
+            "docker",
+            "run",
+            "--rm",
+            "--network",
+            "none",
+            "--cpus",
+            self.cpus,
+            "--memory",
+            self.memory,
+            "-v",
+            f"{cwd.resolve()}:/workspace:rw",
+            "-w",
+            "/workspace",
+            self.image,
+            "sh",
+            "-lc",
+            command,
+        ]
+        process = await self.process_factory(*docker_argv, stdout=PIPE, stderr=PIPE)
+        try:
+            stdout_bytes, stderr_bytes = await wait_for(
+                process.communicate(),
+                timeout=timeout_ms / 1000,
+            )
+        except TimeoutError as exc:
+            kill = getattr(process, "kill", None)
+            if callable(kill):
+                kill()
+            raise CodeWorkspaceCommandError("code_command_timeout") from exc
+        return {
+            "exitCode": int(process.returncode),
+            "stdout": _decode_output(stdout_bytes),
+            "stderr": _decode_output(stderr_bytes),
+        }
 
 
 async def run_code_workspace_command(
@@ -53,7 +118,7 @@ async def run_code_workspace_command(
     if timeout_ms < 1_000 or timeout_ms > 300_000:
         raise CodeWorkspaceCommandError("code_command_timeout_out_of_bounds")
 
-    runner = executor or _unavailable_executor
+    runner = executor or create_default_code_command_executor()
     start = monotonic()
     with tempfile.TemporaryDirectory(prefix="opencairn-code-workspace-") as tmp:
         root = Path(tmp).resolve()
@@ -80,6 +145,13 @@ async def run_code_workspace_command_activity(request: dict[str, Any]) -> dict[s
 
 
 async def _unavailable_executor(*, argv: list[str], cwd: Path, timeout_ms: int) -> dict[str, Any]:
+    raise CodeWorkspaceCommandError("code_command_executor_unavailable")
+
+
+def create_default_code_command_executor() -> CommandExecutor:
+    configured = os.environ.get("CODE_WORKSPACE_COMMAND_EXECUTOR", "").strip().lower()
+    if configured == "docker":
+        return DockerCodeWorkspaceCommandExecutor()
     raise CodeWorkspaceCommandError("code_command_executor_unavailable")
 
 
@@ -130,6 +202,11 @@ def _has_windows_drive(path: str) -> bool:
     return len(path) >= 3 and path[1] == ":" and path[0].isalpha() and path[2] in {"/", "\\"}
 
 
+def _container_shell_command(argv: list[str]) -> str:
+    command = " ".join(shlex.quote(part) for part in argv)
+    return f"corepack enable pnpm >/dev/null 2>&1 || true; {command}"
+
+
 def _logs_from_executor(raw: dict[str, Any]) -> list[dict[str, str]]:
     logs: list[dict[str, str]] = []
     stdout = raw.get("stdout")
@@ -141,6 +218,12 @@ def _logs_from_executor(raw: dict[str, Any]) -> list[dict[str, str]]:
     if not logs:
         logs.append({"stream": "system", "text": "command completed without output"})
     return logs
+
+
+def _decode_output(value: bytes | str) -> str:
+    if isinstance(value, str):
+        return value
+    return value.decode("utf-8", errors="replace")
 
 
 def _require_str(value: dict[str, Any], field: str) -> str:

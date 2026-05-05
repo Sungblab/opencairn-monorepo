@@ -6,6 +6,8 @@ import pytest
 
 from worker.activities.code_workspace_command import (
     CodeWorkspaceCommandError,
+    DockerCodeWorkspaceCommandExecutor,
+    create_default_code_command_executor,
     run_code_workspace_command,
 )
 
@@ -114,6 +116,67 @@ async def test_rejects_unapproved_command_before_materializing() -> None:
         )
 
     assert executor.calls == []
+
+
+@pytest.mark.asyncio
+async def test_selects_docker_executor_only_when_explicitly_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("CODE_WORKSPACE_COMMAND_EXECUTOR", raising=False)
+    with pytest.raises(CodeWorkspaceCommandError, match="code_command_executor_unavailable"):
+        create_default_code_command_executor()
+
+    monkeypatch.setenv("CODE_WORKSPACE_COMMAND_EXECUTOR", "docker")
+    assert isinstance(create_default_code_command_executor(), DockerCodeWorkspaceCommandExecutor)
+
+
+@pytest.mark.asyncio
+async def test_docker_executor_uses_networkless_bounded_container(tmp_path: Path) -> None:
+    calls: list[list[str]] = []
+
+    class FakeProcess:
+        returncode = 0
+
+        async def communicate(self) -> tuple[bytes, bytes]:
+            return b"tests passed", b""
+
+    async def fake_process_factory(*argv: str, **_: Any) -> FakeProcess:
+        calls.append(list(argv))
+        return FakeProcess()
+
+    executor = DockerCodeWorkspaceCommandExecutor(process_factory=fake_process_factory)
+    result = await executor(
+        argv=["pnpm", "run", "test", "--if-present"],
+        cwd=tmp_path,
+        timeout_ms=30_000,
+    )
+
+    assert result == {
+        "exitCode": 0,
+        "stdout": "tests passed",
+        "stderr": "",
+    }
+    assert calls == [
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--network",
+            "none",
+            "--cpus",
+            "1",
+            "--memory",
+            "512m",
+            "-v",
+            f"{tmp_path.resolve()}:/workspace:rw",
+            "-w",
+            "/workspace",
+            "node:20-alpine",
+            "sh",
+            "-lc",
+            "corepack enable pnpm >/dev/null 2>&1 || true; pnpm run test --if-present",
+        ]
+    ]
 
 
 @pytest.mark.asyncio

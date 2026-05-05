@@ -743,6 +743,13 @@ for terminal log/result metadata. With the flag off, `code_project.run` still
 fails closed as unavailable; with the flag on, the worker workflow exists but
 continues to depend on a future sandbox executor for real command execution.
 
+Phase 6D adds the first opt-in sandbox executor. Workers can set
+`CODE_WORKSPACE_COMMAND_EXECUTOR=docker` to run approved commands in
+`node:20-alpine` with `--network none`, bounded CPU/memory flags, and the
+materialized snapshot mounted at `/workspace`. The default remains empty and
+fails closed; hosts must intentionally provide Docker runtime access before any
+generated project code executes.
+
 ### Phase 7: Hosted Preview
 
 Add generated app previews:
