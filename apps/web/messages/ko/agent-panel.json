@@ -62,6 +62,20 @@
     "applyFailed": "코드 패치 제안을 적용하지 못했어요.",
     "cancelFailed": "코드 패치 제안을 취소하지 못했어요."
   },
+  "codePreviewReview": {
+    "previewTitle": "정적 미리보기 승인",
+    "previewEntry": "진입 파일 {entryPath}",
+    "previewWarning": "승인하면 스냅샷의 정적 파일을 내부 샌드박스 미리보기로 엽니다.",
+    "previewApply": "미리보기 만들기",
+    "previewReject": "거절",
+    "previewApplied": "정적 미리보기를 만들었어요.",
+    "previewCancelled": "정적 미리보기 요청을 취소했어요.",
+    "previewApplyFailed": "정적 미리보기를 만들지 못했어요.",
+    "previewCancelFailed": "정적 미리보기 요청을 취소하지 못했어요.",
+    "resultTitle": "정적 미리보기",
+    "openPreview": "미리보기 열기",
+    "resultWarning": "미리보기는 내부 API 경로로 열리며 공개 배포 URL은 아닙니다."
+  },
   "workflowConsole": {
     "title": "작업 상태",
     "loading": "작업을 불러오는 중…",

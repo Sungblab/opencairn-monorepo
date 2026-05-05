@@ -1,11 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, X } from "lucide-react";
+import { Check, ExternalLink, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   parseCodeWorkspacePatchPreview,
+  parseCodeWorkspacePreviewRequest,
+  parseCodeWorkspacePreviewResult,
   type AgentAction,
   type CodeWorkspacePatch,
 } from "@opencairn/shared";
@@ -16,16 +18,20 @@ interface Props {
   projectId: string | null;
 }
 
-const listKey = (projectId: string | null) => [
+const listKey = (
+  projectId: string | null,
+  kind: "code_project.patch" | "code_project.preview",
+  status: "draft" | "approval_required" | "completed",
+) => [
   "agent-actions",
   projectId ?? "_disabled_",
-  "code_project.patch",
-  "draft",
+  kind,
+  status,
 ];
 
 export function CodeProjectActionReviewList({ projectId }: Props) {
-  const { data } = useQuery({
-    queryKey: listKey(projectId),
+  const patchQuery = useQuery({
+    queryKey: listKey(projectId, "code_project.patch", "draft"),
     enabled: Boolean(projectId),
     queryFn: async () => {
       if (!projectId) return { actions: [] };
@@ -36,8 +42,32 @@ export function CodeProjectActionReviewList({ projectId }: Props) {
       });
     },
   });
+  const pendingPreviewQuery = useQuery({
+    queryKey: listKey(projectId, "code_project.preview", "approval_required"),
+    enabled: Boolean(projectId),
+    queryFn: async () => {
+      if (!projectId) return { actions: [] };
+      return agentActionsApi.list(projectId, {
+        kind: "code_project.preview",
+        status: "approval_required",
+        limit: 10,
+      });
+    },
+  });
+  const completedPreviewQuery = useQuery({
+    queryKey: listKey(projectId, "code_project.preview", "completed"),
+    enabled: Boolean(projectId),
+    queryFn: async () => {
+      if (!projectId) return { actions: [] };
+      return agentActionsApi.list(projectId, {
+        kind: "code_project.preview",
+        status: "completed",
+        limit: 5,
+      });
+    },
+  });
 
-  const actions = (data?.actions ?? [])
+  const actions = (patchQuery.data?.actions ?? [])
     .map((action) => ({
       action,
       preview: parseCodeWorkspacePatchPreview(action.preview),
@@ -49,7 +79,29 @@ export function CodeProjectActionReviewList({ projectId }: Props) {
       patch: Partial<CodeWorkspacePatch>;
     } => Boolean(item.preview));
 
-  if (!projectId || actions.length === 0) return null;
+  const pendingPreviews = (pendingPreviewQuery.data?.actions ?? [])
+    .map((action) => ({
+      action,
+      request: parseCodeWorkspacePreviewRequest(action.input),
+    }))
+    .filter((item): item is {
+      action: AgentAction;
+      request: NonNullable<ReturnType<typeof parseCodeWorkspacePreviewRequest>>;
+    } => Boolean(item.request));
+
+  const completedPreviews = (completedPreviewQuery.data?.actions ?? [])
+    .map((action) => ({
+      action,
+      result: parseCodeWorkspacePreviewResult(action.result),
+    }))
+    .filter((item): item is {
+      action: AgentAction;
+      result: NonNullable<ReturnType<typeof parseCodeWorkspacePreviewResult>>;
+    } => Boolean(item.result));
+
+  if (!projectId || (actions.length === 0 && pendingPreviews.length === 0 && completedPreviews.length === 0)) {
+    return null;
+  }
 
   return (
     <div className="border-b border-border bg-background/70 p-3">
@@ -60,6 +112,19 @@ export function CodeProjectActionReviewList({ projectId }: Props) {
             action={action}
             preview={preview}
             patch={patch}
+          />
+        ))}
+        {pendingPreviews.map(({ action, request }) => (
+          <CodeProjectPreviewReviewCard
+            key={action.id}
+            action={action}
+            request={request}
+          />
+        ))}
+        {completedPreviews.map(({ action, result }) => (
+          <CodeProjectPreviewResultCard
+            key={action.id}
+            result={result}
           />
         ))}
       </div>
@@ -82,7 +147,7 @@ function CodeProjectActionReviewCard({
   const operations = patch.operations ?? [];
   const queryKeys = useMemo(
     () => ({
-      list: listKey(action.projectId),
+      list: listKey(action.projectId, "code_project.patch", "draft"),
       action: ["agent-action", action.id],
       workspace: ["code-workspace", patch.codeWorkspaceId],
       tree: ["project-tree", action.projectId],
@@ -177,6 +242,130 @@ function CodeProjectActionReviewCard({
           {message}
         </p>
       ) : null}
+    </section>
+  );
+}
+
+function CodeProjectPreviewReviewCard({
+  action,
+  request,
+}: {
+  action: AgentAction;
+  request: NonNullable<ReturnType<typeof parseCodeWorkspacePreviewRequest>>;
+}) {
+  const t = useTranslations("agentPanel.codePreviewReview");
+  const queryClient = useQueryClient();
+  const [message, setMessage] = useState<string | null>(null);
+  const queryKeys = useMemo(
+    () => ({
+      pending: listKey(action.projectId, "code_project.preview", "approval_required"),
+      completed: listKey(action.projectId, "code_project.preview", "completed"),
+      action: ["agent-action", action.id],
+    }),
+    [action.id, action.projectId],
+  );
+
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.pending });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.completed });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.action });
+  };
+
+  const apply = useMutation({
+    mutationFn: () => agentActionsApi.applyCodeProjectPreview(action.id),
+    onSuccess: () => {
+      setMessage(t("previewApplied"));
+      invalidate();
+    },
+    onError: () => setMessage(t("previewApplyFailed")),
+  });
+
+  const reject = useMutation({
+    mutationFn: () =>
+      agentActionsApi.transitionStatus(action.id, { status: "cancelled" }),
+    onSuccess: () => {
+      setMessage(t("previewCancelled"));
+      invalidate();
+    },
+    onError: () => setMessage(t("previewCancelFailed")),
+  });
+
+  return (
+    <section
+      aria-label={t("previewTitle")}
+      className="rounded-[var(--radius-card)] border border-border bg-[var(--theme-surface)] p-3"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold">{t("previewTitle")}</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t("previewEntry", { entryPath: request.entryPath })}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            aria-label={t("previewReject")}
+            disabled={reject.isPending || apply.isPending}
+            onClick={() => reject.mutate()}
+            className="app-btn-ghost flex h-8 w-8 items-center justify-center rounded-[var(--radius-control)]"
+          >
+            <X className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            aria-label={t("previewApply")}
+            disabled={apply.isPending || reject.isPending}
+            onClick={() => apply.mutate()}
+            className="app-btn-primary flex h-8 w-8 items-center justify-center rounded-[var(--radius-control)]"
+          >
+            <Check className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {request.reason ? (
+        <p className="mt-3 text-xs text-foreground">{request.reason}</p>
+      ) : null}
+      <p className="mt-3 text-xs text-muted-foreground">{t("previewWarning")}</p>
+      {message ? (
+        <p className="mt-2 text-xs font-medium" role="status">
+          {message}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function CodeProjectPreviewResultCard({
+  result,
+}: {
+  result: NonNullable<ReturnType<typeof parseCodeWorkspacePreviewResult>>;
+}) {
+  const t = useTranslations("agentPanel.codePreviewReview");
+  return (
+    <section
+      aria-label={t("resultTitle")}
+      className="rounded-[var(--radius-card)] border border-border bg-[var(--theme-surface)] p-3"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold">{t("resultTitle")}</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t("previewEntry", { entryPath: result.entryPath })}
+          </p>
+        </div>
+        <a
+          href={result.previewUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="app-btn-secondary flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-control)]"
+          aria-label={t("openPreview")}
+        >
+          <ExternalLink className="h-4 w-4" />
+        </a>
+      </div>
+      <p className="mt-3 text-xs text-muted-foreground">{t("resultWarning")}</p>
     </section>
   );
 }
