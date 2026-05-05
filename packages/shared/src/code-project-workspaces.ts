@@ -255,6 +255,53 @@ export const codeWorkspacePatchRiskSchema = z.enum([
   "expensive",
 ]);
 
+export const codeWorkspaceCommandSchema = z.enum(["lint", "test", "build"]);
+
+export const codeWorkspaceCommandRunRequestSchema = z
+  .object({
+    requestId: z.string().uuid().optional(),
+    codeWorkspaceId: z.string().uuid(),
+    snapshotId: z.string().uuid(),
+    command: codeWorkspaceCommandSchema,
+    timeoutMs: z.number().int().min(1_000).max(300_000).default(60_000),
+  })
+  .passthrough()
+  .superRefine((value, ctx) => {
+    rejectScopeFields(value, ctx);
+    rejectUnknownFields(
+      value,
+      new Set([
+        "requestId",
+        "codeWorkspaceId",
+        "snapshotId",
+        "command",
+        "timeoutMs",
+      ]),
+      ctx,
+    );
+  });
+
+export const codeWorkspaceCommandRunLogSchema = z
+  .object({
+    stream: z.enum(["stdout", "stderr", "system"]),
+    text: z.string().max(64 * 1024),
+    timestamp: z.string().datetime().optional(),
+  })
+  .strict();
+
+export const codeWorkspaceCommandRunResultSchema = z
+  .object({
+    ok: z.boolean(),
+    codeWorkspaceId: z.string().uuid().optional(),
+    snapshotId: z.string().uuid().optional(),
+    command: codeWorkspaceCommandSchema,
+    exitCode: z.number().int(),
+    durationMs: z.number().int().nonnegative().optional(),
+    logs: z.array(codeWorkspaceCommandRunLogSchema).max(200),
+    summary: z.string().trim().max(2000).optional(),
+  })
+  .strict();
+
 export const codeWorkspacePatchSchema = z
   .object({
     requestId: z.string().uuid().optional(),
@@ -316,5 +363,9 @@ export type CodeWorkspaceEntryKind = z.infer<typeof codeWorkspaceEntryKindSchema
 export type CodeWorkspaceManifest = z.infer<typeof codeWorkspaceManifestSchema>;
 export type CodeWorkspaceCreateRequest = z.infer<typeof codeWorkspaceCreateRequestSchema>;
 export type CodeWorkspacePatch = z.infer<typeof codeWorkspacePatchSchema>;
+export type CodeWorkspaceCommand = z.infer<typeof codeWorkspaceCommandSchema>;
+export type CodeWorkspaceCommandRunRequest = z.infer<typeof codeWorkspaceCommandRunRequestSchema>;
+export type CodeWorkspaceCommandRunLog = z.infer<typeof codeWorkspaceCommandRunLogSchema>;
+export type CodeWorkspaceCommandRunResult = z.infer<typeof codeWorkspaceCommandRunResultSchema>;
 export type CodeWorkspaceSnapshot = z.infer<typeof codeWorkspaceSnapshotSchema>;
 export type CodeWorkspacePackageResult = z.infer<typeof codeWorkspacePackageResultSchema>;

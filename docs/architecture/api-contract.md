@@ -220,11 +220,15 @@ preview state vector still matches the live document. Code Project Workspace
 Phase 1C adds `code_project.create` and `code_project.patch`: create actions
 persist stored code workspaces and complete with snapshot/archive metadata,
 while patch actions create draft review cards and apply approved patches into
-new immutable snapshots.
+new immutable snapshots. Phase 6A adds the `code_project.run` API seam:
+requests may name only approved `lint`, `test`, or `build` commands against a
+specific snapshot, and the API records runner exit code plus bounded logs. The
+default runner is unavailable until the sandboxed worker execution loop is
+implemented.
 
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
-| POST | /api/projects/:projectId/agent-actions | project `editor` | Create an action ledger row. `requestId` is idempotent per `(projectId, actorUserId)`. `workflow.placeholder` completes immediately with a placeholder result. Phase 2A note actions (`note.create`, `note.rename`, `note.move`, `note.delete`, `note.restore`) execute immediately through API permission checks and write terminal `status`, `result`, and `errorCode` back to the ledger. Phase 2B `note.update` validates a draft Plate value, reads `yjs_documents`, generates `preview.diff`, and stores `status:"draft"` with no `result`. Code workspace `code_project.create` creates a stored workspace/snapshot and completes; `code_project.patch` stores `status:"draft"` with patch preview for approval. Other action kinds are stored as substrate rows for later phases. | `{ requestId?, sourceRunId?, kind, risk, input?, preview? }` |
+| POST | /api/projects/:projectId/agent-actions | project `editor` | Create an action ledger row. `requestId` is idempotent per `(projectId, actorUserId)`. `workflow.placeholder` completes immediately with a placeholder result. Phase 2A note actions (`note.create`, `note.rename`, `note.move`, `note.delete`, `note.restore`) execute immediately through API permission checks and write terminal `status`, `result`, and `errorCode` back to the ledger. Phase 2B `note.update` validates a draft Plate value, reads `yjs_documents`, generates `preview.diff`, and stores `status:"draft"` with no `result`. Code workspace `code_project.create` creates a stored workspace/snapshot and completes; `code_project.patch` stores `status:"draft"` with patch preview for approval; `code_project.run` validates an approved snapshot command and records runner result/log metadata through the configured runner seam. Other action kinds are stored as substrate rows for later phases. | `{ requestId?, sourceRunId?, kind, risk, input?, preview? }` |
 | GET | /api/projects/:projectId/agent-actions | project `editor` | List newest actions in a project. Optional filters: `?status=&kind=&limit=`. | - |
 | GET | /api/agent-actions/:id | project `editor` | Read one action after checking the action's project scope. | - |
 | PATCH | /api/agent-actions/:id/status | project `editor` | Transition action status using the shared status state machine; invalid transitions return `409 invalid_status_transition`. | `{ status, preview?, result?, errorCode? }` |
@@ -311,6 +315,24 @@ The web Agent Panel reads draft `note.update` actions through
 renders the preview summaries and stale-preview guidance, applies through the
 same `/apply` endpoint, and rejects by `PATCH /api/agent-actions/:id/status`
 with `{ "status": "cancelled" }`.
+
+`code_project.run` input:
+
+```json
+{
+  "codeWorkspaceId": "uuid",
+  "snapshotId": "uuid",
+  "command": "test",
+  "timeoutMs": 60000
+}
+```
+
+Allowed `command` values are `lint`, `test`, and `build`. The server rejects
+caller-supplied trusted scope fields in the request body, resolves the code
+workspace from the action's project scope, and stores a terminal result shaped
+like `{ ok, codeWorkspaceId, snapshotId, command, exitCode, durationMs?, logs,
+summary?, archiveUrl }`. A nonzero exit code marks the action `failed`; a zero
+exit code marks it `completed`.
 
 ### Ingest
 

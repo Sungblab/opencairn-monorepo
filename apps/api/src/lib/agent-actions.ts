@@ -18,6 +18,8 @@ import {
 } from "@opencairn/db";
 import { noteActionInputByKind } from "@opencairn/shared";
 import {
+  codeWorkspaceCommandRunRequestSchema,
+  codeWorkspaceCommandRunResultSchema,
   codeWorkspaceCreateRequestSchema,
   codeWorkspacePatchSchema,
   noteUpdateApplyRequestSchema,
@@ -42,13 +44,17 @@ import type {
   Phase2ANoteActionKind,
   Phase2ANoteActionInput,
   TransitionAgentActionStatusRequest,
+  CodeWorkspaceCommandRunRequest,
+  CodeWorkspaceCommandRunResult,
 } from "@opencairn/shared";
 import { randomUUID } from "node:crypto";
 import {
   createCodeWorkspaceDraft,
   createDrizzleCodeWorkspaceRepository,
   prepareCodeWorkspacePatch,
+  type CodeWorkspaceRecord,
   type CodeWorkspaceRepository,
+  type CodeWorkspaceSnapshotRecord,
 } from "./code-project-workspaces";
 import { canWrite } from "./permissions";
 import { diffPlateValues } from "./note-version-diff";
@@ -109,6 +115,7 @@ export interface AgentActionServiceOptions {
   repo?: AgentActionRepository;
   canWriteProject?: (userId: string, projectId: string) => Promise<boolean>;
   codeWorkspaceRepo?: CodeWorkspaceRepository;
+  codeCommandRunner?: CodeCommandRunner;
   noteExecutor?: NoteActionExecutor;
   noteUpdatePreviewer?: NoteUpdatePreviewer;
   noteUpdateApplier?: NoteUpdateApplier;
@@ -169,6 +176,17 @@ export interface NoteUpdateApplierInput {
 
 export interface NoteUpdateApplier {
   apply(input: NoteUpdateApplierInput): Promise<NoteUpdateApplyResult>;
+}
+
+export interface CodeCommandRunnerInput {
+  action: AgentAction;
+  workspace: CodeWorkspaceRecord;
+  snapshot: CodeWorkspaceSnapshotRecord;
+  request: CodeWorkspaceCommandRunRequest;
+}
+
+export interface CodeCommandRunner {
+  run(input: CodeCommandRunnerInput): Promise<CodeWorkspaceCommandRunResult>;
 }
 
 export function createDrizzleAgentActionRepository(conn: DB = defaultDb): AgentActionRepository {
@@ -270,6 +288,7 @@ export async function createAgentAction(
   const executableNoteAction = isPhase2ANoteAction(request.kind);
   const executableCodeCreateAction = request.kind === "code_project.create";
   const codePatchAction = request.kind === "code_project.patch";
+  const executableCodeRunAction = request.kind === "code_project.run";
   const noteUpdatePreview =
     request.kind === "note.update"
       ? await previewNoteUpdateAction(
@@ -294,6 +313,8 @@ export async function createAgentAction(
       : executableNoteAction
         ? "running"
         : executableCodeCreateAction
+          ? "running"
+          : executableCodeRunAction
           ? "running"
           : noteUpdatePreview || codePatchAction
           ? "draft"
@@ -320,6 +341,12 @@ export async function createAgentAction(
   if (codePatchAction) {
     return {
       action: await preparePersistedCodeProjectPatchAction(action, request, options),
+      idempotent: false,
+    };
+  }
+  if (executableCodeRunAction) {
+    return {
+      action: await executePersistedCodeProjectRunAction(action, request, options),
       idempotent: false,
     };
   }
@@ -736,6 +763,72 @@ async function applyCodeProjectPatchAction(
     if (err instanceof AgentActionError) throw err;
     throw new AgentActionError(errorCode, 409);
   }
+}
+
+async function executePersistedCodeProjectRunAction(
+  action: AgentAction,
+  request: CreateAgentActionRequest,
+  options?: AgentActionServiceOptions,
+): Promise<AgentAction> {
+  const repo = options?.repo ?? createDrizzleAgentActionRepository();
+  const codeRepo = options?.codeWorkspaceRepo ?? createDrizzleCodeWorkspaceRepository();
+  try {
+    const payload = codeWorkspaceCommandRunRequestSchema.parse({
+      ...(request.input ?? {}),
+      requestId: action.requestId,
+    });
+    const workspace = await codeRepo.findWorkspaceById(
+      {
+        workspaceId: action.workspaceId,
+        projectId: action.projectId,
+        actorUserId: action.actorUserId,
+      },
+      payload.codeWorkspaceId,
+    );
+    if (!workspace) throw new AgentActionError("code_workspace_not_found", 404);
+    const snapshot = await codeRepo.findSnapshotById(workspace.id, payload.snapshotId);
+    if (!snapshot) throw new AgentActionError("code_workspace_snapshot_not_found", 404);
+
+    const runner = options?.codeCommandRunner ?? createUnavailableCodeCommandRunner();
+    const runResult = codeWorkspaceCommandRunResultSchema.parse(
+      await runner.run({
+        action,
+        workspace,
+        snapshot,
+        request: payload,
+      }),
+    );
+    const result = {
+      ...runResult,
+      codeWorkspaceId: payload.codeWorkspaceId,
+      snapshotId: payload.snapshotId,
+      archiveUrl: `/api/code-workspaces/${workspace.id}/snapshots/${snapshot.id}/archive`,
+    };
+    const updated = await repo.updateStatus(action.id, {
+      status: result.exitCode === 0 ? "completed" : "failed",
+      result,
+      errorCode: result.exitCode === 0 ? null : "code_project_run_failed",
+    });
+    if (!updated) throw new AgentActionError("action_not_found", 404);
+    return updated;
+  } catch (err) {
+    const errorCode = err instanceof AgentActionError ? err.code : "code_project_run_failed";
+    const updated = await repo.updateStatus(action.id, {
+      status: "failed",
+      result: { ok: false, errorCode },
+      errorCode,
+    });
+    if (!updated) throw new AgentActionError("action_not_found", 404);
+    return updated;
+  }
+}
+
+function createUnavailableCodeCommandRunner(): CodeCommandRunner {
+  return {
+    async run() {
+      throw new AgentActionError("code_command_runner_unavailable", 409);
+    },
+  };
 }
 
 function noteUpdateApplyResultInput(input: Record<string, unknown>): NoteUpdateApplyRequest {

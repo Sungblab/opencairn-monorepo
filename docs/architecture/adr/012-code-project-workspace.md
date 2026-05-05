@@ -236,6 +236,19 @@ in the existing Agent Panel, and applies approved patches into a new immutable
 snapshot with a downloadable archive link. It still does not run generated
 project commands, install dependencies, host previews, or deploy external apps.
 
+### Phase 6A: Execution Loop API Seam
+
+- `code_project.run` actions validate approved `lint`, `test`, and `build`
+  command intents against an explicit immutable snapshot.
+- Caller-owned `workspaceId`, `projectId`, and actor scope fields remain
+  rejected; the API resolves project and workspace scope from the ledger action.
+- The API service calls an injected command runner and stores terminal result
+  metadata with `ok`, `command`, `exitCode`, bounded logs, and archive link
+  context.
+- The default API runner is intentionally unavailable. Real command execution,
+  dependency installation, repair iteration, cancellation, and network approval
+  handling must run through the later sandboxed worker/runtime path.
+
 ### Later Phase: Execution Loop
 
 - Implement approved sandbox commands for test/build/lint.
