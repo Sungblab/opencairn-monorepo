@@ -13,6 +13,7 @@ import type {
   ProjectObjectAction,
   TransitionAgentActionStatusRequest,
   WorkflowConsoleRun,
+  WorkflowConsoleStatus,
 } from "@opencairn/shared";
 export type { AgentAction, AgentActionKind, AgentActionStatus } from "@opencairn/shared";
 
@@ -418,17 +419,28 @@ export const documentGenerationApi = {
 export type { DocumentGenerationFormat, DocumentGenerationSource };
 
 export const workflowConsoleApi = {
-  list: (projectId: string, limit = 5) =>
-    apiClient<{ runs: WorkflowConsoleRun[] }>(
-      `/projects/${projectId}/workflow-console/runs?limit=${limit}`,
-    ),
+  list: (
+    projectId: string,
+    options: number | { limit?: number; status?: WorkflowConsoleStatus } = 5,
+  ) => {
+    const params = new URLSearchParams();
+    if (typeof options === "number") {
+      params.set("limit", String(options));
+    } else {
+      params.set("limit", String(options.limit ?? 5));
+      if (options.status) params.set("status", options.status);
+    }
+    return apiClient<{ runs: WorkflowConsoleRun[] }>(
+      `/projects/${projectId}/workflow-console/runs?${params.toString()}`,
+    );
+  },
   get: (projectId: string, runId: string) =>
     apiClient<{ run: WorkflowConsoleRun }>(
       `/projects/${projectId}/workflow-console/runs/${encodeURIComponent(runId)}`,
     ),
 };
 
-export type { WorkflowConsoleRun };
+export type { WorkflowConsoleRun, WorkflowConsoleStatus };
 
 // ---------- Dashboard / workspace summary (Phase 5 Task 1) ----------
 // snake_case keys mirror the server contract — see workspaces.ts stats /

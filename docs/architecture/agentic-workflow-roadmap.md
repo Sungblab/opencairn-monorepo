@@ -476,7 +476,9 @@ event sink exists.
    so destructive actions, provider exports, stale previews, and code command
    approvals share one lifecycle.
 6. **Full workflow console.** Add filtering, search, logs, outputs, costs, and
-   retry/cancel across run families after the projection proves stable.
+   retry/cancel across run families after the projection proves stable. The
+   list API now accepts an exact normalized `status` filter, and the Agents view
+   uses that path for failed and completed Workflow Console filters.
 
 The key UI rule is that the console is a status and recovery surface, not a new
 artifact editor. Opening outputs should deep-link to notes, generated files,

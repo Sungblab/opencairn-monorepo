@@ -35,6 +35,36 @@ describe("workflow console routes", () => {
     expect(body.runs.every((run) => run.projectId === projectId)).toBe(true);
   });
 
+  it("filters listed runs by normalized status", async () => {
+    const app = createTestApp({
+      repo: createMemoryRepo(),
+      canReadProject: async () => true,
+    });
+
+    const response = await app.request(
+      `/api/projects/${projectId}/workflow-console/runs?status=failed`,
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json() as { runs: WorkflowConsoleRun[] };
+    expect(body.runs.map((run) => [run.runType, run.status])).toEqual([
+      ["import", "failed"],
+    ]);
+  });
+
+  it("rejects unknown list status filters", async () => {
+    const app = createTestApp({
+      repo: createMemoryRepo(),
+      canReadProject: async () => true,
+    });
+
+    const response = await app.request(
+      `/api/projects/${projectId}/workflow-console/runs?status=unknown`,
+    );
+
+    expect(response.status).toBe(400);
+  });
+
   it("returns one normalized run by prefixed run id", async () => {
     const app = createTestApp({
       repo: createMemoryRepo(),
