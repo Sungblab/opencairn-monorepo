@@ -325,6 +325,270 @@ code agent loops should converge toward one workflow console model:
 The UI can remain split by surface at first, but events and status contracts
 should converge so future consolidation is straightforward.
 
+### Workflow Console Unification Spec
+
+The Workflow Console is the shared run surface for user-visible agent and
+workflow work. It does not replace chat, the Agent Panel, project objects,
+Plan8, import pages, or code viewers. It gives those surfaces one product and
+technical vocabulary for runs, status, events, approvals, outputs, and
+recovery.
+
+#### Scope
+
+The first console model covers:
+
+- Agent Panel chat runs, including streaming text, status, citations, generated
+  project objects, document-generation cards, and `note.update` approval cards.
+- Plan8 agent runs, including workflow metadata, retry/cancel intent, cost
+  summaries, suggestions, stale alerts, and generated audio outputs.
+- Document-generation jobs that start from `generate_project_object`, run
+  through Temporal, publish `agent_files`, and emit project-object generation
+  events.
+- Import/export jobs that wrap existing ingest, import, synthesis export,
+  OpenCairn download, and optional provider handoff flows.
+- Future code project runs, including patch proposal, allowed command
+  execution, logs, repair-loop attempts, artifacts, and preview links.
+- Approval and status events for destructive, external-provider, expensive, or
+  otherwise high-risk work.
+
+#### Non-Goals
+
+This unification does not:
+
+- add a new chat-only artifact store;
+- migrate every existing table into one physical `runs` table in the first
+  phase;
+- rebuild the Agent Panel, Plan8 view, import UI, or code surfaces before the
+  shared contracts exist;
+- move Agent Panel implementation directly inside this spec-only slice;
+- add DB migrations before the projection contract and owning implementation
+  prompts are accepted;
+- replace durable chat runs, the unified agent action ledger, project-object
+  actions, or `agent_runs`;
+- make Google Workspace, hosted previews, or provider export required for
+  self-hosting.
+
+#### Run Envelope
+
+Every user-visible run should be projectable into the same envelope even when
+the source of truth remains an existing table such as `chat_runs`,
+`agent_actions`, `agent_runs`, import workflow rows, or future code-project run
+tables.
+
+| Field | Purpose |
+| --- | --- |
+| `runId` | Stable, globally unique console ID. Use a source-prefixed ID such as `chat:<uuid>` or a deterministic derived ID for legacy rows. |
+| `runType` | `chat`, `agent_action`, `plan8_agent`, `document_generation`, `import`, `export`, `code_agent`, or `system_workflow`. |
+| `sourceId` | Source row or workflow ID used for deep links and debugging. |
+| `workspaceId` | Server-injected workspace scope. |
+| `projectId` | Server-injected project scope when applicable. |
+| `threadId` / `messageId` | Optional chat anchor for Agent Panel runs. |
+| `actorUserId` | User who requested, approved, cancelled, or retried the run. |
+| `title` | Short user-facing label. |
+| `status` | Normalized run status. |
+| `risk` | `low`, `write`, `destructive`, `external`, or `expensive`. |
+| `progress` | Optional current step, step count, or percent when the source can provide it. |
+| `cost` | Optional token, provider, wall-clock, or KRW summary. |
+| `outputs` | Deep links to notes, `agent_files`, imports, exports, code projects, logs, previews, or provider URLs. |
+| `approvals` | Pending or completed approval records linked to the run. |
+| `error` | Stable error code plus retryability and a short diagnostic summary. |
+| `createdAt` / `updatedAt` / `completedAt` | Audit timestamps. |
+
+The projection is an API/view contract first. A later implementation may add a
+materialized run index if repeated polling, search, or notification fan-out
+requires it.
+
+#### Status Model
+
+Console statuses should normalize existing source statuses without hiding their
+original detail:
+
+| Console status | Meaning | Source mappings |
+| --- | --- | --- |
+| `draft` | Proposed but not executable yet. | `agent_actions.status = draft`, generated previews. |
+| `approval_required` | Waiting for user approval before queueing or external/destructive effect. | agent action approval cards, provider export consent gates, dependency install gates. |
+| `queued` | Accepted but not started. | `chat_runs.queued`, action `queued`, Temporal start accepted. |
+| `running` | Worker/API execution is active or streaming. | `chat_runs.running`, Plan8 running, document generation status, import workflow running, code command running. |
+| `blocked` | Cannot proceed until configuration, provider consent, missing source, or manual input is supplied. | provider grant missing, unsupported source, stale preview, sandbox approval needed. |
+| `completed` | Terminal success with durable outputs or an intentionally empty result. | completed action/run/workflow rows. |
+| `failed` | Terminal failure with stable error code. | failed action/run/workflow rows, workflow start failure after terminal update. |
+| `cancelled` | User or system cancelled execution. | explicit cancel endpoints and Temporal cancellation. Browser SSE disconnect is not cancellation. |
+| `reverted` | A previously completed write was reversed through an auditable recovery action. | future rollback/version-restore rows. |
+
+Source-specific statuses remain available as `sourceStatus` for debugging,
+copy, and compatibility. The console status is the common UI state machine.
+
+#### Event Model
+
+Console events are append-only projections over existing event streams. They
+should be safe to replay by `(runId, seq)` and should carry source-specific
+payloads only behind typed event families.
+
+| Event family | Purpose | Existing or expected source |
+| --- | --- | --- |
+| `run.created` | User request or workflow record exists. | `chat_runs`, `agent_actions`, Plan8 `agent_runs`, import/export rows. |
+| `run.status_changed` | Normalized status transition with `sourceStatus`. | `chat_run_events`, `agent_action_status`, workflow callbacks. |
+| `run.progress` | Current step, attempt, percent, or status phrase. | chat `status`, Temporal progress callbacks, code command output summaries. |
+| `run.thought` | Optional agent reasoning summary when product-safe. | Agent Panel thought events. |
+| `run.output_added` | Note, agent file, document artifact, import result, export URL, code artifact, log, or preview became available. | project-object events, import result rows, Plan8 output tables, future code artifacts. |
+| `run.approval_requested` | User must approve, reject, or edit before execution. | `note.update` drafts, destructive/export/install gates. |
+| `run.approval_resolved` | Approval accepted, rejected, expired, or superseded. | action status transitions and future approval records. |
+| `run.error` | Stable error code, retryability, and diagnostic summary. | chat/action/import/export/code errors. |
+| `run.log_appended` | Bounded, transient log chunk for real-time streaming. Durable logs stay in object or artifact storage. | future code run logs and worker artifacts. |
+
+Existing `chat_run_events` already provide ordered SSE replay for chat runs.
+Future console APIs should avoid making every source implement SSE first; polling
+a normalized projection is acceptable for Plan8/import/export until a shared
+event sink exists.
+
+#### UI Phases
+
+1. **Projection contract only.** Define shared run/event types and map current
+   chat runs, agent actions, project-object document generation, and Plan8 run
+   summaries into them. Keep existing UI components in place.
+2. **Embedded console sections.** Replace ad hoc status card normalization in
+   Agent Panel and Plan8 with shared render helpers while preserving current
+   placement: chat remains in Agent Panel, Plan8 remains in the Agents view, and
+   generated files remain project objects.
+3. **Project-level run drawer.** Add a project-scoped run drawer/list that can
+   open from Agent Panel cards, Plan8 rows, document-generation cards,
+   import/export pages, and future code project tabs.
+4. **Approvals and recovery.** Centralize approve/reject/cancel/retry affordances
+   so destructive actions, provider exports, stale previews, and code command
+   approvals share one lifecycle.
+5. **Full workflow console.** Add filtering, search, logs, outputs, costs, and
+   retry/cancel across run families after the projection proves stable.
+
+The key UI rule is that the console is a status and recovery surface, not a new
+artifact editor. Opening outputs should deep-link to notes, generated files,
+imports, exports, code project tabs, or provider URLs.
+
+#### Implementation Prompts
+
+Use separate implementation sessions with narrow ownership:
+
+**Prompt A: shared console contracts**
+
+```text
+Communicate with the maintainer in Korean. Keep code, comments, docs, test names,
+commit messages, and PR copy in English unless editing localized user-facing
+copy. Use $opencairn-rules and finish with $opencairn-post-feature.
+
+Goal: Add shared Workflow Console run/event projection contracts only. No UI
+rewrite and no DB migration unless the current code already has an accepted
+schema path.
+
+Read:
+- AGENTS.md
+- docs/architecture/agentic-workflow-roadmap.md
+- docs/architecture/adr/012-workflow-console-unification.md
+- packages/shared/src/agent-actions.ts
+- packages/shared/src/project-object-actions.ts
+- apps/api/src/lib/chat-runs.ts
+- apps/web/src/components/agent-panel/
+- apps/web/src/components/views/agents/
+
+Implement:
+- shared Zod types for normalized run envelope, status, output, approval, error,
+  and event projection;
+- pure mapper tests for chat run events, agent action events,
+  project-object document generation events, and Plan8 run summaries;
+- no user-facing copy unless required by tests.
+
+Verify:
+- focused shared/API tests
+- pnpm docs:check
+- git diff --check
+```
+
+**Prompt B: API projection endpoint**
+
+```text
+Communicate with the maintainer in Korean. Keep code, comments, docs, test names,
+commit messages, and PR copy in English unless editing localized user-facing
+copy. Use $opencairn-rules and finish with $opencairn-post-feature.
+
+Goal: Expose a read-only project-scoped Workflow Console projection endpoint.
+Do not mutate existing run tables and do not add a new run table in this slice.
+
+Read the shared console contracts from Prompt A plus:
+- apps/api/src/routes/chat-runs.ts
+- apps/api/src/routes/agent-actions.ts
+- apps/api/src/routes/plan8-agents.ts
+- apps/api/src/routes/document-generation.ts
+- apps/api/src/lib/permissions*
+
+Implement:
+- authenticated project-scoped list/detail endpoint;
+- permission checks through existing workspace/project helpers;
+- source adapters for chat runs, agent actions, Plan8 summaries, and
+  document-generation actions where the existing data is available;
+- tests for scope isolation, status normalization, and missing source behavior.
+
+Verify:
+- focused API vitest
+- pnpm docs:check
+- git diff --check
+```
+
+**Prompt C: incremental UI adoption**
+
+```text
+Communicate with the maintainer in Korean. Keep code, comments, docs, test names,
+commit messages, and PR copy in English unless editing localized user-facing
+copy. Use $opencairn-rules and finish with $opencairn-post-feature.
+
+Goal: Reuse Workflow Console projection helpers in existing UI surfaces without
+rebuilding Agent Panel or Plan8.
+
+Avoid:
+- broad Agent Panel rewrite
+- new import/export UX
+- DB migration
+
+Implement:
+- shared client-side run status/output render helpers;
+- Agent Panel document-generation and note-action cards can deep-link to the
+  run drawer/detail when available;
+- Plan8 run detail sheet reads normalized run fields where possible while
+  preserving current launch, suggestion, stale alert, and audio tables;
+- i18n parity if user-facing copy changes.
+
+Verify:
+- focused web tests for run status rendering and deep links
+- pnpm --filter @opencairn/web i18n:parity if copy changes
+- pnpm docs:check
+- git diff --check
+```
+
+**Prompt D: import/export and code run adapters**
+
+```text
+Communicate with the maintainer in Korean. Keep code, comments, docs, test names,
+commit messages, and PR copy in English unless editing localized user-facing
+copy. Use $opencairn-rules and finish with $opencairn-post-feature.
+
+Goal: Add Workflow Console adapters for import/export jobs and future code
+agent runs after the read-only projection endpoint is stable.
+
+Read:
+- existing import/export routes and worker workflows
+- docs/architecture/backup-strategy.md
+- docs/architecture/adr/011-google-workspace-export-handoff.md
+- code project and sandbox docs
+
+Implement:
+- source adapters only for flows that already have durable status;
+- terminal failure mapping so workflow-start errors do not stay queued;
+- output links for source notes, generated files, download URLs, provider URLs,
+  code logs, and previews;
+- no provider-specific UI beyond generic output links and approval/status rows.
+
+Verify:
+- focused API/worker tests for status mapping
+- git diff --check
+```
+
 ## Recommended Implementation Order
 
 ### Phase 0: Roadmap And Duplicate Guard
