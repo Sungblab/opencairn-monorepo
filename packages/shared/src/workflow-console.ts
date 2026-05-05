@@ -669,6 +669,25 @@ function importLabel(job: ImportJobProjectionSource): string {
 
 function outputsFromAgentAction(action: AgentAction): WorkflowConsoleOutput[] {
   if (!action.result) return [];
+  if (action.kind === "code_project.preview") {
+    const previewUrl = stringField(action.result, "previewUrl");
+    if (previewUrl) {
+      return [
+        {
+          outputType: "preview",
+          id: action.id,
+          label: "Static preview",
+          url: previewUrl,
+          metadata: {
+            codeWorkspaceId: stringField(action.result, "codeWorkspaceId"),
+            snapshotId: stringField(action.result, "snapshotId"),
+            entryPath: stringField(action.result, "entryPath"),
+            expiresAt: stringField(action.result, "expiresAt"),
+          },
+        },
+      ];
+    }
+  }
   const noteId = stringField(action.result, "noteId");
   if (noteId) {
     return [

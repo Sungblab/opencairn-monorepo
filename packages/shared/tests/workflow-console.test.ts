@@ -97,6 +97,65 @@ describe("workflow console contracts", () => {
     });
   });
 
+  it("projects completed static code preview actions as preview outputs", () => {
+    const run = workflowConsoleRunFromAgentAction({
+      id: "00000000-0000-4000-8000-000000000023",
+      requestId: "00000000-0000-4000-8000-000000000024",
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      sourceRunId: "chat:00000000-0000-4000-8000-000000000010",
+      kind: "code_project.preview",
+      status: "completed",
+      risk: "external",
+      input: {
+        kind: "code_project.preview",
+        risk: "external",
+        codeWorkspaceId: "00000000-0000-4000-8000-000000000025",
+        snapshotId: "00000000-0000-4000-8000-000000000026",
+        mode: "static",
+        entryPath: "index.html",
+      },
+      preview: null,
+      result: {
+        ok: true,
+        kind: "code_project.preview",
+        mode: "static",
+        codeWorkspaceId: "00000000-0000-4000-8000-000000000025",
+        snapshotId: "00000000-0000-4000-8000-000000000026",
+        entryPath: "index.html",
+        previewUrl:
+          "/api/agent-actions/00000000-0000-4000-8000-000000000023/preview/index.html",
+        assetsBaseUrl:
+          "/api/agent-actions/00000000-0000-4000-8000-000000000023/preview/",
+        expiresAt: "2026-05-06T00:00:00.000Z",
+      },
+      errorCode: null,
+      createdAt,
+      updatedAt,
+    });
+
+    expect(workflowConsoleRunSchema.parse(run)).toMatchObject({
+      runId: "agent_action:00000000-0000-4000-8000-000000000023",
+      runType: "agent_action",
+      status: "completed",
+      outputs: [
+        {
+          outputType: "preview",
+          id: "00000000-0000-4000-8000-000000000023",
+          label: "Static preview",
+          url: "/api/agent-actions/00000000-0000-4000-8000-000000000023/preview/index.html",
+          metadata: {
+            codeWorkspaceId: "00000000-0000-4000-8000-000000000025",
+            snapshotId: "00000000-0000-4000-8000-000000000026",
+            entryPath: "index.html",
+            expiresAt: "2026-05-06T00:00:00.000Z",
+          },
+        },
+      ],
+    });
+  });
+
   it("projects chat run events with replay sequence and normalized event family", () => {
     const event = chatConsoleEventFromChatRunEvent({
       runId: "00000000-0000-4000-8000-000000000010",
