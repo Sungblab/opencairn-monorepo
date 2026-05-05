@@ -112,7 +112,7 @@ function createMemoryRepo(): AgentActionRepository {
         values.actorUserId,
         values.requestId,
       );
-      if (existing) return existing;
+      if (existing) return { action: existing, inserted: false };
       const now = new Date("2026-05-05T00:00:00.000Z").toISOString();
       const row: AgentAction = {
         id: "00000000-0000-4000-8000-000000000010",
@@ -132,7 +132,7 @@ function createMemoryRepo(): AgentActionRepository {
         updatedAt: now,
       };
       rows.set(row.id, row);
-      return row;
+      return { action: row, inserted: true };
     },
     async updateStatus(id, values) {
       const current = rows.get(id);

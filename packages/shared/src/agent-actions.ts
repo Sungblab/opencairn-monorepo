@@ -72,6 +72,43 @@ const jsonRecordSchema = z
   .default({})
   .superRefine(rejectNestedScopeFields);
 
+export const noteCreateActionInputSchema = z
+  .object({
+    title: z.string().trim().min(1).max(300).default("Untitled"),
+    folderId: z.string().uuid().nullable().default(null),
+  })
+  .strict();
+
+export const noteRenameActionInputSchema = z
+  .object({
+    noteId: z.string().uuid(),
+    title: z.string().trim().min(1).max(300),
+  })
+  .strict();
+
+export const noteMoveActionInputSchema = z
+  .object({
+    noteId: z.string().uuid(),
+    folderId: z.string().uuid().nullable(),
+  })
+  .strict();
+
+export const noteDeleteActionInputSchema = z
+  .object({
+    noteId: z.string().uuid(),
+  })
+  .strict();
+
+export const noteRestoreActionInputSchema = noteDeleteActionInputSchema;
+
+export const noteActionInputByKind = {
+  "note.create": noteCreateActionInputSchema,
+  "note.rename": noteRenameActionInputSchema,
+  "note.move": noteMoveActionInputSchema,
+  "note.delete": noteDeleteActionInputSchema,
+  "note.restore": noteRestoreActionInputSchema,
+} as const;
+
 export const createAgentActionRequestSchema = z
   .object({
     requestId: z.string().uuid().optional(),
@@ -91,6 +128,7 @@ export const createAgentActionRequestSchema = z
         message: "placeholder_actions_must_be_low_risk",
       });
     }
+    validatePhase2ANoteActionInput(value, ctx);
   });
 
 export const listAgentActionsQuerySchema = z.object({
@@ -135,6 +173,18 @@ export const agentActionEventSchema = z.object({
 export type AgentActionStatus = z.infer<typeof agentActionStatusSchema>;
 export type AgentActionRisk = z.infer<typeof agentActionRiskSchema>;
 export type AgentActionKind = z.infer<typeof agentActionKindSchema>;
+export type NoteCreateActionInput = z.infer<typeof noteCreateActionInputSchema>;
+export type NoteRenameActionInput = z.infer<typeof noteRenameActionInputSchema>;
+export type NoteMoveActionInput = z.infer<typeof noteMoveActionInputSchema>;
+export type NoteDeleteActionInput = z.infer<typeof noteDeleteActionInputSchema>;
+export type NoteRestoreActionInput = z.infer<typeof noteRestoreActionInputSchema>;
+export type Phase2ANoteActionKind = keyof typeof noteActionInputByKind;
+export type Phase2ANoteActionInput =
+  | NoteCreateActionInput
+  | NoteRenameActionInput
+  | NoteMoveActionInput
+  | NoteDeleteActionInput
+  | NoteRestoreActionInput;
 export type CreateAgentActionRequest = z.infer<typeof createAgentActionRequestSchema>;
 export type TransitionAgentActionStatusRequest = z.infer<typeof transitionAgentActionStatusRequestSchema>;
 export type AgentAction = z.infer<typeof agentActionSchema>;
@@ -154,6 +204,35 @@ function rejectOwnScopeFields(value: Record<string, unknown>, ctx: z.RefinementC
 
 function rejectNestedScopeFields(value: Record<string, unknown>, ctx: z.RefinementCtx): void {
   walkForScopeFields(value, [], ctx, 0);
+}
+
+function validatePhase2ANoteActionInput(
+  value: {
+    kind: AgentActionKind;
+    input?: Record<string, unknown>;
+  },
+  ctx: z.RefinementCtx,
+): void {
+  if (value.kind === "note.update") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["kind"],
+      message: "note_update_is_deferred_to_phase_2b",
+    });
+    return;
+  }
+
+  const schema = noteActionInputByKind[value.kind as Phase2ANoteActionKind];
+  if (!schema) return;
+
+  const parsed = schema.safeParse(value.input ?? {});
+  if (parsed.success) return;
+  for (const issue of parsed.error.issues) {
+    ctx.addIssue({
+      ...issue,
+      path: ["input", ...issue.path],
+    });
+  }
 }
 
 function walkForScopeFields(
