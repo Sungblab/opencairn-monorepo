@@ -135,6 +135,7 @@ The shared agent action family already reserves:
 - `code_project.delete`
 - `code_project.install`
 - `code_project.run`
+- `code_project.preview`
 - `code_project.package`
 
 Phase 1 should implement only the stored/reviewable subset:
@@ -148,6 +149,10 @@ Phase 1 should implement only the stored/reviewable subset:
 `code_project.install` and `code_project.run` belong to the execution-loop
 phase because they require sandbox command allowlists, logs, cancellation, and
 explicit approval for risky operations.
+
+`code_project.preview` belongs to the hosted-preview phase because it requires
+external approval, public URL lifecycle, and cleanup semantics before any
+preview can be exposed.
 
 ## Duplicate Guard
 
@@ -284,7 +289,9 @@ project commands, install dependencies, host previews, or deploy external apps.
 
 ### Later Phase: Hosted Preview
 
-- Add static preview first.
+- Add typed `code_project.preview` static approval substrate first. Phase 7A
+  records static preview intent with `risk:"external"` but does not allocate
+  hosted URLs or start app processes.
 - Add Vite/Next preview only after process lifecycle and cleanup are safe.
 - Capture browser smoke results and screenshots.
 - Keep unrestricted server-side arbitrary code execution out of scope.

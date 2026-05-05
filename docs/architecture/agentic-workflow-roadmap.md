@@ -781,6 +781,14 @@ Install actions must use `risk:"external"` and are stored as
 reject caller-supplied network fields, so networked execution remains gated by
 future approval-aware install/run work.
 
+Phase 7A starts the hosted-preview substrate without allocating public preview
+URLs or starting app processes. `code_project.preview` accepts static preview
+intent against an immutable code workspace snapshot, defaults `entryPath` to
+`index.html`, requires `risk:"external"`, and stores an `approval_required`
+review preview. Process-backed preview modes such as Vite and Next remain out
+of scope until lifecycle cleanup, browser smoke checks, and URL expiration are
+implemented.
+
 ### Phase 7: Hosted Preview
 
 Add generated app previews:

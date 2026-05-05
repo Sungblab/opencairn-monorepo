@@ -6,6 +6,7 @@ import {
   codeWorkspaceInstallRequestSchema,
   codeWorkspacePatchPreviewSchema,
   codeWorkspacePatchSchema,
+  codeWorkspacePreviewRequestSchema,
 } from "./code-project-workspaces";
 
 export const agentActionStatusSchema = z.enum([
@@ -59,6 +60,7 @@ export const agentActionKindSchema = z.enum([
   "code_project.delete",
   "code_project.install",
   "code_project.run",
+  "code_project.preview",
   "code_project.package",
 ]);
 
@@ -226,6 +228,13 @@ export const createAgentActionRequestSchema = z
         message: "dependency_installs_must_require_external_approval",
       });
     }
+    if (value.kind === "code_project.preview" && value.risk !== "external") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["risk"],
+        message: "hosted_previews_must_require_external_approval",
+      });
+    }
     validatePhase2ANoteActionInput(value, ctx);
     validateCodeProjectActionInput(value, ctx);
   });
@@ -364,7 +373,9 @@ function validateCodeProjectActionInput(
           ? codeWorkspaceCommandRunRequestSchema
           : value.kind === "code_project.install"
             ? codeWorkspaceInstallRequestSchema
-          : null;
+            : value.kind === "code_project.preview"
+              ? codeWorkspacePreviewRequestSchema
+            : null;
   if (!schema) return;
   const parsed = schema.safeParse(input);
   if (parsed.success) return;

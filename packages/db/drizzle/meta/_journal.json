@@ -365,6 +365,13 @@
       "when": 1777994506229,
       "tag": "0051_same_typhoid_mary",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1778003672342,
+      "tag": "0052_ordinary_tyrannus",
+      "breakpoints": true
     }
   ]
 }

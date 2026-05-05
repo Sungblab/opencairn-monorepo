@@ -6,6 +6,7 @@ import {
   codeWorkspaceInstallRequestSchema,
   codeWorkspaceManifestSchema,
   codeWorkspacePatchSchema,
+  codeWorkspacePreviewRequestSchema,
   codeWorkspacePackageResultSchema,
   codeWorkspaceSnapshotSchema,
   normalizeCodeWorkspacePath,
@@ -221,6 +222,29 @@ describe("code project workspace contracts", () => {
         codeWorkspaceId: "00000000-0000-4000-8000-000000000203",
         snapshotId: baseSnapshotId,
         packages: [{ name: "lodash" }],
+      }),
+    ).toThrow();
+  });
+
+  it("describes static hosted preview requests without starting a server", () => {
+    const parsed = codeWorkspacePreviewRequestSchema.parse({
+      codeWorkspaceId: "00000000-0000-4000-8000-000000000203",
+      snapshotId: baseSnapshotId,
+      mode: "static",
+      entryPath: "index.html",
+      reason: "Review the generated app",
+    });
+
+    expect(parsed).toMatchObject({
+      mode: "static",
+      entryPath: "index.html",
+    });
+
+    expect(() =>
+      codeWorkspacePreviewRequestSchema.parse({
+        codeWorkspaceId: "00000000-0000-4000-8000-000000000203",
+        snapshotId: baseSnapshotId,
+        mode: "vite",
       }),
     ).toThrow();
   });
