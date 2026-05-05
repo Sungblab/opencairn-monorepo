@@ -518,6 +518,69 @@ describe("agent action routes", () => {
     });
   });
 
+  it("applies and serves a sandboxed static code_project.preview asset", async () => {
+    const repo = createMemoryRepo();
+    const codeWorkspaceRepo = createMemoryCodeWorkspaceRepository();
+    const { workspace, snapshot } = await codeWorkspaceRepo.createWorkspaceDraft({
+      scope: { workspaceId, projectId, actorUserId: userId },
+      requestId: "00000000-0000-4000-8000-000000000096",
+      snapshotId: "00000000-0000-4000-8000-000000000097",
+      treeHash: "sha256:preview",
+      request: {
+        name: "Preview app",
+        manifest: {
+          entries: [
+            {
+              path: "index.html",
+              kind: "file",
+              mimeType: "text/html",
+              bytes: 16,
+              contentHash: "sha256:index",
+              inlineContent: "<h1>Preview</h1>",
+            },
+          ],
+        },
+      },
+    });
+    const app = appWith({ repo, codeWorkspaceRepo });
+    const create = await app.request(`/api/projects/${projectId}/agent-actions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        requestId: "00000000-0000-4000-8000-000000000098",
+        kind: "code_project.preview",
+        risk: "external",
+        input: {
+          codeWorkspaceId: workspace.id,
+          snapshotId: snapshot.id,
+          mode: "static",
+          entryPath: "index.html",
+        },
+      }),
+    });
+    const created = await create.json() as { action: AgentAction };
+
+    const apply = await app.request(`/api/agent-actions/${created.action.id}/apply`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(apply.status).toBe(200);
+    const applied = await apply.json() as { action: AgentAction };
+    expect(applied.action.result).toMatchObject({
+      previewUrl: `/api/agent-actions/${created.action.id}/preview/index.html`,
+    });
+
+    const asset = await app.request(
+      `/api/agent-actions/${created.action.id}/preview/index.html`,
+    );
+    expect(asset.status).toBe(200);
+    expect(asset.headers.get("content-type")).toContain("text/html");
+    expect(asset.headers.get("content-security-policy")).toContain("sandbox");
+    expect(await asset.text()).toBe("<h1>Preview</h1>");
+  });
+
   it("cancels a running code_project.run action", async () => {
     const running = makeAction({
       id: "00000000-0000-4000-8000-000000000080",

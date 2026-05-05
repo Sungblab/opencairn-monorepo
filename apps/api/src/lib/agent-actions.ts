@@ -23,7 +23,9 @@ import {
   codeWorkspaceCreateRequestSchema,
   codeWorkspaceInstallRequestSchema,
   codeWorkspacePatchSchema,
+  codeWorkspacePreviewResultSchema,
   codeWorkspacePreviewRequestSchema,
+  normalizeCodeWorkspacePath,
   noteUpdateApplyRequestSchema,
   noteUpdateApplyResultSchema,
   noteUpdatePreviewSchema,
@@ -48,6 +50,7 @@ import type {
   TransitionAgentActionStatusRequest,
   CodeWorkspaceCommandRunRequest,
   CodeWorkspaceCommandRunResult,
+  CodeWorkspacePreviewResult,
 } from "@opencairn/shared";
 import { randomUUID } from "node:crypto";
 import {
@@ -221,6 +224,11 @@ export interface CodeRepairPlannerInput {
 
 export interface CodeRepairPlanner {
   plan(input: CodeRepairPlannerInput): Promise<Record<string, unknown>>;
+}
+
+export interface CodePreviewAsset {
+  content: string;
+  contentType: string;
 }
 
 export function createDrizzleAgentActionRepository(conn: DB = defaultDb): AgentActionRepository {
@@ -596,7 +604,52 @@ export async function applyAgentAction(
   if (current.kind === "code_project.patch") {
     return applyCodeProjectPatchAction(current, actorUserId, { ...options, repo });
   }
+  if (current.kind === "code_project.preview") {
+    return applyCodeProjectPreviewAction(current, actorUserId, { ...options, repo });
+  }
   throw new AgentActionError("action_kind_not_applicable", 409);
+}
+
+export async function readCodeProjectPreviewAsset(
+  id: string,
+  actorUserId: string,
+  path: string | undefined,
+  options?: AgentActionServiceOptions,
+): Promise<CodePreviewAsset> {
+  const current = await getAgentAction(id, actorUserId, options);
+  if (current.kind !== "code_project.preview") {
+    throw new AgentActionError("action_kind_not_applicable", 409);
+  }
+  if (current.status !== "completed") {
+    throw new AgentActionError("code_project_preview_not_ready", 409);
+  }
+  const result = parseCodeWorkspacePreviewResult(current.result);
+  const requestedPath = normalizePreviewAssetPath(path ?? result.entryPath);
+  const codeRepo = options?.codeWorkspaceRepo ?? createDrizzleCodeWorkspaceRepository();
+  const workspace = await codeRepo.findWorkspaceById(
+    {
+      workspaceId: current.workspaceId,
+      projectId: current.projectId,
+      actorUserId,
+    },
+    result.codeWorkspaceId,
+  );
+  if (!workspace) throw new AgentActionError("code_workspace_not_found", 404);
+  const snapshot = await codeRepo.findSnapshotById(workspace.id, result.snapshotId);
+  if (!snapshot) throw new AgentActionError("code_workspace_snapshot_not_found", 404);
+  const entry = snapshot.manifest.entries.find(
+    (candidate) => candidate.path.toLowerCase() === requestedPath.toLowerCase(),
+  );
+  if (!entry || entry.kind !== "file") {
+    throw new AgentActionError("code_workspace_preview_asset_not_found", 404);
+  }
+  if (!("inlineContent" in entry) || entry.inlineContent == null) {
+    throw new AgentActionError("code_workspace_preview_asset_unavailable", 409);
+  }
+  return {
+    content: entry.inlineContent,
+    contentType: entry.mimeType ?? contentTypeForPreviewPath(entry.path),
+  };
 }
 
 export async function createCodeProjectRepairAction(
@@ -957,6 +1010,81 @@ async function applyCodeProjectPatchAction(
   }
 }
 
+async function applyCodeProjectPreviewAction(
+  current: AgentAction,
+  actorUserId: string,
+  options?: AgentActionServiceOptions,
+): Promise<AgentAction> {
+  if (current.status !== "approval_required") {
+    throw new AgentActionError("invalid_status_transition", 409);
+  }
+
+  const repo = options?.repo ?? createDrizzleAgentActionRepository();
+  const codeRepo = options?.codeWorkspaceRepo ?? createDrizzleCodeWorkspaceRepository();
+  const payload = codeWorkspacePreviewRequestSchema.parse({
+    ...current.input,
+    requestId: current.requestId,
+  });
+
+  const queued = await repo.updateStatus(current.id, {
+    status: "queued",
+    errorCode: null,
+  });
+  if (!queued) throw new AgentActionError("action_not_found", 404);
+
+  try {
+    const workspace = await codeRepo.findWorkspaceById(
+      {
+        workspaceId: current.workspaceId,
+        projectId: current.projectId,
+        actorUserId,
+      },
+      payload.codeWorkspaceId,
+    );
+    if (!workspace) throw new AgentActionError("code_workspace_not_found", 404);
+    const snapshot = await codeRepo.findSnapshotById(workspace.id, payload.snapshotId);
+    if (!snapshot) throw new AgentActionError("code_workspace_snapshot_not_found", 404);
+    const entry = snapshot.manifest.entries.find(
+      (candidate) => candidate.path.toLowerCase() === payload.entryPath.toLowerCase(),
+    );
+    if (!entry || entry.kind !== "file") {
+      throw new AgentActionError("code_workspace_preview_entry_not_found", 404);
+    }
+    if (!("inlineContent" in entry) || entry.inlineContent == null) {
+      throw new AgentActionError("code_workspace_preview_entry_unavailable", 409);
+    }
+
+    const assetsBaseUrl = `/api/agent-actions/${current.id}/preview/`;
+    const result = codeWorkspacePreviewResultSchema.parse({
+      ok: true,
+      kind: "code_project.preview",
+      mode: "static",
+      codeWorkspaceId: workspace.id,
+      snapshotId: snapshot.id,
+      entryPath: payload.entryPath,
+      previewUrl: `${assetsBaseUrl}${encodePreviewPath(payload.entryPath)}`,
+      assetsBaseUrl,
+    });
+    const completed = await repo.updateStatus(current.id, {
+      status: "completed",
+      result,
+      errorCode: null,
+    });
+    if (!completed) throw new AgentActionError("action_not_found", 404);
+    return completed;
+  } catch (err) {
+    const errorCode = err instanceof AgentActionError ? err.code : "code_project_preview_failed";
+    const failed = await repo.updateStatus(current.id, {
+      status: "failed",
+      result: { ok: false, errorCode },
+      errorCode,
+    });
+    if (!failed) throw new AgentActionError("action_not_found", 404);
+    if (err instanceof AgentActionError) throw err;
+    throw new AgentActionError(errorCode, 409);
+  }
+}
+
 async function executePersistedCodeProjectRunAction(
   action: AgentAction,
   request: CreateAgentActionRequest,
@@ -1106,6 +1234,36 @@ function codePreviewApprovalPreview(input: Record<string, unknown>) {
     summary: `Create static preview for ${payload.entryPath}`,
     reason: payload.reason ?? null,
   };
+}
+
+function parseCodeWorkspacePreviewResult(input: unknown): CodeWorkspacePreviewResult {
+  return codeWorkspacePreviewResultSchema.parse(input);
+}
+
+function normalizePreviewAssetPath(path: string): string {
+  try {
+    return normalizeCodeWorkspacePath(decodeURIComponent(path));
+  } catch {
+    throw new AgentActionError("invalid_code_workspace_preview_path", 400);
+  }
+}
+
+function encodePreviewPath(path: string): string {
+  return path.split("/").map(encodeURIComponent).join("/");
+}
+
+function contentTypeForPreviewPath(path: string): string {
+  const lower = path.toLowerCase();
+  if (lower.endsWith(".html") || lower.endsWith(".htm")) {
+    return "text/html; charset=utf-8";
+  }
+  if (lower.endsWith(".css")) return "text/css; charset=utf-8";
+  if (lower.endsWith(".js") || lower.endsWith(".mjs")) {
+    return "text/javascript; charset=utf-8";
+  }
+  if (lower.endsWith(".json")) return "application/json; charset=utf-8";
+  if (lower.endsWith(".svg")) return "image/svg+xml; charset=utf-8";
+  return "text/plain; charset=utf-8";
 }
 
 function parseNoteActionPayload(

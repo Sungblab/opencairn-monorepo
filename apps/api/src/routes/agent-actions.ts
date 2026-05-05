@@ -15,6 +15,7 @@ import {
   createAgentAction,
   getAgentAction,
   listAgentActions,
+  readCodeProjectPreviewAsset,
   transitionAgentActionStatus,
   type AgentActionServiceOptions,
 } from "../lib/agent-actions";
@@ -138,6 +139,43 @@ export function createAgentActionRoutes(options?: AgentActionRouteOptions) {
         }
       },
     )
+    .get(
+      "/agent-actions/:id/preview/*",
+      auth,
+      zValidator("param", idParamSchema),
+      async (c) => {
+        try {
+          const id = c.req.valid("param").id;
+          const asset = await readCodeProjectPreviewAsset(
+            id,
+            c.get("userId"),
+            previewAssetPath(c.req.path, id),
+            serviceOptions,
+          );
+          return new Response(asset.content, {
+            headers: {
+              "Content-Type": asset.contentType,
+              "Content-Security-Policy": [
+                "sandbox allow-scripts",
+                "default-src 'none'",
+                "img-src 'self' data: blob:",
+                "font-src 'self' data:",
+                "style-src 'self' 'unsafe-inline'",
+                "script-src 'self' 'unsafe-inline'",
+                "connect-src 'none'",
+                "base-uri 'none'",
+                "form-action 'none'",
+                "frame-ancestors 'self'",
+              ].join("; "),
+              "X-Content-Type-Options": "nosniff",
+              "Cache-Control": "private, no-store",
+            },
+          });
+        } catch (err) {
+          return agentActionError(c, err);
+        }
+      },
+    )
     .post(
       "/agent-actions/:id/cancel",
       auth,
@@ -177,6 +215,13 @@ export function createAgentActionRoutes(options?: AgentActionRouteOptions) {
 }
 
 export const agentActionRoutes = createAgentActionRoutes();
+
+function previewAssetPath(path: string, actionId: string): string {
+  const marker = `/agent-actions/${actionId}/preview/`;
+  const index = path.indexOf(marker);
+  if (index < 0) return "index.html";
+  return path.slice(index + marker.length) || "index.html";
+}
 
 function agentActionError(c: import("hono").Context<AppEnv>, err: unknown): Response {
   if (err instanceof AgentActionError) {
