@@ -68,6 +68,7 @@ import {
   cancelCodeWorkspaceCommandWorkflow,
   createTemporalCodeCommandRunner,
 } from "./code-workspace-command-runner";
+import { createTemporalCodeInstallRunner } from "./code-workspace-install-runner";
 import { createTemporalCodeRepairPlanner } from "./code-workspace-repair-planner";
 import { canWrite } from "./permissions";
 import { streamObject } from "./s3-get";
@@ -1182,7 +1183,7 @@ async function applyCodeProjectInstallAction(
     const snapshot = await codeRepo.findSnapshotById(workspace.id, payload.snapshotId);
     if (!snapshot) throw new AgentActionError("code_workspace_snapshot_not_found", 404);
 
-    const runner = options?.codeInstallRunner ?? createUnavailableCodeInstallRunner();
+    const runner = options?.codeInstallRunner ?? createDefaultCodeInstallRunner();
     const installResult = codeWorkspaceInstallResultSchema.parse(
       await runner.install({
         action: current,
@@ -1296,6 +1297,13 @@ function createUnavailableCodeInstallRunner(): CodeInstallRunner {
       throw new AgentActionError("code_install_runner_unavailable", 409);
     },
   };
+}
+
+function createDefaultCodeInstallRunner(): CodeInstallRunner {
+  if (process.env.FEATURE_CODE_WORKSPACE_INSTALLS === "true") {
+    return createTemporalCodeInstallRunner();
+  }
+  return createUnavailableCodeInstallRunner();
 }
 
 function createUnavailableCodeRepairPlanner(): CodeRepairPlanner {
