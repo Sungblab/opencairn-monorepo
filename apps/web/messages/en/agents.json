@@ -52,6 +52,46 @@
     "staleAlerts": "Stale alerts",
     "audioFiles": "Audio files"
   },
+  "workflowConsole": {
+    "title": "Workflow Console",
+    "subtitle": "Review this project's agent, import, export, and code run status together.",
+    "loading": "Loading Workflow Console.",
+    "error": "Couldn't load Workflow Console.",
+    "empty": "No Workflow Console runs to show.",
+    "filters": {
+      "all": "All",
+      "active": "Active",
+      "failed": "Failed",
+      "completed": "Completed"
+    },
+    "columns": {
+      "run": "Run",
+      "status": "Status",
+      "updated": "Updated",
+      "detail": "Detail"
+    },
+    "type": {
+      "chat": "Chat",
+      "agent_action": "Agent action",
+      "plan8_agent": "Plan8",
+      "document_generation": "Document generation",
+      "import": "Import",
+      "export": "Export",
+      "code_agent": "Code agent",
+      "system_workflow": "System"
+    },
+    "status": {
+      "draft": "Draft",
+      "approval_required": "Approval required",
+      "queued": "Queued",
+      "running": "Running",
+      "blocked": "Blocked",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "reverted": "Reverted"
+    }
+  },
   "tables": {
     "agent": "Agent",
     "status": "Status",

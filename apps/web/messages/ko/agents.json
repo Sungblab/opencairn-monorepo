@@ -52,6 +52,46 @@
     "staleAlerts": "Stale alerts",
     "audioFiles": "Audio files"
   },
+  "workflowConsole": {
+    "title": "Workflow Console",
+    "subtitle": "이 프로젝트의 에이전트, 가져오기, 내보내기, 코드 실행 상태를 함께 봅니다.",
+    "loading": "Workflow Console을 불러오는 중입니다.",
+    "error": "Workflow Console을 불러오지 못했습니다.",
+    "empty": "표시할 Workflow Console 실행이 없습니다.",
+    "filters": {
+      "all": "전체",
+      "active": "진행 중",
+      "failed": "실패",
+      "completed": "완료"
+    },
+    "columns": {
+      "run": "실행",
+      "status": "상태",
+      "updated": "업데이트",
+      "detail": "세부 정보"
+    },
+    "type": {
+      "chat": "채팅",
+      "agent_action": "에이전트 작업",
+      "plan8_agent": "Plan8",
+      "document_generation": "문서 생성",
+      "import": "가져오기",
+      "export": "내보내기",
+      "code_agent": "코드 에이전트",
+      "system_workflow": "시스템"
+    },
+    "status": {
+      "draft": "초안",
+      "approval_required": "승인 필요",
+      "queued": "대기 중",
+      "running": "실행 중",
+      "blocked": "대기",
+      "completed": "완료",
+      "failed": "실패",
+      "cancelled": "취소됨",
+      "reverted": "되돌림"
+    }
+  },
   "tables": {
     "agent": "에이전트",
     "status": "상태",

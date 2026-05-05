@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import messages from "../../../../messages/ko/agents.json";
-import { plan8AgentsApi } from "@/lib/api-client";
+import { plan8AgentsApi, workflowConsoleApi } from "@/lib/api-client";
 import { AgentEntryPointsView } from "./agent-entrypoints-view";
 
 vi.mock("sonner", () => ({
@@ -32,6 +32,9 @@ vi.mock("@/lib/api-client", () => ({
     runNarrator: vi.fn(),
     resolveSuggestion: vi.fn(),
     reviewStaleAlert: vi.fn(),
+  },
+  workflowConsoleApi: {
+    list: vi.fn(),
   },
 }));
 
@@ -116,6 +119,45 @@ const emptyOverview = {
   audioFiles: [],
 };
 
+const workflowRuns = [
+  {
+    runId: "agent_action:00000000-0000-4000-8000-000000000050",
+    runType: "agent_action" as const,
+    sourceId: "00000000-0000-4000-8000-000000000050",
+    sourceStatus: "approval_required",
+    workspaceId: "workspace-1",
+    projectId: "project-1",
+    actorUserId: "user-1",
+    title: "code_project.install",
+    status: "approval_required" as const,
+    risk: "external" as const,
+    outputs: [],
+    approvals: [],
+    error: null,
+    createdAt: "2026-05-04T00:20:00.000Z",
+    updatedAt: "2026-05-04T00:20:00.000Z",
+    completedAt: null,
+  },
+  {
+    runId: "import:00000000-0000-4000-8000-000000000060",
+    runType: "import" as const,
+    sourceId: "00000000-0000-4000-8000-000000000060",
+    sourceStatus: "failed",
+    workspaceId: "workspace-1",
+    projectId: "project-1",
+    actorUserId: "user-1",
+    title: "Import google_drive",
+    status: "failed" as const,
+    risk: "external" as const,
+    outputs: [],
+    approvals: [],
+    error: { code: "import_failed", retryable: true, message: "Grant expired" },
+    createdAt: "2026-05-04T00:25:00.000Z",
+    updatedAt: "2026-05-04T00:26:00.000Z",
+    completedAt: "2026-05-04T00:26:00.000Z",
+  },
+];
+
 function setup(locale = "ko") {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
@@ -161,6 +203,7 @@ describe("AgentEntryPointsView", () => {
     vi.mocked(plan8AgentsApi.reviewStaleAlert).mockResolvedValue({
       ok: true,
     });
+    vi.mocked(workflowConsoleApi.list).mockResolvedValue({ runs: workflowRuns });
   });
 
   afterEach(() => {
@@ -200,6 +243,22 @@ describe("AgentEntryPointsView", () => {
       "src",
       "/api/agents/plan8/audio-files/audio-1/file",
     );
+
+    expect(await screen.findByRole("heading", { name: "Workflow Console" })).toBeInTheDocument();
+    expect(workflowConsoleApi.list).toHaveBeenCalledWith("project-1", 25);
+    expect(screen.getByText("code_project.install")).toBeInTheDocument();
+    expect(screen.getByText("Import google_drive")).toBeInTheDocument();
+  });
+
+  it("filters Workflow Console runs by failed status", async () => {
+    setup();
+
+    await screen.findByRole("heading", { name: "Workflow Console" });
+    fireEvent.click(screen.getByRole("button", { name: "실패" }));
+
+    expect(screen.queryByText("code_project.install")).not.toBeInTheDocument();
+    expect(screen.getByText("Import google_drive")).toBeInTheDocument();
+    expect(screen.getByText("Grant expired")).toBeInTheDocument();
   });
 
   it("launches synthesis with the default selected notes", async () => {
