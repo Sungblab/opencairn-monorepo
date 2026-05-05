@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/sheet";
 import {
   plan8AgentsApi,
+  importJobsApi,
   workflowConsoleApi,
   type Plan8AgentName,
   type Plan8AgentRun,
@@ -552,11 +553,86 @@ function WorkflowConsoleProjectList({
 }
 
 function WorkflowConsoleRunDetail({ run }: { run: WorkflowConsoleRun }) {
+  const t = useTranslations("agents");
+  const queryClient = useQueryClient();
+  const invalidateWorkflowConsole = () => {
+    if (!run.projectId) return;
+    void queryClient.invalidateQueries({
+      queryKey: ["agents-workflow-console-runs", run.projectId],
+    });
+  };
+  const retryImport = useMutation({
+    mutationFn: () => importJobsApi.retry(run.sourceId),
+    onSuccess: () => {
+      toast.success(t("workflowConsole.importActions.retrySuccess"));
+      invalidateWorkflowConsole();
+    },
+    onError: () => {
+      toast.error(t("workflowConsole.importActions.retryError"));
+    },
+  });
+  const cancelImport = useMutation({
+    mutationFn: () => importJobsApi.cancel(run.sourceId),
+    onSuccess: () => {
+      toast.success(t("workflowConsole.importActions.cancelSuccess"));
+      invalidateWorkflowConsole();
+    },
+    onError: () => {
+      toast.error(t("workflowConsole.importActions.cancelError"));
+    },
+  });
+  const canRetryImport =
+    run.runType === "import" &&
+    run.status === "failed" &&
+    run.error?.retryable !== false;
+  const canCancelImport =
+    run.runType === "import" && (run.status === "queued" || run.status === "running");
+
+  const actionButtons =
+    canRetryImport || canCancelImport ? (
+      <div className="mt-1 flex flex-wrap gap-1">
+        {canRetryImport ? (
+          <button
+            type="button"
+            aria-label={t("workflowConsole.importActions.retryAria")}
+            onClick={() => retryImport.mutate()}
+            disabled={retryImport.isPending}
+            className="inline-flex h-6 items-center gap-1 rounded border border-border px-1.5 text-[11px] text-foreground hover:bg-accent disabled:opacity-50"
+          >
+            <RotateCw aria-hidden className="h-3 w-3" />
+            {t("workflowConsole.importActions.retry")}
+          </button>
+        ) : null}
+        {canCancelImport ? (
+          <button
+            type="button"
+            aria-label={t("workflowConsole.importActions.cancelAria")}
+            onClick={() => cancelImport.mutate()}
+            disabled={cancelImport.isPending}
+            className="inline-flex h-6 items-center gap-1 rounded border border-border px-1.5 text-[11px] text-foreground hover:bg-accent disabled:opacity-50"
+          >
+            <X aria-hidden className="h-3 w-3" />
+            {t("workflowConsole.importActions.cancel")}
+          </button>
+        ) : null}
+      </div>
+    ) : null;
+
   if (run.error?.message) {
-    return <span className="text-destructive">{run.error.message}</span>;
+    return (
+      <div className="min-w-0">
+        <span className="text-destructive">{run.error.message}</span>
+        {actionButtons}
+      </div>
+    );
   }
   if (run.outputs.length === 0) {
-    return <span className="break-all font-mono text-[11px]">{run.runId}</span>;
+    return (
+      <div className="min-w-0">
+        <span className="break-all font-mono text-[11px]">{run.runId}</span>
+        {actionButtons}
+      </div>
+    );
   }
   return (
     <div className="grid gap-1">
@@ -574,6 +650,7 @@ function WorkflowConsoleRunDetail({ run }: { run: WorkflowConsoleRun }) {
           ) : null}
         </div>
       ))}
+      {actionButtons}
     </div>
   );
 }

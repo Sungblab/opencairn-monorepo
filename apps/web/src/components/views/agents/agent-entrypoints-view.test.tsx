@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import messages from "../../../../messages/ko/agents.json";
-import { plan8AgentsApi, workflowConsoleApi } from "@/lib/api-client";
+import { importJobsApi, plan8AgentsApi, workflowConsoleApi } from "@/lib/api-client";
 import { AgentEntryPointsView } from "./agent-entrypoints-view";
 
 vi.mock("sonner", () => ({
@@ -35,6 +35,10 @@ vi.mock("@/lib/api-client", () => ({
   },
   workflowConsoleApi: {
     list: vi.fn(),
+  },
+  importJobsApi: {
+    retry: vi.fn(),
+    cancel: vi.fn(),
   },
 }));
 
@@ -170,6 +174,24 @@ const workflowRuns = [
     updatedAt: "2026-05-04T00:26:00.000Z",
     completedAt: "2026-05-04T00:26:00.000Z",
   },
+  {
+    runId: "import:00000000-0000-4000-8000-000000000061",
+    runType: "import" as const,
+    sourceId: "00000000-0000-4000-8000-000000000061",
+    sourceStatus: "running",
+    workspaceId: "workspace-1",
+    projectId: "project-1",
+    actorUserId: "user-1",
+    title: "Import notion_zip",
+    status: "running" as const,
+    risk: "external" as const,
+    outputs: [],
+    approvals: [],
+    error: null,
+    createdAt: "2026-05-04T00:27:00.000Z",
+    updatedAt: "2026-05-04T00:28:00.000Z",
+    completedAt: null,
+  },
 ];
 
 function setup(locale = "ko") {
@@ -217,6 +239,11 @@ describe("AgentEntryPointsView", () => {
     vi.mocked(plan8AgentsApi.reviewStaleAlert).mockResolvedValue({
       ok: true,
     });
+    vi.mocked(importJobsApi.retry).mockResolvedValue({
+      jobId: "00000000-0000-4000-8000-000000000062",
+      action: null,
+    });
+    vi.mocked(importJobsApi.cancel).mockResolvedValue({ ok: true });
     vi.mocked(workflowConsoleApi.list).mockImplementation(async (_projectId, options) => {
       const status =
         typeof options === "object" && options ? options.status : undefined;
@@ -246,7 +273,7 @@ describe("AgentEntryPointsView", () => {
     expect(screen.getByText("Connector")).toBeInTheDocument();
     expect(screen.getByText("Staleness")).toBeInTheDocument();
     expect(screen.getByText("Narrator")).toBeInTheDocument();
-    expect(screen.getByText("실행 중")).toBeInTheDocument();
+    expect(screen.getAllByText("실행 중").length).toBeGreaterThan(0);
     const suggestions = screen
       .getByRole("heading", { name: "Suggestions" })
       .closest("section");
@@ -324,6 +351,34 @@ describe("AgentEntryPointsView", () => {
     expect(screen.getByText("pnpm")).toBeInTheDocument();
     expect(screen.getByText("zod@3.25.0, @vitejs/plugin-react")).toBeInTheDocument();
     expect(screen.getByText("0")).toBeInTheDocument();
+  });
+
+  it("retries a failed import from the Workflow Console row", async () => {
+    setup();
+
+    await screen.findByText("Import google_drive");
+    fireEvent.click(screen.getByRole("button", { name: "가져오기 다시 시도" }));
+
+    await waitFor(() => {
+      expect(importJobsApi.retry).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000060",
+      );
+    });
+    expect(toast.success).toHaveBeenCalledWith("가져오기를 다시 시작했습니다.");
+  });
+
+  it("cancels a running import from the Workflow Console row", async () => {
+    setup();
+
+    await screen.findByText("Import notion_zip");
+    fireEvent.click(screen.getByRole("button", { name: "가져오기 취소" }));
+
+    await waitFor(() => {
+      expect(importJobsApi.cancel).toHaveBeenCalledWith(
+        "00000000-0000-4000-8000-000000000061",
+      );
+    });
+    expect(toast.success).toHaveBeenCalledWith("가져오기를 취소했습니다.");
   });
 
   it("launches synthesis with the default selected notes", async () => {

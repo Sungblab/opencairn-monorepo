@@ -92,6 +92,16 @@
       "cancelled": "취소됨",
       "expired": "만료됨",
       "reverted": "되돌림"
+    },
+    "importActions": {
+      "retry": "다시 시도",
+      "retryAria": "가져오기 다시 시도",
+      "retrySuccess": "가져오기를 다시 시작했습니다.",
+      "retryError": "가져오기를 다시 시작하지 못했습니다.",
+      "cancel": "취소",
+      "cancelAria": "가져오기 취소",
+      "cancelSuccess": "가져오기를 취소했습니다.",
+      "cancelError": "가져오기를 취소하지 못했습니다."
     }
   },
   "tables": {

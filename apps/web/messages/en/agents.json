@@ -92,6 +92,16 @@
       "cancelled": "Cancelled",
       "expired": "Expired",
       "reverted": "Reverted"
+    },
+    "importActions": {
+      "retry": "Retry",
+      "retryAria": "Retry import",
+      "retrySuccess": "Import restarted.",
+      "retryError": "Couldn't restart the import.",
+      "cancel": "Cancel",
+      "cancelAria": "Cancel import",
+      "cancelSuccess": "Import cancelled.",
+      "cancelError": "Couldn't cancel the import."
     }
   },
   "tables": {

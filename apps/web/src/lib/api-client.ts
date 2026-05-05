@@ -447,6 +447,16 @@ export const workflowConsoleApi = {
 
 export type { WorkflowConsoleRun, WorkflowConsoleStatus };
 
+export const importJobsApi = {
+  retry: (jobId: string) =>
+    apiClient<{ jobId: string; action: AgentAction | null }>(
+      `/import/jobs/${jobId}/retry`,
+      { method: "POST" },
+    ),
+  cancel: (jobId: string) =>
+    apiClient<{ ok: true }>(`/import/jobs/${jobId}`, { method: "DELETE" }),
+};
+
 // ---------- Dashboard / workspace summary (Phase 5 Task 1) ----------
 // snake_case keys mirror the server contract — see workspaces.ts stats /
 // recent-notes routes. Kept verbatim so consumers can dump straight into
