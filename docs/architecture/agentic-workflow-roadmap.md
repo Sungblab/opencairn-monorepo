@@ -448,17 +448,21 @@ event sink exists.
    summaries into them. This contract slice is implemented in
    `packages/shared/src/workflow-console.ts` without moving existing UI
    components.
-2. **Embedded console sections.** Replace ad hoc status card normalization in
+2. **Read-only API projection.** Expose authenticated project-scoped list/detail
+   APIs for the shared projection. The first API slice is implemented at
+   `/api/projects/:projectId/workflow-console/runs` for chat runs, agent
+   actions, and Plan8 run summaries without mutating source tables.
+3. **Embedded console sections.** Replace ad hoc status card normalization in
    Agent Panel and Plan8 with shared render helpers while preserving current
    placement: chat remains in Agent Panel, Plan8 remains in the Agents view, and
    generated files remain project objects.
-3. **Project-level run drawer.** Add a project-scoped run drawer/list that can
+4. **Project-level run drawer.** Add a project-scoped run drawer/list that can
    open from Agent Panel cards, Plan8 rows, document-generation cards,
    import/export pages, and future code project tabs.
-4. **Approvals and recovery.** Centralize approve/reject/cancel/retry affordances
+5. **Approvals and recovery.** Centralize approve/reject/cancel/retry affordances
    so destructive actions, provider exports, stale previews, and code command
    approvals share one lifecycle.
-5. **Full workflow console.** Add filtering, search, logs, outputs, costs, and
+6. **Full workflow console.** Add filtering, search, logs, outputs, costs, and
    retry/cancel across run families after the projection proves stable.
 
 The key UI rule is that the console is a status and recovery surface, not a new

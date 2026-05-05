@@ -103,9 +103,11 @@ migration.
 
 ### 2. Read-Only API Projection
 
-Expose authenticated, project-scoped list/detail APIs that adapt existing chat
-runs, agent actions, Plan8 summaries, and document-generation actions where the
-data already exists.
+Implemented as authenticated, project-scoped list/detail APIs at
+`/api/projects/:projectId/workflow-console/runs`. The first projection adapts
+chat runs scoped to the project, agent action rows, and Plan8 run summaries
+where source data already exists. It does not mutate run tables or add a new run
+table.
 
 ### 3. Incremental UI Adoption
 

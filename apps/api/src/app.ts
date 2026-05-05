@@ -59,6 +59,7 @@ import { notificationPreferenceRoutes } from "./routes/notification-preferences"
 import { agentFileRoutes } from "./routes/agent-files";
 import { agentActionRoutes } from "./routes/agent-actions";
 import { documentGenerationRoutes } from "./routes/document-generation";
+import { workflowConsoleRoutes } from "./routes/workflow-console";
 import { startEmailDispatcher } from "./lib/email-dispatcher";
 
 export function createApp() {
@@ -117,6 +118,7 @@ export function createApp() {
   app.route("/api/agent-files", agentFileRoutes);
   app.route("/api", documentGenerationRoutes);
   app.route("/api", agentActionRoutes);
+  app.route("/api", workflowConsoleRoutes);
   // Plan 2C share-link routes. Same public-then-auth shape as inviteRoutes.
   // Mounted FIRST among `/api` wildcard sub-apps so its public route
   // (`/api/public/share/:token`) is dispatched before any other sub-app's
