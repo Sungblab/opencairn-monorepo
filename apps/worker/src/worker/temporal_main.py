@@ -54,6 +54,7 @@ from worker.activities.emit_event import emit_started
 from worker.activities.enhance_activity import enhance_with_gemini
 from worker.activities.google_workspace_export import (
     export_project_object_to_google_workspace,
+    finalize_google_workspace_export,
 )
 from worker.activities.hwp_activity import parse_hwp
 from worker.activities.image_activity import analyze_image
@@ -300,7 +301,10 @@ def build_worker_config() -> WorkerConfig:
     # inject a fake Google client so this slice never requires Google creds.
     if os.environ.get("FEATURE_GOOGLE_WORKSPACE_EXPORT", "false").lower() == "true":
         workflows.append(GoogleWorkspaceExportWorkflow)
-        activities.append(export_project_object_to_google_workspace)
+        activities.extend([
+            export_project_object_to_google_workspace,
+            finalize_google_workspace_export,
+        ])
 
     return WorkerConfig(workflows=workflows, activities=activities)
 

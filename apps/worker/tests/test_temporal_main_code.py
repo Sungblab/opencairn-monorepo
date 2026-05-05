@@ -97,6 +97,7 @@ def test_google_workspace_export_omitted_when_flag_off(
     assert "GoogleWorkspaceExportWorkflow" not in [w.__name__ for w in cfg.workflows]
     activity_names = [a.__name__ for a in cfg.activities]
     assert "export_project_object_to_google_workspace" not in activity_names
+    assert "finalize_google_workspace_export" not in activity_names
 
 
 def test_google_workspace_export_registered_when_flag_on(
@@ -107,6 +108,7 @@ def test_google_workspace_export_registered_when_flag_on(
     assert "GoogleWorkspaceExportWorkflow" in [w.__name__ for w in cfg.workflows]
     activity_names = [a.__name__ for a in cfg.activities]
     assert "export_project_object_to_google_workspace" in activity_names
+    assert "finalize_google_workspace_export" in activity_names
 
 
 def test_enrichment_activities_omitted_when_flag_off(

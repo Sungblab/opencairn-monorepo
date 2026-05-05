@@ -351,6 +351,13 @@
       "when": 1777963913784,
       "tag": "0049_loose_doorman",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1777993288078,
+      "tag": "0050_mighty_omega_red",
+      "breakpoints": true
     }
   ]
 }

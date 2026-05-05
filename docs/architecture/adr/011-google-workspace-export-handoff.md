@@ -133,12 +133,14 @@ skeleton without a DB migration or live Google API call:
   tests; the default live client deliberately returns
   `google_export_live_disabled`.
 - Export terminal metadata is now represented in shared action events, but
-  successful provider export persistence is still not written to
+  successful provider export persistence is not forced into
   `external_object_refs`. That table cannot yet directly link an
   `agent_files` project object or carry exported MIME type, terminal status, and
-  stable provider error codes. A later slice must either extend connector
-  metadata or add a narrow provider-export record before treating persisted
-  Google export state as durable.
+  stable provider error codes. OpenCairn now uses the narrow
+  `agent_file_provider_exports` table plus the
+  `/api/internal/google-workspace/export-results` worker callback to persist
+  terminal Google export links or retryable errors against the originating
+  `file.export` action.
 
 ## Consequences
 

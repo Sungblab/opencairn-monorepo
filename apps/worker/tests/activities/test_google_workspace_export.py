@@ -114,3 +114,68 @@ async def test_rejects_missing_object_key() -> None:
         )
 
     assert exc.value.type == "google_export_missing_object_key"
+
+
+async def test_finalize_google_workspace_export_posts_terminal_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, dict]] = []
+
+    async def fake_post(path: str, body: dict) -> dict:
+        calls.append((path, body))
+        return {"ok": True}
+
+    monkeypatch.setattr(gwe, "post_internal", fake_post)
+
+    result = await gwe.finalize_google_workspace_export(
+        {
+            "action_id": "action-1",
+            "request_id": "00000000-0000-4000-8000-000000000001",
+            "workspace_id": "00000000-0000-4000-8000-000000000002",
+            "project_id": "00000000-0000-4000-8000-000000000003",
+            "user_id": "user-1",
+            "provider": "google_docs",
+            "object": {
+                "id": "00000000-0000-4000-8000-000000000004",
+                "title": "Report",
+                "filename": "report.docx",
+                "kind": "docx",
+                "mime_type": DOCX_MIME,
+                "bytes": 4096,
+                "object_key": "agent-files/report.docx",
+            },
+        },
+        gwe.GoogleWorkspaceExportResult(
+            ok=True,
+            requestId="00000000-0000-4000-8000-000000000001",
+            workflowId="google-workspace-export/00000000-0000-4000-8000-000000000001",
+            objectId="00000000-0000-4000-8000-000000000004",
+            provider="google_docs",
+            externalObjectId="google-doc-1",
+            externalUrl="https://docs.google.com/document/d/google-doc-1/edit",
+            exportedMimeType="application/vnd.google-apps.document",
+            exportStatus="completed",
+        ),
+    )
+
+    assert result == {"ok": True}
+    assert calls == [
+        (
+            "/api/internal/google-workspace/export-results",
+            {
+                "ok": True,
+                "requestId": "00000000-0000-4000-8000-000000000001",
+                "workflowId": "google-workspace-export/00000000-0000-4000-8000-000000000001",
+                "objectId": "00000000-0000-4000-8000-000000000004",
+                "provider": "google_docs",
+                "externalObjectId": "google-doc-1",
+                "externalUrl": "https://docs.google.com/document/d/google-doc-1/edit",
+                "exportedMimeType": "application/vnd.google-apps.document",
+                "exportStatus": "completed",
+                "actionId": "action-1",
+                "workspaceId": "00000000-0000-4000-8000-000000000002",
+                "projectId": "00000000-0000-4000-8000-000000000003",
+                "userId": "user-1",
+            },
+        )
+    ]

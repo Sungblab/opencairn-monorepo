@@ -323,8 +323,11 @@ Provider export should be modeled as an external, auditable effect:
 - The worker reads the already-stored OpenCairn artifact, uploads it to Drive,
   optionally asks Drive to convert it to a Google-native type, and returns
   provider metadata.
-- The API stores provider metadata through the connector/external-object-ref
-  surface when possible instead of adding a parallel export table first.
+- The API stores provider metadata through the narrow
+  `agent_file_provider_exports` record linked to the generated `agent_files`
+  project object and originating `file.export` action. Broader connector
+  metadata can still reference these rows later, but `external_object_refs`
+  is not the source of truth for generated-file provider exports.
 - Result events include provider name, external object ID, external URL, final
   Google MIME type, export status, and stable error codes.
 

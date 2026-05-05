@@ -39,7 +39,7 @@ class GoogleWorkspaceExportWorkflow:
                 heartbeat_timeout=timedelta(seconds=30),
                 retry_policy=retry,
             )
-            return GoogleWorkspaceExportResult(
+            result = GoogleWorkspaceExportResult(
                 ok=True,
                 requestId=normalized.request_id,
                 workflowId=workflow_id,
@@ -52,7 +52,7 @@ class GoogleWorkspaceExportWorkflow:
             )
         except Exception as exc:
             workflow.logger.exception("google workspace export failed: %s", exc)
-            return GoogleWorkspaceExportErrorResult(
+            result = GoogleWorkspaceExportErrorResult(
                 ok=False,
                 requestId=normalized.request_id,
                 workflowId=workflow_id,
@@ -62,3 +62,10 @@ class GoogleWorkspaceExportWorkflow:
                 errorCode=stable_google_export_error_code(exc),
                 retryable=True,
             )
+        await workflow.execute_activity(
+            "finalize_google_workspace_export",
+            args=[normalized, result],
+            start_to_close_timeout=timedelta(seconds=30),
+            retry_policy=retry,
+        )
+        return result
