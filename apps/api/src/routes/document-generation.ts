@@ -141,6 +141,10 @@ async function listDocumentGenerationSourceOptions(
     .limit(1);
   if (!project) return [];
 
+  // These are independent project-object families, each with its own scope and
+  // per-type newest-first limit. A join would either multiply unrelated rows or
+  // lose the per-source-family limit semantics, so keep the reads separate and
+  // parallelize the round-trips.
   const [noteRows, fileRows, threadRows, researchRows, synthesisRows] =
     await Promise.all([
       db
