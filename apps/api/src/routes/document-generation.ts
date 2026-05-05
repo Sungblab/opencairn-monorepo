@@ -18,6 +18,7 @@ import {
   synthesisRuns,
 } from "@opencairn/db";
 import {
+  exportProjectObjectActionSchema,
   generateProjectObjectActionSchema,
   type DocumentGenerationSource,
 } from "@opencairn/shared";
@@ -27,6 +28,10 @@ import {
   requestDocumentGenerationProjectObject,
   type DocumentGenerationActionServiceOptions,
 } from "../lib/document-generation-actions";
+import {
+  requestGoogleWorkspaceExportProjectObject,
+  type GoogleWorkspaceExportActionServiceOptions,
+} from "../lib/google-workspace-export-actions";
 import { canWrite } from "../lib/permissions";
 import type { AppEnv } from "../lib/types";
 
@@ -67,6 +72,7 @@ export type ListDocumentGenerationSourceOptions = (
 export interface DocumentGenerationRouteOptions extends DocumentGenerationActionServiceOptions {
   auth?: MiddlewareHandler<AppEnv>;
   listSourceOptions?: ListDocumentGenerationSourceOptions;
+  googleWorkspaceExport?: GoogleWorkspaceExportActionServiceOptions;
 }
 
 export function createDocumentGenerationRoutes(options?: DocumentGenerationRouteOptions) {
@@ -117,6 +123,30 @@ export function createDocumentGenerationRoutes(options?: DocumentGenerationRoute
           return documentGenerationError(c, err);
         }
       },
+    )
+    .post(
+      "/projects/:projectId/project-object-actions/export",
+      auth,
+      zValidator("param", projectParamSchema),
+      zValidator("json", exportProjectObjectActionSchema),
+      async (c) => {
+        try {
+          const result = await requestGoogleWorkspaceExportProjectObject(
+            c.req.valid("param").projectId,
+            c.get("userId"),
+            c.req.valid("json"),
+            {
+              ...options?.googleWorkspaceExport,
+              ...(options?.canWriteProject
+                ? { canWriteProject: options.canWriteProject }
+                : {}),
+            },
+          );
+          return c.json(result, result.idempotent ? 200 : 202);
+        } catch (err) {
+          return googleWorkspaceExportError(c, err);
+        }
+      },
     );
 }
 
@@ -128,6 +158,14 @@ function documentGenerationError(c: import("hono").Context<AppEnv>, err: unknown
   }
   console.error("[document-generation] unhandled error", err);
   return c.json({ error: "document_generation_start_failed" }, 503);
+}
+
+function googleWorkspaceExportError(c: import("hono").Context<AppEnv>, err: unknown): Response {
+  if (err instanceof AgentActionError) {
+    return c.json({ error: err.code, message: err.message }, err.status);
+  }
+  console.error("[google-workspace-export] unhandled error", err);
+  return c.json({ error: "google_workspace_export_start_failed" }, 503);
 }
 
 async function listDocumentGenerationSourceOptions(
