@@ -82,6 +82,7 @@
     "refreshing": "새로고침 중",
     "loadFailed": "작업 상태를 불러오지 못했어요.",
     "progress": "{percent}%",
+    "logSummary": "{packageManager} · {packages} · 종료 코드 {exitCode}",
     "type": {
       "chat": "채팅",
       "agent_action": "에이전트 작업",

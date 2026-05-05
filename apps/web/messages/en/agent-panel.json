@@ -82,6 +82,7 @@
     "refreshing": "Refreshing",
     "loadFailed": "Could not load run status.",
     "progress": "{percent}%",
+    "logSummary": "{packageManager} · {packages} · exit {exitCode}",
     "type": {
       "chat": "Chat",
       "agent_action": "Agent action",
