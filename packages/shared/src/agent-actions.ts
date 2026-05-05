@@ -19,6 +19,7 @@ export const agentActionStatusSchema = z.enum([
   "completed",
   "failed",
   "cancelled",
+  "expired",
   "reverted",
 ]);
 

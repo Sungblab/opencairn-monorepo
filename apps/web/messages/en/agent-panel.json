@@ -113,6 +113,7 @@
       "completed": "Completed",
       "failed": "Failed",
       "cancelled": "Cancelled",
+      "expired": "Expired",
       "reverted": "Reverted"
     }
   },

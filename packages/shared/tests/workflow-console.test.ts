@@ -97,6 +97,36 @@ describe("workflow console contracts", () => {
     });
   });
 
+  it("projects expired agent actions as terminal workflow console runs", () => {
+    const run = workflowConsoleRunFromAgentAction({
+      id: "00000000-0000-4000-8000-000000000023",
+      requestId: "00000000-0000-4000-8000-000000000024",
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      sourceRunId: "chat:00000000-0000-4000-8000-000000000010",
+      kind: "code_project.preview",
+      status: "expired",
+      risk: "external",
+      input: {},
+      preview: null,
+      result: null,
+      errorCode: "code_project_preview_expired",
+      createdAt,
+      updatedAt,
+    });
+
+    expect(workflowConsoleRunSchema.parse(run)).toMatchObject({
+      runId: "agent_action:00000000-0000-4000-8000-000000000023",
+      runType: "agent_action",
+      status: "expired",
+      error: {
+        code: "code_project_preview_expired",
+        retryable: false,
+      },
+    });
+  });
+
   it("projects completed static code preview actions as preview outputs", () => {
     const run = workflowConsoleRunFromAgentAction({
       id: "00000000-0000-4000-8000-000000000023",

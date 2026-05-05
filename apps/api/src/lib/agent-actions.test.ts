@@ -4,6 +4,7 @@ import {
   applyAgentAction,
   cancelCodeProjectRunAction,
   canTransition,
+  cleanupExpiredCodeProjectPreviews,
   createAgentAction,
   executeAgentAction,
   applyNoteUpdateAction,
@@ -602,6 +603,92 @@ describe("agent action service", () => {
     });
   });
 
+  it("expires completed static code_project.preview actions during cleanup", async () => {
+    const expiredPreview = makeAction({
+      kind: "code_project.preview",
+      status: "completed",
+      risk: "external",
+      result: {
+        ok: true,
+        kind: "code_project.preview",
+        mode: "static",
+        codeWorkspaceId: "00000000-0000-4000-8000-000000000030",
+        snapshotId: "00000000-0000-4000-8000-000000000031",
+        entryPath: "index.html",
+        previewUrl: `/api/agent-actions/${actionId}/preview/index.html`,
+        assetsBaseUrl: `/api/agent-actions/${actionId}/preview/`,
+        expiresAt: "2026-05-05T00:01:00.000Z",
+      },
+    });
+    const freshPreview = makeAction({
+      id: "00000000-0000-4000-8000-000000000040",
+      requestId: "00000000-0000-4000-8000-000000000041",
+      kind: "code_project.preview",
+      status: "completed",
+      risk: "external",
+      result: {
+        ok: true,
+        kind: "code_project.preview",
+        mode: "static",
+        codeWorkspaceId: "00000000-0000-4000-8000-000000000030",
+        snapshotId: "00000000-0000-4000-8000-000000000031",
+        entryPath: "index.html",
+        previewUrl: "/api/agent-actions/fresh/preview/index.html",
+        assetsBaseUrl: "/api/agent-actions/fresh/preview/",
+        expiresAt: "2026-05-05T00:10:00.000Z",
+      },
+    });
+    const repo = createMemoryRepo([expiredPreview, freshPreview]);
+
+    const cleanup = await cleanupExpiredCodeProjectPreviews({
+      repo,
+      now: () => new Date("2026-05-05T00:02:00.000Z"),
+    });
+
+    expect(cleanup).toMatchObject({
+      expiredCount: 1,
+      actionIds: [expiredPreview.id],
+    });
+    await expect(repo.findById(expiredPreview.id)).resolves.toMatchObject({
+      status: "expired",
+      errorCode: "code_project_preview_expired",
+    });
+    await expect(repo.findById(freshPreview.id)).resolves.toMatchObject({
+      status: "completed",
+      errorCode: null,
+    });
+  });
+
+  it("rejects static preview reads after cleanup expires the action", async () => {
+    const repo = createMemoryRepo([
+      makeAction({
+        kind: "code_project.preview",
+        status: "expired",
+        risk: "external",
+        result: {
+          ok: true,
+          kind: "code_project.preview",
+          mode: "static",
+          codeWorkspaceId: "00000000-0000-4000-8000-000000000030",
+          snapshotId: "00000000-0000-4000-8000-000000000031",
+          entryPath: "index.html",
+          previewUrl: `/api/agent-actions/${actionId}/preview/index.html`,
+          assetsBaseUrl: `/api/agent-actions/${actionId}/preview/`,
+          expiresAt: "2026-05-05T00:01:00.000Z",
+        },
+        errorCode: "code_project_preview_expired",
+      }),
+    ]);
+
+    await expect(
+      readCodeProjectPreviewAsset(actionId, userId, "index.html", {
+        repo,
+        codeWorkspaceRepo: createMemoryCodeWorkspaceRepository(),
+        canWriteProject: async () => true,
+      }),
+    ).rejects.toMatchObject(new AgentActionError("code_project_preview_expired", 409));
+  });
+
   it("marks note.update apply as failed and returns a stable 409 error on stale preview", async () => {
     const repo = createMemoryRepo();
     const { action } = await createAgentAction(
@@ -857,6 +944,17 @@ function createMemoryRepo(seed: AgentAction[] = []): AgentActionRepository {
         .filter((row) => row.projectId === pid)
         .filter((row) => row.sourceRunId === sourceRunId)
         .filter((row) => kind == null || row.kind === kind);
+    },
+    async listExpiredCodePreviewActions({ now, limit }) {
+      return [...rows.values()]
+        .filter((row) => row.kind === "code_project.preview")
+        .filter((row) => row.status === "completed")
+        .filter((row) => {
+          const result = row.result as { expiresAt?: unknown } | null;
+          return typeof result?.expiresAt === "string"
+            && new Date(result.expiresAt).getTime() <= now.getTime();
+        })
+        .slice(0, limit);
     },
     async insert(values) {
       const existing = await this.findByRequestId(
