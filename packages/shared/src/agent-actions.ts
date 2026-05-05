@@ -1,5 +1,10 @@
 import { z } from "zod";
 import { NoteVersionDiffSchema } from "./note-versions";
+import {
+  codeWorkspaceCreateRequestSchema,
+  codeWorkspacePatchPreviewSchema,
+  codeWorkspacePatchSchema,
+} from "./code-project-workspaces";
 
 export const agentActionStatusSchema = z.enum([
   "draft",
@@ -213,6 +218,7 @@ export const createAgentActionRequestSchema = z
       });
     }
     validatePhase2ANoteActionInput(value, ctx);
+    validateCodeProjectActionInput(value, ctx);
   });
 
 export const listAgentActionsQuerySchema = z.object({
@@ -291,6 +297,11 @@ export function parseNoteUpdateApplyResult(value: unknown): NoteUpdateApplyResul
   return parsed.success ? parsed.data : null;
 }
 
+export function parseCodeWorkspacePatchPreview(value: unknown) {
+  const parsed = codeWorkspacePatchPreviewSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
 function rejectOwnScopeFields(value: Record<string, unknown>, ctx: z.RefinementCtx): void {
   for (const key of Object.keys(value)) {
     if (forbiddenScopeFields.has(key)) {
@@ -318,6 +329,31 @@ function validatePhase2ANoteActionInput(
   if (!schema) return;
 
   const parsed = schema.safeParse(value.input ?? {});
+  if (parsed.success) return;
+  for (const issue of parsed.error.issues) {
+    ctx.addIssue({
+      ...issue,
+      path: ["input", ...issue.path],
+    });
+  }
+}
+
+function validateCodeProjectActionInput(
+  value: {
+    kind: AgentActionKind;
+    input?: Record<string, unknown>;
+  },
+  ctx: z.RefinementCtx,
+): void {
+  const input = value.input ?? {};
+  const schema =
+    value.kind === "code_project.create"
+      ? codeWorkspaceCreateRequestSchema
+      : value.kind === "code_project.patch"
+        ? codeWorkspacePatchSchema
+        : null;
+  if (!schema) return;
+  const parsed = schema.safeParse(input);
   if (parsed.success) return;
   for (const issue of parsed.error.issues) {
     ctx.addIssue({

@@ -227,6 +227,15 @@ commands, install dependencies, start hosted previews, or replace Canvas notes.
 - Persist final snapshots and archive links.
 - Keep command execution as a later handoff.
 
+Phase 1C now routes `code_project.create` and `code_project.patch` through the
+existing Agent Action Ledger. `code_project.create` persists a stored code
+workspace and first snapshot, then completes the action with workspace,
+snapshot, and archive link result metadata. `code_project.patch` stores a draft
+review action, records the reviewable patch request, renders the patch preview
+in the existing Agent Panel, and applies approved patches into a new immutable
+snapshot with a downloadable archive link. It still does not run generated
+project commands, install dependencies, host previews, or deploy external apps.
+
 ### Later Phase: Execution Loop
 
 - Implement approved sandbox commands for test/build/lint.

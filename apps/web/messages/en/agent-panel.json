@@ -50,6 +50,18 @@
     "applyFailed": "Could not apply the note edit proposal.",
     "cancelFailed": "Could not cancel the note edit proposal."
   },
+  "codeProjectReview": {
+    "title": "Code patch proposal",
+    "diffSummary": "{filesChanged} changed files · {additions} additions · {deletions} deletions",
+    "operationLabel": "Operations",
+    "staleWarning": "If the code workspace changes before apply, OpenCairn treats the patch as stale and asks for a fresh proposal.",
+    "apply": "Apply",
+    "reject": "Reject",
+    "applied": "Applied the code patch proposal.",
+    "cancelled": "Cancelled the code patch proposal.",
+    "applyFailed": "Could not apply the code patch proposal.",
+    "cancelFailed": "Could not cancel the code patch proposal."
+  },
   "workflowConsole": {
     "title": "Run status",
     "loading": "Loading runs…",

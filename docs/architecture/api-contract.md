@@ -216,15 +216,19 @@ permission checks. Phase 2B starts `note.update` with a two-step preview/apply
 contract: the API first reads the current Yjs-backed note content, compares it
 to the submitted draft, and stores a structured diff preview without applying
 the edit. A later apply call transforms the canonical Yjs document only if the
-preview state vector still matches the live document.
+preview state vector still matches the live document. Code Project Workspace
+Phase 1C adds `code_project.create` and `code_project.patch`: create actions
+persist stored code workspaces and complete with snapshot/archive metadata,
+while patch actions create draft review cards and apply approved patches into
+new immutable snapshots.
 
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
-| POST | /api/projects/:projectId/agent-actions | project `editor` | Create an action ledger row. `requestId` is idempotent per `(projectId, actorUserId)`. `workflow.placeholder` completes immediately with a placeholder result. Phase 2A note actions (`note.create`, `note.rename`, `note.move`, `note.delete`, `note.restore`) execute immediately through API permission checks and write terminal `status`, `result`, and `errorCode` back to the ledger. Phase 2B `note.update` validates a draft Plate value, reads `yjs_documents`, generates `preview.diff`, and stores `status:"draft"` with no `result`. Other action kinds are stored as substrate rows for later phases. | `{ requestId?, sourceRunId?, kind, risk, input?, preview? }` |
+| POST | /api/projects/:projectId/agent-actions | project `editor` | Create an action ledger row. `requestId` is idempotent per `(projectId, actorUserId)`. `workflow.placeholder` completes immediately with a placeholder result. Phase 2A note actions (`note.create`, `note.rename`, `note.move`, `note.delete`, `note.restore`) execute immediately through API permission checks and write terminal `status`, `result`, and `errorCode` back to the ledger. Phase 2B `note.update` validates a draft Plate value, reads `yjs_documents`, generates `preview.diff`, and stores `status:"draft"` with no `result`. Code workspace `code_project.create` creates a stored workspace/snapshot and completes; `code_project.patch` stores `status:"draft"` with patch preview for approval. Other action kinds are stored as substrate rows for later phases. | `{ requestId?, sourceRunId?, kind, risk, input?, preview? }` |
 | GET | /api/projects/:projectId/agent-actions | project `editor` | List newest actions in a project. Optional filters: `?status=&kind=&limit=`. | - |
 | GET | /api/agent-actions/:id | project `editor` | Read one action after checking the action's project scope. | - |
 | PATCH | /api/agent-actions/:id/status | project `editor` | Transition action status using the shared status state machine; invalid transitions return `409 invalid_status_transition`. | `{ status, preview?, result?, errorCode? }` |
-| POST | /api/agent-actions/:id/apply | project `editor` | Apply a draft `note.update` action. The server validates the stored action kind/status, rejects stale previews with `409 note_update_stale_preview`, captures a note version before applying, transforms the live Yjs `"content"` root from the draft Plate value, updates mirror fields and `wiki_links` derived from Yjs, captures an `ai_edit` version after applying, and completes or fails the ledger row. | `{ yjsStateVectorBase64 }` |
+| POST | /api/agent-actions/:id/apply | project `editor` | Apply a draft review action. For `note.update`, the server validates the stored action kind/status, rejects stale previews with `409 note_update_stale_preview`, captures note versions around the Yjs transform, and completes or fails the ledger row. For `code_project.patch`, the server validates the stored base snapshot, rejects stale code workspaces with `409 code_workspace_stale_base`, creates a new immutable snapshot, updates the workspace current snapshot, and completes with archive metadata. | `{ yjsStateVectorBase64 }` for `note.update`; `{}` for `code_project.patch` |
 
 Action fields: `id`, `requestId`, `workspaceId`, `projectId`, `actorUserId`,
 `sourceRunId`, `kind`, `status`, `risk`, `input`, `preview`, `result`,

@@ -4,6 +4,10 @@ import { createAgentActionRoutes } from "./agent-actions";
 import type { AppEnv } from "../lib/types";
 import type { AgentAction } from "@opencairn/shared";
 import type { AgentActionRepository, NoteUpdateApplier, NoteUpdatePreviewer } from "../lib/agent-actions";
+import {
+  createMemoryCodeWorkspaceRepository,
+  type CodeWorkspaceRepository,
+} from "../lib/code-project-workspaces";
 
 const userId = "user-1";
 const workspaceId = "00000000-0000-4000-8000-000000000001";
@@ -191,7 +195,172 @@ describe("agent action routes", () => {
       errorCode: null,
     });
   });
+
+  it("creates a code_project.create action and persists a code workspace", async () => {
+    const codeWorkspaceRepo = createMemoryCodeWorkspaceRepository();
+    const app = appWith({
+      repo: createMemoryRepo(),
+      codeWorkspaceRepo,
+    });
+
+    const response = await app.request(`/api/projects/${projectId}/agent-actions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        requestId,
+        kind: "code_project.create",
+        risk: "write",
+        input: {
+          name: "Agent app",
+          language: "typescript",
+          framework: "react",
+          manifest: {
+            entries: [
+              { path: "src", kind: "directory" },
+              {
+                path: "src/App.tsx",
+                kind: "file",
+                bytes: 12,
+                contentHash: "sha256:app",
+                inlineContent: "export {}",
+              },
+            ],
+          },
+        },
+      }),
+    });
+
+    expect(response.status).toBe(201);
+    const body = await response.json() as { action: AgentAction };
+    expect(body.action).toMatchObject({
+      kind: "code_project.create",
+      status: "completed",
+      result: {
+        ok: true,
+        workspace: { name: "Agent app" },
+        snapshot: { manifest: { entries: [{ path: "src" }, { path: "src/App.tsx" }] } },
+      },
+      errorCode: null,
+    });
+    expect(codeWorkspaceRepo.rows.workspaces.size).toBe(1);
+  });
+
+  it("creates a draft code_project.patch action and applies it into a new snapshot", async () => {
+    const codeWorkspaceRepo = createMemoryCodeWorkspaceRepository();
+    const app = appWith({
+      repo: createMemoryRepo(),
+      codeWorkspaceRepo,
+    });
+
+    const createWorkspace = await app.request(`/api/projects/${projectId}/agent-actions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "code_project.create",
+        risk: "write",
+        input: {
+          name: "Patchable app",
+          manifest: {
+            entries: [
+              {
+                path: "src/App.tsx",
+                kind: "file",
+                bytes: 3,
+                contentHash: "sha256:old",
+                inlineContent: "old",
+              },
+            ],
+          },
+        },
+      }),
+    });
+    const created = await createWorkspace.json() as { action: AgentAction };
+    const workspace = (created.action.result?.workspace as { id: string; currentSnapshotId: string });
+
+    const patch = await app.request(`/api/projects/${projectId}/agent-actions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        requestId: "00000000-0000-4000-8000-000000000044",
+        kind: "code_project.patch",
+        risk: "write",
+        input: {
+          codeWorkspaceId: workspace.id,
+          baseSnapshotId: workspace.currentSnapshotId,
+          operations: [
+            {
+              op: "update",
+              path: "src/App.tsx",
+              beforeHash: "sha256:old",
+              afterHash: "sha256:new",
+              inlineContent: "new",
+            },
+          ],
+          preview: { filesChanged: 1, additions: 1, deletions: 1, summary: "Update app" },
+        },
+      }),
+    });
+
+    expect(patch.status).toBe(201);
+    const draft = await patch.json() as { action: AgentAction };
+    expect(draft.action).toMatchObject({
+      kind: "code_project.patch",
+      status: "draft",
+      preview: { filesChanged: 1, summary: "Update app" },
+      result: null,
+    });
+
+    const apply = await app.request(`/api/agent-actions/${draft.action.id}/apply`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(apply.status).toBe(200);
+    const applied = await apply.json() as { action: AgentAction };
+    expect(applied.action).toMatchObject({
+      kind: "code_project.patch",
+      status: "completed",
+      result: {
+        ok: true,
+        workspace: { id: workspace.id },
+        snapshot: {
+          manifest: {
+            entries: [
+              expect.objectContaining({
+                path: "src/App.tsx",
+                contentHash: "sha256:new",
+                inlineContent: "new",
+              }),
+            ],
+          },
+        },
+      },
+    });
+  });
 });
+
+function appWith(options: {
+  repo: AgentActionRepository;
+  codeWorkspaceRepo?: CodeWorkspaceRepository;
+  noteUpdatePreviewer?: NoteUpdatePreviewer;
+  noteUpdateApplier?: NoteUpdateApplier;
+}) {
+  return new Hono<AppEnv>().route(
+    "/api",
+    createAgentActionRoutes({
+      repo: options.repo,
+      codeWorkspaceRepo: options.codeWorkspaceRepo,
+      canWriteProject: async () => true,
+      noteUpdatePreviewer: options.noteUpdatePreviewer,
+      noteUpdateApplier: options.noteUpdateApplier,
+      auth: async (c, next) => {
+        c.set("userId", userId);
+        c.set("user", { id: userId, email: "user@example.com", name: "User" });
+        await next();
+      },
+    }),
+  );
+}
 
 function createMemoryRepo(): AgentActionRepository {
   const rows = new Map<string, AgentAction>();

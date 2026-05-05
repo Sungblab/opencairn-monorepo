@@ -37,6 +37,7 @@ import { DocumentGenerationCards, asDocumentGenerationCards } from "./message-bu
 import { DocumentGenerationForm } from "./document-generation-form";
 import { AgentPanelEmptyState } from "./empty-state";
 import { NoteUpdateActionReviewList } from "./note-update-action-review";
+import { CodeProjectActionReviewList } from "./code-project-action-review";
 import { PanelHeader } from "./panel-header";
 import { ScopeChipsRow, defaultScopeIds } from "./scope-chips-row";
 import { buildAgentScopePayload } from "./scope-payload";
@@ -259,6 +260,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
         newThreadDisabled={threadActionsDisabled}
       />
       <NoteUpdateActionReviewList projectId={activeProjectId} />
+      <CodeProjectActionReviewList projectId={activeProjectId} />
       <WorkflowConsoleRuns projectId={activeProjectId} />
       {activeThreadId ? (
         <Conversation

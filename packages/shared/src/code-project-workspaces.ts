@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { agentActionRiskSchema } from "./agent-actions";
 
 export const CODE_WORKSPACE_MAX_DEPTH = 16;
 export const CODE_WORKSPACE_MAX_ENTRIES = 2000;
@@ -250,6 +249,12 @@ export const codeWorkspacePatchPreviewSchema = z
   })
   .strict();
 
+export const codeWorkspacePatchRiskSchema = z.enum([
+  "write",
+  "destructive",
+  "expensive",
+]);
+
 export const codeWorkspacePatchSchema = z
   .object({
     requestId: z.string().uuid().optional(),
@@ -257,7 +262,7 @@ export const codeWorkspacePatchSchema = z
     baseSnapshotId: z.string().uuid(),
     operations: z.array(codeWorkspacePatchOperationSchema).min(1).max(500),
     preview: codeWorkspacePatchPreviewSchema,
-    risk: agentActionRiskSchema.extract(["write", "destructive", "expensive"]).default("write"),
+    risk: codeWorkspacePatchRiskSchema.default("write"),
   })
   .passthrough()
   .superRefine((value, ctx) => {
