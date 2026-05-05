@@ -448,12 +448,6 @@ async function moveNoteFromAction(
   if (!(await canWrite(input.actorUserId, { type: "note", id: payload.noteId }, { db: conn }))) {
     throw new AgentActionError("forbidden", 403);
   }
-  const [current] = await conn
-    .select({ id: notes.id, projectId: notes.projectId })
-    .from(notes)
-    .where(and(eq(notes.id, payload.noteId), eq(notes.projectId, input.projectId), isNull(notes.deletedAt)));
-  if (!current) throw new AgentActionError("note_not_found", 404);
-
   if (payload.folderId) {
     const [folder] = await conn
       .select({ id: folders.id })
@@ -461,26 +455,25 @@ async function moveNoteFromAction(
       .where(and(eq(folders.id, payload.folderId), eq(folders.projectId, input.projectId)));
     if (!folder) throw new AgentActionError("folder_not_found", 404);
   }
-  await conn
+  const [note] = await conn
     .update(notes)
     .set({ folderId: payload.folderId })
-    .where(eq(notes.id, payload.noteId));
+    .where(and(eq(notes.id, payload.noteId), eq(notes.projectId, input.projectId), isNull(notes.deletedAt)))
+    .returning({
+      id: notes.id,
+      projectId: notes.projectId,
+      folderId: notes.folderId,
+    });
+  if (!note) throw new AgentActionError("note_not_found", 404);
 
   emitTreeEvent({
     kind: "tree.note_moved",
-    projectId: input.projectId,
-    id: payload.noteId,
-    parentId: payload.folderId,
+    projectId: note.projectId,
+    id: note.id,
+    parentId: note.folderId,
     at: new Date().toISOString(),
   });
-  return {
-    ok: true,
-    note: {
-      id: payload.noteId,
-      projectId: input.projectId,
-      folderId: payload.folderId,
-    },
-  };
+  return { ok: true, note };
 }
 
 async function deleteNoteFromAction(
@@ -543,7 +536,7 @@ async function restoreNoteFromAction(
   const [note] = await conn
     .update(notes)
     .set({ deletedAt: null })
-    .where(eq(notes.id, payload.noteId))
+    .where(and(eq(notes.id, payload.noteId), eq(notes.projectId, input.projectId), isNotNull(notes.deletedAt)))
     .returning({
       id: notes.id,
       projectId: notes.projectId,
