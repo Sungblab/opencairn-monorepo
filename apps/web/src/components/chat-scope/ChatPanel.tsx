@@ -19,7 +19,12 @@ import { ChatInput } from "./ChatInput";
 import { CostBadge } from "./CostBadge";
 import { PinButton } from "./PinButton";
 import type { RagModeValue } from "./RagModeToggle";
-import { AgentFileCards, asAgentFileCards } from "../agent-panel/message-bubble";
+import {
+  AgentFileCards,
+  DocumentGenerationCards,
+  asAgentFileCards,
+  asDocumentGenerationCards,
+} from "../agent-panel/message-bubble";
 import { SaveSuggestionCard } from "../agent-panel/save-suggestion-card";
 
 type Message = {
@@ -32,6 +37,7 @@ type Message = {
   saveSuggestion?: SaveSuggestion;
   agentFiles?: unknown[];
   projectObjects?: unknown[];
+  projectObjectGenerations?: unknown[];
 };
 
 const isObj = (v: unknown): v is Record<string, unknown> =>
@@ -310,6 +316,20 @@ export function ChatPanel() {
                 }));
               }
               break;
+            case "project_object_generation_requested":
+            case "project_object_generation_status":
+            case "project_object_generation_completed":
+            case "project_object_generation_failed":
+              if (isObj(payload)) {
+                updateMessage(assistantKey, (message) => ({
+                  ...message,
+                  projectObjectGenerations: [
+                    ...(message.projectObjectGenerations ?? []),
+                    payload,
+                  ],
+                }));
+              }
+              break;
             case "error":
               updateMessage(assistantKey, (message) => ({
                 ...message,
@@ -425,6 +445,12 @@ export function ChatPanel() {
                 files={asAgentFileCards(m.agentFiles, m.projectObjects)}
               />
             )}
+            {m.role === "assistant" &&
+              (m.projectObjectGenerations?.length ?? 0) > 0 && (
+                <DocumentGenerationCards
+                  items={asDocumentGenerationCards(m.projectObjectGenerations)}
+                />
+              )}
           </div>
         ))}
       </div>

@@ -33,6 +33,7 @@ export interface StreamingAgentMessage {
   save_suggestion: unknown | null;
   agent_files: unknown[];
   project_objects: unknown[];
+  project_object_generations: unknown[];
   // Populated when the route emits `event: error` mid-stream. `done` still
   // arrives separately and triggers the live → null reset; this field lives
   // on the in-flight preview only and is not persisted (the agent row is
@@ -49,6 +50,7 @@ const initialLive: StreamingAgentMessage = {
   save_suggestion: null,
   agent_files: [],
   project_objects: [],
+  project_object_generations: [],
   error: null,
 };
 
@@ -112,6 +114,19 @@ export function useChatSend(threadId: string | null) {
               case "project_object_created":
                 return isObj(payload)
                   ? { ...prev, project_objects: [...prev.project_objects, payload.object ?? payload] }
+                  : prev;
+              case "project_object_generation_requested":
+              case "project_object_generation_status":
+              case "project_object_generation_completed":
+              case "project_object_generation_failed":
+                return isObj(payload)
+                  ? {
+                      ...prev,
+                      project_object_generations: [
+                        ...prev.project_object_generations,
+                        payload,
+                      ],
+                    }
                   : prev;
               case "error": {
                 toast.error(t("streamFailed"));

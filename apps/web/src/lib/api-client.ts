@@ -261,6 +261,7 @@ export interface ChatMessageContent {
   save_suggestion?: unknown;
   agent_files?: unknown[];
   project_objects?: unknown[];
+  project_object_generations?: unknown[];
 }
 
 export interface ChatMessage {
