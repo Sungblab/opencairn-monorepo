@@ -23,6 +23,7 @@ import {
   codeWorkspaceCreateRequestSchema,
   codeWorkspaceInstallRequestSchema,
   codeWorkspacePatchSchema,
+  codeWorkspacePreviewRequestSchema,
   noteUpdateApplyRequestSchema,
   noteUpdateApplyResultSchema,
   noteUpdatePreviewSchema,
@@ -335,6 +336,7 @@ export async function createAgentAction(
   const executableCodeCreateAction = request.kind === "code_project.create";
   const codePatchAction = request.kind === "code_project.patch";
   const codeInstallAction = request.kind === "code_project.install";
+  const codePreviewAction = request.kind === "code_project.preview";
   const executableCodeRunAction = request.kind === "code_project.run";
   const noteUpdatePreview =
     request.kind === "note.update"
@@ -371,6 +373,8 @@ export async function createAgentAction(
     preview: noteUpdatePreview ?? request.preview ?? (
       codeInstallAction
         ? codeInstallApprovalPreview(request.input ?? {})
+        : codePreviewAction
+          ? codePreviewApprovalPreview(request.input ?? {})
         : placeholder
           ? placeholderPreview(request.input ?? {})
           : null
@@ -1088,6 +1092,18 @@ function codeInstallApprovalPreview(input: Record<string, unknown>) {
     packages: payload.packages,
     network: payload.network,
     summary: `Install ${names.join(", ")} with ${payload.packageManager}`,
+    reason: payload.reason ?? null,
+  };
+}
+
+function codePreviewApprovalPreview(input: Record<string, unknown>) {
+  const payload = codeWorkspacePreviewRequestSchema.parse(input);
+  return {
+    kind: "code_project.preview",
+    approval: "hosted_preview",
+    mode: payload.mode,
+    entryPath: payload.entryPath,
+    summary: `Create static preview for ${payload.entryPath}`,
     reason: payload.reason ?? null,
   };
 }

@@ -1,0 +1,1 @@
+ALTER TYPE "public"."agent_action_kind" ADD VALUE 'code_project.preview' BEFORE 'code_project.package';

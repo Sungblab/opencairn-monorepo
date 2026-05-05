@@ -480,6 +480,44 @@ describe("agent action routes", () => {
     });
   });
 
+  it("creates an approval-required static code_project.preview action", async () => {
+    const app = appWith({
+      repo: createMemoryRepo(),
+    });
+
+    const response = await app.request(`/api/projects/${projectId}/agent-actions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        requestId: "00000000-0000-4000-8000-000000000076",
+        kind: "code_project.preview",
+        risk: "external",
+        input: {
+          codeWorkspaceId: "00000000-0000-4000-8000-000000000020",
+          snapshotId: "00000000-0000-4000-8000-000000000021",
+          mode: "static",
+          entryPath: "index.html",
+          reason: "Review generated app",
+        },
+      }),
+    });
+
+    expect(response.status).toBe(201);
+    const body = await response.json() as { action: AgentAction };
+    expect(body.action).toMatchObject({
+      kind: "code_project.preview",
+      risk: "external",
+      status: "approval_required",
+      preview: {
+        kind: "code_project.preview",
+        approval: "hosted_preview",
+        mode: "static",
+        entryPath: "index.html",
+        summary: "Create static preview for index.html",
+      },
+    });
+  });
+
   it("cancels a running code_project.run action", async () => {
     const running = makeAction({
       id: "00000000-0000-4000-8000-000000000080",

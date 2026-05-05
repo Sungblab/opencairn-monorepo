@@ -101,6 +101,36 @@ describe("agent action schemas", () => {
     );
   });
 
+  it("requires external approval risk for hosted preview actions", () => {
+    expect(
+      createAgentActionRequestSchema.parse({
+        kind: "code_project.preview",
+        risk: "external",
+        input: {
+          codeWorkspaceId: "00000000-0000-4000-8000-000000000203",
+          snapshotId: "00000000-0000-4000-8000-000000000101",
+          mode: "static",
+          entryPath: "index.html",
+        },
+      }).risk,
+    ).toBe("external");
+
+    const parsed = createAgentActionRequestSchema.safeParse({
+      kind: "code_project.preview",
+      risk: "write",
+      input: {
+        codeWorkspaceId: "00000000-0000-4000-8000-000000000203",
+        snapshotId: "00000000-0000-4000-8000-000000000101",
+        mode: "static",
+      },
+    });
+
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues.map((issue) => issue.message)).toContain(
+      "hosted_previews_must_require_external_approval",
+    );
+  });
+
   it("accepts the Phase 2A note action input contracts", () => {
     expect(
       createAgentActionRequestSchema.parse({

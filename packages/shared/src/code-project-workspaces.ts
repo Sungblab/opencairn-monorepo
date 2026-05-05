@@ -298,6 +298,32 @@ export const codeWorkspaceInstallRequestSchema = z
     );
   });
 
+export const codeWorkspacePreviewRequestSchema = z
+  .object({
+    requestId: z.string().uuid().optional(),
+    codeWorkspaceId: z.string().uuid(),
+    snapshotId: z.string().uuid(),
+    mode: z.literal("static"),
+    entryPath: normalizedPathSchema.default("index.html"),
+    reason: z.string().trim().min(1).max(500).optional(),
+  })
+  .passthrough()
+  .superRefine((value, ctx) => {
+    rejectScopeFields(value, ctx);
+    rejectUnknownFields(
+      value,
+      new Set([
+        "requestId",
+        "codeWorkspaceId",
+        "snapshotId",
+        "mode",
+        "entryPath",
+        "reason",
+      ]),
+      ctx,
+    );
+  });
+
 export const codeWorkspaceCommandRunRequestSchema = z
   .object({
     requestId: z.string().uuid().optional(),

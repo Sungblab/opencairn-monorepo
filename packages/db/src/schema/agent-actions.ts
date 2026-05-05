@@ -64,6 +64,7 @@ export const agentActionKindEnum = pgEnum("agent_action_kind", [
   "code_project.delete",
   "code_project.install",
   "code_project.run",
+  "code_project.preview",
   "code_project.package",
 ]);
 
