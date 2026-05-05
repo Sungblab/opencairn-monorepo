@@ -472,7 +472,8 @@ event sink exists.
    import/export pages, and future code project tabs. The Agents view now has
    a first project-scoped Workflow Console list backed by the shared projection,
    with status filters for all, active, failed, and completed runs plus a search
-   box wired to the shared list API.
+   box wired to the shared list API. Its detail column renders multiple outputs
+   and dependency-install log metadata instead of only the first output label.
 5. **Approvals and recovery.** Centralize approve/reject/cancel/retry affordances
    so destructive actions, provider exports, stale previews, and code command
    approvals share one lifecycle.
@@ -481,7 +482,8 @@ event sink exists.
    list API now accepts an exact normalized `status` filter plus `q` search over
    normalized run IDs, source IDs/statuses, run types, titles, errors, and output
    labels/URLs. The Agents view uses those paths for failed/completed Workflow
-   Console filters and run search.
+   Console filters and run search, and now shows normalized output links plus
+   package manager/package/exit-code metadata for log outputs.
 
 The key UI rule is that the console is a status and recovery surface, not a new
 artifact editor. Opening outputs should deep-link to notes, generated files,
