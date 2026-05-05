@@ -1,0 +1,10 @@
+{
+  "viewer": {
+    "loading": "Loading code workspace...",
+    "error": "Unable to open this code workspace.",
+    "archive": "Download archive",
+    "meta": "{files} files · {directories} folders",
+    "currentSnapshot": "Snapshot {id}",
+    "bytes": "{bytes} B"
+  }
+}

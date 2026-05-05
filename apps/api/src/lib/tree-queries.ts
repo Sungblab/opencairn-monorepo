@@ -15,7 +15,7 @@ import { and, eq, sql, db, folders, notes } from "@opencairn/db";
 export const labelFromId = (uuid: string): string => uuid.replace(/-/g, "_");
 
 export interface TreeRow {
-  kind: "folder" | "note" | "agent_file";
+  kind: "folder" | "note" | "agent_file" | "code_workspace";
   id: string;
   parentId: string | null;
   label: string;
@@ -27,7 +27,7 @@ export interface TreeRow {
 
 // Must satisfy `Record<string, unknown>` — drizzle's `db.execute<T>` constrains T.
 type RawRow = {
-  kind: "folder" | "note" | "agent_file";
+  kind: "folder" | "note" | "agent_file" | "code_workspace";
   id: string;
   parentId: string | null;
   label: string;
@@ -131,6 +131,27 @@ export async function listChildren(opts: {
     WHERE ${projectScope(opts.projectId)}
       AND ${noteParent}
       AND p.deleted_at IS NULL
+
+    UNION ALL
+
+    SELECT
+      'code_workspace'::text,
+      p.id,
+      NULL                                                  AS "parentId",
+      p.name                                               AS "label",
+      NULL                                                  AS "pathText",
+      0                                                     AS "childCount",
+      'code_workspace'::text                               AS "fileKind",
+      NULL                                                  AS "mimeType",
+      3                                                     AS "sortGroup",
+      lpad(
+        coalesce(extract(epoch FROM p.created_at)::bigint::text, '0'),
+        16,
+        '0'
+      )                                                     AS "sortKey"
+    FROM code_workspaces p
+    WHERE ${projectScope(opts.projectId)}
+      AND ${opts.parentId === null ? sql`p.deleted_at IS NULL` : sql`false`}
 
     ORDER BY "sortGroup", "sortKey"
   `);

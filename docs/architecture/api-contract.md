@@ -187,6 +187,24 @@ Agent-generated files are first-class project objects stored in MinIO/R2 and sur
 | POST | /api/agent-files/:id/canvas | project `editor` | Materialize code/html source into a Canvas note and link `agent_files.canvas_note_id`. Execution remains browser sandboxed. | - |
 | DELETE | /api/agent-files/:id | project `editor` | Soft delete generated file row; stored bytes remain immutable. | - |
 
+### Code Workspaces
+
+Code workspaces are project-scoped stored file trees for generated multi-file
+code. They are project objects surfaced in the existing project explorer and
+tab shell. These routes store manifests, immutable snapshots, reviewable patch
+requests, and zip downloads only; they do not run commands, install
+dependencies, or host previews.
+
+| Method | Path | Auth | Description | Body |
+|--------|------|------|-------------|------|
+| GET | /api/projects/:projectId/code-workspaces | project `viewer` | List live code workspaces in the project. | - |
+| POST | /api/projects/:projectId/code-workspaces | project `editor` | Create a code workspace draft and first immutable snapshot. Server derives `workspaceId`, `projectId`, and actor scope; `requestId` is idempotent per project/user. | `{ requestId?, name, description?, language?, framework?, sourceRunId?, sourceActionId?, manifest? }` |
+| GET | /api/code-workspaces/:id | project `viewer` | Read one code workspace and its current snapshot manifest after checking the workspace's project scope. | - |
+| PATCH | /api/code-workspaces/:id | project `editor` | Rename code workspace metadata for the project explorer. | `{ name?, description? }` |
+| DELETE | /api/code-workspaces/:id | project `editor` | Soft delete the code workspace row from the project explorer. Snapshots remain immutable history. | - |
+| POST | /api/code-workspaces/:id/patches | project `editor` | Create a reviewable patch request against the current snapshot. Stale bases return `409 code_workspace_stale_base`; `requestId` is idempotent. | `{ requestId?, baseSnapshotId, operations, preview, risk? }` |
+| GET | /api/code-workspaces/:id/snapshots/:snapshotId/archive | project `viewer` | Download a snapshot zip archive containing inline manifest files and `opencairn-code-workspace.json`. Snapshots that require object-storage hydration return `409 code_workspace_archive_requires_inline_content` until that phase exists. | - |
+
 ### Agent Actions
 
 Unified Agent Action Ledger records write-capable agent intent as typed,
