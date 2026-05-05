@@ -16,7 +16,13 @@ import { useChatMessages } from "@/hooks/use-chat-messages";
 import type { StreamingAgentMessage } from "@/hooks/use-chat-send";
 import { chatApi } from "@/lib/api-client";
 
-import { AgentFileCards, MessageBubble, asAgentFileCards } from "./message-bubble";
+import {
+  AgentFileCards,
+  DocumentGenerationCards,
+  MessageBubble,
+  asAgentFileCards,
+  asDocumentGenerationCards,
+} from "./message-bubble";
 import { StatusLine } from "./status-line";
 import { ThoughtBubble } from "./thought-bubble";
 
@@ -101,6 +107,11 @@ export function Conversation({
           {live.agent_files.length > 0 || live.project_objects.length > 0 ? (
             <AgentFileCards
               files={asAgentFileCards(live.agent_files, live.project_objects)}
+            />
+          ) : null}
+          {live.project_object_generations.length > 0 ? (
+            <DocumentGenerationCards
+              items={asDocumentGenerationCards(live.project_object_generations)}
             />
           ) : null}
         </div>

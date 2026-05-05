@@ -33,5 +33,17 @@
   "card": {
     "created": "{filename} created",
     "open": "Open"
+  },
+  "generation": {
+    "status": "{format} · {filename} · {status}",
+    "statusLabel": {
+      "queued": "Queued",
+      "running": "Generating",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "errorCode": "Error: {code}",
+    "open": "Open",
+    "pending": "Pending"
   }
 }

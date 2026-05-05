@@ -33,5 +33,17 @@
   "card": {
     "created": "{filename} 생성됨",
     "open": "열기"
+  },
+  "generation": {
+    "status": "{format} · {filename} · {status}",
+    "statusLabel": {
+      "queued": "대기 중",
+      "running": "생성 중",
+      "completed": "완료",
+      "failed": "실패"
+    },
+    "errorCode": "오류: {code}",
+    "open": "열기",
+    "pending": "대기"
   }
 }
