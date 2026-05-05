@@ -156,6 +156,61 @@ describe("workflow console contracts", () => {
     });
   });
 
+  it("projects completed provider file exports as provider URL outputs", () => {
+    const run = workflowConsoleRunFromAgentAction({
+      id: "00000000-0000-4000-8000-000000000027",
+      requestId: "00000000-0000-4000-8000-000000000028",
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      sourceRunId: "chat:00000000-0000-4000-8000-000000000010",
+      kind: "file.export",
+      status: "completed",
+      risk: "external",
+      input: {
+        type: "export_project_object",
+        objectId: "00000000-0000-4000-8000-000000000029",
+        provider: "google_docs",
+        format: "docx",
+      },
+      preview: null,
+      result: {
+        ok: true,
+        requestId: "00000000-0000-4000-8000-000000000028",
+        workflowId: "google-workspace-export/00000000-0000-4000-8000-000000000028",
+        objectId: "00000000-0000-4000-8000-000000000029",
+        provider: "google_docs",
+        externalObjectId: "google-doc-1",
+        externalUrl: "https://docs.google.com/document/d/google-doc-1/edit",
+        exportedMimeType: "application/vnd.google-apps.document",
+        exportStatus: "completed",
+      },
+      errorCode: null,
+      createdAt,
+      updatedAt,
+    });
+
+    expect(workflowConsoleRunSchema.parse(run)).toMatchObject({
+      runId: "agent_action:00000000-0000-4000-8000-000000000027",
+      runType: "agent_action",
+      status: "completed",
+      outputs: [
+        {
+          outputType: "provider_url",
+          id: "google-doc-1",
+          label: "google_docs",
+          url: "https://docs.google.com/document/d/google-doc-1/edit",
+          mimeType: "application/vnd.google-apps.document",
+          metadata: {
+            provider: "google_docs",
+            objectId: "00000000-0000-4000-8000-000000000029",
+            exportStatus: "completed",
+          },
+        },
+      ],
+    });
+  });
+
   it("projects chat run events with replay sequence and normalized event family", () => {
     const event = chatConsoleEventFromChatRunEvent({
       runId: "00000000-0000-4000-8000-000000000010",

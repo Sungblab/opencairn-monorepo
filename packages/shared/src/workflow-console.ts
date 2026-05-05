@@ -688,6 +688,28 @@ function outputsFromAgentAction(action: AgentAction): WorkflowConsoleOutput[] {
       ];
     }
   }
+  if (action.kind === "file.export") {
+    const externalUrl = stringField(action.result, "externalUrl");
+    const provider = stringField(action.result, "provider");
+    const externalObjectId = stringField(action.result, "externalObjectId");
+    const exportedMimeType = stringField(action.result, "exportedMimeType");
+    if (externalUrl && provider && externalObjectId) {
+      return [
+        {
+          outputType: "provider_url",
+          id: externalObjectId,
+          label: provider,
+          url: externalUrl,
+          ...(exportedMimeType ? { mimeType: exportedMimeType } : {}),
+          metadata: {
+            provider,
+            objectId: stringField(action.result, "objectId"),
+            exportStatus: stringField(action.result, "exportStatus"),
+          },
+        },
+      ];
+    }
+  }
   const noteId = stringField(action.result, "noteId");
   if (noteId) {
     return [
