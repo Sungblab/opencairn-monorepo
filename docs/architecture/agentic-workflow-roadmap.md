@@ -666,15 +666,22 @@ parallel import runner.
 
 Create the code workspace substrate:
 
-- mini project file tree
-- multi-file patches
-- rename/delete/move
-- snapshot/version model
-- zip/download
-- source and preview tabs
+- mini project file tree with normalized relative paths
+- multi-file patches with diff previews and stale-base rejection
+- rename/delete/move operations through reviewable actions
+- immutable snapshot/version model
+- zip/download packaging for approved snapshots
+- source and preview tabs that reuse the existing project explorer and tab
+  shell concepts
 
 This phase makes generated code a first-class project object instead of a set of
 unrelated single files.
+
+ADR 012 defines the implementation split for this phase. Phase 5 starts with
+stored file trees, patch review, snapshots, and downloads. It deliberately does
+not run dependency installs, tests, builds, lint commands, hosted previews, or
+external deployments; those belong to the later execution-loop and hosted
+preview phases.
 
 ### Phase 6: Code Agent Execution Loop
 
