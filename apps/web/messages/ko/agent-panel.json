@@ -62,6 +62,17 @@
     "applyFailed": "코드 패치 제안을 적용하지 못했어요.",
     "cancelFailed": "코드 패치 제안을 취소하지 못했어요."
   },
+  "codeInstallReview": {
+    "installTitle": "의존성 설치 승인",
+    "installPackageManager": "패키지 매니저 {packageManager}",
+    "installNetworkWarning": "승인하면 네트워크가 필요한 샌드박스 설치를 시작합니다.",
+    "installApply": "설치 승인",
+    "installReject": "거절",
+    "installApplied": "의존성 설치를 시작했어요.",
+    "installCancelled": "의존성 설치 요청을 취소했어요.",
+    "installApplyFailed": "의존성 설치를 시작하지 못했어요.",
+    "installCancelFailed": "의존성 설치 요청을 취소하지 못했어요."
+  },
   "codePreviewReview": {
     "previewTitle": "정적 미리보기 승인",
     "previewEntry": "진입 파일 {entryPath}",

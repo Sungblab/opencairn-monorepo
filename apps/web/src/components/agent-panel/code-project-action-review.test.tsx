@@ -25,6 +25,7 @@ vi.mock("@/lib/api-client", async () => {
       list: vi.fn(),
       applyCodeProjectPatch: vi.fn(),
       applyCodeProjectPreview: vi.fn(),
+      applyCodeProjectInstall: vi.fn(),
       transitionStatus: vi.fn(),
     },
   };
@@ -130,14 +131,55 @@ function completedPreviewAction(): AgentAction {
   };
 }
 
+function installAction(): AgentAction {
+  return {
+    id: "00000000-0000-4000-8000-000000000050",
+    requestId: "00000000-0000-4000-8000-000000000051",
+    workspaceId: "00000000-0000-4000-8000-000000000012",
+    projectId,
+    actorUserId: "user-1",
+    sourceRunId: null,
+    kind: "code_project.install",
+    status: "approval_required",
+    risk: "external",
+    input: {
+      codeWorkspaceId: "00000000-0000-4000-8000-000000000020",
+      snapshotId: "00000000-0000-4000-8000-000000000021",
+      packageManager: "pnpm",
+      packages: [
+        { name: "zod", version: "3.25.0", dev: false },
+        { name: "@vitejs/plugin-react", dev: true },
+      ],
+      network: "required",
+      reason: "Generated app needs runtime validation and Vite React plugin",
+    },
+    preview: {
+      kind: "code_project.install",
+      approval: "dependency_install",
+      packageManager: "pnpm",
+      packages: [
+        { name: "zod", version: "3.25.0", dev: false },
+        { name: "@vitejs/plugin-react", dev: true },
+      ],
+      summary: "Install zod and @vitejs/plugin-react",
+    },
+    result: null,
+    errorCode: null,
+    createdAt: "2026-05-05T00:00:00.000Z",
+    updatedAt: "2026-05-05T00:00:00.000Z",
+  };
+}
+
 function mockLists({
   patches = [draftAction()],
   pendingPreviews = [],
   completedPreviews = [],
+  pendingInstalls = [],
 }: {
   patches?: AgentAction[];
   pendingPreviews?: AgentAction[];
   completedPreviews?: AgentAction[];
+  pendingInstalls?: AgentAction[];
 } = {}) {
   vi.mocked(agentActionsApi.list).mockImplementation(async (_projectId, opts) => {
     if (!opts) return { actions: [] };
@@ -148,6 +190,7 @@ function mockLists({
     if (opts.kind === "code_project.preview" && opts.status === "completed") {
       return { actions: completedPreviews };
     }
+    if (opts.kind === "code_project.install") return { actions: pendingInstalls };
     return { actions: [] };
   });
 }
@@ -160,6 +203,9 @@ describe("CodeProjectActionReviewList", () => {
     });
     vi.mocked(agentActionsApi.applyCodeProjectPreview).mockResolvedValue({
       action: { ...previewAction(), status: "completed" },
+    });
+    vi.mocked(agentActionsApi.applyCodeProjectInstall).mockResolvedValue({
+      action: { ...installAction(), status: "queued" },
     });
     vi.mocked(agentActionsApi.transitionStatus).mockResolvedValue({
       action: { ...draftAction(), status: "cancelled" },
@@ -223,5 +269,22 @@ describe("CodeProjectActionReviewList", () => {
       "/api/agent-actions/00000000-0000-4000-8000-000000000040/preview/index.html",
     );
     expect(screen.getByText("previewEntry:{\"entryPath\":\"index.html\"}")).toBeTruthy();
+  });
+
+  it("renders and applies a pending dependency install action", async () => {
+    mockLists({ patches: [], pendingInstalls: [installAction()] });
+    const user = userEvent.setup();
+    renderWithClient();
+
+    expect(await screen.findByText("installTitle")).toBeTruthy();
+    expect(screen.getByText("installPackageManager:{\"packageManager\":\"pnpm\"}")).toBeTruthy();
+    expect(screen.getByText("zod@3.25.0, @vitejs/plugin-react")).toBeTruthy();
+    expect(screen.getByText("Generated app needs runtime validation and Vite React plugin")).toBeTruthy();
+    expect(screen.getByText("installNetworkWarning")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "installApply" }));
+
+    expect(agentActionsApi.applyCodeProjectInstall).toHaveBeenCalledWith(installAction().id);
+    await waitFor(() => expect(screen.getByText("installApplied")).toBeTruthy());
   });
 });

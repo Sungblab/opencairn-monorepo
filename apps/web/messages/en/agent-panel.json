@@ -62,6 +62,17 @@
     "applyFailed": "Could not apply the code patch proposal.",
     "cancelFailed": "Could not cancel the code patch proposal."
   },
+  "codeInstallReview": {
+    "installTitle": "Dependency install approval",
+    "installPackageManager": "Package manager {packageManager}",
+    "installNetworkWarning": "Approving starts a sandboxed install that requires network access.",
+    "installApply": "Approve install",
+    "installReject": "Reject",
+    "installApplied": "Started the dependency install.",
+    "installCancelled": "Cancelled the dependency install request.",
+    "installApplyFailed": "Could not start the dependency install.",
+    "installCancelFailed": "Could not cancel the dependency install request."
+  },
   "codePreviewReview": {
     "previewTitle": "Static preview approval",
     "previewEntry": "Entry file {entryPath}",
