@@ -56,6 +56,7 @@ import {
   type CodeWorkspaceRepository,
   type CodeWorkspaceSnapshotRecord,
 } from "./code-project-workspaces";
+import { createTemporalCodeCommandRunner } from "./code-workspace-command-runner";
 import { canWrite } from "./permissions";
 import { diffPlateValues } from "./note-version-diff";
 import { plateValueToText } from "./plate-text";
@@ -789,7 +790,7 @@ async function executePersistedCodeProjectRunAction(
     const snapshot = await codeRepo.findSnapshotById(workspace.id, payload.snapshotId);
     if (!snapshot) throw new AgentActionError("code_workspace_snapshot_not_found", 404);
 
-    const runner = options?.codeCommandRunner ?? createUnavailableCodeCommandRunner();
+    const runner = options?.codeCommandRunner ?? createDefaultCodeCommandRunner();
     const runResult = codeWorkspaceCommandRunResultSchema.parse(
       await runner.run({
         action,
@@ -821,6 +822,13 @@ async function executePersistedCodeProjectRunAction(
     if (!updated) throw new AgentActionError("action_not_found", 404);
     return updated;
   }
+}
+
+function createDefaultCodeCommandRunner(): CodeCommandRunner {
+  if (process.env.FEATURE_CODE_WORKSPACE_COMMANDS === "true") {
+    return createTemporalCodeCommandRunner();
+  }
+  return createUnavailableCodeCommandRunner();
 }
 
 function createUnavailableCodeCommandRunner(): CodeCommandRunner {

@@ -332,7 +332,12 @@ caller-supplied trusted scope fields in the request body, resolves the code
 workspace from the action's project scope, and stores a terminal result shaped
 like `{ ok, codeWorkspaceId, snapshotId, command, exitCode, durationMs?, logs,
 summary?, archiveUrl }`. A nonzero exit code marks the action `failed`; a zero
-exit code marks it `completed`.
+exit code marks it `completed`. When `FEATURE_CODE_WORKSPACE_COMMANDS=true`,
+the default API runner starts `CodeWorkspaceCommandWorkflow` with the resolved
+snapshot manifest and a stable workflow id based on the Agent Action row. When
+the flag is off, the action fails closed with `code_command_runner_unavailable`.
+The worker workflow still depends on a future sandbox executor before it can
+perform real command execution.
 
 ### Ingest
 

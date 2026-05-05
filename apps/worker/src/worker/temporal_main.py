@@ -112,6 +112,7 @@ from worker.activities.youtube_activity import ingest_youtube
 from worker.workflows.batch_embed_workflow import BatchEmbedWorkflow
 from worker.workflows.chat_run_workflow import ChatAgentWorkflow
 from worker.workflows.code_workflow import CodeAgentWorkflow
+from worker.workflows.code_workspace_command_workflow import CodeWorkspaceCommandWorkflow
 from worker.workflows.compiler_workflow import CompilerWorkflow
 from worker.workflows.connector_workflow import ConnectorWorkflow
 from worker.workflows.curator_workflow import CuratorWorkflow
@@ -249,6 +250,7 @@ def build_worker_config() -> WorkerConfig:
     # The activity is feature-gated and its default executor is intentionally
     # unavailable until a sandbox executor is wired by a later slice.
     if os.environ.get("FEATURE_CODE_WORKSPACE_COMMANDS", "false").lower() == "true":
+        workflows.append(CodeWorkspaceCommandWorkflow)
         activities.append(run_code_workspace_command_activity)
 
     # Spec B — Content-Aware Enrichment. Three activities slot into

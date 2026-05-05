@@ -255,6 +255,10 @@ project commands, install dependencies, host previews, or deploy external apps.
   `FEATURE_CODE_WORKSPACE_COMMANDS=true`. The Phase 6B activity validates and
   materializes inline manifests, rejects unsafe paths and object-hydration gaps,
   and delegates to an injected executor.
+- Wire the API `code_project.run` runner seam to `CodeWorkspaceCommandWorkflow`
+  only when `FEATURE_CODE_WORKSPACE_COMMANDS=true`; the API uses a stable
+  workflow id per Agent Action row and passes the resolved snapshot manifest
+  rather than trusting request-owned file data.
 - Keep the default executor unavailable until a sandbox implementation is wired.
 - Implement approved sandbox commands for test/build/lint.
 - Store logs and command artifacts.
