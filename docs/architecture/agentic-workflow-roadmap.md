@@ -469,7 +469,9 @@ event sink exists.
    OpenCairn file.
 4. **Project-level run drawer.** Add a project-scoped run drawer/list that can
    open from Agent Panel cards, Plan8 rows, document-generation cards,
-   import/export pages, and future code project tabs.
+   import/export pages, and future code project tabs. The Agents view now has
+   a first project-scoped Workflow Console list backed by the shared projection,
+   with status filters for all, active, failed, and completed runs.
 5. **Approvals and recovery.** Centralize approve/reject/cancel/retry affordances
    so destructive actions, provider exports, stale previews, and code command
    approvals share one lifecycle.

@@ -31,11 +31,13 @@ import {
 } from "@/components/ui/sheet";
 import {
   plan8AgentsApi,
+  workflowConsoleApi,
   type Plan8AgentName,
   type Plan8AgentRun,
   type Plan8AudioFile,
   type Plan8StaleAlert,
   type Plan8Suggestion,
+  type WorkflowConsoleRun,
 } from "@/lib/api-client";
 import { urls } from "@/lib/urls";
 
@@ -71,9 +73,14 @@ function formatDuration(seconds: number | null): string | null {
 }
 
 const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "cancelled"]);
+const WORKFLOW_CONSOLE_FILTERS = ["all", "active", "failed", "completed"] as const;
 
 function isRunTerminal(status: string): boolean {
   return TERMINAL_RUN_STATUSES.has(status);
+}
+
+function isWorkflowConsoleRunActive(run: WorkflowConsoleRun): boolean {
+  return !TERMINAL_RUN_STATUSES.has(run.status);
 }
 
 function workspaceSlugFromPathname(): string | null {
@@ -106,11 +113,18 @@ export function AgentEntryPointsView({ projectId }: { projectId: string }) {
   const [connectorConceptId, setConnectorConceptId] = useState("");
   const [narratorNoteId, setNarratorNoteId] = useState("");
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [workflowFilter, setWorkflowFilter] = useState<
+    (typeof WORKFLOW_CONSOLE_FILTERS)[number]
+  >("all");
   const workspaceSlug = useMemo(workspaceSlugFromPathname, []);
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey,
     queryFn: () => plan8AgentsApi.overview(projectId),
+  });
+  const workflowConsoleQuery = useQuery({
+    queryKey: ["agents-workflow-console-runs", projectId],
+    queryFn: () => workflowConsoleApi.list(projectId, 25),
   });
   const selectedRun =
     data?.agentRuns.find((run) => run.runId === selectedRunId) ?? null;
@@ -342,6 +356,15 @@ export function AgentEntryPointsView({ projectId }: { projectId: string }) {
             ))}
           </section>
 
+          <WorkflowConsoleProjectList
+            runs={workflowConsoleQuery.data?.runs ?? []}
+            filter={workflowFilter}
+            loading={workflowConsoleQuery.isLoading}
+            error={workflowConsoleQuery.isError}
+            formatDate={formatDate}
+            onFilterChange={setWorkflowFilter}
+          />
+
           <section className="grid gap-6 2xl:grid-cols-2">
             <RunsTable
               rows={data.agentRuns}
@@ -397,6 +420,106 @@ export function AgentEntryPointsView({ projectId }: { projectId: string }) {
         </>
       )}
     </div>
+  );
+}
+
+function WorkflowConsoleProjectList({
+  runs,
+  filter,
+  loading,
+  error,
+  formatDate,
+  onFilterChange,
+}: {
+  runs: WorkflowConsoleRun[];
+  filter: (typeof WORKFLOW_CONSOLE_FILTERS)[number];
+  loading: boolean;
+  error: boolean;
+  formatDate: (value: string) => string;
+  onFilterChange: (filter: (typeof WORKFLOW_CONSOLE_FILTERS)[number]) => void;
+}) {
+  const t = useTranslations("agents");
+  const visibleRuns = runs.filter((run) => {
+    if (filter === "all") return true;
+    if (filter === "active") return isWorkflowConsoleRunActive(run);
+    return run.status === filter;
+  });
+
+  return (
+    <section>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">{t("workflowConsole.title")}</h2>
+          <p className="text-xs text-muted-foreground">
+            {t("workflowConsole.subtitle")}
+          </p>
+        </div>
+        <div className="inline-flex rounded-[var(--radius-control)] border border-border p-0.5">
+          {WORKFLOW_CONSOLE_FILTERS.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => onFilterChange(item)}
+              className={`h-7 rounded-[var(--radius-control)] px-2 text-xs ${
+                filter === item
+                  ? "bg-foreground text-background"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {t(`workflowConsole.filters.${item}`)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-muted-foreground">
+          {t("workflowConsole.loading")}
+        </p>
+      ) : error ? (
+        <p className="text-sm text-destructive">
+          {t("workflowConsole.error")}
+        </p>
+      ) : visibleRuns.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {t("workflowConsole.empty")}
+        </p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead className="text-[11px] uppercase text-muted-foreground">
+            <tr>
+              <th className="pb-2 text-left">{t("workflowConsole.columns.run")}</th>
+              <th className="pb-2 text-left">{t("workflowConsole.columns.status")}</th>
+              <th className="pb-2 text-left">{t("workflowConsole.columns.updated")}</th>
+              <th className="pb-2 text-left">{t("workflowConsole.columns.detail")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleRuns.map((run) => (
+              <tr key={run.runId} className="border-t border-border">
+                <td className="py-2">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium">{run.title}</div>
+                    <div className="truncate text-[11px] text-muted-foreground">
+                      {t(`workflowConsole.type.${run.runType}`)}
+                    </div>
+                  </div>
+                </td>
+                <td className="py-2 text-xs text-muted-foreground">
+                  {t(`workflowConsole.status.${run.status}`)}
+                </td>
+                <td className="py-2 text-xs text-muted-foreground">
+                  {formatDate(run.updatedAt)}
+                </td>
+                <td className="py-2 text-xs text-muted-foreground">
+                  {run.error?.message ?? run.outputs[0]?.label ?? run.runId}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
   );
 }
 
