@@ -6,6 +6,9 @@ import type {
   AgentAction,
   AgentActionKind,
   AgentActionStatus,
+  DocumentGenerationFormat,
+  DocumentGenerationSource,
+  GenerateProjectObjectAction,
   NoteUpdateApplyRequest,
   TransitionAgentActionStatusRequest,
 } from "@opencairn/shared";
@@ -351,6 +354,39 @@ export const agentActionsApi = {
       body: JSON.stringify(body),
     }),
 };
+
+export type DocumentGenerationSourceOption = {
+  id: string;
+  type: DocumentGenerationSource["type"];
+  title: string;
+  subtitle?: string;
+  source: DocumentGenerationSource;
+  qualitySignals?: string[];
+};
+
+export type GenerateProjectObjectResponse = {
+  action: AgentAction;
+  event: unknown;
+  idempotent: boolean;
+  workflowId?: string;
+};
+
+export const documentGenerationApi = {
+  sources: (projectId: string) =>
+    apiClient<{ sources: DocumentGenerationSourceOption[] }>(
+      `/projects/${projectId}/document-generation/sources`,
+    ),
+  generate: (projectId: string, body: GenerateProjectObjectAction) =>
+    apiClient<GenerateProjectObjectResponse>(
+      `/projects/${projectId}/project-object-actions/generate`,
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    ),
+};
+
+export type { DocumentGenerationFormat, DocumentGenerationSource };
 
 // ---------- Dashboard / workspace summary (Phase 5 Task 1) ----------
 // snake_case keys mirror the server contract — see workspaces.ts stats /

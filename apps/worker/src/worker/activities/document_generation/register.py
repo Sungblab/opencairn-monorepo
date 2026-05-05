@@ -12,9 +12,11 @@ from worker.activities.document_generation.generate import (
     normalize_params,
 )
 from worker.activities.document_generation.types import (
+    DocumentGenerationSourceBundle,
     DocumentGenerationWorkflowParams,
     GeneratedDocumentArtifact,
     ProjectObjectSummary,
+    normalize_source_bundle,
 )
 from worker.lib.api_client import post_internal
 
@@ -36,6 +38,7 @@ async def register_document_generation_result(
     params: DocumentGenerationWorkflowParams | dict[str, Any],
     artifact: GeneratedDocumentArtifact | dict[str, Any],
     workflow_id: str,
+    source_bundle: DocumentGenerationSourceBundle | dict[str, Any] | None = None,
 ) -> ProjectObjectSummary:
     normalized = normalize_params(params)
     generation = normalize_generation(normalized.generation)
@@ -73,7 +76,33 @@ async def register_document_generation_result(
                 "template": generation.template,
                 "locale": generation.locale,
                 "sourceCount": len(generation.sources),
+                "sourceQuality": _source_quality_metadata(source_bundle),
             },
         },
     )
     return _to_project_object_summary(response.get("object", response))
+
+
+def _source_quality_metadata(
+    source_bundle: DocumentGenerationSourceBundle | dict[str, Any] | None,
+) -> dict[str, Any]:
+    bundle = normalize_source_bundle(source_bundle)
+    sources = []
+    signals = []
+    for item in bundle.items:
+        item_signals = list(dict.fromkeys(item.quality_signals))
+        if not item_signals:
+            continue
+        signals.extend(item_signals)
+        sources.append(
+            {
+                "id": item.id,
+                "kind": item.kind,
+                "title": item.title,
+                "signals": item_signals,
+            }
+        )
+    return {
+        "signals": list(dict.fromkeys(signals)),
+        "sources": sources,
+    }

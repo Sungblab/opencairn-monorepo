@@ -12,6 +12,73 @@ const projectId = "00000000-0000-4000-8000-000000000002";
 const requestId = "00000000-0000-4000-8000-000000000003";
 
 describe("document generation routes", () => {
+  it("lists project-scoped source options for the generation picker", async () => {
+    const app = new Hono<AppEnv>().route(
+      "/api",
+      createDocumentGenerationRoutes({
+        repo: createMemoryRepo(),
+        canWriteProject: async () => true,
+        listSourceOptions: async (pid, uid) => {
+          expect(pid).toBe(projectId);
+          expect(uid).toBe(userId);
+          return [
+            {
+              id: "note:00000000-0000-4000-8000-000000000031",
+              type: "note",
+              title: "Kickoff note",
+              subtitle: "note",
+              source: {
+                type: "note",
+                noteId: "00000000-0000-4000-8000-000000000031",
+              },
+            },
+            {
+              id: "agent_file:00000000-0000-4000-8000-000000000032",
+              type: "agent_file",
+              title: "Scanned deck",
+              subtitle: "deck.pdf",
+              source: {
+                type: "agent_file",
+                objectId: "00000000-0000-4000-8000-000000000032",
+              },
+              qualitySignals: ["metadata_fallback"],
+            },
+          ];
+        },
+        startDocumentGeneration: async () => ({
+          workflowId: `document-generation/${requestId}`,
+        }),
+        auth: async (c, next) => {
+          c.set("userId", userId);
+          c.set("user", { id: userId, email: "user@example.com", name: "User" });
+          await next();
+        },
+      }),
+    );
+
+    const response = await app.request(
+      `/api/projects/${projectId}/document-generation/sources`,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      sources: [
+        expect.objectContaining({
+          type: "note",
+          title: "Kickoff note",
+          source: {
+            type: "note",
+            noteId: "00000000-0000-4000-8000-000000000031",
+          },
+        }),
+        expect.objectContaining({
+          type: "agent_file",
+          qualitySignals: ["metadata_fallback"],
+        }),
+      ],
+    });
+  });
+
   it("starts a document generation workflow with server-injected scope", async () => {
     const startDocumentGeneration = vi.fn().mockResolvedValue({
       workflowId: `document-generation/${requestId}`,

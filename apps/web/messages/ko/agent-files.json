@@ -52,6 +52,17 @@
       "failed": "실패"
     },
     "errorCode": "오류: {code}",
+    "qualitySummary": "출처 처리: {signals}",
+    "qualitySignal": {
+      "metadata_fallback": "메타데이터로 보완",
+      "unsupported_source": "지원 제한",
+      "source_corrupt": "파일 읽기 실패",
+      "source_oversized": "용량 초과",
+      "scanned_no_text": "스캔 문서",
+      "no_extracted_text": "텍스트 없음",
+      "source_hydration_failed": "출처 불러오기 실패",
+      "source_token_budget_exceeded": "일부 제외"
+    },
     "open": "열기",
     "download": "다운로드",
     "pendingAction": {

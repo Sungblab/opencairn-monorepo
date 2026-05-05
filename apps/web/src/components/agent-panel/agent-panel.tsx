@@ -33,6 +33,8 @@ import { useThreadsStore } from "@/stores/threads-store";
 
 import { Composer } from "./composer";
 import { Conversation } from "./conversation";
+import { DocumentGenerationCards, asDocumentGenerationCards } from "./message-bubble";
+import { DocumentGenerationForm } from "./document-generation-form";
 import { AgentPanelEmptyState } from "./empty-state";
 import { NoteUpdateActionReviewList } from "./note-update-action-review";
 import { PanelHeader } from "./panel-header";
@@ -67,6 +69,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const [strict, setStrict] = useState<"strict" | "loose">("strict");
   const [isSending, setIsSending] = useState(false);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [formGenerationEvents, setFormGenerationEvents] = useState<unknown[]>([]);
   const sendInFlightRef = useRef(false);
   const buildScopePayload = useCallback(
     () =>
@@ -273,6 +276,19 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
         onChange={setScope}
         strict={strict}
         onStrictChange={setStrict}
+      />
+      {formGenerationEvents.length > 0 ? (
+        <div className="border-t border-border p-2">
+          <DocumentGenerationCards
+            items={asDocumentGenerationCards(formGenerationEvents)}
+          />
+        </div>
+      ) : null}
+      <DocumentGenerationForm
+        projectId={activeProjectId}
+        onEvent={(event) =>
+          setFormGenerationEvents((events) => [...events, event])
+        }
       />
       <Composer
         disabled={composerDisabled}

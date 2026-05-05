@@ -313,6 +313,27 @@ async function runScenario(seed, client, scenario) {
   };
 }
 
+async function verifySourcePicker(seed, expected) {
+  const response = await api(
+    `/api/projects/${seed.projectId}/document-generation/sources`,
+    {
+      headers: {
+        cookie: `${seed.cookieName}=${seed.cookieValue}`,
+      },
+    },
+  );
+  const types = new Set((response.sources ?? []).map((source) => source.type));
+  for (const type of expected) {
+    if (!types.has(type)) {
+      throw new Error(`source picker missing ${type}: ${JSON.stringify(response.sources)}`);
+    }
+  }
+  return {
+    count: response.sources.length,
+    types: [...types].sort(),
+  };
+}
+
 const client = s3Client();
 await ensureBucket(client);
 const seed = await seedBase();
@@ -320,6 +341,13 @@ const agentFileId = await createAgentFile(seed);
 const threadId = await createChatThread(seed);
 const researchRunId = await createResearchRun(seed);
 const synthesis = await createSynthesisRun(seed, client);
+const sourcePicker = await verifySourcePicker(seed, [
+  "note",
+  "agent_file",
+  "chat_thread",
+  "research_run",
+  "synthesis_run",
+]);
 
 const scenarios = [
   {
@@ -377,5 +405,6 @@ console.log(JSON.stringify({
     synthesisRunId: synthesis.runId,
     synthesisDocumentId: synthesis.documentId,
   },
+  sourcePicker,
   results,
 }, null, 2));

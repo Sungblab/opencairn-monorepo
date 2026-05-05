@@ -249,12 +249,19 @@ Current implementation boundary:
   `synthesis_run`), and the worker error code when a run fails. Completed
   outputs expose both the existing agent-file viewer action and the direct
   OpenCairn download link without adding a new document-generation screen.
+- A first productized request form now lives inside the existing Agent Panel and
+  Chat Scope surfaces. It lists project-scoped source options for notes,
+  generated agent files, the current user's chat threads, research runs, and
+  synthesis runs/documents, then submits the same `generate_project_object`
+  payload used by the API and live smoke harness. It does not add a separate
+  document-generation page or a second artifact store.
+- Source handling quality signals are additive metadata. Unsupported, corrupt,
+  oversized, scanned, unextractable, hydration-failed, or token-budget-skipped
+  sources can be shown as compact warnings while preserving the worker error
+  code and the existing viewer/download result actions.
 
 Remaining Phase 3C/3D work:
 
-- Add a first-class generation request form when the product is ready for a
-  visible picker, reusing the same `generate_project_object` contract instead
-  of adding chat-only payloads.
 - Keep running the live smoke script against source selection, Temporal, object
   storage, project tree update, callback registration, and download when these
   boundaries change.

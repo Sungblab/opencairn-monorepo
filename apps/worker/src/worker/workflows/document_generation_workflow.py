@@ -55,7 +55,7 @@ class DocumentGenerationWorkflow:
             )
             project_object: ProjectObjectSummary = await workflow.execute_activity(
                 "register_document_generation_result",
-                args=[normalized, artifact, workflow_id],
+                args=[normalized, artifact, workflow_id, sources],
                 result_type=ProjectObjectSummary,
                 start_to_close_timeout=timedelta(minutes=2),
                 heartbeat_timeout=timedelta(seconds=30),

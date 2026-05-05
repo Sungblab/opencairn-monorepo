@@ -50,6 +50,34 @@
     "applyFailed": "노트 수정 제안을 적용하지 못했어요.",
     "cancelFailed": "노트 수정 제안을 취소하지 못했어요."
   },
+  "documentGeneration": {
+    "toggle": "문서 생성",
+    "selectedNone": "출처 선택 없음",
+    "format": "형식",
+    "filename": "파일명",
+    "promptPlaceholder": "생성할 문서의 목적과 포함할 내용을 입력하세요.",
+    "submit": "생성 시작",
+    "loadFailed": "문서 출처를 불러오지 못했어요.",
+    "submitFailed": "문서 생성을 시작하지 못했어요.",
+    "pollFailed": "생성 상태를 새로고침하지 못했어요.",
+    "sourceLabel": {
+      "note": "노트",
+      "agent_file": "생성 파일",
+      "chat_thread": "채팅",
+      "research_run": "리서치",
+      "synthesis_run": "합성 문서"
+    },
+    "qualitySignal": {
+      "metadata_fallback": "메타데이터로 보완",
+      "unsupported_source": "지원 제한",
+      "source_corrupt": "파일 읽기 실패",
+      "source_oversized": "용량 초과",
+      "scanned_no_text": "스캔 문서",
+      "no_extracted_text": "텍스트 없음",
+      "source_hydration_failed": "출처 불러오기 실패",
+      "source_token_budget_exceeded": "일부 제외"
+    }
+  },
   "composer": {
     "placeholder": "메시지를 입력하세요...",
     "input_aria": "메시지 입력",

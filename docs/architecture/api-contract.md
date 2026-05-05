@@ -229,7 +229,16 @@ synthesis-run hydration are expanded.
 
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
+| GET | /api/projects/:projectId/document-generation/sources | project `editor` | List selectable project/workspace-scoped sources for the document-generation picker. Options cover notes, generated agent files, the current user's workspace chat threads, project research runs, and project synthesis runs with the latest synthesis document id when available. The response may include compact `qualitySignals` such as `metadata_fallback`, `unsupported_source`, or `source_oversized` so the UI can warn without blocking generation. | - |
 | POST | /api/projects/:projectId/project-object-actions/generate | project `editor` | Queue a worker-backed document generation request. `requestId` is idempotent per `(projectId, actorUserId)`. On a new request, response is `202 { action, event, idempotent:false, workflowId }`; duplicate requests return `200` and do not start Temporal again. Temporal start failures mark the ledger row `failed` with `document_generation_start_failed`. | `{ type:"generate_project_object", requestId?, generation:{ format:"pdf"\|"docx"\|"pptx"\|"xlsx", prompt, locale?, template?, sources?, destination, artifactMode? } }` |
+
+Completed and failed document-generation results preserve the existing
+`requestId`, `workflowId`, `format`, `object`, `artifact`, `errorCode`, and
+`retryable` fields. They may also include optional `sourceQuality` metadata:
+`{ signals, sources }`, where signals are compact source-handling hints such as
+`metadata_fallback`, `unsupported_source`, `source_corrupt`,
+`source_oversized`, `scanned_no_text`, `no_extracted_text`,
+`source_hydration_failed`, or `source_token_budget_exceeded`.
 
 `note.update` input:
 
