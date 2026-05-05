@@ -221,6 +221,12 @@ the authenticated project context, creates a `file.generate` ledger row, and
 starts `DocumentGenerationWorkflow` on Temporal. Worker generation, artifact
 registration, and UI rendering are separate follow-up surfaces.
 
+The worker keeps the public request/result/event contract stable while improving
+artifact quality internally. Current Phase 3B hydration fetches `note` source
+content through the internal worker/API source boundary and records other source
+refs as structured references until project-object, chat, research, and
+synthesis-run hydration are expanded.
+
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
 | POST | /api/projects/:projectId/project-object-actions/generate | project `editor` | Queue a worker-backed document generation request. `requestId` is idempotent per `(projectId, actorUserId)`. On a new request, response is `202 { action, event, idempotent:false, workflowId }`; duplicate requests return `200` and do not start Temporal again. Temporal start failures mark the ledger row `failed` with `document_generation_start_failed`. | `{ type:"generate_project_object", requestId?, generation:{ format:"pdf"\|"docx"\|"pptx"\|"xlsx", prompt, locale?, template?, sources?, destination, artifactMode? } }` |
