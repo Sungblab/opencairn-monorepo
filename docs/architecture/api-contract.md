@@ -343,9 +343,11 @@ runs approved commands in `node:20-alpine` with `--network none`, bounded
 CPU/memory flags, and the resolved snapshot mounted at `/workspace`.
 
 `POST /api/agent-actions/:id/repair` currently exposes the repair-loop
-boundary only. The default repair planner is unavailable; configured planners
-must return a normal `code_project.patch` payload so the existing patch review
-and apply flow remains the only way generated repairs mutate a code workspace.
+boundary only while `FEATURE_CODE_WORKSPACE_REPAIR` is off. When the flag is
+on, the API starts `CodeWorkspaceRepairWorkflow`; the worker repair agent
+returns file replacements that are converted into a normal `code_project.patch`
+payload. The existing patch review and apply flow remains the only way
+generated repairs mutate a code workspace.
 
 ### Ingest
 

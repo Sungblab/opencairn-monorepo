@@ -29,6 +29,7 @@ from worker.activities.code_activity import (
     generate_code_activity,
 )
 from worker.activities.code_workspace_command import run_code_workspace_command_activity
+from worker.activities.code_workspace_repair import plan_code_workspace_repair
 from worker.activities.compiler_activity import compile_note
 from worker.activities.connector_activity import run_connector as run_connector_activity
 from worker.activities.curator_activity import run_curator
@@ -113,6 +114,7 @@ from worker.workflows.batch_embed_workflow import BatchEmbedWorkflow
 from worker.workflows.chat_run_workflow import ChatAgentWorkflow
 from worker.workflows.code_workflow import CodeAgentWorkflow
 from worker.workflows.code_workspace_command_workflow import CodeWorkspaceCommandWorkflow
+from worker.workflows.code_workspace_repair_workflow import CodeWorkspaceRepairWorkflow
 from worker.workflows.compiler_workflow import CompilerWorkflow
 from worker.workflows.connector_workflow import ConnectorWorkflow
 from worker.workflows.curator_workflow import CuratorWorkflow
@@ -252,6 +254,12 @@ def build_worker_config() -> WorkerConfig:
     if os.environ.get("FEATURE_CODE_WORKSPACE_COMMANDS", "false").lower() == "true":
         workflows.append(CodeWorkspaceCommandWorkflow)
         activities.append(run_code_workspace_command_activity)
+
+    # Code Project Workspace Phase 6F — LLM-backed repair patch planning.
+    # Produces reviewable code_project.patch payloads only; apply remains API-owned.
+    if os.environ.get("FEATURE_CODE_WORKSPACE_REPAIR", "false").lower() == "true":
+        workflows.append(CodeWorkspaceRepairWorkflow)
+        activities.append(plan_code_workspace_repair)
 
     # Spec B — Content-Aware Enrichment. Three activities slot into
     # IngestWorkflow's pipeline (detect → enrich → store). No separate

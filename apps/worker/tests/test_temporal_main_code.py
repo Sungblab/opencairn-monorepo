@@ -70,6 +70,26 @@ def test_code_workspace_commands_registered_when_flag_on(
     assert "run_code_workspace_command_activity" in activity_names
 
 
+def test_code_workspace_repair_omitted_when_flag_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("FEATURE_CODE_WORKSPACE_REPAIR", raising=False)
+    cfg = build_worker_config()
+    assert "CodeWorkspaceRepairWorkflow" not in [w.__name__ for w in cfg.workflows]
+    activity_names = [a.__name__ for a in cfg.activities]
+    assert "plan_code_workspace_repair" not in activity_names
+
+
+def test_code_workspace_repair_registered_when_flag_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FEATURE_CODE_WORKSPACE_REPAIR", "true")
+    cfg = build_worker_config()
+    assert "CodeWorkspaceRepairWorkflow" in [w.__name__ for w in cfg.workflows]
+    activity_names = [a.__name__ for a in cfg.activities]
+    assert "plan_code_workspace_repair" in activity_names
+
+
 def test_text_ingest_activity_registered() -> None:
     cfg = build_worker_config()
     activity_names = [a.__name__ for a in cfg.activities]

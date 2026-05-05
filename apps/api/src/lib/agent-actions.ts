@@ -57,6 +57,7 @@ import {
   type CodeWorkspaceSnapshotRecord,
 } from "./code-project-workspaces";
 import { createTemporalCodeCommandRunner } from "./code-workspace-command-runner";
+import { createTemporalCodeRepairPlanner } from "./code-workspace-repair-planner";
 import { canWrite } from "./permissions";
 import { diffPlateValues } from "./note-version-diff";
 import { plateValueToText } from "./plate-text";
@@ -197,6 +198,7 @@ export interface CodeCommandRunner {
 }
 
 export interface CodeRepairPlannerInput {
+  requestId: string;
   failedRunAction: AgentAction;
   runResult: CodeWorkspaceCommandRunResult;
   workspace: CodeWorkspaceRecord;
@@ -627,9 +629,10 @@ export async function createCodeProjectRepairAction(
   const snapshot = await codeRepo.findSnapshotById(workspace.id, runResult.snapshotId);
   if (!snapshot) throw new AgentActionError("code_workspace_snapshot_not_found", 404);
 
-  const planner = options?.codeRepairPlanner ?? createUnavailableCodeRepairPlanner();
+  const planner = options?.codeRepairPlanner ?? createDefaultCodeRepairPlanner();
   const payload = codeWorkspacePatchSchema.parse({
     ...(await planner.plan({
+      requestId,
       failedRunAction,
       runResult,
       workspace,
@@ -972,6 +975,13 @@ function createUnavailableCodeRepairPlanner(): CodeRepairPlanner {
       throw new AgentActionError("code_project_repair_planner_unavailable", 409);
     },
   };
+}
+
+function createDefaultCodeRepairPlanner(): CodeRepairPlanner {
+  if (process.env.FEATURE_CODE_WORKSPACE_REPAIR === "true") {
+    return createTemporalCodeRepairPlanner();
+  }
+  return createUnavailableCodeRepairPlanner();
 }
 
 function noteUpdateApplyResultInput(input: Record<string, unknown>): NoteUpdateApplyRequest {

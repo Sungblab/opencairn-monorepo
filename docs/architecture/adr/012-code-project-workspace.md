@@ -268,6 +268,10 @@ project commands, install dependencies, host previews, or deploy external apps.
   `POST /api/agent-actions/:id/repair`. The API reuses `code_project.patch`,
   links the patch action back to the failed run with `sourceRunId`, and caps
   repair drafts at three per failed run.
+- Register `CodeWorkspaceRepairWorkflow` only when
+  `FEATURE_CODE_WORKSPACE_REPAIR=true`. The worker repair agent receives failed
+  run logs plus the resolved inline manifest and returns file replacements that
+  the activity converts into a reviewable `code_project.patch` payload.
 - Implement approved sandbox commands for test/build/lint.
 - Store logs and command artifacts.
 - Feed failures back into the agent for bounded repair loops.
