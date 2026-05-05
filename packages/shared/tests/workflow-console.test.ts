@@ -211,6 +211,62 @@ describe("workflow console contracts", () => {
     });
   });
 
+  it("projects completed code install actions as log outputs", () => {
+    const run = workflowConsoleRunFromAgentAction({
+      id: "00000000-0000-4000-8000-000000000037",
+      requestId: "00000000-0000-4000-8000-000000000038",
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      sourceRunId: "chat:00000000-0000-4000-8000-000000000010",
+      kind: "code_project.install",
+      status: "completed",
+      risk: "external",
+      input: {
+        codeWorkspaceId: "00000000-0000-4000-8000-000000000039",
+        snapshotId: "00000000-0000-4000-8000-000000000040",
+        packageManager: "pnpm",
+        packages: [{ name: "zod", version: "3.25.0", dev: false }],
+        network: "required",
+      },
+      preview: null,
+      result: {
+        ok: true,
+        codeWorkspaceId: "00000000-0000-4000-8000-000000000039",
+        snapshotId: "00000000-0000-4000-8000-000000000040",
+        packageManager: "pnpm",
+        installed: [{ name: "zod", version: "3.25.0", dev: false }],
+        exitCode: 0,
+        durationMs: 42,
+        logs: [{ stream: "stdout", text: "install passed" }],
+      },
+      errorCode: null,
+      createdAt,
+      updatedAt,
+    });
+
+    expect(workflowConsoleRunSchema.parse(run)).toMatchObject({
+      runId: "agent_action:00000000-0000-4000-8000-000000000037",
+      runType: "agent_action",
+      status: "completed",
+      outputs: [
+        {
+          outputType: "log",
+          id: "00000000-0000-4000-8000-000000000037:install",
+          label: "Dependency install",
+          metadata: {
+            codeWorkspaceId: "00000000-0000-4000-8000-000000000039",
+            snapshotId: "00000000-0000-4000-8000-000000000040",
+            packageManager: "pnpm",
+            installed: [{ name: "zod", version: "3.25.0", dev: false }],
+            exitCode: 0,
+            durationMs: 42,
+          },
+        },
+      ],
+    });
+  });
+
   it("projects chat run events with replay sequence and normalized event family", () => {
     const event = chatConsoleEventFromChatRunEvent({
       runId: "00000000-0000-4000-8000-000000000010",

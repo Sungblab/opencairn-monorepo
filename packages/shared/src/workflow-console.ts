@@ -710,6 +710,29 @@ function outputsFromAgentAction(action: AgentAction): WorkflowConsoleOutput[] {
       ];
     }
   }
+  if (action.kind === "code_project.install") {
+    const packageManager = stringField(action.result, "packageManager");
+    const codeWorkspaceId = stringField(action.result, "codeWorkspaceId");
+    const snapshotId = stringField(action.result, "snapshotId");
+    const exitCode = numberField(action.result, "exitCode");
+    if (packageManager && codeWorkspaceId && snapshotId && exitCode != null) {
+      return [
+        {
+          outputType: "log",
+          id: `${action.id}:install`,
+          label: "Dependency install",
+          metadata: {
+            codeWorkspaceId,
+            snapshotId,
+            packageManager,
+            installed: action.result.installed,
+            exitCode,
+            durationMs: numberField(action.result, "durationMs"),
+          },
+        },
+      ];
+    }
+  }
   const noteId = stringField(action.result, "noteId");
   if (noteId) {
     return [
@@ -761,6 +784,11 @@ function errorFromUnknown(value: unknown, fallbackCode: string): z.infer<typeof 
 function stringField(value: Record<string, unknown>, key: string): string | null {
   const field = value[key];
   return typeof field === "string" && field.length > 0 ? field : null;
+}
+
+function numberField(value: Record<string, unknown>, key: string): number | null {
+  const field = value[key];
+  return typeof field === "number" && Number.isFinite(field) ? field : null;
 }
 
 function toIso(value: Date | string): string {
