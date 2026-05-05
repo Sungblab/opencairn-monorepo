@@ -28,6 +28,7 @@ from worker.activities.code_activity import (
     analyze_feedback_activity,
     generate_code_activity,
 )
+from worker.activities.code_workspace_command import run_code_workspace_command_activity
 from worker.activities.compiler_activity import compile_note
 from worker.activities.connector_activity import run_connector as run_connector_activity
 from worker.activities.curator_activity import run_curator
@@ -243,6 +244,12 @@ def build_worker_config() -> WorkerConfig:
     if os.environ.get("FEATURE_CODE_AGENT", "false").lower() == "true":
         workflows.append(CodeAgentWorkflow)
         activities.extend([generate_code_activity, analyze_feedback_activity])
+
+    # Code Project Workspace Phase 6B — worker command runner foundation.
+    # The activity is feature-gated and its default executor is intentionally
+    # unavailable until a sandbox executor is wired by a later slice.
+    if os.environ.get("FEATURE_CODE_WORKSPACE_COMMANDS", "false").lower() == "true":
+        activities.append(run_code_workspace_command_activity)
 
     # Spec B — Content-Aware Enrichment. Three activities slot into
     # IngestWorkflow's pipeline (detect → enrich → store). No separate

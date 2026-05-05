@@ -51,6 +51,24 @@ def test_code_agent_registered_when_flag_on(monkeypatch: pytest.MonkeyPatch) -> 
     assert "analyze_feedback_activity" in activity_names
 
 
+def test_code_workspace_commands_omitted_when_flag_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("FEATURE_CODE_WORKSPACE_COMMANDS", raising=False)
+    cfg = build_worker_config()
+    activity_names = [a.__name__ for a in cfg.activities]
+    assert "run_code_workspace_command_activity" not in activity_names
+
+
+def test_code_workspace_commands_registered_when_flag_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FEATURE_CODE_WORKSPACE_COMMANDS", "true")
+    cfg = build_worker_config()
+    activity_names = [a.__name__ for a in cfg.activities]
+    assert "run_code_workspace_command_activity" in activity_names
+
+
 def test_text_ingest_activity_registered() -> None:
     cfg = build_worker_config()
     activity_names = [a.__name__ for a in cfg.activities]
