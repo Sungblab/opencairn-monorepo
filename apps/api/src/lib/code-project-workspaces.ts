@@ -58,6 +58,7 @@ export interface CodeWorkspacePatchRecord {
   requestId: string;
   codeWorkspaceId: string;
   baseSnapshotId: string;
+  appliedSnapshotId?: string | null;
   status: "approval_required" | "applied" | "rejected";
   patch: CodeWorkspacePatch;
 }
@@ -84,7 +85,19 @@ export interface CodeWorkspaceRepository {
     requestId: string;
     workspace: CodeWorkspaceRecord;
     patch: CodeWorkspacePatch;
+    actionId?: string | null;
   }): Promise<CodeWorkspacePatchRecord>;
+  applyPatch(input: {
+    scope: Pick<CodeWorkspaceScope, "workspaceId" | "projectId">;
+    workspace: CodeWorkspaceRecord;
+    baseSnapshot: CodeWorkspaceSnapshotRecord;
+    patch: CodeWorkspacePatch;
+    patchId?: string | null;
+  }): Promise<{
+    workspace: CodeWorkspaceRecord;
+    snapshot: CodeWorkspaceSnapshotRecord;
+    patch: CodeWorkspacePatchRecord | null;
+  }>;
   renameWorkspace(input: {
     scope: Pick<CodeWorkspaceScope, "workspaceId" | "projectId">;
     id: string;
@@ -223,7 +236,7 @@ export function createDrizzleCodeWorkspaceRepository(conn: DB = defaultDb): Code
         };
       });
     },
-    async createPatch({ scope, requestId, workspace, patch }) {
+    async createPatch({ scope, requestId, workspace, patch, actionId }) {
       const [record] = await conn
         .insert(codeWorkspacePatches)
         .values({
@@ -237,9 +250,59 @@ export function createDrizzleCodeWorkspaceRepository(conn: DB = defaultDb): Code
           risk: patch.risk,
           operations: patch.operations,
           preview: patch.preview,
+          actionId: actionId ?? null,
         })
         .returning();
       return toPatchRecord(record);
+    },
+    async applyPatch({ scope, workspace, baseSnapshot, patch, patchId }) {
+      if (workspace.currentSnapshotId !== patch.baseSnapshotId) {
+        throw new AgentActionError("code_workspace_stale_base", 409);
+      }
+      const manifest = applyPatchToManifest(baseSnapshot.manifest, patch);
+      const snapshotId = randomUUID();
+      return conn.transaction(async (tx) => {
+        const [snapshot] = await tx
+          .insert(codeWorkspaceSnapshots)
+          .values({
+            id: snapshotId,
+            codeWorkspaceId: workspace.id,
+            parentSnapshotId: baseSnapshot.id,
+            treeHash: treeHashForManifest(manifest),
+            manifest,
+          })
+          .returning();
+        if (manifest.entries.length > 0) {
+          await tx.insert(codeWorkspaceFileEntries).values(
+            manifest.entries.map((entry) => entryToInsert(snapshot.id, entry)),
+          );
+        }
+        const [updatedWorkspace] = await tx
+          .update(codeWorkspaces)
+          .set({ currentSnapshotId: snapshot.id })
+          .where(
+            and(
+              eq(codeWorkspaces.id, workspace.id),
+              eq(codeWorkspaces.workspaceId, scope.workspaceId),
+              eq(codeWorkspaces.projectId, scope.projectId),
+              isNull(codeWorkspaces.deletedAt),
+            ),
+          )
+          .returning();
+        let updatedPatch: typeof codeWorkspacePatches.$inferSelect | undefined;
+        if (patchId) {
+          [updatedPatch] = await tx
+            .update(codeWorkspacePatches)
+            .set({ status: "applied", appliedSnapshotId: snapshot.id })
+            .where(eq(codeWorkspacePatches.id, patchId))
+            .returning();
+        }
+        return {
+          workspace: toWorkspaceRecord(updatedWorkspace),
+          snapshot: toSnapshotRecord(snapshot),
+          patch: updatedPatch ? toPatchRecord(updatedPatch) : null,
+        };
+      });
     },
     async renameWorkspace({ scope, id, name, description }) {
       const set: Partial<typeof codeWorkspaces.$inferInsert> = { name };
@@ -424,11 +487,38 @@ export function createMemoryCodeWorkspaceRepository(): CodeWorkspaceRepository &
         requestId,
         codeWorkspaceId: workspace.id,
         baseSnapshotId: patch.baseSnapshotId,
+        appliedSnapshotId: null,
         status: "approval_required",
         patch,
       };
       rows.patches.set(record.id, record);
       return record;
+    },
+    async applyPatch({ workspace, baseSnapshot, patch, patchId }) {
+      if (workspace.currentSnapshotId !== patch.baseSnapshotId) {
+        throw new AgentActionError("code_workspace_stale_base", 409);
+      }
+      const manifest = applyPatchToManifest(baseSnapshot.manifest, patch);
+      const snapshot: CodeWorkspaceSnapshotRecord = {
+        id: randomUUID(),
+        codeWorkspaceId: workspace.id,
+        parentSnapshotId: baseSnapshot.id,
+        treeHash: treeHashForManifest(manifest),
+        manifest,
+      };
+      const updatedWorkspace: CodeWorkspaceRecord = {
+        ...workspace,
+        currentSnapshotId: snapshot.id,
+        updatedAt: new Date(),
+      };
+      rows.snapshots.set(snapshot.id, snapshot);
+      rows.workspaces.set(workspace.id, updatedWorkspace);
+      const currentPatch = patchId ? rows.patches.get(patchId) ?? null : null;
+      const updatedPatch = currentPatch
+        ? { ...currentPatch, status: "applied" as const, appliedSnapshotId: snapshot.id }
+        : null;
+      if (updatedPatch) rows.patches.set(updatedPatch.id, updatedPatch);
+      return { workspace: updatedWorkspace, snapshot, patch: updatedPatch };
     },
     async renameWorkspace({ scope, id, name, description }) {
       const workspace = rows.workspaces.get(id);
@@ -501,6 +591,7 @@ function toPatchRecord(row: typeof codeWorkspacePatches.$inferSelect): CodeWorks
     requestId: row.requestId,
     codeWorkspaceId: row.codeWorkspaceId,
     baseSnapshotId: row.baseSnapshotId,
+    appliedSnapshotId: row.appliedSnapshotId,
     status: row.status,
     patch: {
       codeWorkspaceId: row.codeWorkspaceId,
@@ -511,6 +602,57 @@ function toPatchRecord(row: typeof codeWorkspacePatches.$inferSelect): CodeWorks
       risk: row.risk as CodeWorkspacePatch["risk"],
     },
   };
+}
+
+export function applyPatchToManifest(
+  manifest: CodeWorkspaceManifest,
+  patch: CodeWorkspacePatch,
+): CodeWorkspaceManifest {
+  const entries = new Map(
+    manifest.entries.map((entry) => [entry.path.toLowerCase(), entry] as const),
+  );
+  for (const operation of patch.operations) {
+    const key = operation.path.toLowerCase();
+    if (operation.op === "delete") {
+      assertPatchBaseHash(entries.get(key), operation.beforeHash);
+      entries.delete(key);
+      continue;
+    }
+    if (operation.op === "rename" || operation.op === "move") {
+      const current = entries.get(key);
+      if (!current) throw new AgentActionError("code_workspace_patch_path_not_found", 409);
+      if (operation.beforeHash) assertPatchBaseHash(current, operation.beforeHash);
+      entries.delete(key);
+      entries.set(operation.newPath.toLowerCase(), { ...current, path: operation.newPath });
+      continue;
+    }
+    const current = entries.get(key);
+    if (operation.op === "create" && current) {
+      throw new AgentActionError("code_workspace_patch_path_exists", 409);
+    }
+    if (operation.op === "update") assertPatchBaseHash(current, operation.beforeHash);
+    const inlineContent = operation.inlineContent;
+    entries.set(key, {
+      path: operation.path,
+      kind: "file",
+      bytes: inlineContent ? Buffer.byteLength(inlineContent, "utf8") : 0,
+      contentHash: operation.afterHash,
+      inlineContent,
+      objectKey: operation.objectKey,
+    });
+  }
+  return codeWorkspaceManifestSchema.parse({
+    entries: [...entries.values()].sort((a, b) => a.path.localeCompare(b.path)),
+  });
+}
+
+function assertPatchBaseHash(
+  entry: CodeWorkspaceManifest["entries"][number] | undefined,
+  expectedHash: string,
+): void {
+  if (!entry || entry.kind !== "file" || entry.contentHash !== expectedHash) {
+    throw new AgentActionError("code_workspace_patch_base_mismatch", 409);
+  }
 }
 
 function codeWorkspaceManifestFromUnknown(value: unknown): CodeWorkspaceManifest {

@@ -18,6 +18,9 @@ import {
 } from "@opencairn/db";
 import { noteActionInputByKind } from "@opencairn/shared";
 import {
+  codeWorkspaceCreateRequestSchema,
+  codeWorkspacePatchSchema,
+  noteUpdateApplyRequestSchema,
   noteUpdateApplyResultSchema,
   noteUpdatePreviewSchema,
 } from "@opencairn/shared";
@@ -41,6 +44,12 @@ import type {
   TransitionAgentActionStatusRequest,
 } from "@opencairn/shared";
 import { randomUUID } from "node:crypto";
+import {
+  createCodeWorkspaceDraft,
+  createDrizzleCodeWorkspaceRepository,
+  prepareCodeWorkspacePatch,
+  type CodeWorkspaceRepository,
+} from "./code-project-workspaces";
 import { canWrite } from "./permissions";
 import { diffPlateValues } from "./note-version-diff";
 import { plateValueToText } from "./plate-text";
@@ -99,6 +108,7 @@ export interface AgentActionRepository {
 export interface AgentActionServiceOptions {
   repo?: AgentActionRepository;
   canWriteProject?: (userId: string, projectId: string) => Promise<boolean>;
+  codeWorkspaceRepo?: CodeWorkspaceRepository;
   noteExecutor?: NoteActionExecutor;
   noteUpdatePreviewer?: NoteUpdatePreviewer;
   noteUpdateApplier?: NoteUpdateApplier;
@@ -258,6 +268,8 @@ export async function createAgentAction(
 
   const placeholder = request.kind === "workflow.placeholder";
   const executableNoteAction = isPhase2ANoteAction(request.kind);
+  const executableCodeCreateAction = request.kind === "code_project.create";
+  const codePatchAction = request.kind === "code_project.patch";
   const noteUpdatePreview =
     request.kind === "note.update"
       ? await previewNoteUpdateAction(
@@ -281,7 +293,9 @@ export async function createAgentAction(
       ? "completed"
       : executableNoteAction
         ? "running"
-        : noteUpdatePreview
+        : executableCodeCreateAction
+          ? "running"
+          : noteUpdatePreview || codePatchAction
           ? "draft"
           : initialStatusForRisk(request.risk),
     risk: request.risk,
@@ -294,6 +308,18 @@ export async function createAgentAction(
   if (executableNoteAction) {
     return {
       action: await executePersistedNoteAction(action, request, options),
+      idempotent: false,
+    };
+  }
+  if (executableCodeCreateAction) {
+    return {
+      action: await executePersistedCodeProjectCreateAction(action, request, options),
+      idempotent: false,
+    };
+  }
+  if (codePatchAction) {
+    return {
+      action: await preparePersistedCodeProjectPatchAction(action, request, options),
       idempotent: false,
     };
   }
@@ -469,6 +495,26 @@ export async function applyNoteUpdateAction(
   }
 }
 
+export async function applyAgentAction(
+  id: string,
+  actorUserId: string,
+  request: Record<string, unknown>,
+  options?: AgentActionServiceOptions,
+): Promise<AgentAction> {
+  const repo = options?.repo ?? createDrizzleAgentActionRepository();
+  const current = await getAgentAction(id, actorUserId, { ...options, repo });
+  if (current.kind === "note.update") {
+    return applyNoteUpdateAction(id, actorUserId, noteUpdateApplyResultInput(request), {
+      ...options,
+      repo,
+    });
+  }
+  if (current.kind === "code_project.patch") {
+    return applyCodeProjectPatchAction(current, actorUserId, { ...options, repo });
+  }
+  throw new AgentActionError("action_kind_not_applicable", 409);
+}
+
 export function canTransition(from: AgentActionStatus, to: AgentActionStatus): boolean {
   if (from === to) return true;
   const allowed: Record<AgentActionStatus, AgentActionStatus[]> = {
@@ -528,6 +574,186 @@ async function executePersistedNoteAction(
     if (!updated) throw new AgentActionError("action_not_found", 404);
     return updated;
   }
+}
+
+async function executePersistedCodeProjectCreateAction(
+  action: AgentAction,
+  request: CreateAgentActionRequest,
+  options?: AgentActionServiceOptions,
+): Promise<AgentAction> {
+  const repo = options?.repo ?? createDrizzleAgentActionRepository();
+  const codeRepo = options?.codeWorkspaceRepo ?? createDrizzleCodeWorkspaceRepository();
+  try {
+    const payload = codeWorkspaceCreateRequestSchema.parse({
+      ...(request.input ?? {}),
+      requestId: action.requestId,
+      sourceRunId: action.sourceRunId ?? undefined,
+      sourceActionId: action.id,
+    });
+    const created = await createCodeWorkspaceDraft(
+      codeRepo,
+      {
+        workspaceId: action.workspaceId,
+        projectId: action.projectId,
+        actorUserId: action.actorUserId,
+      },
+      payload,
+    );
+    const updated = await repo.updateStatus(action.id, {
+      status: "completed",
+      result: {
+        ok: true,
+        workspace: serializeCodeWorkspace(action, created.workspace),
+        snapshot: created.snapshot,
+        archiveUrl: `/api/code-workspaces/${created.workspace.id}/snapshots/${created.snapshot.id}/archive`,
+      },
+      errorCode: null,
+    });
+    if (!updated) throw new AgentActionError("action_not_found", 404);
+    return updated;
+  } catch (err) {
+    const errorCode = err instanceof AgentActionError ? err.code : "code_project_create_failed";
+    const updated = await repo.updateStatus(action.id, {
+      status: "failed",
+      result: { ok: false, errorCode },
+      errorCode,
+    });
+    if (!updated) throw new AgentActionError("action_not_found", 404);
+    return updated;
+  }
+}
+
+async function preparePersistedCodeProjectPatchAction(
+  action: AgentAction,
+  request: CreateAgentActionRequest,
+  options?: AgentActionServiceOptions,
+): Promise<AgentAction> {
+  const repo = options?.repo ?? createDrizzleAgentActionRepository();
+  const codeRepo = options?.codeWorkspaceRepo ?? createDrizzleCodeWorkspaceRepository();
+  try {
+    const payload = codeWorkspacePatchSchema.parse({
+      ...(request.input ?? {}),
+      requestId: action.requestId,
+      risk: request.risk,
+    });
+    const result = await prepareCodeWorkspacePatch(
+      codeRepo,
+      {
+        workspaceId: action.workspaceId,
+        projectId: action.projectId,
+        actorUserId: action.actorUserId,
+      },
+      payload,
+    );
+    const updated = await repo.updateStatus(action.id, {
+      status: "draft",
+      preview: result.patch.patch.preview,
+      result: null,
+      errorCode: null,
+    });
+    if (!updated) throw new AgentActionError("action_not_found", 404);
+    return updated;
+  } catch (err) {
+    const errorCode = err instanceof AgentActionError ? err.code : "code_project_patch_failed";
+    const updated = await repo.updateStatus(action.id, {
+      status: "failed",
+      result: { ok: false, errorCode },
+      errorCode,
+    });
+    if (!updated) throw new AgentActionError("action_not_found", 404);
+    return updated;
+  }
+}
+
+async function applyCodeProjectPatchAction(
+  current: AgentAction,
+  actorUserId: string,
+  options?: AgentActionServiceOptions,
+): Promise<AgentAction> {
+  const repo = options?.repo ?? createDrizzleAgentActionRepository();
+  if (current.status !== "draft") {
+    throw new AgentActionError("invalid_status_transition", 409);
+  }
+  const running = await repo.updateStatus(current.id, {
+    status: "running",
+    errorCode: null,
+  });
+  if (!running) throw new AgentActionError("action_not_found", 404);
+
+  const codeRepo = options?.codeWorkspaceRepo ?? createDrizzleCodeWorkspaceRepository();
+  const payload = codeWorkspacePatchSchema.parse({
+    ...current.input,
+    requestId: current.requestId,
+    risk: current.risk,
+  });
+  try {
+    const workspace = await codeRepo.findWorkspaceById(
+      {
+        workspaceId: current.workspaceId,
+        projectId: current.projectId,
+        actorUserId,
+      },
+      payload.codeWorkspaceId,
+    );
+    if (!workspace) throw new AgentActionError("code_workspace_not_found", 404);
+    const baseSnapshot = await codeRepo.findSnapshotById(workspace.id, payload.baseSnapshotId);
+    if (!baseSnapshot) throw new AgentActionError("code_workspace_snapshot_not_found", 404);
+    const patch = await codeRepo.findPatchByRequestId(
+      {
+        workspaceId: current.workspaceId,
+        projectId: current.projectId,
+        actorUserId,
+      },
+      current.requestId,
+    );
+    const applied = await codeRepo.applyPatch({
+      scope: { workspaceId: current.workspaceId, projectId: current.projectId },
+      workspace,
+      baseSnapshot,
+      patch: payload,
+      patchId: patch?.id ?? null,
+    });
+    const completed = await repo.updateStatus(current.id, {
+      status: "completed",
+      result: {
+        ok: true,
+        workspace: serializeCodeWorkspace(current, applied.workspace),
+        snapshot: applied.snapshot,
+        archiveUrl: `/api/code-workspaces/${applied.workspace.id}/snapshots/${applied.snapshot.id}/archive`,
+      },
+      errorCode: null,
+    });
+    if (!completed) throw new AgentActionError("action_not_found", 404);
+    return completed;
+  } catch (err) {
+    const errorCode = err instanceof AgentActionError ? err.code : "code_project_patch_apply_failed";
+    const failed = await repo.updateStatus(current.id, {
+      status: "failed",
+      result: { ok: false, errorCode },
+      errorCode,
+    });
+    if (!failed) throw new AgentActionError("action_not_found", 404);
+    if (err instanceof AgentActionError) throw err;
+    throw new AgentActionError(errorCode, 409);
+  }
+}
+
+function noteUpdateApplyResultInput(input: Record<string, unknown>): NoteUpdateApplyRequest {
+  return noteUpdateApplyRequestSchema.parse(input);
+}
+
+function serializeCodeWorkspace(action: AgentAction, workspace: {
+  id: string;
+  name: string;
+  currentSnapshotId: string;
+}) {
+  return {
+    id: workspace.id,
+    projectId: action.projectId,
+    workspaceId: action.workspaceId,
+    name: workspace.name,
+    currentSnapshotId: workspace.currentSnapshotId,
+  };
 }
 
 function parseNoteActionPayload(

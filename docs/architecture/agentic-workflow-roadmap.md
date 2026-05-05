@@ -700,9 +700,11 @@ path/manifest guards, API-lib idempotency and stale-base validation, and DB
 tables for code workspaces, snapshots, file entries, and patches. Phase 1B now
 adds project-scoped API routes for create/list/get, reviewable patch requests,
 rename/delete metadata, snapshot zip downloads, and existing project
-explorer/tab-shell navigation. The next Phase 5 slice should wire agent
-create/patch actions and review surfaces while still avoiding command
-execution, dependency installs, and hosted preview.
+explorer/tab-shell navigation. Phase 1C wires `code_project.create` and
+`code_project.patch` through the Agent Action Ledger, adds Agent Panel patch
+review cards, and applies approved patches into immutable snapshots with archive
+links. Later Phase 5 work should still avoid command execution, dependency
+installs, and hosted preview until the execution-loop and preview phases.
 
 ### Phase 6: Code Agent Execution Loop
 
