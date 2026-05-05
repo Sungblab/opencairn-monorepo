@@ -50,6 +50,34 @@
     "applyFailed": "노트 수정 제안을 적용하지 못했어요.",
     "cancelFailed": "노트 수정 제안을 취소하지 못했어요."
   },
+  "workflowConsole": {
+    "title": "작업 상태",
+    "loading": "작업을 불러오는 중…",
+    "refreshing": "새로고침 중",
+    "loadFailed": "작업 상태를 불러오지 못했어요.",
+    "progress": "{percent}%",
+    "type": {
+      "chat": "채팅",
+      "agent_action": "에이전트 작업",
+      "plan8_agent": "Plan8",
+      "document_generation": "문서 생성",
+      "import": "가져오기",
+      "export": "내보내기",
+      "code_agent": "코드 에이전트",
+      "system_workflow": "시스템"
+    },
+    "status": {
+      "draft": "초안",
+      "approval_required": "승인 필요",
+      "queued": "대기 중",
+      "running": "실행 중",
+      "blocked": "대기",
+      "completed": "완료",
+      "failed": "실패",
+      "cancelled": "취소됨",
+      "reverted": "되돌림"
+    }
+  },
   "documentGeneration": {
     "toggle": "문서 생성",
     "selectedNone": "출처 선택 없음",

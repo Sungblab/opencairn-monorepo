@@ -50,6 +50,34 @@
     "applyFailed": "Could not apply the note edit proposal.",
     "cancelFailed": "Could not cancel the note edit proposal."
   },
+  "workflowConsole": {
+    "title": "Run status",
+    "loading": "Loading runs…",
+    "refreshing": "Refreshing",
+    "loadFailed": "Could not load run status.",
+    "progress": "{percent}%",
+    "type": {
+      "chat": "Chat",
+      "agent_action": "Agent action",
+      "plan8_agent": "Plan8",
+      "document_generation": "Document generation",
+      "import": "Import",
+      "export": "Export",
+      "code_agent": "Code agent",
+      "system_workflow": "System"
+    },
+    "status": {
+      "draft": "Draft",
+      "approval_required": "Approval required",
+      "queued": "Queued",
+      "running": "Running",
+      "blocked": "Blocked",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "reverted": "Reverted"
+    }
+  },
   "documentGeneration": {
     "toggle": "Generate document",
     "selectedNone": "No sources selected",

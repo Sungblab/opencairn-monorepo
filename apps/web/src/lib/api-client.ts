@@ -11,6 +11,7 @@ import type {
   GenerateProjectObjectAction,
   NoteUpdateApplyRequest,
   TransitionAgentActionStatusRequest,
+  WorkflowConsoleRun,
 } from "@opencairn/shared";
 export type { AgentAction, AgentActionKind, AgentActionStatus } from "@opencairn/shared";
 
@@ -387,6 +388,19 @@ export const documentGenerationApi = {
 };
 
 export type { DocumentGenerationFormat, DocumentGenerationSource };
+
+export const workflowConsoleApi = {
+  list: (projectId: string, limit = 5) =>
+    apiClient<{ runs: WorkflowConsoleRun[] }>(
+      `/projects/${projectId}/workflow-console/runs?limit=${limit}`,
+    ),
+  get: (projectId: string, runId: string) =>
+    apiClient<{ run: WorkflowConsoleRun }>(
+      `/projects/${projectId}/workflow-console/runs/${encodeURIComponent(runId)}`,
+    ),
+};
+
+export type { WorkflowConsoleRun };
 
 // ---------- Dashboard / workspace summary (Phase 5 Task 1) ----------
 // snake_case keys mirror the server contract — see workspaces.ts stats /

@@ -40,6 +40,7 @@ import { NoteUpdateActionReviewList } from "./note-update-action-review";
 import { PanelHeader } from "./panel-header";
 import { ScopeChipsRow, defaultScopeIds } from "./scope-chips-row";
 import { buildAgentScopePayload } from "./scope-payload";
+import { WorkflowConsoleRuns } from "./workflow-console-runs";
 
 export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const workspaceId = useWorkspaceId(wsSlug);
@@ -258,6 +259,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
         newThreadDisabled={threadActionsDisabled}
       />
       <NoteUpdateActionReviewList projectId={activeProjectId} />
+      <WorkflowConsoleRuns projectId={activeProjectId} />
       {activeThreadId ? (
         <Conversation
           threadId={activeThreadId}
