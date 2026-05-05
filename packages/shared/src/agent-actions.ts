@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { NoteVersionDiffSchema } from "./note-versions";
 import {
+  codeWorkspaceCommandRunRequestSchema,
   codeWorkspaceCreateRequestSchema,
   codeWorkspacePatchPreviewSchema,
   codeWorkspacePatchSchema,
@@ -351,7 +352,9 @@ function validateCodeProjectActionInput(
       ? codeWorkspaceCreateRequestSchema
       : value.kind === "code_project.patch"
         ? codeWorkspacePatchSchema
-        : null;
+        : value.kind === "code_project.run"
+          ? codeWorkspaceCommandRunRequestSchema
+          : null;
   if (!schema) return;
   const parsed = schema.safeParse(input);
   if (parsed.success) return;

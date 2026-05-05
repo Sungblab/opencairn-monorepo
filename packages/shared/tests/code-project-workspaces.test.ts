@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   codeWorkspaceCreateRequestSchema,
+  codeWorkspaceCommandRunRequestSchema,
   codeWorkspaceManifestSchema,
   codeWorkspacePatchSchema,
   codeWorkspacePackageResultSchema,
@@ -137,5 +138,33 @@ describe("code project workspace contracts", () => {
       bytes: 4096,
     });
     expect(packaged.ok).toBe(true);
+  });
+
+  it("allows only approved code workspace command runs", () => {
+    const parsed = codeWorkspaceCommandRunRequestSchema.parse({
+      requestId: "00000000-0000-4000-8000-000000000202",
+      codeWorkspaceId: "00000000-0000-4000-8000-000000000203",
+      snapshotId: baseSnapshotId,
+      command: "test",
+      timeoutMs: 30_000,
+    });
+    expect(parsed.command).toBe("test");
+
+    expect(() =>
+      codeWorkspaceCommandRunRequestSchema.parse({
+        codeWorkspaceId: "00000000-0000-4000-8000-000000000203",
+        snapshotId: baseSnapshotId,
+        command: "rm -rf /",
+      }),
+    ).toThrow();
+
+    expect(() =>
+      codeWorkspaceCommandRunRequestSchema.parse({
+        workspaceId: "00000000-0000-4000-8000-000000000999",
+        codeWorkspaceId: "00000000-0000-4000-8000-000000000203",
+        snapshotId: baseSnapshotId,
+        command: "lint",
+      }),
+    ).toThrow(/scope_fields_are_server_injected/);
   });
 });

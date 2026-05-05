@@ -31,6 +31,7 @@ export function createAgentActionRoutes(options?: AgentActionRouteOptions) {
     ...(options?.repo ? { repo: options.repo } : {}),
     ...(options?.canWriteProject ? { canWriteProject: options.canWriteProject } : {}),
     ...(options?.codeWorkspaceRepo ? { codeWorkspaceRepo: options.codeWorkspaceRepo } : {}),
+    ...(options?.codeCommandRunner ? { codeCommandRunner: options.codeCommandRunner } : {}),
     ...(options?.noteExecutor ? { noteExecutor: options.noteExecutor } : {}),
     ...(options?.noteUpdatePreviewer ? { noteUpdatePreviewer: options.noteUpdatePreviewer } : {}),
     ...(options?.noteUpdateApplier ? { noteUpdateApplier: options.noteUpdateApplier } : {}),

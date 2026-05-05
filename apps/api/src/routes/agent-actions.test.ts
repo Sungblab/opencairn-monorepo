@@ -3,7 +3,12 @@ import { describe, expect, it } from "vitest";
 import { createAgentActionRoutes } from "./agent-actions";
 import type { AppEnv } from "../lib/types";
 import type { AgentAction } from "@opencairn/shared";
-import type { AgentActionRepository, NoteUpdateApplier, NoteUpdatePreviewer } from "../lib/agent-actions";
+import type {
+  AgentActionRepository,
+  CodeCommandRunner,
+  NoteUpdateApplier,
+  NoteUpdatePreviewer,
+} from "../lib/agent-actions";
 import {
   createMemoryCodeWorkspaceRepository,
   type CodeWorkspaceRepository,
@@ -337,11 +342,108 @@ describe("agent action routes", () => {
       },
     });
   });
+
+  it("runs an approved code_project.run command through the command runner seam", async () => {
+    const codeWorkspaceRepo = createMemoryCodeWorkspaceRepository();
+    const codeCommandRunner = createMemoryCodeCommandRunner({ exitCode: 0 });
+    const app = appWith({
+      repo: createMemoryRepo(),
+      codeWorkspaceRepo,
+      codeCommandRunner,
+    });
+
+    const createWorkspace = await app.request(`/api/projects/${projectId}/agent-actions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "code_project.create",
+        risk: "write",
+        input: {
+          name: "Runnable app",
+          manifest: {
+            entries: [
+              {
+                path: "package.json",
+                kind: "file",
+                bytes: 16,
+                contentHash: "sha256:pkg",
+                inlineContent: "{\"scripts\":{}}",
+              },
+            ],
+          },
+        },
+      }),
+    });
+    const created = await createWorkspace.json() as { action: AgentAction };
+    const workspace = (created.action.result?.workspace as { id: string; currentSnapshotId: string });
+
+    const run = await app.request(`/api/projects/${projectId}/agent-actions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        requestId: "00000000-0000-4000-8000-000000000055",
+        kind: "code_project.run",
+        risk: "write",
+        input: {
+          codeWorkspaceId: workspace.id,
+          snapshotId: workspace.currentSnapshotId,
+          command: "test",
+          timeoutMs: 30_000,
+        },
+      }),
+    });
+
+    expect(run.status).toBe(201);
+    const body = await run.json() as { action: AgentAction };
+    expect(codeCommandRunner.calls).toEqual([
+      {
+        command: "test",
+        entries: ["package.json"],
+      },
+    ]);
+    expect(body.action).toMatchObject({
+      kind: "code_project.run",
+      status: "completed",
+      result: {
+        ok: true,
+        command: "test",
+        exitCode: 0,
+        logs: [{ stream: "stdout", text: "tests passed" }],
+      },
+    });
+  });
+
+  it("rejects unapproved code_project.run commands before execution", async () => {
+    const codeCommandRunner = createMemoryCodeCommandRunner({ exitCode: 0 });
+    const app = appWith({
+      repo: createMemoryRepo(),
+      codeWorkspaceRepo: createMemoryCodeWorkspaceRepository(),
+      codeCommandRunner,
+    });
+
+    const response = await app.request(`/api/projects/${projectId}/agent-actions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "code_project.run",
+        risk: "write",
+        input: {
+          codeWorkspaceId: "00000000-0000-4000-8000-000000000020",
+          snapshotId: "00000000-0000-4000-8000-000000000021",
+          command: "rm -rf /",
+        },
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(codeCommandRunner.calls).toEqual([]);
+  });
 });
 
 function appWith(options: {
   repo: AgentActionRepository;
   codeWorkspaceRepo?: CodeWorkspaceRepository;
+  codeCommandRunner?: CodeCommandRunner;
   noteUpdatePreviewer?: NoteUpdatePreviewer;
   noteUpdateApplier?: NoteUpdateApplier;
 }) {
@@ -350,6 +452,7 @@ function appWith(options: {
     createAgentActionRoutes({
       repo: options.repo,
       codeWorkspaceRepo: options.codeWorkspaceRepo,
+      codeCommandRunner: options.codeCommandRunner,
       canWriteProject: async () => true,
       noteUpdatePreviewer: options.noteUpdatePreviewer,
       noteUpdateApplier: options.noteUpdateApplier,
@@ -360,6 +463,30 @@ function appWith(options: {
       },
     }),
   );
+}
+
+function createMemoryCodeCommandRunner(result: {
+  exitCode: number;
+}): CodeCommandRunner & {
+  calls: Array<{ command: string; entries: string[] }>;
+} {
+  const calls: Array<{ command: string; entries: string[] }> = [];
+  return {
+    calls,
+    async run(input) {
+      calls.push({
+        command: input.request.command,
+        entries: input.snapshot.manifest.entries.map((entry) => entry.path),
+      });
+      return {
+        ok: result.exitCode === 0,
+        command: input.request.command,
+        exitCode: result.exitCode,
+        durationMs: 42,
+        logs: [{ stream: "stdout", text: result.exitCode === 0 ? "tests passed" : "tests failed" }],
+      };
+    },
+  };
 }
 
 function createMemoryRepo(): AgentActionRepository {

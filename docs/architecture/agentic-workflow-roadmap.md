@@ -720,6 +720,14 @@ Add repair-loop behavior:
 This is the first phase that makes OpenCairn feel like a code agent rather than
 only a file generator.
 
+Phase 6A establishes the safe API seam for this loop. `code_project.run`
+actions now accept only approved command intents (`lint`, `test`, or `build`)
+against an explicit code workspace snapshot, reject caller-supplied scope
+fields, and complete or fail through an injected command runner that returns
+bounded logs and an exit code. The default API runner remains unavailable, so
+real command execution still belongs to the sandboxed worker/runtime follow-up
+rather than unrestricted API process execution.
+
 ### Phase 7: Hosted Preview
 
 Add generated app previews:
