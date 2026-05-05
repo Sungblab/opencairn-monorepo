@@ -26,15 +26,18 @@ handoff from an existing generated project object.
   of truth.
 - `export_project_object` is the action entrypoint for `google_drive`,
   `google_docs`, `google_sheets`, and `google_slides`.
-- Google export requires a separate, scoped, revocable Workspace/Drive grant.
-  Authentication through Google as an identity provider is not enough.
+- Google export requires a separate, least-privilege, revocable
+  Workspace/Drive grant. The default target scope should be `drive.file` so
+  OpenCairn can access files it creates or files the user explicitly shares
+  with it. Authentication through Google as an identity provider is not enough.
 - External export runs through Temporal and worker activities because it calls a
   provider, refreshes OAuth tokens, may retry, and needs terminal status.
-- Provider export metadata should reuse connector accounts, connector sources,
-  external object references, and connector audit events where they can represent
-  generated-file exports clearly.
-- A new persistence shape is allowed only after the implementation proves the
-  connector metadata model cannot represent provider exports without ambiguity.
+- Provider export metadata should reuse connector accounts and connector audit
+  events where they fit. Current connector external object references do not yet
+  link back to `agent_files` and do not carry export status, exported MIME type,
+  or stable provider error codes, so the implementation must not force generated
+  file exports into that table without either extending the schema or adding a
+  narrowly scoped provider-export record.
 - The first UI surface is an export action/status/link on existing project
   object cards and viewers, not a new Google-specific generation form.
 
@@ -62,7 +65,8 @@ type, export status, and stable error code. The API should validate:
 - authenticated user, workspace, and project scope;
 - object ownership through the existing agent-file/project-object checks;
 - provider/file compatibility;
-- Google connector grant status and required Drive scopes;
+- Google connector grant status and least-privilege Drive scopes, with
+  `drive.file` as the default design target;
 - idempotency by request ID where the existing action ledger supports it.
 
 ### 2. Worker Google Export
@@ -80,16 +84,27 @@ disposable Drive fixtures.
 ### 3. Metadata And Audit
 
 Persist successful exports as external provider references linked back to the
-OpenCairn project object. Prefer existing connector metadata:
+OpenCairn project object. Existing connector metadata should be reused only
+where the current schema actually represents the export relationship:
 
 - `connector_accounts` for the user-owned Google account;
-- `connector_sources` when a Drive folder or export destination needs a stable
-  source boundary;
-- `external_object_refs` for the exported Drive/Docs/Sheets/Slides object;
+- `connector_sources` only when a Drive folder or export destination needs a
+  stable source boundary;
 - `connector_audit_events` for the external send action.
 
-If this mapping becomes ambiguous, add a narrowly scoped provider-export record
-in a later implementation slice rather than changing Phase 4 contracts first.
+The current `external_object_refs` table is not sufficient by itself for
+generated-file export state because it lacks a direct `agent_files` reference
+and does not store exported MIME type, terminal status, or stable error codes.
+The implementation should therefore choose one of two explicit paths before
+persisting provider export results:
+
+1. extend connector metadata with a generated project-object reference and the
+   required export-status fields; or
+2. add a narrowly scoped provider-export record linked to the OpenCairn project
+   object and, when useful, to connector account/source metadata.
+
+Do not treat `external_object_refs` as the sole source of provider export state
+unless that schema gap has been closed.
 
 ### 4. Existing UI Surfaces
 

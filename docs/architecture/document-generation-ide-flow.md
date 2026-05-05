@@ -308,7 +308,8 @@ Provider export should be modeled as an external, auditable effect:
 Grant and fallback rules:
 
 - Google login remains identity only. Workspace export requires a separate
-  connector/provider grant with Drive write scope.
+  connector/provider grant with least-privilege Drive scope. The default design
+  target is `drive.file`, not broad full-Drive access.
 - Self-hosted deployments with no Google env vars or no connected Google
   account still expose OpenCairn preview and download.
 - Revoked, expired, or insufficient grants fail the provider export action with
@@ -328,10 +329,11 @@ Implementation split:
    Slides conversion where supported, and returns terminal metadata or a stable
    error code.
 3. Metadata and audit:
-   map successful exports to existing connector account/source/external object
-   references and connector audit events where that model fits; introduce new DB
-   shape only if the existing connector metadata cannot represent generated-file
-   exports without ambiguity.
+   map successful exports to connector accounts and connector audit events where
+   that model fits. Do not force export state into `external_object_refs` unless
+   the schema can link back to the generated project object and carry exported
+   MIME type, terminal status, and stable error codes; otherwise add a narrowly
+   scoped provider-export persistence shape in the implementation slice.
 4. UI consumption:
    surface provider export status and external links in the existing Agent Panel
    cards, agent-file viewer actions, and workflow/status surfaces. Do not add a
