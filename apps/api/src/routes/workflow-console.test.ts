@@ -52,6 +52,29 @@ describe("workflow console routes", () => {
     ]);
   });
 
+  it("searches listed runs by title and diagnostics", async () => {
+    const app = createTestApp({
+      repo: createMemoryRepo(),
+      canReadProject: async () => true,
+    });
+
+    const titleResponse = await app.request(
+      `/api/projects/${projectId}/workflow-console/runs?q=google`,
+    );
+    const errorResponse = await app.request(
+      `/api/projects/${projectId}/workflow-console/runs?q=try%20again`,
+    );
+
+    expect(titleResponse.status).toBe(200);
+    expect((await titleResponse.json() as { runs: WorkflowConsoleRun[] }).runs.map((run) => run.runType)).toEqual([
+      "import",
+    ]);
+    expect(errorResponse.status).toBe(200);
+    expect((await errorResponse.json() as { runs: WorkflowConsoleRun[] }).runs.map((run) => run.runType)).toEqual([
+      "import",
+    ]);
+  });
+
   it("rejects unknown list status filters", async () => {
     const app = createTestApp({
       repo: createMemoryRepo(),
@@ -226,7 +249,7 @@ function createMemoryRepo(): WorkflowConsoleRepository {
           workspaceId,
           projectId,
           userId,
-          source: "markdown_zip",
+          source: "google_drive",
           workflowId: "import/00000000-0000-4000-8000-000000000050",
           status: "failed",
           totalItems: 10,

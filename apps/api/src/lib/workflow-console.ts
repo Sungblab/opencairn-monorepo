@@ -320,12 +320,14 @@ export async function listWorkflowConsoleRuns(
   options?: WorkflowConsoleServiceOptions & {
     limit?: number;
     status?: WorkflowConsoleStatus;
+    q?: string;
   },
 ): Promise<WorkflowConsoleRun[]> {
   const repo = options?.repo ?? createDrizzleWorkflowConsoleRepository();
   await assertCanReadProject(projectId, userId, repo, options);
   const limit = options?.limit ?? 50;
-  const repoLimit = options?.status ? Math.max(limit * 4, limit) : limit;
+  const hasPostProjectionFilter = Boolean(options?.status || options?.q);
+  const repoLimit = hasPostProjectionFilter ? Math.max(limit * 4, limit) : limit;
   const [chat, actions, plan8, imports, exports] = await Promise.all([
     repo.listChatRunsByProject({ projectId, userId, limit: repoLimit }),
     repo.listAgentActionsByProject({ projectId, userId, limit: repoLimit }),
@@ -342,8 +344,32 @@ export async function listWorkflowConsoleRuns(
   ]
     .filter((run) => run.projectId === projectId)
     .filter((run) => !options?.status || run.status === options.status)
+    .filter((run) => !options?.q || workflowConsoleRunMatchesQuery(run, options.q))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, limit);
+}
+
+function workflowConsoleRunMatchesQuery(run: WorkflowConsoleRun, query: string): boolean {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  const fields = [
+    run.runId,
+    run.sourceId,
+    run.sourceStatus,
+    run.runType,
+    run.title,
+    run.error?.code,
+    run.error?.message,
+    ...run.outputs.flatMap((output) => [
+      output.id,
+      output.label,
+      output.outputType,
+      output.url,
+    ]),
+  ];
+  return fields.some((value) =>
+    typeof value === "string" && value.toLowerCase().includes(needle),
+  );
 }
 
 export async function getWorkflowConsoleRun(
