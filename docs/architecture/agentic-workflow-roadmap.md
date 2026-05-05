@@ -758,6 +758,14 @@ planner for a `code_project.patch`, and records that draft patch with
 patch drafts per failed run; the default planner remains unavailable until an
 agent-backed repair planner is wired.
 
+Phase 6F wires the first agent-backed repair planner behind
+`FEATURE_CODE_WORKSPACE_REPAIR=false` by default. When enabled, the API starts
+`CodeWorkspaceRepairWorkflow` with the failed run logs and resolved snapshot
+manifest. The worker calls `CodeWorkspaceRepairAgent`, converts the returned
+file replacements into a normal `code_project.patch` payload with computed
+hashes and preview counts, and still requires the existing review/apply flow
+before the repaired files mutate the code workspace.
+
 ### Phase 7: Hosted Preview
 
 Add generated app previews:
