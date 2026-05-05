@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AgentFileSummary } from "@opencairn/shared";
@@ -22,6 +22,8 @@ const messages = {
       ingest: "인제스트 실행",
       compile: "LaTeX 컴파일",
       canvas: "캔버스로 실행",
+      googleExport: "Google Workspace로 내보내기",
+      googleExportConnectRequired: "Google Drive 연결 필요",
       compileStatus: {
         not_started: "컴파일 대기",
         queued: "컴파일 대기열",
@@ -84,7 +86,11 @@ function fileSummary(patch: Partial<AgentFileSummary>): AgentFileSummary {
   };
 }
 
-function mockAgentFile(file: AgentFileSummary, body: string) {
+function mockAgentFile(
+  file: AgentFileSummary,
+  body: string,
+  options: { googleConnected?: boolean } = {},
+) {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
@@ -99,13 +105,44 @@ function mockAgentFile(file: AgentFileSummary, body: string) {
           headers: { "content-type": file.mimeType },
         });
       }
+      if (
+        url.endsWith(
+          `/api/integrations/google?workspaceId=${encodeURIComponent(file.workspaceId)}`,
+        )
+      ) {
+        return new Response(
+          JSON.stringify({
+            connected: options.googleConnected ?? false,
+            accountEmail: options.googleConnected ? "user@example.com" : null,
+            scopes: options.googleConnected
+              ? "https://www.googleapis.com/auth/drive.file"
+              : null,
+          }),
+          { headers: { "content-type": "application/json" } },
+        );
+      }
+      if (url.endsWith(`/api/projects/${file.projectId}/project-object-actions/export`)) {
+        return new Response(
+          JSON.stringify({
+            action: { id: "action-1" },
+            event: { type: "project_object_export_requested" },
+            idempotent: false,
+            workflowId: "google-workspace-export/request-1",
+          }),
+          { status: 202, headers: { "content-type": "application/json" } },
+        );
+      }
       return new Response("not found", { status: 404 });
     }),
   );
 }
 
-function renderViewer(file: AgentFileSummary, body: string) {
-  mockAgentFile(file, body);
+function renderViewer(
+  file: AgentFileSummary,
+  body: string,
+  options: { googleConnected?: boolean } = {},
+) {
+  mockAgentFile(file, body, options);
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -172,5 +209,34 @@ describe("AgentFileViewer", () => {
     expect(frame).toHaveAttribute("sandbox", "allow-scripts");
     expect(screen.getByLabelText("캔버스로 실행")).toBeInTheDocument();
     expect(await screen.findByText(/<h1>Hello/)).toBeInTheDocument();
+  });
+
+  it("starts a Google Workspace export for compatible generated files", async () => {
+    const file = fileSummary({
+      filename: "brief.docx",
+      extension: "docx",
+      kind: "docx",
+      mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+    renderViewer(file, "binary", { googleConnected: true });
+
+    const button = await screen.findByLabelText("Google Workspace로 내보내기");
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+        `/api/projects/${file.projectId}/project-object-actions/export`,
+        expect.objectContaining({
+          method: "POST",
+          credentials: "include",
+          body: JSON.stringify({
+            type: "export_project_object",
+            objectId: file.id,
+            provider: "google_docs",
+            format: "docx",
+          }),
+        }),
+      );
+    });
   });
 });
