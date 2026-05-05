@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from typing import Any
 
 from temporalio import activity
@@ -18,9 +19,23 @@ from worker.activities.document_generation.types import (
     DocumentGenerationWorkflowParams,
 )
 from worker.lib.api_client import post_internal
+from worker.lib.s3_client import download_to_tempfile
 
 SOURCE_TOKEN_BUDGET = 40_000
 SOURCE_HYDRATION_CONCURRENCY = 8
+SOURCE_EXTRACTION_MAX_BYTES = 25 * 1024 * 1024
+
+_PDF_MIME_TYPES = frozenset({"application/pdf"})
+_OFFICE_MIME_TYPES = frozenset(
+    {
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-excel",
+    }
+)
+_PDF_EXTS = frozenset({".pdf"})
+_OFFICE_EXTS = frozenset({".docx", ".pptx", ".xlsx", ".xls"})
 
 
 def _approx_tokens(text: str) -> int:
@@ -57,6 +72,7 @@ async def _hydrate_internal_source(
         },
     )
     body = str(raw.get("body") or "")
+    body = await _extract_source_body(raw, body)
     return DocumentGenerationSourceItem(
         id=str(raw.get("id") or _source_id(source)),
         title=str(raw.get("title") or _source_id(source)),
@@ -65,6 +81,70 @@ async def _hydrate_internal_source(
         token_count=int(raw.get("token_count", raw.get("tokenCount", _approx_tokens(body)))),
         included=bool(raw.get("included", True)),
     )
+
+
+async def _extract_source_body(raw: dict[str, Any], fallback: str) -> str:
+    object_key = raw.get("objectKey") or raw.get("object_key")
+    if not isinstance(object_key, str) or not object_key:
+        return fallback
+
+    mime_type = str(raw.get("mimeType") or raw.get("mime_type") or "").split(";")[0].strip()
+    bytes_value = raw.get("bytes")
+    if isinstance(bytes_value, int) and bytes_value > SOURCE_EXTRACTION_MAX_BYTES:
+        return fallback
+    if not _can_extract_source(object_key, mime_type):
+        return fallback
+
+    try:
+        extracted = await asyncio.to_thread(
+            _download_and_extract_source_text,
+            object_key,
+            mime_type,
+        )
+    except Exception:
+        return fallback
+    return extracted.strip() or fallback
+
+
+def _can_extract_source(object_key: str, mime_type: str) -> bool:
+    suffix = Path(object_key).suffix.lower()
+    return (
+        mime_type in _PDF_MIME_TYPES
+        or mime_type in _OFFICE_MIME_TYPES
+        or suffix in _PDF_EXTS
+        or suffix in _OFFICE_EXTS
+    )
+
+
+def _download_and_extract_source_text(object_key: str, mime_type: str) -> str:
+    path = download_to_tempfile(object_key)
+    try:
+        suffix = path.suffix.lower()
+        if mime_type in _PDF_MIME_TYPES or suffix in _PDF_EXTS:
+            return _extract_pdf_text(path)
+        if mime_type in _OFFICE_MIME_TYPES or suffix in _OFFICE_EXTS:
+            return _extract_office_text(path)
+        return ""
+    finally:
+        path.unlink(missing_ok=True)
+
+
+def _extract_pdf_text(path: Path) -> str:
+    import pymupdf
+
+    document = pymupdf.open(str(path))
+    try:
+        parts = [(page.get_text() or "").strip() for page in document]
+        return "\n\n".join(part for part in parts if part)
+    finally:
+        document.close()
+
+
+def _extract_office_text(path: Path) -> str:
+    from markitdown import MarkItDown
+
+    result = MarkItDown().convert(str(path))
+    return getattr(result, "markdown", None) or result.text_content or ""
 
 
 async def _hydrate_source(

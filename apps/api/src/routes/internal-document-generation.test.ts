@@ -128,6 +128,56 @@ describe("internal document generation hydration route", () => {
       title: "Generated report",
       body: "agent file body",
       kind: "agent_file",
+      objectKey: "agent-files/report.md",
+      mimeType: "text/markdown",
+      bytes: 15,
+      included: true,
+    });
+  });
+
+  it("returns binary agent_file object metadata without heavy parsing in the API", async () => {
+    rowsQueue.push(
+      [{ wsId: workspaceId }],
+      [{
+        id: "00000000-0000-4000-8000-000000000010",
+        workspaceId,
+        projectId,
+        title: "Uploaded PDF",
+        filename: "uploaded.pdf",
+        kind: "pdf",
+        mimeType: "application/pdf",
+        objectKey: "agent-files/uploaded.pdf",
+        bytes: 2048,
+        sourceNoteId: null,
+      }],
+    );
+
+    const response = await internalRoutes.request("/document-generation/hydrate-source", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-internal-secret": "test-secret",
+      },
+      body: JSON.stringify({
+        workspaceId,
+        projectId,
+        userId,
+        source: {
+          type: "agent_file",
+          objectId: "00000000-0000-4000-8000-000000000010",
+        },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      id: "00000000-0000-4000-8000-000000000010",
+      title: "Uploaded PDF",
+      body: "uploaded.pdf (pdf, 2048 bytes)",
+      kind: "agent_file",
+      objectKey: "agent-files/uploaded.pdf",
+      mimeType: "application/pdf",
+      bytes: 2048,
       included: true,
     });
   });

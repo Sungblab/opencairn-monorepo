@@ -234,6 +234,13 @@ Current implementation boundary:
   reference for that individual source if the internal hydration call fails, so
   one inaccessible source does not unnecessarily kill the whole generation
   workflow.
+- Binary/heavy generated project objects and synthesis documents keep the API
+  boundary lightweight: the internal endpoint returns scope-checked object
+  metadata, and the worker attempts bounded body extraction for PDF, DOCX,
+  PPTX, XLSX, and XLS using existing worker dependencies. Unsupported MIME
+  types, objects over the worker extraction limit, corrupt files, scanned PDFs
+  without embedded text, and parser failures remain per-source metadata
+  fallbacks instead of workflow-level failures.
 - The Agent Panel and Chat Scope now render the worker-backed
   `generate_project_object` lifecycle inside the existing message surfaces.
   Request, queued/running, completed, and failed events are merged by
@@ -248,8 +255,9 @@ Remaining Phase 3C/3D work:
 - Add a first-class generation request form when the product is ready for a
   visible picker, reusing the same `generate_project_object` contract instead
   of adding chat-only payloads.
-- Run a live stack smoke from source selection through Temporal, object storage,
-  project tree update, viewer open, and download.
+- Keep running the live smoke script against source selection, Temporal, object
+  storage, project tree update, callback registration, and download when these
+  boundaries change.
 - Expand Phase 3D quality signals only after the current event/result contract
   has been exercised with real user prompts.
 

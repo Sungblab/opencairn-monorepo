@@ -153,6 +153,25 @@ const DOCUMENT_GENERATION_SOURCE_TEXT_LIMIT = 256 * 1024;
 const DOCUMENT_GENERATION_MESSAGE_ID_LIMIT = 50;
 const DOCUMENT_GENERATION_JSON_TEXT_MAX_DEPTH = 10;
 
+function synthesisDocumentMimeType(format: string): string {
+  switch (format) {
+    case "docx":
+      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    case "pdf":
+      return "application/pdf";
+    case "md":
+      return "text/markdown; charset=utf-8";
+    case "latex":
+      return "text/x-tex; charset=utf-8";
+    case "bibtex":
+      return "text/x-bibtex; charset=utf-8";
+    case "zip":
+      return "application/zip";
+    default:
+      return "application/octet-stream";
+  }
+}
+
 // `vector(n)` literal for pgvector cosine similarity queries. Drizzle's custom
 // type serialiser already produces `[f1,f2,...]` strings; we wrap them into
 // `::vector` casts at query time.
@@ -191,8 +210,21 @@ function hydrationItem(input: {
   body: string;
   kind: string;
   included?: boolean;
+  objectKey?: string | null;
+  mimeType?: string | null;
+  bytes?: number | null;
 }) {
-  return {
+  const item: {
+    id: string;
+    title: string;
+    body: string;
+    kind: string;
+    tokenCount: number;
+    included: boolean;
+    objectKey?: string;
+    mimeType?: string;
+    bytes?: number;
+  } = {
     id: input.id,
     title: input.title,
     body: input.body,
@@ -200,6 +232,10 @@ function hydrationItem(input: {
     tokenCount: approxTokens(input.body),
     included: input.included ?? true,
   };
+  if (input.objectKey) item.objectKey = input.objectKey;
+  if (input.mimeType) item.mimeType = input.mimeType;
+  if (input.bytes !== null && input.bytes !== undefined) item.bytes = input.bytes;
+  return item;
 }
 
 async function readSmallTextObject(
@@ -332,6 +368,9 @@ internal.post(
         title: file.title,
         body: bodyText,
         kind: "agent_file",
+        objectKey: file.objectKey,
+        mimeType: file.mimeType,
+        bytes: file.bytes,
       }));
     }
 
@@ -481,6 +520,9 @@ internal.post(
       title: `Synthesis run ${run.id}`,
       body: bodyText,
       kind: "synthesis_run",
+      objectKey: document?.s3Key,
+      mimeType: document ? synthesisDocumentMimeType(document.format) : null,
+      bytes: document?.bytes,
     }));
   },
 );

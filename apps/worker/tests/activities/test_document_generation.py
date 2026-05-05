@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 from io import BytesIO
+from pathlib import Path
+from tempfile import NamedTemporaryFile
 from unittest.mock import patch
 
 import pymupdf
@@ -214,6 +216,110 @@ async def test_hydrate_document_generation_sources_falls_back_per_failed_source(
     assert by_kind["agent_file"].title == "Project object"
     assert by_kind["agent_file"].body == "agent_file: 00000000-0000-4000-8000-000000000031"
     assert by_kind["chat_thread"].body == "hydrated thread body"
+
+
+@pytest.mark.asyncio
+async def test_hydrate_document_generation_sources_extracts_pdf_agent_file_text() -> None:
+    request = _request("pdf")
+    request["generation"]["sources"] = [
+        {
+            "type": "agent_file",
+            "objectId": "00000000-0000-4000-8000-000000000031",
+        }
+    ]
+    pdf = pymupdf.open()
+    page = pdf.new_page()
+    page.insert_text((72, 72), "Binary PDF source body")
+    with NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        tmp.write(pdf.tobytes())
+        tmp_path = Path(tmp.name)
+    pdf.close()
+
+    async def fake_post(_path: str, body: dict) -> dict:
+        return {
+            "id": body["source"]["objectId"],
+            "title": "Uploaded PDF",
+            "body": "uploaded.pdf (pdf, 2048 bytes)",
+            "kind": "agent_file",
+            "mimeType": "application/pdf",
+            "objectKey": "agent-files/uploaded.pdf",
+            "bytes": 2048,
+        }
+
+    with (
+        patch("worker.activities.document_generation.sources.post_internal", fake_post),
+        patch(
+            "worker.activities.document_generation.sources.download_to_tempfile",
+            return_value=tmp_path,
+        ),
+    ):
+        result = await hydrate_document_generation_sources(request)
+
+    tmp_path.unlink(missing_ok=True)
+    assert result.items[0].body == "Binary PDF source body"
+
+
+@pytest.mark.asyncio
+async def test_hydrate_document_generation_sources_keeps_metadata_fallback_for_unsupported_binary(
+) -> None:
+    request = _request("pdf")
+    request["generation"]["sources"] = [
+        {
+            "type": "agent_file",
+            "objectId": "00000000-0000-4000-8000-000000000031",
+        }
+    ]
+
+    async def fake_post(_path: str, body: dict) -> dict:
+        return {
+            "id": body["source"]["objectId"],
+            "title": "Opaque upload",
+            "body": "archive.bin (binary, 4096 bytes)",
+            "kind": "agent_file",
+            "mimeType": "application/octet-stream",
+            "objectKey": "agent-files/archive.bin",
+            "bytes": 4096,
+        }
+
+    with (
+        patch("worker.activities.document_generation.sources.post_internal", fake_post),
+        patch("worker.activities.document_generation.sources.download_to_tempfile") as download,
+    ):
+        result = await hydrate_document_generation_sources(request)
+
+    assert result.items[0].body == "archive.bin (binary, 4096 bytes)"
+    download.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_hydrate_document_generation_sources_skips_oversized_supported_binary() -> None:
+    request = _request("pdf")
+    request["generation"]["sources"] = [
+        {
+            "type": "agent_file",
+            "objectId": "00000000-0000-4000-8000-000000000031",
+        }
+    ]
+
+    async def fake_post(_path: str, body: dict) -> dict:
+        return {
+            "id": body["source"]["objectId"],
+            "title": "Large PDF",
+            "body": "large.pdf (pdf, 31457280 bytes)",
+            "kind": "agent_file",
+            "mimeType": "application/pdf",
+            "objectKey": "agent-files/large.pdf",
+            "bytes": 30 * 1024 * 1024,
+        }
+
+    with (
+        patch("worker.activities.document_generation.sources.post_internal", fake_post),
+        patch("worker.activities.document_generation.sources.download_to_tempfile") as download,
+    ):
+        result = await hydrate_document_generation_sources(request)
+
+    assert result.items[0].body == "large.pdf (pdf, 31457280 bytes)"
+    download.assert_not_called()
 
 
 @pytest.mark.asyncio
