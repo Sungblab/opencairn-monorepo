@@ -53,7 +53,7 @@ Use a parser that only treats the first `=` as the boundary and strips matching
 outer quotes:
 
 ```powershell
-$envFile = "C:\Users\Sungbin\Documents\GitHub\opencairn-monorepo\.env"
+$envFile = ".env" # run from the monorepo root, or use your absolute .env path
 Get-Content -LiteralPath $envFile | ForEach-Object {
   if ($_ -match '^\s*([^#][^=]+)=(.*)$') {
     $name = $matches[1].Trim()

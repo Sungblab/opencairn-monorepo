@@ -51,7 +51,7 @@ function parseHttpUrl(name, value) {
 }
 
 function looksLikeTruncatedScheme(value) {
-  return /^(ttp|ttps):\/\//i.test(value);
+  return /^(ttp|ttps|ostgres|ostgresql|edis):\/\//i.test(value);
 }
 
 function validateUrlEnv(name, value) {
