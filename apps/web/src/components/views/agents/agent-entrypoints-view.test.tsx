@@ -203,7 +203,15 @@ describe("AgentEntryPointsView", () => {
     vi.mocked(plan8AgentsApi.reviewStaleAlert).mockResolvedValue({
       ok: true,
     });
-    vi.mocked(workflowConsoleApi.list).mockResolvedValue({ runs: workflowRuns });
+    vi.mocked(workflowConsoleApi.list).mockImplementation(async (_projectId, options) => {
+      const status =
+        typeof options === "object" && options ? options.status : undefined;
+      return {
+        runs: status
+          ? workflowRuns.filter((run) => run.status === status)
+          : workflowRuns,
+      };
+    });
   });
 
   afterEach(() => {
@@ -245,7 +253,10 @@ describe("AgentEntryPointsView", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "Workflow Console" })).toBeInTheDocument();
-    expect(workflowConsoleApi.list).toHaveBeenCalledWith("project-1", 25);
+    expect(workflowConsoleApi.list).toHaveBeenCalledWith("project-1", {
+      limit: 25,
+      status: undefined,
+    });
     expect(screen.getByText("code_project.install")).toBeInTheDocument();
     expect(screen.getByText("Import google_drive")).toBeInTheDocument();
   });
@@ -256,8 +267,14 @@ describe("AgentEntryPointsView", () => {
     await screen.findByRole("heading", { name: "Workflow Console" });
     fireEvent.click(screen.getByRole("button", { name: "실패" }));
 
+    await waitFor(() => {
+      expect(workflowConsoleApi.list).toHaveBeenCalledWith("project-1", {
+        limit: 25,
+        status: "failed",
+      });
+    });
     expect(screen.queryByText("code_project.install")).not.toBeInTheDocument();
-    expect(screen.getByText("Import google_drive")).toBeInTheDocument();
+    expect(await screen.findByText("Import google_drive")).toBeInTheDocument();
     expect(screen.getByText("Grant expired")).toBeInTheDocument();
   });
 

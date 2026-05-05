@@ -25,6 +25,7 @@ import {
   type Plan8AgentRunProjectionSource,
   type SynthesisExportRunProjectionSource,
   type WorkflowConsoleRun,
+  type WorkflowConsoleStatus,
 } from "@opencairn/shared";
 
 export interface WorkflowConsoleRepository {
@@ -316,17 +317,21 @@ export function createDrizzleWorkflowConsoleRepository(
 export async function listWorkflowConsoleRuns(
   projectId: string,
   userId: string,
-  options?: WorkflowConsoleServiceOptions & { limit?: number },
+  options?: WorkflowConsoleServiceOptions & {
+    limit?: number;
+    status?: WorkflowConsoleStatus;
+  },
 ): Promise<WorkflowConsoleRun[]> {
   const repo = options?.repo ?? createDrizzleWorkflowConsoleRepository();
   await assertCanReadProject(projectId, userId, repo, options);
   const limit = options?.limit ?? 50;
+  const repoLimit = options?.status ? Math.max(limit * 4, limit) : limit;
   const [chat, actions, plan8, imports, exports] = await Promise.all([
-    repo.listChatRunsByProject({ projectId, userId, limit }),
-    repo.listAgentActionsByProject({ projectId, userId, limit }),
-    repo.listPlan8RunsByProject({ projectId, userId, limit }),
-    repo.listImportJobsByProject({ projectId, userId, limit }),
-    repo.listSynthesisExportRunsByProject({ projectId, userId, limit }),
+    repo.listChatRunsByProject({ projectId, userId, limit: repoLimit }),
+    repo.listAgentActionsByProject({ projectId, userId, limit: repoLimit }),
+    repo.listPlan8RunsByProject({ projectId, userId, limit: repoLimit }),
+    repo.listImportJobsByProject({ projectId, userId, limit: repoLimit }),
+    repo.listSynthesisExportRunsByProject({ projectId, userId, limit: repoLimit }),
   ]);
   return [
     ...exports.map(workflowConsoleRunFromSynthesisExportRun),
@@ -336,6 +341,7 @@ export async function listWorkflowConsoleRuns(
     ...plan8.map(workflowConsoleRunFromPlan8AgentRun),
   ]
     .filter((run) => run.projectId === projectId)
+    .filter((run) => !options?.status || run.status === options.status)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, limit);
 }

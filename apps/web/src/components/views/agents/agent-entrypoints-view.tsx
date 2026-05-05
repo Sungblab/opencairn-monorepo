@@ -38,6 +38,7 @@ import {
   type Plan8StaleAlert,
   type Plan8Suggestion,
   type WorkflowConsoleRun,
+  type WorkflowConsoleStatus,
 } from "@/lib/api-client";
 import { urls } from "@/lib/urls";
 
@@ -83,6 +84,12 @@ function isWorkflowConsoleRunActive(run: WorkflowConsoleRun): boolean {
   return !TERMINAL_RUN_STATUSES.has(run.status);
 }
 
+function workflowConsoleStatusFilter(
+  filter: (typeof WORKFLOW_CONSOLE_FILTERS)[number],
+): WorkflowConsoleStatus | undefined {
+  return filter === "failed" || filter === "completed" ? filter : undefined;
+}
+
 function workspaceSlugFromPathname(): string | null {
   if (typeof window === "undefined") return null;
   const match = window.location.pathname.match(/\/workspace\/([^/]+)/);
@@ -123,8 +130,12 @@ export function AgentEntryPointsView({ projectId }: { projectId: string }) {
     queryFn: () => plan8AgentsApi.overview(projectId),
   });
   const workflowConsoleQuery = useQuery({
-    queryKey: ["agents-workflow-console-runs", projectId],
-    queryFn: () => workflowConsoleApi.list(projectId, 25),
+    queryKey: ["agents-workflow-console-runs", projectId, workflowFilter],
+    queryFn: () =>
+      workflowConsoleApi.list(projectId, {
+        limit: 25,
+        status: workflowConsoleStatusFilter(workflowFilter),
+      }),
   });
   const selectedRun =
     data?.agentRuns.find((run) => run.runId === selectedRunId) ?? null;
