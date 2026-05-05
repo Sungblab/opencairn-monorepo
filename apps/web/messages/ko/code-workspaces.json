@@ -1,0 +1,10 @@
+{
+  "viewer": {
+    "loading": "코드 워크스페이스를 불러오는 중...",
+    "error": "코드 워크스페이스를 열 수 없습니다.",
+    "archive": "아카이브 다운로드",
+    "meta": "{files}개 파일 · {directories}개 폴더",
+    "currentSnapshot": "스냅샷 {id}",
+    "bytes": "{bytes} B"
+  }
+}

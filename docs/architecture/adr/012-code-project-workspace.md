@@ -207,6 +207,17 @@ rejects stale patch bases before route-level APIs are exposed.
 - Surface code workspaces in the existing project explorer/tab shell without
   adding a separate IDE page.
 
+Phase 1B now exposes project-scoped code workspace routes in
+`apps/api/src/routes/code-workspaces.ts`: create/list/get workspace, create
+reviewable patch requests with stale-base rejection, rename/delete workspace
+metadata for the existing project tree, and package immutable snapshots as zip
+archives. The routes derive workspace scope from the project, check project
+read/write permissions before rows are exposed or mutated, and preserve
+`requestId` idempotency for create and patch requests. The existing project
+tree now surfaces `kind:"code_workspace"` rows and opens them in the tab shell
+with a read-only manifest/archive viewer. Phase 1B still does not execute
+commands, install dependencies, start hosted previews, or replace Canvas notes.
+
 ### Phase 1C: Agent Wiring
 
 - Teach the agent/project-object flow to emit `code_project.create` and

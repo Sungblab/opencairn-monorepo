@@ -13,7 +13,8 @@ export type TabKind =
   | "ws_settings"
   | "ingest"
   | "lit_search"
-  | "agent_file";
+  | "agent_file"
+  | "code_workspace";
 
 export type TabMode =
   | "plate"
@@ -31,7 +32,8 @@ export type TabMode =
   | "mindmap"
   | "flashcard"
   | "ingest"
-  | "lit-search";
+  | "lit-search"
+  | "code-workspace";
 
 /**
  * Map a note's `sourceType` (DB enum) to the Tab Mode that should render it.

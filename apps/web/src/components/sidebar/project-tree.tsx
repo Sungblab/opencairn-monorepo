@@ -46,6 +46,9 @@ function deriveData(roots: TreeNode[], expanded: Set<string>): TreeNode[] {
 }
 
 async function persistMove(node: TreeNode, parentId: string | null, index: number) {
+  if (node.kind === "code_workspace") {
+    throw new Error("code workspace move is not supported");
+  }
   if (node.kind === "folder") {
     const res = await fetch(`/api/folders/${node.id}`, {
       method: "PATCH",
@@ -86,12 +89,16 @@ async function persistRename(
       ? `/api/folders/${id}`
       : kind === "agent_file"
         ? `/api/agent-files/${id}`
+        : kind === "code_workspace"
+          ? `/api/code-workspaces/${id}`
         : `/api/notes/${id}`;
   const body =
     kind === "folder"
       ? { name: label }
       : kind === "agent_file"
         ? { title: label, filename: label }
+        : kind === "code_workspace"
+          ? { name: label }
         : { title: label };
   const res = await fetch(url, {
     method: "PATCH",
@@ -108,6 +115,8 @@ async function persistDelete(id: string, kind: TreeNode["kind"]) {
       ? `/api/folders/${id}`
       : kind === "agent_file"
         ? `/api/agent-files/${id}`
+        : kind === "code_workspace"
+          ? `/api/code-workspaces/${id}`
         : `/api/notes/${id}`;
   const res = await fetch(url, { method: "DELETE", credentials: "include" });
   if (!res.ok) throw new Error(`${kind} delete ${res.status}`);

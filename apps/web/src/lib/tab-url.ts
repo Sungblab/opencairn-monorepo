@@ -37,6 +37,7 @@ export function tabToUrl(
     case "ingest":
     case "lit_search":
     case "agent_file":
+    case "code_workspace":
       // Transient in-app tabs without canonical URLs — fall back to the
       // workspace base so URL sync doesn't drop the user on /undefined.
       return urls.workspace.root(locale, slug);

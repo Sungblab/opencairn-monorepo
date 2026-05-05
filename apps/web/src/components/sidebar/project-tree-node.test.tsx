@@ -159,6 +159,27 @@ describe("ProjectTreeNode", () => {
     expect(useTabsStore.getState().activeId).toBe("t-1");
   });
 
+  it("opens code workspaces in the tab shell without navigating to a note route", () => {
+    const node = mkNode({
+      kind: "code_workspace",
+      id: "cw-1",
+      parent_id: null,
+      label: "Generated app",
+      child_count: 0,
+    });
+    renderNode(node);
+    fireEvent.click(screen.getByRole("treeitem"));
+    const [tab] = useTabsStore.getState().tabs;
+    expect(tab).toMatchObject({
+      kind: "code_workspace",
+      targetId: "cw-1",
+      mode: "code-workspace",
+      title: "Generated app",
+      preview: false,
+    });
+    expect(push).not.toHaveBeenCalled();
+  });
+
   it("F2 triggers onStartRename for the focused row", () => {
     const onStartRename = vi.fn();
     const node = mkNode({

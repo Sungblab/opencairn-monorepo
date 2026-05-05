@@ -1,7 +1,21 @@
 import { randomUUID } from "node:crypto";
 import {
+  and,
+  codeWorkspaceFileEntries,
+  codeWorkspacePatches,
+  codeWorkspaceSnapshots,
+  codeWorkspaces,
+  db as defaultDb,
+  desc,
+  eq,
+  isNull,
+  type DB,
+} from "@opencairn/db";
+import {
   codeWorkspaceCreateRequestSchema,
+  codeWorkspaceManifestSchema,
   codeWorkspacePatchSchema,
+  type CodeWorkspaceEntryKind,
   type CodeWorkspaceCreateRequest,
   type CodeWorkspaceManifest,
   type CodeWorkspacePatch,
@@ -27,6 +41,8 @@ export interface CodeWorkspaceRecord {
   currentSnapshotId: string;
   sourceRunId: string | null;
   sourceActionId: string | null;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
 }
 
 export interface CodeWorkspaceSnapshotRecord {
@@ -47,11 +63,14 @@ export interface CodeWorkspacePatchRecord {
 }
 
 export interface CodeWorkspaceRepository {
+  listWorkspaces(scope: Pick<CodeWorkspaceScope, "workspaceId" | "projectId">): Promise<CodeWorkspaceRecord[]>;
   findWorkspaceByRequestId(scope: CodeWorkspaceScope, requestId: string): Promise<{
     workspace: CodeWorkspaceRecord;
     snapshot: CodeWorkspaceSnapshotRecord;
   } | null>;
+  findWorkspaceByIdAny(id: string): Promise<CodeWorkspaceRecord | null>;
   findWorkspaceById(scope: CodeWorkspaceScope, id: string): Promise<CodeWorkspaceRecord | null>;
+  findSnapshotById(workspaceId: string, snapshotId: string): Promise<CodeWorkspaceSnapshotRecord | null>;
   findPatchByRequestId(scope: CodeWorkspaceScope, requestId: string): Promise<CodeWorkspacePatchRecord | null>;
   createWorkspaceDraft(input: {
     scope: CodeWorkspaceScope;
@@ -66,6 +85,195 @@ export interface CodeWorkspaceRepository {
     workspace: CodeWorkspaceRecord;
     patch: CodeWorkspacePatch;
   }): Promise<CodeWorkspacePatchRecord>;
+  renameWorkspace(input: {
+    scope: Pick<CodeWorkspaceScope, "workspaceId" | "projectId">;
+    id: string;
+    name: string;
+    description?: string | null;
+  }): Promise<CodeWorkspaceRecord | null>;
+  softDeleteWorkspace(input: {
+    scope: Pick<CodeWorkspaceScope, "workspaceId" | "projectId">;
+    id: string;
+  }): Promise<CodeWorkspaceRecord | null>;
+}
+
+export function createDrizzleCodeWorkspaceRepository(conn: DB = defaultDb): CodeWorkspaceRepository {
+  return {
+    async listWorkspaces(scope) {
+      const rows = await conn
+        .select()
+        .from(codeWorkspaces)
+        .where(
+          and(
+            eq(codeWorkspaces.workspaceId, scope.workspaceId),
+            eq(codeWorkspaces.projectId, scope.projectId),
+            isNull(codeWorkspaces.deletedAt),
+          ),
+        )
+        .orderBy(desc(codeWorkspaces.updatedAt));
+      return rows
+        .filter((row) => row.currentSnapshotId)
+        .map(toWorkspaceRecord);
+    },
+    async findWorkspaceByRequestId(scope, requestId) {
+      const [workspace] = await conn
+        .select()
+        .from(codeWorkspaces)
+        .where(
+          and(
+            eq(codeWorkspaces.workspaceId, scope.workspaceId),
+            eq(codeWorkspaces.projectId, scope.projectId),
+            eq(codeWorkspaces.createdBy, scope.actorUserId),
+            eq(codeWorkspaces.requestId, requestId),
+            isNull(codeWorkspaces.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (!workspace?.currentSnapshotId) return null;
+      const snapshot = await this.findSnapshotById(workspace.id, workspace.currentSnapshotId);
+      if (!snapshot) return null;
+      return { workspace: toWorkspaceRecord(workspace), snapshot };
+    },
+    async findWorkspaceByIdAny(id) {
+      const [workspace] = await conn
+        .select()
+        .from(codeWorkspaces)
+        .where(and(eq(codeWorkspaces.id, id), isNull(codeWorkspaces.deletedAt)))
+        .limit(1);
+      return workspace?.currentSnapshotId ? toWorkspaceRecord(workspace) : null;
+    },
+    async findWorkspaceById(scope, id) {
+      const workspace = await this.findWorkspaceByIdAny(id);
+      if (!workspace) return null;
+      if (workspace.workspaceId !== scope.workspaceId || workspace.projectId !== scope.projectId) {
+        return null;
+      }
+      return workspace;
+    },
+    async findSnapshotById(workspaceId, snapshotId) {
+      const [snapshot] = await conn
+        .select()
+        .from(codeWorkspaceSnapshots)
+        .where(
+          and(
+            eq(codeWorkspaceSnapshots.id, snapshotId),
+            eq(codeWorkspaceSnapshots.codeWorkspaceId, workspaceId),
+          ),
+        )
+        .limit(1);
+      return snapshot ? toSnapshotRecord(snapshot) : null;
+    },
+    async findPatchByRequestId(scope, requestId) {
+      const [patch] = await conn
+        .select()
+        .from(codeWorkspacePatches)
+        .where(
+          and(
+            eq(codeWorkspacePatches.workspaceId, scope.workspaceId),
+            eq(codeWorkspacePatches.projectId, scope.projectId),
+            eq(codeWorkspacePatches.createdBy, scope.actorUserId),
+            eq(codeWorkspacePatches.requestId, requestId),
+          ),
+        )
+        .limit(1);
+      if (!patch) return null;
+      return toPatchRecord(patch);
+    },
+    async createWorkspaceDraft({ scope, requestId, request, snapshotId, treeHash }) {
+      return conn.transaction(async (tx) => {
+        const [workspace] = await tx
+          .insert(codeWorkspaces)
+          .values({
+            requestId,
+            workspaceId: scope.workspaceId,
+            projectId: scope.projectId,
+            createdBy: scope.actorUserId,
+            name: request.name,
+            description: request.description ?? null,
+            language: request.language ?? null,
+            framework: request.framework ?? null,
+            sourceRunId: request.sourceRunId ?? null,
+            sourceActionId: request.sourceActionId ?? null,
+          })
+          .returning();
+        const [snapshot] = await tx
+          .insert(codeWorkspaceSnapshots)
+          .values({
+            id: snapshotId,
+            codeWorkspaceId: workspace.id,
+            parentSnapshotId: null,
+            treeHash,
+            manifest: request.manifest,
+            sourceActionId: request.sourceActionId ?? null,
+          })
+          .returning();
+        if (request.manifest.entries.length > 0) {
+          await tx.insert(codeWorkspaceFileEntries).values(
+            request.manifest.entries.map((entry) => entryToInsert(snapshot.id, entry)),
+          );
+        }
+        const [updated] = await tx
+          .update(codeWorkspaces)
+          .set({ currentSnapshotId: snapshot.id })
+          .where(eq(codeWorkspaces.id, workspace.id))
+          .returning();
+        return {
+          workspace: toWorkspaceRecord(updated),
+          snapshot: toSnapshotRecord(snapshot),
+        };
+      });
+    },
+    async createPatch({ scope, requestId, workspace, patch }) {
+      const [record] = await conn
+        .insert(codeWorkspacePatches)
+        .values({
+          requestId,
+          workspaceId: scope.workspaceId,
+          projectId: scope.projectId,
+          createdBy: scope.actorUserId,
+          codeWorkspaceId: workspace.id,
+          baseSnapshotId: patch.baseSnapshotId,
+          status: "approval_required",
+          risk: patch.risk,
+          operations: patch.operations,
+          preview: patch.preview,
+        })
+        .returning();
+      return toPatchRecord(record);
+    },
+    async renameWorkspace({ scope, id, name, description }) {
+      const set: Partial<typeof codeWorkspaces.$inferInsert> = { name };
+      if (description !== undefined) set.description = description;
+      const [workspace] = await conn
+        .update(codeWorkspaces)
+        .set(set)
+        .where(
+          and(
+            eq(codeWorkspaces.id, id),
+            eq(codeWorkspaces.workspaceId, scope.workspaceId),
+            eq(codeWorkspaces.projectId, scope.projectId),
+            isNull(codeWorkspaces.deletedAt),
+          ),
+        )
+        .returning();
+      return workspace?.currentSnapshotId ? toWorkspaceRecord(workspace) : null;
+    },
+    async softDeleteWorkspace({ scope, id }) {
+      const [workspace] = await conn
+        .update(codeWorkspaces)
+        .set({ deletedAt: new Date() })
+        .where(
+          and(
+            eq(codeWorkspaces.id, id),
+            eq(codeWorkspaces.workspaceId, scope.workspaceId),
+            eq(codeWorkspaces.projectId, scope.projectId),
+            isNull(codeWorkspaces.deletedAt),
+          ),
+        )
+        .returning();
+      return workspace?.currentSnapshotId ? toWorkspaceRecord(workspace) : null;
+    },
+  };
 }
 
 export async function createCodeWorkspaceDraft(
@@ -132,6 +340,13 @@ export function createMemoryCodeWorkspaceRepository(): CodeWorkspaceRepository &
 
   return {
     rows,
+    async listWorkspaces(scope) {
+      return [...rows.workspaces.values()].filter(
+        (row) =>
+          row.workspaceId === scope.workspaceId &&
+          row.projectId === scope.projectId,
+      );
+    },
     async findWorkspaceByRequestId(scope, requestId) {
       const workspace = [...rows.workspaces.values()].find(
         (row) =>
@@ -149,12 +364,19 @@ export function createMemoryCodeWorkspaceRepository(): CodeWorkspaceRepository &
       if (!workspace) return null;
       if (
         workspace.workspaceId !== scope.workspaceId ||
-        workspace.projectId !== scope.projectId ||
-        workspace.createdBy !== scope.actorUserId
+        workspace.projectId !== scope.projectId
       ) {
         return null;
       }
       return workspace;
+    },
+    async findWorkspaceByIdAny(id) {
+      return rows.workspaces.get(id) ?? null;
+    },
+    async findSnapshotById(workspaceId, snapshotId) {
+      const snapshot = rows.snapshots.get(snapshotId);
+      if (!snapshot || snapshot.codeWorkspaceId !== workspaceId) return null;
+      return snapshot;
     },
     async findPatchByRequestId(scope, requestId) {
       const patch = [...rows.patches.values()].find((row) => row.requestId === requestId);
@@ -208,6 +430,108 @@ export function createMemoryCodeWorkspaceRepository(): CodeWorkspaceRepository &
       rows.patches.set(record.id, record);
       return record;
     },
+    async renameWorkspace({ scope, id, name, description }) {
+      const workspace = rows.workspaces.get(id);
+      if (
+        !workspace ||
+        workspace.workspaceId !== scope.workspaceId ||
+        workspace.projectId !== scope.projectId
+      ) {
+        return null;
+      }
+      const updated: CodeWorkspaceRecord = {
+        ...workspace,
+        name,
+        description: description !== undefined ? description : workspace.description,
+        updatedAt: new Date(),
+      };
+      rows.workspaces.set(id, updated);
+      return updated;
+    },
+    async softDeleteWorkspace({ scope, id }) {
+      const workspace = rows.workspaces.get(id);
+      if (
+        !workspace ||
+        workspace.workspaceId !== scope.workspaceId ||
+        workspace.projectId !== scope.projectId
+      ) {
+        return null;
+      }
+      rows.workspaces.delete(id);
+      return workspace;
+    },
+  };
+}
+
+function toWorkspaceRecord(row: typeof codeWorkspaces.$inferSelect): CodeWorkspaceRecord {
+  if (!row.currentSnapshotId) {
+    throw new AgentActionError("code_workspace_missing_snapshot", 409);
+  }
+  return {
+    id: row.id,
+    requestId: row.requestId,
+    workspaceId: row.workspaceId,
+    projectId: row.projectId,
+    createdBy: row.createdBy,
+    name: row.name,
+    description: row.description,
+    language: row.language,
+    framework: row.framework,
+    currentSnapshotId: row.currentSnapshotId,
+    sourceRunId: row.sourceRunId,
+    sourceActionId: row.sourceActionId,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+function toSnapshotRecord(row: typeof codeWorkspaceSnapshots.$inferSelect): CodeWorkspaceSnapshotRecord {
+  return {
+    id: row.id,
+    codeWorkspaceId: row.codeWorkspaceId,
+    parentSnapshotId: row.parentSnapshotId,
+    treeHash: row.treeHash,
+    manifest: codeWorkspaceManifestFromUnknown(row.manifest),
+  };
+}
+
+function toPatchRecord(row: typeof codeWorkspacePatches.$inferSelect): CodeWorkspacePatchRecord {
+  return {
+    id: row.id,
+    requestId: row.requestId,
+    codeWorkspaceId: row.codeWorkspaceId,
+    baseSnapshotId: row.baseSnapshotId,
+    status: row.status,
+    patch: {
+      codeWorkspaceId: row.codeWorkspaceId,
+      requestId: row.requestId,
+      baseSnapshotId: row.baseSnapshotId,
+      operations: row.operations as CodeWorkspacePatch["operations"],
+      preview: row.preview as CodeWorkspacePatch["preview"],
+      risk: row.risk as CodeWorkspacePatch["risk"],
+    },
+  };
+}
+
+function codeWorkspaceManifestFromUnknown(value: unknown): CodeWorkspaceManifest {
+  return codeWorkspaceManifestSchema.parse(value);
+}
+
+function entryToInsert(
+  snapshotId: string,
+  entry: CodeWorkspaceManifest["entries"][number],
+): typeof codeWorkspaceFileEntries.$inferInsert {
+  return {
+    snapshotId,
+    path: entry.path,
+    pathKey: entry.path.toLowerCase(),
+    kind: entry.kind as CodeWorkspaceEntryKind,
+    language: "language" in entry ? entry.language ?? null : null,
+    mimeType: "mimeType" in entry ? entry.mimeType ?? null : null,
+    bytes: "bytes" in entry ? entry.bytes : null,
+    contentHash: "contentHash" in entry ? entry.contentHash : null,
+    objectKey: "objectKey" in entry ? entry.objectKey ?? null : null,
+    inlineContent: "inlineContent" in entry ? entry.inlineContent ?? null : null,
   };
 }
 

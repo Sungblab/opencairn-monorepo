@@ -697,9 +697,12 @@ preview phases.
 
 Phase 1A contracts and storage are in place: shared code workspace schemas,
 path/manifest guards, API-lib idempotency and stale-base validation, and DB
-tables for code workspaces, snapshots, file entries, and patches. The next
-Phase 5 slice should expose project-scoped APIs and existing project
-explorer/tab-shell navigation without adding execution or hosted preview.
+tables for code workspaces, snapshots, file entries, and patches. Phase 1B now
+adds project-scoped API routes for create/list/get, reviewable patch requests,
+rename/delete metadata, snapshot zip downloads, and existing project
+explorer/tab-shell navigation. The next Phase 5 slice should wire agent
+create/patch actions and review surfaces while still avoiding command
+execution, dependency installs, and hosted preview.
 
 ### Phase 6: Code Agent Execution Loop
 

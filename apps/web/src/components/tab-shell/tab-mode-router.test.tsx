@@ -21,6 +21,9 @@ vi.mock("./viewers/canvas-viewer", () => ({
 vi.mock("./viewers/project-graph-viewer", () => ({
   ProjectGraphViewer: () => <div data-testid="project-graph-viewer" />,
 }));
+vi.mock("./viewers/code-workspace-viewer", () => ({
+  CodeWorkspaceViewer: () => <div data-testid="code-workspace-viewer" />,
+}));
 
 const mk = (mode: Tab["mode"]): Tab => ({
   id: "t", kind: "note", targetId: "n1", mode,
@@ -78,5 +81,18 @@ describe("TabModeRouter", () => {
   it("dispatches graph → ProjectGraphViewer", () => {
     wrap(<TabModeRouter tab={mk("graph")} />);
     expect(screen.getByTestId("project-graph-viewer")).toBeInTheDocument();
+  });
+
+  it("dispatches code-workspace → CodeWorkspaceViewer", () => {
+    wrap(
+      <TabModeRouter
+        tab={{
+          ...mk("code-workspace"),
+          kind: "code_workspace",
+          targetId: "cw-1",
+        }}
+      />,
+    );
+    expect(screen.getByTestId("code-workspace-viewer")).toBeInTheDocument();
   });
 });

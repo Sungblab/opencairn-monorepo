@@ -2,7 +2,7 @@
 import { urls } from "@/lib/urls";
 import { useEffect, useRef } from "react";
 import type { NodeRendererProps } from "react-arborist";
-import { ChevronRight, Folder, FileText, FileCode, FileImage, FileJson } from "lucide-react";
+import { ChevronRight, Folder, FileText, FileCode, FileImage, FileJson, FolderCode } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import { useLocale } from "next-intl";
 import type { TreeNode } from "@/hooks/use-project-tree";
@@ -76,6 +76,24 @@ export function ProjectTreeNode({
       );
       return;
     }
+    if (kind === "code_workspace") {
+      const tabs = useTabsStore.getState();
+      const existing = tabs.findTabByTarget("code_workspace", node.data.id);
+      if (existing) {
+        tabs.setActive(existing.id);
+        return;
+      }
+      tabs.addTab(
+        newTab({
+          kind: "code_workspace",
+          targetId: node.data.id,
+          title: node.data.label,
+          mode: "code-workspace",
+          preview: false,
+        }),
+      );
+      return;
+    }
     const tabs = useTabsStore.getState();
     const existing = tabs.findTabByTarget("note", node.data.id);
     if (existing) tabs.setActive(existing.id);
@@ -135,6 +153,11 @@ export function ProjectTreeNode({
         ) : kind === "agent_file" ? (
           <AgentFileIcon
             fileKind={node.data.file_kind}
+            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+          />
+        ) : kind === "code_workspace" ? (
+          <FolderCode
+            aria-hidden
             className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
           />
         ) : (
