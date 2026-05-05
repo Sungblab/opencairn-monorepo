@@ -45,6 +45,7 @@ export function createAgentActionRoutes(options?: AgentActionRouteOptions) {
     ...(options?.noteUpdateApplier ? { noteUpdateApplier: options.noteUpdateApplier } : {}),
     ...(options?.now ? { now: options.now } : {}),
     ...(options?.codePreviewTtlMs ? { codePreviewTtlMs: options.codePreviewTtlMs } : {}),
+    ...(options?.codePreviewObjectReader ? { codePreviewObjectReader: options.codePreviewObjectReader } : {}),
   };
 
   return new Hono<AppEnv>()
@@ -154,9 +155,10 @@ export function createAgentActionRoutes(options?: AgentActionRouteOptions) {
             previewAssetPath(c.req.path, id),
             serviceOptions,
           );
-          return new Response(asset.content, {
+          return new Response(asset.body, {
             headers: {
               "Content-Type": asset.contentType,
+              ...(asset.contentLength != null ? { "Content-Length": String(asset.contentLength) } : {}),
               "Content-Security-Policy": [
                 "sandbox allow-scripts",
                 "default-src 'none'",

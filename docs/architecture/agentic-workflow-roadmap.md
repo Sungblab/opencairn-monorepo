@@ -809,6 +809,13 @@ Phase 7D adds bounded internal preview expiry. Static preview results now carry
 URL lifecycle, but it prevents internal preview links from being treated as
 durable project artifacts.
 
+Phase 7E lets the private static preview route serve object-backed snapshot
+entries through the existing storage reader. Inline entries are still served
+directly, while entries with `objectKey` stream from object storage with their
+stored content type and length. Public preview hostnames, signed external URLs,
+process-backed app servers, cleanup scheduling, and browser smoke screenshots
+remain later Phase 7 work.
+
 ### Phase 7: Hosted Preview
 
 Add generated app previews:
