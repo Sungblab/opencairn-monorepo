@@ -457,7 +457,9 @@ event sink exists.
 3. **Embedded console sections.** Replace ad hoc status card normalization in
    Agent Panel and Plan8 with shared render helpers while preserving current
    placement: chat remains in Agent Panel, Plan8 remains in the Agents view, and
-   generated files remain project objects.
+   generated files remain project objects. The first embedded Agent Panel slice
+   now shows a compact project-scoped Workflow Console run strip for the active
+   project.
 4. **Project-level run drawer.** Add a project-scoped run drawer/list that can
    open from Agent Panel cards, Plan8 rows, document-generation cards,
    import/export pages, and future code project tabs.
