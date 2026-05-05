@@ -212,6 +212,25 @@ Action fields: `id`, `requestId`, `workspaceId`, `projectId`, `actorUserId`,
 `sourceRunId`, `kind`, `status`, `risk`, `input`, `preview`, `result`,
 `errorCode`, `createdAt`, `updatedAt`.
 
+### Workflow Console
+
+Workflow Console routes expose a read-only normalized projection over existing
+run sources. They do not create, cancel, retry, or mutate runs in this phase.
+The API checks project read access first, then adapts source rows into the
+shared Workflow Console envelope from `@opencairn/shared`.
+
+Current sources:
+
+- chat runs whose stored scope points at the project;
+- agent action ledger rows in the project, including document-generation
+  `file.generate` actions;
+- Plan8 agent run summaries in the project.
+
+| Method | Path | Auth | Description | Body |
+|--------|------|------|-------------|------|
+| GET | /api/projects/:projectId/workflow-console/runs | project `viewer` | List newest normalized project runs. Optional `?limit=1..100`, default 50. Response: `{ runs: WorkflowConsoleRun[] }`. | - |
+| GET | /api/projects/:projectId/workflow-console/runs/:runId | project `viewer` | Read one normalized run by prefixed run id such as `chat:<uuid>`, `agent_action:<uuid>`, or `plan8_agent:<uuid>`. Runs whose source row belongs to another project return 404. | - |
+
 ### Document Generation Actions
 
 Document generation uses the typed project-object action contract and the same

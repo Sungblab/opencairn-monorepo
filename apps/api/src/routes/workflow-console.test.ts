@@ -1,0 +1,193 @@
+import { Hono } from "hono";
+import { describe, expect, it } from "vitest";
+import type { WorkflowConsoleRun } from "@opencairn/shared";
+import { createWorkflowConsoleRoutes } from "./workflow-console";
+import type { AppEnv } from "../lib/types";
+import type { WorkflowConsoleRepository } from "../lib/workflow-console";
+
+const userId = "user-1";
+const workspaceId = "00000000-0000-4000-8000-000000000001";
+const projectId = "00000000-0000-4000-8000-000000000002";
+const otherProjectId = "00000000-0000-4000-8000-000000000099";
+const createdAt = "2026-05-05T00:00:00.000Z";
+const updatedAt = "2026-05-05T00:01:00.000Z";
+
+describe("workflow console routes", () => {
+  it("lists normalized project-scoped runs from multiple sources", async () => {
+    const app = createTestApp({
+      repo: createMemoryRepo(),
+      canReadProject: async () => true,
+    });
+
+    const response = await app.request(
+      `/api/projects/${projectId}/workflow-console/runs`,
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json() as { runs: WorkflowConsoleRun[] };
+    expect(body.runs.map((run) => [run.runType, run.status, run.sourceStatus])).toEqual([
+      ["agent_action", "approval_required", "approval_required"],
+      ["chat", "running", "running"],
+      ["plan8_agent", "blocked", "awaiting_input"],
+    ]);
+    expect(body.runs.every((run) => run.projectId === projectId)).toBe(true);
+  });
+
+  it("returns one normalized run by prefixed run id", async () => {
+    const app = createTestApp({
+      repo: createMemoryRepo(),
+      canReadProject: async () => true,
+    });
+
+    const response = await app.request(
+      `/api/projects/${projectId}/workflow-console/runs/chat:00000000-0000-4000-8000-000000000010`,
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json() as { run: WorkflowConsoleRun };
+    expect(body.run).toMatchObject({
+      runId: "chat:00000000-0000-4000-8000-000000000010",
+      runType: "chat",
+      status: "running",
+      threadId: "00000000-0000-4000-8000-000000000011",
+    });
+  });
+
+  it("hides runs from another project even when the prefixed id is valid", async () => {
+    const app = createTestApp({
+      repo: createMemoryRepo(),
+      canReadProject: async () => true,
+    });
+
+    const response = await app.request(
+      `/api/projects/${projectId}/workflow-console/runs/chat:00000000-0000-4000-8000-000000000090`,
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  it("requires project read permission before listing runs", async () => {
+    const app = createTestApp({
+      repo: createMemoryRepo(),
+      canReadProject: async () => false,
+    });
+
+    const response = await app.request(
+      `/api/projects/${projectId}/workflow-console/runs`,
+    );
+
+    expect(response.status).toBe(403);
+  });
+});
+
+function createTestApp(options: {
+  repo: WorkflowConsoleRepository;
+  canReadProject: (actorUserId: string, id: string) => Promise<boolean>;
+}) {
+  return new Hono<AppEnv>().route(
+    "/api",
+    createWorkflowConsoleRoutes({
+      repo: options.repo,
+      canReadProject: options.canReadProject,
+      auth: async (c, next) => {
+        c.set("userId", userId);
+        c.set("user", { id: userId, email: "user@example.com", name: "User" });
+        await next();
+      },
+    }),
+  );
+}
+
+function createMemoryRepo(): WorkflowConsoleRepository {
+  return {
+    async findProjectScope(id) {
+      return id === projectId || id === otherProjectId ? { workspaceId } : null;
+    },
+    async listChatRunsByProject({ projectId: pid }) {
+      return [
+        {
+          id: "00000000-0000-4000-8000-000000000010",
+          threadId: "00000000-0000-4000-8000-000000000011",
+          userMessageId: "00000000-0000-4000-8000-000000000012",
+          agentMessageId: "00000000-0000-4000-8000-000000000013",
+          workspaceId,
+          projectId: pid,
+          userId,
+          workflowId: "chat-run-00000000-0000-4000-8000-000000000010",
+          status: "running",
+          mode: "auto",
+          createdAt,
+          updatedAt,
+          completedAt: null,
+        },
+      ];
+    },
+    async listAgentActionsByProject() {
+      return [
+        {
+          id: "00000000-0000-4000-8000-000000000020",
+          requestId: "00000000-0000-4000-8000-000000000021",
+          workspaceId,
+          projectId,
+          actorUserId: userId,
+          sourceRunId: null,
+          kind: "note.update",
+          status: "approval_required",
+          risk: "write",
+          input: {},
+          preview: {},
+          result: null,
+          errorCode: null,
+          createdAt,
+          updatedAt,
+        },
+      ];
+    },
+    async listPlan8RunsByProject() {
+      return [
+        {
+          runId: "00000000-0000-4000-8000-000000000030",
+          workspaceId,
+          projectId,
+          userId,
+          agentName: "librarian",
+          workflowId: "plan8-librarian/00000000-0000-4000-8000-000000000030",
+          status: "awaiting_input",
+          startedAt: createdAt,
+          endedAt: null,
+          totalCostKrw: 12,
+          errorMessage: null,
+        },
+      ];
+    },
+    async getChatRunById({ runId, projectId: pid }) {
+      if (runId === "00000000-0000-4000-8000-000000000090") {
+        return {
+          id: runId,
+          threadId: "00000000-0000-4000-8000-000000000091",
+          userMessageId: "00000000-0000-4000-8000-000000000092",
+          agentMessageId: "00000000-0000-4000-8000-000000000093",
+          workspaceId,
+          projectId: otherProjectId,
+          userId,
+          workflowId: `chat-run-${runId}`,
+          status: "complete",
+          mode: "auto",
+          createdAt,
+          updatedAt,
+          completedAt: updatedAt,
+        };
+      }
+      return (await this.listChatRunsByProject({ projectId: pid, userId, limit: 10 }))
+        .find((run) => run.id === runId) ?? null;
+    },
+    async getAgentActionById({ actionId, projectId: pid }) {
+      return (await this.listAgentActionsByProject({ projectId: pid, userId, limit: 10 }))
+        .find((action) => action.id === actionId) ?? null;
+    },
+    async getPlan8RunById({ runId, projectId: pid }) {
+      return (await this.listPlan8RunsByProject({ projectId: pid, userId, limit: 10 }))
+        .find((run) => run.runId === runId) ?? null;
+    },
+  };
+}
