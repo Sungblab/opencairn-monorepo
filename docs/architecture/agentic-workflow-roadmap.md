@@ -217,6 +217,8 @@ Implementation expectations:
 - Keep long-running import work in existing import workflows.
 - Every import job must transition to a terminal state on failure; it must not
   remain queued after workflow start errors.
+- Explicit user cancellation should also terminal-transition the corresponding
+  queued or running import action ledger row to `cancelled`.
 - Results should link source notes, generated wiki notes, chunks, evidence, and
   project files.
 - Follow-up actions such as summarize, graph, flashcards, and export can be
