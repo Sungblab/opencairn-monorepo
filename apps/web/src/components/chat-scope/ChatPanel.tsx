@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { createParser } from "eventsource-parser";
@@ -26,6 +26,7 @@ import {
   asDocumentGenerationCards,
 } from "../agent-panel/message-bubble";
 import { SaveSuggestionCard } from "../agent-panel/save-suggestion-card";
+import { DocumentGenerationForm } from "../agent-panel/document-generation-form";
 
 type Message = {
   key: string;
@@ -56,6 +57,8 @@ export function ChatPanel() {
   const [chips, setChips] = useState<AttachedChip[]>(ctx.initialChips);
   const [ragMode, setRagMode] = useState<RagModeValue>("strict");
   const [messages, setMessages] = useState<Message[]>([]);
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [formGenerationEvents, setFormGenerationEvents] = useState<unknown[]>([]);
   const [busy, setBusy] = useState(false);
   const messageSeq = useRef(0);
   // Concurrent calls (e.g. user types and clicks a chip in the same
@@ -143,6 +146,17 @@ export function ChatPanel() {
       return null;
     }
   }, [activeTab, ctx.scopeId, ctx.scopeType]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const id = await resolveProjectId();
+      if (!cancelled) setProjectId(id);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [resolveProjectId]);
 
   function getStreamErrorText(payload: unknown): string {
     if (!isObj(payload) || typeof payload.code !== "string") {
@@ -453,8 +467,19 @@ export function ChatPanel() {
               )}
           </div>
         ))}
+        {formGenerationEvents.length > 0 ? (
+          <DocumentGenerationCards
+            items={asDocumentGenerationCards(formGenerationEvents)}
+          />
+        ) : null}
       </div>
       <div className="border-t border-border p-2">
+        <DocumentGenerationForm
+          projectId={projectId}
+          onEvent={(event) =>
+            setFormGenerationEvents((events) => [...events, event])
+          }
+        />
         <ChatInput
           chips={chips}
           workspaceId={ctx.workspaceId}

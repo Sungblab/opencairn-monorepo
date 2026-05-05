@@ -91,6 +91,17 @@ describe("document generation cards", () => {
             mimeType: "application/pdf",
             bytes: 12345,
           },
+          sourceQuality: {
+            signals: ["metadata_fallback", "no_extracted_text"],
+            sources: [
+              {
+                id: "00000000-0000-4000-8000-000000000031",
+                kind: "agent_file",
+                title: "Scanned PDF",
+                signals: ["no_extracted_text"],
+              },
+            ],
+          },
         },
       },
       {
@@ -114,6 +125,7 @@ describe("document generation cards", () => {
         title: "Project report",
         filename: "project-report.pdf",
         file: expect.objectContaining({ id: objectId, kind: "pdf" }),
+        qualitySignals: ["metadata_fallback", "no_extracted_text"],
         sourceKinds: [
           "note",
           "agent_file",
@@ -174,5 +186,58 @@ describe("document generation cards", () => {
       "href",
       `/api/agent-files/${objectId}/file`,
     );
+  });
+
+  it("shows compact source quality signals without hiding the worker error code", () => {
+    const cards = asDocumentGenerationCards([
+      {
+        type: "project_object_generation_completed",
+        result: {
+          ok: true,
+          requestId,
+          workflowId: `document-generation/${requestId}`,
+          format: "pdf",
+          object: {
+            id: objectId,
+            objectType: "agent_file",
+            title: "Project report",
+            filename: "project-report.pdf",
+            kind: "pdf",
+            mimeType: "application/pdf",
+            projectId,
+          },
+          artifact: {
+            objectKey: "agent-files/project/project-report.pdf",
+            mimeType: "application/pdf",
+            bytes: 12345,
+          },
+          sourceQuality: {
+            signals: ["unsupported_source", "metadata_fallback"],
+            sources: [],
+          },
+        },
+      },
+      {
+        type: "project_object_generation_failed",
+        result: {
+          ok: false,
+          requestId: "00000000-0000-4000-8000-000000000021",
+          workflowId: "document-generation/failed",
+          format: "docx",
+          errorCode: "document_generation_failed",
+          retryable: true,
+          sourceQuality: {
+            signals: ["source_corrupt"],
+            sources: [],
+          },
+        },
+      },
+    ]);
+
+    render(<DocumentGenerationCards items={cards} />);
+
+    expect(screen.getByText(/qualitySignal.unsupported_source/)).toBeInTheDocument();
+    expect(screen.getByText(/qualitySignal.metadata_fallback/)).toBeInTheDocument();
+    expect(screen.getByText(/document_generation_failed/)).toBeInTheDocument();
   });
 });

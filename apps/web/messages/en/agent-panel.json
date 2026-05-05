@@ -50,6 +50,34 @@
     "applyFailed": "Could not apply the note edit proposal.",
     "cancelFailed": "Could not cancel the note edit proposal."
   },
+  "documentGeneration": {
+    "toggle": "Generate document",
+    "selectedNone": "No sources selected",
+    "format": "Format",
+    "filename": "Filename",
+    "promptPlaceholder": "Describe the document goal and what it should include.",
+    "submit": "Start generation",
+    "loadFailed": "Could not load document sources.",
+    "submitFailed": "Could not start document generation.",
+    "pollFailed": "Could not refresh generation status.",
+    "sourceLabel": {
+      "note": "Note",
+      "agent_file": "Generated file",
+      "chat_thread": "Chat",
+      "research_run": "Research",
+      "synthesis_run": "Synthesis"
+    },
+    "qualitySignal": {
+      "metadata_fallback": "Used metadata fallback",
+      "unsupported_source": "Limited support",
+      "source_corrupt": "Could not read file",
+      "source_oversized": "Too large",
+      "scanned_no_text": "Scanned document",
+      "no_extracted_text": "No extracted text",
+      "source_hydration_failed": "Could not load source",
+      "source_token_budget_exceeded": "Partly omitted"
+    }
+  },
   "composer": {
     "placeholder": "Type a message...",
     "input_aria": "Message input",

@@ -11,6 +11,16 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 DocumentGenerationFormat = Literal["pdf", "docx", "pptx", "xlsx"]
+SourceQualitySignal = Literal[
+    "metadata_fallback",
+    "unsupported_source",
+    "source_corrupt",
+    "source_oversized",
+    "scanned_no_text",
+    "no_extracted_text",
+    "source_hydration_failed",
+    "source_token_budget_exceeded",
+]
 DocumentGenerationTemplate = Literal[
     "report",
     "brief",
@@ -68,6 +78,7 @@ class DocumentGenerationSourceItem:
     kind: str
     token_count: int
     included: bool = True
+    quality_signals: list[SourceQualitySignal] = field(default_factory=list)
 
 
 @dataclass
@@ -93,6 +104,9 @@ def normalize_source_bundle(
                 kind=str(item.get("kind") or "source"),
                 token_count=int(item.get("token_count", item.get("tokenCount", 1))),
                 included=bool(item.get("included", True)),
+                quality_signals=list(
+                    item.get("quality_signals", item.get("qualitySignals", []))
+                ),
             )
             for item in raw.get("items", [])
         ]

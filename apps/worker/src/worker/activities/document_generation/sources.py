@@ -72,7 +72,7 @@ async def _hydrate_internal_source(
         },
     )
     body = str(raw.get("body") or "")
-    body = await _extract_source_body(raw, body)
+    body, quality_signals = await _extract_source_body(raw, body)
     return DocumentGenerationSourceItem(
         id=str(raw.get("id") or _source_id(source)),
         title=str(raw.get("title") or _source_id(source)),
@@ -80,20 +80,21 @@ async def _hydrate_internal_source(
         kind=str(raw.get("kind") or source.get("type") or "source"),
         token_count=int(raw.get("token_count", raw.get("tokenCount", _approx_tokens(body)))),
         included=bool(raw.get("included", True)),
+        quality_signals=quality_signals,
     )
 
 
-async def _extract_source_body(raw: dict[str, Any], fallback: str) -> str:
+async def _extract_source_body(raw: dict[str, Any], fallback: str) -> tuple[str, list[str]]:
     object_key = raw.get("objectKey") or raw.get("object_key")
     if not isinstance(object_key, str) or not object_key:
-        return fallback
+        return fallback, []
 
     mime_type = str(raw.get("mimeType") or raw.get("mime_type") or "").split(";")[0].strip()
     bytes_value = raw.get("bytes")
     if isinstance(bytes_value, int) and bytes_value > SOURCE_EXTRACTION_MAX_BYTES:
-        return fallback
+        return fallback, ["source_oversized", "metadata_fallback"]
     if not _can_extract_source(object_key, mime_type):
-        return fallback
+        return fallback, ["unsupported_source", "metadata_fallback"]
 
     try:
         extracted = await asyncio.to_thread(
@@ -102,8 +103,13 @@ async def _extract_source_body(raw: dict[str, Any], fallback: str) -> str:
             mime_type,
         )
     except Exception:
-        return fallback
-    return extracted.strip() or fallback
+        return fallback, ["source_corrupt", "metadata_fallback"]
+    text = extracted.strip()
+    if text:
+        return text, []
+    if mime_type in _PDF_MIME_TYPES or Path(object_key).suffix.lower() in _PDF_EXTS:
+        return fallback, ["scanned_no_text", "metadata_fallback"]
+    return fallback, ["no_extracted_text", "metadata_fallback"]
 
 
 def _can_extract_source(object_key: str, mime_type: str) -> bool:
@@ -161,7 +167,10 @@ async def _hydrate_source(
             try:
                 return await _hydrate_internal_source(params, source)
             except Exception:
-                return _reference_only_source(source)
+                return _reference_only_source(
+                    source,
+                    ["source_hydration_failed", "metadata_fallback"],
+                )
         return _reference_only_source(source)
 
 
@@ -175,7 +184,10 @@ def _source_id(source: dict[str, Any]) -> str:
     )
 
 
-def _reference_only_source(source: dict[str, Any]) -> DocumentGenerationSourceItem:
+def _reference_only_source(
+    source: dict[str, Any],
+    quality_signals: list[str] | None = None,
+) -> DocumentGenerationSourceItem:
     kind = str(source.get("type") or "source")
     source_id = _source_id(source)
     title = {
@@ -190,6 +202,7 @@ def _reference_only_source(source: dict[str, Any]) -> DocumentGenerationSourceIt
         body=f"{kind}: {source_id}",
         kind=kind,
         token_count=_approx_tokens(source_id),
+        quality_signals=quality_signals or [],
     )
 
 
@@ -209,6 +222,11 @@ def _fit_budget(items: list[DocumentGenerationSourceItem]) -> list[DocumentGener
                     kind=item.kind,
                     token_count=item.token_count,
                     included=False,
+                    quality_signals=[
+                        *item.quality_signals,
+                        "source_token_budget_exceeded",
+                        "metadata_fallback",
+                    ],
                 )
             )
     return included

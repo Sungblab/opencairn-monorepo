@@ -56,7 +56,10 @@ async def fake_generate(
 
 @activity.defn(name="register_document_generation_result")
 async def fake_register(
-    _params: dict, _artifact: GeneratedDocumentArtifact, _workflow_id: str
+    _params: dict,
+    _artifact: GeneratedDocumentArtifact,
+    _workflow_id: str,
+    _sources: DocumentGenerationSourceBundle,
 ) -> ProjectObjectSummary:
     return ProjectObjectSummary(
         id="00000000-0000-4000-8000-000000000010",
@@ -71,7 +74,10 @@ async def fake_register(
 
 @activity.defn(name="register_document_generation_result")
 async def fake_register_fails(
-    _params: dict, _artifact: GeneratedDocumentArtifact, _workflow_id: str
+    _params: dict,
+    _artifact: GeneratedDocumentArtifact,
+    _workflow_id: str,
+    _sources: DocumentGenerationSourceBundle,
 ) -> ProjectObjectSummary:
     raise RuntimeError("internal_api_unavailable")
 

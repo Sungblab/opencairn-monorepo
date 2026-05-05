@@ -39,8 +39,8 @@ shape is:
 ## Active Themes
 
 - Polish the Document Generation IDE flow so generated project files are easier
-  to preview, edit, version, download, and bridge into existing Canvas/code
-  surfaces.
+  to request from project sources, preview, edit, version, download, and bridge
+  into existing Canvas/code surfaces.
 - Build the Agentic Workflow roadmap so note operations, generated files, code
   projects, import, export, approvals, and workflow status use one auditable
   action model.

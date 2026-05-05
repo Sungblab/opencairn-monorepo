@@ -82,6 +82,15 @@ type DocumentGenerationSourceKind =
   | "chat_thread"
   | "research_run"
   | "synthesis_run";
+type DocumentGenerationQualitySignal =
+  | "metadata_fallback"
+  | "unsupported_source"
+  | "source_corrupt"
+  | "source_oversized"
+  | "scanned_no_text"
+  | "no_extracted_text"
+  | "source_hydration_failed"
+  | "source_token_budget_exceeded";
 
 export type DocumentGenerationCardItem = {
   requestId: string;
@@ -91,6 +100,7 @@ export type DocumentGenerationCardItem = {
   filename?: string;
   errorCode?: string;
   sourceKinds: DocumentGenerationSourceKind[];
+  qualitySignals?: DocumentGenerationQualitySignal[];
   file?: AgentFileCardItem;
 };
 
@@ -152,11 +162,34 @@ function setGenerationCard(
     sourceKinds:
       next.sourceKinds.length > 0 ? next.sourceKinds : prev.sourceKinds,
     file: next.file ?? prev.file,
+    qualitySignals:
+      next.qualitySignals && next.qualitySignals.length > 0
+        ? next.qualitySignals
+        : prev.qualitySignals,
     status:
       statusRank(next.status) >= statusRank(prev.status)
         ? next.status
         : prev.status,
   });
+}
+
+function readQualitySignals(
+  result: Record<string, unknown>,
+): DocumentGenerationQualitySignal[] {
+  const sourceQuality = result.sourceQuality;
+  if (!sourceQuality || typeof sourceQuality !== "object") return [];
+  const signals = (sourceQuality as Record<string, unknown>).signals;
+  if (!Array.isArray(signals)) return [];
+  return signals.filter((signal): signal is DocumentGenerationQualitySignal =>
+    signal === "metadata_fallback" ||
+    signal === "unsupported_source" ||
+    signal === "source_corrupt" ||
+    signal === "source_oversized" ||
+    signal === "scanned_no_text" ||
+    signal === "no_extracted_text" ||
+    signal === "source_hydration_failed" ||
+    signal === "source_token_budget_exceeded",
+  );
 }
 
 function asGenerationFile(value: unknown): AgentFileCardItem | undefined {
@@ -272,6 +305,7 @@ function appendGenerationEvent(
       filename: file?.filename,
       sourceKinds: [],
       file,
+      qualitySignals: readQualitySignals(result),
     });
     return;
   }
@@ -297,6 +331,7 @@ function appendGenerationEvent(
       errorCode:
         typeof result.errorCode === "string" ? result.errorCode : undefined,
       sourceKinds: [],
+      qualitySignals: readQualitySignals(result),
     });
   }
 }
@@ -458,6 +493,16 @@ export function DocumentGenerationCards({
               {item.status === "failed" && item.errorCode ? (
                 <span className="block truncate text-xs text-red-600">
                   {t("errorCode", { code: item.errorCode })}
+                </span>
+              ) : null}
+              {item.qualitySignals && item.qualitySignals.length > 0 ? (
+                <span className="block truncate text-xs text-amber-700">
+                  {t("qualitySummary", {
+                    signals: item.qualitySignals
+                      .slice(0, 3)
+                      .map((signal) => t(`qualitySignal.${signal}`))
+                      .join(", "),
+                  })}
                 </span>
               ) : null}
             </span>

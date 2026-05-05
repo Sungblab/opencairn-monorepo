@@ -584,6 +584,7 @@ internal.post(
         format: body.kind,
         object: projectObject,
         artifact,
+        ...readDocumentGenerationSourceQuality(body.metadata),
       };
       const updated = await repo.updateStatus(body.actionId, {
         status: "completed",
@@ -623,6 +624,7 @@ internal.post(
           format: body.kind,
           errorCode: "document_generation_registration_failed",
           retryable: true,
+          ...readDocumentGenerationSourceQuality(body.metadata),
         },
         errorCode: "document_generation_registration_failed",
       });
@@ -630,6 +632,13 @@ internal.post(
     }
   },
 );
+
+function readDocumentGenerationSourceQuality(metadata: unknown) {
+  if (!metadata || typeof metadata !== "object") return {};
+  const sourceQuality = (metadata as Record<string, unknown>).sourceQuality;
+  if (!sourceQuality || typeof sourceQuality !== "object") return {};
+  return { sourceQuality };
+}
 
 // ---------------------------------------------------------------------------
 // Agent runtime run summary callbacks

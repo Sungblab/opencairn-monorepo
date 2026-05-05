@@ -19,6 +19,16 @@ const documentGenerationTemplateSchema = z.enum([
 ]);
 const documentGenerationArtifactModeSchema = z.literal("object_storage");
 const documentGenerationPublishTargetSchema = z.literal("agent_file");
+const documentGenerationSourceQualitySignalSchema = z.enum([
+  "metadata_fallback",
+  "unsupported_source",
+  "source_corrupt",
+  "source_oversized",
+  "scanned_no_text",
+  "no_extracted_text",
+  "source_hydration_failed",
+  "source_token_budget_exceeded",
+]);
 const safeGeneratedFilenameSchema = z
   .string()
   .trim()
@@ -175,6 +185,7 @@ export const projectObjectActionSchema = z.union([
 ]);
 
 export type ProjectObjectAction = z.infer<typeof projectObjectActionSchema>;
+export type GenerateProjectObjectAction = z.infer<typeof generateProjectObjectActionSchema>;
 export type DocumentGenerationFormat = z.infer<typeof documentGenerationFormatSchema>;
 export type DocumentGenerationSource = z.infer<typeof documentGenerationSourceSchema>;
 export type DocumentGenerationDestination = z.infer<typeof documentGenerationDestinationSchema>;
@@ -194,6 +205,22 @@ export const documentGenerationResultSchema = z
         bytes: z.number().int().nonnegative(),
       })
       .strict(),
+    sourceQuality: z
+      .object({
+        signals: z.array(documentGenerationSourceQualitySignalSchema).default([]),
+        sources: z.array(
+          z
+            .object({
+              id: z.string().min(1),
+              kind: z.string().min(1),
+              title: z.string().min(1),
+              signals: z.array(documentGenerationSourceQualitySignalSchema),
+            })
+            .strict(),
+        ).default([]),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
@@ -205,6 +232,22 @@ export const documentGenerationErrorResultSchema = z
     format: documentGenerationFormatSchema.optional(),
     errorCode: z.string().trim().min(1).max(120),
     retryable: z.boolean().default(false),
+    sourceQuality: z
+      .object({
+        signals: z.array(documentGenerationSourceQualitySignalSchema).default([]),
+        sources: z.array(
+          z
+            .object({
+              id: z.string().min(1),
+              kind: z.string().min(1),
+              title: z.string().min(1),
+              signals: z.array(documentGenerationSourceQualitySignalSchema),
+            })
+            .strict(),
+        ).default([]),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
