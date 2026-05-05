@@ -228,7 +228,7 @@ implemented.
 
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
-| POST | /api/projects/:projectId/agent-actions | project `editor` | Create an action ledger row. `requestId` is idempotent per `(projectId, actorUserId)`. `workflow.placeholder` completes immediately with a placeholder result. Phase 2A note actions (`note.create`, `note.rename`, `note.move`, `note.delete`, `note.restore`) execute immediately through API permission checks and write terminal `status`, `result`, and `errorCode` back to the ledger. Phase 2B `note.update` validates a draft Plate value, reads `yjs_documents`, generates `preview.diff`, and stores `status:"draft"` with no `result`. Code workspace `code_project.create` creates a stored workspace/snapshot and completes; `code_project.patch` stores `status:"draft"` with patch preview for approval; `code_project.run` validates an approved snapshot command and records runner result/log metadata through the configured runner seam. Other action kinds are stored as substrate rows for later phases. | `{ requestId?, sourceRunId?, kind, risk, input?, preview? }` |
+| POST | /api/projects/:projectId/agent-actions | project `editor` | Create an action ledger row. `requestId` is idempotent per `(projectId, actorUserId)`. `workflow.placeholder` completes immediately with a placeholder result. Phase 2A note actions (`note.create`, `note.rename`, `note.move`, `note.delete`, `note.restore`) execute immediately through API permission checks and write terminal `status`, `result`, and `errorCode` back to the ledger. Phase 2B `note.update` validates a draft Plate value, reads `yjs_documents`, generates `preview.diff`, and stores `status:"draft"` with no `result`. Code workspace `code_project.create` creates a stored workspace/snapshot and completes; `code_project.patch` stores `status:"draft"` with patch preview for approval; `code_project.run` validates an approved snapshot command and records runner result/log metadata through the configured runner seam; `code_project.install` validates dependency install intent and stores `approval_required` without executing installs. Other action kinds are stored as substrate rows for later phases. | `{ requestId?, sourceRunId?, kind, risk, input?, preview? }` |
 | GET | /api/projects/:projectId/agent-actions | project `editor` | List newest actions in a project. Optional filters: `?status=&kind=&limit=`. | - |
 | GET | /api/agent-actions/:id | project `editor` | Read one action after checking the action's project scope. | - |
 | PATCH | /api/agent-actions/:id/status | project `editor` | Transition action status using the shared status state machine; invalid transitions return `409 invalid_status_transition`. | `{ status, preview?, result?, errorCode? }` |
@@ -353,6 +353,23 @@ generated repairs mutate a code workspace.
 `POST /api/agent-actions/:id/cancel` is the explicit cancellation path for
 code workspace command runs. Browser disconnects do not cancel execution; the
 cancel endpoint owns the ledger transition and worker workflow cancellation.
+
+`code_project.install` input:
+
+```json
+{
+  "codeWorkspaceId": "uuid",
+  "snapshotId": "uuid",
+  "packageManager": "pnpm",
+  "packages": [{ "name": "@vitejs/plugin-react", "dev": true }],
+  "network": "required",
+  "reason": "Build needs the React plugin"
+}
+```
+
+Install actions must use `risk:"external"`. They create approval-required
+ledger rows only; no package manager command runs until a future approved
+install executor is added.
 
 ### Ingest
 

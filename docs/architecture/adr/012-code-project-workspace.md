@@ -274,6 +274,9 @@ project commands, install dependencies, host previews, or deploy external apps.
   the activity converts into a reviewable `code_project.patch` payload.
 - Add explicit cancellation for queued/running `code_project.run` actions via
   `POST /api/agent-actions/:id/cancel`; browser disconnects are detach-only.
+- Add a typed `code_project.install` approval substrate. Dependency install
+  actions require `risk:"external"`, explicit `network:"required"`, and remain
+  approval-only until an approved install executor exists.
 - Implement approved sandbox commands for test/build/lint.
 - Store logs and command artifacts.
 - Feed failures back into the agent for bounded repair loops.

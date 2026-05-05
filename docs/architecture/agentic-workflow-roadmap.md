@@ -773,6 +773,14 @@ Phase 6G adds the first explicit cancellation control for code workspace runs.
 ledger row `cancelled`. The run completion path now preserves an already
 cancelled row instead of racing it back to `failed`.
 
+Phase 6H adds the dependency-install approval substrate without executing
+installs. `code_project.install` now has a typed input contract with explicit
+package manager, package list, target snapshot, and `network:"required"`.
+Install actions must use `risk:"external"` and are stored as
+`approval_required` with a review preview. `code_project.run` continues to
+reject caller-supplied network fields, so networked execution remains gated by
+future approval-aware install/run work.
+
 ### Phase 7: Hosted Preview
 
 Add generated app previews:

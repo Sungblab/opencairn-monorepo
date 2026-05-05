@@ -257,6 +257,47 @@ export const codeWorkspacePatchRiskSchema = z.enum([
 
 export const codeWorkspaceCommandSchema = z.enum(["lint", "test", "build"]);
 
+export const codeWorkspacePackageManagerSchema = z.enum(["pnpm", "npm", "yarn"]);
+
+export const codeWorkspaceInstallRequestSchema = z
+  .object({
+    requestId: z.string().uuid().optional(),
+    codeWorkspaceId: z.string().uuid(),
+    snapshotId: z.string().uuid(),
+    packageManager: codeWorkspacePackageManagerSchema.default("pnpm"),
+    packages: z
+      .array(
+        z
+          .object({
+            name: z.string().trim().min(1).max(214),
+            version: z.string().trim().min(1).max(120).optional(),
+            dev: z.boolean().default(false),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(50),
+    network: z.literal("required"),
+    reason: z.string().trim().min(1).max(500).optional(),
+  })
+  .passthrough()
+  .superRefine((value, ctx) => {
+    rejectScopeFields(value, ctx);
+    rejectUnknownFields(
+      value,
+      new Set([
+        "requestId",
+        "codeWorkspaceId",
+        "snapshotId",
+        "packageManager",
+        "packages",
+        "network",
+        "reason",
+      ]),
+      ctx,
+    );
+  });
+
 export const codeWorkspaceCommandRunRequestSchema = z
   .object({
     requestId: z.string().uuid().optional(),

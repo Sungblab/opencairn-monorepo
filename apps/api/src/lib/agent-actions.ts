@@ -21,6 +21,7 @@ import {
   codeWorkspaceCommandRunRequestSchema,
   codeWorkspaceCommandRunResultSchema,
   codeWorkspaceCreateRequestSchema,
+  codeWorkspaceInstallRequestSchema,
   codeWorkspacePatchSchema,
   noteUpdateApplyRequestSchema,
   noteUpdateApplyResultSchema,
@@ -333,6 +334,7 @@ export async function createAgentAction(
   const executableNoteAction = isPhase2ANoteAction(request.kind);
   const executableCodeCreateAction = request.kind === "code_project.create";
   const codePatchAction = request.kind === "code_project.patch";
+  const codeInstallAction = request.kind === "code_project.install";
   const executableCodeRunAction = request.kind === "code_project.run";
   const noteUpdatePreview =
     request.kind === "note.update"
@@ -366,7 +368,13 @@ export async function createAgentAction(
           : initialStatusForRisk(request.risk),
     risk: request.risk,
     input: request.input ?? {},
-    preview: noteUpdatePreview ?? request.preview ?? (placeholder ? placeholderPreview(request.input ?? {}) : null),
+    preview: noteUpdatePreview ?? request.preview ?? (
+      codeInstallAction
+        ? codeInstallApprovalPreview(request.input ?? {})
+        : placeholder
+          ? placeholderPreview(request.input ?? {})
+          : null
+    ),
     result: placeholder ? placeholderResult(request.input ?? {}) : null,
     errorCode: null,
   });
@@ -1065,6 +1073,22 @@ function serializeCodeWorkspace(action: AgentAction, workspace: {
     workspaceId: action.workspaceId,
     name: workspace.name,
     currentSnapshotId: workspace.currentSnapshotId,
+  };
+}
+
+function codeInstallApprovalPreview(input: Record<string, unknown>) {
+  const payload = codeWorkspaceInstallRequestSchema.parse(input);
+  const names = payload.packages.map((pkg) =>
+    pkg.version ? `${pkg.name}@${pkg.version}` : pkg.name,
+  );
+  return {
+    kind: "code_project.install",
+    approval: "dependency_install",
+    packageManager: payload.packageManager,
+    packages: payload.packages,
+    network: payload.network,
+    summary: `Install ${names.join(", ")} with ${payload.packageManager}`,
+    reason: payload.reason ?? null,
   };
 }
 
