@@ -39,6 +39,13 @@
 - **Integration**: 에이전트 → 테스트 DB + Mock Gemini API
 - **Tool**: pytest + pytest-asyncio
 
+### Document Generation Live Smoke
+
+- **Scope**: API, Temporal worker, object storage, internal callback, and
+  authenticated download for generated PDF/DOCX/PPTX/XLSX artifacts.
+- **Tool**: `pnpm --dir apps/api exec tsx scripts\document-generation-live-smoke.mjs`
+- **Runbook**: [docs/testing/document-generation-live-smoke.md](./document-generation-live-smoke.md)
+
 ### Browser Sandbox (apps/web 내부)
 2026-04-14 피봇으로 `apps/sandbox` 서비스는 폐기됨. 코드 실행은 전부 브라우저(Pyodide + iframe)에서 이루어지므로 별도 서버 테스트 대상이 없다. 대신:
 - **Unit**: Pyodide 래퍼 훅(`useCanvasMessages`, `pyodide-runner.tsx`) 순수 로직 — vitest

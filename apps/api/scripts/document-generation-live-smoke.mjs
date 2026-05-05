@@ -21,11 +21,77 @@ const INTERNAL_API_SECRET = requiredEnv("INTERNAL_API_SECRET");
 const S3_BUCKET = process.env.S3_BUCKET ?? "opencairn-uploads";
 const POLL_TIMEOUT_MS = Number(process.env.DOC_GEN_SMOKE_TIMEOUT_MS ?? 120_000);
 const POLL_INTERVAL_MS = 1_000;
+const URL_ENV_NAMES = [
+  "API_BASE_URL",
+  "INTERNAL_API_URL",
+  "DATABASE_URL",
+  "REDIS_URL",
+  "TEMPORAL_ADDRESS",
+  "S3_ENDPOINT",
+];
 
 function requiredEnv(name) {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`${name} is required`);
   return value;
+}
+
+function parseHttpUrl(name, value) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      throw new Error(`expected http or https URL, got ${url.protocol}`);
+    }
+    return url;
+  } catch (error) {
+    throw new Error(
+      `${name} must be a valid http(s) URL: ${value} (${error.message})`,
+    );
+  }
+}
+
+function looksLikeTruncatedScheme(value) {
+  return /^(ttp|ttps):\/\//i.test(value);
+}
+
+function validateUrlEnv(name, value) {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (looksLikeTruncatedScheme(trimmed)) {
+    throw new Error(
+      `${name} looks like a truncated URL scheme (${trimmed}). ` +
+        "PowerShell .env parsers that trim or split incorrectly can corrupt values; " +
+        "reload the root .env with the documented parser and override this variable explicitly.",
+    );
+  }
+  if (name === "API_BASE_URL" || name === "INTERNAL_API_URL") {
+    parseHttpUrl(name, trimmed);
+  }
+  return trimmed;
+}
+
+function smokePreflight() {
+  parseHttpUrl("API_BASE_URL", API_BASE_URL);
+  if (!Number.isFinite(POLL_TIMEOUT_MS) || POLL_TIMEOUT_MS <= 0) {
+    throw new Error(
+      `DOC_GEN_SMOKE_TIMEOUT_MS must be a positive number, got ${POLL_TIMEOUT_MS}`,
+    );
+  }
+  const env = Object.fromEntries(
+    URL_ENV_NAMES.map((name) => [
+      name,
+      validateUrlEnv(name, process.env[name]),
+    ]).filter(([, value]) => value),
+  );
+  return {
+    apiBaseUrl: API_BASE_URL,
+    smokeOrigin: process.env.SMOKE_ORIGIN ?? "http://localhost:3000",
+    timeoutMs: POLL_TIMEOUT_MS,
+    workerInternalApiUrl:
+      process.env.INTERNAL_API_URL ??
+      `${API_BASE_URL} (recommended worker override; set INTERNAL_API_URL explicitly when starting the worker)`,
+    env,
+  };
 }
 
 function parseS3Endpoint() {
@@ -44,6 +110,54 @@ function parseS3Endpoint() {
     endPoint: endPoint || "localhost",
     port: Number(rawPort ?? (useSSL ? 443 : 9000)),
     useSSL,
+  };
+}
+
+function expectedMagic(format) {
+  if (format === "pdf") return ["25504446"];
+  if (["docx", "pptx", "xlsx"].includes(format)) {
+    return ["504b0304", "504b0506", "504b0708"];
+  }
+  return [];
+}
+
+async function qaDownloadedArtifact({ scenario, artifact, file, download }) {
+  const contentType = download.headers.get("content-type") ?? "";
+  const buffer = Buffer.from(await download.arrayBuffer());
+  const sha256 = createHash("sha256").update(buffer).digest("hex");
+  const magicHex = buffer.subarray(0, 4).toString("hex");
+  const magicCandidates = expectedMagic(scenario.format);
+  const magicOk =
+    magicCandidates.length === 0 ||
+    magicCandidates.some((magic) => magicHex.startsWith(magic));
+  const objectBytes = Number(artifact.bytes ?? 0);
+  const rowBytes = Number(file.bytes ?? 0);
+  if (buffer.length === 0) {
+    throw new Error(`${scenario.name} downloaded artifact is empty`);
+  }
+  if (objectBytes > 0 && buffer.length !== objectBytes) {
+    throw new Error(
+      `${scenario.name} byte mismatch: downloaded=${buffer.length}, artifact=${objectBytes}`,
+    );
+  }
+  if (rowBytes > 0 && buffer.length !== rowBytes) {
+    throw new Error(
+      `${scenario.name} byte mismatch: downloaded=${buffer.length}, row=${rowBytes}`,
+    );
+  }
+  if (!magicOk) {
+    throw new Error(
+      `${scenario.name} magic mismatch for ${scenario.format}: ${magicHex}, expected one of ${magicCandidates.join(", ")}`,
+    );
+  }
+  return {
+    contentType,
+    downloadedBytes: buffer.length,
+    artifactBytes: objectBytes || null,
+    agentFileBytes: rowBytes || null,
+    sha256,
+    magicHex,
+    magicOk,
   };
 }
 
@@ -72,7 +186,10 @@ async function putTextObject(client, key, body, contentType = "text/markdown") {
 async function api(path, init = {}) {
   const method = (init.method ?? "GET").toUpperCase();
   const headers = new Headers(init.headers ?? {});
-  if (["POST", "PUT", "PATCH", "DELETE"].includes(method) && !headers.has("origin")) {
+  if (
+    ["POST", "PUT", "PATCH", "DELETE"].includes(method) &&
+    !headers.has("origin")
+  ) {
     headers.set("origin", process.env.SMOKE_ORIGIN ?? "http://localhost:3000");
   }
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -87,7 +204,9 @@ async function api(path, init = {}) {
     body = text;
   }
   if (!response.ok) {
-    throw new Error(`${init.method ?? "GET"} ${path} -> ${response.status}: ${text}`);
+    throw new Error(
+      `${init.method ?? "GET"} ${path} -> ${response.status}: ${text}`,
+    );
   }
   return body;
 }
@@ -160,12 +279,16 @@ async function createChatThread(seed) {
     {
       threadId: thread.id,
       role: "user",
-      content: { text: "Summarize the source material into an executive brief." },
+      content: {
+        text: "Summarize the source material into an executive brief.",
+      },
     },
     {
       threadId: thread.id,
       role: "agent",
-      content: { text: "The material discusses source hydration and generated artifacts." },
+      content: {
+        text: "The material discusses source hydration and generated artifacts.",
+      },
     },
   ]);
   return thread.id;
@@ -240,11 +363,15 @@ async function waitForAction(actionId) {
     last = action;
     if (action?.status === "completed") return action;
     if (action?.status === "failed" || action?.status === "cancelled") {
-      throw new Error(`action ${actionId} ended as ${action.status}: ${JSON.stringify(action.result)}`);
+      throw new Error(
+        `action ${actionId} ended as ${action.status}: ${JSON.stringify(action.result)}`,
+      );
     }
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
   }
-  throw new Error(`action ${actionId} did not complete before timeout; last=${JSON.stringify(last)}`);
+  throw new Error(
+    `action ${actionId} did not complete before timeout; last=${JSON.stringify(last)}`,
+  );
 }
 
 async function runScenario(seed, client, scenario) {
@@ -281,7 +408,9 @@ async function runScenario(seed, client, scenario) {
   const object = action.result?.object;
   const artifact = action.result?.artifact;
   if (!object?.id || !artifact?.objectKey) {
-    throw new Error(`completed action missing object/artifact: ${JSON.stringify(action.result)}`);
+    throw new Error(
+      `completed action missing object/artifact: ${JSON.stringify(action.result)}`,
+    );
   }
   const [file] = await db
     .select()
@@ -292,13 +421,24 @@ async function runScenario(seed, client, scenario) {
   if (file.source !== "document_generation") {
     throw new Error(`agent_files source mismatch: ${file.source}`);
   }
-  await client.statObject(S3_BUCKET, artifact.objectKey);
-  const download = await fetch(`${API_BASE_URL}/api/agent-files/${object.id}/file`, {
-    headers: { cookie: `${seed.cookieName}=${seed.cookieValue}` },
-  });
+  const objectStat = await client.statObject(S3_BUCKET, artifact.objectKey);
+  const download = await fetch(
+    `${API_BASE_URL}/api/agent-files/${object.id}/file`,
+    {
+      headers: { cookie: `${seed.cookieName}=${seed.cookieValue}` },
+    },
+  );
   if (!download.ok) {
-    throw new Error(`download ${object.id} failed: ${download.status} ${await download.text()}`);
+    throw new Error(
+      `download ${object.id} failed: ${download.status} ${await download.text()}`,
+    );
   }
+  const artifactQa = await qaDownloadedArtifact({
+    scenario,
+    artifact,
+    file,
+    download,
+  });
   return {
     name: scenario.name,
     sourceType: scenario.source.type,
@@ -309,7 +449,9 @@ async function runScenario(seed, client, scenario) {
     agentFileId: object.id,
     objectKey: artifact.objectKey,
     bytes: artifact.bytes,
+    objectStorageBytes: objectStat.size,
     downloadStatus: download.status,
+    artifactQa,
   };
 }
 
@@ -325,7 +467,9 @@ async function verifySourcePicker(seed, expected) {
   const types = new Set((response.sources ?? []).map((source) => source.type));
   for (const type of expected) {
     if (!types.has(type)) {
-      throw new Error(`source picker missing ${type}: ${JSON.stringify(response.sources)}`);
+      throw new Error(
+        `source picker missing ${type}: ${JSON.stringify(response.sources)}`,
+      );
     }
   }
   return {
@@ -333,6 +477,17 @@ async function verifySourcePicker(seed, expected) {
     types: [...types].sort(),
   };
 }
+
+const preflight = smokePreflight();
+console.error(
+  JSON.stringify(
+    {
+      smokePreflight: preflight,
+    },
+    null,
+    2,
+  ),
+);
 
 const client = s3Client();
 await ensureBucket(client);
@@ -391,20 +546,27 @@ for (const scenario of scenarios) {
   results.push(await runScenario(seed, client, scenario));
 }
 
-console.log(JSON.stringify({
-  ok: true,
-  apiBaseUrl: API_BASE_URL,
-  seed: {
-    userId: seed.userId,
-    workspaceId: seed.workspaceId,
-    projectId: seed.projectId,
-    noteId: seed.noteId,
-    agentFileId,
-    threadId,
-    researchRunId,
-    synthesisRunId: synthesis.runId,
-    synthesisDocumentId: synthesis.documentId,
-  },
-  sourcePicker,
-  results,
-}, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      ok: true,
+      apiBaseUrl: API_BASE_URL,
+      preflight,
+      seed: {
+        userId: seed.userId,
+        workspaceId: seed.workspaceId,
+        projectId: seed.projectId,
+        noteId: seed.noteId,
+        agentFileId,
+        threadId,
+        researchRunId,
+        synthesisRunId: synthesis.runId,
+        synthesisDocumentId: synthesis.documentId,
+      },
+      sourcePicker,
+      results,
+    },
+    null,
+    2,
+  ),
+);
