@@ -268,17 +268,87 @@ Remaining Phase 3C/3D work:
 - Expand Phase 3D quality signals only after the current event/result contract
   has been exercised with real user prompts.
 
-### Phase 4: Google Export
+### Phase 4: Google Workspace Export
 
 Goal: generated outputs can be sent to Google Workspace without making Google a
-core dependency.
+core dependency or creating a second generated-file system.
 
-- Save generated file to Google Drive.
-- Convert DOCX to Google Docs.
-- Convert XLSX to Google Sheets.
-- Convert PPTX to Google Slides.
-- Store provider export metadata and external URLs.
-- Keep provider grants scoped and revocable.
+This phase extends `export_project_object` for provider handoff. The source of
+truth remains the OpenCairn `agent_files` project object and object-storage
+artifact created by Phase 3. Google receives a copy or a converted native
+document only after the user has a scoped, revocable Workspace grant.
+
+Supported first targets:
+
+| OpenCairn file | Google provider action | Google result |
+| --- | --- | --- |
+| Any generated file | `google_drive` upload | Drive file with original MIME type |
+| DOCX | `google_docs` conversion | Google Docs document |
+| XLSX | `google_sheets` conversion | Google Sheets spreadsheet |
+| PPTX | `google_slides` conversion | Google Slides deck |
+| PDF | `google_drive` upload | Drive PDF, no Docs conversion in first slice |
+
+Provider export should be modeled as an external, auditable effect:
+
+- `export_project_object` accepts the existing provider values
+  `google_drive`, `google_docs`, `google_sheets`, and `google_slides`.
+- The API validates the project object, workspace/project permissions,
+  requested format/provider compatibility, and a user-owned Google Workspace
+  grant before starting work.
+- External exports run through Temporal because they call Google APIs, may need
+  token refresh, and can fail after retries.
+- The worker reads the already-stored OpenCairn artifact, uploads it to Drive,
+  optionally asks Drive to convert it to a Google-native type, and returns
+  provider metadata.
+- The API stores provider metadata through the connector/external-object-ref
+  surface when possible instead of adding a parallel export table first.
+- Result events include provider name, external object ID, external URL, final
+  Google MIME type, export status, and stable error codes.
+
+Grant and fallback rules:
+
+- Google login remains identity only. Workspace export requires a separate
+  connector/provider grant with Drive write scope.
+- Self-hosted deployments with no Google env vars or no connected Google
+  account still expose OpenCairn preview and download.
+- Revoked, expired, or insufficient grants fail the provider export action with
+  a reconnect/permission-required status; they do not break the generated file.
+- The first slice should avoid provider-specific generation UX. Provider export
+  is an action on an existing completed project object.
+
+Implementation split:
+
+1. Contract and API gate:
+   extend shared event/result contracts for provider export metadata, validate
+   provider/file compatibility, require authenticated project access, check the
+   Google connector grant, and start an export workflow.
+2. Worker Google export:
+   add a Temporal workflow/activity pair that refreshes Drive credentials,
+   reads the object-storage artifact, uploads to Drive, performs Docs/Sheets/
+   Slides conversion where supported, and returns terminal metadata or a stable
+   error code.
+3. Metadata and audit:
+   map successful exports to existing connector account/source/external object
+   references and connector audit events where that model fits; introduce new DB
+   shape only if the existing connector metadata cannot represent generated-file
+   exports without ambiguity.
+4. UI consumption:
+   surface provider export status and external links in the existing Agent Panel
+   cards, agent-file viewer actions, and workflow/status surfaces. Do not add a
+   separate provider-specific generation form.
+5. Verification and smoke:
+   keep unit tests offline with mocked Google clients, add API permission and
+   compatibility tests, add worker retry/error tests, and reserve a live Google
+   smoke for an operator-controlled environment with disposable Drive fixtures.
+
+Out of scope for Phase 4:
+
+- DB migration before the metadata gap is proven.
+- Provider-specific document generation prompts or UX.
+- Replacing OpenCairn preview/download with Google links.
+- Native two-way sync or collaborative editing back from Google Docs/Sheets/
+  Slides into OpenCairn.
+- Google conversion for arbitrary formats beyond DOCX/XLSX/PPTX.
 
 ### Phase 5: Project Object Consolidation
 
