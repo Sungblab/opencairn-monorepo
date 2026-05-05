@@ -50,6 +50,7 @@ coverage/
 .pytest_cache/
 test-results/
 playwright-report/
+output/playwright/
 apps/worker/benchmarks/results/
 
 # Session artifacts
