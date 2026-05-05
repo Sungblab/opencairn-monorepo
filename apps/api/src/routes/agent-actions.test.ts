@@ -581,6 +581,75 @@ describe("agent action routes", () => {
     expect(await asset.text()).toBe("<h1>Preview</h1>");
   });
 
+  it("rejects expired static code_project.preview assets", async () => {
+    const repo = createMemoryRepo();
+    const codeWorkspaceRepo = createMemoryCodeWorkspaceRepository();
+    const { workspace, snapshot } = await codeWorkspaceRepo.createWorkspaceDraft({
+      scope: { workspaceId, projectId, actorUserId: userId },
+      requestId: "00000000-0000-4000-8000-000000000086",
+      snapshotId: "00000000-0000-4000-8000-000000000087",
+      treeHash: "sha256:preview",
+      request: {
+        name: "Preview app",
+        manifest: {
+          entries: [
+            {
+              path: "index.html",
+              kind: "file",
+              mimeType: "text/html",
+              bytes: 16,
+              contentHash: "sha256:index",
+              inlineContent: "<h1>Preview</h1>",
+            },
+          ],
+        },
+      },
+    });
+    let now = new Date("2026-05-05T00:00:00.000Z");
+    const app = appWith({
+      repo,
+      codeWorkspaceRepo,
+      now: () => now,
+      codePreviewTtlMs: 60_000,
+    });
+    const create = await app.request(`/api/projects/${projectId}/agent-actions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        requestId: "00000000-0000-4000-8000-000000000088",
+        kind: "code_project.preview",
+        risk: "external",
+        input: {
+          codeWorkspaceId: workspace.id,
+          snapshotId: snapshot.id,
+          mode: "static",
+          entryPath: "index.html",
+        },
+      }),
+    });
+    const created = await create.json() as { action: AgentAction };
+    const apply = await app.request(`/api/agent-actions/${created.action.id}/apply`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(await apply.json()).toMatchObject({
+      action: {
+        result: { expiresAt: "2026-05-05T00:01:00.000Z" },
+      },
+    });
+    now = new Date("2026-05-05T00:02:00.000Z");
+
+    const expired = await app.request(
+      `/api/agent-actions/${created.action.id}/preview/index.html`,
+    );
+
+    expect(expired.status).toBe(409);
+    expect(await expired.json()).toMatchObject({
+      error: "code_project_preview_expired",
+    });
+  });
+
   it("cancels a running code_project.run action", async () => {
     const running = makeAction({
       id: "00000000-0000-4000-8000-000000000080",
@@ -779,6 +848,8 @@ function appWith(options: {
   codeRepairPlanner?: CodeRepairPlanner;
   noteUpdatePreviewer?: NoteUpdatePreviewer;
   noteUpdateApplier?: NoteUpdateApplier;
+  now?: () => Date;
+  codePreviewTtlMs?: number;
 }) {
   return new Hono<AppEnv>().route(
     "/api",
@@ -791,6 +862,8 @@ function appWith(options: {
       canWriteProject: async () => true,
       noteUpdatePreviewer: options.noteUpdatePreviewer,
       noteUpdateApplier: options.noteUpdateApplier,
+      now: options.now,
+      codePreviewTtlMs: options.codePreviewTtlMs,
       auth: async (c, next) => {
         c.set("userId", userId);
         c.set("user", { id: userId, email: "user@example.com", name: "User" });

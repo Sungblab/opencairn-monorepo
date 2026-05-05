@@ -43,6 +43,8 @@ export function createAgentActionRoutes(options?: AgentActionRouteOptions) {
     ...(options?.noteExecutor ? { noteExecutor: options.noteExecutor } : {}),
     ...(options?.noteUpdatePreviewer ? { noteUpdatePreviewer: options.noteUpdatePreviewer } : {}),
     ...(options?.noteUpdateApplier ? { noteUpdateApplier: options.noteUpdateApplier } : {}),
+    ...(options?.now ? { now: options.now } : {}),
+    ...(options?.codePreviewTtlMs ? { codePreviewTtlMs: options.codePreviewTtlMs } : {}),
   };
 
   return new Hono<AppEnv>()

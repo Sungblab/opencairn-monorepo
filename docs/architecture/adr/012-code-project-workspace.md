@@ -297,6 +297,8 @@ project commands, install dependencies, host previews, or deploy external apps.
   internal preview URL only for inline snapshot entries.
 - Show pending preview approvals and completed preview links in the existing
   Agent Panel before adding a separate preview dashboard.
+- Add expiry to private preview results before treating preview links as
+  durable project artifacts. Expired internal preview URLs should fail closed.
 - Add Vite/Next preview only after process lifecycle and cleanup are safe.
 - Capture browser smoke results and screenshots.
 - Keep unrestricted server-side arbitrary code execution out of scope.
