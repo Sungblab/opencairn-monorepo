@@ -40,6 +40,7 @@ import {
   inArray,
 } from "@opencairn/db";
 import {
+  agentFileKindSchema,
   createConceptExtractionSchema,
   createEvidenceBundleSchema,
 } from "@opencairn/shared";
@@ -67,6 +68,14 @@ import {
 } from "../lib/document-compilers";
 import { executeChatRun } from "../lib/chat-runs";
 import { uploadObject } from "../lib/s3";
+import { emitTreeEvent } from "../lib/tree-events";
+import {
+  AgentFileError,
+  registerExistingObjectAsAgentFile,
+  startAgentFileIngest,
+} from "../lib/agent-files";
+import { createDrizzleAgentActionRepository } from "../lib/agent-actions";
+import { toProjectObjectSummary } from "../lib/project-object-actions";
 import {
   createConceptExtractionEvidence,
   createEvidenceBundle,
@@ -92,6 +101,31 @@ internal.use("*", async (c, next) => {
   await next();
 });
 
+const documentGenerationArtifactSchema = z.object({
+  objectKey: z.string().min(1),
+  mimeType: z.string().min(1),
+  bytes: z.number().int().nonnegative(),
+});
+
+const registerDocumentGenerationAgentFileSchema = z.object({
+  actionId: z.string().uuid(),
+  requestId: z.string().uuid(),
+  workflowId: z.string().min(1),
+  workspaceId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  userId: z.string().min(1),
+  filename: z.string().trim().min(1).max(180),
+  title: z.string().trim().min(1).max(180).optional(),
+  folderId: z.string().uuid().nullable().optional(),
+  kind: agentFileKindSchema.extract(["pdf", "docx", "pptx", "xlsx"]),
+  mimeType: z.string().min(1),
+  objectKey: z.string().min(1),
+  bytes: z.number().int().nonnegative(),
+  source: z.literal("document_generation").default("document_generation"),
+  startIngest: z.boolean().default(false),
+  metadata: z.record(z.unknown()).optional(),
+});
+
 // `vector(n)` literal for pgvector cosine similarity queries. Drizzle's custom
 // type serialiser already produces `[f1,f2,...]` strings; we wrap them into
 // `::vector` casts at query time.
@@ -115,6 +149,110 @@ async function guardWorkspace(
     throw err;
   }
 }
+
+internal.post(
+  "/document-generation/agent-files",
+  zValidator("json", registerDocumentGenerationAgentFileSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const guard = await guardWorkspace(c, () =>
+      assertResourceWorkspace(db, body.workspaceId, {
+        type: "project",
+        id: body.projectId,
+      }),
+    );
+    if (guard) return guard;
+
+    const repo = createDrizzleAgentActionRepository();
+    const action = await repo.findById(body.actionId);
+    if (!action) return c.json({ error: "action_not_found" }, 404);
+    if (
+      action.requestId !== body.requestId ||
+      action.workspaceId !== body.workspaceId ||
+      action.projectId !== body.projectId ||
+      action.actorUserId !== body.userId ||
+      action.kind !== "file.generate"
+    ) {
+      return c.json({ error: "document_generation_action_mismatch" }, 409);
+    }
+
+    try {
+      let file = await registerExistingObjectAsAgentFile({
+        userId: body.userId,
+        workspaceId: body.workspaceId,
+        projectId: body.projectId,
+        filename: body.filename,
+        title: body.title,
+        kind: body.kind,
+        mimeType: body.mimeType,
+        objectKey: body.objectKey,
+        bytes: body.bytes,
+        source: body.source,
+        folderId: body.folderId ?? null,
+      });
+      if (body.startIngest) {
+        file = await startAgentFileIngest(file.id, body.userId);
+      }
+
+      const projectObject = toProjectObjectSummary(file);
+      const artifact = documentGenerationArtifactSchema.parse({
+        objectKey: body.objectKey,
+        mimeType: body.mimeType,
+        bytes: body.bytes,
+      });
+      const result = {
+        ok: true,
+        requestId: body.requestId,
+        workflowId: body.workflowId,
+        format: body.kind,
+        object: projectObject,
+        artifact,
+      };
+      const updated = await repo.updateStatus(body.actionId, {
+        status: "completed",
+        result,
+        errorCode: null,
+      });
+      if (!updated) return c.json({ error: "action_not_found" }, 404);
+
+      emitTreeEvent({
+        kind: "tree.agent_file_created",
+        projectId: file.projectId,
+        id: file.id,
+        parentId: file.folderId,
+        label: file.title,
+        at: new Date().toISOString(),
+      });
+
+      return c.json({
+        object: projectObject,
+        event: {
+          type: "project_object_generation_completed",
+          result,
+        },
+        action: updated,
+      }, 201);
+    } catch (err) {
+      if (err instanceof AgentFileError) {
+        return c.json({ error: err.code, message: err.message }, err.status as 400 | 403 | 404 | 409 | 415);
+      }
+      console.error("[document-generation] internal registration failed", err);
+      await repo.updateStatus(body.actionId, {
+        status: "failed",
+        result: {
+          ok: false,
+          requestId: body.requestId,
+          workflowId: body.workflowId,
+          format: body.kind,
+          errorCode: "document_generation_registration_failed",
+          retryable: true,
+        },
+        errorCode: "document_generation_registration_failed",
+      });
+      return c.json({ error: "document_generation_registration_failed" }, 500);
+    }
+  },
+);
 
 // ---------------------------------------------------------------------------
 // Agent runtime run summary callbacks

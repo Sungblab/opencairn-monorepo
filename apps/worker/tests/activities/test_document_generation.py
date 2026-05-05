@@ -13,6 +13,7 @@ from worker.activities.document_generation.types import GeneratedDocumentArtifac
 
 def _request(format_: str = "pdf") -> dict:
     return {
+        "actionId": "00000000-0000-4000-8000-000000000011",
         "requestId": "00000000-0000-4000-8000-000000000020",
         "workspaceId": "00000000-0000-4000-8000-000000000001",
         "projectId": "00000000-0000-4000-8000-000000000003",
@@ -109,15 +110,20 @@ async def test_register_document_generation_result_posts_internal_agent_file_pay
         objectKey="agent-files/project/document-generation/request/project-report.pdf",
         mimeType="application/pdf",
         bytes=128,
-        format="pdf",
     )
     with patch("worker.activities.document_generation.register.post_internal", fake_post):
-        result = await register_document_generation_result(_request("pdf"), artifact)
+        result = await register_document_generation_result(
+            _request("pdf"),
+            artifact,
+            "document-generation/00000000-0000-4000-8000-000000000020",
+        )
 
     assert result.id == "00000000-0000-4000-8000-000000000010"
     assert calls[0][0] == "/api/internal/document-generation/agent-files"
     body = calls[0][1]
+    assert body["actionId"] == "00000000-0000-4000-8000-000000000011"
     assert body["requestId"] == "00000000-0000-4000-8000-000000000020"
+    assert body["workflowId"] == "document-generation/00000000-0000-4000-8000-000000000020"
     assert body["workspaceId"] == "00000000-0000-4000-8000-000000000001"
     assert body["projectId"] == "00000000-0000-4000-8000-000000000003"
     assert body["objectKey"] == artifact.objectKey

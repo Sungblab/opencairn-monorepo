@@ -52,6 +52,7 @@ class DocumentGenerationRequest:
 
 @dataclass(frozen=True)
 class DocumentGenerationWorkflowParams:
+    action_id: str
     request_id: str
     workspace_id: str
     project_id: str
@@ -64,7 +65,6 @@ class GeneratedDocumentArtifact:
     objectKey: str
     mimeType: str
     bytes: int
-    format: DocumentGenerationFormat
 
 
 @dataclass(frozen=True)

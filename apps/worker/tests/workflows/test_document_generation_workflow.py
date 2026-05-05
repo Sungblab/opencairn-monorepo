@@ -14,6 +14,7 @@ from worker.workflows.document_generation_workflow import DocumentGenerationWork
 
 def _request() -> dict:
     return {
+        "actionId": "00000000-0000-4000-8000-000000000011",
         "requestId": "00000000-0000-4000-8000-000000000020",
         "workspaceId": "00000000-0000-4000-8000-000000000001",
         "projectId": "00000000-0000-4000-8000-000000000003",
@@ -41,13 +42,12 @@ async def fake_generate(_params: dict) -> GeneratedDocumentArtifact:
         objectKey="agent-files/project/document-generation/request/project-report.pdf",
         mimeType="application/pdf",
         bytes=128,
-        format="pdf",
     )
 
 
 @activity.defn(name="register_document_generation_result")
 async def fake_register(
-    _params: dict, _artifact: GeneratedDocumentArtifact
+    _params: dict, _artifact: GeneratedDocumentArtifact, _workflow_id: str
 ) -> ProjectObjectSummary:
     return ProjectObjectSummary(
         id="00000000-0000-4000-8000-000000000010",
@@ -62,7 +62,7 @@ async def fake_register(
 
 @activity.defn(name="register_document_generation_result")
 async def fake_register_fails(
-    _params: dict, _artifact: GeneratedDocumentArtifact
+    _params: dict, _artifact: GeneratedDocumentArtifact, _workflow_id: str
 ) -> ProjectObjectSummary:
     raise RuntimeError("internal_api_unavailable")
 

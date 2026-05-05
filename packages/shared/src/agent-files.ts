@@ -42,6 +42,7 @@ export const agentFileSourceSchema = z.enum([
   "agent_chat",
   "manual",
   "synthesis_export",
+  "document_generation",
   "code_agent",
 ]);
 export type AgentFileSource = z.infer<typeof agentFileSourceSchema>;

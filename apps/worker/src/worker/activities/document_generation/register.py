@@ -35,6 +35,7 @@ def _to_project_object_summary(raw: dict[str, Any]) -> ProjectObjectSummary:
 async def register_document_generation_result(
     params: DocumentGenerationWorkflowParams | dict[str, Any],
     artifact: GeneratedDocumentArtifact | dict[str, Any],
+    workflow_id: str,
 ) -> ProjectObjectSummary:
     normalized = normalize_params(params)
     generation = normalize_generation(normalized.generation)
@@ -44,7 +45,6 @@ async def register_document_generation_result(
             "objectKey": artifact.objectKey,
             "mimeType": artifact.mimeType,
             "bytes": artifact.bytes,
-            "format": artifact.format,
         }
         if isinstance(artifact, GeneratedDocumentArtifact)
         else artifact
@@ -54,7 +54,9 @@ async def register_document_generation_result(
     response = await post_internal(
         "/api/internal/document-generation/agent-files",
         {
+            "actionId": normalized.action_id,
             "requestId": normalized.request_id,
+            "workflowId": workflow_id,
             "workspaceId": normalized.workspace_id,
             "projectId": normalized.project_id,
             "userId": normalized.user_id,

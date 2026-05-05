@@ -66,6 +66,7 @@ def normalize_params(
     if isinstance(raw, DocumentGenerationWorkflowParams):
         generation = normalize_generation(raw.generation)
         return DocumentGenerationWorkflowParams(
+            action_id=raw.action_id,
             request_id=raw.request_id,
             workspace_id=raw.workspace_id,
             project_id=raw.project_id,
@@ -73,6 +74,7 @@ def normalize_params(
             generation=generation,
         )
     return DocumentGenerationWorkflowParams(
+        action_id=_value(raw, "action_id", "actionId"),
         request_id=_value(raw, "request_id", "requestId"),
         workspace_id=_value(raw, "workspace_id", "workspaceId"),
         project_id=_value(raw, "project_id", "projectId"),
@@ -348,5 +350,4 @@ async def generate_document_artifact(
         objectKey=object_key,
         mimeType=mime_type,
         bytes=len(body),
-        format=generation.format,
     )
