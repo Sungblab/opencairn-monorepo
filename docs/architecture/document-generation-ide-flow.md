@@ -267,6 +267,29 @@ Remaining Phase 3C/3D work:
   boundaries change.
 - Expand Phase 3D quality signals only after the current event/result contract
   has been exercised with real user prompts.
+- Evaluate OCR and multimodal extraction as a later quality slice, not as a
+  production default in Phase 3D. The current worker extraction path should keep
+  scanned or image-only PDFs as per-source metadata fallbacks with
+  `scanned_no_text` and `metadata_fallback` quality signals, so document
+  generation still completes without inventing body text.
+- The minimum fixture strategy for that follow-up is:
+  - keep tiny generated fixtures in worker tests instead of committing large
+    sample PDFs;
+  - cover an embedded-text PDF, an image-only/scanned PDF, unsupported binary,
+    oversized supported binary, corrupt supported binary, and one Office OOXML
+    source;
+  - assert quality signals and fallback body behavior before adding provider
+    calls;
+  - add provider-gated OCR or multimodal extraction behind a worker-only feature
+    flag after fixtures prove the fallback contract is stable.
+- A future multimodal implementation can reuse existing provider abstractions
+  and the ingest PDF/image OCR precedent, but it must remain bounded by source
+  byte/page limits, provider capability checks, self-host degradation, and the
+  existing `generate_project_object` request/result/event contract. Gemini's
+  current public document-processing guidance supports PDF and image
+  multimodal inputs, including file-based prompting for larger PDFs, but that
+  should be treated as an optional extraction backend rather than a new storage
+  or API contract.
 
 ### Phase 4: Google Export
 
