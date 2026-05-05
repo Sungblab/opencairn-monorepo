@@ -126,6 +126,41 @@ describe("WorkflowConsoleRuns", () => {
     );
   });
 
+  it("renders log output metadata for completed code installs", async () => {
+    vi.mocked(workflowConsoleApi.list).mockResolvedValue({
+      runs: [
+        run({
+          runId: "agent_action:00000000-0000-4000-8000-000000000070",
+          runType: "agent_action",
+          title: "code_project.install",
+          status: "completed",
+          progress: null,
+          error: null,
+          outputs: [
+            {
+              outputType: "log",
+              id: "00000000-0000-4000-8000-000000000070:install",
+              label: "Dependency install",
+              metadata: {
+                packageManager: "pnpm",
+                installed: [
+                  { name: "zod", version: "3.25.0", dev: false },
+                  { name: "@vitejs/plugin-react", dev: true },
+                ],
+                exitCode: 0,
+              },
+            },
+          ],
+        }),
+      ],
+    });
+
+    renderWithClient();
+
+    expect(await screen.findByText("Dependency install")).toBeTruthy();
+    expect(screen.getByText("logSummary:{\"packageManager\":\"pnpm\",\"packages\":\"zod@3.25.0, @vitejs/plugin-react\",\"exitCode\":0}")).toBeTruthy();
+  });
+
   it("does not query or render when there is no active project", () => {
     const { container } = renderWithClient(null);
 

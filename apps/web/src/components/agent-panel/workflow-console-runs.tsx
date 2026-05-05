@@ -132,9 +132,12 @@ function WorkflowConsoleRunRow({ run }: { run: WorkflowConsoleRun }) {
             ) : (
               <span
                 key={output.id}
-                className="inline-flex max-w-full rounded bg-muted px-2 py-1 text-xs text-muted-foreground"
+                className="inline-flex max-w-full flex-col rounded bg-muted px-2 py-1 text-xs text-muted-foreground"
               >
                 <span className="truncate">{output.label}</span>
+                {output.outputType === "log" ? (
+                  <LogOutputSummary output={output} />
+                ) : null}
               </span>
             )
           ))}
@@ -142,6 +145,41 @@ function WorkflowConsoleRunRow({ run }: { run: WorkflowConsoleRun }) {
       ) : null}
     </article>
   );
+}
+
+function LogOutputSummary({ output }: { output: WorkflowConsoleRun["outputs"][number] }) {
+  const t = useTranslations("agentPanel.workflowConsole");
+  const metadata = output.metadata ?? {};
+  const packageManager =
+    typeof metadata.packageManager === "string" ? metadata.packageManager : null;
+  const exitCode =
+    typeof metadata.exitCode === "number" ? metadata.exitCode : null;
+  const packages = installedPackageSummary(metadata.installed);
+  if (!packageManager && exitCode == null && !packages) return null;
+  return (
+    <span className="mt-0.5 max-w-full truncate text-[11px]">
+      {t("logSummary", {
+        packageManager: packageManager ?? "-",
+        packages: packages ?? "-",
+        exitCode: exitCode ?? -1,
+      })}
+    </span>
+  );
+}
+
+function installedPackageSummary(value: unknown): string | null {
+  if (!Array.isArray(value)) return null;
+  const names = value
+    .map((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+      const record = item as Record<string, unknown>;
+      const name = typeof record.name === "string" ? record.name : null;
+      if (!name) return null;
+      const version = typeof record.version === "string" ? record.version : null;
+      return version ? `${name}@${version}` : name;
+    })
+    .filter((name): name is string => Boolean(name));
+  return names.length > 0 ? names.join(", ") : null;
 }
 
 function StatusDot({ status }: { status: WorkflowConsoleRun["status"] }) {
