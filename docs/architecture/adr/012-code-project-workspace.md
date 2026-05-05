@@ -251,6 +251,11 @@ project commands, install dependencies, host previews, or deploy external apps.
 
 ### Later Phase: Execution Loop
 
+- Register the worker-side command activity only when
+  `FEATURE_CODE_WORKSPACE_COMMANDS=true`. The Phase 6B activity validates and
+  materializes inline manifests, rejects unsafe paths and object-hydration gaps,
+  and delegates to an injected executor.
+- Keep the default executor unavailable until a sandbox implementation is wired.
 - Implement approved sandbox commands for test/build/lint.
 - Store logs and command artifacts.
 - Feed failures back into the agent for bounded repair loops.

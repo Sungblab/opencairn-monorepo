@@ -728,6 +728,14 @@ bounded logs and an exit code. The default API runner remains unavailable, so
 real command execution still belongs to the sandboxed worker/runtime follow-up
 rather than unrestricted API process execution.
 
+Phase 6B adds the worker-side command activity foundation behind
+`FEATURE_CODE_WORKSPACE_COMMANDS=false` by default. The activity materializes
+inline snapshot manifests into a temporary workspace, rejects traversal and
+object-storage hydration gaps, maps approved intents to bounded command argv,
+and delegates execution to an injected executor. Its default executor remains
+unavailable until a sandbox implementation is wired, so this still avoids
+unrestricted command execution in the API or worker process.
+
 ### Phase 7: Hosted Preview
 
 Add generated app previews:
