@@ -234,6 +234,13 @@ Current implementation boundary:
   reference for that individual source if the internal hydration call fails, so
   one inaccessible source does not unnecessarily kill the whole generation
   workflow.
+- Binary/heavy generated project objects and synthesis documents keep the API
+  boundary lightweight: the internal endpoint returns scope-checked object
+  metadata, and the worker attempts bounded body extraction for PDF, DOCX,
+  PPTX, XLSX, and XLS using existing worker dependencies. Unsupported MIME
+  types, objects over the worker extraction limit, corrupt files, scanned PDFs
+  without embedded text, and parser failures remain per-source metadata
+  fallbacks instead of workflow-level failures.
 
 ### Phase 4: Google Export
 
