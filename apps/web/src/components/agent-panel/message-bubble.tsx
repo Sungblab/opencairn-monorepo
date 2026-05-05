@@ -11,7 +11,9 @@ import { useTranslations } from "next-intl";
 import {
   CheckCircle2,
   Clock3,
+  Download,
   FileText,
+  FolderOpen,
   LoaderCircle,
   XCircle,
 } from "lucide-react";
@@ -74,6 +76,12 @@ export type AgentFileCardItem = {
 };
 
 type DocumentGenerationStatus = "queued" | "running" | "completed" | "failed";
+type DocumentGenerationSourceKind =
+  | "note"
+  | "agent_file"
+  | "chat_thread"
+  | "research_run"
+  | "synthesis_run";
 
 export type DocumentGenerationCardItem = {
   requestId: string;
@@ -82,6 +90,7 @@ export type DocumentGenerationCardItem = {
   title: string;
   filename?: string;
   errorCode?: string;
+  sourceKinds: DocumentGenerationSourceKind[];
   file?: AgentFileCardItem;
 };
 
@@ -140,6 +149,8 @@ function setGenerationCard(
     filename: next.filename ?? prev.filename,
     format: next.format ?? prev.format,
     errorCode: next.errorCode ?? prev.errorCode,
+    sourceKinds:
+      next.sourceKinds.length > 0 ? next.sourceKinds : prev.sourceKinds,
     file: next.file ?? prev.file,
     status:
       statusRank(next.status) >= statusRank(prev.status)
@@ -165,6 +176,27 @@ function readDestination(generation: Record<string, unknown> | null) {
     generation.destination !== null
     ? (generation.destination as Record<string, unknown>)
     : null;
+}
+
+function readSourceKinds(
+  generation: Record<string, unknown> | null,
+): DocumentGenerationSourceKind[] {
+  if (!generation || !Array.isArray(generation.sources)) return [];
+  const kinds = new Set<DocumentGenerationSourceKind>();
+  for (const source of generation.sources) {
+    if (!source || typeof source !== "object") continue;
+    const type = (source as Record<string, unknown>).type;
+    if (
+      type === "note" ||
+      type === "agent_file" ||
+      type === "chat_thread" ||
+      type === "research_run" ||
+      type === "synthesis_run"
+    ) {
+      kinds.add(type);
+    }
+  }
+  return [...kinds];
 }
 
 function appendGenerationEvent(
@@ -196,6 +228,7 @@ function appendGenerationEvent(
         typeof generation?.format === "string" ? generation.format : undefined,
       title,
       filename,
+      sourceKinds: readSourceKinds(generation),
     });
     return;
   }
@@ -212,6 +245,7 @@ function appendGenerationEvent(
       requestId,
       status,
       title: requestId,
+      sourceKinds: [],
     });
     return;
   }
@@ -236,6 +270,7 @@ function appendGenerationEvent(
       format: typeof result.format === "string" ? result.format : file?.kind,
       title: file?.title ?? requestId,
       filename: file?.filename,
+      sourceKinds: [],
       file,
     });
     return;
@@ -261,6 +296,7 @@ function appendGenerationEvent(
       title: requestId,
       errorCode:
         typeof result.errorCode === "string" ? result.errorCode : undefined,
+      sourceKinds: [],
     });
   }
 }
@@ -374,6 +410,10 @@ function GenerationStatusIcon({ status }: { status: DocumentGenerationStatus }) 
   }
 }
 
+function generationDownloadUrl(item: DocumentGenerationCardItem): string | null {
+  return item.file ? `/api/agent-files/${encodeURIComponent(item.file.id)}/file` : null;
+}
+
 export function DocumentGenerationCards({
   items,
 }: {
@@ -388,41 +428,32 @@ export function DocumentGenerationCards({
     <div className="grid gap-2">
       {items.map((item) => {
         const canOpen = item.status === "completed" && item.file;
+        const downloadUrl = generationDownloadUrl(item);
+        const sourceSummary =
+          item.sourceKinds.length > 0
+            ? item.sourceKinds.map((kind) => t(`sourceLabel.${kind}`)).join(", ")
+            : t("sourceLabel.none");
         return (
-          <button
+          <div
             key={item.requestId}
-            type="button"
-            disabled={!canOpen}
-            className="flex w-full items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-left disabled:cursor-default disabled:opacity-80 enabled:hover:bg-muted"
-            onClick={() => {
-              if (!item.file) return;
-              const existing = findTabByTarget("agent_file", item.file.id);
-              if (existing) {
-                setActive(existing.id);
-                return;
-              }
-              addOrActivateTab(
-                newTab({
-                  kind: "agent_file",
-                  targetId: item.file.id,
-                  title: item.file.title,
-                  mode: "agent-file",
-                  preview: false,
-                }),
-              );
-            }}
+            className="flex w-full items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-left"
           >
-            <GenerationStatusIcon status={item.status} />
+            <span className="mt-0.5 shrink-0">
+              <GenerationStatusIcon status={item.status} />
+            </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-medium">
                 {item.title}
               </span>
               <span className="block truncate text-xs text-muted-foreground">
-                {t("status", {
+                {t("statusDetail", {
                   status: t(`statusLabel.${item.status}`),
                   format: (item.format ?? item.file?.kind ?? "file").toUpperCase(),
                   filename: item.filename ?? item.file?.filename ?? item.requestId,
                 })}
+              </span>
+              <span className="block truncate text-xs text-muted-foreground">
+                {t("sourceSummary", { sources: sourceSummary })}
               </span>
               {item.status === "failed" && item.errorCode ? (
                 <span className="block truncate text-xs text-red-600">
@@ -430,10 +461,43 @@ export function DocumentGenerationCards({
                 </span>
               ) : null}
             </span>
-            <span className="text-xs text-muted-foreground">
-              {canOpen ? t("open") : t("pending")}
+            <span className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                disabled={!canOpen}
+                className="app-btn-ghost inline-flex h-7 items-center gap-1 rounded-[var(--radius-control)] px-2 text-xs disabled:cursor-default disabled:opacity-50"
+                onClick={() => {
+                  if (!item.file) return;
+                  const existing = findTabByTarget("agent_file", item.file.id);
+                  if (existing) {
+                    setActive(existing.id);
+                    return;
+                  }
+                  addOrActivateTab(
+                    newTab({
+                      kind: "agent_file",
+                      targetId: item.file.id,
+                      title: item.file.title,
+                      mode: "agent-file",
+                      preview: false,
+                    }),
+                  );
+                }}
+              >
+                <FolderOpen aria-hidden="true" className="h-3.5 w-3.5" />
+                {canOpen ? t("open") : t(`pendingAction.${item.status}`)}
+              </button>
+              {downloadUrl ? (
+                <a
+                  href={downloadUrl}
+                  className="app-btn-ghost inline-flex h-7 items-center gap-1 rounded-[var(--radius-control)] px-2 text-xs"
+                >
+                  <Download aria-hidden="true" className="h-3.5 w-3.5" />
+                  {t("download")}
+                </a>
+              ) : null}
             </span>
-          </button>
+          </div>
         );
       })}
     </div>

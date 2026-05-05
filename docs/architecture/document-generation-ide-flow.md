@@ -234,6 +234,24 @@ Current implementation boundary:
   reference for that individual source if the internal hydration call fails, so
   one inaccessible source does not unnecessarily kill the whole generation
   workflow.
+- The Agent Panel and Chat Scope now render the worker-backed
+  `generate_project_object` lifecycle inside the existing message surfaces.
+  Request, queued/running, completed, and failed events are merged by
+  `requestId`; cards show the target format, filename, current status, selected
+  source kinds (`note`, `agent_file`, `chat_thread`, `research_run`,
+  `synthesis_run`), and the worker error code when a run fails. Completed
+  outputs expose both the existing agent-file viewer action and the direct
+  OpenCairn download link without adding a new document-generation screen.
+
+Remaining Phase 3C/3D work:
+
+- Add a first-class generation request form when the product is ready for a
+  visible picker, reusing the same `generate_project_object` contract instead
+  of adding chat-only payloads.
+- Run a live stack smoke from source selection through Temporal, object storage,
+  project tree update, viewer open, and download.
+- Expand Phase 3D quality signals only after the current event/result contract
+  has been exercised with real user prompts.
 
 ### Phase 4: Google Export
 
