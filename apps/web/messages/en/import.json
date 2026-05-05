@@ -38,6 +38,7 @@
   "actions": {
     "start": "Start import",
     "cancel": "Cancel",
+    "cancelling": "Cancelling...",
     "retry": "Retry",
     "retrying": "Retrying...",
     "openResult": "Open result"
@@ -55,6 +56,7 @@
     "driveNotConnected": "Connect Google Drive first.",
     "importLimitExceeded": "Too many imports in progress. Wait for the existing one to finish.",
     "zipTooLarge": "ZIP exceeds the allowed size.",
-    "retryFailed": "Could not start retry."
+    "retryFailed": "Could not start retry.",
+    "cancelFailed": "Could not cancel import."
   }
 }
