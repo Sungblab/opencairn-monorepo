@@ -515,6 +515,93 @@ describe("agent action service", () => {
     });
   });
 
+  it("materializes an object-backed static code_project.preview entry", async () => {
+    const repo = createMemoryRepo();
+    const codeWorkspaceRepo = createMemoryCodeWorkspaceRepository();
+    const { workspace, snapshot } = await codeWorkspaceRepo.createWorkspaceDraft({
+      scope: { workspaceId, projectId, actorUserId: userId },
+      requestId: "00000000-0000-4000-8000-000000000034",
+      snapshotId: "00000000-0000-4000-8000-000000000035",
+      treeHash: "sha256:preview-object-entry",
+      request: {
+        name: "Preview app",
+        manifest: {
+          entries: [
+            {
+              path: "index.html",
+              kind: "file",
+              bytes: 16,
+              mimeType: "text/html",
+              contentHash: "sha256:index",
+              objectKey: "code-workspaces/demo/index.html",
+            },
+          ],
+        },
+      },
+    });
+    const { action } = await createAgentAction(
+      projectId,
+      userId,
+      {
+        requestId,
+        kind: "code_project.preview",
+        risk: "external",
+        input: {
+          codeWorkspaceId: workspace.id,
+          snapshotId: snapshot.id,
+          mode: "static",
+          entryPath: "index.html",
+        },
+      },
+      { repo, codeWorkspaceRepo, canWriteProject: async () => true },
+    );
+
+    const applied = await applyAgentAction(action.id, userId, {}, {
+      repo,
+      codeWorkspaceRepo,
+      canWriteProject: async () => true,
+      now: () => new Date("2026-05-05T00:00:00.000Z"),
+    });
+    const calls: string[] = [];
+    const asset = await readCodeProjectPreviewAsset(
+      action.id,
+      userId,
+      undefined,
+      {
+        repo,
+        codeWorkspaceRepo,
+        canWriteProject: async () => true,
+        now: () => new Date("2026-05-05T00:00:30.000Z"),
+        codePreviewObjectReader: {
+          async read(objectKey) {
+            calls.push(objectKey);
+            return {
+              body: "<h1>Preview</h1>",
+              contentType: "text/html; charset=utf-8",
+              contentLength: 16,
+            };
+          },
+        },
+      },
+    );
+
+    expect(applied).toMatchObject({
+      status: "completed",
+      result: {
+        ok: true,
+        kind: "code_project.preview",
+        entryPath: "index.html",
+        previewUrl: `/api/agent-actions/${action.id}/preview/index.html`,
+      },
+    });
+    expect(calls).toEqual(["code-workspaces/demo/index.html"]);
+    expect(asset).toMatchObject({
+      body: "<h1>Preview</h1>",
+      contentType: "text/html; charset=utf-8",
+      contentLength: 16,
+    });
+  });
+
   it("marks note.update apply as failed and returns a stable 409 error on stale preview", async () => {
     const repo = createMemoryRepo();
     const { action } = await createAgentAction(
