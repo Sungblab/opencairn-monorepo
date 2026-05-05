@@ -396,6 +396,21 @@ the immutable snapshot manifest. Expired preview actions can be marked terminal
 through the internal preview cleanup sweep. Public hostnames, browser smoke
 checks, and process lifecycle cleanup remain later hosted-preview work.
 
+Static preview browser smoke:
+
+```bash
+pnpm --filter @opencairn/api smoke:code-preview -- \
+  http://localhost:4000/api/agent-actions/<actionId>/preview/index.html \
+  --storage-state output/playwright/auth-state.json \
+  --selector "#root"
+```
+
+The smoke harness opens the preview URL in headless Chromium, fails on HTTP
+errors or blank visible body text, can require a selector or visible text, and
+writes a screenshot under `output/playwright/` unless `--no-screenshot` is
+passed. It is an operator QA tool for completed static preview URLs; it does not
+change the preview API contract or allocate public hostnames.
+
 Internal preview cleanup:
 
 | Method | Path | Auth | Description | Body |

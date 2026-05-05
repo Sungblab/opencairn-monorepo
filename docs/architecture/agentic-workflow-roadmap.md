@@ -857,6 +857,14 @@ and `python -m scripts.run_code_preview_cleanup` gives operations a
 cron-friendly worker-side runner. This still does not delete immutable snapshot
 objects or introduce public preview URL lifecycle automation.
 
+Phase 7G adds a browser smoke harness for completed static preview URLs. The
+API package exposes `pnpm --filter @opencairn/api smoke:code-preview -- <url>`
+to open a preview in headless Chromium, fail on HTTP errors or blank body text,
+optionally require a selector or visible text, and write a screenshot under
+`output/playwright/` by default. Private authenticated preview routes can pass a
+Playwright `storageState` file, cookie, or header. This is an operator QA tool;
+it does not create public preview hostnames or manage process-backed servers.
+
 ### Phase 7: Hosted Preview
 
 Add generated app previews:
