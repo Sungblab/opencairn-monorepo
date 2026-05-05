@@ -212,6 +212,19 @@ Action fields: `id`, `requestId`, `workspaceId`, `projectId`, `actorUserId`,
 `sourceRunId`, `kind`, `status`, `risk`, `input`, `preview`, `result`,
 `errorCode`, `createdAt`, `updatedAt`.
 
+### Document Generation Actions
+
+Document generation uses the typed project-object action contract and the same
+agent action ledger. The route receives `generate_project_object`, rejects any
+request-owned `workspaceId`, `projectId`, or `userId` fields, derives scope from
+the authenticated project context, creates a `file.generate` ledger row, and
+starts `DocumentGenerationWorkflow` on Temporal. Worker generation, artifact
+registration, and UI rendering are separate follow-up surfaces.
+
+| Method | Path | Auth | Description | Body |
+|--------|------|------|-------------|------|
+| POST | /api/projects/:projectId/project-object-actions/generate | project `editor` | Queue a worker-backed document generation request. `requestId` is idempotent per `(projectId, actorUserId)`. On a new request, response is `202 { action, event, idempotent:false, workflowId }`; duplicate requests return `200` and do not start Temporal again. Temporal start failures mark the ledger row `failed` with `document_generation_start_failed`. | `{ type:"generate_project_object", requestId?, generation:{ format:"pdf"\|"docx"\|"pptx"\|"xlsx", prompt, locale?, template?, sources?, destination, artifactMode? } }` |
+
 `note.update` input:
 
 ```json
