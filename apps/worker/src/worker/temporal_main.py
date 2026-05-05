@@ -52,6 +52,9 @@ from worker.activities.drive_activities import (
 )
 from worker.activities.emit_event import emit_started
 from worker.activities.enhance_activity import enhance_with_gemini
+from worker.activities.google_workspace_export import (
+    export_project_object_to_google_workspace,
+)
 from worker.activities.hwp_activity import parse_hwp
 from worker.activities.image_activity import analyze_image
 from worker.activities.import_activities import (
@@ -112,6 +115,7 @@ from worker.workflows.connector_workflow import ConnectorWorkflow
 from worker.workflows.curator_workflow import CuratorWorkflow
 from worker.workflows.deep_research_workflow import DeepResearchWorkflow
 from worker.workflows.document_generation_workflow import DocumentGenerationWorkflow
+from worker.workflows.google_workspace_export_workflow import GoogleWorkspaceExportWorkflow
 from worker.workflows.import_workflow import ImportWorkflow
 from worker.workflows.ingest_workflow import IngestWorkflow, read_text_object
 from worker.workflows.librarian_workflow import LibrarianWorkflow
@@ -290,6 +294,13 @@ def build_worker_config() -> WorkerConfig:
                 register_document_generation_result,
             ]
         )
+
+    # Google Workspace Export Phase 4 foundation. The worker registration is
+    # feature-gated and the activity defaults to a disabled live client; tests
+    # inject a fake Google client so this slice never requires Google creds.
+    if os.environ.get("FEATURE_GOOGLE_WORKSPACE_EXPORT", "false").lower() == "true":
+        workflows.append(GoogleWorkspaceExportWorkflow)
+        activities.append(export_project_object_to_google_workspace)
 
     return WorkerConfig(workflows=workflows, activities=activities)
 

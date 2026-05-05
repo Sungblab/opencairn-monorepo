@@ -8,6 +8,7 @@ const actionRequestIdSchema = z.string().uuid().optional();
 const objectIdSchema = z.string().uuid();
 const exportFormatSchema = z.enum(["markdown", "html", "latex", "json", "csv", "xlsx", "pdf", "docx", "pptx", "image"]);
 const exportProviderSchema = z.enum(["opencairn_download", "google_drive", "google_docs", "google_sheets", "google_slides"]);
+const googleExportProviderSchema = z.enum(["google_drive", "google_docs", "google_sheets", "google_slides"]);
 const documentGenerationFormatSchema = z.enum(["pdf", "docx", "pptx", "xlsx"]);
 const documentGenerationTemplateSchema = z.enum([
   "report",
@@ -272,6 +273,43 @@ export const projectObjectSummarySchema = z.object({
 
 export type ProjectObjectSummary = z.infer<typeof projectObjectSummarySchema>;
 
+export const googleWorkspaceExportResultSchema = z
+  .object({
+    ok: z.literal(true),
+    requestId: z.string().uuid(),
+    workflowId: z.string().min(1),
+    objectId: objectIdSchema,
+    provider: googleExportProviderSchema,
+    externalObjectId: z.string().min(1),
+    externalUrl: z.string().url(),
+    exportedMimeType: z.string().min(1),
+    exportStatus: z.literal("completed"),
+  })
+  .strict();
+
+export const googleWorkspaceExportErrorResultSchema = z
+  .object({
+    ok: z.literal(false),
+    requestId: z.string().uuid(),
+    workflowId: z.string().min(1).optional(),
+    objectId: objectIdSchema,
+    provider: googleExportProviderSchema,
+    exportStatus: z.literal("failed"),
+    errorCode: z.string().trim().min(1).max(120),
+    retryable: z.boolean().default(false),
+  })
+  .strict();
+
+export const googleWorkspaceExportTerminalResultSchema = z.union([
+  googleWorkspaceExportResultSchema,
+  googleWorkspaceExportErrorResultSchema,
+]);
+
+export type GoogleExportProvider = z.infer<typeof googleExportProviderSchema>;
+export type GoogleWorkspaceExportResult = z.infer<typeof googleWorkspaceExportResultSchema>;
+export type GoogleWorkspaceExportErrorResult = z.infer<typeof googleWorkspaceExportErrorResultSchema>;
+export type GoogleWorkspaceExportTerminalResult = z.infer<typeof googleWorkspaceExportTerminalResultSchema>;
+
 export const projectObjectActionEventSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("project_object_created"),
@@ -283,9 +321,11 @@ export const projectObjectActionEventSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("project_object_export_requested"),
+    requestId: z.string().uuid().optional(),
     objectId: objectIdSchema,
     provider: exportProviderSchema,
     format: exportFormatSchema.optional(),
+    workflowHint: z.literal("google_workspace_export").optional(),
   }),
   z.object({
     type: z.literal("project_object_export_ready"),
@@ -315,6 +355,14 @@ export const projectObjectActionEventSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("project_object_generation_failed"),
     result: documentGenerationErrorResultSchema,
+  }),
+  z.object({
+    type: z.literal("project_object_export_completed"),
+    result: googleWorkspaceExportResultSchema,
+  }),
+  z.object({
+    type: z.literal("project_object_export_failed"),
+    result: googleWorkspaceExportErrorResultSchema,
   }),
 ]);
 

@@ -2,7 +2,9 @@ import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
 import type { AgentAction } from "@opencairn/shared";
 import type { AgentActionRepository } from "../lib/agent-actions";
+import type { AgentFileRecord } from "../lib/agent-files";
 import type { StartDocumentGenerationParams } from "../lib/document-generation-client";
+import type { StartGoogleWorkspaceExportParams } from "../lib/google-workspace-export-client";
 import type { AppEnv } from "../lib/types";
 import { createDocumentGenerationRoutes } from "./document-generation";
 
@@ -10,6 +12,7 @@ const userId = "user-1";
 const workspaceId = "00000000-0000-4000-8000-000000000001";
 const projectId = "00000000-0000-4000-8000-000000000002";
 const requestId = "00000000-0000-4000-8000-000000000003";
+const fileId = "00000000-0000-4000-8000-000000000004";
 
 describe("document generation routes", () => {
   it("lists project-scoped source options for the generation picker", async () => {
@@ -264,6 +267,137 @@ describe("document generation routes", () => {
     });
     expect(startDocumentGeneration).toHaveBeenCalledTimes(1);
   });
+
+  it("starts a Google Workspace export workflow after grant and compatibility checks", async () => {
+    const startGoogleWorkspaceExport = vi.fn().mockResolvedValue({
+      workflowId: `google-workspace-export/${requestId}`,
+    });
+    const repo = createMemoryRepo();
+    const app = createExportTestApp(repo, startGoogleWorkspaceExport);
+
+    const response = await app.request(`/api/projects/${projectId}/project-object-actions/export`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(validExportAction()),
+    });
+
+    expect(response.status).toBe(202);
+    const body = await response.json() as {
+      action: AgentAction;
+      event: unknown;
+      idempotent: boolean;
+      workflowId: string;
+    };
+    expect(body.idempotent).toBe(false);
+    expect(body.workflowId).toBe(`google-workspace-export/${requestId}`);
+    expect(body.action).toMatchObject({
+      requestId,
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      kind: "file.export",
+      status: "queued",
+      risk: "external",
+      input: {
+        type: "export_project_object",
+        objectId: fileId,
+        provider: "google_docs",
+        format: "docx",
+      },
+      result: {
+        workflowId: `google-workspace-export/${requestId}`,
+        workflowHint: "google_workspace_export",
+      },
+    });
+    expect(body.event).toMatchObject({
+      type: "project_object_export_requested",
+      requestId,
+      objectId: fileId,
+      provider: "google_docs",
+      format: "docx",
+      workflowHint: "google_workspace_export",
+    });
+    expect(startGoogleWorkspaceExport).toHaveBeenCalledWith({
+      actionId: body.action.id,
+      requestId,
+      workspaceId,
+      projectId,
+      userId,
+      provider: "google_docs",
+      format: "docx",
+      file: expect.objectContaining({
+        id: fileId,
+        objectKey: "agent-files/brief.docx",
+      }),
+    });
+  });
+
+  it("checks the Google Workspace export feature flag before DB lookups", async () => {
+    vi.stubEnv("FEATURE_GOOGLE_WORKSPACE_EXPORT", "false");
+    const repo = createMemoryRepo();
+    const findProjectScope = vi.spyOn(repo, "findProjectScope");
+    const app = new Hono<AppEnv>().route(
+      "/api",
+      createDocumentGenerationRoutes({
+        googleWorkspaceExport: { repo },
+        auth: async (c, next) => {
+          c.set("userId", userId);
+          c.set("user", { id: userId, email: "user@example.com", name: "User" });
+          await next();
+        },
+      }),
+    );
+
+    const response = await app.request(`/api/projects/${projectId}/project-object-actions/export`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(validExportAction()),
+    });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "google_workspace_export_not_configured",
+    });
+    expect(findProjectScope).not.toHaveBeenCalled();
+  });
+
+  it("rejects incompatible Google native export before starting Temporal", async () => {
+    const startGoogleWorkspaceExport = vi.fn();
+    const app = createExportTestApp(createMemoryRepo(), startGoogleWorkspaceExport, {
+      file: createAgentFileRecord({ kind: "pdf", filename: "brief.pdf", mimeType: "application/pdf" }),
+    });
+
+    const response = await app.request(`/api/projects/${projectId}/project-object-actions/export`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(validExportAction()),
+    });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "google_export_incompatible_file_type",
+    });
+    expect(startGoogleWorkspaceExport).not.toHaveBeenCalled();
+  });
+
+  it("requires an explicit Workspace Drive grant with drive.file scope", async () => {
+    const startGoogleWorkspaceExport = vi.fn();
+    const app = createExportTestApp(createMemoryRepo(), startGoogleWorkspaceExport, {
+      grant: null,
+    });
+
+    const response = await app.request(`/api/projects/${projectId}/project-object-actions/export`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(validExportAction()),
+    });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "google_workspace_grant_required",
+    });
+    expect(startGoogleWorkspaceExport).not.toHaveBeenCalled();
+  });
 });
 
 function createTestApp(
@@ -278,6 +412,41 @@ function createTestApp(
       repo,
       canWriteProject: async () => true,
       startDocumentGeneration,
+      auth: async (c, next) => {
+        c.set("userId", userId);
+        c.set("user", { id: userId, email: "user@example.com", name: "User" });
+        await next();
+      },
+    }),
+  );
+}
+
+function createExportTestApp(
+  repo: AgentActionRepository,
+  startGoogleWorkspaceExport: (
+    params: StartGoogleWorkspaceExportParams,
+  ) => Promise<{ workflowId: string }>,
+  options: {
+    file?: AgentFileRecord;
+    grant?: { accountEmail: string | null; scopes: string[] } | null;
+  } = {},
+) {
+  return new Hono<AppEnv>().route(
+    "/api",
+    createDocumentGenerationRoutes({
+      repo,
+      canWriteProject: async () => true,
+      googleWorkspaceExport: {
+        repo,
+        getAgentFile: async () => options.file ?? createAgentFileRecord(),
+        findGrant: async () => options.grant === undefined
+          ? {
+              accountEmail: "user@example.com",
+              scopes: ["https://www.googleapis.com/auth/drive.file"],
+            }
+          : options.grant,
+        startGoogleWorkspaceExport,
+      },
       auth: async (c, next) => {
         c.set("userId", userId);
         c.set("user", { id: userId, email: "user@example.com", name: "User" });
@@ -305,6 +474,52 @@ function validGenerateAction() {
       artifactMode: "object_storage",
     },
   };
+}
+
+function validExportAction() {
+  return {
+    type: "export_project_object",
+    requestId,
+    objectId: fileId,
+    format: "docx",
+    provider: "google_docs",
+  };
+}
+
+function createAgentFileRecord(overrides: Partial<AgentFileRecord> = {}): AgentFileRecord {
+  const now = new Date("2026-05-05T00:00:00.000Z");
+  return {
+    id: fileId,
+    workspaceId,
+    projectId,
+    folderId: null,
+    createdBy: userId,
+    title: "Brief",
+    filename: "brief.docx",
+    extension: "docx",
+    kind: "docx",
+    mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    objectKey: "agent-files/brief.docx",
+    bytes: 7,
+    contentHash: "hash",
+    source: "document_generation",
+    chatThreadId: null,
+    chatMessageId: null,
+    parentFileId: null,
+    versionGroupId: "00000000-0000-4000-8000-000000000005",
+    version: 1,
+    ingestWorkflowId: null,
+    ingestStatus: "not_started",
+    sourceNoteId: null,
+    canvasNoteId: null,
+    compileStatus: "not_started",
+    compiledObjectKey: null,
+    compiledMimeType: null,
+    deletedAt: null,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  } as AgentFileRecord;
 }
 
 function createMemoryRepo(seed: AgentAction[] = []): AgentActionRepository {
