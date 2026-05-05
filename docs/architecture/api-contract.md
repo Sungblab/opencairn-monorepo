@@ -212,6 +212,19 @@ Action fields: `id`, `requestId`, `workspaceId`, `projectId`, `actorUserId`,
 `sourceRunId`, `kind`, `status`, `risk`, `input`, `preview`, `result`,
 `errorCode`, `createdAt`, `updatedAt`.
 
+### Document Generation Actions
+
+Document generation uses the typed project-object action contract and the same
+agent action ledger. The route receives `generate_project_object`, rejects any
+request-owned `workspaceId`, `projectId`, or `userId` fields, derives scope from
+the authenticated project context, creates a `file.generate` ledger row, and
+starts `DocumentGenerationWorkflow` on Temporal. Worker generation, artifact
+registration, and UI rendering are separate follow-up surfaces.
+
+| Method | Path | Auth | Description | Body |
+|--------|------|------|-------------|------|
+| POST | /api/projects/:projectId/project-object-actions/generate | project `editor` | Queue a worker-backed document generation request. `requestId` is idempotent per `(projectId, actorUserId)`. On a new request, response is `202 { action, event, idempotent:false, workflowId }`; duplicate requests return `200` and do not start Temporal again. Temporal start failures mark the ledger row `failed` with `document_generation_start_failed`. | `{ type:"generate_project_object", requestId?, generation:{ format:"pdf"\|"docx"\|"pptx"\|"xlsx", prompt, locale?, template?, sources?, destination, artifactMode? } }` |
+
 `note.update` input:
 
 ```json
@@ -584,7 +597,9 @@ Defined in `packages/shared/src/synthesis-types.ts`. Frames are emitted in monot
 
 #### Worker → API internal callbacks (`X-Internal-Secret`, mounted under `/api/internal`)
 
-Worker activities call back via `X-Internal-Secret`. Field names are snake_case in the wire payload to match the worker's Pydantic schemas; the API normalises into Drizzle column names internally.
+Worker activities call back via `X-Internal-Secret`. Field names are snake_case
+unless a row explicitly documents the shared TypeScript camelCase contract; the
+API normalises into Drizzle column names internally.
 
 | Method | Path                                       | Body | Response |
 |--------|--------------------------------------------|------|----------|
@@ -594,6 +609,7 @@ Worker activities call back via `X-Internal-Secret`. Field names are snake_case 
 | POST   | /api/internal/synthesis-export/compile     | `{ run_id, format: "docx"\|"pdf"\|"md", output: SynthesisOutputJson }` — runs the docx/pdf/md compilers in-process and uploads to MinIO at `synthesis/runs/<run_id>/document.<ext>`. **LaTeX**/**Tectonic** path is owned by the worker, not this API. | `200 { s3Key, bytes }` |
 | POST   | /api/internal/synthesis-export/fetch-source | `{ source_id, kind: "s3_object"\|"note"\|"dr_result" }` — note: direct lookup; s3_object: looks up the backfilled note via `notes.source_file_key` and falls back to a placeholder body so the run can still proceed; dr_result: `501 kind_not_supported` (followup #3). | `200 { id, title, body, kind }` / `404` / `501` |
 | POST   | /api/internal/synthesis-export/auto-search | `{ workspace_id, query, limit≤20=10 }` — currently returns `{ hits: [] }` (followup #2). | `200 { hits: [] }` |
+| POST   | /api/internal/document-generation/agent-files | `{ actionId, requestId, workflowId, workspaceId, projectId, userId, filename, title?, folderId?, kind:"pdf"\|"docx"\|"pptx"\|"xlsx", mimeType, objectKey, bytes, source:"document_generation", startIngest?, metadata? }` — worker callback after uploading the generated artifact to object storage. The API verifies the project workspace and action ledger scope, registers the object as an `agent_files` project object, emits the project tree event, and marks the `file.generate` action `completed`. | `201 { object, event:{ type:"project_object_generation_completed", result }, action }` / `404` / `409` |
 
 > `apps/tectonic` is a separate MSA. Its public surface (`POST /compile`, `GET /healthz`) is consumed only by the worker, not by `apps/api` — see `apps/tectonic/server.py` and `apps/worker/src/worker/activities/synthesis_export/compile.py` `_post_tectonic`.
 

@@ -107,6 +107,70 @@ describe("executeProjectObjectAction", () => {
     expect(compile.event.type).toBe("project_object_compile_requested");
   });
 
+  it("keeps generate_project_object as a typed worker handoff skeleton", async () => {
+    const requestId = "00000000-0000-4000-8000-000000000020";
+    const deps = {
+      createAgentFile: vi.fn(),
+      createAgentFileVersion: vi.fn(),
+      compileAgentFile: vi.fn(),
+      exportAgentFileForDownload: vi.fn(),
+    };
+
+    const result = await executeProjectObjectAction(
+      {
+        type: "generate_project_object",
+        requestId,
+        generation: {
+          format: "pdf",
+          prompt: "Generate a polished project report.",
+          locale: "ko",
+          template: "report",
+          sources: [
+            {
+              type: "agent_file",
+              objectId: fileId,
+            },
+          ],
+          destination: {
+            filename: "project-report.pdf",
+            title: "Project report",
+            publishAs: "agent_file",
+            startIngest: false,
+          },
+          artifactMode: "object_storage",
+        },
+      },
+      { context: { userId, workspaceId, projectId }, deps },
+    );
+
+    expect(deps.createAgentFile).not.toHaveBeenCalled();
+    expect(deps.exportAgentFileForDownload).not.toHaveBeenCalled();
+    expect(result.event).toEqual({
+      type: "project_object_generation_requested",
+      requestId,
+      workflowHint: "document_generation",
+      generation: {
+        format: "pdf",
+        prompt: "Generate a polished project report.",
+        locale: "ko",
+        template: "report",
+        sources: [
+          {
+            type: "agent_file",
+            objectId: fileId,
+          },
+        ],
+        destination: {
+          filename: "project-report.pdf",
+          title: "Project report",
+          publishAs: "agent_file",
+          startIngest: false,
+        },
+        artifactMode: "object_storage",
+      },
+    });
+  });
+
   it("turns opencairn_download export_project_object into a stored file download event", async () => {
     const exportAgentFileForDownload = vi.fn().mockResolvedValue({
       file: summary,

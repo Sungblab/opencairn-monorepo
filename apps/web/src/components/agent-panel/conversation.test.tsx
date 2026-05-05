@@ -91,6 +91,7 @@ describe("Conversation durable run resume", () => {
           save_suggestion: null,
           agent_files: [],
           project_objects: [],
+          project_object_generations: [],
           error: null,
         }}
         onResumeRun={onResumeRun}
