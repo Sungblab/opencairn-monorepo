@@ -421,7 +421,11 @@ export type { DocumentGenerationFormat, DocumentGenerationSource };
 export const workflowConsoleApi = {
   list: (
     projectId: string,
-    options: number | { limit?: number; status?: WorkflowConsoleStatus } = 5,
+    options: number | {
+      limit?: number;
+      status?: WorkflowConsoleStatus;
+      q?: string;
+    } = 5,
   ) => {
     const params = new URLSearchParams();
     if (typeof options === "number") {
@@ -429,6 +433,7 @@ export const workflowConsoleApi = {
     } else {
       params.set("limit", String(options.limit ?? 5));
       if (options.status) params.set("status", options.status);
+      if (options.q) params.set("q", options.q);
     }
     return apiClient<{ runs: WorkflowConsoleRun[] }>(
       `/projects/${projectId}/workflow-console/runs?${params.toString()}`,

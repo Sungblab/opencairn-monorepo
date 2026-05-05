@@ -16,6 +16,7 @@ const runParamSchema = projectParamSchema.extend({ runId: z.string().min(1) });
 const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
   status: workflowConsoleStatusSchema.optional(),
+  q: z.string().trim().min(1).max(100).optional(),
 });
 
 export interface WorkflowConsoleRouteOptions extends WorkflowConsoleServiceOptions {
@@ -34,11 +35,12 @@ export function createWorkflowConsoleRoutes(options?: WorkflowConsoleRouteOption
         try {
           const projectId = c.req.valid("param").projectId;
           const userId = c.get("userId");
-          const { limit, status } = c.req.valid("query");
+          const { limit, status, q } = c.req.valid("query");
           const runs = await listWorkflowConsoleRuns(projectId, userId, {
             ...options,
             limit,
             status,
+            q,
           });
           return c.json({ runs });
         } catch (err) {

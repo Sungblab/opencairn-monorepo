@@ -58,6 +58,7 @@
     "loading": "Workflow Console을 불러오는 중입니다.",
     "error": "Workflow Console을 불러오지 못했습니다.",
     "empty": "표시할 Workflow Console 실행이 없습니다.",
+    "searchPlaceholder": "실행 검색",
     "filters": {
       "all": "전체",
       "active": "진행 중",

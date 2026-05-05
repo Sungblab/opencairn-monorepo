@@ -58,6 +58,7 @@
     "loading": "Loading Workflow Console.",
     "error": "Couldn't load Workflow Console.",
     "empty": "No Workflow Console runs to show.",
+    "searchPlaceholder": "Search runs",
     "filters": {
       "all": "All",
       "active": "Active",

@@ -206,10 +206,14 @@ describe("AgentEntryPointsView", () => {
     vi.mocked(workflowConsoleApi.list).mockImplementation(async (_projectId, options) => {
       const status =
         typeof options === "object" && options ? options.status : undefined;
+      const q =
+        typeof options === "object" && options && typeof options.q === "string"
+          ? options.q.toLowerCase()
+          : "";
       return {
-        runs: status
-          ? workflowRuns.filter((run) => run.status === status)
-          : workflowRuns,
+        runs: workflowRuns
+          .filter((run) => !status || run.status === status)
+          .filter((run) => !q || run.title.toLowerCase().includes(q)),
       };
     });
   });
@@ -257,7 +261,7 @@ describe("AgentEntryPointsView", () => {
       limit: 25,
       status: undefined,
     });
-    expect(screen.getByText("code_project.install")).toBeInTheDocument();
+    expect(await screen.findByText("code_project.install")).toBeInTheDocument();
     expect(screen.getByText("Import google_drive")).toBeInTheDocument();
   });
 
@@ -276,6 +280,25 @@ describe("AgentEntryPointsView", () => {
     expect(screen.queryByText("code_project.install")).not.toBeInTheDocument();
     expect(await screen.findByText("Import google_drive")).toBeInTheDocument();
     expect(screen.getByText("Grant expired")).toBeInTheDocument();
+  });
+
+  it("searches Workflow Console runs through the API", async () => {
+    setup();
+
+    await screen.findByRole("heading", { name: "Workflow Console" });
+    fireEvent.change(screen.getByPlaceholderText("실행 검색"), {
+      target: { value: "install" },
+    });
+
+    await waitFor(() => {
+      expect(workflowConsoleApi.list).toHaveBeenCalledWith("project-1", {
+        limit: 25,
+        status: undefined,
+        q: "install",
+      });
+    });
+    expect(await screen.findByText("code_project.install")).toBeInTheDocument();
+    expect(screen.queryByText("Import google_drive")).not.toBeInTheDocument();
   });
 
   it("launches synthesis with the default selected notes", async () => {

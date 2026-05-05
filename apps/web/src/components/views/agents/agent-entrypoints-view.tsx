@@ -123,6 +123,7 @@ export function AgentEntryPointsView({ projectId }: { projectId: string }) {
   const [workflowFilter, setWorkflowFilter] = useState<
     (typeof WORKFLOW_CONSOLE_FILTERS)[number]
   >("all");
+  const [workflowQuery, setWorkflowQuery] = useState("");
   const workspaceSlug = useMemo(workspaceSlugFromPathname, []);
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
@@ -130,11 +131,12 @@ export function AgentEntryPointsView({ projectId }: { projectId: string }) {
     queryFn: () => plan8AgentsApi.overview(projectId),
   });
   const workflowConsoleQuery = useQuery({
-    queryKey: ["agents-workflow-console-runs", projectId, workflowFilter],
+    queryKey: ["agents-workflow-console-runs", projectId, workflowFilter, workflowQuery],
     queryFn: () =>
       workflowConsoleApi.list(projectId, {
         limit: 25,
         status: workflowConsoleStatusFilter(workflowFilter),
+        q: workflowQuery.trim() || undefined,
       }),
   });
   const selectedRun =
@@ -374,6 +376,8 @@ export function AgentEntryPointsView({ projectId }: { projectId: string }) {
             error={workflowConsoleQuery.isError}
             formatDate={formatDate}
             onFilterChange={setWorkflowFilter}
+            query={workflowQuery}
+            onQueryChange={setWorkflowQuery}
           />
 
           <section className="grid gap-6 2xl:grid-cols-2">
@@ -441,6 +445,8 @@ function WorkflowConsoleProjectList({
   error,
   formatDate,
   onFilterChange,
+  query,
+  onQueryChange,
 }: {
   runs: WorkflowConsoleRun[];
   filter: (typeof WORKFLOW_CONSOLE_FILTERS)[number];
@@ -448,6 +454,8 @@ function WorkflowConsoleProjectList({
   error: boolean;
   formatDate: (value: string) => string;
   onFilterChange: (filter: (typeof WORKFLOW_CONSOLE_FILTERS)[number]) => void;
+  query: string;
+  onQueryChange: (query: string) => void;
 }) {
   const t = useTranslations("agents");
   const visibleRuns = runs.filter((run) => {
@@ -465,21 +473,30 @@ function WorkflowConsoleProjectList({
             {t("workflowConsole.subtitle")}
           </p>
         </div>
-        <div className="inline-flex rounded-[var(--radius-control)] border border-border p-0.5">
-          {WORKFLOW_CONSOLE_FILTERS.map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => onFilterChange(item)}
-              className={`h-7 rounded-[var(--radius-control)] px-2 text-xs ${
-                filter === item
-                  ? "bg-foreground text-background"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {t(`workflowConsole.filters.${item}`)}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder={t("workflowConsole.searchPlaceholder")}
+            className="h-8 w-44 rounded-[var(--radius-control)] border border-border bg-background px-2 text-xs"
+          />
+          <div className="inline-flex rounded-[var(--radius-control)] border border-border p-0.5">
+            {WORKFLOW_CONSOLE_FILTERS.map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => onFilterChange(item)}
+                className={`h-7 rounded-[var(--radius-control)] px-2 text-xs ${
+                  filter === item
+                    ? "bg-foreground text-background"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {t(`workflowConsole.filters.${item}`)}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
