@@ -803,6 +803,12 @@ patch proposals with approve/reject controls. Completed static previews render
 an internal preview link, making the private sandbox route reachable from the
 normal agent review surface while still avoiding public deployment semantics.
 
+Phase 7D adds bounded internal preview expiry. Static preview results now carry
+`expiresAt`; the private preview asset route rejects expired links with
+`code_project_preview_expired`. This is not a full cleanup scheduler or public
+URL lifecycle, but it prevents internal preview links from being treated as
+durable project artifacts.
+
 ### Phase 7: Hosted Preview
 
 Add generated app previews:

@@ -125,6 +125,7 @@ function completedPreviewAction(): AgentAction {
       entryPath: "index.html",
       previewUrl: "/api/agent-actions/00000000-0000-4000-8000-000000000040/preview/index.html",
       assetsBaseUrl: "/api/agent-actions/00000000-0000-4000-8000-000000000040/preview/",
+      expiresAt: "2026-05-06T00:00:00.000Z",
     },
   };
 }

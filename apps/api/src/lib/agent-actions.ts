@@ -136,6 +136,8 @@ export interface AgentActionServiceOptions {
   noteExecutor?: NoteActionExecutor;
   noteUpdatePreviewer?: NoteUpdatePreviewer;
   noteUpdateApplier?: NoteUpdateApplier;
+  now?: () => Date;
+  codePreviewTtlMs?: number;
 }
 
 export interface WorkflowAgentActionInput {
@@ -624,6 +626,7 @@ export async function readCodeProjectPreviewAsset(
     throw new AgentActionError("code_project_preview_not_ready", 409);
   }
   const result = parseCodeWorkspacePreviewResult(current.result);
+  assertCodePreviewNotExpired(result, options);
   const requestedPath = normalizePreviewAssetPath(path ?? result.entryPath);
   const codeRepo = options?.codeWorkspaceRepo ?? createDrizzleCodeWorkspaceRepository();
   const workspace = await codeRepo.findWorkspaceById(
@@ -1055,6 +1058,9 @@ async function applyCodeProjectPreviewAction(
     }
 
     const assetsBaseUrl = `/api/agent-actions/${current.id}/preview/`;
+    const expiresAt = new Date(
+      now(options).getTime() + codePreviewTtlMs(options),
+    ).toISOString();
     const result = codeWorkspacePreviewResultSchema.parse({
       ok: true,
       kind: "code_project.preview",
@@ -1064,6 +1070,7 @@ async function applyCodeProjectPreviewAction(
       entryPath: payload.entryPath,
       previewUrl: `${assetsBaseUrl}${encodePreviewPath(payload.entryPath)}`,
       assetsBaseUrl,
+      expiresAt,
     });
     const completed = await repo.updateStatus(current.id, {
       status: "completed",
@@ -1238,6 +1245,25 @@ function codePreviewApprovalPreview(input: Record<string, unknown>) {
 
 function parseCodeWorkspacePreviewResult(input: unknown): CodeWorkspacePreviewResult {
   return codeWorkspacePreviewResultSchema.parse(input);
+}
+
+function assertCodePreviewNotExpired(
+  result: CodeWorkspacePreviewResult,
+  options?: Pick<AgentActionServiceOptions, "now">,
+): void {
+  if (new Date(result.expiresAt).getTime() <= now(options).getTime()) {
+    throw new AgentActionError("code_project_preview_expired", 409);
+  }
+}
+
+function now(options?: Pick<AgentActionServiceOptions, "now">): Date {
+  return options?.now?.() ?? new Date();
+}
+
+function codePreviewTtlMs(
+  options?: Pick<AgentActionServiceOptions, "codePreviewTtlMs">,
+): number {
+  return options?.codePreviewTtlMs ?? 24 * 60 * 60 * 1000;
 }
 
 function normalizePreviewAssetPath(path: string): string {

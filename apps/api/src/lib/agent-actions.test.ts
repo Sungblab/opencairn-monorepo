@@ -410,6 +410,8 @@ describe("agent action service", () => {
       repo,
       codeWorkspaceRepo,
       canWriteProject: async () => true,
+      now: () => new Date("2026-05-05T00:00:00.000Z"),
+      codePreviewTtlMs: 60_000,
     });
 
     expect(applied).toMatchObject({
@@ -422,6 +424,7 @@ describe("agent action service", () => {
         snapshotId: snapshot.id,
         entryPath: "index.html",
         previewUrl: `/api/agent-actions/${action.id}/preview/index.html`,
+        expiresAt: "2026-05-05T00:01:00.000Z",
       },
     });
   });
