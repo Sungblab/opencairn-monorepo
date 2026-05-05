@@ -43,7 +43,32 @@ async def _hydrate_note(source: dict[str, Any]) -> DocumentGenerationSourceItem:
     )
 
 
+async def _hydrate_internal_source(
+    params: DocumentGenerationWorkflowParams,
+    source: dict[str, Any],
+) -> DocumentGenerationSourceItem:
+    raw = await post_internal(
+        "/api/internal/document-generation/hydrate-source",
+        {
+            "workspaceId": params.workspace_id,
+            "projectId": params.project_id,
+            "userId": params.user_id,
+            "source": source,
+        },
+    )
+    body = str(raw.get("body") or "")
+    return DocumentGenerationSourceItem(
+        id=str(raw.get("id") or _source_id(source)),
+        title=str(raw.get("title") or _source_id(source)),
+        body=body,
+        kind=str(raw.get("kind") or source.get("type") or "source"),
+        token_count=int(raw.get("token_count", raw.get("tokenCount", _approx_tokens(body)))),
+        included=bool(raw.get("included", True)),
+    )
+
+
 async def _hydrate_source(
+    params: DocumentGenerationWorkflowParams,
     source: dict[str, Any],
     semaphore: asyncio.Semaphore,
 ) -> DocumentGenerationSourceItem:
@@ -52,18 +77,27 @@ async def _hydrate_source(
         heartbeat_safe(f"hydrating document source {source_type}")
         if source_type == "note":
             return await _hydrate_note(source)
+        if source_type in {"agent_file", "chat_thread", "research_run", "synthesis_run"}:
+            try:
+                return await _hydrate_internal_source(params, source)
+            except Exception:
+                return _reference_only_source(source)
         return _reference_only_source(source)
 
 
-def _reference_only_source(source: dict[str, Any]) -> DocumentGenerationSourceItem:
-    kind = str(source.get("type") or "source")
-    source_id = str(
+def _source_id(source: dict[str, Any]) -> str:
+    return str(
         source.get("objectId")
         or source.get("threadId")
         or source.get("runId")
         or source.get("noteId")
         or "unknown"
     )
+
+
+def _reference_only_source(source: dict[str, Any]) -> DocumentGenerationSourceItem:
+    kind = str(source.get("type") or "source")
+    source_id = _source_id(source)
     title = {
         "agent_file": "Project object",
         "chat_thread": "Chat thread",
@@ -108,7 +142,7 @@ async def hydrate_document_generation_sources(
     generation = normalize_generation(normalized.generation)
     semaphore = asyncio.Semaphore(SOURCE_HYDRATION_CONCURRENCY)
     hydrated = await asyncio.gather(
-        *(_hydrate_source(source, semaphore) for source in generation.sources)
+        *(_hydrate_source(normalized, source, semaphore) for source in generation.sources)
     )
 
     return DocumentGenerationSourceBundle(items=_fit_budget(hydrated))

@@ -15,6 +15,9 @@ import {
   concepts,
   conceptEdges,
   conceptNotes,
+  agentFiles,
+  chatMessages,
+  chatThreads,
   wikiLogs,
   projectSemaphoreSlots,
   embeddingBatches,
@@ -38,11 +41,14 @@ import {
   lt,
   count,
   inArray,
+  asc,
+  desc,
 } from "@opencairn/db";
 import {
   agentFileKindSchema,
   createConceptExtractionSchema,
   createEvidenceBundleSchema,
+  documentGenerationSourceSchema,
 } from "@opencairn/shared";
 import { getTemporalClient, taskQueue } from "../lib/temporal-client";
 import { signSessionForUser } from "../lib/test-session";
@@ -68,6 +74,7 @@ import {
 } from "../lib/document-compilers";
 import { executeChatRun } from "../lib/chat-runs";
 import { uploadObject } from "../lib/s3";
+import { streamObject } from "../lib/s3-get";
 import { emitTreeEvent } from "../lib/tree-events";
 import {
   AgentFileError,
@@ -126,11 +133,97 @@ const registerDocumentGenerationAgentFileSchema = z.object({
   metadata: z.record(z.unknown()).optional(),
 });
 
+const documentGenerationHydrateSourceSchema = z.object({
+  workspaceId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  userId: z.string().min(1),
+  source: documentGenerationSourceSchema,
+});
+
+const DOCUMENT_GENERATION_TEXT_FILE_KINDS = new Set([
+  "markdown",
+  "text",
+  "latex",
+  "html",
+  "code",
+  "json",
+  "csv",
+]);
+const DOCUMENT_GENERATION_SOURCE_TEXT_LIMIT = 256 * 1024;
+const DOCUMENT_GENERATION_MESSAGE_ID_LIMIT = 50;
+const DOCUMENT_GENERATION_JSON_TEXT_MAX_DEPTH = 10;
+
 // `vector(n)` literal for pgvector cosine similarity queries. Drizzle's custom
 // type serialiser already produces `[f1,f2,...]` strings; we wrap them into
 // `::vector` casts at query time.
 function vectorLiteral(values: number[]): string {
   return `[${values.join(",")}]`;
+}
+
+function approxTokens(text: string): number {
+  return Math.max(1, Math.floor(text.length / 4));
+}
+
+function jsonText(value: unknown, depth = 0): string {
+  if (depth > DOCUMENT_GENERATION_JSON_TEXT_MAX_DEPTH) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => jsonText(item, depth + 1))
+      .filter(Boolean)
+      .join("\n");
+  }
+  if (!value || typeof value !== "object") return "";
+  const record = value as Record<string, unknown>;
+  if (typeof record.body === "string") return record.body;
+  if (typeof record.text === "string") return record.text;
+  if (typeof record.content === "string") return record.content;
+  return [
+    jsonText(record.children, depth + 1),
+    jsonText(record.content, depth + 1),
+    jsonText(record.payload, depth + 1),
+  ].filter(Boolean).join("\n");
+}
+
+function hydrationItem(input: {
+  id: string;
+  title: string;
+  body: string;
+  kind: string;
+  included?: boolean;
+}) {
+  return {
+    id: input.id,
+    title: input.title,
+    body: input.body,
+    kind: input.kind,
+    tokenCount: approxTokens(input.body),
+    included: input.included ?? true,
+  };
+}
+
+async function readSmallTextObject(
+  objectKey: string,
+  fallback: string,
+): Promise<string> {
+  try {
+    const object = await streamObject(objectKey);
+    if (object.contentLength > DOCUMENT_GENERATION_SOURCE_TEXT_LIMIT) return fallback;
+    if (
+      !object.contentType.startsWith("text/")
+      && !object.contentType.includes("json")
+      && !object.contentType.includes("csv")
+      && !object.contentType.includes("xml")
+    ) {
+      return fallback;
+    }
+    return (await new Response(object.stream).text()).slice(
+      0,
+      DOCUMENT_GENERATION_SOURCE_TEXT_LIMIT,
+    );
+  } catch {
+    return fallback;
+  }
 }
 
 // Runs `check`, catches WorkspaceMismatchError, returns a 403 Response.
@@ -149,6 +242,248 @@ async function guardWorkspace(
     throw err;
   }
 }
+
+internal.post(
+  "/document-generation/hydrate-source",
+  zValidator("json", documentGenerationHydrateSourceSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const source = body.source;
+    const projectGuard = await guardWorkspace(c, () =>
+      assertResourceWorkspace(db, body.workspaceId, {
+        type: "project",
+        id: body.projectId,
+      }),
+    );
+    if (projectGuard) return projectGuard;
+
+    if (source.type === "note") {
+      const guard = await guardWorkspace(c, () =>
+        assertResourceWorkspace(db, body.workspaceId, {
+          type: "note",
+          id: source.noteId,
+        }),
+      );
+      if (guard) return guard;
+      const [note] = await db
+        .select({
+          id: notes.id,
+          projectId: notes.projectId,
+          title: notes.title,
+          contentText: notes.contentText,
+        })
+        .from(notes)
+        .where(eq(notes.id, source.noteId))
+        .limit(1);
+      if (!note) return c.json({ error: "not_found" }, 404);
+      if (note.projectId !== body.projectId) {
+        return c.json({ error: "workspace_mismatch" }, 403);
+      }
+      return c.json(hydrationItem({
+        id: note.id,
+        title: note.title ?? "Untitled",
+        body: note.contentText ?? "",
+        kind: "note",
+      }));
+    }
+
+    if (source.type === "agent_file") {
+      const [file] = await db
+        .select({
+          id: agentFiles.id,
+          workspaceId: agentFiles.workspaceId,
+          projectId: agentFiles.projectId,
+          title: agentFiles.title,
+          filename: agentFiles.filename,
+          kind: agentFiles.kind,
+          mimeType: agentFiles.mimeType,
+          objectKey: agentFiles.objectKey,
+          bytes: agentFiles.bytes,
+          sourceNoteId: agentFiles.sourceNoteId,
+        })
+        .from(agentFiles)
+        .where(and(eq(agentFiles.id, source.objectId), isNull(agentFiles.deletedAt)))
+        .limit(1);
+      if (!file) return c.json({ error: "not_found" }, 404);
+      if (file.workspaceId !== body.workspaceId || file.projectId !== body.projectId) {
+        return c.json({ error: "workspace_mismatch" }, 403);
+      }
+      if (file.sourceNoteId) {
+        const [note] = await db
+          .select({ contentText: notes.contentText })
+          .from(notes)
+          .where(and(eq(notes.id, file.sourceNoteId), isNull(notes.deletedAt)))
+          .limit(1);
+        if (note?.contentText) {
+          return c.json(hydrationItem({
+            id: file.id,
+            title: file.title,
+            body: note.contentText,
+            kind: "agent_file",
+          }));
+        }
+      }
+      const fallback = `${file.filename} (${file.kind}, ${file.bytes} bytes)`;
+      const bodyText = DOCUMENT_GENERATION_TEXT_FILE_KINDS.has(file.kind)
+        ? await readSmallTextObject(file.objectKey, fallback)
+        : fallback;
+      return c.json(hydrationItem({
+        id: file.id,
+        title: file.title,
+        body: bodyText,
+        kind: "agent_file",
+      }));
+    }
+
+    if (source.type === "chat_thread") {
+      const [thread] = await db
+        .select({
+          id: chatThreads.id,
+          workspaceId: chatThreads.workspaceId,
+          userId: chatThreads.userId,
+          title: chatThreads.title,
+        })
+        .from(chatThreads)
+        .where(and(eq(chatThreads.id, source.threadId), isNull(chatThreads.archivedAt)))
+        .limit(1);
+      if (!thread) return c.json({ error: "not_found" }, 404);
+      if (thread.workspaceId !== body.workspaceId) {
+        return c.json({ error: "workspace_mismatch" }, 403);
+      }
+      if (thread.userId !== body.userId) return c.json({ error: "forbidden" }, 403);
+      const filters = [eq(chatMessages.threadId, source.threadId)];
+      if (source.messageIds?.length) {
+        filters.push(
+          inArray(
+            chatMessages.id,
+            source.messageIds.slice(0, DOCUMENT_GENERATION_MESSAGE_ID_LIMIT),
+          ),
+        );
+      }
+      const messages = await db
+        .select({
+          id: chatMessages.id,
+          role: chatMessages.role,
+          content: chatMessages.content,
+          createdAt: chatMessages.createdAt,
+        })
+        .from(chatMessages)
+        .where(and(...filters))
+        .orderBy(asc(chatMessages.createdAt));
+      return c.json(hydrationItem({
+        id: thread.id,
+        title: thread.title || "Chat thread",
+        body: messages
+          .map((message) => `${message.role}: ${jsonText(message.content)}`.trim())
+          .filter(Boolean)
+          .join("\n\n"),
+        kind: "chat_thread",
+      }));
+    }
+
+    if (source.type === "research_run") {
+      const [run] = await db
+        .select({
+          id: researchRuns.id,
+          workspaceId: researchRuns.workspaceId,
+          projectId: researchRuns.projectId,
+          topic: researchRuns.topic,
+          noteId: researchRuns.noteId,
+        })
+        .from(researchRuns)
+        .where(eq(researchRuns.id, source.runId))
+        .limit(1);
+      if (!run) return c.json({ error: "not_found" }, 404);
+      if (run.workspaceId !== body.workspaceId || run.projectId !== body.projectId) {
+        return c.json({ error: "workspace_mismatch" }, 403);
+      }
+      if (run.noteId) {
+        const [note] = await db
+          .select({ title: notes.title, contentText: notes.contentText })
+          .from(notes)
+          .where(and(eq(notes.id, run.noteId), isNull(notes.deletedAt)))
+          .limit(1);
+        if (note) {
+          return c.json(hydrationItem({
+            id: run.id,
+            title: note.title ?? run.topic,
+            body: note.contentText ?? "",
+            kind: "research_run",
+          }));
+        }
+      }
+      const artifacts = await db
+        .select({
+          kind: researchRunArtifacts.kind,
+          payload: researchRunArtifacts.payload,
+        })
+        .from(researchRunArtifacts)
+        .where(eq(researchRunArtifacts.runId, run.id))
+        .orderBy(researchRunArtifacts.seq);
+      return c.json(hydrationItem({
+        id: run.id,
+        title: run.topic,
+        body: artifacts
+          .map((artifact) => jsonText(artifact.payload))
+          .filter(Boolean)
+          .join("\n\n"),
+        kind: "research_run",
+      }));
+    }
+
+    const [run] = await db
+      .select({
+        id: synthesisRuns.id,
+        workspaceId: synthesisRuns.workspaceId,
+        projectId: synthesisRuns.projectId,
+        userPrompt: synthesisRuns.userPrompt,
+        format: synthesisRuns.format,
+        template: synthesisRuns.template,
+        status: synthesisRuns.status,
+      })
+      .from(synthesisRuns)
+      .where(eq(synthesisRuns.id, source.runId))
+      .limit(1);
+    if (!run) return c.json({ error: "not_found" }, 404);
+    if (
+      run.workspaceId !== body.workspaceId
+      || (run.projectId !== null && run.projectId !== body.projectId)
+    ) {
+      return c.json({ error: "workspace_mismatch" }, 403);
+    }
+    const documentWhere = source.documentId
+      ? and(
+        eq(synthesisDocuments.runId, run.id),
+        eq(synthesisDocuments.id, source.documentId),
+      )
+      : eq(synthesisDocuments.runId, run.id);
+    const [document] = await db
+      .select({
+        id: synthesisDocuments.id,
+        format: synthesisDocuments.format,
+        s3Key: synthesisDocuments.s3Key,
+        bytes: synthesisDocuments.bytes,
+      })
+      .from(synthesisDocuments)
+      .where(documentWhere)
+      .orderBy(desc(synthesisDocuments.createdAt))
+      .limit(1);
+    const fallback = [
+      run.userPrompt,
+      `Synthesis run ${run.status}, ${run.format}/${run.template}`,
+      document ? `Document ${document.format}, ${document.bytes ?? 0} bytes` : "",
+    ].filter(Boolean).join("\n\n");
+    const bodyText = document?.s3Key && ["md", "latex", "bibtex"].includes(document.format)
+      ? await readSmallTextObject(document.s3Key, fallback)
+      : fallback;
+    return c.json(hydrationItem({
+      id: document?.id ?? run.id,
+      title: `Synthesis run ${run.id}`,
+      body: bodyText,
+      kind: "synthesis_run",
+    }));
+  },
+);
 
 internal.post(
   "/document-generation/agent-files",

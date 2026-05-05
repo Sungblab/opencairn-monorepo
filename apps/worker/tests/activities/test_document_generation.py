@@ -129,6 +129,94 @@ async def test_hydrate_document_generation_sources_fetches_notes_with_bounded_co
 
 
 @pytest.mark.asyncio
+async def test_hydrate_document_generation_sources_fetches_non_note_sources() -> None:
+    request = _request("pdf")
+    request["generation"]["sources"] = [
+        {
+            "type": "agent_file",
+            "objectId": "00000000-0000-4000-8000-000000000031",
+        },
+        {
+            "type": "chat_thread",
+            "threadId": "00000000-0000-4000-8000-000000000032",
+        },
+        {
+            "type": "research_run",
+            "runId": "00000000-0000-4000-8000-000000000033",
+        },
+        {
+            "type": "synthesis_run",
+            "runId": "00000000-0000-4000-8000-000000000034",
+        },
+    ]
+    calls: list[tuple[str, dict]] = []
+
+    async def fake_post(path: str, body: dict) -> dict:
+        calls.append((path, body))
+        source = body["source"]
+        source_id = source.get("objectId") or source.get("threadId") or source.get("runId")
+        return {
+            "id": source_id,
+            "title": f"{source['type']} title",
+            "body": f"{source['type']} hydrated content",
+            "kind": source["type"],
+            "tokenCount": 12,
+        }
+
+    with patch("worker.activities.document_generation.sources.post_internal", fake_post):
+        result = await hydrate_document_generation_sources(request)
+
+    assert [call[0] for call in calls] == [
+        "/api/internal/document-generation/hydrate-source",
+        "/api/internal/document-generation/hydrate-source",
+        "/api/internal/document-generation/hydrate-source",
+        "/api/internal/document-generation/hydrate-source",
+    ]
+    assert all(call[1]["workspaceId"] == request["workspaceId"] for call in calls)
+    assert all(call[1]["projectId"] == request["projectId"] for call in calls)
+    assert all(call[1]["userId"] == request["userId"] for call in calls)
+    bodies = {item.kind: item.body for item in result.items}
+    assert bodies["agent_file"] == "agent_file hydrated content"
+    assert bodies["chat_thread"] == "chat_thread hydrated content"
+    assert bodies["research_run"] == "research_run hydrated content"
+    assert bodies["synthesis_run"] == "synthesis_run hydrated content"
+
+
+@pytest.mark.asyncio
+async def test_hydrate_document_generation_sources_falls_back_per_failed_source() -> None:
+    request = _request("pdf")
+    request["generation"]["sources"] = [
+        {
+            "type": "agent_file",
+            "objectId": "00000000-0000-4000-8000-000000000031",
+        },
+        {
+            "type": "chat_thread",
+            "threadId": "00000000-0000-4000-8000-000000000032",
+        },
+    ]
+
+    async def fake_post(_path: str, body: dict) -> dict:
+        if body["source"]["type"] == "agent_file":
+            raise RuntimeError("hydration API unavailable")
+        return {
+            "id": body["source"]["threadId"],
+            "title": "Thread",
+            "body": "hydrated thread body",
+            "kind": "chat_thread",
+            "tokenCount": 10,
+        }
+
+    with patch("worker.activities.document_generation.sources.post_internal", fake_post):
+        result = await hydrate_document_generation_sources(request)
+
+    by_kind = {item.kind: item for item in result.items}
+    assert by_kind["agent_file"].title == "Project object"
+    assert by_kind["agent_file"].body == "agent_file: 00000000-0000-4000-8000-000000000031"
+    assert by_kind["chat_thread"].body == "hydrated thread body"
+
+
+@pytest.mark.asyncio
 async def test_generate_document_artifact_preserves_korean_and_long_pdf_content() -> None:
     uploaded: dict[str, object] = {}
     request = _request("pdf")

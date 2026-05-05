@@ -227,11 +227,13 @@ Current implementation boundary:
   and English text, renders multi-page PDFs, source-aware DOCX files, readable
   PPTX decks, and structured XLSX workbooks, then registers the final object
   through the existing `agent_files` callback contract.
-- Non-note source references such as generated project objects, chat threads,
-  research runs, and synthesis runs remain reference-only in this slice. A
-  later Phase 3B follow-up should add a dedicated internal hydration endpoint
-  for those project-object and run sources before expanding UI generation
-  prompts.
+- The follow-up hydration slice adds a dedicated internal
+  `/api/internal/document-generation/hydrate-source` endpoint for generated
+  project objects, chat threads, research runs, and synthesis runs/documents.
+  The worker uses hydrated content when available and falls back to a structured
+  reference for that individual source if the internal hydration call fails, so
+  one inaccessible source does not unnecessarily kill the whole generation
+  workflow.
 
 ### Phase 4: Google Export
 
