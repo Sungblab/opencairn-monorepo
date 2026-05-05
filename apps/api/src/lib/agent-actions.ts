@@ -87,6 +87,11 @@ export interface AgentActionRepository {
     kind?: AgentActionKind;
     limit: number;
   }): Promise<AgentAction[]>;
+  listBySourceRunId(options: {
+    projectId: string;
+    sourceRunId: string;
+    kind?: AgentActionKind;
+  }): Promise<AgentAction[]>;
   insert(values: {
     requestId: string;
     workspaceId: string;
@@ -117,6 +122,7 @@ export interface AgentActionServiceOptions {
   canWriteProject?: (userId: string, projectId: string) => Promise<boolean>;
   codeWorkspaceRepo?: CodeWorkspaceRepository;
   codeCommandRunner?: CodeCommandRunner;
+  codeRepairPlanner?: CodeRepairPlanner;
   noteExecutor?: NoteActionExecutor;
   noteUpdatePreviewer?: NoteUpdatePreviewer;
   noteUpdateApplier?: NoteUpdateApplier;
@@ -190,6 +196,17 @@ export interface CodeCommandRunner {
   run(input: CodeCommandRunnerInput): Promise<CodeWorkspaceCommandRunResult>;
 }
 
+export interface CodeRepairPlannerInput {
+  failedRunAction: AgentAction;
+  runResult: CodeWorkspaceCommandRunResult;
+  workspace: CodeWorkspaceRecord;
+  snapshot: CodeWorkspaceSnapshotRecord;
+}
+
+export interface CodeRepairPlanner {
+  plan(input: CodeRepairPlannerInput): Promise<Record<string, unknown>>;
+}
+
 export function createDrizzleAgentActionRepository(conn: DB = defaultDb): AgentActionRepository {
   return {
     async findProjectScope(projectId) {
@@ -228,6 +245,19 @@ export function createDrizzleAgentActionRepository(conn: DB = defaultDb): AgentA
         .where(and(...filters))
         .orderBy(desc(agentActions.createdAt))
         .limit(limit);
+      return rows.map(toAgentAction);
+    },
+    async listBySourceRunId({ projectId, sourceRunId, kind }) {
+      const filters = [
+        eq(agentActions.projectId, projectId),
+        eq(agentActions.sourceRunId, sourceRunId),
+        ...(kind ? [eq(agentActions.kind, kind)] : []),
+      ];
+      const rows = await conn
+        .select()
+        .from(agentActions)
+        .where(and(...filters))
+        .orderBy(desc(agentActions.createdAt));
       return rows.map(toAgentAction);
     },
     async insert(values) {
@@ -543,6 +573,103 @@ export async function applyAgentAction(
   throw new AgentActionError("action_kind_not_applicable", 409);
 }
 
+export async function createCodeProjectRepairAction(
+  failedRunActionId: string,
+  actorUserId: string,
+  request: { requestId?: string },
+  options?: AgentActionServiceOptions,
+): Promise<{ action: AgentAction; idempotent: boolean }> {
+  const repo = options?.repo ?? createDrizzleAgentActionRepository();
+  const failedRunAction = await getAgentAction(failedRunActionId, actorUserId, {
+    ...options,
+    repo,
+  });
+  if (failedRunAction.kind !== "code_project.run") {
+    throw new AgentActionError("action_kind_not_applicable", 409);
+  }
+  if (failedRunAction.status !== "failed") {
+    throw new AgentActionError("code_project_repair_requires_failed_run", 409);
+  }
+
+  const requestId = request.requestId ?? randomUUID();
+  const existing = await repo.findByRequestId(
+    failedRunAction.projectId,
+    actorUserId,
+    requestId,
+  );
+  if (existing) return { action: existing, idempotent: true };
+
+  const repairAttempts = await repo.listBySourceRunId({
+    projectId: failedRunAction.projectId,
+    sourceRunId: failedRunAction.id,
+    kind: "code_project.patch",
+  });
+  if (repairAttempts.length >= 3) {
+    throw new AgentActionError("code_project_repair_limit_exceeded", 409);
+  }
+
+  const runResult = codeWorkspaceCommandRunResultSchema.parse(failedRunAction.result);
+  if (runResult.ok || runResult.exitCode === 0) {
+    throw new AgentActionError("code_project_repair_requires_failed_run", 409);
+  }
+  if (!runResult.codeWorkspaceId || !runResult.snapshotId) {
+    throw new AgentActionError("code_project_run_result_incomplete", 409);
+  }
+
+  const codeRepo = options?.codeWorkspaceRepo ?? createDrizzleCodeWorkspaceRepository();
+  const scope = {
+    workspaceId: failedRunAction.workspaceId,
+    projectId: failedRunAction.projectId,
+    actorUserId,
+  };
+  const workspace = await codeRepo.findWorkspaceById(scope, runResult.codeWorkspaceId);
+  if (!workspace) throw new AgentActionError("code_workspace_not_found", 404);
+  const snapshot = await codeRepo.findSnapshotById(workspace.id, runResult.snapshotId);
+  if (!snapshot) throw new AgentActionError("code_workspace_snapshot_not_found", 404);
+
+  const planner = options?.codeRepairPlanner ?? createUnavailableCodeRepairPlanner();
+  const payload = codeWorkspacePatchSchema.parse({
+    ...(await planner.plan({
+      failedRunAction,
+      runResult,
+      workspace,
+      snapshot,
+    })),
+    requestId,
+    risk: "write",
+  });
+
+  const { action, inserted } = await repo.insert({
+    requestId,
+    workspaceId: failedRunAction.workspaceId,
+    projectId: failedRunAction.projectId,
+    actorUserId,
+    sourceRunId: failedRunAction.id,
+    kind: "code_project.patch",
+    status: "draft",
+    risk: "write",
+    input: payload,
+    preview: payload.preview,
+    result: null,
+    errorCode: null,
+  });
+  if (!inserted) return { action, idempotent: true };
+
+  try {
+    await prepareCodeWorkspacePatch(codeRepo, scope, payload);
+    return { action, idempotent: false };
+  } catch (err) {
+    const errorCode = err instanceof AgentActionError ? err.code : "code_project_repair_failed";
+    const failed = await repo.updateStatus(action.id, {
+      status: "failed",
+      result: { ok: false, errorCode },
+      errorCode,
+    });
+    if (!failed) throw new AgentActionError("action_not_found", 404);
+    return { action: failed, idempotent: false };
+  }
+}
+
 export function canTransition(from: AgentActionStatus, to: AgentActionStatus): boolean {
   if (from === to) return true;
   const allowed: Record<AgentActionStatus, AgentActionStatus[]> = {
@@ -835,6 +962,14 @@ function createUnavailableCodeCommandRunner(): CodeCommandRunner {
   return {
     async run() {
       throw new AgentActionError("code_command_runner_unavailable", 409);
+    },
+  };
+}
+
+function createUnavailableCodeRepairPlanner(): CodeRepairPlanner {
+  return {
+    async plan() {
+      throw new AgentActionError("code_project_repair_planner_unavailable", 409);
     },
   };
 }

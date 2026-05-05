@@ -750,6 +750,14 @@ materialized snapshot mounted at `/workspace`. The default remains empty and
 fails closed; hosts must intentionally provide Docker runtime access before any
 generated project code executes.
 
+Phase 6E adds the first repair-loop seam. A failed `code_project.run` action can
+be repaired through `POST /api/agent-actions/:id/repair`, which reads the
+server-stored run result/logs, resolves the snapshot, asks an injected repair
+planner for a `code_project.patch`, and records that draft patch with
+`sourceRunId` pointing at the failed run. Repair attempts are capped at three
+patch drafts per failed run; the default planner remains unavailable until an
+agent-backed repair planner is wired.
+
 ### Phase 7: Hosted Preview
 
 Add generated app previews:

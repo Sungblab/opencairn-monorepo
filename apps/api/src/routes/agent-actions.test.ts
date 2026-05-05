@@ -6,6 +6,7 @@ import type { AgentAction } from "@opencairn/shared";
 import type {
   AgentActionRepository,
   CodeCommandRunner,
+  CodeRepairPlanner,
   NoteUpdateApplier,
   NoteUpdatePreviewer,
 } from "../lib/agent-actions";
@@ -438,12 +439,170 @@ describe("agent action routes", () => {
     expect(response.status).toBe(400);
     expect(codeCommandRunner.calls).toEqual([]);
   });
+
+  it("creates a repair patch draft from a failed code_project.run action", async () => {
+    const codeWorkspaceRepo = createMemoryCodeWorkspaceRepository();
+    const codeRepairPlanner = createMemoryCodeRepairPlanner();
+    const app = appWith({
+      repo: createMemoryRepo(),
+      codeWorkspaceRepo,
+      codeCommandRunner: createMemoryCodeCommandRunner({ exitCode: 1 }),
+      codeRepairPlanner,
+    });
+
+    const createWorkspace = await app.request(`/api/projects/${projectId}/agent-actions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "code_project.create",
+        risk: "write",
+        input: {
+          name: "Repairable app",
+          manifest: {
+            entries: [
+              {
+                path: "src/App.tsx",
+                kind: "file",
+                bytes: 3,
+                contentHash: "sha256:old",
+                inlineContent: "old",
+              },
+            ],
+          },
+        },
+      }),
+    });
+    const created = await createWorkspace.json() as { action: AgentAction };
+    const workspace = (created.action.result?.workspace as { id: string; currentSnapshotId: string });
+
+    const run = await app.request(`/api/projects/${projectId}/agent-actions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        requestId: "00000000-0000-4000-8000-000000000060",
+        kind: "code_project.run",
+        risk: "write",
+        input: {
+          codeWorkspaceId: workspace.id,
+          snapshotId: workspace.currentSnapshotId,
+          command: "test",
+        },
+      }),
+    });
+    const failedRun = await run.json() as { action: AgentAction };
+    expect(failedRun.action.status).toBe("failed");
+
+    const repair = await app.request(`/api/agent-actions/${failedRun.action.id}/repair`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ requestId: "00000000-0000-4000-8000-000000000061" }),
+    });
+
+    expect(repair.status).toBe(201);
+    const body = await repair.json() as { action: AgentAction; idempotent: boolean };
+    expect(codeRepairPlanner.calls).toEqual([
+      {
+        failedRunActionId: failedRun.action.id,
+        command: "test",
+        logs: ["tests failed"],
+        entries: ["src/App.tsx"],
+      },
+    ]);
+    expect(body.idempotent).toBe(false);
+    expect(body.action).toMatchObject({
+      kind: "code_project.patch",
+      sourceRunId: failedRun.action.id,
+      status: "draft",
+      preview: { filesChanged: 1, summary: "Repair failing test" },
+      input: {
+        codeWorkspaceId: workspace.id,
+        baseSnapshotId: workspace.currentSnapshotId,
+        operations: [
+          expect.objectContaining({
+            op: "update",
+            path: "src/App.tsx",
+            beforeHash: "sha256:old",
+            afterHash: "sha256:repair",
+          }),
+        ],
+      },
+    });
+  });
+
+  it("caps repair patch attempts per failed code_project.run action", async () => {
+    const codeWorkspaceRepo = createMemoryCodeWorkspaceRepository();
+    const app = appWith({
+      repo: createMemoryRepo(),
+      codeWorkspaceRepo,
+      codeCommandRunner: createMemoryCodeCommandRunner({ exitCode: 1 }),
+      codeRepairPlanner: createMemoryCodeRepairPlanner(),
+    });
+
+    const createWorkspace = await app.request(`/api/projects/${projectId}/agent-actions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "code_project.create",
+        risk: "write",
+        input: {
+          name: "Repair capped app",
+          manifest: {
+            entries: [
+              {
+                path: "src/App.tsx",
+                kind: "file",
+                bytes: 3,
+                contentHash: "sha256:old",
+                inlineContent: "old",
+              },
+            ],
+          },
+        },
+      }),
+    });
+    const created = await createWorkspace.json() as { action: AgentAction };
+    const workspace = (created.action.result?.workspace as { id: string; currentSnapshotId: string });
+
+    const run = await app.request(`/api/projects/${projectId}/agent-actions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        requestId: "00000000-0000-4000-8000-000000000070",
+        kind: "code_project.run",
+        risk: "write",
+        input: {
+          codeWorkspaceId: workspace.id,
+          snapshotId: workspace.currentSnapshotId,
+          command: "test",
+        },
+      }),
+    });
+    const failedRun = await run.json() as { action: AgentAction };
+
+    for (const suffix of ["071", "072", "073"]) {
+      const response = await app.request(`/api/agent-actions/${failedRun.action.id}/repair`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ requestId: `00000000-0000-4000-8000-000000000${suffix}` }),
+      });
+      expect(response.status).toBe(201);
+    }
+
+    const capped = await app.request(`/api/agent-actions/${failedRun.action.id}/repair`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ requestId: "00000000-0000-4000-8000-000000000074" }),
+    });
+    expect(capped.status).toBe(409);
+    expect(await capped.json()).toMatchObject({ error: "code_project_repair_limit_exceeded" });
+  });
 });
 
 function appWith(options: {
   repo: AgentActionRepository;
   codeWorkspaceRepo?: CodeWorkspaceRepository;
   codeCommandRunner?: CodeCommandRunner;
+  codeRepairPlanner?: CodeRepairPlanner;
   noteUpdatePreviewer?: NoteUpdatePreviewer;
   noteUpdateApplier?: NoteUpdateApplier;
 }) {
@@ -453,6 +612,7 @@ function appWith(options: {
       repo: options.repo,
       codeWorkspaceRepo: options.codeWorkspaceRepo,
       codeCommandRunner: options.codeCommandRunner,
+      codeRepairPlanner: options.codeRepairPlanner,
       canWriteProject: async () => true,
       noteUpdatePreviewer: options.noteUpdatePreviewer,
       noteUpdateApplier: options.noteUpdateApplier,
@@ -463,6 +623,52 @@ function appWith(options: {
       },
     }),
   );
+}
+
+function createMemoryCodeRepairPlanner(): CodeRepairPlanner & {
+  calls: Array<{
+    failedRunActionId: string;
+    command: string;
+    logs: string[];
+    entries: string[];
+  }>;
+} {
+  const calls: Array<{
+    failedRunActionId: string;
+    command: string;
+    logs: string[];
+    entries: string[];
+  }> = [];
+  return {
+    calls,
+    async plan(input) {
+      calls.push({
+        failedRunActionId: input.failedRunAction.id,
+        command: input.runResult.command,
+        logs: input.runResult.logs.map((log) => log.text),
+        entries: input.snapshot.manifest.entries.map((entry) => entry.path),
+      });
+      return {
+        codeWorkspaceId: input.workspace.id,
+        baseSnapshotId: input.snapshot.id,
+        operations: [
+          {
+            op: "update",
+            path: "src/App.tsx",
+            beforeHash: "sha256:old",
+            afterHash: "sha256:repair",
+            inlineContent: "repair",
+          },
+        ],
+        preview: {
+          filesChanged: 1,
+          additions: 1,
+          deletions: 1,
+          summary: "Repair failing test",
+        },
+      };
+    },
+  };
 }
 
 function createMemoryCodeCommandRunner(result: {
@@ -506,6 +712,14 @@ function createMemoryRepo(): AgentActionRepository {
     async listByProject({ projectId: pid }) {
       return [...rows.values()].filter((row) => row.projectId === pid);
     },
+    async listBySourceRunId({ projectId: pid, sourceRunId, kind }) {
+      return [...rows.values()].filter(
+        (row) =>
+          row.projectId === pid &&
+          row.sourceRunId === sourceRunId &&
+          (!kind || row.kind === kind),
+      );
+    },
     async insert(values) {
       const existing = await this.findByRequestId(
         values.projectId,
@@ -515,7 +729,7 @@ function createMemoryRepo(): AgentActionRepository {
       if (existing) return { action: existing, inserted: false };
       const now = new Date("2026-05-05T00:00:00.000Z").toISOString();
       const row: AgentAction = {
-        id: "00000000-0000-4000-8000-000000000010",
+        id: `00000000-0000-4000-8000-${String(rows.size + 10).padStart(12, "0")}`,
         requestId: values.requestId,
         workspaceId: values.workspaceId,
         projectId: values.projectId,

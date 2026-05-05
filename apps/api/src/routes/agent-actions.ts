@@ -10,6 +10,7 @@ import { requireAuth } from "../middleware/auth";
 import {
   AgentActionError,
   applyAgentAction,
+  createCodeProjectRepairAction,
   createAgentAction,
   getAgentAction,
   listAgentActions,
@@ -20,6 +21,9 @@ import type { AppEnv } from "../lib/types";
 
 const idParamSchema = z.object({ id: z.string().uuid() });
 const projectParamSchema = z.object({ projectId: z.string().uuid() });
+const repairRequestSchema = z.object({
+  requestId: z.string().uuid().optional(),
+}).strict();
 
 export interface AgentActionRouteOptions extends AgentActionServiceOptions {
   auth?: MiddlewareHandler<AppEnv>;
@@ -32,6 +36,7 @@ export function createAgentActionRoutes(options?: AgentActionRouteOptions) {
     ...(options?.canWriteProject ? { canWriteProject: options.canWriteProject } : {}),
     ...(options?.codeWorkspaceRepo ? { codeWorkspaceRepo: options.codeWorkspaceRepo } : {}),
     ...(options?.codeCommandRunner ? { codeCommandRunner: options.codeCommandRunner } : {}),
+    ...(options?.codeRepairPlanner ? { codeRepairPlanner: options.codeRepairPlanner } : {}),
     ...(options?.noteExecutor ? { noteExecutor: options.noteExecutor } : {}),
     ...(options?.noteUpdatePreviewer ? { noteUpdatePreviewer: options.noteUpdatePreviewer } : {}),
     ...(options?.noteUpdateApplier ? { noteUpdateApplier: options.noteUpdateApplier } : {}),
@@ -126,6 +131,25 @@ export function createAgentActionRoutes(options?: AgentActionRouteOptions) {
             serviceOptions,
           );
           return c.json({ action });
+        } catch (err) {
+          return agentActionError(c, err);
+        }
+      },
+    )
+    .post(
+      "/agent-actions/:id/repair",
+      auth,
+      zValidator("param", idParamSchema),
+      zValidator("json", repairRequestSchema.default({})),
+      async (c) => {
+        try {
+          const { action, idempotent } = await createCodeProjectRepairAction(
+            c.req.valid("param").id,
+            c.get("userId"),
+            c.req.valid("json"),
+            serviceOptions,
+          );
+          return c.json({ action, idempotent }, idempotent ? 200 : 201);
         } catch (err) {
           return agentActionError(c, err);
         }

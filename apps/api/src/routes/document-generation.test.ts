@@ -539,6 +539,14 @@ function createMemoryRepo(seed: AgentAction[] = []): AgentActionRepository {
     async listByProject({ projectId: pid }) {
       return [...rows.values()].filter((row) => row.projectId === pid);
     },
+    async listBySourceRunId({ projectId: pid, sourceRunId, kind }) {
+      return [...rows.values()].filter(
+        (row) =>
+          row.projectId === pid &&
+          row.sourceRunId === sourceRunId &&
+          (!kind || row.kind === kind),
+      );
+    },
     async insert(values) {
       const existing = await this.findByRequestId(
         values.projectId,

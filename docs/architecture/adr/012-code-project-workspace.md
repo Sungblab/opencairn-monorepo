@@ -264,6 +264,10 @@ project commands, install dependencies, host previews, or deploy external apps.
   executor and runs approved commands in a networkless `node:20-alpine`
   container with bounded CPU/memory flags and the snapshot mounted at
   `/workspace`.
+- Create repair patch drafts from failed run actions through
+  `POST /api/agent-actions/:id/repair`. The API reuses `code_project.patch`,
+  links the patch action back to the failed run with `sourceRunId`, and caps
+  repair drafts at three per failed run.
 - Implement approved sandbox commands for test/build/lint.
 - Store logs and command artifacts.
 - Feed failures back into the agent for bounded repair loops.
