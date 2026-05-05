@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AgentAction, CodeWorkspaceCommandRunRequest } from "@opencairn/shared";
 import {
+  cancelCodeWorkspaceCommandWorkflow,
   createTemporalCodeCommandRunner,
   workflowIdForCodeWorkspaceCommandAction,
 } from "./code-workspace-command-runner";
@@ -70,6 +71,30 @@ describe("code workspace command runner", () => {
     expect(
       workflowIdForCodeWorkspaceCommandAction("00000000-0000-4000-8000-000000000010"),
     ).toBe("code-workspace-command-00000000-0000-4000-8000-000000000010");
+  });
+
+  it("cancels the stable worker workflow for an action", async () => {
+    const calls: string[] = [];
+    await cancelCodeWorkspaceCommandWorkflow(
+      "00000000-0000-4000-8000-000000000010",
+      {
+        workflow: {
+          getHandle(workflowId: string) {
+            calls.push(workflowId);
+            return {
+              async cancel() {
+                calls.push("cancel");
+              },
+            };
+          },
+        },
+      } as never,
+    );
+
+    expect(calls).toEqual([
+      "code-workspace-command-00000000-0000-4000-8000-000000000010",
+      "cancel",
+    ]);
   });
 });
 

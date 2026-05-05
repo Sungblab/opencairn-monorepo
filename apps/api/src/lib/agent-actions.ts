@@ -56,7 +56,10 @@ import {
   type CodeWorkspaceRepository,
   type CodeWorkspaceSnapshotRecord,
 } from "./code-project-workspaces";
-import { createTemporalCodeCommandRunner } from "./code-workspace-command-runner";
+import {
+  cancelCodeWorkspaceCommandWorkflow,
+  createTemporalCodeCommandRunner,
+} from "./code-workspace-command-runner";
 import { createTemporalCodeRepairPlanner } from "./code-workspace-repair-planner";
 import { canWrite } from "./permissions";
 import { diffPlateValues } from "./note-version-diff";
@@ -123,6 +126,7 @@ export interface AgentActionServiceOptions {
   canWriteProject?: (userId: string, projectId: string) => Promise<boolean>;
   codeWorkspaceRepo?: CodeWorkspaceRepository;
   codeCommandRunner?: CodeCommandRunner;
+  codeCommandCanceller?: CodeCommandCanceller;
   codeRepairPlanner?: CodeRepairPlanner;
   noteExecutor?: NoteActionExecutor;
   noteUpdatePreviewer?: NoteUpdatePreviewer;
@@ -195,6 +199,14 @@ export interface CodeCommandRunnerInput {
 
 export interface CodeCommandRunner {
   run(input: CodeCommandRunnerInput): Promise<CodeWorkspaceCommandRunResult>;
+}
+
+export interface CodeCommandCancellerInput {
+  action: AgentAction;
+}
+
+export interface CodeCommandCanceller {
+  cancel(input: CodeCommandCancellerInput): Promise<void>;
 }
 
 export interface CodeRepairPlannerInput {
@@ -673,6 +685,43 @@ export async function createCodeProjectRepairAction(
   }
 }
 
+export async function cancelCodeProjectRunAction(
+  actionId: string,
+  actorUserId: string,
+  options?: AgentActionServiceOptions,
+): Promise<{ action: AgentAction; idempotent: boolean }> {
+  const repo = options?.repo ?? createDrizzleAgentActionRepository();
+  const action = await getAgentAction(actionId, actorUserId, {
+    ...options,
+    repo,
+  });
+  if (action.kind !== "code_project.run") {
+    throw new AgentActionError("action_kind_not_applicable", 409);
+  }
+  if (action.status === "cancelled") {
+    return { action, idempotent: true };
+  }
+  if (!["queued", "running"].includes(action.status)) {
+    throw new AgentActionError("action_not_cancellable", 409);
+  }
+
+  const canceller = options?.codeCommandCanceller ?? createDefaultCodeCommandCanceller();
+  if (action.status === "running") {
+    try {
+      await canceller.cancel({ action });
+    } catch (err) {
+      console.warn("[agent-actions] code command cancel failed", err);
+    }
+  }
+  const cancelled = await repo.updateStatus(action.id, {
+    status: "cancelled",
+    result: { ok: false, errorCode: "cancelled" },
+    errorCode: "cancelled",
+  });
+  if (!cancelled) throw new AgentActionError("action_not_found", 404);
+  return { action: cancelled, idempotent: false };
+}
+
 export function canTransition(from: AgentActionStatus, to: AgentActionStatus): boolean {
   if (from === to) return true;
   const allowed: Record<AgentActionStatus, AgentActionStatus[]> = {
@@ -943,6 +992,8 @@ async function executePersistedCodeProjectRunAction(
     if (!updated) throw new AgentActionError("action_not_found", 404);
     return updated;
   } catch (err) {
+    const current = await repo.findById(action.id);
+    if (current?.status === "cancelled") return current;
     const errorCode = err instanceof AgentActionError ? err.code : "code_project_run_failed";
     const updated = await repo.updateStatus(action.id, {
       status: "failed",
@@ -982,6 +1033,21 @@ function createDefaultCodeRepairPlanner(): CodeRepairPlanner {
     return createTemporalCodeRepairPlanner();
   }
   return createUnavailableCodeRepairPlanner();
+}
+
+function createDefaultCodeCommandCanceller(): CodeCommandCanceller {
+  if (process.env.FEATURE_CODE_WORKSPACE_COMMANDS === "true") {
+    return {
+      async cancel(input) {
+        await cancelCodeWorkspaceCommandWorkflow(input.action.id);
+      },
+    };
+  }
+  return {
+    async cancel() {
+      throw new AgentActionError("code_command_runner_unavailable", 409);
+    },
+  };
 }
 
 function noteUpdateApplyResultInput(input: Record<string, unknown>): NoteUpdateApplyRequest {

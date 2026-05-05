@@ -233,6 +233,7 @@ implemented.
 | GET | /api/agent-actions/:id | project `editor` | Read one action after checking the action's project scope. | - |
 | PATCH | /api/agent-actions/:id/status | project `editor` | Transition action status using the shared status state machine; invalid transitions return `409 invalid_status_transition`. | `{ status, preview?, result?, errorCode? }` |
 | POST | /api/agent-actions/:id/apply | project `editor` | Apply a draft review action. For `note.update`, the server validates the stored action kind/status, rejects stale previews with `409 note_update_stale_preview`, captures note versions around the Yjs transform, and completes or fails the ledger row. For `code_project.patch`, the server validates the stored base snapshot, rejects stale code workspaces with `409 code_workspace_stale_base`, creates a new immutable snapshot, updates the workspace current snapshot, and completes with archive metadata. | `{ yjsStateVectorBase64 }` for `note.update`; `{}` for `code_project.patch` |
+| POST | /api/agent-actions/:id/cancel | project `editor` | Cancel a queued or running `code_project.run` action. Running command actions best-effort cancel the stable worker workflow when `FEATURE_CODE_WORKSPACE_COMMANDS=true`; the ledger row becomes `cancelled` with `{ ok: false, errorCode: "cancelled" }`. Already cancelled run actions are idempotent. | - |
 | POST | /api/agent-actions/:id/repair | project `editor` | Create a draft `code_project.patch` repair action from a failed `code_project.run` action. The API parses stored run logs/results, resolves the server-owned snapshot manifest, calls the configured repair planner, stores the patch with `sourceRunId` pointing at the failed run, and caps repair drafts at three per failed run. | `{ requestId? }` |
 
 Action fields: `id`, `requestId`, `workspaceId`, `projectId`, `actorUserId`,
@@ -348,6 +349,10 @@ on, the API starts `CodeWorkspaceRepairWorkflow`; the worker repair agent
 returns file replacements that are converted into a normal `code_project.patch`
 payload. The existing patch review and apply flow remains the only way
 generated repairs mutate a code workspace.
+
+`POST /api/agent-actions/:id/cancel` is the explicit cancellation path for
+code workspace command runs. Browser disconnects do not cancel execution; the
+cancel endpoint owns the ledger transition and worker workflow cancellation.
 
 ### Ingest
 

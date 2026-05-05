@@ -272,6 +272,8 @@ project commands, install dependencies, host previews, or deploy external apps.
   `FEATURE_CODE_WORKSPACE_REPAIR=true`. The worker repair agent receives failed
   run logs plus the resolved inline manifest and returns file replacements that
   the activity converts into a reviewable `code_project.patch` payload.
+- Add explicit cancellation for queued/running `code_project.run` actions via
+  `POST /api/agent-actions/:id/cancel`; browser disconnects are detach-only.
 - Implement approved sandbox commands for test/build/lint.
 - Store logs and command artifacts.
 - Feed failures back into the agent for bounded repair loops.

@@ -766,6 +766,13 @@ file replacements into a normal `code_project.patch` payload with computed
 hashes and preview counts, and still requires the existing review/apply flow
 before the repaired files mutate the code workspace.
 
+Phase 6G adds the first explicit cancellation control for code workspace runs.
+`POST /api/agent-actions/:id/cancel` accepts running or queued
+`code_project.run` actions, best-effort cancels the stable
+`CodeWorkspaceCommandWorkflow` when command execution is enabled, and marks the
+ledger row `cancelled`. The run completion path now preserves an already
+cancelled row instead of racing it back to `failed`.
+
 ### Phase 7: Hosted Preview
 
 Add generated app previews:
