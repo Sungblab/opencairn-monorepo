@@ -5,6 +5,7 @@ import type { AppEnv } from "../lib/types";
 import type { AgentAction } from "@opencairn/shared";
 import type {
   AgentActionRepository,
+  CodeCommandCanceller,
   CodeCommandRunner,
   CodeRepairPlanner,
   NoteUpdateApplier,
@@ -440,6 +441,38 @@ describe("agent action routes", () => {
     expect(codeCommandRunner.calls).toEqual([]);
   });
 
+  it("cancels a running code_project.run action", async () => {
+    const running = makeAction({
+      id: "00000000-0000-4000-8000-000000000080",
+      kind: "code_project.run",
+      status: "running",
+      risk: "write",
+    });
+    const calls: string[] = [];
+    const app = appWith({
+      repo: createMemoryRepo([running]),
+      codeCommandCanceller: {
+        async cancel(input) {
+          calls.push(input.action.id);
+        },
+      },
+    });
+
+    const response = await app.request(`/api/agent-actions/${running.id}/cancel`, {
+      method: "POST",
+    });
+
+    expect(response.status).toBe(202);
+    const body = await response.json() as { action: AgentAction; idempotent: boolean };
+    expect(calls).toEqual([running.id]);
+    expect(body.idempotent).toBe(false);
+    expect(body.action).toMatchObject({
+      status: "cancelled",
+      errorCode: "cancelled",
+      result: { ok: false, errorCode: "cancelled" },
+    });
+  });
+
   it("creates a repair patch draft from a failed code_project.run action", async () => {
     const codeWorkspaceRepo = createMemoryCodeWorkspaceRepository();
     const codeRepairPlanner = createMemoryCodeRepairPlanner();
@@ -602,6 +635,7 @@ function appWith(options: {
   repo: AgentActionRepository;
   codeWorkspaceRepo?: CodeWorkspaceRepository;
   codeCommandRunner?: CodeCommandRunner;
+  codeCommandCanceller?: CodeCommandCanceller;
   codeRepairPlanner?: CodeRepairPlanner;
   noteUpdatePreviewer?: NoteUpdatePreviewer;
   noteUpdateApplier?: NoteUpdateApplier;
@@ -612,6 +646,7 @@ function appWith(options: {
       repo: options.repo,
       codeWorkspaceRepo: options.codeWorkspaceRepo,
       codeCommandRunner: options.codeCommandRunner,
+      codeCommandCanceller: options.codeCommandCanceller,
       codeRepairPlanner: options.codeRepairPlanner,
       canWriteProject: async () => true,
       noteUpdatePreviewer: options.noteUpdatePreviewer,
@@ -695,8 +730,8 @@ function createMemoryCodeCommandRunner(result: {
   };
 }
 
-function createMemoryRepo(): AgentActionRepository {
-  const rows = new Map<string, AgentAction>();
+function createMemoryRepo(seed: AgentAction[] = []): AgentActionRepository {
+  const rows = new Map<string, AgentAction>(seed.map((row) => [row.id, row]));
   return {
     async findProjectScope(id) {
       return id === projectId ? { workspaceId } : null;
@@ -761,6 +796,27 @@ function createMemoryRepo(): AgentActionRepository {
       rows.set(id, next);
       return next;
     },
+  };
+}
+
+function makeAction(overrides: Partial<AgentAction> = {}): AgentAction {
+  return {
+    id: "00000000-0000-4000-8000-000000000010",
+    requestId: "00000000-0000-4000-8000-000000000011",
+    workspaceId,
+    projectId,
+    actorUserId: userId,
+    sourceRunId: null,
+    kind: "workflow.placeholder",
+    status: "draft",
+    risk: "low",
+    input: {},
+    preview: null,
+    result: null,
+    errorCode: null,
+    createdAt: "2026-05-05T00:00:00.000Z",
+    updatedAt: "2026-05-05T00:00:00.000Z",
+    ...overrides,
   };
 }
 

@@ -10,6 +10,7 @@ import { requireAuth } from "../middleware/auth";
 import {
   AgentActionError,
   applyAgentAction,
+  cancelCodeProjectRunAction,
   createCodeProjectRepairAction,
   createAgentAction,
   getAgentAction,
@@ -36,6 +37,7 @@ export function createAgentActionRoutes(options?: AgentActionRouteOptions) {
     ...(options?.canWriteProject ? { canWriteProject: options.canWriteProject } : {}),
     ...(options?.codeWorkspaceRepo ? { codeWorkspaceRepo: options.codeWorkspaceRepo } : {}),
     ...(options?.codeCommandRunner ? { codeCommandRunner: options.codeCommandRunner } : {}),
+    ...(options?.codeCommandCanceller ? { codeCommandCanceller: options.codeCommandCanceller } : {}),
     ...(options?.codeRepairPlanner ? { codeRepairPlanner: options.codeRepairPlanner } : {}),
     ...(options?.noteExecutor ? { noteExecutor: options.noteExecutor } : {}),
     ...(options?.noteUpdatePreviewer ? { noteUpdatePreviewer: options.noteUpdatePreviewer } : {}),
@@ -131,6 +133,23 @@ export function createAgentActionRoutes(options?: AgentActionRouteOptions) {
             serviceOptions,
           );
           return c.json({ action });
+        } catch (err) {
+          return agentActionError(c, err);
+        }
+      },
+    )
+    .post(
+      "/agent-actions/:id/cancel",
+      auth,
+      zValidator("param", idParamSchema),
+      async (c) => {
+        try {
+          const { action, idempotent } = await cancelCodeProjectRunAction(
+            c.req.valid("param").id,
+            c.get("userId"),
+            serviceOptions,
+          );
+          return c.json({ action, idempotent }, idempotent ? 200 : 202);
         } catch (err) {
           return agentActionError(c, err);
         }

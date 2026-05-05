@@ -63,3 +63,13 @@ export async function startCodeWorkspaceCommandWorkflow(
   });
   return handle.result() as Promise<CodeWorkspaceCommandRunResult>;
 }
+
+export async function cancelCodeWorkspaceCommandWorkflow(
+  actionId: string,
+  client?: Client,
+): Promise<void> {
+  const temporal = client ?? await getTemporalClient();
+  await temporal.workflow
+    .getHandle(workflowIdForCodeWorkspaceCommandAction(actionId))
+    .cancel();
+}

@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   AgentActionError,
+  cancelCodeProjectRunAction,
   canTransition,
   createAgentAction,
   executeAgentAction,
@@ -504,10 +505,96 @@ describe("agent action service", () => {
       ),
     ).rejects.toMatchObject(new AgentActionError("forbidden", 403));
   });
+
+  it("cancels a running code_project.run action through the command workflow canceller", async () => {
+    const running = makeAction({
+      kind: "code_project.run",
+      status: "running",
+      risk: "write",
+      result: null,
+    });
+    const repo = createMemoryRepo([running]);
+    const calls: string[] = [];
+
+    const { action, idempotent } = await cancelCodeProjectRunAction(
+      running.id,
+      userId,
+      {
+        repo,
+        canWriteProject: async () => true,
+        codeCommandCanceller: {
+          async cancel(input) {
+            calls.push(input.action.id);
+          },
+        },
+      },
+    );
+
+    expect(idempotent).toBe(false);
+    expect(calls).toEqual([running.id]);
+    expect(action).toMatchObject({
+      status: "cancelled",
+      errorCode: "cancelled",
+      result: { ok: false, errorCode: "cancelled" },
+    });
+  });
+
+  it("treats an already cancelled code_project.run action as idempotent", async () => {
+    const cancelled = makeAction({
+      kind: "code_project.run",
+      status: "cancelled",
+      risk: "write",
+      errorCode: "cancelled",
+      result: { ok: false, errorCode: "cancelled" },
+    });
+
+    await expect(
+      cancelCodeProjectRunAction(cancelled.id, userId, {
+        repo: createMemoryRepo([cancelled]),
+        canWriteProject: async () => true,
+        codeCommandCanceller: {
+          async cancel() {
+            throw new Error("should not cancel twice");
+          },
+        },
+      }),
+    ).resolves.toMatchObject({ action: cancelled, idempotent: true });
+  });
+
+  it("marks code_project.run cancelled even when workflow cancellation is best-effort", async () => {
+    const running = makeAction({
+      kind: "code_project.run",
+      status: "running",
+      risk: "write",
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    try {
+      await expect(
+        cancelCodeProjectRunAction(running.id, userId, {
+          repo: createMemoryRepo([running]),
+          canWriteProject: async () => true,
+          codeCommandCanceller: {
+            async cancel() {
+              throw new Error("temporal unavailable");
+            },
+          },
+        }),
+      ).resolves.toMatchObject({
+        action: {
+          status: "cancelled",
+          errorCode: "cancelled",
+        },
+        idempotent: false,
+      });
+    } finally {
+      warn.mockRestore();
+    }
+  });
 });
 
-function createMemoryRepo(): AgentActionRepository {
-  const rows = new Map<string, AgentAction>();
+function createMemoryRepo(seed: AgentAction[] = []): AgentActionRepository {
+  const rows = new Map<string, AgentAction>(seed.map((row) => [row.id, row]));
   return {
     async findProjectScope(id) {
       return id === projectId ? { workspaceId } : null;
@@ -575,6 +662,27 @@ function createMemoryRepo(): AgentActionRepository {
       rows.set(id, next);
       return next;
     },
+  };
+}
+
+function makeAction(overrides: Partial<AgentAction> = {}): AgentAction {
+  return {
+    id: actionId,
+    requestId,
+    workspaceId,
+    projectId,
+    actorUserId: userId,
+    sourceRunId: null,
+    kind: "workflow.placeholder",
+    status: "draft",
+    risk: "low",
+    input: {},
+    preview: null,
+    result: null,
+    errorCode: null,
+    createdAt: "2026-05-05T00:00:00.000Z",
+    updatedAt: "2026-05-05T00:00:00.000Z",
+    ...overrides,
   };
 }
 
