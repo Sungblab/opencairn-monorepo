@@ -85,7 +85,10 @@ import {
   registerExistingObjectAsAgentFile,
   startAgentFileIngest,
 } from "../lib/agent-files";
-import { createDrizzleAgentActionRepository } from "../lib/agent-actions";
+import {
+  cleanupExpiredCodeProjectPreviews,
+  createDrizzleAgentActionRepository,
+} from "../lib/agent-actions";
 import { toProjectObjectSummary } from "../lib/project-object-actions";
 import {
   createConceptExtractionEvidence,
@@ -111,6 +114,22 @@ internal.use("*", async (c, next) => {
   }
   await next();
 });
+
+const internalPreviewCleanupSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+});
+
+internal.post(
+  "/agent-actions/preview-cleanup",
+  zValidator("json", internalPreviewCleanupSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const result = await cleanupExpiredCodeProjectPreviews({
+      ...(body.limit !== undefined ? { limit: body.limit } : {}),
+    });
+    return c.json(result);
+  },
+);
 
 const documentGenerationArtifactSchema = z.object({
   objectKey: z.string().min(1),

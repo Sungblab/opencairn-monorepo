@@ -851,8 +851,11 @@ work.
 Phase 7F adds an internal cleanup sweep for expired static preview actions.
 The sweep promotes completed `code_project.preview` rows whose `expiresAt` has
 passed to `expired`, records `code_project_preview_expired`, and makes Workflow
-Console treat that status as terminal. This still does not delete immutable
-snapshot objects or introduce public preview URL lifecycle automation.
+Console treat that status as terminal. The sweep is exposed through an
+internal-secret protected `/api/internal/agent-actions/preview-cleanup` endpoint
+so an operations cron can trigger it without public access. This still does not
+delete immutable snapshot objects or introduce public preview URL lifecycle
+automation.
 
 ### Phase 7: Hosted Preview
 
