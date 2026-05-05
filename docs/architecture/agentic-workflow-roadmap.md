@@ -736,6 +736,13 @@ and delegates execution to an injected executor. Its default executor remains
 unavailable until a sandbox implementation is wired, so this still avoids
 unrestricted command execution in the API or worker process.
 
+Phase 6C connects the API runner seam to `CodeWorkspaceCommandWorkflow` when
+`FEATURE_CODE_WORKSPACE_COMMANDS=true`. The API passes the resolved immutable
+snapshot manifest into Temporal with a stable workflow id per action and waits
+for terminal log/result metadata. With the flag off, `code_project.run` still
+fails closed as unavailable; with the flag on, the worker workflow exists but
+continues to depend on a future sandbox executor for real command execution.
+
 ### Phase 7: Hosted Preview
 
 Add generated app previews:

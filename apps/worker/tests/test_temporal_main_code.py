@@ -65,6 +65,7 @@ def test_code_workspace_commands_registered_when_flag_on(
 ) -> None:
     monkeypatch.setenv("FEATURE_CODE_WORKSPACE_COMMANDS", "true")
     cfg = build_worker_config()
+    assert "CodeWorkspaceCommandWorkflow" in [w.__name__ for w in cfg.workflows]
     activity_names = [a.__name__ for a in cfg.activities]
     assert "run_code_workspace_command_activity" in activity_names
 
