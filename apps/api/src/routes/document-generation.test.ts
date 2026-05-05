@@ -332,6 +332,35 @@ describe("document generation routes", () => {
     });
   });
 
+  it("checks the Google Workspace export feature flag before DB lookups", async () => {
+    vi.stubEnv("FEATURE_GOOGLE_WORKSPACE_EXPORT", "false");
+    const repo = createMemoryRepo();
+    const findProjectScope = vi.spyOn(repo, "findProjectScope");
+    const app = new Hono<AppEnv>().route(
+      "/api",
+      createDocumentGenerationRoutes({
+        googleWorkspaceExport: { repo },
+        auth: async (c, next) => {
+          c.set("userId", userId);
+          c.set("user", { id: userId, email: "user@example.com", name: "User" });
+          await next();
+        },
+      }),
+    );
+
+    const response = await app.request(`/api/projects/${projectId}/project-object-actions/export`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(validExportAction()),
+    });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "google_workspace_export_not_configured",
+    });
+    expect(findProjectScope).not.toHaveBeenCalled();
+  });
+
   it("rejects incompatible Google native export before starting Temporal", async () => {
     const startGoogleWorkspaceExport = vi.fn();
     const app = createExportTestApp(createMemoryRepo(), startGoogleWorkspaceExport, {

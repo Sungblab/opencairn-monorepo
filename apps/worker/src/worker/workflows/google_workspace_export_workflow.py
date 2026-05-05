@@ -29,7 +29,7 @@ class GoogleWorkspaceExportWorkflow:
     ) -> GoogleWorkspaceExportTerminalResult:
         normalized = normalize_google_workspace_export_params(params)
         workflow_id = workflow.info().workflow_id
-        retry = RetryPolicy(maximum_attempts=2)
+        retry = RetryPolicy(maximum_attempts=3)
         try:
             exported: GoogleWorkspaceExportUploadResult = await workflow.execute_activity(
                 "export_project_object_to_google_workspace",

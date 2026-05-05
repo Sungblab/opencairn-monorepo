@@ -73,6 +73,9 @@ export async function requestGoogleWorkspaceExportProjectObject(
 ): Promise<RequestGoogleWorkspaceExportResult> {
   const provider = asGoogleExportProvider(request.provider);
   if (!provider) throw new AgentActionError("unsupported_export_provider", 409);
+  if (!options?.startGoogleWorkspaceExport && !googleWorkspaceExportFeatureEnabled()) {
+    throw new AgentActionError("google_workspace_export_not_configured", 409);
+  }
 
   const repo = options?.repo ?? createDrizzleAgentActionRepository();
   const scope = await repo.findProjectScope(projectId);
@@ -97,9 +100,6 @@ export async function requestGoogleWorkspaceExportProjectObject(
   );
   if (!grant) throw new AgentActionError("google_workspace_grant_required", 409);
   assertDriveFileScope(grant.scopes);
-  if (!options?.startGoogleWorkspaceExport && !googleWorkspaceExportFeatureEnabled()) {
-    throw new AgentActionError("google_workspace_export_not_configured", 409);
-  }
 
   const requestId = request.requestId ?? randomUUID();
   const event = exportRequestedEvent(requestId, request.objectId, provider, request.format);
