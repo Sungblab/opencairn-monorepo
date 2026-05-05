@@ -4,11 +4,13 @@ import { zValidator } from "@hono/zod-validator";
 import {
   createAgentActionRequestSchema,
   listAgentActionsQuerySchema,
+  noteUpdateApplyRequestSchema,
   transitionAgentActionStatusRequestSchema,
 } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
 import {
   AgentActionError,
+  applyNoteUpdateAction,
   createAgentAction,
   getAgentAction,
   listAgentActions,
@@ -29,6 +31,9 @@ export function createAgentActionRoutes(options?: AgentActionRouteOptions) {
   const serviceOptions: AgentActionServiceOptions = {
     ...(options?.repo ? { repo: options.repo } : {}),
     ...(options?.canWriteProject ? { canWriteProject: options.canWriteProject } : {}),
+    ...(options?.noteExecutor ? { noteExecutor: options.noteExecutor } : {}),
+    ...(options?.noteUpdatePreviewer ? { noteUpdatePreviewer: options.noteUpdatePreviewer } : {}),
+    ...(options?.noteUpdateApplier ? { noteUpdateApplier: options.noteUpdateApplier } : {}),
   };
 
   return new Hono<AppEnv>()
@@ -95,6 +100,25 @@ export function createAgentActionRoutes(options?: AgentActionRouteOptions) {
       async (c) => {
         try {
           const action = await transitionAgentActionStatus(
+            c.req.valid("param").id,
+            c.get("userId"),
+            c.req.valid("json"),
+            serviceOptions,
+          );
+          return c.json({ action });
+        } catch (err) {
+          return agentActionError(c, err);
+        }
+      },
+    )
+    .post(
+      "/agent-actions/:id/apply",
+      auth,
+      zValidator("param", idParamSchema),
+      zValidator("json", noteUpdateApplyRequestSchema),
+      async (c) => {
+        try {
+          const action = await applyNoteUpdateAction(
             c.req.valid("param").id,
             c.get("userId"),
             c.req.valid("json"),

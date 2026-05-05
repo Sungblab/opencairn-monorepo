@@ -36,6 +36,20 @@
       "other": "기타"
     }
   },
+  "noteUpdateReview": {
+    "title": "노트 수정 제안",
+    "diffSummary": "변경 블록 {changedBlocks}개 · 추가 {addedWords}단어 · 삭제 {removedWords}단어",
+    "currentLabel": "현재",
+    "draftLabel": "제안",
+    "staleWarning": "적용 전 노트가 바뀌면 충돌로 처리되고 다시 미리보기를 만들어야 합니다.",
+    "apply": "적용",
+    "reject": "거절",
+    "applied": "노트 수정 제안을 적용했어요.",
+    "cancelled": "노트 수정 제안을 취소했어요.",
+    "staleError": "노트가 미리보기 이후 변경되어 적용하지 않았어요. 새 미리보기를 만들어 주세요.",
+    "applyFailed": "노트 수정 제안을 적용하지 못했어요.",
+    "cancelFailed": "노트 수정 제안을 취소하지 못했어요."
+  },
   "composer": {
     "placeholder": "메시지를 입력하세요...",
     "input_aria": "메시지 입력",

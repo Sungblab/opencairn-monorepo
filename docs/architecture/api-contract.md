@@ -189,24 +189,57 @@ Agent-generated files are first-class project objects stored in MinIO/R2 and sur
 
 ### Agent Actions
 
-Unified Agent Action Ledger Phase 1 records write-capable agent intent as typed,
+Unified Agent Action Ledger records write-capable agent intent as typed,
 auditable project-scoped actions. The server derives `workspaceId` from the
 route `projectId` and the authenticated `actorUserId` from the session; request
-payloads that include trusted scope fields are rejected. Phase 1 ships only the
-low-risk `workflow.placeholder` action execution path. Note CRUD, document
-export, code execution, hosted preview, and Google export remain follow-up
-phases.
+payloads that include trusted scope fields are rejected. `workflow.placeholder`
+completes immediately. Phase 2A note metadata actions execute through API
+permission checks. Phase 2B starts `note.update` with a two-step preview/apply
+contract: the API first reads the current Yjs-backed note content, compares it
+to the submitted draft, and stores a structured diff preview without applying
+the edit. A later apply call transforms the canonical Yjs document only if the
+preview state vector still matches the live document.
 
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
-| POST | /api/projects/:projectId/agent-actions | project `editor` | Create an action ledger row. `requestId` is idempotent per `(projectId, actorUserId)`. `workflow.placeholder` completes immediately with a placeholder result. Phase 2A note actions (`note.create`, `note.rename`, `note.move`, `note.delete`, `note.restore`) execute immediately through API permission checks and write terminal `status`, `result`, and `errorCode` back to the ledger. Other action kinds are stored as substrate rows for later phases. | `{ requestId?, sourceRunId?, kind, risk, input?, preview? }` |
+| POST | /api/projects/:projectId/agent-actions | project `editor` | Create an action ledger row. `requestId` is idempotent per `(projectId, actorUserId)`. `workflow.placeholder` completes immediately with a placeholder result. Phase 2A note actions (`note.create`, `note.rename`, `note.move`, `note.delete`, `note.restore`) execute immediately through API permission checks and write terminal `status`, `result`, and `errorCode` back to the ledger. Phase 2B `note.update` validates a draft Plate value, reads `yjs_documents`, generates `preview.diff`, and stores `status:"draft"` with no `result`. Other action kinds are stored as substrate rows for later phases. | `{ requestId?, sourceRunId?, kind, risk, input?, preview? }` |
 | GET | /api/projects/:projectId/agent-actions | project `editor` | List newest actions in a project. Optional filters: `?status=&kind=&limit=`. | - |
 | GET | /api/agent-actions/:id | project `editor` | Read one action after checking the action's project scope. | - |
 | PATCH | /api/agent-actions/:id/status | project `editor` | Transition action status using the shared status state machine; invalid transitions return `409 invalid_status_transition`. | `{ status, preview?, result?, errorCode? }` |
+| POST | /api/agent-actions/:id/apply | project `editor` | Apply a draft `note.update` action. The server validates the stored action kind/status, rejects stale previews with `409 note_update_stale_preview`, captures a note version before applying, transforms the live Yjs `"content"` root from the draft Plate value, updates mirror fields and `wiki_links` derived from Yjs, captures an `ai_edit` version after applying, and completes or fails the ledger row. | `{ yjsStateVectorBase64 }` |
 
 Action fields: `id`, `requestId`, `workspaceId`, `projectId`, `actorUserId`,
 `sourceRunId`, `kind`, `status`, `risk`, `input`, `preview`, `result`,
 `errorCode`, `createdAt`, `updatedAt`.
+
+`note.update` input:
+
+```json
+{
+  "noteId": "uuid",
+  "draft": {
+    "format": "plate_value_v1",
+    "content": [{ "type": "p", "children": [{ "text": "draft text" }] }]
+  },
+  "reason": "optional short rationale"
+}
+```
+
+`note.update` preview includes `source:"yjs"`, the current Yjs state vector in
+base64, current/draft plain-text summaries, a `NoteVersionDiff`-shaped block
+diff, and apply constraints. Apply results include the new Yjs state vector,
+applied plain text, before/after note-version capture summaries, and the preview
+diff summary. `notes.content` and `notes.content_text` remain mirrors derived
+from the transformed Yjs document; they are not the canonical write target.
+`wiki_links` is rebuilt from that same transformed Plate value in the apply
+transaction so API-applied agent edits and Hocuspocus persistence keep the same
+derived backlink index semantics.
+
+The web Agent Panel reads draft `note.update` actions through
+`GET /api/projects/:projectId/agent-actions?kind=note.update&status=draft`,
+renders the preview summaries and stale-preview guidance, applies through the
+same `/apply` endpoint, and rejects by `PATCH /api/agent-actions/:id/status`
+with `{ "status": "cancelled" }`.
 
 ### Ingest
 

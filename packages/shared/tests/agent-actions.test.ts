@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   createAgentActionRequestSchema,
+  noteUpdateApplyRequestSchema,
+  noteUpdateApplyResultSchema,
+  noteUpdatePreviewSchema,
   transitionAgentActionStatusRequestSchema,
 } from "../src/agent-actions";
 
@@ -121,18 +124,133 @@ describe("agent action schemas", () => {
     ).toEqual({ noteId: "00000000-0000-4000-8000-000000000021" });
   });
 
-  it("rejects note.update and non-note input shapes in Phase 2A", () => {
-    expect(
-      createAgentActionRequestSchema.safeParse({
-        kind: "note.update",
-        risk: "write",
-        input: {
-          noteId: "00000000-0000-4000-8000-000000000021",
-          content: [{ type: "p", children: [{ text: "not yet" }] }],
+  it("accepts the Phase 2B note.update draft input and preview contract", () => {
+    const input = createAgentActionRequestSchema.parse({
+      kind: "note.update",
+      risk: "write",
+      input: {
+        noteId: "00000000-0000-4000-8000-000000000021",
+        draft: {
+          format: "plate_value_v1",
+          content: [{ type: "p", children: [{ text: "updated draft" }] }],
         },
-      }).success,
-    ).toBe(false);
+        reason: "tighten intro",
+      },
+    }).input;
 
+    expect(input).toEqual({
+      noteId: "00000000-0000-4000-8000-000000000021",
+      draft: {
+        format: "plate_value_v1",
+        content: [{ type: "p", children: [{ text: "updated draft" }] }],
+      },
+      reason: "tighten intro",
+    });
+
+    expect(
+      noteUpdatePreviewSchema.parse({
+        noteId: "00000000-0000-4000-8000-000000000021",
+        source: "yjs",
+        current: {
+          contentText: "old draft",
+          yjsStateVectorBase64: "AQID",
+        },
+        draft: {
+          contentText: "updated draft",
+        },
+        diff: {
+          fromVersion: "current",
+          toVersion: "current",
+          summary: {
+            addedBlocks: 0,
+            removedBlocks: 0,
+            changedBlocks: 1,
+            addedWords: 1,
+            removedWords: 1,
+          },
+          blocks: [
+            {
+              key: "0",
+              status: "changed",
+              textDiff: [
+                { kind: "delete", text: "old" },
+                { kind: "insert", text: "updated" },
+                { kind: "equal", text: " draft" },
+              ],
+            },
+          ],
+        },
+        applyConstraints: [
+          "apply_must_transform_yjs_document",
+          "capture_version_before_apply",
+        ],
+      }),
+    ).toMatchObject({
+      noteId: "00000000-0000-4000-8000-000000000021",
+      source: "yjs",
+      current: { contentText: "old draft" },
+      draft: { contentText: "updated draft" },
+    });
+  });
+
+  it("caps note.update draft blocks to protect API and database work", () => {
+    const parsed = createAgentActionRequestSchema.safeParse({
+      kind: "note.update",
+      risk: "write",
+      input: {
+        noteId: "00000000-0000-4000-8000-000000000021",
+        draft: {
+          format: "plate_value_v1",
+          content: Array.from({ length: 1001 }, () => ({
+            type: "p",
+            children: [{ text: "block" }],
+          })),
+        },
+      },
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("accepts the Phase 2B note.update apply request and result contracts", () => {
+    expect(
+      noteUpdateApplyRequestSchema.parse({
+        yjsStateVectorBase64: "AQID",
+      }),
+    ).toEqual({
+      yjsStateVectorBase64: "AQID",
+    });
+
+    expect(
+      noteUpdateApplyResultSchema.parse({
+        ok: true,
+        noteId: "00000000-0000-4000-8000-000000000021",
+        applied: {
+          source: "yjs",
+          yjsStateVectorBase64: "BAUG",
+          contentText: "updated draft",
+        },
+        versionCapture: {
+          before: { created: true, version: 4 },
+          after: { created: true, version: 5 },
+        },
+        summary: {
+          changedBlocks: 1,
+          addedWords: 2,
+          removedWords: 1,
+        },
+      }),
+    ).toMatchObject({
+      ok: true,
+      noteId: "00000000-0000-4000-8000-000000000021",
+      applied: {
+        source: "yjs",
+        contentText: "updated draft",
+      },
+    });
+  });
+
+  it("rejects non-note input shapes", () => {
     expect(
       createAgentActionRequestSchema.safeParse({
         kind: "note.rename",

@@ -36,6 +36,20 @@
       "other": "Other"
     }
   },
+  "noteUpdateReview": {
+    "title": "Note edit proposal",
+    "diffSummary": "{changedBlocks} changed blocks · {addedWords} added words · {removedWords} removed words",
+    "currentLabel": "Current",
+    "draftLabel": "Proposed",
+    "staleWarning": "If the note changes before apply, OpenCairn treats the preview as stale and asks for a fresh preview.",
+    "apply": "Apply",
+    "reject": "Reject",
+    "applied": "Applied the note edit proposal.",
+    "cancelled": "Cancelled the note edit proposal.",
+    "staleError": "The note changed after this preview, so the edit was not applied. Create a fresh preview.",
+    "applyFailed": "Could not apply the note edit proposal.",
+    "cancelFailed": "Could not cancel the note edit proposal."
+  },
   "composer": {
     "placeholder": "Type a message...",
     "input_aria": "Message input",
