@@ -462,6 +462,9 @@ event sink exists.
    project. Follow-up projection work now surfaces completed static
    `code_project.preview` actions as preview outputs, so hosted-preview links
    can appear in the same run strip instead of only in preview-specific cards.
+   Completed provider `file.export` actions with external Google URLs are also
+   projected as provider URL outputs instead of being collapsed into the source
+   OpenCairn file.
 4. **Project-level run drawer.** Add a project-scoped run drawer/list that can
    open from Agent Panel cards, Plan8 rows, document-generation cards,
    import/export pages, and future code project tabs.
