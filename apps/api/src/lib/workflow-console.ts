@@ -6,16 +6,24 @@ import {
   db as defaultDb,
   desc,
   eq,
+  inArray,
+  importJobs,
   projects,
+  synthesisDocuments,
+  synthesisRuns,
   type DB,
 } from "@opencairn/db";
 import {
   workflowConsoleRunFromAgentAction,
   workflowConsoleRunFromChatRun,
+  workflowConsoleRunFromImportJob,
   workflowConsoleRunFromPlan8AgentRun,
+  workflowConsoleRunFromSynthesisExportRun,
   type AgentAction,
   type ChatRunProjectionSource,
+  type ImportJobProjectionSource,
   type Plan8AgentRunProjectionSource,
+  type SynthesisExportRunProjectionSource,
   type WorkflowConsoleRun,
 } from "@opencairn/shared";
 
@@ -36,6 +44,16 @@ export interface WorkflowConsoleRepository {
     userId: string;
     limit: number;
   }): Promise<Plan8AgentRunProjectionSource[]>;
+  listImportJobsByProject(options: {
+    projectId: string;
+    userId: string;
+    limit: number;
+  }): Promise<ImportJobProjectionSource[]>;
+  listSynthesisExportRunsByProject(options: {
+    projectId: string;
+    userId: string;
+    limit: number;
+  }): Promise<SynthesisExportRunProjectionSource[]>;
   getChatRunById(options: {
     runId: string;
     projectId: string;
@@ -51,6 +69,16 @@ export interface WorkflowConsoleRepository {
     projectId: string;
     userId: string;
   }): Promise<Plan8AgentRunProjectionSource | null>;
+  getImportJobById(options: {
+    jobId: string;
+    projectId: string;
+    userId: string;
+  }): Promise<ImportJobProjectionSource | null>;
+  getSynthesisExportRunById(options: {
+    runId: string;
+    projectId: string;
+    userId: string;
+  }): Promise<SynthesisExportRunProjectionSource | null>;
 }
 
 export interface WorkflowConsoleServiceOptions {
@@ -155,6 +183,53 @@ export function createDrizzleWorkflowConsoleRepository(
         errorMessage: row.errorMessage,
       }));
     },
+    async listImportJobsByProject({ projectId, userId, limit }) {
+      const rows = await conn
+        .select()
+        .from(importJobs)
+        .where(and(eq(importJobs.targetProjectId, projectId), eq(importJobs.userId, userId)))
+        .orderBy(desc(importJobs.createdAt))
+        .limit(limit);
+      return rows.map((row) => ({
+        id: row.id,
+        workspaceId: row.workspaceId,
+        projectId,
+        userId: row.userId,
+        source: row.source,
+        workflowId: row.workflowId,
+        status: row.status,
+        totalItems: row.totalItems,
+        completedItems: row.completedItems,
+        failedItems: row.failedItems,
+        sourceMetadata: row.sourceMetadata as Record<string, unknown>,
+        errorSummary: row.errorSummary,
+        createdAt: row.createdAt,
+        updatedAt: row.finishedAt ?? row.createdAt,
+        completedAt: row.finishedAt,
+      }));
+    },
+    async listSynthesisExportRunsByProject({ projectId, userId, limit }) {
+      const rows = await conn
+        .select()
+        .from(synthesisRuns)
+        .where(and(eq(synthesisRuns.projectId, projectId), eq(synthesisRuns.userId, userId)))
+        .orderBy(desc(synthesisRuns.createdAt))
+        .limit(limit);
+      return hydrateSynthesisRuns(conn, rows.map((row) => ({
+        runId: row.id,
+        workspaceId: row.workspaceId,
+        projectId,
+        userId: row.userId,
+        workflowId: row.workflowId,
+        status: row.status,
+        format: row.format,
+        template: row.template,
+        userPrompt: row.userPrompt,
+        tokensUsed: row.tokensUsed,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      })));
+    },
     async getChatRunById({ runId, projectId, userId }) {
       const [row] = await conn
         .select()
@@ -187,6 +262,54 @@ export function createDrizzleWorkflowConsoleRepository(
       const rows = await this.listPlan8RunsByProject({ projectId, userId, limit: 200 });
       return rows.find((row) => row.runId === runId) ?? null;
     },
+    async getImportJobById({ jobId, projectId, userId }) {
+      const [row] = await conn
+        .select()
+        .from(importJobs)
+        .where(and(eq(importJobs.id, jobId), eq(importJobs.targetProjectId, projectId), eq(importJobs.userId, userId)))
+        .limit(1);
+      if (!row) return null;
+      return {
+        id: row.id,
+        workspaceId: row.workspaceId,
+        projectId,
+        userId: row.userId,
+        source: row.source,
+        workflowId: row.workflowId,
+        status: row.status,
+        totalItems: row.totalItems,
+        completedItems: row.completedItems,
+        failedItems: row.failedItems,
+        sourceMetadata: row.sourceMetadata as Record<string, unknown>,
+        errorSummary: row.errorSummary,
+        createdAt: row.createdAt,
+        updatedAt: row.finishedAt ?? row.createdAt,
+        completedAt: row.finishedAt,
+      };
+    },
+    async getSynthesisExportRunById({ runId, projectId, userId }) {
+      const [row] = await conn
+        .select()
+        .from(synthesisRuns)
+        .where(and(eq(synthesisRuns.id, runId), eq(synthesisRuns.projectId, projectId), eq(synthesisRuns.userId, userId)))
+        .limit(1);
+      if (!row) return null;
+      const [hydrated] = await hydrateSynthesisRuns(conn, [{
+        runId: row.id,
+        workspaceId: row.workspaceId,
+        projectId,
+        userId: row.userId,
+        workflowId: row.workflowId,
+        status: row.status,
+        format: row.format,
+        template: row.template,
+        userPrompt: row.userPrompt,
+        tokensUsed: row.tokensUsed,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      }]);
+      return hydrated ?? null;
+    },
   };
 }
 
@@ -198,12 +321,16 @@ export async function listWorkflowConsoleRuns(
   const repo = options?.repo ?? createDrizzleWorkflowConsoleRepository();
   await assertCanReadProject(projectId, userId, repo, options);
   const limit = options?.limit ?? 50;
-  const [chat, actions, plan8] = await Promise.all([
+  const [chat, actions, plan8, imports, exports] = await Promise.all([
     repo.listChatRunsByProject({ projectId, userId, limit }),
     repo.listAgentActionsByProject({ projectId, userId, limit }),
     repo.listPlan8RunsByProject({ projectId, userId, limit }),
+    repo.listImportJobsByProject({ projectId, userId, limit }),
+    repo.listSynthesisExportRunsByProject({ projectId, userId, limit }),
   ]);
   return [
+    ...exports.map(workflowConsoleRunFromSynthesisExportRun),
+    ...imports.map(workflowConsoleRunFromImportJob),
     ...actions.map(workflowConsoleRunFromAgentAction),
     ...chat.map(workflowConsoleRunFromChatRun),
     ...plan8.map(workflowConsoleRunFromPlan8AgentRun),
@@ -249,7 +376,48 @@ export async function getWorkflowConsoleRun(
     }
     return workflowConsoleRunFromPlan8AgentRun(row);
   }
+  if (parsed.type === "import") {
+    const row = await repo.getImportJobById({ jobId: parsed.id, projectId, userId });
+    if (!row || row.projectId !== projectId) {
+      throw new WorkflowConsoleError("run_not_found", 404);
+    }
+    return workflowConsoleRunFromImportJob(row);
+  }
+  if (parsed.type === "export") {
+    const row = await repo.getSynthesisExportRunById({ runId: parsed.id, projectId, userId });
+    if (!row || row.projectId !== projectId) {
+      throw new WorkflowConsoleError("run_not_found", 404);
+    }
+    return workflowConsoleRunFromSynthesisExportRun(row);
+  }
   throw new WorkflowConsoleError("run_not_found", 404);
+}
+
+async function hydrateSynthesisRuns(
+  conn: DB,
+  runs: Array<Omit<SynthesisExportRunProjectionSource, "documents">>,
+): Promise<SynthesisExportRunProjectionSource[]> {
+  if (runs.length === 0) return [];
+  const rows = await conn
+    .select()
+    .from(synthesisDocuments)
+    .where(inArray(synthesisDocuments.runId, runs.map((run) => run.runId)))
+    .orderBy(desc(synthesisDocuments.createdAt));
+  const docsByRunId = new Map<string, SynthesisExportRunProjectionSource["documents"]>();
+  for (const row of rows) {
+    const documents = docsByRunId.get(row.runId) ?? [];
+    documents.push({
+      id: row.id,
+      format: row.format,
+      bytes: row.bytes,
+      url: `/api/synthesis-export/runs/${row.runId}/document`,
+    });
+    docsByRunId.set(row.runId, documents);
+  }
+  return runs.map((run) => ({
+    ...run,
+    documents: docsByRunId.get(run.runId) ?? [],
+  }));
 }
 
 async function assertCanReadProject(

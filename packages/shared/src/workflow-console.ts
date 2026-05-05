@@ -195,6 +195,47 @@ export type Plan8AgentRunProjectionSource = {
   errorMessage?: string | null;
 };
 
+export type ImportJobProjectionSource = {
+  id: string;
+  workspaceId: string;
+  projectId: string;
+  userId: string;
+  source: string;
+  workflowId: string;
+  status: string;
+  totalItems: number;
+  completedItems: number;
+  failedItems: number;
+  sourceMetadata?: Record<string, unknown> | null;
+  errorSummary?: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  completedAt?: Date | string | null;
+};
+
+export type SynthesisExportDocumentProjectionSource = {
+  id: string;
+  format: string;
+  bytes?: number | null;
+  url?: string;
+};
+
+export type SynthesisExportRunProjectionSource = {
+  runId: string;
+  workspaceId: string;
+  projectId: string;
+  userId: string;
+  workflowId?: string | null;
+  status: string;
+  format: string;
+  template: string;
+  userPrompt: string;
+  tokensUsed?: number | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  documents?: SynthesisExportDocumentProjectionSource[];
+};
+
 export type ChatRunEventProjectionSource = {
   runId: string;
   seq: number;
@@ -324,6 +365,100 @@ export function workflowConsoleRunFromPlan8AgentRun(
     createdAt: toIso(run.startedAt),
     updatedAt: toIso(run.endedAt ?? run.startedAt),
     completedAt: toIsoOrNull(run.endedAt),
+  });
+}
+
+export function workflowConsoleRunFromImportJob(
+  job: ImportJobProjectionSource,
+): WorkflowConsoleRun {
+  const status = normalizeImportStatus(job.status);
+  const total = job.totalItems > 0 ? job.totalItems : undefined;
+  const current = job.completedItems + job.failedItems;
+  return workflowConsoleRunSchema.parse({
+    runId: prefixedRunId("import", job.id),
+    runType: "import",
+    sourceId: job.id,
+    sourceStatus: job.status,
+    workspaceId: job.workspaceId,
+    projectId: job.projectId,
+    actorUserId: job.userId,
+    title: `Import ${job.source}`,
+    status,
+    risk: job.source === "google_drive" ? "external" : "write",
+    progress: total
+      ? {
+          current,
+          total,
+          percent: Math.min(100, Math.round((current / total) * 100)),
+        }
+      : null,
+    outputs: [
+      {
+        outputType: "import",
+        id: job.id,
+        label: importLabel(job),
+        metadata: {
+          source: job.source,
+          workflowId: job.workflowId,
+          completedItems: job.completedItems,
+          failedItems: job.failedItems,
+        },
+      },
+    ],
+    approvals: [],
+    error: status === "failed"
+      ? {
+          code: "import_failed",
+          message: job.errorSummary ?? "Import failed",
+          retryable: true,
+        }
+      : null,
+    createdAt: toIso(job.createdAt),
+    updatedAt: toIso(job.updatedAt),
+    completedAt: toIsoOrNull(job.completedAt),
+  });
+}
+
+export function workflowConsoleRunFromSynthesisExportRun(
+  run: SynthesisExportRunProjectionSource,
+): WorkflowConsoleRun {
+  const status = normalizeSynthesisExportStatus(run.status);
+  return workflowConsoleRunSchema.parse({
+    runId: prefixedRunId("export", run.runId),
+    runType: "export",
+    sourceId: run.runId,
+    sourceStatus: run.status,
+    workspaceId: run.workspaceId,
+    projectId: run.projectId,
+    actorUserId: run.userId,
+    title: `Export ${run.format}`,
+    status,
+    risk: "expensive",
+    cost: {
+      outputTokens: run.tokensUsed ?? 0,
+    },
+    outputs: (run.documents ?? []).map((document) => ({
+      outputType: "export" as const,
+      id: document.id,
+      label: `${document.format} export`,
+      ...(document.url ? { url: document.url } : {}),
+      ...(document.bytes != null ? { bytes: document.bytes } : {}),
+      metadata: {
+        format: document.format,
+        template: run.template,
+        workflowId: run.workflowId ?? null,
+      },
+    })),
+    approvals: [],
+    error: status === "failed"
+      ? {
+          code: "synthesis_export_failed",
+          retryable: true,
+        }
+      : null,
+    createdAt: toIso(run.createdAt),
+    updatedAt: toIso(run.updatedAt),
+    completedAt: terminalStatus(status) ? toIso(run.updatedAt) : null,
   });
 }
 
@@ -504,8 +639,32 @@ function normalizePlan8Status(status: string): WorkflowConsoleStatus {
   return "running";
 }
 
+function normalizeImportStatus(status: string): WorkflowConsoleStatus {
+  if (status === "completed" || status === "complete") return "completed";
+  if (status === "failed") return "failed";
+  if (status === "cancelled") return "cancelled";
+  if (status === "running" || status === "processing") return "running";
+  return "queued";
+}
+
+function normalizeSynthesisExportStatus(status: string): WorkflowConsoleStatus {
+  if (status === "completed" || status === "complete") return "completed";
+  if (status === "failed") return "failed";
+  if (status === "cancelled") return "cancelled";
+  if (status === "pending" || status === "queued") return "queued";
+  return "running";
+}
+
 function terminalStatus(status: WorkflowConsoleStatus): boolean {
   return ["completed", "failed", "cancelled", "reverted"].includes(status);
+}
+
+function importLabel(job: ImportJobProjectionSource): string {
+  const metadata = job.sourceMetadata ?? {};
+  const filename = stringField(metadata, "filename")
+    ?? stringField(metadata, "fileName")
+    ?? stringField(metadata, "name");
+  return filename ?? job.source;
 }
 
 function outputsFromAgentAction(action: AgentAction): WorkflowConsoleOutput[] {

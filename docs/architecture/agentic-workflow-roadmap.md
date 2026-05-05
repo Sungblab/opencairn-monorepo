@@ -449,9 +449,11 @@ event sink exists.
    `packages/shared/src/workflow-console.ts` without moving existing UI
    components.
 2. **Read-only API projection.** Expose authenticated project-scoped list/detail
-   APIs for the shared projection. The first API slice is implemented at
+   APIs for the shared projection. The API projection is implemented at
    `/api/projects/:projectId/workflow-console/runs` for chat runs, agent
-   actions, and Plan8 run summaries without mutating source tables.
+   actions, Plan8 run summaries, target-project import jobs, and project
+   synthesis export runs for the requesting user without mutating source
+   tables.
 3. **Embedded console sections.** Replace ad hoc status card normalization in
    Agent Panel and Plan8 with shared render helpers while preserving current
    placement: chat remains in Agent Panel, Plan8 remains in the Agents view, and
@@ -664,6 +666,8 @@ Wrap existing import/export features as actions:
 - note/project/file export actions
 - no queued-orphan failures
 - chained follow-up actions from import results
+- read-only Workflow Console projection for import job progress/errors and
+  synthesis export document outputs
 
 This phase should reuse existing ingest/import workflows instead of adding a
 parallel import runner.

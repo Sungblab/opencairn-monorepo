@@ -26,6 +26,8 @@ describe("workflow console routes", () => {
     expect(response.status).toBe(200);
     const body = await response.json() as { runs: WorkflowConsoleRun[] };
     expect(body.runs.map((run) => [run.runType, run.status, run.sourceStatus])).toEqual([
+      ["export", "completed", "completed"],
+      ["import", "failed", "failed"],
       ["agent_action", "approval_required", "approval_required"],
       ["chat", "running", "running"],
       ["plan8_agent", "blocked", "awaiting_input"],
@@ -50,6 +52,33 @@ describe("workflow console routes", () => {
       runType: "chat",
       status: "running",
       threadId: "00000000-0000-4000-8000-000000000011",
+    });
+  });
+
+  it("returns import and export runs by prefixed run id", async () => {
+    const app = createTestApp({
+      repo: createMemoryRepo(),
+      canReadProject: async () => true,
+    });
+
+    const importResponse = await app.request(
+      `/api/projects/${projectId}/workflow-console/runs/import:00000000-0000-4000-8000-000000000050`,
+    );
+    const exportResponse = await app.request(
+      `/api/projects/${projectId}/workflow-console/runs/export:00000000-0000-4000-8000-000000000060`,
+    );
+
+    expect(importResponse.status).toBe(200);
+    expect((await importResponse.json() as { run: WorkflowConsoleRun }).run).toMatchObject({
+      runType: "import",
+      status: "failed",
+      outputs: [{ outputType: "import", label: "vault.zip" }],
+    });
+    expect(exportResponse.status).toBe(200);
+    expect((await exportResponse.json() as { run: WorkflowConsoleRun }).run).toMatchObject({
+      runType: "export",
+      status: "completed",
+      outputs: [{ outputType: "export", label: "pdf export" }],
     });
   });
 
@@ -160,6 +189,53 @@ function createMemoryRepo(): WorkflowConsoleRepository {
         },
       ];
     },
+    async listImportJobsByProject() {
+      return [
+        {
+          id: "00000000-0000-4000-8000-000000000050",
+          workspaceId,
+          projectId,
+          userId,
+          source: "markdown_zip",
+          workflowId: "import/00000000-0000-4000-8000-000000000050",
+          status: "failed",
+          totalItems: 10,
+          completedItems: 6,
+          failedItems: 2,
+          sourceMetadata: { filename: "vault.zip" },
+          errorSummary: "Import could not be started. Please try again.",
+          createdAt,
+          updatedAt,
+          completedAt: updatedAt,
+        },
+      ];
+    },
+    async listSynthesisExportRunsByProject() {
+      return [
+        {
+          runId: "00000000-0000-4000-8000-000000000060",
+          workspaceId,
+          projectId,
+          userId,
+          workflowId: "synthesis-export/00000000-0000-4000-8000-000000000060",
+          status: "completed",
+          format: "pdf",
+          template: "report",
+          userPrompt: "Generate an implementation report",
+          tokensUsed: 1200,
+          createdAt,
+          updatedAt,
+          documents: [
+            {
+              id: "00000000-0000-4000-8000-000000000061",
+              format: "pdf",
+              bytes: 4096,
+              url: "/api/synthesis-export/runs/00000000-0000-4000-8000-000000000060/document",
+            },
+          ],
+        },
+      ];
+    },
     async getChatRunById({ runId, projectId: pid }) {
       if (runId === "00000000-0000-4000-8000-000000000090") {
         return {
@@ -187,6 +263,14 @@ function createMemoryRepo(): WorkflowConsoleRepository {
     },
     async getPlan8RunById({ runId, projectId: pid }) {
       return (await this.listPlan8RunsByProject({ projectId: pid, userId, limit: 10 }))
+        .find((run) => run.runId === runId) ?? null;
+    },
+    async getImportJobById({ jobId, projectId: pid }) {
+      return (await this.listImportJobsByProject({ projectId: pid, userId, limit: 10 }))
+        .find((job) => job.id === jobId) ?? null;
+    },
+    async getSynthesisExportRunById({ runId, projectId: pid }) {
+      return (await this.listSynthesisExportRunsByProject({ projectId: pid, userId, limit: 10 }))
         .find((run) => run.runId === runId) ?? null;
     },
   };
