@@ -131,7 +131,21 @@ const workflowRuns = [
     title: "code_project.install",
     status: "approval_required" as const,
     risk: "external" as const,
-    outputs: [],
+    outputs: [
+      {
+        outputType: "log" as const,
+        id: "install-log",
+        label: "Dependency install",
+        metadata: {
+          packageManager: "pnpm",
+          installed: [
+            { name: "zod", version: "3.25.0" },
+            { name: "@vitejs/plugin-react" },
+          ],
+          exitCode: 0,
+        },
+      },
+    ],
     approvals: [],
     error: null,
     createdAt: "2026-05-04T00:20:00.000Z",
@@ -299,6 +313,17 @@ describe("AgentEntryPointsView", () => {
     });
     expect(await screen.findByText("code_project.install")).toBeInTheDocument();
     expect(screen.queryByText("Import google_drive")).not.toBeInTheDocument();
+  });
+
+  it("shows Workflow Console output metadata for log outputs", async () => {
+    setup();
+
+    await screen.findByRole("heading", { name: "Workflow Console" });
+
+    expect(screen.getByText("Dependency install")).toBeInTheDocument();
+    expect(screen.getByText("pnpm")).toBeInTheDocument();
+    expect(screen.getByText("zod@3.25.0, @vitejs/plugin-react")).toBeInTheDocument();
+    expect(screen.getByText("0")).toBeInTheDocument();
   });
 
   it("launches synthesis with the default selected notes", async () => {

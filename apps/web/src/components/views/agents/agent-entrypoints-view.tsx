@@ -540,7 +540,7 @@ function WorkflowConsoleProjectList({
                   {formatDate(run.updatedAt)}
                 </td>
                 <td className="py-2 text-xs text-muted-foreground">
-                  {run.error?.message ?? run.outputs[0]?.label ?? run.runId}
+                  <WorkflowConsoleRunDetail run={run} />
                 </td>
               </tr>
             ))}
@@ -549,6 +549,76 @@ function WorkflowConsoleProjectList({
       )}
     </section>
   );
+}
+
+function WorkflowConsoleRunDetail({ run }: { run: WorkflowConsoleRun }) {
+  if (run.error?.message) {
+    return <span className="text-destructive">{run.error.message}</span>;
+  }
+  if (run.outputs.length === 0) {
+    return <span className="break-all font-mono text-[11px]">{run.runId}</span>;
+  }
+  return (
+    <div className="grid gap-1">
+      {run.outputs.map((output) => (
+        <div key={output.id} className="min-w-0">
+          {output.url ? (
+            <a href={output.url} className="truncate text-foreground hover:text-primary">
+              {output.label}
+            </a>
+          ) : (
+            <div className="truncate text-foreground">{output.label}</div>
+          )}
+          {output.outputType === "log" ? (
+            <WorkflowConsoleLogOutputDetail output={output} />
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function WorkflowConsoleLogOutputDetail({
+  output,
+}: {
+  output: WorkflowConsoleRun["outputs"][number];
+}) {
+  const metadata = output.metadata ?? {};
+  const packageManager =
+    typeof metadata.packageManager === "string" ? metadata.packageManager : null;
+  const packages = installedPackageSummary(metadata.installed);
+  const exitCode =
+    typeof metadata.exitCode === "number" ? String(metadata.exitCode) : null;
+  const rows = [
+    packageManager,
+    packages,
+    exitCode,
+  ].filter((value): value is string => Boolean(value));
+  if (rows.length === 0) return null;
+  return (
+    <div className="mt-0.5 flex max-w-md flex-wrap gap-x-2 gap-y-0.5 text-[11px]">
+      {rows.map((value) => (
+        <span key={value} className="truncate">
+          {value}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function installedPackageSummary(value: unknown): string | null {
+  if (!Array.isArray(value)) return null;
+  const names = value
+    .map((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+      const record = item as Record<string, unknown>;
+      const name = typeof record.name === "string" ? record.name : null;
+      if (!name) return null;
+      const version = typeof record.version === "string" ? record.version : null;
+      return version ? `${name}@${version}` : name;
+    })
+    .filter((name): name is string => Boolean(name));
+  return names.length > 0 ? names.join(", ") : null;
 }
 
 function LaunchPanel({
