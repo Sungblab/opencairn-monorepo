@@ -459,7 +459,9 @@ event sink exists.
    placement: chat remains in Agent Panel, Plan8 remains in the Agents view, and
    generated files remain project objects. The first embedded Agent Panel slice
    now shows a compact project-scoped Workflow Console run strip for the active
-   project.
+   project. Follow-up projection work now surfaces completed static
+   `code_project.preview` actions as preview outputs, so hosted-preview links
+   can appear in the same run strip instead of only in preview-specific cards.
 4. **Project-level run drawer.** Add a project-scoped run drawer/list that can
    open from Agent Panel cards, Plan8 rows, document-generation cards,
    import/export pages, and future code project tabs.
