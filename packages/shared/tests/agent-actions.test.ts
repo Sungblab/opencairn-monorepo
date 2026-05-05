@@ -70,6 +70,37 @@ describe("agent action schemas", () => {
     });
   });
 
+  it("requires external approval risk for dependency install actions", () => {
+    expect(
+      createAgentActionRequestSchema.parse({
+        kind: "code_project.install",
+        risk: "external",
+        input: {
+          codeWorkspaceId: "00000000-0000-4000-8000-000000000203",
+          snapshotId: "00000000-0000-4000-8000-000000000101",
+          packages: [{ name: "zod" }],
+          network: "required",
+        },
+      }).risk,
+    ).toBe("external");
+
+    const parsed = createAgentActionRequestSchema.safeParse({
+      kind: "code_project.install",
+      risk: "write",
+      input: {
+        codeWorkspaceId: "00000000-0000-4000-8000-000000000203",
+        snapshotId: "00000000-0000-4000-8000-000000000101",
+        packages: [{ name: "zod" }],
+        network: "required",
+      },
+    });
+
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues.map((issue) => issue.message)).toContain(
+      "dependency_installs_must_require_external_approval",
+    );
+  });
+
   it("accepts the Phase 2A note action input contracts", () => {
     expect(
       createAgentActionRequestSchema.parse({

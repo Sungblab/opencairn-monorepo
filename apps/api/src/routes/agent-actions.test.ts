@@ -441,6 +441,45 @@ describe("agent action routes", () => {
     expect(codeCommandRunner.calls).toEqual([]);
   });
 
+  it("creates an approval-required code_project.install action without executing it", async () => {
+    const app = appWith({
+      repo: createMemoryRepo(),
+    });
+
+    const response = await app.request(`/api/projects/${projectId}/agent-actions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        requestId: "00000000-0000-4000-8000-000000000075",
+        kind: "code_project.install",
+        risk: "external",
+        input: {
+          codeWorkspaceId: "00000000-0000-4000-8000-000000000020",
+          snapshotId: "00000000-0000-4000-8000-000000000021",
+          packageManager: "pnpm",
+          packages: [{ name: "@vitejs/plugin-react", dev: true }],
+          network: "required",
+          reason: "Build needs the React plugin",
+        },
+      }),
+    });
+
+    expect(response.status).toBe(201);
+    const body = await response.json() as { action: AgentAction };
+    expect(body.action).toMatchObject({
+      kind: "code_project.install",
+      risk: "external",
+      status: "approval_required",
+      preview: {
+        kind: "code_project.install",
+        approval: "dependency_install",
+        packageManager: "pnpm",
+        network: "required",
+        summary: "Install @vitejs/plugin-react with pnpm",
+      },
+    });
+  });
+
   it("cancels a running code_project.run action", async () => {
     const running = makeAction({
       id: "00000000-0000-4000-8000-000000000080",

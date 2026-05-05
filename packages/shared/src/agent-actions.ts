@@ -3,6 +3,7 @@ import { NoteVersionDiffSchema } from "./note-versions";
 import {
   codeWorkspaceCommandRunRequestSchema,
   codeWorkspaceCreateRequestSchema,
+  codeWorkspaceInstallRequestSchema,
   codeWorkspacePatchPreviewSchema,
   codeWorkspacePatchSchema,
 } from "./code-project-workspaces";
@@ -218,6 +219,13 @@ export const createAgentActionRequestSchema = z
         message: "placeholder_actions_must_be_low_risk",
       });
     }
+    if (value.kind === "code_project.install" && value.risk !== "external") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["risk"],
+        message: "dependency_installs_must_require_external_approval",
+      });
+    }
     validatePhase2ANoteActionInput(value, ctx);
     validateCodeProjectActionInput(value, ctx);
   });
@@ -354,6 +362,8 @@ function validateCodeProjectActionInput(
         ? codeWorkspacePatchSchema
         : value.kind === "code_project.run"
           ? codeWorkspaceCommandRunRequestSchema
+          : value.kind === "code_project.install"
+            ? codeWorkspaceInstallRequestSchema
           : null;
   if (!schema) return;
   const parsed = schema.safeParse(input);

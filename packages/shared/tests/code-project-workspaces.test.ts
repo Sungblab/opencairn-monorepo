@@ -3,6 +3,7 @@ import {
   codeWorkspaceCreateRequestSchema,
   codeWorkspaceCommandRunRequestSchema,
   codeWorkspaceCommandRunResultSchema,
+  codeWorkspaceInstallRequestSchema,
   codeWorkspaceManifestSchema,
   codeWorkspacePatchSchema,
   codeWorkspacePackageResultSchema,
@@ -168,6 +169,15 @@ describe("code project workspace contracts", () => {
       }),
     ).toThrow(/scope_fields_are_server_injected/);
 
+    expect(() =>
+      codeWorkspaceCommandRunRequestSchema.parse({
+        codeWorkspaceId: "00000000-0000-4000-8000-000000000203",
+        snapshotId: baseSnapshotId,
+        command: "build",
+        network: "enabled",
+      }),
+    ).toThrow(/unrecognized_key/);
+
     const result = codeWorkspaceCommandRunResultSchema.parse({
       ok: false,
       codeWorkspaceId: "00000000-0000-4000-8000-000000000203",
@@ -178,5 +188,40 @@ describe("code project workspace contracts", () => {
       archiveUrl: "/api/code-workspaces/00000000-0000-4000-8000-000000000203/snapshots/00000000-0000-4000-8000-000000000101/archive",
     });
     expect(result.archiveUrl).toContain("/archive");
+  });
+
+  it("requires explicit network approval details for dependency installs", () => {
+    const parsed = codeWorkspaceInstallRequestSchema.parse({
+      codeWorkspaceId: "00000000-0000-4000-8000-000000000203",
+      snapshotId: baseSnapshotId,
+      packageManager: "pnpm",
+      packages: [{ name: "@vitejs/plugin-react", dev: true }],
+      network: "required",
+      reason: "Install Vite React plugin before build",
+    });
+
+    expect(parsed).toMatchObject({
+      packageManager: "pnpm",
+      network: "required",
+      packages: [{ name: "@vitejs/plugin-react", dev: true }],
+    });
+
+    expect(() =>
+      codeWorkspaceInstallRequestSchema.parse({
+        workspaceId: "00000000-0000-4000-8000-000000000999",
+        codeWorkspaceId: "00000000-0000-4000-8000-000000000203",
+        snapshotId: baseSnapshotId,
+        packages: [{ name: "lodash" }],
+        network: "required",
+      }),
+    ).toThrow(/scope_fields_are_server_injected/);
+
+    expect(() =>
+      codeWorkspaceInstallRequestSchema.parse({
+        codeWorkspaceId: "00000000-0000-4000-8000-000000000203",
+        snapshotId: baseSnapshotId,
+        packages: [{ name: "lodash" }],
+      }),
+    ).toThrow();
   });
 });
