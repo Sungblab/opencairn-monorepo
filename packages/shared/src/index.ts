@@ -19,3 +19,4 @@ export * from "./note-versions";
 export * from "./evidence";
 export * from "./agent-files";
 export * from "./project-object-actions";
+export * from "./agent-actions";

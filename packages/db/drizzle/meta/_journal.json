@@ -344,6 +344,13 @@
       "when": 1777891431778,
       "tag": "0048_happy_venus",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1777963913784,
+      "tag": "0049_loose_doorman",
+      "breakpoints": true
     }
   ]
 }

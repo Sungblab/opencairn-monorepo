@@ -19,6 +19,7 @@ import * as learning from "./schema/learning";
 import * as jobs from "./schema/jobs";
 import * as userPreferences from "./schema/user-preferences";
 import * as agentRuns from "./schema/agent-runs";
+import * as agentActions from "./schema/agent-actions";
 import * as projectSemaphores from "./schema/project-semaphores";
 import * as embeddingBatches from "./schema/embedding-batches";
 import * as comments from "./schema/comments";
@@ -53,6 +54,7 @@ const schema = {
   ...jobs,
   ...userPreferences,
   ...agentRuns,
+  ...agentActions,
   ...projectSemaphores,
   ...embeddingBatches,
   ...comments,

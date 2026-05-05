@@ -31,6 +31,7 @@ shape is:
 | Ingest, parsing, embeddings, and source notes | Implemented |
 | Knowledge graph and grounded retrieval surfaces | Implemented and actively improving |
 | Agent-generated project files and viewers | Implemented; full API smoke requires local database and object-storage infra |
+| Unified agent action ledger | Implemented for Phase 1 typed action substrate, idempotent request ledger, server-injected scope, status transitions, and low-risk placeholder execution |
 | Parser gateway benchmark path | Implemented as a non-default benchmark and evaluation layer |
 | Self-hosting profile | Implemented |
 | Hosted-service billing | Not enabled; commercial billing depends on operator setup |
@@ -57,9 +58,9 @@ shape is:
 The current next slices are intentionally split so contributors can work without
 creating duplicate surfaces:
 
-1. Unified Agent Action Ledger: introduce the shared action/job substrate for
-   note, file, document generation, import, export, code, approval, and status
-   workflows.
+1. Unified Agent Action Ledger follow-through: route future note, file,
+   document generation, import, export, code, approval, and status workflows
+   through the shared Phase 1 action substrate.
 2. Note Agent Actions Phase 1: let agents create, update, rename, move,
    soft-delete, and restore notes through permission-checked actions and note
    version history.
