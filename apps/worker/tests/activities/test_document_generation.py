@@ -260,6 +260,55 @@ async def test_hydrate_document_generation_sources_extracts_pdf_agent_file_text(
 
 
 @pytest.mark.asyncio
+async def test_hydrate_sources_marks_image_only_pdf_as_scanned_fallback() -> None:
+    request = _request("pdf")
+    request["generation"]["sources"] = [
+        {
+            "type": "agent_file",
+            "objectId": "00000000-0000-4000-8000-000000000031",
+        }
+    ]
+    pdf = pymupdf.open()
+    page = pdf.new_page(width=160, height=120)
+    pixmap = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 80, 40), 0)
+    pixmap.clear_with(220)
+    page.insert_image(pymupdf.Rect(20, 20, 140, 90), pixmap=pixmap)
+    with NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        tmp.write(pdf.tobytes())
+        tmp_path = Path(tmp.name)
+    pdf.close()
+
+    try:
+        async def fake_post(_path: str, body: dict) -> dict:
+            return {
+                "id": body["source"]["objectId"],
+                "title": "Scanned PDF",
+                "body": "scan.pdf (pdf, 4096 bytes)",
+                "kind": "agent_file",
+                "mimeType": "application/pdf",
+                "objectKey": "agent-files/scan.pdf",
+                "bytes": 4096,
+            }
+
+        with (
+            patch("worker.activities.document_generation.sources.post_internal", fake_post),
+            patch(
+                "worker.activities.document_generation.sources.download_to_tempfile",
+                return_value=tmp_path,
+            ),
+        ):
+            result = await hydrate_document_generation_sources(request)
+
+        assert result.items[0].body == "scan.pdf (pdf, 4096 bytes)"
+        assert result.items[0].quality_signals == [
+            "scanned_no_text",
+            "metadata_fallback",
+        ]
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+@pytest.mark.asyncio
 async def test_hydrate_document_generation_sources_keeps_metadata_fallback_for_unsupported_binary(
 ) -> None:
     request = _request("pdf")
