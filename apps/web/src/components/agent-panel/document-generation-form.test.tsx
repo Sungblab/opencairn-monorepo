@@ -100,8 +100,15 @@ describe("DocumentGenerationForm", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /toggle/ }));
     await waitFor(() => expect(screen.getByText("Planning note")).toBeInTheDocument());
+    expect(screen.getByText("agentPanel.documentGeneration.sourceRequired")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /submit/ })).toBeDisabled();
     fireEvent.click(screen.getByLabelText(/Planning note/));
     fireEvent.click(screen.getByLabelText(/Source PDF/));
+    expect(
+      screen.getByText(
+        'agentPanel.documentGeneration.selectedCount:{"count":2}',
+      ),
+    ).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(/prompt/), {
       target: { value: "Make a product brief" },
     });

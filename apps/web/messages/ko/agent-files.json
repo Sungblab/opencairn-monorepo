@@ -54,7 +54,7 @@
     "errorCode": "오류: {code}",
     "qualitySummary": "출처 처리: {signals}",
     "qualitySignal": {
-      "metadata_fallback": "메타데이터로 보완",
+      "metadata_fallback": "본문 대신 메타데이터 사용",
       "unsupported_source": "지원 제한",
       "source_corrupt": "파일 읽기 실패",
       "source_oversized": "용량 초과",

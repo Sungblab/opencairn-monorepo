@@ -95,9 +95,10 @@ export function DocumentGenerationForm({ projectId, onEvent }: Props) {
     () => sources.filter((source) => selectedIds.includes(source.id)),
     [selectedIds, sources],
   );
+  const canSubmit = Boolean(projectId && prompt.trim() && selectedSources.length > 0 && !busy);
   const selectedSummary =
     selectedSources.length > 0
-      ? selectedSources.map((source) => source.title).join(", ")
+      ? t("selectedCount", { count: selectedSources.length })
       : t("selectedNone");
 
   async function pollAction(actionId: string): Promise<void> {
@@ -241,6 +242,9 @@ export function DocumentGenerationForm({ projectId, onEvent }: Props) {
             placeholder={t("promptPlaceholder")}
             onChange={(event) => setPrompt(event.target.value)}
           />
+          {selectedSources.length === 0 ? (
+            <p className="text-xs text-muted-foreground">{t("sourceRequired")}</p>
+          ) : null}
           {error ? (
             <p role="alert" className="text-xs text-red-600">
               {error}
@@ -249,7 +253,7 @@ export function DocumentGenerationForm({ projectId, onEvent }: Props) {
           <button
             type="button"
             className="app-btn-primary inline-flex h-8 items-center justify-center gap-1 rounded-[var(--radius-control)] px-3 text-xs disabled:opacity-50"
-            disabled={!projectId || !prompt.trim() || busy}
+            disabled={!canSubmit}
             onClick={() => void submit()}
           >
             {busy ? (

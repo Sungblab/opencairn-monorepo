@@ -53,9 +53,11 @@
   "documentGeneration": {
     "toggle": "문서 생성",
     "selectedNone": "출처 선택 없음",
+    "selectedCount": "출처 {count}개 선택",
     "format": "형식",
     "filename": "파일명",
     "promptPlaceholder": "생성할 문서의 목적과 포함할 내용을 입력하세요.",
+    "sourceRequired": "문서를 만들 출처를 하나 이상 선택하세요.",
     "submit": "생성 시작",
     "loadFailed": "문서 출처를 불러오지 못했어요.",
     "submitFailed": "문서 생성을 시작하지 못했어요.",
@@ -68,7 +70,7 @@
       "synthesis_run": "합성 문서"
     },
     "qualitySignal": {
-      "metadata_fallback": "메타데이터로 보완",
+      "metadata_fallback": "본문 대신 메타데이터 사용",
       "unsupported_source": "지원 제한",
       "source_corrupt": "파일 읽기 실패",
       "source_oversized": "용량 초과",

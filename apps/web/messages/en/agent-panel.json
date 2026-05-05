@@ -53,9 +53,11 @@
   "documentGeneration": {
     "toggle": "Generate document",
     "selectedNone": "No sources selected",
+    "selectedCount": "{count} sources selected",
     "format": "Format",
     "filename": "Filename",
     "promptPlaceholder": "Describe the document goal and what it should include.",
+    "sourceRequired": "Select at least one source for the document.",
     "submit": "Start generation",
     "loadFailed": "Could not load document sources.",
     "submitFailed": "Could not start document generation.",
@@ -68,7 +70,7 @@
       "synthesis_run": "Synthesis"
     },
     "qualitySignal": {
-      "metadata_fallback": "Used metadata fallback",
+      "metadata_fallback": "Using metadata instead of body text",
       "unsupported_source": "Limited support",
       "source_corrupt": "Could not read file",
       "source_oversized": "Too large",
