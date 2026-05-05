@@ -299,6 +299,7 @@ export const codeWorkspaceCommandRunResultSchema = z
     durationMs: z.number().int().nonnegative().optional(),
     logs: z.array(codeWorkspaceCommandRunLogSchema).max(200),
     summary: z.string().trim().max(2000).optional(),
+    archiveUrl: z.string().trim().min(1).max(1024).optional(),
   })
   .strict();
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   codeWorkspaceCreateRequestSchema,
   codeWorkspaceCommandRunRequestSchema,
+  codeWorkspaceCommandRunResultSchema,
   codeWorkspaceManifestSchema,
   codeWorkspacePatchSchema,
   codeWorkspacePackageResultSchema,
@@ -166,5 +167,16 @@ describe("code project workspace contracts", () => {
         command: "lint",
       }),
     ).toThrow(/scope_fields_are_server_injected/);
+
+    const result = codeWorkspaceCommandRunResultSchema.parse({
+      ok: false,
+      codeWorkspaceId: "00000000-0000-4000-8000-000000000203",
+      snapshotId: baseSnapshotId,
+      command: "test",
+      exitCode: 1,
+      logs: [{ stream: "stderr", text: "tests failed" }],
+      archiveUrl: "/api/code-workspaces/00000000-0000-4000-8000-000000000203/snapshots/00000000-0000-4000-8000-000000000101/archive",
+    });
+    expect(result.archiveUrl).toContain("/archive");
   });
 });

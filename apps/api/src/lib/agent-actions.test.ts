@@ -527,6 +527,12 @@ function createMemoryRepo(): AgentActionRepository {
         .filter((row) => kind == null || row.kind === kind)
         .slice(0, limit);
     },
+    async listBySourceRunId({ projectId: pid, sourceRunId, kind }) {
+      return [...rows.values()]
+        .filter((row) => row.projectId === pid)
+        .filter((row) => row.sourceRunId === sourceRunId)
+        .filter((row) => kind == null || row.kind === kind);
+    },
     async insert(values) {
       const existing = await this.findByRequestId(
         values.projectId,
