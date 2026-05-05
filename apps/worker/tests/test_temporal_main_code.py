@@ -70,6 +70,26 @@ def test_code_workspace_commands_registered_when_flag_on(
     assert "run_code_workspace_command_activity" in activity_names
 
 
+def test_code_workspace_installs_omitted_when_flag_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("FEATURE_CODE_WORKSPACE_INSTALLS", raising=False)
+    cfg = build_worker_config()
+    assert "CodeWorkspaceInstallWorkflow" not in [w.__name__ for w in cfg.workflows]
+    activity_names = [a.__name__ for a in cfg.activities]
+    assert "run_code_workspace_install_activity" not in activity_names
+
+
+def test_code_workspace_installs_registered_when_flag_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FEATURE_CODE_WORKSPACE_INSTALLS", "true")
+    cfg = build_worker_config()
+    assert "CodeWorkspaceInstallWorkflow" in [w.__name__ for w in cfg.workflows]
+    activity_names = [a.__name__ for a in cfg.activities]
+    assert "run_code_workspace_install_activity" in activity_names
+
+
 def test_code_workspace_repair_omitted_when_flag_off(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

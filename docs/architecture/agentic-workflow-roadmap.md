@@ -796,6 +796,13 @@ calls an injected install runner, and stores a typed terminal install result on
 the ledger. The default runner remains unavailable until worker-backed package
 manager execution is wired behind an explicit feature flag.
 
+Phase 6J wires approved dependency installs to a feature-gated Temporal worker
+path. When `FEATURE_CODE_WORKSPACE_INSTALLS=true`, the API starts
+`CodeWorkspaceInstallWorkflow`, which materializes inline snapshot entries and
+delegates package-manager execution to `CODE_WORKSPACE_INSTALL_EXECUTOR`.
+The default executor remains unavailable, and the Docker executor is explicit
+because installs require networked sandbox execution.
+
 Phase 7A starts the hosted-preview substrate without allocating public preview
 URLs or starting app processes. `code_project.preview` accepts static preview
 intent against an immutable code workspace snapshot, defaults `entryPath` to
