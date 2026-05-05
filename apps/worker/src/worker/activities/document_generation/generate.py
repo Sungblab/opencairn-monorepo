@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import html
 import re
+import textwrap
 import zipfile
 from datetime import UTC, datetime
 from io import BytesIO
@@ -20,6 +21,16 @@ from worker.activities.document_generation.types import (
     GeneratedDocumentArtifact,
 )
 from worker.lib.s3_client import upload_bytes
+
+PDF_PAGE_WIDTH = 595
+PDF_PAGE_HEIGHT = 842
+PDF_MARGIN_LEFT = 54
+PDF_MARGIN_TOP = 56
+PDF_MARGIN_BOTTOM = 56
+PDF_FONT_SIZE = 11
+PDF_LINE_HEIGHT = 16
+PDF_WRAP_CHARS = 78
+PDF_CJK_FONT = "korea"
 
 
 def _value(data: dict[str, Any], snake: str, camel: str | None = None, default: Any = None) -> Any:
@@ -135,44 +146,47 @@ def _zip_bytes(files: dict[str, str | bytes]) -> bytes:
     return out.getvalue()
 
 
+def _pdf_lines(text: str) -> list[str]:
+    lines: list[str] = []
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    for paragraph in normalized.split("\n"):
+        if not paragraph:
+            lines.append("")
+            continue
+        lines.extend(
+            textwrap.wrap(
+                paragraph,
+                width=PDF_WRAP_CHARS,
+                break_long_words=True,
+                replace_whitespace=False,
+                drop_whitespace=False,
+            )
+        )
+    return lines or [""]
+
+
 def _render_pdf(text: str) -> bytes:
-    escaped = text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)").replace("\r", "")
-    lines = escaped.split("\n")[:40]
-    content_lines = ["BT", "/F1 12 Tf", "72 760 Td"]
-    for index, line in enumerate(lines):
-        if index > 0:
-            content_lines.append("0 -16 Td")
-        content_lines.append(f"({line[:90]}) Tj")
-    content_lines.append("ET")
-    stream = "\n".join(content_lines).encode("latin-1", errors="replace")
-    objects = [
-        b"1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n",
-        b"2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n",
-        b"3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
-        b"/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj\n",
-        b"4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n",
-        b"5 0 obj << /Length "
-        + str(len(stream)).encode("ascii")
-        + b" >> stream\n"
-        + stream
-        + b"\nendstream endobj\n",
-    ]
-    body = BytesIO()
-    body.write(b"%PDF-1.4\n")
-    offsets = [0]
-    for obj in objects:
-        offsets.append(body.tell())
-        body.write(obj)
-    xref_offset = body.tell()
-    body.write(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
-    body.write(b"0000000000 65535 f \n")
-    for offset in offsets[1:]:
-        body.write(f"{offset:010d} 00000 n \n".encode("ascii"))
-    body.write(
-        f"trailer << /Size {len(objects) + 1} /Root 1 0 R >>\n"
-        f"startxref\n{xref_offset}\n%%EOF\n".encode("ascii")
-    )
-    return body.getvalue()
+    import pymupdf
+
+    doc = pymupdf.open()
+    page = None
+    y = PDF_MARGIN_TOP + PDF_FONT_SIZE
+    page_bottom = PDF_PAGE_HEIGHT - PDF_MARGIN_BOTTOM
+
+    for line in _pdf_lines(text):
+        if page is None or y > page_bottom:
+            page = doc.new_page(width=PDF_PAGE_WIDTH, height=PDF_PAGE_HEIGHT)
+            y = PDF_MARGIN_TOP + PDF_FONT_SIZE
+        if line:
+            page.insert_text(
+                (PDF_MARGIN_LEFT, y),
+                line,
+                fontsize=PDF_FONT_SIZE,
+                fontname=PDF_CJK_FONT,
+            )
+        y += PDF_LINE_HEIGHT
+
+    return doc.tobytes(garbage=4, deflate=True)
 
 
 def _render_docx(text: str) -> bytes:

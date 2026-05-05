@@ -4,6 +4,7 @@ import zipfile
 from io import BytesIO
 from unittest.mock import patch
 
+import pymupdf
 import pytest
 
 from worker.activities.document_generation.generate import generate_document_artifact
@@ -58,7 +59,30 @@ async def test_generate_document_artifact_uploads_pdf_to_object_storage() -> Non
     assert result.mimeType == "application/pdf"
     assert result.bytes == len(uploaded["data"])
     assert uploaded["content_type"] == "application/pdf"
-    assert bytes(uploaded["data"]).startswith(b"%PDF-1.4")
+    assert bytes(uploaded["data"]).startswith(b"%PDF-")
+
+
+@pytest.mark.asyncio
+async def test_generate_document_artifact_preserves_korean_and_long_pdf_content() -> None:
+    uploaded: dict[str, object] = {}
+    request = _request("pdf")
+    request["generation"]["prompt"] = "\n".join(
+        f"한글 문단 {index}: 긴 문서 생성 결과를 절단하지 않고 PDF에 보존합니다."
+        for index in range(80)
+    )
+
+    def fake_upload(key: str, data: bytes, content_type: str) -> str:
+        uploaded.update({"key": key, "data": data, "content_type": content_type})
+        return key
+
+    with patch("worker.activities.document_generation.generate.upload_bytes", fake_upload):
+        await generate_document_artifact(request)
+
+    doc = pymupdf.open(stream=bytes(uploaded["data"]), filetype="pdf")
+    extracted = "\n".join(page.get_text() for page in doc)
+    assert len(doc) > 1
+    assert "한글 문단 0" in extracted
+    assert "한글 문단 79" in extracted
 
 
 @pytest.mark.asyncio

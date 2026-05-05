@@ -120,6 +120,83 @@ describe("document generation routes", () => {
     expect((await second.json() as { idempotent: boolean }).idempotent).toBe(true);
     expect(startDocumentGeneration).toHaveBeenCalledTimes(1);
   });
+
+  it("restarts a retryable failed requestId instead of returning a stale action", async () => {
+    const startDocumentGeneration = vi.fn().mockResolvedValue({
+      workflowId: `document-generation/${requestId}-retry`,
+    });
+    const failedAction = createAgentAction({
+      id: "00000000-0000-4000-8000-000000000020",
+      status: "failed",
+      result: {
+        ok: false,
+        requestId,
+        errorCode: "document_generation_start_failed",
+        retryable: true,
+      },
+      errorCode: "document_generation_start_failed",
+    });
+    const app = createTestApp(createMemoryRepo([failedAction]), startDocumentGeneration);
+
+    const response = await app.request(`/api/projects/${projectId}/project-object-actions/generate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(validGenerateAction()),
+    });
+
+    expect(response.status).toBe(202);
+    const body = await response.json() as {
+      action: AgentAction;
+      idempotent: boolean;
+      workflowId: string;
+    };
+    expect(body.idempotent).toBe(false);
+    expect(body.action.id).toBe(failedAction.id);
+    expect(body.action.status).toBe("queued");
+    expect(body.action.result).toMatchObject({
+      workflowId: `document-generation/${requestId}-retry`,
+      workflowHint: "document_generation",
+    });
+    expect(startDocumentGeneration).toHaveBeenCalledTimes(1);
+    expect(startDocumentGeneration).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionId: failedAction.id,
+        requestId,
+      }),
+    );
+  });
+
+  it("recovers a queued requestId that never recorded a workflowId", async () => {
+    const startDocumentGeneration = vi.fn().mockResolvedValue({
+      workflowId: `document-generation/${requestId}-recovered`,
+    });
+    const zombieAction = createAgentAction({
+      id: "00000000-0000-4000-8000-000000000030",
+      status: "queued",
+      result: null,
+    });
+    const app = createTestApp(createMemoryRepo([zombieAction]), startDocumentGeneration);
+
+    const response = await app.request(`/api/projects/${projectId}/project-object-actions/generate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(validGenerateAction()),
+    });
+
+    expect(response.status).toBe(202);
+    const body = await response.json() as {
+      action: AgentAction;
+      idempotent: boolean;
+      workflowId: string;
+    };
+    expect(body.idempotent).toBe(false);
+    expect(body.action.id).toBe(zombieAction.id);
+    expect(body.action.result).toMatchObject({
+      workflowId: `document-generation/${requestId}-recovered`,
+      workflowHint: "document_generation",
+    });
+    expect(startDocumentGeneration).toHaveBeenCalledTimes(1);
+  });
 });
 
 function createTestApp(
@@ -163,8 +240,8 @@ function validGenerateAction() {
   };
 }
 
-function createMemoryRepo(): AgentActionRepository {
-  const rows = new Map<string, AgentAction>();
+function createMemoryRepo(seed: AgentAction[] = []): AgentActionRepository {
+  const rows = new Map(seed.map((row) => [row.id, row]));
   return {
     async findProjectScope(id) {
       return id === projectId ? { workspaceId } : null;
@@ -221,5 +298,30 @@ function createMemoryRepo(): AgentActionRepository {
       rows.set(id, next);
       return next;
     },
+  };
+}
+
+function createAgentAction(overrides: Partial<AgentAction> = {}): AgentAction {
+  const now = new Date("2026-05-05T00:00:00.000Z").toISOString();
+  return {
+    id: "00000000-0000-4000-8000-000000000010",
+    requestId,
+    workspaceId,
+    projectId,
+    actorUserId: userId,
+    sourceRunId: null,
+    kind: "file.generate",
+    status: "queued",
+    risk: "expensive",
+    input: {
+      type: "generate_project_object",
+      generation: validGenerateAction().generation,
+    },
+    preview: null,
+    result: null,
+    errorCode: null,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
   };
 }

@@ -53,17 +53,30 @@ export async function requestDocumentGenerationProjectObject(
   }
 
   const requestId = request.requestId ?? randomUUID();
+  const event = generationRequestedEvent(requestId, request);
   const existing = await repo.findByRequestId(projectId, actorUserId, requestId);
   if (existing) {
+    if (canRestartExistingGeneration(existing)) {
+      return startDocumentGenerationForAction({
+        action: existing,
+        requestId,
+        workspaceId: scope.workspaceId,
+        projectId,
+        actorUserId,
+        request,
+        event,
+        repo,
+        options,
+      });
+    }
     return {
       action: existing,
-      event: generationRequestedEvent(requestId, request),
+      event,
       idempotent: true,
       workflowId: workflowIdFromAction(existing),
     };
   }
 
-  const event = generationRequestedEvent(requestId, request);
   const { action, inserted } = await repo.insert({
     requestId,
     workspaceId: scope.workspaceId,
@@ -83,6 +96,19 @@ export async function requestDocumentGenerationProjectObject(
     errorCode: null,
   });
   if (!inserted) {
+    if (canRestartExistingGeneration(action)) {
+      return startDocumentGenerationForAction({
+        action,
+        requestId,
+        workspaceId: scope.workspaceId,
+        projectId,
+        actorUserId,
+        request,
+        event,
+        repo,
+        options,
+      });
+    }
     return {
       action,
       event,
@@ -91,12 +117,47 @@ export async function requestDocumentGenerationProjectObject(
     };
   }
 
+  return startDocumentGenerationForAction({
+    action,
+    requestId,
+    workspaceId: scope.workspaceId,
+    projectId,
+    actorUserId,
+    request,
+    event,
+    repo,
+    options,
+  });
+}
+
+async function startDocumentGenerationForAction(input: {
+  action: AgentAction;
+  requestId: string;
+  workspaceId: string;
+  projectId: string;
+  actorUserId: string;
+  request: GenerateProjectObjectAction;
+  event: ProjectObjectActionEvent;
+  repo: AgentActionRepository;
+  options?: DocumentGenerationActionServiceOptions;
+}): Promise<RequestDocumentGenerationResult> {
+  const {
+    action,
+    requestId,
+    workspaceId,
+    projectId,
+    actorUserId,
+    request,
+    event,
+    repo,
+    options,
+  } = input;
   try {
     const start = options?.startDocumentGeneration ?? startDocumentGenerationWithClient;
     const { workflowId } = await start({
       actionId: action.id,
       requestId,
-      workspaceId: scope.workspaceId,
+      workspaceId,
       projectId,
       userId: actorUserId,
       generation: request.generation,
@@ -153,4 +214,17 @@ async function startDocumentGenerationWithClient(
 function workflowIdFromAction(action: AgentAction): string | undefined {
   const workflowId = action.result?.workflowId;
   return typeof workflowId === "string" ? workflowId : undefined;
+}
+
+function canRestartExistingGeneration(action: AgentAction): boolean {
+  if (action.kind !== "file.generate") return false;
+  const workflowId = workflowIdFromAction(action);
+  if (action.status === "queued" && !workflowId) return true;
+  if (action.status !== "failed") return false;
+  return isRetryableGenerationFailure(action.result);
+}
+
+function isRetryableGenerationFailure(result: Record<string, unknown> | null): boolean {
+  if (!result) return false;
+  return result.ok === false && result.retryable === true;
 }
