@@ -187,6 +187,27 @@ Agent-generated files are first-class project objects stored in MinIO/R2 and sur
 | POST | /api/agent-files/:id/canvas | project `editor` | Materialize code/html source into a Canvas note and link `agent_files.canvas_note_id`. Execution remains browser sandboxed. | - |
 | DELETE | /api/agent-files/:id | project `editor` | Soft delete generated file row; stored bytes remain immutable. | - |
 
+### Agent Actions
+
+Unified Agent Action Ledger Phase 1 records write-capable agent intent as typed,
+auditable project-scoped actions. The server derives `workspaceId` from the
+route `projectId` and the authenticated `actorUserId` from the session; request
+payloads that include trusted scope fields are rejected. Phase 1 ships only the
+low-risk `workflow.placeholder` action execution path. Note CRUD, document
+export, code execution, hosted preview, and Google export remain follow-up
+phases.
+
+| Method | Path | Auth | Description | Body |
+|--------|------|------|-------------|------|
+| POST | /api/projects/:projectId/agent-actions | project `editor` | Create an action ledger row. `requestId` is idempotent per `(projectId, actorUserId)`. `workflow.placeholder` completes immediately with a placeholder result; other action kinds are stored as substrate rows for later phases. | `{ requestId?, sourceRunId?, kind, risk, input?, preview? }` |
+| GET | /api/projects/:projectId/agent-actions | project `editor` | List newest actions in a project. Optional filters: `?status=&kind=&limit=`. | - |
+| GET | /api/agent-actions/:id | project `editor` | Read one action after checking the action's project scope. | - |
+| PATCH | /api/agent-actions/:id/status | project `editor` | Transition action status using the shared status state machine; invalid transitions return `409 invalid_status_transition`. | `{ status, preview?, result?, errorCode? }` |
+
+Action fields: `id`, `requestId`, `workspaceId`, `projectId`, `actorUserId`,
+`sourceRunId`, `kind`, `status`, `risk`, `input`, `preview`, `result`,
+`errorCode`, `createdAt`, `updatedAt`.
+
 ### Ingest
 
 | Method | Path | Auth | Description | Body |
