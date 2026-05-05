@@ -279,6 +279,21 @@ with `{ "status": "cancelled" }`.
 
 > 참고: 별도의 `/api/ingest/youtube` 전용 엔드포인트는 없음. YouTube URL은 `/api/ingest/url`이 mimeType으로 분기하여 `yt-dlp` 또는 Gemini YouTube URL 직접 처리.
 
+### Import Workflows
+
+The existing import routes remain the compatibility surface for Drive, Notion
+ZIP, and Markdown ZIP imports. When the target is an existing project, the API
+also creates a queued agent action (`import.drive`, `import.notion`, or
+`import.markdown_zip`) with `sourceRunId=jobId`. Workflow start failures mark
+both the import job and the linked action `failed`, so a failed start does not
+remain `queued`.
+
+| Method | Path | Auth | Description | Body |
+|--------|------|------|-------------|------|
+| POST | /api/import/drive | workspace `member` (write) | Queue a Google Drive import through `ImportWorkflow`; existing-project targets also return a linked agent action. | `{ workspaceId, fileIds, target }` -> `201 { jobId, action }` |
+| POST | /api/import/notion | workspace `member` (write) | Queue a Notion ZIP import through `ImportWorkflow`; existing-project targets also return a linked agent action. | `{ workspaceId, zipObjectKey, originalName, target }` -> `201 { jobId, action }` |
+| POST | /api/import/markdown | workspace `member` (write) | Queue a Markdown ZIP import through `ImportWorkflow`; existing-project targets also return a linked agent action. | `{ workspaceId, zipObjectKey, originalName, target }` -> `201 { jobId, action }` |
+
 ### Internal (worker → API)
 
 | Method | Path | Auth | Description | Body |
@@ -587,11 +602,11 @@ Public — Better Auth session + `canWrite(workspace)` for create/list/detail/do
 
 | Method | Path                                            | Auth | Description / Body | Response |
 |--------|-------------------------------------------------|------|--------------------|----------|
-| POST   | /api/synthesis-export/run                       | workspace `member` (write) | `createSynthesisRunSchema` (see Types) — `{ workspaceId, projectId?, format: "latex"\|"docx"\|"pdf"\|"md", template: "ieee"\|"acm"\|"apa"\|"korean_thesis"\|"report", userPrompt (≤4000), explicitSourceIds[] (≤50 uuid), noteIds[] (≤50 uuid), autoSearch }`. Run row pre-inserted with `crypto.randomUUID()` + `workflowId` to close the orphan-workflow window if the Temporal `start` races. | `200 { runId }` |
+| POST   | /api/synthesis-export/run                       | workspace `member` (write) | `createSynthesisRunSchema` (see Types) — `{ workspaceId, projectId?, format: "latex"\|"docx"\|"pdf"\|"md", template: "ieee"\|"acm"\|"apa"\|"korean_thesis"\|"report", userPrompt (≤4000), explicitSourceIds[] (≤50 uuid), noteIds[] (≤50 uuid), autoSearch }`. Run row pre-inserted with `crypto.randomUUID()` + `workflowId` to close the orphan-workflow window if the Temporal `start` races. When `projectId` is present, the route also creates an `export.project` agent action with `sourceRunId=runId`. Temporal start failures mark both the synthesis run and linked action `failed`. | `200 { runId, action }` |
 | GET    | /api/synthesis-export/runs                      | workspace `member` (write) | `?workspaceId=` (uuid required, 400 if missing). Newest-first, hard limit 50. | `200 { runs: SynthesisRunSummary[] }` |
 | GET    | /api/synthesis-export/runs/:id                  | workspace `member` (write) | Detail. `id` must be uuid (else 404 to avoid existence leak). | `200 SynthesisRunDetail` (run + sources asc + documents desc) |
 | GET    | /api/synthesis-export/runs/:id/document         | workspace `member` (write) | Streams primary document binary from MinIO (`Content-Type` from S3 `statObject`). 404 if the run has no completed document yet. | `200 <binary>` |
-| POST   | /api/synthesis-export/runs/:id/resynthesize     | workspace `member` (write) | `resynthesizeSchema` (`{ userPrompt }`). Forks a new run from the previous one's `(workspaceId, projectId, format, template, autoSearch)` envelope; `explicitSourceIds`/`noteIds` reset to `[]`. | `200 { runId }` (new id) |
+| POST   | /api/synthesis-export/runs/:id/resynthesize     | workspace `member` (write) | `resynthesizeSchema` (`{ userPrompt }`). Forks a new run from the previous one's `(workspaceId, projectId, format, template, autoSearch)` envelope; `explicitSourceIds`/`noteIds` reset to `[]`. When the fork remains project-scoped, the route also creates an `export.project` agent action with `sourceRunId=runId`. Temporal start failures mark both the synthesis run and linked action `failed`. | `200 { runId, action }` (new id) |
 | DELETE | /api/synthesis-export/runs/:id                  | workspace `member` (write) | Cancels the workflow (best-effort — terminal workflows are tolerated) **and** deletes the run row. The DB row is the source of truth for "this run no longer exists from the user's POV." | `200 { ok: true }` |
 | GET    | /api/synthesis-export/runs/:id/stream           | workspace `member` (write) | SSE. Polls `synthesis_runs` every 2s (followup #7: switch to Redis pub/sub). Closes the connection on terminal status (`completed`/`failed`/`cancelled`) or after a 15-minute orphan window. Headers: `Cache-Control: no-cache, no-transform`, `X-Accel-Buffering: no`. | `200 text/event-stream` |
 

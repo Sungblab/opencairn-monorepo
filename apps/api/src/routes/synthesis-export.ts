@@ -26,6 +26,11 @@ import type { AppEnv } from "../lib/types";
 import { requireAuth } from "../middleware/auth";
 import { canWrite } from "../lib/permissions";
 import {
+  createQueuedWorkflowAgentAction,
+  markWorkflowAgentActionFailed,
+  markWorkflowAgentActionStarted,
+} from "../lib/agent-actions";
+import {
   registerExistingObjectAsAgentFile,
   toSummary,
   type AgentFileRecord,
@@ -53,6 +58,67 @@ function isFeatureEnabled(): boolean {
   return (
     (process.env.FEATURE_SYNTHESIS_EXPORT ?? "false").toLowerCase() === "true"
   );
+}
+
+async function createSynthesisWorkflowAction(args: {
+  runId: string;
+  workspaceId: string;
+  projectId: string | null;
+  userId: string;
+  format: SynthesisFormat;
+  template: SynthesisTemplate;
+  userPrompt: string;
+  workflowId: string;
+}) {
+  if (!args.projectId) return null;
+  return createQueuedWorkflowAgentAction({
+    workspaceId: args.workspaceId,
+    projectId: args.projectId,
+    actorUserId: args.userId,
+    requestId: args.runId,
+    sourceRunId: args.runId,
+    kind: "export.project",
+    risk: "expensive",
+    input: {
+      source: "synthesis_export",
+      format: args.format,
+      template: args.template,
+      userPrompt: args.userPrompt,
+    },
+    preview: {
+      summary: "Synthesis export workflow queued through the unified action ledger.",
+      workflowHint: "synthesis_export",
+      runId: args.runId,
+      workflowId: args.workflowId,
+    },
+    result: {
+      runId: args.runId,
+      workflowId: args.workflowId,
+      workflowHint: "synthesis_export",
+    },
+  }, {
+    // Synthesis export has historically been workspace-authorized. The action
+    // bridge only asserts project/workspace consistency so existing callers
+    // keep the same authorization envelope.
+    canWriteProject: async () => true,
+  });
+}
+
+async function failSynthesisWorkflowStart(args: {
+  runId: string;
+  actionId?: string | null;
+  errorCode: string;
+}) {
+  await db
+    .update(synthesisRuns)
+    .set({ status: "failed", updatedAt: new Date() })
+    .where(eq(synthesisRuns.id, args.runId));
+  await markWorkflowAgentActionFailed(args.actionId, args.errorCode, {
+    ok: false,
+    runId: args.runId,
+    errorCode: args.errorCode,
+    retryable: true,
+  });
 }
 
 // Wildcard 404 when the flag is off — don't leak route shape.
@@ -96,22 +162,57 @@ synthesisExportRouter.post(
       })
       .returning();
 
-    const client = await getTemporalClient();
-    await startSynthesisExportRun(client, {
-      runId: run!.id,
-      workspaceId: body.workspaceId,
-      projectId: body.projectId ?? null,
-      userId,
-      format: body.format,
-      template: body.template,
-      userPrompt: body.userPrompt,
-      explicitSourceIds: body.explicitSourceIds,
-      noteIds: body.noteIds,
-      autoSearch: body.autoSearch,
-      byokKeyHandle: null,
-    });
+    const workflowId = workflowIdFor(run!.id);
+    let action: Awaited<ReturnType<typeof createSynthesisWorkflowAction>> = null;
+    try {
+      action = await createSynthesisWorkflowAction({
+        runId: run!.id,
+        workspaceId: body.workspaceId,
+        projectId: body.projectId ?? null,
+        userId,
+        format: body.format,
+        template: body.template,
+        userPrompt: body.userPrompt,
+        workflowId,
+      });
+    } catch (err) {
+      await failSynthesisWorkflowStart({
+        runId: run!.id,
+        errorCode: "synthesis_export_action_start_failed",
+      });
+      throw err;
+    }
 
-    return c.json({ runId: run!.id });
+    try {
+      const client = await getTemporalClient();
+      await startSynthesisExportRun(client, {
+        runId: run!.id,
+        workspaceId: body.workspaceId,
+        projectId: body.projectId ?? null,
+        userId,
+        format: body.format,
+        template: body.template,
+        userPrompt: body.userPrompt,
+        explicitSourceIds: body.explicitSourceIds,
+        noteIds: body.noteIds,
+        autoSearch: body.autoSearch,
+        byokKeyHandle: null,
+      });
+      await markWorkflowAgentActionStarted(action?.action.id, {
+        runId: run!.id,
+        workflowId,
+        workflowHint: "synthesis_export",
+      });
+    } catch (err) {
+      await failSynthesisWorkflowStart({
+        runId: run!.id,
+        actionId: action?.action.id,
+        errorCode: "synthesis_export_start_failed",
+      });
+      throw err;
+    }
+
+    return c.json({ runId: run!.id, action: action?.action ?? null });
   },
 );
 
@@ -485,22 +586,59 @@ synthesisExportRouter.post(
       })
       .returning();
 
-    const client = await getTemporalClient();
-    await startSynthesisExportRun(client, {
-      runId: next!.id,
-      workspaceId: prev.workspaceId,
-      projectId: prev.projectId,
-      userId,
-      format: prev.format as SynthesisFormat,
-      template: prev.template as SynthesisTemplate,
-      userPrompt: body.userPrompt,
-      explicitSourceIds: [],
-      noteIds: [],
-      autoSearch: prev.autoSearch,
-      byokKeyHandle: null,
-    });
+    const format = prev.format as SynthesisFormat;
+    const template = prev.template as SynthesisTemplate;
+    const workflowId = workflowIdFor(next!.id);
+    let action: Awaited<ReturnType<typeof createSynthesisWorkflowAction>> = null;
+    try {
+      action = await createSynthesisWorkflowAction({
+        runId: next!.id,
+        workspaceId: prev.workspaceId,
+        projectId: prev.projectId,
+        userId,
+        format,
+        template,
+        userPrompt: body.userPrompt,
+        workflowId,
+      });
+    } catch (err) {
+      await failSynthesisWorkflowStart({
+        runId: next!.id,
+        errorCode: "synthesis_export_action_start_failed",
+      });
+      throw err;
+    }
 
-    return c.json({ runId: next!.id });
+    try {
+      const client = await getTemporalClient();
+      await startSynthesisExportRun(client, {
+        runId: next!.id,
+        workspaceId: prev.workspaceId,
+        projectId: prev.projectId,
+        userId,
+        format,
+        template,
+        userPrompt: body.userPrompt,
+        explicitSourceIds: [],
+        noteIds: [],
+        autoSearch: prev.autoSearch,
+        byokKeyHandle: null,
+      });
+      await markWorkflowAgentActionStarted(action?.action.id, {
+        runId: next!.id,
+        workflowId,
+        workflowHint: "synthesis_export",
+      });
+    } catch (err) {
+      await failSynthesisWorkflowStart({
+        runId: next!.id,
+        actionId: action?.action.id,
+        errorCode: "synthesis_export_start_failed",
+      });
+      throw err;
+    }
+
+    return c.json({ runId: next!.id, action: action?.action ?? null });
   },
 );
 

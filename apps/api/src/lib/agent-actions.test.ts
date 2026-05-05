@@ -5,6 +5,8 @@ import {
   createAgentAction,
   executeAgentAction,
   applyNoteUpdateAction,
+  createQueuedWorkflowAgentAction,
+  markWorkflowAgentActionFailed,
   transitionAgentActionStatus,
   type AgentActionRepository,
   type NoteActionExecutor,
@@ -405,6 +407,85 @@ describe("agent action service", () => {
       status: "failed",
       errorCode: "note_update_stale_preview",
       result: { ok: false, errorCode: "note_update_stale_preview" },
+    });
+  });
+
+  it("creates a queued import/export workflow action with server-owned scope", async () => {
+    const repo = createMemoryRepo();
+
+    const { action, idempotent } = await createQueuedWorkflowAgentAction(
+      {
+        workspaceId,
+        projectId,
+        actorUserId: userId,
+        requestId,
+        sourceRunId: "import-job-1",
+        kind: "import.markdown_zip",
+        risk: "write",
+        input: { source: "markdown_zip" },
+        result: {
+          jobId: "import-job-1",
+          workflowId: "import-workflow-1",
+          workflowHint: "import",
+        },
+      },
+      { repo, canWriteProject: async () => true },
+    );
+
+    expect(idempotent).toBe(false);
+    expect(action).toMatchObject({
+      requestId,
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      sourceRunId: "import-job-1",
+      kind: "import.markdown_zip",
+      status: "queued",
+      risk: "write",
+      input: { source: "markdown_zip" },
+      result: {
+        jobId: "import-job-1",
+        workflowId: "import-workflow-1",
+        workflowHint: "import",
+      },
+    });
+  });
+
+  it("marks workflow start failures as terminal failed ledger rows", async () => {
+    const repo = createMemoryRepo();
+    const { action } = await createQueuedWorkflowAgentAction(
+      {
+        workspaceId,
+        projectId,
+        actorUserId: userId,
+        requestId,
+        kind: "export.project",
+        risk: "expensive",
+      },
+      { repo, canWriteProject: async () => true },
+    );
+
+    const failed = await markWorkflowAgentActionFailed(
+      action.id,
+      "synthesis_export_start_failed",
+      {
+        ok: false,
+        runId: "run-1",
+        errorCode: "synthesis_export_start_failed",
+        retryable: true,
+      },
+      { repo },
+    );
+
+    expect(failed).toMatchObject({
+      status: "failed",
+      errorCode: "synthesis_export_start_failed",
+      result: {
+        ok: false,
+        runId: "run-1",
+        errorCode: "synthesis_export_start_failed",
+        retryable: true,
+      },
     });
   });
 });

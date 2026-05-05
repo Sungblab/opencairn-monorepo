@@ -23,6 +23,11 @@ import { getPresignedPutUrl } from "../lib/s3";
 import { getTemporalClient, taskQueue } from "../lib/temporal-client";
 import { isUuid } from "../lib/validators";
 import type { AppEnv } from "../lib/types";
+import {
+  createQueuedWorkflowAgentAction,
+  markWorkflowAgentActionFailed,
+  markWorkflowAgentActionStarted,
+} from "../lib/agent-actions";
 
 // Hard ceiling on a single Notion export ZIP. Defaults to 5GB (matches the
 // zod schema cap). Deployments can lower it via env — useful for local dev
@@ -148,6 +153,7 @@ async function startImportWorkflow(args: {
   workspaceId: string;
   source: "google_drive" | "notion_zip" | "markdown_zip";
   sourceMetadata: Record<string, unknown>;
+  actionId?: string | null;
 }) {
   const client = await getTemporalClient();
   try {
@@ -164,6 +170,11 @@ async function startImportWorkflow(args: {
         },
       ],
     });
+    await markWorkflowAgentActionStarted(args.actionId, {
+      workflowId: args.workflowId,
+      jobId: args.jobId,
+      workflowHint: "import",
+    });
   } catch (err) {
     await db
       .update(importJobs)
@@ -173,8 +184,98 @@ async function startImportWorkflow(args: {
         finishedAt: new Date(),
       })
       .where(eq(importJobs.id, args.jobId));
+    await markWorkflowAgentActionFailed(args.actionId, "import_start_failed", {
+      ok: false,
+      jobId: args.jobId,
+      workflowId: args.workflowId,
+      errorCode: "import_start_failed",
+      retryable: true,
+    });
     throw err;
   }
+}
+
+async function createImportWorkflowAction(args: {
+  workspaceId: string;
+  userId: string;
+  source: "google_drive" | "notion_zip" | "markdown_zip";
+  targetProjectId: string | null;
+  jobId: string;
+  workflowId: string;
+  sourceMetadata: Record<string, unknown>;
+}) {
+  if (!args.targetProjectId) return null;
+  const kind =
+    args.source === "google_drive"
+      ? "import.drive"
+      : args.source === "notion_zip"
+        ? "import.notion"
+        : "import.markdown_zip";
+  return createQueuedWorkflowAgentAction({
+    workspaceId: args.workspaceId,
+    projectId: args.targetProjectId,
+    actorUserId: args.userId,
+    requestId: args.jobId,
+    sourceRunId: args.jobId,
+    kind,
+    risk: args.source === "google_drive" ? "external" : "write",
+    input: {
+      source: args.source,
+      target: "existing_project",
+      sourceMetadata: safeSourceMetadata(args.source, args.sourceMetadata),
+    },
+    preview: {
+      summary: "Import workflow queued through the unified action ledger.",
+      workflowHint: "import",
+      jobId: args.jobId,
+      workflowId: args.workflowId,
+    },
+    result: {
+      workflowId: args.workflowId,
+      jobId: args.jobId,
+      workflowHint: "import",
+    },
+  }, {
+    // Existing import routes authorize at workspace scope. Keep that
+    // compatibility while still ensuring the project belongs to the workspace.
+    canWriteProject: async () => true,
+  });
+}
+
+async function startImportJobWithAction(args: {
+  workspaceId: string;
+  userId: string;
+  source: "google_drive" | "notion_zip" | "markdown_zip";
+  targetProjectId: string | null;
+  jobId: string;
+  workflowId: string;
+  sourceMetadata: Record<string, unknown>;
+}) {
+  let action: Awaited<ReturnType<typeof createImportWorkflowAction>> = null;
+  try {
+    action = await createImportWorkflowAction(args);
+  } catch (err) {
+    await db
+      .update(importJobs)
+      .set({
+        status: "failed",
+        errorSummary: "Import action could not be queued. Please try again.",
+        finishedAt: new Date(),
+      })
+      .where(eq(importJobs.id, args.jobId));
+    throw err;
+  }
+
+  await startImportWorkflow({
+    jobId: args.jobId,
+    workflowId: args.workflowId,
+    userId: args.userId,
+    workspaceId: args.workspaceId,
+    source: args.source,
+    sourceMetadata: args.sourceMetadata,
+    actionId: action?.action.id,
+  });
+  return action;
 }
 
 importRouter.post(
@@ -221,14 +322,15 @@ importRouter.post(
       file_ids: body.fileIds,
       folder_ids: [] as string[],
     };
+    const targetProjectId =
+      body.target.kind === "existing" ? body.target.projectId : null;
     const [job] = await db
       .insert(importJobs)
       .values({
         workspaceId: body.workspaceId,
         userId,
         source: "google_drive",
-        targetProjectId:
-          body.target.kind === "existing" ? body.target.projectId : null,
+        targetProjectId,
         targetParentNoteId:
           body.target.kind === "existing" ? body.target.parentNoteId : null,
         workflowId,
@@ -237,15 +339,16 @@ importRouter.post(
       })
       .returning({ id: importJobs.id });
 
-    await startImportWorkflow({
+    const action = await startImportJobWithAction({
+      workspaceId: body.workspaceId,
+      userId,
+      source: "google_drive",
+      targetProjectId,
       jobId: job.id,
       workflowId,
-      userId,
-      workspaceId: body.workspaceId,
-      source: "google_drive",
       sourceMetadata,
     });
-    return c.json({ jobId: job.id }, 201);
+    return c.json({ jobId: job.id, action: action?.action ?? null }, 201);
   },
 );
 
@@ -299,14 +402,15 @@ importRouter.post(
       zip_object_key: body.zipObjectKey,
       original_name: body.originalName,
     };
+    const targetProjectId =
+      body.target.kind === "existing" ? body.target.projectId : null;
     const [job] = await db
       .insert(importJobs)
       .values({
         workspaceId: body.workspaceId,
         userId,
         source: "notion_zip",
-        targetProjectId:
-          body.target.kind === "existing" ? body.target.projectId : null,
+        targetProjectId,
         targetParentNoteId:
           body.target.kind === "existing" ? body.target.parentNoteId : null,
         workflowId,
@@ -315,15 +419,16 @@ importRouter.post(
       })
       .returning({ id: importJobs.id });
 
-    await startImportWorkflow({
+    const action = await startImportJobWithAction({
+      workspaceId: body.workspaceId,
+      userId,
+      source: "notion_zip",
+      targetProjectId,
       jobId: job.id,
       workflowId,
-      userId,
-      workspaceId: body.workspaceId,
-      source: "notion_zip",
       sourceMetadata,
     });
-    return c.json({ jobId: job.id }, 201);
+    return c.json({ jobId: job.id, action: action?.action ?? null }, 201);
   },
 );
 
@@ -364,14 +469,15 @@ importRouter.post(
       zip_object_key: body.zipObjectKey,
       original_name: body.originalName,
     };
+    const targetProjectId =
+      body.target.kind === "existing" ? body.target.projectId : null;
     const [job] = await db
       .insert(importJobs)
       .values({
         workspaceId: body.workspaceId,
         userId,
         source: "markdown_zip",
-        targetProjectId:
-          body.target.kind === "existing" ? body.target.projectId : null,
+        targetProjectId,
         targetParentNoteId:
           body.target.kind === "existing" ? body.target.parentNoteId : null,
         workflowId,
@@ -380,15 +486,16 @@ importRouter.post(
       })
       .returning({ id: importJobs.id });
 
-    await startImportWorkflow({
+    const action = await startImportJobWithAction({
+      workspaceId: body.workspaceId,
+      userId,
+      source: "markdown_zip",
+      targetProjectId,
       jobId: job.id,
       workflowId,
-      userId,
-      workspaceId: body.workspaceId,
-      source: "markdown_zip",
       sourceMetadata,
     });
-    return c.json({ jobId: job.id }, 201);
+    return c.json({ jobId: job.id, action: action?.action ?? null }, 201);
   },
 );
 
@@ -643,13 +750,14 @@ importRouter.post("/jobs/:id/retry", requireAuth, async (c) => {
     })
     .returning({ id: importJobs.id });
 
-  await startImportWorkflow({
+  const action = await startImportJobWithAction({
+    workspaceId: job.workspaceId,
+    userId,
+    source: job.source,
+    targetProjectId: job.targetProjectId,
     jobId: retryJob.id,
     workflowId,
-    userId,
-    workspaceId: job.workspaceId,
-    source: job.source,
     sourceMetadata,
   });
-  return c.json({ jobId: retryJob.id }, 201);
+  return c.json({ jobId: retryJob.id, action: action?.action ?? null }, 201);
 });

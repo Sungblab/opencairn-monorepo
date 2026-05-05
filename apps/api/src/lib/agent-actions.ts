@@ -104,6 +104,29 @@ export interface AgentActionServiceOptions {
   noteUpdateApplier?: NoteUpdateApplier;
 }
 
+export interface WorkflowAgentActionInput {
+  workspaceId: string;
+  projectId: string;
+  actorUserId: string;
+  requestId?: string;
+  sourceRunId?: string | null;
+  kind: Extract<
+    AgentActionKind,
+    | "import.drive"
+    | "import.markdown_zip"
+    | "import.notion"
+    | "export.note"
+    | "export.project"
+    | "export.file"
+    | "export.workspace"
+    | "export.provider"
+  >;
+  risk: AgentActionRisk;
+  input?: Record<string, unknown>;
+  preview?: Record<string, unknown> | null;
+  result?: Record<string, unknown> | null;
+}
+
 export interface NoteActionExecutorInput {
   workspaceId: string;
   projectId: string;
@@ -278,6 +301,77 @@ export async function createAgentAction(
 }
 
 export const executeAgentAction = createAgentAction;
+
+export async function createQueuedWorkflowAgentAction(
+  request: WorkflowAgentActionInput,
+  options?: Pick<AgentActionServiceOptions, "repo" | "canWriteProject">,
+): Promise<{ action: AgentAction; idempotent: boolean }> {
+  const repo = options?.repo ?? createDrizzleAgentActionRepository();
+  const scope = await repo.findProjectScope(request.projectId);
+  if (!scope) throw new AgentActionError("project_not_found", 404);
+  if (scope.workspaceId !== request.workspaceId) {
+    throw new AgentActionError("workspace_scope_mismatch", 409);
+  }
+
+  const canWriteProject =
+    options?.canWriteProject ?? ((userId, id) => canWrite(userId, { type: "project", id }));
+  if (!(await canWriteProject(request.actorUserId, request.projectId))) {
+    throw new AgentActionError("forbidden", 403);
+  }
+
+  const requestId = request.requestId ?? randomUUID();
+  const existing = await repo.findByRequestId(
+    request.projectId,
+    request.actorUserId,
+    requestId,
+  );
+  if (existing) return { action: existing, idempotent: true };
+
+  const { action, inserted } = await repo.insert({
+    requestId,
+    workspaceId: request.workspaceId,
+    projectId: request.projectId,
+    actorUserId: request.actorUserId,
+    sourceRunId: request.sourceRunId ?? null,
+    kind: request.kind,
+    status: "queued",
+    risk: request.risk,
+    input: request.input ?? {},
+    preview: request.preview ?? null,
+    result: request.result ?? null,
+    errorCode: null,
+  });
+  return { action, idempotent: !inserted };
+}
+
+export async function markWorkflowAgentActionStarted(
+  actionId: string | null | undefined,
+  result: Record<string, unknown>,
+  options?: Pick<AgentActionServiceOptions, "repo">,
+): Promise<AgentAction | null> {
+  if (!actionId) return null;
+  const repo = options?.repo ?? createDrizzleAgentActionRepository();
+  return repo.updateStatus(actionId, {
+    status: "queued",
+    result,
+    errorCode: null,
+  });
+}
+
+export async function markWorkflowAgentActionFailed(
+  actionId: string | null | undefined,
+  errorCode: string,
+  result?: Record<string, unknown>,
+  options?: Pick<AgentActionServiceOptions, "repo">,
+): Promise<AgentAction | null> {
+  if (!actionId) return null;
+  const repo = options?.repo ?? createDrizzleAgentActionRepository();
+  return repo.updateStatus(actionId, {
+    status: "failed",
+    result: result ?? { ok: false, errorCode, retryable: true },
+    errorCode,
+  });
+}
 
 export async function listAgentActions(
   projectId: string,
