@@ -675,6 +675,8 @@ Wrap existing import/export features as actions:
 - chained follow-up actions from import results
 - read-only Workflow Console projection for import job progress/errors and
   synthesis export document outputs
+- import job detail progress with retry for failed jobs and cancel for
+  queued/running jobs through the existing import job API
 
 This phase should reuse existing ingest/import workflows instead of adding a
 parallel import runner.

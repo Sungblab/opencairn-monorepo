@@ -38,6 +38,7 @@
   "actions": {
     "start": "가져오기 시작",
     "cancel": "취소",
+    "cancelling": "취소 중...",
     "retry": "재시도",
     "retrying": "재시도 중...",
     "openResult": "결과 열기"
@@ -55,6 +56,7 @@
     "driveNotConnected": "먼저 Google Drive를 연결해주세요.",
     "importLimitExceeded": "동시에 진행 중인 가져오기가 너무 많습니다. 기존 작업이 완료된 후 다시 시도해주세요.",
     "zipTooLarge": "ZIP 파일이 허용 용량을 초과했습니다.",
-    "retryFailed": "재시도를 시작하지 못했습니다."
+    "retryFailed": "재시도를 시작하지 못했습니다.",
+    "cancelFailed": "취소하지 못했습니다."
   }
 }

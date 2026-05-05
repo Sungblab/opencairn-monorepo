@@ -41,6 +41,8 @@ export function JobProgress({
   });
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState(false);
 
   useEffect(() => {
     // EventSource sends cookies by default on same-origin — no extra config
@@ -80,6 +82,25 @@ export function JobProgress({
       : 0;
 
   const done = state.status === "completed" || state.status === "failed";
+  const active = state.status === "queued" || state.status === "running";
+
+  async function cancel() {
+    setCancelling(true);
+    setCancelError(false);
+    try {
+      const res = await fetch(`/api/import/jobs/${jobId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        setCancelError(true);
+        return;
+      }
+      setState((s) => ({ ...s, status: "failed" }));
+    } finally {
+      setCancelling(false);
+    }
+  }
 
   async function retry() {
     setRetrying(true);
@@ -120,6 +141,22 @@ export function JobProgress({
           failed: state.failed,
         })}
       </p>
+
+      {active && (
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={cancel}
+            disabled={cancelling}
+            className="rounded border border-border px-3 py-1.5 text-sm font-medium transition hover:bg-muted disabled:opacity-50"
+          >
+            {cancelling ? t("actions.cancelling") : t("actions.cancel")}
+          </button>
+          {cancelError && (
+            <p className="text-sm text-destructive">{t("errors.cancelFailed")}</p>
+          )}
+        </div>
+      )}
 
       {state.status === "completed" && (
         <p className="text-sm font-medium text-emerald-600">
