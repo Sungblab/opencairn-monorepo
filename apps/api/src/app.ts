@@ -58,6 +58,7 @@ import { connectorRoutes as connectorFoundationRoutes } from "./routes/connector
 import { notificationPreferenceRoutes } from "./routes/notification-preferences";
 import { agentFileRoutes } from "./routes/agent-files";
 import { agentActionRoutes } from "./routes/agent-actions";
+import { documentGenerationRoutes } from "./routes/document-generation";
 import { startEmailDispatcher } from "./lib/email-dispatcher";
 
 export function createApp() {
@@ -114,6 +115,7 @@ export function createApp() {
   app.route("/.well-known/oauth-protected-resource", mcpProtectedResourceRoutes);
   app.route("/api/connectors", connectorFoundationRoutes);
   app.route("/api/agent-files", agentFileRoutes);
+  app.route("/api", documentGenerationRoutes);
   app.route("/api", agentActionRoutes);
   // Plan 2C share-link routes. Same public-then-auth shape as inviteRoutes.
   // Mounted FIRST among `/api` wildcard sub-apps so its public route
