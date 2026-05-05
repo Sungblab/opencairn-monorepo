@@ -445,7 +445,9 @@ event sink exists.
 
 1. **Projection contract only.** Define shared run/event types and map current
    chat runs, agent actions, project-object document generation, and Plan8 run
-   summaries into them. Keep existing UI components in place.
+   summaries into them. This contract slice is implemented in
+   `packages/shared/src/workflow-console.ts` without moving existing UI
+   components.
 2. **Embedded console sections.** Replace ad hoc status card normalization in
    Agent Panel and Plan8 with shared render helpers while preserving current
    placement: chat remains in Agent Panel, Plan8 remains in the Agents view, and

@@ -50,6 +50,8 @@ shape is:
 - Tune adaptive RAG routing now that retrieval expansion, reranking, and
   context-packing contracts are stable enough to compare.
 - Polish import/export flows without adding provider-specific UX too early.
+- Extend Workflow Console unification from shared run/event contracts into a
+  read-only API projection before rewriting existing Agent Panel or Plan8 UI.
 - Keep the OSS app clean: legal, blog, hosted analytics, and product marketing
   copy are linked from external hosted URLs.
 
