@@ -8,6 +8,25 @@ const actionRequestIdSchema = z.string().uuid().optional();
 const objectIdSchema = z.string().uuid();
 const exportFormatSchema = z.enum(["markdown", "html", "latex", "json", "csv", "xlsx", "pdf", "docx", "pptx", "image"]);
 const exportProviderSchema = z.enum(["opencairn_download", "google_drive", "google_docs", "google_sheets", "google_slides"]);
+const documentGenerationFormatSchema = z.enum(["pdf", "docx", "pptx", "xlsx"]);
+const documentGenerationTemplateSchema = z.enum([
+  "report",
+  "brief",
+  "research_summary",
+  "deck",
+  "spreadsheet",
+  "custom",
+]);
+const documentGenerationArtifactModeSchema = z.literal("object_storage");
+const documentGenerationPublishTargetSchema = z.literal("agent_file");
+const safeGeneratedFilenameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(180)
+  .refine((value) => !/[\\/]/.test(value), "filename_must_be_basename")
+  .refine((value) => !value.includes(".."), "filename_cannot_traverse")
+  .refine((value) => !/[\r\n]/.test(value), "filename_cannot_break_headers");
 
 const forbiddenScopeFields = ["workspaceId", "workspace_id", "projectId", "project_id", "userId", "user_id"] as const;
 
@@ -78,14 +97,125 @@ export const compileProjectObjectActionSchema = z
   .strict()
   .superRefine(rejectScopeFields);
 
+export const documentGenerationSourceSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("note"),
+      noteId: z.string().uuid(),
+      versionId: z.string().uuid().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("agent_file"),
+      objectId: objectIdSchema,
+      version: z.number().int().positive().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("chat_thread"),
+      threadId: z.string().uuid(),
+      messageIds: z.array(z.string().uuid()).min(1).max(50).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("research_run"),
+      runId: z.string().uuid(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("synthesis_run"),
+      runId: z.string().uuid(),
+      documentId: z.string().uuid().optional(),
+    })
+    .strict(),
+]);
+
+export const documentGenerationDestinationSchema = z
+  .object({
+    filename: safeGeneratedFilenameSchema,
+    title: z.string().trim().min(1).max(180).optional(),
+    folderId: z.string().uuid().nullable().optional(),
+    publishAs: documentGenerationPublishTargetSchema.default("agent_file"),
+    startIngest: z.boolean().default(false),
+  })
+  .strict();
+
+export const documentGenerationRequestSchema = z
+  .object({
+    format: documentGenerationFormatSchema,
+    prompt: z.string().trim().min(1).max(8000),
+    locale: z.string().trim().min(2).max(35).default("ko"),
+    template: documentGenerationTemplateSchema.default("report"),
+    sources: z.array(documentGenerationSourceSchema).max(50).default([]),
+    destination: documentGenerationDestinationSchema,
+    artifactMode: documentGenerationArtifactModeSchema.default("object_storage"),
+  })
+  .strict()
+  .superRefine(rejectScopeFields);
+
+export const generateProjectObjectActionSchema = z
+  .object({
+    type: z.literal("generate_project_object"),
+    requestId: actionRequestIdSchema,
+    generation: documentGenerationRequestSchema,
+  })
+  .strict()
+  .superRefine(rejectScopeFields);
+
 export const projectObjectActionSchema = z.union([
   createProjectObjectActionSchema,
   updateProjectObjectContentActionSchema,
   exportProjectObjectActionSchema,
   compileProjectObjectActionSchema,
+  generateProjectObjectActionSchema,
 ]);
 
 export type ProjectObjectAction = z.infer<typeof projectObjectActionSchema>;
+export type DocumentGenerationFormat = z.infer<typeof documentGenerationFormatSchema>;
+export type DocumentGenerationSource = z.infer<typeof documentGenerationSourceSchema>;
+export type DocumentGenerationDestination = z.infer<typeof documentGenerationDestinationSchema>;
+export type DocumentGenerationRequest = z.infer<typeof documentGenerationRequestSchema>;
+
+export const documentGenerationResultSchema = z
+  .object({
+    ok: z.literal(true),
+    requestId: z.string().uuid(),
+    workflowId: z.string().min(1),
+    format: documentGenerationFormatSchema,
+    object: z.lazy(() => projectObjectSummarySchema),
+    artifact: z
+      .object({
+        objectKey: z.string().min(1),
+        mimeType: z.string().min(1),
+        bytes: z.number().int().nonnegative(),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const documentGenerationErrorResultSchema = z
+  .object({
+    ok: z.literal(false),
+    requestId: z.string().uuid(),
+    workflowId: z.string().min(1).optional(),
+    format: documentGenerationFormatSchema.optional(),
+    errorCode: z.string().trim().min(1).max(120),
+    retryable: z.boolean().default(false),
+  })
+  .strict();
+
+export const documentGenerationTerminalResultSchema = z.union([
+  documentGenerationResultSchema,
+  documentGenerationErrorResultSchema,
+]);
+
+export type DocumentGenerationResult = z.infer<typeof documentGenerationResultSchema>;
+export type DocumentGenerationErrorResult = z.infer<typeof documentGenerationErrorResultSchema>;
+export type DocumentGenerationTerminalResult = z.infer<typeof documentGenerationTerminalResultSchema>;
 
 export const projectObjectSummarySchema = z.object({
   id: z.string().uuid(),
@@ -128,6 +258,20 @@ export const projectObjectActionEventSchema = z.discriminatedUnion("type", [
     type: z.literal("project_object_compile_requested"),
     objectId: objectIdSchema,
     target: z.literal("pdf"),
+  }),
+  z.object({
+    type: z.literal("project_object_generation_requested"),
+    requestId: z.string().uuid(),
+    generation: documentGenerationRequestSchema,
+    workflowHint: z.literal("document_generation"),
+  }),
+  z.object({
+    type: z.literal("project_object_generation_completed"),
+    result: documentGenerationResultSchema,
+  }),
+  z.object({
+    type: z.literal("project_object_generation_failed"),
+    result: documentGenerationErrorResultSchema,
   }),
 ]);
 
