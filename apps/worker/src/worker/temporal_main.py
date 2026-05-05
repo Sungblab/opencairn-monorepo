@@ -41,6 +41,10 @@ from worker.activities.deep_research import (
     iterate_deep_research_plan,
     persist_deep_research_report,
 )
+from worker.activities.document_generation import (
+    generate_document_artifact,
+    register_document_generation_result,
+)
 from worker.activities.drive_activities import (
     discover_drive_tree,
     upload_drive_file_to_minio,
@@ -98,6 +102,7 @@ from worker.workflows.compiler_workflow import CompilerWorkflow
 from worker.workflows.connector_workflow import ConnectorWorkflow
 from worker.workflows.curator_workflow import CuratorWorkflow
 from worker.workflows.deep_research_workflow import DeepResearchWorkflow
+from worker.workflows.document_generation_workflow import DocumentGenerationWorkflow
 from worker.workflows.import_workflow import ImportWorkflow
 from worker.workflows.ingest_workflow import IngestWorkflow, read_text_object
 from worker.workflows.librarian_workflow import LibrarianWorkflow
@@ -271,6 +276,18 @@ def build_worker_config() -> WorkerConfig:
             synthesize_activity,
             compile_activity,
         ])
+
+    # Document Generation Export Pipeline Phase 3A — worker-backed PDF/DOCX/
+    # PPTX/XLSX artifacts. Kept flag-gated until API/web execution surfaces
+    # are wired, but the worker implementation is available for focused tests.
+    if os.environ.get("FEATURE_DOCUMENT_GENERATION", "false").lower() == "true":
+        workflows.append(DocumentGenerationWorkflow)
+        activities.extend(
+            [
+                generate_document_artifact,
+                register_document_generation_result,
+            ]
+        )
 
     return WorkerConfig(workflows=workflows, activities=activities)
 

@@ -69,6 +69,24 @@ def test_chat_agent_activity_has_no_heartbeat_timeout() -> None:
     assert "heartbeat_timeout" not in source
 
 
+def test_document_generation_omitted_when_flag_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("FEATURE_DOCUMENT_GENERATION", raising=False)
+    cfg = build_worker_config()
+    assert "DocumentGenerationWorkflow" not in [w.__name__ for w in cfg.workflows]
+    activity_names = [a.__name__ for a in cfg.activities]
+    assert "generate_document_artifact" not in activity_names
+    assert "register_document_generation_result" not in activity_names
+
+
+def test_document_generation_registered_when_flag_on(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FEATURE_DOCUMENT_GENERATION", "true")
+    cfg = build_worker_config()
+    assert "DocumentGenerationWorkflow" in [w.__name__ for w in cfg.workflows]
+    activity_names = [a.__name__ for a in cfg.activities]
+    assert "generate_document_artifact" in activity_names
+    assert "register_document_generation_result" in activity_names
+
+
 def test_enrichment_activities_omitted_when_flag_off(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
