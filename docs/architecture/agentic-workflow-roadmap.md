@@ -695,6 +695,12 @@ not run dependency installs, tests, builds, lint commands, hosted previews, or
 external deployments; those belong to the later execution-loop and hosted
 preview phases.
 
+Phase 1A contracts and storage are in place: shared code workspace schemas,
+path/manifest guards, API-lib idempotency and stale-base validation, and DB
+tables for code workspaces, snapshots, file entries, and patches. The next
+Phase 5 slice should expose project-scoped APIs and existing project
+explorer/tab-shell navigation without adding execution or hosted preview.
+
 ### Phase 6: Code Agent Execution Loop
 
 Add repair-loop behavior:

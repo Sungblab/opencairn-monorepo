@@ -2,8 +2,8 @@
 
 ## Status
 
-Accepted as a Phase 1 design direction. Implementation is split into later
-sessions.
+Accepted. Phase 1A contracts and storage are implemented; Phase 1B/1C remain
+follow-up implementation work.
 
 ## Context
 
@@ -185,6 +185,17 @@ or hosted-preview phases.
 - Add storage for workspace metadata, file contents, patches, and snapshots.
 - Use database-level enums for persisted closed sets such as file entry kind.
 - Keep execution, dependency install, and hosted preview out of scope.
+
+Phase 1A now exists in `packages/shared/src/code-project-workspaces.ts`,
+`packages/db/src/schema/code-workspaces.ts`, and
+`apps/api/src/lib/code-project-workspaces.ts`. The shared contract normalizes
+relative paths, rejects traversal/absolute/drive-letter/control-character paths,
+guards case-insensitive duplicate collisions, and enforces the Phase 1A bounds
+of 16 path segments, 2,000 entries, and 512 characters per normalized path.
+The storage model adds code workspaces, immutable snapshots, snapshot file
+entries, and reviewable patches with DB enums for file entry kind and patch
+status. The API lib validates server-injected scope and request idempotency and
+rejects stale patch bases before route-level APIs are exposed.
 
 ### Phase 1B: API And Project Surface
 

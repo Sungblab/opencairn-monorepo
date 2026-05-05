@@ -6,6 +6,7 @@ export * from "./comment-types";
 export * from "./import-types";
 export * from "./research-types";
 export * from "./code-types";
+export * from "./code-project-workspaces";
 export * from "./chat";
 export * from "./ingest-events";
 export * from "./doc-editor";
