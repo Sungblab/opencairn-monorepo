@@ -96,8 +96,10 @@ notification fan-out, search, or retention requirements justify it.
 
 ### 1. Shared Contracts
 
-Add shared run/event projection types and mapper tests. This phase should be
-pure and should not require a DB migration.
+Implemented as pure shared contracts and mapper tests in
+`packages/shared/src/workflow-console.ts` and
+`packages/shared/tests/workflow-console.test.ts`. This phase does not add a DB
+migration.
 
 ### 2. Read-Only API Projection
 
