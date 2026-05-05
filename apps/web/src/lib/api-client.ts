@@ -351,6 +351,11 @@ export const agentActionsApi = {
       method: "POST",
       body: JSON.stringify({}),
     }),
+  applyCodeProjectPreview: (id: string) =>
+    apiClient<{ action: AgentAction }>(`/agent-actions/${id}/apply`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
   transitionStatus: (
     id: string,
     body: Pick<TransitionAgentActionStatusRequest, "status">,

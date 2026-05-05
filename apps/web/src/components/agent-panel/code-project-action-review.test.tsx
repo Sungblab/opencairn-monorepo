@@ -24,6 +24,7 @@ vi.mock("@/lib/api-client", async () => {
     agentActionsApi: {
       list: vi.fn(),
       applyCodeProjectPatch: vi.fn(),
+      applyCodeProjectPreview: vi.fn(),
       transitionStatus: vi.fn(),
     },
   };
@@ -76,11 +77,88 @@ function draftAction(): AgentAction {
   };
 }
 
+function previewAction(): AgentAction {
+  return {
+    id: "00000000-0000-4000-8000-000000000030",
+    requestId: "00000000-0000-4000-8000-000000000031",
+    workspaceId: "00000000-0000-4000-8000-000000000012",
+    projectId,
+    actorUserId: "user-1",
+    sourceRunId: null,
+    kind: "code_project.preview",
+    status: "approval_required",
+    risk: "external",
+    input: {
+      codeWorkspaceId: "00000000-0000-4000-8000-000000000020",
+      snapshotId: "00000000-0000-4000-8000-000000000021",
+      mode: "static",
+      entryPath: "index.html",
+      reason: "Review generated app",
+    },
+    preview: {
+      kind: "code_project.preview",
+      approval: "hosted_preview",
+      mode: "static",
+      entryPath: "index.html",
+      summary: "Create static preview for index.html",
+      reason: "Review generated app",
+    },
+    result: null,
+    errorCode: null,
+    createdAt: "2026-05-05T00:00:00.000Z",
+    updatedAt: "2026-05-05T00:00:00.000Z",
+  };
+}
+
+function completedPreviewAction(): AgentAction {
+  const action = previewAction();
+  return {
+    ...action,
+    id: "00000000-0000-4000-8000-000000000040",
+    status: "completed",
+    result: {
+      ok: true,
+      kind: "code_project.preview",
+      mode: "static",
+      codeWorkspaceId: "00000000-0000-4000-8000-000000000020",
+      snapshotId: "00000000-0000-4000-8000-000000000021",
+      entryPath: "index.html",
+      previewUrl: "/api/agent-actions/00000000-0000-4000-8000-000000000040/preview/index.html",
+      assetsBaseUrl: "/api/agent-actions/00000000-0000-4000-8000-000000000040/preview/",
+    },
+  };
+}
+
+function mockLists({
+  patches = [draftAction()],
+  pendingPreviews = [],
+  completedPreviews = [],
+}: {
+  patches?: AgentAction[];
+  pendingPreviews?: AgentAction[];
+  completedPreviews?: AgentAction[];
+} = {}) {
+  vi.mocked(agentActionsApi.list).mockImplementation(async (_projectId, opts) => {
+    if (!opts) return { actions: [] };
+    if (opts.kind === "code_project.patch") return { actions: patches };
+    if (opts.kind === "code_project.preview" && opts.status === "approval_required") {
+      return { actions: pendingPreviews };
+    }
+    if (opts.kind === "code_project.preview" && opts.status === "completed") {
+      return { actions: completedPreviews };
+    }
+    return { actions: [] };
+  });
+}
+
 describe("CodeProjectActionReviewList", () => {
   beforeEach(() => {
-    vi.mocked(agentActionsApi.list).mockResolvedValue({ actions: [draftAction()] });
+    mockLists();
     vi.mocked(agentActionsApi.applyCodeProjectPatch).mockResolvedValue({
       action: { ...draftAction(), status: "completed" },
+    });
+    vi.mocked(agentActionsApi.applyCodeProjectPreview).mockResolvedValue({
+      action: { ...previewAction(), status: "completed" },
     });
     vi.mocked(agentActionsApi.transitionStatus).mockResolvedValue({
       action: { ...draftAction(), status: "cancelled" },
@@ -117,5 +195,32 @@ describe("CodeProjectActionReviewList", () => {
       status: "cancelled",
     });
     await waitFor(() => expect(screen.getByText("cancelled")).toBeTruthy());
+  });
+
+  it("renders and applies a pending static preview action", async () => {
+    mockLists({ patches: [], pendingPreviews: [previewAction()] });
+    const user = userEvent.setup();
+    renderWithClient();
+
+    expect(await screen.findByText("previewTitle")).toBeTruthy();
+    expect(screen.getByText("previewEntry:{\"entryPath\":\"index.html\"}")).toBeTruthy();
+    expect(screen.getByText("Review generated app")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "previewApply" }));
+
+    expect(agentActionsApi.applyCodeProjectPreview).toHaveBeenCalledWith(previewAction().id);
+    await waitFor(() => expect(screen.getByText("previewApplied")).toBeTruthy());
+  });
+
+  it("renders a completed static preview link", async () => {
+    mockLists({ patches: [], completedPreviews: [completedPreviewAction()] });
+    renderWithClient();
+
+    const link = await screen.findByRole("link", { name: "openPreview" });
+    expect(link).toHaveAttribute(
+      "href",
+      "/api/agent-actions/00000000-0000-4000-8000-000000000040/preview/index.html",
+    );
+    expect(screen.getByText("previewEntry:{\"entryPath\":\"index.html\"}")).toBeTruthy();
   });
 });

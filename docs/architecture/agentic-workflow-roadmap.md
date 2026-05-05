@@ -797,6 +797,12 @@ caching plus a CSP sandbox. This keeps static HTML previewable while leaving
 object-backed asset reads, expiring external URLs, process-backed preview
 servers, cleanup, and browser smoke screenshots for later Phase 7 slices.
 
+Phase 7C surfaces that loop in the web Agent Panel. Pending
+`code_project.preview` approval-required actions render beside existing code
+patch proposals with approve/reject controls. Completed static previews render
+an internal preview link, making the private sandbox route reachable from the
+normal agent review surface while still avoiding public deployment semantics.
+
 ### Phase 7: Hosted Preview
 
 Add generated app previews:

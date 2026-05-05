@@ -62,6 +62,20 @@
     "applyFailed": "Could not apply the code patch proposal.",
     "cancelFailed": "Could not cancel the code patch proposal."
   },
+  "codePreviewReview": {
+    "previewTitle": "Static preview approval",
+    "previewEntry": "Entry file {entryPath}",
+    "previewWarning": "Approving creates an internal sandbox preview from the snapshot's static files.",
+    "previewApply": "Create preview",
+    "previewReject": "Reject",
+    "previewApplied": "Created the static preview.",
+    "previewCancelled": "Cancelled the static preview request.",
+    "previewApplyFailed": "Could not create the static preview.",
+    "previewCancelFailed": "Could not cancel the static preview request.",
+    "resultTitle": "Static preview",
+    "openPreview": "Open preview",
+    "resultWarning": "This preview opens through an internal API path, not a public deployment URL."
+  },
   "workflowConsole": {
     "title": "Run status",
     "loading": "Loading runs…",

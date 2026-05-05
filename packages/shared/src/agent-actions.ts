@@ -6,6 +6,7 @@ import {
   codeWorkspaceInstallRequestSchema,
   codeWorkspacePatchPreviewSchema,
   codeWorkspacePatchSchema,
+  codeWorkspacePreviewResultSchema,
   codeWorkspacePreviewRequestSchema,
 } from "./code-project-workspaces";
 
@@ -317,6 +318,16 @@ export function parseNoteUpdateApplyResult(value: unknown): NoteUpdateApplyResul
 
 export function parseCodeWorkspacePatchPreview(value: unknown) {
   const parsed = codeWorkspacePatchPreviewSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+export function parseCodeWorkspacePreviewRequest(value: unknown) {
+  const parsed = codeWorkspacePreviewRequestSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+export function parseCodeWorkspacePreviewResult(value: unknown) {
+  const parsed = codeWorkspacePreviewResultSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
 }
 
