@@ -22,6 +22,7 @@ import {
   codeWorkspaceCommandRunResultSchema,
   codeWorkspaceCreateRequestSchema,
   codeWorkspaceInstallRequestSchema,
+  codeWorkspaceInstallResultSchema,
   codeWorkspacePatchSchema,
   codeWorkspacePreviewResultSchema,
   codeWorkspacePreviewRequestSchema,
@@ -50,6 +51,8 @@ import type {
   TransitionAgentActionStatusRequest,
   CodeWorkspaceCommandRunRequest,
   CodeWorkspaceCommandRunResult,
+  CodeWorkspaceInstallResult,
+  CodeWorkspaceInstallRequest,
   CodeWorkspacePreviewResult,
 } from "@opencairn/shared";
 import { randomUUID } from "node:crypto";
@@ -132,6 +135,7 @@ export interface AgentActionServiceOptions {
   canWriteProject?: (userId: string, projectId: string) => Promise<boolean>;
   codeWorkspaceRepo?: CodeWorkspaceRepository;
   codeCommandRunner?: CodeCommandRunner;
+  codeInstallRunner?: CodeInstallRunner;
   codeCommandCanceller?: CodeCommandCanceller;
   codeRepairPlanner?: CodeRepairPlanner;
   noteExecutor?: NoteActionExecutor;
@@ -208,6 +212,17 @@ export interface CodeCommandRunnerInput {
 
 export interface CodeCommandRunner {
   run(input: CodeCommandRunnerInput): Promise<CodeWorkspaceCommandRunResult>;
+}
+
+export interface CodeInstallRunnerInput {
+  action: AgentAction;
+  workspace: CodeWorkspaceRecord;
+  snapshot: CodeWorkspaceSnapshotRecord;
+  request: CodeWorkspaceInstallRequest;
+}
+
+export interface CodeInstallRunner {
+  install(input: CodeInstallRunnerInput): Promise<CodeWorkspaceInstallResult>;
 }
 
 export interface CodeCommandCancellerInput {
@@ -649,6 +664,9 @@ export async function applyAgentAction(
   }
   if (current.kind === "code_project.preview") {
     return applyCodeProjectPreviewAction(current, actorUserId, { ...options, repo });
+  }
+  if (current.kind === "code_project.install") {
+    return applyCodeProjectInstallAction(current, actorUserId, { ...options, repo });
   }
   throw new AgentActionError("action_kind_not_applicable", 409);
 }
@@ -1137,6 +1155,66 @@ async function applyCodeProjectPreviewAction(
   }
 }
 
+async function applyCodeProjectInstallAction(
+  current: AgentAction,
+  actorUserId: string,
+  options?: AgentActionServiceOptions,
+): Promise<AgentAction> {
+  if (current.status !== "approval_required") {
+    throw new AgentActionError("action_not_applicable", 409);
+  }
+  const repo = options?.repo ?? createDrizzleAgentActionRepository();
+  const codeRepo = options?.codeWorkspaceRepo ?? createDrizzleCodeWorkspaceRepository();
+  try {
+    const payload = codeWorkspaceInstallRequestSchema.parse({
+      ...(current.input ?? {}),
+      requestId: current.requestId,
+    });
+    const workspace = await codeRepo.findWorkspaceById(
+      {
+        workspaceId: current.workspaceId,
+        projectId: current.projectId,
+        actorUserId,
+      },
+      payload.codeWorkspaceId,
+    );
+    if (!workspace) throw new AgentActionError("code_workspace_not_found", 404);
+    const snapshot = await codeRepo.findSnapshotById(workspace.id, payload.snapshotId);
+    if (!snapshot) throw new AgentActionError("code_workspace_snapshot_not_found", 404);
+
+    const runner = options?.codeInstallRunner ?? createUnavailableCodeInstallRunner();
+    const installResult = codeWorkspaceInstallResultSchema.parse(
+      await runner.install({
+        action: current,
+        workspace,
+        snapshot,
+        request: payload,
+      }),
+    );
+    const result = {
+      ...installResult,
+      codeWorkspaceId: payload.codeWorkspaceId,
+      snapshotId: payload.snapshotId,
+    };
+    const updated = await repo.updateStatus(current.id, {
+      status: result.exitCode === 0 ? "completed" : "failed",
+      result,
+      errorCode: result.exitCode === 0 ? null : "code_project_install_failed",
+    });
+    if (!updated) throw new AgentActionError("action_not_found", 404);
+    return updated;
+  } catch (err) {
+    const errorCode = err instanceof AgentActionError ? err.code : "code_project_install_failed";
+    const failed = await repo.updateStatus(current.id, {
+      status: "failed",
+      result: { ok: false, errorCode },
+      errorCode,
+    });
+    if (!failed) throw new AgentActionError("action_not_found", 404);
+    return failed;
+  }
+}
+
 async function executePersistedCodeProjectRunAction(
   action: AgentAction,
   request: CreateAgentActionRequest,
@@ -1208,6 +1286,14 @@ function createUnavailableCodeCommandRunner(): CodeCommandRunner {
   return {
     async run() {
       throw new AgentActionError("code_command_runner_unavailable", 409);
+    },
+  };
+}
+
+function createUnavailableCodeInstallRunner(): CodeInstallRunner {
+  return {
+    async install() {
+      throw new AgentActionError("code_install_runner_unavailable", 409);
     },
   };
 }

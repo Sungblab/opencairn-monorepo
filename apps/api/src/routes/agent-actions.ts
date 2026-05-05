@@ -38,6 +38,7 @@ export function createAgentActionRoutes(options?: AgentActionRouteOptions) {
     ...(options?.canWriteProject ? { canWriteProject: options.canWriteProject } : {}),
     ...(options?.codeWorkspaceRepo ? { codeWorkspaceRepo: options.codeWorkspaceRepo } : {}),
     ...(options?.codeCommandRunner ? { codeCommandRunner: options.codeCommandRunner } : {}),
+    ...(options?.codeInstallRunner ? { codeInstallRunner: options.codeInstallRunner } : {}),
     ...(options?.codeCommandCanceller ? { codeCommandCanceller: options.codeCommandCanceller } : {}),
     ...(options?.codeRepairPlanner ? { codeRepairPlanner: options.codeRepairPlanner } : {}),
     ...(options?.noteExecutor ? { noteExecutor: options.noteExecutor } : {}),
