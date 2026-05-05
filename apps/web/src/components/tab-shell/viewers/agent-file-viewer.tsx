@@ -124,6 +124,29 @@ export function AgentFileViewer({ tab }: { tab: Tab }) {
   const file = data.file;
   const fileUrl = `/api/agent-files/${file.id}/file`;
   const compiledUrl = `/api/agent-files/${file.id}/compiled`;
+  const googleConnected = Boolean(googleIntegration.data?.connected);
+  const googleExportLabel = googleConnected
+    ? t("googleExport")
+    : t("googleExportConnectRequired");
+  const handleGoogleExport = () => {
+    if (googleConnected) {
+      googleExport.mutate(file);
+      return;
+    }
+    const tabs = useTabsStore.getState();
+    const existing = tabs.findTabByTarget("ws_settings", "integrations");
+    if (existing) {
+      tabs.setActive(existing.id);
+      return;
+    }
+    tabs.addTab(
+      newTab({
+        kind: "ws_settings",
+        targetId: "integrations",
+        title: t("googleSettingsTitle"),
+      }),
+    );
+  };
 
   return (
     <div data-testid="agent-file-viewer" className="flex h-full min-h-0 flex-col bg-background">
@@ -164,18 +187,10 @@ export function AgentFileViewer({ tab }: { tab: Tab }) {
         <Button
           size="sm"
           variant="ghost"
-          title={
-            googleIntegration.data?.connected
-              ? t("googleExport")
-              : t("googleExportConnectRequired")
-          }
-          aria-label={
-            googleIntegration.data?.connected
-              ? t("googleExport")
-              : t("googleExportConnectRequired")
-          }
-          onClick={() => googleExport.mutate(file)}
-          disabled={!googleIntegration.data?.connected || googleExport.isPending}
+          title={googleExportLabel}
+          aria-label={googleExportLabel}
+          onClick={handleGoogleExport}
+          disabled={googleIntegration.isLoading || googleExport.isPending}
         >
           <ExternalLink className="h-4 w-4" />
         </Button>
