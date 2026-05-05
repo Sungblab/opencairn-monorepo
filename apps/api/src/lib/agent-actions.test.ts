@@ -488,6 +488,22 @@ describe("agent action service", () => {
       },
     });
   });
+
+  it("rejects queued workflow actions without project write permission", async () => {
+    await expect(
+      createQueuedWorkflowAgentAction(
+        {
+          workspaceId,
+          projectId,
+          actorUserId: userId,
+          requestId,
+          kind: "export.project",
+          risk: "expensive",
+        },
+        { repo: createMemoryRepo(), canWriteProject: async () => false },
+      ),
+    ).rejects.toMatchObject(new AgentActionError("forbidden", 403));
+  });
 });
 
 function createMemoryRepo(): AgentActionRepository {

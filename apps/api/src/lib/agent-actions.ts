@@ -344,20 +344,6 @@ export async function createQueuedWorkflowAgentAction(
   return { action, idempotent: !inserted };
 }
 
-export async function markWorkflowAgentActionStarted(
-  actionId: string | null | undefined,
-  result: Record<string, unknown>,
-  options?: Pick<AgentActionServiceOptions, "repo">,
-): Promise<AgentAction | null> {
-  if (!actionId) return null;
-  const repo = options?.repo ?? createDrizzleAgentActionRepository();
-  return repo.updateStatus(actionId, {
-    status: "queued",
-    result,
-    errorCode: null,
-  });
-}
-
 export async function markWorkflowAgentActionFailed(
   actionId: string | null | undefined,
   errorCode: string,

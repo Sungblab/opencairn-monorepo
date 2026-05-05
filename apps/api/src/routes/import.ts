@@ -26,7 +26,6 @@ import type { AppEnv } from "../lib/types";
 import {
   createQueuedWorkflowAgentAction,
   markWorkflowAgentActionFailed,
-  markWorkflowAgentActionStarted,
 } from "../lib/agent-actions";
 
 // Hard ceiling on a single Notion export ZIP. Defaults to 5GB (matches the
@@ -170,11 +169,6 @@ async function startImportWorkflow(args: {
         },
       ],
     });
-    await markWorkflowAgentActionStarted(args.actionId, {
-      workflowId: args.workflowId,
-      jobId: args.jobId,
-      workflowHint: "import",
-    });
   } catch (err) {
     await db
       .update(importJobs)
@@ -235,11 +229,15 @@ async function createImportWorkflowAction(args: {
       jobId: args.jobId,
       workflowHint: "import",
     },
-  }, {
-    // Existing import routes authorize at workspace scope. Keep that
-    // compatibility while still ensuring the project belongs to the workspace.
-    canWriteProject: async () => true,
   });
+}
+
+async function ensureImportTargetProjectWrite(args: {
+  userId: string;
+  targetProjectId: string | null;
+}): Promise<boolean> {
+  if (!args.targetProjectId) return true;
+  return canWrite(args.userId, { type: "project", id: args.targetProjectId });
 }
 
 async function startImportJobWithAction(args: {
@@ -324,6 +322,9 @@ importRouter.post(
     };
     const targetProjectId =
       body.target.kind === "existing" ? body.target.projectId : null;
+    if (!(await ensureImportTargetProjectWrite({ userId, targetProjectId }))) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
     const [job] = await db
       .insert(importJobs)
       .values({
@@ -404,6 +405,9 @@ importRouter.post(
     };
     const targetProjectId =
       body.target.kind === "existing" ? body.target.projectId : null;
+    if (!(await ensureImportTargetProjectWrite({ userId, targetProjectId }))) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
     const [job] = await db
       .insert(importJobs)
       .values({
@@ -471,6 +475,9 @@ importRouter.post(
     };
     const targetProjectId =
       body.target.kind === "existing" ? body.target.projectId : null;
+    if (!(await ensureImportTargetProjectWrite({ userId, targetProjectId }))) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
     const [job] = await db
       .insert(importJobs)
       .values({
@@ -736,6 +743,14 @@ importRouter.post("/jobs/:id/retry", requireAuth, async (c) => {
 
   const workflowId = `import-${randomUUID()}`;
   const sourceMetadata = (job.sourceMetadata ?? {}) as Record<string, unknown>;
+  if (
+    !(await ensureImportTargetProjectWrite({
+      userId,
+      targetProjectId: job.targetProjectId,
+    }))
+  ) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
   const [retryJob] = await db
     .insert(importJobs)
     .values({

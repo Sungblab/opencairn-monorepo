@@ -28,7 +28,6 @@ import { canWrite } from "../lib/permissions";
 import {
   createQueuedWorkflowAgentAction,
   markWorkflowAgentActionFailed,
-  markWorkflowAgentActionStarted,
 } from "../lib/agent-actions";
 import {
   registerExistingObjectAsAgentFile,
@@ -96,12 +95,15 @@ async function createSynthesisWorkflowAction(args: {
       workflowId: args.workflowId,
       workflowHint: "synthesis_export",
     },
-  }, {
-    // Synthesis export has historically been workspace-authorized. The action
-    // bridge only asserts project/workspace consistency so existing callers
-    // keep the same authorization envelope.
-    canWriteProject: async () => true,
   });
+}
+
+async function ensureSynthesisProjectWrite(args: {
+  userId: string;
+  projectId: string | null | undefined;
+}): Promise<boolean> {
+  if (!args.projectId) return true;
+  return canWrite(args.userId, { type: "project", id: args.projectId });
 }
 
 async function failSynthesisWorkflowStart(args: {
@@ -138,6 +140,9 @@ synthesisExportRouter.post(
     if (
       !(await canWrite(userId, { type: "workspace", id: body.workspaceId }))
     ) {
+      return c.json({ error: "forbidden" }, 403);
+    }
+    if (!(await ensureSynthesisProjectWrite({ userId, projectId: body.projectId }))) {
       return c.json({ error: "forbidden" }, 403);
     }
 
@@ -197,11 +202,6 @@ synthesisExportRouter.post(
         noteIds: body.noteIds,
         autoSearch: body.autoSearch,
         byokKeyHandle: null,
-      });
-      await markWorkflowAgentActionStarted(action?.action.id, {
-        runId: run!.id,
-        workflowId,
-        workflowHint: "synthesis_export",
       });
     } catch (err) {
       await failSynthesisWorkflowStart({
@@ -565,6 +565,9 @@ synthesisExportRouter.post(
     if (!(await canWrite(userId, { type: "workspace", id: prev.workspaceId }))) {
       return c.json({ error: "forbidden" }, 403);
     }
+    if (!(await ensureSynthesisProjectWrite({ userId, projectId: prev.projectId }))) {
+      return c.json({ error: "forbidden" }, 403);
+    }
 
     // Mirror POST /run: pre-generate id and persist workflowId on INSERT
     // to close the orphan-workflow window if the workflow start fails or
@@ -623,11 +626,6 @@ synthesisExportRouter.post(
         noteIds: [],
         autoSearch: prev.autoSearch,
         byokKeyHandle: null,
-      });
-      await markWorkflowAgentActionStarted(action?.action.id, {
-        runId: next!.id,
-        workflowId,
-        workflowHint: "synthesis_export",
       });
     } catch (err) {
       await failSynthesisWorkflowStart({
