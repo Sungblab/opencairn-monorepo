@@ -1,18 +1,26 @@
 import {
   agentActions,
   and,
+  captureNoteVersion,
   db as defaultDb,
   desc,
   eq,
+  extractWikiLinkTargets,
   folders,
   isNotNull,
   isNull,
   notes,
   projects,
+  syncWikiLinks,
   type AgentActionRow,
   type DB,
+  yjsDocuments,
 } from "@opencairn/db";
 import { noteActionInputByKind } from "@opencairn/shared";
+import {
+  noteUpdateApplyResultSchema,
+  noteUpdatePreviewSchema,
+} from "@opencairn/shared";
 import type {
   AgentAction,
   AgentActionKind,
@@ -24,13 +32,24 @@ import type {
   NoteMoveActionInput,
   NoteRenameActionInput,
   NoteRestoreActionInput,
+  NoteUpdateApplyRequest,
+  NoteUpdateApplyResult,
+  NoteUpdateActionInput,
+  NoteUpdatePreview,
   Phase2ANoteActionKind,
   Phase2ANoteActionInput,
   TransitionAgentActionStatusRequest,
 } from "@opencairn/shared";
 import { randomUUID } from "node:crypto";
 import { canWrite } from "./permissions";
+import { diffPlateValues } from "./note-version-diff";
+import { plateValueToText } from "./plate-text";
 import { emitTreeEvent } from "./tree-events";
+import type { PlateValue } from "./yjs-to-plate";
+import {
+  transformYjsStateWithPlateValue,
+  yjsStateToPlateValue,
+} from "./yjs-plate-transform";
 
 export class AgentActionError extends Error {
   constructor(
@@ -81,6 +100,8 @@ export interface AgentActionServiceOptions {
   repo?: AgentActionRepository;
   canWriteProject?: (userId: string, projectId: string) => Promise<boolean>;
   noteExecutor?: NoteActionExecutor;
+  noteUpdatePreviewer?: NoteUpdatePreviewer;
+  noteUpdateApplier?: NoteUpdateApplier;
 }
 
 export interface NoteActionExecutorInput {
@@ -93,6 +114,28 @@ export interface NoteActionExecutorInput {
 
 export interface NoteActionExecutor {
   execute(input: NoteActionExecutorInput): Promise<Record<string, unknown>>;
+}
+
+export interface NoteUpdatePreviewerInput {
+  workspaceId: string;
+  projectId: string;
+  actorUserId: string;
+  payload: NoteUpdateActionInput;
+}
+
+export interface NoteUpdatePreviewer {
+  preview(input: NoteUpdatePreviewerInput): Promise<NoteUpdatePreview>;
+}
+
+export interface NoteUpdateApplierInput {
+  action: AgentAction;
+  actorUserId: string;
+  request: NoteUpdateApplyRequest;
+  payload: NoteUpdateActionInput;
+}
+
+export interface NoteUpdateApplier {
+  apply(input: NoteUpdateApplierInput): Promise<NoteUpdateApplyResult>;
 }
 
 export function createDrizzleAgentActionRepository(conn: DB = defaultDb): AgentActionRepository {
@@ -192,6 +235,18 @@ export async function createAgentAction(
 
   const placeholder = request.kind === "workflow.placeholder";
   const executableNoteAction = isPhase2ANoteAction(request.kind);
+  const noteUpdatePreview =
+    request.kind === "note.update"
+      ? await previewNoteUpdateAction(
+          {
+            workspaceId: scope.workspaceId,
+            projectId,
+            actorUserId,
+            payload: parseNoteUpdatePayload(request.input ?? {}),
+          },
+          options,
+        )
+      : null;
   const { action, inserted } = await repo.insert({
     requestId,
     workspaceId: scope.workspaceId,
@@ -199,10 +254,16 @@ export async function createAgentAction(
     actorUserId,
     sourceRunId: request.sourceRunId ?? null,
     kind: request.kind,
-    status: placeholder ? "completed" : executableNoteAction ? "running" : initialStatusForRisk(request.risk),
+    status: placeholder
+      ? "completed"
+      : executableNoteAction
+        ? "running"
+        : noteUpdatePreview
+          ? "draft"
+          : initialStatusForRisk(request.risk),
     risk: request.risk,
     input: request.input ?? {},
-    preview: request.preview ?? (placeholder ? placeholderPreview(request.input ?? {}) : null),
+    preview: noteUpdatePreview ?? request.preview ?? (placeholder ? placeholderPreview(request.input ?? {}) : null),
     result: placeholder ? placeholderResult(request.input ?? {}) : null,
     errorCode: null,
   });
@@ -276,6 +337,58 @@ export async function transitionAgentActionStatus(
   return updated;
 }
 
+export async function applyNoteUpdateAction(
+  id: string,
+  actorUserId: string,
+  request: NoteUpdateApplyRequest,
+  options?: AgentActionServiceOptions,
+): Promise<AgentAction> {
+  const repo = options?.repo ?? createDrizzleAgentActionRepository();
+  const current = await getAgentAction(id, actorUserId, { ...options, repo });
+  if (current.kind !== "note.update") {
+    throw new AgentActionError("action_kind_not_applicable", 409);
+  }
+  if (current.status !== "draft") {
+    throw new AgentActionError("invalid_status_transition", 409);
+  }
+
+  const payload = parseNoteUpdatePayload(current.input);
+  const running = await repo.updateStatus(id, {
+    status: "running",
+    errorCode: null,
+  });
+  if (!running) throw new AgentActionError("action_not_found", 404);
+
+  const applier = options?.noteUpdateApplier ?? createDrizzleNoteUpdateApplier();
+  try {
+    const result = noteUpdateApplyResultSchema.parse(
+      await applier.apply({
+        action: running,
+        actorUserId,
+        request,
+        payload,
+      }),
+    );
+    const completed = await repo.updateStatus(id, {
+      status: "completed",
+      result,
+      errorCode: null,
+    });
+    if (!completed) throw new AgentActionError("action_not_found", 404);
+    return completed;
+  } catch (err) {
+    const errorCode = err instanceof AgentActionError ? err.code : "note_update_apply_failed";
+    const failed = await repo.updateStatus(id, {
+      status: "failed",
+      result: { ok: false, errorCode },
+      errorCode,
+    });
+    if (!failed) throw new AgentActionError("action_not_found", 404);
+    if (err instanceof AgentActionError) throw err;
+    throw new AgentActionError(errorCode, 409);
+  }
+}
+
 export function canTransition(from: AgentActionStatus, to: AgentActionStatus): boolean {
   if (from === to) return true;
   const allowed: Record<AgentActionStatus, AgentActionStatus[]> = {
@@ -344,6 +457,18 @@ function parseNoteActionPayload(
   return noteActionInputByKind[kind].parse(input) as Phase2ANoteActionInput;
 }
 
+function parseNoteUpdatePayload(input: Record<string, unknown>): NoteUpdateActionInput {
+  return noteActionInputByKind["note.update"].parse(input);
+}
+
+async function previewNoteUpdateAction(
+  input: NoteUpdatePreviewerInput,
+  options?: AgentActionServiceOptions,
+): Promise<NoteUpdatePreview> {
+  const previewer = options?.noteUpdatePreviewer ?? createDrizzleNoteUpdatePreviewer();
+  return previewer.preview(input);
+}
+
 export function createDrizzleNoteActionExecutor(conn: DB = defaultDb): NoteActionExecutor {
   return {
     async execute(input) {
@@ -361,6 +486,203 @@ export function createDrizzleNoteActionExecutor(conn: DB = defaultDb): NoteActio
       }
     },
   };
+}
+
+export function createDrizzleNoteUpdatePreviewer(conn: DB = defaultDb): NoteUpdatePreviewer {
+  return {
+    async preview(input) {
+      const payload = input.payload;
+      const [note] = await conn
+        .select({
+          id: notes.id,
+          projectId: notes.projectId,
+          workspaceId: notes.workspaceId,
+          content: notes.content,
+        })
+        .from(notes)
+        .where(and(eq(notes.id, payload.noteId), eq(notes.projectId, input.projectId), isNull(notes.deletedAt)))
+        .limit(1);
+      if (!note) throw new AgentActionError("note_not_found", 404);
+      if (note.workspaceId !== input.workspaceId) {
+        throw new AgentActionError("workspace_scope_mismatch", 409);
+      }
+      if (!(await canWrite(input.actorUserId, { type: "note", id: payload.noteId }, { db: conn }))) {
+        throw new AgentActionError("forbidden", 403);
+      }
+
+      const [doc] = await conn
+        .select({ state: yjsDocuments.state, stateVector: yjsDocuments.stateVector })
+        .from(yjsDocuments)
+        .where(eq(yjsDocuments.name, `page:${payload.noteId}`))
+        .limit(1);
+      if (!doc) throw new AgentActionError("yjs_document_not_found", 409);
+
+      const currentContent = yjsStateToPlateValue(doc.state);
+      const draftContent = payload.draft.content;
+      return {
+        noteId: payload.noteId,
+        source: "yjs",
+        current: {
+          contentText: plateValueToText(currentContent),
+          yjsStateVectorBase64: Buffer.from(doc.stateVector).toString("base64"),
+        },
+        draft: {
+          contentText: plateValueToText(draftContent),
+        },
+        diff: diffPlateValues({
+          fromVersion: "current",
+          toVersion: "current",
+          before: currentContent,
+          after: draftContent,
+        }),
+        applyConstraints: [
+          "apply_must_transform_yjs_document",
+          "capture_version_before_apply",
+          "capture_version_after_apply",
+          "reject_if_yjs_state_vector_changed",
+          "preserve_plate_node_ids_when_possible",
+        ],
+      };
+    },
+  };
+}
+
+export function createDrizzleNoteUpdateApplier(conn: DB = defaultDb): NoteUpdateApplier {
+  return {
+    async apply(input) {
+      const payload = input.payload;
+      const [note] = await conn
+        .select({
+          id: notes.id,
+          projectId: notes.projectId,
+          workspaceId: notes.workspaceId,
+          title: notes.title,
+        })
+        .from(notes)
+        .where(and(eq(notes.id, payload.noteId), eq(notes.projectId, input.action.projectId), isNull(notes.deletedAt)))
+        .limit(1);
+      if (!note) throw new AgentActionError("note_not_found", 404);
+      if (note.workspaceId !== input.action.workspaceId) {
+        throw new AgentActionError("workspace_scope_mismatch", 409);
+      }
+      if (!(await canWrite(input.actorUserId, { type: "note", id: payload.noteId }, { db: conn }))) {
+        throw new AgentActionError("forbidden", 403);
+      }
+
+      const [doc] = await conn
+        .select({ state: yjsDocuments.state, stateVector: yjsDocuments.stateVector })
+        .from(yjsDocuments)
+        .where(eq(yjsDocuments.name, `page:${payload.noteId}`))
+        .limit(1);
+      if (!doc) throw new AgentActionError("yjs_document_not_found", 409);
+
+      assertExpectedStateVector(input.request.yjsStateVectorBase64, doc.stateVector);
+
+      const currentContent = yjsStateToPlateValue(doc.state);
+      const currentText = plateValueToText(currentContent);
+      const beforeCapture = await captureNoteVersion({
+        database: conn,
+        noteId: payload.noteId,
+        title: note.title,
+        content: currentContent,
+        contentText: currentText,
+        yjsState: doc.state,
+        yjsStateVector: doc.stateVector,
+        source: "manual_checkpoint",
+        actorType: "agent",
+        actorId: input.actorUserId,
+        reason: payload.reason ? `pre-agent note.update: ${payload.reason}` : "pre-agent note.update",
+        force: true,
+      });
+
+      const transformed = transformYjsStateWithPlateValue({
+        currentState: doc.state,
+        draft: payload.draft.content as PlateValue,
+      });
+      const appliedContentText = plateValueToText(transformed.plateValue);
+      const updatedAt = new Date();
+
+      await conn.transaction(async (tx) => {
+        const [lockedDoc] = await tx
+          .select({ stateVector: yjsDocuments.stateVector })
+          .from(yjsDocuments)
+          .where(eq(yjsDocuments.name, `page:${payload.noteId}`))
+          .for("update")
+          .limit(1);
+        if (!lockedDoc) throw new AgentActionError("yjs_document_not_found", 409);
+        assertExpectedStateVector(input.request.yjsStateVectorBase64, lockedDoc.stateVector);
+
+        await tx
+          .update(yjsDocuments)
+          .set({
+            state: transformed.state,
+            stateVector: transformed.stateVector,
+            sizeBytes: transformed.state.byteLength,
+            updatedAt,
+          })
+          .where(eq(yjsDocuments.name, `page:${payload.noteId}`));
+        await tx
+          .update(notes)
+          .set({
+            content: transformed.plateValue,
+            contentText: appliedContentText,
+            updatedAt,
+          })
+          .where(eq(notes.id, payload.noteId));
+        await syncWikiLinks(
+          tx,
+          payload.noteId,
+          extractWikiLinkTargets(transformed.plateValue),
+          note.workspaceId,
+        );
+      });
+
+      const afterCapture = await captureNoteVersion({
+        database: conn,
+        noteId: payload.noteId,
+        title: note.title,
+        content: transformed.plateValue,
+        contentText: appliedContentText,
+        yjsState: transformed.state,
+        yjsStateVector: transformed.stateVector,
+        source: "ai_edit",
+        actorType: "agent",
+        actorId: input.actorUserId,
+        reason: payload.reason ?? "agent note.update applied",
+        force: true,
+      });
+
+      const preview = noteUpdatePreviewSchema.parse(input.action.preview);
+      return {
+        ok: true,
+        noteId: payload.noteId,
+        applied: {
+          source: "yjs",
+          yjsStateVectorBase64: Buffer.from(transformed.stateVector).toString("base64"),
+          contentText: appliedContentText,
+        },
+        versionCapture: {
+          before: beforeCapture,
+          after: afterCapture,
+        },
+        summary: {
+          changedBlocks: preview.diff.summary.changedBlocks,
+          addedWords: preview.diff.summary.addedWords,
+          removedWords: preview.diff.summary.removedWords,
+        },
+      };
+    },
+  };
+}
+
+function assertExpectedStateVector(expectedBase64: string, actual: Uint8Array): void {
+  const expected = Buffer.from(expectedBase64, "base64");
+  if (
+    expected.byteLength !== actual.byteLength ||
+    !Buffer.from(actual).equals(expected)
+  ) {
+    throw new AgentActionError("note_update_stale_preview", 409);
+  }
 }
 
 async function createNoteFromAction(

@@ -4,9 +4,12 @@ import {
   canTransition,
   createAgentAction,
   executeAgentAction,
+  applyNoteUpdateAction,
   transitionAgentActionStatus,
   type AgentActionRepository,
   type NoteActionExecutor,
+  type NoteUpdateApplier,
+  type NoteUpdatePreviewer,
 } from "./agent-actions";
 import type { AgentAction } from "@opencairn/shared";
 
@@ -245,6 +248,165 @@ describe("agent action service", () => {
       "note.restore",
     ]);
   });
+
+  it("creates note.update as a preview-only draft without applying content", async () => {
+    const repo = createMemoryRepo();
+    const noteExecutor = createMemoryNoteExecutor();
+    const noteUpdatePreviewer = createMemoryNoteUpdatePreviewer();
+
+    const { action, idempotent } = await createAgentAction(
+      projectId,
+      userId,
+      {
+        requestId,
+        kind: "note.update",
+        risk: "write",
+        input: {
+          noteId: "00000000-0000-4000-8000-000000000021",
+          draft: {
+            format: "plate_value_v1",
+            content: [{ type: "p", children: [{ text: "updated draft" }] }],
+          },
+          reason: "tighten intro",
+        },
+      },
+      {
+        repo,
+        canWriteProject: async () => true,
+        noteExecutor,
+        noteUpdatePreviewer,
+      },
+    );
+
+    expect(idempotent).toBe(false);
+    expect(noteExecutor.calls).toEqual([]);
+    expect(noteUpdatePreviewer.calls).toEqual([
+      { noteId: "00000000-0000-4000-8000-000000000021" },
+    ]);
+    expect(action).toMatchObject({
+      status: "draft",
+      kind: "note.update",
+      preview: {
+        noteId: "00000000-0000-4000-8000-000000000021",
+        source: "yjs",
+        current: { contentText: "old draft" },
+        draft: { contentText: "updated draft" },
+      },
+      result: null,
+      errorCode: null,
+    });
+  });
+
+  it("applies a draft note.update action through a Yjs applier and completes the ledger row", async () => {
+    const repo = createMemoryRepo();
+    const noteUpdatePreviewer = createMemoryNoteUpdatePreviewer();
+    const noteUpdateApplier = createMemoryNoteUpdateApplier();
+    const { action } = await createAgentAction(
+      projectId,
+      userId,
+      {
+        requestId,
+        kind: "note.update",
+        risk: "write",
+        input: {
+          noteId: "00000000-0000-4000-8000-000000000021",
+          draft: {
+            format: "plate_value_v1",
+            content: [{ type: "p", id: "block-1", children: [{ text: "updated draft" }] }],
+          },
+          reason: "tighten intro",
+        },
+      },
+      {
+        repo,
+        canWriteProject: async () => true,
+        noteUpdatePreviewer,
+      },
+    );
+
+    const applied = await applyNoteUpdateAction(
+      action.id,
+      userId,
+      { yjsStateVectorBase64: "AQID" },
+      {
+        repo,
+        canWriteProject: async () => true,
+        noteUpdateApplier,
+      },
+    );
+
+    expect(noteUpdateApplier.calls).toEqual([
+      {
+        actionId: action.id,
+        noteId: "00000000-0000-4000-8000-000000000021",
+        expectedVector: "AQID",
+      },
+    ]);
+    expect(applied).toMatchObject({
+      status: "completed",
+      result: {
+        ok: true,
+        noteId: "00000000-0000-4000-8000-000000000021",
+        applied: {
+          source: "yjs",
+          yjsStateVectorBase64: "BAUG",
+          contentText: "updated draft",
+        },
+        versionCapture: {
+          before: { created: true, version: 4 },
+          after: { created: true, version: 5 },
+        },
+      },
+      errorCode: null,
+    });
+  });
+
+  it("marks note.update apply as failed and returns a stable 409 error on stale preview", async () => {
+    const repo = createMemoryRepo();
+    const { action } = await createAgentAction(
+      projectId,
+      userId,
+      {
+        requestId,
+        kind: "note.update",
+        risk: "write",
+        input: {
+          noteId: "00000000-0000-4000-8000-000000000021",
+          draft: {
+            format: "plate_value_v1",
+            content: [{ type: "p", children: [{ text: "updated draft" }] }],
+          },
+        },
+      },
+      {
+        repo,
+        canWriteProject: async () => true,
+        noteUpdatePreviewer: createMemoryNoteUpdatePreviewer(),
+      },
+    );
+
+    await expect(
+      applyNoteUpdateAction(
+        action.id,
+        userId,
+        { yjsStateVectorBase64: "stale" },
+        {
+          repo,
+          canWriteProject: async () => true,
+          noteUpdateApplier: createMemoryNoteUpdateApplier({
+            failWith: new AgentActionError("note_update_stale_preview", 409),
+          }),
+        },
+      ),
+    ).rejects.toMatchObject(new AgentActionError("note_update_stale_preview", 409));
+
+    const failed = await repo.findById(action.id);
+    expect(failed).toMatchObject({
+      status: "failed",
+      errorCode: "note_update_stale_preview",
+      result: { ok: false, errorCode: "note_update_stale_preview" },
+    });
+  });
 });
 
 function createMemoryRepo(): AgentActionRepository {
@@ -353,6 +515,92 @@ function createMemoryNoteExecutor(options?: {
           projectId: input.projectId,
           folderId: payload.folderId ?? null,
           title: payload.title ?? "test",
+        },
+      };
+    },
+  };
+}
+
+function createMemoryNoteUpdatePreviewer(): NoteUpdatePreviewer & {
+  calls: Array<{ noteId: string }>;
+} {
+  const calls: Array<{ noteId: string }> = [];
+  return {
+    calls,
+    async preview(input) {
+      calls.push({ noteId: input.payload.noteId });
+      return {
+        noteId: input.payload.noteId,
+        source: "yjs",
+        current: {
+          contentText: "old draft",
+          yjsStateVectorBase64: "AQID",
+        },
+        draft: {
+          contentText: "updated draft",
+        },
+        diff: {
+          fromVersion: "current",
+          toVersion: "current",
+          summary: {
+            addedBlocks: 0,
+            removedBlocks: 0,
+            changedBlocks: 1,
+            addedWords: 1,
+            removedWords: 1,
+          },
+          blocks: [
+            {
+              key: "0",
+              status: "changed",
+              textDiff: [
+                { kind: "delete", text: "old" },
+                { kind: "insert", text: "updated" },
+                { kind: "equal", text: " draft" },
+              ],
+            },
+          ],
+        },
+        applyConstraints: [
+          "apply_must_transform_yjs_document",
+          "capture_version_before_apply",
+        ],
+      };
+    },
+  };
+}
+
+function createMemoryNoteUpdateApplier(options?: {
+  failWith?: AgentActionError;
+}): NoteUpdateApplier & {
+  calls: Array<{ actionId: string; noteId: string; expectedVector: string }>;
+} {
+  const calls: Array<{ actionId: string; noteId: string; expectedVector: string }> = [];
+  return {
+    calls,
+    async apply(input) {
+      calls.push({
+        actionId: input.action.id,
+        noteId: input.payload.noteId,
+        expectedVector: input.request.yjsStateVectorBase64,
+      });
+      if (options?.failWith) throw options.failWith;
+      return {
+        ok: true,
+        noteId: input.payload.noteId,
+        applied: {
+          source: "yjs",
+          yjsStateVectorBase64: "BAUG",
+          contentText: "updated draft",
+        },
+        versionCapture: {
+          before: { created: true, version: 4 },
+          after: { created: true, version: 5 },
+        },
+        summary: {
+          changedBlocks: 1,
+          addedWords: 1,
+          removedWords: 1,
         },
       };
     },

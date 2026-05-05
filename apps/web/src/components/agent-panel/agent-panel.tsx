@@ -34,6 +34,7 @@ import { useThreadsStore } from "@/stores/threads-store";
 import { Composer } from "./composer";
 import { Conversation } from "./conversation";
 import { AgentPanelEmptyState } from "./empty-state";
+import { NoteUpdateActionReviewList } from "./note-update-action-review";
 import { PanelHeader } from "./panel-header";
 import { ScopeChipsRow, defaultScopeIds } from "./scope-chips-row";
 import { buildAgentScopePayload } from "./scope-payload";
@@ -65,6 +66,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const [scope, setScope] = useState<string[]>(initialScope);
   const [strict, setStrict] = useState<"strict" | "loose">("strict");
   const [isSending, setIsSending] = useState(false);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const sendInFlightRef = useRef(false);
   const buildScopePayload = useCallback(
     () =>
@@ -90,6 +92,34 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   useEffect(() => {
     setScope(defaultScopeIds(activeTab?.kind));
   }, [activeTab?.kind]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function resolveActiveProject() {
+      if (!activeTab) {
+        if (!cancelled) setActiveProjectId(null);
+        return;
+      }
+      if (activeTab.kind === "project" && activeTab.targetId) {
+        if (!cancelled) setActiveProjectId(activeTab.targetId);
+        return;
+      }
+      if (activeTab.kind === "note" && activeTab.targetId) {
+        try {
+          const note = await api.getNote(activeTab.targetId);
+          if (!cancelled) setActiveProjectId(note.projectId);
+        } catch {
+          if (!cancelled) setActiveProjectId(null);
+        }
+        return;
+      }
+      if (!cancelled) setActiveProjectId(null);
+    }
+    void resolveActiveProject();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab]);
 
   async function startNewThread() {
     if (!workspaceId) return;
@@ -224,6 +254,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
         onNewThread={startNewThread}
         newThreadDisabled={threadActionsDisabled}
       />
+      <NoteUpdateActionReviewList projectId={activeProjectId} />
       {activeThreadId ? (
         <Conversation
           threadId={activeThreadId}

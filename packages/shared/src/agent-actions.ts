@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { NoteVersionDiffSchema } from "./note-versions";
 
 export const agentActionStatusSchema = z.enum([
   "draft",
@@ -101,8 +102,91 @@ export const noteDeleteActionInputSchema = z
 
 export const noteRestoreActionInputSchema = noteDeleteActionInputSchema;
 
+export const plateValueDraftSchema = z.array(z.record(z.unknown())).min(1).max(1000);
+
+export const noteUpdateActionInputSchema = z
+  .object({
+    noteId: z.string().uuid(),
+    draft: z
+      .object({
+        format: z.literal("plate_value_v1"),
+        content: plateValueDraftSchema,
+      })
+      .strict(),
+    reason: z.string().trim().max(500).optional(),
+  })
+  .strict();
+
+export const noteUpdateApplyConstraintSchema = z.enum([
+  "apply_must_transform_yjs_document",
+  "capture_version_before_apply",
+  "capture_version_after_apply",
+  "reject_if_yjs_state_vector_changed",
+  "preserve_plate_node_ids_when_possible",
+]);
+
+export const noteUpdatePreviewSchema = z
+  .object({
+    noteId: z.string().uuid(),
+    source: z.literal("yjs"),
+    current: z
+      .object({
+        contentText: z.string(),
+        yjsStateVectorBase64: z.string().nullable(),
+      })
+      .strict(),
+    draft: z
+      .object({
+        contentText: z.string(),
+      })
+      .strict(),
+    diff: NoteVersionDiffSchema,
+    applyConstraints: z.array(noteUpdateApplyConstraintSchema).min(1),
+  })
+  .strict();
+
+export const noteUpdateApplyRequestSchema = z
+  .object({
+    yjsStateVectorBase64: z.string().trim().min(1),
+  })
+  .strict();
+
+export const noteUpdateApplyResultSchema = z
+  .object({
+    ok: z.literal(true),
+    noteId: z.string().uuid(),
+    applied: z
+      .object({
+        source: z.literal("yjs"),
+        yjsStateVectorBase64: z.string().trim().min(1),
+        contentText: z.string(),
+      })
+      .strict(),
+    versionCapture: z
+      .object({
+        before: z.object({
+          created: z.boolean(),
+          version: z.number().int().positive(),
+        }),
+        after: z.object({
+          created: z.boolean(),
+          version: z.number().int().positive(),
+        }),
+      })
+      .strict(),
+    summary: z
+      .object({
+        changedBlocks: z.number().int().nonnegative(),
+        addedWords: z.number().int().nonnegative(),
+        removedWords: z.number().int().nonnegative(),
+      })
+      .strict(),
+  })
+  .strict();
+
 export const noteActionInputByKind = {
   "note.create": noteCreateActionInputSchema,
+  "note.update": noteUpdateActionInputSchema,
   "note.rename": noteRenameActionInputSchema,
   "note.move": noteMoveActionInputSchema,
   "note.delete": noteDeleteActionInputSchema,
@@ -178,7 +262,14 @@ export type NoteRenameActionInput = z.infer<typeof noteRenameActionInputSchema>;
 export type NoteMoveActionInput = z.infer<typeof noteMoveActionInputSchema>;
 export type NoteDeleteActionInput = z.infer<typeof noteDeleteActionInputSchema>;
 export type NoteRestoreActionInput = z.infer<typeof noteRestoreActionInputSchema>;
-export type Phase2ANoteActionKind = keyof typeof noteActionInputByKind;
+export type NoteUpdateActionInput = z.infer<typeof noteUpdateActionInputSchema>;
+export type NoteUpdatePreview = z.infer<typeof noteUpdatePreviewSchema>;
+export type NoteUpdateApplyRequest = z.infer<typeof noteUpdateApplyRequestSchema>;
+export type NoteUpdateApplyResult = z.infer<typeof noteUpdateApplyResultSchema>;
+export type Phase2ANoteActionKind = Exclude<
+  keyof typeof noteActionInputByKind,
+  "note.update"
+>;
 export type Phase2ANoteActionInput =
   | NoteCreateActionInput
   | NoteRenameActionInput
@@ -189,6 +280,16 @@ export type CreateAgentActionRequest = z.infer<typeof createAgentActionRequestSc
 export type TransitionAgentActionStatusRequest = z.infer<typeof transitionAgentActionStatusRequestSchema>;
 export type AgentAction = z.infer<typeof agentActionSchema>;
 export type AgentActionEvent = z.infer<typeof agentActionEventSchema>;
+
+export function parseNoteUpdatePreview(value: unknown): NoteUpdatePreview | null {
+  const parsed = noteUpdatePreviewSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+export function parseNoteUpdateApplyResult(value: unknown): NoteUpdateApplyResult | null {
+  const parsed = noteUpdateApplyResultSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
 
 function rejectOwnScopeFields(value: Record<string, unknown>, ctx: z.RefinementCtx): void {
   for (const key of Object.keys(value)) {
@@ -213,15 +314,6 @@ function validatePhase2ANoteActionInput(
   },
   ctx: z.RefinementCtx,
 ): void {
-  if (value.kind === "note.update") {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["kind"],
-      message: "note_update_is_deferred_to_phase_2b",
-    });
-    return;
-  }
-
   const schema = noteActionInputByKind[value.kind as Phase2ANoteActionKind];
   if (!schema) return;
 

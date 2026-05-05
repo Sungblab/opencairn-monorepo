@@ -131,6 +131,27 @@ Implementation expectations:
 - Keep project/page permission checks in the API.
 - Avoid direct DB writes from `apps/web`.
 
+`note.update` uses a preview/apply action flow. The agent submits a typed draft
+Plate value, the API reads the current `yjs_documents` state for the note,
+converts that Yjs state to a Plate snapshot, and stores a structured preview
+diff on the action ledger. The preview contract does not apply the draft and
+does not treat `notes.content` as canonical note content.
+
+The apply step transforms the live Yjs document's `"content"` root rather than
+using `notes.content` as a write target, rejects stale previews when the Yjs
+state vector changed, captures a note version before and after the agent edit,
+rebuilds Yjs-derived mirrors and wiki-link indexes from the transformed Plate
+value, and preserves Plate node ids carried by the draft where possible so
+comments, mentions, and future block-level history remain stable.
+
+The current web surface renders project-scoped draft `note.update` actions in
+the Agent Panel. The card shows current and proposed text summaries, diff
+counts, stale-preview guidance, an apply action that calls
+`POST /api/agent-actions/:id/apply`, and a reject action that transitions the
+ledger row to `cancelled`. Successful apply invalidates the action, note, and
+note-version query surfaces so the review card does not become a parallel
+editor state.
+
 ### File And Document Actions
 
 Generated files should stay in the existing project object flow:
@@ -337,6 +358,9 @@ Add the basic knowledge OS actions:
 
 - create note
 - update note with preview/diff
+- apply approved note updates through Yjs state-vector guarded writes
+- review and reject draft note updates from the Agent Panel
+- keep Yjs-derived note mirrors, note versions, and wiki-link indexes in sync
 - rename note
 - move note
 - soft-delete note

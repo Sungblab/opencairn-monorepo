@@ -2,6 +2,15 @@
 // Browser: same-origin (/api/... → proxied to Hono)
 // Server Components: direct to internal API URL
 
+import type {
+  AgentAction,
+  AgentActionKind,
+  AgentActionStatus,
+  NoteUpdateApplyRequest,
+  TransitionAgentActionStatusRequest,
+} from "@opencairn/shared";
+export type { AgentAction, AgentActionKind, AgentActionStatus } from "@opencairn/shared";
+
 const baseUrl = () =>
   typeof window === "undefined"
     ? (process.env.INTERNAL_API_URL ?? "http://localhost:4000")
@@ -303,6 +312,42 @@ export const chatApi = {
         sentiment,
         ...(reason ? { reason } : {}),
       }),
+    }),
+};
+
+// ---------- Agent actions ----------
+
+export interface AgentActionListOptions {
+  status?: AgentActionStatus;
+  kind?: AgentActionKind;
+  limit?: number;
+}
+
+export const agentActionsApi = {
+  list: (projectId: string, opts: AgentActionListOptions = {}) => {
+    const params = new URLSearchParams();
+    if (opts.status) params.set("status", opts.status);
+    if (opts.kind) params.set("kind", opts.kind);
+    if (opts.limit) params.set("limit", String(opts.limit));
+    const qs = params.toString();
+    return apiClient<{ actions: AgentAction[] }>(
+      `/projects/${projectId}/agent-actions${qs ? `?${qs}` : ""}`,
+    );
+  },
+  get: (id: string) =>
+    apiClient<{ action: AgentAction }>(`/agent-actions/${id}`),
+  applyNoteUpdate: (id: string, body: NoteUpdateApplyRequest) =>
+    apiClient<{ action: AgentAction }>(`/agent-actions/${id}/apply`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  transitionStatus: (
+    id: string,
+    body: Pick<TransitionAgentActionStatusRequest, "status">,
+  ) =>
+    apiClient<{ action: AgentAction }>(`/agent-actions/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
     }),
 };
 
