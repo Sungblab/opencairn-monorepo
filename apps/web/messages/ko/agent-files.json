@@ -35,7 +35,16 @@
     "open": "열기"
   },
   "generation": {
-    "status": "{format} · {filename} · {status}",
+    "statusDetail": "{status} · {format} · {filename}",
+    "sourceSummary": "출처: {sources}",
+    "sourceLabel": {
+      "note": "노트",
+      "agent_file": "생성 파일",
+      "chat_thread": "채팅",
+      "research_run": "리서치",
+      "synthesis_run": "합성 문서",
+      "none": "선택 없음"
+    },
     "statusLabel": {
       "queued": "대기 중",
       "running": "생성 중",
@@ -44,6 +53,12 @@
     },
     "errorCode": "오류: {code}",
     "open": "열기",
-    "pending": "대기"
+    "download": "다운로드",
+    "pendingAction": {
+      "queued": "대기 중",
+      "running": "생성 중",
+      "completed": "열기",
+      "failed": "실패"
+    }
   }
 }

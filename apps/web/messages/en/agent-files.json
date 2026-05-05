@@ -35,7 +35,16 @@
     "open": "Open"
   },
   "generation": {
-    "status": "{format} · {filename} · {status}",
+    "statusDetail": "{status} · {format} · {filename}",
+    "sourceSummary": "Sources: {sources}",
+    "sourceLabel": {
+      "note": "Note",
+      "agent_file": "Generated file",
+      "chat_thread": "Chat",
+      "research_run": "Research",
+      "synthesis_run": "Synthesis",
+      "none": "None selected"
+    },
     "statusLabel": {
       "queued": "Queued",
       "running": "Generating",
@@ -44,6 +53,12 @@
     },
     "errorCode": "Error: {code}",
     "open": "Open",
-    "pending": "Pending"
+    "download": "Download",
+    "pendingAction": {
+      "queued": "Queued",
+      "running": "Generating",
+      "completed": "Open",
+      "failed": "Failed"
+    }
   }
 }

@@ -37,7 +37,25 @@ describe("document generation cards", () => {
           prompt: "Generate a report",
           locale: "ko",
           template: "report",
-          sources: [],
+          sources: [
+            { type: "note", noteId: "00000000-0000-4000-8000-000000000030" },
+            {
+              type: "agent_file",
+              objectId: "00000000-0000-4000-8000-000000000031",
+            },
+            {
+              type: "chat_thread",
+              threadId: "00000000-0000-4000-8000-000000000032",
+            },
+            {
+              type: "research_run",
+              runId: "00000000-0000-4000-8000-000000000033",
+            },
+            {
+              type: "synthesis_run",
+              runId: "00000000-0000-4000-8000-000000000034",
+            },
+          ],
           destination: {
             filename: "project-report.pdf",
             title: "Project report",
@@ -96,6 +114,13 @@ describe("document generation cards", () => {
         title: "Project report",
         filename: "project-report.pdf",
         file: expect.objectContaining({ id: objectId, kind: "pdf" }),
+        sourceKinds: [
+          "note",
+          "agent_file",
+          "chat_thread",
+          "research_run",
+          "synthesis_run",
+        ],
       }),
       expect.objectContaining({
         requestId: "00000000-0000-4000-8000-000000000021",
@@ -145,5 +170,9 @@ describe("document generation cards", () => {
         mode: "agent-file",
       }),
     ]);
+    expect(screen.getByRole("link", { name: /download/ })).toHaveAttribute(
+      "href",
+      `/api/agent-files/${objectId}/file`,
+    );
   });
 });
