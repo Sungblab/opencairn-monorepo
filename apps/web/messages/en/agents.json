@@ -103,6 +103,36 @@
       "cancelAria": "Cancel import",
       "cancelSuccess": "Import cancelled.",
       "cancelError": "Couldn't cancel the import."
+    },
+    "freshnessStatus": {
+      "fresh": "fresh",
+      "stale": "stale",
+      "missing": "missing",
+      "unknown": "unknown"
+    },
+    "recoveryCode": {
+      "stale_context": "analysis requeued",
+      "verification_failed": "manual review",
+      "missing_source": "manual source check",
+      "manual_review": "manual review"
+    },
+    "recovery": {
+      "title": "Recovery options",
+      "step": "{title} · {code}",
+      "issue": "{title} · evidence {freshness} · {refs}",
+      "cancelConfirm": "Cancel this recovery step? Cancelling terminal-transitions the step.",
+      "success": "{strategy} requested.",
+      "error": "Couldn't request recovery.",
+      "strategy": {
+        "retry": "Retry",
+        "manual_review": "Manual review",
+        "cancel": "Cancel"
+      },
+      "aria": {
+        "retry": "Retry agentic plan step",
+        "manual_review": "Move agentic plan step to manual review",
+        "cancel": "Cancel agentic plan step"
+      }
     }
   },
   "tables": {

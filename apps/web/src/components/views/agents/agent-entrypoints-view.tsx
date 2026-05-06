@@ -30,6 +30,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import {
+  agenticPlansApi,
   plan8AgentsApi,
   importJobsApi,
   workflowConsoleApi,
@@ -44,6 +45,7 @@ import {
 import { urls } from "@/lib/urls";
 
 type LaunchKind = Plan8AgentName;
+type AgenticPlanRecoveryStrategy = "retry" | "manual_review" | "cancel";
 
 const LAUNCH_ORDER: LaunchKind[] = [
   "librarian",
@@ -581,12 +583,39 @@ function WorkflowConsoleRunDetail({ run }: { run: WorkflowConsoleRun }) {
       toast.error(t("workflowConsole.importActions.cancelError"));
     },
   });
+  const recoverAgenticPlan = useMutation({
+    mutationFn: ({
+      policy,
+      strategy,
+    }: {
+      policy: RecoveryPolicy;
+      strategy: AgenticPlanRecoveryStrategy;
+    }) => {
+      if (!run.projectId) throw new Error("missing_project");
+      return agenticPlansApi.recover(run.projectId, run.sourceId, {
+        stepId: policy.stepId,
+        strategy,
+      });
+    },
+    onSuccess: (_result, variables) => {
+      toast.success(
+        t("workflowConsole.recovery.success", {
+          strategy: t(`workflowConsole.recovery.strategy.${variables.strategy}`),
+        }),
+      );
+      invalidateWorkflowConsole();
+    },
+    onError: () => {
+      toast.error(t("workflowConsole.recovery.error"));
+    },
+  });
   const canRetryImport =
     run.runType === "import" &&
     run.status === "failed" &&
     run.error?.retryable !== false;
   const canCancelImport =
     run.runType === "import" && (run.status === "queued" || run.status === "running");
+  const recoveryPolicies = recoveryPoliciesForRun(run);
 
   const actionButtons =
     canRetryImport || canCancelImport ? (
@@ -617,11 +646,43 @@ function WorkflowConsoleRunDetail({ run }: { run: WorkflowConsoleRun }) {
         ) : null}
       </div>
     ) : null;
+  const recoveryDetail =
+    recoveryPolicies.length > 0 ? (
+      <WorkflowConsoleRecoveryDetail
+        policies={recoveryPolicies}
+        busy={recoverAgenticPlan.isPending}
+        onRecover={(policy, strategy) => {
+          if (
+            strategy === "cancel" &&
+            typeof window !== "undefined" &&
+            !window.confirm(t("workflowConsole.recovery.cancelConfirm"))
+          ) {
+            return;
+          }
+          recoverAgenticPlan.mutate({ policy, strategy });
+        }}
+      />
+    ) : null;
+  const previewRecoverySummary =
+    run.outputs.length > 0 ? (
+      <div className="mt-1 grid gap-1">
+        {run.outputs
+          .filter((output) => output.outputType === "preview")
+          .map((output) => (
+            <WorkflowConsolePreviewRecoverySummary
+              key={output.id}
+              output={output}
+            />
+          ))}
+      </div>
+    ) : null;
 
   if (run.error?.message) {
     return (
       <div className="min-w-0">
         <span className="text-destructive">{run.error.message}</span>
+        {previewRecoverySummary}
+        {recoveryDetail}
         {actionButtons}
       </div>
     );
@@ -630,6 +691,8 @@ function WorkflowConsoleRunDetail({ run }: { run: WorkflowConsoleRun }) {
     return (
       <div className="min-w-0">
         <span className="break-all font-mono text-[11px]">{run.runId}</span>
+        {previewRecoverySummary}
+        {recoveryDetail}
         {actionButtons}
       </div>
     );
@@ -648,11 +711,238 @@ function WorkflowConsoleRunDetail({ run }: { run: WorkflowConsoleRun }) {
           {output.outputType === "log" ? (
             <WorkflowConsoleLogOutputDetail output={output} />
           ) : null}
+          {output.outputType === "preview" ? (
+            <WorkflowConsolePreviewRecoverySummary output={output} />
+          ) : null}
         </div>
       ))}
+      {recoveryDetail}
       {actionButtons}
     </div>
   );
+}
+
+type RecoveryPolicy = {
+  stepId: string;
+  stepTitle: string;
+  recoveryCode?: string;
+  allowedStrategies: AgenticPlanRecoveryStrategy[];
+};
+
+function WorkflowConsoleRecoveryDetail({
+  policies,
+  busy,
+  onRecover,
+}: {
+  policies: RecoveryPolicy[];
+  busy: boolean;
+  onRecover: (
+    policy: RecoveryPolicy,
+    strategy: AgenticPlanRecoveryStrategy,
+  ) => void;
+}) {
+  const t = useTranslations("agents");
+  return (
+    <div className="mt-1 grid gap-1">
+      <div className="text-[11px] font-medium text-foreground">
+        {t("workflowConsole.recovery.title")}
+      </div>
+      {policies.slice(0, 2).map((policy) => (
+        <div key={policy.stepId} className="grid gap-1">
+          <div className="max-w-md truncate text-[11px] text-muted-foreground">
+            {t("workflowConsole.recovery.step", {
+              title: policy.stepTitle,
+              code: policy.recoveryCode
+                ? recoveryCodeLabelFor(t, policy.recoveryCode)
+                : "-",
+            })}
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {policy.allowedStrategies.map((strategy) => (
+              <button
+                key={`${policy.stepId}:${strategy}`}
+                type="button"
+                aria-label={t(`workflowConsole.recovery.aria.${strategy}`)}
+                onClick={() => onRecover(policy, strategy)}
+                disabled={busy}
+                className="inline-flex h-6 items-center gap-1 rounded border border-border px-1.5 text-[11px] text-foreground hover:bg-accent disabled:opacity-50"
+              >
+                {strategyIcon(strategy)}
+                {t(`workflowConsole.recovery.strategy.${strategy}`)}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function WorkflowConsolePreviewRecoverySummary({
+  output,
+}: {
+  output: WorkflowConsoleRun["outputs"][number];
+}) {
+  const t = useTranslations("agents");
+  const issues = evidenceIssuesForOutput(output);
+  if (issues.length === 0) return null;
+  return (
+    <div className="mt-0.5 grid max-w-md gap-0.5 text-[11px] text-amber-700 dark:text-amber-300">
+      {issues.slice(0, 2).map((issue, index) => (
+        <div key={`${issue.stepTitle}:${index}`} className="truncate">
+          {t("workflowConsole.recovery.issue", {
+            title: issue.stepTitle,
+            freshness: freshnessStatusLabelFor(t, issue.freshnessStatus),
+            refs: issue.refs.length > 0 ? issue.refs.join(", ") : "-",
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function strategyIcon(strategy: AgenticPlanRecoveryStrategy) {
+  if (strategy === "cancel") return <X aria-hidden className="h-3 w-3" />;
+  if (strategy === "manual_review") {
+    return <AlertTriangle aria-hidden className="h-3 w-3" />;
+  }
+  return <RotateCw aria-hidden className="h-3 w-3" />;
+}
+
+function recoveryPoliciesForRun(run: WorkflowConsoleRun): RecoveryPolicy[] {
+  if (run.runType !== "agentic_plan" || !run.projectId) return [];
+  return run.outputs.flatMap((output) => {
+    const metadata = output.metadata ?? {};
+    const policies = Array.isArray(metadata.recoveryPolicies)
+      ? metadata.recoveryPolicies
+      : [];
+    return policies
+      .map(recoveryPolicyFromUnknown)
+      .filter((policy): policy is RecoveryPolicy => Boolean(policy));
+  });
+}
+
+function recoveryPolicyFromUnknown(value: unknown): RecoveryPolicy | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const stepId = typeof record.stepId === "string" ? record.stepId : null;
+  const stepTitle =
+    typeof record.stepTitle === "string" ? record.stepTitle : null;
+  const allowedStrategies = Array.isArray(record.allowedStrategies)
+    ? record.allowedStrategies.filter(isRecoveryStrategy)
+    : [];
+  if (!stepId || !stepTitle || allowedStrategies.length === 0) return null;
+  return {
+    stepId,
+    stepTitle,
+    recoveryCode:
+      typeof record.recoveryCode === "string" ? record.recoveryCode : undefined,
+    allowedStrategies,
+  };
+}
+
+function isRecoveryStrategy(value: unknown): value is AgenticPlanRecoveryStrategy {
+  return value === "retry" || value === "manual_review" || value === "cancel";
+}
+
+type EvidenceIssueDetail = {
+  stepTitle: string;
+  freshnessStatus: string;
+  refs: string[];
+};
+
+function evidenceIssuesForOutput(
+  output: WorkflowConsoleRun["outputs"][number],
+): EvidenceIssueDetail[] {
+  const metadata = output.metadata ?? {};
+  const issues = Array.isArray(metadata.evidenceIssues)
+    ? metadata.evidenceIssues
+    : [];
+  return issues
+    .map((issue) => {
+      if (!issue || typeof issue !== "object" || Array.isArray(issue)) {
+        return null;
+      }
+      const record = issue as Record<string, unknown>;
+      const stepTitle =
+        typeof record.stepTitle === "string" ? record.stepTitle : null;
+      const freshnessStatus =
+        typeof record.freshnessStatus === "string"
+          ? record.freshnessStatus
+          : "unknown";
+      const refs = Array.isArray(record.refs)
+        ? record.refs
+            .map(evidenceRefLabel)
+            .filter((label): label is string => Boolean(label))
+        : [];
+      return stepTitle ? { stepTitle, freshnessStatus, refs } : null;
+    })
+    .filter((issue): issue is EvidenceIssueDetail => Boolean(issue));
+}
+
+function freshnessStatusLabelFor(
+  t: ReturnType<typeof useTranslations>,
+  status: string,
+): string {
+  switch (status) {
+    case "fresh":
+      return t("workflowConsole.freshnessStatus.fresh");
+    case "stale":
+      return t("workflowConsole.freshnessStatus.stale");
+    case "missing":
+      return t("workflowConsole.freshnessStatus.missing");
+    default:
+      return t("workflowConsole.freshnessStatus.unknown");
+  }
+}
+
+function recoveryCodeLabelFor(
+  t: ReturnType<typeof useTranslations>,
+  code: string,
+): string {
+  switch (code) {
+    case "stale_context":
+      return t("workflowConsole.recoveryCode.stale_context");
+    case "verification_failed":
+      return t("workflowConsole.recoveryCode.verification_failed");
+    case "missing_source":
+      return t("workflowConsole.recoveryCode.missing_source");
+    case "manual.review":
+      return t("workflowConsole.recoveryCode.manual_review");
+    default:
+      return code;
+  }
+}
+
+function evidenceRefLabel(value: unknown): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const noteId =
+    typeof record.noteId === "string" ? shortId(record.noteId) : null;
+  const jobId = typeof record.jobId === "string" ? shortId(record.jobId) : null;
+  const chunkId =
+    typeof record.chunkId === "string" ? shortId(record.chunkId) : null;
+  const version =
+    typeof record.analysisVersion === "number"
+      ? ` v${record.analysisVersion}`
+      : "";
+  const hash =
+    typeof record.contentHash === "string" && record.contentHash.length > 0
+      ? ` ${shortHash(record.contentHash)}`
+      : "";
+  if (jobId && noteId) return `note ${noteId}/job ${jobId}${version}${hash}`;
+  if (chunkId && noteId) {
+    return `note ${noteId}/chunk ${chunkId}${version}${hash}`;
+  }
+  return noteId ? `note ${noteId}${version}${hash}` : null;
+}
+
+function shortId(value: string): string {
+  return value.length <= 8 ? value : value.slice(0, 8);
+}
+
+function shortHash(value: string): string {
+  return value.length <= 12 ? value : value.slice(0, 12);
 }
 
 function WorkflowConsoleLogOutputDetail({
