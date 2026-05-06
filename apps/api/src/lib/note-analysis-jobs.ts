@@ -35,6 +35,13 @@ export type DrainDueNoteAnalysisJobsOptions = {
   now?: Date;
 };
 
+export type RequeueNoteAnalysisJobForNoteOptions = {
+  noteId: string;
+  projectId?: string;
+  now?: Date;
+  debounceMs?: number;
+};
+
 export type RunNoteAnalysisJobResult =
   | { status: "completed"; jobId: string }
   | { status: "not_found"; jobId: string }
@@ -278,6 +285,24 @@ export async function drainDueNoteAnalysisJobs(
     }));
   }
   return { results };
+}
+
+export async function requeueNoteAnalysisJobForNote(
+  opts: RequeueNoteAnalysisJobForNoteOptions,
+): Promise<{ status: "queued"; jobId: string | null } | { status: "missing_note" }> {
+  const note = await db.query.notes.findFirst({
+    where: opts.projectId
+      ? and(eq(notes.id, opts.noteId), eq(notes.projectId, opts.projectId))
+      : eq(notes.id, opts.noteId),
+  });
+  if (!note) return { status: "missing_note" };
+  const yjsStateVector = await currentYjsStateVector(opts.noteId);
+  const queued = await queueNoteAnalysisJob(note, {
+    now: opts.now,
+    debounceMs: opts.debounceMs ?? 0,
+    yjsStateVector,
+  });
+  return { status: "queued", jobId: queued.jobId };
 }
 
 async function markNoteAnalysisJobFailed(

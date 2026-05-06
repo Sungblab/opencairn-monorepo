@@ -284,11 +284,18 @@ Plan 8 유지보수 에이전트는 `apps/worker/scripts/ensure_plan8_schedules.
 로 Temporal Schedule을 등록한다. 스크립트는 idempotent하며 기존 Schedule은
 현재 cron, workflow 입력, task queue 기준으로 갱신한다.
 
+Mutable note analysis draining is scheduled separately through
+`apps/worker/scripts/ensure_note_analysis_drain_schedule.py`. It starts
+`NoteAnalysisDrainWorkflow`, which runs one bounded
+`drain_note_analysis_jobs` activity pass against the internal API. The worker
+registers this workflow/activity only when `FEATURE_NOTE_ANALYSIS_DRAIN=true`.
+
 | Agent | Workflow | 기본 Cron | 입력 |
 |-------|----------|-----------|------|
 | Curator | `CuratorWorkflow` | `CURATOR_CRON` 또는 `0 3 * * *` | workspace/project/user + staleness 옵션 |
 | Staleness | `StalenessWorkflow` | `STALENESS_CRON` 또는 curator cron | workspace/project/user + `STALE_DAYS` |
 | Connector | `ConnectorWorkflow` | `CONNECTOR_CRON` 또는 `0 4 * * 0` | workspace/project/user + concept id |
+| Note analysis drain | `NoteAnalysisDrainWorkflow` | `NOTE_ANALYSIS_DRAIN_CRON` 또는 `*/5 * * * *` | `batchSize` from `NOTE_ANALYSIS_DRAIN_BATCH_SIZE` |
 
 예시:
 
@@ -298,6 +305,11 @@ python -m scripts.ensure_plan8_schedules \
   --project-id <uuid> \
   --user-id <workspace-owner-user-id> \
   --connector-concept-id <uuid>
+```
+
+```bash
+FEATURE_NOTE_ANALYSIS_DRAIN=true \
+python -m scripts.ensure_note_analysis_drain_schedule
 ```
 
 입력별 에이전트인 Synthesis, Narrator, Deep Research는 사용자의 명시적

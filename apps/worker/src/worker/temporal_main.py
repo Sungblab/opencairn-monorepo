@@ -138,6 +138,7 @@ from worker.workflows.ingest_workflow import IngestWorkflow, read_text_object
 from worker.workflows.librarian_workflow import LibrarianWorkflow
 from worker.workflows.lit_import_workflow import LitImportWorkflow
 from worker.workflows.narrator_workflow import NarratorWorkflow
+from worker.workflows.note_analysis_drain_workflow import NoteAnalysisDrainWorkflow
 from worker.workflows.research_workflow import ResearchWorkflow
 from worker.workflows.socratic_workflow import SocraticEvaluateWorkflow, SocraticGenerateWorkflow
 from worker.workflows.staleness_workflow import StalenessWorkflow
@@ -358,6 +359,7 @@ def build_worker_config() -> WorkerConfig:
         ])
 
     if os.environ.get("FEATURE_NOTE_ANALYSIS_DRAIN", "false").lower() == "true":
+        workflows.append(NoteAnalysisDrainWorkflow)
         activities.append(drain_note_analysis_jobs_activity)
 
     return WorkerConfig(workflows=workflows, activities=activities)

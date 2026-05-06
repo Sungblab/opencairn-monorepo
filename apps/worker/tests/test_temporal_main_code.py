@@ -175,6 +175,7 @@ def test_note_analysis_drain_registered_when_flag_on(
 ) -> None:
     monkeypatch.setenv("FEATURE_NOTE_ANALYSIS_DRAIN", "true")
     cfg = build_worker_config()
+    assert "NoteAnalysisDrainWorkflow" in [w.__name__ for w in cfg.workflows]
     activity_names = [a.__name__ for a in cfg.activities]
     assert "drain_note_analysis_jobs_activity" in activity_names
 

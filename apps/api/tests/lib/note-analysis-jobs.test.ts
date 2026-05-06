@@ -53,6 +53,7 @@ const {
   drainDueNoteAnalysisJobs,
   computeNoteAnalysisContentHash,
   queueNoteAnalysisJob,
+  requeueNoteAnalysisJobForNote,
   runNoteAnalysisJob,
 } = await import("../../src/lib/note-analysis-jobs.js");
 
@@ -423,5 +424,34 @@ describe("note analysis jobs", () => {
 
     expect(result.results).toEqual([]);
     expect(dbMock.query.noteAnalysisJobs.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("requeues analysis for a note using the current Yjs state vector", async () => {
+    dbMock.query.notes.findFirst.mockResolvedValue({
+      id: "note-1",
+      workspaceId: "ws-1",
+      projectId: "project-1",
+      title: "Current",
+      contentText: "body",
+      deletedAt: null,
+    });
+    dbMock.query.yjsDocuments.findFirst.mockResolvedValue({
+      stateVector: new Uint8Array([7, 8]),
+    });
+    dbMock.query.noteAnalysisJobs.findFirst.mockResolvedValue({ id: "job-1" });
+
+    const result = await requeueNoteAnalysisJobForNote({
+      noteId: "note-1",
+      now: new Date("2026-05-06T00:02:00.000Z"),
+    });
+
+    expect(result).toEqual({ status: "queued", jobId: "job-1" });
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        noteId: "note-1",
+        yjsStateVector: new Uint8Array([7, 8]),
+        status: "queued",
+      }),
+    );
   });
 });

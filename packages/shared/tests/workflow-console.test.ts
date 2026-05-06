@@ -6,6 +6,7 @@ import {
   workflowConsoleEventSchema,
   workflowConsoleRunSchema,
   workflowConsoleRunFromAgentAction,
+  workflowConsoleRunFromAgenticPlan,
   workflowConsoleRunFromChatRun,
   workflowConsoleRunFromImportJob,
   workflowConsoleRunFromPlan8AgentRun,
@@ -124,6 +125,69 @@ describe("workflow console contracts", () => {
         code: "code_project_preview_expired",
         retryable: false,
       },
+    });
+  });
+
+  it("projects stale agentic plan evidence identifiers into output metadata", () => {
+    const run = workflowConsoleRunFromAgenticPlan({
+      id: "00000000-0000-4000-8000-000000000030",
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Refresh note evidence",
+      goal: "Refresh note evidence",
+      status: "blocked",
+      target: { workspaceId, projectId, noteId: "00000000-0000-4000-8000-000000000040" },
+      plannerKind: "deterministic",
+      summary: "1-step deterministic plan: agent.run",
+      currentStepOrdinal: 1,
+      steps: [
+        {
+          id: "00000000-0000-4000-8000-000000000031",
+          planId: "00000000-0000-4000-8000-000000000030",
+          ordinal: 1,
+          kind: "agent.run",
+          title: "Run librarian",
+          rationale: "Needs fresh note context.",
+          status: "blocked",
+          risk: "write",
+          input: { agentName: "librarian" },
+          evidenceRefs: [
+            {
+              type: "note_analysis_job",
+              noteId: "00000000-0000-4000-8000-000000000040",
+              jobId: "00000000-0000-4000-8000-000000000041",
+              contentHash: "hash-old",
+              analysisVersion: 1,
+            },
+          ],
+          evidenceFreshnessStatus: "stale",
+          staleEvidenceBlocks: true,
+          verificationStatus: "blocked",
+          recoveryCode: "stale_context",
+          retryCount: 0,
+          createdAt,
+          updatedAt,
+          completedAt: null,
+        },
+      ],
+      createdAt,
+      updatedAt,
+      completedAt: null,
+    });
+
+    expect(run.outputs[0]?.metadata).toMatchObject({
+      staleEvidenceBlockers: 1,
+      staleEvidenceRefs: [
+        {
+          stepId: "00000000-0000-4000-8000-000000000031",
+          type: "note_analysis_job",
+          noteId: "00000000-0000-4000-8000-000000000040",
+          jobId: "00000000-0000-4000-8000-000000000041",
+          contentHash: "hash-old",
+          analysisVersion: 1,
+        },
+      ],
     });
   });
 
