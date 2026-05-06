@@ -2,10 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  workflowConsoleApi,
-  type WorkflowConsoleRun,
-} from "@/lib/api-client";
+import { workflowConsoleApi, type WorkflowConsoleRun } from "@/lib/api-client";
 
 import { WorkflowConsoleRuns } from "./workflow-console-runs";
 
@@ -17,9 +14,10 @@ vi.mock("next-intl", () => ({
 }));
 
 vi.mock("@/lib/api-client", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/api-client")>(
-    "@/lib/api-client",
-  );
+  const actual =
+    await vi.importActual<typeof import("@/lib/api-client")>(
+      "@/lib/api-client",
+    );
   return {
     ...actual,
     workflowConsoleApi: {
@@ -88,7 +86,7 @@ describe("WorkflowConsoleRuns", () => {
 
     expect(await screen.findByText("Import markdown_zip")).toBeTruthy();
     expect(screen.getByText("type.import · status.failed")).toBeTruthy();
-    expect(screen.getByText("progress:{\"percent\":80}")).toBeTruthy();
+    expect(screen.getByText('progress:{"percent":80}')).toBeTruthy();
     expect(screen.getByText("vault.zip")).toBeTruthy();
     expect(
       screen.getByText("Import could not be started. Please try again."),
@@ -158,7 +156,11 @@ describe("WorkflowConsoleRuns", () => {
     renderWithClient();
 
     expect(await screen.findByText("Dependency install")).toBeTruthy();
-    expect(screen.getByText("logSummary:{\"packageManager\":\"pnpm\",\"packages\":\"zod@3.25.0, @vitejs/plugin-react\",\"exitCode\":0}")).toBeTruthy();
+    expect(
+      screen.getByText(
+        'logSummary:{"packageManager":"pnpm","packages":"zod@3.25.0, @vitejs/plugin-react","exitCode":0}',
+      ),
+    ).toBeTruthy();
   });
 
   it("renders agentic plan stale evidence and verifier summaries", async () => {
@@ -190,6 +192,24 @@ describe("WorkflowConsoleRuns", () => {
                     type: "note_analysis_job",
                     noteId: "00000000-0000-4000-8000-000000000091",
                     jobId: "00000000-0000-4000-8000-000000000092",
+                    contentHash: "hash-old",
+                    analysisVersion: 3,
+                  },
+                ],
+                evidenceIssues: [
+                  {
+                    freshnessStatus: "stale",
+                    recoveryCode: "stale_context",
+                    verificationStatus: "blocked",
+                    refs: [
+                      {
+                        type: "note_analysis_job",
+                        noteId: "00000000-0000-4000-8000-000000000091",
+                        jobId: "00000000-0000-4000-8000-000000000092",
+                        contentHash: "hash-old",
+                        analysisVersion: 3,
+                      },
+                    ],
                   },
                 ],
               },
@@ -202,11 +222,74 @@ describe("WorkflowConsoleRuns", () => {
     renderWithClient();
 
     expect(await screen.findByText("Review stale evidence")).toBeTruthy();
-    expect(screen.getByText("evidenceSummary:{\"count\":1,\"status\":\"freshnessStatus.stale\"}")).toBeTruthy();
-    expect(screen.getByText("staleEvidenceDetail:{\"refs\":\"note 00000000/job 00000000\"}")).toBeTruthy();
-    expect(screen.getByText(
-      "verificationSummary:{\"status\":\"verificationStatus.blocked\",\"code\":\"recoveryCode.stale_context\"}",
-    )).toBeTruthy();
+    expect(
+      screen.getByText(
+        'evidenceSummary:{"count":1,"status":"freshnessStatus.stale"}',
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        'staleEvidenceDetail:{"refs":"note 00000000/job 00000000 v3 hash-old"}',
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        'verificationSummary:{"status":"verificationStatus.blocked","code":"recoveryCode.stale_context"}',
+      ),
+    ).toBeTruthy();
+  });
+
+  it("renders missing evidence recovery state from evidence issue metadata", async () => {
+    vi.mocked(workflowConsoleApi.list).mockResolvedValue({
+      runs: [
+        run({
+          runId: "agentic_plan:00000000-0000-4000-8000-000000000081",
+          runType: "agentic_plan",
+          title: "Review missing evidence",
+          status: "blocked",
+          progress: { current: 0, total: 1, percent: 0 },
+          error: {
+            code: "missing_source",
+            message: "Step evidence source is missing.",
+            retryable: true,
+          },
+          outputs: [
+            {
+              outputType: "preview",
+              id: "00000000-0000-4000-8000-000000000081",
+              label: "1-step deterministic plan",
+              metadata: {
+                verificationStatus: "blocked",
+                recoveryCodes: ["missing_source"],
+                evidenceFreshness: { missing: 1 },
+                evidenceIssues: [
+                  {
+                    freshnessStatus: "missing",
+                    recoveryCode: "missing_source",
+                    verificationStatus: "blocked",
+                    refs: [],
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      ],
+    });
+
+    renderWithClient();
+
+    expect(await screen.findByText("Review missing evidence")).toBeTruthy();
+    expect(
+      screen.getByText(
+        'evidenceSummary:{"count":1,"status":"freshnessStatus.missing"}',
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        'verificationSummary:{"status":"verificationStatus.blocked","code":"recoveryCode.missing_source"}',
+      ),
+    ).toBeTruthy();
   });
 
   it("does not query or render when there is no active project", () => {

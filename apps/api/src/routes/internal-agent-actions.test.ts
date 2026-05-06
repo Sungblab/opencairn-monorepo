@@ -44,6 +44,14 @@ const drainDueNoteAnalysisJobs = vi.hoisted(() =>
         jobId: "00000000-0000-4000-8000-000000000020",
       },
     ],
+    summary: {
+      processed: 1,
+      completed: 1,
+      stale: 0,
+      failed: 0,
+      missing: 0,
+      skipped: 0,
+    },
   }),
 );
 
@@ -59,7 +67,8 @@ vi.mock("../lib/agent-actions", async (importOriginal) => {
 });
 
 vi.mock("../lib/internal-assert", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../lib/internal-assert")>();
+  const actual =
+    await importOriginal<typeof import("../lib/internal-assert")>();
   return {
     ...actual,
     assertResourceWorkspace: vi.fn().mockResolvedValue(undefined),
@@ -67,7 +76,8 @@ vi.mock("../lib/internal-assert", async (importOriginal) => {
 });
 
 vi.mock("../lib/note-analysis-jobs", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../lib/note-analysis-jobs")>();
+  const actual =
+    await importOriginal<typeof import("../lib/note-analysis-jobs")>();
   return {
     ...actual,
     drainDueNoteAnalysisJobs,
@@ -126,6 +136,14 @@ describe("POST /api/internal/note-analysis-jobs/drain", () => {
           jobId: "00000000-0000-4000-8000-000000000020",
         },
       ],
+      summary: {
+        processed: 1,
+        completed: 1,
+        stale: 0,
+        failed: 0,
+        missing: 0,
+        skipped: 0,
+      },
     });
     expect(drainDueNoteAnalysisJobs).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -150,7 +168,9 @@ describe("POST /api/internal/agent-actions/preview-cleanup", () => {
         "00000000-0000-4000-8000-000000000002",
       ],
     });
-    expect(cleanupExpiredCodeProjectPreviews).toHaveBeenCalledWith({ limit: 25 });
+    expect(cleanupExpiredCodeProjectPreviews).toHaveBeenCalledWith({
+      limit: 25,
+    });
   });
 
   it("rejects callers without the internal secret", async () => {
@@ -251,7 +271,9 @@ describe("POST /api/internal/agent-actions/code-install-results", () => {
         status: "completed",
       },
     });
-    expect(completeCodeProjectInstallActionFromWorker).toHaveBeenCalledWith(body);
+    expect(completeCodeProjectInstallActionFromWorker).toHaveBeenCalledWith(
+      body,
+    );
   });
 });
 
@@ -270,7 +292,9 @@ describe("POST /api/internal/agent-actions/code-repair-results", () => {
         status: "draft",
       },
     });
-    expect(completeCodeProjectRepairActionFromWorker).toHaveBeenCalledWith(body);
+    expect(completeCodeProjectRepairActionFromWorker).toHaveBeenCalledWith(
+      body,
+    );
   });
 });
 
@@ -319,7 +343,8 @@ function codeRepairResultBody() {
   return {
     actionId: "00000000-0000-4000-8000-000000000013",
     requestId: "00000000-0000-4000-8000-000000000015",
-    workflowId: "code-workspace-repair-00000000-0000-4000-8000-000000000010-00000000-0000-4000-8000-000000000015",
+    workflowId:
+      "code-workspace-repair-00000000-0000-4000-8000-000000000010-00000000-0000-4000-8000-000000000015",
     workspaceId: "00000000-0000-4000-8000-000000000001",
     projectId: "00000000-0000-4000-8000-000000000002",
     userId: "user-1",

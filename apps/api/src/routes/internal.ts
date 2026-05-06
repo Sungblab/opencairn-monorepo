@@ -155,6 +155,7 @@ internal.post(
             }
           : {}),
       })),
+      summary: result.summary,
     });
   },
 );

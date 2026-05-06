@@ -15,7 +15,17 @@ async def test_drain_note_analysis_jobs_posts_bounded_batch_to_internal_api(
 
     async def fake_post_internal(path: str, payload: dict[str, Any]) -> dict[str, Any]:
         calls.append((path, payload))
-        return {"results": [{"jobId": "job-1", "status": "completed"}]}
+        return {
+            "results": [{"jobId": "job-1", "status": "completed"}],
+            "summary": {
+                "processed": 1,
+                "completed": 1,
+                "stale": 0,
+                "failed": 0,
+                "missing": 0,
+                "skipped": 0,
+            },
+        }
 
     monkeypatch.setattr(
         "worker.activities.note_analysis_jobs.post_internal",
@@ -24,5 +34,15 @@ async def test_drain_note_analysis_jobs_posts_bounded_batch_to_internal_api(
 
     result = await drain_note_analysis_jobs({"batchSize": 25})
 
-    assert result == {"results": [{"jobId": "job-1", "status": "completed"}]}
+    assert result == {
+        "results": [{"jobId": "job-1", "status": "completed"}],
+        "summary": {
+            "processed": 1,
+            "completed": 1,
+            "stale": 0,
+            "failed": 0,
+            "missing": 0,
+            "skipped": 0,
+        },
+    }
     assert calls == [("/api/internal/note-analysis-jobs/drain", {"batchSize": 25})]

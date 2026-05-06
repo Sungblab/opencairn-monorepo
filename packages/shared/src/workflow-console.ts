@@ -770,6 +770,7 @@ function planOperationalSummary(steps: AgenticPlanStep[]): Record<string, unknow
   const recoveryCodes = new Set<string>();
   let staleEvidenceBlockers = 0;
   const staleEvidenceRefs: Array<Record<string, unknown>> = [];
+  const evidenceIssues: Array<Record<string, unknown>> = [];
   let verificationStatus: AgenticPlanStep["verificationStatus"] | null = null;
   const verificationPriority: Record<NonNullable<AgenticPlanStep["verificationStatus"]>, number> = {
     unknown: 0,
@@ -795,6 +796,23 @@ function planOperationalSummary(steps: AgenticPlanStep[]): Record<string, unknow
         ...(ref.type === "note_chunk" ? { chunkId: ref.chunkId } : {}),
       })));
     }
+    if (step.staleEvidenceBlocks && (freshness === "stale" || freshness === "missing")) {
+      evidenceIssues.push({
+        stepId: step.id,
+        stepTitle: step.title,
+        freshnessStatus: freshness,
+        recoveryCode: step.recoveryCode ?? (freshness === "missing" ? "missing_source" : "stale_context"),
+        verificationStatus: step.verificationStatus ?? "pending",
+        refs: (step.evidenceRefs ?? []).map((ref) => ({
+          type: ref.type,
+          noteId: ref.noteId,
+          contentHash: ref.contentHash,
+          analysisVersion: ref.analysisVersion,
+          ...(ref.type === "note_analysis_job" ? { jobId: ref.jobId } : {}),
+          ...(ref.type === "note_chunk" ? { chunkId: ref.chunkId } : {}),
+        })),
+      });
+    }
     if (step.recoveryCode) recoveryCodes.add(step.recoveryCode);
     const candidate = step.verificationStatus ?? "pending";
     if (
@@ -808,6 +826,7 @@ function planOperationalSummary(steps: AgenticPlanStep[]): Record<string, unknow
   return {
     staleEvidenceBlockers,
     staleEvidenceRefs: staleEvidenceRefs.slice(0, 5),
+    evidenceIssues: evidenceIssues.slice(0, 5),
     verificationStatus: verificationStatus ?? "unknown",
     recoveryCodes: Array.from(recoveryCodes),
     evidenceFreshness,

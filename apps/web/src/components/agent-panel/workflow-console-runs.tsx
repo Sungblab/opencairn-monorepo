@@ -5,10 +5,7 @@ import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
 
-import {
-  workflowConsoleApi,
-  type WorkflowConsoleRun,
-} from "@/lib/api-client";
+import { workflowConsoleApi, type WorkflowConsoleRun } from "@/lib/api-client";
 
 const TERMINAL_STATUSES = new Set([
   "completed",
@@ -18,7 +15,11 @@ const TERMINAL_STATUSES = new Set([
   "reverted",
 ]);
 
-export function WorkflowConsoleRuns({ projectId }: { projectId: string | null }) {
+export function WorkflowConsoleRuns({
+  projectId,
+}: {
+  projectId: string | null;
+}) {
   const t = useTranslations("agentPanel.workflowConsole");
   const query = useQuery({
     queryKey: ["workflow-console-runs", projectId],
@@ -26,7 +27,9 @@ export function WorkflowConsoleRuns({ projectId }: { projectId: string | null })
     queryFn: () => workflowConsoleApi.list(projectId!, 5),
     refetchInterval: (query) => {
       const runs = query.state.data?.runs ?? [];
-      return runs.some((run) => !TERMINAL_STATUSES.has(run.status)) ? 5000 : false;
+      return runs.some((run) => !TERMINAL_STATUSES.has(run.status))
+        ? 5000
+        : false;
     },
   });
 
@@ -79,7 +82,10 @@ function WorkflowConsoleRunRow({ run }: { run: WorkflowConsoleRun }) {
       typeof run.progress.total === "number" &&
       run.progress.total > 0
     ) {
-      return Math.min(100, Math.round((run.progress.current / run.progress.total) * 100));
+      return Math.min(
+        100,
+        Math.round((run.progress.current / run.progress.total) * 100),
+      );
     }
     return null;
   }, [run.progress]);
@@ -120,7 +126,7 @@ function WorkflowConsoleRunRow({ run }: { run: WorkflowConsoleRun }) {
 
       {run.outputs.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {run.outputs.slice(0, 3).map((output) => (
+          {run.outputs.slice(0, 3).map((output) =>
             output.url ? (
               <a
                 key={output.id}
@@ -143,19 +149,25 @@ function WorkflowConsoleRunRow({ run }: { run: WorkflowConsoleRun }) {
                   <PlanOutputSummary output={output} />
                 ) : null}
               </span>
-            )
-          ))}
+            ),
+          )}
         </div>
       ) : null}
     </article>
   );
 }
 
-function LogOutputSummary({ output }: { output: WorkflowConsoleRun["outputs"][number] }) {
+function LogOutputSummary({
+  output,
+}: {
+  output: WorkflowConsoleRun["outputs"][number];
+}) {
   const t = useTranslations("agentPanel.workflowConsole");
   const metadata = output.metadata ?? {};
   const packageManager =
-    typeof metadata.packageManager === "string" ? metadata.packageManager : null;
+    typeof metadata.packageManager === "string"
+      ? metadata.packageManager
+      : null;
   const exitCode =
     typeof metadata.exitCode === "number" ? metadata.exitCode : null;
   const packages = installedPackageSummary(metadata.installed);
@@ -171,7 +183,11 @@ function LogOutputSummary({ output }: { output: WorkflowConsoleRun["outputs"][nu
   );
 }
 
-function PlanOutputSummary({ output }: { output: WorkflowConsoleRun["outputs"][number] }) {
+function PlanOutputSummary({
+  output,
+}: {
+  output: WorkflowConsoleRun["outputs"][number];
+}) {
   const t = useTranslations("agentPanel.workflowConsole");
   const metadata = output.metadata ?? {};
   const staleEvidenceBlockers =
@@ -179,37 +195,69 @@ function PlanOutputSummary({ output }: { output: WorkflowConsoleRun["outputs"][n
       ? metadata.staleEvidenceBlockers
       : 0;
   const evidenceFreshness = metadata.evidenceFreshness;
-  const staleCount = evidenceFreshness
-    && typeof evidenceFreshness === "object"
-    && !Array.isArray(evidenceFreshness)
-    && typeof (evidenceFreshness as Record<string, unknown>).stale === "number"
-    ? (evidenceFreshness as Record<string, number>).stale
-    : staleEvidenceBlockers;
+  const freshnessRecord =
+    evidenceFreshness &&
+    typeof evidenceFreshness === "object" &&
+    !Array.isArray(evidenceFreshness)
+      ? (evidenceFreshness as Record<string, unknown>)
+      : {};
+  const evidenceIssues = Array.isArray(metadata.evidenceIssues)
+    ? metadata.evidenceIssues.filter(isEvidenceIssue)
+    : [];
+  const staleCount =
+    typeof freshnessRecord.stale === "number"
+      ? freshnessRecord.stale
+      : staleEvidenceBlockers;
+  const missingCount =
+    typeof freshnessRecord.missing === "number"
+      ? freshnessRecord.missing
+      : evidenceIssues.filter((issue) => issue.freshnessStatus === "missing")
+          .length;
+  const issueVerificationStatus = evidenceIssues.find(
+    (issue) => typeof issue.verificationStatus === "string",
+  )?.verificationStatus;
   const verificationStatus =
-    typeof metadata.verificationStatus === "string"
+    issueVerificationStatus ??
+    (typeof metadata.verificationStatus === "string"
       ? metadata.verificationStatus
-      : null;
-  const recoveryCodes = Array.isArray(metadata.recoveryCodes)
-    ? metadata.recoveryCodes.filter((code): code is string => typeof code === "string")
-    : [];
-  const staleEvidenceRefs = Array.isArray(metadata.staleEvidenceRefs)
-    ? metadata.staleEvidenceRefs
-        .map(staleEvidenceLabel)
-        .filter((label): label is string => Boolean(label))
-        .slice(0, 2)
-    : [];
+      : null);
+  const issueRecoveryCodes = evidenceIssues
+    .map((issue) => issue.recoveryCode)
+    .filter((code): code is string => typeof code === "string");
+  const recoveryCodes =
+    issueRecoveryCodes.length > 0
+      ? issueRecoveryCodes
+      : Array.isArray(metadata.recoveryCodes)
+        ? metadata.recoveryCodes.filter(
+            (code): code is string => typeof code === "string",
+          )
+        : [];
+  const issueEvidenceRefs = evidenceIssues.flatMap((issue) => issue.refs);
+  const staleEvidenceRefs =
+    issueEvidenceRefs.length > 0
+      ? issueEvidenceRefs
+          .map(evidenceRefLabel)
+          .filter((label): label is string => Boolean(label))
+          .slice(0, 2)
+      : Array.isArray(metadata.staleEvidenceRefs)
+        ? metadata.staleEvidenceRefs
+            .map(evidenceRefLabel)
+            .filter((label): label is string => Boolean(label))
+            .slice(0, 2)
+        : [];
   if (
-    staleCount <= 0
-    && staleEvidenceRefs.length === 0
-    && !verificationStatus
-    && recoveryCodes.length === 0
-  ) return null;
+    staleCount <= 0 &&
+    missingCount <= 0 &&
+    staleEvidenceRefs.length === 0 &&
+    !verificationStatus &&
+    recoveryCodes.length === 0
+  )
+    return null;
   const verificationStatusLabel = verificationStatus
     ? verificationStatusLabelFor(t, verificationStatus)
     : verificationStatusLabelFor(t, "unknown");
-  const recoveryCodeLabel = recoveryCodes.length > 0
-    ? recoveryCodeLabelFor(t, recoveryCodes[0]!)
-    : "-";
+  const recoveryCodeLabel =
+    recoveryCodes.length > 0 ? recoveryCodeLabelFor(t, recoveryCodes[0]!) : "-";
   return (
     <span className="mt-0.5 flex max-w-full flex-col gap-0.5 text-[11px]">
       {staleCount > 0 ? (
@@ -217,6 +265,14 @@ function PlanOutputSummary({ output }: { output: WorkflowConsoleRun["outputs"][n
           {t("evidenceSummary", {
             count: staleCount,
             status: t("freshnessStatus.stale"),
+          })}
+        </span>
+      ) : null}
+      {missingCount > 0 ? (
+        <span className="truncate text-amber-700 dark:text-amber-300">
+          {t("evidenceSummary", {
+            count: missingCount,
+            status: t("freshnessStatus.missing"),
           })}
         </span>
       ) : null}
@@ -239,19 +295,50 @@ function PlanOutputSummary({ output }: { output: WorkflowConsoleRun["outputs"][n
   );
 }
 
-function staleEvidenceLabel(value: unknown): string | null {
+type EvidenceIssue = {
+  freshnessStatus?: string;
+  recoveryCode?: string;
+  verificationStatus?: string;
+  refs: unknown[];
+};
+
+function isEvidenceIssue(value: unknown): value is EvidenceIssue {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Array.isArray((value as Record<string, unknown>).refs),
+  );
+}
+
+function evidenceRefLabel(value: unknown): string | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
-  const noteId = typeof record.noteId === "string" ? shortId(record.noteId) : null;
+  const noteId =
+    typeof record.noteId === "string" ? shortId(record.noteId) : null;
   const jobId = typeof record.jobId === "string" ? shortId(record.jobId) : null;
-  const chunkId = typeof record.chunkId === "string" ? shortId(record.chunkId) : null;
-  if (jobId && noteId) return `note ${noteId}/job ${jobId}`;
-  if (chunkId && noteId) return `note ${noteId}/chunk ${chunkId}`;
-  return noteId ? `note ${noteId}` : null;
+  const chunkId =
+    typeof record.chunkId === "string" ? shortId(record.chunkId) : null;
+  const version =
+    typeof record.analysisVersion === "number"
+      ? ` v${record.analysisVersion}`
+      : "";
+  const hash =
+    typeof record.contentHash === "string" && record.contentHash.length > 0
+      ? ` ${shortHash(record.contentHash)}`
+      : "";
+  if (jobId && noteId) return `note ${noteId}/job ${jobId}${version}${hash}`;
+  if (chunkId && noteId)
+    return `note ${noteId}/chunk ${chunkId}${version}${hash}`;
+  return noteId ? `note ${noteId}${version}${hash}` : null;
 }
 
 function shortId(value: string): string {
   return value.length <= 8 ? value : value.slice(0, 8);
+}
+
+function shortHash(value: string): string {
+  return value.length <= 12 ? value : value.slice(0, 12);
 }
 
 function verificationStatusLabelFor(
@@ -298,7 +385,8 @@ function installedPackageSummary(value: unknown): string | null {
       const record = item as Record<string, unknown>;
       const name = typeof record.name === "string" ? record.name : null;
       if (!name) return null;
-      const version = typeof record.version === "string" ? record.version : null;
+      const version =
+        typeof record.version === "string" ? record.version : null;
       return version ? `${name}@${version}` : name;
     })
     .filter((name): name is string => Boolean(name));
@@ -309,10 +397,10 @@ function StatusDot({ status }: { status: WorkflowConsoleRun["status"] }) {
   const tone =
     status === "completed"
       ? "bg-emerald-500"
-      : status === "failed"
-          || status === "cancelled"
-          || status === "expired"
-          || status === "reverted"
+      : status === "failed" ||
+          status === "cancelled" ||
+          status === "expired" ||
+          status === "reverted"
         ? "bg-destructive"
         : status === "approval_required" || status === "blocked"
           ? "bg-amber-500"

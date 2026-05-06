@@ -52,6 +52,14 @@ export type RunNoteAnalysisJobResult =
 
 export type DrainDueNoteAnalysisJobsResult = {
   results: RunNoteAnalysisJobResult[];
+  summary: {
+    processed: number;
+    completed: number;
+    stale: number;
+    failed: number;
+    missing: number;
+    skipped: number;
+  };
 };
 
 export function computeNoteAnalysisContentHash(input: {
@@ -59,10 +67,12 @@ export function computeNoteAnalysisContentHash(input: {
   contentText?: string | null;
 }): string {
   return createHash("sha256")
-    .update(JSON.stringify({
-      title: input.title ?? "",
-      contentText: input.contentText ?? "",
-    }))
+    .update(
+      JSON.stringify({
+        title: input.title ?? "",
+        contentText: input.contentText ?? "",
+      }),
+    )
     .digest("hex");
 }
 
@@ -220,7 +230,8 @@ export async function runNoteAnalysisJob(
               lastStartedAt: null,
               lastCompletedAt: null,
               errorCode: "stale_context",
-              errorMessage: "Note content changed before analysis could commit.",
+              errorMessage:
+                "Note content changed before analysis could commit.",
               updatedAt: now,
             })
             .where(eq(noteAnalysisJobs.noteId, runningJob.noteId));
@@ -228,7 +239,9 @@ export async function runNoteAnalysisJob(
         return false;
       }
 
-      await tx.delete(noteChunks).where(eq(noteChunks.noteId, runningJob.noteId));
+      await tx
+        .delete(noteChunks)
+        .where(eq(noteChunks.noteId, runningJob.noteId));
       if (rows.length > 0) {
         await tx.insert(noteChunks).values(rows);
       }
@@ -269,7 +282,10 @@ export async function drainDueNoteAnalysisJobs(
       eq(noteAnalysisJobs.status, "queued"),
       lte(noteAnalysisJobs.runAfter, now),
     ),
-    orderBy: [asc(noteAnalysisJobs.runAfter), asc(noteAnalysisJobs.lastQueuedAt)],
+    orderBy: [
+      asc(noteAnalysisJobs.runAfter),
+      asc(noteAnalysisJobs.lastQueuedAt),
+    ],
     limit: batchSize,
     columns: {
       id: true,
@@ -278,18 +294,55 @@ export async function drainDueNoteAnalysisJobs(
 
   const results: RunNoteAnalysisJobResult[] = [];
   for (const job of jobs) {
-    results.push(await runNoteAnalysisJob({
-      jobId: job.id,
-      embed: opts.embed,
-      now,
-    }));
+    results.push(
+      await runNoteAnalysisJob({
+        jobId: job.id,
+        embed: opts.embed,
+        now,
+      }),
+    );
   }
-  return { results };
+  return { results, summary: summarizeDrainResults(results) };
+}
+
+function summarizeDrainResults(
+  results: RunNoteAnalysisJobResult[],
+): DrainDueNoteAnalysisJobsResult["summary"] {
+  const summary: DrainDueNoteAnalysisJobsResult["summary"] = {
+    processed: results.length,
+    completed: 0,
+    stale: 0,
+    failed: 0,
+    missing: 0,
+    skipped: 0,
+  };
+  for (const result of results) {
+    switch (result.status) {
+      case "completed":
+        summary.completed += 1;
+        break;
+      case "stale":
+        summary.stale += 1;
+        break;
+      case "failed":
+        summary.failed += 1;
+        break;
+      case "missing_note":
+        summary.missing += 1;
+        break;
+      default:
+        summary.skipped += 1;
+        break;
+    }
+  }
+  return summary;
 }
 
 export async function requeueNoteAnalysisJobForNote(
   opts: RequeueNoteAnalysisJobForNoteOptions,
-): Promise<{ status: "queued"; jobId: string | null } | { status: "missing_note" }> {
+): Promise<
+  { status: "queued"; jobId: string | null } | { status: "missing_note" }
+> {
   const note = await db.query.notes.findFirst({
     where: opts.projectId
       ? and(eq(notes.id, opts.noteId), eq(notes.projectId, opts.projectId))
@@ -356,10 +409,7 @@ async function currentYjsStateVector(
   return doc?.stateVector ?? null;
 }
 
-function sameBytes(
-  left: Uint8Array | null,
-  right: Uint8Array | null,
-): boolean {
+function sameBytes(left: Uint8Array | null, right: Uint8Array | null): boolean {
   if (!left && !right) return true;
   if (!left || !right) return false;
   if (left.byteLength !== right.byteLength) return false;
