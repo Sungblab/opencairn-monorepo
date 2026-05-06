@@ -60,7 +60,18 @@ export function ActiveResearchList({
   if (!data) return null;
   if (active.length === 0) {
     return (
-      <p className="text-xs text-muted-foreground">{t("lists.noResearch")}</p>
+      <div className="rounded border border-dashed border-border bg-muted/30 p-4">
+        <p className="text-sm font-medium">{t("lists.noResearchTitle")}</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          {t("lists.noResearch")}
+        </p>
+        <Link
+          href={urls.workspace.chatScope(locale, wsSlug)}
+          className="mt-3 inline-flex min-h-8 items-center rounded border border-border px-3 text-xs font-medium hover:bg-muted"
+        >
+          {t("lists.askLink")} →
+        </Link>
+      </div>
     );
   }
 

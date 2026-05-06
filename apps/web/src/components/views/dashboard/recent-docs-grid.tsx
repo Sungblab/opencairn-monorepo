@@ -32,7 +32,20 @@ export function RecentDocsGrid({
 
   if (!data) return null;
   if (data.notes.length === 0) {
-    return <p className="text-xs text-muted-foreground">{t("lists.noDocs")}</p>;
+    return (
+      <div className="rounded border border-dashed border-border bg-muted/30 p-4">
+        <p className="text-sm font-medium">{t("lists.noDocsTitle")}</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          {t("lists.noDocs")}
+        </p>
+        <Link
+          href={urls.workspace.import(locale, wsSlug)}
+          className="mt-3 inline-flex min-h-8 items-center rounded bg-foreground px-3 text-xs font-medium text-background hover:bg-foreground/90"
+        >
+          {t("lists.importLink")} →
+        </Link>
+      </div>
+    );
   }
 
   return (

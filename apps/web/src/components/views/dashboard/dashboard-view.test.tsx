@@ -15,11 +15,15 @@ vi.mock("./active-research-list", () => ({
 vi.mock("./recent-docs-grid", () => ({
   RecentDocsGrid: () => <div>docs</div>,
 }));
+vi.mock("./getting-started-panel", () => ({
+  GettingStartedPanel: () => <div>getting-started</div>,
+}));
 
 describe("DashboardView", () => {
   it("renders the view-all link as a full-height control", () => {
     render(<DashboardView wsSlug="acme" wsId="ws-1" />);
 
+    expect(screen.getByText("getting-started")).toBeInTheDocument();
     expect(
       screen.getByRole("link", {
         name: "dashboard.sections.viewAll →",

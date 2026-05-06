@@ -12,6 +12,33 @@
     "title": "No notes yet",
     "cta": "Create your first note"
   },
+  "gettingStarted": {
+    "eyebrowEmpty": "First 3 minutes",
+    "eyebrowActive": "Workspace hub",
+    "titleEmpty": "Import sources, create a project, or hand the first task to AI.",
+    "titleActive": "Start today's workspace work from one place.",
+    "descEmpty": "OpenCairn should feel like a work flow, not an empty document folder. Add sources first and notes, search, and agent work can follow.",
+    "descActive": "Recent documents and running work stay below. New sources and AI work can start here whenever you need them.",
+    "steps": {
+      "source": "Add sources",
+      "project": "Shape a project",
+      "agent": "Start AI work"
+    },
+    "actions": {
+      "import": {
+        "title": "Import sources",
+        "desc": "Bring Markdown, Drive, or Notion material into the workspace."
+      },
+      "project": {
+        "title": "Create project",
+        "desc": "Set up a focused area and organize notes by topic."
+      },
+      "ask": {
+        "title": "Ask AI",
+        "desc": "Ask across the workspace and turn context into next steps."
+      }
+    }
+  },
   "stats": {
     "docs": "Documents",
     "weekDelta": "+{n} this week",
@@ -50,8 +77,12 @@
     "cancelled": "Cancelled"
   },
   "lists": {
-    "noResearch": "No active research.",
-    "noDocs": "No recent notes.",
+    "noResearchTitle": "No AI work is running yet",
+    "noResearch": "After adding sources, ask a workspace-scoped question or start with a first question now.",
+    "noDocsTitle": "No recent documents yet",
+    "noDocs": "Import your first source to create searchable notes and a usable knowledge base.",
+    "importLink": "Import sources",
+    "askLink": "Ask AI",
     "emptyExcerpt": "No content yet.",
     "openLink": "Open"
   }

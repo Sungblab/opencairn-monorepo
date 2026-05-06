@@ -6,6 +6,7 @@ import Link from "next/link";
 import { StatsRow } from "./stats-row";
 import { ActiveResearchList } from "./active-research-list";
 import { RecentDocsGrid } from "./recent-docs-grid";
+import { GettingStartedPanel } from "./getting-started-panel";
 
 // Compose-only orchestrator. Keeps the data fetching co-located with each
 // card (StatsRow / ActiveResearchList / RecentDocsGrid) so an isolated card
@@ -33,6 +34,7 @@ export function DashboardView({
           {t("newProject")}
         </Link>
       </header>
+      <GettingStartedPanel wsId={wsId} wsSlug={wsSlug} />
       <StatsRow wsId={wsId} />
       <section>
         <div className="mb-3 flex items-center justify-between">
