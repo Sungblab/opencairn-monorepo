@@ -28,6 +28,7 @@ import {
   codeWorkspacePatchSchema,
   codeWorkspacePreviewResultSchema,
   codeWorkspacePreviewRequestSchema,
+  codeWorkspacePreviewSmokeResultSchema,
   normalizeCodeWorkspacePath,
   noteUpdateApplyRequestSchema,
   noteUpdateApplyResultSchema,
@@ -56,6 +57,7 @@ import type {
   CodeWorkspaceInstallResult,
   CodeWorkspaceInstallRequest,
   CodeWorkspacePreviewResult,
+  CodeWorkspacePreviewSmokeResult,
 } from "@opencairn/shared";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import {
@@ -1590,6 +1592,59 @@ export async function completeCodeProjectInstallActionFromWorker(
     status: result.exitCode === 0 ? "completed" : "failed",
     result,
     errorCode: result.exitCode === 0 ? null : "code_project_install_failed",
+  });
+  if (!updated) throw new AgentActionError("action_not_found", 404);
+  return { action: updated, idempotent: false };
+}
+
+export async function recordCodeProjectPreviewSmokeResult(
+  body: {
+    actionId: string;
+    requestId: string;
+    workspaceId: string;
+    projectId: string;
+    userId: string;
+    result: CodeWorkspacePreviewSmokeResult;
+  },
+  options?: AgentActionServiceOptions,
+): Promise<{ action: AgentAction; idempotent: boolean }> {
+  const repo = options?.repo ?? createDrizzleAgentActionRepository();
+  const action = await repo.findById(body.actionId);
+  if (!action) throw new AgentActionError("action_not_found", 404);
+  if (
+    action.requestId !== body.requestId ||
+    action.workspaceId !== body.workspaceId ||
+    action.projectId !== body.projectId ||
+    action.actorUserId !== body.userId ||
+    action.kind !== "code_project.preview"
+  ) {
+    throw new AgentActionError("code_project_preview_action_mismatch", 409);
+  }
+  if (action.status === "cancelled" || action.status === "expired") {
+    return { action, idempotent: true };
+  }
+  if ((action.status === "completed" || action.status === "failed") && action.result?.browserSmoke) {
+    return { action, idempotent: true };
+  }
+  if (action.status !== "completed") {
+    throw new AgentActionError("code_project_preview_not_smokable", 409);
+  }
+
+  const currentResult = codeWorkspacePreviewResultSchema.safeParse(action.result);
+  if (!currentResult.success) {
+    throw new AgentActionError("code_project_preview_result_missing", 409);
+  }
+  const browserSmoke = codeWorkspacePreviewSmokeResultSchema.parse(body.result);
+  const nextResult = codeWorkspacePreviewResultSchema.parse({
+    ...currentResult.data,
+    browserSmoke,
+  });
+  const updated = await repo.updateStatus(action.id, {
+    status: browserSmoke.ok ? "completed" : "failed",
+    result: nextResult,
+    errorCode: browserSmoke.ok
+      ? null
+      : browserSmoke.errorCode ?? "code_project_preview_smoke_failed",
   });
   if (!updated) throw new AgentActionError("action_not_found", 404);
   return { action: updated, idempotent: false };

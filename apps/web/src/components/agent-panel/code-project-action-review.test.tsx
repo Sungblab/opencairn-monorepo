@@ -127,6 +127,14 @@ function completedPreviewAction(): AgentAction {
       previewUrl: "/api/agent-actions/00000000-0000-4000-8000-000000000040/preview/index.html",
       assetsBaseUrl: "/api/agent-actions/00000000-0000-4000-8000-000000000040/preview/",
       expiresAt: "2026-05-06T00:00:00.000Z",
+      browserSmoke: {
+        ok: true,
+        status: 200,
+        url: "https://preview.example.com/index.html",
+        bodyChars: 42,
+        screenshotPath: "output/playwright/preview.png",
+        checkedAt: "2026-05-06T00:01:00.000Z",
+      },
     },
   };
 }
@@ -269,6 +277,10 @@ describe("CodeProjectActionReviewList", () => {
       "/api/agent-actions/00000000-0000-4000-8000-000000000040/preview/index.html",
     );
     expect(screen.getByText("previewEntry:{\"entryPath\":\"index.html\"}")).toBeTruthy();
+    expect(screen.getByText("smokePassed:{\"status\":200}")).toBeTruthy();
+    expect(
+      screen.getByText("smokeScreenshot:{\"path\":\"output/playwright/preview.png\"}"),
+    ).toBeTruthy();
   });
 
   it("prefers a signed public static preview link when present", async () => {

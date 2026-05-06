@@ -36,6 +36,15 @@ const completeCodeProjectRepairActionFromWorker = vi.hoisted(() =>
     },
   }),
 );
+const recordCodeProjectPreviewSmokeResult = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({
+    idempotent: false,
+    action: {
+      id: "00000000-0000-4000-8000-000000000016",
+      status: "completed",
+    },
+  }),
+);
 const drainDueNoteAnalysisJobs = vi.hoisted(() =>
   vi.fn().mockResolvedValue({
     results: [
@@ -63,6 +72,7 @@ vi.mock("../lib/agent-actions", async (importOriginal) => {
     completeCodeProjectInstallActionFromWorker,
     completeCodeProjectRepairActionFromWorker,
     completeCodeProjectRunActionFromWorker,
+    recordCodeProjectPreviewSmokeResult,
   };
 });
 
@@ -225,6 +235,17 @@ function postCodeRepairResult(body: unknown, secret: string | null = SECRET) {
   });
 }
 
+function postCodePreviewSmokeResult(body: unknown, secret: string | null = SECRET) {
+  return app.request("/api/internal/agent-actions/code-preview-smoke-results", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(secret == null ? {} : { "X-Internal-Secret": secret }),
+    },
+    body: JSON.stringify(body),
+  });
+}
+
 describe("POST /api/internal/agent-actions/code-command-results", () => {
   it("finalizes a code_project.run action from the worker callback", async () => {
     completeCodeProjectRunActionFromWorker.mockClear();
@@ -298,6 +319,37 @@ describe("POST /api/internal/agent-actions/code-repair-results", () => {
   });
 });
 
+describe("POST /api/internal/agent-actions/code-preview-smoke-results", () => {
+  it("records browser smoke evidence for a static preview action", async () => {
+    recordCodeProjectPreviewSmokeResult.mockClear();
+
+    const body = codePreviewSmokeResultBody();
+    const res = await postCodePreviewSmokeResult(body);
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      idempotent: false,
+      action: {
+        id: "00000000-0000-4000-8000-000000000016",
+        status: "completed",
+      },
+    });
+    expect(recordCodeProjectPreviewSmokeResult).toHaveBeenCalledWith(body);
+  });
+
+  it("rejects invalid browser smoke payloads", async () => {
+    recordCodeProjectPreviewSmokeResult.mockClear();
+
+    const res = await postCodePreviewSmokeResult({
+      ...codePreviewSmokeResultBody(),
+      result: { ok: true },
+    });
+
+    expect(res.status).toBe(400);
+    expect(recordCodeProjectPreviewSmokeResult).not.toHaveBeenCalled();
+  });
+});
+
 function codeCommandResultBody() {
   return {
     actionId: "00000000-0000-4000-8000-000000000010",
@@ -366,6 +418,24 @@ function codeRepairResultBody() {
         deletions: 1,
         summary: "Repair failing test",
       },
+    },
+  };
+}
+
+function codePreviewSmokeResultBody() {
+  return {
+    actionId: "00000000-0000-4000-8000-000000000016",
+    requestId: "00000000-0000-4000-8000-000000000017",
+    workspaceId: "00000000-0000-4000-8000-000000000001",
+    projectId: "00000000-0000-4000-8000-000000000002",
+    userId: "user-1",
+    result: {
+      ok: true,
+      status: 200,
+      url: "https://preview.example.com/index.html",
+      bodyChars: 42,
+      screenshotPath: "output/playwright/preview.png",
+      checkedAt: "2026-05-06T00:01:00.000Z",
     },
   };
 }

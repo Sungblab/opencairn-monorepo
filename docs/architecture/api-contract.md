@@ -390,7 +390,7 @@ process-backed modes such as Vite or Next. Phase 7B lets approved static
 preview actions complete with a result shaped like
 `{ ok:true, kind:"code_project.preview", mode:"static", codeWorkspaceId,
 snapshotId, entryPath, previewUrl, assetsBaseUrl, publicPreviewUrl?,
-publicAssetsBaseUrl?, expiresAt }`. The `previewUrl` is an authenticated
+publicAssetsBaseUrl?, expiresAt, browserSmoke? }`. The `previewUrl` is an authenticated
 internal API route with sandbox CSP, no-store caching, and a bounded expiry.
 When `CODE_PREVIEW_PUBLIC_BASE_URL` and a signing secret are configured, the
 result also includes signed public URLs under `/api/public/...` that use the
@@ -414,14 +414,20 @@ pnpm --filter @opencairn/api smoke:code-preview -- \
 The smoke harness opens the preview URL in headless Chromium, fails on HTTP
 errors or blank visible body text, can require a selector or visible text, and
 writes a screenshot under `output/playwright/` unless `--no-screenshot` is
-passed. It is an operator QA tool for completed static preview URLs; it does not
-change the preview API contract or allocate public hostnames.
+passed. `--result <path>` also writes a JSON payload shaped like
+`{ ok, status?, url?, bodyChars?, screenshotPath?, checkedAt, errorCode?,
+message? }`, which can be posted back to the internal smoke result callback and
+stored on the preview action as `result.browserSmoke`. Stdout keeps the legacy
+`screenshot` alias for operator scripts, but the `--result` file is callback
+ready. It remains a static preview smoke path; it does not allocate
+process-backed preview servers.
 
 Internal preview cleanup:
 
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
 | POST | /api/internal/agent-actions/preview-cleanup | `X-Internal-Secret` | Run the static preview cleanup sweep. Completed `code_project.preview` actions whose `result.expiresAt` has passed are marked `expired` with `code_project_preview_expired`; response includes `{ expiredCount, actionIds }` for ops logs. Worker cron can call this via `python -m scripts.run_code_preview_cleanup`. | `{ limit? }` |
+| POST | /api/internal/agent-actions/code-preview-smoke-results | `X-Internal-Secret` | Callback for static preview browser smoke results. The API verifies the action/request/workspace/project/user tuple, requires an existing completed `code_project.preview` result, stores the smoke metadata under `result.browserSmoke`, and marks the preview action `failed` when the smoke result is not ok. | `{ actionId, requestId, workspaceId, projectId, userId, result }` |
 | POST | /api/internal/agent-actions/code-command-results | `X-Internal-Secret` | Worker callback for `code_project.run` workflows. The API verifies the action/request/workspace/project/user tuple, ignores already-cancelled actions idempotently, and marks the running action `completed` or `failed` from the command `exitCode`. | `{ actionId, requestId, workflowId, workspaceId, projectId, userId, result }` |
 | POST | /api/internal/agent-actions/code-install-results | `X-Internal-Secret` | Worker callback for `code_project.install` workflows. The API verifies the action/request/workspace/project/user tuple, ignores terminal callbacks idempotently, and marks the running action `completed` or `failed` from the install `exitCode`. | `{ actionId, requestId, workflowId, workspaceId, projectId, userId, result }` |
 | POST | /api/internal/agent-actions/code-repair-results | `X-Internal-Secret` | Worker callback for `code_project.patch` repair planner workflows. The API verifies the action/request/workspace/project/user tuple, validates the planned patch against the current code workspace snapshot, and marks the running repair action as a draft patch for review. | `{ actionId, requestId, workflowId, workspaceId, projectId, userId, result }` |
