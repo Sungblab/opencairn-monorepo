@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   and,
+  asc,
   db,
   eq,
   incrementNoteAnalysisVersion,
@@ -28,6 +29,12 @@ export type RunNoteAnalysisJobOptions = {
   now?: Date;
 };
 
+export type DrainDueNoteAnalysisJobsOptions = {
+  batchSize: number;
+  embed: (text: string) => Promise<number[]>;
+  now?: Date;
+};
+
 export type RunNoteAnalysisJobResult =
   | { status: "completed"; jobId: string }
   | { status: "not_found"; jobId: string }
@@ -35,6 +42,10 @@ export type RunNoteAnalysisJobResult =
   | { status: "missing_note"; jobId: string }
   | { status: "stale"; jobId: string }
   | { status: "failed"; jobId: string; error: unknown };
+
+export type DrainDueNoteAnalysisJobsResult = {
+  results: RunNoteAnalysisJobResult[];
+};
 
 export function computeNoteAnalysisContentHash(input: {
   title?: string | null;
@@ -239,6 +250,34 @@ export async function runNoteAnalysisJob(
     );
     return { status: "failed", jobId: opts.jobId, error };
   }
+}
+
+export async function drainDueNoteAnalysisJobs(
+  opts: DrainDueNoteAnalysisJobsOptions,
+): Promise<DrainDueNoteAnalysisJobsResult> {
+  const now = opts.now ?? new Date();
+  const batchSize = Math.max(1, Math.min(opts.batchSize, 100));
+  const jobs = await db.query.noteAnalysisJobs.findMany({
+    where: and(
+      eq(noteAnalysisJobs.status, "queued"),
+      lte(noteAnalysisJobs.runAfter, now),
+    ),
+    orderBy: [asc(noteAnalysisJobs.runAfter), asc(noteAnalysisJobs.lastQueuedAt)],
+    limit: batchSize,
+    columns: {
+      id: true,
+    },
+  });
+
+  const results: RunNoteAnalysisJobResult[] = [];
+  for (const job of jobs) {
+    results.push(await runNoteAnalysisJob({
+      jobId: job.id,
+      embed: opts.embed,
+      now,
+    }));
+  }
+  return { results };
 }
 
 async function markNoteAnalysisJobFailed(

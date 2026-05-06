@@ -92,6 +92,7 @@ from worker.activities.lit_import_activities import (
 from worker.activities.markdown_import_activities import unzip_markdown_export
 from worker.activities.narrator_activity import run_narrator
 from worker.activities.note_activity import create_source_note, report_ingest_failure
+from worker.activities.note_analysis_jobs import drain_note_analysis_jobs_activity
 from worker.activities.notion_activities import (
     convert_notion_md_to_plate,
     unzip_notion_export,
@@ -355,6 +356,9 @@ def build_worker_config() -> WorkerConfig:
             export_project_object_to_google_workspace,
             finalize_google_workspace_export,
         ])
+
+    if os.environ.get("FEATURE_NOTE_ANALYSIS_DRAIN", "false").lower() == "true":
+        activities.append(drain_note_analysis_jobs_activity)
 
     return WorkerConfig(workflows=workflows, activities=activities)
 

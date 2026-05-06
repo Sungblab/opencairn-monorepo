@@ -161,6 +161,46 @@ describe("WorkflowConsoleRuns", () => {
     expect(screen.getByText("logSummary:{\"packageManager\":\"pnpm\",\"packages\":\"zod@3.25.0, @vitejs/plugin-react\",\"exitCode\":0}")).toBeTruthy();
   });
 
+  it("renders agentic plan stale evidence and verifier summaries", async () => {
+    vi.mocked(workflowConsoleApi.list).mockResolvedValue({
+      runs: [
+        run({
+          runId: "agentic_plan:00000000-0000-4000-8000-000000000080",
+          runType: "agentic_plan",
+          title: "Review stale evidence",
+          status: "blocked",
+          progress: { current: 0, total: 1, percent: 0 },
+          error: {
+            code: "stale_context",
+            message: "Step evidence is stale.",
+            retryable: true,
+          },
+          outputs: [
+            {
+              outputType: "preview",
+              id: "00000000-0000-4000-8000-000000000080",
+              label: "1-step deterministic plan",
+              metadata: {
+                staleEvidenceBlockers: 1,
+                verificationStatus: "blocked",
+                recoveryCodes: ["stale_context"],
+                evidenceFreshness: { stale: 1 },
+              },
+            },
+          ],
+        }),
+      ],
+    });
+
+    renderWithClient();
+
+    expect(await screen.findByText("Review stale evidence")).toBeTruthy();
+    expect(screen.getByText("evidenceSummary:{\"count\":1,\"status\":\"freshnessStatus.stale\"}")).toBeTruthy();
+    expect(screen.getByText(
+      "verificationSummary:{\"status\":\"verificationStatus.blocked\",\"code\":\"recoveryCode.stale_context\"}",
+    )).toBeTruthy();
+  });
+
   it("does not query or render when there is no active project", () => {
     const { container } = renderWithClient(null);
 

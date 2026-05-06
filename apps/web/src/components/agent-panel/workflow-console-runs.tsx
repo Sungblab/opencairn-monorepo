@@ -139,6 +139,9 @@ function WorkflowConsoleRunRow({ run }: { run: WorkflowConsoleRun }) {
                 {output.outputType === "log" ? (
                   <LogOutputSummary output={output} />
                 ) : null}
+                {output.outputType === "preview" ? (
+                  <PlanOutputSummary output={output} />
+                ) : null}
               </span>
             )
           ))}
@@ -166,6 +169,92 @@ function LogOutputSummary({ output }: { output: WorkflowConsoleRun["outputs"][nu
       })}
     </span>
   );
+}
+
+function PlanOutputSummary({ output }: { output: WorkflowConsoleRun["outputs"][number] }) {
+  const t = useTranslations("agentPanel.workflowConsole");
+  const metadata = output.metadata ?? {};
+  const staleEvidenceBlockers =
+    typeof metadata.staleEvidenceBlockers === "number"
+      ? metadata.staleEvidenceBlockers
+      : 0;
+  const evidenceFreshness = metadata.evidenceFreshness;
+  const staleCount = evidenceFreshness
+    && typeof evidenceFreshness === "object"
+    && !Array.isArray(evidenceFreshness)
+    && typeof (evidenceFreshness as Record<string, unknown>).stale === "number"
+    ? (evidenceFreshness as Record<string, number>).stale
+    : staleEvidenceBlockers;
+  const verificationStatus =
+    typeof metadata.verificationStatus === "string"
+      ? metadata.verificationStatus
+      : null;
+  const recoveryCodes = Array.isArray(metadata.recoveryCodes)
+    ? metadata.recoveryCodes.filter((code): code is string => typeof code === "string")
+    : [];
+  if (staleCount <= 0 && !verificationStatus && recoveryCodes.length === 0) return null;
+  const verificationStatusLabel = verificationStatus
+    ? verificationStatusLabelFor(t, verificationStatus)
+    : verificationStatusLabelFor(t, "unknown");
+  const recoveryCodeLabel = recoveryCodes.length > 0
+    ? recoveryCodeLabelFor(t, recoveryCodes[0]!)
+    : "-";
+  return (
+    <span className="mt-0.5 flex max-w-full flex-col gap-0.5 text-[11px]">
+      {staleCount > 0 ? (
+        <span className="truncate text-amber-700 dark:text-amber-300">
+          {t("evidenceSummary", {
+            count: staleCount,
+            status: t("freshnessStatus.stale"),
+          })}
+        </span>
+      ) : null}
+      {verificationStatus || recoveryCodes.length > 0 ? (
+        <span className="truncate">
+          {t("verificationSummary", {
+            status: verificationStatusLabel,
+            code: recoveryCodeLabel,
+          })}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function verificationStatusLabelFor(
+  t: ReturnType<typeof useTranslations>,
+  status: string,
+): string {
+  switch (status) {
+    case "pending":
+      return t("verificationStatus.pending");
+    case "passed":
+      return t("verificationStatus.passed");
+    case "failed":
+      return t("verificationStatus.failed");
+    case "blocked":
+      return t("verificationStatus.blocked");
+    default:
+      return t("verificationStatus.unknown");
+  }
+}
+
+function recoveryCodeLabelFor(
+  t: ReturnType<typeof useTranslations>,
+  code: string,
+): string {
+  switch (code) {
+    case "stale_context":
+      return t("recoveryCode.stale_context");
+    case "verification_failed":
+      return t("recoveryCode.verification_failed");
+    case "missing_source":
+      return t("recoveryCode.missing_source");
+    case "manual.review":
+      return t("recoveryCode.manual_review");
+    default:
+      return code;
+  }
 }
 
 function installedPackageSummary(value: unknown): string | null {

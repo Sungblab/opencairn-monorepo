@@ -173,7 +173,7 @@ describe("agentic plan service", () => {
     });
   });
 
-  it("recovery retry appends a new step without deleting the failed step", async () => {
+  it("recovery retry appends a new step with incremented attempt metadata", async () => {
     const repo = createMemoryAgenticPlanRepo();
     const plan = await createAgenticPlan(
       projectId,
@@ -186,6 +186,25 @@ describe("agentic plan service", () => {
       planId: plan.id,
       stepId: failedStep.id,
       status: "failed",
+    });
+    await repo.updateStep({
+      planId: plan.id,
+      stepId: failedStep.id,
+      evidenceRefs: [
+        {
+          type: "note_analysis_job",
+          noteId: exportObjectId,
+          jobId: "00000000-0000-4000-8000-000000000050",
+          contentHash: "old-hash",
+          analysisVersion: 1,
+        },
+      ],
+      evidenceFreshnessStatus: "stale",
+      staleEvidenceBlocks: true,
+      verificationStatus: "blocked",
+      recoveryCode: "stale_context",
+      retryCount: 2,
+      errorCode: "stale_context",
     });
 
     const recovered = await recoverAgenticPlanStep(
@@ -202,6 +221,49 @@ describe("agentic plan service", () => {
       kind: failedStep.kind,
       title: `Retry: ${failedStep.title}`,
       status: "approval_required",
+      evidenceFreshnessStatus: "unknown",
+      staleEvidenceBlocks: true,
+      verificationStatus: "pending",
+      retryCount: 3,
+    });
+  });
+
+  it("routes verification recovery to a manual review step", async () => {
+    const repo = createMemoryAgenticPlanRepo();
+    const plan = await createAgenticPlan(
+      projectId,
+      userId,
+      { goal: "code test failure repair" },
+      { repo, canWriteProject: async () => true },
+    );
+    const failedStep = plan.steps[0]!;
+    await repo.updateStep({
+      planId: plan.id,
+      stepId: failedStep.id,
+      status: "failed",
+      verificationStatus: "failed",
+      recoveryCode: "verification_failed",
+      retryCount: 1,
+      errorCode: "verification_failed",
+    });
+
+    const recovered = await recoverAgenticPlanStep(
+      projectId,
+      userId,
+      plan.id,
+      { stepId: failedStep.id, strategy: "retry" },
+      { repo, canWriteProject: async () => true },
+    );
+
+    expect(recovered.steps.at(-1)).toMatchObject({
+      kind: "manual.review",
+      status: "approval_required",
+      verificationStatus: "pending",
+      retryCount: 2,
+      input: {
+        recoveredStepId: failedStep.id,
+        recoveryCode: "verification_failed",
+      },
     });
   });
 
@@ -306,6 +368,64 @@ describe("agentic plan service", () => {
       linkedRunId: null,
       errorCode: "agentic_plan_step_missing_input",
       errorMessage: expect.stringContaining("file.export"),
+    });
+  });
+
+  it("blocks an executable plan step when stale note evidence blocks execution", async () => {
+    const repo = createMemoryAgenticPlanRepo();
+    const plan = await repo.insertPlan({
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Update note from evidence",
+      goal: "Update note from evidence",
+      status: "approval_required",
+      target: { workspaceId, projectId },
+      plannerKind: "deterministic",
+      summary: "1-step deterministic plan: note.review_update",
+      currentStepOrdinal: 1,
+      steps: [
+        {
+          kind: "note.review_update",
+          title: "Review note update",
+          rationale: "This update depends on mutable note evidence.",
+          risk: "write",
+          input: {
+            noteId: exportObjectId,
+            draft: [{ type: "p", children: [{ text: "Updated" }] }],
+            baseStateVector: "AQID",
+          },
+          evidenceRefs: [
+            {
+              type: "note_analysis_job",
+              noteId: exportObjectId,
+              jobId: "00000000-0000-4000-8000-000000000050",
+              contentHash: "old-hash",
+              analysisVersion: 1,
+            },
+          ],
+          evidenceFreshnessStatus: "stale",
+          staleEvidenceBlocks: true,
+          verificationStatus: "pending",
+          retryCount: 0,
+        },
+      ],
+    });
+
+    const started = await startAgenticPlan(projectId, userId, plan.id, {}, {
+      repo,
+      canWriteProject: async () => true,
+      createAgentAction: async () => {
+        throw new Error("stale evidence should block before action materialization");
+      },
+    });
+
+    expect(started.steps[0]).toMatchObject({
+      status: "blocked",
+      errorCode: "stale_context",
+      recoveryCode: "stale_context",
+      verificationStatus: "blocked",
+      evidenceFreshnessStatus: "stale",
     });
   });
 

@@ -37,6 +37,51 @@ export const agenticPlanStepKindSchema = z.enum([
 
 export const agenticPlanPlannerKindSchema = z.enum(["deterministic", "model"]);
 
+export const agenticPlanEvidenceFreshnessStatusSchema = z.enum([
+  "fresh",
+  "stale",
+  "missing",
+  "unknown",
+]);
+
+export const agenticPlanStepVerificationStatusSchema = z.enum([
+  "pending",
+  "passed",
+  "failed",
+  "blocked",
+  "unknown",
+]);
+
+export const agenticPlanStepRecoveryCodeSchema = z.enum([
+  "stale_context",
+  "verification_failed",
+  "missing_source",
+  "manual.review",
+]);
+
+export const agenticPlanStepEvidenceRefSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("note_chunk"),
+      noteId: z.string().uuid(),
+      chunkId: z.string().uuid(),
+      contentHash: z.string().min(1).optional(),
+      analysisVersion: z.number().int().positive().optional(),
+      metadata: z.record(z.unknown()).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("note_analysis_job"),
+      noteId: z.string().uuid(),
+      jobId: z.string().uuid(),
+      contentHash: z.string().min(1).optional(),
+      analysisVersion: z.number().int().positive().optional(),
+      metadata: z.record(z.unknown()).optional(),
+    })
+    .strict(),
+]);
+
 export const agenticPlanTargetSchema = z
   .object({
     workspaceId: z.string().uuid(),
@@ -71,6 +116,12 @@ export const agenticPlanStepSchema = z
     input: z.record(z.unknown()).default({}),
     linkedRunType: z.string().min(1).nullable().optional(),
     linkedRunId: z.string().min(1).nullable().optional(),
+    evidenceRefs: z.array(agenticPlanStepEvidenceRefSchema).optional(),
+    evidenceFreshnessStatus: agenticPlanEvidenceFreshnessStatusSchema.optional(),
+    staleEvidenceBlocks: z.boolean().optional(),
+    verificationStatus: agenticPlanStepVerificationStatusSchema.optional(),
+    recoveryCode: agenticPlanStepRecoveryCodeSchema.nullable().optional(),
+    retryCount: z.number().int().nonnegative().optional(),
     errorCode: z.string().min(1).nullable().optional(),
     errorMessage: z.string().min(1).nullable().optional(),
     createdAt: z.string().datetime(),
@@ -140,6 +191,10 @@ export type AgenticPlanStatus = z.infer<typeof agenticPlanStatusSchema>;
 export type AgenticPlanStepStatus = z.infer<typeof agenticPlanStepStatusSchema>;
 export type AgenticPlanStepKind = z.infer<typeof agenticPlanStepKindSchema>;
 export type AgenticPlanPlannerKind = z.infer<typeof agenticPlanPlannerKindSchema>;
+export type AgenticPlanEvidenceFreshnessStatus = z.infer<typeof agenticPlanEvidenceFreshnessStatusSchema>;
+export type AgenticPlanStepVerificationStatus = z.infer<typeof agenticPlanStepVerificationStatusSchema>;
+export type AgenticPlanStepRecoveryCode = z.infer<typeof agenticPlanStepRecoveryCodeSchema>;
+export type AgenticPlanStepEvidenceRef = z.infer<typeof agenticPlanStepEvidenceRefSchema>;
 export type AgenticPlanTarget = z.infer<typeof agenticPlanTargetSchema>;
 export type CreateAgenticPlanTarget = z.infer<typeof createAgenticPlanTargetSchema>;
 export type AgenticPlanStep = z.infer<typeof agenticPlanStepSchema>;

@@ -360,6 +360,7 @@ export function workflowConsoleRunFromAgenticPlan(plan: AgenticPlanProjectionSou
           goal: parsed.goal,
           stepCount: totalSteps,
           completedSteps,
+          ...planOperationalSummary(parsed.steps),
         },
       },
     ],
@@ -762,6 +763,43 @@ function approvalsFromAgenticPlan(plan: AgenticPlan): WorkflowConsoleRun["approv
       requestedAt: step.createdAt,
       summary: step.title,
     }));
+}
+
+function planOperationalSummary(steps: AgenticPlanStep[]): Record<string, unknown> {
+  const evidenceFreshness: Record<string, number> = {};
+  const recoveryCodes = new Set<string>();
+  let staleEvidenceBlockers = 0;
+  let verificationStatus: AgenticPlanStep["verificationStatus"] | null = null;
+  const verificationPriority: Record<NonNullable<AgenticPlanStep["verificationStatus"]>, number> = {
+    unknown: 0,
+    pending: 1,
+    passed: 2,
+    blocked: 3,
+    failed: 4,
+  };
+
+  for (const step of steps) {
+    const freshness = step.evidenceFreshnessStatus ?? "unknown";
+    evidenceFreshness[freshness] = (evidenceFreshness[freshness] ?? 0) + 1;
+    if (step.staleEvidenceBlocks && freshness === "stale") {
+      staleEvidenceBlockers += 1;
+    }
+    if (step.recoveryCode) recoveryCodes.add(step.recoveryCode);
+    const candidate = step.verificationStatus ?? "pending";
+    if (
+      !verificationStatus ||
+      verificationPriority[candidate] > verificationPriority[verificationStatus]
+    ) {
+      verificationStatus = candidate;
+    }
+  }
+
+  return {
+    staleEvidenceBlockers,
+    verificationStatus: verificationStatus ?? "unknown",
+    recoveryCodes: Array.from(recoveryCodes),
+    evidenceFreshness,
+  };
 }
 
 function importLabel(job: ImportJobProjectionSource): string {

@@ -43,6 +43,12 @@ export function createMemoryAgenticPlanRepo(): AgenticPlanRepository {
           status: "approval_required",
           risk: step.risk,
           input: step.input ?? {},
+          evidenceRefs: step.evidenceRefs ?? [],
+          evidenceFreshnessStatus: step.evidenceFreshnessStatus ?? "unknown",
+          staleEvidenceBlocks: step.staleEvidenceBlocks ?? false,
+          verificationStatus: step.verificationStatus ?? "pending",
+          recoveryCode: step.recoveryCode ?? null,
+          retryCount: step.retryCount ?? 0,
           linkedRunType: null,
           linkedRunId: null,
           errorCode: null,
@@ -87,7 +93,21 @@ export function createMemoryAgenticPlanRepo(): AgenticPlanRepository {
       step.updatedAt = new Date().toISOString();
       step.completedAt = terminalStepStatus(status) ? step.updatedAt : null;
     },
-    async updateStep({ planId, stepId, status, linkedRunType, linkedRunId, errorCode, errorMessage }) {
+    async updateStep({
+      planId,
+      stepId,
+      status,
+      linkedRunType,
+      linkedRunId,
+      evidenceRefs,
+      evidenceFreshnessStatus,
+      staleEvidenceBlocks,
+      verificationStatus,
+      recoveryCode,
+      retryCount,
+      errorCode,
+      errorMessage,
+    }) {
       const plan = plans.get(planId);
       if (!plan) return;
       const step = plan.steps.find((candidate) => candidate.id === stepId);
@@ -99,6 +119,12 @@ export function createMemoryAgenticPlanRepo(): AgenticPlanRepository {
       }
       if (linkedRunType !== undefined) step.linkedRunType = linkedRunType;
       if (linkedRunId !== undefined) step.linkedRunId = linkedRunId;
+      if (evidenceRefs !== undefined) step.evidenceRefs = evidenceRefs;
+      if (evidenceFreshnessStatus !== undefined) step.evidenceFreshnessStatus = evidenceFreshnessStatus;
+      if (staleEvidenceBlocks !== undefined) step.staleEvidenceBlocks = staleEvidenceBlocks;
+      if (verificationStatus !== undefined) step.verificationStatus = verificationStatus;
+      if (recoveryCode !== undefined) step.recoveryCode = recoveryCode;
+      if (retryCount !== undefined) step.retryCount = retryCount;
       if (errorCode !== undefined) step.errorCode = errorCode;
       if (errorMessage !== undefined) step.errorMessage = errorMessage;
       step.updatedAt = now;
@@ -119,6 +145,12 @@ export function createMemoryAgenticPlanRepo(): AgenticPlanRepository {
         linkedRunId: step.linkedRunId ?? null,
         risk: step.risk,
         input: step.input ?? {},
+        evidenceRefs: step.evidenceRefs ?? [],
+        evidenceFreshnessStatus: step.evidenceFreshnessStatus ?? "unknown",
+        staleEvidenceBlocks: step.staleEvidenceBlocks ?? false,
+        verificationStatus: step.verificationStatus ?? "pending",
+        recoveryCode: step.recoveryCode ?? null,
+        retryCount: step.retryCount ?? 0,
         errorCode: step.errorCode ?? null,
         errorMessage: step.errorMessage ?? null,
         createdAt: now,
