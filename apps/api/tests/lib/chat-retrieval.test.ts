@@ -43,6 +43,7 @@ const fakeProvider = {
 beforeEach(() => {
   llm.getGeminiProvider.mockReturnValue(fakeProvider);
   fakeProvider.embed.mockClear();
+  fakeProvider.streamGenerate.mockReset();
   search.projectHybridSearch.mockReset();
   chunkSearch.projectChunkHybridSearch.mockReset();
   chunkSearch.projectChunkHybridSearch.mockResolvedValue([]);
@@ -447,6 +448,40 @@ describe("chat-retrieval chunk fallback", () => {
     expect(hits.map((h) => h.noteId)).toEqual(["n-simple"]);
     expect(graphExpansion.expandGraphCandidates).not.toHaveBeenCalled();
   });
+
+  it("runs one corrective graph retry for sparse expand-mode evidence", async () => {
+    chunkSearch.projectChunkHybridSearch.mockResolvedValue([
+      chunkHit("sparse-1", "note-1", 0.25),
+    ]);
+    graphExpansion.expandGraphCandidates.mockResolvedValue([
+      {
+        noteId: "note-2",
+        chunkId: "chunk-2",
+        title: "Related path",
+        headingPath: "Impact",
+        snippet: "relationship evidence",
+        graphScore: 0.9,
+        sourceType: null,
+        sourceUrl: null,
+        updatedAt: null,
+      },
+    ]);
+
+    const result = await retrieveWithPolicy({
+      workspaceId: "ws-1",
+      query: "alpha 정의",
+      ragMode: "expand",
+      scope: { type: "project", workspaceId: "ws-1", projectId: "p-1" },
+      chips: [],
+    });
+
+    expect(graphExpansion.expandGraphCandidates).toHaveBeenCalledWith(
+      expect.objectContaining({ maxDepth: 1 }),
+    );
+    expect(result.policy.reasons).toContain("corrective_retry");
+    expect(result.qualityReport.decision).toBe("sparse");
+    expect(result.hits.map((hit) => hit.noteId)).toContain("note-2");
+  });
 });
 
 describe("retrieveWithPolicy adaptive policy propagation", () => {
@@ -613,6 +648,86 @@ describe("retrieveWithPolicy adaptive policy propagation", () => {
     } finally {
       if (env.topK === undefined) delete process.env.CHAT_RAG_TOP_K_EXPAND;
       else process.env.CHAT_RAG_TOP_K_EXPAND = env.topK;
+    }
+  });
+});
+
+describe("chat-retrieval provider reranker", () => {
+  it("uses provider reranking when explicitly enabled", async () => {
+    const env = process.env.CHAT_RAG_RERANKER;
+    try {
+      process.env.CHAT_RAG_RERANKER = "provider";
+      chunkSearch.projectChunkHybridSearch.mockResolvedValue([
+        chunkHit("a", "note-a", 0.8),
+        chunkHit("b", "note-b", 0.7),
+      ]);
+      fakeProvider.streamGenerate.mockImplementation(async function* () {
+        yield { delta: '{"rankedIds":["chunk:b","chunk:a"]}' };
+        yield { usage: { tokensIn: 1, tokensOut: 1, model: "fake" } };
+      });
+
+      const result = await retrieveWithPolicy({
+        workspaceId: "ws-1",
+        query: "alpha",
+        ragMode: "strict",
+        scope: { type: "project", workspaceId: "ws-1", projectId: "p-1" },
+        chips: [],
+      });
+
+      expect(fakeProvider.streamGenerate).toHaveBeenCalled();
+      expect(result.hits.map((hit) => hit.noteId)).toEqual(["note-b", "note-a"]);
+    } finally {
+      if (env === undefined) delete process.env.CHAT_RAG_RERANKER;
+      else process.env.CHAT_RAG_RERANKER = env;
+    }
+  });
+
+  it("applies provider reranking once after corrective retry", async () => {
+    const env = process.env.CHAT_RAG_RERANKER;
+    try {
+      process.env.CHAT_RAG_RERANKER = "provider";
+      chunkSearch.projectChunkHybridSearch.mockResolvedValue([
+        chunkHit("sparse-1", "note-1", 0.25),
+      ]);
+      graphExpansion.expandGraphCandidates.mockResolvedValue([
+        {
+          noteId: "note-2",
+          chunkId: "chunk-2",
+          title: "Related path",
+          headingPath: "Impact",
+          snippet: "relationship evidence",
+          graphScore: 0.9,
+          sourceType: null,
+          sourceUrl: null,
+          updatedAt: null,
+        },
+      ]);
+      fakeProvider.streamGenerate.mockImplementation(async function* () {
+        yield {
+          delta:
+            '{"rankedIds":["graph:chunk:chunk-2","chunk:sparse-1"]}',
+        };
+        yield { usage: { tokensIn: 1, tokensOut: 1, model: "fake" } };
+      });
+
+      const result = await retrieveWithPolicy({
+        workspaceId: "ws-1",
+        query: "alpha 정의",
+        ragMode: "expand",
+        scope: { type: "project", workspaceId: "ws-1", projectId: "p-1" },
+        chips: [],
+      });
+
+      expect(fakeProvider.streamGenerate).toHaveBeenCalledTimes(1);
+      expect(result.policy.reasons).toContain("corrective_retry");
+      expect(result.qualityReport.retryApplied).toBe(true);
+      expect(result.hits.map((hit) => hit.noteId)).toEqual([
+        "note-2",
+        "note-1",
+      ]);
+    } finally {
+      if (env === undefined) delete process.env.CHAT_RAG_RERANKER;
+      else process.env.CHAT_RAG_RERANKER = env;
     }
   });
 });

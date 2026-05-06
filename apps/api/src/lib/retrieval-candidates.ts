@@ -39,6 +39,7 @@ export type RetrievalCandidate = {
   sourceSpan: SourceSpan | null;
   evidenceId: string;
   support: EvidenceSupport;
+  graphPath?: string | null;
 };
 
 export type EvidenceItem = {
@@ -57,6 +58,7 @@ export type EvidenceItem = {
   sourceSpan: SourceSpan | null;
   evidenceId: string;
   support: EvidenceSupport;
+  graphPath?: string | null;
 };
 
 export type EvidenceBundle = {
@@ -84,6 +86,7 @@ export type RetrievalHitLike = {
   sourceSpan?: SourceSpan | null;
   evidenceId?: string;
   support?: EvidenceSupport;
+  graphPath?: string | null;
 };
 
 export function candidateFromRetrievalHit(
@@ -112,6 +115,7 @@ export function candidateFromRetrievalHit(
     sourceSpan: hit.sourceSpan ?? null,
     evidenceId: hit.evidenceId ?? id,
     support: hit.support ?? "supports",
+    graphPath: hit.graphPath ?? null,
   };
 }
 

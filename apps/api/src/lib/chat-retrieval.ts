@@ -19,8 +19,19 @@ import {
 import {
   candidateFromRetrievalHit,
   spreadByProject,
+  type RetrievalCandidate,
 } from "./retrieval-candidates";
 import { rerankCandidates } from "./retrieval-rerank";
+import {
+  correctivePolicyForQuality,
+  disabledRetrievalQuality,
+  evaluateRetrievalQuality,
+  type RetrievalQualityReport,
+} from "./retrieval-quality";
+import {
+  providerRerankerEnabled,
+  rerankCandidatesWithProvider,
+} from "./retrieval-provider-rerank";
 import type {
   EvidenceProducer,
   EvidenceProvenance,
@@ -61,16 +72,24 @@ export type RetrievalHit = {
   sourceSpan?: SourceSpan | null;
   evidenceId?: string;
   support?: EvidenceSupport;
+  graphPath?: string | null;
 };
 
 type ProjectRetrievalHit = RetrievalHit & {
   sourceKey: string;
 };
 
+type CollectedProjectHits = {
+  orderedCandidates: RetrievalCandidate[];
+  rerankedCandidates: RetrievalCandidate[];
+  hitByCandidateId: Map<string, ProjectRetrievalHit>;
+};
+
 export type RetrievalWithPolicyResult = {
   hits: RetrievalHit[];
   policy: AdaptiveRagPolicy;
   policySummary: AdaptiveRagPolicySummary;
+  qualityReport: RetrievalQualityReport;
 };
 
 // ── Retrieval routing ────────────────────────────────────────────────────
@@ -137,66 +156,85 @@ export async function retrieveWithPolicy(opts: {
 }): Promise<RetrievalWithPolicyResult> {
   const initialPolicy = planAdaptiveRagPolicy(opts);
   if (initialPolicy.resultTopK === 0) {
-    return retrievalResult([], initialPolicy);
+    return retrievalResult([], initialPolicy, disabledRetrievalQuality());
   }
   const projectIds = await resolveProjectIds(opts);
   checkAbort(opts.signal);
-  const policy = planAdaptiveRagPolicy({
+  let policy = planAdaptiveRagPolicy({
     ...opts,
     projectCount: projectIds.length,
   });
-  if (projectIds.length === 0) return retrievalResult([], policy);
+  if (projectIds.length === 0) {
+    return retrievalResult(
+      [],
+      policy,
+      evaluateRetrievalQuality({ candidates: [] }),
+    );
+  }
 
   const provider = getChatProvider();
   const queryEmbedding = await provider.embed(opts.query);
   checkAbort(opts.signal);
 
-  const fanout = projectIds.slice(0, maxProjects());
-  const perProjectK = Math.max(policy.seedTopK, 5);
-
-  const projectHits = await mapWithConcurrency(
-    fanout,
-    fanoutConcurrency(),
-    (projectId) =>
-      retrieveProjectHits({
-        workspaceId: opts.workspaceId,
-        projectId,
-        queryText: opts.query,
-        queryEmbedding,
-        k: perProjectK,
-        ragMode: opts.ragMode,
-        policy,
-      }),
-    opts.signal,
-  );
-
-  // Re-merge: chunk hits use chunk ids for citation-level identity; fallback
-  // note hits use note ids.
-  const merged = new Map<string, ProjectRetrievalHit>();
-  for (const hits of projectHits) {
-    for (const h of hits) {
-      if (!merged.has(h.sourceKey)) merged.set(h.sourceKey, h);
-    }
-  }
-  const hitCandidates = Array.from(merged.values()).map((hit, index) => ({
-    hit,
-    candidate: candidateFromRetrievalHit(hit, index),
-  }));
-  const rerankedCandidates = rerankCandidates({
-    query: opts.query,
-    candidates: hitCandidates.map((item) => item.candidate),
+  let collected = await collectProjectHits({
+    opts,
+    projectIds,
+    queryEmbedding,
+    policy,
   });
-  const orderedCandidates =
-    policy.reasons.includes("workspace_fanout")
-      ? spreadByProject(rerankedCandidates)
-      : rerankedCandidates;
-  const hitByCandidateId = new Map(
-    hitCandidates.map((item) => [item.candidate.id, item.hit]),
-  );
+  const initialQualityReport = evaluateRetrievalQuality({
+    candidates: collected.rerankedCandidates,
+  });
+  let qualityReport = initialQualityReport;
 
-  const hits = orderedCandidates
+  const correctivePolicy = correctivePolicyForQuality(
+    policy,
+    initialQualityReport,
+  );
+  if (correctivePolicy !== policy) {
+    collected = await collectProjectHits({
+      opts,
+      projectIds,
+      queryEmbedding,
+      policy: correctivePolicy,
+    });
+    const finalQualityReport = evaluateRetrievalQuality({
+      candidates: collected.rerankedCandidates,
+    });
+    qualityReport = {
+      ...finalQualityReport,
+      retryApplied: true,
+      reasons: Array.from(
+        new Set([
+          ...initialQualityReport.reasons,
+          "corrective_retry_applied",
+          ...finalQualityReport.reasons,
+        ]),
+      ),
+    };
+    policy = correctivePolicy;
+  }
+
+  if (providerRerankerEnabled()) {
+    const providerRerankedCandidates = await rerankCandidatesWithProvider({
+      query: opts.query,
+      candidates: collected.rerankedCandidates,
+      provider,
+      signal: opts.signal,
+    });
+    collected = {
+      ...collected,
+      rerankedCandidates: providerRerankedCandidates,
+      orderedCandidates: orderCandidatesForPolicy(
+        policy,
+        providerRerankedCandidates,
+      ),
+    };
+  }
+
+  const hits = collected.orderedCandidates
     .slice(0, policy.resultTopK)
-    .map((candidate) => hitByCandidateId.get(candidate.id))
+    .map((candidate) => collected.hitByCandidateId.get(candidate.id))
     .filter((h): h is ProjectRetrievalHit => h != null)
     .map((h) => ({
       noteId: h.noteId,
@@ -216,19 +254,87 @@ export async function retrieveWithPolicy(opts: {
       sourceSpan: h.sourceSpan,
       evidenceId: h.evidenceId,
       support: h.support,
+      graphPath: h.graphPath,
     }));
-  return retrievalResult(hits, policy);
+  return retrievalResult(hits, policy, qualityReport);
 }
 
 function retrievalResult(
   hits: RetrievalHit[],
   policy: AdaptiveRagPolicy,
+  qualityReport: RetrievalQualityReport,
 ): RetrievalWithPolicyResult {
   return {
     hits,
     policy,
     policySummary: summarizeAdaptiveRagPolicy(policy),
+    qualityReport,
   };
+}
+
+async function collectProjectHits(input: {
+  opts: {
+    workspaceId: string;
+    query: string;
+    ragMode: RagMode;
+    signal?: AbortSignal;
+  };
+  projectIds: string[];
+  queryEmbedding: number[];
+  policy: AdaptiveRagPolicy;
+}): Promise<CollectedProjectHits> {
+  const fanout = input.projectIds.slice(0, maxProjects());
+  const perProjectK = Math.max(input.policy.seedTopK, 5);
+
+  const projectHits = await mapWithConcurrency(
+    fanout,
+    fanoutConcurrency(),
+    (projectId) =>
+      retrieveProjectHits({
+        workspaceId: input.opts.workspaceId,
+        projectId,
+        queryText: input.opts.query,
+        queryEmbedding: input.queryEmbedding,
+        k: perProjectK,
+        ragMode: input.opts.ragMode,
+        policy: input.policy,
+      }),
+    input.opts.signal,
+  );
+
+  const merged = new Map<string, ProjectRetrievalHit>();
+  for (const hits of projectHits) {
+    for (const h of hits) {
+      if (!merged.has(h.sourceKey)) merged.set(h.sourceKey, h);
+    }
+  }
+  const hitCandidates = Array.from(merged.values()).map((hit, index) => ({
+    hit,
+    candidate: candidateFromRetrievalHit(hit, index),
+  }));
+  const rerankedCandidates = rerankCandidates({
+    query: input.opts.query,
+    candidates: hitCandidates.map((item) => item.candidate),
+  });
+  return {
+    orderedCandidates: orderCandidatesForPolicy(
+      input.policy,
+      rerankedCandidates,
+    ),
+    rerankedCandidates,
+    hitByCandidateId: new Map(
+      hitCandidates.map((item) => [item.candidate.id, item.hit]),
+    ),
+  };
+}
+
+function orderCandidatesForPolicy(
+  policy: AdaptiveRagPolicy,
+  candidates: RetrievalCandidate[],
+): RetrievalCandidate[] {
+  return policy.reasons.includes("workspace_fanout")
+    ? spreadByProject(candidates)
+    : candidates;
 }
 
 async function retrieveProjectHits(opts: {
@@ -337,6 +443,7 @@ async function graphExpansionHits(opts: {
       sourceSpan: null,
       evidenceId,
       support: "mentions",
+      graphPath: hit.graphPath,
     };
   });
 }

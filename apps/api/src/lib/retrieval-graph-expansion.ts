@@ -13,6 +13,7 @@ export type GraphExpansionHit = {
   sourceType: string | null;
   sourceUrl: string | null;
   updatedAt: string | null;
+  graphPath: string | null;
 };
 
 export type GraphExpansionOpts = {
@@ -69,12 +70,17 @@ export async function expandGraphCandidates(
        AND n.deleted_at IS NULL
       WHERE cn.note_id = ANY(${opts.seedNoteIds})
     ),
-    expanded(concept_id, depth) AS (
-      SELECT concept_id, 0 FROM seed_concepts
+    expanded(concept_id, depth, path_text) AS (
+      SELECT seed_c.id, 0, seed_c.name
+      FROM seed_concepts sc
+      JOIN concepts seed_c
+        ON seed_c.id = sc.concept_id
+       AND seed_c.project_id = ${opts.projectId}
       UNION ALL
       SELECT
         neighbor.id AS concept_id,
-        expanded.depth + 1 AS depth
+        expanded.depth + 1 AS depth,
+        expanded.path_text || ' --[' || ce.relation_type || ']--> ' || neighbor.name AS path_text
       FROM expanded
       JOIN concept_edges ce
         ON ce.source_id = expanded.concept_id
@@ -96,7 +102,8 @@ export async function expandGraphCandidates(
       n.source_type,
       n.source_url,
       n.updated_at,
-      MAX(1.0 / (1 + expanded.depth)) AS graph_score
+      MAX(1.0 / (1 + expanded.depth)) AS graph_score,
+      MIN(expanded.path_text) FILTER (WHERE expanded.depth > 0) AS graph_path
     FROM expanded
     JOIN concept_notes cn
       ON cn.concept_id = expanded.concept_id
@@ -128,5 +135,6 @@ export async function expandGraphCandidates(
     sourceType: row.source_type == null ? null : String(row.source_type),
     sourceUrl: row.source_url == null ? null : String(row.source_url),
     updatedAt: dateString(row.updated_at),
+    graphPath: row.graph_path == null ? null : String(row.graph_path),
   }));
 }

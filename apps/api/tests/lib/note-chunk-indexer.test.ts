@@ -33,6 +33,7 @@ describe("indexNoteChunks", () => {
         id: "note-1",
         workspaceId: "ws-1",
         projectId: "project-1",
+        title: "Attention Paper",
         contentText: "# Paper\nAlpha beta gamma.",
         deletedAt: null,
       },
@@ -47,6 +48,7 @@ describe("indexNoteChunks", () => {
         noteId: "note-1",
         chunkIndex: 0,
         headingPath: "Paper",
+        contextText: "Page: Attention Paper\nSection path: Paper",
         contentText: "Alpha beta gamma.",
         deletedAt: null,
         embedding: [0.1, 0.2, 0.3],
@@ -71,6 +73,7 @@ describe("indexNoteChunks", () => {
         id: "note-1",
         workspaceId: "ws-1",
         projectId: "project-1",
+        title: "Parallel Embed",
         contentText: "# Paper\nFirst paragraph.\n\nSecond paragraph.",
         deletedAt: null,
       },
@@ -79,7 +82,10 @@ describe("indexNoteChunks", () => {
     });
 
     await Promise.resolve();
-    expect(started).toEqual(["First paragraph.", "Second paragraph."]);
+    expect(started).toEqual([
+      "Page: Parallel Embed\nSection path: Paper\n\nFirst paragraph.",
+      "Page: Parallel Embed\nSection path: Paper\n\nSecond paragraph.",
+    ]);
     expect(dbMock.transaction).not.toHaveBeenCalled();
 
     releases[0]?.([0.1]);

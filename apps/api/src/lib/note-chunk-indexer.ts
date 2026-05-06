@@ -5,6 +5,7 @@ export type NoteChunkIndexNote = {
   id: string;
   workspaceId: string;
   projectId: string;
+  title?: string | null;
   contentText: string | null;
   deletedAt: Date | null;
 };
@@ -22,19 +23,28 @@ export async function indexNoteChunks(opts: IndexNoteChunksOpts): Promise<void> 
   });
 
   const rows: NewNoteChunk[] = await Promise.all(
-    chunks.map(async (chunk) => ({
-      workspaceId: opts.note.workspaceId,
-      projectId: opts.note.projectId,
-      noteId: opts.note.id,
-      chunkIndex: chunk.chunkIndex,
-      headingPath: chunk.headingPath,
-      contentText: chunk.contentText,
-      embedding: await opts.embed(chunk.contentText),
-      tokenCount: chunk.tokenCount,
-      sourceOffsets: chunk.sourceOffsets,
-      contentHash: chunk.contentHash,
-      deletedAt: opts.note.deletedAt,
-    })),
+    chunks.map(async (chunk) => {
+      const contextText = buildChunkContext({
+        title: opts.note.title,
+        headingPath: chunk.headingPath,
+      });
+      return {
+        workspaceId: opts.note.workspaceId,
+        projectId: opts.note.projectId,
+        noteId: opts.note.id,
+        chunkIndex: chunk.chunkIndex,
+        headingPath: chunk.headingPath,
+        contextText,
+        contentText: chunk.contentText,
+        embedding: await opts.embed(
+          retrievalText(contextText, chunk.contentText),
+        ),
+        tokenCount: chunk.tokenCount,
+        sourceOffsets: chunk.sourceOffsets,
+        contentHash: chunk.contentHash,
+        deletedAt: opts.note.deletedAt,
+      };
+    }),
   );
 
   await db.transaction(async (tx) => {
@@ -43,4 +53,22 @@ export async function indexNoteChunks(opts: IndexNoteChunksOpts): Promise<void> 
       await tx.insert(noteChunks).values(rows);
     }
   });
+}
+
+export function buildChunkContext(input: {
+  title?: string | null;
+  headingPath?: string | null;
+}): string {
+  return [
+    input.title?.trim() ? `Page: ${input.title.trim()}` : null,
+    input.headingPath?.trim()
+      ? `Section path: ${input.headingPath.trim()}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function retrievalText(contextText: string, contentText: string): string {
+  return contextText ? `${contextText}\n\n${contentText}` : contentText;
 }

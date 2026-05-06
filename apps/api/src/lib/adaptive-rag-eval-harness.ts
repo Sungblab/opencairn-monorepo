@@ -9,6 +9,10 @@ import {
 } from "./retrieval-candidates";
 import { rerankCandidates } from "./retrieval-rerank";
 import { packEvidence } from "./context-packer";
+import {
+  evaluateRetrievalQuality,
+  type RetrievalQualityReport,
+} from "./retrieval-quality";
 import type { RagMode, RetrievalChip, RetrievalScope } from "./chat-retrieval";
 
 export type AdaptiveRagEvalReport = {
@@ -17,6 +21,7 @@ export type AdaptiveRagEvalReport = {
     inputCount: number;
     rerankedCandidateIds: string[];
   };
+  qualityStats: RetrievalQualityReport;
   packedEvidenceStats: {
     contextMaxTokens: number;
     maxChunksPerNote: number;
@@ -25,6 +30,7 @@ export type AdaptiveRagEvalReport = {
     totalCandidates: number;
     omittedCandidates: number;
     itemEvidenceIds: string[];
+    graphPathEvidenceIds: string[];
     perNoteCounts: Record<string, number>;
     perProjectCounts: Record<string, number>;
   };
@@ -66,6 +72,9 @@ export function runAdaptiveRagEvalFixture(
     maxChunksPerNote: policy.maxChunksPerNote,
     maxChunksPerProject: policy.maxChunksPerProject,
   });
+  const qualityStats = evaluateRetrievalQuality({
+    candidates: rerankedCandidates,
+  });
 
   return {
     policySummary: summarizeAdaptiveRagPolicy(policy),
@@ -73,6 +82,7 @@ export function runAdaptiveRagEvalFixture(
       inputCount: fixture.hits.length,
       rerankedCandidateIds: rerankedCandidates.map((item) => item.id),
     },
+    qualityStats,
     packedEvidenceStats: {
       contextMaxTokens: policy.contextMaxTokens,
       maxChunksPerNote: policy.maxChunksPerNote,
@@ -81,6 +91,9 @@ export function runAdaptiveRagEvalFixture(
       totalCandidates: evidenceBundle.totalCandidates,
       omittedCandidates: evidenceBundle.omittedCandidates,
       itemEvidenceIds: evidenceBundle.items.map((item) => item.evidenceId),
+      graphPathEvidenceIds: evidenceBundle.items
+        .filter((item) => item.graphPath)
+        .map((item) => item.evidenceId),
       perNoteCounts: countItemsByNote(evidenceBundle.items),
       perProjectCounts: countItemsByProject(evidenceBundle.items),
     },

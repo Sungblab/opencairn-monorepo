@@ -27,9 +27,9 @@ function candidate(
     confidence: 0.9,
     sourceSpan: { start: 10, end: 20, locator: "p.1" },
     evidenceId: `ev-${id}`,
-    support: "supports",
-    ...overrides,
-  };
+      support: "supports",
+      ...overrides,
+    };
 }
 
 describe("packEvidence", () => {
@@ -118,5 +118,25 @@ describe("packEvidence", () => {
     expect(prompt).toContain("confidence=0.64");
     expect(prompt).toContain("evidenceId=bundle-1:chunk-1");
     expect(prompt).toContain("span=section 2:4-28");
+  });
+
+  it("preserves graph path metadata for path-based prompting", () => {
+    const bundle = packEvidence({
+      candidates: [
+        candidate("path-1", "n1", "relationship support", {
+          provenance: "inferred",
+          channelScores: { graph: 0.8 },
+          graphPath: "Transformer --[uses]--> Attention",
+        }),
+      ],
+      maxTokens: 1000,
+    });
+
+    expect(bundle.items[0]).toMatchObject({
+      graphPath: "Transformer --[uses]--> Attention",
+    });
+    expect(evidenceBundleToPrompt(bundle)).toContain(
+      "path=Transformer --[uses]--> Attention",
+    );
   });
 });

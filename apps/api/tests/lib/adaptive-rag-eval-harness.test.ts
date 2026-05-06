@@ -484,6 +484,32 @@ describe("adaptive RAG eval harness", () => {
       expect(report).toMatchObject(fixture.expectedReport);
     },
   );
+
+  it("reports retrieval quality and graph path packing coverage", () => {
+    const report = runAdaptiveRagEvalFixture({
+      query: "alpha가 beta와 어떤 관계로 연결되는지 알려줘",
+      ragMode: "expand",
+      scope: projectScope,
+      chips: [],
+      hits: [
+        hit("seed", "note-seed", "Alpha", "alpha seed", { vector: 0.9 }),
+        {
+          ...hit("path", "note-path", "Alpha path", "path support", {
+            graph: 0.8,
+          }),
+          graphPath: "Alpha --[depends-on]--> Beta",
+        },
+      ],
+    });
+
+    expect(report.qualityStats).toMatchObject({
+      decision: "sparse",
+      shouldRetry: true,
+      candidateCount: 2,
+      supportingCount: 1,
+    });
+    expect(report.packedEvidenceStats.graphPathEvidenceIds).toEqual(["path"]);
+  });
 });
 
 function hit(
