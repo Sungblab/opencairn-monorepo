@@ -131,6 +131,7 @@
     "progress": "{percent}%",
     "logSummary": "{packageManager} · {packages} · exit {exitCode}",
     "evidenceSummary": "{count, plural, one {# evidence item} other {# evidence items}} {status}",
+    "staleEvidenceDetail": "Targets {refs}",
     "verificationSummary": "Verification {status} · recovery {code}",
     "freshnessStatus": {
       "fresh": "fresh",

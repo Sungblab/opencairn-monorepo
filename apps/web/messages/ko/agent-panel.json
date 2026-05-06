@@ -131,6 +131,7 @@
     "progress": "{percent}%",
     "logSummary": "{packageManager} · {packages} · 종료 코드 {exitCode}",
     "evidenceSummary": "근거 {count}개 {status}",
+    "staleEvidenceDetail": "대상 {refs}",
     "verificationSummary": "검증 {status} · 복구 {code}",
     "freshnessStatus": {
       "fresh": "최신",

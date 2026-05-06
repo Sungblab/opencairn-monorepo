@@ -19,6 +19,7 @@ import {
 
 const userId = "user-1";
 const exportObjectId = "00000000-0000-4000-8000-000000000010";
+const secondNoteId = "00000000-0000-4000-8000-000000000011";
 const actionId = "00000000-0000-4000-8000-000000000020";
 const importJobId = "00000000-0000-4000-8000-000000000030";
 const retryJobId = "00000000-0000-4000-8000-000000000031";
@@ -87,6 +88,51 @@ describe("agentic plan service", () => {
         },
       }),
     ]);
+  });
+
+  it("hydrates target note evidence onto executable planner steps", async () => {
+    const repo = createMemoryAgenticPlanRepo();
+
+    const plan = await createAgenticPlan(
+      projectId,
+      userId,
+      {
+        goal: "Run librarian agent",
+        target: { noteId: exportObjectId },
+      },
+      {
+        repo,
+        canWriteProject: async () => true,
+        hydrateNoteEvidence: async () => ({
+          evidenceFreshnessStatus: "fresh",
+          staleEvidenceBlocks: false,
+          evidenceRefs: [
+            {
+              type: "note_analysis_job",
+              noteId: exportObjectId,
+              jobId: "00000000-0000-4000-8000-000000000050",
+              contentHash: "hash-fresh",
+              analysisVersion: 3,
+            },
+          ],
+        }),
+      },
+    );
+
+    expect(plan.steps[0]).toMatchObject({
+      kind: "agent.run",
+      evidenceFreshnessStatus: "fresh",
+      staleEvidenceBlocks: false,
+      verificationStatus: "passed",
+      evidenceRefs: [
+        expect.objectContaining({
+          type: "note_analysis_job",
+          noteId: exportObjectId,
+          contentHash: "hash-fresh",
+          analysisVersion: 3,
+        }),
+      ],
+    });
   });
 
   it("stores valid model-backed planner output as a model plan", async () => {
@@ -212,7 +258,12 @@ describe("agentic plan service", () => {
       userId,
       plan.id,
       { stepId: failedStep.id, strategy: "retry" },
-      { repo, canWriteProject: async () => true },
+      {
+        repo,
+        canWriteProject: async () => true,
+        requeueNoteEvidence: async (noteIds) =>
+          noteIds.map((noteId) => ({ noteId, status: "queued", jobId: "job-1" })),
+      },
     );
 
     expect(recovered.steps).toHaveLength(plan.steps.length + 1);
@@ -225,6 +276,219 @@ describe("agentic plan service", () => {
       staleEvidenceBlocks: true,
       verificationStatus: "pending",
       retryCount: 3,
+    });
+  });
+
+  it("requeues stale note evidence and refreshes the retry step after drain", async () => {
+    const repo = createMemoryAgenticPlanRepo();
+    const queuedJobId = "00000000-0000-4000-8000-000000000051";
+    const completedJobId = "00000000-0000-4000-8000-000000000052";
+    let drained = false;
+    const requeued: string[][] = [];
+    const runPlan8Calls: string[] = [];
+    const plan = await createAgenticPlan(
+      projectId,
+      userId,
+      {
+        goal: "Run librarian agent",
+        target: { noteId: exportObjectId },
+      },
+      {
+        repo,
+        canWriteProject: async () => true,
+        hydrateNoteEvidence: async () => ({
+          evidenceFreshnessStatus: drained ? "fresh" : "stale",
+          staleEvidenceBlocks: !drained,
+          evidenceRefs: [
+            {
+              type: "note_analysis_job",
+              noteId: exportObjectId,
+              jobId: drained ? completedJobId : queuedJobId,
+              contentHash: drained ? "hash-new" : "hash-old",
+              analysisVersion: drained ? 2 : 1,
+            },
+          ],
+        }),
+      },
+    );
+
+    const blocked = await startAgenticPlan(projectId, userId, plan.id, {}, {
+      repo,
+      canReadProject: async () => true,
+      canWriteProject: async () => true,
+      hydrateNoteEvidence: async () => ({
+        evidenceFreshnessStatus: "stale",
+        staleEvidenceBlocks: true,
+        evidenceRefs: [
+          {
+            type: "note_analysis_job",
+            noteId: exportObjectId,
+            jobId: queuedJobId,
+            contentHash: "hash-old",
+            analysisVersion: 1,
+          },
+        ],
+      }),
+      runPlan8Agent: async () => {
+        throw new Error("stale evidence should block before Plan8 run");
+      },
+    });
+    expect(blocked.status).toBe("blocked");
+    expect(blocked.steps[0]).toMatchObject({
+      status: "blocked",
+      recoveryCode: "stale_context",
+    });
+
+    const recovered = await recoverAgenticPlanStep(
+      projectId,
+      userId,
+      plan.id,
+      { stepId: blocked.steps[0]!.id, strategy: "retry" },
+      {
+        repo,
+        canWriteProject: async () => true,
+        requeueNoteEvidence: async (noteIds) => {
+          requeued.push(noteIds);
+          return noteIds.map((noteId) => ({ noteId, status: "queued", jobId: queuedJobId }));
+        },
+      },
+    );
+    expect(requeued).toEqual([[exportObjectId]]);
+
+    drained = true;
+    const retryStep = recovered.steps.at(-1)!;
+    const completed = await startAgenticPlan(
+      projectId,
+      userId,
+      plan.id,
+      { stepId: retryStep.id },
+      {
+        repo,
+        canReadProject: async () => true,
+        canWriteProject: async () => true,
+        hydrateNoteEvidence: async () => ({
+          evidenceFreshnessStatus: "fresh",
+          staleEvidenceBlocks: false,
+          evidenceRefs: [
+            {
+              type: "note_analysis_job",
+              noteId: exportObjectId,
+              jobId: completedJobId,
+              contentHash: "hash-new",
+              analysisVersion: 2,
+            },
+          ],
+        }),
+        runPlan8Agent: async (_projectId, _actorUserId, input) => {
+          runPlan8Calls.push(input.agentName);
+          return { runId: plan8RunId, status: "queued" };
+        },
+      },
+    );
+
+    expect(runPlan8Calls).toEqual(["librarian"]);
+    expect(completed.steps.at(-1)).toMatchObject({
+      status: "queued",
+      linkedRunType: "plan8_agent",
+      linkedRunId: plan8RunId,
+      evidenceFreshnessStatus: "fresh",
+      staleEvidenceBlocks: false,
+      evidenceRefs: [
+        expect.objectContaining({
+          jobId: completedJobId,
+          contentHash: "hash-new",
+          analysisVersion: 2,
+        }),
+      ],
+    });
+  });
+
+  it("refreshes multi-note evidence in parallel before starting a step", async () => {
+    const repo = createMemoryAgenticPlanRepo();
+    const hydrateCalls: string[] = [];
+    const plan = await repo.insertPlan({
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Run librarian from multiple notes",
+      goal: "Run librarian from multiple notes",
+      status: "approval_required",
+      target: { workspaceId, projectId },
+      plannerKind: "deterministic",
+      summary: "1-step deterministic plan: agent.run",
+      currentStepOrdinal: 1,
+      steps: [
+        {
+          kind: "agent.run",
+          title: "Run librarian",
+          rationale: "This run depends on multiple mutable notes.",
+          risk: "write",
+          input: { agentName: "librarian" },
+          evidenceRefs: [
+            {
+              type: "note_analysis_job",
+              noteId: exportObjectId,
+              jobId: "00000000-0000-4000-8000-000000000050",
+              contentHash: "hash-old-a",
+              analysisVersion: 1,
+            },
+            {
+              type: "note_analysis_job",
+              noteId: secondNoteId,
+              jobId: "00000000-0000-4000-8000-000000000051",
+              contentHash: "hash-old-b",
+              analysisVersion: 1,
+            },
+          ],
+          evidenceFreshnessStatus: "fresh",
+          staleEvidenceBlocks: false,
+        },
+      ],
+    });
+
+    const started = await startAgenticPlan(projectId, userId, plan.id, {}, {
+      repo,
+      canReadProject: async () => true,
+      canWriteProject: async () => true,
+      hydrateNoteEvidence: async (_projectId, noteId) => {
+        hydrateCalls.push(noteId);
+        return {
+          evidenceFreshnessStatus: noteId === secondNoteId ? "stale" : "fresh",
+          staleEvidenceBlocks: noteId === secondNoteId,
+          evidenceRefs: [
+            {
+              type: "note_analysis_job",
+              noteId,
+              jobId: noteId === secondNoteId
+                ? "00000000-0000-4000-8000-000000000053"
+                : "00000000-0000-4000-8000-000000000052",
+              contentHash: noteId === secondNoteId ? "hash-stale-b" : "hash-fresh-a",
+              analysisVersion: noteId === secondNoteId ? 1 : 2,
+            },
+          ],
+        };
+      },
+      runPlan8Agent: async () => {
+        throw new Error("stale evidence should block before Plan8 run");
+      },
+    });
+
+    expect(hydrateCalls.sort()).toEqual([exportObjectId, secondNoteId].sort());
+    expect(started.steps[0]).toMatchObject({
+      status: "blocked",
+      evidenceFreshnessStatus: "stale",
+      staleEvidenceBlocks: true,
+      recoveryCode: "stale_context",
+      evidenceRefs: [
+        expect.objectContaining({
+          noteId: exportObjectId,
+          contentHash: "hash-fresh-a",
+        }),
+        expect.objectContaining({
+          noteId: secondNoteId,
+          contentHash: "hash-stale-b",
+        }),
+      ],
     });
   });
 
@@ -355,6 +619,19 @@ describe("agentic plan service", () => {
     const started = await startAgenticPlan(projectId, userId, plan.id, {}, {
       repo,
       canWriteProject: async () => true,
+      hydrateNoteEvidence: async () => ({
+        evidenceFreshnessStatus: "stale",
+        staleEvidenceBlocks: true,
+        evidenceRefs: [
+          {
+            type: "note_analysis_job",
+            noteId: exportObjectId,
+            jobId: "00000000-0000-4000-8000-000000000050",
+            contentHash: "old-hash",
+            analysisVersion: 1,
+          },
+        ],
+      }),
       createAgentAction: async () => {
         throw new Error("createAgentAction should not be called without concrete step input");
       },
@@ -415,6 +692,19 @@ describe("agentic plan service", () => {
     const started = await startAgenticPlan(projectId, userId, plan.id, {}, {
       repo,
       canWriteProject: async () => true,
+      hydrateNoteEvidence: async () => ({
+        evidenceFreshnessStatus: "stale",
+        staleEvidenceBlocks: true,
+        evidenceRefs: [
+          {
+            type: "note_analysis_job",
+            noteId: exportObjectId,
+            jobId: "00000000-0000-4000-8000-000000000050",
+            contentHash: "old-hash",
+            analysisVersion: 1,
+          },
+        ],
+      }),
       createAgentAction: async () => {
         throw new Error("stale evidence should block before action materialization");
       },

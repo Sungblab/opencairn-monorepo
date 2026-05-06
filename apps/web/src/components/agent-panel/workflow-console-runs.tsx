@@ -192,7 +192,18 @@ function PlanOutputSummary({ output }: { output: WorkflowConsoleRun["outputs"][n
   const recoveryCodes = Array.isArray(metadata.recoveryCodes)
     ? metadata.recoveryCodes.filter((code): code is string => typeof code === "string")
     : [];
-  if (staleCount <= 0 && !verificationStatus && recoveryCodes.length === 0) return null;
+  const staleEvidenceRefs = Array.isArray(metadata.staleEvidenceRefs)
+    ? metadata.staleEvidenceRefs
+        .map(staleEvidenceLabel)
+        .filter((label): label is string => Boolean(label))
+        .slice(0, 2)
+    : [];
+  if (
+    staleCount <= 0
+    && staleEvidenceRefs.length === 0
+    && !verificationStatus
+    && recoveryCodes.length === 0
+  ) return null;
   const verificationStatusLabel = verificationStatus
     ? verificationStatusLabelFor(t, verificationStatus)
     : verificationStatusLabelFor(t, "unknown");
@@ -209,6 +220,13 @@ function PlanOutputSummary({ output }: { output: WorkflowConsoleRun["outputs"][n
           })}
         </span>
       ) : null}
+      {staleEvidenceRefs.length > 0 ? (
+        <span className="truncate text-amber-700 dark:text-amber-300">
+          {t("staleEvidenceDetail", {
+            refs: staleEvidenceRefs.join(", "),
+          })}
+        </span>
+      ) : null}
       {verificationStatus || recoveryCodes.length > 0 ? (
         <span className="truncate">
           {t("verificationSummary", {
@@ -219,6 +237,21 @@ function PlanOutputSummary({ output }: { output: WorkflowConsoleRun["outputs"][n
       ) : null}
     </span>
   );
+}
+
+function staleEvidenceLabel(value: unknown): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const noteId = typeof record.noteId === "string" ? shortId(record.noteId) : null;
+  const jobId = typeof record.jobId === "string" ? shortId(record.jobId) : null;
+  const chunkId = typeof record.chunkId === "string" ? shortId(record.chunkId) : null;
+  if (jobId && noteId) return `note ${noteId}/job ${jobId}`;
+  if (chunkId && noteId) return `note ${noteId}/chunk ${chunkId}`;
+  return noteId ? `note ${noteId}` : null;
+}
+
+function shortId(value: string): string {
+  return value.length <= 8 ? value : value.slice(0, 8);
 }
 
 function verificationStatusLabelFor(

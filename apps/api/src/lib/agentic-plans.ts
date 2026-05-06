@@ -10,6 +10,9 @@ import {
   eq,
   importJobs,
   inArray,
+  isNull,
+  noteAnalysisJobs,
+  noteChunks,
   projects,
   type AgenticPlanRow,
   type AgenticPlanStepRow,
@@ -63,6 +66,7 @@ import {
   runPlan8Agent,
   type Plan8AgentRunInput,
 } from "./plan8-agent-runs";
+import { requeueNoteAnalysisJobForNote } from "./note-analysis-jobs";
 import { getChatProvider } from "./llm";
 import { LLMNotConfiguredError, type LLMProvider } from "./llm/provider";
 import { canRead, canWrite } from "./permissions";
@@ -89,6 +93,12 @@ type PlannedStepInput = {
   verificationStatus?: AgenticPlanStepVerificationStatus;
   recoveryCode?: AgenticPlanStepRecoveryCode | null;
   retryCount?: number;
+};
+
+type NoteEvidenceHydration = {
+  evidenceRefs: AgenticPlanStepEvidenceRef[];
+  evidenceFreshnessStatus: AgenticPlanEvidenceFreshnessStatus;
+  staleEvidenceBlocks: boolean;
 };
 
 export interface AgenticPlanPlanningInput {
@@ -214,6 +224,13 @@ export interface AgenticPlanServiceOptions {
     actorUserId: string,
     input: Plan8AgentRunInput,
   ) => Promise<{ runId: string; status: string }>;
+  hydrateNoteEvidence?: (
+    projectId: string,
+    noteId: string,
+  ) => Promise<NoteEvidenceHydration>;
+  requeueNoteEvidence?: (
+    noteIds: string[],
+  ) => Promise<Array<{ noteId: string; status: "queued" | "missing_note"; jobId?: string | null }>>;
 }
 
 type AppendableAgenticPlanStep = Parameters<AgenticPlanRepository["appendStep"]>[0]["step"];
@@ -430,6 +447,7 @@ export async function createAgenticPlan(
     ...(request.target ?? {}),
   };
   const planning = await planAgenticGoal(request.goal, target, options);
+  const steps = await hydratePlannedStepsWithEvidence(projectId, planning.steps, target, options);
   return repo.insertPlan({
     workspaceId: scope.workspaceId,
     projectId,
@@ -441,7 +459,7 @@ export async function createAgenticPlan(
     plannerKind: planning.plannerKind,
     summary: planning.summary ?? summaryForSteps(planning.steps, planning.plannerKind),
     currentStepOrdinal: 1,
-    steps: planning.steps,
+    steps,
   });
 }
 
@@ -538,11 +556,12 @@ export async function startAgenticPlan(
 
   for (const step of steps) {
     if (step.linkedRunId) continue;
-    const blocker = stepFreshnessBlocker(step);
+    const refreshedStep = await refreshStepEvidenceBeforeStart(repo, planId, projectId, step, options);
+    const blocker = stepFreshnessBlocker(refreshedStep);
     if (blocker) {
       await repo.updateStep({
         planId,
-        stepId: step.id,
+        stepId: refreshedStep.id,
         status: "blocked",
         verificationStatus: "blocked",
         recoveryCode: blocker.recoveryCode,
@@ -551,11 +570,11 @@ export async function startAgenticPlan(
       });
       continue;
     }
-    const materialized = await materializeStep(projectId, actorUserId, plan, step, options);
+    const materialized = await materializeStep(projectId, actorUserId, plan, refreshedStep, options);
     if (materialized.kind === "blocked") {
       await repo.updateStep({
         planId,
-        stepId: step.id,
+        stepId: refreshedStep.id,
         status: "blocked",
         linkedRunType: null,
         linkedRunId: null,
@@ -568,7 +587,7 @@ export async function startAgenticPlan(
     }
     await repo.updateStep({
       planId,
-      stepId: step.id,
+      stepId: refreshedStep.id,
       status: materialized.status,
       linkedRunType: materialized.linkedRunType,
       linkedRunId: materialized.linkedRunId,
@@ -994,6 +1013,10 @@ export async function recoverAgenticPlanStep(
     throw new AgenticPlanError("agentic_plan_step_not_recoverable", 409);
   }
 
+  if (request.strategy === "retry" && step.recoveryCode === "stale_context") {
+    await requeueStaleStepEvidence(projectId, step, options);
+  }
+
   const ordinal = Math.max(0, ...plan.steps.map((candidate) => candidate.ordinal)) + 1;
   await repo.appendStep({
     planId,
@@ -1001,6 +1024,218 @@ export async function recoverAgenticPlanStep(
   });
 
   return refreshPlanStatus(repo, projectId, planId);
+}
+
+async function hydratePlannedStepsWithEvidence(
+  projectId: string,
+  steps: PlannedStepInput[],
+  target: Record<string, unknown>,
+  options?: AgenticPlanServiceOptions,
+): Promise<PlannedStepInput[]> {
+  const noteId = typeof target.noteId === "string" ? target.noteId : null;
+  if (!noteId) return steps;
+  const hydration = await hydrateNoteEvidence(projectId, noteId, options);
+  return steps.map((step) => hydrateStepWithNoteEvidence(step, hydration));
+}
+
+async function refreshStepEvidenceBeforeStart(
+  repo: AgenticPlanRepository,
+  planId: string,
+  projectId: string,
+  step: AgenticPlanStep,
+  options?: AgenticPlanServiceOptions,
+): Promise<AgenticPlanStep> {
+  const noteIds = noteIdsFromEvidenceRefs(step.evidenceRefs ?? []);
+  if (noteIds.length === 0) return step;
+  const hydration = combineNoteEvidenceHydrations(
+    await Promise.all(noteIds.map((noteId) => hydrateNoteEvidence(projectId, noteId, options))),
+  );
+  if (!stepEvidenceChanged(step, hydration)) return step;
+  await repo.updateStep({
+    planId,
+    stepId: step.id,
+    evidenceRefs: hydration.evidenceRefs,
+    evidenceFreshnessStatus: hydration.evidenceFreshnessStatus,
+    staleEvidenceBlocks: hydration.staleEvidenceBlocks,
+    recoveryCode: hydration.evidenceFreshnessStatus === "stale" ? "stale_context" : null,
+    errorCode: null,
+    errorMessage: null,
+  });
+  return {
+    ...step,
+    evidenceRefs: hydration.evidenceRefs,
+    evidenceFreshnessStatus: hydration.evidenceFreshnessStatus,
+    staleEvidenceBlocks: hydration.staleEvidenceBlocks,
+    recoveryCode: hydration.evidenceFreshnessStatus === "stale" ? "stale_context" : null,
+    errorCode: null,
+    errorMessage: null,
+  };
+}
+
+function hydrateStepWithNoteEvidence(
+  step: PlannedStepInput,
+  hydration: NoteEvidenceHydration,
+): PlannedStepInput {
+  if (step.kind === "manual.review") return step;
+  return {
+    ...step,
+    evidenceRefs: step.evidenceRefs?.length ? step.evidenceRefs : hydration.evidenceRefs,
+    evidenceFreshnessStatus: step.evidenceFreshnessStatus ?? hydration.evidenceFreshnessStatus,
+    staleEvidenceBlocks: step.staleEvidenceBlocks ?? hydration.staleEvidenceBlocks,
+    recoveryCode: step.recoveryCode ?? (
+      hydration.evidenceFreshnessStatus === "stale" ? "stale_context"
+      : hydration.evidenceFreshnessStatus === "missing" ? "missing_source"
+      : null
+    ),
+    verificationStatus: step.verificationStatus ?? (
+      hydration.evidenceFreshnessStatus === "fresh" ? "passed"
+      : hydration.staleEvidenceBlocks ? "blocked"
+      : "pending"
+    ),
+  };
+}
+
+async function hydrateNoteEvidence(
+  projectId: string,
+  noteId: string,
+  options?: AgenticPlanServiceOptions,
+): Promise<NoteEvidenceHydration> {
+  if (options?.hydrateNoteEvidence) return options.hydrateNoteEvidence(projectId, noteId);
+  const [job] = await defaultDb
+    .select({
+      id: noteAnalysisJobs.id,
+      noteId: noteAnalysisJobs.noteId,
+      contentHash: noteAnalysisJobs.contentHash,
+      analysisVersion: noteAnalysisJobs.analysisVersion,
+      status: noteAnalysisJobs.status,
+      errorCode: noteAnalysisJobs.errorCode,
+    })
+    .from(noteAnalysisJobs)
+    .where(and(eq(noteAnalysisJobs.projectId, projectId), eq(noteAnalysisJobs.noteId, noteId)))
+    .limit(1);
+  const [chunk] = await defaultDb
+    .select({
+      id: noteChunks.id,
+      noteId: noteChunks.noteId,
+      contentHash: noteChunks.contentHash,
+      chunkIndex: noteChunks.chunkIndex,
+    })
+    .from(noteChunks)
+    .where(and(eq(noteChunks.projectId, projectId), eq(noteChunks.noteId, noteId), isNull(noteChunks.deletedAt)))
+    .orderBy(asc(noteChunks.chunkIndex))
+    .limit(1);
+
+  const evidenceRefs: AgenticPlanStepEvidenceRef[] = [];
+  if (chunk) {
+    evidenceRefs.push({
+      type: "note_chunk",
+      noteId: chunk.noteId,
+      chunkId: chunk.id,
+      contentHash: chunk.contentHash,
+      analysisVersion: job?.analysisVersion,
+      metadata: { chunkIndex: chunk.chunkIndex },
+    });
+  }
+  if (job) {
+    evidenceRefs.push({
+      type: "note_analysis_job",
+      noteId: job.noteId,
+      jobId: job.id,
+      contentHash: job.contentHash,
+      analysisVersion: job.analysisVersion,
+      metadata: { status: job.status, errorCode: job.errorCode },
+    });
+  }
+
+  if (!job && !chunk) {
+    return {
+      evidenceRefs: [],
+      evidenceFreshnessStatus: "missing",
+      staleEvidenceBlocks: true,
+    };
+  }
+  if (job && job.status !== "completed") {
+    return {
+      evidenceRefs,
+      evidenceFreshnessStatus: job.status === "failed" ? "missing" : "stale",
+      staleEvidenceBlocks: true,
+    };
+  }
+  return {
+    evidenceRefs,
+    evidenceFreshnessStatus: "fresh",
+    staleEvidenceBlocks: false,
+  };
+}
+
+async function requeueStaleStepEvidence(
+  projectId: string,
+  step: AgenticPlanStep,
+  options?: AgenticPlanServiceOptions,
+): Promise<void> {
+  const noteIds = noteIdsFromEvidenceRefs(step.evidenceRefs ?? []);
+  if (noteIds.length === 0) return;
+  if (options?.requeueNoteEvidence) {
+    await options.requeueNoteEvidence(noteIds);
+    return;
+  }
+  await Promise.all(
+    noteIds.map((noteId) =>
+      requeueNoteAnalysisJobForNote({ noteId, projectId, debounceMs: 0 }),
+    ),
+  );
+}
+
+function noteIdsFromEvidenceRefs(refs: AgenticPlanStepEvidenceRef[]): string[] {
+  return [...new Set(refs.map((ref) => ref.noteId))];
+}
+
+function combineNoteEvidenceHydrations(hydrations: NoteEvidenceHydration[]): NoteEvidenceHydration {
+  return {
+    evidenceRefs: hydrations.flatMap((hydration) => hydration.evidenceRefs),
+    evidenceFreshnessStatus: combinedEvidenceFreshnessStatus(hydrations),
+    staleEvidenceBlocks: hydrations.some((hydration) => hydration.staleEvidenceBlocks),
+  };
+}
+
+function combinedEvidenceFreshnessStatus(
+  hydrations: NoteEvidenceHydration[],
+): AgenticPlanEvidenceFreshnessStatus {
+  if (hydrations.some((hydration) => hydration.evidenceFreshnessStatus === "missing")) return "missing";
+  if (hydrations.some((hydration) => hydration.evidenceFreshnessStatus === "stale")) return "stale";
+  if (hydrations.some((hydration) => hydration.evidenceFreshnessStatus === "unknown")) return "unknown";
+  return "fresh";
+}
+
+function stepEvidenceChanged(
+  step: AgenticPlanStep,
+  hydration: NoteEvidenceHydration,
+): boolean {
+  return !jsonValueEqual(step.evidenceRefs ?? [], hydration.evidenceRefs)
+    || (step.evidenceFreshnessStatus ?? "unknown") !== hydration.evidenceFreshnessStatus
+    || Boolean(step.staleEvidenceBlocks) !== hydration.staleEvidenceBlocks;
+}
+
+function jsonValueEqual(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+    return left.every((item, index) => jsonValueEqual(item, right[index]));
+  }
+  if (
+    left == null
+    || right == null
+    || typeof left !== "object"
+    || typeof right !== "object"
+  ) {
+    return false;
+  }
+  const leftRecord = left as Record<string, unknown>;
+  const rightRecord = right as Record<string, unknown>;
+  const leftKeys = Object.keys(leftRecord).sort();
+  const rightKeys = Object.keys(rightRecord).sort();
+  if (!jsonValueEqual(leftKeys, rightKeys)) return false;
+  return leftKeys.every((key) => jsonValueEqual(leftRecord[key], rightRecord[key]));
 }
 
 function recoveryStepForRequest(

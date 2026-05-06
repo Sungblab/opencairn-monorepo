@@ -185,6 +185,13 @@ describe("WorkflowConsoleRuns", () => {
                 verificationStatus: "blocked",
                 recoveryCodes: ["stale_context"],
                 evidenceFreshness: { stale: 1 },
+                staleEvidenceRefs: [
+                  {
+                    type: "note_analysis_job",
+                    noteId: "00000000-0000-4000-8000-000000000091",
+                    jobId: "00000000-0000-4000-8000-000000000092",
+                  },
+                ],
               },
             },
           ],
@@ -196,6 +203,7 @@ describe("WorkflowConsoleRuns", () => {
 
     expect(await screen.findByText("Review stale evidence")).toBeTruthy();
     expect(screen.getByText("evidenceSummary:{\"count\":1,\"status\":\"freshnessStatus.stale\"}")).toBeTruthy();
+    expect(screen.getByText("staleEvidenceDetail:{\"refs\":\"note 00000000/job 00000000\"}")).toBeTruthy();
     expect(screen.getByText(
       "verificationSummary:{\"status\":\"verificationStatus.blocked\",\"code\":\"recoveryCode.stale_context\"}",
     )).toBeTruthy();
