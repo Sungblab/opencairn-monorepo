@@ -335,7 +335,9 @@ export function workflowConsoleRunFromAgenticPlan(plan: AgenticPlanProjectionSou
         percent: Math.round((completedSteps / totalSteps) * 100),
       }
     : null;
-  const failedStep = parsed.steps.find((step) => step.status === "failed");
+  const errorStep = parsed.steps.find((step) =>
+    step.status === "failed" || step.status === "blocked",
+  );
 
   return workflowConsoleRunSchema.parse({
     runId: prefixedRunId("agentic_plan", parsed.id),
@@ -362,11 +364,15 @@ export function workflowConsoleRunFromAgenticPlan(plan: AgenticPlanProjectionSou
       },
     ],
     approvals: approvalsFromAgenticPlan(parsed),
-    error: failedStep
+    error: errorStep
       ? {
-          code: failedStep.errorCode ?? "agentic_plan_step_failed",
+          code: errorStep.errorCode ?? (
+            errorStep.status === "blocked"
+              ? "agentic_plan_step_blocked"
+              : "agentic_plan_step_failed"
+          ),
           retryable: true,
-          ...(failedStep.errorMessage ? { message: failedStep.errorMessage } : {}),
+          ...(errorStep.errorMessage ? { message: errorStep.errorMessage } : {}),
         }
       : null,
     createdAt: parsed.createdAt,

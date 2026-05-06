@@ -78,6 +78,22 @@ export function createMemoryAgenticPlanRepo(): AgenticPlanRepository {
       step.updatedAt = new Date().toISOString();
       step.completedAt = terminalStepStatus(status) ? step.updatedAt : null;
     },
+    async updateStep({ planId, stepId, status, linkedRunType, linkedRunId, errorCode, errorMessage }) {
+      const plan = plans.get(planId);
+      if (!plan) return;
+      const step = plan.steps.find((candidate) => candidate.id === stepId);
+      if (!step) return;
+      const now = new Date().toISOString();
+      if (status !== undefined) {
+        step.status = status;
+        step.completedAt = terminalStepStatus(status) ? now : null;
+      }
+      if (linkedRunType !== undefined) step.linkedRunType = linkedRunType;
+      if (linkedRunId !== undefined) step.linkedRunId = linkedRunId;
+      if (errorCode !== undefined) step.errorCode = errorCode;
+      if (errorMessage !== undefined) step.errorMessage = errorMessage;
+      step.updatedAt = now;
+    },
     async appendStep({ planId, step }) {
       const plan = plans.get(planId);
       if (!plan) return;
