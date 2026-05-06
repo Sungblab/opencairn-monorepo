@@ -48,7 +48,7 @@ describe("NewCanvasButton", () => {
     ).toBeInTheDocument();
   });
 
-  it("on click: POSTs canvas note + navigates to /workspace/<slug>/project/<pid>/note/<id>", async () => {
+  it("on click: POSTs canvas note + navigates to /workspace/<slug>/note/<id>", async () => {
     const { api } = await import("@/lib/api-client");
     render(wrap(<NewCanvasButton workspaceSlug="acme" projectId="p1" />));
 
@@ -66,7 +66,7 @@ describe("NewCanvasButton", () => {
     });
     await waitFor(() => {
       expect(pushMock).toHaveBeenCalledWith(
-        "/ko/workspace/acme/project/p1/note/new-canvas-id",
+        "/ko/workspace/acme/note/new-canvas-id",
       );
     });
   });

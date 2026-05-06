@@ -20,11 +20,16 @@ export function NewNoteButton({
   const qc = useQueryClient();
   const m = useMutation({
     mutationFn: () => api.createNote({ projectId }),
-    onSuccess: async (note) => {
-      await qc.invalidateQueries({
-        queryKey: ["notes-by-project", projectId],
+    onSuccess: (note) => {
+      router.push(urls.workspace.note(locale, workspaceSlug, note.id));
+      queueMicrotask(() => {
+        void qc.invalidateQueries({
+          queryKey: ["notes-by-project", projectId],
+        });
+        void qc.invalidateQueries({
+          queryKey: ["project-tree", projectId],
+        });
       });
-      router.push(urls.workspace.projectNote(locale, workspaceSlug, projectId, note.id));
     },
   });
   return (

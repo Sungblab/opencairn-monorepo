@@ -71,6 +71,11 @@ export function ChatPanel() {
     s.tabs.find((tab) => tab.id === activeTabId),
   );
 
+  useEffect(() => {
+    if (conversationId || pendingCreate.current) return;
+    setChips([{ type: ctx.scopeType, id: ctx.scopeId, manual: false }]);
+  }, [conversationId, ctx.scopeId, ctx.scopeType, ctx.workspaceId]);
+
   function nextMessageKey(role: Message["role"]): string {
     messageSeq.current += 1;
     return `${role}-${messageSeq.current}`;

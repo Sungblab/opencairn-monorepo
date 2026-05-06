@@ -10,6 +10,7 @@ import { useCurrentProjectContext } from "./use-current-project";
 import { ProjectGraphLink } from "./project-graph-link";
 import { ProjectAgentsLink } from "./project-agents-link";
 import { ProjectLearnLink } from "./project-learn-link";
+import { NewNoteButton } from "./NewNoteButton";
 
 export interface ShellSidebarProps {
   deepResearchEnabled: boolean;
@@ -45,8 +46,13 @@ export function ShellSidebar({
       <ProjectGraphLink />
       <ProjectAgentsLink />
       <ProjectLearnLink />
-      {projectId ? (
-        <ProjectTree projectId={projectId} />
+      {projectId && wsSlug ? (
+        <>
+          <div className="px-2 pb-2">
+            <NewNoteButton workspaceSlug={wsSlug} projectId={projectId} />
+          </div>
+          <ProjectTree projectId={projectId} />
+        </>
       ) : (
         <SidebarEmptyState />
       )}
