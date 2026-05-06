@@ -13,10 +13,13 @@ import {
   isNull,
   noteAnalysisJobs,
   noteChunks,
+  notes,
+  or,
   projects,
   type AgenticPlanRow,
   type AgenticPlanStepRow,
   type DB,
+  wikiLinks,
 } from "@opencairn/db";
 import type {
   AgentAction,
@@ -228,6 +231,10 @@ export interface AgenticPlanServiceOptions {
     projectId: string,
     noteId: string,
   ) => Promise<NoteEvidenceHydration>;
+  resolvePlannerEvidenceNoteIds?: (
+    projectId: string,
+    noteId: string,
+  ) => Promise<string[]>;
   requeueNoteEvidence?: (
     noteIds: string[],
   ) => Promise<Array<{ noteId: string; status: "queued" | "missing_note"; jobId?: string | null }>>;
@@ -1034,7 +1041,12 @@ async function hydratePlannedStepsWithEvidence(
 ): Promise<PlannedStepInput[]> {
   const noteId = typeof target.noteId === "string" ? target.noteId : null;
   if (!noteId) return steps;
-  const hydration = await hydrateNoteEvidence(projectId, noteId, options);
+  const noteIds = await resolvePlannerEvidenceNoteIds(projectId, noteId, options);
+  const hydration = combineNoteEvidenceHydrations(
+    await Promise.all(noteIds.map((candidateNoteId) =>
+      hydrateNoteEvidence(projectId, candidateNoteId, options),
+    )),
+  );
   return steps.map((step) => hydrateStepWithNoteEvidence(step, hydration));
 }
 
@@ -1168,6 +1180,52 @@ async function hydrateNoteEvidence(
   };
 }
 
+async function resolvePlannerEvidenceNoteIds(
+  projectId: string,
+  noteId: string,
+  options?: AgenticPlanServiceOptions,
+): Promise<string[]> {
+  if (options?.resolvePlannerEvidenceNoteIds) {
+    return uniqueIds(await options.resolvePlannerEvidenceNoteIds(projectId, noteId), noteId);
+  }
+  if (options?.hydrateNoteEvidence) return [noteId];
+
+  const [target] = await defaultDb
+    .select({ workspaceId: notes.workspaceId })
+    .from(notes)
+    .where(and(eq(notes.id, noteId), eq(notes.projectId, projectId), isNull(notes.deletedAt)))
+    .limit(1);
+  if (!target) return [noteId];
+
+  const linkRows = await defaultDb
+    .select({
+      sourceNoteId: wikiLinks.sourceNoteId,
+      targetNoteId: wikiLinks.targetNoteId,
+    })
+    .from(wikiLinks)
+    .where(and(
+      eq(wikiLinks.workspaceId, target.workspaceId),
+      or(eq(wikiLinks.sourceNoteId, noteId), eq(wikiLinks.targetNoteId, noteId)),
+    ))
+    .limit(12);
+  const candidateIds = uniqueIds(
+    linkRows.flatMap((row) => [row.sourceNoteId, row.targetNoteId]),
+    noteId,
+  ).filter((candidateId) => candidateId !== noteId);
+  if (candidateIds.length === 0) return [noteId];
+
+  const relatedRows = await defaultDb
+    .select({ id: notes.id })
+    .from(notes)
+    .where(and(
+      eq(notes.projectId, projectId),
+      isNull(notes.deletedAt),
+      inArray(notes.id, candidateIds),
+    ))
+    .limit(4);
+  return uniqueIds([noteId, ...relatedRows.map((row) => row.id)], noteId);
+}
+
 async function requeueStaleStepEvidence(
   projectId: string,
   step: AgenticPlanStep,
@@ -1188,6 +1246,21 @@ async function requeueStaleStepEvidence(
 
 function noteIdsFromEvidenceRefs(refs: AgenticPlanStepEvidenceRef[]): string[] {
   return [...new Set(refs.map((ref) => ref.noteId))];
+}
+
+function uniqueIds(values: string[], firstId?: string): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  if (firstId && firstId.length > 0) {
+    result.push(firstId);
+    seen.add(firstId);
+  }
+  for (const value of values) {
+    if (value.length === 0 || seen.has(value)) continue;
+    result.push(value);
+    seen.add(value);
+  }
+  return result;
 }
 
 function combineNoteEvidenceHydrations(hydrations: NoteEvidenceHydration[]): NoteEvidenceHydration {

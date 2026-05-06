@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Play, Plus, RotateCcw } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AgenticPlan } from "@opencairn/shared";
+import { retryableStepKind, type AgenticPlan } from "@opencairn/shared";
 
 import { agenticPlansApi } from "@/lib/api-client";
 
@@ -57,11 +57,15 @@ export function AgenticPlanCard({ projectId }: Props) {
   });
 
   const recover = useMutation({
-    mutationFn: (input: { planId: string; stepId: string }) => {
+    mutationFn: (input: {
+      planId: string;
+      stepId: string;
+      strategy: "retry" | "manual_review";
+    }) => {
       if (!projectId) throw new Error("missing_project");
       return agenticPlansApi.recover(projectId, input.planId, {
         stepId: input.stepId,
-        strategy: "manual_review",
+        strategy: input.strategy,
       });
     },
     onSuccess: invalidate,
@@ -130,7 +134,9 @@ export function AgenticPlanCard({ projectId }: Props) {
               plan={plan}
               busy={busy}
               onStart={() => start.mutate(plan.id)}
-              onRecover={(stepId) => recover.mutate({ planId: plan.id, stepId })}
+              onRecover={(stepId, strategy) =>
+                recover.mutate({ planId: plan.id, stepId, strategy })
+              }
             />
           ))}
         </div>
@@ -148,7 +154,7 @@ function AgenticPlanSummary({
   plan: AgenticPlan;
   busy: boolean;
   onStart: () => void;
-  onRecover: (stepId: string) => void;
+  onRecover: (stepId: string, strategy: "retry" | "manual_review") => void;
 }) {
   const t = useTranslations("agentPanel.agenticPlan");
   const completed = useMemo(
@@ -210,15 +216,28 @@ function AgenticPlanSummary({
 
       <div className="mt-2 flex flex-wrap justify-end gap-1.5">
         {recoverable ? (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => onRecover(recoverable.id)}
-            className="app-btn-ghost inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-xs"
-          >
-            <RotateCcw className="h-3.5 w-3.5" aria-hidden />
-            {t("recover")}
-          </button>
+          <>
+            {retryAllowed(recoverable) ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onRecover(recoverable.id, "retry")}
+                className="app-btn-ghost inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-xs"
+              >
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+                {t("retry")}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onRecover(recoverable.id, "manual_review")}
+              className="app-btn-ghost inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-xs"
+            >
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+              {t("recover")}
+            </button>
+          </>
         ) : null}
         <button
           type="button"
@@ -232,6 +251,14 @@ function AgenticPlanSummary({
       </div>
     </article>
   );
+}
+
+function retryAllowed(step: AgenticPlan["steps"][number]): boolean {
+  return step.recoveryCode === "stale_context"
+    || (
+      step.recoveryCode === "verification_failed" &&
+      retryableStepKind(step.kind)
+    );
 }
 
 function statusTone(status: AgenticPlan["steps"][number]["status"]): string {

@@ -93,6 +93,7 @@
     "goalPrompt": "Describe the outcome you want the agents to coordinate.",
     "create": "Create plan",
     "start": "Start",
+    "retry": "Retry",
     "recover": "Add recovery review",
     "empty": "No agentic plans yet.",
     "loading": "Loading agentic plans…",
