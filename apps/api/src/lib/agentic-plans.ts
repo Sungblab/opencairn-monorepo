@@ -1008,6 +1008,7 @@ function recoveryStepForRequest(
   ordinal: number,
   request: RecoverAgenticPlanStepRequest,
 ): AppendableAgenticPlanStep {
+  const retryCount = (step.retryCount ?? 0) + 1;
   if (
     request.strategy === "retry"
     && step.recoveryCode !== "verification_failed"
@@ -1025,7 +1026,7 @@ function recoveryStepForRequest(
       evidenceFreshnessStatus: step.recoveryCode === "stale_context" ? "unknown" : step.evidenceFreshnessStatus,
       staleEvidenceBlocks: step.staleEvidenceBlocks,
       verificationStatus: "pending",
-      retryCount: (step.retryCount ?? 0) + 1,
+      retryCount,
     };
   }
 
@@ -1044,7 +1045,7 @@ function recoveryStepForRequest(
     evidenceFreshnessStatus: step.evidenceFreshnessStatus,
     staleEvidenceBlocks: false,
     verificationStatus: "pending",
-    retryCount: (step.retryCount ?? 0) + 1,
+    retryCount,
   };
 }
 
