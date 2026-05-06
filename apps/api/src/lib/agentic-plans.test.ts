@@ -15,6 +15,8 @@ import {
 const userId = "user-1";
 const exportObjectId = "00000000-0000-4000-8000-000000000010";
 const actionId = "00000000-0000-4000-8000-000000000020";
+const importJobId = "00000000-0000-4000-8000-000000000030";
+const retryJobId = "00000000-0000-4000-8000-000000000031";
 
 describe("agentic plan service", () => {
   it("plans a Korean note goal as a reviewable note update step", () => {
@@ -246,6 +248,63 @@ describe("agentic plan service", () => {
     expect(repeated.steps[0]).toMatchObject({
       id: step.id,
       status: "approval_required",
+      linkedRunType: "agent_action",
+      linkedRunId: actionId,
+      errorCode: null,
+    });
+  });
+
+  it("links an import retry plan step to the retry action when started", async () => {
+    const repo = createMemoryAgenticPlanRepo();
+    const plan = await repo.insertPlan({
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Retry failed import",
+      goal: "Retry failed import",
+      status: "approval_required",
+      target: { workspaceId, projectId },
+      plannerKind: "deterministic",
+      summary: "1-step deterministic plan: import.retry",
+      currentStepOrdinal: 1,
+      steps: [
+        {
+          kind: "import.retry",
+          title: "Retry import",
+          rationale: "The failed import has an explicit job id.",
+          risk: "write",
+          input: {
+            importJobId,
+          },
+        },
+      ],
+    });
+    const calls: string[] = [];
+
+    const started = await startAgenticPlan(projectId, userId, plan.id, {}, {
+      repo,
+      canWriteProject: async () => true,
+      retryImportJob: async (jobId, actor) => {
+        calls.push(`${actor}:${jobId}`);
+        return {
+          jobId: retryJobId,
+          action: agentAction({
+            id: actionId,
+            requestId: retryJobId,
+            sourceRunId: retryJobId,
+            kind: "import.markdown_zip",
+            status: "queued",
+            risk: "write",
+            input: { source: "markdown_zip" },
+          }),
+        };
+      },
+    });
+
+    expect(calls).toEqual([`${userId}:${importJobId}`]);
+    expect(started.steps[0]).toMatchObject({
+      kind: "import.retry",
+      status: "queued",
       linkedRunType: "agent_action",
       linkedRunId: actionId,
       errorCode: null,

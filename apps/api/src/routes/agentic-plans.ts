@@ -42,6 +42,7 @@ export function createAgenticPlanRoutes(options?: AgenticPlanRouteOptions) {
     ...(options?.requestGoogleWorkspaceExport
       ? { requestGoogleWorkspaceExport: options.requestGoogleWorkspaceExport }
       : {}),
+    ...(options?.retryImportJob ? { retryImportJob: options.retryImportJob } : {}),
   };
 
   return new Hono<AppEnv>()

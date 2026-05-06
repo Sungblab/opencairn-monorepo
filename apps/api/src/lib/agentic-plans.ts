@@ -41,6 +41,10 @@ import {
 } from "./agent-actions";
 import { requestDocumentGenerationProjectObject } from "./document-generation-actions";
 import { requestGoogleWorkspaceExportProjectObject } from "./google-workspace-export-actions";
+import {
+  ImportRetryError,
+  retryImportJob,
+} from "./import-retry";
 import { canRead, canWrite } from "./permissions";
 
 export class AgenticPlanError extends Error {
@@ -145,6 +149,10 @@ export interface AgenticPlanServiceOptions {
     actorUserId: string,
     request: ExportProjectObjectAction,
   ) => Promise<{ action: AgentAction }>;
+  retryImportJob?: (
+    failedJobId: string,
+    actorUserId: string,
+  ) => Promise<{ jobId: string; action: AgentAction | null }>;
 }
 
 export function createDrizzleAgenticPlanRepository(conn: DB = defaultDb): AgenticPlanRepository {
@@ -461,13 +469,39 @@ async function materializeStep(
         const { action } = await repairCodeRun(failedRunActionId, actorUserId, { requestId: step.id }, options);
         return linkedAction(action);
       }
-      case "import.retry":
       case "agent.run":
         return {
           kind: "blocked",
           errorCode: "agentic_plan_step_unavailable",
           errorMessage: `${step.kind} does not have a safe API materializer yet.`,
         };
+      case "import.retry": {
+        const importJobId = stringField(step.input, "importJobId");
+        if (!importJobId) return missingInput(step.kind);
+        const result = await retryImport(importJobId, actorUserId, options);
+        if (result.action) return linkedAction(result.action);
+        return {
+          kind: "linked",
+          linkedRunType: "import_job",
+          action: {
+            id: result.jobId,
+            requestId: result.jobId,
+            workspaceId: plan.workspaceId,
+            projectId,
+            actorUserId,
+            sourceRunId: importJobId,
+            kind: "import.markdown_zip",
+            status: "queued",
+            risk: "write",
+            input: { importJobId },
+            preview: null,
+            result: null,
+            errorCode: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+        };
+      }
       case "manual.review":
         return {
           kind: "blocked",
@@ -476,7 +510,10 @@ async function materializeStep(
         };
     }
   } catch (err) {
-    if (err instanceof AgentActionError && err.status === 409) {
+    if (
+      (err instanceof AgentActionError && err.status === 409)
+      || err instanceof ImportRetryError
+    ) {
       return {
         kind: "blocked",
         errorCode: err.code,
@@ -555,6 +592,15 @@ async function repairCodeRun(
         canWriteProject: options?.canWriteProject,
       }));
   return repair(failedRunActionId, actorUserId, request);
+}
+
+async function retryImport(
+  failedJobId: string,
+  actorUserId: string,
+  options?: AgenticPlanServiceOptions,
+): Promise<{ jobId: string; action: AgentAction | null }> {
+  const retry = options?.retryImportJob ?? retryImportJob;
+  return retry(failedJobId, actorUserId);
 }
 
 function stringField(input: Record<string, unknown>, key: string): string | null {
