@@ -6,6 +6,10 @@ describe("tabToUrl", () => {
     [{ kind: "dashboard", targetId: null }, "/ko/workspace/acme/"],
     [{ kind: "note", targetId: "n-123" }, "/ko/workspace/acme/note/n-123"],
     [{ kind: "project", targetId: "p-1" }, "/ko/workspace/acme/project/p-1"],
+    [
+      { kind: "project", targetId: "p-1", mode: "graph" },
+      "/ko/workspace/acme/project/p-1/graph",
+    ],
     [{ kind: "research_hub", targetId: null }, "/ko/workspace/acme/research"],
     [{ kind: "research_run", targetId: "r-1" }, "/ko/workspace/acme/research/r-1"],
     [{ kind: "import", targetId: null }, "/ko/workspace/acme/import"],
@@ -28,6 +32,10 @@ describe("urlToTabTarget", () => {
     ["/ko/workspace/acme/note/n-9", { kind: "note", targetId: "n-9" }],
     ["/workspace/acme/note/n-9", { kind: "note", targetId: "n-9" }],
     ["/ko/workspace/acme/project/p-3", { kind: "project", targetId: "p-3" }],
+    [
+      "/ko/workspace/acme/project/p-3/graph",
+      { kind: "project", targetId: "p-3", mode: "graph" },
+    ],
     [
       "/ko/workspace/acme/project/p-3/note/n-9",
       { kind: "note", targetId: "n-9" },

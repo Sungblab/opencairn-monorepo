@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { NoteEditorClient } from "@/components/editor/note-editor-client";
 import { NoteWithBacklinks } from "@/components/notes/NoteWithBacklinks";
 import { NoteRouteChrome } from "@/components/notes/NoteRouteChrome";
+import { NoteTabModeSync } from "@/components/notes/NoteTabModeSync";
 
 interface PageProps {
   params: Promise<{
@@ -18,6 +19,7 @@ interface NoteDTO {
   projectId: string;
   workspaceId: string;
   updatedAt: string;
+  sourceType: string | null;
 }
 
 interface RoleDTO {
@@ -87,6 +89,7 @@ export default async function NotePage({ params }: PageProps) {
 
   return (
     <NoteWithBacklinks noteId={note.id}>
+      <NoteTabModeSync noteId={note.id} sourceType={note.sourceType} />
       <NoteRouteChrome
         noteId={note.id}
         readOnly={readOnly}

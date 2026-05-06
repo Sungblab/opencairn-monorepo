@@ -93,6 +93,7 @@ export function useUrlTabSync() {
   const activeId = useTabsStore((s) => s.activeId);
   const setWorkspace = useTabsStore((s) => s.setWorkspace);
   const setActive = useTabsStore((s) => s.setActive);
+  const updateTab = useTabsStore((s) => s.updateTab);
 
   const initialized = useRef<string | null>(null);
 
@@ -112,6 +113,15 @@ export function useUrlTabSync() {
     const store = useTabsStore.getState();
     const existing = store.findTabByTarget(route.kind, route.targetId);
     if (existing) {
+      if (route.mode && existing.mode !== route.mode) {
+        const { key, params } = tabTitleKey(route.kind, route.targetId);
+        updateTab(existing.id, {
+          mode: route.mode,
+          title: resolveDefaultTitle(tabTitle, route.kind, route.targetId),
+          titleKey: key,
+          titleParams: params,
+        });
+      }
       if (activeId !== existing.id) setActive(existing.id);
       return;
     }
@@ -133,7 +143,7 @@ export function useUrlTabSync() {
     } else {
       store.addTab(tab);
     }
-  }, [pathname, slug, activeId, setActive, tabTitle]);
+  }, [pathname, slug, activeId, setActive, tabTitle, updateTab]);
 
   const navigateToTab = useCallback(
     (

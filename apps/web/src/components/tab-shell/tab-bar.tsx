@@ -67,7 +67,7 @@ function SortableTab({
               active={active}
               onClick={() =>
                 navigateToTab(
-                  { kind: tab.kind, targetId: tab.targetId },
+                  { kind: tab.kind, targetId: tab.targetId, mode: tab.mode },
                   { mode: "replace" },
                 )
               }

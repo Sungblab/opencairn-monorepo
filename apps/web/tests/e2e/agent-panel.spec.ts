@@ -15,6 +15,29 @@ test.describe("App Shell Phase 4 — Agent Panel", () => {
 
   let session: SeededSession;
 
+  async function sendMessageAndWaitForAgentRow(
+    page: import("@playwright/test").Page,
+    content: string,
+  ) {
+    const responsePromise = page.waitForResponse(
+      (res) =>
+        res.url().includes("/api/threads/") &&
+        res.url().endsWith("/messages") &&
+        res.request().method() === "POST",
+    );
+    const ta = page.getByPlaceholder("메시지를 입력하세요...");
+    await ta.fill(content);
+    await ta.press("Enter");
+    const response = await responsePromise;
+    expect(response.status()).toBe(200);
+
+    // Live full-stack E2E runs with LLM keys blank by default, so the durable
+    // run may render an empty failed agent body. The stable contract for these
+    // shell smoke assertions is that the persisted agent row and action strip
+    // are visible, not a literal mock body from the legacy mock API.
+    await expect(page.getByRole("button", { name: "싫어요" })).toBeVisible();
+  }
+
   test.beforeEach(async ({ context, request }) => {
     session = await seedFullStackSession(request, context);
   });
@@ -63,10 +86,7 @@ test.describe("App Shell Phase 4 — Agent Panel", () => {
   test("thumbs-down exposes reason chips", async ({ page }) => {
     await page.goto(`/ko/workspace/${session.wsSlug}/`);
     await page.getByRole("button", { name: "첫 대화 시작" }).click();
-    const ta = page.getByPlaceholder("메시지를 입력하세요...");
-    await ta.fill("hi");
-    await ta.press("Enter");
-    await expect(page.getByText("Mock agent response.")).toBeVisible();
+    await sendMessageAndWaitForAgentRow(page, "hi");
 
     // bubble.actions.thumbs_down_aria — flipping reasonOpen renders the
     // four feedback chips inline.
@@ -80,10 +100,7 @@ test.describe("App Shell Phase 4 — Agent Panel", () => {
   }) => {
     await page.goto(`/ko/workspace/${session.wsSlug}/`);
     await page.getByRole("button", { name: "첫 대화 시작" }).click();
-    const ta = page.getByPlaceholder("메시지를 입력하세요...");
-    await ta.fill("first thread message");
-    await ta.press("Enter");
-    await expect(page.getByText("Mock agent response.")).toBeVisible();
+    await sendMessageAndWaitForAgentRow(page, "first thread message");
 
     // header.new_thread_aria — spawns a second thread and activates it.
     await page.getByRole("button", { name: "새 대화" }).click();

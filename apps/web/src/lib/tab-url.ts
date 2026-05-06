@@ -1,6 +1,6 @@
 import { parseWorkspacePath } from "@/lib/url-parsers";
 import { urls } from "@/lib/urls";
-import type { TabKind } from "@/stores/tabs-store";
+import type { TabKind, TabMode } from "@/stores/tabs-store";
 
 // Single source of truth for the Tab ↔ URL mapping. The shell uses this in
 // two directions: tabs-store entries derive their URL via tabToUrl when a
@@ -10,6 +10,7 @@ import type { TabKind } from "@/stores/tabs-store";
 export interface TabRoute {
   kind: TabKind;
   targetId: string | null;
+  mode?: TabMode;
 }
 
 export function tabToUrl(
@@ -23,6 +24,9 @@ export function tabToUrl(
     case "note":
       return urls.workspace.note(locale, slug, route.targetId ?? "");
     case "project":
+      if (route.mode === "graph") {
+        return urls.workspace.projectGraph(locale, slug, route.targetId ?? "");
+      }
       return urls.workspace.project(locale, slug, route.targetId ?? "");
     case "research_hub":
       return urls.workspace.research(locale, slug);
@@ -64,7 +68,14 @@ export function urlToTabTarget(
     return { slug, route: { kind: "note", targetId: parts[3] } };
   }
   if (parts[0] === "project" && parts[1]) {
-    return { slug, route: { kind: "project", targetId: parts[1] } };
+    return {
+      slug,
+      route: {
+        kind: "project",
+        targetId: parts[1],
+        ...(parts[2] === "graph" ? { mode: "graph" as const } : {}),
+      },
+    };
   }
   if (parts[0] === "research" && parts.length === 1) {
     return { slug, route: { kind: "research_hub", targetId: null } };

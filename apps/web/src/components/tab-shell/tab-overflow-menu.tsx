@@ -61,7 +61,7 @@ export function TabOverflowMenu() {
             tab={tab}
             onSelect={() =>
               navigateToTab(
-                { kind: tab.kind, targetId: tab.targetId },
+                { kind: tab.kind, targetId: tab.targetId, mode: tab.mode },
                 { mode: "replace" },
               )
             }

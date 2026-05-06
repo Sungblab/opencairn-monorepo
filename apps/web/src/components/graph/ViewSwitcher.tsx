@@ -1,7 +1,7 @@
 "use client";
 import { Bot } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { ViewType } from "@opencairn/shared";
 
 const VIEW_KEYS: ViewType[] = ["graph", "mindmap", "cards", "timeline", "board"];
@@ -13,7 +13,7 @@ interface Props {
 export function ViewSwitcher({ onAiClick }: Props) {
   const tViews = useTranslations("graph.views");
   const tAi = useTranslations("graph.ai");
-  const router = useRouter();
+  const pathname = usePathname();
   const params = useSearchParams();
   const current = (params.get("view") as ViewType | null) ?? "graph";
 
@@ -21,7 +21,7 @@ export function ViewSwitcher({ onAiClick }: Props) {
     const next = new URLSearchParams(params.toString());
     next.set("view", v);
     if (v !== "mindmap" && v !== "board") next.delete("root");
-    router.replace(`?${next.toString()}`, { scroll: false });
+    window.location.assign(`${pathname}?${next.toString()}`);
   }
 
   return (
@@ -36,7 +36,10 @@ export function ViewSwitcher({ onAiClick }: Props) {
             key={v}
             type="button"
             data-active={current === v ? "true" : "false"}
-            onClick={() => setView(v)}
+            onMouseDown={(event) => {
+              event.preventDefault();
+              setView(v);
+            }}
             className={
               current === v
                 ? "min-h-7 rounded bg-accent px-3 py-1 text-sm font-medium"

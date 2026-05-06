@@ -92,7 +92,11 @@ export function ColumnGroupElement({
   const childArr = Array.isArray(children) ? children : [children];
 
   return (
-    <div {...attributes} className="my-2 flex w-full">
+    <div
+      {...attributes}
+      className="my-2 flex w-full"
+      data-testid="column-group"
+    >
       {childArr.map((child, i) => {
         const w = widths[i] ?? 1 / n;
         // Cumulative position from left to the RIGHT edge of column[i] — this

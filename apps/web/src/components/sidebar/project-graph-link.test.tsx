@@ -1,23 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import koSidebar from "@/../messages/ko/sidebar.json";
 import { ProjectGraphLink } from "./project-graph-link";
 
 const mocks = vi.hoisted(() => ({
-  push: vi.fn(),
-  addTab: vi.fn(),
+  assign: vi.fn(),
   projectId: { current: "p-1" as string | null },
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mocks.push }),
   useParams: () => ({ wsSlug: "w-slug" }),
-}));
-
-vi.mock("@/stores/tabs-store", () => ({
-  useTabsStore: (selector: (s: { addTab: typeof mocks.addTab }) => unknown) =>
-    selector({ addTab: mocks.addTab }),
 }));
 
 vi.mock("./use-current-project", () => ({
@@ -25,8 +18,11 @@ vi.mock("./use-current-project", () => ({
 }));
 
 beforeEach(() => {
-  mocks.push.mockReset();
-  mocks.addTab.mockReset();
+  mocks.assign.mockReset();
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: { assign: mocks.assign },
+  });
   mocks.projectId.current = "p-1";
 });
 
@@ -45,13 +41,19 @@ describe("ProjectGraphLink", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("opens a graph tab + pushes the URL on click", () => {
+  it("links to the project graph route", () => {
     wrap(<ProjectGraphLink />);
-    fireEvent.click(screen.getByRole("button", { name: koSidebar.graph.entry }));
-    expect(mocks.addTab).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "project", mode: "graph", targetId: "p-1" }),
+    const link = screen.getByRole("link", { name: koSidebar.graph.entry });
+    expect(link).toHaveAttribute(
+      "href",
+      "/ko/workspace/w-slug/project/p-1/graph",
     );
-    expect(mocks.push).toHaveBeenCalledWith(
+  });
+
+  it("navigates to the graph route on click", () => {
+    wrap(<ProjectGraphLink />);
+    screen.getByRole("link", { name: koSidebar.graph.entry }).click();
+    expect(mocks.assign).toHaveBeenCalledWith(
       "/ko/workspace/w-slug/project/p-1/graph",
     );
   });

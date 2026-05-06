@@ -33,6 +33,7 @@ export function TabContextMenuItems({ tab, wsSlug }: TabContextMenuItemsProps) {
         kind: tab.kind,
         targetId: tab.targetId,
         title: tab.title,
+        mode: tab.mode,
         preview: false,
       }),
     );
@@ -45,6 +46,7 @@ export function TabContextMenuItems({ tab, wsSlug }: TabContextMenuItemsProps) {
       {
         kind: tab.kind,
         targetId: tab.targetId,
+        mode: tab.mode,
       },
       locale,
     );

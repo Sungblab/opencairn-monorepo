@@ -4,13 +4,17 @@ import {
   seedAndSignIn,
   type SeededSession,
 } from "./helpers/seed-session";
+import {
+  fulfillAgentEchoStream,
+  fulfillPersistedEchoMessages,
+} from "./helpers/sse-fixtures";
 
 // Plan 2D Task 24 — chat renderer E2E.
 //
-// The stub `runAgent` in apps/api/src/lib/agent-pipeline.ts echoes the user
-// message verbatim, so we control the markdown the renderer sees by sending
-// markdown as the user message. All assertions use data-testids from the
-// actual implementations:
+// The durable chat-run path no longer has an API-side echo stub. This spec
+// keeps the renderer path deterministic by mocking only the thread SSE +
+// playback responses at the Playwright boundary. Product code still exercises
+// the real AgentPanel, Conversation, MessageBubble, and markdown renderers.
 //
 //   code-block-lang      components/chat/renderers/code-block.tsx
 //   code-block-copy      components/chat/renderers/code-block.tsx
@@ -28,6 +32,16 @@ test.describe("Plan 2D — chat renderer", () => {
   test.beforeEach(async ({ context, request, page }) => {
     session = await seedAndSignIn(request);
     await applySessionCookie(context, session);
+    let sentBody: string | null = null;
+    await page.route("**/api/threads/*/messages", async (route) => {
+      if (route.request().method() === "POST") {
+        const payload = route.request().postDataJSON() as { content?: string };
+        sentBody = payload.content ?? "";
+        await fulfillAgentEchoStream(route, sentBody);
+        return;
+      }
+      await fulfillPersistedEchoMessages(route, sentBody);
+    });
 
     // Navigate to the workspace shell — the agent panel is always visible here.
     await page.goto(`/ko/workspace/${session.wsSlug}/`);
@@ -52,8 +66,8 @@ test.describe("Plan 2D — chat renderer", () => {
     await composer.fill("```js\nconst x = 1;\n```");
     await page.getByRole("button", { name: "전송" }).click();
 
-    // The stub echoes the message — wait for the agent bubble containing the
-    // code block renderer (code-block.tsx wraps `code-block-lang` and `code-block-copy`).
+    // The route fixture echoes the message — wait for the agent bubble
+    // containing the code block renderer.
     await expect(page.getByTestId("code-block-lang")).toContainText("js", {
       timeout: 10_000,
     });
@@ -99,9 +113,9 @@ test.describe("Plan 2D — chat renderer", () => {
     await page.getByRole("button", { name: "전송" }).click();
 
     // The safe text content should appear in the agent bubble.
-    await expect(page.getByText("safe content")).toBeVisible({
-      timeout: 10_000,
-    });
+    await expect(
+      page.getByTestId("chat-message-renderer").getByText("safe content"),
+    ).toBeVisible({ timeout: 10_000 });
     // The script must NOT have executed.
     const pwn = await page.evaluate(
       () => (window as Window & { PWN?: unknown }).PWN,

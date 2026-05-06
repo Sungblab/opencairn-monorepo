@@ -83,7 +83,7 @@ describe("ToggleElement", () => {
         <p>x</p>
       </ToggleElement>,
     );
-    fireEvent.mouseDown(screen.getByTestId("toggle-chevron"));
+    fireEvent.pointerDown(screen.getByTestId("toggle-chevron"));
     expect(setNodes).toHaveBeenCalledWith(
       { open: true },
       expect.anything(),

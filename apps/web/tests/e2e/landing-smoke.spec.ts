@@ -2,13 +2,13 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Landing smoke", () => {
   test("ko landing loads, data-theme=cairn-light + data-brand=landing", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/ko");
     const brandDiv = page.locator("[data-brand='landing']").first();
     await expect(brandDiv).toHaveAttribute("data-theme", "cairn-light");
     await expect(page.locator("h1").first()).toContainText("읽은 것까지");
   });
 
-  test("en landing loads (ko copy stopgap, URL verified)", async ({ page }) => {
+  test("en landing loads, URL verified", async ({ page }) => {
     await page.goto("/en");
     await expect(page.locator("h1").first()).toBeVisible();
     await expect(page).toHaveURL(/\/en$/);
