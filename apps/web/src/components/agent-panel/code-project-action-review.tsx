@@ -475,6 +475,7 @@ function CodeProjectPreviewResultCard({
 }) {
   const t = useTranslations("agentPanel.codePreviewReview");
   const previewHref = result.publicPreviewUrl ?? result.previewUrl;
+  const smoke = result.browserSmoke;
   return (
     <section
       aria-label={t("resultTitle")}
@@ -497,6 +498,23 @@ function CodeProjectPreviewResultCard({
           <ExternalLink className="h-4 w-4" />
         </a>
       </div>
+      {smoke ? (
+        <div className="mt-3 rounded-[var(--radius-control)] border border-border bg-[var(--theme-surface-muted)] px-3 py-2 text-xs">
+          <p className="font-medium text-foreground">
+            {smoke.ok
+              ? t("smokePassed", { status: smoke.status ?? "-" })
+              : t("smokeFailed", {
+                  status: smoke.status ?? "-",
+                  errorCode: smoke.errorCode ?? "code_project_preview_smoke_failed",
+                })}
+          </p>
+          {smoke.screenshotPath ? (
+            <p className="mt-1 break-all text-muted-foreground">
+              {t("smokeScreenshot", { path: smoke.screenshotPath })}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       <p className="mt-3 text-xs text-muted-foreground">{t("resultWarning")}</p>
     </section>
   );

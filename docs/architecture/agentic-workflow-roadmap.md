@@ -850,8 +850,8 @@ entries, including the requested `entryPath` document itself, through the
 existing storage reader. Inline entries are still served directly, while entries
 with `objectKey` stream from object storage with their stored content type and
 length. Public preview hostnames, signed external URLs, process-backed app
-servers, scheduled cleanup, and browser smoke screenshots remain later Phase 7
-work.
+servers, scheduled cleanup, and persisted browser smoke evidence remain later
+Phase 7 work.
 
 Phase 7F adds an internal cleanup sweep for expired static preview actions.
 The sweep promotes completed `code_project.preview` rows whose `expiresAt` has
@@ -862,13 +862,16 @@ and `python -m scripts.run_code_preview_cleanup` gives operations a
 cron-friendly worker-side runner. This still does not delete immutable snapshot
 objects or introduce public preview URL lifecycle automation.
 
-Phase 7G adds a browser smoke harness for completed static preview URLs. The
-API package exposes `pnpm --filter @opencairn/api smoke:code-preview -- <url>`
-to open a preview in headless Chromium, fail on HTTP errors or blank body text,
+Phase 7G adds browser smoke evidence for completed static preview URLs. The API
+package exposes `pnpm --filter @opencairn/api smoke:code-preview -- <url>` to
+open a preview in headless Chromium, fail on HTTP errors or blank body text,
 optionally require a selector or visible text, and write a screenshot under
-`output/playwright/` by default. Private authenticated preview routes can pass a
-Playwright `storageState` file, cookie, or header. This is an operator QA tool;
-it does not create public preview hostnames or manage process-backed servers.
+`output/playwright/` by default. `--result <path>` writes a callback-ready JSON
+payload, and `/api/internal/agent-actions/code-preview-smoke-results` records it
+under the completed preview result as `browserSmoke`. Agent Panel and Workflow
+Console can then show smoke status and screenshot path. Private authenticated
+preview routes can pass a Playwright `storageState` file, cookie, or header.
+This does not create public preview hostnames or manage process-backed servers.
 
 Phase 7H adds opt-in signed public URLs for completed static previews. When
 `CODE_PREVIEW_PUBLIC_BASE_URL` and a signing secret are configured, applying a

@@ -865,6 +865,10 @@ function outputsFromAgentAction(action: AgentAction): WorkflowConsoleOutput[] {
       stringField(action.result, "publicPreviewUrl")
       ?? stringField(action.result, "previewUrl");
     if (previewUrl) {
+      const browserSmoke =
+        action.result.browserSmoke && typeof action.result.browserSmoke === "object"
+          ? action.result.browserSmoke as Record<string, unknown>
+          : null;
       return [
         {
           outputType: "preview",
@@ -876,6 +880,13 @@ function outputsFromAgentAction(action: AgentAction): WorkflowConsoleOutput[] {
             snapshotId: stringField(action.result, "snapshotId"),
             entryPath: stringField(action.result, "entryPath"),
             expiresAt: stringField(action.result, "expiresAt"),
+            browserSmokeOk: browserSmoke ? booleanField(browserSmoke, "ok") : undefined,
+            browserSmokeStatus: browserSmoke ? numberField(browserSmoke, "status") : undefined,
+            browserSmokeCheckedAt: browserSmoke ? stringField(browserSmoke, "checkedAt") : undefined,
+            browserSmokeScreenshotPath: browserSmoke
+              ? stringField(browserSmoke, "screenshotPath")
+              : undefined,
+            browserSmokeErrorCode: browserSmoke ? stringField(browserSmoke, "errorCode") : undefined,
           },
         },
       ];
@@ -982,6 +993,11 @@ function stringField(value: Record<string, unknown>, key: string): string | null
 function numberField(value: Record<string, unknown>, key: string): number | null {
   const field = value[key];
   return typeof field === "number" && Number.isFinite(field) ? field : null;
+}
+
+function booleanField(value: Record<string, unknown>, key: string): boolean | null {
+  const field = value[key];
+  return typeof field === "boolean" ? field : null;
 }
 
 function toIso(value: Date | string): string {

@@ -324,6 +324,19 @@ export const codeWorkspacePreviewRequestSchema = z
     );
   });
 
+export const codeWorkspacePreviewSmokeResultSchema = z
+  .object({
+    ok: z.boolean(),
+    status: z.number().int().min(100).max(599).optional(),
+    url: z.string().trim().min(1).max(2048).optional(),
+    bodyChars: z.number().int().nonnegative().optional(),
+    screenshotPath: z.string().trim().min(1).max(1024).optional(),
+    checkedAt: z.string().datetime(),
+    errorCode: z.string().trim().min(1).max(120).optional(),
+    message: z.string().trim().min(1).max(500).optional(),
+  })
+  .strict();
+
 export const codeWorkspacePreviewResultSchema = z
   .object({
     ok: z.literal(true),
@@ -337,6 +350,7 @@ export const codeWorkspacePreviewResultSchema = z
     publicPreviewUrl: z.string().url().max(2048).optional(),
     publicAssetsBaseUrl: z.string().url().max(2048).optional(),
     expiresAt: z.string().datetime(),
+    browserSmoke: codeWorkspacePreviewSmokeResultSchema.optional(),
   })
   .strict();
 
@@ -480,5 +494,8 @@ export type CodeWorkspaceCommandRunRequest = z.infer<typeof codeWorkspaceCommand
 export type CodeWorkspaceCommandRunLog = z.infer<typeof codeWorkspaceCommandRunLogSchema>;
 export type CodeWorkspaceCommandRunResult = z.infer<typeof codeWorkspaceCommandRunResultSchema>;
 export type CodeWorkspacePreviewResult = z.infer<typeof codeWorkspacePreviewResultSchema>;
+export type CodeWorkspacePreviewSmokeResult = z.infer<
+  typeof codeWorkspacePreviewSmokeResultSchema
+>;
 export type CodeWorkspaceSnapshot = z.infer<typeof codeWorkspaceSnapshotSchema>;
 export type CodeWorkspacePackageResult = z.infer<typeof codeWorkspacePackageResultSchema>;

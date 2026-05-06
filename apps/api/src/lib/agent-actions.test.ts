@@ -13,6 +13,7 @@ import {
   createQueuedWorkflowAgentAction,
   markWorkflowAgentActionFailed,
   readCodeProjectPreviewAsset,
+  recordCodeProjectPreviewSmokeResult,
   transitionAgentActionStatus,
   type AgentActionRepository,
   type NoteActionExecutor,
@@ -429,6 +430,60 @@ describe("agent action service", () => {
         entryPath: "index.html",
         previewUrl: `/api/agent-actions/${action.id}/preview/index.html`,
         expiresAt: "2026-05-05T00:01:00.000Z",
+      },
+    });
+  });
+
+  it("records browser smoke evidence on a completed static code_project.preview action", async () => {
+    const previewAction = makeAction({
+      kind: "code_project.preview",
+      status: "completed",
+      risk: "external",
+      result: {
+        ok: true,
+        kind: "code_project.preview",
+        mode: "static",
+        codeWorkspaceId: "00000000-0000-4000-8000-000000000020",
+        snapshotId: "00000000-0000-4000-8000-000000000021",
+        entryPath: "index.html",
+        previewUrl: `/api/agent-actions/${actionId}/preview/index.html`,
+        assetsBaseUrl: `/api/agent-actions/${actionId}/preview/`,
+        expiresAt: "2026-05-05T00:01:00.000Z",
+      },
+      errorCode: null,
+    });
+    const repo = createMemoryRepo([previewAction]);
+
+    const { action, idempotent } = await recordCodeProjectPreviewSmokeResult(
+      {
+        actionId,
+        requestId,
+        workspaceId,
+        projectId,
+        userId,
+        result: {
+          ok: true,
+          status: 200,
+          url: "https://preview.example.com/index.html",
+          bodyChars: 42,
+          screenshotPath: "output/playwright/preview.png",
+          checkedAt: "2026-05-06T00:01:00.000Z",
+        },
+      },
+      { repo },
+    );
+
+    expect(idempotent).toBe(false);
+    expect(action).toMatchObject({
+      status: "completed",
+      errorCode: null,
+      result: {
+        browserSmoke: {
+          ok: true,
+          status: 200,
+          screenshotPath: "output/playwright/preview.png",
+          checkedAt: "2026-05-06T00:01:00.000Z",
+        },
       },
     });
   });

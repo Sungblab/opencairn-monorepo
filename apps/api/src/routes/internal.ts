@@ -48,6 +48,7 @@ import {
 } from "@opencairn/db";
 import {
   agentFileKindSchema,
+  codeWorkspacePreviewSmokeResultSchema,
   codeWorkspaceInstallResultSchema,
   codeWorkspaceCommandRunResultSchema,
   createConceptExtractionSchema,
@@ -97,6 +98,7 @@ import {
   completeCodeProjectRunActionFromWorker,
   createDrizzleAgentActionRepository,
   AgentActionError,
+  recordCodeProjectPreviewSmokeResult,
 } from "../lib/agent-actions";
 import { toProjectObjectSummary } from "../lib/project-object-actions";
 import {
@@ -127,6 +129,15 @@ internal.use("*", async (c, next) => {
 
 const internalPreviewCleanupSchema = z.object({
   limit: z.coerce.number().int().min(1).max(500).optional(),
+});
+
+const codeWorkspacePreviewSmokeResultCallbackSchema = z.object({
+  actionId: z.string().uuid(),
+  requestId: z.string().uuid(),
+  workspaceId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  userId: z.string().min(1),
+  result: codeWorkspacePreviewSmokeResultSchema,
 });
 
 const noteAnalysisDrainSchema = z.object({
@@ -169,6 +180,35 @@ internal.post(
       ...(body.limit !== undefined ? { limit: body.limit } : {}),
     });
     return c.json(result);
+  },
+);
+
+internal.post(
+  "/agent-actions/code-preview-smoke-results",
+  zValidator("json", codeWorkspacePreviewSmokeResultCallbackSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const guard = await guardWorkspace(c, () =>
+      assertResourceWorkspace(db, body.workspaceId, {
+        type: "project",
+        id: body.projectId,
+      }),
+    );
+    if (guard) return guard;
+
+    try {
+      const { action, idempotent } = await recordCodeProjectPreviewSmokeResult(body);
+      return c.json({ action, idempotent });
+    } catch (err) {
+      if (err instanceof AgentActionError) {
+        return c.json(
+          { error: err.code },
+          err.status as 400 | 403 | 404 | 409,
+        );
+      }
+      console.error("[code-preview-smoke] internal result callback failed", err);
+      return c.json({ error: "code_project_preview_smoke_callback_failed" }, 500);
+    }
   },
 );
 

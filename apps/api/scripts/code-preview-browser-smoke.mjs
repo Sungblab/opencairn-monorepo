@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
@@ -9,6 +9,7 @@ function usage() {
 
 Options:
   --screenshot <path>       Screenshot output path. Defaults to output/playwright/code-preview-smoke-<timestamp>.png.
+  --result <path>           JSON result output path for API callback payloads.
   --selector <selector>     Wait for a selector before passing.
   --expect-text <text>      Require visible body text to include the text.
   --min-body-chars <n>      Minimum visible body text length. Default: 1.
@@ -31,6 +32,7 @@ function parseArgs(argv) {
     cookies: [],
     headers: {},
     minBodyChars: 1,
+    result: null,
     screenshot: null,
     selector: null,
     expectText: null,
@@ -60,6 +62,8 @@ function parseArgs(argv) {
     index += 1;
     if (arg === "--screenshot") {
       options.screenshot = value;
+    } else if (arg === "--result") {
+      options.result = value;
     } else if (arg === "--selector") {
       options.selector = value;
     } else if (arg === "--expect-text") {
@@ -158,13 +162,22 @@ async function main() {
       await page.screenshot({ path: screenshotPath, fullPage: true });
     }
 
+    const result = {
+      ok: true,
+      status,
+      url: page.url(),
+      bodyChars: bodyText.length,
+      screenshotPath: screenshotPath ?? undefined,
+      checkedAt: new Date().toISOString(),
+    };
+    if (options.result) {
+      await mkdir(path.dirname(options.result), { recursive: true });
+      await writeFile(options.result, `${JSON.stringify(result, null, 2)}\n`, "utf8");
+    }
     console.log(
       JSON.stringify(
         {
-          ok: true,
-          status,
-          url: page.url(),
-          bodyChars: bodyText.length,
+          ...result,
           screenshot: screenshotPath,
         },
         null,

@@ -85,6 +85,9 @@
     "previewCancelFailed": "정적 미리보기 요청을 취소하지 못했어요.",
     "resultTitle": "정적 미리보기",
     "openPreview": "미리보기 열기",
+    "smokePassed": "브라우저 스모크 통과 · HTTP {status}",
+    "smokeFailed": "브라우저 스모크 실패 · HTTP {status} · {errorCode}",
+    "smokeScreenshot": "스크린샷 {path}",
     "resultWarning": "미리보기는 내부 API 경로로 열리며 공개 배포 URL은 아닙니다."
   },
   "agenticPlan": {

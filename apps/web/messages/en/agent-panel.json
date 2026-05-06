@@ -85,6 +85,9 @@
     "previewCancelFailed": "Could not cancel the static preview request.",
     "resultTitle": "Static preview",
     "openPreview": "Open preview",
+    "smokePassed": "Browser smoke passed · HTTP {status}",
+    "smokeFailed": "Browser smoke failed · HTTP {status} · {errorCode}",
+    "smokeScreenshot": "Screenshot {path}",
     "resultWarning": "This preview opens through an internal API path, not a public deployment URL."
   },
   "agenticPlan": {

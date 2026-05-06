@@ -8,6 +8,7 @@ import {
   codeWorkspacePatchSchema,
   codeWorkspacePreviewResultSchema,
   codeWorkspacePreviewRequestSchema,
+  codeWorkspacePreviewSmokeResultSchema,
   codeWorkspacePackageResultSchema,
   codeWorkspaceSnapshotSchema,
   normalizeCodeWorkspacePath,
@@ -271,5 +272,31 @@ describe("code project workspace contracts", () => {
 
     expect(parsed.publicPreviewUrl).toContain("/api/public/agent-actions/");
     expect(parsed.publicAssetsBaseUrl).toContain("/preview/token/");
+  });
+
+  it("allows static preview results to carry browser smoke evidence", () => {
+    const smoke = codeWorkspacePreviewSmokeResultSchema.parse({
+      ok: true,
+      status: 200,
+      url: "https://preview.example.com/index.html",
+      bodyChars: 42,
+      screenshotPath: "output/playwright/preview.png",
+      checkedAt: "2026-05-06T00:01:00.000Z",
+    });
+    const parsed = codeWorkspacePreviewResultSchema.parse({
+      ok: true,
+      kind: "code_project.preview",
+      mode: "static",
+      codeWorkspaceId: "00000000-0000-4000-8000-000000000203",
+      snapshotId: baseSnapshotId,
+      entryPath: "index.html",
+      previewUrl:
+        "/api/agent-actions/00000000-0000-4000-8000-000000000204/preview/index.html",
+      assetsBaseUrl: "/api/agent-actions/00000000-0000-4000-8000-000000000204/preview/",
+      expiresAt: "2026-05-06T00:00:00.000Z",
+      browserSmoke: smoke,
+    });
+
+    expect(parsed.browserSmoke?.screenshotPath).toBe("output/playwright/preview.png");
   });
 });
