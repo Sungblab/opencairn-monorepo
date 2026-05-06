@@ -60,13 +60,13 @@
 ## C. OpenCairn 의사결정에 직결되는 함의
 
 ### C.1 Risk (3개)
-1. **Onyx + Khoj가 OSS Company Brain에 이미 자리잡음** — 후발이라 차별화(KG · 12 agent · editor 통합 · 한국어 1급)를 강하게 내세우지 않으면 "또 하나의 second brain"으로 묻힘.
+1. **Onyx + Khoj가 OSS Company Brain에 이미 자리잡음** — 후발이라 차별화(KG · staged AI workflows · editor 통합 · 한국어 1급)를 강하게 내세우지 않으면 "또 하나의 second brain"으로 묻힘.
 2. **MCP/Skill 노출은 양날** — 외부 harness 호출 가능해지는 순간 자체 UI lock-in 약화. Notion도 같은 딜레마.
-3. **Multi-LLM 운영 부채** — provider 추상화는 SDK breaking change마다 손가고, 12 agent × N provider QA는 indie 인력으로 한계.
+3. **Multi-LLM 운영 부채** — provider 추상화는 SDK breaking change마다 손가고, 여러 AI workflow와 provider 조합의 QA는 indie 인력으로 한계.
 
 ### C.2 Leverage (3개)
 1. **Self-host + workspace isolation + AGPLv3 + BYOK + 한국어 1급** 5중 조합 동시 만족 경쟁자 0. 한국 공공·교육·연구실·법무·의료 niche 무경쟁.
-2. **12-agent + KG + Editor 단일 product** — Onyx(chat) + Notion(editor) + Glean(KG) + Anki(learning) DIY 통합 비용 0.
+2. **AI workflow + KG + Editor 단일 product** — Onyx(chat) + Notion(editor) + Glean(KG) + Anki(learning) DIY 통합 비용 0.
 3. **MCP 서버로 OpenCairn 자체를 노출 → ChatGPT/Cursor/Claude/Codex 사용자의 self-host backing store** 가 됨. **Notion MCP의 OSS+self-host 대안 자리는 현재 비어있음**.
 
 ### C.3 진입 우선순위 (기술적)
@@ -76,7 +76,7 @@
 
 ## D. 한 줄 결론
 
-**MCP 서버 + Claude Code Skill 패키지** 두 트랙 모두 기술 표준이 안정화됐고 시장 자리는 비어있음. **Khoj가 가장 직접 경쟁자**라는 점만 분명히 인지하고 진입하면 됨. 영감 메모는 이미 박제(`docs/architecture/ai-native-positioning-notes.md`)했고, 실제 진입은 현재 병렬 세션(H6 + Plan 2E Phase B) 종료 후 brainstorming.
+**MCP 서버 + Agent Skill 패키지** 두 트랙 모두 기술 표준이 안정화됐고 시장 자리는 비어있음. **Khoj가 가장 직접 경쟁자**라는 점만 분명히 인지하고 진입하면 됨. 영감 메모는 이미 박제(`docs/architecture/ai-native-positioning-notes.md`)했고, 실제 진입은 현재 병렬 세션(H6 + Plan 2E Phase B) 종료 후 brainstorming.
 
 ## E. 핵심 출처
 
