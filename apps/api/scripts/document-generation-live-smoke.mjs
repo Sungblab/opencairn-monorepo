@@ -266,6 +266,36 @@ async function createAgentFile(seed) {
   return id;
 }
 
+async function createBinaryAgentFile(seed, client) {
+  const id = randomUUID();
+  const versionGroupId = randomUUID();
+  const filename = "doc-gen-live-unsupported-source.bin";
+  const buffer = Buffer.from("unsupported binary source fallback", "utf8");
+  const objectKey = `agent-files/${seed.workspaceId}/${seed.projectId}/${id}/v1/${encodeURIComponent(filename)}`;
+  await client.putObject(S3_BUCKET, objectKey, Readable.from(buffer), buffer.length, {
+    "Content-Type": "application/octet-stream",
+  });
+  await db.insert(agentFiles).values({
+    id,
+    workspaceId: seed.workspaceId,
+    projectId: seed.projectId,
+    createdBy: seed.userId,
+    title: "Doc Gen Live Unsupported Source",
+    filename,
+    extension: "bin",
+    kind: "binary",
+    mimeType: "application/octet-stream",
+    objectKey,
+    bytes: buffer.length,
+    contentHash: createHash("sha256").update(buffer).digest("hex"),
+    source: "manual",
+    versionGroupId,
+    version: 1,
+    ingestStatus: "not_started",
+  });
+  return id;
+}
+
 async function createChatThread(seed) {
   const [thread] = await db
     .insert(chatThreads)
@@ -421,6 +451,14 @@ async function runScenario(seed, client, scenario) {
   if (file.source !== "document_generation") {
     throw new Error(`agent_files source mismatch: ${file.source}`);
   }
+  const qualitySignals = action.result?.sourceQuality?.signals ?? [];
+  for (const signal of scenario.expectedQualitySignals ?? []) {
+    if (!qualitySignals.includes(signal)) {
+      throw new Error(
+        `${scenario.name} missing quality signal ${signal}: ${JSON.stringify(action.result?.sourceQuality)}`,
+      );
+    }
+  }
   const objectStat = await client.statObject(S3_BUCKET, artifact.objectKey);
   const download = await fetch(
     `${API_BASE_URL}/api/agent-files/${object.id}/file`,
@@ -452,10 +490,11 @@ async function runScenario(seed, client, scenario) {
     objectStorageBytes: objectStat.size,
     downloadStatus: download.status,
     artifactQa,
+    sourceQuality: action.result?.sourceQuality ?? null,
   };
 }
 
-async function verifySourcePicker(seed, expected) {
+async function verifySourcePicker(seed, expected, expectedQuality = []) {
   const response = await api(
     `/api/projects/${seed.projectId}/document-generation/sources`,
     {
@@ -470,6 +509,22 @@ async function verifySourcePicker(seed, expected) {
       throw new Error(
         `source picker missing ${type}: ${JSON.stringify(response.sources)}`,
       );
+    }
+  }
+  for (const expectation of expectedQuality) {
+    const option = (response.sources ?? []).find(
+      (source) => source.id === expectation.id,
+    );
+    if (!option) {
+      throw new Error(`source picker missing ${expectation.id}: ${JSON.stringify(response.sources)}`);
+    }
+    const signals = option.qualitySignals ?? [];
+    for (const signal of expectation.signals) {
+      if (!signals.includes(signal)) {
+        throw new Error(
+          `source picker ${expectation.id} missing ${signal}: ${JSON.stringify(option)}`,
+        );
+      }
     }
   }
   return {
@@ -493,6 +548,7 @@ const client = s3Client();
 await ensureBucket(client);
 const seed = await seedBase();
 const agentFileId = await createAgentFile(seed);
+const unsupportedAgentFileId = await createBinaryAgentFile(seed, client);
 const threadId = await createChatThread(seed);
 const researchRunId = await createResearchRun(seed);
 const synthesis = await createSynthesisRun(seed, client);
@@ -502,6 +558,11 @@ const sourcePicker = await verifySourcePicker(seed, [
   "chat_thread",
   "research_run",
   "synthesis_run",
+], [
+  {
+    id: `agent_file:${unsupportedAgentFileId}`,
+    signals: ["unsupported_source", "metadata_fallback"],
+  },
 ]);
 
 const scenarios = [
@@ -516,6 +577,13 @@ const scenarios = [
     format: "docx",
     template: "brief",
     source: { type: "agent_file", objectId: agentFileId },
+  },
+  {
+    name: "unsupported-agent-file",
+    format: "docx",
+    template: "brief",
+    source: { type: "agent_file", objectId: unsupportedAgentFileId },
+    expectedQualitySignals: ["unsupported_source", "metadata_fallback"],
   },
   {
     name: "chat-thread",
@@ -558,6 +626,7 @@ console.log(
         projectId: seed.projectId,
         noteId: seed.noteId,
         agentFileId,
+        unsupportedAgentFileId,
         threadId,
         researchRunId,
         synthesisRunId: synthesis.runId,

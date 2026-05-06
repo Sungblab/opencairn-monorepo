@@ -126,6 +126,14 @@ describe("document generation cards", () => {
         filename: "project-report.pdf",
         file: expect.objectContaining({ id: objectId, kind: "pdf" }),
         qualitySignals: ["metadata_fallback", "no_extracted_text"],
+        qualitySources: [
+          expect.objectContaining({
+            id: "00000000-0000-4000-8000-000000000031",
+            kind: "agent_file",
+            title: "Scanned PDF",
+            signals: ["no_extracted_text"],
+          }),
+        ],
         sourceKinds: [
           "note",
           "agent_file",
@@ -213,7 +221,14 @@ describe("document generation cards", () => {
           },
           sourceQuality: {
             signals: ["unsupported_source", "metadata_fallback"],
-            sources: [],
+            sources: [
+              {
+                id: "00000000-0000-4000-8000-000000000031",
+                kind: "agent_file",
+                title: "Project report",
+                signals: ["unsupported_source", "metadata_fallback"],
+              },
+            ],
           },
         },
       },
@@ -238,6 +253,7 @@ describe("document generation cards", () => {
 
     expect(screen.getByText(/qualitySignal.unsupported_source/)).toBeInTheDocument();
     expect(screen.getByText(/qualitySignal.metadata_fallback/)).toBeInTheDocument();
+    expect(screen.getByText(/qualitySourceSummary/)).toHaveTextContent("Project report");
     expect(screen.getByText(/document_generation_failed/)).toBeInTheDocument();
   });
 });

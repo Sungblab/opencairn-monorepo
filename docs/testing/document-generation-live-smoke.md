@@ -8,16 +8,18 @@ download. It is not a product UI test.
 
 The smoke helper lives at
 `apps/api/scripts/document-generation-live-smoke.mjs`. It seeds one workspace,
-creates source fixtures for `note`, `agent_file`, `chat_thread`,
-`research_run`, and `synthesis_run`, submits one generation request for each
-source type, waits for the action ledger to complete, checks object storage,
-checks the `agent_files` row, downloads the file through the authenticated API,
-and prints a JSON summary.
+creates source fixtures for `note`, `agent_file`, an unsupported binary
+`agent_file`, `chat_thread`, `research_run`, and `synthesis_run`, submits one
+generation request for each source path, waits for the action ledger to
+complete, checks object storage, checks the `agent_files` row, downloads the
+file through the authenticated API, and prints a JSON summary.
 
 Expected generated formats:
 
 - `note` -> PDF
 - `agent_file` -> DOCX
+- unsupported binary `agent_file` -> DOCX with `unsupported_source` and
+  `metadata_fallback` source-quality signals
 - `chat_thread` -> PPTX
 - `research_run` -> XLSX
 - `synthesis_run` with `documentId` -> PDF
@@ -101,7 +103,10 @@ The final JSON includes:
 - preflight environment summary
 - seeded workspace/project/source IDs
 - source picker coverage
+- source picker quality-signal coverage for unsupported binary sources
 - one result per source and format
+- completed action `sourceQuality` metadata when the scenario expects fallback
+  signals
 - object storage byte count
 - authenticated download status
 - artifact QA summary with downloaded bytes, content type, SHA-256, and file
