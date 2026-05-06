@@ -384,11 +384,11 @@ export async function startAgenticPlan(
     await repo.updateStep({
       planId,
       stepId: step.id,
-      status: stepStatusFromActionStatus(materialized.action.status),
+      status: materialized.status,
       linkedRunType: materialized.linkedRunType,
-      linkedRunId: materialized.action.id,
-      errorCode: materialized.action.errorCode,
-      errorMessage: null,
+      linkedRunId: materialized.linkedRunId,
+      errorCode: materialized.errorCode,
+      errorMessage: materialized.errorMessage,
     });
   }
 
@@ -399,7 +399,10 @@ type MaterializeResult =
   | {
       kind: "linked";
       linkedRunType: string;
-      action: AgentAction;
+      linkedRunId: string;
+      status: AgenticPlanStepStatus;
+      errorCode: string | null;
+      errorMessage: string | null;
     }
   | {
       kind: "blocked";
@@ -480,27 +483,7 @@ async function materializeStep(
         if (!importJobId) return missingInput(step.kind);
         const result = await retryImport(importJobId, actorUserId, options);
         if (result.action) return linkedAction(result.action);
-        return {
-          kind: "linked",
-          linkedRunType: "import_job",
-          action: {
-            id: result.jobId,
-            requestId: result.jobId,
-            workspaceId: plan.workspaceId,
-            projectId,
-            actorUserId,
-            sourceRunId: importJobId,
-            kind: "import.markdown_zip",
-            status: "queued",
-            risk: "write",
-            input: { importJobId },
-            preview: null,
-            result: null,
-            errorCode: null,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-        };
+        return linkedImportJob(result.jobId);
       }
       case "manual.review":
         return {
@@ -528,7 +511,21 @@ function linkedAction(action: AgentAction): MaterializeResult {
   return {
     kind: "linked",
     linkedRunType: "agent_action",
-    action,
+    linkedRunId: action.id,
+    status: stepStatusFromActionStatus(action.status),
+    errorCode: action.errorCode,
+    errorMessage: null,
+  };
+}
+
+function linkedImportJob(jobId: string): MaterializeResult {
+  return {
+    kind: "linked",
+    linkedRunType: "import_job",
+    linkedRunId: jobId,
+    status: "queued",
+    errorCode: null,
+    errorMessage: null,
   };
 }
 

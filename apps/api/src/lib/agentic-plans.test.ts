@@ -310,6 +310,50 @@ describe("agentic plan service", () => {
       errorCode: null,
     });
   });
+
+  it("links an import retry plan step to the retry job when no action is returned", async () => {
+    const repo = createMemoryAgenticPlanRepo();
+    const plan = await repo.insertPlan({
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Retry failed import",
+      goal: "Retry failed import",
+      status: "approval_required",
+      target: { workspaceId, projectId },
+      plannerKind: "deterministic",
+      summary: "1-step deterministic plan: import.retry",
+      currentStepOrdinal: 1,
+      steps: [
+        {
+          kind: "import.retry",
+          title: "Retry import",
+          rationale: "The failed import has an explicit job id.",
+          risk: "write",
+          input: {
+            importJobId,
+          },
+        },
+      ],
+    });
+
+    const started = await startAgenticPlan(projectId, userId, plan.id, {}, {
+      repo,
+      canWriteProject: async () => true,
+      retryImportJob: async () => ({
+        jobId: retryJobId,
+        action: null,
+      }),
+    });
+
+    expect(started.steps[0]).toMatchObject({
+      kind: "import.retry",
+      status: "queued",
+      linkedRunType: "import_job",
+      linkedRunId: retryJobId,
+      errorCode: null,
+    });
+  });
 });
 
 function agentAction(overrides: Partial<AgentAction> = {}): AgentAction {
