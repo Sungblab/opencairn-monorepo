@@ -147,9 +147,9 @@
       "unknown": "unknown"
     },
     "recoveryCode": {
-      "stale_context": "refresh evidence",
+      "stale_context": "analysis requeued",
       "verification_failed": "manual review",
-      "missing_source": "check source",
+      "missing_source": "manual source check",
       "manual_review": "manual review"
     },
     "type": {

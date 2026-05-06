@@ -79,7 +79,8 @@ describe("workflow console contracts", () => {
       title: "note.update",
       approvals: [
         {
-          approvalId: "agent_action:00000000-0000-4000-8000-000000000020:approval",
+          approvalId:
+            "agent_action:00000000-0000-4000-8000-000000000020:approval",
           status: "requested",
           risk: "write",
         },
@@ -137,7 +138,11 @@ describe("workflow console contracts", () => {
       title: "Refresh note evidence",
       goal: "Refresh note evidence",
       status: "blocked",
-      target: { workspaceId, projectId, noteId: "00000000-0000-4000-8000-000000000040" },
+      target: {
+        workspaceId,
+        projectId,
+        noteId: "00000000-0000-4000-8000-000000000040",
+      },
       plannerKind: "deterministic",
       summary: "1-step deterministic plan: agent.run",
       currentStepOrdinal: 1,
@@ -186,6 +191,84 @@ describe("workflow console contracts", () => {
           jobId: "00000000-0000-4000-8000-000000000041",
           contentHash: "hash-old",
           analysisVersion: 1,
+        },
+      ],
+      evidenceIssues: [
+        {
+          freshnessStatus: "stale",
+          recoveryCode: "stale_context",
+          verificationStatus: "blocked",
+          refs: [
+            {
+              type: "note_analysis_job",
+              noteId: "00000000-0000-4000-8000-000000000040",
+              jobId: "00000000-0000-4000-8000-000000000041",
+              contentHash: "hash-old",
+              analysisVersion: 1,
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("projects missing agentic plan evidence details separately from stale blockers", () => {
+    const run = workflowConsoleRunFromAgenticPlan({
+      id: "00000000-0000-4000-8000-000000000032",
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Review missing evidence",
+      goal: "Review missing evidence",
+      status: "blocked",
+      target: {
+        workspaceId,
+        projectId,
+        noteId: "00000000-0000-4000-8000-000000000042",
+      },
+      plannerKind: "deterministic",
+      summary: "1-step deterministic plan: agent.run",
+      currentStepOrdinal: 1,
+      steps: [
+        {
+          id: "00000000-0000-4000-8000-000000000033",
+          planId: "00000000-0000-4000-8000-000000000032",
+          ordinal: 1,
+          kind: "agent.run",
+          title: "Run librarian",
+          rationale: "Needs source evidence that is not currently available.",
+          status: "blocked",
+          risk: "write",
+          input: { agentName: "librarian" },
+          evidenceRefs: [],
+          evidenceFreshnessStatus: "missing",
+          staleEvidenceBlocks: true,
+          verificationStatus: "blocked",
+          recoveryCode: "missing_source",
+          retryCount: 0,
+          errorCode: "missing_source",
+          errorMessage:
+            "Step evidence source is missing and needs manual review.",
+          createdAt,
+          updatedAt,
+          completedAt: null,
+        },
+      ],
+      createdAt,
+      updatedAt,
+      completedAt: null,
+    });
+
+    expect(run.outputs[0]?.metadata).toMatchObject({
+      evidenceFreshness: { missing: 1 },
+      evidenceIssues: [
+        {
+          stepId: "00000000-0000-4000-8000-000000000033",
+          stepTitle: "Run librarian",
+          freshnessStatus: "missing",
+          recoveryCode: "missing_source",
+          verificationStatus: "blocked",
+          refs: [],
         },
       ],
     });
@@ -275,7 +358,8 @@ describe("workflow console contracts", () => {
       result: {
         ok: true,
         requestId: "00000000-0000-4000-8000-000000000028",
-        workflowId: "google-workspace-export/00000000-0000-4000-8000-000000000028",
+        workflowId:
+          "google-workspace-export/00000000-0000-4000-8000-000000000028",
         objectId: "00000000-0000-4000-8000-000000000029",
         provider: "google_docs",
         externalObjectId: "google-doc-1",

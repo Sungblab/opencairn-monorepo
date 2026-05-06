@@ -147,9 +147,9 @@
       "unknown": "알 수 없음"
     },
     "recoveryCode": {
-      "stale_context": "근거 새로고침",
+      "stale_context": "분석 재대기",
       "verification_failed": "수동 검토",
-      "missing_source": "출처 확인",
+      "missing_source": "출처 수동 확인",
       "manual_review": "수동 검토"
     },
     "type": {

@@ -241,9 +241,7 @@ describe("note analysis jobs", () => {
           },
         ]),
       )
-      .mockReturnValueOnce(
-        selectRows([{ stateVector: new Uint8Array([9]) }]),
-      );
+      .mockReturnValueOnce(selectRows([{ stateVector: new Uint8Array([9]) }]));
     dbMock.transaction.mockImplementationOnce(
       async (fn: (tx: unknown) => Promise<unknown>) =>
         fn({
@@ -326,10 +324,9 @@ describe("note analysis jobs", () => {
 
   it("drains only due queued jobs up to the bounded batch size", async () => {
     const due = new Date("2026-05-06T00:01:00.000Z");
-    dbMock.query.noteAnalysisJobs.findMany = vi.fn().mockResolvedValue([
-      { id: "job-due-1" },
-      { id: "job-due-2" },
-    ]);
+    dbMock.query.noteAnalysisJobs.findMany = vi
+      .fn()
+      .mockResolvedValue([{ id: "job-due-1" }, { id: "job-due-2" }]);
     dbMock.query.noteAnalysisJobs.findFirst
       .mockResolvedValueOnce({
         id: "job-due-1",
@@ -371,8 +368,28 @@ describe("note analysis jobs", () => {
         deletedAt: null,
       });
     returning
-      .mockResolvedValueOnce([{ id: "job-due-1", noteId: "note-1", contentHash: computeNoteAnalysisContentHash({ title: "One", contentText: "body" }), yjsStateVector: null }])
-      .mockResolvedValueOnce([{ id: "job-due-2", noteId: "note-2", contentHash: computeNoteAnalysisContentHash({ title: "Two", contentText: "body" }), yjsStateVector: null }]);
+      .mockResolvedValueOnce([
+        {
+          id: "job-due-1",
+          noteId: "note-1",
+          contentHash: computeNoteAnalysisContentHash({
+            title: "One",
+            contentText: "body",
+          }),
+          yjsStateVector: null,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: "job-due-2",
+          noteId: "note-2",
+          contentHash: computeNoteAnalysisContentHash({
+            title: "Two",
+            contentText: "body",
+          }),
+          yjsStateVector: null,
+        },
+      ]);
     dbMock.transaction.mockImplementation(
       async (fn: (tx: unknown) => Promise<unknown>) =>
         fn({
@@ -389,7 +406,10 @@ describe("note analysis jobs", () => {
             noteAnalysisJobs: {
               findFirst: vi.fn().mockResolvedValue({
                 id: "job",
-                contentHash: computeNoteAnalysisContentHash({ title: "One", contentText: "body" }),
+                contentHash: computeNoteAnalysisContentHash({
+                  title: "One",
+                  contentText: "body",
+                }),
                 yjsStateVector: null,
                 status: "running",
               }),
@@ -410,7 +430,18 @@ describe("note analysis jobs", () => {
     expect(dbMock.query.noteAnalysisJobs.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ limit: 2 }),
     );
-    expect(result.results.map((item) => item.jobId)).toEqual(["job-due-1", "job-due-2"]);
+    expect(result.results.map((item) => item.jobId)).toEqual([
+      "job-due-1",
+      "job-due-2",
+    ]);
+    expect(result.summary).toEqual({
+      processed: 2,
+      completed: 0,
+      stale: 2,
+      failed: 0,
+      missing: 0,
+      skipped: 0,
+    });
   });
 
   it("skips future queued jobs when draining due analysis work", async () => {
@@ -423,6 +454,14 @@ describe("note analysis jobs", () => {
     });
 
     expect(result.results).toEqual([]);
+    expect(result.summary).toEqual({
+      processed: 0,
+      completed: 0,
+      stale: 0,
+      failed: 0,
+      missing: 0,
+      skipped: 0,
+    });
     expect(dbMock.query.noteAnalysisJobs.findFirst).not.toHaveBeenCalled();
   });
 
