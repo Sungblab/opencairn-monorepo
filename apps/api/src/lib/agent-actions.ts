@@ -93,6 +93,8 @@ export class AgentActionError extends Error {
   }
 }
 
+const MAX_CODE_REPAIR_ATTEMPTS = 3;
+
 export interface AgentActionRepository {
   findProjectScope(projectId: string): Promise<{ workspaceId: string } | null>;
   findByRequestId(projectId: string, actorUserId: string, requestId: string): Promise<AgentAction | null>;
@@ -801,7 +803,7 @@ export async function createCodeProjectRepairAction(
     sourceRunId: failedRunAction.id,
     kind: "code_project.patch",
   });
-  if (repairAttempts.length >= 3) {
+  if (repairAttempts.length >= MAX_CODE_REPAIR_ATTEMPTS) {
     throw new AgentActionError("code_project_repair_limit_exceeded", 409);
   }
 
@@ -1406,15 +1408,19 @@ function serializeCodeWorkspace(action: AgentAction, workspace: {
 function codeInstallApprovalPreview(input: Record<string, unknown>) {
   const payload = codeWorkspaceInstallRequestSchema.parse(input);
   const names = payload.packages.map((pkg) =>
-    pkg.version ? `${pkg.name}@${pkg.version}` : pkg.name,
+    `${pkg.version ? `${pkg.name}@${pkg.version}` : pkg.name}${pkg.dev ? " (dev)" : ""}`,
   );
+  const summaryList =
+    names.length > 3
+      ? `${names.slice(0, 3).join(", ")} and ${names.length - 3} more`
+      : names.join(", ");
   return {
     kind: "code_project.install",
     approval: "dependency_install",
     packageManager: payload.packageManager,
     packages: payload.packages,
     network: payload.network,
-    summary: `Install ${names.join(", ")} with ${payload.packageManager}`,
+    summary: `Install ${summaryList} with ${payload.packageManager}`,
     reason: payload.reason ?? null,
   };
 }

@@ -145,23 +145,7 @@ export function createDrizzleWorkflowConsoleRepository(
         .where(and(eq(agentActions.projectId, projectId), eq(agentActions.actorUserId, userId)))
         .orderBy(desc(agentActions.createdAt))
         .limit(limit);
-      return rows.map((row) => ({
-        id: row.id,
-        requestId: row.requestId,
-        workspaceId: row.workspaceId,
-        projectId: row.projectId,
-        actorUserId: row.actorUserId,
-        sourceRunId: row.sourceRunId,
-        kind: row.kind,
-        status: row.status,
-        risk: row.risk,
-        input: row.input,
-        preview: row.preview ?? null,
-        result: row.result ?? null,
-        errorCode: row.errorCode,
-        createdAt: row.createdAt.toISOString(),
-        updatedAt: row.updatedAt.toISOString(),
-      }));
+      return rows.map(toAgentActionProjection);
     },
     async listPlan8RunsByProject({ projectId, userId, limit }) {
       const rows = await conn
@@ -170,19 +154,7 @@ export function createDrizzleWorkflowConsoleRepository(
         .where(and(eq(agentRuns.projectId, projectId), eq(agentRuns.userId, userId)))
         .orderBy(desc(agentRuns.startedAt))
         .limit(limit);
-      return rows.map((row) => ({
-        runId: row.runId,
-        workspaceId: row.workspaceId,
-        projectId: row.projectId,
-        userId: row.userId,
-        agentName: row.agentName,
-        workflowId: row.workflowId,
-        status: row.status,
-        startedAt: row.startedAt,
-        endedAt: row.endedAt,
-        totalCostKrw: row.totalCostKrw,
-        errorMessage: row.errorMessage,
-      }));
+      return rows.map(toPlan8RunProjection);
     },
     async listImportJobsByProject({ projectId, userId, limit }) {
       const rows = await conn
@@ -256,12 +228,32 @@ export function createDrizzleWorkflowConsoleRepository(
       };
     },
     async getAgentActionById({ actionId, projectId, userId }) {
-      const rows = await this.listAgentActionsByProject({ projectId, userId, limit: 200 });
-      return rows.find((row) => row.id === actionId) ?? null;
+      const [row] = await conn
+        .select()
+        .from(agentActions)
+        .where(
+          and(
+            eq(agentActions.id, actionId),
+            eq(agentActions.projectId, projectId),
+            eq(agentActions.actorUserId, userId),
+          ),
+        )
+        .limit(1);
+      return row ? toAgentActionProjection(row) : null;
     },
     async getPlan8RunById({ runId, projectId, userId }) {
-      const rows = await this.listPlan8RunsByProject({ projectId, userId, limit: 200 });
-      return rows.find((row) => row.runId === runId) ?? null;
+      const [row] = await conn
+        .select()
+        .from(agentRuns)
+        .where(
+          and(
+            eq(agentRuns.runId, runId),
+            eq(agentRuns.projectId, projectId),
+            eq(agentRuns.userId, userId),
+          ),
+        )
+        .limit(1);
+      return row ? toPlan8RunProjection(row) : null;
     },
     async getImportJobById({ jobId, projectId, userId }) {
       const [row] = await conn
@@ -311,6 +303,44 @@ export function createDrizzleWorkflowConsoleRepository(
       }]);
       return hydrated ?? null;
     },
+  };
+}
+
+function toAgentActionProjection(row: typeof agentActions.$inferSelect): AgentAction {
+  return {
+    id: row.id,
+    requestId: row.requestId,
+    workspaceId: row.workspaceId,
+    projectId: row.projectId,
+    actorUserId: row.actorUserId,
+    sourceRunId: row.sourceRunId,
+    kind: row.kind,
+    status: row.status,
+    risk: row.risk,
+    input: row.input,
+    preview: row.preview ?? null,
+    result: row.result ?? null,
+    errorCode: row.errorCode,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function toPlan8RunProjection(
+  row: typeof agentRuns.$inferSelect,
+): Plan8AgentRunProjectionSource {
+  return {
+    runId: row.runId,
+    workspaceId: row.workspaceId,
+    projectId: row.projectId,
+    userId: row.userId,
+    agentName: row.agentName,
+    workflowId: row.workflowId,
+    status: row.status,
+    startedAt: row.startedAt,
+    endedAt: row.endedAt,
+    totalCostKrw: row.totalCostKrw,
+    errorMessage: row.errorMessage,
   };
 }
 

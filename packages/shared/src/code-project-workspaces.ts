@@ -68,7 +68,7 @@ export function normalizeCodeWorkspacePath(path: string): string {
   if (trimmed.startsWith("/") || trimmed.startsWith("\\")) {
     throw new Error("path_must_be_relative");
   }
-  if (/^[a-zA-Z]:[\\/]/.test(trimmed)) {
+  if (/^[a-zA-Z]:/.test(trimmed)) {
     throw new Error("path_must_not_include_drive_letter");
   }
   if (/[\u0000-\u001f\u007f]/.test(trimmed)) {
