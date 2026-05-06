@@ -152,3 +152,21 @@ async def test_generate_with_tools_maps_system_messages_to_system_instruction():
     kwargs = mock_models.generate_content.call_args.kwargs
     assert [c.role for c in kwargs["contents"]] == ["user"]
     assert kwargs["config"].system_instruction == "Use tools carefully."
+
+
+async def test_generate_with_tools_forwards_service_tier():
+    p = GeminiProvider(ProviderConfig(
+        provider="gemini",
+        model="gemini-3-flash-preview",
+        api_key="k",
+        service_tier="priority",
+    ))
+    fake = _fake_response([_fake_part_text("ok")])
+    mock_models = MagicMock()
+    mock_models.generate_content = AsyncMock(return_value=fake)
+    p._client = SimpleNamespace(aio=SimpleNamespace(models=mock_models))
+
+    await p.generate_with_tools(messages=[], tools=[])
+
+    kwargs = mock_models.generate_content.call_args.kwargs
+    assert kwargs["config"].service_tier == "priority"

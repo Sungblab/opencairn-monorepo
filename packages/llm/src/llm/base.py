@@ -25,6 +25,7 @@ class ProviderConfig:
     embed_model: str = ""
     tts_model: str | None = None
     base_url: str | None = None
+    service_tier: Literal["standard", "flex", "priority"] | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
 
