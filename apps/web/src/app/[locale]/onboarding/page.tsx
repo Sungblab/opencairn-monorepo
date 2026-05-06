@@ -42,11 +42,12 @@ export type InviteFetchResult =
 async function fetchInvite(
   apiBase: string,
   token: string,
+  cookieHeader: string,
 ): Promise<InviteFetchResult> {
   try {
     const res = await fetch(
       `${apiBase}/api/invites/${encodeURIComponent(token)}`,
-      { cache: "no-store" },
+      { headers: { cookie: cookieHeader }, cache: "no-store" },
     );
     if (res.ok) return { status: "ok", data: (await res.json()) as InviteInfo };
     if (res.status === 404) return { status: "not_found" };
@@ -150,7 +151,7 @@ export default async function OnboardingPage({
 
   // Otherwise: resolve invite (if any), render shell.
   const inviteResult: InviteFetchResult | null = invite
-    ? await fetchInvite(apiBase, invite)
+    ? await fetchInvite(apiBase, invite, cookieHeader)
     : null;
 
   return (

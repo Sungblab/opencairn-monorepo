@@ -187,13 +187,14 @@ test.describe("Plan 7 Canvas Phase 2 — Code Agent + outputs", () => {
       await expect(page.getByTestId("reading-viewer")).toBeVisible();
     });
 
-    test("7. /api/canvas/from-template returns 501 with flag off", async ({
+    test("7. /api/canvas/from-template stays hidden until templates ship", async ({
       request,
     }) => {
       const r = await request.post(`${API_BASE}/api/canvas/from-template`, {
         headers: {
           cookie: `${session.cookieName}=${session.cookieValue}`,
           "content-type": "application/json",
+          origin: "http://localhost:3000",
         },
         data: {
           // Both fields are uuid()-validated by zod; using random-ish
@@ -203,9 +204,9 @@ test.describe("Plan 7 Canvas Phase 2 — Code Agent + outputs", () => {
           templateId: "00000000-0000-0000-0000-000000000002",
         },
       });
-      expect(r.status()).toBe(501);
+      expect(r.status()).toBe(404);
       const body = (await r.json()) as { error?: string };
-      expect(body.error).toBe("templatesNotAvailable");
+      expect(body.error).toBe("notFound");
     });
   });
 });

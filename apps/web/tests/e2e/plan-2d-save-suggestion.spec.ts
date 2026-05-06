@@ -69,8 +69,7 @@ test.describe("Plan 2D — save_suggestion flow", () => {
       await fulfillPersistedSaveSuggestionMessages(route, sent);
     });
 
-    await page.goto(`/ko/workspace/${session.wsSlug}/chat-scope`);
-    await page.evaluate(
+    await page.addInitScript(
       ({ workspaceId, threadId }) => {
         localStorage.setItem(
           `oc:active_thread:${workspaceId}`,
@@ -79,7 +78,7 @@ test.describe("Plan 2D — save_suggestion flow", () => {
       },
       { workspaceId: session.workspaceId, threadId: ACTIVE_THREAD_ID },
     );
-    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.goto(`/ko/workspace/${session.wsSlug}/chat-scope`);
     await expect(page.getByTestId("app-shell-agent-panel")).toBeVisible({
       timeout: 15_000,
     });

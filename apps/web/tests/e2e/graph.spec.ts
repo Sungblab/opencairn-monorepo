@@ -41,7 +41,7 @@ test.describe("Plan 5 Phase 1 — Graph + Backlinks", () => {
 
     // Sidebar entry — i18n key sidebar.graph.entry / "이 프로젝트 그래프 보기"
     await page
-      .getByRole("button", { name: /이 프로젝트 그래프 보기/ })
+      .getByRole("link", { name: /이 프로젝트 그래프 보기/ })
       .click();
 
     await expect(page).toHaveURL(

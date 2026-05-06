@@ -64,6 +64,56 @@ export async function fulfillPersistedSaveSuggestionMessages(
   });
 }
 
+export async function fulfillAgentEchoStream(
+  route: Route,
+  body: string,
+): Promise<void> {
+  await route.fulfill({
+    status: 200,
+    contentType: "text/event-stream",
+    body: [
+      sseFrame("user_persisted", { id: "fixture-user-msg" }),
+      sseFrame("agent_placeholder", { id: "fixture-agent-msg" }),
+      sseFrame("text", { delta: body }),
+      sseFrame("done", { id: "fixture-agent-msg", status: "complete" }),
+    ].join(""),
+  });
+}
+
+export async function fulfillPersistedEchoMessages(
+  route: Route,
+  sentBody: string | null,
+): Promise<void> {
+  await route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      messages: sentBody
+        ? [
+            {
+              id: "fixture-user-msg",
+              role: "user",
+              status: "complete",
+              content: { body: sentBody },
+              mode: "auto",
+              provider: null,
+              created_at: new Date("2026-04-29T00:00:00.000Z").toISOString(),
+            },
+            {
+              id: "fixture-agent-msg",
+              role: "agent",
+              status: "complete",
+              content: { body: sentBody },
+              mode: "auto",
+              provider: "fixture",
+              created_at: new Date("2026-04-29T00:00:01.000Z").toISOString(),
+            },
+          ]
+        : [],
+    }),
+  });
+}
+
 export async function installMockEventSource(
   page: Page,
   opts: {

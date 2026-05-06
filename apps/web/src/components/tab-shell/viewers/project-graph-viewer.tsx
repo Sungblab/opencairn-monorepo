@@ -16,7 +16,7 @@ export function ProjectGraphViewer({ tab }: { tab: Tab }) {
     );
   }
   return (
-    <div data-testid="project-graph-viewer" className="h-full">
+    <div className="h-full">
       <ProjectGraph projectId={tab.targetId} />
     </div>
   );

@@ -18,10 +18,18 @@ export function ProjectGraphRouteEntry({ projectId }: Props) {
   const findTabByTarget = useTabsStore((s) => s.findTabByTarget);
   const addTab = useTabsStore((s) => s.addTab);
   const setActive = useTabsStore((s) => s.setActive);
+  const updateTab = useTabsStore((s) => s.updateTab);
 
   useEffect(() => {
     const existing = findTabByTarget("project", projectId);
-    if (existing && existing.mode === "graph") {
+    if (existing) {
+      if (existing.mode !== "graph") {
+        updateTab(existing.id, {
+          mode: "graph",
+          title: "Graph",
+          titleKey: "appShell.tabTitles.graph",
+        });
+      }
       setActive(existing.id);
       return;
     }
@@ -39,7 +47,7 @@ export function ProjectGraphRouteEntry({ projectId }: Props) {
       splitSide: null,
       scrollY: 0,
     });
-  }, [projectId, findTabByTarget, addTab, setActive]);
+  }, [projectId, findTabByTarget, addTab, setActive, updateTab]);
 
   return <ProjectGraph projectId={projectId} />;
 }

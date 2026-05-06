@@ -3,7 +3,7 @@ import { ChevronRight } from "lucide-react";
 import { useEditorRef } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 import type { Descendant } from "platejs";
-import { Children, type ReactNode } from "react";
+import { Children, useState, type ReactNode } from "react";
 
 interface ToggleElementProps extends Omit<PlateElementProps, "element"> {
   element: PlateElementProps["element"] & {
@@ -19,11 +19,14 @@ export function ToggleElement({
   element,
 }: ToggleElementProps) {
   const editor = useEditorRef();
-  const isOpen = element.open ?? false;
+  const [localOpen, setLocalOpen] = useState(element.open ?? false);
+  const isOpen = localOpen;
 
   const toggle = () => {
     const path = editor.api.findPath(element as never);
-    editor.tf.setNodes({ open: !isOpen }, { at: path });
+    const next = !isOpen;
+    setLocalOpen(next);
+    if (path) editor.tf.setNodes({ open: next }, { at: path });
   };
 
   // Slate requires non-void elements to render every child node, otherwise
@@ -38,7 +41,7 @@ export function ToggleElement({
         <button
           type="button"
           contentEditable={false}
-          onMouseDown={(e) => {
+          onPointerDown={(e) => {
             e.preventDefault();
             toggle();
           }}

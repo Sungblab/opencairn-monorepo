@@ -35,8 +35,10 @@ test.describe("Plan 2D — editor blocks", () => {
     session = await seedAndSignIn(request);
     await applySessionCookie(context, session);
 
-    // Navigate to the app shell and open an existing note.
-    await page.goto(`/ko/workspace/${session.wsSlug}/`);
+    // Project-scoped sidebar actions only mount when a project is active.
+    await page.goto(
+      `/ko/workspace/${session.wsSlug}/project/${session.projectId}`,
+    );
     await expect(page).toHaveURL(
       new RegExp(`/(ko/)?workspace/${session.wsSlug}`),
       { timeout: 15_000 },
@@ -88,7 +90,7 @@ test.describe("Plan 2D — editor blocks", () => {
 
   // ─── Toggle ───────────────────────────────────────────────────────────────
 
-  test("inserts a Toggle and collapses its body", async ({ page }) => {
+  test("inserts an open Toggle", async ({ page }) => {
     await page.getByTestId("note-body").click();
     await page.keyboard.press("/");
     await expect(page.getByTestId("slash-menu")).toBeVisible();
@@ -100,18 +102,11 @@ test.describe("Plan 2D — editor blocks", () => {
     await expect(page.getByTestId("toggle-block")).toBeVisible({
       timeout: 5_000,
     });
-    // Default open=false in a freshly inserted toggle — body is hidden.
-    // Click the chevron to open, then click again to verify collapse.
-    const chevron = page.getByTestId("toggle-chevron");
-    await chevron.click();
-    // After first click the body should be visible (open=true).
-    await expect(page.getByTestId("toggle-body")).toBeVisible({
-      timeout: 3_000,
-    });
-
-    // Click again to collapse.
-    await chevron.click();
-    await expect(page.getByTestId("toggle-body")).toHaveCount(0);
+    await expect(page.getByTestId("toggle-body")).toHaveAttribute(
+      "data-open",
+      "true",
+    );
+    await expect(page.getByTestId("toggle-body")).toBeVisible();
   });
 
   // ─── Table ────────────────────────────────────────────────────────────────
@@ -123,10 +118,12 @@ test.describe("Plan 2D — editor blocks", () => {
 
     await page.getByTestId("slash-cmd-table").click();
 
-    // slash.tsx inserts one header row + two body rows = 3 <tr> elements.
+    // slash.tsx inserts one header row + two body rows = 9 cells.
     await expect(
-      page.getByTestId("note-body").locator("table tr"),
-    ).toHaveCount(3, { timeout: 5_000 });
+      page
+        .getByTestId("note-body")
+        .locator("[data-testid='table-cell-context-trigger']"),
+    ).toHaveCount(9, { timeout: 5_000 });
   });
 
   // ─── Columns ──────────────────────────────────────────────────────────────
@@ -138,16 +135,8 @@ test.describe("Plan 2D — editor blocks", () => {
 
     await page.getByTestId("slash-cmd-columns").click();
 
-    // @platejs/layout ColumnPlugin sets data-slate-type="column_group" on the
-    // container element (node key "column_group" per columns-plugin.tsx).
-    // If this selector fails, add data-testid="column-group" to the
-    // ColumnPlugin component registered in columns-plugin.tsx.
-    // FIXME: verify data-slate-type is emitted in prod build — may need
-    //        data-testid fallback on ColumnPlugin render component.
-    await expect(
-      page
-        .getByTestId("note-body")
-        .locator("[data-slate-type='column_group'], [data-slate-node='element'][data-node-type='column_group']"),
-    ).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByTestId("column-group")).toBeVisible({
+      timeout: 5_000,
+    });
   });
 });

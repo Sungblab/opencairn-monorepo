@@ -24,9 +24,9 @@ test.describe("Command Palette", () => {
     // cmdk auto-selects the first match; Enter runs it.
     await page.keyboard.press("Enter");
 
-    // We landed on /ko/workspace/<slug>/ (dashboard).
+    // next-intl may strip the `/ko` prefix for the default locale.
     await page.waitForURL(
-      new RegExp(`/ko/workspace/${session.wsSlug}/?$`),
+      new RegExp(`(/ko)?/workspace/${session.wsSlug}/?$`),
     );
     await expect(page.getByTestId("route-dashboard")).toBeVisible();
   });

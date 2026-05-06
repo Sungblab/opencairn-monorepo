@@ -1,6 +1,7 @@
 "use client";
 
 import { toggleList } from "@platejs/list";
+import { insertTable } from "@platejs/table";
 import { useTranslations } from "next-intl";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
@@ -327,36 +328,9 @@ export function SlashMenu({
           );
           break;
         case "table":
-          editor.tf.insertNodes(
-            {
-              type: "table",
-              children: [
-                {
-                  type: "tr",
-                  children: [
-                    { type: "th", children: [{ type: "p", children: [{ text: "" }] }] },
-                    { type: "th", children: [{ type: "p", children: [{ text: "" }] }] },
-                    { type: "th", children: [{ type: "p", children: [{ text: "" }] }] },
-                  ],
-                },
-                {
-                  type: "tr",
-                  children: [
-                    { type: "td", children: [{ type: "p", children: [{ text: "" }] }] },
-                    { type: "td", children: [{ type: "p", children: [{ text: "" }] }] },
-                    { type: "td", children: [{ type: "p", children: [{ text: "" }] }] },
-                  ],
-                },
-                {
-                  type: "tr",
-                  children: [
-                    { type: "td", children: [{ type: "p", children: [{ text: "" }] }] },
-                    { type: "td", children: [{ type: "p", children: [{ text: "" }] }] },
-                    { type: "td", children: [{ type: "p", children: [{ text: "" }] }] },
-                  ],
-                },
-              ],
-            },
+          insertTable(
+            editor as unknown as Parameters<typeof insertTable>[0],
+            { colCount: 3, header: true, rowCount: 3 },
             { select: true },
           );
           break;
