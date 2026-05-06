@@ -89,13 +89,14 @@ export function WikiLinkCombobox({ ctx, editor }: WikiLinkComboboxProps) {
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key.toLowerCase() === "k") {
         e.preventDefault();
+        e.stopPropagation();
         setOpen(true);
       } else if (e.key === "Escape" && open) {
         setOpen(false);
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, { capture: true });
+    return () => window.removeEventListener("keydown", onKey, { capture: true });
   }, [open]);
 
   // Autofocus on open, reset on close.

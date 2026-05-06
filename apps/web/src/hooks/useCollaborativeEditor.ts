@@ -40,6 +40,7 @@ export function useCollaborativeEditor({
   readOnly,
   basePlugins,
 }: UseCollaborativeEditorArgs): PlateEditor {
+  const [, forceRender] = React.useReducer((n: number) => n + 1, 0);
   const editor = usePlateEditor(
     {
       plugins: [
@@ -92,15 +93,45 @@ export function useCollaborativeEditor({
     // is empty, seeds with `value`. After the server-side `onLoadDocument`
     // hook rebuilds the Y.Doc from `notes.content` the seed value is ignored.
     const api = editor.getApi(YjsPlugin).yjs;
-    void api.init({
-      id: `page:${noteId}`,
-      autoSelect: "end",
-      value: [{ type: "p", children: [{ text: "" }] }],
-    });
+    let cancelled = false;
+    void (async () => {
+      try {
+        await api.init({
+          id: `page:${noteId}`,
+          autoSelect: "end",
+          value: [{ type: "p", children: [{ text: "" }] }],
+        });
+      } catch (err: unknown) {
+        // React StrictMode can mount/cleanup/remount this effect fast enough
+        // for the Hocuspocus provider to report a duplicate connection. The
+        // provider is already usable in that case; do not let an unhandled
+        // rejection trip Next's dev overlay and hide PlateContent.
+        if (
+          err instanceof Error &&
+          err.message.toLowerCase().includes("already connected")
+        ) {
+          return;
+        }
+        throw err;
+      } finally {
+        if (!cancelled) forceRender();
+      }
+    })();
     return () => {
+      cancelled = true;
       // Tear down the providers on unmount so a fresh mount (e.g. after
       // navigating to another note) doesn't leak a stale WS.
-      editor.getApi(YjsPlugin).yjs.destroy();
+      try {
+        editor.getApi(YjsPlugin).yjs.destroy();
+      } catch (err) {
+        if (
+          err instanceof Error &&
+          err.message.toLowerCase().includes("event handler")
+        ) {
+          return;
+        }
+        throw err;
+      }
     };
   }, [editor, noteId]);
 
