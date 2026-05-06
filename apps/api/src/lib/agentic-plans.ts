@@ -104,6 +104,11 @@ export interface AgenticPlanRepository {
     projectId: string;
     planId: string;
   }): Promise<AgenticPlan | null>;
+  findByLinkedRun(options: {
+    projectId: string;
+    linkedRunType: string;
+    linkedRunId: string;
+  }): Promise<AgenticPlan | null>;
   updateStepStatus(options: {
     planId: string;
     stepId: string;
@@ -123,6 +128,8 @@ export interface AgenticPlanRepository {
     step: PlannedStepInput & {
       ordinal: number;
       status: AgenticPlanStepStatus;
+      linkedRunType?: string | null;
+      linkedRunId?: string | null;
       errorCode?: string | null;
       errorMessage?: string | null;
     };
@@ -242,6 +249,21 @@ export function createDrizzleAgenticPlanRepository(conn: DB = defaultDb): Agenti
         .where(and(eq(agenticPlans.id, planId), eq(agenticPlans.projectId, projectId)));
       return row ? hydratePlan(conn, row) : null;
     },
+    async findByLinkedRun({ projectId, linkedRunType, linkedRunId }) {
+      const [row] = await conn
+        .select({ plan: agenticPlans })
+        .from(agenticPlanSteps)
+        .innerJoin(agenticPlans, eq(agenticPlans.id, agenticPlanSteps.planId))
+        .where(
+          and(
+            eq(agenticPlans.projectId, projectId),
+            eq(agenticPlanSteps.linkedRunType, linkedRunType),
+            eq(agenticPlanSteps.linkedRunId, linkedRunId),
+          ),
+        )
+        .limit(1);
+      return row?.plan ? hydratePlan(conn, row.plan) : null;
+    },
     async updateStepStatus({ stepId, status }) {
       await conn
         .update(agenticPlanSteps)
@@ -288,6 +310,8 @@ export function createDrizzleAgenticPlanRepository(conn: DB = defaultDb): Agenti
         status: step.status,
         risk: step.risk,
         input: step.input ?? {},
+        linkedRunType: step.linkedRunType ?? null,
+        linkedRunId: step.linkedRunId ?? null,
         errorCode: step.errorCode ?? null,
         errorMessage: step.errorMessage ?? null,
       });
@@ -421,6 +445,70 @@ export async function startAgenticPlan(
   }
 
   return refreshPlanStatus(repo, projectId, planId);
+}
+
+const MAX_HANDOFF_DEPTH = 4;
+
+export interface RecordAgenticPlanHandoffRequest {
+  parentRunId: string;
+  childRunId: string;
+  childAgentName: string;
+  reason: string;
+  childStatus?: string;
+}
+
+export async function recordAgenticPlanHandoff(
+  projectId: string,
+  request: RecordAgenticPlanHandoffRequest,
+  options?: AgenticPlanServiceOptions,
+): Promise<AgenticPlan | null> {
+  if (request.parentRunId === request.childRunId) {
+    throw new AgenticPlanError("agentic_plan_handoff_cycle", 409);
+  }
+
+  const repo = options?.repo ?? createDrizzleAgenticPlanRepository();
+  const plan = await repo.findByLinkedRun({
+    projectId,
+    linkedRunType: "plan8_agent",
+    linkedRunId: request.parentRunId,
+  });
+  if (!plan) return null;
+
+  if (plan.steps.some((step) =>
+    step.linkedRunType === "plan8_agent" && step.linkedRunId === request.childRunId
+  )) {
+    return plan;
+  }
+
+  const depth = handoffDepthForRun(plan, request.parentRunId);
+  if (depth == null || depth + 1 > MAX_HANDOFF_DEPTH) {
+    throw new AgenticPlanError("agentic_plan_handoff_depth_exceeded", 409);
+  }
+
+  await repo.appendStep({
+    planId: plan.id,
+    step: {
+      ordinal: Math.max(0, ...plan.steps.map((step) => step.ordinal)) + 1,
+      kind: "agent.run",
+      title: `Handoff to ${request.childAgentName}`,
+      rationale: request.reason,
+      status: stepStatusFromPlan8Status(request.childStatus ?? "running"),
+      risk: "write",
+      input: {
+        agentName: request.childAgentName,
+        handoff: {
+          parentRunId: request.parentRunId,
+          childRunId: request.childRunId,
+          reason: request.reason,
+        },
+      },
+      linkedRunType: "plan8_agent",
+      linkedRunId: request.childRunId,
+      errorCode: null,
+      errorMessage: null,
+    },
+  });
+  return refreshPlanStatus(repo, projectId, plan.id);
 }
 
 type MaterializeResult =
@@ -696,6 +784,35 @@ function stepStatusFromLinkedRunStatus(
   if (status === "cancelled") return "cancelled";
   if (status === "running" || status === "processing") return "running";
   return "queued";
+}
+
+function handoffDepthForRun(plan: AgenticPlan, runId: string): number | null {
+  const stepByRunId = new Map(
+    plan.steps
+      .filter((step) => step.linkedRunType === "plan8_agent" && step.linkedRunId)
+      .map((step) => [step.linkedRunId!, step]),
+  );
+  const visited = new Set<string>();
+
+  function depth(id: string): number | null {
+    if (visited.has(id)) return null;
+    visited.add(id);
+    const step = stepByRunId.get(id);
+    if (!step) return null;
+    const parentRunId = handoffParentRunId(step);
+    if (!parentRunId) return 0;
+    const parentDepth = depth(parentRunId);
+    return parentDepth == null ? null : parentDepth + 1;
+  }
+
+  return depth(runId);
+}
+
+function handoffParentRunId(step: AgenticPlanStep): string | null {
+  const handoff = step.input.handoff;
+  if (!handoff || typeof handoff !== "object" || Array.isArray(handoff)) return null;
+  const value = (handoff as Record<string, unknown>).parentRunId;
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
 export async function recoverAgenticPlanStep(
