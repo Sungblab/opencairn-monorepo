@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   agentRuns,
+  concepts,
   db as defaultDb,
   eq,
   notes,
@@ -90,6 +91,7 @@ export class Plan8AgentRunError extends Error {
 export interface Plan8AgentRunRepository {
   findProjectScope(projectId: string): Promise<ProjectScope | null>;
   findNoteScope(noteId: string): Promise<NoteScope | null>;
+  findConceptScope(conceptId: string): Promise<ProjectScope & { projectId: string } | null>;
   insertRun(values: {
     runId: string;
     workspaceId: string;
@@ -148,6 +150,18 @@ export function createDrizzlePlan8AgentRunRepository(
         .from(notes)
         .innerJoin(projects, eq(projects.id, notes.projectId))
         .where(eq(notes.id, noteId))
+        .limit(1);
+      return row ?? null;
+    },
+    async findConceptScope(conceptId) {
+      const [row] = await conn
+        .select({
+          workspaceId: projects.workspaceId,
+          projectId: concepts.projectId,
+        })
+        .from(concepts)
+        .innerJoin(projects, eq(projects.id, concepts.projectId))
+        .where(eq(concepts.id, conceptId))
         .limit(1);
       return row ?? null;
     },
@@ -262,6 +276,13 @@ async function assertPlan8Access(
     }
     if (!(await canReadNote(userId, input.noteId, options))) {
       throw new Plan8AgentRunError("note_not_found", 404);
+    }
+  }
+
+  if (input.agentName === "connector") {
+    const concept = await repo.findConceptScope(input.conceptId);
+    if (!concept || concept.projectId !== projectId) {
+      throw new Plan8AgentRunError("concept_not_found", 404);
     }
   }
 }

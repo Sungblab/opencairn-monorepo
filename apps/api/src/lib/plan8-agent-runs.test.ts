@@ -14,6 +14,7 @@ const otherProjectId = "00000000-0000-4000-8000-000000000003";
 const noteId = "00000000-0000-4000-8000-000000000004";
 const runId = "00000000-0000-4000-8000-000000000005";
 const workflowId = "librarian-00000000-0000-4000-8000-000000000006";
+const conceptId = "00000000-0000-4000-8000-000000000007";
 
 type StartWorkflowArgs = Parameters<
   NonNullable<Plan8AgentRunServiceOptions["startWorkflow"]>
@@ -84,6 +85,29 @@ describe("Plan8 agent run service", () => {
     expect(repo.runs).toHaveLength(0);
   });
 
+  it("rejects connector when the concept is outside the project", async () => {
+    const repo = createMemoryRepo({ conceptProjectId: otherProjectId });
+
+    await expect(
+      runPlan8Agent(projectId, userId, {
+        agentName: "connector",
+        conceptId,
+        threshold: 0.75,
+        topK: 10,
+      }, {
+        repo,
+        canReadProject: async () => true,
+        startWorkflow: async () => {
+          throw new Error("unreachable");
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: "concept_not_found",
+      status: 404,
+    });
+    expect(repo.runs).toHaveLength(0);
+  });
+
   it("marks the pre-created run failed when Temporal start fails", async () => {
     const repo = createMemoryRepo();
 
@@ -121,6 +145,7 @@ describe("Plan8 agent run service", () => {
 
 function createMemoryRepo(options?: {
   noteProjectId?: string;
+  conceptProjectId?: string;
 }): Plan8AgentRunRepository & {
   runs: Array<Record<string, unknown>>;
   failures: Array<{ runId: string; errorClass: string; errorMessage: string }>;
@@ -138,6 +163,13 @@ function createMemoryRepo(options?: {
       return {
         workspaceId,
         projectId: options?.noteProjectId ?? projectId,
+      };
+    },
+    async findConceptScope(id) {
+      if (id !== conceptId) return null;
+      return {
+        workspaceId,
+        projectId: options?.conceptProjectId ?? projectId,
       };
     },
     async insertRun(values: {
