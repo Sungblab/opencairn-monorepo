@@ -104,6 +104,32 @@ Do not use GitHub connector/MCP tools for this repository. Use local `git` and
 the authenticated `gh` CLI for PR creation, PR inspection, review replies,
 review-thread resolution, reruns, and merge-state checks.
 
+## Worktree And Branch Cleanup
+
+When cleaning local worktrees and branches, optimize for preserving maintainer
+work and keeping the repository status readable:
+
+- Start by inspecting `git worktree list --porcelain`, `git branch -vv --all`,
+  and `git fetch --prune origin`. Treat dirty worktrees and the current checkout
+  as user work unless the maintainer explicitly says to discard them.
+- Do not create trash or staging directories inside the repository, including
+  `.tmp/`. VS Code and Git will surface the moved files as untracked changes.
+  Use an external path such as
+  `C:\Users\Sungbin\Documents\GitHub\opencairn-worktree-trash\`.
+- For many worktrees, first move safe deletion candidates out of `.worktrees/`
+  to the external trash directory with `Move-Item`; same-drive moves are fast
+  and immediately remove them from the repository view. Then run
+  `git worktree prune`.
+- Delete local branches only after their worktree has been removed or pruned.
+  Keep `main`, the current branch, branches attached to dirty worktrees, and
+  remote branches that still exist unless the maintainer asks for a stronger
+  cleanup.
+- Avoid spawning `npx rimraf` once per worktree. Physical deletion of large
+  `node_modules` trees can take minutes on Windows; after moving the trash
+  outside the repo, delete it separately with a native tool (`rmdir /s /q`,
+  PowerShell `Remove-Item`, or `robocopy /MIR` with an empty source) and report
+  if that background cleanup is still running or deferred.
+
 ## Commands
 
 ```bash
