@@ -5,16 +5,25 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
-import { Command } from "cmdk";
+import {
+  Command,
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { usePaletteStore } from "@/stores/palette-store";
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
+import { useModKeyLabel } from "@/hooks/use-mod-key-label";
 import { apiClient, type WorkspaceNoteSearchHit } from "@/lib/api-client";
 import { buildActions } from "./palette-actions";
 import { searchWorkspaceNotes } from "./palette-search";
 import { extractWsSlug } from "./extract-ws-slug";
 
 // Mounted at the [locale]/layout boundary so /settings, /onboarding, and the
-// rest of the non-shell routes pick up ⌘K too. The active workspace is
+// rest of the non-shell routes pick up Cmd/Ctrl+K too. The active workspace is
 // derived from the URL — we only have a wsSlug under `/<locale>/workspace/<slug>`
 // — and the palette degrades gracefully (action-only, no note search) when
 // the path doesn't have one.
@@ -35,6 +44,7 @@ export function CommandPalette() {
   const locale = useLocale();
   const t = useTranslations("palette");
   const tActions = useTranslations("palette.actions");
+  const modKeyLabel = useModKeyLabel();
 
   const isOpen = usePaletteStore((s) => s.isOpen);
   const open = usePaletteStore((s) => s.open);
@@ -74,64 +84,69 @@ export function CommandPalette() {
   if (!isOpen) return null;
 
   return (
-    <Command.Dialog
+    <CommandDialog
       open={isOpen}
       onOpenChange={(o: boolean) => (o ? open() : close())}
-      label={t("label")}
-      className="fixed left-1/2 top-20 z-50 w-[520px] -translate-x-1/2 rounded-lg border border-border bg-background shadow-lg"
+      title={t("label")}
+      description={t("description")}
+      className="fixed left-1/2 top-20 z-50 w-[520px] -translate-x-1/2 border-2 border-border bg-background"
     >
-      <Command.Input
-        value={query}
-        onValueChange={setQuery}
-        placeholder={t("placeholder")}
-        className="w-full border-b border-border bg-transparent px-3 py-3 text-sm outline-none"
-        autoFocus
-      />
-      <Command.List className="max-h-80 overflow-auto p-1">
-        <Command.Empty className="p-3 text-xs text-muted-foreground">
-          {t("empty")}
-        </Command.Empty>
-        {notes.length > 0 && wsSlug && (
-          <Command.Group heading={t("groups.notes")}>
-            {notes.map((n) => (
-              <Command.Item
-                key={n.id}
-                value={`note-${n.id}-${n.title}`}
+      <Command>
+        <CommandInput
+          value={query}
+          onValueChange={setQuery}
+          placeholder={t("placeholder")}
+          className="w-full bg-transparent px-1 text-sm outline-none"
+          autoFocus
+        />
+        <CommandList className="max-h-80 overflow-auto">
+          <CommandEmpty className="p-4 text-left text-xs text-muted-foreground">
+            {t("empty")}
+          </CommandEmpty>
+          {notes.length > 0 && wsSlug && (
+            <CommandGroup heading={t("groups.notes")}>
+              {notes.map((n) => (
+                <CommandItem
+                  key={n.id}
+                  value={`note-${n.id}-${n.title}`}
+                  onSelect={() => {
+                    router.push(urls.workspace.note(locale, wsSlug, n.id));
+                    close();
+                  }}
+                  className="flex min-h-8 cursor-pointer items-center justify-between px-2 py-1.5 text-sm"
+                >
+                  <span className="truncate">{n.title}</span>
+                  <span className="ml-3 shrink-0 text-[10px] text-muted-foreground">
+                    {n.project_name}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+          <CommandGroup heading={t("groups.actions")}>
+            {actions.map((a) => (
+              <CommandItem
+                key={a.id}
+                value={`action-${a.id}-${tActions(a.labelKey)}`}
                 onSelect={() => {
-                  router.push(urls.workspace.note(locale, wsSlug, n.id));
+                  a.run(router);
                   close();
                 }}
-                className="flex cursor-pointer items-center justify-between rounded px-2 py-1.5 text-sm aria-selected:bg-accent"
+                  className="flex min-h-8 cursor-pointer items-center justify-between px-2 py-1.5 text-sm"
               >
-                <span className="truncate">{n.title}</span>
-                <span className="ml-3 shrink-0 text-[10px] text-muted-foreground">
-                  {n.project_name}
-                </span>
-              </Command.Item>
+                <span>{tActions(a.labelKey)}</span>
+                {a.shortcut ? (
+                  <kbd className="border border-border px-1 text-[10px] text-muted-foreground">
+                    {a.shortcut
+                      .map((part) => (part === "mod" ? modKeyLabel : part))
+                      .join("+")}
+                  </kbd>
+                ) : null}
+              </CommandItem>
             ))}
-          </Command.Group>
-        )}
-        <Command.Group heading={t("groups.actions")}>
-          {actions.map((a) => (
-            <Command.Item
-              key={a.id}
-              value={`action-${a.id}-${tActions(a.labelKey)}`}
-              onSelect={() => {
-                a.run(router);
-                close();
-              }}
-              className="flex cursor-pointer items-center justify-between rounded px-2 py-1.5 text-sm aria-selected:bg-accent"
-            >
-              <span>{tActions(a.labelKey)}</span>
-              {a.shortcut ? (
-                <kbd className="text-[10px] text-muted-foreground">
-                  {a.shortcut}
-                </kbd>
-              ) : null}
-            </Command.Item>
-          ))}
-        </Command.Group>
-      </Command.List>
-    </Command.Dialog>
+          </CommandGroup>
+        </CommandList>
+      </Command>
+    </CommandDialog>
   );
 }

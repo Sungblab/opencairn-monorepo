@@ -14,14 +14,11 @@ export function Faq() {
   return (
     <section ref={ref} id="faq" className="py-24 md:py-32 border-b border-stone-900">
       <div className="max-w-[1280px] mx-auto px-6 lg:px-10">
-        <div className="grid grid-cols-12 gap-6">
-          <div className="col-span-12 md:col-span-3 mb-6 md:mb-0">
-            <span className="sec-label">
-              <span className="n">{t("label")}</span>
-            </span>
-            <h2 className="kr text-3xl text-stone-900 tracking-tight font-semibold mt-4">{t("title")}</h2>
+        <div className="grid grid-cols-12 gap-8">
+          <div className="col-span-12 md:col-span-4 mb-2 md:mb-0">
+            <h2 className="kr text-3xl md:text-4xl text-stone-900 tracking-tight font-semibold">{t("title")}</h2>
           </div>
-          <div className="col-span-12 md:col-span-9 border-y border-stone-900 divide-y divide-stone-300">
+          <div className="col-span-12 md:col-span-8 border-y border-stone-900 divide-y divide-stone-300">
             {items.map((it, i) => (
               <details key={i} className="py-6 group">
                 <summary className="flex justify-between items-start gap-6 cursor-pointer kr font-sans text-xl md:text-2xl text-stone-900">

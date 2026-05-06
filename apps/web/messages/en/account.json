@@ -3,6 +3,8 @@
   "back": "← Back to workspace",
   "tabs": {
     "profile": "Profile",
+    "appearance": "Appearance",
+    "language": "Language & region",
     "providers": "BYOK",
     "mcp": "MCP servers",
     "security": "Security",
@@ -16,7 +18,23 @@
     "save": "Save",
     "saved": "Saved.",
     "saveFailed": "Save failed.",
-    "localeNote": "Language and timezone settings are coming soon."
+    "localeNote": "Language and appearance settings live under Language & region and Appearance."
+  },
+  "appearance": {
+    "heading": "Appearance",
+    "description": "Choose the color theme OpenCairn uses.",
+    "themes": {
+      "cairn-light": "Default light theme",
+      "cairn-dark": "Default dark theme",
+      "sepia": "Warm theme for long reading sessions",
+      "high-contrast": "Higher-contrast accessibility theme"
+    }
+  },
+  "languageRegion": {
+    "heading": "Language & region",
+    "description": "Manage app language, email language, and notification timezone.",
+    "appLanguage": "App language",
+    "emailRegion": "Email and timezone"
   },
   "providers": {
     "heading": "BYOK",

@@ -41,8 +41,8 @@ describe("AccountShell", () => {
       name: "account.tabs.notifications",
     });
 
-    expect(active.className).toContain("bg-foreground");
-    expect(active.className).toContain("text-background");
+    expect(active.className).toContain("bg-muted");
+    expect(active.className).toContain("text-foreground");
     expect(inactive.className).toContain("hover:bg-muted");
     expect(inactive.className).not.toContain("hover:bg-accent");
   });

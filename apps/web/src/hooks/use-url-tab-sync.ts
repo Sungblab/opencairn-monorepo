@@ -77,6 +77,14 @@ function resolveDefaultTitle(
   }
 }
 
+function findReusableRouteTab(route: TabRoute) {
+  const store = useTabsStore.getState();
+  if (route.kind === "ws_settings") {
+    return store.tabs.find((tab) => tab.kind === "ws_settings");
+  }
+  return store.findTabByTarget(route.kind, route.targetId);
+}
+
 export function useUrlTabSync() {
   const router = useRouter();
   const pathname = usePathname() ?? "/";
@@ -111,12 +119,18 @@ export function useUrlTabSync() {
     if (!parsed || parsed.slug !== slug) return;
     const { route } = parsed;
     const store = useTabsStore.getState();
-    const existing = store.findTabByTarget(route.kind, route.targetId);
+    const existing = findReusableRouteTab(route);
     if (existing) {
-      if (route.mode && existing.mode !== route.mode) {
+      if (route.kind === "ws_settings") {
+        store.dedupeTabsByKind("ws_settings", existing.id);
+      }
+      const shouldPatchTarget = existing.targetId !== route.targetId;
+      const shouldPatchMode = Boolean(route.mode && existing.mode !== route.mode);
+      if (shouldPatchTarget || shouldPatchMode) {
         const { key, params } = tabTitleKey(route.kind, route.targetId);
         updateTab(existing.id, {
-          mode: route.mode,
+          targetId: route.targetId,
+          ...(route.mode ? { mode: route.mode } : {}),
           title: resolveDefaultTitle(tabTitle, route.kind, route.targetId),
           titleKey: key,
           titleParams: params,

@@ -53,8 +53,7 @@ export function Composer({ onSend, disabled }: Props) {
 
   return (
     <div
-      className="m-2 flex flex-col gap-1 rounded-[var(--radius-card)] bg-background p-2 transition-colors focus-within:border-foreground"
-      style={{ border: "1.5px solid var(--theme-border)" }}
+      className="mx-3 mb-3 flex flex-col gap-1 border-2 border-border bg-background p-2 transition-colors focus-within:border-foreground"
     >
       <textarea
         aria-label={t("input_aria")}
@@ -73,13 +72,13 @@ export function Composer({ onSend, disabled }: Props) {
             submit();
           }
         }}
-        className="min-h-11 resize-none bg-transparent py-1.5 text-sm leading-5 outline-none placeholder:text-muted-foreground"
+        className="min-h-14 resize-none bg-transparent py-1.5 text-sm leading-5 outline-none placeholder:text-muted-foreground"
       />
       <div className="flex items-center gap-1">
         <button
           type="button"
           aria-label={t("attach_aria")}
-          className="app-btn-ghost rounded-[var(--radius-control)] p-1.5"
+          className="border border-transparent p-1.5 text-muted-foreground transition-colors hover:border-border hover:text-foreground"
         >
           <Paperclip className="h-4 w-4" />
         </button>
@@ -91,7 +90,7 @@ export function Composer({ onSend, disabled }: Props) {
             aria-label={t("send_aria")}
             onClick={submit}
             disabled={disabled}
-            className="app-btn-primary ml-1 flex h-7 w-7 items-center justify-center rounded-[var(--radius-control)]"
+            className="ml-1 flex h-7 w-7 items-center justify-center border border-foreground bg-foreground text-background disabled:opacity-50"
           >
             <ArrowUp className="h-4 w-4" />
           </button>
@@ -99,7 +98,7 @@ export function Composer({ onSend, disabled }: Props) {
           <button
             type="button"
             aria-label={t("voice_aria")}
-            className="app-btn-ghost ml-1 rounded-[var(--radius-control)] p-1.5"
+            className="ml-1 border border-transparent p-1.5 text-muted-foreground transition-colors hover:border-border hover:text-foreground"
           >
             <Mic className="h-4 w-4" />
           </button>

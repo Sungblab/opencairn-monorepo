@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { authClient } from "@/lib/auth-client";
-import { AuthEyebrow } from "./AuthEyebrow";
 
 export function ForgotPasswordForm() {
   const t = useTranslations("auth");
@@ -20,7 +19,7 @@ export function ForgotPasswordForm() {
 
     const { error: authError } = await authClient.requestPasswordReset({
       email,
-      redirectTo: `/${locale}/auth/reset-password`,
+      redirectTo: `${window.location.origin}/${locale}/auth/reset-password`,
     });
 
     setLoading(false);
@@ -37,7 +36,6 @@ export function ForgotPasswordForm() {
     return (
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-3">
-          <AuthEyebrow label={t("forgot.eyebrow")} />
           <h2 className="font-sans text-2xl font-bold leading-tight text-stone-900 kr">
             {t("forgot.sent")}
           </h2>
@@ -56,7 +54,6 @@ export function ForgotPasswordForm() {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
       <div className="flex flex-col gap-2.5">
-        <AuthEyebrow label={t("forgot.eyebrow")} />
         <h2 className="font-sans text-2xl font-bold leading-tight text-stone-900 kr">
           {t("forgot.title")}
         </h2>

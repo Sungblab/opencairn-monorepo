@@ -3,18 +3,15 @@ import { urls } from "@/lib/urls";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { Home, FlaskConical, DownloadCloud } from "lucide-react";
-import { MoreMenu } from "./more-menu";
 import { LiteratureSearchButton } from "@/components/literature/literature-search-button";
 
 export interface GlobalNavProps {
   wsSlug: string;
   deepResearchEnabled: boolean;
-  synthesisExportEnabled?: boolean;
 }
 
-// Icon rail that sits at the top of the sidebar. Links go to workspace-scoped
-// routes; the overflow popover carries secondary destinations that would
-// otherwise push this row past the sidebar width.
+// Workspace-level navigation. Keep destinations visible as text; icon-only
+// rails are compact but too opaque for first-run workspace UX.
 //
 // `deepResearchEnabled` mirrors the API-side gate at
 // apps/api/src/routes/research.ts:52. When the flag is off the route 404s,
@@ -22,7 +19,6 @@ export interface GlobalNavProps {
 export function GlobalNav({
   wsSlug,
   deepResearchEnabled,
-  synthesisExportEnabled = false,
 }: GlobalNavProps) {
   const locale = useLocale();
   const t = useTranslations("sidebar.nav");
@@ -45,21 +41,19 @@ export function GlobalNav({
   return (
     <nav
       aria-label={t("dashboard")}
-      className="flex items-center gap-1 px-3"
+      className="mx-3 grid gap-0.5 border-y border-border py-2"
     >
       {items.map(({ href, label, Icon }) => (
         <Link
           key={href}
           href={href}
-          title={label}
-          aria-label={label}
-          className="app-hover flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none"
+          className="flex min-h-8 items-center gap-2 border-l-2 border-transparent px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:border-border hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Icon aria-hidden className="h-[15px] w-[15px]" />
+          <Icon aria-hidden className="h-4 w-4 shrink-0" />
+          <span className="min-w-0 flex-1 truncate">{label}</span>
         </Link>
       ))}
       <LiteratureSearchButton wsSlug={wsSlug} />
-      <MoreMenu base={base} synthesisExportEnabled={synthesisExportEnabled} />
     </nav>
   );
 }

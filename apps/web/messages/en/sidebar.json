@@ -45,15 +45,20 @@
   },
   "footer": {
     "notifications_aria": "Notifications",
-    "settings_aria": "Workspace settings",
+    "settings_aria": "Settings",
+    "profile_menu_aria": "Profile menu",
+    "profile": "Profile",
+    "account_settings": "Settings",
+    "workspace_settings": "Workspace settings",
+    "help": "Help",
+    "sign_out": "Sign out",
     "guest_name": "Guest",
     "plan_free": "Free",
     "plan_byok": "BYOK",
     "credits_amount": "₩{value, number}"
   },
   "search": {
-    "placeholder": "Search this project",
-    "shortcut_hint": "⌘K"
+    "placeholder": "Search"
   },
   "tree_menu": {
     "rename": "Rename",

@@ -50,28 +50,21 @@ export function Metrics() {
   return (
     <section ref={ref} className="border-b border-stone-900">
       <div className="max-w-[1280px] mx-auto px-6 lg:px-10 py-12">
-        <div className="grid grid-cols-12 gap-6 items-end">
-          <div className="col-span-12 md:col-span-3 mb-4 md:mb-0">
-            <span className="sec-label">
-              <span className="n">{t("label")}</span>
-            </span>
-          </div>
-          <div className="col-span-12 md:col-span-9 grid grid-cols-2 md:grid-cols-4 gap-8 reveal-stagger">
-            {items.map((m, i) => (
-              <div key={i} className="border-l border-stone-900 pl-5">
-                <div className="font-sans text-4xl text-stone-900 leading-none">
-                  {typeof m.value === "number" ? (
-                    <CountValue target={m.value} suffix={m.suffix} />
-                  ) : (
-                    <span>{m.value}</span>
-                  )}
-                </div>
-                <div className="font-sans text-[11px] tracking-widest uppercase text-stone-500 mt-3">
-                  {m.caption}
-                </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 reveal-stagger">
+          {items.map((m, i) => (
+            <div key={i} className="border-l border-stone-900 pl-5">
+              <div className="font-sans text-4xl text-stone-900 leading-none">
+                {typeof m.value === "number" ? (
+                  <CountValue target={m.value} suffix={m.suffix} />
+                ) : (
+                  <span>{m.value}</span>
+                )}
               </div>
-            ))}
-          </div>
+              <div className="font-sans text-[11px] tracking-widest uppercase text-stone-500 mt-3">
+                {m.caption}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </section>

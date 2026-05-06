@@ -51,11 +51,11 @@
         { "agent": "Librarian", "text": "'self-attention' ↔ 'scaled dot-product' 중복 병합 제안" },
         { "agent": "Synthesis", "text": "'어텐션 ↔ 인지 선택' 도메인 간 구조 유사성 발견" },
         { "agent": "Curator", "text": "<b>RoFormer (2021)</b> 관련 논문 후보 3 건" },
-        { "agent": "Socratic", "text": "약한 개념 4 건 감지 · 플래시카드 9 장 생성" },
+        { "agent": "Socratic", "text": "약한 개념 4 건 감지 · 복습 카드 제안" },
         { "agent": "Connector", "text": "'signal-processing' 프로젝트와 2 개념 연결" },
-        { "agent": "Temporal", "text": "'트랜스포머' 이해도 <b>+15%</b> (지난 7 일)" },
+        { "agent": "Temporal", "text": "'트랜스포머' 오래된 지식 점검 후보 표시" },
         { "agent": "Research", "text": "새 질문 후보 4 건 인덱싱 · Q&A 준비 완료" },
-        { "agent": "Deep R.", "text": "<b>\"post-LN vs pre-LN\"</b> 심층 조사 큐잉" },
+        { "agent": "Deep R.", "text": "<b>\"post-LN vs pre-LN\"</b> 심층 조사 후보 등록" },
         { "agent": "Narrator", "text": "주간 복습 스크립트 <b>12:30</b> 초안 작성" },
         { "agent": "Code", "text": "어텐션 스코어 히트맵 · 브라우저 렌더링" },
         { "agent": "Visual.", "text": "지식 그래프 5뷰 레이아웃 재계산" }
@@ -76,7 +76,7 @@
       "outWikiLinksMeta": "링크",
       "outLearnTitle": "학습 + Q&A",
       "outLearnDesc": "플래시카드 · 퀴즈",
-      "outLearnMeta": "플래시카드 생성",
+      "outLearnMeta": "복습 카드 제안",
       "outGenTitle": "생성 산출물",
       "outGenDesc": "문서 · 슬라이드 · 시트",
       "outGenMeta": "모든 출처 추적 가능",
@@ -89,13 +89,13 @@
         "Research: 관련 질문 후보 4 건 인덱싱",
         "Connector: signal-processing 프로젝트와 2 개념 연결",
         "Synthesis: \"attention ↔ selective perception\" 통합 제안",
-        "Socratic: 플래시카드 9장 자동 생성",
+        "Socratic: 복습 카드 후보 제안",
         "Narrator: 복습 스크립트 초안 작성",
-        "Deep Research: 후속 조사 주제 2 건 큐잉",
-        "Code: 샘플 어텐션 스코어 시각화 생성",
-        "Visualization: 5뷰 레이아웃 업데이트",
+        "Deep Research: 후속 조사 주제 2 건 후보",
+        "Code: 샘플 어텐션 스코어 시각화 제안",
+        "Visualization: 그래프 뷰 레이아웃 업데이트",
         "Curator: 추천 논문 \"RoFormer (2021)\" 발견",
-        "Temporal: 지식 그래프 변화 타임라인 동기화"
+        "Temporal: 오래된 지식 점검 후보 표시"
       ]
     }
   },
@@ -104,7 +104,7 @@
     "items": [
       { "value": "AI", "suffix": "", "caption": "워크플로와 역할" },
       { "value": 5, "suffix": "뷰", "caption": "하나의 그래프 · 다섯 렌즈" },
-      { "value": 0, "suffix": "건", "caption": "외부 송신 · 로컬 모드" },
+      { "value": 0, "suffix": "건", "caption": "모델 외부 호출 · 로컬 LLM" },
       { "value": "AGPLv3", "suffix": "", "caption": "오픈소스 + 상용 라이선스" }
     ]
   },
@@ -120,7 +120,7 @@
       { "n": "03 · EMBED", "title": "의미화", "body": "벡터 공간으로 변환. 비슷한 것끼리 가까워짐." },
       { "n": "04 · COMPILE", "title": "엮기", "body": "컴파일 워크플로가 주제별 위키 초안을 작성합니다." },
       { "n": "05 · CONNECT", "title": "연결", "body": "백링크 · 대척점 · 인과 관계를 지식 그래프로." },
-      { "n": "06 · SERVE", "title": "사용", "body": "Q&A · 플래시카드 · 소크라테스식 튜터 · 생성 문서." }
+      { "n": "06 · SERVE", "title": "사용", "body": "Q&A · 복습 카드 · 소크라테스식 튜터 · 문서 생성 표면." }
     ],
     "terminal": {
       "prompt": "$",
@@ -148,13 +148,13 @@
       { "n": "03", "cat": "maintain", "name": "Librarian", "body": "고아 페이지·모순·중복을 찾아냅니다. 위키 건강을 주기 점검." },
       { "n": "04", "cat": "discover", "name": "Synthesis", "body": "서로 다른 분야의 구조적 유사성을 발견. 면역계 ↔ 회복성처럼." },
       { "n": "05", "cat": "discover", "name": "Connector", "body": "프로젝트 간 연결을 제안합니다. 승인하면 크로스 링크 생성." },
-      { "n": "06", "cat": "time", "name": "Temporal", "body": "시간이 지나며 이해가 어떻게 변하는지 추적합니다. 오래된 지식 경고 · 복습 알림." },
-      { "n": "07", "cat": "source", "name": "Curator", "body": "지식의 빈 자리를 메울 외부 자료를 웹에서 찾아 추천." },
-      { "n": "08", "cat": "source", "name": "Deep Research", "body": "한 주제를 길게 조사하고 보고서와 후속 제안을 남깁니다." },
-      { "n": "09", "cat": "learn", "name": "Socratic", "body": "플래시카드·퀴즈로 이해를 점검합니다. 간격 반복으로 빈 곳을 채웁니다." },
+      { "n": "06", "cat": "time", "name": "Temporal", "body": "오래된 지식과 다시 검토할 후보를 찾는 방향으로 동작합니다. 배포별 활성화 범위는 설정에 따릅니다." },
+      { "n": "07", "cat": "source", "name": "Curator", "body": "지식의 빈 자리를 메울 외부 자료 후보를 추천합니다. 검색 경로는 provider와 설정에 따릅니다." },
+      { "n": "08", "cat": "source", "name": "Deep Research", "body": "한 주제의 후속 조사 후보와 보고서 초안을 남기는 장기 워크플로로 단계적으로 켜집니다." },
+      { "n": "09", "cat": "learn", "name": "Socratic", "body": "문답으로 이해를 점검하고 복습 카드 후보를 제안합니다. 간격 반복은 학습 표면에서 이어집니다." },
       { "n": "10", "cat": "media", "name": "Narrator", "body": "위키 내용을 복습용 스크립트와 오디오 산출물로 확장하는 장기 역할입니다." },
       { "n": "11", "cat": "execute", "name": "Code", "body": "코드 워크스페이스, 승인된 실행, 정적 미리보기를 단계적으로 처리합니다. 서버 실행은 기능 플래그와 샌드박스 경계 안에서만 켜집니다." },
-      { "n": "12", "cat": "view", "name": "Visualization", "body": "지식 그래프를 Graph · Mindmap · Cards · Canvas · Timeline 5뷰로." }
+      { "n": "12", "cat": "view", "name": "Visualization", "body": "지식 그래프를 Graph · Mindmap · Cards · Timeline · Board 5뷰로." }
     ]
   },
   "views": {
@@ -165,17 +165,17 @@
       { "n": "01", "cat": "overview", "name": "Graph", "body": "전체 네트워크를 한눈에 탐색" },
       { "n": "02", "cat": "radiate", "name": "Mindmap", "body": "중심 개념에서 방사형 확장" },
       { "n": "03", "cat": "review", "name": "Cards", "body": "검색 · 필터 · 간격 반복 복습" },
-      { "n": "04", "cat": "arrange", "name": "Canvas", "body": "자유롭게 배치하는 작업면" },
-      { "n": "05", "cat": "chronology", "name": "Timeline", "body": "시간 축으로 본 이해의 변화" }
+      { "n": "04", "cat": "chronology", "name": "Timeline", "body": "시간 축으로 보는 변화" },
+      { "n": "05", "cat": "arrange", "name": "Board", "body": "카드를 모아 보는 작업 보드" }
     ]
   },
   "try": {
     "label": "TRY IT",
     "title1": "개념 하나를 고르면,",
     "title2": "연결된 생각들이 드러납니다.",
-    "sub": "한 대학원생이 트랜스포머 계열 논문 스무 편을 올린 뒤 만들어진 위키의 작은 조각입니다. 노드에 마우스를 올리거나 탭해 보세요. OpenCairn이 발견한 연결이 퍼져 나갑니다.",
+    "sub": "트랜스포머 계열 논문을 위키로 엮는 흐름을 보여 주는 샘플 그래프입니다. 노드에 마우스를 올리거나 탭해 보세요. 연결이 어떻게 퍼지는지 확인할 수 있습니다.",
     "bullets": [
-      "각 노드는 자동 생성된 위키 페이지입니다.",
+      "각 노드는 위키 페이지 예시입니다.",
       "선은 임베딩·개념 공유로 찾은 관계입니다.",
       "숫자는 다른 페이지가 참조하는 횟수입니다."
     ],
@@ -233,8 +233,8 @@
     "tags": [
       "Hocuspocus · 실시간 동시편집",
       "블록 코멘트 · @멘션",
-      "역할별 권한 · 공개 링크",
-      "Export API · GDPR"
+      "역할별 권한 · 링크 공유",
+      "내보내기 경로 · 데이터 주권"
     ]
   },
   "principles": {
@@ -247,7 +247,7 @@
         "tag": "[ a ]",
         "cat": "sovereignty",
         "title": "자료는 내 서버에 머뭅니다.",
-        "body": "텍스트 · 벡터 · 원본 파일 모두 여러분의 인프라 안에 있습니다. 완전 로컬 LLM 모드에서는 외부로 나가는 요청이 0. 외부 SaaS를 쓸 수 없는 환경에도 그대로 도입 가능합니다."
+        "body": "텍스트 · 벡터 · 원본 파일 모두 여러분의 인프라 안에 있습니다. Ollama 기반 로컬 LLM 구성에서는 모델 호출이 외부로 나가지 않습니다. 외부 connector를 켜지 않는 배포에도 맞출 수 있습니다."
       },
       {
         "tag": "[ b ]",
@@ -259,7 +259,7 @@
         "tag": "[ c ]",
         "cat": "one·throughline",
         "title": "저장 → 탐색 → 학습까지 한 줄기.",
-        "body": "Q&A · 그래프 표면 · 간격 반복 플래시카드 · 소크라테스식 문답 · 생성 문서까지 같은 위키를 재료로 돌아갑니다. 도구 사이를 건너뛰지 않습니다."
+        "body": "Q&A · 그래프 표면 · 복습 카드 · 소크라테스식 문답 · 문서 생성 표면까지 같은 위키를 재료로 돌아갑니다. 도구 사이를 건너뛰지 않습니다."
       },
       {
         "tag": "[ d ]",
@@ -294,7 +294,7 @@
         "cat": "enterprise",
         "title": "규제 산업",
         "body": "금융 · 의료 · 공공 · 대학처럼 외부 SaaS가 제한되는 환경을 고려해 설계했습니다. 완전 로컬 LLM 경로와 상용 라이선스를 기반으로 배포 정책에 맞출 수 있습니다.",
-        "bullets": ["· 온프레미스 배포 경로", "· 감사·보안 요구사항 대응 설계", "· 상용 라이선스 계약"]
+        "bullets": ["· 온프레미스 배포 경로", "· 감사·보안 요구사항 대응 설계", "· 상용 라이선스 문의 경로"]
       }
     ]
   },
@@ -362,11 +362,11 @@
       },
       "bullets": [
         "팀 워크스페이스 · 게스트 · 공개 링크",
-        "Deep Research 우선 큐",
-        "스토리지 <b>10 GB</b>",
+        "Deep Research 우선 큐 예정",
+        "스토리지 <b>10 GB</b> 목표",
         "1년 활동 로그 보존",
         "워크스페이스 사용량·한도 UI 예정",
-        "이메일 지원"
+        "이메일 지원 예정"
       ],
       "cta": "호스티드 계획 보기",
       "guarantee": "환불 정책은 결제 레일 이후 확정"
@@ -381,7 +381,7 @@
         "호스티드 BYOK는 계획 중",
         "본인 Gemini 키 (암호화 저장)",
         "API 사용료는 본인 결제",
-        "스토리지 10 GB"
+        "스토리지 10 GB 목표"
       ],
       "bulletsMuted": ["협업이 필요하면 Team으로"],
       "cta": "BYOK로 시작"
@@ -395,13 +395,13 @@
       "selfHost": {
         "cat": "SELF-HOSTED · 개발자용",
         "title": "Docker로 직접 운영",
-        "body": "오픈소스 전체 코드(AGPLv3, 상용 라이선스 옵션 별도) · 무제한 워크스페이스·멤버 · 완전 로컬 LLM 옵션. 하드웨어와 운영은 여러분 책임입니다.",
+        "body": "오픈소스 전체 코드(AGPLv3, 상용 라이선스 옵션 별도) · 자체 운영 워크스페이스와 멤버 · 완전 로컬 LLM 옵션. 하드웨어와 운영은 여러분 책임입니다.",
         "cmd": "$ docker-compose up -d"
       },
       "enterprise": {
         "cat": "ENTERPRISE · 규제 산업",
-        "title": "온프레미스 · SSO · 감사 로그",
-        "body": "금융·의료·공공·대학처럼 외부 SaaS를 쓰기 어려운 환경을 위한 전담 설치·지원 경로입니다. 완전 로컬 LLM · 조직 인증 연동 설계 · 상용 라이선스.",
+        "title": "온프레미스 · 인증 · 감사 경로",
+        "body": "금융·의료·공공·대학처럼 외부 SaaS를 쓰기 어려운 환경을 위한 전담 설치·지원 경로입니다. 완전 로컬 LLM 구성 · 조직 인증 연동 설계 · 상용 라이선스 문의.",
         "cmd": "상담 요청 · 맞춤 견적"
       }
     }
@@ -416,7 +416,7 @@
       },
       {
         "q": "데이터는 어디에 저장되나요?",
-        "a": "전부 여러분이 운영하는 인프라에 저장됩니다. 텍스트·벡터·위키는 데이터베이스에, 원본 파일은 파일 스토리지에. Gemini 모드에서는 AI 호출만 외부로 나가고, 완전 로컬 모드에서는 외부 요청이 0입니다."
+        "a": "전부 여러분이 운영하는 인프라에 저장됩니다. 텍스트·벡터·위키는 데이터베이스에, 원본 파일은 파일 스토리지에. Gemini 모드에서는 AI 호출이 외부 provider로 나가고, Ollama 기반 로컬 LLM 구성에서는 모델 호출이 외부로 나가지 않습니다. Google Drive·Notion 같은 외부 connector는 켠 경우에만 해당 서비스와 통신합니다."
       },
       {
         "q": "AGPLv3면 회사에서 못 쓰는 거 아닌가요?",
@@ -453,40 +453,16 @@
   },
   "footer": {
     "tagline": "AI 지식 OS. 혼자서도, 팀으로도. 셀프호스팅으로 영원히.",
-    "taglineMono": "셀프호스팅 가능한 AI 노트. 호스티드 요금은 준비 중.",
-    "colProduct": "Product",
-    "colDev": "Developers",
-    "colCommunity": "Community",
-    "colLegal": "Legal",
-    "productLinks": [
-      { "label": "pipeline", "href": "#how" },
-      { "label": "agents", "href": "#agents" },
-      { "label": "workspace", "href": "#workspace" },
-      { "label": "principles", "href": "#vs" },
-      { "label": "pricing", "href": "#pricing" }
-    ],
-    "devLinks": [
-      { "label": "github", "href": "repo" },
-      { "label": "docs", "href": "repoDocs" },
-      { "label": "adrs", "href": "repoAdrs" },
-      { "label": "issues", "href": "repoIssues" },
-      { "label": "changelog", "href": "changelog" }
-    ],
-    "communityLinks": [
-      { "label": "discord", "href": "discord" },
-      { "label": "twitter", "href": "twitter" },
-      { "label": "roadmap", "href": "roadmap" },
-      { "label": "email", "href": "contactEmail" }
-    ],
-    "legalLinks": [
-      { "label": "agplv3", "href": "license" },
-      { "label": "privacy", "href": "privacy" },
-      { "label": "refund", "href": "refund" },
-      { "label": "cla", "href": "cla" },
-      { "label": "terms", "href": "terms" }
+    "navLabel": "푸터 링크",
+    "links": [
+      { "label": "GitHub", "href": "repo" },
+      { "label": "Blog", "href": "blog" },
+      { "label": "Email", "href": "contactEmail" },
+      { "label": "AGPLv3", "href": "license" },
+      { "label": "Privacy", "href": "privacy" },
+      { "label": "Terms", "href": "terms" }
     ],
     "copyright": "© 2026 OpenCairn · Built by <author>{authorName}</author>",
-    "badges": ["Gemini", "Ollama", "Docker", "Self-Hosted"],
     "endline": "< end of document / 읽어주셔서 감사합니다 >"
   }
 }

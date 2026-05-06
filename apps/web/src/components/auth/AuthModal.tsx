@@ -2,8 +2,8 @@
 import { useTranslations, useLocale } from "next-intl";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { GoogleButton } from "./GoogleButton";
-import { AuthEyebrow } from "./AuthEyebrow";
 import { googleOAuthEnabled } from "@/lib/auth-client";
+import { AuthLegalNotice } from "./AuthLegalNotice";
 
 interface AuthModalProps {
   open: boolean;
@@ -23,7 +23,6 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       >
         <div className="flex flex-col gap-6 p-7 sm:p-8">
           <div className="flex flex-col gap-3">
-            <AuthEyebrow label={t("modal.eyebrow")} />
             <h2 className="font-sans text-2xl font-bold leading-tight text-stone-900 kr">
               {t("modal.title")}
             </h2>
@@ -34,6 +33,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
             {googleOAuthEnabled && (
               <>
                 <GoogleButton />
+                <AuthLegalNotice />
                 <div className="auth-divider">
                   <span>{t("modal.or")}</span>
                 </div>

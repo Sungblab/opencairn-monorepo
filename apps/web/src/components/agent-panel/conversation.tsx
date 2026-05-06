@@ -81,7 +81,7 @@ export function Conversation({
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4 overflow-auto p-3">
+    <div className="flex flex-1 flex-col gap-4 overflow-auto bg-background/35 p-3">
       {messages.map((m) => (
         <MessageBubble
           key={m.id}

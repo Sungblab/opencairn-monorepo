@@ -128,7 +128,7 @@ export function ProjectTreeNode({
             onClick={handleRowClick}
             onDoubleClick={handleRowDoubleClick}
             onKeyDown={handleRowKeyDown}
-            className="flex cursor-pointer items-center gap-1 rounded px-1 text-sm text-foreground transition-colors hover:bg-accent"
+            className="group flex cursor-pointer items-center gap-1 rounded px-2 text-sm text-foreground transition-colors hover:bg-muted focus-visible:bg-muted"
           />
         }
       >
@@ -148,7 +148,7 @@ export function ProjectTreeNode({
         {kind === "folder" ? (
           <Folder
             aria-hidden
-            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+            className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-foreground"
           />
         ) : kind === "agent_file" ? (
           <AgentFileIcon

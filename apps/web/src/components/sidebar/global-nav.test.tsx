@@ -12,39 +12,33 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
-// LiteratureSearchButton renders its own modal + react-query hooks. This
-// suite is scoped to GlobalNav's link layout, so stub the button to a tiny
-// marker that the assertions can ignore.
 vi.mock("@/components/literature/literature-search-button", () => ({
-  LiteratureSearchButton: () => null,
+  LiteratureSearchButton: () => (
+    <button type="button">sidebar.nav.literature</button>
+  ),
 }));
 
 describe("GlobalNav", () => {
-  it("renders three locale-prefixed workspace links and a more button", () => {
+  it("renders visible workspace links", () => {
     render(<GlobalNav wsSlug="acme" deepResearchEnabled={true} />);
     const links = screen.getAllByRole("link");
     const hrefs = links.map((a) => a.getAttribute("href"));
-    // Next.js Link strips the trailing slash from "/ko/workspace/acme/" on render.
-    expect(hrefs).toEqual([
-      "/ko/workspace/acme",
-      "/ko/workspace/acme/research",
-      "/ko/workspace/acme/import",
-    ]);
-    expect(
-      screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
-    ).toBeInTheDocument();
+    expect(hrefs).toContain("/ko/workspace/acme");
+    expect(hrefs).toContain("/ko/workspace/acme/research");
+    expect(hrefs).toContain("/ko/workspace/acme/import");
+    expect(hrefs).not.toContain("/ko/workspace/acme/settings");
+    expect(screen.getByText("sidebar.nav.literature")).toBeInTheDocument();
   });
 
   it("hides the research icon when deepResearchEnabled is false", () => {
     render(<GlobalNav wsSlug="acme" deepResearchEnabled={false} />);
     const links = screen.getAllByRole("link");
     const hrefs = links.map((a) => a.getAttribute("href"));
-    expect(hrefs).toEqual([
-      "/ko/workspace/acme",
-      "/ko/workspace/acme/import",
-    ]);
+    expect(hrefs).toContain("/ko/workspace/acme");
+    expect(hrefs).toContain("/ko/workspace/acme/import");
+    expect(hrefs).not.toContain("/ko/workspace/acme/research");
     expect(
-      screen.queryByLabelText("sidebar.nav.research"),
+      screen.queryByText("sidebar.nav.research"),
     ).not.toBeInTheDocument();
   });
 });

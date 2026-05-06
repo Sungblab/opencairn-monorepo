@@ -27,17 +27,21 @@ export const siteConfig = {
 } as const;
 
 const externalPath = (path: string) => `${siteUrl}${path}`;
+const companySiteUrl =
+  clean(process.env.NEXT_PUBLIC_COMPANY_SITE_URL) ?? "https://sungblab.com";
+const companyPath = (path: string) => `${companySiteUrl}${path}`;
 
 export const externalSiteUrls = {
   privacy:
     clean(process.env.NEXT_PUBLIC_LEGAL_PRIVACY_URL) ??
-    externalPath("/privacy"),
+    companyPath("/legal/privacy"),
   terms:
-    clean(process.env.NEXT_PUBLIC_LEGAL_TERMS_URL) ?? externalPath("/terms"),
+    clean(process.env.NEXT_PUBLIC_LEGAL_TERMS_URL) ??
+    companyPath("/legal/terms"),
   refund:
     clean(process.env.NEXT_PUBLIC_LEGAL_REFUND_URL) ??
     externalPath("/refund"),
-  blog: clean(process.env.NEXT_PUBLIC_BLOG_URL) ?? externalPath("/blog"),
+  blog: clean(process.env.NEXT_PUBLIC_BLOG_URL) ?? companyPath("/blog"),
 } as const;
 
 const repositoryUrl =

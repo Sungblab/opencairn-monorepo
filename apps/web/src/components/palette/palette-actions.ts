@@ -9,7 +9,7 @@ export interface PaletteAction {
   /** Translation key under the `palette.actions.*` namespace. */
   labelKey: string;
   /** Display-only — the actual binding lives in shell-providers. */
-  shortcut?: string;
+  shortcut?: string[];
   run(router: PaletteRouter): void;
 }
 
@@ -56,7 +56,7 @@ export function buildActions(opts: {
       {
         id: "toggle-sidebar",
         labelKey: "toggleSidebar",
-        shortcut: "⌘\\",
+        shortcut: ["mod", "\\"],
         run: () => {
           const state = usePanelStore.getState();
           if (typeof window !== "undefined" && window.innerWidth < 1024) {
@@ -69,7 +69,7 @@ export function buildActions(opts: {
       {
         id: "toggle-agent",
         labelKey: "toggleAgent",
-        shortcut: "⌘J",
+        shortcut: ["mod", "J"],
         run: () => {
           const state = usePanelStore.getState();
           if (typeof window !== "undefined" && window.innerWidth < 1024) {

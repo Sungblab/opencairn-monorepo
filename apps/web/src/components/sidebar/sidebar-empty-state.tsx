@@ -56,10 +56,15 @@ export function SidebarEmptyState() {
 
   if (projects?.length) {
     return (
-      <div className="flex flex-1 flex-col gap-2 overflow-auto px-3 py-2">
-        <p className="px-1 text-[11px] font-medium uppercase text-muted-foreground">
-          {t("list_label")}
-        </p>
+      <div className="mx-3 mt-3 flex flex-1 flex-col gap-2 overflow-auto">
+        <div className="border-b border-border pb-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {t("list_label")}
+          </p>
+          <p className="mt-1 text-sm font-semibold text-foreground">
+            {t("select")}
+          </p>
+        </div>
         {projects.map((project) => (
           <button
             key={project.id}
@@ -67,7 +72,7 @@ export function SidebarEmptyState() {
             onClick={() =>
               router.push(urls.workspace.project(locale, wsSlug, project.id))
             }
-            className="min-h-7 truncate rounded px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+            className="min-h-10 truncate rounded px-2.5 py-2 text-left text-sm font-medium transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
           >
             {project.name}
           </button>
@@ -75,7 +80,7 @@ export function SidebarEmptyState() {
         <button
           type="button"
           onClick={() => router.push(urls.workspace.newProject(locale, wsSlug))}
-          className="mt-1 min-h-7 rounded px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+          className="mt-1 min-h-10 rounded border border-dashed border-border px-2.5 py-2 text-left text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:outline-none"
         >
           + {t("new")}
         </button>
@@ -84,7 +89,7 @@ export function SidebarEmptyState() {
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
+    <div className="m-3 flex flex-1 flex-col items-center justify-center gap-3 rounded border border-dashed border-border p-6 text-center">
       <p className="text-sm text-muted-foreground">
         {isLoading ? t("loading") : t("empty")}
       </p>
@@ -93,7 +98,7 @@ export function SidebarEmptyState() {
         onClick={() =>
           router.push(urls.workspace.newProject(locale, wsSlug))
         }
-        className="min-h-7 rounded border border-border px-3 py-1 text-xs text-foreground transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+        className="min-h-8 rounded bg-foreground px-3 py-1.5 text-xs font-medium text-background transition-colors hover:bg-foreground/90 focus-visible:outline-none"
       >
         {t("create_cta")}
       </button>

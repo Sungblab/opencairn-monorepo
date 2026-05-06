@@ -25,9 +25,9 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
   return (
     <div
       data-testid="account-shell"
-      className="flex min-h-screen min-w-0 flex-col overflow-x-hidden bg-[var(--theme-surface)] text-foreground md:flex-row"
+      className="flex min-h-screen min-w-0 flex-col overflow-x-hidden bg-background text-foreground md:flex-row"
     >
-      <aside className="w-full shrink-0 border-b border-border bg-[var(--theme-surface)] p-4 md:w-56 md:border-b-0 md:border-r">
+      <aside className="w-full shrink-0 border-b border-border bg-background p-4 md:w-56 md:border-b-0 md:border-r">
         <Link
           href={`/${locale}`}
           className="app-btn-ghost mb-4 inline-flex min-h-8 items-center rounded-[var(--radius-control)] px-2 text-xs text-muted-foreground md:mb-6"
@@ -47,7 +47,7 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
               href={`/${locale}/settings/${id}`}
               className={`block shrink-0 rounded-[var(--radius-control)] px-2.5 py-1.5 text-sm transition-colors ${
                 current === id
-                  ? "bg-foreground font-medium text-background"
+                  ? "bg-muted font-semibold text-foreground"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >

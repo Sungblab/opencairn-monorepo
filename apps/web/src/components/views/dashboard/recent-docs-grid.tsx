@@ -54,8 +54,7 @@ export function RecentDocsGrid({
         <Link
           key={note.id}
           href={urls.workspace.note(locale, wsSlug, note.id)}
-          className="app-hover block rounded p-4"
-          style={{ border: "1.5px solid var(--theme-border)" }}
+          className="block rounded border-2 border-border bg-background p-4 transition-colors hover:border-foreground hover:bg-muted/40"
         >
           <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
             {note.project_name}

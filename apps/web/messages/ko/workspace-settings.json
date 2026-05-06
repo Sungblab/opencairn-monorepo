@@ -1,5 +1,11 @@
 {
-  "title": "워크스페이스 설정",
+  "title": "설정",
+  "groups": {
+    "personal": "개인",
+    "aiTools": "AI·도구",
+    "workspace": "워크스페이스",
+    "billing": "청구"
+  },
   "tabs": {
     "members": "멤버",
     "invites": "초대",

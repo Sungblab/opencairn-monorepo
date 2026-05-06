@@ -1,7 +1,6 @@
 "use client";
 
-// Sidebar icon-rail entry that opens the literature-search modal. Lives
-// alongside the rest of the GlobalNav rail (Home / Research / Import).
+// Sidebar navigation entry that opens the literature-search modal.
 //
 // Resolves workspaceId from the wsSlug prop via useWorkspaceId so the modal
 // can call /api/literature/search without prop-drilling. The current
@@ -36,9 +35,10 @@ export function LiteratureSearchButton({
         aria-label={label}
         onClick={() => setOpen(true)}
         data-testid="sidebar-literature-button"
-        className="app-hover flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none"
+        className="flex min-h-8 w-full items-center gap-2 border-l-2 border-transparent px-2 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:border-border hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <BookText aria-hidden className="h-[15px] w-[15px]" />
+        <BookText aria-hidden className="h-4 w-4 shrink-0" />
+        <span className="min-w-0 flex-1 truncate">{label}</span>
       </button>
       <LiteratureSearchModal
         open={open}

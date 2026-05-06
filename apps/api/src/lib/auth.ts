@@ -32,6 +32,8 @@ export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: "pg" }),
   emailAndPassword: {
     enabled: true,
+    minPasswordLength: 10,
+    maxPasswordLength: 128,
     requireEmailVerification: true,
     // Real delivery via lib/email.ts — Resend / SMTP / console depending on
     // EMAIL_PROVIDER. Errors surface through Better Auth as a 500 so the
@@ -55,6 +57,13 @@ export const auth = betterAuth({
         },
       }
     : {},
+  account: {
+    accountLinking: {
+      enabled: true,
+      trustedProviders: ["google"],
+      allowDifferentEmails: false,
+    },
+  },
   session: {
     expiresIn: 60 * 60 * 24 * 7,
   },

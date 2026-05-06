@@ -3,9 +3,11 @@ import { useState, useEffect } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { authClient, googleOAuthEnabled } from "@/lib/auth-client";
 import { GoogleButton } from "./GoogleButton";
-import { AuthEyebrow } from "./AuthEyebrow";
+import { PasswordField } from "./PasswordField";
+import { AuthLegalNotice } from "./AuthLegalNotice";
 
 type Step = 1 | 2 | 3;
+const PASSWORD_MIN_LENGTH = 10;
 
 export function SignupForm() {
   const t = useTranslations("auth");
@@ -15,6 +17,7 @@ export function SignupForm() {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -35,6 +38,8 @@ export function SignupForm() {
 
   const goBack = () => {
     setError(null);
+    setPassword("");
+    setPasswordConfirm("");
     setStep(1);
   };
 
@@ -46,12 +51,33 @@ export function SignupForm() {
   const handleStep2 = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (password !== passwordConfirm) {
+      setError(t("errors.passwordMismatch"));
+      return;
+    }
+
+    if (password.length < PASSWORD_MIN_LENGTH) {
+      setError(t("errors.passwordTooShort", { min: PASSWORD_MIN_LENGTH }));
+      return;
+    }
+
     setLoading(true);
 
-    const callbackBase = `/${locale}/auth/verify-email`;
+    const callbackBase = `${window.location.origin}/${locale}/auth/verify-email`;
     const callbackURL = inviteToken
       ? `${callbackBase}?invite=${encodeURIComponent(inviteToken)}`
       : callbackBase;
+
+    const resendVerificationEmail = async () => {
+      const res = await fetch("/api/auth/send-verification-email", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, callbackURL }),
+      });
+      if (!res.ok) throw new Error(`send-verification-email ${res.status}`);
+    };
 
     const { error: authError } = await authClient.signUp.email({
       name,
@@ -60,17 +86,24 @@ export function SignupForm() {
       callbackURL,
     });
 
-    setLoading(false);
-
     if (authError) {
       if (authError.status === 422 || authError.message?.toLowerCase().includes("already")) {
-        setError(t("errors.emailAlreadyExists"));
+        try {
+          await resendVerificationEmail();
+          setLoading(false);
+          setStep(3);
+        } catch {
+          setLoading(false);
+          setError(t("errors.emailAlreadyExists"));
+        }
       } else {
+        setLoading(false);
         setError(t("errors.generic"));
       }
       return;
     }
 
+    setLoading(false);
     setStep(3);
   };
 
@@ -92,7 +125,6 @@ export function SignupForm() {
       <div className="flex flex-col gap-6">
         <Progress />
         <div className="flex flex-col gap-3">
-          <AuthEyebrow label={t("signup.eyebrow")} />
           <h2 className="font-sans text-2xl font-bold leading-tight text-stone-900 kr">
             {t("signup.emailSent")}
           </h2>
@@ -117,7 +149,6 @@ export function SignupForm() {
         <Progress />
 
         <div className="flex flex-col gap-2.5">
-          <AuthEyebrow label={t("signup.eyebrow")} />
           <h2 className="font-sans text-2xl font-bold leading-tight text-stone-900 kr">
             {t("signup.step2Title")}
           </h2>
@@ -154,21 +185,31 @@ export function SignupForm() {
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="signup-password" className="auth-label">
-              {t("signup.password")}
-            </label>
-            <input
-              id="signup-password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="new-password"
-              minLength={8}
-              required
-              className="auth-input"
-            />
-          </div>
+          <PasswordField
+            id="signup-password"
+            label={t("signup.password")}
+            value={password}
+            onChange={setPassword}
+            autoComplete="new-password"
+            minLength={PASSWORD_MIN_LENGTH}
+            showLabel={t("passwordToggle.show")}
+            hideLabel={t("passwordToggle.hide")}
+          />
+
+          <PasswordField
+            id="signup-password-confirm"
+            label={t("signup.confirmPassword")}
+            value={passwordConfirm}
+            onChange={setPasswordConfirm}
+            autoComplete="new-password"
+            minLength={PASSWORD_MIN_LENGTH}
+            showLabel={t("passwordToggle.show")}
+            hideLabel={t("passwordToggle.hide")}
+          />
+
+          <p className="text-xs leading-relaxed text-stone-500 kr">
+            {t("signup.passwordRule", { min: PASSWORD_MIN_LENGTH })}
+          </p>
         </div>
 
         <div className="flex gap-3">
@@ -187,6 +228,8 @@ export function SignupForm() {
             {loading ? "…" : t("signup.submit")}
           </button>
         </div>
+
+        <AuthLegalNotice />
       </form>
     );
   }
@@ -196,7 +239,6 @@ export function SignupForm() {
       <Progress />
 
       <div className="flex flex-col gap-2.5">
-        <AuthEyebrow label={t("signup.eyebrow")} />
         <h2 className="font-sans text-2xl font-bold leading-tight text-stone-900 kr">
           {t("signup.title")}
         </h2>
@@ -206,6 +248,7 @@ export function SignupForm() {
       {googleOAuthEnabled && (
         <div className="flex flex-col gap-3">
           <GoogleButton />
+          <AuthLegalNotice />
           <div className="auth-divider">
             <span>{t("signup.orContinueWith")}</span>
           </div>

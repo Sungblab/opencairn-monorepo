@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { MoreMenu } from "./more-menu";
 
@@ -8,45 +8,39 @@ vi.mock("next-intl", () => ({
 }));
 
 describe("MoreMenu", () => {
-  it("opens workspace-scoped items as native links", async () => {
+  it("renders workspace-scoped items as visible native links", () => {
     render(<MoreMenu base="/ko/workspace/acme" />);
-    fireEvent.click(
-      screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
-    );
 
-    const settings = await screen.findByText("sidebar.more_menu.settings");
+    const settings = screen.getByText("sidebar.more_menu.settings");
     expect(settings.closest("a")).toHaveAttribute(
       "href",
       "/ko/workspace/acme/settings",
     );
 
     expect(
-      (await screen.findByText("sidebar.more_menu.shared_links")).closest("a"),
+      screen.getByText("sidebar.more_menu.shared_links").closest("a"),
     ).toHaveAttribute(
       "href",
       "/ko/workspace/acme/settings/shared-links",
     );
 
     expect(
-      (await screen.findByText("sidebar.more_menu.trash")).closest("a"),
+      screen.getByText("sidebar.more_menu.trash").closest("a"),
     ).toHaveAttribute("href", "/ko/workspace/acme/settings/trash");
   });
 
-  it("renders external items as new-tab links", async () => {
+  it("renders external items as new-tab links", () => {
     render(<MoreMenu base="/ko/workspace/acme" />);
-    fireEvent.click(
-      screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
-    );
 
     const feedback = (
-      await screen.findByText("sidebar.more_menu.feedback")
+      screen.getByText("sidebar.more_menu.feedback")
     ).closest("a");
     expect(feedback).toHaveAttribute("href", "/feedback");
     expect(feedback).toHaveAttribute("target", "_blank");
     expect(feedback).toHaveAttribute("rel", "noreferrer");
 
     const changelog = (
-      await screen.findByText("sidebar.more_menu.changelog")
+      screen.getByText("sidebar.more_menu.changelog")
     ).closest("a");
     expect(changelog).toHaveAttribute("href", "/changelog");
     expect(changelog).toHaveAttribute("target", "_blank");

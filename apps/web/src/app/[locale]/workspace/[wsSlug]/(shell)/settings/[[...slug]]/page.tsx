@@ -18,7 +18,7 @@ export default async function WsSettings({
     <WorkspaceSettingsView
       wsSlug={wsSlug}
       wsId={ws.id}
-      sub={slug?.[0] ?? "members"}
+      path={slug ?? []}
     />
   );
 }

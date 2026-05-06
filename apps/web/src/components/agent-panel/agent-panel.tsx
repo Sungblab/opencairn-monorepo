@@ -30,6 +30,8 @@ import {
 } from "@/lib/notes/insert-from-markdown";
 import { useTabsStore } from "@/stores/tabs-store";
 import { useThreadsStore } from "@/stores/threads-store";
+import { usePanelStore, type AgentPanelTab } from "@/stores/panel-store";
+import { NotificationListPanel } from "@/components/notifications/notification-list-panel";
 
 import { Composer } from "./composer";
 import { Conversation } from "./conversation";
@@ -46,6 +48,8 @@ import { WorkflowConsoleRuns } from "./workflow-console-runs";
 
 export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const workspaceId = useWorkspaceId(wsSlug);
+  const panelTab = usePanelStore((s) => s.agentPanelTab);
+  const setPanelTab = usePanelStore((s) => s.setAgentPanelTab);
 
   // setWorkspace bootstraps the active-thread restore from localStorage on
   // every workspace switch — without it the panel would never remember
@@ -133,7 +137,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
     setActive(id);
   }
   const threadActionsDisabled = !workspaceId || create.isPending;
-  const composerDisabled = !activeThreadId || isSending;
+  const composerDisabled = !workspaceId || isSending || create.isPending;
 
   const handleSend = useCallback(
     (input: { content: string; mode: string }) => {
@@ -142,10 +146,17 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
       setIsSending(true);
       void (async () => {
         try {
+          let threadId = activeThreadId;
+          if (!threadId) {
+            const thread = await create.mutateAsync({});
+            threadId = thread.id;
+            setActive(thread.id);
+          }
           await send({
             content: input.content,
             mode: input.mode,
             scope: await buildScopePayload(),
+            threadId,
           });
         } finally {
           sendInFlightRef.current = false;
@@ -153,7 +164,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
         }
       })();
     },
-    [buildScopePayload, send],
+    [activeThreadId, buildScopePayload, create, send, setActive],
   );
 
   // i18n for save-suggestion toasts (Task 21).
@@ -254,52 +265,94 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   return (
     <aside
       data-testid="app-shell-agent-panel"
-      className="flex h-full flex-col border-l border-border bg-[var(--theme-surface)]"
+      className="flex h-full flex-col border-l border-border bg-background"
     >
       <PanelHeader
         onNewThread={startNewThread}
         newThreadDisabled={threadActionsDisabled}
       />
-      <NoteUpdateActionReviewList projectId={activeProjectId} />
-      <CodeProjectActionReviewList projectId={activeProjectId} />
-      <AgenticPlanCard projectId={activeProjectId} />
-      <WorkflowConsoleRuns projectId={activeProjectId} />
-      {activeThreadId ? (
-        <Conversation
-          threadId={activeThreadId}
-          live={live}
-          onResumeRun={resumeRun}
-          onSaveSuggestion={handleSaveSuggestion}
-        />
-      ) : (
-        <AgentPanelEmptyState
-          onStart={startNewThread}
-          busy={threadActionsDisabled}
-        />
-      )}
-      <ScopeChipsRow
-        selected={scope}
-        onChange={setScope}
-        strict={strict}
-        onStrictChange={setStrict}
-      />
-      {formGenerationEvents.length > 0 ? (
-        <div className="border-t border-border p-2">
-          <DocumentGenerationCards
-            items={asDocumentGenerationCards(formGenerationEvents)}
+      <AgentPanelTabs active={panelTab} onChange={setPanelTab} />
+      {panelTab === "activity" ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <NoteUpdateActionReviewList projectId={activeProjectId} />
+          <CodeProjectActionReviewList projectId={activeProjectId} />
+          <AgenticPlanCard projectId={activeProjectId} />
+          <WorkflowConsoleRuns projectId={activeProjectId} />
+          {formGenerationEvents.length > 0 ? (
+            <div className="border-t border-border p-2">
+              <DocumentGenerationCards
+                items={asDocumentGenerationCards(formGenerationEvents)}
+              />
+            </div>
+          ) : null}
+          <DocumentGenerationForm
+            projectId={activeProjectId}
+            onEvent={(event) =>
+              setFormGenerationEvents((events) => [...events, event])
+            }
           />
         </div>
       ) : null}
-      <DocumentGenerationForm
-        projectId={activeProjectId}
-        onEvent={(event) =>
-          setFormGenerationEvents((events) => [...events, event])
-        }
-      />
-      <Composer
-        disabled={composerDisabled}
-        onSend={handleSend}
-      />
+      {panelTab === "notifications" ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <NotificationListPanel />
+        </div>
+      ) : null}
+      {panelTab === "chat" ? (
+        <>
+          {activeThreadId ? (
+            <Conversation
+              threadId={activeThreadId}
+              live={live}
+              onResumeRun={resumeRun}
+              onSaveSuggestion={handleSaveSuggestion}
+            />
+          ) : (
+            <AgentPanelEmptyState />
+          )}
+          <ScopeChipsRow
+            selected={scope}
+            onChange={setScope}
+            strict={strict}
+            onStrictChange={setStrict}
+          />
+          <Composer
+            disabled={composerDisabled}
+            onSend={handleSend}
+          />
+        </>
+      ) : null}
     </aside>
+  );
+}
+
+function AgentPanelTabs({
+  active,
+  onChange,
+}: {
+  active: AgentPanelTab;
+  onChange(tab: AgentPanelTab): void;
+}) {
+  const t = useTranslations("agentPanel.tabs");
+  const tabs: AgentPanelTab[] = ["chat", "activity", "notifications"];
+
+  return (
+    <div className="grid grid-cols-3 border-b border-border">
+      {tabs.map((tab) => (
+        <button
+          key={tab}
+          type="button"
+          aria-pressed={active === tab}
+          onClick={() => onChange(tab)}
+          className={`min-h-9 border-r border-border px-2 text-xs font-medium transition-colors last:border-r-0 ${
+            active === tab
+              ? "bg-foreground text-background"
+              : "bg-background text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {t(tab)}
+        </button>
+      ))}
+    </div>
   );
 }

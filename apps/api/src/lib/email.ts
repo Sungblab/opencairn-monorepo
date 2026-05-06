@@ -44,6 +44,12 @@ const resend =
     ? new Resend(process.env.RESEND_API_KEY)
     : null;
 
+function maskEmail(email: string): string {
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return "<invalid-email>";
+  return `${local.slice(0, 1)}***@${domain}`;
+}
+
 // Lazy import keeps nodemailer out of the cold-start path when the active
 // provider isn't SMTP. Cached after first call so transport sockets / DNS
 // lookups are reused across send() invocations.
@@ -110,7 +116,24 @@ async function send({ to, subject, react }: SendArgs): Promise<void> {
         "EMAIL_PROVIDER=resend but RESEND_API_KEY is unset. Set the key or switch EMAIL_PROVIDER.",
       );
     }
-    await resend.emails.send({ from, to, subject, react });
+    console.info("[email.send]", { provider, to: maskEmail(to), subject });
+    const result = await resend.emails.send({ from, to, subject, react });
+    if (result.error) {
+      console.error("[email.send_failed]", {
+        provider,
+        to: maskEmail(to),
+        subject,
+        name: result.error.name,
+        message: result.error.message,
+      });
+      throw new Error(`Resend email send failed: ${result.error.message}`);
+    }
+    console.info("[email.send_ok]", {
+      provider,
+      to: maskEmail(to),
+      subject,
+      id: result.data?.id ?? null,
+    });
     return;
   }
 
@@ -118,7 +141,9 @@ async function send({ to, subject, react }: SendArgs): Promise<void> {
   const html = await render(react);
   const text = await render(react, { plainText: true });
   const transporter = await getSmtpTransporter();
+  console.info("[email.send]", { provider, to: maskEmail(to), subject });
   await transporter.sendMail({ from, to, subject, html, text });
+  console.info("[email.send_ok]", { provider, to: maskEmail(to), subject });
 }
 
 export async function sendInviteEmail(

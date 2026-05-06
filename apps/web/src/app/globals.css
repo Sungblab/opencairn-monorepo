@@ -695,17 +695,6 @@ details[open] .chev { transform: rotate(180deg); }
 @keyframes tkr { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 @media (prefers-reduced-motion: reduce) { .ticker-track { animation: none !important; } }
 
-/* ═══ editorial section label ═══ */
-.sec-label {
-  font-family: var(--font-sans);
-  font-size: 11.5px;
-  letter-spacing: 0.18em;
-  color: #525252;
-  text-transform: uppercase;
-  display: inline-block;
-}
-.sec-label .n { color: #171717; font-weight: 500; }
-
 /* ─ ASCII block ─ system mono (JetBrains Mono drops U+2500 box-drawing glyphs) */
 .ascii {
   font-family: ui-monospace, "SF Mono", "Menlo", "Consolas", "DejaVu Sans Mono", monospace;

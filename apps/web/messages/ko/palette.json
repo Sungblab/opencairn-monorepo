@@ -1,5 +1,6 @@
 {
   "label": "명령 팔레트",
+  "description": "명령과 노트를 검색합니다.",
   "placeholder": "무엇을 찾고 있나요?",
   "empty": "결과 없음",
   "groups": {

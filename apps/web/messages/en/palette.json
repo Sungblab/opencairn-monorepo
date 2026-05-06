@@ -1,5 +1,6 @@
 {
   "label": "Command palette",
+  "description": "Search commands and notes.",
   "placeholder": "What are you looking for?",
   "empty": "No results",
   "groups": {

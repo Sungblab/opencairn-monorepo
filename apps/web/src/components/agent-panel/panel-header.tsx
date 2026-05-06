@@ -31,8 +31,11 @@ export function PanelHeader({
   const togglePanel = usePanelStore((s) => s.toggleAgentPanel);
 
   return (
-    <div className="flex h-10 items-center justify-between border-b border-border px-3">
-      <span className="text-sm font-semibold">{t("title")}</span>
+    <div className="flex min-h-12 items-center justify-between border-b border-border bg-background/70 px-3">
+      <div>
+        <span className="text-sm font-semibold">{t("title")}</span>
+        <p className="text-[11px] text-muted-foreground">{t("subtitle")}</p>
+      </div>
       <div className="flex items-center gap-1">
         <button
           type="button"

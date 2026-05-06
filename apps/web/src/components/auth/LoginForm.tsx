@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
 import { authClient, googleOAuthEnabled } from "@/lib/auth-client";
 import { GoogleButton } from "./GoogleButton";
-import { AuthEyebrow } from "./AuthEyebrow";
+import { AuthLegalNotice } from "./AuthLegalNotice";
+import { PasswordField } from "./PasswordField";
 import { isSafeReturnTo } from "@/lib/return-to";
 import { urls } from "@/lib/urls";
 
@@ -99,7 +100,6 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
         <Progress />
 
         <div className="flex flex-col gap-2.5">
-          <AuthEyebrow label={t("login.eyebrow")} />
           <h2 className="font-sans text-2xl font-bold leading-tight text-stone-900 kr">
             {t("login.step2Title")}
           </h2>
@@ -119,29 +119,24 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
           </p>
         )}
 
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between">
-            <label htmlFor="auth-password" className="auth-label">
-              {t("login.password")}
-            </label>
+        <PasswordField
+          id="auth-password"
+          label={t("login.password")}
+          value={password}
+          onChange={setPassword}
+          autoComplete="current-password"
+          autoFocus
+          showLabel={t("passwordToggle.show")}
+          hideLabel={t("passwordToggle.hide")}
+          labelAction={
             <a
               href={`/${locale}/auth/forgot-password`}
               className="text-xs font-semibold text-stone-700 hover:bg-stone-900 hover:text-stone-50 underline underline-offset-2 decoration-2 decoration-stone-400 hover:decoration-stone-50 hover:no-underline px-1.5 py-0.5 rounded transition-colors"
             >
               {t("login.forgotPassword")}
             </a>
-          </div>
-          <input
-            id="auth-password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            autoFocus
-            required
-            className="auth-input"
-          />
-        </div>
+          }
+        />
 
         <div className="flex gap-3">
           <button
@@ -168,7 +163,6 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       <Progress />
 
       <div className="flex flex-col gap-2.5">
-        <AuthEyebrow label={t("login.eyebrow")} />
         <h2 className="font-sans text-2xl font-bold leading-tight text-stone-900 kr">
           {t("login.title")}
         </h2>
@@ -178,6 +172,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       {googleOAuthEnabled && (
         <div className="flex flex-col gap-3">
           <GoogleButton />
+          <AuthLegalNotice />
           <div className="auth-divider">
             <span>{t("login.orContinueWith")}</span>
           </div>

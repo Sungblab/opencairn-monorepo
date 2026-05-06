@@ -29,7 +29,7 @@ export function SecurityView() {
     try {
       await postAuth("send-verification-email", {
         email,
-        callbackURL: `/${locale}/auth/verify-email`,
+        callbackURL: `${window.location.origin}/${locale}/auth/verify-email`,
       });
       setMessage(t("verificationSent"));
     } catch {
@@ -46,7 +46,7 @@ export function SecurityView() {
     try {
       await postAuth("forget-password", {
         email,
-        redirectTo: `/${locale}/auth/reset-password`,
+        redirectTo: `${window.location.origin}/${locale}/auth/reset-password`,
       });
       setMessage(t("resetSent"));
     } catch {

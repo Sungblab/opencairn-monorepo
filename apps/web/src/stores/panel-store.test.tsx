@@ -17,6 +17,7 @@ describe("panel-store", () => {
     expect(s.agentPanelWidth).toBe(360);
     expect(s.agentPanelOpen).toBe(true);
     expect(s.compactAgentPanelOpen).toBe(false);
+    expect(s.agentPanelTab).toBe("chat");
   });
 
   it("toggleSidebar flips sidebarOpen", () => {
@@ -80,6 +81,15 @@ describe("panel-store", () => {
     expect(usePanelStore.getState().agentPanelOpen).toBe(false);
     usePanelStore.getState().setAgentPanelOpen(true);
     expect(usePanelStore.getState().agentPanelOpen).toBe(true);
+  });
+
+  it("opens the agent panel on the requested tab", () => {
+    usePanelStore.getState().setAgentPanelOpen(false);
+    usePanelStore.getState().openAgentPanelTab("notifications");
+
+    expect(usePanelStore.getState().agentPanelOpen).toBe(true);
+    expect(usePanelStore.getState().compactAgentPanelOpen).toBe(true);
+    expect(usePanelStore.getState().agentPanelTab).toBe("notifications");
   });
 
   it("compact agent panel state does not mutate the desktop preference", () => {

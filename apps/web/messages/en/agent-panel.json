@@ -1,6 +1,7 @@
 {
   "header": {
     "title": "AI Agent",
+    "subtitle": "Approvals · runs · questions",
     "new_thread_aria": "New conversation",
     "thread_list_aria": "Thread list",
     "collapse_aria": "Collapse panel"
@@ -9,6 +10,11 @@
     "loading": "Loading…",
     "empty": "No conversations yet.",
     "untitled": "(untitled)"
+  },
+  "tabs": {
+    "chat": "Chat",
+    "activity": "Activity",
+    "notifications": "Notifications"
   },
   "bubble": {
     "user_label": "Me",
@@ -241,8 +247,13 @@
     }
   },
   "empty_state": {
-    "intro": "Ask anything grounded in this workspace's knowledge.",
+    "title": "New conversation",
+    "intro": "Type below. The first message creates the conversation.",
     "hint": "Use the scope chips to adjust what the agent reads.",
+    "points": {
+      "workspace": "Reads notes, projects, and run status together.",
+      "scope": "Use the scope chips below to narrow what it can read."
+    },
     "start_cta": "Start a conversation"
   }
 }

@@ -86,7 +86,7 @@ export function ScopeChipsRow({
   // component a pure controlled view.
   void tab;
   return (
-    <div className="flex items-center gap-1 border-t border-border px-3 py-2 text-[10.5px]">
+    <div className="flex items-center gap-1 border-t border-border bg-background px-3 py-2 text-[10.5px]">
       <div className="flex flex-1 flex-wrap items-center gap-1">
         {ALL_KINDS.map((kind) => {
           const on = selected.includes(kind);
@@ -104,8 +104,8 @@ export function ScopeChipsRow({
               }
               className={
                 on
-                  ? "inline-flex min-h-7 items-center gap-1.5 rounded-[var(--radius-control)] border-[1.5px] border-foreground bg-foreground px-2.5 py-1 text-background"
-                  : "app-hover inline-flex min-h-7 items-center gap-1.5 rounded-[var(--radius-control)] border-[1.5px] border-border px-2.5 py-1 text-foreground"
+                  ? "inline-flex min-h-7 items-center gap-1.5 border border-foreground bg-foreground px-2 py-1 text-background"
+                  : "inline-flex min-h-7 items-center gap-1.5 border border-border bg-background px-2 py-1 text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
               }
             >
               <Icon aria-hidden="true" className="h-3.5 w-3.5" />
@@ -116,7 +116,7 @@ export function ScopeChipsRow({
         <button
           type="button"
           aria-label={t("add_aria")}
-          className="app-hover inline-flex min-h-7 items-center rounded-[var(--radius-control)] border border-dashed border-border px-2.5 py-1 text-muted-foreground"
+          className="inline-flex min-h-7 items-center border border-dashed border-border bg-background px-2 py-1 text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
         >
           <Plus aria-hidden="true" className="h-3.5 w-3.5" />
         </button>
@@ -125,7 +125,7 @@ export function ScopeChipsRow({
         type="button"
         aria-label={t("strict_aria")}
         onClick={() => onStrictChange(strict === "strict" ? "loose" : "strict")}
-        className="app-btn-ghost min-h-7 rounded-[var(--radius-control)] px-2.5 py-1 uppercase tracking-wide text-muted-foreground"
+        className="min-h-7 border border-border bg-background px-2 py-1 uppercase tracking-wide text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
       >
         {t(strict)}
       </button>

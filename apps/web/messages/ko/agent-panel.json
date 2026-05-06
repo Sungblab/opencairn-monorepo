@@ -1,6 +1,7 @@
 {
   "header": {
     "title": "AI 에이전트",
+    "subtitle": "승인 · 실행 · 질문",
     "new_thread_aria": "새 대화",
     "thread_list_aria": "대화 목록",
     "collapse_aria": "패널 접기"
@@ -9,6 +10,11 @@
     "loading": "불러오는 중…",
     "empty": "대화가 없습니다.",
     "untitled": "(제목 없음)"
+  },
+  "tabs": {
+    "chat": "채팅",
+    "activity": "활동",
+    "notifications": "알림"
   },
   "bubble": {
     "user_label": "나",
@@ -241,8 +247,13 @@
     }
   },
   "empty_state": {
-    "intro": "이 워크스페이스의 지식을 기반으로 물어보세요.",
+    "title": "새 대화",
+    "intro": "아래 입력창에 바로 물어보세요. 첫 메시지를 보내면 대화가 생성됩니다.",
     "hint": "스코프 칩으로 범위를 조정할 수 있습니다.",
+    "points": {
+      "workspace": "노트, 프로젝트, 실행 상태를 함께 참고합니다.",
+      "scope": "아래 스코프 칩으로 읽을 범위를 좁힐 수 있습니다."
+    },
     "start_cta": "첫 대화 시작"
   }
 }

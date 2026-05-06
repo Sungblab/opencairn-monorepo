@@ -1,7 +1,6 @@
 import { setRequestLocale } from "next-intl/server";
 import { getTranslations } from "next-intl/server";
 import type { Locale } from "@/i18n";
-import { AuthEyebrow } from "@/components/auth/AuthEyebrow";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { AuthCairn } from "@/components/auth/AuthCairn";
 
@@ -32,19 +31,16 @@ export default async function AuthLayout({
           OpenCairn
         </a>
 
-        {/* MIDDLE — eyebrow + headline + bullets, vertically centered */}
+        {/* MIDDLE — headline + bullets, vertically centered */}
         <div className="flex-1 flex flex-col justify-center gap-8 relative z-10">
-          <div className="auth-rise-2">
-            <AuthEyebrow label={t("eyebrow")} tone="light" />
-          </div>
-          <p className="font-sans text-4xl xl:text-5xl leading-[1.1] text-stone-50 kr max-w-xl auth-rise-3">
+          <p className="font-sans text-4xl xl:text-5xl leading-[1.1] text-stone-50 kr max-w-xl auth-rise-2">
             {t("headline")}
           </p>
           <ul className="flex flex-col gap-3 max-w-md">
             {(["point1", "point2", "point3"] as const).map((key, i) => (
               <li
                 key={key}
-                className={`flex items-start gap-3 text-sm text-stone-300 leading-relaxed kr auth-rise-${4 + i}`}
+                className={`flex items-start gap-3 text-sm text-stone-300 leading-relaxed kr auth-rise-${3 + i}`}
               >
                 <span className="mt-2 shrink-0 w-3 h-px bg-stone-500" aria-hidden />
                 {t(key)}

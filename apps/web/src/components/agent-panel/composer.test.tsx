@@ -23,7 +23,7 @@ describe("Composer", () => {
 
   it("keeps the textarea at a usable desktop click height", () => {
     render(<Composer onSend={vi.fn()} />);
-    expect(screen.getByLabelText(INPUT_LABEL)).toHaveClass("min-h-11");
+    expect(screen.getByLabelText(INPUT_LABEL)).toHaveClass("min-h-14");
   });
 
   it("shows mic when empty, send when non-empty", () => {

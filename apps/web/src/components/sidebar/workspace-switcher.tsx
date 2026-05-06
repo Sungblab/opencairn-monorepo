@@ -63,11 +63,11 @@ export function WorkspaceSwitcher() {
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label={t("switcher.trigger_aria")}
-        className="app-hover mx-3 mb-2 mt-3 flex items-center gap-2 rounded border-[1.5px] border-muted-foreground/40 bg-background px-2.5 py-1.5 text-left transition-colors hover:border-foreground focus-visible:border-foreground focus-visible:outline-none"
+        className="mx-3 mb-3 mt-3 flex min-h-10 items-center gap-2 border border-border bg-background px-2 text-left transition-colors hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <span
           aria-hidden
-          className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-foreground text-[10px] font-semibold text-background"
+          className="flex h-5 w-5 shrink-0 items-center justify-center bg-foreground text-[10px] font-semibold text-background"
         >
           {initial}
         </span>
@@ -79,14 +79,16 @@ export function WorkspaceSwitcher() {
           className="h-3 w-3 shrink-0 text-muted-foreground"
         />
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-64">
+      <DropdownMenuContent className="w-[280px] rounded-none border border-border bg-background p-1 shadow-sm ring-0">
         <DropdownMenuGroup>
-          <DropdownMenuLabel>{t("switcher.label")}</DropdownMenuLabel>
+          <DropdownMenuLabel className="px-2 py-1.5 text-[11px] uppercase tracking-wide">
+            {t("switcher.label")}
+          </DropdownMenuLabel>
           {data?.workspaces.map((w) => (
             <DropdownMenuItem
               key={w.id}
               onClick={() => router.push(urls.workspace.root(locale, w.slug))}
-              className="flex items-center justify-between gap-2"
+              className="flex min-h-9 items-center justify-between gap-2 rounded-none px-2 py-2"
             >
               <span className="truncate">{w.name}</span>
               <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">
@@ -106,7 +108,7 @@ export function WorkspaceSwitcher() {
                 <DropdownMenuItem
                   key={invite.id}
                   onClick={() => router.push(`/${locale}/onboarding`)}
-                  className="flex items-center justify-between gap-2"
+                  className="flex items-center justify-between gap-2 rounded-none"
                 >
                   <span className="truncate">{invite.workspaceName}</span>
                   <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">
@@ -120,6 +122,7 @@ export function WorkspaceSwitcher() {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => router.push(`/${locale}/onboarding`)}
+          className="min-h-9 rounded-none px-2 py-2"
         >
           {t("switcher.new_workspace")}
         </DropdownMenuItem>

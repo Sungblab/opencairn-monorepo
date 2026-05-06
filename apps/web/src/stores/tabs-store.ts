@@ -92,6 +92,7 @@ interface State extends Persisted {
   setActive(id: string): void;
   updateTab(id: string, patch: Partial<Tab>): void;
   findTabByTarget(kind: TabKind, targetId: string | null): Tab | undefined;
+  dedupeTabsByKind(kind: TabKind, keepId: string): void;
   reorderTab(from: number, to: number): void;
   togglePin(id: string): void;
   promoteFromPreview(id: string): void;
@@ -205,6 +206,23 @@ export const useTabsStore = create<State>((set, get) => ({
 
   findTabByTarget: (kind, targetId) =>
     get().tabs.find((t) => t.kind === kind && t.targetId === targetId),
+
+  dedupeTabsByKind: (kind, keepId) => {
+    const s = get();
+    if (!s.tabs.some((t) => t.id === keepId && t.kind === kind)) return;
+    const hasDuplicate = s.tabs.some(
+      (t) => t.kind === kind && t.id !== keepId,
+    );
+    if (!hasDuplicate) return;
+    const tabs = s.tabs.filter((t) => t.kind !== kind || t.id === keepId);
+    const activeId =
+      s.activeId && tabs.some((t) => t.id === s.activeId)
+        ? s.activeId
+        : keepId;
+    set({ tabs, activeId });
+    if (s.workspaceId)
+      flush(s.workspaceId, { tabs, activeId, closedStack: s.closedStack });
+  },
 
   reorderTab: (from, to) => {
     const s = get();

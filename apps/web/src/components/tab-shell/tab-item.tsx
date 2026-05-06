@@ -1,5 +1,17 @@
 "use client";
-import { FileText, Pin, X } from "lucide-react";
+import {
+  Bot,
+  Code2,
+  Download,
+  FileText,
+  Folder,
+  LayoutDashboard,
+  Pin,
+  Search,
+  Settings,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { Tab } from "@/stores/tabs-store";
 import { useResolvedTabTitle } from "@/lib/resolve-tab-title";
@@ -11,9 +23,24 @@ export interface TabItemProps {
   onClose: () => void;
 }
 
+const tabIcons: Record<Tab["kind"], LucideIcon> = {
+  dashboard: LayoutDashboard,
+  project: Folder,
+  note: FileText,
+  research_hub: Search,
+  research_run: Search,
+  import: Download,
+  ws_settings: Settings,
+  ingest: Download,
+  lit_search: Search,
+  agent_file: Bot,
+  code_workspace: Code2,
+};
+
 export function TabItem({ tab, active, onClick, onClose }: TabItemProps) {
   const t = useTranslations("appShell.tabs.item");
   const resolvedTitle = useResolvedTabTitle(tab);
+  const Icon = tabIcons[tab.kind];
   return (
     <div
       role="tab"
@@ -42,7 +69,11 @@ export function TabItem({ tab, active, onClick, onClose }: TabItemProps) {
           : undefined
       }
     >
-      <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      <Icon
+        className={`h-3.5 w-3.5 shrink-0 ${
+          active ? "text-foreground" : "text-muted-foreground"
+        }`}
+      />
       <span
         className={`flex-1 truncate ${tab.preview ? "italic" : ""}`}
         title={resolvedTitle}

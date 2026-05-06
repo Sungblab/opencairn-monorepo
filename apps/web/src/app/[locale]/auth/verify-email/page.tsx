@@ -1,7 +1,6 @@
 import { setRequestLocale, getTranslations } from "next-intl/server";
 import type { Locale } from "@/i18n";
 import { PostVerifyLink } from "./PostVerifyLink";
-import { AuthEyebrow } from "@/components/auth/AuthEyebrow";
 
 export default async function VerifyEmailPage({
   params,
@@ -20,7 +19,6 @@ export default async function VerifyEmailPage({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2.5">
-        <AuthEyebrow label={t("verify.eyebrow")} />
         <h2 className="font-sans text-2xl font-bold leading-tight text-stone-900 kr">
           {hasError ? t("verify.error") : t("verify.success")}
         </h2>

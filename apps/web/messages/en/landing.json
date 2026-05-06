@@ -51,11 +51,11 @@
         { "agent": "Librarian", "text": "‘self-attention’ ↔ ‘scaled dot-product’ merge suggested" },
         { "agent": "Synthesis", "text": "Cross-domain analogy: ‘attention ↔ cognitive selection’" },
         { "agent": "Curator", "text": "<b>RoFormer (2021)</b> · 3 related paper candidates" },
-        { "agent": "Socratic", "text": "4 weak concepts detected · 9 flashcards generated" },
+        { "agent": "Socratic", "text": "4 weak concepts detected · review cards suggested" },
         { "agent": "Connector", "text": "Linked 2 concepts with ‘signal-processing’ project" },
-        { "agent": "Temporal", "text": "‘Transformer’ understanding <b>+15%</b> (last 7 days)" },
+        { "agent": "Temporal", "text": "‘Transformer’ marked for stale-knowledge review" },
         { "agent": "Research", "text": "4 new question candidates indexed · Q&A ready" },
-        { "agent": "Deep R.", "text": "<b>\"post-LN vs pre-LN\"</b> deep dive queued" },
+        { "agent": "Deep R.", "text": "<b>\"post-LN vs pre-LN\"</b> deep-dive candidate logged" },
         { "agent": "Narrator", "text": "Weekly review script drafted · <b>12:30</b>" },
         { "agent": "Code", "text": "Attention score heatmap · rendered in browser" },
         { "agent": "Visual.", "text": "Knowledge graph 5-view layout recomputed" }
@@ -76,7 +76,7 @@
       "outWikiLinksMeta": "links",
       "outLearnTitle": "Learning + Q&A",
       "outLearnDesc": "Flashcards · quizzes",
-      "outLearnMeta": "flashcards generated",
+      "outLearnMeta": "review cards suggested",
       "outGenTitle": "Generated artifacts",
       "outGenDesc": "Docs · slides · sheets",
       "outGenMeta": "every source traceable",
@@ -88,13 +88,13 @@
         "Research: 4 candidate questions indexed",
         "Connector: 2 concepts linked to signal-processing project",
         "Synthesis: \"attention ↔ selective perception\" merge proposed",
-        "Socratic: 9 flashcards auto-generated",
+        "Socratic: review card candidates suggested",
         "Narrator: review script drafted",
-        "Deep Research: 2 follow-up topics queued",
-        "Code: sample attention-score visualization built",
-        "Visualization: 5-view layout updated",
+        "Deep Research: 2 follow-up topics suggested",
+        "Code: sample attention-score visualization suggested",
+        "Visualization: graph view layout updated",
         "Curator: related paper \"RoFormer (2021)\" discovered",
-        "Temporal: graph-change timeline synced"
+        "Temporal: stale-knowledge candidates marked"
       ]
     }
   },
@@ -103,7 +103,7 @@
     "items": [
       { "value": "AI", "suffix": "", "caption": "Workflows and roles" },
       { "value": 5, "suffix": " views", "caption": "One graph · five lenses" },
-      { "value": 0, "suffix": "", "caption": "External calls · local mode" },
+      { "value": 0, "suffix": "", "caption": "Model calls · local LLM" },
       { "value": "AGPLv3", "suffix": "", "caption": "Open-source + commercial" }
     ]
   },
@@ -119,7 +119,7 @@
       { "n": "03 · EMBED", "title": "Meaning", "body": "Mapped to vector space. Similar things end up close." },
       { "n": "04 · COMPILE", "title": "Weave", "body": "The compile workflow drafts wiki pages per topic." },
       { "n": "05 · CONNECT", "title": "Link", "body": "Backlinks · opposing views · causal edges into a knowledge graph." },
-      { "n": "06 · SERVE", "title": "Use", "body": "Q&A · flashcards · Socratic tutor · generated documents." }
+      { "n": "06 · SERVE", "title": "Use", "body": "Q&A · review cards · Socratic tutor · document-generation surfaces." }
     ],
     "terminal": {
       "prompt": "$",
@@ -147,13 +147,13 @@
       { "n": "03", "cat": "maintain", "name": "Librarian", "body": "Finds orphan pages, contradictions, and duplicates. Wiki health on a schedule." },
       { "n": "04", "cat": "discover", "name": "Synthesis", "body": "Finds structural analogies across domains — immune system ↔ resilience." },
       { "n": "05", "cat": "discover", "name": "Connector", "body": "Suggests cross-project links; accept to create them." },
-      { "n": "06", "cat": "time", "name": "Temporal", "body": "Tracks how understanding evolves. Stale-knowledge warnings and review nudges." },
-      { "n": "07", "cat": "source", "name": "Curator", "body": "Finds external sources to fill gaps in what you know." },
-      { "n": "08", "cat": "source", "name": "Deep Research", "body": "Investigates one topic over a longer horizon, then leaves a report and follow-up suggestions." },
-      { "n": "09", "cat": "learn", "name": "Socratic", "body": "Checks understanding with flashcards and quizzes. Spaced repetition on weak spots." },
+      { "n": "06", "cat": "time", "name": "Temporal", "body": "Looks for stale knowledge and review candidates. The active scope depends on deployment configuration." },
+      { "n": "07", "cat": "source", "name": "Curator", "body": "Suggests external-source candidates for gaps in the wiki. Search paths depend on provider and configuration." },
+      { "n": "08", "cat": "source", "name": "Deep Research", "body": "A longer-running workflow for follow-up topic candidates and report drafts, enabled in staged phases." },
+      { "n": "09", "cat": "learn", "name": "Socratic", "body": "Checks understanding through dialogue and suggests review-card candidates. Spaced repetition continues in the learning surface." },
       { "n": "10", "cat": "media", "name": "Narrator", "body": "Long-term role for turning wiki content into review scripts and audio outputs." },
       { "n": "11", "cat": "execute", "name": "Code", "body": "Handles code workspaces, approved runs, and static previews in staged phases. Server execution only runs behind feature flags and sandbox boundaries." },
-      { "n": "12", "cat": "view", "name": "Visualization", "body": "Renders the graph as Graph · Mindmap · Cards · Canvas · Timeline." }
+      { "n": "12", "cat": "view", "name": "Visualization", "body": "Renders the graph as Graph · Mindmap · Cards · Timeline · Board." }
     ]
   },
   "views": {
@@ -164,17 +164,17 @@
       { "n": "01", "cat": "overview", "name": "Graph", "body": "Explore the full network at a glance" },
       { "n": "02", "cat": "radiate", "name": "Mindmap", "body": "Radiate outward from a central concept" },
       { "n": "03", "cat": "review", "name": "Cards", "body": "Search, filter, and spaced-repetition review" },
-      { "n": "04", "cat": "arrange", "name": "Canvas", "body": "Freeform layout for thinking in space" },
-      { "n": "05", "cat": "chronology", "name": "Timeline", "body": "How your understanding changes over time" }
+      { "n": "04", "cat": "chronology", "name": "Timeline", "body": "Changes across time" },
+      { "n": "05", "cat": "arrange", "name": "Board", "body": "Collect related cards in one working board" }
     ]
   },
   "try": {
     "label": "TRY IT",
     "title1": "Pick one concept",
     "title2": "and the connected thoughts surface.",
-    "sub": "A small slice of a wiki built by a grad student who uploaded twenty transformer papers. Hover or tap a node — the connections OpenCairn found ripple out.",
+    "sub": "A sample graph that shows how transformer papers can be woven into a wiki. Hover or tap a node to see how connections spread.",
     "bullets": [
-      "Each node is an auto-generated wiki page.",
+      "Each node is an example wiki page.",
       "Edges are relationships found via embeddings and shared concepts.",
       "The numbers show how often other pages reference this one."
     ],
@@ -232,8 +232,8 @@
     "tags": [
       "Hocuspocus · real-time co-editing",
       "Block comments · @mentions",
-      "Role permissions · public links",
-      "Export API · GDPR"
+      "Role permissions · link sharing",
+      "Export paths · data sovereignty"
     ]
   },
   "principles": {
@@ -246,7 +246,7 @@
         "tag": "[ a ]",
         "cat": "sovereignty",
         "title": "Your data stays on your server.",
-        "body": "Text, vectors, and original files all live in your infrastructure. In fully-local LLM mode there are zero outbound requests — deployable even where external SaaS is forbidden."
+        "body": "Text, vectors, and original files all live in your infrastructure. With an Ollama-based local LLM configuration, model calls do not leave your deployment. It can also be run without external connectors."
       },
       {
         "tag": "[ b ]",
@@ -258,7 +258,7 @@
         "tag": "[ c ]",
         "cat": "one·throughline",
         "title": "Capture → explore → learn, one continuous line.",
-        "body": "Q&A · graph surfaces · spaced-repetition flashcards · Socratic dialogue · generated documents — all fed from the same wiki. No tool-hopping."
+        "body": "Q&A · graph surfaces · review cards · Socratic dialogue · document-generation surfaces — all fed from the same wiki. No tool-hopping."
       },
       {
         "tag": "[ d ]",
@@ -293,7 +293,7 @@
         "cat": "enterprise",
         "title": "Regulated industries",
         "body": "Designed with finance, healthcare, government, and universities in mind — places where external SaaS can be restricted. Fully-local LLM paths and commercial licensing can support stricter deployment policies.",
-        "bullets": ["· On-prem deployment path", "· Audit and security requirements by design", "· Commercial license agreement"]
+        "bullets": ["· On-prem deployment path", "· Audit and security requirements by design", "· Commercial license inquiry path"]
       }
     ]
   },
@@ -361,11 +361,11 @@
       },
       "bullets": [
         "Team workspaces · guests · public links",
-        "Deep Research priority queue",
-        "<b>10 GB</b> storage",
+        "Deep Research priority queue planned",
+        "<b>10 GB</b> storage target",
         "1-year activity log retention",
         "Workspace usage and quota UI planned",
-        "Email support"
+        "Email support planned"
       ],
       "cta": "View hosted plan",
       "guarantee": "Refund policy comes after payment integration"
@@ -380,7 +380,7 @@
         "Hosted BYOK is planned",
         "Your Gemini key (encrypted at rest)",
         "API usage billed by you",
-        "10 GB storage"
+        "10 GB storage target"
       ],
       "bulletsMuted": ["For collaboration, see Team"],
       "cta": "Start with BYOK"
@@ -394,13 +394,13 @@
       "selfHost": {
         "cat": "SELF-HOSTED · DEVELOPERS",
         "title": "Run it yourself with Docker",
-        "body": "Full open-source code (AGPLv3, with separate commercial license available) · unlimited workspaces and members · fully-local LLM option. Hardware and ops are on you.",
+        "body": "Full open-source code (AGPLv3, with separate commercial license available) · self-operated workspaces and members · fully-local LLM option. Hardware and ops are on you.",
         "cmd": "$ docker-compose up -d"
       },
       "enterprise": {
         "cat": "ENTERPRISE · REGULATED",
-        "title": "On-prem · SSO · audit logs",
-        "body": "Dedicated install and support path for finance, healthcare, government, and universities — environments where external SaaS can be restricted. Fully-local LLM · organization auth integration design · commercial license.",
+        "title": "On-prem · auth · audit path",
+        "body": "Dedicated install and support path for finance, healthcare, government, and universities — environments where external SaaS can be restricted. Fully-local LLM configuration · organization auth integration design · commercial license inquiry.",
         "cmd": "Request a consultation · custom quote"
       }
     }
@@ -415,7 +415,7 @@
       },
       {
         "q": "Where is my data stored?",
-        "a": "All of it in infrastructure you operate. Text, vectors, and wiki pages in the database; original files in file storage. In Gemini mode only the AI call leaves; in fully-local mode there are no outbound requests."
+        "a": "All of it in infrastructure you operate. Text, vectors, and wiki pages live in the database; original files live in file storage. In Gemini mode, AI calls go to the external provider. With an Ollama-based local LLM configuration, model calls do not leave your deployment. External connectors such as Google Drive or Notion only contact those services when enabled."
       },
       {
         "q": "Doesn't AGPLv3 mean my company can't use it?",
@@ -452,40 +452,16 @@
   },
   "footer": {
     "tagline": "AI knowledge OS. Solo or team. Self-hosted, forever.",
-    "taglineMono": "Self-hostable AI notes. Hosted pricing is in planning.",
-    "colProduct": "Product",
-    "colDev": "Developers",
-    "colCommunity": "Community",
-    "colLegal": "Legal",
-    "productLinks": [
-      { "label": "pipeline", "href": "#how" },
-      { "label": "agents", "href": "#agents" },
-      { "label": "workspace", "href": "#workspace" },
-      { "label": "principles", "href": "#vs" },
-      { "label": "pricing", "href": "#pricing" }
-    ],
-    "devLinks": [
-      { "label": "github", "href": "repo" },
-      { "label": "docs", "href": "repoDocs" },
-      { "label": "adrs", "href": "repoAdrs" },
-      { "label": "issues", "href": "repoIssues" },
-      { "label": "changelog", "href": "changelog" }
-    ],
-    "communityLinks": [
-      { "label": "discord", "href": "discord" },
-      { "label": "twitter", "href": "twitter" },
-      { "label": "roadmap", "href": "roadmap" },
-      { "label": "email", "href": "contactEmail" }
-    ],
-    "legalLinks": [
-      { "label": "agplv3", "href": "license" },
-      { "label": "privacy", "href": "privacy" },
-      { "label": "refund", "href": "refund" },
-      { "label": "cla", "href": "cla" },
-      { "label": "terms", "href": "terms" }
+    "navLabel": "Footer links",
+    "links": [
+      { "label": "GitHub", "href": "repo" },
+      { "label": "Blog", "href": "blog" },
+      { "label": "Email", "href": "contactEmail" },
+      { "label": "AGPLv3", "href": "license" },
+      { "label": "Privacy", "href": "privacy" },
+      { "label": "Terms", "href": "terms" }
     ],
     "copyright": "© 2026 OpenCairn · Built by <author>{authorName}</author>",
-    "badges": ["Gemini", "Ollama", "Docker", "Self-Hosted"],
     "endline": "< end of document / thanks for reading >"
   }
 }

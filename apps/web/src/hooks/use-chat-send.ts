@@ -58,6 +58,7 @@ export interface SendInput {
   content: string;
   scope?: unknown;
   mode?: string;
+  threadId?: string;
 }
 
 export function useChatSend(threadId: string | null) {
@@ -68,7 +69,7 @@ export function useChatSend(threadId: string | null) {
   const resumedRun = useRef<string | null>(null);
 
   const consumeStream = useCallback(
-    async (res: Response, ac: AbortController) => {
+    async (res: Response, ac: AbortController, targetThreadId: string) => {
       const parser = createParser({
         onEvent: (ev) => {
           if (!ev.event) return;
@@ -165,14 +166,14 @@ export function useChatSend(threadId: string | null) {
         // SSE read errors leave live state intact for the next send/resume.
       } finally {
         if (controller.current === ac) {
-          qc.invalidateQueries({ queryKey: ["chat-messages", threadId] });
+          qc.invalidateQueries({ queryKey: ["chat-messages", targetThreadId] });
           setLive(null);
           controller.current = null;
           resumedRun.current = null;
         }
       }
     },
-    [qc, threadId, t],
+    [qc, t],
   );
 
   const resumeRun = useCallback(
@@ -193,14 +194,15 @@ export function useChatSend(threadId: string | null) {
         resumedRun.current = null;
         return;
       }
-      await consumeStream(stream, ac);
+      await consumeStream(stream, ac, threadId);
     },
     [threadId, consumeStream],
   );
 
   const send = useCallback(
     async (input: SendInput) => {
-      if (!threadId) return;
+      const targetThreadId = input.threadId ?? threadId;
+      if (!targetThreadId) return;
       // Aborting any in-flight stream guarantees the next send starts from
       // a clean live state (no interleaving of two assistant turns).
       controller.current?.abort();
@@ -211,7 +213,7 @@ export function useChatSend(threadId: string | null) {
 
       let res: Response;
       try {
-        res = await fetch(`/api/threads/${threadId}/messages`, {
+        res = await fetch(`/api/threads/${targetThreadId}/messages`, {
           method: "POST",
           credentials: "include",
           headers: {
@@ -239,7 +241,7 @@ export function useChatSend(threadId: string | null) {
         return;
       }
 
-      await consumeStream(res, ac);
+      await consumeStream(res, ac, targetThreadId);
     },
     [threadId, consumeStream],
   );

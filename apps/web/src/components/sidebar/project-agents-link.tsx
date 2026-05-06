@@ -16,7 +16,7 @@ export function ProjectAgentsLink() {
   return (
     <Link
       href={urls.workspace.projectAgents(locale, wsSlug, projectId)}
-      className="mx-3 mb-2 flex items-center gap-2 rounded border border-border px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+      className="flex min-h-8 items-center gap-2 border-l-2 border-transparent px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:border-border hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <Bot aria-hidden className="h-3.5 w-3.5 shrink-0" />
       <span className="flex-1 truncate">{t("entry")}</span>

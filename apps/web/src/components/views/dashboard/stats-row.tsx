@@ -26,8 +26,7 @@ export function StatsRow({ wsId }: { wsId: string }) {
     sub?: string | null,
   ) => (
     <div
-      className="rounded p-4"
-      style={{ border: "1.5px solid var(--theme-border)" }}
+      className="rounded border-2 border-border bg-card p-4 transition-colors hover:border-foreground hover:bg-muted/30"
     >
       <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
         {label}
@@ -46,7 +45,7 @@ export function StatsRow({ wsId }: { wsId: string }) {
         {[0, 1, 2, 3].map((i) => (
           <div
             key={i}
-            className="h-[100px] animate-pulse rounded border border-border bg-muted/40"
+            className="h-[100px] animate-pulse rounded border-2 border-border bg-card"
           />
         ))}
       </div>

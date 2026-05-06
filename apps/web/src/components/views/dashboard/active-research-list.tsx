@@ -80,8 +80,7 @@ export function ActiveResearchList({
       {active.map((run) => (
         <li
           key={run.id}
-          className="app-hover flex items-center gap-4 rounded p-4"
-          style={{ border: "1.5px solid var(--theme-border)" }}
+          className="flex items-center gap-4 rounded border-2 border-border bg-background p-4 transition-colors hover:border-foreground hover:bg-muted/40"
         >
           <StatusDot status={run.status} />
           <div className="min-w-0 flex-1">

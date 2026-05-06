@@ -45,15 +45,20 @@
   },
   "footer": {
     "notifications_aria": "알림",
-    "settings_aria": "워크스페이스 설정",
+    "settings_aria": "설정",
+    "profile_menu_aria": "프로필 메뉴",
+    "profile": "프로필",
+    "account_settings": "설정",
+    "workspace_settings": "워크스페이스 설정",
+    "help": "도움말",
+    "sign_out": "로그아웃",
     "guest_name": "게스트",
     "plan_free": "Free",
     "plan_byok": "BYOK",
     "credits_amount": "₩{value, number}"
   },
   "search": {
-    "placeholder": "이 프로젝트에서 검색",
-    "shortcut_hint": "⌘K"
+    "placeholder": "검색"
   },
   "tree_menu": {
     "rename": "이름 바꾸기",

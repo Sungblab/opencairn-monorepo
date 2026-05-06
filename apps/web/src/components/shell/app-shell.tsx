@@ -58,7 +58,7 @@ export function AppShell({
   if (isCompact) {
     return (
       <div
-        className="flex h-screen w-screen overflow-hidden bg-[var(--theme-surface)]"
+        className="flex h-screen w-screen overflow-hidden bg-background"
         data-testid="app-shell"
       >
         <Sheet
@@ -89,7 +89,7 @@ export function AppShell({
 
   return (
     <div
-      className="flex h-screen w-screen overflow-hidden bg-[var(--theme-surface)]"
+      className="flex h-screen w-screen overflow-hidden bg-background"
       data-testid="app-shell"
     >
       {sidebarOpen && (

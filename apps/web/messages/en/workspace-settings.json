@@ -1,5 +1,11 @@
 {
-  "title": "Workspace settings",
+  "title": "Settings",
+  "groups": {
+    "personal": "Personal",
+    "aiTools": "AI & tools",
+    "workspace": "Workspace",
+    "billing": "Billing"
+  },
   "tabs": {
     "members": "Members",
     "invites": "Invites",

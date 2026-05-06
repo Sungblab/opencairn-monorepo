@@ -21,8 +21,11 @@ export function DashboardView({
   const locale = useLocale();
   const t = useTranslations("dashboard");
   return (
-    <div data-testid="route-dashboard" className="flex flex-col gap-6 p-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+    <div
+      data-testid="route-dashboard"
+      className="mx-auto flex w-full max-w-7xl flex-col gap-5 p-4 sm:p-6"
+    >
+      <header className="flex flex-col gap-3 rounded border-2 border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold">{t("title")}</h1>
           <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
@@ -36,7 +39,7 @@ export function DashboardView({
       </header>
       <GettingStartedPanel wsId={wsId} wsSlug={wsSlug} />
       <StatsRow wsId={wsId} />
-      <section>
+      <section className="rounded border-2 border-border bg-card p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold">
             {t("sections.activeResearch")}
@@ -50,7 +53,7 @@ export function DashboardView({
         </div>
         <ActiveResearchList wsId={wsId} wsSlug={wsSlug} />
       </section>
-      <section>
+      <section className="rounded border-2 border-border bg-card p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold">
             {t("sections.recentDocs")}

@@ -148,6 +148,82 @@ describe("useUrlTabSync", () => {
     expect(tabs.find((t) => t.kind === "note")?.preview).toBe(true);
   });
 
+  it("reuses one workspace settings tab across settings sections", () => {
+    currentPath = "/ko/workspace/acme/settings/members";
+    const { rerender } = renderHook(() => useUrlTabSync());
+    expect(useTabsStore.getState().tabs).toHaveLength(1);
+    expect(useTabsStore.getState().tabs[0]).toMatchObject({
+      kind: "ws_settings",
+      targetId: "members",
+    });
+
+    act(() => {
+      currentPath = "/ko/workspace/acme/settings/integrations";
+    });
+    rerender();
+
+    let tabs = useTabsStore.getState().tabs;
+    expect(tabs).toHaveLength(1);
+    expect(tabs[0]).toMatchObject({
+      kind: "ws_settings",
+      targetId: "integrations",
+    });
+
+    act(() => {
+      currentPath = "/ko/workspace/acme/settings";
+    });
+    rerender();
+
+    tabs = useTabsStore.getState().tabs;
+    expect(tabs).toHaveLength(1);
+    expect(tabs[0]).toMatchObject({
+      kind: "ws_settings",
+      targetId: null,
+    });
+  });
+
+  it("cleans up persisted duplicate workspace settings tabs", () => {
+    const members: Tab = {
+      id: "settings-members",
+      kind: "ws_settings",
+      targetId: "members",
+      mode: "plate",
+      title: "Settings",
+      titleKey: "appShell.tabTitles.ws_settings",
+      pinned: false,
+      preview: false,
+      dirty: false,
+      splitWith: null,
+      splitSide: null,
+      scrollY: 0,
+    };
+    const invites: Tab = {
+      ...members,
+      id: "settings-invites",
+      targetId: "invites",
+    };
+    localStorage.setItem(
+      "oc:tabs:ws_slug:acme",
+      JSON.stringify({
+        tabs: [members, invites],
+        activeId: "settings-invites",
+        closedStack: [],
+      }),
+    );
+    currentPath = "/ko/workspace/acme/settings/integrations";
+
+    renderHook(() => useUrlTabSync());
+
+    const tabs = useTabsStore.getState().tabs;
+    expect(tabs).toHaveLength(1);
+    expect(tabs[0]).toMatchObject({
+      id: "settings-members",
+      kind: "ws_settings",
+      targetId: "integrations",
+    });
+    expect(useTabsStore.getState().activeId).toBe("settings-members");
+  });
+
   it("navigateToTab with mode=replace uses router.replace", () => {
     const { result } = renderHook(() => useUrlTabSync());
     act(() =>

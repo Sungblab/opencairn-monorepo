@@ -33,7 +33,7 @@ export function ModeSelector({ value, onChange }: Props) {
       <DropdownMenuTrigger
         type="button"
         aria-label={t("trigger_aria")}
-        className="inline-flex min-h-7 items-center rounded border border-border px-2.5 py-1 text-xs uppercase tracking-wide hover:bg-accent"
+        className="inline-flex min-h-7 items-center border border-border px-2.5 py-1 text-xs uppercase tracking-wide transition-colors hover:border-foreground"
       >
         {t(value)}
       </DropdownMenuTrigger>

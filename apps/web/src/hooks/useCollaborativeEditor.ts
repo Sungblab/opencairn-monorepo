@@ -94,6 +94,13 @@ export function useCollaborativeEditor({
     // hook rebuilds the Y.Doc from `notes.content` the seed value is ignored.
     const api = editor.getApi(YjsPlugin).yjs;
     let cancelled = false;
+    let initialized = false;
+    let destroyed = false;
+    const destroyInitialized = () => {
+      if (!initialized || destroyed) return;
+      destroyed = true;
+      api.destroy();
+    };
     void (async () => {
       try {
         await api.init({
@@ -101,6 +108,10 @@ export function useCollaborativeEditor({
           autoSelect: "end",
           value: [{ type: "p", children: [{ text: "" }] }],
         });
+        initialized = true;
+        if (cancelled) {
+          destroyInitialized();
+        }
       } catch (err: unknown) {
         // React StrictMode can mount/cleanup/remount this effect fast enough
         // for the Hocuspocus provider to report a duplicate connection. The
@@ -119,19 +130,10 @@ export function useCollaborativeEditor({
     })();
     return () => {
       cancelled = true;
-      // Tear down the providers on unmount so a fresh mount (e.g. after
-      // navigating to another note) doesn't leak a stale WS.
-      try {
-        editor.getApi(YjsPlugin).yjs.destroy();
-      } catch (err) {
-        if (
-          err instanceof Error &&
-          err.message.toLowerCase().includes("event handler")
-        ) {
-          return;
-        }
-        throw err;
-      }
+      // Tear down the providers on unmount, but only after init has installed
+      // Yjs handlers. Destroying before init settles makes Yjs log a noisy
+      // missing-handler error in dev and can interrupt route transitions.
+      destroyInitialized();
     };
   }, [editor, noteId]);
 

@@ -11,6 +11,7 @@ const SIDEBAR_DEFAULT = 240;
 const AGENT_MIN = 300;
 const AGENT_MAX = 560;
 const AGENT_DEFAULT = 360;
+export type AgentPanelTab = "chat" | "activity" | "notifications";
 
 const clamp = (v: number, lo: number, hi: number) =>
   Math.min(hi, Math.max(lo, v));
@@ -22,6 +23,7 @@ interface PanelState {
   agentPanelWidth: number;
   agentPanelOpen: boolean;
   compactAgentPanelOpen: boolean;
+  agentPanelTab: AgentPanelTab;
   backlinksOpen: boolean;
   enrichmentOpen: boolean;
   toggleSidebar(): void;
@@ -30,6 +32,8 @@ interface PanelState {
   toggleCompactAgentPanel(): void;
   toggleBacklinks(): void;
   toggleEnrichment(): void;
+  setAgentPanelTab(tab: AgentPanelTab): void;
+  openAgentPanelTab(tab: AgentPanelTab): void;
   setSidebarOpen(open: boolean): void;
   setCompactSidebarOpen(open: boolean): void;
   setAgentPanelOpen(open: boolean): void;
@@ -52,6 +56,7 @@ export const usePanelStore = create<PanelState>()(
       agentPanelWidth: AGENT_DEFAULT,
       agentPanelOpen: true,
       compactAgentPanelOpen: false,
+      agentPanelTab: "chat",
       backlinksOpen: false,
       enrichmentOpen: false,
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
@@ -65,6 +70,13 @@ export const usePanelStore = create<PanelState>()(
         set((s) => ({ backlinksOpen: !s.backlinksOpen })),
       toggleEnrichment: () =>
         set((s) => ({ enrichmentOpen: !s.enrichmentOpen })),
+      setAgentPanelTab: (tab) => set({ agentPanelTab: tab }),
+      openAgentPanelTab: (tab) =>
+        set({
+          agentPanelTab: tab,
+          agentPanelOpen: true,
+          compactAgentPanelOpen: true,
+        }),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       setCompactSidebarOpen: (open) => set({ compactSidebarOpen: open }),
       setAgentPanelOpen: (open) => set({ agentPanelOpen: open }),

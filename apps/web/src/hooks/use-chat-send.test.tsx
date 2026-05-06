@@ -134,6 +134,26 @@ describe("useChatSend", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("can send to an explicit threadId before the hook rerenders", async () => {
+    const body = mkSseBody([
+      'event: done\ndata: {"id":"m1","status":"complete"}\n\n',
+    ]);
+    fetchMock.mockResolvedValueOnce({ ok: true, body } as Partial<Response>);
+
+    const { result } = renderHook(() => useChatSend(null), {
+      wrapper: makeWrapper(),
+    });
+
+    await act(async () => {
+      await result.current.send({ content: "first", threadId: "new-thread" });
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "/api/threads/new-thread/messages",
+    );
+  });
+
   it("clears live when the response is not ok", async () => {
     fetchMock.mockResolvedValueOnce({ ok: false, body: null } as Partial<Response>);
 

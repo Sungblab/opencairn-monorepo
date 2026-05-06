@@ -13,36 +13,15 @@ function resolveExternalHref(href: string): string | undefined {
     case "/terms":
     case "terms":
       return externalSiteUrls.terms;
-    case "/refund":
-    case "refund":
-      return externalSiteUrls.refund;
     case "/blog":
     case "blog":
       return externalSiteUrls.blog;
     case "repo":
       return publicLinks.repository;
-    case "repoDocs":
-      return publicLinks.repositoryDocs;
-    case "repoAdrs":
-      return publicLinks.repositoryAdrs;
-    case "repoIssues":
-      return publicLinks.repositoryIssues;
     case "license":
       return publicLinks.license;
     case "contactEmail":
       return publicLinks.contactEmail;
-    case "support":
-      return publicLinks.support;
-    case "changelog":
-      return publicLinks.changelog;
-    case "cla":
-      return publicLinks.cla;
-    case "discord":
-      return publicLinks.discord;
-    case "twitter":
-      return publicLinks.twitter;
-    case "roadmap":
-      return publicLinks.roadmap;
     default:
       return href;
   }
@@ -50,79 +29,47 @@ function resolveExternalHref(href: string): string | undefined {
 
 export function LandingFooter() {
   const t = useTranslations("landing.footer");
-  const productLinks = t.raw("productLinks") as Link[];
-  const devLinks = t.raw("devLinks") as Link[];
-  const communityLinks = t.raw("communityLinks") as Link[];
-  const legalLinks = t.raw("legalLinks") as Link[];
-  const badges = t.raw("badges") as string[];
+  const links = t.raw("links") as Link[];
 
   return (
-    <footer className="bg-stone-900 text-stone-50 py-16 lg:py-20">
+    <footer className="bg-stone-900 text-stone-50 py-12 lg:py-14">
       <div className="max-w-[1280px] mx-auto px-6 lg:px-10">
-        {/* ─── TOP ─── brand + link columns */}
-        <div className="grid grid-cols-12 gap-8 lg:gap-6 mb-14">
-          <div className="col-span-12 md:col-span-4">
-            <div className="mb-5">
-              <span className="font-serif text-3xl tracking-tight text-stone-50">
-                OpenCairn
-              </span>
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-[520px]">
+            <div className="font-serif text-[30px] leading-none tracking-tight text-stone-50">
+              OpenCairn
             </div>
-            <p className="kr text-[14px] leading-relaxed text-stone-300 max-w-[340px]">
+            <p className="kr mt-5 text-[15px] leading-relaxed text-stone-300">
               {t("tagline")}
             </p>
-            <p className="mt-3 font-mono text-[11px] tracking-wider text-stone-500 max-w-[340px]">
-              {t("taglineMono")}
-            </p>
-
-            {/* stack badges */}
-            <div className="mt-6 flex flex-wrap gap-2">
-              {badges.map((b) => (
-                <span
-                  key={b}
-                  className="font-sans text-[10px] tracking-[0.16em] uppercase text-stone-200 border border-stone-700 rounded-full px-2.5 py-1"
-                >
-                  {b}
-                </span>
-              ))}
-            </div>
           </div>
 
-          {[
-            { h: t("colProduct"), links: productLinks },
-            { h: t("colDev"), links: devLinks },
-            { h: t("colCommunity"), links: communityLinks },
-            { h: t("colLegal"), links: legalLinks },
-          ].map((col, i) => (
-            <div key={i} className="col-span-6 md:col-span-2">
-              <h4 className="font-sans text-[11px] font-semibold tracking-[0.18em] uppercase text-stone-400 mb-5">
-                {col.h}
-              </h4>
-              <ul className="space-y-2.5 font-sans text-[13px]">
-                {col.links.map((l, j) => {
-                  const href = resolveExternalHref(l.href);
-                  if (!href || href === "#") return null;
-                  return (
-                    <li key={j}>
-                      <a
-                        href={href}
-                        className="inline-flex items-center text-stone-200 hover:bg-stone-50 hover:text-stone-900 px-2 py-1 -mx-2 rounded-md transition-colors"
-                      >
-                        {l.label}
-                      </a>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
+          <nav
+            aria-label={t("navLabel")}
+            className="flex max-w-[620px] flex-wrap gap-x-5 gap-y-3 pt-1 font-sans text-[14px] leading-none text-stone-200 lg:justify-end"
+          >
+            {links.map((l) => {
+              const href = resolveExternalHref(l.href);
+              if (!href || href === "#") return null;
+              return (
+                <a
+                  key={`${l.href}-${l.label}`}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-md py-1.5 text-stone-200 underline-offset-4 transition-colors hover:text-white hover:underline"
+                >
+                  {l.label}
+                </a>
+              );
+            })}
+          </nav>
         </div>
 
-        {/* ─── DIVIDER ─── */}
-        <div className="h-px bg-gradient-to-r from-transparent via-stone-700 to-transparent" />
+        <div className="mt-10 h-px bg-stone-800" />
 
-        {/* ─── BOTTOM ─── copyright + language */}
-        <div className="pt-8 flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-center sm:gap-6">
-          <div className="max-w-full font-sans text-[11px] leading-relaxed tracking-[0.16em] uppercase text-stone-400">
+        <div className="pt-6 flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-center sm:gap-6">
+          <div className="max-w-full font-sans text-[12px] leading-relaxed text-stone-400">
             {t.rich("copyright", {
               author: (chunks) => (
                 publicLinks.author ? (
@@ -130,7 +77,7 @@ export function LandingFooter() {
                     href={publicLinks.author}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-stone-100 underline decoration-stone-600 underline-offset-2 hover:bg-stone-50 hover:text-stone-900 hover:no-underline px-1.5 py-0.5 rounded-md transition-colors"
+                    className="text-stone-200 underline decoration-stone-600 underline-offset-4 transition-colors hover:text-white"
                   >
                     {chunks}
                   </a>
