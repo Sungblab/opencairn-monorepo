@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./public": "./src/public.ts"
+    "./public": "./src/public.ts",
+    "./note-chunk-refresh": "./src/lib/note-chunk-refresh.ts"
   },
   "scripts": {
     "dev": "tsx watch --env-file=../../.env src/index.ts",

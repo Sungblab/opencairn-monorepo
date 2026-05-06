@@ -102,6 +102,7 @@ import {
   createKnowledgeClaim,
   validateEvidenceBundleInput,
 } from "../lib/evidence-bundles";
+import { refreshNoteChunkIndexBestEffort } from "../lib/note-chunk-refresh";
 
 // Internal-only routes — reachable by worker callbacks on the docker network.
 // Auth is a shared secret (INTERNAL_API_SECRET) carried in `X-Internal-Secret`;
@@ -2622,6 +2623,14 @@ internal.post(
       isAuto: true,
       doi: body.doi ?? null,
     });
+    await refreshNoteChunkIndexBestEffort({
+      id,
+      workspaceId: proj.workspaceId,
+      projectId: body.projectId,
+      title: body.title,
+      contentText,
+      deletedAt: null,
+    });
 
     // Back-fill researchRuns.noteId so a retry of this call hits the
     // idempotency branch above. UUID guard mirrors the read path above —
@@ -2858,8 +2867,18 @@ internal.patch(
       .update(notes)
       .set(patch)
       .where(and(eq(notes.id, id), isNull(notes.deletedAt)))
-      .returning({ id: notes.id });
+      .returning({
+        id: notes.id,
+        workspaceId: notes.workspaceId,
+        projectId: notes.projectId,
+        title: notes.title,
+        contentText: notes.contentText,
+        deletedAt: notes.deletedAt,
+      });
     if (!updated) return c.json({ error: "not_found" }, 404);
+    if (body.contentText !== undefined || body.title !== undefined) {
+      await refreshNoteChunkIndexBestEffort(updated);
+    }
     return c.json({ ok: true });
   },
 );

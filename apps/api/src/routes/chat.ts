@@ -57,9 +57,19 @@ chatRoutes.post(
       return c.json({ error: "forbidden" }, 403);
     }
 
+    let attachedChips: AttachedChip[];
     try {
-      await validateScope(body.workspaceId, body.scopeType, body.scopeId, {
+      await requireConversationReadable({
         userId,
+        workspaceId: body.workspaceId,
+        scopeType: body.scopeType,
+        scopeId: body.scopeId,
+      });
+      attachedChips = await validateAttachedChips({
+        workspaceId: body.workspaceId,
+        userId,
+        chips: body.attachedChips as AttachedChip[],
+        rejectUnreadable: true,
       });
     } catch (e) {
       if (e instanceof ScopeValidationError) {
@@ -76,7 +86,7 @@ chatRoutes.post(
         title: body.title,
         scopeType: body.scopeType,
         scopeId: body.scopeId,
-        attachedChips: body.attachedChips as AttachedChip[],
+        attachedChips,
         ragMode: body.ragMode,
         memoryFlags: body.memoryFlags,
       })
@@ -157,6 +167,61 @@ function dedupeChips(arr: AttachedChip[]): AttachedChip[] {
     if (seen.has(k)) return false;
     seen.add(k);
     return true;
+  });
+}
+
+function isRetrievalChip(
+  chip: AttachedChip,
+): chip is AttachedChip & { type: "page" | "project" | "workspace" } {
+  return (
+    chip.type === "page" ||
+    chip.type === "project" ||
+    chip.type === "workspace"
+  );
+}
+
+async function validateAttachedChips(opts: {
+  workspaceId: string;
+  userId: string;
+  chips: AttachedChip[];
+  rejectUnreadable: boolean;
+}): Promise<AttachedChip[]> {
+  const next: AttachedChip[] = [];
+  for (const chip of dedupeChips(opts.chips)) {
+    if (!isRetrievalChip(chip)) {
+      next.push(chip);
+      continue;
+    }
+
+    try {
+      const resolved = await validateScope(
+        opts.workspaceId,
+        chip.type,
+        chip.id,
+        { userId: opts.userId },
+      );
+      next.push({ ...chip, label: chip.label ?? resolved.label });
+    } catch (e) {
+      if (e instanceof ScopeValidationError && !opts.rejectUnreadable) {
+        continue;
+      }
+      throw e;
+    }
+  }
+  return next;
+}
+
+async function requireConversationReadable(opts: {
+  userId: string;
+  workspaceId: string;
+  scopeType: "page" | "project" | "workspace";
+  scopeId: string;
+}): Promise<void> {
+  if (!(await canRead(opts.userId, { type: "workspace", id: opts.workspaceId }))) {
+    throw new ScopeValidationError(403, "forbidden");
+  }
+  await validateScope(opts.workspaceId, opts.scopeType, opts.scopeId, {
+    userId: opts.userId,
   });
 }
 
@@ -379,6 +444,35 @@ chatRoutes.post(
     if (convo.ownerUserId !== userId) {
       return c.json({ error: "forbidden" }, 403);
     }
+    let attachedChips: AttachedChip[];
+    try {
+      await requireConversationReadable({
+        userId,
+        workspaceId: convo.workspaceId,
+        scopeType: convo.scopeType,
+        scopeId: convo.scopeId,
+      });
+      attachedChips = await validateAttachedChips({
+        workspaceId: convo.workspaceId,
+        userId,
+        chips: convo.attachedChips as AttachedChip[],
+        rejectUnreadable: false,
+      });
+    } catch (e) {
+      if (e instanceof ScopeValidationError) {
+        return c.json({ error: e.message }, e.status);
+      }
+      throw e;
+    }
+    if (
+      JSON.stringify(attachedChips) !==
+      JSON.stringify(convo.attachedChips as AttachedChip[])
+    ) {
+      await db
+        .update(conversations)
+        .set({ attachedChips, updatedAt: new Date() })
+        .where(eq(conversations.id, conversationId));
+    }
     const [profile] = await db
       .select({ locale: user.locale, timezone: user.timezone })
       .from(user)
@@ -401,11 +495,8 @@ chatRoutes.post(
           : { type: "workspace", workspaceId: convo.workspaceId };
 
     // Filter chips: retrieval ignores memory:* in v1.
-    const chips: RetrievalChip[] = (convo.attachedChips as AttachedChip[])
-      .filter(
-        (c) =>
-          c.type === "page" || c.type === "project" || c.type === "workspace",
-      )
+    const chips: RetrievalChip[] = attachedChips
+      .filter(isRetrievalChip)
       .map((c) => ({ type: c.type, id: c.id }) as RetrievalChip);
 
     // Replay last N turns of history (oldest-first). Tool rows fold to
@@ -472,6 +563,7 @@ chatRoutes.post(
           scope,
           ragMode: convo.ragMode,
           chips,
+          userId,
           history,
           userMessage: content,
           provider,

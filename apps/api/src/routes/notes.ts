@@ -27,6 +27,7 @@ import { isUuid } from "../lib/validators";
 import { plateValueToText } from "../lib/plate-text";
 import { moveNote } from "../lib/tree-queries";
 import { emitTreeEvent } from "../lib/tree-events";
+import { refreshNoteChunkIndexBestEffort } from "../lib/note-chunk-refresh";
 import type { AppEnv } from "../lib/types";
 
 export const noteRoutes = new Hono<AppEnv>()
@@ -238,6 +239,7 @@ export const noteRoutes = new Hono<AppEnv>()
       .insert(notes)
       .values({ ...body, workspaceId: proj.workspaceId, contentText })
       .returning();
+    await refreshNoteChunkIndexBestEffort(note);
 
     emitTreeEvent({
       kind: "tree.note_created",
@@ -339,6 +341,15 @@ export const noteRoutes = new Hono<AppEnv>()
         updatedAt: notes.updatedAt,
       });
 
+    await refreshNoteChunkIndexBestEffort({
+      id,
+      workspaceId: note.workspaceId,
+      projectId: note.projectId,
+      title: note.title,
+      contentText: updated.contentText,
+      deletedAt: note.deletedAt,
+    });
+
     return c.json(updated, 200);
   })
 
@@ -376,6 +387,9 @@ export const noteRoutes = new Hono<AppEnv>()
         label: note.title,
         at: new Date().toISOString(),
       });
+    }
+    if (renamed) {
+      await refreshNoteChunkIndexBestEffort(note);
     }
 
     return c.json(note);

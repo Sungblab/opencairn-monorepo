@@ -12,6 +12,9 @@ vi.mock("../../src/lib/chunk-hybrid-search", () => ({
 vi.mock("../../src/lib/retrieval-graph-expansion", () => ({
   expandGraphCandidates: vi.fn(),
 }));
+vi.mock("../../src/lib/permissions", () => ({
+  canRead: vi.fn(),
+}));
 vi.mock("@opencairn/db", async (orig) => {
   const real = (await orig()) as object;
   return { ...real, db: { execute: vi.fn() } };
@@ -34,6 +37,10 @@ const graphExpansion =
   (await import("../../src/lib/retrieval-graph-expansion.js")) as unknown as {
     expandGraphCandidates: ReturnType<typeof vi.fn>;
   };
+const permissions =
+  (await import("../../src/lib/permissions.js")) as unknown as {
+    canRead: ReturnType<typeof vi.fn>;
+  };
 
 const fakeProvider = {
   embed: vi.fn().mockResolvedValue(new Array(768).fill(0)),
@@ -49,6 +56,8 @@ beforeEach(() => {
   chunkSearch.projectChunkHybridSearch.mockResolvedValue([]);
   graphExpansion.expandGraphCandidates.mockReset();
   graphExpansion.expandGraphCandidates.mockResolvedValue([]);
+  permissions.canRead.mockReset();
+  permissions.canRead.mockResolvedValue(true);
 });
 
 describe("chat-retrieval ragMode", () => {
@@ -223,6 +232,49 @@ describe("chat-retrieval chip union", () => {
       chips: [{ type: "page", id: "n-foreign" }],
     });
     expect(search.projectHybridSearch).not.toHaveBeenCalled();
+  });
+
+  it("drops a same-workspace project chip when the user cannot currently read it", async () => {
+    dbMod.db.execute.mockResolvedValue({ rows: [{}] }); // projectInWorkspace → true
+    permissions.canRead.mockResolvedValue(false);
+
+    await retrieve({
+      workspaceId: "ws-1",
+      query: "q",
+      ragMode: "strict",
+      scope: { type: "workspace", workspaceId: "ws-1" },
+      chips: [{ type: "project", id: "p-private" }],
+      userId: "user-1",
+    });
+
+    expect(permissions.canRead).toHaveBeenCalledWith("user-1", {
+      type: "project",
+      id: "p-private",
+    });
+    expect(search.projectHybridSearch).not.toHaveBeenCalled();
+  });
+
+  it("workspace fanout includes only projects the user can currently read", async () => {
+    dbMod.db.execute.mockResolvedValueOnce({
+      rows: [{ id: "p-readable" }, { id: "p-private" }],
+    });
+    permissions.canRead.mockImplementation(async (_userId, resource) => {
+      return (resource as { id: string }).id === "p-readable";
+    });
+
+    await retrieve({
+      workspaceId: "ws-1",
+      query: "q",
+      ragMode: "strict",
+      scope: { type: "workspace", workspaceId: "ws-1" },
+      chips: [{ type: "workspace", id: "ws-1" }],
+      userId: "user-1",
+    });
+
+    const calls = search.projectHybridSearch.mock.calls.map(
+      (c) => (c[0] as { projectId: string }).projectId,
+    );
+    expect(calls).toEqual(["p-readable"]);
   });
 });
 

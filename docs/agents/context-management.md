@@ -108,6 +108,10 @@ result = client.models.embed_content(
 - **Expand mode**: 같은 scope/chip 집합 안에서 top-k, graph expansion, context budget을 넓힌다. 단순 질의가 sparse/weak evidence만 얻으면 workspace 밖으로 무단 fallback하지 않고, same-scope corrective graph retry를 한 번 실행한다.
 - **구현**: `retrieveWithPolicy(query, scope_chips, mode='strict'|'expand')`가 adaptive policy, retrieval quality report, optional corrective retry를 함께 노출한다.
 - **권한**: 모든 모드에서 `canRead(user, resource)` 통과한 문서만 검색 대상.
+  Conversation 생성 시 primary scope와 initial page/project/workspace chips를
+  같은 기준으로 검증하고, message 전송 시점에도 현재 workspace/scope
+  권한을 다시 확인한다. 오래된 attached chip은 검색 전에 다시 필터링되어
+  권한이 사라진 project/page 후보가 retrieval 대상이 되지 않는다.
 
 ### 3단계 검색 파이프라인
 
