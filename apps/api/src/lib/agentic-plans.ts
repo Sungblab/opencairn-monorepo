@@ -46,6 +46,7 @@ import {
   agentActionRiskSchema,
   agenticPlanSchema,
   agenticPlanStepKindSchema,
+  allowedAgenticPlanRecoveryStrategies,
   codeWorkspaceCommandRunRequestSchema,
   exportProjectObjectActionSchema,
   generateProjectObjectActionSchema,
@@ -1018,6 +1019,21 @@ export async function recoverAgenticPlanStep(
   if (!step) throw new AgenticPlanError("agentic_plan_step_not_found", 404);
   if (!["failed", "blocked", "cancelled"].includes(step.status)) {
     throw new AgenticPlanError("agentic_plan_step_not_recoverable", 409);
+  }
+  const allowedStrategies = allowedAgenticPlanRecoveryStrategies(step);
+  if (!allowedStrategies.includes(request.strategy)) {
+    throw new AgenticPlanError("agentic_plan_recovery_strategy_not_allowed", 409);
+  }
+
+  if (request.strategy === "cancel") {
+    await repo.updateStep({
+      planId,
+      stepId: step.id,
+      status: "cancelled",
+      errorCode: "cancelled",
+      errorMessage: request.note?.trim() || null,
+    });
+    return refreshPlanStatus(repo, projectId, planId);
   }
 
   if (request.strategy === "retry" && step.recoveryCode === "stale_context") {

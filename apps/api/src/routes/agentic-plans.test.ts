@@ -202,6 +202,61 @@ describe("agentic plan routes", () => {
       status: "approval_required",
     });
   });
+
+  it("accepts cancel recovery and terminal-transitions the blocked step", async () => {
+    const repo = createMemoryAgenticPlanRepo();
+    const plan = await repo.insertPlan({
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Blocked plan",
+      goal: "Blocked plan",
+      status: "blocked",
+      target: { workspaceId, projectId },
+      plannerKind: "deterministic",
+      summary: "1-step deterministic plan: manual.review",
+      currentStepOrdinal: 1,
+      steps: [
+        {
+          kind: "manual.review",
+          title: "Review missing source",
+          rationale: "The source is missing.",
+          risk: "low",
+          recoveryCode: "missing_source",
+        },
+      ],
+    });
+    const step = plan.steps[0]!;
+    await repo.updateStep({
+      planId: plan.id,
+      stepId: step.id,
+      status: "blocked",
+      recoveryCode: "missing_source",
+      errorCode: "missing_source",
+    });
+    const app = createTestApp({ repo });
+
+    const response = await app.request(
+      `/api/projects/${projectId}/agentic-plans/${plan.id}/recover`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stepId: step.id,
+          strategy: "cancel",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json() as { plan: AgenticPlan };
+    expect(body.plan.steps).toHaveLength(1);
+    expect(body.plan.steps[0]).toMatchObject({
+      status: "cancelled",
+      errorCode: "cancelled",
+    });
+    expect(body.plan.status).toBe("cancelled");
+  });
 });
 
 function createTestApp(options?: {

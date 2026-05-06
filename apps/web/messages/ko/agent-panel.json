@@ -95,6 +95,8 @@
     "start": "시작",
     "retry": "다시 시도",
     "recover": "복구 검토 추가",
+    "cancel": "취소",
+    "cancelConfirm": "이 단계는 취소하면 종료 상태가 됩니다. 계속할까요?",
     "empty": "아직 에이전틱 플랜이 없습니다.",
     "loading": "에이전틱 플랜을 불러오는 중…",
     "refreshing": "새로고침 중",

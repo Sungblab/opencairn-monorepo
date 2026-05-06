@@ -42,8 +42,8 @@ shape is:
   to request from project sources, preview, edit, version, download, and bridge
   into existing Canvas/code surfaces.
 - Build the Agentic Workflow roadmap so note operations, generated files, code
-  projects, import, export, approvals, and workflow status use one auditable
-  action model.
+  projects, import, export, approvals, recovery, and workflow status use one
+  auditable action model.
 - Improve grounded retrieval quality and evidence presentation.
 - Use the OpenAI-compatible provider and parser gateway benchmark path to guide
   later provider routing and ingest-default changes.

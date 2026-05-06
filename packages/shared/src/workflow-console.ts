@@ -7,6 +7,7 @@ import {
   type AgentActionEvent,
 } from "./agent-actions";
 import {
+  allowedAgenticPlanRecoveryStrategies,
   agenticPlanSchema,
   type AgenticPlan,
   type AgenticPlanStep,
@@ -839,7 +840,7 @@ function planOperationalSummary(steps: AgenticPlanStep[]): Record<string, unknow
 
 function recoveryPolicyForStep(step: AgenticPlanStep): Record<string, unknown> | null {
   if (!step.recoveryCode || !["blocked", "failed", "cancelled"].includes(step.status)) return null;
-  const allowedStrategies = allowedRecoveryStrategies(step);
+  const allowedStrategies = allowedAgenticPlanRecoveryStrategies(step);
   return {
     stepId: step.id,
     stepTitle: step.title,
@@ -847,29 +848,6 @@ function recoveryPolicyForStep(step: AgenticPlanStep): Record<string, unknown> |
     recoveryCode: step.recoveryCode,
     allowedStrategies,
   };
-}
-
-function allowedRecoveryStrategies(step: AgenticPlanStep): string[] {
-  if (step.recoveryCode === "stale_context") {
-    return ["retry", "manual_review", "cancel"];
-  }
-  if (step.recoveryCode === "verification_failed") {
-    return retryableStepKind(step.kind)
-      ? ["retry", "manual_review", "cancel"]
-      : ["manual_review", "cancel"];
-  }
-  return ["manual_review", "cancel"];
-}
-
-export function retryableStepKind(kind: AgenticPlanStep["kind"]): boolean {
-  return [
-    "document.generate",
-    "file.export",
-    "code.run",
-    "code.repair",
-    "import.retry",
-    "agent.run",
-  ].includes(kind);
 }
 
 function importLabel(job: ImportJobProjectionSource): string {

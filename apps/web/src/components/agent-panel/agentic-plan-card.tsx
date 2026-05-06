@@ -1,10 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Play, Plus, RotateCcw } from "lucide-react";
+import { Play, Plus, RotateCcw, XCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { retryableStepKind, type AgenticPlan } from "@opencairn/shared";
+import {
+  allowedAgenticPlanRecoveryStrategies,
+  type AgenticPlan,
+  type AgenticPlanRecoveryStrategy,
+} from "@opencairn/shared";
 
 import { agenticPlansApi } from "@/lib/api-client";
 
@@ -60,7 +64,7 @@ export function AgenticPlanCard({ projectId }: Props) {
     mutationFn: (input: {
       planId: string;
       stepId: string;
-      strategy: "retry" | "manual_review";
+      strategy: AgenticPlanRecoveryStrategy;
     }) => {
       if (!projectId) throw new Error("missing_project");
       return agenticPlansApi.recover(projectId, input.planId, {
@@ -154,7 +158,7 @@ function AgenticPlanSummary({
   plan: AgenticPlan;
   busy: boolean;
   onStart: () => void;
-  onRecover: (stepId: string, strategy: "retry" | "manual_review") => void;
+  onRecover: (stepId: string, strategy: AgenticPlanRecoveryStrategy) => void;
 }) {
   const t = useTranslations("agentPanel.agenticPlan");
   const completed = useMemo(
@@ -237,6 +241,21 @@ function AgenticPlanSummary({
               <RotateCcw className="h-3.5 w-3.5" aria-hidden />
               {t("recover")}
             </button>
+            {cancelAllowed(recoverable) ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  if (window.confirm(t("cancelConfirm"))) {
+                    onRecover(recoverable.id, "cancel");
+                  }
+                }}
+                className="app-btn-ghost inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-xs text-destructive"
+              >
+                <XCircle className="h-3.5 w-3.5" aria-hidden />
+                {t("cancel")}
+              </button>
+            ) : null}
           </>
         ) : null}
         <button
@@ -254,11 +273,11 @@ function AgenticPlanSummary({
 }
 
 function retryAllowed(step: AgenticPlan["steps"][number]): boolean {
-  return step.recoveryCode === "stale_context"
-    || (
-      step.recoveryCode === "verification_failed" &&
-      retryableStepKind(step.kind)
-    );
+  return allowedAgenticPlanRecoveryStrategies(step).includes("retry");
+}
+
+function cancelAllowed(step: AgenticPlan["steps"][number]): boolean {
+  return allowedAgenticPlanRecoveryStrategies(step).includes("cancel");
 }
 
 function statusTone(status: AgenticPlan["steps"][number]["status"]): string {

@@ -95,6 +95,8 @@
     "start": "Start",
     "retry": "Retry",
     "recover": "Add recovery review",
+    "cancel": "Cancel",
+    "cancelConfirm": "Cancelling this step moves it to a terminal state. Continue?",
     "empty": "No agentic plans yet.",
     "loading": "Loading agentic plans…",
     "refreshing": "Refreshing",

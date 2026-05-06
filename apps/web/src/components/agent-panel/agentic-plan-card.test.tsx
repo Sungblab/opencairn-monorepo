@@ -179,6 +179,50 @@ describe("AgenticPlanCard", () => {
       );
     });
   });
+
+  it("requires confirmation before cancelling a blocked recovery step", async () => {
+    const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderWithClient([
+      planFixture({
+        status: "blocked",
+        stepStatus: "blocked",
+        errorCode: "missing_source",
+        recoveryCode: "missing_source",
+      }),
+    ]);
+
+    await user.click(await screen.findByRole("button", { name: /cancel/ }));
+
+    await waitFor(() => {
+      expect(confirmSpy).toHaveBeenCalledWith("cancelConfirm");
+      expect(agenticPlansApi.recover).toHaveBeenCalledWith(
+        projectId,
+        "00000000-0000-4000-8000-000000000010",
+        {
+          stepId: "00000000-0000-4000-8000-000000000011",
+          strategy: "cancel",
+        },
+      );
+    });
+  });
+
+  it("does not cancel a recovery step when confirmation is declined", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    renderWithClient([
+      planFixture({
+        status: "blocked",
+        stepStatus: "blocked",
+        errorCode: "missing_source",
+        recoveryCode: "missing_source",
+      }),
+    ]);
+
+    await user.click(await screen.findByRole("button", { name: /cancel/ }));
+
+    expect(agenticPlansApi.recover).not.toHaveBeenCalled();
+  });
 });
 
 function planFixture(options: {

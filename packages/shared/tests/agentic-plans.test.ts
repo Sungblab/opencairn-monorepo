@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  allowedAgenticPlanRecoveryStrategies,
   agenticPlanSchema,
   agenticPlanStepKindSchema,
   createAgenticPlanRequestSchema,
+  recoverAgenticPlanStepRequestSchema,
 } from "../src/agentic-plans";
 import {
   workflowConsoleRunFromAgenticPlan,
@@ -136,6 +138,29 @@ describe("agentic plan contracts", () => {
     });
   });
 
+  it("accepts cancel as a terminal recovery strategy", () => {
+    expect(recoverAgenticPlanStepRequestSchema.parse({
+      stepId: "00000000-0000-4000-8000-000000000011",
+      strategy: "cancel",
+    })).toEqual({
+      stepId: "00000000-0000-4000-8000-000000000011",
+      strategy: "cancel",
+    });
+  });
+
+  it("allows cancel for generic blocked or failed steps without a recovery code", () => {
+    const step = {
+      ...planFixture().steps[1]!,
+      status: "blocked" as const,
+      recoveryCode: null,
+    };
+
+    expect(allowedAgenticPlanRecoveryStrategies(step)).toEqual([
+      "manual_review",
+      "cancel",
+    ]);
+  });
+
   it("projects plans into workflow console runs", () => {
     const run = workflowConsoleRunFromAgenticPlan(planFixture());
 
@@ -210,9 +235,44 @@ describe("agentic plan contracts", () => {
       staleEvidenceBlockers: 1,
       verificationStatus: "failed",
       recoveryCodes: ["stale_context"],
+      recoveryPolicies: [
+        expect.objectContaining({
+          recoveryCode: "stale_context",
+          allowedStrategies: ["retry", "manual_review", "cancel"],
+        }),
+      ],
       evidenceFreshness: {
         stale: 1,
       },
+    });
+  });
+
+  it("projects cancel-only terminal recovery options for missing source blockers", () => {
+    const run = workflowConsoleRunFromAgenticPlan({
+      ...planFixture(),
+      status: "blocked",
+      steps: planFixture().steps.map((step) =>
+        step.kind === "file.export"
+          ? {
+              ...step,
+              status: "blocked",
+              evidenceFreshnessStatus: "missing",
+              staleEvidenceBlocks: true,
+              verificationStatus: "blocked",
+              recoveryCode: "missing_source",
+              errorCode: "missing_source",
+            }
+          : step,
+      ),
+    });
+
+    expect(workflowConsoleRunSchema.parse(run).outputs[0]?.metadata).toMatchObject({
+      recoveryPolicies: [
+        expect.objectContaining({
+          recoveryCode: "missing_source",
+          allowedStrategies: ["manual_review", "cancel"],
+        }),
+      ],
     });
   });
 });
