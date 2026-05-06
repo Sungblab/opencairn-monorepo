@@ -11,7 +11,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import messages from "../../../../messages/ko/agents.json";
-import { importJobsApi, plan8AgentsApi, workflowConsoleApi } from "@/lib/api-client";
+import {
+  agenticPlansApi,
+  importJobsApi,
+  plan8AgentsApi,
+  workflowConsoleApi,
+} from "@/lib/api-client";
 import { AgentEntryPointsView } from "./agent-entrypoints-view";
 
 vi.mock("sonner", () => ({
@@ -32,6 +37,9 @@ vi.mock("@/lib/api-client", () => ({
     runNarrator: vi.fn(),
     resolveSuggestion: vi.fn(),
     reviewStaleAlert: vi.fn(),
+  },
+  agenticPlansApi: {
+    recover: vi.fn(),
   },
   workflowConsoleApi: {
     list: vi.fn(),
@@ -157,6 +165,61 @@ const workflowRuns = [
     completedAt: null,
   },
   {
+    runId: "agentic_plan:00000000-0000-4000-8000-000000000070",
+    runType: "agentic_plan" as const,
+    sourceId: "00000000-0000-4000-8000-000000000070",
+    sourceStatus: "blocked",
+    workspaceId: "workspace-1",
+    projectId: "project-1",
+    actorUserId: "user-1",
+    title: "Recover stale evidence",
+    status: "blocked" as const,
+    risk: "write" as const,
+    outputs: [
+      {
+        outputType: "preview" as const,
+        id: "00000000-0000-4000-8000-000000000070",
+        label: "Blocked plan",
+        metadata: {
+          recoveryPolicies: [
+            {
+              stepId: "step-1",
+              stepTitle: "Refresh source evidence",
+              recoveryCode: "stale_context",
+              allowedStrategies: ["retry", "manual_review", "cancel"],
+            },
+          ],
+          evidenceIssues: [
+            {
+              stepTitle: "Refresh source evidence",
+              freshnessStatus: "stale",
+              recoveryCode: "stale_context",
+              verificationStatus: "blocked",
+              refs: [
+                {
+                  type: "note_analysis_job",
+                  noteId: "00000000-0000-4000-8000-000000000091",
+                  jobId: "00000000-0000-4000-8000-000000000092",
+                  contentHash: "hash-old",
+                  analysisVersion: 3,
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ],
+    approvals: [],
+    error: {
+      code: "stale_context",
+      retryable: true,
+      message: "Evidence is stale",
+    },
+    createdAt: "2026-05-04T00:22:00.000Z",
+    updatedAt: "2026-05-04T00:22:00.000Z",
+    completedAt: null,
+  },
+  {
     runId: "import:00000000-0000-4000-8000-000000000060",
     runType: "import" as const,
     sourceId: "00000000-0000-4000-8000-000000000060",
@@ -244,6 +307,7 @@ describe("AgentEntryPointsView", () => {
       action: null,
     });
     vi.mocked(importJobsApi.cancel).mockResolvedValue({ ok: true });
+    vi.mocked(agenticPlansApi.recover).mockResolvedValue({ plan: {} as never });
     vi.mocked(workflowConsoleApi.list).mockImplementation(async (_projectId, options) => {
       const status =
         typeof options === "object" && options ? options.status : undefined;
@@ -351,6 +415,37 @@ describe("AgentEntryPointsView", () => {
     expect(screen.getByText("pnpm")).toBeInTheDocument();
     expect(screen.getByText("zod@3.25.0, @vitejs/plugin-react")).toBeInTheDocument();
     expect(screen.getByText("0")).toBeInTheDocument();
+  });
+
+  it("shows agentic plan recovery affordances in Workflow Console detail", async () => {
+    setup();
+
+    await screen.findByText("Recover stale evidence");
+    expect(screen.getByText("복구 옵션")).toBeInTheDocument();
+    expect(
+      screen.getByText("Refresh source evidence · 분석 재대기"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Refresh source evidence · 근거 오래됨 · note 00000000/job 00000000 v3 hash-old",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "에이전틱 플랜 단계 다시 시도" }),
+    );
+
+    await waitFor(() => {
+      expect(agenticPlansApi.recover).toHaveBeenCalledWith(
+        "project-1",
+        "00000000-0000-4000-8000-000000000070",
+        {
+          stepId: "step-1",
+          strategy: "retry",
+        },
+      );
+    });
+    expect(toast.success).toHaveBeenCalledWith("다시 시도 요청을 보냈습니다.");
   });
 
   it("retries a failed import from the Workflow Console row", async () => {
