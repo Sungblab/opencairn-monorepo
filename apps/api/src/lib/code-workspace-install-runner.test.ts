@@ -15,16 +15,7 @@ describe("code workspace install runner", () => {
     const runner = createTemporalCodeInstallRunner({
       startWorkflow: async (payload) => {
         calls.push(payload);
-        return {
-          ok: true,
-          codeWorkspaceId: payload.codeWorkspaceId,
-          snapshotId: payload.snapshotId,
-          packageManager: payload.packageManager,
-          installed: payload.packages,
-          exitCode: 0,
-          durationMs: 12,
-          logs: [{ stream: "stdout", text: "install passed" }],
-        };
+        return { workflowId: "code-workspace-install-test" };
       },
     });
 
@@ -61,11 +52,8 @@ describe("code workspace install runner", () => {
       },
     ]);
     expect(result).toMatchObject({
-      ok: true,
-      packageManager: "pnpm",
-      installed: [{ name: "zod", version: "3.25.0", dev: false }],
-      exitCode: 0,
-      logs: [{ stream: "stdout", text: "install passed" }],
+      kind: "started",
+      workflowId: "code-workspace-install-test",
     });
   });
 

@@ -9,6 +9,7 @@ from worker.activities.code_workspace_command import (
     CodeWorkspaceCommandError,
     DockerCodeWorkspaceCommandExecutor,
     create_default_code_command_executor,
+    notify_code_workspace_command_result_activity,
     run_code_workspace_command,
 )
 
@@ -341,3 +342,55 @@ async def test_rejects_unbounded_raw_manifests_before_materializing() -> None:
         )
 
     assert executor.calls == []
+
+
+@pytest.mark.asyncio
+async def test_notifies_internal_api_with_command_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    async def fake_post_internal(path: str, body: dict[str, Any]) -> dict[str, Any]:
+        calls.append({"path": path, "body": body})
+        return {"ok": True}
+
+    monkeypatch.setattr(
+        "worker.activities.code_workspace_command.post_internal",
+        fake_post_internal,
+    )
+
+    result = {
+        "ok": True,
+        "codeWorkspaceId": "00000000-0000-4000-8000-000000000020",
+        "snapshotId": "00000000-0000-4000-8000-000000000021",
+        "command": "test",
+        "exitCode": 0,
+        "logs": [{"stream": "stdout", "text": "tests passed"}],
+    }
+    response = await notify_code_workspace_command_result_activity(
+        {
+            "actionId": "00000000-0000-4000-8000-000000000010",
+            "requestId": "00000000-0000-4000-8000-000000000011",
+            "workspaceId": "00000000-0000-4000-8000-000000000001",
+            "projectId": "00000000-0000-4000-8000-000000000002",
+            "actorUserId": "user-1",
+        },
+        result,
+        "code-workspace-command-00000000-0000-4000-8000-000000000010",
+    )
+
+    assert response == {"ok": True}
+    assert calls == [
+        {
+            "path": "/api/internal/agent-actions/code-command-results",
+            "body": {
+                "actionId": "00000000-0000-4000-8000-000000000010",
+                "requestId": "00000000-0000-4000-8000-000000000011",
+                "workflowId": "code-workspace-command-00000000-0000-4000-8000-000000000010",
+                "workspaceId": "00000000-0000-4000-8000-000000000001",
+                "projectId": "00000000-0000-4000-8000-000000000002",
+                "userId": "user-1",
+                "result": result,
+            },
+        }
+    ]

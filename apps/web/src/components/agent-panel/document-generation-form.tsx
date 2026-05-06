@@ -91,9 +91,10 @@ export function DocumentGenerationForm({ projectId, onEvent }: Props) {
     };
   }, [open, projectId, t]);
 
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const selectedSources = useMemo(
-    () => sources.filter((source) => selectedIds.includes(source.id)),
-    [selectedIds, sources],
+    () => sources.filter((source) => selectedIdSet.has(source.id)),
+    [selectedIdSet, sources],
   );
   const canSubmit = Boolean(projectId && prompt.trim() && selectedSources.length > 0 && !busy);
   const selectedSummary =
@@ -178,7 +179,7 @@ export function DocumentGenerationForm({ projectId, onEvent }: Props) {
                 <input
                   type="checkbox"
                   className="mt-0.5"
-                  checked={selectedIds.includes(source.id)}
+                  checked={selectedIdSet.has(source.id)}
                   onChange={(event) => {
                     setSelectedIds((ids) =>
                       event.target.checked

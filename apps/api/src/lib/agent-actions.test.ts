@@ -5,6 +5,8 @@ import {
   cancelCodeProjectRunAction,
   canTransition,
   cleanupExpiredCodeProjectPreviews,
+  completeCodeProjectRepairActionFromWorker,
+  completeCodeProjectRunActionFromWorker,
   createAgentAction,
   executeAgentAction,
   applyNoteUpdateAction,
@@ -916,6 +918,129 @@ describe("agent action service", () => {
       warn.mockRestore();
     }
   });
+
+  it("completes a running code_project.run action from a worker callback", async () => {
+    const running = makeAction({
+      kind: "code_project.run",
+      status: "running",
+      risk: "write",
+      result: {
+        ok: null,
+        workflowId: "code-workspace-command-action",
+        archiveUrl: "/api/code-workspaces/ws/snapshots/snap/archive",
+      },
+    });
+    const repo = createMemoryRepo([running]);
+
+    const { action, idempotent } = await completeCodeProjectRunActionFromWorker(
+      {
+        actionId: running.id,
+        requestId: running.requestId,
+        workflowId: "code-workspace-command-action",
+        workspaceId: running.workspaceId,
+        projectId: running.projectId,
+        userId: running.actorUserId,
+        result: {
+          ok: true,
+          codeWorkspaceId: "00000000-0000-4000-8000-000000000020",
+          snapshotId: "00000000-0000-4000-8000-000000000021",
+          command: "test",
+          exitCode: 0,
+          durationMs: 42,
+          logs: [{ stream: "stdout", text: "tests passed" }],
+        },
+      },
+      { repo },
+    );
+
+    expect(idempotent).toBe(false);
+    expect(action).toMatchObject({
+      status: "completed",
+      errorCode: null,
+      result: {
+        ok: true,
+        workflowId: "code-workspace-command-action",
+        archiveUrl: "/api/code-workspaces/ws/snapshots/snap/archive",
+      },
+    });
+  });
+
+  it("ignores worker command callbacks for cancelled actions", async () => {
+    const cancelled = makeAction({
+      kind: "code_project.run",
+      status: "cancelled",
+      risk: "write",
+      errorCode: "cancelled",
+      result: { ok: false, errorCode: "cancelled" },
+    });
+
+    await expect(
+      completeCodeProjectRunActionFromWorker(
+        {
+          actionId: cancelled.id,
+          requestId: cancelled.requestId,
+          workflowId: "code-workspace-command-action",
+          workspaceId: cancelled.workspaceId,
+          projectId: cancelled.projectId,
+          userId: cancelled.actorUserId,
+          result: {
+            ok: true,
+            codeWorkspaceId: "00000000-0000-4000-8000-000000000020",
+            snapshotId: "00000000-0000-4000-8000-000000000021",
+            command: "test",
+            exitCode: 0,
+            logs: [{ stream: "stdout", text: "tests passed" }],
+          },
+        },
+        { repo: createMemoryRepo([cancelled]) },
+      ),
+    ).resolves.toMatchObject({ action: cancelled, idempotent: true });
+  });
+
+  it("marks a running repair action failed from a worker failure callback", async () => {
+    const running = makeAction({
+      kind: "code_project.patch",
+      status: "running",
+      risk: "write",
+      requestId: "00000000-0000-4000-8000-000000000099",
+      sourceRunId: "00000000-0000-4000-8000-000000000010",
+      input: {
+        requestId: "00000000-0000-4000-8000-000000000099",
+        failedRunActionId: "00000000-0000-4000-8000-000000000010",
+      },
+    });
+
+    const { action, idempotent } = await completeCodeProjectRepairActionFromWorker(
+      {
+        actionId: running.id,
+        requestId: running.requestId,
+        workflowId: "code-workspace-repair-action",
+        workspaceId: running.workspaceId,
+        projectId: running.projectId,
+        userId: running.actorUserId,
+        result: {
+          ok: false,
+          errorCode: "code_project_repair_failed",
+          retryable: true,
+        },
+      },
+      {
+        repo: createMemoryRepo([running]),
+        codeWorkspaceRepo: createMemoryCodeWorkspaceRepository(),
+      },
+    );
+
+    expect(idempotent).toBe(false);
+    expect(action).toMatchObject({
+      status: "failed",
+      errorCode: "code_project_repair_failed",
+      result: {
+        ok: false,
+        workflowId: "code-workspace-repair-action",
+        errorCode: "code_project_repair_failed",
+      },
+    });
+  });
 });
 
 function createMemoryRepo(seed: AgentAction[] = []): AgentActionRepository {
@@ -990,6 +1115,7 @@ function createMemoryRepo(seed: AgentAction[] = []): AgentActionRepository {
       const next = {
         ...current,
         status: values.status,
+        ...(values.input !== undefined ? { input: values.input } : {}),
         ...(values.preview !== undefined ? { preview: values.preview } : {}),
         ...(values.result !== undefined ? { result: values.result } : {}),
         ...(values.errorCode !== undefined ? { errorCode: values.errorCode } : {}),

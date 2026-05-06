@@ -21,6 +21,8 @@ from typing import Any
 
 from temporalio import activity
 
+from worker.lib.api_client import post_internal
+
 CODE_WORKSPACE_MAX_DEPTH = 16
 CODE_WORKSPACE_MAX_ENTRIES = 2000
 CODE_WORKSPACE_MAX_PATH_LENGTH = 512
@@ -160,6 +162,26 @@ async def run_code_workspace_command(
 @activity.defn(name="run_code_workspace_command")
 async def run_code_workspace_command_activity(request: dict[str, Any]) -> dict[str, Any]:
     return await run_code_workspace_command(request)
+
+
+@activity.defn(name="notify_code_workspace_command_result")
+async def notify_code_workspace_command_result_activity(
+    request: dict[str, Any],
+    result: dict[str, Any],
+    workflow_id: str,
+) -> dict[str, Any]:
+    return await post_internal(
+        "/api/internal/agent-actions/code-command-results",
+        {
+            "actionId": _require_str(request, "actionId"),
+            "requestId": _require_str(request, "requestId"),
+            "workflowId": workflow_id,
+            "workspaceId": _require_str(request, "workspaceId"),
+            "projectId": _require_str(request, "projectId"),
+            "userId": _require_str(request, "actorUserId"),
+            "result": result,
+        },
+    )
 
 
 async def _unavailable_executor(*, argv: list[str], cwd: Path, timeout_ms: int) -> dict[str, Any]:

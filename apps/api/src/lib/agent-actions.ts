@@ -132,6 +132,7 @@ export interface AgentActionRepository {
     id: string,
     values: {
       status: AgentActionStatus;
+      input?: Record<string, unknown>;
       preview?: Record<string, unknown> | null;
       result?: Record<string, unknown> | null;
       errorCode?: string | null;
@@ -221,8 +222,18 @@ export interface CodeCommandRunnerInput {
   request: CodeWorkspaceCommandRunRequest;
 }
 
+export type CodeCommandRunnerResult =
+  | {
+      kind: "completed";
+      result: CodeWorkspaceCommandRunResult;
+    }
+  | {
+      kind: "started";
+      workflowId: string;
+    };
+
 export interface CodeCommandRunner {
-  run(input: CodeCommandRunnerInput): Promise<CodeWorkspaceCommandRunResult>;
+  run(input: CodeCommandRunnerInput): Promise<CodeCommandRunnerResult>;
 }
 
 export interface CodeInstallRunnerInput {
@@ -232,8 +243,18 @@ export interface CodeInstallRunnerInput {
   request: CodeWorkspaceInstallRequest;
 }
 
+export type CodeInstallRunnerResult =
+  | {
+      kind: "completed";
+      result: CodeWorkspaceInstallResult;
+    }
+  | {
+      kind: "started";
+      workflowId: string;
+    };
+
 export interface CodeInstallRunner {
-  install(input: CodeInstallRunnerInput): Promise<CodeWorkspaceInstallResult>;
+  install(input: CodeInstallRunnerInput): Promise<CodeInstallRunnerResult>;
 }
 
 export interface CodeCommandCancellerInput {
@@ -246,14 +267,25 @@ export interface CodeCommandCanceller {
 
 export interface CodeRepairPlannerInput {
   requestId: string;
+  repairAction: AgentAction;
   failedRunAction: AgentAction;
   runResult: CodeWorkspaceCommandRunResult;
   workspace: CodeWorkspaceRecord;
   snapshot: CodeWorkspaceSnapshotRecord;
 }
 
+export type CodeRepairPlannerResult =
+  | {
+      kind: "completed";
+      result: Record<string, unknown>;
+    }
+  | {
+      kind: "started";
+      workflowId: string;
+    };
+
 export interface CodeRepairPlanner {
-  plan(input: CodeRepairPlannerInput): Promise<Record<string, unknown>>;
+  plan(input: CodeRepairPlannerInput): Promise<CodeRepairPlannerResult>;
 }
 
 export interface CodePreviewAsset {
@@ -873,19 +905,6 @@ export async function createCodeProjectRepairAction(
   const snapshot = await codeRepo.findSnapshotById(workspace.id, runResult.snapshotId);
   if (!snapshot) throw new AgentActionError("code_workspace_snapshot_not_found", 404);
 
-  const planner = options?.codeRepairPlanner ?? createDefaultCodeRepairPlanner();
-  const payload = codeWorkspacePatchSchema.parse({
-    ...(await planner.plan({
-      requestId,
-      failedRunAction,
-      runResult,
-      workspace,
-      snapshot,
-    })),
-    requestId,
-    risk: "write",
-  });
-
   const { action, inserted } = await repo.insert({
     requestId,
     workspaceId: failedRunAction.workspaceId,
@@ -893,18 +912,60 @@ export async function createCodeProjectRepairAction(
     actorUserId,
     sourceRunId: failedRunAction.id,
     kind: "code_project.patch",
-    status: "draft",
+    status: "running",
     risk: "write",
-    input: payload,
-    preview: payload.preview,
+    input: {
+      requestId,
+      failedRunActionId: failedRunAction.id,
+      codeWorkspaceId: runResult.codeWorkspaceId,
+      baseSnapshotId: runResult.snapshotId,
+      command: runResult.command,
+    },
+    preview: null,
     result: null,
     errorCode: null,
   });
   if (!inserted) return { action, idempotent: true };
 
   try {
+    const planner = options?.codeRepairPlanner ?? createDefaultCodeRepairPlanner();
+    const plannerResult = await planner.plan({
+      requestId,
+      repairAction: action,
+      failedRunAction,
+      runResult,
+      workspace,
+      snapshot,
+    });
+    if (plannerResult.kind === "started") {
+      const updated = await repo.updateStatus(action.id, {
+        status: "running",
+        result: {
+          ok: null,
+          requestId,
+          workflowId: plannerResult.workflowId,
+          failedRunActionId: failedRunAction.id,
+        },
+        errorCode: null,
+      });
+      if (!updated) throw new AgentActionError("action_not_found", 404);
+      return { action: updated, idempotent: false };
+    }
+    const payload = codeWorkspacePatchSchema.parse({
+      ...plannerResult.result,
+      requestId,
+      risk: "write",
+    });
     await prepareCodeWorkspacePatch(codeRepo, scope, payload);
-    return { action, idempotent: false };
+    const updated = await repo.updateStatus(action.id, {
+      status: "draft",
+      input: payload,
+      preview: payload.preview,
+      result: null,
+      errorCode: null,
+    });
+    if (!updated) throw new AgentActionError("action_not_found", 404);
+    return { action: updated, idempotent: false };
   } catch (err) {
     const errorCode = err instanceof AgentActionError ? err.code : "code_project_repair_failed";
     const failed = await repo.updateStatus(action.id, {
@@ -1289,14 +1350,35 @@ async function applyCodeProjectInstallAction(
     if (!snapshot) throw new AgentActionError("code_workspace_snapshot_not_found", 404);
 
     const runner = options?.codeInstallRunner ?? createDefaultCodeInstallRunner();
-    const installResult = codeWorkspaceInstallResultSchema.parse(
-      await runner.install({
-        action: current,
-        workspace,
-        snapshot,
-        request: payload,
-      }),
-    );
+    const running = await repo.updateStatus(current.id, {
+      status: "running",
+      errorCode: null,
+    });
+    if (!running) throw new AgentActionError("action_not_found", 404);
+    const runnerResult = await runner.install({
+      action: running,
+      workspace,
+      snapshot,
+      request: payload,
+    });
+    if (runnerResult.kind === "started") {
+      const updated = await repo.updateStatus(current.id, {
+        status: "running",
+        result: {
+          ok: null,
+          requestId: current.requestId,
+          workflowId: runnerResult.workflowId,
+          codeWorkspaceId: payload.codeWorkspaceId,
+          snapshotId: payload.snapshotId,
+          packageManager: payload.packageManager,
+          installed: payload.packages,
+        },
+        errorCode: null,
+      });
+      if (!updated) throw new AgentActionError("action_not_found", 404);
+      return updated;
+    }
+    const installResult = codeWorkspaceInstallResultSchema.parse(runnerResult.result);
     const result = {
       ...installResult,
       codeWorkspaceId: payload.codeWorkspaceId,
@@ -1346,14 +1428,31 @@ async function executePersistedCodeProjectRunAction(
     if (!snapshot) throw new AgentActionError("code_workspace_snapshot_not_found", 404);
 
     const runner = options?.codeCommandRunner ?? createDefaultCodeCommandRunner();
-    const runResult = codeWorkspaceCommandRunResultSchema.parse(
-      await runner.run({
-        action,
-        workspace,
-        snapshot,
-        request: payload,
-      }),
-    );
+    const runnerResult = await runner.run({
+      action,
+      workspace,
+      snapshot,
+      request: payload,
+    });
+    if (runnerResult.kind === "started") {
+      const queuedResult = {
+        ok: null,
+        requestId: action.requestId,
+        workflowId: runnerResult.workflowId,
+        codeWorkspaceId: payload.codeWorkspaceId,
+        snapshotId: payload.snapshotId,
+        command: payload.command,
+        archiveUrl: `/api/code-workspaces/${workspace.id}/snapshots/${snapshot.id}/archive`,
+      };
+      const updated = await repo.updateStatus(action.id, {
+        status: "running",
+        result: queuedResult,
+        errorCode: null,
+      });
+      if (!updated) throw new AgentActionError("action_not_found", 404);
+      return updated;
+    }
+    const runResult = codeWorkspaceCommandRunResultSchema.parse(runnerResult.result);
     const result = {
       ...runResult,
       codeWorkspaceId: payload.codeWorkspaceId,
@@ -1394,6 +1493,202 @@ function createUnavailableCodeCommandRunner(): CodeCommandRunner {
       throw new AgentActionError("code_command_runner_unavailable", 409);
     },
   };
+}
+
+export async function completeCodeProjectRunActionFromWorker(
+  body: {
+    actionId: string;
+    requestId: string;
+    workflowId: string;
+    workspaceId: string;
+    projectId: string;
+    userId: string;
+    result: CodeWorkspaceCommandRunResult;
+  },
+  options?: AgentActionServiceOptions,
+): Promise<{ action: AgentAction; idempotent: boolean }> {
+  const repo = options?.repo ?? createDrizzleAgentActionRepository();
+  const action = await repo.findById(body.actionId);
+  if (!action) throw new AgentActionError("action_not_found", 404);
+  if (
+    action.requestId !== body.requestId ||
+    action.workspaceId !== body.workspaceId ||
+    action.projectId !== body.projectId ||
+    action.actorUserId !== body.userId ||
+    action.kind !== "code_project.run"
+  ) {
+    throw new AgentActionError("code_project_run_action_mismatch", 409);
+  }
+  if (action.status === "cancelled") {
+    return { action, idempotent: true };
+  }
+  if (action.status === "completed" || action.status === "failed") {
+    return { action, idempotent: true };
+  }
+  if (action.status !== "running") {
+    throw new AgentActionError("code_project_run_not_running", 409);
+  }
+
+  const parsed = codeWorkspaceCommandRunResultSchema.parse(body.result);
+  const archiveUrl =
+    typeof action.result?.archiveUrl === "string"
+      ? action.result.archiveUrl
+      : `/api/code-workspaces/${parsed.codeWorkspaceId}/snapshots/${parsed.snapshotId}/archive`;
+  const result = {
+    ...parsed,
+    requestId: body.requestId,
+    workflowId: body.workflowId,
+    archiveUrl,
+  };
+  const updated = await repo.updateStatus(action.id, {
+    status: result.exitCode === 0 ? "completed" : "failed",
+    result,
+    errorCode: result.exitCode === 0 ? null : "code_project_run_failed",
+  });
+  if (!updated) throw new AgentActionError("action_not_found", 404);
+  return { action: updated, idempotent: false };
+}
+
+export async function completeCodeProjectInstallActionFromWorker(
+  body: {
+    actionId: string;
+    requestId: string;
+    workflowId: string;
+    workspaceId: string;
+    projectId: string;
+    userId: string;
+    result: CodeWorkspaceInstallResult;
+  },
+  options?: AgentActionServiceOptions,
+): Promise<{ action: AgentAction; idempotent: boolean }> {
+  const repo = options?.repo ?? createDrizzleAgentActionRepository();
+  const action = await repo.findById(body.actionId);
+  if (!action) throw new AgentActionError("action_not_found", 404);
+  if (
+    action.requestId !== body.requestId ||
+    action.workspaceId !== body.workspaceId ||
+    action.projectId !== body.projectId ||
+    action.actorUserId !== body.userId ||
+    action.kind !== "code_project.install"
+  ) {
+    throw new AgentActionError("code_project_install_action_mismatch", 409);
+  }
+  if (action.status === "cancelled" || action.status === "completed" || action.status === "failed") {
+    return { action, idempotent: true };
+  }
+  if (action.status !== "running") {
+    throw new AgentActionError("code_project_install_not_running", 409);
+  }
+
+  const parsed = codeWorkspaceInstallResultSchema.parse(body.result);
+  const result = {
+    ...parsed,
+    requestId: body.requestId,
+    workflowId: body.workflowId,
+  };
+  const updated = await repo.updateStatus(action.id, {
+    status: result.exitCode === 0 ? "completed" : "failed",
+    result,
+    errorCode: result.exitCode === 0 ? null : "code_project_install_failed",
+  });
+  if (!updated) throw new AgentActionError("action_not_found", 404);
+  return { action: updated, idempotent: false };
+}
+
+export async function completeCodeProjectRepairActionFromWorker(
+  body: {
+    actionId: string;
+    requestId: string;
+    workflowId: string;
+    workspaceId: string;
+    projectId: string;
+    userId: string;
+    result: Record<string, unknown>;
+  },
+  options?: AgentActionServiceOptions,
+): Promise<{ action: AgentAction; idempotent: boolean }> {
+  const repo = options?.repo ?? createDrizzleAgentActionRepository();
+  const codeRepo = options?.codeWorkspaceRepo ?? createDrizzleCodeWorkspaceRepository();
+  const action = await repo.findById(body.actionId);
+  if (!action) throw new AgentActionError("action_not_found", 404);
+  if (
+    action.requestId !== body.requestId ||
+    action.workspaceId !== body.workspaceId ||
+    action.projectId !== body.projectId ||
+    action.actorUserId !== body.userId ||
+    action.kind !== "code_project.patch"
+  ) {
+    throw new AgentActionError("code_project_repair_action_mismatch", 409);
+  }
+  if (action.status === "cancelled" || action.status === "draft" || action.status === "failed") {
+    return { action, idempotent: true };
+  }
+  if (action.status !== "running") {
+    throw new AgentActionError("code_project_repair_not_running", 409);
+  }
+
+  if (body.result.ok === false) {
+    const errorCode =
+      typeof body.result.errorCode === "string"
+        ? body.result.errorCode
+        : "code_project_repair_failed";
+    const failed = await repo.updateStatus(action.id, {
+      status: "failed",
+      result: {
+        ...body.result,
+        requestId: body.requestId,
+        workflowId: body.workflowId,
+        errorCode,
+      },
+      errorCode,
+    });
+    if (!failed) throw new AgentActionError("action_not_found", 404);
+    return { action: failed, idempotent: false };
+  }
+
+  try {
+    const payload = codeWorkspacePatchSchema.parse({
+      ...body.result,
+      requestId: body.requestId,
+      risk: "write",
+    });
+    await prepareCodeWorkspacePatch(
+      codeRepo,
+      {
+        workspaceId: action.workspaceId,
+        projectId: action.projectId,
+        actorUserId: action.actorUserId,
+      },
+      payload,
+    );
+    const updated = await repo.updateStatus(action.id, {
+      status: "draft",
+      input: payload,
+      preview: payload.preview,
+      result: {
+        ok: true,
+        requestId: body.requestId,
+        workflowId: body.workflowId,
+      },
+      errorCode: null,
+    });
+    if (!updated) throw new AgentActionError("action_not_found", 404);
+    return { action: updated, idempotent: false };
+  } catch (err) {
+    const errorCode = err instanceof AgentActionError ? err.code : "code_project_repair_failed";
+    const failed = await repo.updateStatus(action.id, {
+      status: "failed",
+      result: {
+        ok: false,
+        requestId: body.requestId,
+        workflowId: body.workflowId,
+        errorCode,
+      },
+      errorCode,
+    });
+    if (!failed) throw new AgentActionError("action_not_found", 404);
+    return { action: failed, idempotent: false };
+  }
 }
 
 function createUnavailableCodeInstallRunner(): CodeInstallRunner {

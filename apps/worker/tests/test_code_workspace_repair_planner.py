@@ -9,6 +9,7 @@ from temporalio.testing import ActivityEnvironment
 from worker.activities.code_workspace_repair import (
     CodeWorkspaceRepairError,
     build_patch_from_repair_output,
+    notify_code_workspace_repair_result_activity,
     plan_code_workspace_repair,
 )
 from worker.agents.code_workspace_repair.agent import (
@@ -181,3 +182,62 @@ async def test_plan_code_workspace_repair_activity_uses_llm_and_returns_patch() 
 
     assert patch_payload["operations"][0]["path"] == "src/App.tsx"
     assert patch_payload["operations"][0]["op"] == "update"
+
+
+@pytest.mark.asyncio
+async def test_notifies_internal_api_with_repair_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    async def fake_post_internal(path: str, body: dict[str, object]) -> dict[str, bool]:
+        calls.append({"path": path, "body": body})
+        return {"ok": True}
+
+    monkeypatch.setattr(
+        "worker.activities.code_workspace_repair.post_internal",
+        fake_post_internal,
+    )
+
+    result = {
+        "codeWorkspaceId": "00000000-0000-4000-8000-000000000020",
+        "baseSnapshotId": "00000000-0000-4000-8000-000000000021",
+        "operations": [],
+        "preview": {
+            "filesChanged": 0,
+            "additions": 0,
+            "deletions": 0,
+            "summary": "Repair failing test",
+        },
+    }
+    workflow_id = (
+        "code-workspace-repair-00000000-0000-4000-8000-000000000010-"
+        "00000000-0000-4000-8000-000000000031"
+    )
+    response = await notify_code_workspace_repair_result_activity(
+        {
+            "repairActionId": "00000000-0000-4000-8000-000000000030",
+            "requestId": "00000000-0000-4000-8000-000000000031",
+            "workspaceId": "00000000-0000-4000-8000-000000000001",
+            "projectId": "00000000-0000-4000-8000-000000000002",
+            "actorUserId": "user-1",
+        },
+        result,
+        workflow_id,
+    )
+
+    assert response == {"ok": True}
+    assert calls == [
+        {
+            "path": "/api/internal/agent-actions/code-repair-results",
+            "body": {
+                "actionId": "00000000-0000-4000-8000-000000000030",
+                "requestId": "00000000-0000-4000-8000-000000000031",
+                "workflowId": workflow_id,
+                "workspaceId": "00000000-0000-4000-8000-000000000001",
+                "projectId": "00000000-0000-4000-8000-000000000002",
+                "userId": "user-1",
+                "result": result,
+            },
+        }
+    ]

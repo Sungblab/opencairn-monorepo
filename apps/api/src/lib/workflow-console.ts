@@ -9,6 +9,7 @@ import {
   inArray,
   importJobs,
   projects,
+  sql,
   synthesisDocuments,
   synthesisRuns,
   type DB,
@@ -112,14 +113,22 @@ export function createDrizzleWorkflowConsoleRepository(
     async listChatRunsByProject({ projectId, userId, limit }) {
       const scope = await this.findProjectScope(projectId);
       if (!scope) return [];
+      const projectChipScope = JSON.stringify({
+        chips: [{ type: "project", id: projectId }],
+      });
       const rows = await conn
         .select()
         .from(chatRuns)
-        .where(and(eq(chatRuns.workspaceId, scope.workspaceId), eq(chatRuns.userId, userId)))
+        .where(
+          and(
+            eq(chatRuns.workspaceId, scope.workspaceId),
+            eq(chatRuns.userId, userId),
+            sql`(${chatRuns.scope}->>'projectId' = ${projectId} OR (${chatRuns.scope}->>'type' = 'project' AND ${chatRuns.scope}->>'id' = ${projectId}) OR ${chatRuns.scope} @> ${projectChipScope}::jsonb)`,
+          ),
+        )
         .orderBy(desc(chatRuns.createdAt))
-        .limit(Math.max(limit * 4, limit));
+        .limit(limit);
       return rows
-        .filter((row) => extractProjectIdFromScope(row.scope) === projectId)
         .slice(0, limit)
         .map((row) => ({
           id: row.id,

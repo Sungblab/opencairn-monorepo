@@ -28,9 +28,18 @@ from worker.activities.code_activity import (
     analyze_feedback_activity,
     generate_code_activity,
 )
-from worker.activities.code_workspace_command import run_code_workspace_command_activity
-from worker.activities.code_workspace_install import run_code_workspace_install_activity
-from worker.activities.code_workspace_repair import plan_code_workspace_repair
+from worker.activities.code_workspace_command import (
+    notify_code_workspace_command_result_activity,
+    run_code_workspace_command_activity,
+)
+from worker.activities.code_workspace_install import (
+    notify_code_workspace_install_result_activity,
+    run_code_workspace_install_activity,
+)
+from worker.activities.code_workspace_repair import (
+    notify_code_workspace_repair_result_activity,
+    plan_code_workspace_repair,
+)
 from worker.activities.compiler_activity import compile_note
 from worker.activities.connector_activity import run_connector as run_connector_activity
 from worker.activities.curator_activity import run_curator
@@ -255,20 +264,35 @@ def build_worker_config() -> WorkerConfig:
     # unavailable until a sandbox executor is wired by a later slice.
     if os.environ.get("FEATURE_CODE_WORKSPACE_COMMANDS", "false").lower() == "true":
         workflows.append(CodeWorkspaceCommandWorkflow)
-        activities.append(run_code_workspace_command_activity)
+        activities.extend(
+            [
+                run_code_workspace_command_activity,
+                notify_code_workspace_command_result_activity,
+            ]
+        )
 
     # Code Project Workspace Phase 6J — worker dependency install runner.
     # Kept behind a distinct flag because package installs require networked
     # sandbox execution, unlike the default networkless command runner.
     if os.environ.get("FEATURE_CODE_WORKSPACE_INSTALLS", "false").lower() == "true":
         workflows.append(CodeWorkspaceInstallWorkflow)
-        activities.append(run_code_workspace_install_activity)
+        activities.extend(
+            [
+                run_code_workspace_install_activity,
+                notify_code_workspace_install_result_activity,
+            ]
+        )
 
     # Code Project Workspace Phase 6F — LLM-backed repair patch planning.
     # Produces reviewable code_project.patch payloads only; apply remains API-owned.
     if os.environ.get("FEATURE_CODE_WORKSPACE_REPAIR", "false").lower() == "true":
         workflows.append(CodeWorkspaceRepairWorkflow)
-        activities.append(plan_code_workspace_repair)
+        activities.extend(
+            [
+                plan_code_workspace_repair,
+                notify_code_workspace_repair_result_activity,
+            ]
+        )
 
     # Spec B — Content-Aware Enrichment. Three activities slot into
     # IngestWorkflow's pipeline (detect → enrich → store). No separate

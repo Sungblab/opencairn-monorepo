@@ -1218,11 +1218,14 @@ function createMemoryCodeInstallRunner(result: {
         entries: input.snapshot.manifest.entries.map((entry) => entry.path),
       });
       return {
-        ok: result.exitCode === 0,
-        packageManager: input.request.packageManager,
-        installed: input.request.packages,
-        exitCode: result.exitCode,
-        logs: [{ stream: "stdout", text: result.exitCode === 0 ? "install passed" : "install failed" }],
+        kind: "completed",
+        result: {
+          ok: result.exitCode === 0,
+          packageManager: input.request.packageManager,
+          installed: input.request.packages,
+          exitCode: result.exitCode,
+          logs: [{ stream: "stdout", text: result.exitCode === 0 ? "install passed" : "install failed" }],
+        },
       };
     },
   };
@@ -1252,22 +1255,25 @@ function createMemoryCodeRepairPlanner(): CodeRepairPlanner & {
         entries: input.snapshot.manifest.entries.map((entry) => entry.path),
       });
       return {
-        codeWorkspaceId: input.workspace.id,
-        baseSnapshotId: input.snapshot.id,
-        operations: [
-          {
-            op: "update",
-            path: "src/App.tsx",
-            beforeHash: "sha256:old",
-            afterHash: "sha256:repair",
-            inlineContent: "repair",
+        kind: "completed",
+        result: {
+          codeWorkspaceId: input.workspace.id,
+          baseSnapshotId: input.snapshot.id,
+          operations: [
+            {
+              op: "update",
+              path: "src/App.tsx",
+              beforeHash: "sha256:old",
+              afterHash: "sha256:repair",
+              inlineContent: "repair",
+            },
+          ],
+          preview: {
+            filesChanged: 1,
+            additions: 1,
+            deletions: 1,
+            summary: "Repair failing test",
           },
-        ],
-        preview: {
-          filesChanged: 1,
-          additions: 1,
-          deletions: 1,
-          summary: "Repair failing test",
         },
       };
     },
@@ -1288,11 +1294,14 @@ function createMemoryCodeCommandRunner(result: {
         entries: input.snapshot.manifest.entries.map((entry) => entry.path),
       });
       return {
-        ok: result.exitCode === 0,
-        command: input.request.command,
-        exitCode: result.exitCode,
-        durationMs: 42,
-        logs: [{ stream: "stdout", text: result.exitCode === 0 ? "tests passed" : "tests failed" }],
+        kind: "completed",
+        result: {
+          ok: result.exitCode === 0,
+          command: input.request.command,
+          exitCode: result.exitCode,
+          durationMs: 42,
+          logs: [{ stream: "stdout", text: result.exitCode === 0 ? "tests passed" : "tests failed" }],
+        },
       };
     },
   };
@@ -1360,6 +1369,7 @@ function createMemoryRepo(seed: AgentAction[] = []): AgentActionRepository {
       const next = {
         ...current,
         status: values.status,
+        ...(values.input !== undefined ? { input: values.input } : {}),
         ...(values.preview !== undefined ? { preview: values.preview } : {}),
         ...(values.result !== undefined ? { result: values.result } : {}),
         ...(values.errorCode !== undefined ? { errorCode: values.errorCode } : {}),
