@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
-import type { WorkflowConsoleRun } from "@opencairn/shared";
+import type { AgenticPlan, WorkflowConsoleRun } from "@opencairn/shared";
 import { createWorkflowConsoleRoutes } from "./workflow-console";
 import type { AppEnv } from "../lib/types";
 import type { WorkflowConsoleRepository } from "../lib/workflow-console";
@@ -28,6 +28,7 @@ describe("workflow console routes", () => {
     expect(body.runs.map((run) => [run.runType, run.status, run.sourceStatus])).toEqual([
       ["export", "completed", "completed"],
       ["import", "failed", "failed"],
+      ["agentic_plan", "approval_required", "approval_required"],
       ["agent_action", "approval_required", "approval_required"],
       ["chat", "running", "running"],
       ["plan8_agent", "blocked", "awaiting_input"],
@@ -72,6 +73,14 @@ describe("workflow console routes", () => {
     expect(errorResponse.status).toBe(200);
     expect((await errorResponse.json() as { runs: WorkflowConsoleRun[] }).runs.map((run) => run.runType)).toEqual([
       "import",
+    ]);
+
+    const goalResponse = await app.request(
+      `/api/projects/${projectId}/workflow-console/runs?q=coordinate`,
+    );
+    expect(goalResponse.status).toBe(200);
+    expect((await goalResponse.json() as { runs: WorkflowConsoleRun[] }).runs.map((run) => run.runType)).toEqual([
+      "agentic_plan",
     ]);
   });
 
@@ -132,6 +141,24 @@ describe("workflow console routes", () => {
       runType: "export",
       status: "completed",
       outputs: [{ outputType: "export", label: "pdf export" }],
+    });
+  });
+
+  it("returns an agentic plan run by prefixed run id", async () => {
+    const app = createTestApp({
+      repo: createMemoryRepo(),
+      canReadProject: async () => true,
+    });
+
+    const response = await app.request(
+      `/api/projects/${projectId}/workflow-console/runs/agentic_plan:00000000-0000-4000-8000-000000000070`,
+    );
+
+    expect(response.status).toBe(200);
+    expect((await response.json() as { run: WorkflowConsoleRun }).run).toMatchObject({
+      runType: "agentic_plan",
+      status: "approval_required",
+      approvals: [{ risk: "write" }],
     });
   });
 
@@ -225,6 +252,9 @@ function createMemoryRepo(): WorkflowConsoleRepository {
         },
       ];
     },
+    async listAgenticPlansByProject() {
+      return [agenticPlanFixture()];
+    },
     async listPlan8RunsByProject() {
       return [
         {
@@ -314,6 +344,10 @@ function createMemoryRepo(): WorkflowConsoleRepository {
       return (await this.listAgentActionsByProject({ projectId: pid, userId, limit: 10 }))
         .find((action) => action.id === actionId) ?? null;
     },
+    async getAgenticPlanById({ planId, projectId: pid }) {
+      const plan = agenticPlanFixture();
+      return plan.id === planId && plan.projectId === pid ? plan : null;
+    },
     async getPlan8RunById({ runId, projectId: pid }) {
       return (await this.listPlan8RunsByProject({ projectId: pid, userId, limit: 10 }))
         .find((run) => run.runId === runId) ?? null;
@@ -326,5 +360,65 @@ function createMemoryRepo(): WorkflowConsoleRepository {
       return (await this.listSynthesisExportRunsByProject({ projectId: pid, userId, limit: 10 }))
         .find((run) => run.runId === runId) ?? null;
     },
+  };
+}
+
+function agenticPlanFixture(): AgenticPlan {
+  return {
+    id: "00000000-0000-4000-8000-000000000070",
+    workspaceId,
+    projectId,
+    actorUserId: userId,
+    title: "Coordinate agentic launch plan",
+    goal: "Coordinate note review and export",
+    status: "approval_required",
+    target: {
+      workspaceId,
+      projectId,
+    },
+    plannerKind: "deterministic",
+    summary: "2-step deterministic plan",
+    currentStepOrdinal: 1,
+    steps: [
+      {
+        id: "00000000-0000-4000-8000-000000000071",
+        planId: "00000000-0000-4000-8000-000000000070",
+        ordinal: 1,
+        kind: "note.review_update",
+        title: "Review note update",
+        rationale: "The goal references note content.",
+        status: "approval_required",
+        risk: "write",
+        input: {},
+        linkedRunType: null,
+        linkedRunId: null,
+        errorCode: null,
+        errorMessage: null,
+        createdAt,
+        updatedAt,
+        completedAt: null,
+      },
+      {
+        id: "00000000-0000-4000-8000-000000000072",
+        planId: "00000000-0000-4000-8000-000000000070",
+        ordinal: 2,
+        kind: "file.export",
+        title: "Prepare export",
+        rationale: "The goal asks for an export.",
+        status: "draft",
+        risk: "external",
+        input: {},
+        linkedRunType: null,
+        linkedRunId: null,
+        errorCode: null,
+        errorMessage: null,
+        createdAt,
+        updatedAt,
+        completedAt: null,
+      },
+    ],
+    createdAt,
+    updatedAt,
+    completedAt: null,
   };
 }

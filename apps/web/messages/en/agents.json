@@ -74,6 +74,7 @@
     "type": {
       "chat": "Chat",
       "agent_action": "Agent action",
+      "agentic_plan": "Agentic plan",
       "plan8_agent": "Plan8",
       "document_generation": "Document generation",
       "import": "Import",

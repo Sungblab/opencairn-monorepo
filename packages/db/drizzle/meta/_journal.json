@@ -379,6 +379,13 @@
       "when": 1778016048832,
       "tag": "0053_loud_robin_chapel",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1778037611185,
+      "tag": "0054_abnormal_roland_deschain",
+      "breakpoints": true
     }
   ]
 }

@@ -16,11 +16,13 @@ import {
 } from "@opencairn/db";
 import {
   workflowConsoleRunFromAgentAction,
+  workflowConsoleRunFromAgenticPlan,
   workflowConsoleRunFromChatRun,
   workflowConsoleRunFromImportJob,
   workflowConsoleRunFromPlan8AgentRun,
   workflowConsoleRunFromSynthesisExportRun,
   type AgentAction,
+  type AgenticPlanProjectionSource,
   type ChatRunProjectionSource,
   type ImportJobProjectionSource,
   type Plan8AgentRunProjectionSource,
@@ -28,6 +30,7 @@ import {
   type WorkflowConsoleRun,
   type WorkflowConsoleStatus,
 } from "@opencairn/shared";
+import { createDrizzleAgenticPlanRepository } from "./agentic-plans";
 
 export interface WorkflowConsoleRepository {
   findProjectScope(projectId: string): Promise<{ workspaceId: string } | null>;
@@ -41,6 +44,11 @@ export interface WorkflowConsoleRepository {
     userId: string;
     limit: number;
   }): Promise<AgentAction[]>;
+  listAgenticPlansByProject(options: {
+    projectId: string;
+    userId: string;
+    limit: number;
+  }): Promise<AgenticPlanProjectionSource[]>;
   listPlan8RunsByProject(options: {
     projectId: string;
     userId: string;
@@ -66,6 +74,11 @@ export interface WorkflowConsoleRepository {
     projectId: string;
     userId: string;
   }): Promise<AgentAction | null>;
+  getAgenticPlanById(options: {
+    planId: string;
+    projectId: string;
+    userId: string;
+  }): Promise<AgenticPlanProjectionSource | null>;
   getPlan8RunById(options: {
     runId: string;
     projectId: string;
@@ -155,6 +168,10 @@ export function createDrizzleWorkflowConsoleRepository(
         .orderBy(desc(agentActions.createdAt))
         .limit(limit);
       return rows.map(toAgentActionProjection);
+    },
+    async listAgenticPlansByProject({ projectId, limit }) {
+      const repo = createDrizzleAgenticPlanRepository(conn);
+      return repo.listByProject({ projectId, limit });
     },
     async listPlan8RunsByProject({ projectId, userId, limit }) {
       const rows = await conn
@@ -249,6 +266,10 @@ export function createDrizzleWorkflowConsoleRepository(
         )
         .limit(1);
       return row ? toAgentActionProjection(row) : null;
+    },
+    async getAgenticPlanById({ planId, projectId }) {
+      const repo = createDrizzleAgenticPlanRepository(conn);
+      return repo.findById({ projectId, planId });
     },
     async getPlan8RunById({ runId, projectId, userId }) {
       const [row] = await conn
@@ -367,9 +388,10 @@ export async function listWorkflowConsoleRuns(
   const limit = options?.limit ?? 50;
   const hasPostProjectionFilter = Boolean(options?.status || options?.q);
   const repoLimit = hasPostProjectionFilter ? Math.max(limit * 4, limit) : limit;
-  const [chat, actions, plan8, imports, exports] = await Promise.all([
+  const [chat, actions, plans, plan8, imports, exports] = await Promise.all([
     repo.listChatRunsByProject({ projectId, userId, limit: repoLimit }),
     repo.listAgentActionsByProject({ projectId, userId, limit: repoLimit }),
+    repo.listAgenticPlansByProject({ projectId, userId, limit: repoLimit }),
     repo.listPlan8RunsByProject({ projectId, userId, limit: repoLimit }),
     repo.listImportJobsByProject({ projectId, userId, limit: repoLimit }),
     repo.listSynthesisExportRunsByProject({ projectId, userId, limit: repoLimit }),
@@ -377,6 +399,7 @@ export async function listWorkflowConsoleRuns(
   return [
     ...exports.map(workflowConsoleRunFromSynthesisExportRun),
     ...imports.map(workflowConsoleRunFromImportJob),
+    ...plans.map(workflowConsoleRunFromAgenticPlan),
     ...actions.map(workflowConsoleRunFromAgentAction),
     ...chat.map(workflowConsoleRunFromChatRun),
     ...plan8.map(workflowConsoleRunFromPlan8AgentRun),
@@ -404,6 +427,7 @@ function workflowConsoleRunMatchesQuery(run: WorkflowConsoleRun, query: string):
       output.label,
       output.outputType,
       output.url,
+      ...Object.values(output.metadata ?? {}),
     ]),
   ];
   return fields.some((value) =>
@@ -439,6 +463,17 @@ export async function getWorkflowConsoleRun(
       throw new WorkflowConsoleError("run_not_found", 404);
     }
     return workflowConsoleRunFromAgentAction(row);
+  }
+  if (parsed.type === "agentic_plan") {
+    const row = await repo.getAgenticPlanById({
+      planId: parsed.id,
+      projectId,
+      userId,
+    });
+    if (!row || row.projectId !== projectId) {
+      throw new WorkflowConsoleError("run_not_found", 404);
+    }
+    return workflowConsoleRunFromAgenticPlan(row);
   }
   if (parsed.type === "plan8_agent") {
     const row = await repo.getPlan8RunById({ runId: parsed.id, projectId, userId });

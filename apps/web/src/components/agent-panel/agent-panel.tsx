@@ -38,6 +38,7 @@ import { DocumentGenerationForm } from "./document-generation-form";
 import { AgentPanelEmptyState } from "./empty-state";
 import { NoteUpdateActionReviewList } from "./note-update-action-review";
 import { CodeProjectActionReviewList } from "./code-project-action-review";
+import { AgenticPlanCard } from "./agentic-plan-card";
 import { PanelHeader } from "./panel-header";
 import { ScopeChipsRow, defaultScopeIds } from "./scope-chips-row";
 import { buildAgentScopePayload } from "./scope-payload";
@@ -261,6 +262,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
       />
       <NoteUpdateActionReviewList projectId={activeProjectId} />
       <CodeProjectActionReviewList projectId={activeProjectId} />
+      <AgenticPlanCard projectId={activeProjectId} />
       <WorkflowConsoleRuns projectId={activeProjectId} />
       {activeThreadId ? (
         <Conversation

@@ -87,6 +87,41 @@
     "openPreview": "미리보기 열기",
     "resultWarning": "미리보기는 내부 API 경로로 열리며 공개 배포 URL은 아닙니다."
   },
+  "agenticPlan": {
+    "title": "에이전틱 플랜",
+    "goalLabel": "프로젝트 목표",
+    "goalPrompt": "에이전트가 함께 처리할 결과를 적어주세요.",
+    "create": "플랜 만들기",
+    "start": "시작",
+    "recover": "복구 검토 추가",
+    "empty": "아직 에이전틱 플랜이 없습니다.",
+    "loading": "에이전틱 플랜을 불러오는 중…",
+    "refreshing": "새로고침 중",
+    "loadFailed": "에이전틱 플랜을 불러오지 못했어요.",
+    "actionFailed": "에이전틱 플랜 작업을 처리하지 못했어요.",
+    "progress": "{completed}/{total} 단계",
+    "status": {
+      "draft": "초안",
+      "approval_required": "검토 필요",
+      "queued": "대기 중",
+      "running": "실행 중",
+      "blocked": "대기",
+      "completed": "완료",
+      "failed": "실패",
+      "cancelled": "취소됨"
+    },
+    "stepStatus": {
+      "draft": "초안",
+      "approval_required": "검토",
+      "queued": "대기",
+      "running": "실행",
+      "blocked": "대기",
+      "completed": "완료",
+      "failed": "실패",
+      "cancelled": "취소",
+      "skipped": "건너뜀"
+    }
+  },
   "workflowConsole": {
     "title": "작업 상태",
     "loading": "작업을 불러오는 중…",
@@ -97,6 +132,7 @@
     "type": {
       "chat": "채팅",
       "agent_action": "에이전트 작업",
+      "agentic_plan": "에이전틱 플랜",
       "plan8_agent": "Plan8",
       "document_generation": "문서 생성",
       "import": "가져오기",
