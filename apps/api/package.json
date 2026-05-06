@@ -12,6 +12,7 @@
     "dev": "tsx watch --env-file=../../.env src/index.ts",
     "build": "tsc",
     "start": "node --env-file=../../.env dist/index.js",
+    "benchmark:rag-agent": "tsx scripts/rag-agent-benchmark.ts",
     "smoke:code-preview": "node scripts/code-preview-browser-smoke.mjs",
     "test": "vitest run",
     "test:eval": "vitest run --config vitest.eval.config.ts tests/lib/answer-verifier.eval.test.ts",
