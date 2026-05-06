@@ -57,7 +57,7 @@ import type {
   CodeWorkspaceInstallRequest,
   CodeWorkspacePreviewResult,
 } from "@opencairn/shared";
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import {
   createCodeWorkspaceDraft,
   createDrizzleCodeWorkspaceRepository,
@@ -153,6 +153,8 @@ export interface AgentActionServiceOptions {
   now?: () => Date;
   codePreviewTtlMs?: number;
   codePreviewObjectReader?: CodePreviewObjectReader;
+  codePreviewPublicBaseUrl?: string;
+  codePreviewPublicUrlSecret?: string;
 }
 
 export interface WorkflowAgentActionInput {
@@ -713,6 +715,51 @@ export async function readCodeProjectPreviewAsset(
     throw new AgentActionError("code_project_preview_not_ready", 409);
   }
   const result = parseCodeWorkspacePreviewResult(current.result);
+  return readCodeProjectPreviewAssetFromAction(
+    current,
+    actorUserId,
+    path,
+    result,
+    options,
+  );
+}
+
+export async function readPublicCodeProjectPreviewAsset(
+  id: string,
+  token: string,
+  path: string | undefined,
+  options?: AgentActionServiceOptions,
+): Promise<CodePreviewAsset> {
+  const repo = options?.repo ?? createDrizzleAgentActionRepository();
+  const current = await repo.findById(id);
+  if (!current) throw new AgentActionError("action_not_found", 404);
+  if (current.kind !== "code_project.preview") {
+    throw new AgentActionError("action_kind_not_applicable", 409);
+  }
+  if (current.status === "expired") {
+    throw new AgentActionError("code_project_preview_expired", 409);
+  }
+  if (current.status !== "completed") {
+    throw new AgentActionError("code_project_preview_not_ready", 409);
+  }
+  const result = parseCodeWorkspacePreviewResult(current.result);
+  assertValidCodePreviewPublicToken(id, result.expiresAt, token, options);
+  return readCodeProjectPreviewAssetFromAction(
+    current,
+    current.actorUserId,
+    path,
+    result,
+    options,
+  );
+}
+
+async function readCodeProjectPreviewAssetFromAction(
+  current: AgentAction,
+  actorUserId: string,
+  path: string | undefined,
+  result: CodeWorkspacePreviewResult,
+  options?: AgentActionServiceOptions,
+): Promise<CodePreviewAsset> {
   assertCodePreviewNotExpired(result, options);
   const requestedPath = normalizePreviewAssetPath(path ?? result.entryPath);
   const codeRepo = options?.codeWorkspaceRepo ?? createDrizzleCodeWorkspaceRepository();
@@ -1176,6 +1223,12 @@ async function applyCodeProjectPreviewAction(
     const expiresAt = new Date(
       now(options).getTime() + codePreviewTtlMs(options),
     ).toISOString();
+    const publicUrls = codePreviewPublicUrls(
+      current.id,
+      payload.entryPath,
+      expiresAt,
+      options,
+    );
     const result = codeWorkspacePreviewResultSchema.parse({
       ok: true,
       kind: "code_project.preview",
@@ -1185,6 +1238,7 @@ async function applyCodeProjectPreviewAction(
       entryPath: payload.entryPath,
       previewUrl: `${assetsBaseUrl}${encodePreviewPath(payload.entryPath)}`,
       assetsBaseUrl,
+      ...publicUrls,
       expiresAt,
     });
     const completed = await repo.updateStatus(current.id, {
@@ -1458,6 +1512,79 @@ function codePreviewTtlMs(
   options?: Pick<AgentActionServiceOptions, "codePreviewTtlMs">,
 ): number {
   return options?.codePreviewTtlMs ?? 24 * 60 * 60 * 1000;
+}
+
+function codePreviewPublicUrls(
+  actionId: string,
+  entryPath: string,
+  expiresAt: string,
+  options?: Pick<
+    AgentActionServiceOptions,
+    "codePreviewPublicBaseUrl" | "codePreviewPublicUrlSecret"
+  >,
+): Pick<CodeWorkspacePreviewResult, "publicPreviewUrl" | "publicAssetsBaseUrl"> {
+  const baseUrl = normalizedCodePreviewPublicBaseUrl(options);
+  const secret = codePreviewPublicUrlSecret(options);
+  if (!baseUrl || !secret) return {};
+  const token = signCodePreviewPublicToken(actionId, expiresAt, secret);
+  const publicAssetsBaseUrl = `${baseUrl}/api/public/agent-actions/${actionId}/preview/${token}/`;
+  return {
+    publicAssetsBaseUrl,
+    publicPreviewUrl: `${publicAssetsBaseUrl}${encodePreviewPath(entryPath)}`,
+  };
+}
+
+function normalizedCodePreviewPublicBaseUrl(
+  options?: Pick<AgentActionServiceOptions, "codePreviewPublicBaseUrl">,
+): string | null {
+  const raw = options?.codePreviewPublicBaseUrl ?? process.env.CODE_PREVIEW_PUBLIC_BASE_URL;
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    throw new AgentActionError("invalid_code_preview_public_base_url", 409);
+  }
+}
+
+function codePreviewPublicUrlSecret(
+  options?: Pick<AgentActionServiceOptions, "codePreviewPublicUrlSecret">,
+): string | null {
+  return (
+    options?.codePreviewPublicUrlSecret ??
+    process.env.CODE_PREVIEW_PUBLIC_URL_SECRET ??
+    process.env.BETTER_AUTH_SECRET ??
+    null
+  );
+}
+
+function signCodePreviewPublicToken(
+  actionId: string,
+  expiresAt: string,
+  secret: string,
+): string {
+  return createHmac("sha256", secret)
+    .update(`${actionId}:${expiresAt}`)
+    .digest("base64url");
+}
+
+function assertValidCodePreviewPublicToken(
+  actionId: string,
+  expiresAt: string,
+  token: string,
+  options?: Pick<AgentActionServiceOptions, "codePreviewPublicUrlSecret">,
+): void {
+  const secret = codePreviewPublicUrlSecret(options);
+  if (!secret) throw new AgentActionError("code_project_preview_public_disabled", 403);
+  const expected = signCodePreviewPublicToken(actionId, expiresAt, secret);
+  const actualBuffer = Buffer.from(token);
+  const expectedBuffer = Buffer.from(expected);
+  if (
+    actualBuffer.length !== expectedBuffer.length ||
+    !timingSafeEqual(actualBuffer, expectedBuffer)
+  ) {
+    throw new AgentActionError("code_project_preview_invalid_token", 403);
+  }
 }
 
 async function readPreviewObject(

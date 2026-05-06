@@ -6,6 +6,7 @@ import {
   codeWorkspaceInstallRequestSchema,
   codeWorkspaceManifestSchema,
   codeWorkspacePatchSchema,
+  codeWorkspacePreviewResultSchema,
   codeWorkspacePreviewRequestSchema,
   codeWorkspacePackageResultSchema,
   codeWorkspaceSnapshotSchema,
@@ -248,5 +249,27 @@ describe("code project workspace contracts", () => {
         mode: "vite",
       }),
     ).toThrow();
+  });
+
+  it("allows static preview results to include opt-in signed public URLs", () => {
+    const parsed = codeWorkspacePreviewResultSchema.parse({
+      ok: true,
+      kind: "code_project.preview",
+      mode: "static",
+      codeWorkspaceId: "00000000-0000-4000-8000-000000000203",
+      snapshotId: baseSnapshotId,
+      entryPath: "index.html",
+      previewUrl:
+        "/api/agent-actions/00000000-0000-4000-8000-000000000204/preview/index.html",
+      assetsBaseUrl: "/api/agent-actions/00000000-0000-4000-8000-000000000204/preview/",
+      publicPreviewUrl:
+        "https://preview.example.com/api/public/agent-actions/00000000-0000-4000-8000-000000000204/preview/token/index.html",
+      publicAssetsBaseUrl:
+        "https://preview.example.com/api/public/agent-actions/00000000-0000-4000-8000-000000000204/preview/token/",
+      expiresAt: "2026-05-06T00:00:00.000Z",
+    });
+
+    expect(parsed.publicPreviewUrl).toContain("/api/public/agent-actions/");
+    expect(parsed.publicAssetsBaseUrl).toContain("/preview/token/");
   });
 });

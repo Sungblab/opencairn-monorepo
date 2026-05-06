@@ -334,6 +334,8 @@ export const codeWorkspacePreviewResultSchema = z
     entryPath: normalizedPathSchema,
     previewUrl: z.string().trim().min(1).max(1024),
     assetsBaseUrl: z.string().trim().min(1).max(1024),
+    publicPreviewUrl: z.string().url().max(2048).optional(),
+    publicAssetsBaseUrl: z.string().url().max(2048).optional(),
     expiresAt: z.string().datetime(),
   })
   .strict();

@@ -865,6 +865,16 @@ optionally require a selector or visible text, and write a screenshot under
 Playwright `storageState` file, cookie, or header. This is an operator QA tool;
 it does not create public preview hostnames or manage process-backed servers.
 
+Phase 7H adds opt-in signed public URLs for completed static previews. When
+`CODE_PREVIEW_PUBLIC_BASE_URL` and a signing secret are configured, applying a
+static `code_project.preview` action stores `publicPreviewUrl` and
+`publicAssetsBaseUrl` alongside the existing authenticated internal URLs. The
+public route verifies an HMAC token derived from the action id and `expiresAt`,
+serves the same immutable snapshot assets with sandbox/no-store headers, and
+fails closed for invalid tokens or expired preview rows. Agent Panel and
+Workflow Console links prefer the signed public URL when present. This still
+does not run Vite/Next or manage process-backed preview servers.
+
 ### Phase 7: Hosted Preview
 
 Add generated app previews:

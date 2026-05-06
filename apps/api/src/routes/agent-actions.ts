@@ -16,12 +16,17 @@ import {
   getAgentAction,
   listAgentActions,
   readCodeProjectPreviewAsset,
+  readPublicCodeProjectPreviewAsset,
   transitionAgentActionStatus,
   type AgentActionServiceOptions,
 } from "../lib/agent-actions";
 import type { AppEnv } from "../lib/types";
 
 const idParamSchema = z.object({ id: z.string().uuid() });
+const publicPreviewParamSchema = z.object({
+  id: z.string().uuid(),
+  token: z.string().regex(/^[A-Za-z0-9_-]{32,128}$/),
+});
 const projectParamSchema = z.object({ projectId: z.string().uuid() });
 const repairRequestSchema = z.object({
   requestId: z.string().uuid().optional(),
@@ -47,9 +52,29 @@ export function createAgentActionRoutes(options?: AgentActionRouteOptions) {
     ...(options?.now ? { now: options.now } : {}),
     ...(options?.codePreviewTtlMs ? { codePreviewTtlMs: options.codePreviewTtlMs } : {}),
     ...(options?.codePreviewObjectReader ? { codePreviewObjectReader: options.codePreviewObjectReader } : {}),
+    ...(options?.codePreviewPublicBaseUrl ? { codePreviewPublicBaseUrl: options.codePreviewPublicBaseUrl } : {}),
+    ...(options?.codePreviewPublicUrlSecret ? { codePreviewPublicUrlSecret: options.codePreviewPublicUrlSecret } : {}),
   };
 
   return new Hono<AppEnv>()
+    .get(
+      "/public/agent-actions/:id/preview/:token/*",
+      zValidator("param", publicPreviewParamSchema),
+      async (c) => {
+        try {
+          const { id, token } = c.req.valid("param");
+          const asset = await readPublicCodeProjectPreviewAsset(
+            id,
+            token,
+            publicPreviewAssetPath(c.req.path, id, token),
+            serviceOptions,
+          );
+          return previewAssetResponse(asset, "public, no-store");
+        } catch (err) {
+          return agentActionError(c, err);
+        }
+      },
+    )
     .post(
       "/projects/:projectId/agent-actions",
       auth,
@@ -156,26 +181,7 @@ export function createAgentActionRoutes(options?: AgentActionRouteOptions) {
             previewAssetPath(c.req.path, id),
             serviceOptions,
           );
-          return new Response(asset.body, {
-            headers: {
-              "Content-Type": asset.contentType,
-              ...(asset.contentLength != null ? { "Content-Length": String(asset.contentLength) } : {}),
-              "Content-Security-Policy": [
-                "sandbox allow-scripts",
-                "default-src 'none'",
-                "img-src 'self' data: blob:",
-                "font-src 'self' data:",
-                "style-src 'self' 'unsafe-inline'",
-                "script-src 'self' 'unsafe-inline'",
-                "connect-src 'none'",
-                "base-uri 'none'",
-                "form-action 'none'",
-                "frame-ancestors 'self'",
-              ].join("; "),
-              "X-Content-Type-Options": "nosniff",
-              "Cache-Control": "private, no-store",
-            },
-          });
+          return previewAssetResponse(asset, "private, no-store");
         } catch (err) {
           return agentActionError(c, err);
         }
@@ -226,6 +232,39 @@ function previewAssetPath(path: string, actionId: string): string {
   const index = path.indexOf(marker);
   if (index < 0) return "index.html";
   return path.slice(index + marker.length) || "index.html";
+}
+
+function publicPreviewAssetPath(path: string, actionId: string, token: string): string {
+  const marker = `/public/agent-actions/${actionId}/preview/${token}/`;
+  const index = path.indexOf(marker);
+  if (index < 0) return "index.html";
+  return path.slice(index + marker.length) || "index.html";
+}
+
+function previewAssetResponse(
+  asset: Awaited<ReturnType<typeof readCodeProjectPreviewAsset>>,
+  cacheControl: string,
+): Response {
+  return new Response(asset.body, {
+    headers: {
+      "Content-Type": asset.contentType,
+      ...(asset.contentLength != null ? { "Content-Length": String(asset.contentLength) } : {}),
+      "Content-Security-Policy": [
+        "sandbox allow-scripts",
+        "default-src 'none'",
+        "img-src 'self' data: blob:",
+        "font-src 'self' data:",
+        "style-src 'self' 'unsafe-inline'",
+        "script-src 'self' 'unsafe-inline'",
+        "connect-src 'none'",
+        "base-uri 'none'",
+        "form-action 'none'",
+        "frame-ancestors 'self'",
+      ].join("; "),
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": cacheControl,
+    },
+  });
 }
 
 function agentActionError(c: import("hono").Context<AppEnv>, err: unknown): Response {

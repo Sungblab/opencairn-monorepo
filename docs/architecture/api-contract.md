@@ -389,12 +389,18 @@ Preview actions must use `risk:"external"`. Phase 7A records
 process-backed modes such as Vite or Next. Phase 7B lets approved static
 preview actions complete with a result shaped like
 `{ ok:true, kind:"code_project.preview", mode:"static", codeWorkspaceId,
-snapshotId, entryPath, previewUrl, assetsBaseUrl, expiresAt }`. The preview URL
-is an authenticated internal API route with sandbox CSP, no-store caching, and
-a bounded expiry. Inline entries and object-backed entries can be served from
-the immutable snapshot manifest. Expired preview actions can be marked terminal
-through the internal preview cleanup sweep. Public hostnames, browser smoke
-checks, and process lifecycle cleanup remain later hosted-preview work.
+snapshotId, entryPath, previewUrl, assetsBaseUrl, publicPreviewUrl?,
+publicAssetsBaseUrl?, expiresAt }`. The `previewUrl` is an authenticated
+internal API route with sandbox CSP, no-store caching, and a bounded expiry.
+When `CODE_PREVIEW_PUBLIC_BASE_URL` and a signing secret are configured, the
+result also includes signed public URLs under `/api/public/...` that use the
+same expiry and sandbox response headers without requiring a user session.
+Inline entries and object-backed entries can be served from the immutable
+snapshot manifest. Expired preview actions can be marked terminal through the
+internal preview cleanup sweep. Process-backed preview servers remain later
+hosted-preview work.
+
+| GET | /api/public/agent-actions/:id/preview/:token/* | Signed preview token | Serve a completed static `code_project.preview` asset without a user session. The token is derived from the action id and `expiresAt`; invalid tokens return `403 code_project_preview_invalid_token`, and expired previews return `409 code_project_preview_expired`. | - |
 
 Static preview browser smoke:
 

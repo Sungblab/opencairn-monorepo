@@ -670,6 +670,78 @@ describe("agent action routes", () => {
     expect(await asset.text()).toBe("<h1>Preview</h1>");
   });
 
+  it("serves signed public static code_project.preview assets without a session", async () => {
+    const repo = createMemoryRepo();
+    const codeWorkspaceRepo = createMemoryCodeWorkspaceRepository();
+    const { workspace, snapshot } = await codeWorkspaceRepo.createWorkspaceDraft({
+      scope: { workspaceId, projectId, actorUserId: userId },
+      requestId: "00000000-0000-4000-8000-000000000085",
+      snapshotId: "00000000-0000-4000-8000-000000000086",
+      treeHash: "sha256:public-preview",
+      request: {
+        name: "Public preview app",
+        manifest: {
+          entries: [
+            {
+              path: "index.html",
+              kind: "file",
+              mimeType: "text/html",
+              bytes: 16,
+              contentHash: "sha256:index",
+              inlineContent: "<h1>Public Preview</h1>",
+            },
+          ],
+        },
+      },
+    });
+    const app = appWith({
+      repo,
+      codeWorkspaceRepo,
+      codePreviewPublicBaseUrl: "https://preview.example.com",
+      codePreviewPublicUrlSecret: "test-public-preview-secret",
+    });
+    const create = await app.request(`/api/projects/${projectId}/agent-actions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        requestId: "00000000-0000-4000-8000-000000000087",
+        kind: "code_project.preview",
+        risk: "external",
+        input: {
+          codeWorkspaceId: workspace.id,
+          snapshotId: snapshot.id,
+          mode: "static",
+          entryPath: "index.html",
+        },
+      }),
+    });
+    const created = await create.json() as { action: AgentAction };
+    const apply = await app.request(`/api/agent-actions/${created.action.id}/apply`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const applied = await apply.json() as { action: AgentAction };
+    const publicPreviewUrl = new URL(
+      (applied.action.result as { publicPreviewUrl: string }).publicPreviewUrl,
+    );
+
+    expect(publicPreviewUrl.origin).toBe("https://preview.example.com");
+    const asset = await app.request(`${publicPreviewUrl.pathname}${publicPreviewUrl.search}`);
+    expect(asset.status).toBe(200);
+    expect(asset.headers.get("content-security-policy")).toContain("sandbox");
+    expect(asset.headers.get("cache-control")).toBe("public, no-store");
+    expect(await asset.text()).toBe("<h1>Public Preview</h1>");
+
+    const invalidToken = publicPreviewUrl.pathname.replace(
+      /\/preview\/[^/]+\//,
+      "/preview/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/",
+    );
+    const rejected = await app.request(invalidToken);
+    expect(rejected.status).toBe(403);
+    expect(await rejected.json()).toMatchObject({ error: "code_project_preview_invalid_token" });
+  });
+
   it("serves object-backed static code_project.preview assets", async () => {
     const repo = createMemoryRepo();
     const codeWorkspaceRepo = createMemoryCodeWorkspaceRepository();
@@ -1089,6 +1161,8 @@ function appWith(options: {
   now?: () => Date;
   codePreviewTtlMs?: number;
   codePreviewObjectReader?: AgentActionServiceOptions["codePreviewObjectReader"];
+  codePreviewPublicBaseUrl?: string;
+  codePreviewPublicUrlSecret?: string;
 }) {
   return new Hono<AppEnv>().route(
     "/api",
@@ -1105,6 +1179,8 @@ function appWith(options: {
       now: options.now,
       codePreviewTtlMs: options.codePreviewTtlMs,
       codePreviewObjectReader: options.codePreviewObjectReader,
+      codePreviewPublicBaseUrl: options.codePreviewPublicBaseUrl,
+      codePreviewPublicUrlSecret: options.codePreviewPublicUrlSecret,
       auth: async (c, next) => {
         c.set("userId", userId);
         c.set("user", { id: userId, email: "user@example.com", name: "User" });

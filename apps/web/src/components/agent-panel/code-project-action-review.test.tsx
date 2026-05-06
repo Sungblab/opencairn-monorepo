@@ -271,6 +271,25 @@ describe("CodeProjectActionReviewList", () => {
     expect(screen.getByText("previewEntry:{\"entryPath\":\"index.html\"}")).toBeTruthy();
   });
 
+  it("prefers a signed public static preview link when present", async () => {
+    const action = completedPreviewAction();
+    action.result = {
+      ...(action.result as Record<string, unknown>),
+      publicPreviewUrl:
+        "https://preview.example.com/api/public/agent-actions/00000000-0000-4000-8000-000000000040/preview/token/index.html",
+      publicAssetsBaseUrl:
+        "https://preview.example.com/api/public/agent-actions/00000000-0000-4000-8000-000000000040/preview/token/",
+    };
+    mockLists({ patches: [], completedPreviews: [action] });
+    renderWithClient();
+
+    const link = await screen.findByRole("link", { name: "openPreview" });
+    expect(link).toHaveAttribute(
+      "href",
+      "https://preview.example.com/api/public/agent-actions/00000000-0000-4000-8000-000000000040/preview/token/index.html",
+    );
+  });
+
   it("renders and applies a pending dependency install action", async () => {
     mockLists({ patches: [], pendingInstalls: [installAction()] });
     const user = userEvent.setup();

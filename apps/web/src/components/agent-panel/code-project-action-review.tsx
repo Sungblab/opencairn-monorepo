@@ -474,6 +474,7 @@ function CodeProjectPreviewResultCard({
   result: NonNullable<ReturnType<typeof parseCodeWorkspacePreviewResult>>;
 }) {
   const t = useTranslations("agentPanel.codePreviewReview");
+  const previewHref = result.publicPreviewUrl ?? result.previewUrl;
   return (
     <section
       aria-label={t("resultTitle")}
@@ -487,7 +488,7 @@ function CodeProjectPreviewResultCard({
           </p>
         </div>
         <a
-          href={result.previewUrl}
+          href={previewHref}
           target="_blank"
           rel="noreferrer"
           className="app-btn-secondary flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-control)]"
