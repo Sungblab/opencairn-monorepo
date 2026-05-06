@@ -183,4 +183,93 @@ describe("note analysis jobs", () => {
     expect(deleteWhere).not.toHaveBeenCalled();
     expect(insertValues).not.toHaveBeenCalled();
   });
+
+  it("rechecks the source note and Yjs vector at commit time before writing chunks", async () => {
+    const oldHash = computeNoteAnalysisContentHash({
+      title: "Old",
+      contentText: "old text",
+    });
+    dbMock.query.noteAnalysisJobs.findFirst.mockResolvedValue({
+      id: "job-1",
+      noteId: "note-1",
+      contentHash: oldHash,
+      yjsStateVector: new Uint8Array([1]),
+      status: "queued",
+      runAfter: new Date("2026-05-06T00:00:00.000Z"),
+    });
+    returning.mockResolvedValue([
+      {
+        id: "job-1",
+        noteId: "note-1",
+        contentHash: oldHash,
+        yjsStateVector: new Uint8Array([1]),
+      },
+    ]);
+    dbMock.query.notes.findFirst.mockResolvedValue({
+      id: "note-1",
+      workspaceId: "ws-1",
+      projectId: "project-1",
+      title: "Old",
+      contentText: "old text",
+      deletedAt: null,
+    });
+    dbMock.query.yjsDocuments.findFirst.mockResolvedValue({
+      stateVector: new Uint8Array([1]),
+    });
+    const txSelect = vi.fn();
+    const selectRows = (rows: unknown[]) => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          for: vi.fn(() => ({
+            limit: vi.fn().mockResolvedValue(rows),
+          })),
+        })),
+      })),
+    });
+    txSelect
+      .mockReturnValueOnce(
+        selectRows([
+          {
+            id: "note-1",
+            workspaceId: "ws-1",
+            projectId: "project-1",
+            title: "New",
+            contentText: "new text",
+            deletedAt: null,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(
+        selectRows([{ stateVector: new Uint8Array([9]) }]),
+      );
+    dbMock.transaction.mockImplementationOnce(
+      async (fn: (tx: unknown) => Promise<unknown>) =>
+        fn({
+          select: txSelect,
+          query: {
+            noteAnalysisJobs: {
+              findFirst: vi.fn().mockResolvedValue({
+                id: "job-1",
+                contentHash: oldHash,
+                yjsStateVector: new Uint8Array([1]),
+                status: "running",
+              }),
+            },
+          },
+          delete: vi.fn(() => ({ where: deleteWhere })),
+          insert: vi.fn(() => ({ values: insertValues })),
+          update: vi.fn(() => ({ set: vi.fn(() => ({ where })) })),
+        }),
+    );
+
+    const result = await runNoteAnalysisJob({
+      jobId: "job-1",
+      embed: async () => [0.1],
+      now: new Date("2026-05-06T00:01:00.000Z"),
+    });
+
+    expect(result.status).toBe("stale");
+    expect(deleteWhere).not.toHaveBeenCalled();
+    expect(insertValues).not.toHaveBeenCalled();
+  });
 });
