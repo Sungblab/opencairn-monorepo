@@ -317,11 +317,23 @@ function summarizeDrainResults(
     skipped: 0,
   };
   for (const result of results) {
-    if (result.status === "completed") summary.completed += 1;
-    else if (result.status === "stale") summary.stale += 1;
-    else if (result.status === "failed") summary.failed += 1;
-    else if (result.status === "missing_note") summary.missing += 1;
-    else summary.skipped += 1;
+    switch (result.status) {
+      case "completed":
+        summary.completed += 1;
+        break;
+      case "stale":
+        summary.stale += 1;
+        break;
+      case "failed":
+        summary.failed += 1;
+        break;
+      case "missing_note":
+        summary.missing += 1;
+        break;
+      default:
+        summary.skipped += 1;
+        break;
+    }
   }
   return summary;
 }
