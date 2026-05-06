@@ -64,6 +64,7 @@ export function packEvidence(input: {
       sourceSpan: candidate.sourceSpan,
       evidenceId: candidate.evidenceId,
       support: candidate.support,
+      graphPath: candidate.graphPath,
     });
     totalEstimatedTokens += cost;
     perNote.set(candidate.noteId, noteCount + 1);
@@ -104,6 +105,7 @@ function metadataLine(item: EvidenceItem): string {
     `producer=${formatProducer(item.producer)}`,
     `support=${item.support}`,
     item.sourceSpan ? `span=${formatSpan(item.sourceSpan)}` : null,
+    item.graphPath ? `path=${item.graphPath}` : null,
   ]
     .filter(Boolean)
     .join(" ");

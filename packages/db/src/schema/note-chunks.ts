@@ -34,6 +34,7 @@ export const noteChunks = pgTable(
       .references(() => notes.id, { onDelete: "cascade" }),
     chunkIndex: integer("chunk_index").notNull(),
     headingPath: text("heading_path").notNull().default(""),
+    contextText: text("context_text").notNull().default(""),
     contentText: text("content_text").notNull(),
     contentTsv: tsvector("content_tsv").notNull().default(sql`''::tsvector`),
     // `vector3072` is a legacy helper name; the actual pgvector dimension is

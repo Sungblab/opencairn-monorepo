@@ -10,7 +10,8 @@ export type AdaptiveRagReason =
   | "relationship"
   | "multi_hop"
   | "research_depth"
-  | "workspace_fanout";
+  | "workspace_fanout"
+  | "corrective_retry";
 
 export type AdaptiveRagPolicy = {
   ragMode: RagMode;

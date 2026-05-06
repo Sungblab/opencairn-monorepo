@@ -48,6 +48,7 @@ describe("expandGraphCandidates", () => {
           source_url: null,
           updated_at: "2026-05-03T00:00:00.000Z",
           graph_score: 0.8,
+          graph_path: "Alpha --[depends-on]--> Beta",
         },
       ],
     });
@@ -69,6 +70,7 @@ describe("expandGraphCandidates", () => {
         snippet: "related snippet",
         sourceType: "manual",
         graphScore: 0.8,
+        graphPath: "Alpha --[depends-on]--> Beta",
       }),
     ]);
     const query = String(execute.mock.calls[0]?.[0]);

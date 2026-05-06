@@ -105,8 +105,8 @@ result = client.models.embed_content(
 ### RAG Mode (2026-04-20 agent-chat-scope 통합)
 
 - **Strict mode (기본)**: 사용자가 chat에서 붙인 scope 칩(Page/Project/Workspace + 추가 corpus)에만 검색 제한. 칩 외부 데이터는 참조 안 함.
-- **Expand mode**: 칩 내부에서 top-k가 희박(예: 3개 미만)일 때 workspace 범위로 fallback. UI에 "Expand" 배지 표시.
-- **구현**: `search.hybrid(query, scope_chips, mode='strict'|'expand')` — Plan 11A에서 도구 시그니처 확정.
+- **Expand mode**: 같은 scope/chip 집합 안에서 top-k, graph expansion, context budget을 넓힌다. 단순 질의가 sparse/weak evidence만 얻으면 workspace 밖으로 무단 fallback하지 않고, same-scope corrective graph retry를 한 번 실행한다.
+- **구현**: `retrieveWithPolicy(query, scope_chips, mode='strict'|'expand')`가 adaptive policy, retrieval quality report, optional corrective retry를 함께 노출한다.
 - **권한**: 모든 모드에서 `canRead(user, resource)` 통과한 문서만 검색 대상.
 
 ### 3단계 검색 파이프라인
@@ -132,6 +132,16 @@ result = client.models.embed_content(
     → score = Σ 1/(k + rank_i) for each retriever
     → k = 60 (standard)
     → 최종 상위 10개 노트를 LLM 컨텍스트에 주입
+
+[5] Quality Gate / Corrective Retry
+    → 후보가 비어 있거나 sparse/weak이면 quality report 기록
+    → expand mode + flat retrieval일 때만 같은 scope 안에서 graphDepth=1 retry
+    → strict mode는 권한/칩 경계를 보존하기 위해 retry로 범위를 넓히지 않음
+
+[6] Optional Provider Rerank
+    → 기본은 deterministic heuristic rerank
+    → CHAT_RAG_RERANKER=provider일 때 active API chat provider가 evidence id JSON 순서를 재정렬
+    → provider 실패/비정상 JSON은 heuristic 순서로 fallback
 ```
 
 ### RRF 구현

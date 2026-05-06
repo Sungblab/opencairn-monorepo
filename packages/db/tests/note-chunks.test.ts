@@ -14,6 +14,7 @@ describe("noteChunks schema", () => {
         "noteId",
         "chunkIndex",
         "headingPath",
+        "contextText",
         "contentText",
         "contentTsv",
         "embedding",
