@@ -153,6 +153,8 @@ class LiveGoogleWorkspaceExportClient:
             )
         except HttpError as exc:
             raise _google_http_error(exc) from exc
+        finally:
+            _close_media_upload(media)
         external_id = str(uploaded.get("id") or "")
         if not external_id:
             raise ApplicationError(
@@ -279,8 +281,15 @@ async def export_project_object_to_google_workspace(
             workspace_id=params.workspace_id,
         )
     finally:
-        with suppress(FileNotFoundError):
+        with suppress(OSError):
             tmp_path.unlink()
+
+
+def _close_media_upload(media: MediaFileUpload) -> None:
+    stream = media.stream()
+    close = getattr(stream, "close", None)
+    if callable(close):
+        close()
 
 
 @activity.defn(name="finalize_google_workspace_export")

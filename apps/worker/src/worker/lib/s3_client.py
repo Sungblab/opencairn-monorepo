@@ -57,10 +57,10 @@ def download_to_tempfile(object_key: str) -> Path:
     bucket = os.environ.get("S3_BUCKET", "opencairn-uploads")
     client = get_s3_client()
     suffix = Path(object_key).suffix or ".bin"
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-    client.fget_object(bucket, object_key, tmp.name)
-    tmp.close()
-    return Path(tmp.name)
+    fd, tmp_name = tempfile.mkstemp(suffix=suffix)
+    os.close(fd)
+    client.fget_object(bucket, object_key, tmp_name)
+    return Path(tmp_name)
 
 
 def upload_object(object_key: str, data: bytes, content_type: str) -> None:
