@@ -130,6 +130,27 @@
     "loadFailed": "Could not load run status.",
     "progress": "{percent}%",
     "logSummary": "{packageManager} · {packages} · exit {exitCode}",
+    "evidenceSummary": "{count, plural, one {# evidence item} other {# evidence items}} {status}",
+    "verificationSummary": "Verification {status} · recovery {code}",
+    "freshnessStatus": {
+      "fresh": "fresh",
+      "stale": "stale",
+      "missing": "missing",
+      "unknown": "unknown"
+    },
+    "verificationStatus": {
+      "pending": "pending",
+      "passed": "passed",
+      "failed": "failed",
+      "blocked": "blocked",
+      "unknown": "unknown"
+    },
+    "recoveryCode": {
+      "stale_context": "refresh evidence",
+      "verification_failed": "manual review",
+      "missing_source": "check source",
+      "manual_review": "manual review"
+    },
     "type": {
       "chat": "Chat",
       "agent_action": "Agent action",

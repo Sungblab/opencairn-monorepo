@@ -66,6 +66,8 @@ import { canRead } from "../lib/permissions";
 import { expandFromConcept } from "../lib/expand-graph";
 import { projectHybridSearch } from "../lib/internal-hybrid-search";
 import { recordAgenticPlanHandoff } from "../lib/agentic-plans";
+import { drainDueNoteAnalysisJobs } from "../lib/note-analysis-jobs";
+import { getChatProvider } from "../lib/llm";
 import type { AppEnv } from "../lib/types";
 import {
   assertResourceWorkspace,
@@ -126,6 +128,36 @@ internal.use("*", async (c, next) => {
 const internalPreviewCleanupSchema = z.object({
   limit: z.coerce.number().int().min(1).max(500).optional(),
 });
+
+const noteAnalysisDrainSchema = z.object({
+  batchSize: z.coerce.number().int().min(1).max(100).default(25),
+});
+
+internal.post(
+  "/note-analysis-jobs/drain",
+  zValidator("json", noteAnalysisDrainSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const provider = getChatProvider();
+    const result = await drainDueNoteAnalysisJobs({
+      batchSize: body.batchSize,
+      embed: provider.embed,
+    });
+    return c.json({
+      results: result.results.map((item) => ({
+        jobId: item.jobId,
+        status: item.status,
+        ...(item.status === "failed"
+          ? {
+              errorMessage: item.error instanceof Error
+                ? item.error.message
+                : String(item.error),
+            }
+          : {}),
+      })),
+    });
+  },
+);
 
 internal.post(
   "/agent-actions/preview-cleanup",

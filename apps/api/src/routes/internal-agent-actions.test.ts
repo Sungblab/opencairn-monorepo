@@ -36,6 +36,16 @@ const completeCodeProjectRepairActionFromWorker = vi.hoisted(() =>
     },
   }),
 );
+const drainDueNoteAnalysisJobs = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({
+    results: [
+      {
+        status: "completed",
+        jobId: "00000000-0000-4000-8000-000000000020",
+      },
+    ],
+  }),
+);
 
 vi.mock("../lib/agent-actions", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/agent-actions")>();
@@ -56,6 +66,24 @@ vi.mock("../lib/internal-assert", async (importOriginal) => {
   };
 });
 
+vi.mock("../lib/note-analysis-jobs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/note-analysis-jobs")>();
+  return {
+    ...actual,
+    drainDueNoteAnalysisJobs,
+  };
+});
+
+vi.mock("../lib/llm", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/llm")>();
+  return {
+    ...actual,
+    getChatProvider: vi.fn(() => ({
+      embed: vi.fn(async () => [0.1]),
+    })),
+  };
+});
+
 const SECRET = "test-internal-secret-agent-actions";
 process.env.INTERNAL_API_SECRET = SECRET;
 
@@ -72,6 +100,41 @@ function postPreviewCleanup(body: unknown, secret: string | null = SECRET) {
     body: JSON.stringify(body),
   });
 }
+
+function postNoteAnalysisDrain(body: unknown, secret: string | null = SECRET) {
+  return app.request("/api/internal/note-analysis-jobs/drain", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(secret == null ? {} : { "X-Internal-Secret": secret }),
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+describe("POST /api/internal/note-analysis-jobs/drain", () => {
+  it("drains due note analysis jobs through the API runner", async () => {
+    drainDueNoteAnalysisJobs.mockClear();
+
+    const res = await postNoteAnalysisDrain({ batchSize: 10 });
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      results: [
+        {
+          status: "completed",
+          jobId: "00000000-0000-4000-8000-000000000020",
+        },
+      ],
+    });
+    expect(drainDueNoteAnalysisJobs).toHaveBeenCalledWith(
+      expect.objectContaining({
+        batchSize: 10,
+        embed: expect.any(Function),
+      }),
+    );
+  });
+});
 
 describe("POST /api/internal/agent-actions/preview-cleanup", () => {
   it("runs the expired static preview cleanup sweep", async () => {

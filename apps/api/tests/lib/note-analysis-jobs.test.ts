@@ -50,6 +50,7 @@ vi.mock("@opencairn/db", async (orig) => {
 });
 
 const {
+  drainDueNoteAnalysisJobs,
   computeNoteAnalysisContentHash,
   queueNoteAnalysisJob,
   runNoteAnalysisJob,
@@ -271,5 +272,156 @@ describe("note analysis jobs", () => {
     expect(result.status).toBe("stale");
     expect(deleteWhere).not.toHaveBeenCalled();
     expect(insertValues).not.toHaveBeenCalled();
+  });
+
+  it("marks embed failures as stable failed analysis jobs", async () => {
+    const hash = computeNoteAnalysisContentHash({
+      title: "Failing",
+      contentText: "body",
+    });
+    dbMock.query.noteAnalysisJobs.findFirst.mockResolvedValue({
+      id: "job-1",
+      noteId: "note-1",
+      contentHash: hash,
+      yjsStateVector: null,
+      status: "queued",
+      runAfter: new Date("2026-05-06T00:00:00.000Z"),
+    });
+    returning.mockResolvedValue([
+      {
+        id: "job-1",
+        noteId: "note-1",
+        contentHash: hash,
+        yjsStateVector: null,
+      },
+    ]);
+    dbMock.query.notes.findFirst.mockResolvedValue({
+      id: "note-1",
+      workspaceId: "ws-1",
+      projectId: "project-1",
+      title: "Failing",
+      contentText: "body",
+      deletedAt: null,
+    });
+    dbMock.query.yjsDocuments.findFirst.mockResolvedValue(null);
+
+    const result = await runNoteAnalysisJob({
+      jobId: "job-1",
+      embed: async () => {
+        throw new Error("embedding unavailable");
+      },
+      now: new Date("2026-05-06T00:01:00.000Z"),
+    });
+
+    expect(result.status).toBe("failed");
+    expect(set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "failed",
+        errorCode: "analysis_failed",
+        errorMessage: "embedding unavailable",
+      }),
+    );
+  });
+
+  it("drains only due queued jobs up to the bounded batch size", async () => {
+    const due = new Date("2026-05-06T00:01:00.000Z");
+    dbMock.query.noteAnalysisJobs.findMany = vi.fn().mockResolvedValue([
+      { id: "job-due-1" },
+      { id: "job-due-2" },
+    ]);
+    dbMock.query.noteAnalysisJobs.findFirst
+      .mockResolvedValueOnce({
+        id: "job-due-1",
+        noteId: "note-1",
+        contentHash: computeNoteAnalysisContentHash({
+          title: "One",
+          contentText: "body",
+        }),
+        yjsStateVector: null,
+        status: "queued",
+        runAfter: due,
+      })
+      .mockResolvedValueOnce({
+        id: "job-due-2",
+        noteId: "note-2",
+        contentHash: computeNoteAnalysisContentHash({
+          title: "Two",
+          contentText: "body",
+        }),
+        yjsStateVector: null,
+        status: "queued",
+        runAfter: due,
+      });
+    dbMock.query.notes.findFirst
+      .mockResolvedValueOnce({
+        id: "note-1",
+        workspaceId: "ws-1",
+        projectId: "project-1",
+        title: "One",
+        contentText: "body",
+        deletedAt: null,
+      })
+      .mockResolvedValueOnce({
+        id: "note-2",
+        workspaceId: "ws-1",
+        projectId: "project-1",
+        title: "Two",
+        contentText: "body",
+        deletedAt: null,
+      });
+    returning
+      .mockResolvedValueOnce([{ id: "job-due-1", noteId: "note-1", contentHash: computeNoteAnalysisContentHash({ title: "One", contentText: "body" }), yjsStateVector: null }])
+      .mockResolvedValueOnce([{ id: "job-due-2", noteId: "note-2", contentHash: computeNoteAnalysisContentHash({ title: "Two", contentText: "body" }), yjsStateVector: null }]);
+    dbMock.transaction.mockImplementation(
+      async (fn: (tx: unknown) => Promise<unknown>) =>
+        fn({
+          select: vi.fn(() => ({
+            from: vi.fn(() => ({
+              where: vi.fn(() => ({
+                for: vi.fn(() => ({
+                  limit: vi.fn().mockResolvedValue([{ id: "note" }]),
+                })),
+              })),
+            })),
+          })),
+          query: {
+            noteAnalysisJobs: {
+              findFirst: vi.fn().mockResolvedValue({
+                id: "job",
+                contentHash: computeNoteAnalysisContentHash({ title: "One", contentText: "body" }),
+                yjsStateVector: null,
+                status: "running",
+              }),
+            },
+          },
+          delete: vi.fn(() => ({ where: deleteWhere })),
+          insert: vi.fn(() => ({ values: insertValues })),
+          update: vi.fn(() => ({ set: vi.fn(() => ({ where })) })),
+        }),
+    );
+
+    const result = await drainDueNoteAnalysisJobs({
+      batchSize: 2,
+      embed: async () => [0.1],
+      now: due,
+    });
+
+    expect(dbMock.query.noteAnalysisJobs.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 2 }),
+    );
+    expect(result.results.map((item) => item.jobId)).toEqual(["job-due-1", "job-due-2"]);
+  });
+
+  it("skips future queued jobs when draining due analysis work", async () => {
+    dbMock.query.noteAnalysisJobs.findMany = vi.fn().mockResolvedValue([]);
+
+    const result = await drainDueNoteAnalysisJobs({
+      batchSize: 10,
+      embed: async () => [0.1],
+      now: new Date("2026-05-06T00:01:00.000Z"),
+    });
+
+    expect(result.results).toEqual([]);
+    expect(dbMock.query.noteAnalysisJobs.findFirst).not.toHaveBeenCalled();
   });
 });

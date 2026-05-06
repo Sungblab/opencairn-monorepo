@@ -130,6 +130,27 @@
     "loadFailed": "작업 상태를 불러오지 못했어요.",
     "progress": "{percent}%",
     "logSummary": "{packageManager} · {packages} · 종료 코드 {exitCode}",
+    "evidenceSummary": "근거 {count}개 {status}",
+    "verificationSummary": "검증 {status} · 복구 {code}",
+    "freshnessStatus": {
+      "fresh": "최신",
+      "stale": "오래됨",
+      "missing": "누락",
+      "unknown": "알 수 없음"
+    },
+    "verificationStatus": {
+      "pending": "대기",
+      "passed": "통과",
+      "failed": "실패",
+      "blocked": "차단됨",
+      "unknown": "알 수 없음"
+    },
+    "recoveryCode": {
+      "stale_context": "근거 새로고침",
+      "verification_failed": "수동 검토",
+      "missing_source": "출처 확인",
+      "manual_review": "수동 검토"
+    },
     "type": {
       "chat": "채팅",
       "agent_action": "에이전트 작업",

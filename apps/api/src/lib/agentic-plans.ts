@@ -23,8 +23,12 @@ import type {
   AgenticPlanPlannerKind,
   AgenticPlanStatus,
   AgenticPlanStep,
+  AgenticPlanStepEvidenceRef,
+  AgenticPlanEvidenceFreshnessStatus,
+  AgenticPlanStepRecoveryCode,
   AgenticPlanStepKind,
   AgenticPlanStepStatus,
+  AgenticPlanStepVerificationStatus,
   CreateAgentActionRequest,
   CreateAgenticPlanRequest,
   GenerateProjectObjectAction,
@@ -79,6 +83,12 @@ type PlannedStepInput = {
   rationale: string;
   risk: AgentActionRisk;
   input?: Record<string, unknown>;
+  evidenceRefs?: AgenticPlanStepEvidenceRef[];
+  evidenceFreshnessStatus?: AgenticPlanEvidenceFreshnessStatus;
+  staleEvidenceBlocks?: boolean;
+  verificationStatus?: AgenticPlanStepVerificationStatus;
+  recoveryCode?: AgenticPlanStepRecoveryCode | null;
+  retryCount?: number;
 };
 
 export interface AgenticPlanPlanningInput {
@@ -141,6 +151,12 @@ export interface AgenticPlanRepository {
     status?: AgenticPlanStepStatus;
     linkedRunType?: string | null;
     linkedRunId?: string | null;
+    evidenceRefs?: AgenticPlanStepEvidenceRef[];
+    evidenceFreshnessStatus?: AgenticPlanEvidenceFreshnessStatus;
+    staleEvidenceBlocks?: boolean;
+    verificationStatus?: AgenticPlanStepVerificationStatus;
+    recoveryCode?: AgenticPlanStepRecoveryCode | null;
+    retryCount?: number;
     errorCode?: string | null;
     errorMessage?: string | null;
   }): Promise<void>;
@@ -200,6 +216,8 @@ export interface AgenticPlanServiceOptions {
   ) => Promise<{ runId: string; status: string }>;
 }
 
+type AppendableAgenticPlanStep = Parameters<AgenticPlanRepository["appendStep"]>[0]["step"];
+
 export function createDrizzleAgenticPlanRepository(conn: DB = defaultDb): AgenticPlanRepository {
   return {
     async findProjectScope(projectId) {
@@ -239,6 +257,12 @@ export function createDrizzleAgenticPlanRepository(conn: DB = defaultDb): Agenti
               status: "approval_required" as const,
               risk: step.risk,
               input: step.input ?? {},
+              evidenceRefs: step.evidenceRefs ?? [],
+              evidenceFreshnessStatus: step.evidenceFreshnessStatus ?? "unknown",
+              staleEvidenceBlocks: step.staleEvidenceBlocks ?? false,
+              verificationStatus: step.verificationStatus ?? "pending",
+              recoveryCode: step.recoveryCode ?? null,
+              retryCount: step.retryCount ?? 0,
             })),
           );
         }
@@ -296,11 +320,30 @@ export function createDrizzleAgenticPlanRepository(conn: DB = defaultDb): Agenti
         })
         .where(eq(agenticPlanSteps.id, stepId));
     },
-    async updateStep({ stepId, status, linkedRunType, linkedRunId, errorCode, errorMessage }) {
+    async updateStep({
+      stepId,
+      status,
+      linkedRunType,
+      linkedRunId,
+      evidenceRefs,
+      evidenceFreshnessStatus,
+      staleEvidenceBlocks,
+      verificationStatus,
+      recoveryCode,
+      retryCount,
+      errorCode,
+      errorMessage,
+    }) {
       const values: {
         status?: AgenticPlanStepStatus;
         linkedRunType?: string | null;
         linkedRunId?: string | null;
+        evidenceRefs?: AgenticPlanStepEvidenceRef[];
+        evidenceFreshnessStatus?: AgenticPlanEvidenceFreshnessStatus;
+        staleEvidenceBlocks?: boolean;
+        verificationStatus?: AgenticPlanStepVerificationStatus;
+        recoveryCode?: AgenticPlanStepRecoveryCode | null;
+        retryCount?: number;
         errorCode?: string | null;
         errorMessage?: string | null;
         updatedAt: Date;
@@ -314,6 +357,12 @@ export function createDrizzleAgenticPlanRepository(conn: DB = defaultDb): Agenti
       }
       if (linkedRunType !== undefined) values.linkedRunType = linkedRunType;
       if (linkedRunId !== undefined) values.linkedRunId = linkedRunId;
+      if (evidenceRefs !== undefined) values.evidenceRefs = evidenceRefs;
+      if (evidenceFreshnessStatus !== undefined) values.evidenceFreshnessStatus = evidenceFreshnessStatus;
+      if (staleEvidenceBlocks !== undefined) values.staleEvidenceBlocks = staleEvidenceBlocks;
+      if (verificationStatus !== undefined) values.verificationStatus = verificationStatus;
+      if (recoveryCode !== undefined) values.recoveryCode = recoveryCode;
+      if (retryCount !== undefined) values.retryCount = retryCount;
       if (errorCode !== undefined) values.errorCode = errorCode;
       if (errorMessage !== undefined) values.errorMessage = errorMessage;
 
@@ -332,6 +381,12 @@ export function createDrizzleAgenticPlanRepository(conn: DB = defaultDb): Agenti
         status: step.status,
         risk: step.risk,
         input: step.input ?? {},
+        evidenceRefs: step.evidenceRefs ?? [],
+        evidenceFreshnessStatus: step.evidenceFreshnessStatus ?? "unknown",
+        staleEvidenceBlocks: step.staleEvidenceBlocks ?? false,
+        verificationStatus: step.verificationStatus ?? "pending",
+        recoveryCode: step.recoveryCode ?? null,
+        retryCount: step.retryCount ?? 0,
         linkedRunType: step.linkedRunType ?? null,
         linkedRunId: step.linkedRunId ?? null,
         errorCode: step.errorCode ?? null,
@@ -483,6 +538,19 @@ export async function startAgenticPlan(
 
   for (const step of steps) {
     if (step.linkedRunId) continue;
+    const blocker = stepFreshnessBlocker(step);
+    if (blocker) {
+      await repo.updateStep({
+        planId,
+        stepId: step.id,
+        status: "blocked",
+        verificationStatus: "blocked",
+        recoveryCode: blocker.recoveryCode,
+        errorCode: blocker.errorCode,
+        errorMessage: blocker.errorMessage,
+      });
+      continue;
+    }
     const materialized = await materializeStep(projectId, actorUserId, plan, step, options);
     if (materialized.kind === "blocked") {
       await repo.updateStep({
@@ -493,6 +561,8 @@ export async function startAgenticPlan(
         linkedRunId: null,
         errorCode: materialized.errorCode,
         errorMessage: materialized.errorMessage,
+        recoveryCode: recoveryCodeForError(materialized.errorCode),
+        verificationStatus: materialized.errorCode === "agentic_plan_step_missing_input" ? "blocked" : undefined,
       });
       continue;
     }
@@ -504,6 +574,7 @@ export async function startAgenticPlan(
       linkedRunId: materialized.linkedRunId,
       errorCode: materialized.errorCode,
       errorMessage: materialized.errorMessage,
+      verificationStatus: materialized.status === "completed" ? "passed" : "pending",
     });
   }
 
@@ -588,6 +659,36 @@ type MaterializeResult =
       errorCode: string;
       errorMessage: string;
     };
+
+function stepFreshnessBlocker(step: AgenticPlanStep): {
+  errorCode: "stale_context" | "missing_source";
+  recoveryCode: "stale_context" | "missing_source";
+  errorMessage: string;
+} | null {
+  if (!step.staleEvidenceBlocks) return null;
+  if (step.evidenceFreshnessStatus === "stale") {
+    return {
+      errorCode: "stale_context",
+      recoveryCode: "stale_context",
+      errorMessage: "Step evidence is stale; requeue note analysis before execution.",
+    };
+  }
+  if (step.evidenceFreshnessStatus === "missing") {
+    return {
+      errorCode: "missing_source",
+      recoveryCode: "missing_source",
+      errorMessage: "Step evidence source is missing and needs manual review.",
+    };
+  }
+  return null;
+}
+
+function recoveryCodeForError(errorCode: string | null): AgenticPlanStepRecoveryCode | null {
+  if (errorCode === "stale_context") return "stale_context";
+  if (errorCode === "missing_source") return "missing_source";
+  if (errorCode === "verification_failed") return "verification_failed";
+  return null;
+}
 
 async function materializeStep(
   projectId: string,
@@ -896,30 +997,55 @@ export async function recoverAgenticPlanStep(
   const ordinal = Math.max(0, ...plan.steps.map((candidate) => candidate.ordinal)) + 1;
   await repo.appendStep({
     planId,
-    step: request.strategy === "retry"
-      ? {
-          ordinal,
-          kind: step.kind,
-          title: `Retry: ${step.title}`,
-          rationale: request.note ?? `Retry the failed step "${step.title}".`,
-          status: "approval_required",
-          risk: step.risk,
-          input: step.input,
-        }
-      : {
-          ordinal,
-          kind: "manual.review",
-          title: "Manual recovery review",
-          rationale: request.note ?? `Review recovery options for "${step.title}".`,
-          status: "approval_required",
-          risk: "low",
-          input: {
-            recoveredStepId: step.id,
-          },
-        },
+    step: recoveryStepForRequest(step, ordinal, request),
   });
 
   return refreshPlanStatus(repo, projectId, planId);
+}
+
+function recoveryStepForRequest(
+  step: AgenticPlanStep,
+  ordinal: number,
+  request: RecoverAgenticPlanStepRequest,
+): AppendableAgenticPlanStep {
+  if (
+    request.strategy === "retry"
+    && step.recoveryCode !== "verification_failed"
+    && step.recoveryCode !== "missing_source"
+  ) {
+    return {
+      ordinal,
+      kind: step.kind,
+      title: `Retry: ${step.title}`,
+      rationale: request.note ?? `Retry the failed step "${step.title}".`,
+      status: "approval_required",
+      risk: step.risk,
+      input: step.input,
+      evidenceRefs: step.evidenceRefs,
+      evidenceFreshnessStatus: step.recoveryCode === "stale_context" ? "unknown" : step.evidenceFreshnessStatus,
+      staleEvidenceBlocks: step.staleEvidenceBlocks,
+      verificationStatus: "pending",
+      retryCount: (step.retryCount ?? 0) + 1,
+    };
+  }
+
+  return {
+    ordinal,
+    kind: "manual.review",
+    title: "Manual recovery review",
+    rationale: request.note ?? `Review recovery options for "${step.title}".`,
+    status: "approval_required",
+    risk: "low",
+    input: {
+      recoveredStepId: step.id,
+      recoveryCode: step.recoveryCode ?? step.errorCode ?? "manual.review",
+    },
+    evidenceRefs: step.evidenceRefs,
+    evidenceFreshnessStatus: step.evidenceFreshnessStatus,
+    staleEvidenceBlocks: false,
+    verificationStatus: "pending",
+    retryCount: (step.retryCount ?? 0) + 1,
+  };
 }
 
 const modelPlannerStepSchema = z
@@ -1483,6 +1609,12 @@ function toAgenticPlan(row: AgenticPlanRow, steps: AgenticPlanStepRow[]): Agenti
       input: step.input,
       linkedRunType: step.linkedRunType,
       linkedRunId: step.linkedRunId,
+      evidenceRefs: step.evidenceRefs,
+      evidenceFreshnessStatus: step.evidenceFreshnessStatus,
+      staleEvidenceBlocks: step.staleEvidenceBlocks,
+      verificationStatus: step.verificationStatus,
+      recoveryCode: step.recoveryCode,
+      retryCount: step.retryCount,
       errorCode: step.errorCode,
       errorMessage: step.errorMessage,
       createdAt: step.createdAt.toISOString(),

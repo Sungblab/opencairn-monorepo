@@ -43,6 +43,27 @@ function planFixture() {
         status: "completed",
         risk: "write",
         input: {},
+        evidenceRefs: [
+          {
+            type: "note_chunk",
+            noteId: "00000000-0000-4000-8000-000000000020",
+            chunkId: "00000000-0000-4000-8000-000000000021",
+            contentHash: "hash-1",
+            analysisVersion: 2,
+          },
+          {
+            type: "note_analysis_job",
+            noteId: "00000000-0000-4000-8000-000000000020",
+            jobId: "00000000-0000-4000-8000-000000000022",
+            contentHash: "hash-1",
+            analysisVersion: 2,
+          },
+        ],
+        evidenceFreshnessStatus: "fresh",
+        staleEvidenceBlocks: true,
+        verificationStatus: "passed",
+        recoveryCode: null,
+        retryCount: 0,
         createdAt,
         updatedAt,
         completedAt: updatedAt,
@@ -94,6 +115,27 @@ describe("agentic plan contracts", () => {
     expect(() => agenticPlanStepKindSchema.parse("unknown.step")).toThrow();
   });
 
+  it("accepts note-backed evidence freshness and verifier metadata on steps", () => {
+    const step = planFixture().steps[0]!;
+
+    expect(step).toMatchObject({
+      evidenceFreshnessStatus: "fresh",
+      staleEvidenceBlocks: true,
+      verificationStatus: "passed",
+      retryCount: 0,
+      evidenceRefs: [
+        expect.objectContaining({
+          type: "note_chunk",
+          chunkId: "00000000-0000-4000-8000-000000000021",
+        }),
+        expect.objectContaining({
+          type: "note_analysis_job",
+          jobId: "00000000-0000-4000-8000-000000000022",
+        }),
+      ],
+    });
+  });
+
   it("projects plans into workflow console runs", () => {
     const run = workflowConsoleRunFromAgenticPlan(planFixture());
 
@@ -140,6 +182,36 @@ describe("agentic plan contracts", () => {
         code: "agentic_plan_step_missing_input",
         message: "file.export requires a concrete validated input payload before it can be linked.",
         retryable: true,
+      },
+    });
+  });
+
+  it("projects stale evidence and verification summaries into workflow console metadata", () => {
+    const run = workflowConsoleRunFromAgenticPlan({
+      ...planFixture(),
+      status: "blocked",
+      steps: planFixture().steps.map((step) =>
+        step.kind === "file.export"
+          ? {
+              ...step,
+              status: "blocked",
+              evidenceFreshnessStatus: "stale",
+              staleEvidenceBlocks: true,
+              verificationStatus: "failed",
+              recoveryCode: "stale_context",
+              errorCode: "stale_context",
+              errorMessage: "The note evidence is stale and must be reindexed before execution.",
+            }
+          : step,
+      ),
+    });
+
+    expect(workflowConsoleRunSchema.parse(run).outputs[0]?.metadata).toMatchObject({
+      staleEvidenceBlockers: 1,
+      verificationStatus: "failed",
+      recoveryCodes: ["stale_context"],
+      evidenceFreshness: {
+        stale: 1,
       },
     });
   });

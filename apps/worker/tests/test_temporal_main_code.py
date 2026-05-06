@@ -170,6 +170,15 @@ def test_google_workspace_export_registered_when_flag_on(
     assert "finalize_google_workspace_export" in activity_names
 
 
+def test_note_analysis_drain_registered_when_flag_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FEATURE_NOTE_ANALYSIS_DRAIN", "true")
+    cfg = build_worker_config()
+    activity_names = [a.__name__ for a in cfg.activities]
+    assert "drain_note_analysis_jobs_activity" in activity_names
+
+
 def test_enrichment_activities_omitted_when_flag_off(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

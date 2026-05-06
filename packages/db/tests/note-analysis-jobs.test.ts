@@ -1,5 +1,6 @@
 import { getTableColumns } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
+import { agenticPlanSteps } from "../src/schema/agentic-plans";
 import {
   noteAnalysisJobs,
   noteAnalysisStatusEnum,
@@ -33,6 +34,23 @@ describe("noteAnalysisJobs schema", () => {
         "errorMessage",
         "createdAt",
         "updatedAt",
+      ]),
+    );
+  });
+});
+
+describe("agentic plan step operational schema", () => {
+  it("stores evidence freshness, verification, and recovery metadata", () => {
+    const columns = Object.keys(getTableColumns(agenticPlanSteps));
+
+    expect(columns).toEqual(
+      expect.arrayContaining([
+        "evidenceRefs",
+        "evidenceFreshnessStatus",
+        "staleEvidenceBlocks",
+        "verificationStatus",
+        "recoveryCode",
+        "retryCount",
       ]),
     );
   });
