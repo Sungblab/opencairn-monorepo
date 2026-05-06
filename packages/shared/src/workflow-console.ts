@@ -671,7 +671,9 @@ function importLabel(job: ImportJobProjectionSource): string {
 function outputsFromAgentAction(action: AgentAction): WorkflowConsoleOutput[] {
   if (!action.result) return [];
   if (action.kind === "code_project.preview") {
-    const previewUrl = stringField(action.result, "previewUrl");
+    const previewUrl =
+      stringField(action.result, "publicPreviewUrl")
+      ?? stringField(action.result, "previewUrl");
     if (previewUrl) {
       return [
         {

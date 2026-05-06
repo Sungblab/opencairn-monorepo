@@ -158,6 +158,10 @@ describe("workflow console contracts", () => {
           "/api/agent-actions/00000000-0000-4000-8000-000000000023/preview/index.html",
         assetsBaseUrl:
           "/api/agent-actions/00000000-0000-4000-8000-000000000023/preview/",
+        publicPreviewUrl:
+          "https://preview.example.com/api/public/agent-actions/00000000-0000-4000-8000-000000000023/preview/token/index.html",
+        publicAssetsBaseUrl:
+          "https://preview.example.com/api/public/agent-actions/00000000-0000-4000-8000-000000000023/preview/token/",
         expiresAt: "2026-05-06T00:00:00.000Z",
       },
       errorCode: null,
@@ -174,7 +178,7 @@ describe("workflow console contracts", () => {
           outputType: "preview",
           id: "00000000-0000-4000-8000-000000000023",
           label: "Static preview",
-          url: "/api/agent-actions/00000000-0000-4000-8000-000000000023/preview/index.html",
+          url: "https://preview.example.com/api/public/agent-actions/00000000-0000-4000-8000-000000000023/preview/token/index.html",
           metadata: {
             codeWorkspaceId: "00000000-0000-4000-8000-000000000025",
             snapshotId: "00000000-0000-4000-8000-000000000026",
