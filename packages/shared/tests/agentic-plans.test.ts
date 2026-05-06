@@ -107,4 +107,30 @@ describe("agentic plan contracts", () => {
       ],
     });
   });
+
+  it("projects blocked plan step reasons into workflow console errors", () => {
+    const run = workflowConsoleRunFromAgenticPlan({
+      ...planFixture(),
+      status: "blocked",
+      steps: planFixture().steps.map((step) =>
+        step.kind === "file.export"
+          ? {
+              ...step,
+              status: "blocked",
+              errorCode: "agentic_plan_step_missing_input",
+              errorMessage: "file.export requires a concrete validated input payload before it can be linked.",
+            }
+          : step,
+      ),
+    });
+
+    expect(workflowConsoleRunSchema.parse(run)).toMatchObject({
+      status: "blocked",
+      error: {
+        code: "agentic_plan_step_missing_input",
+        message: "file.export requires a concrete validated input payload before it can be linked.",
+        retryable: true,
+      },
+    });
+  });
 });

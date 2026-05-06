@@ -90,6 +90,20 @@ describe("AgenticPlanCard", () => {
     expect(screen.getByText("Review note update")).toBeTruthy();
   });
 
+  it("renders a stable reason for blocked steps", async () => {
+    renderWithClient([
+      planFixture({
+        status: "blocked",
+        stepStatus: "blocked",
+        errorCode: "agentic_plan_step_missing_input",
+      }),
+    ]);
+
+    expect(await screen.findByText(
+      "stepIssue:{\"reason\":\"agentic_plan_step_missing_input\"}",
+    )).toBeTruthy();
+  });
+
   it("starts a plan through the API", async () => {
     const user = userEvent.setup();
     renderWithClient([planFixture()]);
@@ -132,6 +146,7 @@ describe("AgenticPlanCard", () => {
 function planFixture(options: {
   status?: AgenticPlan["status"];
   stepStatus?: AgenticPlan["steps"][number]["status"];
+  errorCode?: string | null;
 } = {}): AgenticPlan {
   const now = "2026-05-06T00:00:00.000Z";
   return {
@@ -162,7 +177,7 @@ function planFixture(options: {
         input: {},
         linkedRunType: null,
         linkedRunId: null,
-        errorCode: null,
+        errorCode: options.errorCode ?? null,
         errorMessage: null,
         createdAt: now,
         updatedAt: now,

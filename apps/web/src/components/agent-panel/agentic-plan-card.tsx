@@ -158,6 +158,10 @@ function AgenticPlanSummary({
   const recoverable = plan.steps.find((step) =>
     ["failed", "blocked", "cancelled"].includes(step.status),
   );
+  const issue = plan.steps.find((step) =>
+    ["failed", "blocked"].includes(step.status)
+    && (step.errorCode || step.errorMessage),
+  );
 
   return (
     <article className="rounded-[var(--radius-card)] border border-border bg-background px-2.5 py-2">
@@ -195,6 +199,14 @@ function AgenticPlanSummary({
           </li>
         ))}
       </ol>
+
+      {issue ? (
+        <p className="mt-2 text-xs text-destructive">
+          {t("stepIssue", {
+            reason: issue.errorCode ?? issue.errorMessage ?? issue.status,
+          })}
+        </p>
+      ) : null}
 
       <div className="mt-2 flex flex-wrap justify-end gap-1.5">
         {recoverable ? (

@@ -7,7 +7,6 @@ import {
   desc,
   eq,
   importJobs,
-  inArray,
   userIntegrations,
 } from "@opencairn/db";
 import {
@@ -20,14 +19,20 @@ import {
 import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite } from "../lib/permissions";
 import { getPresignedPutUrl } from "../lib/s3";
-import { getTemporalClient, taskQueue } from "../lib/temporal-client";
+import { getTemporalClient } from "../lib/temporal-client";
 import { isUuid } from "../lib/validators";
 import type { AppEnv } from "../lib/types";
 import {
   cancelWorkflowAgentActionsBySourceRunId,
-  createQueuedWorkflowAgentAction,
-  markWorkflowAgentActionFailed,
 } from "../lib/agent-actions";
+import {
+  ImportRetryError,
+  MAX_CONCURRENT_IMPORTS,
+  retryImportJob,
+  runningImportCount,
+  safeSourceMetadata,
+  startImportJobWithAction,
+} from "../lib/import-retry";
 
 // Hard ceiling on a single Notion export ZIP. Defaults to 5GB (matches the
 // zod schema cap). Deployments can lower it via env — useful for local dev
@@ -126,155 +131,12 @@ importRouter.post(
 // Start import — /api/import/drive and /api/import/notion
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Per-user concurrency ceiling. Two simultaneous one-shot imports is enough
-// for normal usage (one big Notion export + one folder batch) and caps the
-// blast radius of a runaway retry storm. The check is a racy pre-check — two
-// requests landing inside the same event loop tick can both pass — but since
-// over-commit is bounded and self-correcting we prefer this to a full row lock.
-const MAX_CONCURRENT_IMPORTS = 2;
-
-async function runningImportCount(userId: string): Promise<number> {
-  const rows = await db
-    .select({ id: importJobs.id })
-    .from(importJobs)
-    .where(
-      and(
-        eq(importJobs.userId, userId),
-        inArray(importJobs.status, ["queued", "running"]),
-      ),
-    );
-  return rows.length;
-}
-
-async function startImportWorkflow(args: {
-  jobId: string;
-  workflowId: string;
-  userId: string;
-  workspaceId: string;
-  source: "google_drive" | "notion_zip" | "markdown_zip";
-  sourceMetadata: Record<string, unknown>;
-  actionId?: string | null;
-}) {
-  const client = await getTemporalClient();
-  try {
-    await client.workflow.start("ImportWorkflow", {
-      workflowId: args.workflowId,
-      taskQueue: taskQueue(),
-      args: [
-        {
-          job_id: args.jobId,
-          user_id: args.userId,
-          workspace_id: args.workspaceId,
-          source: args.source,
-          source_metadata: args.sourceMetadata,
-        },
-      ],
-    });
-  } catch (err) {
-    await db
-      .update(importJobs)
-      .set({
-        status: "failed",
-        errorSummary: "Import could not be started. Please try again.",
-        finishedAt: new Date(),
-      })
-      .where(eq(importJobs.id, args.jobId));
-    await markWorkflowAgentActionFailed(args.actionId, "import_start_failed", {
-      ok: false,
-      jobId: args.jobId,
-      workflowId: args.workflowId,
-      errorCode: "import_start_failed",
-      retryable: true,
-    });
-    throw err;
-  }
-}
-
-async function createImportWorkflowAction(args: {
-  workspaceId: string;
-  userId: string;
-  source: "google_drive" | "notion_zip" | "markdown_zip";
-  targetProjectId: string | null;
-  jobId: string;
-  workflowId: string;
-  sourceMetadata: Record<string, unknown>;
-}) {
-  if (!args.targetProjectId) return null;
-  const kind =
-    args.source === "google_drive"
-      ? "import.drive"
-      : args.source === "notion_zip"
-        ? "import.notion"
-        : "import.markdown_zip";
-  return createQueuedWorkflowAgentAction({
-    workspaceId: args.workspaceId,
-    projectId: args.targetProjectId,
-    actorUserId: args.userId,
-    requestId: args.jobId,
-    sourceRunId: args.jobId,
-    kind,
-    risk: args.source === "google_drive" ? "external" : "write",
-    input: {
-      source: args.source,
-      target: "existing_project",
-      sourceMetadata: safeSourceMetadata(args.source, args.sourceMetadata),
-    },
-    preview: {
-      summary: "Import workflow queued through the unified action ledger.",
-      workflowHint: "import",
-      jobId: args.jobId,
-      workflowId: args.workflowId,
-    },
-    result: {
-      workflowId: args.workflowId,
-      jobId: args.jobId,
-      workflowHint: "import",
-    },
-  });
-}
-
 async function ensureImportTargetProjectWrite(args: {
   userId: string;
   targetProjectId: string | null;
 }): Promise<boolean> {
   if (!args.targetProjectId) return true;
   return canWrite(args.userId, { type: "project", id: args.targetProjectId });
-}
-
-async function startImportJobWithAction(args: {
-  workspaceId: string;
-  userId: string;
-  source: "google_drive" | "notion_zip" | "markdown_zip";
-  targetProjectId: string | null;
-  jobId: string;
-  workflowId: string;
-  sourceMetadata: Record<string, unknown>;
-}) {
-  let action: Awaited<ReturnType<typeof createImportWorkflowAction>> = null;
-  try {
-    action = await createImportWorkflowAction(args);
-  } catch (err) {
-    await db
-      .update(importJobs)
-      .set({
-        status: "failed",
-        errorSummary: "Import action could not be queued. Please try again.",
-        finishedAt: new Date(),
-      })
-      .where(eq(importJobs.id, args.jobId));
-    throw err;
-  }
-
-  await startImportWorkflow({
-    jobId: args.jobId,
-    workflowId: args.workflowId,
-    userId: args.userId,
-    workspaceId: args.workspaceId,
-    source: args.source,
-    sourceMetadata: args.sourceMetadata,
-    actionId: action?.action.id,
-  });
-  return action;
 }
 
 importRouter.post(
@@ -511,30 +373,6 @@ importRouter.post(
 // List / detail / SSE / cancel — consumed by the /import page (Task 14+)
 // ─────────────────────────────────────────────────────────────────────────────
 
-type RawSourceMeta = Record<string, unknown>;
-
-// Strip the raw ingest metadata down to UI-safe fields. Raw shape is
-// source-specific and contains object keys + file ids we don't want to leak
-// across workspaces — the list/detail endpoints both go through this.
-function safeSourceMetadata(source: string, meta: unknown): RawSourceMeta {
-  const m = (meta ?? {}) as RawSourceMeta;
-  if (source === "notion_zip") {
-    return {
-      originalName: typeof m.original_name === "string" ? m.original_name : null,
-    };
-  }
-  if (source === "markdown_zip") {
-    return {
-      originalName: typeof m.original_name === "string" ? m.original_name : null,
-    };
-  }
-  if (source === "google_drive") {
-    const fileIds = Array.isArray(m.file_ids) ? m.file_ids : [];
-    return { fileCount: fileIds.length };
-  }
-  return {};
-}
-
 importRouter.get("/jobs", requireAuth, async (c) => {
   const userId = c.get("userId");
   const workspaceId = c.req.query("workspaceId");
@@ -726,64 +564,16 @@ importRouter.post("/jobs/:id/retry", requireAuth, async (c) => {
   const userId = c.get("userId");
   const id = c.req.param("id");
   if (!isUuid(id)) return c.json({ error: "bad_request" }, 400);
-  const [job] = await db
-    .select()
-    .from(importJobs)
-    .where(eq(importJobs.id, id))
-    .limit(1);
-  if (!job) return c.json({ error: "not_found" }, 404);
-  if (job.status !== "failed") {
-    return c.json({ error: "retry_requires_failed_job" }, 409);
+  try {
+    const result = await retryImportJob(id, userId);
+    return c.json(result, 201);
+  } catch (err) {
+    if (err instanceof ImportRetryError) {
+      return c.json(
+        { error: err.code, ...(err.details ?? {}) },
+        err.status,
+      );
+    }
+    throw err;
   }
-  if (!(await canWrite(userId, { type: "workspace", id: job.workspaceId }))) {
-    return c.json({ error: "Forbidden" }, 403);
-  }
-  if (
-    job.source !== "google_drive" &&
-    job.source !== "notion_zip" &&
-    job.source !== "markdown_zip"
-  ) {
-    return c.json({ error: "retry_not_supported" }, 409);
-  }
-  if ((await runningImportCount(userId)) >= MAX_CONCURRENT_IMPORTS) {
-    return c.json(
-      { error: "import_limit_exceeded", limit: MAX_CONCURRENT_IMPORTS },
-      429,
-    );
-  }
-
-  const workflowId = `import-${randomUUID()}`;
-  const sourceMetadata = (job.sourceMetadata ?? {}) as Record<string, unknown>;
-  if (
-    !(await ensureImportTargetProjectWrite({
-      userId,
-      targetProjectId: job.targetProjectId,
-    }))
-  ) {
-    return c.json({ error: "Forbidden" }, 403);
-  }
-  const [retryJob] = await db
-    .insert(importJobs)
-    .values({
-      workspaceId: job.workspaceId,
-      userId,
-      source: job.source,
-      targetProjectId: job.targetProjectId,
-      targetParentNoteId: job.targetParentNoteId,
-      workflowId,
-      status: "queued",
-      sourceMetadata,
-    })
-    .returning({ id: importJobs.id });
-
-  const action = await startImportJobWithAction({
-    workspaceId: job.workspaceId,
-    userId,
-    source: job.source,
-    targetProjectId: job.targetProjectId,
-    jobId: retryJob.id,
-    workflowId,
-    sourceMetadata,
-  });
-  return c.json({ jobId: retryJob.id, action: action?.action ?? null }, 201);
 });

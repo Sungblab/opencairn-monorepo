@@ -32,6 +32,17 @@ export function createAgenticPlanRoutes(options?: AgenticPlanRouteOptions) {
     ...(options?.repo ? { repo: options.repo } : {}),
     ...(options?.canReadProject ? { canReadProject: options.canReadProject } : {}),
     ...(options?.canWriteProject ? { canWriteProject: options.canWriteProject } : {}),
+    ...(options?.createAgentAction ? { createAgentAction: options.createAgentAction } : {}),
+    ...(options?.createCodeProjectRepairAction
+      ? { createCodeProjectRepairAction: options.createCodeProjectRepairAction }
+      : {}),
+    ...(options?.requestDocumentGeneration
+      ? { requestDocumentGeneration: options.requestDocumentGeneration }
+      : {}),
+    ...(options?.requestGoogleWorkspaceExport
+      ? { requestGoogleWorkspaceExport: options.requestGoogleWorkspaceExport }
+      : {}),
+    ...(options?.retryImportJob ? { retryImportJob: options.retryImportJob } : {}),
   };
 
   return new Hono<AppEnv>()

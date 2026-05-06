@@ -100,6 +100,7 @@
     "loadFailed": "에이전틱 플랜을 불러오지 못했어요.",
     "actionFailed": "에이전틱 플랜 작업을 처리하지 못했어요.",
     "progress": "{completed}/{total} 단계",
+    "stepIssue": "중단 사유: {reason}",
     "status": {
       "draft": "초안",
       "approval_required": "검토 필요",

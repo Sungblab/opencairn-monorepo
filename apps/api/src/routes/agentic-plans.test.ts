@@ -1,13 +1,18 @@
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
-import type { AgenticPlan } from "@opencairn/shared";
+import type { AgentAction, AgenticPlan, CreateAgentActionRequest } from "@opencairn/shared";
 import { createAgenticPlanRoutes } from "./agentic-plans";
 import type { AppEnv } from "../lib/types";
-import { createMemoryAgenticPlanRepo } from "../lib/agentic-plans-test-helper";
+import {
+  createMemoryAgenticPlanRepo,
+  workspaceId,
+} from "../lib/agentic-plans-test-helper";
 
 const userId = "user-1";
 const projectId = "00000000-0000-4000-8000-000000000002";
 const otherProjectId = "00000000-0000-4000-8000-000000000099";
+const exportObjectId = "00000000-0000-4000-8000-000000000010";
+const actionId = "00000000-0000-4000-8000-000000000020";
 
 describe("agentic plan routes", () => {
   it("creates, lists, reads, starts, and recovers a project plan", async () => {
@@ -86,16 +91,30 @@ describe("agentic plan routes", () => {
 
   it("requires write permission for start", async () => {
     const repo = createMemoryAgenticPlanRepo();
-    const app = createTestApp({ repo, canWriteProject: async () => false });
-    const createResponse = await app.request(`/api/projects/${projectId}/agentic-plans`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ goal: "Make this better" }),
+    const plan = await repo.insertPlan({
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Manual review",
+      goal: "Make this better",
+      status: "approval_required",
+      target: { workspaceId, projectId },
+      plannerKind: "deterministic",
+      summary: "1-step deterministic plan: manual.review",
+      currentStepOrdinal: 1,
+      steps: [
+        {
+          kind: "manual.review",
+          title: "Review goal",
+          rationale: "Manual review is required.",
+          risk: "low",
+        },
+      ],
     });
-    const created = await createResponse.json() as { plan: AgenticPlan };
+    const app = createTestApp({ repo, canWriteProject: async () => false });
 
     const response = await app.request(
-      `/api/projects/${projectId}/agentic-plans/${created.plan.id}/start`,
+      `/api/projects/${projectId}/agentic-plans/${plan.id}/start`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -105,11 +124,94 @@ describe("agentic plan routes", () => {
 
     expect(response.status).toBe(403);
   });
+
+  it("requires write permission for create", async () => {
+    const app = createTestApp({ canWriteProject: async () => false });
+
+    const response = await app.request(`/api/projects/${projectId}/agentic-plans`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ goal: "Make this better" }),
+    });
+
+    expect(response.status).toBe(403);
+  });
+
+  it("starts a concrete plan step through the injected action materializer", async () => {
+    const repo = createMemoryAgenticPlanRepo();
+    const plan = await repo.insertPlan({
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Export generated report",
+      goal: "Export generated report",
+      status: "approval_required",
+      target: { workspaceId, projectId },
+      plannerKind: "deterministic",
+      summary: "1-step deterministic plan: file.export",
+      currentStepOrdinal: 1,
+      steps: [
+        {
+          kind: "file.export",
+          title: "Export report",
+          rationale: "The user approved an explicit export target.",
+          risk: "external",
+          input: {
+            type: "export_project_object",
+            objectId: exportObjectId,
+            provider: "opencairn_download",
+          },
+        },
+      ],
+    });
+    const step = plan.steps[0]!;
+    const requests: CreateAgentActionRequest[] = [];
+    const app = createTestApp({
+      repo,
+      createAgentAction: async (_, __, request) => {
+        requests.push(request);
+        return {
+          action: agentAction({
+            id: actionId,
+            requestId: step.id,
+            kind: "file.export",
+            status: "approval_required",
+            risk: "external",
+            input: request.input ?? {},
+          }),
+          idempotent: false,
+        };
+      },
+    });
+
+    const response = await app.request(
+      `/api/projects/${projectId}/agentic-plans/${plan.id}/start`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json() as { plan: AgenticPlan };
+    expect(requests).toHaveLength(1);
+    expect(body.plan.steps[0]).toMatchObject({
+      linkedRunType: "agent_action",
+      linkedRunId: actionId,
+      status: "approval_required",
+    });
+  });
 });
 
 function createTestApp(options?: {
   repo?: ReturnType<typeof createMemoryAgenticPlanRepo>;
   canWriteProject?: () => Promise<boolean>;
+  createAgentAction?: (
+    projectId: string,
+    actorUserId: string,
+    request: CreateAgentActionRequest,
+  ) => Promise<{ action: AgentAction; idempotent: boolean }>;
 }) {
   const repo = options?.repo ?? createMemoryAgenticPlanRepo();
   return new Hono<AppEnv>().route(
@@ -118,6 +220,7 @@ function createTestApp(options?: {
       repo,
       canReadProject: async () => true,
       canWriteProject: options?.canWriteProject ?? (async () => true),
+      ...(options?.createAgentAction ? { createAgentAction: options.createAgentAction } : {}),
       auth: async (c, next) => {
         c.set("userId", userId);
         c.set("user", { id: userId, email: "user@example.com", name: "User" });
@@ -125,4 +228,26 @@ function createTestApp(options?: {
       },
     }),
   );
+}
+
+function agentAction(overrides: Partial<AgentAction> = {}): AgentAction {
+  const now = new Date("2026-05-06T00:00:00.000Z").toISOString();
+  return {
+    id: "00000000-0000-4000-8000-000000000099",
+    requestId: "00000000-0000-4000-8000-000000000098",
+    workspaceId,
+    projectId,
+    actorUserId: userId,
+    sourceRunId: null,
+    kind: "workflow.placeholder",
+    status: "completed",
+    risk: "low",
+    input: {},
+    preview: null,
+    result: null,
+    errorCode: null,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
 }

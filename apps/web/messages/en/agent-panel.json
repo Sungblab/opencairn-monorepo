@@ -100,6 +100,7 @@
     "loadFailed": "Could not load agentic plans.",
     "actionFailed": "Could not update the agentic plan.",
     "progress": "{completed}/{total} steps",
+    "stepIssue": "Blocked reason: {reason}",
     "status": {
       "draft": "Draft",
       "approval_required": "Needs review",

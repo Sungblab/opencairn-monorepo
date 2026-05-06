@@ -12,17 +12,39 @@ import {
   type DB,
 } from "@opencairn/db";
 import type {
+  AgentAction,
+  AgentActionStatus,
   AgentActionRisk,
   AgenticPlan,
   AgenticPlanStatus,
   AgenticPlanStep,
   AgenticPlanStepKind,
   AgenticPlanStepStatus,
+  CreateAgentActionRequest,
   CreateAgenticPlanRequest,
+  GenerateProjectObjectAction,
+  ProjectObjectAction,
   RecoverAgenticPlanStepRequest,
   StartAgenticPlanRequest,
 } from "@opencairn/shared";
-import { agenticPlanSchema } from "@opencairn/shared";
+import {
+  agenticPlanSchema,
+  codeWorkspaceCommandRunRequestSchema,
+  exportProjectObjectActionSchema,
+  generateProjectObjectActionSchema,
+  noteUpdateActionInputSchema,
+} from "@opencairn/shared";
+import {
+  AgentActionError,
+  createAgentAction,
+  createCodeProjectRepairAction,
+} from "./agent-actions";
+import { requestDocumentGenerationProjectObject } from "./document-generation-actions";
+import { requestGoogleWorkspaceExportProjectObject } from "./google-workspace-export-actions";
+import {
+  ImportRetryError,
+  retryImportJob,
+} from "./import-retry";
 import { canRead, canWrite } from "./permissions";
 
 export class AgenticPlanError extends Error {
@@ -42,6 +64,11 @@ type PlannedStepInput = {
   risk: AgentActionRisk;
   input?: Record<string, unknown>;
 };
+
+type ExportProjectObjectAction = Extract<
+  ProjectObjectAction,
+  { type: "export_project_object" }
+>;
 
 export interface AgenticPlanRepository {
   findProjectScope(projectId: string): Promise<{ workspaceId: string } | null>;
@@ -72,6 +99,15 @@ export interface AgenticPlanRepository {
     stepId: string;
     status: AgenticPlanStepStatus;
   }): Promise<void>;
+  updateStep(options: {
+    planId: string;
+    stepId: string;
+    status?: AgenticPlanStepStatus;
+    linkedRunType?: string | null;
+    linkedRunId?: string | null;
+    errorCode?: string | null;
+    errorMessage?: string | null;
+  }): Promise<void>;
   appendStep(options: {
     planId: string;
     step: PlannedStepInput & {
@@ -93,6 +129,30 @@ export interface AgenticPlanServiceOptions {
   repo?: AgenticPlanRepository;
   canReadProject?: (userId: string, projectId: string) => Promise<boolean>;
   canWriteProject?: (userId: string, projectId: string) => Promise<boolean>;
+  createAgentAction?: (
+    projectId: string,
+    actorUserId: string,
+    request: CreateAgentActionRequest,
+  ) => Promise<{ action: AgentAction; idempotent: boolean }>;
+  createCodeProjectRepairAction?: (
+    failedRunActionId: string,
+    actorUserId: string,
+    request: { requestId?: string },
+  ) => Promise<{ action: AgentAction; idempotent: boolean }>;
+  requestDocumentGeneration?: (
+    projectId: string,
+    actorUserId: string,
+    request: GenerateProjectObjectAction,
+  ) => Promise<{ action: AgentAction }>;
+  requestGoogleWorkspaceExport?: (
+    projectId: string,
+    actorUserId: string,
+    request: ExportProjectObjectAction,
+  ) => Promise<{ action: AgentAction }>;
+  retryImportJob?: (
+    failedJobId: string,
+    actorUserId: string,
+  ) => Promise<{ jobId: string; action: AgentAction | null }>;
 }
 
 export function createDrizzleAgenticPlanRepository(conn: DB = defaultDb): AgenticPlanRepository {
@@ -176,6 +236,32 @@ export function createDrizzleAgenticPlanRepository(conn: DB = defaultDb): Agenti
         })
         .where(eq(agenticPlanSteps.id, stepId));
     },
+    async updateStep({ stepId, status, linkedRunType, linkedRunId, errorCode, errorMessage }) {
+      const values: {
+        status?: AgenticPlanStepStatus;
+        linkedRunType?: string | null;
+        linkedRunId?: string | null;
+        errorCode?: string | null;
+        errorMessage?: string | null;
+        updatedAt: Date;
+        completedAt?: Date | null;
+      } = {
+        updatedAt: new Date(),
+      };
+      if (status !== undefined) {
+        values.status = status;
+        values.completedAt = terminalStepStatus(status) ? new Date() : null;
+      }
+      if (linkedRunType !== undefined) values.linkedRunType = linkedRunType;
+      if (linkedRunId !== undefined) values.linkedRunId = linkedRunId;
+      if (errorCode !== undefined) values.errorCode = errorCode;
+      if (errorMessage !== undefined) values.errorMessage = errorMessage;
+
+      await conn
+        .update(agenticPlanSteps)
+        .set(values)
+        .where(eq(agenticPlanSteps.id, stepId));
+    },
     async appendStep({ planId, step }) {
       await conn.insert(agenticPlanSteps).values({
         planId,
@@ -214,7 +300,7 @@ export async function createAgenticPlan(
   const scope = await repo.findProjectScope(projectId);
   if (!scope) throw new AgenticPlanError("project_not_found", 404);
 
-  if (!(await canReadProject(actorUserId, projectId, options))) {
+  if (!(await canWriteProject(actorUserId, projectId, options))) {
     throw new AgenticPlanError("forbidden", 403);
   }
 
@@ -281,16 +367,259 @@ export async function startAgenticPlan(
   }
 
   for (const step of steps) {
-    if (step.risk === "low" && step.kind === "manual.review") {
-      await repo.updateStepStatus({
+    if (step.linkedRunId) continue;
+    const materialized = await materializeStep(projectId, actorUserId, plan, step, options);
+    if (materialized.kind === "blocked") {
+      await repo.updateStep({
         planId,
         stepId: step.id,
         status: "blocked",
+        linkedRunType: null,
+        linkedRunId: null,
+        errorCode: materialized.errorCode,
+        errorMessage: materialized.errorMessage,
       });
+      continue;
     }
+    await repo.updateStep({
+      planId,
+      stepId: step.id,
+      status: materialized.status,
+      linkedRunType: materialized.linkedRunType,
+      linkedRunId: materialized.linkedRunId,
+      errorCode: materialized.errorCode,
+      errorMessage: materialized.errorMessage,
+    });
   }
 
   return refreshPlanStatus(repo, projectId, planId);
+}
+
+type MaterializeResult =
+  | {
+      kind: "linked";
+      linkedRunType: string;
+      linkedRunId: string;
+      status: AgenticPlanStepStatus;
+      errorCode: string | null;
+      errorMessage: string | null;
+    }
+  | {
+      kind: "blocked";
+      errorCode: string;
+      errorMessage: string;
+    };
+
+async function materializeStep(
+  projectId: string,
+  actorUserId: string,
+  plan: AgenticPlan,
+  step: AgenticPlanStep,
+  options?: AgenticPlanServiceOptions,
+): Promise<MaterializeResult> {
+  const sourceRunId = `agentic_plan:${plan.id}:step:${step.id}`;
+  try {
+    switch (step.kind) {
+      case "note.review_update": {
+        const parsed = noteUpdateActionInputSchema.safeParse(step.input);
+        if (!parsed.success) return missingInput(step.kind);
+        const { action } = await createAction(projectId, actorUserId, {
+          requestId: step.id,
+          sourceRunId,
+          kind: "note.update",
+          risk: "write",
+          input: parsed.data,
+        }, options);
+        return linkedAction(action);
+      }
+      case "document.generate": {
+        const parsed = generateProjectObjectActionSchema.safeParse(step.input);
+        if (!parsed.success) return missingInput(step.kind);
+        const { action } = await requestDocumentGeneration(projectId, actorUserId, parsed.data, options);
+        return linkedAction(action);
+      }
+      case "file.export": {
+        const parsed = exportProjectObjectActionSchema.safeParse(step.input);
+        if (!parsed.success) return missingInput(step.kind);
+        if (parsed.data.provider !== "opencairn_download") {
+          const { action } = await requestGoogleWorkspaceExport(projectId, actorUserId, parsed.data, options);
+          return linkedAction(action);
+        }
+        const { action } = await createAction(projectId, actorUserId, {
+          requestId: step.id,
+          sourceRunId,
+          kind: "file.export",
+          risk: "external",
+          input: parsed.data,
+        }, options);
+        return linkedAction(action);
+      }
+      case "code.run": {
+        const parsed = codeWorkspaceCommandRunRequestSchema.safeParse(step.input);
+        if (!parsed.success) return missingInput(step.kind);
+        const { action } = await createAction(projectId, actorUserId, {
+          requestId: step.id,
+          sourceRunId,
+          kind: "code_project.run",
+          risk: step.risk,
+          input: parsed.data,
+        }, options);
+        return linkedAction(action);
+      }
+      case "code.repair": {
+        const failedRunActionId = stringField(step.input, "failedRunActionId");
+        if (!failedRunActionId) return missingInput(step.kind);
+        const { action } = await repairCodeRun(failedRunActionId, actorUserId, { requestId: step.id }, options);
+        return linkedAction(action);
+      }
+      case "agent.run":
+        return {
+          kind: "blocked",
+          errorCode: "agentic_plan_step_unavailable",
+          errorMessage: `${step.kind} does not have a safe API materializer yet.`,
+        };
+      case "import.retry": {
+        const importJobId = stringField(step.input, "importJobId");
+        if (!importJobId) return missingInput(step.kind);
+        const result = await retryImport(importJobId, actorUserId, options);
+        if (result.action) return linkedAction(result.action);
+        return linkedImportJob(result.jobId);
+      }
+      case "manual.review":
+        return {
+          kind: "blocked",
+          errorCode: "agentic_plan_manual_review_required",
+          errorMessage: "Manual review is required before this plan can continue.",
+        };
+    }
+  } catch (err) {
+    if (
+      (err instanceof AgentActionError && err.status === 409)
+      || err instanceof ImportRetryError
+    ) {
+      return {
+        kind: "blocked",
+        errorCode: err.code,
+        errorMessage: err.message,
+      };
+    }
+    throw err;
+  }
+}
+
+function linkedAction(action: AgentAction): MaterializeResult {
+  return {
+    kind: "linked",
+    linkedRunType: "agent_action",
+    linkedRunId: action.id,
+    status: stepStatusFromActionStatus(action.status),
+    errorCode: action.errorCode,
+    errorMessage: null,
+  };
+}
+
+function linkedImportJob(jobId: string): MaterializeResult {
+  return {
+    kind: "linked",
+    linkedRunType: "import_job",
+    linkedRunId: jobId,
+    status: "queued",
+    errorCode: null,
+    errorMessage: null,
+  };
+}
+
+function missingInput(kind: AgenticPlanStepKind): MaterializeResult {
+  return {
+    kind: "blocked",
+    errorCode: "agentic_plan_step_missing_input",
+    errorMessage: `${kind} requires a concrete validated input payload before it can be linked.`,
+  };
+}
+
+async function createAction(
+  projectId: string,
+  actorUserId: string,
+  request: CreateAgentActionRequest,
+  options?: AgenticPlanServiceOptions,
+): Promise<{ action: AgentAction; idempotent: boolean }> {
+  const create = options?.createAgentAction
+    ?? ((pid, uid, req) =>
+      createAgentAction(pid, uid, req, { canWriteProject: options?.canWriteProject }));
+  return create(projectId, actorUserId, request);
+}
+
+async function requestDocumentGeneration(
+  projectId: string,
+  actorUserId: string,
+  request: GenerateProjectObjectAction,
+  options?: AgenticPlanServiceOptions,
+): Promise<{ action: AgentAction }> {
+  const run = options?.requestDocumentGeneration
+    ?? ((pid, uid, req) =>
+      requestDocumentGenerationProjectObject(pid, uid, req, {
+        canWriteProject: options?.canWriteProject,
+      }));
+  return run(projectId, actorUserId, request);
+}
+
+async function requestGoogleWorkspaceExport(
+  projectId: string,
+  actorUserId: string,
+  request: ExportProjectObjectAction,
+  options?: AgenticPlanServiceOptions,
+): Promise<{ action: AgentAction }> {
+  const run = options?.requestGoogleWorkspaceExport
+    ?? ((pid, uid, req) =>
+      requestGoogleWorkspaceExportProjectObject(pid, uid, req, {
+        canWriteProject: options?.canWriteProject,
+      }));
+  return run(projectId, actorUserId, request);
+}
+
+async function repairCodeRun(
+  failedRunActionId: string,
+  actorUserId: string,
+  request: { requestId?: string },
+  options?: AgenticPlanServiceOptions,
+): Promise<{ action: AgentAction; idempotent: boolean }> {
+  const repair = options?.createCodeProjectRepairAction
+    ?? ((id, uid, req) =>
+      createCodeProjectRepairAction(id, uid, req, {
+        canWriteProject: options?.canWriteProject,
+      }));
+  return repair(failedRunActionId, actorUserId, request);
+}
+
+async function retryImport(
+  failedJobId: string,
+  actorUserId: string,
+  options?: AgenticPlanServiceOptions,
+): Promise<{ jobId: string; action: AgentAction | null }> {
+  const retry = options?.retryImportJob ?? retryImportJob;
+  return retry(failedJobId, actorUserId);
+}
+
+function stringField(input: Record<string, unknown>, key: string): string | null {
+  const value = input[key];
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function stepStatusFromActionStatus(status: AgentActionStatus): AgenticPlanStepStatus {
+  switch (status) {
+    case "draft":
+    case "approval_required":
+      return "approval_required";
+    case "queued":
+    case "running":
+    case "completed":
+    case "failed":
+    case "cancelled":
+      return status;
+    case "expired":
+    case "reverted":
+      return "failed";
+  }
 }
 
 export async function recoverAgenticPlanStep(
