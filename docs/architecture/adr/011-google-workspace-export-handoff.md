@@ -118,10 +118,10 @@ The UI should show pending/running/completed/failed export status, preserve the
 OpenCairn download action, and open the external Google URL only after export
 completion.
 
-## Foundation Slice Notes
+## Current Implementation Notes
 
-The first executable foundation adds a mocked Google export API and worker
-skeleton without a DB migration or live Google API call:
+The executable foundation adds a Google export API and worker handoff without
+making Google part of the core document-generation contract:
 
 - API work starts `file.export` agent actions for `google_drive`,
   `google_docs`, `google_sheets`, and `google_slides` after checking project
@@ -129,9 +129,12 @@ skeleton without a DB migration or live Google API call:
   a user/workspace Google Drive grant with `drive.file`.
 - Worker work registers a feature-gated `GoogleWorkspaceExportWorkflow` and an
   `export_project_object_to_google_workspace` activity. The activity reads the
-  existing object-storage artifact and supports mocked Drive upload/conversion
-  tests; the default live client deliberately returns
-  `google_export_live_disabled`.
+  existing object-storage artifact, fetches the user's workspace-scoped Drive
+  token through the existing integration-token boundary, uploads the artifact
+  to Drive, and requests Google-native conversion for DOCX, XLSX, and PPTX
+  exports. Offline tests inject a fake Google client; live Google smoke remains
+  operator-controlled because it needs real OAuth credentials and disposable
+  Drive fixtures.
 - Export terminal metadata is now represented in shared action events, but
   successful provider export persistence is not forced into
   `external_object_refs`. That table cannot yet directly link an
