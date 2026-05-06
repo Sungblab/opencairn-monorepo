@@ -254,6 +254,9 @@ describe("persistence", () => {
         id: seed.noteId,
         contentText: expect.stringContaining("nonblocking refresh"),
       }),
+      expect.objectContaining({
+        yjsStateVector: expect.any(Uint8Array),
+      }),
     );
   });
 

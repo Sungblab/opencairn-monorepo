@@ -16,13 +16,15 @@ export type IndexNoteChunksOpts = {
   maxChars?: number;
 };
 
-export async function indexNoteChunks(opts: IndexNoteChunksOpts): Promise<void> {
+export async function buildNoteChunkRows(
+  opts: IndexNoteChunksOpts,
+): Promise<NewNoteChunk[]> {
   const chunks = chunkNoteText({
     contentText: opts.note.contentText ?? "",
     maxChars: opts.maxChars,
   });
 
-  const rows: NewNoteChunk[] = await Promise.all(
+  return Promise.all(
     chunks.map(async (chunk) => {
       const contextText = buildChunkContext({
         title: opts.note.title,
@@ -46,13 +48,24 @@ export async function indexNoteChunks(opts: IndexNoteChunksOpts): Promise<void> 
       };
     }),
   );
+}
 
+export async function replaceNoteChunks(
+  noteId: string,
+  rows: NewNoteChunk[],
+): Promise<void> {
   await db.transaction(async (tx) => {
-    await tx.delete(noteChunks).where(eq(noteChunks.noteId, opts.note.id));
+    await tx.delete(noteChunks).where(eq(noteChunks.noteId, noteId));
     if (rows.length > 0) {
       await tx.insert(noteChunks).values(rows);
     }
   });
+}
+
+export async function indexNoteChunks(opts: IndexNoteChunksOpts): Promise<void> {
+  const rows = await buildNoteChunkRows(opts);
+
+  await replaceNoteChunks(opts.note.id, rows);
 }
 
 export function buildChunkContext(input: {
