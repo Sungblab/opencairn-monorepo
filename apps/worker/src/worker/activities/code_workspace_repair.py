@@ -14,6 +14,7 @@ from worker.agents.code_workspace_repair.agent import (
     CodeWorkspaceRepairContext,
     CodeWorkspaceRepairOutput,
 )
+from worker.lib.api_client import post_internal
 from worker.lib.llm_routing import resolve_llm_provider
 
 
@@ -41,6 +42,26 @@ async def plan_code_workspace_repair(request: dict[str, Any]) -> dict[str, Any]:
     )
     activity.heartbeat("code workspace repair planned")
     return build_patch_from_repair_output(request, output)
+
+
+@activity.defn(name="notify_code_workspace_repair_result")
+async def notify_code_workspace_repair_result_activity(
+    request: dict[str, Any],
+    result: dict[str, Any],
+    workflow_id: str,
+) -> dict[str, Any]:
+    return await post_internal(
+        "/api/internal/agent-actions/code-repair-results",
+        {
+            "actionId": _require_str(request, "repairActionId"),
+            "requestId": _require_str(request, "requestId"),
+            "workflowId": workflow_id,
+            "workspaceId": _require_str(request, "workspaceId"),
+            "projectId": _require_str(request, "projectId"),
+            "userId": _require_str(request, "actorUserId"),
+            "result": result,
+        },
+    )
 
 
 def build_patch_from_repair_output(

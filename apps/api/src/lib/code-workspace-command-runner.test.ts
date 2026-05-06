@@ -16,15 +16,7 @@ describe("code workspace command runner", () => {
     const runner = createTemporalCodeCommandRunner({
       startWorkflow: async (payload) => {
         calls.push(payload);
-        return {
-          ok: true,
-          codeWorkspaceId: payload.codeWorkspaceId,
-          snapshotId: payload.snapshotId,
-          command: payload.command,
-          exitCode: 0,
-          durationMs: 12,
-          logs: [{ stream: "stdout", text: "tests passed" }],
-        };
+        return { workflowId: "code-workspace-command-test" };
       },
     });
 
@@ -60,10 +52,8 @@ describe("code workspace command runner", () => {
       },
     ]);
     expect(result).toMatchObject({
-      ok: true,
-      command: "test",
-      exitCode: 0,
-      logs: [{ stream: "stdout", text: "tests passed" }],
+      kind: "started",
+      workflowId: "code-workspace-command-test",
     });
   });
 

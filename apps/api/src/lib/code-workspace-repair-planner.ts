@@ -6,6 +6,7 @@ import { getTemporalClient, taskQueue } from "./temporal-client";
 const DEFAULT_REPAIR_TIMEOUT_MS = 300_000;
 
 export interface CodeWorkspaceRepairWorkflowPayload {
+  repairActionId: string;
   requestId: string;
   failedRunActionId: string;
   workspaceId: string;
@@ -21,7 +22,7 @@ export interface CodeWorkspaceRepairWorkflowPayload {
 
 export type StartCodeWorkspaceRepairWorkflow = (
   payload: CodeWorkspaceRepairWorkflowPayload,
-) => Promise<Record<string, unknown>>;
+) => Promise<{ workflowId: string }>;
 
 export function workflowIdForCodeWorkspaceRepairAction(
   failedRunActionId: string,
@@ -36,7 +37,8 @@ export function createTemporalCodeRepairPlanner(options?: {
   const startWorkflow = options?.startWorkflow ?? startCodeWorkspaceRepairWorkflow;
   return {
     async plan(input) {
-      return startWorkflow({
+      const started = await startWorkflow({
+        repairActionId: input.repairAction.id,
         requestId: input.requestId,
         failedRunActionId: input.failedRunAction.id,
         workspaceId: input.failedRunAction.workspaceId,
@@ -49,6 +51,10 @@ export function createTemporalCodeRepairPlanner(options?: {
         logs: input.runResult.logs,
         manifest: input.snapshot.manifest,
       });
+      return {
+        kind: "started",
+        workflowId: started.workflowId,
+      };
     },
   };
 }
@@ -56,16 +62,17 @@ export function createTemporalCodeRepairPlanner(options?: {
 export async function startCodeWorkspaceRepairWorkflow(
   payload: CodeWorkspaceRepairWorkflowPayload,
   client?: Client,
-): Promise<Record<string, unknown>> {
+): Promise<{ workflowId: string }> {
   const temporal = client ?? await getTemporalClient();
-  const handle = await temporal.workflow.start("CodeWorkspaceRepairWorkflow", {
-    workflowId: workflowIdForCodeWorkspaceRepairAction(
-      payload.failedRunActionId,
-      payload.requestId,
-    ),
+  const workflowId = workflowIdForCodeWorkspaceRepairAction(
+    payload.failedRunActionId,
+    payload.requestId,
+  );
+  await temporal.workflow.start("CodeWorkspaceRepairWorkflow", {
+    workflowId,
     taskQueue: taskQueue(),
     args: [payload],
     workflowExecutionTimeout: DEFAULT_REPAIR_TIMEOUT_MS,
   });
-  return handle.result() as Promise<Record<string, unknown>>;
+  return { workflowId };
 }

@@ -1,6 +1,3 @@
-import type {
-  CodeWorkspaceCommandRunResult,
-} from "@opencairn/shared";
 import type { Client } from "@temporalio/client";
 import type { CodeCommandRunner, CodeCommandRunnerInput } from "./agent-actions";
 import { getTemporalClient, taskQueue } from "./temporal-client";
@@ -22,7 +19,7 @@ export interface CodeWorkspaceCommandWorkflowPayload {
 
 export type StartCodeWorkspaceCommandWorkflow = (
   payload: CodeWorkspaceCommandWorkflowPayload,
-) => Promise<CodeWorkspaceCommandRunResult>;
+) => Promise<{ workflowId: string }>;
 
 export function workflowIdForCodeWorkspaceCommandAction(actionId: string): string {
   return `code-workspace-command-${actionId}`;
@@ -34,7 +31,7 @@ export function createTemporalCodeCommandRunner(options?: {
   const startWorkflow = options?.startWorkflow ?? startCodeWorkspaceCommandWorkflow;
   return {
     async run(input) {
-      return startWorkflow({
+      const started = await startWorkflow({
         actionId: input.action.id,
         requestId: input.action.requestId,
         workspaceId: input.action.workspaceId,
@@ -46,6 +43,10 @@ export function createTemporalCodeCommandRunner(options?: {
         timeoutMs: input.request.timeoutMs,
         manifest: input.snapshot.manifest,
       });
+      return {
+        kind: "started",
+        workflowId: started.workflowId,
+      };
     },
   };
 }
@@ -53,15 +54,15 @@ export function createTemporalCodeCommandRunner(options?: {
 export async function startCodeWorkspaceCommandWorkflow(
   payload: CodeWorkspaceCommandWorkflowPayload,
   client?: Client,
-): Promise<CodeWorkspaceCommandRunResult> {
+): Promise<{ workflowId: string }> {
   const temporal = client ?? await getTemporalClient();
-  const handle = await temporal.workflow.start("CodeWorkspaceCommandWorkflow", {
+  await temporal.workflow.start("CodeWorkspaceCommandWorkflow", {
     workflowId: workflowIdForCodeWorkspaceCommandAction(payload.actionId),
     taskQueue: taskQueue(),
     args: [payload],
     workflowExecutionTimeout: payload.timeoutMs + DEFAULT_TIMEOUT_BUFFER_MS,
   });
-  return handle.result() as Promise<CodeWorkspaceCommandRunResult>;
+  return { workflowId: workflowIdForCodeWorkspaceCommandAction(payload.actionId) };
 }
 
 export async function cancelCodeWorkspaceCommandWorkflow(

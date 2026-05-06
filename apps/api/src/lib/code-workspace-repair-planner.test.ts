@@ -15,30 +15,13 @@ describe("code workspace repair planner", () => {
     const planner = createTemporalCodeRepairPlanner({
       startWorkflow: async (payload) => {
         calls.push(payload);
-        return {
-          codeWorkspaceId: payload.codeWorkspaceId,
-          baseSnapshotId: payload.snapshotId,
-          operations: [
-            {
-              op: "update",
-              path: "src/App.tsx",
-              beforeHash: "sha256:old",
-              afterHash: "sha256:repair",
-              inlineContent: "export const fixed = true;",
-            },
-          ],
-          preview: {
-            filesChanged: 1,
-            additions: 1,
-            deletions: 1,
-            summary: "Repair failing test",
-          },
-        };
+        return { workflowId: "code-workspace-repair-test" };
       },
     });
 
     const result = await planner.plan({
       requestId: "00000000-0000-4000-8000-000000000099",
+      repairAction: repairAction(),
       failedRunAction: action(),
       runResult: runResult(),
       workspace: workspace(),
@@ -47,6 +30,7 @@ describe("code workspace repair planner", () => {
 
     expect(calls).toEqual([
       {
+        repairActionId: "00000000-0000-4000-8000-000000000030",
         requestId: "00000000-0000-4000-8000-000000000099",
         failedRunActionId: "00000000-0000-4000-8000-000000000010",
         workspaceId: "00000000-0000-4000-8000-000000000001",
@@ -71,9 +55,8 @@ describe("code workspace repair planner", () => {
       },
     ]);
     expect(result).toMatchObject({
-      codeWorkspaceId: "00000000-0000-4000-8000-000000000020",
-      baseSnapshotId: "00000000-0000-4000-8000-000000000021",
-      preview: { summary: "Repair failing test" },
+      kind: "started",
+      workflowId: "code-workspace-repair-test",
     });
   });
 
@@ -106,6 +89,17 @@ function action(): AgentAction {
     errorCode: "code_project_run_failed",
     createdAt: "2026-05-05T00:00:00.000Z",
     updatedAt: "2026-05-05T00:00:00.000Z",
+  };
+}
+
+function repairAction(): AgentAction {
+  return {
+    ...action(),
+    id: "00000000-0000-4000-8000-000000000030",
+    requestId: "00000000-0000-4000-8000-000000000099",
+    kind: "code_project.patch",
+    status: "running",
+    errorCode: null,
   };
 }
 

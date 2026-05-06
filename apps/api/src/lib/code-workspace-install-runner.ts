@@ -1,6 +1,3 @@
-import type {
-  CodeWorkspaceInstallResult,
-} from "@opencairn/shared";
 import type { Client } from "@temporalio/client";
 import type { CodeInstallRunner, CodeInstallRunnerInput } from "./agent-actions";
 import { getTemporalClient, taskQueue } from "./temporal-client";
@@ -24,7 +21,7 @@ export interface CodeWorkspaceInstallWorkflowPayload {
 
 export type StartCodeWorkspaceInstallWorkflow = (
   payload: CodeWorkspaceInstallWorkflowPayload,
-) => Promise<CodeWorkspaceInstallResult>;
+) => Promise<{ workflowId: string }>;
 
 export function workflowIdForCodeWorkspaceInstallAction(actionId: string): string {
   return `code-workspace-install-${actionId}`;
@@ -36,7 +33,7 @@ export function createTemporalCodeInstallRunner(options?: {
   const startWorkflow = options?.startWorkflow ?? startCodeWorkspaceInstallWorkflow;
   return {
     async install(input) {
-      return startWorkflow({
+      const started = await startWorkflow({
         actionId: input.action.id,
         requestId: input.action.requestId,
         workspaceId: input.action.workspaceId,
@@ -49,6 +46,10 @@ export function createTemporalCodeInstallRunner(options?: {
         timeoutMs: timeoutMs(input.request),
         manifest: input.snapshot.manifest,
       });
+      return {
+        kind: "started",
+        workflowId: started.workflowId,
+      };
     },
   };
 }
@@ -56,15 +57,15 @@ export function createTemporalCodeInstallRunner(options?: {
 export async function startCodeWorkspaceInstallWorkflow(
   payload: CodeWorkspaceInstallWorkflowPayload,
   client?: Client,
-): Promise<CodeWorkspaceInstallResult> {
+): Promise<{ workflowId: string }> {
   const temporal = client ?? await getTemporalClient();
-  const handle = await temporal.workflow.start("CodeWorkspaceInstallWorkflow", {
+  await temporal.workflow.start("CodeWorkspaceInstallWorkflow", {
     workflowId: workflowIdForCodeWorkspaceInstallAction(payload.actionId),
     taskQueue: taskQueue(),
     args: [payload],
     workflowExecutionTimeout: payload.timeoutMs + DEFAULT_TIMEOUT_BUFFER_MS,
   });
-  return handle.result() as Promise<CodeWorkspaceInstallResult>;
+  return { workflowId: workflowIdForCodeWorkspaceInstallAction(payload.actionId) };
 }
 
 function timeoutMs(request: CodeInstallRunnerInput["request"]): number {

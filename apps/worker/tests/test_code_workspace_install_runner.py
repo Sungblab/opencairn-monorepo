@@ -8,6 +8,7 @@ from worker.activities.code_workspace_install import (
     CodeWorkspaceInstallError,
     DockerCodeWorkspaceInstallExecutor,
     create_default_code_install_executor,
+    notify_code_workspace_install_result_activity,
     run_code_workspace_install,
 )
 
@@ -124,6 +125,59 @@ async def test_rejects_unknown_package_manager_before_materializing() -> None:
 
 
 @pytest.mark.asyncio
+async def test_notifies_internal_api_with_install_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    async def fake_post_internal(path: str, body: dict[str, Any]) -> dict[str, Any]:
+        calls.append({"path": path, "body": body})
+        return {"ok": True}
+
+    monkeypatch.setattr(
+        "worker.activities.code_workspace_install.post_internal",
+        fake_post_internal,
+    )
+
+    result = {
+        "ok": True,
+        "codeWorkspaceId": "00000000-0000-4000-8000-000000000020",
+        "snapshotId": "00000000-0000-4000-8000-000000000021",
+        "packageManager": "pnpm",
+        "installed": [{"name": "zod", "dev": False}],
+        "exitCode": 0,
+        "logs": [{"stream": "stdout", "text": "install passed"}],
+    }
+    response = await notify_code_workspace_install_result_activity(
+        {
+            "actionId": "00000000-0000-4000-8000-000000000010",
+            "requestId": "00000000-0000-4000-8000-000000000011",
+            "workspaceId": "00000000-0000-4000-8000-000000000001",
+            "projectId": "00000000-0000-4000-8000-000000000002",
+            "actorUserId": "user-1",
+        },
+        result,
+        "code-workspace-install-00000000-0000-4000-8000-000000000010",
+    )
+
+    assert response == {"ok": True}
+    assert calls == [
+        {
+            "path": "/api/internal/agent-actions/code-install-results",
+            "body": {
+                "actionId": "00000000-0000-4000-8000-000000000010",
+                "requestId": "00000000-0000-4000-8000-000000000011",
+                "workflowId": "code-workspace-install-00000000-0000-4000-8000-000000000010",
+                "workspaceId": "00000000-0000-4000-8000-000000000001",
+                "projectId": "00000000-0000-4000-8000-000000000002",
+                "userId": "user-1",
+                "result": result,
+            },
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_selects_docker_executor_only_when_explicitly_configured(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -182,4 +236,3 @@ async def test_docker_executor_uses_networked_bounded_container(tmp_path: Path) 
             "corepack enable pnpm >/dev/null 2>&1 || true; pnpm add zod",
         ]
     ]
-

@@ -9,12 +9,50 @@ const cleanupExpiredCodeProjectPreviews = vi.hoisted(() =>
     ],
   }),
 );
+const completeCodeProjectRunActionFromWorker = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({
+    idempotent: false,
+    action: {
+      id: "00000000-0000-4000-8000-000000000010",
+      status: "completed",
+    },
+  }),
+);
+const completeCodeProjectInstallActionFromWorker = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({
+    idempotent: false,
+    action: {
+      id: "00000000-0000-4000-8000-000000000012",
+      status: "completed",
+    },
+  }),
+);
+const completeCodeProjectRepairActionFromWorker = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({
+    idempotent: false,
+    action: {
+      id: "00000000-0000-4000-8000-000000000013",
+      status: "draft",
+    },
+  }),
+);
 
 vi.mock("../lib/agent-actions", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/agent-actions")>();
   return {
     ...actual,
     cleanupExpiredCodeProjectPreviews,
+    completeCodeProjectInstallActionFromWorker,
+    completeCodeProjectRepairActionFromWorker,
+    completeCodeProjectRunActionFromWorker,
+  };
+});
+
+vi.mock("../lib/internal-assert", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/internal-assert")>();
+  return {
+    ...actual,
+    assertResourceWorkspace: vi.fn().mockResolvedValue(undefined),
   };
 });
 
@@ -70,3 +108,176 @@ describe("POST /api/internal/agent-actions/preview-cleanup", () => {
     expect(cleanupExpiredCodeProjectPreviews).not.toHaveBeenCalled();
   });
 });
+
+function postCodeCommandResult(body: unknown, secret: string | null = SECRET) {
+  return app.request("/api/internal/agent-actions/code-command-results", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(secret == null ? {} : { "X-Internal-Secret": secret }),
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+function postCodeInstallResult(body: unknown, secret: string | null = SECRET) {
+  return app.request("/api/internal/agent-actions/code-install-results", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(secret == null ? {} : { "X-Internal-Secret": secret }),
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+function postCodeRepairResult(body: unknown, secret: string | null = SECRET) {
+  return app.request("/api/internal/agent-actions/code-repair-results", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(secret == null ? {} : { "X-Internal-Secret": secret }),
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+describe("POST /api/internal/agent-actions/code-command-results", () => {
+  it("finalizes a code_project.run action from the worker callback", async () => {
+    completeCodeProjectRunActionFromWorker.mockClear();
+
+    const body = codeCommandResultBody();
+    const res = await postCodeCommandResult(body);
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      idempotent: false,
+      action: {
+        id: "00000000-0000-4000-8000-000000000010",
+        status: "completed",
+      },
+    });
+    expect(completeCodeProjectRunActionFromWorker).toHaveBeenCalledWith(body);
+  });
+
+  it("rejects invalid code command callback results", async () => {
+    completeCodeProjectRunActionFromWorker.mockClear();
+
+    const res = await postCodeCommandResult({
+      ...codeCommandResultBody(),
+      result: { ok: true },
+    });
+
+    expect(res.status).toBe(400);
+    expect(completeCodeProjectRunActionFromWorker).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/internal/agent-actions/code-install-results", () => {
+  it("finalizes a code_project.install action from the worker callback", async () => {
+    completeCodeProjectInstallActionFromWorker.mockClear();
+
+    const body = codeInstallResultBody();
+    const res = await postCodeInstallResult(body);
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      idempotent: false,
+      action: {
+        id: "00000000-0000-4000-8000-000000000012",
+        status: "completed",
+      },
+    });
+    expect(completeCodeProjectInstallActionFromWorker).toHaveBeenCalledWith(body);
+  });
+});
+
+describe("POST /api/internal/agent-actions/code-repair-results", () => {
+  it("finalizes a code_project.patch repair action from the worker callback", async () => {
+    completeCodeProjectRepairActionFromWorker.mockClear();
+
+    const body = codeRepairResultBody();
+    const res = await postCodeRepairResult(body);
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      idempotent: false,
+      action: {
+        id: "00000000-0000-4000-8000-000000000013",
+        status: "draft",
+      },
+    });
+    expect(completeCodeProjectRepairActionFromWorker).toHaveBeenCalledWith(body);
+  });
+});
+
+function codeCommandResultBody() {
+  return {
+    actionId: "00000000-0000-4000-8000-000000000010",
+    requestId: "00000000-0000-4000-8000-000000000011",
+    workflowId: "code-workspace-command-00000000-0000-4000-8000-000000000010",
+    workspaceId: "00000000-0000-4000-8000-000000000001",
+    projectId: "00000000-0000-4000-8000-000000000002",
+    userId: "user-1",
+    result: {
+      ok: true,
+      codeWorkspaceId: "00000000-0000-4000-8000-000000000020",
+      snapshotId: "00000000-0000-4000-8000-000000000021",
+      command: "test",
+      exitCode: 0,
+      durationMs: 42,
+      logs: [{ stream: "stdout", text: "tests passed" }],
+    },
+  };
+}
+
+function codeInstallResultBody() {
+  return {
+    actionId: "00000000-0000-4000-8000-000000000012",
+    requestId: "00000000-0000-4000-8000-000000000014",
+    workflowId: "code-workspace-install-00000000-0000-4000-8000-000000000012",
+    workspaceId: "00000000-0000-4000-8000-000000000001",
+    projectId: "00000000-0000-4000-8000-000000000002",
+    userId: "user-1",
+    result: {
+      ok: true,
+      codeWorkspaceId: "00000000-0000-4000-8000-000000000020",
+      snapshotId: "00000000-0000-4000-8000-000000000021",
+      packageManager: "pnpm",
+      installed: [{ name: "zod", dev: false }],
+      exitCode: 0,
+      durationMs: 42,
+      logs: [{ stream: "stdout", text: "install passed" }],
+    },
+  };
+}
+
+function codeRepairResultBody() {
+  return {
+    actionId: "00000000-0000-4000-8000-000000000013",
+    requestId: "00000000-0000-4000-8000-000000000015",
+    workflowId: "code-workspace-repair-00000000-0000-4000-8000-000000000010-00000000-0000-4000-8000-000000000015",
+    workspaceId: "00000000-0000-4000-8000-000000000001",
+    projectId: "00000000-0000-4000-8000-000000000002",
+    userId: "user-1",
+    result: {
+      codeWorkspaceId: "00000000-0000-4000-8000-000000000020",
+      baseSnapshotId: "00000000-0000-4000-8000-000000000021",
+      operations: [
+        {
+          op: "update",
+          path: "src/App.tsx",
+          beforeHash: "sha256:old",
+          afterHash: "sha256:new",
+          inlineContent: "export {};",
+        },
+      ],
+      preview: {
+        filesChanged: 1,
+        additions: 1,
+        deletions: 1,
+        summary: "Repair failing test",
+      },
+    },
+  };
+}

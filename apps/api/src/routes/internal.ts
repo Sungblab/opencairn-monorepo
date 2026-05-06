@@ -48,6 +48,8 @@ import {
 } from "@opencairn/db";
 import {
   agentFileKindSchema,
+  codeWorkspaceInstallResultSchema,
+  codeWorkspaceCommandRunResultSchema,
   createConceptExtractionSchema,
   createEvidenceBundleSchema,
   documentGenerationSourceSchema,
@@ -87,7 +89,11 @@ import {
 } from "../lib/agent-files";
 import {
   cleanupExpiredCodeProjectPreviews,
+  completeCodeProjectInstallActionFromWorker,
+  completeCodeProjectRepairActionFromWorker,
+  completeCodeProjectRunActionFromWorker,
   createDrizzleAgentActionRepository,
+  AgentActionError,
 } from "../lib/agent-actions";
 import { toProjectObjectSummary } from "../lib/project-object-actions";
 import {
@@ -668,6 +674,123 @@ internal.post(
         errorCode: "document_generation_registration_failed",
       });
       return c.json({ error: "document_generation_registration_failed" }, 500);
+    }
+  },
+);
+
+const codeWorkspaceCommandResultCallbackSchema = z.object({
+  actionId: z.string().uuid(),
+  requestId: z.string().uuid(),
+  workflowId: z.string().min(1).max(300),
+  workspaceId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  userId: z.string().min(1),
+  result: codeWorkspaceCommandRunResultSchema,
+});
+
+const codeWorkspaceInstallResultCallbackSchema = z.object({
+  actionId: z.string().uuid(),
+  requestId: z.string().uuid(),
+  workflowId: z.string().min(1).max(300),
+  workspaceId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  userId: z.string().min(1),
+  result: codeWorkspaceInstallResultSchema,
+});
+
+const codeWorkspaceRepairResultCallbackSchema = z.object({
+  actionId: z.string().uuid(),
+  requestId: z.string().uuid(),
+  workflowId: z.string().min(1).max(300),
+  workspaceId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  userId: z.string().min(1),
+  result: z.record(z.unknown()),
+});
+
+internal.post(
+  "/agent-actions/code-command-results",
+  zValidator("json", codeWorkspaceCommandResultCallbackSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const guard = await guardWorkspace(c, () =>
+      assertResourceWorkspace(db, body.workspaceId, {
+        type: "project",
+        id: body.projectId,
+      }),
+    );
+    if (guard) return guard;
+
+    try {
+      const { action, idempotent } = await completeCodeProjectRunActionFromWorker(body);
+      return c.json({ action, idempotent });
+    } catch (err) {
+      if (err instanceof AgentActionError) {
+        return c.json(
+          { error: err.code },
+          err.status as 400 | 403 | 404 | 409,
+        );
+      }
+      console.error("[code-workspace-command] internal result callback failed", err);
+      return c.json({ error: "code_project_run_callback_failed" }, 500);
+    }
+  },
+);
+
+internal.post(
+  "/agent-actions/code-install-results",
+  zValidator("json", codeWorkspaceInstallResultCallbackSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const guard = await guardWorkspace(c, () =>
+      assertResourceWorkspace(db, body.workspaceId, {
+        type: "project",
+        id: body.projectId,
+      }),
+    );
+    if (guard) return guard;
+
+    try {
+      const { action, idempotent } = await completeCodeProjectInstallActionFromWorker(body);
+      return c.json({ action, idempotent });
+    } catch (err) {
+      if (err instanceof AgentActionError) {
+        return c.json(
+          { error: err.code },
+          err.status as 400 | 403 | 404 | 409,
+        );
+      }
+      console.error("[code-workspace-install] internal result callback failed", err);
+      return c.json({ error: "code_project_install_callback_failed" }, 500);
+    }
+  },
+);
+
+internal.post(
+  "/agent-actions/code-repair-results",
+  zValidator("json", codeWorkspaceRepairResultCallbackSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const guard = await guardWorkspace(c, () =>
+      assertResourceWorkspace(db, body.workspaceId, {
+        type: "project",
+        id: body.projectId,
+      }),
+    );
+    if (guard) return guard;
+
+    try {
+      const { action, idempotent } = await completeCodeProjectRepairActionFromWorker(body);
+      return c.json({ action, idempotent });
+    } catch (err) {
+      if (err instanceof AgentActionError) {
+        return c.json(
+          { error: err.code },
+          err.status as 400 | 403 | 404 | 409,
+        );
+      }
+      console.error("[code-workspace-repair] internal result callback failed", err);
+      return c.json({ error: "code_project_repair_callback_failed" }, 500);
     }
   },
 );
