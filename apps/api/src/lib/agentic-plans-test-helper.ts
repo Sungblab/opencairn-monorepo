@@ -69,6 +69,15 @@ export function createMemoryAgenticPlanRepo(): AgenticPlanRepository {
       const plan = plans.get(planId);
       return plan && plan.projectId === pid ? clone(plan) : null;
     },
+    async findByLinkedRun({ projectId: pid, linkedRunType, linkedRunId }) {
+      const plan = Array.from(plans.values()).find((candidate) =>
+        candidate.projectId === pid
+        && candidate.steps.some((step) =>
+          step.linkedRunType === linkedRunType && step.linkedRunId === linkedRunId
+        )
+      );
+      return plan ? clone(plan) : null;
+    },
     async updateStepStatus({ planId, stepId, status }) {
       const plan = plans.get(planId);
       if (!plan) return;
@@ -106,10 +115,10 @@ export function createMemoryAgenticPlanRepo(): AgenticPlanRepository {
         title: step.title,
         rationale: step.rationale,
         status: step.status,
+        linkedRunType: step.linkedRunType ?? null,
+        linkedRunId: step.linkedRunId ?? null,
         risk: step.risk,
         input: step.input ?? {},
-        linkedRunType: null,
-        linkedRunId: null,
         errorCode: step.errorCode ?? null,
         errorMessage: step.errorMessage ?? null,
         createdAt: now,

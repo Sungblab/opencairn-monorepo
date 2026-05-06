@@ -4,6 +4,7 @@ import {
   createAgenticPlan,
   getAgenticPlan,
   listAgenticPlans,
+  recordAgenticPlanHandoff,
   recoverAgenticPlanStep,
   planStepsForGoal,
   startAgenticPlan,
@@ -20,6 +21,7 @@ const actionId = "00000000-0000-4000-8000-000000000020";
 const importJobId = "00000000-0000-4000-8000-000000000030";
 const retryJobId = "00000000-0000-4000-8000-000000000031";
 const plan8RunId = "00000000-0000-4000-8000-000000000040";
+const childPlan8RunId = "00000000-0000-4000-8000-000000000041";
 
 describe("agentic plan service", () => {
   it("plans a Korean note goal as a reviewable note update step", () => {
@@ -599,6 +601,200 @@ describe("agentic plan service", () => {
       linkedRunType: null,
       linkedRunId: null,
       errorCode: "agentic_plan_step_missing_input",
+    });
+  });
+
+  it("records a runtime handoff as a linked child plan step", async () => {
+    const repo = createMemoryAgenticPlanRepo();
+    const plan = await repo.insertPlan({
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Run librarian",
+      goal: "Run librarian",
+      status: "running",
+      target: { workspaceId, projectId },
+      plannerKind: "deterministic",
+      summary: "1-step deterministic plan: agent.run",
+      currentStepOrdinal: 1,
+      steps: [
+        {
+          kind: "agent.run",
+          title: "Run librarian",
+          rationale: "The root agent run is already linked.",
+          risk: "write",
+          input: {
+            agentName: "librarian",
+          },
+        },
+      ],
+    });
+    await repo.updateStep({
+      planId: plan.id,
+      stepId: plan.steps[0]!.id,
+      status: "running",
+      linkedRunType: "plan8_agent",
+      linkedRunId: plan8RunId,
+    });
+
+    const updated = await recordAgenticPlanHandoff(projectId, {
+      parentRunId: plan8RunId,
+      childRunId: childPlan8RunId,
+      childAgentName: "synthesis",
+      reason: "Needs a focused synthesis pass.",
+      childStatus: "running",
+    }, {
+      repo,
+    });
+
+    expect(updated?.steps).toHaveLength(2);
+    expect(updated?.steps[1]).toMatchObject({
+      ordinal: 2,
+      kind: "agent.run",
+      title: "Handoff to synthesis",
+      status: "running",
+      linkedRunType: "plan8_agent",
+      linkedRunId: childPlan8RunId,
+      input: {
+        agentName: "synthesis",
+        handoff: {
+          parentRunId: plan8RunId,
+          childRunId: childPlan8RunId,
+          reason: "Needs a focused synthesis pass.",
+        },
+      },
+    });
+  });
+
+  it("does not append duplicate runtime handoff child steps", async () => {
+    const repo = createMemoryAgenticPlanRepo();
+    const plan = await repo.insertPlan({
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Run librarian",
+      goal: "Run librarian",
+      status: "running",
+      target: { workspaceId, projectId },
+      plannerKind: "deterministic",
+      summary: "1-step deterministic plan: agent.run",
+      currentStepOrdinal: 1,
+      steps: [
+        {
+          kind: "agent.run",
+          title: "Run librarian",
+          rationale: "The root agent run is already linked.",
+          risk: "write",
+          input: {
+            agentName: "librarian",
+          },
+        },
+      ],
+    });
+    await repo.updateStep({
+      planId: plan.id,
+      stepId: plan.steps[0]!.id,
+      status: "running",
+      linkedRunType: "plan8_agent",
+      linkedRunId: plan8RunId,
+    });
+
+    await recordAgenticPlanHandoff(projectId, {
+      parentRunId: plan8RunId,
+      childRunId: childPlan8RunId,
+      childAgentName: "synthesis",
+      reason: "Needs a focused synthesis pass.",
+      childStatus: "running",
+    }, { repo });
+    const repeated = await recordAgenticPlanHandoff(projectId, {
+      parentRunId: plan8RunId,
+      childRunId: childPlan8RunId,
+      childAgentName: "synthesis",
+      reason: "Needs a focused synthesis pass.",
+      childStatus: "running",
+    }, { repo });
+
+    expect(repeated?.steps).toHaveLength(2);
+  });
+
+  it("rejects runtime handoff cycles", async () => {
+    const repo = createMemoryAgenticPlanRepo();
+
+    await expect(
+      recordAgenticPlanHandoff(projectId, {
+        parentRunId: plan8RunId,
+        childRunId: plan8RunId,
+        childAgentName: "synthesis",
+        reason: "Self handoff should not be recorded.",
+        childStatus: "running",
+      }, { repo }),
+    ).rejects.toMatchObject({
+      code: "agentic_plan_handoff_cycle",
+      status: 409,
+    });
+  });
+
+  it("rejects runtime handoffs beyond the bounded depth limit", async () => {
+    const repo = createMemoryAgenticPlanRepo();
+    const plan = await repo.insertPlan({
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Run librarian",
+      goal: "Run librarian",
+      status: "running",
+      target: { workspaceId, projectId },
+      plannerKind: "deterministic",
+      summary: "1-step deterministic plan: agent.run",
+      currentStepOrdinal: 1,
+      steps: [
+        {
+          kind: "agent.run",
+          title: "Run librarian",
+          rationale: "The root agent run is already linked.",
+          risk: "write",
+          input: {
+            agentName: "librarian",
+          },
+        },
+      ],
+    });
+    await repo.updateStep({
+      planId: plan.id,
+      stepId: plan.steps[0]!.id,
+      status: "running",
+      linkedRunType: "plan8_agent",
+      linkedRunId: plan8RunId,
+    });
+    const runIds = [
+      childPlan8RunId,
+      "00000000-0000-4000-8000-000000000042",
+      "00000000-0000-4000-8000-000000000043",
+      "00000000-0000-4000-8000-000000000044",
+    ];
+    let parentRunId = plan8RunId;
+    for (const runId of runIds) {
+      await recordAgenticPlanHandoff(projectId, {
+        parentRunId,
+        childRunId: runId,
+        childAgentName: "synthesis",
+        reason: "Nested handoff.",
+        childStatus: "running",
+      }, { repo });
+      parentRunId = runId;
+    }
+
+    await expect(
+      recordAgenticPlanHandoff(projectId, {
+        parentRunId,
+        childRunId: "00000000-0000-4000-8000-000000000045",
+        childAgentName: "synthesis",
+        reason: "Too deep.",
+        childStatus: "running",
+      }, { repo }),
+    ).rejects.toMatchObject({
+      code: "agentic_plan_handoff_depth_exceeded",
+      status: 409,
     });
   });
 });

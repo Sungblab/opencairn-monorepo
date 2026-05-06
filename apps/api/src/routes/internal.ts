@@ -65,6 +65,7 @@ import { labelFromId } from "../lib/tree-queries";
 import { canRead } from "../lib/permissions";
 import { expandFromConcept } from "../lib/expand-graph";
 import { projectHybridSearch } from "../lib/internal-hybrid-search";
+import { recordAgenticPlanHandoff } from "../lib/agentic-plans";
 import type { AppEnv } from "../lib/types";
 import {
   assertResourceWorkspace,
@@ -972,6 +973,12 @@ internal.post(
           trajectoryUri: body.trajectoryUri,
         })
         .where(eq(agentRuns.runId, existing.runId));
+      await recordAgentRunHandoffStep({
+        projectId: body.projectId ?? null,
+        parentRunId: body.parentRunId ?? null,
+        childRunId: existing.runId,
+        childAgentName: body.agentName,
+      });
       return c.json({ runId: existing.runId, created: false });
     }
 
@@ -989,9 +996,36 @@ internal.post(
       trajectoryUri: body.trajectoryUri,
     });
 
+    await recordAgentRunHandoffStep({
+      projectId: body.projectId ?? null,
+      parentRunId: body.parentRunId ?? null,
+      childRunId: runId,
+      childAgentName: body.agentName,
+    });
+
     return c.json({ runId, created: true }, 201);
   },
 );
+
+async function recordAgentRunHandoffStep(options: {
+  projectId: string | null;
+  parentRunId: string | null;
+  childRunId: string;
+  childAgentName: string;
+}): Promise<void> {
+  if (!options.projectId || !options.parentRunId) return;
+  try {
+    await recordAgenticPlanHandoff(options.projectId, {
+      parentRunId: options.parentRunId,
+      childRunId: options.childRunId,
+      childAgentName: options.childAgentName,
+      reason: `Runtime handoff to ${options.childAgentName}.`,
+      childStatus: "running",
+    });
+  } catch (err) {
+    console.warn("[agentic-plans] runtime handoff projection failed", err);
+  }
+}
 
 const agentRunFinishSchema = z.object({
   agentName: z.string().min(1).max(100),
