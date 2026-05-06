@@ -6,8 +6,8 @@
 //   POST /api/literature/import { ids, projectId }
 //
 // The tab-shell viewer (apps/web/src/components/tab-shell/viewers/lit-search-viewer.tsx)
-// is the agent-driven path — it lights up when the chat agent calls
-// `literature_search` and dispatches a tab. This modal is the *user*-driven
+// is the chat-workflow path — it lights up when chat calls `literature_search`
+// and dispatches a tab. This modal is the *user*-driven
 // entry point: a button in the sidebar opens it directly so the user can
 // search and import without touching the agent. Shared types live in
 // apps/web/src/stores/lit-search-store.ts.

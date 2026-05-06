@@ -72,7 +72,7 @@
 ### C.3 진입 우선순위 (기술적)
 - **Tier 1 (작고 ROI 큼)**: 공개 contributor guide 기반의 `opencairn` coding-assistant skill 패키지. Codex/Cursor/Claude 계열 도구가 같은 public guide를 읽도록 맞춘다.
 - **Tier 2 (장기 표준)**: MCP 서버 (read-only Phase 1 → write Phase 2). OAuth 2.1 + workspace-scope 토큰. `mcp.opencairn.example.com` remote hosting + stdio 로컬 모두.
-- **Tier 3 (차별화)**: "decision trace" 1급 객체화 — Glean Knowledge Graph가 닿지 못한 영역(환불/인시던트/예외 결정 경로)을 12-agent + KG + provenance로 표상.
+- **Tier 3 (차별화)**: "decision trace" 1급 객체화 — Glean Knowledge Graph가 닿지 못한 영역(환불/인시던트/예외 결정 경로)을 AI workflow + KG + provenance로 표상.
 
 ## D. 한 줄 결론
 

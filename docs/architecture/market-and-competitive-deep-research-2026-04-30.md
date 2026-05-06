@@ -32,7 +32,7 @@
                               └──────────────────────────┘
 ```
 
-- 노트 OS 축의 OSS는 **AI/agent 깊이가 얕다** — AFFiNE/AppFlowy/Logseq 모두 자체 RAG 또는 Ollama 채팅 수준이지 specialized agent pipeline·Deep Research·Synthesis Export·SM-2가 없음.
+- 노트 OS 축의 OSS는 **AI workflow 깊이가 얕다** — AFFiNE/AppFlowy/Logseq 모두 자체 RAG 또는 Ollama 채팅 수준이지 workflow-backed research/export/learning 파이프라인이 없음.
 - AI/agent 축의 OSS는 **편집기·협업·KG 시각화가 없다** — Khoj는 채팅+검색, Onyx는 enterprise Q&A, AnythingLLM은 워크스페이스 RAG + Agent Flows 수준이지 Notion-like 블록 에디터 + Yjs 협업 + Cytoscape KG가 통합되어 있지 않음.
 - **두 축을 가로지르는 통합 OSS 제품은 본 리서치 범위에서 발견되지 않음**.
 
@@ -65,7 +65,7 @@
 ### Khoj (이전 라운드 평가 교정)
 - **GitHub**: ~33.8k stars, 2.1k forks, 2.0-beta.26 (2026-03-25). 활성.
 - **실제 갖춘 것**: 채팅 + 시맨틱 검색 + custom agents(페르소나+도구+KB 단일 모델) + scheduled automations + `/research` + 멀티모달 인덱스(PDF/이미지/MD/Notion/Org/Word).
-- **갖추지 못한 것**: 블록 에디터 ❌, Yjs 협업 ❌, 페이지 권한 ❌, KG 시각화 ❌, specialized agent pipeline ❌, SM-2 ❌, Synthesis Export ❌. Notion 통합은 양방향 편집 X, read-only 인덱싱.
+- **갖추지 못한 것**: 블록 에디터 ❌, Yjs 협업 ❌, 페이지 권한 ❌, KG 시각화 ❌, workflow-backed research/export/learning 파이프라인 ❌, SM-2 ❌, Synthesis Export ❌. Notion 통합은 양방향 편집 X, read-only 인덱싱.
 - **약점**: 큰 vault OOM(#634, #913), agent 추가 500(#1036), 한국어 UI i18n 없음(추정), 운영 안정성 이슈 누적.
 - **포지션**: "AI 보조 두뇌(채팅+검색)"이지 "지식 OS"가 아님. **Notion 대체 축에서는 직접 경쟁자가 아니고 AI 보조 도구로 보완재**.
 
@@ -81,7 +81,7 @@
 - **OpenCairn 빈자리**: self-host 불가 / BYOK 불가 / PDF·이미지 AI 못 읽음 / 1,000행 한도 / 오프라인 X / EU만 data residency. → 한국 indie/팀이 GDPR·국내망·BYOK·Ollama 동시에 원하면 Notion 답 없음.
 
 ### AFFiNE / AppFlowy (노트 OS OSS)
-- AFFiNE: 67k stars, 블록 에디터 + 무한 캔버스 + 자체 AI + Docker self-host. 단 RAG/agent orchestration·KG·SM-2·specialized AI workflow 깊이 없음.
+- AFFiNE: 67k stars, 블록 에디터 + 무한 캔버스 + 자체 AI + Docker self-host. 단 RAG workflow·KG·SM-2·research/export/learning workflow 깊이 없음.
 - AppFlowy: 67k stars, Flutter/Rust 네이티브 + 멀티뷰 DB + Ollama 로컬 AI. 단 RAG·Deep Research·KG·학습 없음.
 - 둘 다 "Notion-like 에디터 + 가벼운 AI"에 머물러 있고 OpenCairn의 workflow-backed AI 깊이를 따라오기 어려운 카테고리.
 
@@ -157,14 +157,14 @@ GitHub stars → HN/Reddit/Product Hunt 1회 spike → docs 조회 → self-host
 
 ### 진짜 경쟁력 있는 곳
 
-1. **두 축 동시 점유**: 노트 OS(Notion-like) + AI/RAG/agent 깊이를 단일 OSS로 묶은 제품이 시장에 0개 — Khoj·Onyx·AFFiNE 어느 쪽도 다른 축의 깊이를 따라올 카테고리 능력이 약함.
+1. **두 축 동시 점유**: 노트 OS(Notion-like) + AI/RAG workflow 깊이를 단일 OSS로 묶은 제품이 시장에 0개 — Khoj·Onyx·AFFiNE 어느 쪽도 다른 축의 깊이를 따라올 카테고리 능력이 약함.
 2. **한국 규제 정합**: 망분리 + 국외이전 규제 + on-prem Ollama + BYOK + AGPLv3 self-host가 정확히 정합. 외산 SaaS가 구조적으로 진입 못 하는 슬라이스(공공·금융·의료·교육·연구실)에서 무경쟁.
 3. **Notion이 못 주는 것**: self-host / BYOK / AGPLv3 / 한국어 1급 / 오프라인 / workflow-backed AI 기능 — 모두 Notion 한계가 곧 OpenCairn 빈자리.
 4. **Plausible 직계 모방 가능성**: AGPLv3 + indie + bootstrapped + hosted-only paid 모델이 카테고리만 다를 뿐 1:1 매칭. 검증된 sustainability path.
 
 ### 솔직히 위태로운 곳
 
-1. **Notion이 빠르게 추격 중** — Custom Agents + MCP server + Mail/Calendar 통합으로 "agent OS"로 이동. 1년 안에 OpenCairn의 차별화 일부(특히 agent orchestration 깊이)가 따라잡힐 수 있음. **속도 경쟁**이 진짜 변수.
+1. **Notion이 빠르게 추격 중** — Custom Agents + MCP server + Mail/Calendar 통합으로 "AI-native workspace"로 이동. 1년 안에 OpenCairn의 차별화 일부(특히 workflow orchestration 깊이)가 따라잡힐 수 있음. **속도 경쟁**이 진짜 변수.
 2. **AGPLv3 한국 대기업 천장** — dual license + CLA를 미리 깔지 않으면 enterprise 매출이 자연 capped됨.
 3. **혼자 여러 AI workflow × N provider를 운영하는 quality assurance 부채** — SDK breaking change 마다 부담. eval CI + observability(Langfuse/LangSmith 영감) 없으면 깊이가 곧 부채로 전환.
 4. **MCP server 노출 갭** — Onyx/AnythingLLM/Notion 모두 보유, OpenCairn 미보유. 1년 차이가 분산 채널 결정적 차이로 벌어짐.
