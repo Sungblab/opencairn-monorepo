@@ -141,12 +141,51 @@ describe("AgenticPlanCard", () => {
       );
     });
   });
+
+  it("offers retry and manual review recovery for stale evidence blockers", async () => {
+    const user = userEvent.setup();
+    renderWithClient([
+      planFixture({
+        status: "blocked",
+        stepStatus: "blocked",
+        errorCode: "stale_context",
+        recoveryCode: "stale_context",
+      }),
+    ]);
+
+    await user.click(await screen.findByRole("button", { name: /retry/ }));
+
+    await waitFor(() => {
+      expect(agenticPlansApi.recover).toHaveBeenCalledWith(
+        projectId,
+        "00000000-0000-4000-8000-000000000010",
+        {
+          stepId: "00000000-0000-4000-8000-000000000011",
+          strategy: "retry",
+        },
+      );
+    });
+
+    await user.click(screen.getByRole("button", { name: /recover/ }));
+
+    await waitFor(() => {
+      expect(agenticPlansApi.recover).toHaveBeenLastCalledWith(
+        projectId,
+        "00000000-0000-4000-8000-000000000010",
+        {
+          stepId: "00000000-0000-4000-8000-000000000011",
+          strategy: "manual_review",
+        },
+      );
+    });
+  });
 });
 
 function planFixture(options: {
   status?: AgenticPlan["status"];
   stepStatus?: AgenticPlan["steps"][number]["status"];
   errorCode?: string | null;
+  recoveryCode?: AgenticPlan["steps"][number]["recoveryCode"];
 } = {}): AgenticPlan {
   const now = "2026-05-06T00:00:00.000Z";
   return {
@@ -178,6 +217,7 @@ function planFixture(options: {
         linkedRunType: null,
         linkedRunId: null,
         errorCode: options.errorCode ?? null,
+        recoveryCode: options.recoveryCode ?? null,
         errorMessage: null,
         createdAt: now,
         updatedAt: now,

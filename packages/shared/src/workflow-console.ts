@@ -768,6 +768,7 @@ function approvalsFromAgenticPlan(plan: AgenticPlan): WorkflowConsoleRun["approv
 function planOperationalSummary(steps: AgenticPlanStep[]): Record<string, unknown> {
   const evidenceFreshness: Record<string, number> = {};
   const recoveryCodes = new Set<string>();
+  const recoveryPolicies: Array<Record<string, unknown>> = [];
   let staleEvidenceBlockers = 0;
   const staleEvidenceRefs: Array<Record<string, unknown>> = [];
   const evidenceIssues: Array<Record<string, unknown>> = [];
@@ -814,6 +815,8 @@ function planOperationalSummary(steps: AgenticPlanStep[]): Record<string, unknow
       });
     }
     if (step.recoveryCode) recoveryCodes.add(step.recoveryCode);
+    const policy = recoveryPolicyForStep(step);
+    if (policy) recoveryPolicies.push(policy);
     const candidate = step.verificationStatus ?? "pending";
     if (
       !verificationStatus ||
@@ -829,8 +832,44 @@ function planOperationalSummary(steps: AgenticPlanStep[]): Record<string, unknow
     evidenceIssues: evidenceIssues.slice(0, 5),
     verificationStatus: verificationStatus ?? "unknown",
     recoveryCodes: Array.from(recoveryCodes),
+    recoveryPolicies: recoveryPolicies.slice(0, 5),
     evidenceFreshness,
   };
+}
+
+function recoveryPolicyForStep(step: AgenticPlanStep): Record<string, unknown> | null {
+  if (!step.recoveryCode || !["blocked", "failed", "cancelled"].includes(step.status)) return null;
+  const allowedStrategies = allowedRecoveryStrategies(step);
+  return {
+    stepId: step.id,
+    stepTitle: step.title,
+    stepKind: step.kind,
+    recoveryCode: step.recoveryCode,
+    allowedStrategies,
+  };
+}
+
+function allowedRecoveryStrategies(step: AgenticPlanStep): string[] {
+  if (step.recoveryCode === "stale_context") {
+    return ["retry", "manual_review", "cancel"];
+  }
+  if (step.recoveryCode === "verification_failed") {
+    return retryableStepKind(step.kind)
+      ? ["retry", "manual_review", "cancel"]
+      : ["manual_review", "cancel"];
+  }
+  return ["manual_review", "cancel"];
+}
+
+export function retryableStepKind(kind: AgenticPlanStep["kind"]): boolean {
+  return [
+    "document.generate",
+    "file.export",
+    "code.run",
+    "code.repair",
+    "import.retry",
+    "agent.run",
+  ].includes(kind);
 }
 
 function importLabel(job: ImportJobProjectionSource): string {

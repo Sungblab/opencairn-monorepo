@@ -135,6 +135,62 @@ describe("agentic plan service", () => {
     });
   });
 
+  it("expands planner evidence from the target note to related notes", async () => {
+    const repo = createMemoryAgenticPlanRepo();
+    const hydratedNoteIds: string[] = [];
+
+    const plan = await createAgenticPlan(
+      projectId,
+      userId,
+      {
+        goal: "Run librarian agent",
+        target: { noteId: exportObjectId },
+      },
+      {
+        repo,
+        canWriteProject: async () => true,
+        resolvePlannerEvidenceNoteIds: async (_projectId, noteId) => [
+          noteId,
+          secondNoteId,
+        ],
+        hydrateNoteEvidence: async (_projectId, noteId) => {
+          hydratedNoteIds.push(noteId);
+          return {
+            evidenceFreshnessStatus: "fresh",
+            staleEvidenceBlocks: false,
+            evidenceRefs: [
+              {
+                type: "note_analysis_job",
+                noteId,
+                jobId:
+                  noteId === secondNoteId
+                    ? "00000000-0000-4000-8000-000000000051"
+                    : "00000000-0000-4000-8000-000000000050",
+                contentHash:
+                  noteId === secondNoteId ? "hash-related" : "hash-target",
+                analysisVersion: noteId === secondNoteId ? 2 : 3,
+              },
+            ],
+          };
+        },
+      },
+    );
+
+    expect(hydratedNoteIds).toEqual([exportObjectId, secondNoteId]);
+    expect(plan.steps[0]?.evidenceRefs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          noteId: exportObjectId,
+          contentHash: "hash-target",
+        }),
+        expect.objectContaining({
+          noteId: secondNoteId,
+          contentHash: "hash-related",
+        }),
+      ]),
+    );
+  });
+
   it("stores valid model-backed planner output as a model plan", async () => {
     const repo = createMemoryAgenticPlanRepo();
     const planner = createModelAgenticPlanPlanner({

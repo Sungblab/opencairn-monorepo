@@ -274,6 +274,87 @@ describe("workflow console contracts", () => {
     });
   });
 
+  it("projects step recovery policy candidates for blocked evidence issues", () => {
+    const run = workflowConsoleRunFromAgenticPlan({
+      id: "00000000-0000-4000-8000-000000000034",
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Recover evidence issues",
+      goal: "Recover evidence issues",
+      status: "blocked",
+      target: {
+        workspaceId,
+        projectId,
+      },
+      plannerKind: "deterministic",
+      summary: "2-step deterministic plan",
+      currentStepOrdinal: 1,
+      steps: [
+        {
+          id: "00000000-0000-4000-8000-000000000035",
+          planId: "00000000-0000-4000-8000-000000000034",
+          ordinal: 1,
+          kind: "agent.run",
+          title: "Run librarian",
+          rationale: "Needs fresh note context.",
+          status: "blocked",
+          risk: "write",
+          input: { agentName: "librarian" },
+          evidenceRefs: [],
+          evidenceFreshnessStatus: "stale",
+          staleEvidenceBlocks: true,
+          verificationStatus: "blocked",
+          recoveryCode: "stale_context",
+          retryCount: 0,
+          errorCode: "stale_context",
+          createdAt,
+          updatedAt,
+          completedAt: null,
+        },
+        {
+          id: "00000000-0000-4000-8000-000000000036",
+          planId: "00000000-0000-4000-8000-000000000034",
+          ordinal: 2,
+          kind: "file.export",
+          title: "Export file",
+          rationale: "Missing source must not retry autonomously.",
+          status: "blocked",
+          risk: "external",
+          input: {},
+          evidenceRefs: [],
+          evidenceFreshnessStatus: "missing",
+          staleEvidenceBlocks: true,
+          verificationStatus: "blocked",
+          recoveryCode: "missing_source",
+          retryCount: 0,
+          errorCode: "missing_source",
+          createdAt,
+          updatedAt,
+          completedAt: null,
+        },
+      ],
+      createdAt,
+      updatedAt,
+      completedAt: null,
+    });
+
+    expect(run.outputs[0]?.metadata).toMatchObject({
+      recoveryPolicies: [
+        {
+          stepKind: "agent.run",
+          recoveryCode: "stale_context",
+          allowedStrategies: ["retry", "manual_review", "cancel"],
+        },
+        {
+          stepKind: "file.export",
+          recoveryCode: "missing_source",
+          allowedStrategies: ["manual_review", "cancel"],
+        },
+      ],
+    });
+  });
+
   it("projects completed static code preview actions as preview outputs", () => {
     const run = workflowConsoleRunFromAgentAction({
       id: "00000000-0000-4000-8000-000000000023",
