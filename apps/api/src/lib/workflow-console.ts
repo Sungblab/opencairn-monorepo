@@ -30,7 +30,11 @@ import {
   type WorkflowConsoleRun,
   type WorkflowConsoleStatus,
 } from "@opencairn/shared";
-import { createDrizzleAgenticPlanRepository } from "./agentic-plans";
+import {
+  createDrizzleAgenticPlanRepository,
+  getAgenticPlan,
+  listAgenticPlans,
+} from "./agentic-plans";
 
 export interface WorkflowConsoleRepository {
   findProjectScope(projectId: string): Promise<{ workspaceId: string } | null>;
@@ -169,9 +173,12 @@ export function createDrizzleWorkflowConsoleRepository(
         .limit(limit);
       return rows.map(toAgentActionProjection);
     },
-    async listAgenticPlansByProject({ projectId, limit }) {
+    async listAgenticPlansByProject({ projectId, userId, limit }) {
       const repo = createDrizzleAgenticPlanRepository(conn);
-      return repo.listByProject({ projectId, limit });
+      return listAgenticPlans(projectId, userId, { limit }, {
+        repo,
+        canReadProject: async () => true,
+      });
     },
     async listPlan8RunsByProject({ projectId, userId, limit }) {
       const rows = await conn
@@ -267,9 +274,12 @@ export function createDrizzleWorkflowConsoleRepository(
         .limit(1);
       return row ? toAgentActionProjection(row) : null;
     },
-    async getAgenticPlanById({ planId, projectId }) {
+    async getAgenticPlanById({ planId, projectId, userId }) {
       const repo = createDrizzleAgenticPlanRepository(conn);
-      return repo.findById({ projectId, planId });
+      return getAgenticPlan(projectId, userId, planId, {
+        repo,
+        canReadProject: async () => true,
+      });
     },
     async getPlan8RunById({ runId, projectId, userId }) {
       const [row] = await conn
