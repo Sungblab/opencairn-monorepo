@@ -1046,8 +1046,10 @@ async function refreshStepEvidenceBeforeStart(
   options?: AgenticPlanServiceOptions,
 ): Promise<AgenticPlanStep> {
   const noteIds = noteIdsFromEvidenceRefs(step.evidenceRefs ?? []);
-  if (noteIds.length !== 1) return step;
-  const hydration = await hydrateNoteEvidence(projectId, noteIds[0]!, options);
+  if (noteIds.length === 0) return step;
+  const hydration = combineNoteEvidenceHydrations(
+    await Promise.all(noteIds.map((noteId) => hydrateNoteEvidence(projectId, noteId, options))),
+  );
   if (!stepEvidenceChanged(step, hydration)) return step;
   await repo.updateStep({
     planId,
@@ -1188,13 +1190,52 @@ function noteIdsFromEvidenceRefs(refs: AgenticPlanStepEvidenceRef[]): string[] {
   return [...new Set(refs.map((ref) => ref.noteId))];
 }
 
+function combineNoteEvidenceHydrations(hydrations: NoteEvidenceHydration[]): NoteEvidenceHydration {
+  return {
+    evidenceRefs: hydrations.flatMap((hydration) => hydration.evidenceRefs),
+    evidenceFreshnessStatus: combinedEvidenceFreshnessStatus(hydrations),
+    staleEvidenceBlocks: hydrations.some((hydration) => hydration.staleEvidenceBlocks),
+  };
+}
+
+function combinedEvidenceFreshnessStatus(
+  hydrations: NoteEvidenceHydration[],
+): AgenticPlanEvidenceFreshnessStatus {
+  if (hydrations.some((hydration) => hydration.evidenceFreshnessStatus === "missing")) return "missing";
+  if (hydrations.some((hydration) => hydration.evidenceFreshnessStatus === "stale")) return "stale";
+  if (hydrations.some((hydration) => hydration.evidenceFreshnessStatus === "unknown")) return "unknown";
+  return "fresh";
+}
+
 function stepEvidenceChanged(
   step: AgenticPlanStep,
   hydration: NoteEvidenceHydration,
 ): boolean {
-  return JSON.stringify(step.evidenceRefs ?? []) !== JSON.stringify(hydration.evidenceRefs)
+  return !jsonValueEqual(step.evidenceRefs ?? [], hydration.evidenceRefs)
     || (step.evidenceFreshnessStatus ?? "unknown") !== hydration.evidenceFreshnessStatus
     || Boolean(step.staleEvidenceBlocks) !== hydration.staleEvidenceBlocks;
+}
+
+function jsonValueEqual(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+    return left.every((item, index) => jsonValueEqual(item, right[index]));
+  }
+  if (
+    left == null
+    || right == null
+    || typeof left !== "object"
+    || typeof right !== "object"
+  ) {
+    return false;
+  }
+  const leftRecord = left as Record<string, unknown>;
+  const rightRecord = right as Record<string, unknown>;
+  const leftKeys = Object.keys(leftRecord).sort();
+  const rightKeys = Object.keys(rightRecord).sort();
+  if (!jsonValueEqual(leftKeys, rightKeys)) return false;
+  return leftKeys.every((key) => jsonValueEqual(leftRecord[key], rightRecord[key]));
 }
 
 function recoveryStepForRequest(

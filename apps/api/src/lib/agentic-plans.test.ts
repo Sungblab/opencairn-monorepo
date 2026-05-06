@@ -19,6 +19,7 @@ import {
 
 const userId = "user-1";
 const exportObjectId = "00000000-0000-4000-8000-000000000010";
+const secondNoteId = "00000000-0000-4000-8000-000000000011";
 const actionId = "00000000-0000-4000-8000-000000000020";
 const importJobId = "00000000-0000-4000-8000-000000000030";
 const retryJobId = "00000000-0000-4000-8000-000000000031";
@@ -397,6 +398,95 @@ describe("agentic plan service", () => {
           jobId: completedJobId,
           contentHash: "hash-new",
           analysisVersion: 2,
+        }),
+      ],
+    });
+  });
+
+  it("refreshes multi-note evidence in parallel before starting a step", async () => {
+    const repo = createMemoryAgenticPlanRepo();
+    const hydrateCalls: string[] = [];
+    const plan = await repo.insertPlan({
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Run librarian from multiple notes",
+      goal: "Run librarian from multiple notes",
+      status: "approval_required",
+      target: { workspaceId, projectId },
+      plannerKind: "deterministic",
+      summary: "1-step deterministic plan: agent.run",
+      currentStepOrdinal: 1,
+      steps: [
+        {
+          kind: "agent.run",
+          title: "Run librarian",
+          rationale: "This run depends on multiple mutable notes.",
+          risk: "write",
+          input: { agentName: "librarian" },
+          evidenceRefs: [
+            {
+              type: "note_analysis_job",
+              noteId: exportObjectId,
+              jobId: "00000000-0000-4000-8000-000000000050",
+              contentHash: "hash-old-a",
+              analysisVersion: 1,
+            },
+            {
+              type: "note_analysis_job",
+              noteId: secondNoteId,
+              jobId: "00000000-0000-4000-8000-000000000051",
+              contentHash: "hash-old-b",
+              analysisVersion: 1,
+            },
+          ],
+          evidenceFreshnessStatus: "fresh",
+          staleEvidenceBlocks: false,
+        },
+      ],
+    });
+
+    const started = await startAgenticPlan(projectId, userId, plan.id, {}, {
+      repo,
+      canReadProject: async () => true,
+      canWriteProject: async () => true,
+      hydrateNoteEvidence: async (_projectId, noteId) => {
+        hydrateCalls.push(noteId);
+        return {
+          evidenceFreshnessStatus: noteId === secondNoteId ? "stale" : "fresh",
+          staleEvidenceBlocks: noteId === secondNoteId,
+          evidenceRefs: [
+            {
+              type: "note_analysis_job",
+              noteId,
+              jobId: noteId === secondNoteId
+                ? "00000000-0000-4000-8000-000000000053"
+                : "00000000-0000-4000-8000-000000000052",
+              contentHash: noteId === secondNoteId ? "hash-stale-b" : "hash-fresh-a",
+              analysisVersion: noteId === secondNoteId ? 1 : 2,
+            },
+          ],
+        };
+      },
+      runPlan8Agent: async () => {
+        throw new Error("stale evidence should block before Plan8 run");
+      },
+    });
+
+    expect(hydrateCalls.sort()).toEqual([exportObjectId, secondNoteId].sort());
+    expect(started.steps[0]).toMatchObject({
+      status: "blocked",
+      evidenceFreshnessStatus: "stale",
+      staleEvidenceBlocks: true,
+      recoveryCode: "stale_context",
+      evidenceRefs: [
+        expect.objectContaining({
+          noteId: exportObjectId,
+          contentHash: "hash-fresh-a",
+        }),
+        expect.objectContaining({
+          noteId: secondNoteId,
+          contentHash: "hash-stale-b",
         }),
       ],
     });
