@@ -7,6 +7,7 @@ settings:
 overrides:
   '@esbuild-kit/core-utils>esbuild': 0.25.12
   dompurify: ^3.4.0
+  ip-address: 10.1.1
   postcss: ^8.5.10
   uuid: 14.0.0
 
@@ -44,15 +45,15 @@ importers:
       '@opencairn/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@slate-yjs/core':
-        specifier: ^1.0.2
-        version: 1.0.2(slate@0.124.1)(yjs@13.6.30)
       '@react-email/render':
         specifier: ^2.0.8
         version: 2.0.8(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       '@sentry/node':
         specifier: ^10.51.0
         version: 10.51.0
+      '@slate-yjs/core':
+        specifier: ^1.0.2
+        version: 1.0.2(slate@0.124.1)(yjs@13.6.30)
       '@temporalio/client':
         specifier: ^1.17.0
         version: 1.17.0
@@ -5222,8 +5223,8 @@ packages:
     resolution: {integrity: sha512-HuEDBTI70aYdx1v6U97SbNx9F1+svQKBDo30o0b9fw055LMepzpOOd0Ccg9Q6tbqmBSJaMuY0fB7yw9/vjBYCA==}
     engines: {node: '>=12.22.0'}
 
-  ip-address@10.1.0:
-    resolution: {integrity: sha512-XXADHxXmvT9+CRxhXg56LJovE+bmWnEWB78LB83VZTprKTmaC5QfruXocxzTZ2Kl0DNwKuBdlIhjL8LeY8Sf8Q==}
+  ip-address@10.1.1:
+    resolution: {integrity: sha512-1FMu8/N15Ck1BL551Jf42NYIoin2unWjLQ2Fze/DXryJRl5twqtwNHlO39qERGbIOcKYWHdgRryhOC+NG4eaLw==}
     engines: {node: '>= 12'}
 
   ipaddr.js@1.9.1:
@@ -11733,7 +11734,7 @@ snapshots:
   express-rate-limit@8.4.1(express@5.2.1):
     dependencies:
       express: 5.2.1
-      ip-address: 10.1.0
+      ip-address: 10.1.1
 
   express@5.2.1:
     dependencies:
@@ -12249,7 +12250,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  ip-address@10.1.0: {}
+  ip-address@10.1.1: {}
 
   ipaddr.js@1.9.1: {}
 
