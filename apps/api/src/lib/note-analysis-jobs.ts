@@ -169,6 +169,47 @@ export async function runNoteAnalysisJob(
         return false;
       }
 
+      const [latestNote] = await tx
+        .select()
+        .from(notes)
+        .where(eq(notes.id, runningJob.noteId))
+        .for("update")
+        .limit(1);
+      const [latestDoc] = await tx
+        .select({ stateVector: yjsDocuments.stateVector })
+        .from(yjsDocuments)
+        .where(eq(yjsDocuments.name, `page:${runningJob.noteId}`))
+        .for("update")
+        .limit(1);
+      const latestVector = latestDoc?.stateVector ?? null;
+      if (
+        !latestNote ||
+        computeNoteAnalysisContentHash(latestNote) !== runningJob.contentHash ||
+        !sameBytes(latestVector, runningJob.yjsStateVector)
+      ) {
+        if (latestNote) {
+          await tx
+            .update(noteAnalysisJobs)
+            .set({
+              workspaceId: latestNote.workspaceId,
+              projectId: latestNote.projectId,
+              contentHash: computeNoteAnalysisContentHash(latestNote),
+              yjsStateVector: latestVector,
+              analysisVersion: incrementNoteAnalysisVersion,
+              status: "queued",
+              runAfter: now,
+              lastQueuedAt: now,
+              lastStartedAt: null,
+              lastCompletedAt: null,
+              errorCode: "stale_context",
+              errorMessage: "Note content changed before analysis could commit.",
+              updatedAt: now,
+            })
+            .where(eq(noteAnalysisJobs.noteId, runningJob.noteId));
+        }
+        return false;
+      }
+
       await tx.delete(noteChunks).where(eq(noteChunks.noteId, runningJob.noteId));
       if (rows.length > 0) {
         await tx.insert(noteChunks).values(rows);
