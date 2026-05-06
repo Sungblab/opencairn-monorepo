@@ -13,12 +13,17 @@ import shlex
 import tempfile
 from asyncio import create_subprocess_exec, wait_for
 from collections.abc import Awaitable, Callable
+from inspect import isawaitable
 from pathlib import Path, PurePosixPath
 from subprocess import PIPE
 from time import monotonic
 from typing import Any
 
 from temporalio import activity
+
+CODE_WORKSPACE_MAX_DEPTH = 16
+CODE_WORKSPACE_MAX_ENTRIES = 2000
+CODE_WORKSPACE_MAX_PATH_LENGTH = 512
 
 APPROVED_COMMANDS: dict[str, list[str]] = {
     "lint": ["pnpm", "run", "lint", "--if-present"],
@@ -74,10 +79,13 @@ class DockerCodeWorkspaceCommandExecutor:
             "/workspace",
             self.image,
             "sh",
-            "-lc",
+            "-c",
             command,
         ]
-        process = await self.process_factory(*docker_argv, stdout=PIPE, stderr=PIPE)
+        try:
+            process = await self.process_factory(*docker_argv, stdout=PIPE, stderr=PIPE)
+        except OSError as exc:
+            raise CodeWorkspaceCommandError("code_command_executor_failed") from exc
         try:
             stdout_bytes, stderr_bytes = await wait_for(
                 process.communicate(),
@@ -87,6 +95,11 @@ class DockerCodeWorkspaceCommandExecutor:
             kill = getattr(process, "kill", None)
             if callable(kill):
                 kill()
+            wait = getattr(process, "wait", None)
+            if callable(wait):
+                wait_result = wait()
+                if isawaitable(wait_result):
+                    await wait_result
             raise CodeWorkspaceCommandError("code_command_timeout") from exc
         return {
             "exitCode": int(process.returncode),
@@ -126,7 +139,12 @@ async def run_code_workspace_command(
         raw = await runner(argv=list(argv), cwd=root, timeout_ms=timeout_ms)
 
     exit_code = int(raw.get("exitCode", 1))
-    duration_ms = int(raw.get("durationMs") or ((monotonic() - start) * 1000))
+    duration_ms_raw = raw.get("durationMs")
+    duration_ms = (
+        int(duration_ms_raw)
+        if duration_ms_raw is not None
+        else int((monotonic() - start) * 1000)
+    )
     logs = _logs_from_executor(raw)
     return {
         "ok": exit_code == 0,
@@ -161,6 +179,8 @@ def _materialize_manifest(root: Path, manifest: Any) -> None:
     entries = manifest.get("entries")
     if not isinstance(entries, list):
         raise CodeWorkspaceCommandError("code_workspace_manifest_entries_required")
+    if len(entries) > CODE_WORKSPACE_MAX_ENTRIES:
+        raise CodeWorkspaceCommandError("code_workspace_manifest_entries_exceeded")
 
     for entry in entries:
         if not isinstance(entry, dict):
@@ -182,11 +202,16 @@ def _materialize_manifest(root: Path, manifest: Any) -> None:
 
 
 def _safe_target(root: Path, raw_path: str) -> Path:
-    path = PurePosixPath(raw_path.strip())
-    if not raw_path.strip() or path.is_absolute():
+    stripped = raw_path.strip()
+    path = PurePosixPath(stripped)
+    if not stripped or path.is_absolute():
         raise CodeWorkspaceCommandError("code_workspace_path_invalid")
+    if len(stripped) > CODE_WORKSPACE_MAX_PATH_LENGTH:
+        raise CodeWorkspaceCommandError("code_workspace_path_length_exceeded")
     if any(part in {"", ".", ".."} for part in path.parts):
         raise CodeWorkspaceCommandError("code_workspace_path_traversal")
+    if len(path.parts) > CODE_WORKSPACE_MAX_DEPTH:
+        raise CodeWorkspaceCommandError("code_workspace_path_depth_exceeded")
     if "\\" in raw_path or _has_windows_drive(raw_path):
         raise CodeWorkspaceCommandError("code_workspace_path_invalid")
 
@@ -199,7 +224,7 @@ def _safe_target(root: Path, raw_path: str) -> Path:
 
 
 def _has_windows_drive(path: str) -> bool:
-    return len(path) >= 3 and path[1] == ":" and path[0].isalpha() and path[2] in {"/", "\\"}
+    return len(path) >= 2 and path[1] == ":" and path[0].isalpha()
 
 
 def _container_shell_command(argv: list[str]) -> str:

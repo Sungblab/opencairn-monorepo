@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { AgentActionError } from "./agent-actions";
 import {
@@ -46,6 +46,10 @@ describe("code project workspace service", () => {
       "src",
       "src/App.tsx",
     ]);
+    const canonical = "directory:src:|file:src/App.tsx:sha256:app";
+    expect(first.snapshot.treeHash).toBe(
+      `sha256:${createHash("sha256").update(canonical, "utf8").digest("base64url")}`,
+    );
   });
 
   it("rejects caller scope fields before writing storage", async () => {

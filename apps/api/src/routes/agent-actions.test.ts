@@ -477,7 +477,7 @@ describe("agent action routes", () => {
         approval: "dependency_install",
         packageManager: "pnpm",
         network: "required",
-        summary: "Install @vitejs/plugin-react with pnpm",
+        summary: "Install @vitejs/plugin-react (dev) with pnpm",
       },
     });
   });

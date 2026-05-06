@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   and,
   codeWorkspaceFileEntries,
@@ -707,5 +707,5 @@ function treeHashForManifest(manifest: CodeWorkspaceManifest): string {
     .map((entry) => `${entry.kind}:${entry.path}:${"contentHash" in entry ? entry.contentHash : ""}`)
     .sort()
     .join("|");
-  return `sha256:${Buffer.from(canonical).toString("base64url")}`;
+  return `sha256:${createHash("sha256").update(canonical, "utf8").digest("base64url")}`;
 }

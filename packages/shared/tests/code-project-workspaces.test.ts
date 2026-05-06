@@ -55,6 +55,7 @@ describe("code project workspace contracts", () => {
     expect(() => normalizeCodeWorkspacePath("../secret.txt")).toThrow(/path_cannot_traverse/);
     expect(() => normalizeCodeWorkspacePath("/absolute.txt")).toThrow(/path_must_be_relative/);
     expect(() => normalizeCodeWorkspacePath("C:/temp/file.txt")).toThrow(/path_must_not_include_drive_letter/);
+    expect(() => normalizeCodeWorkspacePath("C:temp/file.txt")).toThrow(/path_must_not_include_drive_letter/);
 
     expect(() =>
       codeWorkspaceManifestSchema.parse({
