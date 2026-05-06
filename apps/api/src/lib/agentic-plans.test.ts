@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AgentAction } from "@opencairn/shared";
 import {
   createAgenticPlan,
+  createModelAgenticPlanPlanner,
   getAgenticPlan,
   listAgenticPlans,
   recordAgenticPlanHandoff,
@@ -9,6 +10,7 @@ import {
   planStepsForGoal,
   startAgenticPlan,
 } from "./agentic-plans";
+import type { LLMProvider, StreamChunk } from "./llm/provider";
 import {
   createMemoryAgenticPlanRepo,
   projectId,
@@ -85,6 +87,90 @@ describe("agentic plan service", () => {
         },
       }),
     ]);
+  });
+
+  it("stores valid model-backed planner output as a model plan", async () => {
+    const repo = createMemoryAgenticPlanRepo();
+    const planner = createModelAgenticPlanPlanner({
+      provider: fakePlannerProvider({
+        summary: "Model plan: run an existing project agent.",
+        steps: [
+          {
+            kind: "agent.run",
+            title: "Run librarian",
+            rationale: "The project needs a graph maintenance pass.",
+            risk: "write",
+            input: {
+              agentName: "librarian",
+            },
+          },
+        ],
+      }),
+    });
+
+    const plan = await createAgenticPlan(
+      projectId,
+      userId,
+      { goal: "Clean up the project knowledge graph with the librarian agent" },
+      { repo, canWriteProject: async () => true, planner },
+    );
+
+    expect(plan).toMatchObject({
+      plannerKind: "model",
+      summary: "Model plan: run an existing project agent.",
+      steps: [
+        expect.objectContaining({
+          kind: "agent.run",
+          title: "Run librarian",
+          risk: "write",
+          input: {
+            agentName: "librarian",
+          },
+        }),
+      ],
+    });
+  });
+
+  it("converts unsafe model executable steps into manual review steps", async () => {
+    const repo = createMemoryAgenticPlanRepo();
+    const planner = createModelAgenticPlanPlanner({
+      provider: fakePlannerProvider({
+        summary: "Model plan with unsafe scope injection.",
+        steps: [
+          {
+            kind: "note.review_update",
+            title: "Patch note directly",
+            rationale: "The model tried to edit a note with incomplete input.",
+            risk: "write",
+            input: {
+              noteId: exportObjectId,
+              workspaceId,
+            },
+          },
+        ],
+      }),
+    });
+
+    const plan = await createAgenticPlan(
+      projectId,
+      userId,
+      { goal: "Update the selected note safely" },
+      { repo, canWriteProject: async () => true, planner },
+    );
+
+    expect(plan).toMatchObject({
+      plannerKind: "model",
+      steps: [
+        expect.objectContaining({
+          kind: "manual.review",
+          title: "Review unsafe model plan step",
+          risk: "low",
+          input: {
+            rejectedKind: "note.review_update",
+          },
+        }),
+      ],
+    });
   });
 
   it("recovery retry appends a new step without deleting the failed step", async () => {
@@ -818,5 +904,17 @@ function agentAction(overrides: Partial<AgentAction> = {}): AgentAction {
     createdAt: now,
     updatedAt: now,
     ...overrides,
+  };
+}
+
+function fakePlannerProvider(payload: unknown): LLMProvider {
+  return {
+    async embed() {
+      return [];
+    },
+    async *streamGenerate(): AsyncGenerator<StreamChunk> {
+      yield { delta: JSON.stringify(payload) };
+      yield { usage: { tokensIn: 1, tokensOut: 1, model: "test-planner" } };
+    },
   };
 }

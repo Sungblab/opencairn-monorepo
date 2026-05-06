@@ -80,6 +80,16 @@ describe("agentic plan contracts", () => {
     });
   });
 
+  it("accepts model-backed planner kind", () => {
+    const plan = agenticPlanSchema.parse({
+      ...planFixture(),
+      plannerKind: "model",
+      summary: "1-step model plan.",
+    });
+
+    expect(plan.plannerKind).toBe("model");
+  });
+
   it("rejects unknown step kinds", () => {
     expect(() => agenticPlanStepKindSchema.parse("unknown.step")).toThrow();
   });
