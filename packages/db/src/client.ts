@@ -12,6 +12,7 @@ import * as folders from "./schema/folders";
 import * as tags from "./schema/tags";
 import * as notes from "./schema/notes";
 import * as noteChunks from "./schema/note-chunks";
+import * as noteAnalysisJobs from "./schema/note-analysis-jobs";
 import * as concepts from "./schema/concepts";
 import * as evidence from "./schema/evidence";
 import * as wikiLogs from "./schema/wiki-logs";
@@ -49,6 +50,7 @@ const schema = {
   ...tags,
   ...notes,
   ...noteChunks,
+  ...noteAnalysisJobs,
   ...concepts,
   ...evidence,
   ...wikiLogs,

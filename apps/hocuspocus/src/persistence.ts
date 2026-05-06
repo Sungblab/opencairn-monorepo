@@ -274,6 +274,10 @@ export function makePersistence({ db }: PersistenceDeps): Persistence {
         title: noteTitle,
         contentText,
         deletedAt: noteRow.deletedAt,
+      }, {
+        debounceMs: 30_000,
+        runInline: false,
+        yjsStateVector: stateVector,
       }).catch((error) => {
         logger.warn(
           { noteId, error },

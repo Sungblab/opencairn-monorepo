@@ -13,6 +13,7 @@ export * from "./schema/folders";
 export * from "./schema/tags";
 export * from "./schema/notes";
 export * from "./schema/note-chunks";
+export * from "./schema/note-analysis-jobs";
 export * from "./schema/concepts";
 export * from "./schema/evidence";
 export * from "./schema/wiki-logs";
