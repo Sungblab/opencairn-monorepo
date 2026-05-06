@@ -28,6 +28,23 @@ from .errors import ProviderFatalError, ProviderRetryableError
 from .interactions import InteractionEvent, InteractionHandle, InteractionState
 from .tool_types import AssistantTurn, ToolResult, ToolUse, UsageCounts
 
+GeminiServiceTier = Literal["standard", "flex", "priority"]
+_GEMINI_SERVICE_TIERS: set[GeminiServiceTier] = {"standard", "flex", "priority"}
+
+
+def normalise_gemini_service_tier(raw: str | None) -> GeminiServiceTier | None:
+    if raw is None:
+        return None
+    tier = raw.strip().lower()
+    if not tier:
+        return None
+    if tier not in _GEMINI_SERVICE_TIERS:
+        raise ValueError(
+            f"Invalid Gemini service tier: {raw}. Expected standard, flex, or priority."
+        )
+    return tier  # type: ignore[return-value]
+
+
 # Gemini ``JobState`` enum → our normalised strings. Keys are the enum
 # ``.value`` (e.g. ``"JOB_STATE_SUCCEEDED"``) so we can tolerate both the
 # enum object and a raw string without importing the SDK enum at runtime.
@@ -181,7 +198,17 @@ class GeminiProvider(LLMProvider):
 
     def __init__(self, config: ProviderConfig) -> None:
         super().__init__(config)
+        self.config.service_tier = normalise_gemini_service_tier(config.service_tier)
         self._client = genai.Client(api_key=config.api_key)
+
+    def _generate_config(self, **kwargs: Any):
+        if self.config.service_tier is not None and "service_tier" not in kwargs:
+            kwargs["service_tier"] = self.config.service_tier
+        return types.GenerateContentConfig(**kwargs) if kwargs else None
+
+    def _generate_config_call_kwargs(self, **kwargs: Any) -> dict[str, Any]:
+        config = self._generate_config(**kwargs)
+        return {"config": config} if config is not None else {}
 
     async def generate(self, messages: list[dict], **kwargs) -> str:
         """Plain-text chat completion.
@@ -202,6 +229,7 @@ class GeminiProvider(LLMProvider):
             "response_json_schema",
             "response_mime_type",
             "response_schema",
+            "service_tier",
             "system_instruction",
             "temperature",
             "thinking_config",
@@ -216,8 +244,9 @@ class GeminiProvider(LLMProvider):
         if system_instruction and "system_instruction" not in config_kwargs:
             config_kwargs["system_instruction"] = system_instruction
         call_kwargs: dict = dict(kwargs)
-        if config_kwargs:
-            call_kwargs["config"] = types.GenerateContentConfig(**config_kwargs)
+        config = self._generate_config(**config_kwargs)
+        if config is not None:
+            call_kwargs["config"] = config
         response = await self._client.aio.models.generate_content(
             model=self.config.model,
             contents=contents,
@@ -293,7 +322,7 @@ class GeminiProvider(LLMProvider):
         response = await self._client.aio.models.generate_content(
             model=self.config.model,
             contents=prompt,
-            config=types.GenerateContentConfig(
+            config=self._generate_config(
                 thinking_config=types.ThinkingConfig(**thinking_kwargs)
             ),
         )
@@ -313,7 +342,7 @@ class GeminiProvider(LLMProvider):
         response = await self._client.aio.models.generate_content(
             model=self.config.model,
             contents=query,
-            config=types.GenerateContentConfig(
+            config=self._generate_config(
                 tools=[types.Tool(google_search=types.GoogleSearch())]
             ),
         )
@@ -335,7 +364,7 @@ class GeminiProvider(LLMProvider):
         response = await self._client.aio.models.generate_content(
             model=tts_model,
             contents=text,
-            config=types.GenerateContentConfig(
+            config=self._generate_config(
                 response_modalities=["AUDIO"],
                 speech_config=types.SpeechConfig(
                     voice_config=types.VoiceConfig(
@@ -361,6 +390,7 @@ class GeminiProvider(LLMProvider):
                     text="Transcribe this audio accurately. Return only the transcript text."
                 ),
             ],
+            **self._generate_config_call_kwargs(),
         )
         return response.text
 
@@ -385,6 +415,7 @@ class GeminiProvider(LLMProvider):
                     )
                 ),
             ],
+            **self._generate_config_call_kwargs(),
         )
         return response.text or ""
 
@@ -416,6 +447,7 @@ class GeminiProvider(LLMProvider):
         response = await self._client.aio.models.generate_content(
             model=self.config.model,
             contents=parts,
+            **self._generate_config_call_kwargs(),
         )
         return response.text
 
@@ -626,7 +658,7 @@ class GeminiProvider(LLMProvider):
         if system_instruction and "system_instruction" not in config_kwargs:
             config_kwargs["system_instruction"] = system_instruction
 
-        config = types.GenerateContentConfig(**config_kwargs)
+        config = self._generate_config(**config_kwargs)
 
         try:
             response = await self._client.aio.models.generate_content(
@@ -737,6 +769,8 @@ class GeminiProvider(LLMProvider):
         }
         if previous_interaction_id is not None:
             kwargs["previous_interaction_id"] = previous_interaction_id
+        if self.config.service_tier is not None:
+            kwargs["service_tier"] = self.config.service_tier
 
         resp = await self._client.aio.interactions.create(**kwargs)
         return InteractionHandle(

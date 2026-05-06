@@ -5,7 +5,7 @@ worker, API, and web surfaces.
 
 | Provider | Worker surface | API surface | Web/product surface |
 | --- | --- | --- | --- |
-| Gemini | Native `google.genai` provider for chat, embeddings, tool calls, OCR, batch embedding plumbing, context-cache plumbing, and Deep Research Interactions. | Native API chat provider with Gemini streaming and embeddings. | Chat and Deep Research product flows consume API/worker outputs. Deep Research is Gemini-only. |
+| Gemini | Native `google.genai` provider for chat, embeddings, tool calls, OCR, batch embedding plumbing, context-cache plumbing, Deep Research Interactions, and optional `GEMINI_SERVICE_TIER` inference routing. | Native API chat provider with Gemini streaming, embeddings, and optional `GEMINI_CHAT_SERVICE_TIER` / `GEMINI_SERVICE_TIER` inference routing. | Chat and Deep Research product flows consume API/worker outputs. Deep Research is Gemini-only. Service tiers are deployment-level knobs, not per-user product routing. |
 | `openai_compatible` | Direct `httpx` adapter for `/v1/chat/completions` and `/v1/embeddings`, including OpenAI-style tool calls when the compatible server supports them. | `fetch` adapter for `/v1/chat/completions` streaming and `/v1/embeddings`. | Available only through deployment environment selection. It is not a native OpenAI Responses API provider. |
 | Native Ollama | Direct Ollama API provider for `/api/chat`, `/api/embed`, `/api/generate`, and Ollama tool calling with `message.tool_calls` plus `role: tool` / `tool_name` results. | No native Ollama API chat provider. API chat can target Ollama through `openai_compatible` by pointing `OPENAI_COMPAT_BASE_URL` at Ollama's `/v1` endpoint. | No separate web provider surface. |
 
@@ -20,6 +20,8 @@ worker, API, and web surfaces.
 - Default multimodal Gemini Embedding 2.
 - Always-on Gemini Batch API embedding. Batch requires explicit flags and input
   thresholds.
+- Automatic Gemini Flex/Priority routing by workload, tenant, billing plan, or
+  UI action. Current service-tier support is provider-level configuration only.
 
 ## Compatibility Rules
 

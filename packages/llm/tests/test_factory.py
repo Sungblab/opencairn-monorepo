@@ -74,6 +74,26 @@ def test_get_provider_from_env(monkeypatch):
     assert isinstance(provider, OllamaProvider)
 
 
+def test_get_provider_gemini_reads_service_tier_from_env(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_MODEL", "gemini-3-flash-preview")
+    monkeypatch.setenv("EMBED_MODEL", "gemini-embedding-001")
+    monkeypatch.setenv("GEMINI_SERVICE_TIER", "Flex")
+    provider = get_provider()
+    assert isinstance(provider, GeminiProvider)
+    assert provider.config.service_tier == "flex"
+
+
+def test_get_provider_gemini_rejects_invalid_service_tier_from_env(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("LLM_MODEL", "gemini-3-flash-preview")
+    monkeypatch.setenv("EMBED_MODEL", "gemini-embedding-001")
+    monkeypatch.setenv("GEMINI_SERVICE_TIER", "turbo")
+    with pytest.raises(ValueError, match="Invalid Gemini service tier"):
+        get_provider()
+
+
 def test_get_provider_openai_compatible_from_env(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "openai_compatible")
     monkeypatch.setenv("OPENAI_COMPAT_BASE_URL", "http://localhost:8000")

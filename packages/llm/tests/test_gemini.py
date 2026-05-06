@@ -48,6 +48,47 @@ async def test_generate_maps_system_messages_to_system_instruction(provider):
 
 
 @pytest.mark.asyncio
+async def test_generate_forwards_configured_service_tier(gemini_config):
+    gemini_config.service_tier = "priority"
+    provider = GeminiProvider(gemini_config)
+    mock_response = MagicMock()
+    mock_response.text = "Hello, world!"
+    with patch.object(
+        provider._client.aio.models,
+        "generate_content",
+        new=AsyncMock(return_value=mock_response),
+    ) as mocked:
+        await provider.generate([{"role": "user", "content": "hi"}])
+    config = mocked.await_args.kwargs["config"]
+    assert config.service_tier == "priority"
+
+
+@pytest.mark.asyncio
+async def test_generate_call_service_tier_overrides_config(gemini_config):
+    gemini_config.service_tier = "flex"
+    provider = GeminiProvider(gemini_config)
+    mock_response = MagicMock()
+    mock_response.text = "Hello, world!"
+    with patch.object(
+        provider._client.aio.models,
+        "generate_content",
+        new=AsyncMock(return_value=mock_response),
+    ) as mocked:
+        await provider.generate(
+            [{"role": "user", "content": "hi"}],
+            service_tier="priority",
+        )
+    config = mocked.await_args.kwargs["config"]
+    assert config.service_tier == "priority"
+
+
+def test_gemini_provider_rejects_invalid_service_tier(gemini_config):
+    gemini_config.service_tier = "turbo"  # type: ignore[assignment]
+    with pytest.raises(ValueError, match="Invalid Gemini service tier"):
+        GeminiProvider(gemini_config)
+
+
+@pytest.mark.asyncio
 async def test_embed_text_only(provider):
     mock_response = MagicMock()
     mock_response.embeddings = [MagicMock(values=[0.1, 0.2, 0.3])]
@@ -192,6 +233,25 @@ async def test_think_accepts_gemini3_thinking_level(provider):
         await provider.think("what is 2+2?", thinking_level="low")
     config = mocked.await_args.kwargs["config"]
     assert config.thinking_config.thinking_level == "LOW"
+
+
+@pytest.mark.asyncio
+async def test_think_forwards_service_tier(gemini_config):
+    gemini_config.service_tier = "flex"
+    provider = GeminiProvider(gemini_config)
+    mock_response = MagicMock()
+    mock_response.candidates = [MagicMock()]
+    mock_response.candidates[0].content.parts = [
+        MagicMock(thought=False, text="final"),
+    ]
+    with patch.object(
+        provider._client.aio.models,
+        "generate_content",
+        new=AsyncMock(return_value=mock_response),
+    ) as mocked:
+        await provider.think("what is 2+2?")
+    config = mocked.await_args.kwargs["config"]
+    assert config.service_tier == "flex"
 
 
 @pytest.mark.asyncio
@@ -352,3 +412,24 @@ async def test_ocr_sends_image_inline_data_and_returns_text(provider):
 
 def test_gemini_supports_ocr_true(provider):
     assert provider.supports_ocr() is True
+
+
+@pytest.mark.asyncio
+async def test_start_interaction_forwards_service_tier(gemini_config):
+    gemini_config.service_tier = "priority"
+    provider = GeminiProvider(gemini_config)
+    mock_interaction = MagicMock()
+    mock_interaction.id = "interactions/1"
+    mock_interaction.agent = "deep-research"
+    mock_interaction.background = True
+    with patch.object(
+        provider._client.aio.interactions,
+        "create",
+        new=AsyncMock(return_value=mock_interaction),
+    ) as mocked:
+        await provider.start_interaction(
+            input="research this",
+            agent="deep-research",
+            background=True,
+        )
+    assert mocked.await_args.kwargs["service_tier"] == "priority"

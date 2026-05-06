@@ -23,6 +23,11 @@ vi.mock("@google/genai", () => {
   }
   return {
     GoogleGenAI,
+    ServiceTier: {
+      STANDARD: "standard",
+      FLEX: "flex",
+      PRIORITY: "priority",
+    },
     ThinkingLevel: {
       LOW: "LOW",
       MEDIUM: "MEDIUM",
@@ -44,6 +49,8 @@ const originalChatModel = process.env.GEMINI_CHAT_MODEL;
 const originalGeminiEmbedModel = process.env.GEMINI_EMBED_MODEL;
 const originalEmbedModel = process.env.EMBED_MODEL;
 const originalVectorDim = process.env.VECTOR_DIM;
+const originalGeminiServiceTier = process.env.GEMINI_SERVICE_TIER;
+const originalGeminiChatServiceTier = process.env.GEMINI_CHAT_SERVICE_TIER;
 
 function restoreEnv() {
   if (originalKey === undefined) {
@@ -76,6 +83,16 @@ function restoreEnv() {
   } else {
     process.env.VECTOR_DIM = originalVectorDim;
   }
+  if (originalGeminiServiceTier === undefined) {
+    delete process.env.GEMINI_SERVICE_TIER;
+  } else {
+    process.env.GEMINI_SERVICE_TIER = originalGeminiServiceTier;
+  }
+  if (originalGeminiChatServiceTier === undefined) {
+    delete process.env.GEMINI_CHAT_SERVICE_TIER;
+  } else {
+    process.env.GEMINI_CHAT_SERVICE_TIER = originalGeminiChatServiceTier;
+  }
 }
 
 describe("getGeminiProvider", () => {
@@ -105,6 +122,12 @@ describe("getGeminiProvider", () => {
       expect(e).toBeInstanceOf(LLMNotConfiguredError);
       expect((e as LLMNotConfiguredError).code).toBe("llm_not_configured");
     }
+  });
+
+  it("rejects invalid Gemini service tier env", () => {
+    process.env.GEMINI_API_KEY = "AI" + "za-test-tier";
+    process.env.GEMINI_SERVICE_TIER = "fastest";
+    expect(() => getGeminiProvider()).toThrowError(/Invalid Gemini service tier/);
   });
 });
 
@@ -224,6 +247,7 @@ describe("GeminiProvider.groundSearch", () => {
   });
 
   it("uses Google Search grounding and returns citation metadata", async () => {
+    process.env.GEMINI_SERVICE_TIER = "priority";
     fakeGenerate.mockResolvedValue({
       text: "grounded answer",
       candidates: [{
@@ -268,6 +292,7 @@ describe("GeminiProvider.groundSearch", () => {
       contents: "latest?",
       config: {
         tools: [{ googleSearch: {} }],
+        serviceTier: "priority",
         maxOutputTokens: 512,
         thinkingConfig: { thinkingLevel: "LOW" },
         cachedContent: "cachedContents/context-1",
@@ -439,6 +464,29 @@ describe("GeminiProvider.streamGenerate", () => {
       expect.objectContaining({
         config: expect.objectContaining({
           cachedContent: "cachedContents/context-123",
+        }),
+      }),
+    );
+  });
+
+  it("forwards Gemini service tier to generateContentStream", async () => {
+    process.env.GEMINI_CHAT_SERVICE_TIER = "flex";
+    async function* one() {
+      yield { text: "ok", usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 } };
+    }
+    fakeStream.mockReturnValue(one());
+
+    const provider = getGeminiProvider();
+    for await (const _ of provider.streamGenerate({
+      messages: [{ role: "user", content: "x" }],
+    })) {
+      // drain
+    }
+
+    expect(fakeStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: expect.objectContaining({
+          serviceTier: "flex",
         }),
       }),
     );

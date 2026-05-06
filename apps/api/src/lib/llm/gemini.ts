@@ -1,4 +1,8 @@
-import { GoogleGenAI, ThinkingLevel as GeminiThinkingLevel } from "@google/genai";
+import {
+  GoogleGenAI,
+  ServiceTier as GeminiServiceTier,
+  ThinkingLevel as GeminiThinkingLevel,
+} from "@google/genai";
 import {
   LLMNotConfiguredError,
   type ChatMsg,
@@ -19,6 +23,11 @@ const GEMINI_THINKING_LEVEL: Record<ThinkingLevel, GeminiThinkingLevel> = {
   medium: GeminiThinkingLevel.MEDIUM,
   high: GeminiThinkingLevel.HIGH,
 };
+const GEMINI_SERVICE_TIER: Record<string, GeminiServiceTier> = {
+  standard: GeminiServiceTier.STANDARD,
+  flex: GeminiServiceTier.FLEX,
+  priority: GeminiServiceTier.PRIORITY,
+};
 
 function readEmbedDim(): number {
   const raw = process.env.VECTOR_DIM;
@@ -28,6 +37,18 @@ function readEmbedDim(): number {
     throw new Error(`Invalid VECTOR_DIM: ${raw}`);
   }
   return parsed;
+}
+
+function readServiceTier(): GeminiServiceTier | undefined {
+  const raw = process.env.GEMINI_CHAT_SERVICE_TIER ?? process.env.GEMINI_SERVICE_TIER;
+  if (!raw?.trim()) return undefined;
+  const tier = GEMINI_SERVICE_TIER[raw.trim().toLowerCase()];
+  if (!tier) {
+    throw new Error(
+      `Invalid Gemini service tier: ${raw}. Expected standard, flex, or priority.`,
+    );
+  }
+  return tier;
 }
 
 function isGeminiEmbedding2Model(model: string): boolean {
@@ -50,6 +71,7 @@ export function getGeminiProvider(): LLMProvider {
   const embedModel =
     process.env.GEMINI_EMBED_MODEL ?? process.env.EMBED_MODEL ?? EMBED_MODEL_DEFAULT;
   const embedDim = readEmbedDim();
+  const serviceTier = readServiceTier();
 
   return {
     async embed(text: string): Promise<number[]> {
@@ -76,6 +98,7 @@ export function getGeminiProvider(): LLMProvider {
         contents: query,
         config: {
           tools: [{ googleSearch: {} }],
+          ...(serviceTier ? { serviceTier } : {}),
           ...(opts?.maxOutputTokens ? { maxOutputTokens: opts.maxOutputTokens } : {}),
           ...(opts?.thinkingLevel
             ? { thinkingConfig: { thinkingLevel: GEMINI_THINKING_LEVEL[opts.thinkingLevel] } }
@@ -136,6 +159,7 @@ export function getGeminiProvider(): LLMProvider {
           ...(systemMsgs.length > 0
             ? { systemInstruction: systemMsgs.map((m) => m.content).join("\n\n") }
             : {}),
+          ...(serviceTier ? { serviceTier } : {}),
           ...(maxOutputTokens ? { maxOutputTokens } : {}),
           ...(temperature !== undefined ? { temperature } : {}),
           ...(thinkingLevel

@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 
 from .base import LLMProvider, ProviderConfig
-from .gemini import GeminiProvider
+from .gemini import GeminiProvider, normalise_gemini_service_tier
 from .openai_compatible import OpenAICompatibleProvider
 from .ollama import OllamaProvider
 
@@ -58,6 +58,11 @@ def get_provider(config: ProviderConfig | None = None) -> LLMProvider:
                 embed_model=os.environ["EMBED_MODEL"],
                 tts_model=os.getenv("TTS_MODEL"),
                 base_url=os.getenv("OLLAMA_BASE_URL"),
+                service_tier=(
+                    normalise_gemini_service_tier(os.getenv("GEMINI_SERVICE_TIER"))
+                    if provider == "gemini"
+                    else None
+                ),
             )
     match config.provider:
         case "gemini":

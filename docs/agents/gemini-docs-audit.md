@@ -9,6 +9,7 @@ review log; private implementation history stays outside the public docs.
 | --- | --- | --- |
 | Chat generation | `packages/llm/src/llm/gemini.py` uses `google.genai` `models.generate_content`; `apps/api/src/lib/llm/gemini.ts` uses `generateContentStream` for API chat. | Shipped for worker agents and API chat. |
 | Tool calling | Worker tool loops use Gemini function declarations and return function responses with the SDK message parts. | Shipped in worker runtime. |
+| Inference service tiers | Worker Gemini generation and Deep Research Interactions can pass `GEMINI_SERVICE_TIER=standard\|flex\|priority`; API chat can override with `GEMINI_CHAT_SERVICE_TIER` and otherwise falls back to `GEMINI_SERVICE_TIER`. | Provider plumbing only. Operators choose the tier per deployment; product flows do not auto-route by user plan or workload yet. |
 | Embeddings | `packages/llm` calls `models.embed_content`; API chat calls `models.embedContent` for query embeddings. Default model is `gemini-embedding-001`. | Shipped for text embeddings. |
 | Batch embeddings | Provider and worker workflow plumbing exist through `embed_many()` and `BatchEmbedWorkflow`. | Not default-on; it only runs when the caller injects the batch callback, the relevant `BATCH_EMBED_*_ENABLED` flag is true, input count is at or above `BATCH_EMBED_MIN_ITEMS`, and the provider supports batch embedding. |
 | Context cache / CAG | `GeminiProvider.cache_context()` and `cached_context_id` pass-through exist. | Provider plumbing only. No default product flow currently builds or refreshes project caches for Research/Socratic queries. |
@@ -27,6 +28,10 @@ review log; private implementation history stays outside the public docs.
 - Deep Research stream storage uses product artifact kinds:
   `thought_summary`, `text_delta`, `image`, and `citation`. Gemini transport
   events such as `content.delta` are not stored directly.
+- Gemini Flex/Priority service tiers are deployment knobs, not product routing.
+  `flex` should be reserved for latency-tolerant worker/eval flows; `priority`
+  may downgrade to standard when Priority capacity is exceeded, so cost and
+  actual tier observability still require provider response-header plumbing.
 
 ## Verification Pointers
 
