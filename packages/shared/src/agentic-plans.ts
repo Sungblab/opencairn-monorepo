@@ -179,13 +179,46 @@ export const startAgenticPlanRequestSchema = z
   .strict()
   .default({});
 
+export const agenticPlanRecoveryStrategySchema = z.enum([
+  "retry",
+  "manual_review",
+  "cancel",
+]);
+
 export const recoverAgenticPlanStepRequestSchema = z
   .object({
     stepId: z.string().uuid(),
-    strategy: z.enum(["retry", "manual_review"]),
+    strategy: agenticPlanRecoveryStrategySchema,
     note: z.string().trim().max(1_000).optional(),
   })
   .strict();
+
+export function retryableStepKind(kind: AgenticPlanStepKind): boolean {
+  return [
+    "document.generate",
+    "file.export",
+    "code.run",
+    "code.repair",
+    "import.retry",
+    "agent.run",
+  ].includes(kind);
+}
+
+export function allowedAgenticPlanRecoveryStrategies(
+  step: Pick<AgenticPlanStep, "status" | "recoveryCode" | "kind">,
+): AgenticPlanRecoveryStrategy[] {
+  if (!["blocked", "failed", "cancelled"].includes(step.status)) {
+    return [];
+  }
+  if (!step.recoveryCode) return ["manual_review", "cancel"];
+  if (step.recoveryCode === "stale_context") {
+    return ["retry", "manual_review", "cancel"];
+  }
+  if (step.recoveryCode === "verification_failed" && retryableStepKind(step.kind)) {
+    return ["retry", "manual_review", "cancel"];
+  }
+  return ["manual_review", "cancel"];
+}
 
 export type AgenticPlanStatus = z.infer<typeof agenticPlanStatusSchema>;
 export type AgenticPlanStepStatus = z.infer<typeof agenticPlanStepStatusSchema>;
@@ -202,4 +235,5 @@ export type AgenticPlan = z.infer<typeof agenticPlanSchema>;
 export type CreateAgenticPlanRequest = z.input<typeof createAgenticPlanRequestSchema>;
 export type ListAgenticPlansQuery = z.infer<typeof listAgenticPlansQuerySchema>;
 export type StartAgenticPlanRequest = z.input<typeof startAgenticPlanRequestSchema>;
+export type AgenticPlanRecoveryStrategy = z.infer<typeof agenticPlanRecoveryStrategySchema>;
 export type RecoverAgenticPlanStepRequest = z.input<typeof recoverAgenticPlanStepRequestSchema>;

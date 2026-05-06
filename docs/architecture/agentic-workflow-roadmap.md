@@ -475,8 +475,13 @@ event sink exists.
    box wired to the shared list API. Its detail column renders multiple outputs
    and dependency-install log metadata instead of only the first output label.
 5. **Approvals and recovery.** Centralize approve/reject/cancel/retry affordances
-   so destructive actions, provider exports, stale previews, and code command
-   approvals share one lifecycle.
+   so destructive actions, provider exports, stale previews, code command
+   approvals, and agentic plan recovery share one lifecycle. Agentic plan
+   recovery now uses a shared retry/manual-review/cancel policy helper for both
+   Workflow Console metadata and Agent Panel controls. `cancel` is treated as a
+   terminal recovery strategy: the API transitions the target recoverable step
+   to `cancelled`, and the Agent Panel requires explicit confirmation before
+   sending that strategy.
 6. **Full workflow console.** Add filtering, search, logs, outputs, costs, and
    retry/cancel across run families after the projection proves stable. The
    list API now accepts an exact normalized `status` filter plus `q` search over

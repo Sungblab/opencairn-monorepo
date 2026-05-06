@@ -587,6 +587,176 @@ describe("agentic plan service", () => {
     });
   });
 
+  it.each([
+    ["stale_context", "stale", "blocked"],
+    ["missing_source", "missing", "blocked"],
+    ["verification_failed", "fresh", "failed"],
+  ] as const)(
+    "cancels a %s recovery step without appending another attempt",
+    async (recoveryCode, freshnessStatus, verificationStatus) => {
+      const repo = createMemoryAgenticPlanRepo();
+      const plan = await repo.insertPlan({
+        workspaceId,
+        projectId,
+        actorUserId: userId,
+        title: "Recover blocked step",
+        goal: "Recover blocked step",
+        status: "blocked",
+        target: { workspaceId, projectId },
+        plannerKind: "deterministic",
+        summary: "1-step deterministic plan: agent.run",
+        currentStepOrdinal: 1,
+        steps: [
+          {
+            kind: "agent.run",
+            title: "Run librarian",
+            rationale: "The plan depends on mutable note evidence.",
+            risk: "write",
+            input: { agentName: "librarian" },
+            evidenceRefs: [
+              {
+                type: "note_analysis_job",
+                noteId: exportObjectId,
+                jobId: "00000000-0000-4000-8000-000000000050",
+                contentHash: "hash-1",
+                analysisVersion: 1,
+              },
+            ],
+            evidenceFreshnessStatus: freshnessStatus,
+            staleEvidenceBlocks: true,
+            verificationStatus,
+            recoveryCode,
+          },
+        ],
+      });
+      const step = plan.steps[0]!;
+      await repo.updateStep({
+        planId: plan.id,
+        stepId: step.id,
+        status: verificationStatus === "failed" ? "failed" : "blocked",
+        errorCode: recoveryCode,
+      });
+      const requeued: string[][] = [];
+
+      const recovered = await recoverAgenticPlanStep(
+        projectId,
+        userId,
+        plan.id,
+        { stepId: step.id, strategy: "cancel" },
+        {
+          repo,
+          canWriteProject: async () => true,
+          requeueNoteEvidence: async (noteIds) => {
+            requeued.push(noteIds);
+            return [];
+          },
+        },
+      );
+
+      expect(requeued).toEqual([]);
+      expect(recovered.steps).toHaveLength(1);
+      expect(recovered.steps[0]).toMatchObject({
+        id: step.id,
+        status: "cancelled",
+        errorCode: "cancelled",
+        verificationStatus,
+      });
+      expect(recovered.status).toBe("cancelled");
+    },
+  );
+
+  it("treats cancel recovery for an already-cancelled step as idempotent", async () => {
+    const repo = createMemoryAgenticPlanRepo();
+    const plan = await repo.insertPlan({
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Cancelled plan",
+      goal: "Cancelled plan",
+      status: "cancelled",
+      target: { workspaceId, projectId },
+      plannerKind: "deterministic",
+      summary: "1-step deterministic plan: manual.review",
+      currentStepOrdinal: null,
+      steps: [
+        {
+          kind: "manual.review",
+          title: "Review cancelled work",
+          rationale: "The previous recovery already cancelled this step.",
+          risk: "low",
+          recoveryCode: "missing_source",
+        },
+      ],
+    });
+    const step = plan.steps[0]!;
+    await repo.updateStep({
+      planId: plan.id,
+      stepId: step.id,
+      status: "cancelled",
+      recoveryCode: "missing_source",
+      errorCode: "cancelled",
+    });
+
+    const recovered = await recoverAgenticPlanStep(
+      projectId,
+      userId,
+      plan.id,
+      { stepId: step.id, strategy: "cancel" },
+      { repo, canWriteProject: async () => true },
+    );
+
+    expect(recovered.steps).toHaveLength(1);
+    expect(recovered.steps[0]?.status).toBe("cancelled");
+    expect(recovered.status).toBe("cancelled");
+  });
+
+  it("cancels a generic blocked step and stores a whitespace note as null", async () => {
+    const repo = createMemoryAgenticPlanRepo();
+    const plan = await repo.insertPlan({
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Generic blocked plan",
+      goal: "Generic blocked plan",
+      status: "blocked",
+      target: { workspaceId, projectId },
+      plannerKind: "deterministic",
+      summary: "1-step deterministic plan: manual.review",
+      currentStepOrdinal: 1,
+      steps: [
+        {
+          kind: "manual.review",
+          title: "Review generic blocker",
+          rationale: "The step has no specific recovery code.",
+          risk: "low",
+        },
+      ],
+    });
+    const step = plan.steps[0]!;
+    await repo.updateStep({
+      planId: plan.id,
+      stepId: step.id,
+      status: "blocked",
+      errorCode: "agentic_plan_step_blocked",
+    });
+
+    const recovered = await recoverAgenticPlanStep(
+      projectId,
+      userId,
+      plan.id,
+      { stepId: step.id, strategy: "cancel", note: "   " },
+      { repo, canWriteProject: async () => true },
+    );
+
+    expect(recovered.steps).toHaveLength(1);
+    expect(recovered.steps[0]).toMatchObject({
+      status: "cancelled",
+      errorCode: "cancelled",
+      errorMessage: null,
+    });
+    expect(recovered.status).toBe("cancelled");
+  });
+
   it("links a concrete file export plan step to an agent action when started", async () => {
     const repo = createMemoryAgenticPlanRepo();
     const plan = await repo.insertPlan({
