@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createApp } from "../src/app.js";
 import {
   db,
@@ -18,6 +18,24 @@ import {
   type SeedResult,
 } from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
+
+vi.mock("../src/lib/llm", async (orig) => {
+  const real = (await orig()) as object;
+  return {
+    ...real,
+    getChatProvider: vi.fn(() => ({
+      embed: vi.fn(async () => new Array(768).fill(0)),
+      streamGenerate: vi.fn(),
+    })),
+  };
+});
+
+vi.mock("../src/lib/chat-llm", () => ({
+  runChat: vi.fn(async function* () {
+    yield { type: "usage", payload: { tokensIn: 1, tokensOut: 1, model: "test" } };
+    yield { type: "done", payload: {} };
+  }),
+}));
 
 const app = createApp();
 
@@ -152,6 +170,37 @@ describe("POST /api/chat/conversations", () => {
       });
 
       expect(res.status).toBe(403);
+    } finally {
+      await viewerCtx.cleanup();
+    }
+  });
+
+  it("rejects initial attachedChips that fail the add-chip permission policy", async () => {
+    const viewerCtx = await seedWorkspace({ role: "viewer" });
+    try {
+      await setNoteInherit(viewerCtx.noteId, false);
+
+      const res = await authedFetch("/api/chat/conversations", {
+        method: "POST",
+        userId: viewerCtx.userId,
+        body: JSON.stringify({
+          workspaceId: viewerCtx.workspaceId,
+          scopeType: "workspace",
+          scopeId: viewerCtx.workspaceId,
+          attachedChips: [
+            { type: "page", id: viewerCtx.noteId, manual: false },
+            { type: "memory:l3", id: "user_workspace_global", manual: false },
+          ],
+          memoryFlags: FULL_FLAGS,
+        }),
+      });
+
+      expect(res.status).toBe(403);
+      const rows = await db
+        .select()
+        .from(conversations)
+        .where(eq(conversations.workspaceId, viewerCtx.workspaceId));
+      expect(rows).toHaveLength(0);
     } finally {
       await viewerCtx.cleanup();
     }
@@ -600,6 +649,42 @@ describe("POST /api/chat/message (SSE)", () => {
       expect(res.status).toBe(403);
     } finally {
       await db.delete(user).where(eq(user.id, stranger.id));
+    }
+  });
+
+  it("revalidates current page-scope permission before accepting a stale conversation", async () => {
+    const viewerCtx = await seedWorkspace({ role: "viewer" });
+    try {
+      const create = await authedFetch("/api/chat/conversations", {
+        method: "POST",
+        userId: viewerCtx.userId,
+        body: JSON.stringify({
+          workspaceId: viewerCtx.workspaceId,
+          scopeType: "page",
+          scopeId: viewerCtx.noteId,
+          attachedChips: [{ type: "page", id: viewerCtx.noteId, manual: false }],
+          memoryFlags: FULL_FLAGS,
+        }),
+      });
+      expect(create.status).toBe(201);
+      const { id: conversationId } = (await create.json()) as { id: string };
+
+      await setNoteInherit(viewerCtx.noteId, false);
+
+      const res = await authedFetch("/api/chat/message", {
+        method: "POST",
+        userId: viewerCtx.userId,
+        body: JSON.stringify({ conversationId, content: "hi" }),
+      });
+
+      expect(res.status).toBe(403);
+      const messages = await db
+        .select()
+        .from(conversationMessages)
+        .where(eq(conversationMessages.conversationId, conversationId));
+      expect(messages).toHaveLength(0);
+    } finally {
+      await viewerCtx.cleanup();
     }
   });
 });

@@ -32,6 +32,7 @@ import {
   providerRerankerEnabled,
   rerankCandidatesWithProvider,
 } from "./retrieval-provider-rerank";
+import { canRead } from "./permissions";
 import type {
   EvidenceProducer,
   EvidenceProvenance,
@@ -140,6 +141,7 @@ export async function retrieve(opts: {
   ragMode: RagMode;
   scope: RetrievalScope;
   chips: RetrievalChip[];
+  userId?: string;
   signal?: AbortSignal;
 }): Promise<RetrievalHit[]> {
   const result = await retrieveWithPolicy(opts);
@@ -152,6 +154,7 @@ export async function retrieveWithPolicy(opts: {
   ragMode: RagMode;
   scope: RetrievalScope;
   chips: RetrievalChip[];
+  userId?: string;
   signal?: AbortSignal;
 }): Promise<RetrievalWithPolicyResult> {
   const initialPolicy = planAdaptiveRagPolicy(opts);
@@ -472,6 +475,7 @@ async function resolveProjectIds(opts: {
   workspaceId: string;
   scope: RetrievalScope;
   chips: RetrievalChip[];
+  userId?: string;
 }): Promise<string[]> {
   // Memory chips are silently ignored at retrieval (Plan 11B Phase B/C
   // owns the memory store). Filter them at call sites; here we accept
@@ -480,15 +484,25 @@ async function resolveProjectIds(opts: {
     const ids = new Set<string>();
     for (const chip of opts.chips) {
       if (chip.type === "project") {
-        if (await projectInWorkspace(chip.id, opts.workspaceId)) {
+        if (
+          (await projectInWorkspace(chip.id, opts.workspaceId)) &&
+          (await canReadProject(opts.userId, chip.id))
+        ) {
           ids.add(chip.id);
         }
       } else if (chip.type === "page") {
-        const projectId = await projectIdForNote(chip.id, opts.workspaceId);
+        const projectId = await projectIdForReadableNote(
+          chip.id,
+          opts.workspaceId,
+          opts.userId,
+        );
         if (projectId) ids.add(projectId);
       } else if (chip.type === "workspace") {
         if (chip.id === opts.workspaceId) {
-          for (const p of await allProjectsInWorkspace(opts.workspaceId)) {
+          for (const p of await readableProjectsInWorkspace(
+            opts.workspaceId,
+            opts.userId,
+          )) {
             ids.add(p);
           }
         }
@@ -497,12 +511,36 @@ async function resolveProjectIds(opts: {
     return Array.from(ids);
   }
 
-  if (opts.scope.type === "project") return [opts.scope.projectId];
+  if (opts.scope.type === "project") {
+    return (await canReadProject(opts.userId, opts.scope.projectId))
+      ? [opts.scope.projectId]
+      : [];
+  }
   if (opts.scope.type === "page") {
-    const p = await projectIdForNote(opts.scope.noteId, opts.workspaceId);
+    const p = await projectIdForReadableNote(
+      opts.scope.noteId,
+      opts.workspaceId,
+      opts.userId,
+    );
     return p ? [p] : [];
   }
-  return allProjectsInWorkspace(opts.workspaceId);
+  return readableProjectsInWorkspace(opts.workspaceId, opts.userId);
+}
+
+async function canReadProject(
+  userId: string | undefined,
+  projectId: string,
+): Promise<boolean> {
+  if (!userId) return true;
+  return canRead(userId, { type: "project", id: projectId });
+}
+
+async function canReadNote(
+  userId: string | undefined,
+  noteId: string,
+): Promise<boolean> {
+  if (!userId) return true;
+  return canRead(userId, { type: "note", id: noteId });
 }
 
 async function projectInWorkspace(
@@ -538,6 +576,15 @@ async function projectIdForNote(
   return rows[0]?.pid ?? null;
 }
 
+async function projectIdForReadableNote(
+  noteId: string,
+  workspaceId: string,
+  userId: string | undefined,
+): Promise<string | null> {
+  if (!(await canReadNote(userId, noteId))) return null;
+  return projectIdForNote(noteId, workspaceId);
+}
+
 async function allProjectsInWorkspace(workspaceId: string): Promise<string[]> {
   const cap = maxProjects();
   const rowsRaw = await db.execute(sql`
@@ -551,4 +598,19 @@ async function allProjectsInWorkspace(workspaceId: string): Promise<string[]> {
     id: string;
   }>;
   return rows.map((r) => r.id);
+}
+
+async function readableProjectsInWorkspace(
+  workspaceId: string,
+  userId: string | undefined,
+): Promise<string[]> {
+  const projectIds = await allProjectsInWorkspace(workspaceId);
+  if (!userId) return projectIds;
+  const checks = await Promise.all(
+    projectIds.map(async (id) => ({
+      id,
+      ok: await canReadProject(userId, id),
+    })),
+  );
+  return checks.filter((p) => p.ok).map((p) => p.id);
 }

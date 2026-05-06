@@ -23,6 +23,7 @@ import {
   eq,
   type DB,
 } from "@opencairn/db";
+import { refreshNoteChunkIndexBestEffort } from "@opencairn/api/note-chunk-refresh";
 import { plateToYDoc, yDocToPlate } from "./plate-bridge.js";
 import {
   extractWikiLinkTargets,
@@ -263,6 +264,17 @@ export function makePersistence({ db }: PersistenceDeps): Persistence {
         { noteId, error },
         "persistence.store: note version capture failed",
       );
+    }
+
+    if (noteRow) {
+      await refreshNoteChunkIndexBestEffort({
+        id: noteId,
+        workspaceId: noteRow.workspaceId,
+        projectId: noteRow.projectId,
+        title: noteTitle,
+        contentText,
+        deletedAt: noteRow.deletedAt,
+      });
     }
   };
 

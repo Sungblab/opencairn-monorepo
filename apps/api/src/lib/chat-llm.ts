@@ -86,6 +86,7 @@ const SYSTEM_PROMPT = [
 ].join("\n");
 
 export async function* runChat(opts: {
+  userId?: string;
   workspaceId: string;
   scope: RetrievalScope;
   ragMode: RagMode;
@@ -127,6 +128,7 @@ export async function* runChat(opts: {
             ragMode: opts.ragMode,
             scope: opts.scope,
             chips: opts.chips,
+            userId: opts.userId,
             signal: opts.signal,
           });
     const hits = retrieval?.hits ?? [];
