@@ -35,6 +35,8 @@ export const agenticPlanStepKindSchema = z.enum([
   "manual.review",
 ]);
 
+export const agenticPlanPlannerKindSchema = z.enum(["deterministic", "model"]);
+
 export const agenticPlanTargetSchema = z
   .object({
     workspaceId: z.string().uuid(),
@@ -87,7 +89,7 @@ export const agenticPlanSchema = z
     goal: z.string().min(3),
     status: agenticPlanStatusSchema,
     target: agenticPlanTargetSchema,
-    plannerKind: z.literal("deterministic"),
+    plannerKind: agenticPlanPlannerKindSchema,
     summary: z.string().min(1),
     currentStepOrdinal: z.number().int().min(1).nullable().optional(),
     steps: z.array(agenticPlanStepSchema),
@@ -137,6 +139,7 @@ export const recoverAgenticPlanStepRequestSchema = z
 export type AgenticPlanStatus = z.infer<typeof agenticPlanStatusSchema>;
 export type AgenticPlanStepStatus = z.infer<typeof agenticPlanStepStatusSchema>;
 export type AgenticPlanStepKind = z.infer<typeof agenticPlanStepKindSchema>;
+export type AgenticPlanPlannerKind = z.infer<typeof agenticPlanPlannerKindSchema>;
 export type AgenticPlanTarget = z.infer<typeof agenticPlanTargetSchema>;
 export type CreateAgenticPlanTarget = z.infer<typeof createAgenticPlanTargetSchema>;
 export type AgenticPlanStep = z.infer<typeof agenticPlanStepSchema>;

@@ -20,6 +20,7 @@ import type {
   AgentActionStatus,
   AgentActionRisk,
   AgenticPlan,
+  AgenticPlanPlannerKind,
   AgenticPlanStatus,
   AgenticPlanStep,
   AgenticPlanStepKind,
@@ -32,12 +33,15 @@ import type {
   StartAgenticPlanRequest,
 } from "@opencairn/shared";
 import {
+  agentActionRiskSchema,
   agenticPlanSchema,
+  agenticPlanStepKindSchema,
   codeWorkspaceCommandRunRequestSchema,
   exportProjectObjectActionSchema,
   generateProjectObjectActionSchema,
   noteUpdateActionInputSchema,
 } from "@opencairn/shared";
+import { z } from "zod";
 import {
   AgentActionError,
   createAgentAction,
@@ -55,6 +59,8 @@ import {
   runPlan8Agent,
   type Plan8AgentRunInput,
 } from "./plan8-agent-runs";
+import { getChatProvider } from "./llm";
+import { LLMNotConfiguredError, type LLMProvider } from "./llm/provider";
 import { canRead, canWrite } from "./permissions";
 
 export class AgenticPlanError extends Error {
@@ -75,6 +81,21 @@ type PlannedStepInput = {
   input?: Record<string, unknown>;
 };
 
+export interface AgenticPlanPlanningInput {
+  goal: string;
+  target: Record<string, unknown>;
+}
+
+export interface AgenticPlanPlanningResult {
+  plannerKind: AgenticPlanPlannerKind;
+  summary?: string;
+  steps: PlannedStepInput[];
+}
+
+export interface AgenticPlanPlanner {
+  plan(input: AgenticPlanPlanningInput): Promise<AgenticPlanPlanningResult> | AgenticPlanPlanningResult;
+}
+
 type ExportProjectObjectAction = Extract<
   ProjectObjectAction,
   { type: "export_project_object" }
@@ -90,7 +111,7 @@ export interface AgenticPlanRepository {
     goal: string;
     status: AgenticPlanStatus;
     target: Record<string, unknown>;
-    plannerKind: "deterministic";
+    plannerKind: AgenticPlanPlannerKind;
     summary: string;
     currentStepOrdinal: number | null;
     steps: PlannedStepInput[];
@@ -145,6 +166,7 @@ export interface AgenticPlanRepository {
 
 export interface AgenticPlanServiceOptions {
   repo?: AgenticPlanRepository;
+  planner?: AgenticPlanPlanner;
   canReadProject?: (userId: string, projectId: string) => Promise<boolean>;
   canWriteProject?: (userId: string, projectId: string) => Promise<boolean>;
   createAgentAction?: (
@@ -347,7 +369,12 @@ export async function createAgenticPlan(
     throw new AgenticPlanError("forbidden", 403);
   }
 
-  const steps = planStepsForGoal(request.goal, request.target ?? {});
+  const target = {
+    workspaceId: scope.workspaceId,
+    projectId,
+    ...(request.target ?? {}),
+  };
+  const planning = await planAgenticGoal(request.goal, target, options);
   return repo.insertPlan({
     workspaceId: scope.workspaceId,
     projectId,
@@ -355,16 +382,52 @@ export async function createAgenticPlan(
     title: request.title ?? titleFromGoal(request.goal),
     goal: request.goal,
     status: "approval_required",
-    target: {
-      workspaceId: scope.workspaceId,
-      projectId,
-      ...(request.target ?? {}),
-    },
-    plannerKind: "deterministic",
-    summary: summaryForSteps(steps),
+    target,
+    plannerKind: planning.plannerKind,
+    summary: planning.summary ?? summaryForSteps(planning.steps, planning.plannerKind),
     currentStepOrdinal: 1,
-    steps,
+    steps: planning.steps,
   });
+}
+
+async function planAgenticGoal(
+  goal: string,
+  target: Record<string, unknown>,
+  options?: AgenticPlanServiceOptions,
+): Promise<AgenticPlanPlanningResult> {
+  if (options?.planner) {
+    return normalizePlanningResult(await options.planner.plan({ goal, target }));
+  }
+
+  if (agenticModelPlannerEnabled()) {
+    try {
+      return normalizePlanningResult(
+        await createModelAgenticPlanPlanner().plan({ goal, target }),
+      );
+    } catch (err) {
+      if (!(err instanceof LLMNotConfiguredError)) {
+        console.warn("[agentic-plans] model planner failed; falling back to deterministic planner", err);
+      }
+    }
+  }
+
+  return deterministicPlanningResult(goal, target);
+}
+
+function deterministicPlanningResult(
+  goal: string,
+  target: Record<string, unknown>,
+): AgenticPlanPlanningResult {
+  const steps = planStepsForGoal(goal, target);
+  return {
+    plannerKind: "deterministic",
+    summary: summaryForSteps(steps, "deterministic"),
+    steps,
+  };
+}
+
+function agenticModelPlannerEnabled(): boolean {
+  return process.env.FEATURE_AGENTIC_MODEL_PLANNER === "1";
 }
 
 export async function listAgenticPlans(
@@ -859,9 +922,210 @@ export async function recoverAgenticPlanStep(
   return refreshPlanStatus(repo, projectId, planId);
 }
 
+const modelPlannerStepSchema = z
+  .object({
+    kind: agenticPlanStepKindSchema,
+    title: z.string().trim().min(1).max(180),
+    rationale: z.string().trim().min(1).max(1_000),
+    risk: agentActionRiskSchema,
+    input: z.record(z.unknown()).optional(),
+  })
+  .strict();
+
+const modelPlannerOutputSchema = z
+  .object({
+    summary: z.string().trim().min(1).max(1_000).optional(),
+    steps: z.array(modelPlannerStepSchema).min(1).max(8),
+  })
+  .strict();
+
+const idReferenceSchema = z.object({
+  failedRunActionId: z.string().uuid(),
+}).strict();
+
+const importRetryInputSchema = z.object({
+  importJobId: z.string().uuid(),
+}).strict();
+
+export function createModelAgenticPlanPlanner(options: {
+  provider?: LLMProvider;
+} = {}): AgenticPlanPlanner {
+  return {
+    async plan(input) {
+      const provider = options.provider ?? getChatProvider();
+      const raw = await collectModelPlannerText(provider, input);
+      const parsed = parseModelPlannerJson(raw);
+      if (!parsed.ok) {
+        return {
+          plannerKind: "model",
+          summary: "Model planner output requires manual review.",
+          steps: [unsafeModelStepReview("manual.review", "The planner did not return valid JSON.")],
+        };
+      }
+      return normalizeModelPlannerOutput(parsed.value);
+    },
+  };
+}
+
+async function collectModelPlannerText(
+  provider: LLMProvider,
+  input: AgenticPlanPlanningInput,
+): Promise<string> {
+  let text = "";
+  for await (const chunk of provider.streamGenerate({
+    messages: [
+      {
+        role: "system",
+        content: [
+          "You are the OpenCairn agentic plan planner.",
+          "Return only one strict JSON object with keys summary and steps.",
+          "Each step must use an allow-listed kind and must not include workspaceId, projectId, userId, or actorUserId in input.",
+          "Use manual.review when the goal lacks concrete IDs needed for an executable step.",
+        ].join("\n"),
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          goal: input.goal,
+          target: input.target,
+          allowedStepKinds: agenticPlanStepKindSchema.options,
+          allowedRisks: agentActionRiskSchema.options,
+        }),
+      },
+    ],
+    maxOutputTokens: 1_600,
+    temperature: 0.1,
+    thinkingLevel: "low",
+  })) {
+    if ("delta" in chunk) {
+      text += chunk.delta;
+      if (text.length > 24_000) break;
+    }
+  }
+  return text;
+}
+
+function parseModelPlannerJson(raw: string): { ok: true; value: unknown } | { ok: false } {
+  const text = raw.trim();
+  if (!text) return { ok: false };
+  const fenced = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)?.[1];
+  const candidate = fenced?.trim() ?? text.slice(
+    Math.max(0, text.indexOf("{")),
+    text.lastIndexOf("}") + 1,
+  );
+  if (!candidate.trim()) return { ok: false };
+  try {
+    return { ok: true, value: JSON.parse(candidate) };
+  } catch {
+    return { ok: false };
+  }
+}
+
+function normalizePlanningResult(result: AgenticPlanPlanningResult): AgenticPlanPlanningResult {
+  if (result.plannerKind !== "model") {
+    return {
+      plannerKind: "deterministic",
+      summary: result.summary ?? summaryForSteps(result.steps, "deterministic"),
+      steps: result.steps.length > 0 ? result.steps : planStepsForGoal("manual review"),
+    };
+  }
+  return normalizeModelPlannerOutput({
+    summary: result.summary,
+    steps: result.steps,
+  });
+}
+
+function normalizeModelPlannerOutput(raw: unknown): AgenticPlanPlanningResult {
+  const parsed = modelPlannerOutputSchema.safeParse(raw);
+  if (!parsed.success) {
+    const steps = [unsafeModelStepReview("manual.review", "The planner output did not match the model plan schema.")];
+    return {
+      plannerKind: "model",
+      summary: summaryForSteps(steps, "model"),
+      steps,
+    };
+  }
+
+  const steps = dedupeStepKinds(parsed.data.steps.map(normalizeModelStep));
+  return {
+    plannerKind: "model",
+    summary: parsed.data.summary ?? summaryForSteps(steps, "model"),
+    steps,
+  };
+}
+
+function normalizeModelStep(step: z.infer<typeof modelPlannerStepSchema>): PlannedStepInput {
+  const input = step.input ?? {};
+  switch (step.kind) {
+    case "note.review_update": {
+      const parsed = noteUpdateActionInputSchema.safeParse(input);
+      return parsed.success
+        ? { ...step, risk: "write", input: parsed.data }
+        : unsafeModelStepReview(step.kind, "note.review_update requires a validated note update draft.");
+    }
+    case "document.generate": {
+      const parsed = generateProjectObjectActionSchema.safeParse(input);
+      return parsed.success
+        ? { ...step, risk: "expensive", input: parsed.data }
+        : unsafeModelStepReview(step.kind, "document.generate requires a validated generation request.");
+    }
+    case "file.export": {
+      const parsed = exportProjectObjectActionSchema.safeParse(input);
+      return parsed.success
+        ? { ...step, risk: "external", input: parsed.data }
+        : unsafeModelStepReview(step.kind, "file.export requires a validated export target.");
+    }
+    case "code.run": {
+      const parsed = codeWorkspaceCommandRunRequestSchema.safeParse(input);
+      return parsed.success
+        ? { ...step, risk: "expensive", input: parsed.data }
+        : unsafeModelStepReview(step.kind, "code.run requires a validated code workspace snapshot and command.");
+    }
+    case "code.repair": {
+      const parsed = idReferenceSchema.safeParse(input);
+      return parsed.success
+        ? { ...step, risk: "write", input: parsed.data }
+        : unsafeModelStepReview(step.kind, "code.repair requires a validated failed run action id.");
+    }
+    case "import.retry": {
+      const parsed = importRetryInputSchema.safeParse(input);
+      return parsed.success
+        ? { ...step, risk: "write", input: parsed.data }
+        : unsafeModelStepReview(step.kind, "import.retry requires a validated failed import job id.");
+    }
+    case "agent.run": {
+      const parsed = plan8AgentRunInputSchema.safeParse(input);
+      return parsed.success
+        ? { ...step, risk: agentRunRisk(parsed.data.agentName), input: parsed.data }
+        : unsafeModelStepReview(step.kind, "agent.run requires a validated Plan8 agent input.");
+    }
+    case "manual.review":
+      return {
+        kind: "manual.review",
+        title: step.title,
+        rationale: step.rationale,
+        risk: "low",
+        input: {},
+      };
+  }
+}
+
+function unsafeModelStepReview(
+  rejectedKind: AgenticPlanStepKind,
+  reason: string,
+): PlannedStepInput {
+  return {
+    kind: "manual.review",
+    title: "Review unsafe model plan step",
+    rationale: reason,
+    risk: "low",
+    input: { rejectedKind },
+  };
+}
+
 export function planStepsForGoal(
   goal: string,
-  target: { noteId?: string } = {},
+  target: Record<string, unknown> = {},
 ): PlannedStepInput[] {
   const goalText = goal.toLowerCase();
   const steps: PlannedStepInput[] = [];
@@ -935,13 +1199,14 @@ export function planStepsForGoal(
 
 function plan8AgentStepForGoal(
   goalText: string,
-  target: { noteId?: string },
+  target: Record<string, unknown>,
 ): PlannedStepInput | null {
   const agentName = plan8AgentNameForGoal(goalText);
   if (!agentName) return null;
   const input: Record<string, unknown> = { agentName };
-  if (agentName === "narrator" && target.noteId) input.noteId = target.noteId;
-  if (agentName === "synthesis" && target.noteId) input.noteIds = [target.noteId];
+  const noteId = typeof target.noteId === "string" ? target.noteId : null;
+  if (agentName === "narrator" && noteId) input.noteId = noteId;
+  if (agentName === "synthesis" && noteId) input.noteIds = [noteId];
 
   return {
     kind: "agent.run",
@@ -1257,9 +1522,12 @@ function titleFromGoal(goal: string): string {
   return compact.length <= 80 ? compact : `${compact.slice(0, 77)}...`;
 }
 
-function summaryForSteps(steps: PlannedStepInput[]): string {
+function summaryForSteps(
+  steps: PlannedStepInput[],
+  plannerKind: AgenticPlanPlannerKind = "deterministic",
+): string {
   const labels = steps.map((step) => step.kind).join(", ");
-  return `${steps.length}-step deterministic plan: ${labels}`;
+  return `${steps.length}-step ${plannerKind} plan: ${labels}`;
 }
 
 function includesAny(text: string, needles: string[]): boolean {
