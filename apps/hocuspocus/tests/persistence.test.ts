@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as Y from "yjs";
 import {
   createDb,
@@ -17,6 +17,16 @@ import {
   type SeedMultiRoleResult,
 } from "../../api/tests/helpers/seed.js";
 
+vi.mock("@opencairn/api/note-chunk-refresh", () => ({
+  refreshNoteChunkIndexBestEffort: vi.fn().mockResolvedValue(undefined),
+}));
+
+const chunkRefresh = (await import(
+  "@opencairn/api/note-chunk-refresh"
+)) as unknown as {
+  refreshNoteChunkIndexBestEffort: ReturnType<typeof vi.fn>;
+};
+
 // Plan 2B Task 13: persistence boundary integration tests.
 // Like permissions-adapter.test.ts, we own our own pool via createDb(url).
 const db = createDb(process.env.DATABASE_URL!);
@@ -28,7 +38,9 @@ describe("persistence", () => {
     seed = await seedMultiRoleWorkspace();
   });
   afterEach(async () => {
-    await seed.cleanup();
+    await seed?.cleanup();
+    chunkRefresh.refreshNoteChunkIndexBestEffort.mockReset();
+    chunkRefresh.refreshNoteChunkIndexBestEffort.mockResolvedValue(undefined);
   });
 
   it("fetch seeds Y.Doc from notes.content on first load and stamps yjs_state_loaded_at", async () => {
@@ -208,6 +220,66 @@ describe("persistence", () => {
       where: eq(yjsDocuments.name, `page:${seed.noteId}`),
     });
     expect(after!.sizeBytes).toBe(after!.state.byteLength);
+  });
+
+  it("store does not wait for chunk refresh on the autosave hot path", async () => {
+    await persistence.fetch({ documentName: `page:${seed.noteId}` });
+    const prior = await db.query.yjsDocuments.findFirst({
+      where: eq(yjsDocuments.name, `page:${seed.noteId}`),
+    });
+    const doc = new Y.Doc();
+    if (prior?.state) Y.applyUpdate(doc, prior.state);
+    (doc.get(PLATE_BRIDGE_ROOT_KEY, Y.XmlText) as Y.XmlText).insert(
+      0,
+      "nonblocking refresh",
+    );
+    const fullState = Y.encodeStateAsUpdate(doc);
+    const never = new Promise<void>(() => {});
+    chunkRefresh.refreshNoteChunkIndexBestEffort.mockReturnValue(never);
+
+    const result = await Promise.race([
+      persistence
+        .store({
+          documentName: `page:${seed.noteId}`,
+          state: fullState,
+          lastContext: { userId: seed.editorUserId, readOnly: false },
+        })
+        .then(() => "stored"),
+      new Promise((resolve) => setTimeout(() => resolve("blocked"), 50)),
+    ]);
+
+    expect(result).toBe("stored");
+    expect(chunkRefresh.refreshNoteChunkIndexBestEffort).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: seed.noteId,
+        contentText: expect.stringContaining("nonblocking refresh"),
+      }),
+    );
+  });
+
+  it("store succeeds when best-effort chunk refresh rejects", async () => {
+    await persistence.fetch({ documentName: `page:${seed.noteId}` });
+    const prior = await db.query.yjsDocuments.findFirst({
+      where: eq(yjsDocuments.name, `page:${seed.noteId}`),
+    });
+    const doc = new Y.Doc();
+    if (prior?.state) Y.applyUpdate(doc, prior.state);
+    (doc.get(PLATE_BRIDGE_ROOT_KEY, Y.XmlText) as Y.XmlText).insert(
+      0,
+      "refresh rejection",
+    );
+    const fullState = Y.encodeStateAsUpdate(doc);
+    chunkRefresh.refreshNoteChunkIndexBestEffort.mockRejectedValue(
+      new Error("embedding provider unavailable"),
+    );
+
+    await expect(
+      persistence.store({
+        documentName: `page:${seed.noteId}`,
+        state: fullState,
+        lastContext: { userId: seed.editorUserId, readOnly: false },
+      }),
+    ).resolves.toBeUndefined();
   });
 
   it("extension() returns a @hocuspocus/extension-database Database instance", () => {

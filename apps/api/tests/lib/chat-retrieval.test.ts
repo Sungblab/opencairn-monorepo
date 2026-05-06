@@ -536,6 +536,129 @@ describe("chat-retrieval chunk fallback", () => {
   });
 });
 
+describe("chat-retrieval hit-level note permissions", () => {
+  beforeEach(() => {
+    permissions.canRead.mockImplementation(async (_userId, resource) => {
+      const target = resource as { type: string; id: string };
+      return !(
+        target.type === "note" &&
+        ["private-chunk-note", "private-note-hit", "private-graph-note"].includes(
+          target.id,
+        )
+      );
+    });
+  });
+
+  it("filters unreadable chunk hits before returning citations", async () => {
+    chunkSearch.projectChunkHybridSearch.mockResolvedValue([
+      chunkHit("readable-chunk", "readable-chunk-note", 0.9),
+      chunkHit("private-chunk", "private-chunk-note", 0.99),
+    ]);
+
+    const hits = await retrieve({
+      workspaceId: "ws-1",
+      query: "alpha",
+      ragMode: "strict",
+      scope: { type: "project", workspaceId: "ws-1", projectId: "p-1" },
+      chips: [],
+      userId: "user-1",
+    });
+
+    expect(hits.map((hit) => hit.noteId)).toEqual(["readable-chunk-note"]);
+    expect(permissions.canRead).toHaveBeenCalledWith("user-1", {
+      type: "note",
+      id: "private-chunk-note",
+    });
+  });
+
+  it("filters unreadable fallback note hits before returning citations", async () => {
+    chunkSearch.projectChunkHybridSearch.mockResolvedValue([]);
+    search.projectHybridSearch.mockResolvedValue([
+      {
+        noteId: "private-note-hit",
+        title: "Private fallback",
+        snippet: "private note hit",
+        sourceType: null,
+        sourceUrl: null,
+        vectorScore: 0.99,
+        bm25Score: null,
+        rrfScore: 0.99,
+      },
+      {
+        noteId: "readable-note-hit",
+        title: "Readable fallback",
+        snippet: "readable note hit",
+        sourceType: null,
+        sourceUrl: null,
+        vectorScore: 0.8,
+        bm25Score: null,
+        rrfScore: 0.8,
+      },
+    ]);
+
+    const hits = await retrieve({
+      workspaceId: "ws-1",
+      query: "alpha",
+      ragMode: "strict",
+      scope: { type: "project", workspaceId: "ws-1", projectId: "p-1" },
+      chips: [],
+      userId: "user-1",
+    });
+
+    expect(hits.map((hit) => hit.noteId)).toEqual(["readable-note-hit"]);
+    expect(permissions.canRead).toHaveBeenCalledWith("user-1", {
+      type: "note",
+      id: "private-note-hit",
+    });
+  });
+
+  it("filters unreadable graph expansion hits before returning citations", async () => {
+    chunkSearch.projectChunkHybridSearch.mockResolvedValue([
+      chunkHit("readable-seed", "readable-seed-note", 0.9),
+    ]);
+    graphExpansion.expandGraphCandidates.mockResolvedValue([
+      {
+        noteId: "private-graph-note",
+        chunkId: "private-graph-chunk",
+        title: "Private graph",
+        headingPath: "Graph",
+        snippet: "private graph hit",
+        graphScore: 0.99,
+        sourceType: null,
+        sourceUrl: null,
+        updatedAt: null,
+      },
+      {
+        noteId: "readable-graph-note",
+        chunkId: "readable-graph-chunk",
+        title: "Readable graph",
+        headingPath: "Graph",
+        snippet: "readable graph hit",
+        graphScore: 0.8,
+        sourceType: null,
+        sourceUrl: null,
+        updatedAt: null,
+      },
+    ]);
+
+    const hits = await retrieve({
+      workspaceId: "ws-1",
+      query: "alpha 관련 문서 연결 흐름",
+      ragMode: "expand",
+      scope: { type: "project", workspaceId: "ws-1", projectId: "p-1" },
+      chips: [],
+      userId: "user-1",
+    });
+
+    expect(hits.map((hit) => hit.noteId)).not.toContain("private-graph-note");
+    expect(hits.map((hit) => hit.noteId)).toContain("readable-graph-note");
+    expect(permissions.canRead).toHaveBeenCalledWith("user-1", {
+      type: "note",
+      id: "private-graph-note",
+    });
+  });
+});
+
 describe("retrieveWithPolicy adaptive policy propagation", () => {
   let dbMod: { db: { execute: ReturnType<typeof vi.fn> } };
 
