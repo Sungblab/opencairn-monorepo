@@ -35,6 +35,14 @@ packages/shared  Zod schemas (API contract).
 
 Detailed design: `docs/contributing/roadmap.md`.
 
+## Technical Deep Dives
+
+The README stays intentionally short. Longer implementation writeups live in
+the [OpenCairn technical deep-dive series](https://sungblab.com/blog/opencairn-technical-deep-dives),
+covering the agentic workflow ledger, permission-aware RAG, Yjs-backed wiki
+notes, Workflow Console recovery, document generation, and code workspace
+execution loop.
+
 ## Quick start
 
 Requirements: Node 22+, pnpm 9.15+, Python 3.12+, Docker.

@@ -35,6 +35,14 @@ packages/shared  Zod 스키마 (API 계약).
 
 상세 설계: `docs/contributing/roadmap.md`.
 
+## Technical Deep Dives
+
+README는 의도적으로 짧게 유지합니다. agentic workflow ledger,
+permission-aware RAG, Yjs 기반 위키 노트, Workflow Console 복구, 문서 생성,
+code workspace 실행 루프 같은 긴 구현 이야기는
+[OpenCairn 기술 딥다이브 시리즈](https://sungblab.com/blog/opencairn-technical-deep-dives)에
+정리합니다.
+
 ## Quick start
 
 요구 사항: Node 22+, pnpm 9.15+, Python 3.12+, Docker.
