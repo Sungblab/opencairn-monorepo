@@ -43,6 +43,13 @@ covering the agentic workflow ledger, permission-aware RAG, Yjs-backed wiki
 notes, Workflow Console recovery, document generation, and code workspace
 execution loop.
 
+- [Permission-aware RAG](https://sungblab.com/blog/opencairn-permission-aware-rag)
+- [Agentic Workflow Ledger](https://sungblab.com/blog/opencairn-agentic-workflow-ledger)
+- [Yjs-backed `note.update`](https://sungblab.com/blog/opencairn-yjs-note-update)
+- [Workflow Console Recovery](https://sungblab.com/blog/opencairn-workflow-console-recovery)
+- [Document Generation Pipeline](https://sungblab.com/blog/opencairn-document-generation-pipeline)
+- [Code Workspace Execution Loop](https://sungblab.com/blog/opencairn-code-workspace-execution-loop)
+
 ## Quick start
 
 Requirements: Node 22+, pnpm 9.15+, Python 3.12+, Docker.

@@ -43,6 +43,13 @@ code workspace 실행 루프 같은 긴 구현 이야기는
 [OpenCairn 기술 딥다이브 시리즈](https://sungblab.com/blog/opencairn-technical-deep-dives)에
 정리합니다.
 
+- [Permission-aware RAG](https://sungblab.com/blog/opencairn-permission-aware-rag)
+- [Agentic Workflow Ledger](https://sungblab.com/blog/opencairn-agentic-workflow-ledger)
+- [Yjs-backed `note.update`](https://sungblab.com/blog/opencairn-yjs-note-update)
+- [Workflow Console Recovery](https://sungblab.com/blog/opencairn-workflow-console-recovery)
+- [Document Generation Pipeline](https://sungblab.com/blog/opencairn-document-generation-pipeline)
+- [Code Workspace Execution Loop](https://sungblab.com/blog/opencairn-code-workspace-execution-loop)
+
 ## Quick start
 
 요구 사항: Node 22+, pnpm 9.15+, Python 3.12+, Docker.
