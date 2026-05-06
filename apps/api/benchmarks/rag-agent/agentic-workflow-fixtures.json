@@ -1,0 +1,105 @@
+{
+  "manifestVersion": "2026-05-06.agentic-workflow.v1",
+  "description": "Agentic workflow benchmark skeleton. The first executable target is note.update; code_project.run remains a follow-up fixture group.",
+  "metrics": [
+    "plan_validity_rate",
+    "approval_boundary_pass_rate",
+    "action_audit_completeness"
+  ],
+  "fixtures": [
+    {
+      "id": "note-update-preview-apply",
+      "targetKind": "note.update",
+      "executionScope": "actual_first_slice",
+      "plan": {
+        "steps": [
+          { "id": "step-preview", "kind": "note.update", "status": "completed" },
+          { "id": "step-approval", "kind": "manual.review", "status": "completed" },
+          { "id": "step-apply", "kind": "note.update", "status": "completed" }
+        ]
+      },
+      "actions": [
+        {
+          "id": "action-note-update-001",
+          "kind": "note.update",
+          "risk": "write",
+          "approvalRequired": true,
+          "status": "completed",
+          "actorUserId": "user-alice",
+          "input": {
+            "noteId": "00000000-0000-4000-8000-000000000101",
+            "draft": {
+              "format": "plate_value_v1",
+              "content": [{ "type": "p", "children": [{ "text": "Updated benchmark note." }] }]
+            },
+            "reason": "benchmark note.update first slice"
+          },
+          "preview": {
+            "noteId": "00000000-0000-4000-8000-000000000101",
+            "source": "yjs",
+            "current": { "contentText": "Old benchmark note.", "yjsStateVectorBase64": "AQ==" },
+            "draft": { "contentText": "Updated benchmark note." },
+            "diff": { "summary": "Replace old note text with updated benchmark text.", "ops": [] },
+            "applyConstraints": [
+              "apply_must_transform_yjs_document",
+              "capture_version_before_apply",
+              "capture_version_after_apply",
+              "reject_if_yjs_state_vector_changed"
+            ]
+          },
+          "result": {
+            "ok": true,
+            "noteId": "00000000-0000-4000-8000-000000000101",
+            "applied": {
+              "source": "yjs",
+              "yjsStateVectorBase64": "Ag==",
+              "contentText": "Updated benchmark note."
+            },
+            "versionCapture": {
+              "before": { "created": true, "version": 1 },
+              "after": { "created": true, "version": 2 }
+            },
+            "summary": { "changedBlocks": 1, "addedWords": 2, "removedWords": 2 }
+          }
+        }
+      ],
+      "followUps": []
+    },
+    {
+      "id": "code-project-run-approval-follow-up",
+      "targetKind": "code_project.run",
+      "executionScope": "follow_up_skeleton",
+      "plan": {
+        "steps": [
+          { "id": "step-review-run", "kind": "manual.review", "status": "pending" },
+          { "id": "step-code-run", "kind": "code_project.run", "status": "pending" }
+        ]
+      },
+      "actions": [
+        {
+          "id": "action-code-run-001",
+          "kind": "code_project.run",
+          "risk": "external",
+          "approvalRequired": true,
+          "status": "approval_required",
+          "actorUserId": "user-alice",
+          "input": {
+            "workspaceId": "code-workspace-placeholder",
+            "command": "npm test",
+            "reason": "future code_project.run benchmark fixture"
+          },
+          "preview": {
+            "command": "npm test",
+            "writesFilesystem": false,
+            "networkAccess": false
+          },
+          "result": null
+        }
+      ],
+      "followUps": [
+        "Add a deterministic code workspace fixture with captured stdout/stderr.",
+        "Score recovery behavior for a failing command."
+      ]
+    }
+  ]
+}

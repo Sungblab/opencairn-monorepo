@@ -1,0 +1,54 @@
+{
+  "manifestVersion": "2026-05-06.citation-grounding.v1",
+  "description": "Manual fixture skeleton for future citation grounding evaluation. This does not run an LLM judge yet.",
+  "evaluationCriteria": {
+    "expectedEvidence": "Evidence ids that must be present for a fully supported answer.",
+    "allowedCitations": "Citation ids that are readable and can be attached to the answer.",
+    "unsupportedClaim": "A claim is unsupported when no allowed citation directly states or entails it.",
+    "llmJudge": "Deferred. First slice only validates manifest shape and records the manual criteria."
+  },
+  "fixtures": [
+    {
+      "id": "rag-permission-filter-before-citations",
+      "question": "When should unreadable notes be removed from RAG results?",
+      "expectedEvidenceIds": ["evidence-filter-before-citation"],
+      "allowedCitationIds": ["citation-shared-policy"],
+      "unsupportedClaimExamples": ["Unreadable notes may be cited if their title is visible."]
+    },
+    {
+      "id": "note-freshness-yjs-canonical",
+      "question": "What is canonical for collaborative note content?",
+      "expectedEvidenceIds": ["evidence-yjs-canonical"],
+      "allowedCitationIds": ["citation-yjs-note-update"],
+      "unsupportedClaimExamples": ["The API database text field is always canonical."]
+    },
+    {
+      "id": "agent-actions-approval-boundary",
+      "question": "Why does OpenCairn keep typed agent actions?",
+      "expectedEvidenceIds": ["evidence-action-ledger-review"],
+      "allowedCitationIds": ["citation-action-ledger"],
+      "unsupportedClaimExamples": ["The model can directly run destructive actions after planning."]
+    },
+    {
+      "id": "parser-benchmark-only-default",
+      "question": "Does the parser benchmark change production ingest defaults?",
+      "expectedEvidenceIds": ["evidence-parser-benchmark-only"],
+      "allowedCitationIds": ["citation-parser-benchmark-plan"],
+      "unsupportedClaimExamples": ["Docling is now the default ingest parser."]
+    },
+    {
+      "id": "citation-precision-definition",
+      "question": "What does citation precision measure?",
+      "expectedEvidenceIds": ["evidence-citation-precision-definition"],
+      "allowedCitationIds": ["citation-benchmark-plan-metrics"],
+      "unsupportedClaimExamples": ["Citation precision measures answer latency."]
+    },
+    {
+      "id": "abstention-no-evidence",
+      "question": "What should the system do when no readable evidence answers the question?",
+      "expectedEvidenceIds": ["evidence-abstention"],
+      "allowedCitationIds": ["citation-benchmark-plan-metrics"],
+      "unsupportedClaimExamples": ["The system should answer from model memory when internal evidence is missing."]
+    }
+  ]
+}

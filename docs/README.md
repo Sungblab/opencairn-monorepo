@@ -13,6 +13,8 @@ workflow files are intentionally excluded from the public repository.
 | Local development and self-hosting setup | `contributing/dev-guide.md` |
 | Hosted service and OSS boundary | `contributing/hosted-service.md` |
 | Test strategy | `testing/strategy.md` |
+| RAG, parser, and agent benchmark plan | `testing/rag-agent-benchmark-plan.md` |
+| Public release checklist | `contributing/public-release-checklist.md` |
 
 ## Architecture
 
@@ -45,6 +47,7 @@ workflow files are intentionally excluded from the public repository.
 | --- | --- |
 | Public incident response template | `runbooks/incident-response.md` |
 | Browser sandbox E2E notes | `testing/sandbox-testing.md` |
+| RAG, parser, and agent benchmark plan | `testing/rag-agent-benchmark-plan.md` |
 
 Raw implementation plans and review findings are maintained privately by the
 operator. Public status belongs in `contributing/roadmap.md` and

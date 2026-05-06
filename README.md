@@ -83,6 +83,8 @@ For the all-in-Docker path (including the worker container, Ollama profile, BYOK
 | Agent runtime                                          | `docs/contributing/roadmap.md`  |
 | Operations                                             | `docs/contributing/ops.md`, `docs/runbooks/`                          |
 | Feature ownership and duplicate-work guard              | `docs/contributing/feature-registry.md`                               |
+| RAG, parser, and agent benchmark plan                   | `docs/testing/rag-agent-benchmark-plan.md`                            |
+| Public release checklist                                | `docs/contributing/public-release-checklist.md`                       |
 
 ## Contributing
 

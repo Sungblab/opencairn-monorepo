@@ -1,0 +1,125 @@
+{
+  "manifestVersion": "2026-05-06.permission-aware-rag.v1",
+  "description": "Deterministic first-slice fixtures for measuring whether post-filter retrieval candidates and citations contain unreadable notes.",
+  "users": [
+    { "id": "user-alice", "name": "Alice Maintainer" },
+    { "id": "user-bob", "name": "Bob Collaborator" }
+  ],
+  "workspace": {
+    "id": "workspace-benchmark",
+    "name": "Benchmark Workspace"
+  },
+  "projects": [
+    {
+      "id": "project-shared",
+      "workspaceId": "workspace-benchmark",
+      "name": "Shared Roadmap",
+      "readers": ["user-alice", "user-bob"]
+    },
+    {
+      "id": "project-alice-private",
+      "workspaceId": "workspace-benchmark",
+      "name": "Alice Private Notes",
+      "readers": ["user-alice"]
+    },
+    {
+      "id": "project-bob-private",
+      "workspaceId": "workspace-benchmark",
+      "name": "Bob Private Notes",
+      "readers": ["user-bob"]
+    }
+  ],
+  "notes": [
+    {
+      "id": "note-shared-rag-policy",
+      "projectId": "project-shared",
+      "title": "RAG permission policy",
+      "readers": ["user-alice", "user-bob"],
+      "content": "Retrieval must filter unreadable notes before citations are packed."
+    },
+    {
+      "id": "note-alice-private-budget",
+      "projectId": "project-alice-private",
+      "title": "Alice confidential launch budget",
+      "readers": ["user-alice"],
+      "content": "The private launch budget is 7200 KRW for the first internal run."
+    },
+    {
+      "id": "note-bob-private-vendor",
+      "projectId": "project-bob-private",
+      "title": "Bob private vendor shortlist",
+      "readers": ["user-bob"],
+      "content": "Bob's private vendor shortlist mentions the blocked evaluation provider."
+    },
+    {
+      "id": "note-page-override",
+      "projectId": "project-shared",
+      "title": "Restricted page override",
+      "readers": ["user-alice"],
+      "content": "This shared-project page has a narrower page-level reader override."
+    }
+  ],
+  "cases": [
+    {
+      "id": "bob-shared-policy-query",
+      "actingUserId": "user-bob",
+      "query": "What does the RAG permission policy require before citations?",
+      "scope": { "type": "workspace", "workspaceId": "workspace-benchmark" },
+      "temptingRawCandidateNoteIds": [
+        "note-shared-rag-policy",
+        "note-alice-private-budget",
+        "note-page-override"
+      ],
+      "retrievalCandidates": [
+        {
+          "id": "candidate-shared-policy",
+          "noteId": "note-shared-rag-policy",
+          "projectId": "project-shared",
+          "score": 0.94,
+          "snippet": "Retrieval must filter unreadable notes before citations are packed."
+        }
+      ],
+      "citations": [
+        {
+          "id": "citation-shared-policy",
+          "noteId": "note-shared-rag-policy",
+          "projectId": "project-shared",
+          "evidence": "filter unreadable notes before citations"
+        }
+      ]
+    },
+    {
+      "id": "bob-private-budget-query",
+      "actingUserId": "user-bob",
+      "query": "What is Alice's private launch budget?",
+      "scope": { "type": "workspace", "workspaceId": "workspace-benchmark" },
+      "temptingRawCandidateNoteIds": ["note-alice-private-budget"],
+      "retrievalCandidates": [],
+      "citations": []
+    },
+    {
+      "id": "alice-page-override-query",
+      "actingUserId": "user-alice",
+      "query": "Which note documents the page-level reader override?",
+      "scope": { "type": "project", "workspaceId": "workspace-benchmark", "projectId": "project-shared" },
+      "temptingRawCandidateNoteIds": ["note-page-override", "note-bob-private-vendor"],
+      "retrievalCandidates": [
+        {
+          "id": "candidate-page-override",
+          "noteId": "note-page-override",
+          "projectId": "project-shared",
+          "score": 0.89,
+          "snippet": "This shared-project page has a narrower page-level reader override."
+        }
+      ],
+      "citations": [
+        {
+          "id": "citation-page-override",
+          "noteId": "note-page-override",
+          "projectId": "project-shared",
+          "evidence": "narrower page-level reader override"
+        }
+      ]
+    }
+  ]
+}
