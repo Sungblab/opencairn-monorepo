@@ -267,13 +267,18 @@ export function makePersistence({ db }: PersistenceDeps): Persistence {
     }
 
     if (noteRow) {
-      await refreshNoteChunkIndexBestEffort({
+      void refreshNoteChunkIndexBestEffort({
         id: noteId,
         workspaceId: noteRow.workspaceId,
         projectId: noteRow.projectId,
         title: noteTitle,
         contentText,
         deletedAt: noteRow.deletedAt,
+      }).catch((error) => {
+        logger.warn(
+          { noteId, error },
+          "persistence.store: best-effort chunk refresh failed",
+        );
       });
     }
   };

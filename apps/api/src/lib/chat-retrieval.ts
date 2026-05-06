@@ -280,6 +280,7 @@ async function collectProjectHits(input: {
     workspaceId: string;
     query: string;
     ragMode: RagMode;
+    userId?: string;
     signal?: AbortSignal;
   };
   projectIds: string[];
@@ -300,6 +301,7 @@ async function collectProjectHits(input: {
         queryEmbedding: input.queryEmbedding,
         k: perProjectK,
         ragMode: input.opts.ragMode,
+        userId: input.opts.userId,
         policy: input.policy,
       }),
     input.opts.signal,
@@ -347,63 +349,76 @@ async function retrieveProjectHits(opts: {
   queryEmbedding: number[];
   k: number;
   ragMode: RagMode;
+  userId?: string;
   policy: AdaptiveRagPolicy;
 }): Promise<ProjectRetrievalHit[]> {
   const chunkHits = await projectChunkHybridSearch(opts).catch(
     () => [] as ChunkHybridHit[],
   );
   if (chunkHits.length > 0) {
-    const seedHits: ProjectRetrievalHit[] = chunkHits.map((h) => ({
-      sourceKey: `chunk:${h.chunkId}`,
-      noteId: h.noteId,
-      projectId: opts.projectId,
-      chunkId: h.chunkId,
-      title: h.title,
-      headingPath: h.headingPath,
-      snippet: h.snippet,
-      score: h.rrfScore,
-      channelScores: channelScores(h),
-      sourceType: null,
-      sourceUrl: null,
-      updatedAt: null,
-      provenance: "extracted",
-      producer: { kind: "api", tool: "chat-retrieval" },
-      confidence: confidenceFromScores(h),
-      sourceSpan: null,
-      evidenceId: `chunk:${h.chunkId}`,
-      support: "supports",
-    }));
-    return [...seedHits, ...(await graphExpansionHits({ ...opts, seedHits }))];
+    const seedHits = await filterReadableHits(
+      opts.userId,
+      chunkHits.map((h) => ({
+        sourceKey: `chunk:${h.chunkId}`,
+        noteId: h.noteId,
+        projectId: opts.projectId,
+        chunkId: h.chunkId,
+        title: h.title,
+        headingPath: h.headingPath,
+        snippet: h.snippet,
+        score: h.rrfScore,
+        channelScores: channelScores(h),
+        sourceType: null,
+        sourceUrl: null,
+        updatedAt: null,
+        provenance: "extracted",
+        producer: { kind: "api", tool: "chat-retrieval" },
+        confidence: confidenceFromScores(h),
+        sourceSpan: null,
+        evidenceId: `chunk:${h.chunkId}`,
+        support: "supports",
+      })),
+    );
+    if (seedHits.length > 0) {
+      return [
+        ...seedHits,
+        ...(await graphExpansionHits({ ...opts, seedHits })),
+      ];
+    }
   }
 
   const noteHits = await projectHybridSearch(opts).catch(
     () => [] as HybridHit[],
   );
-  const seedHits: ProjectRetrievalHit[] = noteHits.map((h) => ({
-    sourceKey: `note:${h.noteId}`,
-    noteId: h.noteId,
-    projectId: opts.projectId,
-    title: h.title,
-    headingPath: "",
-    snippet: h.snippet,
-    score: h.rrfScore,
-    channelScores: channelScores(h),
-    sourceType: h.sourceType,
-    sourceUrl: h.sourceUrl,
-    updatedAt: null,
-    provenance: "extracted",
-    producer: { kind: "api", tool: "chat-retrieval" },
-    confidence: confidenceFromScores(h),
-    sourceSpan: null,
-    evidenceId: `note:${h.noteId}`,
-    support: "supports",
-  }));
+  const seedHits = await filterReadableHits(
+    opts.userId,
+    noteHits.map((h) => ({
+      sourceKey: `note:${h.noteId}`,
+      noteId: h.noteId,
+      projectId: opts.projectId,
+      title: h.title,
+      headingPath: "",
+      snippet: h.snippet,
+      score: h.rrfScore,
+      channelScores: channelScores(h),
+      sourceType: h.sourceType,
+      sourceUrl: h.sourceUrl,
+      updatedAt: null,
+      provenance: "extracted",
+      producer: { kind: "api", tool: "chat-retrieval" },
+      confidence: confidenceFromScores(h),
+      sourceSpan: null,
+      evidenceId: `note:${h.noteId}`,
+      support: "supports",
+    })),
+  );
   return [...seedHits, ...(await graphExpansionHits({ ...opts, seedHits }))];
 }
 
 async function graphExpansionHits(opts: {
   workspaceId: string;
   projectId: string;
+  userId?: string;
   policy: AdaptiveRagPolicy;
   seedHits: ProjectRetrievalHit[];
 }): Promise<ProjectRetrievalHit[]> {
@@ -420,35 +435,53 @@ async function graphExpansionHits(opts: {
     limit: opts.policy.graphLimit,
   }).catch(() => [] as GraphExpansionHit[]);
 
-  return graphHits.map((hit): ProjectRetrievalHit => {
-    const sourceKey = hit.chunkId
-      ? `chunk:${hit.chunkId}`
-      : `note:${hit.noteId}`;
-    const evidenceId = hit.chunkId
-      ? `graph:chunk:${hit.chunkId}`
-      : `graph:note:${hit.noteId}`;
-    return {
-      sourceKey,
-      noteId: hit.noteId,
-      projectId: opts.projectId,
-      chunkId: hit.chunkId,
-      title: hit.title,
-      headingPath: hit.headingPath,
-      snippet: hit.snippet,
-      score: hit.graphScore * 0.5,
-      channelScores: { graph: hit.graphScore },
-      sourceType: hit.sourceType,
-      sourceUrl: hit.sourceUrl,
-      updatedAt: hit.updatedAt,
-      provenance: "inferred",
-      producer: { kind: "api", tool: "retrieval-graph-expansion" },
-      confidence: hit.graphScore * 0.75,
-      sourceSpan: null,
-      evidenceId,
-      support: "mentions",
-      graphPath: hit.graphPath,
-    };
-  });
+  return filterReadableHits(
+    opts.userId,
+    graphHits.map((hit): ProjectRetrievalHit => {
+      const sourceKey = hit.chunkId
+        ? `chunk:${hit.chunkId}`
+        : `note:${hit.noteId}`;
+      const evidenceId = hit.chunkId
+        ? `graph:chunk:${hit.chunkId}`
+        : `graph:note:${hit.noteId}`;
+      return {
+        sourceKey,
+        noteId: hit.noteId,
+        projectId: opts.projectId,
+        chunkId: hit.chunkId,
+        title: hit.title,
+        headingPath: hit.headingPath,
+        snippet: hit.snippet,
+        score: hit.graphScore * 0.5,
+        channelScores: { graph: hit.graphScore },
+        sourceType: hit.sourceType,
+        sourceUrl: hit.sourceUrl,
+        updatedAt: hit.updatedAt,
+        provenance: "inferred",
+        producer: { kind: "api", tool: "retrieval-graph-expansion" },
+        confidence: hit.graphScore * 0.75,
+        sourceSpan: null,
+        evidenceId,
+        support: "mentions",
+        graphPath: hit.graphPath,
+      };
+    }),
+  );
+}
+
+async function filterReadableHits(
+  userId: string | undefined,
+  hits: ProjectRetrievalHit[],
+): Promise<ProjectRetrievalHit[]> {
+  if (!userId || hits.length === 0) return hits;
+  const allowedNoteIds = new Map<string, boolean>();
+  const uniqueNoteIds = Array.from(new Set(hits.map((hit) => hit.noteId)));
+  await Promise.all(
+    uniqueNoteIds.map(async (noteId) => {
+      allowedNoteIds.set(noteId, await canReadNote(userId, noteId));
+    }),
+  );
+  return hits.filter((hit) => allowedNoteIds.get(hit.noteId) === true);
 }
 
 function channelScores(hit: {
