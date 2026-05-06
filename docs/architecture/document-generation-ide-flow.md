@@ -258,12 +258,15 @@ Current implementation boundary:
 - Source handling quality signals are additive metadata. Unsupported, corrupt,
   oversized, scanned, unextractable, hydration-failed, or token-budget-skipped
   sources can be shown as compact warnings while preserving the worker error
-  code and the existing viewer/download result actions.
+  code and the existing viewer/download result actions. Result cards keep both
+  aggregate signals and affected source titles, so users can tell which selected
+  source fell back without opening a separate document-generation page.
 
 Remaining Phase 3C/3D work:
 
-- Keep running the live smoke script against source selection, Temporal, object
-  storage, project tree update, callback registration, and download when these
+- Keep running the live smoke script against source selection, source-quality
+  metadata, Temporal, object storage, project tree update, callback
+  registration, authenticated download, and artifact magic bytes when these
   boundaries change.
 - Expand Phase 3D quality signals only after the current event/result contract
   has been exercised with real user prompts.

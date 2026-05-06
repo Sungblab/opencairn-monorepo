@@ -92,6 +92,13 @@ type DocumentGenerationQualitySignal =
   | "source_hydration_failed"
   | "source_token_budget_exceeded";
 
+type DocumentGenerationQualitySource = {
+  id: string;
+  kind: string;
+  title: string;
+  signals: DocumentGenerationQualitySignal[];
+};
+
 export type DocumentGenerationCardItem = {
   requestId: string;
   status: DocumentGenerationStatus;
@@ -101,6 +108,7 @@ export type DocumentGenerationCardItem = {
   errorCode?: string;
   sourceKinds: DocumentGenerationSourceKind[];
   qualitySignals?: DocumentGenerationQualitySignal[];
+  qualitySources?: DocumentGenerationQualitySource[];
   file?: AgentFileCardItem;
 };
 
@@ -166,6 +174,10 @@ function setGenerationCard(
       next.qualitySignals && next.qualitySignals.length > 0
         ? next.qualitySignals
         : prev.qualitySignals,
+    qualitySources:
+      next.qualitySources && next.qualitySources.length > 0
+        ? next.qualitySources
+        : prev.qualitySources,
     status:
       statusRank(next.status) >= statusRank(prev.status)
         ? next.status
@@ -190,6 +202,30 @@ function readQualitySignals(
     signal === "source_hydration_failed" ||
     signal === "source_token_budget_exceeded",
   );
+}
+
+function readQualitySources(
+  result: Record<string, unknown>,
+): DocumentGenerationQualitySource[] {
+  const sourceQuality = result.sourceQuality;
+  if (!sourceQuality || typeof sourceQuality !== "object") return [];
+  const sources = (sourceQuality as Record<string, unknown>).sources;
+  if (!Array.isArray(sources)) return [];
+  return sources.flatMap((source): DocumentGenerationQualitySource[] => {
+    if (!source || typeof source !== "object") return [];
+    const record = source as Record<string, unknown>;
+    if (
+      typeof record.id !== "string" ||
+      typeof record.kind !== "string" ||
+      typeof record.title !== "string"
+    ) {
+      return [];
+    }
+    const signals = readQualitySignals({ sourceQuality: { signals: record.signals } });
+    return signals.length > 0
+      ? [{ id: record.id, kind: record.kind, title: record.title, signals }]
+      : [];
+  });
 }
 
 function asGenerationFile(value: unknown): AgentFileCardItem | undefined {
@@ -306,6 +342,7 @@ function appendGenerationEvent(
       sourceKinds: [],
       file,
       qualitySignals: readQualitySignals(result),
+      qualitySources: readQualitySources(result),
     });
     return;
   }
@@ -332,6 +369,7 @@ function appendGenerationEvent(
         typeof result.errorCode === "string" ? result.errorCode : undefined,
       sourceKinds: [],
       qualitySignals: readQualitySignals(result),
+      qualitySources: readQualitySources(result),
     });
   }
 }
@@ -501,6 +539,17 @@ export function DocumentGenerationCards({
                     signals: item.qualitySignals
                       .slice(0, 3)
                       .map((signal) => t(`qualitySignal.${signal}`))
+                      .join(", "),
+                  })}
+                </span>
+              ) : null}
+              {item.qualitySources && item.qualitySources.length > 0 ? (
+                <span className="block truncate text-xs text-amber-700">
+                  {t("qualitySourceSummary", {
+                    count: item.qualitySources.length,
+                    sources: item.qualitySources
+                      .slice(0, 2)
+                      .map((source) => source.title)
                       .join(", "),
                   })}
                 </span>
