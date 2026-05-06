@@ -45,6 +45,12 @@ import {
   ImportRetryError,
   retryImportJob,
 } from "./import-retry";
+import {
+  Plan8AgentRunError,
+  plan8AgentRunInputSchema,
+  runPlan8Agent,
+  type Plan8AgentRunInput,
+} from "./plan8-agent-runs";
 import { canRead, canWrite } from "./permissions";
 
 export class AgenticPlanError extends Error {
@@ -153,6 +159,11 @@ export interface AgenticPlanServiceOptions {
     failedJobId: string,
     actorUserId: string,
   ) => Promise<{ jobId: string; action: AgentAction | null }>;
+  runPlan8Agent?: (
+    projectId: string,
+    actorUserId: string,
+    input: Plan8AgentRunInput,
+  ) => Promise<{ runId: string; status: string }>;
 }
 
 export function createDrizzleAgenticPlanRepository(conn: DB = defaultDb): AgenticPlanRepository {
@@ -304,7 +315,7 @@ export async function createAgenticPlan(
     throw new AgenticPlanError("forbidden", 403);
   }
 
-  const steps = planStepsForGoal(request.goal);
+  const steps = planStepsForGoal(request.goal, request.target ?? {});
   return repo.insertPlan({
     workspaceId: scope.workspaceId,
     projectId,
@@ -472,12 +483,12 @@ async function materializeStep(
         const { action } = await repairCodeRun(failedRunActionId, actorUserId, { requestId: step.id }, options);
         return linkedAction(action);
       }
-      case "agent.run":
-        return {
-          kind: "blocked",
-          errorCode: "agentic_plan_step_unavailable",
-          errorMessage: `${step.kind} does not have a safe API materializer yet.`,
-        };
+      case "agent.run": {
+        const parsed = plan8AgentRunInputSchema.safeParse(step.input);
+        if (!parsed.success) return missingInput(step.kind);
+        const run = await runPlan8(projectId, actorUserId, parsed.data, options);
+        return linkedPlan8AgentRun(run.runId, run.status);
+      }
       case "import.retry": {
         const importJobId = stringField(step.input, "importJobId");
         if (!importJobId) return missingInput(step.kind);
@@ -496,6 +507,7 @@ async function materializeStep(
     if (
       (err instanceof AgentActionError && err.status === 409)
       || err instanceof ImportRetryError
+      || err instanceof Plan8AgentRunError
     ) {
       return {
         kind: "blocked",
@@ -524,6 +536,17 @@ function linkedImportJob(jobId: string): MaterializeResult {
     linkedRunType: "import_job",
     linkedRunId: jobId,
     status: "queued",
+    errorCode: null,
+    errorMessage: null,
+  };
+}
+
+function linkedPlan8AgentRun(runId: string, status: string): MaterializeResult {
+  return {
+    kind: "linked",
+    linkedRunType: "plan8_agent",
+    linkedRunId: runId,
+    status: stepStatusFromPlan8Status(status),
     errorCode: null,
     errorMessage: null,
   };
@@ -600,6 +623,16 @@ async function retryImport(
   return retry(failedJobId, actorUserId);
 }
 
+async function runPlan8(
+  projectId: string,
+  actorUserId: string,
+  input: Plan8AgentRunInput,
+  options?: AgenticPlanServiceOptions,
+): Promise<{ runId: string; status: string }> {
+  const run = options?.runPlan8Agent ?? runPlan8Agent;
+  return run(projectId, actorUserId, input);
+}
+
 function stringField(input: Record<string, unknown>, key: string): string | null {
   const value = input[key];
   return typeof value === "string" && value.trim().length > 0 ? value : null;
@@ -620,6 +653,15 @@ function stepStatusFromActionStatus(status: AgentActionStatus): AgenticPlanStepS
     case "reverted":
       return "failed";
   }
+}
+
+function stepStatusFromPlan8Status(status: string): AgenticPlanStepStatus {
+  if (status === "completed" || status === "complete") return "completed";
+  if (status === "failed") return "failed";
+  if (status === "cancelled") return "cancelled";
+  if (status === "queued") return "queued";
+  if (status === "awaiting_input" || status === "blocked") return "blocked";
+  return "running";
 }
 
 export async function recoverAgenticPlanStep(
@@ -666,7 +708,10 @@ export async function recoverAgenticPlanStep(
   return refreshPlanStatus(repo, projectId, planId);
 }
 
-export function planStepsForGoal(goal: string): PlannedStepInput[] {
+export function planStepsForGoal(
+  goal: string,
+  target: { noteId?: string } = {},
+): PlannedStepInput[] {
   const goalText = goal.toLowerCase();
   const steps: PlannedStepInput[] = [];
 
@@ -722,6 +767,9 @@ export function planStepsForGoal(goal: string): PlannedStepInput[] {
     });
   }
 
+  const agentRunStep = plan8AgentStepForGoal(goalText, target);
+  if (agentRunStep) steps.push(agentRunStep);
+
   if (steps.length === 0) {
     steps.push({
       kind: "manual.review",
@@ -732,6 +780,52 @@ export function planStepsForGoal(goal: string): PlannedStepInput[] {
   }
 
   return dedupeStepKinds(steps);
+}
+
+function plan8AgentStepForGoal(
+  goalText: string,
+  target: { noteId?: string },
+): PlannedStepInput | null {
+  const agentName = plan8AgentNameForGoal(goalText);
+  if (!agentName) return null;
+  const input: Record<string, unknown> = { agentName };
+  if (agentName === "narrator" && target.noteId) input.noteId = target.noteId;
+  if (agentName === "synthesis" && target.noteId) input.noteIds = [target.noteId];
+
+  return {
+    kind: "agent.run",
+    title: `Run ${agentName} agent`,
+    rationale: "The goal names an existing Plan8 agent, so the plan can launch it through the workflow console.",
+    risk: agentRunRisk(agentName),
+    input,
+  };
+}
+
+function plan8AgentNameForGoal(goalText: string): Plan8AgentRunInput["agentName"] | null {
+  if (includesAny(goalText, ["librarian", "library agent", "knowledge graph", "사서", "지식 그래프"])) {
+    return "librarian";
+  }
+  if (includesAny(goalText, ["curator", "curate", "orphan", "duplicate", "contradiction", "큐레이터", "중복", "모순"])) {
+    return "curator";
+  }
+  if (includesAny(goalText, ["connector", "concept link", "connect concept", "개념 연결"])) {
+    return "connector";
+  }
+  if (includesAny(goalText, ["staleness", "stale", "outdated", "오래된", "최신성"])) {
+    return "staleness";
+  }
+  if (includesAny(goalText, ["narrator", "podcast", "audio", "voice", "나레이터", "나레이션", "음성"])) {
+    return "narrator";
+  }
+  if (includesAny(goalText, ["synthesis agent", "synthesize notes", "합성 에이전트"])) {
+    return "synthesis";
+  }
+  return null;
+}
+
+function agentRunRisk(agentName: Plan8AgentRunInput["agentName"]): PlannedStepInput["risk"] {
+  if (agentName === "synthesis" || agentName === "narrator") return "expensive";
+  return "write";
 }
 
 async function getReadablePlan(
