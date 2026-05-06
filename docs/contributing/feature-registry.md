@@ -11,12 +11,14 @@ Read order for new work:
 4. Extend the existing surface instead of creating a parallel copy.
 
 Status legend: `complete` means the main implementation exists across every
-required layer; `active` means recently implemented or being refined; `planned`
-means a public direction exists but code should be checked first; `blocked`
-means do not start without an explicit maintainer decision. For LLM provider
-capabilities, provider-only or worker-only plumbing is not complete until the
-API and web surfaces are either implemented or explicitly classified as
-intentionally absent.
+required layer; `active` means recently implemented or being refined;
+`experimental` means a shipped surface exists but behavior is deliberately
+constrained while the product contract hardens; `planned` means a public
+direction exists but code should be checked first; `blocked` means do not start
+without an explicit maintainer decision. For LLM provider capabilities,
+provider-only or worker-only plumbing is not complete until the API and web
+surfaces are either implemented or explicitly classified as intentionally
+absent.
 
 | Feature ID | Status | Owning paths | Public source | Duplicate guard |
 | --- | --- | --- | --- | --- |
@@ -29,6 +31,7 @@ intentionally absent.
 | app-shell-tabs-routes | complete | `apps/web/src/components/shell/`, `apps/web/src/stores/`, `apps/web/src/lib/urls.ts`, `apps/web/src/lib/url-parsers.ts` | `docs/contributing/roadmap.md` | Use central URL helpers and tab stores. |
 | chat-agent-panel-real-llm | complete | `apps/api/src/lib/agent-pipeline.ts`, `apps/api/src/lib/chat-llm.ts`, `apps/api/src/lib/chat-runs.ts`, `apps/api/src/routes/chat-runs.ts`, `apps/web/src/components/agent-panel/` | `docs/agents/context-management.md` | Chat surfaces should use durable chat runs plus the real LLM/retrieval paths, not new placeholders or browser-owned execution. |
 | agentic-workflow-orchestration | active | `docs/architecture/agentic-workflow-roadmap.md`, `packages/shared/src/agent-actions.ts`, `packages/db/src/schema/agent-actions.ts`, `apps/api/src/lib/agent-actions.ts`, `apps/api/src/routes/agent-actions.ts`, `packages/shared/src/project-object-actions.ts`, `apps/api/src/lib/project-object-actions.ts`, `apps/api/src/lib/chat-runs.ts`, `apps/web/src/components/agent-panel/`, `apps/web/src/components/views/agents/` | `docs/architecture/agentic-workflow-roadmap.md` | Use the unified action ledger for new write-capable agent work. Scope is server-injected, requestId is idempotent, permissions are checked before ledger writes, Phase 1 executes low-risk placeholder actions, Phase 2A executes basic note metadata/trash actions, and Phase 2B exposes `note.update` draft review/apply cards in the Agent Panel. Do not add ad hoc chat-only mutation paths. |
+| agentic-plan-orchestration | experimental | `packages/shared/src/agentic-plans.ts`, `packages/shared/src/workflow-console.ts`, `packages/db/src/schema/agentic-plans.ts`, `apps/api/src/lib/agentic-plans.ts`, `apps/api/src/routes/agentic-plans.ts`, `apps/api/src/lib/workflow-console.ts`, `apps/web/src/lib/api-client.ts`, `apps/web/src/components/agent-panel/agentic-plan-card.tsx`, `apps/web/src/components/agent-panel/workflow-console-runs.tsx`, `apps/web/src/components/views/agents/` | `docs/architecture/agentic-workflow-roadmap.md` | Phase 1 provides a deterministic planner plus durable project-goal review/control plane. Agent Panel creates and starts plans, Workflow Console projects them as `agentic_plan:<planId>`, and recovery adds explicit review steps. Do not bypass existing action approvals, feature flags, permissions, or source-specific run tables; route future autonomous execution through typed plan steps linked to existing actions/runs. |
 | note-agent-actions | active | `packages/shared/src/agent-actions.ts`, `packages/db/src/lib/wiki-link-sync.ts`, `apps/api/src/lib/agent-actions.ts`, `apps/api/src/routes/agent-actions.ts`, `apps/api/src/routes/notes.ts`, `apps/api/src/routes/threads.ts`, `apps/api/src/lib/chat-runs.ts`, `apps/web/src/lib/api-client.ts`, `apps/web/src/components/agent-panel/`, `apps/hocuspocus/` | `docs/architecture/agentic-workflow-roadmap.md` | Phase 2A note create, rename, move, soft-delete, and restore run through the unified action ledger with server-injected scope, permission checks, status/result/errorCode updates, and requestId idempotency. Phase 2B adds `note.update` preview/apply contracts plus an Agent Panel review surface: previews diff current Yjs-backed content against a draft Plate value, apply writes through Yjs state-vector guarded transforms with note-version capture plus Yjs-derived mirror/wiki-link sync, stale previews surface `note_update_stale_preview`, and reject transitions draft actions to `cancelled`. Preserve Yjs as canonical note content. |
 | chat-scope-rag | complete | `apps/api/src/routes/chat.ts`, `apps/api/src/lib/chat-retrieval.ts`, `apps/web/src/components/chat-scope/` | `docs/architecture/context-budget.md` | Scope chips and strict/expand RAG modes already exist. |
 | llm-provider-surface-parity | active | `packages/llm/src/llm/`, `apps/worker/src/worker/`, `apps/api/src/lib/llm/`, `apps/api/src/routes/`, `apps/web/src/` | `docs/agents/llm-provider-surface-parity.md` | Do not mark native provider capability work complete until provider, worker, API, web, feature flag, tests, and docs are classified. |

@@ -74,6 +74,7 @@
     "type": {
       "chat": "채팅",
       "agent_action": "에이전트 작업",
+      "agentic_plan": "에이전틱 플랜",
       "plan8_agent": "Plan8",
       "document_generation": "문서 생성",
       "import": "가져오기",

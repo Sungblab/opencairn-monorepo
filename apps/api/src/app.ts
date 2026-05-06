@@ -58,6 +58,7 @@ import { connectorRoutes as connectorFoundationRoutes } from "./routes/connector
 import { notificationPreferenceRoutes } from "./routes/notification-preferences";
 import { agentFileRoutes } from "./routes/agent-files";
 import { agentActionRoutes } from "./routes/agent-actions";
+import { agenticPlanRoutes } from "./routes/agentic-plans";
 import { documentGenerationRoutes } from "./routes/document-generation";
 import { workflowConsoleRoutes } from "./routes/workflow-console";
 import { codeWorkspaceRoutes } from "./routes/code-workspaces";
@@ -119,6 +120,7 @@ export function createApp() {
   app.route("/api/agent-files", agentFileRoutes);
   app.route("/api", documentGenerationRoutes);
   app.route("/api", agentActionRoutes);
+  app.route("/api", agenticPlanRoutes);
   app.route("/api", workflowConsoleRoutes);
   app.route("/api", codeWorkspaceRoutes);
   // Plan 2C share-link routes. Same public-then-auth shape as inviteRoutes.

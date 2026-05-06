@@ -7,6 +7,12 @@ import {
   type AgentActionEvent,
 } from "./agent-actions";
 import {
+  agenticPlanSchema,
+  type AgenticPlan,
+  type AgenticPlanStep,
+  type AgenticPlanStatus,
+} from "./agentic-plans";
+import {
   projectObjectActionEventSchema,
   type ProjectObjectActionEvent,
 } from "./project-object-actions";
@@ -27,6 +33,7 @@ export const workflowConsoleStatusSchema = z.enum([
 export const workflowConsoleRunTypeSchema = z.enum([
   "chat",
   "agent_action",
+  "agentic_plan",
   "plan8_agent",
   "document_generation",
   "import",
@@ -237,6 +244,8 @@ export type SynthesisExportRunProjectionSource = {
   documents?: SynthesisExportDocumentProjectionSource[];
 };
 
+export type AgenticPlanProjectionSource = AgenticPlan;
+
 export type ChatRunEventProjectionSource = {
   runId: string;
   seq: number;
@@ -311,6 +320,58 @@ export function workflowConsoleRunFromAgentAction(action: AgentAction): Workflow
     createdAt: parsed.createdAt,
     updatedAt: parsed.updatedAt,
     completedAt: terminalStatus(status) ? parsed.updatedAt : null,
+  });
+}
+
+export function workflowConsoleRunFromAgenticPlan(plan: AgenticPlanProjectionSource): WorkflowConsoleRun {
+  const parsed = agenticPlanSchema.parse(plan);
+  const completedSteps = parsed.steps.filter((step) => step.status === "completed").length;
+  const totalSteps = parsed.steps.length;
+  const progress = totalSteps > 0
+    ? {
+        step: currentStepLabel(parsed.steps),
+        current: completedSteps,
+        total: totalSteps,
+        percent: Math.round((completedSteps / totalSteps) * 100),
+      }
+    : null;
+  const failedStep = parsed.steps.find((step) => step.status === "failed");
+
+  return workflowConsoleRunSchema.parse({
+    runId: prefixedRunId("agentic_plan", parsed.id),
+    runType: "agentic_plan",
+    sourceId: parsed.id,
+    sourceStatus: parsed.status,
+    workspaceId: parsed.workspaceId,
+    projectId: parsed.projectId,
+    actorUserId: parsed.actorUserId,
+    title: parsed.title,
+    status: normalizeAgenticPlanStatus(parsed.status),
+    risk: maxPlanRisk(parsed.steps),
+    progress,
+    outputs: [
+      {
+        outputType: "preview",
+        id: parsed.id,
+        label: parsed.summary,
+        metadata: {
+          goal: parsed.goal,
+          stepCount: totalSteps,
+          completedSteps,
+        },
+      },
+    ],
+    approvals: approvalsFromAgenticPlan(parsed),
+    error: failedStep
+      ? {
+          code: failedStep.errorCode ?? "agentic_plan_step_failed",
+          retryable: true,
+          ...(failedStep.errorMessage ? { message: failedStep.errorMessage } : {}),
+        }
+      : null,
+    createdAt: parsed.createdAt,
+    updatedAt: parsed.updatedAt,
+    completedAt: parsed.completedAt ?? (terminalStatus(parsed.status) ? parsed.updatedAt : null),
   });
 }
 
@@ -631,6 +692,10 @@ function normalizeAgentActionStatus(status: AgentAction["status"]): WorkflowCons
   return status;
 }
 
+function normalizeAgenticPlanStatus(status: AgenticPlanStatus): WorkflowConsoleStatus {
+  return status;
+}
+
 function normalizePlan8Status(status: string): WorkflowConsoleStatus {
   if (status === "completed" || status === "complete") return "completed";
   if (status === "failed") return "failed";
@@ -658,6 +723,39 @@ function normalizeSynthesisExportStatus(status: string): WorkflowConsoleStatus {
 
 function terminalStatus(status: WorkflowConsoleStatus): boolean {
   return ["completed", "failed", "cancelled", "reverted"].includes(status);
+}
+
+function maxPlanRisk(steps: AgenticPlanStep[]): AgenticPlanStep["risk"] {
+  const unfinished = steps.filter((step) => !["completed", "skipped", "cancelled"].includes(step.status));
+  const candidates = unfinished.length > 0 ? unfinished : steps;
+  const priority: Record<AgenticPlanStep["risk"], number> = {
+    low: 0,
+    write: 1,
+    external: 2,
+    expensive: 3,
+    destructive: 4,
+  };
+  return candidates.reduce<AgenticPlanStep["risk"]>(
+    (highest, step) => (priority[step.risk] > priority[highest] ? step.risk : highest),
+    "low",
+  );
+}
+
+function currentStepLabel(steps: AgenticPlanStep[]): string | undefined {
+  const current = steps.find((step) => !["completed", "skipped", "cancelled"].includes(step.status));
+  return current?.title;
+}
+
+function approvalsFromAgenticPlan(plan: AgenticPlan): WorkflowConsoleRun["approvals"] {
+  return plan.steps
+    .filter((step) => step.status === "approval_required")
+    .map((step) => ({
+      approvalId: `${prefixedRunId("agentic_plan", plan.id)}:step:${step.id}:approval`,
+      status: "requested" as const,
+      risk: step.risk,
+      requestedAt: step.createdAt,
+      summary: step.title,
+    }));
 }
 
 function importLabel(job: ImportJobProjectionSource): string {

@@ -87,6 +87,41 @@
     "openPreview": "Open preview",
     "resultWarning": "This preview opens through an internal API path, not a public deployment URL."
   },
+  "agenticPlan": {
+    "title": "Agentic plan",
+    "goalLabel": "Project goal",
+    "goalPrompt": "Describe the outcome you want the agents to coordinate.",
+    "create": "Create plan",
+    "start": "Start",
+    "recover": "Add recovery review",
+    "empty": "No agentic plans yet.",
+    "loading": "Loading agentic plans…",
+    "refreshing": "Refreshing",
+    "loadFailed": "Could not load agentic plans.",
+    "actionFailed": "Could not update the agentic plan.",
+    "progress": "{completed}/{total} steps",
+    "status": {
+      "draft": "Draft",
+      "approval_required": "Needs review",
+      "queued": "Queued",
+      "running": "Running",
+      "blocked": "Blocked",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "stepStatus": {
+      "draft": "Draft",
+      "approval_required": "Review",
+      "queued": "Queued",
+      "running": "Running",
+      "blocked": "Blocked",
+      "completed": "Done",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "skipped": "Skipped"
+    }
+  },
   "workflowConsole": {
     "title": "Run status",
     "loading": "Loading runs…",
@@ -97,6 +132,7 @@
     "type": {
       "chat": "Chat",
       "agent_action": "Agent action",
+      "agentic_plan": "Agentic plan",
       "plan8_agent": "Plan8",
       "document_generation": "Document generation",
       "import": "Import",

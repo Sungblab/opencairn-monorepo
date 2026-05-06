@@ -6,11 +6,15 @@ import type {
   AgentAction,
   AgentActionKind,
   AgentActionStatus,
+  AgenticPlan,
+  CreateAgenticPlanRequest,
   DocumentGenerationFormat,
   DocumentGenerationSource,
   GenerateProjectObjectAction,
   NoteUpdateApplyRequest,
   ProjectObjectAction,
+  RecoverAgenticPlanStepRequest,
+  StartAgenticPlanRequest,
   TransitionAgentActionStatusRequest,
   WorkflowConsoleRun,
   WorkflowConsoleStatus,
@@ -372,6 +376,58 @@ export const agentActionsApi = {
       body: JSON.stringify(body),
     }),
 };
+
+export interface AgenticPlanListOptions {
+  status?: AgenticPlan["status"];
+  limit?: number;
+}
+
+export const agenticPlansApi = {
+  list: (projectId: string, opts: AgenticPlanListOptions = {}) => {
+    const params = new URLSearchParams();
+    if (opts.status) params.set("status", opts.status);
+    if (opts.limit) params.set("limit", String(opts.limit));
+    const qs = params.toString();
+    return apiClient<{ plans: AgenticPlan[] }>(
+      `/projects/${projectId}/agentic-plans${qs ? `?${qs}` : ""}`,
+    );
+  },
+  create: (projectId: string, body: CreateAgenticPlanRequest) =>
+    apiClient<{ plan: AgenticPlan }>(`/projects/${projectId}/agentic-plans`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  get: (projectId: string, planId: string) =>
+    apiClient<{ plan: AgenticPlan }>(
+      `/projects/${projectId}/agentic-plans/${planId}`,
+    ),
+  start: (
+    projectId: string,
+    planId: string,
+    body: StartAgenticPlanRequest = {},
+  ) =>
+    apiClient<{ plan: AgenticPlan }>(
+      `/projects/${projectId}/agentic-plans/${planId}/start`,
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    ),
+  recover: (
+    projectId: string,
+    planId: string,
+    body: RecoverAgenticPlanStepRequest,
+  ) =>
+    apiClient<{ plan: AgenticPlan }>(
+      `/projects/${projectId}/agentic-plans/${planId}/recover`,
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    ),
+};
+
+export type { AgenticPlan };
 
 export type DocumentGenerationSourceOption = {
   id: string;

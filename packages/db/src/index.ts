@@ -21,6 +21,7 @@ export * from "./schema/jobs";
 export * from "./schema/user-preferences";
 export * from "./schema/agent-runs";
 export * from "./schema/agent-actions";
+export * from "./schema/agentic-plans";
 export * from "./schema/project-semaphores";
 export * from "./schema/embedding-batches";
 export * from "./schema/chat-threads";
