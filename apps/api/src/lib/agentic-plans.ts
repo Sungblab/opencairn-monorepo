@@ -1,4 +1,6 @@
 import {
+  agentActions,
+  agentRuns,
   agenticPlanSteps,
   agenticPlans,
   and,
@@ -6,6 +8,8 @@ import {
   db as defaultDb,
   desc,
   eq,
+  importJobs,
+  inArray,
   projects,
   type AgenticPlanRow,
   type AgenticPlanStepRow,
@@ -129,6 +133,7 @@ export interface AgenticPlanRepository {
     currentStepOrdinal: number | null;
     completedAt?: Date | null;
   }): Promise<void>;
+  syncLinkedRunStatuses?(plan: AgenticPlan): Promise<boolean>;
 }
 
 export interface AgenticPlanServiceOptions {
@@ -298,6 +303,9 @@ export function createDrizzleAgenticPlanRepository(conn: DB = defaultDb): Agenti
         })
         .where(eq(agenticPlans.id, planId));
     },
+    async syncLinkedRunStatuses(plan) {
+      return syncLinkedStepStatuses(conn, plan);
+    },
   };
 }
 
@@ -347,7 +355,15 @@ export async function listAgenticPlans(
   if (!(await canReadProject(actorUserId, projectId, options))) {
     throw new AgenticPlanError("forbidden", 403);
   }
-  return repo.listByProject({ projectId, ...query });
+  const plans = await repo.listByProject({
+    projectId,
+    status: query.status ? undefined : query.status,
+    limit: query.status ? Math.max(query.limit * 4, query.limit) : query.limit,
+  });
+  const synced = await Promise.all(plans.map((plan) => syncAndRefreshPlan(repo, projectId, plan)));
+  return synced
+    .filter((plan) => !query.status || plan.status === query.status)
+    .slice(0, query.limit);
 }
 
 export async function getAgenticPlan(
@@ -357,7 +373,8 @@ export async function getAgenticPlan(
   options?: AgenticPlanServiceOptions,
 ): Promise<AgenticPlan> {
   const plan = await getReadablePlan(projectId, actorUserId, planId, options);
-  return plan;
+  const repo = options?.repo ?? createDrizzleAgenticPlanRepository();
+  return syncAndRefreshPlan(repo, projectId, plan);
 }
 
 export async function startAgenticPlan(
@@ -664,6 +681,23 @@ function stepStatusFromPlan8Status(status: string): AgenticPlanStepStatus {
   return "running";
 }
 
+function stepStatusFromLinkedRunStatus(
+  linkedRunType: string,
+  status: string,
+): AgenticPlanStepStatus {
+  if (linkedRunType === "agent_action") {
+    return stepStatusFromActionStatus(status as AgentActionStatus);
+  }
+  if (linkedRunType === "plan8_agent") {
+    return stepStatusFromPlan8Status(status);
+  }
+  if (status === "completed" || status === "complete") return "completed";
+  if (status === "failed") return "failed";
+  if (status === "cancelled") return "cancelled";
+  if (status === "running" || status === "processing") return "running";
+  return "queued";
+}
+
 export async function recoverAgenticPlanStep(
   projectId: string,
   actorUserId: string,
@@ -882,6 +916,136 @@ async function refreshPlanStatus(
   const refreshed = await repo.findById({ projectId, planId });
   if (!refreshed) throw new AgenticPlanError("agentic_plan_not_found", 404);
   return refreshed;
+}
+
+async function syncAndRefreshPlan(
+  repo: AgenticPlanRepository,
+  projectId: string,
+  plan: AgenticPlan,
+): Promise<AgenticPlan> {
+  const changed = await repo.syncLinkedRunStatuses?.(plan);
+  if (!changed) return plan;
+  return refreshPlanStatus(repo, projectId, plan.id);
+}
+
+async function syncLinkedStepStatuses(conn: DB, plan: AgenticPlan): Promise<boolean> {
+  const linkedSteps = plan.steps.filter((step) => step.linkedRunType && step.linkedRunId);
+  if (linkedSteps.length === 0) return false;
+
+  const snapshots = await loadLinkedRunSnapshots(conn, linkedSteps);
+  let changed = false;
+  for (const step of linkedSteps) {
+    const snapshot = snapshots.get(linkedRunKey(step.linkedRunType!, step.linkedRunId!));
+    if (!snapshot) continue;
+    const nextStatus = stepStatusFromLinkedRunStatus(step.linkedRunType!, snapshot.status);
+    const nextErrorCode = snapshot.errorCode;
+    const nextErrorMessage = snapshot.errorMessage;
+    if (
+      step.status === nextStatus
+      && (step.errorCode ?? null) === nextErrorCode
+      && (step.errorMessage ?? null) === nextErrorMessage
+    ) {
+      continue;
+    }
+    await conn
+      .update(agenticPlanSteps)
+      .set({
+        status: nextStatus,
+        errorCode: nextErrorCode,
+        errorMessage: nextErrorMessage,
+        updatedAt: new Date(),
+        completedAt: terminalStepStatus(nextStatus) ? new Date() : null,
+      })
+      .where(eq(agenticPlanSteps.id, step.id));
+    changed = true;
+  }
+  return changed;
+}
+
+type LinkedRunSnapshot = {
+  status: string;
+  errorCode: string | null;
+  errorMessage: string | null;
+};
+
+async function loadLinkedRunSnapshots(
+  conn: DB,
+  steps: AgenticPlanStep[],
+): Promise<Map<string, LinkedRunSnapshot>> {
+  const snapshots = new Map<string, LinkedRunSnapshot>();
+  const agentActionIds = linkedRunIdsFor(steps, "agent_action");
+  const importJobIds = linkedRunIdsFor(steps, "import_job");
+  const plan8RunIds = linkedRunIdsFor(steps, "plan8_agent");
+
+  if (agentActionIds.length > 0) {
+    const rows = await conn
+      .select({
+        id: agentActions.id,
+        status: agentActions.status,
+        errorCode: agentActions.errorCode,
+      })
+      .from(agentActions)
+      .where(inArray(agentActions.id, agentActionIds));
+    for (const row of rows) {
+      snapshots.set(linkedRunKey("agent_action", row.id), {
+        status: row.status,
+        errorCode: row.errorCode,
+        errorMessage: null,
+      });
+    }
+  }
+
+  if (importJobIds.length > 0) {
+    const rows = await conn
+      .select({
+        id: importJobs.id,
+        status: importJobs.status,
+        errorSummary: importJobs.errorSummary,
+      })
+      .from(importJobs)
+      .where(inArray(importJobs.id, importJobIds));
+    for (const row of rows) {
+      snapshots.set(linkedRunKey("import_job", row.id), {
+        status: row.status,
+        errorCode: row.status === "failed" ? "import_failed" : null,
+        errorMessage: row.status === "failed" ? row.errorSummary : null,
+      });
+    }
+  }
+
+  if (plan8RunIds.length > 0) {
+    const rows = await conn
+      .select({
+        runId: agentRuns.runId,
+        status: agentRuns.status,
+        errorMessage: agentRuns.errorMessage,
+      })
+      .from(agentRuns)
+      .where(inArray(agentRuns.runId, plan8RunIds));
+    for (const row of rows) {
+      snapshots.set(linkedRunKey("plan8_agent", row.runId), {
+        status: row.status,
+        errorCode: row.status === "failed" ? "plan8_agent_failed" : null,
+        errorMessage: row.status === "failed" ? row.errorMessage : null,
+      });
+    }
+  }
+
+  return snapshots;
+}
+
+function linkedRunIdsFor(steps: AgenticPlanStep[], linkedRunType: string): string[] {
+  return [
+    ...new Set(
+      steps
+        .filter((step) => step.linkedRunType === linkedRunType && step.linkedRunId)
+        .map((step) => step.linkedRunId!),
+    ),
+  ];
+}
+
+function linkedRunKey(linkedRunType: string, linkedRunId: string): string {
+  return `${linkedRunType}:${linkedRunId}`;
 }
 
 function statusFromSteps(steps: AgenticPlanStep[]): AgenticPlanStatus {

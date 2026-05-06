@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { AgentAction } from "@opencairn/shared";
 import {
   createAgenticPlan,
+  getAgenticPlan,
+  listAgenticPlans,
   recoverAgenticPlanStep,
   planStepsForGoal,
   startAgenticPlan,
@@ -427,6 +429,133 @@ describe("agentic plan service", () => {
       linkedRunType: "plan8_agent",
       linkedRunId: plan8RunId,
       errorCode: null,
+    });
+  });
+
+  it("refreshes linked run status when reading a plan", async () => {
+    const baseRepo = createMemoryAgenticPlanRepo();
+    const repo = {
+      ...baseRepo,
+      async syncLinkedRunStatuses(plan) {
+        const step = plan.steps[0]!;
+        await baseRepo.updateStep({
+          planId: plan.id,
+          stepId: step.id,
+          status: "completed",
+          errorCode: null,
+          errorMessage: null,
+        });
+        return true;
+      },
+    } satisfies typeof baseRepo;
+    const plan = await baseRepo.insertPlan({
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Run librarian",
+      goal: "Run librarian",
+      status: "running",
+      target: { workspaceId, projectId },
+      plannerKind: "deterministic",
+      summary: "1-step deterministic plan: agent.run",
+      currentStepOrdinal: 1,
+      steps: [
+        {
+          kind: "agent.run",
+          title: "Run librarian",
+          rationale: "The linked run has completed.",
+          risk: "write",
+          input: {
+            agentName: "librarian",
+          },
+        },
+      ],
+    });
+    const step = plan.steps[0]!;
+    await baseRepo.updateStep({
+      planId: plan.id,
+      stepId: step.id,
+      status: "running",
+      linkedRunType: "plan8_agent",
+      linkedRunId: plan8RunId,
+    });
+
+    const refreshed = await getAgenticPlan(projectId, userId, plan.id, {
+      repo,
+      canReadProject: async () => true,
+    });
+
+    expect(refreshed).toMatchObject({
+      status: "completed",
+      currentStepOrdinal: null,
+    });
+    expect(refreshed.steps[0]).toMatchObject({
+      status: "completed",
+      linkedRunType: "plan8_agent",
+      linkedRunId: plan8RunId,
+    });
+  });
+
+  it("applies list status filters after refreshing linked runs", async () => {
+    const baseRepo = createMemoryAgenticPlanRepo();
+    const repo = {
+      ...baseRepo,
+      async syncLinkedRunStatuses(plan) {
+        const step = plan.steps[0]!;
+        await baseRepo.updateStep({
+          planId: plan.id,
+          stepId: step.id,
+          status: "completed",
+          errorCode: null,
+          errorMessage: null,
+        });
+        return true;
+      },
+    } satisfies typeof baseRepo;
+    const plan = await baseRepo.insertPlan({
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Run librarian",
+      goal: "Run librarian",
+      status: "running",
+      target: { workspaceId, projectId },
+      plannerKind: "deterministic",
+      summary: "1-step deterministic plan: agent.run",
+      currentStepOrdinal: 1,
+      steps: [
+        {
+          kind: "agent.run",
+          title: "Run librarian",
+          rationale: "The linked run has completed.",
+          risk: "write",
+          input: {
+            agentName: "librarian",
+          },
+        },
+      ],
+    });
+    const step = plan.steps[0]!;
+    await baseRepo.updateStep({
+      planId: plan.id,
+      stepId: step.id,
+      status: "running",
+      linkedRunType: "plan8_agent",
+      linkedRunId: plan8RunId,
+    });
+
+    const plans = await listAgenticPlans(projectId, userId, {
+      status: "completed",
+      limit: 10,
+    }, {
+      repo,
+      canReadProject: async () => true,
+    });
+
+    expect(plans).toHaveLength(1);
+    expect(plans[0]).toMatchObject({
+      id: plan.id,
+      status: "completed",
     });
   });
 
