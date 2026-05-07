@@ -57,21 +57,36 @@ describe("AdminUsersClient", () => {
           recentEvents: [],
         });
       }
-      if (url.endsWith("/audit-events")) {
+      if (url.includes("/audit-events")) {
         return ok({
           events: [
             {
               id: "audit-1",
               action: "site_admin.grant",
               actorUserId: "admin-1",
+              actor: {
+                id: "admin-1",
+                email: "admin@example.com",
+                name: "Admin",
+              },
+              targetType: "user",
+              targetId: "user-1",
               targetUserId: "user-1",
               targetWorkspaceId: null,
               targetReportId: null,
+              target: {
+                id: "user-1",
+                type: "user",
+                label: "target@example.com",
+                name: "Target",
+              },
               before: { isSiteAdmin: false },
               after: { isSiteAdmin: true },
+              metadata: { targetEmail: "target@example.com" },
               createdAt: "2026-05-08T00:00:00.000Z",
             },
           ],
+          pagination: { limit: 50, offset: 0, nextOffset: null },
         });
       }
       return Promise.resolve({
@@ -84,16 +99,19 @@ describe("AdminUsersClient", () => {
   it("loads and renders admin audit events", async () => {
     render(<AdminUsersClient />);
 
-    await waitFor(() =>
-      expect(globalThis.fetch).toHaveBeenCalledWith("/api/admin/audit-events", {
-        cache: "no-store",
-      }),
-    );
-
     expect(await screen.findByText("tabs.audit")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "tabs.audit" }));
+
+    await waitFor(() =>
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        "/api/admin/audit-events?limit=50&offset=0",
+        { cache: "no-store" },
+      ),
+    );
+
     expect(await screen.findByText("site_admin.grant")).toBeInTheDocument();
-    expect(screen.getByText("admin-1")).toBeInTheDocument();
-    expect(screen.getByText("user-1")).toBeInTheDocument();
+    expect(screen.getByText("admin@example.com")).toBeInTheDocument();
+    expect(screen.getByText("target@example.com")).toBeInTheDocument();
+    expect(screen.getByText("isSiteAdmin: false -> true")).toBeInTheDocument();
   });
 });

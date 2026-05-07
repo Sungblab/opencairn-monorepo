@@ -70,6 +70,9 @@
     "costUsd": "USD cost",
     "costKrw": "KRW cost"
   },
+  "units": {
+    "ms": "ms"
+  },
   "verified": {
     "yes": "Verified",
     "no": "Unverified"
@@ -78,7 +81,8 @@
     "grant": "Grant",
     "revoke": "Revoke",
     "saving": "Saving...",
-    "refresh": "Refresh"
+    "refresh": "Refresh",
+    "loadMore": "Load more"
   },
   "reportStatuses": {
     "open": "Open",

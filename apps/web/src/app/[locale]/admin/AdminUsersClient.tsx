@@ -145,16 +145,36 @@ interface LlmUsageSummary {
 interface AdminAuditEvent {
   id: string;
   actorUserId: string | null;
+  actor: {
+    id: string;
+    email: string | null;
+    name: string | null;
+  } | null;
   action: string;
   targetType: string;
   targetId: string;
   targetUserId: string | null;
   targetWorkspaceId: string | null;
   targetReportId: string | null;
+  target: {
+    id: string;
+    type: string;
+    label: string;
+    name: string | null;
+  };
   before: Record<string, unknown>;
   after: Record<string, unknown>;
   metadata: Record<string, unknown>;
   createdAt: string;
+}
+
+interface AuditEventsResponse {
+  events: AdminAuditEvent[];
+  pagination: {
+    limit: number;
+    offset: number;
+    nextOffset: number | null;
+  };
 }
 
 const tabs: Array<{ key: ExtendedTabKey; icon: typeof Activity }> = [
@@ -279,62 +299,109 @@ export function AdminUsersClient() {
   const [auditEvents, setAuditEvents] = useState<AdminAuditEvent[]>([]);
   const [apiLogs, setApiLogs] = useState<ApiRequestLog[]>([]);
   const [llmUsage, setLlmUsage] = useState<LlmUsageSummary | null>(null);
+  const [auditNextOffset, setAuditNextOffset] = useState<number | null>(0);
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
-  async function loadAll() {
-    setError(null);
-    const [
-      overviewRes,
-      usersRes,
-      subscriptionsRes,
-      reportsRes,
-      auditEventsRes,
-      apiLogsRes,
-      llmUsageRes,
-    ] = await Promise.all([
-      fetch("/api/admin/overview", { cache: "no-store" }),
-      fetch("/api/admin/users", { cache: "no-store" }),
-      fetch("/api/admin/subscriptions", { cache: "no-store" }),
-      fetch("/api/admin/reports", { cache: "no-store" }),
-      fetch("/api/admin/audit-events", { cache: "no-store" }),
-      fetch("/api/admin/api-logs", { cache: "no-store" }),
-      fetch("/api/admin/llm-usage", { cache: "no-store" }),
-    ]);
-    if (
-      !overviewRes.ok ||
-      !usersRes.ok ||
-      !subscriptionsRes.ok ||
-      !reportsRes.ok ||
-      !auditEventsRes.ok ||
-      !apiLogsRes.ok ||
-      !llmUsageRes.ok
-    ) {
-      setError(t("errors.load"));
-      return;
-    }
-    setOverview((await overviewRes.json()) as AdminOverview);
-    setUsers(((await usersRes.json()) as { users: AdminUser[] }).users);
-    const subscriptionBody = (await subscriptionsRes.json()) as {
+  async function fetchJson<T>(path: string): Promise<T | null> {
+    const res = await fetch(path, { cache: "no-store" });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  }
+
+  async function loadOverview() {
+    const body = await fetchJson<AdminOverview>("/api/admin/overview");
+    if (!body) return false;
+    setOverview(body);
+    return true;
+  }
+
+  async function loadUsers() {
+    const body = await fetchJson<{ users: AdminUser[] }>("/api/admin/users");
+    if (!body) return false;
+    setUsers(body.users);
+    return true;
+  }
+
+  async function loadSubscriptions() {
+    const body = await fetchJson<{
       users: AdminUser[];
       workspaces: AdminWorkspaceSubscription[];
-    };
-    setSubscriptionUsers(subscriptionBody.users);
-    setWorkspaces(subscriptionBody.workspaces);
-    setReports(
-      ((await reportsRes.json()) as { reports: AdminReport[] }).reports,
+    }>("/api/admin/subscriptions");
+    if (!body) return false;
+    setSubscriptionUsers(body.users);
+    setWorkspaces(body.workspaces);
+    return true;
+  }
+
+  async function loadReports() {
+    const body = await fetchJson<{ reports: AdminReport[] }>(
+      "/api/admin/reports",
     );
-    setAuditEvents(
-      ((await auditEventsRes.json()) as { events: AdminAuditEvent[] }).events,
+    if (!body) return false;
+    setReports(body.reports);
+    return true;
+  }
+
+  async function loadAuditEvents(reset = false) {
+    const offset = reset ? 0 : (auditNextOffset ?? 0);
+    if (!reset && auditNextOffset === null) return true;
+    const body = await fetchJson<AuditEventsResponse>(
+      `/api/admin/audit-events?limit=50&offset=${offset}`,
     );
-    setApiLogs(((await apiLogsRes.json()) as { logs: ApiRequestLog[] }).logs);
-    setLlmUsage((await llmUsageRes.json()) as LlmUsageSummary);
+    if (!body) return false;
+    setAuditEvents((current) =>
+      reset ? body.events : [...current, ...body.events],
+    );
+    setAuditNextOffset(body.pagination.nextOffset);
+    return true;
+  }
+
+  async function loadApiLogs() {
+    const body = await fetchJson<{ logs: ApiRequestLog[] }>(
+      "/api/admin/api-logs",
+    );
+    if (!body) return false;
+    setApiLogs(body.logs);
+    return true;
+  }
+
+  async function loadLlmUsage() {
+    const body = await fetchJson<LlmUsageSummary>("/api/admin/llm-usage");
+    if (!body) return false;
+    setLlmUsage(body);
+    return true;
+  }
+
+  async function loadInitial() {
+    setError(null);
+    const ok = await Promise.all([
+      loadOverview(),
+      loadUsers(),
+      loadSubscriptions(),
+      loadReports(),
+    ]);
+    if (ok.some((value) => !value)) {
+      setError(t("errors.load"));
+    }
   }
 
   useEffect(() => {
-    void loadAll();
+    void loadInitial();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === "audit" && auditEvents.length === 0) {
+      void loadAuditEvents(true);
+    }
+    if (activeTab === "apiLogs" && apiLogs.length === 0) {
+      void loadApiLogs();
+    }
+    if (activeTab === "llmCosts" && !llmUsage) {
+      void loadLlmUsage();
+    }
+  }, [activeTab]);
 
   const filteredUsers = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -344,7 +411,11 @@ export function AdminUsersClient() {
     );
   }, [query, users]);
 
-  async function patch(path: string, body: unknown) {
+  async function patch(
+    path: string,
+    body: unknown,
+    refresh: () => Promise<unknown>,
+  ) {
     setBusy(path);
     setError(null);
     const res = await fetch(path, {
@@ -357,7 +428,8 @@ export function AdminUsersClient() {
       setError(t("errors.update"));
       return false;
     }
-    await loadAll();
+    await refresh();
+    if (activeTab === "audit") await loadAuditEvents(true);
     return true;
   }
 
@@ -534,6 +606,12 @@ export function AdminUsersClient() {
                             void patch(
                               `/api/admin/users/${user.id}/site-admin`,
                               { isSiteAdmin: !user.isSiteAdmin },
+                              async () => {
+                                await Promise.all([
+                                  loadUsers(),
+                                  loadOverview(),
+                                ]);
+                              },
                             )
                           }
                         >
@@ -561,7 +639,9 @@ export function AdminUsersClient() {
               getName={(row) => row.name}
               getMeta={(row) => row.email}
               onChange={(row, plan) =>
-                patch(`/api/admin/users/${row.id}/plan`, { plan })
+                patch(`/api/admin/users/${row.id}/plan`, { plan }, async () => {
+                  await Promise.all([loadSubscriptions(), loadOverview()]);
+                })
               }
               busy={busy !== null}
             />
@@ -574,7 +654,13 @@ export function AdminUsersClient() {
               getName={(row) => row.name}
               getMeta={(row) => row.slug}
               onChange={(row, planType) =>
-                patch(`/api/admin/workspaces/${row.id}/plan`, { planType })
+                patch(
+                  `/api/admin/workspaces/${row.id}/plan`,
+                  { planType },
+                  async () => {
+                    await Promise.all([loadSubscriptions(), loadOverview()]);
+                  },
+                )
               }
               busy={busy !== null}
             />
@@ -620,6 +706,12 @@ export function AdminUsersClient() {
                             void patch(
                               `/api/admin/reports/${report.id}/status`,
                               { status },
+                              async () => {
+                                await Promise.all([
+                                  loadReports(),
+                                  loadOverview(),
+                                ]);
+                              },
                             )
                           }
                         >
@@ -642,14 +734,18 @@ export function AdminUsersClient() {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => void loadAll()}
+                onClick={() => void loadAuditEvents(true)}
               >
                 <RefreshCw className="h-4 w-4" />
                 {t("actions.refresh")}
               </Button>
             }
           >
-            <AuditEventTable events={auditEvents} />
+            <AuditEventTable
+              events={auditEvents}
+              hasMore={auditNextOffset !== null}
+              onLoadMore={() => void loadAuditEvents(false)}
+            />
           </Panel>
         )}
 
@@ -661,7 +757,7 @@ export function AdminUsersClient() {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => void loadAll()}
+                onClick={() => void loadOverview()}
               >
                 <RefreshCw className="h-4 w-4" />
                 {t("actions.refresh")}
@@ -680,7 +776,7 @@ export function AdminUsersClient() {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => void loadAll()}
+                onClick={() => void loadApiLogs()}
               >
                 <RefreshCw className="h-4 w-4" />
                 {t("actions.refresh")}
@@ -867,7 +963,10 @@ function ApiLogTable({ logs }: { logs: ApiRequestLog[] }) {
               <td className="px-2 py-2">
                 <StatusPill value={String(log.statusCode)} />
               </td>
-              <td className="px-2 py-2 tabular-nums">{log.durationMs}ms</td>
+              <td className="px-2 py-2 tabular-nums">
+                {log.durationMs}
+                {t("units.ms")}
+              </td>
               <td className="max-w-[180px] truncate px-2 py-2 text-xs text-muted-foreground">
                 {log.userId ?? "-"}
               </td>
@@ -879,45 +978,99 @@ function ApiLogTable({ logs }: { logs: ApiRequestLog[] }) {
   );
 }
 
-function AuditEventTable({ events }: { events: AdminAuditEvent[] }) {
+function auditActorLabel(event: AdminAuditEvent) {
+  return event.actor?.email ?? event.actor?.name ?? event.actorUserId ?? "-";
+}
+
+function auditTargetLabel(event: AdminAuditEvent) {
+  const metadataLabel =
+    typeof event.metadata.targetEmail === "string"
+      ? event.metadata.targetEmail
+      : typeof event.metadata.workspaceSlug === "string"
+        ? event.metadata.workspaceSlug
+        : typeof event.metadata.reportTitle === "string"
+          ? event.metadata.reportTitle
+          : null;
+  return metadataLabel ?? event.target.label ?? event.targetId;
+}
+
+function formatAuditValue(value: unknown) {
+  if (value === null || value === undefined) return "-";
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value);
+  }
+  return JSON.stringify(value);
+}
+
+function formatAuditChange(event: AdminAuditEvent) {
+  const keys = Array.from(
+    new Set([...Object.keys(event.before), ...Object.keys(event.after)]),
+  );
+  if (keys.length === 0) return "-";
+  return keys
+    .map(
+      (key) =>
+        `${key}: ${formatAuditValue(event.before[key])} -> ${formatAuditValue(
+          event.after[key],
+        )}`,
+    )
+    .join(", ");
+}
+
+function AuditEventTable({
+  events,
+  hasMore,
+  onLoadMore,
+}: {
+  events: AdminAuditEvent[];
+  hasMore: boolean;
+  onLoadMore: () => void;
+}) {
   const t = useTranslations("admin");
   if (events.length === 0) return <Empty />;
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full text-sm">
-        <thead>
-          <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
-            <th className="px-2 py-2">{t("columns.time")}</th>
-            <th className="px-2 py-2">{t("columns.action")}</th>
-            <th className="px-2 py-2">{t("columns.actor")}</th>
-            <th className="px-2 py-2">{t("columns.target")}</th>
-            <th className="px-2 py-2">{t("columns.beforeAfter")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {events.map((event) => (
-            <tr key={event.id} className="border-b border-border last:border-0">
-              <td className="whitespace-nowrap px-2 py-2 text-xs tabular-nums text-muted-foreground">
-                {formatDate(event.createdAt)}
-              </td>
-              <td className="px-2 py-2 font-semibold">{event.action}</td>
-              <td className="max-w-[180px] truncate px-2 py-2 font-mono text-xs">
-                {event.actorUserId ?? "-"}
-              </td>
-              <td className="max-w-[220px] truncate px-2 py-2 font-mono text-xs">
-                {event.targetUserId ??
-                  event.targetWorkspaceId ??
-                  event.targetReportId ??
-                  event.targetId}
-              </td>
-              <td className="max-w-[360px] truncate px-2 py-2 font-mono text-xs text-muted-foreground">
-                {JSON.stringify(event.before)} {"->"}{" "}
-                {JSON.stringify(event.after)}
-              </td>
+    <div className="space-y-3">
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+              <th className="px-2 py-2">{t("columns.time")}</th>
+              <th className="px-2 py-2">{t("columns.action")}</th>
+              <th className="px-2 py-2">{t("columns.actor")}</th>
+              <th className="px-2 py-2">{t("columns.target")}</th>
+              <th className="px-2 py-2">{t("columns.beforeAfter")}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {events.map((event) => (
+              <tr
+                key={event.id}
+                className="border-b border-border last:border-0"
+              >
+                <td className="whitespace-nowrap px-2 py-2 text-xs tabular-nums text-muted-foreground">
+                  {formatDate(event.createdAt)}
+                </td>
+                <td className="px-2 py-2 font-semibold">{event.action}</td>
+                <td className="max-w-[220px] truncate px-2 py-2 text-xs">
+                  {auditActorLabel(event)}
+                </td>
+                <td className="max-w-[260px] truncate px-2 py-2 text-xs">
+                  {auditTargetLabel(event)}
+                </td>
+                <td className="max-w-[420px] truncate px-2 py-2 text-xs text-muted-foreground">
+                  {formatAuditChange(event)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {hasMore && (
+        <Button type="button" variant="outline" size="sm" onClick={onLoadMore}>
+          {t("actions.loadMore")}
+        </Button>
+      )}
     </div>
   );
 }

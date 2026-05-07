@@ -3,6 +3,7 @@ import {
   integer,
   jsonb,
   numeric,
+  pgEnum,
   pgTable,
   text,
   timestamp,
@@ -11,6 +12,14 @@ import {
 import { user } from "./users";
 import { workspaces } from "./workspaces";
 import { siteAdminReports } from "./site-admin";
+
+export const adminAuditActionEnum = pgEnum("admin_audit_action", [
+  "site_admin.grant",
+  "site_admin.revoke",
+  "user.plan.update",
+  "workspace.plan.update",
+  "report.status.update",
+]);
 
 export const apiRequestLogs = pgTable(
   "api_request_logs",
@@ -100,7 +109,7 @@ export const adminAuditEvents = pgTable(
     actorUserId: text("actor_user_id").references(() => user.id, {
       onDelete: "set null",
     }),
-    action: text("action").notNull(),
+    action: adminAuditActionEnum("action").notNull(),
     targetUserId: text("target_user_id").references(() => user.id, {
       onDelete: "set null",
     }),

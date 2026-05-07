@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   agentActions,
   adminAuditEvents,
+  alias,
   apiRequestLogs,
   asc,
   chatRuns,
@@ -45,6 +46,13 @@ const workspacePlanSchema = z
 const reportStatusSchema = z
   .object({ status: z.enum(["open", "triaged", "resolved", "closed"]) })
   .strict();
+const auditEventsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+const actorUser = alias(user, "admin_audit_actor_user");
+const targetUser = alias(user, "admin_audit_target_user");
 
 const startOfDay = (date: Date) =>
   new Date(
@@ -447,33 +455,92 @@ export const adminRoutes = new Hono<AppEnv>()
       })),
     });
   })
-  .get("/audit-events", async (c) => {
-    const rows = await db
-      .select({
-        id: adminAuditEvents.id,
-        actorUserId: adminAuditEvents.actorUserId,
-        action: adminAuditEvents.action,
-        targetType: adminAuditEvents.targetType,
-        targetId: adminAuditEvents.targetId,
-        targetUserId: adminAuditEvents.targetUserId,
-        targetWorkspaceId: adminAuditEvents.targetWorkspaceId,
-        targetReportId: adminAuditEvents.targetReportId,
-        before: adminAuditEvents.before,
-        after: adminAuditEvents.after,
-        metadata: adminAuditEvents.metadata,
-        createdAt: adminAuditEvents.createdAt,
-      })
-      .from(adminAuditEvents)
-      .orderBy(desc(adminAuditEvents.createdAt))
-      .limit(200);
+  .get(
+    "/audit-events",
+    zValidator("query", auditEventsQuerySchema),
+    async (c) => {
+      const { limit, offset } = c.req.valid("query");
+      const rows = await db
+        .select({
+          id: adminAuditEvents.id,
+          actorUserId: adminAuditEvents.actorUserId,
+          actorEmail: actorUser.email,
+          actorName: actorUser.name,
+          action: adminAuditEvents.action,
+          targetType: adminAuditEvents.targetType,
+          targetId: adminAuditEvents.targetId,
+          targetUserId: adminAuditEvents.targetUserId,
+          targetUserEmail: targetUser.email,
+          targetUserName: targetUser.name,
+          targetWorkspaceId: adminAuditEvents.targetWorkspaceId,
+          targetWorkspaceSlug: workspaces.slug,
+          targetWorkspaceName: workspaces.name,
+          targetReportId: adminAuditEvents.targetReportId,
+          targetReportTitle: siteAdminReports.title,
+          before: adminAuditEvents.before,
+          after: adminAuditEvents.after,
+          metadata: adminAuditEvents.metadata,
+          createdAt: adminAuditEvents.createdAt,
+        })
+        .from(adminAuditEvents)
+        .leftJoin(actorUser, eq(actorUser.id, adminAuditEvents.actorUserId))
+        .leftJoin(targetUser, eq(targetUser.id, adminAuditEvents.targetUserId))
+        .leftJoin(
+          workspaces,
+          eq(workspaces.id, adminAuditEvents.targetWorkspaceId),
+        )
+        .leftJoin(
+          siteAdminReports,
+          eq(siteAdminReports.id, adminAuditEvents.targetReportId),
+        )
+        .orderBy(desc(adminAuditEvents.createdAt))
+        .limit(limit)
+        .offset(offset);
 
-    return c.json({
-      events: rows.map((row) => ({
-        ...row,
-        createdAt: row.createdAt.toISOString(),
-      })),
-    });
-  })
+      return c.json({
+        events: rows.map((row) => ({
+          id: row.id,
+          actorUserId: row.actorUserId,
+          actor: row.actorUserId
+            ? {
+                id: row.actorUserId,
+                email: row.actorEmail,
+                name: row.actorName,
+              }
+            : null,
+          action: row.action,
+          targetType: row.targetType,
+          targetId: row.targetId,
+          targetUserId: row.targetUserId,
+          targetWorkspaceId: row.targetWorkspaceId,
+          targetReportId: row.targetReportId,
+          target: {
+            id: row.targetId,
+            type: row.targetType,
+            label:
+              row.targetUserEmail ??
+              row.targetWorkspaceSlug ??
+              row.targetReportTitle ??
+              row.targetId,
+            name:
+              row.targetUserName ??
+              row.targetWorkspaceName ??
+              row.targetReportTitle ??
+              null,
+          },
+          before: row.before,
+          after: row.after,
+          metadata: row.metadata,
+          createdAt: row.createdAt.toISOString(),
+        })),
+        pagination: {
+          limit,
+          offset,
+          nextOffset: rows.length === limit ? offset + rows.length : null,
+        },
+      });
+    },
+  )
   .get("/users", async (c) => {
     const rows = await db
       .select({
@@ -584,7 +651,7 @@ export const adminRoutes = new Hono<AppEnv>()
 
         if (before.isSiteAdmin && !isSiteAdmin) {
           await tx.execute(
-            sql`select id from "user" where is_site_admin = true for update`,
+            sql`select ${user.id} from ${user} where ${user.isSiteAdmin} = true for update`,
           );
           const [adminCount] = await tx
             .select({ value: count() })

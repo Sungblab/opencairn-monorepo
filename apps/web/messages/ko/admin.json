@@ -70,6 +70,9 @@
     "costUsd": "USD 비용",
     "costKrw": "KRW 비용"
   },
+  "units": {
+    "ms": "ms"
+  },
   "verified": {
     "yes": "인증됨",
     "no": "미인증"
@@ -78,7 +81,8 @@
     "grant": "부여",
     "revoke": "해제",
     "saving": "저장 중...",
-    "refresh": "새로고침"
+    "refresh": "새로고침",
+    "loadMore": "더 보기"
   },
   "reportStatuses": {
     "open": "열림",

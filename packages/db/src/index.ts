@@ -60,4 +60,23 @@ export * from "./lib/note-version-hash";
 export * from "./lib/note-version-capture";
 export * from "./lib/wiki-link-sync";
 
-export { eq, and, or, desc, asc, sql, inArray, notInArray, isNull, isNotNull, ilike, lt, gt, lte, gte, count, max } from "drizzle-orm";
+export {
+  eq,
+  and,
+  or,
+  desc,
+  asc,
+  sql,
+  inArray,
+  notInArray,
+  isNull,
+  isNotNull,
+  ilike,
+  lt,
+  gt,
+  lte,
+  gte,
+  count,
+  max,
+} from "drizzle-orm";
+export { alias } from "drizzle-orm/pg-core";
