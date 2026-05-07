@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { db, eq, siteAdminReports, sql, user } from "@opencairn/db";
+import {
+  adminAuditEvents,
+  db,
+  eq,
+  siteAdminReports,
+  sql,
+  user,
+  workspaces,
+} from "@opencairn/db";
 import { createApp } from "../src/app.js";
 import { createUser, type CreatedUser } from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
@@ -7,12 +15,35 @@ import { signSessionCookie } from "./helpers/session.js";
 const app = createApp();
 const createdUsers = new Set<string>();
 const createdReports = new Set<string>();
+const createdWorkspaces = new Set<string>();
 
 afterEach(async () => {
+  for (const id of createdWorkspaces) {
+    await db
+      .delete(adminAuditEvents)
+      .where(eq(adminAuditEvents.targetWorkspaceId, id));
+  }
+  for (const id of createdReports) {
+    await db
+      .delete(adminAuditEvents)
+      .where(eq(adminAuditEvents.targetReportId, id));
+  }
+  for (const id of createdUsers) {
+    await db
+      .delete(adminAuditEvents)
+      .where(eq(adminAuditEvents.actorUserId, id));
+    await db
+      .delete(adminAuditEvents)
+      .where(eq(adminAuditEvents.targetUserId, id));
+  }
   for (const id of createdReports) {
     await db.delete(siteAdminReports).where(eq(siteAdminReports.id, id));
   }
   createdReports.clear();
+  for (const id of createdWorkspaces) {
+    await db.delete(workspaces).where(eq(workspaces.id, id));
+  }
+  createdWorkspaces.clear();
   for (const id of createdUsers) {
     await db.delete(user).where(eq(user.id, id));
   }
@@ -31,6 +62,19 @@ async function promoteSiteAdmin(userId: string): Promise<void> {
     set is_site_admin = true
     where id = ${userId}
   `);
+}
+
+async function makeWorkspace(ownerId: string) {
+  const [workspace] = await db
+    .insert(workspaces)
+    .values({
+      ownerId,
+      slug: `admin-audit-${crypto.randomUUID().slice(0, 8)}`,
+      name: "Admin audit workspace",
+    })
+    .returning({ id: workspaces.id });
+  createdWorkspaces.add(workspace.id);
+  return workspace;
 }
 
 async function authedGet(path: string, userId: string): Promise<Response> {
@@ -104,9 +148,21 @@ describe("site admin routes", () => {
       .from(user)
       .where(eq(user.id, target.id));
     expect(row?.isSiteAdmin).toBe(true);
+
+    const [event] = await db
+      .select()
+      .from(adminAuditEvents)
+      .where(eq(adminAuditEvents.targetUserId, target.id));
+    expect(event).toMatchObject({
+      actorUserId: caller.id,
+      action: "site_admin.grant",
+      targetUserId: target.id,
+    });
+    expect(event?.before).toMatchObject({ isSiteAdmin: false });
+    expect(event?.after).toMatchObject({ isSiteAdmin: true });
   });
 
-  it("prevents site admins from removing their own admin access", async () => {
+  it("prevents removing the last remaining site admin", async () => {
     const caller = await makeUser();
     await promoteSiteAdmin(caller.id);
 
@@ -117,6 +173,9 @@ describe("site admin routes", () => {
     );
 
     expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toEqual({
+      error: "cannot_remove_last_site_admin",
+    });
   });
 
   it("lets site admins update user plans", async () => {
@@ -136,6 +195,54 @@ describe("site admin routes", () => {
       .from(user)
       .where(eq(user.id, target.id));
     expect(row?.plan).toBe("pro");
+
+    const [event] = await db
+      .select()
+      .from(adminAuditEvents)
+      .where(eq(adminAuditEvents.targetUserId, target.id));
+    expect(event).toMatchObject({
+      actorUserId: caller.id,
+      action: "user.plan.update",
+      targetUserId: target.id,
+    });
+    expect(event?.before).toMatchObject({ plan: "free" });
+    expect(event?.after).toMatchObject({ plan: "pro" });
+  });
+
+  it("records workspace plan changes and exposes audit events", async () => {
+    const caller = await makeUser();
+    await promoteSiteAdmin(caller.id);
+    const workspace = await makeWorkspace(caller.id);
+
+    const update = await authedPatch(
+      `/api/admin/workspaces/${workspace.id}/plan`,
+      caller.id,
+      { planType: "enterprise" },
+    );
+    expect(update.status).toBe(200);
+
+    const res = await authedGet("/api/admin/audit-events", caller.id);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      events: Array<{
+        action: string;
+        actorUserId: string | null;
+        targetWorkspaceId: string | null;
+        before: Record<string, unknown>;
+        after: Record<string, unknown>;
+      }>;
+    };
+    expect(body.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: "workspace.plan.update",
+          actorUserId: caller.id,
+          targetWorkspaceId: workspace.id,
+          before: { planType: "free" },
+          after: { planType: "enterprise" },
+        }),
+      ]),
+    );
   });
 
   it("lists and transitions site reports for admins", async () => {
@@ -176,6 +283,21 @@ describe("site admin routes", () => {
       })
       .from(siteAdminReports)
       .where(eq(siteAdminReports.id, report.id));
-    expect(row).toMatchObject({ status: "resolved", resolvedByUserId: caller.id });
+    expect(row).toMatchObject({
+      status: "resolved",
+      resolvedByUserId: caller.id,
+    });
+
+    const [event] = await db
+      .select()
+      .from(adminAuditEvents)
+      .where(eq(adminAuditEvents.targetReportId, report.id));
+    expect(event).toMatchObject({
+      actorUserId: caller.id,
+      action: "report.status.update",
+      targetReportId: report.id,
+    });
+    expect(event?.before).toMatchObject({ status: "open" });
+    expect(event?.after).toMatchObject({ status: "resolved" });
   });
 });

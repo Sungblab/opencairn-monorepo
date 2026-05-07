@@ -48,6 +48,8 @@ const panelStoreMock = vi.hoisted(() => ({
   openAgentPanelTab: vi.fn(),
 }));
 
+let authMeIsSiteAdmin = false;
+
 vi.mock("@/stores/panel-store", () => ({
   usePanelStore: (selector: (s: typeof panelStoreMock) => unknown) =>
     selector(panelStoreMock),
@@ -65,13 +67,29 @@ describe("SidebarFooter", () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
-        workspaces: [
-          { id: "1", slug: "acme", name: "ACME", role: "owner" },
-          { id: "2", slug: "beta", name: "Beta", role: "member" },
-        ],
-        invites: [],
+        isSiteAdmin: authMeIsSiteAdmin,
       }),
     }) as unknown as typeof fetch;
+    vi.mocked(global.fetch).mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/api/auth/me")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ isSiteAdmin: authMeIsSiteAdmin }),
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          workspaces: [
+            { id: "1", slug: "acme", name: "ACME", role: "owner" },
+            { id: "2", slug: "beta", name: "Beta", role: "member" },
+          ],
+          invites: [],
+        }),
+      } as Response);
+    });
+    authMeIsSiteAdmin = false;
   });
 
   it("renders the current workspace instead of the user's name", async () => {
@@ -140,6 +158,40 @@ describe("SidebarFooter", () => {
     expect(
       screen.queryByRole("link", { name: "sidebar.footer.settings_aria" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", {
+        name: "sidebar.footer.admin_console",
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("links site admins to the admin console from the bottom profile menu", async () => {
+    sessionMock.value = {
+      data: {
+        user: {
+          id: "u1",
+          name: "Ada Lovelace",
+          email: "ada@x",
+        },
+      },
+      isPending: false,
+    };
+    authMeIsSiteAdmin = true;
+    const user = userEvent.setup();
+
+    render(withQuery(<SidebarFooter />));
+
+    const profileMenu = screen.getByRole("button", {
+      name: "sidebar.footer.profile_menu_aria",
+    });
+    profileMenu.focus();
+    await user.keyboard("{Enter}");
+
+    expect(
+      screen.getByRole("menuitem", {
+        name: "sidebar.footer.admin_console",
+      }),
+    ).toHaveAttribute("href", "/ko/admin");
   });
 
   it("opens the agent panel notifications tab from the bell", async () => {

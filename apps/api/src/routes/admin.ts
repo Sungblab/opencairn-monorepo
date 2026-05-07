@@ -3,6 +3,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import {
   agentActions,
+  adminAuditEvents,
   apiRequestLogs,
   asc,
   chatRuns,
@@ -27,6 +28,7 @@ import {
 import { requireAuth } from "../middleware/auth";
 import { requireSiteAdmin } from "../middleware/site-admin";
 import type { AppEnv } from "../lib/types";
+import { recordAdminAuditEvent } from "../lib/admin-audit";
 
 const siteAdminSchema = z
   .object({
@@ -34,7 +36,9 @@ const siteAdminSchema = z
   })
   .strict();
 
-const userPlanSchema = z.object({ plan: z.enum(["free", "pro", "byok"]) }).strict();
+const userPlanSchema = z
+  .object({ plan: z.enum(["free", "pro", "byok"]) })
+  .strict();
 const workspacePlanSchema = z
   .object({ planType: z.enum(["free", "pro", "enterprise"]) })
   .strict();
@@ -43,7 +47,9 @@ const reportStatusSchema = z
   .strict();
 
 const startOfDay = (date: Date) =>
-  new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
 
 function iso(value: Date | null | undefined) {
   return value ? value.toISOString() : null;
@@ -91,7 +97,10 @@ export const adminRoutes = new Hono<AppEnv>()
       llmUsageMonth,
     ] = await Promise.all([
       db.select({ value: count() }).from(user),
-      db.select({ value: count() }).from(user).where(gte(user.createdAt, since30d)),
+      db
+        .select({ value: count() })
+        .from(user)
+        .where(gte(user.createdAt, since30d)),
       db.select({ value: count() }).from(workspaces),
       db.select({ value: count() }).from(projects),
       db.select({ value: count() }).from(notes),
@@ -99,26 +108,31 @@ export const adminRoutes = new Hono<AppEnv>()
         .select({ value: count() })
         .from(siteAdminReports)
         .where(sql`${siteAdminReports.status} IN ('open', 'triaged')`),
-      db
-        .select({ value: count() })
-        .from(jobs)
-        .where(eq(jobs.status, "failed")),
+      db.select({ value: count() }).from(jobs).where(eq(jobs.status, "failed")),
       db
         .select({ value: count() })
         .from(notifications)
-        .where(sql`${notifications.emailedAt} IS NULL AND ${notifications.emailAttempts} < 3`),
+        .where(
+          sql`${notifications.emailedAt} IS NULL AND ${notifications.emailAttempts} < 3`,
+        ),
       db
         .select({ plan: user.plan, value: sql<number>`count(*)::int` })
         .from(user)
         .groupBy(user.plan)
         .orderBy(user.plan),
       db
-        .select({ plan: workspaces.planType, value: sql<number>`count(*)::int` })
+        .select({
+          plan: workspaces.planType,
+          value: sql<number>`count(*)::int`,
+        })
         .from(workspaces)
         .groupBy(workspaces.planType)
         .orderBy(workspaces.planType),
       db
-        .select({ status: agentActions.status, value: sql<number>`count(*)::int` })
+        .select({
+          status: agentActions.status,
+          value: sql<number>`count(*)::int`,
+        })
         .from(agentActions)
         .groupBy(agentActions.status)
         .orderBy(agentActions.status),
@@ -202,7 +216,10 @@ export const adminRoutes = new Hono<AppEnv>()
         .orderBy(desc(chatRuns.createdAt))
         .limit(8),
       db
-        .select({ action: usageRecords.action, value: sql<number>`sum(${usageRecords.count})::int` })
+        .select({
+          action: usageRecords.action,
+          value: sql<number>`sum(${usageRecords.count})::int`,
+        })
         .from(usageRecords)
         .where(eq(usageRecords.month, today.toISOString().slice(0, 7)))
         .groupBy(usageRecords.action)
@@ -302,7 +319,11 @@ export const adminRoutes = new Hono<AppEnv>()
           status: row.status,
           detail: row.error ? JSON.stringify(row.error).slice(0, 120) : null,
           createdAt: row.createdAt.toISOString(),
-          updatedAt: (row.completedAt ?? row.startedAt ?? row.createdAt).toISOString(),
+          updatedAt: (
+            row.completedAt ??
+            row.startedAt ??
+            row.createdAt
+          ).toISOString(),
         })),
       ]
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
@@ -316,7 +337,9 @@ export const adminRoutes = new Hono<AppEnv>()
           smtpConfigured: Boolean(process.env.SMTP_HOST),
         },
         storage: {
-          s3Configured: Boolean(process.env.S3_ENDPOINT || process.env.S3_BUCKET),
+          s3Configured: Boolean(
+            process.env.S3_ENDPOINT || process.env.S3_BUCKET,
+          ),
         },
         featureFlags: {
           documentGeneration: boolEnv("FEATURE_DOCUMENT_GENERATION"),
@@ -424,6 +447,33 @@ export const adminRoutes = new Hono<AppEnv>()
       })),
     });
   })
+  .get("/audit-events", async (c) => {
+    const rows = await db
+      .select({
+        id: adminAuditEvents.id,
+        actorUserId: adminAuditEvents.actorUserId,
+        action: adminAuditEvents.action,
+        targetType: adminAuditEvents.targetType,
+        targetId: adminAuditEvents.targetId,
+        targetUserId: adminAuditEvents.targetUserId,
+        targetWorkspaceId: adminAuditEvents.targetWorkspaceId,
+        targetReportId: adminAuditEvents.targetReportId,
+        before: adminAuditEvents.before,
+        after: adminAuditEvents.after,
+        metadata: adminAuditEvents.metadata,
+        createdAt: adminAuditEvents.createdAt,
+      })
+      .from(adminAuditEvents)
+      .orderBy(desc(adminAuditEvents.createdAt))
+      .limit(200);
+
+    return c.json({
+      events: rows.map((row) => ({
+        ...row,
+        createdAt: row.createdAt.toISOString(),
+      })),
+    });
+  })
   .get("/users", async (c) => {
     const rows = await db
       .select({
@@ -471,7 +521,10 @@ export const adminRoutes = new Hono<AppEnv>()
       .orderBy(asc(workspaces.slug));
 
     return c.json({
-      users: userRows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() })),
+      users: userRows.map((row) => ({
+        ...row,
+        createdAt: row.createdAt.toISOString(),
+      })),
       workspaces: workspaceRows.map((row) => ({
         ...row,
         createdAt: row.createdAt.toISOString(),
@@ -514,61 +567,216 @@ export const adminRoutes = new Hono<AppEnv>()
       const targetUserId = c.req.param("userId");
       const { isSiteAdmin } = c.req.valid("json");
 
-      if (targetUserId === actorUserId && !isSiteAdmin) {
-        return c.json({ error: "cannot_remove_own_site_admin" }, 400);
-      }
+      const result = await db.transaction(async (tx) => {
+        const [before] = await tx
+          .select({
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            isSiteAdmin: user.isSiteAdmin,
+          })
+          .from(user)
+          .where(eq(user.id, targetUserId))
+          .limit(1);
 
-      const [updated] = await db
-        .update(user)
-        .set({ isSiteAdmin })
-        .where(eq(user.id, targetUserId))
-        .returning({
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          isSiteAdmin: user.isSiteAdmin,
-        });
+        if (!before)
+          return { error: "user_not_found" as const, status: 404 as const };
 
-      if (!updated) return c.json({ error: "user_not_found" }, 404);
-      return c.json({ user: updated });
-    },
-  )
-  .patch("/users/:userId/plan", zValidator("json", userPlanSchema), async (c) => {
-    const targetUserId = c.req.param("userId");
-    const { plan } = c.req.valid("json");
-    const [updated] = await db
-      .update(user)
-      .set({ plan })
-      .where(eq(user.id, targetUserId))
-      .returning({
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        plan: user.plan,
+        if (before.isSiteAdmin && !isSiteAdmin) {
+          await tx.execute(
+            sql`select id from "user" where is_site_admin = true for update`,
+          );
+          const [adminCount] = await tx
+            .select({ value: count() })
+            .from(user)
+            .where(eq(user.isSiteAdmin, true));
+          if ((adminCount?.value ?? 0) <= 1) {
+            return {
+              error: "cannot_remove_last_site_admin" as const,
+              status: 400 as const,
+            };
+          }
+          if (targetUserId === actorUserId) {
+            return {
+              error: "cannot_remove_own_site_admin" as const,
+              status: 400 as const,
+            };
+          }
+        }
+
+        const [updated] = await tx
+          .update(user)
+          .set({ isSiteAdmin })
+          .where(eq(user.id, targetUserId))
+          .returning({
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            isSiteAdmin: user.isSiteAdmin,
+          });
+
+        if (!updated)
+          return { error: "user_not_found" as const, status: 404 as const };
+        if (before.isSiteAdmin !== updated.isSiteAdmin) {
+          await recordAdminAuditEvent(
+            {
+              actorUserId,
+              action: updated.isSiteAdmin
+                ? "site_admin.grant"
+                : "site_admin.revoke",
+              target: {
+                targetType: "user",
+                targetId: targetUserId,
+                targetUserId,
+              },
+              before: { isSiteAdmin: before.isSiteAdmin },
+              after: { isSiteAdmin: updated.isSiteAdmin },
+              metadata: {
+                targetEmail: updated.email,
+              },
+            },
+            tx,
+          );
+        }
+        return { user: updated };
       });
 
-    if (!updated) return c.json({ error: "user_not_found" }, 404);
-    return c.json({ user: updated });
-  })
+      if ("error" in result) {
+        return c.json({ error: result.error }, result.status);
+      }
+      return c.json({ user: result.user });
+    },
+  )
+  .patch(
+    "/users/:userId/plan",
+    zValidator("json", userPlanSchema),
+    async (c) => {
+      const actorUserId = c.get("userId");
+      const targetUserId = c.req.param("userId");
+      const { plan } = c.req.valid("json");
+      const result = await db.transaction(async (tx) => {
+        const [before] = await tx
+          .select({
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            plan: user.plan,
+          })
+          .from(user)
+          .where(eq(user.id, targetUserId))
+          .limit(1);
+
+        if (!before)
+          return { error: "user_not_found" as const, status: 404 as const };
+
+        const [updated] = await tx
+          .update(user)
+          .set({ plan })
+          .where(eq(user.id, targetUserId))
+          .returning({
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            plan: user.plan,
+          });
+
+        if (!updated)
+          return { error: "user_not_found" as const, status: 404 as const };
+        if (before.plan !== updated.plan) {
+          await recordAdminAuditEvent(
+            {
+              actorUserId,
+              action: "user.plan.update",
+              target: {
+                targetType: "user",
+                targetId: targetUserId,
+                targetUserId,
+              },
+              before: { plan: before.plan },
+              after: { plan: updated.plan },
+              metadata: {
+                targetEmail: updated.email,
+              },
+            },
+            tx,
+          );
+        }
+        return { user: updated };
+      });
+
+      if ("error" in result) {
+        return c.json({ error: result.error }, result.status);
+      }
+      return c.json({ user: result.user });
+    },
+  )
   .patch(
     "/workspaces/:workspaceId/plan",
     zValidator("json", workspacePlanSchema),
     async (c) => {
+      const actorUserId = c.get("userId");
       const workspaceId = c.req.param("workspaceId");
       const { planType } = c.req.valid("json");
-      const [updated] = await db
-        .update(workspaces)
-        .set({ planType })
-        .where(eq(workspaces.id, workspaceId))
-        .returning({
-          id: workspaces.id,
-          slug: workspaces.slug,
-          name: workspaces.name,
-          planType: workspaces.planType,
-        });
+      const result = await db.transaction(async (tx) => {
+        const [before] = await tx
+          .select({
+            id: workspaces.id,
+            slug: workspaces.slug,
+            name: workspaces.name,
+            planType: workspaces.planType,
+          })
+          .from(workspaces)
+          .where(eq(workspaces.id, workspaceId))
+          .limit(1);
 
-      if (!updated) return c.json({ error: "workspace_not_found" }, 404);
-      return c.json({ workspace: updated });
+        if (!before)
+          return {
+            error: "workspace_not_found" as const,
+            status: 404 as const,
+          };
+
+        const [updated] = await tx
+          .update(workspaces)
+          .set({ planType })
+          .where(eq(workspaces.id, workspaceId))
+          .returning({
+            id: workspaces.id,
+            slug: workspaces.slug,
+            name: workspaces.name,
+            planType: workspaces.planType,
+          });
+
+        if (!updated)
+          return {
+            error: "workspace_not_found" as const,
+            status: 404 as const,
+          };
+        if (before.planType !== updated.planType) {
+          await recordAdminAuditEvent(
+            {
+              actorUserId,
+              action: "workspace.plan.update",
+              target: {
+                targetType: "workspace",
+                targetId: workspaceId,
+                targetWorkspaceId: workspaceId,
+              },
+              before: { planType: before.planType },
+              after: { planType: updated.planType },
+              metadata: {
+                workspaceSlug: updated.slug,
+              },
+            },
+            tx,
+          );
+        }
+        return { workspace: updated };
+      });
+
+      if ("error" in result) {
+        return c.json({ error: result.error }, result.status);
+      }
+      return c.json({ workspace: result.workspace });
     },
   )
   .patch(
@@ -578,24 +786,67 @@ export const adminRoutes = new Hono<AppEnv>()
       const actorUserId = c.get("userId");
       const reportId = c.req.param("reportId");
       const { status } = c.req.valid("json");
-      const terminal = status === "resolved" || status === "closed";
-      const [updated] = await db
-        .update(siteAdminReports)
-        .set({
-          status,
-          resolvedByUserId: terminal ? actorUserId : null,
-          resolvedAt: terminal ? new Date() : null,
-        })
-        .where(eq(siteAdminReports.id, reportId))
-        .returning({
-          id: siteAdminReports.id,
-          status: siteAdminReports.status,
-          resolvedAt: siteAdminReports.resolvedAt,
-        });
+      const result = await db.transaction(async (tx) => {
+        const [before] = await tx
+          .select({
+            id: siteAdminReports.id,
+            status: siteAdminReports.status,
+            title: siteAdminReports.title,
+          })
+          .from(siteAdminReports)
+          .where(eq(siteAdminReports.id, reportId))
+          .limit(1);
 
-      if (!updated) return c.json({ error: "report_not_found" }, 404);
+        if (!before)
+          return { error: "report_not_found" as const, status: 404 as const };
+
+        const terminal = status === "resolved" || status === "closed";
+        const [updated] = await tx
+          .update(siteAdminReports)
+          .set({
+            status,
+            resolvedByUserId: terminal ? actorUserId : null,
+            resolvedAt: terminal ? new Date() : null,
+          })
+          .where(eq(siteAdminReports.id, reportId))
+          .returning({
+            id: siteAdminReports.id,
+            status: siteAdminReports.status,
+            resolvedAt: siteAdminReports.resolvedAt,
+          });
+
+        if (!updated)
+          return { error: "report_not_found" as const, status: 404 as const };
+        if (before.status !== updated.status) {
+          await recordAdminAuditEvent(
+            {
+              actorUserId,
+              action: "report.status.update",
+              target: {
+                targetType: "report",
+                targetId: reportId,
+                targetReportId: reportId,
+              },
+              before: { status: before.status },
+              after: { status: updated.status },
+              metadata: {
+                reportTitle: before.title,
+              },
+            },
+            tx,
+          );
+        }
+        return { report: updated };
+      });
+
+      if ("error" in result) {
+        return c.json({ error: result.error }, result.status);
+      }
       return c.json({
-        report: { ...updated, resolvedAt: iso(updated.resolvedAt) },
+        report: {
+          ...result.report,
+          resolvedAt: iso(result.report.resolvedAt),
+        },
       });
     },
   );

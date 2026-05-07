@@ -12,6 +12,7 @@
     "users": "사용자",
     "subscriptions": "구독",
     "reports": "신고",
+    "audit": "감사",
     "logs": "로그",
     "apiLogs": "API 호출",
     "llmCosts": "LLM 비용",
@@ -40,6 +41,7 @@
     "users": "사용자 관리",
     "userSubscriptions": "사용자 구독",
     "workspaceSubscriptions": "워크스페이스 구독",
+    "audit": "관리자 감사 로그",
     "apiLogs": "API 요청 로그",
     "llmByModel": "모델별 LLM 비용",
     "llmEvents": "최근 LLM 사용 이벤트",
@@ -56,7 +58,11 @@
     "method": "메서드",
     "path": "경로",
     "status": "상태",
-    "duration": "시간"
+    "duration": "시간",
+    "action": "작업",
+    "actor": "수행자",
+    "target": "대상",
+    "beforeAfter": "변경"
   },
   "llm": {
     "tokensIn": "입력 토큰",

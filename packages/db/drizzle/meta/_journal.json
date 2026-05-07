@@ -428,6 +428,13 @@
       "when": 1778173000000,
       "tag": "0060_site_admin_observability",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1778174000000,
+      "tag": "0061_admin_audit_events",
+      "breakpoints": true
     }
   ]
 }

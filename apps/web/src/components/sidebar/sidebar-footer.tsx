@@ -12,6 +12,7 @@ import {
   HelpCircle,
   LogOut,
   Settings,
+  Shield,
   User,
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
@@ -50,6 +51,10 @@ interface MyResponse {
   invites: MyInvite[];
 }
 
+interface AuthMeResponse {
+  isSiteAdmin: boolean;
+}
+
 // Bottom row of the sidebar: current workspace context, account menu, and bell.
 // BYOK status drives the plan label when the user has a Gemini key registered.
 export function SidebarFooter() {
@@ -70,6 +75,17 @@ export function SidebarFooter() {
     enabled: Boolean(session?.user),
   });
 
+  const authMe = useQuery({
+    queryKey: ["auth", "me"],
+    queryFn: async (): Promise<AuthMeResponse> => {
+      const res = await fetch("/api/auth/me", { credentials: "include" });
+      if (!res.ok) throw new Error(`auth/me ${res.status}`);
+      return (await res.json()) as AuthMeResponse;
+    },
+    staleTime: 30_000,
+    enabled: Boolean(session?.user),
+  });
+
   const workspaces = useQuery({
     queryKey: ["workspaces", "me"],
     queryFn: async (): Promise<MyResponse> => {
@@ -83,7 +99,10 @@ export function SidebarFooter() {
 
   if (isPending || !session) return null;
 
-  const user = session.user;
+  const user = session.user as typeof session.user & {
+    isSiteAdmin?: boolean;
+  };
+  const isSiteAdmin = Boolean(user.isSiteAdmin || authMe.data?.isSiteAdmin);
   const planLabel = byok.data?.registered ? t("plan_byok") : t("plan_free");
   const currentWorkspace =
     workspaces.data?.workspaces.find((w) => w.slug === wsSlug) ??
@@ -174,6 +193,15 @@ export function SidebarFooter() {
             <User aria-hidden className="h-4 w-4" />
             {t("account_settings")}
           </DropdownMenuItem>
+          {isSiteAdmin ? (
+            <DropdownMenuItem
+              render={<Link href={`/${locale}/admin`} />}
+              className="min-h-9 rounded px-2 py-2"
+            >
+              <Shield aria-hidden className="h-4 w-4" />
+              {t("admin_console")}
+            </DropdownMenuItem>
+          ) : null}
           {workspaces.data?.workspaces.length ? (
             <>
               <DropdownMenuSeparator />
