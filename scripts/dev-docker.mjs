@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -52,10 +52,8 @@ const services = [
   "worker",
 ];
 
-const overridePath = join(
-  tmpdir(),
-  `opencairn-dev-compose-${process.pid}-${Date.now()}.yml`,
-);
+const overrideDir = mkdtempSync(join(tmpdir(), "opencairn-dev-compose-"));
+const overridePath = join(overrideDir, "compose.override.yml");
 
 writeFileSync(overridePath, makeOverride(), "utf8");
 
@@ -77,7 +75,7 @@ try {
     runCompose(["up", "-d", "--build", ...services]);
   }
 } finally {
-  rmSync(overridePath, { force: true });
+  rmSync(overrideDir, { recursive: true, force: true });
 }
 
 function loadDotenv(path) {
@@ -189,7 +187,7 @@ function printPlan() {
   console.log(
     `[dev:docker] object storage: ${externalS3 ? "external S3/R2; skip local minio" : "local compose minio"}`,
   );
-  console.log(`[dev:docker] temporal: ${env.COMPOSE_TEMPORAL_ADDRESS} (host port ${env.TEMPORAL_HOST_PORT ?? "7233"}, UI ${env.TEMPORAL_UI_HOST_PORT})`);
+  console.log("[dev:docker] temporal: compose service");
   console.log(`[dev:docker] services: ${services.join(", ")}`);
 }
 

@@ -5,8 +5,9 @@ import { platform } from "node:os";
 const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const rootEnv = loadDotenv(".env");
 const childEnv = { ...rootEnv, ...process.env };
+const orchestratorEnv = process.env;
 const apiBase = normalizeBaseUrl(
-  childEnv.INTERNAL_API_URL ?? `http://localhost:${childEnv.PORT ?? "4000"}`,
+  localApiUrlFromEnv(orchestratorEnv),
 );
 const apiHealthUrl = `${apiBase}/api/health`;
 const requiredPorts = [
@@ -44,6 +45,24 @@ function loadDotenv(path) {
 
 function normalizeBaseUrl(value) {
   return value.replace(/\/+$/, "");
+}
+
+function localApiUrlFromEnv(env) {
+  const rawBaseUrl = env.INTERNAL_API_URL;
+  if (rawBaseUrl) {
+    try {
+      const url = new URL(rawBaseUrl);
+      if (url.protocol === "http:" && ["localhost", "127.0.0.1", "::1"].includes(url.hostname)) {
+        return url.toString();
+      }
+    } catch {
+      // Fall through to the validated port-based localhost URL.
+    }
+  }
+
+  const rawPort = env.PORT ?? "4000";
+  const port = /^\d{1,5}$/.test(rawPort) ? Number(rawPort) : 4000;
+  return `http://localhost:${port}`;
 }
 
 function portFromUrl(value, fallback) {
@@ -230,7 +249,7 @@ async function waitForApi(child, timeoutMs = 60_000) {
 
   while (Date.now() - startedAt < timeoutMs) {
     if (child.exitCode !== null) {
-      throw new Error(`API dev server exited before ${apiHealthUrl} became ready.`);
+      throw new Error("API dev server exited before the health check became ready.");
     }
 
     try {
@@ -242,7 +261,7 @@ async function waitForApi(child, timeoutMs = 60_000) {
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
 
-  throw new Error(`Timed out waiting for ${apiHealthUrl}.`);
+  throw new Error("Timed out waiting for the API health check.");
 }
 
 async function stopAll(exitCode = 0) {
@@ -285,9 +304,9 @@ try {
   start("hocuspocus", ["--filter", "@opencairn/hocuspocus", "dev"]);
   start("emails", ["--filter", "@opencairn/emails", "dev"]);
   await waitForApi(api);
-  console.log(`[dev] API ready at ${apiHealthUrl}; starting web`);
+  console.log("[dev] API health check passed; starting web");
   start("web", ["--filter", "@opencairn/web", "dev"]);
 } catch (error) {
-  console.error(`[dev] ${error instanceof Error ? error.message : String(error)}`);
+  console.error(`[dev] ${error instanceof Error ? error.message : "startup failed"}`);
   await stopAll(1);
 }
