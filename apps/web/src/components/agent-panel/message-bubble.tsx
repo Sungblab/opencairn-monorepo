@@ -31,9 +31,7 @@ import { ThoughtBubble } from "./thought-bubble";
 
 type FeedbackSentiment = "positive" | "negative";
 
-function isThought(
-  v: unknown,
-): v is { summary: string; tokens?: number } {
+function isThought(v: unknown): v is { summary: string; tokens?: number } {
   return (
     typeof v === "object" &&
     v !== null &&
@@ -65,6 +63,44 @@ function asSaveSuggestion(v: unknown): { title: string } | null {
     return v as { title: string };
   }
   return null;
+}
+
+function extractNestedErrorMessage(message: string): string {
+  let current = message;
+  for (let i = 0; i < 3; i += 1) {
+    try {
+      const parsed = JSON.parse(current) as unknown;
+      if (!parsed || typeof parsed !== "object") return current;
+      const record = parsed as Record<string, unknown>;
+      const nested = record.error;
+      if (nested && typeof nested === "object") {
+        const nestedMessage = (nested as Record<string, unknown>).message;
+        if (typeof nestedMessage === "string" && nestedMessage.trim()) {
+          current = nestedMessage;
+          continue;
+        }
+      }
+      const direct = record.message;
+      if (typeof direct === "string" && direct.trim()) {
+        current = direct;
+        continue;
+      }
+      return current;
+    } catch {
+      return current;
+    }
+  }
+  return current;
+}
+
+function asAgentError(v: unknown): { message: string; code?: string } | null {
+  if (!v || typeof v !== "object") return null;
+  const record = v as Record<string, unknown>;
+  if (typeof record.message !== "string" || !record.message.trim()) return null;
+  return {
+    message: extractNestedErrorMessage(record.message),
+    ...(typeof record.code === "string" ? { code: record.code } : {}),
+  };
 }
 
 export type AgentFileCardItem = {
@@ -131,7 +167,9 @@ export function asAgentFileCards(...values: unknown[]): AgentFileCardItem[] {
             : filename,
         filename,
         ...(typeof record.kind === "string" ? { kind: record.kind } : {}),
-        ...(typeof record.mimeType === "string" ? { mimeType: record.mimeType } : {}),
+        ...(typeof record.mimeType === "string"
+          ? { mimeType: record.mimeType }
+          : {}),
       });
     }
   }
@@ -192,15 +230,16 @@ function readQualitySignals(
   if (!sourceQuality || typeof sourceQuality !== "object") return [];
   const signals = (sourceQuality as Record<string, unknown>).signals;
   if (!Array.isArray(signals)) return [];
-  return signals.filter((signal): signal is DocumentGenerationQualitySignal =>
-    signal === "metadata_fallback" ||
-    signal === "unsupported_source" ||
-    signal === "source_corrupt" ||
-    signal === "source_oversized" ||
-    signal === "scanned_no_text" ||
-    signal === "no_extracted_text" ||
-    signal === "source_hydration_failed" ||
-    signal === "source_token_budget_exceeded",
+  return signals.filter(
+    (signal): signal is DocumentGenerationQualitySignal =>
+      signal === "metadata_fallback" ||
+      signal === "unsupported_source" ||
+      signal === "source_corrupt" ||
+      signal === "source_oversized" ||
+      signal === "scanned_no_text" ||
+      signal === "no_extracted_text" ||
+      signal === "source_hydration_failed" ||
+      signal === "source_token_budget_exceeded",
   );
 }
 
@@ -221,7 +260,9 @@ function readQualitySources(
     ) {
       return [];
     }
-    const signals = readQualitySignals({ sourceQuality: { signals: record.signals } });
+    const signals = readQualitySignals({
+      sourceQuality: { signals: record.signals },
+    });
     return signals.length > 0
       ? [{ id: record.id, kind: record.kind, title: record.title, signals }]
       : [];
@@ -414,11 +455,13 @@ export function MessageBubble({
 
   const thought = isThought(msg.content.thought) ? msg.content.thought : null;
   const status =
-    isStatus(msg.content.status) && typeof msg.content.status.phrase === "string"
+    isStatus(msg.content.status) &&
+    typeof msg.content.status.phrase === "string"
       ? msg.content.status.phrase
       : null;
   const citations = asCitations(msg.content.citations);
   const saveSuggestion = asSaveSuggestion(msg.content.save_suggestion);
+  const error = asAgentError(msg.content.error);
   const agentFiles = asAgentFileCards(
     msg.content.agent_files,
     msg.content.project_objects,
@@ -447,6 +490,15 @@ export function MessageBubble({
         body={String(msg.content.body ?? "")}
         streaming={msg.status === "streaming"}
       />
+      {error ? (
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          {t("error_prefix", {
+            message: error.code
+              ? `${error.message} (${error.code})`
+              : error.message,
+          })}
+        </div>
+      ) : null}
       {citations.length > 0 ? <CitationChips citations={citations} /> : null}
       {saveSuggestion ? (
         <SaveSuggestionCard
@@ -470,21 +522,31 @@ export function MessageBubble({
   );
 }
 
-function GenerationStatusIcon({ status }: { status: DocumentGenerationStatus }) {
+function GenerationStatusIcon({
+  status,
+}: {
+  status: DocumentGenerationStatus;
+}) {
   switch (status) {
     case "completed":
       return <CheckCircle2 className="h-4 w-4 text-emerald-600" />;
     case "failed":
       return <XCircle className="h-4 w-4 text-red-600" />;
     case "running":
-      return <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />;
+      return (
+        <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
+      );
     case "queued":
       return <Clock3 className="h-4 w-4 text-muted-foreground" />;
   }
 }
 
-function generationDownloadUrl(item: DocumentGenerationCardItem): string | null {
-  return item.file ? `/api/agent-files/${encodeURIComponent(item.file.id)}/file` : null;
+function generationDownloadUrl(
+  item: DocumentGenerationCardItem,
+): string | null {
+  return item.file
+    ? `/api/agent-files/${encodeURIComponent(item.file.id)}/file`
+    : null;
 }
 
 export function DocumentGenerationCards({
@@ -504,7 +566,9 @@ export function DocumentGenerationCards({
         const downloadUrl = generationDownloadUrl(item);
         const sourceSummary =
           item.sourceKinds.length > 0
-            ? item.sourceKinds.map((kind) => t(`sourceLabel.${kind}`)).join(", ")
+            ? item.sourceKinds
+                .map((kind) => t(`sourceLabel.${kind}`))
+                .join(", ")
             : t("sourceLabel.none");
         return (
           <div
@@ -521,8 +585,13 @@ export function DocumentGenerationCards({
               <span className="block truncate text-xs text-muted-foreground">
                 {t("statusDetail", {
                   status: t(`statusLabel.${item.status}`),
-                  format: (item.format ?? item.file?.kind ?? "file").toUpperCase(),
-                  filename: item.filename ?? item.file?.filename ?? item.requestId,
+                  format: (
+                    item.format ??
+                    item.file?.kind ??
+                    "file"
+                  ).toUpperCase(),
+                  filename:
+                    item.filename ?? item.file?.filename ?? item.requestId,
                 })}
               </span>
               <span className="block truncate text-xs text-muted-foreground">
@@ -630,7 +699,9 @@ export function AgentFileCards({ files }: { files: AgentFileCardItem[] }) {
         >
           <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium">{file.title}</span>
+            <span className="block truncate text-sm font-medium">
+              {file.title}
+            </span>
             <span className="block truncate text-xs text-muted-foreground">
               {t("created", { filename: file.filename })}
             </span>

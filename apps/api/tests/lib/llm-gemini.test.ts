@@ -1,7 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import {
-  getGeminiProvider,
-} from "../../src/lib/llm/gemini.js";
+import { getGeminiProvider } from "../../src/lib/llm/gemini.js";
 import {
   LLMNotConfiguredError,
   type StreamChunk,
@@ -127,7 +125,9 @@ describe("getGeminiProvider", () => {
   it("rejects invalid Gemini service tier env", () => {
     process.env.GEMINI_API_KEY = "AI" + "za-test-tier";
     process.env.GEMINI_SERVICE_TIER = "fastest";
-    expect(() => getGeminiProvider()).toThrowError(/Invalid Gemini service tier/);
+    expect(() => getGeminiProvider()).toThrowError(
+      /Invalid Gemini service tier/,
+    );
   });
 });
 
@@ -197,7 +197,9 @@ describe("GeminiProvider.embed", () => {
     });
     delete process.env.VECTOR_DIM;
     const provider = getGeminiProvider();
-    await expect(provider.embed("x")).rejects.toThrow(/3072.*expected 768|expected.*768/i);
+    await expect(provider.embed("x")).rejects.toThrow(
+      /3072.*expected 768|expected.*768/i,
+    );
   });
 
   it("honors GEMINI_EMBED_MODEL then EMBED_MODEL env overrides", async () => {
@@ -208,9 +210,11 @@ describe("GeminiProvider.embed", () => {
     });
     const provider = getGeminiProvider();
     await provider.embed("hello world");
-    expect(fakeEmbed).toHaveBeenCalledWith(expect.objectContaining({
-      model: "gemini-embedding-001",
-    }));
+    expect(fakeEmbed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "gemini-embedding-001",
+      }),
+    );
   });
 
   it("uses Gemini Embedding 2 task prefix instead of taskType when configured", async () => {
@@ -224,7 +228,9 @@ describe("GeminiProvider.embed", () => {
     expect(out).toHaveLength(1536);
     expect(fakeEmbed).toHaveBeenCalledWith({
       model: "gemini-embedding-2",
-      contents: [{ parts: [{ text: "task: search result | query: search this" }] }],
+      contents: [
+        { parts: [{ text: "task: search result | query: search this" }] },
+      ],
       config: {
         outputDimensionality: 1536,
       },
@@ -250,17 +256,21 @@ describe("GeminiProvider.groundSearch", () => {
     process.env.GEMINI_SERVICE_TIER = "priority";
     fakeGenerate.mockResolvedValue({
       text: "grounded answer",
-      candidates: [{
-        groundingMetadata: {
-          groundingChunks: [{
-            web: {
-              uri: "https://example.com/source",
-              title: "Source",
-              domain: "example.com",
-            },
-          }],
+      candidates: [
+        {
+          groundingMetadata: {
+            groundingChunks: [
+              {
+                web: {
+                  uri: "https://example.com/source",
+                  title: "Source",
+                  domain: "example.com",
+                },
+              },
+            ],
+          },
         },
-      }],
+      ],
       usageMetadata: {
         promptTokenCount: 11,
         candidatesTokenCount: 7,
@@ -276,11 +286,13 @@ describe("GeminiProvider.groundSearch", () => {
 
     expect(result).toEqual({
       answer: "grounded answer",
-      sources: [{
-        title: "Source",
-        url: "https://example.com/source",
-        snippet: "example.com",
-      }],
+      sources: [
+        {
+          title: "Source",
+          url: "https://example.com/source",
+          snippet: "example.com",
+        },
+      ],
       usage: {
         tokensIn: 11,
         tokensOut: 7,
@@ -298,6 +310,44 @@ describe("GeminiProvider.groundSearch", () => {
         cachedContent: "cachedContents/context-1",
       },
     });
+  });
+
+  it("retries grounded search without thinkingConfig when the model rejects thinkingLevel", async () => {
+    const unsupportedThinking = new Error(
+      JSON.stringify({
+        error: {
+          message: "Thinking level is not supported for this model.",
+        },
+      }),
+    );
+    fakeGenerate.mockRejectedValueOnce(unsupportedThinking);
+    fakeGenerate.mockResolvedValueOnce({
+      text: "grounded answer",
+      candidates: [],
+      usageMetadata: {
+        promptTokenCount: 1,
+        candidatesTokenCount: 2,
+      },
+    });
+
+    const provider = getGeminiProvider();
+    await provider.groundSearch("latest?", { thinkingLevel: "low" });
+
+    expect(fakeGenerate).toHaveBeenCalledTimes(2);
+    expect(fakeGenerate.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        config: expect.objectContaining({
+          thinkingConfig: { thinkingLevel: "LOW" },
+        }),
+      }),
+    );
+    expect(fakeGenerate.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({
+        config: expect.not.objectContaining({
+          thinkingConfig: expect.anything(),
+        }),
+      }),
+    );
   });
 });
 
@@ -359,13 +409,18 @@ describe("GeminiProvider.streamGenerate", () => {
   it("respects GEMINI_CHAT_MODEL env override", async () => {
     process.env.GEMINI_CHAT_MODEL = "gemini-2.5-pro";
     async function* one() {
-      yield { text: "ok", usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 } };
+      yield {
+        text: "ok",
+        usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 },
+      };
     }
     fakeStream.mockReturnValue(one());
 
     const provider = getGeminiProvider();
     const out: StreamChunk[] = [];
-    for await (const c of provider.streamGenerate({ messages: [{ role: "user", content: "x" }] })) {
+    for await (const c of provider.streamGenerate({
+      messages: [{ role: "user", content: "x" }],
+    })) {
       out.push(c);
     }
     expect(fakeStream).toHaveBeenCalledWith(
@@ -401,7 +456,10 @@ describe("GeminiProvider.streamGenerate", () => {
 
   it("forwards Gemini 3 thinkingLevel to generateContentStream", async () => {
     async function* one() {
-      yield { text: "ok", usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 } };
+      yield {
+        text: "ok",
+        usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 },
+      };
     }
     fakeStream.mockReturnValue(one());
 
@@ -423,9 +481,56 @@ describe("GeminiProvider.streamGenerate", () => {
     );
   });
 
+  it("retries streaming without thinkingConfig when the model rejects thinkingLevel", async () => {
+    const unsupportedThinking = new Error(
+      JSON.stringify({
+        error: {
+          message: "Thinking level is not supported for this model.",
+        },
+      }),
+    );
+    async function* one() {
+      yield {
+        text: "ok",
+        usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 },
+      };
+    }
+    fakeStream.mockRejectedValueOnce(unsupportedThinking);
+    fakeStream.mockReturnValueOnce(one());
+
+    const provider = getGeminiProvider();
+    const out: StreamChunk[] = [];
+    for await (const chunk of provider.streamGenerate({
+      messages: [{ role: "user", content: "x" }],
+      thinkingLevel: "high",
+    })) {
+      out.push(chunk);
+    }
+
+    expect(out).toContainEqual({ delta: "ok" });
+    expect(fakeStream).toHaveBeenCalledTimes(2);
+    expect(fakeStream.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        config: expect.objectContaining({
+          thinkingConfig: { thinkingLevel: "HIGH" },
+        }),
+      }),
+    );
+    expect(fakeStream.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({
+        config: expect.not.objectContaining({
+          thinkingConfig: expect.anything(),
+        }),
+      }),
+    );
+  });
+
   it("forwards Gemini 3 minimal thinkingLevel to generateContentStream", async () => {
     async function* one() {
-      yield { text: "ok", usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 } };
+      yield {
+        text: "ok",
+        usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 },
+      };
     }
     fakeStream.mockReturnValue(one());
 
@@ -448,7 +553,10 @@ describe("GeminiProvider.streamGenerate", () => {
 
   it("forwards cachedContent when provided by the caller", async () => {
     async function* one() {
-      yield { text: "ok", usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 } };
+      yield {
+        text: "ok",
+        usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 },
+      };
     }
     fakeStream.mockReturnValue(one());
 
@@ -472,7 +580,10 @@ describe("GeminiProvider.streamGenerate", () => {
   it("forwards Gemini service tier to generateContentStream", async () => {
     process.env.GEMINI_CHAT_SERVICE_TIER = "flex";
     async function* one() {
-      yield { text: "ok", usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 } };
+      yield {
+        text: "ok",
+        usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 },
+      };
     }
     fakeStream.mockReturnValue(one());
 

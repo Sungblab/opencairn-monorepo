@@ -40,7 +40,8 @@ function readEmbedDim(): number {
 }
 
 function readServiceTier(): GeminiServiceTier | undefined {
-  const raw = process.env.GEMINI_CHAT_SERVICE_TIER ?? process.env.GEMINI_SERVICE_TIER;
+  const raw =
+    process.env.GEMINI_CHAT_SERVICE_TIER ?? process.env.GEMINI_SERVICE_TIER;
   if (!raw?.trim()) return undefined;
   const tier = GEMINI_SERVICE_TIER[raw.trim().toLowerCase()];
   if (!tier) {
@@ -49,6 +50,30 @@ function readServiceTier(): GeminiServiceTier | undefined {
     );
   }
   return tier;
+}
+
+function thinkingConfig(
+  thinkingLevel?: ThinkingLevel,
+):
+  | { thinkingConfig: { thinkingLevel: GeminiThinkingLevel } }
+  | Record<string, never> {
+  return thinkingLevel
+    ? {
+        thinkingConfig: { thinkingLevel: GEMINI_THINKING_LEVEL[thinkingLevel] },
+      }
+    : {};
+}
+
+function withoutThinkingConfig<T extends Record<string, unknown>>(
+  config: T,
+): Omit<T, "thinkingConfig"> {
+  const { thinkingConfig: _drop, ...rest } = config;
+  return rest;
+}
+
+function isThinkingLevelUnsupported(error: unknown): boolean {
+  const text = error instanceof Error ? error.message : String(error);
+  return /thinking level is not supported/i.test(text);
 }
 
 function isGeminiEmbedding2Model(model: string): boolean {
@@ -63,13 +88,17 @@ function embedQueryText(text: string, model: string): string {
 export function getGeminiProvider(): LLMProvider {
   const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
   if (!apiKey) {
-    throw new LLMNotConfiguredError("GEMINI_API_KEY or GOOGLE_API_KEY env var missing");
+    throw new LLMNotConfiguredError(
+      "GEMINI_API_KEY or GOOGLE_API_KEY env var missing",
+    );
   }
 
   const client = new GoogleGenAI({ apiKey });
   const chatModel = process.env.GEMINI_CHAT_MODEL ?? CHAT_MODEL_DEFAULT;
   const embedModel =
-    process.env.GEMINI_EMBED_MODEL ?? process.env.EMBED_MODEL ?? EMBED_MODEL_DEFAULT;
+    process.env.GEMINI_EMBED_MODEL ??
+    process.env.EMBED_MODEL ??
+    EMBED_MODEL_DEFAULT;
   const embedDim = readEmbedDim();
   const serviceTier = readServiceTier();
 
@@ -93,32 +122,49 @@ export function getGeminiProvider(): LLMProvider {
       return values;
     },
     async groundSearch(query, opts): Promise<GroundedSearchResult | null> {
-      const res = await client.models.generateContent({
-        model: chatModel,
-        contents: query,
-        config: {
-          tools: [{ googleSearch: {} }],
-          ...(serviceTier ? { serviceTier } : {}),
-          ...(opts?.maxOutputTokens ? { maxOutputTokens: opts.maxOutputTokens } : {}),
-          ...(opts?.thinkingLevel
-            ? { thinkingConfig: { thinkingLevel: GEMINI_THINKING_LEVEL[opts.thinkingLevel] } }
-            : {}),
-          ...(opts?.cachedContent ? { cachedContent: opts.cachedContent } : {}),
-          ...(opts?.signal ? { abortSignal: opts.signal } : {}),
-        },
-      });
+      const config = {
+        tools: [{ googleSearch: {} }],
+        ...(serviceTier ? { serviceTier } : {}),
+        ...(opts?.maxOutputTokens
+          ? { maxOutputTokens: opts.maxOutputTokens }
+          : {}),
+        ...thinkingConfig(opts?.thinkingLevel),
+        ...(opts?.cachedContent ? { cachedContent: opts.cachedContent } : {}),
+        ...(opts?.signal ? { abortSignal: opts.signal } : {}),
+      };
+      let res;
+      try {
+        res = await client.models.generateContent({
+          model: chatModel,
+          contents: query,
+          config,
+        });
+      } catch (error) {
+        if (
+          !("thinkingConfig" in config) ||
+          !isThinkingLevelUnsupported(error)
+        ) {
+          throw error;
+        }
+        res = await client.models.generateContent({
+          model: chatModel,
+          contents: query,
+          config: withoutThinkingConfig(config),
+        });
+      }
       const grounding = res.candidates?.[0]?.groundingMetadata;
       const sources =
-        grounding?.groundingChunks
-          ?.flatMap((chunk) => {
-            const web = chunk.web;
-            if (!web?.uri) return [];
-            return [{
+        grounding?.groundingChunks?.flatMap((chunk) => {
+          const web = chunk.web;
+          if (!web?.uri) return [];
+          return [
+            {
               title: web.title || web.domain || web.uri,
               url: web.uri,
               ...(web.domain ? { snippet: web.domain } : {}),
-            }];
-          }) ?? [];
+            },
+          ];
+        }) ?? [];
       const usage = res.usageMetadata
         ? {
             tokensIn: res.usageMetadata.promptTokenCount ?? 0,
@@ -152,23 +198,38 @@ export function getGeminiProvider(): LLMProvider {
         parts: [{ text: m.content }],
       }));
 
-      const stream = await client.models.generateContentStream({
-        model: chatModel,
-        contents,
-        config: {
-          ...(systemMsgs.length > 0
-            ? { systemInstruction: systemMsgs.map((m) => m.content).join("\n\n") }
-            : {}),
-          ...(serviceTier ? { serviceTier } : {}),
-          ...(maxOutputTokens ? { maxOutputTokens } : {}),
-          ...(temperature !== undefined ? { temperature } : {}),
-          ...(thinkingLevel
-            ? { thinkingConfig: { thinkingLevel: GEMINI_THINKING_LEVEL[thinkingLevel] } }
-            : {}),
-          ...(cachedContent ? { cachedContent } : {}),
-          ...(signal ? { abortSignal: signal } : {}),
-        },
-      });
+      const config = {
+        ...(systemMsgs.length > 0
+          ? { systemInstruction: systemMsgs.map((m) => m.content).join("\n\n") }
+          : {}),
+        ...(serviceTier ? { serviceTier } : {}),
+        ...(maxOutputTokens ? { maxOutputTokens } : {}),
+        ...(temperature !== undefined ? { temperature } : {}),
+        ...thinkingConfig(thinkingLevel),
+        ...(cachedContent ? { cachedContent } : {}),
+        ...(signal ? { abortSignal: signal } : {}),
+      };
+
+      let stream;
+      try {
+        stream = await client.models.generateContentStream({
+          model: chatModel,
+          contents,
+          config,
+        });
+      } catch (error) {
+        if (
+          !("thinkingConfig" in config) ||
+          !isThinkingLevelUnsupported(error)
+        ) {
+          throw error;
+        }
+        stream = await client.models.generateContentStream({
+          model: chatModel,
+          contents,
+          config: withoutThinkingConfig(config),
+        });
+      }
 
       let lastUsage: Usage | null = null;
       for await (const chunk of stream as AsyncIterable<{

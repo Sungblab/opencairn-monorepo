@@ -29,6 +29,7 @@
     "save_suggestion_create_new": "Create new note",
     "save_suggestion_cancel": "Cancel",
     "save_suggestion_failed": "Save failed. Please try again.",
+    "error_prefix": "Error: {message}",
     "actions": {
       "copy_aria": "Copy",
       "regenerate_aria": "Regenerate",

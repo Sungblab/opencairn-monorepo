@@ -19,7 +19,11 @@ import type {
   WorkflowConsoleRun,
   WorkflowConsoleStatus,
 } from "@opencairn/shared";
-export type { AgentAction, AgentActionKind, AgentActionStatus } from "@opencairn/shared";
+export type {
+  AgentAction,
+  AgentActionKind,
+  AgentActionStatus,
+} from "@opencairn/shared";
 
 const baseUrl = () =>
   typeof window === "undefined"
@@ -269,6 +273,7 @@ export interface ChatMessageContent {
   status?: { phrase?: string };
   citations?: unknown[];
   save_suggestion?: unknown;
+  error?: unknown;
   agent_files?: unknown[];
   project_objects?: unknown[];
   project_object_generations?: unknown[];
@@ -279,7 +284,13 @@ export interface ChatMessage {
   role: "user" | "agent";
   status: "streaming" | "complete" | "failed";
   run_id?: string | null;
-  run_status?: "queued" | "running" | "complete" | "failed" | "cancelled" | null;
+  run_status?:
+    | "queued"
+    | "running"
+    | "complete"
+    | "failed"
+    | "cancelled"
+    | null;
   content: ChatMessageContent;
   mode: string | null;
   provider: string | null;
@@ -477,11 +488,13 @@ export type { DocumentGenerationFormat, DocumentGenerationSource };
 export const workflowConsoleApi = {
   list: (
     projectId: string,
-    options: number | {
-      limit?: number;
-      status?: WorkflowConsoleStatus;
-      q?: string;
-    } = 5,
+    options:
+      | number
+      | {
+          limit?: number;
+          status?: WorkflowConsoleStatus;
+          q?: string;
+        } = 5,
   ) => {
     const params = new URLSearchParams();
     if (typeof options === "number") {
@@ -721,10 +734,7 @@ export const plan8AgentsApi = {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  resolveSuggestion: (
-    id: string,
-    status: "accepted" | "rejected",
-  ) =>
+  resolveSuggestion: (id: string, status: "accepted" | "rejected") =>
     apiClient<{ ok: true; status: "accepted" | "rejected" }>(
       `/agents/plan8/suggestions/${encodeURIComponent(id)}`,
       {
@@ -805,10 +815,9 @@ export const wsSettingsApi = {
       body: JSON.stringify({ email, role }),
     }),
   cancelInvite: (workspaceId: string, inviteId: string) =>
-    apiClient<{ ok: true }>(
-      `/workspaces/${workspaceId}/invites/${inviteId}`,
-      { method: "DELETE" },
-    ),
+    apiClient<{ ok: true }>(`/workspaces/${workspaceId}/invites/${inviteId}`, {
+      method: "DELETE",
+    }),
   sharedLinks: (workspaceId: string) =>
     apiClient<{ links: WorkspaceSharedLinkRow[] }>(
       `/workspaces/${workspaceId}/share`,
@@ -875,7 +884,10 @@ export const notificationPreferencesApi = {
     apiClient<{ preferences: NotificationPreferenceRow[] }>(
       `/notification-preferences`,
     ),
-  upsert: (kind: NotificationPreferenceKind, body: Omit<NotificationPreferenceRow, "kind">) =>
+  upsert: (
+    kind: NotificationPreferenceKind,
+    body: Omit<NotificationPreferenceRow, "kind">,
+  ) =>
     apiClient<NotificationPreferenceRow>(`/notification-preferences/${kind}`, {
       method: "PUT",
       body: JSON.stringify(body),

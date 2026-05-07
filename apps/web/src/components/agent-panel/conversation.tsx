@@ -26,6 +26,13 @@ import {
 import { StatusLine } from "./status-line";
 import { ThoughtBubble } from "./thought-bubble";
 
+function liveErrorMessage(
+  error: StreamingAgentMessage["error"],
+): string | null {
+  if (!error?.message) return null;
+  return error.code ? `${error.message} (${error.code})` : error.message;
+}
+
 interface Props {
   threadId: string | null;
   live?: StreamingAgentMessage | null;
@@ -41,6 +48,7 @@ export function Conversation({
 }: Props) {
   const t = useTranslations("agentPanel.bubble");
   const { data: messages = [] } = useChatMessages(threadId);
+  const liveError = liveErrorMessage(live?.error ?? null);
 
   // Ref-based scroll keeps the DOM cheap on long threads — no per-message
   // ref. We re-run on `messages.length` (new turn arrived) and `live?.body`
@@ -104,6 +112,11 @@ export function Conversation({
             <StatusLine phrase={live.status.phrase} />
           ) : null}
           <p className="whitespace-pre-wrap text-sm">{live.body}</p>
+          {liveError ? (
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              {t("error_prefix", { message: liveError })}
+            </div>
+          ) : null}
           {live.agent_files.length > 0 || live.project_objects.length > 0 ? (
             <AgentFileCards
               files={asAgentFileCards(live.agent_files, live.project_objects)}
