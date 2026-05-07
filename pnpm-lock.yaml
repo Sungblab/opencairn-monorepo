@@ -139,6 +139,9 @@ importers:
       pino:
         specifier: ^10.3.1
         version: 10.3.1
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
       yjs:
         specifier: ^13.6.0
         version: 13.6.30
@@ -155,9 +158,6 @@ importers:
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
-      tsx:
-        specifier: ^4.19.0
-        version: 4.21.0
       typescript:
         specifier: ^6.0.3
         version: 6.0.3

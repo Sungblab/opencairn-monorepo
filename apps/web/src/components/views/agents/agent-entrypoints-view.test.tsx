@@ -325,6 +325,7 @@ describe("AgentEntryPointsView", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    window.history.replaceState(null, "", "/");
   });
 
   it("renders loading, launch controls, empty states, and overview rows", async () => {
@@ -509,6 +510,19 @@ describe("AgentEntryPointsView", () => {
     expect(runButtonFor("Connector")).toBeDisabled();
     expect(runButtonFor("Staleness")).toBeEnabled();
     expect(runButtonFor("Narrator")).toBeDisabled();
+  });
+
+  it("preselects the narrator note from a note-local launch link", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/ko/workspace/acme/project/project-1/agents?agent=narrator&noteId=note-2",
+    );
+
+    setup();
+
+    const select = await screen.findByLabelText("Narrator 노트 선택");
+    expect(select).toHaveValue("note-2");
   });
 
   it("shows a success toast and invalidates after launch", async () => {

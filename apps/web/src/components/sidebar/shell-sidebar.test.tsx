@@ -11,8 +11,22 @@ vi.mock("./use-current-project", () => ({
   useCurrentProjectContext: () => currentProject.value,
 }));
 
+vi.mock("next-intl", () => ({
+  useLocale: () => "ko",
+  useTranslations: (ns?: string) => (key: string) =>
+    ns ? `${ns}.${key}` : key,
+}));
+
+vi.mock("@/stores/panel-store", () => ({
+  usePanelStore: (selector: (s: { toggleSidebar: () => void }) => unknown) =>
+    selector({ toggleSidebar: vi.fn() }),
+}));
+
 vi.mock("./workspace-switcher", () => ({
   WorkspaceSwitcher: () => <div>workspace switcher</div>,
+}));
+vi.mock("./project-hero", () => ({
+  ProjectHero: () => <button type="button">project hero</button>,
 }));
 vi.mock("./global-nav", () => ({
   GlobalNav: () => <div>global nav</div>,
@@ -41,14 +55,66 @@ vi.mock("./project-learn-link", () => ({
 vi.mock("./NewNoteButton", () => ({
   NewNoteButton: () => <button type="button">new note</button>,
 }));
+vi.mock("./NewCanvasButton", () => ({
+  NewCanvasButton: () => <button type="button">new canvas</button>,
+}));
+vi.mock("./NewCodeWorkspaceButton", () => ({
+  NewCodeWorkspaceButton: () => <button type="button">new code</button>,
+}));
+vi.mock("./GenerateDocumentButton", () => ({
+  GenerateDocumentButton: () => <button type="button">generate document</button>,
+}));
+vi.mock("./sidebar-empty-state", () => ({
+  SidebarEmptyState: () => <div>project empty state</div>,
+}));
+vi.mock("./more-menu", () => ({
+  MoreMenu: () => <div>more menu</div>,
+}));
+vi.mock("@/components/literature/literature-search-button", () => ({
+  LiteratureSearchButton: () => <button type="button">literature</button>,
+}));
 
 describe("ShellSidebar", () => {
-  it("keeps the project list visible on workspace-level routes", () => {
+  it("makes project selection the top-level control and keeps global nav out of the main rail", () => {
     currentProject.value = { wsSlug: "acme", projectId: null };
+
+    render(<ShellSidebar deepResearchEnabled synthesisExportEnabled />);
+
+    expect(screen.getByText("project hero")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "sidebar.nav.dashboard" }),
+    ).toHaveClass("rounded-[var(--radius-control)]");
+    expect(
+      screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
+    ).toHaveClass("rounded-[var(--radius-control)]");
+    expect(screen.queryByText("project list")).not.toBeInTheDocument();
+    expect(screen.queryByText("global nav")).not.toBeInTheDocument();
+    expect(screen.queryByText("workspace switcher")).not.toBeInTheDocument();
+    expect(screen.queryByText("project tree")).not.toBeInTheDocument();
+    expect(screen.getByText("project empty state")).toBeInTheDocument();
+  });
+
+  it("keeps project tools and the tree visible when a project is selected", () => {
+    currentProject.value = { wsSlug: "acme", projectId: "p1" };
 
     render(<ShellSidebar deepResearchEnabled />);
 
-    expect(screen.getByText("project list")).toBeInTheDocument();
-    expect(screen.queryByText("project tree")).not.toBeInTheDocument();
+    expect(screen.getByText("new note")).toBeInTheDocument();
+    expect(screen.getByText("new canvas")).toBeInTheDocument();
+    expect(screen.getByText("new code")).toBeInTheDocument();
+    expect(screen.getByText("generate document")).toBeInTheDocument();
+    expect(screen.getByText("graph")).toBeInTheDocument();
+    expect(screen.getByText("agents")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "sidebar.nav.runs" }),
+    ).toHaveAttribute(
+      "href",
+      "/ko/workspace/acme/project/p1/agents?view=runs#workflow-console",
+    );
+    expect(screen.getByText("learn")).toBeInTheDocument();
+    expect(screen.getByText("project tree")).toBeInTheDocument();
   });
 });

@@ -84,6 +84,26 @@ Cookie: better-auth.session_token=<token>
 | POST | /api/auth/sign-out | Yes | Logout |
 | GET | /api/auth/get-session | Yes | Get current session |
 
+### Site Admin
+
+Site admin APIs require a logged-in user whose `user.is_site_admin` is true.
+The user-facing report endpoint only requires login and writes into the same
+site-admin inbox.
+
+| Method | Path | Auth | Description | Body |
+|--------|------|------|-------------|------|
+| GET | /api/admin/overview | site admin | Global operator snapshot: counts, plan breakdowns, recent reports, recent job/action logs, API call counts, 30-day LLM token/cost rollups, email queue health, system flags | - |
+| GET | /api/admin/users | site admin | Site-wide user list with plan, email verification, and site-admin flag | - |
+| PATCH | /api/admin/users/:userId/site-admin | site admin | Grant/revoke site admin. Self-revoke returns 400. | `{ isSiteAdmin: boolean }` |
+| PATCH | /api/admin/users/:userId/plan | site admin | Update hosted user plan marker | `{ plan: "free"\|"pro"\|"byok" }` |
+| GET | /api/admin/subscriptions | site admin | User plan rows and workspace plan rows for the admin subscription table | - |
+| PATCH | /api/admin/workspaces/:workspaceId/plan | site admin | Update workspace plan marker | `{ planType: "free"\|"pro"\|"enterprise" }` |
+| GET | /api/admin/reports | site admin | Last 100 site reports | - |
+| PATCH | /api/admin/reports/:reportId/status | site admin | Move report through open/triaged/resolved/closed; terminal states stamp resolver metadata | `{ status: "open"\|"triaged"\|"resolved"\|"closed" }` |
+| GET | /api/admin/api-logs | site admin | Last 200 API request log rows recorded by the global API request logger, including method, path, status, duration, user, user-agent, and timestamp | - |
+| GET | /api/admin/llm-usage | site admin | 30-day LLM usage totals, model breakdowns, and recent usage ledger events with USD/KRW cost estimates | - |
+| POST | /api/site-reports | Yes | Submit a bug report, feedback, billing, security, or other issue into the site-admin inbox | `{ type?, priority?, title, description?, pageUrl?, metadata? }` |
+
 ### Workspaces
 
 | Method | Path | Auth | Description | Body |

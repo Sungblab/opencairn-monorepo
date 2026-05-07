@@ -91,7 +91,7 @@ export function LandingHeader() {
                 {t("signIn")}
               </button>
               <a
-                href={`/${locale}/auth/signup`}
+                href={`/${locale}/auth/login`}
                 className="bg-stone-900 hover:bg-stone-50 hover:text-stone-900 text-stone-50 text-sm font-semibold px-4 py-2 rounded-md border-2 border-stone-900 transition-colors kr"
               >
                 {t("signUp")}

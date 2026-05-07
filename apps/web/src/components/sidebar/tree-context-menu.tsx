@@ -26,20 +26,35 @@ export function TreeContextMenuItems({
   const t = useTranslations("sidebar.tree_menu");
   return (
     <>
-      <ContextMenuItem onClick={onRename}>
+      <ContextMenuItem
+        className="min-h-9 rounded-[var(--radius-control)] px-3"
+        onClick={onRename}
+      >
         <span className="flex-1">{t("rename")}</span>
         <span className="text-[10px] text-muted-foreground">
           {t("rename_shortcut")}
         </span>
       </ContextMenuItem>
-      <ContextMenuItem onClick={onDuplicate} disabled={!onDuplicate}>
+      <ContextMenuItem
+        className="min-h-9 rounded-[var(--radius-control)] px-3"
+        onClick={onDuplicate}
+        disabled={!onDuplicate}
+      >
         {t("duplicate")}
       </ContextMenuItem>
-      <ContextMenuItem onClick={onCopyLink} disabled={!onCopyLink}>
+      <ContextMenuItem
+        className="min-h-9 rounded-[var(--radius-control)] px-3"
+        onClick={onCopyLink}
+        disabled={!onCopyLink}
+      >
         {t("copy_link")}
       </ContextMenuItem>
       <ContextMenuSeparator />
-      <ContextMenuItem variant="destructive" onClick={onDelete}>
+      <ContextMenuItem
+        className="min-h-9 rounded-[var(--radius-control)] px-3"
+        variant="destructive"
+        onClick={onDelete}
+      >
         <span className="flex-1">{t("delete")}</span>
         <span className="text-[10px] text-muted-foreground">
           {t("delete_shortcut")}

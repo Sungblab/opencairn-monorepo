@@ -20,6 +20,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
+import { Volume2 } from "lucide-react";
 
 import {
   useCollaborativeEditor,
@@ -79,6 +81,7 @@ import {
   useImageUploadDeferredToast,
 } from "./plugins/image-drop-deferred";
 import { useActiveEditorStore } from "@/stores/activeEditorStore";
+import { urls } from "@/lib/urls";
 
 // Basic marks + blocks. Lists are handled by the indent-based ListPlugin; the
 // bulleted/numbered toolbar buttons call `toggleList` directly with the style
@@ -579,6 +582,16 @@ export function NoteEditor({
                   for viewer/commenter roles, so we don't need an explicit
                   perms check here. */}
                 <div className="flex shrink-0 items-center gap-2 pt-2">
+                  {!readOnly ? (
+                    <Link
+                      href={`${urls.workspace.projectAgents(locale, wsSlug, projectId)}?agent=narrator&noteId=${noteId}`}
+                      className="inline-flex min-h-7 items-center gap-1.5 rounded border border-border px-3 py-1 text-xs hover:bg-accent"
+                      data-testid="narrate-note-link"
+                    >
+                      <Volume2 aria-hidden className="h-3.5 w-3.5" />
+                      {t("toolbar.narrate")}
+                    </Link>
+                  ) : null}
                   {!readOnly ? (
                     <button
                       type="button"

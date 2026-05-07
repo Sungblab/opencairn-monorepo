@@ -52,7 +52,7 @@ execution loop.
 
 ## Quick start
 
-Requirements: Node 22+, pnpm 9.15+, Python 3.12+, Docker.
+Requirements: Node 22+, pnpm 9.15+, Docker.
 
 ```bash
 # 1. Configure
@@ -61,15 +61,18 @@ cp .env.example .env
 #   POSTGRES_PASSWORD, S3_SECRET_KEY, BETTER_AUTH_SECRET, INTERNAL_API_SECRET,
 #   INTEGRATION_TOKEN_ENCRYPTION_KEY  (generate with `openssl rand -base64 32`),
 #   and either GEMINI_API_KEY or OLLAMA_BASE_URL.
+#
+# Optional managed services:
+#   Set DATABASE_URL / COMPOSE_DATABASE_URL to Supabase and
+#   OPENCAIRN_DEV_LOCAL_POSTGRES=false to skip local Postgres.
+#   Set S3_ENDPOINT / COMPOSE_S3_ENDPOINT to Cloudflare R2 and
+#   OPENCAIRN_DEV_LOCAL_MINIO=false to skip local MinIO.
 
-# 2. Bring up infra (Postgres, Redis, MinIO, Temporal)
-docker compose up -d postgres redis minio temporal
-
-# 3. Install dependencies and run migrations
+# 2. Install dependencies and run migrations
 pnpm install
 pnpm db:migrate
 
-# 4. Run all apps
+# 3. Run OpenCairn with Docker Compose
 pnpm dev
 ```
 
@@ -81,9 +84,10 @@ Default local ports:
 | api         | 4000  |
 | hocuspocus  | 1234  |
 | temporal    | 7233  |
+| temporal UI | 8233  |
 | minio       | 9000  |
 
-For the all-in-Docker path (including the worker container, Ollama profile, BYOK key rotation, and Cloudflare R2 storage), see `docs/contributing/dev-guide.md` and `docs/contributing/hosted-service.md`.
+`pnpm dev` is Docker-first: it starts API, web, Hocuspocus, worker, Redis, and Temporal. Local Postgres and MinIO are started by default, but can be disabled with `OPENCAIRN_DEV_LOCAL_POSTGRES=false` and `OPENCAIRN_DEV_LOCAL_MINIO=false` when `.env` points at Supabase/R2. For Ollama, BYOK key rotation, and production-oriented hosting notes, see `docs/contributing/dev-guide.md` and `docs/contributing/hosted-service.md`.
 
 ## Documentation
 

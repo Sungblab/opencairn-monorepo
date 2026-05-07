@@ -99,6 +99,11 @@ function workspaceSlugFromPathname(): string | null {
   return match?.[1] ? decodeURIComponent(match[1]) : null;
 }
 
+function currentSearchParam(name: string): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get(name);
+}
+
 function usePlan8RunPolling({
   run,
   refetch,
@@ -128,6 +133,8 @@ export function AgentEntryPointsView({ projectId }: { projectId: string }) {
   >("all");
   const [workflowQuery, setWorkflowQuery] = useState("");
   const workspaceSlug = useMemo(workspaceSlugFromPathname, []);
+  const requestedAgent = useMemo(() => currentSearchParam("agent"), []);
+  const requestedNoteId = useMemo(() => currentSearchParam("noteId"), []);
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey,
@@ -160,10 +167,39 @@ export function AgentEntryPointsView({ projectId }: { projectId: string }) {
     if (!connectorConceptId && data.launch.concepts[0]) {
       setConnectorConceptId(data.launch.concepts[0].id);
     }
+    if (
+      requestedAgent === "narrator" &&
+      requestedNoteId &&
+      data.launch.notes.some((note) => note.id === requestedNoteId)
+    ) {
+      setNarratorNoteId(requestedNoteId);
+      return;
+    }
     if (!narratorNoteId && data.launch.notes[0]) {
       setNarratorNoteId(data.launch.notes[0].id);
     }
-  }, [connectorConceptId, data, narratorNoteId, synthesisNoteIds.length]);
+  }, [
+    connectorConceptId,
+    data,
+    narratorNoteId,
+    requestedAgent,
+    requestedNoteId,
+    synthesisNoteIds.length,
+  ]);
+
+  useEffect(() => {
+    if (!data || typeof window === "undefined") return;
+    const targetId = window.location.hash.replace(/^#/, "");
+    if (!targetId) return;
+    const schedule =
+      window.requestAnimationFrame ??
+      ((callback: FrameRequestCallback) => window.setTimeout(callback, 0));
+    schedule(() => {
+      document.getElementById(targetId)?.scrollIntoView({
+        block: "start",
+      });
+    });
+  }, [data]);
 
   const launch = useMutation({
     mutationFn: async (kind: LaunchKind) => {
@@ -468,7 +504,7 @@ function WorkflowConsoleProjectList({
   });
 
   return (
-    <section>
+    <section id="workflow-console">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">{t("workflowConsole.title")}</h2>

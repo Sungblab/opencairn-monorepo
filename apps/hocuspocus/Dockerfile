@@ -61,4 +61,7 @@ RUN pnpm install --prod --frozen-lockfile
 
 EXPOSE 1234
 
-CMD ["node", "apps/hocuspocus/dist/server.js"]
+# Run through `tsx` for the same reason as apps/api: workspace packages such
+# as @opencairn/db currently export TS source with extensionless imports.
+WORKDIR /app/apps/hocuspocus
+CMD ["node", "--import", "tsx", "src/server.ts"]

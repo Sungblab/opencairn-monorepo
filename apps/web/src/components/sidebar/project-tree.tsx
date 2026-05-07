@@ -269,7 +269,7 @@ export function ProjectTree({
           data={data}
           width={width}
           height={observedHeight}
-          rowHeight={28}
+          rowHeight={34}
           openByDefault={false}
           searchTerm={typeAheadBuf || undefined}
           onToggle={handleToggle}

@@ -6,9 +6,12 @@
   },
   "actions": {
     "newDoc": "New document",
+    "generateDocument": "Generate document",
     "import": "Import",
     "research": "Start Deep Research",
-    "agents": "Agents"
+    "agents": "Agents",
+    "runs": "Runs",
+    "reviewInbox": "Review inbox"
   },
   "tabs": {
     "all": "All",

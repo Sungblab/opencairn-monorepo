@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import { parseWorkspacePath } from "@/lib/url-parsers";
 
 export interface CurrentProjectContext {
   wsSlug: string | null;
@@ -20,18 +21,19 @@ function readLastProject(wsSlug: string | null) {
   return window.localStorage.getItem(storageKey(wsSlug));
 }
 
-// Tiny helper around useParams so sidebar components stop spelling out the
-// same <{ wsSlug; projectId }> generic everywhere. Workspace-level routes
+// Tiny helper around the current pathname so sidebar components stop spelling
+// out the same workspace/project parsing everywhere. Workspace-level routes
 // (dashboard/settings/import/...) do not carry a projectId in the URL, so the
-// hook falls back to the last project selected inside the same workspace.
-// The data fetch for the project record lives in useCurrentProjectData below.
+// hook falls back to the last project selected inside the same workspace after
+// mount. Keeping that fallback out of the initial render avoids SSR hydration
+// drift when only the browser can read localStorage.
 export function useCurrentProjectContext(): CurrentProjectContext {
-  const params = useParams<{ wsSlug?: string; projectId?: string }>();
-  const wsSlug = params?.wsSlug ?? null;
-  const routeProjectId = params?.projectId ?? null;
-  const [lastProjectId, setLastProjectId] = useState<string | null>(() =>
-    readLastProject(wsSlug),
-  );
+  const pathname = usePathname() ?? "";
+  const parsed = parseWorkspacePath(pathname);
+  const params = useParams<{ wsSlug?: string }>();
+  const wsSlug = parsed.wsSlug ?? params?.wsSlug ?? null;
+  const routeProjectId = parsed.projectId;
+  const [lastProjectId, setLastProjectId] = useState<string | null>(null);
 
   useEffect(() => {
     setLastProjectId(readLastProject(wsSlug));

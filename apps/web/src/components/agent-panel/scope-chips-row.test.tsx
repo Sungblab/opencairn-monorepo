@@ -23,16 +23,16 @@ describe("ScopeChipsRow", () => {
       />,
     );
 
-    expect(
-      screen.getByRole("button", {
-        name: "agentPanel.scope.chips.workspace",
-      }).className,
-    ).toContain("min-h-7");
-    expect(
-      screen.getByRole("button", {
-        name: "agentPanel.scope.strict_aria",
-      }).className,
-    ).toContain("min-h-7");
+    const workspace = screen.getByRole("button", {
+      name: "agentPanel.scope.chips.workspace",
+    });
+    const strict = screen.getByRole("button", {
+      name: "agentPanel.scope.strict_aria",
+    });
+    expect(workspace.className).toContain("min-h-7");
+    expect(strict.className).toContain("min-h-7");
+    expect(workspace).toHaveClass("rounded-[var(--radius-control)]");
+    expect(strict).toHaveClass("rounded-[var(--radius-control)]");
   });
 
   it("keeps visible scope labels free of emoji glyphs", () => {

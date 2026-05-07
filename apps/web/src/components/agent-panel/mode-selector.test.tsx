@@ -11,10 +11,10 @@ describe("ModeSelector", () => {
   it("uses a full-height trigger", () => {
     render(<ModeSelector value="auto" onChange={vi.fn()} />);
 
-    expect(
-      screen.getByRole("button", {
-        name: "agentPanel.composer.modes.trigger_aria",
-      }).className,
-    ).toContain("min-h-7");
+    const trigger = screen.getByRole("button", {
+      name: "agentPanel.composer.modes.trigger_aria",
+    });
+    expect(trigger.className).toContain("min-h-7");
+    expect(trigger).toHaveClass("rounded-[var(--radius-control)]");
   });
 });

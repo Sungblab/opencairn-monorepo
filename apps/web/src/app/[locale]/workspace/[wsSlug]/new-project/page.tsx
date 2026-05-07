@@ -1,6 +1,7 @@
 import { urls } from "@/lib/urls";
 import { redirect, notFound } from "next/navigation";
 import { cookies } from "next/headers";
+import { DEFAULT_PROJECT_NAME } from "@opencairn/shared";
 
 // Fallback for the rare case where a workspace has zero projects
 // (e.g. user deleted them all). Auto-creates a default project and
@@ -25,7 +26,7 @@ export default async function NewProject({
   const createRes = await fetch(`${base}/api/workspaces/${ws.id}/projects`, {
     method: "POST",
     headers: { cookie: cookieHeader, "content-type": "application/json" },
-    body: JSON.stringify({ name: ws.name }),
+    body: JSON.stringify({ name: DEFAULT_PROJECT_NAME }),
     cache: "no-store",
   });
   if (!createRes.ok) notFound();

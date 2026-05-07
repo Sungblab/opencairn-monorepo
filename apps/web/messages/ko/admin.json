@@ -1,0 +1,126 @@
+{
+  "eyebrow": "운영 콘솔",
+  "title": "사이트 관리자",
+  "subtitle": "사용자, 구독, 신고, 작업 로그, 이메일 큐, 시스템 플래그를 한 화면에서 확인합니다.",
+  "accessBadge": "SITE ADMIN",
+  "navigation": "관리 영역",
+  "forbiddenTitle": "사이트 관리자 권한이 필요합니다",
+  "forbiddenBody": "이 페이지는 사이트 관리자만 사용할 수 있습니다.",
+  "tabs": {
+    "dashboard": "대시보드",
+    "analytics": "분석",
+    "users": "사용자",
+    "subscriptions": "구독",
+    "reports": "신고",
+    "logs": "로그",
+    "apiLogs": "API 호출",
+    "llmCosts": "LLM 비용",
+    "email": "이메일",
+    "system": "시스템"
+  },
+  "stats": {
+    "users": "사용자",
+    "workspaces": "워크스페이스",
+    "projects": "프로젝트",
+    "notes": "노트",
+    "openReports": "열린 신고",
+    "failedJobs": "실패 작업",
+    "pendingEmails": "대기 이메일",
+    "usageThisMonth": "월 사용량",
+    "apiCallsToday": "오늘 API 호출",
+    "llmCostKrw30d": "30일 LLM 비용"
+  },
+  "sections": {
+    "reports": "신고 및 피드백",
+    "operations": "최근 운영 로그",
+    "userPlans": "사용자 플랜 분포",
+    "workspacePlans": "워크스페이스 플랜 분포",
+    "actionStatuses": "에이전트 액션 상태",
+    "usage": "사용량 액션",
+    "users": "사용자 관리",
+    "userSubscriptions": "사용자 구독",
+    "workspaceSubscriptions": "워크스페이스 구독",
+    "apiLogs": "API 요청 로그",
+    "llmByModel": "모델별 LLM 비용",
+    "llmEvents": "최근 LLM 사용 이벤트",
+    "email": "이메일 발송 상태",
+    "system": "시스템 설정"
+  },
+  "columns": {
+    "user": "사용자",
+    "plan": "플랜",
+    "verified": "인증",
+    "created": "가입",
+    "siteAdmin": "사이트 관리자",
+    "time": "시간",
+    "method": "메서드",
+    "path": "경로",
+    "status": "상태",
+    "duration": "시간"
+  },
+  "llm": {
+    "tokensIn": "입력 토큰",
+    "tokensOut": "출력 토큰",
+    "costUsd": "USD 비용",
+    "costKrw": "KRW 비용"
+  },
+  "verified": {
+    "yes": "인증됨",
+    "no": "미인증"
+  },
+  "actions": {
+    "grant": "부여",
+    "revoke": "해제",
+    "saving": "저장 중...",
+    "refresh": "새로고침"
+  },
+  "reportStatuses": {
+    "open": "열림",
+    "triaged": "분류됨",
+    "resolved": "해결됨",
+    "closed": "닫힘"
+  },
+  "email": {
+    "resend": "Resend 설정",
+    "smtp": "SMTP 설정",
+    "pending": "발송 대기"
+  },
+  "system": {
+    "environment": "실행 환경",
+    "storage": "오브젝트 스토리지"
+  },
+  "searchUsers": "사용자 검색",
+  "empty": "표시할 항목이 없습니다.",
+  "emptyDescription": "상세 설명이 없습니다.",
+  "errors": {
+    "load": "관리 데이터를 불러오지 못했어요.",
+    "update": "관리 값을 변경하지 못했어요."
+  },
+  "reportForm": {
+    "eyebrow": "문제 신고",
+    "title": "버그 및 피드백 보내기",
+    "subtitle": "제출한 내용은 사이트 관리자 콘솔의 신고 수신함에 바로 표시됩니다.",
+    "panelTitle": "신고 내용",
+    "type": "유형",
+    "priority": "우선순위",
+    "fieldTitle": "제목",
+    "description": "상세 설명",
+    "submit": "보내기",
+    "submitting": "보내는 중...",
+    "success": "신고가 접수되었습니다.",
+    "error": "신고를 접수하지 못했어요.",
+    "types": {
+      "bug": "버그",
+      "feedback": "피드백",
+      "billing": "결제",
+      "security": "보안",
+      "other": "기타"
+    },
+    "priorities": {
+      "low": "낮음",
+      "normal": "보통",
+      "high": "높음",
+      "urgent": "긴급"
+    }
+  }
+}

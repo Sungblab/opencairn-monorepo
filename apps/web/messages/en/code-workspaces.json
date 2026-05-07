@@ -1,4 +1,9 @@
 {
+  "create": {
+    "button": "New code",
+    "defaultName": "New code workspace",
+    "failed": "Couldn't create the code workspace."
+  },
   "viewer": {
     "loading": "Loading code workspace...",
     "error": "Unable to open this code workspace.",

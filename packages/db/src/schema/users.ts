@@ -7,6 +7,7 @@ export const user = pgTable("user", {
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
+  isSiteAdmin: boolean("is_site_admin").notNull().default(false),
   image: text("image"),
   plan: userPlanEnum("plan").notNull().default("free"),
 

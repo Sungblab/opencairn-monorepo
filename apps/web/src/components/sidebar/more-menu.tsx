@@ -53,7 +53,7 @@ export function MoreMenu({ base, synthesisExportEnabled = false }: MoreMenuProps
           <Link
             key={href}
             href={href}
-            className="flex min-h-8 items-center gap-2 rounded px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:outline-none"
+            className="flex min-h-8 items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:outline-none"
           >
             <Icon aria-hidden className="h-3.5 w-3.5 shrink-0" />
             <span className="min-w-0 flex-1 truncate">{label}</span>
@@ -63,7 +63,7 @@ export function MoreMenu({ base, synthesisExportEnabled = false }: MoreMenuProps
           href="/feedback"
           target="_blank"
           rel="noreferrer"
-          className="flex min-h-8 items-center gap-2 rounded px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:outline-none"
+          className="flex min-h-8 items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:outline-none"
         >
           <ExternalLink aria-hidden className="h-3.5 w-3.5 shrink-0" />
           <span className="min-w-0 flex-1 truncate">
@@ -74,7 +74,7 @@ export function MoreMenu({ base, synthesisExportEnabled = false }: MoreMenuProps
           href="/changelog"
           target="_blank"
           rel="noreferrer"
-          className="flex min-h-8 items-center gap-2 rounded px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:outline-none"
+          className="flex min-h-8 items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:outline-none"
         >
           <ExternalLink aria-hidden className="h-3.5 w-3.5 shrink-0" />
           <span className="min-w-0 flex-1 truncate">

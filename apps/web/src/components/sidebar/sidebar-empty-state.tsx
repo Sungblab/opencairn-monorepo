@@ -72,7 +72,7 @@ export function SidebarEmptyState() {
             onClick={() =>
               router.push(urls.workspace.project(locale, wsSlug, project.id))
             }
-            className="min-h-10 truncate rounded px-2.5 py-2 text-left text-sm font-medium transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
+            className="min-h-10 truncate rounded-[var(--radius-control)] px-2.5 py-2 text-left text-sm font-medium transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
           >
             {project.name}
           </button>
@@ -80,7 +80,7 @@ export function SidebarEmptyState() {
         <button
           type="button"
           onClick={() => router.push(urls.workspace.newProject(locale, wsSlug))}
-          className="mt-1 min-h-10 rounded border border-dashed border-border px-2.5 py-2 text-left text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:outline-none"
+          className="mt-1 min-h-10 rounded-[var(--radius-control)] border border-dashed border-border px-2.5 py-2 text-left text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:outline-none"
         >
           + {t("new")}
         </button>
@@ -89,7 +89,7 @@ export function SidebarEmptyState() {
   }
 
   return (
-    <div className="m-3 flex flex-1 flex-col items-center justify-center gap-3 rounded border border-dashed border-border p-6 text-center">
+    <div className="m-3 flex flex-1 flex-col items-center justify-center gap-3 rounded-[var(--radius-control)] border border-dashed border-border p-6 text-center">
       <p className="text-sm text-muted-foreground">
         {isLoading ? t("loading") : t("empty")}
       </p>
@@ -98,7 +98,7 @@ export function SidebarEmptyState() {
         onClick={() =>
           router.push(urls.workspace.newProject(locale, wsSlug))
         }
-        className="min-h-8 rounded bg-foreground px-3 py-1.5 text-xs font-medium text-background transition-colors hover:bg-foreground/90 focus-visible:outline-none"
+        className="min-h-8 rounded-[var(--radius-control)] bg-foreground px-3 py-1.5 text-xs font-medium text-background transition-colors hover:bg-foreground/90 focus-visible:outline-none"
       >
         {t("create_cta")}
       </button>

@@ -1,6 +1,6 @@
 "use client";
 import { useRef } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useScrollReveal } from "@/lib/landing/hooks/useScrollReveal";
 
 function Html({ html, className }: { html: string; className?: string }) {
@@ -9,6 +9,7 @@ function Html({ html, className }: { html: string; className?: string }) {
 
 export function Pricing() {
   const t = useTranslations("landing.pricing");
+  const locale = useLocale();
   const ref = useRef<HTMLElement>(null);
   useScrollReveal(ref);
 
@@ -60,7 +61,7 @@ export function Pricing() {
               ))}
             </ul>
             <a
-              href="#login"
+              href={`/${locale}/auth/login`}
               className="block text-center border border-stone-50 text-stone-50 hover:bg-stone-50 hover:text-stone-900 font-sans text-[12px] tracking-widest px-6 py-3 rounded-md transition-colors"
             >
               {t("solo.cta")}
@@ -120,7 +121,7 @@ export function Pricing() {
               ))}
             </ul>
             <a
-              href="#login"
+              href={`/${locale}/auth/login`}
               className="block text-center font-sans text-[12px] tracking-widest px-6 py-3 rounded-md transition-colors border border-stone-900 hover:bg-stone-50 hover:text-stone-900"
               style={{ background: "#171717", color: "#FAFAFA" }}
             >
@@ -155,7 +156,7 @@ export function Pricing() {
               ))}
             </ul>
             <a
-              href="#login"
+              href={`/${locale}/auth/login`}
               className="block text-center border border-stone-50 text-stone-50 hover:bg-stone-50 hover:text-stone-900 font-sans text-[12px] tracking-widest px-6 py-3 rounded-md transition-colors"
             >
               {t("byok.cta")}

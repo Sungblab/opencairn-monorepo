@@ -7,6 +7,7 @@ export interface ServerSession {
   userId: string;
   email: string;
   name: string;
+  isSiteAdmin: boolean;
 }
 
 export async function requireSession(): Promise<ServerSession> {

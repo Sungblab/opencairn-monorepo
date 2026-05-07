@@ -1,0 +1,126 @@
+{
+  "eyebrow": "Operations console",
+  "title": "Site admin",
+  "subtitle": "Review users, subscriptions, reports, job logs, email queue health, and system flags in one place.",
+  "accessBadge": "SITE ADMIN",
+  "navigation": "Admin areas",
+  "forbiddenTitle": "Site admin access required",
+  "forbiddenBody": "This page is only available to site administrators.",
+  "tabs": {
+    "dashboard": "Dashboard",
+    "analytics": "Analytics",
+    "users": "Users",
+    "subscriptions": "Subscriptions",
+    "reports": "Reports",
+    "logs": "Logs",
+    "apiLogs": "API calls",
+    "llmCosts": "LLM costs",
+    "email": "Email",
+    "system": "System"
+  },
+  "stats": {
+    "users": "Users",
+    "workspaces": "Workspaces",
+    "projects": "Projects",
+    "notes": "Notes",
+    "openReports": "Open reports",
+    "failedJobs": "Failed jobs",
+    "pendingEmails": "Pending email",
+    "usageThisMonth": "Monthly usage",
+    "apiCallsToday": "API calls today",
+    "llmCostKrw30d": "30d LLM cost"
+  },
+  "sections": {
+    "reports": "Reports and feedback",
+    "operations": "Recent operation logs",
+    "userPlans": "User plan breakdown",
+    "workspacePlans": "Workspace plan breakdown",
+    "actionStatuses": "Agent action status",
+    "usage": "Usage actions",
+    "users": "User management",
+    "userSubscriptions": "User subscriptions",
+    "workspaceSubscriptions": "Workspace subscriptions",
+    "apiLogs": "API request logs",
+    "llmByModel": "LLM cost by model",
+    "llmEvents": "Recent LLM usage events",
+    "email": "Email delivery health",
+    "system": "System settings"
+  },
+  "columns": {
+    "user": "User",
+    "plan": "Plan",
+    "verified": "Verified",
+    "created": "Joined",
+    "siteAdmin": "Site admin",
+    "time": "Time",
+    "method": "Method",
+    "path": "Path",
+    "status": "Status",
+    "duration": "Duration"
+  },
+  "llm": {
+    "tokensIn": "Input tokens",
+    "tokensOut": "Output tokens",
+    "costUsd": "USD cost",
+    "costKrw": "KRW cost"
+  },
+  "verified": {
+    "yes": "Verified",
+    "no": "Unverified"
+  },
+  "actions": {
+    "grant": "Grant",
+    "revoke": "Revoke",
+    "saving": "Saving...",
+    "refresh": "Refresh"
+  },
+  "reportStatuses": {
+    "open": "Open",
+    "triaged": "Triaged",
+    "resolved": "Resolved",
+    "closed": "Closed"
+  },
+  "email": {
+    "resend": "Resend configured",
+    "smtp": "SMTP configured",
+    "pending": "Pending delivery"
+  },
+  "system": {
+    "environment": "Environment",
+    "storage": "Object storage"
+  },
+  "searchUsers": "Search users",
+  "empty": "No items to show.",
+  "emptyDescription": "No description provided.",
+  "errors": {
+    "load": "Couldn't load admin data.",
+    "update": "Couldn't update the admin value."
+  },
+  "reportForm": {
+    "eyebrow": "Issue report",
+    "title": "Send a bug report or feedback",
+    "subtitle": "Submitted reports appear directly in the site admin console inbox.",
+    "panelTitle": "Report details",
+    "type": "Type",
+    "priority": "Priority",
+    "fieldTitle": "Title",
+    "description": "Description",
+    "submit": "Submit",
+    "submitting": "Submitting...",
+    "success": "Report submitted.",
+    "error": "Couldn't submit the report.",
+    "types": {
+      "bug": "Bug",
+      "feedback": "Feedback",
+      "billing": "Billing",
+      "security": "Security",
+      "other": "Other"
+    },
+    "priorities": {
+      "low": "Low",
+      "normal": "Normal",
+      "high": "High",
+      "urgent": "Urgent"
+    }
+  }
+}

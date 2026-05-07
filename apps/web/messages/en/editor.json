@@ -85,7 +85,8 @@
     "bulleted": "Bulleted list",
     "numbered": "Numbered list",
     "quote": "Quote",
-    "wikilink": "Link note"
+    "wikilink": "Link note",
+    "narrate": "Create audio"
   },
   "table": {
     "menu": {

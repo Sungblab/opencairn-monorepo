@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 type ActivityItem = { agent: string; text: string };
 
@@ -91,6 +91,7 @@ const introStyle = (delayMs: number): CSSProperties =>
 
 export function Hero() {
   const t = useTranslations("landing.hero");
+  const locale = useLocale();
 
   const activityItems = t.raw("activity.items") as ActivityItem[];
   const timeLabels = t.raw("activity.timeLabels") as string[];
@@ -182,7 +183,7 @@ export function Hero() {
               style={introStyle(HERO_INTRO_DELAYS.ctas)}
             >
               <a
-                href="#pricing"
+                href={`/${locale}/auth/login`}
                 className="bg-stone-900 hover:bg-stone-50 hover:text-stone-900 text-stone-50 border border-stone-900 font-medium px-6 py-3 rounded-md transition-colors kr inline-flex items-center gap-2"
               >
                 {t("ctaPrimary")}

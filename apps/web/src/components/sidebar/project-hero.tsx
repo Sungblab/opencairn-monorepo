@@ -19,31 +19,26 @@ export function ProjectHero() {
   const { projectId } = useCurrentProjectContext();
   const { data: project } = useCurrentProjectData(projectId);
   const t = useTranslations("sidebar.project");
-  const triggerLabel = project?.name ?? (projectId ? t("empty") : t("select"));
+  const triggerLabel = project?.name ?? t("select");
 
   return (
     <Popover>
       <PopoverTrigger
         aria-label={t("switch_aria")}
-        // Card-style trigger — thicker fg-toned border + 2px box-shadow accent
-        // mark this as the *active project identity* in the sidebar (mockup
-        // 2026-04-23-app-shell §sidebar). Hover is the workspace `app-hover`
-        // 6% wash, NOT the mockup's full invert (deviation: full flips are
-        // reserved for landing/auth surfaces).
-        className="mx-3 mb-3 mt-3 flex items-center justify-between gap-2 rounded bg-muted/40 px-3 py-2.5 text-left transition-colors hover:bg-muted focus-visible:outline-none"
+        className="flex min-h-12 w-full items-center justify-between gap-2 rounded-[var(--radius-control)] border border-transparent bg-background px-3 py-3 text-left transition-colors hover:border-border hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <span className="truncate text-[14px] font-semibold tracking-tight">
+        <span className="truncate text-sm font-semibold">
           {triggerLabel}
         </span>
         <ChevronDown
           aria-hidden
-          className="h-3 w-3 shrink-0 opacity-70"
+          className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
         />
       </PopoverTrigger>
       <PopoverContent
         align="start"
         sideOffset={6}
-        className="w-[280px] rounded border border-border bg-background p-0 shadow-sm ring-0"
+        className="w-[280px] rounded-[var(--radius-control)] border border-border bg-background p-0 shadow-sm ring-0"
       >
         <ProjectSwitcher />
       </PopoverContent>

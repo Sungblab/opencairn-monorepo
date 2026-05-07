@@ -11,6 +11,7 @@ import {
   chatMessages,
   chatRuns,
   chatRunEvents,
+  llmUsageEvents,
   eq,
   asc,
 } from "@opencairn/db";
@@ -284,6 +285,52 @@ describe("Threads messages — happy path", () => {
       .from(chatMessages)
       .where(eq(chatMessages.id, agentMessageId));
     expect(agent!.content).toMatchObject({ body: "fresh" });
+  });
+
+  it("records LLM usage events when a durable chat run emits token usage", async () => {
+    const threadId = await createThread(ctx.workspaceId, ctx.userId);
+    const { runId } = await createDurableChatRun({
+      threadId,
+      workspaceId: ctx.workspaceId,
+      userId: ctx.userId,
+      content: "measure usage",
+      mode: "auto",
+    });
+
+    async function* usageAgent(): AsyncGenerator<AgentChunk> {
+      yield { type: "text", payload: { delta: "metered" } };
+      yield {
+        type: "usage",
+        payload: {
+          tokensIn: 1_000_000,
+          tokensOut: 1_000_000,
+          model: "gemini-3-flash-preview",
+        },
+      };
+      yield { type: "done", payload: {} };
+    }
+    __setRunAgentForTest(usageAgent);
+
+    await executeChatRun(runId);
+
+    const [event] = await db
+      .select()
+      .from(llmUsageEvents)
+      .where(eq(llmUsageEvents.sourceId, runId));
+    expect(event).toMatchObject({
+      userId: ctx.userId,
+      workspaceId: ctx.workspaceId,
+      provider: "gemini",
+      model: "gemini-3-flash-preview",
+      operation: "chat.stream",
+      tokensIn: 1_000_000,
+      tokensOut: 1_000_000,
+      sourceType: "chat_run",
+    });
+    expect(Number(event!.costUsd)).toBe(0.375);
+    expect(Number(event!.costKrw)).toBe(618.75);
+
+    await db.delete(llmUsageEvents).where(eq(llmUsageEvents.sourceId, runId));
   });
 
   it("stops execution after mid-run cancellation and does not overwrite cancelled status", async () => {

@@ -23,7 +23,10 @@
     "research": "Deep Research",
     "import": "가져오기",
     "literature": "논문 검색",
-    "more_aria": "더보기"
+    "runs": "실행 기록",
+    "generate_document": "문서 생성",
+    "more_aria": "더보기",
+    "collapse_sidebar": "왼쪽 사이드바 접기"
   },
   "more_menu": {
     "settings": "워크스페이스 설정",
@@ -50,9 +53,12 @@
     "profile": "프로필",
     "account_settings": "설정",
     "workspace_settings": "워크스페이스 설정",
+    "switch_workspace": "워크스페이스 전환",
     "help": "도움말",
+    "report_issue": "문제 신고",
     "sign_out": "로그아웃",
     "guest_name": "게스트",
+    "workspace_loading": "워크스페이스",
     "plan_free": "Free",
     "plan_byok": "BYOK",
     "credits_amount": "₩{value, number}"
@@ -65,6 +71,7 @@
     "rename_shortcut": "F2",
     "duplicate": "복제",
     "copy_link": "링크 복사",
+    "row_actions": "파일 작업",
     "delete": "삭제",
     "delete_shortcut": "⌘Del",
     "confirm_delete": "\"{label}\"을(를) 삭제할까요?"

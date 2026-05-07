@@ -6,9 +6,12 @@
   },
   "actions": {
     "newDoc": "새 문서",
+    "generateDocument": "문서 생성",
     "import": "가져오기",
     "research": "Deep Research 시작",
-    "agents": "에이전트"
+    "agents": "에이전트",
+    "runs": "실행 기록",
+    "reviewInbox": "검토함"
   },
   "tabs": {
     "all": "전체",

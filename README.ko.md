@@ -52,7 +52,7 @@ code workspace 실행 루프 같은 긴 구현 이야기는
 
 ## Quick start
 
-요구 사항: Node 22+, pnpm 9.15+, Python 3.12+, Docker.
+요구 사항: Node 22+, pnpm 9.15+, Docker.
 
 ```bash
 # 1. 환경 설정
@@ -61,15 +61,18 @@ cp .env.example .env
 #   POSTGRES_PASSWORD, S3_SECRET_KEY, BETTER_AUTH_SECRET, INTERNAL_API_SECRET,
 #   INTEGRATION_TOKEN_ENCRYPTION_KEY  (`openssl rand -base64 32` 으로 생성),
 #   그리고 GEMINI_API_KEY 또는 OLLAMA_BASE_URL 중 하나.
+#
+# 선택적 관리형 서비스:
+#   Supabase를 쓰면 DATABASE_URL / COMPOSE_DATABASE_URL을 설정하고
+#   OPENCAIRN_DEV_LOCAL_POSTGRES=false 로 로컬 Postgres를 끕니다.
+#   Cloudflare R2를 쓰면 S3_ENDPOINT / COMPOSE_S3_ENDPOINT를 설정하고
+#   OPENCAIRN_DEV_LOCAL_MINIO=false 로 로컬 MinIO를 끕니다.
 
-# 2. 인프라 기동 (Postgres, Redis, MinIO, Temporal)
-docker compose up -d postgres redis minio temporal
-
-# 3. 의존성 설치 + 마이그레이션
+# 2. 의존성 설치 + 마이그레이션
 pnpm install
 pnpm db:migrate
 
-# 4. 모든 앱 실행
+# 3. Docker Compose로 OpenCairn 실행
 pnpm dev
 ```
 
@@ -81,9 +84,15 @@ pnpm dev
 | api         | 4000  |
 | hocuspocus  | 1234  |
 | temporal    | 7233  |
+| temporal UI | 8233  |
 | minio       | 9000  |
 
-전체 Docker 경로(워커 컨테이너 포함), Ollama 프로파일, BYOK 키 회전, Cloudflare R2 스토리지 등의 운영 가이드는 `docs/contributing/dev-guide.md` 와 `docs/contributing/hosted-service.md` 를 참고해 주세요.
+`pnpm dev`는 Docker-first 경로입니다. API, web, Hocuspocus, worker, Redis,
+Temporal을 한 번에 올립니다. 로컬 Postgres와 MinIO는 기본으로 켜지만,
+`.env`가 Supabase/R2를 가리킬 때는 `OPENCAIRN_DEV_LOCAL_POSTGRES=false`,
+`OPENCAIRN_DEV_LOCAL_MINIO=false`로 끌 수 있습니다. Ollama, BYOK 키 회전,
+운영 배포 가이드는 `docs/contributing/dev-guide.md` 와
+`docs/contributing/hosted-service.md` 를 참고해 주세요.
 
 ## 문서
 

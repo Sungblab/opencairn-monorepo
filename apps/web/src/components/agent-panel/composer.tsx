@@ -53,7 +53,7 @@ export function Composer({ onSend, disabled }: Props) {
 
   return (
     <div
-      className="mx-3 mb-3 flex flex-col gap-1 border-2 border-border bg-background p-2 transition-colors focus-within:border-foreground"
+      className="mx-3 mb-3 flex flex-col gap-1 rounded-[var(--radius-control)] border-2 border-border bg-background p-2 transition-colors focus-within:border-foreground"
     >
       <textarea
         aria-label={t("input_aria")}
@@ -78,7 +78,7 @@ export function Composer({ onSend, disabled }: Props) {
         <button
           type="button"
           aria-label={t("attach_aria")}
-          className="border border-transparent p-1.5 text-muted-foreground transition-colors hover:border-border hover:text-foreground"
+          className="rounded-[var(--radius-control)] border border-transparent p-1.5 text-muted-foreground transition-colors hover:border-border hover:text-foreground"
         >
           <Paperclip className="h-4 w-4" />
         </button>
@@ -90,7 +90,7 @@ export function Composer({ onSend, disabled }: Props) {
             aria-label={t("send_aria")}
             onClick={submit}
             disabled={disabled}
-            className="ml-1 flex h-7 w-7 items-center justify-center border border-foreground bg-foreground text-background disabled:opacity-50"
+            className="ml-1 flex h-7 w-7 items-center justify-center rounded-[var(--radius-control)] border border-foreground bg-foreground text-background disabled:opacity-50"
           >
             <ArrowUp className="h-4 w-4" />
           </button>
@@ -98,7 +98,7 @@ export function Composer({ onSend, disabled }: Props) {
           <button
             type="button"
             aria-label={t("voice_aria")}
-            className="ml-1 border border-transparent p-1.5 text-muted-foreground transition-colors hover:border-border hover:text-foreground"
+            className="ml-1 rounded-[var(--radius-control)] border border-transparent p-1.5 text-muted-foreground transition-colors hover:border-border hover:text-foreground"
           >
             <Mic className="h-4 w-4" />
           </button>

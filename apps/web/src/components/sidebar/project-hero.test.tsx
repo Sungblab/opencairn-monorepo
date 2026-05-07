@@ -57,4 +57,36 @@ describe("ProjectHero", () => {
       await screen.findByText("sidebar.project.select"),
     ).toBeInTheDocument();
   });
+
+  it("uses the same stable placeholder while a route project is still loading", () => {
+    global.fetch = vi.fn().mockResolvedValue(new Promise(() => {})) as unknown as typeof fetch;
+
+    renderHero();
+
+    expect(screen.getByText("sidebar.project.select")).toBeInTheDocument();
+    expect(screen.queryByText("sidebar.project.empty")).not.toBeInTheDocument();
+  });
+
+  it("uses the unified sidebar control treatment for the project trigger", async () => {
+    routeParams = { wsSlug: "acme", projectId: undefined };
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+    }) as unknown as typeof fetch;
+
+    renderHero();
+    const trigger = await screen.findByRole("button", {
+      name: "sidebar.project.switch_aria",
+    });
+
+    expect(trigger).toHaveClass(
+      "min-h-12",
+      "rounded-[var(--radius-control)]",
+      "border",
+      "border-transparent",
+      "bg-background",
+      "hover:border-border",
+      "hover:bg-muted/50",
+    );
+  });
 });

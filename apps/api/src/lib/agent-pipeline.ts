@@ -65,6 +65,7 @@ export function resolveAgentRetrievalOptions(opts: {
 
 export async function* runAgent(opts: {
   threadId: string;
+  userId?: string;
   userMessage: { content: string; scope?: unknown };
   mode: ChatMode;
   // Forwarded into runChat so client aborts cancel the underlying Gemini
@@ -100,6 +101,7 @@ export async function* runAgent(opts: {
 
   for await (const chunk of runChat({
     workspaceId,
+    userId: opts.userId,
     scope: retrieval.scope,
     ragMode: retrieval.ragMode,
     chips: retrieval.chips,

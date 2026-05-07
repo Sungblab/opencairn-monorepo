@@ -85,7 +85,8 @@
     "bulleted": "글머리 기호",
     "numbered": "번호 매기기",
     "quote": "인용",
-    "wikilink": "노트 연결"
+    "wikilink": "노트 연결",
+    "narrate": "오디오 생성"
   },
   "table": {
     "menu": {

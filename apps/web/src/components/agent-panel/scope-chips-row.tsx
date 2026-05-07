@@ -104,8 +104,8 @@ export function ScopeChipsRow({
               }
               className={
                 on
-                  ? "inline-flex min-h-7 items-center gap-1.5 border border-foreground bg-foreground px-2 py-1 text-background"
-                  : "inline-flex min-h-7 items-center gap-1.5 border border-border bg-background px-2 py-1 text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
+                  ? "inline-flex min-h-7 items-center gap-1.5 rounded-[var(--radius-control)] border border-foreground bg-foreground px-2 py-1 text-background"
+                  : "inline-flex min-h-7 items-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-background px-2 py-1 text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
               }
             >
               <Icon aria-hidden="true" className="h-3.5 w-3.5" />
@@ -116,7 +116,7 @@ export function ScopeChipsRow({
         <button
           type="button"
           aria-label={t("add_aria")}
-          className="inline-flex min-h-7 items-center border border-dashed border-border bg-background px-2 py-1 text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
+          className="inline-flex min-h-7 items-center rounded-[var(--radius-control)] border border-dashed border-border bg-background px-2 py-1 text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
         >
           <Plus aria-hidden="true" className="h-3.5 w-3.5" />
         </button>
@@ -125,7 +125,7 @@ export function ScopeChipsRow({
         type="button"
         aria-label={t("strict_aria")}
         onClick={() => onStrictChange(strict === "strict" ? "loose" : "strict")}
-        className="min-h-7 border border-border bg-background px-2 py-1 uppercase tracking-wide text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
+        className="min-h-7 rounded-[var(--radius-control)] border border-border bg-background px-2 py-1 uppercase tracking-wide text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
       >
         {t(strict)}
       </button>

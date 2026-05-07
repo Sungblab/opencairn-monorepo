@@ -4,7 +4,9 @@
   "description": "Self-hostable, multi-LLM knowledge OS for individuals and teams.",
   "license": "AGPL-3.0-or-later",
   "scripts": {
-    "dev": "turbo dev",
+    "dev": "node scripts/dev-docker.mjs",
+    "dev:host": "node scripts/dev.mjs",
+    "dev:turbo": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
     "db:generate": "turbo db:generate --filter=@opencairn/db",
@@ -12,9 +14,9 @@
     "db:studio": "turbo db:studio --filter=@opencairn/db",
     "docs:check": "node scripts/check-docs-consistency.mjs",
     "canvas:guard": "bash scripts/canvas-regression-guard.sh",
-    "dev:docker": "docker compose up -d postgres redis minio temporal temporal-ui && pnpm db:migrate && docker compose --profile app --profile worker --profile hocuspocus up -d --build",
-    "dev:docker:down": "docker compose --profile app --profile worker --profile hocuspocus --profile ollama down",
-    "dev:docker:logs": "docker compose --profile app --profile worker --profile hocuspocus logs -f",
+    "dev:docker": "node scripts/dev-docker.mjs",
+    "dev:docker:down": "node scripts/dev-docker.mjs --down",
+    "dev:docker:logs": "node scripts/dev-docker.mjs --logs",
     "dev:docker:rebuild": "docker compose --profile app --profile worker --profile hocuspocus build --no-cache",
     "dev:docker:reset": "docker compose --profile app --profile worker --profile hocuspocus --profile ollama down -v"
   },

@@ -12,6 +12,7 @@ const messages = {
   editor: {
     placeholder: { body: "내용 입력", title: "제목" },
     save: { saving: "저장 중", saved: "저장됨", failed: "저장 실패" },
+    toolbar: { narrate: "오디오 생성" },
   },
   shareDialog: {
     title: "공유",

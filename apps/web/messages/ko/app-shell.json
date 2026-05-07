@@ -2,7 +2,9 @@
   "placeholders": {
     "sidebar": "사이드바 (Phase 2)",
     "agent_panel": "AI 에이전트 (Phase 4)",
-    "dashboard": "대시보드"
+    "dashboard": "대시보드",
+    "open_sidebar": "왼쪽 사이드바 펼치기",
+    "open_agent_panel": "AI 에이전트 패널 펼치기"
   },
   "routes": {
     "dashboard": {

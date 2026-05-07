@@ -2,13 +2,16 @@
 import { urls } from "@/lib/urls";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   Bell,
   ChevronDown,
+  Check,
   HelpCircle,
   LogOut,
+  Settings,
   User,
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
@@ -24,15 +27,36 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// Bottom row of the sidebar — user identity + plan/credit chip + bell. The
-// plan label resolves to "BYOK" when the user has a Gemini
-// key registered, otherwise "Free". Credits stay at ₩0 until hosted billing
-// lands; the subtitle still renders so the layout doesn't shift
-// when billing flips on. Mockup ref: docs/mockups/2026-04-23-app-shell
-// §sidebar footer.
+type WorkspaceRole = "owner" | "admin" | "member" | "guest";
+
+interface MyWorkspace {
+  id: string;
+  slug: string;
+  name: string;
+  role: WorkspaceRole;
+}
+
+interface MyInvite {
+  id: string;
+  workspaceId: string;
+  workspaceName: string;
+  workspaceSlug: string;
+  role: WorkspaceRole;
+  expiresAt: string;
+}
+
+interface MyResponse {
+  workspaces: MyWorkspace[];
+  invites: MyInvite[];
+}
+
+// Bottom row of the sidebar: current workspace context, account menu, and bell.
+// BYOK status drives the plan label when the user has a Gemini key registered.
 export function SidebarFooter() {
   const locale = useLocale();
+  const router = useRouter();
   const t = useTranslations("sidebar.footer");
+  const tSidebar = useTranslations("sidebar");
   const { wsSlug } = useParams<{ wsSlug: string }>();
   const { data: session, isPending } = authClient.useSession();
   const openAgentPanelTab = usePanelStore((s) => s.openAgentPanelTab);
@@ -46,13 +70,31 @@ export function SidebarFooter() {
     enabled: Boolean(session?.user),
   });
 
+  const workspaces = useQuery({
+    queryKey: ["workspaces", "me"],
+    queryFn: async (): Promise<MyResponse> => {
+      const res = await fetch("/api/workspaces/me", { credentials: "include" });
+      if (!res.ok) throw new Error(`workspaces/me ${res.status}`);
+      return (await res.json()) as MyResponse;
+    },
+    staleTime: 30_000,
+    enabled: Boolean(session?.user),
+  });
+
   if (isPending || !session) return null;
 
   const user = session.user;
-  const displayName = user.name?.trim() || user.email || t("guest_name");
-  const initial = displayName.charAt(0).toUpperCase();
   const planLabel = byok.data?.registered ? t("plan_byok") : t("plan_free");
-  const creditsLabel = t("credits_amount", { value: 0 });
+  const currentWorkspace =
+    workspaces.data?.workspaces.find((w) => w.slug === wsSlug) ??
+    workspaces.data?.workspaces[0];
+  const workspaceName = currentWorkspace?.name ?? t("workspace_loading");
+  const workspaceInitial = workspaceName.trim().charAt(0).toUpperCase() || "·";
+  const avatarUrl =
+    typeof user.image === "string" && user.image.trim().length > 0
+      ? user.image.trim()
+      : null;
+  const currentWorkspaceSlug = currentWorkspace?.slug ?? wsSlug;
   const signOut = () => {
     void authClient.signOut().finally(() => {
       window.location.href = `/${locale}/auth/login`;
@@ -64,18 +106,28 @@ export function SidebarFooter() {
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={t("profile_menu_aria")}
-          className="group flex min-w-0 flex-1 items-center gap-2 rounded border border-transparent px-1.5 py-1 text-left transition-colors hover:border-border hover:bg-muted focus-visible:border-foreground focus-visible:bg-muted focus-visible:outline-none"
+          className="group flex min-w-0 flex-1 items-center gap-2 rounded-[var(--radius-control)] border border-transparent px-1.5 py-1 text-left transition-colors hover:border-border hover:bg-muted focus-visible:border-foreground focus-visible:bg-muted focus-visible:outline-none"
         >
-          <span
-            aria-hidden
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-foreground text-[10px] font-semibold text-background"
-          >
-            {initial}
-          </span>
+          {avatarUrl ? (
+            <img
+              alt=""
+              src={avatarUrl}
+              className="h-7 w-7 shrink-0 rounded-full object-cover"
+            />
+          ) : (
+            <span
+              aria-hidden
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-foreground text-[10px] font-semibold text-background"
+            >
+              {workspaceInitial}
+            </span>
+          )}
           <div className="min-w-0 flex-1">
-            <div className="truncate text-xs leading-tight">{displayName}</div>
+            <div className="truncate text-xs leading-tight">
+              {workspaceName}
+            </div>
             <div className="truncate text-[10px] leading-tight text-muted-foreground">
-              {planLabel} · {creditsLabel}
+              {planLabel}
             </div>
           </div>
           <ChevronDown
@@ -86,32 +138,89 @@ export function SidebarFooter() {
         <DropdownMenuContent
           align="start"
           sideOffset={6}
-          className="w-[260px] rounded border border-border bg-background p-1 shadow-sm ring-0"
+          className="w-[260px] rounded-[var(--radius-control)] border border-border bg-background p-1 shadow-sm ring-0"
         >
           <DropdownMenuGroup>
             <DropdownMenuLabel className="px-2 py-2">
               <span className="block truncate text-sm font-semibold text-foreground">
-                {displayName}
+                {workspaceName}
               </span>
               <span className="block truncate text-xs font-normal text-muted-foreground">
+                {planLabel}
+              </span>
+              <span className="mt-0.5 block truncate text-[11px] font-normal text-muted-foreground">
                 {user.email}
               </span>
             </DropdownMenuLabel>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
+          {currentWorkspaceSlug ? (
+            <DropdownMenuItem
+              render={
+                <Link
+                  href={urls.workspace.settings(locale, currentWorkspaceSlug)}
+                />
+              }
+              className="min-h-9 rounded px-2 py-2"
+            >
+              <Settings aria-hidden className="h-4 w-4" />
+              {t("workspace_settings")}
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem
-            render={<Link href={urls.workspace.settings(locale, wsSlug)} />}
+            render={<Link href={urls.settings.profile(locale)} />}
             className="min-h-9 rounded px-2 py-2"
           >
             <User aria-hidden className="h-4 w-4" />
             {t("account_settings")}
           </DropdownMenuItem>
+          {workspaces.data?.workspaces.length ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="px-2 py-1.5 text-[11px] uppercase tracking-wide">
+                  {t("switch_workspace")}
+                </DropdownMenuLabel>
+                {workspaces.data.workspaces.map((workspace) => {
+                  const active = workspace.slug === currentWorkspaceSlug;
+
+                  return (
+                    <DropdownMenuItem
+                      key={workspace.id}
+                      onClick={() =>
+                        router.push(
+                          urls.workspace.root(locale, workspace.slug),
+                        )
+                      }
+                      className="flex min-h-9 items-center justify-between gap-2 rounded px-2 py-2"
+                    >
+                      <span className="min-w-0 truncate">{workspace.name}</span>
+                      <span className="flex shrink-0 items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                        {active ? (
+                          <Check aria-hidden className="h-3.5 w-3.5" />
+                        ) : null}
+                        {tSidebar(`role.${workspace.role}`)}
+                      </span>
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuGroup>
+            </>
+          ) : null}
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             render={<a href="/help" target="_blank" rel="noreferrer" />}
             className="min-h-9 rounded px-2 py-2"
           >
             <HelpCircle aria-hidden className="h-4 w-4" />
             {t("help")}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            render={<Link href={`/${locale}/report`} />}
+            className="min-h-9 rounded px-2 py-2"
+          >
+            <AlertTriangle aria-hidden className="h-4 w-4" />
+            {t("report_issue")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -127,7 +236,7 @@ export function SidebarFooter() {
         type="button"
         aria-label={t("notifications_aria")}
         onClick={() => openAgentPanelTab("notifications")}
-        className="app-btn-ghost h-7 w-7 shrink-0 rounded p-1.5"
+        className="app-btn-ghost h-7 w-7 shrink-0 rounded-[var(--radius-control)] p-1.5"
       >
         <Bell aria-hidden className="h-3.5 w-3.5" />
       </button>

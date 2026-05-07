@@ -26,6 +26,19 @@ describe("Composer", () => {
     expect(screen.getByLabelText(INPUT_LABEL)).toHaveClass("min-h-14");
   });
 
+  it("uses the shared app control radius for the composer shell and icon controls", () => {
+    render(<Composer onSend={vi.fn()} />);
+
+    const textarea = screen.getByLabelText(INPUT_LABEL);
+    expect(textarea.parentElement).toHaveClass("rounded-[var(--radius-control)]");
+    expect(screen.getByLabelText(VOICE_LABEL)).toHaveClass(
+      "rounded-[var(--radius-control)]",
+    );
+    expect(screen.getByLabelText("agentPanel.composer.attach_aria")).toHaveClass(
+      "rounded-[var(--radius-control)]",
+    );
+  });
+
   it("shows mic when empty, send when non-empty", () => {
     const onSend = vi.fn();
     render(<Composer onSend={onSend} />);

@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { Activity, CheckSquare, FileText } from "lucide-react";
 import { projectsApi, type ProjectNoteRow } from "@/lib/api-client";
 import { IngestUploadButton } from "@/components/ingest/ingest-upload-button";
 import { ProjectMetaRow } from "./project-meta-row";
@@ -68,12 +69,27 @@ export function ProjectView({
           >
             {t("actions.agents")}
           </Link>
-          <button
-            type="button"
-            className="app-btn-primary rounded-[var(--radius-control)] px-3 py-1.5 text-sm"
+          <Link
+            href={`${urls.workspace.projectAgents(locale, wsSlug, projectId)}?view=runs#workflow-console`}
+            className="app-hover inline-flex items-center gap-2 rounded-[var(--radius-control)] border-[1.5px] border-border px-3 py-1.5 text-sm"
           >
-            {t("actions.newDoc")}
-          </button>
+            <Activity aria-hidden className="h-4 w-4" />
+            {t("actions.runs")}
+          </Link>
+          <Link
+            href={`${urls.workspace.projectAgents(locale, wsSlug, projectId)}#plan8-suggestions`}
+            className="app-hover inline-flex items-center gap-2 rounded-[var(--radius-control)] border-[1.5px] border-border px-3 py-1.5 text-sm"
+          >
+            <CheckSquare aria-hidden className="h-4 w-4" />
+            {t("actions.reviewInbox")}
+          </Link>
+          <Link
+            href={`${urls.workspace.synthesisExport(locale, wsSlug)}?project=${projectId}`}
+            className="app-btn-primary inline-flex items-center gap-2 rounded-[var(--radius-control)] px-3 py-1.5 text-sm"
+          >
+            <FileText aria-hidden className="h-4 w-4" />
+            {t("actions.generateDocument")}
+          </Link>
         </div>
       </header>
       <ProjectNotesTable

@@ -201,6 +201,23 @@ describe("POST /api/workspaces slug auto-generation", () => {
     });
     expect(res.status).toBe(409);
   });
+
+  it("creates the first project with a project-specific default name", async () => {
+    const { res } = await authedPost("/api/workspaces", {
+      name: "성빈's workspace",
+      slug: "sungbin-auto-project",
+    });
+    expect(res.status).toBe(201);
+    const workspace = (await res.json()) as { id: string };
+    createdWorkspaceIds.add(workspace.id);
+
+    const [project] = await db
+      .select({ name: projects.name })
+      .from(projects)
+      .where(eq(projects.workspaceId, workspace.id));
+
+    expect(project?.name).toBe("새 프로젝트");
+  });
 });
 
 describe("GET /api/workspaces/me", () => {

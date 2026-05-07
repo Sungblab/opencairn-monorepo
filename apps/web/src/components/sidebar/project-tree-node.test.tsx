@@ -82,6 +82,61 @@ describe("ProjectTreeNode", () => {
     expect(screen.getByText("Archive")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
     expect(screen.getByTestId("tree-chevron")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "sidebar.tree_menu.row_actions" }),
+    ).toBeInTheDocument();
+  });
+
+  it("uses the unified row density and action control treatment", () => {
+    const node = mkNode({
+      kind: "note",
+      id: "n-density",
+      parent_id: null,
+      label: "Readable row",
+      child_count: 0,
+    });
+    renderNode(node);
+
+    expect(screen.getByRole("treeitem")).toHaveClass(
+      "h-full",
+      "min-h-8",
+      "rounded-[var(--radius-control)]",
+      "px-2",
+    );
+    expect(
+      screen.getByRole("button", { name: "sidebar.tree_menu.row_actions" }),
+    ).toHaveClass("h-7", "w-7", "rounded-[var(--radius-control)]");
+  });
+
+  it("positions the row action menu from the action button instead of the viewport top", () => {
+    const node = mkNode({
+      kind: "note",
+      id: "n-menu",
+      parent_id: null,
+      label: "Menu row",
+      child_count: 0,
+    });
+    renderNode(node);
+    const action = screen.getByRole("button", {
+      name: "sidebar.tree_menu.row_actions",
+    });
+    vi.spyOn(action, "getBoundingClientRect").mockReturnValue({
+      x: 190,
+      y: 220,
+      width: 28,
+      height: 28,
+      top: 220,
+      right: 218,
+      bottom: 248,
+      left: 190,
+      toJSON: () => ({}),
+    } as DOMRect);
+
+    fireEvent.click(action);
+
+    const menu = screen.getByTestId("tree-row-action-menu");
+    expect(menu).toHaveStyle({ top: "254px", left: "10px" });
+    expect(menu).toHaveClass("fixed", "w-52", "rounded-[var(--radius-control)]");
   });
 
   it("renders a leaf folder without chevron", () => {

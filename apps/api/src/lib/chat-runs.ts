@@ -26,6 +26,7 @@ import {
 import { getTemporalClient, taskQueue } from "./temporal-client";
 import { executeProjectObjectAction, toProjectObjectSummary } from "./project-object-actions";
 import { emitTreeEvent } from "./tree-events";
+import { recordLlmUsageEvent } from "./llm-usage";
 
 const EXECUTION_LEASE_MS = 60_000;
 const EXECUTION_MONITOR_MS = 1_000;
@@ -34,6 +35,7 @@ const EVENT_POLL_MAX_MS = 1_000;
 
 export type RunAgentFn = (opts: {
   threadId: string;
+  userId?: string;
   userMessage: { content: string; scope?: unknown };
   mode: ChatMode;
   signal?: AbortSignal;
@@ -306,6 +308,7 @@ export async function executeChatRun(runId: string): Promise<void> {
     );
     for await (const chunk of runAgentImpl({
       threadId: run.threadId,
+      userId: run.userId,
       userMessage: { content: body, scope },
       mode: (run.mode ?? "auto") as ChatMode,
       signal: abortController.signal,
@@ -415,6 +418,11 @@ export async function executeChatRun(runId: string): Promise<void> {
       await releaseChatRunExecutionLease(runId, leaseId);
       return;
     }
+    await recordChatRunLlmUsage({
+      run,
+      meta,
+      status: streamStatus,
+    });
     await appendChatRunEvent(
       runId,
       "done",
@@ -424,6 +432,49 @@ export async function executeChatRun(runId: string): Promise<void> {
       },
       executionAttempt,
     );
+  }
+}
+
+function usageFromMeta(meta: Record<string, unknown>) {
+  const usage = meta.usage;
+  if (!usage || typeof usage !== "object" || Array.isArray(usage)) return null;
+  const raw = usage as Record<string, unknown>;
+  if (
+    typeof raw.tokensIn !== "number" ||
+    typeof raw.tokensOut !== "number" ||
+    typeof raw.model !== "string"
+  ) {
+    return null;
+  }
+  return {
+    tokensIn: raw.tokensIn,
+    tokensOut: raw.tokensOut,
+    model: raw.model,
+  };
+}
+
+async function recordChatRunLlmUsage(input: {
+  run: typeof chatRuns.$inferSelect;
+  meta: Record<string, unknown>;
+  status: "complete" | "failed";
+}) {
+  const usage = usageFromMeta(input.meta);
+  if (!usage) return;
+  try {
+    await recordLlmUsageEvent({
+      userId: input.run.userId,
+      workspaceId: input.run.workspaceId,
+      provider: "gemini",
+      model: usage.model,
+      operation: "chat.stream",
+      tokensIn: usage.tokensIn,
+      tokensOut: usage.tokensOut,
+      sourceType: "chat_run",
+      sourceId: input.run.id,
+      metadata: { status: input.status, agentMessageId: input.run.agentMessageId },
+    });
+  } catch (err) {
+    console.warn("llm_usage_event_failed", err);
   }
 }
 

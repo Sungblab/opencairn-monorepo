@@ -23,7 +23,10 @@
     "research": "Deep Research",
     "import": "Import",
     "literature": "Literature search",
-    "more_aria": "More"
+    "runs": "Runs",
+    "generate_document": "Generate doc",
+    "more_aria": "More",
+    "collapse_sidebar": "Collapse left sidebar"
   },
   "more_menu": {
     "settings": "Workspace settings",
@@ -50,9 +53,12 @@
     "profile": "Profile",
     "account_settings": "Settings",
     "workspace_settings": "Workspace settings",
+    "switch_workspace": "Switch workspace",
     "help": "Help",
+    "report_issue": "Report issue",
     "sign_out": "Sign out",
     "guest_name": "Guest",
+    "workspace_loading": "Workspace",
     "plan_free": "Free",
     "plan_byok": "BYOK",
     "credits_amount": "₩{value, number}"
@@ -65,6 +71,7 @@
     "rename_shortcut": "F2",
     "duplicate": "Duplicate",
     "copy_link": "Copy link",
+    "row_actions": "File actions",
     "delete": "Delete",
     "delete_shortcut": "⌘Del",
     "confirm_delete": "Delete \"{label}\"?"

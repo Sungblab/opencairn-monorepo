@@ -2,6 +2,7 @@
 import { useEffect } from "react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useTranslations } from "next-intl";
+import { Bot, PanelLeftOpen } from "lucide-react";
 import { ShellSidebar } from "@/components/sidebar/shell-sidebar";
 import { TabShell } from "../tab-shell/tab-shell";
 import { AgentPanel } from "@/components/agent-panel/agent-panel";
@@ -32,12 +33,14 @@ export function AppShell({
   const t = useTranslations("appShell.placeholders");
   const sidebarWidth = usePanelStore((s) => s.sidebarWidth);
   const sidebarOpen = usePanelStore((s) => s.sidebarOpen);
+  const setSidebarOpen = usePanelStore((s) => s.setSidebarOpen);
   const compactSidebarOpen = usePanelStore((s) => s.compactSidebarOpen);
   const setCompactSidebarOpen = usePanelStore(
     (s) => s.setCompactSidebarOpen,
   );
   const agentPanelWidth = usePanelStore((s) => s.agentPanelWidth);
   const agentPanelOpen = usePanelStore((s) => s.agentPanelOpen);
+  const setAgentPanelOpen = usePanelStore((s) => s.setAgentPanelOpen);
   const compactAgentPanelOpen = usePanelStore((s) => s.compactAgentPanelOpen);
   const setCompactAgentPanelOpen = usePanelStore(
     (s) => s.setCompactAgentPanelOpen,
@@ -106,6 +109,16 @@ export function AppShell({
           />
         </>
       )}
+      {!sidebarOpen ? (
+        <button
+          type="button"
+          aria-label={t("open_sidebar")}
+          onClick={() => setSidebarOpen(true)}
+          className="grid h-full w-8 shrink-0 place-items-start border-r border-border bg-background px-1 py-3 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <PanelLeftOpen aria-hidden className="h-4 w-4" />
+        </button>
+      ) : null}
       <TabShell>{children}</TabShell>
       {agentPanelOpen && (
         <>
@@ -118,6 +131,16 @@ export function AppShell({
           </div>
         </>
       )}
+      {!agentPanelOpen ? (
+        <button
+          type="button"
+          aria-label={t("open_agent_panel")}
+          onClick={() => setAgentPanelOpen(true)}
+          className="grid h-full w-8 shrink-0 place-items-start border-l border-border bg-background px-1 py-3 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Bot aria-hidden className="h-4 w-4" />
+        </button>
+      ) : null}
       <IngestOverlays />
     </div>
   );

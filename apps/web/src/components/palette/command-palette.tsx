@@ -89,17 +89,17 @@ export function CommandPalette() {
       onOpenChange={(o: boolean) => (o ? open() : close())}
       title={t("label")}
       description={t("description")}
-      className="fixed left-1/2 top-20 z-50 w-[520px] -translate-x-1/2 border-2 border-border bg-background"
+      className="fixed left-1/2 top-20 z-50 w-[min(680px,calc(100vw-32px))] -translate-x-1/2"
     >
       <Command>
         <CommandInput
           value={query}
           onValueChange={setQuery}
           placeholder={t("placeholder")}
-          className="w-full bg-transparent px-1 text-sm outline-none"
+          className="w-full bg-transparent px-1 outline-none"
           autoFocus
         />
-        <CommandList className="max-h-80 overflow-auto">
+        <CommandList className="max-h-[420px] overflow-auto">
           <CommandEmpty className="p-4 text-left text-xs text-muted-foreground">
             {t("empty")}
           </CommandEmpty>
@@ -113,7 +113,7 @@ export function CommandPalette() {
                     router.push(urls.workspace.note(locale, wsSlug, n.id));
                     close();
                   }}
-                  className="flex min-h-8 cursor-pointer items-center justify-between px-2 py-1.5 text-sm"
+                  className="flex cursor-pointer items-center justify-between"
                 >
                   <span className="truncate">{n.title}</span>
                   <span className="ml-3 shrink-0 text-[10px] text-muted-foreground">
@@ -132,7 +132,7 @@ export function CommandPalette() {
                   a.run(router);
                   close();
                 }}
-                  className="flex min-h-8 cursor-pointer items-center justify-between px-2 py-1.5 text-sm"
+                  className="flex cursor-pointer items-center justify-between"
               >
                 <span>{tActions(a.labelKey)}</span>
                 {a.shortcut ? (

@@ -16,11 +16,16 @@ interface WorkspaceLite {
 
 export default async function SynthesisExportPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ wsSlug: string; locale: string }>;
+  searchParams?: Promise<{ project?: string }>;
 }) {
   if (!isSynthesisExportEnabled()) notFound();
   const { wsSlug } = await params;
+  const query = (await searchParams) ?? {};
   const ws = await apiClient<WorkspaceLite>(`/workspaces/by-slug/${wsSlug}`);
-  return <SynthesisPanel workspaceId={ws.id} projectId={null} />;
+  return (
+    <SynthesisPanel workspaceId={ws.id} projectId={query.project ?? null} />
+  );
 }

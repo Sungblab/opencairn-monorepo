@@ -14,7 +14,7 @@
     "docs": "DOCS",
     "github": "GITHUB ↗",
     "signIn": "Sign in",
-    "signUp": "Get started",
+    "signUp": "Continue",
     "easter": "fourth stone ✦"
   },
   "hero": {
@@ -25,7 +25,7 @@
     "titleBrand": "OpenCairn",
     "titleLine3": "knows what you read.",
     "sub": "Drop in PDFs, papers, documents, and supported media. AI <b>weaves them into a wiki</b>, <b>suggests connections</b>, and <b>checks how well you understand</b> what's there. The AI workflow backbone activates in stages.",
-    "ctaPrimary": "Get started",
+    "ctaPrimary": "Sign in",
     "ctaSecondary": "See pricing",
     "noCard": "AI workflows included",
     "selfhostLink": "Developer? Self-hosting guide ↗",
@@ -346,7 +346,7 @@
         "Bring your own Gemini key (BYOK) optional"
       ],
       "bulletsMuted": ["Community support"],
-      "cta": "Get started"
+      "cta": "Sign in"
     },
     "team": {
       "name": "Team",
@@ -444,8 +444,8 @@
     "titleA": "A second brain",
     "titleB": "for your knowledge.",
     "sub": "Start free on Solo today. How much your knowledge base has grown a year from now depends on what you start accumulating today.",
-    "primary": "> Get started",
-    "secondary": "Compare plans",
+    "primary": "> Sign in",
+    "secondary": "See pricing status",
     "bottomGithub": "GITHUB ↗",
     "bottomSelfhost": "Self-hosting guide",
     "bottomTonight": "Tonight, start with your first PDF."

@@ -17,7 +17,7 @@ export function ScopedSearch() {
     <button
       type="button"
       onClick={open}
-      className="mx-3 my-2 flex min-h-8 items-center gap-2 border border-border px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex min-h-8 w-full items-center gap-2 rounded-[var(--radius-control)] border border-border px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <Search aria-hidden className="h-3.5 w-3.5 shrink-0" />
       <span className="flex-1 truncate">{t("placeholder")}</span>

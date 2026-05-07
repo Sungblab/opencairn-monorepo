@@ -1,11 +1,12 @@
 "use client";
 import { useRef } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useScrollReveal } from "@/lib/landing/hooks/useScrollReveal";
 import { publicLinks } from "@/lib/site-config";
 
 export function Cta() {
   const t = useTranslations("landing.cta");
+  const locale = useLocale();
   const ref = useRef<HTMLElement>(null);
   useScrollReveal(ref);
 
@@ -21,7 +22,7 @@ export function Cta() {
           <p className="kr text-[15px] text-stone-600 leading-relaxed mb-10 max-w-[560px]">{t("sub")}</p>
           <div className="flex flex-wrap items-center gap-4 mb-6">
             <a
-              href="#login"
+              href={`/${locale}/auth/login`}
               className="bg-stone-900 hover:bg-stone-50 hover:text-stone-900 text-stone-50 border border-stone-900 font-sans text-[13px] tracking-widest px-8 py-4 rounded-md transition-colors kr inline-flex items-center gap-2.5"
             >
               {t("primary")}

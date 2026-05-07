@@ -280,10 +280,12 @@ services:
     restart: unless-stopped
 
   temporal:
-    # Temporal server for workflow orchestration.
-    # auto-setup image creates the temporal/temporal_visibility schemas in
-    # the shared pgvector Postgres on first boot.
-    image: temporalio/auto-setup:1.24
+    # Development Temporal server for workflow orchestration.
+    # Uses Temporal's embedded dev server + SQLite persistence so app-level
+    # external DATABASE_URL/Supabase setups do not still pull in local Postgres
+    # just to boot workflow orchestration.
+    image: temporalio/temporal:latest
+    command: ["server", "start-dev", "--ip", "0.0.0.0", "--ui-ip", "0.0.0.0"]
     ports:
       # Host port is configurable via TEMPORAL_HOST_PORT (default 7233).
       # Set it to e.g. 17233 on Windows + Hyper-V/WSL, where the
@@ -296,20 +298,10 @@ services:
       # auth in this single-node dev/self-host configuration; override
       # TEMPORAL_HOST_BIND=0.0.0.0 only behind mTLS or a network ACL.
       - "${TEMPORAL_HOST_BIND:-127.0.0.1}:${TEMPORAL_HOST_PORT:-7233}:7233"
-    environment:
-      - DB=postgres12
-      - DB_PORT=5432
-      - POSTGRES_USER=${POSTGRES_USER:-opencairn}
-      # No literal fallback — POSTGRES_PASSWORD is already required at the
-      # `postgres` service above (`:?`), so compose fails parse before
-      # reaching a stale default. [Tier 1 item 1-6]
-      - POSTGRES_PWD=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      - POSTGRES_SEEDS=postgres
-    depends_on:
-      postgres:
-        condition: service_healthy
+      - "${TEMPORAL_UI_HOST_BIND:-127.0.0.1}:${TEMPORAL_UI_HOST_PORT:-8233}:8233"
 
   temporal-ui:
+    profiles: ["temporal-ui-legacy"]
     image: temporalio/ui:2.26.2
     ports:
       # Loopback-only by default. The UI ships without auth in the
@@ -317,7 +309,7 @@ services:
       # inputs, and stack traces. Use SSH tunnel or a reverse proxy with auth
       # if remote access is needed; override with TEMPORAL_UI_HOST_BIND=0.0.0.0
       # only after that's in place.
-      - "${TEMPORAL_UI_HOST_BIND:-127.0.0.1}:${TEMPORAL_UI_HOST_PORT:-8080}:8080"
+      - "${TEMPORAL_UI_HOST_BIND:-127.0.0.1}:${TEMPORAL_LEGACY_UI_HOST_PORT:-8080}:8080"
     environment:
       - TEMPORAL_ADDRESS=temporal:7233
     depends_on:

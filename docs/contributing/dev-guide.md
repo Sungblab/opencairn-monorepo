@@ -63,19 +63,33 @@ cp .env.example .env
 | `RESEND_API_KEY` | 이메일 | resend.com (선택 — 개발 시 console log 가능) |
 | `SENTRY_DSN` | 에러 트래킹 | (선택) |
 
-### 4. 인프라 기동
-
-```bash
-docker compose up -d     # Postgres, Redis, MinIO, Temporal (hocuspocus/worker/ollama는 profile-gated)
-pnpm db:migrate          # 스키마 적용
-pnpm db:seed             # (선택) 테스트 데이터
-```
-
-### 5. 개발 서버
+### 4. 개발 서버
 
 ```bash
 pnpm dev
 ```
+
+`pnpm dev`는 기본적으로 Docker Compose를 사용해 OpenCairn을 한 번에
+기동한다. API, Web, Hocuspocus, Worker, Redis, Temporal dev server를
+올리고, `.env`에 외부 `DATABASE_URL`/`COMPOSE_DATABASE_URL`이 있으면 로컬
+Postgres를 시작하지 않는다. `.env`에 외부 `S3_ENDPOINT`/`COMPOSE_S3_ENDPOINT`
+가 있으면 로컬 MinIO를 시작하지 않는다.
+
+명시적으로 고정하고 싶으면 `.env`에서 다음 값을 설정한다:
+
+```bash
+OPENCAIRN_DEV_LOCAL_POSTGRES=auto  # auto | true | false
+OPENCAIRN_DEV_LOCAL_MINIO=auto     # auto | true | false
+```
+
+로컬 Postgres/MinIO를 쓰는 신규 설치라면 첫 실행 전후로 스키마를 적용한다:
+
+```bash
+pnpm db:migrate
+pnpm db:seed             # (선택) 테스트 데이터
+```
+
+호스트 hot-reload가 꼭 필요하면 `pnpm dev:host`를 사용한다.
 
 정상 로그 예시:
 ```
@@ -85,13 +99,13 @@ pnpm dev
 [hocuspocus] listening on ws://localhost:1234
 ```
 
-**헬스체크**: `curl http://localhost:4000/health` → `{"status":"ok"}`
+**헬스체크**: `curl http://localhost:4000/api/health` → `{"status":"ok"}`
 
 ### 6. 트러블슈팅
 
 | 증상 | 원인 | 해결 |
 |------|------|------|
-| `DATABASE_URL` 연결 실패 | Docker 미기동 | `docker compose up -d postgres` |
+| `DATABASE_URL` 연결 실패 | DB URL/네트워크 설정 불일치 | 외부 DB면 `COMPOSE_DATABASE_URL`/`DATABASE_URL`, 로컬 DB면 `pnpm dev` 로그의 `database:` 판단 확인 |
 | `pnpm install` EACCES | 권한 문제 | corepack 활성화: `corepack enable` |
 | `uv sync` 실패 | Python 버전 낮음 | `uv python install 3.12` |
 | Temporal 연결 거부 | Temporal UI 기동 안 됨 | `docker compose logs temporal` 확인 |
@@ -355,7 +369,7 @@ docker compose --profile app --profile worker --profile hocuspocus config
 3. Start infra and apply migrations from the host:
 
 ```bash
-docker compose up -d postgres redis minio temporal temporal-ui
+pnpm dev
 pnpm db:migrate
 ```
 
@@ -366,26 +380,28 @@ docker compose --profile app --profile worker --profile hocuspocus up -d --build
 ```
 
 This starts `api` on `http://localhost:4000`, `web` on
-`http://localhost:3000`, `hocuspocus` on `ws://localhost:1234`, and the worker
-against `temporal:7233`. Use `--profile ollama` as well when running the local
-LLM service.
+`http://localhost:3000`, `hocuspocus` on `ws://localhost:1234`, the worker
+against `temporal:7233`, and the Temporal dev UI on `http://localhost:8233`.
+Use `--profile ollama` as well when running the local LLM service.
 
 #### Full-stack Docker shortcut
 
-Steps 3–4 above are wrapped into a single command for end-to-end smoke tests
-where you don't need hot-reload:
+The default development command is Docker-first:
 
 ```bash
-pnpm dev:docker          # infra → migrate → web/api/worker/hocuspocus 빌드+기동
-pnpm dev:docker:logs     # 모든 앱 컨테이너 로그 follow
+pnpm dev                 # Docker Compose full dev
+pnpm dev:docker          # same as pnpm dev
+pnpm dev:docker:logs     # selected full-dev service logs follow
 pnpm dev:docker:rebuild  # 코드 수정 후 캐시 없이 다시 빌드 (이후 dev:docker로 기동)
 pnpm dev:docker:down     # 컨테이너 정리 (볼륨 유지)
 pnpm dev:docker:reset    # 컨테이너 + 볼륨까지 삭제 (DB/MinIO 초기화)
 ```
 
-코드를 자주 고치는 흐름이면 호스트 hot-reload 경로 (`docker compose up -d`
-+ `pnpm dev`)가 빠릅니다. `dev:docker`는 production-ish 이미지를 빌드하므로
-소스 변경 반영에 매번 `dev:docker:rebuild` → `dev:docker`가 필요합니다.
+`pnpm dev` inspects `.env`: when `DATABASE_URL`/`COMPOSE_DATABASE_URL` points
+to an external database such as Supabase it skips the local Postgres service;
+when `S3_ENDPOINT`/`COMPOSE_S3_ENDPOINT` points to external S3/R2 it skips the
+local MinIO service. Host hot-reload is available as `pnpm dev:host` for
+maintainers who explicitly need it.
 
 ## Import (Drive + Notion)
 

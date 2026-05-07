@@ -7,8 +7,11 @@ import {
   securityHeaders,
   trustedOriginsFromEnv,
 } from "./lib/security";
+import { apiRequestLogger } from "./middleware/api-request-logger";
 import { healthRoutes } from "./routes/health";
 import { authRoutes } from "./routes/auth";
+import { adminRoutes } from "./routes/admin";
+import { siteReportRoutes } from "./routes/site-reports";
 import { workspaceRoutes } from "./routes/workspaces";
 import { inviteRoutes } from "./routes/invites";
 import { projectRoutes } from "./routes/projects";
@@ -77,6 +80,7 @@ export function createApp() {
       credentials: true,
     }),
   );
+  app.use("*", apiRequestLogger());
   app.use("*", csrfOriginGuard());
 
   // /api/internal must be mounted BEFORE the generic /api routes
@@ -86,6 +90,8 @@ export function createApp() {
   app.route("/api/internal", internalRoutes);
   app.route("/api/health", healthRoutes);
   app.route("/api/auth", authRoutes);
+  app.route("/api/admin", adminRoutes);
+  app.route("/api/site-reports", siteReportRoutes);
   app.route("/api/workspaces", workspaceRoutes);
   // /api/integrations has a public callback route (/google/callback) that
   // must not be gated by auth. Any router mounted at the generic "/api"

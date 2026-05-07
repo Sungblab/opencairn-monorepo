@@ -27,6 +27,7 @@ import { requireAuth } from "../middleware/auth";
 import { requireWorkspaceRole } from "../middleware/require-role";
 import { isUuid } from "../lib/validators";
 import type { AppEnv } from "../lib/types";
+import { DEFAULT_PROJECT_NAME } from "@opencairn/shared";
 
 // Keep in sync with apps/web/src/lib/slug.ts RESERVED_SLUGS.
 const RESERVED_SLUGS: ReadonlySet<string> = new Set([
@@ -177,7 +178,11 @@ workspaceRoutes.post("/", zValidator("json", createSchema), async (c) => {
         // instead of an empty workspace. User can rename or delete later.
         await tx
           .insert(projects)
-          .values({ workspaceId: created.id, name: body.name, createdBy: user.id });
+          .values({
+            workspaceId: created.id,
+            name: DEFAULT_PROJECT_NAME,
+            createdBy: user.id,
+          });
         return created;
       });
       return c.json(ws, 201);
