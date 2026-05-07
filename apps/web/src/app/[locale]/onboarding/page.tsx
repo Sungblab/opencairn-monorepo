@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { urls } from "@/lib/urls";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -17,6 +18,10 @@ function deriveOrigin(headerList: Awaited<ReturnType<typeof headers>>): string {
   const proto = headerList.get("x-forwarded-proto") ?? "http";
   if (host) return `${proto}://${host}`;
   return process.env.PUBLIC_WEB_URL ?? "http://localhost:3000";
+}
+
+function personalWorkspaceSlug(): string {
+  return `home-${randomBytes(4).toString("hex")}`;
 }
 
 interface InviteInfo {
@@ -120,11 +125,11 @@ export default async function OnboardingPage({
     redirect(urls.workspace.root(locale, workspaces[0]!.slug));
   }
 
-  // No workspace AND no invite → auto-provision a personal workspace named
-  // after the signed-in user. The user can rename later in workspace settings.
+  // No workspace AND no invite -> auto-provision a personal workspace. The
+  // user can rename later in workspace settings.
   // We only render the shell when we have something for the user to decide
   // (an invite token to accept/decline). Slug derivation runs server-side in
-  // /api/workspaces; non-ASCII names fall back to `w-{random}` automatically.
+  // /api/workspaces; the initial URL uses a short neutral personal slug.
   if (workspaces.length === 0 && !invite) {
     const t = await getTranslations({
       locale: locale as Locale,
@@ -138,7 +143,7 @@ export default async function OnboardingPage({
         cookie: cookieHeader,
         origin: deriveOrigin(requestHeaders),
       },
-      body: JSON.stringify({ name: defaultName }),
+      body: JSON.stringify({ name: defaultName, slug: personalWorkspaceSlug() }),
       cache: "no-store",
     });
     if (createRes.status === 201) {

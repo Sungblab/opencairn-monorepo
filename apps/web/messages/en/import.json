@@ -3,8 +3,8 @@
   "pageDescription": "Bring content from external services into this workspace.",
   "tabs": {
     "drive": "Google Drive",
-    "notion": "Notion ZIP",
-    "markdown": "Markdown ZIP"
+    "markdown": "Markdown ZIP",
+    "more": "More"
   },
   "drive": {
     "notConnected": "Connect Google Drive",
@@ -16,8 +16,9 @@
     "notConfigured": "Google OAuth credentials must be configured by an admin."
   },
   "notion": {
-    "instructions": "Export your Notion workspace as Markdown & CSV, then upload the ZIP here.",
-    "dropZone": "Drop a ZIP file here or click to select",
+    "instructions": "Use this compatibility import only if you already have a Notion Markdown & CSV export ZIP.",
+    "connectorHint": "For most migrations, use Markdown ZIP first. Notion account-connected import belongs in the connector flow.",
+    "dropZone": "Select Notion export ZIP",
     "uploading": "Uploading... {progress}%",
     "uploaded": "Uploaded: {name} ({size})",
     "tooLarge": "ZIP is too large (max {max})."

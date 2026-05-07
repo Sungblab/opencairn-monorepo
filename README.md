@@ -8,7 +8,7 @@
 
 ## What it does
 
-OpenCairn ingests documents such as PDF, Office files, HWP/HWPX, Markdown, Notion ZIP exports, and Google Drive file-ID imports, then turns them into editable notes, a navigable knowledge graph, and grounded Q&A surfaces. Its long-term architecture defines AI roles for compiling, research, learning, synthesis, narration, visualization, code, and maintenance, but not every role is a default-on product agent today. It runs on your own Docker host, behind a provider layer that speaks Google Gemini or a local Ollama model.
+OpenCairn ingests documents such as PDF, Office files, HWP/HWPX, Markdown/CSV ZIP exports, and Google Drive file-ID imports, then turns them into editable notes, a navigable knowledge graph, and grounded Q&A surfaces. Its long-term architecture defines AI roles for compiling, research, learning, synthesis, narration, visualization, code, and maintenance, but not every role is a default-on product agent today. It runs on your own Docker host, behind a provider layer that speaks Google Gemini or a local Ollama model.
 
 ## Highlights
 
@@ -85,9 +85,12 @@ Default local ports:
 | hocuspocus  | 1234  |
 | temporal    | 7233  |
 | temporal UI | 8233  |
+| postgres    | 5432  |
+| redis       | 6379  |
 | minio       | 9000  |
 
 `pnpm dev` is Docker-first: it starts API, web, Hocuspocus, worker, Redis, and Temporal. Local Postgres and MinIO are started by default, but can be disabled with `OPENCAIRN_DEV_LOCAL_POSTGRES=false` and `OPENCAIRN_DEV_LOCAL_MINIO=false` when `.env` points at Supabase/R2. For Ollama, BYOK key rotation, and production-oriented hosting notes, see `docs/contributing/dev-guide.md` and `docs/contributing/hosted-service.md`.
+Temporal UI is served by the `temporal` container on `http://localhost:8233`; the separate legacy `temporal-ui` service is not part of `pnpm dev`.
 
 ## Documentation
 

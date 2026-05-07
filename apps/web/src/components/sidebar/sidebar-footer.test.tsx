@@ -151,7 +151,8 @@ describe("SidebarFooter", () => {
       }),
     ).toHaveAttribute("href", "/ko/settings/profile");
     expect(screen.getByText("Beta")).toBeInTheDocument();
-    expect(screen.getByText("sidebar.role.member")).toBeInTheDocument();
+    expect(screen.queryByText("sidebar.role.member")).not.toBeInTheDocument();
+    expect(screen.queryByText("ada@x")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("menuitem", { name: "sidebar.footer.profile" }),
     ).not.toBeInTheDocument();

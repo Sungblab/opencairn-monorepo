@@ -54,8 +54,9 @@ test.describe("notion zip import end-to-end", () => {
         page.getByRole("heading", { name: /가져오기|Import/ }),
       ).toBeVisible();
 
-      // Flip to the Notion tab (first tab is Drive).
-      await page.getByRole("tab", { name: /Notion/ }).click();
+      // Notion ZIP is a compatibility path under More; Markdown ZIP is the
+      // primary file-based import surface.
+      await page.getByRole("tab", { name: /More|기타/ }).click();
 
       await page.setInputFiles("input[type=file]", zipPath);
 

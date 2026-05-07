@@ -61,7 +61,6 @@ export function SidebarFooter() {
   const locale = useLocale();
   const router = useRouter();
   const t = useTranslations("sidebar.footer");
-  const tSidebar = useTranslations("sidebar");
   const { wsSlug } = useParams<{ wsSlug: string }>();
   const { data: session, isPending } = authClient.useSession();
   const openAgentPanelTab = usePanelStore((s) => s.openAgentPanelTab);
@@ -161,14 +160,14 @@ export function SidebarFooter() {
         >
           <DropdownMenuGroup>
             <DropdownMenuLabel className="px-2 py-2">
+              <span className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                {t("current_space")}
+              </span>
               <span className="block truncate text-sm font-semibold text-foreground">
                 {workspaceName}
               </span>
               <span className="block truncate text-xs font-normal text-muted-foreground">
                 {planLabel}
-              </span>
-              <span className="mt-0.5 block truncate text-[11px] font-normal text-muted-foreground">
-                {user.email}
               </span>
             </DropdownMenuLabel>
           </DropdownMenuGroup>
@@ -207,7 +206,7 @@ export function SidebarFooter() {
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
                 <DropdownMenuLabel className="px-2 py-1.5 text-[11px] uppercase tracking-wide">
-                  {t("switch_workspace")}
+                  {t("switch_space")}
                 </DropdownMenuLabel>
                 {workspaces.data.workspaces.map((workspace) => {
                   const active = workspace.slug === currentWorkspaceSlug;
@@ -223,12 +222,12 @@ export function SidebarFooter() {
                       className="flex min-h-9 items-center justify-between gap-2 rounded px-2 py-2"
                     >
                       <span className="min-w-0 truncate">{workspace.name}</span>
-                      <span className="flex shrink-0 items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                        {active ? (
-                          <Check aria-hidden className="h-3.5 w-3.5" />
-                        ) : null}
-                        {tSidebar(`role.${workspace.role}`)}
-                      </span>
+                      {active ? (
+                        <Check
+                          aria-label={t("active_space")}
+                          className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                        />
+                      ) : null}
                     </DropdownMenuItem>
                   );
                 })}

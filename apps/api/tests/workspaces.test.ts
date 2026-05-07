@@ -170,11 +170,11 @@ describe("POST /api/workspaces slug auto-generation", () => {
     expect(body.slug).toBe("my-team");
   });
 
-  it("falls back to `w-{hex}` when name has no ASCII", async () => {
+  it("falls back to `home-{hex}` when name has no ASCII", async () => {
     const { res } = await authedPost("/api/workspaces", { name: "내 작업공간" });
     expect(res.status).toBe(201);
     const body = (await res.json()) as { slug: string };
-    expect(body.slug).toMatch(/^w-[a-f0-9]{8}$/);
+    expect(body.slug).toMatch(/^home-[a-f0-9]{8}$/);
   });
 
   it("auto-retries on derived-slug conflict with random fallback", async () => {
@@ -184,13 +184,13 @@ describe("POST /api/workspaces slug auto-generation", () => {
       slug: "shared-name",
     });
     expect(first.res.status).toBe(201);
-    // Second call omits slug; derived clashes → must fall back to w-{hex}.
+    // Second call omits slug; derived clashes -> must fall back to home-{hex}.
     const { res } = await authedPost("/api/workspaces", {
       name: "Shared Name",
     });
     expect(res.status).toBe(201);
     const body = (await res.json()) as { slug: string };
-    expect(body.slug).toMatch(/^w-[a-f0-9]{8}$/);
+    expect(body.slug).toMatch(/^home-[a-f0-9]{8}$/);
   });
 
   it("respects user-supplied slug even when conflict would be auto-recoverable", async () => {

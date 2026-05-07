@@ -6,7 +6,7 @@ import { DriveTab } from "./DriveTab";
 import { MarkdownTab } from "./MarkdownTab";
 import { NotionTab } from "./NotionTab";
 
-const TABS = ["drive", "notion", "markdown"] as const;
+const TABS = ["drive", "markdown", "more"] as const;
 type TabId = (typeof TABS)[number];
 
 export function ImportTabs({ wsSlug }: { wsSlug: string }) {
@@ -35,10 +35,10 @@ export function ImportTabs({ wsSlug }: { wsSlug: string }) {
       <div className="mt-6">
         {tab === "drive" ? (
           <DriveTab wsSlug={wsSlug} />
-        ) : tab === "notion" ? (
-          <NotionTab wsSlug={wsSlug} />
-        ) : (
+        ) : tab === "markdown" ? (
           <MarkdownTab wsSlug={wsSlug} />
+        ) : (
+          <NotionTab wsSlug={wsSlug} />
         )}
       </div>
     </div>

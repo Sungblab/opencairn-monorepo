@@ -114,7 +114,7 @@
     "title3": "in six steps.",
     "sub": "Instead of one giant prompt, narrow-responsibility steps parse, embed, draft, link, and serve the knowledge base. Answers and graph surfaces carry source chips and evidence panels.",
     "steps": [
-      { "n": "01 · INGEST", "title": "Intake", "body": "PDF · DOCX · PPTX · XLSX · HWP/HWPX · Markdown · Google Drive · Notion ZIP. OCR and media handling depend on provider capability and deployment settings." },
+      { "n": "01 · INGEST", "title": "Intake", "body": "PDF · DOCX · PPTX · XLSX · HWP/HWPX · Markdown/CSV ZIP · Google Drive. OCR and media handling depend on provider capability and deployment settings." },
       { "n": "02 · PARSE", "title": "Break down", "body": "Text, table structure, and OCR output are normalized to Markdown. Media transcription runs through configured provider paths." },
       { "n": "03 · EMBED", "title": "Meaning", "body": "Mapped to vector space. Similar things end up close." },
       { "n": "04 · COMPILE", "title": "Weave", "body": "The compile workflow drafts wiki pages per topic." },
@@ -123,7 +123,7 @@
     ],
     "terminal": {
       "prompt": "$",
-      "cmd": "docker compose up",
+      "cmd": "pnpm dev",
       "result": "http://localhost:3000",
       "tail": "it just runs."
     },
@@ -314,19 +314,19 @@
       "$ cd opencairn-monorepo",
       "$ cp .env.example .env",
       "# set LLM_API_KEY (Gemini) or LLM_PROVIDER=ollama in .env",
-      "$ docker compose up -d postgres redis minio temporal",
-      "$ pnpm install && pnpm db:migrate",
+      "$ pnpm install",
+      "$ pnpm db:migrate",
       "$ pnpm dev",
       "# fully-local Ollama:",
-      "$ docker-compose --profile ollama up -d"
+      "$ docker compose --profile ollama up -d"
     ],
     "terminalResult": "→ http://localhost:3000",
     "terminalOk": [
-      "7 services up",
+      "dev services up",
       "health checks passed",
       "waiting for first workspace"
     ],
-    "terminalTail": "$ docker compose up infra → pnpm db:migrate → pnpm dev"
+    "terminalTail": "$ cp .env.example .env → pnpm db:migrate → pnpm dev"
   },
   "pricing": {
     "label": "PRICING",
@@ -342,7 +342,7 @@
         "AGPLv3 self-hosting",
         "Gemini or Ollama provider configuration",
         "AI workflows activate by flag and configuration",
-        "Unlimited notes · 100 MB storage",
+        "Data limits are controlled by your deployment settings",
         "Bring your own Gemini key (BYOK) optional"
       ],
       "bulletsMuted": ["Community support"],
@@ -427,7 +427,7 @@
       },
       {
         "q": "Can I migrate from my existing note app?",
-        "a": "Export to Markdown or upload a Notion ZIP, and Compiler re-weaves it into a wiki. Google Drive currently supports file-ID import. Other app-specific importers are planned follow-ups."
+        "a": "Upload a Markdown/CSV export ZIP and Compiler re-weaves it into a wiki. Google Drive currently supports file-ID import. App-connected imports, including Notion, belong in the connector roadmap."
       },
       {
         "q": "What if the AI gets the wiki wrong?",

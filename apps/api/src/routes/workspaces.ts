@@ -65,7 +65,7 @@ function deriveSlugFromName(name: string): string | null {
 }
 
 function randomSlug(): string {
-  return `w-${randomBytes(4).toString("hex")}`;
+  return `home-${randomBytes(4).toString("hex")}`;
 }
 
 export const workspaceRoutes = new Hono<AppEnv>().use("*", requireAuth);

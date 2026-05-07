@@ -3,8 +3,8 @@
   "pageDescription": "외부 서비스에서 자료를 워크스페이스로 옮겨옵니다.",
   "tabs": {
     "drive": "Google Drive",
-    "notion": "Notion ZIP",
-    "markdown": "Markdown ZIP"
+    "markdown": "Markdown ZIP",
+    "more": "기타"
   },
   "drive": {
     "notConnected": "Google Drive 연결하기",
@@ -16,8 +16,9 @@
     "notConfigured": "관리자가 Google OAuth credentials를 설정해야 사용 가능합니다."
   },
   "notion": {
-    "instructions": "Notion → Settings → Export all workspace content → Markdown & CSV로 받은 ZIP 파일을 올려주세요.",
-    "dropZone": "여기에 ZIP 파일을 드롭하거나 클릭해서 선택",
+    "instructions": "이미 Notion에서 Markdown & CSV ZIP을 받아둔 경우에만 이 호환 가져오기를 사용하세요.",
+    "connectorHint": "일반 이전 작업은 Markdown ZIP을 권장합니다. Notion 계정 연결 가져오기는 별도 커넥터 기능으로 다룰 예정입니다.",
+    "dropZone": "Notion export ZIP 선택",
     "uploading": "업로드 중... {progress}%",
     "uploaded": "업로드 완료: {name} ({size})",
     "tooLarge": "ZIP 파일이 너무 큽니다 (최대 {max})."

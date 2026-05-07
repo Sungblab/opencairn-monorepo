@@ -126,6 +126,7 @@ export function NotionTab({ wsSlug }: { wsSlug: string }) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">{t("notion.instructions")}</p>
+      <p className="text-xs text-muted-foreground">{t("notion.connectorHint")}</p>
 
       {!file && (
         <label className="block cursor-pointer rounded border-2 border-dashed border-border p-8 text-center text-sm transition hover:border-primary">
