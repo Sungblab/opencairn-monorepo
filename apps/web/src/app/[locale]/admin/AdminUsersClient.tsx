@@ -22,11 +22,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-type TabKey = "dashboard" | "analytics" | "users" | "subscriptions" | "reports" | "logs" | "email" | "system";
-type ExtendedTabKey =
-  | TabKey
-  | "apiLogs"
-  | "llmCosts";
+type TabKey =
+  | "dashboard"
+  | "analytics"
+  | "users"
+  | "subscriptions"
+  | "reports"
+  | "audit"
+  | "logs"
+  | "email"
+  | "system";
+type ExtendedTabKey = TabKey | "apiLogs" | "llmCosts";
 
 interface AdminUser {
   id: string;
@@ -69,7 +75,12 @@ interface AdminOverview {
     actionStatuses: Array<{ status: string; value: number }>;
     usageByAction: Array<{ action: string; value: number }>;
   };
-  recentReports: Array<Pick<AdminReport, "id" | "title" | "type" | "priority" | "status" | "createdAt">>;
+  recentReports: Array<
+    Pick<
+      AdminReport,
+      "id" | "title" | "type" | "priority" | "status" | "createdAt"
+    >
+  >;
   recentOperations: Array<{
     id: string;
     source: string;
@@ -131,12 +142,28 @@ interface LlmUsageSummary {
   }>;
 }
 
+interface AdminAuditEvent {
+  id: string;
+  actorUserId: string | null;
+  action: string;
+  targetType: string;
+  targetId: string;
+  targetUserId: string | null;
+  targetWorkspaceId: string | null;
+  targetReportId: string | null;
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
 const tabs: Array<{ key: ExtendedTabKey; icon: typeof Activity }> = [
   { key: "dashboard", icon: Activity },
   { key: "analytics", icon: BarChart3 },
   { key: "users", icon: Users },
   { key: "subscriptions", icon: CreditCard },
   { key: "reports", icon: Bug },
+  { key: "audit", icon: Shield },
   { key: "logs", icon: Database },
   { key: "apiLogs", icon: ReceiptText },
   { key: "llmCosts", icon: Activity },
@@ -171,18 +198,32 @@ function formatKrw(value: number) {
 }
 
 function StatusPill({ value }: { value: string }) {
-  const tone =
-    ["failed", "urgent", "open"].includes(value) ? "border-destructive text-destructive"
-    : ["completed", "resolved", "active"].includes(value) ? "border-green-600 text-green-700 dark:text-green-400"
-    : "border-border text-muted-foreground";
+  const tone = ["failed", "urgent", "open"].includes(value)
+    ? "border-destructive text-destructive"
+    : ["completed", "resolved", "active"].includes(value)
+      ? "border-green-600 text-green-700 dark:text-green-400"
+      : "border-border text-muted-foreground";
   return (
-    <span className={cn("inline-flex h-6 items-center border px-2 text-xs font-semibold uppercase", tone)}>
+    <span
+      className={cn(
+        "inline-flex h-6 items-center border px-2 text-xs font-semibold uppercase",
+        tone,
+      )}
+    >
       {value}
     </span>
   );
 }
 
-function Panel({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
+function Panel({
+  title,
+  children,
+  action,
+}: {
+  title: string;
+  children: React.ReactNode;
+  action?: React.ReactNode;
+}) {
   return (
     <section className="border border-border bg-card">
       <div className="flex min-h-11 items-center justify-between border-b border-border bg-muted/40 px-3">
@@ -194,11 +235,31 @@ function Panel({ title, children, action }: { title: string; children: React.Rea
   );
 }
 
-function StatBox({ label, value, critical }: { label: string; value: number; critical?: boolean }) {
+function StatBox({
+  label,
+  value,
+  critical,
+}: {
+  label: string;
+  value: number;
+  critical?: boolean;
+}) {
   return (
-    <div className={cn("border bg-background p-3", critical ? "border-destructive" : "border-border")}>
-      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className={cn("mt-2 text-3xl font-bold tabular-nums", critical ? "text-destructive" : "text-foreground")}>
+    <div
+      className={cn(
+        "border bg-background p-3",
+        critical ? "border-destructive" : "border-border",
+      )}
+    >
+      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+      <div
+        className={cn(
+          "mt-2 text-3xl font-bold tabular-nums",
+          critical ? "text-destructive" : "text-foreground",
+        )}
+      >
         {value}
       </div>
     </div>
@@ -211,8 +272,11 @@ export function AdminUsersClient() {
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [subscriptionUsers, setSubscriptionUsers] = useState<AdminUser[]>([]);
-  const [workspaces, setWorkspaces] = useState<AdminWorkspaceSubscription[]>([]);
+  const [workspaces, setWorkspaces] = useState<AdminWorkspaceSubscription[]>(
+    [],
+  );
   const [reports, setReports] = useState<AdminReport[]>([]);
+  const [auditEvents, setAuditEvents] = useState<AdminAuditEvent[]>([]);
   const [apiLogs, setApiLogs] = useState<ApiRequestLog[]>([]);
   const [llmUsage, setLlmUsage] = useState<LlmUsageSummary | null>(null);
   const [query, setQuery] = useState("");
@@ -221,11 +285,20 @@ export function AdminUsersClient() {
 
   async function loadAll() {
     setError(null);
-    const [overviewRes, usersRes, subscriptionsRes, reportsRes, apiLogsRes, llmUsageRes] = await Promise.all([
+    const [
+      overviewRes,
+      usersRes,
+      subscriptionsRes,
+      reportsRes,
+      auditEventsRes,
+      apiLogsRes,
+      llmUsageRes,
+    ] = await Promise.all([
       fetch("/api/admin/overview", { cache: "no-store" }),
       fetch("/api/admin/users", { cache: "no-store" }),
       fetch("/api/admin/subscriptions", { cache: "no-store" }),
       fetch("/api/admin/reports", { cache: "no-store" }),
+      fetch("/api/admin/audit-events", { cache: "no-store" }),
       fetch("/api/admin/api-logs", { cache: "no-store" }),
       fetch("/api/admin/llm-usage", { cache: "no-store" }),
     ]);
@@ -234,6 +307,7 @@ export function AdminUsersClient() {
       !usersRes.ok ||
       !subscriptionsRes.ok ||
       !reportsRes.ok ||
+      !auditEventsRes.ok ||
       !apiLogsRes.ok ||
       !llmUsageRes.ok
     ) {
@@ -248,7 +322,12 @@ export function AdminUsersClient() {
     };
     setSubscriptionUsers(subscriptionBody.users);
     setWorkspaces(subscriptionBody.workspaces);
-    setReports(((await reportsRes.json()) as { reports: AdminReport[] }).reports);
+    setReports(
+      ((await reportsRes.json()) as { reports: AdminReport[] }).reports,
+    );
+    setAuditEvents(
+      ((await auditEventsRes.json()) as { events: AdminAuditEvent[] }).events,
+    );
     setApiLogs(((await apiLogsRes.json()) as { logs: ApiRequestLog[] }).logs);
     setLlmUsage((await llmUsageRes.json()) as LlmUsageSummary);
   }
@@ -312,7 +391,10 @@ export function AdminUsersClient() {
 
       <div className="min-w-0 space-y-4">
         {error && (
-          <div role="alert" className="border border-destructive bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <div
+            role="alert"
+            className="border border-destructive bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          >
             {error}
           </div>
         )}
@@ -321,22 +403,51 @@ export function AdminUsersClient() {
           <>
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
               <StatBox label={t("stats.users")} value={stats.users ?? 0} />
-              <StatBox label={t("stats.workspaces")} value={stats.workspaces ?? 0} />
-              <StatBox label={t("stats.projects")} value={stats.projects ?? 0} />
-              <StatBox label={t("stats.openReports")} value={stats.openReports ?? 0} critical={(stats.openReports ?? 0) > 0} />
-              <StatBox label={t("stats.failedJobs")} value={stats.failedJobs ?? 0} critical={(stats.failedJobs ?? 0) > 0} />
-              <StatBox label={t("stats.pendingEmails")} value={stats.pendingEmails ?? 0} critical={(stats.pendingEmails ?? 0) > 0} />
+              <StatBox
+                label={t("stats.workspaces")}
+                value={stats.workspaces ?? 0}
+              />
+              <StatBox
+                label={t("stats.projects")}
+                value={stats.projects ?? 0}
+              />
+              <StatBox
+                label={t("stats.openReports")}
+                value={stats.openReports ?? 0}
+                critical={(stats.openReports ?? 0) > 0}
+              />
+              <StatBox
+                label={t("stats.failedJobs")}
+                value={stats.failedJobs ?? 0}
+                critical={(stats.failedJobs ?? 0) > 0}
+              />
+              <StatBox
+                label={t("stats.pendingEmails")}
+                value={stats.pendingEmails ?? 0}
+                critical={(stats.pendingEmails ?? 0) > 0}
+              />
               <StatBox label={t("stats.notes")} value={stats.notes ?? 0} />
-              <StatBox label={t("stats.usageThisMonth")} value={stats.usageThisMonth ?? 0} />
-              <StatBox label={t("stats.apiCallsToday")} value={stats.apiCallsToday ?? 0} />
-              <StatBox label={t("stats.llmCostKrw30d")} value={Math.round(stats.llmCostKrw30d ?? 0)} />
+              <StatBox
+                label={t("stats.usageThisMonth")}
+                value={stats.usageThisMonth ?? 0}
+              />
+              <StatBox
+                label={t("stats.apiCallsToday")}
+                value={stats.apiCallsToday ?? 0}
+              />
+              <StatBox
+                label={t("stats.llmCostKrw30d")}
+                value={Math.round(stats.llmCostKrw30d ?? 0)}
+              />
             </div>
             <div className="grid gap-4 xl:grid-cols-2">
               <Panel title={t("sections.reports")}>
                 <CompactReportList reports={overview?.recentReports ?? []} />
               </Panel>
               <Panel title={t("sections.operations")}>
-                <OperationList operations={overview?.recentOperations.slice(0, 8) ?? []} />
+                <OperationList
+                  operations={overview?.recentOperations.slice(0, 8) ?? []}
+                />
               </Panel>
             </div>
           </>
@@ -344,10 +455,26 @@ export function AdminUsersClient() {
 
         {activeTab === "analytics" && overview && (
           <div className="grid gap-4 xl:grid-cols-2">
-            <BreakdownPanel title={t("sections.userPlans")} rows={overview.analytics.userPlans} labelKey="plan" />
-            <BreakdownPanel title={t("sections.workspacePlans")} rows={overview.analytics.workspacePlans} labelKey="plan" />
-            <BreakdownPanel title={t("sections.actionStatuses")} rows={overview.analytics.actionStatuses} labelKey="status" />
-            <BreakdownPanel title={t("sections.usage")} rows={overview.analytics.usageByAction} labelKey="action" />
+            <BreakdownPanel
+              title={t("sections.userPlans")}
+              rows={overview.analytics.userPlans}
+              labelKey="plan"
+            />
+            <BreakdownPanel
+              title={t("sections.workspacePlans")}
+              rows={overview.analytics.workspacePlans}
+              labelKey="plan"
+            />
+            <BreakdownPanel
+              title={t("sections.actionStatuses")}
+              rows={overview.analytics.actionStatuses}
+              labelKey="status"
+            />
+            <BreakdownPanel
+              title={t("sections.usage")}
+              rows={overview.analytics.usageByAction}
+              labelKey="action"
+            />
           </div>
         )}
 
@@ -374,7 +501,9 @@ export function AdminUsersClient() {
                     <th className="px-3 py-2">{t("columns.plan")}</th>
                     <th className="px-3 py-2">{t("columns.verified")}</th>
                     <th className="px-3 py-2">{t("columns.created")}</th>
-                    <th className="px-3 py-2 text-right">{t("columns.siteAdmin")}</th>
+                    <th className="px-3 py-2 text-right">
+                      {t("columns.siteAdmin")}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -382,20 +511,35 @@ export function AdminUsersClient() {
                     <tr key={user.id} className="border-b border-border">
                       <td className="px-3 py-2">
                         <div className="font-semibold">{user.name}</div>
-                        <div className="text-xs text-muted-foreground">{user.email}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {user.email}
+                        </div>
                       </td>
                       <td className="px-3 py-2 uppercase">{user.plan}</td>
-                      <td className="px-3 py-2">{user.emailVerified ? t("verified.yes") : t("verified.no")}</td>
-                      <td className="px-3 py-2 tabular-nums">{formatDate(user.createdAt)}</td>
+                      <td className="px-3 py-2">
+                        {user.emailVerified
+                          ? t("verified.yes")
+                          : t("verified.no")}
+                      </td>
+                      <td className="px-3 py-2 tabular-nums">
+                        {formatDate(user.createdAt)}
+                      </td>
                       <td className="px-3 py-2 text-right">
                         <Button
                           type="button"
                           variant={user.isSiteAdmin ? "destructive" : "outline"}
                           size="sm"
                           disabled={busy !== null}
-                          onClick={() => void patch(`/api/admin/users/${user.id}/site-admin`, { isSiteAdmin: !user.isSiteAdmin })}
+                          onClick={() =>
+                            void patch(
+                              `/api/admin/users/${user.id}/site-admin`,
+                              { isSiteAdmin: !user.isSiteAdmin },
+                            )
+                          }
                         >
-                          {user.isSiteAdmin ? t("actions.revoke") : t("actions.grant")}
+                          {user.isSiteAdmin
+                            ? t("actions.revoke")
+                            : t("actions.grant")}
                         </Button>
                       </td>
                     </tr>
@@ -416,7 +560,9 @@ export function AdminUsersClient() {
               getValue={(row) => row.plan}
               getName={(row) => row.name}
               getMeta={(row) => row.email}
-              onChange={(row, plan) => patch(`/api/admin/users/${row.id}/plan`, { plan })}
+              onChange={(row, plan) =>
+                patch(`/api/admin/users/${row.id}/plan`, { plan })
+              }
               busy={busy !== null}
             />
             <PlanTable
@@ -427,7 +573,9 @@ export function AdminUsersClient() {
               getValue={(row) => row.planType}
               getName={(row) => row.name}
               getMeta={(row) => row.slug}
-              onChange={(row, planType) => patch(`/api/admin/workspaces/${row.id}/plan`, { planType })}
+              onChange={(row, planType) =>
+                patch(`/api/admin/workspaces/${row.id}/plan`, { planType })
+              }
               busy={busy !== null}
             />
           </div>
@@ -437,32 +585,48 @@ export function AdminUsersClient() {
           <Panel title={t("sections.reports")}>
             <div className="space-y-2">
               {reports.map((report) => (
-                <div key={report.id} className="grid gap-3 border border-border bg-background p-3 lg:grid-cols-[1fr_180px]">
+                <div
+                  key={report.id}
+                  className="grid gap-3 border border-border bg-background p-3 lg:grid-cols-[1fr_180px]"
+                >
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <StatusPill value={report.status} />
                       <StatusPill value={report.priority} />
-                      <span className="text-xs uppercase text-muted-foreground">{report.type}</span>
+                      <span className="text-xs uppercase text-muted-foreground">
+                        {report.type}
+                      </span>
                     </div>
                     <h3 className="mt-2 font-bold">{report.title}</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">{report.description || t("emptyDescription")}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {report.description || t("emptyDescription")}
+                    </p>
                     <div className="mt-2 text-xs text-muted-foreground">
                       {formatDate(report.createdAt)} · {report.pageUrl ?? "-"}
                     </div>
                   </div>
                   <div className="grid content-start gap-2">
-                    {(["open", "triaged", "resolved", "closed"] as const).map((status) => (
-                      <Button
-                        key={status}
-                        type="button"
-                        variant={report.status === status ? "default" : "outline"}
-                        size="sm"
-                        disabled={busy !== null}
-                        onClick={() => void patch(`/api/admin/reports/${report.id}/status`, { status })}
-                      >
-                        {t(`reportStatuses.${status}`)}
-                      </Button>
-                    ))}
+                    {(["open", "triaged", "resolved", "closed"] as const).map(
+                      (status) => (
+                        <Button
+                          key={status}
+                          type="button"
+                          variant={
+                            report.status === status ? "default" : "outline"
+                          }
+                          size="sm"
+                          disabled={busy !== null}
+                          onClick={() =>
+                            void patch(
+                              `/api/admin/reports/${report.id}/status`,
+                              { status },
+                            )
+                          }
+                        >
+                          {t(`reportStatuses.${status}`)}
+                        </Button>
+                      ),
+                    )}
                   </div>
                 </div>
               ))}
@@ -470,14 +634,59 @@ export function AdminUsersClient() {
           </Panel>
         )}
 
+        {activeTab === "audit" && (
+          <Panel
+            title={t("sections.audit")}
+            action={
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void loadAll()}
+              >
+                <RefreshCw className="h-4 w-4" />
+                {t("actions.refresh")}
+              </Button>
+            }
+          >
+            <AuditEventTable events={auditEvents} />
+          </Panel>
+        )}
+
         {activeTab === "logs" && (
-          <Panel title={t("sections.operations")} action={<Button type="button" variant="outline" size="sm" onClick={() => void loadAll()}><RefreshCw className="h-4 w-4" />{t("actions.refresh")}</Button>}>
+          <Panel
+            title={t("sections.operations")}
+            action={
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void loadAll()}
+              >
+                <RefreshCw className="h-4 w-4" />
+                {t("actions.refresh")}
+              </Button>
+            }
+          >
             <OperationList operations={overview?.recentOperations ?? []} />
           </Panel>
         )}
 
         {activeTab === "apiLogs" && (
-          <Panel title={t("sections.apiLogs")} action={<Button type="button" variant="outline" size="sm" onClick={() => void loadAll()}><RefreshCw className="h-4 w-4" />{t("actions.refresh")}</Button>}>
+          <Panel
+            title={t("sections.apiLogs")}
+            action={
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void loadAll()}
+              >
+                <RefreshCw className="h-4 w-4" />
+                {t("actions.refresh")}
+              </Button>
+            }
+          >
             <ApiLogTable logs={apiLogs} />
           </Panel>
         )}
@@ -485,10 +694,22 @@ export function AdminUsersClient() {
         {activeTab === "llmCosts" && (
           <div className="space-y-4">
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              <StatBox label={t("llm.tokensIn")} value={llmUsage?.totals.tokensIn ?? 0} />
-              <StatBox label={t("llm.tokensOut")} value={llmUsage?.totals.tokensOut ?? 0} />
-              <StatBox label={t("llm.costUsd")} value={Number((llmUsage?.totals.costUsd ?? 0).toFixed(4))} />
-              <StatBox label={t("llm.costKrw")} value={Math.round(llmUsage?.totals.costKrw ?? 0)} />
+              <StatBox
+                label={t("llm.tokensIn")}
+                value={llmUsage?.totals.tokensIn ?? 0}
+              />
+              <StatBox
+                label={t("llm.tokensOut")}
+                value={llmUsage?.totals.tokensOut ?? 0}
+              />
+              <StatBox
+                label={t("llm.costUsd")}
+                value={Number((llmUsage?.totals.costUsd ?? 0).toFixed(4))}
+              />
+              <StatBox
+                label={t("llm.costKrw")}
+                value={Math.round(llmUsage?.totals.costKrw ?? 0)}
+              />
             </div>
             <Panel title={t("sections.llmByModel")}>
               <LlmModelTable rows={llmUsage?.byModel ?? []} />
@@ -502,9 +723,22 @@ export function AdminUsersClient() {
         {activeTab === "email" && overview && (
           <Panel title={t("sections.email")}>
             <div className="grid gap-2 md:grid-cols-3">
-              <ConfigBox icon={Mail} label={t("email.resend")} ok={overview.system.email.resendConfigured} />
-              <ConfigBox icon={Mail} label={t("email.smtp")} ok={overview.system.email.smtpConfigured} />
-              <ConfigBox icon={AlertTriangle} label={t("email.pending")} ok={(stats.pendingEmails ?? 0) === 0} detail={`${stats.pendingEmails ?? 0}`} />
+              <ConfigBox
+                icon={Mail}
+                label={t("email.resend")}
+                ok={overview.system.email.resendConfigured}
+              />
+              <ConfigBox
+                icon={Mail}
+                label={t("email.smtp")}
+                ok={overview.system.email.smtpConfigured}
+              />
+              <ConfigBox
+                icon={AlertTriangle}
+                label={t("email.pending")}
+                ok={(stats.pendingEmails ?? 0) === 0}
+                detail={`${stats.pendingEmails ?? 0}`}
+              />
             </div>
           </Panel>
         )}
@@ -512,11 +746,27 @@ export function AdminUsersClient() {
         {activeTab === "system" && overview && (
           <Panel title={t("sections.system")}>
             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-              <ConfigBox icon={Shield} label={t("system.environment")} ok detail={overview.system.environment} />
-              <ConfigBox icon={Database} label={t("system.storage")} ok={overview.system.storage.s3Configured} />
-              {Object.entries(overview.system.featureFlags).map(([key, value]) => (
-                <ConfigBox key={key} icon={CheckCircle2} label={key} ok={value} />
-              ))}
+              <ConfigBox
+                icon={Shield}
+                label={t("system.environment")}
+                ok
+                detail={overview.system.environment}
+              />
+              <ConfigBox
+                icon={Database}
+                label={t("system.storage")}
+                ok={overview.system.storage.s3Configured}
+              />
+              {Object.entries(overview.system.featureFlags).map(
+                ([key, value]) => (
+                  <ConfigBox
+                    key={key}
+                    icon={CheckCircle2}
+                    label={key}
+                    ok={value}
+                  />
+                ),
+              )}
             </div>
           </Panel>
         )}
@@ -525,15 +775,24 @@ export function AdminUsersClient() {
   );
 }
 
-function CompactReportList({ reports }: { reports: AdminOverview["recentReports"] }) {
+function CompactReportList({
+  reports,
+}: {
+  reports: AdminOverview["recentReports"];
+}) {
   if (reports.length === 0) return <Empty />;
   return (
     <div className="space-y-2">
       {reports.map((report) => (
-        <div key={report.id} className="flex items-start justify-between gap-3 border border-border bg-background p-2">
+        <div
+          key={report.id}
+          className="flex items-start justify-between gap-3 border border-border bg-background p-2"
+        >
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold">{report.title}</div>
-            <div className="text-xs text-muted-foreground">{report.type} · {formatDate(report.createdAt)}</div>
+            <div className="text-xs text-muted-foreground">
+              {report.type} · {formatDate(report.createdAt)}
+            </div>
           </div>
           <StatusPill value={report.status} />
         </div>
@@ -542,19 +801,34 @@ function CompactReportList({ reports }: { reports: AdminOverview["recentReports"
   );
 }
 
-function OperationList({ operations }: { operations: AdminOverview["recentOperations"] }) {
+function OperationList({
+  operations,
+}: {
+  operations: AdminOverview["recentOperations"];
+}) {
   if (operations.length === 0) return <Empty />;
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full text-sm">
         <tbody>
           {operations.map((op) => (
-            <tr key={`${op.source}:${op.id}`} className="border-b border-border last:border-0">
-              <td className="whitespace-nowrap px-2 py-2 text-xs font-semibold uppercase text-muted-foreground">{op.source}</td>
+            <tr
+              key={`${op.source}:${op.id}`}
+              className="border-b border-border last:border-0"
+            >
+              <td className="whitespace-nowrap px-2 py-2 text-xs font-semibold uppercase text-muted-foreground">
+                {op.source}
+              </td>
               <td className="px-2 py-2 font-medium">{op.label}</td>
-              <td className="px-2 py-2"><StatusPill value={op.status} /></td>
-              <td className="px-2 py-2 text-muted-foreground">{op.detail ?? "-"}</td>
-              <td className="whitespace-nowrap px-2 py-2 text-right text-xs tabular-nums text-muted-foreground">{formatDate(op.updatedAt)}</td>
+              <td className="px-2 py-2">
+                <StatusPill value={op.status} />
+              </td>
+              <td className="px-2 py-2 text-muted-foreground">
+                {op.detail ?? "-"}
+              </td>
+              <td className="whitespace-nowrap px-2 py-2 text-right text-xs tabular-nums text-muted-foreground">
+                {formatDate(op.updatedAt)}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -582,12 +856,64 @@ function ApiLogTable({ logs }: { logs: ApiRequestLog[] }) {
         <tbody>
           {logs.map((log) => (
             <tr key={log.id} className="border-b border-border last:border-0">
-              <td className="whitespace-nowrap px-2 py-2 text-xs tabular-nums text-muted-foreground">{formatDate(log.createdAt)}</td>
+              <td className="whitespace-nowrap px-2 py-2 text-xs tabular-nums text-muted-foreground">
+                {formatDate(log.createdAt)}
+              </td>
               <td className="px-2 py-2 font-semibold">{log.method}</td>
-              <td className="max-w-[420px] truncate px-2 py-2 font-mono text-xs">{log.path}{log.query ? `?${log.query}` : ""}</td>
-              <td className="px-2 py-2"><StatusPill value={String(log.statusCode)} /></td>
+              <td className="max-w-[420px] truncate px-2 py-2 font-mono text-xs">
+                {log.path}
+                {log.query ? `?${log.query}` : ""}
+              </td>
+              <td className="px-2 py-2">
+                <StatusPill value={String(log.statusCode)} />
+              </td>
               <td className="px-2 py-2 tabular-nums">{log.durationMs}ms</td>
-              <td className="max-w-[180px] truncate px-2 py-2 text-xs text-muted-foreground">{log.userId ?? "-"}</td>
+              <td className="max-w-[180px] truncate px-2 py-2 text-xs text-muted-foreground">
+                {log.userId ?? "-"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function AuditEventTable({ events }: { events: AdminAuditEvent[] }) {
+  const t = useTranslations("admin");
+  if (events.length === 0) return <Empty />;
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-sm">
+        <thead>
+          <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+            <th className="px-2 py-2">{t("columns.time")}</th>
+            <th className="px-2 py-2">{t("columns.action")}</th>
+            <th className="px-2 py-2">{t("columns.actor")}</th>
+            <th className="px-2 py-2">{t("columns.target")}</th>
+            <th className="px-2 py-2">{t("columns.beforeAfter")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {events.map((event) => (
+            <tr key={event.id} className="border-b border-border last:border-0">
+              <td className="whitespace-nowrap px-2 py-2 text-xs tabular-nums text-muted-foreground">
+                {formatDate(event.createdAt)}
+              </td>
+              <td className="px-2 py-2 font-semibold">{event.action}</td>
+              <td className="max-w-[180px] truncate px-2 py-2 font-mono text-xs">
+                {event.actorUserId ?? "-"}
+              </td>
+              <td className="max-w-[220px] truncate px-2 py-2 font-mono text-xs">
+                {event.targetUserId ??
+                  event.targetWorkspaceId ??
+                  event.targetReportId ??
+                  event.targetId}
+              </td>
+              <td className="max-w-[360px] truncate px-2 py-2 font-mono text-xs text-muted-foreground">
+                {JSON.stringify(event.before)} {"->"}{" "}
+                {JSON.stringify(event.after)}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -604,12 +930,21 @@ function LlmModelTable({ rows }: { rows: LlmUsageSummary["byModel"] }) {
       <table className="min-w-full text-sm">
         <tbody>
           {rows.map((row) => (
-            <tr key={`${row.provider}:${row.model}`} className="border-b border-border last:border-0">
+            <tr
+              key={`${row.provider}:${row.model}`}
+              className="border-b border-border last:border-0"
+            >
               <td className="px-2 py-2 font-semibold">{row.provider}</td>
               <td className="px-2 py-2 font-mono text-xs">{row.model}</td>
-              <td className="px-2 py-2 text-right tabular-nums">{row.tokensIn + row.tokensOut}</td>
-              <td className="px-2 py-2 text-right tabular-nums">{formatUsd(row.costUsd)}</td>
-              <td className="px-2 py-2 text-right tabular-nums">{formatKrw(row.costKrw)}</td>
+              <td className="px-2 py-2 text-right tabular-nums">
+                {row.tokensIn + row.tokensOut}
+              </td>
+              <td className="px-2 py-2 text-right tabular-nums">
+                {formatUsd(row.costUsd)}
+              </td>
+              <td className="px-2 py-2 text-right tabular-nums">
+                {formatKrw(row.costKrw)}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -627,12 +962,20 @@ function LlmEventTable({ rows }: { rows: LlmUsageSummary["recentEvents"] }) {
         <tbody>
           {rows.map((row) => (
             <tr key={row.id} className="border-b border-border last:border-0">
-              <td className="whitespace-nowrap px-2 py-2 text-xs tabular-nums text-muted-foreground">{formatDate(row.createdAt)}</td>
+              <td className="whitespace-nowrap px-2 py-2 text-xs tabular-nums text-muted-foreground">
+                {formatDate(row.createdAt)}
+              </td>
               <td className="px-2 py-2 font-semibold">{row.operation}</td>
               <td className="px-2 py-2 font-mono text-xs">{row.model}</td>
-              <td className="px-2 py-2 text-right tabular-nums">{row.tokensIn + row.tokensOut}</td>
-              <td className="px-2 py-2 text-right tabular-nums">{formatUsd(row.costUsd)}</td>
-              <td className="px-2 py-2 text-right tabular-nums">{formatKrw(row.costKrw)}</td>
+              <td className="px-2 py-2 text-right tabular-nums">
+                {row.tokensIn + row.tokensOut}
+              </td>
+              <td className="px-2 py-2 text-right tabular-nums">
+                {formatUsd(row.costUsd)}
+              </td>
+              <td className="px-2 py-2 text-right tabular-nums">
+                {formatKrw(row.costKrw)}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -654,21 +997,30 @@ function BreakdownPanel({
   return (
     <Panel title={title}>
       <div className="space-y-3">
-        {rows.length === 0 ? <Empty /> : rows.map((row) => {
-          const value = Number(row.value ?? 0);
-          const pct = total > 0 ? Math.round((value / total) * 100) : 0;
-          return (
-            <div key={String(row[labelKey])}>
-              <div className="mb-1 flex justify-between text-sm">
-                <span className="font-semibold">{String(row[labelKey])}</span>
-                <span className="tabular-nums text-muted-foreground">{value} · {pct}%</span>
+        {rows.length === 0 ? (
+          <Empty />
+        ) : (
+          rows.map((row) => {
+            const value = Number(row.value ?? 0);
+            const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+            return (
+              <div key={String(row[labelKey])}>
+                <div className="mb-1 flex justify-between text-sm">
+                  <span className="font-semibold">{String(row[labelKey])}</span>
+                  <span className="tabular-nums text-muted-foreground">
+                    {value} · {pct}%
+                  </span>
+                </div>
+                <div className="h-3 border border-border bg-background">
+                  <div
+                    className="h-full bg-foreground"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
               </div>
-              <div className="h-3 border border-border bg-background">
-                <div className="h-full bg-foreground" style={{ width: `${pct}%` }} />
-              </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
     </Panel>
   );
@@ -698,10 +1050,17 @@ function PlanTable<T extends { id: string }>({
     <Panel title={title}>
       <div className="space-y-2">
         {rows.map((row) => (
-          <div key={row.id} className="grid gap-2 border border-border bg-background p-2 sm:grid-cols-[1fr_150px]">
+          <div
+            key={row.id}
+            className="grid gap-2 border border-border bg-background p-2 sm:grid-cols-[1fr_150px]"
+          >
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold">{getName(row)}</div>
-              <div className="truncate text-xs text-muted-foreground">{getMeta(row)}</div>
+              <div className="truncate text-sm font-semibold">
+                {getName(row)}
+              </div>
+              <div className="truncate text-xs text-muted-foreground">
+                {getMeta(row)}
+              </div>
             </div>
             <select
               value={getValue(row)}
@@ -710,7 +1069,9 @@ function PlanTable<T extends { id: string }>({
               className="h-9 border border-border bg-background px-2 text-sm font-semibold uppercase"
             >
               {options.map((option) => (
-                <option key={option} value={option}>{option}</option>
+                <option key={option} value={option}>
+                  {option}
+                </option>
               ))}
             </select>
           </div>
@@ -732,12 +1093,22 @@ function ConfigBox({
   detail?: string;
 }) {
   return (
-    <div className={cn("border bg-background p-3", ok ? "border-border" : "border-destructive")}>
+    <div
+      className={cn(
+        "border bg-background p-3",
+        ok ? "border-border" : "border-destructive",
+      )}
+    >
       <div className="flex items-center gap-2 text-sm font-semibold">
         <Icon className="h-4 w-4" aria-hidden />
         <span>{label}</span>
       </div>
-      <div className={cn("mt-2 text-xs font-bold uppercase", ok ? "text-green-700 dark:text-green-400" : "text-destructive")}>
+      <div
+        className={cn(
+          "mt-2 text-xs font-bold uppercase",
+          ok ? "text-green-700 dark:text-green-400" : "text-destructive",
+        )}
+      >
         {detail ?? (ok ? "OK" : "CHECK")}
       </div>
     </div>
@@ -746,5 +1117,9 @@ function ConfigBox({
 
 function Empty() {
   const t = useTranslations("admin");
-  return <div className="border border-dashed border-border p-4 text-sm text-muted-foreground">{t("empty")}</div>;
+  return (
+    <div className="border border-dashed border-border p-4 text-sm text-muted-foreground">
+      {t("empty")}
+    </div>
+  );
 }

@@ -12,6 +12,7 @@
     "users": "Users",
     "subscriptions": "Subscriptions",
     "reports": "Reports",
+    "audit": "Audit",
     "logs": "Logs",
     "apiLogs": "API calls",
     "llmCosts": "LLM costs",
@@ -40,6 +41,7 @@
     "users": "User management",
     "userSubscriptions": "User subscriptions",
     "workspaceSubscriptions": "Workspace subscriptions",
+    "audit": "Admin audit log",
     "apiLogs": "API request logs",
     "llmByModel": "LLM cost by model",
     "llmEvents": "Recent LLM usage events",
@@ -56,7 +58,11 @@
     "method": "Method",
     "path": "Path",
     "status": "Status",
-    "duration": "Duration"
+    "duration": "Duration",
+    "action": "Action",
+    "actor": "Actor",
+    "target": "Target",
+    "beforeAfter": "Change"
   },
   "llm": {
     "tokensIn": "Input tokens",
