@@ -73,10 +73,9 @@ async def test_parse_pdf_emits_unit_events_per_page(tmp_path: Path):
 
     with (
         patch("worker.activities.pdf_activity.download_to_tempfile", return_value=fake_pdf),
+        patch("worker.activities.pdf_activity._opendataloader_available", return_value=True),
         patch("worker.activities.pdf_activity._run_jar", return_value=out_dir),
         patch("worker.activities.pdf_activity._detect_scan", return_value=False),
-        patch("worker.activities.pdf_activity._opendataloader_available", return_value=True),
-        patch("worker.activities.pdf_activity.activity.heartbeat"),
         patch(
             "worker.activities.pdf_activity._upload_figure",
             return_value="uploads/u/figures/wf-1/p0-f0.png",
@@ -128,10 +127,9 @@ async def test_parse_pdf_skips_missing_figure_files(tmp_path: Path):
 
     with (
         patch("worker.activities.pdf_activity.download_to_tempfile", return_value=fake_pdf),
+        patch("worker.activities.pdf_activity._opendataloader_available", return_value=True),
         patch("worker.activities.pdf_activity._run_jar", return_value=out_dir),
         patch("worker.activities.pdf_activity._detect_scan", return_value=False),
-        patch("worker.activities.pdf_activity._opendataloader_available", return_value=True),
-        patch("worker.activities.pdf_activity.activity.heartbeat"),
         patch("worker.activities.pdf_activity.publish_safe", side_effect=fake_publish),
     ):
         await parse_pdf({

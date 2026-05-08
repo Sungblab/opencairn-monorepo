@@ -16,7 +16,6 @@ import pytest
 # raises. Substitute a plain stdlib logger for unit tests.
 _TEST_LOGGER = logging.getLogger("test_ingest_enrichment")
 
-
 def _make_inp(*, content_enrichment_enabled: bool = False):
     from worker.workflows.ingest_workflow import IngestInput
 
