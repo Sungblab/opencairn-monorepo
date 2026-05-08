@@ -155,12 +155,13 @@ describe("GET /api/projects/:projectId/tree", () => {
     expect(body.nodes).toHaveLength(2);
   });
 
-  it("rejects parent_id pointing at a note (leaves can't have children)", async () => {
+  it("allows parent_id pointing at a note-backed tree node", async () => {
     const res = await authedFetch(
       `/api/projects/${seed.projectId}/tree?parent_id=${seed.noteId}`,
       { userId: seed.userId },
     );
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ nodes: [] });
   });
 
   it("rejects cross-project parent_id", async () => {

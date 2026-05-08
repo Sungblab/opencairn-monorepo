@@ -38,6 +38,11 @@ class IngestInput:
     url: str | None = None
     # Spec B — needed by the enrichment activities to scope artifact storage.
     workspace_id: str | None = None
+    source_bundle_node_id: str | None = None
+    original_file_node_id: str | None = None
+    parsed_group_node_id: str | None = None
+    figures_group_node_id: str | None = None
+    analysis_group_node_id: str | None = None
 
 
 _RETRY = RetryPolicy(maximum_attempts=3, backoff_coefficient=2.0)
@@ -210,6 +215,20 @@ class IngestWorkflow:
                     heartbeat_timeout=_SHORT_HEARTBEAT,
                     retry_policy=_QUARANTINE_RETRY,
                 )
+            if inp.source_bundle_node_id:
+                with contextlib.suppress(ActivityError):
+                    await workflow.execute_activity(
+                        "update_source_bundle_status",
+                        {
+                            "workflow_id": workflow_id,
+                            "bundle_node_id": inp.source_bundle_node_id,
+                            "status": "failed",
+                            "reason": reason,
+                        },
+                        schedule_to_close_timeout=_SHORT_TIMEOUT,
+                        heartbeat_timeout=_SHORT_HEARTBEAT,
+                        retry_policy=_QUARANTINE_RETRY,
+                    )
             raise
 
     async def _run_pipeline(
@@ -232,6 +251,7 @@ class IngestWorkflow:
             )
             text = parse_result["text"]
             needs_enhance = parse_result.get("has_complex_layout", False)
+            await self._materialize_pdf_artifacts(inp, workflow_id, parse_result)
         elif mime.startswith("audio/") or mime.startswith("video/"):
             result = await workflow.execute_activity(
                 "transcribe_audio",
@@ -380,6 +400,7 @@ class IngestWorkflow:
                 "mime_type": mime,
                 "object_key": inp.object_key,
                 "text": text,
+                "tree_parent_node_id": inp.source_bundle_node_id,
                 "workflow_id": workflow_id,
                 "started_at_ms": started_at_ms,
             },
@@ -410,4 +431,93 @@ class IngestWorkflow:
                     "store_enrichment_artifact failed, artifact lost"
                 )
 
+        if inp.source_bundle_node_id:
+            with contextlib.suppress(ActivityError):
+                await workflow.execute_activity(
+                    "update_source_bundle_status",
+                    {
+                        "workflow_id": workflow_id,
+                        "bundle_node_id": inp.source_bundle_node_id,
+                        "status": "completed",
+                    },
+                    schedule_to_close_timeout=_SHORT_TIMEOUT,
+                    heartbeat_timeout=_SHORT_HEARTBEAT,
+                    retry_policy=_QUARANTINE_RETRY,
+                )
+
         return note_id
+
+    async def _materialize_pdf_artifacts(
+        self, inp: IngestInput, workflow_id: str, parse_result: dict
+    ) -> None:
+        if not (
+            inp.source_bundle_node_id
+            and inp.parsed_group_node_id
+            and inp.figures_group_node_id
+            and inp.workspace_id
+        ):
+            return
+
+        async def create_artifact(payload: dict) -> None:
+            try:
+                await workflow.execute_activity(
+                    "create_source_bundle_artifact",
+                    payload,
+                    schedule_to_close_timeout=_SHORT_TIMEOUT,
+                    heartbeat_timeout=_SHORT_HEARTBEAT,
+                    retry_policy=_QUARANTINE_RETRY,
+                )
+            except (ActivityError, ApplicationError):
+                workflow.logger.warning("source bundle artifact creation failed")
+
+        await create_artifact({
+            "workflow_id": workflow_id,
+            "bundle_node_id": inp.source_bundle_node_id,
+            "workspace_id": inp.workspace_id,
+            "project_id": inp.project_id,
+            "user_id": inp.user_id,
+            "parent_node_id": inp.parsed_group_node_id,
+            "kind": "agent_file",
+            "label": "parsed.md",
+            "filename": "parsed.md",
+            "mime_type": "text/markdown",
+            "role": "parsed",
+            "text": parse_result.get("markdown") or parse_result.get("text") or "",
+        })
+
+        for page in parse_result.get("page_artifacts", []):
+            await create_artifact({
+                "workflow_id": workflow_id,
+                "bundle_node_id": inp.source_bundle_node_id,
+                "workspace_id": inp.workspace_id,
+                "project_id": inp.project_id,
+                "user_id": inp.user_id,
+                "parent_node_id": inp.parsed_group_node_id,
+                "kind": "agent_file",
+                "label": page.get("label", "page.md"),
+                "filename": page.get("label", "page.md"),
+                "mime_type": "text/markdown",
+                "role": "parsed_page",
+                "text": page.get("text", ""),
+                "page_index": page.get("page_index"),
+                "metadata": {"ocrEngine": page.get("ocr_engine")},
+            })
+
+        for figure in parse_result.get("figure_artifacts", []):
+            await create_artifact({
+                "workflow_id": workflow_id,
+                "bundle_node_id": inp.source_bundle_node_id,
+                "workspace_id": inp.workspace_id,
+                "project_id": inp.project_id,
+                "user_id": inp.user_id,
+                "parent_node_id": inp.figures_group_node_id,
+                "kind": "artifact",
+                "label": figure.get("label", "figure.png"),
+                "role": "figure",
+                "page_index": figure.get("page_index"),
+                "figure_index": figure.get("figure_index"),
+                "metadata": {
+                    "objectKey": figure.get("object_key"),
+                    "mimeType": figure.get("mime_type"),
+                },
+            })

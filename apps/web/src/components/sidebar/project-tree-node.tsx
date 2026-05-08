@@ -11,6 +11,7 @@ import {
   FileImage,
   FileJson,
   FolderCode,
+  FileArchive,
   MoreHorizontal,
 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
@@ -47,7 +48,14 @@ export function ProjectTreeNode({
   const ctx = useProjectTreeCtx();
 
   const kind = node.data.kind;
-  const hasChildren = kind === "folder" && node.data.child_count > 0;
+  const canHaveChildren = new Set([
+    "folder",
+    "note",
+    "source_bundle",
+    "artifact_group",
+    "code_workspace",
+  ]);
+  const hasChildren = canHaveChildren.has(kind) && node.data.child_count > 0;
   const isRenaming = ctx.renamingId === node.data.id;
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -99,13 +107,14 @@ export function ProjectTreeNode({
 
   function handleRowClick() {
     if (isRenaming) return;
-    if (kind === "folder") {
+    const targetId = node.data.target_id ?? node.data.id;
+    if (hasChildren) {
       node.toggle();
       return;
     }
     if (kind === "agent_file") {
       const tabs = useTabsStore.getState();
-      const existing = tabs.findTabByTarget("agent_file", node.data.id);
+      const existing = tabs.findTabByTarget("agent_file", targetId);
       if (existing) {
         tabs.setActive(existing.id);
         return;
@@ -113,7 +122,7 @@ export function ProjectTreeNode({
       tabs.addTab(
         newTab({
           kind: "agent_file",
-          targetId: node.data.id,
+          targetId,
           title: node.data.label,
           mode: "agent-file",
           preview: false,
@@ -123,7 +132,7 @@ export function ProjectTreeNode({
     }
     if (kind === "code_workspace") {
       const tabs = useTabsStore.getState();
-      const existing = tabs.findTabByTarget("code_workspace", node.data.id);
+      const existing = tabs.findTabByTarget("code_workspace", targetId);
       if (existing) {
         tabs.setActive(existing.id);
         return;
@@ -131,7 +140,7 @@ export function ProjectTreeNode({
       tabs.addTab(
         newTab({
           kind: "code_workspace",
-          targetId: node.data.id,
+          targetId,
           title: node.data.label,
           mode: "code-workspace",
           preview: false,
@@ -140,9 +149,9 @@ export function ProjectTreeNode({
       return;
     }
     const tabs = useTabsStore.getState();
-    const existing = tabs.findTabByTarget("note", node.data.id);
+    const existing = tabs.findTabByTarget("note", targetId);
     if (existing) tabs.setActive(existing.id);
-    router.push(urls.workspace.note(locale, wsSlug, node.data.id));
+    router.push(urls.workspace.note(locale, wsSlug, targetId));
   }
 
   function handleRowDoubleClick() {
@@ -157,7 +166,9 @@ export function ProjectTreeNode({
   }
 
   function nodeHref() {
-    if (kind === "note") return urls.workspace.note(locale, wsSlug, node.data.id);
+    if (kind === "note") {
+      return urls.workspace.note(locale, wsSlug, node.data.target_id ?? node.data.id);
+    }
     return null;
   }
 
@@ -204,7 +215,7 @@ export function ProjectTreeNode({
             role="treeitem"
             tabIndex={-1}
             aria-level={node.level + 1}
-            aria-expanded={kind === "folder" ? node.isOpen : undefined}
+    aria-expanded={hasChildren ? node.isOpen : undefined}
             data-kind={kind}
             data-id={node.data.id}
             data-renaming={isRenaming || undefined}
@@ -232,6 +243,16 @@ export function ProjectTreeNode({
           <Folder
             aria-hidden
             className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-foreground"
+          />
+        ) : kind === "source_bundle" ? (
+          <FileArchive
+            aria-hidden
+            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+          />
+        ) : kind === "artifact_group" ? (
+          <Folder
+            aria-hidden
+            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
           />
         ) : kind === "agent_file" ? (
           <AgentFileIcon

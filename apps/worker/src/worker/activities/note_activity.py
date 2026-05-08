@@ -83,6 +83,7 @@ async def create_source_note(inp: dict) -> str:
         "objectKey": inp.get("object_key"),
         "sourceUrl": inp.get("url"),
         "mimeType": inp["mime_type"],
+        "treeParentNodeId": inp.get("tree_parent_node_id"),
         "triggerCompiler": True,
     }
     result = await post_internal("/api/internal/source-notes", payload)

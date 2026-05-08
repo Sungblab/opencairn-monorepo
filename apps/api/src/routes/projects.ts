@@ -7,6 +7,7 @@ import {
   notes,
   pagePermissions,
   researchRuns,
+  projectTreeNodes,
   eq,
   desc,
   and,
@@ -18,7 +19,11 @@ import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite, resolveRole } from "../lib/permissions";
 import { requireWorkspaceRole } from "../middleware/require-role";
 import { isUuid } from "../lib/validators";
-import { listChildren, listChildrenForParents } from "../lib/tree-queries";
+import {
+  ensureProjectTreeBackfill,
+  listTreeChildren,
+  listTreeChildrenForParents,
+} from "../lib/project-tree-service";
 import type { AppEnv } from "../lib/types";
 
 export const projectRoutes = new Hono<AppEnv>()
@@ -195,37 +200,35 @@ export const projectRoutes = new Hono<AppEnv>()
 
     const parentIdRaw = c.req.query("parent_id");
     let parentId: string | null = null;
+    await ensureProjectTreeBackfill(projectId);
     if (parentIdRaw !== undefined && parentIdRaw !== "") {
       if (!isUuid(parentIdRaw)) return c.json({ error: "Bad Request" }, 400);
-      const [folder] = await db
-        .select({ id: folders.id })
-        .from(folders)
+      const [parent] = await db
+        .select({ id: projectTreeNodes.id })
+        .from(projectTreeNodes)
         .where(
           and(
-            eq(folders.id, parentIdRaw),
-            eq(folders.projectId, projectId),
+            eq(projectTreeNodes.id, parentIdRaw),
+            eq(projectTreeNodes.projectId, projectId),
           ),
         );
-      if (!folder) {
-        // Either the id belongs to a note (notes are leaves and can't be
-        // parents) or to a folder outside this project. Either way the
-        // caller shouldn't be passing it here.
+      if (!parent) {
         return c.json(
-          { error: "parent_id must be a folder in this project" },
+          { error: "parent_id must be a tree node in this project" },
           400,
         );
       }
       parentId = parentIdRaw;
     }
 
-    const roots = await listChildren({ projectId, parentId });
+    const roots = await listTreeChildren({ projectId, parentId });
 
     // Prefetch one level of children for every folder that has any. Notes
     // are leaves and don't need prefetching.
     const folderParents = roots
-      .filter((r) => r.kind === "folder" && r.childCount > 0)
+      .filter((r) => r.childCount > 0)
       .map((r) => r.id);
-    const grouped = await listChildrenForParents({
+    const grouped = await listTreeChildrenForParents({
       projectId,
       parentIds: folderParents,
     });
@@ -237,16 +240,24 @@ export const projectRoutes = new Hono<AppEnv>()
         parent_id: r.parentId,
         label: r.label,
         child_count: r.childCount,
+        target_table: r.targetTable,
+        target_id: r.targetId,
+        icon: r.icon,
+        metadata: r.metadata,
         file_kind: r.fileKind ?? null,
         mime_type: r.mimeType ?? null,
         children:
-          r.kind === "folder"
+          r.childCount > 0
             ? (grouped.get(r.id) ?? []).map((ch) => ({
                 kind: ch.kind,
                 id: ch.id,
                 parent_id: ch.parentId,
                 label: ch.label,
                 child_count: ch.childCount,
+                target_table: ch.targetTable,
+                target_id: ch.targetId,
+                icon: ch.icon,
+                metadata: ch.metadata,
                 file_kind: ch.fileKind ?? null,
                 mime_type: ch.mimeType ?? null,
               }))

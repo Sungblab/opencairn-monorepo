@@ -26,7 +26,13 @@ export type TreeEventKind =
   | "tree.agent_file_deleted"
   | "tree.code_workspace_created"
   | "tree.code_workspace_renamed"
-  | "tree.code_workspace_deleted";
+  | "tree.code_workspace_deleted"
+  | "tree.node_created"
+  | "tree.node_renamed"
+  | "tree.node_moved"
+  | "tree.node_reordered"
+  | "tree.node_deleted"
+  | "tree.node_restored";
 
 export interface TreeEvent {
   kind: TreeEventKind;

@@ -356,6 +356,17 @@ async def _ocr_scan_pdf(pdf_path: Path, workflow_id: str) -> dict[str, Any]:
     )
     return {
         "text": full_text,
+        "markdown": full_text,
+        "page_artifacts": [
+            {
+                "label": f"page-{idx + 1:03d}.md",
+                "text": page.get("text", ""),
+                "page_index": idx,
+                "ocr_engine": page.get("ocr_engine", "provider"),
+            }
+            for idx, page in enumerate(pages_meta)
+        ],
+        "figure_artifacts": [],
         "has_complex_layout": False,
         "is_scan": True,
         "pages": pages_meta,
@@ -401,6 +412,7 @@ async def parse_pdf(inp: dict[str, Any]) -> dict[str, Any]:
         )
 
         text_parts: list[str] = []
+        figure_artifacts: list[dict[str, Any]] = []
         complex_page_count = 0
 
         for page_idx, page in enumerate(pages):
@@ -427,6 +439,13 @@ async def parse_pdf(inp: dict[str, Any]) -> dict[str, Any]:
                 obj_key = await asyncio.to_thread(
                     _upload_figure, local, user_id, workflow_id, page_idx, fig_idx,
                 )
+                figure_artifacts.append({
+                    "label": f"figure-{page_idx + 1:03d}-{fig_idx + 1:02d}.png",
+                    "object_key": obj_key,
+                    "page_index": page_idx,
+                    "figure_index": fig_idx,
+                    "mime_type": "image/png",
+                })
                 await publish_safe(workflow_id, "figure_extracted", {
                     "sourceUnit": page_idx,
                     "objectKey": obj_key,
@@ -453,6 +472,17 @@ async def parse_pdf(inp: dict[str, Any]) -> dict[str, Any]:
         )
         return {
             "text": full_text,
+            "markdown": full_text,
+            "page_artifacts": [
+                {
+                    "label": f"page-{idx + 1:03d}.md",
+                    "text": (page.get("text") or "").strip(),
+                    "page_index": idx,
+                    "ocr_engine": page.get("ocr_engine"),
+                }
+                for idx, page in enumerate(pages)
+            ],
+            "figure_artifacts": figure_artifacts,
             "has_complex_layout": has_complex_layout,
             "is_scan": is_scan,
             # Spec B — enrich_document reads pages[].text for type detection

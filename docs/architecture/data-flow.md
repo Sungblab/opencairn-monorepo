@@ -17,6 +17,8 @@
   |
   v
 [2] Hono → Temporal (IngestWorkflow 시작)
+  |  - PDF 업로드는 Temporal 시작 전에 `source_bundle` project tree node,
+  |    원본 `agent_file`, 그리고 추출/이미지/분석 artifact group을 생성
   |  - workflow_id를 jobs 테이블에 저장
   |  - 즉시 job_id를 프론트엔드에 반환
   |
@@ -51,6 +53,7 @@
   v
 [6] Temporal → Python Worker (create_source_note Activity)
   |  - notes 테이블에 source 타입 노트 생성
+  |  - PDF source bundle이 있으면 AI/source note를 bundle child node로 연결
   |  - type=source, source_type=pdf|audio|..., source_file_key=Cloudflare R2 key
   |  - embedding 저장, content_tsv 트리거로 갱신
   |
@@ -103,6 +106,16 @@ Ring buffer caps at `INGEST_REPLAY_MAX_LEN` entries with `INGEST_REPLAY_TTL_SECO
 Browser uses `Last-Event-ID` for auto-reconnect dedup; Zustand store guards
 duplicates via per-run `lastSeq`. UI is gated by `NEXT_PUBLIC_FEATURE_LIVE_INGEST`;
 backend always publishes so flipping the flag is UI-only.
+
+PDF ingest also emits durable artifact progress:
+
+- `artifact_created` when parsed markdown, page artifacts, figure artifacts, or
+  analysis notes are materialized under the source bundle.
+- `bundle_status_changed` when the bundle moves through running, completed, or
+  failed states.
+
+The project tree SSE stream emits `tree.node_created` / `tree.node_moved` for
+the same durable nodes, while the ingest stream remains pipeline-focused.
 
 ---
 
