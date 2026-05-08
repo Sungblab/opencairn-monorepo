@@ -11,7 +11,7 @@ describe("code-agent-client", () => {
     expect(workflowIdFor("abc-123")).toBe("code-agent-abc-123");
   });
 
-  it("start passes 1h execution timeout and shared task queue", async () => {
+  it("start passes snake-case workflow args, 1h execution timeout, and shared task queue", async () => {
     const start = vi.fn().mockResolvedValue({ workflowId: "code-agent-r1" });
     const fakeClient = {
       workflow: { start },
@@ -31,7 +31,15 @@ describe("code-agent-client", () => {
     expect(options.workflowExecutionTimeout).toBe(60 * 60 * 1000);
     expect(options.taskQueue).toBe(process.env.TEMPORAL_TASK_QUEUE ?? "ingest");
     expect(options.workflowId).toBe("code-agent-r1");
-    expect(options.args[0]).toMatchObject({ runId: "r1", language: "python" });
+    expect(options.args[0]).toEqual({
+      run_id: "r1",
+      note_id: "n1",
+      workspace_id: "w1",
+      user_id: "u1",
+      prompt: "p",
+      language: "python",
+      byok_key_handle: null,
+    });
   });
 
   it("signalCodeFeedback forwards payload to client_feedback signal", async () => {

@@ -165,7 +165,6 @@ def _run_jar(pdf_path: Path, out_dir: Path) -> Path:
 
     Test seam — patched in unit tests to bypass Java entirely.
     """
-    activity.heartbeat("running opendataloader-pdf")
     result = subprocess.run(
         [
             "java", "-jar", JAR_PATH,
@@ -225,6 +224,27 @@ def _ocr_page_with_tesseract(png_bytes: bytes) -> str:
         return (result.stdout or "").strip()
     finally:
         tmp_path.unlink(missing_ok=True)
+
+
+def _opendataloader_available() -> bool:
+    jar = Path(JAR_PATH)
+    return jar.is_file() and jar.stat().st_size > 0
+
+
+def _extract_pages_with_pymupdf(pdf_path: Path) -> list[dict[str, Any]]:
+    """Fallback text extraction when the optional opendataloader JAR is absent."""
+    doc = pymupdf.open(str(pdf_path))
+    try:
+        return [
+            {
+                "text": (page.get_text() or "").strip(),
+                "figures": [],
+                "tables": [],
+            }
+            for page in doc
+        ]
+    finally:
+        doc.close()
 
 
 def _upload_figure(
@@ -396,15 +416,23 @@ async def parse_pdf(inp: dict[str, Any]) -> dict[str, Any]:
             activity.logger.warning("PDF appears to be a scan: %s", object_key)
             return await _ocr_scan_pdf(pdf_path, workflow_id)
 
-        out_dir = await asyncio.to_thread(_run_jar, pdf_path, out_dir)
+        if _opendataloader_available():
+            activity.heartbeat("running opendataloader-pdf")
+            out_dir = await asyncio.to_thread(_run_jar, pdf_path, out_dir)
 
-        json_files = list(out_dir.glob("*.json"))
-        if not json_files:
-            raise FileNotFoundError("opendataloader-pdf produced no JSON output")
-        with open(json_files[0]) as f:
-            data = json.load(f)
-
-        pages = data.get("pages", [])
+            json_files = list(out_dir.glob("*.json"))
+            if not json_files:
+                raise FileNotFoundError("opendataloader-pdf produced no JSON output")
+            with open(json_files[0]) as f:
+                data = json.load(f)
+            pages = data.get("pages", [])
+        else:
+            activity.logger.warning(
+                "opendataloader-pdf jar missing at %s; falling back to pymupdf text extraction",
+                JAR_PATH,
+            )
+            activity.heartbeat("extracting PDF text via pymupdf fallback")
+            pages = await asyncio.to_thread(_extract_pages_with_pymupdf, pdf_path)
         total_pages = len(pages)
 
         await publish_safe(

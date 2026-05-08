@@ -39,12 +39,58 @@ class SynthesisExportContext:
     template: SynthesisTemplate
 
 
+_SYNTHESIS_DATA_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "required": ["format", "title", "sections", "template"],
+    "properties": {
+        "format": {"type": "string", "enum": ["latex", "docx", "pdf", "md"]},
+        "title": {"type": "string", "maxLength": 300},
+        "abstract": {"type": "string", "maxLength": 4000},
+        "sections": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": ["title", "content", "source_ids"],
+                "properties": {
+                    "title": {"type": "string", "maxLength": 300},
+                    "content": {"type": "string", "maxLength": 80_000},
+                    "source_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+            },
+        },
+        "bibliography": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["cite_key", "author", "title", "source_id"],
+                "properties": {
+                    "cite_key": {"type": "string", "maxLength": 120},
+                    "author": {"type": "string", "maxLength": 300},
+                    "title": {"type": "string", "maxLength": 500},
+                    "year": {"type": "integer"},
+                    "url": {"type": "string", "maxLength": 2000},
+                    "source_id": {"type": "string"},
+                },
+            },
+        },
+        "template": {
+            "type": "string",
+            "enum": ["ieee", "acm", "apa", "korean_thesis", "report"],
+        },
+    },
+}
+
+
 _OUTPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "required": ["schema_name", "data"],
     "properties": {
         "schema_name": {"type": "string", "enum": ["SynthesisOutputSchema"]},
-        "data": {"type": "object"},
+        "data": _SYNTHESIS_DATA_SCHEMA,
     },
 }
 
@@ -109,7 +155,11 @@ class SynthesisExportAgent:
         )
         for call in result.tool_uses or ():
             if call.name == "emit_structured_output":
-                data = call.args.get("data", {})
+                data = call.args.get("data")
+                if not isinstance(data, dict):
+                    raise RuntimeError(
+                        "SynthesisExportAgent received malformed structured output"
+                    )
                 return (
                     SynthesisOutputSchema.model_validate(data),
                     result.usage,

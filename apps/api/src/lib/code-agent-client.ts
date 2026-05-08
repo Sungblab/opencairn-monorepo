@@ -16,10 +16,22 @@ export type StartParams = {
 };
 
 export async function startCodeRun(client: Client, p: StartParams) {
+  // Snake-case payload keys mirror the Python dataclass field names used by
+  // Temporal's JSON converter. Keep in sync with CodeRunParams in the worker.
   return client.workflow.start("CodeAgentWorkflow", {
     workflowId: workflowIdFor(p.runId),
     taskQueue: taskQueue(),
-    args: [p],
+    args: [
+      {
+        run_id: p.runId,
+        note_id: p.noteId,
+        workspace_id: p.workspaceId,
+        user_id: p.userId,
+        prompt: p.prompt,
+        language: p.language,
+        byok_key_handle: p.byokKeyHandle,
+      },
+    ],
     workflowExecutionTimeout: ONE_HOUR_MS, // 1 h absolute deadline (spec §3.5)
   });
 }

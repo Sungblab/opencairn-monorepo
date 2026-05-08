@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { ViewType } from "@opencairn/shared";
 import { ViewSwitcher } from "./ViewSwitcher";
 import { ViewRenderer } from "./ViewRenderer";
@@ -20,9 +20,13 @@ const VIEW_BY_KEY: Record<string, ViewType> = {
 
 export function ProjectGraph({ projectId }: Props) {
   const [aiOpen, setAiOpen] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const router = useRouter();
-  const pathname = usePathname();
   const params = useSearchParams();
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -47,14 +51,18 @@ export function ProjectGraph({ projectId }: Props) {
       const next = new URLSearchParams(params.toString());
       next.set("view", view);
       if (view !== "mindmap" && view !== "board") next.delete("root");
-      router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+      router.replace(`?${next.toString()}`, { scroll: false });
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [router, pathname, params]);
+  }, [router, params]);
 
   return (
-    <div data-testid="project-graph-viewer" className="flex h-full flex-col">
+    <div
+      data-testid="project-graph-viewer"
+      data-hydrated={hydrated ? "true" : "false"}
+      className="flex h-full flex-col"
+    >
       <ViewSwitcher onAiClick={() => setAiOpen(true)} />
       <div className="min-h-0 flex-1">
         <ViewRenderer projectId={projectId} />

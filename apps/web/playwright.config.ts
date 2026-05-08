@@ -12,11 +12,6 @@ try {
   // .env missing is fine — env may already be exported by the shell (CI).
 }
 
-const repoRoot = resolve(__dirname, "../..");
-const webUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
-const apiUrl = process.env.API_BASE ?? "http://localhost:4000";
-const reuseExistingServer =
-  !process.env.CI && process.env.OPENCAIRN_E2E_REUSE_SERVERS !== "0";
 const allowLiveLlm = process.env.OPENCAIRN_E2E_ALLOW_LLM === "1";
 const mockApiSpecs = [
   "plan-2d-save-suggestion.spec.ts",
@@ -30,6 +25,20 @@ const mockApiSpecs = [
 const useMockApi =
   process.env.OPENCAIRN_E2E_MOCK_API === "1" ||
   mockApiSpecs.some((spec) => process.argv.some((arg) => arg.includes(spec)));
+const repoRoot = resolve(__dirname, "../..");
+const webUrl =
+  process.env.PLAYWRIGHT_BASE_URL ??
+  (useMockApi ? "http://localhost:3100" : "http://localhost:3000");
+const apiUrl =
+  process.env.API_BASE ??
+  (useMockApi ? "http://localhost:4100" : "http://localhost:4000");
+const webPort = String(new URL(webUrl).port || 3000);
+const apiPort = String(new URL(apiUrl).port || 4000);
+const reuseExistingServer =
+  !process.env.CI && process.env.OPENCAIRN_E2E_REUSE_SERVERS !== "0";
+
+process.env.PLAYWRIGHT_BASE_URL ??= webUrl;
+process.env.API_BASE ??= apiUrl;
 
 // Keep full-stack E2E runnable on a fresh dev shell. Real infra still needs
 // Postgres/Redis/etc.; these defaults only cover app secrets and local URLs.
@@ -74,7 +83,7 @@ export default defineConfig({
   // spawn a controlled full-stack pair with the env above.
   webServer: [
     {
-      command: "pnpm --filter @opencairn/web exec next dev --webpack --port 3000",
+      command: `pnpm --filter @opencairn/web exec next dev --webpack --port ${webPort}`,
       cwd: repoRoot,
       url: webUrl,
       reuseExistingServer,
@@ -95,7 +104,7 @@ export default defineConfig({
       timeout: 120_000,
       env: {
         ...serverEnv,
-        PORT: String(new URL(apiUrl).port || 4000),
+        PORT: apiPort,
       },
     },
   ],

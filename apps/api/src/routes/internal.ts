@@ -1279,6 +1279,14 @@ internal.post(
         at: new Date().toISOString(),
       });
     }
+    await refreshNoteChunkIndexBestEffort({
+      id: noteId,
+      workspaceId: proj.workspaceId,
+      projectId: body.projectId,
+      title: body.title,
+      contentText: body.content,
+      deletedAt: null,
+    });
 
     // Plan 4 — Compiler agent trigger. Kick a Temporal workflow that will
     // extract concepts from the source note, dedupe against existing project

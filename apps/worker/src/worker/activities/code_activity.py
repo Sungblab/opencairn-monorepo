@@ -34,6 +34,7 @@ __all__ = [
     "CodeRunStatus",
     "PersistedTurn",
     "analyze_feedback_activity",
+    "finalize_code_run_activity",
     "generate_code_activity",
 ]
 
@@ -187,3 +188,11 @@ async def analyze_feedback_activity(
         raise
     activity.heartbeat("fix done")
     return out
+
+
+@activity.defn
+async def finalize_code_run_activity(run_id: str, status: CodeRunStatus) -> None:
+    """Persist the terminal workflow status after a signal-driven exit."""
+
+    activity.heartbeat(f"finalizing {status}")
+    await set_run_status(run_id, status)

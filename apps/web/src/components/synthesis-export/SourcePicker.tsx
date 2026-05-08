@@ -47,6 +47,7 @@ export function SourcePicker({
 
       <div className="rounded border border-neutral-200 p-2 dark:border-neutral-700">
         <input
+          data-testid="synthesis-source-search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t("sources.searchPlaceholder")}

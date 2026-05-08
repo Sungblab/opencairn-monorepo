@@ -135,6 +135,7 @@ export function SynthesisPanel({ workspaceId, projectId }: SynthesisPanelProps) 
       <TokenBudgetBar used={tokenEstimate} budget={TOKEN_BUDGET} />
 
       <textarea
+        data-testid="synthesis-prompt"
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
         placeholder={t("panel.placeholder")}
@@ -143,6 +144,7 @@ export function SynthesisPanel({ workspaceId, projectId }: SynthesisPanelProps) 
       />
 
       <button
+        data-testid="synthesis-start"
         type="button"
         disabled={isDisabled}
         onClick={() => start(prompt.trim())}

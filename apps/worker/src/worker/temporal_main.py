@@ -26,6 +26,7 @@ from worker.activities.batch_embed_activities import (
 from worker.activities.chat_run_activity import execute_chat_run
 from worker.activities.code_activity import (
     analyze_feedback_activity,
+    finalize_code_run_activity,
     generate_code_activity,
 )
 from worker.activities.code_workspace_command import (
@@ -265,7 +266,13 @@ def build_worker_config() -> WorkerConfig:
     # convention documented in the module docstring.
     if os.environ.get("FEATURE_CODE_AGENT", "false").lower() == "true":
         workflows.append(CodeAgentWorkflow)
-        activities.extend([generate_code_activity, analyze_feedback_activity])
+        activities.extend(
+            [
+                generate_code_activity,
+                analyze_feedback_activity,
+                finalize_code_run_activity,
+            ]
+        )
 
     # Code Project Workspace Phase 6B — worker command runner foundation.
     # The activity is feature-gated and its default executor is intentionally
