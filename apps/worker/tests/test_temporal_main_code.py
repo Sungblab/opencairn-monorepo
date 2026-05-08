@@ -40,6 +40,7 @@ def test_code_agent_omitted_when_flag_off(monkeypatch: pytest.MonkeyPatch) -> No
     activity_names = [a.__name__ for a in cfg.activities]
     assert "generate_code_activity" not in activity_names
     assert "analyze_feedback_activity" not in activity_names
+    assert "finalize_code_run_activity" not in activity_names
 
 
 def test_code_agent_registered_when_flag_on(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -49,6 +50,7 @@ def test_code_agent_registered_when_flag_on(monkeypatch: pytest.MonkeyPatch) -> 
     activity_names = [a.__name__ for a in cfg.activities]
     assert "generate_code_activity" in activity_names
     assert "analyze_feedback_activity" in activity_names
+    assert "finalize_code_run_activity" in activity_names
 
 
 def test_code_workspace_commands_omitted_when_flag_off(
@@ -124,7 +126,8 @@ def test_chat_agent_workflow_registered() -> None:
 
 
 def test_chat_agent_activity_has_no_heartbeat_timeout() -> None:
-    source = Path("src/worker/workflows/chat_run_workflow.py").read_text()
+    worker_root = Path(__file__).resolve().parents[1]
+    source = (worker_root / "src/worker/workflows/chat_run_workflow.py").read_text()
     assert "heartbeat_timeout" not in source
 
 

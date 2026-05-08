@@ -38,6 +38,9 @@ class IngestInput:
     url: str | None = None
     # Spec B — needed by the enrichment activities to scope artifact storage.
     workspace_id: str | None = None
+    # Temporal workflows must not read process env during replay. The caller
+    # captures the feature flag at workflow start and passes it as input.
+    content_enrichment_enabled: bool = False
 
 
 _RETRY = RetryPolicy(maximum_attempts=3, backoff_coefficient=2.0)
@@ -311,10 +314,8 @@ class IngestWorkflow:
         # but the result is stored only after we know the note_id (below).
         # Failures are caught — enrichment is best-effort and never blocks
         # note creation.
-        import os as _os
-
         enrich_result: dict | None = None
-        if _os.environ.get("FEATURE_CONTENT_ENRICHMENT") == "true":
+        if inp.content_enrichment_enabled:
             try:
                 ct_result = await workflow.execute_activity(
                     "detect_content_type",

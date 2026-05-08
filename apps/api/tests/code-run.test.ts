@@ -239,13 +239,14 @@ describe("POST /api/code/run", () => {
     expect(wfName).toBe("CodeAgentWorkflow");
     // wrapper derives workflowId via workflowIdFor()
     expect(wfOpts.workflowId).toBe(`code-agent-${body.runId}`);
-    expect(wfOpts.args[0]).toMatchObject({
-      runId: body.runId,
-      noteId,
-      workspaceId: ctx.workspaceId,
-      userId: ctx.userId,
+    expect(wfOpts.args[0]).toEqual({
+      run_id: body.runId,
+      note_id: noteId,
+      workspace_id: ctx.workspaceId,
+      user_id: ctx.userId,
       prompt: "draw a sine wave",
       language: "python",
+      byok_key_handle: null,
     });
   });
 });

@@ -16,6 +16,10 @@ import { db, ingestJobs, projects, eq } from "@opencairn/db";
 
 const TASK_QUEUE = process.env.TEMPORAL_TASK_QUEUE ?? "ingest";
 
+function isContentEnrichmentEnabled() {
+  return (process.env.FEATURE_CONTENT_ENRICHMENT ?? "false").toLowerCase() === "true";
+}
+
 function parseBytes(envVal: string | undefined, defaultVal: number): number {
   if (envVal === undefined) return defaultVal;
   const n = Number(envVal);
@@ -184,13 +188,14 @@ export const ingestRoutes = new Hono<AppEnv>()
         workflowId,
         args: [
           {
-            objectKey,
-            fileName: file.name,
-            mimeType: clientMime,
-            userId: user.id,
-            projectId,
-            noteId: noteId ?? null,
+            object_key: objectKey,
+            file_name: file.name,
+            mime_type: clientMime,
+            user_id: user.id,
+            project_id: projectId,
+            note_id: noteId ?? null,
             workspace_id: workspaceId,
+            content_enrichment_enabled: isContentEnrichmentEnabled(),
           },
         ],
       });
@@ -236,13 +241,14 @@ export const ingestRoutes = new Hono<AppEnv>()
       args: [
         {
           url,
-          objectKey: null,
-          fileName: null,
-          mimeType,
-          userId: user.id,
-          projectId,
-          noteId: noteId ?? null,
+          object_key: null,
+          file_name: null,
+          mime_type: mimeType,
+          user_id: user.id,
+          project_id: projectId,
+          note_id: noteId ?? null,
           workspace_id: workspaceId,
+          content_enrichment_enabled: isContentEnrichmentEnabled(),
         },
       ],
     });

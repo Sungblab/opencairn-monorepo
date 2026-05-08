@@ -48,6 +48,11 @@ async def _stub_fix(*args, **kwargs) -> CodeOutput:
     )
 
 
+@activity.defn(name="finalize_code_run_activity")
+async def _stub_finalize(*args, **kwargs) -> None:
+    return None
+
+
 def _params() -> CodeRunParams:
     return CodeRunParams(
         run_id="11111111-1111-1111-1111-111111111111",
@@ -69,7 +74,7 @@ async def test_completes_after_ok_feedback():
             env.client,
             task_queue=task_queue,
             workflows=[CodeAgentWorkflow],
-            activities=[_stub_generate, _stub_fix],
+            activities=[_stub_generate, _stub_fix, _stub_finalize],
         ):
             handle = await env.client.start_workflow(
                 CodeAgentWorkflow.run,
@@ -107,7 +112,7 @@ async def test_loops_up_to_max_turns():
             env.client,
             task_queue=task_queue,
             workflows=[CodeAgentWorkflow],
-            activities=[_stub_generate, _stub_fix],
+            activities=[_stub_generate, _stub_fix, _stub_finalize],
         ):
             handle = await env.client.start_workflow(
                 CodeAgentWorkflow.run,
@@ -146,7 +151,7 @@ async def test_abandons_after_idle():
             env.client,
             task_queue=task_queue,
             workflows=[CodeAgentWorkflow],
-            activities=[_stub_generate, _stub_fix],
+            activities=[_stub_generate, _stub_fix, _stub_finalize],
         ):
             handle = await env.client.start_workflow(
                 CodeAgentWorkflow.run,
@@ -204,7 +209,7 @@ async def test_cancel_signal_terminates():
             env.client,
             task_queue=task_queue,
             workflows=[CodeAgentWorkflow],
-            activities=[_stub_generate, _stub_fix],
+            activities=[_stub_generate, _stub_fix, _stub_finalize],
         ):
             handle = await env.client.start_workflow(
                 CodeAgentWorkflow.run,

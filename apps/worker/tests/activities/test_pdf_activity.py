@@ -43,6 +43,12 @@ class FakeAsyncPageRenderer:
         return self.pages[page_idx]
 
 
+@pytest.fixture(autouse=True)
+def _mock_activity_heartbeat():
+    with patch("worker.activities.pdf_activity.activity.heartbeat"):
+        yield
+
+
 @pytest.mark.asyncio
 async def test_parse_pdf_emits_unit_events_per_page(tmp_path: Path):
     """parse_pdf publishes started + per-page unit events + figure events."""
@@ -67,6 +73,7 @@ async def test_parse_pdf_emits_unit_events_per_page(tmp_path: Path):
 
     with (
         patch("worker.activities.pdf_activity.download_to_tempfile", return_value=fake_pdf),
+        patch("worker.activities.pdf_activity._opendataloader_available", return_value=True),
         patch("worker.activities.pdf_activity._run_jar", return_value=out_dir),
         patch("worker.activities.pdf_activity._detect_scan", return_value=False),
         patch(
@@ -120,6 +127,7 @@ async def test_parse_pdf_skips_missing_figure_files(tmp_path: Path):
 
     with (
         patch("worker.activities.pdf_activity.download_to_tempfile", return_value=fake_pdf),
+        patch("worker.activities.pdf_activity._opendataloader_available", return_value=True),
         patch("worker.activities.pdf_activity._run_jar", return_value=out_dir),
         patch("worker.activities.pdf_activity._detect_scan", return_value=False),
         patch("worker.activities.pdf_activity.publish_safe", side_effect=fake_publish),
@@ -137,6 +145,55 @@ async def test_parse_pdf_skips_missing_figure_files(tmp_path: Path):
 
     kinds = [c[0] for c in publish_calls]
     assert "figure_extracted" not in kinds
+
+
+@pytest.mark.asyncio
+async def test_parse_pdf_falls_back_to_pymupdf_when_jar_missing(tmp_path: Path):
+    """Docker dev builds can run without the optional opendataloader JAR.
+
+    Text PDFs should still ingest through a lower-fidelity PyMuPDF path instead
+    of failing after the API already returned 202.
+    """
+    fake_pdf = tmp_path / "sample.pdf"
+    fake_pdf.write_bytes(b"%PDF-1.4\n...")
+
+    publish_calls: list[tuple[str, dict]] = []
+
+    async def fake_publish(_wfid, kind, payload):
+        publish_calls.append((kind, payload))
+
+    with (
+        patch("worker.activities.pdf_activity.JAR_PATH", str(tmp_path / "missing.jar")),
+        patch("worker.activities.pdf_activity.download_to_tempfile", return_value=fake_pdf),
+        patch("worker.activities.pdf_activity._detect_scan", return_value=False),
+        patch(
+            "worker.activities.pdf_activity._extract_pages_with_pymupdf",
+            return_value=[
+                {"text": "Fallback page one", "figures": [], "tables": []},
+                {"text": "Fallback page two", "figures": [], "tables": []},
+            ],
+        ),
+        patch(
+            "worker.activities.pdf_activity._run_jar",
+            side_effect=AssertionError("JAR should not be called"),
+        ),
+        patch("worker.activities.pdf_activity.publish_safe", side_effect=fake_publish),
+    ):
+        result = await parse_pdf({
+            "object_key": "uploads/u/x.pdf",
+            "user_id": "u",
+            "project_id": "p",
+            "note_id": None,
+            "file_name": "x.pdf",
+            "mime_type": "application/pdf",
+            "url": None,
+            "workflow_id": "wf-fallback",
+        })
+
+    assert "Fallback page one" in result["text"]
+    assert "Fallback page two" in result["text"]
+    assert result["has_complex_layout"] is False
+    assert [kind for kind, _ in publish_calls].count("unit_parsed") == 2
 
 
 @pytest.mark.asyncio

@@ -38,13 +38,22 @@ RUN pnpm --filter @opencairn/api build
 # ────────────────────────────────────────────────────────────────────────────
 FROM node:22-alpine AS runner
 
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache \
+    ca-certificates \
+    chromium \
+    font-noto \
+    font-noto-cjk \
+    freetype \
+    harfbuzz \
+    libc6-compat \
+    nss
 RUN corepack enable
 
 WORKDIR /app
 
 ENV NODE_ENV=production \
-    PORT=4000
+    PORT=4000 \
+    PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # Manifests + lockfile so prod install resolves from the same graph the
 # builder used.

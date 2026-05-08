@@ -241,6 +241,14 @@ const server = http.createServer(async (req, res) => {
     });
   }
 
+  if (url.pathname === `/api/notes/${seed.noteId}/role`) {
+    return json(res, 200, { role: "owner" });
+  }
+
+  if (url.pathname === `/api/notes/${seed.noteId}/backlinks`) {
+    return json(res, 200, { data: [], total: 0 });
+  }
+
   if (url.pathname === "/api/notes/n-smoke") {
     return json(res, 200, {
       id: "n-smoke",

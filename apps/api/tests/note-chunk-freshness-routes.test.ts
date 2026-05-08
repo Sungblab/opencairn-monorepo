@@ -59,6 +59,41 @@ describe("note chunk freshness route wiring", () => {
     );
   });
 
+  it("indexes worker-created ingest source notes after create", async () => {
+    const res = await app.request("/api/internal/source-notes", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-internal-secret": "test-internal-secret",
+      },
+      body: JSON.stringify({
+        userId: ctx.userId,
+        projectId: ctx.projectId,
+        parentNoteId: null,
+        title: "Worker Source",
+        content: "worker ingested body",
+        sourceType: "pdf",
+        objectKey: "uploads/u/source.pdf",
+        sourceUrl: null,
+        mimeType: "application/pdf",
+        triggerCompiler: false,
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { noteId: string };
+    expect(mocks.refreshNoteChunkIndexBestEffort).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: body.noteId,
+        workspaceId: ctx.workspaceId,
+        projectId: ctx.projectId,
+        title: "Worker Source",
+        contentText: "worker ingested body",
+        deletedAt: null,
+      }),
+    );
+  });
+
   it("reindexes internal note patches when contentText changes", async () => {
     const create = await app.request("/api/internal/notes", {
       method: "POST",

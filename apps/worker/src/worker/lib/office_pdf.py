@@ -22,8 +22,6 @@ import os
 import subprocess
 from typing import TYPE_CHECKING
 
-from temporalio import activity
-
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -60,7 +58,6 @@ def convert_to_pdf_unoconvert(src_path: Path, out_path: Path) -> None:
     Dockerfile) and talks to the daemon over TCP. We use a fixed timeout
     so a wedged LibreOffice can't hang the activity indefinitely.
     """
-    activity.heartbeat("running unoconvert")
     # encoding="utf-8" is explicit because unoconvert / LibreOffice can
     # emit non-ASCII filenames or error messages and the system default
     # encoding (cp1252 / cp949 etc) would raise UnicodeDecodeError that

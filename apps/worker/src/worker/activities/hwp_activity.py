@@ -67,7 +67,6 @@ def _run_opendataloader(pdf_path: Path, out_dir: Path) -> Path:
     text-dense, and we don't have a downstream consumer for HWP figures
     yet — Spec B figure enrichment runs only for PDFs).
     """
-    activity.heartbeat("running opendataloader-pdf for HWP")
     # encoding="utf-8" is explicit because the JAR's stderr can include
     # Korean characters (HWP is a KR format) and the system default would
     # be cp1252 / cp949 on some hosts — UnicodeDecodeError there would
@@ -153,11 +152,13 @@ async def parse_hwp(inp: dict[str, Any]) -> dict[str, Any]:
         # profile — it'll fail with "no filter found" if the unopkg step in
         # the Dockerfile fell through (network / version mismatch).
         t_start = time.time()
+        activity.heartbeat("converting HWP to PDF via unoconvert")
         await asyncio.to_thread(convert_to_pdf_unoconvert, src_path, pdf_path)
 
         # Step 2: PDF → text via opendataloader-pdf. We don't enable
         # figure extraction here (HWP figures aren't currently enriched
         # by Spec B), so the JAR run stays fast.
+        activity.heartbeat("running opendataloader-pdf for HWP")
         await asyncio.to_thread(_run_opendataloader, pdf_path, jar_out_dir)
         text = _read_text_from_jar_output(jar_out_dir)
 
@@ -177,6 +178,7 @@ async def parse_hwp(inp: dict[str, Any]) -> dict[str, Any]:
                 user_id=user_id, workflow_id=workflow_id
             )
             pdf_bytes = pdf_path.read_bytes()
+            activity.heartbeat("uploading HWP viewer PDF")
             await asyncio.to_thread(
                 upload_object, viewer_pdf_key, pdf_bytes, "application/pdf"
             )

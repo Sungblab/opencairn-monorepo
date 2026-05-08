@@ -1,6 +1,6 @@
 """Spec B — IngestWorkflow integration with content-aware enrichment.
 
-The enrichment branch is gated by FEATURE_CONTENT_ENRICHMENT. Failures
+The enrichment branch is gated by IngestInput.content_enrichment_enabled. Failures
 inside the enrichment compute / store path are caught so the parent
 note still gets created.
 """
@@ -17,7 +17,7 @@ import pytest
 _TEST_LOGGER = logging.getLogger("test_ingest_enrichment")
 
 
-def _make_inp():
+def _make_inp(*, enrichment: bool = False):
     from worker.workflows.ingest_workflow import IngestInput
 
     return IngestInput(
@@ -28,6 +28,7 @@ def _make_inp():
         project_id="proj-1",
         note_id=None,
         workspace_id="ws-1",
+        content_enrichment_enabled=enrichment,
     )
 
 
@@ -45,11 +46,11 @@ async def test_workspace_id_field_exists():
         workspace_id="ws-1",
     )
     assert inp.workspace_id == "ws-1"
+    assert inp.content_enrichment_enabled is False
 
 
 @pytest.mark.asyncio
-async def test_enrichment_activities_called_when_flag_on(monkeypatch):
-    monkeypatch.setenv("FEATURE_CONTENT_ENRICHMENT", "true")
+async def test_enrichment_activities_called_when_flag_on():
     from worker.workflows.ingest_workflow import IngestWorkflow
 
     called: list[str] = []
@@ -84,7 +85,7 @@ async def test_enrichment_activities_called_when_flag_on(monkeypatch):
 
     wf = IngestWorkflow()
     with patch("temporalio.workflow.execute_activity", side_effect=fake_activity):
-        note_id = await wf._run_pipeline(_make_inp(), "wf-test", 0)
+        note_id = await wf._run_pipeline(_make_inp(enrichment=True), "wf-test", 0)
 
     assert "detect_content_type" in called
     assert "enrich_document" in called
@@ -93,8 +94,7 @@ async def test_enrichment_activities_called_when_flag_on(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_enrichment_failure_does_not_block_note_creation(monkeypatch):
-    monkeypatch.setenv("FEATURE_CONTENT_ENRICHMENT", "true")
+async def test_enrichment_failure_does_not_block_note_creation():
     from temporalio.exceptions import ApplicationError
 
     from worker.workflows.ingest_workflow import IngestWorkflow
@@ -123,15 +123,14 @@ async def test_enrichment_failure_does_not_block_note_creation(monkeypatch):
     with patch(
         "temporalio.workflow.execute_activity", side_effect=fake_activity
     ), patch("temporalio.workflow.logger", _TEST_LOGGER):
-        note_id = await wf._run_pipeline(_make_inp(), "wf-test", 0)
+        note_id = await wf._run_pipeline(_make_inp(enrichment=True), "wf-test", 0)
 
     assert note_id == "note-xyz"
     assert "create_source_note" in call_seq
 
 
 @pytest.mark.asyncio
-async def test_enrichment_not_called_when_flag_off(monkeypatch):
-    monkeypatch.delenv("FEATURE_CONTENT_ENRICHMENT", raising=False)
+async def test_enrichment_not_called_when_flag_off():
     from worker.workflows.ingest_workflow import IngestWorkflow
 
     called: list[str] = []

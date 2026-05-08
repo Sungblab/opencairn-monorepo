@@ -15,6 +15,12 @@ import pytest
 from worker.activities.hwp_activity import parse_hwp
 
 
+@pytest.fixture(autouse=True)
+def _mock_activity_heartbeat():
+    with patch("worker.activities.hwp_activity.activity.heartbeat"):
+        yield
+
+
 def _hwp_input(*, mime: str = "application/x-hwp", workflow_id: str = "wf-hwp-1") -> dict:
     return {
         "object_key": f"uploads/u/x.{'hwp' if 'hwpx' not in mime else 'hwpx'}",

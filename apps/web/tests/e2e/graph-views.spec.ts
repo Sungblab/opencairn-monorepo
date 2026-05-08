@@ -26,16 +26,24 @@ import type { Page } from "@playwright/test";
 // from a CI smoke test is out of scope.
 
 test.describe("Plan 5 Phase 2 — view switcher", () => {
+  test.setTimeout(60_000);
+
   let session: SeededSession;
 
   async function gotoGraph(page: Page, suffix = "") {
     await page.goto(
       `/ko/workspace/${session.wsSlug}/project/${session.projectId}/graph${suffix}`,
+      { waitUntil: "domcontentloaded", timeout: 45_000 },
     );
     await expect(page.getByTestId("project-graph-viewer")).toBeVisible();
-    // The graph route SSRs the toolbar before the client handlers hydrate.
-    // Click-driven assertions must wait for the client route to settle.
-    await expect(page.getByText("아직 에이전틱 플랜이 없습니다.")).toBeVisible({
+    await expect(page.getByTestId("project-graph-viewer")).toHaveAttribute(
+      "data-hydrated",
+      "true",
+      { timeout: 10_000 },
+    );
+    // The graph route SSRs before the client handlers hydrate. Click-driven
+    // assertions wait for a toolbar button owned by the graph surface itself.
+    await expect(page.getByRole("button", { name: "카드" })).toBeVisible({
       timeout: 10_000,
     });
   }

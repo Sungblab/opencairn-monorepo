@@ -24,6 +24,8 @@ import {
 
 const REQUIRES_FULL_STACK =
   "Requires FEATURE_CODE_AGENT=true + Temporal worker + LLM credentials — wire up in deferred CI job";
+const RUN_FULL_STACK =
+  process.env.OPENCAIRN_E2E_CODE_AGENT_FULL_STACK === "1";
 
 const API_BASE = process.env.API_BASE ?? "http://localhost:4000";
 
@@ -33,7 +35,7 @@ test.describe("Plan 7 Canvas Phase 2 — Code Agent + outputs", () => {
   // are kept realistic so unblocking is just removing the .skip.
   // ───────────────────────────────────────────────────────────────────────
   test.describe("Hold-back (full-stack)", () => {
-    test.skip(true, REQUIRES_FULL_STACK);
+    test.skip(!RUN_FULL_STACK, REQUIRES_FULL_STACK);
 
     let session: SeededSession;
     test.beforeEach(async ({ context, request, page }) => {

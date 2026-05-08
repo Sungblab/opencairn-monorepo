@@ -1,4 +1,5 @@
 import { chromium } from "playwright";
+import { existsSync } from "node:fs";
 import type { SynthesisOutputJson } from "./docx";
 
 function escapeHtml(s: string): string {
@@ -51,10 +52,24 @@ function chromiumLaunchArgs(): string[] {
   return noSandbox ? ["--no-sandbox"] : [];
 }
 
+function chromiumExecutablePath(): string | undefined {
+  const candidates = [
+    process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+    process.env.CHROMIUM_PATH,
+    "/usr/bin/chromium-browser",
+    "/usr/bin/chromium",
+  ].filter((path): path is string => Boolean(path));
+  return candidates.find((path) => existsSync(path));
+}
+
 export async function compilePdf(out: SynthesisOutputJson): Promise<Buffer> {
   // TODO(perf): browser-per-call is fine for v1; consider a module-level
   // singleton + mutex if synthesis throughput becomes a bottleneck.
-  const browser = await chromium.launch({ args: chromiumLaunchArgs() });
+  const executablePath = chromiumExecutablePath();
+  const browser = await chromium.launch({
+    args: chromiumLaunchArgs(),
+    ...(executablePath ? { executablePath } : {}),
+  });
   let ctx;
   try {
     ctx = await browser.newContext();

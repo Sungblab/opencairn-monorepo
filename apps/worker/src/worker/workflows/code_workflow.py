@@ -33,9 +33,11 @@ from temporalio.common import RetryPolicy
 with workflow.unsafe.imports_passed_through():
     from worker.activities.code_activity import (
         ClientFeedback,
+        CodeRunStatus,
         CodeRunParams,
         PersistedTurn,
         analyze_feedback_activity,
+        finalize_code_run_activity,
         generate_code_activity,
     )
     from worker.agents.code.agent import CodeOutput
@@ -99,21 +101,21 @@ class CodeAgentWorkflow:
                     timeout=IDLE_ABANDON,
                 )
             except asyncio.TimeoutError:
-                return CodeRunResult(status="abandoned", history=history)
+                return await self._finish(params, "abandoned", history)
 
             if signalled is False:
-                return CodeRunResult(status="abandoned", history=history)
+                return await self._finish(params, "abandoned", history)
 
             if self._cancelled:
-                return CodeRunResult(status="cancelled", history=history)
+                return await self._finish(params, "cancelled", history)
 
             fb = self._feedback
             self._feedback = None  # consume — next iteration waits afresh
 
             if fb is None:
-                return CodeRunResult(status="abandoned", history=history)
+                return await self._finish(params, "abandoned", history)
             if fb.kind == "ok":
-                return CodeRunResult(status="completed", history=history)
+                return await self._finish(params, "completed", history)
 
             out = await workflow.execute_activity(
                 analyze_feedback_activity,
@@ -126,7 +128,7 @@ class CodeAgentWorkflow:
                 _to_persisted(len(history), "fix", out, prev_error=fb.error)
             )
 
-        return CodeRunResult(status="max_turns", history=history)
+        return await self._finish(params, "max_turns", history)
 
     # ------------------------------------------------------------------
     # Signals
@@ -147,6 +149,21 @@ class CodeAgentWorkflow:
     def cancel(self) -> None:
         """User abandoned the run from the UI. Latches; idempotent."""
         self._cancelled = True
+
+    async def _finish(
+        self,
+        params: CodeRunParams,
+        status: CodeRunStatus,
+        history: list[PersistedTurn],
+    ) -> CodeRunResult:
+        await workflow.execute_activity(
+            finalize_code_run_activity,
+            args=[params.run_id, status],
+            start_to_close_timeout=ACTIVITY_START_TO_CLOSE,
+            heartbeat_timeout=ACTIVITY_HEARTBEAT,
+            retry_policy=RetryPolicy(maximum_attempts=2),
+        )
+        return CodeRunResult(status=status, history=history)
 
 
 def _to_persisted(

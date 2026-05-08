@@ -47,6 +47,7 @@ workflow files are intentionally excluded from the public repository.
 | --- | --- |
 | Public incident response template | `runbooks/incident-response.md` |
 | Browser sandbox E2E notes | `testing/sandbox-testing.md` |
+| Live product flow smoke | `testing/live-product-flow-smoke.md` |
 | Note analysis drain Temporal Schedule smoke | `testing/note-analysis-drain-schedule-live-smoke.md` |
 | RAG, parser, and agent benchmark plan | `testing/rag-agent-benchmark-plan.md` |
 

@@ -92,4 +92,3 @@ docker-compose.prod.yml
 
 # Database migrations
 .claude/scheduled_tasks.lock
-apps/api/console.log(JSON.stringify({provider
