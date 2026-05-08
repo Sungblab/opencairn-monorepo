@@ -16,6 +16,8 @@ ENV PYTHONUNBUFFERED=1 \
 #   openjdk-21-jre-headless — opendataloader-pdf (Plan 3 Task 3) and
 #                             libreoffice-java-common (HWP/HWPX via H2Orestart)
 #   ffmpeg                  — faster-whisper / yt-dlp transcription (Plan 3 Task 5/6)
+#   tesseract-ocr + eng/kor — local first-pass OCR for scanned PDFs before
+#                             falling back to provider OCR.
 #   curl                    — healthchecks + uv installer
 #   ca-certificates         — HTTPS to MinIO / Gemini / Temporal
 #   libreoffice-{core,writer,impress,calc} + python3-uno
@@ -41,6 +43,9 @@ ENV PYTHONUNBUFFERED=1 \
 RUN apt-get update && apt-get install -y --no-install-recommends \
         openjdk-21-jre-headless \
         ffmpeg \
+        tesseract-ocr \
+        tesseract-ocr-eng \
+        tesseract-ocr-kor \
         curl \
         ca-certificates \
         libreoffice-core \
