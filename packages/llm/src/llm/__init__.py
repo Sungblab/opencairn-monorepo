@@ -1,4 +1,11 @@
-from .base import LLMProvider, EmbedInput, ThinkingResult, SearchResult, ProviderConfig
+from .base import (
+    LLMProvider,
+    EmbedInput,
+    ImageGenerationResult,
+    ThinkingResult,
+    SearchResult,
+    ProviderConfig,
+)
 from .batch_types import (
     BATCH_STATE_CANCELLED,
     BATCH_STATE_EXPIRED,
@@ -31,6 +38,7 @@ from .interactions import (
 __all__ = [
     "LLMProvider",
     "EmbedInput",
+    "ImageGenerationResult",
     "ThinkingResult",
     "SearchResult",
     "ProviderConfig",

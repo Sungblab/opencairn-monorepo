@@ -195,6 +195,9 @@
     "selectedCount": "{count, plural, one {# source selected} other {# sources selected}}",
     "format": "Format",
     "filename": "Filename",
+    "template": "Template",
+    "renderEngine": "PDF engine",
+    "imageEngine": "Image engine",
     "promptPlaceholder": "Describe the document goal and what it should include.",
     "sourceRequired": "Select at least one source for the document.",
     "submit": "Start generation",
@@ -217,6 +220,26 @@
       "no_extracted_text": "No extracted text",
       "source_hydration_failed": "Could not load source",
       "source_token_budget_exceeded": "Partly omitted"
+    },
+    "templateOption": {
+      "report": "Standard report",
+      "brief": "Brief",
+      "research_summary": "Research summary",
+      "technical_report": "Technical report",
+      "research_brief": "Research brief",
+      "paper_style": "Paper style",
+      "business_report": "Business report",
+      "deck": "Deck",
+      "spreadsheet": "Spreadsheet",
+      "custom": "Custom"
+    },
+    "renderEngineOption": {
+      "latex": "LaTeX PDF",
+      "pymupdf": "Fast PDF"
+    },
+    "imageEngineOption": {
+      "svg": "SVG figure",
+      "model": "Model image"
     }
   },
   "composer": {

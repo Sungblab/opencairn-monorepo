@@ -227,6 +227,19 @@ Current implementation boundary:
   and English text, renders multi-page PDFs, source-aware DOCX files, readable
   PPTX decks, and structured XLSX workbooks, then registers the final object
   through the existing `agent_files` callback contract.
+- PDF generation now exposes first-class render engines instead of hiding
+  PyMuPDF as an implicit fallback. `renderEngine: "latex"` renders a safe
+  OpenCairn-owned LaTeX source from the structured document model and sends it
+  to the existing Tectonic compile service for high-quality report PDFs.
+  `renderEngine: "pymupdf"` keeps the fast direct-PDF path for quick summaries
+  and lower-latency output. The product templates exposed first are
+  `technical_report`, `research_brief`, `paper_style`, and `business_report`.
+- Figure generation now has a first-class `format: "image"` request path with
+  selectable engines. `imageEngine: "svg"` renders a deterministic source-aware
+  SVG figure from the same document model, while `imageEngine: "model"` calls
+  the configured `packages/llm` provider image-generation surface and uploads
+  the returned image bytes. Gemini deployments can set `GEMINI_IMAGE_MODEL` to
+  pin the model; otherwise the provider default is used.
 - The follow-up hydration slice adds a dedicated internal
   `/api/internal/document-generation/hydrate-source` endpoint for generated
   project objects, chat threads, research runs, and synthesis runs/documents.

@@ -415,6 +415,144 @@ async def test_generate_document_artifact_pdf_preserves_long_unspaced_tokens() -
 
 
 @pytest.mark.asyncio
+async def test_generate_document_artifact_latex_pdf_posts_safe_tex_to_tectonic() -> None:
+    uploaded: dict[str, object] = {}
+    posted: dict[str, str] = {}
+    request = _request("pdf")
+    request["generation"]["template"] = "technical_report"
+    request["generation"]["renderEngine"] = "latex"
+    request["generation"]["prompt"] = "Generate a report with 50% growth & Korean text."
+
+    def fake_upload(key: str, data: bytes, content_type: str) -> str:
+        uploaded.update({"key": key, "data": data, "content_type": content_type})
+        return key
+
+    async def fake_post_tectonic(tex_source: str, bib_source: str) -> bytes:
+        posted["tex"] = tex_source
+        posted["bib"] = bib_source
+        return b"%PDF-1.7\nlatex pdf"
+
+    with (
+        patch("worker.activities.document_generation.generate.upload_bytes", fake_upload),
+        patch("worker.activities.document_generation.generate._post_tectonic", fake_post_tectonic),
+    ):
+        result = await generate_document_artifact(
+            request,
+            {
+                "items": [
+                    {
+                        "id": "source-a",
+                        "title": "시장 & 조사_노트",
+                        "body": "성장률은 50%이고 A_B 경로를 검토했습니다.",
+                        "kind": "note",
+                        "token_count": 8,
+                        "included": True,
+                    }
+                ]
+            },
+        )
+
+    assert result.objectKey.endswith("/project-report.pdf")
+    assert result.mimeType == "application/pdf"
+    assert bytes(uploaded["data"]).startswith(b"%PDF-1.7")
+    assert "\\usepackage{kotex}" in posted["tex"]
+    assert "\\tableofcontents" in posted["tex"]
+    assert "\\section{Objective}" in posted["tex"]
+    assert "50\\% growth \\& Korean text" in posted["tex"]
+    assert "시장 \\& 조사\\_노트" in posted["tex"]
+    assert "A\\_B" in posted["tex"]
+    assert posted["bib"] == ""
+
+
+@pytest.mark.asyncio
+async def test_generate_document_artifact_creates_svg_figure() -> None:
+    uploaded: dict[str, object] = {}
+    request = _request("image")
+    request["generation"]["template"] = "research_brief"
+    request["generation"]["destination"]["filename"] = "evidence-map.svg"
+    request["generation"]["prompt"] = "Map the evidence: 50% signal & source confidence."
+
+    def fake_upload(key: str, data: bytes, content_type: str) -> str:
+        uploaded.update({"key": key, "data": data, "content_type": content_type})
+        return key
+
+    with patch("worker.activities.document_generation.generate.upload_bytes", fake_upload):
+        result = await generate_document_artifact(
+            request,
+            {
+                "items": [
+                    {
+                        "id": "source-a",
+                        "title": "시장 & 조사",
+                        "body": "핵심 근거입니다.",
+                        "kind": "note",
+                        "token_count": 8,
+                        "included": True,
+                    }
+                ]
+            },
+        )
+
+    svg = bytes(uploaded["data"]).decode("utf-8")
+    assert result.objectKey.endswith("/evidence-map.svg")
+    assert result.mimeType == "image/svg+xml"
+    assert uploaded["content_type"] == "image/svg+xml"
+    assert svg.startswith("<svg")
+    assert "Map the evidence: 50% signal &amp; source confidence." in svg
+    assert "시장 &amp; 조사" in svg
+
+
+@pytest.mark.asyncio
+async def test_generate_document_artifact_model_image_uses_llm_provider() -> None:
+    uploaded: dict[str, object] = {}
+    request = _request("image")
+    request["generation"]["imageEngine"] = "model"
+    request["generation"]["destination"]["filename"] = "evidence-map.png"
+    request["generation"]["prompt"] = "Make a clear strategy figure."
+
+    class FakeProvider:
+        async def generate_image(self, prompt: str):
+            from types import SimpleNamespace
+
+            assert "Make a clear strategy figure." in prompt
+            assert "Sources:" in prompt
+            return SimpleNamespace(
+                image_bytes=b"\x89PNG\r\nmodel-image",
+                mime_type="image/png",
+                model="gemini-3.1-flash-image-preview",
+            )
+
+    def fake_upload(key: str, data: bytes, content_type: str) -> str:
+        uploaded.update({"key": key, "data": data, "content_type": content_type})
+        return key
+
+    with (
+        patch("worker.activities.document_generation.generate.upload_bytes", fake_upload),
+        patch("llm.factory.get_provider", return_value=FakeProvider()),
+    ):
+        result = await generate_document_artifact(
+            request,
+            {
+                "items": [
+                    {
+                        "id": "source-a",
+                        "title": "시장 조사",
+                        "body": "핵심 근거입니다.",
+                        "kind": "note",
+                        "token_count": 8,
+                        "included": True,
+                    }
+                ]
+            },
+        )
+
+    assert result.objectKey.endswith("/evidence-map.png")
+    assert result.mimeType == "image/png"
+    assert uploaded["content_type"] == "image/png"
+    assert bytes(uploaded["data"]).startswith(b"\x89PNG")
+
+
+@pytest.mark.asyncio
 async def test_generate_document_artifact_creates_source_aware_docx() -> None:
     uploaded: dict[str, object] = {}
     request = _request("docx")

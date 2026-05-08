@@ -228,7 +228,7 @@ const registerDocumentGenerationAgentFileSchema = z.object({
   filename: z.string().trim().min(1).max(180),
   title: z.string().trim().min(1).max(180).optional(),
   folderId: z.string().uuid().nullable().optional(),
-  kind: agentFileKindSchema.extract(["pdf", "docx", "pptx", "xlsx"]),
+  kind: agentFileKindSchema.extract(["pdf", "docx", "pptx", "xlsx", "image"]),
   mimeType: z.string().min(1),
   objectKey: z.string().min(1),
   bytes: z.number().int().nonnegative(),

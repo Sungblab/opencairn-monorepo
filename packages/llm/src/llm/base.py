@@ -51,6 +51,14 @@ class SearchResult:
     sources: list[dict[str, str]]
 
 
+@dataclass
+class ImageGenerationResult:
+    image_bytes: bytes
+    mime_type: str
+    model: str
+    text: str | None = None
+
+
 class LLMProvider(ABC):
     def __init__(self, config: ProviderConfig) -> None:
         self.config = config
@@ -109,6 +117,20 @@ class LLMProvider(ABC):
         Returns None if the provider doesn't support the requested modality.
         Providers must override to opt in. Exactly one of image_bytes / pdf_bytes
         should be set — behavior when both are set is provider-defined.
+        """
+        return None
+
+    async def generate_image(
+        self,
+        prompt: str,
+        *,
+        model: str | None = None,
+    ) -> ImageGenerationResult | None:
+        """Generate an image from text.
+
+        Providers return ``None`` when image generation is not supported or not
+        configured. Callers decide whether to surface that as an error or use a
+        deterministic renderer.
         """
         return None
 

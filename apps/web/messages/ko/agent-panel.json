@@ -195,6 +195,9 @@
     "selectedCount": "출처 {count}개 선택",
     "format": "형식",
     "filename": "파일명",
+    "template": "템플릿",
+    "renderEngine": "PDF 엔진",
+    "imageEngine": "이미지 엔진",
     "promptPlaceholder": "생성할 문서의 목적과 포함할 내용을 입력하세요.",
     "sourceRequired": "문서를 만들 출처를 하나 이상 선택하세요.",
     "submit": "생성 시작",
@@ -217,6 +220,26 @@
       "no_extracted_text": "텍스트 없음",
       "source_hydration_failed": "출처 불러오기 실패",
       "source_token_budget_exceeded": "일부 제외"
+    },
+    "templateOption": {
+      "report": "기본 보고서",
+      "brief": "브리프",
+      "research_summary": "리서치 요약",
+      "technical_report": "기술 보고서",
+      "research_brief": "리서치 브리프",
+      "paper_style": "논문형",
+      "business_report": "비즈니스 보고서",
+      "deck": "발표 자료",
+      "spreadsheet": "스프레드시트",
+      "custom": "사용자 지정"
+    },
+    "renderEngineOption": {
+      "latex": "LaTeX PDF",
+      "pymupdf": "Fast PDF"
+    },
+    "imageEngineOption": {
+      "svg": "SVG 피규어",
+      "model": "모델 이미지"
     }
   },
   "composer": {

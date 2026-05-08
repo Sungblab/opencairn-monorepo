@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import time
 import uuid
+import base64
 from collections.abc import AsyncGenerator
 from typing import Any, Literal, Sequence
 
@@ -11,7 +12,14 @@ from google.genai import errors as genai_errors
 from google.genai import types
 from pydantic import BaseModel
 
-from .base import EmbedInput, LLMProvider, ProviderConfig, SearchResult, ThinkingResult
+from .base import (
+    EmbedInput,
+    ImageGenerationResult,
+    LLMProvider,
+    ProviderConfig,
+    SearchResult,
+    ThinkingResult,
+)
 from .batch_types import (
     BATCH_STATE_CANCELLED,
     BATCH_STATE_EXPIRED,
@@ -185,6 +193,7 @@ GEMINI_MODELS = {
     "tts_flash": "gemini-2.5-flash-preview-tts",
     "tts_pro": "gemini-2.5-pro-preview-tts",
     "live": "gemini-3.1-flash-live-preview",
+    "image": "gemini-3.1-flash-image-preview",
 }
 
 
@@ -450,6 +459,45 @@ class GeminiProvider(LLMProvider):
             **self._generate_config_call_kwargs(),
         )
         return response.text
+
+    async def generate_image(
+        self,
+        prompt: str,
+        *,
+        model: str | None = None,
+    ) -> ImageGenerationResult | None:
+        image_model = (
+            model
+            or self.config.extra.get("image_model")
+            or GEMINI_MODELS["image"]
+        )
+        response = await self._client.aio.models.generate_content(
+            model=image_model,
+            contents=[prompt],
+            config=self._generate_config(response_modalities=["TEXT", "IMAGE"]),
+        )
+        text_parts: list[str] = []
+        parts = getattr(response, "parts", None)
+        if parts is None and getattr(response, "candidates", None):
+            parts = response.candidates[0].content.parts
+        for part in parts or []:
+            text = getattr(part, "text", None)
+            if text:
+                text_parts.append(text)
+                continue
+            inline = getattr(part, "inline_data", None) or getattr(part, "inlineData", None)
+            data = getattr(inline, "data", None) if inline else None
+            if data:
+                image_bytes = base64.b64decode(data) if isinstance(data, str) else data
+                return ImageGenerationResult(
+                    image_bytes=image_bytes,
+                    mime_type=getattr(inline, "mime_type", None)
+                    or getattr(inline, "mimeType", None)
+                    or "image/png",
+                    model=image_model,
+                    text="\n".join(text_parts) or None,
+                )
+        return None
 
     def build_tool_declarations(self, tools: list[Any]) -> list[dict[str, Any]]:
         # Lazy import keeps packages/llm free of a module-load dependency

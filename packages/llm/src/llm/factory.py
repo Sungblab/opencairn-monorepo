@@ -63,6 +63,9 @@ def get_provider(config: ProviderConfig | None = None) -> LLMProvider:
                     if provider == "gemini"
                     else None
                 ),
+                extra={
+                    "image_model": os.getenv("GEMINI_IMAGE_MODEL"),
+                },
             )
     match config.provider:
         case "gemini":
