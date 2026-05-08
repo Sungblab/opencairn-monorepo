@@ -20,6 +20,7 @@ export const instrumentSerif = Instrument_Serif({
   style: ["normal", "italic"],
   variable: "--font-serif-raw",
   display: "swap",
+  preload: false,
 });
 
 export const inter = Inter({
@@ -27,6 +28,7 @@ export const inter = Inter({
   weight: ["300", "400", "500", "600", "700"],
   variable: "--font-sans-raw",
   display: "swap",
+  preload: false,
 });
 
 export const jetbrainsMono = JetBrains_Mono({
@@ -34,4 +36,5 @@ export const jetbrainsMono = JetBrains_Mono({
   weight: ["400", "500"],
   variable: "--font-mono-raw",
   display: "swap",
+  preload: false,
 });
