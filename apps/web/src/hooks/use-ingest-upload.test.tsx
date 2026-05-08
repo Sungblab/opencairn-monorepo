@@ -21,6 +21,7 @@ describe("useIngestUpload", () => {
         JSON.stringify({
           workflowId: "ingest-wf-123",
           objectKey: "uploads/u/abc.pdf",
+          sourceBundleNodeId: "00000000-0000-0000-0000-000000000010",
         }),
         { status: 202, headers: { "content-type": "application/json" } },
       ),
@@ -31,7 +32,11 @@ describe("useIngestUpload", () => {
     const file = new File(["pdf bytes"], "report.pdf", {
       type: "application/pdf",
     });
-    let returned: { workflowId: string; objectKey: string } | null = null;
+    let returned: {
+      workflowId: string;
+      objectKey: string;
+      sourceBundleNodeId: string | null;
+    } | null = null;
     await act(async () => {
       returned = await result.current.upload(file, "00000000-0000-0000-0000-000000000001");
     });
@@ -54,6 +59,7 @@ describe("useIngestUpload", () => {
     expect(returned).toEqual({
       workflowId: "ingest-wf-123",
       objectKey: "uploads/u/abc.pdf",
+      sourceBundleNodeId: "00000000-0000-0000-0000-000000000010",
     });
 
     // Store now reflects a running ingest with the spotlight wired — the
@@ -64,6 +70,8 @@ describe("useIngestUpload", () => {
       fileName: "report.pdf",
       mime: "application/pdf",
       status: "running",
+      bundleNodeId: "00000000-0000-0000-0000-000000000010",
+      bundleStatus: "running",
     });
     expect(state.spotlightWfid).toBe("ingest-wf-123");
     expect(result.current.error).toBeNull();

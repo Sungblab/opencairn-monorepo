@@ -21,8 +21,10 @@ vi.mock("../src/lib/s3.js", () => ({
 
 describe("POST /api/ingest dispatch workspace_id", () => {
   let seed: SeedResult;
+  const originalFeatureContentEnrichment = process.env.FEATURE_CONTENT_ENRICHMENT;
 
   beforeEach(async () => {
+    process.env.FEATURE_CONTENT_ENRICHMENT = "false";
     seed = await seedWorkspace({ role: "editor" });
     startSpy.mockClear();
     uploadSpy.mockClear();
@@ -30,6 +32,11 @@ describe("POST /api/ingest dispatch workspace_id", () => {
 
   afterEach(async () => {
     await seed.cleanup();
+    if (originalFeatureContentEnrichment === undefined) {
+      delete process.env.FEATURE_CONTENT_ENRICHMENT;
+    } else {
+      process.env.FEATURE_CONTENT_ENRICHMENT = originalFeatureContentEnrichment;
+    }
   });
 
   it("passes workspace_id to URL IngestWorkflow args", async () => {
@@ -50,6 +57,9 @@ describe("POST /api/ingest dispatch workspace_id", () => {
     expect(startSpy).toHaveBeenCalledTimes(1);
     const [, opts] = startSpy.mock.calls[0];
     expect(opts.args[0].workspace_id).toBe(seed.workspaceId);
+    expect(opts.args[0].mime_type).toBe("x-opencairn/web-url");
+    expect(opts.args[0].project_id).toBe(seed.projectId);
+    expect(opts.args[0].content_enrichment_enabled).toBe(false);
   });
 
   it("passes workspace_id to upload IngestWorkflow args", async () => {
@@ -71,6 +81,11 @@ describe("POST /api/ingest dispatch workspace_id", () => {
     expect(startSpy).toHaveBeenCalledTimes(1);
     const [, opts] = startSpy.mock.calls[0];
     expect(opts.args[0].workspace_id).toBe(seed.workspaceId);
+    expect(opts.args[0].object_key).toEqual(expect.any(String));
+    expect(opts.args[0].file_name).toBe("hello.txt");
+    expect(opts.args[0].mime_type).toBe("text/plain");
+    expect(opts.args[0].project_id).toBe(seed.projectId);
+    expect(opts.args[0].content_enrichment_enabled).toBe(false);
   });
 
   it("creates a source bundle before starting a PDF upload workflow", async () => {

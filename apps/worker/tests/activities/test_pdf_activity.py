@@ -73,9 +73,10 @@ async def test_parse_pdf_emits_unit_events_per_page(tmp_path: Path):
 
     with (
         patch("worker.activities.pdf_activity.download_to_tempfile", return_value=fake_pdf),
-        patch("worker.activities.pdf_activity._opendataloader_available", return_value=True),
         patch("worker.activities.pdf_activity._run_jar", return_value=out_dir),
         patch("worker.activities.pdf_activity._detect_scan", return_value=False),
+        patch("worker.activities.pdf_activity._opendataloader_available", return_value=True),
+        patch("worker.activities.pdf_activity.activity.heartbeat"),
         patch(
             "worker.activities.pdf_activity._upload_figure",
             return_value="uploads/u/figures/wf-1/p0-f0.png",
@@ -127,9 +128,10 @@ async def test_parse_pdf_skips_missing_figure_files(tmp_path: Path):
 
     with (
         patch("worker.activities.pdf_activity.download_to_tempfile", return_value=fake_pdf),
-        patch("worker.activities.pdf_activity._opendataloader_available", return_value=True),
         patch("worker.activities.pdf_activity._run_jar", return_value=out_dir),
         patch("worker.activities.pdf_activity._detect_scan", return_value=False),
+        patch("worker.activities.pdf_activity._opendataloader_available", return_value=True),
+        patch("worker.activities.pdf_activity.activity.heartbeat"),
         patch("worker.activities.pdf_activity.publish_safe", side_effect=fake_publish),
     ):
         await parse_pdf({
@@ -193,7 +195,11 @@ async def test_parse_pdf_falls_back_to_pymupdf_when_jar_missing(tmp_path: Path):
     assert "Fallback page one" in result["text"]
     assert "Fallback page two" in result["text"]
     assert result["has_complex_layout"] is False
-    assert [kind for kind, _ in publish_calls].count("unit_parsed") == 2
+    assert result["page_artifacts"][0]["label"] == "page-001.md"
+    assert result["page_artifacts"][0]["text"] == "Fallback page one"
+    kinds = [c[0] for c in publish_calls]
+    assert kinds.count("unit_started") == 2
+    assert kinds.count("unit_parsed") == 2
 
 
 @pytest.mark.asyncio

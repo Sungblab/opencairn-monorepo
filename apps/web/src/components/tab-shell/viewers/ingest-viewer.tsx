@@ -3,7 +3,6 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import type { Tab } from "@/stores/tabs-store";
 import { useIngestStream } from "@/hooks/use-ingest-stream";
-import { useIngestCompletionRedirect } from "@/hooks/use-ingest-completion-redirect";
 import { IngestProgressView } from "@/components/ingest/ingest-progress-view";
 
 /**
@@ -17,7 +16,6 @@ export function IngestViewer({ tab }: { tab: Tab }) {
   const [dense, setDense] = useState(false);
   const t = useTranslations("ingest.tab");
   useIngestStream(wfid);
-  useIngestCompletionRedirect(wfid);
   if (!wfid) return null;
 
   return (

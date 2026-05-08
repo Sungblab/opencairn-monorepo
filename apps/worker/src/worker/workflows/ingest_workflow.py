@@ -46,6 +46,7 @@ class IngestInput:
     parsed_group_node_id: str | None = None
     figures_group_node_id: str | None = None
     analysis_group_node_id: str | None = None
+    content_enrichment_enabled: bool = False
 
 
 _RETRY = RetryPolicy(maximum_attempts=3, backoff_coefficient=2.0)

@@ -5,9 +5,9 @@ import { useLocale, useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import { useIngestStore } from "@/stores/ingest-store";
 import { useIngestStream } from "@/hooks/use-ingest-stream";
-import { useTabsStore, type Tab } from "@/stores/tabs-store";
 import { urls } from "@/lib/urls";
 import { IngestProgressView } from "./ingest-progress-view";
+import { openIngestTab } from "./open-ingest-tab";
 
 const DOCK_MAX = 12;
 
@@ -19,27 +19,6 @@ const DOCK_MAX = 12;
 function IngestRunSubscriber({ wfid }: { wfid: string }) {
   useIngestStream(wfid);
   return null;
-}
-
-function openInTab(wfid: string, fileName: string | null) {
-  const tab: Tab = {
-    id: `ingest-${wfid}`,
-    kind: "ingest",
-    targetId: wfid,
-    mode: "ingest",
-    title: fileName ?? "...",
-    titleKey: "ingest.tab.title",
-    titleParams: { fileName: fileName ?? "?" },
-    pinned: false,
-    preview: false,
-    dirty: false,
-    splitWith: null,
-    splitSide: null,
-    scrollY: 0,
-  };
-  const store = useTabsStore.getState();
-  if (!store.tabs.some((t) => t.id === tab.id)) store.addTab(tab);
-  store.setActive(tab.id);
 }
 
 export function IngestDock() {
@@ -78,7 +57,7 @@ export function IngestDock() {
           {r.status === "running" && (
             <button
               type="button"
-              onClick={() => openInTab(r.workflowId, r.fileName)}
+              onClick={() => openIngestTab(r.workflowId, r.fileName)}
               className="ingest-dock-open"
             >
               <IngestProgressView wfid={r.workflowId} mode="dock" />

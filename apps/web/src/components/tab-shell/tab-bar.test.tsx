@@ -75,6 +75,26 @@ describe("TabBar", () => {
     expect(replace).toHaveBeenCalledWith("/ko/workspace/acme/note/n1");
   });
 
+  it("clicking a transient ingest tab activates it without replacing the URL", () => {
+    useTabsStore.getState().addTab(mk({ id: "project", kind: "project", targetId: "p1" }));
+    useTabsStore.getState().addTab(
+      mk({
+        id: "ingest-wf-1",
+        kind: "ingest",
+        targetId: "wf-1",
+        mode: "ingest",
+        title: "분석 중: report.pdf",
+      }),
+    );
+    useTabsStore.getState().setActive("project");
+
+    render(<TabBar />);
+    fireEvent.click(screen.getByText("분석 중: report.pdf"));
+
+    expect(useTabsStore.getState().activeId).toBe("ingest-wf-1");
+    expect(replace).not.toHaveBeenCalled();
+  });
+
   it("marks the active tab with aria-selected=true", () => {
     useTabsStore.getState().addTab(mk({ id: "a" }));
     useTabsStore.getState().addTab(mk({ id: "b", title: "Beta" }));

@@ -26,6 +26,50 @@
     "enhancing": "Enhancing",
     "persisting": "Saving"
   },
+  "pipeline": {
+    "title": "Processing pipeline",
+    "current": "In progress",
+    "done": "Done",
+    "waiting": "Waiting",
+    "failed": "Failed",
+    "downloading": {
+      "title": "PDF upload",
+      "description": "Store the original file safely."
+    },
+    "parsing": {
+      "title": "PDF parsing",
+      "description": "Read text, OCR output, and page structure."
+    },
+    "markdown": {
+      "title": "Markdown split",
+      "description": "Create full-document and per-page Markdown outputs."
+    },
+    "figures": {
+      "title": "Image and figure extraction",
+      "description": "Separate images, tables, and figures from the document."
+    },
+    "enhancing": {
+      "title": "AI analysis",
+      "description": "Prepare summaries, key concepts, and question candidates."
+    },
+    "persisting": {
+      "title": "Save to project",
+      "description": "Attach notes and artifacts to the project tree."
+    },
+    "emptyArtifacts": "No artifacts created yet.",
+    "bundleRunning": "Creating in project tree",
+    "bundleCompleted": "Saved to project tree",
+    "bundleFailed": "Project tree save failed",
+    "sourceNoteLabel": "AI summary note"
+  },
+  "artifactRole": {
+    "parsed": "Markdown",
+    "parsed_page": "Page Markdown",
+    "figure": "Image or figure",
+    "source_note": "AI summary note",
+    "analysis": "AI analysis",
+    "other": "Artifact"
+  },
   "unit": {
     "page": "Page {n}/{total}",
     "segment": "Segment {n}/{total}",
