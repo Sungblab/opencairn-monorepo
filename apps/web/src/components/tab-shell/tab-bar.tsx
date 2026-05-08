@@ -46,6 +46,12 @@ function SortableTab({
     useSortable({ id: tab.id });
   const navigateToTab = useTabNavigate();
   const closeTab = useTabsStore((s) => s.closeTab);
+  const setActive = useTabsStore((s) => s.setActive);
+  const isTransient =
+    tab.kind === "ingest" ||
+    tab.kind === "lit_search" ||
+    tab.kind === "agent_file" ||
+    tab.kind === "code_workspace";
 
   return (
     <ContextMenu>
@@ -65,12 +71,16 @@ function SortableTab({
             <TabItem
               tab={tab}
               active={active}
-              onClick={() =>
+              onClick={() => {
+                if (isTransient) {
+                  setActive(tab.id);
+                  return;
+                }
                 navigateToTab(
                   { kind: tab.kind, targetId: tab.targetId, mode: tab.mode },
                   { mode: "replace" },
-                )
-              }
+                );
+              }}
               onClose={() => closeTab(tab.id)}
             />
           </div>

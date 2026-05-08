@@ -83,6 +83,25 @@ describe("ingest-store", () => {
     expect(run.noteId).toBe("00000000-0000-0000-0000-000000000001");
   });
 
+  it("completed resolves a primed source bundle when the status event is missing", () => {
+    useIngestStore.getState().startRun("wf-1", "application/pdf", "x.pdf", {
+      sourceBundleNodeId: "00000000-0000-0000-0000-000000000010",
+    });
+    useIngestStore.getState().applyEvent("wf-1", {
+      workflowId: "wf-1",
+      seq: 99,
+      ts: "2026-04-27T00:00:00.000Z",
+      kind: "completed",
+      payload: {
+        noteId: "00000000-0000-0000-0000-000000000001",
+        totalDurationMs: 5000,
+      },
+    });
+    expect(useIngestStore.getState().runs["wf-1"].bundleStatus).toBe(
+      "completed",
+    );
+  });
+
   it("failed sets error info", () => {
     useIngestStore.getState().startRun("wf-1", "application/pdf", "x.pdf");
     useIngestStore.getState().applyEvent("wf-1", {

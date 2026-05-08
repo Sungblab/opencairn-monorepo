@@ -163,6 +163,9 @@ export const useIngestStore = create<IngestStore>()(
             case "completed":
               next.status = "completed";
               next.noteId = ev.payload.noteId;
+              if (next.bundleStatus === "running") {
+                next.bundleStatus = "completed";
+              }
               break;
             case "failed":
               next.status = "failed";
@@ -170,6 +173,9 @@ export const useIngestStore = create<IngestStore>()(
                 reason: ev.payload.reason,
                 retryable: ev.payload.retryable,
               };
+              if (next.bundleStatus === "running") {
+                next.bundleStatus = "failed";
+              }
               break;
             case "enrichment":
               // Spec B will fill enrichment widgets; ignored at store level.

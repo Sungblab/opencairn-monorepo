@@ -234,4 +234,31 @@ describe("useUrlTabSync", () => {
     );
     expect(replace).toHaveBeenCalledWith("/ko/workspace/acme/");
   });
+
+  it("does not steal focus back from client-only ingest tabs", () => {
+    renderHook(() => useUrlTabSync());
+    const routeTabId = useTabsStore.getState().activeId;
+    expect(routeTabId).toBeTruthy();
+
+    act(() => {
+      useTabsStore.getState().addTab({
+        id: "ingest-wf-1",
+        kind: "ingest",
+        targetId: "wf-1",
+        mode: "ingest",
+        title: "분석 중: report.pdf",
+        titleKey: "ingest.tab.title",
+        titleParams: { fileName: "report.pdf" },
+        pinned: false,
+        preview: false,
+        dirty: false,
+        splitWith: null,
+        splitSide: null,
+        scrollY: 0,
+      });
+    });
+
+    expect(useTabsStore.getState().activeId).toBe("ingest-wf-1");
+    expect(useTabsStore.getState().activeId).not.toBe(routeTabId);
+  });
 });
