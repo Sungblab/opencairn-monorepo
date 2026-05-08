@@ -104,6 +104,7 @@ export function useUrlTabSync() {
   const updateTab = useTabsStore((s) => s.updateTab);
 
   const initialized = useRef<string | null>(null);
+  const lastSyncedPath = useRef<string | null>(null);
 
   useEffect(() => {
     if (!workspaceKey) return;
@@ -118,6 +119,8 @@ export function useUrlTabSync() {
     const parsed = urlToTabTarget(pathname);
     if (!parsed || parsed.slug !== slug) return;
     const { route } = parsed;
+    const pathChanged = lastSyncedPath.current !== pathname;
+    lastSyncedPath.current = pathname;
     const store = useTabsStore.getState();
     const existing = findReusableRouteTab(route);
     if (existing) {
@@ -136,7 +139,9 @@ export function useUrlTabSync() {
           titleParams: params,
         });
       }
-      if (activeId !== existing.id) setActive(existing.id);
+      if ((pathChanged || !store.activeId) && store.activeId !== existing.id) {
+        setActive(existing.id);
+      }
       return;
     }
     const { key, params } = tabTitleKey(route.kind, route.targetId);
@@ -157,7 +162,7 @@ export function useUrlTabSync() {
     } else {
       store.addTab(tab);
     }
-  }, [pathname, slug, activeId, setActive, tabTitle, updateTab]);
+  }, [pathname, slug, setActive, tabTitle, updateTab]);
 
   const navigateToTab = useCallback(
     (

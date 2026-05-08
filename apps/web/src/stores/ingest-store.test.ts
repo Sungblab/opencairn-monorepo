@@ -17,6 +17,15 @@ describe("ingest-store", () => {
     expect(state.spotlightWfid).toBe("wf-1");
   });
 
+  it("startRun can prime a source bundle before the SSE status event arrives", () => {
+    useIngestStore.getState().startRun("wf-1", "application/pdf", "x.pdf", {
+      sourceBundleNodeId: "00000000-0000-0000-0000-000000000010",
+    });
+    const run = useIngestStore.getState().runs["wf-1"];
+    expect(run.bundleNodeId).toBe("00000000-0000-0000-0000-000000000010");
+    expect(run.bundleStatus).toBe("running");
+  });
+
   it("multi-file dispatch within 200ms keeps the original spotlight", () => {
     useIngestStore.getState().startRun("wf-1", "application/pdf", "a.pdf");
     useIngestStore.getState().startRun("wf-2", "application/pdf", "b.pdf");
@@ -72,6 +81,25 @@ describe("ingest-store", () => {
     const run = useIngestStore.getState().runs["wf-1"];
     expect(run.status).toBe("completed");
     expect(run.noteId).toBe("00000000-0000-0000-0000-000000000001");
+  });
+
+  it("completed resolves a primed source bundle when the status event is missing", () => {
+    useIngestStore.getState().startRun("wf-1", "application/pdf", "x.pdf", {
+      sourceBundleNodeId: "00000000-0000-0000-0000-000000000010",
+    });
+    useIngestStore.getState().applyEvent("wf-1", {
+      workflowId: "wf-1",
+      seq: 99,
+      ts: "2026-04-27T00:00:00.000Z",
+      kind: "completed",
+      payload: {
+        noteId: "00000000-0000-0000-0000-000000000001",
+        totalDurationMs: 5000,
+      },
+    });
+    expect(useIngestStore.getState().runs["wf-1"].bundleStatus).toBe(
+      "completed",
+    );
   });
 
   it("failed sets error info", () => {

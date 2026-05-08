@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { useRef } from "react";
+import { useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useIngestUpload } from "@/hooks/use-ingest-upload";
 
@@ -42,8 +42,13 @@ export function IngestUploadButton({
   projectId: string;
 }): React.JSX.Element | null {
   const t = useTranslations("ingest.uploadButton");
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputId = useId();
+  const [isReady, setIsReady] = useState(false);
   const { upload, isUploading, error } = useIngestUpload();
+
+  useEffect(() => {
+    setIsReady(true);
+  }, []);
 
   // Same guard pattern as IngestOverlays — keeps the activation surface
   // collocated with the live-ingest progress UI it depends on.
@@ -51,33 +56,34 @@ export function IngestUploadButton({
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <input
-        ref={inputRef}
-        type="file"
-        className="hidden"
-        accept={ACCEPT_ATTR}
-        data-testid="ingest-file-input"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (!f) return;
-          // Reset value AFTER capturing the file so the same one can be
-          // re-selected after a failed upload — without this, onChange
-          // wouldn't refire when the user picks the same file twice.
-          e.target.value = "";
-          // Fire-and-forget: the hook surfaces failures via `error` (and
-          // the spotlight provides feedback on success). The catch is
-          // here only so React doesn't log an unhandled promise.
-          void upload(f, projectId).catch(() => {});
-        }}
-      />
-      <button
-        type="button"
-        disabled={isUploading}
-        onClick={() => inputRef.current?.click()}
-        className="rounded border border-border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+      <label
+        htmlFor={inputId}
+        aria-disabled={!isReady || isUploading}
+        data-testid="ingest-upload-trigger"
+        className="cursor-pointer rounded border border-border px-3 py-1.5 text-sm hover:bg-accent aria-disabled:pointer-events-none aria-disabled:opacity-50"
       >
+        <input
+          id={inputId}
+          type="file"
+          className="sr-only"
+          accept={ACCEPT_ATTR}
+          data-testid="ingest-file-input"
+          disabled={!isReady || isUploading}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            // Reset value AFTER capturing the file so the same one can be
+            // re-selected after a failed upload — without this, onChange
+            // wouldn't refire when the user picks the same file twice.
+            e.target.value = "";
+            // Fire-and-forget: the hook surfaces failures via `error` (and
+            // the spotlight provides feedback on success). The catch is
+            // here only so React doesn't log an unhandled promise.
+            void upload(f, projectId).catch(() => {});
+          }}
+        />
         {isUploading ? t("uploading") : t("label")}
-      </button>
+      </label>
       {error && !isUploading ? (
         <p
           role="alert"

@@ -14,6 +14,7 @@ import { useIngestStore } from "@/stores/ingest-store";
 export interface IngestUploadResult {
   workflowId: string;
   objectKey: string;
+  sourceBundleNodeId: string | null;
 }
 
 export interface IngestUploadError {
@@ -76,7 +77,12 @@ export function useIngestUpload(): {
         // opened via tabs-store with kind='ingest' and targetId=workflowId.
         useIngestStore
           .getState()
-          .startRun(json.workflowId, file.type || "application/octet-stream", file.name);
+          .startRun(
+            json.workflowId,
+            file.type || "application/octet-stream",
+            file.name,
+            { sourceBundleNodeId: json.sourceBundleNodeId },
+          );
         return json;
       } finally {
         setIsUploading(false);

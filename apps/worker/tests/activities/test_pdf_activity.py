@@ -193,7 +193,11 @@ async def test_parse_pdf_falls_back_to_pymupdf_when_jar_missing(tmp_path: Path):
     assert "Fallback page one" in result["text"]
     assert "Fallback page two" in result["text"]
     assert result["has_complex_layout"] is False
-    assert [kind for kind, _ in publish_calls].count("unit_parsed") == 2
+    assert result["page_artifacts"][0]["label"] == "page-001.md"
+    assert result["page_artifacts"][0]["text"] == "Fallback page one"
+    kinds = [c[0] for c in publish_calls]
+    assert kinds.count("unit_started") == 2
+    assert kinds.count("unit_parsed") == 2
 
 
 @pytest.mark.asyncio

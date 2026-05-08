@@ -3,6 +3,7 @@ import { render, screen, act, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { IngestSpotlight } from "./ingest-spotlight";
 import { useIngestStore } from "@/stores/ingest-store";
+import { useTabsStore } from "@/stores/tabs-store";
 
 // EventSource isn't in jsdom; the spotlight mounts useIngestStream which
 // constructs one. We stub it out — the spotlight's auto-collapse logic
@@ -44,6 +45,7 @@ function wrap() {
 describe("<IngestSpotlight>", () => {
   beforeEach(() => {
     useIngestStore.setState({ runs: {}, spotlightWfid: null });
+    useTabsStore.setState(useTabsStore.getInitialState(), true);
   });
   afterEach(() => vi.useRealTimers());
 
@@ -96,11 +98,12 @@ describe("<IngestSpotlight>", () => {
     );
   });
 
-  it("skip button collapses immediately", async () => {
+  it("skip button opens the ingest tab and collapses immediately", async () => {
     useIngestStore.getState().startRun("wf-1", "application/pdf", "x.pdf");
     wrap();
     const skip = screen.getByText("탭에서 보기");
     act(() => skip.click());
+    expect(useTabsStore.getState().activeId).toBe("ingest-wf-1");
     await waitFor(() =>
       expect(screen.queryByTestId("ingest-spotlight")).not.toBeInTheDocument(),
     );

@@ -26,6 +26,50 @@
     "enhancing": "개선 중",
     "persisting": "저장 중"
   },
+  "pipeline": {
+    "title": "처리 과정",
+    "current": "진행 중",
+    "done": "완료",
+    "waiting": "대기",
+    "failed": "실패",
+    "downloading": {
+      "title": "PDF 업로드",
+      "description": "원본 파일을 안전하게 저장합니다."
+    },
+    "parsing": {
+      "title": "PDF 파싱",
+      "description": "텍스트, OCR 결과, 페이지 구조를 읽습니다."
+    },
+    "markdown": {
+      "title": "Markdown 분리",
+      "description": "전체 문서와 페이지별 Markdown 조각을 만듭니다."
+    },
+    "figures": {
+      "title": "이미지·도표 추출",
+      "description": "문서 안의 이미지, 표, 도표를 분리합니다."
+    },
+    "enhancing": {
+      "title": "AI 분석",
+      "description": "요약, 핵심 개념, 문제 후보를 정리합니다."
+    },
+    "persisting": {
+      "title": "프로젝트에 저장",
+      "description": "노트와 아티팩트를 프로젝트 트리에 연결합니다."
+    },
+    "emptyArtifacts": "아직 생성된 산출물이 없습니다.",
+    "bundleRunning": "프로젝트 트리에 생성 중",
+    "bundleCompleted": "프로젝트 트리에 저장 완료",
+    "bundleFailed": "프로젝트 트리 저장 실패",
+    "sourceNoteLabel": "AI 정리 노트"
+  },
+  "artifactRole": {
+    "parsed": "Markdown",
+    "parsed_page": "페이지 Markdown",
+    "figure": "이미지·도표",
+    "source_note": "AI 정리 노트",
+    "analysis": "AI 분석",
+    "other": "산출물"
+  },
   "unit": {
     "page": "페이지 {n}/{total}",
     "segment": "세그먼트 {n}/{total}",

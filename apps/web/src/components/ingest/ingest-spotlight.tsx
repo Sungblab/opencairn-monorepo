@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { useIngestStore } from "@/stores/ingest-store";
 import { useIngestStream } from "@/hooks/use-ingest-stream";
 import { IngestProgressView } from "./ingest-progress-view";
+import { openIngestTab } from "./open-ingest-tab";
 
 const SPOTLIGHT_TIMEOUT_MS = 7000;
 
@@ -41,7 +42,10 @@ export function IngestSpotlight() {
       <button
         type="button"
         className="skip-button"
-        onClick={() => setSpotlight(null)}
+        onClick={() => {
+          openIngestTab(wfid, run.fileName);
+          setSpotlight(null);
+        }}
       >
         {t("skipToTab")}
       </button>
