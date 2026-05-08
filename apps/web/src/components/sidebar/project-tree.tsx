@@ -31,8 +31,15 @@ export interface ProjectTreeProps {
 // 2. Once expanded, we recurse so prefetched-one-level children are displayed.
 //    Deeper levels are loaded on demand via handleToggle → loadChildren.
 function deriveData(roots: TreeNode[], expanded: Set<string>): TreeNode[] {
+  const containers = new Set([
+    "folder",
+    "note",
+    "source_bundle",
+    "artifact_group",
+    "code_workspace",
+  ]);
   function mark(n: TreeNode): TreeNode {
-    if (n.kind !== "folder") return n;
+    if (!containers.has(n.kind)) return n;
     if (n.child_count === 0) return { ...n, children: undefined };
     if (!expanded.has(n.id)) {
       return {
@@ -46,37 +53,13 @@ function deriveData(roots: TreeNode[], expanded: Set<string>): TreeNode[] {
 }
 
 async function persistMove(node: TreeNode, parentId: string | null, index: number) {
-  if (node.kind === "code_workspace") {
-    throw new Error("code workspace move is not supported");
-  }
-  if (node.kind === "folder") {
-    const res = await fetch(`/api/folders/${node.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ parentId, position: index }),
-    });
-    if (!res.ok) throw new Error(`folders PATCH ${res.status}`);
-    return;
-  }
-  if (node.kind === "agent_file") {
-    const res = await fetch(`/api/agent-files/${node.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ folderId: parentId }),
-    });
-    if (!res.ok) throw new Error(`agent file move ${res.status}`);
-    return;
-  }
-  // notes: position isn't tracked server-side — only parent (folder) matters.
-  const res = await fetch(`/api/notes/${node.id}/move`, {
+  const res = await fetch(`/api/tree/nodes/${node.id}/move`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({ folderId: parentId }),
+    body: JSON.stringify({ parentId, position: index }),
   });
-  if (!res.ok) throw new Error(`notes move ${res.status}`);
+  if (!res.ok) throw new Error(`tree move ${res.status}`);
 }
 
 async function persistRename(

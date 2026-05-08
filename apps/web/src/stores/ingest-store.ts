@@ -28,6 +28,17 @@ export type IngestRunState = {
   units: { current: number; total: number | null };
   stage: "downloading" | "parsing" | "enhancing" | "persisting" | null;
   figures: FigureItem[];
+  artifacts: {
+    nodeId: string;
+    parentId: string | null;
+    kind: "note" | "agent_file" | "artifact" | "artifact_group";
+    label: string;
+    role: string;
+    pageIndex?: number;
+    figureIndex?: number;
+  }[];
+  bundleNodeId: string | null;
+  bundleStatus: "running" | "completed" | "failed" | null;
   outline: OutlineNode[];
   error: { reason: string; retryable: boolean } | null;
   noteId: string | null;
@@ -57,6 +68,9 @@ function emptyRun(
     units: { current: 0, total: null },
     stage: null,
     figures: [],
+    artifacts: [],
+    bundleNodeId: null,
+    bundleStatus: null,
     outline: [],
     error: null,
     noteId: null,
@@ -117,6 +131,13 @@ export const useIngestStore = create<IngestStore>()(
                   sourceUnit: ev.payload.sourceUnit,
                 },
               ];
+              break;
+            case "artifact_created":
+              next.artifacts = [...run.artifacts, ev.payload];
+              break;
+            case "bundle_status_changed":
+              next.bundleNodeId = ev.payload.bundleNodeId;
+              next.bundleStatus = ev.payload.status;
               break;
             case "outline_node":
               next.outline = [

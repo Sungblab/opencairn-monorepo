@@ -7,14 +7,25 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 // `kind` is a stable discriminator so the sidebar component can switch on
 // rendering + drag-drop behavior without inspecting other fields.
 export interface TreeNode {
-  kind: "folder" | "note" | "agent_file" | "code_workspace";
+  kind:
+    | "folder"
+    | "note"
+    | "agent_file"
+    | "code_workspace"
+    | "source_bundle"
+    | "artifact_group"
+    | "artifact";
   id: string;
-  parent_id: string | null; // folder.parent_id OR note.folder_id
-  label: string;            // folder.name OR note.title
-  child_count: number;      // 0 for notes
+  parent_id: string | null;
+  label: string;
+  child_count: number;
+  target_table?: "folders" | "notes" | "agent_files" | "code_workspaces" | null;
+  target_id?: string | null;
+  icon?: string | null;
+  metadata?: Record<string, unknown>;
   file_kind?: string | null;
   mime_type?: string | null;
-  children?: TreeNode[];    // folders only, prefetched one level deep
+  children?: TreeNode[];
 }
 
 interface TreeResponse {
@@ -116,11 +127,17 @@ export function useProjectTree(opts: { projectId: string }) {
       "tree.code_workspace_created",
       "tree.code_workspace_renamed",
       "tree.code_workspace_deleted",
+      "tree.node_created",
+      "tree.node_renamed",
+      "tree.node_deleted",
+      "tree.node_restored",
     ];
     const projectScoped: string[] = [
       "tree.folder_moved",
       "tree.note_moved",
       "tree.agent_file_moved",
+      "tree.node_moved",
+      "tree.node_reordered",
     ];
 
     for (const kind of parentScoped) {

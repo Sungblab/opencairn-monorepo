@@ -54,6 +54,7 @@ export * from "./schema/note-versions";
 export * from "./schema/agent-files";
 export * from "./schema/agent-file-provider-exports";
 export * from "./schema/code-workspaces";
+export * from "./schema/project-tree";
 export * from "./schema/site-admin";
 export * from "./schema/observability";
 export * from "./lib/note-version-hash";
