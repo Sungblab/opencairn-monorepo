@@ -8,6 +8,9 @@ Flow:
        text but images present on majority of pages).
     3a. Text PDFs: run opendataloader-pdf (Java JAR) via :mod:`subprocess`
         with image extraction enabled, producing JSON + per-figure PNGs.
+        Local/dev workers without the JAR fall back to PyMuPDF text extraction
+        so PDF ingest still creates markdown artifacts instead of failing
+        before the UI can show the pipeline.
     3b. Scan PDFs: render each page to PNG via :mod:`pymupdf`, try local
         Tesseract OCR first, then call ``provider.ocr()`` only for pages where
         local OCR is unavailable or returns empty text. Providers without OCR

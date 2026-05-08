@@ -17,7 +17,7 @@ import pytest
 _TEST_LOGGER = logging.getLogger("test_ingest_enrichment")
 
 
-def _make_inp(*, enrichment: bool = False):
+def _make_inp(*, content_enrichment_enabled: bool = False):
     from worker.workflows.ingest_workflow import IngestInput
 
     return IngestInput(
@@ -28,7 +28,7 @@ def _make_inp(*, enrichment: bool = False):
         project_id="proj-1",
         note_id=None,
         workspace_id="ws-1",
-        content_enrichment_enabled=enrichment,
+        content_enrichment_enabled=content_enrichment_enabled,
     )
 
 
@@ -85,7 +85,9 @@ async def test_enrichment_activities_called_when_flag_on():
 
     wf = IngestWorkflow()
     with patch("temporalio.workflow.execute_activity", side_effect=fake_activity):
-        note_id = await wf._run_pipeline(_make_inp(enrichment=True), "wf-test", 0)
+        note_id = await wf._run_pipeline(
+            _make_inp(content_enrichment_enabled=True), "wf-test", 0
+        )
 
     assert "detect_content_type" in called
     assert "enrich_document" in called
@@ -123,7 +125,9 @@ async def test_enrichment_failure_does_not_block_note_creation():
     with patch(
         "temporalio.workflow.execute_activity", side_effect=fake_activity
     ), patch("temporalio.workflow.logger", _TEST_LOGGER):
-        note_id = await wf._run_pipeline(_make_inp(enrichment=True), "wf-test", 0)
+        note_id = await wf._run_pipeline(
+            _make_inp(content_enrichment_enabled=True), "wf-test", 0
+        )
 
     assert note_id == "note-xyz"
     assert "create_source_note" in call_seq
