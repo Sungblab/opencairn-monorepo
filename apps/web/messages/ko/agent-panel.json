@@ -222,10 +222,16 @@
       "source_token_budget_exceeded": "일부 제외"
     },
     "templateOption": {
+      "report": "기본 보고서",
+      "brief": "브리프",
+      "research_summary": "리서치 요약",
       "technical_report": "기술 보고서",
       "research_brief": "리서치 브리프",
       "paper_style": "논문형",
-      "business_report": "비즈니스 보고서"
+      "business_report": "비즈니스 보고서",
+      "deck": "발표 자료",
+      "spreadsheet": "스프레드시트",
+      "custom": "사용자 지정"
     },
     "renderEngineOption": {
       "latex": "LaTeX PDF",

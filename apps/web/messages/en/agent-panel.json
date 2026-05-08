@@ -222,10 +222,16 @@
       "source_token_budget_exceeded": "Partly omitted"
     },
     "templateOption": {
+      "report": "Standard report",
+      "brief": "Brief",
+      "research_summary": "Research summary",
       "technical_report": "Technical report",
       "research_brief": "Research brief",
       "paper_style": "Paper style",
-      "business_report": "Business report"
+      "business_report": "Business report",
+      "deck": "Deck",
+      "spreadsheet": "Spreadsheet",
+      "custom": "Custom"
     },
     "renderEngineOption": {
       "latex": "LaTeX PDF",

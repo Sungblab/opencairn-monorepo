@@ -40,6 +40,7 @@ PPTX_LINES_PER_SLIDE = 8
 TECTONIC_URL = os.environ.get("TECTONIC_URL", "http://tectonic:8888")
 TECTONIC_TIMEOUT_S = float(os.environ.get("TECTONIC_TIMEOUT_S", "120"))
 TECTONIC_ERROR_SUMMARY_CHARS = 2000
+_tectonic_client: httpx.AsyncClient | None = None
 
 TEMPLATE_LABELS: dict[str, dict[str, str]] = {
     "report": {
@@ -679,23 +680,25 @@ def _render_latex_source(model: dict[str, Any]) -> str:
 
 
 async def _post_tectonic(tex_source: str, bib_source: str) -> bytes:
-    async with httpx.AsyncClient(timeout=TECTONIC_TIMEOUT_S) as client:
-        response = await client.post(
-            f"{TECTONIC_URL}/compile",
-            json={
-                "tex_source": tex_source,
-                "bib_source": bib_source or None,
-                "engine": "xelatex",
-                "timeout_ms": int(TECTONIC_TIMEOUT_S * 1000),
-            },
+    global _tectonic_client
+    if _tectonic_client is None or _tectonic_client.is_closed:
+        _tectonic_client = httpx.AsyncClient(timeout=TECTONIC_TIMEOUT_S)
+    response = await _tectonic_client.post(
+        f"{TECTONIC_URL}/compile",
+        json={
+            "tex_source": tex_source,
+            "bib_source": bib_source or None,
+            "engine": "xelatex",
+            "timeout_ms": int(TECTONIC_TIMEOUT_S * 1000),
+        },
+    )
+    if response.status_code == 504:
+        raise RuntimeError("tectonic_timeout")
+    if response.status_code != 200:
+        raise RuntimeError(
+            f"tectonic_failed: {response.text[:TECTONIC_ERROR_SUMMARY_CHARS]}"
         )
-        if response.status_code == 504:
-            raise RuntimeError("tectonic_timeout")
-        if response.status_code != 200:
-            raise RuntimeError(
-                f"tectonic_failed: {response.text[:TECTONIC_ERROR_SUMMARY_CHARS]}"
-            )
-        return response.content
+    return response.content
 
 
 async def _render_latex_pdf_model(model: dict[str, Any]) -> bytes:
@@ -818,6 +821,23 @@ async def _render_model_image(model: dict[str, Any]) -> tuple[bytes, str]:
     return result.image_bytes, result.mime_type
 
 
+def _render_document_model_bytes(
+    model: dict[str, Any],
+    format: str,
+) -> bytes:
+    if format == "pptx":
+        return _render_pptx(model)
+    if format == "xlsx":
+        return _render_xlsx(model)
+    if format == "pdf":
+        return _render_pdf_model(model)
+    if format == "docx":
+        return _render_docx(model)
+    if format == "image":
+        return _render_svg_figure_model(model)
+    raise ValueError(f"Unsupported document generation format: {format}")
+
+
 def render_document_bytes(
     params: DocumentGenerationWorkflowParams,
     source_bundle: DocumentGenerationSourceBundle | dict[str, Any] | None = None,
@@ -825,17 +845,7 @@ def render_document_bytes(
     generation = normalize_generation(params.generation)
     sources = normalize_source_bundle(source_bundle)
     model = _document_model(params, generation, sources)
-    if generation.format == "pptx":
-        return _render_pptx(model)
-    if generation.format == "xlsx":
-        return _render_xlsx(model)
-    if generation.format == "pdf":
-        return _render_pdf_model(model)
-    if generation.format == "docx":
-        return _render_docx(model)
-    if generation.format == "image":
-        return _render_svg_figure_model(model)
-    raise ValueError(f"Unsupported document generation format: {generation.format}")
+    return _render_document_model_bytes(model, generation.format)
 
 
 def heartbeat_safe(message: str) -> None:
@@ -857,15 +867,17 @@ async def generate_document_artifact(
         raise ValueError("document_generation_requires_object_storage")
 
     heartbeat_safe(f"generating {generation.format}")
+    sources = normalize_source_bundle(source_bundle)
+    model = _document_model(normalized, generation, sources)
     if generation.format == "pdf" and generation.render_engine == "latex":
-        sources = normalize_source_bundle(source_bundle)
-        body = await _render_latex_pdf_model(_document_model(normalized, generation, sources))
+        heartbeat_safe("compiling latex pdf")
+        body = await _render_latex_pdf_model(model)
+        heartbeat_safe("compiled latex pdf")
         mime_type = MIME_TYPES[generation.format]
     elif generation.format == "image" and generation.image_engine == "model":
-        sources = normalize_source_bundle(source_bundle)
-        body, mime_type = await _render_model_image(_document_model(normalized, generation, sources))
+        body, mime_type = await _render_model_image(model)
     else:
-        body = render_document_bytes(normalized, source_bundle)
+        body = _render_document_model_bytes(model, generation.format)
         mime_type = MIME_TYPES[generation.format]
     object_key = _artifact_key(normalized, generation)
     upload_bytes(object_key, body, mime_type)

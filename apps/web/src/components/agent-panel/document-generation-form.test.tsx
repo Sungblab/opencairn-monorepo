@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DocumentGenerationForm } from "./document-generation-form";
 
 vi.mock("next-intl", () => ({
+  useLocale: () => "en",
   useTranslations: (ns?: string) => (key: string, vars?: Record<string, unknown>) =>
     vars ? `${ns}.${key}:${JSON.stringify(vars)}` : `${ns}.${key}`,
 }));
@@ -51,6 +52,8 @@ describe("DocumentGenerationForm", () => {
           generation: {
             format: "docx",
             prompt: "Make a product brief",
+            locale: "en",
+            template: "report",
             sources: [
               { type: "note", noteId: "00000000-0000-4000-8000-000000000001" },
               { type: "agent_file", objectId: "00000000-0000-4000-8000-000000000002" },
@@ -216,6 +219,79 @@ describe("DocumentGenerationForm", () => {
       expect(onEvent).toHaveBeenCalledWith(
         expect.objectContaining({ type: "project_object_generation_requested" }),
       ),
+    );
+  });
+
+  it("uses format-specific default templates for office outputs", async () => {
+    const onEvent = vi.fn();
+    const submitted: unknown[] = [];
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/api/projects/project-1/document-generation/sources")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            sources: [
+              {
+                id: "note:n1",
+                type: "note",
+                title: "Planning note",
+                subtitle: "note",
+                source: { type: "note", noteId: "00000000-0000-4000-8000-000000000001" },
+              },
+            ],
+          }),
+        };
+      }
+      if (url.endsWith("/api/projects/project-1/project-object-actions/generate")) {
+        const payload = JSON.parse(String(init?.body));
+        submitted.push(payload.generation);
+        return {
+          ok: true,
+          status: 202,
+          json: async () => ({
+            action: { id: "action-1", status: "queued" },
+            event: {
+              type: "project_object_generation_requested",
+              requestId: payload.requestId,
+              generation: payload.generation,
+              workflowHint: "document_generation",
+            },
+            workflowId: "document-generation/run-1",
+            idempotent: false,
+          }),
+        };
+      }
+      if (url.endsWith("/api/agent-actions/action-1")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            action: { id: "action-1", status: "completed", result: { ok: true }, errorCode: null },
+          }),
+        };
+      }
+      return { ok: false, status: 404, json: async () => ({ error: "not_found" }) };
+    });
+
+    render(<DocumentGenerationForm projectId="project-1" onEvent={onEvent} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /toggle/ }));
+    await waitFor(() => expect(screen.getByText("Planning note")).toBeInTheDocument());
+    fireEvent.click(screen.getByLabelText(/Planning note/));
+    fireEvent.change(screen.getByLabelText(/prompt/), {
+      target: { value: "Make a workbook" },
+    });
+    fireEvent.change(screen.getByLabelText(/format/), {
+      target: { value: "xlsx" },
+    });
+    expect(screen.getByLabelText(/template/)).toHaveValue("spreadsheet");
+    fireEvent.click(screen.getByRole("button", { name: /submit/ }));
+
+    await waitFor(() =>
+      expect(submitted).toEqual([
+        expect.objectContaining({ format: "xlsx", template: "spreadsheet" }),
+      ]),
     );
   });
 
