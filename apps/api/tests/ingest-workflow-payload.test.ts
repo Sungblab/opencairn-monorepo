@@ -70,6 +70,11 @@ describe("ingest workflow payload", () => {
         "user_id",
         "workspace_id",
         "content_enrichment_enabled",
+        "source_bundle_node_id",
+        "original_file_node_id",
+        "parsed_group_node_id",
+        "figures_group_node_id",
+        "analysis_group_node_id",
       ].sort(),
     );
     expect(payload).toMatchObject({
@@ -81,6 +86,11 @@ describe("ingest workflow payload", () => {
       user_id: seed.userId,
       workspace_id: seed.workspaceId,
       content_enrichment_enabled: false,
+      source_bundle_node_id: null,
+      original_file_node_id: null,
+      parsed_group_node_id: null,
+      figures_group_node_id: null,
+      analysis_group_node_id: null,
     });
   });
 

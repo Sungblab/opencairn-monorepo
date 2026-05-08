@@ -158,6 +158,19 @@ site-admin inbox.
 | PATCH | /api/projects/:id | project `editor` | 수정 | `{ name?, description?, defaultRole? }` |
 | DELETE | /api/projects/:id | workspace `owner`, `admin`, or creator | 삭제 | - |
 
+### Project Tree
+
+`project_tree_nodes` is the hierarchy and ordering source of truth for the
+sidebar. Content remains owned by its target table: `folders`, `notes`,
+`agent_files`, or `code_workspaces`. Tree listing exposes labels and navigation
+metadata only; reading note/file bodies still goes through the existing
+permission-checked target routes.
+
+| Method | Path | Auth | Description | Body |
+|--------|------|------|-------------|------|
+| GET | /api/projects/:projectId/tree | project `viewer` | List direct children from `project_tree_nodes`. Optional `?parent_id=<treeNodeId>` accepts folders, notes, source bundles, artifact groups, and code workspaces as containers. Response `{ nodes: [{ kind, id, parent_id, label, child_count, target_table?, target_id?, icon?, metadata?, file_kind?, mime_type?, children? }] }`. |
+| PATCH | /api/tree/nodes/:id/move | project `editor` | Move/reorder one tree node. Rejects cross-project parents and self/descendant cycles. Mirrors legacy `folders.parent_id`, `notes.folder_id`, or `agent_files.folder_id` when the new parent is a folder-backed node; otherwise legacy parent columns become `null` while the tree remains authoritative. | `{ parentId: uuid \| null, position?: number }` |
+
 ### Folders
 
 | Method | Path | Auth | Description | Body |
@@ -207,6 +220,24 @@ Agent-generated files are first-class project objects stored in MinIO/R2 and sur
 | POST | /api/agent-files/:id/compile | project `editor` | Compile LaTeX through Tectonic when `FEATURE_TECTONIC_COMPILE=true`; otherwise `409 { error:"compile_disabled" }`. | - |
 | POST | /api/agent-files/:id/canvas | project `editor` | Materialize code/html source into a Canvas note and link `agent_files.canvas_note_id`. Execution remains browser sandboxed. | - |
 | DELETE | /api/agent-files/:id | project `editor` | Soft delete generated file row; stored bytes remain immutable. | - |
+
+### Source Bundles
+
+PDF uploads create a visible source bundle before Temporal starts:
+
+- `source_bundle` tree node labelled with the uploaded filename;
+- original PDF `agent_file` child;
+- artifact groups `추출 결과`, `이미지/도표`, and `분석 결과`;
+- workflow args include bundle and group node ids so worker callbacks can
+  materialize parsed markdown, page artifacts, figures, and source notes below
+  the same bundle.
+
+Internal worker callbacks:
+
+| Method | Path | Body | Response |
+|--------|------|------|----------|
+| POST | /api/internal/source-bundles/:bundleNodeId/artifacts | `{ workspaceId, projectId, userId, parentNodeId, kind:"note"\|"agent_file"\|"artifact", label, role, text?, filename?, mimeType?, metadata? }` | `201 { nodeId, targetId }` |
+| POST | /api/internal/source-bundles/:bundleNodeId/status | `{ status:"running"\|"completed"\|"failed", reason? }` | `200 { ok:true }` |
 
 ### Code Workspaces
 

@@ -108,6 +108,10 @@ from worker.activities.semaphore_activity import (
     release_project_semaphore,
 )
 from worker.activities.socratic_activity import evaluate_answer, generate_questions
+from worker.activities.source_bundle_activity import (
+    create_source_bundle_artifact,
+    update_source_bundle_status,
+)
 from worker.activities.staleness_activity import run_staleness as run_staleness_activity
 from worker.activities.stt_activity import transcribe_audio
 from worker.activities.synthesis_activity import run_synthesis
@@ -204,6 +208,8 @@ def build_worker_config() -> WorkerConfig:
         create_source_note,
         quarantine_source,
         report_ingest_failure,
+        create_source_bundle_artifact,
+        update_source_bundle_status,
         compile_note,
         run_curator,
         run_connector_activity,

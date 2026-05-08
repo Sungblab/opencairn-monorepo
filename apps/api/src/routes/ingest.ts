@@ -13,6 +13,8 @@ import { getTemporalClient } from "../lib/temporal-client";
 import { getRedis } from "../lib/redis";
 import type { AppEnv } from "../lib/types";
 import { db, ingestJobs, projects, eq } from "@opencairn/db";
+import { createSourceBundleForUpload } from "../lib/project-tree-service";
+import { emitTreeEvent } from "../lib/tree-events";
 
 const TASK_QUEUE = process.env.TEMPORAL_TASK_QUEUE ?? "ingest";
 
@@ -167,6 +169,30 @@ export const ingestRoutes = new Hono<AppEnv>()
       if (!workspaceId) {
         return c.json({ error: "Project not found" }, 404);
       }
+      const sourceBundle =
+        clientMime === "application/pdf"
+          ? await createSourceBundleForUpload({
+              workspaceId,
+              projectId,
+              userId: user.id,
+              workflowId,
+              objectKey,
+              fileName: file.name,
+              mimeType: clientMime,
+              bytes: buffer,
+            })
+          : null;
+      if (sourceBundle) {
+        const at = new Date().toISOString();
+        emitTreeEvent({
+          kind: "tree.node_created",
+          projectId,
+          id: sourceBundle.bundleNodeId,
+          parentId: null,
+          label: file.name,
+          at,
+        });
+      }
       const client = await getTemporalClient();
 
       // Persist dispatch metadata BEFORE starting the workflow so the
@@ -196,11 +222,23 @@ export const ingestRoutes = new Hono<AppEnv>()
             note_id: noteId ?? null,
             workspace_id: workspaceId,
             content_enrichment_enabled: isContentEnrichmentEnabled(),
+            source_bundle_node_id: sourceBundle?.bundleNodeId ?? null,
+            original_file_node_id: sourceBundle?.originalFileNodeId ?? null,
+            parsed_group_node_id: sourceBundle?.parsedGroupNodeId ?? null,
+            figures_group_node_id: sourceBundle?.figuresGroupNodeId ?? null,
+            analysis_group_node_id: sourceBundle?.analysisGroupNodeId ?? null,
           },
         ],
       });
 
-      return c.json({ workflowId, objectKey }, 202);
+      return c.json(
+        {
+          workflowId,
+          objectKey,
+          sourceBundleNodeId: sourceBundle?.bundleNodeId ?? null,
+        },
+        202,
+      );
     },
   )
 

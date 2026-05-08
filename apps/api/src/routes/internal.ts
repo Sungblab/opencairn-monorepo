@@ -88,9 +88,11 @@ import { streamObject } from "../lib/s3-get";
 import { emitTreeEvent } from "../lib/tree-events";
 import {
   AgentFileError,
+  createAgentFile,
   registerExistingObjectAsAgentFile,
   startAgentFileIngest,
 } from "../lib/agent-files";
+import { createTreeNode } from "../lib/project-tree-service";
 import {
   cleanupExpiredCodeProjectPreviews,
   completeCodeProjectInstallActionFromWorker,
@@ -1192,6 +1194,7 @@ const sourceNoteSchema = z.object({
   objectKey: z.string().nullable().optional(),
   sourceUrl: z.string().url().nullable().optional(),
   mimeType: z.string().min(1).max(255),
+  treeParentNodeId: z.string().uuid().nullable().optional(),
   triggerCompiler: z.boolean().default(false),
 });
 
@@ -1250,6 +1253,32 @@ internal.post(
       mimeType: body.mimeType,
       isAuto: true,
     });
+    let treeNodeId: string | null = null;
+    if (body.treeParentNodeId) {
+      const node = await createTreeNode({
+        id: noteId,
+        workspaceId: proj.workspaceId,
+        projectId: body.projectId,
+        parentId: body.treeParentNodeId,
+        kind: "note",
+        targetTable: "notes",
+        targetId: noteId,
+        label: body.title,
+        icon: "file-text",
+        sourceWorkflowId: body.objectKey ? undefined : null,
+        sourceObjectKey: body.objectKey ?? null,
+        metadata: { role: "source_note", sourceType: body.sourceType },
+      });
+      treeNodeId = node.id;
+      emitTreeEvent({
+        kind: "tree.node_created",
+        projectId: body.projectId,
+        id: node.id,
+        parentId: node.parentId,
+        label: node.label,
+        at: new Date().toISOString(),
+      });
+    }
     await refreshNoteChunkIndexBestEffort({
       id: noteId,
       workspaceId: proj.workspaceId,
@@ -1288,7 +1317,113 @@ internal.post(
       }
     }
 
-    return c.json({ noteId }, 201);
+    return c.json({ noteId, treeNodeId }, 201);
+  },
+);
+
+const sourceBundleArtifactSchema = z.object({
+  workspaceId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  userId: z.string(),
+  parentNodeId: z.string().uuid(),
+  kind: z.enum(["note", "agent_file", "artifact"]),
+  label: z.string().min(1).max(255),
+  role: z.string().min(1).max(80),
+  text: z.string().optional(),
+  filename: z.string().min(1).max(180).optional(),
+  mimeType: z.string().min(1).max(255).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+internal.post(
+  "/source-bundles/:bundleNodeId/artifacts",
+  zValidator("json", sourceBundleArtifactSchema),
+  async (c) => {
+    const bundleNodeId = c.req.param("bundleNodeId");
+    if (!isUuid(bundleNodeId)) return c.json({ error: "bad_request" }, 400);
+    const body = c.req.valid("json");
+    let targetTable: "notes" | "agent_files" | null = null;
+    let targetId: string | null = null;
+    let nodeKind: "note" | "agent_file" | "artifact" = body.kind;
+
+    if (body.kind === "note") {
+      const noteId = randomUUID();
+      await db.insert(notes).values({
+        id: noteId,
+        projectId: body.projectId,
+        workspaceId: body.workspaceId,
+        title: body.label,
+        content: toPlateDoc(body.text ?? ""),
+        contentText: body.text ?? "",
+        type: "source",
+        sourceType: "unknown",
+        isAuto: true,
+      });
+      targetTable = "notes";
+      targetId = noteId;
+    } else if (body.kind === "agent_file") {
+      const file = await createAgentFile({
+        userId: body.userId,
+        projectId: body.projectId,
+        source: "manual",
+        skipPermissionCheck: true,
+        file: {
+          filename: body.filename ?? body.label,
+          title: body.label,
+          mimeType: body.mimeType ?? "text/markdown",
+          content: body.text ?? "",
+          startIngest: false,
+        },
+      });
+      targetTable = "agent_files";
+      targetId = file.id;
+      nodeKind = "agent_file";
+    }
+
+    const node = await createTreeNode({
+      id: targetId ?? undefined,
+      workspaceId: body.workspaceId,
+      projectId: body.projectId,
+      parentId: body.parentNodeId,
+      kind: nodeKind,
+      targetTable,
+      targetId,
+      label: body.label,
+      icon: body.kind === "agent_file" ? "file" : "file-text",
+      metadata: { ...(body.metadata ?? {}), role: body.role, bundleNodeId },
+    });
+
+    emitTreeEvent({
+      kind: "tree.node_created",
+      projectId: body.projectId,
+      id: node.id,
+      parentId: node.parentId,
+      label: node.label,
+      at: new Date().toISOString(),
+    });
+    return c.json({ nodeId: node.id, targetId }, 201);
+  },
+);
+
+const sourceBundleStatusSchema = z.object({
+  status: z.enum(["running", "completed", "failed"]),
+  reason: z.string().optional(),
+});
+
+internal.post(
+  "/source-bundles/:bundleNodeId/status",
+  zValidator("json", sourceBundleStatusSchema),
+  async (c) => {
+    const bundleNodeId = c.req.param("bundleNodeId");
+    if (!isUuid(bundleNodeId)) return c.json({ error: "bad_request" }, 400);
+    const body = c.req.valid("json");
+    await db.execute(sql`
+      UPDATE project_tree_nodes
+         SET metadata = metadata || ${JSON.stringify(body)}::jsonb,
+             updated_at = now()
+       WHERE id = ${bundleNodeId}::uuid
+    `);
+    return c.json({ ok: true });
   },
 );
 
