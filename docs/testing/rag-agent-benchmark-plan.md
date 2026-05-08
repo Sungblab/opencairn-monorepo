@@ -194,3 +194,36 @@ Current limits:
   success/failure and recovery scoring remain follow-up work and are excluded
   from actual metric averages.
 - Mutable-note freshness and parser fidelity remain separate follow-ups.
+
+## DB-Backed Retrieval Slice - 2026-05-08
+
+The next retrieval-quality slice adds a DB-backed benchmark runner without
+changing the deterministic first baseline. It seeds real users, workspace
+membership, project sharing, page-level permission overrides, notes, and note
+chunks, then runs the production `retrieveWithPolicy()` path.
+
+Run against a migrated local Postgres database:
+
+```powershell
+$env:DATABASE_URL = "postgresql://USER:PASSWORD@127.0.0.1:15432/DB_NAME"
+pnpm --filter @opencairn/api benchmark:rag-db
+```
+
+Output:
+
+- raw JSONL:
+  `apps/api/benchmarks/results/rag-db-retrieval-2026-05-08-db-backed-retrieval-v1.jsonl`
+- Markdown summary:
+  `apps/api/benchmarks/results/rag-db-retrieval-2026-05-08-db-backed-retrieval-v1.md`
+
+Initial fixture coverage:
+
+| Area                            | Case                                    | Expected result                                                                                                                                                             |
+| ------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Note-level permission filtering | `guest-workspace-filters-page-override` | A guest with project read access receives the readable policy chunk, and does not receive the hidden page-override chunk even when the hidden chunk is more vector-similar. |
+
+This runner uses a deterministic query embedding override so DB evaluation does
+not require a live embedding provider. Provider rerank should remain disabled
+for this benchmark unless a separate provider-backed evaluation is being run.
+The output filename is derived from the manifest version so follow-up benchmark
+runs do not reuse a stale date label.

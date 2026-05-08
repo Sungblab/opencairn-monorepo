@@ -2,16 +2,50 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { FilePlus2, LoaderCircle } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import {
   agentActionsApi,
   documentGenerationApi,
   type DocumentGenerationFormat,
+  type ImageRenderEngine,
   type DocumentGenerationSourceOption,
+  type PdfRenderEngine,
 } from "@/lib/api-client";
 
-const FORMATS: DocumentGenerationFormat[] = ["pdf", "docx", "pptx", "xlsx"];
+const FORMATS: DocumentGenerationFormat[] = ["pdf", "docx", "pptx", "xlsx", "image"];
+const PDF_RENDER_ENGINES: PdfRenderEngine[] = ["latex", "pymupdf"];
+const IMAGE_RENDER_ENGINES: ImageRenderEngine[] = ["svg", "model"];
+const REPORT_TEMPLATES = [
+  "report",
+  "brief",
+  "research_summary",
+  "technical_report",
+  "research_brief",
+  "paper_style",
+  "business_report",
+] as const;
+const DOCUMENT_GENERATION_TEMPLATES = [
+  ...REPORT_TEMPLATES,
+  "deck",
+  "spreadsheet",
+  "custom",
+] as const;
+type DocumentGenerationTemplate = (typeof DOCUMENT_GENERATION_TEMPLATES)[number];
+const TEMPLATE_OPTIONS_BY_FORMAT = {
+  pdf: REPORT_TEMPLATES,
+  docx: REPORT_TEMPLATES,
+  pptx: ["deck", "custom"],
+  xlsx: ["spreadsheet", "custom"],
+  image: ["research_brief", "technical_report", "business_report", "custom"],
+} satisfies Record<DocumentGenerationFormat, readonly DocumentGenerationTemplate[]>;
+const DEFAULT_TEMPLATE_BY_FORMAT = {
+  pdf: "technical_report",
+  docx: "report",
+  pptx: "deck",
+  xlsx: "spreadsheet",
+  image: "research_brief",
+} satisfies Record<DocumentGenerationFormat, DocumentGenerationTemplate>;
 const POLL_INTERVAL_MS = 1500;
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
 
@@ -20,15 +54,25 @@ type Props = {
   onEvent(event: unknown): void;
 };
 
-function defaultFilename(format: DocumentGenerationFormat): string {
+function defaultFilename(format: DocumentGenerationFormat, imageEngine: ImageRenderEngine = "svg"): string {
+  if (format === "image") return imageEngine === "model" ? "generated-figure.png" : "generated-figure.svg";
   return `generated-document.${format}`;
 }
 
-function filenameForFormat(value: string, format: DocumentGenerationFormat): string {
+function filenameForFormat(
+  value: string,
+  format: DocumentGenerationFormat,
+  imageEngine: ImageRenderEngine = "svg",
+): string {
   const trimmed = value.trim();
-  if (!trimmed) return defaultFilename(format);
+  if (!trimmed) return defaultFilename(format, imageEngine);
   const withoutExtension = trimmed.replace(/\.[^.]+$/, "");
-  return `${withoutExtension || "generated-document"}.${format}`;
+  const extension = format === "image" ? (imageEngine === "model" ? "png" : "svg") : format;
+  return `${withoutExtension || (format === "image" ? "generated-figure" : "generated-document")}.${extension}`;
+}
+
+function templateOptionsFor(format: DocumentGenerationFormat): readonly DocumentGenerationTemplate[] {
+  return TEMPLATE_OPTIONS_BY_FORMAT[format];
 }
 
 function eventFromAction(action: {
@@ -66,10 +110,14 @@ function eventFromAction(action: {
 
 export function DocumentGenerationForm({ projectId, onEvent }: Props) {
   const t = useTranslations("agentPanel.documentGeneration");
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [sources, setSources] = useState<DocumentGenerationSourceOption[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [format, setFormat] = useState<DocumentGenerationFormat>("pdf");
+  const [renderEngine, setRenderEngine] = useState<PdfRenderEngine>("pymupdf");
+  const [imageEngine, setImageEngine] = useState<ImageRenderEngine>("svg");
+  const [template, setTemplate] = useState<DocumentGenerationTemplate>("technical_report");
   const [filename, setFilename] = useState("");
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
@@ -90,6 +138,13 @@ export function DocumentGenerationForm({ projectId, onEvent }: Props) {
       cancelled = true;
     };
   }, [open, projectId, t]);
+
+  useEffect(() => {
+    const options = templateOptionsFor(format);
+    if (!options.includes(template)) {
+      setTemplate(DEFAULT_TEMPLATE_BY_FORMAT[format]);
+    }
+  }, [format, template]);
 
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const selectedSources = useMemo(
@@ -118,7 +173,7 @@ export function DocumentGenerationForm({ projectId, onEvent }: Props) {
     if (!currentProjectId) return;
     setBusy(true);
     setError(null);
-    const finalFilename = filenameForFormat(filename, format);
+    const finalFilename = filenameForFormat(filename, format, imageEngine);
     try {
       const response = await documentGenerationApi.generate(currentProjectId, {
         type: "generate_project_object",
@@ -126,13 +181,10 @@ export function DocumentGenerationForm({ projectId, onEvent }: Props) {
         generation: {
           format,
           prompt: prompt.trim(),
-          locale: "ko",
-          template:
-            format === "pptx"
-              ? "deck"
-              : format === "xlsx"
-                ? "spreadsheet"
-                : "report",
+          locale,
+          template,
+          ...(format === "pdf" ? { renderEngine } : {}),
+          ...(format === "image" ? { imageEngine } : {}),
           sources: selectedSources.map((source) => source.source),
           destination: {
             filename: finalFilename,
@@ -217,7 +269,9 @@ export function DocumentGenerationForm({ projectId, onEvent }: Props) {
               className="rounded border border-border bg-background px-2 py-1 text-xs"
               value={format}
               onChange={(event) => {
-                setFormat(event.target.value as DocumentGenerationFormat);
+                const nextFormat = event.target.value as DocumentGenerationFormat;
+                setFormat(nextFormat);
+                setTemplate(DEFAULT_TEMPLATE_BY_FORMAT[nextFormat]);
               }}
             >
               {FORMATS.map((value) => (
@@ -234,9 +288,71 @@ export function DocumentGenerationForm({ projectId, onEvent }: Props) {
               aria-label="filename"
               className="rounded border border-border bg-background px-2 py-1 text-xs"
               value={filename}
-              placeholder={defaultFilename(format)}
+              placeholder={defaultFilename(format, imageEngine)}
               onChange={(event) => setFilename(event.target.value)}
             />
+            <label className="text-xs text-muted-foreground" htmlFor="doc-gen-template">
+              {t("template")}
+            </label>
+            <select
+              id="doc-gen-template"
+              aria-label="template"
+              className="rounded border border-border bg-background px-2 py-1 text-xs"
+              value={template}
+              onChange={(event) => {
+                setTemplate(event.target.value as DocumentGenerationTemplate);
+              }}
+            >
+              {templateOptionsFor(format).map((value) => (
+                <option key={value} value={value}>
+                  {t(`templateOption.${value}`)}
+                </option>
+              ))}
+            </select>
+            {format === "pdf" ? (
+              <>
+                <label className="text-xs text-muted-foreground" htmlFor="doc-gen-render-engine">
+                  {t("renderEngine")}
+                </label>
+                <select
+                  id="doc-gen-render-engine"
+                  aria-label="render engine"
+                  className="rounded border border-border bg-background px-2 py-1 text-xs"
+                  value={renderEngine}
+                  onChange={(event) => {
+                    setRenderEngine(event.target.value as PdfRenderEngine);
+                  }}
+                >
+                  {PDF_RENDER_ENGINES.map((value) => (
+                    <option key={value} value={value}>
+                      {t(`renderEngineOption.${value}`)}
+                    </option>
+                  ))}
+                </select>
+              </>
+            ) : null}
+            {format === "image" ? (
+              <>
+                <label className="text-xs text-muted-foreground" htmlFor="doc-gen-image-engine">
+                  {t("imageEngine")}
+                </label>
+                <select
+                  id="doc-gen-image-engine"
+                  aria-label="image engine"
+                  className="rounded border border-border bg-background px-2 py-1 text-xs"
+                  value={imageEngine}
+                  onChange={(event) => {
+                    setImageEngine(event.target.value as ImageRenderEngine);
+                  }}
+                >
+                  {IMAGE_RENDER_ENGINES.map((value) => (
+                    <option key={value} value={value}>
+                      {t(`imageEngineOption.${value}`)}
+                    </option>
+                  ))}
+                </select>
+              </>
+            ) : null}
           </div>
           <textarea
             aria-label="prompt"

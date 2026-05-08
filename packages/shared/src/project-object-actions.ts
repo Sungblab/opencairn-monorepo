@@ -9,7 +9,9 @@ const objectIdSchema = z.string().uuid();
 const exportFormatSchema = z.enum(["markdown", "html", "latex", "json", "csv", "xlsx", "pdf", "docx", "pptx", "image"]);
 const exportProviderSchema = z.enum(["opencairn_download", "google_drive", "google_docs", "google_sheets", "google_slides"]);
 const googleExportProviderSchema = z.enum(["google_drive", "google_docs", "google_sheets", "google_slides"]);
-const documentGenerationFormatSchema = z.enum(["pdf", "docx", "pptx", "xlsx"]);
+const documentGenerationFormatSchema = z.enum(["pdf", "docx", "pptx", "xlsx", "image"]);
+const pdfRenderEngineSchema = z.enum(["latex", "pymupdf"]);
+const imageRenderEngineSchema = z.enum(["svg", "model"]);
 const documentGenerationTemplateSchema = z.enum([
   "report",
   "brief",
@@ -17,6 +19,10 @@ const documentGenerationTemplateSchema = z.enum([
   "deck",
   "spreadsheet",
   "custom",
+  "technical_report",
+  "research_brief",
+  "paper_style",
+  "business_report",
 ]);
 const documentGenerationArtifactModeSchema = z.literal("object_storage");
 const documentGenerationPublishTargetSchema = z.literal("agent_file");
@@ -158,6 +164,8 @@ export const documentGenerationDestinationSchema = z
 export const documentGenerationRequestSchema = z
   .object({
     format: documentGenerationFormatSchema,
+    renderEngine: pdfRenderEngineSchema.optional(),
+    imageEngine: imageRenderEngineSchema.optional(),
     prompt: z.string().trim().min(1).max(8000),
     locale: z.string().trim().min(2).max(35).default("ko"),
     template: documentGenerationTemplateSchema.default("report"),
@@ -166,7 +174,23 @@ export const documentGenerationRequestSchema = z
     artifactMode: documentGenerationArtifactModeSchema.default("object_storage"),
   })
   .strict()
-  .superRefine(rejectScopeFields);
+  .superRefine((value, ctx) => {
+    rejectScopeFields(value, ctx);
+    if (value.renderEngine && value.format !== "pdf") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["renderEngine"],
+        message: "render_engine_only_supported_for_pdf",
+      });
+    }
+    if (value.imageEngine && value.format !== "image") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["imageEngine"],
+        message: "image_engine_only_supported_for_image",
+      });
+    }
+  });
 
 export const generateProjectObjectActionSchema = z
   .object({
@@ -188,6 +212,8 @@ export const projectObjectActionSchema = z.union([
 export type ProjectObjectAction = z.infer<typeof projectObjectActionSchema>;
 export type GenerateProjectObjectAction = z.infer<typeof generateProjectObjectActionSchema>;
 export type DocumentGenerationFormat = z.infer<typeof documentGenerationFormatSchema>;
+export type PdfRenderEngine = z.infer<typeof pdfRenderEngineSchema>;
+export type ImageRenderEngine = z.infer<typeof imageRenderEngineSchema>;
 export type DocumentGenerationSource = z.infer<typeof documentGenerationSourceSchema>;
 export type DocumentGenerationDestination = z.infer<typeof documentGenerationDestinationSchema>;
 export type DocumentGenerationRequest = z.infer<typeof documentGenerationRequestSchema>;

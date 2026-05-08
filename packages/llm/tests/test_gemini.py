@@ -355,6 +355,33 @@ async def test_generate_multimodal_image_requires_mime(provider):
 
 
 @pytest.mark.asyncio
+async def test_generate_image_returns_inline_image_bytes(provider):
+    from google.genai import types
+
+    image_part = MagicMock()
+    image_part.text = None
+    image_part.inline_data = MagicMock(data=b"\x89PNG\r\nimage", mime_type="image/png")
+    mock_response = MagicMock()
+    mock_response.parts = [MagicMock(text="metadata"), image_part]
+    with patch.object(
+        provider._client.aio.models,
+        "generate_content",
+        new=AsyncMock(return_value=mock_response),
+    ) as mocked:
+        result = await provider.generate_image("draw a source-aware figure")
+
+    assert result is not None
+    assert result.image_bytes.startswith(b"\x89PNG")
+    assert result.mime_type == "image/png"
+    assert result.model == "gemini-3.1-flash-image-preview"
+    assert result.text == "metadata"
+    assert mocked.await_args.kwargs["model"] == "gemini-3.1-flash-image-preview"
+    config = mocked.await_args.kwargs["config"]
+    assert isinstance(config, types.GenerateContentConfig)
+    assert config.response_modalities == ["TEXT", "IMAGE"]
+
+
+@pytest.mark.asyncio
 async def test_generate_multimodal_pdf_sends_pdf_mime(provider):
     from google.genai import types
 

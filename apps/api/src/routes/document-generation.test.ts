@@ -147,6 +147,93 @@ describe("document generation routes", () => {
     });
   });
 
+  it("preserves report template and PDF render engine in the queued action", async () => {
+    const startDocumentGeneration = vi.fn().mockResolvedValue({
+      workflowId: `document-generation/${requestId}`,
+    });
+    const app = createTestApp(createMemoryRepo(), startDocumentGeneration);
+    const payload = validGenerateAction();
+    payload.generation.template = "paper_style";
+    (payload.generation as Record<string, unknown>).renderEngine = "latex";
+
+    const response = await app.request(`/api/projects/${projectId}/project-object-actions/generate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    expect(response.status).toBe(202);
+    const body = await response.json() as { action: AgentAction; event: unknown };
+    expect(body.action.input).toMatchObject({
+      type: "generate_project_object",
+      generation: {
+        format: "pdf",
+        template: "paper_style",
+        renderEngine: "latex",
+      },
+    });
+    expect(body.event).toMatchObject({
+      type: "project_object_generation_requested",
+      generation: {
+        format: "pdf",
+        template: "paper_style",
+        renderEngine: "latex",
+      },
+    });
+    expect(startDocumentGeneration).toHaveBeenCalledWith(
+      expect.objectContaining({
+        generation: expect.objectContaining({
+          template: "paper_style",
+          renderEngine: "latex",
+        }),
+      }),
+    );
+  });
+
+  it("preserves selected image engine in the queued action", async () => {
+    const startDocumentGeneration = vi.fn().mockResolvedValue({
+      workflowId: `document-generation/${requestId}`,
+    });
+    const app = createTestApp(createMemoryRepo(), startDocumentGeneration);
+    const payload = validGenerateAction();
+    payload.generation.format = "image";
+    payload.generation.template = "research_brief";
+    payload.generation.destination.filename = "evidence-map.png";
+    (payload.generation as Record<string, unknown>).imageEngine = "model";
+
+    const response = await app.request(`/api/projects/${projectId}/project-object-actions/generate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    expect(response.status).toBe(202);
+    const body = await response.json() as { action: AgentAction; event: unknown };
+    expect(body.action.input).toMatchObject({
+      type: "generate_project_object",
+      generation: {
+        format: "image",
+        template: "research_brief",
+        imageEngine: "model",
+      },
+    });
+    expect(body.event).toMatchObject({
+      type: "project_object_generation_requested",
+      generation: {
+        format: "image",
+        imageEngine: "model",
+      },
+    });
+    expect(startDocumentGeneration).toHaveBeenCalledWith(
+      expect.objectContaining({
+        generation: expect.objectContaining({
+          format: "image",
+          imageEngine: "model",
+        }),
+      }),
+    );
+  });
+
   it("rejects request-owned scope before starting Temporal", async () => {
     const startDocumentGeneration = vi.fn();
     const app = createTestApp(createMemoryRepo(), startDocumentGeneration);

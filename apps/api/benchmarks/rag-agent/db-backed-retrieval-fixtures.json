@@ -1,0 +1,43 @@
+{
+  "manifestVersion": "2026-05-08.db-backed-retrieval.v1",
+  "description": "DB-backed retrieval fixtures that seed real workspace/project/page permissions and run retrieveWithPolicy with deterministic benchmark embeddings.",
+  "cases": [
+    {
+      "id": "guest-workspace-filters-page-override",
+      "query": "What must RAG do before citations are packed?",
+      "ragMode": "expand",
+      "scope": "workspace",
+      "expectedReadableLabels": ["shared-policy"],
+      "expectedBlockedLabels": ["page-override"],
+      "expectedRoute": "simple",
+      "seed": {
+        "notes": [
+          {
+            "label": "shared-policy",
+            "title": "RAG permission policy",
+            "headingPath": "Policy",
+            "contextText": "RAG permission policy > Policy",
+            "contentText": "RAG must filter unreadable notes before citations are packed.",
+            "tokenCount": 12,
+            "sourceOffsets": { "start": 0, "end": 62 },
+            "vectorWeight": 0.9,
+            "inheritParent": true,
+            "pagePermission": "inherit"
+          },
+          {
+            "label": "page-override",
+            "title": "Restricted page override",
+            "headingPath": "Restricted",
+            "contextText": "Restricted page override > Restricted",
+            "contentText": "This restricted page mentions citations and should never be visible to the guest.",
+            "tokenCount": 13,
+            "sourceOffsets": { "start": 0, "end": 78 },
+            "vectorWeight": 0.98,
+            "inheritParent": false,
+            "pagePermission": "owner-only"
+          }
+        ]
+      }
+    }
+  ]
+}
