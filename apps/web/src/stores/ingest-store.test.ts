@@ -17,6 +17,15 @@ describe("ingest-store", () => {
     expect(state.spotlightWfid).toBe("wf-1");
   });
 
+  it("startRun can prime a source bundle before the SSE status event arrives", () => {
+    useIngestStore.getState().startRun("wf-1", "application/pdf", "x.pdf", {
+      sourceBundleNodeId: "00000000-0000-0000-0000-000000000010",
+    });
+    const run = useIngestStore.getState().runs["wf-1"];
+    expect(run.bundleNodeId).toBe("00000000-0000-0000-0000-000000000010");
+    expect(run.bundleStatus).toBe("running");
+  });
+
   it("multi-file dispatch within 200ms keeps the original spotlight", () => {
     useIngestStore.getState().startRun("wf-1", "application/pdf", "a.pdf");
     useIngestStore.getState().startRun("wf-2", "application/pdf", "b.pdf");

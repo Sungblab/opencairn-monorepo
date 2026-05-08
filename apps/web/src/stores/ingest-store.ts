@@ -47,7 +47,12 @@ export type IngestRunState = {
 type IngestStore = {
   runs: Record<string, IngestRunState>;
   spotlightWfid: string | null;
-  startRun(wfid: string, mime: string, fileName: string | null): void;
+  startRun(
+    wfid: string,
+    mime: string,
+    fileName: string | null,
+    opts?: { sourceBundleNodeId?: string | null },
+  ): void;
   applyEvent(wfid: string, ev: IngestEvent): void;
   setSpotlight(wfid: string | null): void;
   dismissDockCard(wfid: string): void;
@@ -82,7 +87,7 @@ export const useIngestStore = create<IngestStore>()(
     (set) => ({
       runs: {},
       spotlightWfid: null,
-      startRun: (wfid, mime, fileName) =>
+      startRun: (wfid, mime, fileName, opts) =>
         set((s) => {
           // Spotlight only when no other run started in the last 200ms — that
           // window is the multi-file dispatch heuristic from spec §11. Once a
@@ -91,8 +96,13 @@ export const useIngestStore = create<IngestStore>()(
           const recentStart = Object.values(s.runs).some(
             (r) => now - r.startedAt < 200 && r.status === "running",
           );
+          const run = emptyRun(wfid, mime, fileName);
+          if (opts?.sourceBundleNodeId) {
+            run.bundleNodeId = opts.sourceBundleNodeId;
+            run.bundleStatus = "running";
+          }
           return {
-            runs: { ...s.runs, [wfid]: emptyRun(wfid, mime, fileName) },
+            runs: { ...s.runs, [wfid]: run },
             spotlightWfid: recentStart ? s.spotlightWfid : wfid,
           };
         }),
