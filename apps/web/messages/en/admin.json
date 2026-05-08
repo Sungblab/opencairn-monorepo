@@ -1,8 +1,8 @@
 {
-  "eyebrow": "Operations console",
-  "title": "Site admin",
+  "eyebrow": "Admin console",
+  "title": "Admin console",
   "subtitle": "Review users, subscriptions, reports, job logs, email queue health, and system flags in one place.",
-  "accessBadge": "SITE ADMIN",
+  "accessBadge": "ADMIN",
   "navigation": "Admin areas",
   "forbiddenTitle": "Site admin access required",
   "forbiddenBody": "This page is only available to site administrators.",
@@ -15,7 +15,7 @@
     "audit": "Audit",
     "logs": "Logs",
     "apiLogs": "API calls",
-    "llmCosts": "LLM costs",
+    "llmCosts": "LLM API calls",
     "email": "Email",
     "system": "System"
   },
@@ -43,8 +43,8 @@
     "workspaceSubscriptions": "Workspace subscriptions",
     "audit": "Admin audit log",
     "apiLogs": "API request logs",
-    "llmByModel": "LLM cost by model",
-    "llmEvents": "Recent LLM usage events",
+    "llmByModel": "LLM usage by model",
+    "llmEvents": "Recent LLM API calls",
     "email": "Email delivery health",
     "system": "System settings"
   },
@@ -53,7 +53,7 @@
     "plan": "Plan",
     "verified": "Verified",
     "created": "Joined",
-    "siteAdmin": "Site admin",
+    "siteAdmin": "Admin access",
     "time": "Time",
     "method": "Method",
     "path": "Path",
@@ -83,6 +83,12 @@
     "saving": "Saving...",
     "refresh": "Refresh",
     "loadMore": "Load more"
+  },
+  "pagination": {
+    "pageSize": "Rows",
+    "range": "{start}-{end} / {total}",
+    "previous": "Previous",
+    "next": "Next"
   },
   "reportStatuses": {
     "open": "Open",

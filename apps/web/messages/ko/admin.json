@@ -1,8 +1,8 @@
 {
-  "eyebrow": "운영 콘솔",
-  "title": "사이트 관리자",
+  "eyebrow": "관리자 콘솔",
+  "title": "관리자 콘솔",
   "subtitle": "사용자, 구독, 신고, 작업 로그, 이메일 큐, 시스템 플래그를 한 화면에서 확인합니다.",
-  "accessBadge": "SITE ADMIN",
+  "accessBadge": "ADMIN",
   "navigation": "관리 영역",
   "forbiddenTitle": "사이트 관리자 권한이 필요합니다",
   "forbiddenBody": "이 페이지는 사이트 관리자만 사용할 수 있습니다.",
@@ -15,7 +15,7 @@
     "audit": "감사",
     "logs": "로그",
     "apiLogs": "API 호출",
-    "llmCosts": "LLM 비용",
+    "llmCosts": "LLM API 호출",
     "email": "이메일",
     "system": "시스템"
   },
@@ -43,8 +43,8 @@
     "workspaceSubscriptions": "워크스페이스 구독",
     "audit": "관리자 감사 로그",
     "apiLogs": "API 요청 로그",
-    "llmByModel": "모델별 LLM 비용",
-    "llmEvents": "최근 LLM 사용 이벤트",
+    "llmByModel": "모델별 LLM 사용량",
+    "llmEvents": "최근 LLM API 호출",
     "email": "이메일 발송 상태",
     "system": "시스템 설정"
   },
@@ -53,7 +53,7 @@
     "plan": "플랜",
     "verified": "인증",
     "created": "가입",
-    "siteAdmin": "사이트 관리자",
+    "siteAdmin": "관리자 권한",
     "time": "시간",
     "method": "메서드",
     "path": "경로",
@@ -83,6 +83,12 @@
     "saving": "저장 중...",
     "refresh": "새로고침",
     "loadMore": "더 보기"
+  },
+  "pagination": {
+    "pageSize": "표시 개수",
+    "range": "{start}-{end} / {total}",
+    "previous": "이전",
+    "next": "다음"
   },
   "reportStatuses": {
     "open": "열림",

@@ -191,6 +191,9 @@ const tabs: Array<{ key: ExtendedTabKey; icon: typeof Activity }> = [
   { key: "system", icon: Settings },
 ];
 
+const PAGE_SIZE_OPTIONS = [15, 30, 50, 100] as const;
+const DEFAULT_PAGE_SIZE = 30;
+
 function formatDate(value: string | null) {
   if (!value) return "-";
   return new Intl.DateTimeFormat(undefined, {
@@ -255,6 +258,82 @@ function Panel({
   );
 }
 
+function ScrollBox({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="max-h-[min(68vh,720px)] overflow-auto overscroll-contain">
+      {children}
+    </div>
+  );
+}
+
+function slicePage<T>(rows: T[], page: number, pageSize: number) {
+  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+  const safePage = Math.min(Math.max(0, page), pageCount - 1);
+  return rows.slice(safePage * pageSize, safePage * pageSize + pageSize);
+}
+
+function PaginationControls({
+  page,
+  pageSize,
+  total,
+  onPageChange,
+  onPageSizeChange,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
+}) {
+  const t = useTranslations("admin");
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const currentPage = Math.min(page, pageCount - 1);
+  const start = total === 0 ? 0 : currentPage * pageSize + 1;
+  const end = Math.min(total, (currentPage + 1) * pageSize);
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-border pt-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+      <div className="tabular-nums">
+        {t("pagination.range", { start, end, total })}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="text-xs font-semibold uppercase">
+          {t("pagination.pageSize")}
+        </label>
+        <select
+          value={pageSize}
+          onChange={(event) => onPageSizeChange(Number(event.target.value))}
+          className="h-8 border border-border bg-background px-2 text-sm"
+        >
+          {PAGE_SIZE_OPTIONS.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={currentPage === 0}
+          onClick={() => onPageChange(currentPage - 1)}
+        >
+          {t("pagination.previous")}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={currentPage >= pageCount - 1}
+          onClick={() => onPageChange(currentPage + 1)}
+        >
+          {t("pagination.next")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function StatBox({
   label,
   value,
@@ -301,6 +380,8 @@ export function AdminUsersClient() {
   const [llmUsage, setLlmUsage] = useState<LlmUsageSummary | null>(null);
   const [auditNextOffset, setAuditNextOffset] = useState<number | null>(0);
   const [query, setQuery] = useState("");
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [pages, setPages] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -376,13 +457,8 @@ export function AdminUsersClient() {
 
   async function loadInitial() {
     setError(null);
-    const ok = await Promise.all([
-      loadOverview(),
-      loadUsers(),
-      loadSubscriptions(),
-      loadReports(),
-    ]);
-    if (ok.some((value) => !value)) {
+    const ok = await loadOverview();
+    if (!ok) {
       setError(t("errors.load"));
     }
   }
@@ -392,16 +468,55 @@ export function AdminUsersClient() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === "audit" && auditEvents.length === 0) {
-      void loadAuditEvents(true);
+    async function loadActiveTab() {
+      setError(null);
+      let ok = true;
+      if (activeTab === "dashboard" && !overview) {
+        ok = await loadOverview();
+      }
+      if (activeTab === "analytics" && !overview) {
+        ok = await loadOverview();
+      }
+      if (activeTab === "users" && users.length === 0) {
+        ok = await loadUsers();
+      }
+      if (
+        activeTab === "subscriptions" &&
+        subscriptionUsers.length === 0 &&
+        workspaces.length === 0
+      ) {
+        ok = await loadSubscriptions();
+      }
+      if (activeTab === "reports" && reports.length === 0) {
+        ok = await loadReports();
+      }
+      if (activeTab === "logs" && !overview) {
+        ok = await loadOverview();
+      }
+      if (activeTab === "email" && !overview) {
+        ok = await loadOverview();
+      }
+      if (activeTab === "system" && !overview) {
+        ok = await loadOverview();
+      }
+      if (activeTab === "audit" && auditEvents.length === 0) {
+        ok = await loadAuditEvents(true);
+      }
+      if (activeTab === "apiLogs" && apiLogs.length === 0) {
+        ok = await loadApiLogs();
+      }
+      if (activeTab === "llmCosts" && !llmUsage) {
+        ok = await loadLlmUsage();
+      }
+      if (!ok) setError(t("errors.load"));
     }
-    if (activeTab === "apiLogs" && apiLogs.length === 0) {
-      void loadApiLogs();
-    }
-    if (activeTab === "llmCosts" && !llmUsage) {
-      void loadLlmUsage();
-    }
+
+    void loadActiveTab();
   }, [activeTab]);
+
+  useEffect(() => {
+    setPageFor("users", 0);
+  }, [query]);
 
   const filteredUsers = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -410,6 +525,39 @@ export function AdminUsersClient() {
       `${user.name} ${user.email} ${user.plan}`.toLowerCase().includes(needle),
     );
   }, [query, users]);
+
+  function pageFor(key: string) {
+    return pages[key] ?? 0;
+  }
+
+  function setPageFor(key: string, page: number) {
+    setPages((current) => ({ ...current, [key]: Math.max(0, page) }));
+  }
+
+  function handlePageSizeChange(nextPageSize: number) {
+    setPageSize(nextPageSize);
+    setPages({});
+  }
+
+  const pagedUsers = slicePage(filteredUsers, pageFor("users"), pageSize);
+  const pagedSubscriptionUsers = slicePage(
+    subscriptionUsers,
+    pageFor("subscriptionUsers"),
+    pageSize,
+  );
+  const pagedWorkspaces = slicePage(workspaces, pageFor("workspaces"), pageSize);
+  const pagedReports = slicePage(reports, pageFor("reports"), pageSize);
+  const pagedOperations = slicePage(
+    overview?.recentOperations ?? [],
+    pageFor("operations"),
+    pageSize,
+  );
+  const pagedApiLogs = slicePage(apiLogs, pageFor("apiLogs"), pageSize);
+  const pagedLlmEvents = slicePage(
+    llmUsage?.recentEvents ?? [],
+    pageFor("llmEvents"),
+    pageSize,
+  );
 
   async function patch(
     path: string,
@@ -437,7 +585,7 @@ export function AdminUsersClient() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
-      <aside className="border border-border bg-card">
+      <aside className="border border-border bg-card lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-auto">
         <div className="border-b border-border bg-muted/40 px-3 py-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
           {t("navigation")}
         </div>
@@ -525,29 +673,35 @@ export function AdminUsersClient() {
           </>
         )}
 
-        {activeTab === "analytics" && overview && (
-          <div className="grid gap-4 xl:grid-cols-2">
-            <BreakdownPanel
-              title={t("sections.userPlans")}
-              rows={overview.analytics.userPlans}
-              labelKey="plan"
-            />
-            <BreakdownPanel
-              title={t("sections.workspacePlans")}
-              rows={overview.analytics.workspacePlans}
-              labelKey="plan"
-            />
-            <BreakdownPanel
-              title={t("sections.actionStatuses")}
-              rows={overview.analytics.actionStatuses}
-              labelKey="status"
-            />
-            <BreakdownPanel
-              title={t("sections.usage")}
-              rows={overview.analytics.usageByAction}
-              labelKey="action"
-            />
-          </div>
+        {activeTab === "analytics" && (
+          overview ? (
+            <div className="grid gap-4 xl:grid-cols-2">
+              <BreakdownPanel
+                title={t("sections.userPlans")}
+                rows={overview.analytics.userPlans}
+                labelKey="plan"
+              />
+              <BreakdownPanel
+                title={t("sections.workspacePlans")}
+                rows={overview.analytics.workspacePlans}
+                labelKey="plan"
+              />
+              <BreakdownPanel
+                title={t("sections.actionStatuses")}
+                rows={overview.analytics.actionStatuses}
+                labelKey="status"
+              />
+              <BreakdownPanel
+                title={t("sections.usage")}
+                rows={overview.analytics.usageByAction}
+                labelKey="action"
+              />
+            </div>
+          ) : (
+            <Panel title={t("tabs.analytics")}>
+              <Empty />
+            </Panel>
+          )
         )}
 
         {activeTab === "users" && (
@@ -565,9 +719,9 @@ export function AdminUsersClient() {
               </div>
             }
           >
-            <div className="overflow-x-auto">
+            <ScrollBox>
               <table className="min-w-full border-collapse text-sm">
-                <thead>
+                <thead className="sticky top-0 bg-card">
                   <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
                     <th className="px-3 py-2">{t("columns.user")}</th>
                     <th className="px-3 py-2">{t("columns.plan")}</th>
@@ -579,7 +733,7 @@ export function AdminUsersClient() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredUsers.map((user) => (
+                  {pagedUsers.map((user) => (
                     <tr key={user.id} className="border-b border-border">
                       <td className="px-3 py-2">
                         <div className="font-semibold">{user.name}</div>
@@ -624,7 +778,14 @@ export function AdminUsersClient() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollBox>
+            <PaginationControls
+              page={pageFor("users")}
+              pageSize={pageSize}
+              total={filteredUsers.length}
+              onPageChange={(page) => setPageFor("users", page)}
+              onPageSizeChange={handlePageSizeChange}
+            />
           </Panel>
         )}
 
@@ -632,7 +793,12 @@ export function AdminUsersClient() {
           <div className="grid gap-4 xl:grid-cols-2">
             <PlanTable
               title={t("sections.userSubscriptions")}
-              rows={subscriptionUsers}
+              rows={pagedSubscriptionUsers}
+              totalRows={subscriptionUsers.length}
+              page={pageFor("subscriptionUsers")}
+              pageSize={pageSize}
+              onPageChange={(page) => setPageFor("subscriptionUsers", page)}
+              onPageSizeChange={handlePageSizeChange}
               idPrefix="user"
               options={["free", "pro", "byok"]}
               getValue={(row) => row.plan}
@@ -647,7 +813,12 @@ export function AdminUsersClient() {
             />
             <PlanTable
               title={t("sections.workspaceSubscriptions")}
-              rows={workspaces}
+              rows={pagedWorkspaces}
+              totalRows={workspaces.length}
+              page={pageFor("workspaces")}
+              pageSize={pageSize}
+              onPageChange={(page) => setPageFor("workspaces", page)}
+              onPageSizeChange={handlePageSizeChange}
               idPrefix="workspace"
               options={["free", "pro", "enterprise"]}
               getValue={(row) => row.planType}
@@ -669,8 +840,9 @@ export function AdminUsersClient() {
 
         {activeTab === "reports" && (
           <Panel title={t("sections.reports")}>
-            <div className="space-y-2">
-              {reports.map((report) => (
+            <ScrollBox>
+              <div className="space-y-2">
+              {pagedReports.map((report) => (
                 <div
                   key={report.id}
                   className="grid gap-3 border border-border bg-background p-3 lg:grid-cols-[1fr_180px]"
@@ -722,7 +894,15 @@ export function AdminUsersClient() {
                   </div>
                 </div>
               ))}
-            </div>
+              </div>
+            </ScrollBox>
+            <PaginationControls
+              page={pageFor("reports")}
+              pageSize={pageSize}
+              total={reports.length}
+              onPageChange={(page) => setPageFor("reports", page)}
+              onPageSizeChange={handlePageSizeChange}
+            />
           </Panel>
         )}
 
@@ -764,7 +944,14 @@ export function AdminUsersClient() {
               </Button>
             }
           >
-            <OperationList operations={overview?.recentOperations ?? []} />
+            <OperationList operations={pagedOperations} />
+            <PaginationControls
+              page={pageFor("operations")}
+              pageSize={pageSize}
+              total={overview?.recentOperations.length ?? 0}
+              onPageChange={(page) => setPageFor("operations", page)}
+              onPageSizeChange={handlePageSizeChange}
+            />
           </Panel>
         )}
 
@@ -783,7 +970,14 @@ export function AdminUsersClient() {
               </Button>
             }
           >
-            <ApiLogTable logs={apiLogs} />
+            <ApiLogTable logs={pagedApiLogs} />
+            <PaginationControls
+              page={pageFor("apiLogs")}
+              pageSize={pageSize}
+              total={apiLogs.length}
+              onPageChange={(page) => setPageFor("apiLogs", page)}
+              onPageSizeChange={handlePageSizeChange}
+            />
           </Panel>
         )}
 
@@ -811,60 +1005,79 @@ export function AdminUsersClient() {
               <LlmModelTable rows={llmUsage?.byModel ?? []} />
             </Panel>
             <Panel title={t("sections.llmEvents")}>
-              <LlmEventTable rows={llmUsage?.recentEvents ?? []} />
+              <LlmEventTable rows={pagedLlmEvents} />
+              <PaginationControls
+                page={pageFor("llmEvents")}
+                pageSize={pageSize}
+                total={llmUsage?.recentEvents.length ?? 0}
+                onPageChange={(page) => setPageFor("llmEvents", page)}
+                onPageSizeChange={handlePageSizeChange}
+              />
             </Panel>
           </div>
         )}
 
-        {activeTab === "email" && overview && (
-          <Panel title={t("sections.email")}>
-            <div className="grid gap-2 md:grid-cols-3">
-              <ConfigBox
-                icon={Mail}
-                label={t("email.resend")}
-                ok={overview.system.email.resendConfigured}
-              />
-              <ConfigBox
-                icon={Mail}
-                label={t("email.smtp")}
-                ok={overview.system.email.smtpConfigured}
-              />
-              <ConfigBox
-                icon={AlertTriangle}
-                label={t("email.pending")}
-                ok={(stats.pendingEmails ?? 0) === 0}
-                detail={`${stats.pendingEmails ?? 0}`}
-              />
-            </div>
-          </Panel>
+        {activeTab === "email" && (
+          overview ? (
+            <Panel title={t("sections.email")}>
+              <div className="grid gap-2 md:grid-cols-3">
+                <ConfigBox
+                  icon={Mail}
+                  label={t("email.resend")}
+                  ok={overview.system.email.resendConfigured}
+                />
+                <ConfigBox
+                  icon={Mail}
+                  label={t("email.smtp")}
+                  ok={overview.system.email.smtpConfigured}
+                />
+                <ConfigBox
+                  icon={AlertTriangle}
+                  label={t("email.pending")}
+                  ok={(stats.pendingEmails ?? 0) === 0}
+                  detail={`${stats.pendingEmails ?? 0}`}
+                />
+              </div>
+            </Panel>
+          ) : (
+            <Panel title={t("sections.email")}>
+              <Empty />
+            </Panel>
+          )
         )}
 
-        {activeTab === "system" && overview && (
-          <Panel title={t("sections.system")}>
-            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-              <ConfigBox
-                icon={Shield}
-                label={t("system.environment")}
-                ok
-                detail={overview.system.environment}
-              />
-              <ConfigBox
-                icon={Database}
-                label={t("system.storage")}
-                ok={overview.system.storage.s3Configured}
-              />
-              {Object.entries(overview.system.featureFlags).map(
-                ([key, value]) => (
-                  <ConfigBox
-                    key={key}
-                    icon={CheckCircle2}
-                    label={key}
-                    ok={value}
-                  />
-                ),
-              )}
-            </div>
-          </Panel>
+        {activeTab === "system" && (
+          overview ? (
+            <Panel title={t("sections.system")}>
+              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                <ConfigBox
+                  icon={Shield}
+                  label={t("system.environment")}
+                  ok
+                  detail={overview.system.environment}
+                />
+                <ConfigBox
+                  icon={Database}
+                  label={t("system.storage")}
+                  ok={overview.system.storage.s3Configured}
+                />
+                {Object.entries(overview.system.featureFlags).map(
+                  ([key, value]) => (
+                    <ConfigBox
+                      key={key}
+                      icon={CheckCircle2}
+                      label={key}
+                      ok={value}
+                    />
+                  ),
+                )}
+              </div>
+            </Panel>
+          ) : (
+            <Panel title={t("sections.system")}>
+              <Empty />
+            </Panel>
+          )
         )}
       </div>
     </div>
@@ -904,7 +1117,7 @@ function OperationList({
 }) {
   if (operations.length === 0) return <Empty />;
   return (
-    <div className="overflow-x-auto">
+    <ScrollBox>
       <table className="min-w-full text-sm">
         <tbody>
           {operations.map((op) => (
@@ -929,7 +1142,7 @@ function OperationList({
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollBox>
   );
 }
 
@@ -937,9 +1150,9 @@ function ApiLogTable({ logs }: { logs: ApiRequestLog[] }) {
   const t = useTranslations("admin");
   if (logs.length === 0) return <Empty />;
   return (
-    <div className="overflow-x-auto">
+    <ScrollBox>
       <table className="min-w-full text-sm">
-        <thead>
+        <thead className="sticky top-0 bg-card">
           <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
             <th className="px-2 py-2">{t("columns.time")}</th>
             <th className="px-2 py-2">{t("columns.method")}</th>
@@ -974,7 +1187,7 @@ function ApiLogTable({ logs }: { logs: ApiRequestLog[] }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollBox>
   );
 }
 
@@ -1031,9 +1244,9 @@ function AuditEventTable({
   if (events.length === 0) return <Empty />;
   return (
     <div className="space-y-3">
-      <div className="overflow-x-auto">
+      <ScrollBox>
         <table className="min-w-full text-sm">
-          <thead>
+          <thead className="sticky top-0 bg-card">
             <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
               <th className="px-2 py-2">{t("columns.time")}</th>
               <th className="px-2 py-2">{t("columns.action")}</th>
@@ -1065,7 +1278,7 @@ function AuditEventTable({
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollBox>
       {hasMore && (
         <Button type="button" variant="outline" size="sm" onClick={onLoadMore}>
           {t("actions.loadMore")}
@@ -1110,7 +1323,7 @@ function LlmModelTable({ rows }: { rows: LlmUsageSummary["byModel"] }) {
 function LlmEventTable({ rows }: { rows: LlmUsageSummary["recentEvents"] }) {
   if (rows.length === 0) return <Empty />;
   return (
-    <div className="overflow-x-auto">
+    <ScrollBox>
       <table className="min-w-full text-sm">
         <tbody>
           {rows.map((row) => (
@@ -1133,7 +1346,7 @@ function LlmEventTable({ rows }: { rows: LlmUsageSummary["recentEvents"] }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollBox>
   );
 }
 
@@ -1182,6 +1395,11 @@ function BreakdownPanel({
 function PlanTable<T extends { id: string }>({
   title,
   rows,
+  totalRows,
+  page,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
   options,
   getValue,
   getName,
@@ -1191,6 +1409,11 @@ function PlanTable<T extends { id: string }>({
 }: {
   title: string;
   rows: T[];
+  totalRows: number;
+  page: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
   idPrefix: string;
   options: string[];
   getValue: (row: T) => string;
@@ -1201,34 +1424,49 @@ function PlanTable<T extends { id: string }>({
 }) {
   return (
     <Panel title={title}>
-      <div className="space-y-2">
-        {rows.map((row) => (
-          <div
-            key={row.id}
-            className="grid gap-2 border border-border bg-background p-2 sm:grid-cols-[1fr_150px]"
-          >
-            <div className="min-w-0">
-              <div className="truncate text-sm font-semibold">
-                {getName(row)}
-              </div>
-              <div className="truncate text-xs text-muted-foreground">
-                {getMeta(row)}
-              </div>
-            </div>
-            <select
-              value={getValue(row)}
-              disabled={busy}
-              onChange={(event) => void onChange(row, event.target.value)}
-              className="h-9 border border-border bg-background px-2 text-sm font-semibold uppercase"
-            >
-              {options.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+      <div className="space-y-3">
+        <ScrollBox>
+          <div className="space-y-2">
+            {rows.length === 0 ? (
+              <Empty />
+            ) : (
+              rows.map((row) => (
+                <div
+                  key={row.id}
+                  className="grid gap-2 border border-border bg-background p-2 sm:grid-cols-[1fr_150px]"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold">
+                      {getName(row)}
+                    </div>
+                    <div className="truncate text-xs text-muted-foreground">
+                      {getMeta(row)}
+                    </div>
+                  </div>
+                  <select
+                    value={getValue(row)}
+                    disabled={busy}
+                    onChange={(event) => void onChange(row, event.target.value)}
+                    className="h-9 border border-border bg-background px-2 text-sm font-semibold uppercase"
+                  >
+                    {options.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))
+            )}
           </div>
-        ))}
+        </ScrollBox>
+        <PaginationControls
+          page={page}
+          pageSize={pageSize}
+          total={totalRows}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
+        />
       </div>
     </Panel>
   );
