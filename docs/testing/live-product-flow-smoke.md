@@ -81,5 +81,7 @@ written to:
 - `output/playwright/live-product-flow-graph.png`
 - `output/playwright/live-product-flow-synthesis-export.png`
 
-The report includes generated object keys so cleanup can remove temporary PDF
-objects even when the smoke fails before deleting the seeded workspace.
+The report intentionally avoids persisting raw API response bodies. Cleanup
+discovers stale live-product workspaces, users, and synthesis document objects
+from the database, with `LIVE_PRODUCT_EXTRA_OBJECT_KEYS` available for manual
+object-key cleanup when needed.

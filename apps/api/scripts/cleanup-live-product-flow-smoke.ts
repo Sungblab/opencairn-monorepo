@@ -1,5 +1,3 @@
-// @ts-nocheck
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,7 +10,10 @@ try {
 }
 
 async function main() {
-  const [{ db, sql, user, workspaces }, { getBucket, getS3Client }] =
+  const [
+    { db, eq, sql, user, workspaces, synthesisDocuments, synthesisRuns },
+    { getBucket, getS3Client },
+  ] =
     await Promise.all([import("@opencairn/db"), import("../src/lib/s3")]);
 
   const workspaceRows = await db
@@ -30,18 +31,19 @@ async function main() {
       .map((key) => key.trim())
       .filter(Boolean),
   );
-  try {
-    const report = JSON.parse(
-      await readFile(
-        resolve(repoRoot, "output/playwright/live-product-flow-smoke-report.json"),
-        "utf8",
-      ),
-    );
-    for (const key of report?.compiledObjectKeys ?? []) {
-      objectKeys.add(key);
-    }
-  } catch {
-    // No report to mine.
+
+  for (const row of workspaceRows) {
+    objectKeys.add(`synthesis/runs/${row.id}/document.pdf`);
+  }
+
+  const documentRows = await db
+    .select({ s3Key: synthesisDocuments.s3Key })
+    .from(synthesisDocuments)
+    .innerJoin(synthesisRuns, eq(synthesisRuns.id, synthesisDocuments.runId))
+    .innerJoin(workspaces, eq(workspaces.id, synthesisRuns.workspaceId))
+    .where(sql`${workspaces.slug} like 'live-product-%'`);
+  for (const row of documentRows) {
+    if (row.s3Key) objectKeys.add(row.s3Key);
   }
 
   let removedObjects = 0;
