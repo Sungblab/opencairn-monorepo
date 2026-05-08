@@ -273,4 +273,30 @@ describe("<IngestProgressView>", () => {
       "failed",
     );
   });
+
+  it("marks upload as failed when a run fails before any stage is known", () => {
+    useIngestStore.getState().startRun("wf-1", "application/pdf", "paper.pdf");
+    useIngestStore.getState().applyEvent("wf-1", {
+      workflowId: "wf-1",
+      seq: 1,
+      ts: "2026-04-27T00:00:00.000Z",
+      kind: "failed",
+      payload: {
+        reason: "worker failed before start",
+        quarantineKey: null,
+        retryable: true,
+      },
+    });
+
+    wrap(<IngestProgressView wfid="wf-1" mode="tab" />);
+
+    expect(screen.getByTestId("ingest-pipeline-step-downloading")).toHaveAttribute(
+      "data-state",
+      "failed",
+    );
+    expect(screen.getByTestId("ingest-pipeline-step-persisting")).toHaveAttribute(
+      "data-state",
+      "waiting",
+    );
+  });
 });

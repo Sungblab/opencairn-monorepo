@@ -228,18 +228,22 @@ function ArtifactList({
 }
 
 function groupArtifacts(run: IngestRunState, sourceNoteLabel: string) {
-  const grouped: Partial<
-    Record<PipelineStepId, { label: string; role: string }[]>
-  > = {};
+  const grouped: Record<
+    PipelineStepId,
+    { label: string; role: string }[]
+  > = {
+    downloading: [],
+    parsing: [],
+    markdown: [],
+    figures: [],
+    enhancing: [],
+    persisting: [],
+  };
   for (const artifact of run.artifacts) {
-    const step = stepForRole(artifact.role);
-    grouped[step] = [...(grouped[step] ?? []), artifact];
+    grouped[stepForRole(artifact.role)].push(artifact);
   }
   if (run.noteId) {
-    grouped.enhancing = [
-      ...(grouped.enhancing ?? []),
-      { label: sourceNoteLabel, role: "source_note" },
-    ];
+    grouped.enhancing.push({ label: sourceNoteLabel, role: "source_note" });
   }
   return grouped;
 }
@@ -248,13 +252,14 @@ function resolvePipelineState(
   run: IngestRunState,
 ): Record<PipelineStepId, PipelineState> {
   if (run.status === "failed") {
-    const failedStep = stageToStep(run.stage) ?? "persisting";
+    const failedStep = stageToStep(run.stage) ?? "downloading";
+    const failedIndex = stepIndex(failedStep);
     return Object.fromEntries(
-      pipelineSteps.map((step) => [
+      pipelineSteps.map((step, idx) => [
         step.id,
         step.id === failedStep
           ? "failed"
-          : stepIndex(step.id) < stepIndex(failedStep)
+          : idx < failedIndex
             ? "done"
             : "waiting",
       ]),
@@ -262,12 +267,13 @@ function resolvePipelineState(
   }
 
   if (run.bundleStatus === "failed") {
+    const failedIndex = stepIndex("persisting");
     return Object.fromEntries(
-      pipelineSteps.map((step) => [
+      pipelineSteps.map((step, idx) => [
         step.id,
         step.id === "persisting"
           ? "failed"
-          : stepIndex(step.id) < stepIndex("persisting")
+          : idx < failedIndex
             ? "done"
             : "waiting",
       ]),
@@ -281,22 +287,17 @@ function resolvePipelineState(
   }
 
   const current = stageToStep(run.stage) ?? "downloading";
+  const currentIndex = stepIndex(current);
+  const roles = new Set(run.artifacts.map((artifact) => artifact.role));
+  const hasMarkdown = roles.has("parsed") || roles.has("parsed_page");
+  const hasFigures = roles.has("figure") || run.figures.length > 0;
+
   return Object.fromEntries(
-    pipelineSteps.map((step) => {
+    pipelineSteps.map((step, idx) => {
       if (step.id === current) return [step.id, "current"];
-      if (stepIndex(step.id) < stepIndex(current)) return [step.id, "done"];
-      if (
-        step.id === "markdown" &&
-        hasArtifactRole(run, ["parsed", "parsed_page"])
-      ) {
-        return [step.id, "done"];
-      }
-      if (
-        step.id === "figures" &&
-        (hasArtifactRole(run, ["figure"]) || run.figures.length > 0)
-      ) {
-        return [step.id, "done"];
-      }
+      if (idx < currentIndex) return [step.id, "done"];
+      if (step.id === "markdown" && hasMarkdown) return [step.id, "done"];
+      if (step.id === "figures" && hasFigures) return [step.id, "done"];
       return [step.id, "waiting"];
     }),
   ) as Record<PipelineStepId, PipelineState>;
@@ -314,10 +315,6 @@ function stageToStep(
 
 function stepIndex(step: PipelineStepId) {
   return pipelineSteps.findIndex((item) => item.id === step);
-}
-
-function hasArtifactRole(run: IngestRunState, roles: string[]) {
-  return run.artifacts.some((artifact) => roles.includes(artifact.role));
 }
 
 function stepForRole(role: string): PipelineStepId {
