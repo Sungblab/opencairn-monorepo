@@ -229,4 +229,92 @@ describe("project object action contracts", () => {
 
     expect(completed.ok).toBe(true);
   });
+
+  it("accepts report templates and selectable PDF render engines", () => {
+    const latex = projectObjectActionSchema.parse({
+      type: "generate_project_object",
+      requestId: generationRequestId,
+      generation: {
+        format: "pdf",
+        prompt: "Create a technical report with figures and citations.",
+        template: "technical_report",
+        renderEngine: "latex",
+        destination: {
+          filename: "technical-report.pdf",
+        },
+      },
+    });
+
+    expect(latex.type).toBe("generate_project_object");
+    expect(latex.generation.template).toBe("technical_report");
+    expect(latex.generation.renderEngine).toBe("latex");
+
+    const fastPdf = projectObjectActionSchema.parse({
+      type: "generate_project_object",
+      requestId: generationRequestId,
+      generation: {
+        format: "pdf",
+        prompt: "Create a quick business summary.",
+        template: "business_report",
+        renderEngine: "pymupdf",
+        destination: {
+          filename: "business-report.pdf",
+        },
+      },
+    });
+
+    expect(fastPdf.type).toBe("generate_project_object");
+    expect(fastPdf.generation.template).toBe("business_report");
+    expect(fastPdf.generation.renderEngine).toBe("pymupdf");
+
+    expect(() =>
+      projectObjectActionSchema.parse({
+        type: "generate_project_object",
+        generation: {
+          format: "docx",
+          prompt: "DOCX should not accept a PDF render engine.",
+          renderEngine: "latex",
+          destination: {
+            filename: "brief.docx",
+          },
+        },
+      }),
+    ).toThrow();
+  });
+
+  it("accepts image figure generation without a PDF render engine", () => {
+    const figure = projectObjectActionSchema.parse({
+      type: "generate_project_object",
+      requestId: generationRequestId,
+      generation: {
+        format: "image",
+        prompt: "Create a source-aware strategy figure.",
+        imageEngine: "model",
+        template: "research_brief",
+        destination: {
+          filename: "strategy-figure.png",
+        },
+      },
+    });
+
+    expect(figure.type).toBe("generate_project_object");
+    expect(figure.generation.format).toBe("image");
+    expect(figure.generation.template).toBe("research_brief");
+    expect(figure.generation.imageEngine).toBe("model");
+    expect(figure.generation.renderEngine).toBeUndefined();
+
+    expect(() =>
+      projectObjectActionSchema.parse({
+        type: "generate_project_object",
+        generation: {
+          format: "pdf",
+          prompt: "PDF should not accept an image engine.",
+          imageEngine: "model",
+          destination: {
+            filename: "brief.pdf",
+          },
+        },
+      }),
+    ).toThrow();
+  });
 });

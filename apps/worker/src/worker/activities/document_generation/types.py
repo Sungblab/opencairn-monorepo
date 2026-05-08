@@ -10,7 +10,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-DocumentGenerationFormat = Literal["pdf", "docx", "pptx", "xlsx"]
+DocumentGenerationFormat = Literal["pdf", "docx", "pptx", "xlsx", "image"]
+PdfRenderEngine = Literal["latex", "pymupdf"]
+ImageRenderEngine = Literal["svg", "model"]
 SourceQualitySignal = Literal[
     "metadata_fallback",
     "unsupported_source",
@@ -28,6 +30,10 @@ DocumentGenerationTemplate = Literal[
     "deck",
     "spreadsheet",
     "custom",
+    "technical_report",
+    "research_brief",
+    "paper_style",
+    "business_report",
 ]
 
 MIME_TYPES: dict[DocumentGenerationFormat, str] = {
@@ -35,6 +41,7 @@ MIME_TYPES: dict[DocumentGenerationFormat, str] = {
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "image": "image/svg+xml",
 }
 
 
@@ -51,6 +58,8 @@ class DocumentGenerationDestination:
 class DocumentGenerationRequest:
     format: DocumentGenerationFormat
     prompt: str
+    render_engine: PdfRenderEngine | None = None
+    image_engine: ImageRenderEngine | None = None
     locale: str = "ko"
     template: DocumentGenerationTemplate = "report"
     sources: list[dict[str, Any]] = field(default_factory=list)

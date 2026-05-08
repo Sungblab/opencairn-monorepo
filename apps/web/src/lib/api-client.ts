@@ -11,6 +11,8 @@ import type {
   DocumentGenerationFormat,
   DocumentGenerationSource,
   GenerateProjectObjectAction,
+  ImageRenderEngine,
+  PdfRenderEngine,
   NoteUpdateApplyRequest,
   ProjectObjectAction,
   RecoverAgenticPlanStepRequest,
@@ -483,7 +485,12 @@ export const documentGenerationApi = {
     ),
 };
 
-export type { DocumentGenerationFormat, DocumentGenerationSource };
+export type {
+  DocumentGenerationFormat,
+  DocumentGenerationSource,
+  ImageRenderEngine,
+  PdfRenderEngine,
+};
 
 export const workflowConsoleApi = {
   list: (

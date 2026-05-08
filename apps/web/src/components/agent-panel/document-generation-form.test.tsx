@@ -126,4 +126,187 @@ describe("DocumentGenerationForm", () => {
       ),
     );
   });
+
+  it("submits selected PDF render engine and report template", async () => {
+    const onEvent = vi.fn();
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/api/projects/project-1/document-generation/sources")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            sources: [
+              {
+                id: "note:n1",
+                type: "note",
+                title: "Planning note",
+                subtitle: "note",
+                source: { type: "note", noteId: "00000000-0000-4000-8000-000000000001" },
+              },
+            ],
+          }),
+        };
+      }
+      if (url.endsWith("/api/projects/project-1/project-object-actions/generate")) {
+        const payload = JSON.parse(String(init?.body));
+        expect(payload).toMatchObject({
+          type: "generate_project_object",
+          generation: {
+            format: "pdf",
+            template: "paper_style",
+            renderEngine: "latex",
+            destination: {
+              filename: "paper.pdf",
+            },
+          },
+        });
+        return {
+          ok: true,
+          status: 202,
+          json: async () => ({
+            action: { id: "action-1", status: "queued" },
+            event: {
+              type: "project_object_generation_requested",
+              requestId: payload.requestId,
+              generation: payload.generation,
+              workflowHint: "document_generation",
+            },
+            workflowId: "document-generation/run-1",
+            idempotent: false,
+          }),
+        };
+      }
+      if (url.endsWith("/api/agent-actions/action-1")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            action: {
+              id: "action-1",
+              status: "completed",
+              result: { ok: true, requestId: "request-1" },
+              errorCode: null,
+            },
+          }),
+        };
+      }
+      return { ok: false, status: 404, json: async () => ({ error: "not_found" }) };
+    });
+
+    render(<DocumentGenerationForm projectId="project-1" onEvent={onEvent} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /toggle/ }));
+    await waitFor(() => expect(screen.getByText("Planning note")).toBeInTheDocument());
+    fireEvent.click(screen.getByLabelText(/Planning note/));
+    fireEvent.change(screen.getByLabelText(/prompt/), {
+      target: { value: "Make a paper-style report" },
+    });
+    fireEvent.change(screen.getByLabelText(/filename/), {
+      target: { value: "paper.pdf" },
+    });
+    fireEvent.change(screen.getByLabelText(/template/), {
+      target: { value: "paper_style" },
+    });
+    fireEvent.change(screen.getByLabelText(/render engine/), {
+      target: { value: "latex" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /submit/ }));
+
+    await waitFor(() =>
+      expect(onEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "project_object_generation_requested" }),
+      ),
+    );
+  });
+
+  it("submits image figure generation with selected image engine", async () => {
+    const onEvent = vi.fn();
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/api/projects/project-1/document-generation/sources")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            sources: [
+              {
+                id: "note:n1",
+                type: "note",
+                title: "Planning note",
+                subtitle: "note",
+                source: { type: "note", noteId: "00000000-0000-4000-8000-000000000001" },
+              },
+            ],
+          }),
+        };
+      }
+      if (url.endsWith("/api/projects/project-1/project-object-actions/generate")) {
+        const payload = JSON.parse(String(init?.body));
+        expect(payload).toMatchObject({
+          type: "generate_project_object",
+          generation: {
+            format: "image",
+            template: "research_brief",
+            imageEngine: "model",
+            destination: {
+              filename: "evidence-map.png",
+            },
+          },
+        });
+        expect(payload.generation.renderEngine).toBeUndefined();
+        return {
+          ok: true,
+          status: 202,
+          json: async () => ({
+            action: { id: "action-1", status: "queued" },
+            event: {
+              type: "project_object_generation_requested",
+              requestId: payload.requestId,
+              generation: payload.generation,
+              workflowHint: "document_generation",
+            },
+            workflowId: "document-generation/run-1",
+            idempotent: false,
+          }),
+        };
+      }
+      if (url.endsWith("/api/agent-actions/action-1")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            action: { id: "action-1", status: "queued", result: null, errorCode: null },
+          }),
+        };
+      }
+      return { ok: false, status: 404, json: async () => ({ error: "not_found" }) };
+    });
+
+    render(<DocumentGenerationForm projectId="project-1" onEvent={onEvent} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /toggle/ }));
+    await waitFor(() => expect(screen.getByText("Planning note")).toBeInTheDocument());
+    fireEvent.click(screen.getByLabelText(/Planning note/));
+    fireEvent.change(screen.getByLabelText(/format/), {
+      target: { value: "image" },
+    });
+    fireEvent.change(screen.getByLabelText(/template/), {
+      target: { value: "research_brief" },
+    });
+    fireEvent.change(screen.getByLabelText(/image engine/), {
+      target: { value: "model" },
+    });
+    fireEvent.change(screen.getByLabelText(/prompt/), {
+      target: { value: "Make a figure from the evidence" },
+    });
+    fireEvent.change(screen.getByLabelText(/filename/), {
+      target: { value: "evidence-map.png" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /submit/ }));
+
+    await waitFor(() =>
+      expect(onEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "project_object_generation_requested" }),
+      ),
+    );
+  });
 });

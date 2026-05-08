@@ -3,12 +3,15 @@
 
 from __future__ import annotations
 
+import os
 import re
 import textwrap
 from datetime import UTC, datetime
+from html import escape as html_escape
 from io import BytesIO
 from typing import Any
 
+import httpx
 from temporalio import activity
 
 from worker.activities.document_generation.types import (
@@ -34,6 +37,9 @@ PDF_CJK_FONT = "korea"
 MAX_SOURCE_CHARS = 4000
 PPTX_WRAP_CHARS = 82
 PPTX_LINES_PER_SLIDE = 8
+TECTONIC_URL = os.environ.get("TECTONIC_URL", "http://tectonic:8888")
+TECTONIC_TIMEOUT_S = float(os.environ.get("TECTONIC_TIMEOUT_S", "120"))
+TECTONIC_ERROR_SUMMARY_CHARS = 2000
 
 TEMPLATE_LABELS: dict[str, dict[str, str]] = {
     "report": {
@@ -78,6 +84,34 @@ TEMPLATE_LABELS: dict[str, dict[str, str]] = {
         "quality": "Source Quality Notes",
         "body": "Source Detail",
     },
+    "technical_report": {
+        "prompt": "Objective",
+        "context": "Report Context",
+        "sources": "Source Register",
+        "quality": "Source Quality Notes",
+        "body": "Technical Detail",
+    },
+    "research_brief": {
+        "prompt": "Research Question",
+        "context": "Brief Context",
+        "sources": "Evidence Register",
+        "quality": "Evidence Quality Notes",
+        "body": "Evidence Detail",
+    },
+    "paper_style": {
+        "prompt": "Abstract",
+        "context": "Paper Context",
+        "sources": "Evidence Register",
+        "quality": "Evidence Quality Notes",
+        "body": "Findings",
+    },
+    "business_report": {
+        "prompt": "Executive Summary",
+        "context": "Business Context",
+        "sources": "Input Register",
+        "quality": "Input Quality Notes",
+        "body": "Analysis",
+    },
 }
 
 
@@ -111,6 +145,8 @@ def normalize_generation(
     return DocumentGenerationRequest(
         format=raw["format"],
         prompt=raw["prompt"],
+        render_engine=_value(raw, "render_engine", "renderEngine"),
+        image_engine=_value(raw, "image_engine", "imageEngine"),
         locale=raw.get("locale", "ko"),
         template=raw.get("template", "report"),
         sources=list(raw.get("sources", [])),
@@ -581,6 +617,207 @@ def _render_xlsx(model: dict[str, Any]) -> bytes:
     return out.getvalue()
 
 
+_LATEX_ESCAPE_RE = re.compile(r"([&%$#_{}])")
+
+
+def _latex_escape(value: Any) -> str:
+    text = str(value or "")
+    text = text.replace("\\", r"\textbackslash{}")
+    text = _LATEX_ESCAPE_RE.sub(r"\\\1", text)
+    text = text.replace("~", r"\textasciitilde{}")
+    text = text.replace("^", r"\textasciicircum{}")
+    return text
+
+
+def _latex_paragraphs(value: Any) -> str:
+    paragraphs = []
+    for paragraph in str(value or "").splitlines():
+        if paragraph.strip():
+            paragraphs.append(_latex_escape(paragraph))
+    return "\n\n".join(paragraphs)
+
+
+def _latex_template_preamble(template: str) -> str:
+    base = r"""
+\documentclass[a4paper,11pt]{article}
+\usepackage{kotex}
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\setlist[itemize]{leftmargin=1.5em}
+"""
+    if template == "paper_style":
+        return base + r"\usepackage{abstract}" + "\n"
+    return base
+
+
+def _render_latex_source(model: dict[str, Any]) -> str:
+    lines = [
+        _latex_template_preamble(str(model["template"])),
+        f"\\title{{{_latex_escape(model['title'])}}}",
+        "\\date{\\today}",
+        "\\begin{document}",
+        "\\maketitle",
+        "\\tableofcontents",
+        "\\newpage",
+    ]
+    for section in model["sections"]:
+        lines.append(f"\\section{{{_latex_escape(section['title'])}}}")
+        if section.get("body"):
+            lines.append(_latex_paragraphs(section["body"]))
+        bullets = section.get("bullets", [])
+        if bullets:
+            lines.append("\\begin{itemize}")
+            for bullet in bullets:
+                lines.append(f"  \\item {_latex_escape(bullet)}")
+            lines.append("\\end{itemize}")
+    lines.append("\\end{document}")
+    return "\n\n".join(line for line in lines if line)
+
+
+async def _post_tectonic(tex_source: str, bib_source: str) -> bytes:
+    async with httpx.AsyncClient(timeout=TECTONIC_TIMEOUT_S) as client:
+        response = await client.post(
+            f"{TECTONIC_URL}/compile",
+            json={
+                "tex_source": tex_source,
+                "bib_source": bib_source or None,
+                "engine": "xelatex",
+                "timeout_ms": int(TECTONIC_TIMEOUT_S * 1000),
+            },
+        )
+        if response.status_code == 504:
+            raise RuntimeError("tectonic_timeout")
+        if response.status_code != 200:
+            raise RuntimeError(
+                f"tectonic_failed: {response.text[:TECTONIC_ERROR_SUMMARY_CHARS]}"
+            )
+        return response.content
+
+
+async def _render_latex_pdf_model(model: dict[str, Any]) -> bytes:
+    return await _post_tectonic(_render_latex_source(model), "")
+
+
+def _svg_text_lines(text: str, *, width: int, max_lines: int) -> list[str]:
+    lines: list[str] = []
+    for raw_line in text.splitlines() or [text]:
+        normalized = raw_line.strip()
+        if not normalized:
+            continue
+        lines.extend(textwrap.wrap(normalized, width=width, break_long_words=True))
+        if len(lines) >= max_lines:
+            return [*lines[: max_lines - 1], f"{lines[max_lines - 1]}..."]
+    return lines[:max_lines]
+
+
+def _render_svg_text_block(
+    *,
+    title: str,
+    lines: list[str],
+    x: int,
+    y: int,
+    width: int,
+    fill: str,
+) -> str:
+    safe_title = html_escape(title)
+    text_lines = [
+        f'<text x="{x}" y="{y}" font-size="28" font-weight="700" fill="{fill}">{safe_title}</text>'
+    ]
+    current_y = y + 38
+    for line in lines:
+        text_lines.append(
+            f'<text x="{x}" y="{current_y}" font-size="22" fill="{fill}" opacity="0.9">{html_escape(line)}</text>'
+        )
+        current_y += 32
+    return (
+        f'<rect x="{x - 24}" y="{y - 38}" width="{width}" height="{current_y - y + 28}" rx="18" '
+        'fill="rgba(255,255,255,0.88)" stroke="rgba(15,23,42,0.12)"/>'
+        + "\n"
+        + "\n".join(text_lines)
+    )
+
+
+def _render_svg_figure_model(model: dict[str, Any]) -> bytes:
+    title = str(model["title"])
+    prompt = str(model["prompt"])
+    context = next(
+        (section for section in model["sections"] if section.get("kind") == "context"),
+        None,
+    )
+    sources = next(
+        (section for section in model["sections"] if section.get("kind") == "sources"),
+        None,
+    )
+    prompt_lines = _svg_text_lines(prompt, width=68, max_lines=5)
+    context_lines = _svg_text_lines(
+        "\n".join(str(item) for item in (context or {}).get("bullets", [])[:4]),
+        width=48,
+        max_lines=4,
+    )
+    source_lines = _svg_text_lines(
+        "\n".join(str(item) for item in (sources or {}).get("bullets", [])[:4]),
+        width=52,
+        max_lines=5,
+    )
+    title_lines = _svg_text_lines(title, width=42, max_lines=2)
+    safe_title = html_escape(title_lines[0] if title_lines else title)
+    subtitle = html_escape(title_lines[1] if len(title_lines) > 1 else str(model["template"]))
+    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="{safe_title}">
+  <rect width="1600" height="900" fill="#f6f8fb"/>
+  <rect x="0" y="0" width="1600" height="900" fill="#eaf1f4"/>
+  <circle cx="1370" cy="120" r="220" fill="#d8e7df"/>
+  <circle cx="180" cy="760" r="260" fill="#e2dfef"/>
+  <text x="96" y="120" font-family="Inter, Arial, sans-serif" font-size="54" font-weight="800" fill="#0f172a">{safe_title}</text>
+  <text x="100" y="166" font-family="Inter, Arial, sans-serif" font-size="24" fill="#475569">{subtitle}</text>
+  <g font-family="Inter, Arial, sans-serif">
+    {_render_svg_text_block(title="Objective", lines=prompt_lines, x=120, y=270, width=650, fill="#0f172a")}
+    {_render_svg_text_block(title="Context", lines=context_lines, x=900, y=270, width=560, fill="#12323a")}
+    {_render_svg_text_block(title="Sources", lines=source_lines, x=900, y=520, width=560, fill="#263247")}
+  </g>
+  <text x="100" y="820" font-family="Inter, Arial, sans-serif" font-size="18" fill="#64748b">OpenCairn generated figure · request {html_escape(str(model["request_id"]))}</text>
+</svg>
+"""
+    return svg.encode("utf-8")
+
+
+def _model_image_prompt(model: dict[str, Any]) -> str:
+    source_summaries = [
+        _source_summary(source)
+        for source in model.get("all_sources", [])[:6]
+    ]
+    quality_notes = [
+        str(item)
+        for item in model.get("quality_bullets", [])[:4]
+    ]
+    parts = [
+        "Create a polished, presentation-ready figure for an OpenCairn knowledge artifact.",
+        "Use a clean professional visual style, balanced spacing, and legible labels.",
+        "Avoid fictional citations. If evidence is uncertain, represent it as an uncertainty cue.",
+        f"Title: {model['title']}",
+        f"Template: {model['template']}",
+        f"Objective: {model['prompt']}",
+    ]
+    if source_summaries:
+        parts.append("Sources:\n" + "\n".join(f"- {line}" for line in source_summaries))
+    if quality_notes:
+        parts.append("Source quality notes:\n" + "\n".join(f"- {line}" for line in quality_notes))
+    return "\n\n".join(parts)
+
+
+async def _render_model_image(model: dict[str, Any]) -> tuple[bytes, str]:
+    from llm.factory import get_provider
+
+    provider = get_provider()
+    result = await provider.generate_image(_model_image_prompt(model))
+    if result is None:
+        raise RuntimeError("image_generation_not_supported")
+    return result.image_bytes, result.mime_type
+
+
 def render_document_bytes(
     params: DocumentGenerationWorkflowParams,
     source_bundle: DocumentGenerationSourceBundle | dict[str, Any] | None = None,
@@ -596,6 +833,8 @@ def render_document_bytes(
         return _render_pdf_model(model)
     if generation.format == "docx":
         return _render_docx(model)
+    if generation.format == "image":
+        return _render_svg_figure_model(model)
     raise ValueError(f"Unsupported document generation format: {generation.format}")
 
 
@@ -618,9 +857,17 @@ async def generate_document_artifact(
         raise ValueError("document_generation_requires_object_storage")
 
     heartbeat_safe(f"generating {generation.format}")
-    body = render_document_bytes(normalized, source_bundle)
+    if generation.format == "pdf" and generation.render_engine == "latex":
+        sources = normalize_source_bundle(source_bundle)
+        body = await _render_latex_pdf_model(_document_model(normalized, generation, sources))
+        mime_type = MIME_TYPES[generation.format]
+    elif generation.format == "image" and generation.image_engine == "model":
+        sources = normalize_source_bundle(source_bundle)
+        body, mime_type = await _render_model_image(_document_model(normalized, generation, sources))
+    else:
+        body = render_document_bytes(normalized, source_bundle)
+        mime_type = MIME_TYPES[generation.format]
     object_key = _artifact_key(normalized, generation)
-    mime_type = MIME_TYPES[generation.format]
     upload_bytes(object_key, body, mime_type)
     return GeneratedDocumentArtifact(
         objectKey=object_key,
