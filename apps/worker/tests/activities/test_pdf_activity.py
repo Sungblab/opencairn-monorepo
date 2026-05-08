@@ -6,13 +6,16 @@ patched, so these run without docker / java / pymupdf-readable fixtures.
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from temporalio.exceptions import ApplicationError
 
 from worker.activities.pdf_activity import parse_pdf
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.mark.asyncio
@@ -134,10 +137,12 @@ async def test_parse_pdf_scan_ocrs_each_page(tmp_path: Path):
     with (
         patch("worker.activities.pdf_activity.download_to_tempfile", return_value=fake_pdf),
         patch("worker.activities.pdf_activity._detect_scan", return_value=True),
+        patch("worker.activities.pdf_activity._pdf_page_count", return_value=2),
         patch(
-            "worker.activities.pdf_activity._render_pages_to_png",
-            return_value=[b"\x89PNG\r\np1", b"\x89PNG\r\np2"],
-        ),
+            "worker.activities.pdf_activity._render_page_to_png",
+            side_effect=[b"\x89PNG\r\np1", b"\x89PNG\r\np2"],
+        ) as render_page,
+        patch("worker.activities.pdf_activity._local_ocr_available", return_value=False),
         patch("worker.activities.pdf_activity.get_provider", return_value=fake_provider),
         patch("worker.activities.pdf_activity.publish_safe", side_effect=fake_publish),
     ):
@@ -162,6 +167,7 @@ async def test_parse_pdf_scan_ocrs_each_page(tmp_path: Path):
     assert fake_provider.ocr.await_count == 2
     first_call_args = fake_provider.ocr.await_args_list[0]
     assert first_call_args.args[0] == b"\x89PNG\r\np1"
+    assert [call.args[1] for call in render_page.call_args_list] == [0, 1]
 
     kinds = [c[0] for c in publish_calls]
     assert kinds.count("unit_started") == 2
@@ -170,6 +176,160 @@ async def test_parse_pdf_scan_ocrs_each_page(tmp_path: Path):
     # the JAR-text path.
     parsed_payloads = [p for k, p in publish_calls if k == "unit_parsed"]
     assert all(p["unitKind"] == "page" for p in parsed_payloads)
+
+
+@pytest.mark.asyncio
+async def test_parse_pdf_scan_renders_pages_incrementally(tmp_path: Path):
+    """Large scan PDFs should not render every page into memory up front."""
+    fake_pdf = tmp_path / "scan.pdf"
+    fake_pdf.write_bytes(b"%PDF-1.4\n...")
+
+    fake_provider = MagicMock()
+    fake_provider.supports_ocr.return_value = True
+    fake_provider.ocr = AsyncMock(side_effect=["page one text", "page two text"])
+
+    async def fake_publish(_wfid, _kind, _payload):
+        return None
+
+    with (
+        patch("worker.activities.pdf_activity.download_to_tempfile", return_value=fake_pdf),
+        patch("worker.activities.pdf_activity._detect_scan", return_value=True),
+        patch("worker.activities.pdf_activity._pdf_page_count", return_value=2, create=True),
+        patch(
+            "worker.activities.pdf_activity._render_page_to_png",
+            side_effect=[b"\x89PNG\r\np1", b"\x89PNG\r\np2"],
+            create=True,
+        ) as render_page,
+        patch(
+            "worker.activities.pdf_activity._render_pages_to_png",
+            side_effect=AssertionError("bulk page rendering should not be used"),
+        ),
+        patch("worker.activities.pdf_activity._local_ocr_available", return_value=False),
+        patch("worker.activities.pdf_activity.get_provider", return_value=fake_provider),
+        patch("worker.activities.pdf_activity.publish_safe", side_effect=fake_publish),
+    ):
+        result = await parse_pdf({
+            "object_key": "uploads/u/scan.pdf",
+            "user_id": "u",
+            "project_id": "p",
+            "note_id": None,
+            "file_name": "scan.pdf",
+            "mime_type": "application/pdf",
+            "url": None,
+            "workflow_id": "wf-scan-streaming",
+        })
+
+    assert result["text"] == "page one text\n\npage two text"
+    assert [call.args[1] for call in render_page.call_args_list] == [0, 1]
+
+
+@pytest.mark.asyncio
+async def test_parse_pdf_scan_uses_local_ocr_before_provider(tmp_path: Path):
+    """Local OCR should keep scan-PDF ingest working without Gemini vision.
+
+    This is the cost-control path for large scanned PDFs: pages that OCR
+    cleanly with the local engine should not call the configured LLM provider.
+    """
+    fake_pdf = tmp_path / "scan.pdf"
+    fake_pdf.write_bytes(b"%PDF-1.4\n...")
+
+    fake_provider = MagicMock()
+    fake_provider.supports_ocr.return_value = False
+    fake_provider.ocr = AsyncMock(
+        side_effect=AssertionError("provider OCR should not be called")
+    )
+
+    async def fake_publish(_wfid, _kind, _payload):
+        return None
+
+    with (
+        patch("worker.activities.pdf_activity.download_to_tempfile", return_value=fake_pdf),
+        patch("worker.activities.pdf_activity._detect_scan", return_value=True),
+        patch("worker.activities.pdf_activity._pdf_page_count", return_value=2),
+        patch(
+            "worker.activities.pdf_activity._render_page_to_png",
+            side_effect=[b"\x89PNG\r\np1", b"\x89PNG\r\np2"],
+        ),
+        patch(
+            "worker.activities.pdf_activity._local_ocr_available",
+            return_value=True,
+            create=True,
+        ),
+        patch(
+            "worker.activities.pdf_activity._ocr_page_with_tesseract",
+            side_effect=["local page one", "local page two"],
+            create=True,
+        ),
+        patch("worker.activities.pdf_activity.get_provider", return_value=fake_provider),
+        patch("worker.activities.pdf_activity.publish_safe", side_effect=fake_publish),
+    ):
+        result = await parse_pdf({
+            "object_key": "uploads/u/scan.pdf",
+            "user_id": "u",
+            "project_id": "p",
+            "note_id": None,
+            "file_name": "scan.pdf",
+            "mime_type": "application/pdf",
+            "url": None,
+            "workflow_id": "wf-scan-local",
+        })
+
+    assert result["is_scan"] is True
+    assert result["text"] == "local page one\n\nlocal page two"
+    assert fake_provider.ocr.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_parse_pdf_scan_falls_back_to_provider_when_local_ocr_is_empty(
+    tmp_path: Path,
+):
+    """A blank local OCR result should keep the existing Gemini fallback path."""
+    fake_pdf = tmp_path / "scan.pdf"
+    fake_pdf.write_bytes(b"%PDF-1.4\n...")
+
+    fake_provider = MagicMock()
+    fake_provider.supports_ocr.return_value = True
+    fake_provider.ocr = AsyncMock(return_value="provider page text")
+    local_ocr = MagicMock(return_value="")
+
+    async def fake_publish(_wfid, _kind, _payload):
+        return None
+
+    with (
+        patch("worker.activities.pdf_activity.download_to_tempfile", return_value=fake_pdf),
+        patch("worker.activities.pdf_activity._detect_scan", return_value=True),
+        patch("worker.activities.pdf_activity._pdf_page_count", return_value=1),
+        patch(
+            "worker.activities.pdf_activity._render_page_to_png",
+            return_value=b"\x89PNG\r\np1",
+        ),
+        patch(
+            "worker.activities.pdf_activity._local_ocr_available",
+            return_value=True,
+            create=True,
+        ),
+        patch(
+            "worker.activities.pdf_activity._ocr_page_with_tesseract",
+            local_ocr,
+            create=True,
+        ),
+        patch("worker.activities.pdf_activity.get_provider", return_value=fake_provider),
+        patch("worker.activities.pdf_activity.publish_safe", side_effect=fake_publish),
+    ):
+        result = await parse_pdf({
+            "object_key": "uploads/u/scan.pdf",
+            "user_id": "u",
+            "project_id": "p",
+            "note_id": None,
+            "file_name": "scan.pdf",
+            "mime_type": "application/pdf",
+            "url": None,
+            "workflow_id": "wf-scan-local-empty",
+        })
+
+    assert result["text"] == "provider page text"
+    assert local_ocr.call_count == 1
+    assert fake_provider.ocr.await_count == 1
 
 
 @pytest.mark.asyncio
@@ -199,24 +359,23 @@ async def test_parse_pdf_scan_without_ocr_provider_raises_non_retryable(
     with (
         patch("worker.activities.pdf_activity.download_to_tempfile", return_value=fake_pdf),
         patch("worker.activities.pdf_activity._detect_scan", return_value=True),
-        patch(
-            "worker.activities.pdf_activity._render_pages_to_png",
-            return_value=[b"\x89PNG"],
-        ),
+        patch("worker.activities.pdf_activity._pdf_page_count", return_value=1),
+        patch("worker.activities.pdf_activity._render_page_to_png", return_value=b"\x89PNG"),
+        patch("worker.activities.pdf_activity._local_ocr_available", return_value=False),
         patch("worker.activities.pdf_activity.get_provider", return_value=fake_provider),
         patch("worker.activities.pdf_activity.publish_safe", side_effect=fake_publish),
+        pytest.raises(ApplicationError) as info,
     ):
-        with pytest.raises(ApplicationError) as info:
-            await parse_pdf({
-                "object_key": "uploads/u/scan.pdf",
-                "user_id": "u",
-                "project_id": "p",
-                "note_id": None,
-                "file_name": "scan.pdf",
-                "mime_type": "application/pdf",
-                "url": None,
-                "workflow_id": "wf-scan-fail",
-            })
+        await parse_pdf({
+            "object_key": "uploads/u/scan.pdf",
+            "user_id": "u",
+            "project_id": "p",
+            "note_id": None,
+            "file_name": "scan.pdf",
+            "mime_type": "application/pdf",
+            "url": None,
+            "workflow_id": "wf-scan-fail",
+        })
 
     assert info.value.non_retryable is True
     assert "Gemini" in str(info.value)

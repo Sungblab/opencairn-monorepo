@@ -23,7 +23,7 @@
   v
 [3] Temporal → Python Worker (parse_source Activity)
   |  - PDF (디지털): pymupdf로 텍스트 레이어 확인 → opendataloader-pdf (텍스트/수식/표)
-  |  - PDF (스캔/수기): pymupdf 스캔 감지 → provider.ocr() (Gemini Files / tesseract)
+  |  - PDF (스캔/수기): pymupdf 스캔 감지 → 로컬 Tesseract OCR 우선 → provider.ocr() fallback
   |  - DOCX/PPTX/XLSX/XLS: markitdown (텍스트) + unoserver (뷰어용 PDF 변환)
   |  - HWP/HWPX: unoserver + H2Orestart → PDF → opendataloader-pdf 재파싱
   |  - 오디오: provider.transcribe() (Gemini multimodal or faster-whisper)
