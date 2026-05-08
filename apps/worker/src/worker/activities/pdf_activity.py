@@ -28,6 +28,8 @@ import shutil
 import subprocess
 import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -72,25 +74,6 @@ def _detect_scan(pdf_path: Path) -> bool:
         doc.close()
 
 
-def _pdf_page_count(pdf_path: Path) -> int:
-    """Return the number of pages in a PDF without rendering them."""
-    doc = pymupdf.open(str(pdf_path))
-    try:
-        return doc.page_count
-    finally:
-        doc.close()
-
-
-def _render_page_to_png(pdf_path: Path, page_idx: int, dpi: int = 200) -> bytes:
-    """Render one PDF page to PNG bytes for OCR."""
-    doc = pymupdf.open(str(pdf_path))
-    try:
-        page = doc.load_page(page_idx)
-        return page.get_pixmap(dpi=dpi).tobytes("png")
-    finally:
-        doc.close()
-
-
 def _render_pages_to_png(pdf_path: Path, dpi: int = 200) -> list[bytes]:
     """Render every PDF page to PNG bytes.
 
@@ -100,11 +83,81 @@ def _render_pages_to_png(pdf_path: Path, dpi: int = 200) -> list[bytes]:
     on Gemini Vision; smaller pages would lose fine print, larger ones
     inflate request size without measurable accuracy gains.
     """
-    total_pages = _pdf_page_count(pdf_path)
-    return [
-        _render_page_to_png(pdf_path, page_idx, dpi)
-        for page_idx in range(total_pages)
-    ]
+    doc = pymupdf.open(str(pdf_path))
+    try:
+        return [page.get_pixmap(dpi=dpi).tobytes("png") for page in doc]
+    finally:
+        doc.close()
+
+
+class _PdfPageRenderer:
+    """Keep one PyMuPDF document open while rendering scan pages."""
+
+    def __init__(self, pdf_path: Path, dpi: int = 200) -> None:
+        self._pdf_path = pdf_path
+        self._dpi = dpi
+        self._doc: Any | None = None
+
+    def open(self) -> int:
+        self._doc = pymupdf.open(str(self._pdf_path))
+        return self.page_count
+
+    @property
+    def page_count(self) -> int:
+        if self._doc is None:
+            raise RuntimeError("PDF renderer has not been opened")
+        return self._doc.page_count
+
+    def render_page_to_png(self, page_idx: int) -> bytes:
+        if self._doc is None:
+            raise RuntimeError("PDF renderer has not been opened")
+        page = self._doc.load_page(page_idx)
+        return page.get_pixmap(dpi=self._dpi).tobytes("png")
+
+    def close(self) -> None:
+        if self._doc is not None:
+            self._doc.close()
+            self._doc = None
+
+
+class _AsyncPdfPageRenderer:
+    """Run a single PyMuPDF document session on one worker thread.
+
+    PyMuPDF document objects are not a good fit for arbitrary thread-hopping.
+    A dedicated one-thread executor lets the async activity avoid blocking the
+    event loop while still opening/parsing the PDF only once.
+    """
+
+    def __init__(self, pdf_path: Path, dpi: int = 200) -> None:
+        self._renderer = _PdfPageRenderer(pdf_path, dpi)
+        self._executor = ThreadPoolExecutor(max_workers=1)
+        self.page_count = 0
+
+    async def __aenter__(self) -> _AsyncPdfPageRenderer:
+        try:
+            self.page_count = await self._run(self._renderer.open)
+        except Exception:
+            self._executor.shutdown(wait=True)
+            raise
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: object,
+        exc: object,
+        traceback: object,
+    ) -> None:
+        try:
+            await self._run(self._renderer.close)
+        finally:
+            self._executor.shutdown(wait=True)
+
+    async def render_page_to_png(self, page_idx: int) -> bytes:
+        return await self._run(self._renderer.render_page_to_png, page_idx)
+
+    async def _run(self, func: Any, *args: Any) -> Any:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(self._executor, partial(func, *args))
 
 
 def _run_jar(pdf_path: Path, out_dir: Path) -> Path:
@@ -212,7 +265,6 @@ def _classify_figure(fig: dict[str, Any]) -> str:
 
 async def _ocr_scan_pdf(pdf_path: Path, workflow_id: str) -> dict[str, Any]:
     """Render each page, use local OCR first, and fallback to provider OCR."""
-    total_pages = await asyncio.to_thread(_pdf_page_count, pdf_path)
     local_ocr_available = _local_ocr_available()
     provider: Any | None = None
     local_ocr_pages = 0
@@ -225,71 +277,74 @@ async def _ocr_scan_pdf(pdf_path: Path, workflow_id: str) -> dict[str, Any]:
     text_parts: list[str] = []
     pages_meta: list[dict[str, Any]] = []
 
-    for page_idx in range(total_pages):
-        await publish_safe(workflow_id, "unit_started", {
-            "index": page_idx,
-            "total": total_pages,
-            "label": f"Page {page_idx + 1}/{total_pages}",
-        })
+    async with _AsyncPdfPageRenderer(pdf_path) as renderer:
+        total_pages = renderer.page_count
 
-        t_start = time.time()
-        ocr_engine = "provider"
-        page_text = ""
-        png_bytes = await asyncio.to_thread(_render_page_to_png, pdf_path, page_idx)
+        for page_idx in range(total_pages):
+            await publish_safe(workflow_id, "unit_started", {
+                "index": page_idx,
+                "total": total_pages,
+                "label": f"Page {page_idx + 1}/{total_pages}",
+            })
 
-        if local_ocr_available:
-            try:
-                page_text = await asyncio.to_thread(_ocr_page_with_tesseract, png_bytes)
-            except Exception as e:  # noqa: BLE001 - provider OCR is the fallback path.
-                activity.logger.warning(
-                    "Local OCR failed for scan PDF page %d/%d: %s",
-                    page_idx + 1,
-                    total_pages,
-                    e,
-                )
-            if page_text:
-                ocr_engine = "local"
-                local_ocr_pages += 1
-
-        if not page_text:
-            if provider is None:
-                provider = get_provider()
-                if not provider.supports_ocr():
-                    raise ApplicationError(
-                        "Scan PDF OCR requires either local Tesseract OCR or "
-                        "Gemini provider OCR. Install tesseract with language "
-                        "packs or set LLM_PROVIDER=gemini and provide "
-                        "GEMINI_API_KEY.",
-                        non_retryable=True,
-                    )
-
+            t_start = time.time()
             ocr_engine = "provider"
-            provider_ocr_pages += 1
-            try:
-                page_text = await provider.ocr(png_bytes, mime_type="image/png")
-            except NotImplementedError as e:
-                raise ApplicationError(
-                    f"Scan PDF requires Gemini provider: {e}",
-                    non_retryable=True,
-                ) from e
+            page_text = ""
+            png_bytes = await renderer.render_page_to_png(page_idx)
 
-        text_parts.append(page_text)
-        # Mirror the JAR-text return shape so downstream Spec B enrichment
-        # can iterate ``pages[].text`` uniformly across both branches.
-        pages_meta.append({
-            "text": page_text,
-            "figures": [],
-            "tables": [],
-            "ocr_engine": ocr_engine,
-        })
+            if local_ocr_available:
+                try:
+                    page_text = await asyncio.to_thread(_ocr_page_with_tesseract, png_bytes)
+                except Exception as e:  # noqa: BLE001 - provider OCR is the fallback path.
+                    activity.logger.warning(
+                        "Local OCR failed for scan PDF page %d/%d: %s",
+                        page_idx + 1,
+                        total_pages,
+                        e,
+                    )
+                if page_text:
+                    ocr_engine = "local"
+                    local_ocr_pages += 1
 
-        duration_ms = int((time.time() - t_start) * 1000)
-        await publish_safe(workflow_id, "unit_parsed", {
-            "index": page_idx,
-            "unitKind": "page",
-            "charCount": len(page_text),
-            "durationMs": duration_ms,
-        })
+            if not page_text:
+                if provider is None:
+                    provider = get_provider()
+                    if not provider.supports_ocr():
+                        raise ApplicationError(
+                            "Scan PDF OCR requires either local Tesseract OCR or "
+                            "Gemini provider OCR. Install tesseract with language "
+                            "packs or set LLM_PROVIDER=gemini and provide "
+                            "GEMINI_API_KEY.",
+                            non_retryable=True,
+                        )
+
+                ocr_engine = "provider"
+                provider_ocr_pages += 1
+                try:
+                    page_text = await provider.ocr(png_bytes, mime_type="image/png")
+                except NotImplementedError as e:
+                    raise ApplicationError(
+                        f"Scan PDF requires Gemini provider: {e}",
+                        non_retryable=True,
+                    ) from e
+
+            text_parts.append(page_text)
+            # Mirror the JAR-text return shape so downstream Spec B enrichment
+            # can iterate ``pages[].text`` uniformly across both branches.
+            pages_meta.append({
+                "text": page_text,
+                "figures": [],
+                "tables": [],
+                "ocr_engine": ocr_engine,
+            })
+
+            duration_ms = int((time.time() - t_start) * 1000)
+            await publish_safe(workflow_id, "unit_parsed", {
+                "index": page_idx,
+                "unitKind": "page",
+                "charCount": len(page_text),
+                "durationMs": duration_ms,
+            })
 
     full_text = "\n\n".join(text_parts)
     activity.logger.info(
