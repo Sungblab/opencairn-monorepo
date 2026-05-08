@@ -1,0 +1,2 @@
+{"area":"db_backed_retrieval","caseId":"guest-workspace-filters-page-override","manifestVersion":"2026-05-08.db-backed-retrieval.v1","metrics":{"db_enabled":true,"retrieval_hit_count":1,"permission_leakage_count":0,"expected_readable_hit_pass":true,"blocked_unreadable_hit_pass":true,"route":"simple","quality_decision":"sparse","retry_applied":false},"failures":[]}
+{"area":"summary","caseId":"rag-db-retrieval-2026-05-08-db-backed-retrieval-v1","metrics":{"db_case_count":1,"db_enabled":true,"permission_leakage_count":0,"failure_count":0},"failures":[]}

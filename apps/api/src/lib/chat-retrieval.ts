@@ -142,6 +142,7 @@ export async function retrieve(opts: {
   scope: RetrievalScope;
   chips: RetrievalChip[];
   userId?: string;
+  queryEmbedding?: number[];
   signal?: AbortSignal;
 }): Promise<RetrievalHit[]> {
   const result = await retrieveWithPolicy(opts);
@@ -155,6 +156,7 @@ export async function retrieveWithPolicy(opts: {
   scope: RetrievalScope;
   chips: RetrievalChip[];
   userId?: string;
+  queryEmbedding?: number[];
   signal?: AbortSignal;
 }): Promise<RetrievalWithPolicyResult> {
   const initialPolicy = planAdaptiveRagPolicy(opts);
@@ -175,8 +177,12 @@ export async function retrieveWithPolicy(opts: {
     );
   }
 
-  const provider = getChatProvider();
-  const queryEmbedding = await provider.embed(opts.query);
+  let provider = null as ReturnType<typeof getChatProvider> | null;
+  let queryEmbedding = opts.queryEmbedding;
+  if (!queryEmbedding) {
+    provider = getChatProvider();
+    queryEmbedding = await provider.embed(opts.query);
+  }
   checkAbort(opts.signal);
 
   let collected = await collectProjectHits({
@@ -219,10 +225,11 @@ export async function retrieveWithPolicy(opts: {
   }
 
   if (providerRerankerEnabled()) {
+    const rerankProvider = provider ?? getChatProvider();
     const providerRerankedCandidates = await rerankCandidatesWithProvider({
       query: opts.query,
       candidates: collected.rerankedCandidates,
-      provider,
+      provider: rerankProvider,
       signal: opts.signal,
     });
     collected = {
