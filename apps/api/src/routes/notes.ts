@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { db, notes, noteEnrichments, projects, wikiLinks, eq, and, desc, isNull, isNotNull, sql } from "@opencairn/db";
+import { db, notes, noteEnrichments, projects, projectTreeNodes, wikiLinks, eq, and, desc, isNull, isNotNull, sql } from "@opencairn/db";
 import { createNoteSchema, updateNoteSchema, patchCanvasSchema } from "@opencairn/shared";
 
 // PATCH body ignores `content` — Yjs (via Hocuspocus) is canonical (Plan 2B).
@@ -28,6 +28,7 @@ import { plateValueToText } from "../lib/plate-text";
 import { moveNote } from "../lib/tree-queries";
 import { emitTreeEvent } from "../lib/tree-events";
 import { refreshNoteChunkIndexBestEffort } from "../lib/note-chunk-refresh";
+import { createTreeNode } from "../lib/project-tree-service";
 import type { AppEnv } from "../lib/types";
 
 export const noteRoutes = new Hono<AppEnv>()
@@ -232,20 +233,68 @@ export const noteRoutes = new Hono<AppEnv>()
     // derive workspaceId from project (notes.workspaceId is NOT NULL, denormalized for query speed)
     const [proj] = await db.select({ workspaceId: projects.workspaceId }).from(projects).where(eq(projects.id, body.projectId));
     if (!proj) return c.json({ error: "Project not found" }, 404);
+    let treeParentId = body.parentTreeNodeId ?? null;
+    let legacyFolderId = body.folderId ?? null;
+    if (treeParentId) {
+      const [parent] = await db
+        .select({
+          projectId: projectTreeNodes.projectId,
+          targetTable: projectTreeNodes.targetTable,
+          targetId: projectTreeNodes.targetId,
+          deletedAt: projectTreeNodes.deletedAt,
+        })
+        .from(projectTreeNodes)
+        .where(eq(projectTreeNodes.id, treeParentId));
+      if (!parent || parent.deletedAt || parent.projectId !== body.projectId) {
+        return c.json({ error: "parent tree node not found in project" }, 400);
+      }
+      legacyFolderId =
+        parent.targetTable === "folders" ? parent.targetId : null;
+    } else {
+      treeParentId = legacyFolderId;
+    }
     // For canvas notes, contentText holds raw source code (validated to ≤64KB by Zod).
     // For Plate-content notes, derive from the Plate value so FTS/embedding stays in sync.
     const contentText = body.contentText ?? (body.content ? plateValueToText(body.content) : "");
-    const [note] = await db
-      .insert(notes)
-      .values({ ...body, workspaceId: proj.workspaceId, contentText })
-      .returning();
+    const { parentTreeNodeId: _parentTreeNodeId, ...noteBody } = body;
+    const note = await db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(notes)
+        .values({
+          ...noteBody,
+          folderId: legacyFolderId,
+          workspaceId: proj.workspaceId,
+          contentText,
+        })
+        .returning();
+      await createTreeNode(
+        {
+          id: created.id,
+          workspaceId: proj.workspaceId,
+          projectId: created.projectId,
+          parentId: treeParentId,
+          kind: "note",
+          targetTable: "notes",
+          targetId: created.id,
+          label: created.title,
+          icon: "file-text",
+          position: 0,
+          metadata: {
+            sourceType: created.sourceType,
+            noteType: created.type,
+          },
+        },
+        tx,
+      );
+      return created;
+    });
     await refreshNoteChunkIndexBestEffort(note);
 
     emitTreeEvent({
       kind: "tree.note_created",
       projectId: note.projectId,
       id: note.id,
-      parentId: note.folderId,
+      parentId: treeParentId,
       label: note.title,
       at: new Date().toISOString(),
     });

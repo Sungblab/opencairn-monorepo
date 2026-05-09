@@ -32,11 +32,6 @@ interface MeDTO {
   name?: string | null;
 }
 
-interface ProjectDTO {
-  id: string;
-  name: string;
-}
-
 // App Shell Phase 3-B uses this `(shell)/n/[noteId]` route for plate-mode
 // notes — TabModeRouter dispatches the other viewer modes (reading/source/
 // data/canvas) and skips this page (`isRoutedByTabModeRouter`). The legacy
@@ -73,17 +68,6 @@ export default async function NotePage({ params }: PageProps) {
   const { role } = (await roleRes.json()) as RoleDTO;
   const me = (await meRes.json()) as MeDTO;
 
-  // Project name powers the breadcrumb. Tolerated to fail silently because
-  // a project that the user can read a note from but can't read the project
-  // shouldn't crash the whole page; the chrome falls back to "—".
-  const projectRes = await fetch(`${base}/api/projects/${note.projectId}`, {
-    headers,
-    cache: "no-store",
-  });
-  const project = projectRes.ok
-    ? ((await projectRes.json()) as ProjectDTO)
-    : null;
-
   const readOnly = role === "viewer" || role === "commenter";
   const canComment = role !== "viewer";
 
@@ -95,7 +79,7 @@ export default async function NotePage({ params }: PageProps) {
         readOnly={readOnly}
         wsSlug={wsSlug}
         projectId={note.projectId}
-        projectName={project?.name ?? null}
+        projectName={null}
         title={note.title}
         updatedAtIso={note.updatedAt}
       />

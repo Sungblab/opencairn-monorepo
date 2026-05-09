@@ -65,6 +65,7 @@ export const createNoteSchema = z
   .object({
     projectId: z.string().uuid(),
     folderId: z.string().uuid().nullable().default(null),
+    parentTreeNodeId: z.string().uuid().nullable().optional(),
     title: z.string().max(300).default("Untitled"),
     content: plateValueSchema.default(null),
     type: z.enum(["note", "wiki", "source"]).default("note"),

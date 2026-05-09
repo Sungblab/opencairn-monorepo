@@ -224,6 +224,40 @@ describe("useUrlTabSync", () => {
     expect(useTabsStore.getState().activeId).toBe("settings-members");
   });
 
+  it("resets invalid persisted mode on workspace settings tabs", () => {
+    const staleSettings: Tab = {
+      id: "settings-personal",
+      kind: "ws_settings",
+      targetId: "personal",
+      mode: "reading",
+      title: "Settings",
+      titleKey: "appShell.tabTitles.ws_settings",
+      pinned: false,
+      preview: false,
+      dirty: false,
+      splitWith: null,
+      splitSide: null,
+      scrollY: 0,
+    };
+    localStorage.setItem(
+      "oc:tabs:ws_slug:acme",
+      JSON.stringify({
+        tabs: [staleSettings],
+        activeId: "settings-personal",
+        closedStack: [],
+      }),
+    );
+    currentPath = "/ko/workspace/acme/settings/personal/profile";
+
+    renderHook(() => useUrlTabSync());
+
+    expect(useTabsStore.getState().tabs[0]).toMatchObject({
+      kind: "ws_settings",
+      targetId: "personal",
+      mode: "plate",
+    });
+  });
+
   it("navigateToTab with mode=replace uses router.replace", () => {
     const { result } = renderHook(() => useUrlTabSync());
     act(() =>

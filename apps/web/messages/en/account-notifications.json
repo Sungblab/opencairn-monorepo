@@ -39,6 +39,7 @@
   "profile": {
     "heading": "Email body settings",
     "description": "Set the language used in email bodies and the timezone the daily digest fires in.",
+    "loading": "Loading notification profile.",
     "locale": "Email language",
     "localeOptions": {
       "ko": "Korean",

@@ -14,6 +14,8 @@ export interface ProjectTreeCtxValue {
     kind: TreeNode["kind"],
     newLabel: string | null,
   ): void;
+  onCreateFolder(parentId: string | null): void;
+  onCreateNote(parentId: string | null): void;
   onDelete(id: string, kind: TreeNode["kind"], label: string): void;
 }
 

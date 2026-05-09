@@ -1,10 +1,10 @@
 {
   "placeholders": {
     "sidebar": "Sidebar (Phase 2)",
-    "agent_panel": "AI Agent (Phase 4)",
+    "agent_panel": "Context panel",
     "dashboard": "Dashboard",
     "open_sidebar": "Open left sidebar",
-    "open_agent_panel": "Open AI agent panel"
+    "open_agent_panel": "Open context panel"
   },
   "routes": {
     "dashboard": {

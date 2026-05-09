@@ -408,6 +408,55 @@ export async function moveTreeNode(input: {
   });
 }
 
+export async function renameTreeNode(input: {
+  projectId: string;
+  nodeId: string;
+  label: string;
+}) {
+  return db.transaction(async (tx) => {
+    const [current] = await tx
+      .select()
+      .from(projectTreeNodes)
+      .where(
+        and(
+          eq(projectTreeNodes.id, input.nodeId),
+          eq(projectTreeNodes.projectId, input.projectId),
+        ),
+      );
+    if (!current || current.deletedAt) throw new Error("tree node not found");
+
+    const [updated] = await tx
+      .update(projectTreeNodes)
+      .set({ label: input.label })
+      .where(eq(projectTreeNodes.id, input.nodeId))
+      .returning();
+
+    if (current.targetTable === "folders" && current.targetId) {
+      await tx
+        .update(folders)
+        .set({ name: input.label })
+        .where(eq(folders.id, current.targetId));
+    } else if (current.targetTable === "notes" && current.targetId) {
+      await tx
+        .update(notes)
+        .set({ title: input.label })
+        .where(eq(notes.id, current.targetId));
+    } else if (current.targetTable === "agent_files" && current.targetId) {
+      await tx
+        .update(agentFiles)
+        .set({ title: input.label, filename: input.label })
+        .where(eq(agentFiles.id, current.targetId));
+    } else if (current.targetTable === "code_workspaces" && current.targetId) {
+      await tx
+        .update(codeWorkspaces)
+        .set({ name: input.label })
+        .where(eq(codeWorkspaces.id, current.targetId));
+    }
+
+    return updated;
+  });
+}
+
 export async function createSourceBundleForUpload(input: {
   workspaceId: string;
   projectId: string;

@@ -10,6 +10,7 @@ import { LitSearchViewer } from "./viewers/lit-search-viewer";
 import { AgentFileViewer } from "./viewers/agent-file-viewer";
 import { CodeWorkspaceViewer } from "./viewers/code-workspace-viewer";
 import { StubViewer } from "./viewers/stub-viewer";
+import { isValidTabMode } from "@/lib/tab-mode-rules";
 
 export function TabModeRouter({ tab }: { tab: Tab }) {
   switch (tab.mode) {
@@ -49,5 +50,5 @@ export function TabModeRouter({ tab }: { tab: Tab }) {
  * here so both TabShell and its own tests use the same decision.
  */
 export function isRoutedByTabModeRouter(tab: Tab): boolean {
-  return tab.mode !== "plate";
+  return tab.mode !== "plate" && isValidTabMode(tab);
 }

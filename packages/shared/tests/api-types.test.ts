@@ -54,6 +54,14 @@ describe("createNoteSchema (canvas extension)", () => {
     const r = createNoteSchema.safeParse(baseValid);
     expect(r.success).toBe(true);
   });
+
+  it("accepts a unified tree parent for child page creation", () => {
+    const r = createNoteSchema.safeParse({
+      ...baseValid,
+      parentTreeNodeId: "00000000-0000-0000-0000-000000000002",
+    });
+    expect(r.success).toBe(true);
+  });
 });
 
 describe("patchCanvasSchema", () => {

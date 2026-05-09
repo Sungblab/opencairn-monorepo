@@ -1,9 +1,11 @@
 {
   "loading": "Loading…",
   "new_note": "New note",
+  "new_folder": "New folder",
   "empty_project": "No notes yet in this project.",
   "empty_folder": "Empty.",
   "untitled": "Untitled",
+  "untitled_folder": "New folder",
   "offline": "Offline",
   "switcher": {
     "trigger_aria": "Switch workspace",
@@ -20,6 +22,7 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "project_home": "Project home",
     "research": "Deep Research",
     "import": "Import",
     "literature": "Literature search",
@@ -75,6 +78,9 @@
     "rename_shortcut": "F2",
     "duplicate": "Duplicate",
     "copy_link": "Copy link",
+    "new_child_page": "New child page",
+    "new_subfolder": "New subfolder",
+    "empty": "No items inside",
     "row_actions": "File actions",
     "delete": "Delete",
     "delete_shortcut": "⌘Del",
@@ -83,6 +89,9 @@
   "toasts": {
     "move_failed": "Couldn't move. Please try again.",
     "rename_failed": "Couldn't rename. Please try again.",
+    "create_note_failed": "Couldn't create the page. Please try again.",
+    "folder_created": "Folder created.",
+    "create_folder_failed": "Couldn't create the folder. Please try again.",
     "delete_failed": "Couldn't delete. Please try again."
   },
   "graph": {

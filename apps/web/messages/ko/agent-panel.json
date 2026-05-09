@@ -1,7 +1,7 @@
 {
   "header": {
-    "title": "AI 에이전트",
-    "subtitle": "승인 · 실행 · 질문",
+    "title": "컨텍스트",
+    "subtitle": "AI · 활동 · 알림",
     "new_thread_aria": "새 대화",
     "thread_list_aria": "대화 목록",
     "collapse_aria": "패널 접기"
@@ -12,7 +12,7 @@
     "untitled": "(제목 없음)"
   },
   "tabs": {
-    "chat": "채팅",
+    "chat": "AI",
     "activity": "활동",
     "notifications": "알림"
   },

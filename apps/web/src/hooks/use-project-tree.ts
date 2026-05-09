@@ -14,7 +14,8 @@ export interface TreeNode {
     | "code_workspace"
     | "source_bundle"
     | "artifact_group"
-    | "artifact";
+    | "artifact"
+    | "empty";
   id: string;
   parent_id: string | null;
   label: string;

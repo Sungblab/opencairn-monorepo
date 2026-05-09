@@ -13,12 +13,14 @@ import {
   FolderCode,
   FileArchive,
   MoreHorizontal,
+  Plus,
 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import type { TreeNode } from "@/hooks/use-project-tree";
 import { useTabsStore } from "@/stores/tabs-store";
 import { newTab } from "@/lib/tab-factory";
+import { useModKeyLabel } from "@/hooks/use-mod-key-label";
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -46,8 +48,35 @@ export function ProjectTreeNode({
   const t = useTranslations("sidebar.tree_menu");
   const router = useRouter();
   const ctx = useProjectTreeCtx();
+  const modKeyLabel = useModKeyLabel();
+  const deleteShortcut = `${modKeyLabel}+Del`;
 
   const kind = node.data.kind;
+  if (kind === "empty") {
+    const parentId = node.data.parent_id;
+    return (
+      <button
+        style={style}
+        type="button"
+        role="treeitem"
+        tabIndex={-1}
+        aria-level={node.level + 1}
+        data-kind={kind}
+        data-id={node.data.id}
+        className="group flex h-full min-h-8 items-center gap-2 rounded-[var(--radius-control)] px-2.5 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
+        onClick={() => {
+          if (parentId) ctx.onCreateNote(parentId);
+        }}
+      >
+        <span aria-hidden className="ml-2 h-4 w-4 shrink-0" />
+        <Plus
+          aria-hidden
+          className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-foreground"
+        />
+        <span className="truncate">{t("new_child_page")}</span>
+      </button>
+    );
+  }
   const canHaveChildren = new Set([
     "folder",
     "note",
@@ -55,7 +84,9 @@ export function ProjectTreeNode({
     "artifact_group",
     "code_workspace",
   ]);
-  const hasChildren = canHaveChildren.has(kind) && node.data.child_count > 0;
+  const canExpand = canHaveChildren.has(kind);
+  const canCreateChildPage = kind === "folder" || kind === "note";
+  const opensOnRowClick = new Set(["note", "agent_file", "code_workspace"]);
   const isRenaming = ctx.renamingId === node.data.id;
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -108,7 +139,7 @@ export function ProjectTreeNode({
   function handleRowClick() {
     if (isRenaming) return;
     const targetId = node.data.target_id ?? node.data.id;
-    if (hasChildren) {
+    if (canExpand && !opensOnRowClick.has(kind)) {
       node.toggle();
       return;
     }
@@ -191,7 +222,7 @@ export function ProjectTreeNode({
       return;
     }
     const rect = e.currentTarget.getBoundingClientRect();
-    const menuWidth = 208;
+    const menuWidth = 224;
     const menuHeight = 156;
     const gap = 6;
     const left = Math.max(
@@ -215,59 +246,59 @@ export function ProjectTreeNode({
             role="treeitem"
             tabIndex={-1}
             aria-level={node.level + 1}
-    aria-expanded={hasChildren ? node.isOpen : undefined}
+            aria-expanded={canExpand ? node.isOpen : undefined}
             data-kind={kind}
             data-id={node.data.id}
             data-renaming={isRenaming || undefined}
             onClick={handleRowClick}
             onDoubleClick={handleRowDoubleClick}
             onKeyDown={handleRowKeyDown}
-            className="group flex h-full min-h-8 cursor-pointer items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-sm text-foreground transition-colors hover:bg-muted/70 focus-visible:bg-muted data-[drop-target=true]:bg-muted"
+            className="group flex h-full min-h-8 cursor-pointer items-center gap-2 rounded-[var(--radius-control)] px-2.5 text-sm text-foreground transition-colors hover:bg-muted/70 focus-visible:bg-muted data-[drop-target=true]:bg-muted"
           />
         }
       >
-        {hasChildren ? (
+        {canExpand ? (
           <ChevronRight
             aria-hidden
             data-testid="tree-chevron"
-            className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${node.isOpen ? "rotate-90" : ""}`}
+            className={`ml-2 h-4 w-4 shrink-0 text-muted-foreground transition-transform ${node.isOpen ? "rotate-90" : ""}`}
             onClick={(e) => {
               e.stopPropagation();
               node.toggle();
             }}
           />
         ) : (
-          <span aria-hidden className="h-3.5 w-3.5 shrink-0" />
+          <span aria-hidden className="ml-2 h-4 w-4 shrink-0" />
         )}
         {kind === "folder" ? (
           <Folder
             aria-hidden
-            className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-foreground"
+            className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-foreground"
           />
         ) : kind === "source_bundle" ? (
           <FileArchive
             aria-hidden
-            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+            className="h-4 w-4 shrink-0 text-muted-foreground"
           />
         ) : kind === "artifact_group" ? (
           <Folder
             aria-hidden
-            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+            className="h-4 w-4 shrink-0 text-muted-foreground"
           />
         ) : kind === "agent_file" ? (
           <AgentFileIcon
             fileKind={node.data.file_kind}
-            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+            className="h-4 w-4 shrink-0 text-muted-foreground"
           />
         ) : kind === "code_workspace" ? (
           <FolderCode
             aria-hidden
-            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+            className="h-4 w-4 shrink-0 text-muted-foreground"
           />
         ) : (
           <FileText
             aria-hidden
-            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+            className="h-4 w-4 shrink-0 text-muted-foreground"
           />
         )}
         {isRenaming ? (
@@ -303,19 +334,32 @@ export function ProjectTreeNode({
         ) : (
           <span className="flex-1 truncate">{node.data.label}</span>
         )}
-        {hasChildren && !isRenaming ? (
-          <span className="ml-auto shrink-0 text-[10px] text-muted-foreground group-hover:hidden">
-            {node.data.child_count}
-          </span>
-        ) : null}
         {!isRenaming ? (
-          <>
+          <div className="ml-auto flex shrink-0 items-center gap-0.5">
+            {node.data.child_count > 0 ? (
+              <span className="px-1 text-[10px] text-muted-foreground group-hover:hidden">
+                {node.data.child_count}
+              </span>
+            ) : null}
+            {canCreateChildPage ? (
+              <button
+                aria-label={t("new_child_page")}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  ctx.onCreateNote(node.data.id);
+                }}
+                className="hidden h-6 w-6 shrink-0 place-items-center rounded-[var(--radius-control)] text-muted-foreground hover:bg-background hover:text-foreground group-hover:grid focus-visible:grid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Plus aria-hidden className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
             <button
               ref={actionButtonRef}
               aria-label={t("row_actions")}
               type="button"
               onClick={toggleActionMenu}
-              className="ml-auto hidden h-7 w-7 shrink-0 place-items-center rounded-[var(--radius-control)] text-muted-foreground hover:bg-background hover:text-foreground group-hover:grid focus-visible:grid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="hidden h-7 w-7 shrink-0 place-items-center rounded-[var(--radius-control)] text-muted-foreground hover:bg-background hover:text-foreground group-hover:grid focus-visible:grid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <MoreHorizontal aria-hidden className="h-3.5 w-3.5" />
             </button>
@@ -324,7 +368,7 @@ export function ProjectTreeNode({
                   <div
                     ref={actionMenuRef}
                     data-testid="tree-row-action-menu"
-                    className="fixed z-50 w-52 rounded-[var(--radius-control)] bg-popover p-1.5 text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/10"
+                    className="fixed z-50 w-56 rounded-[var(--radius-control)] border border-border bg-background p-1 text-sm text-foreground shadow-sm ring-0"
                     style={{
                       top: actionMenuPos.top,
                       left: actionMenuPos.left,
@@ -335,7 +379,7 @@ export function ProjectTreeNode({
                     <button
                       type="button"
                       role="menuitem"
-                      className="flex min-h-9 w-full items-center gap-1.5 rounded-[var(--radius-control)] px-3 text-left outline-none hover:bg-accent hover:text-accent-foreground"
+                      className="flex min-h-8 w-full items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-left outline-none hover:bg-accent hover:text-accent-foreground"
                       onClick={() => {
                         closeActionMenu();
                         ctx.onStartRename(node.data.id);
@@ -346,10 +390,36 @@ export function ProjectTreeNode({
                         {t("rename_shortcut")}
                       </span>
                     </button>
+                    {canCreateChildPage ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="flex min-h-8 w-full items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-left outline-none hover:bg-accent hover:text-accent-foreground"
+                        onClick={() => {
+                          closeActionMenu();
+                          ctx.onCreateNote(node.data.id);
+                        }}
+                      >
+                        {t("new_child_page")}
+                      </button>
+                    ) : null}
+                    {kind === "folder" ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="flex min-h-8 w-full items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-left outline-none hover:bg-accent hover:text-accent-foreground"
+                        onClick={() => {
+                          closeActionMenu();
+                          ctx.onCreateFolder(node.data.id);
+                        }}
+                      >
+                        {t("new_subfolder")}
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       role="menuitem"
-                      className="flex min-h-9 w-full items-center gap-1.5 rounded-[var(--radius-control)] px-3 text-left outline-none hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
+                      className="flex min-h-8 w-full items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-left outline-none hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
                       disabled={!nodeHref()}
                       onClick={() => {
                         closeActionMenu();
@@ -358,11 +428,11 @@ export function ProjectTreeNode({
                     >
                       {t("copy_link")}
                     </button>
-                    <div className="-mx-1.5 my-1 h-px bg-border" />
+                    <div className="-mx-1 my-1 h-px bg-border" />
                     <button
                       type="button"
                       role="menuitem"
-                      className="flex min-h-9 w-full items-center gap-1.5 rounded-[var(--radius-control)] px-3 text-left text-destructive outline-none hover:bg-destructive/10"
+                      className="flex min-h-8 w-full items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-left text-destructive outline-none hover:bg-destructive/10"
                       onClick={() => {
                         closeActionMenu();
                         ctx.onDelete(node.data.id, kind, node.data.label);
@@ -370,19 +440,25 @@ export function ProjectTreeNode({
                     >
                       <span className="flex-1">{t("delete")}</span>
                       <span className="text-[10px] text-muted-foreground">
-                        {t("delete_shortcut")}
+                        {deleteShortcut}
                       </span>
                     </button>
                   </div>,
                   document.body,
                 )
               : null}
-          </>
+          </div>
         ) : null}
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-52 rounded-[var(--radius-control)] p-1.5 shadow-lg">
+      <ContextMenuContent className="w-56 rounded-[var(--radius-control)] border border-border bg-background p-1 shadow-sm ring-0">
         <TreeContextMenuItems
+          kind={kind}
+          deleteShortcut={deleteShortcut}
           onRename={() => ctx.onStartRename(node.data.id)}
+          onCreateNote={
+            canCreateChildPage ? () => ctx.onCreateNote(node.data.id) : undefined
+          }
+          onCreateFolder={() => ctx.onCreateFolder(node.data.id)}
           onCopyLink={copyLink}
           onDelete={() =>
             ctx.onDelete(node.data.id, kind, node.data.label)
