@@ -71,6 +71,14 @@ describe("ProjectView", () => {
         name: /project\.tools\.generateDocument\.title/,
       }),
     ).toHaveAttribute("href", "/ko/workspace/acme/synthesis-export?project=p1");
+    expect(
+      screen.getByRole("link", { name: /project\.tools\.research\.title/ }),
+    ).toHaveClass("hover:bg-muted/40");
+    expect(
+      screen.getByRole("button", {
+        name: /project\.tools\.literature\.title/,
+      }),
+    ).toHaveClass("hover:bg-muted/40");
     expect(screen.getByText("notes table")).toBeInTheDocument();
   });
 });

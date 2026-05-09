@@ -444,7 +444,7 @@ export async function renameTreeNode(input: {
     } else if (current.targetTable === "agent_files" && current.targetId) {
       await tx
         .update(agentFiles)
-        .set({ title: input.label, filename: input.label })
+        .set({ title: input.label })
         .where(eq(agentFiles.id, current.targetId));
     } else if (current.targetTable === "code_workspaces" && current.targetId) {
       await tx
