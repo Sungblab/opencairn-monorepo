@@ -62,24 +62,31 @@ export function AppShell({
         className="flex h-screen w-screen overflow-hidden bg-background"
         data-testid="app-shell"
       >
-        <Sheet open={compactSidebarOpen} onOpenChange={setCompactSidebarOpen}>
-          <SheetContent side="left" className="w-[280px] p-0">
-            <SheetTitle className="sr-only">{t("sidebar")}</SheetTitle>
-            <ShellSidebar
-              deepResearchEnabled={deepResearchEnabled}
-              synthesisExportEnabled={synthesisExportEnabled}
-            />
-          </SheetContent>
+        <Sheet
+          open={compactSidebarOpen}
+          onOpenChange={setCompactSidebarOpen}
+        >
+          {compactSidebarOpen ? (
+            <SheetContent side="left" className="w-[280px] p-0">
+              <SheetTitle className="sr-only">{t("sidebar")}</SheetTitle>
+              <ShellSidebar
+                deepResearchEnabled={deepResearchEnabled}
+                synthesisExportEnabled={synthesisExportEnabled}
+              />
+            </SheetContent>
+          ) : null}
         </Sheet>
         <TabShell>{children}</TabShell>
         <Sheet
           open={compactAgentPanelOpen}
           onOpenChange={setCompactAgentPanelOpen}
         >
-          <SheetContent side="right" className="w-[360px] p-0">
-            <SheetTitle className="sr-only">{t("agent_panel")}</SheetTitle>
-            <AgentPanel wsSlug={wsSlug} />
-          </SheetContent>
+          {compactAgentPanelOpen ? (
+            <SheetContent side="right" className="w-[360px] p-0">
+              <SheetTitle className="sr-only">{t("agent_panel")}</SheetTitle>
+              <AgentPanel wsSlug={wsSlug} />
+            </SheetContent>
+          ) : null}
         </Sheet>
       </div>
     );
@@ -92,13 +99,17 @@ export function AppShell({
     >
       {sidebarOpen && (
         <>
-          <div style={{ width: sidebarWidth, flexShrink: 0 }}>
+          <div
+            className="hidden lg:block"
+            style={{ width: sidebarWidth, flexShrink: 0 }}
+          >
             <ShellSidebar
               deepResearchEnabled={deepResearchEnabled}
               synthesisExportEnabled={synthesisExportEnabled}
             />
           </div>
           <ShellResizeHandle
+            className="hidden lg:block"
             onDrag={(d) => setSidebarWidth(sidebarWidth + d)}
             onReset={resetSidebarWidth}
           />
@@ -117,10 +128,14 @@ export function AppShell({
       {agentPanelOpen && (
         <>
           <ShellResizeHandle
+            className="hidden lg:block"
             onDrag={(d) => setAgentPanelWidth(agentPanelWidth - d)}
             onReset={resetAgentPanelWidth}
           />
-          <div style={{ width: agentPanelWidth, flexShrink: 0 }}>
+          <div
+            className="hidden lg:block"
+            style={{ width: agentPanelWidth, flexShrink: 0 }}
+          >
             <AgentPanel wsSlug={wsSlug} />
           </div>
         </>
@@ -148,7 +163,7 @@ function CollapsedPanelRail({
 }) {
   return (
     <div
-      className={`flex h-full w-11 shrink-0 justify-center bg-muted/30 px-1.5 py-2 ${
+      className={`hidden h-full w-11 shrink-0 justify-center bg-muted/30 px-1.5 py-2 lg:flex ${
         side === "left" ? "border-r border-border" : "border-l border-border"
       }`}
     >

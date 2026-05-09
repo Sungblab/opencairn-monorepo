@@ -1,20 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 
 // Mirror of @opencairn/shared ImportTarget. We redeclare rather than import
-// because the web app isn't (yet) a @opencairn/shared consumer — inlining
+// because the web app isn't (yet) a @opencairn/shared consumer; inlining
 // keeps the bundle trim and avoids a workspace dep for one tiny type.
 // Must stay in sync with packages/shared/src/import-types.ts.
 export type ImportTarget =
   | { kind: "new" }
   | { kind: "existing"; projectId: string; parentNoteId: string | null };
 
-// Deliberately inline the project fetch — the /import page is the only
-// caller in this wsSlug scope and building a dedicated hook for one use
-// site would inflate the codebase without clarifying anything. If a second
-// consumer appears, lift this into apps/web/src/hooks/.
+// Deliberately inline the project fetch. The first-source intake and legacy
+// import tabs share this small picker, and both only need the same wsSlug scope.
 async function fetchProjects(
   wsSlug: string,
 ): Promise<Array<{ id: string; name: string }>> {
@@ -40,6 +38,7 @@ export function TargetPicker({
   onChange: (t: ImportTarget) => void;
 }) {
   const t = useTranslations("import.target");
+  const radioGroupName = useId();
   const [projects, setProjects] = useState<Array<{ id: string; name: string }>>(
     [],
   );
@@ -64,7 +63,7 @@ export function TargetPicker({
       <label className="flex items-center gap-2 text-sm">
         <input
           type="radio"
-          name="import-target"
+          name={radioGroupName}
           checked={value.kind === "new"}
           onChange={() => onChange({ kind: "new" })}
         />
@@ -74,10 +73,10 @@ export function TargetPicker({
       <label className="flex items-center gap-2 text-sm">
         <input
           type="radio"
-          name="import-target"
+          name={radioGroupName}
           checked={value.kind === "existing"}
           onChange={() => {
-            // Need a project to land "existing" — pick the first if available,
+            // Need a project to land "existing"; pick the first if available,
             // otherwise stay on "new" until the user selects one.
             if (projects.length > 0) {
               onChange({

@@ -1,10 +1,75 @@
 {
-  "pageTitle": "가져오기",
-  "pageDescription": "외부 서비스에서 자료를 워크스페이스로 옮겨옵니다.",
+  "pageTitle": "자료 추가",
+  "pageDescription": "파일, 링크, 텍스트 중 하나만 넣어도 분석을 시작할 수 있습니다.",
   "tabs": {
-    "drive": "Google Drive",
-    "markdown": "Markdown ZIP",
+    "label": "자료 추가 방식",
+    "file": "파일",
+    "link": "링크",
+    "text": "텍스트",
     "more": "기타"
+  },
+  "firstSource": {
+    "title": "자료 하나만 넣으면 시작할 수 있어요.",
+    "description": "파일, 링크, 텍스트 중 하나를 넣으면 OpenCairn이 읽고 요약, 추천 질문, 첫 노트로 이어갈 준비를 합니다.",
+    "tabs": {
+      "label": "자료 입력 방식",
+      "file": "파일",
+      "link": "링크",
+      "text": "텍스트"
+    },
+    "file": {
+      "label": "파일 업로드",
+      "hint": "PDF, 문서, 이미지, 오디오, 영상, Markdown 파일을 올릴 수 있어요.",
+      "empty": "파일을 선택하세요",
+      "selected": "선택됨: {name}"
+    },
+    "link": {
+      "label": "자료 링크",
+      "placeholder": "https://example.com/article"
+    },
+    "text": {
+      "titleLabel": "노트 제목",
+      "titlePlaceholder": "회의록, 초안, 메모",
+      "label": "붙여넣을 텍스트",
+      "placeholder": "정리할 내용을 그대로 붙여넣으세요."
+    },
+    "target": "저장 위치를 고른 뒤 분석을 시작하세요.",
+    "pipeline": {
+      "title": "시작하면 이렇게 진행됩니다",
+      "read": "자료 읽는 중",
+      "extract": "핵심 내용 정리 중",
+      "questions": "추천 질문 만드는 중",
+      "note": "첫 노트 준비 중"
+    },
+    "followup": "완료되면 바로 질문하거나, 생성된 노트를 열어 이어서 편집할 수 있어요.",
+    "projectName": {
+      "file": "업로드 자료",
+      "link": "링크 자료",
+      "text": "붙여넣은 텍스트"
+    },
+    "actions": {
+      "start": "분석 시작",
+      "starting": "시작 중..."
+    },
+    "errors": {
+      "workspace": "워크스페이스를 찾지 못했습니다.",
+      "project": "프로젝트를 만들지 못했습니다.",
+      "fileRequired": "먼저 파일을 선택하세요.",
+      "linkRequired": "먼저 링크를 입력하세요.",
+      "linkInvalid": "http 또는 https 링크를 입력하세요.",
+      "textRequired": "먼저 텍스트를 입력하세요.",
+      "generic": "시작하지 못했습니다. 잠시 후 다시 시도해 주세요."
+    }
+  },
+  "legacy": {
+    "title": "기존 가져오기",
+    "description": "계정 연결이나 ZIP 이전처럼 준비가 필요한 경로는 여기에서 시작하세요.",
+    "label": "기존 가져오기 방식",
+    "tabs": {
+      "drive": "Google Drive",
+      "markdown": "Markdown ZIP",
+      "notion": "Notion ZIP"
+    }
   },
   "drive": {
     "notConnected": "Google Drive 연결하기",

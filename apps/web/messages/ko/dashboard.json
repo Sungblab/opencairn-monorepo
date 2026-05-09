@@ -15,9 +15,9 @@
   "gettingStarted": {
     "eyebrowEmpty": "처음 3분",
     "eyebrowActive": "워크스페이스 허브",
-    "titleEmpty": "자료를 넣거나, 프로젝트를 만들거나, AI에게 바로 맡겨보세요.",
+    "titleEmpty": "자료 하나만 넣으면 OpenCairn이 바로 일을 시작합니다.",
     "titleActive": "오늘 이어갈 작업을 한곳에서 시작하세요.",
-    "descEmpty": "OpenCairn은 빈 문서함보다 작업 흐름에 가깝습니다. 먼저 자료를 가져오면 노트, 검색, 에이전트 작업이 바로 이어집니다.",
+    "descEmpty": "파일, 링크, 텍스트 중 하나를 넣어보세요. 요약, 추천 질문, 첫 노트까지 이어지는 흐름을 먼저 보여드립니다.",
     "descActive": "최근 문서와 실행 중인 작업은 아래에서 확인하고, 새 자료 수집이나 AI 작업은 여기서 바로 시작할 수 있어요.",
     "steps": {
       "source": "자료 추가",
