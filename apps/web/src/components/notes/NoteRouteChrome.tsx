@@ -1,6 +1,7 @@
 "use client";
 
 import { urls } from "@/lib/urls";
+import { useQuery } from "@tanstack/react-query";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 
@@ -43,10 +44,22 @@ export function NoteRouteChrome({
   const format = useFormatter();
   const t = useTranslations("appShell.routes.note.chrome");
   const now = useHydratedNow();
+  const projectQuery = useQuery({
+    queryKey: ["project", projectId, "chrome"],
+    enabled: !projectName,
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}`);
+      if (!res.ok) throw new Error(`project ${res.status}`);
+      return (await res.json()) as { name: string };
+    },
+    retry: false,
+    staleTime: 60_000,
+  });
   const updatedAt = now
     ? format.relativeTime(new Date(updatedAtIso), now)
     : "";
   const projectHref = urls.workspace.project(locale, wsSlug, projectId);
+  const resolvedProjectName = projectName ?? projectQuery.data?.name ?? null;
 
   return (
     <div
@@ -58,12 +71,12 @@ export function NoteRouteChrome({
         aria-label={t("breadcrumb_label")}
         className="min-w-0 truncate text-xs text-muted-foreground"
       >
-        {projectName ? (
+        {resolvedProjectName ? (
           <Link
             href={projectHref}
             className="inline-flex min-h-7 items-center rounded px-1 hover:bg-accent hover:text-foreground"
           >
-            {projectName}
+            {resolvedProjectName}
           </Link>
         ) : (
           <span>{t("project_unknown")}</span>

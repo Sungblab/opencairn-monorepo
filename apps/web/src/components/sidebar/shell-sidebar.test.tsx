@@ -55,14 +55,14 @@ vi.mock("./project-learn-link", () => ({
 vi.mock("./NewNoteButton", () => ({
   NewNoteButton: () => <button type="button">new note</button>,
 }));
+vi.mock("./NewFolderButton", () => ({
+  NewFolderButton: () => <button type="button">new folder</button>,
+}));
 vi.mock("./NewCanvasButton", () => ({
   NewCanvasButton: () => <button type="button">new canvas</button>,
 }));
 vi.mock("./NewCodeWorkspaceButton", () => ({
   NewCodeWorkspaceButton: () => <button type="button">new code</button>,
-}));
-vi.mock("./GenerateDocumentButton", () => ({
-  GenerateDocumentButton: () => <button type="button">generate document</button>,
 }));
 vi.mock("./sidebar-empty-state", () => ({
   SidebarEmptyState: () => <div>project empty state</div>,
@@ -97,24 +97,21 @@ describe("ShellSidebar", () => {
     expect(screen.getByText("project empty state")).toBeInTheDocument();
   });
 
-  it("keeps project tools and the tree visible when a project is selected", () => {
+  it("keeps creation controls and the tree visible when a project is selected", () => {
     currentProject.value = { wsSlug: "acme", projectId: "p1" };
 
     render(<ShellSidebar deepResearchEnabled />);
 
+    expect(
+      screen.getByRole("link", { name: "sidebar.nav.project_home" }),
+    ).toHaveAttribute("href", "/ko/workspace/acme/project/p1");
     expect(screen.getByText("new note")).toBeInTheDocument();
+    expect(screen.getByText("new folder")).toBeInTheDocument();
     expect(screen.getByText("new canvas")).toBeInTheDocument();
     expect(screen.getByText("new code")).toBeInTheDocument();
-    expect(screen.getByText("generate document")).toBeInTheDocument();
-    expect(screen.getByText("graph")).toBeInTheDocument();
-    expect(screen.getByText("agents")).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "sidebar.nav.runs" }),
-    ).toHaveAttribute(
-      "href",
-      "/ko/workspace/acme/project/p1/agents?view=runs#workflow-console",
-    );
-    expect(screen.getByText("learn")).toBeInTheDocument();
+    expect(screen.queryByText("graph")).not.toBeInTheDocument();
+    expect(screen.queryByText("agents")).not.toBeInTheDocument();
+    expect(screen.queryByText("learn")).not.toBeInTheDocument();
     expect(screen.getByText("project tree")).toBeInTheDocument();
   });
 });

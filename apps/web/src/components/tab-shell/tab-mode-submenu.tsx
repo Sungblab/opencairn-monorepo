@@ -19,6 +19,7 @@ const MODES: TabMode[] = ["plate", "reading", "source", "data", "canvas"];
 export function TabModeSubmenu({ tab }: { tab: Tab }) {
   const t = useTranslations("appShell.tabs.menu.mode");
   const updateTab = useTabsStore((s) => s.updateTab);
+  if (tab.kind !== "note") return null;
 
   return (
     <ContextMenuSub>

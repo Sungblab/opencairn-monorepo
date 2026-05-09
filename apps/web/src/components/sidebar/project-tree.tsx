@@ -2,9 +2,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Tree, type NodeApi, type TreeApi } from "react-arborist";
 import { useQueryClient } from "@tanstack/react-query";
+import { useLocale } from "next-intl";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { useProjectTree, type TreeNode } from "@/hooks/use-project-tree";
+import { urls } from "@/lib/urls";
+import {
+  treeQueryKey,
+  useProjectTree,
+  type TreeNode,
+} from "@/hooks/use-project-tree";
 import { useSidebarStore } from "@/stores/sidebar-store";
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
 import { useTypeAhead } from "@/hooks/use-tree-keyboard";
@@ -16,6 +23,7 @@ import {
 
 export interface ProjectTreeProps {
   projectId: string;
+  workspaceSlug: string;
   height?: number;
   width?: number | string;
 }
@@ -24,13 +32,19 @@ export interface ProjectTreeProps {
 // react-arborist expects via its default `childrenAccessor: "children"`. Two
 // quirks worth naming:
 //
-// 1. We want the chevron on a *collapsed* folder that reports `child_count>0`
-//    even before its children are prefetched. Arborist treats `children: []`
-//    as "has children but none loaded", which renders the chevron; `undefined`
-//    means "leaf". So an empty array is the sentinel for unloaded folders.
-// 2. Once expanded, we recurse so prefetched-one-level children are displayed.
+// 1. We want the chevron on every container-like row, including empty notes,
+//    because pages/files can become parents in the unified project tree. Arborist
+//    treats `children: []` as "expandable but no rows loaded"; `undefined`
+//    means "leaf". So an empty array is the sentinel for expandable rows.
+// 2. Once expanded, we attach cached children for that parent and recurse.
 //    Deeper levels are loaded on demand via handleToggle → loadChildren.
-function deriveData(roots: TreeNode[], expanded: Set<string>): TreeNode[] {
+// 3. If the expanded container is really empty, synthesize a muted placeholder
+//    row so the user doesn't see a confusing blank space under the chevron.
+function deriveData(
+  roots: TreeNode[],
+  expanded: Set<string>,
+  getCachedChildren: (parentId: string) => TreeNode[] | undefined,
+): TreeNode[] {
   const containers = new Set([
     "folder",
     "note",
@@ -40,16 +54,34 @@ function deriveData(roots: TreeNode[], expanded: Set<string>): TreeNode[] {
   ]);
   function mark(n: TreeNode): TreeNode {
     if (!containers.has(n.kind)) return n;
-    if (n.child_count === 0) return { ...n, children: undefined };
     if (!expanded.has(n.id)) {
       return {
         ...n,
         children: n.children && n.children.length > 0 ? n.children : [],
       };
     }
-    return { ...n, children: (n.children ?? []).map(mark) };
+    const children = getCachedChildren(n.id) ?? n.children ?? [];
+    return {
+      ...n,
+      children:
+        children.length > 0
+          ? children.map(mark)
+          : [
+              {
+                kind: "empty",
+                id: `${n.id}:empty`,
+                parent_id: n.id,
+                label: "",
+                child_count: 0,
+              },
+            ],
+    };
   }
   return roots.map(mark);
+}
+
+function isSyntheticTreeNode(node: TreeNode) {
+  return node.kind === "empty";
 }
 
 async function persistMove(node: TreeNode, parentId: string | null, index: number) {
@@ -64,32 +96,16 @@ async function persistMove(node: TreeNode, parentId: string | null, index: numbe
 
 async function persistRename(
   id: string,
-  kind: TreeNode["kind"],
+  _kind: TreeNode["kind"],
   label: string,
 ) {
-  const url =
-    kind === "folder"
-      ? `/api/folders/${id}`
-      : kind === "agent_file"
-        ? `/api/agent-files/${id}`
-        : kind === "code_workspace"
-          ? `/api/code-workspaces/${id}`
-        : `/api/notes/${id}`;
-  const body =
-    kind === "folder"
-      ? { name: label }
-      : kind === "agent_file"
-        ? { title: label, filename: label }
-        : kind === "code_workspace"
-          ? { name: label }
-        : { title: label };
-  const res = await fetch(url, {
+  const res = await fetch(`/api/tree/nodes/${id}`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     credentials: "include",
-    body: JSON.stringify(body),
+    body: JSON.stringify({ label }),
   });
-  if (!res.ok) throw new Error(`${kind} rename ${res.status}`);
+  if (!res.ok) throw new Error(`tree rename ${res.status}`);
 }
 
 async function persistDelete(id: string, kind: TreeNode["kind"]) {
@@ -105,17 +121,57 @@ async function persistDelete(id: string, kind: TreeNode["kind"]) {
   if (!res.ok) throw new Error(`${kind} delete ${res.status}`);
 }
 
+async function persistCreateFolder(
+  projectId: string,
+  parentId: string | null,
+  name: string,
+) {
+  const res = await fetch("/api/folders", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ projectId, parentId, name }),
+  });
+  if (!res.ok) throw new Error(`folder create ${res.status}`);
+}
+
+async function persistCreateNote(
+  projectId: string,
+  parentTreeNodeId: string | null,
+  title: string,
+): Promise<{ id: string }> {
+  const res = await fetch("/api/notes", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ projectId, parentTreeNodeId, title }),
+  });
+  if (!res.ok) throw new Error(`note create ${res.status}`);
+  return (await res.json()) as { id: string };
+}
+
 export function ProjectTree({
   projectId,
+  workspaceSlug,
   height,
   width = "100%",
 }: ProjectTreeProps) {
   const { roots, loadChildren } = useProjectTree({ projectId });
+  const router = useRouter();
+  const locale = useLocale();
   const expanded = useSidebarStore((s) => s.expanded);
   const qc = useQueryClient();
   const t = useTranslations("sidebar.tree_menu");
+  const tSidebar = useTranslations("sidebar");
   const tToast = useTranslations("sidebar.toasts");
-  const data = useMemo(() => deriveData(roots, expanded), [roots, expanded]);
+  const [treeRefresh, setTreeRefresh] = useState(0);
+  const data = useMemo(
+    () =>
+      deriveData(roots, expanded, (parentId) =>
+        qc.getQueryData<TreeNode[]>(treeQueryKey(projectId, parentId)),
+      ),
+    [roots, expanded, qc, projectId, treeRefresh],
+  );
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [typeAheadBuf, setTypeAheadBuf] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
@@ -147,9 +203,11 @@ export function ProjectTree({
     toggleExpanded(id);
     if (!wasExpanded) {
       // Fire-and-forget: the tree re-renders once the query cache fills in.
-      await loadChildren(id).catch(() => {
-        /* useProjectTree owns error UX via its SSE re-sync */
-      });
+      await loadChildren(id)
+        .then(() => setTreeRefresh((v) => v + 1))
+        .catch(() => {
+          /* useProjectTree owns error UX via its SSE re-sync */
+        });
     }
   }
 
@@ -166,6 +224,7 @@ export function ProjectTree({
   }) {
     try {
       for (const [i, dn] of args.dragNodes.entries()) {
+        if (isSyntheticTreeNode(dn.data)) continue;
         await persistMove(dn.data, args.parentId, args.index + i);
       }
     } catch (err) {
@@ -186,8 +245,7 @@ export function ProjectTree({
       void (async () => {
         try {
           await persistRename(id, kind, newLabel);
-        } catch (err) {
-          console.error("project tree rename failed", err);
+        } catch {
           toast.error(tToast("rename_failed"));
           qc.invalidateQueries({ queryKey: ["project-tree", projectId] });
         }
@@ -214,14 +272,75 @@ export function ProjectTree({
     [projectId, qc, t, tToast],
   );
 
+  const handleCreateFolder = useCallback(
+    (parentId: string | null) => {
+      void (async () => {
+        try {
+          await persistCreateFolder(
+            projectId,
+            parentId,
+            tSidebar("untitled_folder"),
+          );
+          if (parentId && !useSidebarStore.getState().isExpanded(parentId)) {
+            useSidebarStore.getState().toggleExpanded(parentId);
+          }
+          await qc.invalidateQueries({ queryKey: ["project-tree", projectId] });
+          if (parentId) {
+            await loadChildren(parentId);
+          }
+          setTreeRefresh((v) => v + 1);
+        } catch (err) {
+          console.error("project tree folder create failed", err);
+          toast.error(tToast("create_folder_failed"));
+        }
+      })();
+    },
+    [projectId, qc, loadChildren, tSidebar, tToast],
+  );
+
+  const handleCreateNote = useCallback(
+    (parentId: string | null) => {
+      void (async () => {
+        try {
+          const note = await persistCreateNote(
+            projectId,
+            parentId,
+            tSidebar("untitled"),
+          );
+          if (parentId && !useSidebarStore.getState().isExpanded(parentId)) {
+            useSidebarStore.getState().toggleExpanded(parentId);
+          }
+          await qc.invalidateQueries({ queryKey: ["project-tree", projectId] });
+          if (parentId) {
+            await loadChildren(parentId);
+          }
+          setTreeRefresh((v) => v + 1);
+          router.push(urls.workspace.note(locale, workspaceSlug, note.id));
+        } catch {
+          toast.error(tToast("create_note_failed"));
+        }
+      })();
+    },
+    [projectId, workspaceSlug, locale, router, qc, loadChildren, tSidebar, tToast],
+  );
+
   const ctxValue: ProjectTreeCtxValue = useMemo(
     () => ({
       renamingId,
       onStartRename: handleStartRename,
       onCommitRename: handleCommitRename,
+      onCreateFolder: handleCreateFolder,
+      onCreateNote: handleCreateNote,
       onDelete: handleDelete,
     }),
-    [renamingId, handleStartRename, handleCommitRename, handleDelete],
+    [
+      renamingId,
+      handleStartRename,
+      handleCommitRename,
+      handleCreateFolder,
+      handleCreateNote,
+      handleDelete,
+    ],
   );
 
   // ⌘/Ctrl+Delete removes the currently focused row after a confirm. Bound
@@ -231,6 +350,7 @@ export function ProjectTree({
   useKeyboardShortcut("mod+delete", () => {
     const focused = treeRef.current?.focusedNode;
     if (!focused) return;
+    if (isSyntheticTreeNode(focused.data)) return;
     if (typeof document !== "undefined") {
       const active = document.activeElement as HTMLElement | null;
       if (active?.closest("input, textarea, [contenteditable]")) return;

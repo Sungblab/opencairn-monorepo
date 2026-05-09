@@ -4,10 +4,15 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
 } from "@/components/ui/context-menu";
+import type { TreeNode } from "@/hooks/use-project-tree";
 
 export interface TreeContextMenuItemsProps {
+  kind: TreeNode["kind"];
+  deleteShortcut: string;
   onRename(): void;
   onDelete(): void;
+  onCreateNote?(): void;
+  onCreateFolder?(): void;
   onDuplicate?(): void;
   onCopyLink?(): void;
 }
@@ -18,8 +23,12 @@ export interface TreeContextMenuItemsProps {
 // would break react-arborist's dragHandle ref chain). Duplicate and copy-link
 // disable themselves when their handlers aren't provided.
 export function TreeContextMenuItems({
+  kind,
+  deleteShortcut,
   onRename,
   onDelete,
+  onCreateNote,
+  onCreateFolder,
   onDuplicate,
   onCopyLink,
 }: TreeContextMenuItemsProps) {
@@ -27,7 +36,7 @@ export function TreeContextMenuItems({
   return (
     <>
       <ContextMenuItem
-        className="min-h-9 rounded-[var(--radius-control)] px-3"
+        className="min-h-8 rounded-[var(--radius-control)] px-2 py-1.5"
         onClick={onRename}
       >
         <span className="flex-1">{t("rename")}</span>
@@ -42,8 +51,24 @@ export function TreeContextMenuItems({
       >
         {t("duplicate")}
       </ContextMenuItem>
+      {onCreateNote ? (
+        <ContextMenuItem
+          className="min-h-8 rounded-[var(--radius-control)] px-2 py-1.5"
+          onClick={onCreateNote}
+        >
+          {t("new_child_page")}
+        </ContextMenuItem>
+      ) : null}
+      {kind === "folder" ? (
+        <ContextMenuItem
+          className="min-h-8 rounded-[var(--radius-control)] px-2 py-1.5"
+          onClick={onCreateFolder}
+        >
+          {t("new_subfolder")}
+        </ContextMenuItem>
+      ) : null}
       <ContextMenuItem
-        className="min-h-9 rounded-[var(--radius-control)] px-3"
+        className="min-h-8 rounded-[var(--radius-control)] px-2 py-1.5"
         onClick={onCopyLink}
         disabled={!onCopyLink}
       >
@@ -51,13 +76,13 @@ export function TreeContextMenuItems({
       </ContextMenuItem>
       <ContextMenuSeparator />
       <ContextMenuItem
-        className="min-h-9 rounded-[var(--radius-control)] px-3"
+        className="min-h-8 rounded-[var(--radius-control)] px-2 py-1.5"
         variant="destructive"
         onClick={onDelete}
       >
         <span className="flex-1">{t("delete")}</span>
         <span className="text-[10px] text-muted-foreground">
-          {t("delete_shortcut")}
+          {deleteShortcut}
         </span>
       </ContextMenuItem>
     </>

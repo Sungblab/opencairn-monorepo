@@ -13,6 +13,7 @@ export function useTabModeShortcut() {
     const s = useTabsStore.getState();
     const active = s.tabs.find((t) => t.id === s.activeId);
     if (!active) return;
+    if (active.kind !== "note") return;
     if (active.mode === "plate") {
       e.preventDefault();
       s.updateTab(active.id, { mode: "reading" });

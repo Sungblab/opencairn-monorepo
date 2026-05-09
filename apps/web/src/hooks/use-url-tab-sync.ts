@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useTabsStore, type TabKind } from "@/stores/tabs-store";
 import { tabToUrl, urlToTabTarget, type TabRoute } from "@/lib/tab-url";
 import { newTab } from "@/lib/tab-factory";
+import { isValidTabMode } from "@/lib/tab-mode-rules";
 
 // Map a (kind, targetId) pair to its persistent i18n key + interpolation
 // params. Phase 3-B: tabs carry this alongside the cached `title` so the
@@ -129,15 +130,22 @@ export function useUrlTabSync() {
       }
       const shouldPatchTarget = existing.targetId !== route.targetId;
       const shouldPatchMode = Boolean(route.mode && existing.mode !== route.mode);
+      const shouldResetInvalidMode = !route.mode && !isValidTabMode(existing);
       if (shouldPatchTarget || shouldPatchMode) {
         const { key, params } = tabTitleKey(route.kind, route.targetId);
         updateTab(existing.id, {
           targetId: route.targetId,
-          ...(route.mode ? { mode: route.mode } : {}),
+          ...(route.mode
+            ? { mode: route.mode }
+            : shouldResetInvalidMode
+              ? { mode: "plate" as const }
+              : {}),
           title: resolveDefaultTitle(tabTitle, route.kind, route.targetId),
           titleKey: key,
           titleParams: params,
         });
+      } else if (shouldResetInvalidMode) {
+        updateTab(existing.id, { mode: "plate" });
       }
       if ((pathChanged || !store.activeId) && store.activeId !== existing.id) {
         setActive(existing.id);

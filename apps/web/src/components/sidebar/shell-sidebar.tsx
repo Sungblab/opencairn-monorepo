@@ -2,29 +2,18 @@
 import { urls } from "@/lib/urls";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import {
-  Activity,
-  ChevronLeft,
-  DownloadCloud,
-  FlaskConical,
-  Home,
-  MoreHorizontal,
-} from "lucide-react";
+import { ChevronLeft, Home, MoreHorizontal } from "lucide-react";
 import { ScopedSearch } from "./scoped-search";
 import { ProjectTree } from "./project-tree";
 import { SidebarFooter } from "./sidebar-footer";
 import { useCurrentProjectContext } from "./use-current-project";
-import { ProjectGraphLink } from "./project-graph-link";
-import { ProjectAgentsLink } from "./project-agents-link";
-import { ProjectLearnLink } from "./project-learn-link";
 import { NewNoteButton } from "./NewNoteButton";
+import { NewFolderButton } from "./NewFolderButton";
 import { NewCanvasButton } from "./NewCanvasButton";
 import { NewCodeWorkspaceButton } from "./NewCodeWorkspaceButton";
-import { GenerateDocumentButton } from "./GenerateDocumentButton";
 import { ProjectHero } from "./project-hero";
 import { MoreMenu } from "./more-menu";
 import { SidebarEmptyState } from "./sidebar-empty-state";
-import { LiteratureSearchButton } from "@/components/literature/literature-search-button";
 import { usePanelStore } from "@/stores/panel-store";
 import {
   Popover,
@@ -42,7 +31,6 @@ export interface ShellSidebarProps {
 // keeps workspace navigation and project navigation as separate outline blocks.
 // The testid matches what Phase 1's e2e already watches.
 export function ShellSidebar({
-  deepResearchEnabled,
   synthesisExportEnabled = false,
 }: ShellSidebarProps) {
   const { wsSlug, projectId } = useCurrentProjectContext();
@@ -70,35 +58,19 @@ export function ShellSidebar({
       <div className="border-b border-border px-3 py-2">
         <ScopedSearch />
         {base && wsSlug ? (
-          <div className="mt-2 grid grid-cols-2 gap-1.5">
-            <SidebarToolLink href={base} label={tNav("dashboard")} Icon={Home} />
-            {deepResearchEnabled ? (
-              <SidebarToolLink
-                href={urls.workspace.research(locale, wsSlug)}
-                label={tNav("research")}
-                Icon={FlaskConical}
-              />
-            ) : null}
-            <SidebarToolLink
-              href={urls.workspace.import(locale, wsSlug)}
-              label={tNav("import")}
-              Icon={DownloadCloud}
+          <div className="mt-2 flex items-center gap-1.5">
+            <SidebarNavLink
+              href={
+                projectId
+                  ? urls.workspace.project(locale, wsSlug, projectId)
+                  : base
+              }
+              label={projectId ? tNav("project_home") : tNav("dashboard")}
+              Icon={Home}
             />
-            <LiteratureSearchButton wsSlug={wsSlug} />
-            {projectId ? (
-              <>
-                <ProjectGraphLink />
-                <ProjectAgentsLink />
-                <SidebarToolLink
-                  href={`${urls.workspace.projectAgents(locale, wsSlug, projectId)}?view=runs#workflow-console`}
-                  label={tNav("runs")}
-                  Icon={Activity}
-                />
-                <ProjectLearnLink />
-              </>
-            ) : null}
             <ProjectToolsMenu
               base={base}
+              compact
               synthesisExportEnabled={synthesisExportEnabled}
             />
           </div>
@@ -108,11 +80,11 @@ export function ShellSidebar({
         <>
           <div className="grid grid-cols-2 gap-1.5 px-3 py-2">
             <NewNoteButton workspaceSlug={wsSlug} projectId={projectId} />
+            <NewFolderButton projectId={projectId} />
             <NewCanvasButton workspaceSlug={wsSlug} projectId={projectId} />
             <NewCodeWorkspaceButton projectId={projectId} />
-            <GenerateDocumentButton wsSlug={wsSlug} projectId={projectId} />
           </div>
-          <ProjectTree projectId={projectId} />
+          <ProjectTree projectId={projectId} workspaceSlug={wsSlug} />
         </>
       ) : (
         <SidebarEmptyState />
@@ -122,7 +94,7 @@ export function ShellSidebar({
   );
 }
 
-function SidebarToolLink({
+function SidebarNavLink({
   href,
   label,
   Icon,
@@ -134,9 +106,12 @@ function SidebarToolLink({
   return (
     <Link
       href={href}
-      className="flex min-h-8 items-center gap-2 rounded-[var(--radius-control)] border border-border bg-background px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-[var(--radius-control)] border border-border bg-background px-2 py-1.5 text-xs text-foreground transition-colors hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <Icon aria-hidden className="h-3.5 w-3.5 shrink-0" />
+      <Icon
+        aria-hidden
+        className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+      />
       <span className="min-w-0 flex-1 truncate">{label}</span>
     </Link>
   );
@@ -144,9 +119,11 @@ function SidebarToolLink({
 
 function ProjectToolsMenu({
   base,
+  compact = false,
   synthesisExportEnabled,
 }: {
   base: string;
+  compact?: boolean;
   synthesisExportEnabled: boolean;
 }) {
   const t = useTranslations("sidebar.nav");
@@ -155,20 +132,23 @@ function ProjectToolsMenu({
     <Popover>
       <PopoverTrigger
         aria-label={t("more_aria")}
-        className="flex min-h-8 items-center gap-2 rounded-[var(--radius-control)] border border-border bg-background px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className={
+          compact
+            ? "grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-control)] border border-border bg-background text-muted-foreground transition-colors hover:border-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            : "flex min-h-8 items-center gap-2 rounded-[var(--radius-control)] border border-border bg-background px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        }
       >
         <MoreHorizontal aria-hidden className="h-3.5 w-3.5 shrink-0" />
-        <span className="min-w-0 flex-1 truncate">{t("more_aria")}</span>
+        {compact ? null : (
+          <span className="min-w-0 flex-1 truncate">{t("more_aria")}</span>
+        )}
       </PopoverTrigger>
       <PopoverContent
         align="start"
         sideOffset={6}
         className="w-[260px] rounded-[var(--radius-control)] border border-border bg-background p-2 shadow-sm ring-0"
       >
-        <MoreMenu
-          base={base}
-          synthesisExportEnabled={synthesisExportEnabled}
-        />
+        <MoreMenu base={base} synthesisExportEnabled={synthesisExportEnabled} />
       </PopoverContent>
     </Popover>
   );

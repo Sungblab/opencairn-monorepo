@@ -40,6 +40,8 @@ function mkCtx(overrides: Partial<ProjectTreeCtxValue> = {}): ProjectTreeCtxValu
     renamingId: null,
     onStartRename: vi.fn(),
     onCommitRename: vi.fn(),
+    onCreateFolder: vi.fn(),
+    onCreateNote: vi.fn(),
     onDelete: vi.fn(),
     ...overrides,
   };
@@ -101,7 +103,8 @@ describe("ProjectTreeNode", () => {
       "h-full",
       "min-h-8",
       "rounded-[var(--radius-control)]",
-      "px-2",
+      "gap-2",
+      "px-2.5",
     );
     expect(
       screen.getByRole("button", { name: "sidebar.tree_menu.row_actions" }),
@@ -135,11 +138,19 @@ describe("ProjectTreeNode", () => {
     fireEvent.click(action);
 
     const menu = screen.getByTestId("tree-row-action-menu");
-    expect(menu).toHaveStyle({ top: "254px", left: "10px" });
-    expect(menu).toHaveClass("fixed", "w-52", "rounded-[var(--radius-control)]");
+    expect(menu).toHaveStyle({ top: "254px", left: "8px" });
+    expect(menu).toHaveClass(
+      "fixed",
+      "w-56",
+      "rounded-[var(--radius-control)]",
+      "border-border",
+      "bg-background",
+      "shadow-sm",
+      "ring-0",
+    );
   });
 
-  it("renders a leaf folder without chevron", () => {
+  it("renders an empty folder with a chevron affordance", () => {
     const node = mkNode({
       kind: "folder",
       id: "f2",
@@ -148,7 +159,48 @@ describe("ProjectTreeNode", () => {
       child_count: 0,
     });
     renderNode(node);
-    expect(screen.queryByTestId("tree-chevron")).toBeNull();
+    expect(screen.getByTestId("tree-chevron")).toBeInTheDocument();
+  });
+
+  it("renders a child-page creation row for expanded empty containers", () => {
+    const onCreateNote = vi.fn();
+    const node = mkNode({
+      kind: "empty",
+      id: "f2:empty",
+      parent_id: "f2",
+      label: "",
+      child_count: 0,
+    });
+    renderNode(node, mkCtx({ onCreateNote }));
+    const action = screen.getByText("sidebar.tree_menu.new_child_page");
+    expect(action).toBeInTheDocument();
+    expect(screen.getByRole("treeitem")).toHaveClass(
+      "text-xs",
+      "text-muted-foreground",
+    );
+    fireEvent.click(screen.getByRole("treeitem"));
+    expect(onCreateNote).toHaveBeenCalledWith("f2");
+  });
+
+  it("renders a note row with a chevron but keeps row click as open", () => {
+    const toggle = vi.fn();
+    const node = mkNode(
+      {
+        kind: "note",
+        id: "n-chevron",
+        parent_id: null,
+        label: "Page",
+        child_count: 0,
+      },
+      { toggle },
+    );
+    renderNode(node);
+
+    expect(screen.getByTestId("tree-chevron")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("treeitem"));
+
+    expect(push).toHaveBeenCalledWith("/ko/workspace/acme/note/n-chevron");
+    expect(toggle).not.toHaveBeenCalled();
   });
 
   it("clicking a folder row toggles open state", () => {
@@ -167,6 +219,106 @@ describe("ProjectTreeNode", () => {
     fireEvent.click(screen.getByRole("treeitem"));
     expect(toggle).toHaveBeenCalledOnce();
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it("offers subfolder creation from a folder row action menu", () => {
+    const onCreateFolder = vi.fn();
+    const node = mkNode({
+      kind: "folder",
+      id: "f-sub",
+      parent_id: null,
+      label: "Parent",
+      child_count: 0,
+    });
+    renderNode(node, mkCtx({ onCreateFolder }));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "sidebar.tree_menu.row_actions" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", {
+      name: "sidebar.tree_menu.new_subfolder",
+    }));
+
+    expect(onCreateFolder).toHaveBeenCalledWith("f-sub");
+  });
+
+  it("offers child page creation from a folder row action menu", () => {
+    const onCreateNote = vi.fn();
+    const folder = mkNode({
+      kind: "folder",
+      id: "f-child",
+      parent_id: null,
+      label: "Parent folder",
+      child_count: 0,
+    });
+    renderNode(folder, mkCtx({ onCreateNote }));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "sidebar.tree_menu.row_actions" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", {
+      name: "sidebar.tree_menu.new_child_page",
+    }));
+
+    expect(onCreateNote).toHaveBeenCalledWith("f-child");
+  });
+
+  it("offers child page creation from the inline plus action", () => {
+    const onCreateNote = vi.fn();
+    const folder = mkNode({
+      kind: "folder",
+      id: "f-inline-child",
+      parent_id: null,
+      label: "Parent folder",
+      child_count: 0,
+    });
+    renderNode(folder, mkCtx({ onCreateNote }));
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "sidebar.tree_menu.new_child_page",
+      }),
+    );
+
+    expect(onCreateNote).toHaveBeenCalledWith("f-inline-child");
+  });
+
+  it("uses a platform-aware delete shortcut in row action menus", () => {
+    const node = mkNode({
+      kind: "note",
+      id: "n-shortcut",
+      parent_id: null,
+      label: "Shortcut row",
+      child_count: 0,
+    });
+    renderNode(node);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "sidebar.tree_menu.row_actions" }),
+    );
+
+    expect(screen.getByText("Ctrl+Del")).toBeInTheDocument();
+  });
+
+  it("offers child page creation from a note row action menu", () => {
+    const onCreateNote = vi.fn();
+    const note = mkNode({
+      kind: "note",
+      id: "n-child",
+      parent_id: null,
+      label: "Parent page",
+      child_count: 0,
+    });
+    renderNode(note, mkCtx({ onCreateNote }));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "sidebar.tree_menu.row_actions" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", {
+      name: "sidebar.tree_menu.new_child_page",
+    }));
+
+    expect(onCreateNote).toHaveBeenCalledWith("n-child");
   });
 
   it("clicking a note row pushes a locale-prefixed note route", () => {

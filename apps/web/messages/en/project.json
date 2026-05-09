@@ -13,6 +13,46 @@
     "runs": "Runs",
     "reviewInbox": "Review inbox"
   },
+  "tools": {
+    "heading": "Project tools",
+    "description": "Start research, import, automation, learning, and document generation from this project home.",
+    "research": {
+      "title": "Deep Research",
+      "description": "Start focused research using this project as context."
+    },
+    "import": {
+      "title": "Import",
+      "description": "Bring local files and external material into the project."
+    },
+    "literature": {
+      "title": "Literature search",
+      "description": "Search papers and save selected sources into the project."
+    },
+    "graph": {
+      "title": "Project graph",
+      "description": "Explore how notes and sources connect."
+    },
+    "agents": {
+      "title": "Project agents",
+      "description": "Start and manage agent work for this project."
+    },
+    "runs": {
+      "title": "Runs",
+      "description": "Track import, generation, and automation progress."
+    },
+    "learn": {
+      "title": "Learn",
+      "description": "Review the project with flashcards and understanding checks."
+    },
+    "generateDocument": {
+      "title": "Generate document",
+      "description": "Turn project material into a report or summary."
+    },
+    "reviewInbox": {
+      "title": "Review inbox",
+      "description": "Check proposed changes and approval items."
+    }
+  },
   "tabs": {
     "all": "All",
     "imported": "Imported",

@@ -160,6 +160,7 @@ export interface PatchNoteBody {
 export interface CreateNoteBody {
   projectId: string;
   folderId?: string | null;
+  parentTreeNodeId?: string | null;
   title?: string;
   content?: unknown[] | null;
   // Canvas runtime: canvas notes carry source code in contentText
@@ -1100,6 +1101,15 @@ export const api = {
     }),
   createNote: (body: CreateNoteBody) =>
     apiClient<NoteRow>(`/notes`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  createFolder: (body: {
+    projectId: string;
+    parentId?: string | null;
+    name: string;
+  }) =>
+    apiClient<FolderRow>(`/folders`, {
       method: "POST",
       body: JSON.stringify(body),
     }),

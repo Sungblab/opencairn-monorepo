@@ -5,9 +5,21 @@ import { useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { Activity, CheckSquare, FileText } from "lucide-react";
+import {
+  Activity,
+  BookText,
+  Bot,
+  CheckSquare,
+  DownloadCloud,
+  FileText,
+  FlaskConical,
+  GraduationCap,
+  Network,
+  type LucideIcon,
+} from "lucide-react";
 import { projectsApi, type ProjectNoteRow } from "@/lib/api-client";
-import { IngestUploadButton } from "@/components/ingest/ingest-upload-button";
+import { useWorkspaceId } from "@/hooks/useWorkspaceId";
+import { LiteratureSearchModal } from "@/components/literature/literature-search-modal";
 import { ProjectMetaRow } from "./project-meta-row";
 import { ProjectNotesTable } from "./project-notes-table";
 
@@ -20,6 +32,8 @@ export function ProjectView({
 }) {
   const locale = useLocale();
   const t = useTranslations("project");
+  const workspaceId = useWorkspaceId(wsSlug);
+  const [literatureOpen, setLiteratureOpen] = useState(false);
   const { data: meta } = useQuery({
     queryKey: ["project-meta", projectId],
     queryFn: () => projectsApi.get(projectId),
@@ -37,67 +51,176 @@ export function ProjectView({
     }
     return acc;
   }, [allNotes]);
-  const lastActivityIso = allNotes && allNotes.length > 0
-    ? allNotes[0].updated_at
-    : null;
+  const lastActivityIso =
+    allNotes && allNotes.length > 0 ? allNotes[0].updated_at : null;
 
   return (
-    <div data-testid="route-project" className="mx-auto flex max-w-6xl flex-col gap-6 px-8 py-8">
-      <header className="flex items-end justify-between gap-4">
+    <div
+      data-testid="route-project"
+      className="mx-auto flex max-w-6xl flex-col gap-6 px-8 py-8"
+    >
+      <header>
         <ProjectMetaRow
           name={meta?.name ?? ""}
           pageCount={counts.all}
           lastActivityIso={lastActivityIso}
         />
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={`${urls.workspace.research(locale, wsSlug)}?project=${projectId}`}
-            className="app-hover rounded-[var(--radius-control)] border-[1.5px] border-border px-3 py-1.5 text-sm"
-          >
-            {t("actions.research")}
-          </Link>
-          <Link
-            href={`${urls.workspace.import(locale, wsSlug)}?project=${projectId}`}
-            className="app-hover rounded-[var(--radius-control)] border-[1.5px] border-border px-3 py-1.5 text-sm"
-          >
-            {t("actions.import")}
-          </Link>
-          <IngestUploadButton projectId={projectId} />
-          <Link
-            href={urls.workspace.projectAgents(locale, wsSlug, projectId)}
-            className="app-hover rounded-[var(--radius-control)] border-[1.5px] border-border px-3 py-1.5 text-sm"
-          >
-            {t("actions.agents")}
-          </Link>
-          <Link
-            href={`${urls.workspace.projectAgents(locale, wsSlug, projectId)}?view=runs#workflow-console`}
-            className="app-hover inline-flex items-center gap-2 rounded-[var(--radius-control)] border-[1.5px] border-border px-3 py-1.5 text-sm"
-          >
-            <Activity aria-hidden className="h-4 w-4" />
-            {t("actions.runs")}
-          </Link>
-          <Link
-            href={`${urls.workspace.projectAgents(locale, wsSlug, projectId)}#plan8-suggestions`}
-            className="app-hover inline-flex items-center gap-2 rounded-[var(--radius-control)] border-[1.5px] border-border px-3 py-1.5 text-sm"
-          >
-            <CheckSquare aria-hidden className="h-4 w-4" />
-            {t("actions.reviewInbox")}
-          </Link>
-          <Link
-            href={`${urls.workspace.synthesisExport(locale, wsSlug)}?project=${projectId}`}
-            className="app-btn-primary inline-flex items-center gap-2 rounded-[var(--radius-control)] px-3 py-1.5 text-sm"
-          >
-            <FileText aria-hidden className="h-4 w-4" />
-            {t("actions.generateDocument")}
-          </Link>
-        </div>
       </header>
+      <section aria-labelledby="project-tools-heading" className="space-y-3">
+        <div>
+          <h2
+            id="project-tools-heading"
+            className="text-sm font-medium text-foreground"
+          >
+            {t("tools.heading")}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {t("tools.description")}
+          </p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <ToolLink
+            href={`${urls.workspace.research(locale, wsSlug)}?project=${projectId}`}
+            icon={FlaskConical}
+            title={t("tools.research.title")}
+            description={t("tools.research.description")}
+          />
+          <ToolLink
+            href={`${urls.workspace.import(locale, wsSlug)}?project=${projectId}`}
+            icon={DownloadCloud}
+            title={t("tools.import.title")}
+            description={t("tools.import.description")}
+          />
+          <ToolButton
+            icon={BookText}
+            title={t("tools.literature.title")}
+            description={t("tools.literature.description")}
+            onClick={() => setLiteratureOpen(true)}
+          />
+          <ToolLink
+            href={urls.workspace.projectGraph(locale, wsSlug, projectId)}
+            icon={Network}
+            title={t("tools.graph.title")}
+            description={t("tools.graph.description")}
+          />
+          <ToolLink
+            href={urls.workspace.projectAgents(locale, wsSlug, projectId)}
+            icon={Bot}
+            title={t("tools.agents.title")}
+            description={t("tools.agents.description")}
+          />
+          <ToolLink
+            href={`${urls.workspace.projectAgents(locale, wsSlug, projectId)}?view=runs#workflow-console`}
+            icon={Activity}
+            title={t("tools.runs.title")}
+            description={t("tools.runs.description")}
+          />
+          <ToolLink
+            href={urls.workspace.projectLearn(locale, wsSlug, projectId)}
+            icon={GraduationCap}
+            title={t("tools.learn.title")}
+            description={t("tools.learn.description")}
+          />
+          <ToolLink
+            href={`${urls.workspace.synthesisExport(locale, wsSlug)}?project=${projectId}`}
+            icon={FileText}
+            title={t("tools.generateDocument.title")}
+            description={t("tools.generateDocument.description")}
+            emphasis
+          />
+          <ToolLink
+            href={`${urls.workspace.projectAgents(locale, wsSlug, projectId)}#plan8-suggestions`}
+            icon={CheckSquare}
+            title={t("tools.reviewInbox.title")}
+            description={t("tools.reviewInbox.description")}
+          />
+        </div>
+      </section>
       <ProjectNotesTable
         wsSlug={wsSlug}
         projectId={projectId}
         counts={counts}
         onLoaded={(rows) => setAllNotes(rows)}
       />
+      <LiteratureSearchModal
+        open={literatureOpen}
+        onOpenChange={setLiteratureOpen}
+        workspaceId={workspaceId}
+        defaultProjectId={projectId}
+      />
     </div>
+  );
+}
+
+function ToolLink({
+  href,
+  icon: Icon,
+  title,
+  description,
+  emphasis = false,
+}: {
+  href: string;
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  emphasis?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={
+        emphasis
+          ? "group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-primary/40 bg-primary px-3 py-3 text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          : "group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-background px-3 py-3 text-foreground transition-colors hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      }
+    >
+      <Icon
+        aria-hidden
+        className={
+          emphasis
+            ? "h-4 w-4 text-primary-foreground/80"
+            : "h-4 w-4 text-muted-foreground group-hover:text-foreground"
+        }
+      />
+      <span className="text-sm font-medium">{title}</span>
+      <span
+        className={
+          emphasis
+            ? "line-clamp-2 text-xs text-primary-foreground/75"
+            : "line-clamp-2 text-xs text-muted-foreground"
+        }
+      >
+        {description}
+      </span>
+    </Link>
+  );
+}
+
+function ToolButton({
+  icon: Icon,
+  title,
+  description,
+  onClick,
+}: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-background px-3 py-3 text-left text-foreground transition-colors hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <Icon
+        aria-hidden
+        className="h-4 w-4 text-muted-foreground group-hover:text-foreground"
+      />
+      <span className="text-sm font-medium">{title}</span>
+      <span className="line-clamp-2 text-xs text-muted-foreground">
+        {description}
+      </span>
+    </button>
   );
 }

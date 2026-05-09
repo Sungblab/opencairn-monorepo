@@ -39,6 +39,7 @@
   "profile": {
     "heading": "이메일 본문 설정",
     "description": "이메일 본문 언어와 디지털 뭉치 발송 시간을 사용자 시간대에 맞춥니다.",
+    "loading": "알림 프로필을 불러오는 중이에요.",
     "locale": "이메일 언어",
     "localeOptions": {
       "ko": "한국어",

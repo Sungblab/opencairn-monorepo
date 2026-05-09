@@ -1,7 +1,7 @@
 {
   "header": {
-    "title": "AI Agent",
-    "subtitle": "Approvals · runs · questions",
+    "title": "Context",
+    "subtitle": "AI · activity · notifications",
     "new_thread_aria": "New conversation",
     "thread_list_aria": "Thread list",
     "collapse_aria": "Collapse panel"
@@ -12,7 +12,7 @@
     "untitled": "(untitled)"
   },
   "tabs": {
-    "chat": "Chat",
+    "chat": "AI",
     "activity": "Activity",
     "notifications": "Notifications"
   },

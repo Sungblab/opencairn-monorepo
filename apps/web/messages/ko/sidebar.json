@@ -1,9 +1,11 @@
 {
   "loading": "불러오는 중…",
   "new_note": "새 노트",
+  "new_folder": "새 폴더",
   "empty_project": "이 프로젝트에는 아직 노트가 없어요.",
   "empty_folder": "비어 있어요.",
   "untitled": "제목 없음",
+  "untitled_folder": "새 폴더",
   "offline": "오프라인",
   "switcher": {
     "trigger_aria": "워크스페이스 전환",
@@ -20,6 +22,7 @@
   },
   "nav": {
     "dashboard": "대시보드",
+    "project_home": "프로젝트 홈",
     "research": "Deep Research",
     "import": "가져오기",
     "literature": "논문 검색",
@@ -75,6 +78,9 @@
     "rename_shortcut": "F2",
     "duplicate": "복제",
     "copy_link": "링크 복사",
+    "new_child_page": "하위 페이지 만들기",
+    "new_subfolder": "하위 폴더 만들기",
+    "empty": "하위 항목 없음",
     "row_actions": "파일 작업",
     "delete": "삭제",
     "delete_shortcut": "⌘Del",
@@ -83,6 +89,9 @@
   "toasts": {
     "move_failed": "이동에 실패했어요. 다시 시도해주세요.",
     "rename_failed": "이름 변경에 실패했어요. 다시 시도해주세요.",
+    "create_note_failed": "페이지 생성에 실패했어요. 다시 시도해주세요.",
+    "folder_created": "폴더를 만들었어요.",
+    "create_folder_failed": "폴더 생성에 실패했어요. 다시 시도해주세요.",
     "delete_failed": "삭제에 실패했어요. 다시 시도해주세요."
   },
   "graph": {
