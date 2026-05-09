@@ -65,7 +65,7 @@ export function InvitesTab({ wsId }: { wsId: string }) {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-64 rounded border border-border bg-transparent px-2 py-1"
+            className="w-64 rounded-[var(--radius-control)] border border-border bg-transparent px-2 py-1"
           />
         </label>
         <label className="flex flex-col gap-1 text-xs">
@@ -75,7 +75,7 @@ export function InvitesTab({ wsId }: { wsId: string }) {
             onChange={(e) =>
               setRole(e.target.value as "admin" | "member" | "guest")
             }
-            className="rounded border border-border bg-transparent px-2 py-1"
+            className="rounded-[var(--radius-control)] border border-border bg-transparent px-2 py-1"
           >
             {ROLES.map((r) => (
               <option key={r} value={r}>
@@ -87,7 +87,7 @@ export function InvitesTab({ wsId }: { wsId: string }) {
         <button
           type="submit"
           disabled={!email || create.isPending}
-          className="app-btn-primary rounded px-3 py-1.5 text-sm"
+          className="app-btn-primary rounded-[var(--radius-control)] px-3 py-1.5 text-sm"
         >
           {t("send")}
         </button>
@@ -127,7 +127,7 @@ export function InvitesTab({ wsId }: { wsId: string }) {
                       <button
                         type="button"
                         onClick={() => cancel.mutate(inv.id)}
-                        className="rounded border border-border px-2 py-1 text-xs hover:bg-accent"
+                        className="app-btn-ghost rounded-[var(--radius-control)] border border-border px-2 py-1 text-xs"
                       >
                         {t("cancel")}
                       </button>

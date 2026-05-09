@@ -56,6 +56,23 @@ describe("GettingStartedPanel", () => {
         name: /dashboard\.gettingStarted\.actions\.ask\.title/,
       }),
     ).toHaveAttribute("href", "/ko/workspace/acme/chat-scope");
+
+    const panel = screen.getByRole("region", {
+      name: "dashboard.gettingStarted.titleEmpty",
+    });
+    expect(panel).toHaveClass(
+      "rounded-[var(--radius-card)]",
+      "border",
+      "border-border",
+      "bg-background",
+    );
+    expect(panel).not.toHaveClass("rounded", "border-2");
+
+    expect(
+      screen.getByRole("link", {
+        name: /dashboard\.gettingStarted\.actions\.import\.title/,
+      }),
+    ).toHaveClass("rounded-[var(--radius-card)]");
   });
 
   it("switches copy once the workspace has content", async () => {

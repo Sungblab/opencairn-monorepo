@@ -25,35 +25,35 @@ export function DashboardView({
       data-testid="route-dashboard"
       className="mx-auto flex w-full max-w-7xl flex-col gap-5 p-4 sm:p-6"
     >
-      <header className="flex flex-col gap-3 rounded border-2 border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <header className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-border bg-background p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold">{t("title")}</h1>
           <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         <Link
           href={urls.workspace.newProject(locale, wsSlug)}
-          className="app-btn-primary w-fit shrink-0 whitespace-nowrap rounded px-3 py-1.5 text-sm"
+          className="app-btn-primary w-fit shrink-0 whitespace-nowrap rounded-[var(--radius-control)] px-3 py-1.5 text-sm"
         >
           {t("newProject")}
         </Link>
       </header>
       <GettingStartedPanel wsId={wsId} wsSlug={wsSlug} />
       <StatsRow wsId={wsId} />
-      <section className="rounded border-2 border-border bg-card p-4">
+      <section className="rounded-[var(--radius-card)] border border-border bg-background p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold">
             {t("sections.activeResearch")}
           </h2>
           <Link
             href={urls.workspace.research(locale, wsSlug)}
-            className="inline-flex min-h-7 items-center rounded px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="app-btn-ghost inline-flex min-h-7 items-center rounded-[var(--radius-control)] px-2 text-xs text-muted-foreground"
           >
             {t("sections.viewAll")} →
           </Link>
         </div>
         <ActiveResearchList wsId={wsId} wsSlug={wsSlug} />
       </section>
-      <section className="rounded border-2 border-border bg-card p-4">
+      <section className="rounded-[var(--radius-card)] border border-border bg-background p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold">
             {t("sections.recentDocs")}

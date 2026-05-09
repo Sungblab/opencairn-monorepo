@@ -41,7 +41,7 @@ export function TrashTab({ wsId }: { wsId: string }) {
         <p className="text-sm text-muted-foreground">{t("empty")}</p>
       )}
       {notes.length > 0 && (
-        <ul className="divide-y rounded border border-border">
+        <ul className="divide-y rounded-[var(--radius-card)] border border-border">
           {notes.map((note) => (
             <li
               key={note.id}
@@ -63,7 +63,7 @@ export function TrashTab({ wsId }: { wsId: string }) {
                   type="button"
                   onClick={() => restore.mutate(note.id)}
                   disabled={restore.isPending || destroy.isPending}
-                  className="rounded border border-border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50"
+                  className="app-btn-ghost rounded-[var(--radius-control)] border border-border px-2 py-1 text-xs disabled:opacity-50"
                 >
                   {t("restore")}
                 </button>
@@ -71,7 +71,7 @@ export function TrashTab({ wsId }: { wsId: string }) {
                   type="button"
                   onClick={() => destroy.mutate(note.id)}
                   disabled={restore.isPending || destroy.isPending}
-                  className="rounded border border-destructive/40 px-2 py-1 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                  className="rounded-[var(--radius-control)] border border-destructive/40 px-2 py-1 text-xs text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
                 >
                   {t("deleteForever")}
                 </button>

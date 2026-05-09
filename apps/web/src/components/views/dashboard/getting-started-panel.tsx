@@ -55,7 +55,7 @@ function ActionCard({
   return (
     <Link
       href={href}
-      className={`group flex min-h-[116px] flex-col justify-between rounded border p-4 transition-colors ${
+      className={`group flex min-h-[116px] flex-col justify-between rounded-[var(--radius-card)] border p-4 transition-colors ${
         primary
           ? "border-foreground bg-foreground text-background hover:bg-foreground/90"
           : "border-border bg-background hover:bg-muted"
@@ -115,7 +115,7 @@ export function GettingStartedPanel({
   return (
     <section
       aria-labelledby="getting-started-title"
-      className="overflow-hidden rounded border-2 border-border bg-card"
+      className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-background"
     >
       <div className="grid gap-0 lg:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
         <div className="flex flex-col justify-between gap-6 border-b border-border p-5 lg:border-b-0 lg:border-r lg:p-6">

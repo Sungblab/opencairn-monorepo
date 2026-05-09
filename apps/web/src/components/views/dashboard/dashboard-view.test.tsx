@@ -30,4 +30,26 @@ describe("DashboardView", () => {
       }).className,
     ).toContain("min-h-7");
   });
+
+  it("uses the shared app shell surface and control tokens", () => {
+    render(<DashboardView wsSlug="acme" wsId="ws-1" />);
+
+    const header = screen.getByRole("heading", { name: "dashboard.title" }).closest("header");
+    expect(header).toHaveClass(
+      "rounded-[var(--radius-card)]",
+      "border",
+      "border-border",
+      "bg-background",
+    );
+    expect(header).not.toHaveClass("rounded", "border-2");
+
+    expect(
+      screen.getByRole("link", { name: "dashboard.newProject" }),
+    ).toHaveClass("rounded-[var(--radius-control)]");
+    expect(
+      screen.getByRole("link", {
+        name: "dashboard.sections.viewAll →",
+      }),
+    ).toHaveClass("app-btn-ghost", "rounded-[var(--radius-control)]");
+  });
 });

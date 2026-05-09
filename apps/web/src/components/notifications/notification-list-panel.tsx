@@ -52,7 +52,7 @@ export function NotificationListPanel({
   return (
     <div className="flex flex-col gap-2 p-4">
       {items.length === 0 ? (
-        <div className="rounded border border-dashed border-border p-4 text-sm text-muted-foreground">
+        <div className="rounded-[var(--radius-card)] border border-dashed border-border p-4 text-sm text-muted-foreground">
           {t("empty")}
         </div>
       ) : (

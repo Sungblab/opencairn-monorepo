@@ -68,7 +68,7 @@ export function NotificationItem({
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full flex-col items-start gap-1 rounded border border-border p-2 text-left text-sm transition-colors hover:bg-accent ${
+      className={`flex w-full flex-col items-start gap-1 rounded-[var(--radius-card)] border border-border bg-background p-2 text-left text-sm transition-colors hover:border-foreground hover:bg-muted/40 ${
         item.read_at ? "opacity-60" : ""
       }`}
     >
