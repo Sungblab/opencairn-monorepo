@@ -53,7 +53,7 @@ export function SharedLinksTab({ wsId }: { wsId: string }) {
                   <button
                     type="button"
                     onClick={() => revoke.mutate(l.id)}
-                    className="rounded border border-border px-2 py-1 text-xs hover:bg-accent"
+                    className="app-btn-ghost rounded-[var(--radius-control)] border border-border px-2 py-1 text-xs"
                   >
                     {t("revoke")}
                   </button>

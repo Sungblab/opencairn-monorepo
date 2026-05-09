@@ -28,7 +28,7 @@ export function IntegrationsTab({ wsId }: { wsId: string }) {
   return (
     <section className="flex flex-col gap-4">
       <h2 className="text-lg font-semibold">{t("heading")}</h2>
-      <div className="flex items-center justify-between rounded border border-border p-4">
+      <div className="flex items-center justify-between rounded-[var(--radius-card)] border border-border p-4">
         <div>
           <p className="text-sm font-medium">{t("google.name")}</p>
           <p className="text-xs text-muted-foreground">
@@ -43,14 +43,14 @@ export function IntegrationsTab({ wsId }: { wsId: string }) {
           <button
             type="button"
             onClick={() => disconnect.mutate()}
-            className="rounded border border-border px-3 py-1.5 text-xs hover:bg-accent"
+            className="app-btn-ghost rounded-[var(--radius-control)] border border-border px-3 py-1.5 text-xs"
           >
             {t("google.disconnect")}
           </button>
         ) : (
           <a
             href={connectHref}
-            className="app-btn-primary rounded px-3 py-1.5 text-xs"
+            className="app-btn-primary rounded-[var(--radius-control)] px-3 py-1.5 text-xs"
           >
             {t("google.connect")}
           </a>

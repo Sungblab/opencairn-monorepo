@@ -60,14 +60,14 @@ export function ActiveResearchList({
   if (!data) return null;
   if (active.length === 0) {
     return (
-      <div className="rounded border border-dashed border-border bg-muted/30 p-4">
+      <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-muted/30 p-4">
         <p className="text-sm font-medium">{t("lists.noResearchTitle")}</p>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">
           {t("lists.noResearch")}
         </p>
         <Link
           href={urls.workspace.chatScope(locale, wsSlug)}
-          className="mt-3 inline-flex min-h-8 items-center rounded border border-border px-3 text-xs font-medium hover:bg-muted"
+          className="app-btn-ghost mt-3 inline-flex min-h-8 items-center rounded-[var(--radius-control)] border border-border px-3 text-xs font-medium"
         >
           {t("lists.askLink")} →
         </Link>
@@ -80,7 +80,7 @@ export function ActiveResearchList({
       {active.map((run) => (
         <li
           key={run.id}
-          className="flex items-center gap-4 rounded border-2 border-border bg-background p-4 transition-colors hover:border-foreground hover:bg-muted/40"
+          className="flex items-center gap-4 rounded-[var(--radius-card)] border border-border bg-background p-4 transition-colors hover:border-foreground hover:bg-muted/40"
         >
           <StatusDot status={run.status} />
           <div className="min-w-0 flex-1">
@@ -96,7 +96,7 @@ export function ActiveResearchList({
             </div>
           </div>
           <span
-            className={`shrink-0 rounded px-2 py-0.5 text-[11px] uppercase tracking-wide ${
+            className={`shrink-0 rounded-[var(--radius-chip)] px-2 py-0.5 text-[11px] uppercase tracking-wide ${
               run.status === "researching"
                 ? "bg-foreground text-background"
                 : "border border-muted-foreground/40 text-muted-foreground"
@@ -106,7 +106,7 @@ export function ActiveResearchList({
           </span>
           <Link
             href={urls.workspace.researchRun(locale, wsSlug, run.id)}
-            className="app-btn-ghost shrink-0 rounded px-3 py-1 text-xs"
+            className="app-btn-ghost shrink-0 rounded-[var(--radius-control)] px-3 py-1 text-xs"
           >
             {t("lists.openLink")} →
           </Link>

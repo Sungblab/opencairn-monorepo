@@ -79,7 +79,7 @@ export function MembersTab({ wsId }: { wsId: string }) {
                               | "guest",
                           })
                         }
-                        className="rounded border border-border bg-transparent px-2 py-1 text-xs"
+                        className="rounded-[var(--radius-control)] border border-border bg-transparent px-2 py-1 text-xs"
                       >
                         {ASSIGNABLE_ROLES.map((r) => (
                           <option key={r} value={r}>
@@ -101,7 +101,7 @@ export function MembersTab({ wsId }: { wsId: string }) {
                       <button
                         type="button"
                         onClick={() => remove.mutate(m.userId)}
-                        className="rounded border border-border px-2 py-1 text-xs hover:bg-accent"
+                        className="app-btn-ghost rounded-[var(--radius-control)] border border-border px-2 py-1 text-xs"
                       >
                         {t("remove")}
                       </button>

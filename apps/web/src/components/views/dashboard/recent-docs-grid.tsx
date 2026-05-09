@@ -33,14 +33,14 @@ export function RecentDocsGrid({
   if (!data) return null;
   if (data.notes.length === 0) {
     return (
-      <div className="rounded border border-dashed border-border bg-muted/30 p-4">
+      <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-muted/30 p-4">
         <p className="text-sm font-medium">{t("lists.noDocsTitle")}</p>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">
           {t("lists.noDocs")}
         </p>
         <Link
           href={urls.workspace.import(locale, wsSlug)}
-          className="mt-3 inline-flex min-h-8 items-center rounded bg-foreground px-3 text-xs font-medium text-background hover:bg-foreground/90"
+          className="app-btn-primary mt-3 inline-flex min-h-8 items-center rounded-[var(--radius-control)] px-3 text-xs font-medium"
         >
           {t("lists.importLink")} →
         </Link>
@@ -54,7 +54,7 @@ export function RecentDocsGrid({
         <Link
           key={note.id}
           href={urls.workspace.note(locale, wsSlug, note.id)}
-          className="block rounded border-2 border-border bg-background p-4 transition-colors hover:border-foreground hover:bg-muted/40"
+          className="block rounded-[var(--radius-card)] border border-border bg-background p-4 transition-colors hover:border-foreground hover:bg-muted/40"
         >
           <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
             {note.project_name}

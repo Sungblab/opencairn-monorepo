@@ -55,6 +55,18 @@ describe("NotificationItem kinds", () => {
     });
     expect(screen.getByText("답글")).toBeInTheDocument();
     expect(screen.getByText(/great point/)).toBeInTheDocument();
+    const item = screen.getByRole("button", { name: /great point/ });
+    expect(item).toHaveClass(
+      "rounded-[var(--radius-card)]",
+      "border",
+      "border-border",
+      "bg-background",
+      "hover:border-foreground",
+      "hover:bg-muted/40",
+    );
+    expect(item).not.toHaveClass("rounded");
+    expect(item.className).not.toContain("hover:bg-accent");
+    expect(item.className).not.toContain("hover:bg-muted ");
   });
 
   it("renders share_invite with note title + role from i18n template", () => {
