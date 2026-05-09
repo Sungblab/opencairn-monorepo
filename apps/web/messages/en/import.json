@@ -1,10 +1,75 @@
 {
-  "pageTitle": "Import",
-  "pageDescription": "Bring content from external services into this workspace.",
+  "pageTitle": "Add source",
+  "pageDescription": "Start analysis with a file, link, or pasted text.",
   "tabs": {
-    "drive": "Google Drive",
-    "markdown": "Markdown ZIP",
+    "label": "Source intake method",
+    "file": "File",
+    "link": "Link",
+    "text": "Text",
     "more": "More"
+  },
+  "firstSource": {
+    "title": "Add one source to get started.",
+    "description": "Drop in a file, link, or pasted text and OpenCairn will prepare a summary, suggested questions, and a first note.",
+    "tabs": {
+      "label": "Source input type",
+      "file": "File",
+      "link": "Link",
+      "text": "Text"
+    },
+    "file": {
+      "label": "Upload file",
+      "hint": "PDF, document, image, audio, video, and Markdown files are supported.",
+      "empty": "Choose a file",
+      "selected": "Selected: {name}"
+    },
+    "link": {
+      "label": "Source link",
+      "placeholder": "https://example.com/article"
+    },
+    "text": {
+      "titleLabel": "Note title",
+      "titlePlaceholder": "Meeting notes, draft, memo",
+      "label": "Pasted text",
+      "placeholder": "Paste the material you want to organize."
+    },
+    "target": "Choose where to save it, then start analysis.",
+    "pipeline": {
+      "title": "What happens next",
+      "read": "Reading the source",
+      "extract": "Extracting the key points",
+      "questions": "Preparing suggested questions",
+      "note": "Preparing the first note"
+    },
+    "followup": "When it finishes, you can ask questions immediately or open the generated note and keep editing.",
+    "projectName": {
+      "file": "Uploaded source",
+      "link": "Linked source",
+      "text": "Pasted text"
+    },
+    "actions": {
+      "start": "Start analysis",
+      "starting": "Starting..."
+    },
+    "errors": {
+      "workspace": "Could not resolve this workspace.",
+      "project": "Could not create the project.",
+      "fileRequired": "Choose a file first.",
+      "linkRequired": "Enter a link first.",
+      "linkInvalid": "Enter an http or https link.",
+      "textRequired": "Paste text first.",
+      "generic": "Could not start. Try again in a moment."
+    }
+  },
+  "legacy": {
+    "title": "Existing import paths",
+    "description": "Use these when you need account-connected import or prepared ZIP migration.",
+    "label": "Existing import method",
+    "tabs": {
+      "drive": "Google Drive",
+      "markdown": "Markdown ZIP",
+      "notion": "Notion ZIP"
+    }
   },
   "drive": {
     "notConnected": "Connect Google Drive",

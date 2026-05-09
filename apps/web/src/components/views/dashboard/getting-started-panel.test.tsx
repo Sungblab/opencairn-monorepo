@@ -18,6 +18,12 @@ vi.mock("@/lib/api-client", () => ({
   },
 }));
 
+vi.mock("@/components/import/first-source-intake", () => ({
+  FirstSourceIntake: ({ initialMode }: { initialMode: string }) => (
+    <div>dashboard first-source {initialMode}</div>
+  ),
+}));
+
 function renderPanel() {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -30,7 +36,7 @@ function renderPanel() {
 }
 
 describe("GettingStartedPanel", () => {
-  it("prioritizes source import for a new empty workspace", async () => {
+  it("shows the file/link/text first-source intake for a new empty workspace", async () => {
     vi.mocked(dashboardApi.stats).mockResolvedValue({
       docs: 0,
       docs_week_delta: 0,
@@ -46,17 +52,6 @@ describe("GettingStartedPanel", () => {
     expect(
       await screen.findByText("dashboard.gettingStarted.titleEmpty"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", {
-        name: /dashboard\.gettingStarted\.actions\.import\.title/,
-      }),
-    ).toHaveAttribute("href", "/ko/workspace/acme/import");
-    expect(
-      screen.getByRole("link", {
-        name: /dashboard\.gettingStarted\.actions\.ask\.title/,
-      }),
-    ).toHaveAttribute("href", "/ko/workspace/acme/chat-scope");
-
     const panel = screen.getByRole("region", {
       name: "dashboard.gettingStarted.titleEmpty",
     });
@@ -66,13 +61,8 @@ describe("GettingStartedPanel", () => {
       "border-border",
       "bg-background",
     );
-    expect(panel).not.toHaveClass("rounded", "border-2");
-
-    expect(
-      screen.getByRole("link", {
-        name: /dashboard\.gettingStarted\.actions\.import\.title/,
-      }),
-    ).toHaveClass("rounded-[var(--radius-card)]");
+    expect(panel).not.toHaveClass("border-2");
+    expect(screen.getByText("dashboard first-source file")).toBeInTheDocument();
   });
 
   it("switches copy once the workspace has content", async () => {

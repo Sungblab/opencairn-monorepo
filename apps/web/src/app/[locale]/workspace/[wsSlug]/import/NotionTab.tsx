@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
 import { urls } from "@/lib/urls";
-import { TargetPicker, type ImportTarget } from "./TargetPicker";
+import { TargetPicker, type ImportTarget } from "@/components/import/target-picker";
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;

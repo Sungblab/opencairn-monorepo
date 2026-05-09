@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useGoogleIntegration } from "@/hooks/useGoogleIntegration";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
 import { urls } from "@/lib/urls";
-import { TargetPicker, type ImportTarget } from "./TargetPicker";
+import { TargetPicker, type ImportTarget } from "@/components/import/target-picker";
 
 // MVP without Google Picker: user pastes/types Drive file ids. Google
 // Picker SDK integration is tracked as a follow-up — it needs a public

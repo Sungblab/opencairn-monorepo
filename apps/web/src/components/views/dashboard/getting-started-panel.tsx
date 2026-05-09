@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
+import { FirstSourceIntake } from "@/components/import/first-source-intake";
 
 const ACTIVE_STATUSES = new Set<ResearchRunSummary["status"]>([
   "planning",
@@ -111,6 +112,36 @@ export function GettingStartedPanel({
   ).length;
   const hasAgentWork = activeRuns > 0;
   const hasSignal = hasDocs || hasRecentWork || hasAgentWork;
+
+  if (!hasSignal) {
+    return (
+      <div className="space-y-4">
+        <section
+          aria-labelledby="getting-started-title"
+          className="rounded-[var(--radius-card)] border border-border bg-background p-5 sm:p-6"
+        >
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {t("eyebrowEmpty")}
+          </p>
+          <h2
+            id="getting-started-title"
+            className="mt-2 max-w-2xl text-2xl font-semibold tracking-normal"
+          >
+            {t("titleEmpty")}
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+            {t("descEmpty")}
+          </p>
+          <ol className="mt-5 grid gap-2 sm:grid-cols-3">
+            <StepState done={false} label={t("steps.source")} />
+            <StepState done={false} label={t("steps.project")} />
+            <StepState done={false} label={t("steps.agent")} />
+          </ol>
+        </section>
+        <FirstSourceIntake wsSlug={wsSlug} initialMode="file" />
+      </div>
+    );
+  }
 
   return (
     <section

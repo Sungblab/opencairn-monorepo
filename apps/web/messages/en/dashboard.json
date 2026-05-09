@@ -15,9 +15,9 @@
   "gettingStarted": {
     "eyebrowEmpty": "First 3 minutes",
     "eyebrowActive": "Workspace hub",
-    "titleEmpty": "Import sources, create a project, or hand the first task to AI.",
+    "titleEmpty": "Add one source and OpenCairn starts working.",
     "titleActive": "Start today's workspace work from one place.",
-    "descEmpty": "OpenCairn should feel like a work flow, not an empty document folder. Add sources first and notes, search, and agent work can follow.",
+    "descEmpty": "Start with a file, link, or pasted text. OpenCairn will guide you toward a summary, suggested questions, and the first note.",
     "descActive": "Recent documents and running work stay below. New sources and AI work can start here whenever you need them.",
     "steps": {
       "source": "Add sources",
