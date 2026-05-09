@@ -171,7 +171,7 @@ function ToolLink({
       className={
         emphasis
           ? "group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-primary/40 bg-primary px-3 py-3 text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          : "group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-background px-3 py-3 text-foreground transition-colors hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          : "group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-background px-3 py-3 text-foreground transition-colors hover:border-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       }
     >
       <Icon
@@ -211,7 +211,7 @@ function ToolButton({
     <button
       type="button"
       onClick={onClick}
-      className="group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-background px-3 py-3 text-left text-foreground transition-colors hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-background px-3 py-3 text-left text-foreground transition-colors hover:border-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <Icon
         aria-hidden
