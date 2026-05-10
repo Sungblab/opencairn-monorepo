@@ -312,6 +312,23 @@ const RAG_AI_COMMANDS: SlashAiDef[] = [
 const isAiKey = (key: SlashKey): key is SlashAiKey =>
   [...AI_COMMANDS, ...RAG_AI_COMMANDS].some((cmd) => cmd.key === key);
 
+const splitEditorCharacters = (value: string) => Array.from(value);
+
+const dropLastEditorCharacter = (value: string) =>
+  splitEditorCharacters(value).slice(0, -1).join("");
+
+const normalizeSlashSearch = (value: string) =>
+  value
+    .normalize("NFKC")
+    .replace(/[\p{P}\p{S}\s]+/gu, "")
+    .toLowerCase();
+
+const isPrintableSlashKey = (event: KeyboardEvent) =>
+  !event.metaKey &&
+  !event.ctrlKey &&
+  !event.altKey &&
+  splitEditorCharacters(event.key).length === 1;
+
 // The editor surface we actually use. Plate's fully-typed `PlateEditor` drags
 // in deep generics; narrow to exactly the transforms this menu touches so the
 // caller can pass the editor without an `as any` cast at the usage site (the
@@ -380,7 +397,8 @@ export function SlashMenu({
       // it. We intentionally keep focus in Plate rather than moving it to a
       // search input, so every query character was already inserted into the
       // document and must be deleted before running the transform.
-      for (let i = 0; i < slashQuery.length + 1; i += 1) {
+      const deleteCount = splitEditorCharacters(slashQuery).length + 1;
+      for (let i = 0; i < deleteCount; i += 1) {
         editor.tf.deleteBackward("character");
       }
 
@@ -547,6 +565,7 @@ export function SlashMenu({
             ...cmd.keywords,
           ]
             .join(" ")
+            .normalize("NFKC")
             .toLowerCase(),
         };
       }),
@@ -554,9 +573,11 @@ export function SlashMenu({
   );
 
   const visibleItems = useMemo(() => {
-    const query = slashQuery.trim().toLowerCase();
+    const query = normalizeSlashSearch(slashQuery);
     if (!query) return items;
-    return items.filter((cmd) => cmd.searchText.includes(query));
+    return items.filter((cmd) =>
+      normalizeSlashSearch(cmd.searchText).includes(query),
+    );
   }, [items, slashQuery]);
 
   useEffect(() => {
@@ -641,13 +662,12 @@ export function SlashMenu({
           setOpen(false);
           return;
         }
-        setSlashQuery((query) => query.slice(0, -1));
+        setSlashQuery((query) => dropLastEditorCharacter(query));
         return;
       }
 
-      const isPrintable =
-        e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey;
-      if (!isPrintable || e.key === "/") return;
+      const isPrintable = isPrintableSlashKey(e);
+      if (!isPrintable) return;
       if (e.key.trim() === "") {
         setOpen(false);
         setSlashQuery("");
