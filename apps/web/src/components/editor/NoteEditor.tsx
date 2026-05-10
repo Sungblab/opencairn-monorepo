@@ -21,7 +21,7 @@ import { useTranslations, useLocale } from "next-intl";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { Bot, MessageSquare, Volume2 } from "lucide-react";
+import { Bot, MessageSquare, Share2, Volume2 } from "lucide-react";
 
 import {
   useCollaborativeEditor,
@@ -582,45 +582,53 @@ export function NoteEditor({
                   writers — the route-level `readOnly` flag already strips it
                   for viewer/commenter roles, so we don't need an explicit
                   perms check here. */}
-                <div className="flex shrink-0 items-center gap-2 pt-2">
+                <div
+                  className="flex shrink-0 items-center gap-1 pt-1"
+                  data-testid="note-actions"
+                >
                   {!readOnly ? (
                     <Link
                       href={`${urls.workspace.projectAgents(locale, wsSlug, projectId)}?noteId=${noteId}`}
-                      className="inline-flex min-h-7 items-center gap-1.5 rounded border border-border px-3 py-1 text-xs hover:bg-accent"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded border border-border text-muted-foreground hover:bg-accent hover:text-foreground"
                       data-testid="note-agent-link"
+                      aria-label={t("toolbar.agents")}
+                      title={t("toolbar.agents")}
                     >
-                      <Bot aria-hidden className="h-3.5 w-3.5" />
-                      {t("toolbar.agents")}
+                      <Bot aria-hidden className="h-4 w-4" />
                     </Link>
                   ) : null}
                   {!readOnly ? (
                     <Link
                       href={`${urls.workspace.projectAgents(locale, wsSlug, projectId)}?agent=narrator&noteId=${noteId}`}
-                      className="inline-flex min-h-7 items-center gap-1.5 rounded border border-border px-3 py-1 text-xs hover:bg-accent"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded border border-border text-muted-foreground hover:bg-accent hover:text-foreground"
                       data-testid="narrate-note-link"
+                      aria-label={t("toolbar.narrate")}
+                      title={t("toolbar.narrate")}
                     >
-                      <Volume2 aria-hidden className="h-3.5 w-3.5" />
-                      {t("toolbar.narrate")}
+                      <Volume2 aria-hidden className="h-4 w-4" />
                     </Link>
                   ) : null}
                   <button
                     type="button"
                     onClick={() => setCommentsOpen((open) => !open)}
-                    className="inline-flex min-h-7 items-center gap-1.5 rounded border border-border px-3 py-1 text-xs hover:bg-accent"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded border border-border text-muted-foreground hover:bg-accent hover:text-foreground"
                     data-testid="comments-toggle-button"
                     aria-expanded={commentsOpen}
+                    aria-label={t("toolbar.comments")}
+                    title={t("toolbar.comments")}
                   >
-                    <MessageSquare aria-hidden className="h-3.5 w-3.5" />
-                    {t("toolbar.comments")}
+                    <MessageSquare aria-hidden className="h-4 w-4" />
                   </button>
                   {!readOnly ? (
                     <button
                       type="button"
                       onClick={() => setShareOpen(true)}
-                      className="inline-flex min-h-7 items-center rounded border border-border px-3 py-1 text-xs hover:bg-accent"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded border border-border text-muted-foreground hover:bg-accent hover:text-foreground"
                       data-testid="share-button"
+                      aria-label={tShare("title")}
+                      title={tShare("title")}
                     >
-                      {tShare("title")}
+                      <Share2 aria-hidden className="h-4 w-4" />
                     </button>
                   ) : null}
                   <PresenceStack />

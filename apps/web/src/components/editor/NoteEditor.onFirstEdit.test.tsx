@@ -152,9 +152,12 @@ describe("NoteEditor.onFirstEdit", () => {
     expect(onFirstEdit).not.toHaveBeenCalled();
   });
 
-  it("renders the share button as a full-height control", () => {
+  it("renders note actions as compact icon controls", () => {
     renderNoteEditor();
-    expect(screen.getByTestId("share-button").className).toContain("min-h-7");
+    expect(screen.getByTestId("note-actions")).toBeInTheDocument();
+    expect(screen.getByTestId("share-button")).toHaveAttribute("aria-label", "공유");
+    expect(screen.getByTestId("share-button").className).toContain("h-8");
+    expect(screen.getByTestId("share-button")).toHaveTextContent("");
   });
 
   it("keeps comments closed by default and opens them from the title row", () => {
@@ -177,5 +180,7 @@ describe("NoteEditor.onFirstEdit", () => {
       "href",
       "/ko/workspace/ws/project/p1/agents?noteId=n1",
     );
+    expect(agentLink).toHaveAttribute("aria-label", "AI 작업");
+    expect(agentLink).toHaveTextContent("");
   });
 });
