@@ -20,8 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
-import { Bot, MessageSquare, Share2, Volume2 } from "lucide-react";
+import { Bot, CheckSquare, MessageSquare, Share2, Volume2 } from "lucide-react";
 
 import {
   useCollaborativeEditor,
@@ -31,7 +30,6 @@ import { api, ApiError } from "@/lib/api-client";
 
 import { DisconnectedBanner } from "../collab/DisconnectedBanner";
 import { ReadOnlyBanner } from "../collab/ReadOnlyBanner";
-import { CommentsPanel } from "../comments/CommentsPanel";
 import { ShareDialog } from "../share/share-dialog";
 import {
   EditorToolbar,
@@ -81,7 +79,12 @@ import {
   useImageUploadDeferredToast,
 } from "./plugins/image-drop-deferred";
 import { useActiveEditorStore } from "@/stores/activeEditorStore";
-import { urls } from "@/lib/urls";
+import {
+  WorkbenchActivityButton,
+  WorkbenchCommandButton,
+  WorkbenchContextButton,
+} from "@/components/agent-panel/workbench-trigger-button";
+import { NoteContextRail, type NoteRailTab } from "./note-context-rail";
 
 // Basic marks + blocks. Lists are handled by the indent-based ListPlugin; the
 // bulleted/numbered toolbar buttons call `toggleList` directly with the style
@@ -169,7 +172,7 @@ export function NoteEditor({
   const tShare = useTranslations("shareDialog");
   const tDocEditor = useTranslations("docEditor");
   const [shareOpen, setShareOpen] = useState(false);
-  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [noteRailTab, setNoteRailTab] = useState<NoteRailTab | null>(null);
   const [scrollTargetCommentId, setScrollTargetCommentId] = useState<
     string | null
   >(null);
@@ -426,14 +429,14 @@ export function NoteEditor({
       docEditor.state.status === "ready" &&
       docEditor.state.outputMode === "comment"
     ) {
-      setCommentsOpen(true);
+      setNoteRailTab("comments");
       void queryClient.invalidateQueries({ queryKey: ["comments", noteId] });
     }
   }, [docEditor.state, noteId, queryClient]);
 
   const handleShowComments = useCallback(
     (commentIds: string[]) => {
-      setCommentsOpen(true);
+      setNoteRailTab("comments");
       setScrollTargetCommentId(commentIds[0] ?? null);
       handleRejectAll();
     },
@@ -508,10 +511,10 @@ export function NoteEditor({
         onDropCapture={readOnly ? undefined : notifyFirstEditOnDrop}
         className="contents"
       >
-        {/* Outer flex row: editor column (flex-1) on the left, CommentsPanel
-          (fixed 320px) on the right. The panel is outside the Plate content
-          flow but still inside <Plate> so future block-anchored jumps can
-          use the editor context without prop drilling. */}
+        {/* Outer flex row: editor column on the left, note-local contextual
+          rail on the right. The rail stays inside <Plate> so comments and
+          future block-anchored AI work can use editor context without prop
+          drilling. */}
         <div className="flex min-h-full flex-col xl:flex-row">
           <div className="flex min-w-0 flex-1 flex-col">
             {/* Banners live inside <Plate> so they can read the editor context
@@ -587,33 +590,47 @@ export function NoteEditor({
                   data-testid="note-actions"
                 >
                   {!readOnly ? (
-                    <Link
-                      href={`${urls.workspace.projectAgents(locale, wsSlug, projectId)}?noteId=${noteId}`}
+                    <WorkbenchContextButton
+                      commandId="current_document_only"
                       className="inline-flex h-8 w-8 items-center justify-center rounded border border-border text-muted-foreground hover:bg-accent hover:text-foreground"
-                      data-testid="note-agent-link"
-                      aria-label={t("toolbar.agents")}
-                      title={t("toolbar.agents")}
+                      data-testid="ask-ai-note-button"
+                      aria-label={t("toolbar.ask_ai")}
+                      title={t("toolbar.ask_ai")}
                     >
                       <Bot aria-hidden className="h-4 w-4" />
-                    </Link>
+                    </WorkbenchContextButton>
                   ) : null}
                   {!readOnly ? (
-                    <Link
-                      href={`${urls.workspace.projectAgents(locale, wsSlug, projectId)}?agent=narrator&noteId=${noteId}`}
+                    <WorkbenchCommandButton
+                      commandId="narrate_note"
                       className="inline-flex h-8 w-8 items-center justify-center rounded border border-border text-muted-foreground hover:bg-accent hover:text-foreground"
-                      data-testid="narrate-note-link"
+                      data-testid="narrate-note-button"
                       aria-label={t("toolbar.narrate")}
                       title={t("toolbar.narrate")}
                     >
                       <Volume2 aria-hidden className="h-4 w-4" />
-                    </Link>
+                    </WorkbenchCommandButton>
+                  ) : null}
+                  {!readOnly ? (
+                    <WorkbenchActivityButton
+                      className="inline-flex h-8 w-8 items-center justify-center rounded border border-border text-muted-foreground hover:bg-accent hover:text-foreground"
+                      data-testid="review-note-actions-button"
+                      aria-label={t("toolbar.review_ai_work")}
+                      title={t("toolbar.review_ai_work")}
+                    >
+                      <CheckSquare aria-hidden className="h-4 w-4" />
+                    </WorkbenchActivityButton>
                   ) : null}
                   <button
                     type="button"
-                    onClick={() => setCommentsOpen((open) => !open)}
+                    onClick={() =>
+                      setNoteRailTab((tab) =>
+                        tab === "comments" ? null : "comments",
+                      )
+                    }
                     className="inline-flex h-8 w-8 items-center justify-center rounded border border-border text-muted-foreground hover:bg-accent hover:text-foreground"
                     data-testid="comments-toggle-button"
-                    aria-expanded={commentsOpen}
+                    aria-expanded={noteRailTab === "comments"}
                     aria-label={t("toolbar.comments")}
                     title={t("toolbar.comments")}
                   >
@@ -667,16 +684,17 @@ export function NoteEditor({
               </div>
             </div>
           </div>
-          {commentsOpen ? (
-            <CommentsPanel
-              noteId={noteId}
-              workspaceId={workspaceId}
-              canComment={canComment}
-              onClose={() => setCommentsOpen(false)}
-              scrollTargetCommentId={scrollTargetCommentId}
-              onScrolledToTarget={() => setScrollTargetCommentId(null)}
-            />
-          ) : null}
+          <NoteContextRail
+            noteId={noteId}
+            workspaceId={workspaceId}
+            projectId={projectId}
+            canComment={canComment}
+            readOnly={readOnly}
+            activeTab={noteRailTab}
+            onActiveTabChange={setNoteRailTab}
+            scrollTargetCommentId={scrollTargetCommentId}
+            onScrolledToTarget={() => setScrollTargetCommentId(null)}
+          />
         </div>
       </div>
     </Plate>

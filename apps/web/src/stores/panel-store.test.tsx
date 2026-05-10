@@ -15,7 +15,7 @@ describe("panel-store", () => {
     expect(s.sidebarOpen).toBe(true);
     expect(s.compactSidebarOpen).toBe(false);
     expect(s.agentPanelWidth).toBe(360);
-    expect(s.agentPanelOpen).toBe(true);
+    expect(s.agentPanelOpen).toBe(false);
     expect(s.compactAgentPanelOpen).toBe(false);
     expect(s.agentPanelTab).toBe("chat");
   });
@@ -73,7 +73,7 @@ describe("panel-store", () => {
 
   it("toggleAgentPanel flips agentPanelOpen", () => {
     usePanelStore.getState().toggleAgentPanel();
-    expect(usePanelStore.getState().agentPanelOpen).toBe(false);
+    expect(usePanelStore.getState().agentPanelOpen).toBe(true);
   });
 
   it("setAgentPanelOpen assigns an explicit open state", () => {

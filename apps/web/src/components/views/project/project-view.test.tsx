@@ -1,7 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
+import { usePanelStore } from "@/stores/panel-store";
 import { ProjectView } from "./project-view";
 
 vi.mock("next-intl", () => ({
@@ -47,13 +50,19 @@ function renderProjectView() {
 }
 
 describe("ProjectView", () => {
-  it("surfaces project tools in the central workbench", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useAgentWorkbenchStore.setState(useAgentWorkbenchStore.getInitialState(), true);
+    usePanelStore.setState(usePanelStore.getInitialState(), true);
+  });
+
+  it("surfaces project tools in the central workbench", async () => {
     renderProjectView();
 
     expect(screen.getByText("project.tools.heading")).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /project\.tools\.research\.title/ }),
-    ).toHaveAttribute("href", "/ko/workspace/acme/research?project=p1");
+      screen.getByRole("button", { name: /project\.tools\.research\.title/ }),
+    ).toHaveClass("hover:bg-muted/40");
     expect(
       screen.getByRole("link", { name: /project\.tools\.graph\.title/ }),
     ).toHaveAttribute("href", "/ko/workspace/acme/project/p1/graph");
@@ -61,24 +70,57 @@ describe("ProjectView", () => {
       screen.getByRole("link", { name: /project\.tools\.agents\.title/ }),
     ).toHaveAttribute("href", "/ko/workspace/acme/project/p1/agents");
     expect(
-      screen.getByRole("link", { name: /project\.tools\.runs\.title/ }),
-    ).toHaveAttribute(
-      "href",
-      "/ko/workspace/acme/project/p1/agents?view=runs#workflow-console",
-    );
-    expect(
-      screen.getByRole("link", {
+      screen.getByRole("button", {
         name: /project\.tools\.generateDocument\.title/,
       }),
-    ).toHaveAttribute("href", "/ko/workspace/acme/synthesis-export?project=p1");
-    expect(
-      screen.getByRole("link", { name: /project\.tools\.research\.title/ }),
-    ).toHaveClass("hover:bg-muted/40");
-    expect(
+    ).toHaveClass("bg-primary");
+    await userEvent.click(
       screen.getByRole("button", {
         name: /project\.tools\.literature\.title/,
       }),
-    ).toHaveClass("hover:bg-muted/40");
+    );
+    expect(screen.getByText("literature modal")).toBeInTheDocument();
     expect(screen.getByText("notes table")).toBeInTheDocument();
+  });
+
+  it("starts project research from the right workbench instead of routing away", async () => {
+    usePanelStore.getState().setAgentPanelOpen(false);
+    renderProjectView();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /project\.tools\.research\.title/ }),
+    );
+
+    expect(usePanelStore.getState().agentPanelOpen).toBe(true);
+    expect(usePanelStore.getState().agentPanelTab).toBe("chat");
+    expect(useAgentWorkbenchStore.getState().pendingIntent).toMatchObject({
+      kind: "runCommand",
+      commandId: "research",
+    });
+  });
+
+  it("opens runs, review, and document generation in the right workbench activity tab", async () => {
+    renderProjectView();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /project\.tools\.runs\.title/ }),
+    );
+    expect(usePanelStore.getState().agentPanelTab).toBe("activity");
+
+    usePanelStore.getState().setAgentPanelTab("chat");
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: /project\.tools\.generateDocument\.title/,
+      }),
+    );
+    expect(usePanelStore.getState().agentPanelTab).toBe("activity");
+
+    usePanelStore.getState().setAgentPanelTab("chat");
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: /project\.tools\.reviewInbox\.title/,
+      }),
+    );
+    expect(usePanelStore.getState().agentPanelTab).toBe("activity");
   });
 });

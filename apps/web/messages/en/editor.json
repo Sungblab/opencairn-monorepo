@@ -115,7 +115,22 @@
     "wikilink": "Link note",
     "comments": "Comments",
     "agents": "AI work",
-    "narrate": "Create audio"
+    "ask_ai": "Ask AI",
+    "narrate": "Create audio",
+    "review_ai_work": "Review"
+  },
+  "noteRail": {
+    "title": "Note panel",
+    "close": "Close",
+    "comments": "Comments",
+    "ai": "AI work",
+    "aiWork": "AI work",
+    "activity": "Activity",
+    "askAi": "Ask AI",
+    "narrate": "Create audio",
+    "review": "Review",
+    "aiDescription": "Start AI work while keeping the current note as context.",
+    "activityDescription": "Review AI work and upload activity for this note and project."
   },
   "table": {
     "menu": {
