@@ -363,9 +363,9 @@ export function SlashMenu({
     () =>
       aiEnabled
         ? [
-            ...BLOCK_COMMANDS,
             ...AI_COMMANDS,
             ...(ragEnabled ? RAG_AI_COMMANDS : []),
+            ...BLOCK_COMMANDS,
           ]
         : [...BLOCK_COMMANDS],
     [aiEnabled, ragEnabled],
@@ -382,18 +382,18 @@ export function SlashMenu({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/20 pt-32"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-transparent px-4 pt-28"
       onClick={() => setOpen(false)}
       data-testid="slash-menu"
     >
       <div
-        className="bg-bg-base w-full max-w-xs rounded-md border border-[color:var(--border)] shadow-lg"
+        className="bg-bg-base w-full max-w-sm rounded-md border border-[color:var(--border)] shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
         <ul className="max-h-72 overflow-auto py-1">
           {items.map((cmd, i) => (
             <Fragment key={cmd.key}>
-              {i === 8 && (
+              {cmd.section === "block" && i > 0 && items[i - 1]?.section !== "block" && (
                 <li
                   className="my-1 border-t border-[color:var(--border)]"
                   aria-hidden="true"

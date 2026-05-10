@@ -86,6 +86,8 @@
     "numbered": "번호 매기기",
     "quote": "인용",
     "wikilink": "노트 연결",
+    "comments": "댓글",
+    "agents": "AI 작업",
     "narrate": "오디오 생성"
   },
   "table": {

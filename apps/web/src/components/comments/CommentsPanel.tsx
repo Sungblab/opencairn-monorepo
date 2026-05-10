@@ -9,6 +9,7 @@
 
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
+import { X } from "lucide-react";
 
 import { useComments } from "@/hooks/useComments";
 import type { CommentResponse } from "@/lib/api-client";
@@ -29,6 +30,7 @@ interface CommentsPanelProps {
    * the panel read-only.
    */
   canComment: boolean;
+  onClose?: () => void;
 }
 
 function groupByRoot(comments: CommentResponse[]) {
@@ -47,6 +49,7 @@ export function CommentsPanel({
   noteId,
   workspaceId,
   canComment,
+  onClose,
 }: CommentsPanelProps) {
   const t = useTranslations("collab.comments");
   const { data, isLoading } = useComments(noteId);
@@ -63,8 +66,18 @@ export function CommentsPanel({
       aria-label={t("panel_title")}
       className="bg-background flex w-full flex-col border-t xl:w-80 xl:border-l xl:border-t-0"
     >
-      <header className="border-b px-4 py-3 font-medium">
-        {t("panel_title")}
+      <header className="flex items-center justify-between gap-3 border-b px-4 py-3">
+        <span className="font-medium">{t("panel_title")}</span>
+        {onClose ? (
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-7 w-7 items-center justify-center rounded hover:bg-accent"
+            aria-label={t("close")}
+          >
+            <X aria-hidden className="h-4 w-4" />
+          </button>
+        ) : null}
       </header>
 
       {canComment && (

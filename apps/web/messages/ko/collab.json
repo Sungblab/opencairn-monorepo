@@ -5,6 +5,7 @@
   },
   "comments": {
     "panel_title": "코멘트",
+    "close": "댓글 닫기",
     "add_button": "코멘트 추가",
     "composer_placeholder": "코멘트를 입력하세요...",
     "reply": "답글",
