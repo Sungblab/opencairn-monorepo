@@ -7,7 +7,7 @@
 // (newest first); replies inside each thread render asc (oldest first), which
 // matches how people read conversations top-down.
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
 
@@ -31,6 +31,8 @@ interface CommentsPanelProps {
    */
   canComment: boolean;
   onClose?: () => void;
+  scrollTargetCommentId?: string | null;
+  onScrolledToTarget?: () => void;
 }
 
 function groupByRoot(comments: CommentResponse[]) {
@@ -50,6 +52,8 @@ export function CommentsPanel({
   workspaceId,
   canComment,
   onClose,
+  scrollTargetCommentId,
+  onScrolledToTarget,
 }: CommentsPanelProps) {
   const t = useTranslations("collab.comments");
   const { data, isLoading } = useComments(noteId);
@@ -58,6 +62,16 @@ export function CommentsPanel({
     () => groupByRoot(data?.comments ?? []),
     [data?.comments],
   );
+
+  useEffect(() => {
+    if (isLoading || !scrollTargetCommentId) return;
+    const target = document.getElementById(
+      `comment-${scrollTargetCommentId}`,
+    );
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    onScrolledToTarget?.();
+  }, [isLoading, onScrolledToTarget, scrollTargetCommentId, threads]);
 
   if (isLoading) return null;
 

@@ -170,6 +170,9 @@ export function NoteEditor({
   const tDocEditor = useTranslations("docEditor");
   const [shareOpen, setShareOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [scrollTargetCommentId, setScrollTargetCommentId] = useState<
+    string | null
+  >(null);
 
   // Plan 11B Phase A — slash AI commands (`/improve`, `/translate`, etc.).
   // Gated client-side by NEXT_PUBLIC_FEATURE_DOC_EDITOR_SLASH so the menu
@@ -431,14 +434,7 @@ export function NoteEditor({
   const handleShowComments = useCallback(
     (commentIds: string[]) => {
       setCommentsOpen(true);
-      if (commentIds[0]) {
-        window.setTimeout(() => {
-          document.getElementById(`comment-${commentIds[0]}`)?.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-          });
-        }, 0);
-      }
+      setScrollTargetCommentId(commentIds[0] ?? null);
       handleRejectAll();
     },
     [handleRejectAll],
@@ -669,6 +665,8 @@ export function NoteEditor({
               workspaceId={workspaceId}
               canComment={canComment}
               onClose={() => setCommentsOpen(false)}
+              scrollTargetCommentId={scrollTargetCommentId}
+              onScrolledToTarget={() => setScrollTargetCommentId(null)}
             />
           ) : null}
         </div>
