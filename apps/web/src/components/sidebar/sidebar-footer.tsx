@@ -236,14 +236,30 @@ export function SidebarFooter() {
           ) : null}
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            render={<a href="/help" target="_blank" rel="noreferrer" />}
+            render={
+              <Link
+                href={
+                  currentWorkspaceSlug
+                    ? urls.workspace.help(locale, currentWorkspaceSlug)
+                    : `/${locale}/help`
+                }
+              />
+            }
             className="min-h-9 rounded px-2 py-2"
           >
             <HelpCircle aria-hidden className="h-4 w-4" />
             {t("help")}
           </DropdownMenuItem>
           <DropdownMenuItem
-            render={<Link href={`/${locale}/report`} />}
+            render={
+              <Link
+                href={
+                  currentWorkspaceSlug
+                    ? urls.workspace.report(locale, currentWorkspaceSlug)
+                    : `/${locale}/report`
+                }
+              />
+            }
             className="min-h-9 rounded px-2 py-2"
           >
             <AlertTriangle aria-hidden className="h-4 w-4" />

@@ -34,6 +34,10 @@ export function tabToUrl(
       return urls.workspace.researchRun(locale, slug, route.targetId ?? "");
     case "import":
       return urls.workspace.import(locale, slug);
+    case "help":
+      return urls.workspace.help(locale, slug);
+    case "report":
+      return urls.workspace.report(locale, slug);
     case "ws_settings":
       return route.targetId
         ? urls.workspace.settingsSection(locale, slug, route.targetId)
@@ -85,6 +89,12 @@ export function urlToTabTarget(
   }
   if (parts[0] === "import" && parts.length === 1) {
     return { slug, route: { kind: "import", targetId: null } };
+  }
+  if (parts[0] === "help" && parts.length === 1) {
+    return { slug, route: { kind: "help", targetId: null } };
+  }
+  if (parts[0] === "report" && parts.length === 1) {
+    return { slug, route: { kind: "report", targetId: null } };
   }
   if (parts[0] === "settings") {
     return {

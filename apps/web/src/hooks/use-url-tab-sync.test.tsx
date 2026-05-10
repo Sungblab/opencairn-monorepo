@@ -148,6 +148,32 @@ describe("useUrlTabSync", () => {
     expect(tabs.find((t) => t.kind === "note")?.preview).toBe(true);
   });
 
+  it("creates help and report tabs from workspace routes", () => {
+    const { rerender } = renderHook(() => useUrlTabSync());
+
+    act(() => {
+      currentPath = "/ko/workspace/acme/help";
+    });
+    rerender();
+
+    expect(useTabsStore.getState().tabs.at(-1)).toMatchObject({
+      kind: "help",
+      targetId: null,
+      titleKey: "appShell.tabTitles.help",
+    });
+
+    act(() => {
+      currentPath = "/ko/workspace/acme/report";
+    });
+    rerender();
+
+    expect(useTabsStore.getState().tabs.at(-1)).toMatchObject({
+      kind: "report",
+      targetId: null,
+      titleKey: "appShell.tabTitles.report",
+    });
+  });
+
   it("reuses one workspace settings tab across settings sections", () => {
     currentPath = "/ko/workspace/acme/settings/members";
     const { rerender } = renderHook(() => useUrlTabSync());

@@ -33,6 +33,8 @@
     "research_hub": "Deep Research",
     "research_run": "Research {id}",
     "import": "가져오기",
+    "help": "도움말",
+    "report": "문제 신고",
     "ws_settings": "설정"
   },
   "tabs": {

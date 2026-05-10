@@ -52,6 +52,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
     agentFiles,
     codeWorkspaces,
     admin,
+    help,
   ] = await Promise.all([
     import(`../messages/${locale}/common.json`).then((m) => m.default),
     import(`../messages/${locale}/landing.json`).then((m) => m.default),
@@ -96,6 +97,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
     import(`../messages/${locale}/agent-files.json`).then((m) => m.default),
     import(`../messages/${locale}/code-workspaces.json`).then((m) => m.default),
     import(`../messages/${locale}/admin.json`).then((m) => m.default),
+    import(`../messages/${locale}/help.json`).then((m) => m.default),
   ]);
 
   return {
@@ -138,6 +140,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
       agentFiles,
       codeWorkspaces,
       admin,
+      help,
     },
   };
 });

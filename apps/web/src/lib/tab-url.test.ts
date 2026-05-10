@@ -13,6 +13,8 @@ describe("tabToUrl", () => {
     [{ kind: "research_hub", targetId: null }, "/ko/workspace/acme/research"],
     [{ kind: "research_run", targetId: "r-1" }, "/ko/workspace/acme/research/r-1"],
     [{ kind: "import", targetId: null }, "/ko/workspace/acme/import"],
+    [{ kind: "help", targetId: null }, "/ko/workspace/acme/help"],
+    [{ kind: "report", targetId: null }, "/ko/workspace/acme/report"],
     [{ kind: "ws_settings", targetId: null }, "/ko/workspace/acme/settings"],
     [
       { kind: "ws_settings", targetId: "members" },
@@ -47,6 +49,8 @@ describe("urlToTabTarget", () => {
     ["/ko/workspace/acme/research", { kind: "research_hub", targetId: null }],
     ["/ko/workspace/acme/research/r-77", { kind: "research_run", targetId: "r-77" }],
     ["/ko/workspace/acme/import", { kind: "import", targetId: null }],
+    ["/ko/workspace/acme/help", { kind: "help", targetId: null }],
+    ["/ko/workspace/acme/report", { kind: "report", targetId: null }],
     ["/ko/workspace/acme/settings", { kind: "ws_settings", targetId: null }],
     [
       "/ko/workspace/acme/settings/members",

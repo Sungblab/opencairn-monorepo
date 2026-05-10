@@ -56,6 +56,8 @@ export const urls = {
     synthesisExport: (locale: string, slug: string) =>
       `${ws(locale, slug)}/synthesis-export`,
     import: (locale: string, slug: string) => `${ws(locale, slug)}/import`,
+    help: (locale: string, slug: string) => `${ws(locale, slug)}/help`,
+    report: (locale: string, slug: string) => `${ws(locale, slug)}/report`,
     importJob: (locale: string, slug: string, jobId: string) =>
       `${ws(locale, slug)}/import/jobs/${jobId}`,
     newProject: (locale: string, slug: string) => `${ws(locale, slug)}/new-project`,

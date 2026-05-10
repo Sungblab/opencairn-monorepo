@@ -103,6 +103,12 @@ describe("urls", () => {
       expect(urls.workspace.import("ko", "acme")).toBe(
         "/ko/workspace/acme/import",
       );
+      expect(urls.workspace.help("ko", "acme")).toBe(
+        "/ko/workspace/acme/help",
+      );
+      expect(urls.workspace.report("ko", "acme")).toBe(
+        "/ko/workspace/acme/report",
+      );
       expect(urls.workspace.importJob("ko", "acme", "job-1")).toBe(
         "/ko/workspace/acme/import/jobs/job-1",
       );

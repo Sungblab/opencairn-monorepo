@@ -65,6 +65,10 @@ function resolveDefaultTitle(
       return t("research_run", { id: targetId ?? "" });
     case "import":
       return t("import");
+    case "help":
+      return t("help");
+    case "report":
+      return t("report");
     case "ws_settings":
       return t("ws_settings");
     case "ingest":

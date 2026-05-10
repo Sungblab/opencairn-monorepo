@@ -1,0 +1,242 @@
+{
+  "title": "Help",
+  "subtitle": "A detailed guide to the main OpenCairn workflows: adding sources, editing notes, reviewing AI work, managing projects, and collaborating with a team.",
+  "quick": {
+    "title": "Guided workflows",
+    "subtitle": "Start from the job you are trying to do instead of memorizing feature names.",
+    "guides": {
+      "import": {
+        "title": "Add and organize sources",
+        "steps": {
+          "1": "Open a project or create a new one.",
+          "2": "Choose file, link, or text from Add source depending on the material you have.",
+          "3": "Use the analysis tab to follow parsing, OCR, extraction, AI analysis, and persistence status.",
+          "4": "Open the original source, artifacts, and generated notes from the left project tree to review the result."
+        }
+      },
+      "generate": {
+        "title": "Create a report",
+        "steps": {
+          "1": "Prepare the project and key notes that should feed the report.",
+          "2": "Request document generation from the context panel or project tools.",
+          "3": "Confirm the template, output format, and source scope before starting the job.",
+          "4": "Review results, warnings, downloads, and provider exports from Workflow Console and the generated-file viewer."
+        }
+      },
+      "collaborate": {
+        "title": "Work with a team",
+        "steps": {
+          "1": "Check members and roles from workspace settings.",
+          "2": "Keep the project and notes inside the same work boundary, then invite the right people.",
+          "3": "Leave review points through note comments and mentions.",
+          "4": "Use notifications, share links, and permissions to separate internal collaboration from external sharing."
+        }
+      },
+      "learn": {
+        "title": "Check understanding",
+        "steps": {
+          "1": "Confirm project sources have been analyzed and notes or graph data exist.",
+          "2": "Inspect concept connections and weak evidence in the graph first.",
+          "3": "Open flashcards or question flows from the learning tools.",
+          "4": "For weak concepts, return to the related notes, add source material, or ask AI for an evidence-grounded explanation."
+        }
+      }
+    }
+  },
+  "sections": {
+    "start": {
+      "title": "Core flow",
+      "items": {
+        "workspace": {
+          "title": "Choose a workspace",
+          "body": "A workspace is the top-level boundary for sources, projects, members, and permissions. Use the lower-left menu to confirm the current space or switch to another one."
+        },
+        "project": {
+          "title": "Create a project",
+          "body": "A project groups related sources and notes. The project screen brings together notes, graph, learning, agents, and document-generation workflows."
+        },
+        "firstSource": {
+          "title": "Add the first source",
+          "body": "Start an empty project by uploading a file, importing a link, or pasting text. Once analysis starts, the progress tab shows each processing stage."
+        },
+        "tabs": {
+          "title": "Keep work in tabs",
+          "body": "Dashboard, projects, notes, import, help, report issue, and settings open in the same editor tab flow so you can keep context without leaving the workspace."
+        }
+      }
+    },
+    "sources": {
+      "title": "Import sources",
+      "items": {
+        "upload": {
+          "title": "Upload files",
+          "body": "Upload PDFs and documents into a project, then track parsing, OCR, Markdown splitting, image/table extraction, AI analysis, and project-tree persistence."
+        },
+        "link": {
+          "title": "Import web links",
+          "body": "Register http or https links as project sources. Link sources are attached to the project and can later participate in search and AI context."
+        },
+        "text": {
+          "title": "Paste text",
+          "body": "For quick notes, meeting records, and drafts that do not exist as files, paste text directly and turn it into a note immediately."
+        },
+        "imports": {
+          "title": "External imports",
+          "body": "Markdown ZIP, Notion ZIP, and Google Drive import paths live under the import tab's additional options. Long-running jobs expose separate status and failure details."
+        }
+      }
+    },
+    "editor": {
+      "title": "Notes and editor",
+      "items": {
+        "notes": {
+          "title": "Edit notes",
+          "body": "Notes open in the collaborative editor. Titles, body text, links, tables, code, quotes, and embeds are handled in one knowledge-document surface."
+        },
+        "reading": {
+          "title": "Reading mode",
+          "body": "Switch a note tab into reading mode when you want to review content with less editing chrome."
+        },
+        "source": {
+          "title": "Source view",
+          "body": "For notes with original material, source view lets you inspect the source document and compare it with the generated note."
+        },
+        "canvas": {
+          "title": "Canvas and execution output",
+          "body": "When a source needs code or visualization, the canvas flow shows generated output. Browser execution runs inside an isolated environment."
+        }
+      }
+    },
+    "ai": {
+      "title": "AI work",
+      "items": {
+        "chat": {
+          "title": "Context panel",
+          "body": "The right panel is where you ask questions, request summaries, generate outputs, and check work status using the current workspace, project, and note context."
+        },
+        "scope": {
+          "title": "Control evidence scope",
+          "body": "AI answers are grounded in project sources and retrieval evidence. Scope chips and retrieval modes let you choose narrower or expanded evidence."
+        },
+        "documents": {
+          "title": "Generate documents",
+          "body": "Ask for reports, technical documents, business documents, images, PDF, DOCX, PPTX, or XLSX outputs. Results appear as project files and workflow-console runs."
+        },
+        "review": {
+          "title": "Review before applying",
+          "body": "Write-capable actions such as note updates, code patches, installs, previews, and command runs are designed around review cards and explicit approval."
+        }
+      }
+    },
+    "project": {
+      "title": "Project surfaces",
+      "items": {
+        "tree": {
+          "title": "Project tree",
+          "body": "Open folders, notes, uploaded sources, analysis artifacts, generated files, and code workspaces from one tree. Start here when you need to find a project object."
+        },
+        "graph": {
+          "title": "Knowledge graph",
+          "body": "Inspect connections between notes and concepts. Weak or missing evidence is shown as status so you can find what needs follow-up."
+        },
+        "learning": {
+          "title": "Learning tools",
+          "body": "Use flashcards, Socratic prompts, and score views to check understanding from the material in a project."
+        },
+        "files": {
+          "title": "Generated files",
+          "body": "AI-generated documents and code outputs are stored as project objects instead of chat-only artifacts. Open them in viewers, download them, or inspect provider export status."
+        }
+      }
+    },
+    "collaboration": {
+      "title": "Collaboration",
+      "items": {
+        "members": {
+          "title": "Members and roles",
+          "body": "Manage workspace members, invites, and roles from settings. Permissions flow from workspace to project to page."
+        },
+        "comments": {
+          "title": "Comments and mentions",
+          "body": "Leave comments inside notes and mention teammates. The collaboration server syncs simultaneous note editing."
+        },
+        "sharing": {
+          "title": "Share links",
+          "body": "When a note needs external access, use a share link with a separated public surface instead of exposing the full workspace."
+        },
+        "notifications": {
+          "title": "Notifications",
+          "body": "Collaboration events such as comments, mentions, and invites follow notification and email preferences. Use the lower-left notification button to review them."
+        }
+      }
+    },
+    "automation": {
+      "title": "Workflows and automation",
+      "items": {
+        "workflow": {
+          "title": "Workflow console",
+          "body": "Import, document generation, code execution, preview, and agent jobs expose status and logs through the workflow console."
+        },
+        "agents": {
+          "title": "Project agents",
+          "body": "Project agents such as Librarian, Synthesis, Curator, Connector, Staleness, and Narrator help organize sources, suggest connections, check stale content, and create audio outputs."
+        },
+        "code": {
+          "title": "Code workspaces",
+          "body": "Generated code is stored in a separate workspace and handled through patch review, command runs, install approvals, and static preview steps."
+        },
+        "exports": {
+          "title": "Exports",
+          "body": "Generated documents can be downloaded as files or exported to connected providers such as Google Workspace when that integration is available."
+        }
+      }
+    },
+    "settings": {
+      "title": "Settings",
+      "items": {
+        "profile": {
+          "title": "Profile and language",
+          "body": "Update name, display language, region, and theme from the personal settings area. Korean is the default locale and English is also supported."
+        },
+        "providers": {
+          "title": "AI providers",
+          "body": "Gemini, Ollama, and OpenAI-compatible provider paths depend on deployment settings and whether a personal key is registered."
+        },
+        "integrations": {
+          "title": "Integrations",
+          "body": "Check Google Drive, MCP server, and external export connection status from account or workspace settings."
+        },
+        "billing": {
+          "title": "Plan and usage",
+          "body": "Self-hosted and public-repository functionality are separate from hosted-service plans. Hosted billing and usage appear only when the operator enables them."
+        }
+      }
+    },
+    "troubleshooting": {
+      "title": "Troubleshooting",
+      "items": {
+        "upload": {
+          "title": "Upload or analysis is stuck",
+          "body": "Check the import tab, ingest progress tab, then workflow console. These surfaces show the failed stage, error message, and whether retry is available."
+        },
+        "evidence": {
+          "title": "AI evidence is weak",
+          "body": "Confirm the project has enough source material, related notes are in the same project, and graph relationships are not missing."
+        },
+        "permissions": {
+          "title": "Permission errors",
+          "body": "Confirm you are in the right workspace and project, then check your role in the members settings tab. Ask an admin to adjust access if needed."
+        },
+        "report": {
+          "title": "Send a bug or feedback report",
+          "body": "Use the report issue tab to send type, priority, title, and details. The operator inbox also receives the current page and browser metadata."
+        }
+      }
+    }
+  },
+  "actions": {
+    "import": "Add source",
+    "settings": "Open settings",
+    "report": "Report issue"
+  }
+}

@@ -1,10 +1,12 @@
 "use client";
 import {
   Bot,
+  Bug,
   Code2,
   Download,
   FileText,
   Folder,
+  HelpCircle,
   LayoutDashboard,
   Pin,
   Search,
@@ -30,6 +32,8 @@ const tabIcons: Record<Tab["kind"], LucideIcon> = {
   research_hub: Search,
   research_run: Search,
   import: Download,
+  help: HelpCircle,
+  report: Bug,
   ws_settings: Settings,
   ingest: Download,
   lit_search: Search,

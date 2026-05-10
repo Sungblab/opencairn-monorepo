@@ -10,6 +10,8 @@ export type TabKind =
   | "research_hub"
   | "research_run"
   | "import"
+  | "help"
+  | "report"
   | "ws_settings"
   | "ingest"
   | "lit_search"

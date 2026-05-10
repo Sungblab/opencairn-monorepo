@@ -20,6 +20,8 @@ export function isValidTabMode(tab: Tab): boolean {
     case "research_hub":
     case "research_run":
     case "import":
+    case "help":
+    case "report":
     case "ws_settings":
       return tab.mode === "plate";
   }
