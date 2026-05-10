@@ -80,8 +80,11 @@
     "copy_link": "Copy link",
     "new_child_page": "New child page",
     "new_subfolder": "New subfolder",
+    "empty_drop_hint": "Drag items here or create a child page.",
     "empty": "No items inside",
     "row_actions": "File actions",
+    "row_actions_hint": "Rename, copy link, or delete",
+    "row_hint": "Double-click to rename. Drag to move.",
     "delete": "Delete",
     "delete_shortcut": "⌘Del",
     "confirm_delete": "Delete \"{label}\"?"

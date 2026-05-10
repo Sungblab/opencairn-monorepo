@@ -178,6 +178,7 @@ describe("ProjectTreeNode", () => {
       "text-xs",
       "text-muted-foreground",
     );
+    expect(screen.getByText("sidebar.tree_menu.empty_drop_hint")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("treeitem"));
     expect(onCreateNote).toHaveBeenCalledWith("f2");
   });
@@ -298,6 +299,27 @@ describe("ProjectTreeNode", () => {
     );
 
     expect(screen.getByText("Ctrl+Del")).toBeInTheDocument();
+  });
+
+  it("keeps row actions visible for the selected row", () => {
+    const node = mkNode(
+      {
+        kind: "note",
+        id: "n-selected",
+        parent_id: null,
+        label: "Selected row",
+        child_count: 0,
+      },
+      { isSelected: true },
+    );
+    renderNode(node);
+
+    const action = screen.getByRole("button", {
+      name: "sidebar.tree_menu.row_actions",
+    });
+    expect(action).toHaveAttribute("data-visible-row-actions", "true");
+    expect(action).not.toHaveClass("hidden");
+    expect(action).toHaveAttribute("title", "sidebar.tree_menu.row_actions_hint");
   });
 
   it("offers child page creation from a note row action menu", () => {

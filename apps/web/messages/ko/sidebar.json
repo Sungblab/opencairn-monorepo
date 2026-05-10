@@ -80,8 +80,11 @@
     "copy_link": "링크 복사",
     "new_child_page": "하위 페이지 만들기",
     "new_subfolder": "하위 폴더 만들기",
+    "empty_drop_hint": "여기로 드래그하거나 새 하위 페이지를 만드세요.",
     "empty": "하위 항목 없음",
     "row_actions": "파일 작업",
+    "row_actions_hint": "이름 바꾸기, 링크 복사, 삭제",
+    "row_hint": "더블클릭으로 이름을 바꾸고 드래그해서 이동합니다.",
     "delete": "삭제",
     "delete_shortcut": "⌘Del",
     "confirm_delete": "\"{label}\"을(를) 삭제할까요?"
