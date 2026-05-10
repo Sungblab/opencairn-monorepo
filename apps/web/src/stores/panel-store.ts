@@ -54,7 +54,7 @@ export const usePanelStore = create<PanelState>()(
       sidebarOpen: true,
       compactSidebarOpen: false,
       agentPanelWidth: AGENT_DEFAULT,
-      agentPanelOpen: true,
+      agentPanelOpen: false,
       compactAgentPanelOpen: false,
       agentPanelTab: "chat",
       backlinksOpen: false,

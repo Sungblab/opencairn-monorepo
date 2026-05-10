@@ -248,6 +248,52 @@
     "attach_aria": "Attach",
     "voice_aria": "Voice input",
     "send_aria": "Send",
+    "slash": {
+      "menu_aria": "Commands",
+      "empty": "No matching commands.",
+      "command": {
+        "summarize": "Summarize the current material",
+        "decompose": "Break down structure, claims, and evidence",
+        "compare": "Compare sources",
+        "factcheck": "Check claims and evidence",
+        "extract_citations": "Extract citation candidates",
+        "make_note": "Create a note draft",
+        "narrate_note": "Draft audio narration",
+        "generate_report": "Generate a report",
+        "generate_deck": "Generate slides",
+        "make_table": "Turn material into a table",
+        "quiz": "Create a quiz",
+        "attach": "Attach material",
+        "web_search": "Allow web search",
+        "paper_search": "Search papers",
+        "research": "Start research",
+        "current_document_only": "Use only the current document",
+        "selected_sources_only": "Use only pinned sources",
+        "project_context": "Use the current project",
+        "memory_off": "Exclude project memory"
+      },
+      "prompt": {
+        "summarize": "Summarize the current material around the core points.",
+        "decompose": "Break down the current material by structure, claims, evidence, and gaps.",
+        "compare": "Compare the attached material.",
+        "factcheck": "Check the current claims and evidence, and mark uncertain parts.",
+        "extract_citations": "Extract the key sentences and sources worth citing from the current material.",
+        "make_note": "Turn the current material into a new note draft.",
+        "narrate_note": "Draft the core flow and script for turning the current note into audio narration.",
+        "generate_report": "Create a report draft from the current project material.",
+        "generate_deck": "Turn the current material into a presentation outline.",
+        "make_table": "Organize the current material into a comparable table.",
+        "quiz": "Create comprehension questions from the current material.",
+        "attach": "Help me choose material to attach.",
+        "web_search": "Allow web search and continue the answer.",
+        "paper_search": "Find related papers and summarize the strongest candidates.",
+        "research": "Start a research task from the current project material.",
+        "current_document_only": "Use only the current document.",
+        "selected_sources_only": "Use only pinned sources.",
+        "project_context": "Use the full current project.",
+        "memory_off": "Answer without project memory."
+      }
+    },
     "modes": {
       "trigger_aria": "Choose response mode",
       "auto": "AUTO",
@@ -257,26 +303,55 @@
       "research": "RESEARCH"
     }
   },
-  "scope": {
-    "add_aria": "Add scope",
-    "strict": "STRICT",
-    "loose": "LOOSE",
-    "strict_aria": "Toggle scope mode",
-    "chips": {
-      "page": "Page",
-      "project": "Project",
-      "workspace": "Workspace",
-      "memory": "Memory",
-      "research": "This research"
+  "contextTray": {
+    "change_aria": "Change reference scope",
+    "externalAllowed": "Web and external search can be used.",
+    "externalOff": "Only OpenCairn material will be used.",
+    "summary": {
+      "currentDocumentProjectMemory": "Using: current document + project memory",
+      "currentDocumentProject": "Using: current document + current project",
+      "currentOnly": "Using: current document only",
+      "pinnedOnly": "Using: pinned sources only",
+      "projectMemory": "Using: current project + project memory",
+      "projectOnly": "Using: current project",
+      "workspaceMemory": "Using: workspace + memory",
+      "workspaceOnly": "Using: workspace"
+    },
+    "policy": {
+      "auto_project": "Current project",
+      "current_only": "Current document",
+      "pinned_only": "Pinned sources only",
+      "workspace": "Entire workspace"
+    },
+    "memory": {
+      "auto": "Use project memory",
+      "off": "Exclude project memory"
+    },
+    "external": {
+      "allowed": "Allow web/external search",
+      "off": "Turn off web/external search"
     }
+  },
+  "activityStack": {
+    "title": "Active work",
+    "count": "{count}",
+    "ingest": "Source processing",
+    "status": {
+      "running": "Running",
+      "completed": "Complete",
+      "failed": "Failed"
+    }
+  },
+  "actionShelf": {
+    "title": "Quick actions"
   },
   "empty_state": {
     "title": "New conversation",
     "intro": "Type below. The first message creates the conversation.",
-    "hint": "Use the scope chips to adjust what the agent reads.",
+    "hint": "Use the reference scope to see and adjust what the agent can read.",
     "points": {
       "workspace": "Reads notes, projects, and run status together.",
-      "scope": "Use the scope chips below to narrow what it can read."
+      "scope": "Use the reference scope below to choose current document, pinned sources, or the whole project."
     },
     "start_cta": "Start a conversation"
   }

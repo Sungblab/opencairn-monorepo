@@ -20,6 +20,10 @@ import {
 import { projectsApi, type ProjectNoteRow } from "@/lib/api-client";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
 import { LiteratureSearchModal } from "@/components/literature/literature-search-modal";
+import {
+  WorkbenchActivityButton,
+  WorkbenchCommandButton,
+} from "@/components/agent-panel/workbench-trigger-button";
 import { ProjectMetaRow } from "./project-meta-row";
 import { ProjectNotesTable } from "./project-notes-table";
 
@@ -79,8 +83,8 @@ export function ProjectView({
           </p>
         </div>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          <ToolLink
-            href={`${urls.workspace.research(locale, wsSlug)}?project=${projectId}`}
+          <ToolCommandButton
+            commandId="research"
             icon={FlaskConical}
             title={t("tools.research.title")}
             description={t("tools.research.description")}
@@ -109,8 +113,7 @@ export function ProjectView({
             title={t("tools.agents.title")}
             description={t("tools.agents.description")}
           />
-          <ToolLink
-            href={`${urls.workspace.projectAgents(locale, wsSlug, projectId)}?view=runs#workflow-console`}
+          <ToolActivityButton
             icon={Activity}
             title={t("tools.runs.title")}
             description={t("tools.runs.description")}
@@ -121,15 +124,13 @@ export function ProjectView({
             title={t("tools.learn.title")}
             description={t("tools.learn.description")}
           />
-          <ToolLink
-            href={`${urls.workspace.synthesisExport(locale, wsSlug)}?project=${projectId}`}
+          <ToolActivityButton
             icon={FileText}
             title={t("tools.generateDocument.title")}
             description={t("tools.generateDocument.description")}
             emphasis
           />
-          <ToolLink
-            href={`${urls.workspace.projectAgents(locale, wsSlug, projectId)}#plan8-suggestions`}
+          <ToolActivityButton
             icon={CheckSquare}
             title={t("tools.reviewInbox.title")}
             description={t("tools.reviewInbox.description")}
@@ -193,6 +194,91 @@ function ToolLink({
         {description}
       </span>
     </Link>
+  );
+}
+
+function ToolCommandButton({
+  commandId,
+  icon: Icon,
+  title,
+  description,
+  emphasis = false,
+}: {
+  commandId: Parameters<typeof WorkbenchCommandButton>[0]["commandId"];
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  emphasis?: boolean;
+}) {
+  return (
+    <WorkbenchCommandButton
+      commandId={commandId}
+      className={
+        emphasis
+          ? "group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-primary/40 bg-primary px-3 py-3 text-left text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          : "group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-background px-3 py-3 text-left text-foreground transition-colors hover:border-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      }
+    >
+      <Icon
+        aria-hidden
+        className={
+          emphasis
+            ? "h-4 w-4 text-primary-foreground/80"
+            : "h-4 w-4 text-muted-foreground group-hover:text-foreground"
+        }
+      />
+      <span className="text-sm font-medium">{title}</span>
+      <span
+        className={
+          emphasis
+            ? "line-clamp-2 text-xs text-primary-foreground/75"
+            : "line-clamp-2 text-xs text-muted-foreground"
+        }
+      >
+        {description}
+      </span>
+    </WorkbenchCommandButton>
+  );
+}
+
+function ToolActivityButton({
+  icon: Icon,
+  title,
+  description,
+  emphasis = false,
+}: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  emphasis?: boolean;
+}) {
+  return (
+    <WorkbenchActivityButton
+      className={
+        emphasis
+          ? "group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-primary/40 bg-primary px-3 py-3 text-left text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          : "group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-background px-3 py-3 text-left text-foreground transition-colors hover:border-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      }
+    >
+      <Icon
+        aria-hidden
+        className={
+          emphasis
+            ? "h-4 w-4 text-primary-foreground/80"
+            : "h-4 w-4 text-muted-foreground group-hover:text-foreground"
+        }
+      />
+      <span className="text-sm font-medium">{title}</span>
+      <span
+        className={
+          emphasis
+            ? "line-clamp-2 text-xs text-primary-foreground/75"
+            : "line-clamp-2 text-xs text-muted-foreground"
+        }
+      >
+        {description}
+      </span>
+    </WorkbenchActivityButton>
   );
 }
 

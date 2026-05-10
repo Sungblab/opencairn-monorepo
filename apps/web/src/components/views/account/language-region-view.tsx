@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Check } from "lucide-react";
 import { locales, localeNames, type Locale } from "@/i18n-locales";
+import { writeLocaleCookie } from "@/lib/locale-cookie";
 import {
   notificationPreferencesApi,
   type NotificationProfileRow,
@@ -76,6 +77,7 @@ export function LanguageRegionView() {
               <Link
                 key={loc}
                 href={localeHref(pathname, locale, loc)}
+                onClick={() => writeLocaleCookie(loc)}
                 aria-current={active ? "page" : undefined}
                 className={`inline-flex min-h-9 items-center gap-2 rounded-[var(--radius-control)] border px-3 py-1.5 text-sm transition-colors ${
                   active

@@ -115,7 +115,22 @@
     "wikilink": "노트 연결",
     "comments": "댓글",
     "agents": "AI 작업",
-    "narrate": "오디오 생성"
+    "ask_ai": "AI에게 질문",
+    "narrate": "오디오 생성",
+    "review_ai_work": "검토"
+  },
+  "noteRail": {
+    "title": "노트 패널",
+    "close": "닫기",
+    "comments": "댓글",
+    "ai": "AI 작업",
+    "aiWork": "AI 작업",
+    "activity": "활동",
+    "askAi": "AI에게 질문",
+    "narrate": "오디오 생성",
+    "review": "검토",
+    "aiDescription": "현재 노트 범위를 유지한 채 AI 작업을 시작합니다.",
+    "activityDescription": "이 노트와 프로젝트에서 진행 중인 AI 작업과 업로드 상태를 확인합니다."
   },
   "table": {
     "menu": {

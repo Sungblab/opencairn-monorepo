@@ -5,14 +5,15 @@
 //   1. The active workspace id (resolved from the URL slug) — bootstraps the
 //      threads-store so its localStorage-backed `activeThreadId` is loaded
 //      before any child renders.
-//   2. The scope-chips selection + STRICT/LOOSE mode, derived initially from
-//      whatever tab the user is currently looking at.
+//   2. The user-facing context tray, derived initially from whatever tab the
+//      user is currently looking at. Internal retrieval flags stay behind the
+//      context manifest instead of leaking as page/project/workspace toggles.
 //   3. The "+ new thread" action, shared by the header button and the empty
 //      state CTA so both code paths converge on the same mutation.
 //   4. The save-suggestion handler (Task 21): validates the SSE payload, tries
 //      to insert into the active Plate editor, and falls back to a "create new
 //      note" toast action when no Plate editor is open.
-// Children (Conversation, Composer, ScopeChipsRow) stay controlled views.
+// Children (Conversation, Composer, ContextTray) stay controlled views.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -21,6 +22,7 @@ import { saveSuggestionSchema } from "@opencairn/shared";
 
 import { useChatSend } from "@/hooks/use-chat-send";
 import { useChatThreads } from "@/hooks/use-chat-threads";
+import { useIngestUpload } from "@/hooks/use-ingest-upload";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
 import { api } from "@/lib/api-client";
 import { newTab } from "@/lib/tab-factory";
@@ -31,6 +33,7 @@ import {
 import { useTabsStore } from "@/stores/tabs-store";
 import { useThreadsStore } from "@/stores/threads-store";
 import { usePanelStore, type AgentPanelTab } from "@/stores/panel-store";
+import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
 import { NotificationListPanel } from "@/components/notifications/notification-list-panel";
 
 import { Composer } from "./composer";
@@ -41,15 +44,34 @@ import { AgentPanelEmptyState } from "./empty-state";
 import { NoteUpdateActionReviewList } from "./note-update-action-review";
 import { CodeProjectActionReviewList } from "./code-project-action-review";
 import { AgenticPlanCard } from "./agentic-plan-card";
+import {
+  getAgentCommand,
+  type AgentCommand,
+  type AgentCommandId,
+} from "./agent-commands";
 import { PanelHeader } from "./panel-header";
-import { ScopeChipsRow, defaultScopeIds } from "./scope-chips-row";
-import { buildAgentScopePayload } from "./scope-payload";
+import { ContextTray } from "./context-tray";
+import {
+  buildAgentContextPayload,
+  defaultSourcePolicy,
+  type ExternalSearchPolicy,
+  type MemoryPolicy,
+  type SourcePolicy,
+} from "./context-manifest";
 import { WorkflowConsoleRuns } from "./workflow-console-runs";
+import { WorkbenchActionShelf } from "./workbench-action-shelf";
+import { WorkbenchActivityStack } from "./workbench-activity-stack";
+import { handleAgentWorkbenchIntent } from "./agent-workbench-intents";
+import { useCurrentProjectContext } from "@/components/sidebar/use-current-project";
 
 export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const workspaceId = useWorkspaceId(wsSlug);
   const panelTab = usePanelStore((s) => s.agentPanelTab);
   const setPanelTab = usePanelStore((s) => s.setAgentPanelTab);
+  const pendingWorkbenchIntent = useAgentWorkbenchStore((s) => s.pendingIntent);
+  const consumeWorkbenchIntent = useAgentWorkbenchStore((s) => s.consumeIntent);
+  const { projectId: shellProjectId } = useCurrentProjectContext();
+  const commandPromptT = useTranslations("agentPanel.composer.slash.prompt");
 
   // setWorkspace bootstraps the active-thread restore from localStorage on
   // every workspace switch — without it the panel would never remember
@@ -63,28 +85,34 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const setActive = useThreadsStore((s) => s.setActiveThread);
   const { create } = useChatThreads(workspaceId);
   const { send, live, resumeRun } = useChatSend(activeThreadId);
+  const { upload, isUploading } = useIngestUpload();
 
-  // Initial scope selection follows whatever the user is currently looking
-  // at: a note tab seeds [page, project], a project view seeds [project], etc.
   const activeTabId = useTabsStore((s) => s.activeId);
   const activeTab = useTabsStore((s) => s.tabs.find((t) => t.id === activeTabId));
-  const initialScope = useMemo(
-    () => defaultScopeIds(activeTab?.kind),
+  const initialSourcePolicy = useMemo(
+    () => defaultSourcePolicy(activeTab?.kind),
     [activeTab?.kind],
   );
-  const [scope, setScope] = useState<string[]>(initialScope);
-  const [strict, setStrict] = useState<"strict" | "loose">("strict");
+  const [sourcePolicy, setSourcePolicy] =
+    useState<SourcePolicy>(initialSourcePolicy);
+  const [memoryPolicy, setMemoryPolicy] = useState<MemoryPolicy>("auto");
+  const [externalSearch, setExternalSearch] =
+    useState<ExternalSearchPolicy>("off");
   const [isSending, setIsSending] = useState(false);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [formGenerationEvents, setFormGenerationEvents] = useState<unknown[]>([]);
   const sendInFlightRef = useRef(false);
   const buildScopePayload = useCallback(
-    () =>
-      buildAgentScopePayload({
-        selectedScopeIds: scope,
+    (commandId?: AgentCommandId) => {
+      const command = getAgentCommand(commandId);
+      return buildAgentContextPayload({
         activeTab,
         workspaceId,
-        strict,
+        sourcePolicy: command?.contextPatch?.sourcePolicy ?? sourcePolicy,
+        memoryPolicy: command?.contextPatch?.memoryPolicy ?? memoryPolicy,
+        externalSearch: command?.contextPatch?.externalSearch ?? externalSearch,
+        command: commandId,
+        fallbackProjectId: shellProjectId,
         resolveNoteProjectId: async (noteId) => {
           try {
             return (await api.getNote(noteId)).projectId;
@@ -92,22 +120,23 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
             return null;
           }
         },
-      }),
-    [activeTab, scope, strict, workspaceId],
+      });
+    },
+    [activeTab, externalSearch, memoryPolicy, shellProjectId, sourcePolicy, workspaceId],
   );
 
-  // Reset scope when the user switches tabs to a different kind. Only
-  // reactive to tab kind so we don't stomp on manual scope edits while the
-  // user stays inside the same tab.
+  // Reset the source policy when the user switches to a different surface kind.
+  // Memory/search preferences remain user-selected because those are global
+  // working habits, not artifact-specific defaults.
   useEffect(() => {
-    setScope(defaultScopeIds(activeTab?.kind));
+    setSourcePolicy(defaultSourcePolicy(activeTab?.kind));
   }, [activeTab?.kind]);
 
   useEffect(() => {
     let cancelled = false;
     async function resolveActiveProject() {
       if (!activeTab) {
-        if (!cancelled) setActiveProjectId(null);
+        if (!cancelled) setActiveProjectId(shellProjectId);
         return;
       }
       if (activeTab.kind === "project" && activeTab.targetId) {
@@ -117,19 +146,19 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
       if (activeTab.kind === "note" && activeTab.targetId) {
         try {
           const note = await api.getNote(activeTab.targetId);
-          if (!cancelled) setActiveProjectId(note.projectId);
+          if (!cancelled) setActiveProjectId(note.projectId ?? shellProjectId);
         } catch {
-          if (!cancelled) setActiveProjectId(null);
+          if (!cancelled) setActiveProjectId(shellProjectId);
         }
         return;
       }
-      if (!cancelled) setActiveProjectId(null);
+      if (!cancelled) setActiveProjectId(shellProjectId);
     }
     void resolveActiveProject();
     return () => {
       cancelled = true;
     };
-  }, [activeTab]);
+  }, [activeTab, shellProjectId]);
 
   async function startNewThread() {
     if (!workspaceId) return;
@@ -140,7 +169,8 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const composerDisabled = !workspaceId || isSending || create.isPending;
 
   const handleSend = useCallback(
-    (input: { content: string; mode: string }) => {
+    (input: { content: string; mode: string; command?: AgentCommandId }) => {
+      if (!workspaceId) return;
       if (sendInFlightRef.current) return;
       sendInFlightRef.current = true;
       setIsSending(true);
@@ -155,7 +185,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
           await send({
             content: input.content,
             mode: input.mode,
-            scope: await buildScopePayload(),
+            scope: await buildScopePayload(input.command),
             threadId,
           });
         } finally {
@@ -164,7 +194,61 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
         }
       })();
     },
-    [activeThreadId, buildScopePayload, create, send, setActive],
+    [activeThreadId, buildScopePayload, create, send, setActive, workspaceId],
+  );
+
+  const handleCommand = useCallback((command: AgentCommand) => {
+    if (command.contextPatch?.sourcePolicy) {
+      setSourcePolicy(command.contextPatch.sourcePolicy);
+    }
+    if (command.contextPatch?.memoryPolicy) {
+      setMemoryPolicy(command.contextPatch.memoryPolicy);
+    }
+    if (command.contextPatch?.externalSearch) {
+      setExternalSearch(command.contextPatch.externalSearch);
+    }
+  }, []);
+
+  const handleRunAction = useCallback(
+    (command: AgentCommand) => {
+      handleCommand(command);
+      handleSend({
+        content: commandPromptT(command.promptKey),
+        mode: command.mode ?? "auto",
+        command: command.id,
+      });
+    },
+    [commandPromptT, handleCommand, handleSend],
+  );
+
+  useEffect(() => {
+    if (!workspaceId && pendingWorkbenchIntent?.kind === "runCommand") return;
+    handleAgentWorkbenchIntent({
+      intent: pendingWorkbenchIntent,
+      onRun: handleRunAction,
+      onContext: handleCommand,
+      consume: consumeWorkbenchIntent,
+    });
+  }, [
+    consumeWorkbenchIntent,
+    handleCommand,
+    handleRunAction,
+    pendingWorkbenchIntent,
+    workspaceId,
+  ]);
+
+  const handleAttachFile = useCallback(
+    (file: File) => {
+      if (!activeProjectId) return;
+      const noteId =
+        activeTab?.kind === "note" && activeTab.targetId
+          ? activeTab.targetId
+          : undefined;
+      void upload(file, activeProjectId, noteId ? { noteId } : undefined).catch(
+        () => {},
+      );
+    },
+    [activeProjectId, activeTab, upload],
   );
 
   // i18n for save-suggestion toasts (Task 21).
@@ -300,6 +384,12 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
       ) : null}
       {panelTab === "chat" ? (
         <>
+          <WorkbenchActionShelf
+            activeKind={activeTab?.kind}
+            disabled={composerDisabled}
+            onRun={handleRunAction}
+          />
+          <WorkbenchActivityStack />
           {activeThreadId ? (
             <Conversation
               threadId={activeThreadId}
@@ -310,15 +400,21 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
           ) : (
             <AgentPanelEmptyState />
           )}
-          <ScopeChipsRow
-            selected={scope}
-            onChange={setScope}
-            strict={strict}
-            onStrictChange={setStrict}
+          <ContextTray
+            activeKind={activeTab?.kind}
+            sourcePolicy={sourcePolicy}
+            memoryPolicy={memoryPolicy}
+            externalSearch={externalSearch}
+            onSourcePolicyChange={setSourcePolicy}
+            onMemoryPolicyChange={setMemoryPolicy}
+            onExternalSearchChange={setExternalSearch}
           />
           <Composer
             disabled={composerDisabled}
             onSend={handleSend}
+            onCommand={handleCommand}
+            onAttachFile={handleAttachFile}
+            attachDisabled={!activeProjectId || isUploading}
           />
         </>
       ) : null}

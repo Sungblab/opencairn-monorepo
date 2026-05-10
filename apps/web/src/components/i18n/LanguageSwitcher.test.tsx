@@ -14,6 +14,17 @@ vi.mock("next/navigation", () => ({
 }));
 
 describe("LanguageSwitcher", () => {
+  it("persists the selected app language in the locale cookie", async () => {
+    render(<LanguageSwitcher tone="dark" />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "common.language.menuLabel" }),
+    );
+    fireEvent.click(await screen.findByText("English"));
+
+    expect(document.cookie).toContain("NEXT_LOCALE=en");
+  });
+
   it("lets footer usage constrain the popup width on narrow screens", async () => {
     render(
       <LanguageSwitcher

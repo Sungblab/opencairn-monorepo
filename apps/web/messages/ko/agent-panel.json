@@ -248,6 +248,52 @@
     "attach_aria": "첨부",
     "voice_aria": "음성 입력",
     "send_aria": "전송",
+    "slash": {
+      "menu_aria": "명령어",
+      "empty": "일치하는 명령어가 없습니다.",
+      "command": {
+        "summarize": "현재 자료를 요약",
+        "decompose": "구조, 주장, 근거 해체 분석",
+        "compare": "자료 비교",
+        "factcheck": "주장과 근거 검증",
+        "extract_citations": "인용 후보 추출",
+        "make_note": "노트 초안 만들기",
+        "narrate_note": "오디오 내레이션 초안",
+        "generate_report": "보고서 만들기",
+        "generate_deck": "발표 자료 만들기",
+        "make_table": "표로 정리",
+        "quiz": "퀴즈 만들기",
+        "attach": "자료 첨부",
+        "web_search": "웹 검색 허용",
+        "paper_search": "논문 검색",
+        "research": "리서치 시작",
+        "current_document_only": "현재 문서만 참고",
+        "selected_sources_only": "고정한 자료만 참고",
+        "project_context": "프로젝트 전체 참고",
+        "memory_off": "프로젝트 메모리 제외"
+      },
+      "prompt": {
+        "summarize": "현재 자료를 핵심 위주로 요약해줘.",
+        "decompose": "현재 자료를 구조, 주장, 근거, 빈틈 중심으로 해체 분석해줘.",
+        "compare": "첨부한 자료들을 서로 비교해줘.",
+        "factcheck": "현재 주장과 근거를 확인하고 불확실한 부분을 표시해줘.",
+        "extract_citations": "현재 자료에서 인용할 만한 핵심 문장과 출처를 추출해줘.",
+        "make_note": "현재 자료를 새 노트 초안으로 정리해줘.",
+        "narrate_note": "현재 노트를 오디오 내레이션으로 만들 수 있게 핵심 흐름과 스크립트 초안을 작성해줘.",
+        "generate_report": "현재 프로젝트 자료를 바탕으로 보고서 초안을 만들어줘.",
+        "generate_deck": "현재 자료를 발표 자료 구성으로 바꿔줘.",
+        "make_table": "현재 자료를 비교 가능한 표로 정리해줘.",
+        "quiz": "현재 자료를 이해도 확인용 문제로 만들어줘.",
+        "attach": "첨부할 자료를 선택할 수 있게 도와줘.",
+        "web_search": "웹 검색을 허용하고 이어서 답변해줘.",
+        "paper_search": "관련 논문을 찾아서 핵심 후보를 정리해줘.",
+        "research": "현재 프로젝트 자료를 바탕으로 리서치 작업을 시작해줘.",
+        "current_document_only": "현재 문서만 참고해줘.",
+        "selected_sources_only": "고정한 자료만 참고해줘.",
+        "project_context": "현재 프로젝트 전체를 참고해줘.",
+        "memory_off": "프로젝트 메모리를 제외하고 답변해줘."
+      }
+    },
     "modes": {
       "trigger_aria": "응답 모드 선택",
       "auto": "AUTO",
@@ -257,26 +303,55 @@
       "research": "RESEARCH"
     }
   },
-  "scope": {
-    "add_aria": "스코프 추가",
-    "strict": "STRICT",
-    "loose": "LOOSE",
-    "strict_aria": "스코프 모드 전환",
-    "chips": {
-      "page": "페이지",
-      "project": "프로젝트",
-      "workspace": "워크스페이스",
-      "memory": "메모리",
-      "research": "이 리서치"
+  "contextTray": {
+    "change_aria": "참조 범위 변경",
+    "externalAllowed": "웹과 외부 검색을 사용할 수 있습니다.",
+    "externalOff": "외부 검색 없이 OpenCairn 자료만 사용합니다.",
+    "summary": {
+      "currentDocumentProjectMemory": "참조 중: 현재 문서 + 프로젝트 메모리",
+      "currentDocumentProject": "참조 중: 현재 문서 + 현재 프로젝트",
+      "currentOnly": "참조 중: 현재 문서만",
+      "pinnedOnly": "참조 중: 고정한 자료만",
+      "projectMemory": "참조 중: 현재 프로젝트 + 프로젝트 메모리",
+      "projectOnly": "참조 중: 현재 프로젝트",
+      "workspaceMemory": "참조 중: 워크스페이스 + 메모리",
+      "workspaceOnly": "참조 중: 워크스페이스"
+    },
+    "policy": {
+      "auto_project": "현재 프로젝트",
+      "current_only": "현재 문서",
+      "pinned_only": "고정한 자료만",
+      "workspace": "워크스페이스 전체"
+    },
+    "memory": {
+      "auto": "프로젝트 메모리 사용",
+      "off": "프로젝트 메모리 제외"
+    },
+    "external": {
+      "allowed": "웹/외부 검색 허용",
+      "off": "웹/외부 검색 끄기"
     }
+  },
+  "activityStack": {
+    "title": "진행 중인 작업",
+    "count": "{count}개",
+    "ingest": "자료 처리",
+    "status": {
+      "running": "진행 중",
+      "completed": "완료",
+      "failed": "실패"
+    }
+  },
+  "actionShelf": {
+    "title": "바로 실행"
   },
   "empty_state": {
     "title": "새 대화",
     "intro": "아래 입력창에 바로 물어보세요. 첫 메시지를 보내면 대화가 생성됩니다.",
-    "hint": "스코프 칩으로 범위를 조정할 수 있습니다.",
+    "hint": "참조 범위에서 AI가 볼 자료를 확인하고 바꿀 수 있습니다.",
     "points": {
       "workspace": "노트, 프로젝트, 실행 상태를 함께 참고합니다.",
-      "scope": "아래 스코프 칩으로 읽을 범위를 좁힐 수 있습니다."
+      "scope": "아래 참조 범위에서 현재 문서, 고정 자료, 프로젝트 전체를 고를 수 있습니다."
     },
     "start_cta": "첫 대화 시작"
   }

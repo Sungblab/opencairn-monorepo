@@ -3,6 +3,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { usePathname, useRouter } from "next/navigation";
 import { Globe, Check, ChevronDown } from "lucide-react";
 import { locales, localeNames, type Locale } from "@/i18n-locales";
+import { writeLocaleCookie } from "@/lib/locale-cookie";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -59,6 +60,7 @@ export function LanguageSwitcher({
 
   const switchTo = (next: Locale) => {
     if (next === locale) return;
+    writeLocaleCookie(next);
     const stripped = pathname.replace(new RegExp(`^/${locale}(?=/|$)`), "");
     router.push(`/${next}${stripped || ""}`);
   };

@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ShellSidebar } from "./shell-sidebar";
 
@@ -18,8 +18,20 @@ vi.mock("next-intl", () => ({
 }));
 
 vi.mock("@/stores/panel-store", () => ({
-  usePanelStore: (selector: (s: { toggleSidebar: () => void }) => unknown) =>
-    selector({ toggleSidebar: vi.fn() }),
+  usePanelStore: (
+    selector: (s: {
+      toggleSidebar: () => void;
+      openAgentPanelTab: (tab: string) => void;
+    }) => unknown,
+  ) =>
+    selector({
+      toggleSidebar: vi.fn(),
+      openAgentPanelTab: panelStoreMock.openAgentPanelTab,
+    }),
+}));
+
+const panelStoreMock = vi.hoisted(() => ({
+  openAgentPanelTab: vi.fn(),
 }));
 
 vi.mock("./workspace-switcher", () => ({
@@ -75,6 +87,10 @@ vi.mock("@/components/literature/literature-search-button", () => ({
 }));
 
 describe("ShellSidebar", () => {
+  beforeEach(() => {
+    panelStoreMock.openAgentPanelTab.mockClear();
+  });
+
   it("makes project selection the top-level control and keeps global nav out of the main rail", () => {
     currentProject.value = { wsSlug: "acme", projectId: null };
 
