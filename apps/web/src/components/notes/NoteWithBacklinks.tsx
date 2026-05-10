@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, type ReactNode } from "react";
 import { usePanelStore } from "@/stores/panel-store";
-import { BacklinksPanel } from "./BacklinksPanel";
-import { EnrichmentPanel } from "./EnrichmentPanel";
+import { BacklinksPanelLoader } from "./BacklinksPanelLoader";
+import { EnrichmentPanelLoader } from "./EnrichmentPanelLoader";
 
 interface Props {
   noteId: string;
@@ -42,8 +42,8 @@ export function NoteWithBacklinks({ noteId, children }: Props) {
   return (
     <div className="flex h-full">
       <div className="flex-1 overflow-auto">{children}</div>
-      {enrichmentOpen ? <EnrichmentPanel noteId={noteId} /> : null}
-      {backlinksOpen ? <BacklinksPanel noteId={noteId} /> : null}
+      {enrichmentOpen ? <EnrichmentPanelLoader noteId={noteId} /> : null}
+      {backlinksOpen ? <BacklinksPanelLoader noteId={noteId} /> : null}
     </div>
   );
 }

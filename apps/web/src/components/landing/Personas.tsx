@@ -1,18 +1,13 @@
-"use client";
-import { useRef } from "react";
 import { useTranslations } from "next-intl";
-import { useScrollReveal } from "@/lib/landing/hooks/useScrollReveal";
 
 type Persona = { ver: string; cat: string; title: string; body: string; bullets: string[] };
 
 export function Personas() {
   const t = useTranslations("landing.personas");
-  const ref = useRef<HTMLElement>(null);
-  useScrollReveal(ref);
   const items = t.raw("items") as Persona[];
 
   return (
-    <section ref={ref} id="who" className="bg-stone-100 py-24 md:py-32 border-b border-stone-900">
+    <section id="who" className="bg-stone-100 py-24 md:py-32 border-b border-stone-900">
       <div className="max-w-[1280px] mx-auto px-6 lg:px-10">
         <div className="mb-14 reveal">
           <h2 className="kr text-3xl md:text-5xl text-stone-900 leading-[1.05] tracking-tight font-semibold mb-5">

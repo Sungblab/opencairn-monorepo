@@ -1,5 +1,3 @@
-"use client";
-
 // Plan 11A foundation entry point — project-scope chat. URL:
 //   /workspace/<wsSlug>/project/<projectId>/chat-scope
 //
@@ -7,12 +5,12 @@
 // in the (shell) layout's centre column. useScopeContext picks up the
 // projectId from the URL and seeds the auto-attached project chip.
 
-import { ChatPanel } from "@/components/chat-scope/ChatPanel";
+import { ChatPanelLoader } from "@/components/chat-scope/ChatPanelLoader";
 
 export default function ProjectChatScopePage() {
   return (
     <main className="h-full">
-      <ChatPanel />
+      <ChatPanelLoader />
     </main>
   );
 }

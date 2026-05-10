@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { isDeepResearchEnabled } from "@/lib/feature-flags";
-import { ResearchRunView } from "@/components/research/ResearchRunView";
+import { ResearchRunViewLoader } from "@/components/research/ResearchRunViewLoader";
 
 export default async function ResearchRunPage({
   params,
@@ -9,5 +9,5 @@ export default async function ResearchRunPage({
 }) {
   if (!isDeepResearchEnabled()) notFound();
   const { wsSlug, runId } = await params;
-  return <ResearchRunView runId={runId} wsSlug={wsSlug} />;
+  return <ResearchRunViewLoader runId={runId} wsSlug={wsSlug} />;
 }

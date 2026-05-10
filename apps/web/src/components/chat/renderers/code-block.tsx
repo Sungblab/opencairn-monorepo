@@ -1,7 +1,5 @@
 "use client";
-import { useState } from "react";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { useEffect, useState, type ComponentType } from "react";
 import { useTranslations } from "next-intl";
 import { Copy, Check } from "lucide-react";
 import { proseClasses } from "@/lib/markdown/shared-prose";
@@ -14,22 +12,53 @@ interface CodeBlockProps {
   node?: unknown;
 }
 
+type SyntaxCodeBlockProps = {
+  code: string;
+  language: string;
+};
+
+type SyntaxCodeBlockComponent = ComponentType<SyntaxCodeBlockProps>;
+
+let syntaxCodeBlockPromise: Promise<SyntaxCodeBlockComponent> | null = null;
+
+function loadSyntaxCodeBlock(): Promise<SyntaxCodeBlockComponent> {
+  if (!syntaxCodeBlockPromise) {
+    syntaxCodeBlockPromise = import("./syntax-code-block").then(
+      (mod) => mod.SyntaxCodeBlock,
+    );
+  }
+  return syntaxCodeBlockPromise;
+}
+
 export function CodeBlock({ inline, className, children }: CodeBlockProps) {
   const t = useTranslations("chat.renderer");
   const [copied, setCopied] = useState(false);
+  const [SyntaxCodeBlock, setSyntaxCodeBlock] =
+    useState<SyntaxCodeBlockComponent | null>(null);
 
   // react-markdown v9: detect block code by presence of language-XXX className.
   // The `inline` prop was removed in v8+; we replicate the check from the
   // official readme: if className matches /language-(\w+)/, it is block code.
   const match = /language-(\S+)/.exec(className ?? "");
+  const isBlock = Boolean(match);
+  const lang = match?.[1].toLowerCase() ?? "";
+  const code = String(children ?? "").replace(/\n$/, "");
 
-  if (!match) {
+  useEffect(() => {
+    if (!isBlock || lang === "mermaid") return;
+    let cancelled = false;
+    loadSyntaxCodeBlock().then((component) => {
+      if (!cancelled) setSyntaxCodeBlock(() => component);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isBlock, lang]);
+
+  if (!isBlock) {
     // Inline code — no language class means inside a paragraph
     return <code className={proseClasses.codeInline}>{children}</code>;
   }
-
-  const lang = match[1].toLowerCase();
-  const code = String(children ?? "").replace(/\n$/, "");
 
   if (lang === "mermaid") {
     return <MermaidChat code={code} />;
@@ -69,15 +98,13 @@ export function CodeBlock({ inline, className, children }: CodeBlockProps) {
           )}
         </button>
       </div>
-      <SyntaxHighlighter
-        language={lang || "text"}
-        style={oneDark}
-        PreTag="div"
-        customStyle={{ margin: 0, padding: "0.75rem", background: "transparent" }}
-        codeTagProps={{ style: { background: "transparent" } }}
-      >
-        {code}
-      </SyntaxHighlighter>
+      {SyntaxCodeBlock ? (
+        <SyntaxCodeBlock code={code} language={lang || "text"} />
+      ) : (
+        <pre className="m-0 overflow-x-auto p-3 text-xs">
+          <code className="bg-transparent">{code}</code>
+        </pre>
+      )}
     </div>
   );
 }

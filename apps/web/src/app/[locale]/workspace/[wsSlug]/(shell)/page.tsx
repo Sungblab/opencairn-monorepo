@@ -1,5 +1,5 @@
 import { apiClient } from "@/lib/api-client";
-import { DashboardView } from "@/components/views/dashboard/dashboard-view";
+import { DashboardViewLoader } from "@/components/views/dashboard/dashboard-view-loader";
 
 // Replaces the Phase 1 placeholder with the real dashboard. We resolve the
 // workspace slug → id server-side so every card downstream works with a
@@ -13,5 +13,5 @@ export default async function WorkspaceDashboard({
   const ws = await apiClient<{ id: string }>(
     `/workspaces/by-slug/${wsSlug}`,
   );
-  return <DashboardView wsSlug={wsSlug} wsId={ws.id} />;
+  return <DashboardViewLoader wsSlug={wsSlug} wsId={ws.id} />;
 }

@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { DriveTab } from "./DriveTab";
-import { MarkdownTab } from "./MarkdownTab";
-import { NotionTab } from "./NotionTab";
-import { FirstSourceIntake } from "@/components/import/first-source-intake";
+import { DriveTabLoader } from "./DriveTabLoader";
+import { FirstSourceIntakeLoader } from "./FirstSourceIntakeLoader";
+import { MarkdownTabLoader } from "./MarkdownTabLoader";
+import { NotionTabLoader } from "./NotionTabLoader";
 
 const TABS = ["file", "link", "text", "more"] as const;
 type TabId = (typeof TABS)[number];
@@ -39,7 +39,7 @@ export function ImportTabs({ wsSlug }: { wsSlug: string }) {
       </div>
       <div className="mt-6">
         {tab === "file" || tab === "link" || tab === "text" ? (
-          <FirstSourceIntake
+          <FirstSourceIntakeLoader
             wsSlug={wsSlug}
             initialMode={tab}
             showModeTabs={false}
@@ -76,9 +76,11 @@ export function ImportTabs({ wsSlug }: { wsSlug: string }) {
               ))}
             </div>
             <div className="mt-5">
-              {legacyTab === "drive" ? <DriveTab wsSlug={wsSlug} /> : null}
-              {legacyTab === "markdown" ? <MarkdownTab wsSlug={wsSlug} /> : null}
-              {legacyTab === "notion" ? <NotionTab wsSlug={wsSlug} /> : null}
+              {legacyTab === "drive" ? <DriveTabLoader wsSlug={wsSlug} /> : null}
+              {legacyTab === "markdown" ? (
+                <MarkdownTabLoader wsSlug={wsSlug} />
+              ) : null}
+              {legacyTab === "notion" ? <NotionTabLoader wsSlug={wsSlug} /> : null}
             </div>
           </div>
         ) : null}

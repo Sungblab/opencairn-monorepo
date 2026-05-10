@@ -7,6 +7,10 @@ let routeParams = { wsSlug: "acme", projectId: "p-1" as string | undefined };
 
 vi.mock("next/navigation", () => ({
   useParams: () => routeParams,
+  usePathname: () =>
+    routeParams.projectId
+      ? `/ko/workspace/${routeParams.wsSlug}/project/${routeParams.projectId}`
+      : `/ko/workspace/${routeParams.wsSlug}`,
   useRouter: () => ({ push: vi.fn() }),
 }));
 
@@ -80,11 +84,13 @@ describe("ProjectHero", () => {
     });
 
     expect(trigger).toHaveClass(
-      "min-h-12",
+      "min-h-10",
+      "md:min-h-9",
       "rounded-[var(--radius-control)]",
       "border",
       "border-transparent",
       "bg-background",
+      "md:py-1.5",
       "hover:border-border",
       "hover:bg-muted/50",
     );

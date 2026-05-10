@@ -1,4 +1,4 @@
-import { AgentEntryPointsView } from "@/components/views/agents/agent-entrypoints-view";
+import { AgentEntryPointsViewLoader } from "@/components/views/agents/agent-entrypoints-view-loader";
 
 export default async function ProjectAgentsPage({
   params,
@@ -6,5 +6,5 @@ export default async function ProjectAgentsPage({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  return <AgentEntryPointsView projectId={projectId} />;
+  return <AgentEntryPointsViewLoader projectId={projectId} />;
 }

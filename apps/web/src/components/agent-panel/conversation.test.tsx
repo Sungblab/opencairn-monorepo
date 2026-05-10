@@ -15,10 +15,15 @@ vi.mock("@/hooks/use-chat-messages", () => ({
   useChatMessages: () => ({ data: messages }),
 }));
 
-vi.mock("./message-bubble", () => ({
-  MessageBubble: ({ msg }: { msg: ChatMessage }) => <div>{msg.id}</div>,
+vi.mock("./message-bubble-loader", () => ({
+  MessageBubbleLoader: ({ msg }: { msg: ChatMessage }) => <div>{msg.id}</div>,
+}));
+
+vi.mock("./message-attachments", () => ({
   AgentFileCards: () => null,
+  DocumentGenerationCards: () => null,
   asAgentFileCards: () => [],
+  asDocumentGenerationCards: () => [],
 }));
 
 vi.mock("./status-line", () => ({

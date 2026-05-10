@@ -9,7 +9,6 @@
 // is what authorises access). Linking them off to `/auth/login` is a passive
 // CTA, not a redirect.
 
-import Link from "next/link";
 import { useTranslations } from "next-intl";
 
 import { PlateStaticRenderer } from "./plate-static-renderer";
@@ -32,12 +31,12 @@ export function PublicNoteView({ note }: { note: PublicShareNote }) {
             />
             {t("viewOnly")}
           </div>
-          <Link
+          <a
             href="/"
             className="inline-flex h-8 items-center rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted"
           >
             {t("signInCta")}
-          </Link>
+          </a>
         </div>
       </header>
 

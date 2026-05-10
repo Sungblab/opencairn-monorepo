@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
 import { useScrollReveal } from "@/lib/landing/hooks/useScrollReveal";
 
 type NodeSpec = { id: string; x: number; y: number; r: number; anchor: "start" | "middle" | "end"; tx: number; ty: number; bold?: boolean };
@@ -49,16 +48,23 @@ const LINKS_MAP: Record<string, string[]> = {
 
 type GraphCopy = Record<string, { t: string; d: string }>;
 
-export function MiniGraph() {
-  const t = useTranslations("landing.try");
+export type MiniGraphCopy = {
+  title1: string;
+  title2: string;
+  sub: string;
+  bullets: string[];
+  graph: GraphCopy;
+  backlinks: string;
+  caption: string;
+};
+
+export function MiniGraph({ copy }: { copy: MiniGraphCopy }) {
   const ref = useRef<HTMLElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   useScrollReveal(ref);
 
-  const bullets = t.raw("bullets") as string[];
-  const graph = t.raw("graph") as GraphCopy;
-  const backlinksLabel = t("backlinks");
+  const { bullets, graph } = copy;
 
   const [active, setActive] = useState<string | null>(null);
   const autoPausedRef = useRef(false);
@@ -108,12 +114,12 @@ export function MiniGraph() {
       <div className="max-w-[1280px] mx-auto px-6 lg:px-10">
         <div className="mb-12 reveal">
           <h2 className="kr text-3xl md:text-5xl text-stone-900 leading-[1.05] tracking-tight font-semibold mb-5">
-            {t("title1")}
+            {copy.title1}
             <br />
-            {t("title2")}
+            {copy.title2}
           </h2>
           <p className="kr text-[15px] text-stone-600 leading-relaxed max-w-[560px]">
-            {t("sub")}
+            {copy.sub}
           </p>
         </div>
 
@@ -181,14 +187,14 @@ export function MiniGraph() {
                   <div className="t-title">{current.t}</div>
                   <div className="t-desc">{current.d}</div>
                   <div className="t-links">
-                    {backlinksLabel} {currentBacklinks} ·{" "}
+                    {copy.backlinks} {currentBacklinks} ·{" "}
                     {currentLinks.map((l) => `→ ${graph[l]?.t ?? l}`).join(" · ")}
                   </div>
                 </>
               )}
             </div>
             <div className="absolute bottom-3 left-4 font-sans text-[10px] text-stone-400 tracking-widest uppercase">
-              {t("caption")}
+              {copy.caption}
             </div>
           </div>
         </div>

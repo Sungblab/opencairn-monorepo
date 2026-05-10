@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import {
   BookOpen,
@@ -91,14 +90,14 @@ export function HelpView({ wsSlug }: { wsSlug: string }) {
         </div>
         <nav className="flex flex-wrap gap-2" aria-label={t("title")}>
           {ACTIONS.map(({ key, icon: Icon }) => (
-            <Link
+            <a
               key={key}
               href={actionHrefs[key]}
               className="app-btn-secondary h-9 rounded-[var(--radius-control)] px-3 text-sm"
             >
               <Icon aria-hidden className="h-4 w-4" />
               {t(`actions.${key}`)}
-            </Link>
+            </a>
           ))}
         </nav>
       </header>

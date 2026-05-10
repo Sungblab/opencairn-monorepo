@@ -1,41 +1,11 @@
-"use client";
-import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useScrollReveal } from "@/lib/landing/hooks/useScrollReveal";
 
 type MetricItem = { value: number | string; suffix: string; caption: string };
 
 function CountValue({ target, suffix }: { target: number; suffix: string }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const [n, setN] = useState(0);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce || target === 0) {
-      setN(target);
-      return;
-    }
-    const io = new IntersectionObserver((entries) => {
-      for (const e of entries) {
-        if (!e.isIntersecting) continue;
-        const start = performance.now();
-        const dur = 1200;
-        function step(now: number) {
-          const p = Math.min(1, (now - start) / dur);
-          setN(Math.round(target * (1 - Math.pow(1 - p, 3))));
-          if (p < 1) requestAnimationFrame(step);
-        }
-        requestAnimationFrame(step);
-        io.unobserve(e.target);
-      }
-    }, { threshold: 0.5 });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [target]);
   return (
-    <span ref={ref} className="tick">
-      {n}
+    <span className="tick">
+      {target}
       {suffix}
     </span>
   );
@@ -43,12 +13,10 @@ function CountValue({ target, suffix }: { target: number; suffix: string }) {
 
 export function Metrics() {
   const t = useTranslations("landing.metrics");
-  const ref = useRef<HTMLElement>(null);
-  useScrollReveal(ref);
   const items = t.raw("items") as MetricItem[];
 
   return (
-    <section ref={ref} className="border-b border-stone-900">
+    <section className="border-b border-stone-900">
       <div className="max-w-[1280px] mx-auto px-6 lg:px-10 py-12">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 reveal-stagger">
           {items.map((m, i) => (

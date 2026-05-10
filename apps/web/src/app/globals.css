@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -8,10 +9,11 @@
 @theme {
   /* `font-serif` is reserved for the OpenCairn wordmark only (header/footer/
    * auth chrome). All headlines, prices, and body text use Pretendard via
-   * `font-sans`. Korean text always renders in Pretendard regardless. */
+   * `font-sans`. Pretendard uses unicode-range dynamic subsets so initial
+   * pages do not download the full 2MB variable font. */
   --font-serif: var(--font-serif-raw), Georgia, serif;
-  --font-sans: var(--font-pretendard), var(--font-sans-raw), -apple-system, system-ui, sans-serif;
-  --font-mono: var(--font-mono-raw), ui-monospace, monospace;
+  --font-sans: "Pretendard Variable", -apple-system, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --color-bg: var(--theme-bg);
   --color-surface: var(--theme-surface);

@@ -1,8 +1,7 @@
 "use client";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+/* eslint-disable i18next/no-literal-string -- locale error boundary must stay self-contained and lightweight */
 import { useEffect } from "react";
+import { reloadPage } from "@/lib/reload-page";
 
 export default function ErrorPage({
   error,
@@ -11,9 +10,6 @@ export default function ErrorPage({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  const t = useTranslations("common.errorPages.server");
-  const router = useRouter();
-
   useEffect(() => {
     console.error(error);
   }, [error]);
@@ -29,14 +25,16 @@ export default function ErrorPage({
                 aria-hidden
               />
               <span className="font-sans text-[11px] font-semibold tracking-[0.22em] uppercase text-stone-900">
-                {t("label")}
+                ERROR
               </span>
             </div>
             <h1 className="font-sans text-3xl sm:text-4xl font-bold leading-tight text-stone-900 kr">
-              {t("title")}
+              문제가 발생했어요
             </h1>
             <p className="kr text-[15px] text-stone-600 leading-relaxed">
-              {t("body")}
+              페이지를 다시 불러오거나 홈으로 이동해 주세요.
+              <br />
+              Please reload the page or go back home.
             </p>
           </div>
 
@@ -45,20 +43,20 @@ export default function ErrorPage({
               type="button"
               onClick={() => {
                 reset();
-                router.refresh();
+                reloadPage();
               }}
               className="auth-btn auth-btn-primary w-full kr"
             >
-              {t("retry")}
+              다시 시도 / Retry
             </button>
-            <Link href="/" className="auth-btn auth-btn-secondary w-full kr">
-              {t("home")}
-            </Link>
+            <a href="/" className="auth-btn auth-btn-secondary w-full kr">
+              홈으로 / Home
+            </a>
           </div>
 
           {error.digest && (
             <p className="mt-2 font-mono text-[11px] tracking-wider text-stone-400 uppercase break-all">
-              {t("digest")}: {error.digest}
+              Error ID: {error.digest}
             </p>
           )}
         </div>

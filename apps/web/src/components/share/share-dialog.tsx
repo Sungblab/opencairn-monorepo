@@ -56,17 +56,19 @@ function shareUrl(token: string): string {
   return `${window.location.origin}/s/${token}`;
 }
 
+export interface ShareDialogProps {
+  noteId: string;
+  workspaceId: string;
+  open: boolean;
+  onOpenChange: (next: boolean) => void;
+}
+
 export function ShareDialog({
   noteId,
   workspaceId,
   open,
   onOpenChange,
-}: {
-  noteId: string;
-  workspaceId: string;
-  open: boolean;
-  onOpenChange: (next: boolean) => void;
-}) {
+}: ShareDialogProps) {
   const t = useTranslations("shareDialog");
   const qc = useQueryClient();
 

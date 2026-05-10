@@ -1,10 +1,11 @@
 "use client";
 import { useTabsStore } from "@/stores/tabs-store";
 import { TabBar } from "./tab-bar";
-import { TabModeRouter, isRoutedByTabModeRouter } from "./tab-mode-router";
+import { TabModeRouterLoader } from "./tab-mode-router-loader";
+import { isRoutedByTabModeRouter } from "./tab-mode-routing";
 
 // Phase 3-B: the body branch. If there's an active tab whose mode is NOT
-// `plate`, render TabModeRouter — which dispatches to the per-mode viewer.
+// `plate`, load TabModeRouter — which dispatches to the per-mode viewer.
 // Otherwise fall back to Next.js route `children` (the SSR-rendered page
 // that already handles auth + NoteEditor fan-out). `plate` stays on the
 // children path deliberately: migrating the editor into a client-only
@@ -29,7 +30,7 @@ export function TabShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-0 flex-1 overflow-auto">
         {active && isRoutedByTabModeRouter(active) ? (
           <div className="min-w-0 flex-1 w-full">
-            <TabModeRouter tab={active} />
+            <TabModeRouterLoader tab={active} />
           </div>
         ) : (
           <div className="min-w-0 flex-1 w-full">{children}</div>

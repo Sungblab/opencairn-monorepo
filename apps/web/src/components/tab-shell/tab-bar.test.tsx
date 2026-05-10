@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TabBar } from "./tab-bar";
 import { useTabsStore, type Tab } from "@/stores/tabs-store";
+import { TestShellLabelsProvider } from "@/components/shell/shell-labels.test-utils";
 
 const push = vi.fn();
 const replace = vi.fn();
@@ -10,11 +11,6 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, replace }),
   usePathname: () => "/ko/workspace/acme/",
   useParams: () => ({ wsSlug: "acme" }),
-}));
-
-vi.mock("next-intl", () => ({
-  useTranslations: (_ns?: string) => (key: string) => key,
-  useLocale: () => "ko",
 }));
 
 const mk = (p: Partial<Tab> = {}): Tab => ({
@@ -32,6 +28,14 @@ const mk = (p: Partial<Tab> = {}): Tab => ({
   ...p,
 });
 
+function renderTabBar() {
+  return render(
+    <TestShellLabelsProvider>
+      <TabBar />
+    </TestShellLabelsProvider>,
+  );
+}
+
 describe("TabBar", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -46,18 +50,18 @@ describe("TabBar", () => {
     useTabsStore
       .getState()
       .addTab(mk({ id: "b", title: "Beta", targetId: "n2" }));
-    render(<TabBar />);
+    renderTabBar();
     expect(screen.getByText("Alpha")).toBeInTheDocument();
     expect(screen.getByText("Beta")).toBeInTheDocument();
   });
 
   it("exposes a new-tab button regardless of tab count", () => {
-    render(<TabBar />);
+    renderTabBar();
     expect(screen.getByTestId("tab-bar-new")).toBeInTheDocument();
   });
 
   it("clicking the new-tab button adds a note tab with the localized title", () => {
-    render(<TabBar />);
+    renderTabBar();
     fireEvent.click(screen.getByTestId("tab-bar-new"));
     const tabs = useTabsStore.getState().tabs;
     expect(tabs).toHaveLength(1);
@@ -70,7 +74,7 @@ describe("TabBar", () => {
 
   it("clicking a tab navigates to its URL via router.replace", () => {
     useTabsStore.getState().addTab(mk({ id: "a", targetId: "n1" }));
-    render(<TabBar />);
+    renderTabBar();
     fireEvent.click(screen.getByText("Alpha"));
     expect(replace).toHaveBeenCalledWith("/ko/workspace/acme/note/n1");
   });
@@ -88,7 +92,7 @@ describe("TabBar", () => {
     );
     useTabsStore.getState().setActive("project");
 
-    render(<TabBar />);
+    renderTabBar();
     fireEvent.click(screen.getByText("분석 중: report.pdf"));
 
     expect(useTabsStore.getState().activeId).toBe("ingest-wf-1");
@@ -99,7 +103,7 @@ describe("TabBar", () => {
     useTabsStore.getState().addTab(mk({ id: "a" }));
     useTabsStore.getState().addTab(mk({ id: "b", title: "Beta" }));
     useTabsStore.getState().setActive("b");
-    render(<TabBar />);
+    renderTabBar();
     expect(screen.getByTestId("tab-b").getAttribute("aria-selected")).toBe(
       "true",
     );
@@ -109,13 +113,13 @@ describe("TabBar", () => {
   });
 
   it("overflow trigger is hidden when no tabs are open", () => {
-    render(<TabBar />);
+    renderTabBar();
     expect(screen.queryByTestId("tab-overflow-trigger")).toBeNull();
   });
 
   it("overflow trigger appears when any tabs are open", () => {
     useTabsStore.getState().addTab(mk({ id: "a" }));
-    render(<TabBar />);
+    renderTabBar();
     expect(screen.getByTestId("tab-overflow-trigger")).toBeInTheDocument();
   });
 });

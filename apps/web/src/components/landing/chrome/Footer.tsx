@@ -1,7 +1,6 @@
-"use client";
-import { useTranslations } from "next-intl";
-import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
+import { useLocale, useTranslations } from "next-intl";
 import { externalSiteUrls, publicLinks, siteConfig } from "@/lib/site-config";
+import { LandingLocaleLink } from "./LandingLocaleLink";
 
 type Link = { label: string; href: string };
 
@@ -29,6 +28,9 @@ function resolveExternalHref(href: string): string | undefined {
 
 export function LandingFooter() {
   const t = useTranslations("landing.footer");
+  const navT = useTranslations("landing.nav");
+  const locale = useLocale();
+  const nextLocale = locale === "ko" ? "en" : "ko";
   const links = t.raw("links") as Link[];
 
   return (
@@ -88,11 +90,13 @@ export function LandingFooter() {
               authorName: siteConfig.authorName,
             })}
           </div>
-          <LanguageSwitcher
-            tone="dark"
-            className="w-full justify-center sm:w-auto"
-            contentClassName="!w-[min(16rem,calc(100vw-2rem))] sm:!w-56"
-          />
+          <LandingLocaleLink
+            locale={nextLocale}
+            ariaLabel={navT("languageSwitch")}
+            className="inline-flex w-full items-center justify-center rounded-full border-2 border-stone-600 bg-transparent px-3 py-1.5 font-sans text-[11px] font-semibold tracking-widest uppercase text-stone-200 transition-colors hover:border-stone-50 hover:bg-stone-50 hover:text-stone-900 sm:w-auto"
+          >
+            {nextLocale}
+          </LandingLocaleLink>
         </div>
       </div>
     </footer>

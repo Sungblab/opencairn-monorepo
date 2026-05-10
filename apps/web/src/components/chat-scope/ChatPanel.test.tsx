@@ -15,6 +15,7 @@ vi.mock("@/hooks/useScopeContext", () => ({
 }));
 
 vi.mock("next-intl", () => ({
+  useLocale: () => "ko",
   useTranslations: (ns?: string) => (k: string, vars?: Record<string, unknown>) =>
     vars
       ? `${ns ? `${ns}.` : ""}${k}(${JSON.stringify(vars)})`
@@ -213,6 +214,8 @@ describe("<ChatPanel>", () => {
     await submitMessage("save this");
 
     await waitFor(() => expect(screen.getByText("Saved.")).toBeInTheDocument());
-    expect(screen.getByText(/Draft note/)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByText(/Draft note/)).toBeInTheDocument(),
+    );
   });
 });

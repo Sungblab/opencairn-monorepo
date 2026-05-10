@@ -1,21 +1,26 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { AccountShell } from "./account-shell";
+import type { AccountShellLabels } from "./account-shell-config";
 
-vi.mock("next-intl", () => ({
-  useLocale: () => "ko",
-  useTranslations: (ns?: string) => (k: string) => (ns ? `${ns}.${k}` : k),
-}));
-
-vi.mock("next/navigation", () => ({
-  usePathname: () => "/ko/settings/profile",
-}));
+const labels: AccountShellLabels = {
+  title: "account.title",
+  back: "account.back",
+  tabs: {
+    profile: "account.tabs.profile",
+    providers: "account.tabs.providers",
+    mcp: "account.tabs.mcp",
+    security: "account.tabs.security",
+    notifications: "account.tabs.notifications",
+    billing: "account.tabs.billing",
+  },
+};
 
 describe("AccountShell", () => {
   it("stacks navigation above content on small screens", () => {
     render(
-      <AccountShell>
+      <AccountShell locale="ko" labels={labels}>
         <h1>Profile content</h1>
       </AccountShell>,
     );
@@ -31,7 +36,7 @@ describe("AccountShell", () => {
 
   it("keeps the active tab readable against its active background", () => {
     render(
-      <AccountShell>
+      <AccountShell locale="ko" labels={labels}>
         <h1>Profile content</h1>
       </AccountShell>,
     );

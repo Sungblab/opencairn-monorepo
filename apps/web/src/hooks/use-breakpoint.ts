@@ -14,10 +14,9 @@ function compute(width: number): Breakpoint {
 }
 
 export function useBreakpoint(): Breakpoint {
-  // SSR fallback to "lg" so the desktop shell renders during the first paint
-  // for the >99% of visitors on >=1024px viewports — narrow viewports get a
-  // one-frame layout shift after hydration, which is the right tradeoff
-  // versus locking everyone behind a "loading" gate.
+  // SSR fallback to "lg" so the first client render matches server markup.
+  // Narrow viewports switch after hydration; avoiding that mismatch matters
+  // more than shaving the one-frame branch here.
   const [bp, setBp] = useState<Breakpoint>("lg");
 
   useEffect(() => {

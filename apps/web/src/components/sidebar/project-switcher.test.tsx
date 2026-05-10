@@ -7,6 +7,7 @@ const push = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
   useParams: () => ({ wsSlug: "acme" }),
+  usePathname: () => "/ko/workspace/acme/project/p-1",
 }));
 
 vi.mock("next-intl", () => ({

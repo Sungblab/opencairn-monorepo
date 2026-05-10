@@ -1,21 +1,31 @@
 "use client";
 
-// `@platejs/math` transitively imports `katex/dist/katex.min.css` at module
-// load, but Next.js 16 + Turbopack occasionally drops the CSS when the plugin
-// is only referenced via a re-export. Importing the stylesheet explicitly here
-// guarantees the bundler picks it up.
 import "katex/dist/katex.min.css";
 
-import { EquationPlugin, InlineEquationPlugin } from "@platejs/math/react";
+import { createPlatePlugin } from "platejs/react";
 
 import { MathBlock } from "../elements/math-block";
 import { MathInline } from "../elements/math-inline";
 
-// Plate v49: attach custom renderers via `.withComponent()`. Both plugins are
-// void nodes — insertion flows through `editor.tf.insert.equation()` and
-// `editor.tf.insert.inlineEquation(tex)` (wired up in Task 17 via slash `/math`).
-// There is no `$...$` autoformat in @platejs/math v49.
+const EquationPlugin = createPlatePlugin({
+  key: "equation",
+  node: { isElement: true, isVoid: true, type: "equation" },
+}).withComponent(MathBlock);
+
+const InlineEquationPlugin = createPlatePlugin({
+  key: "inline_equation",
+  node: {
+    isElement: true,
+    isInline: true,
+    isVoid: true,
+    type: "inline_equation",
+  },
+}).withComponent(MathInline);
+
+// Lightweight local math nodes. The slash/math-trigger code inserts the
+// `equation` and `inline_equation` nodes directly, so the upstream math React
+// entry would only add unused KaTeX runtime code to the initial editor bundle.
 export const latexPlugins = [
-  EquationPlugin.withComponent(MathBlock),
-  InlineEquationPlugin.withComponent(MathInline),
+  EquationPlugin,
+  InlineEquationPlugin,
 ];

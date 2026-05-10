@@ -19,8 +19,8 @@ vi.mock("next-intl", () => ({
     })[key] ?? key,
 }));
 
-vi.mock("@/components/import/first-source-intake", () => ({
-  FirstSourceIntake: ({
+vi.mock("./FirstSourceIntakeLoader", () => ({
+  FirstSourceIntakeLoader: ({
     initialMode,
     showModeTabs,
   }: {
@@ -34,16 +34,16 @@ vi.mock("@/components/import/first-source-intake", () => ({
   ),
 }));
 
-vi.mock("./DriveTab", () => ({
-  DriveTab: () => <div>Drive panel</div>,
+vi.mock("./DriveTabLoader", () => ({
+  DriveTabLoader: () => <div>Drive panel</div>,
 }));
 
-vi.mock("./MarkdownTab", () => ({
-  MarkdownTab: () => <div>Markdown panel</div>,
+vi.mock("./MarkdownTabLoader", () => ({
+  MarkdownTabLoader: () => <div>Markdown panel</div>,
 }));
 
-vi.mock("./NotionTab", () => ({
-  NotionTab: () => <div>Legacy ZIP panel</div>,
+vi.mock("./NotionTabLoader", () => ({
+  NotionTabLoader: () => <div>Legacy ZIP panel</div>,
 }));
 
 describe("ImportTabs", () => {

@@ -8,16 +8,18 @@ import { ActiveResearchList } from "./active-research-list";
 import { RecentDocsGrid } from "./recent-docs-grid";
 import { GettingStartedPanel } from "./getting-started-panel";
 
+export type DashboardViewProps = {
+  wsSlug: string;
+  wsId: string;
+};
+
 // Compose-only orchestrator. Keeps the data fetching co-located with each
 // card (StatsRow / ActiveResearchList / RecentDocsGrid) so an isolated card
 // failure doesn't blank the entire dashboard.
 export function DashboardView({
   wsSlug,
   wsId,
-}: {
-  wsSlug: string;
-  wsId: string;
-}) {
+}: DashboardViewProps) {
   const locale = useLocale();
   const t = useTranslations("dashboard");
   return (

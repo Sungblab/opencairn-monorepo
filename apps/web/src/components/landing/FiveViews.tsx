@@ -1,7 +1,5 @@
-"use client";
-import { useRef, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { useScrollReveal } from "@/lib/landing/hooks/useScrollReveal";
 
 type View = { n: string; cat: string; name: string; body: string };
 
@@ -95,12 +93,10 @@ const SVGS: ReactNode[] = [<GraphSvg key="g" />, <MindmapSvg key="m" />, <CardsS
 
 export function FiveViews() {
   const t = useTranslations("landing.views");
-  const ref = useRef<HTMLElement>(null);
-  useScrollReveal(ref);
   const items = t.raw("items") as View[];
 
   return (
-    <section ref={ref} className="bg-stone-100 py-24 md:py-32 border-y border-stone-900">
+    <section className="bg-stone-100 py-24 md:py-32 border-y border-stone-900">
       <div className="max-w-[1280px] mx-auto px-6 lg:px-10">
         <div className="mb-16 reveal">
           <h2 className="kr text-3xl md:text-5xl text-stone-900 leading-[1.05] tracking-tight font-semibold mb-5">

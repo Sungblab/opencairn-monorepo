@@ -1,20 +1,8 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { NextIntlClientProvider } from "next-intl";
 import { useResolvedTabTitle } from "./resolve-tab-title";
+import { TestShellLabelsProvider } from "@/components/shell/shell-labels.test-utils";
 import type { Tab } from "@/stores/tabs-store";
-
-// Fixture: only the keys actually referenced by the tests. Phase 3-B task 1
-// is plumbing only — no new i18n keys introduced here (task 11 handles
-// parity). These keys already exist in apps/web/messages/*/app-shell.json.
-const messages = {
-  appShell: {
-    tabTitles: {
-      dashboard: "대시보드",
-      research_run: "Research {id}",
-    },
-  },
-};
 
 const baseTab: Tab = {
   id: "t1",
@@ -40,11 +28,7 @@ function Probe({ tab }: { tab: Tab }) {
 }
 
 function renderWithIntl(ui: React.ReactNode) {
-  return render(
-    <NextIntlClientProvider locale="ko" messages={messages}>
-      {ui}
-    </NextIntlClientProvider>,
-  );
+  return render(<TestShellLabelsProvider>{ui}</TestShellLabelsProvider>);
 }
 
 describe("useResolvedTabTitle", () => {

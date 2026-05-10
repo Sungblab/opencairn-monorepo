@@ -1,8 +1,8 @@
 // Plan 2C Task 8 — `/[locale]/s/[token]` public-share SSR page.
 //
 // Routing-wise this lives under `[locale]/` (not `[locale]/app/`), so it
-// inherits ONLY the locale-root layout (NextIntlClientProvider + Toaster) —
-// no auth guard. There is no `middleware.ts` in this codebase; auth is
+// inherits ONLY the locale-root layout (NextIntlClientProvider) — no auth
+// guard. There is no `middleware.ts` in this codebase; auth is
 // enforced per route group via layouts (e.g., `(shell)/layout.tsx`).
 //
 // Security:
@@ -24,6 +24,7 @@ import { setRequestLocale } from "next-intl/server";
 import { PublicNoteView } from "@/components/share/public-note-view";
 import { ApiError, fetchPublicShare } from "@/lib/api-client";
 import type { Locale } from "@/i18n";
+import { IntlClientProvider } from "@/components/providers/intl-client-provider";
 
 // Always render this on each request — share-link state (revoked/not) is
 // mutable and we don't want a stale 200 to outlive a revoke at the CDN.
@@ -53,5 +54,9 @@ export default async function PublicSharePage({
     throw err;
   }
 
-  return <PublicNoteView note={note} />;
+  return (
+    <IntlClientProvider namespaces={["publicShare"]}>
+      <PublicNoteView note={note} />
+    </IntlClientProvider>
+  );
 }

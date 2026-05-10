@@ -1,5 +1,5 @@
 import { apiClient } from "@/lib/api-client";
-import { WorkspaceSettingsView } from "@/components/views/workspace-settings/workspace-settings-view";
+import { WorkspaceSettingsViewLoader } from "@/components/views/workspace-settings/workspace-settings-view-loader";
 
 // App Shell Phase 5 Task 6 — replaces the Phase 1 placeholder. Sub route
 // (/settings/<sub>) is read from the optional catch-all segment and threaded
@@ -15,7 +15,7 @@ export default async function WsSettings({
     `/workspaces/by-slug/${wsSlug}`,
   );
   return (
-    <WorkspaceSettingsView
+    <WorkspaceSettingsViewLoader
       wsSlug={wsSlug}
       wsId={ws.id}
       path={slug ?? []}

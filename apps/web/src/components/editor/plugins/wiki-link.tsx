@@ -50,9 +50,8 @@ export function buildWikiLinkNode(hit: NoteSearchHit): TWikiLinkElement {
 // ---------------------------------------------------------------------------
 // Combobox portal. A window-scoped Cmd/Ctrl+K opens it. When a result is
 // selected the node is inserted at the current selection via
-// `editor.tf.insertNodes` (plural — confirmed against
-// @platejs/math's inline insert flow) followed by a trailing space so the
-// caret lands outside the inline.
+// `editor.tf.insertNodes` (plural) followed by a trailing space so the caret
+// lands outside the inline.
 // ---------------------------------------------------------------------------
 
 export interface WikiLinkComboboxProps {

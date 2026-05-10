@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { setRequestLocale, getTranslations } from "next-intl/server";
 import type { Locale } from "@/i18n";
-import { ByokKeyCard } from "@/components/settings/ByokKeyCard";
+import { ByokKeyCardLoader } from "@/components/settings/ByokKeyCardLoader";
 
 export default async function SettingsAiPage({
   params,
@@ -36,7 +36,7 @@ export default async function SettingsAiPage({
         <h1 className="text-xl font-semibold">{t("title")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t("subtitle")}</p>
       </header>
-      <ByokKeyCard />
+      <ByokKeyCardLoader withProviders />
     </main>
   );
 }

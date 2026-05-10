@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { clsx } from "clsx";
 
 // Editorial label with pulse dot — reuses the landing Hero "SEC · label"
 // pattern (see globals.css .sec-label / .pulse-dot).
@@ -12,16 +12,16 @@ export function AuthEyebrow({
   className?: string;
 }) {
   return (
-    <div className={cn("flex items-center gap-2.5", className)}>
+    <div className={clsx("flex items-center gap-2.5", className)}>
       <span
-        className={cn(
+        className={clsx(
           "w-2 h-2 rounded-full pulse-dot",
           tone === "light" ? "bg-stone-400" : "bg-stone-900",
         )}
         aria-hidden
       />
       <span
-        className={cn(
+        className={clsx(
           "font-sans text-[11px] font-semibold tracking-[0.18em] uppercase",
           tone === "light" ? "text-stone-400" : "text-stone-900",
         )}

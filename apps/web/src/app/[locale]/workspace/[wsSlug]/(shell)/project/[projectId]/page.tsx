@@ -1,4 +1,4 @@
-import { ProjectView } from "@/components/views/project/project-view";
+import { ProjectViewLoader } from "@/components/views/project/project-view-loader";
 
 // App Shell Phase 5 Task 2 — project view inside the (shell) route group so
 // it picks up the App Shell sidebar / tab bar / agent panel. The legacy
@@ -10,5 +10,5 @@ export default async function ProjectPage({
   params: Promise<{ wsSlug: string; projectId: string }>;
 }) {
   const { wsSlug, projectId } = await params;
-  return <ProjectView wsSlug={wsSlug} projectId={projectId} />;
+  return <ProjectViewLoader wsSlug={wsSlug} projectId={projectId} />;
 }

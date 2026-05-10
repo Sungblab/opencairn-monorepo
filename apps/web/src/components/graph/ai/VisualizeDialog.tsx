@@ -33,7 +33,7 @@ import { useVisualizeMutation } from "./useVisualizeMutation";
 import { useViewSpecApply } from "../useViewSpecApply";
 import { VisualizeProgress } from "./VisualizeProgress";
 
-interface Props {
+export interface VisualizeDialogProps {
   open: boolean;
   onClose: () => void;
   projectId: string;
@@ -51,7 +51,11 @@ const VIEW_OPTIONS: ReadonlyArray<ViewType | undefined> = [
   "board",
 ];
 
-export function VisualizeDialog({ open, onClose, projectId }: Props) {
+export function VisualizeDialog({
+  open,
+  onClose,
+  projectId,
+}: VisualizeDialogProps) {
   const tAi = useTranslations("graph.ai");
   const tErr = useTranslations("graph.errors");
   const { submit, cancel, progress, viewSpec, error, submitting } =

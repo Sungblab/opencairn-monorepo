@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
-import { NoteEditorClient } from "@/components/editor/note-editor-client";
+import { NoteRouteClientLoader } from "@/components/notes/NoteRouteClientLoader";
 
 interface PageProps {
   params: Promise<{
@@ -14,6 +14,8 @@ interface PageProps {
 interface NoteMetaDTO {
   id: string;
   title: string;
+  updatedAt: string;
+  sourceType: string | null;
   // Denormalized workspace uuid from the notes row (see notes.workspaceId in
   // packages/db). Plan 2B Task 19 threads this into NoteEditor →
   // CommentsPanel → CommentComposer so the @mention search can scope itself.
@@ -84,9 +86,11 @@ export default async function NotePage({ params }: PageProps) {
   const canComment = role !== "viewer";
 
   return (
-    <NoteEditorClient
+    <NoteRouteClientLoader
       noteId={note.id}
-      initialTitle={note.title}
+      title={note.title}
+      sourceType={note.sourceType ?? null}
+      updatedAtIso={note.updatedAt}
       wsSlug={wsSlug}
       workspaceId={note.workspaceId}
       projectId={projectId}

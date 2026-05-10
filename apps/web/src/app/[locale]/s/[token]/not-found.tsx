@@ -4,7 +4,6 @@
 // `page.tsx`. We intentionally collapse all failure modes into one screen
 // so attackers can't probe for the existence of revoked tokens.
 
-import Link from "next/link";
 import { useTranslations } from "next-intl";
 
 export default function ShareNotFound() {
@@ -14,12 +13,12 @@ export default function ShareNotFound() {
     <main className="flex min-h-screen items-center justify-center bg-background px-6 py-16">
       <div className="w-full max-w-md rounded-xl border border-border bg-card p-8 text-center shadow-sm">
         <p className="mb-6 text-sm text-muted-foreground">{t("notFound")}</p>
-        <Link
+        <a
           href="/"
           className="inline-flex h-9 items-center justify-center rounded-md bg-foreground px-4 text-sm font-medium text-background transition-opacity hover:opacity-90"
         >
           {t("signInCta")}
-        </Link>
+        </a>
       </div>
     </main>
   );

@@ -1,7 +1,7 @@
 "use client";
 import { useTranslations, useLocale } from "next-intl";
 import { authClient, googleOAuthEnabled } from "@/lib/auth-client";
-import { cn } from "@/lib/utils";
+import { clsx } from "clsx";
 import { urls } from "@/lib/urls";
 
 interface GoogleButtonProps {
@@ -29,7 +29,7 @@ export function GoogleButton({ className }: GoogleButtonProps) {
     <button
       type="button"
       onClick={handleClick}
-      className={cn("auth-btn auth-btn-secondary w-full", className)}
+      className={clsx("auth-btn auth-btn-secondary w-full", className)}
     >
       <svg viewBox="0 0 24 24" className="size-[18px]" aria-hidden="true">
         <path

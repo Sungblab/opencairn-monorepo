@@ -6,23 +6,16 @@ import type { Tab } from "@/stores/tabs-store";
 
 // Shallow-mock the heavy viewers; the router's job is just dispatch. Their
 // own tests cover behavior.
-vi.mock("./viewers/reading-viewer", () => ({
-  ReadingViewer: () => <div data-testid="reading-viewer" />,
-}));
-vi.mock("./viewers/source-viewer", () => ({
-  SourceViewer: () => <div data-testid="source-viewer" />,
-}));
-vi.mock("./viewers/data-viewer", () => ({
-  DataViewer: () => <div data-testid="data-viewer" />,
-}));
-vi.mock("./viewers/canvas-viewer", () => ({
-  CanvasViewer: () => <div data-testid="canvas-viewer" />,
-}));
-vi.mock("./viewers/project-graph-viewer", () => ({
-  ProjectGraphViewer: () => <div data-testid="project-graph-viewer" />,
-}));
-vi.mock("./viewers/code-workspace-viewer", () => ({
-  CodeWorkspaceViewer: () => <div data-testid="code-workspace-viewer" />,
+vi.mock("./routed-viewer-loader", () => ({
+  LazyReadingViewer: () => <div data-testid="reading-viewer" />,
+  LazySourceViewer: () => <div data-testid="source-viewer" />,
+  LazyDataViewer: () => <div data-testid="data-viewer" />,
+  LazyCanvasViewer: () => <div data-testid="canvas-viewer" />,
+  LazyProjectGraphViewer: () => <div data-testid="project-graph-viewer" />,
+  LazyIngestViewer: () => <div data-testid="ingest-viewer" />,
+  LazyLitSearchViewer: () => <div data-testid="lit-search-viewer" />,
+  LazyAgentFileViewer: () => <div data-testid="agent-file-viewer" />,
+  LazyCodeWorkspaceViewer: () => <div data-testid="code-workspace-viewer" />,
 }));
 
 const mk = (mode: Tab["mode"]): Tab => ({

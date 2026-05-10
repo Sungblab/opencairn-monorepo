@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { urls } from "@/lib/urls";
 
@@ -34,7 +33,7 @@ export default async function LearnHubPage({
       <p className="text-muted-foreground mb-8">{t("subtitle")}</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {sections.map((s) => (
-          <Link
+          <a
             key={s.href}
             href={s.href}
             className="rounded-xl border border-border bg-card p-5 hover:shadow-md transition-shadow flex flex-col gap-2"
@@ -45,7 +44,7 @@ export default async function LearnHubPage({
             <span className="text-sm text-muted-foreground">
               {t(s.descKey)}
             </span>
-          </Link>
+          </a>
         ))}
       </div>
     </div>

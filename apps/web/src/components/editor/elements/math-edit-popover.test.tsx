@@ -4,7 +4,7 @@
 // Uses jsdom environment (tsx file), no editor required.
 
 import { describe, it, expect, vi } from "vitest";
-import { render, fireEvent } from "@testing-library/react";
+import { render, fireEvent, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { MathEditPopover } from "./math-edit-popover";
 import koMessages from "@/../messages/ko/editor.json";
@@ -18,7 +18,7 @@ function withIntl(ui: React.ReactNode) {
 }
 
 describe("MathEditPopover", () => {
-  it("renders KaTeX preview for valid LaTeX", () => {
+  it("renders KaTeX preview for valid LaTeX", async () => {
     render(
       withIntl(
         <MathEditPopover
@@ -33,7 +33,9 @@ describe("MathEditPopover", () => {
     );
     // PopoverContent renders into a Portal (document.body), not the render container.
     // KaTeX injects elements with the .katex class into the preview pane.
-    expect(document.body.querySelector(".katex")).toBeTruthy();
+    await waitFor(() => {
+      expect(document.body.querySelector(".katex")).toBeTruthy();
+    });
   });
 
   it("calls onSave with new tex on Save click", () => {

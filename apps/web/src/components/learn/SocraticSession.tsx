@@ -20,7 +20,7 @@ type Evaluation = {
 
 type Stage = "input" | "questions" | "answering" | "result";
 
-type SocraticSessionProps = {
+export type SocraticSessionProps = {
   projectId: string;
   initialConcept?: string;
   initialNoteContext?: string;

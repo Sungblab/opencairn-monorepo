@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { setRequestLocale, getTranslations } from "next-intl/server";
 
 import type { Locale } from "@/i18n";
-import { McpSettingsClient } from "@/components/settings/mcp/McpSettingsClient";
+import { McpSettingsClientLoader } from "@/components/settings/mcp/McpSettingsClientLoader";
 
 // Account-tab variant of the standalone /settings/mcp page. Wraps the
 // same client so users find MCP server registration where they expect it
@@ -45,9 +45,10 @@ export default async function SettingsMcpPage({
       {!mcpClientEnabled && !mcpServerEnabled ? (
         <p className="text-sm text-muted-foreground">{t("feature_disabled")}</p>
       ) : (
-        <McpSettingsClient
+        <McpSettingsClientLoader
           mcpClientEnabled={mcpClientEnabled}
           mcpServerEnabled={mcpServerEnabled}
+          withProviders
         />
       )}
     </section>

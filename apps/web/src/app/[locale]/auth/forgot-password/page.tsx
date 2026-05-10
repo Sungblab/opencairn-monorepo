@@ -1,6 +1,6 @@
 import { setRequestLocale } from "next-intl/server";
 import type { Locale } from "@/i18n";
-import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm";
+import { ForgotPasswordFormLoader } from "@/components/auth/ForgotPasswordFormLoader";
 
 export default async function ForgotPasswordPage({
   params,
@@ -9,5 +9,5 @@ export default async function ForgotPasswordPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale as Locale);
-  return <ForgotPasswordForm />;
+  return <ForgotPasswordFormLoader />;
 }

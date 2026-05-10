@@ -1,5 +1,5 @@
-import { NotificationsView } from "@/components/views/account/notifications-view";
+import { NotificationsViewLoader } from "@/components/views/account/notifications-view-loader";
 
 export default function Page() {
-  return <NotificationsView />;
+  return <NotificationsViewLoader />;
 }

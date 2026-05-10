@@ -51,10 +51,10 @@ describe("ProjectGraph (assembled)", () => {
     expect(screen.getByTestId("switcher-ai")).toBeInTheDocument();
   });
 
-  it("AI button opens VisualizeDialog", () => {
+  it("AI button opens VisualizeDialog", async () => {
     wrap(<ProjectGraph projectId="p-1" />);
     expect(screen.queryByTestId("dialog")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("switcher-ai"));
-    expect(screen.getByTestId("dialog")).toBeInTheDocument();
+    expect(await screen.findByTestId("dialog")).toBeInTheDocument();
   });
 });

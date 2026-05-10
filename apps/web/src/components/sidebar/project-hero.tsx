@@ -25,7 +25,7 @@ export function ProjectHero() {
     <Popover>
       <PopoverTrigger
         aria-label={t("switch_aria")}
-        className="flex min-h-12 w-full items-center justify-between gap-2 rounded-[var(--radius-control)] border border-transparent bg-background px-3 py-3 text-left transition-colors hover:border-border hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex min-h-10 w-full items-center justify-between gap-2 rounded-[var(--radius-control)] border border-transparent bg-background px-3 py-2 text-left transition-colors hover:border-border hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-9 md:py-1.5"
       >
         <span className="truncate text-sm font-semibold">
           {triggerLabel}

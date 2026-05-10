@@ -1,4 +1,6 @@
 import { requireSession } from "@/lib/session";
+import { LocaleAppProviders } from "@/components/providers/locale-app-providers";
+import { IntlClientProvider } from "@/components/providers/intl-client-provider";
 
 export default async function AppLayout({
   children,
@@ -6,9 +8,11 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   await requireSession();
-  // ReactQueryProvider lives one level up at [locale]/layout.tsx — both for
-  // the global Command Palette and for non-(shell) routes that share the
-  // same client. Re-mounting it here would create a nested QueryClient and
-  // break cache sharing across pages.
-  return <div className="flex min-h-screen">{children}</div>;
+  return (
+    <IntlClientProvider>
+      <LocaleAppProviders>
+        <div className="flex min-h-screen">{children}</div>
+      </LocaleAppProviders>
+    </IntlClientProvider>
+  );
 }

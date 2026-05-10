@@ -4,6 +4,41 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NextIntlClientProvider } from "next-intl";
 import { ReadingViewer } from "./reading-viewer";
 
+vi.mock("next/dynamic", () => ({
+  default: () => {
+    const DynamicReadingViewerBody = (props: Record<string, unknown>) => {
+      const React = require("react") as typeof import("react");
+      const size = props.size as number;
+      const setSize = props.setSize as (size: number) => void;
+      const label = props.label as { fontSize: string };
+
+      return React.createElement(
+        "div",
+        { "data-testid": "reading-viewer", className: "h-full" },
+        React.createElement("input", {
+          type: "range",
+          min: 14,
+          max: 22,
+          step: 1,
+          value: size,
+          onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+            setSize(Number(e.target.value)),
+          "aria-label": label.fontSize,
+        }),
+        React.createElement(
+          "div",
+          {
+            "data-testid": "reading-viewer-body",
+            style: { fontSize: `${size}px` },
+          },
+          React.createElement("div", { "data-testid": "plate-content" }),
+        ),
+      );
+    };
+    return DynamicReadingViewerBody;
+  },
+}));
+
 // Mock collaborative editor — the hook returns a stub PlateEditor.
 vi.mock("@/hooks/useCollaborativeEditor", () => ({
   useCollaborativeEditor: () => ({

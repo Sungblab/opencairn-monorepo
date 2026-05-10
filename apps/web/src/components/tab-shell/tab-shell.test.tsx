@@ -4,19 +4,13 @@ import { NextIntlClientProvider } from "next-intl";
 import { TabShell } from "./tab-shell";
 import { useTabsStore, type Tab } from "@/stores/tabs-store";
 
-// Stub the TabBar + router so we can assert on the branch choice directly.
-// We intentionally reimplement `isRoutedByTabModeRouter` inline rather than
-// `vi.importActual`-ing the real module, because the real module's imports
-// (ReadingViewer → Plate → katex CSS) can't be loaded in the vitest
-// environment. The predicate is the canonical plate-vs-router switch and
-// both sides keep it in lockstep: TabModeRouter throws for plate; here we
-// return false for plate so TabShell renders children instead.
+// Stub the TabBar + router loader so we can assert on the branch choice
+// directly without loading routed viewer bundles in jsdom.
 vi.mock("./tab-bar", () => ({ TabBar: () => <div data-testid="tab-bar" /> }));
-vi.mock("./tab-mode-router", () => ({
-  TabModeRouter: ({ tab }: { tab: Tab }) => (
+vi.mock("./tab-mode-router-loader", () => ({
+  TabModeRouterLoader: ({ tab }: { tab: Tab }) => (
     <div data-testid={`router-${tab.mode}`} />
   ),
-  isRoutedByTabModeRouter: (tab: Tab) => tab.mode !== "plate",
 }));
 
 const messages = {};
