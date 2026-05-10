@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect } from "react";
 
@@ -11,6 +12,7 @@ export default function ErrorPage({
   reset: () => void;
 }) {
   const t = useTranslations("common.errorPages.server");
+  const router = useRouter();
 
   useEffect(() => {
     console.error(error);
@@ -41,7 +43,10 @@ export default function ErrorPage({
           <div className="flex flex-col gap-3">
             <button
               type="button"
-              onClick={reset}
+              onClick={() => {
+                reset();
+                router.refresh();
+              }}
               className="auth-btn auth-btn-primary w-full kr"
             >
               {t("retry")}

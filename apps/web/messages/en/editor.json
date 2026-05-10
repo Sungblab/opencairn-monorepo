@@ -86,6 +86,8 @@
     "numbered": "Numbered list",
     "quote": "Quote",
     "wikilink": "Link note",
+    "comments": "Comments",
+    "agents": "AI work",
     "narrate": "Create audio"
   },
   "table": {

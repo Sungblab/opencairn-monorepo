@@ -5,6 +5,7 @@
   },
   "comments": {
     "panel_title": "Comments",
+    "close": "Close comments",
     "add_button": "Add comment",
     "composer_placeholder": "Write a comment...",
     "reply": "Reply",

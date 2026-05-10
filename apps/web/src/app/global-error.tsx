@@ -148,7 +148,10 @@ export default function GlobalError({
               >
                 <button
                   type="button"
-                  onClick={reset}
+                  onClick={() => {
+                    reset();
+                    window.location.reload();
+                  }}
                   className="ge-btn ge-btn-primary"
                 >
                   새로고침 / Reload

@@ -29,7 +29,13 @@ vi.mock("../collab/ReadOnlyBanner", () => ({
   ReadOnlyBanner: () => null,
 }));
 vi.mock("../comments/CommentsPanel", () => ({
-  CommentsPanel: () => null,
+  CommentsPanel: ({ onClose }: { onClose?: () => void }) => (
+    <aside aria-label="댓글 패널">
+      <button type="button" onClick={onClose}>
+        댓글 닫기
+      </button>
+    </aside>
+  ),
 }));
 vi.mock("./PresenceStack", () => ({
   PresenceStack: () => null,
@@ -149,5 +155,27 @@ describe("NoteEditor.onFirstEdit", () => {
   it("renders the share button as a full-height control", () => {
     renderNoteEditor();
     expect(screen.getByTestId("share-button").className).toContain("min-h-7");
+  });
+
+  it("keeps comments closed by default and opens them from the title row", () => {
+    renderNoteEditor();
+
+    expect(
+      screen.queryByRole("complementary", { name: "댓글 패널" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("comments-toggle-button"));
+
+    expect(screen.getByRole("complementary", { name: "댓글 패널" })).toBeInTheDocument();
+  });
+
+  it("renders a project agent entrypoint next to note actions", () => {
+    renderNoteEditor();
+
+    const agentLink = screen.getByTestId("note-agent-link");
+    expect(agentLink).toHaveAttribute(
+      "href",
+      "/ko/workspace/ws/project/p1/agents?noteId=n1",
+    );
   });
 });

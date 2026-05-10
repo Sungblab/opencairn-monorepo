@@ -126,4 +126,42 @@ describe("SlashMenu focus gate", () => {
 
     expect(screen.queryByTestId("slash-menu")).toBeInTheDocument();
   });
+
+  it("puts AI commands before block commands when AI is enabled", () => {
+    render(
+      wrap(
+        <>
+          <div data-slate-editor="true" tabIndex={-1} data-testid="editor" />
+          <SlashMenu editor={makeEditor()} aiEnabled />
+        </>,
+      ),
+    );
+
+    const editorEl = screen.getByTestId("editor") as HTMLDivElement;
+    editorEl.focus();
+    pressSlashAndFlush();
+
+    const buttons = screen.getAllByRole("button");
+    expect(buttons[0]).toHaveAttribute("data-testid", "slash-cmd-improve");
+    expect(buttons[1]).toHaveAttribute("data-testid", "slash-cmd-translate");
+  });
+
+  it("opens as a lightweight command menu without dimming the whole page", () => {
+    render(
+      wrap(
+        <>
+          <div data-slate-editor="true" tabIndex={-1} data-testid="editor" />
+          <SlashMenu editor={makeEditor()} />
+        </>,
+      ),
+    );
+
+    const editorEl = screen.getByTestId("editor") as HTMLDivElement;
+    editorEl.focus();
+    pressSlashAndFlush();
+
+    expect(screen.getByTestId("slash-menu").className).not.toContain(
+      "bg-black/20",
+    );
+  });
 });
