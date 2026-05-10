@@ -35,7 +35,11 @@ function TabOverflowItem({
   );
 }
 
-export function TabOverflowMenu() {
+export function TabOverflowMenu({
+  initialOpen = false,
+}: {
+  initialOpen?: boolean;
+}) {
   const tabs = useTabsStore((s) => s.tabs);
   const navigateToTab = useTabNavigate();
   const t = useTranslations("appShell.tabs.bar");
@@ -43,7 +47,7 @@ export function TabOverflowMenu() {
   if (tabs.length === 0) return null;
 
   return (
-    <DropdownMenu>
+    <DropdownMenu defaultOpen={initialOpen}>
       <DropdownMenuTrigger
         aria-label={t("overflowTrigger")}
         data-testid="tab-overflow-trigger"
@@ -51,10 +55,7 @@ export function TabOverflowMenu() {
       >
         <MoreHorizontal className="h-4 w-4" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="max-h-80 w-56 overflow-auto"
-      >
+      <DropdownMenuContent align="end" className="max-h-80 w-56 overflow-auto">
         {tabs.map((tab) => (
           <TabOverflowItem
             key={tab.id}

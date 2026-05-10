@@ -55,4 +55,20 @@ describe("route client manifest size script", () => {
     expect(output).toContain("15 2 0 /[locale]/page");
     expect(output).toContain("10 1 0 /[locale]/admin/page");
   });
+
+  it("rejects flags that are missing values", () => {
+    for (const args of [
+      ["--root"],
+      ["--root", "--json"],
+      ["--limit"],
+      ["--limit", "--json"],
+    ]) {
+      expect(() =>
+        execFileSync(process.execPath, [scriptPath, ...args], {
+          encoding: "utf8",
+          stdio: "pipe",
+        }),
+      ).toThrow(/requires a value/);
+    }
+  });
 });

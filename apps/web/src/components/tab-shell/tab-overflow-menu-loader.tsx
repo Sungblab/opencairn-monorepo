@@ -1,6 +1,7 @@
 "use client";
 
 import { lazy, Suspense, useCallback, useState } from "react";
+import type { PointerEvent } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { useShellLabels } from "@/components/shell/shell-labels";
 import { useTabsStore } from "@/stores/tabs-store";
@@ -14,16 +15,23 @@ const LazyTabOverflowMenu = lazy(() =>
 export function TabOverflowMenuLoader() {
   const tabsLength = useTabsStore((s) => s.tabs.length);
   const [menuRequested, setMenuRequested] = useState(false);
-  const requestMenu = useCallback(() => setMenuRequested(true), []);
+  const [openOnLoad, setOpenOnLoad] = useState(false);
+  const requestMenu = useCallback((openAfterLoad: boolean) => {
+    setMenuRequested(true);
+    if (openAfterLoad) setOpenOnLoad(true);
+  }, []);
 
   if (tabsLength === 0) return null;
 
   return menuRequested ? (
     <Suspense fallback={<TabOverflowMenuFallback />}>
-      <LazyTabOverflowMenu />
+      <LazyTabOverflowMenu initialOpen={openOnLoad} />
     </Suspense>
   ) : (
-    <TabOverflowMenuTrigger onRequest={requestMenu} />
+    <TabOverflowMenuTrigger
+      onPreload={() => requestMenu(false)}
+      onOpenRequest={() => requestMenu(true)}
+    />
   );
 }
 
@@ -33,12 +41,20 @@ function TabOverflowMenuFallback() {
 
 function TabOverflowMenuTrigger({
   disabled = false,
-  onRequest,
+  onPreload,
+  onOpenRequest,
 }: {
   disabled?: boolean;
-  onRequest?: () => void;
+  onPreload?: () => void;
+  onOpenRequest?: () => void;
 }) {
   const { tabs: labels } = useShellLabels();
+  const handlePointerEnter = useCallback(
+    (event: PointerEvent<HTMLButtonElement>) => {
+      if (event.pointerType !== "touch") onPreload?.();
+    },
+    [onPreload],
+  );
 
   return (
     <button
@@ -46,9 +62,9 @@ function TabOverflowMenuTrigger({
       aria-label={labels.bar.overflowTrigger}
       data-testid="tab-overflow-trigger"
       disabled={disabled}
-      onPointerEnter={onRequest}
-      onFocus={onRequest}
-      onClick={onRequest}
+      onPointerEnter={handlePointerEnter}
+      onFocus={onPreload}
+      onClick={onOpenRequest}
       className={`flex h-10 w-10 shrink-0 items-center justify-center border-l border-border text-muted-foreground ${
         disabled ? "opacity-70" : "hover:bg-accent"
       }`}

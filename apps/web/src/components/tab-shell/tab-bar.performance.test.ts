@@ -27,9 +27,7 @@ describe("TabBar bundle boundary", () => {
     expect(read("src/components/tab-shell/tab-bar.tsx")).toContain(
       "@/components/shell/shell-labels",
     );
-    expect(read("src/lib/resolve-tab-title.tsx")).toContain(
-      "useShellLabels",
-    );
+    expect(read("src/lib/resolve-tab-title.tsx")).toContain("useShellLabels");
     expect(read("src/hooks/use-url-tab-sync.ts")).toContain("useShellLabels");
   });
 
@@ -56,7 +54,9 @@ describe("TabBar bundle boundary", () => {
     expect(staticList).not.toContain("@/components/ui/context-menu");
     expect(staticList).not.toContain("./tab-context-menu");
 
-    const loader = read("src/components/tab-shell/sortable-tab-list-loader.tsx");
+    const loader = read(
+      "src/components/tab-shell/sortable-tab-list-loader.tsx",
+    );
     expect(loader).toContain("lazy(");
     expect(loader).toContain('import("./sortable-tab-list")');
     expect(loader).not.toMatch(/from\s+["']\.\/static-tab-list["']/);
@@ -73,7 +73,12 @@ describe("TabBar bundle boundary", () => {
     expect(overflowLoader).toContain("lazy(");
     expect(overflowLoader).toContain('import("./tab-overflow-menu")');
     expect(overflowLoader).toContain("useState(false)");
+    expect(overflowLoader).toContain("openOnLoad");
+    expect(overflowLoader).toContain('pointerType !== "touch"');
     expect(overflowLoader).toContain("menuRequested ?");
     expect(overflowLoader).toContain("onPointerEnter");
+    expect(read("src/components/tab-shell/tab-overflow-menu.tsx")).toContain(
+      "defaultOpen={initialOpen}",
+    );
   });
 });
