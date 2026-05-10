@@ -10,6 +10,14 @@
     "cite": "인용 추가",
     "factcheck": "팩트체크"
   },
+  "description": {
+    "improve": "현재 블록을 더 자연스럽게 다듬어요",
+    "translate": "현재 블록을 다른 언어로 번역해요",
+    "summarize": "현재 블록의 핵심만 짧게 정리해요",
+    "expand": "현재 블록을 더 자세한 문장으로 확장해요",
+    "cite": "프로젝트 근거를 찾아 인용을 보강해요",
+    "factcheck": "검토가 필요한 주장에 근거 댓글을 달아요"
+  },
   "translate": {
     "language": {
       "ko": "한국어",

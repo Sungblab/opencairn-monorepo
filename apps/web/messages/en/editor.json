@@ -16,6 +16,15 @@
     "hint": "Type a note title"
   },
   "slash": {
+    "aria_label": "Slash commands",
+    "search_label": "Command",
+    "search_placeholder": "Type a command",
+    "no_results": "No matching commands.",
+    "section": {
+      "text": "Text",
+      "structure": "Structure",
+      "media": "Media"
+    },
     "heading_1": "Heading 1",
     "heading_2": "Heading 2",
     "heading_3": "Heading 3",
@@ -31,7 +40,25 @@
     "table": "Table",
     "columns": "Columns",
     "image": "Image",
-    "embed": "Embed"
+    "embed": "Embed",
+    "description": {
+      "heading_1": "Turn this block into a large section title",
+      "heading_2": "Turn this block into a medium section title",
+      "heading_3": "Turn this block into a small section title",
+      "bulleted_list": "Create a scannable list",
+      "numbered_list": "Create an ordered list",
+      "quote": "Set this block apart as a quote",
+      "code": "Format selected text as inline code",
+      "divider": "Insert a divider between sections",
+      "math": "Insert a math block",
+      "mermaid": "Insert a Mermaid diagram block",
+      "callout": "Highlight important content in a callout",
+      "toggle": "Create a collapsible block",
+      "table": "Insert a 3x3 table",
+      "columns": "Insert a two-column layout",
+      "image": "Insert an image from a URL",
+      "embed": "Insert a video embed"
+    }
   },
   "math": {
     "parse_error": "Math parse error",

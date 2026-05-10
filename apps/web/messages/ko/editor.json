@@ -16,6 +16,15 @@
     "hint": "노트 제목을 입력해보세요"
   },
   "slash": {
+    "aria_label": "슬래시 명령어",
+    "search_label": "명령어",
+    "search_placeholder": "명령어를 입력하세요",
+    "no_results": "일치하는 명령어가 없어요.",
+    "section": {
+      "text": "텍스트",
+      "structure": "구조",
+      "media": "미디어"
+    },
     "heading_1": "제목 1",
     "heading_2": "제목 2",
     "heading_3": "제목 3",
@@ -31,7 +40,25 @@
     "table": "표",
     "columns": "다단",
     "image": "이미지",
-    "embed": "임베드"
+    "embed": "임베드",
+    "description": {
+      "heading_1": "큰 섹션 제목으로 바꿔요",
+      "heading_2": "중간 섹션 제목으로 바꿔요",
+      "heading_3": "작은 섹션 제목으로 바꿔요",
+      "bulleted_list": "빠르게 훑는 목록을 만들어요",
+      "numbered_list": "순서가 있는 목록을 만들어요",
+      "quote": "강조할 문장을 인용 형태로 바꿔요",
+      "code": "선택한 텍스트를 인라인 코드로 바꿔요",
+      "divider": "문단 사이를 나누는 선을 넣어요",
+      "math": "수식 블록을 넣어요",
+      "mermaid": "Mermaid 다이어그램 블록을 넣어요",
+      "callout": "중요한 내용을 박스로 강조해요",
+      "toggle": "접고 펼치는 블록을 만들어요",
+      "table": "3x3 표를 삽입해요",
+      "columns": "두 단 레이아웃을 삽입해요",
+      "image": "URL로 이미지를 삽입해요",
+      "embed": "동영상 임베드를 삽입해요"
+    }
   },
   "math": {
     "parse_error": "수식 파싱 오류",

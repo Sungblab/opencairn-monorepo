@@ -10,6 +10,14 @@
     "cite": "Add citation",
     "factcheck": "Fact-check"
   },
+  "description": {
+    "improve": "Rewrite the current block more clearly",
+    "translate": "Translate the current block to another language",
+    "summarize": "Condense the current block to its essentials",
+    "expand": "Expand the current block with more detail",
+    "cite": "Find project evidence and add citations",
+    "factcheck": "Add evidence comments for claims that need review"
+  },
   "translate": {
     "language": {
       "ko": "Korean",

@@ -2,6 +2,29 @@
 
 import { toggleList } from "@platejs/list";
 import { insertTable } from "@platejs/table";
+import type { LucideIcon } from "lucide-react";
+import {
+  Bot,
+  Code,
+  Columns2,
+  FileText,
+  Heading1,
+  Heading2,
+  Heading3,
+  Image,
+  Languages,
+  List,
+  ListOrdered,
+  Minus,
+  PanelTop,
+  Quote,
+  SearchCheck,
+  Sparkles,
+  Table2,
+  ToggleLeft,
+  Video,
+  WandSparkles,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
@@ -63,68 +86,223 @@ export type SlashAiKey =
 
 export type SlashKey = SlashBlockKey | SlashAiKey;
 
-// `tNode` helper keeps the menu as an ordered list so the E2E can assert a
-// stable sequence.
+type SlashGroup = "ai" | "text" | "structure" | "media";
+
+type SlashBlockLabelKey =
+  | "heading_1"
+  | "heading_2"
+  | "heading_3"
+  | "bulleted_list"
+  | "numbered_list"
+  | "quote"
+  | "code"
+  | "divider"
+  | "mermaid"
+  | "callout"
+  | "toggle"
+  | "table"
+  | "columns"
+  | "image"
+  | "embed";
+
 interface SlashBlockDef {
   key: SlashBlockKey;
-  section: "block";
-  labelKey:
-    | "heading_1"
-    | "heading_2"
-    | "heading_3"
-    | "bulleted_list"
-    | "numbered_list"
-    | "quote"
-    | "code"
-    | "divider"
-    | "mermaid"
-    | "callout"
-    | "toggle"
-    | "table"
-    | "columns"
-    | "image"
-    | "embed";
+  group: Exclude<SlashGroup, "ai">;
+  icon: LucideIcon;
+  labelKey: SlashBlockLabelKey;
+  descriptionKey: SlashBlockLabelKey;
+  keywords: string[];
 }
 
 interface SlashAiDef {
   key: SlashAiKey;
-  section: "ai";
+  group: "ai";
+  icon: LucideIcon;
   // Plan 11B Phase A — labels live in the dedicated `docEditor.command`
   // namespace so the AI section can be re-skinned independent of the
   // editor block menu.
   labelKey: SlashAiKey;
+  descriptionKey: SlashAiKey;
+  keywords: string[];
 }
 
 type SlashCommandDef = SlashBlockDef | SlashAiDef;
 
 const BLOCK_COMMANDS: SlashBlockDef[] = [
-  { key: "h1", section: "block", labelKey: "heading_1" },
-  { key: "h2", section: "block", labelKey: "heading_2" },
-  { key: "h3", section: "block", labelKey: "heading_3" },
-  { key: "ul", section: "block", labelKey: "bulleted_list" },
-  { key: "ol", section: "block", labelKey: "numbered_list" },
-  { key: "blockquote", section: "block", labelKey: "quote" },
-  { key: "code", section: "block", labelKey: "code" },
-  { key: "hr", section: "block", labelKey: "divider" },
-  { key: "mermaid", section: "block", labelKey: "mermaid" },
-  { key: "callout", section: "block", labelKey: "callout" },
-  { key: "toggle", section: "block", labelKey: "toggle" },
-  { key: "table", section: "block", labelKey: "table" },
-  { key: "columns", section: "block", labelKey: "columns" },
-  { key: "image", section: "block", labelKey: "image" },
-  { key: "embed", section: "block", labelKey: "embed" },
+  {
+    key: "h1",
+    group: "text",
+    icon: Heading1,
+    labelKey: "heading_1",
+    descriptionKey: "heading_1",
+    keywords: ["h1", "heading", "title"],
+  },
+  {
+    key: "h2",
+    group: "text",
+    icon: Heading2,
+    labelKey: "heading_2",
+    descriptionKey: "heading_2",
+    keywords: ["h2", "heading", "subtitle"],
+  },
+  {
+    key: "h3",
+    group: "text",
+    icon: Heading3,
+    labelKey: "heading_3",
+    descriptionKey: "heading_3",
+    keywords: ["h3", "heading"],
+  },
+  {
+    key: "ul",
+    group: "text",
+    icon: List,
+    labelKey: "bulleted_list",
+    descriptionKey: "bulleted_list",
+    keywords: ["bullet", "list", "ul"],
+  },
+  {
+    key: "ol",
+    group: "text",
+    icon: ListOrdered,
+    labelKey: "numbered_list",
+    descriptionKey: "numbered_list",
+    keywords: ["number", "ordered", "list", "ol"],
+  },
+  {
+    key: "blockquote",
+    group: "text",
+    icon: Quote,
+    labelKey: "quote",
+    descriptionKey: "quote",
+    keywords: ["quote", "blockquote"],
+  },
+  {
+    key: "code",
+    group: "text",
+    icon: Code,
+    labelKey: "code",
+    descriptionKey: "code",
+    keywords: ["code", "inline"],
+  },
+  {
+    key: "hr",
+    group: "structure",
+    icon: Minus,
+    labelKey: "divider",
+    descriptionKey: "divider",
+    keywords: ["divider", "line", "hr"],
+  },
+  {
+    key: "callout",
+    group: "structure",
+    icon: PanelTop,
+    labelKey: "callout",
+    descriptionKey: "callout",
+    keywords: ["callout", "info", "alert"],
+  },
+  {
+    key: "toggle",
+    group: "structure",
+    icon: ToggleLeft,
+    labelKey: "toggle",
+    descriptionKey: "toggle",
+    keywords: ["toggle", "collapse"],
+  },
+  {
+    key: "table",
+    group: "structure",
+    icon: Table2,
+    labelKey: "table",
+    descriptionKey: "table",
+    keywords: ["table", "grid", "tab"],
+  },
+  {
+    key: "columns",
+    group: "structure",
+    icon: Columns2,
+    labelKey: "columns",
+    descriptionKey: "columns",
+    keywords: ["columns", "layout"],
+  },
+  {
+    key: "mermaid",
+    group: "media",
+    icon: Sparkles,
+    labelKey: "mermaid",
+    descriptionKey: "mermaid",
+    keywords: ["diagram", "mermaid", "flowchart"],
+  },
+  {
+    key: "image",
+    group: "media",
+    icon: Image,
+    labelKey: "image",
+    descriptionKey: "image",
+    keywords: ["image", "picture", "photo"],
+  },
+  {
+    key: "embed",
+    group: "media",
+    icon: Video,
+    labelKey: "embed",
+    descriptionKey: "embed",
+    keywords: ["embed", "video", "youtube", "loom"],
+  },
 ];
 
 const AI_COMMANDS: SlashAiDef[] = [
-  { key: "improve", section: "ai", labelKey: "improve" },
-  { key: "translate", section: "ai", labelKey: "translate" },
-  { key: "summarize", section: "ai", labelKey: "summarize" },
-  { key: "expand", section: "ai", labelKey: "expand" },
+  {
+    key: "improve",
+    group: "ai",
+    icon: WandSparkles,
+    labelKey: "improve",
+    descriptionKey: "improve",
+    keywords: ["improve", "rewrite", "polish"],
+  },
+  {
+    key: "translate",
+    group: "ai",
+    icon: Languages,
+    labelKey: "translate",
+    descriptionKey: "translate",
+    keywords: ["translate", "language"],
+  },
+  {
+    key: "summarize",
+    group: "ai",
+    icon: FileText,
+    labelKey: "summarize",
+    descriptionKey: "summarize",
+    keywords: ["summarize", "summary"],
+  },
+  {
+    key: "expand",
+    group: "ai",
+    icon: Sparkles,
+    labelKey: "expand",
+    descriptionKey: "expand",
+    keywords: ["expand", "elaborate"],
+  },
 ];
 
 const RAG_AI_COMMANDS: SlashAiDef[] = [
-  { key: "cite", section: "ai", labelKey: "cite" },
-  { key: "factcheck", section: "ai", labelKey: "factcheck" },
+  {
+    key: "cite",
+    group: "ai",
+    icon: Bot,
+    labelKey: "cite",
+    descriptionKey: "cite",
+    keywords: ["cite", "citation", "evidence"],
+  },
+  {
+    key: "factcheck",
+    group: "ai",
+    icon: SearchCheck,
+    labelKey: "factcheck",
+    descriptionKey: "factcheck",
+    keywords: ["factcheck", "fact", "verify"],
+  },
 ];
 
 // Type predicate so the AI dispatch path narrows `key` from `SlashKey`
@@ -133,6 +311,23 @@ const RAG_AI_COMMANDS: SlashAiDef[] = [
 // stays correct.
 const isAiKey = (key: SlashKey): key is SlashAiKey =>
   [...AI_COMMANDS, ...RAG_AI_COMMANDS].some((cmd) => cmd.key === key);
+
+const splitEditorCharacters = (value: string) => Array.from(value);
+
+const dropLastEditorCharacter = (value: string) =>
+  splitEditorCharacters(value).slice(0, -1).join("");
+
+const normalizeSlashSearch = (value: string) =>
+  value
+    .normalize("NFKC")
+    .replace(/[\p{P}\p{S}\s]+/gu, "")
+    .toLowerCase();
+
+const isPrintableSlashKey = (event: KeyboardEvent) =>
+  !event.metaKey &&
+  !event.ctrlKey &&
+  !event.altKey &&
+  splitEditorCharacters(event.key).length === 1;
 
 // The editor surface we actually use. Plate's fully-typed `PlateEditor` drags
 // in deep generics; narrow to exactly the transforms this menu touches so the
@@ -192,47 +387,20 @@ export function SlashMenu({
 
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [slashQuery, setSlashQuery] = useState("");
+  const [activeIndex, setActiveIndex] = useState(0);
   useEffect(() => setMounted(true), []);
-
-  // Window-scoped keydown mirrors `WikiLinkCombobox`. The `/` here fires in
-  // addition to Plate inserting it into the document — we rely on that so the
-  // caret is already one-character-past the trigger when the menu opens, and
-  // command execution then calls `deleteBackward` to remove it.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      // IME composition (Korean/Japanese/Chinese): the `/` key may fire while
-      // a composition is pending — opening the menu and running
-      // `deleteBackward` in that state removes a composed codepoint rather
-      // than the `/` that was never committed. Bail early for both the
-      // modern `isComposing` flag and the legacy `keyCode === 229` signal.
-      if (e.isComposing || e.keyCode === 229) return;
-      if (e.key === "/" && !open && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        // S1-001: the listener is window-scoped, so a `/` typed in the note
-        // title input or a comment composer would otherwise pop the menu.
-        // Selecting a command then calls `editor.tf.deleteBackward("character")`
-        // against the editor and silently destroys an unrelated character of
-        // editor content. Plate's `Editable` sets `data-slate-editor="true"`
-        // on the contenteditable surface — gate on that.
-        const focused = document.activeElement;
-        const inEditor =
-          focused instanceof Element &&
-          focused.closest('[data-slate-editor="true"]') !== null;
-        if (!inEditor) return;
-        // Let Plate process the `/` insertion first, then open on the next
-        // tick. setTimeout(0) is sufficient — no need to read DOM state.
-        setTimeout(() => setOpen(true), 0);
-      } else if (e.key === "Escape" && open) {
-        setOpen(false);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
 
   const runCommand = useCallback(
     (key: SlashKey) => {
-      // Step 1: remove the triggering `/` that Plate already inserted.
-      editor.tf.deleteBackward("character");
+      // Step 1: remove the triggering `/` plus any query the user typed after
+      // it. We intentionally keep focus in Plate rather than moving it to a
+      // search input, so every query character was already inserted into the
+      // document and must be deleted before running the transform.
+      const deleteCount = splitEditorCharacters(slashQuery).length + 1;
+      for (let i = 0; i < deleteCount; i += 1) {
+        editor.tf.deleteBackward("character");
+      }
 
       // AI commands are dispatched to the consumer — the slash plugin
       // stays free of LLM/data-layer coupling. The consumer reads the
@@ -240,6 +408,7 @@ export function SlashMenu({
       if (isAiKey(key)) {
         onAiCommand?.(key);
         setOpen(false);
+        setSlashQuery("");
         return;
       }
 
@@ -249,11 +418,13 @@ export function SlashMenu({
       if (key === "embed") {
         onRequestPopover?.("embed");
         setOpen(false);
+        setSlashQuery("");
         return;
       }
       if (key === "image") {
         onRequestPopover?.("image");
         setOpen(false);
+        setSlashQuery("");
         return;
       }
 
@@ -355,11 +526,12 @@ export function SlashMenu({
       }
 
       setOpen(false);
+      setSlashQuery("");
     },
-    [editor, onAiCommand, onRequestPopover],
+    [editor, onAiCommand, onRequestPopover, slashQuery],
   );
 
-  const items = useMemo<SlashCommandDef[]>(
+  const allItems = useMemo<SlashCommandDef[]>(
     () =>
       aiEnabled
         ? [
@@ -371,11 +543,156 @@ export function SlashMenu({
     [aiEnabled, ragEnabled],
   );
 
-  // Pre-compute the index of the first row in the AI section so the
-  // section header renders inline without a second pass.
-  const firstAiIndex = useMemo(
-    () => items.findIndex((c) => c.section === "ai"),
-    [items],
+  const items = useMemo(
+    () =>
+      allItems.map((cmd) => {
+        const label =
+          cmd.group === "ai"
+            ? tAi(`command.${cmd.labelKey}`)
+            : t(cmd.labelKey);
+        const description =
+          cmd.group === "ai"
+            ? tAi(`description.${cmd.descriptionKey}`)
+            : t(`description.${cmd.descriptionKey}`);
+        return {
+          ...cmd,
+          label,
+          description,
+          searchText: [
+            cmd.key,
+            label,
+            description,
+            ...cmd.keywords,
+          ]
+            .join(" ")
+            .normalize("NFKC")
+            .toLowerCase(),
+        };
+      }),
+    [allItems, t, tAi],
+  );
+
+  const visibleItems = useMemo(() => {
+    const query = normalizeSlashSearch(slashQuery);
+    if (!query) return items;
+    return items.filter((cmd) =>
+      normalizeSlashSearch(cmd.searchText).includes(query),
+    );
+  }, [items, slashQuery]);
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [slashQuery]);
+
+  useEffect(() => {
+    if (activeIndex < visibleItems.length) return;
+    setActiveIndex(Math.max(0, visibleItems.length - 1));
+  }, [activeIndex, visibleItems.length]);
+
+  // Window-scoped keydown mirrors `WikiLinkCombobox`. The `/` here fires in
+  // addition to Plate inserting it into the document — we rely on that so the
+  // caret is already one-character-past the trigger when the menu opens.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // IME composition (Korean/Japanese/Chinese): the `/` key may fire while
+      // a composition is pending — opening the menu and running
+      // `deleteBackward` in that state removes a composed codepoint rather
+      // than the `/` that was never committed. Bail early for both the
+      // modern `isComposing` flag and the legacy `keyCode === 229` signal.
+      if (e.isComposing || e.keyCode === 229) return;
+      if (e.key === "/" && !open && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        // S1-001: the listener is window-scoped, so a `/` typed in the note
+        // title input or a comment composer would otherwise pop the menu.
+        // Selecting a command then calls `editor.tf.deleteBackward("character")`
+        // against the editor and silently destroys unrelated editor content.
+        // Plate's `Editable` sets `data-slate-editor="true"` on the
+        // contenteditable surface — gate on that.
+        const focused = document.activeElement;
+        const inEditor =
+          focused instanceof Element &&
+          focused.closest('[data-slate-editor="true"]') !== null;
+        if (!inEditor) return;
+        // Let Plate process the `/` insertion first, then open on the next
+        // tick. setTimeout(0) is sufficient — no need to read DOM state.
+        setTimeout(() => {
+          setSlashQuery("");
+          setActiveIndex(0);
+          setOpen(true);
+        }, 0);
+        return;
+      }
+
+      if (!open) return;
+
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setOpen(false);
+        setSlashQuery("");
+        return;
+      }
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setActiveIndex((index) =>
+          visibleItems.length === 0 ? 0 : (index + 1) % visibleItems.length,
+        );
+        return;
+      }
+
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setActiveIndex((index) =>
+          visibleItems.length === 0
+            ? 0
+            : (index - 1 + visibleItems.length) % visibleItems.length,
+        );
+        return;
+      }
+
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const active = visibleItems[activeIndex];
+        if (!active) return;
+        runCommand(active.key);
+        return;
+      }
+
+      if (e.key === "Backspace") {
+        if (slashQuery.length === 0) {
+          setOpen(false);
+          return;
+        }
+        setSlashQuery((query) => dropLastEditorCharacter(query));
+        return;
+      }
+
+      const isPrintable = isPrintableSlashKey(e);
+      if (!isPrintable) return;
+      if (e.key.trim() === "") {
+        setOpen(false);
+        setSlashQuery("");
+        return;
+      }
+      setSlashQuery((query) => `${query}${e.key.toLowerCase()}`);
+    };
+    const onCompositionEnd = (e: CompositionEvent) => {
+      if (!open || !e.data) return;
+      setSlashQuery((query) => `${query}${e.data.toLowerCase()}`);
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("compositionend", onCompositionEnd);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("compositionend", onCompositionEnd);
+    };
+  }, [activeIndex, open, runCommand, slashQuery, visibleItems]);
+
+  const groupLabel = useCallback(
+    (group: SlashGroup) => {
+      if (group === "ai") return tAi("section.ai");
+      return t(`section.${group}`);
+    },
+    [t, tAi],
   );
 
   if (!mounted || !open) return null;
@@ -387,47 +704,75 @@ export function SlashMenu({
       data-testid="slash-menu"
     >
       <div
-        className="bg-bg-base w-full max-w-sm rounded-md border border-[color:var(--border)] shadow-lg"
+        className="bg-bg-base w-full max-w-md rounded-md border border-[color:var(--border)] shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
-        <ul className="max-h-72 overflow-auto py-1">
-          {items.map((cmd, i) => (
-            <Fragment key={cmd.key}>
-              {cmd.section === "block" && i > 0 && items[i - 1]?.section !== "block" && (
-                <li
-                  className="my-1 border-t border-[color:var(--border)]"
-                  aria-hidden="true"
-                />
-              )}
-              {firstAiIndex !== -1 && i === firstAiIndex && (
-                <li
-                  className="my-1 border-t border-[color:var(--border)] pt-1 text-[10px] font-medium uppercase tracking-wide text-fg-muted"
-                  data-testid="slash-section-ai"
-                  aria-hidden="true"
-                >
-                  <span className="px-3">{tAi("section.ai")}</span>
+        <div className="border-b border-[color:var(--border)] px-3 py-2">
+          <div className="text-fg-muted text-[11px] font-medium uppercase tracking-wide">
+            {t("search_label")}
+          </div>
+          <div
+            data-testid="slash-query"
+            className="mt-1 h-6 text-sm font-medium"
+          >
+            /{slashQuery}
+            {!slashQuery ? (
+              <span className="text-fg-muted">{t("search_placeholder")}</span>
+            ) : null}
+          </div>
+        </div>
+        {visibleItems.length === 0 ? (
+          <p className="text-fg-muted px-3 py-4 text-sm">{t("no_results")}</p>
+        ) : (
+          <ul
+            className="max-h-80 overflow-auto py-1"
+            role="listbox"
+            aria-label={t("aria_label")}
+          >
+            {visibleItems.map((cmd, i) => (
+              <Fragment key={cmd.key}>
+                {(i === 0 || visibleItems[i - 1]?.group !== cmd.group) && (
+                  <li
+                    className="px-3 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wide text-fg-muted"
+                    data-testid={`slash-section-${cmd.group}`}
+                    aria-hidden="true"
+                  >
+                    {groupLabel(cmd.group)}
+                  </li>
+                )}
+                <li>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={i === activeIndex}
+                    data-testid={`slash-cmd-${cmd.key}`}
+                    onMouseDown={(e) => {
+                      // Prevent the editor from losing selection before we run
+                      // the transform — same pattern as the toolbar buttons.
+                      e.preventDefault();
+                      runCommand(cmd.key);
+                    }}
+                    onMouseEnter={() => setActiveIndex(i)}
+                    className={`flex w-full items-start gap-3 px-3 py-2 text-left text-sm ${
+                      i === activeIndex ? "bg-bg-muted" : "hover:bg-bg-muted"
+                    }`}
+                  >
+                    <cmd.icon
+                      aria-hidden
+                      className="mt-0.5 h-4 w-4 shrink-0 text-fg-muted"
+                    />
+                    <span className="min-w-0">
+                      <span className="block font-medium">{cmd.label}</span>
+                      <span className="text-fg-muted mt-0.5 block text-xs">
+                        {cmd.description}
+                      </span>
+                    </span>
+                  </button>
                 </li>
-              )}
-              <li>
-                <button
-                  type="button"
-                  data-testid={`slash-cmd-${cmd.key}`}
-                  onMouseDown={(e) => {
-                    // Prevent the editor from losing selection before we run
-                    // the transform — same pattern as the toolbar buttons.
-                    e.preventDefault();
-                    runCommand(cmd.key);
-                  }}
-                  className="hover:bg-bg-muted w-full px-3 py-2 text-left text-sm"
-                >
-                  {cmd.section === "ai"
-                    ? tAi(`command.${cmd.labelKey}`)
-                    : t(cmd.labelKey)}
-                </button>
-              </li>
-            </Fragment>
-          ))}
-        </ul>
+              </Fragment>
+            ))}
+          </ul>
+        )}
       </div>
     </div>,
     document.body,

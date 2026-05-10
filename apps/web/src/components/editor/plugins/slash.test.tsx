@@ -5,6 +5,10 @@ import editorMessages from "@/../messages/ko/editor.json";
 import docEditorMessages from "@/../messages/ko/doc-editor.json";
 import { SlashMenu, type SlashEditor } from "./slash";
 
+vi.mock("@platejs/table", () => ({
+  insertTable: vi.fn(),
+}));
+
 // S1-001 — SlashMenu's window-scoped keydown listener must NOT open the menu
 // when the focused element is outside the Plate editor (e.g. the note title
 // input or a comment composer). If it did, clicking a command would call
@@ -141,7 +145,7 @@ describe("SlashMenu focus gate", () => {
     editorEl.focus();
     pressSlashAndFlush();
 
-    const buttons = screen.getAllByRole("button");
+    const buttons = screen.getAllByRole("option");
     expect(buttons[0]).toHaveAttribute("data-testid", "slash-cmd-improve");
     expect(buttons[1]).toHaveAttribute("data-testid", "slash-cmd-translate");
   });
@@ -163,5 +167,158 @@ describe("SlashMenu focus gate", () => {
     expect(screen.getByTestId("slash-menu").className).not.toContain(
       "bg-black/20",
     );
+  });
+
+  it("filters commands from the query typed after '/' and removes the trigger text", () => {
+    const editor = makeEditor();
+    render(
+      wrap(
+        <>
+          <div data-slate-editor="true" tabIndex={-1} data-testid="editor" />
+          <SlashMenu editor={editor} />
+        </>,
+      ),
+    );
+
+    const editorEl = screen.getByTestId("editor") as HTMLDivElement;
+    editorEl.focus();
+    pressSlashAndFlush();
+
+    fireEvent.keyDown(window, { key: "t" });
+    fireEvent.keyDown(window, { key: "a" });
+    fireEvent.keyDown(window, { key: "b" });
+
+    expect(screen.getByTestId("slash-query")).toHaveTextContent("/tab");
+    expect(screen.getByTestId("slash-cmd-table")).toBeInTheDocument();
+    expect(screen.queryByTestId("slash-cmd-h1")).not.toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByTestId("slash-cmd-table"));
+
+    expect(editor.tf.deleteBackward).toHaveBeenCalledTimes(4);
+  });
+
+  it("tracks slashes typed while searching and deletes the full raw query", () => {
+    const editor = makeEditor();
+    render(
+      wrap(
+        <>
+          <div data-slate-editor="true" tabIndex={-1} data-testid="editor" />
+          <SlashMenu editor={editor} />
+        </>,
+      ),
+    );
+
+    const editorEl = screen.getByTestId("editor") as HTMLDivElement;
+    editorEl.focus();
+    pressSlashAndFlush();
+
+    fireEvent.keyDown(window, { key: "t" });
+    fireEvent.keyDown(window, { key: "a" });
+    fireEvent.keyDown(window, { key: "b" });
+    fireEvent.keyDown(window, { key: "/" });
+
+    expect(screen.getByTestId("slash-query")).toHaveTextContent("/tab/");
+    expect(screen.getByTestId("slash-cmd-table")).toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByTestId("slash-cmd-table"));
+
+    expect(editor.tf.deleteBackward).toHaveBeenCalledTimes(5);
+  });
+
+  it("counts non-BMP query characters as one deleted editor character", () => {
+    const editor = makeEditor();
+    render(
+      wrap(
+        <>
+          <div data-slate-editor="true" tabIndex={-1} data-testid="editor" />
+          <SlashMenu editor={editor} />
+        </>,
+      ),
+    );
+
+    const editorEl = screen.getByTestId("editor") as HTMLDivElement;
+    editorEl.focus();
+    pressSlashAndFlush();
+
+    fireEvent.keyDown(window, { key: "t" });
+    fireEvent.keyDown(window, { key: "a" });
+    fireEvent.keyDown(window, { key: "b" });
+    fireEvent.keyDown(window, { key: "😀" });
+
+    expect(screen.getByTestId("slash-query")).toHaveTextContent("/tab😀");
+    expect(screen.getByTestId("slash-cmd-table")).toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByTestId("slash-cmd-table"));
+
+    expect(editor.tf.deleteBackward).toHaveBeenCalledTimes(5);
+  });
+
+  it("removes the last non-BMP query character as one character on Backspace", () => {
+    render(
+      wrap(
+        <>
+          <div data-slate-editor="true" tabIndex={-1} data-testid="editor" />
+          <SlashMenu editor={makeEditor()} />
+        </>,
+      ),
+    );
+
+    const editorEl = screen.getByTestId("editor") as HTMLDivElement;
+    editorEl.focus();
+    pressSlashAndFlush();
+
+    fireEvent.keyDown(window, { key: "t" });
+    fireEvent.keyDown(window, { key: "a" });
+    fireEvent.keyDown(window, { key: "b" });
+    fireEvent.keyDown(window, { key: "😀" });
+    fireEvent.keyDown(window, { key: "Backspace" });
+
+    expect(screen.getByTestId("slash-query")).toHaveTextContent("/tab");
+    expect(screen.getByTestId("slash-cmd-table")).toBeInTheDocument();
+  });
+
+  it("filters commands from IME composition text", () => {
+    render(
+      wrap(
+        <>
+          <div data-slate-editor="true" tabIndex={-1} data-testid="editor" />
+          <SlashMenu editor={makeEditor()} />
+        </>,
+      ),
+    );
+
+    const editorEl = screen.getByTestId("editor") as HTMLDivElement;
+    editorEl.focus();
+    pressSlashAndFlush();
+
+    fireEvent.compositionEnd(window, { data: "표" });
+
+    expect(screen.getByTestId("slash-query")).toHaveTextContent("/표");
+    expect(screen.getByTestId("slash-cmd-table")).toBeInTheDocument();
+    expect(screen.queryByTestId("slash-cmd-h1")).not.toBeInTheDocument();
+  });
+
+  it("supports keyboard selection without leaving the editor surface", () => {
+    const editor = makeEditor();
+    const onAiCommand = vi.fn();
+    render(
+      wrap(
+        <>
+          <div data-slate-editor="true" tabIndex={-1} data-testid="editor" />
+          <SlashMenu editor={editor} aiEnabled onAiCommand={onAiCommand} />
+        </>,
+      ),
+    );
+
+    const editorEl = screen.getByTestId("editor") as HTMLDivElement;
+    editorEl.focus();
+    pressSlashAndFlush();
+
+    fireEvent.keyDown(window, { key: "ArrowDown" });
+    fireEvent.keyDown(window, { key: "Enter" });
+
+    expect(onAiCommand).toHaveBeenCalledWith("translate");
+    expect(editor.tf.deleteBackward).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(editorEl);
   });
 });
