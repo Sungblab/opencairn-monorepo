@@ -80,7 +80,23 @@
       "title": "Source PDF",
       "frameTitle": "{title} PDF viewer",
       "open": "Open in new tab",
-      "download": "Download"
+      "download": "Download",
+      "rail": {
+        "title": "PDF work panel",
+        "close": "Close",
+        "analysis": "Analysis",
+        "activity": "Activity",
+        "analysisDescription": "Start summaries, decomposition, and citation extraction from this PDF.",
+        "selectionTitle": "Selection",
+        "selectionEmpty": "Select a page or text, then continue with /summarize, /decompose, or /cite.",
+        "selectionActive": "Selected {count, number} characters. Continue with summary, decomposition, or citation extraction.",
+        "useThisPdf": "Use this PDF only",
+        "summarize": "Summarize",
+        "decompose": "Decompose",
+        "citations": "Extract citations",
+        "review": "Review",
+        "activityDescription": "Check upload processing, generated work, and pending note update reviews."
+      }
     },
     "data": {
       "empty": "No data"

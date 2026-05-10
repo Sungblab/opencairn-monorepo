@@ -63,7 +63,7 @@ export function ProjectTreeNode({
         aria-level={node.level + 1}
         data-kind={kind}
         data-id={node.data.id}
-        className="group flex h-full min-h-8 items-center gap-2 rounded-[var(--radius-control)] px-2.5 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
+        className="group flex h-full min-h-11 items-center gap-2 rounded-[var(--radius-control)] px-2.5 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
         onClick={() => {
           if (parentId) ctx.onCreateNote(parentId);
         }}
@@ -73,7 +73,12 @@ export function ProjectTreeNode({
           aria-hidden
           className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-foreground"
         />
-        <span className="truncate">{t("new_child_page")}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate">{t("new_child_page")}</span>
+          <span className="block truncate text-[11px] text-muted-foreground/80">
+            {t("empty_drop_hint")}
+          </span>
+        </span>
       </button>
     );
   }
@@ -96,6 +101,7 @@ export function ProjectTreeNode({
     top: number;
     left: number;
   } | null>(null);
+  const rowActionsVisible = Boolean(node.isSelected || actionMenuPos);
   // Guards against a stray onBlur re-commit after the user pressed Escape:
   // Escape flips the flag, onCommitRename(null) unmounts the input, and any
   // racing blur event from the same tick sees `skipBlur` and bails.
@@ -253,6 +259,7 @@ export function ProjectTreeNode({
             onClick={handleRowClick}
             onDoubleClick={handleRowDoubleClick}
             onKeyDown={handleRowKeyDown}
+            title={t("row_hint")}
             className="group flex h-full min-h-8 cursor-pointer items-center gap-2 rounded-[var(--radius-control)] px-2.5 text-sm text-foreground transition-colors hover:bg-muted/70 focus-visible:bg-muted data-[drop-target=true]:bg-muted"
           />
         }
@@ -337,7 +344,9 @@ export function ProjectTreeNode({
         {!isRenaming ? (
           <div className="ml-auto flex shrink-0 items-center gap-0.5">
             {node.data.child_count > 0 ? (
-              <span className="px-1 text-[10px] text-muted-foreground group-hover:hidden">
+              <span
+                className={`${rowActionsVisible ? "hidden" : "px-1"} text-[10px] text-muted-foreground group-hover:hidden`}
+              >
                 {node.data.child_count}
               </span>
             ) : null}
@@ -349,7 +358,7 @@ export function ProjectTreeNode({
                   e.stopPropagation();
                   ctx.onCreateNote(node.data.id);
                 }}
-                className="hidden h-6 w-6 shrink-0 place-items-center rounded-[var(--radius-control)] text-muted-foreground hover:bg-background hover:text-foreground group-hover:grid focus-visible:grid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className={`${rowActionsVisible ? "grid" : "hidden group-hover:grid focus-visible:grid"} h-6 w-6 shrink-0 place-items-center rounded-[var(--radius-control)] text-muted-foreground hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
               >
                 <Plus aria-hidden className="h-3.5 w-3.5" />
               </button>
@@ -357,9 +366,11 @@ export function ProjectTreeNode({
             <button
               ref={actionButtonRef}
               aria-label={t("row_actions")}
+              title={t("row_actions_hint")}
+              data-visible-row-actions={rowActionsVisible ? "true" : undefined}
               type="button"
               onClick={toggleActionMenu}
-              className="hidden h-7 w-7 shrink-0 place-items-center rounded-[var(--radius-control)] text-muted-foreground hover:bg-background hover:text-foreground group-hover:grid focus-visible:grid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className={`${rowActionsVisible ? "grid" : "hidden group-hover:grid focus-visible:grid"} h-7 w-7 shrink-0 place-items-center rounded-[var(--radius-control)] text-muted-foreground hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
             >
               <MoreHorizontal aria-hidden className="h-3.5 w-3.5" />
             </button>

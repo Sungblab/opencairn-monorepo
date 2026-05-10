@@ -80,7 +80,23 @@
       "title": "원본 PDF",
       "frameTitle": "{title} PDF 뷰어",
       "open": "새 탭에서 열기",
-      "download": "다운로드"
+      "download": "다운로드",
+      "rail": {
+        "title": "PDF 작업 패널",
+        "close": "닫기",
+        "analysis": "분석",
+        "activity": "활동",
+        "analysisDescription": "현재 PDF를 중심으로 요약, 분해, 인용 추출을 시작합니다.",
+        "selectionTitle": "선택 영역",
+        "selectionEmpty": "페이지나 텍스트를 선택한 뒤 /summarize, /decompose, /cite로 이어가세요.",
+        "selectionActive": "{count, number}자 선택됨. 요약, 분해, 인용 추출로 이어갈 수 있어요.",
+        "useThisPdf": "이 PDF만 사용",
+        "summarize": "요약",
+        "decompose": "분해",
+        "citations": "인용 추출",
+        "review": "검토",
+        "activityDescription": "업로드 처리, 생성된 작업, 대기 중인 노트 변경 검토를 확인합니다."
+      }
     },
     "data": {
       "empty": "데이터 없음"
