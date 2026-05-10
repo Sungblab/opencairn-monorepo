@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { isImportEnabled } from "@/lib/feature-flags";
-import { JobProgress } from "./JobProgress";
+import { JobProgressLoader } from "./JobProgressLoader";
 
 export default async function JobPage({
   params,
@@ -14,7 +14,7 @@ export default async function JobPage({
   return (
     <div className="mx-auto max-w-3xl p-6">
       <h1 className="text-2xl font-semibold">{t("title")}</h1>
-      <JobProgress wsSlug={wsSlug} jobId={id} />
+      <JobProgressLoader wsSlug={wsSlug} jobId={id} />
     </div>
   );
 }

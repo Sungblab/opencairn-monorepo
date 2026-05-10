@@ -1,12 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { ViewType } from "@opencairn/shared";
 import { ViewSwitcher } from "./ViewSwitcher";
 import { ViewRenderer } from "./ViewRenderer";
-import { VisualizeDialog } from "./ai/VisualizeDialog";
+import type { VisualizeDialogProps } from "./ai/VisualizeDialog";
 
-interface Props {
+export interface ProjectGraphProps {
   projectId: string;
 }
 
@@ -18,7 +19,12 @@ const VIEW_BY_KEY: Record<string, ViewType> = {
   "5": "board",
 };
 
-export function ProjectGraph({ projectId }: Props) {
+const LazyVisualizeDialog = dynamic<VisualizeDialogProps>(
+  () => import("./ai/VisualizeDialog").then((mod) => mod.VisualizeDialog),
+  { ssr: false },
+);
+
+export function ProjectGraph({ projectId }: ProjectGraphProps) {
   const [aiOpen, setAiOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const router = useRouter();
@@ -67,11 +73,13 @@ export function ProjectGraph({ projectId }: Props) {
       <div className="min-h-0 flex-1">
         <ViewRenderer projectId={projectId} />
       </div>
-      <VisualizeDialog
-        open={aiOpen}
-        onClose={() => setAiOpen(false)}
-        projectId={projectId}
-      />
+      {aiOpen ? (
+        <LazyVisualizeDialog
+          open={aiOpen}
+          onClose={() => setAiOpen(false)}
+          projectId={projectId}
+        />
+      ) : null}
     </div>
   );
 }

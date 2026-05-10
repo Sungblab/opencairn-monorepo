@@ -1,37 +1,39 @@
 "use client";
 import type { Tab } from "@/stores/tabs-store";
-import { ReadingViewer } from "./viewers/reading-viewer";
-import { SourceViewer } from "./viewers/source-viewer";
-import { DataViewer } from "./viewers/data-viewer";
-import { CanvasViewer } from "./viewers/canvas-viewer";
-import { ProjectGraphViewer } from "./viewers/project-graph-viewer";
-import { IngestViewer } from "./viewers/ingest-viewer";
-import { LitSearchViewer } from "./viewers/lit-search-viewer";
-import { AgentFileViewer } from "./viewers/agent-file-viewer";
-import { CodeWorkspaceViewer } from "./viewers/code-workspace-viewer";
+import {
+  LazyAgentFileViewer,
+  LazyCanvasViewer,
+  LazyCodeWorkspaceViewer,
+  LazyDataViewer,
+  LazyIngestViewer,
+  LazyLitSearchViewer,
+  LazyProjectGraphViewer,
+  LazyReadingViewer,
+  LazySourceViewer,
+} from "./routed-viewer-loader";
 import { StubViewer } from "./viewers/stub-viewer";
-import { isValidTabMode } from "@/lib/tab-mode-rules";
+export { isRoutedByTabModeRouter } from "./tab-mode-routing";
 
 export function TabModeRouter({ tab }: { tab: Tab }) {
   switch (tab.mode) {
     case "reading":
-      return <ReadingViewer tab={tab} />;
+      return <LazyReadingViewer tab={tab} />;
     case "source":
-      return <SourceViewer tab={tab} />;
+      return <LazySourceViewer tab={tab} />;
     case "data":
-      return <DataViewer tab={tab} />;
+      return <LazyDataViewer tab={tab} />;
     case "canvas":
-      return <CanvasViewer tab={tab} />;
+      return <LazyCanvasViewer tab={tab} />;
     case "graph":
-      return <ProjectGraphViewer tab={tab} />;
+      return <LazyProjectGraphViewer tab={tab} />;
     case "ingest":
-      return <IngestViewer tab={tab} />;
+      return <LazyIngestViewer tab={tab} />;
     case "lit-search":
-      return <LitSearchViewer tab={tab} />;
+      return <LazyLitSearchViewer tab={tab} />;
     case "agent-file":
-      return <AgentFileViewer tab={tab} />;
+      return <LazyAgentFileViewer tab={tab} />;
     case "code-workspace":
-      return <CodeWorkspaceViewer tab={tab} />;
+      return <LazyCodeWorkspaceViewer tab={tab} />;
     case "plate":
       // plate renders through the Next.js route page; TabShell should pick
       // children when mode === 'plate'. Reaching here means a caller bypassed
@@ -42,13 +44,4 @@ export function TabModeRouter({ tab }: { tab: Tab }) {
     default:
       return <StubViewer mode={tab.mode} />;
   }
-}
-
-/**
- * Predicate used by TabShell to decide the top-level branch: plate → render
- * `children` (SSR editor page), everything else → TabModeRouter. Exported
- * here so both TabShell and its own tests use the same decision.
- */
-export function isRoutedByTabModeRouter(tab: Tab): boolean {
-  return tab.mode !== "plate" && isValidTabMode(tab);
 }

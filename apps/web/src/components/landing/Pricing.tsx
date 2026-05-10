@@ -1,17 +1,12 @@
-"use client";
-import { useRef } from "react";
-import { useLocale, useTranslations } from "next-intl";
-import { useScrollReveal } from "@/lib/landing/hooks/useScrollReveal";
+import { useTranslations } from "next-intl";
+import type { Locale } from "@/i18n";
 
 function Html({ html, className }: { html: string; className?: string }) {
   return <span className={className} dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-export function Pricing() {
+export function Pricing({ locale }: { locale: Locale }) {
   const t = useTranslations("landing.pricing");
-  const locale = useLocale();
-  const ref = useRef<HTMLElement>(null);
-  useScrollReveal(ref);
 
   const soloBullets = t.raw("solo.bullets") as string[];
   const soloBulletsMuted = t.raw("solo.bulletsMuted") as string[];
@@ -21,7 +16,6 @@ export function Pricing() {
 
   return (
     <section
-      ref={ref}
       id="pricing"
       className="bg-stone-900 text-stone-50 py-24 md:py-32"
       style={{ backgroundColor: "#171717" }}

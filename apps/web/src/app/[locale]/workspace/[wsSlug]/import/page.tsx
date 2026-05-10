@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { isImportEnabled } from "@/lib/feature-flags";
-import { ImportTabs } from "./ImportTabs";
+import { ImportTabsLoader } from "./ImportTabsLoader";
 
 // Import is production-ready by default, but operators can still hide it with
 // FEATURE_IMPORT_ENABLED=false for hosted rollout control.
@@ -25,7 +25,7 @@ export default async function ImportPage({
           {t("pageDescription")}
         </p>
         <div className="mt-7">
-          <ImportTabs wsSlug={wsSlug} />
+          <ImportTabsLoader wsSlug={wsSlug} />
         </div>
       </div>
     </div>

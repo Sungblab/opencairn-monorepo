@@ -14,8 +14,8 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
 import type { Tab } from "@/stores/tabs-store";
+import { useShellLabels } from "@/components/shell/shell-labels";
 import { useResolvedTabTitle } from "@/lib/resolve-tab-title";
 
 export interface TabItemProps {
@@ -42,7 +42,7 @@ const tabIcons: Record<Tab["kind"], LucideIcon> = {
 };
 
 export function TabItem({ tab, active, onClick, onClose }: TabItemProps) {
-  const t = useTranslations("appShell.tabs.item");
+  const { tabs: labels } = useShellLabels();
   const resolvedTitle = useResolvedTabTitle(tab);
   const Icon = tabIcons[tab.kind];
   return (
@@ -86,19 +86,19 @@ export function TabItem({ tab, active, onClick, onClose }: TabItemProps) {
       </span>
       {tab.dirty ? (
         <span
-          aria-label={t("unsaved")}
+          aria-label={labels.item.unsaved}
           className="h-1.5 w-1.5 shrink-0 rounded-full bg-foreground"
         />
       ) : null}
       {tab.pinned ? (
         <Pin
-          aria-label={t("pinned")}
+          aria-label={labels.item.pinned}
           className="h-3 w-3 shrink-0 text-muted-foreground"
         />
       ) : (
         <button
           type="button"
-          aria-label={t("close")}
+          aria-label={labels.item.close}
           onClick={(e) => {
             e.stopPropagation();
             onClose();

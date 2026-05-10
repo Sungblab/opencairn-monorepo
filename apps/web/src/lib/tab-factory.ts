@@ -27,9 +27,8 @@ export interface NewTabOptions {
   /**
    * Title must be resolved by the caller — the factory is i18n-agnostic so
    * that ko/en switch at runtime doesn't require a second pass through
-   * every tab. Callers typically use `useTranslations("appShell.tabTitles")`
-   * to fill this in. Persisted to localStorage as the cached fallback used
-   * whenever `titleKey` is absent or missing from the message catalog.
+   * every tab. Persisted to localStorage as the cached fallback used whenever
+   * `titleKey` is absent or missing from the message catalog.
    */
   title: string;
   /**

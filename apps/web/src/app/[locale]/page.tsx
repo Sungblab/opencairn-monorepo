@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import type { Locale } from "@/i18n";
+import { instrumentSerif } from "@/lib/landing/fonts";
 import { siteUrl } from "@/lib/site-config";
 import { LandingHeader } from "@/components/landing/chrome/Header";
 import { LandingFooter } from "@/components/landing/chrome/Footer";
@@ -13,7 +14,7 @@ import { Metrics } from "@/components/landing/Metrics";
 import { HowItWorks } from "@/components/landing/HowItWorks";
 import { AgentsGrid } from "@/components/landing/AgentsGrid";
 import { FiveViews } from "@/components/landing/FiveViews";
-import { MiniGraph } from "@/components/landing/MiniGraph";
+import { MiniGraphLoader } from "@/components/landing/MiniGraphLoader";
 import { WorkspaceShowcase } from "@/components/landing/WorkspaceShowcase";
 import { Comparison } from "@/components/landing/Comparison";
 import { Personas } from "@/components/landing/Personas";
@@ -125,11 +126,22 @@ export default async function Landing({ params }: { params: Promise<{ locale: Lo
   const { locale } = await params;
   setRequestLocale(locale);
   await redirectAuthed(locale);
+  const tryT = await getTranslations({ locale, namespace: "landing.try" });
+  const miniGraphCopy = {
+    title1: tryT("title1"),
+    title2: tryT("title2"),
+    sub: tryT("sub"),
+    bullets: tryT.raw("bullets") as string[],
+    graph: tryT.raw("graph") as Record<string, { t: string; d: string }>,
+    backlinks: tryT("backlinks"),
+    caption: tryT("caption"),
+  };
+
   return (
     <div
       data-brand="landing"
       data-theme="cairn-light"
-      className="min-h-screen bg-stone-50 text-stone-800 font-sans antialiased"
+      className={`${instrumentSerif.variable} min-h-screen bg-stone-50 text-stone-800 font-sans antialiased`}
     >
       <LandingHeader />
       <Hero />
@@ -138,14 +150,14 @@ export default async function Landing({ params }: { params: Promise<{ locale: Lo
       <HowItWorks />
       <AgentsGrid />
       <FiveViews />
-      <MiniGraph />
+      <MiniGraphLoader copy={miniGraphCopy} />
       <WorkspaceShowcase />
       <Comparison />
       <Personas />
       <DocsTeaser />
-      <Pricing />
+      <Pricing locale={locale} />
       <Faq />
-      <Cta />
+      <Cta locale={locale} />
       <LandingFooter />
     </div>
   );

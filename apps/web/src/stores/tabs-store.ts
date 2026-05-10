@@ -57,10 +57,9 @@ export interface Tab {
   mode: TabMode;
   title: string;
   /**
-   * i18n key under `appShell.tabTitles` (or any top-level namespace resolvable
-   * by next-intl's `useTranslations`). Set for kinds whose title is static
-   * UI copy (dashboard, import, ws_settings, research_hub). Left unset for
-   * `note` (title comes from the DB and cannot be translated).
+   * i18n key under `appShell.tabTitles` for kinds whose title is static UI
+   * copy. Left unset for `note` because its title comes from the DB and cannot
+   * be translated.
    */
   titleKey?: string;
   /**

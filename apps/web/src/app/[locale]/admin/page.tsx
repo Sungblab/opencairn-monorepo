@@ -2,7 +2,8 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { redirect } from "next/navigation";
 import type { Locale } from "@/i18n";
 import { requireSession } from "@/lib/session";
-import { AdminUsersClient } from "./AdminUsersClient";
+import { AdminUsersClientLoader } from "./AdminUsersClientLoader";
+import { IntlClientProvider } from "@/components/providers/intl-client-provider";
 
 export default async function AdminPage({
   params,
@@ -24,7 +25,9 @@ export default async function AdminPage({
             {t("title")}
           </h1>
         </header>
-        <AdminUsersClient />
+        <IntlClientProvider namespaces={["admin"]}>
+          <AdminUsersClientLoader />
+        </IntlClientProvider>
       </div>
     </main>
   );

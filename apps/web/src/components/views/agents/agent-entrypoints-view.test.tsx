@@ -50,6 +50,41 @@ vi.mock("@/lib/api-client", () => ({
   },
 }));
 
+vi.mock("./run-detail-sheet-loader", () => ({
+  RunDetailSheetLoader: ({
+    run,
+    open,
+    onRetry,
+    retryDisabled,
+  }: {
+    run: { agentName: string; runId: string; workflowId: string } | null;
+    open: boolean;
+    onRetry: (agentName: string) => void;
+    retryDisabled: boolean;
+  }) => {
+    if (!open || !run) return null;
+    const agentLabel = run.agentName === "synthesis" ? "Synthesis" : run.agentName;
+    return (
+      <section role="dialog">
+        <h2>{agentLabel} 실행 상세</h2>
+        <p>{run.workflowId}</p>
+        <p>{run.runId}</p>
+        <a href="#plan8-suggestions">Suggestions 보기</a>
+        <button type="button" disabled>
+          실행 취소
+        </button>
+        <button
+          type="button"
+          disabled={retryDisabled}
+          onClick={() => onRetry(run.agentName)}
+        >
+          다시 실행
+        </button>
+      </section>
+    );
+  },
+}));
+
 const overview = {
   project: { id: "project-1", workspaceId: "workspace-1" },
   launch: {

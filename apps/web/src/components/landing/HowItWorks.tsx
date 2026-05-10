@@ -1,18 +1,13 @@
-"use client";
-import { useRef } from "react";
 import { useTranslations } from "next-intl";
-import { useScrollReveal } from "@/lib/landing/hooks/useScrollReveal";
 
 type Step = { n: string; title: string; body: string };
 
 export function HowItWorks() {
   const t = useTranslations("landing.pipeline");
-  const ref = useRef<HTMLElement>(null);
-  useScrollReveal(ref);
   const steps = t.raw("steps") as Step[];
 
   return (
-    <section ref={ref} id="how" className="bg-stone-900 text-stone-50 py-24 md:py-28 border-y border-stone-900">
+    <section id="how" className="bg-stone-900 text-stone-50 py-24 md:py-28 border-y border-stone-900">
       <div className="max-w-[1280px] mx-auto px-6 lg:px-10">
         <div className="mb-16 reveal">
           <h2 className="kr text-3xl md:text-5xl leading-[1.05] tracking-tight font-semibold mb-5">

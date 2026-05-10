@@ -5,7 +5,7 @@
 // save/delete callbacks call the right editor transforms.
 
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, fireEvent, act, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import koMessages from "@/../messages/ko/editor.json";
 import { MathInline } from "./math-inline";
@@ -41,7 +41,7 @@ const element = {
 };
 
 describe("MathInline click-to-edit", () => {
-  it("renders the KaTeX output for the expression", () => {
+  it("renders the KaTeX output for the expression", async () => {
     const { container } = render(
       wrap(
         // @ts-expect-error — minimal mock omits full PlateElementProps
@@ -53,7 +53,9 @@ describe("MathInline click-to-edit", () => {
         </MathInline>,
       ),
     );
-    expect(container.querySelector(".katex")).toBeTruthy();
+    await waitFor(() => {
+      expect(container.querySelector(".katex")).toBeTruthy();
+    });
   });
 
   it("opens the edit popover when the element is clicked", async () => {

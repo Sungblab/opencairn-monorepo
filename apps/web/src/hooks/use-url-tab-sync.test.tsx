@@ -2,6 +2,7 @@ import { renderHook, act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useUrlTabSync } from "./use-url-tab-sync";
 import { useTabsStore, type Tab } from "@/stores/tabs-store";
+import { TestShellLabelsProvider } from "@/components/shell/shell-labels.test-utils";
 
 const push = vi.fn();
 const replace = vi.fn();
@@ -16,14 +17,9 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({ wsSlug: "acme" }),
 }));
 
-// Stub next-intl's useTranslations so the hook can resolve placeholder tab
-// titles without a NextIntlClientProvider wrapper. Real i18n is exercised
-// by the Playwright spec; the unit test only needs deterministic output.
-vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string, vars?: Record<string, unknown>) =>
-    vars && "id" in vars ? `${key}:${vars.id}` : key,
-  useLocale: () => "ko",
-}));
+const wrapper = ({ children }: { children: React.ReactNode }) => (
+  <TestShellLabelsProvider>{children}</TestShellLabelsProvider>
+);
 
 describe("useUrlTabSync", () => {
   beforeEach(() => {
@@ -35,7 +31,7 @@ describe("useUrlTabSync", () => {
   });
 
   it("creates a tab matching the current URL on mount", () => {
-    renderHook(() => useUrlTabSync());
+    renderHook(() => useUrlTabSync(), { wrapper });
     const s = useTabsStore.getState();
     expect(s.tabs).toHaveLength(1);
     expect(s.tabs[0]).toMatchObject({ kind: "note", targetId: "n-1" });
@@ -63,31 +59,26 @@ describe("useUrlTabSync", () => {
       "oc:tabs:ws_slug:acme",
       JSON.stringify({ tabs: [existing], activeId: null }),
     );
-    renderHook(() => useUrlTabSync());
+    renderHook(() => useUrlTabSync(), { wrapper });
     expect(useTabsStore.getState().tabs).toHaveLength(1);
     expect(useTabsStore.getState().activeId).toBe("pre");
   });
 
-  it("navigateToTab(kind,id) pushes URL for new tab", () => {
-    const { result } = renderHook(() => useUrlTabSync());
-    act(() =>
-      result.current.navigateToTab(
-        { kind: "note", targetId: "n-5" },
-        { mode: "push" },
-      ),
-    );
-    expect(push).toHaveBeenCalledWith("/ko/workspace/acme/note/n-5");
+  it("does not return an imperative navigator from the sync hook", () => {
+    const { result } = renderHook(() => useUrlTabSync(), { wrapper });
+
+    expect(result.current).toBeUndefined();
   });
 
   it("note URL adds a preview tab", () => {
-    renderHook(() => useUrlTabSync());
+    renderHook(() => useUrlTabSync(), { wrapper });
     const s = useTabsStore.getState();
     expect(s.tabs).toHaveLength(1);
     expect(s.tabs[0].preview).toBe(true);
   });
 
   it("replaces an existing preview tab when navigating to another note", () => {
-    const { rerender } = renderHook(() => useUrlTabSync());
+    const { rerender } = renderHook(() => useUrlTabSync(), { wrapper });
     expect(useTabsStore.getState().tabs).toHaveLength(1);
     expect(useTabsStore.getState().tabs[0].targetId).toBe("n-1");
 
@@ -122,7 +113,7 @@ describe("useUrlTabSync", () => {
       "oc:tabs:ws_slug:acme",
       JSON.stringify({ tabs: [pinned], activeId: "pin", closedStack: [] }),
     );
-    renderHook(() => useUrlTabSync());
+    renderHook(() => useUrlTabSync(), { wrapper });
     // The pinned tab survives + the new note opens as a preview.
     const tabs = useTabsStore.getState().tabs;
     expect(tabs.map((t) => t.id).includes("pin")).toBe(true);
@@ -132,7 +123,7 @@ describe("useUrlTabSync", () => {
 
   it("non-note kinds do not replace an existing preview tab", () => {
     // Open a note preview tab first.
-    const { rerender } = renderHook(() => useUrlTabSync());
+    const { rerender } = renderHook(() => useUrlTabSync(), { wrapper });
     expect(useTabsStore.getState().tabs).toHaveLength(1);
 
     // Navigate to dashboard — a non-preview kind. The note preview should
@@ -149,7 +140,7 @@ describe("useUrlTabSync", () => {
   });
 
   it("creates help and report tabs from workspace routes", () => {
-    const { rerender } = renderHook(() => useUrlTabSync());
+    const { rerender } = renderHook(() => useUrlTabSync(), { wrapper });
 
     act(() => {
       currentPath = "/ko/workspace/acme/help";
@@ -174,9 +165,23 @@ describe("useUrlTabSync", () => {
     });
   });
 
+  it("creates graph-mode project tabs with the graph title key", () => {
+    currentPath = "/ko/workspace/acme/project/p-1/graph";
+
+    renderHook(() => useUrlTabSync(), { wrapper });
+
+    expect(useTabsStore.getState().tabs[0]).toMatchObject({
+      kind: "project",
+      targetId: "p-1",
+      mode: "graph",
+      title: "그래프",
+      titleKey: "appShell.tabTitles.graph",
+    });
+  });
+
   it("reuses one workspace settings tab across settings sections", () => {
     currentPath = "/ko/workspace/acme/settings/members";
-    const { rerender } = renderHook(() => useUrlTabSync());
+    const { rerender } = renderHook(() => useUrlTabSync(), { wrapper });
     expect(useTabsStore.getState().tabs).toHaveLength(1);
     expect(useTabsStore.getState().tabs[0]).toMatchObject({
       kind: "ws_settings",
@@ -238,7 +243,7 @@ describe("useUrlTabSync", () => {
     );
     currentPath = "/ko/workspace/acme/settings/integrations";
 
-    renderHook(() => useUrlTabSync());
+    renderHook(() => useUrlTabSync(), { wrapper });
 
     const tabs = useTabsStore.getState().tabs;
     expect(tabs).toHaveLength(1);
@@ -275,7 +280,7 @@ describe("useUrlTabSync", () => {
     );
     currentPath = "/ko/workspace/acme/settings/personal/profile";
 
-    renderHook(() => useUrlTabSync());
+    renderHook(() => useUrlTabSync(), { wrapper });
 
     expect(useTabsStore.getState().tabs[0]).toMatchObject({
       kind: "ws_settings",
@@ -284,19 +289,8 @@ describe("useUrlTabSync", () => {
     });
   });
 
-  it("navigateToTab with mode=replace uses router.replace", () => {
-    const { result } = renderHook(() => useUrlTabSync());
-    act(() =>
-      result.current.navigateToTab(
-        { kind: "dashboard", targetId: null },
-        { mode: "replace" },
-      ),
-    );
-    expect(replace).toHaveBeenCalledWith("/ko/workspace/acme/");
-  });
-
   it("does not steal focus back from client-only ingest tabs", () => {
-    renderHook(() => useUrlTabSync());
+    renderHook(() => useUrlTabSync(), { wrapper });
     const routeTabId = useTabsStore.getState().activeId;
     expect(routeTabId).toBeTruthy();
 

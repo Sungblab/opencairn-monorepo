@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 
 // In-app "note not found" — surfaces inside the workspace shell, so this is a
@@ -26,9 +25,9 @@ export default async function NoteNotFound() {
               {t("errorPages.notFound.body")}
             </p>
           </div>
-          <Link href="/" className="auth-btn auth-btn-secondary w-full kr">
+          <a href="/" className="auth-btn auth-btn-secondary w-full kr">
             {t("errorPages.notFound.home")}
-          </Link>
+          </a>
         </div>
       </div>
     </div>

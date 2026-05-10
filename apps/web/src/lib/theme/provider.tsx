@@ -1,6 +1,13 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import { DEFAULT_THEME, THEMES, type Theme, isTheme } from "./themes";
 import { writeThemeCookie } from "./cookie";
 
@@ -22,17 +29,27 @@ export function ThemeProvider({
   const [theme, setThemeState] = useState<Theme>(initialTheme);
 
   useEffect(() => {
-    const stored = typeof window !== "undefined" ? window.localStorage.getItem("opencairn.theme") : null;
-    if (stored && isTheme(stored) && stored !== initialTheme) {
-      setThemeState(stored);
-      document.documentElement.setAttribute("data-theme", stored);
+    const stored =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("opencairn.theme")
+        : null;
+    if (stored && isTheme(stored)) {
+      if (stored !== initialTheme) {
+        setThemeState(stored);
+        document.documentElement.setAttribute("data-theme", stored);
+      }
+      writeThemeCookie(stored);
       return;
     }
     if (!stored && typeof window !== "undefined") {
-      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const prefersDark = window.matchMedia(
+        "(prefers-color-scheme: dark)",
+      ).matches;
       if (prefersDark && initialTheme === DEFAULT_THEME) {
         setThemeState("cairn-dark");
         document.documentElement.setAttribute("data-theme", "cairn-dark");
+        window.localStorage.setItem("opencairn.theme", "cairn-dark");
+        writeThemeCookie("cairn-dark");
       }
     }
   }, [initialTheme]);
@@ -44,7 +61,11 @@ export function ThemeProvider({
     writeThemeCookie(next);
   }, []);
 
-  return <Ctx.Provider value={{ theme, setTheme, themes: THEMES }}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={{ theme, setTheme, themes: THEMES }}>
+      {children}
+    </Ctx.Provider>
+  );
 }
 
 export function useTheme(): ThemeCtx {

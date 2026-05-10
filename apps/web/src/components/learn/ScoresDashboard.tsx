@@ -2,7 +2,7 @@
 
 import { useTranslations, useFormatter } from "next-intl";
 
-type ScoreEntry = {
+export type ScoreEntry = {
   conceptId: string;
   conceptTitle?: string;
   score: number;

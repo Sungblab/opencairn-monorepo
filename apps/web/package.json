@@ -10,6 +10,7 @@
     "i18n:sync": "node scripts/i18n-sync.mjs",
     "i18n:parity": "node scripts/i18n-parity.mjs",
     "i18n:quality": "node scripts/i18n-quality.mjs",
+    "perf:routes": "node scripts/route-client-manifest-size.mjs",
     "test:e2e": "playwright test",
     "test:unit": "vitest run",
     "test": "vitest run"
@@ -31,7 +32,6 @@
     "@platejs/link": "^53",
     "@platejs/list": "^53",
     "@platejs/markdown": "^53",
-    "@platejs/math": "^53",
     "@platejs/table": "^53",
     "@platejs/toggle": "^53",
     "@platejs/yjs": "^53",

@@ -10,7 +10,7 @@ import { NotificationsView } from "../account/notifications-view";
 import { BillingView } from "../account/billing-view";
 import { AppearanceView } from "../account/appearance-view";
 import { LanguageRegionView } from "../account/language-region-view";
-import { McpSettingsClient } from "@/components/settings/mcp/McpSettingsClient";
+import { McpSettingsClientLoader } from "@/components/settings/mcp/McpSettingsClientLoader";
 import { MembersTab } from "./members-tab";
 import { InvitesTab } from "./invites-tab";
 import { IntegrationsTab } from "./integrations-tab";
@@ -161,17 +161,19 @@ function sectionHref(locale: string, wsSlug: string, section: SettingsSection) {
   return urls.workspace.settingsSection(locale, wsSlug, first, second);
 }
 
+export interface WorkspaceSettingsViewProps {
+  wsSlug: string;
+  wsId: string;
+  sub?: string;
+  path?: string[];
+}
+
 export function WorkspaceSettingsView({
   wsSlug,
   wsId,
   sub,
   path,
-}: {
-  wsSlug: string;
-  wsId: string;
-  sub?: string;
-  path?: string[];
-}) {
+}: WorkspaceSettingsViewProps) {
   const locale = useLocale();
   const tWorkspace = useTranslations("workspaceSettings");
   const tAccount = useTranslations("account");
@@ -192,7 +194,7 @@ export function WorkspaceSettingsView({
       case "ai/providers":
         return <ProvidersView />;
       case "ai/mcp":
-        return <McpSettingsClient />;
+        return <McpSettingsClientLoader />;
       case "workspace/members":
         return <MembersTab wsId={wsId} />;
       case "workspace/invites":

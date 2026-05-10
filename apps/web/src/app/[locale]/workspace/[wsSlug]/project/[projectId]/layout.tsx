@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
-import { Sidebar } from "@/components/sidebar/Sidebar";
+import { SidebarLoader } from "@/components/sidebar/SidebarLoader";
 
 export default async function ProjectLayout({
   children,
@@ -20,11 +20,19 @@ export default async function ProjectLayout({
   });
   if (projRes.status === 403 || projRes.status === 404) notFound();
   if (!projRes.ok) throw new Error(`Failed to load project (${projRes.status})`);
-  const project = (await projRes.json()) as { id: string; name: string; workspaceId: string };
+  const project = (await projRes.json()) as {
+    id: string;
+    name: string;
+    workspaceId: string;
+  };
 
   return (
     <>
-      <Sidebar workspaceSlug={wsSlug} projectId={projectId} projectName={project.name} />
+      <SidebarLoader
+        workspaceSlug={wsSlug}
+        projectId={projectId}
+        projectName={project.name}
+      />
       <main className="min-w-0 flex-1 overflow-auto">{children}</main>
     </>
   );

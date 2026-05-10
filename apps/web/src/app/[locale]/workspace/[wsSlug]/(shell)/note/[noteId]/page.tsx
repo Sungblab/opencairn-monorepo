@@ -1,9 +1,6 @@
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
-import { NoteEditorClient } from "@/components/editor/note-editor-client";
-import { NoteWithBacklinks } from "@/components/notes/NoteWithBacklinks";
-import { NoteRouteChrome } from "@/components/notes/NoteRouteChrome";
-import { NoteTabModeSync } from "@/components/notes/NoteTabModeSync";
+import { NoteRouteClientLoader } from "@/components/notes/NoteRouteClientLoader";
 
 interface PageProps {
   params: Promise<{
@@ -72,28 +69,18 @@ export default async function NotePage({ params }: PageProps) {
   const canComment = role !== "viewer";
 
   return (
-    <NoteWithBacklinks noteId={note.id}>
-      <NoteTabModeSync noteId={note.id} sourceType={note.sourceType} />
-      <NoteRouteChrome
-        noteId={note.id}
-        readOnly={readOnly}
-        wsSlug={wsSlug}
-        projectId={note.projectId}
-        projectName={null}
-        title={note.title}
-        updatedAtIso={note.updatedAt}
-      />
-      <NoteEditorClient
-        noteId={note.id}
-        initialTitle={note.title}
-        wsSlug={wsSlug}
-        workspaceId={note.workspaceId}
-        projectId={note.projectId}
-        userId={me.userId}
-        userName={me.name ?? me.email ?? "Anonymous"}
-        readOnly={readOnly}
-        canComment={canComment}
-      />
-    </NoteWithBacklinks>
+    <NoteRouteClientLoader
+      noteId={note.id}
+      title={note.title}
+      sourceType={note.sourceType}
+      updatedAtIso={note.updatedAt}
+      wsSlug={wsSlug}
+      workspaceId={note.workspaceId}
+      projectId={note.projectId}
+      userId={me.userId}
+      userName={me.name ?? me.email ?? "Anonymous"}
+      readOnly={readOnly}
+      canComment={canComment}
+    />
   );
 }

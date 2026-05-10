@@ -1,6 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { apiClient } from "@/lib/api-client";
-import { ScoresDashboard } from "@/components/learn/ScoresDashboard";
+import { ScoresDashboardLoader } from "@/components/learn/ScoresDashboardLoader";
 
 interface ScoreEntry {
   conceptId: string;
@@ -48,7 +48,7 @@ export default async function ScoresPage({
           </div>
         )}
       </div>
-      <ScoresDashboard scores={scores} />
+      <ScoresDashboardLoader scores={scores} />
     </div>
   );
 }

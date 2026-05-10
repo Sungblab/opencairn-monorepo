@@ -18,11 +18,15 @@ import {
 import { Button } from "@/components/ui/button";
 import type { DocEditorState } from "@/hooks/use-doc-editor-command";
 import type { DocEditorCommand } from "@opencairn/shared";
+import {
+  TRANSLATE_LANGUAGES,
+  type TranslateLanguage,
+} from "./inline-diff-shared";
 
-export const TRANSLATE_LANGUAGES = ["ko", "en", "ja", "zh"] as const;
-export type TranslateLanguage = (typeof TRANSLATE_LANGUAGES)[number];
+export { TRANSLATE_LANGUAGES };
+export type { TranslateLanguage };
 
-type Props = {
+export interface InlineDiffSheetProps {
   open: boolean;
   state: DocEditorState;
   onAcceptAll: () => void;
@@ -38,7 +42,7 @@ type Props = {
   currentLanguage?: TranslateLanguage;
   onLanguageChange?: (lang: TranslateLanguage) => void;
   onShowComments?: (commentIds: string[]) => void;
-};
+}
 
 const ERROR_KEYS = new Set([
   "llm_failed",
@@ -57,7 +61,7 @@ export function InlineDiffSheet({
   currentLanguage,
   onLanguageChange,
   onShowComments,
-}: Props) {
+}: InlineDiffSheetProps) {
   const t = useTranslations("docEditor.sheet");
   const tErr = useTranslations("docEditor.error");
   const tLang = useTranslations("docEditor.translate.language");

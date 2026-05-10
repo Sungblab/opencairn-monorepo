@@ -5,7 +5,6 @@ import koSidebar from "@/../messages/ko/sidebar.json";
 import { ProjectGraphLink } from "./project-graph-link";
 
 const mocks = vi.hoisted(() => ({
-  assign: vi.fn(),
   projectId: { current: "p-1" as string | null },
 }));
 
@@ -18,11 +17,6 @@ vi.mock("./use-current-project", () => ({
 }));
 
 beforeEach(() => {
-  mocks.assign.mockReset();
-  Object.defineProperty(window, "location", {
-    configurable: true,
-    value: { assign: mocks.assign },
-  });
   mocks.projectId.current = "p-1";
 });
 
@@ -50,11 +44,10 @@ describe("ProjectGraphLink", () => {
     );
   });
 
-  it("navigates to the graph route on click", () => {
+  it("uses a plain link for browser-owned navigation", () => {
     wrap(<ProjectGraphLink />);
-    screen.getByRole("link", { name: koSidebar.graph.entry }).click();
-    expect(mocks.assign).toHaveBeenCalledWith(
-      "/ko/workspace/w-slug/project/p-1/graph",
-    );
+    const link = screen.getByRole("link", { name: koSidebar.graph.entry });
+    expect(link.tagName).toBe("A");
+    expect(link).not.toHaveAttribute("role", "button");
   });
 });

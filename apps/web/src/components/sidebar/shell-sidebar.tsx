@@ -44,7 +44,7 @@ export function ShellSidebar({
       data-testid="app-shell-sidebar"
       className="flex h-full min-h-0 flex-col border-r border-border bg-background"
     >
-      <div className="flex items-center gap-1 border-b border-border px-2 py-2">
+      <div className="flex items-center gap-1 border-b border-border px-2 py-1.5">
         <div className="min-w-0 flex-1">{wsSlug ? <ProjectHero /> : null}</div>
         <button
           type="button"

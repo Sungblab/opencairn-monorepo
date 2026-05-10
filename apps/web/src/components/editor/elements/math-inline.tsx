@@ -6,11 +6,11 @@
 // MathEditPopover. Clicking the rendered equation opens the popover;
 // saving commits a single editor.tf.setNodes op. Empty save deletes the node.
 
-import katex from "katex";
 import { useTranslations } from "next-intl";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import type { PlateElementProps } from "platejs/react";
 import { useEditorRef } from "platejs/react";
+import { KatexRendererLoader } from "./katex-renderer-loader";
 import { MathEditPopover } from "./math-edit-popover";
 
 export function MathInline({
@@ -22,14 +22,6 @@ export function MathInline({
   const editor = useEditorRef();
   const tex = (element as { texExpression?: string }).texExpression ?? "";
   const [open, setOpen] = useState(false);
-
-  const html = useMemo(() => {
-    try {
-      return katex.renderToString(tex, { throwOnError: true });
-    } catch {
-      return null;
-    }
-  }, [tex]);
 
   function handleSave(next: string) {
     const path = editor.api.findPath(element as never);
@@ -52,13 +44,12 @@ export function MathInline({
       data-math-inline
       onClick={() => setOpen(true)}
     >
-      {html ? (
-        <span dangerouslySetInnerHTML={{ __html: html }} />
-      ) : (
-        <span className="text-xs text-red-600" title={t("parse_error")}>
-          {`$${tex}$`}
-        </span>
-      )}
+      <KatexRendererLoader
+        tex={tex}
+        errorClassName="text-xs text-red-600"
+        errorText={`$${tex}$`}
+        errorTitle={t("parse_error")}
+      />
       {children}
     </span>
   );

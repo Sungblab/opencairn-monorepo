@@ -1,18 +1,13 @@
-"use client";
-import { useRef } from "react";
 import { useTranslations } from "next-intl";
-import { useScrollReveal } from "@/lib/landing/hooks/useScrollReveal";
 
 type Principle = { tag: string; cat: string; title: string; body: string };
 
 export function Comparison() {
   const t = useTranslations("landing.principles");
-  const ref = useRef<HTMLElement>(null);
-  useScrollReveal(ref);
   const items = t.raw("items") as Principle[];
 
   return (
-    <section ref={ref} id="vs" className="py-24 md:py-32 border-b border-stone-900">
+    <section id="vs" className="py-24 md:py-32 border-b border-stone-900">
       <div className="max-w-[1280px] mx-auto px-6 lg:px-10">
         <div className="mb-16 reveal">
           <h2 className="kr text-3xl md:text-5xl text-stone-900 leading-[1.05] tracking-tight font-semibold mb-5">

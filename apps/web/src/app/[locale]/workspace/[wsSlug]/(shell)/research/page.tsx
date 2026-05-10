@@ -3,7 +3,7 @@ import {
   isDeepResearchEnabled,
   isManagedDeepResearchEnabled,
 } from "@/lib/feature-flags";
-import { ResearchHub } from "@/components/research/ResearchHub";
+import { ResearchHubLoader } from "@/components/research/ResearchHubLoader";
 import { apiClient } from "@/lib/api-client";
 
 // API contract verified against:
@@ -37,7 +37,7 @@ export default async function ResearchHubPage({
   );
 
   return (
-    <ResearchHub
+    <ResearchHubLoader
       wsSlug={wsSlug}
       workspaceId={ws.id}
       projects={projects.map((p) => ({ id: p.id, name: p.name }))}

@@ -1,7 +1,8 @@
 "use client";
 import { useEffect } from "react";
 import { useTabsStore } from "@/stores/tabs-store";
-import { ProjectGraph } from "./ProjectGraph";
+import { useShellLabels } from "@/components/shell/shell-labels";
+import { ProjectGraphLoader } from "./ProjectGraphLoader";
 
 interface Props {
   wsSlug: string;
@@ -19,6 +20,7 @@ export function ProjectGraphRouteEntry({ projectId }: Props) {
   const addTab = useTabsStore((s) => s.addTab);
   const setActive = useTabsStore((s) => s.setActive);
   const updateTab = useTabsStore((s) => s.updateTab);
+  const { tabs: labels } = useShellLabels();
 
   useEffect(() => {
     const existing = findTabByTarget("project", projectId);
@@ -26,7 +28,7 @@ export function ProjectGraphRouteEntry({ projectId }: Props) {
       if (existing.mode !== "graph") {
         updateTab(existing.id, {
           mode: "graph",
-          title: "Graph",
+          title: labels.titles.graph,
           titleKey: "appShell.tabTitles.graph",
         });
       }
@@ -38,7 +40,7 @@ export function ProjectGraphRouteEntry({ projectId }: Props) {
       kind: "project",
       targetId: projectId,
       mode: "graph",
-      title: "Graph",
+      title: labels.titles.graph,
       titleKey: "appShell.tabTitles.graph",
       pinned: false,
       preview: false,
@@ -47,7 +49,7 @@ export function ProjectGraphRouteEntry({ projectId }: Props) {
       splitSide: null,
       scrollY: 0,
     });
-  }, [projectId, findTabByTarget, addTab, setActive, updateTab]);
+  }, [projectId, findTabByTarget, addTab, setActive, updateTab, labels]);
 
-  return <ProjectGraph projectId={projectId} />;
+  return <ProjectGraphLoader projectId={projectId} />;
 }

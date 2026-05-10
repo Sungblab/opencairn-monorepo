@@ -1,24 +1,45 @@
 "use client";
-import { useCallback, useEffect } from "react";
-import { useTranslations } from "next-intl";
+import { useEffect } from "react";
 import { AppShell } from "./app-shell";
+import { ShellKeyboardShortcutsLoader } from "./shell-keyboard-shortcuts-loader";
+import { ShellLabelsProvider, type ShellLabels } from "./shell-labels";
 import { useUrlTabSync } from "@/hooks/use-url-tab-sync";
-import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
-import { useTabKeyboard } from "@/hooks/use-tab-keyboard";
-import { useTabModeShortcut } from "@/hooks/use-tab-mode-shortcut";
-import { useBreakpoint } from "@/hooks/use-breakpoint";
-import { usePanelStore } from "@/stores/panel-store";
 import { useThreadsStore } from "@/stores/threads-store";
 import { useSidebarStore } from "@/stores/sidebar-store";
-import { useTabsStore } from "@/stores/tabs-store";
-import { newTab } from "@/lib/tab-factory";
 
 // One mount point that wires every cross-cutting concern the shell needs:
-// URL ↔ tabs reconciliation, the two global shortcuts, and per-workspace
-// hydration of the sibling stores (threads + sidebar) — kept in lockstep
-// with the workspace key tabs-store derives in useUrlTabSync so all three
-// stores agree on which workspace is active.
+// URL ↔ tabs reconciliation and per-workspace hydration of the sibling
+// stores (threads + sidebar) — kept in lockstep with the workspace key
+// tabs-store derives in useUrlTabSync so all three stores agree on which
+// workspace is active. Keyboard shortcut listeners are loaded separately
+// because they are not needed for the initial shell paint.
 export function ShellProviders({
+  wsSlug,
+  shellLabels,
+  deepResearchEnabled,
+  synthesisExportEnabled = false,
+  children,
+}: {
+  wsSlug: string;
+  shellLabels: ShellLabels;
+  deepResearchEnabled: boolean;
+  synthesisExportEnabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <ShellLabelsProvider labels={shellLabels}>
+      <ShellRuntimeProviders
+        wsSlug={wsSlug}
+        deepResearchEnabled={deepResearchEnabled}
+        synthesisExportEnabled={synthesisExportEnabled}
+      >
+        {children}
+      </ShellRuntimeProviders>
+    </ShellLabelsProvider>
+  );
+}
+
+function ShellRuntimeProviders({
   wsSlug,
   deepResearchEnabled,
   synthesisExportEnabled = false,
@@ -30,61 +51,6 @@ export function ShellProviders({
   children: React.ReactNode;
 }) {
   useUrlTabSync();
-  useTabKeyboard();
-  useTabModeShortcut();
-
-  const isCompact = useBreakpoint() !== "lg";
-  const toggleSidebar = usePanelStore((s) => s.toggleSidebar);
-  const toggleCompactSidebar = usePanelStore((s) => s.toggleCompactSidebar);
-  const toggleAgentPanel = usePanelStore((s) => s.toggleAgentPanel);
-  const toggleCompactAgentPanel = usePanelStore(
-    (s) => s.toggleCompactAgentPanel,
-  );
-  const tabBarT = useTranslations("appShell.tabs.bar");
-
-  const onSidebarShortcut = useCallback(
-    (e: KeyboardEvent) => {
-      e.preventDefault();
-      if (isCompact) toggleCompactSidebar();
-      else toggleSidebar();
-    },
-    [isCompact, toggleCompactSidebar, toggleSidebar],
-  );
-  const onAgentPanelShortcut = useCallback(
-    (e: KeyboardEvent) => {
-      e.preventDefault();
-      if (isCompact) toggleCompactAgentPanel();
-      else toggleAgentPanel();
-    },
-    [isCompact, toggleAgentPanel, toggleCompactAgentPanel],
-  );
-  // mod+T and mod+shift+T are generally captured by the browser chrome,
-  // so these handlers are effectively best-effort on the web target — they
-  // matter for the desktop build and for browsers / kiosk modes that
-  // surface the key to the page.
-  const onNewTabShortcut = useCallback(
-    (e: KeyboardEvent) => {
-      e.preventDefault();
-      useTabsStore.getState().addTab(
-        newTab({
-          kind: "note",
-          targetId: null,
-          title: tabBarT("newTabTitle"),
-          preview: false,
-        }),
-      );
-    },
-    [tabBarT],
-  );
-  const onRestoreClosedShortcut = useCallback((e: KeyboardEvent) => {
-    e.preventDefault();
-    useTabsStore.getState().restoreClosed();
-  }, []);
-
-  useKeyboardShortcut("mod+\\", onSidebarShortcut);
-  useKeyboardShortcut("mod+j", onAgentPanelShortcut);
-  useKeyboardShortcut("mod+t", onNewTabShortcut);
-  useKeyboardShortcut("mod+shift+t", onRestoreClosedShortcut);
 
   const setThreadsWs = useThreadsStore((s) => s.setWorkspace);
   const setSidebarWs = useSidebarStore((s) => s.setWorkspace);
@@ -102,12 +68,15 @@ export function ShellProviders({
   // back to a profile-only action set when the path has no `/workspace/<slug>`
   // segment.
   return (
-    <AppShell
-      wsSlug={wsSlug}
-      deepResearchEnabled={deepResearchEnabled}
-      synthesisExportEnabled={synthesisExportEnabled}
-    >
-      {children}
-    </AppShell>
+    <>
+      <ShellKeyboardShortcutsLoader />
+      <AppShell
+        wsSlug={wsSlug}
+        deepResearchEnabled={deepResearchEnabled}
+        synthesisExportEnabled={synthesisExportEnabled}
+      >
+        {children}
+      </AppShell>
+    </>
   );
 }

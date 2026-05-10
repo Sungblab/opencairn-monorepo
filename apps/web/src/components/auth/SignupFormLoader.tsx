@@ -1,0 +1,36 @@
+"use client";
+
+import dynamic from "next/dynamic";
+
+const LazySignupForm = dynamic(
+  () => import("./SignupForm").then((mod) => mod.SignupForm),
+  {
+    ssr: false,
+    loading: () => <AuthFormSkeleton steps={3} />,
+  },
+);
+
+export function SignupFormLoader() {
+  return <LazySignupForm />;
+}
+
+function AuthFormSkeleton({ steps }: { steps: number }) {
+  return (
+    <div aria-hidden className="flex flex-col gap-6">
+      <div className="flex gap-2">
+        {Array.from({ length: steps }).map((_, index) => (
+          <div
+            key={index}
+            className="h-1 flex-1 animate-pulse rounded-full bg-stone-200"
+          />
+        ))}
+      </div>
+      <div className="space-y-3">
+        <div className="h-8 w-60 animate-pulse rounded bg-stone-200" />
+        <div className="h-12 animate-pulse rounded-md bg-stone-100" />
+        <div className="h-12 animate-pulse rounded-md bg-stone-100" />
+        <div className="h-12 animate-pulse rounded-md bg-stone-100" />
+      </div>
+    </div>
+  );
+}

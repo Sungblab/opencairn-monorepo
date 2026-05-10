@@ -1,5 +1,4 @@
 /* eslint-disable i18next/no-literal-string -- root boundary renders outside NextIntlClientProvider, bilingual fallback copy is intentional */
-import Link from "next/link";
 
 // Inline + <style> because this boundary renders outside the i18n + Tailwind
 // runtime; we ship self-contained styles so 404 still feels on-brand.
@@ -134,7 +133,7 @@ export default function RootNotFound() {
               </p>
             </div>
 
-            <Link href="/" className="nf-btn">
+            <a href="/" className="nf-btn">
               <span>홈으로 / Home</span>
               <svg
                 width="16"
@@ -149,7 +148,7 @@ export default function RootNotFound() {
               >
                 <path d="M5 12h14M13 5l7 7-7 7" />
               </svg>
-            </Link>
+            </a>
           </div>
         </div>
       </div>

@@ -6,11 +6,11 @@
 // MathEditPopover. Clicking the rendered block opens the popover;
 // saving commits a single editor.tf.setNodes op. Empty save deletes the node.
 
-import katex from "katex";
 import { useTranslations } from "next-intl";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import type { PlateElementProps } from "platejs/react";
 import { useEditorRef } from "platejs/react";
+import { KatexRendererLoader } from "./katex-renderer-loader";
 import { MathEditPopover } from "./math-edit-popover";
 
 export function MathBlock({
@@ -22,17 +22,6 @@ export function MathBlock({
   const editor = useEditorRef();
   const tex = (element as { texExpression?: string }).texExpression ?? "";
   const [open, setOpen] = useState(false);
-
-  const html = useMemo(() => {
-    try {
-      return katex.renderToString(tex, {
-        displayMode: true,
-        throwOnError: true,
-      });
-    } catch {
-      return null;
-    }
-  }, [tex]);
 
   function handleSave(next: string) {
     const path = editor.api.findPath(element as never);
@@ -55,19 +44,14 @@ export function MathBlock({
       data-math-block
       onClick={() => setOpen(true)}
     >
-      <div
-        className={`rounded border p-3 ${
-          html ? "border-border" : "border-red-600"
-        }`}
-      >
-        {html ? (
-          <span dangerouslySetInnerHTML={{ __html: html }} />
-        ) : (
-          <span className="text-sm text-red-600">
-            {`${t("parse_error")}: $${tex}$`}
-          </span>
-        )}
-      </div>
+      <KatexRendererLoader
+        tex={tex}
+        displayMode
+        block
+        className="rounded border border-border p-3"
+        errorClassName="rounded border border-red-600 p-3 text-sm text-red-600"
+        errorText={`${t("parse_error")}: $${tex}$`}
+      />
       {children}
     </div>
   );

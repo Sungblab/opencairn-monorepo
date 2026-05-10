@@ -3,38 +3,23 @@ import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppShell } from "./app-shell";
+import { TestShellLabelsProvider } from "./shell-labels.test-utils";
 import { usePanelStore } from "@/stores/panel-store";
 
 const mocks = vi.hoisted(() => ({
   breakpoint: "xs",
 }));
 
-vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string) => key,
-}));
-
 vi.mock("@/hooks/use-breakpoint", () => ({
   useBreakpoint: () => mocks.breakpoint,
 }));
 
-vi.mock("@/components/ui/sheet", () => ({
-  Sheet: ({ children }: { children: ReactNode }) => (
-    <div data-testid="sheet">{children}</div>
-  ),
-  SheetContent: ({ children }: { children: ReactNode }) => (
-    <div data-testid="sheet-content">{children}</div>
-  ),
-  SheetTitle: ({ children }: { children: ReactNode }) => (
-    <h2>{children}</h2>
-  ),
+vi.mock("@/components/sidebar/shell-sidebar-loader", () => ({
+  ShellSidebarLoader: () => <div data-testid="app-shell-sidebar" />,
 }));
 
-vi.mock("@/components/sidebar/shell-sidebar", () => ({
-  ShellSidebar: () => <div data-testid="app-shell-sidebar" />,
-}));
-
-vi.mock("@/components/agent-panel/agent-panel", () => ({
-  AgentPanel: () => <aside data-testid="app-shell-agent-panel" />,
+vi.mock("@/components/agent-panel/agent-panel-loader", () => ({
+  LazyAgentPanel: () => <aside data-testid="app-shell-agent-panel" />,
 }));
 
 vi.mock("../tab-shell/tab-shell", () => ({
@@ -47,15 +32,37 @@ vi.mock("./shell-resize-handle", () => ({
   ShellResizeHandle: () => <div data-testid="resize-handle" />,
 }));
 
-vi.mock("@/components/ingest/ingest-overlays", () => ({
-  IngestOverlays: () => null,
+vi.mock("./compact-app-shell-loader", () => ({
+  CompactAppShellLoader: ({
+    children,
+    compactSidebarOpen,
+    compactAgentPanelOpen,
+  }: {
+    children: ReactNode;
+    compactSidebarOpen: boolean;
+    compactAgentPanelOpen: boolean;
+  }) => (
+    <div data-testid="app-shell">
+      {compactSidebarOpen ? <div data-testid="app-shell-sidebar" /> : null}
+      <main data-testid="app-shell-main">{children}</main>
+      {compactAgentPanelOpen ? (
+        <aside data-testid="app-shell-agent-panel" />
+      ) : null}
+    </div>
+  ),
+}));
+
+vi.mock("@/components/ingest/ingest-overlays-loader", () => ({
+  IngestOverlaysLoader: () => null,
 }));
 
 function renderCompactShell() {
   return render(
-    <AppShell wsSlug="e2e-mock-ws" deepResearchEnabled={false}>
-      <div>route content</div>
-    </AppShell>,
+    <TestShellLabelsProvider>
+      <AppShell wsSlug="e2e-mock-ws" deepResearchEnabled={false}>
+        <div>route content</div>
+      </AppShell>
+    </TestShellLabelsProvider>,
   );
 }
 
@@ -88,6 +95,10 @@ describe("AppShell compact sheets", () => {
 
   it("keeps desktop fallback side panels CSS-hidden below lg", () => {
     mocks.breakpoint = "lg";
+    usePanelStore.setState({
+      sidebarOpen: true,
+      agentPanelOpen: true,
+    });
 
     renderCompactShell();
 

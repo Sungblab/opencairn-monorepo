@@ -1,6 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { apiClient } from "@/lib/api-client";
-import { DeckCard } from "@/components/learn/DeckCard";
+import { FlashcardDeckGridLoader } from "@/components/learn/FlashcardDeckGridLoader";
 import { urls } from "@/lib/urls";
 
 interface DeckRow {
@@ -34,21 +34,14 @@ export default async function FlashcardsPage({
       {decks.length === 0 ? (
         <p className="text-muted-foreground">{t("empty")}</p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {decks.map((deck) => (
-            <DeckCard
-              key={deck.deckName}
-              deckName={deck.deckName}
-              totalCards={deck.total}
-              dueCount={deck.due}
-              reviewHref={urls.workspace.projectLearnFlashcardsReview(
-                locale,
-                wsSlug,
-                projectId,
-              )}
-            />
-          ))}
-        </div>
+        <FlashcardDeckGridLoader
+          decks={decks}
+          reviewHref={urls.workspace.projectLearnFlashcardsReview(
+            locale,
+            wsSlug,
+            projectId,
+          )}
+        />
       )}
     </div>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { ByokKeyCard } from "@/components/settings/ByokKeyCard";
+import { ByokKeyCardLoader } from "@/components/settings/ByokKeyCardLoader";
 
 // Account-shell BYOK tab. Wraps the same ByokKeyCard the standalone
 // /settings/ai page renders so that the account nav (where users
@@ -14,7 +14,7 @@ export function ProvidersView() {
     <section className="max-w-3xl">
       <h1 className="mb-3 text-xl font-semibold">{t("heading")}</h1>
       <p className="mb-6 text-sm text-muted-foreground">{t("description")}</p>
-      <ByokKeyCard />
+      <ByokKeyCardLoader />
     </section>
   );
 }

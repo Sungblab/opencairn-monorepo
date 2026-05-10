@@ -10,8 +10,8 @@ import { createPlatePlugin } from "platejs/react";
 //   3. Ctrl+Shift+M shortcut — wraps the current selection as inline_equation
 //
 // All triggers are no-ops when the selection is inside a code_block / code_line.
-// Node types: "inline_equation" (InlineEquationPlugin key) and "equation"
-// (EquationPlugin key) — these come from @platejs/math, NOT "math_inline"/"math_block".
+// Node types: "inline_equation" and "equation" are registered by the local
+// lightweight math node plugins, NOT "math_inline"/"math_block".
 //
 // The attribute that holds the LaTeX source is `texExpression` (matches TEquationElement).
 

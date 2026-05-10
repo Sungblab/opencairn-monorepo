@@ -4,27 +4,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { createParser } from "eventsource-parser";
-import {
-  saveSuggestionSchema,
-  type AttachedChip,
-  type SaveSuggestion,
-} from "@opencairn/shared";
+import type { AttachedChip, SaveSuggestion } from "@opencairn/shared";
 
 import { useTabsStore } from "@/stores/tabs-store";
 import { useScopeContext } from "@/hooks/useScopeContext";
 import { api } from "@/lib/api-client";
-import { newTab } from "@/lib/tab-factory";
 
 import { ChatInput } from "./ChatInput";
+import { ChatAttachmentCardsLoader } from "./ChatAttachmentCardsLoader";
 import { CostBadge } from "./CostBadge";
 import { PinButton } from "./PinButton";
 import type { RagModeValue } from "./RagModeToggle";
-import {
-  AgentFileCards,
-  DocumentGenerationCards,
-  asAgentFileCards,
-  asDocumentGenerationCards,
-} from "../agent-panel/message-bubble";
 import { SaveSuggestionCard } from "../agent-panel/save-suggestion-card";
 import { DocumentGenerationForm } from "../agent-panel/document-generation-form";
 
@@ -43,6 +33,16 @@ type Message = {
 
 const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null;
+
+async function parseSaveSuggestion(value: unknown): Promise<SaveSuggestion | null> {
+  try {
+    const { saveSuggestionSchema } = await import("@opencairn/shared");
+    const parsed = saveSuggestionSchema.safeParse(value);
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
 
 // Plan 11A — chat panel composition. Plan 11B swapped the placeholder reply
 // for real LLM SSE, so this panel now consumes the response incrementally with
@@ -180,12 +180,12 @@ export function ChatPanel() {
 
   const handleSaveSuggestion = useCallback(
     async (raw: unknown) => {
-      const parsed = saveSuggestionSchema.safeParse(raw);
-      if (!parsed.success) {
+      const parsed = await parseSaveSuggestion(raw);
+      if (!parsed) {
         toast.error(saveT("save_suggestion_failed"));
         return;
       }
-      const { title, body_markdown } = parsed.data;
+      const { title, body_markdown } = parsed;
       const { createNoteFromMarkdown, insertFromMarkdown } = await import(
         "@/lib/notes/insert-from-markdown"
       );
@@ -218,22 +218,30 @@ export function ChatPanel() {
             action: {
               label: saveT("save_suggestion_create_new"),
               onClick: () => {
-                void createNoteFromMarkdown({
-                  title,
-                  markdown: body_markdown,
-                  apiCreateNote,
-                  onCreated: (note) => {
-                    useTabsStore.getState().addTab(
-                      newTab({
-                        kind: "note",
-                        targetId: note.id,
-                        title: note.title,
-                        mode: "plate",
-                      }),
-                    );
-                  },
-                  onError: () => toast.error(saveT("save_suggestion_failed")),
-                });
+                void (async () => {
+                  try {
+                    const { newTab } = await import("@/lib/tab-factory");
+                    await createNoteFromMarkdown({
+                      title,
+                      markdown: body_markdown,
+                      apiCreateNote,
+                      onCreated: (note) => {
+                        useTabsStore.getState().addTab(
+                          newTab({
+                            kind: "note",
+                            targetId: note.id,
+                            title: note.title,
+                            mode: "plate",
+                          }),
+                        );
+                      },
+                      onError: () =>
+                        toast.error(saveT("save_suggestion_failed")),
+                    });
+                  } catch {
+                    toast.error(saveT("save_suggestion_failed"));
+                  }
+                })();
               },
             },
             cancel: { label: saveT("save_suggestion_cancel"), onClick: () => {} },
@@ -310,13 +318,13 @@ export function ChatPanel() {
               }
               break;
             case "save_suggestion": {
-              const parsed = saveSuggestionSchema.safeParse(payload);
-              if (parsed.success) {
+              void parseSaveSuggestion(payload).then((saveSuggestion) => {
+                if (!saveSuggestion) return;
                 updateMessage(assistantKey, (message) => ({
                   ...message,
-                  saveSuggestion: parsed.data,
+                  saveSuggestion,
                 }));
-              }
+              });
               break;
             }
             case "agent_file_created":
@@ -459,24 +467,18 @@ export function ChatPanel() {
                 }
               />
             )}
-            {m.role === "assistant" && ((m.agentFiles?.length ?? 0) > 0 || (m.projectObjects?.length ?? 0) > 0) && (
-              <AgentFileCards
-                files={asAgentFileCards(m.agentFiles, m.projectObjects)}
+            {m.role === "assistant" ? (
+              <ChatAttachmentCardsLoader
+                agentFiles={m.agentFiles}
+                projectObjects={m.projectObjects}
+                projectObjectGenerations={m.projectObjectGenerations}
               />
-            )}
-            {m.role === "assistant" &&
-              (m.projectObjectGenerations?.length ?? 0) > 0 && (
-                <DocumentGenerationCards
-                  items={asDocumentGenerationCards(m.projectObjectGenerations)}
-                />
-              )}
+            ) : null}
           </div>
         ))}
-        {formGenerationEvents.length > 0 ? (
-          <DocumentGenerationCards
-            items={asDocumentGenerationCards(formGenerationEvents)}
-          />
-        ) : null}
+        <ChatAttachmentCardsLoader
+          projectObjectGenerations={formGenerationEvents}
+        />
       </div>
       <div className="border-t border-border p-2">
         <DocumentGenerationForm

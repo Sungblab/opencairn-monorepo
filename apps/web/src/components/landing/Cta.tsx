@@ -1,17 +1,12 @@
-"use client";
-import { useRef } from "react";
-import { useLocale, useTranslations } from "next-intl";
-import { useScrollReveal } from "@/lib/landing/hooks/useScrollReveal";
+import { useTranslations } from "next-intl";
+import type { Locale } from "@/i18n";
 import { publicLinks } from "@/lib/site-config";
 
-export function Cta() {
+export function Cta({ locale }: { locale: Locale }) {
   const t = useTranslations("landing.cta");
-  const locale = useLocale();
-  const ref = useRef<HTMLElement>(null);
-  useScrollReveal(ref);
 
   return (
-    <section ref={ref} id="cta" className="bg-stone-50 py-24 md:py-32 border-b border-stone-900">
+    <section id="cta" className="bg-stone-50 py-24 md:py-32 border-b border-stone-900">
       <div className="max-w-[1280px] mx-auto px-6 lg:px-10">
         <div>
           <h2 className="kr font-sans text-4xl md:text-6xl text-stone-900 leading-[1.02] mb-6">

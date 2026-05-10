@@ -1,10 +1,9 @@
-import "katex/dist/katex.min.css";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import "./globals.css";
 import { ThemeProvider } from "@/lib/theme/provider";
 import { THEME_COOKIE, themeFromCookieValue } from "@/lib/theme/cookie";
-import { instrumentSerif, inter, jetbrainsMono, pretendard } from "@/lib/landing/fonts";
+import { LOCALE_COOKIE } from "@/lib/locale-cookie";
 import { siteConfig, siteUrl } from "@/lib/site-config";
 
 export const metadata: Metadata = {
@@ -25,14 +24,10 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
   const theme = themeFromCookieValue(cookieStore.get(THEME_COOKIE)?.value);
-  const locale = cookieStore.get("NEXT_LOCALE")?.value === "en" ? "en" : "ko";
+  const locale = cookieStore.get(LOCALE_COOKIE)?.value === "en" ? "en" : "ko";
 
   return (
-    <html
-      lang={locale}
-      data-theme={theme}
-      className={`${pretendard.variable} ${instrumentSerif.variable} ${inter.variable} ${jetbrainsMono.variable}`}
-    >
+    <html lang={locale} data-theme={theme}>
       <body className="bg-bg text-fg antialiased">
         <ThemeProvider initialTheme={theme}>{children}</ThemeProvider>
       </body>

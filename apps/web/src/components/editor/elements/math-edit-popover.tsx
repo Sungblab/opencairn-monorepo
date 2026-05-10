@@ -13,15 +13,15 @@
 //
 // Keyboard: Esc → close (no save), Ctrl+Enter → save.
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import katex from "katex";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { KatexRendererLoader } from "./katex-renderer-loader";
 
 export interface MathEditPopoverProps {
   open: boolean;
@@ -47,15 +47,6 @@ export function MathEditPopover({
   useEffect(() => {
     if (open) setTex(initialTex);
   }, [open, initialTex]);
-
-  const previewHtml = useMemo(() => {
-    if (!tex.trim()) return "";
-    try {
-      return katex.renderToString(tex, { throwOnError: true });
-    } catch {
-      return null; // null signals a parse error
-    }
-  }, [tex]);
 
   function handleSave() {
     if (tex.trim().length === 0) {
@@ -103,12 +94,11 @@ export function MathEditPopover({
               {t("previewLabel")}
             </label>
             <div className="min-h-[6rem] rounded-md border bg-muted/30 p-2 overflow-auto">
-              {previewHtml === null ? (
-                <p className="text-sm text-destructive">{t("invalid")}</p>
-              ) : previewHtml ? (
-                <span
-                  // KaTeX output is sanitised; renderToString does not execute scripts
-                  dangerouslySetInnerHTML={{ __html: previewHtml }}
+              {tex.trim() ? (
+                <KatexRendererLoader
+                  tex={tex}
+                  errorClassName="text-sm text-destructive"
+                  errorText={t("invalid")}
                 />
               ) : null}
             </div>

@@ -1,18 +1,13 @@
-"use client";
-import { useRef } from "react";
 import { useTranslations } from "next-intl";
-import { useScrollReveal } from "@/lib/landing/hooks/useScrollReveal";
 
 type Item = { q: string; a: string };
 
 export function Faq() {
   const t = useTranslations("landing.faq");
-  const ref = useRef<HTMLElement>(null);
-  useScrollReveal(ref);
   const items = t.raw("items") as Item[];
 
   return (
-    <section ref={ref} id="faq" className="py-24 md:py-32 border-b border-stone-900">
+    <section id="faq" className="py-24 md:py-32 border-b border-stone-900">
       <div className="max-w-[1280px] mx-auto px-6 lg:px-10">
         <div className="grid grid-cols-12 gap-8">
           <div className="col-span-12 md:col-span-4 mb-2 md:mb-0">

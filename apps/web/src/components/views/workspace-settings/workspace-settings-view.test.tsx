@@ -30,8 +30,8 @@ vi.mock("../account/appearance-view", () => ({
 vi.mock("../account/language-region-view", () => ({
   LanguageRegionView: () => <div>language region</div>,
 }));
-vi.mock("@/components/settings/mcp/McpSettingsClient", () => ({
-  McpSettingsClient: () => <div>mcp</div>,
+vi.mock("@/components/settings/mcp/McpSettingsClientLoader", () => ({
+  McpSettingsClientLoader: () => <div>mcp</div>,
 }));
 
 describe("WorkspaceSettingsView", () => {

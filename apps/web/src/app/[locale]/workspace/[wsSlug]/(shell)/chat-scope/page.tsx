@@ -1,5 +1,3 @@
-"use client";
-
 // Plan 11A foundation entry point — workspace-scope chat. URL:
 //   /workspace/<wsSlug>/chat-scope
 //
@@ -8,12 +6,12 @@
 // right keeps its existing Phase 4 chat (separate system, separate
 // table). Plan 11B will collapse the two surfaces.
 
-import { ChatPanel } from "@/components/chat-scope/ChatPanel";
+import { ChatPanelLoader } from "@/components/chat-scope/ChatPanelLoader";
 
 export default function WorkspaceChatScopePage() {
   return (
     <main className="h-full">
-      <ChatPanel />
+      <ChatPanelLoader />
     </main>
   );
 }

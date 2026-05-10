@@ -2,8 +2,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { setRequestLocale } from "next-intl/server";
 import type { Locale } from "@/i18n";
-import { SignupForm } from "@/components/auth/SignupForm";
-import { GoogleOneTap } from "@/components/auth/GoogleOneTap";
+import { GoogleOneTapLoader } from "@/components/auth/GoogleOneTapLoader";
+import { SignupFormLoader } from "@/components/auth/SignupFormLoader";
 import { urls } from "@/lib/urls";
 
 export default async function SignupPage({
@@ -33,8 +33,8 @@ export default async function SignupPage({
 
   return (
     <>
-      <GoogleOneTap />
-      <SignupForm />
+      <GoogleOneTapLoader />
+      <SignupFormLoader />
     </>
   );
 }

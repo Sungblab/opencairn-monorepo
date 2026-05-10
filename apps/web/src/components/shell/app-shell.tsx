@@ -1,13 +1,13 @@
 "use client";
 import { useEffect } from "react";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { useTranslations } from "next-intl";
 import { PanelLeftOpen, PanelRightOpen } from "lucide-react";
-import { ShellSidebar } from "@/components/sidebar/shell-sidebar";
+import { ShellSidebarLoader } from "@/components/sidebar/shell-sidebar-loader";
 import { TabShell } from "../tab-shell/tab-shell";
-import { AgentPanel } from "@/components/agent-panel/agent-panel";
+import { LazyAgentPanel } from "@/components/agent-panel/agent-panel-loader";
 import { ShellResizeHandle } from "./shell-resize-handle";
-import { IngestOverlays } from "@/components/ingest/ingest-overlays";
+import { IngestOverlaysLoader } from "@/components/ingest/ingest-overlays-loader";
+import { CompactAppShellLoader } from "./compact-app-shell-loader";
+import { useShellLabels } from "@/components/shell/shell-labels";
 import { usePanelStore } from "@/stores/panel-store";
 import { useBreakpoint } from "@/hooks/use-breakpoint";
 
@@ -30,7 +30,7 @@ export function AppShell({
   synthesisExportEnabled = false,
 }: AppShellProps) {
   const bp = useBreakpoint();
-  const t = useTranslations("appShell.placeholders");
+  const { placeholders } = useShellLabels();
   const sidebarWidth = usePanelStore((s) => s.sidebarWidth);
   const sidebarOpen = usePanelStore((s) => s.sidebarOpen);
   const setSidebarOpen = usePanelStore((s) => s.setSidebarOpen);
@@ -58,37 +58,19 @@ export function AppShell({
 
   if (isCompact) {
     return (
-      <div
-        className="flex h-screen w-screen overflow-hidden bg-background"
-        data-testid="app-shell"
+      <CompactAppShellLoader
+        wsSlug={wsSlug}
+        deepResearchEnabled={deepResearchEnabled}
+        synthesisExportEnabled={synthesisExportEnabled}
+        compactSidebarOpen={compactSidebarOpen}
+        setCompactSidebarOpen={setCompactSidebarOpen}
+        compactAgentPanelOpen={compactAgentPanelOpen}
+        setCompactAgentPanelOpen={setCompactAgentPanelOpen}
+        sidebarTitle={placeholders.sidebar}
+        agentPanelTitle={placeholders.agentPanel}
       >
-        <Sheet
-          open={compactSidebarOpen}
-          onOpenChange={setCompactSidebarOpen}
-        >
-          {compactSidebarOpen ? (
-            <SheetContent side="left" className="w-[280px] p-0">
-              <SheetTitle className="sr-only">{t("sidebar")}</SheetTitle>
-              <ShellSidebar
-                deepResearchEnabled={deepResearchEnabled}
-                synthesisExportEnabled={synthesisExportEnabled}
-              />
-            </SheetContent>
-          ) : null}
-        </Sheet>
-        <TabShell>{children}</TabShell>
-        <Sheet
-          open={compactAgentPanelOpen}
-          onOpenChange={setCompactAgentPanelOpen}
-        >
-          {compactAgentPanelOpen ? (
-            <SheetContent side="right" className="w-[360px] p-0">
-              <SheetTitle className="sr-only">{t("agent_panel")}</SheetTitle>
-              <AgentPanel wsSlug={wsSlug} />
-            </SheetContent>
-          ) : null}
-        </Sheet>
-      </div>
+        {children}
+      </CompactAppShellLoader>
     );
   }
 
@@ -103,7 +85,7 @@ export function AppShell({
             className="hidden lg:block"
             style={{ width: sidebarWidth, flexShrink: 0 }}
           >
-            <ShellSidebar
+            <ShellSidebarLoader
               deepResearchEnabled={deepResearchEnabled}
               synthesisExportEnabled={synthesisExportEnabled}
             />
@@ -118,7 +100,7 @@ export function AppShell({
       {!sidebarOpen ? (
         <CollapsedPanelRail side="left">
           <CollapsedPanelButton
-            label={t("open_sidebar")}
+            label={placeholders.openSidebar}
             onClick={() => setSidebarOpen(true)}
             Icon={PanelLeftOpen}
           />
@@ -136,20 +118,20 @@ export function AppShell({
             className="hidden lg:block"
             style={{ width: agentPanelWidth, flexShrink: 0 }}
           >
-            <AgentPanel wsSlug={wsSlug} />
+            <LazyAgentPanel wsSlug={wsSlug} />
           </div>
         </>
       )}
       {!agentPanelOpen ? (
         <CollapsedPanelRail side="right">
           <CollapsedPanelButton
-            label={t("open_agent_panel")}
+            label={placeholders.openAgentPanel}
             onClick={() => setAgentPanelOpen(true)}
             Icon={PanelRightOpen}
           />
         </CollapsedPanelRail>
       ) : null}
-      <IngestOverlays />
+      <IngestOverlaysLoader />
     </div>
   );
 }

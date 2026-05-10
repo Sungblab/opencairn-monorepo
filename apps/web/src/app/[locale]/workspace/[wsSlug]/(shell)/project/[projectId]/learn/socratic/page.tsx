@@ -1,19 +1,24 @@
-"use client";
+import { SocraticSessionLoader } from "@/components/learn/SocraticSessionLoader";
 
-import { useParams, useSearchParams } from "next/navigation";
-import { SocraticSession } from "@/components/learn/SocraticSession";
+function stringParam(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) return value[0] ?? "";
+  return value ?? "";
+}
 
-export default function SocraticPage() {
-  const { projectId } = useParams<{ projectId: string }>();
-  const searchParams = useSearchParams();
-  const initialConcept = searchParams.get("concept") ?? "";
-  const initialNoteContext = searchParams.get("note") ?? "";
+export default async function SocraticPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ projectId: string }>;
+  searchParams: Promise<{ concept?: string | string[]; note?: string | string[] }>;
+}) {
+  const [{ projectId }, query] = await Promise.all([params, searchParams]);
 
   return (
-    <SocraticSession
+    <SocraticSessionLoader
       projectId={projectId}
-      initialConcept={initialConcept}
-      initialNoteContext={initialNoteContext}
+      initialConcept={stringParam(query.concept)}
+      initialNoteContext={stringParam(query.note)}
     />
   );
 }

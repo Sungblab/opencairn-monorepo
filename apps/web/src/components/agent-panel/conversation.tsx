@@ -19,10 +19,10 @@ import { chatApi } from "@/lib/api-client";
 import {
   AgentFileCards,
   DocumentGenerationCards,
-  MessageBubble,
   asAgentFileCards,
   asDocumentGenerationCards,
-} from "./message-bubble";
+} from "./message-attachments";
+import { MessageBubbleLoader } from "./message-bubble-loader";
 import { StatusLine } from "./status-line";
 import { ThoughtBubble } from "./thought-bubble";
 
@@ -91,7 +91,7 @@ export function Conversation({
   return (
     <div className="flex flex-1 flex-col gap-4 overflow-auto bg-background/35 p-3">
       {messages.map((m) => (
-        <MessageBubble
+        <MessageBubbleLoader
           key={m.id}
           msg={m}
           onRegenerate={() => {

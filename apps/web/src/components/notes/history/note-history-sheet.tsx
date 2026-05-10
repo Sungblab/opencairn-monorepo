@@ -26,7 +26,7 @@ import { VersionDiffView } from "./version-diff-view";
 import { VersionPreview } from "./version-preview";
 import { VersionTimeline } from "./version-timeline";
 
-interface NoteHistorySheetProps {
+export interface NoteHistorySheetProps {
   noteId: string;
   readOnly: boolean;
   open: boolean;
