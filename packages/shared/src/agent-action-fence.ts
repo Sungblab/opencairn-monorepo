@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { createAgentActionRequestSchema } from "./agent-actions";
 
-const FENCE_RE = /^[\t ]*```agent-actions\s*\n([\s\S]*?)\n[\t ]*```\s*$/gm;
 const MAX_PAYLOAD_BYTES = 256 * 1024;
 const encoder = new TextEncoder();
 
@@ -12,11 +11,19 @@ const agentActionFenceSchema = z.object({
 export type AgentActionFence = z.infer<typeof agentActionFenceSchema>;
 
 export function extractAgentActionFence(text: string): AgentActionFence | null {
-  let match: RegExpExecArray | null;
   let last: string | null = null;
-  FENCE_RE.lastIndex = 0;
-  while ((match = FENCE_RE.exec(text)) !== null) {
-    last = match[1] ?? null;
+  let start: number | null = null;
+  const lines = text.split("\n");
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]?.trim();
+    if (line === "```agent-actions") {
+      start = index + 1;
+      continue;
+    }
+    if (line === "```" && start !== null) {
+      last = lines.slice(start, index).join("\n");
+      start = null;
+    }
   }
   if (last === null) return null;
 

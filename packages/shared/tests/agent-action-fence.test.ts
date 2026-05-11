@@ -50,4 +50,12 @@ describe("agent action fence", () => {
 
     expect(extracted).toBeNull();
   });
+
+  it("handles unterminated fences in linear time without regex backtracking", () => {
+    const extracted = extractAgentActionFence(
+      "```agent-actions\n" + "\n\t".repeat(10_000),
+    );
+
+    expect(extracted).toBeNull();
+  });
 });
