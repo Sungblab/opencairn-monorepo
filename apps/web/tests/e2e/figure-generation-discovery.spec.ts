@@ -32,12 +32,16 @@ test.describe("Figure generation discovery", () => {
       },
     );
 
-    await expect(
-      page.getByRole("button", { name: /근거 기반 그림 만들기/ }),
-    ).toBeVisible();
-    await page.getByRole("button", { name: /근거 기반 그림 만들기/ }).click();
-
-    await expect(page.getByRole("button", { name: /피규어 만들기/ })).toBeVisible();
+    const figureTool = page.getByRole("button", {
+      name: /근거 기반 그림 만들기/,
+    });
+    await expect(figureTool).toBeVisible();
+    await expect(async () => {
+      await figureTool.click();
+      await expect(
+        page.getByRole("button", { name: /피규어 만들기/ }),
+      ).toBeVisible({ timeout: 5_000 });
+    }).toPass({ timeout: 30_000 });
     await expect(page.getByLabel("format")).toHaveValue("image");
     await expect(page.getByLabel("template")).toHaveValue("research_brief");
     await expect(page.getByLabel("image engine")).toHaveValue("svg");

@@ -5,21 +5,6 @@ import { useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import {
-  Activity,
-  BookText,
-  Bot,
-  CheckSquare,
-  DownloadCloud,
-  FileText,
-  GraduationCap,
-  Network,
-  Presentation,
-  Search,
-  Sparkles,
-  Table2,
-  type LucideIcon,
-} from "lucide-react";
 import { projectsApi, type ProjectNoteRow } from "@/lib/api-client";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
 import { LiteratureSearchModal } from "@/components/literature/literature-search-modal";
@@ -32,26 +17,14 @@ import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
 import {
   getToolDiscoveryGroups,
   type DocumentGenerationPresetId,
-  type ToolDiscoveryIcon,
   type ToolDiscoveryItem,
 } from "@/components/agent-panel/tool-discovery-catalog";
+import {
+  getToolDiscoveryTileClassName,
+  ToolDiscoveryTileContent,
+} from "@/components/agent-panel/tool-discovery-tile";
 import { ProjectMetaRow } from "./project-meta-row";
 import { ProjectNotesTable } from "./project-notes-table";
-
-const ICONS: Record<ToolDiscoveryIcon, LucideIcon> = {
-  activity: Activity,
-  book: BookText,
-  bot: Bot,
-  check: CheckSquare,
-  download: DownloadCloud,
-  file: FileText,
-  graduation: GraduationCap,
-  network: Network,
-  presentation: Presentation,
-  search: Search,
-  sparkles: Sparkles,
-  table: Table2,
-};
 
 export function ProjectView({
   wsSlug,
@@ -103,7 +76,6 @@ export function ProjectView({
   }
 
   function renderToolItem(item: ToolDiscoveryItem) {
-    const Icon = ICONS[item.icon];
     const title = t(`tools.items.${item.i18nKey}.title`);
     const description = t(`tools.items.${item.i18nKey}.description`);
 
@@ -113,7 +85,7 @@ export function ProjectView({
           <ToolLink
             key={item.id}
             href={projectRouteHref(item.action.route)}
-            icon={Icon}
+            icon={item.icon}
             title={title}
             description={description}
             emphasis={item.emphasis}
@@ -124,7 +96,7 @@ export function ProjectView({
           <ToolUploadButton
             key={item.id}
             projectId={projectId}
-            icon={Icon}
+            icon={item.icon}
             title={title}
             description={description}
           />
@@ -133,7 +105,7 @@ export function ProjectView({
         return (
           <ToolButton
             key={item.id}
-            icon={Icon}
+            icon={item.icon}
             title={title}
             description={description}
             onClick={() => setLiteratureOpen(true)}
@@ -144,7 +116,7 @@ export function ProjectView({
           <ToolCommandButton
             key={item.id}
             commandId={item.action.commandId}
-            icon={Icon}
+            icon={item.icon}
             title={title}
             description={description}
             emphasis={item.emphasis}
@@ -155,7 +127,7 @@ export function ProjectView({
         return (
           <ToolActivityButton
             key={item.id}
-            icon={Icon}
+            icon={item.icon}
             title={title}
             description={description}
             emphasis={item.emphasis}
@@ -166,7 +138,7 @@ export function ProjectView({
         return (
           <ToolPresetButton
             key={item.id}
-            icon={Icon}
+            icon={item.icon}
             title={title}
             description={description}
             emphasis={item.emphasis}
@@ -236,13 +208,13 @@ export function ProjectView({
 
 function ToolLink({
   href,
-  icon: Icon,
+  icon,
   title,
   description,
   emphasis = false,
 }: {
   href: string;
-  icon: LucideIcon;
+  icon: ToolDiscoveryItem["icon"];
   title: string;
   description: string;
   emphasis?: boolean;
@@ -250,43 +222,27 @@ function ToolLink({
   return (
     <Link
       href={href}
-      className={
-        emphasis
-          ? "group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-primary/40 bg-primary px-3 py-3 text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          : "group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-background px-3 py-3 text-foreground transition-colors hover:border-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      }
+      className={getToolDiscoveryTileClassName({ emphasis })}
     >
-      <Icon
-        aria-hidden
-        className={
-          emphasis
-            ? "h-4 w-4 text-primary-foreground/80"
-            : "h-4 w-4 text-muted-foreground group-hover:text-foreground"
-        }
+      <ToolDiscoveryTileContent
+        icon={icon}
+        title={title}
+        description={description}
+        emphasis={emphasis}
       />
-      <span className="text-sm font-medium">{title}</span>
-      <span
-        className={
-          emphasis
-            ? "line-clamp-2 text-xs text-primary-foreground/75"
-            : "line-clamp-2 text-xs text-muted-foreground"
-        }
-      >
-        {description}
-      </span>
     </Link>
   );
 }
 
 function ToolCommandButton({
   commandId,
-  icon: Icon,
+  icon,
   title,
   description,
   emphasis = false,
 }: {
   commandId: Parameters<typeof WorkbenchCommandButton>[0]["commandId"];
-  icon: LucideIcon;
+  icon: ToolDiscoveryItem["icon"];
   title: string;
   description: string;
   emphasis?: boolean;
@@ -294,83 +250,51 @@ function ToolCommandButton({
   return (
     <WorkbenchCommandButton
       commandId={commandId}
-      className={
-        emphasis
-          ? "group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-primary/40 bg-primary px-3 py-3 text-left text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          : "group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-background px-3 py-3 text-left text-foreground transition-colors hover:border-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      }
+      className={getToolDiscoveryTileClassName({ emphasis })}
     >
-      <Icon
-        aria-hidden
-        className={
-          emphasis
-            ? "h-4 w-4 text-primary-foreground/80"
-            : "h-4 w-4 text-muted-foreground group-hover:text-foreground"
-        }
+      <ToolDiscoveryTileContent
+        icon={icon}
+        title={title}
+        description={description}
+        emphasis={emphasis}
       />
-      <span className="text-sm font-medium">{title}</span>
-      <span
-        className={
-          emphasis
-            ? "line-clamp-2 text-xs text-primary-foreground/75"
-            : "line-clamp-2 text-xs text-muted-foreground"
-        }
-      >
-        {description}
-      </span>
     </WorkbenchCommandButton>
   );
 }
 
 function ToolActivityButton({
-  icon: Icon,
+  icon,
   title,
   description,
   emphasis = false,
 }: {
-  icon: LucideIcon;
+  icon: ToolDiscoveryItem["icon"];
   title: string;
   description: string;
   emphasis?: boolean;
 }) {
   return (
     <WorkbenchActivityButton
-      className={
-        emphasis
-          ? "group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-primary/40 bg-primary px-3 py-3 text-left text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          : "group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-background px-3 py-3 text-left text-foreground transition-colors hover:border-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      }
+      className={getToolDiscoveryTileClassName({ emphasis })}
     >
-      <Icon
-        aria-hidden
-        className={
-          emphasis
-            ? "h-4 w-4 text-primary-foreground/80"
-            : "h-4 w-4 text-muted-foreground group-hover:text-foreground"
-        }
+      <ToolDiscoveryTileContent
+        icon={icon}
+        title={title}
+        description={description}
+        emphasis={emphasis}
       />
-      <span className="text-sm font-medium">{title}</span>
-      <span
-        className={
-          emphasis
-            ? "line-clamp-2 text-xs text-primary-foreground/75"
-            : "line-clamp-2 text-xs text-muted-foreground"
-        }
-      >
-        {description}
-      </span>
     </WorkbenchActivityButton>
   );
 }
 
 function ToolPresetButton({
-  icon: Icon,
+  icon,
   title,
   description,
   emphasis = false,
   onOpen,
 }: {
-  icon: LucideIcon;
+  icon: ToolDiscoveryItem["icon"];
   title: string;
   description: string;
   emphasis?: boolean;
@@ -379,41 +303,25 @@ function ToolPresetButton({
   return (
     <WorkbenchActivityButton
       onClick={onOpen}
-      className={
-        emphasis
-          ? "group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-primary/40 bg-primary px-3 py-3 text-left text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          : "group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-background px-3 py-3 text-left text-foreground transition-colors hover:border-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      }
+      className={getToolDiscoveryTileClassName({ emphasis })}
     >
-      <Icon
-        aria-hidden
-        className={
-          emphasis
-            ? "h-4 w-4 text-primary-foreground/80"
-            : "h-4 w-4 text-muted-foreground group-hover:text-foreground"
-        }
+      <ToolDiscoveryTileContent
+        icon={icon}
+        title={title}
+        description={description}
+        emphasis={emphasis}
       />
-      <span className="text-sm font-medium">{title}</span>
-      <span
-        className={
-          emphasis
-            ? "line-clamp-2 text-xs text-primary-foreground/75"
-            : "line-clamp-2 text-xs text-muted-foreground"
-        }
-      >
-        {description}
-      </span>
     </WorkbenchActivityButton>
   );
 }
 
 function ToolButton({
-  icon: Icon,
+  icon,
   title,
   description,
   onClick,
 }: {
-  icon: LucideIcon;
+  icon: ToolDiscoveryItem["icon"];
   title: string;
   description: string;
   onClick: () => void;
@@ -422,44 +330,40 @@ function ToolButton({
     <button
       type="button"
       onClick={onClick}
-      className="group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-background px-3 py-3 text-left text-foreground transition-colors hover:border-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className={getToolDiscoveryTileClassName({})}
     >
-      <Icon
-        aria-hidden
-        className="h-4 w-4 text-muted-foreground group-hover:text-foreground"
+      <ToolDiscoveryTileContent
+        icon={icon}
+        title={title}
+        description={description}
       />
-      <span className="text-sm font-medium">{title}</span>
-      <span className="line-clamp-2 text-xs text-muted-foreground">
-        {description}
-      </span>
     </button>
   );
 }
 
 function ToolUploadButton({
   projectId,
-  icon: Icon,
+  icon,
   title,
   description,
 }: {
   projectId: string;
-  icon: LucideIcon;
+  icon: ToolDiscoveryItem["icon"];
   title: string;
   description: string;
 }) {
   return (
     <SourceUploadButton
       projectId={projectId}
-      className="group h-auto min-h-24 w-full flex-col items-start justify-start gap-2 rounded-[var(--radius-control)] border-border bg-background px-3 py-3 text-left text-foreground hover:border-foreground hover:bg-muted/40"
+      className={getToolDiscoveryTileClassName({
+        className: "h-auto w-full items-start justify-start",
+      })}
     >
-      <Icon
-        aria-hidden
-        className="h-4 w-4 text-muted-foreground group-hover:text-foreground"
+      <ToolDiscoveryTileContent
+        icon={icon}
+        title={title}
+        description={description}
       />
-      <span className="text-sm font-medium">{title}</span>
-      <span className="line-clamp-2 text-xs text-muted-foreground">
-        {description}
-      </span>
     </SourceUploadButton>
   );
 }

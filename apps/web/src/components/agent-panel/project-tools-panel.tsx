@@ -3,21 +3,6 @@
 import { useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import {
-  Activity,
-  BookText,
-  Bot,
-  CheckSquare,
-  DownloadCloud,
-  FileText,
-  GraduationCap,
-  Network,
-  Presentation,
-  Search,
-  Sparkles,
-  Table2,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 
 import { LiteratureSearchModal } from "@/components/literature/literature-search-modal";
 import { useIngestUpload } from "@/hooks/use-ingest-upload";
@@ -27,9 +12,12 @@ import type { AgentCommand, AgentCommandId } from "./agent-commands";
 import { getAgentCommand } from "./agent-commands";
 import {
   getToolDiscoveryGroups,
-  type ToolDiscoveryIcon,
   type ToolDiscoveryItem,
 } from "./tool-discovery-catalog";
+import {
+  getToolDiscoveryTileClassName,
+  ToolDiscoveryTileContent,
+} from "./tool-discovery-tile";
 
 interface Props {
   projectId: string | null;
@@ -58,21 +46,6 @@ const ACCEPT_ATTR = [
   "audio/*",
   "video/*",
 ].join(",");
-
-const ICONS: Record<ToolDiscoveryIcon, LucideIcon> = {
-  activity: Activity,
-  book: BookText,
-  bot: Bot,
-  check: CheckSquare,
-  download: DownloadCloud,
-  file: FileText,
-  graduation: GraduationCap,
-  network: Network,
-  presentation: Presentation,
-  search: Search,
-  sparkles: Sparkles,
-  table: Table2,
-};
 
 export function ProjectToolsPanel({
   projectId,
@@ -169,7 +142,6 @@ export function ProjectToolsPanel({
             </h4>
             <div className="grid grid-cols-2 gap-2">
               {group.items.map((item) => {
-                const Icon = ICONS[item.icon];
                 const title =
                   item.action.type === "upload" && isUploading
                     ? panelT("importing")
@@ -177,7 +149,7 @@ export function ProjectToolsPanel({
                 return (
                   <ToolTile
                     key={item.id}
-                    icon={Icon}
+                    icon={item.icon}
                     title={title}
                     description={t(`items.${item.i18nKey}.description`)}
                     disabled={isItemDisabled(item)}
@@ -212,14 +184,14 @@ export function ProjectToolsPanel({
 }
 
 function ToolTile({
-  icon: Icon,
+  icon,
   title,
   description,
   disabled,
   emphasis = false,
   onClick,
 }: {
-  icon: LucideIcon;
+  icon: ToolDiscoveryItem["icon"];
   title: string;
   description: string;
   disabled?: boolean;
@@ -231,30 +203,14 @@ function ToolTile({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={
-        emphasis
-          ? "group flex min-h-28 flex-col gap-2 rounded-[var(--radius-control)] border border-primary/40 bg-primary px-3 py-3 text-left text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
-          : "group flex min-h-28 flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-background px-3 py-3 text-left text-foreground transition-colors hover:border-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
-      }
+      className={getToolDiscoveryTileClassName({ emphasis, size: "panel" })}
     >
-      <Icon
-        aria-hidden
-        className={
-          emphasis
-            ? "h-4 w-4 text-primary-foreground/80"
-            : "h-4 w-4 text-muted-foreground group-hover:text-foreground"
-        }
+      <ToolDiscoveryTileContent
+        icon={icon}
+        title={title}
+        description={description}
+        emphasis={emphasis}
       />
-      <span className="text-sm font-medium leading-5">{title}</span>
-      <span
-        className={
-          emphasis
-            ? "line-clamp-2 text-xs leading-5 text-primary-foreground/75"
-            : "line-clamp-2 text-xs leading-5 text-muted-foreground"
-        }
-      >
-        {description}
-      </span>
     </button>
   );
 }
