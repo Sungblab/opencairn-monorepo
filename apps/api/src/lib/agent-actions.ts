@@ -424,13 +424,20 @@ export async function createAgentAction(
   const existing = await repo.findByRequestId(projectId, actorUserId, requestId);
   if (existing) return { action: existing, idempotent: true };
 
+  const approvalMode = request.approvalMode ?? "auto_safe";
   const placeholder = request.kind === "workflow.placeholder";
-  const executableNoteAction = isPhase2ANoteAction(request.kind);
-  const executableCodeCreateAction = request.kind === "code_project.create";
+  const executableNoteAction =
+    isPhase2ANoteAction(request.kind) &&
+    shouldAutoExecuteAction(approvalMode, request.risk);
+  const executableCodeCreateAction =
+    request.kind === "code_project.create" &&
+    shouldAutoExecuteAction(approvalMode, request.risk);
   const codePatchAction = request.kind === "code_project.patch";
   const codeInstallAction = request.kind === "code_project.install";
   const codePreviewAction = request.kind === "code_project.preview";
-  const executableCodeRunAction = request.kind === "code_project.run";
+  const executableCodeRunAction =
+    request.kind === "code_project.run" &&
+    shouldAutoExecuteAction(approvalMode, request.risk);
   const noteUpdatePreview =
     request.kind === "note.update"
       ? await previewNoteUpdateAction(
@@ -460,7 +467,9 @@ export async function createAgentAction(
           ? "running"
           : noteUpdatePreview || codePatchAction
           ? "draft"
-          : initialStatusForRisk(request.risk),
+          : approvalMode === "require"
+            ? "approval_required"
+            : initialStatusForRisk(request.risk),
     risk: request.risk,
     input: request.input ?? {},
     preview: noteUpdatePreview ?? request.preview ?? (
@@ -714,14 +723,59 @@ export async function applyAgentAction(
 ): Promise<AgentAction> {
   const repo = options?.repo ?? createDrizzleAgentActionRepository();
   const current = await getAgentAction(id, actorUserId, { ...options, repo });
+  if (isPhase2ANoteAction(current.kind)) {
+    if (current.status !== "approval_required") {
+      throw new AgentActionError("invalid_status_transition", 409);
+    }
+    const running = await repo.updateStatus(id, {
+      status: "running",
+      errorCode: null,
+    });
+    if (!running) throw new AgentActionError("action_not_found", 404);
+    return executePersistedNoteAction(
+      running,
+      createAgentActionRequestFromAction(running),
+      { ...options, repo },
+    );
+  }
   if (current.kind === "note.update") {
     return applyNoteUpdateAction(id, actorUserId, noteUpdateApplyResultInput(request), {
       ...options,
       repo,
     });
   }
+  if (current.kind === "code_project.create") {
+    if (current.status !== "approval_required") {
+      throw new AgentActionError("invalid_status_transition", 409);
+    }
+    const running = await repo.updateStatus(id, {
+      status: "running",
+      errorCode: null,
+    });
+    if (!running) throw new AgentActionError("action_not_found", 404);
+    return executePersistedCodeProjectCreateAction(
+      running,
+      createAgentActionRequestFromAction(running),
+      { ...options, repo },
+    );
+  }
   if (current.kind === "code_project.patch") {
     return applyCodeProjectPatchAction(current, actorUserId, { ...options, repo });
+  }
+  if (current.kind === "code_project.run") {
+    if (current.status !== "approval_required") {
+      throw new AgentActionError("invalid_status_transition", 409);
+    }
+    const running = await repo.updateStatus(id, {
+      status: "running",
+      errorCode: null,
+    });
+    if (!running) throw new AgentActionError("action_not_found", 404);
+    return executePersistedCodeProjectRunAction(
+      running,
+      createAgentActionRequestFromAction(running),
+      { ...options, repo },
+    );
   }
   if (current.kind === "code_project.preview") {
     return applyCodeProjectPreviewAction(current, actorUserId, { ...options, repo });
@@ -1035,6 +1089,30 @@ export function canTransition(from: AgentActionStatus, to: AgentActionStatus): b
 
 function initialStatusForRisk(risk: AgentActionRisk): AgentActionStatus {
   return risk === "low" ? "draft" : "approval_required";
+}
+
+function shouldAutoExecuteAction(
+  approvalMode: CreateAgentActionRequest["approvalMode"] | undefined,
+  risk: AgentActionRisk,
+): boolean {
+  return (
+    approvalMode !== "require" &&
+    risk !== "destructive" &&
+    risk !== "external" &&
+    risk !== "expensive"
+  );
+}
+
+function createAgentActionRequestFromAction(action: AgentAction): CreateAgentActionRequest {
+  return {
+    requestId: action.requestId,
+    ...(action.sourceRunId ? { sourceRunId: action.sourceRunId } : {}),
+    kind: action.kind,
+    risk: action.risk,
+    approvalMode: "auto_safe",
+    input: action.input,
+    ...(action.preview ? { preview: action.preview } : {}),
+  };
 }
 
 function isPhase2ANoteAction(kind: AgentActionKind): kind is Phase2ANoteActionKind {

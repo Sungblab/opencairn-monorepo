@@ -66,6 +66,9 @@
     "applyFailed": "Could not apply the note edit proposal.",
     "cancelFailed": "Could not cancel the note edit proposal."
   },
+  "noteActionReview": {
+    "title": "Pending note actions"
+  },
   "codeProjectReview": {
     "title": "Code patch proposal",
     "diffSummary": "{filesChanged} changed files · {additions} additions · {deletions} deletions",
@@ -268,7 +271,9 @@
       "file": "Add file to project",
       "activeTabOn": "Auto-reference active tab",
       "activeTabOff": "Active-tab auto-reference off",
-      "memoryOff": "Exclude project memory"
+      "memoryOff": "Exclude project memory",
+      "autoApplyOn": "Safe auto-apply on",
+      "autoApplyOff": "Safe auto-apply"
     },
     "voice_aria": "Voice input",
     "send_aria": "Send",

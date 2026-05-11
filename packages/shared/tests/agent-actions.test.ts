@@ -20,6 +20,18 @@ describe("agent action schemas", () => {
     expect(parsed.input).toEqual({ label: "phase-1-smoke" });
   });
 
+  it("accepts an explicit ask-before-action approval mode", () => {
+    const parsed = createAgentActionRequestSchema.parse({
+      requestId: "00000000-0000-4000-8000-000000000010",
+      kind: "note.create",
+      risk: "write",
+      approvalMode: "require",
+      input: { title: "Project brief", folderId: null },
+    });
+
+    expect(parsed.approvalMode).toBe("require");
+  });
+
   it("rejects LLM-supplied scope fields in action input", () => {
     const parsed = createAgentActionRequestSchema.safeParse({
       kind: "workflow.placeholder",

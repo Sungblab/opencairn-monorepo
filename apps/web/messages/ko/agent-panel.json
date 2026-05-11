@@ -66,6 +66,9 @@
     "applyFailed": "노트 수정 제안을 적용하지 못했어요.",
     "cancelFailed": "노트 수정 제안을 취소하지 못했어요."
   },
+  "noteActionReview": {
+    "title": "승인 대기 중인 노트 작업"
+  },
   "codeProjectReview": {
     "title": "코드 패치 제안",
     "diffSummary": "변경 파일 {filesChanged}개 · 추가 {additions}줄 · 삭제 {deletions}줄",
@@ -268,7 +271,9 @@
       "file": "파일을 프로젝트에 추가",
       "activeTabOn": "현재 탭 자동 참조",
       "activeTabOff": "현재 탭 자동 참조 꺼짐",
-      "memoryOff": "프로젝트 메모리 제외"
+      "memoryOff": "프로젝트 메모리 제외",
+      "autoApplyOn": "안전 작업 자동 적용 켜짐",
+      "autoApplyOff": "안전 작업 자동 적용"
     },
     "voice_aria": "음성 입력",
     "send_aria": "전송",

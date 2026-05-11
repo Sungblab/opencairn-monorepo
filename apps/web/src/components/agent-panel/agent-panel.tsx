@@ -62,6 +62,7 @@ import {
 import { DocumentGenerationForm } from "./document-generation-form";
 import { AgentPanelEmptyState } from "./empty-state";
 import { NoteUpdateActionReviewList } from "./note-update-action-review";
+import { NoteActionReviewList } from "./note-action-review";
 import { CodeProjectActionReviewList } from "./code-project-action-review";
 import { AgenticPlanCard } from "./agentic-plan-card";
 import {
@@ -73,6 +74,7 @@ import { PanelHeader } from "./panel-header";
 import { ProjectToolsPanel } from "./project-tools-panel";
 import {
   buildAgentContextPayload,
+  type ActionApprovalMode,
   defaultSourcePolicy,
   type MemoryPolicy,
   type SourcePolicy,
@@ -124,6 +126,8 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const [sourcePolicy, setSourcePolicy] =
     useState<SourcePolicy>(initialSourcePolicy);
   const [memoryPolicy, setMemoryPolicy] = useState<MemoryPolicy>("auto");
+  const [actionApprovalMode, setActionApprovalMode] =
+    useState<ActionApprovalMode>("require");
   const [activeContextEnabled, setActiveContextEnabled] = useState(true);
   const [draggingReference, setDraggingReference] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -147,6 +151,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
         sourcePolicy: command?.contextPatch?.sourcePolicy ?? sourcePolicy,
         memoryPolicy: command?.contextPatch?.memoryPolicy ?? memoryPolicy,
         externalSearch: "allowed",
+        actionApprovalMode,
         command: commandId,
         fallbackProjectId: activeProjectId ?? shellProjectId,
         attachedReferences,
@@ -162,6 +167,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
     [
       activeTab,
       activeContextEnabled,
+      actionApprovalMode,
       activeProjectId,
       attachedReferences,
       memoryPolicy,
@@ -511,6 +517,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
       />
       {panelTab === "activity" ? (
         <div className="app-scrollbar-thin min-h-0 flex-1 overflow-y-auto">
+          <NoteActionReviewList projectId={activeProjectId} />
           <NoteUpdateActionReviewList projectId={activeProjectId} />
           <CodeProjectActionReviewList projectId={activeProjectId} />
           <AgenticPlanCard projectId={activeProjectId} />
@@ -580,6 +587,12 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
               activeContextEnabled={activeContextEnabled}
               onToggleActiveContext={() =>
                 setActiveContextEnabled((current) => !current)
+              }
+              actionApprovalMode={actionApprovalMode}
+              onToggleActionApprovalMode={() =>
+                setActionApprovalMode((current) =>
+                  current === "require" ? "auto_safe" : "require",
+                )
               }
               attachDisabled={!activeProjectId || isUploading}
             />

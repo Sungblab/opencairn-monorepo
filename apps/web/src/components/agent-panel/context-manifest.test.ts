@@ -33,6 +33,7 @@ describe("buildAgentContextPayload", () => {
     ).resolves.toEqual({
       manifest: {
         activeArtifact: { type: "note", id: "note-1" },
+        actionApprovalMode: "require",
         externalSearch: "off",
         memoryPolicy: "auto",
         projectId: "project-1",
@@ -59,6 +60,7 @@ describe("buildAgentContextPayload", () => {
     ).resolves.toEqual({
       manifest: {
         activeArtifact: { type: "project", id: "project-1" },
+        actionApprovalMode: "require",
         externalSearch: "allowed",
         memoryPolicy: "off",
         projectId: "project-1",
@@ -144,6 +146,7 @@ describe("buildAgentContextPayload", () => {
             type: "agent_file",
           },
         ],
+        actionApprovalMode: "require",
         externalSearch: "off",
         memoryPolicy: "auto",
         projectId: "project-1",
@@ -156,6 +159,18 @@ describe("buildAgentContextPayload", () => {
       ],
       strict: "strict",
     });
+  });
+
+  it("defaults agent actions to ask-before-action approval", async () => {
+    const context = await buildAgentContextPayload({
+      activeTab: { ...noteTab, kind: "project", targetId: "project-1" },
+      workspaceId: "workspace-1",
+      sourcePolicy: "auto_project",
+      memoryPolicy: "auto",
+      externalSearch: "allowed",
+    });
+
+    expect(context.manifest.actionApprovalMode).toBe("require");
   });
 
   it("keeps pinned references while active tab focus is disabled", async () => {

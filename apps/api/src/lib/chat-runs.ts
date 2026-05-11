@@ -25,6 +25,7 @@ import {
 } from "./agent-pipeline";
 import { getTemporalClient, taskQueue } from "./temporal-client";
 import { executeProjectObjectAction, toProjectObjectSummary } from "./project-object-actions";
+import { createAgentAction } from "./agent-actions";
 import { emitTreeEvent } from "./tree-events";
 import { recordLlmUsageEvent } from "./llm-usage";
 
@@ -335,6 +336,13 @@ export async function executeChatRun(runId: string): Promise<void> {
         ];
       } else if (chunk.type === "save_suggestion") {
         meta.save_suggestion = chunk.payload;
+      } else if (chunk.type === "agent_action") {
+        await handleAgentActionChunk({
+          run,
+          scope,
+          payload: chunk.payload,
+          meta,
+        });
       } else if (chunk.type === "agent_file") {
         await handleAgentFileChunk({
           run,
@@ -650,6 +658,44 @@ function extractScope(content: unknown): unknown {
   return undefined;
 }
 
+async function handleAgentActionChunk(input: {
+  run: typeof chatRuns.$inferSelect;
+  scope: unknown;
+  payload: unknown;
+  meta: Record<string, unknown>;
+}) {
+  const projectId = await projectIdFromScope(input.scope);
+  if (!projectId) {
+    const error = {
+      code: "agent_action_project_required",
+      message: "A project scope is required to create agent actions.",
+    };
+    input.meta.error = error;
+    await appendChatRunEvent(input.run.id, "error", error);
+    return;
+  }
+
+  const approvalMode = actionApprovalModeFromScope(input.scope);
+  const payload = input.payload as {
+    actions: Array<Parameters<typeof createAgentAction>[2]>;
+  };
+  const created = [];
+  for (const proposed of payload.actions) {
+    const { action } = await createAgentAction(projectId, input.run.userId, {
+      ...proposed,
+      sourceRunId: input.run.id,
+      approvalMode,
+    });
+    created.push(action);
+    await appendChatRunEvent(input.run.id, "agent_action_created", { action });
+  }
+
+  input.meta.agent_actions = [
+    ...((input.meta.agent_actions as unknown[]) ?? []),
+    ...created,
+  ];
+}
+
 async function handleAgentFileChunk(input: {
   run: typeof chatRuns.$inferSelect;
   scope: unknown;
@@ -719,6 +765,19 @@ async function handleAgentFileChunk(input: {
     ...((input.meta.project_objects as unknown[]) ?? []),
     ...created.map(toProjectObjectSummary),
   ];
+}
+
+function actionApprovalModeFromScope(scope: unknown): "require" | "auto_safe" {
+  if (!scope || typeof scope !== "object" || Array.isArray(scope)) {
+    return "require";
+  }
+  const manifest = (scope as Record<string, unknown>).manifest;
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+    return "require";
+  }
+  return (manifest as Record<string, unknown>).actionApprovalMode === "auto_safe"
+    ? "auto_safe"
+    : "require";
 }
 
 async function projectIdFromScope(scope: unknown): Promise<string | null> {

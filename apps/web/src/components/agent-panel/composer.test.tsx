@@ -117,6 +117,26 @@ describe("Composer", () => {
     expect(onCommand).not.toHaveBeenCalled();
   });
 
+  it("exposes auto apply as an explicit opt-in behind the add menu", () => {
+    const onToggleActionApprovalMode = vi.fn();
+    render(
+      <Composer
+        onSend={vi.fn()}
+        actionApprovalMode="require"
+        onToggleActionApprovalMode={onToggleActionApprovalMode}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText(ADD_MENU_LABEL));
+    fireEvent.click(
+      screen.getByRole("menuitemcheckbox", {
+        name: "agentPanel.composer.addMenu.autoApplyOff",
+      }),
+    );
+
+    expect(onToggleActionApprovalMode).toHaveBeenCalled();
+  });
+
   it("does not expose web search as a manual toggle", () => {
     render(<Composer onSend={vi.fn()} />);
 

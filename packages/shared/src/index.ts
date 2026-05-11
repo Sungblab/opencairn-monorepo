@@ -21,5 +21,6 @@ export * from "./evidence";
 export * from "./agent-files";
 export * from "./project-object-actions";
 export * from "./agent-actions";
+export * from "./agent-action-fence";
 export * from "./agentic-plans";
 export * from "./workflow-console";
