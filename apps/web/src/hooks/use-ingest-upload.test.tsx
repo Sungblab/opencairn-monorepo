@@ -22,6 +22,7 @@ describe("useIngestUpload", () => {
           workflowId: "ingest-wf-123",
           objectKey: "uploads/u/abc.pdf",
           sourceBundleNodeId: "00000000-0000-0000-0000-000000000010",
+          originalFileId: "00000000-0000-0000-0000-000000000011",
         }),
         { status: 202, headers: { "content-type": "application/json" } },
       ),
@@ -36,6 +37,7 @@ describe("useIngestUpload", () => {
       workflowId: string;
       objectKey: string;
       sourceBundleNodeId: string | null;
+      originalFileId: string | null;
     } | null = null;
     await act(async () => {
       returned = await result.current.upload(file, "00000000-0000-0000-0000-000000000001");
@@ -60,6 +62,7 @@ describe("useIngestUpload", () => {
       workflowId: "ingest-wf-123",
       objectKey: "uploads/u/abc.pdf",
       sourceBundleNodeId: "00000000-0000-0000-0000-000000000010",
+      originalFileId: "00000000-0000-0000-0000-000000000011",
     });
 
     // Store now reflects a running ingest with the spotlight wired — the

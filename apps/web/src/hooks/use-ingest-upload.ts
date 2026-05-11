@@ -15,6 +15,7 @@ export interface IngestUploadResult {
   workflowId: string;
   objectKey: string;
   sourceBundleNodeId: string | null;
+  originalFileId: string | null;
 }
 
 export interface IngestUploadError {

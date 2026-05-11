@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FirstSourceIntake } from "./first-source-intake";
+import { useTabsStore } from "@/stores/tabs-store";
 
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
@@ -89,6 +90,13 @@ describe("FirstSourceIntake", () => {
       workflowId: "ingest-file-1",
       objectKey: "uploads/user/source.pdf",
       sourceBundleNodeId: null,
+      originalFileId: null,
+    });
+    useTabsStore.setState({
+      workspaceId: null,
+      tabs: [],
+      activeId: null,
+      closedStack: [],
     });
     global.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -142,6 +150,36 @@ describe("FirstSourceIntake", () => {
     });
     expect(mocks.openIngestTab).toHaveBeenCalledWith("ingest-file-1", "source.pdf");
     expect(mocks.push).toHaveBeenCalledWith("/ko/workspace/home-1234abcd");
+  });
+
+  it("opens the original PDF file tab before leaving the import page", async () => {
+    mocks.upload.mockResolvedValueOnce({
+      workflowId: "ingest-file-1",
+      objectKey: "uploads/user/source.pdf",
+      sourceBundleNodeId: "00000000-0000-0000-0000-000000000010",
+      originalFileId: "00000000-0000-0000-0000-000000000011",
+    });
+    const user = userEvent.setup();
+    render(<FirstSourceIntake wsSlug="home-1234abcd" initialMode="file" />);
+
+    const source = new File(["pdf"], "source.pdf", { type: "application/pdf" });
+    await user.upload(screen.getByLabelText("파일 업로드"), source);
+    await user.click(screen.getByRole("button", { name: "분석 시작" }));
+
+    await waitFor(() => {
+      expect(useTabsStore.getState().activeId).not.toBeNull();
+    });
+    expect(useTabsStore.getState().tabs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "agent_file",
+          targetId: "00000000-0000-0000-0000-000000000011",
+          title: "source.pdf",
+          mode: "agent-file",
+          preview: false,
+        }),
+      ]),
+    );
   });
 
   it("starts web-url ingest from the link mode and opens the live ingest tab", async () => {

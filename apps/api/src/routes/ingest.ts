@@ -236,6 +236,7 @@ export const ingestRoutes = new Hono<AppEnv>()
           workflowId,
           objectKey,
           sourceBundleNodeId: sourceBundle?.bundleNodeId ?? null,
+          originalFileId: sourceBundle?.originalFileId ?? null,
         },
         202,
       );

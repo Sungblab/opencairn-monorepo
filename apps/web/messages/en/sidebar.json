@@ -2,6 +2,7 @@
   "loading": "Loading…",
   "new_note": "New note",
   "new_folder": "New folder",
+  "upload_source": "Upload",
   "empty_project": "No notes yet in this project.",
   "empty_folder": "Empty.",
   "untitled": "Untitled",
@@ -72,6 +73,16 @@
   },
   "search": {
     "placeholder": "Search"
+  },
+  "upload": {
+    "title": "Upload file",
+    "description": "PDFs open as the original file first while analysis continues in the background.",
+    "drop": "Drag a file here or click to choose",
+    "hint": "PDF, documents, images, audio, video, Markdown",
+    "selected": "Selected: {name}",
+    "start": "Start upload",
+    "uploading": "Uploading…",
+    "error": "Upload failed. Please try again."
   },
   "tree_menu": {
     "rename": "Rename",

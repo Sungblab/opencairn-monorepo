@@ -2,6 +2,7 @@
   "loading": "불러오는 중…",
   "new_note": "새 노트",
   "new_folder": "새 폴더",
+  "upload_source": "업로드",
   "empty_project": "이 프로젝트에는 아직 노트가 없어요.",
   "empty_folder": "비어 있어요.",
   "untitled": "제목 없음",
@@ -72,6 +73,16 @@
   },
   "search": {
     "placeholder": "검색"
+  },
+  "upload": {
+    "title": "파일 업로드",
+    "description": "PDF는 원본을 먼저 열고 분석은 백그라운드에서 진행합니다.",
+    "drop": "파일을 드래그하거나 클릭해서 선택하세요",
+    "hint": "PDF, 문서, 이미지, 오디오, 영상, Markdown",
+    "selected": "선택됨: {name}",
+    "start": "업로드 시작",
+    "uploading": "업로드 중…",
+    "error": "업로드에 실패했어요. 다시 시도해주세요."
   },
   "tree_menu": {
     "rename": "이름 바꾸기",

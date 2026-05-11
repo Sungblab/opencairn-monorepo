@@ -94,6 +94,35 @@ describe("ingest workflow payload", () => {
     });
   });
 
+  it("returns the original PDF file id so the browser can open it immediately", async () => {
+    const app = createApp();
+    const form = new FormData();
+    form.set("projectId", seed.projectId);
+    form.set(
+      "file",
+      new File(["%PDF-1.7\n"], "lecture.pdf", { type: "application/pdf" }),
+    );
+
+    const res = await app.request("/api/ingest/upload", {
+      method: "POST",
+      headers: {
+        cookie: await signSessionCookie(seed.userId),
+      },
+      body: form,
+    });
+
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as {
+      workflowId: string;
+      objectKey: string;
+      sourceBundleNodeId: string | null;
+      originalFileId: string | null;
+    };
+    expect(body.sourceBundleNodeId).toEqual(expect.any(String));
+    expect(body.originalFileId).toEqual(expect.any(String));
+    expect(body.originalFileId).not.toBe(body.sourceBundleNodeId);
+  });
+
   it("starts URL ingest with snake_case worker input", async () => {
     const app = createApp();
 

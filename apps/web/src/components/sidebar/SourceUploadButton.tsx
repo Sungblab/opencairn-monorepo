@@ -1,0 +1,127 @@
+"use client";
+
+import { useId, useState } from "react";
+import { UploadCloud } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { openIngestTab } from "@/components/ingest/open-ingest-tab";
+import { openOriginalFileTab } from "@/components/ingest/open-original-file-tab";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useIngestUpload } from "@/hooks/use-ingest-upload";
+
+const ACCEPT_ATTR = [
+  "application/pdf",
+  ".pdf",
+  ".doc",
+  ".docx",
+  ".ppt",
+  ".pptx",
+  ".xls",
+  ".xlsx",
+  ".hwp",
+  ".hwpx",
+  "text/plain",
+  "text/markdown",
+  ".txt",
+  ".md",
+  "image/*",
+  "audio/*",
+  "video/*",
+].join(",");
+
+export function SourceUploadButton({ projectId }: { projectId: string }) {
+  const t = useTranslations("sidebar");
+  const inputId = useId();
+  const [open, setOpen] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [localError, setLocalError] = useState(false);
+  const { upload, isUploading, error } = useIngestUpload();
+
+  async function startUpload(selectedFile = file) {
+    if (!selectedFile) return;
+    setLocalError(false);
+    try {
+      const result = await upload(selectedFile, projectId);
+      openIngestTab(result.workflowId, selectedFile.name);
+      if (result.originalFileId) {
+        openOriginalFileTab(result.originalFileId, selectedFile.name);
+      }
+      setFile(null);
+      setOpen(false);
+    } catch {
+      setLocalError(true);
+    }
+  }
+
+  function pickFile(files: FileList | null) {
+    setLocalError(false);
+    setFile(files?.[0] ?? null);
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-background px-3 text-sm font-medium text-foreground transition-colors hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <UploadCloud aria-hidden className="h-4 w-4" />
+        <span className="truncate">{t("upload_source")}</span>
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("upload.title")}</DialogTitle>
+            <DialogDescription>{t("upload.description")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <label
+              htmlFor={inputId}
+              className="flex min-h-40 cursor-pointer flex-col items-center justify-center gap-2 rounded-[var(--radius-card)] border border-dashed border-border bg-muted/20 px-4 text-center text-sm transition hover:border-foreground hover:bg-muted/40"
+              onDragOver={(event) => {
+                event.preventDefault();
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                pickFile(event.dataTransfer.files);
+              }}
+            >
+              <UploadCloud aria-hidden className="h-7 w-7 text-muted-foreground" />
+              <span className="font-medium">
+                {file ? t("upload.selected", { name: file.name }) : t("upload.drop")}
+              </span>
+              <span className="max-w-sm text-xs leading-5 text-muted-foreground">
+                {t("upload.hint")}
+              </span>
+            </label>
+            <input
+              id={inputId}
+              type="file"
+              className="sr-only"
+              accept={ACCEPT_ATTR}
+              onChange={(event) => pickFile(event.target.files)}
+            />
+            {(localError || error) && (
+              <p role="alert" className="text-sm text-destructive">
+                {t("upload.error")}
+              </p>
+            )}
+            <button
+              type="button"
+              disabled={!file || isUploading}
+              onClick={() => void startUpload()}
+              className="inline-flex min-h-10 w-full items-center justify-center rounded bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isUploading ? t("upload.uploading") : t("upload.start")}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}

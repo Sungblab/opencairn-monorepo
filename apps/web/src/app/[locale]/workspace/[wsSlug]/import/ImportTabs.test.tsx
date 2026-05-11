@@ -1,5 +1,4 @@
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ImportTabs } from "./ImportTabs";
 
@@ -47,35 +46,14 @@ vi.mock("./NotionTabLoader", () => ({
 }));
 
 describe("ImportTabs", () => {
-  it("puts file, link, and text intake first while keeping legacy imports behind More", async () => {
-    const user = userEvent.setup();
+  it("opens directly on the file upload intake without mode tabs", () => {
     render(<ImportTabs wsSlug="home-1234abcd" />);
 
-    const tabs = screen.getAllByRole("tab");
-    expect(tabs.map((tab) => tab.textContent)).toEqual([
-      "File",
-      "Link",
-      "Text",
-      "More",
-    ]);
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
     expect(
       screen.getByText("file first-source panel single-mode"),
     ).toBeInTheDocument();
-
-    await user.click(screen.getByRole("tab", { name: "Link" }));
-    expect(
-      screen.getByText("link first-source panel single-mode"),
-    ).toBeInTheDocument();
-
-    await user.click(screen.getByRole("tab", { name: "Text" }));
-    expect(
-      screen.getByText("text first-source panel single-mode"),
-    ).toBeInTheDocument();
-
-    await user.click(screen.getByRole("tab", { name: "More" }));
-    expect(screen.getByText("Drive panel")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("tab", { name: "Notion ZIP" }));
-    expect(screen.getByText("Legacy ZIP panel")).toBeInTheDocument();
+    expect(screen.queryByText("Drive panel")).not.toBeInTheDocument();
+    expect(screen.queryByText("Legacy ZIP panel")).not.toBeInTheDocument();
   });
 });

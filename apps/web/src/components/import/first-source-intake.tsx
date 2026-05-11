@@ -5,6 +5,7 @@ import { FileUp, Link2, ListChecks, MessageSquareText, Type } from "lucide-react
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { openIngestTab } from "@/components/ingest/open-ingest-tab";
+import { openOriginalFileTab } from "@/components/ingest/open-original-file-tab";
 import { useIngestUpload } from "@/hooks/use-ingest-upload";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
 import { urls } from "@/lib/urls";
@@ -161,6 +162,9 @@ export function FirstSourceIntake({
     }
     const result = await upload(file, projectId);
     openIngestTab(result.workflowId, file.name);
+    if (result.originalFileId) {
+      openOriginalFileTab(result.originalFileId, file.name);
+    }
     router.push(urls.workspace.root(locale, wsSlug));
   }
 
@@ -310,6 +314,13 @@ export function FirstSourceIntake({
                 <label
                   className="flex min-h-[132px] cursor-pointer flex-col items-center justify-center gap-2 rounded-[var(--radius-card)] border border-dashed border-border bg-muted/20 px-4 text-center text-sm transition hover:border-foreground hover:bg-muted/40"
                   htmlFor={`${tabBaseId}-file`}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setFile(event.dataTransfer.files?.[0] ?? null);
+                  }}
                 >
                   <FileUp className="h-6 w-6 text-muted-foreground" aria-hidden />
                   <span className="font-medium">

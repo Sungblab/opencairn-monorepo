@@ -10,7 +10,7 @@ import { useCurrentProjectContext } from "./use-current-project";
 import { NewNoteButton } from "./NewNoteButton";
 import { NewFolderButton } from "./NewFolderButton";
 import { NewCanvasButton } from "./NewCanvasButton";
-import { NewCodeWorkspaceButton } from "./NewCodeWorkspaceButton";
+import { SourceUploadButton } from "./SourceUploadButton";
 import { ProjectHero } from "./project-hero";
 import { MoreMenu } from "./more-menu";
 import { SidebarEmptyState } from "./sidebar-empty-state";
@@ -80,9 +80,9 @@ export function ShellSidebar({
         <>
           <div className="grid grid-cols-2 gap-1.5 px-3 py-2">
             <NewNoteButton workspaceSlug={wsSlug} projectId={projectId} />
+            <SourceUploadButton projectId={projectId} />
             <NewFolderButton projectId={projectId} />
             <NewCanvasButton workspaceSlug={wsSlug} projectId={projectId} />
-            <NewCodeWorkspaceButton projectId={projectId} />
           </div>
           <ProjectTree projectId={projectId} workspaceSlug={wsSlug} />
         </>

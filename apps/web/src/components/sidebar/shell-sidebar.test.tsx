@@ -73,6 +73,9 @@ vi.mock("./NewFolderButton", () => ({
 vi.mock("./NewCanvasButton", () => ({
   NewCanvasButton: () => <button type="button">new canvas</button>,
 }));
+vi.mock("./SourceUploadButton", () => ({
+  SourceUploadButton: () => <button type="button">upload source</button>,
+}));
 vi.mock("./NewCodeWorkspaceButton", () => ({
   NewCodeWorkspaceButton: () => <button type="button">new code</button>,
 }));
@@ -122,9 +125,10 @@ describe("ShellSidebar", () => {
       screen.getByRole("link", { name: "sidebar.nav.project_home" }),
     ).toHaveAttribute("href", "/ko/workspace/acme/project/p1");
     expect(screen.getByText("new note")).toBeInTheDocument();
+    expect(screen.getByText("upload source")).toBeInTheDocument();
     expect(screen.getByText("new folder")).toBeInTheDocument();
     expect(screen.getByText("new canvas")).toBeInTheDocument();
-    expect(screen.getByText("new code")).toBeInTheDocument();
+    expect(screen.queryByText("new code")).not.toBeInTheDocument();
     expect(screen.queryByText("graph")).not.toBeInTheDocument();
     expect(screen.queryByText("agents")).not.toBeInTheDocument();
     expect(screen.queryByText("learn")).not.toBeInTheDocument();
