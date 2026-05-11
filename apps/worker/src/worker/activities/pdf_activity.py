@@ -6,11 +6,11 @@ Flow:
     1. Download the uploaded object from MinIO/R2 to a temp file.
     2. Use :mod:`pymupdf` to check whether the PDF is a scan (no extractable
        text but images present on majority of pages).
-    3a. Text PDFs: run opendataloader-pdf (Java JAR) via :mod:`subprocess`
+    3a. Text PDFs: run opendataloader-pdf (packaged CLI) via :mod:`subprocess`
         with image extraction enabled, producing JSON + per-figure PNGs.
-        Local/dev workers without the JAR fall back to PyMuPDF text extraction
-        so PDF ingest still creates markdown artifacts instead of failing
-        before the UI can show the pipeline.
+        Local/dev workers without the CLI or legacy JAR fall back to PyMuPDF
+        text extraction so PDF ingest still creates markdown artifacts instead
+        of failing before the UI can show the pipeline.
     3b. Scan PDFs: render each page to PNG via :mod:`pymupdf`, try local
         Tesseract OCR first, then call ``provider.ocr()`` only for pages where
         local OCR is unavailable or returns empty text. Providers without OCR
@@ -25,7 +25,6 @@ Flow:
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import shutil
 import subprocess
@@ -42,9 +41,16 @@ from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
 from worker.lib.ingest_events import publish_safe
+from worker.lib.opendataloader_pdf import (
+    LEGACY_JAR_PATH,
+    normalize_opendataloader_pages,
+    opendataloader_available,
+    read_opendataloader_json,
+    run_opendataloader_pdf,
+)
 from worker.lib.s3_client import download_to_tempfile, upload_object
 
-JAR_PATH = os.environ.get("OPENDATALOADER_JAR", "/app/opendataloader-pdf.jar")
+JAR_PATH = LEGACY_JAR_PATH
 COMPLEX_PAGE_THRESHOLD = int(os.environ.get("COMPLEX_PAGE_THRESHOLD", "3"))
 LOCAL_OCR_ENABLED = os.environ.get("OPENCAIRN_LOCAL_OCR_ENABLED", "true").strip().lower() not in {
     "0",
@@ -163,26 +169,12 @@ class _AsyncPdfPageRenderer:
         return await loop.run_in_executor(self._executor, partial(func, *args))
 
 
-def _run_jar(pdf_path: Path, out_dir: Path) -> Path:
-    """Run opendataloader-pdf JAR and return its output directory.
+def _run_opendataloader(pdf_path: Path, out_dir: Path) -> Path:
+    """Run opendataloader-pdf and return its output directory.
 
-    Test seam — patched in unit tests to bypass Java entirely.
+    Test seam — patched in unit tests to bypass the external parser entirely.
     """
-    result = subprocess.run(
-        [
-            "java", "-jar", JAR_PATH,
-            "--input", str(pdf_path),
-            "--output", str(out_dir),
-            "--format", "json",
-            "--extract-images", "true",
-        ],
-        capture_output=True,
-        text=True,
-        timeout=300,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"opendataloader-pdf failed: {result.stderr}")
-    return out_dir
+    return run_opendataloader_pdf(pdf_path, out_dir, extract_images=True)
 
 
 def _local_ocr_available() -> bool:
@@ -230,12 +222,11 @@ def _ocr_page_with_tesseract(png_bytes: bytes) -> str:
 
 
 def _opendataloader_available() -> bool:
-    jar = Path(JAR_PATH)
-    return jar.is_file() and jar.stat().st_size > 0
+    return opendataloader_available()
 
 
 def _extract_pages_with_pymupdf(pdf_path: Path) -> list[dict[str, Any]]:
-    """Fallback text extraction when the optional opendataloader JAR is absent."""
+    """Fallback text extraction when opendataloader-pdf is unavailable."""
     doc = pymupdf.open(str(pdf_path))
     try:
         return [
@@ -275,7 +266,7 @@ def _upload_figure(
 
 
 def _classify_figure(fig: dict[str, Any]) -> str:
-    """Map JAR figure metadata to our IngestEvent figureKind enum.
+    """Map OpenDataLoader figure metadata to our IngestEvent figureKind enum.
 
     Heuristic only — chart/equation classification is left for the B
     (content-aware enrichment) spec to refine via enrichment events.
@@ -352,7 +343,7 @@ async def _ocr_scan_pdf(pdf_path: Path, workflow_id: str) -> dict[str, Any]:
                     ) from e
 
             text_parts.append(page_text)
-            # Mirror the JAR-text return shape so downstream Spec B enrichment
+            # Mirror the opendataloader text return shape so downstream Spec B enrichment
             # can iterate ``pages[].text`` uniformly across both branches.
             pages_meta.append({
                 "text": page_text,
@@ -420,18 +411,19 @@ async def parse_pdf(inp: dict[str, Any]) -> dict[str, Any]:
             return await _ocr_scan_pdf(pdf_path, workflow_id)
 
         if _opendataloader_available():
+            activity.logger.info(
+                "Running opendataloader-pdf for PDF: %s (wf=%s)",
+                object_key,
+                workflow_id,
+            )
             activity.heartbeat("running opendataloader-pdf")
-            out_dir = await asyncio.to_thread(_run_jar, pdf_path, out_dir)
-
-            json_files = list(out_dir.glob("*.json"))
-            if not json_files:
-                raise FileNotFoundError("opendataloader-pdf produced no JSON output")
-            with open(json_files[0]) as f:
-                data = json.load(f)
-            pages = data.get("pages", [])
+            out_dir = await asyncio.to_thread(_run_opendataloader, pdf_path, out_dir)
+            data = read_opendataloader_json(out_dir)
+            pages = normalize_opendataloader_pages(data)
         else:
             activity.logger.warning(
-                "opendataloader-pdf jar missing at %s; falling back to pymupdf text extraction",
+                "opendataloader-pdf CLI unavailable and legacy jar missing or empty at %s; "
+                "falling back to pymupdf text extraction",
                 JAR_PATH,
             )
             activity.heartbeat("extracting PDF text via pymupdf fallback")
@@ -525,10 +517,10 @@ async def parse_pdf(inp: dict[str, Any]) -> dict[str, Any]:
         }
 
     finally:
-        # Recursive cleanup — opendataloader-pdf with --extract-images=true
-        # can write nested figure directories under out_dir, which the older
+        # Recursive cleanup — opendataloader-pdf with external image output can
+        # write nested figure directories under out_dir, which the older
         # iterdir+rmdir loop would fail on with "Directory not empty". Using
         # rmtree(ignore_errors=True) keeps the activity exit clean even if
-        # the JAR layout changes between releases.
+        # the output layout changes between releases.
         pdf_path.unlink(missing_ok=True)
         shutil.rmtree(out_dir, ignore_errors=True)

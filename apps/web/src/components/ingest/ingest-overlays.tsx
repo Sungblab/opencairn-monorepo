@@ -1,20 +1,11 @@
 "use client";
-import { IngestSpotlight } from "./ingest-spotlight";
-import { IngestDock } from "./ingest-dock";
+import { IngestNotifications } from "./ingest-notifications";
 
 /**
- * Mounts the live-ingest overlay layer (spotlight + dock) inside the AppShell.
- *
- * Gated by `NEXT_PUBLIC_FEATURE_LIVE_INGEST`. The backend always publishes
- * IngestEvents (Tasks 3-7), so flipping the flag never causes a backend
- * regression — only the UI surface appears or disappears.
+ * Mounts the background ingest subscriber inside the AppShell.
+ * Upload keeps the original file as the primary surface; ingest only reports
+ * terminal status through toasts.
  */
 export function IngestOverlays() {
-  if (process.env.NEXT_PUBLIC_FEATURE_LIVE_INGEST !== "true") return null;
-  return (
-    <>
-      <IngestSpotlight />
-      <IngestDock />
-    </>
-  );
+  return <IngestNotifications />;
 }

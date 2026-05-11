@@ -13,8 +13,9 @@ ENV PYTHONUNBUFFERED=1 \
     UV_LINK_MODE=copy
 
 # System deps:
-#   openjdk-21-jre-headless — opendataloader-pdf (Plan 3 Task 3) and
-#                             libreoffice-java-common (HWP/HWPX via H2Orestart)
+#   openjdk-21-jre-headless — opendataloader-pdf's packaged Java engine
+#                             (Plan 3 Task 3) and libreoffice-java-common
+#                             (HWP/HWPX via H2Orestart)
 #   ffmpeg                  — faster-whisper / yt-dlp transcription (Plan 3 Task 5/6)
 #   tesseract-ocr + eng/kor — local first-pass OCR for scanned PDFs before
 #                             falling back to provider OCR.
@@ -82,11 +83,10 @@ RUN /usr/bin/python3 -m pip install --break-system-packages --no-cache-dir 'unos
 
 # H2Orestart — LibreOffice extension that adds HWP/HWPX import filters. The
 # ``unopkg add --shared`` writes the extension to the shared user profile so
-# every soffice invocation (including unoserver's) can load it. Same fail-
-# soft pattern as opendataloader-pdf: if the GitHub release is unreachable
-# at build time we don't break the image, but parse_hwp will then fail at
-# runtime — operators can manually install with ``docker exec ... unopkg
-# add --shared /path/to/H2Orestart.oxt``.
+# every soffice invocation (including unoserver's) can load it. This remains
+# fail-soft: if the GitHub release is unreachable at build time we don't break
+# the image, but parse_hwp will then fail at runtime until operators manually
+# install with ``docker exec ... unopkg add --shared /path/to/H2Orestart.oxt``.
 #
 # Tag is upstream-style ``v<N.M.P>`` (e.g. ``v0.7.11``) — bump as needed.
 ARG H2ORESTART_VERSION=v0.7.11
@@ -111,16 +111,12 @@ COPY apps/worker/pyproject.toml apps/worker/uv.lock /app/apps/worker/
 WORKDIR /app/apps/worker
 RUN uv sync --no-dev --frozen
 
-# opendataloader-pdf (Plan 3 Task 3) — Java-based PDF → JSON extractor.
-# The release URL is a placeholder; the ``|| (...)`` fallback keeps the image
-# build green when the URL is unreachable so CI/dev builds don't stall. When
-# the jar is missing the parse_pdf activity will fail at runtime — operators
-# should mount a jar manually at /app/opendataloader-pdf.jar in that case.
-ARG OPENDATALOADER_VERSION=0.3.0
-RUN curl -fL \
-        "https://github.com/opencairn/opendataloader-pdf/releases/download/v${OPENDATALOADER_VERSION}/opendataloader-pdf-${OPENDATALOADER_VERSION}-all.jar" \
-        -o /app/opendataloader-pdf.jar \
-    || (echo "WARN: opendataloader-pdf jar download failed; mount manually at /app/opendataloader-pdf.jar" && touch /app/opendataloader-pdf.jar)
+# opendataloader-pdf (Plan 3 Task 3) is installed by uv from PyPI above and
+# exposes the ``opendataloader-pdf`` CLI on PATH. Older deployments may still
+# mount a non-empty legacy fat JAR at /app/opendataloader-pdf.jar; the worker
+# will use it only if the packaged CLI is unavailable. Do not create a blank
+# marker file here: a 0-byte JAR makes local smoke tests look configured while
+# silently forcing lower-fidelity fallbacks.
 
 # Application code.
 COPY apps/worker/src /app/apps/worker/src

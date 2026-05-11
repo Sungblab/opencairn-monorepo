@@ -17,7 +17,7 @@ import { IngestFigureGallery } from "./ingest-figure-gallery";
 import { IngestOutlineTree } from "./ingest-outline-tree";
 import { IngestPagePulse } from "./ingest-page-pulse";
 
-export type IngestViewMode = "spotlight" | "tab" | "dock";
+export type IngestViewMode = "tab";
 
 type PipelineStepId =
   | "downloading"
@@ -41,11 +41,6 @@ const pipelineSteps: {
   { id: "persisting", icon: Check },
 ];
 
-/**
- * Single source-of-truth for ingest progress UI. Spotlight, dock, and tab
- * containers all render this component with a different `mode`. Each mode
- * picks the appropriate density / chrome.
- */
 export function IngestProgressView({
   wfid,
   mode,
@@ -63,18 +58,6 @@ export function IngestProgressView({
       : null;
 
   const fileName = run.fileName ?? "?";
-
-  if (mode === "dock") {
-    return (
-      <div className="ingest-card-dock" data-testid="ingest-dock-card">
-        <div className="ingest-card-name">{fileName}</div>
-        <progress max={100} value={pct ?? undefined} />
-        <span className="sr-only" data-testid="figure-count">
-          {run.figures.length}
-        </span>
-      </div>
-    );
-  }
 
   return (
     <div

@@ -11,8 +11,8 @@ Strategy:
      omitted, and H2Orestart's filter activates on .hwp/.hwpx).
   2. ``unoconvert`` → PDF using the running unoserver daemon.
   3. Run opendataloader-pdf against the PDF for text extraction (per spec
-     "opendataloader-pdf 재파싱"). We share the JAR path env with
-     :mod:`worker.activities.pdf_activity` so a single JAR mount serves both.
+     "opendataloader-pdf 재파싱"). The packaged CLI is the default; a
+     manually mounted legacy JAR is supported only as fallback.
   4. Upload the converted PDF as the viewer PDF.
 
 Why opendataloader-pdf and not pymupdf for HWP-derived PDFs (vs. the legacy
@@ -25,10 +25,7 @@ non-batch path. If this turns out wrong empirically, swap to pymupdf later
 from __future__ import annotations
 
 import asyncio
-import json
-import os
 import shutil
-import subprocess
 import tempfile
 import time
 from pathlib import Path
@@ -44,11 +41,16 @@ from worker.lib.office_pdf import (
     ensure_extension,
     viewer_pdf_object_key,
 )
+from worker.lib.opendataloader_pdf import (
+    LEGACY_JAR_PATH,
+    normalize_opendataloader_pages,
+    read_opendataloader_json,
+    run_opendataloader_pdf,
+)
 from worker.lib.s3_client import download_to_tempfile, upload_object
 
-# Reuse the same JAR location parse_pdf uses — operators only have to mount
-# one file regardless of how many activities consume it.
-JAR_PATH = os.environ.get("OPENDATALOADER_JAR", "/app/opendataloader-pdf.jar")
+# Reuse the same legacy JAR location parse_pdf supports for older operators.
+JAR_PATH = LEGACY_JAR_PATH
 
 _HWP_MIME_TO_EXT: dict[str, str] = {
     "application/x-hwp": "hwp",
@@ -59,51 +61,26 @@ _HWP_MIME_TO_EXT: dict[str, str] = {
 
 
 def _run_opendataloader(pdf_path: Path, out_dir: Path) -> Path:
-    """Run opendataloader-pdf JAR against ``pdf_path``.
+    """Run opendataloader-pdf against ``pdf_path``.
 
-    Test seam — patched in unit tests to bypass Java entirely. Mirrors
-    :func:`worker.activities.pdf_activity._run_jar` rather than importing
-    it: we want figure-extraction OFF here (HWP documents are typically
-    text-dense, and we don't have a downstream consumer for HWP figures
-    yet — Spec B figure enrichment runs only for PDFs).
+    Test seam — patched in unit tests to bypass the external parser entirely.
+    We keep figure extraction OFF here: HWP documents are typically text-dense,
+    and we don't have a downstream consumer for HWP figures yet.
     """
-    # encoding="utf-8" is explicit because the JAR's stderr can include
-    # Korean characters (HWP is a KR format) and the system default would
-    # be cp1252 / cp949 on some hosts — UnicodeDecodeError there would
-    # mask the real conversion failure.
-    result = subprocess.run(
-        [
-            "java", "-jar", JAR_PATH,
-            "--input", str(pdf_path),
-            "--output", str(out_dir),
-            "--format", "json",
-            "--extract-images", "false",
-        ],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        timeout=300,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"opendataloader-pdf failed: {result.stderr}")
-    return out_dir
+    return run_opendataloader_pdf(pdf_path, out_dir, extract_images=False)
 
 
-def _read_text_from_jar_output(out_dir: Path) -> str:
+def _read_text_from_opendataloader_output(out_dir: Path) -> str:
     """Collect plain text from opendataloader-pdf's JSON sidecar.
 
-    UTF-8 is explicit because the activity is exercised on Windows dev
-    machines too: Python's default ``open`` mode picks the locale codec
-    on Windows (typically cp949 for Korean Windows installs), which would
-    mojibake every Korean glyph the JAR extracted from an HWP page.
+    UTF-8 is explicit in the shared reader because this activity is exercised
+    on Windows dev machines too; Korean glyphs from HWP pages must not depend
+    on the host locale codec.
     """
-    json_files = list(out_dir.glob("*.json"))
-    if not json_files:
-        raise FileNotFoundError("opendataloader-pdf produced no JSON output")
-    with open(json_files[0], encoding="utf-8") as f:
-        data = json.load(f)
+    data = read_opendataloader_json(out_dir)
+    pages = normalize_opendataloader_pages(data)
     parts: list[str] = []
-    for page in data.get("pages", []):
+    for page in pages:
         text = (page.get("text") or "").strip()
         if text:
             parts.append(text)
@@ -139,8 +116,8 @@ async def parse_hwp(inp: dict[str, Any]) -> dict[str, Any]:
     src_path = ensure_extension(raw_path, ext)
     work_dir = Path(tempfile.mkdtemp())
     pdf_path = work_dir / f"{workflow_id}.pdf"
-    jar_out_dir = work_dir / "jar-out"
-    jar_out_dir.mkdir()
+    opendataloader_out_dir = work_dir / "opendataloader-out"
+    opendataloader_out_dir.mkdir()
 
     try:
         await publish_safe(
@@ -157,10 +134,10 @@ async def parse_hwp(inp: dict[str, Any]) -> dict[str, Any]:
 
         # Step 2: PDF → text via opendataloader-pdf. We don't enable
         # figure extraction here (HWP figures aren't currently enriched
-        # by Spec B), so the JAR run stays fast.
+        # by Spec B), so the opendataloader run stays fast.
         activity.heartbeat("running opendataloader-pdf for HWP")
-        await asyncio.to_thread(_run_opendataloader, pdf_path, jar_out_dir)
-        text = _read_text_from_jar_output(jar_out_dir)
+        await asyncio.to_thread(_run_opendataloader, pdf_path, opendataloader_out_dir)
+        text = _read_text_from_opendataloader_output(opendataloader_out_dir)
 
         duration_ms = int((time.time() - t_start) * 1000)
         await publish_safe(workflow_id, "unit_parsed", {

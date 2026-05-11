@@ -8,7 +8,6 @@ import { useTabsStore } from "@/stores/tabs-store";
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   upload: vi.fn(),
-  openIngestTab: vi.fn(),
   startRun: vi.fn(),
 }));
 
@@ -75,10 +74,6 @@ vi.mock("@/stores/ingest-store", () => ({
   useIngestStore: { getState: () => ({ startRun: mocks.startRun }) },
 }));
 
-vi.mock("@/components/ingest/open-ingest-tab", () => ({
-  openIngestTab: mocks.openIngestTab,
-}));
-
 vi.mock("./target-picker", () => ({
   TargetPicker: () => <div>target picker</div>,
 }));
@@ -137,7 +132,7 @@ describe("FirstSourceIntake", () => {
     );
   });
 
-  it("uploads a selected file through the live ingest path", async () => {
+  it("uploads a selected file without opening a live ingest tab", async () => {
     const user = userEvent.setup();
     render(<FirstSourceIntake wsSlug="home-1234abcd" initialMode="file" />);
 
@@ -148,7 +143,9 @@ describe("FirstSourceIntake", () => {
     await waitFor(() => {
       expect(mocks.upload).toHaveBeenCalledWith(source, "project-1");
     });
-    expect(mocks.openIngestTab).toHaveBeenCalledWith("ingest-file-1", "source.pdf");
+    expect(useTabsStore.getState().tabs.some((tab) => tab.kind === "ingest")).toBe(
+      false,
+    );
     expect(mocks.push).toHaveBeenCalledWith("/ko/workspace/home-1234abcd");
   });
 
@@ -180,9 +177,12 @@ describe("FirstSourceIntake", () => {
         }),
       ]),
     );
+    expect(useTabsStore.getState().tabs.some((tab) => tab.kind === "ingest")).toBe(
+      false,
+    );
   });
 
-  it("starts web-url ingest from the link mode and opens the live ingest tab", async () => {
+  it("starts web-url ingest from the link mode without opening a live ingest tab", async () => {
     const user = userEvent.setup();
     render(<FirstSourceIntake wsSlug="home-1234abcd" initialMode="link" />);
 
@@ -203,7 +203,9 @@ describe("FirstSourceIntake", () => {
       "x-opencairn/web-url",
       "example.com",
     );
-    expect(mocks.openIngestTab).toHaveBeenCalledWith("ingest-url-1", "example.com");
+    expect(useTabsStore.getState().tabs.some((tab) => tab.kind === "ingest")).toBe(
+      false,
+    );
     expect(mocks.push).toHaveBeenCalledWith("/ko/workspace/home-1234abcd");
   });
 

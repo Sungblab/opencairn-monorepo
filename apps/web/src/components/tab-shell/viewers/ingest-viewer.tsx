@@ -8,8 +8,8 @@ import { IngestProgressView } from "@/components/ingest/ingest-progress-view";
 /**
  * Tab mode "ingest" — full-tab view of an in-progress ingest run. The tab
  * pins to a workflowId via `tab.targetId`. Mounting this viewer opens the
- * SSE stream so the tab can run independently of the dock subscriber (e.g.
- * if the dock card is dismissed but the tab remains open).
+ * SSE stream so legacy/pinned ingest tabs can still inspect a workflow, while
+ * the normal upload path now stays on the original file tab.
  */
 export function IngestViewer({ tab }: { tab: Tab }) {
   const wfid = tab.targetId;

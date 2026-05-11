@@ -1,6 +1,6 @@
 """Tests for the PDF activity event-emission refactor.
 
-The activity's I/O surfaces (Java JAR subprocess, MinIO, scan detection) are
+The activity's I/O surfaces (OpenDataLoader subprocess, MinIO, scan detection) are
 patched, so these run without docker / java / pymupdf-readable fixtures.
 """
 from __future__ import annotations
@@ -74,7 +74,7 @@ async def test_parse_pdf_emits_unit_events_per_page(tmp_path: Path):
     with (
         patch("worker.activities.pdf_activity.download_to_tempfile", return_value=fake_pdf),
         patch("worker.activities.pdf_activity._opendataloader_available", return_value=True),
-        patch("worker.activities.pdf_activity._run_jar", return_value=out_dir),
+        patch("worker.activities.pdf_activity._run_opendataloader", return_value=out_dir),
         patch("worker.activities.pdf_activity._detect_scan", return_value=False),
         patch(
             "worker.activities.pdf_activity._upload_figure",
@@ -107,7 +107,7 @@ async def test_parse_pdf_emits_unit_events_per_page(tmp_path: Path):
 
 @pytest.mark.asyncio
 async def test_parse_pdf_skips_missing_figure_files(tmp_path: Path):
-    """When JAR JSON references a figure file that wasn't actually written,
+    """When OpenDataLoader JSON references a figure file that wasn't actually written,
     the activity must skip rather than crash, and not emit figure_extracted."""
     fake_pdf = tmp_path / "sample.pdf"
     fake_pdf.write_bytes(b"%PDF-1.4\n...")
@@ -128,7 +128,7 @@ async def test_parse_pdf_skips_missing_figure_files(tmp_path: Path):
     with (
         patch("worker.activities.pdf_activity.download_to_tempfile", return_value=fake_pdf),
         patch("worker.activities.pdf_activity._opendataloader_available", return_value=True),
-        patch("worker.activities.pdf_activity._run_jar", return_value=out_dir),
+        patch("worker.activities.pdf_activity._run_opendataloader", return_value=out_dir),
         patch("worker.activities.pdf_activity._detect_scan", return_value=False),
         patch("worker.activities.pdf_activity.publish_safe", side_effect=fake_publish),
     ):
@@ -149,7 +149,7 @@ async def test_parse_pdf_skips_missing_figure_files(tmp_path: Path):
 
 @pytest.mark.asyncio
 async def test_parse_pdf_falls_back_to_pymupdf_when_jar_missing(tmp_path: Path):
-    """Docker dev builds can run without the optional opendataloader JAR.
+    """Docker dev builds can run without the optional opendataloader parser.
 
     Text PDFs should still ingest through a lower-fidelity PyMuPDF path instead
     of failing after the API already returned 202.
@@ -163,7 +163,7 @@ async def test_parse_pdf_falls_back_to_pymupdf_when_jar_missing(tmp_path: Path):
         publish_calls.append((kind, payload))
 
     with (
-        patch("worker.activities.pdf_activity.JAR_PATH", str(tmp_path / "missing.jar")),
+        patch("worker.activities.pdf_activity._opendataloader_available", return_value=False),
         patch("worker.activities.pdf_activity.download_to_tempfile", return_value=fake_pdf),
         patch("worker.activities.pdf_activity._detect_scan", return_value=False),
         patch(
@@ -174,8 +174,8 @@ async def test_parse_pdf_falls_back_to_pymupdf_when_jar_missing(tmp_path: Path):
             ],
         ),
         patch(
-            "worker.activities.pdf_activity._run_jar",
-            side_effect=AssertionError("JAR should not be called"),
+            "worker.activities.pdf_activity._run_opendataloader",
+            side_effect=AssertionError("opendataloader should not be called"),
         ),
         patch("worker.activities.pdf_activity.publish_safe", side_effect=fake_publish),
     ):
@@ -204,7 +204,7 @@ async def test_parse_pdf_falls_back_to_pymupdf_when_jar_missing(tmp_path: Path):
 async def test_parse_pdf_scan_ocrs_each_page(tmp_path: Path):
     """Scan PDFs (no text layer) get OCR'd page-by-page via provider.ocr.
 
-    Each page emits unit_started + unit_parsed; the JAR is *not* invoked
+    Each page emits unit_started + unit_parsed; opendataloader is *not* invoked
     because its text output would be empty for image-only pages anyway,
     and skipping it keeps Java off the worker's hot path for scans.
     """
@@ -259,7 +259,7 @@ async def test_parse_pdf_scan_ocrs_each_page(tmp_path: Path):
     assert kinds.count("unit_started") == 2
     assert kinds.count("unit_parsed") == 2
     # Per-page metadata uses unitKind="page" so the dock UI labels match
-    # the JAR-text path.
+    # the opendataloader text path.
     parsed_payloads = [p for k, p in publish_calls if k == "unit_parsed"]
     assert all(p["unitKind"] == "page" for p in parsed_payloads)
 

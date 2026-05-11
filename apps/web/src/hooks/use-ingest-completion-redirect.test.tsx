@@ -20,7 +20,7 @@ function Probe({ wfid }: { wfid: string | null }) {
 describe("useIngestCompletionRedirect", () => {
   beforeEach(() => {
     push.mockClear();
-    useIngestStore.setState({ runs: {}, spotlightWfid: null });
+    useIngestStore.setState({ runs: {} });
   });
   afterEach(() => vi.useRealTimers());
 

@@ -6,26 +6,11 @@ import { useIngestStore } from "@/stores/ingest-store";
 
 const messages = {
   ingest: {
-    spotlight: {
-      title: "{fileName} 분석 중",
-      subtitle: "...",
-      skipToTab: "탭에서 보기",
-      secondsRemaining: "{n}초",
-    },
     tab: {
       title: "분석 중: {fileName}",
       openSourceNote: "노트로 이동",
       denseToggle: "상세 보기",
       denseToggleOff: "간단히 보기",
-    },
-    dock: {
-      running: "{fileName} · {pct}%",
-      completed: "{fileName} 완료",
-      failed: "{fileName} 실패",
-      openNote: "노트 열기",
-      retry: "다시 시도",
-      dismiss: "닫기",
-      moreCount: "+{n}개 더",
     },
     stage: {
       downloading: "다운로드 중",
@@ -93,7 +78,7 @@ function wrap(ui: React.ReactElement) {
 
 describe("<IngestProgressView>", () => {
   beforeEach(() => {
-    useIngestStore.setState({ runs: {}, spotlightWfid: null });
+    useIngestStore.setState({ runs: {} });
   });
 
   it("renders nothing when no run exists", () => {
@@ -107,12 +92,6 @@ describe("<IngestProgressView>", () => {
     useIngestStore.getState().startRun("wf-1", "application/pdf", "paper.pdf");
     wrap(<IngestProgressView wfid="wf-1" mode="tab" />);
     expect(screen.getByText(/paper\.pdf/)).toBeInTheDocument();
-  });
-
-  it("dock mode renders the dock card with progress", () => {
-    useIngestStore.getState().startRun("wf-1", "application/pdf", "paper.pdf");
-    wrap(<IngestProgressView wfid="wf-1" mode="dock" />);
-    expect(screen.getByTestId("ingest-dock-card")).toBeInTheDocument();
   });
 
   it("renders figure count after a figure_extracted event", () => {

@@ -91,7 +91,7 @@ describe("ProjectTree", () => {
       workflowId: "wf-1",
       objectKey: "obj-1",
       sourceBundleNodeId: "bundle-1",
-      originalFileId: null,
+      originalFileId: "file-1",
     });
   });
 
@@ -137,6 +137,18 @@ describe("ProjectTree", () => {
     fireEvent.click(screen.getByRole("button", { name: "sidebar.upload.start" }));
 
     await waitFor(() => expect(uploadMock).toHaveBeenCalledWith(file, "proj-1"));
+    const tabs = useTabsStore.getState().tabs;
+    expect(tabs.some((tab) => tab.kind === "ingest")).toBe(false);
+    expect(tabs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "agent_file",
+          targetId: "file-1",
+          title: "paper.pdf",
+          mode: "agent-file",
+        }),
+      ]),
+    );
   });
 
   it("closes every open tab for a deleted note and promotes the neighbor", () => {

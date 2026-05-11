@@ -46,7 +46,6 @@ export type IngestRunState = {
 
 type IngestStore = {
   runs: Record<string, IngestRunState>;
-  spotlightWfid: string | null;
   startRun(
     wfid: string,
     mime: string,
@@ -54,8 +53,6 @@ type IngestStore = {
     opts?: { sourceBundleNodeId?: string | null },
   ): void;
   applyEvent(wfid: string, ev: IngestEvent): void;
-  setSpotlight(wfid: string | null): void;
-  dismissDockCard(wfid: string): void;
 };
 
 function emptyRun(
@@ -86,16 +83,8 @@ export const useIngestStore = create<IngestStore>()(
   persist(
     (set) => ({
       runs: {},
-      spotlightWfid: null,
       startRun: (wfid, mime, fileName, opts) =>
         set((s) => {
-          // Spotlight only when no other run started in the last 200ms — that
-          // window is the multi-file dispatch heuristic from spec §11. Once a
-          // batch is detected the dock alone shows progress for all files.
-          const now = Date.now();
-          const recentStart = Object.values(s.runs).some(
-            (r) => now - r.startedAt < 200 && r.status === "running",
-          );
           const run = emptyRun(wfid, mime, fileName);
           if (opts?.sourceBundleNodeId) {
             run.bundleNodeId = opts.sourceBundleNodeId;
@@ -103,7 +92,6 @@ export const useIngestStore = create<IngestStore>()(
           }
           return {
             runs: { ...s.runs, [wfid]: run },
-            spotlightWfid: recentStart ? s.spotlightWfid : wfid,
           };
         }),
       applyEvent: (wfid, ev) =>
@@ -194,12 +182,6 @@ export const useIngestStore = create<IngestStore>()(
           }
           return { runs: { ...s.runs, [wfid]: next } };
         }),
-      setSpotlight: (wfid) => set({ spotlightWfid: wfid }),
-      dismissDockCard: (wfid) =>
-        set((s) => {
-          const { [wfid]: _dropped, ...rest } = s.runs;
-          return { runs: rest };
-        }),
     }),
     {
       name: "ingest-store",
@@ -223,7 +205,6 @@ export const useIngestStore = create<IngestStore>()(
               },
             ]),
         ),
-        spotlightWfid: s.spotlightWfid,
       }),
     },
   ),
