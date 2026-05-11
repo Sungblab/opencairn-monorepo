@@ -73,8 +73,18 @@ function xmlFragmentToPlateValue(fragment: Y.XmlFragment): PlateValue {
   return children.length > 0 ? (children as PlateValue) : emptyPlateValue();
 }
 
+export function legacyXmlStringToPlainText(value: string): string {
+  let current = value;
+  let previous: string;
+  do {
+    previous = current;
+    current = current.replace(/<[^>]*>/g, "");
+  } while (current !== previous);
+  return current;
+}
+
 function legacyXmlTextToPlateValue(text: Y.XmlText): PlateValue {
-  const plainText = text.toString().replace(/<[^>]*>/g, "");
+  const plainText = legacyXmlStringToPlainText(text.toString());
   return [{ type: "p", children: [{ text: plainText }] }];
 }
 
