@@ -699,35 +699,52 @@ export function NoteEditor({
               />
             )}
             <div className="mx-auto w-full max-w-[720px] flex-1 px-4 py-6 sm:px-8 sm:py-8">
-              <div className="flex items-start justify-between gap-4">
-                <input
-                  value={title}
-                  onChange={(e) => handleTitleChange(e.target.value)}
-                  placeholder={t("placeholder.title")}
-                  disabled={readOnly}
-                  className="placeholder:text-fg-muted w-full bg-transparent text-3xl font-semibold outline-none"
-                  data-testid="note-title"
-                />
-                {/* PresenceStack shows remote collaborators; self-hides when
+              <div className="border-b border-border/80 pb-5">
+                <div className="flex items-start justify-between gap-4">
+                  <input
+                    value={title}
+                    onChange={(e) => handleTitleChange(e.target.value)}
+                    placeholder={t("placeholder.title")}
+                    disabled={readOnly}
+                    className="placeholder:text-fg-muted w-full bg-transparent text-3xl font-semibold outline-none"
+                    data-testid="note-title"
+                  />
+                  {/* PresenceStack shows remote collaborators; self-hides when
                   alone. Note-local AI, activity, and comments live in the
                   rail so the title row stays focused on document identity. */}
+                  <div
+                    className="flex shrink-0 items-center gap-1 pt-1"
+                    data-testid="note-actions"
+                  >
+                    {!readOnly ? (
+                      <button
+                        type="button"
+                        onClick={() => setShareOpen(true)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-control)] border border-border text-muted-foreground hover:bg-accent hover:text-foreground"
+                        data-testid="share-button"
+                        aria-label={tShare("title")}
+                        title={tShare("title")}
+                      >
+                        <Share2 aria-hidden className="h-4 w-4" />
+                      </button>
+                    ) : null}
+                    <PresenceStack currentUserId={userId} />
+                  </div>
+                </div>
                 <div
-                  className="flex shrink-0 items-center gap-1 pt-1"
-                  data-testid="note-actions"
+                  className="text-fg-muted mt-4 h-4 text-xs"
+                  data-testid="save-status"
+                  role="status"
+                  aria-live="polite"
                 >
-                  {!readOnly ? (
-                    <button
-                      type="button"
-                      onClick={() => setShareOpen(true)}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-control)] border border-border text-muted-foreground hover:bg-accent hover:text-foreground"
-                      data-testid="share-button"
-                      aria-label={tShare("title")}
-                      title={tShare("title")}
-                    >
-                      <Share2 aria-hidden className="h-4 w-4" />
-                    </button>
-                  ) : null}
-                  <PresenceStack currentUserId={userId} />
+                  {titleStatus === "saving" && t("save.saving")}
+                  {titleStatus === "saved" && t("save.saved")}
+                  {titleStatus === "error" && (
+                    <span className="text-red-600">
+                      {t("save.failed")}
+                      {titleError ? `: ${titleError}` : null}
+                    </span>
+                  )}
                 </div>
               </div>
               <ShareDialog
@@ -736,7 +753,7 @@ export function NoteEditor({
                 open={shareOpen}
                 onOpenChange={setShareOpen}
               />
-              <div ref={editorSurfaceRef} className="relative">
+              <div ref={editorSurfaceRef} className="relative pt-7">
                 <PlateContent
                   data-testid="note-body"
                   placeholder={
@@ -744,7 +761,7 @@ export function NoteEditor({
                       ? t("placeholder.body_with_slash")
                       : t("placeholder.body")
                   }
-                  className="prose prose-stone mt-6 min-h-[60vh] max-w-none focus:outline-none"
+                  className="prose prose-stone min-h-[60vh] max-w-none focus:outline-none"
                   readOnly={readOnly}
                 />
                 {selectionAskPosition ? (
@@ -762,21 +779,6 @@ export function NoteEditor({
                     {t("toolbar.ask_ai")}
                   </button>
                 ) : null}
-              </div>
-              <div
-                className="text-fg-muted mt-4 text-xs"
-                data-testid="save-status"
-                role="status"
-                aria-live="polite"
-              >
-                {titleStatus === "saving" && t("save.saving")}
-                {titleStatus === "saved" && t("save.saved")}
-                {titleStatus === "error" && (
-                  <span className="text-red-600">
-                    {t("save.failed")}
-                    {titleError ? `: ${titleError}` : null}
-                  </span>
-                )}
               </div>
             </div>
           </div>

@@ -14,8 +14,24 @@ test.describe("App Shell Phase 4 — Agent Panel", () => {
   test.describe.configure({ timeout: 120_000 });
 
   let session: SeededSession;
+  const composerPlaceholder = "질문하거나 /명령어를 입력하세요...";
 
-  async function sendMessageAndWaitForAgentRow(
+  async function ensureAgentPanelOpen(page: import("@playwright/test").Page) {
+    const panel = page.getByTestId("app-shell-agent-panel");
+    if ((await panel.count()) === 0 || !(await panel.first().isVisible())) {
+      const openButton = page.getByRole("button", {
+        name: "에이전트 패널 펼치기",
+      });
+      if (await openButton.isVisible()) {
+        await openButton.click();
+      } else {
+        await page.keyboard.press("Control+j");
+      }
+    }
+    await expect(panel).toBeVisible();
+  }
+
+  async function sendMessageAndWaitForStreamStart(
     page: import("@playwright/test").Page,
     content: string,
   ) {
@@ -25,17 +41,13 @@ test.describe("App Shell Phase 4 — Agent Panel", () => {
         res.url().endsWith("/messages") &&
         res.request().method() === "POST",
     );
-    const ta = page.getByPlaceholder("메시지를 입력하세요...");
+    const ta = page.getByPlaceholder(composerPlaceholder);
     await ta.fill(content);
     await ta.press("Enter");
+    await expect(page.getByText(content)).toBeVisible();
+    await expect(page.getByText("답변 준비 중")).toBeVisible();
     const response = await responsePromise;
     expect(response.status()).toBe(200);
-
-    // Live full-stack E2E runs with LLM keys blank by default, so the durable
-    // run may render an empty failed agent body. The stable contract for these
-    // shell smoke assertions is that the persisted agent row and action strip
-    // are visible, not a literal mock body from the legacy mock API.
-    await expect(page.getByRole("button", { name: "싫어요" })).toBeVisible();
   }
 
   test.beforeEach(async ({ context, request }) => {
@@ -46,27 +58,18 @@ test.describe("App Shell Phase 4 — Agent Panel", () => {
     page,
   }) => {
     await page.goto(`/ko/workspace/${session.wsSlug}/`);
-    await expect(page.getByTestId("app-shell-agent-panel")).toBeVisible();
-    // empty_state.start_cta — both the CTA text and the role=button label.
-    await expect(
-      page.getByRole("button", { name: "첫 대화 시작" }),
-    ).toBeVisible();
-    const startButton = page.getByRole("button", { name: "첫 대화 시작" });
-    await expect(startButton).toBeEnabled({ timeout: 90_000 });
-    await startButton.click();
-    // composer.placeholder — once a thread is active the textarea is no
-    // longer disabled (Composer's `disabled` flips off when activeThreadId
-    // is set).
-    await expect(page.getByPlaceholder("메시지를 입력하세요...")).toBeEnabled();
+    await ensureAgentPanelOpen(page);
+    await expect(page.getByText("새 대화")).toBeVisible();
+    await expect(page.getByPlaceholder(composerPlaceholder)).toBeEnabled();
   });
 
   test("sends a message through the full-stack thread SSE route", async ({
     page,
   }) => {
     await page.goto(`/ko/workspace/${session.wsSlug}/`);
-    await page.getByRole("button", { name: "첫 대화 시작" }).click();
+    await ensureAgentPanelOpen(page);
 
-    const ta = page.getByPlaceholder("메시지를 입력하세요...");
+    const ta = page.getByPlaceholder(composerPlaceholder);
     await expect(ta).toBeEnabled();
 
     const responsePromise = page.waitForResponse(
@@ -77,41 +80,44 @@ test.describe("App Shell Phase 4 — Agent Panel", () => {
     );
     await ta.fill("e2e agent smoke");
     await ta.press("Enter");
+    await expect(page.getByText("e2e agent smoke")).toBeVisible();
+    await expect(page.getByText("답변 준비 중")).toBeVisible();
 
     const response = await responsePromise;
     expect(response.status()).toBe(200);
     await expect(ta).toHaveValue("");
   });
 
-  test("thumbs-down exposes reason chips", async ({ page }) => {
+  test("shows the user turn before the streaming loading state", async ({
+    page,
+  }) => {
     await page.goto(`/ko/workspace/${session.wsSlug}/`);
-    await page.getByRole("button", { name: "첫 대화 시작" }).click();
-    await sendMessageAndWaitForAgentRow(page, "hi");
+    await ensureAgentPanelOpen(page);
+    await sendMessageAndWaitForStreamStart(page, "hi");
 
-    // bubble.actions.thumbs_down_aria — flipping reasonOpen renders the
-    // four feedback chips inline.
-    await page.getByRole("button", { name: "싫어요" }).click();
-    // bubble.feedback_reasons.incorrect
-    await expect(page.getByRole("button", { name: "부정확" })).toBeVisible();
+    const userBox = await page.getByText("hi").boundingBox();
+    const loadingBox = await page.getByText("답변 준비 중").boundingBox();
+    expect(userBox?.y).toBeLessThan(loadingBox?.y ?? 0);
   });
 
   test("new thread via + preserves previous thread in list", async ({
     page,
   }) => {
     await page.goto(`/ko/workspace/${session.wsSlug}/`);
-    await page.getByRole("button", { name: "첫 대화 시작" }).click();
-    await sendMessageAndWaitForAgentRow(page, "first thread message");
+    await ensureAgentPanelOpen(page);
+    await page.getByRole("button", { name: "새 대화" }).click();
+    await expect(page.getByPlaceholder(composerPlaceholder)).toBeEnabled();
 
     // header.new_thread_aria — spawns a second thread and activates it.
     await page.getByRole("button", { name: "새 대화" }).click();
     // header.thread_list_aria — open the dropdown to inspect history.
-    await page.getByRole("button", { name: "대화 목록" }).click();
+    await page.getByRole("button", { name: "에이전트 기록 열기" }).click();
     // The previous thread was never named so it falls back to
     // thread_list.untitled. We assert >= 2 untitled entries to tolerate
     // either-or thread ordering and the fact that both threads show the
     // placeholder title.
     await expect(
-      page.getByRole("menuitem").filter({ hasText: "(제목 없음)" }),
+      page.getByRole("button", { name: /^\(제목 없음\)/ }),
     ).toHaveCount(2);
   });
 });

@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import {
   Activity,
   AlertTriangle,
+  ArrowLeft,
   BarChart3,
   Bug,
   CheckCircle2,
@@ -365,7 +366,11 @@ function StatBox({
   );
 }
 
-export function AdminUsersClient() {
+export function AdminUsersClient({
+  returnHref = "/dashboard",
+}: {
+  returnHref?: string;
+}) {
   const t = useTranslations("admin");
   const [activeTab, setActiveTab] = useState<ExtendedTabKey>("dashboard");
   const [overview, setOverview] = useState<AdminOverview | null>(null);
@@ -382,6 +387,12 @@ export function AdminUsersClient() {
   const [query, setQuery] = useState("");
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [pages, setPages] = useState<Record<string, number>>({});
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [bulkUserPlan, setBulkUserPlan] = useState<AdminUser["plan"]>("pro");
+  const [bulkWorkspacePlan, setBulkWorkspacePlan] =
+    useState<AdminWorkspaceSubscription["planType"]>("pro");
+  const [bulkReportStatus, setBulkReportStatus] =
+    useState<AdminReport["status"]>("triaged");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -526,6 +537,13 @@ export function AdminUsersClient() {
     );
   }, [query, users]);
 
+  useEffect(() => {
+    const visibleUserIds = new Set(filteredUsers.map((user) => user.id));
+    setSelectedUserIds((current) =>
+      current.filter((id) => visibleUserIds.has(id)),
+    );
+  }, [filteredUsers]);
+
   function pageFor(key: string) {
     return pages[key] ?? 0;
   }
@@ -558,6 +576,11 @@ export function AdminUsersClient() {
     pageFor("llmEvents"),
     pageSize,
   );
+  const selectedUserCount = selectedUserIds.length;
+  const selectedUserIdSet = useMemo(
+    () => new Set(selectedUserIds),
+    [selectedUserIds],
+  );
 
   async function patch(
     path: string,
@@ -581,11 +604,41 @@ export function AdminUsersClient() {
     return true;
   }
 
+  function toggleUserSelection(userId: string) {
+    setSelectedUserIds((current) =>
+      current.includes(userId)
+        ? current.filter((id) => id !== userId)
+        : [...current, userId],
+    );
+  }
+
+  async function bulkPatch(
+    path: string,
+    body: unknown,
+    refresh: () => Promise<unknown>,
+  ) {
+    const ok = await patch(path, body, refresh);
+    if (ok && path.includes("/users/site-admin")) {
+      setSelectedUserIds([]);
+    }
+    return ok;
+  }
+
   const stats = overview?.stats ?? {};
+  const hasOverview = overview !== null;
 
   return (
     <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
       <aside className="border border-border bg-card lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-auto">
+        <div className="border-b border-border p-2">
+          <a
+            href={returnHref}
+            className="flex h-9 items-center gap-2 border border-border px-3 text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+            {t("actions.backToApp")}
+          </a>
+        </div>
         <div className="border-b border-border bg-muted/40 px-3 py-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
           {t("navigation")}
         </div>
@@ -620,57 +673,63 @@ export function AdminUsersClient() {
         )}
 
         {activeTab === "dashboard" && (
-          <>
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              <StatBox label={t("stats.users")} value={stats.users ?? 0} />
-              <StatBox
-                label={t("stats.workspaces")}
-                value={stats.workspaces ?? 0}
-              />
-              <StatBox
-                label={t("stats.projects")}
-                value={stats.projects ?? 0}
-              />
-              <StatBox
-                label={t("stats.openReports")}
-                value={stats.openReports ?? 0}
-                critical={(stats.openReports ?? 0) > 0}
-              />
-              <StatBox
-                label={t("stats.failedJobs")}
-                value={stats.failedJobs ?? 0}
-                critical={(stats.failedJobs ?? 0) > 0}
-              />
-              <StatBox
-                label={t("stats.pendingEmails")}
-                value={stats.pendingEmails ?? 0}
-                critical={(stats.pendingEmails ?? 0) > 0}
-              />
-              <StatBox label={t("stats.notes")} value={stats.notes ?? 0} />
-              <StatBox
-                label={t("stats.usageThisMonth")}
-                value={stats.usageThisMonth ?? 0}
-              />
-              <StatBox
-                label={t("stats.apiCallsToday")}
-                value={stats.apiCallsToday ?? 0}
-              />
-              <StatBox
-                label={t("stats.llmCostKrw30d")}
-                value={Math.round(stats.llmCostKrw30d ?? 0)}
-              />
-            </div>
-            <div className="grid gap-4 xl:grid-cols-2">
-              <Panel title={t("sections.reports")}>
-                <CompactReportList reports={overview?.recentReports ?? []} />
-              </Panel>
-              <Panel title={t("sections.operations")}>
-                <OperationList
-                  operations={overview?.recentOperations.slice(0, 8) ?? []}
+          hasOverview ? (
+            <>
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <StatBox label={t("stats.users")} value={stats.users ?? 0} />
+                <StatBox
+                  label={t("stats.workspaces")}
+                  value={stats.workspaces ?? 0}
                 />
-              </Panel>
-            </div>
-          </>
+                <StatBox
+                  label={t("stats.projects")}
+                  value={stats.projects ?? 0}
+                />
+                <StatBox
+                  label={t("stats.openReports")}
+                  value={stats.openReports ?? 0}
+                  critical={(stats.openReports ?? 0) > 0}
+                />
+                <StatBox
+                  label={t("stats.failedJobs")}
+                  value={stats.failedJobs ?? 0}
+                  critical={(stats.failedJobs ?? 0) > 0}
+                />
+                <StatBox
+                  label={t("stats.pendingEmails")}
+                  value={stats.pendingEmails ?? 0}
+                  critical={(stats.pendingEmails ?? 0) > 0}
+                />
+                <StatBox label={t("stats.notes")} value={stats.notes ?? 0} />
+                <StatBox
+                  label={t("stats.usageThisMonth")}
+                  value={stats.usageThisMonth ?? 0}
+                />
+                <StatBox
+                  label={t("stats.apiCallsToday")}
+                  value={stats.apiCallsToday ?? 0}
+                />
+                <StatBox
+                  label={t("stats.llmCostKrw30d")}
+                  value={Math.round(stats.llmCostKrw30d ?? 0)}
+                />
+              </div>
+              <div className="grid gap-4 xl:grid-cols-2">
+                <Panel title={t("sections.reports")}>
+                  <CompactReportList reports={overview.recentReports} />
+                </Panel>
+                <Panel title={t("sections.operations")}>
+                  <OperationList
+                    operations={overview.recentOperations.slice(0, 8)}
+                  />
+                </Panel>
+              </div>
+            </>
+          ) : (
+            <Panel title={t("tabs.dashboard")}>
+              <Empty />
+            </Panel>
+          )
         )}
 
         {activeTab === "analytics" && (
@@ -719,10 +778,50 @@ export function AdminUsersClient() {
               </div>
             }
           >
+            <div className="mb-3 flex flex-wrap items-center gap-2 border border-border bg-muted/30 p-2">
+              <span className="text-xs font-semibold uppercase text-muted-foreground">
+                {t("bulk.selected", { count: selectedUserCount })}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={busy !== null || selectedUserCount === 0}
+                onClick={() =>
+                  void bulkPatch(
+                    "/api/admin/users/site-admin",
+                    { userIds: selectedUserIds, isSiteAdmin: true },
+                    async () => {
+                      await Promise.all([loadUsers(), loadOverview()]);
+                    },
+                  )
+                }
+              >
+                {t("bulk.grantSiteAdmin")}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={busy !== null || selectedUserCount === 0}
+                onClick={() =>
+                  void bulkPatch(
+                    "/api/admin/users/site-admin",
+                    { userIds: selectedUserIds, isSiteAdmin: false },
+                    async () => {
+                      await Promise.all([loadUsers(), loadOverview()]);
+                    },
+                  )
+                }
+              >
+                {t("bulk.revokeSiteAdmin")}
+              </Button>
+            </div>
             <ScrollBox>
               <table className="min-w-full border-collapse text-sm">
                 <thead className="sticky top-0 bg-card">
                   <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+                    <th className="w-10 px-3 py-2">{t("columns.select")}</th>
                     <th className="px-3 py-2">{t("columns.user")}</th>
                     <th className="px-3 py-2">{t("columns.plan")}</th>
                     <th className="px-3 py-2">{t("columns.verified")}</th>
@@ -735,6 +834,15 @@ export function AdminUsersClient() {
                 <tbody>
                   {pagedUsers.map((user) => (
                     <tr key={user.id} className="border-b border-border">
+                      <td className="px-3 py-2">
+                        <input
+                          type="checkbox"
+                          aria-label={t("bulk.selectRow")}
+                          checked={selectedUserIdSet.has(user.id)}
+                          onChange={() => toggleUserSelection(user.id)}
+                          className="h-4 w-4"
+                        />
+                      </td>
                       <td className="px-3 py-2">
                         <div className="font-semibold">{user.name}</div>
                         <div className="text-xs text-muted-foreground">
@@ -790,110 +898,261 @@ export function AdminUsersClient() {
         )}
 
         {activeTab === "subscriptions" && (
-          <div className="grid gap-4 xl:grid-cols-2">
-            <PlanTable
-              title={t("sections.userSubscriptions")}
-              rows={pagedSubscriptionUsers}
-              totalRows={subscriptionUsers.length}
-              page={pageFor("subscriptionUsers")}
-              pageSize={pageSize}
-              onPageChange={(page) => setPageFor("subscriptionUsers", page)}
-              onPageSizeChange={handlePageSizeChange}
-              idPrefix="user"
-              options={["free", "pro", "byok"]}
-              getValue={(row) => row.plan}
-              getName={(row) => row.name}
-              getMeta={(row) => row.email}
-              onChange={(row, plan) =>
-                patch(`/api/admin/users/${row.id}/plan`, { plan }, async () => {
-                  await Promise.all([loadSubscriptions(), loadOverview()]);
-                })
-              }
-              busy={busy !== null}
-            />
-            <PlanTable
-              title={t("sections.workspaceSubscriptions")}
-              rows={pagedWorkspaces}
-              totalRows={workspaces.length}
-              page={pageFor("workspaces")}
-              pageSize={pageSize}
-              onPageChange={(page) => setPageFor("workspaces", page)}
-              onPageSizeChange={handlePageSizeChange}
-              idPrefix="workspace"
-              options={["free", "pro", "enterprise"]}
-              getValue={(row) => row.planType}
-              getName={(row) => row.name}
-              getMeta={(row) => row.slug}
-              onChange={(row, planType) =>
-                patch(
-                  `/api/admin/workspaces/${row.id}/plan`,
-                  { planType },
-                  async () => {
-                    await Promise.all([loadSubscriptions(), loadOverview()]);
-                  },
-                )
-              }
-              busy={busy !== null}
-            />
+          <div className="space-y-4">
+            <Panel title={t("bulk.title")}>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <label
+                    htmlFor="bulk-user-plan"
+                    className="text-xs font-semibold uppercase text-muted-foreground"
+                  >
+                    {t("bulk.userPlan")}
+                  </label>
+                  <select
+                    id="bulk-user-plan"
+                    value={bulkUserPlan}
+                    onChange={(event) =>
+                      setBulkUserPlan(event.target.value as AdminUser["plan"])
+                    }
+                    className="h-9 border border-border bg-background px-2 text-sm font-semibold uppercase"
+                  >
+                    {(["free", "pro", "byok"] as const).map((plan) => (
+                      <option key={plan} value={plan}>
+                        {plan}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={busy !== null || subscriptionUsers.length === 0}
+                    onClick={() =>
+                      void bulkPatch(
+                        "/api/admin/users/plan",
+                        {
+                          userIds: subscriptionUsers.map((user) => user.id),
+                          plan: bulkUserPlan,
+                        },
+                        async () => {
+                          await Promise.all([
+                            loadSubscriptions(),
+                            loadOverview(),
+                          ]);
+                        },
+                      )
+                    }
+                  >
+                    {t("bulk.applyUserPlan")}
+                  </Button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label
+                    htmlFor="bulk-workspace-plan"
+                    className="text-xs font-semibold uppercase text-muted-foreground"
+                  >
+                    {t("bulk.workspacePlan")}
+                  </label>
+                  <select
+                    id="bulk-workspace-plan"
+                    value={bulkWorkspacePlan}
+                    onChange={(event) =>
+                      setBulkWorkspacePlan(
+                        event.target
+                          .value as AdminWorkspaceSubscription["planType"],
+                      )
+                    }
+                    className="h-9 border border-border bg-background px-2 text-sm font-semibold uppercase"
+                  >
+                    {(["free", "pro", "enterprise"] as const).map((plan) => (
+                      <option key={plan} value={plan}>
+                        {plan}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={busy !== null || workspaces.length === 0}
+                    onClick={() =>
+                      void bulkPatch(
+                        "/api/admin/workspaces/plan",
+                        {
+                          workspaceIds: workspaces.map(
+                            (workspace) => workspace.id,
+                          ),
+                          planType: bulkWorkspacePlan,
+                        },
+                        async () => {
+                          await Promise.all([
+                            loadSubscriptions(),
+                            loadOverview(),
+                          ]);
+                        },
+                      )
+                    }
+                  >
+                    {t("bulk.applyWorkspacePlan")}
+                  </Button>
+                </div>
+              </div>
+            </Panel>
+            <div className="grid gap-4 xl:grid-cols-2">
+              <PlanTable
+                title={t("sections.userSubscriptions")}
+                rows={pagedSubscriptionUsers}
+                totalRows={subscriptionUsers.length}
+                page={pageFor("subscriptionUsers")}
+                pageSize={pageSize}
+                onPageChange={(page) => setPageFor("subscriptionUsers", page)}
+                onPageSizeChange={handlePageSizeChange}
+                idPrefix="user"
+                options={["free", "pro", "byok"]}
+                getValue={(row) => row.plan}
+                getName={(row) => row.name}
+                getMeta={(row) => row.email}
+                onChange={(row, plan) =>
+                  patch(
+                    `/api/admin/users/${row.id}/plan`,
+                    { plan },
+                    async () => {
+                      await Promise.all([loadSubscriptions(), loadOverview()]);
+                    },
+                  )
+                }
+                busy={busy !== null}
+              />
+              <PlanTable
+                title={t("sections.workspaceSubscriptions")}
+                rows={pagedWorkspaces}
+                totalRows={workspaces.length}
+                page={pageFor("workspaces")}
+                pageSize={pageSize}
+                onPageChange={(page) => setPageFor("workspaces", page)}
+                onPageSizeChange={handlePageSizeChange}
+                idPrefix="workspace"
+                options={["free", "pro", "enterprise"]}
+                getValue={(row) => row.planType}
+                getName={(row) => row.name}
+                getMeta={(row) => row.slug}
+                onChange={(row, planType) =>
+                  patch(
+                    `/api/admin/workspaces/${row.id}/plan`,
+                    { planType },
+                    async () => {
+                      await Promise.all([loadSubscriptions(), loadOverview()]);
+                    },
+                  )
+                }
+                busy={busy !== null}
+              />
+            </div>
           </div>
         )}
 
         {activeTab === "reports" && (
           <Panel title={t("sections.reports")}>
+            <div className="mb-3 flex flex-wrap items-center gap-2 border border-border bg-muted/30 p-2">
+              <label
+                htmlFor="bulk-report-status"
+                className="text-xs font-semibold uppercase text-muted-foreground"
+              >
+                {t("bulk.reportStatus")}
+              </label>
+              <select
+                id="bulk-report-status"
+                value={bulkReportStatus}
+                onChange={(event) =>
+                  setBulkReportStatus(
+                    event.target.value as AdminReport["status"],
+                  )
+                }
+                className="h-9 border border-border bg-background px-2 text-sm font-semibold uppercase"
+              >
+                {(["open", "triaged", "resolved", "closed"] as const).map(
+                  (status) => (
+                    <option key={status} value={status}>
+                      {t(`reportStatuses.${status}`)}
+                    </option>
+                  ),
+                )}
+              </select>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={busy !== null || reports.length === 0}
+                onClick={() =>
+                  void bulkPatch(
+                    "/api/admin/reports/status",
+                    {
+                      reportIds: reports.map((report) => report.id),
+                      status: bulkReportStatus,
+                    },
+                    async () => {
+                      await Promise.all([loadReports(), loadOverview()]);
+                    },
+                  )
+                }
+              >
+                {t("bulk.applyReportStatus")}
+              </Button>
+            </div>
             <ScrollBox>
               <div className="space-y-2">
-              {pagedReports.map((report) => (
-                <div
-                  key={report.id}
-                  className="grid gap-3 border border-border bg-background p-3 lg:grid-cols-[1fr_180px]"
-                >
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <StatusPill value={report.status} />
-                      <StatusPill value={report.priority} />
-                      <span className="text-xs uppercase text-muted-foreground">
-                        {report.type}
-                      </span>
+                {pagedReports.map((report) => (
+                  <div
+                    key={report.id}
+                    className="grid gap-3 border border-border bg-background p-3 lg:grid-cols-[1fr_180px]"
+                  >
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusPill value={report.status} />
+                        <StatusPill value={report.priority} />
+                        <span className="text-xs uppercase text-muted-foreground">
+                          {report.type}
+                        </span>
+                      </div>
+                      <h3 className="mt-2 font-bold">{report.title}</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {report.description || t("emptyDescription")}
+                      </p>
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        {formatDate(report.createdAt)} · {report.pageUrl ?? "-"}
+                      </div>
                     </div>
-                    <h3 className="mt-2 font-bold">{report.title}</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {report.description || t("emptyDescription")}
-                    </p>
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      {formatDate(report.createdAt)} · {report.pageUrl ?? "-"}
+                    <div className="grid content-start gap-2">
+                      {(["open", "triaged", "resolved", "closed"] as const).map(
+                        (status) => (
+                          <Button
+                            key={status}
+                            type="button"
+                            variant={
+                              report.status === status ? "default" : "outline"
+                            }
+                            size="sm"
+                            disabled={busy !== null}
+                            onClick={() =>
+                              void patch(
+                                `/api/admin/reports/${report.id}/status`,
+                                { status },
+                                async () => {
+                                  await Promise.all([
+                                    loadReports(),
+                                    loadOverview(),
+                                  ]);
+                                },
+                              )
+                            }
+                          >
+                            {t(`reportStatuses.${status}`)}
+                          </Button>
+                        ),
+                      )}
                     </div>
                   </div>
-                  <div className="grid content-start gap-2">
-                    {(["open", "triaged", "resolved", "closed"] as const).map(
-                      (status) => (
-                        <Button
-                          key={status}
-                          type="button"
-                          variant={
-                            report.status === status ? "default" : "outline"
-                          }
-                          size="sm"
-                          disabled={busy !== null}
-                          onClick={() =>
-                            void patch(
-                              `/api/admin/reports/${report.id}/status`,
-                              { status },
-                              async () => {
-                                await Promise.all([
-                                  loadReports(),
-                                  loadOverview(),
-                                ]);
-                              },
-                            )
-                          }
-                        >
-                          {t(`reportStatuses.${status}`)}
-                        </Button>
-                      ),
-                    )}
-                  </div>
-                </div>
-              ))}
+                ))}
               </div>
             </ScrollBox>
             <PaginationControls

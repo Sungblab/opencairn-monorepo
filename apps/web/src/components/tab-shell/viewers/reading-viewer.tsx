@@ -59,7 +59,11 @@ export function ReadingViewer({ tab }: { tab: Tab }) {
       me={me}
       size={size}
       setSize={setSize}
-      label={{ fontSize: t("fontSize") }}
+      label={{
+        editMode: t("editMode"),
+        fontSize: t("fontSize"),
+        readingMode: t("readingMode"),
+      }}
     />
   );
 }

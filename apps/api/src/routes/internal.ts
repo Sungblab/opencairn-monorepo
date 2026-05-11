@@ -162,9 +162,10 @@ internal.post(
         status: item.status,
         ...(item.status === "failed"
           ? {
-              errorMessage: item.error instanceof Error
-                ? item.error.message
-                : String(item.error),
+              errorMessage:
+                item.error instanceof Error
+                  ? item.error.message
+                  : String(item.error),
             }
           : {}),
       })),
@@ -199,17 +200,21 @@ internal.post(
     if (guard) return guard;
 
     try {
-      const { action, idempotent } = await recordCodeProjectPreviewSmokeResult(body);
+      const { action, idempotent } =
+        await recordCodeProjectPreviewSmokeResult(body);
       return c.json({ action, idempotent });
     } catch (err) {
       if (err instanceof AgentActionError) {
-        return c.json(
-          { error: err.code },
-          err.status as 400 | 403 | 404 | 409,
-        );
+        return c.json({ error: err.code }, err.status as 400 | 403 | 404 | 409);
       }
-      console.error("[code-preview-smoke] internal result callback failed", err);
-      return c.json({ error: "code_project_preview_smoke_callback_failed" }, 500);
+      console.error(
+        "[code-preview-smoke] internal result callback failed",
+        err,
+      );
+      return c.json(
+        { error: "code_project_preview_smoke_callback_failed" },
+        500,
+      );
     }
   },
 );
@@ -323,7 +328,9 @@ function jsonText(value: unknown, depth = 0): string {
     jsonText(record.children, depth + 1),
     jsonText(record.content, depth + 1),
     jsonText(record.payload, depth + 1),
-  ].filter(Boolean).join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function hydrationItem(input: {
@@ -356,7 +363,8 @@ function hydrationItem(input: {
   };
   if (input.objectKey) item.objectKey = input.objectKey;
   if (input.mimeType) item.mimeType = input.mimeType;
-  if (input.bytes !== null && input.bytes !== undefined) item.bytes = input.bytes;
+  if (input.bytes !== null && input.bytes !== undefined)
+    item.bytes = input.bytes;
   return item;
 }
 
@@ -366,12 +374,13 @@ async function readSmallTextObject(
 ): Promise<string> {
   try {
     const object = await streamObject(objectKey);
-    if (object.contentLength > DOCUMENT_GENERATION_SOURCE_TEXT_LIMIT) return fallback;
+    if (object.contentLength > DOCUMENT_GENERATION_SOURCE_TEXT_LIMIT)
+      return fallback;
     if (
-      !object.contentType.startsWith("text/")
-      && !object.contentType.includes("json")
-      && !object.contentType.includes("csv")
-      && !object.contentType.includes("xml")
+      !object.contentType.startsWith("text/") &&
+      !object.contentType.includes("json") &&
+      !object.contentType.includes("csv") &&
+      !object.contentType.includes("xml")
     ) {
       return fallback;
     }
@@ -437,12 +446,14 @@ internal.post(
       if (note.projectId !== body.projectId) {
         return c.json({ error: "workspace_mismatch" }, 403);
       }
-      return c.json(hydrationItem({
-        id: note.id,
-        title: note.title ?? "Untitled",
-        body: note.contentText ?? "",
-        kind: "note",
-      }));
+      return c.json(
+        hydrationItem({
+          id: note.id,
+          title: note.title ?? "Untitled",
+          body: note.contentText ?? "",
+          kind: "note",
+        }),
+      );
     }
 
     if (source.type === "agent_file") {
@@ -460,10 +471,15 @@ internal.post(
           sourceNoteId: agentFiles.sourceNoteId,
         })
         .from(agentFiles)
-        .where(and(eq(agentFiles.id, source.objectId), isNull(agentFiles.deletedAt)))
+        .where(
+          and(eq(agentFiles.id, source.objectId), isNull(agentFiles.deletedAt)),
+        )
         .limit(1);
       if (!file) return c.json({ error: "not_found" }, 404);
-      if (file.workspaceId !== body.workspaceId || file.projectId !== body.projectId) {
+      if (
+        file.workspaceId !== body.workspaceId ||
+        file.projectId !== body.projectId
+      ) {
         return c.json({ error: "workspace_mismatch" }, 403);
       }
       if (file.sourceNoteId) {
@@ -473,27 +489,31 @@ internal.post(
           .where(and(eq(notes.id, file.sourceNoteId), isNull(notes.deletedAt)))
           .limit(1);
         if (note?.contentText) {
-          return c.json(hydrationItem({
-            id: file.id,
-            title: file.title,
-            body: note.contentText,
-            kind: "agent_file",
-          }));
+          return c.json(
+            hydrationItem({
+              id: file.id,
+              title: file.title,
+              body: note.contentText,
+              kind: "agent_file",
+            }),
+          );
         }
       }
       const fallback = `${file.filename} (${file.kind}, ${file.bytes} bytes)`;
       const bodyText = DOCUMENT_GENERATION_TEXT_FILE_KINDS.has(file.kind)
         ? await readSmallTextObject(file.objectKey, fallback)
         : fallback;
-      return c.json(hydrationItem({
-        id: file.id,
-        title: file.title,
-        body: bodyText,
-        kind: "agent_file",
-        objectKey: file.objectKey,
-        mimeType: file.mimeType,
-        bytes: file.bytes,
-      }));
+      return c.json(
+        hydrationItem({
+          id: file.id,
+          title: file.title,
+          body: bodyText,
+          kind: "agent_file",
+          objectKey: file.objectKey,
+          mimeType: file.mimeType,
+          bytes: file.bytes,
+        }),
+      );
     }
 
     if (source.type === "chat_thread") {
@@ -505,13 +525,19 @@ internal.post(
           title: chatThreads.title,
         })
         .from(chatThreads)
-        .where(and(eq(chatThreads.id, source.threadId), isNull(chatThreads.archivedAt)))
+        .where(
+          and(
+            eq(chatThreads.id, source.threadId),
+            isNull(chatThreads.archivedAt),
+          ),
+        )
         .limit(1);
       if (!thread) return c.json({ error: "not_found" }, 404);
       if (thread.workspaceId !== body.workspaceId) {
         return c.json({ error: "workspace_mismatch" }, 403);
       }
-      if (thread.userId !== body.userId) return c.json({ error: "forbidden" }, 403);
+      if (thread.userId !== body.userId)
+        return c.json({ error: "forbidden" }, 403);
       const filters = [eq(chatMessages.threadId, source.threadId)];
       if (source.messageIds?.length) {
         filters.push(
@@ -531,15 +557,19 @@ internal.post(
         .from(chatMessages)
         .where(and(...filters))
         .orderBy(asc(chatMessages.createdAt));
-      return c.json(hydrationItem({
-        id: thread.id,
-        title: thread.title || "Chat thread",
-        body: messages
-          .map((message) => `${message.role}: ${jsonText(message.content)}`.trim())
-          .filter(Boolean)
-          .join("\n\n"),
-        kind: "chat_thread",
-      }));
+      return c.json(
+        hydrationItem({
+          id: thread.id,
+          title: thread.title || "Chat thread",
+          body: messages
+            .map((message) =>
+              `${message.role}: ${jsonText(message.content)}`.trim(),
+            )
+            .filter(Boolean)
+            .join("\n\n"),
+          kind: "chat_thread",
+        }),
+      );
     }
 
     if (source.type === "research_run") {
@@ -555,7 +585,10 @@ internal.post(
         .where(eq(researchRuns.id, source.runId))
         .limit(1);
       if (!run) return c.json({ error: "not_found" }, 404);
-      if (run.workspaceId !== body.workspaceId || run.projectId !== body.projectId) {
+      if (
+        run.workspaceId !== body.workspaceId ||
+        run.projectId !== body.projectId
+      ) {
         return c.json({ error: "workspace_mismatch" }, 403);
       }
       if (run.noteId) {
@@ -565,12 +598,14 @@ internal.post(
           .where(and(eq(notes.id, run.noteId), isNull(notes.deletedAt)))
           .limit(1);
         if (note) {
-          return c.json(hydrationItem({
-            id: run.id,
-            title: note.title ?? run.topic,
-            body: note.contentText ?? "",
-            kind: "research_run",
-          }));
+          return c.json(
+            hydrationItem({
+              id: run.id,
+              title: note.title ?? run.topic,
+              body: note.contentText ?? "",
+              kind: "research_run",
+            }),
+          );
         }
       }
       const artifacts = await db
@@ -581,15 +616,17 @@ internal.post(
         .from(researchRunArtifacts)
         .where(eq(researchRunArtifacts.runId, run.id))
         .orderBy(researchRunArtifacts.seq);
-      return c.json(hydrationItem({
-        id: run.id,
-        title: run.topic,
-        body: artifacts
-          .map((artifact) => jsonText(artifact.payload))
-          .filter(Boolean)
-          .join("\n\n"),
-        kind: "research_run",
-      }));
+      return c.json(
+        hydrationItem({
+          id: run.id,
+          title: run.topic,
+          body: artifacts
+            .map((artifact) => jsonText(artifact.payload))
+            .filter(Boolean)
+            .join("\n\n"),
+          kind: "research_run",
+        }),
+      );
     }
 
     const [run] = await db
@@ -607,16 +644,16 @@ internal.post(
       .limit(1);
     if (!run) return c.json({ error: "not_found" }, 404);
     if (
-      run.workspaceId !== body.workspaceId
-      || (run.projectId !== null && run.projectId !== body.projectId)
+      run.workspaceId !== body.workspaceId ||
+      (run.projectId !== null && run.projectId !== body.projectId)
     ) {
       return c.json({ error: "workspace_mismatch" }, 403);
     }
     const documentWhere = source.documentId
       ? and(
-        eq(synthesisDocuments.runId, run.id),
-        eq(synthesisDocuments.id, source.documentId),
-      )
+          eq(synthesisDocuments.runId, run.id),
+          eq(synthesisDocuments.id, source.documentId),
+        )
       : eq(synthesisDocuments.runId, run.id);
     const [document] = await db
       .select({
@@ -632,20 +669,27 @@ internal.post(
     const fallback = [
       run.userPrompt,
       `Synthesis run ${run.status}, ${run.format}/${run.template}`,
-      document ? `Document ${document.format}, ${document.bytes ?? 0} bytes` : "",
-    ].filter(Boolean).join("\n\n");
-    const bodyText = document?.s3Key && ["md", "latex", "bibtex"].includes(document.format)
-      ? await readSmallTextObject(document.s3Key, fallback)
-      : fallback;
-    return c.json(hydrationItem({
-      id: document?.id ?? run.id,
-      title: `Synthesis run ${run.id}`,
-      body: bodyText,
-      kind: "synthesis_run",
-      objectKey: document?.s3Key,
-      mimeType: document ? synthesisDocumentMimeType(document.format) : null,
-      bytes: document?.bytes,
-    }));
+      document
+        ? `Document ${document.format}, ${document.bytes ?? 0} bytes`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    const bodyText =
+      document?.s3Key && ["md", "latex", "bibtex"].includes(document.format)
+        ? await readSmallTextObject(document.s3Key, fallback)
+        : fallback;
+    return c.json(
+      hydrationItem({
+        id: document?.id ?? run.id,
+        title: `Synthesis run ${run.id}`,
+        body: bodyText,
+        kind: "synthesis_run",
+        objectKey: document?.s3Key,
+        mimeType: document ? synthesisDocumentMimeType(document.format) : null,
+        bytes: document?.bytes,
+      }),
+    );
   },
 );
 
@@ -724,17 +768,23 @@ internal.post(
         at: new Date().toISOString(),
       });
 
-      return c.json({
-        object: projectObject,
-        event: {
-          type: "project_object_generation_completed",
-          result,
+      return c.json(
+        {
+          object: projectObject,
+          event: {
+            type: "project_object_generation_completed",
+            result,
+          },
+          action: updated,
         },
-        action: updated,
-      }, 201);
+        201,
+      );
     } catch (err) {
       if (err instanceof AgentFileError) {
-        return c.json({ error: err.code, message: err.message }, err.status as 400 | 403 | 404 | 409 | 415);
+        return c.json(
+          { error: err.code, message: err.message },
+          err.status as 400 | 403 | 404 | 409 | 415,
+        );
       }
       console.error("[document-generation] internal registration failed", err);
       await repo.updateStatus(body.actionId, {
@@ -799,16 +849,17 @@ internal.post(
     if (guard) return guard;
 
     try {
-      const { action, idempotent } = await completeCodeProjectRunActionFromWorker(body);
+      const { action, idempotent } =
+        await completeCodeProjectRunActionFromWorker(body);
       return c.json({ action, idempotent });
     } catch (err) {
       if (err instanceof AgentActionError) {
-        return c.json(
-          { error: err.code },
-          err.status as 400 | 403 | 404 | 409,
-        );
+        return c.json({ error: err.code }, err.status as 400 | 403 | 404 | 409);
       }
-      console.error("[code-workspace-command] internal result callback failed", err);
+      console.error(
+        "[code-workspace-command] internal result callback failed",
+        err,
+      );
       return c.json({ error: "code_project_run_callback_failed" }, 500);
     }
   },
@@ -828,16 +879,17 @@ internal.post(
     if (guard) return guard;
 
     try {
-      const { action, idempotent } = await completeCodeProjectInstallActionFromWorker(body);
+      const { action, idempotent } =
+        await completeCodeProjectInstallActionFromWorker(body);
       return c.json({ action, idempotent });
     } catch (err) {
       if (err instanceof AgentActionError) {
-        return c.json(
-          { error: err.code },
-          err.status as 400 | 403 | 404 | 409,
-        );
+        return c.json({ error: err.code }, err.status as 400 | 403 | 404 | 409);
       }
-      console.error("[code-workspace-install] internal result callback failed", err);
+      console.error(
+        "[code-workspace-install] internal result callback failed",
+        err,
+      );
       return c.json({ error: "code_project_install_callback_failed" }, 500);
     }
   },
@@ -857,16 +909,17 @@ internal.post(
     if (guard) return guard;
 
     try {
-      const { action, idempotent } = await completeCodeProjectRepairActionFromWorker(body);
+      const { action, idempotent } =
+        await completeCodeProjectRepairActionFromWorker(body);
       return c.json({ action, idempotent });
     } catch (err) {
       if (err instanceof AgentActionError) {
-        return c.json(
-          { error: err.code },
-          err.status as 400 | 403 | 404 | 409,
-        );
+        return c.json({ error: err.code }, err.status as 400 | 403 | 404 | 409);
       }
-      console.error("[code-workspace-repair] internal result callback failed", err);
+      console.error(
+        "[code-workspace-repair] internal result callback failed",
+        err,
+      );
       return c.json({ error: "code_project_repair_callback_failed" }, 500);
     }
   },
@@ -912,10 +965,15 @@ internal.post(
         projectId: agentFiles.projectId,
       })
       .from(agentFiles)
-      .where(and(eq(agentFiles.id, body.objectId), isNull(agentFiles.deletedAt)))
+      .where(
+        and(eq(agentFiles.id, body.objectId), isNull(agentFiles.deletedAt)),
+      )
       .limit(1);
     if (!file) return c.json({ error: "agent_file_not_found" }, 404);
-    if (file.workspaceId !== body.workspaceId || file.projectId !== body.projectId) {
+    if (
+      file.workspaceId !== body.workspaceId ||
+      file.projectId !== body.projectId
+    ) {
       return c.json({ error: "workspace_mismatch" }, 403);
     }
 
@@ -974,7 +1032,10 @@ internal.post(
     });
     if (!result) return c.json({ error: "action_not_found" }, 404);
 
-    return c.json({ ok: true, action: result.updated, export: result.record }, 200);
+    return c.json(
+      { ok: true, action: result.updated, export: result.record },
+      200,
+    );
   },
 );
 
@@ -1195,6 +1256,8 @@ const sourceNoteSchema = z.object({
   sourceUrl: z.string().url().nullable().optional(),
   mimeType: z.string().min(1).max(255),
   treeParentNodeId: z.string().uuid().nullable().optional(),
+  treeLabel: z.string().min(1).max(300).nullable().optional(),
+  originalFileNodeId: z.string().uuid().nullable().optional(),
   triggerCompiler: z.boolean().default(false),
 });
 
@@ -1263,7 +1326,7 @@ internal.post(
         kind: "note",
         targetTable: "notes",
         targetId: noteId,
-        label: body.title,
+        label: body.treeLabel?.trim() || body.title,
         icon: "file-text",
         sourceWorkflowId: body.objectKey ? undefined : null,
         sourceObjectKey: body.objectKey ?? null,
@@ -1287,6 +1350,20 @@ internal.post(
       contentText: body.content,
       deletedAt: null,
     });
+
+    if (body.originalFileNodeId) {
+      await db
+        .update(agentFiles)
+        .set({ ingestStatus: "completed", sourceNoteId: noteId })
+        .where(
+          and(
+            eq(agentFiles.id, body.originalFileNodeId),
+            eq(agentFiles.projectId, body.projectId),
+            eq(agentFiles.workspaceId, proj.workspaceId),
+            isNull(agentFiles.deletedAt),
+          ),
+        );
+    }
 
     // Plan 4 — Compiler agent trigger. Kick a Temporal workflow that will
     // extract concepts from the source note, dedupe against existing project
@@ -1423,6 +1500,23 @@ internal.post(
              updated_at = now()
        WHERE id = ${bundleNodeId}::uuid
     `);
+    await db.execute(sql`
+      UPDATE agent_files
+         SET ingest_status = ${body.status},
+             updated_at = now()
+       WHERE id IN (
+         SELECT target_id
+           FROM project_tree_nodes
+          WHERE id = ${bundleNodeId}::uuid
+            AND target_table = 'agent_files'
+            AND target_id IS NOT NULL
+         UNION
+         SELECT NULLIF(metadata->>'originalFileId', '')::uuid
+           FROM project_tree_nodes
+          WHERE id = ${bundleNodeId}::uuid
+            AND metadata ? 'originalFileId'
+       )
+    `);
     return c.json({ ok: true });
   },
 );
@@ -1435,6 +1529,7 @@ const failureSchema = z.object({
   projectId: z.string().uuid(),
   sourceUrl: z.string().url().nullable().optional(),
   objectKey: z.string().nullable().optional(),
+  originalFileNodeId: z.string().uuid().nullable().optional(),
   quarantineKey: z.string().nullable().optional(),
   reason: z.string(),
 });
@@ -1444,6 +1539,17 @@ internal.post(
   zValidator("json", failureSchema),
   async (c) => {
     const body = c.req.valid("json");
+    if (body.originalFileNodeId) {
+      await db
+        .update(agentFiles)
+        .set({ ingestStatus: "failed" })
+        .where(
+          and(
+            eq(agentFiles.id, body.originalFileNodeId),
+            eq(agentFiles.projectId, body.projectId),
+          ),
+        );
+    }
     console.warn("[ingest-failure]", JSON.stringify(body));
     return c.json({ ok: true }, 202);
   },
@@ -1721,7 +1827,9 @@ internal.post(
     `);
 
     // drizzle-orm returns rows under `.rows` for raw queries on node-postgres.
-    const data = (rows as unknown as { rows: Array<Record<string, unknown>> }).rows ?? rows;
+    const data =
+      (rows as unknown as { rows: Array<Record<string, unknown>> }).rows ??
+      rows;
     return c.json({ results: data });
   },
 );
@@ -1915,23 +2023,19 @@ const wikiLogSchema = z.object({
   reason: z.string().max(2000).nullable().optional(),
 });
 
-internal.post(
-  "/wiki-logs",
-  zValidator("json", wikiLogSchema),
-  async (c) => {
-    const body = c.req.valid("json");
-    const id = randomUUID();
-    await db.insert(wikiLogs).values({
-      id,
-      noteId: body.noteId,
-      agent: body.agent,
-      action: body.action,
-      diff: body.diff ?? null,
-      reason: body.reason ?? null,
-    });
-    return c.json({ id }, 201);
-  },
-);
+internal.post("/wiki-logs", zValidator("json", wikiLogSchema), async (c) => {
+  const body = c.req.valid("json");
+  const id = randomUUID();
+  await db.insert(wikiLogs).values({
+    id,
+    noteId: body.noteId,
+    agent: body.agent,
+    action: body.action,
+    diff: body.diff ?? null,
+    reason: body.reason ?? null,
+  });
+  return c.json({ id }, 201);
+});
 
 // ---------------------------------------------------------------------------
 // Plan 4 Phase B — Research agent support (hybrid search over source notes)
@@ -2055,7 +2159,9 @@ internal.post(
     const [seed] = await db
       .select({ id: concepts.id })
       .from(concepts)
-      .where(and(eq(concepts.id, conceptId), eq(concepts.projectId, projectId)));
+      .where(
+        and(eq(concepts.id, conceptId), eq(concepts.projectId, projectId)),
+      );
     if (!seed) return c.json({ error: "not-found" }, 404);
 
     // 4. Shared BFS + node/edge fetch — same SQL as the user-session route
@@ -2419,7 +2525,12 @@ const semaphoreAcquireSchema = z.object({
   holderId: z.string().min(1).max(200),
   purpose: z.string().min(1).max(100),
   maxConcurrent: z.number().int().positive().max(100).default(3),
-  ttlSeconds: z.number().int().positive().max(60 * 60 * 4).default(60 * 30),
+  ttlSeconds: z
+    .number()
+    .int()
+    .positive()
+    .max(60 * 60 * 4)
+    .default(60 * 30),
 });
 
 internal.post(
@@ -2797,7 +2908,17 @@ const internalNoteCreateSchema = z
     title: z.string().min(1).max(512).default("Untitled"),
     type: z.enum(["note", "source"]).default("note"),
     sourceType: z
-      .enum(["pdf", "audio", "video", "image", "youtube", "web", "unknown", "notion", "paper"])
+      .enum([
+        "pdf",
+        "audio",
+        "video",
+        "image",
+        "youtube",
+        "web",
+        "unknown",
+        "notion",
+        "paper",
+      ])
       .nullable()
       .optional(),
     content: z.unknown().nullable().optional(),
@@ -2813,10 +2934,9 @@ const internalNoteCreateSchema = z
     userId: z.string().min(1).max(200).optional(),
     plateValue: z.unknown().optional(),
   })
-  .refine(
-    (v) => !(v.idempotencyKey && !v.plateValue),
-    { message: "plateValue required when idempotencyKey is present" },
-  );
+  .refine((v) => !(v.idempotencyKey && !v.plateValue), {
+    message: "plateValue required when idempotencyKey is present",
+  });
 
 internal.post(
   "/notes",
@@ -2851,10 +2971,7 @@ internal.post(
     }
 
     // Resolve the note content and contentText from either payload shape.
-    const content =
-      (body.plateValue as unknown) ??
-      body.content ??
-      null;
+    const content = (body.plateValue as unknown) ?? body.content ?? null;
     let contentText = body.contentText ?? "";
     if (!contentText && body.plateValue) {
       contentText = plateValueToText(body.plateValue as never) ?? "";
@@ -3039,10 +3156,7 @@ internal.post("/literature/import", async (c) => {
   }
   const freshIds = ids.filter((id) => !skipped.includes(id));
   if (freshIds.length === 0) {
-    return c.json(
-      { jobId: null, workflowId: null, skipped, queued: 0 },
-      202,
-    );
+    return c.json({ jobId: null, workflowId: null, skipped, queued: 0 }, 202);
   }
 
   const jobId = randomUUID();
@@ -3485,14 +3599,12 @@ internal.post("/test-seed-multi-role", async (c) => {
   // Sign one session per role user. `signSessionForUser` inserts a real
   // `session` row so Better Auth's getSession() resolves against DB state
   // rather than a bypass — behaviour matches /test-seed.
-  const [ownerSess, editorSess, commenterSess, viewerSess] = await Promise.all(
-    [
-      signSessionForUser(seed.ownerUserId),
-      signSessionForUser(seed.editorUserId),
-      signSessionForUser(seed.commenterUserId),
-      signSessionForUser(seed.viewerUserId),
-    ],
-  );
+  const [ownerSess, editorSess, commenterSess, viewerSess] = await Promise.all([
+    signSessionForUser(seed.ownerUserId),
+    signSessionForUser(seed.editorUserId),
+    signSessionForUser(seed.commenterUserId),
+    signSessionForUser(seed.viewerUserId),
+  ]);
 
   const toCookiePayload = (
     userId: string,
@@ -3613,10 +3725,7 @@ internal.post(
     });
 
     if (!result.found) return c.json({ error: "research_run_not_found" }, 404);
-    return c.json(
-      { id: result.inserted.id, seq: result.inserted.seq },
-      201,
-    );
+    return c.json({ id: result.inserted.id, seq: result.inserted.seq }, 201);
   },
 );
 
@@ -3729,10 +3838,7 @@ internal.patch(
           retryable: false,
         };
       }
-      await tx
-        .update(researchRuns)
-        .set(patch)
-        .where(eq(researchRuns.id, id));
+      await tx.update(researchRuns).set(patch).where(eq(researchRuns.id, id));
 
       return {
         found: true as const,
@@ -3786,8 +3892,16 @@ const codeTurnInsertSchema = z.object({
   // silently land a junk value the SSE event-encoder will then refuse.
   kind: z.enum(["generate", "fix"]),
   source: z.string().max(64 * 1024),
-  explanation: z.string().max(4 * 1024).nullable().optional(),
-  prevError: z.string().max(8 * 1024).nullable().optional(),
+  explanation: z
+    .string()
+    .max(4 * 1024)
+    .nullable()
+    .optional(),
+  prevError: z
+    .string()
+    .max(8 * 1024)
+    .nullable()
+    .optional(),
 });
 
 internal.post(
@@ -3862,16 +3976,17 @@ internal.patch(
 // template (every kind ships at least the fallback string from the producer).
 // ---------------------------------------------------------------------------
 
-const internalNotificationPayloadSchema = z
-  .record(z.unknown())
-  .refine(
-    (p) => {
-      const summary = (p as Record<string, unknown>).summary;
-      return typeof summary === "string" && summary.length > 0
-        && summary.length <= 2000;
-    },
-    { message: "payload.summary must be a 1..2000 char string" },
-  );
+const internalNotificationPayloadSchema = z.record(z.unknown()).refine(
+  (p) => {
+    const summary = (p as Record<string, unknown>).summary;
+    return (
+      typeof summary === "string" &&
+      summary.length > 0 &&
+      summary.length <= 2000
+    );
+  },
+  { message: "payload.summary must be a 1..2000 char string" },
+);
 
 const internalNotificationSchema = z.object({
   userId: z.string().uuid(),
@@ -3964,7 +4079,10 @@ internal.get("/projects/:id/stale-notes", async (c) => {
   const daysRaw = c.req.query("days");
   const limitRaw = c.req.query("limit");
   const days = Math.max(1, Math.min(365, parseInt(daysRaw ?? "90", 10) || 90));
-  const limit = Math.max(1, Math.min(100, parseInt(limitRaw ?? "20", 10) || 20));
+  const limit = Math.max(
+    1,
+    Math.min(100, parseInt(limitRaw ?? "20", 10) || 20),
+  );
 
   const rows = await db
     .select({
@@ -4318,7 +4436,12 @@ internal.post(
           kind: "s3_object",
         });
       }
-      return c.json({ id: source_id, title: source_id, body: "", kind: "s3_object" });
+      return c.json({
+        id: source_id,
+        title: source_id,
+        body: "",
+        kind: "s3_object",
+      });
     }
 
     const [run] = await db

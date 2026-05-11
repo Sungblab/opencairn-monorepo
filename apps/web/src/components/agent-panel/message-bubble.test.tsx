@@ -6,19 +6,123 @@ import { useTabsStore } from "@/stores/tabs-store";
 
 import {
   DocumentGenerationCards,
+  MessageBubble,
   asDocumentGenerationCards,
 } from "./message-bubble";
 
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string, values?: Record<string, unknown>) => {
+    if (key === "citation_fallback" && typeof values?.index === "number") {
+      return `출처 ${values.index}`;
+    }
     if (!values) return key;
     return `${key}:${JSON.stringify(values)}`;
   },
+  useLocale: () => "ko",
+}));
+
+vi.mock("next/navigation", () => ({
+  useParams: () => ({ wsSlug: "ws-test" }),
+}));
+
+vi.mock("../chat/chat-message-renderer-loader", () => ({
+  ChatMessageRendererLoader: ({
+    body,
+  }: {
+    body: string;
+    streaming: boolean;
+  }) => <div>{body}</div>,
 }));
 
 const requestId = "00000000-0000-4000-8000-000000000020";
 const objectId = "00000000-0000-4000-8000-000000000010";
 const projectId = "00000000-0000-4000-8000-000000000003";
+
+const baseAgentMessage = {
+  id: "msg-agent",
+  role: "agent" as const,
+  status: "complete" as const,
+  run_id: "run-agent",
+  run_status: "complete" as const,
+  content: {
+    body: "완료된 답변입니다.",
+  },
+  mode: null,
+  provider: null,
+  created_at: "2026-05-11T00:00:00.000Z",
+};
+
+describe("message bubble status", () => {
+  it("does not show a stale status line on completed messages", () => {
+    render(
+      <MessageBubble
+        msg={{
+          ...baseAgentMessage,
+          content: {
+            body: "완료된 답변입니다.",
+            status: { phrase: "관련 문서 훑는 중..." },
+          },
+        }}
+        onRegenerate={vi.fn()}
+        onSaveSuggestion={vi.fn()}
+        onFeedback={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("완료된 답변입니다.")).toBeInTheDocument();
+    expect(screen.queryByText("관련 문서 훑는 중...")).not.toBeInTheDocument();
+  });
+
+  it("shows a status line while a run is still active", () => {
+    render(
+      <MessageBubble
+        msg={{
+          ...baseAgentMessage,
+          status: "streaming",
+          run_status: "running",
+          content: {
+            body: "",
+            status: { phrase: "관련 문서 훑는 중..." },
+          },
+        }}
+        onRegenerate={vi.fn()}
+        onSaveSuggestion={vi.fn()}
+        onFeedback={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("관련 문서 훑는 중...")).toBeInTheDocument();
+  });
+});
+
+describe("message bubble citations", () => {
+  it("hides rendered footnote markers when citation chips carry the source", () => {
+    render(
+      <MessageBubble
+        msg={{
+          ...baseAgentMessage,
+          content: {
+            body: '음, "테스트"라고 말씀하셨는데요.[^1]',
+            citations: [
+              {
+                index: 1,
+                title: "Untitled",
+                noteId: "00000000-0000-4000-8000-000000000001",
+              },
+            ],
+          },
+        }}
+        onRegenerate={vi.fn()}
+        onSaveSuggestion={vi.fn()}
+        onFeedback={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('음, "테스트"라고 말씀하셨는데요.')).toBeInTheDocument();
+    expect(screen.queryByText(/\[\^1\]/)).not.toBeInTheDocument();
+    expect(screen.getByText("출처 1")).toBeInTheDocument();
+  });
+});
 
 describe("document generation cards", () => {
   beforeEach(() => {

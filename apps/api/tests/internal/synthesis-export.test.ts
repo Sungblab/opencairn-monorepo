@@ -263,7 +263,7 @@ describe("/api/internal/synthesis-export/*", () => {
     expect(body.kind).toBe("s3_object");
   });
 
-  it("fetch-source rejects unsupported kinds (dr_result is a 501 placeholder)", async () => {
+  it("fetch-source returns 404 for missing dr_result sources", async () => {
     const res = await app.request(
       "/api/internal/synthesis-export/fetch-source",
       {
@@ -275,7 +275,7 @@ describe("/api/internal/synthesis-export/*", () => {
         }),
       },
     );
-    expect(res.status).toBe(501);
+    expect(res.status).toBe(404);
   });
 
   it("compile rejects format=latex via Zod (no API latex compile)", async () => {

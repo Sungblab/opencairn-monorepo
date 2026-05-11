@@ -49,6 +49,7 @@
     "system": "System settings"
   },
   "columns": {
+    "select": "Select",
     "user": "User",
     "plan": "Plan",
     "verified": "Verified",
@@ -78,11 +79,25 @@
     "no": "Unverified"
   },
   "actions": {
+    "backToApp": "Back to app",
     "grant": "Grant",
     "revoke": "Revoke",
     "saving": "Saving...",
     "refresh": "Refresh",
     "loadMore": "Load more"
+  },
+  "bulk": {
+    "title": "Bulk actions",
+    "selected": "{count} selected",
+    "selectRow": "Select user",
+    "grantSiteAdmin": "Grant admin to selected",
+    "revokeSiteAdmin": "Revoke admin from selected",
+    "userPlan": "All user plans",
+    "workspacePlan": "All workspace plans",
+    "reportStatus": "All report statuses",
+    "applyUserPlan": "Apply user plan",
+    "applyWorkspacePlan": "Apply workspace plan",
+    "applyReportStatus": "Apply report status"
   },
   "pagination": {
     "pageSize": "Rows",

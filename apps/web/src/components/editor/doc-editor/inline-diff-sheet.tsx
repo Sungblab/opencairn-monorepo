@@ -122,7 +122,7 @@ export function InlineDiffSheet({
             <p className="text-sm text-muted-foreground">
               {t("commentsAdded", { count: state.commentIds.length })}
             </p>
-            <div className="flex-1 space-y-3 overflow-y-auto">
+            <div className="app-scrollbar-thin flex-1 space-y-3 overflow-y-auto">
               {state.payload.claims.map((claim, i) => (
                 <div
                   key={`${claim.blockId}-${claim.range.start}-${i}`}
@@ -156,7 +156,7 @@ export function InlineDiffSheet({
             <p className="mb-2 text-sm text-muted-foreground">
               {state.payload.summary || t("noChange")}
             </p>
-            <div className="flex-1 space-y-3 overflow-y-auto">
+            <div className="app-scrollbar-thin flex-1 space-y-3 overflow-y-auto">
               {state.payload.hunks.map((h, i) => (
                 <div
                   key={`${h.blockId}-${h.originalRange.start}-${i}`}

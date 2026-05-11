@@ -29,7 +29,6 @@ export function buildActions(opts: {
     actions.push(
       { id: "dashboard", labelKey: "dashboard", run: (r) => r.push(`${wsBase}/`) },
       { id: "research", labelKey: "research", run: (r) => r.push(`${wsBase}/research`) },
-      { id: "import", labelKey: "import", run: (r) => r.push(`${wsBase}/import`) },
       {
         id: "ws-settings",
         labelKey: "wsSettings",

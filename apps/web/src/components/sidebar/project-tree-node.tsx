@@ -10,6 +10,10 @@ import {
   FileCode,
   FileImage,
   FileJson,
+  FileAudio,
+  FileVideo,
+  FileSpreadsheet,
+  File,
   FolderCode,
   FileArchive,
   MoreHorizontal,
@@ -21,6 +25,10 @@ import type { TreeNode } from "@/hooks/use-project-tree";
 import { useTabsStore } from "@/stores/tabs-store";
 import { newTab } from "@/lib/tab-factory";
 import { useModKeyLabel } from "@/hooks/use-mod-key-label";
+import {
+  treeNodeToDragPayload,
+  writeProjectTreeDragPayload,
+} from "@/lib/project-tree-dnd";
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -63,7 +71,7 @@ export function ProjectTreeNode({
         aria-level={node.level + 1}
         data-kind={kind}
         data-id={node.data.id}
-        className="group flex h-full min-h-11 items-center gap-2 rounded-[var(--radius-control)] px-2.5 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
+        className="group flex h-full min-h-11 w-full min-w-0 items-center gap-2 overflow-hidden rounded-[var(--radius-control)] px-2.5 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
         onClick={() => {
           if (parentId) ctx.onCreateNote(parentId);
         }}
@@ -91,7 +99,12 @@ export function ProjectTreeNode({
   ]);
   const canExpand = canHaveChildren.has(kind);
   const canCreateChildPage = kind === "folder" || kind === "note";
-  const opensOnRowClick = new Set(["note", "agent_file", "code_workspace"]);
+  const opensOnRowClick = new Set([
+    "note",
+    "agent_file",
+    "source_bundle",
+    "code_workspace",
+  ]);
   const isRenaming = ctx.renamingId === node.data.id;
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -149,7 +162,11 @@ export function ProjectTreeNode({
       node.toggle();
       return;
     }
-    if (kind === "agent_file") {
+    if (kind === "agent_file" || kind === "source_bundle") {
+      if (!targetId) {
+        node.toggle();
+        return;
+      }
       const tabs = useTabsStore.getState();
       const existing = tabs.findTabByTarget("agent_file", targetId);
       if (existing) {
@@ -187,7 +204,12 @@ export function ProjectTreeNode({
     }
     const tabs = useTabsStore.getState();
     const existing = tabs.findTabByTarget("note", targetId);
-    if (existing) tabs.setActive(existing.id);
+    if (existing) {
+      if (existing.title !== node.data.label) {
+        tabs.updateTab(existing.id, { title: node.data.label });
+      }
+      tabs.setActive(existing.id);
+    }
     router.push(urls.workspace.note(locale, wsSlug, targetId));
   }
 
@@ -204,7 +226,11 @@ export function ProjectTreeNode({
 
   function nodeHref() {
     if (kind === "note") {
-      return urls.workspace.note(locale, wsSlug, node.data.target_id ?? node.data.id);
+      return urls.workspace.note(
+        locale,
+        wsSlug,
+        node.data.target_id ?? node.data.id,
+      );
     }
     return null;
   }
@@ -212,8 +238,7 @@ export function ProjectTreeNode({
   function copyLink() {
     const href = nodeHref();
     if (!href || typeof navigator === "undefined") return;
-    const origin =
-      typeof window === "undefined" ? "" : window.location.origin;
+    const origin = typeof window === "undefined" ? "" : window.location.origin;
     void navigator.clipboard?.writeText(`${origin}${href}`);
   }
 
@@ -256,11 +281,21 @@ export function ProjectTreeNode({
             data-kind={kind}
             data-id={node.data.id}
             data-renaming={isRenaming || undefined}
+            draggable={!isRenaming}
             onClick={handleRowClick}
             onDoubleClick={handleRowDoubleClick}
+            onDragStart={(event) => {
+              if (isRenaming) {
+                event.preventDefault();
+                return;
+              }
+              const payload = treeNodeToDragPayload(node.data);
+              if (!payload) return;
+              writeProjectTreeDragPayload(event.dataTransfer, payload);
+            }}
             onKeyDown={handleRowKeyDown}
             title={t("row_hint")}
-            className="group flex h-full min-h-8 cursor-pointer items-center gap-2 rounded-[var(--radius-control)] px-2.5 text-sm text-foreground transition-colors hover:bg-muted/70 focus-visible:bg-muted data-[drop-target=true]:bg-muted"
+            className="group flex h-full min-h-8 w-full min-w-0 cursor-pointer items-center gap-2 overflow-hidden rounded-[var(--radius-control)] px-2.5 text-sm text-foreground transition-colors hover:bg-muted/70 focus-visible:bg-muted data-[drop-target=true]:bg-muted"
           />
         }
       >
@@ -277,42 +312,12 @@ export function ProjectTreeNode({
         ) : (
           <span aria-hidden className="ml-2 h-4 w-4 shrink-0" />
         )}
-        {kind === "folder" ? (
-          <Folder
-            aria-hidden
-            className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-foreground"
-          />
-        ) : kind === "source_bundle" ? (
-          <FileArchive
-            aria-hidden
-            className="h-4 w-4 shrink-0 text-muted-foreground"
-          />
-        ) : kind === "artifact_group" ? (
-          <Folder
-            aria-hidden
-            className="h-4 w-4 shrink-0 text-muted-foreground"
-          />
-        ) : kind === "agent_file" ? (
-          <AgentFileIcon
-            fileKind={node.data.file_kind}
-            className="h-4 w-4 shrink-0 text-muted-foreground"
-          />
-        ) : kind === "code_workspace" ? (
-          <FolderCode
-            aria-hidden
-            className="h-4 w-4 shrink-0 text-muted-foreground"
-          />
-        ) : (
-          <FileText
-            aria-hidden
-            className="h-4 w-4 shrink-0 text-muted-foreground"
-          />
-        )}
+        <NodeIcon node={node.data} />
         {isRenaming ? (
           <input
             ref={inputRef}
             defaultValue={node.data.label}
-            className="flex-1 rounded bg-transparent px-0.5 text-sm text-foreground outline-none ring-1 ring-border"
+            className="min-w-0 flex-1 rounded bg-transparent px-0.5 text-sm text-foreground outline-none ring-1 ring-border"
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -339,7 +344,10 @@ export function ProjectTreeNode({
             }}
           />
         ) : (
-          <span className="flex-1 truncate">{node.data.label}</span>
+          <>
+            <span className="min-w-0 flex-1 truncate">{node.data.label}</span>
+            <NodeTypeBadge node={node.data} />
+          </>
         )}
         {!isRenaming ? (
           <div className="ml-auto flex shrink-0 items-center gap-0.5">
@@ -446,7 +454,12 @@ export function ProjectTreeNode({
                       className="flex min-h-8 w-full items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-left text-destructive outline-none hover:bg-destructive/10"
                       onClick={() => {
                         closeActionMenu();
-                        ctx.onDelete(node.data.id, kind, node.data.label);
+                        ctx.onDelete(
+                          node.data.id,
+                          kind,
+                          node.data.label,
+                          node.data.target_id,
+                        );
                       }}
                     >
                       <span className="flex-1">{t("delete")}</span>
@@ -467,12 +480,19 @@ export function ProjectTreeNode({
           deleteShortcut={deleteShortcut}
           onRename={() => ctx.onStartRename(node.data.id)}
           onCreateNote={
-            canCreateChildPage ? () => ctx.onCreateNote(node.data.id) : undefined
+            canCreateChildPage
+              ? () => ctx.onCreateNote(node.data.id)
+              : undefined
           }
           onCreateFolder={() => ctx.onCreateFolder(node.data.id)}
           onCopyLink={copyLink}
           onDelete={() =>
-            ctx.onDelete(node.data.id, kind, node.data.label)
+            ctx.onDelete(
+              node.data.id,
+              kind,
+              node.data.label,
+              node.data.target_id,
+            )
           }
         />
       </ContextMenuContent>
@@ -480,19 +500,201 @@ export function ProjectTreeNode({
   );
 }
 
+function NodeIcon({ node }: { node: TreeNode }) {
+  if (node.kind === "folder") {
+    return (
+      <Folder
+        aria-hidden
+        className="h-4 w-4 shrink-0 text-sky-600 group-hover:text-sky-700"
+      />
+    );
+  }
+  if (node.kind === "source_bundle") {
+    if (node.mime_type || node.file_kind) {
+      return (
+        <AgentFileIcon
+          fileKind={node.file_kind}
+          mimeType={node.mime_type}
+          className={agentFileIconClass(node)}
+        />
+      );
+    }
+    return (
+      <FileArchive
+        aria-hidden
+        className="h-4 w-4 shrink-0 text-emerald-600 group-hover:text-emerald-700"
+      />
+    );
+  }
+  if (node.kind === "artifact_group") {
+    const role =
+      typeof node.metadata?.role === "string" ? node.metadata.role : "";
+    const color =
+      role === "figures"
+        ? "text-pink-600 group-hover:text-pink-700"
+        : role === "analysis"
+          ? "text-violet-600 group-hover:text-violet-700"
+          : "text-cyan-600 group-hover:text-cyan-700";
+    return <Folder aria-hidden className={`h-4 w-4 shrink-0 ${color}`} />;
+  }
+  if (node.kind === "agent_file") {
+    return (
+      <AgentFileIcon
+        fileKind={node.file_kind}
+        mimeType={node.mime_type}
+        className={agentFileIconClass(node)}
+      />
+    );
+  }
+  if (node.kind === "code_workspace") {
+    return (
+      <FolderCode
+        aria-hidden
+        className="h-4 w-4 shrink-0 text-violet-600 group-hover:text-violet-700"
+      />
+    );
+  }
+  return (
+    <FileText aria-hidden className="h-4 w-4 shrink-0 text-muted-foreground" />
+  );
+}
+
+function NodeTypeBadge({ node }: { node: TreeNode }) {
+  const label = badgeLabel(node);
+  if (!label) return null;
+  return (
+    <span
+      data-testid="tree-node-type-badge"
+      className={`mr-0.5 shrink-0 rounded-[var(--radius-control)] border px-1.5 py-0.5 text-[10px] font-medium leading-none ${badgeClass(node)}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+function badgeLabel(node: TreeNode): string | null {
+  if (node.kind === "source_bundle") {
+    const mime =
+      typeof node.metadata?.mimeType === "string" ? node.metadata.mimeType : "";
+    return fileBadgeFromMime(mime) ?? "자료";
+  }
+  if (node.kind === "artifact_group") {
+    const role =
+      typeof node.metadata?.role === "string" ? node.metadata.role : "";
+    if (role === "parsed") return "추출";
+    if (role === "figures") return "이미지";
+    if (role === "analysis") return "분석";
+    return "결과";
+  }
+  if (node.kind === "agent_file") {
+    return (
+      fileBadgeFromMime(node.mime_type ?? "") ??
+      fileBadgeFromKind(node.file_kind)
+    );
+  }
+  return null;
+}
+
+function badgeClass(node: TreeNode): string {
+  const mime =
+    node.kind === "source_bundle"
+      ? typeof node.metadata?.mimeType === "string"
+        ? node.metadata.mimeType
+        : ""
+      : (node.mime_type ?? "");
+  if (mime === "application/pdf")
+    return "border-red-200 bg-red-50 text-red-700";
+  if (mime.startsWith("image/"))
+    return "border-pink-200 bg-pink-50 text-pink-700";
+  if (mime.startsWith("audio/"))
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  if (mime.startsWith("video/"))
+    return "border-orange-200 bg-orange-50 text-orange-700";
+  if (mime.includes("spreadsheet") || mime.includes("csv")) {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+  if (node.kind === "artifact_group")
+    return "border-cyan-200 bg-cyan-50 text-cyan-700";
+  return "border-border bg-muted text-muted-foreground";
+}
+
+function agentFileIconClass(node: TreeNode): string {
+  const mime = node.mime_type ?? "";
+  if (mime === "application/pdf") return "h-4 w-4 shrink-0 text-red-600";
+  if (mime.startsWith("image/")) return "h-4 w-4 shrink-0 text-pink-600";
+  if (mime.startsWith("audio/")) return "h-4 w-4 shrink-0 text-amber-600";
+  if (mime.startsWith("video/")) return "h-4 w-4 shrink-0 text-orange-600";
+  if (
+    node.file_kind === "code" ||
+    node.file_kind === "html" ||
+    node.file_kind === "latex"
+  ) {
+    return "h-4 w-4 shrink-0 text-violet-600";
+  }
+  if (node.file_kind === "json" || node.file_kind === "csv") {
+    return "h-4 w-4 shrink-0 text-emerald-600";
+  }
+  return "h-4 w-4 shrink-0 text-slate-600";
+}
+
+function fileBadgeFromMime(mime: string): string | null {
+  if (mime === "application/pdf") return "PDF";
+  if (mime === "text/markdown") return "MD";
+  if (mime.startsWith("text/")) return "TXT";
+  if (mime.startsWith("image/")) return "IMG";
+  if (mime.startsWith("audio/")) return "AUD";
+  if (mime.startsWith("video/")) return "VID";
+  if (mime.includes("spreadsheet") || mime.includes("excel")) return "XLS";
+  if (mime.includes("presentation") || mime.includes("powerpoint"))
+    return "PPT";
+  if (mime.includes("wordprocessing") || mime.includes("msword")) return "DOC";
+  if (mime.includes("json")) return "JSON";
+  return null;
+}
+
+function fileBadgeFromKind(kind?: string | null): string | null {
+  if (!kind) return null;
+  if (kind === "markdown") return "MD";
+  if (kind === "image") return "IMG";
+  if (kind === "code") return "CODE";
+  if (kind === "html") return "HTML";
+  if (kind === "json") return "JSON";
+  if (kind === "csv") return "CSV";
+  return kind.toUpperCase().slice(0, 4);
+}
+
 function AgentFileIcon({
   fileKind,
+  mimeType,
   className,
 }: {
   fileKind?: string | null;
+  mimeType?: string | null;
   className: string;
 }) {
+  if (mimeType === "application/pdf") {
+    return <FileText aria-hidden className={className} />;
+  }
+  if (mimeType?.startsWith("audio/")) {
+    return <FileAudio aria-hidden className={className} />;
+  }
+  if (mimeType?.startsWith("video/")) {
+    return <FileVideo aria-hidden className={className} />;
+  }
+  if (mimeType?.includes("spreadsheet") || mimeType?.includes("excel")) {
+    return <FileSpreadsheet aria-hidden className={className} />;
+  }
   if (fileKind === "code" || fileKind === "html" || fileKind === "latex") {
     return <FileCode aria-hidden className={className} />;
   }
-  if (fileKind === "image") return <FileImage aria-hidden className={className} />;
-  if (fileKind === "json" || fileKind === "csv") {
+  if (fileKind === "image" || mimeType?.startsWith("image/")) {
+    return <FileImage aria-hidden className={className} />;
+  }
+  if (fileKind === "json" || fileKind === "csv" || mimeType?.includes("json")) {
     return <FileJson aria-hidden className={className} />;
   }
-  return <FileText aria-hidden className={className} />;
+  if (fileKind === "markdown" || mimeType === "text/markdown") {
+    return <FileText aria-hidden className={className} />;
+  }
+  return <File aria-hidden className={className} />;
 }

@@ -1,15 +1,19 @@
 {
   "header": {
-    "title": "Context",
+    "title": "Agent",
     "subtitle": "AI · activity · notifications",
     "new_thread_aria": "New conversation",
-    "thread_list_aria": "Thread list",
+    "thread_list_aria": "Open agent history",
     "collapse_aria": "Collapse panel"
   },
   "thread_list": {
+    "title": "Agent history",
     "loading": "Loading…",
     "empty": "No conversations yet.",
-    "untitled": "(untitled)"
+    "untitled": "(untitled)",
+    "delete": "Delete",
+    "delete_aria": "Delete \"{title}\"",
+    "delete_failed": "Could not delete the conversation."
   },
   "tabs": {
     "chat": "AI",
@@ -31,6 +35,10 @@
     "save_suggestion_cancel": "Cancel",
     "save_suggestion_failed": "Save failed. Please try again.",
     "error_prefix": "Error: {message}",
+    "streaming_preparing": "Preparing response",
+    "jump_to_stream": "View new response",
+    "jump_to_latest": "View latest",
+    "citation_fallback": "Source {index}",
     "actions": {
       "copy_aria": "Copy",
       "regenerate_aria": "Regenerate",

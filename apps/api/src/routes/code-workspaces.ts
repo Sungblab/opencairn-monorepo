@@ -43,11 +43,9 @@ export function createCodeWorkspaceRoutes(options: CodeWorkspaceRouteOptions = {
   const canWriteProject = options.canWriteProject ?? ((userId, projectId) =>
     canWrite(userId, { type: "project", id: projectId }));
   const projectScope = options.projectScope ?? readProjectScope;
-const routes = new Hono<AppEnv>();
+  const routes = new Hono<AppEnv>();
 
-  routes.use("*", auth);
-
-  routes.get("/projects/:projectId/code-workspaces", async (c) => {
+  routes.get("/projects/:projectId/code-workspaces", auth, async (c) => {
     const userId = c.get("userId");
     const projectId = c.req.param("projectId");
     if (!isUuid(projectId)) return c.json({ error: "Bad Request" }, 400);
@@ -62,6 +60,7 @@ const routes = new Hono<AppEnv>();
 
   routes.post(
     "/projects/:projectId/code-workspaces",
+    auth,
     zValidator("json", codeWorkspaceCreateRequestSchema),
     async (c) => {
       const userId = c.get("userId");
@@ -102,7 +101,7 @@ const routes = new Hono<AppEnv>();
     },
   );
 
-  routes.get("/code-workspaces/:id", async (c) => {
+  routes.get("/code-workspaces/:id", auth, async (c) => {
     const userId = c.get("userId");
     const id = c.req.param("id");
     if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
@@ -121,6 +120,7 @@ const routes = new Hono<AppEnv>();
 
   routes.patch(
     "/code-workspaces/:id",
+    auth,
     zValidator("json", z.object({
       name: z.string().trim().min(1).max(120).optional(),
       description: z.string().max(1000).nullable().optional(),
@@ -156,7 +156,7 @@ const routes = new Hono<AppEnv>();
     },
   );
 
-  routes.delete("/code-workspaces/:id", async (c) => {
+  routes.delete("/code-workspaces/:id", auth, async (c) => {
     const userId = c.get("userId");
     const id = c.req.param("id");
     if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
@@ -183,6 +183,7 @@ const routes = new Hono<AppEnv>();
 
   routes.post(
     "/code-workspaces/:id/patches",
+    auth,
     zValidator("json", z.record(z.unknown())),
     async (c) => {
       const userId = c.get("userId");
@@ -213,7 +214,7 @@ const routes = new Hono<AppEnv>();
     },
   );
 
-  routes.get("/code-workspaces/:id/snapshots/:snapshotId/archive", async (c) => {
+  routes.get("/code-workspaces/:id/snapshots/:snapshotId/archive", auth, async (c) => {
     const userId = c.get("userId");
     const id = c.req.param("id");
     const snapshotId = c.req.param("snapshotId");

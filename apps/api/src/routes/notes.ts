@@ -1,8 +1,25 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { db, notes, noteEnrichments, projects, projectTreeNodes, wikiLinks, eq, and, desc, isNull, isNotNull, sql } from "@opencairn/db";
-import { createNoteSchema, updateNoteSchema, patchCanvasSchema } from "@opencairn/shared";
+import {
+  db,
+  notes,
+  noteEnrichments,
+  projects,
+  projectTreeNodes,
+  wikiLinks,
+  eq,
+  and,
+  desc,
+  isNull,
+  isNotNull,
+  sql,
+} from "@opencairn/db";
+import {
+  createNoteSchema,
+  updateNoteSchema,
+  patchCanvasSchema,
+} from "@opencairn/shared";
 
 // PATCH body ignores `content` — Yjs (via Hocuspocus) is canonical (Plan 2B).
 // `folderId` is also stripped here: moves must go through /:id/move, which
@@ -28,8 +45,52 @@ import { plateValueToText } from "../lib/plate-text";
 import { moveNote } from "../lib/tree-queries";
 import { emitTreeEvent } from "../lib/tree-events";
 import { refreshNoteChunkIndexBestEffort } from "../lib/note-chunk-refresh";
-import { createTreeNode } from "../lib/project-tree-service";
+import {
+  createTreeNode,
+  softDeleteTreeNode,
+} from "../lib/project-tree-service";
 import type { AppEnv } from "../lib/types";
+
+const TRASH_RETENTION_DAYS = 30;
+const TRASH_RETENTION_MS = TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+
+function trashExpiresAt(deletedAt: Date): Date {
+  return new Date(deletedAt.getTime() + TRASH_RETENTION_MS);
+}
+
+async function purgeExpiredTrash(workspaceId: string): Promise<void> {
+  const cutoff = new Date(Date.now() - TRASH_RETENTION_MS).toISOString();
+  const expired = await db
+    .select({ id: notes.id })
+    .from(notes)
+    .where(
+      and(
+        eq(notes.workspaceId, workspaceId),
+        isNotNull(notes.deletedAt),
+        sql`${notes.deletedAt} < ${cutoff}::timestamptz`,
+      ),
+    );
+  if (expired.length === 0) return;
+
+  const expiredIds = expired.map((note) => note.id);
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`
+      DELETE FROM project_tree_nodes
+       WHERE target_table = 'notes'
+         AND target_id IN (${sql.join(
+           expiredIds.map((id) => sql`${id}::uuid`),
+           sql`, `,
+         )})
+    `);
+    await tx.execute(sql`
+      DELETE FROM notes
+       WHERE id IN (${sql.join(
+         expiredIds.map((id) => sql`${id}::uuid`),
+         sql`, `,
+       )})
+    `);
+  });
+}
 
 export const noteRoutes = new Hono<AppEnv>()
   .use("*", requireAuth)
@@ -38,7 +99,8 @@ export const noteRoutes = new Hono<AppEnv>()
     const user = c.get("user");
     const projectId = c.req.param("projectId");
     if (!isUuid(projectId)) return c.json({ error: "Bad Request" }, 400);
-    if (!(await canRead(user.id, { type: "project", id: projectId }))) return c.json({ error: "Forbidden" }, 403);
+    if (!(await canRead(user.id, { type: "project", id: projectId })))
+      return c.json({ error: "Forbidden" }, 403);
     const rows = await db
       .select()
       .from(notes)
@@ -46,22 +108,29 @@ export const noteRoutes = new Hono<AppEnv>()
       .orderBy(desc(notes.updatedAt));
 
     // Filter notes with inheritParent=false: per-user pagePermission required
-    const maybePrivate = rows.filter(n => n.inheritParent === false);
+    const maybePrivate = rows.filter((n) => n.inheritParent === false);
     if (maybePrivate.length === 0) return c.json(rows);
 
     const privateChecks = await Promise.all(
-      maybePrivate.map(async n => ({ id: n.id, ok: await canRead(user.id, { type: "note", id: n.id }) }))
+      maybePrivate.map(async (n) => ({
+        id: n.id,
+        ok: await canRead(user.id, { type: "note", id: n.id }),
+      })),
     );
-    const blockedIds = new Set(privateChecks.filter(x => !x.ok).map(x => x.id));
-    return c.json(rows.filter(n => !blockedIds.has(n.id)));
+    const blockedIds = new Set(
+      privateChecks.filter((x) => !x.ok).map((x) => x.id),
+    );
+    return c.json(rows.filter((n) => !blockedIds.has(n.id)));
   })
 
   .get("/search", async (c) => {
     const user = c.get("user");
     const q = c.req.query("q")?.trim() ?? "";
     const projectId = c.req.query("projectId") ?? "";
-    if (q.length < 1 || !isUuid(projectId)) return c.json({ error: "Bad Request" }, 400);
-    if (!(await canRead(user.id, { type: "project", id: projectId }))) return c.json({ error: "Forbidden" }, 403);
+    if (q.length < 1 || !isUuid(projectId))
+      return c.json({ error: "Bad Request" }, 400);
+    if (!(await canRead(user.id, { type: "project", id: projectId })))
+      return c.json({ error: "Forbidden" }, 403);
     const rows = await db
       .select({ id: notes.id, title: notes.title, updatedAt: notes.updatedAt })
       .from(notes)
@@ -85,6 +154,7 @@ export const noteRoutes = new Hono<AppEnv>()
     if (!(await canWrite(user.id, { type: "workspace", id: workspaceId }))) {
       return c.json({ error: "Forbidden" }, 403);
     }
+    await purgeExpiredTrash(workspaceId);
     const rows = await db
       .select({
         id: notes.id,
@@ -96,7 +166,9 @@ export const noteRoutes = new Hono<AppEnv>()
       })
       .from(notes)
       .innerJoin(projects, eq(projects.id, notes.projectId))
-      .where(and(eq(notes.workspaceId, workspaceId), isNotNull(notes.deletedAt)))
+      .where(
+        and(eq(notes.workspaceId, workspaceId), isNotNull(notes.deletedAt)),
+      )
       .orderBy(desc(notes.deletedAt))
       .limit(100);
     return c.json({
@@ -106,6 +178,9 @@ export const noteRoutes = new Hono<AppEnv>()
         projectId: n.projectId,
         projectName: n.projectName,
         deletedAt: n.deletedAt?.toISOString() ?? null,
+        expiresAt: n.deletedAt
+          ? trashExpiresAt(n.deletedAt).toISOString()
+          : null,
         updatedAt: n.updatedAt.toISOString(),
       })),
     });
@@ -147,12 +222,7 @@ export const noteRoutes = new Hono<AppEnv>()
       .from(wikiLinks)
       .innerJoin(notes, eq(notes.id, wikiLinks.sourceNoteId))
       .innerJoin(projects, eq(projects.id, notes.projectId))
-      .where(
-        and(
-          eq(wikiLinks.targetNoteId, id),
-          isNull(notes.deletedAt),
-        ),
-      )
+      .where(and(eq(wikiLinks.targetNoteId, id), isNull(notes.deletedAt)))
       .orderBy(desc(notes.updatedAt));
 
     // Per-row canRead for private (inheritParent=false) source notes.
@@ -168,7 +238,8 @@ export const noteRoutes = new Hono<AppEnv>()
       if (row.inheritParent === false) {
         if (!(await canRead(user.id, { type: "note", id: row.id }))) continue;
       } else {
-        if (!(await canRead(user.id, { type: "project", id: row.projectId }))) continue;
+        if (!(await canRead(user.id, { type: "project", id: row.projectId })))
+          continue;
       }
       visible.push({
         id: row.id,
@@ -216,7 +287,8 @@ export const noteRoutes = new Hono<AppEnv>()
     const user = c.get("user");
     const id = c.req.param("id");
     if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
-    if (!(await canRead(user.id, { type: "note", id }))) return c.json({ error: "Forbidden" }, 403);
+    if (!(await canRead(user.id, { type: "note", id })))
+      return c.json({ error: "Forbidden" }, 403);
     const [note] = await db
       .select()
       .from(notes)
@@ -229,9 +301,13 @@ export const noteRoutes = new Hono<AppEnv>()
     const user = c.get("user");
     const body = c.req.valid("json");
     // write-access on project required
-    if (!(await canWrite(user.id, { type: "project", id: body.projectId }))) return c.json({ error: "Forbidden" }, 403);
+    if (!(await canWrite(user.id, { type: "project", id: body.projectId })))
+      return c.json({ error: "Forbidden" }, 403);
     // derive workspaceId from project (notes.workspaceId is NOT NULL, denormalized for query speed)
-    const [proj] = await db.select({ workspaceId: projects.workspaceId }).from(projects).where(eq(projects.id, body.projectId));
+    const [proj] = await db
+      .select({ workspaceId: projects.workspaceId })
+      .from(projects)
+      .where(eq(projects.id, body.projectId));
     if (!proj) return c.json({ error: "Project not found" }, 404);
     let treeParentId = body.parentTreeNodeId ?? null;
     let legacyFolderId = body.folderId ?? null;
@@ -255,7 +331,8 @@ export const noteRoutes = new Hono<AppEnv>()
     }
     // For canvas notes, contentText holds raw source code (validated to ≤64KB by Zod).
     // For Plate-content notes, derive from the Plate value so FTS/embedding stays in sync.
-    const contentText = body.contentText ?? (body.content ? plateValueToText(body.content) : "");
+    const contentText =
+      body.contentText ?? (body.content ? plateValueToText(body.content) : "");
     const { parentTreeNodeId: _parentTreeNodeId, ...noteBody } = body;
     const note = await db.transaction(async (tx) => {
       const [created] = await tx
@@ -305,43 +382,39 @@ export const noteRoutes = new Hono<AppEnv>()
   // Move endpoint. Registered BEFORE `/:id` so the literal `move` suffix
   // matches before Hono considers `/:id` a candidate. Uses moveNote which
   // enforces project scope; emits tree.note_moved after the write commits.
-  .patch(
-    "/:id/move",
-    zValidator("json", moveNoteSchema),
-    async (c) => {
-      const user = c.get("user");
-      const id = c.req.param("id");
-      if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
-      if (!(await canWrite(user.id, { type: "note", id }))) {
-        return c.json({ error: "Forbidden" }, 403);
-      }
-      const [current] = await db
-        .select({ projectId: notes.projectId, folderId: notes.folderId })
-        .from(notes)
-        .where(and(eq(notes.id, id), isNull(notes.deletedAt)));
-      if (!current) return c.json({ error: "Not found" }, 404);
+  .patch("/:id/move", zValidator("json", moveNoteSchema), async (c) => {
+    const user = c.get("user");
+    const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+    if (!(await canWrite(user.id, { type: "note", id }))) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+    const [current] = await db
+      .select({ projectId: notes.projectId, folderId: notes.folderId })
+      .from(notes)
+      .where(and(eq(notes.id, id), isNull(notes.deletedAt)));
+    if (!current) return c.json({ error: "Not found" }, 404);
 
-      const { folderId: newFolderId } = c.req.valid("json");
-      try {
-        await moveNote({
-          projectId: current.projectId,
-          noteId: id,
-          newFolderId,
-        });
-      } catch (err) {
-        return c.json({ error: (err as Error).message }, 400);
-      }
-
-      emitTreeEvent({
-        kind: "tree.note_moved",
+    const { folderId: newFolderId } = c.req.valid("json");
+    try {
+      await moveNote({
         projectId: current.projectId,
-        id,
-        parentId: newFolderId,
-        at: new Date().toISOString(),
+        noteId: id,
+        newFolderId,
       });
-      return c.json({ ok: true });
-    },
-  )
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 400);
+    }
+
+    emitTreeEvent({
+      kind: "tree.note_moved",
+      projectId: current.projectId,
+      id,
+      parentId: newFolderId,
+      at: new Date().toISOString(),
+    });
+    return c.json({ ok: true });
+  })
 
   // Plan 7 Phase 1: dedicated canvas write surface. The shared `/:id` PATCH
   // strips `content` because Plan 2B made Yjs canonical for Plate notes —
@@ -380,7 +453,9 @@ export const noteRoutes = new Hono<AppEnv>()
       .update(notes)
       .set({
         contentText: body.source,
-        ...(body.language !== undefined ? { canvasLanguage: body.language } : {}),
+        ...(body.language !== undefined
+          ? { canvasLanguage: body.language }
+          : {}),
       })
       .where(eq(notes.id, id))
       .returning({
@@ -410,7 +485,8 @@ export const noteRoutes = new Hono<AppEnv>()
     const user = c.get("user");
     const id = c.req.param("id");
     if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
-    if (!(await canWrite(user.id, { type: "note", id }))) return c.json({ error: "Forbidden" }, 403);
+    if (!(await canWrite(user.id, { type: "note", id })))
+      return c.json({ error: "Forbidden" }, 403);
     const body = c.req.valid("json");
     // Capture prev title to detect rename deltas for SSE. folderId is
     // intentionally NOT fetched here — moves route through /:id/move.
@@ -419,11 +495,28 @@ export const noteRoutes = new Hono<AppEnv>()
       .from(notes)
       .where(and(eq(notes.id, id), isNull(notes.deletedAt)));
     if (!prev) return c.json({ error: "Not found" }, 404);
-    const [note] = await db
-      .update(notes)
-      .set(body)
-      .where(and(eq(notes.id, id), isNull(notes.deletedAt)))
-      .returning();
+    const [note] = await db.transaction(async (tx) => {
+      const updatedRows = await tx
+        .update(notes)
+        .set(body)
+        .where(and(eq(notes.id, id), isNull(notes.deletedAt)))
+        .returning();
+      const updated = updatedRows[0];
+      if (updated && body.title !== undefined) {
+        await tx
+          .update(projectTreeNodes)
+          .set({ label: body.title })
+          .where(
+            and(
+              eq(projectTreeNodes.projectId, updated.projectId),
+              eq(projectTreeNodes.targetTable, "notes"),
+              eq(projectTreeNodes.targetId, updated.id),
+              isNull(projectTreeNodes.deletedAt),
+            ),
+          );
+      }
+      return updatedRows;
+    });
     if (!note) return c.json({ error: "Not found" }, 404);
 
     const renamed = body.title !== undefined && body.title !== prev.title;
@@ -448,19 +541,47 @@ export const noteRoutes = new Hono<AppEnv>()
     const user = c.get("user");
     const id = c.req.param("id");
     if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
-    if (!(await canWrite(user.id, { type: "note", id }))) return c.json({ error: "Forbidden" }, 403);
-    const [note] = await db
-      .update(notes)
-      .set({ deletedAt: new Date() })
-      .where(and(eq(notes.id, id), isNull(notes.deletedAt)))
-      .returning();
-    if (!note) return c.json({ error: "Not found" }, 404);
+    if (!(await canWrite(user.id, { type: "note", id })))
+      return c.json({ error: "Forbidden" }, 403);
+    const [current] = await db
+      .select({
+        projectId: notes.projectId,
+        workspaceId: notes.workspaceId,
+        folderId: notes.folderId,
+      })
+      .from(notes)
+      .where(and(eq(notes.id, id), isNull(notes.deletedAt)));
+    if (!current) return c.json({ error: "Not found" }, 404);
+    await purgeExpiredTrash(current.workspaceId);
+
+    const [treeNode] = await db
+      .select({ id: projectTreeNodes.id, parentId: projectTreeNodes.parentId })
+      .from(projectTreeNodes)
+      .where(
+        and(
+          eq(projectTreeNodes.projectId, current.projectId),
+          eq(projectTreeNodes.targetTable, "notes"),
+          eq(projectTreeNodes.targetId, id),
+          isNull(projectTreeNodes.deletedAt),
+        ),
+      );
+    if (treeNode) {
+      await softDeleteTreeNode({
+        projectId: current.projectId,
+        nodeId: treeNode.id,
+      });
+    } else {
+      await db
+        .update(notes)
+        .set({ deletedAt: new Date() })
+        .where(and(eq(notes.id, id), isNull(notes.deletedAt)));
+    }
 
     emitTreeEvent({
       kind: "tree.note_deleted",
-      projectId: note.projectId,
-      id: note.id,
-      parentId: note.folderId,
+      projectId: current.projectId,
+      id: treeNode?.id ?? id,
+      parentId: treeNode?.parentId ?? current.folderId,
       at: new Date().toISOString(),
     });
 
@@ -476,20 +597,37 @@ export const noteRoutes = new Hono<AppEnv>()
       .from(notes)
       .where(and(eq(notes.id, id), isNotNull(notes.deletedAt)));
     if (!current) return c.json({ error: "Not found" }, 404);
-    if (!(await canWrite(user.id, { type: "workspace", id: current.workspaceId }))) {
+    if (
+      !(await canWrite(user.id, { type: "workspace", id: current.workspaceId }))
+    ) {
       return c.json({ error: "Forbidden" }, 403);
     }
+    await purgeExpiredTrash(current.workspaceId);
     const [note] = await db
       .update(notes)
       .set({ deletedAt: null })
       .where(eq(notes.id, id))
       .returning();
+    const [treeNode] = await db
+      .update(projectTreeNodes)
+      .set({ deletedAt: null })
+      .where(
+        and(
+          eq(projectTreeNodes.projectId, current.projectId),
+          eq(projectTreeNodes.targetTable, "notes"),
+          eq(projectTreeNodes.targetId, id),
+        ),
+      )
+      .returning({
+        id: projectTreeNodes.id,
+        parentId: projectTreeNodes.parentId,
+      });
 
     emitTreeEvent({
       kind: "tree.note_created",
       projectId: current.projectId,
-      id,
-      parentId: note!.folderId,
+      id: treeNode?.id ?? id,
+      parentId: treeNode?.parentId ?? note!.folderId,
       label: note!.title,
       at: new Date().toISOString(),
     });
@@ -501,14 +639,31 @@ export const noteRoutes = new Hono<AppEnv>()
     const id = c.req.param("id");
     if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
     const [current] = await db
-      .select({ workspaceId: notes.workspaceId, projectId: notes.projectId, folderId: notes.folderId })
+      .select({
+        workspaceId: notes.workspaceId,
+        projectId: notes.projectId,
+        folderId: notes.folderId,
+      })
       .from(notes)
       .where(and(eq(notes.id, id), isNotNull(notes.deletedAt)));
     if (!current) return c.json({ error: "Not found" }, 404);
-    if (!(await canWrite(user.id, { type: "workspace", id: current.workspaceId }))) {
+    if (
+      !(await canWrite(user.id, { type: "workspace", id: current.workspaceId }))
+    ) {
       return c.json({ error: "Forbidden" }, 403);
     }
-    await db.delete(notes).where(eq(notes.id, id));
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(projectTreeNodes)
+        .where(
+          and(
+            eq(projectTreeNodes.projectId, current.projectId),
+            eq(projectTreeNodes.targetTable, "notes"),
+            eq(projectTreeNodes.targetId, id),
+          ),
+        );
+      await tx.delete(notes).where(eq(notes.id, id));
+    });
     emitTreeEvent({
       kind: "tree.note_deleted",
       projectId: current.projectId,

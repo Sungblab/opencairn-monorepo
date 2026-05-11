@@ -93,7 +93,7 @@ export function MathEditPopover({
             <label className="block text-xs text-muted-foreground mb-1">
               {t("previewLabel")}
             </label>
-            <div className="min-h-[6rem] rounded-md border bg-muted/30 p-2 overflow-auto">
+            <div className="app-scrollbar-thin min-h-[6rem] overflow-auto rounded-md border bg-muted/30 p-2">
               {tex.trim() ? (
                 <KatexRendererLoader
                   tex={tex}

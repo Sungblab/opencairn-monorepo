@@ -37,6 +37,22 @@ describe("API HTTP security middleware", () => {
     );
   });
 
+  it("allows same-origin framing for first-party file viewer endpoints", async () => {
+    const app = makeApp();
+    app.get("/api/agent-files/11111111-1111-4111-8111-111111111111/file", (c) =>
+      c.body("PDF", 200, { "content-type": "application/pdf" }),
+    );
+
+    const res = await app.request(
+      "/api/agent-files/11111111-1111-4111-8111-111111111111/file",
+    );
+
+    expect(res.headers.get("x-frame-options")).toBe("SAMEORIGIN");
+    expect(res.headers.get("content-security-policy")).toContain(
+      "frame-ancestors 'self'",
+    );
+  });
+
   it("rejects unsafe browser requests from untrusted origins", async () => {
     const res = await makeApp().request("/api/workspaces", {
       method: "POST",

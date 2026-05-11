@@ -33,7 +33,7 @@
   },
   "collab": {
     "readonly_banner": "읽기 전용 모드입니다",
-    "disconnected_banner": "연결이 끊겼습니다. 재시도 중...",
+    "disconnected_banner": "실시간 연결이 끊겼습니다. 재연결 중...",
     "restore_connection": "다시 연결"
   }
 }

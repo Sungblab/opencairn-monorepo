@@ -68,6 +68,13 @@ function isInternalApiPath(pathname: string): boolean {
   return pathname === "/api/internal" || pathname.startsWith("/api/internal/");
 }
 
+function isFirstPartyFileViewerPath(pathname: string): boolean {
+  return (
+    /^\/api\/agent-files\/[0-9a-f-]+\/(?:file|compiled)$/i.test(pathname) ||
+    /^\/api\/notes\/[0-9a-f-]+\/file$/i.test(pathname)
+  );
+}
+
 function isTestRuntime(): boolean {
   return process.env.NODE_ENV === "test" || process.env.VITEST === "true";
 }
@@ -106,8 +113,10 @@ export function csrfOriginGuard(): MiddlewareHandler<AppEnv> {
 export function securityHeaders(): MiddlewareHandler<AppEnv> {
   return async (c, next) => {
     await next();
+    const pathname = new URL(c.req.url).pathname;
+    const allowFirstPartyFrame = isFirstPartyFileViewerPath(pathname);
     c.header("X-Content-Type-Options", "nosniff");
-    c.header("X-Frame-Options", "DENY");
+    c.header("X-Frame-Options", allowFirstPartyFrame ? "SAMEORIGIN" : "DENY");
     c.header("Referrer-Policy", "no-referrer");
     c.header("Cross-Origin-Resource-Policy", "same-site");
     c.header(
@@ -116,7 +125,9 @@ export function securityHeaders(): MiddlewareHandler<AppEnv> {
     );
     c.header(
       "Content-Security-Policy",
-      "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+      allowFirstPartyFrame
+        ? "default-src 'none'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'"
+        : "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
     );
     if (process.env.NODE_ENV === "production") {
       c.header(

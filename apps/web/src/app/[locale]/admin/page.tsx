@@ -26,7 +26,7 @@ export default async function AdminPage({
           </h1>
         </header>
         <IntlClientProvider namespaces={["admin"]}>
-          <AdminUsersClientLoader />
+          <AdminUsersClientLoader returnHref={`/${locale}/dashboard`} />
         </IntlClientProvider>
       </div>
     </main>

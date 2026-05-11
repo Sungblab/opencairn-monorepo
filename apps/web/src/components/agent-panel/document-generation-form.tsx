@@ -222,7 +222,7 @@ export function DocumentGenerationForm({ projectId, onEvent }: Props) {
       </button>
       {open ? (
         <div className="mt-2 grid gap-2 rounded-[var(--radius-card)] border border-border bg-background p-2">
-          <div className="grid max-h-40 gap-1 overflow-auto">
+          <div className="app-scrollbar-thin grid max-h-40 gap-1 overflow-auto">
             {sources.map((source) => (
               <label
                 key={source.id}

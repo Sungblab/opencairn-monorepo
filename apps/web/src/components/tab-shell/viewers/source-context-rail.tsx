@@ -102,7 +102,7 @@ export function SourceContextRail({
           </header>
           <div
             data-testid="source-context-rail-scroll"
-            className="min-h-0 flex-1 overflow-y-auto"
+            className="app-scrollbar-thin min-h-0 flex-1 overflow-y-auto"
           >
             {active === "analysis" ? (
               <SourceRailAnalysis selectedText={selectedText} />

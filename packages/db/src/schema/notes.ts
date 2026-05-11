@@ -30,7 +30,7 @@ export const notes = pgTable(
       onDelete: "set null",
     }),
     inheritParent: boolean("inherit_parent").notNull().default(true),
-    title: text("title").notNull().default("Untitled"),
+    title: text("title").notNull().default(""),
     // Plate Value is `Array<PlateNode>`. Kept as `unknown` so both array and legacy
     // object payloads round-trip through jsonb without a cast dance.
     content: jsonb("content").$type<unknown>(),

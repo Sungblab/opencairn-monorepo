@@ -161,7 +161,7 @@ describe("POST /api/canvas/from-template", () => {
     expect(res.status).toBe(400);
   });
 
-  it("501 templatesNotAvailable when authed (flag default off)", async () => {
+  it("404 notFound when authed (flag default off)", async () => {
     const res = await authedFetch("/api/canvas/from-template", {
       method: "POST",
       userId: ctx.userId,
@@ -171,15 +171,14 @@ describe("POST /api/canvas/from-template", () => {
         templateId: randomUUID(),
       }),
     });
-    expect(res.status).toBe(501);
+    expect(res.status).toBe(404);
     const body = (await res.json()) as { error: string };
-    expect(body.error).toBe("templatesNotAvailable");
+    expect(body.error).toBe("notFound");
   });
 
-  it("501 templatesNotAvailable when authed (flag explicitly on)", async () => {
-    // Plan 6 will provide the real impl; until then, both flag positions
-    // 501 — this regression-guards the "even when on, still 501" branch
-    // so the route doesn't accidentally return 200 with no body.
+  it("404 notFound when authed (flag explicitly on)", async () => {
+    // The template catalog is still hidden from the product surface, so both
+    // flag positions return 404 until the catalog ships.
     const prev = process.env.FEATURE_CANVAS_TEMPLATES;
     process.env.FEATURE_CANVAS_TEMPLATES = "true";
     try {
@@ -192,9 +191,9 @@ describe("POST /api/canvas/from-template", () => {
           templateId: randomUUID(),
         }),
       });
-      expect(res.status).toBe(501);
+      expect(res.status).toBe(404);
       const body = (await res.json()) as { error: string };
-      expect(body.error).toBe("templatesNotAvailable");
+      expect(body.error).toBe("notFound");
     } finally {
       process.env.FEATURE_CANVAS_TEMPLATES = prev ?? "false";
     }

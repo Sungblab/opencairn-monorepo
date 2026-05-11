@@ -48,7 +48,7 @@ export function useCollaborativeEditor({
         YjsPlugin.configure({
           options: {
             cursors: {
-              data: { name: user.name, color: user.color },
+              data: { id: user.id, name: user.name, color: user.color },
             },
             providers: [
               {

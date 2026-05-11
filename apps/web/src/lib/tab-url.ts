@@ -33,7 +33,7 @@ export function tabToUrl(
     case "research_run":
       return urls.workspace.researchRun(locale, slug, route.targetId ?? "");
     case "import":
-      return urls.workspace.import(locale, slug);
+      return urls.workspace.root(locale, slug);
     case "help":
       return urls.workspace.help(locale, slug);
     case "report":
@@ -88,7 +88,7 @@ export function urlToTabTarget(
     return { slug, route: { kind: "research_run", targetId: parts[1] } };
   }
   if (parts[0] === "import" && parts.length === 1) {
-    return { slug, route: { kind: "import", targetId: null } };
+    return { slug, route: { kind: "dashboard", targetId: null } };
   }
   if (parts[0] === "help" && parts.length === 1) {
     return { slug, route: { kind: "help", targetId: null } };

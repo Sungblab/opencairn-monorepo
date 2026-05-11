@@ -9,6 +9,17 @@ import { CodeBlock } from "./renderers/code-block";
 import { CalloutBlockquote } from "./renderers/callout-blockquote";
 import { StreamingCursor } from "./streaming-text";
 
+const chatProseClasses = [
+  proseClasses.body,
+  "leading-7",
+  "[&_p:first-child]:mt-0",
+  "[&_p:last-child]:mb-0",
+  "[&_p]:my-2",
+  "[&_ul]:my-2",
+  "[&_ol]:my-2",
+  "[&_li]:my-0.5",
+].join(" ");
+
 interface ChatMessageRendererProps {
   body: string;
   /** True while the message is mid-stream — appends a blinking cursor. */
@@ -71,7 +82,7 @@ export function ChatMessageRenderer({
   );
 
   return (
-    <div className={proseClasses.body} data-testid="chat-message-renderer">
+    <div className={chatProseClasses} data-testid="chat-message-renderer">
       <ReactMarkdown
         remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}

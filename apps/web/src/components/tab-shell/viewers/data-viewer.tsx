@@ -20,7 +20,7 @@ export function DataViewer({ tab }: { tab: Tab }) {
   if (!tab.targetId) return null;
 
   return (
-    <div data-testid="data-viewer" className="h-full overflow-auto p-4 text-sm">
+    <div data-testid="data-viewer" className="app-scrollbar-thin h-full overflow-auto p-4 text-sm">
       {isLoading ? (
         <p className="text-muted-foreground">…</p>
       ) : data?.data == null ? (

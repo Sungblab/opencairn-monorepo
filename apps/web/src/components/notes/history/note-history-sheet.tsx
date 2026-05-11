@@ -107,7 +107,7 @@ export function NoteHistorySheet({
         </SheetHeader>
 
         <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[18rem_minmax(0,1fr)]">
-          <aside className="min-h-0 overflow-auto border-b p-3 md:border-b-0 md:border-r">
+          <aside className="app-scrollbar-thin min-h-0 overflow-auto border-b p-3 md:border-b-0 md:border-r">
             <VersionTimeline
               versions={versions.data?.versions ?? []}
               selected={selected}

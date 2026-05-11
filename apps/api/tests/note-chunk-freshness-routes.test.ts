@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app.js";
 import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
+import { agentFiles, db, eq } from "@opencairn/db";
+import { randomUUID } from "node:crypto";
 
 const mocks = vi.hoisted(() => ({
   refreshNoteChunkIndexBestEffort: vi.fn(),
@@ -92,6 +94,67 @@ describe("note chunk freshness route wiring", () => {
         deletedAt: null,
       }),
     );
+  });
+
+  it("marks the original uploaded agent file completed when the worker creates its source note", async () => {
+    const [file] = await db
+      .insert(agentFiles)
+      .values({
+        workspaceId: ctx.workspaceId,
+        projectId: ctx.projectId,
+        createdBy: ctx.userId,
+        title: "Worker Source.pdf",
+        filename: "Worker Source.pdf",
+        extension: "pdf",
+        kind: "pdf",
+        mimeType: "application/pdf",
+        objectKey: "uploads/u/source.pdf",
+        bytes: 64,
+        contentHash: "hash",
+        source: "manual",
+        versionGroupId: randomUUID(),
+        version: 1,
+        ingestWorkflowId: "ingest-test",
+        ingestStatus: "queued",
+      })
+      .returning({ id: agentFiles.id });
+    expect(file).toBeDefined();
+
+    const res = await app.request("/api/internal/source-notes", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-internal-secret": "test-internal-secret",
+      },
+      body: JSON.stringify({
+        userId: ctx.userId,
+        projectId: ctx.projectId,
+        parentNoteId: null,
+        title: "Worker Source",
+        content: "worker ingested body",
+        sourceType: "pdf",
+        objectKey: "uploads/u/source.pdf",
+        sourceUrl: null,
+        mimeType: "application/pdf",
+        treeLabel: "전체 추출 노트",
+        originalFileNodeId: file!.id,
+        triggerCompiler: false,
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { noteId: string };
+    const [updated] = await db
+      .select({
+        ingestStatus: agentFiles.ingestStatus,
+        sourceNoteId: agentFiles.sourceNoteId,
+      })
+      .from(agentFiles)
+      .where(eq(agentFiles.id, file!.id));
+    expect(updated).toEqual({
+      ingestStatus: "completed",
+      sourceNoteId: body.noteId,
+    });
   });
 
   it("reindexes internal note patches when contentText changes", async () => {

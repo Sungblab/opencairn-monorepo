@@ -1,5 +1,6 @@
 "use client";
 
+import { Pencil } from "lucide-react";
 import { Plate, PlateContent } from "platejs/react";
 import {
   BlockquotePlugin,
@@ -19,7 +20,7 @@ import {
   colorFor,
   useCollaborativeEditor,
 } from "@/hooks/useCollaborativeEditor";
-import type { Tab } from "@/stores/tabs-store";
+import { useTabsStore, type Tab } from "@/stores/tabs-store";
 
 // Same plugin list as NoteEditor minus wiki-link + slash menu. Reading mode
 // is content-only, so interactive overlays are off. If you find yourself
@@ -53,17 +54,18 @@ export interface ReadingViewerBodyProps {
   };
   size: number;
   setSize: (n: number) => void;
-  label: { fontSize: string };
+  label: { editMode: string; fontSize: string; readingMode: string };
 }
 
 export function ReadingViewerBody({
-  tab: _tab,
+  tab,
   note,
   me,
   size,
   setSize,
   label,
 }: ReadingViewerBodyProps) {
+  const updateTab = useTabsStore((s) => s.updateTab);
   // useCollaborativeEditor is called unconditionally here: rules-of-hooks.
   // The outer host gates on targetId/note/me before this body is loaded.
   const editor = useCollaborativeEditor({
@@ -78,18 +80,34 @@ export function ReadingViewerBody({
   });
 
   return (
-    <div data-testid="reading-viewer" className="h-full overflow-auto">
-      <div className="sticky top-0 z-10 flex items-center justify-end gap-3 border-b border-border bg-background/80 px-4 py-2 backdrop-blur">
-        <input
-          type="range"
-          min={14}
-          max={22}
-          step={1}
-          value={size}
-          onChange={(e) => setSize(Number(e.target.value))}
-          aria-label={label.fontSize}
-          className="w-32"
-        />
+    <div
+      data-testid="reading-viewer"
+      className="app-scrollbar-thin h-full overflow-auto"
+    >
+      <div className="sticky top-0 z-10 flex min-h-11 items-center justify-between gap-3 border-b border-border bg-background/90 px-4 py-2 backdrop-blur">
+        <span className="text-xs font-medium text-muted-foreground">
+          {label.readingMode}
+        </span>
+        <div className="flex items-center gap-2">
+          <input
+            type="range"
+            min={14}
+            max={22}
+            step={1}
+            value={size}
+            onChange={(e) => setSize(Number(e.target.value))}
+            aria-label={label.fontSize}
+            className="w-32"
+          />
+          <button
+            type="button"
+            className="app-hover inline-flex min-h-8 items-center gap-1.5 rounded-[var(--radius-control)] border border-border px-2.5 text-xs font-medium text-foreground"
+            onClick={() => updateTab(tab.id, { mode: "plate" })}
+          >
+            <Pencil aria-hidden className="h-3.5 w-3.5" />
+            {label.editMode}
+          </button>
+        </div>
       </div>
       <div
         data-testid="reading-viewer-body"

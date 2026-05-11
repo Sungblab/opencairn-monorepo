@@ -449,6 +449,13 @@
       "when": 1778176000000,
       "tag": "0063_project_tree_nodes",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1778177000000,
+      "tag": "0064_blank_note_title_default",
+      "breakpoints": true
     }
   ]
 }

@@ -110,7 +110,15 @@ export const useIngestStore = create<IngestStore>()(
         set((s) => {
           const run = s.runs[wfid];
           if (!run) return s;
-          if (ev.seq <= run.lastSeq) return s;
+          const isTerminalEvent =
+            ev.kind === "completed" || ev.kind === "failed";
+          if (run.status !== "running" && !isTerminalEvent) return s;
+          if (
+            ev.seq <= run.lastSeq &&
+            !(isTerminalEvent && run.status === "running")
+          ) {
+            return s;
+          }
           const next: IngestRunState = { ...run, lastSeq: ev.seq };
           switch (ev.kind) {
             case "started":
@@ -121,7 +129,10 @@ export const useIngestStore = create<IngestStore>()(
               next.stage = ev.payload.stage;
               break;
             case "unit_started":
-              next.units = { current: ev.payload.index, total: ev.payload.total };
+              next.units = {
+                current: ev.payload.index,
+                total: ev.payload.total,
+              };
               break;
             case "unit_parsed":
               next.units = {

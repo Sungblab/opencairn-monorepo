@@ -19,6 +19,8 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { createParser } from "eventsource-parser";
 
+import type { ChatMessage } from "@/lib/api-client";
+
 const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null;
 
@@ -61,10 +63,25 @@ export interface SendInput {
   threadId?: string;
 }
 
+function pendingUserMessage(input: SendInput): ChatMessage {
+  return {
+    id: `pending-user-${Date.now()}`,
+    role: "user",
+    status: "complete",
+    run_id: null,
+    run_status: null,
+    content: { body: input.content },
+    mode: input.mode ?? "auto",
+    provider: null,
+    created_at: new Date().toISOString(),
+  };
+}
+
 export function useChatSend(threadId: string | null) {
   const qc = useQueryClient();
   const t = useTranslations("chat.errors");
   const [live, setLive] = useState<StreamingAgentMessage | null>(null);
+  const [pendingUser, setPendingUser] = useState<ChatMessage | null>(null);
   const controller = useRef<AbortController | null>(null);
   const resumedRun = useRef<string | null>(null);
 
@@ -110,11 +127,23 @@ export function useChatSend(threadId: string | null) {
                   : prev;
               case "agent_file_created":
                 return isObj(payload)
-                  ? { ...prev, agent_files: [...prev.agent_files, payload.file ?? payload] }
+                  ? {
+                      ...prev,
+                      agent_files: [
+                        ...prev.agent_files,
+                        payload.file ?? payload,
+                      ],
+                    }
                   : prev;
               case "project_object_created":
                 return isObj(payload)
-                  ? { ...prev, project_objects: [...prev.project_objects, payload.object ?? payload] }
+                  ? {
+                      ...prev,
+                      project_objects: [
+                        ...prev.project_objects,
+                        payload.object ?? payload,
+                      ],
+                    }
                   : prev;
               case "project_object_generation_requested":
               case "project_object_generation_status":
@@ -166,8 +195,11 @@ export function useChatSend(threadId: string | null) {
         // SSE read errors leave live state intact for the next send/resume.
       } finally {
         if (controller.current === ac) {
-          qc.invalidateQueries({ queryKey: ["chat-messages", targetThreadId] });
+          await qc.invalidateQueries({
+            queryKey: ["chat-messages", targetThreadId],
+          });
           setLive(null);
+          setPendingUser(null);
           controller.current = null;
           resumedRun.current = null;
         }
@@ -178,10 +210,12 @@ export function useChatSend(threadId: string | null) {
 
   const resumeRun = useCallback(
     async (runId: string, messageId: string) => {
-      if (!threadId || controller.current || resumedRun.current === runId) return;
+      if (!threadId || controller.current || resumedRun.current === runId)
+        return;
       resumedRun.current = runId;
       const ac = new AbortController();
       controller.current = ac;
+      setPendingUser(null);
       setLive({ ...initialLive, id: messageId });
       const stream = await fetch(`/api/chat-runs/${runId}/events?after=0`, {
         credentials: "include",
@@ -190,6 +224,7 @@ export function useChatSend(threadId: string | null) {
       });
       if (!stream.ok || !stream.body) {
         setLive(null);
+        setPendingUser(null);
         controller.current = null;
         resumedRun.current = null;
         return;
@@ -209,6 +244,7 @@ export function useChatSend(threadId: string | null) {
       const ac = new AbortController();
       controller.current = ac;
 
+      setPendingUser(pendingUserMessage(input));
       setLive({ ...initialLive });
 
       let res: Response;
@@ -233,11 +269,13 @@ export function useChatSend(threadId: string | null) {
         // and bail without invalidating (the newer send owns invalidation).
         if ((err as Error).name === "AbortError") return;
         setLive(null);
+        setPendingUser(null);
         return;
       }
 
       if (!res.ok || !res.body) {
         setLive(null);
+        setPendingUser(null);
         return;
       }
 
@@ -246,5 +284,5 @@ export function useChatSend(threadId: string | null) {
     [threadId, consumeStream],
   );
 
-  return { send, live, resumeRun };
+  return { send, live, pendingUser, resumeRun };
 }

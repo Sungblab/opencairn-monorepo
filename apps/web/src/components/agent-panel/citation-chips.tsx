@@ -5,7 +5,7 @@
 // stays in their language; we read it from next-intl rather than hardcoding
 // /ko, otherwise English users would silently flip languages on click.
 
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 
 import { safeHref } from "@/lib/url/safe-href";
@@ -18,8 +18,20 @@ export interface Citation {
   noteId?: string;
 }
 
+function displayCitationTitle(
+  citation: Citation,
+  fallback: (values: { index: number }) => string,
+): string {
+  const title = citation.title.trim();
+  if (title && title !== "Untitled" && title !== "Untitled source") {
+    return title;
+  }
+  return fallback({ index: citation.index });
+}
+
 export function CitationChips({ citations }: { citations: Citation[] }) {
   const locale = useLocale();
+  const t = useTranslations("agentPanel.bubble");
   const { wsSlug } = useParams<{ wsSlug?: string }>();
 
   if (!citations?.length) return null;
@@ -46,7 +58,11 @@ export function CitationChips({ citations }: { citations: Citation[] }) {
             className="app-hover inline-flex max-w-[180px] items-center gap-1 rounded-[var(--radius-control)] border border-border px-2 py-0.5 text-[10px]"
           >
             <span className="font-medium">[{c.index}]</span>
-            <span className="truncate">{c.title}</span>
+            <span className="truncate">
+              {displayCitationTitle(c, (values) =>
+                t("citation_fallback", values),
+              )}
+            </span>
           </a>
         );
       })}

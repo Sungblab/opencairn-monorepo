@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { UploadCloud } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { openIngestTab } from "@/components/ingest/open-ingest-tab";
@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { useIngestUpload } from "@/hooks/use-ingest-upload";
 
 const ACCEPT_ATTR = [
@@ -34,7 +35,17 @@ const ACCEPT_ATTR = [
   "video/*",
 ].join(",");
 
-export function SourceUploadButton({ projectId }: { projectId: string }) {
+export function SourceUploadButton({
+  projectId,
+  children,
+  className = "w-full justify-start gap-2",
+  iconClassName = "h-4 w-4",
+}: {
+  projectId: string;
+  children?: ReactNode;
+  className?: string;
+  iconClassName?: string;
+}) {
   const t = useTranslations("sidebar");
   const inputId = useId();
   const [open, setOpen] = useState(false);
@@ -65,14 +76,20 @@ export function SourceUploadButton({ projectId }: { projectId: string }) {
 
   return (
     <>
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="sm"
         onClick={() => setOpen(true)}
-        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-background px-3 text-sm font-medium text-foreground transition-colors hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className={className}
       >
-        <UploadCloud aria-hidden className="h-4 w-4" />
-        <span className="truncate">{t("upload_source")}</span>
-      </button>
+        {children ?? (
+          <>
+            <UploadCloud aria-hidden className={iconClassName} />
+            <span className="truncate">{t("upload_source")}</span>
+          </>
+        )}
+      </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

@@ -29,6 +29,7 @@
     "literature": "논문 검색",
     "runs": "실행 기록",
     "generate_document": "문서 생성",
+    "trash": "휴지통",
     "more_aria": "더보기",
     "collapse_sidebar": "왼쪽 사이드바 접기"
   },
@@ -98,7 +99,9 @@
     "row_hint": "더블클릭으로 이름을 바꾸고 드래그해서 이동합니다.",
     "delete": "삭제",
     "delete_shortcut": "⌘Del",
-    "confirm_delete": "\"{label}\"을(를) 삭제할까요?"
+    "confirm_delete": "\"{label}\"을(를) 삭제할까요?",
+    "confirm_delete_title": "삭제할까요?",
+    "confirm_delete_body": "\"{label}\"은 프로젝트 트리에서 삭제됩니다."
   },
   "toasts": {
     "move_failed": "이동에 실패했어요. 다시 시도해주세요.",

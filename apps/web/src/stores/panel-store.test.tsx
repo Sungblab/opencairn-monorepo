@@ -65,6 +65,41 @@ describe("panel-store", () => {
     expect(localStorage.getItem("oc:panel")).toContain("320");
   });
 
+  it("starts from SSR-safe defaults before hydrating persisted panel state", () => {
+    localStorage.setItem(
+      "oc:panel",
+      JSON.stringify({
+        state: {
+          sidebarWidth: 271,
+          sidebarOpen: true,
+          agentPanelWidth: 420,
+          agentPanelOpen: true,
+          agentPanelTab: "notifications",
+          backlinksOpen: true,
+          enrichmentOpen: false,
+        },
+      }),
+    );
+    usePanelStore.setState(usePanelStore.getInitialState(), true);
+
+    expect(usePanelStore.getState()).toMatchObject({
+      sidebarWidth: 240,
+      agentPanelWidth: 360,
+      agentPanelOpen: false,
+      agentPanelTab: "chat",
+    });
+
+    usePanelStore.getState().hydrateFromStorage();
+
+    expect(usePanelStore.getState()).toMatchObject({
+      sidebarWidth: 271,
+      agentPanelWidth: 420,
+      agentPanelOpen: true,
+      agentPanelTab: "notifications",
+      backlinksOpen: true,
+    });
+  });
+
   it("resetSidebarWidth restores 240", () => {
     usePanelStore.getState().setSidebarWidth(380);
     usePanelStore.getState().resetSidebarWidth();

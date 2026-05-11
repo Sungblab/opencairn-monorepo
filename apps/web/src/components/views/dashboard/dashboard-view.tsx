@@ -41,7 +41,7 @@ export function DashboardView({
       </header>
       <GettingStartedPanel wsId={wsId} wsSlug={wsSlug} />
       <StatsRow wsId={wsId} />
-      <section className="rounded-[var(--radius-card)] border border-border bg-background p-4">
+      <section className="py-1">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold">
             {t("sections.activeResearch")}
@@ -55,7 +55,7 @@ export function DashboardView({
         </div>
         <ActiveResearchList wsId={wsId} wsSlug={wsSlug} />
       </section>
-      <section className="rounded-[var(--radius-card)] border border-border bg-background p-4">
+      <section className="py-1">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold">
             {t("sections.recentDocs")}

@@ -8,6 +8,7 @@ import {
 } from "./project-tree-context";
 import type { TreeNode } from "@/hooks/use-project-tree";
 import { useTabsStore } from "@/stores/tabs-store";
+import { PROJECT_TREE_DRAG_MIME } from "@/lib/project-tree-dnd";
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -35,7 +36,9 @@ function mkNode(
   } as unknown as NodeApi<TreeNode>;
 }
 
-function mkCtx(overrides: Partial<ProjectTreeCtxValue> = {}): ProjectTreeCtxValue {
+function mkCtx(
+  overrides: Partial<ProjectTreeCtxValue> = {},
+): ProjectTreeCtxValue {
   return {
     renamingId: null,
     onStartRename: vi.fn(),
@@ -89,6 +92,73 @@ describe("ProjectTreeNode", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders source bundles and file rows with distinct type badges", () => {
+    renderNode(
+      mkNode({
+        kind: "source_bundle",
+        id: "bundle-1",
+        parent_id: null,
+        label: "Lecture.pdf",
+        child_count: 4,
+        metadata: { mimeType: "application/pdf" },
+      }),
+    );
+    expect(screen.getByText("PDF")).toBeInTheDocument();
+
+    renderNode(
+      mkNode({
+        kind: "agent_file",
+        id: "file-1",
+        parent_id: "bundle-1",
+        label: "page-001.md",
+        child_count: 0,
+        file_kind: "markdown",
+        mime_type: "text/markdown",
+      }),
+    );
+    expect(screen.getByText("MD")).toBeInTheDocument();
+  });
+
+  it("opens a source bundle's original file from the top-level row", () => {
+    const node = mkNode({
+      kind: "source_bundle",
+      id: "bundle-1",
+      target_id: "file-1",
+      parent_id: null,
+      label: "Lecture.pdf",
+      child_count: 3,
+      file_kind: "pdf",
+      mime_type: "application/pdf",
+      metadata: { mimeType: "application/pdf" },
+    });
+    renderNode(node);
+
+    fireEvent.click(screen.getByRole("treeitem"));
+
+    const [tab] = useTabsStore.getState().tabs;
+    expect(tab).toMatchObject({
+      kind: "agent_file",
+      targetId: "file-1",
+      title: "Lecture.pdf",
+      mode: "agent-file",
+    });
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("labels artifact groups by their role", () => {
+    renderNode(
+      mkNode({
+        kind: "artifact_group",
+        id: "group-1",
+        parent_id: "bundle-1",
+        label: "추출 결과",
+        child_count: 3,
+        metadata: { role: "parsed" },
+      }),
+    );
+    expect(screen.getByText("추출")).toBeInTheDocument();
+  });
+
   it("uses the unified row density and action control treatment", () => {
     const node = mkNode({
       kind: "note",
@@ -102,6 +172,9 @@ describe("ProjectTreeNode", () => {
     expect(screen.getByRole("treeitem")).toHaveClass(
       "h-full",
       "min-h-8",
+      "w-full",
+      "min-w-0",
+      "overflow-hidden",
       "rounded-[var(--radius-control)]",
       "gap-2",
       "px-2.5",
@@ -109,6 +182,43 @@ describe("ProjectTreeNode", () => {
     expect(
       screen.getByRole("button", { name: "sidebar.tree_menu.row_actions" }),
     ).toHaveClass("h-7", "w-7", "rounded-[var(--radius-control)]");
+    expect(screen.getByText("Readable row")).toHaveClass("min-w-0", "truncate");
+  });
+
+  it("writes a project-tree drag payload for note rows", () => {
+    const node = mkNode({
+      kind: "note",
+      id: "tree-note-1",
+      target_id: "note-1",
+      parent_id: "folder-1",
+      label: "Source note",
+      child_count: 0,
+    });
+    renderNode(node);
+    const data: Record<string, string> = {};
+    const dataTransfer = {
+      setData: vi.fn((type: string, value: string) => {
+        data[type] = value;
+      }),
+      effectAllowed: "none",
+    };
+
+    const row = screen.getByRole("treeitem");
+    expect(row).toHaveAttribute("draggable", "true");
+    fireEvent.dragStart(row, { dataTransfer });
+
+    expect(dataTransfer.setData).toHaveBeenCalledWith(
+      PROJECT_TREE_DRAG_MIME,
+      JSON.stringify({
+        id: "tree-note-1",
+        kind: "note",
+        label: "Source note",
+        targetId: "note-1",
+        parentId: "folder-1",
+      }),
+    );
+    expect(data["text/plain"]).toBe("Source note");
+    expect(dataTransfer.effectAllowed).toBe("copyMove");
   });
 
   it("positions the row action menu from the action button instead of the viewport top", () => {
@@ -178,7 +288,9 @@ describe("ProjectTreeNode", () => {
       "text-xs",
       "text-muted-foreground",
     );
-    expect(screen.getByText("sidebar.tree_menu.empty_drop_hint")).toBeInTheDocument();
+    expect(
+      screen.getByText("sidebar.tree_menu.empty_drop_hint"),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("treeitem"));
     expect(onCreateNote).toHaveBeenCalledWith("f2");
   });
@@ -236,9 +348,11 @@ describe("ProjectTreeNode", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "sidebar.tree_menu.row_actions" }),
     );
-    fireEvent.click(screen.getByRole("menuitem", {
-      name: "sidebar.tree_menu.new_subfolder",
-    }));
+    fireEvent.click(
+      screen.getByRole("menuitem", {
+        name: "sidebar.tree_menu.new_subfolder",
+      }),
+    );
 
     expect(onCreateFolder).toHaveBeenCalledWith("f-sub");
   });
@@ -257,9 +371,11 @@ describe("ProjectTreeNode", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "sidebar.tree_menu.row_actions" }),
     );
-    fireEvent.click(screen.getByRole("menuitem", {
-      name: "sidebar.tree_menu.new_child_page",
-    }));
+    fireEvent.click(
+      screen.getByRole("menuitem", {
+        name: "sidebar.tree_menu.new_child_page",
+      }),
+    );
 
     expect(onCreateNote).toHaveBeenCalledWith("f-child");
   });
@@ -301,6 +417,31 @@ describe("ProjectTreeNode", () => {
     expect(screen.getByText("Ctrl+Del")).toBeInTheDocument();
   });
 
+  it("passes the target note id when deleting a note tree row", () => {
+    const onDelete = vi.fn();
+    const node = mkNode({
+      kind: "note",
+      id: "tree-node-1",
+      target_id: "note-1",
+      parent_id: null,
+      label: "Delete me",
+      child_count: 0,
+    });
+    renderNode(node, mkCtx({ onDelete }));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "sidebar.tree_menu.row_actions" }),
+    );
+    fireEvent.click(screen.getByText("sidebar.tree_menu.delete"));
+
+    expect(onDelete).toHaveBeenCalledWith(
+      "tree-node-1",
+      "note",
+      "Delete me",
+      "note-1",
+    );
+  });
+
   it("keeps row actions visible for the selected row", () => {
     const node = mkNode(
       {
@@ -319,7 +460,10 @@ describe("ProjectTreeNode", () => {
     });
     expect(action).toHaveAttribute("data-visible-row-actions", "true");
     expect(action).not.toHaveClass("hidden");
-    expect(action).toHaveAttribute("title", "sidebar.tree_menu.row_actions_hint");
+    expect(action).toHaveAttribute(
+      "title",
+      "sidebar.tree_menu.row_actions_hint",
+    );
   });
 
   it("offers child page creation from a note row action menu", () => {
@@ -336,9 +480,11 @@ describe("ProjectTreeNode", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "sidebar.tree_menu.row_actions" }),
     );
-    fireEvent.click(screen.getByRole("menuitem", {
-      name: "sidebar.tree_menu.new_child_page",
-    }));
+    fireEvent.click(
+      screen.getByRole("menuitem", {
+        name: "sidebar.tree_menu.new_child_page",
+      }),
+    );
 
     expect(onCreateNote).toHaveBeenCalledWith("n-child");
   });
@@ -446,10 +592,7 @@ describe("ProjectTreeNode", () => {
       label: "Draft",
       child_count: 0,
     });
-    renderNode(
-      node,
-      mkCtx({ renamingId: "n-9", onCommitRename }),
-    );
+    renderNode(node, mkCtx({ renamingId: "n-9", onCommitRename }));
     const input = screen.getByDisplayValue("Draft") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "Final" } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -465,10 +608,7 @@ describe("ProjectTreeNode", () => {
       label: "Notes",
       child_count: 2,
     });
-    renderNode(
-      node,
-      mkCtx({ renamingId: "f-9", onCommitRename }),
-    );
+    renderNode(node, mkCtx({ renamingId: "f-9", onCommitRename }));
     const input = screen.getByDisplayValue("Notes") as HTMLInputElement;
     fireEvent.keyDown(input, { key: "Escape" });
     expect(onCommitRename).toHaveBeenCalledWith("f-9", "folder", null);

@@ -29,6 +29,7 @@
     "literature": "Literature search",
     "runs": "Runs",
     "generate_document": "Generate doc",
+    "trash": "Trash",
     "more_aria": "More",
     "collapse_sidebar": "Collapse left sidebar"
   },
@@ -98,7 +99,9 @@
     "row_hint": "Double-click to rename. Drag to move.",
     "delete": "Delete",
     "delete_shortcut": "⌘Del",
-    "confirm_delete": "Delete \"{label}\"?"
+    "confirm_delete": "Delete \"{label}\"?",
+    "confirm_delete_title": "Delete item?",
+    "confirm_delete_body": "\"{label}\" will be removed from the project tree."
   },
   "toasts": {
     "move_failed": "Couldn't move. Please try again.",

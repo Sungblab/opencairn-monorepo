@@ -9,6 +9,7 @@ note under the caller's project and returns the new note ID.
 The ``trigger_compiler`` flag is always sent as True; the API side is a
 Plan 5 wire-up point (currently a log statement).
 """
+
 from __future__ import annotations
 
 import time
@@ -84,6 +85,8 @@ async def create_source_note(inp: dict) -> str:
         "sourceUrl": inp.get("url"),
         "mimeType": inp["mime_type"],
         "treeParentNodeId": inp.get("tree_parent_node_id"),
+        "treeLabel": inp.get("tree_label"),
+        "originalFileNodeId": inp.get("original_file_node_id"),
         "triggerCompiler": True,
     }
     result = await post_internal("/api/internal/source-notes", payload)
@@ -91,13 +94,15 @@ async def create_source_note(inp: dict) -> str:
     activity.logger.info("Source note created: %s", note_id)
 
     if workflow_id:
-        duration = (
-            int(time.time() * 1000) - started_at_ms if started_at_ms else 0
+        duration = int(time.time() * 1000) - started_at_ms if started_at_ms else 0
+        await publish_safe(
+            workflow_id,
+            "completed",
+            {
+                "noteId": note_id,
+                "totalDurationMs": max(duration, 0),
+            },
         )
-        await publish_safe(workflow_id, "completed", {
-            "noteId": note_id,
-            "totalDurationMs": max(duration, 0),
-        })
 
     return note_id
 
@@ -117,17 +122,22 @@ async def report_ingest_failure(inp: dict) -> None:
 
     if workflow_id:
         retryable = "timeout" in reason.lower() or "network" in reason.lower()
-        await publish_safe(workflow_id, "failed", {
-            "reason": reason[:500],
-            "quarantineKey": quarantine_key,
-            "retryable": retryable,
-        })
+        await publish_safe(
+            workflow_id,
+            "failed",
+            {
+                "reason": reason[:500],
+                "quarantineKey": quarantine_key,
+                "retryable": retryable,
+            },
+        )
 
     payload = {
         "userId": inp["user_id"],
         "projectId": inp["project_id"],
         "sourceUrl": inp.get("url"),
         "objectKey": inp.get("object_key"),
+        "originalFileNodeId": inp.get("original_file_node_id"),
         "quarantineKey": quarantine_key,
         "reason": reason,
     }

@@ -1,9 +1,12 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ProjectTree } from "./project-tree";
+import { closeDeletedNoteTabs, ProjectTree } from "./project-tree";
 import type { TreeNode } from "@/hooks/use-project-tree";
 import { useSidebarStore } from "@/stores/sidebar-store";
+import { useTabsStore } from "@/stores/tabs-store";
+
+const uploadMock = vi.fn();
 
 vi.mock("next-intl", () => ({
   useLocale: () => "ko",
@@ -12,6 +15,7 @@ vi.mock("next-intl", () => ({
 }));
 
 vi.mock("next/navigation", () => ({
+  usePathname: () => "/ko/workspace/acme/project/proj-1",
   useRouter: () => ({ push: vi.fn() }),
 }));
 
@@ -38,6 +42,14 @@ vi.mock("@/hooks/use-keyboard-shortcut", () => ({
 
 vi.mock("@/hooks/use-tree-keyboard", () => ({
   useTypeAhead: vi.fn(),
+}));
+
+vi.mock("@/hooks/use-ingest-upload", () => ({
+  useIngestUpload: () => ({
+    upload: uploadMock,
+    isUploading: false,
+    error: null,
+  }),
 }));
 
 vi.mock("react-arborist", () => ({
@@ -73,6 +85,14 @@ function renderTree() {
 describe("ProjectTree", () => {
   beforeEach(() => {
     useSidebarStore.setState({ expanded: new Set() });
+    useTabsStore.setState(useTabsStore.getInitialState(), true);
+    uploadMock.mockReset();
+    uploadMock.mockResolvedValue({
+      workflowId: "wf-1",
+      objectKey: "obj-1",
+      sourceBundleNodeId: "bundle-1",
+      originalFileId: null,
+    });
   });
 
   it("uses a taller row height for readable Notion-style navigation", () => {
@@ -92,5 +112,74 @@ describe("ProjectTree", () => {
       "data-first-child-kind",
       "empty",
     );
+  });
+
+  it("opens the upload modal for dropped OS files before uploading", async () => {
+    renderTree();
+    const tree = screen.getByTestId("project-tree");
+    const file = new File(["hello"], "paper.pdf", { type: "application/pdf" });
+
+    fireEvent.dragEnter(tree, {
+      dataTransfer: { files: [file], types: ["Files"] },
+    });
+    expect(screen.getByTestId("project-tree-drop-overlay")).toBeInTheDocument();
+
+    fireEvent.drop(tree, {
+      dataTransfer: { files: [file], types: ["Files"] },
+    });
+
+    expect(uploadMock).not.toHaveBeenCalled();
+    expect(screen.getByText("sidebar.upload.title")).toBeInTheDocument();
+    expect(
+      screen.getByText("sidebar.upload.selected"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "sidebar.upload.start" }));
+
+    await waitFor(() => expect(uploadMock).toHaveBeenCalledWith(file, "proj-1"));
+  });
+
+  it("closes every open tab for a deleted note and promotes the neighbor", () => {
+    useTabsStore.setState({
+      workspaceId: "ws-1",
+      tabs: [
+        {
+          id: "a",
+          kind: "note",
+          targetId: "note-deleted",
+          mode: "plate",
+          title: "Deleted",
+          pinned: false,
+          preview: false,
+          dirty: false,
+          splitWith: null,
+          splitSide: null,
+          scrollY: 0,
+        },
+        {
+          id: "b",
+          kind: "project",
+          targetId: "proj-1",
+          mode: "plate",
+          title: "Project",
+          pinned: false,
+          preview: false,
+          dirty: false,
+          splitWith: null,
+          splitSide: null,
+          scrollY: 0,
+        },
+      ],
+      activeId: "a",
+      closedStack: [],
+    });
+
+    const result = closeDeletedNoteTabs("note-deleted");
+
+    expect(result.closedActive).toBe(true);
+    expect(result.nextActive?.id).toBe("b");
+    expect(useTabsStore.getState().tabs).toHaveLength(1);
+    expect(useTabsStore.getState().tabs[0]?.targetId).toBe("proj-1");
+    expect(useTabsStore.getState().activeId).toBe("b");
   });
 });

@@ -22,7 +22,7 @@ export function NewCanvasButton({
     mutationFn: () =>
       api.createNote({
         projectId,
-        title: t("tab.untitled"),
+        title: "",
         sourceType: "canvas",
         canvasLanguage: "python",
         contentText: "",

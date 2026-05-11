@@ -2,7 +2,7 @@
 import { urls } from "@/lib/urls";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { Home, FlaskConical, DownloadCloud } from "lucide-react";
+import { Home, FlaskConical } from "lucide-react";
 import { LiteratureSearchButton } from "@/components/literature/literature-search-button";
 
 export interface GlobalNavProps {
@@ -35,7 +35,6 @@ export function GlobalNav({
           } as const,
         ]
       : []),
-    { href: `${base}/import`, label: t("import"), Icon: DownloadCloud },
   ] as const;
 
   return (

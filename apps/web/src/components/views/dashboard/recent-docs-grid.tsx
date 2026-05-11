@@ -39,7 +39,7 @@ export function RecentDocsGrid({
           {t("lists.noDocs")}
         </p>
         <Link
-          href={urls.workspace.import(locale, wsSlug)}
+          href={urls.workspace.newProject(locale, wsSlug)}
           className="app-btn-primary mt-3 inline-flex min-h-8 items-center rounded-[var(--radius-control)] px-3 text-xs font-medium"
         >
           {t("lists.importLink")} →

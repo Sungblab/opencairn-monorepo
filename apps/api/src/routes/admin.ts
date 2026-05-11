@@ -15,6 +15,7 @@ import {
   eq,
   gte,
   importJobs,
+  inArray,
   jobs,
   llmUsageEvents,
   notes,
@@ -40,11 +41,35 @@ const siteAdminSchema = z
 const userPlanSchema = z
   .object({ plan: z.enum(["free", "pro", "byok"]) })
   .strict();
+const bulkUserPlanSchema = z
+  .object({
+    userIds: z.array(z.string().uuid()).min(1).max(200),
+    plan: z.enum(["free", "pro", "byok"]),
+  })
+  .strict();
+const bulkSiteAdminSchema = z
+  .object({
+    userIds: z.array(z.string().uuid()).min(1).max(200),
+    isSiteAdmin: z.boolean(),
+  })
+  .strict();
 const workspacePlanSchema = z
   .object({ planType: z.enum(["free", "pro", "enterprise"]) })
   .strict();
+const bulkWorkspacePlanSchema = z
+  .object({
+    workspaceIds: z.array(z.string().uuid()).min(1).max(200),
+    planType: z.enum(["free", "pro", "enterprise"]),
+  })
+  .strict();
 const reportStatusSchema = z
   .object({ status: z.enum(["open", "triaged", "resolved", "closed"]) })
+  .strict();
+const bulkReportStatusSchema = z
+  .object({
+    reportIds: z.array(z.string().uuid()).min(1).max(200),
+    status: z.enum(["open", "triaged", "resolved", "closed"]),
+  })
   .strict();
 const auditEventsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
@@ -70,6 +95,28 @@ function boolEnv(name: string) {
 function num(value: unknown): number {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+async function runLimited<const T extends readonly (() => Promise<unknown>)[]>(
+  tasks: T,
+  limit = 4,
+): Promise<{ [K in keyof T]: Awaited<ReturnType<T[K]>> }> {
+  const results: unknown[] = new Array(tasks.length);
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < tasks.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await tasks[index]!();
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(limit, tasks.length) }, () => worker()),
+  );
+
+  return results as { [K in keyof T]: Awaited<ReturnType<T[K]>> };
 }
 
 export const adminRoutes = new Hono<AppEnv>()
@@ -103,32 +150,33 @@ export const adminRoutes = new Hono<AppEnv>()
       apiCallsToday,
       apiCallsMonth,
       llmUsageMonth,
-    ] = await Promise.all([
-      db.select({ value: count() }).from(user),
-      db
+    ] = await runLimited([
+      () => db.select({ value: count() }).from(user),
+      () => db
         .select({ value: count() })
         .from(user)
         .where(gte(user.createdAt, since30d)),
-      db.select({ value: count() }).from(workspaces),
-      db.select({ value: count() }).from(projects),
-      db.select({ value: count() }).from(notes),
-      db
+      () => db.select({ value: count() }).from(workspaces),
+      () => db.select({ value: count() }).from(projects),
+      () => db.select({ value: count() }).from(notes),
+      () => db
         .select({ value: count() })
         .from(siteAdminReports)
         .where(sql`${siteAdminReports.status} IN ('open', 'triaged')`),
-      db.select({ value: count() }).from(jobs).where(eq(jobs.status, "failed")),
-      db
+      () =>
+        db.select({ value: count() }).from(jobs).where(eq(jobs.status, "failed")),
+      () => db
         .select({ value: count() })
         .from(notifications)
         .where(
           sql`${notifications.emailedAt} IS NULL AND ${notifications.emailAttempts} < 3`,
         ),
-      db
+      () => db
         .select({ plan: user.plan, value: sql<number>`count(*)::int` })
         .from(user)
         .groupBy(user.plan)
         .orderBy(user.plan),
-      db
+      () => db
         .select({
           plan: workspaces.planType,
           value: sql<number>`count(*)::int`,
@@ -136,7 +184,7 @@ export const adminRoutes = new Hono<AppEnv>()
         .from(workspaces)
         .groupBy(workspaces.planType)
         .orderBy(workspaces.planType),
-      db
+      () => db
         .select({
           status: agentActions.status,
           value: sql<number>`count(*)::int`,
@@ -144,7 +192,7 @@ export const adminRoutes = new Hono<AppEnv>()
         .from(agentActions)
         .groupBy(agentActions.status)
         .orderBy(agentActions.status),
-      db
+      () => db
         .select({
           id: siteAdminReports.id,
           title: siteAdminReports.title,
@@ -156,7 +204,7 @@ export const adminRoutes = new Hono<AppEnv>()
         .from(siteAdminReports)
         .orderBy(desc(siteAdminReports.createdAt))
         .limit(8),
-      db
+      () => db
         .select({
           id: agentActions.id,
           kind: agentActions.kind,
@@ -169,7 +217,7 @@ export const adminRoutes = new Hono<AppEnv>()
         .from(agentActions)
         .orderBy(desc(agentActions.updatedAt))
         .limit(12),
-      db
+      () => db
         .select({
           id: jobs.id,
           type: jobs.type,
@@ -181,7 +229,7 @@ export const adminRoutes = new Hono<AppEnv>()
         .from(jobs)
         .orderBy(desc(jobs.createdAt))
         .limit(8),
-      db
+      () => db
         .select({
           id: importJobs.id,
           source: importJobs.source,
@@ -196,7 +244,7 @@ export const adminRoutes = new Hono<AppEnv>()
         .from(importJobs)
         .orderBy(desc(importJobs.createdAt))
         .limit(8),
-      db
+      () => db
         .select({
           id: connectorJobs.id,
           jobType: connectorJobs.jobType,
@@ -211,7 +259,7 @@ export const adminRoutes = new Hono<AppEnv>()
         .from(connectorJobs)
         .orderBy(desc(connectorJobs.createdAt))
         .limit(8),
-      db
+      () => db
         .select({
           id: chatRuns.id,
           status: chatRuns.status,
@@ -223,7 +271,7 @@ export const adminRoutes = new Hono<AppEnv>()
         .from(chatRuns)
         .orderBy(desc(chatRuns.createdAt))
         .limit(8),
-      db
+      () => db
         .select({
           action: usageRecords.action,
           value: sql<number>`sum(${usageRecords.count})::int`,
@@ -232,19 +280,19 @@ export const adminRoutes = new Hono<AppEnv>()
         .where(eq(usageRecords.month, today.toISOString().slice(0, 7)))
         .groupBy(usageRecords.action)
         .orderBy(usageRecords.action),
-      db
+      () => db
         .select({ value: sql<number>`sum(${usageRecords.count})::int` })
         .from(usageRecords)
         .where(eq(usageRecords.month, today.toISOString().slice(0, 7))),
-      db
+      () => db
         .select({ value: count() })
         .from(apiRequestLogs)
         .where(gte(apiRequestLogs.createdAt, today)),
-      db
+      () => db
         .select({ value: count() })
         .from(apiRequestLogs)
         .where(gte(apiRequestLogs.createdAt, since30d)),
-      db
+      () => db
         .select({
           tokensIn: sql<number>`coalesce(sum(${llmUsageEvents.tokensIn}), 0)::int`,
           tokensOut: sql<number>`coalesce(sum(${llmUsageEvents.tokensOut}), 0)::int`,
@@ -627,6 +675,142 @@ export const adminRoutes = new Hono<AppEnv>()
     });
   })
   .patch(
+    "/users/site-admin",
+    zValidator("json", bulkSiteAdminSchema),
+    async (c) => {
+      const actorUserId = c.get("userId");
+      const { userIds, isSiteAdmin } = c.req.valid("json");
+      const uniqueUserIds = Array.from(new Set(userIds));
+
+      const result = await db.transaction(async (tx) => {
+        const beforeRows = await tx
+          .select({
+            id: user.id,
+            email: user.email,
+            isSiteAdmin: user.isSiteAdmin,
+          })
+          .from(user)
+          .where(inArray(user.id, uniqueUserIds));
+
+        const changingRows = beforeRows.filter(
+          (row) => row.isSiteAdmin !== isSiteAdmin,
+        );
+        if (changingRows.length === 0) return { updated: 0 };
+
+        if (!isSiteAdmin) {
+          if (uniqueUserIds.includes(actorUserId)) {
+            return {
+              error: "cannot_remove_own_site_admin" as const,
+              status: 400 as const,
+            };
+          }
+          await tx.execute(
+            sql`select ${user.id} from ${user} where ${user.isSiteAdmin} = true for update`,
+          );
+          const [adminCount] = await tx
+            .select({ value: count() })
+            .from(user)
+            .where(eq(user.isSiteAdmin, true));
+          const currentAdmins = adminCount?.value ?? 0;
+          const revokedAdmins = changingRows.filter(
+            (row) => row.isSiteAdmin,
+          ).length;
+          if (currentAdmins - revokedAdmins <= 0) {
+            return {
+              error: "cannot_remove_last_site_admin" as const,
+              status: 400 as const,
+            };
+          }
+        }
+
+        const updatedRows = await tx
+          .update(user)
+          .set({ isSiteAdmin })
+          .where(inArray(user.id, changingRows.map((row) => row.id)))
+          .returning({
+            id: user.id,
+            email: user.email,
+            isSiteAdmin: user.isSiteAdmin,
+          });
+
+        for (const updated of updatedRows) {
+          const before = beforeRows.find((row) => row.id === updated.id);
+          if (!before) continue;
+          await recordAdminAuditEvent(
+            {
+              actorUserId,
+              action: updated.isSiteAdmin
+                ? "site_admin.grant"
+                : "site_admin.revoke",
+              target: {
+                targetType: "user",
+                targetId: updated.id,
+                targetUserId: updated.id,
+              },
+              before: { isSiteAdmin: before.isSiteAdmin },
+              after: { isSiteAdmin: updated.isSiteAdmin },
+              metadata: { targetEmail: updated.email },
+            },
+            tx,
+          );
+        }
+
+        return { updated: updatedRows.length };
+      });
+
+      if ("error" in result) return c.json({ error: result.error }, result.status);
+      return c.json({ updated: result.updated });
+    },
+  )
+  .patch(
+    "/users/plan",
+    zValidator("json", bulkUserPlanSchema),
+    async (c) => {
+      const actorUserId = c.get("userId");
+      const { userIds, plan } = c.req.valid("json");
+      const uniqueUserIds = Array.from(new Set(userIds));
+
+      const result = await db.transaction(async (tx) => {
+        const beforeRows = await tx
+          .select({ id: user.id, email: user.email, plan: user.plan })
+          .from(user)
+          .where(inArray(user.id, uniqueUserIds));
+        const changingRows = beforeRows.filter((row) => row.plan !== plan);
+        if (changingRows.length === 0) return { updated: 0 };
+
+        const updatedRows = await tx
+          .update(user)
+          .set({ plan })
+          .where(inArray(user.id, changingRows.map((row) => row.id)))
+          .returning({ id: user.id, email: user.email, plan: user.plan });
+
+        for (const updated of updatedRows) {
+          const before = beforeRows.find((row) => row.id === updated.id);
+          if (!before) continue;
+          await recordAdminAuditEvent(
+            {
+              actorUserId,
+              action: "user.plan.update",
+              target: {
+                targetType: "user",
+                targetId: updated.id,
+                targetUserId: updated.id,
+              },
+              before: { plan: before.plan },
+              after: { plan: updated.plan },
+              metadata: { targetEmail: updated.email },
+            },
+            tx,
+          );
+        }
+
+        return { updated: updatedRows.length };
+      });
+
+      return c.json({ updated: result.updated });
+    },
+  )
+  .patch(
     "/users/:userId/site-admin",
     zValidator("json", siteAdminSchema),
     async (c) => {
@@ -778,6 +962,64 @@ export const adminRoutes = new Hono<AppEnv>()
     },
   )
   .patch(
+    "/workspaces/plan",
+    zValidator("json", bulkWorkspacePlanSchema),
+    async (c) => {
+      const actorUserId = c.get("userId");
+      const { workspaceIds, planType } = c.req.valid("json");
+      const uniqueWorkspaceIds = Array.from(new Set(workspaceIds));
+
+      const result = await db.transaction(async (tx) => {
+        const beforeRows = await tx
+          .select({
+            id: workspaces.id,
+            slug: workspaces.slug,
+            planType: workspaces.planType,
+          })
+          .from(workspaces)
+          .where(inArray(workspaces.id, uniqueWorkspaceIds));
+        const changingRows = beforeRows.filter(
+          (row) => row.planType !== planType,
+        );
+        if (changingRows.length === 0) return { updated: 0 };
+
+        const updatedRows = await tx
+          .update(workspaces)
+          .set({ planType })
+          .where(inArray(workspaces.id, changingRows.map((row) => row.id)))
+          .returning({
+            id: workspaces.id,
+            slug: workspaces.slug,
+            planType: workspaces.planType,
+          });
+
+        for (const updated of updatedRows) {
+          const before = beforeRows.find((row) => row.id === updated.id);
+          if (!before) continue;
+          await recordAdminAuditEvent(
+            {
+              actorUserId,
+              action: "workspace.plan.update",
+              target: {
+                targetType: "workspace",
+                targetId: updated.id,
+                targetWorkspaceId: updated.id,
+              },
+              before: { planType: before.planType },
+              after: { planType: updated.planType },
+              metadata: { workspaceSlug: updated.slug },
+            },
+            tx,
+          );
+        }
+
+        return { updated: updatedRows.length };
+      });
+
+      return c.json({ updated: result.updated });
+    },
+  )
+  .patch(
     "/workspaces/:workspaceId/plan",
     zValidator("json", workspacePlanSchema),
     async (c) => {
@@ -844,6 +1086,71 @@ export const adminRoutes = new Hono<AppEnv>()
         return c.json({ error: result.error }, result.status);
       }
       return c.json({ workspace: result.workspace });
+    },
+  )
+  .patch(
+    "/reports/status",
+    zValidator("json", bulkReportStatusSchema),
+    async (c) => {
+      const actorUserId = c.get("userId");
+      const { reportIds, status } = c.req.valid("json");
+      const uniqueReportIds = Array.from(new Set(reportIds));
+      const terminal = status === "resolved" || status === "closed";
+
+      const result = await db.transaction(async (tx) => {
+        const beforeRows = await tx
+          .select({
+            id: siteAdminReports.id,
+            status: siteAdminReports.status,
+            title: siteAdminReports.title,
+          })
+          .from(siteAdminReports)
+          .where(inArray(siteAdminReports.id, uniqueReportIds));
+        const changingRows = beforeRows.filter((row) => row.status !== status);
+        if (changingRows.length === 0) return { updated: 0 };
+
+        const updatedRows = await tx
+          .update(siteAdminReports)
+          .set({
+            status,
+            resolvedByUserId: terminal ? actorUserId : null,
+            resolvedAt: terminal ? new Date() : null,
+          })
+          .where(
+            inArray(
+              siteAdminReports.id,
+              changingRows.map((row) => row.id),
+            ),
+          )
+          .returning({
+            id: siteAdminReports.id,
+            status: siteAdminReports.status,
+          });
+
+        for (const updated of updatedRows) {
+          const before = beforeRows.find((row) => row.id === updated.id);
+          if (!before) continue;
+          await recordAdminAuditEvent(
+            {
+              actorUserId,
+              action: "report.status.update",
+              target: {
+                targetType: "report",
+                targetId: updated.id,
+                targetReportId: updated.id,
+              },
+              before: { status: before.status },
+              after: { status: updated.status },
+              metadata: { reportTitle: before.title },
+            },
+            tx,
+          );
+        }
+
+        return { updated: updatedRows.length };
+      });
+
+      return c.json({ updated: result.updated });
     },
   )
   .patch(

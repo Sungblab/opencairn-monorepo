@@ -39,20 +39,20 @@ describe("useTabModeShortcut", () => {
     useTabsStore.getState().setWorkspace("ws");
   });
 
-  it("⌘⇧R toggles plate → reading", () => {
+  it("does not intercept Ctrl/Cmd+Shift+R from plate mode", () => {
     useTabsStore.getState().addTab(mk({ mode: "plate" }));
     renderHook(() => useTabModeShortcut());
     useTabsStore.getState().setActive("a");
     act(() => press("R", { shift: true }));
-    expect(useTabsStore.getState().tabs[0].mode).toBe("reading");
+    expect(useTabsStore.getState().tabs[0].mode).toBe("plate");
   });
 
-  it("⌘⇧R toggles reading → plate", () => {
+  it("does not intercept Ctrl/Cmd+Shift+R from reading mode", () => {
     useTabsStore.getState().addTab(mk({ mode: "reading" }));
     renderHook(() => useTabModeShortcut());
     useTabsStore.getState().setActive("a");
     act(() => press("R", { shift: true }));
-    expect(useTabsStore.getState().tabs[0].mode).toBe("plate");
+    expect(useTabsStore.getState().tabs[0].mode).toBe("reading");
   });
 
   it("is a no-op when active tab is source/data/stub", () => {

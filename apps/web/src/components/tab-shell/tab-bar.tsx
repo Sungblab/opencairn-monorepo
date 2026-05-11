@@ -1,4 +1,5 @@
 "use client";
+
 import { useCallback, useState } from "react";
 import { Plus } from "lucide-react";
 import { useParams } from "next/navigation";
@@ -29,7 +30,7 @@ export function TabBar() {
       className="flex h-10 shrink-0 items-stretch border-b border-border bg-surface"
     >
       <div
-        className="flex min-w-0 flex-1 overflow-x-auto"
+        className="app-scrollbar-thin flex min-w-0 flex-1 overflow-x-auto"
         onPointerEnter={requestSorting}
         onFocusCapture={requestSorting}
       >

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { db, notes, projectTreeNodes, eq } from "@opencairn/db";
+import { agentFiles, db, notes, projectTreeNodes, eq } from "@opencairn/db";
 import { createApp } from "../src/app.js";
 import { labelFromId } from "../src/lib/tree-queries.js";
 import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
@@ -90,7 +90,9 @@ describe("unified project tree routes", () => {
       { userId: seed.userId },
     );
 
-    expect(res.status).toBe(200);
+    if (res.status !== 200) {
+      throw new Error(await res.text());
+    }
     const body = await res.json();
     expect(body.nodes).toMatchObject([
       {
@@ -124,11 +126,80 @@ describe("unified project tree routes", () => {
       body: JSON.stringify({ parentId: null, position: 0 }),
     });
 
-    expect(res.status).toBe(200);
+    if (res.status !== 200) {
+      throw new Error(await res.text());
+    }
     const [note] = await db
       .select({ folderId: notes.folderId })
       .from(notes)
       .where(eq(notes.id, child.noteId));
     expect(note.folderId).toBeNull();
+  });
+
+  it("deletes tree-only bundles even when a child target file is already deleted", async () => {
+    const bundleNodeId = randomUUID();
+    const fileId = randomUUID();
+    await db.insert(projectTreeNodes).values({
+      id: bundleNodeId,
+      workspaceId: seed.workspaceId,
+      projectId: seed.projectId,
+      parentId: null,
+      kind: "source_bundle",
+      label: "week-1.pdf",
+      icon: "file-pdf",
+      path: labelFromId(bundleNodeId),
+      metadata: {},
+    });
+    await db.insert(agentFiles).values({
+      id: fileId,
+      workspaceId: seed.workspaceId,
+      projectId: seed.projectId,
+      createdBy: seed.userId,
+      title: "week-1.pdf",
+      filename: "week-1.pdf",
+      extension: "pdf",
+      kind: "pdf",
+      mimeType: "application/pdf",
+      objectKey: "test/week-1.pdf",
+      bytes: 12,
+      contentHash: "hash",
+      source: "manual",
+      versionGroupId: randomUUID(),
+      version: 1,
+      deletedAt: new Date(),
+    });
+    await db.insert(projectTreeNodes).values({
+      id: fileId,
+      workspaceId: seed.workspaceId,
+      projectId: seed.projectId,
+      parentId: bundleNodeId,
+      kind: "agent_file",
+      targetTable: "agent_files",
+      targetId: fileId,
+      label: "week-1.pdf",
+      icon: "file-pdf",
+      path: `${labelFromId(bundleNodeId)}.${labelFromId(fileId)}`,
+      metadata: {},
+    });
+
+    const res = await authedFetch(`/api/tree/nodes/${fileId}`, {
+      userId: seed.userId,
+      method: "DELETE",
+    });
+
+    if (res.status !== 200) {
+      throw new Error(await res.text());
+    }
+    const [node] = await db
+      .select({ deletedAt: projectTreeNodes.deletedAt })
+      .from(projectTreeNodes)
+      .where(eq(projectTreeNodes.id, fileId));
+    expect(node.deletedAt).toEqual(expect.any(Date));
+
+    const [target] = await db
+      .select({ id: agentFiles.id })
+      .from(agentFiles)
+      .where(eq(agentFiles.id, fileId));
+    expect(target.id).toBe(fileId);
   });
 });

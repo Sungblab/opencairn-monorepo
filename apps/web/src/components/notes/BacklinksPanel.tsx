@@ -49,7 +49,7 @@ export function BacklinksPanel({ noteId }: Props) {
   return (
     <aside
       aria-label={t("toggleAria")}
-      className="flex h-full w-72 flex-col gap-2 overflow-y-auto border-l border-border bg-background p-3"
+      className="app-scrollbar-thin flex h-full w-72 flex-col gap-2 overflow-y-auto border-l border-border bg-background p-3"
     >
       <header className="flex items-baseline justify-between">
         <h3 className="text-sm font-semibold">{t("title")}</h3>

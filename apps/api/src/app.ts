@@ -120,6 +120,7 @@ export function createApp() {
   // Mounted alongside /api/threads (specific path) so the wildcard /api routers
   // below don't intercept this with their own requireAuth chains.
   app.route("/api/message-feedback", messageFeedbackRoutes);
+  app.route("/api/canvas", canvasRoutes);
   app.route("/api/mcp/servers", mcpRoutes);
   app.route("/api/mcp", mcpServerRoutes);
   app.route("/.well-known/oauth-protected-resource", mcpProtectedResourceRoutes);
@@ -164,7 +165,6 @@ export function createApp() {
   app.route("/api/curator", curatorRoutes);
   app.route("/api/connector", connectorRoutes);
   app.route("/api/agents/temporal", stalenessRoutes);
-  app.route("/api/canvas", canvasRoutes);
   app.route("/api/users", userRoutes);
   app.route("/api/notifications", notificationRoutes);
   app.route("/api/notification-preferences", notificationPreferenceRoutes);

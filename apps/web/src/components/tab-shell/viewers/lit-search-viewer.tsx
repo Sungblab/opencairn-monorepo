@@ -129,7 +129,7 @@ export function LitSearchViewer({ tab }: LitSearchViewerProps) {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="app-scrollbar-thin flex-1 overflow-y-auto">
         {papers.length === 0 && !loading && (
           <p className="text-sm text-muted-foreground text-center mt-8">
             {t("search.noResults")}

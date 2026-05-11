@@ -3,10 +3,24 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Tree, type NodeApi, type TreeApi } from "react-arborist";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocale } from "next-intl";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { urls } from "@/lib/urls";
+import { tabToUrl } from "@/lib/tab-url";
+import { useTabsStore } from "@/stores/tabs-store";
+import { Button } from "@/components/ui/button";
+import { DownloadCloud, UploadCloud } from "lucide-react";
+import { openIngestTab } from "@/components/ingest/open-ingest-tab";
+import { openOriginalFileTab } from "@/components/ingest/open-original-file-tab";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   treeQueryKey,
   useProjectTree,
@@ -15,6 +29,8 @@ import {
 import { useSidebarStore } from "@/stores/sidebar-store";
 import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
 import { useTypeAhead } from "@/hooks/use-tree-keyboard";
+import { useIngestUpload } from "@/hooks/use-ingest-upload";
+import { dataTransferHasFiles } from "@/lib/project-tree-dnd";
 import { ProjectTreeNode } from "./project-tree-node";
 import {
   ProjectTreeContext,
@@ -108,17 +124,41 @@ async function persistRename(
   if (!res.ok) throw new Error(`tree rename ${res.status}`);
 }
 
-async function persistDelete(id: string, kind: TreeNode["kind"]) {
+async function persistDelete(
+  id: string,
+  kind: TreeNode["kind"],
+  targetId?: string | null,
+) {
+  const resourceId = kind === "note" ? (targetId ?? id) : id;
   const url =
     kind === "folder"
       ? `/api/folders/${id}`
-      : kind === "agent_file"
-        ? `/api/agent-files/${id}`
-        : kind === "code_workspace"
-          ? `/api/code-workspaces/${id}`
+    : kind === "note"
+        ? `/api/notes/${resourceId}`
+        : kind === "agent_file" ||
+            kind === "code_workspace" ||
+            kind === "source_bundle" ||
+            kind === "artifact_group" ||
+            kind === "artifact"
+          ? `/api/tree/nodes/${id}`
         : `/api/notes/${id}`;
   const res = await fetch(url, { method: "DELETE", credentials: "include" });
   if (!res.ok) throw new Error(`${kind} delete ${res.status}`);
+}
+
+export function closeDeletedNoteTabs(noteId: string) {
+  const tabsStore = useTabsStore.getState();
+  const deletedTabs = tabsStore.tabs.filter(
+    (tab) => tab.kind === "note" && tab.targetId === noteId,
+  );
+  const closedActive = deletedTabs.some((tab) => tab.id === tabsStore.activeId);
+  for (const tab of deletedTabs) {
+    useTabsStore.getState().closeTab(tab.id);
+  }
+  const nextStore = useTabsStore.getState();
+  const nextActive =
+    nextStore.tabs.find((tab) => tab.id === nextStore.activeId) ?? null;
+  return { closedActive, closedCount: deletedTabs.length, nextActive };
 }
 
 async function persistCreateFolder(
@@ -158,12 +198,22 @@ export function ProjectTree({
 }: ProjectTreeProps) {
   const { roots, loadChildren } = useProjectTree({ projectId });
   const router = useRouter();
+  const pathname = usePathname() ?? "";
   const locale = useLocale();
   const expanded = useSidebarStore((s) => s.expanded);
   const qc = useQueryClient();
   const t = useTranslations("sidebar.tree_menu");
   const tSidebar = useTranslations("sidebar");
   const tToast = useTranslations("sidebar.toasts");
+  const tCommon = useTranslations("common.actions");
+  const tUpload = useTranslations("sidebar.upload");
+  const { upload } = useIngestUpload();
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    kind: TreeNode["kind"];
+    label: string;
+    targetId?: string | null;
+  } | null>(null);
   const [treeRefresh, setTreeRefresh] = useState(0);
   const data = useMemo(
     () =>
@@ -174,7 +224,11 @@ export function ProjectTree({
   );
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [typeAheadBuf, setTypeAheadBuf] = useState("");
+  const [fileDropActive, setFileDropActive] = useState(false);
+  const [pendingUploadFile, setPendingUploadFile] = useState<File | null>(null);
+  const [uploadError, setUploadError] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const fileDropDepthRef = useRef(0);
   const treeRef = useRef<TreeApi<TreeNode> | null>(null);
 
   // react-arborist's virtualization needs a concrete pixel height. When the
@@ -255,22 +309,45 @@ export function ProjectTree({
   );
 
   const handleDelete = useCallback(
-    (id: string, kind: TreeNode["kind"], label: string) => {
-      if (typeof window === "undefined") return;
-      const confirmed = window.confirm(t("confirm_delete", { label }));
-      if (!confirmed) return;
-      void (async () => {
-        try {
-          await persistDelete(id, kind);
-        } catch (err) {
-          console.error("project tree delete failed", err);
-          toast.error(tToast("delete_failed"));
-          qc.invalidateQueries({ queryKey: ["project-tree", projectId] });
-        }
-      })();
+    (
+      id: string,
+      kind: TreeNode["kind"],
+      label: string,
+      targetId?: string | null,
+    ) => {
+      setPendingDelete({ id, kind, label, targetId });
     },
-    [projectId, qc, t, tToast],
+    [],
   );
+
+  const confirmDelete = useCallback(() => {
+    const target = pendingDelete;
+    if (!target) return;
+    setPendingDelete(null);
+    void (async () => {
+      try {
+        await persistDelete(target.id, target.kind, target.targetId);
+        const deletedNoteId =
+          target.kind === "note" ? (target.targetId ?? target.id) : null;
+        if (deletedNoteId) {
+          const { closedActive, nextActive } =
+            closeDeletedNoteTabs(deletedNoteId);
+          const viewingDeletedNote = pathname.includes(`/note/${deletedNoteId}`);
+          if (closedActive || viewingDeletedNote) {
+            router.push(
+              nextActive
+                ? tabToUrl(workspaceSlug, nextActive, locale)
+                : urls.workspace.project(locale, workspaceSlug, projectId),
+            );
+          }
+        }
+      } catch (err) {
+        console.error("project tree delete failed", err);
+        toast.error(tToast("delete_failed"));
+        qc.invalidateQueries({ queryKey: ["project-tree", projectId] });
+      }
+    })();
+  }, [pendingDelete, projectId, qc, tToast]);
 
   const handleCreateFolder = useCallback(
     (parentId: string | null) => {
@@ -305,7 +382,7 @@ export function ProjectTree({
           const note = await persistCreateNote(
             projectId,
             parentId,
-            tSidebar("untitled"),
+            "",
           );
           if (parentId && !useSidebarStore.getState().isExpanded(parentId)) {
             useSidebarStore.getState().toggleExpanded(parentId);
@@ -321,7 +398,28 @@ export function ProjectTree({
         }
       })();
     },
-    [projectId, workspaceSlug, locale, router, qc, loadChildren, tSidebar, tToast],
+    [projectId, workspaceSlug, locale, router, qc, loadChildren, tToast],
+  );
+
+  const startUpload = useCallback(
+    async (file: File | null) => {
+      if (!file) return;
+      setUploadError(false);
+      try {
+        const result = await upload(file, projectId);
+        openIngestTab(result.workflowId, file.name);
+        if (result.originalFileId) {
+          openOriginalFileTab(result.originalFileId, file.name);
+        }
+        await qc.invalidateQueries({ queryKey: ["project-tree", projectId] });
+        setPendingUploadFile(null);
+      } catch (err) {
+        console.error("project tree file drop upload failed", err);
+        setUploadError(true);
+        toast.error(tUpload("error"));
+      }
+    },
+    [projectId, qc, tUpload, upload],
   );
 
   const ctxValue: ProjectTreeCtxValue = useMemo(
@@ -355,7 +453,12 @@ export function ProjectTree({
       const active = document.activeElement as HTMLElement | null;
       if (active?.closest("input, textarea, [contenteditable]")) return;
     }
-    handleDelete(focused.data.id, focused.data.kind, focused.data.label);
+    handleDelete(
+      focused.data.id,
+      focused.data.kind,
+      focused.data.label,
+      focused.data.target_id,
+    );
   });
 
   return (
@@ -363,10 +466,45 @@ export function ProjectTree({
       <div
         ref={containerRef}
         tabIndex={0}
-        className="min-h-0 flex-1 overflow-hidden outline-none"
+        className="relative min-h-0 flex-1 overflow-hidden outline-none"
         data-testid="project-tree"
         data-project-id={projectId}
+        onDragEnter={(event) => {
+          if (!dataTransferHasFiles(event.dataTransfer)) return;
+          event.preventDefault();
+          fileDropDepthRef.current += 1;
+          setFileDropActive(true);
+        }}
+        onDragOver={(event) => {
+          if (!dataTransferHasFiles(event.dataTransfer)) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+        }}
+        onDragLeave={(event) => {
+          if (!dataTransferHasFiles(event.dataTransfer)) return;
+          fileDropDepthRef.current = Math.max(0, fileDropDepthRef.current - 1);
+          if (fileDropDepthRef.current === 0) setFileDropActive(false);
+        }}
+        onDrop={(event) => {
+          if (!dataTransferHasFiles(event.dataTransfer)) return;
+          event.preventDefault();
+          fileDropDepthRef.current = 0;
+          setFileDropActive(false);
+          setUploadError(false);
+          setPendingUploadFile(Array.from(event.dataTransfer.files)[0] ?? null);
+        }}
       >
+        {fileDropActive ? (
+          <div
+            data-testid="project-tree-drop-overlay"
+            className="pointer-events-none absolute inset-0 z-10 grid place-items-center border-2 border-dashed border-foreground bg-background/85 text-sm font-medium text-foreground"
+          >
+            <span className="inline-flex items-center gap-2">
+              <DownloadCloud aria-hidden className="h-4 w-4" />
+              {tUpload("drop")}
+            </span>
+          </div>
+        ) : null}
         <Tree<TreeNode>
           ref={treeRef}
           data={data}
@@ -381,6 +519,77 @@ export function ProjectTree({
           {ProjectTreeNode}
         </Tree>
       </div>
+      <Dialog
+        open={Boolean(pendingDelete)}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+      >
+        <DialogContent showCloseButton={false} className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("confirm_delete_title")}</DialogTitle>
+            <DialogDescription>
+              {t("confirm_delete_body", {
+                label: pendingDelete?.label ?? "",
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPendingDelete(null)}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button type="button" variant="destructive" onClick={confirmDelete}>
+              {tCommon("delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={Boolean(pendingUploadFile)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingUploadFile(null);
+            setUploadError(false);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{tUpload("title")}</DialogTitle>
+            <DialogDescription>{tUpload("description")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex min-h-32 flex-col items-center justify-center gap-2 rounded-[var(--radius-card)] border border-dashed border-border bg-muted/20 px-4 text-center text-sm">
+              <UploadCloud aria-hidden className="h-7 w-7 text-muted-foreground" />
+              <span className="font-medium">
+                {pendingUploadFile
+                  ? tUpload("selected", { name: pendingUploadFile.name })
+                  : tUpload("drop")}
+              </span>
+              <span className="max-w-sm text-xs leading-5 text-muted-foreground">
+                {tUpload("hint")}
+              </span>
+            </div>
+            {uploadError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {tUpload("error")}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              disabled={!pendingUploadFile}
+              onClick={() => void startUpload(pendingUploadFile)}
+              className="inline-flex min-h-10 w-full items-center justify-center rounded bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {tUpload("start")}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </ProjectTreeContext.Provider>
   );
 }

@@ -7,6 +7,7 @@ import {
   moveTreeNode,
   renameTreeNode,
   resolveProjectForNode,
+  softDeleteTreeNode,
 } from "../lib/project-tree-service";
 import { emitTreeEvent } from "../lib/tree-events";
 import { isUuid } from "../lib/validators";
@@ -80,6 +81,33 @@ export const projectTreeRoutes = new Hono<AppEnv>()
         at: new Date().toISOString(),
       });
       return c.json({ node: updated });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 400);
+    }
+  })
+  .delete("/nodes/:id", async (c) => {
+    const user = c.get("user");
+    const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "bad_request" }, 400);
+    const node = await resolveProjectForNode(id);
+    if (!node) return c.json({ error: "not_found" }, 404);
+    if (!(await canWrite(user.id, { type: "project", id: node.projectId }))) {
+      return c.json({ error: "forbidden" }, 403);
+    }
+
+    try {
+      await softDeleteTreeNode({
+        projectId: node.projectId,
+        nodeId: id,
+      });
+      emitTreeEvent({
+        kind: "tree.node_deleted",
+        projectId: node.projectId,
+        id,
+        parentId: node.parentId,
+        at: new Date().toISOString(),
+      });
+      return c.json({ success: true });
     } catch (err) {
       return c.json({ error: (err as Error).message }, 400);
     }

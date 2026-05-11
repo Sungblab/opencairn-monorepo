@@ -68,7 +68,10 @@ function asRows<T>(result: unknown): T[] {
   return maybe.rows ?? [];
 }
 
-export async function ensureProjectTreeBackfill(projectId: string, conn: Conn = db): Promise<void> {
+export async function ensureProjectTreeBackfill(
+  projectId: string,
+  conn: Conn = db,
+): Promise<void> {
   await conn.execute(sql`
     INSERT INTO project_tree_nodes (
       id, workspace_id, project_id, parent_id, kind, target_table, target_id,
@@ -208,27 +211,62 @@ export async function listTreeChildren(input: {
       WHERE project_id = ${input.projectId}::uuid
         AND parent_id IS NOT NULL
         AND deleted_at IS NULL
+        AND NOT (kind = 'agent_file' AND metadata->>'role' = 'original')
       GROUP BY parent_id
     )
     SELECT
       n.kind::text AS "kind",
       n.id AS "id",
       n.parent_id AS "parentId",
-      n.label AS "label",
+      COALESCE(
+        NULLIF(nt.title, ''),
+        NULLIF(f.name, ''),
+        NULLIF(af.title, ''),
+        NULLIF(cw.name, ''),
+        n.label
+      ) AS "label",
       n.path::text AS "pathText",
       COALESCE(cc.child_count, 0) AS "childCount",
-      n.target_table::text AS "targetTable",
-      n.target_id AS "targetId",
+      CASE
+        WHEN n.kind = 'source_bundle' AND original_af.id IS NOT NULL THEN 'agent_files'
+        ELSE n.target_table::text
+      END AS "targetTable",
+      CASE
+        WHEN n.kind = 'source_bundle' AND original_af.id IS NOT NULL THEN original_af.id
+        ELSE n.target_id
+      END AS "targetId",
       n.icon AS "icon",
       n.metadata AS "metadata",
-      CASE WHEN n.target_table = 'agent_files' THEN af.kind ELSE NULL END AS "fileKind",
-      CASE WHEN n.target_table = 'agent_files' THEN af.mime_type ELSE NULL END AS "mimeType"
+      CASE
+        WHEN n.target_table = 'agent_files' THEN af.kind
+        WHEN n.kind = 'source_bundle' THEN original_af.kind
+        ELSE NULL
+      END AS "fileKind",
+      CASE
+        WHEN n.target_table = 'agent_files' THEN af.mime_type
+        WHEN n.kind = 'source_bundle' THEN original_af.mime_type
+        ELSE NULL
+      END AS "mimeType"
     FROM project_tree_nodes n
+    LEFT JOIN notes nt ON n.target_table = 'notes' AND nt.id = n.target_id
+    LEFT JOIN folders f ON n.target_table = 'folders' AND f.id = n.target_id
     LEFT JOIN agent_files af ON n.target_table = 'agent_files' AND af.id = n.target_id
+    LEFT JOIN code_workspaces cw ON n.target_table = 'code_workspaces' AND cw.id = n.target_id
+    LEFT JOIN project_tree_nodes original_node
+      ON n.kind = 'source_bundle'
+     AND original_node.parent_id = n.id
+     AND original_node.kind = 'agent_file'
+     AND original_node.metadata->>'role' = 'original'
+     AND original_node.deleted_at IS NULL
+    LEFT JOIN agent_files original_af
+      ON original_node.target_table = 'agent_files'
+     AND original_af.id = original_node.target_id
+     AND original_af.deleted_at IS NULL
     LEFT JOIN child_counts cc ON cc.parent_id = n.id
     WHERE n.project_id = ${input.projectId}::uuid
       AND ${parentPredicate}
       AND n.deleted_at IS NULL
+      AND NOT (n.kind = 'agent_file' AND n.metadata->>'role' = 'original')
     ORDER BY n.position ASC, n.created_at ASC
   `);
 
@@ -247,7 +285,10 @@ export async function listTreeChildrenForParents(input: {
     grouped.set(parentId, []);
   }
   if (input.parentIds.length === 0) return grouped;
-  const quoted = sql.join(input.parentIds.map((id) => sql`${id}::uuid`), sql`, `);
+  const quoted = sql.join(
+    input.parentIds.map((id) => sql`${id}::uuid`),
+    sql`, `,
+  );
   const result = await db.execute<RawProjectTreeRow>(sql`
     WITH child_counts AS (
       SELECT parent_id, COUNT(*)::int AS child_count
@@ -255,27 +296,62 @@ export async function listTreeChildrenForParents(input: {
       WHERE project_id = ${input.projectId}::uuid
         AND parent_id IS NOT NULL
         AND deleted_at IS NULL
+        AND NOT (kind = 'agent_file' AND metadata->>'role' = 'original')
       GROUP BY parent_id
     )
     SELECT
       n.kind::text AS "kind",
       n.id AS "id",
       n.parent_id AS "parentId",
-      n.label AS "label",
+      COALESCE(
+        NULLIF(nt.title, ''),
+        NULLIF(f.name, ''),
+        NULLIF(af.title, ''),
+        NULLIF(cw.name, ''),
+        n.label
+      ) AS "label",
       n.path::text AS "pathText",
       COALESCE(cc.child_count, 0) AS "childCount",
-      n.target_table::text AS "targetTable",
-      n.target_id AS "targetId",
+      CASE
+        WHEN n.kind = 'source_bundle' AND original_af.id IS NOT NULL THEN 'agent_files'
+        ELSE n.target_table::text
+      END AS "targetTable",
+      CASE
+        WHEN n.kind = 'source_bundle' AND original_af.id IS NOT NULL THEN original_af.id
+        ELSE n.target_id
+      END AS "targetId",
       n.icon AS "icon",
       n.metadata AS "metadata",
-      CASE WHEN n.target_table = 'agent_files' THEN af.kind ELSE NULL END AS "fileKind",
-      CASE WHEN n.target_table = 'agent_files' THEN af.mime_type ELSE NULL END AS "mimeType"
+      CASE
+        WHEN n.target_table = 'agent_files' THEN af.kind
+        WHEN n.kind = 'source_bundle' THEN original_af.kind
+        ELSE NULL
+      END AS "fileKind",
+      CASE
+        WHEN n.target_table = 'agent_files' THEN af.mime_type
+        WHEN n.kind = 'source_bundle' THEN original_af.mime_type
+        ELSE NULL
+      END AS "mimeType"
     FROM project_tree_nodes n
+    LEFT JOIN notes nt ON n.target_table = 'notes' AND nt.id = n.target_id
+    LEFT JOIN folders f ON n.target_table = 'folders' AND f.id = n.target_id
     LEFT JOIN agent_files af ON n.target_table = 'agent_files' AND af.id = n.target_id
+    LEFT JOIN code_workspaces cw ON n.target_table = 'code_workspaces' AND cw.id = n.target_id
+    LEFT JOIN project_tree_nodes original_node
+      ON n.kind = 'source_bundle'
+     AND original_node.parent_id = n.id
+     AND original_node.kind = 'agent_file'
+     AND original_node.metadata->>'role' = 'original'
+     AND original_node.deleted_at IS NULL
+    LEFT JOIN agent_files original_af
+      ON original_node.target_table = 'agent_files'
+     AND original_af.id = original_node.target_id
+     AND original_af.deleted_at IS NULL
     LEFT JOIN child_counts cc ON cc.parent_id = n.id
     WHERE n.project_id = ${input.projectId}::uuid
       AND n.parent_id IN (${quoted})
       AND n.deleted_at IS NULL
+      AND NOT (n.kind = 'agent_file' AND n.metadata->>'role' = 'original')
     ORDER BY n.position ASC, n.created_at ASC
   `);
   for (const row of asRows<RawProjectTreeRow>(result)) {
@@ -285,26 +361,32 @@ export async function listTreeChildrenForParents(input: {
   return grouped;
 }
 
-export async function createTreeNode(input: {
-  id?: string;
-  workspaceId: string;
-  projectId: string;
-  parentId: string | null;
-  kind: ProjectTreeNodeKind;
-  targetTable?: ProjectTreeTargetTable | null;
-  targetId?: string | null;
-  label: string;
-  icon?: string | null;
-  position?: number;
-  sourceWorkflowId?: string | null;
-  sourceObjectKey?: string | null;
-  metadata?: Record<string, unknown>;
-}, conn: Conn = db) {
+export async function createTreeNode(
+  input: {
+    id?: string;
+    workspaceId: string;
+    projectId: string;
+    parentId: string | null;
+    kind: ProjectTreeNodeKind;
+    targetTable?: ProjectTreeTargetTable | null;
+    targetId?: string | null;
+    label: string;
+    icon?: string | null;
+    position?: number;
+    sourceWorkflowId?: string | null;
+    sourceObjectKey?: string | null;
+    metadata?: Record<string, unknown>;
+  },
+  conn: Conn = db,
+) {
   const id = input.id ?? randomUUID();
   let parentPath: string | null = null;
   if (input.parentId) {
     const [parent] = await conn
-      .select({ path: projectTreeNodes.path, projectId: projectTreeNodes.projectId })
+      .select({
+        path: projectTreeNodes.path,
+        projectId: projectTreeNodes.projectId,
+      })
       .from(projectTreeNodes)
       .where(eq(projectTreeNodes.id, input.parentId));
     if (!parent || parent.projectId !== input.projectId) {
@@ -457,6 +539,94 @@ export async function renameTreeNode(input: {
   });
 }
 
+export async function softDeleteTreeNode(input: {
+  projectId: string;
+  nodeId: string;
+}) {
+  return db.transaction(async (tx) => {
+    const [current] = await tx
+      .select()
+      .from(projectTreeNodes)
+      .where(
+        and(
+          eq(projectTreeNodes.id, input.nodeId),
+          eq(projectTreeNodes.projectId, input.projectId),
+        ),
+      );
+    if (!current || current.deletedAt) throw new Error("tree node not found");
+
+    const descendants = asRows<{
+      id: string;
+      targetTable: ProjectTreeTargetTable | null;
+      targetId: string | null;
+    }>(
+      await tx.execute(sql`
+        SELECT id, target_table::text AS "targetTable", target_id AS "targetId"
+          FROM project_tree_nodes
+         WHERE project_id = ${input.projectId}::uuid
+           AND path <@ ${current.path}::ltree
+           AND deleted_at IS NULL
+      `),
+    );
+    const deletedAt = new Date();
+    const deletedAtSql = deletedAt.toISOString();
+
+    await tx.execute(sql`
+      UPDATE project_tree_nodes
+         SET deleted_at = ${deletedAtSql}::timestamptz
+       WHERE project_id = ${input.projectId}::uuid
+         AND path <@ ${current.path}::ltree
+         AND deleted_at IS NULL
+    `);
+
+    const targetIds = (targetTable: ProjectTreeTargetTable) =>
+      descendants
+        .filter((node) => node.targetTable === targetTable && node.targetId)
+        .map((node) => node.targetId!);
+
+    const noteIds = targetIds("notes");
+    if (noteIds.length > 0) {
+      await tx
+        .update(notes)
+        .set({ deletedAt })
+        .where(
+          sql`${notes.id} IN (${sql.join(
+            noteIds.map((id) => sql`${id}::uuid`),
+            sql`, `,
+          )})`,
+        );
+    }
+
+    const agentFileIds = targetIds("agent_files");
+    if (agentFileIds.length > 0) {
+      await tx
+        .update(agentFiles)
+        .set({ deletedAt })
+        .where(
+          sql`${agentFiles.id} IN (${sql.join(
+            agentFileIds.map((id) => sql`${id}::uuid`),
+            sql`, `,
+          )})`,
+        );
+    }
+
+    const codeWorkspaceIds = targetIds("code_workspaces");
+    if (codeWorkspaceIds.length > 0) {
+      await tx
+        .update(codeWorkspaces)
+        .set({ deletedAt })
+        .where(
+          sql`${codeWorkspaces.id} IN (${sql.join(
+            codeWorkspaceIds.map((id) => sql`${id}::uuid`),
+            sql`, `,
+          )})`,
+        );
+    }
+
+    return current;
+  });
+}
+
 export async function createSourceBundleForUpload(input: {
   workspaceId: string;
   projectId: string;
@@ -468,28 +638,6 @@ export async function createSourceBundleForUpload(input: {
   bytes: Buffer;
 }) {
   return db.transaction(async (tx) => {
-    const bundle = await createTreeNode(
-      {
-        workspaceId: input.workspaceId,
-        projectId: input.projectId,
-        parentId: null,
-        kind: "source_bundle",
-        label: input.fileName,
-        icon: input.mimeType === "application/pdf" ? "file-pdf" : "file",
-        sourceWorkflowId: input.workflowId,
-        sourceObjectKey: input.objectKey,
-        metadata: {
-          sourceType: input.mimeType === "application/pdf" ? "pdf" : "upload",
-          mimeType: input.mimeType,
-          objectKey: input.objectKey,
-          fileName: input.fileName,
-          status: "running",
-          workflowId: input.workflowId,
-        },
-      },
-      tx,
-    );
-
     const extension = input.fileName.includes(".")
       ? input.fileName.split(".").pop() || "bin"
       : "bin";
@@ -520,13 +668,12 @@ export async function createSourceBundleForUpload(input: {
       .returning();
     if (!file) throw new Error("failed to create original upload file");
 
-    const original = await createTreeNode(
+    const bundle = await createTreeNode(
       {
         workspaceId: input.workspaceId,
         projectId: input.projectId,
-        parentId: bundle.id,
-        kind: "agent_file",
-        id: file.id,
+        parentId: null,
+        kind: "source_bundle",
         targetTable: "agent_files",
         targetId: file.id,
         label: input.fileName,
@@ -534,10 +681,14 @@ export async function createSourceBundleForUpload(input: {
         sourceWorkflowId: input.workflowId,
         sourceObjectKey: input.objectKey,
         metadata: {
-          role: "original",
+          sourceType: input.mimeType === "application/pdf" ? "pdf" : "upload",
+          objectKey: input.objectKey,
+          fileName: input.fileName,
+          status: "running",
+          workflowId: input.workflowId,
+          originalFileId: file.id,
           fileKind: file.kind,
           mimeType: file.mimeType,
-          filename: file.filename,
         },
       },
       tx,
@@ -588,7 +739,7 @@ export async function createSourceBundleForUpload(input: {
 
     return {
       bundleNodeId: bundle.id,
-      originalFileNodeId: original.id,
+      originalFileNodeId: file.id,
       originalFileId: file.id,
       parsedGroupNodeId: parsed.id,
       figuresGroupNodeId: figures.id,
@@ -602,7 +753,10 @@ async function mirrorLegacyParent(
   input: {
     targetTable: ProjectTreeTargetTable | null;
     targetId: string | null;
-    parent: { targetTable: ProjectTreeTargetTable | null; targetId: string | null } | null;
+    parent: {
+      targetTable: ProjectTreeTargetTable | null;
+      targetId: string | null;
+    } | null;
   },
 ): Promise<void> {
   if (!input.targetTable || !input.targetId) return;

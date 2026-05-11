@@ -41,7 +41,7 @@ export function VersionPreview({
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto p-6">
+    <div className="app-scrollbar-thin min-h-0 flex-1 overflow-auto p-6">
       <h2 className="mb-4 text-lg font-semibold">{version.title}</h2>
       <PlateStaticRenderer
         value={Array.isArray(version.content) ? version.content : []}

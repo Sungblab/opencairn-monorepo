@@ -192,7 +192,7 @@ export function CanvasViewer({ tab }: { tab: Tab }) {
           </div>
         </div>
         <div className="flex-1 flex flex-col min-w-0">
-          <div className="flex-1 p-3 overflow-auto">
+          <div className="app-scrollbar-thin flex-1 overflow-auto p-3">
             {tooLarge ? (
               <div className="text-destructive text-sm">
                 {t("errors.sourceTooLarge")}

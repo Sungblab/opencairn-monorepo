@@ -1,4 +1,4 @@
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useUrlTabSync } from "./use-url-tab-sync";
 import { useTabsStore, type Tab } from "@/stores/tabs-store";
@@ -23,6 +23,7 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
 
 describe("useUrlTabSync", () => {
   beforeEach(() => {
+    vi.unstubAllGlobals();
     localStorage.clear();
     useTabsStore.setState(useTabsStore.getInitialState(), true);
     push.mockClear();
@@ -75,6 +76,22 @@ describe("useUrlTabSync", () => {
     const s = useTabsStore.getState();
     expect(s.tabs).toHaveLength(1);
     expect(s.tabs[0].preview).toBe(true);
+  });
+
+  it("hydrates note tab title from note metadata", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({ title: "회의록" }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderHook(() => useUrlTabSync(), { wrapper });
+
+    await waitFor(() => {
+      expect(useTabsStore.getState().tabs[0]?.title).toBe("회의록");
+    });
+    expect(fetchMock).toHaveBeenCalledWith("/api/notes/n-1", {
+      credentials: "include",
+    });
   });
 
   it("replaces an existing preview tab when navigating to another note", () => {

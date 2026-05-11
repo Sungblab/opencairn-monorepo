@@ -15,6 +15,7 @@ export function WorkbenchActivityStack() {
   const runs = useMemo(
     () =>
       Object.values(runsById)
+        .filter((run) => run.status === "running")
         .sort((a, b) => b.startedAt - a.startedAt)
         .slice(0, MAX_VISIBLE_RUNS),
     [runsById],

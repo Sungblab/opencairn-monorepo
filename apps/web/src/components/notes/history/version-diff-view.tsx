@@ -54,7 +54,7 @@ export function VersionDiffView({
   const changedBlocks = diff.blocks.filter((b) => b.status !== "unchanged");
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto p-6">
+    <div className="app-scrollbar-thin min-h-0 flex-1 overflow-auto p-6">
       <div className="mb-4 grid grid-cols-2 gap-2 text-xs md:grid-cols-5">
         <SummaryCell
           label={labels.addedBlocks}
@@ -113,7 +113,7 @@ export function VersionDiffView({
                   ))}
                 </p>
               ) : (
-                <pre className="overflow-auto whitespace-pre-wrap rounded bg-muted p-2 text-xs">
+                <pre className="app-scrollbar-thin overflow-auto whitespace-pre-wrap rounded bg-muted p-2 text-xs">
                   {JSON.stringify(block.after ?? block.before, null, 2)}
                 </pre>
               )}

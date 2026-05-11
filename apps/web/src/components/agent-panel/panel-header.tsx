@@ -31,10 +31,9 @@ export function PanelHeader({
   const togglePanel = usePanelStore((s) => s.toggleAgentPanel);
 
   return (
-    <div className="flex min-h-12 items-center justify-between border-b border-border bg-background/70 px-3">
+    <div className="flex min-h-10 items-center justify-between border-b border-border bg-background/70 px-3">
       <div>
         <span className="text-sm font-semibold">{t("title")}</span>
-        <p className="text-[11px] text-muted-foreground">{t("subtitle")}</p>
       </div>
       <div className="flex items-center gap-1">
         <button
@@ -53,7 +52,11 @@ export function PanelHeader({
           >
             <MoreHorizontal className="h-4 w-4" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-80 p-0">
+          <DropdownMenuContent
+            align="end"
+            sideOffset={8}
+            className="w-[min(18rem,calc(100vw-1rem))] p-0"
+          >
             <ThreadList />
           </DropdownMenuContent>
         </DropdownMenu>

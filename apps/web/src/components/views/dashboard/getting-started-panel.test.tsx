@@ -93,4 +93,26 @@ describe("GettingStartedPanel", () => {
       await screen.findByText("dashboard.gettingStarted.titleActive"),
     ).toBeInTheDocument();
   });
+
+  it("keeps action card Korean copy from breaking mid-word", async () => {
+    vi.mocked(dashboardApi.stats).mockResolvedValue({
+      docs: 2,
+      docs_week_delta: 1,
+      research_in_progress: 0,
+      credits_krw: 0,
+      byok_connected: false,
+    });
+    vi.mocked(dashboardApi.recentNotes).mockResolvedValue({ notes: [] });
+    vi.mocked(dashboardApi.researchRuns).mockResolvedValue({ runs: [] });
+
+    renderPanel();
+
+    const title = await screen.findByText(
+      "dashboard.gettingStarted.actions.import.title",
+    );
+    const desc = screen.getByText("dashboard.gettingStarted.actions.import.desc");
+
+    expect(title).toHaveClass("break-keep");
+    expect(desc).toHaveClass("break-keep");
+  });
 });

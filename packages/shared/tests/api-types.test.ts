@@ -53,6 +53,9 @@ describe("createNoteSchema (canvas extension)", () => {
   it("works without canvas fields (backward compat)", () => {
     const r = createNoteSchema.safeParse(baseValid);
     expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.title).toBe("");
+    }
   });
 
   it("accepts a unified tree parent for child page creation", () => {

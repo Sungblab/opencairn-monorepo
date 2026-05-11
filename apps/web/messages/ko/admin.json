@@ -49,6 +49,7 @@
     "system": "시스템 설정"
   },
   "columns": {
+    "select": "선택",
     "user": "사용자",
     "plan": "플랜",
     "verified": "인증",
@@ -78,11 +79,25 @@
     "no": "미인증"
   },
   "actions": {
+    "backToApp": "앱으로 돌아가기",
     "grant": "부여",
     "revoke": "해제",
     "saving": "저장 중...",
     "refresh": "새로고침",
     "loadMore": "더 보기"
+  },
+  "bulk": {
+    "title": "대량 작업",
+    "selected": "{count}명 선택됨",
+    "selectRow": "사용자 선택",
+    "grantSiteAdmin": "선택 관리자 부여",
+    "revokeSiteAdmin": "선택 관리자 해제",
+    "userPlan": "모든 사용자 플랜",
+    "workspacePlan": "모든 워크스페이스 플랜",
+    "reportStatus": "모든 신고 상태",
+    "applyUserPlan": "사용자 플랜 일괄 적용",
+    "applyWorkspacePlan": "워크스페이스 플랜 일괄 적용",
+    "applyReportStatus": "신고 상태 일괄 적용"
   },
   "pagination": {
     "pageSize": "표시 개수",

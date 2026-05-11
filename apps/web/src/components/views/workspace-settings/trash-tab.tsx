@@ -9,6 +9,7 @@ interface TrashNote {
   title: string;
   projectName: string;
   deletedAt: string | null;
+  expiresAt: string | null;
 }
 
 export function TrashTab({ wsId }: { wsId: string }) {
@@ -35,6 +36,9 @@ export function TrashTab({ wsId }: { wsId: string }) {
   return (
     <section>
       <h2 className="mb-3 text-lg font-semibold">{t("heading")}</h2>
+      <p className="mb-4 text-sm text-muted-foreground">
+        {t("retention")}
+      </p>
       {isLoading && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
       {isError && <p className="text-sm text-destructive">{t("loadFailed")}</p>}
       {!isLoading && !isError && notes.length === 0 && (
@@ -54,6 +58,13 @@ export function TrashTab({ wsId }: { wsId: string }) {
                     project: note.projectName,
                     date: note.deletedAt
                       ? new Date(note.deletedAt).toLocaleString()
+                      : "-",
+                  })}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t("expires", {
+                    date: note.expiresAt
+                      ? new Date(note.expiresAt).toLocaleDateString()
                       : "-",
                   })}
                 </p>

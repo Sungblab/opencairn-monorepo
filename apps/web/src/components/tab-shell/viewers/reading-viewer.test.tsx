@@ -3,6 +3,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NextIntlClientProvider } from "next-intl";
 import { ReadingViewer } from "./reading-viewer";
+import { useTabsStore } from "@/stores/tabs-store";
 
 vi.mock("next/dynamic", () => ({
   default: () => {
@@ -10,11 +11,18 @@ vi.mock("next/dynamic", () => ({
       const React = require("react") as typeof import("react");
       const size = props.size as number;
       const setSize = props.setSize as (size: number) => void;
-      const label = props.label as { fontSize: string };
+      const label = props.label as {
+        editMode: string;
+        fontSize: string;
+        readingMode: string;
+      };
+      const tab = props.tab as { id: string };
+      const updateTab = useTabsStore.getState().updateTab;
 
       return React.createElement(
         "div",
         { "data-testid": "reading-viewer", className: "h-full" },
+        React.createElement("span", {}, label.readingMode),
         React.createElement("input", {
           type: "range",
           min: 14,
@@ -25,6 +33,14 @@ vi.mock("next/dynamic", () => ({
             setSize(Number(e.target.value)),
           "aria-label": label.fontSize,
         }),
+        React.createElement(
+          "button",
+          {
+            type: "button",
+            onClick: () => updateTab(tab.id, { mode: "plate" }),
+          },
+          label.editMode,
+        ),
         React.createElement(
           "div",
           {
@@ -66,7 +82,9 @@ const messages = {
   appShell: {
     viewers: {
       reading: {
+        editMode: "편집",
         fontSize: "폰트 크기",
+        readingMode: "읽기 모드",
         readingTime: "약 {min}분",
       },
     },
@@ -104,6 +122,10 @@ const tab = {
 
 describe("ReadingViewer", () => {
   beforeEach(() => {
+    useTabsStore.setState(
+      { ...useTabsStore.getInitialState(), tabs: [tab], activeId: tab.id },
+      true,
+    );
     // Fetch mock used by the internal useQuery calls for note meta + me.
     global.fetch = vi.fn(async (url: string | URL) => {
       const href = typeof url === "string" ? url : url.toString();
@@ -135,6 +157,15 @@ describe("ReadingViewer", () => {
     expect(screen.getByTestId("reading-viewer-body").style.fontSize).toBe(
       "20px",
     );
+  });
+
+  it("labels reading mode and can switch the tab back to edit mode", async () => {
+    wrap(<ReadingViewer tab={tab} />);
+
+    expect(await screen.findByText("읽기 모드")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "편집" }));
+
+    expect(useTabsStore.getState().tabs[0]?.mode).toBe("plate");
   });
 
   it("renders nothing when tab.targetId is null", () => {

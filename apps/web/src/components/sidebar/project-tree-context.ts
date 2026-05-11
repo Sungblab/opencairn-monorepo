@@ -16,7 +16,12 @@ export interface ProjectTreeCtxValue {
   ): void;
   onCreateFolder(parentId: string | null): void;
   onCreateNote(parentId: string | null): void;
-  onDelete(id: string, kind: TreeNode["kind"], label: string): void;
+  onDelete(
+    id: string,
+    kind: TreeNode["kind"],
+    label: string,
+    targetId?: string | null,
+  ): void;
 }
 
 export const ProjectTreeContext = createContext<ProjectTreeCtxValue | null>(

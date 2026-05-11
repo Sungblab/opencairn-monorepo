@@ -6,6 +6,8 @@
     "meta": "{kind} · v{version} · {bytes}",
     "preview": "미리보기",
     "source": "원본",
+    "showSource": "원본 보기",
+    "hideSource": "원본 닫기",
     "jsonTree": "JSON 트리",
     "csvTable": "표 형식 · {rows}행",
     "column": "열 {index}",

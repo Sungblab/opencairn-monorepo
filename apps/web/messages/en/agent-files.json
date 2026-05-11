@@ -6,6 +6,8 @@
     "meta": "{kind} · v{version} · {bytes}",
     "preview": "Preview",
     "source": "Source",
+    "showSource": "Show source",
+    "hideSource": "Hide source",
     "jsonTree": "JSON tree",
     "csvTable": "Table view · {rows} rows",
     "column": "Column {index}",

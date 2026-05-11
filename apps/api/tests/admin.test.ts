@@ -162,7 +162,7 @@ describe("site admin routes", () => {
     expect(event?.after).toMatchObject({ isSiteAdmin: true });
   });
 
-  it("prevents removing the last remaining site admin", async () => {
+  it("prevents unsafe site admin self-removal", async () => {
     const caller = await makeUser();
     await promoteSiteAdmin(caller.id);
 
@@ -174,7 +174,9 @@ describe("site admin routes", () => {
 
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toEqual({
-      error: "cannot_remove_last_site_admin",
+      error: expect.stringMatching(
+        /^cannot_remove_(last_site_admin|own_site_admin)$/,
+      ),
     });
   });
 
@@ -209,6 +211,67 @@ describe("site admin routes", () => {
     expect(event?.after).toMatchObject({ plan: "pro" });
   });
 
+  it("lets site admins update multiple user plans at once", async () => {
+    const caller = await makeUser();
+    const targetA = await makeUser();
+    const targetB = await makeUser();
+    await promoteSiteAdmin(caller.id);
+
+    const res = await authedPatch("/api/admin/users/plan", caller.id, {
+      userIds: [targetA.id, targetB.id],
+      plan: "pro",
+    });
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ updated: 2 });
+    const rows = await db
+      .select({ id: user.id, plan: user.plan })
+      .from(user)
+      .where(sql`${user.id} in (${targetA.id}, ${targetB.id})`);
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: targetA.id, plan: "pro" }),
+        expect.objectContaining({ id: targetB.id, plan: "pro" }),
+      ]),
+    );
+
+    const events = await db
+      .select()
+      .from(adminAuditEvents)
+      .where(sql`${adminAuditEvents.targetUserId} in (${targetA.id}, ${targetB.id})`);
+    expect(events).toHaveLength(2);
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ action: "user.plan.update" }),
+      ]),
+    );
+  });
+
+  it("lets site admins grant site admin access to multiple users at once", async () => {
+    const caller = await makeUser();
+    const targetA = await makeUser();
+    const targetB = await makeUser();
+    await promoteSiteAdmin(caller.id);
+
+    const res = await authedPatch("/api/admin/users/site-admin", caller.id, {
+      userIds: [targetA.id, targetB.id],
+      isSiteAdmin: true,
+    });
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ updated: 2 });
+    const rows = await db
+      .select({ id: user.id, isSiteAdmin: user.isSiteAdmin })
+      .from(user)
+      .where(sql`${user.id} in (${targetA.id}, ${targetB.id})`);
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: targetA.id, isSiteAdmin: true }),
+        expect.objectContaining({ id: targetB.id, isSiteAdmin: true }),
+      ]),
+    );
+  });
+
   it("records workspace plan changes and exposes audit events", async () => {
     const caller = await makeUser();
     await promoteSiteAdmin(caller.id);
@@ -241,6 +304,31 @@ describe("site admin routes", () => {
           before: { planType: "free" },
           after: { planType: "enterprise" },
         }),
+      ]),
+    );
+  });
+
+  it("lets site admins update multiple workspace plans at once", async () => {
+    const caller = await makeUser();
+    await promoteSiteAdmin(caller.id);
+    const workspaceA = await makeWorkspace(caller.id);
+    const workspaceB = await makeWorkspace(caller.id);
+
+    const update = await authedPatch("/api/admin/workspaces/plan", caller.id, {
+      workspaceIds: [workspaceA.id, workspaceB.id],
+      planType: "enterprise",
+    });
+    expect(update.status).toBe(200);
+    await expect(update.json()).resolves.toEqual({ updated: 2 });
+
+    const rows = await db
+      .select({ id: workspaces.id, planType: workspaces.planType })
+      .from(workspaces)
+      .where(sql`${workspaces.id} in (${workspaceA.id}, ${workspaceB.id})`);
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: workspaceA.id, planType: "enterprise" }),
+        expect.objectContaining({ id: workspaceB.id, planType: "enterprise" }),
       ]),
     );
   });
@@ -299,5 +387,49 @@ describe("site admin routes", () => {
     });
     expect(event?.before).toMatchObject({ status: "open" });
     expect(event?.after).toMatchObject({ status: "resolved" });
+  });
+
+  it("lets site admins transition multiple site reports at once", async () => {
+    const caller = await makeUser();
+    const reporter = await makeUser();
+    await promoteSiteAdmin(caller.id);
+    const inserted = await db
+      .insert(siteAdminReports)
+      .values([
+        {
+          reporterUserId: reporter.id,
+          title: "First report",
+          description: "First description",
+          priority: "normal",
+        },
+        {
+          reporterUserId: reporter.id,
+          title: "Second report",
+          description: "Second description",
+          priority: "high",
+        },
+      ])
+      .returning({ id: siteAdminReports.id });
+    for (const report of inserted) createdReports.add(report.id);
+
+    const update = await authedPatch("/api/admin/reports/status", caller.id, {
+      reportIds: inserted.map((report) => report.id),
+      status: "closed",
+    });
+    expect(update.status).toBe(200);
+    await expect(update.json()).resolves.toEqual({ updated: 2 });
+
+    const rows = await db
+      .select({ id: siteAdminReports.id, status: siteAdminReports.status })
+      .from(siteAdminReports)
+      .where(
+        sql`${siteAdminReports.id} in (${inserted[0]!.id}, ${inserted[1]!.id})`,
+      );
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: inserted[0]!.id, status: "closed" }),
+        expect.objectContaining({ id: inserted[1]!.id, status: "closed" }),
+      ]),
+    );
   });
 });

@@ -94,11 +94,15 @@ site-admin inbox.
 |--------|------|------|-------------|------|
 | GET | /api/admin/overview | site admin | Global operator snapshot: counts, plan breakdowns, recent reports, recent job/action logs, API call counts, 30-day LLM token/cost rollups, email queue health, system flags | - |
 | GET | /api/admin/users | site admin | Site-wide user list with plan, email verification, and site-admin flag | - |
+| PATCH | /api/admin/users/site-admin | site admin | Bulk grant/revoke site admin for up to 200 users. Self-revoke and revoking the last remaining site admin return 400. Successful changes write per-user `site_admin.grant` / `site_admin.revoke` audit events. | `{ userIds: string[], isSiteAdmin: boolean }` |
+| PATCH | /api/admin/users/plan | site admin | Bulk update hosted user plan markers for up to 200 users; changed rows write per-user `user.plan.update` audit events. | `{ userIds: string[], plan: "free"\|"pro"\|"byok" }` |
 | PATCH | /api/admin/users/:userId/site-admin | site admin | Grant/revoke site admin. Revoking the last remaining site admin returns 400; self-revoke returns 400 when another admin remains. Successful changes write `site_admin.grant` / `site_admin.revoke` audit events. | `{ isSiteAdmin: boolean }` |
 | PATCH | /api/admin/users/:userId/plan | site admin | Update hosted user plan marker | `{ plan: "free"\|"pro"\|"byok" }` |
 | GET | /api/admin/subscriptions | site admin | User plan rows and workspace plan rows for the admin subscription table | - |
+| PATCH | /api/admin/workspaces/plan | site admin | Bulk update workspace plan markers for up to 200 workspaces; changed rows write per-workspace `workspace.plan.update` audit events. | `{ workspaceIds: string[], planType: "free"\|"pro"\|"enterprise" }` |
 | PATCH | /api/admin/workspaces/:workspaceId/plan | site admin | Update workspace plan marker | `{ planType: "free"\|"pro"\|"enterprise" }` |
 | GET | /api/admin/reports | site admin | Last 100 site reports | - |
+| PATCH | /api/admin/reports/status | site admin | Bulk move up to 200 reports through open/triaged/resolved/closed; terminal states stamp resolver metadata and changed rows write per-report `report.status.update` audit events. | `{ reportIds: string[], status: "open"\|"triaged"\|"resolved"\|"closed" }` |
 | PATCH | /api/admin/reports/:reportId/status | site admin | Move report through open/triaged/resolved/closed; terminal states stamp resolver metadata | `{ status: "open"\|"triaged"\|"resolved"\|"closed" }` |
 | GET | /api/admin/audit-events | site admin | Last 200 meaningful admin action audit rows, including actor, action, target ids, before/after JSON, metadata, and timestamp | - |
 | GET | /api/admin/api-logs | site admin | Last 200 API request log rows recorded by the global API request logger, including method, path, status, duration, user, user-agent, and timestamp | - |

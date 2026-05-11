@@ -63,34 +63,35 @@ export function NoteRouteChrome({
 
   return (
     <div
-      className="sticky top-0 z-10 flex items-center justify-between gap-4 bg-background px-8 py-3"
+      className="sticky top-0 z-20 flex min-h-12 items-center justify-between gap-4 bg-background/95 px-6 py-2 backdrop-blur"
       style={{ borderBottom: "1px solid var(--theme-border)" }}
       data-testid="note-route-chrome"
     >
       <nav
         aria-label={t("breadcrumb_label")}
-        className="min-w-0 truncate text-xs text-muted-foreground"
+        className="min-w-0 truncate text-sm text-muted-foreground"
       >
         {resolvedProjectName ? (
           <Link
             href={projectHref}
-            className="inline-flex min-h-7 items-center rounded px-1 hover:bg-accent hover:text-foreground"
+            className="inline-flex min-h-7 items-center rounded-[var(--radius-control)] px-1.5 hover:bg-accent hover:text-foreground"
           >
             {resolvedProjectName}
           </Link>
         ) : (
           <span>{t("project_unknown")}</span>
         )}
-        <span className="mx-1.5">›</span>
-        <span className="text-foreground">{title}</span>
+        <span className="mx-1.5 text-muted-foreground/70">›</span>
+        <span className="font-medium text-foreground">{title}</span>
       </nav>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2 text-muted-foreground">
         <span
-          className="text-[11px] text-muted-foreground"
+          className="hidden text-xs sm:inline"
           data-testid="note-autosave-pill"
         >
           {t("autosave", { at: updatedAt })}
         </span>
+        <span aria-hidden className="hidden h-4 w-px bg-border sm:inline-block" />
         <NoteHistoryButton noteId={noteId} readOnly={readOnly} />
       </div>
     </div>

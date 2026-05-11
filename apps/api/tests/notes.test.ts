@@ -154,6 +154,57 @@ describe("GET /api/notes/search", () => {
   });
 });
 
+describe("GET /api/notes/trash", () => {
+  let ctx: SeedResult;
+  beforeEach(async () => {
+    ctx = await seedWorkspace({ role: "owner" });
+  });
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  it("returns deleted notes with a 30-day expiry timestamp", async () => {
+    const deletedAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    await db
+      .update(notes)
+      .set({ deletedAt })
+      .where(eq(notes.id, ctx.noteId));
+
+    const res = await authedFetch(
+      `/api/notes/trash?workspaceId=${ctx.workspaceId}`,
+      { method: "GET", userId: ctx.userId },
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json() as {
+      notes: Array<{ id: string; expiresAt: string | null }>;
+    };
+    const note = body.notes.find((row) => row.id === ctx.noteId);
+    expect(note?.expiresAt).toBe(
+      new Date(deletedAt.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    );
+  });
+
+  it("purges deleted notes after the 30-day retention window", async () => {
+    await db
+      .update(notes)
+      .set({ deletedAt: new Date(Date.now() - 31 * 24 * 60 * 60 * 1000) })
+      .where(eq(notes.id, ctx.noteId));
+
+    const res = await authedFetch(
+      `/api/notes/trash?workspaceId=${ctx.workspaceId}`,
+      { method: "GET", userId: ctx.userId },
+    );
+
+    expect(res.status).toBe(200);
+    const [row] = await db
+      .select({ id: notes.id })
+      .from(notes)
+      .where(eq(notes.id, ctx.noteId));
+    expect(row).toBeUndefined();
+  });
+});
+
 // Plan 2B Task 16 — role lookup endpoint used by the server-rendered note
 // page to compute `readOnly` before handing the editor off to Yjs. The
 // endpoint MUST be registered before `/:id` so Hono doesn't swallow "role"

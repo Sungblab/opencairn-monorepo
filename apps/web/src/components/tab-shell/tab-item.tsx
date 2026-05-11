@@ -57,7 +57,7 @@ export function TabItem({ tab, active, onClick, onClose }: TabItemProps) {
           onClose();
         }
       }}
-      className={`group flex h-full min-w-[120px] max-w-[220px] shrink-0 cursor-pointer items-center gap-1.5 border-r border-border px-2 text-xs transition-colors ${
+      className={`group flex h-full min-w-[104px] max-w-[200px] shrink-0 cursor-pointer items-center gap-1.5 border-r border-border/70 px-2 text-xs transition-colors ${
         active
           ? // Active tab "lifts" out of the bar (bg-background matches the
             // editor surface) and gets a 1.5px bottom underline. `-mb-[1.5px]`

@@ -104,7 +104,7 @@ describe("MCP server token routes", () => {
     const res = await app.request("/.well-known/oauth-protected-resource/api/mcp");
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
-      resource: "http://localhost/api/mcp",
+      resource: "http://localhost:4000/api/mcp",
       scopes_supported: ["workspace:read"],
       bearer_methods_supported: ["header"],
     });

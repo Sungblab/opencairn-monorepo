@@ -10,11 +10,12 @@ const SIDEBAR_DEFAULT = 240;
 const AGENT_MIN = 300;
 const AGENT_MAX = 560;
 const AGENT_DEFAULT = 360;
-export type AgentPanelTab = "chat" | "activity" | "notifications";
+export type AgentPanelTab = "chat" | "tools" | "activity" | "notifications";
 
 const PANEL_STORAGE_KEY = "oc:panel";
 const AGENT_PANEL_TABS: AgentPanelTab[] = [
   "chat",
+  "tools",
   "activity",
   "notifications",
 ];
@@ -48,6 +49,7 @@ interface PanelState {
   setAgentPanelWidth(w: number): void;
   resetSidebarWidth(): void;
   resetAgentPanelWidth(): void;
+  hydrateFromStorage(): void;
 }
 
 type PanelData = Pick<
@@ -101,16 +103,16 @@ function isAgentPanelTab(value: unknown): value is AgentPanelTab {
   );
 }
 
-function readPersistedPanelState(): PanelData {
+function readPersistedPanelState(): PanelData | null {
   if (typeof localStorage === "undefined") {
-    return DEFAULT_PANEL_DATA;
+    return null;
   }
 
   try {
     const raw = localStorage.getItem(PANEL_STORAGE_KEY);
 
     if (!raw) {
-      return DEFAULT_PANEL_DATA;
+      return null;
     }
 
     const parsed: unknown = JSON.parse(raw);
@@ -118,7 +120,7 @@ function readPersistedPanelState(): PanelData {
       isRecord(parsed) && isRecord(parsed.state) ? parsed.state : parsed;
 
     if (!isRecord(stored)) {
-      return DEFAULT_PANEL_DATA;
+      return null;
     }
 
     return {
@@ -145,7 +147,7 @@ function readPersistedPanelState(): PanelData {
       enrichmentOpen: readBoolean(stored.enrichmentOpen, false),
     };
   } catch {
-    return DEFAULT_PANEL_DATA;
+    return null;
   }
 }
 
@@ -190,7 +192,7 @@ export const usePanelStore = create<PanelState>()((set) => {
     });
 
   return {
-    ...readPersistedPanelState(),
+    ...DEFAULT_PANEL_DATA,
     toggleSidebar: () => setAndPersist((s) => ({ sidebarOpen: !s.sidebarOpen })),
     toggleCompactSidebar: () =>
       setAndPersist((s) => ({ compactSidebarOpen: !s.compactSidebarOpen })),
@@ -224,5 +226,9 @@ export const usePanelStore = create<PanelState>()((set) => {
     resetSidebarWidth: () => setAndPersist({ sidebarWidth: SIDEBAR_DEFAULT }),
     resetAgentPanelWidth: () =>
       setAndPersist({ agentPanelWidth: AGENT_DEFAULT }),
+    hydrateFromStorage: () => {
+      const persisted = readPersistedPanelState();
+      if (persisted) set(persisted);
+    },
   };
 });

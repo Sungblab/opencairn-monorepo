@@ -35,4 +35,26 @@ describe("WorkbenchActivityStack", () => {
     expect(screen.getByTestId("ingest-dock-card")).toBeInTheDocument();
     expect(screen.getByText("paper.pdf")).toBeInTheDocument();
   });
+
+  it("does not keep completed ingest runs in active work", () => {
+    useIngestStore.getState().startRun("wf-1", "application/pdf", "paper.pdf");
+    useIngestStore.getState().applyEvent("wf-1", {
+      seq: 1,
+      kind: "completed",
+      workflowId: "wf-1",
+      ts: new Date().toISOString(),
+      payload: {
+        noteId: "note-1",
+        totalDurationMs: 1000,
+      },
+    });
+
+    render(<WorkbenchActivityStack />);
+
+    expect(
+      screen.queryByRole("region", {
+        name: "agentPanel.activityStack.title",
+      }),
+    ).not.toBeInTheDocument();
+  });
 });

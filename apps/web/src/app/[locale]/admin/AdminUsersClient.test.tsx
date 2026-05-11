@@ -114,4 +114,166 @@ describe("AdminUsersClient", () => {
     expect(screen.getByText("target@example.com")).toBeInTheDocument();
     expect(screen.getByText("isSiteAdmin: false -> true")).toBeInTheDocument();
   });
+
+  it("does not render zero dashboard stats when overview fails", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue({
+      ok: false,
+      json: () => Promise.resolve({ error: "Internal server error" }),
+    } as Response);
+
+    render(<AdminUsersClient />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("errors.load");
+    expect(screen.queryByText("stats.users")).not.toBeInTheDocument();
+    expect(screen.getByText("empty")).toBeInTheDocument();
+  });
+
+  it("renders a back link to the app", async () => {
+    render(<AdminUsersClient returnHref="/ko/dashboard" />);
+
+    const link = await screen.findByRole("link", { name: "actions.backToApp" });
+    expect(link).toHaveAttribute("href", "/ko/dashboard");
+  });
+
+  it("bulk grants site admin access from the users tab", async () => {
+    vi.mocked(globalThis.fetch).mockImplementation((input, init) => {
+      const url = String(input);
+      if (url.endsWith("/overview")) {
+        return ok({
+          stats: {},
+          analytics: {
+            userPlans: [],
+            workspacePlans: [],
+            actionStatuses: [],
+            usageByAction: [],
+          },
+          recentReports: [],
+          recentOperations: [],
+          system: {
+            environment: "test",
+            internalApiUrl: null,
+            publicAppUrl: null,
+            email: { resendConfigured: false, smtpConfigured: false },
+            storage: { s3Configured: false },
+            featureFlags: {},
+          },
+        });
+      }
+      if (url.endsWith("/users")) {
+        return ok({
+          users: [
+            {
+              id: "user-1",
+              email: "first@example.com",
+              name: "First",
+              emailVerified: true,
+              plan: "free",
+              isSiteAdmin: false,
+              createdAt: "2026-05-08T00:00:00.000Z",
+            },
+            {
+              id: "user-2",
+              email: "second@example.com",
+              name: "Second",
+              emailVerified: false,
+              plan: "free",
+              isSiteAdmin: false,
+              createdAt: "2026-05-08T00:00:00.000Z",
+            },
+          ],
+        });
+      }
+      return ok({ updated: 2 });
+    });
+
+    render(<AdminUsersClient />);
+    fireEvent.click(await screen.findByRole("button", { name: "tabs.users" }));
+    const checkboxes = await screen.findAllByLabelText("bulk.selectRow", {
+      selector: "input",
+    });
+    fireEvent.click(checkboxes[0]!);
+    fireEvent.click(checkboxes[1]!);
+    fireEvent.click(screen.getByRole("button", { name: "bulk.grantSiteAdmin" }));
+
+    await waitFor(() =>
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        "/api/admin/users/site-admin",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({
+            userIds: ["user-1", "user-2"],
+            isSiteAdmin: true,
+          }),
+        }),
+      ),
+    );
+  });
+
+  it("bulk updates user plans from the subscriptions tab", async () => {
+    vi.mocked(globalThis.fetch).mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/overview")) {
+        return ok({
+          stats: {},
+          analytics: {
+            userPlans: [],
+            workspacePlans: [],
+            actionStatuses: [],
+            usageByAction: [],
+          },
+          recentReports: [],
+          recentOperations: [],
+          system: {
+            environment: "test",
+            internalApiUrl: null,
+            publicAppUrl: null,
+            email: { resendConfigured: false, smtpConfigured: false },
+            storage: { s3Configured: false },
+            featureFlags: {},
+          },
+        });
+      }
+      if (url.endsWith("/subscriptions")) {
+        return ok({
+          users: [
+            {
+              id: "user-1",
+              email: "first@example.com",
+              name: "First",
+              plan: "free",
+              createdAt: "2026-05-08T00:00:00.000Z",
+            },
+            {
+              id: "user-2",
+              email: "second@example.com",
+              name: "Second",
+              plan: "free",
+              createdAt: "2026-05-08T00:00:00.000Z",
+            },
+          ],
+          workspaces: [],
+        });
+      }
+      return ok({ updated: 2 });
+    });
+
+    render(<AdminUsersClient />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "tabs.subscriptions" }),
+    );
+    fireEvent.change(await screen.findByLabelText("bulk.userPlan"), {
+      target: { value: "pro" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "bulk.applyUserPlan" }));
+
+    await waitFor(() =>
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        "/api/admin/users/plan",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ userIds: ["user-1", "user-2"], plan: "pro" }),
+        }),
+      ),
+    );
+  });
 });

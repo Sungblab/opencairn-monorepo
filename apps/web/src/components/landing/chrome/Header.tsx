@@ -24,7 +24,7 @@ export function LandingHeader() {
             className="inline-flex items-baseline text-stone-900 hover:bg-stone-900 hover:text-stone-50 px-2 py-1 rounded-md transition-colors"
             title={t("logoTitle")}
           >
-            <span className="font-serif text-2xl">OpenCairn</span>
+            <span className="font-serif text-2xl font-bold">OpenCairn</span>
           </a>
 
           <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-1 font-sans text-[12px] tracking-wider text-stone-700">

@@ -131,4 +131,36 @@ export function useUrlTabSync() {
       store.addTab(tab);
     }
   }, [pathname, slug, labels, setActive, updateTab]);
+
+  useEffect(() => {
+    if (!slug) return;
+    const parsed = urlToTabTarget(pathname);
+    if (!parsed || parsed.slug !== slug || parsed.route.kind !== "note") return;
+    const noteId = parsed.route.targetId;
+    if (!noteId) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/notes/${noteId}`, {
+          credentials: "include",
+        });
+        if (!res.ok) return;
+        const note = (await res.json()) as { title?: string | null };
+        const title = note.title?.trim();
+        if (!title || cancelled) return;
+        const store = useTabsStore.getState();
+        const tab = store.findTabByTarget("note", noteId);
+        if (tab && tab.title !== title) {
+          store.updateTab(tab.id, { title });
+        }
+      } catch {
+        // Keep the route-derived fallback title when metadata hydration fails.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, slug]);
 }

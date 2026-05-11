@@ -83,6 +83,36 @@ describe("ingest-store", () => {
     expect(run.noteId).toBe("00000000-0000-0000-0000-000000000001");
   });
 
+  it("applies a terminal replay event even when lastSeq was advanced by a newer non-terminal event", () => {
+    useIngestStore.getState().startRun("wf-1", "application/pdf", "x.pdf");
+    useIngestStore.setState((state) => ({
+      runs: {
+        ...state.runs,
+        "wf-1": {
+          ...state.runs["wf-1"],
+          lastSeq: 66,
+          status: "running",
+          bundleStatus: "completed",
+        },
+      },
+    }));
+
+    useIngestStore.getState().applyEvent("wf-1", {
+      workflowId: "wf-1",
+      seq: 65,
+      ts: "2026-04-27T00:00:00.000Z",
+      kind: "completed",
+      payload: {
+        noteId: "00000000-0000-0000-0000-000000000001",
+        totalDurationMs: 5000,
+      },
+    });
+
+    const run = useIngestStore.getState().runs["wf-1"];
+    expect(run.status).toBe("completed");
+    expect(run.noteId).toBe("00000000-0000-0000-0000-000000000001");
+  });
+
   it("completed resolves a primed source bundle when the status event is missing", () => {
     useIngestStore.getState().startRun("wf-1", "application/pdf", "x.pdf", {
       sourceBundleNodeId: "00000000-0000-0000-0000-000000000010",

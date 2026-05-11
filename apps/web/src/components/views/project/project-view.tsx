@@ -24,6 +24,7 @@ import {
   WorkbenchActivityButton,
   WorkbenchCommandButton,
 } from "@/components/agent-panel/workbench-trigger-button";
+import { SourceUploadButton } from "@/components/sidebar/SourceUploadButton";
 import { ProjectMetaRow } from "./project-meta-row";
 import { ProjectNotesTable } from "./project-notes-table";
 
@@ -89,8 +90,8 @@ export function ProjectView({
             title={t("tools.research.title")}
             description={t("tools.research.description")}
           />
-          <ToolLink
-            href={`${urls.workspace.import(locale, wsSlug)}?project=${projectId}`}
+          <ToolUploadButton
+            projectId={projectId}
             icon={DownloadCloud}
             title={t("tools.import.title")}
             description={t("tools.import.description")}
@@ -308,5 +309,33 @@ function ToolButton({
         {description}
       </span>
     </button>
+  );
+}
+
+function ToolUploadButton({
+  projectId,
+  icon: Icon,
+  title,
+  description,
+}: {
+  projectId: string;
+  icon: LucideIcon;
+  title: string;
+  description: string;
+}) {
+  return (
+    <SourceUploadButton
+      projectId={projectId}
+      className="group h-auto min-h-24 w-full flex-col items-start justify-start gap-2 rounded-[var(--radius-control)] border-border bg-background px-3 py-3 text-left text-foreground hover:border-foreground hover:bg-muted/40"
+    >
+      <Icon
+        aria-hidden
+        className="h-4 w-4 text-muted-foreground group-hover:text-foreground"
+      />
+      <span className="text-sm font-medium">{title}</span>
+      <span className="line-clamp-2 text-xs text-muted-foreground">
+        {description}
+      </span>
+    </SourceUploadButton>
   );
 }

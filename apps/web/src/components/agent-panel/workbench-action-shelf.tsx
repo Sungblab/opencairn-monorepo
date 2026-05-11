@@ -57,11 +57,12 @@ export function WorkbenchActionShelf({ activeKind, disabled, onRun }: Props) {
   const commands = useMemo(() => commandsForKind(activeKind), [activeKind]);
 
   return (
-    <section className="border-b border-border bg-background px-3 py-2">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="text-xs font-semibold text-foreground">{t("title")}</h3>
-      </div>
-      <div className="grid grid-cols-2 gap-1.5">
+    <section
+      aria-label={t("title")}
+      className="border-b border-border bg-background px-2 py-1"
+    >
+      <h3 className="sr-only">{t("title")}</h3>
+      <div className="app-scrollbar-thin flex gap-1 overflow-x-auto pb-0.5">
         {commands.map((command) => {
           const Icon = ICONS[command.id] ?? Sparkles;
           return (
@@ -70,11 +71,11 @@ export function WorkbenchActionShelf({ activeKind, disabled, onRun }: Props) {
               type="button"
               aria-label={`${command.aliases[0]} ${commandT(command.id)}`}
               disabled={disabled}
-              className="app-hover flex min-h-9 items-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-background px-2 py-1.5 text-left text-xs disabled:opacity-50"
+              className="app-hover flex h-8 min-w-0 shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-background px-2 text-left text-xs disabled:opacity-50"
               onClick={() => onRun(command)}
             >
               <Icon aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <span className="min-w-0 truncate">{commandT(command.id)}</span>
+              <span className="max-w-24 truncate">{commandT(command.id)}</span>
             </button>
           );
         })}

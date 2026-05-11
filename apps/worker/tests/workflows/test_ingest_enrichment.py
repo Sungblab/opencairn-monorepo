@@ -16,6 +16,7 @@ import pytest
 # raises. Substitute a plain stdlib logger for unit tests.
 _TEST_LOGGER = logging.getLogger("test_ingest_enrichment")
 
+
 def _make_inp(*, content_enrichment_enabled: bool = False):
     from worker.workflows.ingest_workflow import IngestInput
 
@@ -28,6 +29,25 @@ def _make_inp(*, content_enrichment_enabled: bool = False):
         note_id=None,
         workspace_id="ws-1",
         content_enrichment_enabled=content_enrichment_enabled,
+    )
+
+
+def _make_bundle_inp():
+    from worker.workflows.ingest_workflow import IngestInput
+
+    return IngestInput(
+        object_key="test.pdf",
+        file_name="test.pdf",
+        mime_type="application/pdf",
+        user_id="user-1",
+        project_id="proj-1",
+        note_id=None,
+        workspace_id="ws-1",
+        source_bundle_node_id="bundle-1",
+        original_file_node_id="file-1",
+        parsed_group_node_id="parsed-1",
+        figures_group_node_id="figures-1",
+        analysis_group_node_id="analysis-1",
     )
 
 
@@ -84,9 +104,7 @@ async def test_enrichment_activities_called_when_flag_on():
 
     wf = IngestWorkflow()
     with patch("temporalio.workflow.execute_activity", side_effect=fake_activity):
-        note_id = await wf._run_pipeline(
-            _make_inp(content_enrichment_enabled=True), "wf-test", 0
-        )
+        note_id = await wf._run_pipeline(_make_inp(content_enrichment_enabled=True), "wf-test", 0)
 
     assert "detect_content_type" in called
     assert "enrich_document" in called
@@ -121,12 +139,11 @@ async def test_enrichment_failure_does_not_block_note_creation():
         return {}
 
     wf = IngestWorkflow()
-    with patch(
-        "temporalio.workflow.execute_activity", side_effect=fake_activity
-    ), patch("temporalio.workflow.logger", _TEST_LOGGER):
-        note_id = await wf._run_pipeline(
-            _make_inp(content_enrichment_enabled=True), "wf-test", 0
-        )
+    with (
+        patch("temporalio.workflow.execute_activity", side_effect=fake_activity),
+        patch("temporalio.workflow.logger", _TEST_LOGGER),
+    ):
+        note_id = await wf._run_pipeline(_make_inp(content_enrichment_enabled=True), "wf-test", 0)
 
     assert note_id == "note-xyz"
     assert "create_source_note" in call_seq
@@ -158,3 +175,41 @@ async def test_enrichment_not_called_when_flag_off():
     assert "detect_content_type" not in called
     assert "enrich_document" not in called
     assert note_id == "note-000"
+
+
+@pytest.mark.asyncio
+async def test_pdf_source_note_is_created_under_parsed_group():
+    from worker.workflows.ingest_workflow import IngestWorkflow
+
+    captured: dict | None = None
+
+    async def fake_activity(name, *args, **kwargs):
+        nonlocal captured
+        if name == "parse_pdf":
+            return {
+                "text": "hi",
+                "markdown": "hi",
+                "has_complex_layout": False,
+                "is_scan": False,
+                "pages": [],
+                "page_artifacts": [],
+                "figure_artifacts": [],
+            }
+        if name == "create_source_bundle_artifact":
+            return {"nodeId": "artifact-1"}
+        if name == "create_source_note":
+            captured = args[0]
+            return "note-000"
+        return {}
+
+    wf = IngestWorkflow()
+    with (
+        patch("temporalio.workflow.execute_activity", side_effect=fake_activity),
+        patch("temporalio.workflow.logger", _TEST_LOGGER),
+    ):
+        await wf._run_pipeline(_make_bundle_inp(), "wf-test", 0)
+
+    assert captured is not None
+    assert captured["tree_parent_node_id"] == "parsed-1"
+    assert captured["tree_label"] == "전체 추출 노트"
+    assert captured["original_file_node_id"] == "file-1"

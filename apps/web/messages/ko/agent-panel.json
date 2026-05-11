@@ -1,15 +1,19 @@
 {
   "header": {
-    "title": "컨텍스트",
+    "title": "에이전트",
     "subtitle": "AI · 활동 · 알림",
     "new_thread_aria": "새 대화",
-    "thread_list_aria": "대화 목록",
+    "thread_list_aria": "에이전트 기록 열기",
     "collapse_aria": "패널 접기"
   },
   "thread_list": {
+    "title": "에이전트 기록",
     "loading": "불러오는 중…",
     "empty": "대화가 없습니다.",
-    "untitled": "(제목 없음)"
+    "untitled": "(제목 없음)",
+    "delete": "삭제",
+    "delete_aria": "\"{title}\" 삭제",
+    "delete_failed": "대화를 삭제하지 못했어요."
   },
   "tabs": {
     "chat": "AI",
@@ -31,6 +35,10 @@
     "save_suggestion_cancel": "취소",
     "save_suggestion_failed": "저장에 실패했어요. 다시 시도해 주세요.",
     "error_prefix": "오류: {message}",
+    "streaming_preparing": "답변 준비 중",
+    "jump_to_stream": "새 답변 보기",
+    "jump_to_latest": "최신 메시지 보기",
+    "citation_fallback": "출처 {index}",
     "actions": {
       "copy_aria": "복사",
       "regenerate_aria": "재생성",

@@ -1,10 +1,10 @@
 {
   "placeholders": {
     "sidebar": "Sidebar (Phase 2)",
-    "agent_panel": "Context panel",
+    "agent_panel": "Agent panel",
     "dashboard": "Dashboard",
     "open_sidebar": "Open left sidebar",
-    "open_agent_panel": "Open context panel"
+    "open_agent_panel": "Open agent panel"
   },
   "routes": {
     "dashboard": {
@@ -17,7 +17,7 @@
       "chrome": {
         "breadcrumb_label": "Note location",
         "project_unknown": "—",
-        "autosave": "Autosaved {at}"
+        "autosave": "Last saved {at}"
       }
     },
     "ws_settings": {
@@ -73,7 +73,9 @@
       "unavailable": "{mode} mode is not available for this tab."
     },
     "reading": {
+      "editMode": "Edit",
       "fontSize": "Font size",
+      "readingMode": "Reading mode",
       "readingTime": "~{min} min"
     },
     "source": {

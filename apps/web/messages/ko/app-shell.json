@@ -1,10 +1,10 @@
 {
   "placeholders": {
     "sidebar": "사이드바 (Phase 2)",
-    "agent_panel": "컨텍스트 패널",
+    "agent_panel": "에이전트 패널",
     "dashboard": "대시보드",
     "open_sidebar": "왼쪽 사이드바 펼치기",
-    "open_agent_panel": "컨텍스트 패널 펼치기"
+    "open_agent_panel": "에이전트 패널 펼치기"
   },
   "routes": {
     "dashboard": {
@@ -17,7 +17,7 @@
       "chrome": {
         "breadcrumb_label": "이 노트의 위치",
         "project_unknown": "—",
-        "autosave": "{at} 자동 저장"
+        "autosave": "마지막 저장 {at}"
       }
     },
     "ws_settings": {
@@ -73,7 +73,9 @@
       "unavailable": "{mode} 모드는 이 탭에서 사용할 수 없습니다."
     },
     "reading": {
+      "editMode": "편집",
       "fontSize": "폰트 크기",
+      "readingMode": "읽기 모드",
       "readingTime": "약 {min}분"
     },
     "source": {

@@ -58,6 +58,7 @@ describe("NewCanvasButton", () => {
       expect(api.createNote).toHaveBeenCalledWith(
         expect.objectContaining({
           projectId: "p1",
+          title: "",
           sourceType: "canvas",
           canvasLanguage: "python",
           contentText: "",

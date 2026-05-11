@@ -10,6 +10,8 @@ import {
   isNull,
   notes,
   projects,
+  projectTreeNodes,
+  sql,
 } from "@opencairn/db";
 import {
   type AgentFileKind,
@@ -98,8 +100,13 @@ export interface AgentFileDownloadExport {
   bytes: number;
 }
 
-export async function createAgentFile(input: CreateAgentFileInput): Promise<AgentFileSummary> {
-  if (!input.skipPermissionCheck && !(await canWrite(input.userId, { type: "project", id: input.projectId }))) {
+export async function createAgentFile(
+  input: CreateAgentFileInput,
+): Promise<AgentFileSummary> {
+  if (
+    !input.skipPermissionCheck &&
+    !(await canWrite(input.userId, { type: "project", id: input.projectId }))
+  ) {
     throw new AgentFileError("forbidden");
   }
 
@@ -113,8 +120,10 @@ export async function createAgentFile(input: CreateAgentFileInput): Promise<Agen
   const fileId = crypto.randomUUID();
   const filename = normalizeFilename(input.file.filename);
   const extension = extensionFor(filename);
-  const kind = input.file.kind ?? inferAgentFileKind(filename, input.file.mimeType);
-  const mimeType = input.file.mimeType ?? inferAgentFileMimeType(filename, kind);
+  const kind =
+    input.file.kind ?? inferAgentFileKind(filename, input.file.mimeType);
+  const mimeType =
+    input.file.mimeType ?? inferAgentFileMimeType(filename, kind);
   const bytes = decodePayload(input.file);
   const contentHash = crypto.createHash("sha256").update(bytes).digest("hex");
   const versionGroupId = input.versionGroupId ?? crypto.randomUUID();
@@ -214,16 +223,22 @@ export async function createAgentFileVersion(input: {
   });
 }
 
-export async function getAgentFileForRead(id: string, userId: string): Promise<AgentFileRecord> {
+export async function getAgentFileForRead(
+  id: string,
+  userId: string,
+): Promise<AgentFileRecord> {
   const row = await findLiveAgentFile(id);
   if (!row) throw new AgentFileError("not_found");
   if (!(await canRead(userId, { type: "project", id: row.projectId }))) {
     throw new AgentFileError("forbidden");
   }
-  return row;
+  return withBundleIngestStatus(row);
 }
 
-export async function getAgentFileForWrite(id: string, userId: string): Promise<AgentFileRecord> {
+export async function getAgentFileForWrite(
+  id: string,
+  userId: string,
+): Promise<AgentFileRecord> {
   const row = await findLiveAgentFile(id);
   if (!row) throw new AgentFileError("not_found");
   if (!(await canWrite(userId, { type: "project", id: row.projectId }))) {
@@ -232,7 +247,10 @@ export async function getAgentFileForWrite(id: string, userId: string): Promise<
   return row;
 }
 
-export async function streamAgentFile(id: string, userId: string): Promise<Response> {
+export async function streamAgentFile(
+  id: string,
+  userId: string,
+): Promise<Response> {
   const row = await getAgentFileForRead(id, userId);
   const obj = await streamObject(row.objectKey);
   return new Response(obj.stream, {
@@ -240,7 +258,9 @@ export async function streamAgentFile(id: string, userId: string): Promise<Respo
       filename: row.filename,
       contentType: row.mimeType,
       contentLength: obj.contentLength,
-      disposition: inlineDisposition(row.kind as AgentFileKind) ? "inline" : "attachment",
+      disposition: inlineDisposition(row.kind as AgentFileKind)
+        ? "inline"
+        : "attachment",
     }),
   });
 }
@@ -259,7 +279,10 @@ export async function exportAgentFileForDownload(
   };
 }
 
-export async function streamCompiledAgentFile(id: string, userId: string): Promise<Response> {
+export async function streamCompiledAgentFile(
+  id: string,
+  userId: string,
+): Promise<Response> {
   const row = await getAgentFileForRead(id, userId);
   if (!row.compiledObjectKey) throw new AgentFileError("not_found");
   const obj = await streamObject(row.compiledObjectKey);
@@ -281,9 +304,12 @@ export async function updateAgentFile(input: {
   folderId?: string | null;
 }): Promise<AgentFileSummary> {
   const current = await getAgentFileForWrite(input.id, input.userId);
-  if (input.folderId) await assertFolderInProject(input.folderId, current.projectId);
+  if (input.folderId)
+    await assertFolderInProject(input.folderId, current.projectId);
 
-  const filename = input.filename ? normalizeFilename(input.filename) : undefined;
+  const filename = input.filename
+    ? normalizeFilename(input.filename)
+    : undefined;
   const [row] = await db
     .update(agentFiles)
     .set({
@@ -303,7 +329,10 @@ export async function updateAgentFile(input: {
   return toSummary(row);
 }
 
-export async function deleteAgentFile(id: string, userId: string): Promise<AgentFileSummary> {
+export async function deleteAgentFile(
+  id: string,
+  userId: string,
+): Promise<AgentFileSummary> {
   await getAgentFileForWrite(id, userId);
   const [row] = await db
     .update(agentFiles)
@@ -314,7 +343,10 @@ export async function deleteAgentFile(id: string, userId: string): Promise<Agent
   return toSummary(row);
 }
 
-export async function startAgentFileIngest(id: string, userId: string): Promise<AgentFileSummary> {
+export async function startAgentFileIngest(
+  id: string,
+  userId: string,
+): Promise<AgentFileSummary> {
   const row = await getAgentFileForWrite(id, userId);
   if (!isIngestible(row.kind as AgentFileKind, row.mimeType)) {
     throw new AgentFileError("unsupported_kind");
@@ -332,10 +364,15 @@ export async function startAgentFileIngest(id: string, userId: string): Promise<
   return toSummary(updated ?? row);
 }
 
-export async function compileAgentFile(id: string, userId: string): Promise<AgentFileSummary> {
+export async function compileAgentFile(
+  id: string,
+  userId: string,
+): Promise<AgentFileSummary> {
   const row = await getAgentFileForWrite(id, userId);
   if (row.kind !== "latex") throw new AgentFileError("unsupported_kind");
-  if ((process.env.FEATURE_TECTONIC_COMPILE ?? "false").toLowerCase() !== "true") {
+  if (
+    (process.env.FEATURE_TECTONIC_COMPILE ?? "false").toLowerCase() !== "true"
+  ) {
     const [updated] = await db
       .update(agentFiles)
       .set({ compileStatus: "disabled" })
@@ -366,7 +403,10 @@ export async function compileAgentFile(id: string, userId: string): Promise<Agen
     });
     if (!res.ok) {
       const text = sanitizeCompileError(await res.text());
-      await db.update(agentFiles).set({ compileStatus: "failed" }).where(eq(agentFiles.id, row.id));
+      await db
+        .update(agentFiles)
+        .set({ compileStatus: "failed" })
+        .where(eq(agentFiles.id, row.id));
       throw new AgentFileError("compile_failed", text);
     }
     const pdf = Buffer.from(await res.arrayBuffer());
@@ -387,9 +427,13 @@ export async function compileAgentFile(id: string, userId: string): Promise<Agen
   }
 }
 
-export async function createCanvasFromAgentFile(id: string, userId: string): Promise<{ noteId: string }> {
+export async function createCanvasFromAgentFile(
+  id: string,
+  userId: string,
+): Promise<{ noteId: string }> {
   const row = await getAgentFileForWrite(id, userId);
-  if (row.kind !== "code" && row.kind !== "html") throw new AgentFileError("unsupported_kind");
+  if (row.kind !== "code" && row.kind !== "html")
+    throw new AgentFileError("unsupported_kind");
   const obj = await streamObject(row.objectKey);
   const source = await new Response(obj.stream).text();
   const language = canvasLanguageFor(row.filename);
@@ -423,13 +467,21 @@ export async function createCanvasFromAgentFile(id: string, userId: string): Pro
       mimeType: row.mimeType,
     })
     .returning({ id: notes.id });
-  if (!note) throw new AgentFileError("bad_request", "canvas_note_insert_failed");
-  await db.update(agentFiles).set({ canvasNoteId: note.id }).where(eq(agentFiles.id, row.id));
+  if (!note)
+    throw new AgentFileError("bad_request", "canvas_note_insert_failed");
+  await db
+    .update(agentFiles)
+    .set({ canvasNoteId: note.id })
+    .where(eq(agentFiles.id, row.id));
   return { noteId: note.id };
 }
 
-export async function registerExistingObjectAsAgentFile(input: RegisterExistingObjectInput): Promise<AgentFileSummary> {
-  if (!(await canWrite(input.userId, { type: "project", id: input.projectId }))) {
+export async function registerExistingObjectAsAgentFile(
+  input: RegisterExistingObjectInput,
+): Promise<AgentFileSummary> {
+  if (
+    !(await canWrite(input.userId, { type: "project", id: input.projectId }))
+  ) {
     throw new AgentFileError("forbidden");
   }
   const filename = normalizeFilename(input.filename);
@@ -467,6 +519,11 @@ async function hashObject(objectKey: string): Promise<string> {
 }
 
 export function toSummary(row: AgentFileRecord): AgentFileSummary {
+  const ingestStatus =
+    row.sourceNoteId &&
+    (row.ingestStatus === "queued" || row.ingestStatus === "running")
+      ? "completed"
+      : row.ingestStatus;
   return {
     id: row.id,
     workspaceId: row.workspaceId,
@@ -482,7 +539,7 @@ export function toSummary(row: AgentFileRecord): AgentFileSummary {
     versionGroupId: row.versionGroupId,
     version: row.version,
     ingestWorkflowId: row.ingestWorkflowId,
-    ingestStatus: row.ingestStatus as AgentFileSummary["ingestStatus"],
+    ingestStatus: ingestStatus as AgentFileSummary["ingestStatus"],
     sourceNoteId: row.sourceNoteId,
     canvasNoteId: row.canvasNoteId,
     compileStatus: row.compileStatus as AgentFileSummary["compileStatus"],
@@ -492,7 +549,46 @@ export function toSummary(row: AgentFileRecord): AgentFileSummary {
   };
 }
 
-function decodePayload(file: Pick<CreateAgentFilePayload, "content" | "base64">): Buffer {
+async function withBundleIngestStatus(
+  row: AgentFileRecord,
+): Promise<AgentFileRecord> {
+  if (
+    row.ingestStatus !== "queued" &&
+    row.ingestStatus !== "running" &&
+    row.ingestStatus !== "not_started"
+  ) {
+    return row;
+  }
+
+  const [bundle] = await db
+    .select({
+      status: sql<string>`${projectTreeNodes.metadata}->>'status'`,
+    })
+    .from(projectTreeNodes)
+    .where(
+      and(
+        eq(projectTreeNodes.projectId, row.projectId),
+        eq(projectTreeNodes.kind, "source_bundle"),
+        isNull(projectTreeNodes.deletedAt),
+        sql`(
+          ${projectTreeNodes.targetId} = ${row.id}::uuid
+          OR ${projectTreeNodes.metadata}->>'originalFileId' = ${row.id}
+        )`,
+        sql`${projectTreeNodes.metadata}->>'status' IN ('completed', 'failed')`,
+      ),
+    )
+    .limit(1);
+
+  if (bundle?.status !== "completed" && bundle?.status !== "failed") return row;
+  return {
+    ...row,
+    ingestStatus: bundle.status,
+  };
+}
+
+function decodePayload(
+  file: Pick<CreateAgentFilePayload, "content" | "base64">,
+): Buffer {
   if (file.content !== undefined) return Buffer.from(file.content, "utf8");
   if (file.base64 !== undefined) return Buffer.from(file.base64, "base64");
   throw new AgentFileError("bad_request", "missing_file_content");
@@ -526,7 +622,9 @@ function objectKeyFor(input: {
   return `agent-files/${input.workspaceId}/${input.projectId}/${input.fileId}/v${input.version}/${encodeURIComponent(input.filename)}`;
 }
 
-async function getProject(projectId: string): Promise<{ workspaceId: string } | null> {
+async function getProject(
+  projectId: string,
+): Promise<{ workspaceId: string } | null> {
   const [project] = await db
     .select({ workspaceId: projects.workspaceId })
     .from(projects)
@@ -534,7 +632,10 @@ async function getProject(projectId: string): Promise<{ workspaceId: string } | 
   return project ?? null;
 }
 
-async function assertFolderInProject(folderId: string, projectId: string): Promise<void> {
+async function assertFolderInProject(
+  folderId: string,
+  projectId: string,
+): Promise<void> {
   const [folder] = await db
     .select({ id: folders.id })
     .from(folders)
@@ -571,7 +672,13 @@ function isIngestible(kind: AgentFileKind, mimeType: string): boolean {
 
 function ingestMimeFor(kind: AgentFileKind, mimeType: string): string {
   if (kind === "markdown") return "text/markdown";
-  if (kind === "pdf" || kind === "docx" || kind === "pptx" || kind === "xlsx" || mimeType.startsWith("image/")) {
+  if (
+    kind === "pdf" ||
+    kind === "docx" ||
+    kind === "pptx" ||
+    kind === "xlsx" ||
+    mimeType.startsWith("image/")
+  ) {
     return mimeType;
   }
   return "text/plain";
@@ -630,7 +737,17 @@ function downloadHeaders(input: {
 }
 
 function inlineDisposition(kind: AgentFileKind): boolean {
-  return ["markdown", "text", "latex", "html", "code", "json", "csv", "pdf", "image"].includes(kind);
+  return [
+    "markdown",
+    "text",
+    "latex",
+    "html",
+    "code",
+    "json",
+    "csv",
+    "pdf",
+    "image",
+  ].includes(kind);
 }
 
 function compiledFilename(filename: string): string {

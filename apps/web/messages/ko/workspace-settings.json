@@ -66,10 +66,12 @@
   },
   "trash": {
     "heading": "휴지통",
+    "retention": "삭제한 노트는 30일 동안 보관된 뒤 자동으로 완전 삭제됩니다.",
     "loading": "삭제된 노트를 불러오고 있어요.",
     "loadFailed": "휴지통을 불러오지 못했어요.",
     "empty": "삭제된 노트가 없습니다.",
     "meta": "{project} · 삭제됨 {date}",
+    "expires": "{date} 이후 자동 삭제",
     "restore": "복원",
     "deleteForever": "완전 삭제"
   }

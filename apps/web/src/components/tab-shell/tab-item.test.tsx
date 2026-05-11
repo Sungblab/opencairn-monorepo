@@ -83,6 +83,15 @@ describe("TabItem", () => {
     expect(close.className).toContain("w-7");
   });
 
+  it("keeps inactive tabs compact and low contrast", () => {
+    renderTabItem(mk());
+    const tab = screen.getByRole("tab");
+
+    expect(tab.className).toContain("min-w-[104px]");
+    expect(tab.className).toContain("max-w-[200px]");
+    expect(tab.className).toContain("border-border/70");
+  });
+
   it("middle-click closes the tab (standard browser gesture)", () => {
     const onClose = vi.fn();
     renderTabItem(mk(), false, () => {}, onClose);

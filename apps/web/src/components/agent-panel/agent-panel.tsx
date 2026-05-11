@@ -43,10 +43,22 @@ import { useThreadsStore } from "@/stores/threads-store";
 import { usePanelStore, type AgentPanelTab } from "@/stores/panel-store";
 import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
 import { NotificationListPanel } from "@/components/notifications/notification-list-panel";
+import { openIngestTab } from "@/components/ingest/open-ingest-tab";
+import { openOriginalFileTab } from "@/components/ingest/open-original-file-tab";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 import { Composer } from "./composer";
 import { Conversation } from "./conversation";
-import { DocumentGenerationCards, asDocumentGenerationCards } from "./message-bubble";
+import {
+  DocumentGenerationCards,
+  asDocumentGenerationCards,
+} from "./message-bubble";
 import { DocumentGenerationForm } from "./document-generation-form";
 import { AgentPanelEmptyState } from "./empty-state";
 import { NoteUpdateActionReviewList } from "./note-update-action-review";
@@ -97,11 +109,14 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const activeThreadId = useThreadsStore((s) => s.activeThreadId);
   const setActive = useThreadsStore((s) => s.setActiveThread);
   const { create } = useChatThreads(workspaceId);
-  const { send, live, resumeRun } = useChatSend(activeThreadId);
+  const { send, live, pendingUser, resumeRun } = useChatSend(activeThreadId);
   const { upload, isUploading } = useIngestUpload();
+  const uploadT = useTranslations("sidebar.upload");
 
   const activeTabId = useTabsStore((s) => s.activeId);
-  const activeTab = useTabsStore((s) => s.tabs.find((t) => t.id === activeTabId));
+  const activeTab = useTabsStore((s) =>
+    s.tabs.find((t) => t.id === activeTabId),
+  );
   const initialSourcePolicy = useMemo(
     () => defaultSourcePolicy(activeTab?.kind),
     [activeTab?.kind],
@@ -116,7 +131,11 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const [attachedReferences, setAttachedReferences] = useState<
     ProjectTreeDragPayload[]
   >([]);
-  const [formGenerationEvents, setFormGenerationEvents] = useState<unknown[]>([]);
+  const [pendingUploadFile, setPendingUploadFile] = useState<File | null>(null);
+  const [uploadError, setUploadError] = useState(false);
+  const [formGenerationEvents, setFormGenerationEvents] = useState<unknown[]>(
+    [],
+  );
   const sendInFlightRef = useRef(false);
   const buildScopePayload = useCallback(
     (commandId?: AgentCommandId) => {
@@ -262,39 +281,62 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
     workspaceId,
   ]);
 
-  const handleAttachFile = useCallback(
-    (file: File) => {
+  const uploadAndAttachFile = useCallback(
+    async (file: File) => {
       if (!activeProjectId) return;
       const noteId =
         activeTab?.kind === "note" && activeTab.targetId
           ? activeTab.targetId
           : undefined;
-      void upload(file, activeProjectId, noteId ? { noteId } : undefined)
-        .then((result) => {
-          const sourceBundleNodeId = result.sourceBundleNodeId;
-          if (!sourceBundleNodeId) return;
-          setAttachedReferences((current) => {
-            if (
-              current.some((item) => item.id === sourceBundleNodeId)
-            ) {
-              return current;
-            }
-            return [
-              ...current,
-              {
-                id: sourceBundleNodeId,
-                targetId: sourceBundleNodeId,
-                kind: "source_bundle",
-                label: file.name,
-                parentId: null,
-              },
-            ];
-          });
-        })
-        .catch(() => {});
+      const result = await upload(
+        file,
+        activeProjectId,
+        noteId ? { noteId } : undefined,
+      );
+      openIngestTab(result.workflowId, file.name);
+      if (result.originalFileId) {
+        openOriginalFileTab(result.originalFileId, file.name);
+      }
+      const sourceBundleNodeId = result.sourceBundleNodeId;
+      if (!sourceBundleNodeId) return;
+      setAttachedReferences((current) => {
+        if (current.some((item) => item.id === sourceBundleNodeId)) {
+          return current;
+        }
+        return [
+          ...current,
+          {
+            id: sourceBundleNodeId,
+            targetId: sourceBundleNodeId,
+            kind: "source_bundle",
+            label: file.name,
+            parentId: null,
+          },
+        ];
+      });
     },
     [activeProjectId, activeTab, upload],
   );
+
+  const handleAttachFile = useCallback(
+    (file: File) => {
+      void uploadAndAttachFile(file).catch(() => {});
+    },
+    [uploadAndAttachFile],
+  );
+
+  const startPendingUpload = useCallback(() => {
+    if (!pendingUploadFile) return;
+    setUploadError(false);
+    void uploadAndAttachFile(pendingUploadFile)
+      .then(() => {
+        setPendingUploadFile(null);
+      })
+      .catch((err) => {
+        console.error("agent panel file upload failed", err);
+        setUploadError(true);
+      });
+  }, [pendingUploadFile, uploadAndAttachFile]);
 
   const handleAttachTreeNode = useCallback((node: ProjectTreeDragPayload) => {
     setAttachedReferences((current) => {
@@ -304,7 +346,9 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   }, []);
 
   const handleRemoveTreeReference = useCallback((id: string) => {
-    setAttachedReferences((current) => current.filter((item) => item.id !== id));
+    setAttachedReferences((current) =>
+      current.filter((item) => item.id !== id),
+    );
   }, []);
 
   const handlePanelDragOver = useCallback((event: DragEvent<HTMLElement>) => {
@@ -320,7 +364,10 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
 
   const handlePanelDragLeave = useCallback((event: DragEvent<HTMLElement>) => {
     const nextTarget = event.relatedTarget;
-    if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
+    if (
+      nextTarget instanceof Node &&
+      event.currentTarget.contains(nextTarget)
+    ) {
       return;
     }
     setDraggingReference(false);
@@ -338,12 +385,11 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
       }
       if (!dataTransferHasFiles(event.dataTransfer)) return;
       event.preventDefault();
-      for (const file of Array.from(event.dataTransfer.files)) {
-        handleAttachFile(file);
-      }
+      setUploadError(false);
+      setPendingUploadFile(Array.from(event.dataTransfer.files)[0] ?? null);
       setPanelTab("chat");
     },
-    [handleAttachFile, handleAttachTreeNode, setPanelTab],
+    [handleAttachTreeNode, setPanelTab],
   );
 
   // i18n for save-suggestion toasts (Task 21).
@@ -400,7 +446,9 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
         markdown: body_markdown,
         // activeTab.targetId is the noteId for note tabs.
         activeNoteId:
-          activeTab?.kind === "note" ? (activeTab.targetId ?? undefined) : undefined,
+          activeTab?.kind === "note"
+            ? (activeTab.targetId ?? undefined)
+            : undefined,
         // mode is the TabMode string; "plate" indicates the Plate editor.
         activeNoteIsPlate:
           activeTab?.kind === "note" && activeTab.mode === "plate",
@@ -503,6 +551,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
             <Conversation
               threadId={activeThreadId}
               live={live}
+              pendingUser={pendingUser}
               onResumeRun={resumeRun}
               onSaveSuggestion={handleSaveSuggestion}
             />
@@ -525,7 +574,9 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
               onCommand={handleCommand}
               onAttachFile={handleAttachFile}
               onAttachTreeNode={handleAttachTreeNode}
-              activeContextLabel={activeTab?.targetId ? activeTab.title : undefined}
+              activeContextLabel={
+                activeTab?.targetId ? activeTab.title : undefined
+              }
               activeContextEnabled={activeContextEnabled}
               onToggleActiveContext={() =>
                 setActiveContextEnabled((current) => !current)
@@ -535,6 +586,47 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
           </div>
         </>
       ) : null}
+      <Dialog
+        open={Boolean(pendingUploadFile)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingUploadFile(null);
+            setUploadError(false);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{uploadT("title")}</DialogTitle>
+            <DialogDescription>{uploadT("description")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-muted/20 px-4 py-6 text-center text-sm">
+              <p className="font-medium">
+                {pendingUploadFile
+                  ? uploadT("selected", { name: pendingUploadFile.name })
+                  : uploadT("drop")}
+              </p>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                {uploadT("hint")}
+              </p>
+            </div>
+            {uploadError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {uploadT("error")}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              disabled={!pendingUploadFile || isUploading}
+              onClick={startPendingUpload}
+              className="inline-flex min-h-10 w-full items-center justify-center rounded bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isUploading ? uploadT("uploading") : uploadT("start")}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </aside>
   );
 }

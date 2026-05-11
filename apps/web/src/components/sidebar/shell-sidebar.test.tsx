@@ -107,6 +107,9 @@ describe("ShellSidebar", () => {
       screen.getByRole("link", { name: "sidebar.nav.dashboard" }),
     ).toHaveClass("rounded-[var(--radius-control)]");
     expect(
+      screen.getByRole("link", { name: "sidebar.nav.trash" }),
+    ).toHaveAttribute("href", "/ko/workspace/acme/settings/trash");
+    expect(
       screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
     ).toHaveClass("rounded-[var(--radius-control)]");
     expect(screen.queryByText("project list")).not.toBeInTheDocument();
@@ -133,5 +136,8 @@ describe("ShellSidebar", () => {
     expect(screen.queryByText("agents")).not.toBeInTheDocument();
     expect(screen.queryByText("learn")).not.toBeInTheDocument();
     expect(screen.getByText("project tree")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "sidebar.nav.trash" }),
+    ).toHaveAttribute("href", "/ko/workspace/acme/settings/trash");
   });
 });

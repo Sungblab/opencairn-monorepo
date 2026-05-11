@@ -68,7 +68,7 @@ export function HelpView({ wsSlug }: { wsSlug: string }) {
   const locale = useLocale();
   const t = useTranslations("help");
   const actionHrefs = {
-    import: urls.workspace.import(locale, wsSlug),
+    import: urls.workspace.newProject(locale, wsSlug),
     settings: urls.workspace.settings(locale, wsSlug),
     report: urls.workspace.report(locale, wsSlug),
   };

@@ -70,9 +70,9 @@ function ActionCard({
         />
       </div>
       <div>
-        <div className="text-sm font-semibold">{title}</div>
+        <div className="break-keep text-sm font-semibold">{title}</div>
         <p
-          className={`mt-1 text-xs leading-5 ${
+          className={`mt-1 break-keep text-xs leading-5 ${
             primary ? "text-background/75" : "text-muted-foreground"
           }`}
         >
@@ -125,11 +125,11 @@ export function GettingStartedPanel({
           </p>
           <h2
             id="getting-started-title"
-            className="mt-2 max-w-2xl text-2xl font-semibold tracking-normal"
+            className="mt-2 max-w-2xl break-keep text-2xl font-semibold tracking-normal"
           >
             {t("titleEmpty")}
           </h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+          <p className="mt-2 max-w-2xl break-keep text-sm leading-6 text-muted-foreground">
             {t("descEmpty")}
           </p>
           <ol className="mt-5 grid gap-2 sm:grid-cols-3">
@@ -148,7 +148,7 @@ export function GettingStartedPanel({
       aria-labelledby="getting-started-title"
       className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-background"
     >
-      <div className="grid gap-0 lg:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
+      <div className="grid gap-0 lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)] 2xl:grid-cols-[minmax(0,1fr)_minmax(560px,0.9fr)]">
         <div className="flex flex-col justify-between gap-6 border-b border-border p-5 lg:border-b-0 lg:border-r lg:p-6">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -156,11 +156,11 @@ export function GettingStartedPanel({
             </p>
             <h2
               id="getting-started-title"
-              className="mt-2 max-w-2xl text-2xl font-semibold tracking-normal"
+              className="mt-2 max-w-2xl break-keep text-2xl font-semibold tracking-normal"
             >
               {hasSignal ? t("titleActive") : t("titleEmpty")}
             </h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+            <p className="mt-2 max-w-2xl break-keep text-sm leading-6 text-muted-foreground">
               {hasSignal ? t("descActive") : t("descEmpty")}
             </p>
           </div>
@@ -171,7 +171,7 @@ export function GettingStartedPanel({
           </ol>
         </div>
 
-        <div className="grid gap-3 p-4 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+        <div className="grid gap-3 p-4 sm:grid-cols-3 lg:grid-cols-1 2xl:grid-cols-3">
           <ActionCard
             href={urls.workspace.import(locale, wsSlug)}
             icon={UploadCloud}

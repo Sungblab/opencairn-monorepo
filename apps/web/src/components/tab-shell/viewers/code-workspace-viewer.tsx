@@ -72,7 +72,7 @@ export function CodeWorkspaceViewer({ tab }: { tab: Tab }) {
           <Download className="h-4 w-4" />
         </a>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto p-3">
+      <div className="app-scrollbar-thin min-h-0 flex-1 overflow-auto p-3">
         <div className="rounded border">
           {data.snapshot.manifest.entries.map((entry) => (
             <div

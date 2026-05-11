@@ -10,8 +10,9 @@
 
 import { useParams } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
+import { Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { useChatThreads } from "@/hooks/use-chat-threads";
 import { useHydratedNow } from "@/hooks/use-hydrated-now";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
@@ -20,11 +21,24 @@ import { useThreadsStore } from "@/stores/threads-store";
 export function ThreadList() {
   const { wsSlug } = useParams<{ wsSlug?: string }>();
   const workspaceId = useWorkspaceId(wsSlug);
-  const { threads, isLoading } = useChatThreads(workspaceId);
+  const { threads, isLoading, archive } = useChatThreads(workspaceId);
+  const activeThreadId = useThreadsStore((s) => s.activeThreadId);
   const setActive = useThreadsStore((s) => s.setActiveThread);
   const t = useTranslations("agentPanel.thread_list");
   const format = useFormatter();
   const now = useHydratedNow();
+
+  async function deleteThread(threadId: string) {
+    try {
+      await archive.mutateAsync(threadId);
+      if (activeThreadId === threadId) {
+        setActive(null);
+      }
+    } catch (err) {
+      console.error("chat thread archive failed", err);
+      toast.error(t("delete_failed"));
+    }
+  }
 
   if (isLoading) {
     return <p className="p-2 text-xs text-muted-foreground">{t("loading")}</p>;
@@ -33,25 +47,51 @@ export function ThreadList() {
     return <p className="p-2 text-xs text-muted-foreground">{t("empty")}</p>;
   }
 
-  // DropdownMenuItem (Base UI Menu.Item) closes the menu on selection and
-  // gives us keyboard nav for free, so we drop the manual <ul>/<li> + <button>
-  // pair. onSelect is the menu-item idiom that fires after the close gesture.
   return (
-    <div className="max-h-80 overflow-auto p-1">
-      {threads.map((thread) => (
-        <DropdownMenuItem
-          key={thread.id}
-          onSelect={() => setActive(thread.id)}
-          className="flex w-full flex-col items-start rounded px-2 py-1.5 text-left"
-        >
-          <span className="truncate text-sm">
-            {thread.title || t("untitled")}
-          </span>
-          <span className="text-[10px] text-muted-foreground">
-            {now ? format.relativeTime(new Date(thread.updated_at), now) : null}
-          </span>
-        </DropdownMenuItem>
-      ))}
+    <div className="w-full">
+      <div className="border-b border-border px-3 py-2">
+        <p className="text-xs font-semibold text-muted-foreground">
+          {t("title")}
+        </p>
+      </div>
+      <div className="app-scrollbar-thin max-h-72 overflow-auto p-1">
+        {threads.map((thread) => {
+          const isDeleting = archive.isPending;
+          const title = thread.title || t("untitled");
+
+          return (
+            <div
+              key={thread.id}
+              className="group flex items-center gap-1 rounded-md px-1 py-1 hover:bg-accent"
+            >
+              <button
+                type="button"
+                onClick={() => setActive(thread.id)}
+                className="min-w-0 flex-1 rounded px-2 py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span className="block truncate text-sm font-medium text-foreground">
+                  {title}
+                </span>
+                <span className="block text-[10px] text-muted-foreground">
+                  {now
+                    ? format.relativeTime(new Date(thread.updated_at), now)
+                    : null}
+                </span>
+              </button>
+              <button
+                type="button"
+                aria-label={t("delete_aria", { title })}
+                title={t("delete")}
+                disabled={isDeleting}
+                onClick={() => void deleteThread(thread.id)}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] text-muted-foreground opacity-80 outline-none hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40 group-hover:opacity-100"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

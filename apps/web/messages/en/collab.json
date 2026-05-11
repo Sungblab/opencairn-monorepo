@@ -33,7 +33,7 @@
   },
   "collab": {
     "readonly_banner": "Read-only mode",
-    "disconnected_banner": "Disconnected. Reconnecting...",
+    "disconnected_banner": "Live connection lost. Reconnecting...",
     "restore_connection": "Retry"
   }
 }

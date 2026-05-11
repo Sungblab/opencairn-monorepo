@@ -8,6 +8,7 @@ IngestEvents without each activity needing to read Temporal context. Workflows
 are deterministic and may not talk to Redis directly — the small ``emit_started``
 activity exists for the same reason: it forwards to ``publish_safe`` for us.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -87,26 +88,32 @@ _QUARANTINE_RETRY = RetryPolicy(maximum_attempts=2, backoff_coefficient=2.0)
 # ``apps/api/src/routes/ingest.ts``'s allowlist for the OOXML + legacy
 # binary set; HWP/HWPX go through ``parse_hwp`` instead because they need
 # the H2Orestart extension path, not markitdown.
-_OFFICE_MIMES = frozenset({
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "application/msword",
-    "application/vnd.ms-powerpoint",
-    "application/vnd.ms-excel",
-})
+_OFFICE_MIMES = frozenset(
+    {
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/msword",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.ms-excel",
+    }
+)
 
-_HWP_MIMES = frozenset({
-    "application/x-hwp",
-    "application/haansofthwp",
-    "application/vnd.hancom.hwp",
-    "application/vnd.hancom.hwpx",
-})
+_HWP_MIMES = frozenset(
+    {
+        "application/x-hwp",
+        "application/haansofthwp",
+        "application/vnd.hancom.hwp",
+        "application/vnd.hancom.hwpx",
+    }
+)
 
-_TEXT_MIMES = frozenset({
-    "text/plain",
-    "text/markdown",
-})
+_TEXT_MIMES = frozenset(
+    {
+        "text/plain",
+        "text/markdown",
+    }
+)
 
 
 def _activity_input(inp: IngestInput, workflow_id: str, started_at_ms: int, **extra) -> dict:
@@ -210,6 +217,7 @@ class IngestWorkflow:
                         "project_id": inp.project_id,
                         "url": inp.url,
                         "object_key": inp.object_key,
+                        "original_file_node_id": inp.original_file_node_id,
                         "quarantine_key": quarantine_key,
                         "reason": reason,
                         "workflow_id": workflow_id,
@@ -234,9 +242,7 @@ class IngestWorkflow:
                     )
             raise
 
-    async def _run_pipeline(
-        self, inp: IngestInput, workflow_id: str, started_at_ms: int
-    ) -> str:
+    async def _run_pipeline(self, inp: IngestInput, workflow_id: str, started_at_ms: int) -> str:
         mime = inp.mime_type
         text: str = ""
         needs_enhance = False
@@ -346,9 +352,7 @@ class IngestWorkflow:
                     },
                     schedule_to_close_timeout=timedelta(minutes=2),
                     heartbeat_timeout=_SHORT_HEARTBEAT,
-                    retry_policy=RetryPolicy(
-                        maximum_attempts=2, backoff_coefficient=2.0
-                    ),
+                    retry_policy=RetryPolicy(maximum_attempts=2, backoff_coefficient=2.0),
                 )
                 enrich_result = await workflow.execute_activity(
                     "enrich_document",
@@ -367,18 +371,14 @@ class IngestWorkflow:
                     ),
                     schedule_to_close_timeout=timedelta(minutes=20),
                     heartbeat_timeout=_LONG_HEARTBEAT,
-                    retry_policy=RetryPolicy(
-                        maximum_attempts=2, backoff_coefficient=2.0
-                    ),
+                    retry_policy=RetryPolicy(maximum_attempts=2, backoff_coefficient=2.0),
                 )
             except (ActivityError, ApplicationError):
                 # Enrichment is best-effort. We catch only Temporal-surfaced
                 # activity errors, not bare Exception — workflow-level bugs
                 # (typos, missing keys) should still crash so they surface
                 # in dev. The feature flag protects prod regardless.
-                workflow.logger.warning(
-                    "enrichment failed, continuing without artifact"
-                )
+                workflow.logger.warning("enrichment failed, continuing without artifact")
 
         if needs_enhance:
             enhanced = await workflow.execute_activity(
@@ -401,7 +401,9 @@ class IngestWorkflow:
                 "mime_type": mime,
                 "object_key": inp.object_key,
                 "text": text,
-                "tree_parent_node_id": inp.source_bundle_node_id,
+                "tree_parent_node_id": inp.parsed_group_node_id or inp.source_bundle_node_id,
+                "tree_label": "전체 추출 노트" if inp.parsed_group_node_id else None,
+                "original_file_node_id": inp.original_file_node_id,
                 "workflow_id": workflow_id,
                 "started_at_ms": started_at_ms,
             },
@@ -423,14 +425,10 @@ class IngestWorkflow:
                     },
                     schedule_to_close_timeout=timedelta(minutes=1),
                     heartbeat_timeout=_SHORT_HEARTBEAT,
-                    retry_policy=RetryPolicy(
-                        maximum_attempts=3, backoff_coefficient=2.0
-                    ),
+                    retry_policy=RetryPolicy(maximum_attempts=3, backoff_coefficient=2.0),
                 )
             except (ActivityError, ApplicationError):
-                workflow.logger.warning(
-                    "store_enrichment_artifact failed, artifact lost"
-                )
+                workflow.logger.warning("store_enrichment_artifact failed, artifact lost")
 
         if inp.source_bundle_node_id:
             with contextlib.suppress(ActivityError):
@@ -471,23 +469,8 @@ class IngestWorkflow:
             except (ActivityError, ApplicationError):
                 workflow.logger.warning("source bundle artifact creation failed")
 
-        await create_artifact({
-            "workflow_id": workflow_id,
-            "bundle_node_id": inp.source_bundle_node_id,
-            "workspace_id": inp.workspace_id,
-            "project_id": inp.project_id,
-            "user_id": inp.user_id,
-            "parent_node_id": inp.parsed_group_node_id,
-            "kind": "agent_file",
-            "label": "parsed.md",
-            "filename": "parsed.md",
-            "mime_type": "text/markdown",
-            "role": "parsed",
-            "text": parse_result.get("markdown") or parse_result.get("text") or "",
-        })
-
-        for page in parse_result.get("page_artifacts", []):
-            await create_artifact({
+        await create_artifact(
+            {
                 "workflow_id": workflow_id,
                 "bundle_node_id": inp.source_bundle_node_id,
                 "workspace_id": inp.workspace_id,
@@ -495,30 +478,51 @@ class IngestWorkflow:
                 "user_id": inp.user_id,
                 "parent_node_id": inp.parsed_group_node_id,
                 "kind": "agent_file",
-                "label": page.get("label", "page.md"),
-                "filename": page.get("label", "page.md"),
+                "label": "parsed.md",
+                "filename": "parsed.md",
                 "mime_type": "text/markdown",
-                "role": "parsed_page",
-                "text": page.get("text", ""),
-                "page_index": page.get("page_index"),
-                "metadata": {"ocrEngine": page.get("ocr_engine")},
-            })
+                "role": "parsed",
+                "text": parse_result.get("markdown") or parse_result.get("text") or "",
+            }
+        )
+
+        for page in parse_result.get("page_artifacts", []):
+            await create_artifact(
+                {
+                    "workflow_id": workflow_id,
+                    "bundle_node_id": inp.source_bundle_node_id,
+                    "workspace_id": inp.workspace_id,
+                    "project_id": inp.project_id,
+                    "user_id": inp.user_id,
+                    "parent_node_id": inp.parsed_group_node_id,
+                    "kind": "agent_file",
+                    "label": page.get("label", "page.md"),
+                    "filename": page.get("label", "page.md"),
+                    "mime_type": "text/markdown",
+                    "role": "parsed_page",
+                    "text": page.get("text", ""),
+                    "page_index": page.get("page_index"),
+                    "metadata": {"ocrEngine": page.get("ocr_engine")},
+                }
+            )
 
         for figure in parse_result.get("figure_artifacts", []):
-            await create_artifact({
-                "workflow_id": workflow_id,
-                "bundle_node_id": inp.source_bundle_node_id,
-                "workspace_id": inp.workspace_id,
-                "project_id": inp.project_id,
-                "user_id": inp.user_id,
-                "parent_node_id": inp.figures_group_node_id,
-                "kind": "artifact",
-                "label": figure.get("label", "figure.png"),
-                "role": "figure",
-                "page_index": figure.get("page_index"),
-                "figure_index": figure.get("figure_index"),
-                "metadata": {
-                    "objectKey": figure.get("object_key"),
-                    "mimeType": figure.get("mime_type"),
-                },
-            })
+            await create_artifact(
+                {
+                    "workflow_id": workflow_id,
+                    "bundle_node_id": inp.source_bundle_node_id,
+                    "workspace_id": inp.workspace_id,
+                    "project_id": inp.project_id,
+                    "user_id": inp.user_id,
+                    "parent_node_id": inp.figures_group_node_id,
+                    "kind": "artifact",
+                    "label": figure.get("label", "figure.png"),
+                    "role": "figure",
+                    "page_index": figure.get("page_index"),
+                    "figure_index": figure.get("figure_index"),
+                    "metadata": {
+                        "objectKey": figure.get("object_key"),
+                        "mimeType": figure.get("mime_type"),
+                    },
+                }
+            )

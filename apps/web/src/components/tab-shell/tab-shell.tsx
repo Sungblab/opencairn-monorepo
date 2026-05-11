@@ -27,7 +27,7 @@ export function TabShell({ children }: { children: React.ReactNode }) {
       className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background"
     >
       <TabBar />
-      <div className="flex min-h-0 flex-1 overflow-auto">
+      <div className="app-scrollbar-thin flex min-h-0 flex-1 overflow-auto">
         {active && isRoutedByTabModeRouter(active) ? (
           <div className="min-w-0 flex-1 w-full">
             <TabModeRouterLoader tab={active} />

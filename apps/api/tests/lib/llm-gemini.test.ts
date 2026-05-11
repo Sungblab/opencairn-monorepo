@@ -525,6 +525,44 @@ describe("GeminiProvider.streamGenerate", () => {
     );
   });
 
+  it("retries streaming without thinkingConfig when the model rejects a specific thinking level", async () => {
+    const unsupportedThinking = new Error(
+      JSON.stringify({
+        error: {
+          message:
+            "The requested thinking level HIGH is not supported for this model.",
+        },
+      }),
+    );
+    async function* one() {
+      yield {
+        text: "ok",
+        usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 },
+      };
+    }
+    fakeStream.mockRejectedValueOnce(unsupportedThinking);
+    fakeStream.mockReturnValueOnce(one());
+
+    const provider = getGeminiProvider();
+    const out: StreamChunk[] = [];
+    for await (const chunk of provider.streamGenerate({
+      messages: [{ role: "user", content: "x" }],
+      thinkingLevel: "high",
+    })) {
+      out.push(chunk);
+    }
+
+    expect(out).toContainEqual({ delta: "ok" });
+    expect(fakeStream).toHaveBeenCalledTimes(2);
+    expect(fakeStream.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({
+        config: expect.not.objectContaining({
+          thinkingConfig: expect.anything(),
+        }),
+      }),
+    );
+  });
+
   it("forwards Gemini 3 minimal thinkingLevel to generateContentStream", async () => {
     async function* one() {
       yield {

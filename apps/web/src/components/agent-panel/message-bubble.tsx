@@ -64,6 +64,16 @@ function asSaveSuggestion(v: unknown): { title: string } | null {
   return null;
 }
 
+function stripRenderedCitationMarkers(body: string, citations: Citation[]): string {
+  if (citations.length === 0) return body;
+  const citationIndexes = new Set(citations.map((citation) => citation.index));
+  return body
+    .replace(/\s*\[\^(\d+)\]/g, (match, index: string) =>
+      citationIndexes.has(Number(index)) ? "" : match,
+    )
+    .trimEnd();
+}
+
 function extractNestedErrorMessage(message: string): string {
   let current = message;
   for (let i = 0; i < 3; i += 1) {
@@ -117,22 +127,30 @@ export function MessageBubble({
 
   if (msg.role === "user") {
     return (
-      <div className="flex flex-col gap-1">
-        <span className="text-[10px] uppercase text-muted-foreground">
-          {t("user_label")}
-        </span>
-        <p className="whitespace-pre-wrap text-sm">{msg.content.body}</p>
+      <div className="flex justify-end">
+        <p className="max-w-[86%] whitespace-pre-wrap rounded-[var(--radius-control)] bg-muted px-3 py-2 text-sm text-foreground">
+          {msg.content.body}
+        </p>
       </div>
     );
   }
 
   const thought = isThought(msg.content.thought) ? msg.content.thought : null;
+  const isActiveRun =
+    msg.status === "streaming" ||
+    msg.run_status === "queued" ||
+    msg.run_status === "running";
   const status =
+    isActiveRun &&
     isStatus(msg.content.status) &&
     typeof msg.content.status.phrase === "string"
       ? msg.content.status.phrase
       : null;
   const citations = asCitations(msg.content.citations);
+  const body = stripRenderedCitationMarkers(
+    String(msg.content.body ?? ""),
+    citations,
+  );
   const saveSuggestion = asSaveSuggestion(msg.content.save_suggestion);
   const error = asAgentError(msg.content.error);
   const agentFiles = asAgentFileCards(
@@ -145,22 +163,12 @@ export function MessageBubble({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] uppercase text-muted-foreground">
-          {t("agent_label")}
-        </span>
-        {msg.mode ? (
-          <span className="rounded border border-border px-1.5 text-[10px] uppercase tracking-wide">
-            {msg.mode}
-          </span>
-        ) : null}
-      </div>
       {thought ? (
         <ThoughtBubble summary={thought.summary} tokens={thought.tokens} />
       ) : null}
       {status ? <StatusLine phrase={status} /> : null}
       <ChatMessageRendererLoader
-        body={String(msg.content.body ?? "")}
+        body={body}
         streaming={msg.status === "streaming"}
       />
       {error ? (
@@ -187,7 +195,7 @@ export function MessageBubble({
         <DocumentGenerationCards items={generations} />
       ) : null}
       <MessageActions
-        text={msg.content.body}
+        text={body}
         onRegenerate={() => onRegenerate(msg.id)}
         onFeedback={(s, r) => onFeedback(msg.id, s, r)}
       />

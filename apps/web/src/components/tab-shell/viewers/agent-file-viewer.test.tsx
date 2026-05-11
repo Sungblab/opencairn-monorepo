@@ -16,6 +16,8 @@ const messages = {
       meta: "{kind} · v{version} · {bytes}",
       preview: "미리보기",
       source: "원본",
+      showSource: "원본 보기",
+      hideSource: "원본 닫기",
       jsonTree: "JSON 트리",
       csvTable: "CSV 테이블 · {rows}행",
       column: "열 {index}",
@@ -168,7 +170,7 @@ describe("AgentFileViewer", () => {
     });
   });
 
-  it("renders markdown preview beside the source and version toolbar", async () => {
+  it("renders markdown as a focused preview with the version toolbar", async () => {
     const file = fileSummary({});
     renderViewer(file, "# Report\n\n- first");
 
@@ -181,10 +183,32 @@ describe("AgentFileViewer", () => {
     );
     expect(await screen.findByText("미리보기")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Report" })).toBeInTheDocument();
-    expect(screen.getByText("원본")).toBeInTheDocument();
+    expect(screen.queryByText("원본")).not.toBeInTheDocument();
   });
 
-  it("renders csv as a table while keeping the raw source visible", async () => {
+  it("syncs the tab title from loaded file metadata", async () => {
+    const file = fileSummary({
+      title: "분석 보고서",
+      filename: "analysis.pdf",
+      extension: "pdf",
+      kind: "pdf",
+      mimeType: "application/pdf",
+    });
+    useTabsStore.setState({
+      workspaceId: "ws_slug:acme",
+      tabs: [{ ...tab, title: "파일" }],
+      activeId: tab.id,
+      closedStack: [],
+    });
+
+    renderViewer(file, "pdf");
+
+    await waitFor(() => {
+      expect(useTabsStore.getState().tabs[0]?.title).toBe("분석 보고서");
+    });
+  });
+
+  it("renders csv as a focused table with source available on demand", async () => {
     renderViewer(
       fileSummary({
         filename: "scores.csv",
@@ -198,7 +222,31 @@ describe("AgentFileViewer", () => {
     expect(await screen.findByText("CSV 테이블 · 2행")).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "name" })).toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "Ada" })).toBeInTheDocument();
-    expect(screen.getByText(/name,score/)).toBeInTheDocument();
+    expect(screen.queryByText(/name,score/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "원본 보기" }));
+
+    expect(await screen.findByText(/name,score/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "원본 닫기" })).toBeInTheDocument();
+  });
+
+  it("renders json as a focused tree with source available on demand", async () => {
+    renderViewer(
+      fileSummary({
+        filename: "data.json",
+        extension: "json",
+        kind: "json",
+        mimeType: "application/json",
+      }),
+      '{"name":"Ada","score":10}',
+    );
+
+    expect(await screen.findByText("JSON 트리")).toBeInTheDocument();
+    expect(screen.queryByText(/"name":"Ada"/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "원본 보기" }));
+
+    expect(await screen.findByText(/"name":"Ada"/)).toBeInTheDocument();
   });
 
   it("renders html in a sandboxed preview with a source bridge", async () => {

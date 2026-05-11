@@ -33,7 +33,7 @@ export default async function ProjectLayout({
         projectId={projectId}
         projectName={project.name}
       />
-      <main className="min-w-0 flex-1 overflow-auto">{children}</main>
+      <main className="app-scrollbar-thin min-w-0 flex-1 overflow-auto">{children}</main>
     </>
   );
 }

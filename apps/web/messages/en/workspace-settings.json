@@ -66,10 +66,12 @@
   },
   "trash": {
     "heading": "Trash",
+    "retention": "Deleted notes are kept for 30 days, then permanently deleted automatically.",
     "loading": "Loading deleted notes.",
     "loadFailed": "Could not load trash.",
     "empty": "No deleted notes.",
     "meta": "{project} · deleted {date}",
+    "expires": "Auto-deletes after {date}",
     "restore": "Restore",
     "deleteForever": "Delete forever"
   }

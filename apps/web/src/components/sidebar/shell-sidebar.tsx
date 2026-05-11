@@ -2,7 +2,7 @@
 import { urls } from "@/lib/urls";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { ChevronLeft, Home, MoreHorizontal } from "lucide-react";
+import { ChevronLeft, Home, MoreHorizontal, Trash2 } from "lucide-react";
 import { ScopedSearch } from "./scoped-search";
 import { ProjectTree } from "./project-tree";
 import { SidebarFooter } from "./sidebar-footer";
@@ -84,11 +84,23 @@ export function ShellSidebar({
             <NewFolderButton projectId={projectId} />
             <NewCanvasButton workspaceSlug={wsSlug} projectId={projectId} />
           </div>
-          <ProjectTree projectId={projectId} workspaceSlug={wsSlug} />
+          <div className="min-h-0 flex-1 overflow-hidden border-t border-border">
+            <ProjectTree projectId={projectId} workspaceSlug={wsSlug} />
+          </div>
         </>
       ) : (
         <SidebarEmptyState />
       )}
+      {base ? (
+        <div className="border-t border-border bg-muted/20 px-3 py-2">
+          <SidebarNavLink
+            href={`${base}/settings/trash`}
+            label={tNav("trash")}
+            Icon={Trash2}
+            tone="utility"
+          />
+        </div>
+      ) : null}
       <SidebarFooter />
     </aside>
   );
@@ -98,15 +110,21 @@ function SidebarNavLink({
   href,
   label,
   Icon,
+  tone = "primary",
 }: {
   href: string;
   label: string;
   Icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+  tone?: "primary" | "utility";
 }) {
   return (
     <Link
       href={href}
-      className="flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-[var(--radius-control)] border border-border bg-background px-2 py-1.5 text-xs text-foreground transition-colors hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className={`flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+        tone === "utility"
+          ? "border border-transparent text-muted-foreground hover:border-border hover:bg-background hover:text-foreground"
+          : "border border-border bg-background text-foreground hover:border-foreground"
+      }`}
     >
       <Icon
         aria-hidden

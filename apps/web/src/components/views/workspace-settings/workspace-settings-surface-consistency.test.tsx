@@ -22,6 +22,7 @@ vi.mock("@/lib/api-client", () => {
             title: "Deleted note",
             projectName: "Research",
             deletedAt: "2026-05-10T00:00:00Z",
+            expiresAt: "2026-06-09T00:00:00Z",
           },
         ],
       };

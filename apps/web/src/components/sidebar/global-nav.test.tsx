@@ -25,7 +25,7 @@ describe("GlobalNav", () => {
     const hrefs = links.map((a) => a.getAttribute("href"));
     expect(hrefs).toContain("/ko/workspace/acme");
     expect(hrefs).toContain("/ko/workspace/acme/research");
-    expect(hrefs).toContain("/ko/workspace/acme/import");
+    expect(hrefs).not.toContain("/ko/workspace/acme/import");
     expect(hrefs).not.toContain("/ko/workspace/acme/settings");
     expect(screen.getByText("sidebar.nav.literature")).toBeInTheDocument();
   });
@@ -35,7 +35,7 @@ describe("GlobalNav", () => {
     const links = screen.getAllByRole("link");
     const hrefs = links.map((a) => a.getAttribute("href"));
     expect(hrefs).toContain("/ko/workspace/acme");
-    expect(hrefs).toContain("/ko/workspace/acme/import");
+    expect(hrefs).not.toContain("/ko/workspace/acme/import");
     expect(hrefs).not.toContain("/ko/workspace/acme/research");
     expect(
       screen.queryByText("sidebar.nav.research"),

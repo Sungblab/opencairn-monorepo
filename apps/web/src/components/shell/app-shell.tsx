@@ -1,5 +1,5 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
 import { PanelLeftOpen, PanelRightOpen } from "lucide-react";
 import { ShellSidebarLoader } from "@/components/sidebar/shell-sidebar-loader";
 import { TabShell } from "../tab-shell/tab-shell";
@@ -10,6 +10,9 @@ import { CompactAppShellLoader } from "./compact-app-shell-loader";
 import { useShellLabels } from "@/components/shell/shell-labels";
 import { usePanelStore } from "@/stores/panel-store";
 import { useBreakpoint } from "@/hooks/use-breakpoint";
+
+const usePanelHydrationEffect =
+  typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 export interface AppShellProps {
   children: React.ReactNode;
@@ -47,8 +50,13 @@ export function AppShell({
   const resetSidebarWidth = usePanelStore((s) => s.resetSidebarWidth);
   const setAgentPanelWidth = usePanelStore((s) => s.setAgentPanelWidth);
   const resetAgentPanelWidth = usePanelStore((s) => s.resetAgentPanelWidth);
+  const hydratePanelFromStorage = usePanelStore((s) => s.hydrateFromStorage);
 
   const isCompact = bp !== "lg";
+
+  usePanelHydrationEffect(() => {
+    hydratePanelFromStorage();
+  }, [hydratePanelFromStorage]);
 
   useEffect(() => {
     if (!isCompact) return;

@@ -109,13 +109,26 @@ describe("POST /api/ingest dispatch workspace_id", () => {
     expect(opts.args[0].source_bundle_node_id).toBe(payload.sourceBundleNodeId);
     expect(opts.args[0].parsed_group_node_id).toEqual(expect.any(String));
 
+    const [bundle] = await db
+      .select({
+        kind: projectTreeNodes.kind,
+        label: projectTreeNodes.label,
+        targetTable: projectTreeNodes.targetTable,
+      })
+      .from(projectTreeNodes)
+      .where(eq(projectTreeNodes.id, payload.sourceBundleNodeId));
+    expect(bundle).toMatchObject({
+      kind: "source_bundle",
+      label: "week-1.pdf",
+      targetTable: "agent_files",
+    });
+
     const children = await db
       .select({ kind: projectTreeNodes.kind, label: projectTreeNodes.label })
       .from(projectTreeNodes)
       .where(eq(projectTreeNodes.parentId, payload.sourceBundleNodeId));
     expect(children).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ kind: "agent_file", label: "week-1.pdf" }),
         expect.objectContaining({ kind: "artifact_group", label: "추출 결과" }),
         expect.objectContaining({ kind: "artifact_group", label: "이미지/도표" }),
         expect.objectContaining({ kind: "artifact_group", label: "분석 결과" }),
