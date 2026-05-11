@@ -14,6 +14,5 @@ const LazyIngestOverlays = dynamic(
 export function IngestOverlaysLoader() {
   const ready = useIdleReady({ timeout: 2000, fallbackMs: 1000 });
 
-  if (process.env.NEXT_PUBLIC_FEATURE_LIVE_INGEST !== "true") return null;
   return ready ? <LazyIngestOverlays /> : null;
 }

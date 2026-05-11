@@ -11,7 +11,6 @@ import { tabToUrl } from "@/lib/tab-url";
 import { useTabsStore } from "@/stores/tabs-store";
 import { Button } from "@/components/ui/button";
 import { DownloadCloud, UploadCloud } from "lucide-react";
-import { openIngestTab } from "@/components/ingest/open-ingest-tab";
 import { openOriginalFileTab } from "@/components/ingest/open-original-file-tab";
 import {
   Dialog,
@@ -407,7 +406,6 @@ export function ProjectTree({
       setUploadError(false);
       try {
         const result = await upload(file, projectId);
-        openIngestTab(result.workflowId, file.name);
         if (result.originalFileId) {
           openOriginalFileTab(result.originalFileId, file.name);
         }

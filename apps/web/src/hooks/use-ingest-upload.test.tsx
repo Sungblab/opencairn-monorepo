@@ -3,10 +3,10 @@ import { renderHook, act } from "@testing-library/react";
 import { useIngestUpload } from "./use-ingest-upload";
 import { useIngestStore } from "@/stores/ingest-store";
 
-// Reset the zustand store between tests — runs/spotlight survive otherwise
+// Reset the zustand store between tests — runs survive otherwise
 // because the persist middleware re-hydrates from in-memory localStorage.
 function resetStore() {
-  useIngestStore.setState({ runs: {}, spotlightWfid: null });
+  useIngestStore.setState({ runs: {} });
 }
 
 describe("useIngestUpload", () => {
@@ -15,7 +15,7 @@ describe("useIngestUpload", () => {
     vi.restoreAllMocks();
   });
 
-  it("posts FormData to /api/ingest/upload and primes the live-ingest store", async () => {
+  it("posts FormData to /api/ingest/upload and primes background ingest state", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -65,8 +65,8 @@ describe("useIngestUpload", () => {
       originalFileId: "00000000-0000-0000-0000-000000000011",
     });
 
-    // Store now reflects a running ingest with the spotlight wired — the
-    // exact behaviour the audit said was missing.
+    // Store now reflects a running ingest that a background subscriber can
+    // observe.
     const state = useIngestStore.getState();
     expect(state.runs["ingest-wf-123"]).toMatchObject({
       workflowId: "ingest-wf-123",
@@ -76,7 +76,6 @@ describe("useIngestUpload", () => {
       bundleNodeId: "00000000-0000-0000-0000-000000000010",
       bundleStatus: "running",
     });
-    expect(state.spotlightWfid).toBe("ingest-wf-123");
     expect(result.current.error).toBeNull();
   });
 
@@ -108,7 +107,6 @@ describe("useIngestUpload", () => {
     // Critically, no run was dispatched — the store stays empty so no
     // dangling SSE listener attaches to a non-existent workflow.
     expect(useIngestStore.getState().runs).toEqual({});
-    expect(useIngestStore.getState().spotlightWfid).toBeNull();
   });
 
   it("forwards optional noteId in the multipart body", async () => {

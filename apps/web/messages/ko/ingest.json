@@ -1,24 +1,14 @@
 {
-  "spotlight": {
-    "title": "{fileName} 분석 중",
-    "subtitle": "페이지를 읽고 그림과 구조를 추출하고 있어요.",
-    "skipToTab": "탭에서 보기",
-    "secondsRemaining": "{n}초"
-  },
   "tab": {
     "title": "분석 중: {fileName}",
     "openSourceNote": "노트로 이동",
     "denseToggle": "상세 보기",
     "denseToggleOff": "간단히 보기"
   },
-  "dock": {
-    "running": "{fileName} · {pct}%",
-    "completed": "{fileName} 완료",
-    "failed": "{fileName} 실패",
-    "openNote": "노트 열기",
-    "retry": "다시 시도",
-    "dismiss": "닫기",
-    "moreCount": "+{n}개 더"
+  "notifications": {
+    "completed": "분석이 완료되었습니다. 생성된 노트를 확인해보세요.",
+    "openNote": "확인하기",
+    "failed": "분석에 실패했습니다."
   },
   "stage": {
     "downloading": "다운로드 중",

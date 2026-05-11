@@ -71,7 +71,7 @@ describe("AppShell bundle boundary", () => {
     expect(loader).toContain("ShellSidebarSkeleton");
   });
 
-  it("keeps live ingest overlays out of the default shell chunk", () => {
+  it("keeps background ingest notifications out of the default shell chunk", () => {
     const appShell = read("src/components/shell/app-shell.tsx");
 
     expect(appShell).not.toMatch(
@@ -87,6 +87,7 @@ describe("AppShell bundle boundary", () => {
     expect(loader).toContain("@/lib/performance/use-idle-ready");
     expect(loader).toContain("useIdleReady({ timeout: 2000, fallbackMs: 1000 })");
     expect(loader).toContain("return ready ? <LazyIngestOverlays /> : null");
+    expect(loader).not.toContain("NEXT_PUBLIC_FEATURE_LIVE_INGEST");
   });
 
   it("lazy-loads non-critical shell keyboard shortcut wiring", () => {

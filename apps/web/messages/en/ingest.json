@@ -1,24 +1,14 @@
 {
-  "spotlight": {
-    "title": "Analysing {fileName}",
-    "subtitle": "Reading pages, extracting figures and structure.",
-    "skipToTab": "Open in tab",
-    "secondsRemaining": "{n}s"
-  },
   "tab": {
     "title": "Analysing: {fileName}",
     "openSourceNote": "Open note",
     "denseToggle": "Show details",
     "denseToggleOff": "Hide details"
   },
-  "dock": {
-    "running": "{fileName} · {pct}%",
-    "completed": "{fileName} complete",
-    "failed": "{fileName} failed",
-    "openNote": "Open note",
-    "retry": "Retry",
-    "dismiss": "Dismiss",
-    "moreCount": "+{n} more"
+  "notifications": {
+    "completed": "Analysis is complete. Check the generated note.",
+    "openNote": "View",
+    "failed": "Analysis failed."
   },
   "stage": {
     "downloading": "Downloading",

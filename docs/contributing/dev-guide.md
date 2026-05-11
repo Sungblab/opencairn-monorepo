@@ -10,7 +10,7 @@ OpenCairn 개발 환경 설정 및 컨벤션.
 - pnpm 9+
 - Python 3.12+ / uv
 - Docker + Docker Compose
-- Java 11+ (opendataloader-pdf) — Worker Dockerfile은 openjdk-21 LTS 사용
+- Java 11+ (opendataloader-pdf CLI의 로컬 엔진) — Worker Dockerfile은 openjdk-21 LTS 사용
 - ffmpeg (오디오/영상 처리)
 - LibreOffice + H2Orestart 확장 (unoserver — Worker Dockerfile에 내장)
 - 브라우저 샌드박스는 Pyodide/iframe 기반 → 호스트에 추가 런타임 불필요 (ADR-006)

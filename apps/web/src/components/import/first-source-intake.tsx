@@ -4,7 +4,6 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { FileUp, Link2, ListChecks, MessageSquareText, Type } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { openIngestTab } from "@/components/ingest/open-ingest-tab";
 import { openOriginalFileTab } from "@/components/ingest/open-original-file-tab";
 import { useIngestUpload } from "@/hooks/use-ingest-upload";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
@@ -161,7 +160,6 @@ export function FirstSourceIntake({
       return;
     }
     const result = await upload(file, projectId);
-    openIngestTab(result.workflowId, file.name);
     if (result.originalFileId) {
       openOriginalFileTab(result.originalFileId, file.name);
     }
@@ -200,7 +198,6 @@ export function FirstSourceIntake({
     const result = (await res.json()) as { workflowId: string };
     const mime = sourceMimeFromUrl(normalized);
     useIngestStore.getState().startRun(result.workflowId, mime, label);
-    openIngestTab(result.workflowId, label);
     router.push(urls.workspace.root(locale, wsSlug));
   }
 

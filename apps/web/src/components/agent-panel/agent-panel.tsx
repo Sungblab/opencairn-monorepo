@@ -43,7 +43,6 @@ import { useThreadsStore } from "@/stores/threads-store";
 import { usePanelStore, type AgentPanelTab } from "@/stores/panel-store";
 import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
 import { NotificationListPanel } from "@/components/notifications/notification-list-panel";
-import { openIngestTab } from "@/components/ingest/open-ingest-tab";
 import { openOriginalFileTab } from "@/components/ingest/open-original-file-tab";
 import {
   Dialog,
@@ -299,7 +298,6 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
         activeProjectId,
         noteId ? { noteId } : undefined,
       );
-      openIngestTab(result.workflowId, file.name);
       if (result.originalFileId) {
         openOriginalFileTab(result.originalFileId, file.name);
       }

@@ -10,7 +10,7 @@ vi.mock("next-intl", () => ({
 
 describe("WorkbenchActivityStack", () => {
   beforeEach(() => {
-    useIngestStore.setState({ runs: {}, spotlightWfid: null });
+    useIngestStore.setState({ runs: {} });
   });
 
   it("stays hidden when no project work is running", () => {
@@ -22,18 +22,17 @@ describe("WorkbenchActivityStack", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows live ingest progress inside the agent workbench", () => {
+  it("does not show automatic ingest progress inside the agent workbench", () => {
     useIngestStore.getState().startRun("wf-1", "application/pdf", "paper.pdf");
 
     render(<WorkbenchActivityStack />);
 
     expect(
-      screen.getByRole("region", {
+      screen.queryByRole("region", {
         name: "agentPanel.activityStack.title",
       }),
-    ).toBeInTheDocument();
-    expect(screen.getByTestId("ingest-dock-card")).toBeInTheDocument();
-    expect(screen.getByText("paper.pdf")).toBeInTheDocument();
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("paper.pdf")).not.toBeInTheDocument();
   });
 
   it("does not keep completed ingest runs in active work", () => {

@@ -2,14 +2,12 @@
 import { useCallback, useState } from "react";
 import { useIngestStore } from "@/stores/ingest-store";
 
-// Bridges the project-view "Add source" button to /api/ingest/upload and the
-// in-app live ingest store. Without this hook the spotlight + dock + tab
-// viewer added by PR #56 had no UI call site to fire `startRun()` from, so
-// the entire live-ingest UX was dead in production.
+// Bridges upload entry points to /api/ingest/upload and the in-app ingest
+// store. Uploads open the original file first; a background app-shell
+// subscriber watches the workflow and only reports terminal status.
 //
 // API contract: POST /api/ingest/upload returns 202 { workflowId, objectKey }.
-// We feed the workflowId into the store so the SSE listener attaches and the
-// spotlight (when NEXT_PUBLIC_FEATURE_LIVE_INGEST=true) takes over the screen.
+// We feed the workflowId into the store so the SSE listener can attach.
 
 export interface IngestUploadResult {
   workflowId: string;
@@ -73,9 +71,8 @@ export function useIngestUpload(): {
         }
 
         const json = (await res.json()) as IngestUploadResult;
-        // Drive the live-ingest store: spotlight (when flag is on) reacts to
-        // spotlightWfid, dock subscribes via useIngestStream, tab can be
-        // opened via tabs-store with kind='ingest' and targetId=workflowId.
+        // Drive the background ingest store; UI feedback is owned by
+        // IngestNotifications in the app shell.
         useIngestStore
           .getState()
           .startRun(

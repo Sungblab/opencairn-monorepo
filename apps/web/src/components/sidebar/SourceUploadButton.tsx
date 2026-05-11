@@ -3,7 +3,6 @@
 import { useId, useState, type ReactNode } from "react";
 import { UploadCloud } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { openIngestTab } from "@/components/ingest/open-ingest-tab";
 import { openOriginalFileTab } from "@/components/ingest/open-original-file-tab";
 import {
   Dialog,
@@ -58,7 +57,6 @@ export function SourceUploadButton({
     setLocalError(false);
     try {
       const result = await upload(selectedFile, projectId);
-      openIngestTab(result.workflowId, selectedFile.name);
       if (result.originalFileId) {
         openOriginalFileTab(result.originalFileId, selectedFile.name);
       }

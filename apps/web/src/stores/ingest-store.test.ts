@@ -3,18 +3,17 @@ import { useIngestStore } from "./ingest-store";
 import type { IngestEvent } from "@opencairn/shared";
 
 function reset() {
-  useIngestStore.setState({ runs: {}, spotlightWfid: null });
+  useIngestStore.setState({ runs: {} });
 }
 
 describe("ingest-store", () => {
   beforeEach(reset);
 
-  it("startRun creates a run with running status and seeds spotlight", () => {
+  it("startRun creates a background run", () => {
     useIngestStore.getState().startRun("wf-1", "application/pdf", "x.pdf");
     const state = useIngestStore.getState();
     expect(state.runs["wf-1"].status).toBe("running");
     expect(state.runs["wf-1"].fileName).toBe("x.pdf");
-    expect(state.spotlightWfid).toBe("wf-1");
   });
 
   it("startRun can prime a source bundle before the SSE status event arrives", () => {
@@ -26,10 +25,11 @@ describe("ingest-store", () => {
     expect(run.bundleStatus).toBe("running");
   });
 
-  it("multi-file dispatch within 200ms keeps the original spotlight", () => {
+  it("multi-file dispatch creates independent background runs", () => {
     useIngestStore.getState().startRun("wf-1", "application/pdf", "a.pdf");
     useIngestStore.getState().startRun("wf-2", "application/pdf", "b.pdf");
-    expect(useIngestStore.getState().spotlightWfid).toBe("wf-1");
+    expect(useIngestStore.getState().runs["wf-1"].status).toBe("running");
+    expect(useIngestStore.getState().runs["wf-2"].status).toBe("running");
   });
 
   it("applyEvent updates units on unit_parsed", () => {
@@ -145,12 +145,6 @@ describe("ingest-store", () => {
     expect(run.status).toBe("failed");
     expect(run.error?.reason).toBe("boom");
     expect(run.error?.retryable).toBe(false);
-  });
-
-  it("dismissDockCard removes the run", () => {
-    useIngestStore.getState().startRun("wf-1", "application/pdf", "x.pdf");
-    useIngestStore.getState().dismissDockCard("wf-1");
-    expect(useIngestStore.getState().runs["wf-1"]).toBeUndefined();
   });
 
   it("stage_changed updates current stage", () => {

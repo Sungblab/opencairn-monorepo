@@ -5,7 +5,7 @@ import { installMockEventSource } from "./helpers/sse-fixtures";
 const WORKFLOW_ID = "wf-e2e-live-ingest";
 const NOW = "2026-04-29T00:00:00.000Z";
 
-test.describe("Live ingest visualization smoke", () => {
+test.describe("Background ingest notification smoke", () => {
   test.setTimeout(60_000);
 
   test("renders persisted run state and consumes mocked SSE progress", async ({
@@ -35,37 +35,15 @@ test.describe("Live ingest visualization smoke", () => {
           },
         },
         {
-          delayMs: 3_000,
+          delayMs: 500,
           event: {
             workflowId: WORKFLOW_ID,
             seq: 2,
             ts: NOW,
-            kind: "stage_changed",
-            payload: { stage: "parsing", pct: 25 },
-          },
-        },
-        {
-          delayMs: 3_500,
-          event: {
-            workflowId: WORKFLOW_ID,
-            seq: 3,
-            ts: NOW,
-            kind: "unit_started",
-            payload: { index: 1, total: 2, label: "page 1" },
-          },
-        },
-        {
-          delayMs: 4_000,
-          event: {
-            workflowId: WORKFLOW_ID,
-            seq: 4,
-            ts: NOW,
-            kind: "outline_node",
+            kind: "completed",
             payload: {
-              id: "intro",
-              parentId: null,
-              level: 1,
-              title: "Introduction",
+              noteId: "00000000-0000-0000-0000-000000000001",
+              totalDurationMs: 1000,
             },
           },
         },
@@ -76,18 +54,11 @@ test.describe("Live ingest visualization smoke", () => {
       waitUntil: "domcontentloaded",
     });
 
-    await expect(page.getByTestId("ingest-spotlight")).toBeVisible();
-    await expect(page.getByTestId("ingest-dock")).toBeVisible();
+    await expect(page.getByTestId("ingest-spotlight")).toHaveCount(0);
+    await expect(page.getByTestId("ingest-dock")).toHaveCount(0);
     await expect(
-      page.getByTestId("ingest-spotlight").getByText("fixture.pdf"),
-    ).toBeVisible();
-
-    await expect(page.getByTestId("ingest-spotlight")).toHaveCount(0, {
-      timeout: 15_000,
-    });
-
-    await page.getByTestId("ingest-dock-card").click();
-    await expect(page.getByText("Introduction")).toBeVisible();
-    await expect(page.getByText("50%")).toBeVisible();
+      page.getByText("분석이 완료되었습니다. 생성된 노트를 확인해보세요."),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("button", { name: "확인하기" })).toBeVisible();
   });
 });

@@ -1,6 +1,6 @@
 """Tests for the HWP/HWPX parsing activity.
 
-unoconvert + opendataloader-pdf JAR + MinIO are all patched; the tests
+unoconvert + opendataloader-pdf + MinIO are all patched; the tests
 verify the activity wiring (dispatch, event emission, viewer-PDF upload,
 error contracts) without touching LibreOffice or Java.
 """

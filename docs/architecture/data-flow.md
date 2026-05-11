@@ -24,10 +24,10 @@
   |
   v
 [3] Temporal → Python Worker (parse_source Activity)
-  |  - PDF (디지털): pymupdf로 텍스트 레이어 확인 → opendataloader-pdf (텍스트/수식/표)
+  |  - PDF (디지털): pymupdf로 텍스트 레이어 확인 → opendataloader-pdf CLI (텍스트/수식/표)
   |  - PDF (스캔/수기): pymupdf 스캔 감지 → 로컬 Tesseract OCR 우선 → provider.ocr() fallback
   |  - DOCX/PPTX/XLSX/XLS: markitdown (텍스트) + unoserver (뷰어용 PDF 변환)
-  |  - HWP/HWPX: unoserver + H2Orestart → PDF → opendataloader-pdf 재파싱
+  |  - HWP/HWPX: unoserver + H2Orestart → PDF → opendataloader-pdf CLI 재파싱
   |  - 오디오: provider.transcribe() (Gemini multimodal or faster-whisper)
   |  - 영상: ffmpeg → provider.transcribe()
   |  - 이미지/도식: provider.generate(image=) (Gemini Vision / Ollama llava)
@@ -104,8 +104,9 @@ publish_safe(workflow_id, kind, ...)  ──>  PUBLISH ingest:events:<wfid>
 
 Ring buffer caps at `INGEST_REPLAY_MAX_LEN` entries with `INGEST_REPLAY_TTL_SECONDS` TTL.
 Browser uses `Last-Event-ID` for auto-reconnect dedup; Zustand store guards
-duplicates via per-run `lastSeq`. UI is gated by `NEXT_PUBLIC_FEATURE_LIVE_INGEST`;
-backend always publishes so flipping the flag is UI-only.
+duplicates via per-run `lastSeq`. Upload keeps the original file as the primary
+surface; the app shell subscribes in the background and only surfaces terminal
+completion/failure through notifications.
 
 PDF ingest also emits durable artifact progress:
 

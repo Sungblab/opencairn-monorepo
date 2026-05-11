@@ -9,6 +9,7 @@ queue).
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from dataclasses import dataclass
 from typing import Any
@@ -152,6 +153,11 @@ from worker.workflows.synthesis_workflow import SynthesisWorkflow
 from worker.workflows.visualize_workflow import VisualizeWorkflow
 
 load_dotenv()
+
+logging.basicConfig(
+    level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
 
 
 @dataclass(frozen=True)
