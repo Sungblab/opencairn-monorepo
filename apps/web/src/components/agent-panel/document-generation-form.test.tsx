@@ -91,6 +91,63 @@ describe("DocumentGenerationForm", () => {
     expect(screen.getByRole("button", { name: /submitFigure/ })).toBeDisabled();
   });
 
+  it("resets selected sources when a new preset is applied", async () => {
+    const onPresetConsumed = vi.fn();
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/api/projects/project-1/document-generation/sources")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            sources: [
+              {
+                id: "note:n1",
+                type: "note",
+                title: "Planning note",
+                subtitle: "note",
+                source: { type: "note", noteId: "00000000-0000-4000-8000-000000000001" },
+              },
+            ],
+          }),
+        };
+      }
+      return { ok: false, status: 404, json: async () => ({ error: "not_found" }) };
+    });
+
+    const { rerender } = render(
+      <DocumentGenerationForm
+        projectId="project-1"
+        onEvent={vi.fn()}
+        pendingPreset={getDocumentGenerationPreset("pdf_report_fast")}
+        onPresetConsumed={onPresetConsumed}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText("Planning note")).toBeInTheDocument());
+    fireEvent.click(screen.getByLabelText(/Planning note/));
+    expect(
+      screen.getByText(
+        'agentPanel.documentGeneration.selectedCount:{"count":1}',
+      ),
+    ).toBeInTheDocument();
+
+    rerender(
+      <DocumentGenerationForm
+        projectId="project-1"
+        onEvent={vi.fn()}
+        pendingPreset={getDocumentGenerationPreset("source_figure")}
+        onPresetConsumed={onPresetConsumed}
+      />,
+    );
+
+    await waitFor(() => expect(onPresetConsumed).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("agentPanel.documentGeneration.selectedNone")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Planning note/)).not.toBeChecked();
+    expect(screen.getByLabelText(/prompt/)).toHaveValue(
+      "agentPanel.documentGeneration.presetPrompt.sourceFigure",
+    );
+  });
+
   it("loads source options and submits generate_project_object with selected sources", async () => {
     const onEvent = vi.fn();
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
