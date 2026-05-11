@@ -18,7 +18,6 @@ export type AgentCommandId =
   | "make_table"
   | "quiz"
   | "attach"
-  | "web_search"
   | "paper_search"
   | "research"
   | "current_document_only"
@@ -72,20 +71,33 @@ export const AGENT_COMMANDS: AgentCommand[] = [
     mode: "accurate",
     effect: "send",
     promptKey: "factcheck",
+    contextPatch: { sourcePolicy: "auto_project", externalSearch: "allowed" },
   },
   {
     id: "extract_citations",
     category: "analyze",
     aliases: ["/citations", "/cite", "/인용추출", "/인용"],
+    mode: "accurate",
     effect: "send",
     promptKey: "extract_citations",
+    contextPatch: {
+      sourcePolicy: "auto_project",
+      memoryPolicy: "auto",
+      externalSearch: "allowed",
+    },
   },
   {
     id: "make_note",
     category: "create",
     aliases: ["/note", "/make-note", "/노트만들기", "/노트"],
+    mode: "accurate",
     effect: "send",
     promptKey: "make_note",
+    contextPatch: {
+      sourcePolicy: "auto_project",
+      memoryPolicy: "auto",
+      externalSearch: "allowed",
+    },
   },
   {
     id: "narrate_note",
@@ -133,21 +145,13 @@ export const AGENT_COMMANDS: AgentCommand[] = [
     promptKey: "attach",
   },
   {
-    id: "web_search",
-    category: "sources",
-    aliases: ["/web", "/web-search", "/웹검색"],
-    mode: "research",
-    effect: "context",
-    promptKey: "web_search",
-    contextPatch: { externalSearch: "allowed" },
-  },
-  {
     id: "paper_search",
     category: "sources",
     aliases: ["/papers", "/paper-search", "/논문검색"],
     mode: "research",
     effect: "send",
     promptKey: "paper_search",
+    contextPatch: { externalSearch: "allowed" },
   },
   {
     id: "research",
@@ -156,6 +160,7 @@ export const AGENT_COMMANDS: AgentCommand[] = [
     mode: "research",
     effect: "send",
     promptKey: "research",
+    contextPatch: { sourcePolicy: "auto_project", externalSearch: "allowed" },
   },
   {
     id: "current_document_only",

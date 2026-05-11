@@ -13,6 +13,7 @@ import {
 } from "@platejs/basic-nodes/react";
 import { ListPlugin } from "@platejs/list/react";
 import { toggleList } from "@platejs/list";
+import { insertTable } from "@platejs/table";
 import { CodeBlockPlugin, CodeLinePlugin } from "@platejs/code-block/react";
 import { Plate, PlateContent } from "platejs/react";
 import debounce from "lodash.debounce";
@@ -20,7 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Bot, CheckSquare, MessageSquare, Share2, Volume2 } from "lucide-react";
+import { Share2 } from "lucide-react";
 
 import {
   useCollaborativeEditor,
@@ -79,12 +80,11 @@ import {
   useImageUploadDeferredToast,
 } from "./plugins/image-drop-deferred";
 import { useActiveEditorStore } from "@/stores/activeEditorStore";
-import {
-  WorkbenchActivityButton,
-  WorkbenchCommandButton,
-  WorkbenchContextButton,
-} from "@/components/agent-panel/workbench-trigger-button";
+import { useTabsStore } from "@/stores/tabs-store";
 import { NoteContextRail, type NoteRailTab } from "./note-context-rail";
+import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
+import { usePanelStore } from "@/stores/panel-store";
+import type { AgentCommandId } from "@/components/agent-panel/agent-commands";
 
 // Basic marks + blocks. Lists are handled by the indent-based ListPlugin; the
 // bulleted/numbered toolbar buttons call `toggleList` directly with the style
@@ -176,6 +176,18 @@ export function NoteEditor({
   const [scrollTargetCommentId, setScrollTargetCommentId] = useState<
     string | null
   >(null);
+  const [selectionAskPosition, setSelectionAskPosition] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
+  const editorSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const requestWorkbenchContext = useAgentWorkbenchStore(
+    (s) => s.requestContext,
+  );
+  const requestWorkbenchCommand = useAgentWorkbenchStore(
+    (s) => s.requestCommand,
+  );
+  const openAgentPanelTab = usePanelStore((s) => s.openAgentPanelTab);
 
   // Plan 11B Phase A — slash AI commands (`/improve`, `/translate`, etc.).
   // Gated client-side by NEXT_PUBLIC_FEATURE_DOC_EDITOR_SLASH so the menu
@@ -222,6 +234,22 @@ export function NoteEditor({
     firstEditFiredRef.current = true;
     onFirstEdit?.();
   }, [onFirstEdit]);
+
+  const syncNoteTabTitle = useCallback(
+    (nextTitle: string) => {
+      const titleForTab = nextTitle.trim();
+      const store = useTabsStore.getState();
+      const tab = store.findTabByTarget("note", noteId);
+      if (tab && tab.title !== titleForTab) {
+        store.updateTab(tab.id, { title: titleForTab });
+      }
+    },
+    [noteId],
+  );
+
+  useEffect(() => {
+    syncNoteTabTitle(initialTitle);
+  }, [initialTitle, syncNoteTabTitle]);
 
   const notifyFirstEditOnKey = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -295,9 +323,10 @@ export function NoteEditor({
   const handleTitleChange = useCallback(
     (v: string) => {
       setTitle(v);
+      syncNoteTabTitle(v);
       debouncedPatchTitle(v);
     },
-    [debouncedPatchTitle],
+    [debouncedPatchTitle, syncNoteTabTitle],
   );
 
   // Wiki-link plugin is built per-editor so the element renderer can close
@@ -449,6 +478,54 @@ export function NoteEditor({
     if (kind === "image") setImagePopoverOpen(true);
   }, []);
 
+  const openCurrentNoteAi = useCallback(() => {
+    requestWorkbenchContext("current_document_only");
+    openAgentPanelTab("chat");
+  }, [openAgentPanelTab, requestWorkbenchContext]);
+
+  const runWorkbenchCommand = useCallback(
+    (commandId: AgentCommandId) => {
+      requestWorkbenchCommand(commandId);
+      openAgentPanelTab("chat");
+    },
+    [openAgentPanelTab, requestWorkbenchCommand],
+  );
+
+  const insertEditorBlock = useCallback(
+    (type: "math" | "table" | "callout") => {
+      if (type === "math") {
+        editor.tf.insertNodes(
+          { type: "equation", texExpression: "", children: [{ text: "" }] },
+          { select: true },
+        );
+        editor.tf.insertNodes(
+          { type: "p", children: [{ text: "" }] },
+          { select: true },
+        );
+        return;
+      }
+
+      if (type === "table") {
+        insertTable(
+          editor as unknown as Parameters<typeof insertTable>[0],
+          { colCount: 3, header: true, rowCount: 3 },
+          { select: true },
+        );
+        return;
+      }
+
+      editor.tf.insertNodes(
+        {
+          type: "callout",
+          kind: "info",
+          children: [{ type: "p", children: [{ text: "" }] }],
+        },
+        { select: true },
+      );
+    },
+    [editor],
+  );
+
   const handleEmbedInsert = useCallback(
     (resolution: EmbedInsertResolution) => {
       insertEmbedNode(
@@ -494,9 +571,60 @@ export function NoteEditor({
         >;
         tf[type]?.toggle?.();
       },
+      insertBlock: insertEditorBlock,
     }),
-    [editor],
+    [editor, insertEditorBlock],
   );
+
+  useEffect(() => {
+    if (readOnly) return;
+
+    const updateSelectionButton = () => {
+      const surface = editorSurfaceRef.current;
+      const selection = window.getSelection();
+      if (
+        !surface ||
+        !selection ||
+        selection.isCollapsed ||
+        selection.rangeCount === 0
+      ) {
+        setSelectionAskPosition(null);
+        return;
+      }
+
+      const anchorNode = selection.anchorNode;
+      const focusNode = selection.focusNode;
+      if (
+        !anchorNode ||
+        !focusNode ||
+        !surface.contains(anchorNode) ||
+        !surface.contains(focusNode)
+      ) {
+        setSelectionAskPosition(null);
+        return;
+      }
+
+      const rect = selection.getRangeAt(0).getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) {
+        setSelectionAskPosition(null);
+        return;
+      }
+
+      setSelectionAskPosition({
+        left: Math.min(window.innerWidth - 140, Math.max(16, rect.right + 8)),
+        top: Math.max(16, rect.top - 4),
+      });
+    };
+
+    document.addEventListener("selectionchange", updateSelectionButton);
+    window.addEventListener("mouseup", updateSelectionButton);
+    window.addEventListener("keyup", updateSelectionButton);
+    return () => {
+      document.removeEventListener("selectionchange", updateSelectionButton);
+      window.removeEventListener("mouseup", updateSelectionButton);
+      window.removeEventListener("keyup", updateSelectionButton);
+    };
+  }, [readOnly]);
 
   return (
     <Plate editor={editor} readOnly={readOnly}>
@@ -538,6 +666,7 @@ export function NoteEditor({
               aiEnabled={aiSlashEnabled && !readOnly}
               ragEnabled={ragSlashEnabled && !readOnly}
               onAiCommand={handleAiCommand}
+              onAgentCommand={runWorkbenchCommand}
               onRequestPopover={readOnly ? undefined : handleRequestPopover}
             />
             {/* Plan 2E Phase B — embed URL input popover (Task 1.4).
@@ -580,67 +709,17 @@ export function NoteEditor({
                   data-testid="note-title"
                 />
                 {/* PresenceStack shows remote collaborators; self-hides when
-                  alone. Positioned in the title row's top-right for minimal
-                  layout disruption. The Share button only renders for
-                  writers — the route-level `readOnly` flag already strips it
-                  for viewer/commenter roles, so we don't need an explicit
-                  perms check here. */}
+                  alone. Note-local AI, activity, and comments live in the
+                  rail so the title row stays focused on document identity. */}
                 <div
                   className="flex shrink-0 items-center gap-1 pt-1"
                   data-testid="note-actions"
                 >
                   {!readOnly ? (
-                    <WorkbenchContextButton
-                      commandId="current_document_only"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded border border-border text-muted-foreground hover:bg-accent hover:text-foreground"
-                      data-testid="ask-ai-note-button"
-                      aria-label={t("toolbar.ask_ai")}
-                      title={t("toolbar.ask_ai")}
-                    >
-                      <Bot aria-hidden className="h-4 w-4" />
-                    </WorkbenchContextButton>
-                  ) : null}
-                  {!readOnly ? (
-                    <WorkbenchCommandButton
-                      commandId="narrate_note"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded border border-border text-muted-foreground hover:bg-accent hover:text-foreground"
-                      data-testid="narrate-note-button"
-                      aria-label={t("toolbar.narrate")}
-                      title={t("toolbar.narrate")}
-                    >
-                      <Volume2 aria-hidden className="h-4 w-4" />
-                    </WorkbenchCommandButton>
-                  ) : null}
-                  {!readOnly ? (
-                    <WorkbenchActivityButton
-                      className="inline-flex h-8 w-8 items-center justify-center rounded border border-border text-muted-foreground hover:bg-accent hover:text-foreground"
-                      data-testid="review-note-actions-button"
-                      aria-label={t("toolbar.review_ai_work")}
-                      title={t("toolbar.review_ai_work")}
-                    >
-                      <CheckSquare aria-hidden className="h-4 w-4" />
-                    </WorkbenchActivityButton>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setNoteRailTab((tab) =>
-                        tab === "comments" ? null : "comments",
-                      )
-                    }
-                    className="inline-flex h-8 w-8 items-center justify-center rounded border border-border text-muted-foreground hover:bg-accent hover:text-foreground"
-                    data-testid="comments-toggle-button"
-                    aria-expanded={noteRailTab === "comments"}
-                    aria-label={t("toolbar.comments")}
-                    title={t("toolbar.comments")}
-                  >
-                    <MessageSquare aria-hidden className="h-4 w-4" />
-                  </button>
-                  {!readOnly ? (
                     <button
                       type="button"
                       onClick={() => setShareOpen(true)}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded border border-border text-muted-foreground hover:bg-accent hover:text-foreground"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-control)] border border-border text-muted-foreground hover:bg-accent hover:text-foreground"
                       data-testid="share-button"
                       aria-label={tShare("title")}
                       title={tShare("title")}
@@ -648,7 +727,7 @@ export function NoteEditor({
                       <Share2 aria-hidden className="h-4 w-4" />
                     </button>
                   ) : null}
-                  <PresenceStack />
+                  <PresenceStack currentUserId={userId} />
                 </div>
               </div>
               <ShareDialog
@@ -657,16 +736,33 @@ export function NoteEditor({
                 open={shareOpen}
                 onOpenChange={setShareOpen}
               />
-              <PlateContent
-                data-testid="note-body"
-                placeholder={
-                  aiSlashEnabled && !readOnly
-                    ? t("placeholder.body_with_slash")
-                    : t("placeholder.body")
-                }
-                className="prose prose-stone mt-6 min-h-[60vh] max-w-none focus:outline-none"
-                readOnly={readOnly}
-              />
+              <div ref={editorSurfaceRef} className="relative">
+                <PlateContent
+                  data-testid="note-body"
+                  placeholder={
+                    aiSlashEnabled && !readOnly
+                      ? t("placeholder.body_with_slash")
+                      : t("placeholder.body")
+                  }
+                  className="prose prose-stone mt-6 min-h-[60vh] max-w-none focus:outline-none"
+                  readOnly={readOnly}
+                />
+                {selectionAskPosition ? (
+                  <button
+                    type="button"
+                    className="fixed z-40 inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-background px-2.5 text-xs font-medium shadow-sm"
+                    style={selectionAskPosition}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      openCurrentNoteAi();
+                      setSelectionAskPosition(null);
+                    }}
+                    data-testid="selection-ask-ai-button"
+                  >
+                    {t("toolbar.ask_ai")}
+                  </button>
+                ) : null}
+              </div>
               <div
                 className="text-fg-muted mt-4 text-xs"
                 data-testid="save-status"

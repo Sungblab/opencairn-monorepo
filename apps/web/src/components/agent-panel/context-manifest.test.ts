@@ -107,4 +107,85 @@ describe("buildAgentContextPayload", () => {
       strict: "strict",
     });
   });
+
+  it("adds dropped project tree references as explicit context", async () => {
+    await expect(
+      buildAgentContextPayload({
+        activeTab: undefined,
+        workspaceId: "workspace-1",
+        sourcePolicy: "auto_project",
+        memoryPolicy: "auto",
+        externalSearch: "off",
+        fallbackProjectId: "project-1",
+        attachedReferences: [
+          {
+            id: "node-note",
+            targetId: "note-1",
+            kind: "note",
+            label: "Source note",
+            parentId: null,
+          },
+          {
+            id: "node-file",
+            targetId: "file-1",
+            kind: "agent_file",
+            label: "paper.pdf",
+            parentId: null,
+          },
+        ],
+      }),
+    ).resolves.toEqual({
+      manifest: {
+        attachedArtifacts: [
+          {
+            id: "file-1",
+            label: "paper.pdf",
+            treeNodeId: "node-file",
+            type: "agent_file",
+          },
+        ],
+        externalSearch: "off",
+        memoryPolicy: "auto",
+        projectId: "project-1",
+        sourcePolicy: "auto_project",
+        workspaceId: "workspace-1",
+      },
+      chips: [
+        { type: "project", id: "project-1" },
+        { type: "page", id: "note-1", label: "Source note", manual: true },
+      ],
+      strict: "strict",
+    });
+  });
+
+  it("keeps pinned references while active tab focus is disabled", async () => {
+    await expect(
+      buildAgentContextPayload({
+        activeTab: undefined,
+        workspaceId: "workspace-1",
+        sourcePolicy: "auto_project",
+        memoryPolicy: "auto",
+        externalSearch: "off",
+        fallbackProjectId: "project-1",
+        attachedReferences: [
+          {
+            id: "node-note",
+            targetId: "note-1",
+            kind: "note",
+            label: "Pinned note",
+            parentId: null,
+          },
+        ],
+      }),
+    ).resolves.toMatchObject({
+      manifest: {
+        projectId: "project-1",
+        sourcePolicy: "auto_project",
+      },
+      chips: [
+        { type: "project", id: "project-1" },
+        { type: "page", id: "note-1", label: "Pinned note", manual: true },
+      ],
+    });
+  });
 });

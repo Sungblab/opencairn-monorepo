@@ -1,5 +1,6 @@
 import {
   LLMNotConfiguredError,
+  type GroundedSearchResult,
   type LLMProvider,
   type StreamChunk,
   type Usage,
@@ -30,6 +31,54 @@ export function getOpenAICompatibleProvider(): LLMProvider {
   const embedModel = process.env.OPENAI_COMPAT_EMBED_MODEL;
 
   return {
+    async groundSearch(query, opts): Promise<GroundedSearchResult | null> {
+      const res = await fetch(`${baseUrl}/responses`, {
+        method: "POST",
+        headers: headers(apiKey),
+        signal: opts?.signal,
+        body: JSON.stringify({
+          model: chatModel,
+          input: query,
+          tools: [{ type: "web_search" }],
+          tool_choice: "auto",
+          ...(opts?.maxOutputTokens
+            ? { max_output_tokens: opts.maxOutputTokens }
+            : {}),
+        }),
+      });
+
+      if (!res.ok) {
+        // Most OpenAI-compatible local servers only implement Chat
+        // Completions. Treat missing Responses/web_search support as
+        // unavailable grounding so runChat can surface grounding_required.
+        if (res.status === 400 || res.status === 404 || res.status === 501) {
+          return null;
+        }
+        throw new Error(
+          "OpenAI-compatible web search failed. Please check your configuration or try again later.",
+        );
+      }
+
+      const data = (await res.json()) as OpenAIResponsesSearchResult;
+      const answer = extractResponsesOutputText(data);
+      const sources = extractResponsesUrlCitations(data);
+      if (!answer || sources.length === 0) return null;
+
+      const usage = data.usage
+        ? {
+            tokensIn: data.usage.input_tokens ?? 0,
+            tokensOut: data.usage.output_tokens ?? 0,
+            model: chatModel,
+          }
+        : undefined;
+
+      return {
+        answer,
+        sources,
+        ...(usage ? { usage } : {}),
+      };
+    },
+
     async embed(text: string): Promise<number[]> {
       if (!embedModel) {
         throw new Error(
@@ -93,6 +142,60 @@ export function getOpenAICompatibleProvider(): LLMProvider {
       }
     },
   };
+}
+
+type OpenAIResponsesSearchResult = {
+  output_text?: string;
+  output?: Array<{
+    type?: string;
+    content?: Array<{
+      type?: string;
+      text?: string;
+      annotations?: Array<{
+        type?: string;
+        url?: string;
+        title?: string;
+      }>;
+    }>;
+  }>;
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+  };
+};
+
+function extractResponsesOutputText(data: OpenAIResponsesSearchResult): string {
+  if (typeof data.output_text === "string" && data.output_text.trim()) {
+    return data.output_text;
+  }
+  return (
+    data.output
+      ?.flatMap((item) => item.content ?? [])
+      .map((content) => content.text)
+      .filter((text): text is string => Boolean(text?.trim()))
+      .join("\n")
+      .trim() ?? ""
+  );
+}
+
+function extractResponsesUrlCitations(data: OpenAIResponsesSearchResult) {
+  const seen = new Set<string>();
+  return (
+    data.output
+      ?.flatMap((item) => item.content ?? [])
+      .flatMap((content) => content.annotations ?? [])
+      .flatMap((annotation) => {
+        if (annotation.type !== "url_citation" || !annotation.url) return [];
+        if (seen.has(annotation.url)) return [];
+        seen.add(annotation.url);
+        return [
+          {
+            title: annotation.title || annotation.url,
+            url: annotation.url,
+          },
+        ];
+      }) ?? []
+  );
 }
 
 async function* parseOpenAICompatibleSse(

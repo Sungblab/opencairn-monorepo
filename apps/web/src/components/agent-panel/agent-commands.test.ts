@@ -14,8 +14,21 @@ describe("agent commands", () => {
     });
   });
 
-  it("exposes context patches for command-time payload overrides", () => {
-    expect(getAgentCommand("web_search")?.contextPatch).toEqual({
+  it("exposes context patches for source-backed command payload overrides", () => {
+    expect(getAgentCommand("paper_search")?.contextPatch).toEqual({
+      externalSearch: "allowed",
+    });
+  });
+
+  it("defaults source-backed note commands to project sources and grounding", () => {
+    expect(getAgentCommand("make_note")?.contextPatch).toEqual({
+      sourcePolicy: "auto_project",
+      memoryPolicy: "auto",
+      externalSearch: "allowed",
+    });
+    expect(getAgentCommand("extract_citations")?.contextPatch).toEqual({
+      sourcePolicy: "auto_project",
+      memoryPolicy: "auto",
       externalSearch: "allowed",
     });
   });
@@ -25,6 +38,13 @@ describe("agent commands", () => {
       promptKey: "summarize",
     });
     expect(getAgentCommand("summarize")).not.toHaveProperty("defaultPrompt");
+  });
+
+  it("does not expose web search as a manual command", () => {
+    expect(filterSlashCommands("web").map((command) => command.id)).not.toContain(
+      "web_search",
+    );
+    expect(parseSlashCommand("/web latest")).toBeNull();
   });
 
   it("normalizes slash command search input", () => {

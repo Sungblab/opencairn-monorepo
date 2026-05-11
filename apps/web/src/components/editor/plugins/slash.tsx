@@ -19,6 +19,7 @@ import {
   PanelTop,
   Quote,
   SearchCheck,
+  Sigma,
   Sparkles,
   Table2,
   ToggleLeft,
@@ -28,11 +29,12 @@ import {
 import { useTranslations } from "next-intl";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import type { AgentCommandId } from "@/components/agent-panel/agent-commands";
 
 // Plan 2A Task 17 — slash command menu.
 //
-// Trigger: `/` keypress anywhere in the editor opens a centered portal menu
-// with nine block conversions. Clicking (or Enter on) an item removes the
+// Trigger: `/` keypress inside the editor opens a caret-anchored portal menu
+// with block conversions. Clicking (or Enter on) an item removes the
 // triggering `/` via `editor.tf.deleteBackward("character")` and runs the
 // transform. Escape / outside-click closes without touching the document.
 //
@@ -53,11 +55,8 @@ import { createPortal } from "react-dom";
 //     toolbar). A future upgrade can swap it for a block once the dep is
 //     added; i18n label has been narrowed from "코드 블록"/"Code block" to
 //     plain "코드"/"Code" to match.
-//   * `math_block` is intentionally NOT in the menu. `editor.tf.insert.equation()`
-//     inserts a void node with empty `texExpression`, which MathBlock then
-//     renders as a permanent red parse-error banner (no edit popover ships in
-//     Plan 2A). Re-enable once Plan 2D provides a TeX input UX — the
-//     `editor.slash.math` i18n key is kept in the bundle for that.
+//   * Math now inserts the local `equation` node. MathBlock owns the edit
+//     popover, so an empty `texExpression` is immediately fixable in-place.
 
 export type SlashBlockKey =
   | "h1"
@@ -68,6 +67,7 @@ export type SlashBlockKey =
   | "blockquote"
   | "code"
   | "hr"
+  | "equation"
   | "mermaid"
   | "callout"
   | "toggle"
@@ -84,9 +84,14 @@ export type SlashAiKey =
   | "cite"
   | "factcheck";
 
-export type SlashKey = SlashBlockKey | SlashAiKey;
+type SlashAgentKey = Extract<
+  AgentCommandId,
+  "make_note" | "extract_citations"
+>;
 
-type SlashGroup = "ai" | "text" | "structure" | "media";
+export type SlashKey = SlashBlockKey | SlashAiKey | SlashAgentKey;
+
+type SlashGroup = "ai" | "text" | "research" | "structure" | "media";
 
 type SlashBlockLabelKey =
   | "heading_1"
@@ -97,6 +102,7 @@ type SlashBlockLabelKey =
   | "quote"
   | "code"
   | "divider"
+  | "math"
   | "mermaid"
   | "callout"
   | "toggle"
@@ -126,7 +132,32 @@ interface SlashAiDef {
   keywords: string[];
 }
 
-type SlashCommandDef = SlashBlockDef | SlashAiDef;
+interface SlashAgentDef {
+  key: SlashAgentKey;
+  group: "research";
+  icon: LucideIcon;
+  labelKey: SlashAgentKey;
+  descriptionKey: SlashAgentKey;
+  keywords: string[];
+}
+
+type SlashCommandDef = SlashBlockDef | SlashAiDef | SlashAgentDef;
+
+interface SlashMenuPosition {
+  left: number;
+  top: number;
+}
+
+const MENU_WIDTH = 420;
+const MENU_MAX_HEIGHT = 420;
+const MENU_GAP = 8;
+const GROUP_ORDER: Record<SlashGroup, number> = {
+  ai: 0,
+  text: 1,
+  research: 2,
+  structure: 3,
+  media: 4,
+};
 
 const BLOCK_COMMANDS: SlashBlockDef[] = [
   {
@@ -184,6 +215,14 @@ const BLOCK_COMMANDS: SlashBlockDef[] = [
     labelKey: "code",
     descriptionKey: "code",
     keywords: ["code", "inline"],
+  },
+  {
+    key: "equation",
+    group: "research",
+    icon: Sigma,
+    labelKey: "math",
+    descriptionKey: "math",
+    keywords: ["math", "latex", "equation", "수식"],
   },
   {
     key: "hr",
@@ -305,6 +344,25 @@ const RAG_AI_COMMANDS: SlashAiDef[] = [
   },
 ];
 
+const SOURCE_AGENT_COMMANDS: SlashAgentDef[] = [
+  {
+    key: "make_note",
+    group: "research",
+    icon: FileText,
+    labelKey: "make_note",
+    descriptionKey: "make_note",
+    keywords: ["note", "pdf", "source", "자료", "노트"],
+  },
+  {
+    key: "extract_citations",
+    group: "research",
+    icon: Bot,
+    labelKey: "extract_citations",
+    descriptionKey: "extract_citations",
+    keywords: ["citation", "cite", "source", "인용", "근거"],
+  },
+];
+
 // Type predicate so the AI dispatch path narrows `key` from `SlashKey`
 // to `SlashAiKey` without re-listing each member. Adding a new AI
 // command is a one-line edit to AI_COMMANDS — the dispatch site
@@ -312,10 +370,39 @@ const RAG_AI_COMMANDS: SlashAiDef[] = [
 const isAiKey = (key: SlashKey): key is SlashAiKey =>
   [...AI_COMMANDS, ...RAG_AI_COMMANDS].some((cmd) => cmd.key === key);
 
+const isAgentKey = (key: SlashKey): key is SlashAgentKey =>
+  SOURCE_AGENT_COMMANDS.some((cmd) => cmd.key === key);
+
 const splitEditorCharacters = (value: string) => Array.from(value);
 
 const dropLastEditorCharacter = (value: string) =>
   splitEditorCharacters(value).slice(0, -1).join("");
+
+function readSlashMenuPosition(focused: Element): SlashMenuPosition {
+  const selection = window.getSelection();
+  const range =
+    selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+  const rect =
+    range && "getBoundingClientRect" in range
+      ? range.getBoundingClientRect()
+      : null;
+  const focusedRect = focused.getBoundingClientRect();
+  const anchor =
+    rect && (rect.width > 0 || rect.height > 0) ? rect : focusedRect;
+
+  const maxLeft = Math.max(16, window.innerWidth - MENU_WIDTH - 16);
+  const left = clamp(anchor.left, 16, maxLeft);
+  const below = anchor.bottom + MENU_GAP;
+  const above = anchor.top - MENU_MAX_HEIGHT - MENU_GAP;
+  const hasRoomBelow = below + MENU_MAX_HEIGHT <= window.innerHeight - 16;
+  const top = hasRoomBelow ? below : Math.max(16, above);
+
+  return { left, top };
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
 
 const normalizeSlashSearch = (value: string) =>
   value
@@ -365,6 +452,7 @@ export interface SlashMenuProps {
    * plugin stays free of any LLM/data-layer coupling.
    */
   onAiCommand?: (key: SlashAiKey) => void;
+  onAgentCommand?: (key: SlashAgentKey) => void;
   /**
    * Plan 2E Phase B — called when a slash command requires a popover UI
    * before insertion (e.g. `/embed` or `/image` needs a URL input). The
@@ -380,6 +468,7 @@ export function SlashMenu({
   aiEnabled = false,
   ragEnabled = false,
   onAiCommand,
+  onAgentCommand,
   onRequestPopover,
 }: SlashMenuProps) {
   const t = useTranslations("editor.slash");
@@ -389,6 +478,10 @@ export function SlashMenu({
   const [mounted, setMounted] = useState(false);
   const [slashQuery, setSlashQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+  const [position, setPosition] = useState<SlashMenuPosition>({
+    left: 16,
+    top: 112,
+  });
   useEffect(() => setMounted(true), []);
 
   const runCommand = useCallback(
@@ -407,6 +500,13 @@ export function SlashMenu({
       // selection, calls the worker, and renders the diff sheet.
       if (isAiKey(key)) {
         onAiCommand?.(key);
+        setOpen(false);
+        setSlashQuery("");
+        return;
+      }
+
+      if (isAgentKey(key)) {
+        onAgentCommand?.(key);
         setOpen(false);
         setSlashQuery("");
         return;
@@ -458,6 +558,16 @@ export function SlashMenu({
           // being trapped against the void.
           editor.tf.insertNodes(
             { type: "hr", children: [{ text: "" }] },
+            { select: true },
+          );
+          editor.tf.insertNodes(
+            { type: "p", children: [{ text: "" }] },
+            { select: true },
+          );
+          break;
+        case "equation":
+          editor.tf.insertNodes(
+            { type: "equation", texExpression: "", children: [{ text: "" }] },
             { select: true },
           );
           editor.tf.insertNodes(
@@ -528,20 +638,20 @@ export function SlashMenu({
       setOpen(false);
       setSlashQuery("");
     },
-    [editor, onAiCommand, onRequestPopover, slashQuery],
+    [editor, onAgentCommand, onAiCommand, onRequestPopover, slashQuery],
   );
 
-  const allItems = useMemo<SlashCommandDef[]>(
-    () =>
-      aiEnabled
-        ? [
-            ...AI_COMMANDS,
-            ...(ragEnabled ? RAG_AI_COMMANDS : []),
-            ...BLOCK_COMMANDS,
-          ]
-        : [...BLOCK_COMMANDS],
-    [aiEnabled, ragEnabled],
-  );
+  const allItems = useMemo<SlashCommandDef[]>(() => {
+    const commands = aiEnabled
+      ? [
+          ...AI_COMMANDS,
+          ...(ragEnabled ? RAG_AI_COMMANDS : []),
+          ...SOURCE_AGENT_COMMANDS,
+          ...BLOCK_COMMANDS,
+        ]
+      : [...BLOCK_COMMANDS];
+    return commands.sort((a, b) => GROUP_ORDER[a.group] - GROUP_ORDER[b.group]);
+  }, [aiEnabled, ragEnabled]);
 
   const items = useMemo(
     () =>
@@ -549,10 +659,16 @@ export function SlashMenu({
         const label =
           cmd.group === "ai"
             ? tAi(`command.${cmd.labelKey}`)
+            : cmd.group === "research" &&
+                SOURCE_AGENT_COMMANDS.some((item) => item.key === cmd.key)
+              ? t(`agent.${cmd.labelKey}`)
             : t(cmd.labelKey);
         const description =
           cmd.group === "ai"
             ? tAi(`description.${cmd.descriptionKey}`)
+            : cmd.group === "research" &&
+                SOURCE_AGENT_COMMANDS.some((item) => item.key === cmd.key)
+              ? t(`description.agent.${cmd.descriptionKey}`)
             : t(`description.${cmd.descriptionKey}`);
         return {
           ...cmd,
@@ -612,9 +728,12 @@ export function SlashMenu({
           focused instanceof Element &&
           focused.closest('[data-slate-editor="true"]') !== null;
         if (!inEditor) return;
-        // Let Plate process the `/` insertion first, then open on the next
-        // tick. setTimeout(0) is sufficient — no need to read DOM state.
+        // Let Plate process the `/` insertion first, then anchor the menu to
+        // the updated caret rect. Falling back to the editor rect keeps tests
+        // and odd browser selection states usable without centering the menu
+        // over the whole page.
         setTimeout(() => {
+          setPosition(readSlashMenuPosition(focused));
           setSlashQuery("");
           setActiveIndex(0);
           setOpen(true);
@@ -699,12 +818,13 @@ export function SlashMenu({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-transparent px-4 pt-28"
+      className="fixed inset-0 z-50 bg-transparent"
       onClick={() => setOpen(false)}
       data-testid="slash-menu"
     >
       <div
-        className="bg-bg-base w-full max-w-md rounded-md border border-[color:var(--border)] shadow-lg"
+        className="fixed w-[min(420px,calc(100vw-32px))] rounded-md border border-[color:var(--border)] bg-[color:var(--theme-bg)] shadow-lg"
+        style={{ left: position.left, top: position.top }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="border-b border-[color:var(--border)] px-3 py-2">
@@ -725,7 +845,7 @@ export function SlashMenu({
           <p className="text-fg-muted px-3 py-4 text-sm">{t("no_results")}</p>
         ) : (
           <ul
-            className="max-h-80 overflow-auto py-1"
+            className="app-scrollbar-thin max-h-80 overflow-auto py-1"
             role="listbox"
             aria-label={t("aria_label")}
           >
@@ -754,7 +874,9 @@ export function SlashMenu({
                     }}
                     onMouseEnter={() => setActiveIndex(i)}
                     className={`flex w-full items-start gap-3 px-3 py-2 text-left text-sm ${
-                      i === activeIndex ? "bg-bg-muted" : "hover:bg-bg-muted"
+                      i === activeIndex
+                        ? "bg-[color:var(--theme-surface)]"
+                        : "hover:bg-[color:var(--theme-surface)]"
                     }`}
                   >
                     <cmd.icon

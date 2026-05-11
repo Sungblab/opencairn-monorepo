@@ -133,7 +133,7 @@ export function WikiLinkCombobox({ ctx, editor }: WikiLinkComboboxProps) {
       data-testid="wikilink-combobox"
     >
       <div
-        className="bg-bg-base w-full max-w-md rounded-md border border-[color:var(--border)] shadow-lg"
+        className="w-full max-w-md rounded-md border border-[color:var(--border)] bg-[color:var(--theme-bg)] shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
         <input
@@ -149,7 +149,7 @@ export function WikiLinkCombobox({ ctx, editor }: WikiLinkComboboxProps) {
             }
           }}
         />
-        <ul className="max-h-72 overflow-auto py-1">
+        <ul className="app-scrollbar-thin max-h-72 overflow-auto py-1">
           {query.length === 0 ? (
             <li className="text-fg-muted px-3 py-2 text-xs">{t("hint")}</li>
           ) : hits.length === 0 && !isFetching ? (
@@ -163,7 +163,7 @@ export function WikiLinkCombobox({ ctx, editor }: WikiLinkComboboxProps) {
                   type="button"
                   data-testid={`wikilink-result-${hit.id}`}
                   onClick={() => handleSelect(hit)}
-                  className="hover:bg-bg-muted w-full px-3 py-2 text-left text-sm"
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-[color:var(--theme-surface)]"
                 >
                   {hit.title || t("hint")}
                 </button>

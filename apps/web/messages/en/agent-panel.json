@@ -13,6 +13,7 @@
   },
   "tabs": {
     "chat": "AI",
+    "tools": "Tools",
     "activity": "Activity",
     "notifications": "Notifications"
   },
@@ -243,9 +244,24 @@
     }
   },
   "composer": {
-    "placeholder": "Type a message...",
+    "placeholder": "Ask or type / for commands...",
     "input_aria": "Message input",
     "attach_aria": "Attach",
+    "add_menu_aria": "Add and reference options",
+    "dropHint": "Drop to pin it to this question",
+    "reference": {
+      "remove_aria": "Remove reference"
+    },
+    "context": {
+      "activeTab": "Active",
+      "pinned": "Pinned"
+    },
+    "addMenu": {
+      "file": "Add file to project",
+      "activeTabOn": "Auto-reference active tab",
+      "activeTabOff": "Active-tab auto-reference off",
+      "memoryOff": "Exclude project memory"
+    },
     "voice_aria": "Voice input",
     "send_aria": "Send",
     "slash": {
@@ -264,7 +280,6 @@
         "make_table": "Turn material into a table",
         "quiz": "Create a quiz",
         "attach": "Attach material",
-        "web_search": "Allow web search",
         "paper_search": "Search papers",
         "research": "Start research",
         "current_document_only": "Use only the current document",
@@ -285,7 +300,6 @@
         "make_table": "Organize the current material into a comparable table.",
         "quiz": "Create comprehension questions from the current material.",
         "attach": "Help me choose material to attach.",
-        "web_search": "Allow web search and continue the answer.",
         "paper_search": "Find related papers and summarize the strongest candidates.",
         "research": "Start a research task from the current project material.",
         "current_document_only": "Use only the current document.",
@@ -341,6 +355,13 @@
       "completed": "Complete",
       "failed": "Failed"
     }
+  },
+  "projectTools": {
+    "title": "Project tools",
+    "noProject": "No current project found.",
+    "importFile": "Import file",
+    "importing": "Importing",
+    "openActivity": "View work status"
   },
   "actionShelf": {
     "title": "Quick actions"

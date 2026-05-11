@@ -2,11 +2,12 @@
 
 // Composer for the agent panel. Three responsibilities, kept in one file
 // because they share state (textarea value, selected mode):
-//   1. Multi-line input with autogrow capped at 200px and Enter-to-send /
+//   1. Multi-line input with autogrow capped at 128px and Enter-to-send /
 //      Shift+Enter-for-newline. The cap matches the panel-height budget
 //      reserved for the composer in the App Shell layout spec.
 //   2. Mode selection via the `ModeSelector` dropdown.
-//   3. Mic ↔ Send button toggle. When the trimmed input is empty we show
+//   3. A compact + menu for files and explicit context overrides.
+//   4. Mic ↔ Send button toggle. When the trimmed input is empty we show
 //      the mic affordance (voice input is wired in a later phase); as
 //      soon as the user types, the same slot becomes a send button. This
 //      avoids two always-visible icons and matches the mockup.
@@ -17,16 +18,38 @@
 // chat-thread code never has to re-trim.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, Mic, Paperclip } from "lucide-react";
+import {
+  ArrowUp,
+  FilePlus,
+  FileText,
+  Mic,
+  Plus,
+  Sparkles,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   filterSlashCommands,
+  getAgentCommand,
   parseSlashCommand,
   type AgentCommand,
   type AgentCommandId,
 } from "./agent-commands";
 import { ModeSelector, type ChatMode } from "./mode-selector";
+import {
+  dataTransferHasProjectTreeNode,
+  dataTransferHasFiles,
+  readProjectTreeDragPayload,
+  type ProjectTreeDragPayload,
+} from "@/lib/project-tree-dnd";
 
 interface Props {
   onSend(input: {
@@ -36,6 +59,10 @@ interface Props {
   }): void;
   onCommand?(command: AgentCommand): void;
   onAttachFile?(file: File): void;
+  onAttachTreeNode?(node: ProjectTreeDragPayload): void;
+  activeContextLabel?: string;
+  activeContextEnabled?: boolean;
+  onToggleActiveContext?(): void;
   attachDisabled?: boolean;
   disabled?: boolean;
 }
@@ -44,6 +71,10 @@ export function Composer({
   onSend,
   onCommand,
   onAttachFile,
+  onAttachTreeNode,
+  activeContextLabel,
+  activeContextEnabled = true,
+  onToggleActiveContext,
   attachDisabled,
   disabled,
 }: Props) {
@@ -76,7 +107,7 @@ export function Composer({
     // height instead of the previous taller layout — without this the
     // textarea only ever grows, never shrinks.
     ref.current.style.height = "auto";
-    ref.current.style.height = `${Math.min(200, ref.current.scrollHeight)}px`;
+    ref.current.style.height = `${Math.min(128, ref.current.scrollHeight)}px`;
   }
 
   function resetComposer() {
@@ -98,6 +129,12 @@ export function Composer({
     setSelectedCommand(command);
     setValue("");
     ref.current?.focus();
+  }
+
+  function applyContextCommand(commandId: AgentCommandId) {
+    const command = getAgentCommand(commandId);
+    if (!command) return;
+    onCommand?.(command);
   }
 
   function submit() {
@@ -128,7 +165,33 @@ export function Composer({
 
   return (
     <div
-      className="relative mx-3 mb-3 flex flex-col gap-1 rounded-[var(--radius-control)] border-2 border-border bg-background p-2 transition-colors focus-within:border-foreground"
+      data-testid="agent-composer"
+      className="relative mx-2 mb-2 flex flex-col gap-1 rounded-[var(--radius-control)] border-2 border-border bg-background p-2 transition-colors focus-within:border-foreground"
+      onDragOver={(event) => {
+        if (
+          dataTransferHasFiles(event.dataTransfer) ||
+          dataTransferHasProjectTreeNode(event.dataTransfer)
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.dataTransfer.dropEffect = "copy";
+        }
+      }}
+      onDrop={(event) => {
+        const treeNode = readProjectTreeDragPayload(event.dataTransfer);
+        if (treeNode) {
+          event.preventDefault();
+          event.stopPropagation();
+          onAttachTreeNode?.(treeNode);
+          return;
+        }
+        if (!dataTransferHasFiles(event.dataTransfer)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        for (const file of Array.from(event.dataTransfer.files)) {
+          onAttachFile?.(file);
+        }
+      }}
     >
       {selectedCommand ? (
         <div className="inline-flex w-fit items-center gap-1 rounded-[var(--radius-control)] border border-border bg-muted/40 px-2 py-1 text-xs text-muted-foreground">
@@ -180,7 +243,7 @@ export function Composer({
             submit();
           }
         }}
-        className="min-h-14 resize-none bg-transparent py-1.5 text-sm leading-5 outline-none placeholder:text-muted-foreground"
+        className="min-h-9 resize-none bg-transparent py-1 text-sm leading-5 outline-none placeholder:text-muted-foreground"
       />
       {slashOpen ? (
         <div
@@ -191,7 +254,7 @@ export function Composer({
               ? `agent-command-${slashCommands[activeCommandIndex].id}`
               : undefined
           }
-          className="absolute bottom-full left-0 right-0 z-20 mb-2 max-h-56 overflow-auto rounded-[var(--radius-card)] border border-border bg-background p-1 text-sm shadow-sm"
+          className="app-scrollbar-thin absolute bottom-full left-0 right-0 z-20 mb-2 max-h-56 overflow-auto rounded-[var(--radius-card)] border border-border bg-background p-1 text-sm shadow-sm"
         >
           {slashCommands.map((command, index) => (
             <button
@@ -221,16 +284,52 @@ export function Composer({
           ) : null}
         </div>
       ) : null}
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          aria-label={t("attach_aria")}
-          className="rounded-[var(--radius-control)] border border-transparent p-1.5 text-muted-foreground transition-colors hover:border-border hover:text-foreground disabled:opacity-50"
-          disabled={attachDisabled || disabled}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <Paperclip className="h-4 w-4" />
-        </button>
+      <div className="flex h-7 items-center gap-1">
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            type="button"
+            aria-label={t("add_menu_aria")}
+            disabled={disabled}
+            className="rounded-[var(--radius-control)] border border-transparent p-1 text-muted-foreground transition-colors hover:border-border hover:text-foreground disabled:opacity-50"
+          >
+            <Plus className="h-4 w-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            sideOffset={6}
+            className="w-52 rounded-[var(--radius-control)] border border-border bg-background p-1 shadow-sm ring-0"
+          >
+            <DropdownMenuItem
+              disabled={attachDisabled || disabled}
+              onClick={() => fileInputRef.current?.click()}
+              className="min-h-8 rounded-[var(--radius-control)] px-2 py-1.5 text-sm hover:bg-muted focus:bg-muted"
+            >
+              <FilePlus aria-hidden className="h-4 w-4" />
+              {t("addMenu.file")}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuCheckboxItem
+              checked={activeContextEnabled}
+              disabled={!activeContextLabel || disabled}
+              onCheckedChange={() => onToggleActiveContext?.()}
+              className="min-h-8 rounded-[var(--radius-control)] px-2 py-1.5 text-sm hover:bg-muted focus:bg-muted"
+            >
+              <FileText aria-hidden className="h-4 w-4" />
+              {t(
+                activeContextEnabled
+                  ? "addMenu.activeTabOn"
+                  : "addMenu.activeTabOff",
+              )}
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuItem
+              onClick={() => applyContextCommand("memory_off")}
+              className="min-h-8 rounded-[var(--radius-control)] px-2 py-1.5 text-sm hover:bg-muted focus:bg-muted"
+            >
+              <Sparkles aria-hidden className="h-4 w-4" />
+              {t("addMenu.memoryOff")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <input
           ref={fileInputRef}
           data-testid="agent-composer-file-input"
@@ -259,7 +358,7 @@ export function Composer({
           <button
             type="button"
             aria-label={t("voice_aria")}
-            className="ml-1 rounded-[var(--radius-control)] border border-transparent p-1.5 text-muted-foreground transition-colors hover:border-border hover:text-foreground"
+            className="ml-1 rounded-[var(--radius-control)] border border-transparent p-1 text-muted-foreground transition-colors hover:border-border hover:text-foreground"
           >
             <Mic className="h-4 w-4" />
           </button>

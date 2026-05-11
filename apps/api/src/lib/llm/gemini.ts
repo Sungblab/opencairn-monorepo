@@ -73,7 +73,7 @@ function withoutThinkingConfig<T extends Record<string, unknown>>(
 
 function isThinkingLevelUnsupported(error: unknown): boolean {
   const text = error instanceof Error ? error.message : String(error);
-  return /thinking level is not supported/i.test(text);
+  return /thinking level.*is not supported/i.test(text);
 }
 
 function isGeminiEmbedding2Model(model: string): boolean {

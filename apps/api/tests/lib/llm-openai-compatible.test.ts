@@ -139,6 +139,80 @@ describe("getOpenAICompatibleProvider", () => {
     ]);
   });
 
+  it("grounds latest-answer requests through the Responses web_search tool", async () => {
+    process.env.OPENAI_COMPAT_BASE_URL = "https://api.openai.com/v1";
+    process.env.OPENAI_COMPAT_CHAT_MODEL = "gpt-5";
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url, init) => {
+        calls.push({ url: String(url), init: init as RequestInit });
+        return new Response(
+          JSON.stringify({
+            output_text: "Latest answer with a citation.",
+            output: [
+              {
+                type: "message",
+                content: [
+                  {
+                    type: "output_text",
+                    text: "Latest answer with a citation.",
+                    annotations: [
+                      {
+                        type: "url_citation",
+                        url: "https://example.com/report",
+                        title: "Example report",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+            usage: { input_tokens: 12, output_tokens: 8 },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }),
+    );
+
+    const provider = getOpenAICompatibleProvider();
+    await expect(
+      provider.groundSearch?.("latest report?", {
+        maxOutputTokens: 256,
+        signal: AbortSignal.timeout(1000),
+      }),
+    ).resolves.toEqual({
+      answer: "Latest answer with a citation.",
+      sources: [
+        {
+          title: "Example report",
+          url: "https://example.com/report",
+        },
+      ],
+      usage: { tokensIn: 12, tokensOut: 8, model: "gpt-5" },
+    });
+
+    expect(calls[0].url).toBe("https://api.openai.com/v1/responses");
+    expect(JSON.parse(String(calls[0].init.body))).toMatchObject({
+      model: "gpt-5",
+      input: "latest report?",
+      tools: [{ type: "web_search" }],
+      tool_choice: "auto",
+      max_output_tokens: 256,
+    });
+  });
+
+  it("returns null when a compatible endpoint does not support Responses web search", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("not found", { status: 404 })),
+    );
+
+    const provider = getOpenAICompatibleProvider();
+
+    await expect(provider.groundSearch?.("latest?")).resolves.toBeNull();
+  });
+
   it("skips malformed SSE data frames and continues streaming", async () => {
     const body = new ReadableStream({
       start(ctrl) {

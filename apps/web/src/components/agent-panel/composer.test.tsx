@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { Composer } from "./composer";
+import { PROJECT_TREE_DRAG_MIME } from "@/lib/project-tree-dnd";
 
 // Mirror the next-intl shim used elsewhere in the suite (see
 // sidebar-footer.test.tsx). Returning `${ns}.${key}` keeps assertions
@@ -14,6 +15,7 @@ const PLACEHOLDER = "agentPanel.composer.placeholder";
 const INPUT_LABEL = "agentPanel.composer.input_aria";
 const VOICE_LABEL = "agentPanel.composer.voice_aria";
 const SEND_LABEL = "agentPanel.composer.send_aria";
+const ADD_MENU_LABEL = "agentPanel.composer.add_menu_aria";
 
 describe("Composer", () => {
   it("labels the message textarea for assistive technology", () => {
@@ -21,9 +23,9 @@ describe("Composer", () => {
     expect(screen.getByLabelText(INPUT_LABEL)).toBeInTheDocument();
   });
 
-  it("keeps the textarea at a usable desktop click height", () => {
+  it("keeps the textarea compact enough for narrow agent panels", () => {
     render(<Composer onSend={vi.fn()} />);
-    expect(screen.getByLabelText(INPUT_LABEL)).toHaveClass("min-h-14");
+    expect(screen.getByLabelText(INPUT_LABEL)).toHaveClass("min-h-9");
   });
 
   it("uses the shared app control radius for the composer shell and icon controls", () => {
@@ -35,7 +37,7 @@ describe("Composer", () => {
     expect(screen.getByLabelText(VOICE_LABEL)).toHaveClass(
       "rounded-[var(--radius-control)]",
     );
-    expect(screen.getByLabelText("agentPanel.composer.attach_aria")).toHaveClass(
+    expect(screen.getByLabelText(ADD_MENU_LABEL)).toHaveClass(
       "rounded-[var(--radius-control)]",
     );
   });
@@ -49,6 +51,98 @@ describe("Composer", () => {
     fireEvent.change(input, { target: { files: [file] } });
 
     expect(onAttachFile).toHaveBeenCalledWith(file);
+  });
+
+  it("passes dropped OS files to the attachment handler", () => {
+    const onAttachFile = vi.fn();
+    render(<Composer onSend={vi.fn()} onAttachFile={onAttachFile} />);
+    const file = new File(["hello"], "paper.pdf", { type: "application/pdf" });
+
+    fireEvent.drop(screen.getByTestId("agent-composer"), {
+      dataTransfer: { files: [file], types: ["Files"], getData: () => "" },
+    });
+
+    expect(onAttachFile).toHaveBeenCalledWith(file);
+  });
+
+  it("passes dropped project tree nodes to the reference handler", () => {
+    const onAttachTreeNode = vi.fn();
+    const payload = {
+      id: "node-1",
+      kind: "note",
+      label: "Source note",
+      targetId: "note-1",
+      parentId: null,
+    };
+    render(
+      <Composer
+        onSend={vi.fn()}
+        onAttachTreeNode={onAttachTreeNode}
+      />,
+    );
+
+    fireEvent.drop(screen.getByTestId("agent-composer"), {
+      dataTransfer: {
+        files: [],
+        types: [PROJECT_TREE_DRAG_MIME],
+        getData: (type: string) =>
+          type === PROJECT_TREE_DRAG_MIME ? JSON.stringify(payload) : "",
+      },
+    });
+
+    expect(onAttachTreeNode).toHaveBeenCalledWith(payload);
+  });
+
+  it("keeps explicit context controls behind the add menu", () => {
+    const onCommand = vi.fn();
+    const onToggleActiveContext = vi.fn();
+    render(
+      <Composer
+        onSend={vi.fn()}
+        onCommand={onCommand}
+        activeContextLabel="Source note"
+        activeContextEnabled
+        onToggleActiveContext={onToggleActiveContext}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText(ADD_MENU_LABEL));
+    fireEvent.click(
+      screen.getByRole("menuitemcheckbox", {
+        name: "agentPanel.composer.addMenu.activeTabOn",
+      }),
+    );
+
+    expect(onToggleActiveContext).toHaveBeenCalled();
+    expect(onCommand).not.toHaveBeenCalled();
+  });
+
+  it("does not expose web search as a manual toggle", () => {
+    render(<Composer onSend={vi.fn()} />);
+
+    fireEvent.click(screen.getByLabelText(ADD_MENU_LABEL));
+
+    expect(
+      screen.queryByRole("menuitemcheckbox", {
+        name: "agentPanel.composer.addMenu.webSearch",
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps reference chips out of the input surface", () => {
+    render(
+      <Composer
+        onSend={vi.fn()}
+        activeContextLabel="Source note"
+        activeContextEnabled
+      />,
+    );
+
+    expect(screen.queryByText("Source note")).not.toBeInTheDocument();
+    expect(screen.queryByText("paper.pdf")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("agentPanel.composer.context.projectIndex"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows mic when empty, send when non-empty", () => {

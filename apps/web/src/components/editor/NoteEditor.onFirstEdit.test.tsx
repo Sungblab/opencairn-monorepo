@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
 import { usePanelStore } from "@/stores/panel-store";
+import { useTabsStore } from "@/stores/tabs-store";
 
 // Shallow-mock the heavy deps so the test can run headlessly — we only
 // care that the wrapper div's paste/drop handlers fire the callback.
@@ -122,6 +123,7 @@ describe("NoteEditor.onFirstEdit", () => {
     vi.restoreAllMocks();
     useAgentWorkbenchStore.setState(useAgentWorkbenchStore.getInitialState(), true);
     usePanelStore.setState(usePanelStore.getInitialState(), true);
+    useTabsStore.setState(useTabsStore.getInitialState(), true);
   });
 
   it("fires on paste into the editor body", () => {
@@ -167,31 +169,62 @@ describe("NoteEditor.onFirstEdit", () => {
     expect(screen.getByTestId("share-button")).toHaveTextContent("");
   });
 
-  it("keeps comments closed by default and opens them from the title row", () => {
+  it("syncs the tab title from the mounted note title", () => {
+    useTabsStore.setState({
+      workspaceId: "ws_slug:ws",
+      tabs: [
+        {
+          id: "tab-note",
+          kind: "note",
+          targetId: "n1",
+          mode: "plate",
+          title: "노트",
+          pinned: false,
+          preview: true,
+          dirty: false,
+          splitWith: null,
+          splitSide: null,
+          scrollY: 0,
+        },
+      ],
+      activeId: "tab-note",
+      closedStack: [],
+    });
+
+    renderNoteEditor({ initialTitle: "TEST" });
+
+    expect(useTabsStore.getState().tabs[0]?.title).toBe("TEST");
+  });
+
+  it("keeps comments out of the title row and opens them from the rail", () => {
     renderNoteEditor();
 
     expect(
       screen.queryByRole("complementary", { name: "댓글 패널" }),
     ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("comments-toggle-button")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("comments-toggle-button"));
+    fireEvent.click(screen.getByTestId("note-rail-comments-button"));
 
     expect(screen.getByRole("complementary", { name: "댓글 패널" })).toBeInTheDocument();
   });
 
-  it("renders a note-local AI entrypoint next to note actions", () => {
+  it("keeps note-local AI entrypoints in the contextual rail", () => {
     renderNoteEditor();
 
-    const aiButton = screen.getByTestId("ask-ai-note-button");
-    expect(aiButton).toHaveAttribute("aria-label", "AI에게 질문");
-    expect(aiButton).toHaveTextContent("");
+    expect(screen.queryByTestId("ask-ai-note-button")).not.toBeInTheDocument();
+    expect(screen.getByTestId("note-rail-ai-button")).toHaveAttribute(
+      "aria-label",
+      "AI 작업",
+    );
   });
 
-  it("opens the agent panel with current-note context for note-local AI entrypoints", async () => {
+  it("opens the agent panel with current-note context from the rail", async () => {
     usePanelStore.getState().setAgentPanelOpen(false);
     renderNoteEditor();
 
-    await userEvent.click(screen.getByTestId("ask-ai-note-button"));
+    await userEvent.click(screen.getByTestId("note-rail-ai-button"));
+    await userEvent.click(screen.getByTestId("note-rail-ask-ai-button"));
 
     expect(usePanelStore.getState().agentPanelOpen).toBe(true);
     expect(usePanelStore.getState().agentPanelTab).toBe("chat");
@@ -201,18 +234,46 @@ describe("NoteEditor.onFirstEdit", () => {
     });
   });
 
-  it("opens activity review from the note toolbar without navigating away", async () => {
+  it("starts source-backed note generation from the note AI rail", async () => {
+    usePanelStore.getState().setAgentPanelOpen(false);
     renderNoteEditor();
 
-    await userEvent.click(screen.getByTestId("review-note-actions-button"));
+    await userEvent.click(screen.getByTestId("note-rail-ai-button"));
+    expect(screen.getByText(/PDF와 업로드 자료/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId("note-rail-make-note-button"));
+
+    expect(usePanelStore.getState().agentPanelOpen).toBe(true);
+    expect(usePanelStore.getState().agentPanelTab).toBe("chat");
+    expect(useAgentWorkbenchStore.getState().pendingIntent).toMatchObject({
+      kind: "runCommand",
+      commandId: "make_note",
+    });
+  });
+
+  it("does not show empty-note AI starter buttons in the editor canvas", () => {
+    renderNoteEditor();
+
+    expect(screen.queryByTestId("empty-note-ai-starters")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("empty-note-make-note-button"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("opens activity review from the contextual rail without navigating away", async () => {
+    renderNoteEditor();
+
+    await userEvent.click(screen.getByTestId("note-rail-ai-button"));
+    await userEvent.click(screen.getByTestId("note-rail-review-button"));
 
     expect(usePanelStore.getState().agentPanelTab).toBe("activity");
   });
 
-  it("queues narration from the note toolbar in the current workbench", async () => {
+  it("queues narration from the contextual rail in the current workbench", async () => {
     renderNoteEditor();
 
-    await userEvent.click(screen.getByTestId("narrate-note-button"));
+    await userEvent.click(screen.getByTestId("note-rail-ai-button"));
+    await userEvent.click(screen.getByTestId("note-rail-narrate-button"));
 
     expect(usePanelStore.getState().agentPanelTab).toBe("chat");
     expect(useAgentWorkbenchStore.getState().pendingIntent).toMatchObject({

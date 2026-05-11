@@ -13,6 +13,7 @@
   },
   "tabs": {
     "chat": "AI",
+    "tools": "도구",
     "activity": "활동",
     "notifications": "알림"
   },
@@ -243,9 +244,24 @@
     }
   },
   "composer": {
-    "placeholder": "메시지를 입력하세요...",
+    "placeholder": "질문하거나 /명령어를 입력하세요...",
     "input_aria": "메시지 입력",
     "attach_aria": "첨부",
+    "add_menu_aria": "추가 및 참조 옵션",
+    "dropHint": "자료를 놓으면 이번 질문에 고정됩니다",
+    "reference": {
+      "remove_aria": "참조 제거"
+    },
+    "context": {
+      "activeTab": "현재",
+      "pinned": "고정"
+    },
+    "addMenu": {
+      "file": "파일을 프로젝트에 추가",
+      "activeTabOn": "현재 탭 자동 참조",
+      "activeTabOff": "현재 탭 자동 참조 꺼짐",
+      "memoryOff": "프로젝트 메모리 제외"
+    },
     "voice_aria": "음성 입력",
     "send_aria": "전송",
     "slash": {
@@ -264,7 +280,6 @@
         "make_table": "표로 정리",
         "quiz": "퀴즈 만들기",
         "attach": "자료 첨부",
-        "web_search": "웹 검색 허용",
         "paper_search": "논문 검색",
         "research": "리서치 시작",
         "current_document_only": "현재 문서만 참고",
@@ -285,7 +300,6 @@
         "make_table": "현재 자료를 비교 가능한 표로 정리해줘.",
         "quiz": "현재 자료를 이해도 확인용 문제로 만들어줘.",
         "attach": "첨부할 자료를 선택할 수 있게 도와줘.",
-        "web_search": "웹 검색을 허용하고 이어서 답변해줘.",
         "paper_search": "관련 논문을 찾아서 핵심 후보를 정리해줘.",
         "research": "현재 프로젝트 자료를 바탕으로 리서치 작업을 시작해줘.",
         "current_document_only": "현재 문서만 참고해줘.",
@@ -341,6 +355,13 @@
       "completed": "완료",
       "failed": "실패"
     }
+  },
+  "projectTools": {
+    "title": "프로젝트 도구",
+    "noProject": "현재 프로젝트를 찾을 수 없습니다.",
+    "importFile": "파일 가져오기",
+    "importing": "가져오는 중",
+    "openActivity": "작업 상태 보기"
   },
   "actionShelf": {
     "title": "바로 실행"

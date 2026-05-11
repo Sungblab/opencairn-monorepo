@@ -15,16 +15,17 @@ import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 interface Presence {
+  id: string | null;
   name: string;
   color: string;
   clientID: number;
 }
 
 interface AwarenessState {
-  data?: { name?: string; color?: string };
+  data?: { id?: string; name?: string; color?: string };
 }
 
-export function PresenceStack() {
+export function PresenceStack({ currentUserId }: { currentUserId: string }) {
   const editor = useEditorRef();
   const t = useTranslations("collab.presence");
   const [users, setUsers] = useState<Presence[]>([]);
@@ -36,13 +37,19 @@ export function PresenceStack() {
     const refresh = () => {
       const states = awareness.getStates() as Map<number, AwarenessState>;
       const list: Presence[] = [];
+      const seen = new Set<string>();
       states.forEach((state, clientID) => {
         // Skip self — the user already has a cursor indicator in their own
         // editor, so duplicating them in the avatar pile is noise.
         if (clientID === awareness.clientID) return;
         const d = state?.data;
+        if (d?.id === currentUserId) return;
         if (d?.name) {
+          const key = d.id ? `id:${d.id}` : `client:${clientID}`;
+          if (seen.has(key)) return;
+          seen.add(key);
           list.push({
+            id: d.id ?? null,
             name: d.name,
             color: d.color ?? "#888",
             clientID,
@@ -57,7 +64,7 @@ export function PresenceStack() {
     return () => {
       awareness.off("change", refresh);
     };
-  }, [editor]);
+  }, [currentUserId, editor]);
 
   if (users.length === 0) return null;
 

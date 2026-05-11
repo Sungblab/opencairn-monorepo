@@ -150,6 +150,62 @@ describe("SlashMenu focus gate", () => {
     expect(buttons[1]).toHaveAttribute("data-testid", "slash-cmd-translate");
   });
 
+  it("groups AI, text, research, structure, and media commands for hybrid notes", () => {
+    render(
+      wrap(
+        <>
+          <div data-slate-editor="true" tabIndex={-1} data-testid="editor" />
+          <SlashMenu editor={makeEditor()} aiEnabled />
+        </>,
+      ),
+    );
+
+    const editorEl = screen.getByTestId("editor") as HTMLDivElement;
+    editorEl.focus();
+    pressSlashAndFlush();
+
+    expect(screen.getByTestId("slash-section-ai")).toHaveTextContent("AI");
+    expect(screen.getByTestId("slash-section-text")).toHaveTextContent("텍스트");
+    expect(screen.getByTestId("slash-section-research")).toHaveTextContent(
+      "연구",
+    );
+    expect(screen.getByTestId("slash-section-structure")).toHaveTextContent(
+      "구조",
+    );
+    expect(screen.getByTestId("slash-section-media")).toHaveTextContent(
+      "미디어",
+    );
+    expect(screen.getByTestId("slash-cmd-make_note")).toBeInTheDocument();
+    expect(screen.getByTestId("slash-cmd-equation")).toBeInTheDocument();
+  });
+
+  it("dispatches source-backed agent commands from the slash menu", () => {
+    const editor = makeEditor();
+    const onAgentCommand = vi.fn();
+
+    render(
+      wrap(
+        <>
+          <div data-slate-editor="true" tabIndex={-1} data-testid="editor" />
+          <SlashMenu
+            editor={editor}
+            aiEnabled
+            onAgentCommand={onAgentCommand}
+          />
+        </>,
+      ),
+    );
+
+    const editorEl = screen.getByTestId("editor") as HTMLDivElement;
+    editorEl.focus();
+    pressSlashAndFlush();
+
+    fireEvent.mouseDown(screen.getByTestId("slash-cmd-make_note"));
+
+    expect(onAgentCommand).toHaveBeenCalledWith("make_note");
+    expect(editor.tf.deleteBackward).toHaveBeenCalledTimes(1);
+  });
+
   it("opens as a lightweight command menu without dimming the whole page", () => {
     render(
       wrap(

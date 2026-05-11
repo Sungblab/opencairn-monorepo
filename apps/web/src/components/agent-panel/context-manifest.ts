@@ -1,4 +1,5 @@
 import type { Tab, TabKind } from "@/stores/tabs-store";
+import type { ProjectTreeDragPayload } from "@/lib/project-tree-dnd";
 
 export type SourcePolicy =
   | "auto_project"
@@ -19,14 +20,24 @@ export type ContextManifest = {
   memoryPolicy: MemoryPolicy;
   externalSearch: ExternalSearchPolicy;
   command?: string;
+  attachedArtifacts?: Array<{
+    type: ProjectTreeDragPayload["kind"];
+    id: string;
+    treeNodeId: string;
+    label: string;
+  }>;
+};
+
+export type AgentContextChip = {
+  type: "page" | "project" | "workspace";
+  id: string;
+  label?: string;
+  manual?: boolean;
 };
 
 export type AgentContextPayload = {
   manifest: ContextManifest;
-  chips: Array<{
-    type: "page" | "project" | "workspace";
-    id: string;
-  }>;
+  chips: AgentContextChip[];
   strict: "strict" | "loose";
 };
 
@@ -79,6 +90,7 @@ export async function buildAgentContextPayload(opts: {
   command?: string;
   resolveNoteProjectId?: (noteId: string) => Promise<string | null>;
   fallbackProjectId?: string | null;
+  attachedReferences?: ProjectTreeDragPayload[];
 }): Promise<AgentContextPayload> {
   const projectId = await resolveActiveProjectId(opts);
   const activeArtifact = activeArtifactFromTab(opts.activeTab);
@@ -112,6 +124,26 @@ export async function buildAgentContextPayload(opts: {
     chips.push({ type: "workspace", id: opts.workspaceId });
   }
 
+  for (const ref of opts.attachedReferences ?? []) {
+    if (ref.kind === "note") {
+      chips.push({
+        type: "page",
+        id: ref.targetId,
+        label: ref.label,
+        manual: true,
+      });
+    }
+  }
+
+  const attachedArtifacts = (opts.attachedReferences ?? [])
+    .filter((ref) => ref.kind !== "note" && ref.kind !== "folder")
+    .map((ref) => ({
+      type: ref.kind,
+      id: ref.targetId,
+      treeNodeId: ref.id,
+      label: ref.label,
+    }));
+
   const manifest: ContextManifest = {
     workspaceId: opts.workspaceId,
     ...(projectId ? { projectId } : {}),
@@ -120,9 +152,15 @@ export async function buildAgentContextPayload(opts: {
     memoryPolicy: opts.memoryPolicy,
     externalSearch: opts.externalSearch,
     ...(opts.command ? { command: opts.command } : {}),
+    ...(attachedArtifacts.length > 0 ? { attachedArtifacts } : {}),
   };
 
-  return { manifest, chips, strict: "strict" };
+  const dedupedChips = new Map<string, AgentContextChip>();
+  for (const chip of chips) {
+    dedupedChips.set(`${chip.type}:${chip.id}`, chip);
+  }
+
+  return { manifest, chips: [...dedupedChips.values()], strict: "strict" };
 }
 
 export function defaultSourcePolicy(activeKind: TabKind | undefined): SourcePolicy {

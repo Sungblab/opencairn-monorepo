@@ -1,6 +1,6 @@
 {
   "placeholder": {
-    "title": "제목 없음",
+    "title": "",
     "body": "무엇이든 적어보세요…",
     "body_with_slash": "무엇이든 적어보세요. / 를 누르면 AI 도구가 열려요."
   },
@@ -22,8 +22,13 @@
     "no_results": "일치하는 명령어가 없어요.",
     "section": {
       "text": "텍스트",
+      "research": "연구",
       "structure": "구조",
       "media": "미디어"
+    },
+    "agent": {
+      "make_note": "자료로 노트 만들기",
+      "extract_citations": "근거 인용 추출"
     },
     "heading_1": "제목 1",
     "heading_2": "제목 2",
@@ -57,7 +62,11 @@
       "table": "3x3 표를 삽입해요",
       "columns": "두 단 레이아웃을 삽입해요",
       "image": "URL로 이미지를 삽입해요",
-      "embed": "동영상 임베드를 삽입해요"
+      "embed": "동영상 임베드를 삽입해요",
+      "agent": {
+        "make_note": "PDF와 업로드 자료를 바탕으로 현재 프로젝트 노트를 작성해요",
+        "extract_citations": "원문으로 돌아갈 수 있는 인용과 근거를 뽑아요"
+      }
     }
   },
   "math": {
@@ -112,6 +121,9 @@
     "bulleted": "글머리 기호",
     "numbered": "번호 매기기",
     "quote": "인용",
+    "math": "수식 블록",
+    "table": "표",
+    "callout": "알림 박스",
     "wikilink": "노트 연결",
     "comments": "댓글",
     "agents": "AI 작업",
@@ -127,9 +139,11 @@
     "aiWork": "AI 작업",
     "activity": "활동",
     "askAi": "AI에게 질문",
+    "makeNote": "자료로 노트 만들기",
+    "extractCitations": "근거 인용 추출",
     "narrate": "오디오 생성",
     "review": "검토",
-    "aiDescription": "현재 노트 범위를 유지한 채 AI 작업을 시작합니다.",
+    "aiDescription": "PDF와 업로드 자료를 바탕으로 현재 노트를 만들고, 근거를 붙이고, 선택한 문단을 AI로 다듬습니다.",
     "activityDescription": "이 노트와 프로젝트에서 진행 중인 AI 작업과 업로드 상태를 확인합니다."
   },
   "table": {

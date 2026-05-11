@@ -1,7 +1,17 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Activity, Bot, CheckSquare, MessageSquare, Sparkles, Volume2, X } from "lucide-react";
+import {
+  Activity,
+  Bot,
+  CheckSquare,
+  FileText,
+  MessageSquare,
+  Quote,
+  Sparkles,
+  Volume2,
+  X,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { CommentsPanel } from "@/components/comments/CommentsPanel";
@@ -60,7 +70,7 @@ export function NoteContextRail({
       data-testid="note-context-rail"
       className="flex shrink-0 flex-col border-t border-border bg-background xl:flex-row xl:border-l xl:border-t-0"
     >
-      <div className="flex min-h-11 items-center gap-1 border-b border-border px-2 py-1 xl:min-h-0 xl:w-12 xl:flex-col xl:border-b-0 xl:border-r xl:px-1 xl:py-2">
+      <div className="flex min-h-11 items-center gap-1 border-b border-border bg-muted/20 px-2 py-1 xl:min-h-0 xl:w-12 xl:flex-col xl:border-b-0 xl:border-r xl:px-1 xl:py-2">
         <RailButton
           active={active === "comments"}
           label={t("comments")}
@@ -90,7 +100,7 @@ export function NoteContextRail({
       {active ? (
         <section
           data-testid="note-context-rail-panel"
-          className="min-h-0 w-full border-t border-border xl:w-80 xl:border-t-0"
+          className="min-h-0 w-full border-t border-border bg-background xl:w-80 xl:border-t-0"
         >
           <header className="flex min-h-10 items-center justify-between gap-2 border-b border-border px-3">
             <h2 className="text-sm font-semibold">{t(active)}</h2>
@@ -143,8 +153,8 @@ function RailButton({
       data-testid={testId}
       className={`inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-control)] border transition-colors ${
         active
-          ? "border-foreground bg-foreground text-background"
-          : "border-transparent text-muted-foreground hover:border-border hover:text-foreground"
+          ? "border-border bg-background text-foreground shadow-sm"
+          : "border-transparent text-muted-foreground hover:border-border hover:bg-background hover:text-foreground"
       }`}
       onClick={onClick}
     >
@@ -163,6 +173,22 @@ function NoteRailAiWork({ readOnly }: { readOnly: boolean }) {
       </p>
       {!readOnly ? (
         <div className="grid gap-2">
+          <WorkbenchCommandButton
+            commandId="make_note"
+            data-testid="note-rail-make-note-button"
+            className="app-hover inline-flex min-h-9 items-center gap-2 rounded-[var(--radius-control)] border border-border px-2.5 text-sm"
+          >
+            <FileText aria-hidden className="h-4 w-4" />
+            {t("makeNote")}
+          </WorkbenchCommandButton>
+          <WorkbenchCommandButton
+            commandId="extract_citations"
+            data-testid="note-rail-citations-button"
+            className="app-hover inline-flex min-h-9 items-center gap-2 rounded-[var(--radius-control)] border border-border px-2.5 text-sm"
+          >
+            <Quote aria-hidden className="h-4 w-4" />
+            {t("extractCitations")}
+          </WorkbenchCommandButton>
           <WorkbenchContextButton
             commandId="current_document_only"
             data-testid="note-rail-ask-ai-button"

@@ -15,10 +15,18 @@
 //      note" toast action when no Plate editor is open.
 // Children (Conversation, Composer, ContextTray) stay controlled views.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+} from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { saveSuggestionSchema } from "@opencairn/shared";
+import { FileText, Sparkles, X } from "lucide-react";
 
 import { useChatSend } from "@/hooks/use-chat-send";
 import { useChatThreads } from "@/hooks/use-chat-threads";
@@ -50,16 +58,20 @@ import {
   type AgentCommandId,
 } from "./agent-commands";
 import { PanelHeader } from "./panel-header";
-import { ContextTray } from "./context-tray";
+import { ProjectToolsPanel } from "./project-tools-panel";
 import {
   buildAgentContextPayload,
   defaultSourcePolicy,
-  type ExternalSearchPolicy,
   type MemoryPolicy,
   type SourcePolicy,
 } from "./context-manifest";
+import {
+  dataTransferHasFiles,
+  dataTransferHasProjectTreeNode,
+  readProjectTreeDragPayload,
+  type ProjectTreeDragPayload,
+} from "@/lib/project-tree-dnd";
 import { WorkflowConsoleRuns } from "./workflow-console-runs";
-import { WorkbenchActionShelf } from "./workbench-action-shelf";
 import { WorkbenchActivityStack } from "./workbench-activity-stack";
 import { handleAgentWorkbenchIntent } from "./agent-workbench-intents";
 import { useCurrentProjectContext } from "@/components/sidebar/use-current-project";
@@ -71,6 +83,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const pendingWorkbenchIntent = useAgentWorkbenchStore((s) => s.pendingIntent);
   const consumeWorkbenchIntent = useAgentWorkbenchStore((s) => s.consumeIntent);
   const { projectId: shellProjectId } = useCurrentProjectContext();
+  const composerT = useTranslations("agentPanel.composer");
   const commandPromptT = useTranslations("agentPanel.composer.slash.prompt");
 
   // setWorkspace bootstraps the active-thread restore from localStorage on
@@ -96,23 +109,28 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const [sourcePolicy, setSourcePolicy] =
     useState<SourcePolicy>(initialSourcePolicy);
   const [memoryPolicy, setMemoryPolicy] = useState<MemoryPolicy>("auto");
-  const [externalSearch, setExternalSearch] =
-    useState<ExternalSearchPolicy>("off");
+  const [activeContextEnabled, setActiveContextEnabled] = useState(true);
+  const [draggingReference, setDraggingReference] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [attachedReferences, setAttachedReferences] = useState<
+    ProjectTreeDragPayload[]
+  >([]);
   const [formGenerationEvents, setFormGenerationEvents] = useState<unknown[]>([]);
   const sendInFlightRef = useRef(false);
   const buildScopePayload = useCallback(
     (commandId?: AgentCommandId) => {
       const command = getAgentCommand(commandId);
+      const scopedActiveTab = activeContextEnabled ? activeTab : undefined;
       return buildAgentContextPayload({
-        activeTab,
+        activeTab: scopedActiveTab,
         workspaceId,
         sourcePolicy: command?.contextPatch?.sourcePolicy ?? sourcePolicy,
         memoryPolicy: command?.contextPatch?.memoryPolicy ?? memoryPolicy,
-        externalSearch: command?.contextPatch?.externalSearch ?? externalSearch,
+        externalSearch: "allowed",
         command: commandId,
-        fallbackProjectId: shellProjectId,
+        fallbackProjectId: activeProjectId ?? shellProjectId,
+        attachedReferences,
         resolveNoteProjectId: async (noteId) => {
           try {
             return (await api.getNote(noteId)).projectId;
@@ -122,7 +140,16 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
         },
       });
     },
-    [activeTab, externalSearch, memoryPolicy, shellProjectId, sourcePolicy, workspaceId],
+    [
+      activeTab,
+      activeContextEnabled,
+      activeProjectId,
+      attachedReferences,
+      memoryPolicy,
+      shellProjectId,
+      sourcePolicy,
+      workspaceId,
+    ],
   );
 
   // Reset the source policy when the user switches to a different surface kind.
@@ -188,6 +215,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
             scope: await buildScopePayload(input.command),
             threadId,
           });
+          setAttachedReferences([]);
         } finally {
           sendInFlightRef.current = false;
           setIsSending(false);
@@ -203,9 +231,6 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
     }
     if (command.contextPatch?.memoryPolicy) {
       setMemoryPolicy(command.contextPatch.memoryPolicy);
-    }
-    if (command.contextPatch?.externalSearch) {
-      setExternalSearch(command.contextPatch.externalSearch);
     }
   }, []);
 
@@ -244,11 +269,81 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
         activeTab?.kind === "note" && activeTab.targetId
           ? activeTab.targetId
           : undefined;
-      void upload(file, activeProjectId, noteId ? { noteId } : undefined).catch(
-        () => {},
-      );
+      void upload(file, activeProjectId, noteId ? { noteId } : undefined)
+        .then((result) => {
+          const sourceBundleNodeId = result.sourceBundleNodeId;
+          if (!sourceBundleNodeId) return;
+          setAttachedReferences((current) => {
+            if (
+              current.some((item) => item.id === sourceBundleNodeId)
+            ) {
+              return current;
+            }
+            return [
+              ...current,
+              {
+                id: sourceBundleNodeId,
+                targetId: sourceBundleNodeId,
+                kind: "source_bundle",
+                label: file.name,
+                parentId: null,
+              },
+            ];
+          });
+        })
+        .catch(() => {});
     },
     [activeProjectId, activeTab, upload],
+  );
+
+  const handleAttachTreeNode = useCallback((node: ProjectTreeDragPayload) => {
+    setAttachedReferences((current) => {
+      if (current.some((item) => item.id === node.id)) return current;
+      return [...current, node];
+    });
+  }, []);
+
+  const handleRemoveTreeReference = useCallback((id: string) => {
+    setAttachedReferences((current) => current.filter((item) => item.id !== id));
+  }, []);
+
+  const handlePanelDragOver = useCallback((event: DragEvent<HTMLElement>) => {
+    if (
+      dataTransferHasFiles(event.dataTransfer) ||
+      dataTransferHasProjectTreeNode(event.dataTransfer)
+    ) {
+      event.preventDefault();
+      setDraggingReference(true);
+      event.dataTransfer.dropEffect = "copy";
+    }
+  }, []);
+
+  const handlePanelDragLeave = useCallback((event: DragEvent<HTMLElement>) => {
+    const nextTarget = event.relatedTarget;
+    if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
+      return;
+    }
+    setDraggingReference(false);
+  }, []);
+
+  const handlePanelDrop = useCallback(
+    (event: DragEvent<HTMLElement>) => {
+      setDraggingReference(false);
+      const treeNode = readProjectTreeDragPayload(event.dataTransfer);
+      if (treeNode) {
+        event.preventDefault();
+        handleAttachTreeNode(treeNode);
+        setPanelTab("chat");
+        return;
+      }
+      if (!dataTransferHasFiles(event.dataTransfer)) return;
+      event.preventDefault();
+      for (const file of Array.from(event.dataTransfer.files)) {
+        handleAttachFile(file);
+      }
+      setPanelTab("chat");
+    },
+    [handleAttachFile, handleAttachTreeNode, setPanelTab],
   );
 
   // i18n for save-suggestion toasts (Task 21).
@@ -349,15 +444,25 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   return (
     <aside
       data-testid="app-shell-agent-panel"
-      className="flex h-full flex-col border-l border-border bg-background"
+      className="relative flex h-full flex-col border-l border-border bg-background"
+      onDragOver={handlePanelDragOver}
+      onDragLeave={handlePanelDragLeave}
+      onDrop={handlePanelDrop}
     >
+      {draggingReference ? (
+        <div className="pointer-events-none absolute inset-2 z-30 rounded-[var(--radius-card)] border border-dashed border-foreground/35">
+          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 rounded-[var(--radius-control)] border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground shadow-sm">
+            {composerT("dropHint")}
+          </div>
+        </div>
+      ) : null}
+      <AgentPanelTabs active={panelTab} onChange={setPanelTab} />
       <PanelHeader
         onNewThread={startNewThread}
         newThreadDisabled={threadActionsDisabled}
       />
-      <AgentPanelTabs active={panelTab} onChange={setPanelTab} />
       {panelTab === "activity" ? (
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="app-scrollbar-thin min-h-0 flex-1 overflow-y-auto">
           <NoteUpdateActionReviewList projectId={activeProjectId} />
           <CodeProjectActionReviewList projectId={activeProjectId} />
           <AgenticPlanCard projectId={activeProjectId} />
@@ -378,17 +483,21 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
         </div>
       ) : null}
       {panelTab === "notifications" ? (
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="app-scrollbar-thin min-h-0 flex-1 overflow-y-auto">
           <NotificationListPanel />
         </div>
       ) : null}
+      {panelTab === "tools" ? (
+        <ProjectToolsPanel
+          projectId={activeProjectId}
+          workspaceId={workspaceId}
+          wsSlug={wsSlug}
+          onRun={handleRunAction}
+          onOpenActivity={() => setPanelTab("activity")}
+        />
+      ) : null}
       {panelTab === "chat" ? (
         <>
-          <WorkbenchActionShelf
-            activeKind={activeTab?.kind}
-            disabled={composerDisabled}
-            onRun={handleRunAction}
-          />
           <WorkbenchActivityStack />
           {activeThreadId ? (
             <Conversation
@@ -400,22 +509,30 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
           ) : (
             <AgentPanelEmptyState />
           )}
-          <ContextTray
-            activeKind={activeTab?.kind}
-            sourcePolicy={sourcePolicy}
-            memoryPolicy={memoryPolicy}
-            externalSearch={externalSearch}
-            onSourcePolicyChange={setSourcePolicy}
-            onMemoryPolicyChange={setMemoryPolicy}
-            onExternalSearchChange={setExternalSearch}
-          />
-          <Composer
-            disabled={composerDisabled}
-            onSend={handleSend}
-            onCommand={handleCommand}
-            onAttachFile={handleAttachFile}
-            attachDisabled={!activeProjectId || isUploading}
-          />
+          <div className="border-t border-border bg-background pt-2">
+            <ComposerContextStrip
+              activeLabel={
+                activeContextEnabled && activeTab?.targetId
+                  ? activeTab.title
+                  : null
+              }
+              references={attachedReferences}
+              onRemoveReference={handleRemoveTreeReference}
+            />
+            <Composer
+              disabled={composerDisabled}
+              onSend={handleSend}
+              onCommand={handleCommand}
+              onAttachFile={handleAttachFile}
+              onAttachTreeNode={handleAttachTreeNode}
+              activeContextLabel={activeTab?.targetId ? activeTab.title : undefined}
+              activeContextEnabled={activeContextEnabled}
+              onToggleActiveContext={() =>
+                setActiveContextEnabled((current) => !current)
+              }
+              attachDisabled={!activeProjectId || isUploading}
+            />
+          </div>
         </>
       ) : null}
     </aside>
@@ -430,10 +547,10 @@ function AgentPanelTabs({
   onChange(tab: AgentPanelTab): void;
 }) {
   const t = useTranslations("agentPanel.tabs");
-  const tabs: AgentPanelTab[] = ["chat", "activity", "notifications"];
+  const tabs: AgentPanelTab[] = ["chat", "tools", "activity", "notifications"];
 
   return (
-    <div className="grid grid-cols-3 border-b border-border">
+    <div className="grid grid-cols-4 border-b border-border">
       {tabs.map((tab) => (
         <button
           key={tab}
@@ -448,6 +565,56 @@ function AgentPanelTabs({
         >
           {t(tab)}
         </button>
+      ))}
+    </div>
+  );
+}
+
+function ComposerContextStrip({
+  activeLabel,
+  references,
+  onRemoveReference,
+}: {
+  activeLabel: string | null;
+  references: ProjectTreeDragPayload[];
+  onRemoveReference(id: string): void;
+}) {
+  const t = useTranslations("agentPanel.composer");
+  if (!activeLabel && references.length === 0) return null;
+
+  return (
+    <div
+      data-testid="agent-composer-context-strip"
+      className="app-scrollbar-thin mx-2 mb-1 flex max-h-16 gap-1 overflow-x-auto overflow-y-hidden pb-1"
+    >
+      {activeLabel ? (
+        <span className="inline-flex max-w-[180px] shrink-0 items-center gap-1 rounded-[var(--radius-control)] border border-border bg-muted/35 px-2 py-1 text-xs text-muted-foreground">
+          <FileText aria-hidden className="h-3 w-3 shrink-0" />
+          <span className="shrink-0 text-[10px] uppercase">
+            {t("context.activeTab")}
+          </span>
+          <span className="truncate text-foreground">{activeLabel}</span>
+        </span>
+      ) : null}
+      {references.map((reference) => (
+        <span
+          key={reference.id}
+          className="inline-flex max-w-[180px] shrink-0 items-center gap-1 rounded-[var(--radius-control)] border border-border bg-muted/35 px-2 py-1 text-xs text-muted-foreground"
+        >
+          <Sparkles aria-hidden className="h-3 w-3 shrink-0" />
+          <span className="shrink-0 text-[10px] uppercase">
+            {t("context.pinned")}
+          </span>
+          <span className="truncate text-foreground">{reference.label}</span>
+          <button
+            type="button"
+            aria-label={t("reference.remove_aria")}
+            onClick={() => onRemoveReference(reference.id)}
+            className="grid h-4 w-4 shrink-0 place-items-center rounded-[var(--radius-control)] hover:bg-background hover:text-foreground"
+          >
+            <X aria-hidden className="h-3 w-3" />
+          </button>
+        </span>
       ))}
     </div>
   );

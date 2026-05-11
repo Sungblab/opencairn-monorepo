@@ -1,6 +1,6 @@
 {
   "placeholder": {
-    "title": "Untitled",
+    "title": "",
     "body": "Start typing…",
     "body_with_slash": "Start typing… Press / to open AI tools."
   },
@@ -22,8 +22,13 @@
     "no_results": "No matching commands.",
     "section": {
       "text": "Text",
+      "research": "Research",
       "structure": "Structure",
       "media": "Media"
+    },
+    "agent": {
+      "make_note": "Make note from sources",
+      "extract_citations": "Extract cited evidence"
     },
     "heading_1": "Heading 1",
     "heading_2": "Heading 2",
@@ -57,7 +62,11 @@
       "table": "Insert a 3x3 table",
       "columns": "Insert a two-column layout",
       "image": "Insert an image from a URL",
-      "embed": "Insert a video embed"
+      "embed": "Insert a video embed",
+      "agent": {
+        "make_note": "Draft a project note from PDFs and uploaded source material",
+        "extract_citations": "Pull citations and evidence that point back to the source"
+      }
     }
   },
   "math": {
@@ -112,6 +121,9 @@
     "bulleted": "Bulleted list",
     "numbered": "Numbered list",
     "quote": "Quote",
+    "math": "Math block",
+    "table": "Table",
+    "callout": "Callout",
     "wikilink": "Link note",
     "comments": "Comments",
     "agents": "AI work",
@@ -127,9 +139,11 @@
     "aiWork": "AI work",
     "activity": "Activity",
     "askAi": "Ask AI",
+    "makeNote": "Make note from sources",
+    "extractCitations": "Extract cited evidence",
     "narrate": "Create audio",
     "review": "Review",
-    "aiDescription": "Start AI work while keeping the current note as context.",
+    "aiDescription": "Use PDFs and uploaded sources to draft this note, attach evidence, or refine the selected passage with AI.",
     "activityDescription": "Review AI work and upload activity for this note and project."
   },
   "table": {

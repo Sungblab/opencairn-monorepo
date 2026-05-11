@@ -9,8 +9,11 @@ import {
   Italic,
   List,
   ListOrdered,
+  MessageSquareWarning,
   Quote,
+  Sigma,
   Strikethrough,
+  Table2,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type React from "react";
@@ -19,10 +22,12 @@ import { Button } from "@/components/ui/button";
 
 export type ToolbarMark = "bold" | "italic" | "strikethrough" | "code";
 export type ToolbarBlock = "h1" | "h2" | "h3" | "ul" | "ol" | "blockquote";
+export type ToolbarInsertBlock = "math" | "table" | "callout";
 
 export interface ToolbarActions {
   toggleMark: (mark: ToolbarMark) => void;
   toggleBlock: (type: ToolbarBlock) => void;
+  insertBlock: (type: ToolbarInsertBlock) => void;
 }
 
 export function EditorToolbar({ actions }: { actions: ToolbarActions }) {
@@ -32,7 +37,7 @@ export function EditorToolbar({ actions }: { actions: ToolbarActions }) {
     <div
       role="toolbar"
       aria-label={t("aria_label")}
-      className="sticky top-0 z-10 flex items-center gap-1 border-b border-border bg-card/80 px-2 py-1 backdrop-blur"
+      className="app-scrollbar-thin sticky top-12 z-10 flex min-h-10 items-center gap-0.5 overflow-x-auto border-b border-border bg-background/90 px-4 py-1 backdrop-blur"
     >
       <IconBtn label={t("bold")} onClick={() => actions.toggleMark("bold")}>
         <Bold className="h-4 w-4" />
@@ -72,12 +77,25 @@ export function EditorToolbar({ actions }: { actions: ToolbarActions }) {
       >
         <Quote className="h-4 w-4" />
       </IconBtn>
+      <Divider />
+      <IconBtn label={t("math")} onClick={() => actions.insertBlock("math")}>
+        <Sigma className="h-4 w-4" />
+      </IconBtn>
+      <IconBtn label={t("table")} onClick={() => actions.insertBlock("table")}>
+        <Table2 className="h-4 w-4" />
+      </IconBtn>
+      <IconBtn
+        label={t("callout")}
+        onClick={() => actions.insertBlock("callout")}
+      >
+        <MessageSquareWarning className="h-4 w-4" />
+      </IconBtn>
     </div>
   );
 }
 
 function Divider() {
-  return <span aria-hidden className="mx-1 h-5 w-px bg-border" />;
+  return <span aria-hidden className="mx-1.5 h-5 w-px bg-border" />;
 }
 
 function IconBtn({
@@ -98,7 +116,7 @@ function IconBtn({
         e.preventDefault();
         onClick();
       }}
-      className="h-8 w-8"
+      className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
     >
       {children}
     </Button>
