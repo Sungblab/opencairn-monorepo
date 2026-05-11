@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 import {
+  legacyXmlStringToPlainText,
   transformYjsStateWithPlateValue,
   yDocToPlateValue,
   yjsStateToPlateValue,
@@ -40,5 +41,13 @@ describe("Yjs Plate transform", () => {
     first[0]!.children = [{ text: "mutated" }];
 
     expect(second).toEqual([{ type: "p", children: [{ text: "" }] }]);
+  });
+
+  it("removes reintroduced legacy XML tags when falling back to plain text", () => {
+    expect(
+      legacyXmlStringToPlainText(
+        "<scrip<script>t>alert(1)</scrip</script>t>visible",
+      ),
+    ).not.toContain("<script>");
   });
 });
