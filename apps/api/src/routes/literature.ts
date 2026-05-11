@@ -41,6 +41,12 @@ const ALLOWED_SOURCES: readonly LiteratureSource[] = [
 ] as const;
 const ALLOWED_SOURCE_SET = new Set<string>(ALLOWED_SOURCES);
 
+function envInt(name: string, fallback: number, min: number, max: number): number {
+  const value = Number.parseInt(process.env[name] ?? "", 10);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, value));
+}
+
 const searchSchema = z.object({
   q: z.string().min(1).max(500),
   workspaceId: z.string().uuid(),
@@ -72,7 +78,11 @@ export const literatureRoutes = new Hono<AppEnv>()
     }
 
     // Per-workspace rate limit so one noisy member can't starve the others.
-    const rl = checkRateLimit(`lit:search:${workspaceId}`, 60, 60_000);
+    const rl = checkRateLimit(
+      `lit:search:${workspaceId}`,
+      envInt("LITERATURE_SEARCH_RATE_LIMIT_MAX", 60, 1, 1_000),
+      envInt("LITERATURE_SEARCH_RATE_LIMIT_WINDOW_MS", 60_000, 1_000, 3_600_000),
+    );
     if (!rl.allowed) {
       return c.json(
         { error: "Rate limit exceeded", retryAfterSec: rl.retryAfterSec },

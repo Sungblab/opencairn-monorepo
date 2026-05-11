@@ -16,6 +16,7 @@ describe("GET /api/literature/search", () => {
   afterEach(async () => {
     await seed.cleanup();
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
     _resetRateLimits();
   });
 
@@ -91,6 +92,8 @@ describe("GET /api/literature/search", () => {
   });
 
   it("returns 429 when per-workspace rate limit exhausted", async () => {
+    vi.stubEnv("LITERATURE_SEARCH_RATE_LIMIT_MAX", "2");
+    vi.stubEnv("LITERATURE_SEARCH_RATE_LIMIT_WINDOW_MS", "60000");
     vi.spyOn(litSearch, "federatedSearch").mockResolvedValue({
       results: [],
       sourceMeta: [],
@@ -98,10 +101,7 @@ describe("GET /api/literature/search", () => {
     const app = createApp();
     const cookie = await signSessionCookie(seed.userId);
 
-    // Drain the 60 req/60s bucket. Each request runs the workspace
-    // membership check + a stubbed federation call, so the cumulative
-    // wall-clock cost is dominated by Better Auth + Drizzle round-trips.
-    for (let i = 0; i < 60; i += 1) {
+    for (let i = 0; i < 2; i += 1) {
       const r = await app.request(
         `/api/literature/search?q=test&workspaceId=${seed.workspaceId}`,
         { headers: { cookie } },

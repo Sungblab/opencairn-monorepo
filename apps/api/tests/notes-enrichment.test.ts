@@ -87,6 +87,10 @@ describe("GET /api/notes/:id/enrichment", () => {
   });
 
   afterAll(async () => {
+    await db.delete(noteEnrichments).where(eq(noteEnrichments.workspaceId, workspaceId));
+    await db.delete(notes).where(eq(notes.workspaceId, workspaceId));
+    await db.delete(projects).where(eq(projects.workspaceId, workspaceId));
+    await db.delete(workspaceMembers).where(eq(workspaceMembers.workspaceId, workspaceId));
     await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
     await db.delete(user).where(eq(user.id, memberId));
     await db.delete(user).where(eq(user.id, nonMemberId));

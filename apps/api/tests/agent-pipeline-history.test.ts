@@ -220,7 +220,7 @@ describe("agent-pipeline runAgent — multi-turn history (S2-026)", () => {
           threadId: thread.id,
           role: "user",
           status: "complete",
-          content: { body: "current" },
+          content: { body: "이어서 답해줘" },
         })
         .returning({ id: chatMessages.id });
       const [agentRow] = await db
@@ -237,7 +237,7 @@ describe("agent-pipeline runAgent — multi-turn history (S2-026)", () => {
       const { provider, captured } = buildCapturingProvider();
       for await (const _ of runAgent({
         threadId: thread.id,
-        userMessage: { content: "current" },
+        userMessage: { content: "이어서 답해줘" },
         mode: "auto",
         excludeMessageIds: [userRow.id, agentRow.id],
         provider,
@@ -311,7 +311,7 @@ describe("agent-pipeline runAgent — multi-turn history (S2-026)", () => {
         threadId: thread.id,
         role: "user",
         status: "complete",
-        content: { body: "now" },
+        content: { body: "이어서 답해줘" },
       })
       .returning({ id: chatMessages.id });
     const [agentRow] = await db
@@ -328,7 +328,7 @@ describe("agent-pipeline runAgent — multi-turn history (S2-026)", () => {
     const { provider, captured } = buildCapturingProvider();
     for await (const _ of runAgent({
       threadId: thread.id,
-      userMessage: { content: "now" },
+      userMessage: { content: "이어서 답해줘" },
       mode: "auto",
       excludeMessageIds: [userRow.id, agentRow.id],
       provider,
@@ -411,7 +411,7 @@ describe("agent-pipeline runAgent — multi-turn history (S2-026)", () => {
           threadId: thread.id,
           role: "user",
           status: "complete",
-          content: { body: "now" },
+          content: { body: "이어서 답해줘" },
         })
         .returning({ id: chatMessages.id });
       const [agentRow] = await db
@@ -428,7 +428,7 @@ describe("agent-pipeline runAgent — multi-turn history (S2-026)", () => {
       const { provider, captured } = buildCapturingProvider();
       for await (const _ of runAgent({
         threadId: thread.id,
-        userMessage: { content: "now" },
+        userMessage: { content: "이어서 답해줘" },
         mode: "auto",
         excludeMessageIds: [userRow.id, agentRow.id],
         provider,

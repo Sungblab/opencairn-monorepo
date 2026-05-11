@@ -11,6 +11,16 @@ async function loadEmail(env: Record<string, string | undefined>) {
   return await import("../src/lib/email.js");
 }
 
+function stringifyConsoleCalls(calls: unknown[][]): string {
+  return calls
+    .map((call) =>
+      call
+        .map((arg) => (typeof arg === "string" ? arg : JSON.stringify(arg)))
+        .join(" "),
+    )
+    .join("\n");
+}
+
 describe("lib/email transport selection", () => {
   const originalEnv = { ...process.env };
 
@@ -88,7 +98,7 @@ describe("lib/email console rendering", () => {
     await sendVerificationEmail("test@example.com", {
       verifyUrl: "https://opencairn.example/verify?t=abc123",
     });
-    const messages = logSpy.mock.calls.map((c) => c.map(String).join(" ")).join("\n");
+    const messages = stringifyConsoleCalls(logSpy.mock.calls);
     expect(messages).toContain("test@example.com");
     expect(messages).toContain("https://opencairn.example/verify?t=abc123");
     expect(messages).toContain("이메일 인증");
@@ -100,7 +110,7 @@ describe("lib/email console rendering", () => {
     await sendResetPasswordEmail("test@example.com", {
       resetUrl: "https://opencairn.example/reset?t=def456",
     });
-    const messages = logSpy.mock.calls.map((c) => c.map(String).join(" ")).join("\n");
+    const messages = stringifyConsoleCalls(logSpy.mock.calls);
     expect(messages).toContain("test@example.com");
     expect(messages).toContain("https://opencairn.example/reset?t=def456");
     expect(messages).toContain("비밀번호 재설정");
@@ -117,7 +127,7 @@ describe("lib/email console rendering", () => {
       workspaceId: "ws_123",
       invitedByName: "Sungbin",
     });
-    const messages = logSpy.mock.calls.map((c) => c.map(String).join(" ")).join("\n");
+    const messages = stringifyConsoleCalls(logSpy.mock.calls);
     expect(messages).toContain("invitee@example.com");
     expect(messages).toContain("invite=tok_abc");
     expect(messages).toContain("Sungbin");

@@ -23,6 +23,12 @@ const sendMock = sendEmail as unknown as ReturnType<typeof vi.fn>;
 
 const createdUserIds = new Set<string>();
 const createdNotifIds = new Set<string>();
+const TEST_LOCK_KEY =
+  9223372036854700000n + BigInt(Math.floor(Math.random() * 50_000));
+
+function runTestDispatcherTick(opts: { now?: Date } = {}) {
+  return runDispatcherTick({ ...opts, lockKey: TEST_LOCK_KEY });
+}
 
 afterEach(async () => {
   if (createdNotifIds.size) {
@@ -77,7 +83,7 @@ describe("runDispatcherTick", () => {
   });
 
   it("acquires the lock and reports zero work when there is nothing pending", async () => {
-    const result = await runDispatcherTick({ now: new Date(Date.now() + 1000) });
+    const result = await runTestDispatcherTick({ now: new Date(Date.now() + 1000) });
     expect(result.lockAcquired).toBe(true);
     expect(result.instantSent).toBe(0);
     expect(result.digestSent).toBe(0);
@@ -92,7 +98,7 @@ describe("runDispatcherTick", () => {
       payload: { fromName: "Yejin", noteTitle: "프로젝트 회의록", noteId: "00000000-0000-0000-0000-000000000abc" },
     });
 
-    const result = await runDispatcherTick();
+    const result = await runTestDispatcherTick();
     expect(result.lockAcquired).toBe(true);
     expect(result.instantSent).toBe(1);
     expect(sendMock).toHaveBeenCalledTimes(1);
@@ -115,7 +121,7 @@ describe("runDispatcherTick", () => {
       agedSeconds: 5,
     });
 
-    const result = await runDispatcherTick();
+    const result = await runTestDispatcherTick();
     expect(result.instantSent).toBe(0);
     expect(sendMock).not.toHaveBeenCalled();
   });
@@ -134,7 +140,7 @@ describe("runDispatcherTick", () => {
       payload: { summary: "weekly notice" },
     });
 
-    const result = await runDispatcherTick();
+    const result = await runTestDispatcherTick();
     expect(result.skipped).toBe(1);
     expect(sendMock).not.toHaveBeenCalled();
 
@@ -156,7 +162,7 @@ describe("runDispatcherTick", () => {
       payload: { fromName: "Sungbin", noteTitle: "test" },
     });
 
-    const result = await runDispatcherTick();
+    const result = await runTestDispatcherTick();
     expect(result.errors).toBe(1);
     const [row] = await db
       .select()
@@ -188,7 +194,7 @@ describe("runDispatcherTick", () => {
 
     // Off-boundary: nothing fires. Use a future timestamp so the cutoff
     // includes our just-seeded rows, then pin the minute to non-multiple-of-15.
-    const off = await runDispatcherTick({
+    const off = await runTestDispatcherTick({
       now: new Date(Date.UTC(2099, 0, 1, 0, 7, 0)),
     });
     expect(off.digestSent).toBe(0);
@@ -196,7 +202,7 @@ describe("runDispatcherTick", () => {
     expect(sendMock).not.toHaveBeenCalled();
 
     // On boundary :15 → both rows ship in one digest.
-    const on = await runDispatcherTick({
+    const on = await runTestDispatcherTick({
       now: new Date(Date.UTC(2099, 0, 1, 0, 15, 0)),
     });
     expect(on.digestSent).toBe(2);
@@ -228,7 +234,7 @@ describe("runDispatcherTick", () => {
       .returning({ id: notifications.id });
     createdNotifIds.add(seeded.id);
 
-    const result = await runDispatcherTick();
+    const result = await runTestDispatcherTick();
     expect(result.instantSent).toBe(0);
     expect(sendMock).not.toHaveBeenCalled();
 
@@ -243,16 +249,12 @@ describe("runDispatcherTick", () => {
 });
 
 describe("runDispatcherTick lock", () => {
-  // The dispatcher uses pg_try_advisory_lock — a session-level lock. Two
-  // parallel ticks running on the same drizzle pooled connection can both
-  // see a "true" return because the same session re-acquires its own
-  // lock recursively. Cross-process exclusion is the real guarantee, and
-  // is verified manually with a second psql shell. The integration test
-  // here covers only the in-tick path: the dispatcher releases the lock
-  // at the end of the tick so the very next tick can acquire it again.
+  // The dispatcher uses a transaction-scoped advisory lock. Cross-process
+  // exclusion is still the production guarantee; this regression test covers
+  // the local leak case by proving the next tick can acquire immediately.
   it("releases the advisory lock after each tick", async () => {
-    const a = await runDispatcherTick();
-    const b = await runDispatcherTick();
+    const a = await runTestDispatcherTick();
+    const b = await runTestDispatcherTick();
     expect(a.lockAcquired).toBe(true);
     expect(b.lockAcquired).toBe(true);
   });

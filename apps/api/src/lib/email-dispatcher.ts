@@ -13,6 +13,7 @@ import {
   user,
   userNotificationPreferences,
 } from "@opencairn/db";
+import type { DB, Tx } from "@opencairn/db";
 import {
   CommentReplyEmail,
   DigestEmail,
@@ -38,9 +39,10 @@ import { sendEmail } from "./email";
 // Plan 2 Task 14 — outbound email dispatcher.
 //
 // Architecture: 60-second setInterval inside apps/api, guarded by a
-// pg_try_advisory_lock so a future horizontal-scale-out doesn't
-// double-send. The lock key is a fixed bigint chosen so two locks (this
-// dispatcher + any future) can coexist without collision.
+// pg_try_advisory_xact_lock so a future horizontal-scale-out doesn't
+// double-send while avoiding session-lock leaks through pooled connections.
+// The lock key is a fixed bigint chosen so two locks (this dispatcher + any
+// future) can coexist without collision.
 
 const LOCK_KEY = 9223372036854775003n;
 
@@ -53,6 +55,7 @@ const TICK_INTERVAL_MS = 60_000;
 const INSTANT_DELAY_SECONDS = 30;
 
 const MAX_EMAIL_ATTEMPTS = 3;
+type DbLike = DB | Tx;
 
 let intervalHandle: NodeJS.Timeout | null = null;
 let isTickInProgress = false;
@@ -213,6 +216,7 @@ function paramsFromPayload(
 // frequency without a second pass.
 async function selectPending(
   now: Date,
+  client: DbLike = db,
 ): Promise<
   {
     user: DispatchUser;
@@ -227,7 +231,7 @@ async function selectPending(
   // Pull pending notifications joined with the user's email + locale +
   // timezone. We do NOT join the preference table here — the merge over
   // DEFAULT_PREFERENCES happens in JS so we can keep the SQL trivial.
-  const rows = await db
+  const rows = await client
     .select({
       id: notifications.id,
       userId: notifications.userId,
@@ -253,7 +257,7 @@ async function selectPending(
   if (rows.length === 0) return [];
 
   const userIds = Array.from(new Set(rows.map((r) => r.userId)));
-  const prefs = await db
+  const prefs = await client
     .select({
       userId: userNotificationPreferences.userId,
       kind: userNotificationPreferences.kind,
@@ -320,26 +324,26 @@ async function selectPending(
   return Array.from(buckets.values());
 }
 
-async function markSent(rowIds: string[]): Promise<void> {
+async function markSent(rowIds: string[], client: DbLike = db): Promise<void> {
   if (rowIds.length === 0) return;
-  await db
+  await client
     .update(notifications)
     .set({ emailedAt: sql`now()` })
     .where(inArray(notifications.id, rowIds));
 }
 
-async function markDisabled(rowIds: string[]): Promise<void> {
+async function markDisabled(rowIds: string[], client: DbLike = db): Promise<void> {
   if (rowIds.length === 0) return;
   // Set emailed_at so the partial index drops the row from the next scan.
   // last_email_error documents the reason for any later operator query.
-  await db
+  await client
     .update(notifications)
     .set({ emailedAt: sql`now()`, lastEmailError: "disabled" })
     .where(inArray(notifications.id, rowIds));
 }
 
-async function recordError(rowId: string, message: string): Promise<void> {
-  await db
+async function recordError(rowId: string, message: string, client: DbLike = db): Promise<void> {
+  await client
     .update(notifications)
     .set({
       emailAttempts: sql`${notifications.emailAttempts} + 1`,
@@ -354,6 +358,7 @@ async function processInstant(
     kind: NotificationKind;
     rows: DispatchRow[];
   },
+  client: DbLike = db,
 ): Promise<{ sent: number; errors: number }> {
   let sent = 0;
   let errors = 0;
@@ -364,7 +369,7 @@ async function processInstant(
     try {
       const react = pickReact(row.kind, bucket.user.locale, ctaUrl, params);
       await sendEmail({ to: bucket.user.email, subject, react });
-      await markSent([row.id]);
+      await markSent([row.id], client);
       sent += 1;
       console.log("[email_dispatcher.send]", {
         userId: bucket.user.id,
@@ -374,7 +379,7 @@ async function processInstant(
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      await recordError(row.id, message);
+      await recordError(row.id, message, client);
       errors += 1;
       console.log("[email_dispatcher.send]", {
         userId: bucket.user.id,
@@ -395,6 +400,7 @@ async function processDigest(
     frequency: NotificationFrequency;
     rows: DispatchRow[];
   },
+  client: DbLike = db,
 ): Promise<{ sent: number; errors: number }> {
   const items: DigestItem[] = bucket.rows.map((row) => {
     const summary = (() => {
@@ -422,7 +428,7 @@ async function processDigest(
       fallbackCtaUrl: `${WEB_BASE}/${bucket.user.locale}/app`,
     });
     await sendEmail({ to: bucket.user.email, subject, react });
-    await markSent(bucket.rows.map((r) => r.id));
+    await markSent(bucket.rows.map((r) => r.id), client);
     console.log("[email_dispatcher.send]", {
       userId: bucket.user.id,
       kind: bucket.kind,
@@ -436,7 +442,7 @@ async function processDigest(
     // For a digest, increment per-row attempt counter rather than mark all
     // as terminally failed — the next tick can retry.
     for (const row of bucket.rows) {
-      await recordError(row.id, message);
+      await recordError(row.id, message, client);
     }
     console.log("[email_dispatcher.send]", {
       userId: bucket.user.id,
@@ -460,35 +466,38 @@ function rowsOf<T>(raw: unknown): T[] {
   return rs ?? (raw as T[]);
 }
 
-export async function runDispatcherTick(opts: { now?: Date } = {}): Promise<DispatcherTickResult> {
+export async function runDispatcherTick(
+  opts: { now?: Date; lockKey?: bigint } = {},
+): Promise<DispatcherTickResult> {
   const now = opts.now ?? new Date();
+  const lockKey = opts.lockKey ?? LOCK_KEY;
 
-  // pg_try_advisory_lock returns boolean; when busy, returns false and we
-  // skip silently (next tick retries).
-  const lockRows = await db.execute<{ pg_try_advisory_lock: boolean }>(
-    sql`SELECT pg_try_advisory_lock(${LOCK_KEY}) AS pg_try_advisory_lock`,
-  );
-  const acquired =
-    rowsOf<{ pg_try_advisory_lock: boolean }>(lockRows)[0]
-      ?.pg_try_advisory_lock === true;
+  return db.transaction(async (tx) => {
+    // Transaction-scoped advisory locks are tied to this transaction's pinned
+    // connection and release automatically on commit/rollback.
+    const lockRows = await tx.execute<{ pg_try_advisory_xact_lock: boolean }>(
+      sql`SELECT pg_try_advisory_xact_lock(${lockKey}) AS pg_try_advisory_xact_lock`,
+    );
+    const acquired =
+      rowsOf<{ pg_try_advisory_xact_lock: boolean }>(lockRows)[0]
+        ?.pg_try_advisory_xact_lock === true;
 
-  if (!acquired) {
-    console.log("[email_dispatcher.locked]", { now: now.toISOString() });
-    return { lockAcquired: false, instantSent: 0, digestSent: 0, skipped: 0, errors: 0 };
-  }
+    if (!acquired) {
+      console.log("[email_dispatcher.locked]", { now: now.toISOString() });
+      return { lockAcquired: false, instantSent: 0, digestSent: 0, skipped: 0, errors: 0 };
+    }
 
-  const start = Date.now();
-  let instantSent = 0;
-  let digestSent = 0;
-  let skipped = 0;
-  let errors = 0;
+    const start = Date.now();
+    let instantSent = 0;
+    let digestSent = 0;
+    let skipped = 0;
+    let errors = 0;
 
-  try {
-    const buckets = await selectPending(now);
+    const buckets = await selectPending(now, tx);
 
     for (const bucket of buckets) {
       if (!bucket.emailEnabled) {
-        await markDisabled(bucket.rows.map((r) => r.id));
+        await markDisabled(bucket.rows.map((r) => r.id), tx);
         skipped += bucket.rows.length;
         continue;
       }
@@ -499,29 +508,27 @@ export async function runDispatcherTick(opts: { now?: Date } = {}): Promise<Disp
       }
 
       if (bucket.frequency === "instant") {
-        const result = await processInstant(bucket);
+        const result = await processInstant(bucket, tx);
         instantSent += result.sent;
         errors += result.errors;
       } else {
-        const result = await processDigest(bucket);
+        const result = await processDigest(bucket, tx);
         digestSent += result.sent;
         errors += result.errors;
       }
     }
-  } finally {
-    await db.execute(sql`SELECT pg_advisory_unlock(${LOCK_KEY})`);
-  }
 
-  const durationMs = Date.now() - start;
-  console.log("[email_dispatcher.tick]", {
-    now: now.toISOString(),
-    instantSent,
-    digestSent,
-    skipped,
-    errors,
-    durationMs,
+    const durationMs = Date.now() - start;
+    console.log("[email_dispatcher.tick]", {
+      now: now.toISOString(),
+      instantSent,
+      digestSent,
+      skipped,
+      errors,
+      durationMs,
+    });
+    return { lockAcquired: true, instantSent, digestSent, skipped, errors };
   });
-  return { lockAcquired: true, instantSent, digestSent, skipped, errors };
 }
 
 export function startEmailDispatcher(): void {
