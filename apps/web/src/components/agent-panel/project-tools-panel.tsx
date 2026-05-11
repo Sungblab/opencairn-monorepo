@@ -1,26 +1,23 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import {
-  Activity,
-  BookText,
-  Bot,
-  CheckSquare,
-  DownloadCloud,
-  FileText,
-  FlaskConical,
-  GraduationCap,
-  Network,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 
 import { LiteratureSearchModal } from "@/components/literature/literature-search-modal";
 import { useIngestUpload } from "@/hooks/use-ingest-upload";
 import { urls } from "@/lib/urls";
-import type { AgentCommand } from "./agent-commands";
+import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
+import type { AgentCommand, AgentCommandId } from "./agent-commands";
 import { getAgentCommand } from "./agent-commands";
+import {
+  getToolDiscoveryGroups,
+  type ToolDiscoveryItem,
+} from "./tool-discovery-catalog";
+import {
+  getToolDiscoveryTileClassName,
+  ToolDiscoveryTileContent,
+} from "./tool-discovery-tile";
 
 interface Props {
   projectId: string | null;
@@ -64,9 +61,13 @@ export function ProjectToolsPanel({
   const inputRef = useRef<HTMLInputElement>(null);
   const [literatureOpen, setLiteratureOpen] = useState(false);
   const { upload, isUploading } = useIngestUpload();
+  const requestDocumentGenerationPreset = useAgentWorkbenchStore(
+    (s) => s.requestDocumentGenerationPreset,
+  );
+  const toolGroups = useMemo(() => getToolDiscoveryGroups("agent_tools"), []);
   const disabled = !projectId;
 
-  function runCommand(commandId: "research" | "paper_search") {
+  function runCommand(commandId: AgentCommandId) {
     const command = getAgentCommand(commandId);
     if (command) onRun(command);
   }
@@ -79,12 +80,51 @@ export function ProjectToolsPanel({
     onOpenActivity();
   }
 
-  function openProjectRoute(buildHref: (projectId: string) => string) {
-    if (!projectId) return;
-    router.push(buildHref(projectId));
+  const routeDisabled = disabled || !wsSlug;
+
+  function openRoute(route: "project_graph" | "project_agents" | "project_learn") {
+    if (!projectId || !wsSlug) return;
+    if (route === "project_graph") {
+      router.push(urls.workspace.projectGraph(locale, wsSlug, projectId));
+      return;
+    }
+    if (route === "project_agents") {
+      router.push(urls.workspace.projectAgents(locale, wsSlug, projectId));
+      return;
+    }
+    router.push(urls.workspace.projectLearn(locale, wsSlug, projectId));
   }
 
-  const routeDisabled = disabled || !wsSlug;
+  function executeItem(item: ToolDiscoveryItem) {
+    switch (item.action.type) {
+      case "route":
+        openRoute(item.action.route);
+        return;
+      case "upload":
+        inputRef.current?.click();
+        return;
+      case "literature_search":
+        setLiteratureOpen(true);
+        return;
+      case "workbench_command":
+        runCommand(item.action.commandId);
+        return;
+      case "open_activity":
+      case "open_review":
+        onOpenActivity();
+        return;
+      case "document_generation_preset":
+        requestDocumentGenerationPreset(item.action.presetId);
+        onOpenActivity();
+        return;
+    }
+  }
+
+  function isItemDisabled(item: ToolDiscoveryItem): boolean {
+    if (item.action.type === "route") return routeDisabled;
+    if (item.action.type === "upload") return disabled || isUploading;
+    return disabled;
+  }
 
   return (
     <div className="app-scrollbar-thin min-h-0 flex-1 overflow-y-auto bg-background p-2">
@@ -94,82 +134,33 @@ export function ProjectToolsPanel({
           {panelT("noProject")}
         </p>
       ) : null}
-      <div className="grid grid-cols-2 gap-2">
-        <ToolTile
-          icon={FlaskConical}
-          title={t("research.title")}
-          description={t("research.description")}
-          disabled={disabled}
-          onClick={() => runCommand("research")}
-        />
-        <ToolTile
-          icon={DownloadCloud}
-          title={isUploading ? panelT("importing") : t("import.title")}
-          description={t("import.description")}
-          disabled={disabled || isUploading}
-          onClick={() => inputRef.current?.click()}
-        />
-        <ToolTile
-          icon={BookText}
-          title={t("literature.title")}
-          description={t("literature.description")}
-          disabled={disabled}
-          onClick={() => setLiteratureOpen(true)}
-        />
-        <ToolTile
-          icon={Network}
-          title={t("graph.title")}
-          description={t("graph.description")}
-          disabled={routeDisabled}
-          onClick={() =>
-            openProjectRoute((id) =>
-              urls.workspace.projectGraph(locale, wsSlug ?? "", id),
-            )
-          }
-        />
-        <ToolTile
-          icon={Bot}
-          title={t("agents.title")}
-          description={t("agents.description")}
-          disabled={routeDisabled}
-          onClick={() =>
-            openProjectRoute((id) =>
-              urls.workspace.projectAgents(locale, wsSlug ?? "", id),
-            )
-          }
-        />
-        <ToolTile
-          icon={Activity}
-          title={t("runs.title")}
-          description={t("runs.description")}
-          disabled={disabled}
-          onClick={onOpenActivity}
-        />
-        <ToolTile
-          icon={GraduationCap}
-          title={t("learn.title")}
-          description={t("learn.description")}
-          disabled={routeDisabled}
-          onClick={() =>
-            openProjectRoute((id) =>
-              urls.workspace.projectLearn(locale, wsSlug ?? "", id),
-            )
-          }
-        />
-        <ToolTile
-          icon={FileText}
-          title={t("generateDocument.title")}
-          description={t("generateDocument.description")}
-          disabled={disabled}
-          onClick={onOpenActivity}
-        />
-        <ToolTile
-          icon={CheckSquare}
-          title={t("reviewInbox.title")}
-          description={t("reviewInbox.description")}
-          disabled={disabled}
-          onClick={onOpenActivity}
-        />
+      <div className="space-y-3">
+        {toolGroups.map((group) => (
+          <section key={group.category} className="space-y-1.5">
+            <h4 className="px-1 text-[0.68rem] font-semibold uppercase tracking-normal text-muted-foreground">
+              {t(`categories.${group.category}.title`)}
+            </h4>
+            <div className="grid grid-cols-2 gap-2">
+              {group.items.map((item) => {
+                const title =
+                  item.action.type === "upload" && isUploading
+                    ? panelT("importing")
+                    : t(`items.${item.i18nKey}.title`);
+                return (
+                  <ToolTile
+                    key={item.id}
+                    icon={item.icon}
+                    title={title}
+                    description={t(`items.${item.i18nKey}.description`)}
+                    disabled={isItemDisabled(item)}
+                    emphasis={item.emphasis}
+                    onClick={() => executeItem(item)}
+                  />
+                );
+              })}
+            </div>
+          </section>
+        ))}
       </div>
       <input
         ref={inputRef}
@@ -193,16 +184,18 @@ export function ProjectToolsPanel({
 }
 
 function ToolTile({
-  icon: Icon,
+  icon,
   title,
   description,
   disabled,
+  emphasis = false,
   onClick,
 }: {
-  icon: LucideIcon;
+  icon: ToolDiscoveryItem["icon"];
   title: string;
   description: string;
   disabled?: boolean;
+  emphasis?: boolean;
   onClick(): void;
 }) {
   return (
@@ -210,16 +203,14 @@ function ToolTile({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="group flex min-h-28 flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-background px-3 py-3 text-left text-foreground transition-colors hover:border-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+      className={getToolDiscoveryTileClassName({ emphasis, size: "panel" })}
     >
-      <Icon
-        aria-hidden
-        className="h-4 w-4 text-muted-foreground group-hover:text-foreground"
+      <ToolDiscoveryTileContent
+        icon={icon}
+        title={title}
+        description={description}
+        emphasis={emphasis}
       />
-      <span className="text-sm font-medium leading-5">{title}</span>
-      <span className="line-clamp-2 text-xs leading-5 text-muted-foreground">
-        {description}
-      </span>
     </button>
   );
 }

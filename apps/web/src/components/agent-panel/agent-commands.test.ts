@@ -66,4 +66,20 @@ describe("agent commands", () => {
       content: "this note",
     });
   });
+
+  it("exposes figure generation through slash command discovery", () => {
+    expect(filterSlashCommands("figure").map((command) => command.id)).toContain(
+      "generate_figure",
+    );
+    expect(filterSlashCommands("이미지").map((command) => command.id)).toContain(
+      "generate_figure",
+    );
+    expect(parseSlashCommand("/피규어 관계도")).toMatchObject({
+      command: {
+        id: "generate_figure",
+        contextPatch: { sourcePolicy: "auto_project" },
+      },
+      content: "관계도",
+    });
+  });
 });

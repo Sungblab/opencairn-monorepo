@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FilePlus2, LoaderCircle } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -12,6 +12,10 @@ import {
   type DocumentGenerationSourceOption,
   type PdfRenderEngine,
 } from "@/lib/api-client";
+import type {
+  DocumentGenerationPreset,
+  DocumentGenerationTemplate,
+} from "./tool-discovery-catalog";
 
 const FORMATS: DocumentGenerationFormat[] = ["pdf", "docx", "pptx", "xlsx", "image"];
 const PDF_RENDER_ENGINES: PdfRenderEngine[] = ["latex", "pymupdf"];
@@ -31,7 +35,6 @@ const DOCUMENT_GENERATION_TEMPLATES = [
   "spreadsheet",
   "custom",
 ] as const;
-type DocumentGenerationTemplate = (typeof DOCUMENT_GENERATION_TEMPLATES)[number];
 const TEMPLATE_OPTIONS_BY_FORMAT = {
   pdf: REPORT_TEMPLATES,
   docx: REPORT_TEMPLATES,
@@ -52,6 +55,8 @@ const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
 type Props = {
   projectId: string | null;
   onEvent(event: unknown): void;
+  pendingPreset?: DocumentGenerationPreset | null;
+  onPresetConsumed?(): void;
 };
 
 function defaultFilename(format: DocumentGenerationFormat, imageEngine: ImageRenderEngine = "svg"): string {
@@ -108,9 +113,17 @@ function eventFromAction(action: {
   return null;
 }
 
-export function DocumentGenerationForm({ projectId, onEvent }: Props) {
+export function DocumentGenerationForm({
+  projectId,
+  onEvent,
+  pendingPreset,
+  onPresetConsumed,
+}: Props) {
   const t = useTranslations("agentPanel.documentGeneration");
+  const tRef = useRef(t);
+  tRef.current = t;
   const locale = useLocale();
+  const lastPresetIdRef = useRef<string | null>(null);
   const [open, setOpen] = useState(false);
   const [sources, setSources] = useState<DocumentGenerationSourceOption[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -140,6 +153,24 @@ export function DocumentGenerationForm({ projectId, onEvent }: Props) {
   }, [open, projectId, t]);
 
   useEffect(() => {
+    if (!pendingPreset) {
+      lastPresetIdRef.current = null;
+      return;
+    }
+    if (lastPresetIdRef.current === pendingPreset.id) return;
+    lastPresetIdRef.current = pendingPreset.id;
+    setOpen(true);
+    setFormat(pendingPreset.format);
+    setRenderEngine(pendingPreset.renderEngine ?? "pymupdf");
+    setImageEngine(pendingPreset.imageEngine ?? "svg");
+    setTemplate(pendingPreset.template);
+    setPrompt(tRef.current(`presetPrompt.${pendingPreset.promptKey}`));
+    setFilename(tRef.current(`presetFilename.${pendingPreset.filenameBaseKey}`));
+    setError(null);
+    onPresetConsumed?.();
+  }, [onPresetConsumed, pendingPreset]);
+
+  useEffect(() => {
     const options = templateOptionsFor(format);
     if (!options.includes(template)) {
       setTemplate(DEFAULT_TEMPLATE_BY_FORMAT[format]);
@@ -156,6 +187,15 @@ export function DocumentGenerationForm({ projectId, onEvent }: Props) {
     selectedSources.length > 0
       ? t("selectedCount", { count: selectedSources.length })
       : t("selectedNone");
+  const isImageMode = format === "image";
+  const toggleLabel = isImageMode ? t("toggleFigure") : t("toggle");
+  const promptPlaceholder = isImageMode
+    ? t("figurePromptPlaceholder")
+    : t("promptPlaceholder");
+  const sourceRequired = isImageMode
+    ? t("figureSourceRequired")
+    : t("sourceRequired");
+  const submitLabel = isImageMode ? t("submitFigure") : t("submit");
 
   async function pollAction(actionId: string): Promise<void> {
     for (;;) {
@@ -216,7 +256,7 @@ export function DocumentGenerationForm({ projectId, onEvent }: Props) {
       >
         <span className="inline-flex items-center gap-1.5">
           <FilePlus2 aria-hidden="true" className="h-3.5 w-3.5" />
-          {t("toggle")}
+          {toggleLabel}
         </span>
         <span className="text-muted-foreground">{selectedSummary}</span>
       </button>
@@ -358,11 +398,11 @@ export function DocumentGenerationForm({ projectId, onEvent }: Props) {
             aria-label="prompt"
             className="min-h-20 resize-none rounded border border-border bg-background px-2 py-1.5 text-xs"
             value={prompt}
-            placeholder={t("promptPlaceholder")}
+            placeholder={promptPlaceholder}
             onChange={(event) => setPrompt(event.target.value)}
           />
           {selectedSources.length === 0 ? (
-            <p className="text-xs text-muted-foreground">{t("sourceRequired")}</p>
+            <p className="text-xs text-muted-foreground">{sourceRequired}</p>
           ) : null}
           {error ? (
             <p role="alert" className="text-xs text-red-600">
@@ -378,7 +418,7 @@ export function DocumentGenerationForm({ projectId, onEvent }: Props) {
             {busy ? (
               <LoaderCircle aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
             ) : null}
-            {t("submit")}
+            {submitLabel}
           </button>
         </div>
       ) : null}

@@ -14,6 +14,7 @@ export type AgentCommandId =
   | "make_note"
   | "narrate_note"
   | "generate_report"
+  | "generate_figure"
   | "generate_deck"
   | "make_table"
   | "quiz"
@@ -115,6 +116,15 @@ export const AGENT_COMMANDS: AgentCommand[] = [
     mode: "accurate",
     effect: "send",
     promptKey: "generate_report",
+  },
+  {
+    id: "generate_figure",
+    category: "create",
+    aliases: ["/figure", "/image", "/diagram", "/피규어", "/이미지", "/도식"],
+    mode: "balanced",
+    effect: "send",
+    promptKey: "generate_figure",
+    contextPatch: { sourcePolicy: "auto_project" },
   },
   {
     id: "generate_deck",
