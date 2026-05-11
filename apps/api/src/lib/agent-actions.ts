@@ -426,18 +426,14 @@ export async function createAgentAction(
 
   const approvalMode = request.approvalMode ?? "auto_safe";
   const placeholder = request.kind === "workflow.placeholder";
-  const executableNoteAction =
-    isPhase2ANoteAction(request.kind) &&
-    shouldAutoExecuteAction(approvalMode, request.risk);
-  const executableCodeCreateAction =
-    request.kind === "code_project.create" &&
-    shouldAutoExecuteAction(approvalMode, request.risk);
+  const autoExecutableAction = shouldAutoExecuteAgentAction(
+    request.kind,
+    approvalMode,
+    request.risk,
+  );
   const codePatchAction = request.kind === "code_project.patch";
   const codeInstallAction = request.kind === "code_project.install";
   const codePreviewAction = request.kind === "code_project.preview";
-  const executableCodeRunAction =
-    request.kind === "code_project.run" &&
-    shouldAutoExecuteAction(approvalMode, request.risk);
   const noteUpdatePreview =
     request.kind === "note.update"
       ? await previewNoteUpdateAction(
@@ -459,11 +455,7 @@ export async function createAgentAction(
     kind: request.kind,
     status: placeholder
       ? "completed"
-      : executableNoteAction
-        ? "running"
-        : executableCodeCreateAction
-          ? "running"
-          : executableCodeRunAction
+      : autoExecutableAction
           ? "running"
           : noteUpdatePreview || codePatchAction
           ? "draft"
@@ -485,27 +477,15 @@ export async function createAgentAction(
     errorCode: null,
   });
   if (!inserted) return { action, idempotent: true };
-  if (executableNoteAction) {
+  if (autoExecutableAction) {
     return {
-      action: await executePersistedNoteAction(action, request, options),
-      idempotent: false,
-    };
-  }
-  if (executableCodeCreateAction) {
-    return {
-      action: await executePersistedCodeProjectCreateAction(action, request, options),
+      action: await executeAutoExecutableAgentAction(action, request, options),
       idempotent: false,
     };
   }
   if (codePatchAction) {
     return {
       action: await preparePersistedCodeProjectPatchAction(action, request, options),
-      idempotent: false,
-    };
-  }
-  if (executableCodeRunAction) {
-    return {
-      action: await executePersistedCodeProjectRunAction(action, request, options),
       idempotent: false,
     };
   }
@@ -723,20 +703,8 @@ export async function applyAgentAction(
 ): Promise<AgentAction> {
   const repo = options?.repo ?? createDrizzleAgentActionRepository();
   const current = await getAgentAction(id, actorUserId, { ...options, repo });
-  if (isPhase2ANoteAction(current.kind)) {
-    if (current.status !== "approval_required") {
-      throw new AgentActionError("invalid_status_transition", 409);
-    }
-    const running = await repo.updateStatus(id, {
-      status: "running",
-      errorCode: null,
-    });
-    if (!running) throw new AgentActionError("action_not_found", 404);
-    return executePersistedNoteAction(
-      running,
-      createAgentActionRequestFromAction(running),
-      { ...options, repo },
-    );
+  if (isApprovedExecutableAgentActionKind(current.kind)) {
+    return applyApprovedExecutableAgentAction(current, { ...options, repo });
   }
   if (current.kind === "note.update") {
     return applyNoteUpdateAction(id, actorUserId, noteUpdateApplyResultInput(request), {
@@ -744,38 +712,8 @@ export async function applyAgentAction(
       repo,
     });
   }
-  if (current.kind === "code_project.create") {
-    if (current.status !== "approval_required") {
-      throw new AgentActionError("invalid_status_transition", 409);
-    }
-    const running = await repo.updateStatus(id, {
-      status: "running",
-      errorCode: null,
-    });
-    if (!running) throw new AgentActionError("action_not_found", 404);
-    return executePersistedCodeProjectCreateAction(
-      running,
-      createAgentActionRequestFromAction(running),
-      { ...options, repo },
-    );
-  }
   if (current.kind === "code_project.patch") {
     return applyCodeProjectPatchAction(current, actorUserId, { ...options, repo });
-  }
-  if (current.kind === "code_project.run") {
-    if (current.status !== "approval_required") {
-      throw new AgentActionError("invalid_status_transition", 409);
-    }
-    const running = await repo.updateStatus(id, {
-      status: "running",
-      errorCode: null,
-    });
-    if (!running) throw new AgentActionError("action_not_found", 404);
-    return executePersistedCodeProjectRunAction(
-      running,
-      createAgentActionRequestFromAction(running),
-      { ...options, repo },
-    );
   }
   if (current.kind === "code_project.preview") {
     return applyCodeProjectPreviewAction(current, actorUserId, { ...options, repo });
@@ -1091,6 +1029,28 @@ function initialStatusForRisk(risk: AgentActionRisk): AgentActionStatus {
   return risk === "low" ? "draft" : "approval_required";
 }
 
+type AutoExecutableAgentActionKind =
+  | Phase2ANoteActionKind
+  | "code_project.create"
+  | "code_project.run";
+
+function isApprovedExecutableAgentActionKind(
+  kind: AgentActionKind,
+): kind is AutoExecutableAgentActionKind {
+  return isPhase2ANoteAction(kind)
+    || kind === "code_project.create"
+    || kind === "code_project.run";
+}
+
+function shouldAutoExecuteAgentAction(
+  kind: AgentActionKind,
+  approvalMode: CreateAgentActionRequest["approvalMode"] | undefined,
+  risk: AgentActionRisk,
+): kind is AutoExecutableAgentActionKind {
+  return isApprovedExecutableAgentActionKind(kind)
+    && shouldAutoExecuteAction(approvalMode, risk);
+}
+
 function shouldAutoExecuteAction(
   approvalMode: CreateAgentActionRequest["approvalMode"] | undefined,
   risk: AgentActionRisk,
@@ -1101,6 +1061,49 @@ function shouldAutoExecuteAction(
     risk !== "external" &&
     risk !== "expensive"
   );
+}
+
+async function executeAutoExecutableAgentAction(
+  action: AgentAction,
+  request: CreateAgentActionRequest,
+  options?: AgentActionServiceOptions,
+): Promise<AgentAction> {
+  if (isPhase2ANoteAction(action.kind)) {
+    return executePersistedNoteAction(action, request, options);
+  }
+  if (action.kind === "code_project.create") {
+    return executePersistedCodeProjectCreateAction(action, request, options);
+  }
+  if (action.kind === "code_project.run") {
+    return executePersistedCodeProjectRunAction(action, request, options);
+  }
+  throw new AgentActionError("action_kind_not_applicable", 409);
+}
+
+async function applyApprovedExecutableAgentAction(
+  current: AgentAction,
+  options: AgentActionServiceOptions & { repo: AgentActionRepository },
+): Promise<AgentAction> {
+  if (current.status !== "approval_required") {
+    throw new AgentActionError("invalid_status_transition", 409);
+  }
+  const running = await options.repo.updateStatus(current.id, {
+    status: "running",
+    errorCode: null,
+  });
+  if (!running) throw new AgentActionError("action_not_found", 404);
+
+  const request = createAgentActionRequestFromAction(running);
+  if (isPhase2ANoteAction(running.kind)) {
+    return executePersistedNoteAction(running, request, options);
+  }
+  if (running.kind === "code_project.create") {
+    return executePersistedCodeProjectCreateAction(running, request, options);
+  }
+  if (running.kind === "code_project.run") {
+    return executePersistedCodeProjectRunAction(running, request, options);
+  }
+  throw new AgentActionError("action_kind_not_applicable", 409);
 }
 
 function createAgentActionRequestFromAction(action: AgentAction): CreateAgentActionRequest {
