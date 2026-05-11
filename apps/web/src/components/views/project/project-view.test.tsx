@@ -61,22 +61,49 @@ describe("ProjectView", () => {
 
     expect(screen.getByText("project.tools.heading")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /project\.tools\.research\.title/ }),
+      screen.getByText("project.tools.categories.add_sources.title"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("project.tools.categories.create.title"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: /project\.tools\.items\.research\.title/,
+      }),
     ).toHaveClass("hover:bg-muted/40");
     expect(
-      screen.getByRole("link", { name: /project\.tools\.graph\.title/ }),
+      screen.getByRole("link", {
+        name: /project\.tools\.items\.graph\.title/,
+      }),
     ).toHaveAttribute("href", "/ko/workspace/acme/project/p1/graph");
     expect(
-      screen.getByRole("link", { name: /project\.tools\.agents\.title/ }),
+      screen.getByRole("link", {
+        name: /project\.tools\.items\.agents\.title/,
+      }),
     ).toHaveAttribute("href", "/ko/workspace/acme/project/p1/agents");
     expect(
       screen.getByRole("button", {
-        name: /project\.tools\.generateDocument\.title/,
+        name: /project\.tools\.items\.pdfReport\.title/,
       }),
     ).toHaveClass("bg-primary");
+    expect(
+      screen.getByRole("button", {
+        name: /project\.tools\.items\.latexPdf\.title/,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: /project\.tools\.items\.pptxDeck\.title/,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: /project\.tools\.items\.sourceFigure\.title/,
+      }),
+    ).toBeInTheDocument();
     await userEvent.click(
       screen.getByRole("button", {
-        name: /project\.tools\.literature\.title/,
+        name: /project\.tools\.items\.literature\.title/,
       }),
     );
     expect(screen.getByText("literature modal")).toBeInTheDocument();
@@ -88,7 +115,9 @@ describe("ProjectView", () => {
     renderProjectView();
 
     await userEvent.click(
-      screen.getByRole("button", { name: /project\.tools\.research\.title/ }),
+      screen.getByRole("button", {
+        name: /project\.tools\.items\.research\.title/,
+      }),
     );
 
     expect(usePanelStore.getState().agentPanelOpen).toBe(true);
@@ -103,14 +132,8 @@ describe("ProjectView", () => {
     renderProjectView();
 
     await userEvent.click(
-      screen.getByRole("button", { name: /project\.tools\.runs\.title/ }),
-    );
-    expect(usePanelStore.getState().agentPanelTab).toBe("activity");
-
-    usePanelStore.getState().setAgentPanelTab("chat");
-    await userEvent.click(
       screen.getByRole("button", {
-        name: /project\.tools\.generateDocument\.title/,
+        name: /project\.tools\.items\.runs\.title/,
       }),
     );
     expect(usePanelStore.getState().agentPanelTab).toBe("activity");
@@ -118,7 +141,29 @@ describe("ProjectView", () => {
     usePanelStore.getState().setAgentPanelTab("chat");
     await userEvent.click(
       screen.getByRole("button", {
-        name: /project\.tools\.reviewInbox\.title/,
+        name: /project\.tools\.items\.pdfReport\.title/,
+      }),
+    );
+    expect(usePanelStore.getState().agentPanelTab).toBe("activity");
+    expect(
+      useAgentWorkbenchStore.getState().pendingDocumentGenerationPreset,
+    ).toMatchObject({ presetId: "pdf_report_fast" });
+
+    usePanelStore.getState().setAgentPanelTab("chat");
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: /project\.tools\.items\.sourceFigure\.title/,
+      }),
+    );
+    expect(usePanelStore.getState().agentPanelTab).toBe("activity");
+    expect(
+      useAgentWorkbenchStore.getState().pendingDocumentGenerationPreset,
+    ).toMatchObject({ presetId: "source_figure" });
+
+    usePanelStore.getState().setAgentPanelTab("chat");
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: /project\.tools\.items\.reviewInbox\.title/,
       }),
     );
     expect(usePanelStore.getState().agentPanelTab).toBe("activity");

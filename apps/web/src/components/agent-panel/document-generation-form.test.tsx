@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DocumentGenerationForm } from "./document-generation-form";
+import { getDocumentGenerationPreset } from "./tool-discovery-catalog";
 
 vi.mock("next-intl", () => ({
   useLocale: () => "en",
@@ -17,6 +18,41 @@ beforeEach(() => {
 });
 
 describe("DocumentGenerationForm", () => {
+  it("opens with a document generation preset and consumes it once", async () => {
+    const onEvent = vi.fn();
+    const onPresetConsumed = vi.fn();
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/api/projects/project-1/document-generation/sources")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ sources: [] }),
+        };
+      }
+      return { ok: false, status: 404, json: async () => ({ error: "not_found" }) };
+    });
+
+    render(
+      <DocumentGenerationForm
+        projectId="project-1"
+        onEvent={onEvent}
+        pendingPreset={getDocumentGenerationPreset("pdf_report_latex")}
+        onPresetConsumed={onPresetConsumed}
+      />,
+    );
+
+    await waitFor(() => expect(onPresetConsumed).toHaveBeenCalledOnce());
+    expect(screen.getByLabelText(/format/)).toHaveValue("pdf");
+    expect(screen.getByLabelText(/template/)).toHaveValue("paper_style");
+    expect(screen.getByLabelText(/render engine/)).toHaveValue("latex");
+    expect(screen.getByLabelText(/prompt/)).toHaveValue(
+      "agentPanel.documentGeneration.presetPrompt.pdfReportLatex",
+    );
+    expect(screen.getByLabelText(/filename/)).toHaveValue(
+      "agentPanel.documentGeneration.presetFilename.pdfReportLatex",
+    );
+  });
+
   it("loads source options and submits generate_project_object with selected sources", async () => {
     const onEvent = vi.fn();
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {

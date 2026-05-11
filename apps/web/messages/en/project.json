@@ -16,6 +16,98 @@
   "tools": {
     "heading": "Project tools",
     "description": "Start research, import, automation, learning, and document generation from this project home.",
+    "categories": {
+      "add_sources": {
+        "title": "Add sources",
+        "description": "Bring files, papers, and outside material into this project."
+      },
+      "understand": {
+        "title": "Understand",
+        "description": "Summarize material and inspect structure, claims, and evidence."
+      },
+      "create": {
+        "title": "Create outputs",
+        "description": "Turn project material into reports, decks, and tables."
+      },
+      "study": {
+        "title": "Study",
+        "description": "Review material and check understanding."
+      },
+      "organize": {
+        "title": "Organize",
+        "description": "Inspect project structure and connections."
+      },
+      "delegate": {
+        "title": "Delegate",
+        "description": "Open agent work and active run status."
+      },
+      "review": {
+        "title": "Review",
+        "description": "Check proposed changes and approval items."
+      }
+    },
+    "items": {
+      "import": {
+        "title": "Add sources",
+        "description": "Bring files and outside material into the project."
+      },
+      "literature": {
+        "title": "Find papers",
+        "description": "Search papers and save selected sources."
+      },
+      "research": {
+        "title": "Research deeply",
+        "description": "Start focused research from project material."
+      },
+      "summarize": {
+        "title": "Summarize",
+        "description": "Condense the current material into core points."
+      },
+      "pdfReport": {
+        "title": "Create PDF report",
+        "description": "Generate a shareable PDF report quickly."
+      },
+      "latexPdf": {
+        "title": "Create LaTeX PDF",
+        "description": "Draft a paper-style PDF report."
+      },
+      "docxReport": {
+        "title": "Create DOCX report",
+        "description": "Generate a report that can continue in a word processor."
+      },
+      "pptxDeck": {
+        "title": "Create slide deck",
+        "description": "Turn project material into a presentation draft."
+      },
+      "xlsxTable": {
+        "title": "Create table",
+        "description": "Generate a spreadsheet for comparison and organization."
+      },
+      "sourceFigure": {
+        "title": "Create source figure",
+        "description": "Generate a figure grounded in selected project sources."
+      },
+      "learn": {
+        "title": "Study",
+        "description": "Review with flashcards and understanding checks."
+      },
+      "graph": {
+        "title": "View connections",
+        "description": "Explore how notes and sources connect."
+      },
+      "agents": {
+        "title": "Delegate to agent",
+        "description": "Start and manage project agent work."
+      },
+      "runs": {
+        "title": "Active work",
+        "description": "Track import, generation, and automation progress."
+      },
+      "reviewInbox": {
+        "title": "Review approvals",
+        "description": "Check proposed changes and approval items."
+      }
+    },
     "research": {
       "title": "Deep Research",
       "description": "Start focused research using this project as context."

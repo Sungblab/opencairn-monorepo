@@ -88,6 +88,7 @@ import { WorkflowConsoleRuns } from "./workflow-console-runs";
 import { WorkbenchActivityStack } from "./workbench-activity-stack";
 import { handleAgentWorkbenchIntent } from "./agent-workbench-intents";
 import { useCurrentProjectContext } from "@/components/sidebar/use-current-project";
+import { getDocumentGenerationPreset } from "./tool-discovery-catalog";
 
 export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const workspaceId = useWorkspaceId(wsSlug);
@@ -95,6 +96,12 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const setPanelTab = usePanelStore((s) => s.setAgentPanelTab);
   const pendingWorkbenchIntent = useAgentWorkbenchStore((s) => s.pendingIntent);
   const consumeWorkbenchIntent = useAgentWorkbenchStore((s) => s.consumeIntent);
+  const pendingDocumentGenerationPresetIntent = useAgentWorkbenchStore(
+    (s) => s.pendingDocumentGenerationPreset,
+  );
+  const consumeDocumentGenerationPreset = useAgentWorkbenchStore(
+    (s) => s.consumeDocumentGenerationPreset,
+  );
   const { projectId: shellProjectId } = useCurrentProjectContext();
   const composerT = useTranslations("agentPanel.composer");
   const commandPromptT = useTranslations("agentPanel.composer.slash.prompt");
@@ -139,6 +146,9 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const [formGenerationEvents, setFormGenerationEvents] = useState<unknown[]>(
     [],
   );
+  const pendingDocumentGenerationPreset = pendingDocumentGenerationPresetIntent
+    ? getDocumentGenerationPreset(pendingDocumentGenerationPresetIntent.presetId)
+    : null;
   const sendInFlightRef = useRef(false);
   const buildScopePayload = useCallback(
     (commandId?: AgentCommandId) => {
@@ -529,6 +539,14 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
           ) : null}
           <DocumentGenerationForm
             projectId={activeProjectId}
+            pendingPreset={pendingDocumentGenerationPreset}
+            onPresetConsumed={() => {
+              if (pendingDocumentGenerationPresetIntent) {
+                consumeDocumentGenerationPreset(
+                  pendingDocumentGenerationPresetIntent.id,
+                );
+              }
+            }}
             onEvent={(event) =>
               setFormGenerationEvents((events) => [...events, event])
             }

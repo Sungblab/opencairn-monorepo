@@ -24,6 +24,19 @@ describe("agent-workbench-store", () => {
     });
   });
 
+  it("queues document generation presets separately from chat commands", () => {
+    useAgentWorkbenchStore
+      .getState()
+      .requestDocumentGenerationPreset("pdf_report_latex");
+
+    expect(
+      useAgentWorkbenchStore.getState().pendingDocumentGenerationPreset,
+    ).toMatchObject({
+      presetId: "pdf_report_latex",
+    });
+    expect(useAgentWorkbenchStore.getState().pendingIntent).toBeNull();
+  });
+
   it("does not let an old consumer clear a newer intent", () => {
     useAgentWorkbenchStore.getState().requestCommand("research");
     const first = useAgentWorkbenchStore.getState().pendingIntent;
@@ -44,5 +57,25 @@ describe("agent-workbench-store", () => {
     useAgentWorkbenchStore.getState().consumeIntent(intent?.id ?? "");
 
     expect(useAgentWorkbenchStore.getState().pendingIntent).toBeNull();
+  });
+
+  it("does not let an old preset consumer clear a newer preset", () => {
+    useAgentWorkbenchStore
+      .getState()
+      .requestDocumentGenerationPreset("pdf_report_fast");
+    const first = useAgentWorkbenchStore.getState().pendingDocumentGenerationPreset;
+    useAgentWorkbenchStore
+      .getState()
+      .requestDocumentGenerationPreset("pptx_deck");
+
+    useAgentWorkbenchStore
+      .getState()
+      .consumeDocumentGenerationPreset(first?.id ?? "");
+
+    expect(
+      useAgentWorkbenchStore.getState().pendingDocumentGenerationPreset,
+    ).toMatchObject({
+      presetId: "pptx_deck",
+    });
   });
 });

@@ -211,6 +211,22 @@
     "renderEngine": "PDF engine",
     "imageEngine": "Image engine",
     "promptPlaceholder": "Describe the document goal and what it should include.",
+    "presetPrompt": {
+      "pdfReportFast": "Create a shareable PDF report from the current project material.",
+      "pdfReportLatex": "Create a paper-style LaTeX PDF report from the current project material.",
+      "docxReport": "Create an editable DOCX report from the current project material.",
+      "pptxDeck": "Turn the current project material into a presentation deck.",
+      "xlsxTable": "Organize the current project material into a comparable spreadsheet.",
+      "sourceFigure": "Create a figure that explains the key project material."
+    },
+    "presetFilename": {
+      "pdfReportFast": "project-report",
+      "pdfReportLatex": "latex-report",
+      "docxReport": "project-report",
+      "pptxDeck": "project-deck",
+      "xlsxTable": "project-table",
+      "sourceFigure": "source-figure"
+    },
     "sourceRequired": "Select at least one source for the document.",
     "submit": "Start generation",
     "loadFailed": "Could not load document sources.",

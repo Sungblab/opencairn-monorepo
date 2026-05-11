@@ -12,9 +12,12 @@ import {
   CheckSquare,
   DownloadCloud,
   FileText,
-  FlaskConical,
   GraduationCap,
   Network,
+  Presentation,
+  Search,
+  Sparkles,
+  Table2,
   type LucideIcon,
 } from "lucide-react";
 import { projectsApi, type ProjectNoteRow } from "@/lib/api-client";
@@ -25,8 +28,30 @@ import {
   WorkbenchCommandButton,
 } from "@/components/agent-panel/workbench-trigger-button";
 import { SourceUploadButton } from "@/components/sidebar/SourceUploadButton";
+import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
+import {
+  getToolDiscoveryGroups,
+  type DocumentGenerationPresetId,
+  type ToolDiscoveryIcon,
+  type ToolDiscoveryItem,
+} from "@/components/agent-panel/tool-discovery-catalog";
 import { ProjectMetaRow } from "./project-meta-row";
 import { ProjectNotesTable } from "./project-notes-table";
+
+const ICONS: Record<ToolDiscoveryIcon, LucideIcon> = {
+  activity: Activity,
+  book: BookText,
+  bot: Bot,
+  check: CheckSquare,
+  download: DownloadCloud,
+  file: FileText,
+  graduation: GraduationCap,
+  network: Network,
+  presentation: Presentation,
+  search: Search,
+  sparkles: Sparkles,
+  table: Table2,
+};
 
 export function ProjectView({
   wsSlug,
@@ -38,7 +63,11 @@ export function ProjectView({
   const locale = useLocale();
   const t = useTranslations("project");
   const workspaceId = useWorkspaceId(wsSlug);
+  const requestDocumentGenerationPreset = useAgentWorkbenchStore(
+    (s) => s.requestDocumentGenerationPreset,
+  );
   const [literatureOpen, setLiteratureOpen] = useState(false);
+  const toolGroups = useMemo(() => getToolDiscoveryGroups("project_home"), []);
   const { data: meta } = useQuery({
     queryKey: ["project-meta", projectId],
     queryFn: () => projectsApi.get(projectId),
@@ -58,6 +87,94 @@ export function ProjectView({
   }, [allNotes]);
   const lastActivityIso =
     allNotes && allNotes.length > 0 ? allNotes[0].updated_at : null;
+
+  function projectRouteHref(route: "project_graph" | "project_agents" | "project_learn") {
+    if (route === "project_graph") {
+      return urls.workspace.projectGraph(locale, wsSlug, projectId);
+    }
+    if (route === "project_agents") {
+      return urls.workspace.projectAgents(locale, wsSlug, projectId);
+    }
+    return urls.workspace.projectLearn(locale, wsSlug, projectId);
+  }
+
+  function openDocumentPreset(presetId: DocumentGenerationPresetId) {
+    requestDocumentGenerationPreset(presetId);
+  }
+
+  function renderToolItem(item: ToolDiscoveryItem) {
+    const Icon = ICONS[item.icon];
+    const title = t(`tools.items.${item.i18nKey}.title`);
+    const description = t(`tools.items.${item.i18nKey}.description`);
+
+    switch (item.action.type) {
+      case "route":
+        return (
+          <ToolLink
+            key={item.id}
+            href={projectRouteHref(item.action.route)}
+            icon={Icon}
+            title={title}
+            description={description}
+            emphasis={item.emphasis}
+          />
+        );
+      case "upload":
+        return (
+          <ToolUploadButton
+            key={item.id}
+            projectId={projectId}
+            icon={Icon}
+            title={title}
+            description={description}
+          />
+        );
+      case "literature_search":
+        return (
+          <ToolButton
+            key={item.id}
+            icon={Icon}
+            title={title}
+            description={description}
+            onClick={() => setLiteratureOpen(true)}
+          />
+        );
+      case "workbench_command":
+        return (
+          <ToolCommandButton
+            key={item.id}
+            commandId={item.action.commandId}
+            icon={Icon}
+            title={title}
+            description={description}
+            emphasis={item.emphasis}
+          />
+        );
+      case "open_activity":
+      case "open_review":
+        return (
+          <ToolActivityButton
+            key={item.id}
+            icon={Icon}
+            title={title}
+            description={description}
+            emphasis={item.emphasis}
+          />
+        );
+      case "document_generation_preset":
+        const presetId = item.action.presetId;
+        return (
+          <ToolPresetButton
+            key={item.id}
+            icon={Icon}
+            title={title}
+            description={description}
+            emphasis={item.emphasis}
+            onOpen={() => openDocumentPreset(presetId)}
+          />
+        );
+    }
+  }
 
   return (
     <div
@@ -83,59 +200,22 @@ export function ProjectView({
             {t("tools.description")}
           </p>
         </div>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          <ToolCommandButton
-            commandId="research"
-            icon={FlaskConical}
-            title={t("tools.research.title")}
-            description={t("tools.research.description")}
-          />
-          <ToolUploadButton
-            projectId={projectId}
-            icon={DownloadCloud}
-            title={t("tools.import.title")}
-            description={t("tools.import.description")}
-          />
-          <ToolButton
-            icon={BookText}
-            title={t("tools.literature.title")}
-            description={t("tools.literature.description")}
-            onClick={() => setLiteratureOpen(true)}
-          />
-          <ToolLink
-            href={urls.workspace.projectGraph(locale, wsSlug, projectId)}
-            icon={Network}
-            title={t("tools.graph.title")}
-            description={t("tools.graph.description")}
-          />
-          <ToolLink
-            href={urls.workspace.projectAgents(locale, wsSlug, projectId)}
-            icon={Bot}
-            title={t("tools.agents.title")}
-            description={t("tools.agents.description")}
-          />
-          <ToolActivityButton
-            icon={Activity}
-            title={t("tools.runs.title")}
-            description={t("tools.runs.description")}
-          />
-          <ToolLink
-            href={urls.workspace.projectLearn(locale, wsSlug, projectId)}
-            icon={GraduationCap}
-            title={t("tools.learn.title")}
-            description={t("tools.learn.description")}
-          />
-          <ToolActivityButton
-            icon={FileText}
-            title={t("tools.generateDocument.title")}
-            description={t("tools.generateDocument.description")}
-            emphasis
-          />
-          <ToolActivityButton
-            icon={CheckSquare}
-            title={t("tools.reviewInbox.title")}
-            description={t("tools.reviewInbox.description")}
-          />
+        <div className="space-y-4">
+          {toolGroups.map((group) => (
+            <section key={group.category} className="space-y-2">
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
+                  {t(`tools.categories.${group.category}.title`)}
+                </h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {t(`tools.categories.${group.category}.description`)}
+                </p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {group.items.map((item) => renderToolItem(item))}
+              </div>
+            </section>
+          ))}
         </div>
       </section>
       <ProjectNotesTable
@@ -255,6 +335,50 @@ function ToolActivityButton({
 }) {
   return (
     <WorkbenchActivityButton
+      className={
+        emphasis
+          ? "group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-primary/40 bg-primary px-3 py-3 text-left text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          : "group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-border bg-background px-3 py-3 text-left text-foreground transition-colors hover:border-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      }
+    >
+      <Icon
+        aria-hidden
+        className={
+          emphasis
+            ? "h-4 w-4 text-primary-foreground/80"
+            : "h-4 w-4 text-muted-foreground group-hover:text-foreground"
+        }
+      />
+      <span className="text-sm font-medium">{title}</span>
+      <span
+        className={
+          emphasis
+            ? "line-clamp-2 text-xs text-primary-foreground/75"
+            : "line-clamp-2 text-xs text-muted-foreground"
+        }
+      >
+        {description}
+      </span>
+    </WorkbenchActivityButton>
+  );
+}
+
+function ToolPresetButton({
+  icon: Icon,
+  title,
+  description,
+  emphasis = false,
+  onOpen,
+}: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  emphasis?: boolean;
+  onOpen: () => void;
+}) {
+  return (
+    <WorkbenchActivityButton
+      onClick={onOpen}
       className={
         emphasis
           ? "group flex min-h-24 flex-col gap-2 rounded-[var(--radius-control)] border border-primary/40 bg-primary px-3 py-3 text-left text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
