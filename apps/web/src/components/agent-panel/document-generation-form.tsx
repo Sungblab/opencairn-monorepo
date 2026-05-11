@@ -166,6 +166,7 @@ export function DocumentGenerationForm({
     setTemplate(pendingPreset.template);
     setPrompt(tRef.current(`presetPrompt.${pendingPreset.promptKey}`));
     setFilename(tRef.current(`presetFilename.${pendingPreset.filenameBaseKey}`));
+    setSelectedIds([]);
     setError(null);
     onPresetConsumed?.();
   }, [onPresetConsumed, pendingPreset]);
