@@ -87,6 +87,10 @@ describe("root layout performance boundaries", () => {
     for (const [intlRoutePath, namespaces] of [
       ["src/app/[locale]/auth/layout.tsx", 'namespaces={["auth"]}'],
       [
+        "src/app/[locale]/workspace/[wsSlug]/layout.tsx",
+        "namespaces={WORKSPACE_CLIENT_MESSAGE_NAMESPACES}",
+      ],
+      [
         "src/app/[locale]/settings/layout.tsx",
         'namespaces={["account", "accountNotifications", "settings"]}',
       ],
@@ -109,6 +113,22 @@ describe("root layout performance boundaries", () => {
         "IntlClientProvider",
       );
     }
+  });
+
+  it("keeps non-workspace marketing/auth messages out of workspace RSC payloads", () => {
+    const workspaceLayout = read(
+      "src/app/[locale]/workspace/[wsSlug]/layout.tsx",
+    );
+
+    expect(workspaceLayout).toContain("WORKSPACE_CLIENT_MESSAGE_NAMESPACES");
+    expect(workspaceLayout).toContain('"appShell"');
+    expect(workspaceLayout).toContain('"sidebar"');
+    expect(workspaceLayout).toContain('"dashboard"');
+    expect(workspaceLayout).toContain('"agentPanel"');
+    expect(workspaceLayout).not.toContain('"landing"');
+    expect(workspaceLayout).not.toContain('"auth"');
+    expect(workspaceLayout).not.toContain('"onboarding"');
+    expect(workspaceLayout).not.toContain('"settings"');
   });
 
   it("keeps locale fallback boundaries off client routing and intl runtimes", () => {

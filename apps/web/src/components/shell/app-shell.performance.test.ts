@@ -84,6 +84,9 @@ describe("AppShell bundle boundary", () => {
     const loader = read("src/components/ingest/ingest-overlays-loader.tsx");
     expect(loader).toContain("dynamic");
     expect(loader).toContain('import("./ingest-overlays")');
+    expect(loader).toContain("@/lib/performance/use-idle-ready");
+    expect(loader).toContain("useIdleReady({ timeout: 2000, fallbackMs: 1000 })");
+    expect(loader).toContain("return ready ? <LazyIngestOverlays /> : null");
   });
 
   it("lazy-loads non-critical shell keyboard shortcut wiring", () => {
