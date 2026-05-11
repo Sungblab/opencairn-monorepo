@@ -196,6 +196,22 @@ const server = http.createServer(async (req, res) => {
     });
   }
 
+  if (url.pathname === `/api/projects/${seed.projectId}/notes`) {
+    return json(res, 200, { notes: [] });
+  }
+
+  if (url.pathname === `/api/projects/${seed.projectId}/agent-actions`) {
+    return json(res, 200, { actions: [] });
+  }
+
+  if (url.pathname === `/api/projects/${seed.projectId}/agentic-plans`) {
+    return json(res, 200, { plans: [] });
+  }
+
+  if (url.pathname === `/api/projects/${seed.projectId}/workflow-console/runs`) {
+    return json(res, 200, { runs: [] });
+  }
+
   if (url.pathname === `/api/projects/${seed.projectId}/knowledge-surface`) {
     return json(res, 200, {
       ...emptyGraphResponse,
