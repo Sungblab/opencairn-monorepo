@@ -34,6 +34,7 @@
     "collapse_sidebar": "왼쪽 사이드바 접기"
   },
   "more_menu": {
+    "atlas": "Ontology Atlas",
     "settings": "워크스페이스 설정",
     "templates": "템플릿 갤러리",
     "shared_links": "공유 링크 관리",

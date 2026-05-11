@@ -27,7 +27,7 @@ import {
 } from "./evidence-bundles";
 import {
   projectOwnsConcept,
-  selectConceptsByRecency,
+  selectCardsGraph,
   selectGraphView,
   selectMaxDegreeConcept,
   selectMindmapBfs,
@@ -343,16 +343,14 @@ async function selectSurfaceBase(
     };
   }
 
-  const nodes = await selectConceptsByRecency({
+  const selected = await selectCardsGraph({
     projectId,
     limit: CARDS_LIMIT,
   });
-  const filteredNodes = opts.query?.trim()
-    ? nodes.filter((node) => matchesQuery(node, opts.query ?? ""))
-    : nodes;
+  const filtered = filterByQuery(selected.nodes, selected.edges, opts.query);
   return {
-    nodes: filteredNodes,
-    edges: [],
+    nodes: filtered.nodes,
+    edges: filtered.edges,
     truncated: total > CARDS_LIMIT,
     totalConcepts: total,
     layout: "preset",

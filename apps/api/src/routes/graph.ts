@@ -16,15 +16,15 @@ import {
   selectGraphView,
   selectMindmapBfs,
   selectMaxDegreeConcept,
-  selectConceptsByRecency,
+  selectCardsGraph,
   selectConceptsByCreatedAsc,
   selectOneHopNeighborhood,
   projectOwnsConcept,
 } from "../lib/graph-views";
 import type { AppEnv } from "../lib/types";
 
-// Plan 5 Phase 2 view caps (mirrored in the design spec §4.1 table). Edge
-// caps for cards/timeline are 0 because those views do not render edges.
+// Plan 5 Phase 2 view caps (mirrored in the design spec §4.1 table). Timeline
+// remains edge-free; cards now keeps intra-set edges for card-node rendering.
 const MINDMAP_DEPTH = 3;
 const MINDMAP_PER_PARENT_CAP = 8;
 const MINDMAP_TOTAL_CAP = 50;
@@ -123,13 +123,13 @@ export const graphRoutes = new Hono<AppEnv>()
           };
         }
       } else if (view === "cards") {
-        const nodes = await selectConceptsByRecency({
+        const { nodes, edges } = await selectCardsGraph({
           projectId,
           limit: CARDS_LIMIT,
         });
         payload = {
           nodes,
-          edges: [],
+          edges,
           truncated: total > CARDS_LIMIT,
           totalConcepts: total,
           viewType: "cards",

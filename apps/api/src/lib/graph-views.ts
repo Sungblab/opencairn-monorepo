@@ -364,6 +364,20 @@ export async function selectConceptsByRecency(opts: {
 }
 
 /**
+ * `view=cards`: recent concepts rendered as connected card nodes. Keep the
+ * recency selection from the original cards surface, but include intra-set
+ * edges so the client can preserve ontology relationships.
+ */
+export async function selectCardsGraph(opts: {
+  projectId: string;
+  limit: number;
+}): Promise<ViewNodeRowMapped> {
+  const nodes = await selectConceptsByRecency(opts);
+  const edges = await fetchEdgesAmong(nodes.map((node) => node.id));
+  return { nodes, edges };
+}
+
+/**
  * `view=timeline`: oldest concepts first. No edges (timeline is a left→right
  * time axis with no relations).
  */

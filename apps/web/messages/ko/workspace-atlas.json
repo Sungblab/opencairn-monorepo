@@ -1,0 +1,46 @@
+{
+  "title": "Ontology Atlas",
+  "eyebrow": "워크스페이스 지식지도",
+  "description": "프로젝트에 흩어진 개념과 관계를 한 화면에서 탐색합니다.",
+  "loading": "Atlas를 불러오는 중…",
+  "empty": "아직 표시할 개념이 없습니다.",
+  "error": "Atlas를 불러오지 못했습니다.",
+  "filters": {
+    "allProjects": "전체 프로젝트",
+    "search": "개념 검색",
+    "searchPlaceholder": "개념 또는 설명 검색"
+  },
+  "stats": {
+    "concepts": "개념",
+    "bridges": "브리지",
+    "duplicates": "중복 후보",
+    "relations": "관계"
+  },
+  "legend": {
+    "bridge": "프로젝트 연결",
+    "duplicate": "중복 후보",
+    "unclassified": "미분류",
+    "stale": "노트 수정 후 재분석 필요"
+  },
+  "layers": {
+    "explicit": "명시 링크",
+    "ai": "AI 개념"
+  },
+  "detail": {
+    "placeholderTitle": "개념을 선택하세요",
+    "placeholderBody": "그래프에서 개념을 선택하면 등장 프로젝트, 관련 개념, 정리 신호를 볼 수 있습니다.",
+    "appearsIn": "{count}개 프로젝트에 등장",
+    "projects": "등장 프로젝트",
+    "conceptIds": "원본 개념",
+    "signals": "정리 신호",
+    "bridge": "여러 프로젝트를 연결합니다.",
+    "duplicate": "같거나 비슷한 개념으로 병합 검토가 필요합니다.",
+    "unclassified": "관계가 아직 충분히 분류되지 않았습니다.",
+    "stale": "근거 노트가 분석 이후 수정되었습니다.",
+    "refresh": "근거 재분석",
+    "refreshing": "재분석 요청 중"
+  },
+  "sidebar": {
+    "entry": "Ontology Atlas"
+  }
+}

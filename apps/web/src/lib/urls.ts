@@ -43,6 +43,7 @@ export const urls = {
     projectChatScope: (locale: string, slug: string, pid: string) =>
       `${wsProject(locale, slug, pid)}/chat-scope`,
     chatScope: (locale: string, slug: string) => `${ws(locale, slug)}/chat-scope`,
+    atlas: (locale: string, slug: string) => `${ws(locale, slug)}/atlas`,
     research: (locale: string, slug: string) => `${ws(locale, slug)}/research`,
     researchRun: (locale: string, slug: string, runId: string) =>
       `${ws(locale, slug)}/research/${runId}`,
