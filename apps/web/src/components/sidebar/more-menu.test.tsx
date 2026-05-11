@@ -11,6 +11,10 @@ describe("MoreMenu", () => {
   it("renders workspace-scoped items as visible native links", () => {
     render(<MoreMenu base="/ko/workspace/acme" />);
 
+    expect(
+      screen.getByText("sidebar.more_menu.atlas").closest("a"),
+    ).toHaveAttribute("href", "/ko/workspace/acme/atlas");
+
     const settings = screen.getByText("sidebar.more_menu.settings");
     expect(settings.closest("a")).toHaveAttribute(
       "href",

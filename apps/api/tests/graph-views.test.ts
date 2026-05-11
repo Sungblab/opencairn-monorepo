@@ -216,8 +216,8 @@ describe("GET /api/projects/:id/graph?view=", () => {
     }
   });
 
-  // ─── Test 5: cards by recency ─────────────────────────────────────
-  it("view=cards returns nodes by created_at DESC with empty edges", async () => {
+  // ─── Test 5: cards by recency + relation edges ─────────────────────
+  it("view=cards returns nodes by created_at DESC with intra-set edges", async () => {
     const { status, body } = await getGraph(
       ctx.projectId,
       "?view=cards",
@@ -227,7 +227,10 @@ describe("GET /api/projects/:id/graph?view=", () => {
     expect(body.viewType).toBe("cards");
     expect(body.layout).toBe("preset");
     expect(body.rootId).toBeNull();
-    expect(body.edges).toEqual([]);
+    expect(body.edges.length).toBeGreaterThan(0);
+    expect(body.edges.every((edge) => edge.relationType === "related-to")).toBe(
+      true,
+    );
     // Insertion order in seedHubAndSpokes was hub → spoke0..N → isolated.
     // created_at DESC means isolated first, then spokes in reverse, then hub.
     const ids = body.nodes.map((n) => n.id);

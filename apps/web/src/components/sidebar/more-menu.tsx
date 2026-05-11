@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { ExternalLink, Settings, Share2, Trash2 } from "lucide-react";
+import { ExternalLink, Network, Settings, Share2, Trash2 } from "lucide-react";
 
 export interface MoreMenuProps {
   base: string;
@@ -17,6 +17,11 @@ export interface MoreMenuProps {
 export function MoreMenu({ base, synthesisExportEnabled = false }: MoreMenuProps) {
   const t = useTranslations("sidebar");
   const primaryItems = [
+    {
+      href: `${base}/atlas`,
+      label: t("more_menu.atlas"),
+      Icon: Network,
+    },
     {
       href: `${base}/settings`,
       label: t("more_menu.settings"),

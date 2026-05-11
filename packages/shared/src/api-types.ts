@@ -327,3 +327,96 @@ export const GraphViewResponse = ViewSpec.extend({
   totalConcepts: z.number().int().min(0),
 });
 export type GraphViewResponse = z.infer<typeof GraphViewResponse>;
+
+// ─── Workspace Ontology Atlas ───────────────────────────────────────────
+
+export const workspaceAtlasProjectContextSchema = z.object({
+  projectId: z.string().uuid(),
+  projectName: z.string(),
+  conceptIds: z.array(z.string().uuid()),
+  mentionCount: z.number().int().min(0),
+});
+export type WorkspaceAtlasProjectContext = z.infer<
+  typeof workspaceAtlasProjectContextSchema
+>;
+
+export const workspaceAtlasNodeLayerSchema = z.enum(["explicit", "ai", "mixed"]);
+export type WorkspaceAtlasNodeLayer = z.infer<
+  typeof workspaceAtlasNodeLayerSchema
+>;
+
+export const workspaceAtlasNodeObjectTypeSchema = z.enum([
+  "concept",
+  "note",
+  "source_bundle",
+  "artifact",
+]);
+export type WorkspaceAtlasNodeObjectType = z.infer<
+  typeof workspaceAtlasNodeObjectTypeSchema
+>;
+
+export const workspaceAtlasNodeSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  objectType: workspaceAtlasNodeObjectTypeSchema.default("concept"),
+  layer: workspaceAtlasNodeLayerSchema.default("ai"),
+  normalizedName: z.string().min(1),
+  description: z.string().optional(),
+  conceptIds: z.array(z.string().uuid()),
+  sourceNoteIds: z.array(z.string().uuid()).default([]),
+  projectContexts: z.array(workspaceAtlasProjectContextSchema).min(1),
+  projectCount: z.number().int().min(1),
+  mentionCount: z.number().int().min(0),
+  degree: z.number().int().min(0),
+  bridge: z.boolean(),
+  duplicateCandidate: z.boolean(),
+  unclassified: z.boolean(),
+  stale: z.boolean().default(false),
+  freshnessReason: z.enum(["source_note_changed"]).optional(),
+  createdAt: z.string().optional(),
+});
+export type WorkspaceAtlasNode = z.infer<typeof workspaceAtlasNodeSchema>;
+
+export const workspaceAtlasEdgeTypeSchema = z.enum([
+  "wiki_link",
+  "project_tree",
+  "source_artifact",
+  "ai_relation",
+]);
+export type WorkspaceAtlasEdgeType = z.infer<typeof workspaceAtlasEdgeTypeSchema>;
+
+export const workspaceAtlasEdgeSchema = z.object({
+  id: z.string().min(1),
+  sourceId: z.string().min(1),
+  targetId: z.string().min(1),
+  edgeType: workspaceAtlasEdgeTypeSchema.default("ai_relation"),
+  layer: workspaceAtlasNodeLayerSchema.default("ai"),
+  relationType: z.string().min(1),
+  weight: z.number().min(0),
+  conceptEdgeIds: z.array(z.string().uuid()),
+  sourceNoteIds: z.array(z.string().uuid()).default([]),
+  projectIds: z.array(z.string().uuid()).min(1),
+  crossProject: z.boolean(),
+  stale: z.boolean().default(false),
+  freshnessReason: z.enum(["source_note_changed"]).optional(),
+});
+export type WorkspaceAtlasEdge = z.infer<typeof workspaceAtlasEdgeSchema>;
+
+export const workspaceAtlasResponseSchema = z.object({
+  workspaceId: z.string().uuid(),
+  nodes: z.array(workspaceAtlasNodeSchema),
+  edges: z.array(workspaceAtlasEdgeSchema),
+  readableProjectCount: z.number().int().min(0),
+  totalConcepts: z.number().int().min(0),
+  truncated: z.boolean(),
+  selection: z.literal("bridge-first"),
+});
+export type WorkspaceAtlasResponse = z.infer<
+  typeof workspaceAtlasResponseSchema
+>;
+
+export const workspaceAtlasQuerySchema = z.object({
+  limit: z.coerce.number().int().min(25).max(250).default(120),
+  projectId: z.string().uuid().optional(),
+  q: z.string().trim().min(1).max(120).optional(),
+});

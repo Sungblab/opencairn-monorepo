@@ -118,6 +118,8 @@ site-admin inbox.
 | POST | /api/workspaces | Yes | 새 workspace 생성 (생성자는 owner, 기본 프로젝트 1개 자동 생성). slug 미지정 시 이름에서 ASCII 파생, 불가/충돌 시 `w-{hex8}` fallback | `{ name, slug? }` |
 | GET | /api/workspaces/by-slug/:slug | member | slug로 워크스페이스 조회 — 응답 `{ id, slug, name, role }` (redirect 체인 용) | - |
 | GET | /api/workspaces/:workspaceId | member | 워크스페이스 상세 | - |
+| GET | /api/workspaces/:workspaceId/ontology-atlas | member | 워크스페이스 전체 지식지도. 읽을 수 있는 프로젝트만 포함하고, AI concept 관계와 명시적 note/wiki-link/project-tree 객체를 함께 반환한다. 응답 `{ workspaceId, nodes, edges, readableProjectCount, totalConcepts, truncated, selection:"bridge-first" }`; `nodes[].layer`는 `explicit\|ai\|mixed`, `nodes[].objectType`은 `concept\|note\|source_bundle\|artifact`, stale concept은 `freshnessReason:"source_note_changed"` 포함. | `?limit=25..250&projectId?&q?` |
+| POST | /api/workspaces/:workspaceId/ontology-atlas/refresh | note `editor` per requested note | Atlas stale 근거 노트 재분석 요청. 각 note에 CompilerWorkflow와 note-analysis job을 큐잉한다. 성공은 `202`, 일부 compiler start 실패는 `207`, 전부 실패는 `503`. | `{ noteIds: uuid[] }` |
 | PATCH | /api/workspaces/:workspaceId | admin | 이름/slug/plan 변경 | `{ name?, slug?, planType? }` |
 | DELETE | /api/workspaces/:workspaceId | owner | 워크스페이스 삭제 (cascade) | - |
 | POST | /api/workspaces/:workspaceId/transfer-owner | owner | owner 이전 | `{ newOwnerId }` |
@@ -618,6 +620,10 @@ Tool call 실행 전 runtime `PermissionBroker`가 `@tool` policy metadata (`rea
 | POST | /api/graph/edges | Yes | Create edge | `{ sourceId, targetId, relationType }` |
 | DELETE | /api/graph/edges/:id | Yes | Delete edge | - |
 | GET | /api/graph/traverse/:conceptId | Yes | N-hop traversal | `?depth=3` |
+
+`GET /api/projects/:projectId/graph?view=cards` keeps the recent-concept card
+selection but now returns intra-set `edges` so the card view can render
+connected concept cards instead of a flat grid.
 
 ### Tools (Tool Template)
 

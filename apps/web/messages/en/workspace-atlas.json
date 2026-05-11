@@ -1,0 +1,46 @@
+{
+  "title": "Ontology Atlas",
+  "eyebrow": "Workspace knowledge map",
+  "description": "Explore concepts and relations scattered across projects.",
+  "loading": "Loading Atlas…",
+  "empty": "No concepts to show yet.",
+  "error": "Could not load the Atlas.",
+  "filters": {
+    "allProjects": "All projects",
+    "search": "Search concepts",
+    "searchPlaceholder": "Search concepts or descriptions"
+  },
+  "stats": {
+    "concepts": "Concepts",
+    "bridges": "Bridges",
+    "duplicates": "Duplicate candidates",
+    "relations": "Relations"
+  },
+  "legend": {
+    "bridge": "Cross-project bridge",
+    "duplicate": "Duplicate candidate",
+    "unclassified": "Unclassified",
+    "stale": "Needs re-analysis after note edit"
+  },
+  "layers": {
+    "explicit": "Explicit links",
+    "ai": "AI concepts"
+  },
+  "detail": {
+    "placeholderTitle": "Select a concept",
+    "placeholderBody": "Select a concept in the graph to inspect projects, source concepts, and curation signals.",
+    "appearsIn": "Appears in {count} projects",
+    "projects": "Projects",
+    "conceptIds": "Source concepts",
+    "signals": "Curation signals",
+    "bridge": "Connects multiple projects.",
+    "duplicate": "May need merge review with same or similar concepts.",
+    "unclassified": "Relations are not classified enough yet.",
+    "stale": "The source note changed after this analysis.",
+    "refresh": "Re-analyze evidence",
+    "refreshing": "Requesting re-analysis"
+  },
+  "sidebar": {
+    "entry": "Ontology Atlas"
+  }
+}

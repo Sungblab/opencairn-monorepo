@@ -34,6 +34,7 @@
     "collapse_sidebar": "Collapse left sidebar"
   },
   "more_menu": {
+    "atlas": "Ontology Atlas",
     "settings": "Workspace settings",
     "templates": "Template gallery",
     "shared_links": "Shared links",

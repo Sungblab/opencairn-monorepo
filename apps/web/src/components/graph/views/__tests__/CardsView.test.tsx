@@ -1,14 +1,28 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NextIntlClientProvider } from "next-intl";
+import type { ReactNode } from "react";
 import koGraph from "@/../messages/ko/graph.json";
 import CardsView from "../CardsView";
 
 vi.mock("../../useProjectGraph", () => ({ useProjectGraph: vi.fn() }));
+vi.mock("cytoscape-fcose", () => ({ default: vi.fn() }));
+vi.mock("react-cytoscapejs", () => ({
+  default: (props: {
+    elements?: Array<{ data: { id: string; label?: string; source?: string; target?: string } }>;
+    layout?: { name: string };
+  }) => (
+    <div data-testid="card-graph" data-layout={props.layout?.name}>
+      {(props.elements ?? []).map((element) => (
+        <span key={element.data.id}>
+          {element.data.label ?? `${element.data.source}->${element.data.target}`}
+        </span>
+      ))}
+    </div>
+  ),
+}));
 
-// Hoisted mock — vi.mock is hoisted above the import below, so we declare
-// the spy via vi.hoisted so it stays referentially stable.
 const tabsAddOrReplace = vi.hoisted(() => vi.fn());
 vi.mock("@/stores/tabs-store", () => ({
   useTabsStore: (sel: (s: { addOrReplacePreview: typeof tabsAddOrReplace }) => unknown) =>
@@ -17,7 +31,7 @@ vi.mock("@/stores/tabs-store", () => ({
 
 import { useProjectGraph } from "../../useProjectGraph";
 
-function wrap(ui: React.ReactNode) {
+function wrap(ui: ReactNode) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -49,7 +63,7 @@ describe("CardsView", () => {
     expect(screen.getByText(koGraph.views.noConcepts)).toBeInTheDocument();
   });
 
-  it("renders one card per node with name + description", () => {
+  it("renders connected concept cards through Cytoscape", async () => {
     (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
       data: {
         viewType: "cards",
@@ -60,14 +74,24 @@ describe("CardsView", () => {
             id: "11111111-1111-4111-8111-111111111111",
             name: "Trans",
             description: "model",
+            degree: 1,
           },
           {
             id: "22222222-2222-4222-8222-222222222222",
             name: "BERT",
             description: "encoder",
+            degree: 1,
           },
         ],
-        edges: [],
+        edges: [
+          {
+            id: "33333333-3333-4333-8333-333333333333",
+            sourceId: "11111111-1111-4111-8111-111111111111",
+            targetId: "22222222-2222-4222-8222-222222222222",
+            relationType: "depends-on",
+            weight: 0.8,
+          },
+        ],
         truncated: false,
         totalConcepts: 2,
       },
@@ -75,12 +99,18 @@ describe("CardsView", () => {
       error: null,
     });
     wrap(<CardsView projectId="p-1" />);
+    await waitFor(() => {
+      expect(screen.getByTestId("card-graph")).toHaveAttribute(
+        "data-layout",
+        "fcose",
+      );
+    });
     expect(screen.getByText("Trans")).toBeInTheDocument();
     expect(screen.getByText("BERT")).toBeInTheDocument();
-    expect(screen.getByText("model")).toBeInTheDocument();
+    expect(screen.getByText("depends-on")).toBeInTheDocument();
   });
 
-  it("renders evidence-backed card citation metadata", () => {
+  it("uses evidence-backed card titles when available", () => {
     (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
       data: {
         viewType: "cards",
@@ -98,39 +128,12 @@ describe("CardsView", () => {
           {
             id: "99999999-9999-4999-8999-999999999999",
             conceptId: "11111111-1111-4111-8111-111111111111",
-            title: "Trans",
+            title: "Transformer",
             summary: "Attention links tokens.",
             evidenceBundleId: "33333333-3333-4333-8333-333333333333",
             citationCount: 2,
           },
         ],
-        evidenceBundles: [
-          {
-            id: "33333333-3333-4333-8333-333333333333",
-            workspaceId: "44444444-4444-4444-8444-444444444444",
-            projectId: "55555555-5555-4555-8555-555555555555",
-            purpose: "card_summary",
-            producer: { kind: "api" },
-            createdBy: null,
-            createdAt: "2026-05-01T00:00:00.000Z",
-            entries: [
-              {
-                noteChunkId: "11111111-1111-4111-8111-111111111111",
-                noteId: "22222222-2222-4222-8222-222222222222",
-                noteType: "source",
-                sourceType: "pdf",
-                headingPath: "Intro",
-                sourceOffsets: { start: 0, end: 20 },
-                score: 0.8,
-                rank: 1,
-                retrievalChannel: "vector",
-                quote: "Attention links tokens.",
-                citation: { label: "S1", title: "Transformer Paper" },
-                metadata: {},
-              },
-            ],
-          },
-        ],
         truncated: false,
         totalConcepts: 1,
       },
@@ -138,40 +141,6 @@ describe("CardsView", () => {
       error: null,
     });
     wrap(<CardsView projectId="p-1" />);
-    expect(screen.getAllByText("Attention links tokens.").length).toBeGreaterThan(0);
-    expect(screen.getByText("근거 2개")).toBeInTheDocument();
-    expect(screen.getByText("Transformer Paper")).toBeInTheDocument();
-  });
-
-  it("clicking a card with firstNoteId opens preview tab", () => {
-    tabsAddOrReplace.mockClear();
-    (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
-      data: {
-        viewType: "cards",
-        layout: "preset",
-        rootId: null,
-        nodes: [
-          {
-            id: "11111111-1111-4111-8111-111111111111",
-            name: "Trans",
-            firstNoteId: "33333333-3333-4333-8333-333333333333",
-          },
-        ],
-        edges: [],
-        truncated: false,
-        totalConcepts: 1,
-      },
-      isLoading: false,
-      error: null,
-    });
-    wrap(<CardsView projectId="p-1" />);
-    fireEvent.click(screen.getByText("Trans"));
-    expect(tabsAddOrReplace).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: "note",
-        targetId: "33333333-3333-4333-8333-333333333333",
-        mode: "plate",
-      }),
-    );
+    expect(screen.getByText("Transformer")).toBeInTheDocument();
   });
 });
