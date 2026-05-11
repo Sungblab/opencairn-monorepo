@@ -187,6 +187,15 @@ export function DocumentGenerationForm({
     selectedSources.length > 0
       ? t("selectedCount", { count: selectedSources.length })
       : t("selectedNone");
+  const isImageMode = format === "image";
+  const toggleLabel = isImageMode ? t("toggleFigure") : t("toggle");
+  const promptPlaceholder = isImageMode
+    ? t("figurePromptPlaceholder")
+    : t("promptPlaceholder");
+  const sourceRequired = isImageMode
+    ? t("figureSourceRequired")
+    : t("sourceRequired");
+  const submitLabel = isImageMode ? t("submitFigure") : t("submit");
 
   async function pollAction(actionId: string): Promise<void> {
     for (;;) {
@@ -247,7 +256,7 @@ export function DocumentGenerationForm({
       >
         <span className="inline-flex items-center gap-1.5">
           <FilePlus2 aria-hidden="true" className="h-3.5 w-3.5" />
-          {t("toggle")}
+          {toggleLabel}
         </span>
         <span className="text-muted-foreground">{selectedSummary}</span>
       </button>
@@ -389,11 +398,11 @@ export function DocumentGenerationForm({
             aria-label="prompt"
             className="min-h-20 resize-none rounded border border-border bg-background px-2 py-1.5 text-xs"
             value={prompt}
-            placeholder={t("promptPlaceholder")}
+            placeholder={promptPlaceholder}
             onChange={(event) => setPrompt(event.target.value)}
           />
           {selectedSources.length === 0 ? (
-            <p className="text-xs text-muted-foreground">{t("sourceRequired")}</p>
+            <p className="text-xs text-muted-foreground">{sourceRequired}</p>
           ) : null}
           {error ? (
             <p role="alert" className="text-xs text-red-600">
@@ -409,7 +418,7 @@ export function DocumentGenerationForm({
             {busy ? (
               <LoaderCircle aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
             ) : null}
-            {t("submit")}
+            {submitLabel}
           </button>
         </div>
       ) : null}

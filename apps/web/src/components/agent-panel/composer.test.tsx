@@ -238,6 +238,26 @@ describe("Composer", () => {
     });
   });
 
+  it("discovers the figure generation slash command", () => {
+    const onSend = vi.fn();
+    render(<Composer onSend={onSend} />);
+    const ta = screen.getByPlaceholderText(PLACEHOLDER);
+
+    fireEvent.change(ta, { target: { value: "/figure" } });
+    fireEvent.click(
+      screen.getByRole("option", {
+        name: /agentPanel\.composer\.slash\.command\.generate_figure/,
+      }),
+    );
+    fireEvent.click(screen.getByLabelText(SEND_LABEL));
+
+    expect(onSend).toHaveBeenCalledWith({
+      content: "agentPanel.composer.slash.prompt.generate_figure",
+      mode: "balanced",
+      command: "generate_figure",
+    });
+  });
+
   it("supports keyboard navigation in the slash command menu", () => {
     const onSend = vi.fn();
     render(<Composer onSend={onSend} />);
