@@ -44,6 +44,7 @@ import {
   type AgentCommandId,
 } from "./agent-commands";
 import { ModeSelector, type ChatMode } from "./mode-selector";
+import type { ActionApprovalMode } from "./context-manifest";
 import {
   dataTransferHasProjectTreeNode,
   dataTransferHasFiles,
@@ -63,6 +64,8 @@ interface Props {
   activeContextLabel?: string;
   activeContextEnabled?: boolean;
   onToggleActiveContext?(): void;
+  actionApprovalMode?: ActionApprovalMode;
+  onToggleActionApprovalMode?(): void;
   attachDisabled?: boolean;
   disabled?: boolean;
 }
@@ -75,6 +78,8 @@ export function Composer({
   activeContextLabel,
   activeContextEnabled = true,
   onToggleActiveContext,
+  actionApprovalMode = "require",
+  onToggleActionApprovalMode,
   attachDisabled,
   disabled,
 }: Props) {
@@ -328,6 +333,20 @@ export function Composer({
               <Sparkles aria-hidden className="h-4 w-4" />
               {t("addMenu.memoryOff")}
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuCheckboxItem
+              checked={actionApprovalMode === "auto_safe"}
+              disabled={disabled}
+              onCheckedChange={() => onToggleActionApprovalMode?.()}
+              className="min-h-8 rounded-[var(--radius-control)] px-2 py-1.5 text-sm hover:bg-muted focus:bg-muted"
+            >
+              <Sparkles aria-hidden className="h-4 w-4" />
+              {t(
+                actionApprovalMode === "auto_safe"
+                  ? "addMenu.autoApplyOn"
+                  : "addMenu.autoApplyOff",
+              )}
+            </DropdownMenuCheckboxItem>
           </DropdownMenuContent>
         </DropdownMenu>
         <input

@@ -31,6 +31,11 @@ export const agentActionRiskSchema = z.enum([
   "expensive",
 ]);
 
+export const agentActionApprovalModeSchema = z.enum([
+  "require",
+  "auto_safe",
+]);
+
 export const agentActionKindSchema = z.enum([
   "workflow.placeholder",
   "note.create",
@@ -211,6 +216,7 @@ export const createAgentActionRequestSchema = z
     sourceRunId: z.string().trim().min(1).max(200).optional(),
     kind: agentActionKindSchema,
     risk: agentActionRiskSchema,
+    approvalMode: agentActionApprovalModeSchema.default("auto_safe"),
     input: jsonRecordSchema.optional(),
     preview: jsonRecordSchema.optional(),
   })
@@ -283,6 +289,7 @@ export const agentActionEventSchema = z.object({
 
 export type AgentActionStatus = z.infer<typeof agentActionStatusSchema>;
 export type AgentActionRisk = z.infer<typeof agentActionRiskSchema>;
+export type AgentActionApprovalMode = z.infer<typeof agentActionApprovalModeSchema>;
 export type AgentActionKind = z.infer<typeof agentActionKindSchema>;
 export type NoteCreateActionInput = z.infer<typeof noteCreateActionInputSchema>;
 export type NoteRenameActionInput = z.infer<typeof noteRenameActionInputSchema>;
@@ -303,7 +310,7 @@ export type Phase2ANoteActionInput =
   | NoteMoveActionInput
   | NoteDeleteActionInput
   | NoteRestoreActionInput;
-export type CreateAgentActionRequest = z.infer<typeof createAgentActionRequestSchema>;
+export type CreateAgentActionRequest = z.input<typeof createAgentActionRequestSchema>;
 export type TransitionAgentActionStatusRequest = z.infer<typeof transitionAgentActionStatusRequestSchema>;
 export type AgentAction = z.infer<typeof agentActionSchema>;
 export type AgentActionEvent = z.infer<typeof agentActionEventSchema>;

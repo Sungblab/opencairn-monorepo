@@ -34,6 +34,7 @@ export interface StreamingAgentMessage {
   citations: unknown[];
   save_suggestion: unknown | null;
   agent_files: unknown[];
+  agent_actions: unknown[];
   project_objects: unknown[];
   project_object_generations: unknown[];
   // Populated when the route emits `event: error` mid-stream. `done` still
@@ -51,6 +52,7 @@ const initialLive: StreamingAgentMessage = {
   citations: [],
   save_suggestion: null,
   agent_files: [],
+  agent_actions: [],
   project_objects: [],
   project_object_generations: [],
   error: null,
@@ -124,6 +126,17 @@ export function useChatSend(threadId: string | null) {
               case "save_suggestion":
                 return isObj(payload)
                   ? { ...prev, save_suggestion: payload }
+                  : prev;
+              case "agent_action_created":
+                void qc.invalidateQueries({ queryKey: ["agent-actions"] });
+                return isObj(payload)
+                  ? {
+                      ...prev,
+                      agent_actions: [
+                        ...prev.agent_actions,
+                        payload.action ?? payload,
+                      ],
+                    }
                   : prev;
               case "agent_file_created":
                 return isObj(payload)

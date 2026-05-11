@@ -167,6 +167,71 @@ describe("agent action service", () => {
     });
   });
 
+  it("keeps ask-before-action note.create rows pending until approved", async () => {
+    const repo = createMemoryRepo();
+    const noteExecutor = createMemoryNoteExecutor();
+
+    const { action } = await createAgentAction(
+      projectId,
+      userId,
+      {
+        requestId,
+        kind: "note.create",
+        risk: "write",
+        approvalMode: "require",
+        input: { title: "Agent brief", folderId: null },
+      },
+      { repo, canWriteProject: async () => true, noteExecutor },
+    );
+
+    expect(action).toMatchObject({
+      kind: "note.create",
+      status: "approval_required",
+      result: null,
+      errorCode: null,
+    });
+    expect(noteExecutor.calls).toEqual([]);
+
+    const applied = await applyAgentAction(action.id, userId, {}, {
+      repo,
+      canWriteProject: async () => true,
+      noteExecutor,
+    });
+
+    expect(noteExecutor.calls.map((call) => call.kind)).toEqual(["note.create"]);
+    expect(applied).toMatchObject({
+      kind: "note.create",
+      status: "completed",
+      result: {
+        ok: true,
+        note: {
+          title: "Agent brief",
+        },
+      },
+    });
+  });
+
+  it("requires approval for destructive note actions even in auto-safe mode", async () => {
+    const repo = createMemoryRepo();
+    const noteExecutor = createMemoryNoteExecutor();
+
+    const { action } = await createAgentAction(
+      projectId,
+      userId,
+      {
+        requestId,
+        kind: "note.delete",
+        risk: "destructive",
+        approvalMode: "auto_safe",
+        input: { noteId: "00000000-0000-4000-8000-000000000021" },
+      },
+      { repo, canWriteProject: async () => true, noteExecutor },
+    );
+
+    expect(action.status).toBe("approval_required");
+    expect(noteExecutor.calls).toEqual([]);
+  });
+
   it("marks note action execution failures on the ledger", async () => {
     const repo = createMemoryRepo();
     const noteExecutor = createMemoryNoteExecutor({
@@ -228,7 +293,7 @@ describe("agent action service", () => {
       },
       { repo, canWriteProject: async () => true, noteExecutor },
     );
-    await executeAgentAction(
+    const deleteAction = await executeAgentAction(
       projectId,
       userId,
       {
@@ -239,6 +304,7 @@ describe("agent action service", () => {
       },
       { repo, canWriteProject: async () => true, noteExecutor },
     );
+    expect(deleteAction.action.status).toBe("approval_required");
     await executeAgentAction(
       projectId,
       userId,
@@ -254,8 +320,20 @@ describe("agent action service", () => {
     expect(noteExecutor.calls.map((call) => call.kind)).toEqual([
       "note.rename",
       "note.move",
-      "note.delete",
       "note.restore",
+    ]);
+
+    await applyAgentAction(deleteAction.action.id, userId, {}, {
+      repo,
+      canWriteProject: async () => true,
+      noteExecutor,
+    });
+
+    expect(noteExecutor.calls.map((call) => call.kind)).toEqual([
+      "note.rename",
+      "note.move",
+      "note.restore",
+      "note.delete",
     ]);
   });
 

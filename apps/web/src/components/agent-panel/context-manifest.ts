@@ -8,6 +8,7 @@ export type SourcePolicy =
   | "workspace";
 export type MemoryPolicy = "auto" | "off";
 export type ExternalSearchPolicy = "off" | "allowed";
+export type ActionApprovalMode = "require" | "auto_safe";
 
 export type ContextManifest = {
   workspaceId: string | null;
@@ -19,6 +20,7 @@ export type ContextManifest = {
   sourcePolicy: SourcePolicy;
   memoryPolicy: MemoryPolicy;
   externalSearch: ExternalSearchPolicy;
+  actionApprovalMode: ActionApprovalMode;
   command?: string;
   attachedArtifacts?: Array<{
     type: ProjectTreeDragPayload["kind"];
@@ -87,6 +89,7 @@ export async function buildAgentContextPayload(opts: {
   sourcePolicy: SourcePolicy;
   memoryPolicy: MemoryPolicy;
   externalSearch: ExternalSearchPolicy;
+  actionApprovalMode?: ActionApprovalMode;
   command?: string;
   resolveNoteProjectId?: (noteId: string) => Promise<string | null>;
   fallbackProjectId?: string | null;
@@ -151,6 +154,7 @@ export async function buildAgentContextPayload(opts: {
     sourcePolicy: opts.sourcePolicy,
     memoryPolicy: opts.memoryPolicy,
     externalSearch: opts.externalSearch,
+    actionApprovalMode: opts.actionApprovalMode ?? "require",
     ...(opts.command ? { command: opts.command } : {}),
     ...(attachedArtifacts.length > 0 ? { attachedArtifacts } : {}),
   };

@@ -21,13 +21,17 @@ import { extractSaveSuggestion } from "./save-suggestion-fence";
 import { extractAgentFileFence } from "./agent-file-fence";
 import { envInt } from "./env";
 import { getChatProvider } from "./llm";
+import {
+  extractAgentActionFence,
+  type AgentActionFence,
+  type CreateAgentFilePayload,
+} from "@opencairn/shared";
 import type {
   ChatMsg,
   GroundedSearchSource,
   LLMProvider,
   Usage,
 } from "./llm/provider";
-import type { CreateAgentFilePayload } from "@opencairn/shared";
 
 export type ChatCitation = Citation & {
   index: number;
@@ -45,6 +49,7 @@ export type ChatChunk =
       type: "save_suggestion";
       payload: { title: string; body_markdown: string };
     }
+  | { type: "agent_action"; payload: AgentActionFence }
   | { type: "agent_file"; payload: { files: CreateAgentFilePayload[] } }
   | {
       type: "verification";
@@ -83,6 +88,17 @@ const SYSTEM_PROMPT = [
   "",
   "Use this for Markdown, text, LaTeX, HTML, code, JSON, CSV, PDF/DOCX/PPTX base64, and images.",
   "Do not invent object keys or URLs. The server stores the bytes, indexes the file, and returns links.",
+  "",
+  "If the user asks you to create, update, rename, move, delete, restore, or run project work,",
+  "prefer typed agent actions instead of saying you completed the change.",
+  "Append exactly one fenced block at the very end of your reply, in this exact form:",
+  "",
+  "```agent-actions",
+  `{"actions":[{"kind":"note.create","risk":"write","input":{"title":"Example","folderId":null}}]}`,
+  "```",
+  "",
+  "Do not include workspaceId, projectId, userId, actorUserId, or pageId in action inputs.",
+  "The server injects trusted scope, applies approval policy, and records the action ledger.",
 ].join("\n");
 
 export async function* runChat(opts: {
@@ -249,6 +265,10 @@ export async function* runChat(opts: {
     const agentFile = extractAgentFileFence(full);
     if (agentFile) {
       yield { type: "agent_file", payload: agentFile };
+    }
+    const agentAction = extractAgentActionFence(full);
+    if (agentAction) {
+      yield { type: "agent_action", payload: agentAction };
     }
 
     if (usage) yield { type: "usage", payload: usage };
