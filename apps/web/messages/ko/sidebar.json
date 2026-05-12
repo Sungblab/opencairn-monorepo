@@ -25,7 +25,9 @@
   },
   "nav": {
     "dashboard": "대시보드",
+    "dashboard_short": "대시",
     "project_home": "프로젝트 홈",
+    "project_home_short": "홈",
     "research": "Deep Research",
     "import": "가져오기",
     "literature": "논문 검색",
@@ -52,6 +54,7 @@
   },
   "sections": {
     "create": "빠른 생성",
+    "active_work": "진행 중",
     "favorites": "즐겨찾기",
     "files": "파일",
     "recent": "최근 항목",
@@ -71,7 +74,7 @@
   },
   "agent_actions": {
     "ask_ai": "AI에게 질문",
-    "ask_ai_short": "AI"
+    "ask_ai_short": "질문"
   },
   "more_menu": {
     "atlas": "Ontology Atlas",

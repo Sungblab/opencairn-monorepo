@@ -1,6 +1,6 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
+import { MessageSquare } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { MouseEvent } from "react";
@@ -75,11 +75,11 @@ export function SidebarNoteAiButton({
       title={label}
       onClick={handleClick}
       className={cn(
-        "inline-flex h-6 shrink-0 items-center gap-1 rounded-[var(--radius-control)] border border-border/70 bg-background/80 px-1.5 text-[10px] font-semibold leading-none text-muted-foreground shadow-sm transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border/70 bg-background/80 px-1.5 text-[10px] font-semibold leading-none text-muted-foreground shadow-sm transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         className,
       )}
     >
-      <Sparkles aria-hidden className="h-3 w-3" />
+      <MessageSquare aria-hidden className="h-3 w-3" />
       <span>{t("ask_ai_short")}</span>
     </button>
   );
