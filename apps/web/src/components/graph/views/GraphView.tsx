@@ -248,8 +248,11 @@ export default function GraphView({ projectId }: { projectId: string }) {
   const params = useParams<{ wsSlug: string }>();
   const searchParams = useSearchParams();
   const wsSlug = params?.wsSlug;
-  const { data, isLoading, error, expand } = useProjectGraph(projectId);
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
+  const searchQuery = filters.search.trim() || undefined;
+  const { data, isLoading, error, expand } = useProjectGraph(projectId, {
+    query: searchQuery,
+  });
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [selectedCoMentionEdgeId, setSelectedCoMentionEdgeId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);

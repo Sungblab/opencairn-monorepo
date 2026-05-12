@@ -168,7 +168,7 @@ describe("GraphView", () => {
     });
 
     await act(async () => {
-      qc.setQueryData(["project-graph", "p1", "graph", null], {
+      qc.setQueryData(["project-graph", "p1", "graph", null, null], {
         ...data,
         edges: [...data.edges],
       });

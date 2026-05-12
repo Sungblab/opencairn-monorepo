@@ -14,6 +14,7 @@ const STALE_MS = 30_000;
 interface Options {
   view?: ViewType;
   root?: string;
+  query?: string;
 }
 
 const GROUNDED_VIEWS = new Set<ViewType>([
@@ -35,6 +36,8 @@ async function fetchGraphView(
   const view = opts.view ?? "graph";
   params.set("view", view);
   if (opts.root) params.set("root", opts.root);
+  const query = opts.query?.trim();
+  if (query) params.set("query", query);
   let path = `/api/projects/${projectId}/graph`;
   if (GROUNDED_VIEWS.has(view)) {
     path = `/api/projects/${projectId}/knowledge-surface`;
@@ -77,6 +80,7 @@ function groundedFromInline(inline: ViewSpec): GroundedGraphResponse {
 export function useProjectGraph(projectId: string, opts: Options = {}) {
   const view = opts.view ?? "graph";
   const root = opts.root ?? null;
+  const queryText = opts.query?.trim() || null;
   // Inline ViewSpec emitted by the Visualization Agent takes priority — when
   // present we synthesise a GraphViewResponse from it and skip the network
   // round-trip entirely (Plan 5 Phase 2 § view-state-store).
@@ -84,7 +88,7 @@ export function useProjectGraph(projectId: string, opts: Options = {}) {
   const qc = useQueryClient();
   // Cache key is partitioned by (projectId, view, root) so switching views
   // doesn't blow away the previous view's data and triggers an isolated fetch.
-  const queryKey = ["project-graph", projectId, view, root] as const;
+  const queryKey = ["project-graph", projectId, view, root, queryText] as const;
 
   const query = useQuery<GroundedGraphResponse>({
     queryKey,

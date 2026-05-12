@@ -131,6 +131,24 @@ describe("useProjectGraph view+root extension", () => {
     expect(url).toContain("includeEvidence=true");
   });
 
+  it("passes query through to the grounded knowledge-surface endpoint", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({
+        viewType: "graph", layout: "fcose", rootId: null,
+        nodes: [], edges: [], truncated: false, totalConcepts: 0,
+      })),
+    );
+    const { result } = renderHook(
+      () => useProjectGraph("proj-1", { view: "graph", query: "Alpha Beta" }),
+      { wrapper: wrap() },
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    const url = (fetchSpy.mock.calls[0]?.[0] as string) ?? "";
+    expect(url).toContain("/api/projects/proj-1/knowledge-surface?");
+    expect(url).toContain("view=graph");
+    expect(url).toContain("query=Alpha+Beta");
+  });
+
   it("uses inline ViewSpec from store when present, skips fetch", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     const spec: ViewSpec = {
