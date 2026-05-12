@@ -172,9 +172,17 @@ export default function BoardView({ projectId, root }: Props) {
                     ? "stroke-emerald-500/30"
                     : edge.surfaceType === "wiki_link"
                       ? "stroke-blue-500/55"
-                    : "stroke-foreground/20"
+                      : edge.surfaceType === "source_membership"
+                        ? "stroke-amber-500/55"
+                        : "stroke-foreground/20"
                 }
-                strokeDasharray={edge.surfaceType === "co_mention" ? "5 7" : undefined}
+                strokeDasharray={
+                  edge.surfaceType === "co_mention"
+                    ? "5 7"
+                    : edge.surfaceType === "source_membership"
+                      ? "7 4"
+                      : undefined
+                }
                 strokeWidth={edge.surfaceType === "co_mention" ? 1 : 2}
               />
             );

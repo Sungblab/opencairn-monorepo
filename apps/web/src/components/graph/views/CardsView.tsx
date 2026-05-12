@@ -223,15 +223,27 @@ export default function CardsView({ projectId }: Props) {
                           ? active
                             ? "stroke-blue-500/65"
                             : "stroke-blue-500/20"
+                        : edge.surfaceType === "source_membership"
+                          ? active
+                            ? "stroke-amber-500/65"
+                            : "stroke-amber-500/20"
                         : active
                           ? "stroke-foreground/45"
                           : "stroke-foreground/12"
                     }
-                    strokeDasharray={edge.surfaceType === "co_mention" ? "4 6" : undefined}
+                    strokeDasharray={
+                      edge.surfaceType === "co_mention"
+                        ? "4 6"
+                        : edge.surfaceType === "source_membership"
+                          ? "7 4"
+                          : undefined
+                    }
                     opacity={active ? 1 : 0.55}
                     strokeWidth={
                       edge.surfaceType === "co_mention"
                         ? Math.max(0.75, Math.min(1.5, (edge.weight ?? 1) * 1.5))
+                        : edge.surfaceType === "source_membership"
+                          ? Math.max(1, Math.min(2.5, (edge.weight ?? 1) * 2))
                         : Math.max(1, Math.min(3, (edge.weight ?? 1) * 2))
                     }
                     markerEnd={

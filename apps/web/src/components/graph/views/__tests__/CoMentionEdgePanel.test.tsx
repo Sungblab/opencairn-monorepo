@@ -41,4 +41,37 @@ describe("CoMentionEdgePanel", () => {
     expect(screen.getByText("Lecture 2 input/output")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: koGraph.coMention.openSource })).toBeInTheDocument();
   });
+
+  it("explains source proximity links with chunk context", () => {
+    wrap({
+      id: "a->b:source-proximity",
+      sourceId: "11111111-1111-4111-8111-111111111111",
+      targetId: "22222222-2222-4222-8222-222222222222",
+      relationType: "source-proximity",
+      weight: 1,
+      surfaceType: "source_membership",
+      displayOnly: true,
+      sourceNoteIds: ["33333333-3333-4333-8333-333333333333"],
+      sourceNotes: [
+        {
+          id: "33333333-3333-4333-8333-333333333333",
+          title: "Lecture 2 input/output",
+        },
+      ],
+      sourceContexts: [
+        {
+          noteId: "33333333-3333-4333-8333-333333333333",
+          noteTitle: "Lecture 2 input/output",
+          chunkId: "44444444-4444-4444-8444-444444444444",
+          headingPath: "Evidence",
+          chunkIndex: 0,
+        },
+      ],
+    });
+
+    expect(screen.getByText(koGraph.coMention.sourceTitle)).toBeInTheDocument();
+    expect(screen.getByText(koGraph.coMention.sourceSubtitle)).toBeInTheDocument();
+    expect(screen.getByText("Lecture 2 input/output")).toBeInTheDocument();
+    expect(screen.getByText("Evidence")).toBeInTheDocument();
+  });
 });

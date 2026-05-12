@@ -21,6 +21,13 @@ export type GroundedEdge = GraphViewResponse["edges"][number] & {
   displayOnly?: boolean;
   sourceNoteIds?: string[];
   sourceNotes?: Array<{ id: string; title: string }>;
+  sourceContexts?: Array<{
+    noteId: string;
+    noteTitle: string;
+    chunkId?: string;
+    headingPath?: string;
+    chunkIndex?: number;
+  }>;
   support?: EdgeSupport;
 };
 

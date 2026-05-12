@@ -284,6 +284,16 @@ export default function MindmapView({ projectId, root }: Props) {
               opacity: 0.82,
             },
           },
+          {
+            selector: 'edge[surfaceType = "source_membership"]',
+            style: {
+              "line-color": "#f59e0b",
+              "target-arrow-color": "#f59e0b",
+              "line-style": "dashed",
+              width: 2,
+              opacity: 0.8,
+            },
+          },
         ] as cytoscape.StylesheetJsonBlock[]
       }
       cy={(cy: cytoscape.Core) => {

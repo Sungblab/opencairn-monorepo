@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   conceptEdgeEvidence,
   conceptEdges,
+  conceptExtractionChunks,
+  conceptExtractions,
   conceptNotes,
   concepts,
   db,
@@ -23,6 +25,7 @@ const app = createApp();
 async function seedSupportedEdge(ctx: SeedResult): Promise<{
   edgeId: string;
   bundleId: string;
+  chunkId: string;
   sourceConceptId: string;
   targetConceptId: string;
 }> {
@@ -120,6 +123,7 @@ async function seedSupportedEdge(ctx: SeedResult): Promise<{
   return {
     edgeId: edge.id,
     bundleId: bundle.id,
+    chunkId,
     sourceConceptId: source.id,
     targetConceptId: target.id,
   };
@@ -241,6 +245,96 @@ describe("GET /api/projects/:projectId/knowledge-surface", () => {
           sourceNoteIds: expect.arrayContaining([ctx.noteId, targetNote.id]),
           sourceNotes: expect.arrayContaining([
             expect.objectContaining({ id: targetNote.id, title: "Linked wiki note" }),
+          ]),
+        }),
+      ]),
+    );
+  });
+
+  it("projects same-chunk source proximity into knowledge surface edges", async () => {
+    const seeded = await seedSupportedEdge(ctx);
+    const [sourceExtraction] = await db
+      .insert(conceptExtractions)
+      .values({
+        workspaceId: ctx.workspaceId,
+        projectId: ctx.projectId,
+        conceptId: seeded.sourceConceptId,
+        name: "Source proximity concept",
+        kind: "concept",
+        normalizedName: "source proximity concept",
+        description: "Extracted from the same source chunk.",
+        confidence: 0.9,
+        evidenceBundleId: seeded.bundleId,
+        sourceNoteId: ctx.noteId,
+      })
+      .returning({ id: conceptExtractions.id });
+    const [targetExtraction] = await db
+      .insert(conceptExtractions)
+      .values({
+        workspaceId: ctx.workspaceId,
+        projectId: ctx.projectId,
+        conceptId: seeded.targetConceptId,
+        name: "Target proximity concept",
+        kind: "concept",
+        normalizedName: "target proximity concept",
+        description: "Extracted from the same source chunk.",
+        confidence: 0.88,
+        evidenceBundleId: seeded.bundleId,
+        sourceNoteId: ctx.noteId,
+      })
+      .returning({ id: conceptExtractions.id });
+    await db.insert(conceptExtractionChunks).values([
+      {
+        extractionId: sourceExtraction.id,
+        noteChunkId: seeded.chunkId,
+        supportScore: 0.93,
+        quote: "source quote",
+      },
+      {
+        extractionId: targetExtraction.id,
+        noteChunkId: seeded.chunkId,
+        supportScore: 0.91,
+        quote: "target quote",
+      },
+    ]);
+
+    const res = await app.request(
+      `/api/projects/${ctx.projectId}/knowledge-surface?view=graph`,
+      { headers: { cookie: await signSessionCookie(ctx.userId) } },
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      edges: Array<{
+        relationType: string;
+        surfaceType?: string;
+        displayOnly?: boolean;
+        sourceNoteIds?: string[];
+        sourceNotes?: Array<{ id: string; title: string }>;
+        sourceContexts?: Array<{
+          noteId: string;
+          noteTitle: string;
+          chunkId: string;
+          headingPath: string;
+          chunkIndex: number;
+        }>;
+      }>;
+    };
+    expect(body.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          relationType: "source-proximity",
+          surfaceType: "source_membership",
+          displayOnly: true,
+          sourceNoteIds: [ctx.noteId],
+          sourceNotes: [expect.objectContaining({ id: ctx.noteId })],
+          sourceContexts: expect.arrayContaining([
+            expect.objectContaining({
+              noteId: ctx.noteId,
+              chunkId: seeded.chunkId,
+              headingPath: "Evidence",
+              chunkIndex: 0,
+            }),
           ]),
         }),
       ]),

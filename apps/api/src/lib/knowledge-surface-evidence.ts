@@ -44,6 +44,8 @@ const CARDS_LIMIT = 80;
 const TIMELINE_LIMIT = 80;
 const BOARD_CAP = 200;
 const WIKI_LINK_EDGE_LIMIT = 500;
+const SOURCE_PROXIMITY_EDGE_LIMIT = 700;
+const SOURCE_PROXIMITY_MAX_CONCEPTS_PER_CHUNK = 40;
 const CO_MENTION_EDGE_LIMIT = 900;
 const CO_MENTION_MAX_CONCEPTS_PER_NOTE = 80;
 const EVIDENCE_BUNDLE_FETCH_CONCURRENCY = 8;
@@ -272,6 +274,114 @@ async function selectWikiLinkEdges(
       sourceNotes: sourceNoteIds
         .map((id) => sourceNoteTitles.get(id))
         .filter((note): note is { id: string; title: string } => Boolean(note)),
+      support: missingSupport(),
+    };
+  });
+}
+
+async function selectSourceProximityEdges(
+  projectId: string,
+  conceptIds: string[],
+): Promise<KnowledgeSurfaceEdge[]> {
+  if (conceptIds.length < 2) return [];
+  const idArr = sql.join(
+    conceptIds.map((id) => sql`${id}::uuid`),
+    sql`, `,
+  );
+  type SourceProximityRow = {
+    source_id: string;
+    target_id: string;
+    chunk_count: number;
+    source_note_ids: string[] | null;
+    source_contexts: Array<{
+      noteId: string;
+      noteTitle: string;
+      chunkId: string;
+      headingPath: string;
+      chunkIndex: number;
+    }> | null;
+  };
+  const raw = await db.execute(sql`
+    WITH selected_chunks AS (
+      SELECT
+        ce.concept_id,
+        cec.note_chunk_id,
+        nc.note_id,
+        nc.heading_path,
+        nc.chunk_index,
+        n.title AS note_title
+      FROM concept_extractions ce
+      JOIN concept_extraction_chunks cec
+        ON cec.extraction_id = ce.id
+      JOIN note_chunks nc
+        ON nc.id = cec.note_chunk_id
+       AND nc.deleted_at IS NULL
+      JOIN notes n
+        ON n.id = nc.note_id
+       AND n.deleted_at IS NULL
+      WHERE ce.project_id = ${projectId}
+        AND ce.concept_id = ANY(ARRAY[${idArr}])
+        AND ce.concept_id IS NOT NULL
+        AND nc.project_id = ${projectId}
+        AND n.project_id = ${projectId}
+    ),
+    bounded_chunks AS (
+      SELECT note_chunk_id
+      FROM selected_chunks
+      GROUP BY note_chunk_id
+      HAVING count(DISTINCT concept_id) BETWEEN 2 AND ${SOURCE_PROXIMITY_MAX_CONCEPTS_PER_CHUNK}
+    ),
+    pairs AS (
+      SELECT
+        LEAST(a.concept_id, b.concept_id) AS source_id,
+        GREATEST(a.concept_id, b.concept_id) AS target_id,
+        a.note_chunk_id,
+        a.note_id,
+        a.heading_path,
+        a.chunk_index,
+        a.note_title
+      FROM selected_chunks a
+      JOIN selected_chunks b
+        ON a.note_chunk_id = b.note_chunk_id
+       AND a.concept_id < b.concept_id
+      JOIN bounded_chunks bc
+        ON bc.note_chunk_id = a.note_chunk_id
+    )
+    SELECT
+      source_id,
+      target_id,
+      count(DISTINCT note_chunk_id)::int AS chunk_count,
+      array_agg(DISTINCT note_id) AS source_note_ids,
+      jsonb_agg(DISTINCT jsonb_build_object(
+        'noteId', note_id,
+        'noteTitle', COALESCE(NULLIF(note_title, ''), 'Untitled'),
+        'chunkId', note_chunk_id,
+        'headingPath', COALESCE(heading_path, ''),
+        'chunkIndex', chunk_index
+      )) AS source_contexts
+    FROM pairs
+    GROUP BY source_id, target_id
+    ORDER BY chunk_count DESC, source_id ASC, target_id ASC
+    LIMIT ${SOURCE_PROXIMITY_EDGE_LIMIT}
+  `);
+  const rows = ((raw as { rows?: SourceProximityRow[] }).rows ?? raw) as SourceProximityRow[];
+  const maxChunks = Math.max(1, ...rows.map((row) => Number(row.chunk_count)));
+  return rows.map((row) => {
+    const sourceContexts = row.source_contexts ?? [];
+    return {
+      id: edgeKey(row.source_id, row.target_id, "source-proximity"),
+      sourceId: row.source_id,
+      targetId: row.target_id,
+      relationType: "source-proximity",
+      weight: normalizeEdgeWeight(Number(row.chunk_count), maxChunks),
+      surfaceType: "source_membership",
+      displayOnly: true,
+      sourceNoteIds: row.source_note_ids ?? [],
+      sourceNotes: sourceContexts.map((ctx) => ({
+        id: ctx.noteId,
+        title: ctx.noteTitle,
+      })),
+      sourceContexts,
       support: missingSupport(),
     };
   });
@@ -639,6 +749,7 @@ export async function getKnowledgeSurfaceForUser(
       : (
           await Promise.all([
             selectWikiLinkEdges(projectId, base.nodes.map((node) => node.id)),
+            selectSourceProximityEdges(projectId, base.nodes.map((node) => node.id)),
             selectCoMentionEdges(base.nodes.map((node) => node.id)),
           ])
         ).flat();

@@ -520,6 +520,11 @@ export default function GraphView({ projectId }: { projectId: string }) {
                 ? "rgba(59, 130, 246, 0.62)"
                 : "rgba(59, 130, 246, 0.18)";
             }
+            if (link.surfaceType === "source_membership") {
+              return linkActive(link)
+                ? "rgba(245, 158, 11, 0.66)"
+                : "rgba(245, 158, 11, 0.20)";
+            }
             if (!linkActive(link)) return palette.inactiveLink;
             const status = link.supportStatus;
             if (status === "supported") return palette.supportedLink;
@@ -537,6 +542,10 @@ export default function GraphView({ projectId }: { projectId: string }) {
                 ? linkActive(link)
                   ? Math.max(1.1, Math.min(2.4, link.weight * 2.2))
                   : 0.4
+              : link.surfaceType === "source_membership"
+                ? linkActive(link)
+                  ? Math.max(0.95, Math.min(2.1, link.weight * 1.9))
+                  : 0.35
               : linkActive(link)
               ? Math.max(0.8, Math.min(2.2, link.weight * 1.35))
               : 0.35
@@ -545,6 +554,7 @@ export default function GraphView({ projectId }: { projectId: string }) {
           linkDirectionalArrowRelPos={1}
           linkLineDash={(link) => {
             if (link.surfaceType === "co_mention") return [3, 5];
+            if (link.surfaceType === "source_membership") return [7, 4];
             const status = link.supportStatus;
             if (status === "weak") return [4, 3];
             if (status === "missing") return [2, 4];

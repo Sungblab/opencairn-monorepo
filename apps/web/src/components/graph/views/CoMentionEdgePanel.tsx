@@ -13,14 +13,41 @@ interface Props {
 export function CoMentionEdgePanel({ edge, onClose, onOpenNote }: Props) {
   const t = useTranslations("graph.coMention");
   const isWikiLink = edge.surfaceType === "wiki_link";
+  const isSourceProximity = edge.surfaceType === "source_membership";
+  const titleKey = isWikiLink
+    ? "wikiTitle"
+    : isSourceProximity
+      ? "sourceTitle"
+      : "title";
+  const subtitleKey = isWikiLink
+    ? "wikiSubtitle"
+    : isSourceProximity
+      ? "sourceSubtitle"
+      : "subtitle";
+  const bodyKey = isWikiLink
+    ? "wikiBody"
+    : isSourceProximity
+      ? "sourceBody"
+      : "body";
   const sourceNoteIds = edge.sourceNoteIds ?? [];
   const sourceNoteById = new Map(
     (edge.sourceNotes ?? []).map((note) => [note.id, note]),
   );
   const sourceNotes =
-    sourceNoteIds.length > 0
-      ? sourceNoteIds.map((id) => sourceNoteById.get(id) ?? { id, title: id })
-      : edge.sourceNotes ?? [];
+    isSourceProximity && edge.sourceContexts?.length
+      ? edge.sourceContexts.map((context) => ({
+          id: context.noteId,
+          title: context.noteTitle,
+          detail:
+            context.headingPath?.trim() ||
+            (typeof context.chunkIndex === "number"
+              ? t("chunkIndex", { index: context.chunkIndex + 1 })
+              : null),
+        }))
+      : (sourceNoteIds.length > 0
+          ? sourceNoteIds.map((id) => sourceNoteById.get(id) ?? { id, title: id })
+          : edge.sourceNotes ?? []
+        ).map((note) => ({ ...note, detail: null as string | null }));
 
   return (
     <aside
@@ -30,10 +57,10 @@ export function CoMentionEdgePanel({ edge, onClose, onOpenNote }: Props) {
       <div className="flex items-start justify-between gap-3 border-b px-3 py-3">
         <div className="min-w-0">
           <div className="text-sm font-medium">
-            {t(isWikiLink ? "wikiTitle" : "title")}
+            {t(titleKey)}
           </div>
           <div className="truncate text-xs text-muted-foreground">
-            {t(isWikiLink ? "wikiSubtitle" : "subtitle")}
+            {t(subtitleKey)}
           </div>
         </div>
         <Button
@@ -49,7 +76,7 @@ export function CoMentionEdgePanel({ edge, onClose, onOpenNote }: Props) {
       </div>
       <div className="space-y-3 overflow-y-auto p-3 text-sm">
         <p className="text-xs leading-5 text-muted-foreground">
-          {t(isWikiLink ? "wikiBody" : "body")}
+          {t(bodyKey)}
         </p>
         <div className="rounded-md border border-border bg-muted/30 px-3 py-2">
           <div className="text-xs font-medium">
@@ -63,7 +90,14 @@ export function CoMentionEdgePanel({ edge, onClose, onOpenNote }: Props) {
                   className="flex items-center justify-between gap-2 rounded bg-background px-2 py-1 text-[11px] text-muted-foreground"
                   title={note.title}
                 >
-                  <span className="truncate">{note.title}</span>
+                  <span className="min-w-0">
+                    <span className="block truncate">{note.title}</span>
+                    {note.detail ? (
+                      <span className="block truncate text-[10px] text-muted-foreground/80">
+                        {note.detail}
+                      </span>
+                    ) : null}
+                  </span>
                   {onOpenNote ? (
                     <Button
                       type="button"
