@@ -128,6 +128,10 @@
     "comments": "Comments",
     "agents": "AI work",
     "ask_ai": "Ask AI",
+    "improve": "Improve",
+    "correct": "Correct",
+    "explain": "Explain",
+    "more": "More",
     "narrate": "Create audio",
     "review_ai_work": "Review"
   },

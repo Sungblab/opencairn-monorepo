@@ -128,6 +128,10 @@
     "comments": "댓글",
     "agents": "AI 작업",
     "ask_ai": "AI에게 질문",
+    "improve": "개선",
+    "correct": "교정",
+    "explain": "설명",
+    "more": "더보기",
     "narrate": "오디오 생성",
     "review_ai_work": "검토"
   },
