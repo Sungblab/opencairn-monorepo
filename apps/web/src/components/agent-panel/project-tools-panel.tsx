@@ -59,8 +59,11 @@ export function ProjectToolsPanel({
   const t = useTranslations("project.tools");
   const panelT = useTranslations("agentPanel.projectTools");
   const inputRef = useRef<HTMLInputElement>(null);
+  const uploadBatchInFlightRef = useRef(false);
   const [literatureOpen, setLiteratureOpen] = useState(false);
+  const [uploadingLocal, setUploadingLocal] = useState(false);
   const { upload, isUploading } = useIngestUpload();
+  const uploading = isUploading || uploadingLocal;
   const requestDocumentGenerationPreset = useAgentWorkbenchStore(
     (s) => s.requestDocumentGenerationPreset,
   );
@@ -74,9 +77,16 @@ export function ProjectToolsPanel({
 
   function uploadFiles(files: FileList | null) {
     if (!projectId || !files) return;
-    for (const file of Array.from(files)) {
-      void upload(file, projectId).catch(() => {});
-    }
+    const selected = Array.from(files);
+    if (selected.length === 0 || uploadBatchInFlightRef.current) return;
+    uploadBatchInFlightRef.current = true;
+    setUploadingLocal(true);
+    void Promise.allSettled(selected.map((file) => upload(file, projectId))).finally(
+      () => {
+        uploadBatchInFlightRef.current = false;
+        setUploadingLocal(false);
+      },
+    );
     onOpenActivity();
   }
 
@@ -122,7 +132,7 @@ export function ProjectToolsPanel({
 
   function isItemDisabled(item: ToolDiscoveryItem): boolean {
     if (item.action.type === "route") return routeDisabled;
-    if (item.action.type === "upload") return disabled || isUploading;
+    if (item.action.type === "upload") return disabled || uploading;
     return disabled;
   }
 
@@ -143,7 +153,7 @@ export function ProjectToolsPanel({
             <div className="grid grid-cols-2 gap-2">
               {group.items.map((item) => {
                 const title =
-                  item.action.type === "upload" && isUploading
+                  item.action.type === "upload" && uploading
                     ? panelT("importing")
                     : t(`items.${item.i18nKey}.title`);
                 return (

@@ -142,4 +142,28 @@ describe("ProjectToolsPanel", () => {
       }),
     ).toBeDisabled();
   });
+
+  it("ignores repeated file chooser events while an upload is in flight", () => {
+    uploadMock.mockImplementation(() => new Promise(() => {}));
+    const onOpenActivity = vi.fn();
+    const { container } = render(
+      <ProjectToolsPanel
+        projectId="project-1"
+        workspaceId="workspace-1"
+        wsSlug="acme"
+        onRun={vi.fn()}
+        onOpenActivity={onOpenActivity}
+      />,
+    );
+
+    const input = container.querySelector('input[type="file"]');
+    expect(input).toBeInstanceOf(HTMLInputElement);
+    const source = new File(["pdf"], "source.pdf", { type: "application/pdf" });
+
+    fireEvent.change(input!, { target: { files: [source] } });
+    fireEvent.change(input!, { target: { files: [source] } });
+
+    expect(uploadMock).toHaveBeenCalledTimes(1);
+    expect(onOpenActivity).toHaveBeenCalledTimes(1);
+  });
 });
