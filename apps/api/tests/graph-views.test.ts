@@ -172,6 +172,23 @@ describe("GET /api/projects/:id/graph?view=", () => {
     expect(body.edges.length).toBe(5);
   });
 
+  it("view=mindmap treats concept edges as undirected from a spoke root", async () => {
+    const { status, body } = await getGraph(
+      ctx.projectId,
+      `?view=mindmap&root=${seed.spokeIds[0]}`,
+      memberCookie,
+    );
+    expect(status).toBe(200);
+    expect(body.viewType).toBe("mindmap");
+    expect(body.rootId).toBe(seed.spokeIds[0]);
+    const ids = body.nodes.map((n) => n.id);
+    expect(ids).toContain(seed.spokeIds[0]);
+    expect(ids).toContain(seed.hubId);
+    expect(ids).toContain(seed.spokeIds[1]);
+    expect(ids).not.toContain(seed.isolatedId);
+    expect(body.edges.length).toBeGreaterThanOrEqual(2);
+  });
+
   // ─── Test 3: mindmap auto-root selects max-degree concept ──────────
   it("view=mindmap (no root) auto-selects max-degree concept", async () => {
     const { status, body } = await getGraph(

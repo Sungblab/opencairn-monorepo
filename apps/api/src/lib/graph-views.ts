@@ -250,11 +250,10 @@ export async function selectMindmapBfs(opts: {
 }): Promise<ViewNodeRowMapped> {
   const { projectId, rootId, depth, perParentCap, totalCap } = opts;
   // Pull every (parent_id -> child_id, edge_id, weight, depth) tuple within
-  // `depth` levels. We use the source/target asymmetric direction (parent
-  // pointed to children) for the tree expansion. Concept_edges are
-  // semantically directed (Compiler emits "source IS-A target" etc.), so the
-  // mindmap follows source→target only — matches the spec's plain
-  // `JOIN concept_edges e ON e.source_id = b.id`.
+  // `depth` levels. Mindmap is an exploration surface, so it treats concept
+  // edges as undirected while preserving the original edge id and direction in
+  // the response. Otherwise a root picked from the "target" side of extracted
+  // relations collapses into a line or an empty branch.
   type StepRow = {
     parent_id: string;
     child_id: string;
@@ -276,17 +275,33 @@ export async function selectMindmapBfs(opts: {
       UNION ALL
       SELECT
         b.child_id      AS parent_id,
-        e.target_id     AS child_id,
+        CASE
+          WHEN e.source_id = b.child_id THEN e.target_id
+          ELSE e.source_id
+        END             AS child_id,
         e.id            AS edge_id,
         e.weight        AS weight,
         b.depth + 1     AS depth,
-        b.path || e.target_id
+        b.path || CASE
+          WHEN e.source_id = b.child_id THEN e.target_id
+          ELSE e.source_id
+        END
       FROM bfs b
-      JOIN concept_edges e ON e.source_id = b.child_id
+      JOIN concept_edges e
+        ON e.source_id = b.child_id OR e.target_id = b.child_id
       JOIN concepts c
-        ON c.id = e.target_id AND c.project_id = ${projectId}
+        ON c.id = CASE
+          WHEN e.source_id = b.child_id THEN e.target_id
+          ELSE e.source_id
+        END
+       AND c.project_id = ${projectId}
       WHERE b.depth < ${depth}
-        AND NOT (e.target_id = ANY(b.path))
+        AND NOT (
+          CASE
+            WHEN e.source_id = b.child_id THEN e.target_id
+            ELSE e.source_id
+          END = ANY(b.path)
+        )
     )
     SELECT parent_id, child_id, edge_id, weight, depth
     FROM bfs
