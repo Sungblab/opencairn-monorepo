@@ -14,9 +14,11 @@ import {
   FileVideo,
   FileSpreadsheet,
   File,
+  FileType,
   FolderCode,
   FileArchive,
   MoreHorizontal,
+  NotebookText,
   Plus,
   Sparkles,
   Table2,
@@ -573,6 +575,24 @@ function NodeIcon({ node }: { node: TreeNode }) {
       />
     );
   }
+  if (node.kind === "note") {
+    const role =
+      typeof node.metadata?.role === "string" ? node.metadata.role : "";
+    if (role === "source_note") {
+      return (
+        <Sparkles
+          aria-hidden
+          className="h-4 w-4 shrink-0 text-violet-600 group-hover:text-violet-700"
+        />
+      );
+    }
+    return (
+      <NotebookText
+        aria-hidden
+        className="h-4 w-4 shrink-0 text-indigo-600 group-hover:text-indigo-700"
+      />
+    );
+  }
   return (
     <FileText aria-hidden className="h-4 w-4 shrink-0 text-muted-foreground" />
   );
@@ -696,7 +716,7 @@ function AgentFileIcon({
   className: string;
 }) {
   if (mimeType === "application/pdf") {
-    return <FileText aria-hidden className={className} />;
+    return <FileType aria-hidden className={className} />;
   }
   if (mimeType?.startsWith("audio/")) {
     return <FileAudio aria-hidden className={className} />;

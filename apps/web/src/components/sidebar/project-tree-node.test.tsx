@@ -92,6 +92,46 @@ describe("ProjectTreeNode", () => {
     ).toBeInTheDocument();
   });
 
+  it("uses distinct icons for regular notes, generated source notes, and PDFs", () => {
+    const regular = renderNode(
+      mkNode({
+        kind: "note",
+        id: "note-1",
+        parent_id: null,
+        label: "개념 정리",
+        child_count: 0,
+      }),
+    );
+    expect(regular.container.querySelector(".lucide-notebook-text")).toBeInTheDocument();
+    regular.unmount();
+
+    const generated = renderNode(
+      mkNode({
+        kind: "note",
+        id: "note-2",
+        parent_id: "analysis-1",
+        label: "생성된 노트",
+        child_count: 0,
+        metadata: { role: "source_note" },
+      }),
+    );
+    expect(generated.container.querySelector(".lucide-sparkles")).toBeInTheDocument();
+    generated.unmount();
+
+    const pdf = renderNode(
+      mkNode({
+        kind: "agent_file",
+        id: "pdf-1",
+        parent_id: null,
+        label: "lecture.pdf",
+        child_count: 0,
+        file_kind: "pdf",
+        mime_type: "application/pdf",
+      }),
+    );
+    expect(pdf.container.querySelector(".lucide-file-type")).toBeInTheDocument();
+  });
+
   it("renders source bundles and file rows with distinct type badges", () => {
     renderNode(
       mkNode({
