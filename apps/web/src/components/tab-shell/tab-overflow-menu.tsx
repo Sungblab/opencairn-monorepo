@@ -42,7 +42,7 @@ function TabOverflowItem({
     >
       <span
         className={cn(
-          "block min-w-0 flex-1 truncate",
+          "block flex-1 whitespace-nowrap",
           tab.preview && "italic text-muted-foreground",
         )}
         title={title}
@@ -78,8 +78,7 @@ export function TabOverflowMenu({
       <DropdownMenuContent
         align="end"
         sideOffset={2}
-        className="overflow-hidden rounded-md border border-border bg-background p-0 shadow-md ring-0"
-        style={{ width: 224, minWidth: 224, maxWidth: "calc(100vw - 16px)" }}
+        className="max-w-[calc(100vw-16px)] overflow-hidden rounded-md border border-border bg-background p-0 shadow-md ring-0"
       >
         <div className="border-b border-border px-3 py-2.5">
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -89,7 +88,7 @@ export function TabOverflowMenu({
         <div
           role="listbox"
           aria-label={t("overflowTitle")}
-          className="app-scrollbar-thin grid max-h-64 gap-1 overflow-auto p-2"
+          className="grid gap-1 p-2"
         >
           {tabs.map((tab) => (
             <TabOverflowItem
