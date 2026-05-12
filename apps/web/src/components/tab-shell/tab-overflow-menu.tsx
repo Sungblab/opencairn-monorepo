@@ -33,13 +33,13 @@ function TabOverflowItem({
     <DropdownMenuItem
       onSelect={onSelect}
       className={cn(
-        "h-9 cursor-pointer gap-2 px-2.5 text-[13px] hover:bg-accent hover:text-accent-foreground",
-        active && "bg-accent text-accent-foreground",
+        "h-8 cursor-pointer gap-2 px-2 text-sm leading-none hover:bg-muted hover:text-foreground",
+        active && "bg-muted text-foreground",
       )}
     >
       <span
         className={cn(
-          "min-w-0 flex-1 truncate",
+          "block min-w-0 flex-1 truncate",
           tab.preview && "italic text-muted-foreground",
         )}
         title={title}
@@ -68,14 +68,15 @@ export function TabOverflowMenu({
       <DropdownMenuTrigger
         aria-label={t("overflowTrigger")}
         data-testid="tab-overflow-trigger"
-        className="flex h-10 w-10 shrink-0 items-center justify-center border-l border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground data-popup-open:bg-accent data-popup-open:text-foreground"
+        className="flex h-10 w-9 shrink-0 items-center justify-center border-l border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-popup-open:bg-muted data-popup-open:text-foreground"
       >
         <MoreHorizontal className="h-4 w-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        sideOffset={6}
-        className="max-h-80 w-64 max-w-[calc(100vw-24px)] overflow-auto rounded-[var(--radius-control)] p-1.5 shadow-lg ring-1 ring-foreground/10"
+        sideOffset={2}
+        className="max-h-72 overflow-auto rounded-md border border-border bg-popover p-1 shadow-md ring-0"
+        style={{ width: 240, maxWidth: "calc(100vw - 16px)" }}
       >
         {tabs.map((tab) => (
           <TabOverflowItem
