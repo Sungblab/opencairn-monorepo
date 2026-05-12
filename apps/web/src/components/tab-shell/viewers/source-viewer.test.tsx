@@ -10,7 +10,7 @@ import { SourceViewer } from "./source-viewer";
 
 const pdfViewerMock = vi.hoisted(() => ({
   props: [] as Array<{
-    config: { src: string };
+    config: { src: string; zoom?: { defaultZoomLevel?: string | number } };
     style?: React.CSSProperties;
     onReady?: (registry: unknown) => void;
   }>,
@@ -18,7 +18,7 @@ const pdfViewerMock = vi.hoisted(() => ({
 
 vi.mock("@embedpdf/react-pdf-viewer", () => ({
   PDFViewer: (props: {
-    config: { src: string };
+    config: { src: string; zoom?: { defaultZoomLevel?: string | number } };
     style?: React.CSSProperties;
     onReady?: (registry: unknown) => void;
   }) => {
@@ -219,6 +219,9 @@ describe("SourceViewer", () => {
     expect(viewer).toBeInTheDocument();
     expect(viewer).toHaveAttribute("data-src", "/api/notes/n1/file");
     expect(viewer).toHaveAttribute("data-height", "100%");
+    expect(pdfViewerMock.props.at(-1)?.config.zoom).toEqual({
+      defaultZoomLevel: "fit-width",
+    });
   });
 
   it("renders nothing when targetId is null", () => {

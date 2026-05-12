@@ -49,6 +49,8 @@ const EmbedPDFViewer = dynamic<PDFViewerProps>(
     ),
   },
 );
+const PDF_DEFAULT_ZOOM =
+  "fit-width" as NonNullable<PDFViewerConfig["zoom"]>["defaultZoomLevel"];
 
 export function AgentFileViewer({ tab }: { tab: Tab }) {
   const t = useTranslations("agentFiles.viewer");
@@ -380,6 +382,7 @@ function AgentFilePdfViewer({
       theme: { preference: "system" },
       export: { defaultFileName: file.filename },
       disabledCategories: ["annotation", "redaction", "signature", "stamp"],
+      zoom: { defaultZoomLevel: PDF_DEFAULT_ZOOM },
     }),
     [file.filename, fileUrl],
   );

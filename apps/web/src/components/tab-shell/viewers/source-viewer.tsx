@@ -34,6 +34,8 @@ const READ_ONLY_DISABLED_CATEGORIES = [
   "signature",
   "stamp",
 ] as const;
+const PDF_DEFAULT_ZOOM =
+  "fit-width" as NonNullable<PDFViewerConfig["zoom"]>["defaultZoomLevel"];
 
 function emitViewerReady(tab: Tab, registry: PluginRegistry) {
   if (!tab.targetId || typeof window === "undefined") return;
@@ -159,6 +161,7 @@ export function SourceViewer({ tab }: { tab: Tab }) {
               annotationAuthor: "OpenCairn",
             },
             export: { defaultFileName: title },
+            zoom: { defaultZoomLevel: PDF_DEFAULT_ZOOM },
           }
         : null,
     [fileUrl, title],
