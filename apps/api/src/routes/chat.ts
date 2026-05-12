@@ -22,6 +22,7 @@ import {
   AddChipBodySchema,
   PinBodySchema,
   SendMessageBodySchema,
+  stripAgentDirectiveFences,
 } from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite } from "../lib/permissions";
@@ -705,7 +706,7 @@ chatRoutes.post(
         })
         .where(eq(conversationMessages.id, userRow.id));
 
-      const reply = buffer.join("");
+      const reply = stripAgentDirectiveFences(buffer.join(""));
       const [assistant] = await db
         .insert(conversationMessages)
         .values({

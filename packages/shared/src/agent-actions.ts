@@ -40,6 +40,7 @@ export const agentActionKindSchema = z.enum([
   "workflow.placeholder",
   "interaction.choice",
   "note.create",
+  "note.create_from_markdown",
   "note.update",
   "note.rename",
   "note.move",
@@ -143,6 +144,14 @@ export const noteCreateActionInputSchema = z
   .object({
     title: z.string().trim().min(1).max(300).default("Untitled"),
     folderId: z.string().uuid().nullable().default(null),
+  })
+  .strict();
+
+export const noteCreateFromMarkdownActionInputSchema = z
+  .object({
+    title: z.string().trim().min(1).max(300).default("Untitled"),
+    folderId: z.string().uuid().nullable().default(null),
+    bodyMarkdown: z.string().trim().min(1).max(200_000),
   })
   .strict();
 
@@ -252,6 +261,7 @@ export const noteUpdateApplyResultSchema = z
 
 export const noteActionInputByKind = {
   "note.create": noteCreateActionInputSchema,
+  "note.create_from_markdown": noteCreateFromMarkdownActionInputSchema,
   "note.update": noteUpdateActionInputSchema,
   "note.rename": noteRenameActionInputSchema,
   "note.move": noteMoveActionInputSchema,
@@ -346,6 +356,7 @@ export type InteractionChoiceInput = z.infer<typeof interactionChoiceInputSchema
 export type InteractionChoiceRespondRequest = z.infer<typeof interactionChoiceRespondRequestSchema>;
 export type InteractionChoiceResult = z.infer<typeof interactionChoiceResultSchema>;
 export type NoteCreateActionInput = z.infer<typeof noteCreateActionInputSchema>;
+export type NoteCreateFromMarkdownActionInput = z.infer<typeof noteCreateFromMarkdownActionInputSchema>;
 export type NoteRenameActionInput = z.infer<typeof noteRenameActionInputSchema>;
 export type NoteMoveActionInput = z.infer<typeof noteMoveActionInputSchema>;
 export type NoteDeleteActionInput = z.infer<typeof noteDeleteActionInputSchema>;
@@ -360,6 +371,7 @@ export type Phase2ANoteActionKind = Exclude<
 >;
 export type Phase2ANoteActionInput =
   | NoteCreateActionInput
+  | NoteCreateFromMarkdownActionInput
   | NoteRenameActionInput
   | NoteMoveActionInput
   | NoteDeleteActionInput

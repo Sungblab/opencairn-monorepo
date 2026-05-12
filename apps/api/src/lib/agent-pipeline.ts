@@ -13,6 +13,7 @@
 
 import { db, chatMessages, chatThreads, and, desc, eq, notInArray, sql } from "@opencairn/db";
 import { runChat, type ChatChunk } from "./chat-llm";
+import { stripAgentDirectiveFences } from "@opencairn/shared";
 import type { ChatMode } from "./chat-runtime-policy";
 import type { RagMode, RetrievalChip, RetrievalScope } from "./chat-retrieval";
 import type { ChatMsg, LLMProvider } from "./llm/provider";
@@ -267,6 +268,9 @@ export async function finalizeAgentMessage(
     : null;
   // Strip `usage` from persisted content — it lives in the dedicated column.
   const { usage: _drop, ...persistedContent } = c;
+  if (typeof persistedContent.body === "string") {
+    persistedContent.body = stripAgentDirectiveFences(persistedContent.body);
+  }
 
   const [row] = await db
     .update(chatMessages)

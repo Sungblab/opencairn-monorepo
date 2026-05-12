@@ -33,6 +33,7 @@ const EXECUTION_LEASE_MS = 60_000;
 const EXECUTION_MONITOR_MS = 1_000;
 const EVENT_POLL_MIN_MS = 100;
 const EVENT_POLL_MAX_MS = 1_000;
+const GENERATED_THREAD_TITLE_MAX_LENGTH = 48;
 
 export type RunAgentFn = (opts: {
   threadId: string;
@@ -45,6 +46,18 @@ export type RunAgentFn = (opts: {
 
 let runAgentImpl: RunAgentFn = defaultRunAgent;
 let startWorkflowImpl = startTemporalChatWorkflow;
+
+export function generateThreadTitleFromMessage(content: string): string {
+  const normalized = content
+    .replace(/[`*_>#()[\]{}]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) return "";
+  if (normalized.length <= GENERATED_THREAD_TITLE_MAX_LENGTH) {
+    return normalized;
+  }
+  return `${normalized.slice(0, GENERATED_THREAD_TITLE_MAX_LENGTH - 3).trimEnd()}...`;
+}
 
 export function setRunAgentForTest(impl: RunAgentFn | null): void {
   if (process.env.NODE_ENV !== "test" && process.env.VITEST !== "true") {
@@ -78,9 +91,17 @@ export async function createDurableChatRun(input: {
     })
     .returning({ id: chatMessages.id });
 
+  const generatedTitle = generateThreadTitleFromMessage(input.content);
   await db
     .update(chatThreads)
-    .set({ updatedAt: sql`now()` })
+    .set({
+      updatedAt: sql`now()`,
+      ...(generatedTitle
+        ? {
+            title: sql`case when ${chatThreads.title} = '' then ${generatedTitle} else ${chatThreads.title} end`,
+          }
+        : {}),
+    })
     .where(eq(chatThreads.id, input.threadId));
 
   const { id: agentMessageId } = await createStreamingAgentMessage(

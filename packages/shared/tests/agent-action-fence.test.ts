@@ -51,6 +51,41 @@ describe("agent action fence", () => {
     expect(extracted).toBeNull();
   });
 
+  it("accepts a typed markdown note creation action", () => {
+    const extracted = extractAgentActionFence([
+      "```agent-actions",
+      JSON.stringify({
+        actions: [
+          {
+            kind: "note.create_from_markdown",
+            risk: "write",
+            input: {
+              title: "PDF 요약 노트",
+              folderId: null,
+              bodyMarkdown: "# PDF 요약\n\n- 핵심 개념",
+            },
+          },
+        ],
+      }),
+      "```",
+    ].join("\n"));
+
+    expect(extracted).toEqual({
+      actions: [
+        {
+          kind: "note.create_from_markdown",
+          risk: "write",
+          approvalMode: "auto_safe",
+          input: {
+            title: "PDF 요약 노트",
+            folderId: null,
+            bodyMarkdown: "# PDF 요약\n\n- 핵심 개념",
+          },
+        },
+      ],
+    });
+  });
+
   it("handles unterminated fences in linear time without regex backtracking", () => {
     const extracted = extractAgentActionFence(
       "```agent-actions\n" + "\n\t".repeat(10_000),

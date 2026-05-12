@@ -51,6 +51,15 @@ const scopedListQuery = listQuery.extend({
   project_id: z.string().uuid().optional(),
 });
 
+function messagePreviewFromContent(content: unknown): string | null {
+  if (!content || typeof content !== "object") return null;
+  const body = (content as { body?: unknown }).body;
+  if (typeof body !== "string") return null;
+  const preview = body.replace(/\s+/g, " ").trim();
+  if (!preview) return null;
+  return preview.length > 72 ? `${preview.slice(0, 69)}...` : preview;
+}
+
 async function requireProjectRead(
   userId: string,
   workspaceId: string,
@@ -113,10 +122,29 @@ export const threadRoutes = new Hono<AppEnv>()
         ),
       )
       .orderBy(desc(chatThreads.updatedAt));
+    const previewByThreadId = new Map<string, string>();
+    const threadIds = rows.map((r) => r.id);
+    if (threadIds.length > 0) {
+      const latestMessages = await db
+        .select({
+          threadId: chatMessages.threadId,
+          content: chatMessages.content,
+        })
+        .from(chatMessages)
+        .where(inArray(chatMessages.threadId, threadIds))
+        .orderBy(desc(chatMessages.createdAt));
+      for (const message of latestMessages) {
+        if (previewByThreadId.has(message.threadId)) continue;
+        const preview = messagePreviewFromContent(message.content);
+        if (preview) previewByThreadId.set(message.threadId, preview);
+      }
+    }
+
     return c.json({
       threads: rows.map((r) => ({
         id: r.id,
         title: r.title,
+        last_message_preview: previewByThreadId.get(r.id) ?? null,
         updated_at: r.updatedAt.toISOString(),
         created_at: r.createdAt.toISOString(),
       })),

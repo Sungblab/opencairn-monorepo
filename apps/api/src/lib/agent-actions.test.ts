@@ -211,6 +211,46 @@ describe("agent action service", () => {
     });
   });
 
+  it("executes a note.create_from_markdown action with generated content", async () => {
+    const repo = createMemoryRepo();
+    const noteExecutor = createMemoryNoteExecutor();
+
+    const { action } = await createAgentAction(
+      projectId,
+      userId,
+      {
+        requestId,
+        kind: "note.create_from_markdown",
+        risk: "write",
+        approvalMode: "auto_safe",
+        input: {
+          title: "PDF 요약 노트",
+          folderId: null,
+          bodyMarkdown: "# PDF 요약\n\n- 운영체제 종류",
+        },
+      },
+      { repo, canWriteProject: async () => true, noteExecutor },
+    );
+
+    expect(noteExecutor.calls).toEqual([
+      {
+        kind: "note.create_from_markdown",
+        bodyMarkdown: "# PDF 요약\n\n- 운영체제 종류",
+      },
+    ]);
+    expect(action).toMatchObject({
+      kind: "note.create_from_markdown",
+      status: "completed",
+      result: {
+        ok: true,
+        note: {
+          title: "PDF 요약 노트",
+          contentText: "# PDF 요약\n\n- 운영체제 종류",
+        },
+      },
+    });
+  });
+
   it("requires approval for destructive note actions even in auto-safe mode", async () => {
     const repo = createMemoryRepo();
     const noteExecutor = createMemoryNoteExecutor();
@@ -1284,19 +1324,28 @@ function makeAction(overrides: Partial<AgentAction> = {}): AgentAction {
 function createMemoryNoteExecutor(options?: {
   failWith?: AgentActionError;
 }): NoteActionExecutor & {
-  calls: Array<{ kind: string }>;
+  calls: Array<{ kind: string; bodyMarkdown?: string }>;
   createdNoteIds: string[];
 } {
-  const calls: Array<{ kind: string }> = [];
+  const calls: Array<{ kind: string; bodyMarkdown?: string }> = [];
   const createdNoteIds: string[] = [];
   return {
     calls,
     createdNoteIds,
     async execute(input) {
-      calls.push({ kind: input.kind });
+      calls.push({
+        kind: input.kind,
+        ...(typeof (input.payload as { bodyMarkdown?: unknown }).bodyMarkdown === "string"
+          ? { bodyMarkdown: (input.payload as { bodyMarkdown: string }).bodyMarkdown }
+          : {}),
+      });
       if (options?.failWith) throw options.failWith;
-      if (input.kind === "note.create") {
-        const payload = input.payload as { title: string; folderId: string | null };
+      if (input.kind === "note.create" || input.kind === "note.create_from_markdown") {
+        const payload = input.payload as {
+          title: string;
+          folderId: string | null;
+          bodyMarkdown?: string;
+        };
         const id = "00000000-0000-4000-8000-000000000090";
         createdNoteIds.push(id);
         return {
@@ -1306,6 +1355,7 @@ function createMemoryNoteExecutor(options?: {
             projectId: input.projectId,
             folderId: payload.folderId ?? null,
             title: payload.title,
+            ...(payload.bodyMarkdown ? { contentText: payload.bodyMarkdown } : {}),
           },
         };
       }

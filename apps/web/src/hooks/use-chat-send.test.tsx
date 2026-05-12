@@ -154,6 +154,30 @@ describe("useChatSend", () => {
     );
   });
 
+  it("refreshes chat thread titles as soon as the stream opens", async () => {
+    const invalidateSpy = vi.spyOn(QueryClient.prototype, "invalidateQueries");
+    const closeStreamRef: { current?: () => void } = {};
+    const slowBody = new ReadableStream<Uint8Array>({
+      start(nextController) {
+        closeStreamRef.current = () => nextController.close();
+      },
+    });
+    fetchMock.mockResolvedValueOnce({ ok: true, body: slowBody } as Response);
+
+    const { result } = renderHook(() => useChatSend("t1"), {
+      wrapper: makeWrapper(),
+    });
+
+    void result.current.send({ content: "first title" });
+
+    await waitFor(() =>
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ["chat-threads"],
+      }),
+    );
+    closeStreamRef.current?.();
+  });
+
   it("clears live when the response is not ok", async () => {
     fetchMock.mockResolvedValueOnce({ ok: false, body: null } as Partial<Response>);
 

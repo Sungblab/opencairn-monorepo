@@ -43,6 +43,7 @@ import type {
   AgentActionStatus,
   CreateAgentActionRequest,
   NoteCreateActionInput,
+  NoteCreateFromMarkdownActionInput,
   NoteDeleteActionInput,
   NoteMoveActionInput,
   NoteRenameActionInput,
@@ -82,6 +83,7 @@ import { streamObject } from "./s3-get";
 import { diffPlateValues } from "./note-version-diff";
 import { plateValueToText } from "./plate-text";
 import { emitTreeEvent } from "./tree-events";
+import { textToPlateValue } from "./plate-doc";
 import type { PlateValue } from "./yjs-to-plate";
 import {
   transformYjsStateWithPlateValue,
@@ -1163,6 +1165,7 @@ function createAgentActionRequestFromAction(action: AgentAction): CreateAgentAct
 
 function isPhase2ANoteAction(kind: AgentActionKind): kind is Phase2ANoteActionKind {
   return kind === "note.create"
+    || kind === "note.create_from_markdown"
     || kind === "note.rename"
     || kind === "note.move"
     || kind === "note.delete"
@@ -2133,6 +2136,8 @@ export function createDrizzleNoteActionExecutor(conn: DB = defaultDb): NoteActio
       switch (input.kind) {
         case "note.create":
           return createNoteFromAction(conn, input);
+        case "note.create_from_markdown":
+          return createNoteFromMarkdownAction(conn, input);
         case "note.rename":
           return renameNoteFromAction(conn, input);
         case "note.move":
@@ -2378,6 +2383,62 @@ async function createNoteFromAction(
     });
   if (!note) throw new AgentActionError("note_create_failed", 409);
 
+  emitTreeEvent({
+    kind: "tree.note_created",
+    projectId: note.projectId,
+    id: note.id,
+    parentId: note.folderId,
+    label: note.title,
+    at: new Date().toISOString(),
+  });
+  return { ok: true, note };
+}
+
+async function createNoteFromMarkdownAction(
+  conn: DB,
+  input: NoteActionExecutorInput,
+): Promise<Record<string, unknown>> {
+  if (!(await canWrite(input.actorUserId, { type: "project", id: input.projectId }, { db: conn }))) {
+    throw new AgentActionError("forbidden", 403);
+  }
+  const payload = input.payload as NoteCreateFromMarkdownActionInput;
+  if (payload.folderId) {
+    const [folder] = await conn
+      .select({ id: folders.id })
+      .from(folders)
+      .where(and(eq(folders.id, payload.folderId), eq(folders.projectId, input.projectId)));
+    if (!folder) throw new AgentActionError("folder_not_found", 404);
+  }
+
+  const content = textToPlateValue(payload.bodyMarkdown);
+  const contentText = payload.bodyMarkdown;
+  const [note] = await conn
+    .insert(notes)
+    .values({
+      projectId: input.projectId,
+      workspaceId: input.workspaceId,
+      folderId: payload.folderId,
+      title: payload.title,
+      content,
+      contentText,
+      type: "note",
+      sourceType: "manual",
+    })
+    .returning({
+      id: notes.id,
+      projectId: notes.projectId,
+      folderId: notes.folderId,
+      title: notes.title,
+      contentText: notes.contentText,
+    });
+  if (!note) throw new AgentActionError("note_create_failed", 409);
+
+  await syncWikiLinks(
+    conn,
+    note.id,
+    extractWikiLinkTargets(content),
+    input.workspaceId,
+  );
   emitTreeEvent({
     kind: "tree.note_created",
     projectId: note.projectId,

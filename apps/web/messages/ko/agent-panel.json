@@ -34,6 +34,7 @@
     "save_suggestion_inserted_active": "현재 노트에 추가했어요",
     "save_suggestion_target_prompt": "이 채팅을 어디에 저장할까요?",
     "save_suggestion_create_new": "새 노트로 만들기",
+    "save_suggestion_created_new": "새 노트를 만들었어요",
     "save_suggestion_cancel": "취소",
     "save_suggestion_failed": "저장에 실패했어요. 다시 시도해 주세요.",
     "interaction_note_title": "새 노트 초안",
@@ -77,6 +78,19 @@
   },
   "noteActionReview": {
     "title": "승인 대기 중인 노트 작업"
+  },
+  "actionCard": {
+    "noteCreateCompleted": "노트 생성 완료",
+    "noteCreateApproval": "노트 생성 승인 필요",
+    "noteCreateRunning": "노트 생성 중",
+    "approval": "작업 승인 필요",
+    "running": "작업 실행 중",
+    "completed": "작업 완료",
+    "failed": "작업 실패",
+    "cancelled": "작업 취소됨",
+    "open": "노트 열기",
+    "apply": "적용",
+    "reject": "거절"
   },
   "codeProjectReview": {
     "title": "코드 패치 제안",
@@ -309,6 +323,12 @@
       "autoApplyOn": "안전 작업 자동 적용 켜짐",
       "autoApplyOff": "안전 작업 자동 적용"
     },
+    "actionApproval": {
+      "require": "확인 후 실행",
+      "auto": "자동 실행",
+      "require_aria": "작업 실행 전에 확인",
+      "auto_aria": "안전 작업 자동 실행"
+    },
     "voice_aria": "음성 입력",
     "send_aria": "전송",
     "slash": {
@@ -360,10 +380,15 @@
     "modes": {
       "trigger_aria": "응답 모드 선택",
       "auto": "AUTO",
+      "auto_description": "자료와 질문에 맞춰 속도와 깊이를 자동으로 정합니다.",
       "fast": "FAST",
+      "fast_description": "간단한 답변이나 빠른 초안에 맞춥니다.",
       "balanced": "BALANCED",
+      "balanced_description": "일반 작업에 맞춰 속도와 정확도를 균형 있게 씁니다.",
       "accurate": "ACCURATE",
-      "research": "RESEARCH"
+      "accurate_description": "검증과 근거가 중요한 질문에 더 신중하게 답합니다.",
+      "research": "RESEARCH",
+      "research_description": "자료 탐색과 정리를 더 넓게 수행합니다."
     }
   },
   "contextTray": {
@@ -416,13 +441,33 @@
     "title": "바로 실행"
   },
   "empty_state": {
-    "title": "새 대화",
-    "intro": "아래 입력창에 바로 물어보세요. 첫 메시지를 보내면 대화가 생성됩니다.",
+    "title": "무엇을 도와드릴까요?",
+    "title_with_context": "이 자료로 무엇을 할까요?",
+    "intro": "프로젝트와 노트를 바탕으로 바로 질문할 수 있습니다.",
+    "intro_with_context": "현재 참조 중인 자료를 기준으로 바로 시작할 수 있습니다.",
     "hint": "참조 범위에서 AI가 볼 자료를 확인하고 바꿀 수 있습니다.",
     "points": {
       "workspace": "노트, 프로젝트, 실행 상태를 함께 참고합니다.",
       "scope": "아래 참조 범위에서 현재 문서, 고정 자료, 프로젝트 전체를 고를 수 있습니다."
     },
-    "start_cta": "첫 대화 시작"
+    "start_cta": "첫 대화 시작",
+    "suggestions": {
+      "summarize": {
+        "label": "요약해줘",
+        "prompt": "현재 참조 중인 자료를 핵심 위주로 요약해줘."
+      },
+      "keyPoints": {
+        "label": "핵심 개념 정리",
+        "prompt": "현재 참조 중인 자료의 핵심 개념과 관계를 정리해줘."
+      },
+      "questions": {
+        "label": "예상 질문 만들기",
+        "prompt": "현재 참조 중인 자료를 바탕으로 이해도 확인용 예상 질문을 만들어줘."
+      },
+      "related": {
+        "label": "관련 노트 찾기",
+        "prompt": "현재 참조 중인 자료와 연결되는 프로젝트 노트나 자료를 찾아서 정리해줘."
+      }
+    }
   }
 }

@@ -26,7 +26,7 @@ import {
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { saveSuggestionSchema } from "@opencairn/shared";
-import { FileText, Sparkles, X } from "lucide-react";
+import { Activity, Bell, Bot, FileText, Sparkles, Wrench, X } from "lucide-react";
 
 import { useChatSend } from "@/hooks/use-chat-send";
 import { useChatThreads } from "@/hooks/use-chat-threads";
@@ -105,6 +105,16 @@ type AgentPanelSendInput = {
   interactionResponse?: InteractionCardSubmit;
 };
 
+const ACTION_APPROVAL_MODE_STORAGE_KEY = "opencairn:agent:actionApprovalMode";
+
+function initialActionApprovalMode(): ActionApprovalMode {
+  if (typeof window === "undefined") return "require";
+  return window.localStorage.getItem(ACTION_APPROVAL_MODE_STORAGE_KEY) ===
+    "auto_safe"
+    ? "auto_safe"
+    : "require";
+}
+
 export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const workspaceId = useWorkspaceId(wsSlug);
   const panelTab = usePanelStore((s) => s.agentPanelTab);
@@ -148,7 +158,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
     useState<SourcePolicy>(initialSourcePolicy);
   const [memoryPolicy, setMemoryPolicy] = useState<MemoryPolicy>("auto");
   const [actionApprovalMode, setActionApprovalMode] =
-    useState<ActionApprovalMode>("require");
+    useState<ActionApprovalMode>(initialActionApprovalMode);
   const [activeContextEnabled, setActiveContextEnabled] = useState(true);
   const [selectionText, setSelectionText] = useState("");
   const [draggingReference, setDraggingReference] = useState(false);
@@ -159,6 +169,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   >([]);
   const [pendingUploadFile, setPendingUploadFile] = useState<File | null>(null);
   const [uploadError, setUploadError] = useState(false);
+  const [composerFocusKey, setComposerFocusKey] = useState(0);
   const [formGenerationEvents, setFormGenerationEvents] = useState<unknown[]>(
     [],
   );
@@ -166,6 +177,14 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
     ? getDocumentGenerationPreset(pendingDocumentGenerationPresetIntent.presetId)
     : null;
   const sendInFlightRef = useRef(false);
+  const autoSavedSuggestionKeysRef = useRef(new Set<string>());
+  useEffect(() => {
+    window.localStorage.setItem(
+      ACTION_APPROVAL_MODE_STORAGE_KEY,
+      actionApprovalMode,
+    );
+  }, [actionApprovalMode]);
+
   useEffect(() => {
     let timeoutId: number | undefined;
     function updateSelectionText() {
@@ -273,12 +292,11 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
     };
   }, [activeTab, shellProjectId]);
 
-  async function startNewThread() {
-    if (!workspaceId) return;
-    const { id } = await create.mutateAsync({});
-    setActive(id);
+  function startNewThread() {
+    setActive(null);
+    setComposerFocusKey((current) => current + 1);
   }
-  const threadActionsDisabled = !workspaceId || create.isPending;
+  const threadActionsDisabled = !workspaceId;
   const composerDisabled = !workspaceId || isSending || create.isPending;
 
   const handleSend = useCallback(
@@ -585,29 +603,22 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
           toast.success(t("save_suggestion_inserted_active"));
         },
         onMissingTarget: () => {
-          toast(t("save_suggestion_target_prompt"), {
-            action: {
-              label: t("save_suggestion_create_new"),
-              onClick: () => {
-                void createNoteFromMarkdown({
-                  title,
-                  markdown: body_markdown,
-                  apiCreateNote,
-                  onCreated: (note) => {
-                    useTabsStore.getState().addTab(
-                      newTab({
-                        kind: "note",
-                        targetId: note.id,
-                        title: note.title,
-                        mode: "plate",
-                      }),
-                    );
-                  },
-                  onError: () => toast.error(t("save_suggestion_failed")),
-                });
-              },
+          void createNoteFromMarkdown({
+            title,
+            markdown: body_markdown,
+            apiCreateNote,
+            onCreated: (note) => {
+              useTabsStore.getState().addTab(
+                newTab({
+                  kind: "note",
+                  targetId: note.id,
+                  title: note.title,
+                  mode: "plate",
+                }),
+              );
+              toast.success(t("save_suggestion_created_new"));
             },
-            cancel: { label: t("save_suggestion_cancel"), onClick: () => {} },
+            onError: () => toast.error(t("save_suggestion_failed")),
           });
         },
         onCreatedNote: () => {},
@@ -616,6 +627,16 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
     },
     [activeTab, t, resolveProjectId],
   );
+
+  useEffect(() => {
+    if (actionApprovalMode !== "auto_safe") return;
+    const suggestion = live?.save_suggestion;
+    if (!suggestion) return;
+    const key = JSON.stringify(suggestion);
+    if (autoSavedSuggestionKeysRef.current.has(key)) return;
+    autoSavedSuggestionKeysRef.current.add(key);
+    void handleSaveSuggestion(suggestion);
+  }, [actionApprovalMode, handleSaveSuggestion, live?.save_suggestion]);
 
   return (
     <aside
@@ -696,9 +717,27 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
               onResumeRun={resumeRun}
               onSaveSuggestion={handleSaveSuggestion}
               onInteractionCardSubmit={handleInteractionCardSubmit}
+              onThreadUnavailable={() => setActive(null)}
+              emptyState={
+                <AgentPanelEmptyState
+                  hasContext={Boolean(
+                    invocationContextLabel || attachedReferences.length,
+                  )}
+                  onSuggestion={(content) =>
+                    handleSend({ content, mode: "auto" })
+                  }
+                />
+              }
             />
           ) : (
-            <AgentPanelEmptyState />
+            <AgentPanelEmptyState
+              hasContext={Boolean(
+                invocationContextLabel || attachedReferences.length,
+              )}
+              onSuggestion={(content) =>
+                handleSend({ content, mode: "auto" })
+              }
+            />
           )}
           <div className="border-t border-border bg-background pt-2">
             <ComposerContextStrip
@@ -726,6 +765,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
                 )
               }
               attachDisabled={!activeProjectId || isUploading}
+              focusKey={composerFocusKey}
             />
           </div>
         </>
@@ -784,24 +824,34 @@ function AgentPanelTabs({
 }) {
   const t = useTranslations("agentPanel.tabs");
   const tabs: AgentPanelTab[] = ["chat", "tools", "activity", "notifications"];
+  const icons = {
+    chat: Bot,
+    tools: Wrench,
+    activity: Activity,
+    notifications: Bell,
+  } satisfies Record<AgentPanelTab, typeof Bot>;
 
   return (
     <div className="grid grid-cols-4 border-b border-border">
-      {tabs.map((tab) => (
-        <button
-          key={tab}
-          type="button"
-          aria-pressed={active === tab}
-          onClick={() => onChange(tab)}
-          className={`min-h-9 border-r border-border px-2 text-xs font-medium transition-colors last:border-r-0 ${
-            active === tab
-              ? "bg-foreground text-background"
-              : "bg-background text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          {t(tab)}
-        </button>
-      ))}
+      {tabs.map((tab) => {
+        const Icon = icons[tab];
+        return (
+          <button
+            key={tab}
+            type="button"
+            aria-pressed={active === tab}
+            onClick={() => onChange(tab)}
+            className={`inline-flex min-h-8 items-center justify-center gap-1 border-r border-border px-1.5 text-[11px] font-medium leading-none transition-colors last:border-r-0 ${
+              active === tab
+                ? "bg-foreground text-background"
+                : "bg-background text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Icon aria-hidden className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{t(tab)}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

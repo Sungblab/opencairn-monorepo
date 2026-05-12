@@ -145,6 +145,100 @@ describe("message bubble citations", () => {
   });
 });
 
+describe("message bubble save suggestions", () => {
+  it("renders the save card without exposing internal directive fences", () => {
+    const onSaveSuggestion = vi.fn();
+    render(
+      <MessageBubble
+        msg={{
+          ...baseAgentMessage,
+          content: {
+            body:
+              '노트로 정리했습니다.\n\n```save-suggestion\n{"title":"요약 노트","body_markdown":"# 요약"}\n```\n\n```agent-actions\n{"actions":[{"kind":"note.create","risk":"write","input":{"title":"요약 노트"}}]}\n```\n\n```agent-file\n{"files":[{"filename":"summary.md","content":"# 요약"}]}\n```',
+            save_suggestion: {
+              title: "요약 노트",
+              body_markdown: "# 요약",
+            },
+          },
+        }}
+        onRegenerate={vi.fn()}
+        onSaveSuggestion={onSaveSuggestion}
+        onFeedback={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("노트로 정리했습니다.")).toBeInTheDocument();
+    expect(screen.getByText(/요약 노트/)).toBeInTheDocument();
+    expect(screen.queryByText(/save-suggestion/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/agent-actions/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/agent-file/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/body_markdown/)).not.toBeInTheDocument();
+  });
+});
+
+describe("message bubble agent actions", () => {
+  beforeEach(() => {
+    useTabsStore.setState(useTabsStore.getInitialState(), true);
+    useTabsStore.getState().setWorkspace("ws-test");
+  });
+
+  it("renders completed note creation actions and opens the created note", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MessageBubble
+        msg={{
+          ...baseAgentMessage,
+          content: {
+            body: "노트를 만들었습니다.",
+            agent_actions: [
+              {
+                id: "00000000-0000-4000-8000-000000000040",
+                requestId: "00000000-0000-4000-8000-000000000041",
+                workspaceId: "00000000-0000-4000-8000-000000000042",
+                projectId,
+                actorUserId: "user-1",
+                sourceRunId: null,
+                kind: "note.create",
+                status: "completed",
+                risk: "write",
+                input: { title: "PDF 요약 노트", folderId: null },
+                preview: null,
+                result: {
+                  ok: true,
+                  note: {
+                    id: "00000000-0000-4000-8000-000000000043",
+                    title: "PDF 요약 노트",
+                  },
+                },
+                errorCode: null,
+                createdAt: "2026-05-11T00:00:00.000Z",
+                updatedAt: "2026-05-11T00:00:00.000Z",
+              },
+            ],
+          },
+        }}
+        onRegenerate={vi.fn()}
+        onSaveSuggestion={vi.fn()}
+        onFeedback={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("noteCreateCompleted")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "open" }));
+
+    expect(useTabsStore.getState().tabs).toEqual([
+      expect.objectContaining({
+        kind: "note",
+        targetId: "00000000-0000-4000-8000-000000000043",
+        title: "PDF 요약 노트",
+        mode: "plate",
+        preview: false,
+      }),
+    ]);
+  });
+});
+
 describe("message bubble interaction cards", () => {
   it("renders a structured choice card and forwards the selected answer", async () => {
     const user = userEvent.setup();

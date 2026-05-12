@@ -24,6 +24,8 @@ import {
   FileText,
   Mic,
   Plus,
+  ShieldCheck,
+  ShieldQuestion,
   Sparkles,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -68,6 +70,7 @@ interface Props {
   onToggleActionApprovalMode?(): void;
   attachDisabled?: boolean;
   disabled?: boolean;
+  focusKey?: number;
 }
 
 export function Composer({
@@ -82,6 +85,7 @@ export function Composer({
   onToggleActionApprovalMode,
   attachDisabled,
   disabled,
+  focusKey,
 }: Props) {
   const t = useTranslations("agentPanel.composer");
   const [value, setValue] = useState("");
@@ -105,6 +109,11 @@ export function Composer({
   useEffect(() => {
     setActiveCommandIndex(0);
   }, [slashQuery, slashCommands.length]);
+
+  useEffect(() => {
+    if (focusKey === undefined || disabled) return;
+    ref.current?.focus();
+  }, [disabled, focusKey]);
 
   function autoGrow() {
     if (!ref.current) return;
@@ -362,6 +371,28 @@ export function Composer({
           }}
         />
         <div className="flex-1" />
+        <button
+          type="button"
+          aria-label={t(
+            actionApprovalMode === "auto_safe"
+              ? "actionApproval.auto_aria"
+              : "actionApproval.require_aria",
+          )}
+          title={t(
+            actionApprovalMode === "auto_safe"
+              ? "actionApproval.auto_aria"
+              : "actionApproval.require_aria",
+          )}
+          onClick={() => onToggleActionApprovalMode?.()}
+          disabled={disabled}
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-border text-muted-foreground transition-colors hover:border-foreground/35 hover:text-foreground disabled:opacity-50"
+        >
+          {actionApprovalMode === "auto_safe" ? (
+            <ShieldCheck aria-hidden className="h-3.5 w-3.5 shrink-0" />
+          ) : (
+            <ShieldQuestion aria-hidden className="h-3.5 w-3.5 shrink-0" />
+          )}
+        </button>
         <ModeSelector value={mode} onChange={setMode} />
         {hasText ? (
           <button

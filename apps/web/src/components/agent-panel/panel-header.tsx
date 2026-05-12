@@ -1,6 +1,6 @@
 "use client";
 
-// Top bar of the agent panel. Three actions live here: spawn a new thread,
+// Top bar of the agent panel. Three actions live here: start a draft thread,
 // browse existing threads via a dropdown, and collapse the whole panel.
 // Collapse goes through usePanelStore (user-global) — width and openness are
 // persisted there so other shell pieces can react without a parent prop drill.
@@ -41,7 +41,7 @@ export function PanelHeader({
           aria-label={t("new_thread_aria")}
           onClick={onNewThread}
           disabled={newThreadDisabled}
-          className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+          className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-muted/20 px-2 text-xs font-medium text-foreground transition-colors hover:border-foreground/35 hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
         >
           <Plus aria-hidden className="h-3.5 w-3.5" />
           {t("new_thread")}
@@ -67,7 +67,7 @@ export function PanelHeader({
           type="button"
           aria-label={t("collapse_aria")}
           onClick={togglePanel}
-          className="app-btn-ghost inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-control)]"
+          className="app-btn-ghost inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-control)] text-muted-foreground hover:text-foreground"
         >
           <ChevronRight className="h-4 w-4" />
         </button>

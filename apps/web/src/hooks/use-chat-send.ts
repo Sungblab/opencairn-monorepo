@@ -211,6 +211,7 @@ export function useChatSend(threadId: string | null) {
           await qc.invalidateQueries({
             queryKey: ["chat-messages", targetThreadId],
           });
+          await qc.invalidateQueries({ queryKey: ["chat-threads"] });
           setLive(null);
           setPendingUser(null);
           controller.current = null;
@@ -292,9 +293,10 @@ export function useChatSend(threadId: string | null) {
         return;
       }
 
+      await qc.invalidateQueries({ queryKey: ["chat-threads"] });
       await consumeStream(res, ac, targetThreadId);
     },
-    [threadId, consumeStream],
+    [threadId, consumeStream, qc],
   );
 
   return { send, live, pendingUser, resumeRun };

@@ -8,6 +8,7 @@
 // single boundary that decides whether each slot is renderable.
 
 import { useTranslations } from "next-intl";
+import { stripAgentDirectiveFences } from "@opencairn/shared";
 import type { ChatMessage } from "@/lib/api-client";
 import { ChatMessageRendererLoader } from "../chat/chat-message-renderer-loader";
 import {
@@ -30,12 +31,17 @@ import {
   isAgentInteractionCard,
   type InteractionCardSubmit,
 } from "./interaction-card";
+import {
+  AgentActionCards,
+  asAgentActionCards,
+} from "./agent-action-cards";
 export {
   AgentFileCards,
   DocumentGenerationCards,
   asAgentFileCards,
   asDocumentGenerationCards,
 } from "./message-attachments";
+export { asAgentActionCards } from "./agent-action-cards";
 
 type FeedbackSentiment = "positive" | "negative";
 
@@ -51,7 +57,7 @@ function isStatus(v: unknown): v is { phrase?: string } {
   return typeof v === "object" && v !== null;
 }
 
-function asSaveSuggestion(v: unknown): { title: string } | null {
+export function asSaveSuggestion(v: unknown): { title: string } | null {
   if (
     v &&
     typeof v === "object" &&
@@ -139,7 +145,7 @@ export function MessageBubble({
       : null;
   const citations = asCitations(msg.content.citations);
   const body = stripRenderedCitationMarkers(
-    String(msg.content.body ?? ""),
+    stripAgentDirectiveFences(String(msg.content.body ?? "")),
     citations,
   );
   const saveSuggestion = asSaveSuggestion(msg.content.save_suggestion);
@@ -151,6 +157,7 @@ export function MessageBubble({
   const generations = asDocumentGenerationCards(
     msg.content.project_object_generations,
   );
+  const agentActions = asAgentActionCards(msg.content.agent_actions);
   const interactionCard = isAgentInteractionCard(msg.content.interaction_card)
     ? msg.content.interaction_card
     : null;
@@ -188,6 +195,9 @@ export function MessageBubble({
       {agentFiles.length > 0 ? <AgentFileCards files={agentFiles} /> : null}
       {generations.length > 0 ? (
         <DocumentGenerationCards items={generations} />
+      ) : null}
+      {agentActions.length > 0 ? (
+        <AgentActionCards actions={agentActions} />
       ) : null}
       {interactionCard ? (
         <InteractionCard

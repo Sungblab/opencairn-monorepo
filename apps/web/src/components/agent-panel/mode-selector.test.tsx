@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ModeSelector } from "./mode-selector";
@@ -16,5 +16,19 @@ describe("ModeSelector", () => {
     });
     expect(trigger.className).toContain("min-h-7");
     expect(trigger).toHaveClass("rounded-[var(--radius-control)]");
+  });
+
+  it("explains each response mode inside the menu", () => {
+    render(<ModeSelector value="auto" onChange={vi.fn()} />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "agentPanel.composer.modes.trigger_aria",
+      }),
+    );
+
+    expect(
+      screen.getByText("agentPanel.composer.modes.auto_description"),
+    ).toBeInTheDocument();
   });
 });

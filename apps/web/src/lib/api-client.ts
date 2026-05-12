@@ -279,6 +279,7 @@ export const commentsApi = {
 export interface ChatThread {
   id: string;
   title: string;
+  last_message_preview?: string | null;
   updated_at: string;
   created_at: string;
 }
@@ -293,6 +294,7 @@ export interface ChatMessageContent {
   save_suggestion?: unknown;
   error?: unknown;
   agent_files?: unknown[];
+  agent_actions?: unknown[];
   project_objects?: unknown[];
   project_object_generations?: unknown[];
 }

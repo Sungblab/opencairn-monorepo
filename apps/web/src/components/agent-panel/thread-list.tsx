@@ -45,7 +45,8 @@ export function ThreadList() {
   if (isLoading) {
     return <p className="p-2 text-xs text-muted-foreground">{t("loading")}</p>;
   }
-  if (threads.length === 0) {
+  const visibleThreads = threads.filter((thread) => thread.title.trim());
+  if (visibleThreads.length === 0) {
     return <p className="p-2 text-xs text-muted-foreground">{t("empty")}</p>;
   }
 
@@ -57,7 +58,7 @@ export function ThreadList() {
         </p>
       </div>
       <div className="app-scrollbar-thin grid max-h-64 gap-1 overflow-auto p-2">
-        {threads.map((thread) => {
+        {visibleThreads.map((thread) => {
           const isDeleting = archive.isPending;
           const title = thread.title || t("untitled");
           const active = activeThreadId === thread.id;
@@ -79,6 +80,11 @@ export function ThreadList() {
                 <span className="block truncate text-[13px] font-medium leading-4">
                   {title}
                 </span>
+                {thread.last_message_preview ? (
+                  <span className="mt-0.5 block truncate text-[11px] leading-3 text-muted-foreground">
+                    {thread.last_message_preview}
+                  </span>
+                ) : null}
                 <span className="mt-0.5 block text-[11px] leading-3 text-muted-foreground">
                   {now
                     ? format.relativeTime(new Date(thread.updated_at), now)

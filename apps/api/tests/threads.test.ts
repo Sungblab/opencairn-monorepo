@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createApp } from "../src/app.js";
-import { db, chatThreads, user, eq } from "@opencairn/db";
+import { db, chatMessages, chatThreads, user, eq } from "@opencairn/db";
 import {
   seedWorkspace,
   seedMultiRoleWorkspace,
@@ -31,6 +31,7 @@ async function authedFetch(
 interface ThreadListItem {
   id: string;
   title: string;
+  last_message_preview: string | null;
   updated_at: string;
   created_at: string;
 }
@@ -65,6 +66,44 @@ describe("Threads REST", () => {
     expect(body.threads).toHaveLength(1);
     expect(body.threads[0].id).toBe(created.id);
     expect(body.threads[0].title).toBe("Research query");
+  });
+
+  it("list includes a compact preview of the latest message", async () => {
+    const create = await authedFetch("/api/threads", {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ workspace_id: ctx.workspaceId, title: "Preview" }),
+    });
+    const created = (await create.json()) as { id: string; title: string };
+    await db.insert(chatMessages).values([
+      {
+        threadId: created.id,
+        role: "user",
+        status: "complete",
+        content: { body: "첫 질문" },
+        mode: "auto",
+        createdAt: new Date("2026-05-11T00:00:00Z"),
+      },
+      {
+        threadId: created.id,
+        role: "agent",
+        status: "complete",
+        content: { body: "최근 답변입니다.   공백은 접습니다." },
+        mode: "auto",
+        createdAt: new Date("2026-05-11T00:00:01Z"),
+      },
+    ]);
+
+    const list = await authedFetch(
+      `/api/threads?workspace_id=${ctx.workspaceId}`,
+      { method: "GET", userId: ctx.userId },
+    );
+
+    expect(list.status).toBe(200);
+    const body = (await list.json()) as { threads: ThreadListItem[] };
+    expect(body.threads[0].last_message_preview).toBe(
+      "최근 답변입니다. 공백은 접습니다.",
+    );
   });
 
   it("missing title defaults to empty string", async () => {

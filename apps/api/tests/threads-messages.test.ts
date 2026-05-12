@@ -21,6 +21,7 @@ import {
   cancelChatRun,
   createDurableChatRun,
   executeChatRun,
+  generateThreadTitleFromMessage,
 } from "../src/lib/chat-runs.js";
 import { seedWorkspace, seedMultiRoleWorkspace, type SeedResult, type SeedMultiRoleResult } from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
@@ -66,6 +67,20 @@ async function createThread(workspaceId: string, userId: string): Promise<string
     method: "POST",
     userId,
     body: JSON.stringify({ workspace_id: workspaceId, title: "msg test" }),
+  });
+  expect(res.status).toBe(201);
+  const { id } = (await res.json()) as { id: string };
+  return id;
+}
+
+async function createUntitledThread(
+  workspaceId: string,
+  userId: string,
+): Promise<string> {
+  const res = await authedFetch("/api/threads", {
+    method: "POST",
+    userId,
+    body: JSON.stringify({ workspace_id: workspaceId }),
   });
   expect(res.status).toBe(201);
   const { id } = (await res.json()) as { id: string };
@@ -168,6 +183,45 @@ describe("Threads messages — happy path", () => {
     expect(body.messages[1].role).toBe("agent");
     expect(body.messages[1].status).toBe("complete");
     expect(body.messages[1].content).toMatchObject({ body: "echo:hi" });
+  });
+
+  it("generates a title from the first user message when the thread is untitled", async () => {
+    const threadId = await createUntitledThread(ctx.workspaceId, ctx.userId);
+
+    const res = await authedFetch(`/api/threads/${threadId}/messages`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({
+        content: "운영체제 강의자료 핵심을 요약해줘",
+        mode: "auto",
+      }),
+    });
+    expect(res.status).toBe(200);
+    await res.text();
+
+    const [thread] = await db
+      .select({ title: chatThreads.title })
+      .from(chatThreads)
+      .where(eq(chatThreads.id, threadId));
+    expect(thread!.title).toBe("운영체제 강의자료 핵심을 요약해줘");
+  });
+
+  it("keeps an explicit thread title when posting a message", async () => {
+    const threadId = await createThread(ctx.workspaceId, ctx.userId);
+
+    const res = await authedFetch(`/api/threads/${threadId}/messages`, {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({ content: "new message title", mode: "auto" }),
+    });
+    expect(res.status).toBe(200);
+    await res.text();
+
+    const [thread] = await db
+      .select({ title: chatThreads.title })
+      .from(chatThreads)
+      .where(eq(chatThreads.id, threadId));
+    expect(thread!.title).toBe("msg test");
   });
 
   it("creates a durable run and replays persisted stream events", async () => {
@@ -511,6 +565,20 @@ describe("Threads messages — happy path", () => {
     expect(after!.updatedAt.getTime()).toBeGreaterThan(
       before!.updatedAt.getTime(),
     );
+  });
+});
+
+describe("generateThreadTitleFromMessage", () => {
+  it("normalizes whitespace and strips lightweight markdown punctuation", () => {
+    expect(generateThreadTitleFromMessage("  ##  운영체제   요약해줘  ")).toBe(
+      "운영체제 요약해줘",
+    );
+  });
+
+  it("truncates long prompts", () => {
+    const title = generateThreadTitleFromMessage("a".repeat(80));
+    expect(title).toHaveLength(48);
+    expect(title.endsWith("...")).toBe(true);
   });
 });
 

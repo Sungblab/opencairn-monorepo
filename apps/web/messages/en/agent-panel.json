@@ -34,6 +34,7 @@
     "save_suggestion_inserted_active": "Added to the current note",
     "save_suggestion_target_prompt": "Where should I save this conversation?",
     "save_suggestion_create_new": "Create new note",
+    "save_suggestion_created_new": "Created a new note",
     "save_suggestion_cancel": "Cancel",
     "save_suggestion_failed": "Save failed. Please try again.",
     "interaction_note_title": "New note draft",
@@ -77,6 +78,19 @@
   },
   "noteActionReview": {
     "title": "Pending note actions"
+  },
+  "actionCard": {
+    "noteCreateCompleted": "Note created",
+    "noteCreateApproval": "Note creation needs approval",
+    "noteCreateRunning": "Creating note",
+    "approval": "Action needs approval",
+    "running": "Running action",
+    "completed": "Action complete",
+    "failed": "Action failed",
+    "cancelled": "Action cancelled",
+    "open": "Open note",
+    "apply": "Apply",
+    "reject": "Reject"
   },
   "codeProjectReview": {
     "title": "Code patch proposal",
@@ -309,6 +323,12 @@
       "autoApplyOn": "Safe auto-apply on",
       "autoApplyOff": "Safe auto-apply"
     },
+    "actionApproval": {
+      "require": "Ask first",
+      "auto": "Auto-run",
+      "require_aria": "Ask before running actions",
+      "auto_aria": "Auto-run safe actions"
+    },
     "voice_aria": "Voice input",
     "send_aria": "Send",
     "slash": {
@@ -360,10 +380,15 @@
     "modes": {
       "trigger_aria": "Choose response mode",
       "auto": "AUTO",
+      "auto_description": "Chooses speed and depth based on the material and question.",
       "fast": "FAST",
+      "fast_description": "Best for quick answers and lightweight drafts.",
       "balanced": "BALANCED",
+      "balanced_description": "Balances speed and accuracy for everyday work.",
       "accurate": "ACCURATE",
-      "research": "RESEARCH"
+      "accurate_description": "Uses more care when evidence and verification matter.",
+      "research": "RESEARCH",
+      "research_description": "Explores and organizes project material more broadly."
     }
   },
   "contextTray": {
@@ -416,13 +441,33 @@
     "title": "Quick actions"
   },
   "empty_state": {
-    "title": "New conversation",
-    "intro": "Type below. The first message creates the conversation.",
+    "title": "What should we work on?",
+    "title_with_context": "What should I do with this material?",
+    "intro": "Ask from your project and notes when you are ready.",
+    "intro_with_context": "Start from the material currently attached to this chat.",
     "hint": "Use the reference scope to see and adjust what the agent can read.",
     "points": {
       "workspace": "Reads notes, projects, and run status together.",
       "scope": "Use the reference scope below to choose current document, pinned sources, or the whole project."
     },
-    "start_cta": "Start a conversation"
+    "start_cta": "Start a conversation",
+    "suggestions": {
+      "summarize": {
+        "label": "Summarize",
+        "prompt": "Summarize the currently referenced material around the core points."
+      },
+      "keyPoints": {
+        "label": "Extract key ideas",
+        "prompt": "Organize the key ideas and relationships in the currently referenced material."
+      },
+      "questions": {
+        "label": "Make questions",
+        "prompt": "Create comprehension questions from the currently referenced material."
+      },
+      "related": {
+        "label": "Find related notes",
+        "prompt": "Find and summarize project notes or sources related to the currently referenced material."
+      }
+    }
   }
 }

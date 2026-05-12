@@ -610,7 +610,7 @@ Tool call 실행 전 runtime `PermissionBroker`가 `@tool` policy metadata (`rea
 
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
-| GET    | /api/threads | Better Auth + workspace 멤버, `project_id` 사용 시 project `viewer` | List owner threads for a workspace-level or project-level Agent Panel scope. `project_id`가 없으면 workspace-level threads only, 있으면 해당 project threads only. | `?workspace_id=&project_id?=` |
+| GET    | /api/threads | Better Auth + workspace 멤버, `project_id` 사용 시 project `viewer` | List owner threads for a workspace-level or project-level Agent Panel scope. `project_id`가 없으면 workspace-level threads only, 있으면 해당 project threads only. Each item includes `last_message_preview` for compact history display. | `?workspace_id=&project_id?=` |
 | POST   | /api/threads | Better Auth + workspace 멤버, `project_id` 사용 시 project `viewer` | Create thread for a workspace-level or project-level Agent Panel scope | `{ workspace_id, project_id?, title? }` |
 | PATCH  | /api/threads/:id | owner | Update thread title | `{ title }` |
 | DELETE | /api/threads/:id | owner | Delete thread (cascade messages + feedback) | - |

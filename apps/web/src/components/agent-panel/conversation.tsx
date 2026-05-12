@@ -9,14 +9,21 @@
 // `onSaveSuggestion` is lifted to a prop so the AgentPanel host can wire the
 // Plan 11B consumer without touching this component again.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useTranslations } from "next-intl";
+import { stripAgentDirectiveFences } from "@opencairn/shared";
 import { ArrowDown } from "lucide-react";
 
 import { ChatMessageRendererLoader } from "@/components/chat/chat-message-renderer-loader";
 import { useChatMessages } from "@/hooks/use-chat-messages";
 import type { StreamingAgentMessage } from "@/hooks/use-chat-send";
-import { chatApi, type ChatMessage } from "@/lib/api-client";
+import { ApiError, chatApi, type ChatMessage } from "@/lib/api-client";
 
 import {
   AgentFileCards,
@@ -24,6 +31,9 @@ import {
   asAgentFileCards,
   asDocumentGenerationCards,
 } from "./message-attachments";
+import { AgentActionCards, asAgentActionCards } from "./agent-action-cards";
+import { SaveSuggestionCard } from "./save-suggestion-card";
+import { asSaveSuggestion } from "./message-bubble";
 import { MessageBubbleLoader } from "./message-bubble-loader";
 import { StatusLine } from "./status-line";
 import { ThoughtBubble } from "./thought-bubble";
@@ -51,6 +61,8 @@ interface Props {
   onResumeRun?: (runId: string, messageId: string) => void;
   onSaveSuggestion?: (payload: unknown) => void;
   onInteractionCardSubmit?: (input: InteractionCardSubmit) => void;
+  onThreadUnavailable?: () => void;
+  emptyState?: ReactNode;
 }
 
 export function Conversation({
@@ -60,13 +72,24 @@ export function Conversation({
   onResumeRun,
   onSaveSuggestion,
   onInteractionCardSubmit,
+  onThreadUnavailable,
+  emptyState,
 }: Props) {
   const t = useTranslations("agentPanel.bubble");
-  const { data: messages = [] } = useChatMessages(threadId);
+  const {
+    data: messages = [],
+    isPending,
+    error: messagesError,
+  } = useChatMessages(threadId);
   const liveError = liveErrorMessage(live?.error ?? null);
   const liveCitations = asCitations(live?.citations);
+  const liveSaveSuggestion = asSaveSuggestion(live?.save_suggestion);
+  const liveAgentActions = asAgentActionCards(live?.agent_actions);
   const liveBody = live
-    ? stripRenderedCitationMarkers(live.body, liveCitations)
+    ? stripRenderedCitationMarkers(
+        stripAgentDirectiveFences(live.body),
+        liveCitations,
+      )
     : "";
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
@@ -87,6 +110,12 @@ export function Conversation({
     );
   const visiblePendingUser =
     pendingUser && !pendingUserAlreadyPersisted ? pendingUser : null;
+  const showEmptyState =
+    emptyState &&
+    !isPending &&
+    messages.length === 0 &&
+    !visiblePendingUser &&
+    !live;
 
   const updatePinnedState = useCallback(() => {
     const node = scrollAreaRef.current;
@@ -110,6 +139,15 @@ export function Conversation({
   const handleScroll = useCallback(() => {
     updatePinnedState();
   }, [updatePinnedState]);
+
+  useEffect(() => {
+    if (
+      messagesError instanceof ApiError &&
+      (messagesError.status === 403 || messagesError.status === 404)
+    ) {
+      onThreadUnavailable?.();
+    }
+  }, [messagesError, onThreadUnavailable]);
 
   useEffect(() => {
     messageCountRef.current = messages.length;
@@ -194,76 +232,94 @@ export function Conversation({
 
   return (
     <div className="relative min-h-0 flex-1 bg-background/35">
-      <div
-        ref={scrollAreaRef}
-        data-testid="conversation-scroll"
-        onScroll={handleScroll}
-        className="app-scrollbar-thin flex h-full flex-col gap-4 overflow-auto p-3"
-      >
-        {messages.map((m) => (
-          <MessageBubbleLoader
-            key={m.id}
-            msg={withAnsweredCard(m)}
-            onRegenerate={() => {
-              // Plan 11A wires regenerate; Phase 4 leaves it as a no-op so the
-              // action button doesn't disappear and reflow the row mid-thread.
-            }}
-            onSaveSuggestion={(payload) => onSaveSuggestion?.(payload)}
-            onFeedback={onFeedback}
-            onInteractionCardSubmit={submitInteractionCard}
-          />
-        ))}
-        {visiblePendingUser ? (
-          <MessageBubbleLoader
-            key={visiblePendingUser.id}
-            msg={visiblePendingUser}
-            onRegenerate={() => {}}
-            onSaveSuggestion={(payload) => onSaveSuggestion?.(payload)}
-            onFeedback={onFeedback}
-            onInteractionCardSubmit={submitInteractionCard}
-          />
-        ) : null}
-        {live ? (
-          <div className="flex flex-col gap-2">
-            {live.thought ? <ThoughtBubble {...live.thought} /> : null}
-            {live.status?.phrase ? (
-              <StatusLine phrase={live.status.phrase} />
-            ) : !live.body ? (
-              <StatusLine phrase={t("streaming_preparing")} />
-            ) : null}
-            {live.body ? (
-              <div className="rounded-[var(--radius-card)] border border-border/60 bg-background/80 px-3 py-2 shadow-sm">
-                <ChatMessageRendererLoader body={liveBody} streaming compact />
-                <span
-                  aria-hidden
-                  className="mt-1 inline-block h-2 w-2 animate-pulse rounded-full bg-foreground/45"
+      {showEmptyState ? (
+        <div className="flex h-full flex-col">{emptyState}</div>
+      ) : (
+        <div
+          ref={scrollAreaRef}
+          data-testid="conversation-scroll"
+          onScroll={handleScroll}
+          className="app-scrollbar-thin flex h-full flex-col gap-4 overflow-auto p-3"
+        >
+          {messages.map((m) => (
+            <MessageBubbleLoader
+              key={m.id}
+              msg={withAnsweredCard(m)}
+              onRegenerate={() => {
+                // Plan 11A wires regenerate; Phase 4 leaves it as a no-op so the
+                // action button doesn't disappear and reflow the row mid-thread.
+              }}
+              onSaveSuggestion={(payload) => onSaveSuggestion?.(payload)}
+              onFeedback={onFeedback}
+              onInteractionCardSubmit={submitInteractionCard}
+            />
+          ))}
+          {visiblePendingUser ? (
+            <MessageBubbleLoader
+              key={visiblePendingUser.id}
+              msg={visiblePendingUser}
+              onRegenerate={() => {}}
+              onSaveSuggestion={(payload) => onSaveSuggestion?.(payload)}
+              onFeedback={onFeedback}
+              onInteractionCardSubmit={submitInteractionCard}
+            />
+          ) : null}
+          {live ? (
+            <div className="flex flex-col gap-2">
+              {live.thought ? <ThoughtBubble {...live.thought} /> : null}
+              {live.status?.phrase ? (
+                <StatusLine phrase={live.status.phrase} />
+              ) : !live.body ? (
+                <StatusLine phrase={t("streaming_preparing")} />
+              ) : null}
+              {live.body ? (
+                <div className="rounded-[var(--radius-card)] border border-border/60 bg-background/80 px-3 py-2 shadow-sm">
+                  <ChatMessageRendererLoader body={liveBody} streaming compact />
+                  <span
+                    aria-hidden
+                    className="mt-1 inline-block h-2 w-2 animate-pulse rounded-full bg-foreground/45"
+                  />
+                </div>
+              ) : null}
+              {liveCitations.length > 0 ? (
+                <CitationChips citations={liveCitations} />
+              ) : null}
+              {liveSaveSuggestion ? (
+                <SaveSuggestionCard
+                  title={liveSaveSuggestion.title}
+                  onSave={() => onSaveSuggestion?.(live?.save_suggestion)}
+                  onDismiss={() => {}}
                 />
-              </div>
-            ) : null}
-            {liveCitations.length > 0 ? (
-              <CitationChips citations={liveCitations} />
-            ) : null}
-            {liveError ? (
-              <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                {t("error_prefix", { message: liveError })}
-              </div>
-            ) : null}
-            {live.agent_files.length > 0 || live.project_objects.length > 0 ? (
-              <AgentFileCards
-                files={asAgentFileCards(live.agent_files, live.project_objects)}
-              />
-            ) : null}
-            {live.project_object_generations.length > 0 ? (
-              <DocumentGenerationCards
-                items={asDocumentGenerationCards(
-                  live.project_object_generations,
-                )}
-              />
-            ) : null}
-          </div>
-        ) : null}
-        <div ref={endRef} />
-      </div>
+              ) : null}
+              {liveError ? (
+                <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                  {t("error_prefix", { message: liveError })}
+                </div>
+              ) : null}
+              {live.agent_files.length > 0 ||
+              live.project_objects.length > 0 ? (
+                <AgentFileCards
+                  files={asAgentFileCards(
+                    live.agent_files,
+                    live.project_objects,
+                  )}
+                />
+              ) : null}
+              {live.project_object_generations.length > 0 ? (
+                <DocumentGenerationCards
+                  items={asDocumentGenerationCards(
+                    live.project_object_generations,
+                  )}
+                />
+              ) : null}
+              {liveAgentActions.length > 0 ? (
+                <AgentActionCards actions={liveAgentActions} />
+              ) : null}
+            </div>
+          ) : null}
+          <div ref={endRef} />
+        </div>
+      )}
       {showJumpToLatest ? (
         <button
           type="button"

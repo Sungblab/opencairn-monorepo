@@ -51,6 +51,7 @@ describe("ThreadList", () => {
         {
           id: "thread-1",
           title: "요약 요청",
+          last_message_preview: "이 자료를 요약해줘",
           created_at: "2026-05-11T00:00:00Z",
           updated_at: "2026-05-11T00:00:00Z",
         },
@@ -80,7 +81,28 @@ describe("ThreadList", () => {
         name: "agentPanel.thread_list.delete_aria",
       }),
     ).toBeInTheDocument();
+    expect(screen.getByText("이 자료를 요약해줘")).toBeInTheDocument();
     expect(useChatThreadsMock).toHaveBeenCalledWith("ws-1", "project-1");
+  });
+
+  it("hides abandoned untitled draft threads from history", () => {
+    useChatThreadsMock.mockReturnValue({
+      threads: [
+        {
+          id: "draft-thread",
+          title: "",
+          created_at: "2026-05-11T00:00:00Z",
+          updated_at: "2026-05-11T00:00:00Z",
+        },
+      ],
+      isLoading: false,
+      archive: { mutateAsync: archiveMutateAsync, isPending: false },
+    });
+
+    renderThreadList();
+
+    expect(screen.getByText("agentPanel.thread_list.empty")).toBeInTheDocument();
+    expect(screen.queryByText("agentPanel.thread_list.untitled")).toBeNull();
   });
 
   it("archives the selected thread and clears it when delete is clicked", async () => {

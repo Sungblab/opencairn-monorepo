@@ -16,11 +16,21 @@ const INPUT_LABEL = "agentPanel.composer.input_aria";
 const VOICE_LABEL = "agentPanel.composer.voice_aria";
 const SEND_LABEL = "agentPanel.composer.send_aria";
 const ADD_MENU_LABEL = "agentPanel.composer.add_menu_aria";
+const ACTION_REQUIRE_LABEL = "agentPanel.composer.actionApproval.require_aria";
+const ACTION_AUTO_LABEL = "agentPanel.composer.actionApproval.auto_aria";
 
 describe("Composer", () => {
   it("labels the message textarea for assistive technology", () => {
     render(<Composer onSend={vi.fn()} />);
     expect(screen.getByLabelText(INPUT_LABEL)).toBeInTheDocument();
+  });
+
+  it("focuses the textarea when a new draft is started", () => {
+    const { rerender } = render(<Composer onSend={vi.fn()} focusKey={0} />);
+
+    rerender(<Composer onSend={vi.fn()} focusKey={1} />);
+
+    expect(screen.getByLabelText(INPUT_LABEL)).toHaveFocus();
   });
 
   it("keeps the textarea compact enough for narrow agent panels", () => {
@@ -135,6 +145,30 @@ describe("Composer", () => {
     );
 
     expect(onToggleActionApprovalMode).toHaveBeenCalled();
+  });
+
+  it("shows the action approval mode as a visible composer toggle", () => {
+    const onToggleActionApprovalMode = vi.fn();
+    const { rerender } = render(
+      <Composer
+        onSend={vi.fn()}
+        actionApprovalMode="require"
+        onToggleActionApprovalMode={onToggleActionApprovalMode}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: ACTION_REQUIRE_LABEL }));
+    expect(onToggleActionApprovalMode).toHaveBeenCalled();
+
+    rerender(
+      <Composer
+        onSend={vi.fn()}
+        actionApprovalMode="auto_safe"
+        onToggleActionApprovalMode={onToggleActionApprovalMode}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: ACTION_AUTO_LABEL })).toBeInTheDocument();
   });
 
   it("does not expose web search as a manual toggle", () => {
