@@ -68,6 +68,36 @@ describe("TimelineView", () => {
     expect(container.querySelectorAll("circle")).toHaveLength(2);
   });
 
+  it("renders standalone note wiki links in the undated lane", () => {
+    (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: {
+        viewType: "timeline",
+        layout: "preset",
+        rootId: null,
+        nodes: [],
+        edges: [],
+        noteLinks: [
+          {
+            sourceNoteId: "11111111-1111-4111-8111-111111111111",
+            sourceTitle: "Source note",
+            targetNoteId: "22222222-2222-4222-8222-222222222222",
+            targetTitle: "Target note",
+          },
+        ],
+        truncated: false,
+        totalConcepts: 0,
+      },
+      isLoading: false,
+      error: null,
+    });
+    const { container } = wrap(<TimelineView projectId="p-1" />);
+
+    expect(screen.getAllByText("Source note").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Target note").length).toBeGreaterThan(0);
+    expect(screen.getByText(koGraph.timeline.lanes.undated)).toBeInTheDocument();
+    expect(container.querySelectorAll("circle.fill-blue-500")).toHaveLength(2);
+  });
+
   it("keeps undated concepts visible in the undated lane", () => {
     (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
       data: {
@@ -137,6 +167,38 @@ describe("TimelineView", () => {
     expect(openPreview).toHaveBeenCalledWith(
       expect.objectContaining({
         targetId: "33333333-3333-4333-8333-333333333333",
+      }),
+    );
+  });
+
+  it("clicking a standalone note-link node opens that note", () => {
+    openPreview.mockClear();
+    (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: {
+        viewType: "timeline",
+        layout: "preset",
+        rootId: null,
+        nodes: [],
+        edges: [],
+        noteLinks: [
+          {
+            sourceNoteId: "11111111-1111-4111-8111-111111111111",
+            sourceTitle: "Source note",
+            targetNoteId: "22222222-2222-4222-8222-222222222222",
+            targetTitle: "Target note",
+          },
+        ],
+        truncated: false,
+        totalConcepts: 0,
+      },
+      isLoading: false,
+      error: null,
+    });
+    wrap(<TimelineView projectId="p-1" />);
+    fireEvent.click(screen.getAllByText("Source note")[0]);
+    expect(openPreview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetId: "11111111-1111-4111-8111-111111111111",
       }),
     );
   });

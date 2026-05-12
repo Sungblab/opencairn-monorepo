@@ -1,6 +1,7 @@
 "use client";
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
+import type { ViewNode } from "@opencairn/shared";
 import { useProjectGraph } from "../useProjectGraph";
 import { useTabsStore } from "@/stores/tabs-store";
 import {
@@ -21,6 +22,41 @@ function timelineLabel(name: string): string {
   return `${trimmed.slice(0, TIMELINE_LABEL_MAX - 3)}...`;
 }
 
+function withNoteLinkTimelineNodes(
+  nodes: ViewNode[],
+  noteLinks: Array<{
+    sourceNoteId: string;
+    sourceTitle: string;
+    targetNoteId: string;
+    targetTitle: string;
+  }> | undefined,
+): { nodes: ViewNode[]; noteNodeIds: Set<string> } {
+  if (!noteLinks?.length) return { nodes, noteNodeIds: new Set() };
+  const nodeMap = new Map(nodes.map((node) => [node.id, node]));
+  const noteTitles = new Map<string, string>();
+  const noteDegree = new Map<string, number>();
+  for (const link of noteLinks) {
+    noteTitles.set(link.sourceNoteId, link.sourceTitle);
+    noteTitles.set(link.targetNoteId, link.targetTitle);
+    noteDegree.set(link.sourceNoteId, (noteDegree.get(link.sourceNoteId) ?? 0) + 1);
+    noteDegree.set(link.targetNoteId, (noteDegree.get(link.targetNoteId) ?? 0) + 1);
+  }
+  const noteNodeIds = new Set<string>();
+  for (const [noteId, title] of noteTitles) {
+    if (nodeMap.has(noteId)) continue;
+    noteNodeIds.add(noteId);
+    nodeMap.set(noteId, {
+      id: noteId,
+      name: title,
+      description: "",
+      degree: noteDegree.get(noteId) ?? 1,
+      noteCount: 1,
+      firstNoteId: noteId,
+    });
+  }
+  return { nodes: [...nodeMap.values()], noteNodeIds };
+}
+
 /**
  * `?view=timeline` — left-to-right SVG axis of concepts placed by curated
  * `eventYear` (or `createdAt` fallback). Pure React + SVG (no cytoscape, no
@@ -33,9 +69,13 @@ export default function TimelineView({ projectId }: Props) {
   });
   const addOrReplacePreview = useTabsStore((s) => s.addOrReplacePreview);
 
+  const projected = useMemo(
+    () => withNoteLinkTimelineNodes(data?.nodes ?? [], data?.noteLinks),
+    [data?.nodes, data?.noteLinks],
+  );
   const layout = useMemo(
-    () => layoutTimeline(data?.nodes ?? []),
-    [data],
+    () => layoutTimeline(projected.nodes),
+    [projected.nodes],
   );
 
   if (isLoading) {
@@ -48,7 +88,7 @@ export default function TimelineView({ projectId }: Props) {
       </div>
     );
   }
-  if (!data || data.nodes.length === 0) {
+  if (!data || projected.nodes.length === 0) {
     return (
       <div className="p-6 text-sm text-muted-foreground">
         {t("views.noConcepts")}
@@ -136,7 +176,9 @@ export default function TimelineView({ projectId }: Props) {
               r={TIMELINE_NODE_RADIUS}
               className={
                 n.lane === "undated"
-                  ? "fill-muted-foreground"
+                  ? projected.noteNodeIds.has(n.id)
+                    ? "fill-blue-500"
+                    : "fill-muted-foreground"
                   : n.lane === "created"
                     ? "fill-sky-500"
                     : "fill-primary"
