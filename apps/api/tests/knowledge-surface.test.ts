@@ -226,6 +226,31 @@ describe("GET /api/projects/:projectId/knowledge-surface", () => {
       sourceNoteId: ctx.noteId,
       targetNoteId: targetNote.id,
     });
+    const [unmappedSource] = await db
+      .insert(notes)
+      .values({
+        projectId: ctx.projectId,
+        workspaceId: ctx.workspaceId,
+        title: "Unmapped source",
+        type: "wiki",
+        inheritParent: true,
+      })
+      .returning({ id: notes.id });
+    const [unmappedTarget] = await db
+      .insert(notes)
+      .values({
+        projectId: ctx.projectId,
+        workspaceId: ctx.workspaceId,
+        title: "Unmapped target",
+        type: "wiki",
+        inheritParent: true,
+      })
+      .returning({ id: notes.id });
+    await db.insert(wikiLinks).values({
+      workspaceId: ctx.workspaceId,
+      sourceNoteId: unmappedSource.id,
+      targetNoteId: unmappedTarget.id,
+    });
 
     const res = await app.request(
       `/api/projects/${ctx.projectId}/knowledge-surface?view=graph`,
@@ -240,6 +265,18 @@ describe("GET /api/projects/:projectId/knowledge-surface", () => {
         displayOnly?: boolean;
         sourceNoteIds?: string[];
         sourceNotes?: Array<{ id: string; title: string }>;
+        sourceNoteLinks?: Array<{
+          sourceNoteId: string;
+          sourceTitle: string;
+          targetNoteId: string;
+          targetTitle: string;
+        }>;
+      }>;
+      noteLinks?: Array<{
+        sourceNoteId: string;
+        sourceTitle: string;
+        targetNoteId: string;
+        targetTitle: string;
       }>;
     };
     expect(body.edges).toEqual(
@@ -260,6 +297,16 @@ describe("GET /api/projects/:projectId/knowledge-surface", () => {
               targetTitle: "Linked wiki note",
             },
           ],
+        }),
+      ]),
+    );
+    expect(body.noteLinks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sourceNoteId: unmappedSource.id,
+          sourceTitle: "Unmapped source",
+          targetNoteId: unmappedTarget.id,
+          targetTitle: "Unmapped target",
         }),
       ]),
     );

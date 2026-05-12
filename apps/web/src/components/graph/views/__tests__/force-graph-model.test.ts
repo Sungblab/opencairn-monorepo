@@ -88,13 +88,21 @@ const snap: GroundedGraphResponse = {
       ],
     },
   ],
+  noteLinks: [
+    {
+      sourceNoteId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      sourceTitle: "Standalone source",
+      targetNoteId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      targetTitle: "Standalone target",
+    },
+  ],
 };
 
 describe("force graph model", () => {
   it("maps grounded graph data into draggable force graph nodes and links", () => {
     const graph = buildForceGraphData(snap);
 
-    expect(graph.nodes).toHaveLength(5);
+    expect(graph.nodes).toHaveLength(7);
     expect(graph.nodes[0]?.color).toMatch(/^#[0-9a-f]{6}$/i);
     expect(graph.nodes[0]?.isHub).toBe(true);
     expect(graph.nodes[1]?.isHub).toBe(false);
@@ -130,6 +138,14 @@ describe("force graph model", () => {
           "wiki-note:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa->bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb:55555555-5555-4555-8555-555555555555",
         source: "note:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
         target: "note:bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        relationType: "wiki-link",
+        surfaceType: "wiki_link",
+      }),
+      expect.objectContaining({
+        edgeId:
+          "wiki-note:cccccccc-cccc-4ccc-8ccc-cccccccccccc->dddddddd-dddd-4ddd-8ddd-dddddddddddd:project",
+        source: "note:cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        target: "note:dddddddd-dddd-4ddd-8ddd-dddddddddddd",
         relationType: "wiki-link",
         surfaceType: "wiki_link",
       }),
@@ -238,6 +254,36 @@ describe("force graph model", () => {
       "note:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa:11111111-1111-4111-8111-111111111111",
       "note:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa:22222222-2222-4222-8222-222222222222",
       "wiki-note:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa->bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb:55555555-5555-4555-8555-555555555555",
+    ]);
+  });
+
+  it("renders note-to-note wiki links even when notes have no concept mapping", () => {
+    const graph = buildForceGraphData(snap);
+    const neighborhood = getForceGraphNeighborhood(
+      graph.links,
+      "note:cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    );
+
+    expect(graph.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "note:cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          name: "Standalone source",
+          kind: "note",
+        }),
+        expect.objectContaining({
+          id: "note:dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          name: "Standalone target",
+          kind: "note",
+        }),
+      ]),
+    );
+    expect([...neighborhood.nodeIds].sort()).toEqual([
+      "note:cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      "note:dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+    ]);
+    expect([...neighborhood.edgeIds]).toEqual([
+      "wiki-note:cccccccc-cccc-4ccc-8ccc-cccccccccccc->dddddddd-dddd-4ddd-8ddd-dddddddddddd:project",
     ]);
   });
 });

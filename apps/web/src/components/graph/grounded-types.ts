@@ -42,6 +42,7 @@ export type GroundedCard = {
 
 export type GroundedGraphResponse = Omit<GraphViewResponse, "edges"> & {
   edges: GroundedEdge[];
+  noteLinks?: NonNullable<GraphViewResponse["noteLinks"]>;
   cards?: GroundedCard[];
   evidenceBundles?: EvidenceBundle[];
 };

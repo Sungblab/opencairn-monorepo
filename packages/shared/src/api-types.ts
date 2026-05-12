@@ -357,12 +357,21 @@ export const ViewEdge = z.object({
 });
 export type ViewEdge = z.infer<typeof ViewEdge>;
 
+export const ViewNoteLink = z.object({
+  sourceNoteId: z.string().uuid(),
+  sourceTitle: z.string().min(1),
+  targetNoteId: z.string().uuid(),
+  targetTitle: z.string().min(1),
+});
+export type ViewNoteLink = z.infer<typeof ViewNoteLink>;
+
 export const ViewSpec = z.object({
   viewType: ViewType,
   layout: ViewLayout,
   rootId: z.string().uuid().nullable(),
   nodes: z.array(ViewNode).max(500),
   edges: z.array(ViewEdge).max(2000),
+  noteLinks: z.array(ViewNoteLink).default([]).optional(),
   rationale: z.string().max(200).optional(),
 });
 export type ViewSpec = z.infer<typeof ViewSpec>;

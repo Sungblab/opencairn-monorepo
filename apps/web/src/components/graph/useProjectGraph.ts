@@ -66,7 +66,9 @@ function groundedFromInline(inline: ViewSpec): GroundedGraphResponse {
       sourceNoteIds: edge.sourceNoteIds ?? [],
       sourceNotes: edge.sourceNotes ?? [],
       sourceContexts: edge.sourceContexts ?? [],
+      sourceNoteLinks: edge.sourceNoteLinks ?? [],
     })),
+    noteLinks: inline.noteLinks ?? [],
     truncated: false,
     totalConcepts: inline.nodes.length,
   };

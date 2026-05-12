@@ -44,6 +44,7 @@ const CARDS_LIMIT = 80;
 const TIMELINE_LIMIT = 80;
 const BOARD_CAP = 200;
 const WIKI_LINK_EDGE_LIMIT = 500;
+const WIKI_NOTE_LINK_LIMIT = 700;
 const SOURCE_PROXIMITY_EDGE_LIMIT = 700;
 const SOURCE_PROXIMITY_MAX_CONCEPTS_PER_CHUNK = 40;
 const CO_MENTION_EDGE_LIMIT = 900;
@@ -79,9 +80,17 @@ export type KnowledgeSurfaceCard = {
   citationCount: number;
 };
 
+export type KnowledgeSurfaceNoteLink = {
+  sourceNoteId: string;
+  sourceTitle: string;
+  targetNoteId: string;
+  targetTitle: string;
+};
+
 export type KnowledgeSurfaceResponse = Omit<GraphResponse, "edges" | "viewType"> & {
   viewType: KnowledgeSurfaceView;
   edges: KnowledgeSurfaceEdge[];
+  noteLinks?: KnowledgeSurfaceNoteLink[];
   cards?: KnowledgeSurfaceCard[];
   evidenceBundles?: EvidenceBundle[];
 };
@@ -429,6 +438,42 @@ async function selectSourceNoteTitles(
   );
 }
 
+async function selectProjectWikiNoteLinks(
+  projectId: string,
+): Promise<KnowledgeSurfaceNoteLink[]> {
+  type WikiNoteLinkRow = {
+    source_note_id: string;
+    source_title: string | null;
+    target_note_id: string;
+    target_title: string | null;
+  };
+  const raw = await db.execute(sql`
+    SELECT
+      wl.source_note_id,
+      COALESCE(NULLIF(src.title, ''), 'Untitled') AS source_title,
+      wl.target_note_id,
+      COALESCE(NULLIF(tgt.title, ''), 'Untitled') AS target_title
+    FROM wiki_links wl
+    JOIN notes src
+      ON src.id = wl.source_note_id
+     AND src.deleted_at IS NULL
+    JOIN notes tgt
+      ON tgt.id = wl.target_note_id
+     AND tgt.deleted_at IS NULL
+    WHERE src.project_id = ${projectId}
+      AND tgt.project_id = ${projectId}
+    ORDER BY wl.created_at DESC
+    LIMIT ${WIKI_NOTE_LINK_LIMIT}
+  `);
+  const rows = ((raw as { rows?: WikiNoteLinkRow[] }).rows ?? raw) as WikiNoteLinkRow[];
+  return rows.map((row) => ({
+    sourceNoteId: row.source_note_id,
+    sourceTitle: row.source_title?.trim() || "Untitled",
+    targetNoteId: row.target_note_id,
+    targetTitle: row.target_title?.trim() || "Untitled",
+  }));
+}
+
 function mergeSurfaceEdges(
   semanticEdges: KnowledgeSurfaceEdge[],
   displayEdges: KnowledgeSurfaceEdge[],
@@ -758,16 +803,18 @@ export async function getKnowledgeSurfaceForUser(
     sourceNoteIds: [],
     support: support.get(edge.id) ?? missingSupport(),
   }));
-  const displayEdges =
+  const conceptIds = base.nodes.map((node) => node.id);
+  const [displayEdges, noteLinks] =
     opts.view === "timeline"
-      ? []
-      : (
-          await Promise.all([
-            selectWikiLinkEdges(projectId, base.nodes.map((node) => node.id)),
-            selectSourceProximityEdges(projectId, base.nodes.map((node) => node.id)),
-            selectCoMentionEdges(base.nodes.map((node) => node.id)),
-          ])
-        ).flat();
+      ? [[], []]
+      : await Promise.all([
+          Promise.all([
+            selectWikiLinkEdges(projectId, conceptIds),
+            selectSourceProximityEdges(projectId, conceptIds),
+            selectCoMentionEdges(conceptIds),
+          ]).then((parts) => parts.flat()),
+          selectProjectWikiNoteLinks(projectId),
+        ]);
   const edges = mergeSurfaceEdges(semanticEdges, displayEdges);
   const cards = opts.view === "cards" ? await selectCards(base.nodes) : undefined;
 
@@ -776,6 +823,7 @@ export async function getKnowledgeSurfaceForUser(
     rootId: base.rootId,
     nodes: base.nodes,
     edges,
+    noteLinks,
     truncated: base.truncated,
     totalConcepts: base.totalConcepts,
     layout: base.layout,

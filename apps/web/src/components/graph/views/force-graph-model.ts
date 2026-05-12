@@ -88,9 +88,15 @@ export function buildForceGraphData(
 ): ForceGraphData {
   const noteTitles = new Map<string, string>();
   const noteConceptIds = new Map<string, Set<string>>();
+  const noteLinkDegrees = new Map<string, number>();
+  const ensureNote = (noteId: string | null | undefined, title?: string) => {
+    if (!noteId) return;
+    if (title) noteTitles.set(noteId, title);
+    if (!noteConceptIds.has(noteId)) noteConceptIds.set(noteId, new Set());
+  };
   const addNoteConcept = (noteId: string | null | undefined, conceptId: string) => {
     if (!noteId) return;
-    if (!noteConceptIds.has(noteId)) noteConceptIds.set(noteId, new Set());
+    ensureNote(noteId);
     noteConceptIds.get(noteId)?.add(conceptId);
   };
   const nodes = snap.nodes.map((node) => {
@@ -114,25 +120,42 @@ export function buildForceGraphData(
   });
   for (const edge of snap.edges) {
     for (const note of edge.sourceNotes ?? []) {
-      noteTitles.set(note.id, note.title);
+      ensureNote(note.id, note.title);
       addNoteConcept(note.id, edge.sourceId);
       addNoteConcept(note.id, edge.targetId);
     }
     for (const context of edge.sourceContexts ?? []) {
-      noteTitles.set(context.noteId, context.noteTitle);
+      ensureNote(context.noteId, context.noteTitle);
       addNoteConcept(context.noteId, edge.sourceId);
       addNoteConcept(context.noteId, edge.targetId);
     }
     for (const link of edge.sourceNoteLinks ?? []) {
-      noteTitles.set(link.sourceNoteId, link.sourceTitle);
-      noteTitles.set(link.targetNoteId, link.targetTitle);
+      ensureNote(link.sourceNoteId, link.sourceTitle);
+      ensureNote(link.targetNoteId, link.targetTitle);
       addNoteConcept(link.sourceNoteId, edge.sourceId);
       addNoteConcept(link.targetNoteId, edge.targetId);
     }
   }
+  for (const link of snap.noteLinks ?? []) {
+    ensureNote(link.sourceNoteId, link.sourceTitle);
+    ensureNote(link.targetNoteId, link.targetTitle);
+  }
+  const bumpNoteLinkDegree = (sourceNoteId: string, targetNoteId: string) => {
+    noteLinkDegrees.set(sourceNoteId, (noteLinkDegrees.get(sourceNoteId) ?? 0) + 1);
+    noteLinkDegrees.set(targetNoteId, (noteLinkDegrees.get(targetNoteId) ?? 0) + 1);
+  };
+  for (const link of snap.noteLinks ?? []) {
+    bumpNoteLinkDegree(link.sourceNoteId, link.targetNoteId);
+  }
+  for (const edge of snap.edges) {
+    if (edge.surfaceType !== "wiki_link") continue;
+    for (const link of edge.sourceNoteLinks ?? []) {
+      bumpNoteLinkDegree(link.sourceNoteId, link.targetNoteId);
+    }
+  }
   const noteHubNodes: ForceGraphNode[] = [...noteConceptIds.entries()].map(
     ([noteId, conceptIds]) => {
-      const degree = conceptIds.size;
+      const degree = Math.max(conceptIds.size, noteLinkDegrees.get(noteId) ?? 0);
       const title = noteTitles.get(noteId) ?? "출처 노트";
       return {
         id: `note:${noteId}`,
@@ -177,19 +200,38 @@ export function buildForceGraphData(
         synthetic: true,
       })),
   );
-  const noteWikiLinks: ForceGraphLink[] = snap.edges.flatMap((edge) => {
-    if (edge.surfaceType !== "wiki_link") return [];
-    return (edge.sourceNoteLinks ?? []).map((link) => ({
-      edgeId: `wiki-note:${link.sourceNoteId}->${link.targetNoteId}:${edgeId(edge)}`,
+  const noteWikiLinkMap = new Map<string, ForceGraphLink>();
+  const addNoteWikiLink = (
+    link: {
+      sourceNoteId: string;
+      targetNoteId: string;
+    },
+    suffix: string,
+    weight: number,
+  ) => {
+    const key = `${link.sourceNoteId}->${link.targetNoteId}`;
+    if (noteWikiLinkMap.has(key)) return;
+    noteWikiLinkMap.set(key, {
+      edgeId: `wiki-note:${key}:${suffix}`,
       source: `note:${link.sourceNoteId}`,
       target: `note:${link.targetNoteId}`,
       relationType: "wiki-link",
-      weight: Math.max(0.5, edge.weight),
+      weight,
       surfaceType: "wiki_link",
       displayOnly: true,
       synthetic: true,
-    }));
-  });
+    });
+  };
+  for (const link of snap.noteLinks ?? []) {
+    addNoteWikiLink(link, "project", 1);
+  }
+  for (const edge of snap.edges) {
+    if (edge.surfaceType !== "wiki_link") continue;
+    for (const link of edge.sourceNoteLinks ?? []) {
+      addNoteWikiLink(link, edgeId(edge), Math.max(0.5, edge.weight));
+    }
+  }
+  const noteWikiLinks = [...noteWikiLinkMap.values()];
 
   return { nodes: allNodes, links: [...noteWikiLinks, ...noteHubLinks, ...links], topNodeIds };
 }

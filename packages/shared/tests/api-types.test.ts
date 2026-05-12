@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createNoteSchema,
+  GraphViewResponse,
   patchCanvasSchema,
   canvasLanguageSchema,
   workspaceAtlasResponseSchema,
@@ -96,6 +97,30 @@ describe("canvasLanguageSchema", () => {
     expect(canvasLanguageSchema.safeParse("javascript").success).toBe(true);
     expect(canvasLanguageSchema.safeParse("html").success).toBe(true);
     expect(canvasLanguageSchema.safeParse("react").success).toBe(true);
+  });
+});
+
+describe("graph view contracts", () => {
+  it("accepts top-level note wiki links", () => {
+    const parsed = GraphViewResponse.parse({
+      viewType: "graph",
+      layout: "fcose",
+      rootId: null,
+      nodes: [],
+      edges: [],
+      noteLinks: [
+        {
+          sourceNoteId: "11111111-1111-4111-8111-111111111111",
+          sourceTitle: "Source",
+          targetNoteId: "22222222-2222-4222-8222-222222222222",
+          targetTitle: "Target",
+        },
+      ],
+      truncated: false,
+      totalConcepts: 0,
+    });
+
+    expect(parsed.noteLinks?.[0]?.targetTitle).toBe("Target");
   });
 });
 
