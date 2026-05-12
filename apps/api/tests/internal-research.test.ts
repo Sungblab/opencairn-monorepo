@@ -1,7 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { randomUUID } from "node:crypto";
 import { createApp } from "../src/app.js";
-import { db, notes, researchRuns, researchRunArtifacts, eq } from "@opencairn/db";
+import {
+  and,
+  db,
+  eq,
+  notes,
+  researchRuns,
+  researchRunArtifacts,
+  wikiLinks,
+} from "@opencairn/db";
 import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
 
 const SECRET = "test-internal-secret-abc";
@@ -59,6 +67,44 @@ describe("POST /api/internal/notes (research extension)", () => {
     expect(row!.title).toBe("research topic");
     expect(row!.content).toEqual(plate);
     expect(row!.contentText).toContain("body"); // plateValue → text derivation
+  });
+
+  it("syncs wiki links from worker-supplied plateValue", async () => {
+    const res = await internalFetch("/api/internal/notes", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: ctx.projectId,
+        workspaceId: ctx.workspaceId,
+        userId: ctx.userId,
+        title: "research with link",
+        plateValue: [
+          {
+            type: "p",
+            children: [
+              { text: "Related: " },
+              {
+                type: "wiki-link",
+                targetId: ctx.noteId,
+                children: [{ text: "seed note" }],
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const body = await res.json() as { noteId: string };
+    const rows = await db
+      .select({ id: wikiLinks.id })
+      .from(wikiLinks)
+      .where(
+        and(
+          eq(wikiLinks.sourceNoteId, body.noteId),
+          eq(wikiLinks.targetNoteId, ctx.noteId),
+        ),
+      );
+    expect(rows).toHaveLength(1);
   });
 
   it("is idempotent on idempotencyKey — returns same noteId on retry", async () => {

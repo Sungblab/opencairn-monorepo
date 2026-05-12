@@ -31,11 +31,13 @@ import {
   staleAlerts,
   audioFiles,
   noteEnrichments,
+  extractWikiLinkTargets,
   synthesisRuns,
   synthesisSources,
   synthesisDocuments,
   agentRuns,
   agentActions,
+  syncWikiLinks,
   eq,
   and,
   isNull,
@@ -2981,17 +2983,25 @@ internal.post(
     }
 
     const id = randomUUID();
-    await db.insert(notes).values({
-      id,
-      projectId: body.projectId,
-      workspaceId: proj.workspaceId,
-      title: body.title,
-      type: body.type,
-      sourceType: body.sourceType ?? null,
-      content,
-      contentText,
-      isAuto: true,
-      doi: body.doi ?? null,
+    await db.transaction(async (tx) => {
+      await tx.insert(notes).values({
+        id,
+        projectId: body.projectId,
+        workspaceId: proj.workspaceId,
+        title: body.title,
+        type: body.type,
+        sourceType: body.sourceType ?? null,
+        content,
+        contentText,
+        isAuto: true,
+        doi: body.doi ?? null,
+      });
+      await syncWikiLinks(
+        tx,
+        id,
+        extractWikiLinkTargets(content),
+        proj.workspaceId,
+      );
     });
     await refreshNoteChunkIndexBestEffort({
       id,
