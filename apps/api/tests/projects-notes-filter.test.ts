@@ -283,6 +283,8 @@ describe("GET /api/projects/:id/wiki-index", () => {
     expect(res.status).toBe(200);
     const body = await res.json() as {
       projectId: string;
+      generatedAt: string;
+      latestPageUpdatedAt: string | null;
       totals: { pages: number; wikiLinks: number };
       pages: Array<{
         id: string;
@@ -293,6 +295,8 @@ describe("GET /api/projects/:id/wiki-index", () => {
       }>;
     };
     expect(body.projectId).toBe(seed.projectId);
+    expect(Date.parse(body.generatedAt)).not.toBeNaN();
+    expect(body.latestPageUpdatedAt).not.toBeNull();
     expect(body.totals.pages).toBeGreaterThanOrEqual(3);
     expect(body.totals.wikiLinks).toBe(1);
     expect(body.pages.find((page) => page.id === sourceId)).toMatchObject({
