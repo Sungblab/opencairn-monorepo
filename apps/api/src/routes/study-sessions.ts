@@ -21,6 +21,7 @@ import {
   notes,
   projects,
   sessionRecordings,
+  sql,
   studySessionSources,
   studySessions,
   transcriptSegments,
@@ -483,7 +484,12 @@ export function createDrizzleStudySessionRepository(conn: DB = db): StudySession
         await tx
           .update(studySessions)
           .set({ status: "processing", updatedAt: new Date() })
-          .where(eq(studySessions.id, input.sessionId));
+          .where(
+            and(
+              eq(studySessions.id, input.sessionId),
+              sql`${studySessions.status} <> ${"processing"}`,
+            ),
+          );
         return serializeRecordingRow(recording);
       });
     },
@@ -513,6 +519,16 @@ export function createDrizzleStudySessionRepository(conn: DB = db): StudySession
     },
     async completeTranscript(input) {
       return conn.transaction(async (tx) => {
+        const [scope] = await tx
+          .select({
+            sessionId: studySessions.id,
+          })
+          .from(sessionRecordings)
+          .innerJoin(studySessions, eq(sessionRecordings.sessionId, studySessions.id))
+          .where(eq(sessionRecordings.id, input.recordingId))
+          .for("update");
+        if (!scope) return null;
+
         await tx
           .delete(transcriptSegments)
           .where(eq(transcriptSegments.recordingId, input.recordingId));
@@ -547,7 +563,7 @@ export function createDrizzleStudySessionRepository(conn: DB = db): StudySession
             status: input.status === "ready" ? "ready" : "active",
             updatedAt: new Date(),
           })
-          .where(eq(studySessions.id, recording.sessionId));
+          .where(eq(studySessions.id, scope.sessionId));
         return serializeRecordingRow(recording);
       });
     },
