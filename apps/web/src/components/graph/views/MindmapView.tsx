@@ -129,6 +129,7 @@ export default function MindmapView({ projectId, root }: Props) {
       if (node?.isNode?.()) {
         handlerRef.current(node.id());
       } else if (node?.isEdge?.()) {
+        if (node.data("surfaceType") === "co_mention") return;
         setSelectedEdgeId(node.id());
       }
     };

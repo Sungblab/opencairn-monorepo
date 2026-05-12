@@ -44,6 +44,7 @@ const CARDS_LIMIT = 80;
 const TIMELINE_LIMIT = 80;
 const BOARD_CAP = 200;
 const CO_MENTION_EDGE_LIMIT = 900;
+const CO_MENTION_MAX_CONCEPTS_PER_NOTE = 80;
 const EVIDENCE_BUNDLE_FETCH_CONCURRENCY = 8;
 
 export type KnowledgeSurfaceView = GraphViewType;
@@ -141,6 +142,12 @@ async function selectCoMentionEdges(
       FROM concept_notes
       WHERE concept_id = ANY(ARRAY[${idArr}])
     ),
+    bounded_notes AS (
+      SELECT note_id
+      FROM selected_notes
+      GROUP BY note_id
+      HAVING count(*) BETWEEN 2 AND ${CO_MENTION_MAX_CONCEPTS_PER_NOTE}
+    ),
     pairs AS (
       SELECT
         LEAST(a.concept_id, b.concept_id) AS source_id,
@@ -150,6 +157,7 @@ async function selectCoMentionEdges(
       JOIN selected_notes b
         ON a.note_id = b.note_id
        AND a.concept_id < b.concept_id
+      JOIN bounded_notes bn ON bn.note_id = a.note_id
     )
     SELECT
       source_id,

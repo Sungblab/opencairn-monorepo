@@ -534,6 +534,7 @@ export default function GraphView({ projectId }: { projectId: string }) {
             node.fy = node.y;
           }}
           onLinkClick={(link) => {
+            if (link.displayOnly) return;
             setSelectedEdgeId(link.edgeId);
             setSelectedNodeId(null);
           }}
