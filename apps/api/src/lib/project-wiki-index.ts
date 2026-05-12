@@ -10,6 +10,8 @@ import {
 } from "@opencairn/db";
 import { canRead } from "./permissions";
 
+const DEFAULT_PROMPT_LINK_LIMIT = 24;
+
 export type ProjectWikiIndexPage = {
   id: string;
   title: string;
@@ -195,10 +197,9 @@ export function projectWikiIndexToPrompt(
   }
   if (index.links.length > 0) {
     lines.push("", "Wiki link map:");
+    const linkLimit = opts.linkLimit ?? DEFAULT_PROMPT_LINK_LIMIT;
     const limitedLinks =
-      typeof opts.linkLimit === "number"
-        ? index.links.slice(0, opts.linkLimit)
-        : index.links;
+      typeof linkLimit === "number" ? index.links.slice(0, linkLimit) : index.links;
     for (const link of limitedLinks) {
       lines.push(`- ${link.sourceTitle} -> ${link.targetTitle}`);
     }

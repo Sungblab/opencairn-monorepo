@@ -63,4 +63,25 @@ describe("projectWikiIndexToPrompt", () => {
       "Wiki link map:\n- Compiler -> Runtime",
     );
   });
+
+  it("limits wiki link map entries by default", () => {
+    const index: ProjectWikiIndex = {
+      projectId: "project-1",
+      generatedAt: "2026-05-13T00:01:00.000Z",
+      latestPageUpdatedAt: "2026-05-13T00:00:00.000Z",
+      totals: { pages: 30, wikiLinks: 30, orphanPages: 0 },
+      links: Array.from({ length: 30 }, (_, i) => ({
+        sourceNoteId: `s${i}`,
+        sourceTitle: `Source ${i}`,
+        targetNoteId: `t${i}`,
+        targetTitle: `Target ${i}`,
+      })),
+      pages: [],
+    };
+
+    const prompt = projectWikiIndexToPrompt(index);
+
+    expect(prompt).toContain("- Source 23 -> Target 23");
+    expect(prompt).not.toContain("- Source 24 -> Target 24");
+  });
 });
