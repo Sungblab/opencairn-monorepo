@@ -122,4 +122,24 @@ describe("TabBar", () => {
     expect(screen.getByLabelText("splitPrimary")).toBeInTheDocument();
     expect(screen.getByLabelText("splitSecondary")).toBeInTheDocument();
   });
+
+  it("maps mouse wheel movement to horizontal tab scrolling", () => {
+    useTabsStore.getState().addTab(mk({ id: "a", title: "Alpha" }));
+    renderTabBar();
+
+    const scroller = screen.getByTestId("tab-bar")
+      .firstElementChild as HTMLDivElement;
+    Object.defineProperty(scroller, "scrollWidth", {
+      configurable: true,
+      value: 1000,
+    });
+    Object.defineProperty(scroller, "clientWidth", {
+      configurable: true,
+      value: 300,
+    });
+
+    fireEvent.wheel(scroller, { deltaY: 120 });
+
+    expect(scroller.scrollLeft).toBe(120);
+  });
 });

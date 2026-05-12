@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, type WheelEvent } from "react";
 import { useParams } from "next/navigation";
 import { useTabsStore } from "@/stores/tabs-store";
 import { StaticTabListLoader } from "./static-tab-list-loader";
@@ -17,6 +17,19 @@ export function TabBar() {
   const requestSorting = useCallback(() => {
     setSortingReady(true);
   }, []);
+  const handleTabWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
+    const el = event.currentTarget;
+    if (el.scrollWidth <= el.clientWidth) return;
+
+    const delta =
+      Math.abs(event.deltaX) > Math.abs(event.deltaY)
+        ? event.deltaX
+        : event.deltaY;
+    if (delta === 0) return;
+
+    event.preventDefault();
+    el.scrollLeft += delta;
+  }, []);
 
   return (
     <div
@@ -28,6 +41,7 @@ export function TabBar() {
         className="app-scrollbar-thin flex min-w-0 flex-1 overflow-x-auto"
         onPointerEnter={requestSorting}
         onFocusCapture={requestSorting}
+        onWheel={handleTabWheel}
       >
         {sortingReady ? (
           <SortableTabListLoader
