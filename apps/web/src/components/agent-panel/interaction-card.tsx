@@ -35,6 +35,7 @@ export type InteractionCardSubmit = {
   option: AgentInteractionCardOption | null;
   value: string;
   label: string;
+  actionId?: string;
 };
 
 export function isAgentInteractionCard(
@@ -61,9 +62,11 @@ export function isAgentInteractionCard(
 export function InteractionCard({
   card,
   onSubmit,
+  disabled = false,
 }: {
   card: AgentInteractionCard;
   onSubmit(input: InteractionCardSubmit): void;
+  disabled?: boolean;
 }) {
   const t = useTranslations("agentPanel.interactionCard");
   const [customValue, setCustomValue] = useState("");
@@ -107,8 +110,9 @@ export function InteractionCard({
           <button
             key={option.id}
             type="button"
+            disabled={disabled}
             onClick={() => submitOption(option)}
-            className="rounded-[var(--radius-control)] border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/45 hover:bg-primary/10"
+            className="rounded-[var(--radius-control)] border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-foreground hover:bg-muted/40 disabled:pointer-events-none disabled:opacity-50"
           >
             {option.label}
           </button>
@@ -119,6 +123,7 @@ export function InteractionCard({
           <input
             aria-label={t("customInput")}
             value={customValue}
+            disabled={disabled}
             onChange={(event) => setCustomValue(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
@@ -131,8 +136,8 @@ export function InteractionCard({
           <button
             type="button"
             onClick={submitCustom}
-            disabled={!customValue.trim()}
-            className="rounded-[var(--radius-control)] border border-border px-2 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+            disabled={disabled || !customValue.trim()}
+            className="rounded-[var(--radius-control)] border border-border px-2 py-1 text-xs font-medium text-foreground transition-colors hover:border-foreground hover:bg-muted/40 disabled:pointer-events-none disabled:opacity-50"
           >
             {t("customSubmit")}
           </button>

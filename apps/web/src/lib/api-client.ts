@@ -13,6 +13,7 @@ import type {
   DocumentGenerationSource,
   GenerateProjectObjectAction,
   ImageRenderEngine,
+  InteractionChoiceRespondRequest,
   PdfRenderEngine,
   NoteUpdateApplyRequest,
   ProjectObjectAction,
@@ -369,6 +370,14 @@ export const agentActionsApi = {
   },
   get: (id: string) =>
     apiClient<{ action: AgentAction }>(`/agent-actions/${id}`),
+  respondToInteractionChoice: (
+    id: string,
+    body: InteractionChoiceRespondRequest,
+  ) =>
+    apiClient<{ action: AgentAction }>(`/agent-actions/${id}/respond`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   applyNoteUpdate: (id: string, body: NoteUpdateApplyRequest) =>
     apiClient<{ action: AgentAction }>(`/agent-actions/${id}/apply`, {
       method: "POST",

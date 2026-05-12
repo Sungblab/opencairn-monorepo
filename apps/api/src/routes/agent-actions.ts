@@ -3,6 +3,7 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import {
   createAgentActionRequestSchema,
+  interactionChoiceRespondRequestSchema,
   listAgentActionsQuerySchema,
   transitionAgentActionStatusRequestSchema,
 } from "@opencairn/shared";
@@ -17,6 +18,7 @@ import {
   listAgentActions,
   readCodeProjectPreviewAsset,
   readPublicCodeProjectPreviewAsset,
+  respondToInteractionChoiceAction,
   transitionAgentActionStatus,
   type AgentActionServiceOptions,
 } from "../lib/agent-actions";
@@ -138,6 +140,25 @@ export function createAgentActionRoutes(options?: AgentActionRouteOptions) {
       async (c) => {
         try {
           const action = await transitionAgentActionStatus(
+            c.req.valid("param").id,
+            c.get("userId"),
+            c.req.valid("json"),
+            serviceOptions,
+          );
+          return c.json({ action });
+        } catch (err) {
+          return agentActionError(c, err);
+        }
+      },
+    )
+    .post(
+      "/agent-actions/:id/respond",
+      auth,
+      zValidator("param", idParamSchema),
+      zValidator("json", interactionChoiceRespondRequestSchema),
+      async (c) => {
+        try {
+          const action = await respondToInteractionChoiceAction(
             c.req.valid("param").id,
             c.get("userId"),
             c.req.valid("json"),

@@ -93,6 +93,41 @@ describe("agent_actions ledger table", () => {
       `),
     ).rejects.toThrow();
   });
+
+  it("stores interaction.choice draft actions", async () => {
+    const seeded = await seedProject();
+    cleanup = seeded.cleanup;
+
+    const [inserted] = await db
+      .insert(agentActions)
+      .values({
+        requestId: randomUUID(),
+        workspaceId: seeded.workspaceId,
+        projectId: seeded.projectId,
+        actorUserId: seeded.userId,
+        kind: "interaction.choice",
+        status: "draft",
+        risk: "low",
+        input: {
+          cardId: "format",
+          prompt: "어떤 형태로 만들까요?",
+          options: [
+            {
+              id: "summary",
+              label: "요약 노트",
+              value: "요약 노트로 만들어줘",
+            },
+          ],
+        },
+      })
+      .returning();
+
+    expect(inserted).toMatchObject({
+      kind: "interaction.choice",
+      status: "draft",
+      risk: "low",
+    });
+  });
 });
 
 async function seedProject() {
