@@ -259,7 +259,40 @@ export function AgentFileViewer({ tab }: { tab: Tab }) {
           ) : null}
         </div>
       ) : null}
-      <div className="min-h-0 flex-1">
+      <div className="relative min-h-0 flex-1">
+        {file.kind === "pdf" ? (
+          <div className="absolute right-3 top-3 z-20 flex items-center gap-1 rounded-md border border-border/70 bg-background/90 p-1 shadow-sm backdrop-blur">
+            <a
+              href={fileUrl}
+              download={file.filename}
+              title={t("download")}
+              aria-label={t("download")}
+              className={buttonVariants({ size: "sm", variant: "ghost" })}
+            >
+              <Download className="h-4 w-4" />
+            </a>
+            <Button
+              size="sm"
+              variant="ghost"
+              title={t("ingest")}
+              aria-label={t("ingest")}
+              onClick={() => ingest.mutate()}
+              disabled={ingest.isPending}
+            >
+              <UploadCloud className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              title={googleExportLabel}
+              aria-label={googleExportLabel}
+              onClick={handleGoogleExport}
+              disabled={googleIntegration.isLoading || googleExport.isPending}
+            >
+              <ExternalLink className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : null}
         <FileBody file={file} fileUrl={fileUrl} compiledUrl={compiledUrl} />
       </div>
     </div>
