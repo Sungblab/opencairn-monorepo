@@ -46,6 +46,9 @@ describe("projectWikiIndexToPrompt", () => {
     expect(projectWikiIndexToPrompt(index)).toContain("Wiki links: 4");
     expect(projectWikiIndexToPrompt(index)).toContain("Orphan pages: 1");
     expect(projectWikiIndexToPrompt(index)).toContain(
+      "Orphan page candidates:\n- Orphan (note)",
+    );
+    expect(projectWikiIndexToPrompt(index)).toContain(
       "- Compiler (wiki; in:3, out:1) - Maintains wiki pages.",
     );
   });

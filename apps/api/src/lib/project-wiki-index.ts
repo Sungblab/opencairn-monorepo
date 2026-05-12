@@ -143,7 +143,7 @@ function emptyProjectWikiIndex(projectId: string): ProjectWikiIndex {
 
 export function projectWikiIndexToPrompt(
   index: ProjectWikiIndex,
-  opts: { pageLimit?: number } = {},
+  opts: { pageLimit?: number; orphanLimit?: number } = {},
 ): string {
   const lines = [
     "## Project Wiki Index",
@@ -170,6 +170,19 @@ export function projectWikiIndexToPrompt(
       lines.push(
         `- ${page.title} (${page.type}; in:${page.inboundLinks}, out:${page.outboundLinks})${summary}`,
       );
+    }
+  }
+  const orphanPages = index.pages
+    .filter((page) => page.inboundLinks === 0 && page.outboundLinks === 0)
+    .sort((a, b) => a.title.localeCompare(b.title));
+  if (orphanPages.length > 0) {
+    lines.push("", "Orphan page candidates:");
+    const limitedOrphans =
+      typeof opts.orphanLimit === "number"
+        ? orphanPages.slice(0, opts.orphanLimit)
+        : orphanPages;
+    for (const page of limitedOrphans) {
+      lines.push(`- ${page.title} (${page.type})`);
     }
   }
   return lines.join("\n");

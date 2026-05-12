@@ -314,7 +314,7 @@ async function buildChatWikiIndexBlock(opts: {
       userId: opts.userId,
     });
     if (index.totals.pages === 0) return "";
-    return projectWikiIndexToPrompt(index, { pageLimit: 12 });
+    return projectWikiIndexToPrompt(index, { pageLimit: 12, orphanLimit: 8 });
   } catch {
     return "";
   }
