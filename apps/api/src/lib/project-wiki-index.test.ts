@@ -19,6 +19,16 @@ describe("projectWikiIndexToPrompt", () => {
           targetTitle: "Runtime",
         },
       ],
+      recentLogs: [
+        {
+          noteId: "n2",
+          noteTitle: "Compiler",
+          agent: "librarian",
+          action: "update",
+          reason: "ingested new source",
+          createdAt: "2026-05-13T00:02:00.000Z",
+        },
+      ],
       pages: [
         {
           id: "n1",
@@ -62,6 +72,9 @@ describe("projectWikiIndexToPrompt", () => {
     expect(projectWikiIndexToPrompt(index)).toContain(
       "Wiki link map:\n- Compiler -> Runtime",
     );
+    expect(projectWikiIndexToPrompt(index)).toContain(
+      "Recent wiki activity:\n- 2026-05-13T00:02:00.000Z librarian update Compiler - ingested new source",
+    );
   });
 
   it("limits wiki link map entries by default", () => {
@@ -76,6 +89,7 @@ describe("projectWikiIndexToPrompt", () => {
         targetNoteId: `t${i}`,
         targetTitle: `Target ${i}`,
       })),
+      recentLogs: [],
       pages: [],
     };
 

@@ -7,6 +7,7 @@ import {
   isNull,
   notes,
   wikiLinks,
+  wikiLogs,
 } from "@opencairn/db";
 import { canRead } from "./permissions";
 
@@ -30,6 +31,15 @@ export type ProjectWikiIndexLink = {
   targetTitle: string;
 };
 
+export type ProjectWikiIndexLog = {
+  noteId: string;
+  noteTitle: string;
+  agent: string;
+  action: string;
+  reason: string | null;
+  createdAt: string;
+};
+
 export type ProjectWikiIndex = {
   projectId: string;
   generatedAt: string;
@@ -40,6 +50,7 @@ export type ProjectWikiIndex = {
     orphanPages: number;
   };
   links: ProjectWikiIndexLink[];
+  recentLogs: ProjectWikiIndexLog[];
   pages: ProjectWikiIndexPage[];
 };
 
@@ -117,6 +128,29 @@ export async function buildProjectWikiIndex(opts: {
     });
   }
 
+  const logRows = visibleNotes.length
+    ? await db
+        .select({
+          noteId: wikiLogs.noteId,
+          agent: wikiLogs.agent,
+          action: wikiLogs.action,
+          reason: wikiLogs.reason,
+          createdAt: wikiLogs.createdAt,
+        })
+        .from(wikiLogs)
+        .where(inArray(wikiLogs.noteId, [...noteIds]))
+        .orderBy(desc(wikiLogs.createdAt))
+        .limit(12)
+    : [];
+  const recentLogs: ProjectWikiIndexLog[] = logRows.map((row) => ({
+    noteId: row.noteId,
+    noteTitle: titleById.get(row.noteId) ?? row.noteId,
+    agent: row.agent,
+    action: row.action,
+    reason: row.reason,
+    createdAt: row.createdAt.toISOString(),
+  }));
+
   const pages = visibleNotes.map((note) => ({
     id: note.id,
     title: note.title,
@@ -145,6 +179,7 @@ export async function buildProjectWikiIndex(opts: {
       a.sourceTitle.localeCompare(b.sourceTitle) ||
       a.targetTitle.localeCompare(b.targetTitle),
     ),
+    recentLogs,
     pages,
   };
 }
@@ -160,6 +195,7 @@ function emptyProjectWikiIndex(projectId: string): ProjectWikiIndex {
       orphanPages: 0,
     },
     links: [],
+    recentLogs: [],
     pages: [],
   };
 }
@@ -202,6 +238,15 @@ export function projectWikiIndexToPrompt(
       typeof linkLimit === "number" ? index.links.slice(0, linkLimit) : index.links;
     for (const link of limitedLinks) {
       lines.push(`- ${link.sourceTitle} -> ${link.targetTitle}`);
+    }
+  }
+  if (index.recentLogs.length > 0) {
+    lines.push("", "Recent wiki activity:");
+    for (const log of index.recentLogs) {
+      const reason = log.reason ? ` - ${log.reason}` : "";
+      lines.push(
+        `- ${log.createdAt} ${log.agent} ${log.action} ${log.noteTitle}${reason}`,
+      );
     }
   }
   const orphanPages = index.pages
