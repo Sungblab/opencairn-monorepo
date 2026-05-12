@@ -2,7 +2,9 @@
   "header": {
     "title": "에이전트",
     "subtitle": "AI · 활동 · 알림",
+    "new_thread": "새 대화",
     "new_thread_aria": "새 대화",
+    "history": "기록",
     "thread_list_aria": "에이전트 기록 열기",
     "collapse_aria": "패널 접기"
   },

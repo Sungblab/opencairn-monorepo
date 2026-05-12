@@ -10,7 +10,7 @@
 
 import { useParams } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
-import { Trash2 } from "lucide-react";
+import { Check, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { useChatThreads } from "@/hooks/use-chat-threads";
@@ -60,16 +60,19 @@ export function ThreadList() {
         {threads.map((thread) => {
           const isDeleting = archive.isPending;
           const title = thread.title || t("untitled");
+          const active = activeThreadId === thread.id;
 
           return (
             <div
               key={thread.id}
-              className="group flex items-center gap-1 rounded-md px-1 py-1 hover:bg-accent"
+              className={`group flex items-center gap-1 rounded-md px-1 py-1 transition-colors hover:bg-muted ${
+                active ? "bg-muted" : ""
+              }`}
             >
               <button
                 type="button"
                 onClick={() => setActive(thread.id)}
-                className="min-w-0 flex-1 rounded px-2 py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="min-w-0 flex-1 rounded px-2 py-1 text-left outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
               >
                 <span className="block truncate text-sm font-medium text-foreground">
                   {title}
@@ -80,6 +83,12 @@ export function ThreadList() {
                     : null}
                 </span>
               </button>
+              {active ? (
+                <Check
+                  aria-hidden
+                  className="h-4 w-4 shrink-0 text-muted-foreground"
+                />
+              ) : null}
               <button
                 type="button"
                 aria-label={t("delete_aria", { title })}

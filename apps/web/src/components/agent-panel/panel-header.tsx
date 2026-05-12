@@ -8,7 +8,7 @@
 // because eslint-plugin-i18next blocks raw literals in JSX text plus the
 // aria-label/title/placeholder/alt attributes.
 
-import { ChevronRight, MoreHorizontal, Plus } from "lucide-react";
+import { ChevronRight, History, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -35,27 +35,29 @@ export function PanelHeader({
       <div>
         <span className="text-sm font-semibold">{t("title")}</span>
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1.5">
         <button
           type="button"
           aria-label={t("new_thread_aria")}
           onClick={onNewThread}
           disabled={newThreadDisabled}
-          className="app-btn-ghost inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-control)]"
+          className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
         >
-          <Plus className="h-4 w-4" />
+          <Plus aria-hidden className="h-3.5 w-3.5" />
+          {t("new_thread")}
         </button>
         <DropdownMenu>
           <DropdownMenuTrigger
             aria-label={t("thread_list_aria")}
-            className="app-btn-ghost inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-control)]"
+            className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-popup-open:bg-muted data-popup-open:text-foreground"
           >
-            <MoreHorizontal className="h-4 w-4" />
+            <History aria-hidden className="h-3.5 w-3.5" />
+            {t("history")}
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="end"
-            sideOffset={8}
-            className="w-[min(18rem,calc(100vw-1rem))] p-0"
+            sideOffset={6}
+            className="w-[min(18rem,calc(100vw-1rem))] overflow-hidden rounded-md p-0 shadow-md ring-1 ring-foreground/10"
           >
             <ThreadList />
           </DropdownMenuContent>

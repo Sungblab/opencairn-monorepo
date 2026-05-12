@@ -2,7 +2,9 @@
   "header": {
     "title": "Agent",
     "subtitle": "AI · activity · notifications",
+    "new_thread": "New",
     "new_thread_aria": "New conversation",
+    "history": "History",
     "thread_list_aria": "Open agent history",
     "collapse_aria": "Collapse panel"
   },
