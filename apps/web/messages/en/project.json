@@ -92,8 +92,8 @@
         "description": "Review with flashcards and understanding checks."
       },
       "graph": {
-        "title": "View connections",
-        "description": "Explore how notes and sources connect."
+        "title": "View relationship map",
+        "description": "Explore concept connections and evidence from ingested material."
       },
       "agents": {
         "title": "Delegate to agent",
@@ -143,6 +143,15 @@
     "reviewInbox": {
       "title": "Review inbox",
       "description": "Check proposed changes and approval items."
+    }
+  },
+  "graphDiscovery": {
+    "title": "After adding sources, inspect the connections",
+    "description": "Use {count} project documents to jump into the concept map, review cards, or a focused mindmap.",
+    "actions": {
+      "map": "Open relationship map",
+      "cards": "Review as cards",
+      "mindmap": "Organize as mindmap"
     }
   },
   "tabs": {

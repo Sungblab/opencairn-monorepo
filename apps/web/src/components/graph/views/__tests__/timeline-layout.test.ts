@@ -52,4 +52,28 @@ describe("layoutTimeline", () => {
     expect(tickYears[0]).toContain("1990");
     expect(tickYears[tickYears.length - 1]).toContain("2010");
   });
+
+  it("excludes undated concepts instead of stacking them at the midpoint", () => {
+    const out = layoutTimeline(
+      nodes([
+        { id: "a", name: "dated", eventYear: 2017 },
+        { id: "b", name: "undated" },
+      ]),
+    );
+
+    expect(out.nodes.map((node) => node.id)).toEqual(["a"]);
+    expect(out.omittedCount).toBe(1);
+  });
+
+  it("assigns separate lanes to concepts in the same year", () => {
+    const out = layoutTimeline(
+      nodes([
+        { id: "a", name: "same 1", eventYear: 2026 },
+        { id: "b", name: "same 2", eventYear: 2026 },
+        { id: "c", name: "same 3", eventYear: 2026 },
+      ]),
+    );
+
+    expect(new Set(out.nodes.map((node) => node.y)).size).toBe(3);
+  });
 });

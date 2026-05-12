@@ -4,6 +4,7 @@ import type { EvidenceBundle, ViewNode } from "@opencairn/shared";
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import type { GroundedCard } from "../grounded-types";
+import { BookOpen, HelpCircle, Sparkles } from "lucide-react";
 
 /**
  * One card in the `?view=cards` grid. Clicking opens the concept's first
@@ -15,12 +16,17 @@ export function ConceptCard({
   node,
   card,
   bundle,
+  onAsk,
+  onQuiz,
 }: {
   node: ViewNode;
   card?: GroundedCard;
   bundle?: EvidenceBundle;
+  onAsk?: () => void;
+  onQuiz?: () => void;
 }) {
   const t = useTranslations("graph.evidence");
+  const tCards = useTranslations("graph.cards");
   const addOrReplacePreview = useTabsStore((s) => s.addOrReplacePreview);
   const title = card?.title ?? node.name;
   const summary = card?.summary ?? node.description;
@@ -41,14 +47,16 @@ export function ConceptCard({
     });
   }
   return (
-    <article className="flex flex-col gap-2 rounded-lg border bg-card p-4 text-left">
+    <article className="flex min-h-[180px] flex-col gap-3 rounded-lg border border-border bg-card p-4 text-left shadow-sm">
       <button
         type="button"
         onClick={open}
         disabled={!node.firstNoteId}
-        className="flex flex-col items-start gap-2 text-left hover:text-foreground disabled:opacity-60"
+        className="flex min-w-0 flex-col items-start gap-2 text-left hover:text-foreground disabled:opacity-70"
       >
-        <span className="text-sm font-medium">{title}</span>
+        <span className="line-clamp-2 text-sm font-semibold leading-5">
+          {title}
+        </span>
         {summary && (
           <span className="line-clamp-3 text-xs text-muted-foreground">
             {summary}
@@ -89,9 +97,38 @@ export function ConceptCard({
       )}
       {typeof node.degree === "number" && (
         <span className="text-xs text-muted-foreground">
-          {`\u{1F517} ${node.degree}`}
+          {tCards("relationCount", { count: node.degree })}
         </span>
       )}
+      <div className="mt-auto grid grid-cols-3 gap-1.5 border-t border-border pt-3">
+        <button
+          type="button"
+          onClick={open}
+          disabled={!node.firstNoteId}
+          className="inline-flex items-center justify-center gap-1 rounded border border-border px-2 py-1.5 text-xs hover:border-foreground disabled:opacity-50"
+        >
+          <BookOpen aria-hidden className="size-3.5" />
+          {tCards("open")}
+        </button>
+        <button
+          type="button"
+          onClick={onAsk}
+          disabled={!onAsk}
+          className="inline-flex items-center justify-center gap-1 rounded border border-border px-2 py-1.5 text-xs hover:border-foreground disabled:opacity-50"
+        >
+          <HelpCircle aria-hidden className="size-3.5" />
+          {tCards("ask")}
+        </button>
+        <button
+          type="button"
+          onClick={onQuiz}
+          disabled={!onQuiz}
+          className="inline-flex items-center justify-center gap-1 rounded border border-border px-2 py-1.5 text-xs hover:border-foreground disabled:opacity-50"
+        >
+          <Sparkles aria-hidden className="size-3.5" />
+          {tCards("quiz")}
+        </button>
+      </div>
     </article>
   );
 }

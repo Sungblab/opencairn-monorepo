@@ -39,7 +39,26 @@
     "board": "Board",
     "switcherAria": "Switch view",
     "needsRoot": "This view needs a focus concept. Pick one from search or use 'Generate with AI'.",
-    "noConcepts": "This project has no concepts yet."
+    "noConcepts": "This project has no concepts yet.",
+    "timelineNeedsDates": "No concepts have time signals yet. Concepts with dates or years will appear in the timeline.",
+    "timelineOmitted": "{count} concepts without date signals were left out of the timeline."
+  },
+  "inspector": {
+    "close": "Close",
+    "open": "Open",
+    "ask": "Ask",
+    "expand": "Expand",
+    "degree": "{count} connections",
+    "noteCount": "{count} sources"
+  },
+  "cards": {
+    "title": "Concept cards",
+    "description": "Scan {count} concepts as cards, then open sources, ask, or review.",
+    "truncated": "Showing {shown} of {total} cards",
+    "open": "Open",
+    "ask": "Ask",
+    "quiz": "Quiz",
+    "relationCount": "{count} connections"
   },
   "evidence": {
     "title": "Relation evidence",

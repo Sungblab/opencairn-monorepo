@@ -13,6 +13,14 @@ interface Props {
   projectId: string;
 }
 
+const TIMELINE_LABEL_MAX = 20;
+
+function timelineLabel(name: string): string {
+  const trimmed = name.trim();
+  if (trimmed.length <= TIMELINE_LABEL_MAX) return trimmed;
+  return `${trimmed.slice(0, TIMELINE_LABEL_MAX - 3)}...`;
+}
+
 /**
  * `?view=timeline` — left-to-right SVG axis of concepts placed by curated
  * `eventYear` (or `createdAt` fallback). Pure React + SVG (no cytoscape, no
@@ -47,6 +55,13 @@ export default function TimelineView({ projectId }: Props) {
       </div>
     );
   }
+  if (layout.nodes.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
+        {t("views.timelineNeedsDates")}
+      </div>
+    );
+  }
 
   function openNote(n: PositionedNode) {
     if (!n.firstNoteId) return;
@@ -67,6 +82,11 @@ export default function TimelineView({ projectId }: Props) {
 
   return (
     <div className="h-full overflow-x-auto p-4">
+      {layout.omittedCount > 0 ? (
+        <div className="mb-2 rounded border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          {t("views.timelineOmitted", { count: layout.omittedCount })}
+        </div>
+      ) : null}
       <svg
         width={layout.width}
         height={layout.height}
@@ -115,9 +135,16 @@ export default function TimelineView({ projectId }: Props) {
               x={n.x}
               y={n.y - 16}
               textAnchor="middle"
-              className="fill-foreground text-xs"
+              className="fill-foreground text-[11px] font-medium"
+              style={{
+                paintOrder: "stroke",
+                stroke: "hsl(var(--background))",
+                strokeLinejoin: "round",
+                strokeWidth: 4,
+              }}
             >
-              {n.name}
+              <title>{n.name}</title>
+              {timelineLabel(n.name)}
             </text>
           </g>
         ))}

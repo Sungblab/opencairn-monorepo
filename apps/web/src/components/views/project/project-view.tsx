@@ -1,10 +1,11 @@
 "use client";
 
 import { urls } from "@/lib/urls";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ComponentType } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { GitBranch, Layers3, Network } from "lucide-react";
 import { projectsApi, type ProjectNoteRow } from "@/lib/api-client";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
 import { LiteratureSearchModal } from "@/components/literature/literature-search-modal";
@@ -69,6 +70,11 @@ export function ProjectView({
       return urls.workspace.projectAgents(locale, wsSlug, projectId);
     }
     return urls.workspace.projectLearn(locale, wsSlug, projectId);
+  }
+
+  function projectGraphHref(view?: "cards" | "mindmap") {
+    const base = urls.workspace.projectGraph(locale, wsSlug, projectId);
+    return view ? `${base}?view=${view}` : base;
   }
 
   function openDocumentPreset(presetId: DocumentGenerationPresetId) {
@@ -160,6 +166,16 @@ export function ProjectView({
           lastActivityIso={lastActivityIso}
         />
       </header>
+      <GraphDiscoveryPanel
+        title={t("graphDiscovery.title")}
+        description={t("graphDiscovery.description", { count: counts.all })}
+        mapLabel={t("graphDiscovery.actions.map")}
+        cardsLabel={t("graphDiscovery.actions.cards")}
+        mindmapLabel={t("graphDiscovery.actions.mindmap")}
+        mapHref={projectGraphHref()}
+        cardsHref={projectGraphHref("cards")}
+        mindmapHref={projectGraphHref("mindmap")}
+      />
       <section aria-labelledby="project-tools-heading" className="space-y-3">
         <div>
           <h2
@@ -203,6 +219,64 @@ export function ProjectView({
         defaultProjectId={projectId}
       />
     </div>
+  );
+}
+
+function GraphDiscoveryPanel({
+  title,
+  description,
+  mapLabel,
+  cardsLabel,
+  mindmapLabel,
+  mapHref,
+  cardsHref,
+  mindmapHref,
+}: {
+  title: string;
+  description: string;
+  mapLabel: string;
+  cardsLabel: string;
+  mindmapLabel: string;
+  mapHref: string;
+  cardsHref: string;
+  mindmapHref: string;
+}) {
+  return (
+    <section className="rounded-[var(--radius-card)] border border-border bg-muted/20 p-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            {description}
+          </p>
+        </div>
+        <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
+          <GraphDiscoveryLink href={mapHref} label={mapLabel} Icon={Network} />
+          <GraphDiscoveryLink href={cardsHref} label={cardsLabel} Icon={Layers3} />
+          <GraphDiscoveryLink href={mindmapHref} label={mindmapLabel} Icon={GitBranch} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function GraphDiscoveryLink({
+  href,
+  label,
+  Icon,
+}: {
+  href: string;
+  label: string;
+  Icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+}) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-background px-3 py-2 text-sm font-medium hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <Icon aria-hidden className="size-4 text-muted-foreground" />
+      <span className="whitespace-nowrap">{label}</span>
+    </Link>
   );
 }
 

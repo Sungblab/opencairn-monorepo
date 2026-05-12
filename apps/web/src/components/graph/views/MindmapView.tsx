@@ -168,7 +168,9 @@ export default function MindmapView({ projectId, root }: Props) {
         {
           name: "dagre",
           rankDir: "LR",
-          spacingFactor: 1.2,
+          spacingFactor: 1.75,
+          nodeSep: 80,
+          rankSep: 120,
           fit: true,
           padding: 30,
         } as cytoscape.LayoutOptions
@@ -177,7 +179,17 @@ export default function MindmapView({ projectId, root }: Props) {
         [
           {
             selector: "node",
-            style: { label: "data(label)", "font-size": 12 },
+            style: {
+              label: "data(label)",
+              "font-size": 11,
+              "font-weight": 600,
+              "text-wrap": "wrap",
+              "text-max-width": 150,
+              "text-background-color": "hsl(var(--background))",
+              "text-background-opacity": 0.9,
+              "text-background-padding": 3,
+              "text-margin-y": -8,
+            },
           },
           {
             selector: "node[?isRoot]",

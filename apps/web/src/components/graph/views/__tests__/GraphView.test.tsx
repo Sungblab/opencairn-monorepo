@@ -6,7 +6,7 @@ import koGraph from "@/../messages/ko/graph.json";
 import GraphView from "../GraphView";
 
 vi.mock("next/dynamic", () => ({
-  default: () => () => <div data-testid="cy-mount">cytoscape</div>,
+  default: () => () => <div data-testid="force-graph-mount">force graph</div>,
 }));
 
 let searchParams = new URLSearchParams();
@@ -104,7 +104,7 @@ describe("GraphView", () => {
     expect(await screen.findByText(koGraph.empty.title)).toBeInTheDocument();
   });
 
-  it("mounts cytoscape when there is data", async () => {
+  it("mounts the force graph when there is data", async () => {
     searchParams = new URLSearchParams();
     renderWith({
       nodes: [{ id: "n1", name: "A", description: "", degree: 0, noteCount: 0, firstNoteId: null }],
@@ -112,6 +112,6 @@ describe("GraphView", () => {
       truncated: false,
       totalConcepts: 1,
     });
-    expect(await screen.findByTestId("cy-mount")).toBeInTheDocument();
+    expect(await screen.findByTestId("force-graph-mount")).toBeInTheDocument();
   });
 });
