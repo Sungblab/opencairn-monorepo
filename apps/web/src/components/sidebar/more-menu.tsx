@@ -6,6 +6,7 @@ import { ExternalLink, Network, Settings, Share2, Trash2 } from "lucide-react";
 export interface MoreMenuProps {
   base: string;
   synthesisExportEnabled?: boolean;
+  onOpenTrash?: () => void;
 }
 
 // Overflow popover for the sidebar's global nav. Link-rendered items keep
@@ -14,7 +15,11 @@ export interface MoreMenuProps {
 // `synthesisExportEnabled` mirrors the API gate at
 // apps/api/src/routes/synthesis-export.ts; when the server flag is off
 // the route 404s, so the menu item must not appear.
-export function MoreMenu({ base, synthesisExportEnabled = false }: MoreMenuProps) {
+export function MoreMenu({
+  base,
+  synthesisExportEnabled = false,
+  onOpenTrash,
+}: MoreMenuProps) {
   const t = useTranslations("sidebar");
   const primaryItems = [
     {
@@ -41,11 +46,6 @@ export function MoreMenu({ base, synthesisExportEnabled = false }: MoreMenuProps
           } as const,
         ]
       : []),
-    {
-      href: `${base}/settings/trash`,
-      label: t("more_menu.trash"),
-      Icon: Trash2,
-    },
   ] as const;
 
   return (
@@ -64,6 +64,16 @@ export function MoreMenu({ base, synthesisExportEnabled = false }: MoreMenuProps
             <span className="min-w-0 flex-1 truncate">{label}</span>
           </Link>
         ))}
+        <button
+          type="button"
+          onClick={onOpenTrash}
+          className="flex min-h-8 items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:outline-none"
+        >
+          <Trash2 aria-hidden className="h-3.5 w-3.5 shrink-0" />
+          <span className="min-w-0 flex-1 truncate">
+            {t("more_menu.trash")}
+          </span>
+        </button>
         <a
           href="/feedback"
           target="_blank"

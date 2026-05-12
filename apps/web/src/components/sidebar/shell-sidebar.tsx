@@ -2,7 +2,9 @@
 import type { ComponentType, ReactNode } from "react";
 import { urls } from "@/lib/urls";
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
   Bot,
@@ -13,6 +15,7 @@ import {
   HelpCircle,
   Home,
   MessageSquare,
+  MoreHorizontal,
   Network,
   Newspaper,
   Settings,
@@ -33,11 +36,28 @@ import { SourceUploadButton } from "./SourceUploadButton";
 import { NewCodeWorkspaceButton } from "./NewCodeWorkspaceButton";
 import { GenerateDocumentButton } from "./GenerateDocumentButton";
 import { ProjectHero } from "./project-hero";
+import { MoreMenu } from "./more-menu";
 import { SidebarEmptyState } from "./sidebar-empty-state";
 import { usePanelStore } from "@/stores/panel-store";
 import { LiteratureSearchButton } from "@/components/literature/literature-search-button";
 import { SidebarFavorites } from "./sidebar-favorites";
 import { SidebarRecentNotes } from "./sidebar-recent-notes";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  TrashTab,
+  TrashTabSkeleton,
+} from "@/components/views/workspace-settings/trash-tab";
 
 export interface ShellSidebarProps {
   deepResearchEnabled: boolean;
@@ -56,9 +76,29 @@ export function ShellSidebar({
   const locale = useLocale();
   const tNav = useTranslations("sidebar.nav");
   const tSections = useTranslations("sidebar.sections");
+  const tTrash = useTranslations("workspaceSettings.trash");
   const toggleSidebar = usePanelStore((s) => s.toggleSidebar);
   const openAgentPanelTab = usePanelStore((s) => s.openAgentPanelTab);
   const base = wsSlug ? urls.workspace.root(locale, wsSlug) : null;
+  const [trashOpen, setTrashOpen] = useState(false);
+  const workspaces = useQuery({
+    queryKey: ["workspaces", "me"],
+    enabled: Boolean(wsSlug),
+    queryFn: async (): Promise<{
+      workspaces: { id: string; slug: string; name: string }[];
+    }> => {
+      const res = await fetch("/api/workspaces/me", { credentials: "include" });
+      if (!res.ok) throw new Error(`workspaces/me ${res.status}`);
+      return (await res.json()) as {
+        workspaces: { id: string; slug: string; name: string }[];
+      };
+    },
+    staleTime: 30_000,
+  });
+  const workspaceId = useMemo(
+    () => workspaces.data?.workspaces.find((w) => w.slug === wsSlug)?.id ?? null,
+    [workspaces.data?.workspaces, wsSlug],
+  );
 
   return (
     <aside
@@ -103,6 +143,12 @@ export function ShellSidebar({
               label={tNav("notifications")}
               Icon={Bell}
               onClick={() => openAgentPanelTab("notifications")}
+            />
+            <ProjectToolsMenu
+              base={base}
+              compact
+              synthesisExportEnabled={synthesisExportEnabled}
+              onOpenTrash={() => setTrashOpen(true)}
             />
           </div>
         ) : null}
@@ -225,8 +271,8 @@ export function ShellSidebar({
                   Icon={Settings}
                   tone="utility"
                 />
-                <SidebarNavLink
-                  href={`${base}/settings/trash`}
+                <SidebarNavButton
+                  onClick={() => setTrashOpen(true)}
                   label={tNav("trash")}
                   Icon={Trash2}
                   tone="utility"
@@ -258,6 +304,21 @@ export function ShellSidebar({
           </>
         ) : null}
       </div>
+      <Dialog open={trashOpen} onOpenChange={setTrashOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{tTrash("heading")}</DialogTitle>
+            <DialogDescription>{tTrash("retention")}</DialogDescription>
+          </DialogHeader>
+          {workspaceId ? (
+            <TrashTab wsId={workspaceId} showHeader={false} />
+          ) : !workspaces.isError ? (
+            <TrashTabSkeleton />
+          ) : (
+            <p className="text-sm text-destructive">{tTrash("loadFailed")}</p>
+          )}
+        </DialogContent>
+      </Dialog>
       <SidebarFooter />
     </aside>
   );
@@ -314,6 +375,36 @@ function SidebarNavLink({
   );
 }
 
+function SidebarNavButton({
+  onClick,
+  label,
+  Icon,
+  tone = "primary",
+}: {
+  onClick: () => void;
+  label: string;
+  Icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+  tone?: "primary" | "utility";
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+        tone === "utility"
+          ? "border border-transparent text-muted-foreground hover:border-border hover:bg-background hover:text-foreground"
+          : "border border-border bg-background text-foreground hover:border-foreground"
+      }`}
+    >
+      <Icon
+        aria-hidden
+        className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+      />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+    </button>
+  );
+}
+
 function SidebarExternalLink({
   href,
   label,
@@ -362,5 +453,53 @@ function PanelIconButton({
     >
       <Icon aria-hidden className="h-3.5 w-3.5" />
     </button>
+  );
+}
+
+function ProjectToolsMenu({
+  base,
+  compact = false,
+  synthesisExportEnabled,
+  onOpenTrash,
+}: {
+  base: string;
+  compact?: boolean;
+  synthesisExportEnabled: boolean;
+  onOpenTrash: () => void;
+}) {
+  const t = useTranslations("sidebar.nav");
+  const [open, setOpen] = useState(false);
+  const openTrash = () => {
+    setOpen(false);
+    onOpenTrash();
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        aria-label={t("more_aria")}
+        className={
+          compact
+            ? "grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-control)] border border-border bg-background text-muted-foreground transition-colors hover:border-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            : "flex min-h-8 items-center gap-2 rounded-[var(--radius-control)] border border-border bg-background px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        }
+      >
+        <MoreHorizontal aria-hidden className="h-3.5 w-3.5 shrink-0" />
+        {compact ? null : (
+          <span className="min-w-0 flex-1 truncate">{t("more_aria")}</span>
+        )}
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        sideOffset={6}
+        className="w-[260px] rounded-[var(--radius-control)] border border-border bg-background p-2 shadow-sm ring-0"
+      >
+        <MoreMenu
+          base={base}
+          synthesisExportEnabled={synthesisExportEnabled}
+          onOpenTrash={openTrash}
+        />
+      </PopoverContent>
+    </Popover>
   );
 }

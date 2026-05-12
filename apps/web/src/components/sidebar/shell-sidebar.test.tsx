@@ -1,6 +1,7 @@
-import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ShellSidebar } from "./shell-sidebar";
 
@@ -18,6 +19,10 @@ vi.mock("next-intl", () => ({
     ns ? `${ns}.${key}` : key,
 }));
 
+const panelStoreMock = vi.hoisted(() => ({
+  openAgentPanelTab: vi.fn(),
+}));
+
 vi.mock("@/stores/panel-store", () => ({
   usePanelStore: (
     selector: (s: {
@@ -29,10 +34,6 @@ vi.mock("@/stores/panel-store", () => ({
       toggleSidebar: vi.fn(),
       openAgentPanelTab: panelStoreMock.openAgentPanelTab,
     }),
-}));
-
-const panelStoreMock = vi.hoisted(() => ({
-  openAgentPanelTab: vi.fn(),
 }));
 
 vi.mock("./workspace-switcher", () => ({
@@ -86,11 +87,22 @@ vi.mock("./GenerateDocumentButton", () => ({
 vi.mock("./sidebar-empty-state", () => ({
   SidebarEmptyState: () => <div>project empty state</div>,
 }));
+vi.mock("./sidebar-favorites", () => ({
+  SidebarFavorites: () => <div>sidebar.favorites.empty</div>,
+}));
 vi.mock("./sidebar-recent-notes", () => ({
   SidebarRecentNotes: () => <div>recent notes</div>,
 }));
 vi.mock("./more-menu", () => ({
-  MoreMenu: () => <div>more menu</div>,
+  MoreMenu: ({ onOpenTrash }: { onOpenTrash: () => void }) => (
+    <button type="button" onClick={onOpenTrash}>
+      more menu
+    </button>
+  ),
+}));
+vi.mock("@/components/views/workspace-settings/trash-tab", () => ({
+  TrashTab: ({ wsId }: { wsId: string }) => <div>trash modal {wsId}</div>,
+  TrashTabSkeleton: () => <div data-testid="trash-tab-skeleton" />,
 }));
 vi.mock("@/components/literature/literature-search-button", () => ({
   LiteratureSearchButton: () => <button type="button">literature</button>,
@@ -99,12 +111,31 @@ vi.mock("@/components/literature/literature-search-button", () => ({
 describe("ShellSidebar", () => {
   beforeEach(() => {
     panelStoreMock.openAgentPanelTab.mockClear();
+    window.localStorage.clear();
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        workspaces: [{ id: "ws-1", slug: "acme", name: "ACME", role: "owner" }],
+        invites: [],
+      }),
+    }) as unknown as typeof fetch;
   });
+
+  function renderSidebar() {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <ShellSidebar deepResearchEnabled />
+      </QueryClientProvider>,
+    );
+  }
 
   it("makes project selection the top-level control and keeps global nav out of the main rail", () => {
     currentProject.value = { wsSlug: "acme", projectId: null };
 
-    render(<ShellSidebar deepResearchEnabled synthesisExportEnabled />);
+    renderSidebar();
 
     expect(screen.getByText("project hero")).toBeInTheDocument();
     expect(
@@ -114,8 +145,8 @@ describe("ShellSidebar", () => {
       screen.getByRole("link", { name: "sidebar.nav.dashboard" }),
     ).toHaveClass("rounded-[var(--radius-control)]");
     expect(
-      screen.getByRole("link", { name: "sidebar.nav.trash" }),
-    ).toHaveAttribute("href", "/ko/workspace/acme/settings/trash");
+      screen.getByRole("button", { name: "sidebar.nav.trash" }),
+    ).toHaveClass("rounded-[var(--radius-control)]");
     expect(
       screen.getByRole("button", { name: "sidebar.nav.tools" }),
     ).toHaveClass("rounded-[var(--radius-control)]");
@@ -126,10 +157,10 @@ describe("ShellSidebar", () => {
     expect(screen.getByText("project empty state")).toBeInTheDocument();
   });
 
-  it("keeps creation actions explicit while preserving the file explorer when a project is selected", async () => {
+  it("keeps creation actions explicit while preserving the file explorer when a project is selected", () => {
     currentProject.value = { wsSlug: "acme", projectId: "p1" };
 
-    render(<ShellSidebar deepResearchEnabled />);
+    renderSidebar();
 
     expect(
       screen.getByRole("link", { name: "sidebar.nav.project_home" }),
@@ -151,7 +182,9 @@ describe("ShellSidebar", () => {
     expect(screen.getByText("sidebar.nav.learn")).toBeInTheDocument();
     expect(screen.getByText("sidebar.sections.recent")).toBeInTheDocument();
     expect(screen.getByText("recent notes")).toBeInTheDocument();
-    expect(screen.getByText("sidebar.sections.service_agent")).toBeInTheDocument();
+    expect(
+      screen.getByText("sidebar.sections.service_agent"),
+    ).toBeInTheDocument();
     expect(screen.getByText("literature")).toBeInTheDocument();
     expect(screen.getByText("sidebar.sections.publish")).toBeInTheDocument();
     expect(screen.getByText("sidebar.nav.public_pages")).toBeInTheDocument();
@@ -160,14 +193,51 @@ describe("ShellSidebar", () => {
     expect(screen.getByText("sidebar.nav.changelog")).toBeInTheDocument();
     expect(screen.getByText("project tree")).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "sidebar.nav.trash" }),
-    ).toHaveAttribute("href", "/ko/workspace/acme/settings/trash");
+      screen.getByRole("button", { name: "sidebar.nav.trash" }),
+    ).toBeInTheDocument();
+  });
+
+  it("opens the workspace trash as an in-place dialog", async () => {
+    currentProject.value = { wsSlug: "acme", projectId: "p1" };
+    const user = userEvent.setup();
+
+    renderSidebar();
+
+    await user.click(screen.getByRole("button", { name: "sidebar.nav.trash" }));
+
+    expect(await screen.findByText("trash modal ws-1")).toBeInTheDocument();
+  });
+
+  it("prefetches workspace metadata before the trash dialog is opened", async () => {
+    currentProject.value = { wsSlug: "acme", projectId: "p1" };
+
+    renderSidebar();
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/workspaces/me", {
+        credentials: "include",
+      });
+    });
+  });
+
+  it("shows a skeleton immediately when trash opens before workspace metadata resolves", async () => {
+    currentProject.value = { wsSlug: "acme", projectId: "p1" };
+    global.fetch = vi.fn(
+      () => new Promise<Response>(() => undefined),
+    ) as unknown as typeof fetch;
+    const user = userEvent.setup();
+
+    renderSidebar();
+
+    await user.click(screen.getByRole("button", { name: "sidebar.nav.trash" }));
+
+    expect(screen.getByTestId("trash-tab-skeleton")).toBeInTheDocument();
   });
 
   it("opens workbench panel tabs from the explicit top icon row", async () => {
     currentProject.value = { wsSlug: "acme", projectId: "p1" };
 
-    render(<ShellSidebar deepResearchEnabled />);
+    renderSidebar();
 
     await userEvent.click(
       screen.getByRole("button", { name: "sidebar.nav.chat" }),

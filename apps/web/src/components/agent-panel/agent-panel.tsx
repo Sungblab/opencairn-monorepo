@@ -107,16 +107,16 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const commandPromptT = useTranslations("agentPanel.composer.slash.prompt");
 
   // setWorkspace bootstraps the active-thread restore from localStorage on
-  // every workspace switch — without it the panel would never remember
-  // which thread the user was last viewing in this workspace.
+  // every workspace/project switch so changing projects does not carry over
+  // the previous project's selected thread.
   const setWorkspace = useThreadsStore((s) => s.setWorkspace);
   useEffect(() => {
-    if (workspaceId) setWorkspace(workspaceId);
-  }, [workspaceId, setWorkspace]);
+    if (workspaceId) setWorkspace(workspaceId, shellProjectId);
+  }, [shellProjectId, workspaceId, setWorkspace]);
 
   const activeThreadId = useThreadsStore((s) => s.activeThreadId);
   const setActive = useThreadsStore((s) => s.setActiveThread);
-  const { create } = useChatThreads(workspaceId);
+  const { create } = useChatThreads(workspaceId, shellProjectId);
   const { send, live, pendingUser, resumeRun } = useChatSend(activeThreadId);
   const { upload, isUploading } = useIngestUpload();
   const uploadT = useTranslations("sidebar.upload");

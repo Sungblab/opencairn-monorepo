@@ -6,6 +6,7 @@ import {
   chatThreads,
   chatMessages,
   chatRuns,
+  projects,
   eq,
   and,
   desc,
@@ -28,6 +29,7 @@ import {
 const listQuery = z.object({ workspace_id: z.string().uuid() });
 const createBody = z.object({
   workspace_id: z.string().uuid(),
+  project_id: z.string().uuid().optional(),
   title: z.string().max(200).optional(),
 });
 const patchBody = z.object({
@@ -45,6 +47,29 @@ const postMessageBody = z.object({
     .default("auto"),
 });
 
+const scopedListQuery = listQuery.extend({
+  project_id: z.string().uuid().optional(),
+});
+
+async function requireProjectRead(
+  userId: string,
+  workspaceId: string,
+  projectId: string | null,
+) {
+  if (!projectId) return null;
+  const [project] = await db
+    .select({ workspaceId: projects.workspaceId })
+    .from(projects)
+    .where(eq(projects.id, projectId));
+  if (!project || project.workspaceId !== workspaceId) {
+    return { error: "not_found" as const, status: 404 as const };
+  }
+  if (!(await canRead(userId, { type: "project", id: projectId }))) {
+    return { error: "forbidden" as const, status: 403 as const };
+  }
+  return null;
+}
+
 export function __setRunAgentForTest(impl: RunAgentFn | null): void {
   setRunAgentForTest(impl);
 }
@@ -52,11 +77,19 @@ export function __setRunAgentForTest(impl: RunAgentFn | null): void {
 export const threadRoutes = new Hono<AppEnv>()
   .use("*", requireAuth)
 
-  .get("/", zValidator("query", listQuery), async (c) => {
+  .get("/", zValidator("query", scopedListQuery), async (c) => {
     const userId = c.get("userId");
-    const { workspace_id } = c.req.valid("query");
+    const { workspace_id, project_id } = c.req.valid("query");
     if (!(await canRead(userId, { type: "workspace", id: workspace_id }))) {
       return c.json({ error: "forbidden" }, 403);
+    }
+    const projectReadError = await requireProjectRead(
+      userId,
+      workspace_id,
+      project_id ?? null,
+    );
+    if (projectReadError) {
+      return c.json({ error: projectReadError.error }, projectReadError.status);
     }
     // Archived rows are hidden from the agent-panel sidebar. Soft delete keeps
     // the message history intact for billing/audit reads against the rows
@@ -73,6 +106,9 @@ export const threadRoutes = new Hono<AppEnv>()
         and(
           eq(chatThreads.workspaceId, workspace_id),
           eq(chatThreads.userId, userId),
+          project_id
+            ? eq(chatThreads.projectId, project_id)
+            : isNull(chatThreads.projectId),
           isNull(chatThreads.archivedAt),
         ),
       )
@@ -89,14 +125,23 @@ export const threadRoutes = new Hono<AppEnv>()
 
   .post("/", zValidator("json", createBody), async (c) => {
     const userId = c.get("userId");
-    const { workspace_id, title } = c.req.valid("json");
+    const { workspace_id, project_id, title } = c.req.valid("json");
     if (!(await canRead(userId, { type: "workspace", id: workspace_id }))) {
       return c.json({ error: "forbidden" }, 403);
+    }
+    const projectReadError = await requireProjectRead(
+      userId,
+      workspace_id,
+      project_id ?? null,
+    );
+    if (projectReadError) {
+      return c.json({ error: projectReadError.error }, projectReadError.status);
     }
     const [row] = await db
       .insert(chatThreads)
       .values({
         workspaceId: workspace_id,
+        projectId: project_id ?? null,
         userId,
         title: title ?? "",
       })
@@ -160,11 +205,28 @@ export const threadRoutes = new Hono<AppEnv>()
     if (!isUuid(id)) return c.json({ error: "bad_request" }, 400);
 
     const [thread] = await db
-      .select({ userId: chatThreads.userId })
+      .select({
+        userId: chatThreads.userId,
+        workspaceId: chatThreads.workspaceId,
+        projectId: chatThreads.projectId,
+      })
       .from(chatThreads)
       .where(eq(chatThreads.id, id));
     if (!thread) return c.json({ error: "not_found" }, 404);
     if (thread.userId !== userId) return c.json({ error: "forbidden" }, 403);
+    if (
+      !(await canRead(userId, { type: "workspace", id: thread.workspaceId }))
+    ) {
+      return c.json({ error: "forbidden" }, 403);
+    }
+    const projectReadError = await requireProjectRead(
+      userId,
+      thread.workspaceId,
+      thread.projectId,
+    );
+    if (projectReadError) {
+      return c.json({ error: projectReadError.error }, projectReadError.status);
+    }
 
     const rows = await db
       .select()
@@ -212,11 +274,31 @@ export const threadRoutes = new Hono<AppEnv>()
       if (!isUuid(id)) return c.json({ error: "bad_request" }, 400);
 
       const [thread] = await db
-        .select({ userId: chatThreads.userId, workspaceId: chatThreads.workspaceId })
+        .select({
+          userId: chatThreads.userId,
+          workspaceId: chatThreads.workspaceId,
+          projectId: chatThreads.projectId,
+        })
         .from(chatThreads)
         .where(eq(chatThreads.id, id));
       if (!thread) return c.json({ error: "not_found" }, 404);
       if (thread.userId !== userId) return c.json({ error: "forbidden" }, 403);
+      if (
+        !(await canRead(userId, { type: "workspace", id: thread.workspaceId }))
+      ) {
+        return c.json({ error: "forbidden" }, 403);
+      }
+      const projectReadError = await requireProjectRead(
+        userId,
+        thread.workspaceId,
+        thread.projectId,
+      );
+      if (projectReadError) {
+        return c.json(
+          { error: projectReadError.error },
+          projectReadError.status,
+        );
+      }
 
       const { content, scope, mode } = c.req.valid("json");
       const { runId } = await createDurableChatRun({

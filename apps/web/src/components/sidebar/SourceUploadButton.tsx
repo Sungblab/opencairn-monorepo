@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { UploadCloud } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { openOriginalFileTab } from "@/components/ingest/open-original-file-tab";
@@ -50,10 +50,16 @@ export function SourceUploadButton({
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [localError, setLocalError] = useState(false);
+  const [uploadingLocal, setUploadingLocal] = useState(false);
+  const uploadInFlightRef = useRef(false);
   const { upload, isUploading, error } = useIngestUpload();
+  const uploading = isUploading || uploadingLocal;
 
   async function startUpload(selectedFile = file) {
     if (!selectedFile) return;
+    if (uploadInFlightRef.current) return;
+    uploadInFlightRef.current = true;
+    setUploadingLocal(true);
     setLocalError(false);
     try {
       const result = await upload(selectedFile, projectId);
@@ -64,6 +70,9 @@ export function SourceUploadButton({
       setOpen(false);
     } catch {
       setLocalError(true);
+    } finally {
+      uploadInFlightRef.current = false;
+      setUploadingLocal(false);
     }
   }
 
@@ -88,7 +97,13 @@ export function SourceUploadButton({
           </>
         )}
       </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (uploading) return;
+          setOpen(nextOpen);
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{t("upload.title")}</DialogTitle>
@@ -128,11 +143,11 @@ export function SourceUploadButton({
             )}
             <button
               type="button"
-              disabled={!file || isUploading}
+              disabled={!file || uploading}
               onClick={() => void startUpload()}
               className="inline-flex min-h-10 w-full items-center justify-center rounded bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isUploading ? t("upload.uploading") : t("upload.start")}
+              {uploading ? t("upload.uploading") : t("upload.start")}
             </button>
           </div>
         </DialogContent>

@@ -6,7 +6,10 @@ import { usePanelStore } from "@/stores/panel-store";
 import { useTabsStore } from "@/stores/tabs-store";
 
 import { SidebarFavorites } from "./sidebar-favorites";
-import { sidebarFavoritesKey } from "./sidebar-favorites-store";
+import {
+  readSidebarFavorites,
+  sidebarFavoritesKey,
+} from "./sidebar-favorites-store";
 
 const push = vi.fn();
 
@@ -69,5 +72,27 @@ describe("SidebarFavorites", () => {
       agentPanelOpen: true,
       agentPanelTab: "chat",
     });
+  });
+
+  it("drops stored favorites with unsupported kinds", () => {
+    window.localStorage.setItem(
+      sidebarFavoritesKey("acme"),
+      JSON.stringify([
+        {
+          id: "bad-favorite",
+          targetId: "note-bad",
+          label: "Invalid favorite",
+          href: "/ko/workspace/acme/note/note-bad",
+          kind: "external_link",
+        },
+      ]),
+    );
+
+    expect(readSidebarFavorites("acme")).toEqual([]);
+
+    render(<SidebarFavorites wsSlug="acme" />);
+
+    expect(screen.queryByText("Invalid favorite")).not.toBeInTheDocument();
+    expect(screen.getByText("sidebar.favorites.empty")).toBeInTheDocument();
   });
 });

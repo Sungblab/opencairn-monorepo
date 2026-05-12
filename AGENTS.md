@@ -107,6 +107,22 @@ Do not use GitHub connector/MCP tools for this repository. Use local `git` and
 the authenticated `gh` CLI for PR creation, PR inspection, review replies,
 review-thread resolution, reruns, and merge-state checks.
 
+When the maintainer explicitly asks to inspect PR review feedback, do not ask
+them to paste bot or reviewer comments. Query the feedback directly with `gh`:
+
+```powershell
+gh pr view <number> --comments
+gh api repos/Sungblab/opencairn-monorepo/pulls/<number>/reviews
+gh api repos/Sungblab/opencairn-monorepo/pulls/<number>/comments
+```
+
+Use these together because `gh pr view --comments` shows top-level review
+summaries, while the REST review/comment endpoints include submitted reviews
+and inline file comments such as Gemini Code Assist discussions. Do this only
+when review inspection is requested, since automated code reviews can arrive
+late. Summarize the findings with file paths and decide which comments need
+code changes, replies, or dismissal.
+
 ## Worktree And Branch Cleanup
 
 When cleaning local worktrees and branches, optimize for preserving maintainer

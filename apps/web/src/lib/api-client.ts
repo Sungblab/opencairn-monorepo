@@ -301,15 +301,17 @@ export interface ChatMessage {
 }
 
 export const chatApi = {
-  listThreads: (workspaceId: string) =>
-    apiClient<{ threads: ChatThread[] }>(
-      `/threads?workspace_id=${encodeURIComponent(workspaceId)}`,
-    ),
-  createThread: (workspaceId: string, title?: string) =>
+  listThreads: (workspaceId: string, projectId?: string | null) => {
+    const query = new URLSearchParams({ workspace_id: workspaceId });
+    if (projectId) query.set("project_id", projectId);
+    return apiClient<{ threads: ChatThread[] }>(`/threads?${query.toString()}`);
+  },
+  createThread: (workspaceId: string, title?: string, projectId?: string | null) =>
     apiClient<{ id: string; title: string }>(`/threads`, {
       method: "POST",
       body: JSON.stringify({
         workspace_id: workspaceId,
+        ...(projectId ? { project_id: projectId } : {}),
         ...(title ? { title } : {}),
       }),
     }),

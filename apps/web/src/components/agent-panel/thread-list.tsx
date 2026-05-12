@@ -17,11 +17,13 @@ import { useChatThreads } from "@/hooks/use-chat-threads";
 import { useHydratedNow } from "@/hooks/use-hydrated-now";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
 import { useThreadsStore } from "@/stores/threads-store";
+import { useCurrentProjectContext } from "@/components/sidebar/use-current-project";
 
 export function ThreadList() {
   const { wsSlug } = useParams<{ wsSlug?: string }>();
   const workspaceId = useWorkspaceId(wsSlug);
-  const { threads, isLoading, archive } = useChatThreads(workspaceId);
+  const { projectId } = useCurrentProjectContext();
+  const { threads, isLoading, archive } = useChatThreads(workspaceId, projectId);
   const activeThreadId = useThreadsStore((s) => s.activeThreadId);
   const setActive = useThreadsStore((s) => s.setActiveThread);
   const t = useTranslations("agentPanel.thread_list");

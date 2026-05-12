@@ -1,7 +1,9 @@
 {
   "loading": "불러오는 중…",
   "new_note": "새 노트",
+  "creating_note": "노트 생성 중…",
   "new_folder": "새 폴더",
+  "creating_folder": "폴더 생성 중…",
   "upload_source": "업로드",
   "empty_project": "이 프로젝트에는 아직 노트가 없어요.",
   "empty_folder": "비어 있어요.",
@@ -137,6 +139,8 @@
     "row_actions": "파일 작업",
     "row_actions_hint": "이름 바꾸기, 링크 복사, 삭제",
     "row_hint": "더블클릭으로 이름을 바꾸고 드래그해서 이동합니다.",
+    "full_extract_note": "전체 추출 노트",
+    "generated_note": "생성된 노트",
     "delete": "삭제",
     "delete_shortcut": "⌘Del",
     "confirm_delete": "\"{label}\"을(를) 삭제할까요?",
@@ -149,6 +153,7 @@
     "create_note_failed": "페이지 생성에 실패했어요. 다시 시도해주세요.",
     "folder_created": "폴더를 만들었어요.",
     "create_folder_failed": "폴더 생성에 실패했어요. 다시 시도해주세요.",
+    "deleted": "휴지통으로 이동했어요.",
     "delete_failed": "삭제에 실패했어요. 다시 시도해주세요."
   },
   "graph": {

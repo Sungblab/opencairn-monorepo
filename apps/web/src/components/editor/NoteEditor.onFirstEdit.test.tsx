@@ -203,7 +203,10 @@ describe("NoteEditor.onFirstEdit", () => {
 
     fireEvent(document, new Event("selectionchange"));
 
-    expect(screen.getByTestId("selection-action-bubble")).toBeInTheDocument();
+    expect(screen.getByTestId("selection-action-bubble")).toHaveClass(
+      "max-w-[calc(100vw-32px)]",
+      "overflow-x-auto",
+    );
     expect(screen.getByTestId("selection-ask-ai-button")).toHaveTextContent(
       "AI에게 질문",
     );
@@ -222,6 +225,7 @@ describe("NoteEditor.onFirstEdit", () => {
     expect(screen.getByTestId("selection-more-button")).toHaveTextContent(
       "더보기",
     );
+    expect(screen.getByTestId("selection-more-button")).toHaveClass("shrink-0");
   });
 
   it("syncs the tab title from the mounted note title", () => {

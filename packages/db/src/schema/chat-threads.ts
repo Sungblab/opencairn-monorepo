@@ -1,4 +1,5 @@
 import { pgTable, uuid, text, timestamp, index } from "drizzle-orm/pg-core";
+import { projects } from "./projects";
 import { workspaces } from "./workspaces";
 import { user } from "./users";
 
@@ -16,6 +17,9 @@ export const chatThreads = pgTable(
     workspaceId: uuid("workspace_id")
       .notNull()
       .references(() => workspaces.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").references(() => projects.id, {
+      onDelete: "cascade",
+    }),
     // Better Auth user.id is text — keep FK column type aligned with users.ts.
     userId: text("user_id")
       .notNull()
@@ -31,10 +35,16 @@ export const chatThreads = pgTable(
   },
   (t) => [
     index("chat_threads_workspace_id_idx").on(t.workspaceId),
+    index("chat_threads_project_id_idx").on(t.projectId),
     index("chat_threads_user_id_idx").on(t.userId),
     // Sidebar list query is "threads in this workspace ordered by recency",
     // which scans this composite directly and avoids a workspace-wide sort.
-    index("chat_threads_updated_at_idx").on(t.workspaceId, t.updatedAt),
+    index("chat_threads_updated_at_idx").on(
+      t.workspaceId,
+      t.projectId,
+      t.userId,
+      t.updatedAt,
+    ),
   ],
 );
 

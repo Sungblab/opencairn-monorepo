@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import koCanvasMessages from "../../../messages/ko/canvas.json";
 import koSidebarMessages from "../../../messages/ko/sidebar.json";
 import { NewCanvasButton } from "./NewCanvasButton";
+import { api, type NoteRow } from "@/lib/api-client";
 
 const pushMock = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -38,6 +39,26 @@ function wrap(ui: React.ReactNode) {
 
 beforeEach(() => {
   pushMock.mockClear();
+  vi.mocked(api.createNote).mockResolvedValue({
+    id: "new-canvas-id",
+    projectId: "p1",
+    workspaceId: "ws-1",
+    folderId: null,
+    inheritParent: true,
+    sourceType: "canvas",
+    sourceFileKey: null,
+    sourceUrl: null,
+    mimeType: null,
+    canvasLanguage: "python",
+    title: "이름 없는 캔버스",
+    content: null,
+    contentText: "",
+    type: "source",
+    isAuto: false,
+    createdAt: "2026-05-12T00:00:00.000Z",
+    updatedAt: "2026-05-12T00:00:00.000Z",
+    deletedAt: null,
+  } satisfies NoteRow);
 });
 
 describe("NewCanvasButton", () => {
@@ -49,7 +70,6 @@ describe("NewCanvasButton", () => {
   });
 
   it("on click: POSTs canvas note + navigates to /workspace/<slug>/note/<id>", async () => {
-    const { api } = await import("@/lib/api-client");
     render(wrap(<NewCanvasButton workspaceSlug="acme" projectId="p1" />));
 
     fireEvent.click(screen.getByRole("button", { name: /새 캔버스/ }));
@@ -69,6 +89,21 @@ describe("NewCanvasButton", () => {
       expect(pushMock).toHaveBeenCalledWith(
         "/ko/workspace/acme/note/new-canvas-id",
       );
+    });
+  });
+
+  it("shows immediate pending feedback while canvas creation is in flight", async () => {
+    vi.mocked(api.createNote).mockImplementation(
+      () => new Promise(() => undefined),
+    );
+    render(wrap(<NewCanvasButton workspaceSlug="acme" projectId="p1" />));
+
+    fireEvent.click(screen.getByRole("button", { name: /새 캔버스/ }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /캔버스 생성 중/ }),
+      ).toBeDisabled();
     });
   });
 });

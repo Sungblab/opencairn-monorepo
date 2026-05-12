@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { MoreMenu } from "./more-menu";
 
@@ -8,8 +9,10 @@ vi.mock("next-intl", () => ({
 }));
 
 describe("MoreMenu", () => {
-  it("renders workspace-scoped items as visible native links", () => {
-    render(<MoreMenu base="/ko/workspace/acme" />);
+  it("renders workspace-scoped items and opens trash in-place", async () => {
+    const user = userEvent.setup();
+    const onOpenTrash = vi.fn();
+    render(<MoreMenu base="/ko/workspace/acme" onOpenTrash={onOpenTrash} />);
 
     expect(
       screen.getByText("sidebar.more_menu.atlas").closest("a"),
@@ -28,9 +31,12 @@ describe("MoreMenu", () => {
       "/ko/workspace/acme/settings/shared-links",
     );
 
-    expect(
-      screen.getByText("sidebar.more_menu.trash").closest("a"),
-    ).toHaveAttribute("href", "/ko/workspace/acme/settings/trash");
+    const trash = screen.getByRole("button", {
+      name: "sidebar.more_menu.trash",
+    });
+    expect(trash.closest("a")).toBeNull();
+    await user.click(trash);
+    expect(onOpenTrash).toHaveBeenCalledTimes(1);
   });
 
   it("renders external items as new-tab links", () => {

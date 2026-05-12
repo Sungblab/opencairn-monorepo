@@ -784,7 +784,7 @@ export function NoteEditor({
                 />
                 {selectionAskPosition ? (
                   <div
-                    className="fixed z-40 flex items-center gap-1 rounded-[var(--radius-control)] border border-border bg-background p-1 text-xs font-medium shadow-md"
+                    className="fixed z-40 flex max-w-[calc(100vw-32px)] items-center gap-1 overflow-x-auto rounded-[var(--radius-control)] border border-border bg-background p-1 text-xs font-medium shadow-md"
                     style={selectionAskPosition}
                     data-testid="selection-action-bubble"
                   >
@@ -881,7 +881,7 @@ function SelectionActionButton({
   return (
     <button
       type="button"
-      className="inline-flex h-7 items-center gap-1 rounded-[calc(var(--radius-control)-2px)] px-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      className="inline-flex h-7 shrink-0 items-center gap-1 rounded-[calc(var(--radius-control)-2px)] px-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       onMouseDown={(event) => {
         event.preventDefault();
         onClick();

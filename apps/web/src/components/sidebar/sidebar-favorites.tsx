@@ -18,7 +18,9 @@ import {
 
 export function SidebarFavorites({ wsSlug }: { wsSlug: string }) {
   const t = useTranslations("sidebar.favorites");
-  const [items, setItems] = useState<SidebarFavorite[]>([]);
+  const [items, setItems] = useState<SidebarFavorite[]>(() =>
+    readSidebarFavorites(wsSlug),
+  );
 
   useEffect(() => {
     const refresh = () => setItems(readSidebarFavorites(wsSlug));

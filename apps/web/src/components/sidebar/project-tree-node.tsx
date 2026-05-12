@@ -14,11 +14,15 @@ import {
   FileVideo,
   FileSpreadsheet,
   File,
+  FileType,
   FolderCode,
   FileArchive,
   MoreHorizontal,
+  NotebookText,
   Plus,
   Star,
+  Sparkles,
+  Table2,
 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
@@ -62,6 +66,7 @@ export function ProjectTreeNode({
   const deleteShortcut = `${modKeyLabel}+Del`;
 
   const kind = node.data.kind;
+  const displayLabel = treeNodeDisplayLabel(node.data, t);
   if (kind === "empty") {
     const parentId = node.data.parent_id;
     return (
@@ -179,7 +184,7 @@ export function ProjectTreeNode({
         newTab({
           kind: "agent_file",
           targetId,
-          title: node.data.label,
+          title: displayLabel,
           mode: "agent-file",
           preview: false,
         }),
@@ -197,7 +202,7 @@ export function ProjectTreeNode({
         newTab({
           kind: "code_workspace",
           targetId,
-          title: node.data.label,
+          title: displayLabel,
           mode: "code-workspace",
           preview: false,
         }),
@@ -207,8 +212,8 @@ export function ProjectTreeNode({
     const tabs = useTabsStore.getState();
     const existing = tabs.findTabByTarget("note", targetId);
     if (existing) {
-      if (existing.title !== node.data.label) {
-        tabs.updateTab(existing.id, { title: node.data.label });
+      if (existing.title !== displayLabel) {
+        tabs.updateTab(existing.id, { title: displayLabel });
       }
       tabs.setActive(existing.id);
     }
@@ -359,7 +364,7 @@ export function ProjectTreeNode({
           />
         ) : (
           <>
-            <span className="min-w-0 flex-1 truncate">{node.data.label}</span>
+            <span className="min-w-0 flex-1 truncate">{displayLabel}</span>
             <NodeTypeBadge node={node.data} />
           </>
         )}
@@ -487,7 +492,7 @@ export function ProjectTreeNode({
                         ctx.onDelete(
                           node.data.id,
                           kind,
-                          node.data.label,
+                          displayLabel,
                           node.data.target_id,
                         );
                       }}
@@ -521,7 +526,7 @@ export function ProjectTreeNode({
             ctx.onDelete(
               node.data.id,
               kind,
-              node.data.label,
+              displayLabel,
               node.data.target_id,
             )
           }
@@ -546,6 +551,7 @@ function NodeIcon({ node }: { node: TreeNode }) {
         <AgentFileIcon
           fileKind={node.file_kind}
           mimeType={node.mime_type}
+          role={typeof node.metadata?.role === "string" ? node.metadata.role : null}
           className={agentFileIconClass(node)}
         />
       );
@@ -560,19 +566,35 @@ function NodeIcon({ node }: { node: TreeNode }) {
   if (node.kind === "artifact_group") {
     const role =
       typeof node.metadata?.role === "string" ? node.metadata.role : "";
-    const color =
-      role === "figures"
-        ? "text-pink-600 group-hover:text-pink-700"
-        : role === "analysis"
-          ? "text-violet-600 group-hover:text-violet-700"
-          : "text-cyan-600 group-hover:text-cyan-700";
-    return <Folder aria-hidden className={`h-4 w-4 shrink-0 ${color}`} />;
+    if (role === "figures") {
+      return (
+        <FileImage
+          aria-hidden
+          className="h-4 w-4 shrink-0 text-pink-600 group-hover:text-pink-700"
+        />
+      );
+    }
+    if (role === "analysis") {
+      return (
+        <Sparkles
+          aria-hidden
+          className="h-4 w-4 shrink-0 text-violet-600 group-hover:text-violet-700"
+        />
+      );
+    }
+    return (
+      <Folder
+        aria-hidden
+        className="h-4 w-4 shrink-0 text-cyan-600 group-hover:text-cyan-700"
+      />
+    );
   }
   if (node.kind === "agent_file") {
     return (
       <AgentFileIcon
         fileKind={node.file_kind}
         mimeType={node.mime_type}
+        role={typeof node.metadata?.role === "string" ? node.metadata.role : null}
         className={agentFileIconClass(node)}
       />
     );
@@ -585,9 +607,43 @@ function NodeIcon({ node }: { node: TreeNode }) {
       />
     );
   }
+  if (node.kind === "note") {
+    const role =
+      typeof node.metadata?.role === "string" ? node.metadata.role : "";
+    if (role === "source_note") {
+      return (
+        <Sparkles
+          aria-hidden
+          className="h-4 w-4 shrink-0 text-violet-600 group-hover:text-violet-700"
+        />
+      );
+    }
+    return (
+      <NotebookText
+        aria-hidden
+        className="h-4 w-4 shrink-0 text-indigo-600 group-hover:text-indigo-700"
+      />
+    );
+  }
   return (
     <FileText aria-hidden className="h-4 w-4 shrink-0 text-muted-foreground" />
   );
+}
+
+function treeNodeDisplayLabel(
+  node: TreeNode,
+  t: (key: "full_extract_note" | "generated_note") => string,
+): string {
+  const role = typeof node.metadata?.role === "string" ? node.metadata.role : "";
+  if (node.kind === "note" && role === "source_note") {
+    if (node.label === "generated_note" || node.label === "생성된 노트") {
+      return t("generated_note");
+    }
+    if (node.label === "full_extract_note" || node.label === "전체 추출 노트") {
+      return t("full_extract_note");
+    }
+  }
+  return node.label;
 }
 
 function NodeTypeBadge({ node }: { node: TreeNode }) {
@@ -653,6 +709,8 @@ function agentFileIconClass(node: TreeNode): string {
   const mime = node.mime_type ?? "";
   if (mime === "application/pdf") return "h-4 w-4 shrink-0 text-red-600";
   if (mime.startsWith("image/")) return "h-4 w-4 shrink-0 text-pink-600";
+  if (node.metadata?.role === "table")
+    return "h-4 w-4 shrink-0 text-emerald-600";
   if (mime.startsWith("audio/")) return "h-4 w-4 shrink-0 text-amber-600";
   if (mime.startsWith("video/")) return "h-4 w-4 shrink-0 text-orange-600";
   if (
@@ -697,14 +755,16 @@ function fileBadgeFromKind(kind?: string | null): string | null {
 function AgentFileIcon({
   fileKind,
   mimeType,
+  role,
   className,
 }: {
   fileKind?: string | null;
   mimeType?: string | null;
+  role?: string | null;
   className: string;
 }) {
   if (mimeType === "application/pdf") {
-    return <FileText aria-hidden className={className} />;
+    return <FileType aria-hidden className={className} />;
   }
   if (mimeType?.startsWith("audio/")) {
     return <FileAudio aria-hidden className={className} />;
@@ -714,6 +774,9 @@ function AgentFileIcon({
   }
   if (mimeType?.includes("spreadsheet") || mimeType?.includes("excel")) {
     return <FileSpreadsheet aria-hidden className={className} />;
+  }
+  if (role === "table" || fileKind === "table") {
+    return <Table2 aria-hidden className={className} />;
   }
   if (fileKind === "code" || fileKind === "html" || fileKind === "latex") {
     return <FileCode aria-hidden className={className} />;

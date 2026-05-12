@@ -8,6 +8,14 @@ export interface SidebarFavorite {
   kind: "note" | "folder" | "source_bundle" | "code_workspace" | "agent_file";
 }
 
+const SIDEBAR_FAVORITE_KINDS: SidebarFavorite["kind"][] = [
+  "note",
+  "folder",
+  "source_bundle",
+  "code_workspace",
+  "agent_file",
+];
+
 export function sidebarFavoritesKey(wsSlug: string) {
   return `opencairn:sidebar:favorites:${wsSlug}`;
 }
@@ -59,6 +67,7 @@ function isSidebarFavorite(value: unknown): value is SidebarFavorite {
     (record.targetId === undefined || typeof record.targetId === "string") &&
     typeof record.label === "string" &&
     typeof record.href === "string" &&
-    typeof record.kind === "string"
+    typeof record.kind === "string" &&
+    SIDEBAR_FAVORITE_KINDS.includes(record.kind as SidebarFavorite["kind"])
   );
 }
