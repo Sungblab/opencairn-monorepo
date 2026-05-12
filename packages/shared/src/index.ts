@@ -25,3 +25,4 @@ export * from "./agent-actions";
 export * from "./agent-action-fence";
 export * from "./agentic-plans";
 export * from "./workflow-console";
+export * from "./study-sessions";

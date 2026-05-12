@@ -27,6 +27,10 @@ import {
 import { MessageBubbleLoader } from "./message-bubble-loader";
 import { StatusLine } from "./status-line";
 import { ThoughtBubble } from "./thought-bubble";
+import {
+  isAgentInteractionCard,
+  type InteractionCardSubmit,
+} from "./interaction-card";
 
 function liveErrorMessage(
   error: StreamingAgentMessage["error"],
@@ -41,6 +45,7 @@ interface Props {
   pendingUser?: ChatMessage | null;
   onResumeRun?: (runId: string, messageId: string) => void;
   onSaveSuggestion?: (payload: unknown) => void;
+  onInteractionCardSubmit?: (input: InteractionCardSubmit) => void;
 }
 
 export function Conversation({
@@ -49,6 +54,7 @@ export function Conversation({
   pendingUser = null,
   onResumeRun,
   onSaveSuggestion,
+  onInteractionCardSubmit,
 }: Props) {
   const t = useTranslations("agentPanel.bubble");
   const { data: messages = [] } = useChatMessages(threadId);
@@ -59,6 +65,9 @@ export function Conversation({
   const messageCountRef = useRef(0);
   const [isPinnedToBottom, setIsPinnedToBottom] = useState(true);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const [answeredCards, setAnsweredCards] = useState<
+    Record<string, { value: string; label?: string }>
+  >({});
   const pendingUserAlreadyPersisted =
     pendingUser !== null &&
     messages.some(
@@ -149,6 +158,31 @@ export function Conversation({
     await chatApi.submitFeedback(msgId, sentiment, reason);
   }
 
+  function withAnsweredCard(message: ChatMessage): ChatMessage {
+    const card = isAgentInteractionCard(message.content.interaction_card)
+      ? message.content.interaction_card
+      : null;
+    if (!card || card.answered || !answeredCards[card.id]) return message;
+    return {
+      ...message,
+      content: {
+        ...message.content,
+        interaction_card: {
+          ...card,
+          answered: answeredCards[card.id],
+        },
+      },
+    };
+  }
+
+  function submitInteractionCard(input: InteractionCardSubmit) {
+    setAnsweredCards((current) => ({
+      ...current,
+      [input.card.id]: { value: input.value, label: input.label },
+    }));
+    onInteractionCardSubmit?.(input);
+  }
+
   return (
     <div className="relative min-h-0 flex-1 bg-background/35">
       <div
@@ -160,13 +194,14 @@ export function Conversation({
         {messages.map((m) => (
           <MessageBubbleLoader
             key={m.id}
-            msg={m}
+            msg={withAnsweredCard(m)}
             onRegenerate={() => {
               // Plan 11A wires regenerate; Phase 4 leaves it as a no-op so the
               // action button doesn't disappear and reflow the row mid-thread.
             }}
             onSaveSuggestion={(payload) => onSaveSuggestion?.(payload)}
             onFeedback={onFeedback}
+            onInteractionCardSubmit={submitInteractionCard}
           />
         ))}
         {visiblePendingUser ? (
@@ -176,6 +211,7 @@ export function Conversation({
             onRegenerate={() => {}}
             onSaveSuggestion={(payload) => onSaveSuggestion?.(payload)}
             onFeedback={onFeedback}
+            onInteractionCardSubmit={submitInteractionCard}
           />
         ) : null}
         {live ? (

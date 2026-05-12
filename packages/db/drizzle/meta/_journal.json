@@ -468,7 +468,14 @@
       "idx": 66,
       "version": "7",
       "when": 1778601000000,
-      "tag": "0066_billing_core",
+      "tag": "0066_study_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1778602000000,
+      "tag": "0067_billing_core",
       "breakpoints": true
     }
   ]

@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Tab } from "@/stores/tabs-store";
 
-import { buildAgentContextPayload } from "./context-manifest";
+import {
+  buildAgentContextPayload,
+  getAgentInvocationContext,
+  getAgentInvocationContextLabel,
+} from "./context-manifest";
 
 const noteTab: Tab = {
   id: "tab-note",
@@ -202,5 +206,48 @@ describe("buildAgentContextPayload", () => {
         { type: "page", id: "note-1", label: "Pinned note", manual: true },
       ],
     });
+  });
+});
+
+describe("agent invocation context", () => {
+  it("maps active note tabs and bounded selection into visible context", () => {
+    const context = getAgentInvocationContext(noteTab, {
+      selectionText: "  ".padEnd(1300, "가"),
+    });
+
+    expect(context).toEqual({
+      kind: "note",
+      noteId: "note-1",
+      title: "Note",
+      selectionText: "가".repeat(1200),
+    });
+    expect(getAgentInvocationContextLabel(context)).toEqual({
+      labelKey: "context.selection",
+      title: "Note",
+      selectionCount: 1200,
+    });
+  });
+
+  it("classifies source, canvas, agent file, and project tabs", () => {
+    expect(
+      getAgentInvocationContext({ ...noteTab, mode: "source" }),
+    ).toMatchObject({ kind: "source", sourceId: "note-1" });
+    expect(
+      getAgentInvocationContext({ ...noteTab, mode: "canvas" }),
+    ).toMatchObject({ kind: "canvas", canvasId: "note-1" });
+    expect(
+      getAgentInvocationContext({
+        ...noteTab,
+        kind: "agent_file",
+        targetId: "file-1",
+      }),
+    ).toMatchObject({ kind: "agent_file", fileId: "file-1" });
+    expect(
+      getAgentInvocationContext({
+        ...noteTab,
+        kind: "project",
+        targetId: "project-1",
+      }),
+    ).toMatchObject({ kind: "project", projectId: "project-1" });
   });
 });
