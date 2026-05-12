@@ -152,6 +152,7 @@
       "label": "Wiki index",
       "pages": "{count} pages",
       "links": "{count} links",
+      "orphans": "{count} isolated",
       "latest": "Updated {date}"
     },
     "actions": {

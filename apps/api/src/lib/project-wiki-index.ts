@@ -28,6 +28,7 @@ export type ProjectWikiIndex = {
   totals: {
     pages: number;
     wikiLinks: number;
+    orphanPages: number;
   };
   pages: ProjectWikiIndexPage[];
 };
@@ -109,6 +110,9 @@ export async function buildProjectWikiIndex(opts: {
     outboundLinks: outbound.get(note.id) ?? 0,
   }));
   const latestPageUpdatedAt = visibleNotes[0]?.updatedAt.toISOString() ?? null;
+  const orphanPages = pages.filter(
+    (page) => page.inboundLinks === 0 && page.outboundLinks === 0,
+  ).length;
 
   return {
     projectId: opts.projectId,
@@ -117,6 +121,7 @@ export async function buildProjectWikiIndex(opts: {
     totals: {
       pages: visibleNotes.length,
       wikiLinks: wikiLinkTotal,
+      orphanPages,
     },
     pages,
   };
@@ -130,6 +135,7 @@ function emptyProjectWikiIndex(projectId: string): ProjectWikiIndex {
     totals: {
       pages: 0,
       wikiLinks: 0,
+      orphanPages: 0,
     },
     pages: [],
   };
@@ -146,6 +152,7 @@ export function projectWikiIndexToPrompt(
     `Latest page update: ${index.latestPageUpdatedAt ?? "none"}`,
     `Pages: ${index.totals.pages}`,
     `Wiki links: ${index.totals.wikiLinks}`,
+    `Orphan pages: ${index.totals.orphanPages}`,
   ];
   if (index.pages.length > 0) {
     lines.push("", "Top linked pages:");

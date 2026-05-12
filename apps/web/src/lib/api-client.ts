@@ -716,6 +716,7 @@ export interface ProjectWikiIndex {
   totals: {
     pages: number;
     wikiLinks: number;
+    orphanPages: number;
   };
   pages: ProjectWikiIndexPage[];
 }

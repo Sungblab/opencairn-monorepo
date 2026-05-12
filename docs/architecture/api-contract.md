@@ -161,7 +161,7 @@ site-admin inbox.
 | GET | /api/workspaces/:workspaceId/projects | member | 워크스페이스 내 프로젝트 목록 (권한 필터링됨) | - |
 | POST | /api/workspaces/:workspaceId/projects | member | 새 프로젝트 생성 | `{ name, description?, defaultRole? }` |
 | GET | /api/projects/:id | project `viewer` | 프로젝트 상세 | - |
-| GET | /api/projects/:id/wiki-index | project `viewer` + per-note read filter | 권한이 있는 프로젝트 노트의 live wiki index. 응답: `{ projectId, generatedAt, latestPageUpdatedAt, totals: { pages, wikiLinks }, pages: [{ id, title, type, sourceType, summary, updatedAt, inboundLinks, outboundLinks }] }` | - |
+| GET | /api/projects/:id/wiki-index | project `viewer` + per-note read filter | 권한이 있는 프로젝트 노트의 live wiki index. 응답: `{ projectId, generatedAt, latestPageUpdatedAt, totals: { pages, wikiLinks, orphanPages }, pages: [{ id, title, type, sourceType, summary, updatedAt, inboundLinks, outboundLinks }] }` | - |
 | PATCH | /api/projects/:id | project `editor` | 수정 | `{ name?, description?, defaultRole? }` |
 | DELETE | /api/projects/:id | workspace `owner`, `admin`, or creator | 삭제 | - |
 

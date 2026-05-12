@@ -285,7 +285,7 @@ describe("GET /api/projects/:id/wiki-index", () => {
       projectId: string;
       generatedAt: string;
       latestPageUpdatedAt: string | null;
-      totals: { pages: number; wikiLinks: number };
+      totals: { pages: number; wikiLinks: number; orphanPages: number };
       pages: Array<{
         id: string;
         title: string;
@@ -299,6 +299,7 @@ describe("GET /api/projects/:id/wiki-index", () => {
     expect(body.latestPageUpdatedAt).not.toBeNull();
     expect(body.totals.pages).toBeGreaterThanOrEqual(3);
     expect(body.totals.wikiLinks).toBe(1);
+    expect(body.totals.orphanPages).toBeGreaterThanOrEqual(1);
     expect(body.pages.find((page) => page.id === sourceId)).toMatchObject({
       title: "Source packet",
       type: "source",

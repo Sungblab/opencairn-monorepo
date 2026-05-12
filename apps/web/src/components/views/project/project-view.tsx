@@ -91,10 +91,12 @@ export function ProjectView({
 
   function formatWikiIndexStats(
     index: ProjectWikiIndex | undefined,
-    labels: { pages: string; links: string; latest?: string },
+    labels: { pages: string; links: string; orphans: string; latest?: string },
   ) {
     if (!index) return null;
-    return [labels.pages, labels.links, labels.latest].filter(Boolean).join(" · ");
+    return [labels.pages, labels.links, labels.orphans, labels.latest]
+      .filter(Boolean)
+      .join(" · ");
   }
 
   function renderToolItem(item: ToolDiscoveryItem) {
@@ -195,6 +197,9 @@ export function ProjectView({
           }),
           links: t("graphDiscovery.index.links", {
             count: wikiIndex?.totals.wikiLinks ?? 0,
+          }),
+          orphans: t("graphDiscovery.index.orphans", {
+            count: wikiIndex?.totals.orphanPages ?? 0,
           }),
           latest: wikiIndex?.latestPageUpdatedAt
             ? t("graphDiscovery.index.latest", {
