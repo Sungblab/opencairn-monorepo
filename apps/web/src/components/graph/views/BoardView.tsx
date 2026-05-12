@@ -20,6 +20,7 @@ const NODE_HEIGHT = 58;
 function boardLayout(
   nodes: ViewNode[],
   edges: GroundedEdge[],
+  rootId?: string | null,
 ): Map<string, BoardPosition> {
   const positions = new Map<string, BoardPosition>();
   const nodeIds = nodes.map((node) => node.id);
@@ -35,9 +36,10 @@ function boardLayout(
     degree.set(edge.sourceId, (degree.get(edge.sourceId) ?? 0) + 1);
     degree.set(edge.targetId, (degree.get(edge.targetId) ?? 0) + 1);
   }
-  const [hubId] = [...nodeIds].sort(
+  const [degreeHubId] = [...nodeIds].sort(
     (a, b) => (degree.get(b) ?? 0) - (degree.get(a) ?? 0),
   );
+  const hubId = rootId && nodeIds.includes(rootId) ? rootId : degreeHubId;
   const hubX = BOARD_WIDTH / 2 - NODE_WIDTH / 2;
   const hubY = BOARD_HEIGHT / 2 - NODE_HEIGHT / 2;
   if (!positions.has(hubId)) {
@@ -89,8 +91,9 @@ export default function BoardView({ projectId, root }: Props) {
       boardLayout(
         data?.nodes ?? [],
         data?.edges ?? [],
+        data?.rootId ?? root ?? null,
       ),
-    [data?.edges, data?.nodes],
+    [data?.edges, data?.nodes, data?.rootId, root],
   );
   const [positions, setPositions] = useState(initialPositions);
   const dragRef = useRef<{
@@ -194,8 +197,10 @@ export default function BoardView({ projectId, root }: Props) {
             <button
               key={node.id}
               type="button"
-              data-testid="board-node"
+              data-testid={`board-node-${node.id}`}
+              data-role="board-node"
               className="absolute flex cursor-grab touch-none items-center gap-3 rounded-md border border-border bg-background px-3 py-2 text-left shadow-sm active:cursor-grabbing"
+              data-root={node.id === (data.rootId ?? root ?? null)}
               style={{ left: pos.x, top: pos.y, width: NODE_WIDTH, minHeight: NODE_HEIGHT }}
               onPointerDown={(event) => {
                 event.currentTarget.setPointerCapture?.(event.pointerId);

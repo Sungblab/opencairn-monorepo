@@ -52,7 +52,7 @@ describe("BoardView", () => {
     });
     wrap(<BoardView projectId="p-1" />);
     expect(screen.getByTestId("board-canvas")).toBeInTheDocument();
-    expect(screen.getAllByTestId("board-node")).toHaveLength(2);
+    expect(screen.getAllByRole("button")).toHaveLength(2);
     expect(screen.getByTestId("board-edge")).toBeInTheDocument();
   });
 
@@ -101,7 +101,7 @@ describe("BoardView", () => {
     });
     wrap(<BoardView projectId="p-1" />);
     const canvas = screen.getByTestId("board-canvas");
-    const node = screen.getByTestId("board-node");
+    const node = screen.getByTestId("board-node-11111111-1111-4111-8111-111111111111");
     const before = node.getAttribute("style");
     fireEvent.pointerDown(node, { pointerId: 1, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(canvas, { clientX: 80, clientY: 40 });
@@ -129,8 +129,71 @@ describe("BoardView", () => {
       error: null,
     });
     wrap(<BoardView projectId="p-1" />);
-    expect(screen.getByTestId("board-node").getAttribute("style")).toContain(
+    expect(
+      screen
+        .getByTestId("board-node-11111111-1111-4111-8111-111111111111")
+        .getAttribute("style"),
+    ).toContain(
       "left: 120px",
     );
+  });
+
+  it("centers the requested root even when another node has higher degree", () => {
+    (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: {
+        viewType: "board",
+        layout: "preset",
+        rootId: "22222222-2222-4222-8222-222222222222",
+        nodes: [
+          {
+            id: "11111111-1111-4111-8111-111111111111",
+            name: "Higher degree",
+            degree: 3,
+          },
+          {
+            id: "22222222-2222-4222-8222-222222222222",
+            name: "Requested root",
+            degree: 1,
+          },
+          {
+            id: "33333333-3333-4333-8333-333333333333",
+            name: "Neighbor",
+            degree: 1,
+          },
+        ],
+        edges: [
+          {
+            id: "edge-1",
+            sourceId: "11111111-1111-4111-8111-111111111111",
+            targetId: "33333333-3333-4333-8333-333333333333",
+            relationType: "related",
+            weight: 1,
+          },
+          {
+            id: "edge-2",
+            sourceId: "22222222-2222-4222-8222-222222222222",
+            targetId: "33333333-3333-4333-8333-333333333333",
+            relationType: "related",
+            weight: 1,
+          },
+        ],
+        truncated: false,
+        totalConcepts: 3,
+      },
+      isLoading: false,
+      error: null,
+    });
+    wrap(<BoardView projectId="p-1" root="22222222-2222-4222-8222-222222222222" />);
+
+    const rootStyle = screen
+      .getByTestId("board-node-22222222-2222-4222-8222-222222222222")
+      .getAttribute("style");
+    const higherDegreeStyle = screen
+      .getByTestId("board-node-11111111-1111-4111-8111-111111111111")
+      .getAttribute("style");
+
+    expect(rootStyle).toContain("left: 615px");
+    expect(rootStyle).toContain("top: 431px");
+    expect(higherDegreeStyle).not.toContain("left: 615px");
   });
 });
