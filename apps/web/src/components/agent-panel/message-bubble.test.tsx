@@ -73,6 +73,27 @@ describe("message bubble status", () => {
     expect(screen.queryByText("관련 문서 훑는 중...")).not.toBeInTheDocument();
   });
 
+  it("does not show stale thinking metadata on completed messages", () => {
+    render(
+      <MessageBubble
+        msg={{
+          ...baseAgentMessage,
+          content: {
+            body: "완료된 답변입니다.",
+            thought: { summary: "사용자의 질문 분석 중" },
+          },
+        }}
+        onRegenerate={vi.fn()}
+        onSaveSuggestion={vi.fn()}
+        onFeedback={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("완료된 답변입니다.")).toBeInTheDocument();
+    expect(screen.queryByText("thought_label")).not.toBeInTheDocument();
+    expect(screen.queryByText("사용자의 질문 분석 중")).not.toBeInTheDocument();
+  });
+
   it("shows a status line while a run is still active", () => {
     render(
       <MessageBubble

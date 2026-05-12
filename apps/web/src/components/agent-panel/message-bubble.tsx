@@ -125,11 +125,12 @@ export function MessageBubble({
     );
   }
 
-  const thought = isThought(msg.content.thought) ? msg.content.thought : null;
   const isActiveRun =
     msg.status === "streaming" ||
     msg.run_status === "queued" ||
     msg.run_status === "running";
+  const thought =
+    isActiveRun && isThought(msg.content.thought) ? msg.content.thought : null;
   const status =
     isActiveRun &&
     isStatus(msg.content.status) &&
