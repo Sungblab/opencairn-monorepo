@@ -40,7 +40,7 @@
     "graph": "프로젝트 그래프",
     "agents": "에이전트",
     "learn": "학습",
-    "atlas": "Ontology Atlas",
+    "atlas": "온톨로지 아틀라스",
     "shared_links": "공유 링크",
     "public_pages": "공개 페이지",
     "synthesis_export": "문서 내보내기",
@@ -77,7 +77,7 @@
     "ask_ai_short": "질문"
   },
   "more_menu": {
-    "atlas": "Ontology Atlas",
+    "atlas": "온톨로지 아틀라스",
     "settings": "워크스페이스 설정",
     "templates": "템플릿 갤러리",
     "shared_links": "공유 링크 관리",
