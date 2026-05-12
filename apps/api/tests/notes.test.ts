@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createApp } from "../src/app.js";
-import { db, notes, sourcePdfAnnotations, eq } from "@opencairn/db";
+import { db, notes, sourcePdfAnnotations, wikiLogs, eq } from "@opencairn/db";
 import {
   seedWorkspace,
   seedMultiRoleWorkspace,
@@ -244,6 +244,77 @@ describe("GET /api/notes/:id/role", () => {
     const outsider = await seedWorkspace({ role: "editor" });
     try {
       const res = await authedFetch(`/api/notes/${ctx.noteId}/role`, {
+        method: "GET",
+        userId: outsider.userId,
+      });
+      expect(res.status).toBe(403);
+    } finally {
+      await outsider.cleanup();
+    }
+  });
+});
+
+describe("GET /api/notes/:id/wiki-logs", () => {
+  let ctx: SeedResult;
+
+  beforeEach(async () => {
+    ctx = await seedWorkspace({ role: "owner" });
+  });
+
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  it("returns wiki maintenance logs newest first", async () => {
+    const oldDate = new Date("2026-01-01T00:00:00.000Z");
+    const newDate = new Date("2026-01-02T00:00:00.000Z");
+    await db.insert(wikiLogs).values([
+      {
+        noteId: ctx.noteId,
+        agent: "compiler",
+        action: "create",
+        reason: "created from source",
+        diff: { created: true },
+        createdAt: oldDate,
+      },
+      {
+        noteId: ctx.noteId,
+        agent: "librarian",
+        action: "link",
+        reason: "linked related note",
+        diff: { target: "Alpha" },
+        createdAt: newDate,
+      },
+    ]);
+
+    const res = await authedFetch(`/api/notes/${ctx.noteId}/wiki-logs`, {
+      method: "GET",
+      userId: ctx.userId,
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json() as {
+      logs: Array<{
+        agent: string;
+        action: string;
+        reason: string | null;
+        diff: unknown;
+        createdAt: string;
+      }>;
+    };
+    expect(body.logs.map((log) => log.agent)).toEqual(["librarian", "compiler"]);
+    expect(body.logs[0]).toMatchObject({
+      action: "link",
+      reason: "linked related note",
+      diff: { target: "Alpha" },
+      createdAt: newDate.toISOString(),
+    });
+  });
+
+  it("returns 403 when caller cannot read the note", async () => {
+    const outsider = await seedWorkspace({ role: "owner" });
+    try {
+      const res = await authedFetch(`/api/notes/${ctx.noteId}/wiki-logs`, {
         method: "GET",
         userId: outsider.userId,
       });

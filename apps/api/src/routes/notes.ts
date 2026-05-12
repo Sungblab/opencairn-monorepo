@@ -8,6 +8,7 @@ import {
   projects,
   projectTreeNodes,
   sourcePdfAnnotations,
+  wikiLogs,
   wikiLinks,
   eq,
   and,
@@ -315,6 +316,39 @@ export const noteRoutes = new Hono<AppEnv>()
     }
 
     return c.json({ data: visible, total: visible.length });
+  })
+
+  .get("/:id/wiki-logs", async (c) => {
+    const user = c.get("user");
+    const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "bad-request" }, 400);
+    if (!(await canRead(user.id, { type: "note", id }))) {
+      return c.json({ error: "forbidden" }, 403);
+    }
+
+    const rows = await db
+      .select({
+        id: wikiLogs.id,
+        agent: wikiLogs.agent,
+        action: wikiLogs.action,
+        diff: wikiLogs.diff,
+        reason: wikiLogs.reason,
+        createdAt: wikiLogs.createdAt,
+      })
+      .from(wikiLogs)
+      .where(eq(wikiLogs.noteId, id))
+      .orderBy(desc(wikiLogs.createdAt));
+
+    return c.json({
+      logs: rows.map((row) => ({
+        id: row.id,
+        agent: row.agent,
+        action: row.action,
+        diff: row.diff,
+        reason: row.reason,
+        createdAt: row.createdAt.toISOString(),
+      })),
+    });
   })
 
   // Spec B (Content-Aware Enrichment) — read-side for the H4 panel. Single
