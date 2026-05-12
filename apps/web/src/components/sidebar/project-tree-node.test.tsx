@@ -463,13 +463,12 @@ describe("ProjectTreeNode", () => {
       }),
     );
 
-    const raw = window.localStorage.getItem(
-      "opencairn:sidebar:favorites:acme",
-    );
+    const raw = window.localStorage.getItem("opencairn:sidebar:favorites:acme");
     expect(raw).not.toBeNull();
     expect(JSON.parse(raw ?? "[]")).toMatchObject([
       {
         id: "tree-note-favorite",
+        targetId: "note-favorite",
         label: "서비스 에이전트 문서",
         href: "/ko/workspace/acme/note/note-favorite",
         kind: "note",

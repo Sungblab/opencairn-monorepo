@@ -249,6 +249,7 @@ export function ProjectTreeNode({
     if (!href || !wsSlug) return;
     upsertSidebarFavorite(wsSlug, {
       id: node.data.id,
+      targetId: node.data.target_id ?? node.data.id,
       label: node.data.label,
       href,
       kind: "note",

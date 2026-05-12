@@ -67,6 +67,10 @@
   "recent": {
     "empty": "최근 작업한 항목 없음"
   },
+  "agent_actions": {
+    "ask_ai": "AI에게 질문",
+    "ask_ai_short": "AI"
+  },
   "more_menu": {
     "atlas": "Ontology Atlas",
     "settings": "워크스페이스 설정",

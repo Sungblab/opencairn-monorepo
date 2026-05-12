@@ -11,6 +11,10 @@ import {
   SIDEBAR_FAVORITES_UPDATED,
   type SidebarFavorite,
 } from "./sidebar-favorites-store";
+import {
+  noteIdFromNoteHref,
+  SidebarNoteAiButton,
+} from "./sidebar-note-ai-button";
 
 export function SidebarFavorites({ wsSlug }: { wsSlug: string }) {
   const t = useTranslations("sidebar.favorites");
@@ -42,27 +46,40 @@ export function SidebarFavorites({ wsSlug }: { wsSlug: string }) {
 
   return (
     <div className="grid gap-0.5">
-      {items.map((item) => (
-        <div
-          key={item.id}
-          className="group flex min-h-8 items-center gap-1 rounded-[var(--radius-control)] text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <Link
-            href={item.href}
-            className="min-w-0 flex-1 truncate px-2 py-1.5"
+      {items.map((item) => {
+        const noteId =
+          item.kind === "note"
+            ? (item.targetId ?? noteIdFromNoteHref(item.href))
+            : null;
+        return (
+          <div
+            key={item.id}
+            className="group flex min-h-8 items-center gap-1 rounded-[var(--radius-control)] text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
           >
-            {item.label}
-          </Link>
-          <button
-            type="button"
-            aria-label={t("remove")}
-            onClick={() => removeSidebarFavorite(wsSlug, item.id)}
-            className="mr-1 hidden h-6 w-6 shrink-0 place-items-center rounded-[var(--radius-control)] text-muted-foreground hover:bg-background hover:text-foreground group-hover:grid focus-visible:grid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <X aria-hidden className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      ))}
+            <Link
+              href={item.href}
+              className="min-w-0 flex-1 truncate px-2 py-1.5"
+            >
+              {item.label}
+            </Link>
+            {noteId ? (
+              <SidebarNoteAiButton
+                href={item.href}
+                noteId={noteId}
+                title={item.label}
+              />
+            ) : null}
+            <button
+              type="button"
+              aria-label={t("remove")}
+              onClick={() => removeSidebarFavorite(wsSlug, item.id)}
+              className="mr-1 hidden h-6 w-6 shrink-0 place-items-center rounded-[var(--radius-control)] text-muted-foreground hover:bg-background hover:text-foreground group-hover:grid focus-visible:grid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <X aria-hidden className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }

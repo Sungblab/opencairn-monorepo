@@ -9,6 +9,8 @@ import { useWorkspaceId } from "@/hooks/useWorkspaceId";
 import { dashboardApi } from "@/lib/api-client";
 import { urls } from "@/lib/urls";
 
+import { SidebarNoteAiButton } from "./sidebar-note-ai-button";
+
 export function SidebarRecentNotes({ wsSlug }: { wsSlug: string }) {
   const locale = useLocale();
   const t = useTranslations("sidebar.recent");
@@ -32,23 +34,36 @@ export function SidebarRecentNotes({ wsSlug }: { wsSlug: string }) {
 
   return (
     <div className="grid gap-0.5">
-      {data.notes.map((note) => (
-        <Link
-          key={note.id}
-          href={urls.workspace.note(locale, wsSlug, note.id)}
-          className="flex min-h-9 min-w-0 items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <Clock aria-hidden className="h-3.5 w-3.5 shrink-0" />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate font-medium text-foreground/90">
-              {note.title}
-            </span>
-            <span className="block truncate text-[11px] text-muted-foreground">
-              {note.project_name}
-            </span>
-          </span>
-        </Link>
-      ))}
+      {data.notes.map((note) => {
+        const href = urls.workspace.note(locale, wsSlug, note.id);
+        return (
+          <div
+            key={note.id}
+            className="group flex min-h-9 min-w-0 items-center gap-1 rounded-[var(--radius-control)] text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <Link
+              href={href}
+              className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Clock aria-hidden className="h-3.5 w-3.5 shrink-0" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium text-foreground/90">
+                  {note.title}
+                </span>
+                <span className="block truncate text-[11px] text-muted-foreground">
+                  {note.project_name}
+                </span>
+              </span>
+            </Link>
+            <SidebarNoteAiButton
+              href={href}
+              noteId={note.id}
+              title={note.title}
+              className="mr-1"
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }
