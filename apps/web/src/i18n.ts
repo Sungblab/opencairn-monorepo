@@ -34,6 +34,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
     canvas,
     note,
     project,
+    projectTemplates,
     workspaceSettings,
     account,
     palette,
@@ -74,6 +75,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
     import(`../messages/${locale}/canvas.json`).then((m) => m.default),
     import(`../messages/${locale}/note.json`).then((m) => m.default),
     import(`../messages/${locale}/project.json`).then((m) => m.default),
+    import(`../messages/${locale}/project-templates.json`).then((m) => m.default),
     import(`../messages/${locale}/workspace-settings.json`).then(
       (m) => m.default,
     ),
@@ -124,6 +126,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
       canvas,
       note,
       project,
+      projectTemplates,
       workspaceSettings,
       account,
       palette,

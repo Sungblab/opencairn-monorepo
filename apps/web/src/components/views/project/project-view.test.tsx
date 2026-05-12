@@ -7,6 +7,10 @@ import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
 import { usePanelStore } from "@/stores/panel-store";
 import { ProjectView } from "./project-view";
 
+const mockProjectNotes = vi.hoisted(() => ({
+  rows: [] as Array<{ id: string; title: string; kind: "manual"; updated_at: string }>,
+}));
+
 vi.mock("next-intl", () => ({
   useLocale: () => "ko",
   useTranslations: (ns?: string) => (key: string) =>
@@ -33,7 +37,14 @@ vi.mock("./project-meta-row", () => ({
 }));
 
 vi.mock("./project-notes-table", () => ({
-  ProjectNotesTable: () => <div>notes table</div>,
+  ProjectNotesTable: ({
+    onLoaded,
+  }: {
+    onLoaded: (rows: typeof mockProjectNotes.rows) => void;
+  }) => {
+    queueMicrotask(() => onLoaded(mockProjectNotes.rows));
+    return <div>notes table</div>;
+  },
 }));
 
 function renderProjectView() {
@@ -52,8 +63,40 @@ function renderProjectView() {
 describe("ProjectView", () => {
   beforeEach(() => {
     localStorage.clear();
+    mockProjectNotes.rows = [];
     useAgentWorkbenchStore.setState(useAgentWorkbenchStore.getInitialState(), true);
     usePanelStore.setState(usePanelStore.getInitialState(), true);
+  });
+
+  it("shows starter actions when the project has no notes", async () => {
+    renderProjectView();
+
+    expect(await screen.findByText("project.starter.title")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", {
+        name: /project\.starter\.actions\.templates\.title/,
+      }),
+    ).toHaveAttribute("href", "/ko/workspace/acme/new-project");
+    expect(
+      screen.getByRole("button", {
+        name: /project\.starter\.actions\.timetable\.title/,
+      }),
+    ).toBeDisabled();
+  });
+
+  it("does not show starter actions after notes exist", () => {
+    mockProjectNotes.rows = [
+      {
+        id: "n1",
+        title: "Existing note",
+        kind: "manual",
+        updated_at: new Date().toISOString(),
+      },
+    ];
+
+    renderProjectView();
+
+    expect(screen.queryByText("project.starter.title")).not.toBeInTheDocument();
   });
 
   it("surfaces project tools in the central workbench", async () => {

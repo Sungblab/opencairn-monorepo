@@ -1,0 +1,45 @@
+{
+  "title": "Create project",
+  "description": "Start blank or choose a subject, research, or meeting template that creates starter notes with the project.",
+  "galleryLabel": "Project templates",
+  "projectCount": "{count, plural, one {# project} other {# projects}}",
+  "error": "Could not apply the template. Try again in a moment.",
+  "templates": {
+    "empty_project": {
+      "title": "My first project",
+      "description": "A blank project you can fill from scratch."
+    },
+    "school_subjects": {
+      "title": "Korean, Math, English, Science",
+      "description": "Creates four subject projects with source, concept, mistake, and exam schedule notes."
+    },
+    "korean": {
+      "title": "Korean",
+      "description": "Organize literature, concepts, assignments, and class material."
+    },
+    "math": {
+      "title": "Math",
+      "description": "Collect formulas, concepts, solution steps, and mistakes."
+    },
+    "english": {
+      "title": "English",
+      "description": "Manage passages, vocabulary, grammar, and assignment material."
+    },
+    "science": {
+      "title": "Science",
+      "description": "Organize concepts, experiments, problem solving, and exam scope."
+    },
+    "research": {
+      "title": "Research project",
+      "description": "Structure a research flow around questions, sources, and draft conclusions."
+    },
+    "meeting": {
+      "title": "Meeting notes",
+      "description": "Capture agenda items and action items in a focused work project."
+    },
+    "personal_knowledge": {
+      "title": "Personal knowledge base",
+      "description": "Build a long-term space for readings and ideas."
+    }
+  }
+}

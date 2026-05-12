@@ -5,7 +5,7 @@ import { useMemo, useState, type ComponentType } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { GitBranch, Layers3, Network } from "lucide-react";
+import { CalendarDays, FilePlus, GitBranch, Layers3, LayoutTemplate, Network, UploadCloud } from "lucide-react";
 import { projectsApi, type ProjectNoteRow } from "@/lib/api-client";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
 import { LiteratureSearchModal } from "@/components/literature/literature-search-modal";
@@ -176,6 +176,24 @@ export function ProjectView({
         cardsHref={projectGraphHref("cards")}
         mindmapHref={projectGraphHref("mindmap")}
       />
+      {allNotes !== null && counts.all === 0 ? (
+        <ProjectStarterPanel
+          projectId={projectId}
+          templatesHref={urls.workspace.newProject(locale, wsSlug)}
+          importHref={urls.workspace.import(locale, wsSlug)}
+          title={t("starter.title")}
+          description={t("starter.description")}
+          uploadTitle={t("starter.actions.upload.title")}
+          uploadDescription={t("starter.actions.upload.description")}
+          templatesTitle={t("starter.actions.templates.title")}
+          templatesDescription={t("starter.actions.templates.description")}
+          importTitle={t("starter.actions.import.title")}
+          importDescription={t("starter.actions.import.description")}
+          timetableTitle={t("starter.actions.timetable.title")}
+          timetableDescription={t("starter.actions.timetable.description")}
+          timetableBadge={t("starter.actions.timetable.badge")}
+        />
+      ) : null}
       <section aria-labelledby="project-tools-heading" className="space-y-3">
         <div>
           <h2
@@ -219,6 +237,120 @@ export function ProjectView({
         defaultProjectId={projectId}
       />
     </div>
+  );
+}
+
+function ProjectStarterPanel({
+  projectId,
+  templatesHref,
+  importHref,
+  title,
+  description,
+  uploadTitle,
+  uploadDescription,
+  templatesTitle,
+  templatesDescription,
+  importTitle,
+  importDescription,
+  timetableTitle,
+  timetableDescription,
+  timetableBadge,
+}: {
+  projectId: string;
+  templatesHref: string;
+  importHref: string;
+  title: string;
+  description: string;
+  uploadTitle: string;
+  uploadDescription: string;
+  templatesTitle: string;
+  templatesDescription: string;
+  importTitle: string;
+  importDescription: string;
+  timetableTitle: string;
+  timetableDescription: string;
+  timetableBadge: string;
+}) {
+  return (
+    <section className="rounded-[var(--radius-card)] border border-border bg-card p-4">
+      <div className="mb-4">
+        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+      </div>
+      <div className="grid gap-2 md:grid-cols-4">
+        <SourceUploadButton
+          projectId={projectId}
+          className="flex min-h-28 w-full items-start gap-3 rounded-[var(--radius-control)] border border-border bg-background p-3 text-left hover:border-foreground"
+        >
+          <StarterActionContent
+            Icon={UploadCloud}
+            title={uploadTitle}
+            description={uploadDescription}
+          />
+        </SourceUploadButton>
+        <Link
+          href={templatesHref}
+          className="flex min-h-28 items-start gap-3 rounded-[var(--radius-control)] border border-border bg-background p-3 text-left hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <StarterActionContent
+            Icon={LayoutTemplate}
+            title={templatesTitle}
+            description={templatesDescription}
+          />
+        </Link>
+        <Link
+          href={importHref}
+          className="flex min-h-28 items-start gap-3 rounded-[var(--radius-control)] border border-border bg-background p-3 text-left hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <StarterActionContent
+            Icon={FilePlus}
+            title={importTitle}
+            description={importDescription}
+          />
+        </Link>
+        <button
+          type="button"
+          disabled
+          className="flex min-h-28 items-start gap-3 rounded-[var(--radius-control)] border border-dashed border-border bg-muted/30 p-3 text-left text-muted-foreground"
+        >
+          <StarterActionContent
+            Icon={CalendarDays}
+            title={timetableTitle}
+            description={timetableDescription}
+            badge={timetableBadge}
+          />
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function StarterActionContent({
+  Icon,
+  title,
+  description,
+  badge,
+}: {
+  Icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+  title: string;
+  description: string;
+  badge?: string;
+}) {
+  return (
+    <>
+      <Icon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+      <span className="min-w-0">
+        <span className="block text-sm font-medium text-foreground">{title}</span>
+        <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+          {description}
+        </span>
+        {badge ? (
+          <span className="mt-2 inline-flex rounded-[var(--radius-control)] border border-border bg-background px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            {badge}
+          </span>
+        ) : null}
+      </span>
+    </>
   );
 }
 

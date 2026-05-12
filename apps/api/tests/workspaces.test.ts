@@ -216,7 +216,78 @@ describe("POST /api/workspaces slug auto-generation", () => {
       .from(projects)
       .where(eq(projects.workspaceId, workspace.id));
 
-    expect(project?.name).toBe("새 프로젝트");
+    expect(project?.name).toBe("내 첫 프로젝트");
+  });
+});
+
+describe("POST /api/workspaces/:workspaceId/project-templates/apply", () => {
+  afterEach(cleanup);
+
+  async function authedTemplatePost(
+    workspaceId: string,
+    userId: string,
+    templateId: string,
+  ): Promise<Response> {
+    const cookie = await signSessionCookie(userId);
+    return app.request(`/api/workspaces/${workspaceId}/project-templates/apply`, {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({ templateId }),
+    });
+  }
+
+  it("creates the four core school subject projects with starter notes", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const { workspaceId } = await seedMembership(u.id);
+
+    const res = await authedTemplatePost(workspaceId, u.id, "school_subjects");
+
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as {
+      projects: Array<{ name: string; notes: Array<{ title: string }> }>;
+    };
+    expect(body.projects.map((project) => project.name)).toEqual([
+      "국어",
+      "수학",
+      "영어",
+      "과학",
+    ]);
+    expect(body.projects.every((project) => project.notes.length > 0)).toBe(true);
+
+    const rows = await db
+      .select({ title: notes.title })
+      .from(notes)
+      .where(eq(notes.workspaceId, workspaceId));
+    expect(rows).toHaveLength(16);
+  });
+
+  it("creates an empty first project template without starter notes", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const { workspaceId } = await seedMembership(u.id);
+
+    const res = await authedTemplatePost(workspaceId, u.id, "empty_project");
+
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as {
+      projects: Array<{ name: string; notes: Array<{ title: string }> }>;
+    };
+    expect(body.projects).toEqual([
+      expect.objectContaining({ name: "내 첫 프로젝트", notes: [] }),
+    ]);
+  });
+
+  it("rejects template application for a non-member", async () => {
+    const owner = await createUser();
+    const outsider = await createUser();
+    createdUserIds.add(owner.id);
+    createdUserIds.add(outsider.id);
+    const { workspaceId } = await seedMembership(owner.id);
+
+    const res = await authedTemplatePost(workspaceId, outsider.id, "empty_project");
+
+    expect(res.status).toBe(403);
   });
 });
 

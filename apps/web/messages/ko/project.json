@@ -154,6 +154,29 @@
       "mindmap": "마인드맵으로 정리"
     }
   },
+  "starter": {
+    "title": "처음 넣을 자료를 고르세요",
+    "description": "프로젝트가 비어 있을 때 바로 이어갈 수 있는 시작 작업입니다.",
+    "actions": {
+      "upload": {
+        "title": "파일 업로드",
+        "description": "PDF, 이미지, 오디오 같은 자료를 현재 프로젝트에 넣습니다."
+      },
+      "templates": {
+        "title": "템플릿 추가",
+        "description": "과목, 리서치, 회의 프로젝트를 기본 노트와 함께 더 만듭니다."
+      },
+      "import": {
+        "title": "텍스트나 링크 넣기",
+        "description": "붙여넣은 텍스트와 웹 링크를 자료로 추가합니다."
+      },
+      "timetable": {
+        "title": "시간표 이미지 분석",
+        "description": "시간표 이미지를 읽어 과목 프로젝트와 일정을 만드는 흐름입니다.",
+        "badge": "준비 중"
+      }
+    }
+  },
   "tabs": {
     "all": "전체",
     "imported": "임포트",
