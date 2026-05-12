@@ -65,8 +65,8 @@ function TabOverflowMenuTrigger({
       onPointerEnter={handlePointerEnter}
       onFocus={onPreload}
       onClick={onOpenRequest}
-      className={`flex h-10 w-10 shrink-0 items-center justify-center border-l border-border text-muted-foreground ${
-        disabled ? "opacity-70" : "hover:bg-accent"
+      className={`flex h-10 w-10 shrink-0 items-center justify-center border-l border-border text-muted-foreground transition-colors ${
+        disabled ? "opacity-70" : "hover:bg-accent hover:text-foreground"
       }`}
     >
       <MoreHorizontal className="h-4 w-4" />

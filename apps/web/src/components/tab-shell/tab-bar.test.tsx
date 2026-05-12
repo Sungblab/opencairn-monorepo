@@ -55,21 +55,9 @@ describe("TabBar", () => {
     expect(screen.getByText("Beta")).toBeInTheDocument();
   });
 
-  it("exposes a new-tab button regardless of tab count", () => {
+  it("does not expose a generic new-tab button in the tab strip", () => {
     renderTabBar();
-    expect(screen.getByTestId("tab-bar-new")).toBeInTheDocument();
-  });
-
-  it("clicking the new-tab button adds a note tab with the localized title", () => {
-    renderTabBar();
-    fireEvent.click(screen.getByTestId("tab-bar-new"));
-    const tabs = useTabsStore.getState().tabs;
-    expect(tabs).toHaveLength(1);
-    expect(tabs[0].kind).toBe("note");
-    expect(tabs[0].title).toBe("newTabTitle");
-    // The + button creates a real (non-preview) tab — matches the spec
-    // rule that preview is only for sidebar-navigated notes.
-    expect(tabs[0].preview).toBe(false);
+    expect(screen.queryByTestId("tab-bar-new")).toBeNull();
   });
 
   it("clicking a tab navigates to its URL via router.replace", () => {
