@@ -1,7 +1,10 @@
 "use client";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type {
+  AnnotationCapability,
+  AnnotationEvent,
+  AnnotationTransferItem,
   PDFViewerConfig,
   PDFViewerProps,
   PluginRegistry,
@@ -10,6 +13,7 @@ import { Download, ExternalLink, FileText } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { Tab } from "@/stores/tabs-store";
 import { useCurrentProjectContext } from "@/components/sidebar/use-current-project";
+import { pdfAnnotationsApi, type PdfAnnotationPayload } from "@/lib/api-client";
 import { SourceContextRail } from "./source-context-rail";
 
 const EmbedPDFViewer = dynamic<PDFViewerProps>(
@@ -26,7 +30,6 @@ const EmbedPDFViewer = dynamic<PDFViewerProps>(
 );
 
 const READ_ONLY_DISABLED_CATEGORIES = [
-  "annotation",
   "redaction",
   "signature",
   "stamp",
@@ -47,6 +50,91 @@ function emitViewerReady(tab: Tab, registry: PluginRegistry) {
   );
 }
 
+type AnnotationProvider = {
+  provides(): Readonly<AnnotationCapability>;
+};
+
+function getAnnotationCapability(registry: PluginRegistry): Readonly<AnnotationCapability> | null {
+  const provider = registry.getCapabilityProvider("annotation") as AnnotationProvider | null;
+  return provider?.provides() ?? null;
+}
+
+function toAnnotationPayload(items: AnnotationTransferItem[]): PdfAnnotationPayload {
+  return JSON.parse(JSON.stringify(items)) as PdfAnnotationPayload;
+}
+
+function usePdfAnnotationPersistence(noteId: string | null, registry: PluginRegistry | null) {
+  const saveTimerRef = useRef<number | null>(null);
+  const importingRef = useRef(false);
+
+  useEffect(() => {
+    if (!noteId || !registry) return;
+    let cancelled = false;
+    let imported = false;
+    let unsubscribe: (() => void) | null = null;
+
+    const clearSaveTimer = () => {
+      if (!saveTimerRef.current) return;
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    };
+
+    const setup = async () => {
+      await registry.pluginsReady();
+      if (cancelled) return;
+      const capability = getAnnotationCapability(registry);
+      if (!capability) return;
+
+      const importSavedAnnotations = async () => {
+        if (imported || cancelled) return;
+        imported = true;
+        const saved = await pdfAnnotationsApi.get(noteId);
+        if (cancelled || saved.annotations.length === 0) return;
+        importingRef.current = true;
+        capability.importAnnotations(
+          saved.annotations as unknown as AnnotationTransferItem[],
+        );
+        window.setTimeout(() => {
+          importingRef.current = false;
+        }, 0);
+      };
+
+      const persistAnnotations = async () => {
+        const exported = await capability.exportAnnotations().toPromise();
+        if (cancelled) return;
+        await pdfAnnotationsApi.save(noteId, toAnnotationPayload(exported));
+      };
+
+      const schedulePersist = () => {
+        clearSaveTimer();
+        saveTimerRef.current = window.setTimeout(() => {
+          void persistAnnotations().catch(() => undefined);
+        }, 500);
+      };
+
+      const onAnnotationEvent = (event: AnnotationEvent) => {
+        if (event.type === "loaded") {
+          void importSavedAnnotations().catch(() => undefined);
+          return;
+        }
+        if (importingRef.current || !event.committed) return;
+        schedulePersist();
+      };
+
+      unsubscribe = capability.onAnnotationEvent(onAnnotationEvent);
+      void importSavedAnnotations().catch(() => undefined);
+    };
+
+    void setup().catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+      clearSaveTimer();
+      unsubscribe?.();
+    };
+  }, [noteId, registry]);
+}
+
 export function SourceViewer({ tab }: { tab: Tab }) {
   const t = useTranslations("appShell.viewers.source");
   const { projectId } = useCurrentProjectContext();
@@ -56,6 +144,7 @@ export function SourceViewer({ tab }: { tab: Tab }) {
   );
   const title = tab.title || t("title");
   const viewerElementId = `source-pdf-area-${tab.id}`;
+  const [registry, setRegistry] = useState<PluginRegistry | null>(null);
   const viewerConfig = useMemo<PDFViewerConfig | null>(
     () =>
       fileUrl
@@ -64,6 +153,10 @@ export function SourceViewer({ tab }: { tab: Tab }) {
             tabBar: "never",
             theme: { preference: "system" },
             disabledCategories: [...READ_ONLY_DISABLED_CATEGORIES],
+            annotations: {
+              autoCommit: true,
+              annotationAuthor: "OpenCairn",
+            },
             export: { defaultFileName: title },
           }
         : null,
@@ -71,10 +164,12 @@ export function SourceViewer({ tab }: { tab: Tab }) {
   );
   const onReady = useCallback(
     (registry: PluginRegistry) => {
+      setRegistry(registry);
       emitViewerReady(tab, registry);
     },
     [tab],
   );
+  usePdfAnnotationPersistence(tab.targetId ?? null, registry);
 
   if (!fileUrl || !viewerConfig || !tab.targetId) return null;
 

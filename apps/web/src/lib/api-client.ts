@@ -187,6 +187,14 @@ export interface CreateNoteBody {
   contentText?: string;
 }
 
+export type PdfAnnotationPayload = Array<Record<string, unknown>>;
+
+export interface PdfAnnotationsResponse {
+  noteId: string;
+  annotations: PdfAnnotationPayload;
+  updatedAt: string | null;
+}
+
 export interface FolderRow {
   id: string;
   projectId: string;
@@ -587,9 +595,21 @@ export const studySessionsApi = {
     apiClient<StudySessionTranscriptResponse>(
       `/study-sessions/${sessionId}/transcript`,
     ),
+  recordingFileUrl: (sessionId: string, recordingId: string) =>
+    `/api/study-sessions/${sessionId}/recordings/${recordingId}/file`,
 };
 
 export type { SessionRecording, StudySession, StudySessionTranscriptResponse };
+
+export const pdfAnnotationsApi = {
+  get: (noteId: string) =>
+    apiClient<PdfAnnotationsResponse>(`/notes/${noteId}/pdf-annotations`),
+  save: (noteId: string, annotations: PdfAnnotationPayload) =>
+    apiClient<PdfAnnotationsResponse>(`/notes/${noteId}/pdf-annotations`, {
+      method: "PUT",
+      body: JSON.stringify({ annotations }),
+    }),
+};
 
 export const importJobsApi = {
   retry: (jobId: string) =>

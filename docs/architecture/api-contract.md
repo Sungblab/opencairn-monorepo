@@ -205,6 +205,8 @@ permission-checked target routes.
 | GET | /api/notes/:id | page `viewer` | 노트 조회 | - |
 | GET | /api/notes/:id/file | page `viewer` + `sourceFileKey !== null` | MinIO 오브젝트 스트리밍 (source-mode 뷰어, PDF 등). `Content-Type`은 S3 `statObject`에서. 400 non-UUID / 403 read 없음 또는 note 없음(존재 누수 방지) / 404 note는 있으나 `sourceFileKey`가 없을 때. | - |
 | GET | /api/notes/:id/data | page `viewer` | `{ data: <JSON> \| null }` — `content_text`를 JSON 파싱. 비-JSON/빈 문자열은 `null` (500 아님). data-mode 뷰어용. 400 non-UUID / 403 read 없음 또는 note 없음. | - |
+| GET | /api/notes/:id/pdf-annotations | page `viewer` + source PDF note | EmbedPDF annotation transfer payload 복원. 서버는 `type='source'`, `sourceType='pdf'`, `sourceFileKey`를 재검증한다. Response `{ noteId, annotations, updatedAt }`. | - |
+| PUT | /api/notes/:id/pdf-annotations | page `editor` + source PDF note | EmbedPDF annotation transfer payload 전체 저장/교체. note의 workspace/project scope를 저장 row에 denormalize한다. | `{ annotations: object[] }` |
 | POST | /api/projects/:projectId/notes | project `editor` | 노트 생성 | `{ folderId?, title?, content?, type?, inheritParent? }` |
 | PATCH | /api/notes/:id | page `editor` | 메타 수정. `content`는 Yjs canonical(Plan 2B에서 body에서 strip), `folderId`도 이 경로에서 제거됨 — 이동은 `/:id/move` 사용(App Shell Phase 2 Task 11, cross-project 스코프 누수 방지). 서버가 `content_text`를 텍스트 추출로 자동 파생(FTS 용). | `{ title?, inheritParent? }` |
 | PATCH | /api/notes/:id/move | page `editor` | 폴더 간 이동(또는 프로젝트 루트로). `moveNote()`가 cross-project 타겟을 거절. | `{ folderId: uuid \| null }` |
@@ -224,6 +226,7 @@ transcript segments. Creating a source-backed session validates that
 | GET | /api/study-sessions/:id | project `viewer` | 세션 상세와 연결 source 목록 조회. | - |
 | GET | /api/study-sessions/:id/recordings | project `viewer` | 세션 녹음 목록과 녹음/전사 상태 조회. | - |
 | POST | /api/study-sessions/:id/recordings/upload | project `editor` | `audio/*` 또는 `video/*` multipart recording upload. API stores the object, creates a `session_recordings` row as `processing`, and starts `StudySessionRecordingWorkflow`. Response `{ recording, workflowId }`. | `multipart/form-data { file, durationSec? }` |
+| GET | /api/study-sessions/:id/recordings/:recordingId/file | project `viewer` | `ready` 녹음 오브젝트 스트리밍. Path session id와 recording owner session을 재검증한 뒤 workspace/project read 권한을 확인한다. | - |
 | GET | /api/study-sessions/:id/transcript | project `viewer` | 녹음 생성 순서와 segment index 순으로 전사 구간을 반환한다. Response `{ sessionId, text, segments }`. | - |
 
 Internal worker callback:

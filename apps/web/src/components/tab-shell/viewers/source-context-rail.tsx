@@ -1,16 +1,20 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
+  AlertCircle,
   BookOpen,
   CheckSquare,
   FileSearch,
   ListChecks,
+  Loader2,
   Mic2,
+  Play,
   Quote,
   Sparkles,
+  Square,
   X,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -22,7 +26,7 @@ import {
   WorkbenchCommandButton,
   WorkbenchContextButton,
 } from "@/components/agent-panel/workbench-trigger-button";
-import { studySessionsApi } from "@/lib/api-client";
+import { studySessionsApi, type SessionRecording } from "@/lib/api-client";
 
 type SourceRailTab = "analysis" | "study" | "activity";
 
@@ -259,6 +263,19 @@ function SourceRailStudy({
 }) {
   const t = useTranslations("appShell.viewers.source.rail");
   const queryClient = useQueryClient();
+  const [recordingState, setRecordingState] = useState<
+    "idle" | "recording" | "uploading" | "failed"
+  >("idle");
+  const [recordingError, setRecordingError] = useState<string | null>(null);
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const [activePlaybackRecordingId, setActivePlaybackRecordingId] = useState<string | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const startedAtRef = useRef<number>(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const pendingSeekRef = useRef<number | null>(null);
   const sessionsQuery = useQuery({
     queryKey: ["study-sessions", projectId, noteId],
     enabled: Boolean(projectId),
@@ -272,11 +289,13 @@ function SourceRailStudy({
     queryKey: ["study-session-recordings", activeSession?.id ?? null],
     enabled: Boolean(activeSession),
     queryFn: () => studySessionsApi.recordings(activeSession!.id),
+    refetchInterval: activeSession ? 3000 : false,
   });
   const transcriptQuery = useQuery({
     queryKey: ["study-session-transcript", activeSession?.id ?? null],
     enabled: Boolean(activeSession),
     queryFn: () => studySessionsApi.transcript(activeSession!.id),
+    refetchInterval: activeSession ? 3000 : false,
   });
   const createSession = useMutation({
     mutationFn: () => {
@@ -293,13 +312,154 @@ function SourceRailStudy({
       });
     },
   });
+  const uploadRecording = useMutation({
+    mutationFn: (input: { file: File; durationSec: number }) => {
+      if (!activeSession) throw new Error("missing_session");
+      return studySessionsApi.uploadRecording(activeSession.id, input.file, {
+        durationSec: input.durationSec,
+      });
+    },
+    onSuccess: () => {
+      setRecordingState("idle");
+      setRecordingError(null);
+      void queryClient.invalidateQueries({
+        queryKey: ["study-session-recordings", activeSession?.id ?? null],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["study-session-transcript", activeSession?.id ?? null],
+      });
+    },
+    onError: () => {
+      setRecordingState("failed");
+      setRecordingError(t("recordingUploadFailed"));
+    },
+  });
 
   const recordings = recordingsQuery.data?.recordings ?? [];
   const segments = transcriptQuery.data?.segments ?? [];
+  const readyRecordings = recordings.filter((recording) => recording.status === "ready");
+  const failedRecordings = recordings.filter(
+    (recording) => recording.status === "failed" || recording.transcriptStatus === "failed",
+  );
+  const processingRecordings = recordings.filter(
+    (recording) =>
+      recording.status === "processing"
+      || recording.transcriptStatus === "pending"
+      || recording.transcriptStatus === "processing",
+  );
+  const activePlaybackRecording =
+    readyRecordings.find((recording) => recording.id === activePlaybackRecordingId)
+    ?? readyRecordings[0]
+    ?? null;
   const hasPendingTranscript = recordings.some((recording) =>
     recording.transcriptStatus === "pending"
     || recording.transcriptStatus === "processing"
   );
+  const canRecord = Boolean(activeSession) && recordingState !== "recording" && recordingState !== "uploading";
+  const mediaSupported =
+    typeof navigator !== "undefined"
+    && Boolean(navigator.mediaDevices?.getUserMedia)
+    && typeof MediaRecorder !== "undefined";
+
+  useEffect(() => {
+    if (activePlaybackRecording && activePlaybackRecordingId !== activePlaybackRecording.id) {
+      setActivePlaybackRecordingId(activePlaybackRecording.id);
+    }
+  }, [activePlaybackRecording, activePlaybackRecordingId]);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  const stopTimer = () => {
+    if (!timerRef.current) return;
+    clearInterval(timerRef.current);
+    timerRef.current = null;
+  };
+
+  const stopStream = () => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  };
+
+  const startRecording = async () => {
+    if (!activeSession || !mediaSupported) return;
+    try {
+      setRecordingError(null);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      chunksRef.current = [];
+      const preferredMime = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/mp4",
+      ].find((mime) =>
+        typeof MediaRecorder.isTypeSupported === "function"
+          ? MediaRecorder.isTypeSupported(mime)
+          : false,
+      );
+      const recorder = preferredMime
+        ? new MediaRecorder(stream, { mimeType: preferredMime })
+        : new MediaRecorder(stream);
+      recorderRef.current = recorder;
+      startedAtRef.current = performance.now();
+      setElapsedSec(0);
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        stopTimer();
+        const durationSec = Math.max(
+          0,
+          Math.round(((performance.now() - startedAtRef.current) / 1000) * 10) / 10,
+        );
+        setElapsedSec(durationSec);
+        const mimeType = recorder.mimeType || preferredMime || "audio/webm";
+        const extension = mimeType.includes("mp4") ? "m4a" : "webm";
+        const file = new File(chunksRef.current, `study-recording.${extension}`, {
+          type: mimeType,
+        });
+        stopStream();
+        if (file.size === 0) {
+          setRecordingState("failed");
+          setRecordingError(t("recordingEmpty"));
+          return;
+        }
+        setRecordingState("uploading");
+        uploadRecording.mutate({ file, durationSec });
+      };
+      recorder.start();
+      setRecordingState("recording");
+      timerRef.current = setInterval(() => {
+        setElapsedSec((performance.now() - startedAtRef.current) / 1000);
+      }, 250);
+    } catch {
+      stopTimer();
+      stopStream();
+      setRecordingState("failed");
+      setRecordingError(t("recordingPermissionFailed"));
+    }
+  };
+
+  const stopRecording = () => {
+    const recorder = recorderRef.current;
+    if (!recorder || recorder.state === "inactive") return;
+    recorder.stop();
+  };
+
+  const seekToSegment = (recordingId: string, startSec: number) => {
+    setActivePlaybackRecordingId(recordingId);
+    pendingSeekRef.current = startSec;
+    window.setTimeout(() => {
+      if (!audioRef.current) return;
+      audioRef.current.currentTime = startSec;
+      void audioRef.current.play().catch(() => undefined);
+      pendingSeekRef.current = null;
+    }, 0);
+  };
 
   return (
     <div className="space-y-3 p-3">
@@ -332,6 +492,208 @@ function SourceRailStudy({
               : t("noRecording")}
         </p>
       </div>
+      <div className="space-y-2 rounded-[var(--radius-card)] border border-border p-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-xs font-medium">{t("recordingTitle")}</div>
+            <div className="text-[11px] text-muted-foreground">
+              {recordingState === "recording"
+                ? t("recordingDuration", { duration: formatDuration(elapsedSec) })
+                : recordingState === "uploading"
+                  ? t("recordingUploading")
+                  : processingRecordings.length > 0
+                    ? t("recordingProcessing")
+                    : readyRecordings.length > 0
+                      ? t("recordingCompleted", { count: readyRecordings.length })
+                      : t("recordingIdle")}
+            </div>
+          </div>
+          {recordingState === "recording" ? (
+            <button
+              type="button"
+              className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-control)] border border-border px-2 text-xs"
+              onClick={stopRecording}
+            >
+              <Square aria-hidden className="h-3.5 w-3.5" />
+              {t("stopRecording")}
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={!canRecord || !mediaSupported}
+              className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-control)] border border-border px-2 text-xs disabled:opacity-50"
+              onClick={() => void startRecording()}
+            >
+              <Mic2 aria-hidden className="h-3.5 w-3.5" />
+              {t("startRecording")}
+            </button>
+          )}
+        </div>
+        {!mediaSupported ? (
+          <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <AlertCircle aria-hidden className="h-3.5 w-3.5" />
+            {t("recordingUnsupported")}
+          </p>
+        ) : null}
+        {recordingError ? (
+          <p className="flex items-center gap-1.5 text-[11px] text-destructive">
+            <AlertCircle aria-hidden className="h-3.5 w-3.5" />
+            {recordingError}
+          </p>
+        ) : null}
+      </div>
+      {recordings.length > 0 ? (
+        <div className="space-y-2">
+          <div className="text-[10px] font-semibold uppercase text-muted-foreground">
+            {t("recordingsTitle")}
+          </div>
+          {recordings.map((recording) => (
+            <RecordingRow
+              key={recording.id}
+              recording={recording}
+              sessionId={activeSession!.id}
+              active={recording.id === activePlaybackRecording?.id}
+              onPlay={() => setActivePlaybackRecordingId(recording.id)}
+              t={t}
+            />
+          ))}
+        </div>
+      ) : null}
+      {activePlaybackRecording ? (
+        <div className="space-y-2 rounded-[var(--radius-card)] border border-border p-2">
+          <div className="flex items-center gap-1.5 text-xs font-medium">
+            <Play aria-hidden className="h-3.5 w-3.5" />
+            {t("playbackTitle")}
+          </div>
+          <audio
+            data-testid="study-recording-audio"
+            ref={audioRef}
+            controls
+            className="w-full"
+            src={studySessionsApi.recordingFileUrl(
+              activeSession!.id,
+              activePlaybackRecording.id,
+            )}
+            onLoadedMetadata={() => {
+              if (pendingSeekRef.current == null || !audioRef.current) return;
+              audioRef.current.currentTime = pendingSeekRef.current;
+            }}
+          />
+        </div>
+      ) : null}
+      <div className="space-y-2 rounded-[var(--radius-card)] border border-border p-2">
+        <div className="text-xs font-medium">{t("transcriptTitle")}</div>
+        {transcriptQuery.isLoading || processingRecordings.length > 0 ? (
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Loader2 aria-hidden className="h-3.5 w-3.5 animate-spin" />
+            {t("transcriptProcessing")}
+          </p>
+        ) : failedRecordings.length > 0 && segments.length === 0 ? (
+          <p className="flex items-center gap-1.5 text-xs text-destructive">
+            <AlertCircle aria-hidden className="h-3.5 w-3.5" />
+            {t("transcriptFailed")}
+          </p>
+        ) : segments.length === 0 ? (
+          <p className="text-xs text-muted-foreground">{t("transcriptEmpty")}</p>
+        ) : (
+          <div className="space-y-1.5">
+            {segments.map((segment) => (
+              <button
+                key={segment.id}
+                type="button"
+                className="block w-full rounded-[var(--radius-control)] border border-border px-2 py-1.5 text-left hover:bg-muted/50"
+                onClick={() => seekToSegment(segment.recordingId, segment.startSec)}
+              >
+                <span className="mb-0.5 block text-[10px] font-medium text-muted-foreground">
+                  {formatDuration(segment.startSec)} - {formatDuration(segment.endSec)}
+                </span>
+                <span className="block text-xs leading-5">{segment.text}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
+}
+
+function RecordingRow({
+  recording,
+  sessionId,
+  active,
+  onPlay,
+  t,
+}: {
+  recording: SessionRecording;
+  sessionId: string;
+  active: boolean;
+  onPlay(): void;
+  t(key: string, values?: Record<string, string | number>): string;
+}) {
+  const canPlay = recording.status === "ready";
+  return (
+    <div className="rounded-[var(--radius-card)] border border-border p-2 text-xs">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-medium">
+            {recording.durationSec != null
+              ? t("recordingDuration", {
+                  duration: formatDuration(recording.durationSec),
+                })
+              : t("recordingUnknownDuration")}
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            {recordingStatusLabel(recording, t)}
+          </div>
+        </div>
+        {canPlay ? (
+          <button
+            type="button"
+            aria-pressed={active}
+            className="inline-flex h-7 items-center gap-1 rounded-[var(--radius-control)] border border-border px-2 text-[11px]"
+            onClick={onPlay}
+          >
+            <Play aria-hidden className="h-3 w-3" />
+            {active ? t("playing") : t("play")}
+          </button>
+        ) : null}
+      </div>
+      {canPlay && active ? (
+        <div className="mt-2 h-8 overflow-hidden rounded-[var(--radius-control)] bg-muted/50">
+          <div className="flex h-full items-end gap-0.5 px-1 py-1" aria-hidden>
+            {Array.from({ length: 24 }).map((_, index) => (
+              <span
+                key={`${sessionId}-${recording.id}-${index}`}
+                className="w-full rounded-sm bg-foreground/50"
+                style={{ height: `${24 + ((index * 17) % 58)}%` }}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function recordingStatusLabel(
+  recording: SessionRecording,
+  t: (key: string, values?: Record<string, string | number>) => string,
+) {
+  if (recording.status === "failed" || recording.transcriptStatus === "failed") {
+    return t("recordingFailed");
+  }
+  if (recording.status === "ready" && recording.transcriptStatus === "ready") {
+    return t("recordingReady");
+  }
+  if (recording.status === "processing" || recording.transcriptStatus === "processing") {
+    return t("recordingProcessing");
+  }
+  return t("recordingUploaded");
+}
+
+function formatDuration(value: number) {
+  const total = Math.max(0, Math.floor(value));
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }

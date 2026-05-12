@@ -7,6 +7,7 @@ import {
   noteEnrichments,
   projects,
   projectTreeNodes,
+  sourcePdfAnnotations,
   wikiLinks,
   eq,
   and,
@@ -38,6 +39,10 @@ const moveNoteSchema = z.object({
   folderId: z.string().uuid().nullable(),
 });
 
+const pdfAnnotationsSchema = z.object({
+  annotations: z.array(z.record(z.string(), z.unknown())).max(2000),
+});
+
 import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite, resolveRole } from "../lib/permissions";
 import { isUuid } from "../lib/validators";
@@ -56,6 +61,35 @@ const TRASH_RETENTION_MS = TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000;
 
 function trashExpiresAt(deletedAt: Date): Date {
   return new Date(deletedAt.getTime() + TRASH_RETENTION_MS);
+}
+
+async function findReadableSourcePdfNote(noteId: string) {
+  const [note] = await db
+    .select({
+      id: notes.id,
+      workspaceId: notes.workspaceId,
+      projectId: notes.projectId,
+      type: notes.type,
+      sourceType: notes.sourceType,
+      sourceFileKey: notes.sourceFileKey,
+      mimeType: notes.mimeType,
+    })
+    .from(notes)
+    .where(and(eq(notes.id, noteId), isNull(notes.deletedAt)))
+    .limit(1);
+  return note ?? null;
+}
+
+function isPdfSourceNote(
+  note: Awaited<ReturnType<typeof findReadableSourcePdfNote>>,
+): note is NonNullable<Awaited<ReturnType<typeof findReadableSourcePdfNote>>> {
+  return Boolean(
+    note
+      && note.type === "source"
+      && note.sourceType === "pdf"
+      && note.sourceFileKey
+      && (!note.mimeType || note.mimeType === "application/pdf"),
+  );
 }
 
 async function purgeExpiredTrash(workspaceId: string): Promise<void> {
@@ -282,6 +316,84 @@ export const noteRoutes = new Hono<AppEnv>()
       updatedAt: row.updatedAt.toISOString(),
     });
   })
+
+  .get("/:id/pdf-annotations", async (c) => {
+    const user = c.get("user");
+    const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+    if (!(await canRead(user.id, { type: "note", id }))) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+    const note = await findReadableSourcePdfNote(id);
+    if (!note) return c.json({ error: "Not found" }, 404);
+    if (!isPdfSourceNote(note)) return c.json({ error: "not_pdf_source" }, 409);
+
+    const [row] = await db
+      .select({
+        annotations: sourcePdfAnnotations.annotations,
+        updatedAt: sourcePdfAnnotations.updatedAt,
+      })
+      .from(sourcePdfAnnotations)
+      .where(eq(sourcePdfAnnotations.noteId, id))
+      .limit(1);
+
+    return c.json({
+      noteId: id,
+      annotations: row?.annotations ?? [],
+      updatedAt: row?.updatedAt?.toISOString() ?? null,
+    });
+  })
+
+  .put(
+    "/:id/pdf-annotations",
+    zValidator("json", pdfAnnotationsSchema),
+    async (c) => {
+      const user = c.get("user");
+      const id = c.req.param("id");
+      if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+      if (!(await canRead(user.id, { type: "note", id }))) {
+        return c.json({ error: "Forbidden" }, 403);
+      }
+      const note = await findReadableSourcePdfNote(id);
+      if (!note) return c.json({ error: "Not found" }, 404);
+      if (!isPdfSourceNote(note)) return c.json({ error: "not_pdf_source" }, 409);
+      if (!(await canWrite(user.id, { type: "note", id }))) {
+        return c.json({ error: "Forbidden" }, 403);
+      }
+
+      const { annotations } = c.req.valid("json");
+      const [row] = await db
+        .insert(sourcePdfAnnotations)
+        .values({
+          noteId: id,
+          workspaceId: note.workspaceId,
+          projectId: note.projectId,
+          annotations,
+          updatedBy: user.id,
+        })
+        .onConflictDoUpdate({
+          target: sourcePdfAnnotations.noteId,
+          set: {
+            workspaceId: note.workspaceId,
+            projectId: note.projectId,
+            annotations,
+            updatedBy: user.id,
+            updatedAt: new Date(),
+          },
+        })
+        .returning({
+          noteId: sourcePdfAnnotations.noteId,
+          annotations: sourcePdfAnnotations.annotations,
+          updatedAt: sourcePdfAnnotations.updatedAt,
+        });
+
+      return c.json({
+        noteId: row.noteId,
+        annotations: row.annotations,
+        updatedAt: row.updatedAt.toISOString(),
+      });
+    },
+  )
 
   .get("/:id", async (c) => {
     const user = c.get("user");
