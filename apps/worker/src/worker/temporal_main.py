@@ -115,6 +115,7 @@ from worker.activities.source_bundle_activity import (
 )
 from worker.activities.staleness_activity import run_staleness as run_staleness_activity
 from worker.activities.stt_activity import transcribe_audio
+from worker.activities.study_session_recording_activity import register_study_session_transcript
 from worker.activities.synthesis_activity import run_synthesis
 
 # Multi-format Synthesis Export — registered only when FEATURE_SYNTHESIS_EXPORT
@@ -148,6 +149,7 @@ from worker.workflows.note_analysis_drain_workflow import NoteAnalysisDrainWorkf
 from worker.workflows.research_workflow import ResearchWorkflow
 from worker.workflows.socratic_workflow import SocraticEvaluateWorkflow, SocraticGenerateWorkflow
 from worker.workflows.staleness_workflow import StalenessWorkflow
+from worker.workflows.study_session_recording_workflow import StudySessionRecordingWorkflow
 from worker.workflows.synthesis_export_workflow import SynthesisExportWorkflow
 from worker.workflows.synthesis_workflow import SynthesisWorkflow
 from worker.workflows.visualize_workflow import VisualizeWorkflow
@@ -199,6 +201,7 @@ def build_worker_config() -> WorkerConfig:
         StalenessWorkflow,
         NarratorWorkflow,
         LitImportWorkflow,  # Plan: Literature Search & Auto-Import
+        StudySessionRecordingWorkflow,
     ]
     activities: list[Any] = [
         emit_started,
@@ -251,6 +254,7 @@ def build_worker_config() -> WorkerConfig:
         lit_dedupe_check,
         create_metadata_note,
         fetch_and_upload_oa_pdf,
+        register_study_session_transcript,
     ]
 
     # Deep Research Phase B — feature-flag gated so the worker boots cleanly
