@@ -232,23 +232,12 @@ describe("SourceViewer", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("keeps open and download actions on the raw file URL", () => {
+  it("does not render a second file header above the PDF toolbar", async () => {
     renderSourceViewer();
+    await screen.findByTestId("embedpdf-viewer");
 
-    expect(screen.getByLabelText("새 탭에서 열기")).toHaveAttribute(
-      "href",
-      "/api/notes/n1/file",
-    );
-    expect(screen.getByLabelText("새 탭에서 열기")).toHaveClass("border-border");
-    expect(screen.getByLabelText("다운로드")).toHaveAttribute(
-      "href",
-      "/api/notes/n1/file",
-    );
-    expect(screen.getByLabelText("다운로드")).toHaveClass("border-border");
-    expect(screen.getByLabelText("다운로드")).toHaveAttribute(
-      "download",
-      "doc.pdf",
-    );
+    expect(screen.queryByLabelText("새 탭에서 열기")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("다운로드")).not.toBeInTheDocument();
   });
 
   it("emits a viewer-ready event for agent integrations", async () => {
