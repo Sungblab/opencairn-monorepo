@@ -123,6 +123,12 @@ export function buildForceGraphData(
       addNoteConcept(context.noteId, edge.sourceId);
       addNoteConcept(context.noteId, edge.targetId);
     }
+    for (const link of edge.sourceNoteLinks ?? []) {
+      noteTitles.set(link.sourceNoteId, link.sourceTitle);
+      noteTitles.set(link.targetNoteId, link.targetTitle);
+      addNoteConcept(link.sourceNoteId, edge.sourceId);
+      addNoteConcept(link.targetNoteId, edge.targetId);
+    }
   }
   const noteHubNodes: ForceGraphNode[] = [...noteConceptIds.entries()].map(
     ([noteId, conceptIds]) => {
@@ -171,8 +177,21 @@ export function buildForceGraphData(
         synthetic: true,
       })),
   );
+  const noteWikiLinks: ForceGraphLink[] = snap.edges.flatMap((edge) => {
+    if (edge.surfaceType !== "wiki_link") return [];
+    return (edge.sourceNoteLinks ?? []).map((link) => ({
+      edgeId: `wiki-note:${link.sourceNoteId}->${link.targetNoteId}:${edgeId(edge)}`,
+      source: `note:${link.sourceNoteId}`,
+      target: `note:${link.targetNoteId}`,
+      relationType: "wiki-link",
+      weight: Math.max(0.5, edge.weight),
+      surfaceType: "wiki_link",
+      displayOnly: true,
+      synthetic: true,
+    }));
+  });
 
-  return { nodes: allNodes, links: [...noteHubLinks, ...links], topNodeIds };
+  return { nodes: allNodes, links: [...noteWikiLinks, ...noteHubLinks, ...links], topNodeIds };
 }
 
 export function getGraphNeighborhood(

@@ -208,6 +208,12 @@ async function selectWikiLinkEdges(
     link_count: number;
     source_note_ids: string[] | null;
     target_note_ids: string[] | null;
+    source_note_links: Array<{
+      sourceNoteId: string;
+      sourceTitle: string;
+      targetNoteId: string;
+      targetTitle: string;
+    }> | null;
   };
   const raw = await db.execute(sql`
     WITH selected_notes AS (
@@ -220,7 +226,9 @@ async function selectWikiLinkEdges(
         source_concepts.concept_id AS source_id,
         target_concepts.concept_id AS target_id,
         wl.source_note_id,
-        wl.target_note_id
+        wl.target_note_id,
+        source_notes.title AS source_title,
+        target_notes.title AS target_title
       FROM wiki_links wl
       JOIN notes source_notes
         ON source_notes.id = wl.source_note_id
@@ -241,7 +249,13 @@ async function selectWikiLinkEdges(
       target_id,
       count(*)::int AS link_count,
       array_agg(DISTINCT source_note_id) AS source_note_ids,
-      array_agg(DISTINCT target_note_id) AS target_note_ids
+      array_agg(DISTINCT target_note_id) AS target_note_ids,
+      jsonb_agg(DISTINCT jsonb_build_object(
+        'sourceNoteId', source_note_id,
+        'sourceTitle', COALESCE(NULLIF(source_title, ''), 'Untitled'),
+        'targetNoteId', target_note_id,
+        'targetTitle', COALESCE(NULLIF(target_title, ''), 'Untitled')
+      )) AS source_note_links
     FROM pairs
     GROUP BY source_id, target_id
     ORDER BY link_count DESC, source_id ASC, target_id ASC
@@ -274,6 +288,7 @@ async function selectWikiLinkEdges(
       sourceNotes: sourceNoteIds
         .map((id) => sourceNoteTitles.get(id))
         .filter((note): note is { id: string; title: string } => Boolean(note)),
+      sourceNoteLinks: row.source_note_links ?? [],
       support: missingSupport(),
     };
   });

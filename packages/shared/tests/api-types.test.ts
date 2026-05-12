@@ -169,6 +169,14 @@ describe("workspace atlas contracts", () => {
           weight: 1,
           conceptEdgeIds: [],
           sourceNoteIds: ["22222222-2222-4222-8222-222222222222"],
+          sourceNoteLinks: [
+            {
+              sourceNoteId: "22222222-2222-4222-8222-222222222222",
+              sourceTitle: "Source Note",
+              targetNoteId: "66666666-6666-4666-8666-666666666666",
+              targetTitle: "Target Note",
+            },
+          ],
           projectIds: ["33333333-3333-4333-8333-333333333333"],
           crossProject: false,
           stale: false,

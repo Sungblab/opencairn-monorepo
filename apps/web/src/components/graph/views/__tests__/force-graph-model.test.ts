@@ -63,6 +63,30 @@ const snap: GroundedGraphResponse = {
         },
       ],
     },
+    {
+      id: "55555555-5555-4555-8555-555555555555",
+      sourceId: "11111111-1111-4111-8111-111111111111",
+      targetId: "22222222-2222-4222-8222-222222222222",
+      relationType: "wiki-link",
+      weight: 1,
+      support: {
+        claimId: null,
+        evidenceBundleId: null,
+        supportScore: 0,
+        citationCount: 0,
+        status: "missing",
+      },
+      surfaceType: "wiki_link",
+      displayOnly: true,
+      sourceNoteLinks: [
+        {
+          sourceNoteId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          sourceTitle: "Lecture 2: Input_Output",
+          targetNoteId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          targetTitle: "Lecture 3: Memory",
+        },
+      ],
+    },
   ],
 };
 
@@ -70,7 +94,7 @@ describe("force graph model", () => {
   it("maps grounded graph data into draggable force graph nodes and links", () => {
     const graph = buildForceGraphData(snap);
 
-    expect(graph.nodes).toHaveLength(4);
+    expect(graph.nodes).toHaveLength(5);
     expect(graph.nodes[0]?.color).toMatch(/^#[0-9a-f]{6}$/i);
     expect(graph.nodes[0]?.isHub).toBe(true);
     expect(graph.nodes[1]?.isHub).toBe(false);
@@ -100,6 +124,14 @@ describe("force graph model", () => {
       expect.objectContaining({
         edgeId: "note:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa:22222222-2222-4222-8222-222222222222",
         relationType: "source-note",
+      }),
+      expect.objectContaining({
+        edgeId:
+          "wiki-note:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa->bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb:55555555-5555-4555-8555-555555555555",
+        source: "note:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        target: "note:bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        relationType: "wiki-link",
+        surfaceType: "wiki_link",
       }),
     ]));
     expect(graph.topNodeIds.has("11111111-1111-4111-8111-111111111111")).toBe(
@@ -183,8 +215,9 @@ describe("force graph model", () => {
       "11111111-1111-4111-8111-111111111111",
       "22222222-2222-4222-8222-222222222222",
     ]);
-    expect([...neighborhood.edgeIds]).toEqual([
+    expect([...neighborhood.edgeIds].sort()).toEqual([
       "44444444-4444-4444-8444-444444444444",
+      "55555555-5555-4555-8555-555555555555",
     ]);
   });
 
@@ -199,10 +232,12 @@ describe("force graph model", () => {
       "11111111-1111-4111-8111-111111111111",
       "22222222-2222-4222-8222-222222222222",
       "note:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "note:bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     ]);
     expect([...neighborhood.edgeIds].sort()).toEqual([
       "note:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa:11111111-1111-4111-8111-111111111111",
       "note:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa:22222222-2222-4222-8222-222222222222",
+      "wiki-note:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa->bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb:55555555-5555-4555-8555-555555555555",
     ]);
   });
 });

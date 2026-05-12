@@ -184,6 +184,12 @@ describe("GET /api/projects/:projectId/knowledge-surface", () => {
         displayOnly?: boolean;
         sourceNoteIds?: string[];
         sourceNotes?: Array<{ id: string; title: string }>;
+        sourceNoteLinks?: Array<{
+          sourceNoteId: string;
+          sourceTitle: string;
+          targetNoteId: string;
+          targetTitle: string;
+        }>;
       }>;
     };
     expect(body.edges).toEqual(
@@ -246,6 +252,14 @@ describe("GET /api/projects/:projectId/knowledge-surface", () => {
           sourceNotes: expect.arrayContaining([
             expect.objectContaining({ id: targetNote.id, title: "Linked wiki note" }),
           ]),
+          sourceNoteLinks: [
+            {
+              sourceNoteId: ctx.noteId,
+              sourceTitle: "test",
+              targetNoteId: targetNote.id,
+              targetTitle: "Linked wiki note",
+            },
+          ],
         }),
       ]),
     );

@@ -515,6 +515,11 @@ export default function GraphView({ projectId }: { projectId: string }) {
           linkLabel={(link) => link.relationType}
           linkColor={(link) => {
             const palette = canvasPaletteRef.current;
+            if (link.synthetic && link.surfaceType === "wiki_link") {
+              return linkActive(link)
+                ? "rgba(59, 130, 246, 0.58)"
+                : "rgba(59, 130, 246, 0.22)";
+            }
             if (link.synthetic) return "rgba(115, 115, 115, 0.16)";
             if (link.surfaceType === "co_mention") {
               return linkActive(link)
@@ -538,7 +543,11 @@ export default function GraphView({ projectId }: { projectId: string }) {
             return palette.activeLink;
           }}
           linkWidth={(link) =>
-            link.synthetic
+            link.synthetic && link.surfaceType === "wiki_link"
+              ? linkActive(link)
+                ? 1.6
+                : 0.7
+            : link.synthetic
               ? 0.45
               : link.surfaceType === "co_mention"
                 ? linkActive(link)

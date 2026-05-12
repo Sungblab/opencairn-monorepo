@@ -343,6 +343,17 @@ export const ViewEdge = z.object({
     )
     .default([])
     .optional(),
+  sourceNoteLinks: z
+    .array(
+      z.object({
+        sourceNoteId: z.string().uuid(),
+        sourceTitle: z.string().min(1),
+        targetNoteId: z.string().uuid(),
+        targetTitle: z.string().min(1),
+      }),
+    )
+    .default([])
+    .optional(),
 });
 export type ViewEdge = z.infer<typeof ViewEdge>;
 
