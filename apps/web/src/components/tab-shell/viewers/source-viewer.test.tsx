@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Tab } from "@/stores/tabs-store";
@@ -98,6 +99,7 @@ const messages = {
           close: "닫기",
           analysis: "분석",
           activity: "활동",
+          study: "학습",
           analysisDescription: "현재 PDF를 중심으로 요약, 분해, 인용 추출을 시작합니다.",
           selectionTitle: "선택 영역",
           selectionEmpty: "페이지나 텍스트를 선택한 뒤 /summarize, /decompose, /cite로 이어가세요.",
@@ -108,6 +110,13 @@ const messages = {
           citations: "인용 추출",
           review: "검토",
           activityDescription: "업로드 처리, 생성된 작업, 대기 중인 노트 변경 검토를 확인합니다.",
+          studyDescription: "이 PDF를 수업이나 논문 읽기 세션으로 묶어 녹음, 전사, 노트를 이어갑니다.",
+          createStudySession: "학습 세션 만들기",
+          creatingStudySession: "세션 생성 중",
+          sessionReady: "세션 준비됨",
+          transcriptReady: "전사 {count}개 구간 준비됨",
+          transcriptPending: "녹음 전사 대기 중",
+          noRecording: "아직 연결된 녹음이 없습니다.",
         },
       },
     },
@@ -115,16 +124,66 @@ const messages = {
 };
 
 function renderSourceViewer(nextTab: Tab = tab) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
   return render(
-    <NextIntlClientProvider locale="ko" messages={messages}>
-      <SourceViewer tab={nextTab} />
-    </NextIntlClientProvider>,
+    <QueryClientProvider client={queryClient}>
+      <NextIntlClientProvider locale="ko" messages={messages}>
+        <SourceViewer tab={nextTab} />
+      </NextIntlClientProvider>
+    </QueryClientProvider>,
   );
 }
 
 describe("SourceViewer", () => {
   beforeEach(() => {
     pdfViewerMock.props = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (
+          url ===
+          "/api/projects/proj-1/study-sessions?sourceNoteId=n1"
+        ) {
+          return new Response(JSON.stringify({ sessions: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (url === "/api/study-sessions" && init?.method === "POST") {
+          return new Response(
+            JSON.stringify({
+              session: {
+                id: "session-1",
+                workspaceId: "workspace-1",
+                projectId: "proj-1",
+                title: "doc.pdf",
+                status: "active",
+                startedAt: "2026-05-12T00:00:00.000Z",
+                endedAt: null,
+                createdBy: "user-1",
+                createdAt: "2026-05-12T00:00:00.000Z",
+                updatedAt: "2026-05-12T00:00:00.000Z",
+                sources: [],
+              },
+            }),
+            {
+              status: 201,
+              headers: { "content-type": "application/json" },
+            },
+          );
+        }
+        return new Response(JSON.stringify({ error: "not_found" }), {
+          status: 404,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
     useAgentWorkbenchStore.setState(useAgentWorkbenchStore.getInitialState(), true);
     usePanelStore.setState(usePanelStore.getInitialState(), true);
   });
@@ -256,5 +315,33 @@ describe("SourceViewer", () => {
       "data-project-id",
       "proj-1",
     );
+  });
+
+  it("creates a source-scoped study session from the rail", async () => {
+    renderSourceViewer();
+    await screen.findByTestId("embedpdf-viewer");
+
+    await userEvent.click(screen.getByRole("button", { name: "학습" }));
+    expect(
+      await screen.findByText("아직 연결된 녹음이 없습니다."),
+    ).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "학습 세션 만들기" }),
+    );
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/study-sessions",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            projectId: "proj-1",
+            sourceNoteId: "n1",
+            title: "doc.pdf",
+          }),
+        }),
+      );
+    });
   });
 });

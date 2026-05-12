@@ -88,6 +88,7 @@
         "close": "닫기",
         "analysis": "분석",
         "activity": "활동",
+        "study": "학습",
         "analysisDescription": "현재 PDF를 중심으로 요약, 분해, 인용 추출을 시작합니다.",
         "selectionTitle": "선택 영역",
         "selectionEmpty": "페이지나 텍스트를 선택한 뒤 /summarize, /decompose, /cite로 이어가세요.",
@@ -97,7 +98,14 @@
         "decompose": "분해",
         "citations": "인용 추출",
         "review": "검토",
-        "activityDescription": "업로드 처리, 생성된 작업, 대기 중인 노트 변경 검토를 확인합니다."
+        "activityDescription": "업로드 처리, 생성된 작업, 대기 중인 노트 변경 검토를 확인합니다.",
+        "studyDescription": "이 PDF를 수업이나 논문 읽기 세션으로 묶어 녹음, 전사, 노트를 이어갑니다.",
+        "createStudySession": "학습 세션 만들기",
+        "creatingStudySession": "세션 생성 중",
+        "sessionReady": "세션 준비됨",
+        "transcriptReady": "전사 {count, number}개 구간 준비됨",
+        "transcriptPending": "녹음 전사 대기 중",
+        "noRecording": "아직 연결된 녹음이 없습니다."
       }
     },
     "data": {

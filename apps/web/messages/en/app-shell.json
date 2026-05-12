@@ -88,6 +88,7 @@
         "close": "Close",
         "analysis": "Analysis",
         "activity": "Activity",
+        "study": "Study",
         "analysisDescription": "Start summaries, decomposition, and citation extraction from this PDF.",
         "selectionTitle": "Selection",
         "selectionEmpty": "Select a page or text, then continue with /summarize, /decompose, or /cite.",
@@ -97,7 +98,14 @@
         "decompose": "Decompose",
         "citations": "Extract citations",
         "review": "Review",
-        "activityDescription": "Check upload processing, generated work, and pending note update reviews."
+        "activityDescription": "Check upload processing, generated work, and pending note update reviews.",
+        "studyDescription": "Group this PDF into a class or paper review session with recording, transcript, and notes.",
+        "createStudySession": "Create study session",
+        "creatingStudySession": "Creating session",
+        "sessionReady": "Session ready",
+        "transcriptReady": "{count, number} transcript segments ready",
+        "transcriptPending": "Recording transcript pending",
+        "noRecording": "No recording is attached yet."
       }
     },
     "data": {

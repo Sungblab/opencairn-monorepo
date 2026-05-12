@@ -52,6 +52,25 @@ class SearchResult:
 
 
 @dataclass
+class TranscriptionSegment:
+    index: int
+    start_sec: float
+    end_sec: float
+    text: str
+    speaker: str | None = None
+    language: str | None = None
+    confidence: float | None = None
+
+
+@dataclass
+class TranscriptionResult:
+    text: str
+    provider: str
+    model: str
+    segments: list[TranscriptionSegment] = field(default_factory=list)
+
+
+@dataclass
 class ImageGenerationResult:
     image_bytes: bytes
     mime_type: str
@@ -81,7 +100,7 @@ class LLMProvider(ABC):
     async def tts(self, text: str, model: str | None = None) -> bytes | None:
         return None
 
-    async def transcribe(self, audio: bytes) -> str | None:
+    async def transcribe(self, audio: bytes) -> TranscriptionResult | str | None:
         return None
 
     def supports_ocr(self) -> bool:

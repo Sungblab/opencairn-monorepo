@@ -57,6 +57,7 @@ export * from "./schema/code-workspaces";
 export * from "./schema/project-tree";
 export * from "./schema/site-admin";
 export * from "./schema/observability";
+export * from "./schema/study-sessions";
 export * from "./lib/note-version-hash";
 export * from "./lib/note-version-capture";
 export * from "./lib/wiki-link-sync";

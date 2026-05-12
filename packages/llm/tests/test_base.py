@@ -4,6 +4,8 @@ from llm.base import (
     EmbedInput,
     ThinkingResult,
     SearchResult,
+    TranscriptionResult,
+    TranscriptionSegment,
     LLMProvider,
 )
 
@@ -48,6 +50,22 @@ def test_search_result():
     )
     assert result.answer == "Paris"
     assert len(result.sources) == 1
+
+
+def test_transcription_result_preserves_seekable_segments():
+    result = TranscriptionResult(
+        text="first second",
+        provider="local_faster_whisper",
+        model="base",
+        segments=[
+            TranscriptionSegment(index=0, start_sec=0.0, end_sec=1.5, text="first"),
+            TranscriptionSegment(index=1, start_sec=1.5, end_sec=3.0, text="second"),
+        ],
+    )
+
+    assert result.text == "first second"
+    assert [segment.start_sec for segment in result.segments] == [0.0, 1.5]
+    assert result.segments[1].end_sec == 3.0
 
 
 class ConcreteProvider(LLMProvider):

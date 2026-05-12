@@ -125,6 +125,7 @@ export function SourceViewer({ tab }: { tab: Tab }) {
       <SourceContextRail
         noteId={tab.targetId}
         projectId={projectId}
+        sourceTitle={title}
         viewerElementId={viewerElementId}
       />
     </div>

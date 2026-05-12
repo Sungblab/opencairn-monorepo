@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
+  BookOpen,
   CheckSquare,
   FileSearch,
   ListChecks,
+  Mic2,
   Quote,
   Sparkles,
   X,
@@ -19,18 +22,21 @@ import {
   WorkbenchCommandButton,
   WorkbenchContextButton,
 } from "@/components/agent-panel/workbench-trigger-button";
+import { studySessionsApi } from "@/lib/api-client";
 
-type SourceRailTab = "analysis" | "activity";
+type SourceRailTab = "analysis" | "study" | "activity";
 
 interface SourceContextRailProps {
   noteId: string;
   projectId: string | null;
+  sourceTitle: string;
   viewerElementId: string;
 }
 
 export function SourceContextRail({
   noteId,
   projectId,
+  sourceTitle,
   viewerElementId,
 }: SourceContextRailProps) {
   const t = useTranslations("appShell.viewers.source.rail");
@@ -82,6 +88,13 @@ export function SourceContextRail({
         >
           <Activity aria-hidden className="h-4 w-4" />
         </RailButton>
+        <RailButton
+          active={active === "study"}
+          label={t("study")}
+          onClick={() => openTab("study")}
+        >
+          <BookOpen aria-hidden className="h-4 w-4" />
+        </RailButton>
       </div>
 
       {active ? (
@@ -106,6 +119,13 @@ export function SourceContextRail({
           >
             {active === "analysis" ? (
               <SourceRailAnalysis selectedText={selectedText} />
+            ) : null}
+            {active === "study" ? (
+              <SourceRailStudy
+                noteId={noteId}
+                projectId={projectId}
+                sourceTitle={sourceTitle}
+              />
             ) : null}
             {active === "activity" ? (
               <SourceRailActivity projectId={projectId} />
@@ -224,6 +244,94 @@ function SourceRailActivity({ projectId }: { projectId: string | null }) {
       </p>
       <NoteUpdateActionReviewList projectId={projectId} />
       <WorkbenchActivityStack />
+    </div>
+  );
+}
+
+function SourceRailStudy({
+  noteId,
+  projectId,
+  sourceTitle,
+}: {
+  noteId: string;
+  projectId: string | null;
+  sourceTitle: string;
+}) {
+  const t = useTranslations("appShell.viewers.source.rail");
+  const queryClient = useQueryClient();
+  const sessionsQuery = useQuery({
+    queryKey: ["study-sessions", projectId, noteId],
+    enabled: Boolean(projectId),
+    queryFn: () =>
+      studySessionsApi.list(projectId!, {
+        sourceNoteId: noteId,
+      }),
+  });
+  const activeSession = sessionsQuery.data?.sessions[0] ?? null;
+  const recordingsQuery = useQuery({
+    queryKey: ["study-session-recordings", activeSession?.id ?? null],
+    enabled: Boolean(activeSession),
+    queryFn: () => studySessionsApi.recordings(activeSession!.id),
+  });
+  const transcriptQuery = useQuery({
+    queryKey: ["study-session-transcript", activeSession?.id ?? null],
+    enabled: Boolean(activeSession),
+    queryFn: () => studySessionsApi.transcript(activeSession!.id),
+  });
+  const createSession = useMutation({
+    mutationFn: () => {
+      if (!projectId) throw new Error("missing_project");
+      return studySessionsApi.create({
+        projectId,
+        sourceNoteId: noteId,
+        title: sourceTitle.trim() || undefined,
+      });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["study-sessions", projectId, noteId],
+      });
+    },
+  });
+
+  const recordings = recordingsQuery.data?.recordings ?? [];
+  const segments = transcriptQuery.data?.segments ?? [];
+  const hasPendingTranscript = recordings.some((recording) =>
+    recording.transcriptStatus === "pending"
+    || recording.transcriptStatus === "processing"
+  );
+
+  return (
+    <div className="space-y-3 p-3">
+      <p className="text-xs leading-5 text-muted-foreground">
+        {t("studyDescription")}
+      </p>
+      {projectId ? (
+        <button
+          type="button"
+          disabled={createSession.isPending}
+          className="app-hover inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border px-2.5 text-sm disabled:opacity-60"
+          onClick={() => createSession.mutate()}
+        >
+          <BookOpen aria-hidden className="h-4 w-4" />
+          {createSession.isPending
+            ? t("creatingStudySession")
+            : t("createStudySession")}
+        </button>
+      ) : null}
+      <div className="rounded-[var(--radius-card)] border border-border bg-muted/25 p-2">
+        <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase text-muted-foreground">
+          <Mic2 aria-hidden className="h-3 w-3" />
+          {activeSession ? t("sessionReady") : t("transcriptPending")}
+        </div>
+        <p className="text-xs leading-5 text-muted-foreground">
+          {segments.length > 0
+            ? t("transcriptReady", { count: segments.length })
+            : hasPendingTranscript
+              ? t("transcriptPending")
+              : t("noRecording")}
+        </p>
+      </div>
     </div>
   );
 }

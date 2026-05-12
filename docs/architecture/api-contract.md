@@ -210,6 +210,21 @@ permission-checked target routes.
 | PATCH | /api/notes/:id/move | page `editor` | 폴더 간 이동(또는 프로젝트 루트로). `moveNote()`가 cross-project 타겟을 거절. | `{ folderId: uuid \| null }` |
 | DELETE | /api/notes/:id | page `editor` | 소프트 삭제 | - |
 
+### Study Sessions
+
+Study sessions group a project-scoped source PDF with recordings and timestamped
+transcript segments. Creating a source-backed session validates that
+`sourceNoteId` belongs to the same project and workspace before inserting the
+`primary_pdf` source row.
+
+| Method | Path | Auth | Description | Body |
+|--------|------|------|-------------|------|
+| GET | /api/projects/:projectId/study-sessions | project `viewer` | 프로젝트의 학습 세션 목록. Optional `?sourceNoteId=<noteId>` filters sessions already linked to that source note. Response `{ sessions }`. | - |
+| POST | /api/study-sessions | project `editor` | 학습 세션 생성. `sourceNoteId`가 있으면 같은 project/workspace 노트인지 검증하고 `primary_pdf` source로 연결한다. | `{ projectId, title?, sourceNoteId? }` |
+| GET | /api/study-sessions/:id | project `viewer` | 세션 상세와 연결 source 목록 조회. | - |
+| GET | /api/study-sessions/:id/recordings | project `viewer` | 세션 녹음 목록과 녹음/전사 상태 조회. | - |
+| GET | /api/study-sessions/:id/transcript | project `viewer` | 녹음 생성 순서와 segment index 순으로 전사 구간을 반환한다. Response `{ sessionId, text, segments }`. | - |
+
 ### Agent Files
 
 Agent-generated files are first-class project objects stored in MinIO/R2 and surfaced in the project tree as `kind:"agent_file"`. They are not Plate notes, but may link to a source note after ingest or to a Canvas note after code materialization.
