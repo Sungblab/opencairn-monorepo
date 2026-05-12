@@ -333,61 +333,77 @@
   "pricing": {
     "label": "PRICING",
     "title1": "호스티드 요금은",
-    "title2": "아직 준비 중입니다.",
-    "sub": "오픈소스 셀프호스팅은 바로 사용할 수 있습니다. 관리형 클라우드 요금, 크레딧, 환불, 자동 충전은 호스팅 결제 레일과 사업자 등록 이후 확정됩니다.",
+    "title2": "크레딧 기반으로 시작합니다.",
+    "sub": "핵심 기능은 열어두고, 무료/유료 플랜별 월 크레딧으로 사용량을 관리합니다. 제공 크레딧과 세부 한도는 운영 비용에 따라 조정될 수 있습니다.",
     "solo": {
-      "name": "Solo",
-      "cat": "self-host · dev",
+      "name": "Free",
+      "cat": "managed · starter",
       "price": "₩0",
-      "tagline": "직접 운영 · 빌링 없음",
+      "tagline": "무료 시작 · 월 500 크레딧",
       "bullets": [
-        "AGPLv3 셀프호스팅",
-        "Gemini 또는 Ollama provider 설정",
-        "에이전트 워크플로는 기능 플래그와 설정에 따라 활성화",
-        "데이터 한도는 배포 환경 설정으로 관리",
-        "본인 Gemini 키 (BYOK) 옵션"
+        "호스티드 워크스페이스 시작",
+        "월 <b>500 크레딧</b> 포함",
+        "문서·메모·기본 AI 기능 사용",
+        "초과 사용은 유료 플랜 전환",
+        "오픈소스 셀프호스팅은 별도 운영 가능"
       ],
-      "bulletsMuted": ["커뮤니티 지원"],
+      "bulletsMuted": ["신규 사용자 온보딩용"],
       "cta": "로그인하기"
     },
     "team": {
-      "name": "Team",
-      "cat": "planned · hosted",
-      "price": "TBD",
-      "unit": "/석/월",
-      "tagline": "협업 호스팅 · 요금 미확정",
+      "name": "Pro",
+      "cat": "managed · personal",
+      "price": "₩9,900",
+      "unit": "/월",
+      "tagline": "개인 작업 · 월 8,000 크레딧",
       "payg": {
-        "label": "캐시",
-        "line1": "크레딧과 결제 레일은 아직 비활성",
-        "line2": "작업 전 비용 미리 보기와 hard cap은 계획"
+        "label": "크레딧",
+        "line1": "월 <b>8,000 크레딧</b> 포함",
+        "line2": "사용량이 큰 AI 작업은 실행 전 예상 차감량 표시"
       },
       "bullets": [
-        "팀 워크스페이스 · 게스트 · 공개 링크",
-        "Deep Research 우선 큐 예정",
-        "스토리지 <b>10 GB</b> 목표",
-        "1년 활동 로그 보존",
-        "워크스페이스 사용량·한도 UI 예정",
-        "이메일 지원 예정"
+        "Gemini 3 관리형 호출 포함",
+        "문서 생성·요약·RAG 작업",
+        "기본 커넥터와 워크스페이스 기능",
+        "사용량·잔여 크레딧 UI",
+        "초과 시 추가 충전 또는 Max 전환"
       ],
-      "cta": "호스티드 계획 보기",
-      "guarantee": "환불 정책은 결제 레일 이후 확정"
+      "cta": "Pro로 시작",
+      "guarantee": "월 제공량은 운영 비용에 따라 변경 가능"
+    },
+    "max": {
+      "name": "Max",
+      "cat": "managed · heavy",
+      "price": "₩19,900",
+      "unit": "/월",
+      "tagline": "고사용량 · 월 18,000 크레딧",
+      "bullets": [
+        "월 <b>18,000 크레딧</b> 포함",
+        "긴 문서·대량 RAG·리서치 작업",
+        "배치 임베딩과 캐시 활용",
+        "Pro 대비 높은 월 사용량",
+        "초과 시 추가 충전 예정"
+      ],
+      "cta": "Max로 시작",
+      "guarantee": "상업적 남용 방지 한도 적용 가능"
     },
     "byok": {
       "name": "BYOK",
       "cat": "본인 키 · 1인",
-      "price": "TBD",
+      "price": "₩4,900",
       "unit": "/월",
-      "tagline": "본인 Gemini 키 · 지원 경로부터",
+      "tagline": "본인 Gemini 키 · 관리형 크레딧 없음",
       "bullets": [
-        "호스티드 BYOK는 계획 중",
         "본인 Gemini 키 (암호화 저장)",
-        "API 사용료는 본인 결제",
-        "스토리지 10 GB 목표"
+        "LLM API 사용료는 본인 결제",
+        "OpenCairn 호스팅·제품 기능 사용",
+        "월 제공 크레딧 없음",
+        "관리형 호출이 필요하면 Pro 또는 Max"
       ],
-      "bulletsMuted": ["협업이 필요하면 Team으로"],
+      "bulletsMuted": ["API 비용 예측이 익숙한 사용자용"],
       "cta": "BYOK로 시작"
     },
-    "footnote": "관리형 결제, VAT, 환불, 자동 충전은 아직 제품에 연결되지 않았습니다.",
+    "footnote": "표시 가격은 월 구독 기준입니다. 결제, VAT, 환불, 자동 충전 정책은 출시 시점의 약관에 따릅니다.",
     "refundLinkLabel": "환불 정책",
     "secondary": {
       "label": "OTHER ROUTES",

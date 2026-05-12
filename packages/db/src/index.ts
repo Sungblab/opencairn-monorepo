@@ -2,6 +2,7 @@ export { db, createDb, type DB, type Tx } from "./client";
 
 export * from "./schema/enums";
 export * from "./schema/users";
+export * from "./schema/billing";
 export * from "./schema/auth";
 export * from "./schema/workspaces";
 export * from "./schema/workspace-members";

@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
+import { userPlanValues } from "@opencairn/shared";
 import { z } from "zod";
 import {
   agentActions,
@@ -39,12 +40,12 @@ const siteAdminSchema = z
   .strict();
 
 const userPlanSchema = z
-  .object({ plan: z.enum(["free", "pro", "byok"]) })
+  .object({ plan: z.enum(userPlanValues) })
   .strict();
 const bulkUserPlanSchema = z
   .object({
     userIds: z.array(z.string().uuid()).min(1).max(200),
-    plan: z.enum(["free", "pro", "byok"]),
+    plan: z.enum(userPlanValues),
   })
   .strict();
 const bulkSiteAdminSchema = z

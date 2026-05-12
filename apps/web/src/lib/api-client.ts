@@ -2,6 +2,7 @@
 // Browser: same-origin (/api/... → proxied to Hono)
 // Server Components: direct to internal API URL
 
+import type { UserPlan } from "@opencairn/shared";
 import type {
   AgentAction,
   AgentActionKind,
@@ -858,7 +859,7 @@ export interface MeProfile {
   email: string;
   name: string;
   image: string | null;
-  plan: "free" | "pro" | "byok";
+  plan: UserPlan;
   /** Server returns null until locale/timezone columns ship. */
   locale: string | null;
   timezone: string | null;

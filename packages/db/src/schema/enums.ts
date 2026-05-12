@@ -1,6 +1,21 @@
 import { pgEnum } from "drizzle-orm/pg-core";
 
-export const userPlanEnum = pgEnum("user_plan", ["free", "pro", "byok"]);
+export const userPlanEnum = pgEnum("user_plan", ["free", "pro", "max", "byok"]);
+
+export const creditLedgerKindEnum = pgEnum("credit_ledger_kind", [
+  "subscription_grant",
+  "topup",
+  "usage",
+  "refund",
+  "adjustment",
+  "manual_grant",
+]);
+
+export const creditBillingPathEnum = pgEnum("credit_billing_path", [
+  "managed",
+  "byok",
+  "admin",
+]);
 
 export const noteTypeEnum = pgEnum("note_type", ["note", "wiki", "source"]);
 

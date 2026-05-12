@@ -1,6 +1,7 @@
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import * as users from "./schema/users";
+import * as billing from "./schema/billing";
 import * as auth from "./schema/auth";
 import * as workspaces from "./schema/workspaces";
 import * as workspaceMembers from "./schema/workspace-members";
@@ -40,6 +41,7 @@ import * as projectTree from "./schema/project-tree";
 
 const schema = {
   ...users,
+  ...billing,
   ...auth,
   ...workspaces,
   ...workspaceMembers,
