@@ -155,6 +155,26 @@ describe("force graph model", () => {
     );
   });
 
+  it("seeds non-linear radial positions before the force simulation starts", () => {
+    const graph = buildForceGraphData(snap);
+    const positioned = graph.nodes.filter(
+      (node) => typeof node.x === "number" && typeof node.y === "number",
+    );
+
+    expect(positioned).toHaveLength(graph.nodes.length);
+    const uniqueCoordinates = new Set(
+      positioned.map(
+        (node) => `${Math.round(node.x ?? 0)}:${Math.round(node.y ?? 0)}`,
+      ),
+    );
+    expect(uniqueCoordinates.size).toBeGreaterThan(3);
+    const [a, b, c] = positioned;
+    const area =
+      ((b?.x ?? 0) - (a?.x ?? 0)) * ((c?.y ?? 0) - (a?.y ?? 0)) -
+      ((b?.y ?? 0) - (a?.y ?? 0)) * ((c?.x ?? 0) - (a?.x ?? 0));
+    expect(Math.abs(area)).toBeGreaterThan(1);
+  });
+
   it("truncates labels before drawing them on canvas", () => {
     expect(truncateGraphLabel("short")).toBe("short");
     expect(truncateGraphLabel("abcdefghijklmnopqrstuvwxyz", 12)).toBe(

@@ -28,6 +28,8 @@ export type ForceGraphNode = {
   val: number;
   color: string;
   isHub: boolean;
+  x?: number;
+  y?: number;
 };
 
 export type ForceGraphLink = {
@@ -81,6 +83,43 @@ function hashString(value: string): number {
 function graphNodeColor(id: string, degree: number): string {
   if (degree >= HUB_DEGREE_THRESHOLD) return HUB_NODE_COLOR;
   return GRAPH_NODE_COLORS[hashString(id) % GRAPH_NODE_COLORS.length];
+}
+
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+
+function seedForceGraphPositions(
+  nodes: ForceGraphNode[],
+  links: ForceGraphLink[],
+): ForceGraphNode[] {
+  if (nodes.length === 0) return nodes;
+  const linkDegrees = new Map<string, number>();
+  for (const link of links) {
+    linkDegrees.set(link.source, (linkDegrees.get(link.source) ?? 0) + 1);
+    linkDegrees.set(link.target, (linkDegrees.get(link.target) ?? 0) + 1);
+  }
+  const ordered = [...nodes].sort(
+    (a, b) =>
+      (linkDegrees.get(b.id) ?? 0) - (linkDegrees.get(a.id) ?? 0) ||
+      b.degree - a.degree ||
+      a.name.localeCompare(b.name),
+  );
+  const positions = new Map<string, { x: number; y: number }>();
+  ordered.forEach((node, index) => {
+    const linkedDegree = linkDegrees.get(node.id) ?? 0;
+    const isIsolated = linkedDegree === 0;
+    const baseRadius = node.isHub ? 48 : isIsolated ? 270 : 110;
+    const radius =
+      index === 0 && node.isHub
+        ? 0
+        : baseRadius + Math.sqrt(index + 1) * (isIsolated ? 42 : 34);
+    const angle =
+      index * GOLDEN_ANGLE + ((hashString(node.id) % 360) * Math.PI) / 1800;
+    positions.set(node.id, {
+      x: Math.cos(angle) * radius,
+      y: Math.sin(angle) * radius,
+    });
+  });
+  return nodes.map((node) => ({ ...node, ...positions.get(node.id) }));
 }
 
 export function buildForceGraphData(
@@ -232,8 +271,13 @@ export function buildForceGraphData(
     }
   }
   const noteWikiLinks = [...noteWikiLinkMap.values()];
+  const allLinks = [...noteWikiLinks, ...noteHubLinks, ...links];
 
-  return { nodes: allNodes, links: [...noteWikiLinks, ...noteHubLinks, ...links], topNodeIds };
+  return {
+    nodes: seedForceGraphPositions(allNodes, allLinks),
+    links: allLinks,
+    topNodeIds,
+  };
 }
 
 export function getGraphNeighborhood(
