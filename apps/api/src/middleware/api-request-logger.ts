@@ -15,6 +15,40 @@ function clientIp(c: Parameters<MiddlewareHandler<AppEnv>>[0]) {
   );
 }
 
+const SENSITIVE_QUERY_KEYS = new Set([
+  "access_token",
+  "api_key",
+  "apikey",
+  "auth",
+  "authorization",
+  "code",
+  "id_token",
+  "key",
+  "password",
+  "refresh_token",
+  "secret",
+  "session",
+  "state",
+  "token",
+]);
+
+function redactQuery(search: string): string | null {
+  if (!search) return null;
+  const params = new URLSearchParams(search);
+  for (const key of [...params.keys()]) {
+    const normalized = key.toLowerCase();
+    if (
+      SENSITIVE_QUERY_KEYS.has(normalized) ||
+      normalized.endsWith("_token") ||
+      normalized.endsWith("_secret")
+    ) {
+      params.set(key, "REDACTED");
+    }
+  }
+  const redacted = params.toString();
+  return redacted || null;
+}
+
 export function apiRequestLogger(): MiddlewareHandler<AppEnv> {
   return async (c, next) => {
     const url = new URL(c.req.url);
@@ -47,7 +81,7 @@ export function apiRequestLogger(): MiddlewareHandler<AppEnv> {
           requestId,
           method: c.req.method,
           path: url.pathname,
-          query: url.search ? url.search.slice(1) : null,
+          query: redactQuery(url.search),
           statusCode,
           durationMs: Math.max(0, Date.now() - started),
           userId,

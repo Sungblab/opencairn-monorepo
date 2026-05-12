@@ -102,8 +102,8 @@ export const creditLedgerEntries = pgTable(
     ),
     index("credit_ledger_entries_source_idx").on(t.sourceType, t.sourceId),
     index("credit_ledger_entries_request_idx").on(t.requestId),
-    uniqueIndex("credit_ledger_entries_idempotency_key_idx")
-      .on(t.idempotencyKey)
+    uniqueIndex("credit_ledger_entries_user_idempotency_key_idx")
+      .on(t.userId, t.idempotencyKey)
       .where(sql`${t.idempotencyKey} IS NOT NULL`),
   ],
 );
