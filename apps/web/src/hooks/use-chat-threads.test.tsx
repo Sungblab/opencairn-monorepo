@@ -40,6 +40,35 @@ const wrapper = (qc: QueryClient) =>
   );
 
 describe("useChatThreads", () => {
+  it("lists and creates threads inside the selected project scope", async () => {
+    mockThreads([]);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: "t1", title: "x" }));
+    mockThreads([]);
+
+    const qc = makeClient();
+    const { result } = renderHook(() => useChatThreads(WS, "project-1"), {
+      wrapper: wrapper(qc),
+    });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.create.mutateAsync({ title: "x" });
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      `/api/threads?workspace_id=${WS}&project_id=project-1`,
+    );
+    expect(JSON.parse(fetchMock.mock.calls[1][1]?.body as string)).toEqual({
+      workspace_id: WS,
+      project_id: "project-1",
+      title: "x",
+    });
+    expect(fetchMock.mock.calls[2][0]).toBe(
+      `/api/threads?workspace_id=${WS}&project_id=project-1`,
+    );
+  });
+
   it("create.mutateAsync invalidates the list and the next fetch returns the new thread", async () => {
     mockThreads([]); // initial list: empty
     fetchMock.mockResolvedValueOnce(
