@@ -83,4 +83,39 @@ describe("SourceUploadButton", () => {
       tabs.find((tab) => tab.kind === "agent_file")?.id,
     );
   });
+
+  it("ignores repeated start clicks while an upload is in flight", async () => {
+    const user = userEvent.setup();
+    let resolveUpload: (value: {
+      workflowId: string;
+      objectKey: string;
+      sourceBundleNodeId: string | null;
+      originalFileId: string | null;
+    }) => void = () => {};
+    uploadMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveUpload = resolve;
+      }),
+    );
+    render(<SourceUploadButton projectId="project-1" />);
+
+    await user.click(screen.getByRole("button", { name: "업로드" }));
+    const input = document.querySelector('input[type="file"]');
+    const file = new File(["pdf"], "paper.pdf", { type: "application/pdf" });
+    await user.upload(input as HTMLInputElement, file);
+
+    const start = screen.getByRole("button", { name: "업로드 시작" });
+    await user.click(start);
+    await user.click(start);
+
+    expect(uploadMock).toHaveBeenCalledTimes(1);
+    expect(start).toBeDisabled();
+
+    resolveUpload({
+      workflowId: "ingest-wf-1",
+      objectKey: "uploads/u/paper.pdf",
+      sourceBundleNodeId: "bundle-1",
+      originalFileId: "file-1",
+    });
+  });
 });

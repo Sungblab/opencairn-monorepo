@@ -103,7 +103,7 @@ async def test_create_source_note_emits_persisting_and_completed():
                 "text": "hello",
                 "workflow_id": "wf-c",
                 "started_at_ms": 1_000,
-                "tree_label": "전체 추출 노트",
+                "tree_label": "full_extract_note",
                 "original_file_node_id": "22222222-2222-4222-8222-222222222222",
             }
         )
@@ -119,7 +119,7 @@ async def test_create_source_note_emits_persisting_and_completed():
         post_internal.await_args.args[1]["originalFileNodeId"]
         == "22222222-2222-4222-8222-222222222222"
     )
-    assert post_internal.await_args.args[1]["treeLabel"] == "전체 추출 노트"
+    assert post_internal.await_args.args[1]["treeLabel"] == "full_extract_note"
 
 
 @pytest.mark.asyncio

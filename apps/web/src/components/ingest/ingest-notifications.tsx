@@ -8,6 +8,9 @@ import { urls } from "@/lib/urls";
 import { useIngestStream } from "@/hooks/use-ingest-stream";
 import { useIngestStore, type IngestRunState } from "@/stores/ingest-store";
 
+const MAX_TERMINAL_TOAST_WORKFLOW_IDS = 200;
+const terminalToastWorkflowIds = new Set<string>();
+
 function IngestRunSubscriber({ wfid }: { wfid: string }) {
   useIngestStream(wfid);
   return null;
@@ -41,6 +44,7 @@ export function IngestNotifications() {
       if (run.status === "running") continue;
       if (notified.current.has(run.workflowId)) continue;
       notified.current.add(run.workflowId);
+      if (!rememberTerminalToastWorkflowId(run.workflowId)) continue;
       notifyTerminalRun(run, {
         completed: t("completed"),
         failed: t("failed"),
@@ -61,6 +65,16 @@ export function IngestNotifications() {
       ))}
     </>
   );
+}
+
+function rememberTerminalToastWorkflowId(workflowId: string): boolean {
+  if (terminalToastWorkflowIds.has(workflowId)) return false;
+  terminalToastWorkflowIds.add(workflowId);
+  if (terminalToastWorkflowIds.size > MAX_TERMINAL_TOAST_WORKFLOW_IDS) {
+    const oldest = terminalToastWorkflowIds.values().next().value;
+    if (oldest) terminalToastWorkflowIds.delete(oldest);
+  }
+  return true;
 }
 
 function notifyTerminalRun(

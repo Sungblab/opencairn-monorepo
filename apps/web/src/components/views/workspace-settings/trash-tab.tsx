@@ -12,7 +12,13 @@ interface TrashNote {
   expiresAt: string | null;
 }
 
-export function TrashTab({ wsId }: { wsId: string }) {
+export function TrashTab({
+  wsId,
+  showHeader = true,
+}: {
+  wsId: string;
+  showHeader?: boolean;
+}) {
   const t = useTranslations("workspaceSettings.trash");
   const qc = useQueryClient();
   const queryKey = ["workspace-trash", wsId];
@@ -35,11 +41,15 @@ export function TrashTab({ wsId }: { wsId: string }) {
 
   return (
     <section>
-      <h2 className="mb-3 text-lg font-semibold">{t("heading")}</h2>
-      <p className="mb-4 text-sm text-muted-foreground">
-        {t("retention")}
-      </p>
-      {isLoading && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
+      {showHeader ? (
+        <>
+          <h2 className="mb-3 text-lg font-semibold">{t("heading")}</h2>
+          <p className="mb-4 text-sm text-muted-foreground">
+            {t("retention")}
+          </p>
+        </>
+      ) : null}
+      {isLoading && <TrashTabSkeleton />}
       {isError && <p className="text-sm text-destructive">{t("loadFailed")}</p>}
       {!isLoading && !isError && notes.length === 0 && (
         <p className="text-sm text-muted-foreground">{t("empty")}</p>
@@ -92,5 +102,31 @@ export function TrashTab({ wsId }: { wsId: string }) {
         </ul>
       )}
     </section>
+  );
+}
+
+export function TrashTabSkeleton() {
+  return (
+    <div
+      data-testid="trash-tab-skeleton"
+      className="divide-y rounded-[var(--radius-card)] border border-border"
+    >
+      {Array.from({ length: 3 }).map((_, index) => (
+        <div
+          key={index}
+          className="flex items-center justify-between gap-3 p-3"
+        >
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-4 w-40 animate-pulse rounded-[var(--radius-control)] bg-muted" />
+            <div className="h-3 w-56 max-w-full animate-pulse rounded-[var(--radius-control)] bg-muted/70" />
+            <div className="h-3 w-32 animate-pulse rounded-[var(--radius-control)] bg-muted/60" />
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <div className="h-7 w-14 animate-pulse rounded-[var(--radius-control)] bg-muted/70" />
+            <div className="h-7 w-16 animate-pulse rounded-[var(--radius-control)] bg-muted/60" />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

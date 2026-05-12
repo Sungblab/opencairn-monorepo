@@ -1,7 +1,9 @@
 {
   "loading": "Loading…",
   "new_note": "New note",
+  "creating_note": "Creating note…",
   "new_folder": "New folder",
+  "creating_folder": "Creating folder…",
   "upload_source": "Upload",
   "empty_project": "No notes yet in this project.",
   "empty_folder": "Empty.",
@@ -98,6 +100,8 @@
     "row_actions": "File actions",
     "row_actions_hint": "Rename, copy link, or delete",
     "row_hint": "Double-click to rename. Drag to move.",
+    "full_extract_note": "Full extract note",
+    "generated_note": "Generated note",
     "delete": "Delete",
     "delete_shortcut": "⌘Del",
     "confirm_delete": "Delete \"{label}\"?",
@@ -110,6 +114,7 @@
     "create_note_failed": "Couldn't create the page. Please try again.",
     "folder_created": "Folder created.",
     "create_folder_failed": "Couldn't create the folder. Please try again.",
+    "deleted": "Moved to trash.",
     "delete_failed": "Couldn't delete. Please try again."
   },
   "graph": {

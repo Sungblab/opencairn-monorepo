@@ -9,14 +9,12 @@ import { toast } from "sonner";
 import { urls } from "@/lib/urls";
 import { tabToUrl } from "@/lib/tab-url";
 import { useTabsStore } from "@/stores/tabs-store";
-import { Button } from "@/components/ui/button";
 import { DownloadCloud, UploadCloud } from "lucide-react";
 import { openOriginalFileTab } from "@/components/ingest/open-original-file-tab";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -201,18 +199,10 @@ export function ProjectTree({
   const locale = useLocale();
   const expanded = useSidebarStore((s) => s.expanded);
   const qc = useQueryClient();
-  const t = useTranslations("sidebar.tree_menu");
   const tSidebar = useTranslations("sidebar");
   const tToast = useTranslations("sidebar.toasts");
-  const tCommon = useTranslations("common.actions");
   const tUpload = useTranslations("sidebar.upload");
   const { upload } = useIngestUpload();
-  const [pendingDelete, setPendingDelete] = useState<{
-    id: string;
-    kind: TreeNode["kind"];
-    label: string;
-    targetId?: string | null;
-  } | null>(null);
   const [treeRefresh, setTreeRefresh] = useState(0);
   const data = useMemo(
     () =>
@@ -225,10 +215,12 @@ export function ProjectTree({
   const [typeAheadBuf, setTypeAheadBuf] = useState("");
   const [fileDropActive, setFileDropActive] = useState(false);
   const [pendingUploadFile, setPendingUploadFile] = useState<File | null>(null);
+  const [uploadingDropFile, setUploadingDropFile] = useState(false);
   const [uploadError, setUploadError] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const fileDropDepthRef = useRef(0);
   const treeRef = useRef<TreeApi<TreeNode> | null>(null);
+  const dropUploadInFlightRef = useRef(false);
 
   // react-arborist's virtualization needs a concrete pixel height. When the
   // caller doesn't pin one we observe the container and forward its
@@ -311,42 +303,37 @@ export function ProjectTree({
     (
       id: string,
       kind: TreeNode["kind"],
-      label: string,
+      _label: string,
       targetId?: string | null,
     ) => {
-      setPendingDelete({ id, kind, label, targetId });
-    },
-    [],
-  );
-
-  const confirmDelete = useCallback(() => {
-    const target = pendingDelete;
-    if (!target) return;
-    setPendingDelete(null);
-    void (async () => {
-      try {
-        await persistDelete(target.id, target.kind, target.targetId);
-        const deletedNoteId =
-          target.kind === "note" ? (target.targetId ?? target.id) : null;
-        if (deletedNoteId) {
-          const { closedActive, nextActive } =
-            closeDeletedNoteTabs(deletedNoteId);
-          const viewingDeletedNote = pathname.includes(`/note/${deletedNoteId}`);
-          if (closedActive || viewingDeletedNote) {
-            router.push(
-              nextActive
-                ? tabToUrl(workspaceSlug, nextActive, locale)
-                : urls.workspace.project(locale, workspaceSlug, projectId),
+      void (async () => {
+        try {
+          await persistDelete(id, kind, targetId);
+          const deletedNoteId = kind === "note" ? (targetId ?? id) : null;
+          if (deletedNoteId) {
+            const { closedActive, nextActive } =
+              closeDeletedNoteTabs(deletedNoteId);
+            const viewingDeletedNote = pathname.includes(
+              `/note/${deletedNoteId}`,
             );
+            if (closedActive || viewingDeletedNote) {
+              router.push(
+                nextActive
+                  ? tabToUrl(workspaceSlug, nextActive, locale)
+                  : urls.workspace.project(locale, workspaceSlug, projectId),
+              );
+            }
           }
+          toast.success(tToast("deleted"));
+        } catch (err) {
+          console.error("project tree delete failed", err);
+          toast.error(tToast("delete_failed"));
+          qc.invalidateQueries({ queryKey: ["project-tree", projectId] });
         }
-      } catch (err) {
-        console.error("project tree delete failed", err);
-        toast.error(tToast("delete_failed"));
-        qc.invalidateQueries({ queryKey: ["project-tree", projectId] });
-      }
-    })();
-  }, [pendingDelete, projectId, qc, tToast]);
+      })();
+    },
+    [locale, pathname, projectId, qc, router, tToast, workspaceSlug],
+  );
 
   const handleCreateFolder = useCallback(
     (parentId: string | null) => {
@@ -403,6 +390,9 @@ export function ProjectTree({
   const startUpload = useCallback(
     async (file: File | null) => {
       if (!file) return;
+      if (dropUploadInFlightRef.current) return;
+      dropUploadInFlightRef.current = true;
+      setUploadingDropFile(true);
       setUploadError(false);
       try {
         const result = await upload(file, projectId);
@@ -415,6 +405,9 @@ export function ProjectTree({
         console.error("project tree file drop upload failed", err);
         setUploadError(true);
         toast.error(tUpload("error"));
+      } finally {
+        dropUploadInFlightRef.current = false;
+        setUploadingDropFile(false);
       }
     },
     [projectId, qc, tUpload, upload],
@@ -518,37 +511,9 @@ export function ProjectTree({
         </Tree>
       </div>
       <Dialog
-        open={Boolean(pendingDelete)}
-        onOpenChange={(open) => {
-          if (!open) setPendingDelete(null);
-        }}
-      >
-        <DialogContent showCloseButton={false} className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{t("confirm_delete_title")}</DialogTitle>
-            <DialogDescription>
-              {t("confirm_delete_body", {
-                label: pendingDelete?.label ?? "",
-              })}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setPendingDelete(null)}
-            >
-              {tCommon("cancel")}
-            </Button>
-            <Button type="button" variant="destructive" onClick={confirmDelete}>
-              {tCommon("delete")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Dialog
         open={Boolean(pendingUploadFile)}
         onOpenChange={(open) => {
+          if (uploadingDropFile) return;
           if (!open) {
             setPendingUploadFile(null);
             setUploadError(false);
@@ -579,11 +544,11 @@ export function ProjectTree({
             ) : null}
             <button
               type="button"
-              disabled={!pendingUploadFile}
+              disabled={!pendingUploadFile || uploadingDropFile}
               onClick={() => void startUpload(pendingUploadFile)}
               className="inline-flex min-h-10 w-full items-center justify-center rounded bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {tUpload("start")}
+              {uploadingDropFile ? tUpload("uploading") : tUpload("start")}
             </button>
           </div>
         </DialogContent>

@@ -3,7 +3,7 @@ import { urls } from "@/lib/urls";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api-client";
 
@@ -48,8 +48,14 @@ export function NewCanvasButton({
       className="w-full justify-start gap-2"
       data-testid="new-canvas-button"
     >
-      <Plus className="h-4 w-4" />
-      {t("sidebar.newCanvas")}
+      {m.isPending ? (
+        <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+      ) : (
+        <Plus aria-hidden className="h-4 w-4" />
+      )}
+      <span className="truncate">
+        {m.isPending ? t("sidebar.creatingCanvas") : t("sidebar.newCanvas")}
+      </span>
     </Button>
   );
 }

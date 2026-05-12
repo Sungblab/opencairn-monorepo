@@ -92,6 +92,47 @@ describe("ProjectTreeNode", () => {
     ).toBeInTheDocument();
   });
 
+  it("uses distinct icons for regular notes, generated source notes, and PDFs", () => {
+    const regular = renderNode(
+      mkNode({
+        kind: "note",
+        id: "note-1",
+        parent_id: null,
+        label: "개념 정리",
+        child_count: 0,
+      }),
+    );
+    expect(regular.container.querySelector(".lucide-notebook-text")).toBeInTheDocument();
+    regular.unmount();
+
+    const generated = renderNode(
+      mkNode({
+        kind: "note",
+        id: "note-2",
+        parent_id: "analysis-1",
+        label: "generated_note",
+        child_count: 0,
+        metadata: { role: "source_note" },
+      }),
+    );
+    expect(generated.container.querySelector(".lucide-sparkles")).toBeInTheDocument();
+    expect(screen.getByText("sidebar.tree_menu.generated_note")).toBeInTheDocument();
+    generated.unmount();
+
+    const pdf = renderNode(
+      mkNode({
+        kind: "agent_file",
+        id: "pdf-1",
+        parent_id: null,
+        label: "lecture.pdf",
+        child_count: 0,
+        file_kind: "pdf",
+        mime_type: "application/pdf",
+      }),
+    );
+    expect(pdf.container.querySelector(".lucide-file-type")).toBeInTheDocument();
+  });
+
   it("renders source bundles and file rows with distinct type badges", () => {
     renderNode(
       mkNode({
@@ -146,7 +187,7 @@ describe("ProjectTreeNode", () => {
   });
 
   it("labels artifact groups by their role", () => {
-    renderNode(
+    const { container } = renderNode(
       mkNode({
         kind: "artifact_group",
         id: "group-1",
@@ -157,6 +198,49 @@ describe("ProjectTreeNode", () => {
       }),
     );
     expect(screen.getByText("추출")).toBeInTheDocument();
+    expect(container.querySelector(".lucide-folder")).toBeInTheDocument();
+  });
+
+  it("uses distinct icons for figure groups, analysis groups, and table artifacts", () => {
+    const figures = renderNode(
+      mkNode({
+        kind: "artifact_group",
+        id: "figures-1",
+        parent_id: "bundle-1",
+        label: "이미지/도표",
+        child_count: 1,
+        metadata: { role: "figures" },
+      }),
+    );
+    expect(figures.container.querySelector(".lucide-file-image")).toBeInTheDocument();
+    figures.unmount();
+
+    const analysis = renderNode(
+      mkNode({
+        kind: "artifact_group",
+        id: "analysis-1",
+        parent_id: "bundle-1",
+        label: "분석 결과",
+        child_count: 1,
+        metadata: { role: "analysis" },
+      }),
+    );
+    expect(analysis.container.querySelector(".lucide-sparkles")).toBeInTheDocument();
+    analysis.unmount();
+
+    const table = renderNode(
+      mkNode({
+        kind: "agent_file",
+        id: "table-1",
+        parent_id: "figures-1",
+        label: "table-001-01.md",
+        child_count: 0,
+        file_kind: "markdown",
+        mime_type: "text/markdown",
+        metadata: { role: "table" },
+      }),
+    );
+    expect(table.container.querySelector(".lucide-table-2")).toBeInTheDocument();
   });
 
   it("uses the unified row density and action control treatment", () => {

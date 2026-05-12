@@ -88,6 +88,7 @@
     "languageJavascript": "JavaScript"
   },
   "sidebar": {
-    "newCanvas": "New canvas"
+    "newCanvas": "New canvas",
+    "creatingCanvas": "Creating canvas…"
   }
 }

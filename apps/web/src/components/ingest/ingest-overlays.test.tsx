@@ -138,4 +138,34 @@ describe("IngestOverlays", () => {
     expect(mocks.toastError).not.toHaveBeenCalled();
     expect(FakeEventSource.instances).toHaveLength(0);
   });
+
+  it("deduplicates completion toasts if overlays are mounted twice", async () => {
+    useIngestStore.getState().startRun("wf-double", "application/pdf", "paper.pdf");
+
+    render(
+      <>
+        <IngestOverlays />
+        <IngestOverlays />
+      </>,
+    );
+
+    expect(FakeEventSource.instances).toHaveLength(1);
+
+    act(() => {
+      FakeEventSource.instances[0]?.emit({
+        workflowId: "wf-double",
+        seq: 1,
+        ts: "2026-05-12T00:00:00.000Z",
+        kind: "completed",
+        payload: {
+          noteId: "00000000-0000-0000-0000-000000000002",
+          totalDurationMs: 1000,
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(mocks.toastSuccess).toHaveBeenCalledTimes(1);
+    });
+  });
 });
