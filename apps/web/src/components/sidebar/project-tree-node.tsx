@@ -21,7 +21,6 @@ import {
   NotebookText,
   Plus,
   Star,
-  Sparkles,
   Table2,
 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
@@ -628,9 +627,9 @@ function NodeIcon({ node }: { node: TreeNode }) {
     }
     if (role === "analysis") {
       return (
-        <Sparkles
+        <FileText
           aria-hidden
-          className="h-4 w-4 shrink-0 text-violet-600 group-hover:text-violet-700"
+          className="h-4 w-4 shrink-0 text-teal-600 group-hover:text-teal-700"
         />
       );
     }
@@ -664,9 +663,9 @@ function NodeIcon({ node }: { node: TreeNode }) {
       typeof node.metadata?.role === "string" ? node.metadata.role : "";
     if (role === "source_note") {
       return (
-        <Sparkles
+        <FileText
           aria-hidden
-          className="h-4 w-4 shrink-0 text-violet-600 group-hover:text-violet-700"
+          className="h-4 w-4 shrink-0 text-teal-600 group-hover:text-teal-700"
         />
       );
     }

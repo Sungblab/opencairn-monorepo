@@ -2,13 +2,15 @@
 import type { ComponentType, ReactNode } from "react";
 import { urls } from "@/lib/urls";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
   Bot,
+  ChevronDown,
   ChevronLeft,
+  CircleDot,
   ExternalLink,
   FileText,
   GraduationCap,
@@ -18,9 +20,10 @@ import {
   MoreHorizontal,
   Network,
   Newspaper,
+  Plus,
+  Search,
   Settings,
   Share2,
-  Sparkles,
   Star,
   Trash2,
   Wrench,
@@ -43,6 +46,12 @@ import { LiteratureSearchButton } from "@/components/literature/literature-searc
 import { SidebarFavorites } from "./sidebar-favorites";
 import { SidebarRecentNotes } from "./sidebar-recent-notes";
 import {
+  DEFAULT_QUICK_CREATE_ORDER,
+  type SidebarQuickCreateActionId,
+  useSidebarStore,
+} from "@/stores/sidebar-store";
+import { workflowConsoleApi, type WorkflowConsoleRun } from "@/lib/api-client";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -64,6 +73,14 @@ export interface ShellSidebarProps {
   synthesisExportEnabled?: boolean;
 }
 
+const TERMINAL_RUN_STATUSES = new Set([
+  "completed",
+  "failed",
+  "cancelled",
+  "expired",
+  "reverted",
+]);
+
 // App Shell Phase 2 assembled sidebar (distinct from the legacy
 // project-scoped `Sidebar` that still layouts the editor page). The sidebar
 // keeps workspace navigation and project navigation as separate outline blocks.
@@ -79,6 +96,9 @@ export function ShellSidebar({
   const tTrash = useTranslations("workspaceSettings.trash");
   const toggleSidebar = usePanelStore((s) => s.toggleSidebar);
   const openAgentPanelTab = usePanelStore((s) => s.openAgentPanelTab);
+  const setSidebarWorkspace = useSidebarStore((s) => s.setWorkspace);
+  const quickCreateOrder = useSidebarStore((s) => s.quickCreateOrder);
+  const recordQuickCreateUse = useSidebarStore((s) => s.recordQuickCreateUse);
   const base = wsSlug ? urls.workspace.root(locale, wsSlug) : null;
   const [trashOpen, setTrashOpen] = useState(false);
   const workspaces = useQuery({
@@ -99,6 +119,28 @@ export function ShellSidebar({
     () => workspaces.data?.workspaces.find((w) => w.slug === wsSlug)?.id ?? null,
     [workspaces.data?.workspaces, wsSlug],
   );
+  useEffect(() => {
+    if (wsSlug) {
+      setSidebarWorkspace(wsSlug);
+    }
+  }, [setSidebarWorkspace, wsSlug]);
+  const quickCreateActions: Record<SidebarQuickCreateActionId, ReactNode> =
+    projectId && wsSlug
+      ? {
+          new_note: (
+            <NewNoteButton workspaceSlug={wsSlug} projectId={projectId} />
+          ),
+          upload: <SourceUploadButton projectId={projectId} />,
+          new_folder: <NewFolderButton projectId={projectId} />,
+          new_canvas: (
+            <NewCanvasButton workspaceSlug={wsSlug} projectId={projectId} />
+          ),
+          new_code: <NewCodeWorkspaceButton projectId={projectId} />,
+          generate_document: (
+            <GenerateDocumentButton wsSlug={wsSlug} projectId={projectId} />
+          ),
+        }
+      : ({} as Record<SidebarQuickCreateActionId, ReactNode>);
 
   return (
     <aside
@@ -111,22 +153,26 @@ export function ShellSidebar({
           type="button"
           aria-label={tNav("collapse_sidebar")}
           onClick={toggleSidebar}
-          className="app-btn-ghost grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-control)]"
+          className="app-btn-ghost grid h-8 w-8 shrink-0 place-items-center rounded-md"
         >
           <ChevronLeft aria-hidden className="h-4 w-4" />
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+      <div className="app-scrollbar-thin min-h-0 flex-1 overflow-y-auto px-3 py-2.5">
         <ScopedSearch />
         {base && wsSlug ? (
-          <div className="mt-2 flex items-center gap-1.5">
+          <div className="mt-2 grid grid-cols-[minmax(0,1.2fr)_repeat(4,2rem)] items-center gap-1.5">
             <SidebarNavLink
               href={
                 projectId
                   ? urls.workspace.project(locale, wsSlug, projectId)
                   : base
               }
-              label={projectId ? tNav("project_home") : tNav("dashboard")}
+              label={
+                projectId
+                  ? tNav("project_home_short")
+                  : tNav("dashboard_short")
+              }
               Icon={Home}
             />
             <PanelIconButton
@@ -155,41 +201,64 @@ export function ShellSidebar({
 
         {projectId && wsSlug ? (
           <>
-            <SidebarSection label={tSections("create")} Icon={Sparkles}>
+            <SidebarSection id="create" label={tSections("create")} Icon={Plus}>
               <div
-                className="grid grid-cols-2 gap-1 rounded-[var(--radius-control)] bg-background p-1 shadow-sm [&_button]:min-h-8 [&_button]:rounded-[var(--radius-control)] [&_button]:border-transparent [&_button]:bg-transparent [&_button]:px-2 [&_button]:text-xs [&_button]:hover:bg-muted"
+                className="grid grid-cols-2 gap-1 rounded-md border border-border/70 bg-background p-1 shadow-none [&_button]:min-h-8 [&_button]:rounded-md [&_button]:border-transparent [&_button]:bg-transparent [&_button]:px-2 [&_button]:text-xs [&_button]:hover:bg-muted"
                 data-testid="sidebar-create-actions"
               >
-                <NewNoteButton workspaceSlug={wsSlug} projectId={projectId} />
-                <SourceUploadButton projectId={projectId} />
-                <NewFolderButton projectId={projectId} />
-                <NewCanvasButton
-                  workspaceSlug={wsSlug}
-                  projectId={projectId}
-                />
-                <NewCodeWorkspaceButton projectId={projectId} />
-                <GenerateDocumentButton wsSlug={wsSlug} projectId={projectId} />
+                {quickCreateOrder
+                  .filter((id) => id in quickCreateActions)
+                  .concat(
+                    DEFAULT_QUICK_CREATE_ORDER.filter(
+                      (id) => !quickCreateOrder.includes(id),
+                    ),
+                  )
+                  .map((id) => (
+                    <div
+                      key={id}
+                      onClickCapture={() => recordQuickCreateUse(id)}
+                    >
+                      {quickCreateActions[id]}
+                    </div>
+                  ))}
               </div>
             </SidebarSection>
 
-            <SidebarSection label={tSections("favorites")} Icon={Star}>
+            <SidebarActiveWorkSection
+              projectId={projectId}
+              onOpenActivity={() => openAgentPanelTab("activity")}
+            />
+
+            <SidebarSection
+              id="favorites"
+              label={tSections("favorites")}
+              Icon={Star}
+            >
               <SidebarFavorites wsSlug={wsSlug} />
             </SidebarSection>
 
-            <SidebarSection label={tSections("files")} Icon={FileText}>
+            <SidebarSection id="files" label={tSections("files")} Icon={FileText}>
               <div
-                className="h-[45vh] min-h-72 max-h-[520px] overflow-hidden rounded-[var(--radius-control)] border border-border bg-background shadow-sm"
+                className="h-[52vh] min-h-80 max-h-[680px] overflow-hidden rounded-md border border-border bg-background shadow-none"
                 data-testid="sidebar-tree-region"
               >
                 <ProjectTree projectId={projectId} workspaceSlug={wsSlug} />
               </div>
             </SidebarSection>
 
-            <SidebarSection label={tSections("recent")} Icon={Newspaper}>
+            <SidebarSection
+              id="recent"
+              label={tSections("recent")}
+              Icon={Newspaper}
+            >
               <SidebarRecentNotes wsSlug={wsSlug} />
             </SidebarSection>
 
-            <SidebarSection label={tSections("service_agent")} Icon={Bot}>
+            <SidebarSection
+              id="service_agent"
+              label={tSections("service_agent")}
+              Icon={Bot}
+            >
               <div className="grid gap-1">
                 <SidebarNavLink
                   href={urls.workspace.projectAgents(locale, wsSlug, projectId)}
@@ -201,7 +270,7 @@ export function ShellSidebar({
                   <SidebarNavLink
                     href={`${base}/research`}
                     label={tNav("research")}
-                    Icon={Sparkles}
+                    Icon={Search}
                     tone="agent"
                   />
                 ) : null}
@@ -209,7 +278,11 @@ export function ShellSidebar({
               </div>
             </SidebarSection>
 
-            <SidebarSection label={tSections("project_tools")} Icon={Network}>
+            <SidebarSection
+              id="project_tools"
+              label={tSections("project_tools")}
+              Icon={Network}
+            >
               <div className="grid gap-1">
                 <SidebarNavLink
                   href={urls.workspace.projectGraph(locale, wsSlug, projectId)}
@@ -232,7 +305,7 @@ export function ShellSidebar({
 
         {base && wsSlug ? (
           <>
-            <SidebarSection label={tSections("publish")} Icon={Share2}>
+            <SidebarSection id="publish" label={tSections("publish")} Icon={Share2}>
               <div className="grid gap-1">
                 <SidebarNavLink
                   href={`${base}/settings/shared-links`}
@@ -257,7 +330,11 @@ export function ShellSidebar({
               </div>
             </SidebarSection>
 
-            <SidebarSection label={tSections("workspace_tools")} Icon={Wrench}>
+            <SidebarSection
+              id="workspace_tools"
+              label={tSections("workspace_tools")}
+              Icon={Wrench}
+            >
               <div className="grid gap-1">
                 <SidebarNavLink
                   href={`${base}/atlas`}
@@ -280,7 +357,7 @@ export function ShellSidebar({
               </div>
             </SidebarSection>
 
-            <SidebarSection label={tSections("help")} Icon={HelpCircle}>
+            <SidebarSection id="help" label={tSections("help")} Icon={HelpCircle}>
               <div className="grid gap-1">
                 <SidebarNavLink
                   href={urls.workspace.help(locale, wsSlug)}
@@ -324,22 +401,140 @@ export function ShellSidebar({
   );
 }
 
+function SidebarActiveWorkSection({
+  projectId,
+  onOpenActivity,
+}: {
+  projectId: string;
+  onOpenActivity: () => void;
+}) {
+  const tSections = useTranslations("sidebar.sections");
+  const query = useQuery({
+    queryKey: ["sidebar-active-work", projectId],
+    queryFn: () => workflowConsoleApi.list(projectId, 5),
+    refetchInterval: (query) => {
+      const runs = query.state.data?.runs ?? [];
+      return runs.some((run) => !TERMINAL_RUN_STATUSES.has(run.status))
+        ? 5000
+        : false;
+    },
+  });
+  const activeRuns = (query.data?.runs ?? []).filter(
+    (run) => !TERMINAL_RUN_STATUSES.has(run.status),
+  );
+
+  if (activeRuns.length === 0) return null;
+
+  return (
+    <SidebarSection
+      id="active_work"
+      label={tSections("active_work")}
+      Icon={CircleDot}
+    >
+      <div className="grid gap-1">
+        {activeRuns.slice(0, 3).map((run) => (
+          <SidebarActiveRunRow
+            key={run.runId}
+            run={run}
+            onOpenActivity={onOpenActivity}
+          />
+        ))}
+      </div>
+    </SidebarSection>
+  );
+}
+
+function SidebarActiveRunRow({
+  run,
+  onOpenActivity,
+}: {
+  run: WorkflowConsoleRun;
+  onOpenActivity: () => void;
+}) {
+  const progress = activeRunProgress(run);
+  return (
+    <button
+      type="button"
+      aria-label={run.title}
+      onClick={onOpenActivity}
+      className="rounded-md border border-border bg-background px-2 py-1.5 text-left text-xs transition-colors hover:border-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
+        <span className="min-w-0 flex-1 truncate font-medium text-foreground">
+          {run.title}
+        </span>
+        {progress != null ? (
+          <span className="shrink-0 text-[11px] text-muted-foreground">
+            {progress}%
+          </span>
+        ) : null}
+      </div>
+      {progress != null ? (
+        <div className="mt-1.5 h-1 overflow-hidden rounded bg-muted">
+          <div
+            className="h-full bg-primary transition-all"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      ) : null}
+    </button>
+  );
+}
+
+function activeRunProgress(run: WorkflowConsoleRun): number | null {
+  if (!run.progress) return null;
+  if (typeof run.progress.percent === "number") {
+    return Math.max(0, Math.min(100, Math.round(run.progress.percent)));
+  }
+  if (
+    typeof run.progress.current === "number" &&
+    typeof run.progress.total === "number" &&
+    run.progress.total > 0
+  ) {
+    return Math.max(
+      0,
+      Math.min(100, Math.round((run.progress.current / run.progress.total) * 100)),
+    );
+  }
+  return null;
+}
+
 function SidebarSection({
+  id,
   label,
   Icon,
   children,
 }: {
+  id: string;
   label: string;
   Icon?: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   children: ReactNode;
 }) {
+  const isCollapsed = useSidebarStore((s) => s.isSectionCollapsed(id));
+  const toggleSectionCollapsed = useSidebarStore(
+    (s) => s.toggleSectionCollapsed,
+  );
   return (
-    <section className="mt-4">
-      <h2 className="mb-1.5 flex items-center gap-1.5 px-1 text-[11px] font-semibold text-muted-foreground">
-        {Icon ? <Icon aria-hidden className="h-3.5 w-3.5" /> : null}
-        {label}
+    <section className="mt-4 border-t border-border/70 pt-3">
+      <h2 className="mb-2">
+        <button
+          type="button"
+          aria-expanded={!isCollapsed}
+          onClick={() => toggleSectionCollapsed(id)}
+          className="flex w-full items-center gap-1.5 rounded-md px-1 py-0.5 text-left text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {Icon ? <Icon aria-hidden className="h-3.5 w-3.5" /> : null}
+          <span className="min-w-0 flex-1 truncate">{label}</span>
+          <ChevronDown
+            aria-hidden
+            className={`h-3.5 w-3.5 shrink-0 transition-transform ${
+              isCollapsed ? "-rotate-90" : ""
+            }`}
+          />
+        </button>
       </h2>
-      {children}
+      {isCollapsed ? null : children}
     </section>
   );
 }
@@ -358,7 +553,7 @@ function SidebarNavLink({
   return (
     <Link
       href={href}
-      className={`flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+      className={`flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
         tone === "agent"
           ? "border border-border/80 bg-background text-foreground shadow-sm hover:border-foreground hover:bg-muted"
           : tone === "utility"
@@ -370,7 +565,7 @@ function SidebarNavLink({
         aria-hidden
         className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
       />
-      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span className="min-w-0 flex-1 truncate leading-none">{label}</span>
     </Link>
   );
 }
@@ -390,7 +585,7 @@ function SidebarNavButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+      className={`flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
         tone === "utility"
           ? "border border-transparent text-muted-foreground hover:border-border hover:bg-background hover:text-foreground"
           : "border border-border bg-background text-foreground hover:border-foreground"
@@ -419,7 +614,7 @@ function SidebarExternalLink({
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-[var(--radius-control)] border border-transparent px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:border-border hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:border-border hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <Icon
         aria-hidden
@@ -449,7 +644,7 @@ function PanelIconButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-control)] border border-border bg-background text-muted-foreground transition-colors hover:border-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:border-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <Icon aria-hidden className="h-3.5 w-3.5" />
     </button>
@@ -480,8 +675,8 @@ function ProjectToolsMenu({
         aria-label={t("more_aria")}
         className={
           compact
-            ? "grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-control)] border border-border bg-background text-muted-foreground transition-colors hover:border-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            : "flex min-h-8 items-center gap-2 rounded-[var(--radius-control)] border border-border bg-background px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            ? "grid h-8 w-8 shrink-0 place-items-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:border-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            : "flex min-h-8 items-center gap-2 rounded-md border border-border bg-background px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:border-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         }
       >
         <MoreHorizontal aria-hidden className="h-3.5 w-3.5 shrink-0" />
@@ -492,7 +687,7 @@ function ProjectToolsMenu({
       <PopoverContent
         align="start"
         sideOffset={6}
-        className="w-[260px] rounded-[var(--radius-control)] border border-border bg-background p-2 shadow-sm ring-0"
+        className="w-[260px] rounded-md border border-border bg-background p-2 shadow-sm ring-0"
       >
         <MoreMenu
           base={base}

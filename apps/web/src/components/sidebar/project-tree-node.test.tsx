@@ -116,7 +116,7 @@ describe("ProjectTreeNode", () => {
         metadata: { role: "source_note" },
       }),
     );
-    expect(generated.container.querySelector(".lucide-sparkles")).toBeInTheDocument();
+    expect(generated.container.querySelector(".lucide-file-text")).toBeInTheDocument();
     expect(screen.getByText("sidebar.tree_menu.generated_note")).toBeInTheDocument();
     generated.unmount();
 
@@ -226,7 +226,7 @@ describe("ProjectTreeNode", () => {
         metadata: { role: "analysis" },
       }),
     );
-    expect(analysis.container.querySelector(".lucide-sparkles")).toBeInTheDocument();
+    expect(analysis.container.querySelector(".lucide-file-text")).toBeInTheDocument();
     analysis.unmount();
 
     const table = renderNode(

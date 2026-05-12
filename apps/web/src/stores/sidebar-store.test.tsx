@@ -29,4 +29,52 @@ describe("sidebar-store", () => {
     useSidebarStore.getState().setWorkspace("ws-b");
     expect(useSidebarStore.getState().isExpanded("a-1")).toBe(false);
   });
+
+  it("persists collapsed sections per workspace", () => {
+    useSidebarStore.getState().setWorkspace("ws-a");
+    useSidebarStore.getState().toggleSectionCollapsed("service_agent");
+    expect(useSidebarStore.getState().isSectionCollapsed("service_agent")).toBe(
+      true,
+    );
+
+    useSidebarStore.getState().setWorkspace("ws-b");
+    expect(useSidebarStore.getState().isSectionCollapsed("service_agent")).toBe(
+      false,
+    );
+
+    useSidebarStore.getState().setWorkspace("ws-a");
+    expect(useSidebarStore.getState().isSectionCollapsed("service_agent")).toBe(
+      true,
+    );
+  });
+
+  it("starts with lower-priority sections collapsed by default", () => {
+    useSidebarStore.getState().setWorkspace("ws-a");
+
+    expect(useSidebarStore.getState().isSectionCollapsed("favorites")).toBe(
+      true,
+    );
+    expect(useSidebarStore.getState().isSectionCollapsed("recent")).toBe(true);
+    expect(useSidebarStore.getState().isSectionCollapsed("publish")).toBe(true);
+    expect(useSidebarStore.getState().isSectionCollapsed("help")).toBe(true);
+    expect(useSidebarStore.getState().isSectionCollapsed("files")).toBe(false);
+  });
+
+  it("moves used quick-create actions to the front and persists the order", () => {
+    useSidebarStore.getState().setWorkspace("ws-a");
+
+    useSidebarStore.getState().recordQuickCreateUse("generate_document");
+
+    expect(useSidebarStore.getState().quickCreateOrder[0]).toBe(
+      "generate_document",
+    );
+
+    useSidebarStore.getState().setWorkspace("ws-b");
+    expect(useSidebarStore.getState().quickCreateOrder[0]).toBe("new_note");
+
+    useSidebarStore.getState().setWorkspace("ws-a");
+    expect(useSidebarStore.getState().quickCreateOrder[0]).toBe(
+      "generate_document",
+    );
+  });
 });

@@ -25,7 +25,9 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "dashboard_short": "Home",
     "project_home": "Project home",
+    "project_home_short": "Home",
     "research": "Deep Research",
     "import": "Import",
     "literature": "Literature search",
@@ -52,6 +54,7 @@
   },
   "sections": {
     "create": "Quick create",
+    "active_work": "In progress",
     "favorites": "Favorites",
     "files": "Files",
     "recent": "Recent",
@@ -71,7 +74,7 @@
   },
   "agent_actions": {
     "ask_ai": "Ask AI",
-    "ask_ai_short": "AI"
+    "ask_ai_short": "Ask"
   },
   "more_menu": {
     "atlas": "Ontology Atlas",

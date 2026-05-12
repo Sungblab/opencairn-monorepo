@@ -142,14 +142,14 @@ describe("ShellSidebar", () => {
       screen.getByRole("button", { name: "sidebar.nav.chat" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "sidebar.nav.dashboard" }),
-    ).toHaveClass("rounded-[var(--radius-control)]");
+      screen.getByRole("link", { name: "sidebar.nav.dashboard_short" }),
+    ).toHaveClass("rounded-md");
     expect(
       screen.getByRole("button", { name: "sidebar.nav.trash" }),
-    ).toHaveClass("rounded-[var(--radius-control)]");
+    ).toHaveClass("rounded-md");
     expect(
       screen.getByRole("button", { name: "sidebar.nav.tools" }),
-    ).toHaveClass("rounded-[var(--radius-control)]");
+    ).toHaveClass("rounded-md");
     expect(screen.queryByText("project list")).not.toBeInTheDocument();
     expect(screen.queryByText("global nav")).not.toBeInTheDocument();
     expect(screen.queryByText("workspace switcher")).not.toBeInTheDocument();
@@ -163,7 +163,7 @@ describe("ShellSidebar", () => {
     renderSidebar();
 
     expect(
-      screen.getByRole("link", { name: "sidebar.nav.project_home" }),
+      screen.getByRole("link", { name: "sidebar.nav.project_home_short" }),
     ).toHaveAttribute("href", "/ko/workspace/acme/project/p1");
     expect(screen.getByTestId("sidebar-create-actions")).toBeInTheDocument();
     expect(screen.getByTestId("sidebar-tree-region")).toHaveClass(
@@ -176,21 +176,21 @@ describe("ShellSidebar", () => {
     expect(screen.getByText("new code")).toBeInTheDocument();
     expect(screen.getByText("generate document")).toBeInTheDocument();
     expect(screen.getByText("sidebar.sections.favorites")).toBeInTheDocument();
-    expect(screen.getByText("sidebar.favorites.empty")).toBeInTheDocument();
+    expect(screen.queryByText("sidebar.favorites.empty")).not.toBeInTheDocument();
     expect(screen.getByText("sidebar.nav.graph")).toBeInTheDocument();
     expect(screen.getByText("sidebar.nav.agents")).toBeInTheDocument();
     expect(screen.getByText("sidebar.nav.learn")).toBeInTheDocument();
     expect(screen.getByText("sidebar.sections.recent")).toBeInTheDocument();
-    expect(screen.getByText("recent notes")).toBeInTheDocument();
+    expect(screen.queryByText("recent notes")).not.toBeInTheDocument();
     expect(
       screen.getByText("sidebar.sections.service_agent"),
     ).toBeInTheDocument();
     expect(screen.getByText("literature")).toBeInTheDocument();
     expect(screen.getByText("sidebar.sections.publish")).toBeInTheDocument();
-    expect(screen.getByText("sidebar.nav.public_pages")).toBeInTheDocument();
+    expect(screen.queryByText("sidebar.nav.public_pages")).not.toBeInTheDocument();
     expect(screen.getByText("sidebar.sections.help")).toBeInTheDocument();
-    expect(screen.getByText("sidebar.nav.feedback")).toBeInTheDocument();
-    expect(screen.getByText("sidebar.nav.changelog")).toBeInTheDocument();
+    expect(screen.queryByText("sidebar.nav.feedback")).not.toBeInTheDocument();
+    expect(screen.queryByText("sidebar.nav.changelog")).not.toBeInTheDocument();
     expect(screen.getByText("project tree")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "sidebar.nav.trash" }),
@@ -248,5 +248,138 @@ describe("ShellSidebar", () => {
 
     expect(panelStoreMock.openAgentPanelTab).toHaveBeenNthCalledWith(1, "chat");
     expect(panelStoreMock.openAgentPanelTab).toHaveBeenNthCalledWith(2, "tools");
+  });
+
+  it("collapses sidebar sections and restores the state for the workspace", async () => {
+    currentProject.value = { wsSlug: "acme", projectId: "p1" };
+    const user = userEvent.setup();
+    const first = renderSidebar();
+
+    await user.click(
+      screen.getByRole("button", { name: "sidebar.sections.service_agent" }),
+    );
+
+    expect(screen.queryByText("literature")).not.toBeInTheDocument();
+
+    first.unmount();
+    renderSidebar();
+
+    expect(screen.queryByText("literature")).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "sidebar.sections.service_agent" }),
+    );
+
+    expect(screen.getByText("literature")).toBeInTheDocument();
+  });
+
+  it("starts with low-priority sections collapsed and gives files more room", () => {
+    currentProject.value = { wsSlug: "acme", projectId: "p1" };
+
+    renderSidebar();
+
+    expect(screen.queryByText("sidebar.favorites.empty")).not.toBeInTheDocument();
+    expect(screen.queryByText("recent notes")).not.toBeInTheDocument();
+    expect(screen.queryByText("sidebar.nav.public_pages")).not.toBeInTheDocument();
+    expect(screen.queryByText("sidebar.nav.feedback")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-tree-region")).toHaveClass(
+      "min-h-80",
+      "max-h-[680px]",
+    );
+  });
+
+  it("shows active project work before lower-priority sidebar sections", async () => {
+    currentProject.value = { wsSlug: "acme", projectId: "p1" };
+    global.fetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/workflow-console/runs")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            runs: [
+              {
+                runId: "run-1",
+                runType: "document_generation",
+                status: "running",
+                title: "보고서 생성",
+                progress: { percent: 42 },
+                outputs: [],
+              },
+            ],
+          }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          workspaces: [
+            { id: "ws-1", slug: "acme", name: "ACME", role: "owner" },
+          ],
+          invites: [],
+        }),
+      });
+    }) as unknown as typeof fetch;
+
+    renderSidebar();
+
+    expect(await screen.findByText("보고서 생성")).toBeInTheDocument();
+    expect(screen.getByText("sidebar.sections.active_work")).toBeInTheDocument();
+    expect(screen.getByText("42%")).toBeInTheDocument();
+  });
+
+  it("opens the activity panel when an active work item is clicked", async () => {
+    currentProject.value = { wsSlug: "acme", projectId: "p1" };
+    global.fetch = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/workflow-console/runs")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            runs: [
+              {
+                runId: "run-1",
+                runType: "document_generation",
+                status: "running",
+                title: "보고서 생성",
+                progress: { percent: 42 },
+                outputs: [],
+              },
+            ],
+          }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          workspaces: [
+            { id: "ws-1", slug: "acme", name: "ACME", role: "owner" },
+          ],
+          invites: [],
+        }),
+      });
+    }) as unknown as typeof fetch;
+    const user = userEvent.setup();
+
+    renderSidebar();
+
+    await user.click(await screen.findByRole("button", { name: "보고서 생성" }));
+
+    expect(panelStoreMock.openAgentPanelTab).toHaveBeenCalledWith("activity");
+  });
+
+  it("moves a used quick-create action to the front after remount", async () => {
+    currentProject.value = { wsSlug: "acme", projectId: "p1" };
+    const user = userEvent.setup();
+    const first = renderSidebar();
+
+    await user.click(screen.getByText("generate document"));
+
+    first.unmount();
+    renderSidebar();
+
+    const actions = screen
+      .getByTestId("sidebar-create-actions")
+      .querySelectorAll("button");
+    expect(actions[0]).toHaveTextContent("generate document");
   });
 });
