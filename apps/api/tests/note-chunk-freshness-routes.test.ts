@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app.js";
 import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
-import { agentFiles, db, eq } from "@opencairn/db";
+import { agentFiles, and, db, eq, wikiLinks } from "@opencairn/db";
 import { randomUUID } from "node:crypto";
 
 const mocks = vi.hoisted(() => ({
@@ -194,5 +194,59 @@ describe("note chunk freshness route wiring", () => {
         contentText: "new indexed body",
       }),
     );
+  });
+
+  it("syncs wiki links when internal note patch changes Plate content", async () => {
+    const create = await app.request("/api/internal/notes", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-internal-secret": "test-internal-secret",
+      },
+      body: JSON.stringify({
+        projectId: ctx.projectId,
+        title: "Patch Links",
+        type: "source",
+        sourceType: "pdf",
+        contentText: "old body",
+      }),
+    });
+    const { noteId } = (await create.json()) as { noteId: string };
+
+    const patch = await app.request(`/api/internal/notes/${noteId}`, {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        "x-internal-secret": "test-internal-secret",
+      },
+      body: JSON.stringify({
+        content: [
+          {
+            type: "p",
+            children: [
+              { text: "Related: " },
+              {
+                type: "wiki-link",
+                targetId: ctx.noteId,
+                children: [{ text: "seed note" }],
+              },
+            ],
+          },
+        ],
+        contentText: "Related: seed note",
+      }),
+    });
+
+    expect(patch.status).toBe(200);
+    const rows = await db
+      .select({ id: wikiLinks.id })
+      .from(wikiLinks)
+      .where(
+        and(
+          eq(wikiLinks.sourceNoteId, noteId),
+          eq(wikiLinks.targetNoteId, ctx.noteId),
+        ),
+      );
+    expect(rows).toHaveLength(1);
   });
 });

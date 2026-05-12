@@ -3240,18 +3240,30 @@ internal.patch(
     // Tier 0 item 0-1: soft-deleted notes must not be revived via this
     // worker-facing backfill — the UI hides them and the trigger column
     // alone does not block the UPDATE, so we filter here.
-    const [updated] = await db
-      .update(notes)
-      .set(patch)
-      .where(and(eq(notes.id, id), isNull(notes.deletedAt)))
-      .returning({
-        id: notes.id,
-        workspaceId: notes.workspaceId,
-        projectId: notes.projectId,
-        title: notes.title,
-        contentText: notes.contentText,
-        deletedAt: notes.deletedAt,
-      });
+    const [updated] = await db.transaction(async (tx) => {
+      const rows = await tx
+        .update(notes)
+        .set(patch)
+        .where(and(eq(notes.id, id), isNull(notes.deletedAt)))
+        .returning({
+          id: notes.id,
+          workspaceId: notes.workspaceId,
+          projectId: notes.projectId,
+          title: notes.title,
+          contentText: notes.contentText,
+          deletedAt: notes.deletedAt,
+        });
+      const row = rows[0];
+      if (row && body.content !== undefined) {
+        await syncWikiLinks(
+          tx,
+          row.id,
+          extractWikiLinkTargets(body.content),
+          row.workspaceId,
+        );
+      }
+      return rows;
+    });
     if (!updated) return c.json({ error: "not_found" }, 404);
     if (body.contentText !== undefined || body.title !== undefined) {
       await refreshNoteChunkIndexBestEffort(updated);
