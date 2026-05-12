@@ -65,6 +65,7 @@ export class StudySessionError extends Error {
 export interface StudySessionRouteOptions {
   repo?: StudySessionRepository;
   auth?: MiddlewareHandler<AppEnv>;
+  canReadWorkspace?: (userId: string, workspaceId: string) => Promise<boolean>;
   canReadProject?: (userId: string, projectId: string) => Promise<boolean>;
   canWriteProject?: (userId: string, projectId: string) => Promise<boolean>;
   projectScope?: (projectId: string) => Promise<ProjectScope | null>;
@@ -76,6 +77,8 @@ const sessionParamSchema = z.object({ id: z.string().uuid() });
 export function createStudySessionRoutes(options: StudySessionRouteOptions = {}) {
   const repo = options.repo ?? createDrizzleStudySessionRepository();
   const auth = options.auth ?? requireAuth;
+  const canReadWorkspace = options.canReadWorkspace ?? ((userId, workspaceId) =>
+    canRead(userId, { type: "workspace", id: workspaceId }));
   const canReadProject = options.canReadProject ?? ((userId, projectId) =>
     canRead(userId, { type: "project", id: projectId }));
   const canWriteProject = options.canWriteProject ?? ((userId, projectId) =>
@@ -91,11 +94,13 @@ export function createStudySessionRoutes(options: StudySessionRouteOptions = {})
       async (c) => {
         const userId = c.get("userId");
         const projectId = c.req.valid("param").projectId;
+        const scope = await projectScope(projectId);
+        if (!scope || !(await canReadWorkspace(userId, scope.workspaceId))) {
+          return c.json({ error: "project_not_found" }, 404);
+        }
         if (!(await canReadProject(userId, projectId))) {
           return c.json({ error: "Forbidden" }, 403);
         }
-        const scope = await projectScope(projectId);
-        if (!scope) return c.json({ error: "project_not_found" }, 404);
         const sessions = await repo.listSessionsByProject(
           scope,
           c.req.valid("query"),
@@ -110,11 +115,13 @@ export function createStudySessionRoutes(options: StudySessionRouteOptions = {})
       async (c) => {
         const userId = c.get("userId");
         const body = c.req.valid("json");
+        const scope = await projectScope(body.projectId);
+        if (!scope || !(await canReadWorkspace(userId, scope.workspaceId))) {
+          return c.json({ error: "project_not_found" }, 404);
+        }
         if (!(await canWriteProject(userId, body.projectId))) {
           return c.json({ error: "Forbidden" }, 403);
         }
-        const scope = await projectScope(body.projectId);
-        if (!scope) return c.json({ error: "project_not_found" }, 404);
         try {
           const session = await repo.createSession({
             ...scope,
@@ -135,7 +142,11 @@ export function createStudySessionRoutes(options: StudySessionRouteOptions = {})
       async (c) => {
         const session = await repo.findSessionById(c.req.valid("param").id);
         if (!session) return c.json({ error: "study_session_not_found" }, 404);
-        if (!(await canReadProject(c.get("userId"), session.projectId))) {
+        const userId = c.get("userId");
+        if (!(await canReadWorkspace(userId, session.workspaceId))) {
+          return c.json({ error: "study_session_not_found" }, 404);
+        }
+        if (!(await canReadProject(userId, session.projectId))) {
           return c.json({ error: "Forbidden" }, 403);
         }
         return c.json({ session });
@@ -148,7 +159,11 @@ export function createStudySessionRoutes(options: StudySessionRouteOptions = {})
       async (c) => {
         const session = await repo.findSessionById(c.req.valid("param").id);
         if (!session) return c.json({ error: "study_session_not_found" }, 404);
-        if (!(await canReadProject(c.get("userId"), session.projectId))) {
+        const userId = c.get("userId");
+        if (!(await canReadWorkspace(userId, session.workspaceId))) {
+          return c.json({ error: "study_session_not_found" }, 404);
+        }
+        if (!(await canReadProject(userId, session.projectId))) {
           return c.json({ error: "Forbidden" }, 403);
         }
         return c.json({ recordings: await repo.listRecordings(session.id) });
@@ -161,7 +176,11 @@ export function createStudySessionRoutes(options: StudySessionRouteOptions = {})
       async (c) => {
         const session = await repo.findSessionById(c.req.valid("param").id);
         if (!session) return c.json({ error: "study_session_not_found" }, 404);
-        if (!(await canReadProject(c.get("userId"), session.projectId))) {
+        const userId = c.get("userId");
+        if (!(await canReadWorkspace(userId, session.workspaceId))) {
+          return c.json({ error: "study_session_not_found" }, 404);
+        }
+        if (!(await canReadProject(userId, session.projectId))) {
           return c.json({ error: "Forbidden" }, 403);
         }
         const segments = await repo.listTranscriptSegments(session.id);
@@ -179,24 +198,25 @@ export const studySessionRoutes = createStudySessionRoutes();
 export function createDrizzleStudySessionRepository(conn: DB = db): StudySessionRepository {
   return {
     async listSessionsByProject(scope, filters) {
-      let sessionRows = await conn
+      const sessionRows = await conn
         .select()
         .from(studySessions)
         .where(
           and(
             eq(studySessions.workspaceId, scope.workspaceId),
             eq(studySessions.projectId, scope.projectId),
+            filters?.sourceNoteId
+              ? inArray(
+                  studySessions.id,
+                  conn
+                    .select({ sessionId: studySessionSources.sessionId })
+                    .from(studySessionSources)
+                    .where(eq(studySessionSources.noteId, filters.sourceNoteId)),
+                )
+              : undefined,
           ),
         )
         .orderBy(desc(studySessions.updatedAt));
-      if (filters?.sourceNoteId) {
-        const sourceRows = await conn
-          .select({ sessionId: studySessionSources.sessionId })
-          .from(studySessionSources)
-          .where(eq(studySessionSources.noteId, filters.sourceNoteId));
-        const allowedIds = new Set(sourceRows.map((row) => row.sessionId));
-        sessionRows = sessionRows.filter((row) => allowedIds.has(row.id));
-      }
       return attachSources(conn, sessionRows.map(serializeSessionRow));
     },
     async createSession(input) {
@@ -258,27 +278,21 @@ export function createDrizzleStudySessionRepository(conn: DB = db): StudySession
       return rows.map(serializeRecordingRow);
     },
     async listTranscriptSegments(sessionId) {
-      const recordings = await conn
-        .select({ id: sessionRecordings.id })
-        .from(sessionRecordings)
-        .where(eq(sessionRecordings.sessionId, sessionId))
-        .orderBy(asc(sessionRecordings.createdAt), asc(sessionRecordings.id));
-      if (recordings.length === 0) return [];
-      const recordingOrder = new Map(
-        recordings.map((recording, index) => [recording.id, index]),
-      );
       const rows = await conn
-        .select()
+        .select({ segment: transcriptSegments })
         .from(transcriptSegments)
-        .where(inArray(transcriptSegments.recordingId, recordings.map((row) => row.id)))
-        .orderBy(asc(transcriptSegments.recordingId), asc(transcriptSegments.index));
-      return rows
-        .map(serializeTranscriptRow)
-        .sort((a, b) =>
-          (recordingOrder.get(a.recordingId) ?? 0) - (recordingOrder.get(b.recordingId) ?? 0)
-          || a.index - b.index
-          || a.startSec - b.startSec,
+        .innerJoin(
+          sessionRecordings,
+          eq(transcriptSegments.recordingId, sessionRecordings.id),
+        )
+        .where(eq(sessionRecordings.sessionId, sessionId))
+        .orderBy(
+          asc(sessionRecordings.createdAt),
+          asc(sessionRecordings.id),
+          asc(transcriptSegments.index),
+          asc(transcriptSegments.startSec),
         );
+      return rows.map((row) => serializeTranscriptRow(row.segment));
     },
   };
 }

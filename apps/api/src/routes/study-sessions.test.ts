@@ -28,6 +28,7 @@ const projectId = "00000000-0000-4000-8000-000000000002";
 const sourceNoteId = "00000000-0000-4000-8000-000000000003";
 
 function appWith(options?: {
+  canReadWorkspace?: (uid: string, wid: string) => Promise<boolean>;
   canReadProject?: (uid: string, pid: string) => Promise<boolean>;
   canWriteProject?: (uid: string, pid: string) => Promise<boolean>;
 }) {
@@ -37,6 +38,7 @@ function appWith(options?: {
     createStudySessionRoutes({
       repo,
       projectScope: async (pid) => pid === projectId ? { workspaceId, projectId } : null,
+      canReadWorkspace: options?.canReadWorkspace ?? (async (_uid, wid) => wid === workspaceId),
       canReadProject: options?.canReadProject ?? (async (_uid, pid) => pid === projectId),
       canWriteProject: options?.canWriteProject ?? (async (_uid, pid) => pid === projectId),
       auth: async (c, next) => {
@@ -101,6 +103,20 @@ describe("study session routes", () => {
     expect(response.status).toBe(403);
   });
 
+  it("hides project existence when the user is not a workspace member", async () => {
+    const { app } = appWith({ canReadWorkspace: async () => false });
+
+    const list = await app.request(`/api/projects/${projectId}/study-sessions`);
+    expect(list.status).toBe(404);
+
+    const create = await app.request("/api/study-sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ projectId, title: "Hidden" }),
+    });
+    expect(create.status).toBe(404);
+  });
+
   it("requires project read permission before exposing transcripts", async () => {
     const { app, repo } = appWith({ canReadProject: async () => false });
     const session = await repo.createSession({
@@ -113,6 +129,25 @@ describe("study session routes", () => {
     const response = await app.request(`/api/study-sessions/${session.id}/transcript`);
 
     expect(response.status).toBe(403);
+  });
+
+  it("hides study session existence when the user is not a workspace member", async () => {
+    const { app, repo } = appWith({ canReadWorkspace: async () => false });
+    const session = await repo.createSession({
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Hidden lecture",
+      sourceNoteId,
+    });
+
+    const detail = await app.request(`/api/study-sessions/${session.id}`);
+    const recordings = await app.request(`/api/study-sessions/${session.id}/recordings`);
+    const transcript = await app.request(`/api/study-sessions/${session.id}/transcript`);
+
+    expect(detail.status).toBe(404);
+    expect(recordings.status).toBe(404);
+    expect(transcript.status).toBe(404);
   });
 
   it("returns ordered transcript segments for a session recording", async () => {
