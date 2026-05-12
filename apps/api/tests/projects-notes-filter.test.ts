@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { randomUUID } from "node:crypto";
 import { createApp } from "../src/app.js";
-import { db, notes, researchRuns } from "@opencairn/db";
+import { db, notes, researchRuns, wikiLinks } from "@opencairn/db";
 import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
 
@@ -34,6 +34,7 @@ async function insertNote(opts: {
     | null;
   canvasLanguage?: "python" | "javascript" | "html" | "react";
   deletedAt?: Date;
+  type?: "note" | "wiki" | "source";
 }): Promise<string> {
   const id = randomUUID();
   await db.insert(notes).values({
@@ -41,6 +42,7 @@ async function insertNote(opts: {
     projectId: opts.projectId,
     workspaceId: opts.workspaceId,
     title: opts.title,
+    type: opts.type ?? "note",
     inheritParent: true,
     sourceType: opts.sourceType ?? null,
     canvasLanguage: opts.canvasLanguage,
@@ -236,5 +238,81 @@ describe("GET /api/projects/:id/notes filter routing", () => {
       )
     ).json()) as { notes: unknown[] };
     expect(res.notes).toHaveLength(2);
+  });
+});
+
+describe("GET /api/projects/:id/wiki-index", () => {
+  let seed: SeedResult;
+  afterEach(async () => {
+    if (seed) await seed.cleanup();
+  });
+
+  it("returns a project wiki catalog with link counts", async () => {
+    seed = await seedWorkspace({ role: "owner" });
+    const sourceId = await insertNote({
+      workspaceId: seed.workspaceId,
+      projectId: seed.projectId,
+      title: "Source packet",
+      type: "source",
+      sourceType: "pdf",
+    });
+    const wikiId = await insertNote({
+      workspaceId: seed.workspaceId,
+      projectId: seed.projectId,
+      title: "Compiled concept",
+      type: "wiki",
+    });
+    await db.insert(wikiLinks).values({
+      workspaceId: seed.workspaceId,
+      sourceNoteId: sourceId,
+      targetNoteId: wikiId,
+    });
+
+    const res = await authedGet(
+      `/api/projects/${seed.projectId}/wiki-index`,
+      seed.userId,
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json() as {
+      projectId: string;
+      totals: { pages: number; wikiLinks: number };
+      pages: Array<{
+        id: string;
+        title: string;
+        type: string;
+        inboundLinks: number;
+        outboundLinks: number;
+      }>;
+    };
+    expect(body.projectId).toBe(seed.projectId);
+    expect(body.totals.pages).toBeGreaterThanOrEqual(3);
+    expect(body.totals.wikiLinks).toBe(1);
+    expect(body.pages.find((page) => page.id === sourceId)).toMatchObject({
+      title: "Source packet",
+      type: "source",
+      inboundLinks: 0,
+      outboundLinks: 1,
+    });
+    expect(body.pages.find((page) => page.id === wikiId)).toMatchObject({
+      title: "Compiled concept",
+      type: "wiki",
+      inboundLinks: 1,
+      outboundLinks: 0,
+    });
+  });
+
+  it("returns 403 for users without project read access", async () => {
+    seed = await seedWorkspace({ role: "owner" });
+    const intruder = await seedWorkspace({ role: "owner" });
+    try {
+      const res = await authedGet(
+        `/api/projects/${seed.projectId}/wiki-index`,
+        intruder.userId,
+      );
+      expect(res.status).toBe(403);
+    } finally {
+      await intruder.cleanup();
+    }
   });
 });

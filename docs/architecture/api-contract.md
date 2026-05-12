@@ -201,6 +201,7 @@ permission-checked target routes.
 | Method | Path | Auth | Description | Body |
 |--------|------|------|-------------|------|
 | GET | /api/projects/:projectId/notes | project `viewer` | 노트 목록 (접근 불가 page 필터링) | - |
+| GET | /api/projects/:projectId/wiki-index | project `viewer` | Project wiki catalog/index for the current notes. Response `{ projectId, totals:{ pages, wikiLinks }, pages:[{ id, title, type, sourceType, summary, updatedAt, inboundLinks, outboundLinks }] }`. | - |
 | GET | /api/notes/search | project `viewer` | 제목 substring 검색 (wiki-link combobox 용, max 10) — `?q=<str>&projectId=<uuid>`, 응답 `[{ id, title, updatedAt }]` | - |
 | GET | /api/notes/:id | page `viewer` | 노트 조회 | - |
 | GET | /api/notes/:id/file | page `viewer` + `sourceFileKey !== null` | MinIO 오브젝트 스트리밍 (source-mode 뷰어, PDF 등). `Content-Type`은 S3 `statObject`에서. 400 non-UUID / 403 read 없음 또는 note 없음(존재 누수 방지) / 404 note는 있으나 `sourceFileKey`가 없을 때. | - |

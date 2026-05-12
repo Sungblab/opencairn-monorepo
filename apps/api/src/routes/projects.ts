@@ -8,9 +8,11 @@ import {
   pagePermissions,
   researchRuns,
   projectTreeNodes,
+  wikiLinks,
   eq,
   desc,
   and,
+  inArray,
   isNull,
   isNotNull,
 } from "@opencairn/db";
@@ -153,6 +155,73 @@ export const projectRoutes = new Hono<AppEnv>()
     const filtered =
       filter === "all" ? annotated : annotated.filter((n) => n.kind === filter);
     return c.json({ notes: filtered });
+  })
+
+  .get("/projects/:id/wiki-index", async (c) => {
+    const user = c.get("user");
+    const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+    if (!(await canRead(user.id, { type: "project", id }))) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+
+    const noteRows = await db
+      .select({
+        id: notes.id,
+        title: notes.title,
+        type: notes.type,
+        sourceType: notes.sourceType,
+        updatedAt: notes.updatedAt,
+        contentText: notes.contentText,
+      })
+      .from(notes)
+      .where(and(eq(notes.projectId, id), isNull(notes.deletedAt)))
+      .orderBy(desc(notes.updatedAt));
+    const noteIds = new Set(noteRows.map((note) => note.id));
+
+    const linkRows = noteRows.length
+      ? await db
+          .select({
+            sourceNoteId: wikiLinks.sourceNoteId,
+            targetNoteId: wikiLinks.targetNoteId,
+          })
+          .from(wikiLinks)
+          .where(
+            and(
+              inArray(wikiLinks.sourceNoteId, [...noteIds]),
+              inArray(wikiLinks.targetNoteId, [...noteIds]),
+            ),
+          )
+      : [];
+    const inbound = new Map<string, number>();
+    const outbound = new Map<string, number>();
+    let wikiLinkTotal = 0;
+    for (const link of linkRows) {
+      if (!noteIds.has(link.sourceNoteId) || !noteIds.has(link.targetNoteId)) {
+        continue;
+      }
+      wikiLinkTotal += 1;
+      outbound.set(link.sourceNoteId, (outbound.get(link.sourceNoteId) ?? 0) + 1);
+      inbound.set(link.targetNoteId, (inbound.get(link.targetNoteId) ?? 0) + 1);
+    }
+
+    return c.json({
+      projectId: id,
+      totals: {
+        pages: noteRows.length,
+        wikiLinks: wikiLinkTotal,
+      },
+      pages: noteRows.map((note) => ({
+        id: note.id,
+        title: note.title,
+        type: note.type,
+        sourceType: note.sourceType,
+        summary: (note.contentText ?? "").trim().slice(0, 280),
+        updatedAt: note.updatedAt.toISOString(),
+        inboundLinks: inbound.get(note.id) ?? 0,
+        outboundLinks: outbound.get(note.id) ?? 0,
+      })),
+    });
   })
 
   // 생성: workspace-scoped (/api/workspaces/:workspaceId/projects)
