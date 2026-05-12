@@ -51,12 +51,12 @@ export function ThreadList() {
 
   return (
     <div className="w-full">
-      <div className="border-b border-border px-2.5 py-1.5">
-        <p className="text-[11px] font-semibold text-muted-foreground">
+      <div className="border-b border-border px-3 py-2.5">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
           {t("title")}
         </p>
       </div>
-      <div className="app-scrollbar-thin max-h-64 overflow-auto p-1">
+      <div className="app-scrollbar-thin grid max-h-64 gap-1 overflow-auto p-2">
         {threads.map((thread) => {
           const isDeleting = archive.isPending;
           const title = thread.title || t("untitled");
@@ -65,14 +65,16 @@ export function ThreadList() {
           return (
             <div
               key={thread.id}
-              className={`group flex h-11 items-center gap-1 rounded-md px-1 transition-colors hover:bg-muted ${
-                active ? "bg-muted" : ""
+              className={`group flex min-h-11 items-center gap-2 rounded px-2.5 py-2 transition-colors ${
+                active
+                  ? "bg-muted text-foreground"
+                  : "hover:bg-muted focus-within:bg-muted"
               }`}
             >
               <button
                 type="button"
                 onClick={() => setActive(thread.id)}
-                className="min-w-0 flex-1 rounded px-2 text-left outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+                className="min-w-0 flex-1 text-left outline-none"
               >
                 <span className="block truncate text-[13px] font-medium leading-4 text-foreground">
                   {title}

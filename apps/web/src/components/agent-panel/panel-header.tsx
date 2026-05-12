@@ -57,7 +57,8 @@ export function PanelHeader({
           <DropdownMenuContent
             align="end"
             sideOffset={6}
-            className="!w-72 max-w-[calc(100vw-16px)] overflow-hidden rounded-md border border-border bg-popover p-0 shadow-md ring-0"
+            className="overflow-hidden rounded-md border border-border bg-background p-0 shadow-md ring-0"
+            style={{ width: 288, minWidth: 288, maxWidth: "calc(100vw - 16px)" }}
           >
             <ThreadList />
           </DropdownMenuContent>

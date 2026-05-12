@@ -4,7 +4,6 @@ import { useTranslations } from "next-intl";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useTabsStore, type Tab } from "@/stores/tabs-store";
@@ -30,12 +29,16 @@ function TabOverflowItem({
 }) {
   const title = useResolvedTabTitle(tab);
   return (
-    <DropdownMenuItem
-      onSelect={onSelect}
-      className={cn(
-        "h-8 cursor-pointer gap-2 px-2 text-[13px] leading-none hover:bg-muted hover:text-foreground focus:bg-muted focus:text-foreground",
-        active && "bg-muted text-foreground",
-      )}
+    <button
+      type="button"
+      role="option"
+      aria-selected={active}
+      onClick={onSelect}
+      className={`flex min-h-9 w-full items-center gap-2 rounded px-2.5 py-2 text-left text-sm transition-colors focus-visible:outline-none ${
+        active
+          ? "bg-muted text-foreground"
+          : "hover:bg-muted focus-visible:bg-muted"
+      }`}
     >
       <span
         className={cn(
@@ -47,7 +50,7 @@ function TabOverflowItem({
         {title}
       </span>
       {active ? <Check aria-hidden className="h-3.5 w-3.5 shrink-0" /> : null}
-    </DropdownMenuItem>
+    </button>
   );
 }
 
@@ -75,12 +78,19 @@ export function TabOverflowMenu({
       <DropdownMenuContent
         align="end"
         sideOffset={2}
-        className="!w-56 max-w-[calc(100vw-16px)] overflow-hidden rounded-md border border-border bg-popover p-0 shadow-md ring-0"
+        className="overflow-hidden rounded-md border border-border bg-background p-0 shadow-md ring-0"
+        style={{ width: 224, minWidth: 224, maxWidth: "calc(100vw - 16px)" }}
       >
-        <div className="border-b border-border px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground">
-          {t("overflowTitle")}
+        <div className="border-b border-border px-3 py-2.5">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            {t("overflowTitle")}
+          </p>
         </div>
-        <div className="app-scrollbar-thin max-h-64 overflow-auto p-1">
+        <div
+          role="listbox"
+          aria-label={t("overflowTitle")}
+          className="app-scrollbar-thin grid max-h-64 gap-1 overflow-auto p-2"
+        >
           {tabs.map((tab) => (
             <TabOverflowItem
               key={tab.id}
