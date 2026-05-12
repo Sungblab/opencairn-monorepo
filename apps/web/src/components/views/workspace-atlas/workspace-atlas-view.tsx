@@ -298,6 +298,9 @@ export function WorkspaceAtlasView({ wsSlug }: { wsSlug: string }) {
                 animate: true,
                 randomize: false,
                 padding: 48,
+                idealEdgeLength: 130,
+                nodeRepulsion: 7000,
+                gravity: 0.22,
               } as cytoscape.LayoutOptions}
               stylesheet={ATLAS_STYLESHEET as cytoscape.StylesheetJsonBlock[]}
               cy={(cy: cytoscape.Core) => {
@@ -457,6 +460,42 @@ const ATLAS_STYLESHEET: cytoscape.StylesheetStyle[] = [
     },
   },
   {
+    selector: 'node[objectType = "concept"]',
+    style: {
+      shape: "ellipse",
+      "background-color": "#38bdf8",
+      "border-color": "#0284c7",
+      color: "#0f172a",
+    },
+  },
+  {
+    selector: 'node[objectType = "note"]',
+    style: {
+      shape: "round-rectangle",
+      "background-color": "#fb7185",
+      "border-color": "#e11d48",
+      color: "#111827",
+    },
+  },
+  {
+    selector: 'node[objectType = "source_bundle"]',
+    style: {
+      shape: "round-rectangle",
+      "background-color": "#fbbf24",
+      "border-color": "#d97706",
+      color: "#111827",
+    },
+  },
+  {
+    selector: 'node[objectType = "artifact"]',
+    style: {
+      shape: "round-rectangle",
+      "background-color": "#a78bfa",
+      "border-color": "#7c3aed",
+      color: "#111827",
+    },
+  },
+  {
     selector: "node[?bridge]",
     style: {
       "border-width": 3,
@@ -480,6 +519,7 @@ const ATLAS_STYLESHEET: cytoscape.StylesheetStyle[] = [
     selector: 'node[layer = "ai"]',
     style: {
       shape: "ellipse",
+      "border-style": "dashed",
     },
   },
   {
@@ -522,6 +562,38 @@ const ATLAS_STYLESHEET: cytoscape.StylesheetStyle[] = [
       label: "",
       width: "mapData(weight, 0, 1, 1, 2)",
       opacity: 0.72,
+    },
+  },
+  {
+    selector: 'edge[edgeType = "wiki_link"]',
+    style: {
+      "line-color": "#2563eb",
+      "target-arrow-color": "#2563eb",
+      width: 2.5,
+    },
+  },
+  {
+    selector: 'edge[edgeType = "project_tree"]',
+    style: {
+      "line-color": "#d97706",
+      "target-arrow-color": "#d97706",
+      "line-style": "solid",
+      width: 2,
+    },
+  },
+  {
+    selector: 'edge[edgeType = "source_artifact"]',
+    style: {
+      "line-color": "#7c3aed",
+      "target-arrow-color": "#7c3aed",
+      width: 2,
+    },
+  },
+  {
+    selector: 'edge[edgeType = "ai_relation"]',
+    style: {
+      "line-color": "#0ea5e9",
+      "target-arrow-color": "#0ea5e9",
     },
   },
   {

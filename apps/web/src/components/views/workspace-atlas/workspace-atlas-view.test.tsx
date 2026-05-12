@@ -19,6 +19,7 @@ vi.mock("react-cytoscapejs", () => ({
   default: (props: {
     elements?: Array<{ data: { id: string; label?: string; source?: string; target?: string } }>;
     layout?: { name: string };
+    stylesheet?: Array<{ selector: string; style: Record<string, unknown> }>;
     cy?: (cy: {
       on: (event: string, handler: NonNullable<typeof cytoscapeMock.tapHandler>) => void;
       off: (event: string, handler: NonNullable<typeof cytoscapeMock.tapHandler>) => void;
@@ -35,7 +36,11 @@ vi.mock("react-cytoscapejs", () => ({
       },
     });
     return (
-      <div data-testid="atlas-graph" data-layout={props.layout?.name}>
+      <div
+        data-testid="atlas-graph"
+        data-layout={props.layout?.name}
+        data-stylesheet={JSON.stringify(props.stylesheet ?? [])}
+      >
         {(props.elements ?? []).map((element) => (
           <span key={element.data.id}>
             {element.data.label ?? `${element.data.source}->${element.data.target}`}
@@ -173,7 +178,7 @@ describe("WorkspaceAtlasView", () => {
   it("renders the workspace ontology atlas graph", async () => {
     wrap(<WorkspaceAtlasView wsSlug="acme" />);
 
-    expect(screen.getByText("Ontology Atlas")).toBeInTheDocument();
+    expect(screen.getByText(koAtlas.title)).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByTestId("atlas-graph")).toHaveAttribute(
         "data-layout",
@@ -185,6 +190,34 @@ describe("WorkspaceAtlasView", () => {
     expect(screen.getByRole("button", { name: koAtlas.layers.explicit })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: koAtlas.layers.ai })).toBeInTheDocument();
     expect(screen.getByText(koAtlas.legend.stale)).toBeInTheDocument();
+  });
+
+  it("styles atlas object and relation types with distinct visual channels", async () => {
+    wrap(<WorkspaceAtlasView wsSlug="acme" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("atlas-graph")).toBeInTheDocument();
+    });
+    const stylesheet = JSON.parse(
+      screen.getByTestId("atlas-graph").getAttribute("data-stylesheet") ?? "[]",
+    ) as Array<{ selector: string; style: Record<string, unknown> }>;
+
+    expect(
+      stylesheet.find((style) => style.selector === 'node[objectType = "concept"]')
+        ?.style["background-color"],
+    ).toBe("#38bdf8");
+    expect(
+      stylesheet.find((style) => style.selector === 'node[objectType = "note"]')
+        ?.style["background-color"],
+    ).toBe("#fb7185");
+    expect(
+      stylesheet.find((style) => style.selector === 'edge[edgeType = "wiki_link"]')
+        ?.style["line-color"],
+    ).toBe("#2563eb");
+    expect(
+      stylesheet.find((style) => style.selector === 'edge[edgeType = "project_tree"]')
+        ?.style["line-color"],
+    ).toBe("#d97706");
   });
 
   it("posts stale source notes for explicit re-analysis", async () => {
