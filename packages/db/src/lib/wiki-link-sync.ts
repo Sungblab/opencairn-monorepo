@@ -15,13 +15,21 @@ export function extractWikiLinkTargets(plateValue: unknown): Set<string> {
   while (stack.length) {
     const n = stack.pop();
     if (n && typeof n === "object") {
-      const node = n as { type?: string; targetId?: unknown; children?: unknown };
+      const node = n as {
+        type?: string;
+        targetId?: unknown;
+        noteId?: unknown;
+        children?: unknown;
+      };
+      const targetId =
+        node.type === "wiki-link" ? node.targetId
+        : node.type === "wikilink" ? node.noteId
+        : null;
       if (
-        node.type === "wiki-link" &&
-        typeof node.targetId === "string" &&
-        UUID_RE.test(node.targetId)
+        typeof targetId === "string" &&
+        UUID_RE.test(targetId)
       ) {
-        out.add(node.targetId);
+        out.add(targetId);
       }
       if (Array.isArray(node.children)) {
         for (const child of node.children) stack.push(child);
