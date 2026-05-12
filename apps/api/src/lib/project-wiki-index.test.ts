@@ -19,6 +19,14 @@ describe("projectWikiIndexToPrompt", () => {
           targetTitle: "Runtime",
         },
       ],
+      unresolvedLinks: [
+        {
+          sourceNoteId: "n2",
+          sourceTitle: "Compiler",
+          targetTitle: "Missing Runtime",
+          reason: "missing",
+        },
+      ],
       recentLogs: [
         {
           noteId: "n2",
@@ -75,6 +83,9 @@ describe("projectWikiIndexToPrompt", () => {
     expect(projectWikiIndexToPrompt(index)).toContain(
       "Recent wiki activity:\n- 2026-05-13T00:02:00.000Z librarian update Compiler - ingested new source",
     );
+    expect(projectWikiIndexToPrompt(index)).toContain(
+      "Unresolved wiki links:\n- Compiler -> Missing Runtime (missing)",
+    );
   });
 
   it("limits wiki link map entries by default", () => {
@@ -89,6 +100,7 @@ describe("projectWikiIndexToPrompt", () => {
         targetNoteId: `t${i}`,
         targetTitle: `Target ${i}`,
       })),
+      unresolvedLinks: [],
       recentLogs: [],
       pages: [],
     };

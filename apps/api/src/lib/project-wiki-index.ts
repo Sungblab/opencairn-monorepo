@@ -3,6 +3,7 @@ import {
   db,
   desc,
   eq,
+  extractWikiLinkReferences,
   inArray,
   isNull,
   notes,
@@ -40,6 +41,13 @@ export type ProjectWikiIndexLog = {
   createdAt: string;
 };
 
+export type ProjectWikiIndexUnresolvedLink = {
+  sourceNoteId: string;
+  sourceTitle: string;
+  targetTitle: string;
+  reason: "missing" | "ambiguous";
+};
+
 export type ProjectWikiIndex = {
   projectId: string;
   generatedAt: string;
@@ -50,6 +58,7 @@ export type ProjectWikiIndex = {
     orphanPages: number;
   };
   links: ProjectWikiIndexLink[];
+  unresolvedLinks: ProjectWikiIndexUnresolvedLink[];
   recentLogs: ProjectWikiIndexLog[];
   pages: ProjectWikiIndexPage[];
 };
@@ -72,6 +81,7 @@ export async function buildProjectWikiIndex(opts: {
       type: notes.type,
       sourceType: notes.sourceType,
       updatedAt: notes.updatedAt,
+      content: notes.content,
       contentText: notes.contentText,
       inheritParent: notes.inheritParent,
     })
@@ -111,6 +121,10 @@ export async function buildProjectWikiIndex(opts: {
   const inbound = new Map<string, number>();
   const outbound = new Map<string, number>();
   const titleById = new Map(visibleNotes.map((note) => [note.id, note.title]));
+  const titleCounts = new Map<string, number>();
+  for (const note of visibleNotes) {
+    titleCounts.set(note.title, (titleCounts.get(note.title) ?? 0) + 1);
+  }
   const links: ProjectWikiIndexLink[] = [];
   let wikiLinkTotal = 0;
   for (const link of linkRows) {
@@ -126,6 +140,21 @@ export async function buildProjectWikiIndex(opts: {
       targetNoteId: link.targetNoteId,
       targetTitle: titleById.get(link.targetNoteId) ?? link.targetNoteId,
     });
+  }
+
+  const unresolvedLinks: ProjectWikiIndexUnresolvedLink[] = [];
+  for (const note of visibleNotes) {
+    const refs = extractWikiLinkReferences(note.content);
+    for (const targetTitle of refs.targetTitles) {
+      const count = titleCounts.get(targetTitle) ?? 0;
+      if (count === 1) continue;
+      unresolvedLinks.push({
+        sourceNoteId: note.id,
+        sourceTitle: note.title,
+        targetTitle,
+        reason: count === 0 ? "missing" : "ambiguous",
+      });
+    }
   }
 
   const logRows = visibleNotes.length
@@ -179,6 +208,11 @@ export async function buildProjectWikiIndex(opts: {
       a.sourceTitle.localeCompare(b.sourceTitle) ||
       a.targetTitle.localeCompare(b.targetTitle),
     ),
+    unresolvedLinks: unresolvedLinks.sort((a, b) =>
+      a.sourceTitle.localeCompare(b.sourceTitle) ||
+      a.targetTitle.localeCompare(b.targetTitle) ||
+      a.reason.localeCompare(b.reason),
+    ),
     recentLogs,
     pages,
   };
@@ -195,6 +229,7 @@ function emptyProjectWikiIndex(projectId: string): ProjectWikiIndex {
       orphanPages: 0,
     },
     links: [],
+    unresolvedLinks: [],
     recentLogs: [],
     pages: [],
   };
@@ -247,6 +282,12 @@ export function projectWikiIndexToPrompt(
       lines.push(
         `- ${log.createdAt} ${log.agent} ${log.action} ${log.noteTitle}${reason}`,
       );
+    }
+  }
+  if (index.unresolvedLinks.length > 0) {
+    lines.push("", "Unresolved wiki links:");
+    for (const link of index.unresolvedLinks) {
+      lines.push(`- ${link.sourceTitle} -> ${link.targetTitle} (${link.reason})`);
     }
   }
   const orphanPages = index.pages

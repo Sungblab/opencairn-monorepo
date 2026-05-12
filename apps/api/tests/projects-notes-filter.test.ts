@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { randomUUID } from "node:crypto";
 import { createApp } from "../src/app.js";
-import { db, notes, researchRuns, wikiLinks, wikiLogs } from "@opencairn/db";
+import { db, eq, notes, researchRuns, wikiLinks, wikiLogs } from "@opencairn/db";
 import {
   seedMultiRoleWorkspace,
   seedWorkspace,
@@ -298,6 +298,12 @@ describe("GET /api/projects/:id/wiki-index", () => {
         targetNoteId: string;
         targetTitle: string;
       }>;
+      unresolvedLinks: Array<{
+        sourceNoteId: string;
+        sourceTitle: string;
+        targetTitle: string;
+        reason: "missing" | "ambiguous";
+      }>;
       recentLogs: Array<{
         noteId: string;
         noteTitle: string;
@@ -327,6 +333,7 @@ describe("GET /api/projects/:id/wiki-index", () => {
         targetTitle: "Compiled concept",
       },
     ]);
+    expect(body.unresolvedLinks).toEqual([]);
     expect(body.recentLogs).toEqual([
       expect.objectContaining({
         noteId: wikiId,
@@ -398,5 +405,56 @@ describe("GET /api/projects/:id/wiki-index", () => {
     expect(body.recentLogs.map((log) => log.noteId)).not.toContain(
       multiSeed.privateNoteId,
     );
+  });
+
+  it("reports unresolved title wiki-link candidates", async () => {
+    seed = await seedWorkspace({ role: "owner" });
+    const sourceId = await insertNote({
+      workspaceId: seed.workspaceId,
+      projectId: seed.projectId,
+      title: "Source with missing title link",
+      type: "wiki",
+    });
+    await db
+      .update(notes)
+      .set({
+        content: [
+          {
+            type: "p",
+            children: [
+              {
+                type: "wikilink",
+                noteId: null,
+                label: "Missing Concept",
+                children: [{ text: "Missing Concept" }],
+              },
+            ],
+          },
+        ],
+      })
+      .where(eq(notes.id, sourceId));
+
+    const res = await authedGet(
+      `/api/projects/${seed.projectId}/wiki-index`,
+      seed.userId,
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json() as {
+      unresolvedLinks: Array<{
+        sourceNoteId: string;
+        sourceTitle: string;
+        targetTitle: string;
+        reason: string;
+      }>;
+    };
+    expect(body.unresolvedLinks).toEqual([
+      {
+        sourceNoteId: sourceId,
+        sourceTitle: "Source with missing title link",
+        targetTitle: "Missing Concept",
+        reason: "missing",
+      },
+    ]);
   });
 });
