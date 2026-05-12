@@ -16,22 +16,33 @@ const CARD_HEIGHT = 178;
 const CARD_PADDING = 24;
 
 function cardGraphLayout(
-  nodeIds: string[],
+  nodes: Array<{ id: string; degree?: number }>,
   edges: GroundedEdge[],
   focusedId: string | null,
 ) {
-  const focusId = focusedId && nodeIds.includes(focusedId) ? focusedId : nodeIds[0];
+  const nodeIds = nodes.map((node) => node.id);
+  const incidentCounts = new Map<string, number>();
+  for (const edge of edges) {
+    incidentCounts.set(edge.sourceId, (incidentCounts.get(edge.sourceId) ?? 0) + 1);
+    incidentCounts.set(edge.targetId, (incidentCounts.get(edge.targetId) ?? 0) + 1);
+  }
+  const defaultFocusId = [...nodes].sort((a, b) => {
+    const edgeDelta = (incidentCounts.get(b.id) ?? 0) - (incidentCounts.get(a.id) ?? 0);
+    if (edgeDelta !== 0) return edgeDelta;
+    return (b.degree ?? 0) - (a.degree ?? 0);
+  })[0]?.id;
+  const resolvedFocusId = focusedId && nodeIds.includes(focusedId) ? focusedId : defaultFocusId;
   const positions = new Map<string, { x: number; y: number }>();
-  if (!focusId) {
+  if (!resolvedFocusId) {
     return { positions, width: 800, height: 420, focusId: null, activeEdgeIds: new Set<string>() };
   }
 
   const activeEdgeIds = new Set<string>();
   const neighborIds: string[] = [];
   for (const edge of edges) {
-    if (edge.sourceId === focusId || edge.targetId === focusId) {
+    if (edge.sourceId === resolvedFocusId || edge.targetId === resolvedFocusId) {
       activeEdgeIds.add(edge.id);
-      const otherId = edge.sourceId === focusId ? edge.targetId : edge.sourceId;
+      const otherId = edge.sourceId === resolvedFocusId ? edge.targetId : edge.sourceId;
       if (nodeIds.includes(otherId) && !neighborIds.includes(otherId)) {
         neighborIds.push(otherId);
       }
@@ -40,7 +51,7 @@ function cardGraphLayout(
 
   const focusX = CARD_PADDING + 360;
   const focusY = CARD_PADDING + 240;
-  positions.set(focusId, { x: focusX, y: focusY });
+  positions.set(resolvedFocusId, { x: focusX, y: focusY });
 
   const ringRadiusX = 390;
   const ringRadiusY = 260;
@@ -52,7 +63,7 @@ function cardGraphLayout(
     });
   });
 
-  const secondaryIds = nodeIds.filter((id) => id !== focusId && !positions.has(id));
+  const secondaryIds = nodeIds.filter((id) => id !== resolvedFocusId && !positions.has(id));
   const secondaryColumns = Math.max(1, Math.min(4, Math.ceil(Math.sqrt(secondaryIds.length))));
   secondaryIds.forEach((id, index) => {
     const row = Math.floor(index / secondaryColumns);
@@ -79,7 +90,7 @@ function cardGraphLayout(
     positions,
     width: Math.max(980, maxX + CARD_PADDING),
     height: Math.max(620, maxY + CARD_PADDING),
-    focusId,
+    focusId: resolvedFocusId,
     activeEdgeIds,
   };
 }
@@ -130,7 +141,7 @@ export default function CardsView({ projectId }: Props) {
   const layout = useMemo(
     () =>
       cardGraphLayout(
-        (data?.nodes ?? []).map((node) => node.id),
+        data?.nodes ?? [],
         data?.edges ?? [],
         focusedConceptId,
       ),
@@ -279,6 +290,7 @@ export default function CardsView({ projectId }: Props) {
           return (
             <div
               key={node.id}
+              data-testid={`concept-card-node-${node.id}`}
               className="absolute rounded-lg transition data-[active=true]:shadow-lg data-[active=true]:ring-2 data-[active=true]:ring-foreground/60"
               style={{
                 left: position.x,
