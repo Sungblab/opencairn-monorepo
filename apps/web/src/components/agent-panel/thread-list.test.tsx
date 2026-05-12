@@ -1,14 +1,16 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { ThreadList } from "./thread-list";
 
 const archiveMutateAsync = vi.fn();
 const setActiveThread = vi.fn();
+const useChatThreadsMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useParams: () => ({ wsSlug: "workspace" }),
+  usePathname: () => "/ko/workspace/workspace/project/project-1",
 }));
 
 vi.mock("next-intl", () => ({
@@ -31,18 +33,7 @@ vi.mock("@/hooks/useWorkspaceId", () => ({
 }));
 
 vi.mock("@/hooks/use-chat-threads", () => ({
-  useChatThreads: () => ({
-    threads: [
-      {
-        id: "thread-1",
-        title: "요약 요청",
-        created_at: "2026-05-11T00:00:00Z",
-        updated_at: "2026-05-11T00:00:00Z",
-      },
-    ],
-    isLoading: false,
-    archive: { mutateAsync: archiveMutateAsync, isPending: false },
-  }),
+  useChatThreads: (...args: unknown[]) => useChatThreadsMock(...args),
 }));
 
 vi.mock("@/stores/threads-store", () => ({
@@ -54,6 +45,23 @@ vi.mock("@/stores/threads-store", () => ({
 }));
 
 describe("ThreadList", () => {
+  beforeEach(() => {
+    useChatThreadsMock.mockReturnValue({
+      threads: [
+        {
+          id: "thread-1",
+          title: "요약 요청",
+          created_at: "2026-05-11T00:00:00Z",
+          updated_at: "2026-05-11T00:00:00Z",
+        },
+      ],
+      isLoading: false,
+      archive: { mutateAsync: archiveMutateAsync, isPending: false },
+    });
+    archiveMutateAsync.mockReset();
+    setActiveThread.mockReset();
+  });
+
   const renderThreadList = () =>
     render(
       <DropdownMenu>
@@ -72,6 +80,7 @@ describe("ThreadList", () => {
         name: "agentPanel.thread_list.delete_aria",
       }),
     ).toBeInTheDocument();
+    expect(useChatThreadsMock).toHaveBeenCalledWith("ws-1", "project-1");
   });
 
   it("archives the selected thread and clears it when delete is clicked", async () => {
