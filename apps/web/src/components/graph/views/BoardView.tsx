@@ -17,6 +17,63 @@ const BOARD_HEIGHT = 920;
 const NODE_WIDTH = 210;
 const NODE_HEIGHT = 58;
 
+function withNoteLinkBoardNodes(
+  nodes: ViewNode[],
+  edges: GroundedEdge[],
+  noteLinks: Array<{
+    sourceNoteId: string;
+    sourceTitle: string;
+    targetNoteId: string;
+    targetTitle: string;
+  }> | undefined,
+): { nodes: ViewNode[]; edges: GroundedEdge[]; noteNodeIds: Set<string> } {
+  if (!noteLinks?.length) return { nodes, edges, noteNodeIds: new Set() };
+  const nodeMap = new Map(nodes.map((node) => [node.id, node]));
+  const noteDegree = new Map<string, number>();
+  const noteTitles = new Map<string, string>();
+  for (const link of noteLinks) {
+    noteTitles.set(link.sourceNoteId, link.sourceTitle);
+    noteTitles.set(link.targetNoteId, link.targetTitle);
+    noteDegree.set(link.sourceNoteId, (noteDegree.get(link.sourceNoteId) ?? 0) + 1);
+    noteDegree.set(link.targetNoteId, (noteDegree.get(link.targetNoteId) ?? 0) + 1);
+  }
+  const noteNodeIds = new Set<string>();
+  for (const [noteId, title] of noteTitles) {
+    if (!nodeMap.has(noteId)) {
+      noteNodeIds.add(noteId);
+      nodeMap.set(noteId, {
+        id: noteId,
+        name: title,
+        description: "",
+        degree: noteDegree.get(noteId) ?? 1,
+        noteCount: 1,
+        firstNoteId: noteId,
+      });
+    }
+  }
+  const edgeMap = new Map(edges.map((edge) => [edge.id, edge]));
+  for (const link of noteLinks) {
+    const id = `note-link:${link.sourceNoteId}->${link.targetNoteId}`;
+    if (edgeMap.has(id)) continue;
+    edgeMap.set(id, {
+      id,
+      sourceId: link.sourceNoteId,
+      targetId: link.targetNoteId,
+      relationType: "wiki-link",
+      weight: 1,
+      surfaceType: "wiki_link",
+      displayOnly: true,
+      sourceNoteIds: [link.sourceNoteId, link.targetNoteId],
+      sourceNoteLinks: [link],
+    });
+  }
+  return {
+    nodes: [...nodeMap.values()],
+    edges: [...edgeMap.values()],
+    noteNodeIds,
+  };
+}
+
 function boardLayout(
   nodes: ViewNode[],
   edges: GroundedEdge[],
@@ -86,14 +143,23 @@ export default function BoardView({ projectId, root }: Props) {
     view: "board",
     root,
   });
+  const projected = useMemo(
+    () =>
+      withNoteLinkBoardNodes(
+        data?.nodes ?? [],
+        data?.edges ?? [],
+        data?.noteLinks,
+      ),
+    [data?.edges, data?.nodes, data?.noteLinks],
+  );
   const initialPositions = useMemo(
     () =>
       boardLayout(
-        data?.nodes ?? [],
-        data?.edges ?? [],
+        projected.nodes,
+        projected.edges,
         data?.rootId ?? root ?? null,
       ),
-    [data?.edges, data?.nodes, data?.rootId, root],
+    [data?.rootId, projected.edges, projected.nodes, root],
   );
   const [positions, setPositions] = useState(initialPositions);
   const dragRef = useRef<{
@@ -117,7 +183,7 @@ export default function BoardView({ projectId, root }: Props) {
       </div>
     );
   }
-  if (!data || data.nodes.length === 0) {
+  if (!data || projected.nodes.length === 0) {
     return (
       <div className="p-6 text-sm text-muted-foreground">
         {t("views.noConcepts")}
@@ -158,7 +224,7 @@ export default function BoardView({ projectId, root }: Props) {
           width={BOARD_WIDTH}
           height={BOARD_HEIGHT}
         >
-          {data.edges.map((edge) => {
+          {projected.edges.map((edge) => {
             const source = positions.get(edge.sourceId);
             const target = positions.get(edge.targetId);
             if (!source || !target) return null;
@@ -191,16 +257,18 @@ export default function BoardView({ projectId, root }: Props) {
             );
           })}
         </svg>
-        {data.nodes.map((node) => {
+        {projected.nodes.map((node) => {
           const pos = positions.get(node.id) ?? { x: 0, y: 0 };
+          const noteOnly = projected.noteNodeIds.has(node.id);
           return (
             <button
               key={node.id}
               type="button"
               data-testid={`board-node-${node.id}`}
               data-role="board-node"
-              className="absolute flex cursor-grab touch-none items-center gap-3 rounded-md border border-border bg-background px-3 py-2 text-left shadow-sm active:cursor-grabbing"
+              className="absolute flex cursor-grab touch-none items-center gap-3 rounded-md border border-border bg-background px-3 py-2 text-left shadow-sm active:cursor-grabbing data-[note=true]:border-blue-500/35 data-[note=true]:bg-blue-500/5"
               data-root={node.id === (data.rootId ?? root ?? null)}
+              data-note={noteOnly}
               style={{ left: pos.x, top: pos.y, width: NODE_WIDTH, minHeight: NODE_HEIGHT }}
               onPointerDown={(event) => {
                 event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -212,7 +280,7 @@ export default function BoardView({ projectId, root }: Props) {
                 };
               }}
             >
-              <span className="size-3 shrink-0 rounded-full bg-foreground/70" />
+              <span className={noteOnly ? "size-3 shrink-0 rounded-full bg-blue-500/80" : "size-3 shrink-0 rounded-full bg-foreground/70"} />
               <span className="min-w-0 truncate text-sm font-medium">{node.name}</span>
             </button>
           );

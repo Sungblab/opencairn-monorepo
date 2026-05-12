@@ -196,4 +196,36 @@ describe("BoardView", () => {
     expect(rootStyle).toContain("top: 431px");
     expect(higherDegreeStyle).not.toContain("left: 615px");
   });
+
+  it("renders standalone note wiki links on the board", () => {
+    (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: {
+        viewType: "board",
+        layout: "preset",
+        rootId: null,
+        nodes: [],
+        edges: [],
+        noteLinks: [
+          {
+            sourceNoteId: "11111111-1111-4111-8111-111111111111",
+            sourceTitle: "Source note",
+            targetNoteId: "22222222-2222-4222-8222-222222222222",
+            targetTitle: "Target note",
+          },
+        ],
+        truncated: false,
+        totalConcepts: 0,
+      },
+      isLoading: false,
+      error: null,
+    });
+    wrap(<BoardView projectId="p-1" />);
+
+    expect(screen.getByText("Source note")).toBeInTheDocument();
+    expect(screen.getByText("Target note")).toBeInTheDocument();
+    expect(screen.getByTestId("board-edge")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("board-node-11111111-1111-4111-8111-111111111111"),
+    ).toHaveAttribute("data-note", "true");
+  });
 });

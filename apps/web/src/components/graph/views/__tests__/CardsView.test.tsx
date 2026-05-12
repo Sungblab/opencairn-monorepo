@@ -216,4 +216,43 @@ describe("CardsView", () => {
     expect(screen.getByRole("button", { name: /질문/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /퀴즈/ })).toBeInTheDocument();
   });
+
+  it("renders standalone note wiki links as connected cards", () => {
+    (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: {
+        viewType: "cards",
+        layout: "preset",
+        rootId: null,
+        nodes: [
+          {
+            id: "11111111-1111-4111-8111-111111111111",
+            name: "Concept",
+            description: "mapped",
+            degree: 1,
+          },
+        ],
+        edges: [],
+        noteLinks: [
+          {
+            sourceNoteId: "22222222-2222-4222-8222-222222222222",
+            sourceTitle: "Standalone source note",
+            targetNoteId: "33333333-3333-4333-8333-333333333333",
+            targetTitle: "Standalone target note",
+          },
+        ],
+        truncated: false,
+        totalConcepts: 1,
+      },
+      isLoading: false,
+      error: null,
+    });
+    wrap(<CardsView projectId="p-1" />);
+
+    expect(screen.getByText("Standalone source note")).toBeInTheDocument();
+    expect(screen.getByText("Standalone target note")).toBeInTheDocument();
+    expect(screen.getByTestId("concept-card-edge")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("concept-card-node-22222222-2222-4222-8222-222222222222"),
+    ).toHaveAttribute("data-active", "true");
+  });
 });
