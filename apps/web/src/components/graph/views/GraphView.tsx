@@ -359,6 +359,7 @@ export default function GraphView({ projectId }: { projectId: string }) {
       const faded = activeNodeId ? !important : false;
       const radius = Math.max(4, Math.min(14, forceNode.val ?? 5));
       const palette = canvasPaletteRef.current;
+      const isNoteHub = forceNode.kind === "note";
       ctx.beginPath();
       ctx.arc(forceNode.x ?? 0, forceNode.y ?? 0, radius, 0, 2 * Math.PI, false);
       ctx.fillStyle = selectedNodeId === forceNode.id
@@ -385,6 +386,7 @@ export default function GraphView({ projectId }: { projectId: string }) {
         ctx.fillStyle = `${forceNode.color}24`;
         ctx.fill();
       }
+      if (isNoteHub) return;
 
       const label = getGraphLabel(forceNode, {
         zoom: globalScale,
@@ -477,6 +479,7 @@ export default function GraphView({ projectId }: { projectId: string }) {
           linkLabel={(link) => link.relationType}
           linkColor={(link) => {
             const palette = canvasPaletteRef.current;
+            if (link.synthetic) return "rgba(115, 115, 115, 0.16)";
             if (!linkActive(link)) return palette.inactiveLink;
             const status = link.supportStatus;
             if (status === "supported") return palette.supportedLink;
@@ -484,13 +487,13 @@ export default function GraphView({ projectId }: { projectId: string }) {
             return palette.activeLink;
           }}
           linkWidth={(link) =>
-            linkActive(link)
+            link.synthetic
+              ? 0.45
+              : linkActive(link)
               ? Math.max(0.8, Math.min(2.2, link.weight * 1.35))
               : 0.35
           }
-          linkDirectionalArrowLength={(link) =>
-            linkActive(link) ? 2.5 : 0
-          }
+          linkDirectionalArrowLength={() => 0}
           linkDirectionalArrowRelPos={1}
           linkLineDash={(link) => {
             const status = link.supportStatus;

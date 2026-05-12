@@ -18,6 +18,7 @@ export type ForceGraphNode = {
   name: string;
   shortLabel: string;
   description: string;
+  kind: "concept" | "note";
   degree: number;
   noteCount: number;
   firstNoteId: string | null;
@@ -33,6 +34,7 @@ export type ForceGraphLink = {
   relationType: string;
   weight: number;
   supportStatus?: string;
+  synthetic?: boolean;
 };
 
 export type ForceGraphData = {
@@ -79,13 +81,16 @@ function graphNodeColor(id: string, degree: number): string {
 export function buildForceGraphData(
   snap: GroundedGraphResponse,
 ): ForceGraphData {
+  const noteIds = new Set<string>();
   const nodes = snap.nodes.map((node) => {
     const degree = node.degree ?? 0;
+    if (node.firstNoteId) noteIds.add(node.firstNoteId);
     return {
       id: node.id,
       name: node.name,
       shortLabel: truncateGraphLabel(node.name),
       description: node.description ?? "",
+      kind: "concept" as const,
       degree,
       noteCount: node.noteCount ?? 0,
       firstNoteId: node.firstNoteId ?? null,
@@ -94,6 +99,20 @@ export function buildForceGraphData(
       isHub: degree >= HUB_DEGREE_THRESHOLD,
     };
   });
+  const noteHubNodes: ForceGraphNode[] = [...noteIds].map((noteId) => ({
+    id: `note:${noteId}`,
+    name: "출처 노트",
+    shortLabel: "",
+    description: "",
+    kind: "note",
+    degree: snap.nodes.filter((node) => node.firstNoteId === noteId).length,
+    noteCount: 1,
+    firstNoteId: noteId,
+    val: 18,
+    color: HUB_NODE_COLOR,
+    isHub: true,
+  }));
+  const allNodes = [...nodes, ...noteHubNodes];
   const topNodeIds = new Set(
     [...nodes]
       .sort((a, b) => b.degree - a.degree || a.name.localeCompare(b.name))
@@ -108,8 +127,18 @@ export function buildForceGraphData(
     weight: edge.weight,
     supportStatus: edge.support?.status,
   }));
+  const noteHubLinks: ForceGraphLink[] = snap.nodes
+    .filter((node) => Boolean(node.firstNoteId))
+    .map((node) => ({
+      edgeId: `note:${node.firstNoteId}:${node.id}`,
+      source: `note:${node.firstNoteId}`,
+      target: node.id,
+      relationType: "source-note",
+      weight: 1,
+      synthetic: true,
+    }));
 
-  return { nodes, links, topNodeIds };
+  return { nodes: allNodes, links: [...noteHubLinks, ...links], topNodeIds };
 }
 
 export function getGraphNeighborhood(
