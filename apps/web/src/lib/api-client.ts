@@ -709,6 +709,29 @@ export interface ProjectWikiIndexPage {
   outboundLinks: number;
 }
 
+export interface ProjectWikiIndexLink {
+  sourceNoteId: string;
+  sourceTitle: string;
+  targetNoteId: string;
+  targetTitle: string;
+}
+
+export interface ProjectWikiIndexUnresolvedLink {
+  sourceNoteId: string;
+  sourceTitle: string;
+  targetTitle: string;
+  reason: "missing" | "ambiguous";
+}
+
+export interface ProjectWikiIndexLog {
+  noteId: string;
+  noteTitle: string;
+  agent: string;
+  action: string;
+  reason: string | null;
+  createdAt: string;
+}
+
 export interface ProjectWikiIndex {
   projectId: string;
   generatedAt: string;
@@ -718,6 +741,9 @@ export interface ProjectWikiIndex {
     wikiLinks: number;
     orphanPages: number;
   };
+  links: ProjectWikiIndexLink[];
+  unresolvedLinks: ProjectWikiIndexUnresolvedLink[];
+  recentLogs: ProjectWikiIndexLog[];
   pages: ProjectWikiIndexPage[];
 }
 export const projectsApi = {
