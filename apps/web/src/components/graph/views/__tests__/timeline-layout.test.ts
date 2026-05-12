@@ -89,4 +89,20 @@ describe("layoutTimeline", () => {
 
     expect(new Set(out.nodes.map((node) => node.x)).size).toBe(3);
   });
+
+  it("spreads duplicate years even when the timeline spans multiple years", () => {
+    const out = layoutTimeline(
+      nodes([
+        { id: "a", name: "early", eventYear: 2020 },
+        { id: "b", name: "same 1", eventYear: 2026 },
+        { id: "c", name: "same 2", eventYear: 2026 },
+        { id: "d", name: "late", eventYear: 2030 },
+      ]),
+    );
+
+    const sameYearXs = out.nodes
+      .filter((node) => node.year === 2026)
+      .map((node) => node.x);
+    expect(new Set(sameYearXs).size).toBe(2);
+  });
 });

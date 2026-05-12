@@ -96,8 +96,14 @@ export function layoutTimeline(input: ViewNode[]): TimelineLayout {
   const width = Math.max(MIN_WIDTH, input.length * NODE_PADDING_X);
   const indexByLane = new Map<TimelineLaneId, number>();
   const totalByLane = new Map<TimelineLaneId, number>();
+  const indexByLaneYear = new Map<string, number>();
+  const totalByLaneYear = new Map<string, number>();
   for (const entry of entries) {
     totalByLane.set(entry.lane, (totalByLane.get(entry.lane) ?? 0) + 1);
+    if (entry.year !== null) {
+      const key = `${entry.lane}:${entry.year}`;
+      totalByLaneYear.set(key, (totalByLaneYear.get(key) ?? 0) + 1);
+    }
   }
 
   const positionedNodes: PositionedNode[] = entries.map(({ node, year, lane }, index) => {
@@ -110,12 +116,25 @@ export function layoutTimeline(input: ViewNode[]): TimelineLayout {
         : sameYear
           ? index / Math.max(1, dated.length - 1)
           : (year - minYear) / span;
+    const duplicateYearOffset = (() => {
+      if (year === null || sameYear) return 0;
+      const key = `${lane}:${year}`;
+      const total = totalByLaneYear.get(key) ?? 1;
+      if (total <= 1) return 0;
+      const used = indexByLaneYear.get(key) ?? 0;
+      indexByLaneYear.set(key, used + 1);
+      return (used - (total - 1) / 2) * 42;
+    })();
+    const baseX = NODE_PADDING_X / 2 + ratio * (width - NODE_PADDING_X);
     return {
       id: node.id,
       name: node.name,
       description: node.description,
       firstNoteId: node.firstNoteId ?? null,
-      x: NODE_PADDING_X / 2 + ratio * (width - NODE_PADDING_X),
+      x: Math.max(
+        NODE_PADDING_X / 2,
+        Math.min(width - NODE_PADDING_X / 2, baseX + duplicateYearOffset),
+      ),
       y: laneY(lane),
       year,
       lane,
