@@ -35,6 +35,7 @@ export const agentActionRiskEnum = pgEnum("agent_action_risk", [
 
 export const agentActionKindEnum = pgEnum("agent_action_kind", [
   "workflow.placeholder",
+  "interaction.choice",
   "note.create",
   "note.update",
   "note.rename",

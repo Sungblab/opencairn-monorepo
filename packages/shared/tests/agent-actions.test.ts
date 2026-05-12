@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createAgentActionRequestSchema,
+  interactionChoiceRespondRequestSchema,
   noteUpdateApplyRequestSchema,
   noteUpdateApplyResultSchema,
   noteUpdatePreviewSchema,
@@ -18,6 +19,65 @@ describe("agent action schemas", () => {
 
     expect(parsed.kind).toBe("workflow.placeholder");
     expect(parsed.input).toEqual({ label: "phase-1-smoke" });
+  });
+
+  it("accepts an interaction.choice action request and response", () => {
+    const parsed = createAgentActionRequestSchema.parse({
+      requestId: "00000000-0000-4000-8000-000000000001",
+      kind: "interaction.choice",
+      risk: "low",
+      approvalMode: "auto_safe",
+      input: {
+        cardId: "format",
+        prompt: "어떤 형태로 만들까요?",
+        options: [
+          {
+            id: "summary",
+            label: "요약 노트",
+            value: "요약 노트로 만들어줘",
+          },
+        ],
+        allowCustom: true,
+        source: {},
+      },
+    });
+
+    expect(parsed.kind).toBe("interaction.choice");
+    expect(
+      interactionChoiceRespondRequestSchema.parse({
+        optionId: "summary",
+        value: "요약 노트로 만들어줘",
+        label: "요약 노트",
+      }),
+    ).toMatchObject({ optionId: "summary" });
+  });
+
+  it("rejects scoped interaction.choice followup payloads", () => {
+    const parsed = createAgentActionRequestSchema.safeParse({
+      kind: "interaction.choice",
+      risk: "low",
+      input: {
+        cardId: "format",
+        prompt: "어떤 형태로 만들까요?",
+        options: [
+          {
+            id: "summary",
+            label: "요약 노트",
+            value: "요약 노트로 만들어줘",
+            followup: {
+              kind: "note.create",
+              risk: "write",
+              input: { title: "Forged", projectId: "00000000-0000-4000-8000-000000000099" },
+            },
+          },
+        ],
+      },
+    });
+
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues.map((issue) => issue.message)).toContain(
+      "scope_fields_are_server_injected",
+    );
   });
 
   it("accepts an explicit ask-before-action approval mode", () => {
