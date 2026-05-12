@@ -19,6 +19,7 @@ from .base import (
     ProviderConfig,
     SearchResult,
     ThinkingResult,
+    TranscriptionResult,
 )
 from .batch_types import (
     BATCH_STATE_CANCELLED,
@@ -390,7 +391,7 @@ class GeminiProvider(LLMProvider):
                 return inline.data
         return None
 
-    async def transcribe(self, audio: bytes) -> str | None:
+    async def transcribe(self, audio: bytes) -> TranscriptionResult | None:
         response = await self._client.aio.models.generate_content(
             model=self.config.model,
             contents=[
@@ -401,7 +402,12 @@ class GeminiProvider(LLMProvider):
             ],
             **self._generate_config_call_kwargs(),
         )
-        return response.text
+        return TranscriptionResult(
+            text=response.text or "",
+            provider="gemini",
+            model=self.config.model,
+            segments=[],
+        )
 
     def supports_ocr(self) -> bool:
         return True

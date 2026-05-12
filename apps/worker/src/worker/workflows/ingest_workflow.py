@@ -269,7 +269,7 @@ class IngestWorkflow:
                 heartbeat_timeout=_LONG_HEARTBEAT,
                 retry_policy=_RETRY,
             )
-            text = result["transcript"]
+            text = result.get("text") or result["transcript"]
         elif mime.startswith("image/"):
             result = await workflow.execute_activity(
                 "analyze_image",

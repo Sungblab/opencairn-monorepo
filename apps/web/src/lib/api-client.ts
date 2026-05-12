@@ -16,6 +16,9 @@ import type {
   NoteUpdateApplyRequest,
   ProjectObjectAction,
   RecoverAgenticPlanStepRequest,
+  SessionRecording,
+  StudySession,
+  StudySessionTranscriptResponse,
   StartAgenticPlanRequest,
   TransitionAgentActionStatusRequest,
   WorkflowConsoleRun,
@@ -530,6 +533,36 @@ export const workflowConsoleApi = {
 };
 
 export type { WorkflowConsoleRun, WorkflowConsoleStatus };
+
+export const studySessionsApi = {
+  list: (projectId: string, options?: { sourceNoteId?: string }) => {
+    const params = new URLSearchParams();
+    if (options?.sourceNoteId) params.set("sourceNoteId", options.sourceNoteId);
+    const suffix = params.size > 0 ? `?${params.toString()}` : "";
+    return apiClient<{ sessions: StudySession[] }>(
+      `/projects/${projectId}/study-sessions${suffix}`,
+    );
+  },
+  create: (body: {
+    projectId: string;
+    title?: string;
+    sourceNoteId?: string;
+  }) =>
+    apiClient<{ session: StudySession }>("/study-sessions", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  recordings: (sessionId: string) =>
+    apiClient<{ recordings: SessionRecording[] }>(
+      `/study-sessions/${sessionId}/recordings`,
+    ),
+  transcript: (sessionId: string) =>
+    apiClient<StudySessionTranscriptResponse>(
+      `/study-sessions/${sessionId}/transcript`,
+    ),
+};
+
+export type { SessionRecording, StudySession, StudySessionTranscriptResponse };
 
 export const importJobsApi = {
   retry: (jobId: string) =>

@@ -308,7 +308,11 @@ async def test_transcribe_returns_text(provider):
         new=AsyncMock(return_value=mock_response),
     ):
         result = await provider.transcribe(b"audio-data")
-    assert result == "transcribed text"
+    assert result is not None
+    assert result.text == "transcribed text"
+    assert result.provider == "gemini"
+    assert result.model == provider.config.model
+    assert result.segments == []
 
 
 @pytest.mark.asyncio
