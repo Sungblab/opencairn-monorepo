@@ -166,12 +166,17 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
     : null;
   const sendInFlightRef = useRef(false);
   useEffect(() => {
+    let timeoutId: number | undefined;
     function updateSelectionText() {
-      setSelectionText(window.getSelection()?.toString() ?? "");
+      if (timeoutId) window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(() => {
+        setSelectionText(window.getSelection()?.toString() ?? "");
+      }, 200);
     }
     document.addEventListener("selectionchange", updateSelectionText);
     return () => {
       document.removeEventListener("selectionchange", updateSelectionText);
+      if (timeoutId) window.clearTimeout(timeoutId);
     };
   }, []);
 
@@ -480,6 +485,8 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
 
   const handleInteractionCardSubmit = useCallback(
     (input: InteractionCardSubmit) => {
+      if (!workspaceId || sendInFlightRef.current) return;
+
       handleSend({
         content: input.value,
         mode: "auto",
@@ -488,21 +495,25 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
 
       const action = input.option?.action;
       if (action?.type !== "create_note_draft") return;
+
+      const projectId = activeProjectId;
+      const contextTitle = activeTab?.title;
+      const inputValue = input.value;
+      const inputLabel = input.label;
       void (async () => {
-        const projectId = await resolveProjectId();
         if (!projectId) {
           toast.error(t("interaction_note_failed"));
           return;
         }
         const title =
           action.title ??
-          `${input.label} - ${activeTab?.title ?? t("interaction_note_title")}`;
+          `${inputLabel} - ${contextTitle ?? t("interaction_note_title")}`;
         const note = await api.createNote({
           projectId,
           title,
           content: noteDraftContentFromText(
-            action.body ?? input.value,
-            activeTab?.title,
+            action.body ?? inputValue,
+            contextTitle,
           ),
         });
         useTabsStore.getState().addTab(
@@ -516,7 +527,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
         );
       })().catch(() => toast.error(t("interaction_note_failed")));
     },
-    [activeTab?.title, handleSend, resolveProjectId, t],
+    [activeProjectId, activeTab?.title, handleSend, t, workspaceId],
   );
 
   // Validates the SSE payload, inserts markdown into the active Plate editor,
