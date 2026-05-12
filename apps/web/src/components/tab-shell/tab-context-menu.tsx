@@ -26,6 +26,7 @@ export function TabContextMenuItems({ tab, wsSlug }: TabContextMenuItemsProps) {
   const closeOthers = useTabsStore((s) => s.closeOthers);
   const closeRight = useTabsStore((s) => s.closeRight);
   const addTab = useTabsStore((s) => s.addTab);
+  const openTabToRight = useTabsStore((s) => s.openTabToRight);
 
   const duplicate = () =>
     addTab(
@@ -34,6 +35,17 @@ export function TabContextMenuItems({ tab, wsSlug }: TabContextMenuItemsProps) {
         targetId: tab.targetId,
         title: tab.title,
         mode: tab.mode,
+        preview: false,
+      }),
+    );
+
+  const openToRight = () =>
+    openTabToRight(
+      newTab({
+        kind: tab.kind,
+        targetId: tab.targetId,
+        title: tab.title,
+        mode: tab.kind === "note" && tab.mode === "plate" ? "reading" : tab.mode,
         preview: false,
       }),
     );
@@ -61,6 +73,9 @@ export function TabContextMenuItems({ tab, wsSlug }: TabContextMenuItemsProps) {
         {tab.pinned ? t("unpin") : t("pin")}
       </ContextMenuItem>
       <ContextMenuItem onClick={duplicate}>{t("duplicate")}</ContextMenuItem>
+      <ContextMenuItem onClick={openToRight}>
+        {t("openToRight")}
+      </ContextMenuItem>
       <ContextMenuSeparator />
       <TabModeSubmenu tab={tab} />
       <ContextMenuSeparator />

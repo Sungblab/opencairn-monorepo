@@ -15,6 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { Tab } from "@/stores/tabs-store";
+import { useTabsStore } from "@/stores/tabs-store";
 import { useShellLabels } from "@/components/shell/shell-labels";
 import { useResolvedTabTitle } from "@/lib/resolve-tab-title";
 
@@ -45,6 +46,13 @@ export function TabItem({ tab, active, onClick, onClose }: TabItemProps) {
   const { tabs: labels } = useShellLabels();
   const resolvedTitle = useResolvedTabTitle(tab);
   const Icon = tabIcons[tab.kind];
+  const splitRole = useTabsStore((s) =>
+    s.split?.primaryTabId === tab.id
+      ? "primary"
+      : s.split?.secondaryTabId === tab.id
+        ? "secondary"
+        : null,
+  );
   return (
     <div
       role="tab"
@@ -88,6 +96,18 @@ export function TabItem({ tab, active, onClick, onClose }: TabItemProps) {
         <span
           aria-label={labels.item.unsaved}
           className="h-1.5 w-1.5 shrink-0 rounded-full bg-foreground"
+        />
+      ) : null}
+      {splitRole ? (
+        <span
+          aria-label={
+            splitRole === "primary"
+              ? labels.item.splitPrimary
+              : labels.item.splitSecondary
+          }
+          className={`h-4 w-1 shrink-0 rounded-full ${
+            splitRole === "primary" ? "bg-primary" : "bg-accent-foreground/70"
+          }`}
         />
       ) : null}
       {tab.pinned ? (

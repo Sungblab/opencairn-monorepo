@@ -46,12 +46,15 @@
     "item": {
       "close": "Close",
       "pinned": "Pinned",
-      "unsaved": "Unsaved"
+      "unsaved": "Unsaved",
+      "splitPrimary": "Left split tab",
+      "splitSecondary": "Right split tab"
     },
     "menu": {
       "pin": "Pin",
       "unpin": "Unpin",
       "duplicate": "Duplicate",
+      "openToRight": "Open to right",
       "close": "Close",
       "closeOthers": "Close other tabs",
       "closeRight": "Close tabs to the right",

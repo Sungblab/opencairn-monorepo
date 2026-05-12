@@ -12,6 +12,13 @@ function FallbackTabItem({ tab, active }: { tab: Tab; active: boolean }) {
   const navigateToTab = useTabNavigate();
   const closeTab = useTabsStore((s) => s.closeTab);
   const setActive = useTabsStore((s) => s.setActive);
+  const splitRole = useTabsStore((s) =>
+    s.split?.primaryTabId === tab.id
+      ? "primary"
+      : s.split?.secondaryTabId === tab.id
+        ? "secondary"
+        : null,
+  );
   const isTransient =
     tab.kind === "ingest" ||
     tab.kind === "lit_search" ||
@@ -58,6 +65,18 @@ function FallbackTabItem({ tab, active }: { tab: Tab; active: boolean }) {
         <span
           aria-label={labels.item.unsaved}
           className="h-1.5 w-1.5 shrink-0 rounded-full bg-foreground"
+        />
+      ) : null}
+      {splitRole ? (
+        <span
+          aria-label={
+            splitRole === "primary"
+              ? labels.item.splitPrimary
+              : labels.item.splitSecondary
+          }
+          className={`h-4 w-1 shrink-0 rounded-full ${
+            splitRole === "primary" ? "bg-primary" : "bg-accent-foreground/70"
+          }`}
         />
       ) : null}
       {tab.pinned ? null : (

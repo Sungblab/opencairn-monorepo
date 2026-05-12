@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTabsStore, type Tab } from "./tabs-store";
 
 const mk = (p: Partial<Tab> = {}): Tab => ({
@@ -239,6 +239,208 @@ describe("tabs-store extensions", () => {
       expect(useTabsStore.getState().closedStack.map((t) => t.id)).toEqual([
         "a",
       ]);
+    });
+  });
+
+  describe("split layout", () => {
+    it("filters stale recent ids when loading persisted tab state", () => {
+      useTabsStore.setState(useTabsStore.getInitialState(), true);
+      localStorage.setItem(
+        "oc:tabs:ws-a",
+        JSON.stringify({
+          version: 1,
+          tabs: [mk({ id: "current" })],
+          activeId: "missing",
+          activePane: "primary",
+          split: null,
+          closedStack: [],
+          recentlyActiveTabIds: ["missing", "current"],
+        }),
+      );
+
+      useTabsStore.getState().setWorkspace("ws-a");
+
+      expect(useTabsStore.getState().activeId).toBe("current");
+      expect(useTabsStore.getState().recentlyActiveTabIds).toEqual([
+        "current",
+      ]);
+    });
+
+    it("loads legacy splitWith/splitSide fields into a versioned split layout", () => {
+      localStorage.setItem(
+        "oc:tabs:ws-legacy",
+        JSON.stringify({
+          tabs: [
+            mk({
+              id: "left",
+              splitWith: "right",
+              splitSide: "left",
+            }),
+            mk({
+              id: "right",
+              targetId: "n2",
+              splitWith: "left",
+              splitSide: "right",
+            }),
+          ],
+          activeId: "left",
+          closedStack: [],
+        }),
+      );
+
+      useTabsStore.getState().setWorkspace("ws-legacy");
+
+      expect(useTabsStore.getState().split).toEqual({
+        primaryTabId: "left",
+        secondaryTabId: "right",
+        orientation: "vertical",
+        ratio: 0.5,
+      });
+      expect(useTabsStore.getState().activePane).toBe("primary");
+    });
+
+    it("openTabToRight creates a vertical split and promotes preview tabs", () => {
+      useTabsStore.getState().addTab(mk({ id: "left" }));
+      useTabsStore
+        .getState()
+        .openTabToRight(mk({ id: "right", targetId: "n2", preview: true }));
+
+      const state = useTabsStore.getState();
+      expect(state.tabs.map((tab) => tab.id)).toEqual(["left", "right"]);
+      expect(state.tabs.find((tab) => tab.id === "right")?.preview).toBe(
+        false,
+      );
+      expect(state.split).toEqual({
+        primaryTabId: "left",
+        secondaryTabId: "right",
+        orientation: "vertical",
+        ratio: 0.5,
+      });
+      expect(state.activeId).toBe("right");
+      expect(state.activePane).toBe("secondary");
+    });
+
+    it("openTabToRight reuses an existing tab with the same kind and target", () => {
+      useTabsStore.getState().addTab(mk({ id: "left" }));
+      useTabsStore
+        .getState()
+        .addTab(mk({ id: "existing", targetId: "n2", preview: true }));
+      useTabsStore.getState().setActive("left");
+
+      useTabsStore
+        .getState()
+        .openTabToRight(mk({ id: "new", targetId: "n2", preview: true }));
+
+      const state = useTabsStore.getState();
+      expect(state.tabs.map((tab) => tab.id)).toEqual(["left", "existing"]);
+      expect(state.tabs.find((tab) => tab.id === "existing")?.preview).toBe(
+        false,
+      );
+      expect(state.split?.secondaryTabId).toBe("existing");
+    });
+
+    it("closing a split tab dissolves the split and focuses the surviving tab", () => {
+      useTabsStore.getState().addTab(mk({ id: "left" }));
+      useTabsStore.getState().openTabToRight(mk({ id: "right" }));
+
+      useTabsStore.getState().closeTab("right");
+
+      expect(useTabsStore.getState().split).toBeNull();
+      expect(useTabsStore.getState().activeId).toBe("left");
+      expect(useTabsStore.getState().activePane).toBe("primary");
+    });
+
+    it("setActive dissolves the split when activating a tab outside the split", () => {
+      useTabsStore.getState().addTab(mk({ id: "left" }));
+      useTabsStore.getState().addTab(mk({ id: "outside" }));
+      useTabsStore.getState().setActive("left");
+      useTabsStore.getState().openTabToRight(mk({ id: "right" }));
+
+      useTabsStore.getState().setActive("outside");
+
+      expect(useTabsStore.getState().split).toBeNull();
+      expect(useTabsStore.getState().activeId).toBe("outside");
+      expect(useTabsStore.getState().activePane).toBe("primary");
+      const raw = JSON.parse(localStorage.getItem("oc:tabs:ws-a")!);
+      expect(raw.split).toBeNull();
+      expect(raw.activeId).toBe("outside");
+    });
+
+    it("swapSplitPanes swaps pane ids and keeps the same active tab", () => {
+      useTabsStore.getState().addTab(mk({ id: "left" }));
+      useTabsStore.getState().openTabToRight(mk({ id: "right" }));
+      useTabsStore.getState().setActivePane("secondary");
+
+      useTabsStore.getState().swapSplitPanes();
+
+      expect(useTabsStore.getState().split).toMatchObject({
+        primaryTabId: "right",
+        secondaryTabId: "left",
+      });
+      expect(useTabsStore.getState().activeId).toBe("right");
+      expect(useTabsStore.getState().activePane).toBe("primary");
+    });
+
+    it("setActivePane is a no-op when the pane is already active", () => {
+      useTabsStore.getState().addTab(mk({ id: "left" }));
+      useTabsStore.getState().openTabToRight(mk({ id: "right" }));
+      expect(useTabsStore.getState().activePane).toBe("secondary");
+      const setItem = vi.spyOn(Storage.prototype, "setItem");
+      setItem.mockClear();
+
+      useTabsStore.getState().setActivePane("secondary");
+
+      expect(setItem).not.toHaveBeenCalled();
+      expect(useTabsStore.getState().recentlyActiveTabIds).toEqual([
+        "right",
+        "left",
+      ]);
+      setItem.mockRestore();
+    });
+
+    it("setSplitRatio clamps and persists the split ratio", () => {
+      useTabsStore.getState().addTab(mk({ id: "left" }));
+      useTabsStore.getState().openTabToRight(mk({ id: "right" }));
+
+      useTabsStore.getState().setSplitRatio(0.9);
+
+      expect(useTabsStore.getState().split?.ratio).toBe(0.75);
+      const raw = JSON.parse(localStorage.getItem("oc:tabs:ws-a")!);
+      expect(raw.split.ratio).toBe(0.75);
+    });
+
+    it("unsplit keeps the requested pane active", () => {
+      useTabsStore.getState().addTab(mk({ id: "left" }));
+      useTabsStore.getState().openTabToRight(mk({ id: "right" }));
+
+      useTabsStore.getState().unsplit("primary");
+
+      expect(useTabsStore.getState().split).toBeNull();
+      expect(useTabsStore.getState().activeId).toBe("left");
+      expect(useTabsStore.getState().activePane).toBe("primary");
+    });
+
+    it("addTab dissolves the split so the newly active tab is visible", () => {
+      useTabsStore.getState().addTab(mk({ id: "left" }));
+      useTabsStore.getState().openTabToRight(mk({ id: "right" }));
+
+      useTabsStore.getState().addTab(mk({ id: "new" }));
+
+      expect(useTabsStore.getState().split).toBeNull();
+      expect(useTabsStore.getState().activeId).toBe("new");
+    });
+
+    it("restoreClosed dissolves the split so the restored active tab is visible", () => {
+      useTabsStore.getState().addTab(mk({ id: "left" }));
+      useTabsStore.getState().addTab(mk({ id: "closed" }));
+      useTabsStore.getState().closeTab("closed");
+      useTabsStore.getState().setActive("left");
+      useTabsStore.getState().openTabToRight(mk({ id: "right" }));
+
+      useTabsStore.getState().restoreClosed();
+
+      expect(useTabsStore.getState().split).toBeNull();
+      expect(useTabsStore.getState().activeId).toBe("closed");
     });
   });
 });

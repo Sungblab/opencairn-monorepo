@@ -218,4 +218,54 @@ describe("useTabKeyboard", () => {
     });
     expect(useTabsStore.getState().tabs).toHaveLength(2);
   });
+
+  it("⌘⌥] activates the next OpenCairn tab without relying on browser tab shortcuts", () => {
+    seed(["a", "b", "c"]);
+    renderHook(() => useTabKeyboard());
+    useTabsStore.getState().setActive("a");
+
+    act(() => press("]", { alt: true }));
+
+    expect(useTabsStore.getState().activeId).toBe("b");
+  });
+
+  it("⌘⌥[ activates the previous OpenCairn tab without relying on browser tab shortcuts", () => {
+    seed(["a", "b", "c"]);
+    renderHook(() => useTabKeyboard());
+    useTabsStore.getState().setActive("a");
+
+    act(() => press("[", { alt: true }));
+
+    expect(useTabsStore.getState().activeId).toBe("c");
+  });
+
+  it("⌘⌥\\ toggles the active split when there are at least two tabs", () => {
+    seed(["a", "b"]);
+    renderHook(() => useTabKeyboard());
+    useTabsStore.getState().setActive("a");
+
+    act(() => press("\\", { alt: true }));
+
+    expect(useTabsStore.getState().split).toMatchObject({
+      primaryTabId: "a",
+      secondaryTabId: "b",
+    });
+
+    act(() => press("\\", { alt: true }));
+
+    expect(useTabsStore.getState().split).toBeNull();
+  });
+
+  it("⌘⇧W closes the active split pane while keeping the other pane open", () => {
+    seed(["a", "b"]);
+    useTabsStore.getState().setActive("a");
+    useTabsStore.getState().openTabToRight(mk({ id: "b" }));
+    renderHook(() => useTabKeyboard());
+
+    act(() => press("w", { shift: true }));
+
+    expect(useTabsStore.getState().tabs.map((tab) => tab.id)).toEqual(["a"]);
+    expect(useTabsStore.getState().split).toBeNull();
+    expect(useTabsStore.getState().activeId).toBe("a");
+  });
 });

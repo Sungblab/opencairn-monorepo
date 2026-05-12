@@ -122,4 +122,16 @@ describe("TabBar", () => {
     renderTabBar();
     expect(screen.getByTestId("tab-overflow-trigger")).toBeInTheDocument();
   });
+
+  it("marks tabs that are currently assigned to split panes", () => {
+    useTabsStore.getState().addTab(mk({ id: "left", title: "Left" }));
+    useTabsStore
+      .getState()
+      .openTabToRight(mk({ id: "right", title: "Right", targetId: "n2" }));
+
+    renderTabBar();
+
+    expect(screen.getByLabelText("splitPrimary")).toBeInTheDocument();
+    expect(screen.getByLabelText("splitSecondary")).toBeInTheDocument();
+  });
 });

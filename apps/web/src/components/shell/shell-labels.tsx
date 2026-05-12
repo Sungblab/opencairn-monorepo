@@ -32,6 +32,8 @@ export interface ShellLabels {
       close: string;
       pinned: string;
       unsaved: string;
+      splitPrimary: string;
+      splitSecondary: string;
     };
     titles: Record<ShellTabTitleKey, string>;
   };

@@ -24,6 +24,8 @@ export async function getShellLabels(): Promise<ShellLabels> {
         close: tabItem("close"),
         pinned: tabItem("pinned"),
         unsaved: tabItem("unsaved"),
+        splitPrimary: tabItem("splitPrimary"),
+        splitSecondary: tabItem("splitSecondary"),
       },
       titles: {
         dashboard: tabTitles("dashboard"),

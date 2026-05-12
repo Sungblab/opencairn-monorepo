@@ -84,6 +84,55 @@ describe("TabContextMenuItems", () => {
     expect(tabs[1].id).not.toBe("a");
   });
 
+  it("openToRight → opens a note tab in reading mode in the secondary split pane", () => {
+    useTabsStore.getState().addTab(mk({ id: "a", targetId: "n1" }));
+    render(
+      <Harness>
+        <TabContextMenuItems tab={mk({ id: "a" })} wsSlug="acme" />
+      </Harness>,
+    );
+
+    fireEvent.click(screen.getByText("openToRight"));
+
+    const state = useTabsStore.getState();
+    expect(state.tabs).toHaveLength(2);
+    expect(state.split).toMatchObject({
+      primaryTabId: "a",
+      secondaryTabId: state.tabs[1].id,
+    });
+    expect(state.tabs[1]).toMatchObject({
+      kind: "note",
+      targetId: "n1",
+      mode: "reading",
+      preview: false,
+    });
+  });
+
+  it("openToRight reuses an already open tab with the same note target", () => {
+    useTabsStore.getState().addTab(mk({ id: "a", targetId: "n1" }));
+    useTabsStore
+      .getState()
+      .addTab(mk({ id: "existing", targetId: "n2", mode: "reading" }));
+    useTabsStore.getState().setActive("a");
+    render(
+      <Harness>
+        <TabContextMenuItems
+          tab={mk({ id: "a", targetId: "n2" })}
+          wsSlug="acme"
+        />
+      </Harness>,
+    );
+
+    fireEvent.click(screen.getByText("openToRight"));
+
+    const state = useTabsStore.getState();
+    expect(state.tabs.map((tab) => tab.id)).toEqual(["a", "existing"]);
+    expect(state.split).toMatchObject({
+      primaryTabId: "a",
+      secondaryTabId: "existing",
+    });
+  });
+
   it("close → closeTab removes the tab", () => {
     useTabsStore.getState().addTab(mk({ id: "a" }));
     useTabsStore.getState().addTab(mk({ id: "b" }));

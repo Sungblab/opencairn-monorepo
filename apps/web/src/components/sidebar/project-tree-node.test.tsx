@@ -620,6 +620,163 @@ describe("ProjectTreeNode", () => {
     expect(push).toHaveBeenCalledWith("/ko/workspace/acme/note/n-1");
   });
 
+  it("opens a note row into the secondary split pane from the row action menu", () => {
+    useTabsStore.getState().setWorkspace("ws-sidebar");
+    useTabsStore.getState().addTab({
+      id: "active-note",
+      kind: "note",
+      targetId: "active",
+      mode: "plate",
+      title: "Active",
+      pinned: false,
+      preview: false,
+      dirty: false,
+      splitWith: null,
+      splitSide: null,
+      scrollY: 0,
+    });
+    const node = mkNode({
+      kind: "note",
+      id: "tree-note-right",
+      target_id: "note-right",
+      parent_id: "f1",
+      label: "Reference note",
+      child_count: 0,
+    });
+    renderNode(node);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "sidebar.tree_menu.row_actions" }),
+    );
+    fireEvent.click(
+      screen.getByRole("menuitem", {
+        name: "sidebar.tree_menu.open_to_right",
+      }),
+    );
+
+    const state = useTabsStore.getState();
+    expect(state.split).toMatchObject({
+      primaryTabId: "active-note",
+      secondaryTabId: expect.any(String),
+    });
+    expect(state.activePane).toBe("secondary");
+    expect(state.tabs.at(-1)).toMatchObject({
+      kind: "note",
+      targetId: "note-right",
+      title: "Reference note",
+      mode: "reading",
+      preview: false,
+    });
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("reuses an already open note tab when opening a sidebar row to the right", () => {
+    useTabsStore.getState().setWorkspace("ws-sidebar");
+    useTabsStore.getState().addTab({
+      id: "active-note",
+      kind: "note",
+      targetId: "active",
+      mode: "plate",
+      title: "Active",
+      pinned: false,
+      preview: false,
+      dirty: false,
+      splitWith: null,
+      splitSide: null,
+      scrollY: 0,
+    });
+    useTabsStore.getState().addTab({
+      id: "existing-note",
+      kind: "note",
+      targetId: "note-right",
+      mode: "reading",
+      title: "Reference note",
+      pinned: false,
+      preview: true,
+      dirty: false,
+      splitWith: null,
+      splitSide: null,
+      scrollY: 0,
+    });
+    useTabsStore.getState().setActive("active-note");
+    const node = mkNode({
+      kind: "note",
+      id: "tree-note-right",
+      target_id: "note-right",
+      parent_id: "f1",
+      label: "Reference note",
+      child_count: 0,
+    });
+    renderNode(node);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "sidebar.tree_menu.row_actions" }),
+    );
+    fireEvent.click(
+      screen.getByRole("menuitem", {
+        name: "sidebar.tree_menu.open_to_right",
+      }),
+    );
+
+    const state = useTabsStore.getState();
+    expect(state.tabs.map((tab) => tab.id)).toEqual([
+      "active-note",
+      "existing-note",
+    ]);
+    expect(state.tabs.find((tab) => tab.id === "existing-note")?.preview).toBe(
+      false,
+    );
+    expect(state.split).toMatchObject({
+      primaryTabId: "active-note",
+      secondaryTabId: "existing-note",
+    });
+  });
+
+  it("opens a source bundle into the secondary split pane from the row action menu", () => {
+    useTabsStore.getState().setWorkspace("ws-sidebar");
+    useTabsStore.getState().addTab({
+      id: "active-note",
+      kind: "note",
+      targetId: "active",
+      mode: "plate",
+      title: "Active",
+      pinned: false,
+      preview: false,
+      dirty: false,
+      splitWith: null,
+      splitSide: null,
+      scrollY: 0,
+    });
+    const node = mkNode({
+      kind: "source_bundle",
+      id: "bundle-row",
+      target_id: "file-target",
+      parent_id: null,
+      label: "Lecture.pdf",
+      child_count: 0,
+      file_kind: "pdf",
+      mime_type: "application/pdf",
+    });
+    renderNode(node);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "sidebar.tree_menu.row_actions" }),
+    );
+    fireEvent.click(
+      screen.getByRole("menuitem", {
+        name: "sidebar.tree_menu.open_to_right",
+      }),
+    );
+
+    expect(useTabsStore.getState().tabs.at(-1)).toMatchObject({
+      kind: "agent_file",
+      targetId: "file-target",
+      title: "Lecture.pdf",
+      mode: "agent-file",
+      preview: false,
+    });
+  });
+
   it("activates an existing tab when its note is clicked again", () => {
     useTabsStore.setState({
       workspaceId: "ws-1",

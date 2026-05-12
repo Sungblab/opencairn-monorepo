@@ -17,6 +17,8 @@ export const testShellLabels: ShellLabels = {
       close: "close",
       pinned: "pinned",
       unsaved: "unsaved",
+      splitPrimary: "splitPrimary",
+      splitSecondary: "splitSecondary",
     },
     titles: {
       dashboard: "대시보드",
