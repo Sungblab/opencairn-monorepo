@@ -11,6 +11,7 @@ export function Pricing({ locale }: { locale: Locale }) {
   const soloBullets = t.raw("solo.bullets") as string[];
   const soloBulletsMuted = t.raw("solo.bulletsMuted") as string[];
   const teamBullets = t.raw("team.bullets") as string[];
+  const maxBullets = t.raw("max.bullets") as string[];
   const byokBullets = t.raw("byok.bullets") as string[];
   const byokMuted = t.raw("byok.bulletsMuted") as string[];
 
@@ -33,14 +34,14 @@ export function Pricing({ locale }: { locale: Locale }) {
         <div className="grid grid-cols-12 border border-stone-700 rounded-2xl overflow-hidden reveal-stagger">
           {/* Solo */}
           <div
-            className="col-span-12 md:col-span-4 p-8 flex flex-col"
+            className="col-span-12 md:col-span-3 p-8 flex flex-col"
             style={{ borderRight: "1px solid #2A2823", borderBottom: "1px solid #2A2823" }}
           >
             <div className="flex items-baseline justify-between mb-5">
               <span className="font-sans text-[11px] tracking-widest text-stone-300 uppercase">{t("solo.name")}</span>
               <span className="font-sans text-[10px] tracking-widest text-stone-500 uppercase">{t("solo.cat")}</span>
             </div>
-            <div className="font-sans text-5xl mb-2 text-stone-50">{t("solo.price")}</div>
+            <div className="font-sans text-4xl lg:text-5xl mb-2 text-stone-50">{t("solo.price")}</div>
             <p className="font-sans text-[11px] tracking-wider text-stone-500 mb-6 uppercase">{t("solo.tagline")}</p>
             <ul className="text-[13px] text-stone-300 space-y-2.5 mb-8 flex-1 kr">
               {soloBullets.map((b, i) => (
@@ -64,7 +65,7 @@ export function Pricing({ locale }: { locale: Locale }) {
 
           {/* Team (featured) */}
           <div
-            className="col-span-12 md:col-span-4 p-8 flex flex-col relative"
+            className="col-span-12 md:col-span-3 p-8 flex flex-col relative"
             style={{
               background: "#FAFAFA",
               color: "#171717",
@@ -81,7 +82,7 @@ export function Pricing({ locale }: { locale: Locale }) {
                 {t("team.cat")}
               </span>
             </div>
-            <div className="font-sans text-5xl mb-1" style={{ color: "#171717" }}>
+            <div className="font-sans text-4xl lg:text-5xl mb-1" style={{ color: "#171717" }}>
               {t("team.price")}
               <span className="text-lg" style={{ color: "#525252" }}>
                 {" "}
@@ -126,13 +127,45 @@ export function Pricing({ locale }: { locale: Locale }) {
             </p>
           </div>
 
+          {/* Max */}
+          <div
+            className="col-span-12 md:col-span-3 p-8 flex flex-col"
+            style={{ borderRight: "1px solid #2A2823", borderBottom: "1px solid #2A2823" }}
+          >
+            <div className="flex items-baseline justify-between mb-5">
+              <span className="font-sans text-[11px] tracking-widest text-stone-300 uppercase">{t("max.name")}</span>
+              <span className="font-sans text-[10px] tracking-widest text-stone-500 uppercase">{t("max.cat")}</span>
+            </div>
+            <div className="font-sans text-4xl lg:text-5xl mb-1 text-stone-50">
+              {t("max.price")}
+              <span className="text-lg text-stone-500"> {t("max.unit")}</span>
+            </div>
+            <p className="font-sans text-[11px] tracking-wider text-stone-500 mb-6 uppercase">{t("max.tagline")}</p>
+            <ul className="text-[13px] text-stone-300 space-y-2.5 mb-8 flex-1 kr">
+              {maxBullets.map((b, i) => (
+                <li key={i}>
+                  · <Html html={b} />
+                </li>
+              ))}
+            </ul>
+            <a
+              href={`/${locale}/auth/login`}
+              className="block text-center border border-stone-50 text-stone-50 hover:bg-stone-50 hover:text-stone-900 font-sans text-[12px] tracking-widest px-6 py-3 rounded-md transition-colors"
+            >
+              {t("max.cta")}
+            </a>
+            <p className="font-sans text-[10px] tracking-widest text-center mt-3 uppercase text-stone-500">
+              {t("max.guarantee")}
+            </p>
+          </div>
+
           {/* BYOK */}
-          <div className="col-span-12 md:col-span-4 p-8 flex flex-col" style={{ borderBottom: "1px solid #2A2823" }}>
+          <div className="col-span-12 md:col-span-3 p-8 flex flex-col" style={{ borderBottom: "1px solid #2A2823" }}>
             <div className="flex items-baseline justify-between mb-5">
               <span className="font-sans text-[11px] tracking-widest text-stone-300 uppercase">{t("byok.name")}</span>
               <span className="font-sans text-[10px] tracking-widest text-stone-500 uppercase">{t("byok.cat")}</span>
             </div>
-            <div className="font-sans text-5xl mb-1 text-stone-50">
+            <div className="font-sans text-4xl lg:text-5xl mb-1 text-stone-50">
               {t("byok.price")}
               <span className="text-lg text-stone-500"> {t("byok.unit")}</span>
             </div>

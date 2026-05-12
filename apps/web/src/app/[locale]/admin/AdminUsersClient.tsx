@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
+import { userPlanValues, type UserPlan } from "@opencairn/shared";
 import {
   Activity,
   AlertTriangle,
@@ -40,7 +41,7 @@ interface AdminUser {
   email: string;
   name: string;
   emailVerified: boolean;
-  plan: "free" | "pro" | "byok";
+  plan: UserPlan;
   isSiteAdmin: boolean;
   createdAt: string;
 }
@@ -916,7 +917,7 @@ export function AdminUsersClient({
                     }
                     className="h-9 border border-border bg-background px-2 text-sm font-semibold uppercase"
                   >
-                    {(["free", "pro", "byok"] as const).map((plan) => (
+                    {userPlanValues.map((plan) => (
                       <option key={plan} value={plan}>
                         {plan}
                       </option>
@@ -1008,7 +1009,7 @@ export function AdminUsersClient({
                 onPageChange={(page) => setPageFor("subscriptionUsers", page)}
                 onPageSizeChange={handlePageSizeChange}
                 idPrefix="user"
-                options={["free", "pro", "byok"]}
+                options={[...userPlanValues]}
                 getValue={(row) => row.plan}
                 getName={(row) => row.name}
                 getMeta={(row) => row.email}

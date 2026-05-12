@@ -332,61 +332,77 @@
   "pricing": {
     "label": "PRICING",
     "title1": "Hosted pricing",
-    "title2": "is still in planning.",
-    "sub": "Open-source self-hosting is usable today. Managed cloud pricing, credits, refunds, and auto top-up will be finalized after the hosted billing rail and business registration.",
+    "title2": "starts with credits.",
+    "sub": "Core features stay open, while monthly credits control free and paid usage. Included credits and detailed limits may change as operating costs change.",
     "solo": {
-      "name": "Solo",
-      "cat": "self-host · dev",
+      "name": "Free",
+      "cat": "managed · starter",
       "price": "₩0",
-      "tagline": "Run it yourself · no app billing",
+      "tagline": "Start free · 500 credits/month",
       "bullets": [
-        "AGPLv3 self-hosting",
-        "Gemini or Ollama provider configuration",
-        "AI workflows activate by flag and configuration",
-        "Data limits are controlled by your deployment settings",
-        "Bring your own Gemini key (BYOK) optional"
+        "Hosted workspace start",
+        "<b>500 credits</b> included monthly",
+        "Docs, notes, and basic AI features",
+        "Upgrade when usage exceeds the free pool",
+        "Open-source self-hosting remains available"
       ],
-      "bulletsMuted": ["Community support"],
+      "bulletsMuted": ["Built for onboarding"],
       "cta": "Sign in"
     },
     "team": {
-      "name": "Team",
-      "cat": "planned · hosted",
-      "price": "TBD",
-      "unit": "/seat/mo",
-      "tagline": "Collaborative hosting · pricing TBD",
+      "name": "Pro",
+      "cat": "managed · personal",
+      "price": "₩9,900",
+      "unit": "/mo",
+      "tagline": "Personal work · 8,000 credits/month",
       "payg": {
-        "label": "CASH",
-        "line1": "Credits and payment rail are not active yet",
-        "line2": "Cost previews and hard caps are planned"
+        "label": "Credits",
+        "line1": "<b>8,000 credits</b> included monthly",
+        "line2": "Large AI jobs show estimated credit usage before running"
       },
       "bullets": [
-        "Team workspaces · guests · public links",
-        "Deep Research priority queue planned",
-        "<b>10 GB</b> storage target",
-        "1-year activity log retention",
-        "Workspace usage and quota UI planned",
-        "Email support planned"
+        "Managed Gemini 3 calls included",
+        "Document generation, summarization, and RAG",
+        "Core connectors and workspace features",
+        "Usage and remaining-credit UI",
+        "Top up or upgrade to Max for excess usage"
       ],
-      "cta": "View hosted plan",
-      "guarantee": "Refund policy comes after payment integration"
+      "cta": "Start Pro",
+      "guarantee": "Monthly allowances may change with operating costs"
+    },
+    "max": {
+      "name": "Max",
+      "cat": "managed · heavy",
+      "price": "₩19,900",
+      "unit": "/mo",
+      "tagline": "Heavy usage · 18,000 credits/month",
+      "bullets": [
+        "<b>18,000 credits</b> included monthly",
+        "Long documents, large RAG jobs, and research",
+        "Batch embeddings and cache-aware usage",
+        "Higher monthly usage than Pro",
+        "Additional top-ups planned"
+      ],
+      "cta": "Start Max",
+      "guarantee": "Fair-use limits may apply"
     },
     "byok": {
       "name": "BYOK",
       "cat": "your key · solo",
-      "price": "TBD",
+      "price": "₩4,900",
       "unit": "/mo",
-      "tagline": "Your Gemini key · supported paths first",
+      "tagline": "Your Gemini key · no managed credits",
       "bullets": [
-        "Hosted BYOK is planned",
         "Your Gemini key (encrypted at rest)",
-        "API usage billed by you",
-        "10 GB storage target"
+        "LLM API usage billed to your account",
+        "OpenCairn hosting and product features",
+        "No monthly managed credits",
+        "Use Pro or Max for managed calls"
       ],
-      "bulletsMuted": ["For collaboration, see Team"],
+      "bulletsMuted": ["For users comfortable with API costs"],
       "cta": "Start with BYOK"
     },
-    "footnote": "Managed billing, VAT, refunds, and auto top-up are not connected to the product yet.",
+    "footnote": "Prices are monthly subscription prices. Billing, VAT, refunds, and auto top-up follow launch-time terms.",
     "refundLinkLabel": "Refund policy",
     "secondary": {
       "label": "OTHER ROUTES",
