@@ -8,6 +8,8 @@ describe("projectWikiIndexToPrompt", () => {
   it("summarizes linked project pages for chat context", () => {
     const index: ProjectWikiIndex = {
       projectId: "project-1",
+      generatedAt: "2026-05-13T00:01:00.000Z",
+      latestPageUpdatedAt: "2026-05-13T00:00:00.000Z",
       totals: { pages: 3, wikiLinks: 4 },
       pages: [
         {
@@ -34,6 +36,12 @@ describe("projectWikiIndexToPrompt", () => {
     };
 
     expect(projectWikiIndexToPrompt(index)).toContain("## Project Wiki Index");
+    expect(projectWikiIndexToPrompt(index)).toContain(
+      "Generated at: 2026-05-13T00:01:00.000Z",
+    );
+    expect(projectWikiIndexToPrompt(index)).toContain(
+      "Latest page update: 2026-05-13T00:00:00.000Z",
+    );
     expect(projectWikiIndexToPrompt(index)).toContain("Pages: 3");
     expect(projectWikiIndexToPrompt(index)).toContain("Wiki links: 4");
     expect(projectWikiIndexToPrompt(index)).toContain(

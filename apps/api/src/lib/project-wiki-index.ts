@@ -23,6 +23,8 @@ export type ProjectWikiIndexPage = {
 
 export type ProjectWikiIndex = {
   projectId: string;
+  generatedAt: string;
+  latestPageUpdatedAt: string | null;
   totals: {
     pages: number;
     wikiLinks: number;
@@ -106,9 +108,12 @@ export async function buildProjectWikiIndex(opts: {
     inboundLinks: inbound.get(note.id) ?? 0,
     outboundLinks: outbound.get(note.id) ?? 0,
   }));
+  const latestPageUpdatedAt = visibleNotes[0]?.updatedAt.toISOString() ?? null;
 
   return {
     projectId: opts.projectId,
+    generatedAt: new Date().toISOString(),
+    latestPageUpdatedAt,
     totals: {
       pages: visibleNotes.length,
       wikiLinks: wikiLinkTotal,
@@ -120,6 +125,8 @@ export async function buildProjectWikiIndex(opts: {
 function emptyProjectWikiIndex(projectId: string): ProjectWikiIndex {
   return {
     projectId,
+    generatedAt: new Date().toISOString(),
+    latestPageUpdatedAt: null,
     totals: {
       pages: 0,
       wikiLinks: 0,
@@ -135,6 +142,8 @@ export function projectWikiIndexToPrompt(
   const lines = [
     "## Project Wiki Index",
     `Project: ${index.projectId}`,
+    `Generated at: ${index.generatedAt}`,
+    `Latest page update: ${index.latestPageUpdatedAt ?? "none"}`,
     `Pages: ${index.totals.pages}`,
     `Wiki links: ${index.totals.wikiLinks}`,
   ];
