@@ -29,7 +29,7 @@ export default async function AuthLayout({
           {/* TOP — logo */}
           <a
             href={`/${locale}`}
-            className="self-start font-serif text-2xl text-stone-50 hover:bg-stone-50 hover:text-stone-900 px-3 py-1 rounded-md transition-colors relative z-10 auth-rise-1"
+            className="self-start font-serif text-2xl font-bold text-stone-50 hover:bg-stone-50 hover:text-stone-900 px-3 py-1 rounded-md transition-colors relative z-10 auth-rise-1"
           >
             OpenCairn
           </a>
@@ -77,7 +77,7 @@ export default async function AuthLayout({
           {/* Mobile-only logo */}
           <a
             href={`/${locale}`}
-            className="lg:hidden mb-8 font-serif text-2xl text-stone-900 hover:bg-stone-900 hover:text-stone-50 px-3 py-1 rounded-md transition-colors"
+            className="lg:hidden mb-8 font-serif text-2xl font-bold text-stone-900 hover:bg-stone-900 hover:text-stone-50 px-3 py-1 rounded-md transition-colors"
           >
             OpenCairn
           </a>
