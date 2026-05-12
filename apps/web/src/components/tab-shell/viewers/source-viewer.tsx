@@ -30,6 +30,7 @@ const EmbedPDFViewer = dynamic<PDFViewerProps>(
 );
 
 const READ_ONLY_DISABLED_CATEGORIES = [
+  "annotation",
   "redaction",
   "signature",
   "stamp",

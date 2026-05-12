@@ -222,6 +222,9 @@ describe("SourceViewer", () => {
     expect(pdfViewerMock.props.at(-1)?.config.zoom).toEqual({
       defaultZoomLevel: "fit-width",
     });
+    expect(pdfViewerMock.props.at(-1)?.config.disabledCategories).toContain(
+      "annotation",
+    );
   });
 
   it("renders nothing when targetId is null", () => {
