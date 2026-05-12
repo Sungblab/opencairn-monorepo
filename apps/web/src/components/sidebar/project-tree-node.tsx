@@ -297,7 +297,7 @@ export function ProjectTreeNode({
   function openToRight() {
     const tab = splitTabForNode();
     if (!tab) return;
-    useTabsStore.getState().openTabToRight(tab, { reuseExisting: false });
+    useTabsStore.getState().openTabToRight(tab);
   }
 
   function closeActionMenu() {

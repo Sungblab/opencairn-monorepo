@@ -45,10 +45,9 @@ export function TabContextMenuItems({ tab, wsSlug }: TabContextMenuItemsProps) {
         kind: tab.kind,
         targetId: tab.targetId,
         title: tab.title,
-        mode: tab.mode,
+        mode: tab.kind === "note" && tab.mode === "plate" ? "reading" : tab.mode,
         preview: false,
       }),
-      { reuseExisting: false },
     );
 
   const copyLink = () => {

@@ -670,6 +670,68 @@ describe("ProjectTreeNode", () => {
     expect(push).not.toHaveBeenCalled();
   });
 
+  it("reuses an already open note tab when opening a sidebar row to the right", () => {
+    useTabsStore.getState().setWorkspace("ws-sidebar");
+    useTabsStore.getState().addTab({
+      id: "active-note",
+      kind: "note",
+      targetId: "active",
+      mode: "plate",
+      title: "Active",
+      pinned: false,
+      preview: false,
+      dirty: false,
+      splitWith: null,
+      splitSide: null,
+      scrollY: 0,
+    });
+    useTabsStore.getState().addTab({
+      id: "existing-note",
+      kind: "note",
+      targetId: "note-right",
+      mode: "reading",
+      title: "Reference note",
+      pinned: false,
+      preview: true,
+      dirty: false,
+      splitWith: null,
+      splitSide: null,
+      scrollY: 0,
+    });
+    useTabsStore.getState().setActive("active-note");
+    const node = mkNode({
+      kind: "note",
+      id: "tree-note-right",
+      target_id: "note-right",
+      parent_id: "f1",
+      label: "Reference note",
+      child_count: 0,
+    });
+    renderNode(node);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "sidebar.tree_menu.row_actions" }),
+    );
+    fireEvent.click(
+      screen.getByRole("menuitem", {
+        name: "sidebar.tree_menu.open_to_right",
+      }),
+    );
+
+    const state = useTabsStore.getState();
+    expect(state.tabs.map((tab) => tab.id)).toEqual([
+      "active-note",
+      "existing-note",
+    ]);
+    expect(state.tabs.find((tab) => tab.id === "existing-note")?.preview).toBe(
+      false,
+    );
+    expect(state.split).toMatchObject({
+      primaryTabId: "active-note",
+      secondaryTabId: "existing-note",
+    });
+  });
+
   it("opens a source bundle into the secondary split pane from the row action menu", () => {
     useTabsStore.getState().setWorkspace("ws-sidebar");
     useTabsStore.getState().addTab({

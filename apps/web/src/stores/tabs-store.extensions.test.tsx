@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTabsStore, type Tab } from "./tabs-store";
 
 const mk = (p: Partial<Tab> = {}): Tab => ({
@@ -243,6 +243,29 @@ describe("tabs-store extensions", () => {
   });
 
   describe("split layout", () => {
+    it("filters stale recent ids when loading persisted tab state", () => {
+      useTabsStore.setState(useTabsStore.getInitialState(), true);
+      localStorage.setItem(
+        "oc:tabs:ws-a",
+        JSON.stringify({
+          version: 1,
+          tabs: [mk({ id: "current" })],
+          activeId: "missing",
+          activePane: "primary",
+          split: null,
+          closedStack: [],
+          recentlyActiveTabIds: ["missing", "current"],
+        }),
+      );
+
+      useTabsStore.getState().setWorkspace("ws-a");
+
+      expect(useTabsStore.getState().activeId).toBe("current");
+      expect(useTabsStore.getState().recentlyActiveTabIds).toEqual([
+        "current",
+      ]);
+    });
+
     it("loads legacy splitWith/splitSide fields into a versioned split layout", () => {
       localStorage.setItem(
         "oc:tabs:ws-legacy",
@@ -340,6 +363,23 @@ describe("tabs-store extensions", () => {
       });
       expect(useTabsStore.getState().activeId).toBe("right");
       expect(useTabsStore.getState().activePane).toBe("primary");
+    });
+
+    it("setActivePane is a no-op when the pane is already active", () => {
+      useTabsStore.getState().addTab(mk({ id: "left" }));
+      useTabsStore.getState().openTabToRight(mk({ id: "right" }));
+      expect(useTabsStore.getState().activePane).toBe("secondary");
+      const setItem = vi.spyOn(Storage.prototype, "setItem");
+      setItem.mockClear();
+
+      useTabsStore.getState().setActivePane("secondary");
+
+      expect(setItem).not.toHaveBeenCalled();
+      expect(useTabsStore.getState().recentlyActiveTabIds).toEqual([
+        "right",
+        "left",
+      ]);
+      setItem.mockRestore();
     });
 
     it("setSplitRatio clamps and persists the split ratio", () => {

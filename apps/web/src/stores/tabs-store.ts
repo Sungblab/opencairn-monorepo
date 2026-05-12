@@ -214,7 +214,7 @@ function addRecent(
   recentlyActiveTabIds: string[],
   id: string | null,
 ): string[] {
-  if (!id) return recentlyActiveTabIds;
+  if (!id || recentlyActiveTabIds[0] === id) return recentlyActiveTabIds;
   return [
     id,
     ...recentlyActiveTabIds.filter((existing) => existing !== id),
@@ -234,7 +234,9 @@ function normalizePersisted(parsed: Partial<Persisted>): Persisted {
     ? parsed.closedStack
     : [];
   const recentlyActiveTabIds = Array.isArray(parsed.recentlyActiveTabIds)
-    ? parsed.recentlyActiveTabIds.filter((id): id is string => typeof id === "string")
+    ? parsed.recentlyActiveTabIds.filter(
+        (id): id is string => typeof id === "string" && tabExists(tabs, id),
+      )
     : [];
   const split = sanitizeSplit(tabs, parsed.split) ?? deriveLegacySplit(tabs);
   const activeId = tabExists(tabs, parsed.activeId)
@@ -649,7 +651,7 @@ export const useTabsStore = create<State>((set, get) => ({
 
   setActivePane: (pane) => {
     const s = get();
-    if (!s.split) return;
+    if (!s.split || s.activePane === pane) return;
     const activeId = tabIdForPane(s.split, pane);
     const recentlyActiveTabIds = addRecent(s.recentlyActiveTabIds, activeId);
     set({ activePane: pane, activeId, recentlyActiveTabIds });
