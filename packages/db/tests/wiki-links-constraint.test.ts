@@ -117,4 +117,25 @@ describe("wiki_links table", () => {
       .where(eq(wikiLinks.sourceNoteId, source.id));
     expect(rows).toEqual([{ sourceNoteId: source.id, targetNoteId: target.id }]);
   });
+
+  it("does not resolve ambiguous title wiki-link targets", async () => {
+    const [source] = await db
+      .insert(notes)
+      .values({ title: "Ambiguous Source", projectId, workspaceId })
+      .returning();
+    await db.insert(notes).values([
+      { title: "Duplicate Title", projectId, workspaceId },
+      { title: "Duplicate Title", projectId, workspaceId },
+    ]);
+
+    await db.transaction((tx) =>
+      syncWikiLinks(tx, source.id, new Set(["Duplicate Title"]), workspaceId),
+    );
+
+    const rows = await db
+      .select({ targetNoteId: wikiLinks.targetNoteId })
+      .from(wikiLinks)
+      .where(eq(wikiLinks.sourceNoteId, source.id));
+    expect(rows).toEqual([]);
+  });
 });
