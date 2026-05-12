@@ -1,6 +1,7 @@
 "use client";
 import { Check, MoreHorizontal } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useMemo } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,7 +43,7 @@ function TabOverflowItem({
     >
       <span
         className={cn(
-          "block flex-1 whitespace-nowrap",
+          "block min-w-0 flex-1 truncate",
           tab.preview && "italic text-neutral-500",
         )}
         title={title}
@@ -65,6 +66,13 @@ export function TabOverflowMenu({
   const activeId = useTabsStore((s) => s.activeId);
   const navigateToTab = useTabNavigate();
   const t = useTranslations("appShell.tabs.bar");
+  const menuWidth = useMemo(() => {
+    const longestTitle = Math.max(
+      t("overflowTitle").length,
+      ...tabs.map((tab) => (tab.title || "").length),
+    );
+    return `clamp(14rem, ${Math.min(Math.max(longestTitle + 4, 18), 36)}ch, calc(100vw - 16px))`;
+  }, [tabs, t]);
 
   if (tabs.length === 0) return null;
 
@@ -81,6 +89,7 @@ export function TabOverflowMenu({
         align="end"
         sideOffset={2}
         className="max-w-[calc(100vw-16px)] overflow-hidden rounded-md border border-neutral-200 bg-white p-0 text-neutral-950 shadow-md ring-0"
+        style={{ width: menuWidth }}
       >
         <div className="border-b border-neutral-200 px-3 py-2.5">
           <p className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">
