@@ -21,6 +21,13 @@ export type ProjectWikiIndexPage = {
   outboundLinks: number;
 };
 
+export type ProjectWikiIndexLink = {
+  sourceNoteId: string;
+  sourceTitle: string;
+  targetNoteId: string;
+  targetTitle: string;
+};
+
 export type ProjectWikiIndex = {
   projectId: string;
   generatedAt: string;
@@ -30,6 +37,7 @@ export type ProjectWikiIndex = {
     wikiLinks: number;
     orphanPages: number;
   };
+  links: ProjectWikiIndexLink[];
   pages: ProjectWikiIndexPage[];
 };
 
@@ -89,6 +97,8 @@ export async function buildProjectWikiIndex(opts: {
 
   const inbound = new Map<string, number>();
   const outbound = new Map<string, number>();
+  const titleById = new Map(visibleNotes.map((note) => [note.id, note.title]));
+  const links: ProjectWikiIndexLink[] = [];
   let wikiLinkTotal = 0;
   for (const link of linkRows) {
     if (!noteIds.has(link.sourceNoteId) || !noteIds.has(link.targetNoteId)) {
@@ -97,6 +107,12 @@ export async function buildProjectWikiIndex(opts: {
     wikiLinkTotal += 1;
     outbound.set(link.sourceNoteId, (outbound.get(link.sourceNoteId) ?? 0) + 1);
     inbound.set(link.targetNoteId, (inbound.get(link.targetNoteId) ?? 0) + 1);
+    links.push({
+      sourceNoteId: link.sourceNoteId,
+      sourceTitle: titleById.get(link.sourceNoteId) ?? link.sourceNoteId,
+      targetNoteId: link.targetNoteId,
+      targetTitle: titleById.get(link.targetNoteId) ?? link.targetNoteId,
+    });
   }
 
   const pages = visibleNotes.map((note) => ({
@@ -123,6 +139,10 @@ export async function buildProjectWikiIndex(opts: {
       wikiLinks: wikiLinkTotal,
       orphanPages,
     },
+    links: links.sort((a, b) =>
+      a.sourceTitle.localeCompare(b.sourceTitle) ||
+      a.targetTitle.localeCompare(b.targetTitle),
+    ),
     pages,
   };
 }
@@ -137,13 +157,14 @@ function emptyProjectWikiIndex(projectId: string): ProjectWikiIndex {
       wikiLinks: 0,
       orphanPages: 0,
     },
+    links: [],
     pages: [],
   };
 }
 
 export function projectWikiIndexToPrompt(
   index: ProjectWikiIndex,
-  opts: { pageLimit?: number; orphanLimit?: number } = {},
+  opts: { pageLimit?: number; linkLimit?: number; orphanLimit?: number } = {},
 ): string {
   const lines = [
     "## Project Wiki Index",
@@ -170,6 +191,16 @@ export function projectWikiIndexToPrompt(
       lines.push(
         `- ${page.title} (${page.type}; in:${page.inboundLinks}, out:${page.outboundLinks})${summary}`,
       );
+    }
+  }
+  if (index.links.length > 0) {
+    lines.push("", "Wiki link map:");
+    const limitedLinks =
+      typeof opts.linkLimit === "number"
+        ? index.links.slice(0, opts.linkLimit)
+        : index.links;
+    for (const link of limitedLinks) {
+      lines.push(`- ${link.sourceTitle} -> ${link.targetTitle}`);
     }
   }
   const orphanPages = index.pages

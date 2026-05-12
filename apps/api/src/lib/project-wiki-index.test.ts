@@ -11,6 +11,14 @@ describe("projectWikiIndexToPrompt", () => {
       generatedAt: "2026-05-13T00:01:00.000Z",
       latestPageUpdatedAt: "2026-05-13T00:00:00.000Z",
       totals: { pages: 3, wikiLinks: 4, orphanPages: 1 },
+      links: [
+        {
+          sourceNoteId: "n2",
+          sourceTitle: "Compiler",
+          targetNoteId: "n3",
+          targetTitle: "Runtime",
+        },
+      ],
       pages: [
         {
           id: "n1",
@@ -50,6 +58,9 @@ describe("projectWikiIndexToPrompt", () => {
     );
     expect(projectWikiIndexToPrompt(index)).toContain(
       "- Compiler (wiki; in:3, out:1) - Maintains wiki pages.",
+    );
+    expect(projectWikiIndexToPrompt(index)).toContain(
+      "Wiki link map:\n- Compiler -> Runtime",
     );
   });
 });
