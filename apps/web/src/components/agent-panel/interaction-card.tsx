@@ -112,7 +112,7 @@ export function InteractionCard({
             type="button"
             disabled={disabled}
             onClick={() => submitOption(option)}
-            className="rounded-[var(--radius-control)] border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/45 hover:bg-primary/10 disabled:opacity-50"
+            className="rounded-[var(--radius-control)] border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-foreground hover:bg-muted/40 disabled:pointer-events-none disabled:opacity-50"
           >
             {option.label}
           </button>
@@ -137,7 +137,7 @@ export function InteractionCard({
             type="button"
             onClick={submitCustom}
             disabled={disabled || !customValue.trim()}
-            className="rounded-[var(--radius-control)] border border-border px-2 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+            className="rounded-[var(--radius-control)] border border-border px-2 py-1 text-xs font-medium text-foreground transition-colors hover:border-foreground hover:bg-muted/40 disabled:pointer-events-none disabled:opacity-50"
           >
             {t("customSubmit")}
           </button>
