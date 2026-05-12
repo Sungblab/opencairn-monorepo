@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "OpenCairn — AI Knowledge OS",
-    "description": "Turn files and notes into a grounded wiki with AI workflows, evidence, and connection surfaces. Self-hostable · AGPLv3 + commercial license.",
+    "description": "Delegate files and notes to agent workflows that build a grounded wiki with evidence and connection surfaces. Self-hostable · AGPLv3 + commercial license.",
     "ogDescription": "OpenCairn weaves PDFs, papers, and documents into a wiki with grounded Q&A and graph surfaces."
   },
   "nav": {
@@ -25,13 +25,13 @@
     "titleLine2": "what you write.",
     "titleBrand": "OpenCairn",
     "titleLine3": "knows what you read.",
-    "sub": "Drop in PDFs, papers, documents, and supported media. AI <b>weaves them into a wiki</b>, <b>suggests connections</b>, and <b>checks how well you understand</b> what's there. The AI workflow backbone activates in stages.",
+    "sub": "Drop in PDFs, papers, documents, and supported media. Agents <b>weave them into a wiki</b>, <b>suggest connections</b>, and <b>check how well you understand</b> what's there. The agent workflow backbone activates in stages.",
     "ctaPrimary": "Sign in",
     "ctaSecondary": "See pricing",
-    "noCard": "AI workflows included",
+    "noCard": "Agent workflows included",
     "selfhostLink": "Developer? Self-hosting guide ↗",
     "spec": {
-      "agents": "ai roles",
+      "agents": "agents",
       "agentsVal": "staged",
       "parsers": "parsers",
       "parsersVal": "pdf · mp3 · mp4 · m4a",
@@ -44,7 +44,7 @@
     },
     "activity": {
       "title": "PREVIEW · WORKSPACE",
-      "meta": "AI role backbone · demo log",
+      "meta": "Agent backbone · demo log",
       "footer": "Agent activity demo (real runs ship in stages)",
       "timeLabels": ["just now", "1m ago", "3m ago", "6m ago"],
       "items": [
@@ -67,7 +67,7 @@
       "compiling": "● compiling",
       "input": "INPUT",
       "inputItems": ["Paper PDF", "DOCX · PPTX", "Markdown ZIP", "Google Drive file", "Supported media"],
-      "agentsHeader": "AI WORKFLOWS",
+      "agentsHeader": "AGENT WORKFLOWS",
       "orchestration": "orchestration",
       "status": "● running · staged",
       "output": "OUTPUT",
@@ -139,7 +139,7 @@
   },
   "agents": {
     "label": "AGENTS",
-    "title1": "AI roles,",
+    "title1": "Specialized agents,",
     "title2": "each with a narrow job.",
     "sub": "Twelve roles are defined in the long-term architecture. The shipped product mixes runtime agents, workflow-backed features, and feature-flagged surfaces — check the public roadmap for what's currently active.",
     "items": [
@@ -197,7 +197,7 @@
     "label": "WORKSPACE",
     "title1": "Same shape for a solo user",
     "title2": "as for a whole lab.",
-    "sub": "Wiki pages aren't just text — they're the meeting point of sources, agents, and teammates. Every page carries its citations, editors, and agent activity with it.",
+    "sub": "Wiki pages aren't just text — they're the meeting point of sources, agents, and teammates. Every page carries its citations, editors, and agent workflow history with it.",
     "mock": {
       "chromePath": "opencairn.local / studio-kim / research-wiki",
       "sideWorkspace": "WORKSPACE",

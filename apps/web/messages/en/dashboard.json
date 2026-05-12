@@ -18,11 +18,11 @@
     "titleEmpty": "Add one source and OpenCairn starts working.",
     "titleActive": "Start today's workspace work from one place.",
     "descEmpty": "Start with a file, link, or pasted text. OpenCairn will guide you toward a summary, suggested questions, and the first note.",
-    "descActive": "Recent documents and running work stay below. New sources and AI work can start here whenever you need them.",
+    "descActive": "Recent documents and running work stay below. New sources and agent work can start here whenever you need them.",
     "steps": {
       "source": "Add sources",
       "project": "Shape a project",
-      "agent": "Start AI work"
+      "agent": "Delegate to agents"
     },
     "actions": {
       "import": {
@@ -34,8 +34,8 @@
         "desc": "Set up a focused area and organize notes by topic."
       },
       "ask": {
-        "title": "Ask AI",
-        "desc": "Ask across the workspace and turn context into next steps."
+        "title": "Ask an agent",
+        "desc": "Ask across the workspace and turn context into the next agent tasks."
       }
     }
   },
@@ -77,12 +77,12 @@
     "cancelled": "Cancelled"
   },
   "lists": {
-    "noResearchTitle": "No AI work is running yet",
+    "noResearchTitle": "No agent work is running yet",
     "noResearch": "After adding sources, ask a workspace-scoped question or start with a first question now.",
     "noDocsTitle": "No recent documents yet",
     "noDocs": "Import your first source to create searchable notes and a usable knowledge base.",
     "importLink": "Import sources",
-    "askLink": "Ask AI",
+    "askLink": "Ask an agent",
     "emptyExcerpt": "No content yet.",
     "openLink": "Open"
   }

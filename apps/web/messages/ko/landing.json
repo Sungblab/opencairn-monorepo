@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "OpenCairn — AI 지식 OS",
-    "description": "파일과 노트를 AI 워크플로로 엮고, 근거와 연결을 함께 보여 주는 개인·팀 지식 OS. 셀프호스팅 · AGPLv3 + 상용 라이선스.",
+    "description": "파일과 노트를 에이전트 워크플로에 맡기고, 근거와 연결을 함께 보여 주는 개인·팀 지식 OS. 셀프호스팅 · AGPLv3 + 상용 라이선스.",
     "ogDescription": "PDF·논문·문서를 위키로 엮고, 근거 있는 Q&A와 그래프 표면으로 탐색합니다."
   },
   "nav": {
@@ -25,13 +25,13 @@
     "titleLine2": "도구는 많습니다.",
     "titleBrand": "OpenCairn은",
     "titleLine3": "읽은 것까지 이해합니다",
-    "sub": "PDF · 논문 · 문서 · 지원되는 미디어를 넣으면 AI가 <b>위키로 엮고</b>, <b>연결을 제안</b>하며, <b>이해의 깊이를 점검</b>합니다. AI 워크플로 백본은 단계적으로 활성화됩니다.",
+    "sub": "PDF · 논문 · 문서 · 지원되는 미디어를 넣으면 에이전트가 <b>위키로 엮고</b>, <b>연결을 제안</b>하며, <b>이해의 깊이를 점검</b>합니다. 에이전트 워크플로 백본은 단계적으로 활성화됩니다.",
     "ctaPrimary": "로그인하기",
     "ctaSecondary": "요금 보기",
-    "noCard": "AI 워크플로 · 파일 올리면 바로 시작",
+    "noCard": "에이전트 워크플로 · 파일 올리면 바로 시작",
     "selfhostLink": "개발자이신가요? 셀프호스팅 가이드 ↗",
     "spec": {
-      "agents": "ai roles",
+      "agents": "agents",
       "agentsVal": "staged",
       "parsers": "parsers",
       "parsersVal": "pdf · mp3 · mp4 · m4a",
@@ -44,7 +44,7 @@
     },
     "activity": {
       "title": "PREVIEW · 워크스페이스",
-      "meta": "AI 역할 백본 · 데모 로그",
+      "meta": "에이전트 백본 · 데모 로그",
       "footer": "에이전트 활동 데모 (실 동작은 단계적 활성화)",
       "timeLabels": ["방금", "1분 전", "3분 전", "6분 전"],
       "items": [
@@ -67,7 +67,7 @@
       "compiling": "● compiling",
       "input": "INPUT",
       "inputItems": ["논문 PDF", "DOCX · PPTX", "Markdown ZIP", "Google Drive 파일", "지원되는 미디어"],
-      "agentsHeader": "AI WORKFLOWS",
+      "agentsHeader": "AGENT WORKFLOWS",
       "orchestration": "오케스트레이션",
       "status": "● running · staged",
       "output": "OUTPUT",
@@ -140,7 +140,7 @@
   },
   "agents": {
     "label": "AGENTS",
-    "title1": "AI 역할들이",
+    "title1": "전문 에이전트들이",
     "title2": "좁게 나뉘어 움직입니다.",
     "sub": "열두 역할은 장기 아키텍처로 정의되어 있고, 실제 제품에는 런타임 에이전트·워크플로·기능 플래그가 섞여 단계적으로 켜집니다. 현재 켜진 범위는 공개 로드맵에서 확인합니다.",
     "items": [
@@ -198,7 +198,7 @@
     "label": "WORKSPACE",
     "title1": "혼자서도, 실험실 단위로도",
     "title2": "도구를 바꿀 필요가 없습니다.",
-    "sub": "위키 페이지는 그냥 글이 아니라, 자료·사람·AI 워크플로가 만나는 곳입니다. 페이지마다 출처·편집자·AI 작업 기록이 함께 살아 있습니다.",
+    "sub": "위키 페이지는 그냥 글이 아니라, 자료·사람·에이전트 워크플로가 만나는 곳입니다. 페이지마다 출처·편집자·에이전트 작업 기록이 함께 살아 있습니다.",
     "mock": {
       "chromePath": "opencairn.local / studio-kim / research-wiki",
       "sideWorkspace": "WORKSPACE",
@@ -253,7 +253,7 @@
       {
         "tag": "[ b ]",
         "cat": "compile",
-        "title": "정리는 AI, 판단은 사람.",
+        "title": "정리는 에이전트, 판단은 사람.",
         "body": "Compiler 워크플로가 개념을 뽑아 위키 페이지를 만들고, 기존 위키와 연결합니다. 여러분은 결과를 검토하고 편집하기만 하면 됩니다. 손으로 옮겨 적는 시간이 사라집니다."
       },
       {
@@ -343,7 +343,7 @@
       "bullets": [
         "AGPLv3 셀프호스팅",
         "Gemini 또는 Ollama provider 설정",
-        "AI 워크플로는 기능 플래그와 설정에 따라 활성화",
+        "에이전트 워크플로는 기능 플래그와 설정에 따라 활성화",
         "데이터 한도는 배포 환경 설정으로 관리",
         "본인 Gemini 키 (BYOK) 옵션"
       ],

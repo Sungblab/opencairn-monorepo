@@ -15,7 +15,7 @@
   },
   "tools": {
     "heading": "Project tools",
-    "description": "Start research, import, automation, learning, and document generation from this project home.",
+    "description": "Start research, import, agent work, learning, and document generation from this project home.",
     "categories": {
       "add_sources": {
         "title": "Add sources",
@@ -101,7 +101,7 @@
       },
       "runs": {
         "title": "Active work",
-        "description": "Track import, generation, and automation progress."
+        "description": "Track import, generation, and agent work progress."
       },
       "reviewInbox": {
         "title": "Review approvals",
@@ -130,7 +130,7 @@
     },
     "runs": {
       "title": "Runs",
-      "description": "Track import, generation, and automation progress."
+      "description": "Track import, generation, and agent work progress."
     },
     "learn": {
       "title": "Learn",

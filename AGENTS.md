@@ -38,7 +38,10 @@ Recommended private read order:
 
 1. `.private-docs/docs/contributing/plans-status.md`
 2. `.private-docs/docs/contributing/project-history.md`
-3. `.private-docs/docs/contributing/llm-antipatterns.md`
+3. `.private-docs/docs/contributing/llm-antipatterns.md` if it exists in the
+   canonical root checkout; if it is absent, do not block the task or report a
+   missing-context failure. Continue with plans/status, project history, and
+   relevant review notes.
 4. Relevant `docs/superpowers/specs/` and `docs/superpowers/plans/`
 5. Relevant `.private-docs/docs/review/` audit notes when verifying claims or
    implementation status
