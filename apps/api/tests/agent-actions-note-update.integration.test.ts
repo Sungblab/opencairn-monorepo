@@ -9,6 +9,7 @@ import {
   noteVersions,
   notes,
   wikiLinks,
+  wikiLogs,
   yjsDocuments,
 } from "@opencairn/db";
 import { createApp } from "../src/app.js";
@@ -201,6 +202,22 @@ describe("note.update agent action integration", () => {
         sourceNoteId: seed.noteId,
         targetNoteId,
         workspaceId: seed.workspaceId,
+      },
+    ]);
+
+    const logs = await db
+      .select({
+        agent: wikiLogs.agent,
+        action: wikiLogs.action,
+        reason: wikiLogs.reason,
+      })
+      .from(wikiLogs)
+      .where(eq(wikiLogs.noteId, seed.noteId));
+    expect(logs).toEqual([
+      {
+        agent: "agent-actions",
+        action: "update",
+        reason: "integration test",
       },
     ]);
   });

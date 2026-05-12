@@ -16,6 +16,7 @@ import {
   syncWikiLinks,
   type AgentActionRow,
   type DB,
+  wikiLogs,
   yjsDocuments,
 } from "@opencairn/db";
 import { noteActionInputByKind } from "@opencairn/shared";
@@ -2298,6 +2299,12 @@ export function createDrizzleNoteUpdateApplier(conn: DB = defaultDb): NoteUpdate
           extractWikiLinkTargets(transformed.plateValue),
           note.workspaceId,
         );
+        await tx.insert(wikiLogs).values({
+          noteId: payload.noteId,
+          agent: "agent-actions",
+          action: "update",
+          reason: payload.reason ?? "agent note.update applied",
+        });
       });
 
       const afterCapture = await captureNoteVersion({
@@ -2383,6 +2390,13 @@ async function createNoteFromAction(
     });
   if (!note) throw new AgentActionError("note_create_failed", 409);
 
+  await conn.insert(wikiLogs).values({
+    noteId: note.id,
+    agent: "agent-actions",
+    action: "create",
+    reason: "agent note.create applied",
+  });
+
   emitTreeEvent({
     kind: "tree.note_created",
     projectId: note.projectId,
@@ -2439,6 +2453,12 @@ async function createNoteFromMarkdownAction(
     extractWikiLinkTargets(content),
     input.workspaceId,
   );
+  await conn.insert(wikiLogs).values({
+    noteId: note.id,
+    agent: "agent-actions",
+    action: "create",
+    reason: "agent note.create_from_markdown applied",
+  });
   emitTreeEvent({
     kind: "tree.note_created",
     projectId: note.projectId,
