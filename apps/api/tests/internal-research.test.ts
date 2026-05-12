@@ -107,6 +107,45 @@ describe("POST /api/internal/notes (research extension)", () => {
     expect(rows).toHaveLength(1);
   });
 
+  it("syncs worker-supplied title wiki links from imported plateValue", async () => {
+    const res = await internalFetch("/api/internal/notes", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: ctx.projectId,
+        workspaceId: ctx.workspaceId,
+        userId: ctx.userId,
+        title: "research with title link",
+        plateValue: [
+          {
+            type: "p",
+            children: [
+              { text: "Related: " },
+              {
+                type: "wikilink",
+                noteId: null,
+                label: "test",
+                children: [{ text: "test" }],
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const body = await res.json() as { noteId: string };
+    const rows = await db
+      .select({ id: wikiLinks.id })
+      .from(wikiLinks)
+      .where(
+        and(
+          eq(wikiLinks.sourceNoteId, body.noteId),
+          eq(wikiLinks.targetNoteId, ctx.noteId),
+        ),
+      );
+    expect(rows).toHaveLength(1);
+  });
+
   it("is idempotent on idempotencyKey — returns same noteId on retry", async () => {
     // Pre-insert a researchRuns row with id="run-abc" so the handler's
     // idempotency check can back-fill and then look up noteId on retry.
