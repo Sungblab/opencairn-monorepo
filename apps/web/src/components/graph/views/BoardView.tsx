@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import type { ViewNode } from "@opencairn/shared";
 import { useProjectGraph } from "../useProjectGraph";
 import type { GroundedEdge } from "../grounded-types";
 
@@ -17,11 +18,17 @@ const NODE_WIDTH = 210;
 const NODE_HEIGHT = 58;
 
 function boardLayout(
-  nodeIds: string[],
+  nodes: ViewNode[],
   edges: GroundedEdge[],
 ): Map<string, BoardPosition> {
   const positions = new Map<string, BoardPosition>();
+  const nodeIds = nodes.map((node) => node.id);
   if (nodeIds.length === 0) return positions;
+  for (const node of nodes) {
+    if (node.position) {
+      positions.set(node.id, clampPosition(node.position));
+    }
+  }
 
   const degree = new Map(nodeIds.map((id) => [id, 0]));
   for (const edge of edges) {
@@ -33,14 +40,16 @@ function boardLayout(
   );
   const hubX = BOARD_WIDTH / 2 - NODE_WIDTH / 2;
   const hubY = BOARD_HEIGHT / 2 - NODE_HEIGHT / 2;
-  positions.set(hubId, { x: hubX, y: hubY });
+  if (!positions.has(hubId)) {
+    positions.set(hubId, { x: hubX, y: hubY });
+  }
 
   const neighborIds = new Set<string>();
   for (const edge of edges) {
     if (edge.sourceId === hubId) neighborIds.add(edge.targetId);
     if (edge.targetId === hubId) neighborIds.add(edge.sourceId);
   }
-  const ring = [...neighborIds].filter((id) => nodeIds.includes(id));
+  const ring = [...neighborIds].filter((id) => nodeIds.includes(id) && !positions.has(id));
   ring.forEach((id, index) => {
     const angle = -Math.PI / 2 + (index / Math.max(1, ring.length)) * Math.PI * 2;
     positions.set(id, {
@@ -78,7 +87,7 @@ export default function BoardView({ projectId, root }: Props) {
   const initialPositions = useMemo(
     () =>
       boardLayout(
-        (data?.nodes ?? []).map((node) => node.id),
+        data?.nodes ?? [],
         data?.edges ?? [],
       ),
     [data?.edges, data?.nodes],

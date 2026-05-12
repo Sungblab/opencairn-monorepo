@@ -107,4 +107,30 @@ describe("BoardView", () => {
     fireEvent.pointerMove(canvas, { clientX: 80, clientY: 40 });
     expect(node.getAttribute("style")).not.toBe(before);
   });
+
+  it("uses server-provided board positions as the initial placement", () => {
+    (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: {
+        viewType: "board",
+        layout: "preset",
+        rootId: null,
+        nodes: [
+          {
+            id: "11111111-1111-4111-8111-111111111111",
+            name: "Placed",
+            position: { x: 120, y: 140 },
+          },
+        ],
+        edges: [],
+        truncated: false,
+        totalConcepts: 1,
+      },
+      isLoading: false,
+      error: null,
+    });
+    wrap(<BoardView projectId="p-1" />);
+    expect(screen.getByTestId("board-node").getAttribute("style")).toContain(
+      "left: 120px",
+    );
+  });
 });
