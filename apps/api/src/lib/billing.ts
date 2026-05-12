@@ -1,6 +1,7 @@
 import {
   creditBalances,
   creditLedgerEntries,
+  and,
   db,
   eq,
   sql,
@@ -99,13 +100,19 @@ function normaliseCredits(credits: number): number {
 
 async function findLedgerByIdempotencyKey(
   conn: DbConn,
+  userId: string,
   idempotencyKey: string | null | undefined,
 ): Promise<CreditLedgerEntry | null> {
   if (!idempotencyKey) return null;
   const [entry] = await conn
     .select()
     .from(creditLedgerEntries)
-    .where(eq(creditLedgerEntries.idempotencyKey, idempotencyKey))
+    .where(
+      and(
+        eq(creditLedgerEntries.userId, userId),
+        eq(creditLedgerEntries.idempotencyKey, idempotencyKey),
+      ),
+    )
     .limit(1);
   return entry ?? null;
 }
@@ -175,7 +182,7 @@ async function applyCreditDelta(
     expiresAt?: Date | null;
   } & CreditLedgerSource,
 ): Promise<CreditLedgerResult> {
-  const existing = await findLedgerByIdempotencyKey(conn, input.idempotencyKey);
+  const existing = await findLedgerByIdempotencyKey(conn, input.userId, input.idempotencyKey);
   if (existing) {
     return {
       balance: await getCreditBalance(input.userId, conn),

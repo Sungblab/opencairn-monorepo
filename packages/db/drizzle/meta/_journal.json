@@ -484,6 +484,13 @@
       "when": 1778603000000,
       "tag": "0068_billing_core",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1778604000000,
+      "tag": "0069_credit_ledger_user_scoped_idempotency",
+      "breakpoints": true
     }
   ]
 }

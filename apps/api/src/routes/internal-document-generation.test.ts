@@ -325,4 +325,29 @@ describe("internal document generation hydration route", () => {
 
     expect(response.status).toBe(401);
   });
+
+  it("rejects legacy synthesis note fetch when the note workspace does not match", async () => {
+    rowsQueue.push([{
+      id: "00000000-0000-4000-8000-000000000090",
+      workspaceId: "00000000-0000-4000-8000-999999999999",
+      title: "Other workspace",
+      contentText: "private content",
+    }]);
+
+    const response = await internalRoutes.request("/synthesis-export/fetch-source", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-internal-secret": "test-secret",
+      },
+      body: JSON.stringify({
+        source_id: "00000000-0000-4000-8000-000000000090",
+        kind: "note",
+        workspace_id: workspaceId,
+      }),
+    });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: "workspace_mismatch" });
+  });
 });

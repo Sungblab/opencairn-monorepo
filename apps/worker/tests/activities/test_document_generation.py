@@ -90,6 +90,7 @@ async def test_hydrate_document_generation_sources_fetches_note_bodies() -> None
             {
                 "source_id": "00000000-0000-4000-8000-000000000021",
                 "kind": "note",
+                "workspace_id": "00000000-0000-4000-8000-000000000001",
             },
         )
     ]

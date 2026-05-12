@@ -4397,21 +4397,30 @@ internal.post(
 const fetchSourceSchema = z.object({
   source_id: z.string().uuid(),
   kind: z.enum(["s3_object", "note", "dr_result"]),
+  workspace_id: z.string().uuid(),
 });
 
 internal.post(
   "/synthesis-export/fetch-source",
   zValidator("json", fetchSourceSchema),
   async (c) => {
-    const { source_id, kind } = c.req.valid("json");
+    const { source_id, kind, workspace_id } = c.req.valid("json");
 
     if (kind === "note") {
       const [row] = await db
-        .select()
+        .select({
+          id: notes.id,
+          title: notes.title,
+          contentText: notes.contentText,
+          workspaceId: notes.workspaceId,
+        })
         .from(notes)
         .where(eq(notes.id, source_id))
         .limit(1);
       if (!row) return c.json({ error: "not_found" }, 404);
+      if (row.workspaceId !== workspace_id) {
+        return c.json({ error: "workspace_mismatch" }, 403);
+      }
       return c.json({
         id: row.id,
         title: row.title ?? "Untitled",
@@ -4427,11 +4436,19 @@ internal.post(
       // passed a key we don't track), fall back to the placeholder so the
       // synthesizer still has the id + can proceed with other sources.
       const [row] = await db
-        .select()
+        .select({
+          id: notes.id,
+          title: notes.title,
+          contentText: notes.contentText,
+          workspaceId: notes.workspaceId,
+        })
         .from(notes)
         .where(eq(notes.sourceFileKey, source_id))
         .limit(1);
       if (row) {
+        if (row.workspaceId !== workspace_id) {
+          return c.json({ error: "workspace_mismatch" }, 403);
+        }
         return c.json({
           id: row.id,
           title: row.title ?? source_id,
@@ -4458,13 +4475,24 @@ internal.post(
       .where(eq(researchRuns.id, source_id))
       .limit(1);
     if (!run) return c.json({ error: "not_found" }, 404);
+    if (run.workspaceId !== workspace_id) {
+      return c.json({ error: "workspace_mismatch" }, 403);
+    }
     if (run.noteId) {
       const [note] = await db
-        .select()
+        .select({
+          id: notes.id,
+          title: notes.title,
+          contentText: notes.contentText,
+          workspaceId: notes.workspaceId,
+        })
         .from(notes)
         .where(eq(notes.id, run.noteId))
         .limit(1);
       if (note) {
+        if (note.workspaceId !== workspace_id) {
+          return c.json({ error: "workspace_mismatch" }, 403);
+        }
         return c.json({
           id: run.id,
           title: note.title ?? run.topic,

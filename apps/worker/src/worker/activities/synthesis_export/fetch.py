@@ -27,17 +27,17 @@ def _approx_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
-async def _fetch_s3_object(source_id: str) -> dict:
+async def _fetch_s3_object(workspace_id: str, source_id: str) -> dict:
     return await post_internal(
         "/api/internal/synthesis-export/fetch-source",
-        {"source_id": source_id, "kind": "s3_object"},
+        {"source_id": source_id, "kind": "s3_object", "workspace_id": workspace_id},
     )
 
 
-async def _fetch_note(note_id: str) -> dict:
+async def _fetch_note(workspace_id: str, note_id: str) -> dict:
     return await post_internal(
         "/api/internal/synthesis-export/fetch-source",
-        {"source_id": note_id, "kind": "note"},
+        {"source_id": note_id, "kind": "note", "workspace_id": workspace_id},
     )
 
 
@@ -63,7 +63,7 @@ async def fetch_sources_activity(params: SynthesisRunParams) -> SourceBundle:
     items: list[SourceItem] = []
 
     for sid in params.explicit_source_ids:
-        raw = await _fetch_s3_object(sid)
+        raw = await _fetch_s3_object(params.workspace_id, sid)
         items.append(SourceItem(
             id=raw["id"], title=raw.get("title", sid),
             body=raw.get("body", ""), token_count=_approx_tokens(raw.get("body", "")),
@@ -72,7 +72,7 @@ async def fetch_sources_activity(params: SynthesisRunParams) -> SourceBundle:
         activity.heartbeat(f"fetched s3:{sid}")
 
     for nid in params.note_ids:
-        raw = await _fetch_note(nid)
+        raw = await _fetch_note(params.workspace_id, nid)
         items.append(SourceItem(
             id=raw["id"], title=raw.get("title", nid),
             body=raw.get("body", ""), token_count=_approx_tokens(raw.get("body", "")),

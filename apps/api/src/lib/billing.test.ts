@@ -100,6 +100,41 @@ describe("billing credits", () => {
     expect(balance.balanceCredits).toBe(8_680);
   });
 
+  it("scopes idempotency keys per user", async () => {
+    const firstUserId = await createTestUser();
+    const secondUserId = await createTestUser();
+    await grantCredits({ userId: firstUserId, credits: 10_000 });
+    await grantCredits({ userId: secondUserId, credits: 10_000 });
+
+    const first = await chargeManagedCredits({
+      userId: firstUserId,
+      provider: "gemini",
+      model: "gemini-3-flash-preview",
+      operation: "chat",
+      tokensIn: 1_000_000,
+      tokensOut: 0,
+      idempotencyKey: "shared-request-id",
+    });
+    const second = await chargeManagedCredits({
+      userId: secondUserId,
+      provider: "gemini",
+      model: "gemini-3-flash-preview",
+      operation: "chat",
+      tokensIn: 1_000_000,
+      tokensOut: 0,
+      idempotencyKey: "shared-request-id",
+    });
+
+    const firstBalance = await getCreditBalance(firstUserId);
+    const secondBalance = await getCreditBalance(secondUserId);
+
+    expect(first.ledgerEntry.id).not.toBe(second.ledgerEntry.id);
+    expect(first.ledgerEntry.userId).toBe(firstUserId);
+    expect(second.ledgerEntry.userId).toBe(secondUserId);
+    expect(firstBalance.balanceCredits).toBe(8_680);
+    expect(secondBalance.balanceCredits).toBe(8_680);
+  });
+
   it("rejects managed usage when the balance cannot cover the charge", async () => {
     const userId = await createTestUser();
 

@@ -42,11 +42,18 @@ def _approx_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
-async def _hydrate_note(source: dict[str, Any]) -> DocumentGenerationSourceItem:
+async def _hydrate_note(
+    params: DocumentGenerationWorkflowParams,
+    source: dict[str, Any],
+) -> DocumentGenerationSourceItem:
     source_id = str(source["noteId"])
     raw = await post_internal(
         "/api/internal/synthesis-export/fetch-source",
-        {"source_id": source_id, "kind": "note"},
+        {
+            "source_id": source_id,
+            "kind": "note",
+            "workspace_id": params.workspace_id,
+        },
     )
     body = str(raw.get("body") or "")
     return DocumentGenerationSourceItem(
@@ -162,7 +169,7 @@ async def _hydrate_source(
         source_type = source.get("type")
         heartbeat_safe(f"hydrating document source {source_type}")
         if source_type == "note":
-            return await _hydrate_note(source)
+            return await _hydrate_note(params, source)
         if source_type in {"agent_file", "chat_thread", "research_run", "synthesis_run"}:
             try:
                 return await _hydrate_internal_source(params, source)
