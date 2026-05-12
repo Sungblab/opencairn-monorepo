@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { randomUUID } from "node:crypto";
 import { createApp } from "../src/app.js";
-import { db, notes, researchRuns, wikiLinks } from "@opencairn/db";
+import { db, notes, researchRuns, wikiLinks, wikiLogs } from "@opencairn/db";
 import {
   seedMultiRoleWorkspace,
   seedWorkspace,
@@ -274,6 +274,12 @@ describe("GET /api/projects/:id/wiki-index", () => {
       sourceNoteId: sourceId,
       targetNoteId: wikiId,
     });
+    await db.insert(wikiLogs).values({
+      noteId: wikiId,
+      agent: "librarian",
+      action: "update",
+      reason: "linked source packet",
+    });
 
     const res = await authedGet(
       `/api/projects/${seed.projectId}/wiki-index`,
@@ -291,6 +297,13 @@ describe("GET /api/projects/:id/wiki-index", () => {
         sourceTitle: string;
         targetNoteId: string;
         targetTitle: string;
+      }>;
+      recentLogs: Array<{
+        noteId: string;
+        noteTitle: string;
+        agent: string;
+        action: string;
+        reason: string | null;
       }>;
       pages: Array<{
         id: string;
@@ -313,6 +326,15 @@ describe("GET /api/projects/:id/wiki-index", () => {
         targetNoteId: wikiId,
         targetTitle: "Compiled concept",
       },
+    ]);
+    expect(body.recentLogs).toEqual([
+      expect.objectContaining({
+        noteId: wikiId,
+        noteTitle: "Compiled concept",
+        agent: "librarian",
+        action: "update",
+        reason: "linked source packet",
+      }),
     ]);
     expect(body.pages.find((page) => page.id === sourceId)).toMatchObject({
       title: "Source packet",
@@ -349,6 +371,12 @@ describe("GET /api/projects/:id/wiki-index", () => {
       sourceNoteId: multiSeed.privateNoteId,
       targetNoteId: multiSeed.noteId,
     });
+    await db.insert(wikiLogs).values({
+      noteId: multiSeed.privateNoteId,
+      agent: "librarian",
+      action: "update",
+      reason: "private maintenance",
+    });
 
     const res = await authedGet(
       `/api/projects/${multiSeed.projectId}/wiki-index`,
@@ -359,6 +387,7 @@ describe("GET /api/projects/:id/wiki-index", () => {
     const body = await res.json() as {
       totals: { wikiLinks: number };
       links: Array<{ sourceNoteId: string; targetNoteId: string }>;
+      recentLogs: Array<{ noteId: string }>;
       pages: Array<{ id: string }>;
     };
     expect(body.pages.map((page) => page.id)).not.toContain(
@@ -366,5 +395,8 @@ describe("GET /api/projects/:id/wiki-index", () => {
     );
     expect(body.totals.wikiLinks).toBe(0);
     expect(body.links).toEqual([]);
+    expect(body.recentLogs.map((log) => log.noteId)).not.toContain(
+      multiSeed.privateNoteId,
+    );
   });
 });
