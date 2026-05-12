@@ -568,6 +568,21 @@ export const studySessionsApi = {
     apiClient<{ recordings: SessionRecording[] }>(
       `/study-sessions/${sessionId}/recordings`,
     ),
+  uploadRecording: (
+    sessionId: string,
+    file: File,
+    options?: { durationSec?: number | null },
+  ) => {
+    const body = new FormData();
+    body.set("file", file);
+    if (options?.durationSec != null) {
+      body.set("durationSec", String(options.durationSec));
+    }
+    return apiClient<{ recording: SessionRecording; workflowId: string }>(
+      `/study-sessions/${sessionId}/recordings/upload`,
+      { method: "POST", body },
+    );
+  },
   transcript: (sessionId: string) =>
     apiClient<StudySessionTranscriptResponse>(
       `/study-sessions/${sessionId}/transcript`,

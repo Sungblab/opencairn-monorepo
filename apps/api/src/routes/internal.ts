@@ -102,6 +102,7 @@ import {
   AgentActionError,
   recordCodeProjectPreviewSmokeResult,
 } from "../lib/agent-actions";
+import { createStudySessionInternalRoutes } from "./study-sessions";
 import { toProjectObjectSummary } from "../lib/project-object-actions";
 import {
   createConceptExtractionEvidence,
@@ -128,6 +129,8 @@ internal.use("*", async (c, next) => {
   }
   await next();
 });
+
+internal.route("/", createStudySessionInternalRoutes());
 
 const internalPreviewCleanupSchema = z.object({
   limit: z.coerce.number().int().min(1).max(500).optional(),

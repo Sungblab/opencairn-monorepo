@@ -17,6 +17,7 @@ import {
 import type { AppEnv } from "../lib/types";
 import {
   createDrizzleStudySessionRepository,
+  createStudySessionInternalRoutes,
   createMemoryStudySessionRepository,
   createStudySessionRoutes,
   StudySessionError,
@@ -31,6 +32,16 @@ function appWith(options?: {
   canReadWorkspace?: (uid: string, wid: string) => Promise<boolean>;
   canReadProject?: (uid: string, pid: string) => Promise<boolean>;
   canWriteProject?: (uid: string, pid: string) => Promise<boolean>;
+  uploadObject?: (key: string, data: Buffer, contentType: string) => Promise<string>;
+  startRecordingWorkflow?: (input: {
+    recordingId: string;
+    sessionId: string;
+    workspaceId: string;
+    projectId: string;
+    userId: string;
+    objectKey: string;
+    mimeType: string;
+  }) => Promise<string>;
 }) {
   const repo = createMemoryStudySessionRepository();
   const app = new Hono<AppEnv>().route(
@@ -46,6 +57,8 @@ function appWith(options?: {
         c.set("user", { id: userId, email: "user@example.com", name: "User" });
         await next();
       },
+      uploadObject: options?.uploadObject,
+      startRecordingWorkflow: options?.startRecordingWorkflow,
     }),
   );
   return { app, repo };
@@ -186,6 +199,158 @@ describe("study session routes", () => {
       [recording.id, 0, 0, 2.5, "first idea"],
       [recording.id, 1, 2.5, 5, "second idea"],
     ]);
+  });
+
+  it("uploads a recording, attaches it to the session, and starts STT processing", async () => {
+    const uploaded: Array<{ key: string; bytes: number; contentType: string }> = [];
+    const started: unknown[] = [];
+    const { app, repo } = appWith({
+      uploadObject: async (key, data, contentType) => {
+        uploaded.push({ key, bytes: data.length, contentType });
+        return key;
+      },
+      startRecordingWorkflow: async (input) => {
+        started.push(input);
+        return `study-session-recording/${input.recordingId}`;
+      },
+    });
+    const session = await repo.createSession({
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Recorded lecture",
+      sourceNoteId,
+    });
+    const form = new FormData();
+    form.set("file", new File(["audio-bytes"], "lecture.webm", { type: "audio/webm" }));
+    form.set("durationSec", "12.5");
+
+    const response = await app.request(
+      `/api/study-sessions/${session.id}/recordings/upload`,
+      { method: "POST", body: form },
+    );
+
+    expect(response.status).toBe(202);
+    const body = await response.json() as { recording: { id: string; status: string; transcriptStatus: string; objectKey: string } };
+    expect(body.recording).toMatchObject({
+      sessionId: session.id,
+      mimeType: "audio/webm",
+      durationSec: 12.5,
+      status: "processing",
+      transcriptStatus: "processing",
+    });
+    expect(body.recording.objectKey).toMatch(
+      new RegExp(`^study-sessions/${session.id}/recordings/${userId}/`),
+    );
+    expect(uploaded).toEqual([
+      {
+        key: body.recording.objectKey,
+        bytes: "audio-bytes".length,
+        contentType: "audio/webm",
+      },
+    ]);
+    expect(started).toEqual([
+      expect.objectContaining({
+        recordingId: body.recording.id,
+        sessionId: session.id,
+        workspaceId,
+        projectId,
+        userId,
+        objectKey: body.recording.objectKey,
+        mimeType: "audio/webm",
+      }),
+    ]);
+
+    const recordings = await app.request(`/api/study-sessions/${session.id}/recordings`);
+    expect((await recordings.json() as { recordings: unknown[] }).recordings).toHaveLength(1);
+  });
+
+  it("requires project write permission before accepting a recording upload", async () => {
+    const { app, repo } = appWith({ canWriteProject: async () => false });
+    const session = await repo.createSession({
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Blocked lecture",
+      sourceNoteId,
+    });
+    const form = new FormData();
+    form.set("file", new File(["audio-bytes"], "lecture.webm", { type: "audio/webm" }));
+
+    const response = await app.request(
+      `/api/study-sessions/${session.id}/recordings/upload`,
+      { method: "POST", body: form },
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  it("stores transcript callback segments only when recording scope matches", async () => {
+    const repo = createMemoryStudySessionRepository();
+    const session = await repo.createSession({
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Recorded lecture",
+      sourceNoteId,
+    });
+    const recording = repo.seedRecording({
+      sessionId: session.id,
+      objectKey: "study-sessions/session/recordings/user/lecture.webm",
+      mimeType: "audio/webm",
+      status: "processing",
+      transcriptStatus: "processing",
+    });
+    const app = new Hono<AppEnv>().route(
+      "/api/internal",
+      createStudySessionInternalRoutes({ repo }),
+    );
+
+    const response = await app.request(
+      `/api/internal/study-sessions/recordings/${recording.id}/transcript`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          workspaceId,
+          projectId,
+          sessionId: session.id,
+          durationSec: 4.5,
+          status: "ready",
+          segments: [
+            { index: 0, startSec: 0, endSec: 2.25, text: "first" },
+            { index: 1, startSec: 2.25, endSec: 4.5, text: "second" },
+          ],
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    const recordings = await repo.listRecordings(session.id);
+    expect(recordings[0]).toMatchObject({
+      id: recording.id,
+      durationSec: 4.5,
+      status: "ready",
+      transcriptStatus: "ready",
+    });
+    const transcript = await repo.listTranscriptSegments(session.id);
+    expect(transcript.map((segment) => segment.text)).toEqual(["first", "second"]);
+
+    const mismatch = await app.request(
+      `/api/internal/study-sessions/recordings/${recording.id}/transcript`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          workspaceId,
+          projectId: "00000000-0000-4000-8000-999999999999",
+          sessionId: session.id,
+          status: "ready",
+          segments: [],
+        }),
+      },
+    );
+    expect(mismatch.status).toBe(403);
   });
 
   it("validates source notes against the session project in the Drizzle repository", async () => {

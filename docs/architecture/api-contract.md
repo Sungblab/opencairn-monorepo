@@ -223,7 +223,16 @@ transcript segments. Creating a source-backed session validates that
 | POST | /api/study-sessions | project `editor` | 학습 세션 생성. `sourceNoteId`가 있으면 같은 project/workspace 노트인지 검증하고 `primary_pdf` source로 연결한다. | `{ projectId, title?, sourceNoteId? }` |
 | GET | /api/study-sessions/:id | project `viewer` | 세션 상세와 연결 source 목록 조회. | - |
 | GET | /api/study-sessions/:id/recordings | project `viewer` | 세션 녹음 목록과 녹음/전사 상태 조회. | - |
+| POST | /api/study-sessions/:id/recordings/upload | project `editor` | `audio/*` 또는 `video/*` multipart recording upload. API stores the object, creates a `session_recordings` row as `processing`, and starts `StudySessionRecordingWorkflow`. Response `{ recording, workflowId }`. | `multipart/form-data { file, durationSec? }` |
 | GET | /api/study-sessions/:id/transcript | project `viewer` | 녹음 생성 순서와 segment index 순으로 전사 구간을 반환한다. Response `{ sessionId, text, segments }`. | - |
+
+Internal worker callback:
+
+- `POST /api/internal/study-sessions/recordings/:recordingId/transcript` is
+  shared-secret protected. The worker must send `workspaceId`, `projectId`, and
+  `sessionId`; the API rechecks that they match the recording's owning session
+  before replacing transcript segments and marking the recording `ready` or
+  `failed`.
 
 ### Agent Files
 
