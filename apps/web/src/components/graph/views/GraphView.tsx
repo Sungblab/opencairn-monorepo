@@ -47,6 +47,8 @@ type ForceGraphHandle = {
     (): number;
     (scale: number, durationMs?: number): unknown;
   };
+  d3Force: (forceName: string) => unknown;
+  d3ReheatSimulation: () => unknown;
 };
 
 type ForceGraph2DProps = {
@@ -82,6 +84,17 @@ type ForceGraph2DProps = {
   onLinkClick: (link: ForceGraphLinkObject) => void;
   onBackgroundClick: () => void;
   showPointerCursor: boolean;
+};
+
+type GraphForceTuning = {
+  chargeStrength: number;
+  linkDistance: number;
+  centerStrength: number;
+};
+
+type TunableForce = {
+  strength?: (value: number) => unknown;
+  distance?: (value: number) => unknown;
 };
 
 const ForceGraph2D = dynamic(
@@ -175,6 +188,49 @@ export function filterGraphDataForView(
   return { ...data, nodes: visibleNodes, edges: visibleEdges, noteLinks };
 }
 
+export function graphForceTuningForSize({
+  nodeCount,
+  linkCount,
+}: {
+  nodeCount: number;
+  linkCount: number;
+}): GraphForceTuning {
+  const density = nodeCount > 1 ? linkCount / nodeCount : 0;
+  if (nodeCount <= 25) {
+    return {
+      chargeStrength: density > 1.6 ? -180 : -220,
+      linkDistance: density > 1.6 ? 135 : 165,
+      centerStrength: 0.075,
+    };
+  }
+  if (nodeCount <= 70) {
+    return {
+      chargeStrength: density > 1.8 ? -120 : -155,
+      linkDistance: density > 1.8 ? 110 : 135,
+      centerStrength: 0.055,
+    };
+  }
+  return {
+    chargeStrength: -90,
+    linkDistance: 100,
+    centerStrength: 0.035,
+  };
+}
+
+function tuneForceGraphLayout(
+  graph: ForceGraphHandle | null,
+  tuning: GraphForceTuning,
+) {
+  if (!graph) return;
+  const charge = graph.d3Force("charge") as TunableForce | undefined;
+  charge?.strength?.(tuning.chargeStrength);
+  const link = graph.d3Force("link") as TunableForce | undefined;
+  link?.distance?.(tuning.linkDistance);
+  const center = graph.d3Force("center") as TunableForce | undefined;
+  center?.strength?.(tuning.centerStrength);
+  graph.d3ReheatSimulation();
+}
+
 function resolveThemeColor(
   styles: CSSStyleDeclaration,
   name: string,
@@ -260,6 +316,7 @@ export default function GraphView({ projectId }: { projectId: string }) {
   const selectedEdgeParam = searchParams.get("edge");
   const consumedEdgeParam = useRef<string | null>(null);
   const graphRef = useRef<ForceGraphHandle>(null);
+  const graphTuningRef = useRef<GraphForceTuning | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasPaletteRef = useRef<GraphCanvasPalette>(DEFAULT_CANVAS_PALETTE);
   const [size, setSize] = useState({ width: 900, height: 640 });
@@ -300,6 +357,22 @@ export default function GraphView({ projectId }: { projectId: string }) {
     [filteredData],
   );
 
+  const graphTuning = useMemo(
+    () =>
+      graphForceTuningForSize({
+        nodeCount: graphData?.nodes.length ?? 0,
+        linkCount: graphData?.links.length ?? 0,
+      }),
+    [graphData?.links.length, graphData?.nodes.length],
+  );
+
+  const setGraphHandle = useCallback((graph: ForceGraphHandle | null) => {
+    graphRef.current = graph;
+    if (graphTuningRef.current) {
+      tuneForceGraphLayout(graph, graphTuningRef.current);
+    }
+  }, []);
+
   const visibleNodeCount = useMemo(
     () => filteredData?.nodes.length ?? 0,
     [filteredData],
@@ -311,6 +384,11 @@ export default function GraphView({ projectId }: { projectId: string }) {
     for (const e of data.edges) set.add(e.relationType);
     return [...set].sort();
   }, [data]);
+
+  useEffect(() => {
+    graphTuningRef.current = graphTuning;
+    tuneForceGraphLayout(graphRef.current, graphTuning);
+  }, [graphTuning]);
 
   const selectedEdge = useMemo(
     () => filteredData?.edges.find((edge) => edge.id === selectedEdgeId) as
@@ -532,7 +610,7 @@ export default function GraphView({ projectId }: { projectId: string }) {
       />
       <div ref={containerRef} className="relative min-h-0 flex-1 bg-background">
         <ForceGraph2D
-          ref={graphRef}
+          ref={setGraphHandle}
           graphData={graphData}
           width={size.width}
           height={size.height}

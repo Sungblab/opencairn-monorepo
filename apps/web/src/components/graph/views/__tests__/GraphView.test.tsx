@@ -3,7 +3,10 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NextIntlClientProvider } from "next-intl";
 import koGraph from "@/../messages/ko/graph.json";
-import GraphView, { filterGraphDataForView } from "../GraphView";
+import GraphView, {
+  filterGraphDataForView,
+  graphForceTuningForSize,
+} from "../GraphView";
 
 vi.mock("next/dynamic", () => ({
   default: () => () => <div data-testid="force-graph-mount">force graph</div>,
@@ -34,6 +37,15 @@ function renderWith(data: unknown) {
 }
 
 describe("GraphView", () => {
+  it("spreads small default graphs instead of letting chain data collapse into a line", () => {
+    const small = graphForceTuningForSize({ nodeCount: 15, linkCount: 14 });
+    const large = graphForceTuningForSize({ nodeCount: 90, linkCount: 120 });
+
+    expect(small.chargeStrength).toBeLessThan(large.chargeStrength);
+    expect(small.linkDistance).toBeGreaterThan(large.linkDistance);
+    expect(small.centerStrength).toBeGreaterThan(large.centerStrength);
+  });
+
   it("filters explicit note links with the graph search", () => {
     const filtered = filterGraphDataForView(
       {
