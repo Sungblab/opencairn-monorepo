@@ -69,8 +69,10 @@ type TreeNodeRow = {
   parent_id: string | null;
   project_id: string;
   project_name: string;
-  kind: "source_bundle" | "artifact_group" | "artifact" | "agent_file";
+  kind: "source_bundle" | "artifact_group" | "artifact" | "agent_file" | "note";
   label: string;
+  target_table: "notes" | "agent_files" | "folders" | "code_workspaces" | null;
+  target_id: string | null;
 };
 
 const BRIDGE_NODE_SCORE = 10_000;
@@ -305,12 +307,14 @@ async function fetchTreeNodeRows(
       n.project_id,
       p.name AS project_name,
       n.kind,
-      n.label
+      n.label,
+      n.target_table,
+      n.target_id
     FROM project_tree_nodes n
     JOIN projects p ON p.id = n.project_id
     WHERE n.project_id = ANY(ARRAY[${projectIdArr}])
       AND n.deleted_at IS NULL
-      AND n.kind IN ('source_bundle', 'artifact_group', 'artifact', 'agent_file')
+      AND n.kind IN ('source_bundle', 'artifact_group', 'artifact', 'agent_file', 'note')
       ${queryFilter}
   `);
   return unwrapRows<TreeNodeRow>(raw);
@@ -705,12 +709,13 @@ function treeObjectType(kind: TreeNodeRow["kind"]): WorkspaceAtlasNode["objectTy
   return kind === "source_bundle" ? "source_bundle" : "artifact";
 }
 
-function buildTreeNodesAndEdges(rows: TreeNodeRow[]): {
+function buildTreeNodesAndEdges(rows: TreeNodeRow[], selectedNoteIds: Set<string>): {
   nodes: WorkspaceAtlasNode[];
   edges: WorkspaceAtlasEdge[];
 } {
-  const nodeIds = new Set(rows.map((row) => treeNodeId(row.id)));
-  const nodes = rows.map((row) => ({
+  const materializedRows = rows.filter((row) => row.kind !== "note");
+  const nodeIds = new Set(materializedRows.map((row) => treeNodeId(row.id)));
+  const nodes = materializedRows.map((row) => ({
     id: treeNodeId(row.id),
     label: row.label,
     objectType: treeObjectType(row.kind),
@@ -734,11 +739,34 @@ function buildTreeNodesAndEdges(rows: TreeNodeRow[]): {
     unclassified: false,
     stale: false,
   }));
-  const edges = rows.flatMap((row) => {
+  const edges: WorkspaceAtlasEdge[] = rows.flatMap((row): WorkspaceAtlasEdge[] => {
     if (!row.parent_id) return [];
     const parentId = treeNodeId(row.parent_id);
-    const childId = treeNodeId(row.id);
     if (!nodeIds.has(parentId)) return [];
+    if (row.kind === "note") {
+      if (
+        row.target_table !== "notes" ||
+        !row.target_id ||
+        !selectedNoteIds.has(row.target_id)
+      ) {
+        return [];
+      }
+      return [{
+        id: `source-artifact:${row.parent_id}->${row.target_id}`,
+        sourceId: parentId,
+        targetId: noteNodeId(row.target_id),
+        edgeType: "source_artifact" as const,
+        layer: "explicit" as const,
+        relationType: "materializes",
+        weight: 1,
+        conceptEdgeIds: [],
+        sourceNoteIds: [row.target_id],
+        projectIds: [row.project_id],
+        crossProject: false,
+        stale: false,
+      }];
+    }
+    const childId = treeNodeId(row.id);
     return [{
       id: `tree:${row.parent_id}->${row.id}`,
       sourceId: parentId,
@@ -780,7 +808,10 @@ export async function getWorkspaceOntologyAtlasForUser(
   const totalConcepts = conceptRows.length;
   const conceptNodes = buildAtlasNodes(conceptRows, opts.limit);
   const noteNodes = buildExplicitNoteNodes(noteRows);
-  const tree = buildTreeNodesAndEdges(treeRows);
+  const tree = buildTreeNodesAndEdges(
+    treeRows,
+    new Set(noteRows.map((row) => row.id)),
+  );
   const totalAvailableNodes =
     noteNodes.length +
     tree.nodes.length +

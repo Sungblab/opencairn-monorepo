@@ -143,6 +143,20 @@ describe("GET /api/workspaces/:workspaceId/ontology-atlas", () => {
       path: `${labelFromId(bundleNodeId)}.${labelFromId(artifactNodeId)}`,
       metadata: { role: "parsed_markdown" },
     });
+    const sourceNoteTreeNodeId = randomUUID();
+    await db.insert(projectTreeNodes).values({
+      id: sourceNoteTreeNodeId,
+      workspaceId: ctx.workspaceId,
+      projectId: ctx.projectId,
+      parentId: artifactNodeId,
+      kind: "note",
+      targetTable: "notes",
+      targetId: ctx.noteId,
+      label: "Parsed source note",
+      icon: "file-text",
+      path: `${labelFromId(bundleNodeId)}.${labelFromId(artifactNodeId)}.${labelFromId(sourceNoteTreeNodeId)}`,
+      metadata: { role: "source_note" },
+    });
 
     const res = await app.request(
       `/api/workspaces/${ctx.workspaceId}/ontology-atlas`,
@@ -185,10 +199,15 @@ describe("GET /api/workspaces/:workspaceId/ontology-atlas", () => {
     expect(body.nodes.some((node) => node.objectType === "note")).toBe(true);
     expect(body.nodes.some((node) => node.objectType === "source_bundle")).toBe(true);
     expect(body.edges.map((edge) => edge.relationType)).toEqual(
-      expect.arrayContaining(["depends-on", "supports", "links-to"]),
+      expect.arrayContaining(["depends-on", "supports", "links-to", "materializes"]),
     );
     expect(body.edges.map((edge) => edge.edgeType)).toEqual(
-      expect.arrayContaining(["ai_relation", "wiki_link", "project_tree"]),
+      expect.arrayContaining([
+        "ai_relation",
+        "wiki_link",
+        "project_tree",
+        "source_artifact",
+      ]),
     );
   });
 
