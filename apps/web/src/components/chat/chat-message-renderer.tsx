@@ -20,10 +20,28 @@ const chatProseClasses = [
   "[&_li]:my-0.5",
 ].join(" ");
 
+const compactChatProseClasses = [
+  proseClasses.body,
+  "text-[13px] leading-6",
+  "[&_p:first-child]:mt-0",
+  "[&_p:last-child]:mb-0",
+  "[&_p]:my-1.5",
+  "[&_p]:leading-6",
+  "[&_ul]:my-1.5",
+  "[&_ol]:my-1.5",
+  "[&_li]:my-0.5",
+  "[&_li]:leading-6",
+  "[&_h1]:text-base",
+  "[&_h2]:text-[15px]",
+  "[&_h3]:text-sm",
+  "[&_table]:text-xs",
+].join(" ");
+
 interface ChatMessageRendererProps {
   body: string;
   /** True while the message is mid-stream — appends a blinking cursor. */
   streaming?: boolean;
+  compact?: boolean;
 }
 
 type MarkdownPlugin = NonNullable<
@@ -45,6 +63,7 @@ function hasMathSyntax(body: string): boolean {
 export function ChatMessageRenderer({
   body,
   streaming,
+  compact,
 }: ChatMessageRendererProps) {
   const safeBody = sanitizeHtml(body);
   const needsMath = hasMathSyntax(safeBody);
@@ -82,7 +101,10 @@ export function ChatMessageRenderer({
   );
 
   return (
-    <div className={chatProseClasses} data-testid="chat-message-renderer">
+    <div
+      className={compact ? compactChatProseClasses : chatProseClasses}
+      data-testid="chat-message-renderer"
+    >
       <ReactMarkdown
         remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}

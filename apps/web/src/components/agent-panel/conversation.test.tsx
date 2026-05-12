@@ -7,6 +7,11 @@ import { Conversation } from "./conversation";
 
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
+  useLocale: () => "ko",
+}));
+
+vi.mock("next/navigation", () => ({
+  useParams: () => ({ wsSlug: "ws-test" }),
 }));
 
 let messages: ChatMessage[] = [];
@@ -23,8 +28,16 @@ vi.mock("./message-bubble-loader", () => ({
 }));
 
 vi.mock("@/components/chat/chat-message-renderer-loader", () => ({
-  ChatMessageRendererLoader: ({ body }: { body: string }) => (
-    <div data-testid="live-body">{body}</div>
+  ChatMessageRendererLoader: ({
+    body,
+    compact,
+  }: {
+    body: string;
+    compact?: boolean;
+  }) => (
+    <div data-testid="live-body" data-compact={compact ? "true" : "false"}>
+      {body}
+    </div>
   ),
 }));
 
@@ -154,6 +167,40 @@ describe("Conversation durable run resume", () => {
     expect(user.compareDocumentPosition(live)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
+    expect(live).toHaveAttribute("data-compact", "true");
+  });
+
+  it("renders live citations and hides matching footnote markers", () => {
+    render(
+      <Conversation
+        threadId="thread-1"
+        live={{
+          id: "agent-1",
+          body: "자료에서 확인했습니다.[^1]",
+          status: null,
+          thought: null,
+          citations: [
+            {
+              index: 1,
+              title: "운영체제.pdf",
+              noteId: "00000000-0000-4000-8000-000000000001",
+            },
+          ],
+          save_suggestion: null,
+          agent_files: [],
+          agent_actions: [],
+          project_objects: [],
+          project_object_generations: [],
+          error: null,
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId("live-body")).toHaveTextContent(
+      "자료에서 확인했습니다.",
+    );
+    expect(screen.queryByText(/\[\^1\]/)).not.toBeInTheDocument();
+    expect(screen.getByText("운영체제.pdf")).toBeInTheDocument();
   });
 
   it("does not drag the reader to the bottom while they scroll up during streaming", async () => {

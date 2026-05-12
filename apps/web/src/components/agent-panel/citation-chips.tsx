@@ -18,6 +18,54 @@ export interface Citation {
   noteId?: string;
 }
 
+export function asCitations(v: unknown): Citation[] {
+  if (!Array.isArray(v)) return [];
+  return v.flatMap((c): Citation[] => {
+    const rawIndex = (c as { index?: unknown })?.index;
+    if (
+      typeof c !== "object" ||
+      c === null ||
+      typeof rawIndex !== "number"
+    ) {
+      return [];
+    }
+    const record = c as Record<string, unknown>;
+    const title =
+      typeof record.title === "string" && record.title.trim()
+        ? record.title
+        : typeof record.source_title === "string" && record.source_title.trim()
+          ? record.source_title
+          : typeof record.label === "string" && record.label.trim()
+            ? record.label
+            : "Untitled source";
+    return [
+      {
+        index: rawIndex,
+        title,
+        ...(typeof record.url === "string" ? { url: record.url } : {}),
+        ...(typeof record.noteId === "string"
+          ? { noteId: record.noteId }
+          : typeof record.source_id === "string" && record.source_type === "note"
+            ? { noteId: record.source_id }
+            : {}),
+      },
+    ];
+  });
+}
+
+export function stripRenderedCitationMarkers(
+  body: string,
+  citations: Citation[],
+): string {
+  if (citations.length === 0) return body;
+  const citationIndexes = new Set(citations.map((citation) => citation.index));
+  return body
+    .replace(/\s*\[\^(\d+)\]/g, (match, index: string) =>
+      citationIndexes.has(Number(index)) ? "" : match,
+    )
+    .trimEnd();
+}
+
 function displayCitationTitle(
   citation: Citation,
   fallback: (values: { index: number }) => string,

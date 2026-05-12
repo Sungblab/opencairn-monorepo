@@ -49,6 +49,11 @@ describe("ChatMessageRenderer", () => {
     render(wrap(<ChatMessageRenderer body="hi" streaming />));
     expect(screen.getByTestId("streaming-cursor")).toBeInTheDocument();
   });
+
+  it("uses the compact prose variant when requested", () => {
+    render(wrap(<ChatMessageRenderer body="작은 패널 답변" compact />));
+    expect(screen.getByTestId("chat-message-renderer")).toHaveClass("text-[13px]");
+  });
 });
 
 describe("ChatMessageRenderer — callout-aware blockquote", () => {

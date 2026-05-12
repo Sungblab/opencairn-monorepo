@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 export type ChatMessageRendererLoaderProps = {
   body: string;
   streaming?: boolean;
+  compact?: boolean;
 };
 
 const LazyChatMessageRenderer = dynamic<ChatMessageRendererLoaderProps>(

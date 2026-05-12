@@ -10,7 +10,11 @@
 import { useTranslations } from "next-intl";
 import type { ChatMessage } from "@/lib/api-client";
 import { ChatMessageRendererLoader } from "../chat/chat-message-renderer-loader";
-import { CitationChips, type Citation } from "./citation-chips";
+import {
+  CitationChips,
+  asCitations,
+  stripRenderedCitationMarkers,
+} from "./citation-chips";
 import { MessageActions } from "./message-actions";
 import { SaveSuggestionCard } from "./save-suggestion-card";
 import { StatusLine } from "./status-line";
@@ -47,17 +51,6 @@ function isStatus(v: unknown): v is { phrase?: string } {
   return typeof v === "object" && v !== null;
 }
 
-function asCitations(v: unknown): Citation[] {
-  if (!Array.isArray(v)) return [];
-  return v.filter(
-    (c): c is Citation =>
-      typeof c === "object" &&
-      c !== null &&
-      typeof (c as { index?: unknown }).index === "number" &&
-      typeof (c as { title?: unknown }).title === "string",
-  );
-}
-
 function asSaveSuggestion(v: unknown): { title: string } | null {
   if (
     v &&
@@ -67,16 +60,6 @@ function asSaveSuggestion(v: unknown): { title: string } | null {
     return v as { title: string };
   }
   return null;
-}
-
-function stripRenderedCitationMarkers(body: string, citations: Citation[]): string {
-  if (citations.length === 0) return body;
-  const citationIndexes = new Set(citations.map((citation) => citation.index));
-  return body
-    .replace(/\s*\[\^(\d+)\]/g, (match, index: string) =>
-      citationIndexes.has(Number(index)) ? "" : match,
-    )
-    .trimEnd();
 }
 
 function extractNestedErrorMessage(message: string): string {
@@ -180,6 +163,7 @@ export function MessageBubble({
       <ChatMessageRendererLoader
         body={body}
         streaming={msg.status === "streaming"}
+        compact
       />
       {error ? (
         <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">

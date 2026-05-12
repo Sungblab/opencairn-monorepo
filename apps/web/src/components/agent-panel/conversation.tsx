@@ -28,6 +28,11 @@ import { MessageBubbleLoader } from "./message-bubble-loader";
 import { StatusLine } from "./status-line";
 import { ThoughtBubble } from "./thought-bubble";
 import {
+  CitationChips,
+  asCitations,
+  stripRenderedCitationMarkers,
+} from "./citation-chips";
+import {
   isAgentInteractionCard,
   type InteractionCardSubmit,
 } from "./interaction-card";
@@ -59,6 +64,10 @@ export function Conversation({
   const t = useTranslations("agentPanel.bubble");
   const { data: messages = [] } = useChatMessages(threadId);
   const liveError = liveErrorMessage(live?.error ?? null);
+  const liveCitations = asCitations(live?.citations);
+  const liveBody = live
+    ? stripRenderedCitationMarkers(live.body, liveCitations)
+    : "";
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const liveActiveRef = useRef(false);
@@ -224,12 +233,15 @@ export function Conversation({
             ) : null}
             {live.body ? (
               <div className="rounded-[var(--radius-card)] border border-border/60 bg-background/80 px-3 py-2 shadow-sm">
-                <ChatMessageRendererLoader body={live.body} streaming />
+                <ChatMessageRendererLoader body={liveBody} streaming compact />
                 <span
                   aria-hidden
                   className="mt-1 inline-block h-2 w-2 animate-pulse rounded-full bg-foreground/45"
                 />
               </div>
+            ) : null}
+            {liveCitations.length > 0 ? (
+              <CitationChips citations={liveCitations} />
             ) : null}
             {liveError ? (
               <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
