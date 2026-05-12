@@ -32,7 +32,7 @@ type ForceGraphNodeObject = ForceGraphNode & {
   fy?: number;
 };
 
-type ForceGraphLinkObject = ForceGraphLink & {
+type ForceGraphLinkObject = Omit<ForceGraphLink, "source" | "target"> & {
   source?: string | number | ForceGraphNodeObject;
   target?: string | number | ForceGraphNodeObject;
 };
@@ -416,8 +416,6 @@ export default function GraphView({ projectId }: { projectId: string }) {
         ctx.fillStyle = `${forceNode.color}24`;
         ctx.fill();
       }
-      if (isNoteHub) return;
-
       const label = getGraphLabel(forceNode, {
         zoom: globalScale,
         topNodeIds: graphData?.topNodeIds ?? new Set(),
@@ -425,24 +423,25 @@ export default function GraphView({ projectId }: { projectId: string }) {
         selectedNodeId,
         neighborIds: neighborhood.nodeIds,
       });
-      if (!label) return;
+      if (!label && !isNoteHub) return;
       const fontSize = getGraphLabelFontSize({
         zoom: globalScale,
-        important: labelImportant,
+        important: labelImportant || isNoteHub,
       });
       if (fontSize === 0) return;
-      ctx.font = `${labelImportant ? 600 : 500} ${fontSize}px Pretendard, Inter, sans-serif`;
+      const visibleLabel = label || forceNode.shortLabel;
+      ctx.font = `${labelImportant || isNoteHub ? 600 : 500} ${fontSize}px Pretendard, Inter, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
-      const textWidth = ctx.measureText(label).width;
+      const textWidth = ctx.measureText(visibleLabel).width;
       const x = forceNode.x ?? 0;
       const y = (forceNode.y ?? 0) + radius + 5;
-      if (labelImportant) {
+      if (labelImportant || isNoteHub) {
         ctx.fillStyle = palette.labelBackground;
         ctx.fillRect(x - textWidth / 2 - 4, y - 2, textWidth + 8, fontSize + 5);
       }
       ctx.fillStyle = faded ? palette.fadedLabel : palette.foreground;
-      ctx.fillText(label, x, y);
+      ctx.fillText(visibleLabel, x, y);
     },
     [
       activeNodeId,
@@ -455,6 +454,13 @@ export default function GraphView({ projectId }: { projectId: string }) {
 
   const linkActive = useCallback(
     (link: ForceGraphLinkObject) => {
+      const sourceId =
+        typeof link.source === "object" ? link.source.id : String(link.source);
+      const targetId =
+        typeof link.target === "object" ? link.target.id : String(link.target);
+      if (activeNodeId && (sourceId === activeNodeId || targetId === activeNodeId)) {
+        return true;
+      }
       const edgeId = link.edgeId;
       return !activeNodeId || neighborhood.edgeIds.has(edgeId);
     },
@@ -569,7 +575,11 @@ export default function GraphView({ projectId }: { projectId: string }) {
           }
           onNodeClick={(node, event) => {
             if (event?.detail && event.detail > 1) {
-              onNodeDoubleClick(node.firstNoteId, node.name);
+              if (node.kind === "note" && node.firstNoteId) {
+                openSourceNote(node.firstNoteId, node.name);
+              } else {
+                onNodeDoubleClick(node.firstNoteId, node.name);
+              }
               return;
             }
             setSelectedNodeId(node.id);

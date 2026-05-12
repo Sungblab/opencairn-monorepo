@@ -14,6 +14,7 @@ const GRAPH_NODE_COLORS = [
   "#f43f5e",
 ] as const;
 const HUB_NODE_COLOR = "#ef4444";
+const NOTE_HUB_COLOR = "#ef4444";
 
 export type ForceGraphNode = {
   id: string;
@@ -85,10 +86,18 @@ function graphNodeColor(id: string, degree: number): string {
 export function buildForceGraphData(
   snap: GroundedGraphResponse,
 ): ForceGraphData {
-  const noteIds = new Set<string>();
+  const noteTitles = new Map<string, string>();
+  const noteConceptIds = new Map<string, Set<string>>();
+  const addNoteConcept = (noteId: string | null | undefined, conceptId: string) => {
+    if (!noteId) return;
+    if (!noteConceptIds.has(noteId)) noteConceptIds.set(noteId, new Set());
+    noteConceptIds.get(noteId)?.add(conceptId);
+  };
   const nodes = snap.nodes.map((node) => {
     const degree = node.degree ?? 0;
-    if (node.firstNoteId) noteIds.add(node.firstNoteId);
+    if (node.firstNoteId) {
+      addNoteConcept(node.firstNoteId, node.id);
+    }
     return {
       id: node.id,
       name: node.name,
@@ -103,24 +112,42 @@ export function buildForceGraphData(
       isHub: degree >= HUB_DEGREE_THRESHOLD,
     };
   });
-  const noteHubNodes: ForceGraphNode[] = [...noteIds].map((noteId) => ({
-    id: `note:${noteId}`,
-    name: "출처 노트",
-    shortLabel: "",
-    description: "",
-    kind: "note",
-    degree: snap.nodes.filter((node) => node.firstNoteId === noteId).length,
-    noteCount: 1,
-    firstNoteId: noteId,
-    val: 4,
-    color: "#d4d4d4",
-    isHub: false,
-  }));
+  for (const edge of snap.edges) {
+    for (const note of edge.sourceNotes ?? []) {
+      noteTitles.set(note.id, note.title);
+      addNoteConcept(note.id, edge.sourceId);
+      addNoteConcept(note.id, edge.targetId);
+    }
+    for (const context of edge.sourceContexts ?? []) {
+      noteTitles.set(context.noteId, context.noteTitle);
+      addNoteConcept(context.noteId, edge.sourceId);
+      addNoteConcept(context.noteId, edge.targetId);
+    }
+  }
+  const noteHubNodes: ForceGraphNode[] = [...noteConceptIds.entries()].map(
+    ([noteId, conceptIds]) => {
+      const degree = conceptIds.size;
+      const title = noteTitles.get(noteId) ?? "출처 노트";
+      return {
+        id: `note:${noteId}`,
+        name: title,
+        shortLabel: truncateGraphLabel(title, 28),
+        description: "",
+        kind: "note",
+        degree,
+        noteCount: 1,
+        firstNoteId: noteId,
+        val: Math.max(7, Math.min(22, 8 + Math.sqrt(degree + 1) * 3.4)),
+        color: NOTE_HUB_COLOR,
+        isHub: degree >= 2,
+      };
+    },
+  );
   const allNodes = [...nodes, ...noteHubNodes];
   const topNodeIds = new Set(
-    [...nodes]
+    [...nodes, ...noteHubNodes]
       .sort((a, b) => b.degree - a.degree || a.name.localeCompare(b.name))
-      .slice(0, Math.min(GRAPH_TOP_LABEL_LIMIT, nodes.length))
+      .slice(0, Math.min(GRAPH_TOP_LABEL_LIMIT, allNodes.length))
       .map((node) => node.id),
   );
   const links = snap.edges.map((edge) => ({
@@ -133,16 +160,17 @@ export function buildForceGraphData(
     surfaceType: edge.surfaceType,
     displayOnly: edge.displayOnly,
   }));
-  const noteHubLinks: ForceGraphLink[] = snap.nodes
-    .filter((node) => Boolean(node.firstNoteId))
-    .map((node) => ({
-      edgeId: `note:${node.firstNoteId}:${node.id}`,
-      source: `note:${node.firstNoteId}`,
-      target: node.id,
-      relationType: "source-note",
-      weight: 1,
-      synthetic: true,
-    }));
+  const noteHubLinks: ForceGraphLink[] = [...noteConceptIds.entries()].flatMap(
+    ([noteId, conceptIds]) =>
+      [...conceptIds].map((conceptId) => ({
+        edgeId: `note:${noteId}:${conceptId}`,
+        source: `note:${noteId}`,
+        target: conceptId,
+        relationType: "source-note",
+        weight: 1,
+        synthetic: true,
+      })),
+  );
 
   return { nodes: allNodes, links: [...noteHubLinks, ...links], topNodeIds };
 }

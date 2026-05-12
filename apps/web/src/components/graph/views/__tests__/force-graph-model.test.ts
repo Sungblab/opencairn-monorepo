@@ -54,6 +54,13 @@ const snap: GroundedGraphResponse = {
         citationCount: 0,
         status: "missing",
       },
+      surfaceType: "source_membership",
+      sourceNotes: [
+        {
+          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          title: "Lecture 2: Input_Output",
+        },
+      ],
     },
   ],
 };
@@ -67,6 +74,17 @@ describe("force graph model", () => {
     expect(graph.nodes[0]?.isHub).toBe(true);
     expect(graph.nodes[1]?.isHub).toBe(false);
     expect(graph.nodes.some((node) => node.kind === "note")).toBe(true);
+    expect(graph.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "note:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          name: "Lecture 2: Input_Output",
+          shortLabel: "Lecture 2: Input_Output",
+          kind: "note",
+          isHub: true,
+        }),
+      ]),
+    );
     expect(graph.links).toEqual(expect.arrayContaining([
       expect.objectContaining({
         edgeId: "44444444-4444-4444-8444-444444444444",
@@ -76,6 +94,10 @@ describe("force graph model", () => {
       }),
       expect.objectContaining({
         edgeId: "note:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa:11111111-1111-4111-8111-111111111111",
+        relationType: "source-note",
+      }),
+      expect.objectContaining({
+        edgeId: "note:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa:22222222-2222-4222-8222-222222222222",
         relationType: "source-note",
       }),
     ]));
