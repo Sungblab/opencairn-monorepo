@@ -1,7 +1,6 @@
 "use client";
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
-import type { ViewNode } from "@opencairn/shared";
 import { useProjectGraph } from "../useProjectGraph";
 import { useTabsStore } from "@/stores/tabs-store";
 import {
@@ -9,6 +8,7 @@ import {
   TIMELINE_NODE_RADIUS,
   type PositionedNode,
 } from "./timeline-layout";
+import { projectNoteLinksToNodes } from "./note-link-projection";
 
 interface Props {
   projectId: string;
@@ -20,41 +20,6 @@ function timelineLabel(name: string): string {
   const trimmed = name.trim();
   if (trimmed.length <= TIMELINE_LABEL_MAX) return trimmed;
   return `${trimmed.slice(0, TIMELINE_LABEL_MAX - 3)}...`;
-}
-
-function withNoteLinkTimelineNodes(
-  nodes: ViewNode[],
-  noteLinks: Array<{
-    sourceNoteId: string;
-    sourceTitle: string;
-    targetNoteId: string;
-    targetTitle: string;
-  }> | undefined,
-): { nodes: ViewNode[]; noteNodeIds: Set<string> } {
-  if (!noteLinks?.length) return { nodes, noteNodeIds: new Set() };
-  const nodeMap = new Map(nodes.map((node) => [node.id, node]));
-  const noteTitles = new Map<string, string>();
-  const noteDegree = new Map<string, number>();
-  for (const link of noteLinks) {
-    noteTitles.set(link.sourceNoteId, link.sourceTitle);
-    noteTitles.set(link.targetNoteId, link.targetTitle);
-    noteDegree.set(link.sourceNoteId, (noteDegree.get(link.sourceNoteId) ?? 0) + 1);
-    noteDegree.set(link.targetNoteId, (noteDegree.get(link.targetNoteId) ?? 0) + 1);
-  }
-  const noteNodeIds = new Set<string>();
-  for (const [noteId, title] of noteTitles) {
-    if (nodeMap.has(noteId)) continue;
-    noteNodeIds.add(noteId);
-    nodeMap.set(noteId, {
-      id: noteId,
-      name: title,
-      description: "",
-      degree: noteDegree.get(noteId) ?? 1,
-      noteCount: 1,
-      firstNoteId: noteId,
-    });
-  }
-  return { nodes: [...nodeMap.values()], noteNodeIds };
 }
 
 /**
@@ -70,7 +35,7 @@ export default function TimelineView({ projectId }: Props) {
   const addOrReplacePreview = useTabsStore((s) => s.addOrReplacePreview);
 
   const projected = useMemo(
-    () => withNoteLinkTimelineNodes(data?.nodes ?? [], data?.noteLinks),
+    () => projectNoteLinksToNodes(data?.nodes ?? [], data?.noteLinks),
     [data?.nodes, data?.noteLinks],
   );
   const layout = useMemo(

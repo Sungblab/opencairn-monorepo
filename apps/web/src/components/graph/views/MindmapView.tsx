@@ -5,13 +5,13 @@ import cytoscape from "cytoscape";
 import dagre from "cytoscape-dagre";
 import { useLocale, useTranslations } from "next-intl";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import type { ViewNode } from "@opencairn/shared";
 import { urls } from "@/lib/urls";
 import { useTabsStore } from "@/stores/tabs-store";
 import { useProjectGraph } from "../useProjectGraph";
 import { evidenceBundleById, type GroundedEdge } from "../grounded-types";
 import { CoMentionEdgePanel } from "./CoMentionEdgePanel";
 import { EdgeEvidencePanel } from "./EdgeEvidencePanel";
+import { projectNoteLinksToGraph } from "./note-link-projection";
 
 // react-cytoscapejs imports cytoscape at module top level. Disable SSR — the
 // underlying renderer needs DOM/window. Same pattern as ProjectGraph + Phase 1
@@ -36,63 +36,6 @@ function edgeElementId(edge: GroundedEdge) {
   return edge.id ?? `${edge.sourceId}->${edge.targetId}:${edge.relationType}`;
 }
 
-function withNoteLinkMindmapNodes(
-  nodes: ViewNode[],
-  edges: GroundedEdge[],
-  noteLinks: Array<{
-    sourceNoteId: string;
-    sourceTitle: string;
-    targetNoteId: string;
-    targetTitle: string;
-  }> | undefined,
-): { nodes: ViewNode[]; edges: GroundedEdge[]; noteNodeIds: Set<string> } {
-  if (!noteLinks?.length) return { nodes, edges, noteNodeIds: new Set() };
-  const nodeMap = new Map(nodes.map((node) => [node.id, node]));
-  const noteDegree = new Map<string, number>();
-  const noteTitles = new Map<string, string>();
-  for (const link of noteLinks) {
-    noteTitles.set(link.sourceNoteId, link.sourceTitle);
-    noteTitles.set(link.targetNoteId, link.targetTitle);
-    noteDegree.set(link.sourceNoteId, (noteDegree.get(link.sourceNoteId) ?? 0) + 1);
-    noteDegree.set(link.targetNoteId, (noteDegree.get(link.targetNoteId) ?? 0) + 1);
-  }
-  const noteNodeIds = new Set<string>();
-  for (const [noteId, title] of noteTitles) {
-    if (!nodeMap.has(noteId)) {
-      noteNodeIds.add(noteId);
-      nodeMap.set(noteId, {
-        id: noteId,
-        name: title,
-        description: "",
-        degree: noteDegree.get(noteId) ?? 1,
-        noteCount: 1,
-        firstNoteId: noteId,
-      });
-    }
-  }
-  const edgeMap = new Map(edges.map((edge) => [edgeElementId(edge), edge]));
-  for (const link of noteLinks) {
-    const id = `note-link:${link.sourceNoteId}->${link.targetNoteId}`;
-    if (edgeMap.has(id)) continue;
-    edgeMap.set(id, {
-      id,
-      sourceId: link.sourceNoteId,
-      targetId: link.targetNoteId,
-      relationType: "wiki-link",
-      weight: 1,
-      surfaceType: "wiki_link",
-      displayOnly: true,
-      sourceNoteIds: [link.sourceNoteId, link.targetNoteId],
-      sourceNoteLinks: [link],
-    });
-  }
-  return {
-    nodes: [...nodeMap.values()],
-    edges: [...edgeMap.values()],
-    noteNodeIds,
-  };
-}
-
 export default function MindmapView({ projectId, root }: Props) {
   const t = useTranslations("graph");
   const locale = useLocale();
@@ -112,7 +55,7 @@ export default function MindmapView({ projectId, root }: Props) {
 
   const projected = useMemo(
     () =>
-      withNoteLinkMindmapNodes(
+      projectNoteLinksToGraph(
         data?.nodes ?? [],
         data?.edges ?? [],
         data?.noteLinks,

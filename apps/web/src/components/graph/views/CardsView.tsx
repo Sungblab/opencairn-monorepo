@@ -2,11 +2,11 @@
 import { useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useParams, useRouter } from "next/navigation";
-import type { ViewNode } from "@opencairn/shared";
 import { urls } from "@/lib/urls";
 import { useProjectGraph } from "../useProjectGraph";
 import { evidenceBundleById, type GroundedEdge } from "../grounded-types";
 import { ConceptCard } from "./ConceptCard";
+import { projectNoteLinksToGraph } from "./note-link-projection";
 
 interface Props {
   projectId: string;
@@ -117,63 +117,6 @@ function edgePath(
   };
 }
 
-function withNoteLinkCards(
-  nodes: ViewNode[],
-  edges: GroundedEdge[],
-  noteLinks: Array<{
-    sourceNoteId: string;
-    sourceTitle: string;
-    targetNoteId: string;
-    targetTitle: string;
-  }> | undefined,
-): { nodes: ViewNode[]; edges: GroundedEdge[]; noteNodeIds: Set<string> } {
-  if (!noteLinks?.length) return { nodes, edges, noteNodeIds: new Set() };
-  const nodeMap = new Map(nodes.map((node) => [node.id, node]));
-  const noteDegree = new Map<string, number>();
-  const noteTitles = new Map<string, string>();
-  for (const link of noteLinks) {
-    noteTitles.set(link.sourceNoteId, link.sourceTitle);
-    noteTitles.set(link.targetNoteId, link.targetTitle);
-    noteDegree.set(link.sourceNoteId, (noteDegree.get(link.sourceNoteId) ?? 0) + 1);
-    noteDegree.set(link.targetNoteId, (noteDegree.get(link.targetNoteId) ?? 0) + 1);
-  }
-  const noteNodeIds = new Set<string>();
-  for (const [noteId, title] of noteTitles) {
-    if (!nodeMap.has(noteId)) {
-      noteNodeIds.add(noteId);
-      nodeMap.set(noteId, {
-        id: noteId,
-        name: title,
-        description: "",
-        degree: noteDegree.get(noteId) ?? 1,
-        noteCount: 1,
-        firstNoteId: noteId,
-      });
-    }
-  }
-  const edgeMap = new Map(edges.map((edge) => [edge.id, edge]));
-  for (const link of noteLinks) {
-    const id = `note-link:${link.sourceNoteId}->${link.targetNoteId}`;
-    if (edgeMap.has(id)) continue;
-    edgeMap.set(id, {
-      id,
-      sourceId: link.sourceNoteId,
-      targetId: link.targetNoteId,
-      relationType: "wiki-link",
-      weight: 1,
-      surfaceType: "wiki_link",
-      displayOnly: true,
-      sourceNoteIds: [link.sourceNoteId, link.targetNoteId],
-      sourceNoteLinks: [link],
-    });
-  }
-  return {
-    nodes: [...nodeMap.values()],
-    edges: [...edgeMap.values()],
-    noteNodeIds,
-  };
-}
-
 /**
  * `?view=cards` — connected concept cards. This keeps cards readable while
  * preserving the ontology edges that make the view useful as a knowledge map.
@@ -198,7 +141,7 @@ export default function CardsView({ projectId }: Props) {
   );
   const projected = useMemo(
     () =>
-      withNoteLinkCards(
+      projectNoteLinksToGraph(
         data?.nodes ?? [],
         data?.edges ?? [],
         data?.noteLinks,
