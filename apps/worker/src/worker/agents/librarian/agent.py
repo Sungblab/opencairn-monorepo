@@ -92,6 +92,8 @@ class LibrarianContradiction:
 @dataclass
 class LibrarianOutput:
     project_id: str
+    unresolved_wiki_links: int = 0
+    wiki_orphan_pages: int = 0
     orphan_count: int = 0
     contradictions: list[LibrarianContradiction] = field(default_factory=list)
     duplicates_merged: int = 0
@@ -147,6 +149,10 @@ class LibrarianAgent(Agent):
         output = LibrarianOutput(project_id=validated.project_id)
 
         try:
+            # 0. Wiki index diagnostics: note-link health, not concept graph health.
+            async for ev in self._inspect_wiki_index(validated, ctx, seq, output):
+                yield ev
+
             # 1. Orphans.
             async for ev in self._detect_orphans(validated, ctx, seq, output):
                 yield ev
@@ -189,6 +195,71 @@ class LibrarianAgent(Agent):
                 retryable=_is_retryable(exc),
             )
             raise
+
+    # ------------------------------------------------------------------
+    # Phase 0 — wiki index diagnostics
+    # ------------------------------------------------------------------
+
+    async def _inspect_wiki_index(
+        self,
+        input: LibrarianInput,
+        ctx: ToolContext,
+        seq: _SeqCounter,
+        output: LibrarianOutput,
+    ) -> AsyncGenerator[AgentEvent, None]:
+        call_id = f"call-{uuid.uuid4().hex[:8]}"
+        args = {"project_id": input.project_id}
+        yield ToolUse(
+            run_id=ctx.run_id,
+            workspace_id=ctx.workspace_id,
+            agent_name=self.name,
+            seq=seq.next(),
+            ts=time.time(),
+            type="tool_use",
+            tool_call_id=call_id,
+            tool_name="get_project_wiki_index",
+            input_args=args,
+            input_hash=hash_input(args),
+            concurrency_safe=True,
+        )
+        started = time.time()
+        index = await self.api.get_project_wiki_index(input.project_id)
+        unresolved = list(index.get("unresolvedLinks", []))
+        totals = index.get("totals") if isinstance(index.get("totals"), dict) else {}
+        orphan_pages = int(totals.get("orphanPages", 0))
+        yield ToolResult(
+            run_id=ctx.run_id,
+            workspace_id=ctx.workspace_id,
+            agent_name=self.name,
+            seq=seq.next(),
+            ts=time.time(),
+            type="tool_result",
+            tool_call_id=call_id,
+            ok=True,
+            output={
+                "unresolvedLinks": len(unresolved),
+                "orphanPages": orphan_pages,
+            },
+            duration_ms=int((time.time() - started) * 1000),
+        )
+
+        output.unresolved_wiki_links = len(unresolved)
+        output.wiki_orphan_pages = orphan_pages
+
+        yield CustomEvent(
+            run_id=ctx.run_id,
+            workspace_id=ctx.workspace_id,
+            agent_name=self.name,
+            seq=seq.next(),
+            ts=time.time(),
+            type="custom",
+            label="librarian.unresolved_wiki_links_detected",
+            payload={
+                "count": len(unresolved),
+                "orphanPages": orphan_pages,
+                "links": unresolved[:20],
+            },
+        )
 
     # ------------------------------------------------------------------
     # Phase 1 — orphan detection
@@ -914,6 +985,8 @@ def _evidence_entries_from_pair_chunks(
 def _output_to_dict(out: LibrarianOutput) -> dict[str, Any]:
     return {
         "project_id": out.project_id,
+        "unresolved_wiki_links": out.unresolved_wiki_links,
+        "wiki_orphan_pages": out.wiki_orphan_pages,
         "orphan_count": out.orphan_count,
         "contradictions": [
             {

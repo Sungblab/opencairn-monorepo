@@ -230,6 +230,45 @@ describe("POST /api/internal/notes (research extension)", () => {
   });
 });
 
+describe("GET /api/internal/projects/:id/wiki-index", () => {
+  let ctx: SeedResult;
+  beforeEach(async () => {
+    ctx = await seedWorkspace({ role: "owner" });
+  });
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  it("returns wiki diagnostics for worker maintenance agents", async () => {
+    const res = await internalFetch(
+      `/api/internal/projects/${ctx.projectId}/wiki-index`,
+      { method: "GET" },
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json() as {
+      projectId: string;
+      totals: { pages: number; wikiLinks: number; orphanPages: number };
+      links: unknown[];
+      unresolvedLinks: unknown[];
+      recentLogs: unknown[];
+      pages: Array<{ id: string; title: string }>;
+    };
+    expect(body.projectId).toBe(ctx.projectId);
+    expect(body.totals.pages).toBeGreaterThanOrEqual(1);
+    expect(body.totals.wikiLinks).toBe(0);
+    expect(body.totals.orphanPages).toBeGreaterThanOrEqual(1);
+    expect(body.links).toEqual([]);
+    expect(body.unresolvedLinks).toEqual([]);
+    expect(body.recentLogs).toEqual([]);
+    expect(body.pages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: ctx.noteId, title: "test" }),
+      ]),
+    );
+  });
+});
+
 describe("POST /api/internal/research/image-bytes", () => {
   let ctx: SeedResult;
   beforeEach(async () => {

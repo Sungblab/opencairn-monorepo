@@ -68,6 +68,7 @@ import { labelFromId } from "../lib/tree-queries";
 import { canRead } from "../lib/permissions";
 import { expandFromConcept } from "../lib/expand-graph";
 import { projectHybridSearch } from "../lib/internal-hybrid-search";
+import { buildProjectWikiIndex } from "../lib/project-wiki-index";
 import { recordAgenticPlanHandoff } from "../lib/agentic-plans";
 import { drainDueNoteAnalysisJobs } from "../lib/note-analysis-jobs";
 import { getChatProvider } from "../lib/llm";
@@ -2180,6 +2181,17 @@ internal.post(
 // Plan 4 Phase B — Librarian agent support
 // ---------------------------------------------------------------------------
 
+// GET /internal/projects/:id/wiki-index — note/wiki-link diagnostics for
+// Librarian maintenance. Unlike the public route, this uses the internal
+// secret boundary and returns the full project-level index for worker agents.
+internal.get("/projects/:id/wiki-index", async (c) => {
+  const projectId = c.req.param("id");
+  if (!z.string().uuid().safeParse(projectId).success) {
+    return c.json({ error: "Invalid project id" }, 400);
+  }
+  const index = await buildProjectWikiIndex({ projectId });
+  return c.json(index);
+});
 // GET /internal/projects/:id/orphan-concepts — concepts with no edges in
 // either direction. Librarian detect_orphans step consumes this.
 internal.get("/projects/:id/orphan-concepts", async (c) => {

@@ -154,6 +154,9 @@ def _make_provider(generate_responses: list[str]) -> LLMProvider:
 
 def _make_api() -> MagicMock:
     api = MagicMock()
+    api.get_project_wiki_index = AsyncMock(
+        return_value={"unresolvedLinks": [], "totals": {"orphanPages": 0}}
+    )
     api.list_orphan_concepts = AsyncMock(return_value=[])
     api.list_concept_pairs = AsyncMock(return_value=[])
     api.list_link_candidates = AsyncMock(return_value=[])
@@ -199,6 +202,8 @@ async def test_librarian_empty_project_is_noop() -> None:
     end = events[-1]
     assert end.output == {
         "project_id": "proj-1",
+        "unresolved_wiki_links": 0,
+        "wiki_orphan_pages": 0,
         "orphan_count": 0,
         "contradictions": [],
         "duplicates_merged": 0,
@@ -230,6 +235,63 @@ async def test_librarian_counts_orphans() -> None:
         if e.type == "custom" and e.label == "librarian.orphans_detected"
     ]
     assert customs and customs[0].payload["count"] == 3
+
+
+@pytest.mark.asyncio
+async def test_librarian_reports_unresolved_wiki_links() -> None:
+    provider = _make_provider([])
+    api = _make_api()
+    api.get_project_wiki_index = AsyncMock(
+        return_value={
+            "totals": {"orphanPages": 4},
+            "unresolvedLinks": [
+                {
+                    "sourceNoteId": "note-1",
+                    "sourceTitle": "Lecture 2",
+                    "targetTitle": "Missing Concept",
+                    "reason": "missing",
+                },
+                {
+                    "sourceNoteId": "note-2",
+                    "sourceTitle": "Lecture 3",
+                    "targetTitle": "Duplicate Concept",
+                    "reason": "ambiguous",
+                },
+            ],
+        }
+    )
+    agent = LibrarianAgent(provider=provider, api=api)
+
+    events = await _collect(agent)
+
+    end = events[-1]
+    assert end.output["unresolved_wiki_links"] == 2
+    assert end.output["wiki_orphan_pages"] == 4
+    customs = [
+        e
+        for e in events
+        if e.type == "custom"
+        and e.label == "librarian.unresolved_wiki_links_detected"
+    ]
+    assert customs
+    assert customs[0].payload == {
+        "count": 2,
+        "orphanPages": 4,
+        "links": [
+            {
+                "sourceNoteId": "note-1",
+                "sourceTitle": "Lecture 2",
+                "targetTitle": "Missing Concept",
+                "reason": "missing",
+            },
+            {
+                "sourceNoteId": "note-2",
+                "sourceTitle": "Lecture 3",
+                "targetTitle": "Duplicate Concept",
+                "reason": "ambiguous",
+            },
+        ],
+    }
 
 
 @pytest.mark.asyncio

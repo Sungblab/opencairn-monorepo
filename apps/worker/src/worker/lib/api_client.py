@@ -441,6 +441,10 @@ class AgentApiClient:
         )
         return list(res.get("results", []))
 
+    async def get_project_wiki_index(self, project_id: str) -> dict[str, Any]:
+        """Live wiki-link index and diagnostics for one project."""
+        return await get_internal(f"/api/internal/projects/{project_id}/wiki-index")
+
     async def list_project_topics(
         self, *, project_id: str,
     ) -> list[dict[str, Any]]:
