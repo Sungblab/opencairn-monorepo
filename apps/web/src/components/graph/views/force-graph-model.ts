@@ -1,7 +1,9 @@
 import type { GroundedGraphResponse } from "../grounded-types";
 
-export const GRAPH_LABEL_MAX = 28;
-export const GRAPH_FULL_LABEL_ZOOM_THRESHOLD = 1.0;
+export const GRAPH_LABEL_MAX = 18;
+export const GRAPH_FULL_LABEL_ZOOM_THRESHOLD = 1.65;
+const GRAPH_TOP_LABEL_ZOOM_THRESHOLD = 1.35;
+const GRAPH_TOP_LABEL_LIMIT = 6;
 const HUB_DEGREE_THRESHOLD = 6;
 const GRAPH_NODE_COLORS = [
   "#22c55e",
@@ -116,7 +118,7 @@ export function buildForceGraphData(
   const topNodeIds = new Set(
     [...nodes]
       .sort((a, b) => b.degree - a.degree || a.name.localeCompare(b.name))
-      .slice(0, Math.min(12, nodes.length))
+      .slice(0, Math.min(GRAPH_TOP_LABEL_LIMIT, nodes.length))
       .map((node) => node.id),
   );
   const links = snap.edges.map((edge) => ({
@@ -168,13 +170,17 @@ export function getGraphLabel(
     neighborIds: Set<string>;
   },
 ): string {
-  const important =
-    opts.topNodeIds.has(node.id) ||
+  const topNode = opts.topNodeIds.has(node.id);
+  const interactive =
     opts.hoveredNodeId === node.id ||
     opts.selectedNodeId === node.id ||
     opts.neighborIds.has(node.id);
 
-  if (!important && opts.zoom < GRAPH_FULL_LABEL_ZOOM_THRESHOLD) return "";
+  if (interactive) return node.shortLabel;
+  if (topNode && opts.zoom >= GRAPH_TOP_LABEL_ZOOM_THRESHOLD) {
+    return node.shortLabel;
+  }
+  if (opts.zoom < GRAPH_FULL_LABEL_ZOOM_THRESHOLD) return "";
   return node.shortLabel;
 }
 
@@ -183,6 +189,6 @@ export function getGraphLabelFontSize(opts: {
   important: boolean;
 }): number {
   if (!opts.important && opts.zoom < GRAPH_FULL_LABEL_ZOOM_THRESHOLD) return 0;
-  if (opts.important) return opts.zoom >= 1.8 ? 9 : 8;
-  return 8;
+  if (opts.important) return opts.zoom >= 1.8 ? 8 : 7;
+  return 7;
 }
