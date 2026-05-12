@@ -556,6 +556,7 @@ linked action `failed`, so a failed start does not remain `queued`.
 | POST | /internal/source-notes | `X-Internal-Secret` | 파싱된 텍스트로 source 노트 생성 + (선택) Compiler 트리거 | `{ userId, projectId, parentNoteId?, title, content, sourceType, objectKey?, sourceUrl?, mimeType, triggerCompiler }` |
 | POST | /internal/test-seed | `X-Internal-Secret` + `NODE_ENV !== "production"` | E2E 전용 — 유저 + 워크스페이스 + 프로젝트 + "Welcome" 노트를 생성하고 서명된 Better Auth 세션 쿠키를 반환. 응답: `{ userId, wsSlug, workspaceId, projectId, noteId, sessionCookie, cookieName, cookieValue, expiresAt }`. 프로덕션에서는 403. | `{}` |
 | GET | /api/internal/projects/:id/wiki-index | `X-Internal-Secret` | Librarian 유지보수용 project wiki diagnostics. Public `/api/projects/:id/wiki-index`와 같은 `{ projectId, generatedAt, latestPageUpdatedAt, totals:{ pages, wikiLinks, orphanPages }, links, unresolvedLinks, recentLogs, pages }` shape를 반환하되 worker internal secret 경계에서 호출한다. | — |
+| POST | /api/internal/projects/:id/agent-actions | `X-Internal-Secret` | Worker가 프로젝트 사용자 권한으로 reviewable action ledger row를 생성한다. `createAgentActionRequestSchema`를 그대로 검증하고 기존 idempotency / permission / approval-mode 규칙을 재사용한다. | `{ userId, action }` -> `201/200 { action, idempotent }` |
 | GET | /internal/projects/:id/topics | `X-Internal-Secret` | 프로젝트의 top 30 concepts (note-link count desc)를 `[{ topic_id, name, concept_count }]`로 반환. `list_project_topics` 툴 (Agent Runtime v2 · A)의 Layer 3 hierarchical retrieval entry. | — |
 
 `X-Internal-Secret` 헤더는 `INTERNAL_API_SECRET` env와 일치해야 하며, 불일치 시 `401`.

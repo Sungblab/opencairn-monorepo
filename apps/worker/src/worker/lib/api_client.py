@@ -445,6 +445,19 @@ class AgentApiClient:
         """Live wiki-link index and diagnostics for one project."""
         return await get_internal(f"/api/internal/projects/{project_id}/wiki-index")
 
+    async def create_agent_action(
+        self,
+        *,
+        project_id: str,
+        user_id: str,
+        request: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Create a reviewable agent action from an internal worker run."""
+        return await post_internal(
+            f"/api/internal/projects/{project_id}/agent-actions",
+            {"userId": user_id, "action": request},
+        )
+
     async def list_project_topics(
         self, *, project_id: str,
     ) -> list[dict[str, Any]]:

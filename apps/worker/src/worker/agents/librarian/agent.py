@@ -73,6 +73,8 @@ MAX_CONTRADICTION_PAIRS = 30
 MAX_DUPLICATE_PAIRS = 100
 MAX_LINK_CANDIDATES = 200
 LINK_STRENGTHEN_CONCURRENCY = 8
+MAX_WIKI_REPAIR_ACTIONS = 5
+WIKI_REPAIR_REQUEST_NAMESPACE = uuid.UUID("8a0afdb9-68c7-4a59-9f3d-315d5f95e934")
 
 
 @dataclass(frozen=True)
@@ -94,6 +96,7 @@ class LibrarianOutput:
     project_id: str
     unresolved_wiki_links: int = 0
     wiki_orphan_pages: int = 0
+    wiki_repair_actions_created: int = 0
     orphan_count: int = 0
     contradictions: list[LibrarianContradiction] = field(default_factory=list)
     duplicates_merged: int = 0
@@ -245,6 +248,12 @@ class LibrarianAgent(Agent):
 
         output.unresolved_wiki_links = len(unresolved)
         output.wiki_orphan_pages = orphan_pages
+        repair_count = await self._create_wiki_repair_actions(
+            input=input,
+            ctx=ctx,
+            unresolved=unresolved,
+        )
+        output.wiki_repair_actions_created = repair_count
 
         yield CustomEvent(
             run_id=ctx.run_id,
@@ -260,6 +269,81 @@ class LibrarianAgent(Agent):
                 "links": unresolved[:20],
             },
         )
+        yield CustomEvent(
+            run_id=ctx.run_id,
+            workspace_id=ctx.workspace_id,
+            agent_name=self.name,
+            seq=seq.next(),
+            ts=time.time(),
+            type="custom",
+            label="librarian.wiki_repair_actions_created",
+            payload={"count": repair_count},
+        )
+
+    async def _create_wiki_repair_actions(
+        self,
+        *,
+        input: LibrarianInput,
+        ctx: ToolContext,
+        unresolved: list[Any],
+    ) -> int:
+        created = 0
+        missing = [
+            link
+            for link in unresolved
+            if isinstance(link, dict) and link.get("reason") == "missing"
+        ][:MAX_WIKI_REPAIR_ACTIONS]
+        for link in missing:
+            target_title = str(link.get("targetTitle") or "").strip()
+            source_title = str(link.get("sourceTitle") or "source note").strip()
+            source_note_id = str(link.get("sourceNoteId") or "").strip()
+            if not target_title:
+                continue
+            request_id = str(
+                uuid.uuid5(
+                    WIKI_REPAIR_REQUEST_NAMESPACE,
+                    f"{input.project_id}:{source_note_id}:{target_title}",
+                )
+            )
+            body_markdown = (
+                f"# {target_title}\n\n"
+                "This page was proposed by Librarian because an unresolved "
+                f"wiki link points here from **{source_title}**.\n\n"
+                "Review the source note, then replace this stub with grounded "
+                "content or reject the action."
+            )
+            try:
+                result = await self.api.create_agent_action(
+                    project_id=input.project_id,
+                    user_id=input.user_id,
+                    request={
+                        "requestId": request_id,
+                        "sourceRunId": ctx.run_id,
+                        "kind": "note.create_from_markdown",
+                        "risk": "write",
+                        "approvalMode": "require",
+                        "input": {
+                            "title": target_title,
+                            "folderId": None,
+                            "bodyMarkdown": body_markdown,
+                        },
+                        "preview": {
+                            "summary": "Create a missing wiki page stub",
+                            "sourceNoteId": source_note_id,
+                            "sourceTitle": source_title,
+                            "targetTitle": target_title,
+                        },
+                    },
+                )
+                if not result.get("idempotent"):
+                    created += 1
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Librarian: failed to create wiki repair action for %s: %s",
+                    target_title,
+                    exc,
+                )
+        return created
 
     # ------------------------------------------------------------------
     # Phase 1 — orphan detection
@@ -987,6 +1071,7 @@ def _output_to_dict(out: LibrarianOutput) -> dict[str, Any]:
         "project_id": out.project_id,
         "unresolved_wiki_links": out.unresolved_wiki_links,
         "wiki_orphan_pages": out.wiki_orphan_pages,
+        "wiki_repair_actions_created": out.wiki_repair_actions_created,
         "orphan_count": out.orphan_count,
         "contradictions": [
             {

@@ -53,6 +53,7 @@ import {
   codeWorkspacePreviewSmokeResultSchema,
   codeWorkspaceInstallResultSchema,
   codeWorkspaceCommandRunResultSchema,
+  createAgentActionRequestSchema,
   createConceptExtractionSchema,
   createEvidenceBundleSchema,
   documentGenerationSourceSchema,
@@ -101,6 +102,7 @@ import {
   completeCodeProjectInstallActionFromWorker,
   completeCodeProjectRepairActionFromWorker,
   completeCodeProjectRunActionFromWorker,
+  createAgentAction,
   createDrizzleAgentActionRepository,
   AgentActionError,
   recordCodeProjectPreviewSmokeResult,
@@ -2192,6 +2194,38 @@ internal.get("/projects/:id/wiki-index", async (c) => {
   const index = await buildProjectWikiIndex({ projectId });
   return c.json(index);
 });
+
+const internalAgentActionCreateSchema = z.object({
+  userId: z.string().uuid(),
+  action: createAgentActionRequestSchema,
+}).strict();
+
+internal.post(
+  "/projects/:id/agent-actions",
+  zValidator("json", internalAgentActionCreateSchema),
+  async (c) => {
+    const projectId = c.req.param("id");
+    if (!z.string().uuid().safeParse(projectId).success) {
+      return c.json({ error: "Invalid project id" }, 400);
+    }
+    const body = c.req.valid("json");
+    try {
+      const { action, idempotent } = await createAgentAction(
+        projectId,
+        body.userId,
+        body.action,
+      );
+      return c.json({ action, idempotent }, idempotent ? 200 : 201);
+    } catch (err) {
+      if (err instanceof AgentActionError) {
+        return c.json({ error: err.code }, err.status as 400 | 403 | 404 | 409);
+      }
+      console.error("[agent-actions] internal create failed", err);
+      return c.json({ error: "agent_action_create_failed" }, 500);
+    }
+  },
+);
+
 // GET /internal/projects/:id/orphan-concepts — concepts with no edges in
 // either direction. Librarian detect_orphans step consumes this.
 internal.get("/projects/:id/orphan-concepts", async (c) => {

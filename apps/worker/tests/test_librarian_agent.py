@@ -157,6 +157,12 @@ def _make_api() -> MagicMock:
     api.get_project_wiki_index = AsyncMock(
         return_value={"unresolvedLinks": [], "totals": {"orphanPages": 0}}
     )
+    api.create_agent_action = AsyncMock(
+        return_value={
+            "action": {"id": "action-1", "status": "approval_required"},
+            "idempotent": False,
+        }
+    )
     api.list_orphan_concepts = AsyncMock(return_value=[])
     api.list_concept_pairs = AsyncMock(return_value=[])
     api.list_link_candidates = AsyncMock(return_value=[])
@@ -204,6 +210,7 @@ async def test_librarian_empty_project_is_noop() -> None:
         "project_id": "proj-1",
         "unresolved_wiki_links": 0,
         "wiki_orphan_pages": 0,
+        "wiki_repair_actions_created": 0,
         "orphan_count": 0,
         "contradictions": [],
         "duplicates_merged": 0,
@@ -267,6 +274,16 @@ async def test_librarian_reports_unresolved_wiki_links() -> None:
     end = events[-1]
     assert end.output["unresolved_wiki_links"] == 2
     assert end.output["wiki_orphan_pages"] == 4
+    assert end.output["wiki_repair_actions_created"] == 1
+    api.create_agent_action.assert_awaited_once()
+    action_kwargs = api.create_agent_action.await_args.kwargs
+    assert action_kwargs["project_id"] == "proj-1"
+    assert action_kwargs["user_id"] == "user-1"
+    assert action_kwargs["request"]["kind"] == "note.create_from_markdown"
+    assert action_kwargs["request"]["risk"] == "write"
+    assert action_kwargs["request"]["approvalMode"] == "require"
+    assert action_kwargs["request"]["input"]["title"] == "Missing Concept"
+    assert "Lecture 2" in action_kwargs["request"]["input"]["bodyMarkdown"]
     customs = [
         e
         for e in events
@@ -292,6 +309,53 @@ async def test_librarian_reports_unresolved_wiki_links() -> None:
             },
         ],
     }
+    repair_customs = [
+        e
+        for e in events
+        if e.type == "custom"
+        and e.label == "librarian.wiki_repair_actions_created"
+    ]
+    assert repair_customs
+    assert repair_customs[0].payload == {"count": 1}
+
+
+@pytest.mark.asyncio
+async def test_librarian_does_not_count_idempotent_wiki_repair_actions() -> None:
+    provider = _make_provider([])
+    api = _make_api()
+    api.get_project_wiki_index = AsyncMock(
+        return_value={
+            "totals": {"orphanPages": 0},
+            "unresolvedLinks": [
+                {
+                    "sourceNoteId": "note-1",
+                    "sourceTitle": "Lecture 2",
+                    "targetTitle": "Existing Repair",
+                    "reason": "missing",
+                },
+            ],
+        }
+    )
+    api.create_agent_action = AsyncMock(
+        return_value={
+            "action": {"id": "action-1", "status": "approval_required"},
+            "idempotent": True,
+        }
+    )
+    agent = LibrarianAgent(provider=provider, api=api)
+
+    events = await _collect(agent)
+
+    end = events[-1]
+    assert end.output["wiki_repair_actions_created"] == 0
+    repair_customs = [
+        e
+        for e in events
+        if e.type == "custom"
+        and e.label == "librarian.wiki_repair_actions_created"
+    ]
+    assert repair_customs
+    assert repair_customs[0].payload == {"count": 0}
 
 
 @pytest.mark.asyncio

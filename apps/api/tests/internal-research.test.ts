@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { createApp } from "../src/app.js";
 import {
   and,
+  agentActions,
   db,
   eq,
   notes,
@@ -266,6 +267,70 @@ describe("GET /api/internal/projects/:id/wiki-index", () => {
         expect.objectContaining({ id: ctx.noteId, title: "test" }),
       ]),
     );
+  });
+});
+
+describe("POST /api/internal/projects/:id/agent-actions", () => {
+  let ctx: SeedResult;
+  beforeEach(async () => {
+    ctx = await seedWorkspace({ role: "owner" });
+  });
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  it("creates idempotent review actions for worker maintenance", async () => {
+    const requestId = randomUUID();
+    const payload = {
+      userId: ctx.userId,
+      action: {
+        requestId,
+        sourceRunId: "librarian-run-1",
+        kind: "note.create_from_markdown",
+        risk: "write",
+        approvalMode: "require",
+        input: {
+          title: "Missing Concept",
+          folderId: null,
+          bodyMarkdown: "# Missing Concept\n\nReview this stub.",
+        },
+        preview: {
+          summary: "Create a missing wiki page stub",
+          sourceNoteId: ctx.noteId,
+          sourceTitle: "test",
+          targetTitle: "Missing Concept",
+        },
+      },
+    };
+
+    const first = await internalFetch(
+      `/api/internal/projects/${ctx.projectId}/agent-actions`,
+      { method: "POST", body: JSON.stringify(payload) },
+    );
+    const second = await internalFetch(
+      `/api/internal/projects/${ctx.projectId}/agent-actions`,
+      { method: "POST", body: JSON.stringify(payload) },
+    );
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(200);
+    const body = await first.json() as {
+      action: { id: string; status: string; kind: string };
+      idempotent: boolean;
+    };
+    expect(body).toMatchObject({
+      idempotent: false,
+      action: {
+        kind: "note.create_from_markdown",
+        status: "approval_required",
+      },
+    });
+
+    const rows = await db
+      .select({ id: agentActions.id })
+      .from(agentActions)
+      .where(eq(agentActions.requestId, requestId));
+    expect(rows).toHaveLength(1);
   });
 });
 
