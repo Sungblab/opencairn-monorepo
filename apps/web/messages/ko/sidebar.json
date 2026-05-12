@@ -100,6 +100,8 @@
     "row_actions": "파일 작업",
     "row_actions_hint": "이름 바꾸기, 링크 복사, 삭제",
     "row_hint": "더블클릭으로 이름을 바꾸고 드래그해서 이동합니다.",
+    "full_extract_note": "전체 추출 노트",
+    "generated_note": "생성된 노트",
     "delete": "삭제",
     "delete_shortcut": "⌘Del",
     "confirm_delete": "\"{label}\"을(를) 삭제할까요?",

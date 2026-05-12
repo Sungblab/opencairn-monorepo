@@ -289,7 +289,7 @@ describe("unified project tree routes", () => {
       .where(eq(projectTreeNodes.id, sourceNoteId));
     expect(sourceNode).toMatchObject({
       parentId: analysisGroupId,
-      label: "생성된 노트",
+      label: "generated_note",
     });
   });
 

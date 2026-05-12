@@ -220,7 +220,7 @@ export async function ensureProjectTreeBackfill(
        SET parent_id = misplaced.analysis_group_id,
            path = misplaced.analysis_group_path || replace(node.id::text, '-', '_')::ltree,
            label = CASE
-             WHEN node.label = '전체 추출 노트' THEN '생성된 노트'
+             WHEN node.label IN ('full_extract_note', '전체 추출 노트', '생성된 노트') THEN 'generated_note'
              ELSE node.label
            END,
            updated_at = now()
@@ -238,26 +238,28 @@ export async function listTreeChildren(input: {
     ? sql`n.parent_id = ${input.parentId}::uuid`
     : sql`n.parent_id IS NULL`;
   const result = await db.execute<RawProjectTreeRow>(sql`
-    WITH child_counts AS (
-      SELECT parent_id, COUNT(*)::int AS child_count
+    WITH artifact_group_child_counts AS (
+      SELECT parent_id AS node_id, COUNT(*)::int AS child_count
       FROM project_tree_nodes
       WHERE project_id = ${input.projectId}::uuid
         AND parent_id IS NOT NULL
         AND deleted_at IS NULL
         AND NOT (kind = 'agent_file' AND metadata->>'role' = 'original')
-        AND NOT (
-          kind = 'artifact_group'
-          AND NOT EXISTS (
-            SELECT 1
-            FROM project_tree_nodes child
-            WHERE child.parent_id = project_tree_nodes.id
-              AND child.deleted_at IS NULL
-              AND NOT (
-                child.kind = 'agent_file'
-                AND child.metadata->>'role' = 'original'
-              )
-          )
-        )
+      GROUP BY parent_id
+    ),
+    visible_nodes AS (
+      SELECT n.*
+      FROM project_tree_nodes n
+      LEFT JOIN artifact_group_child_counts agcc ON agcc.node_id = n.id
+      WHERE n.project_id = ${input.projectId}::uuid
+        AND n.deleted_at IS NULL
+        AND NOT (n.kind = 'agent_file' AND n.metadata->>'role' = 'original')
+        AND NOT (n.kind = 'artifact_group' AND COALESCE(agcc.child_count, 0) = 0)
+    ),
+    child_counts AS (
+      SELECT parent_id, COUNT(*)::int AS child_count
+      FROM visible_nodes
+      WHERE parent_id IS NOT NULL
       GROUP BY parent_id
     )
     SELECT
@@ -293,7 +295,7 @@ export async function listTreeChildren(input: {
         WHEN n.kind = 'source_bundle' THEN original_af.mime_type
         ELSE NULL
       END AS "mimeType"
-    FROM project_tree_nodes n
+    FROM visible_nodes n
     LEFT JOIN notes nt ON n.target_table = 'notes' AND nt.id = n.target_id
     LEFT JOIN folders f ON n.target_table = 'folders' AND f.id = n.target_id
     LEFT JOIN agent_files af ON n.target_table = 'agent_files' AND af.id = n.target_id
@@ -309,23 +311,7 @@ export async function listTreeChildren(input: {
      AND original_af.id = original_node.target_id
      AND original_af.deleted_at IS NULL
     LEFT JOIN child_counts cc ON cc.parent_id = n.id
-    WHERE n.project_id = ${input.projectId}::uuid
-      AND ${parentPredicate}
-      AND n.deleted_at IS NULL
-      AND NOT (n.kind = 'agent_file' AND n.metadata->>'role' = 'original')
-      AND NOT (
-        n.kind = 'artifact_group'
-        AND NOT EXISTS (
-          SELECT 1
-          FROM project_tree_nodes child
-          WHERE child.parent_id = n.id
-            AND child.deleted_at IS NULL
-            AND NOT (
-              child.kind = 'agent_file'
-              AND child.metadata->>'role' = 'original'
-            )
-        )
-      )
+    WHERE ${parentPredicate}
     ORDER BY n.position ASC, n.created_at ASC
   `);
 
@@ -349,26 +335,28 @@ export async function listTreeChildrenForParents(input: {
     sql`, `,
   );
   const result = await db.execute<RawProjectTreeRow>(sql`
-    WITH child_counts AS (
-      SELECT parent_id, COUNT(*)::int AS child_count
+    WITH artifact_group_child_counts AS (
+      SELECT parent_id AS node_id, COUNT(*)::int AS child_count
       FROM project_tree_nodes
       WHERE project_id = ${input.projectId}::uuid
         AND parent_id IS NOT NULL
         AND deleted_at IS NULL
         AND NOT (kind = 'agent_file' AND metadata->>'role' = 'original')
-        AND NOT (
-          kind = 'artifact_group'
-          AND NOT EXISTS (
-            SELECT 1
-            FROM project_tree_nodes child
-            WHERE child.parent_id = project_tree_nodes.id
-              AND child.deleted_at IS NULL
-              AND NOT (
-                child.kind = 'agent_file'
-                AND child.metadata->>'role' = 'original'
-              )
-          )
-        )
+      GROUP BY parent_id
+    ),
+    visible_nodes AS (
+      SELECT n.*
+      FROM project_tree_nodes n
+      LEFT JOIN artifact_group_child_counts agcc ON agcc.node_id = n.id
+      WHERE n.project_id = ${input.projectId}::uuid
+        AND n.deleted_at IS NULL
+        AND NOT (n.kind = 'agent_file' AND n.metadata->>'role' = 'original')
+        AND NOT (n.kind = 'artifact_group' AND COALESCE(agcc.child_count, 0) = 0)
+    ),
+    child_counts AS (
+      SELECT parent_id, COUNT(*)::int AS child_count
+      FROM visible_nodes
+      WHERE parent_id IS NOT NULL
       GROUP BY parent_id
     )
     SELECT
@@ -404,7 +392,7 @@ export async function listTreeChildrenForParents(input: {
         WHEN n.kind = 'source_bundle' THEN original_af.mime_type
         ELSE NULL
       END AS "mimeType"
-    FROM project_tree_nodes n
+    FROM visible_nodes n
     LEFT JOIN notes nt ON n.target_table = 'notes' AND nt.id = n.target_id
     LEFT JOIN folders f ON n.target_table = 'folders' AND f.id = n.target_id
     LEFT JOIN agent_files af ON n.target_table = 'agent_files' AND af.id = n.target_id
@@ -420,23 +408,7 @@ export async function listTreeChildrenForParents(input: {
      AND original_af.id = original_node.target_id
      AND original_af.deleted_at IS NULL
     LEFT JOIN child_counts cc ON cc.parent_id = n.id
-    WHERE n.project_id = ${input.projectId}::uuid
-      AND n.parent_id IN (${quoted})
-      AND n.deleted_at IS NULL
-      AND NOT (n.kind = 'agent_file' AND n.metadata->>'role' = 'original')
-      AND NOT (
-        n.kind = 'artifact_group'
-        AND NOT EXISTS (
-          SELECT 1
-          FROM project_tree_nodes child
-          WHERE child.parent_id = n.id
-            AND child.deleted_at IS NULL
-            AND NOT (
-              child.kind = 'agent_file'
-              AND child.metadata->>'role' = 'original'
-            )
-        )
-      )
+    WHERE n.parent_id IN (${quoted})
     ORDER BY n.position ASC, n.created_at ASC
   `);
   for (const row of asRows<RawProjectTreeRow>(result)) {

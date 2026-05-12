@@ -64,6 +64,7 @@ export function ProjectTreeNode({
   const deleteShortcut = `${modKeyLabel}+Del`;
 
   const kind = node.data.kind;
+  const displayLabel = treeNodeDisplayLabel(node.data, t);
   if (kind === "empty") {
     const parentId = node.data.parent_id;
     return (
@@ -181,7 +182,7 @@ export function ProjectTreeNode({
         newTab({
           kind: "agent_file",
           targetId,
-          title: node.data.label,
+          title: displayLabel,
           mode: "agent-file",
           preview: false,
         }),
@@ -199,7 +200,7 @@ export function ProjectTreeNode({
         newTab({
           kind: "code_workspace",
           targetId,
-          title: node.data.label,
+          title: displayLabel,
           mode: "code-workspace",
           preview: false,
         }),
@@ -209,8 +210,8 @@ export function ProjectTreeNode({
     const tabs = useTabsStore.getState();
     const existing = tabs.findTabByTarget("note", targetId);
     if (existing) {
-      if (existing.title !== node.data.label) {
-        tabs.updateTab(existing.id, { title: node.data.label });
+      if (existing.title !== displayLabel) {
+        tabs.updateTab(existing.id, { title: displayLabel });
       }
       tabs.setActive(existing.id);
     }
@@ -349,7 +350,7 @@ export function ProjectTreeNode({
           />
         ) : (
           <>
-            <span className="min-w-0 flex-1 truncate">{node.data.label}</span>
+            <span className="min-w-0 flex-1 truncate">{displayLabel}</span>
             <NodeTypeBadge node={node.data} />
           </>
         )}
@@ -461,7 +462,7 @@ export function ProjectTreeNode({
                         ctx.onDelete(
                           node.data.id,
                           kind,
-                          node.data.label,
+                          displayLabel,
                           node.data.target_id,
                         );
                       }}
@@ -494,7 +495,7 @@ export function ProjectTreeNode({
             ctx.onDelete(
               node.data.id,
               kind,
-              node.data.label,
+              displayLabel,
               node.data.target_id,
             )
           }
@@ -596,6 +597,22 @@ function NodeIcon({ node }: { node: TreeNode }) {
   return (
     <FileText aria-hidden className="h-4 w-4 shrink-0 text-muted-foreground" />
   );
+}
+
+function treeNodeDisplayLabel(
+  node: TreeNode,
+  t: (key: "full_extract_note" | "generated_note") => string,
+): string {
+  const role = typeof node.metadata?.role === "string" ? node.metadata.role : "";
+  if (node.kind === "note" && role === "source_note") {
+    if (node.label === "generated_note" || node.label === "생성된 노트") {
+      return t("generated_note");
+    }
+    if (node.label === "full_extract_note" || node.label === "전체 추출 노트") {
+      return t("full_extract_note");
+    }
+  }
+  return node.label;
 }
 
 function NodeTypeBadge({ node }: { node: TreeNode }) {

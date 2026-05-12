@@ -25,6 +25,7 @@ Flow:
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import shutil
 import subprocess
@@ -93,7 +94,7 @@ def _table_to_markdown(table: Any) -> str:
     rows = table.get("rows") or table.get("cells")
     if isinstance(rows, list) and rows:
         normalized = [
-            [str(cell) for cell in row]
+            [_markdown_table_cell(cell) for cell in row]
             for row in rows
             if isinstance(row, list) and row
         ]
@@ -108,7 +109,15 @@ def _table_to_markdown(table: Any) -> str:
             ]
             lines.extend("| " + " | ".join(row) + " |" for row in body)
             return "\n".join(lines)
-    return "```json\n" + repr(table) + "\n```"
+    return (
+        "```json\n"
+        + json.dumps(table, ensure_ascii=False, indent=2, default=str)
+        + "\n```"
+    )
+
+
+def _markdown_table_cell(value: Any) -> str:
+    return str(value).replace("|", "\\|").replace("\r\n", "\n").replace("\n", "<br>")
 
 
 def _render_pages_to_png(pdf_path: Path, dpi: int = 200) -> list[bytes]:

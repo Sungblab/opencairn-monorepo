@@ -407,9 +407,9 @@ class IngestWorkflow:
                     or inp.source_bundle_node_id
                 ),
                 "tree_label": (
-                    "생성된 노트"
+                    "generated_note"
                     if inp.analysis_group_node_id
-                    else ("전체 추출 노트" if inp.parsed_group_node_id else None)
+                    else ("full_extract_note" if inp.parsed_group_node_id else None)
                 ),
                 "original_file_node_id": inp.original_file_node_id,
                 "workflow_id": workflow_id,

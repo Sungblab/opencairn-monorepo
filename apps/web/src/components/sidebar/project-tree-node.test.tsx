@@ -110,12 +110,13 @@ describe("ProjectTreeNode", () => {
         kind: "note",
         id: "note-2",
         parent_id: "analysis-1",
-        label: "생성된 노트",
+        label: "generated_note",
         child_count: 0,
         metadata: { role: "source_note" },
       }),
     );
     expect(generated.container.querySelector(".lucide-sparkles")).toBeInTheDocument();
+    expect(screen.getByText("sidebar.tree_menu.generated_note")).toBeInTheDocument();
     generated.unmount();
 
     const pdf = renderNode(

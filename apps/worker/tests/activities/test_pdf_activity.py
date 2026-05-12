@@ -58,7 +58,7 @@ async def test_parse_pdf_emits_unit_events_per_page(tmp_path: Path):
     fake_json = {
         "pages": [
             {"text": "Page one body", "figures": [{"file": "p0-f0.png", "kind": "image"}]},
-            {"text": "Page two body", "tables": [{"rows": [["A"], ["1"]]}]},
+            {"text": "Page two body", "tables": [{"rows": [["A|B"], ["1\n2"]]}]},
         ],
     }
     out_dir = tmp_path / "out"
@@ -106,7 +106,7 @@ async def test_parse_pdf_emits_unit_events_per_page(tmp_path: Path):
     assert result["table_artifacts"] == [
         {
             "label": "table-002-01.md",
-            "text": "| A |\n| --- |\n| 1 |",
+            "text": "| A\\|B |\n| --- |\n| 1<br>2 |",
             "page_index": 1,
             "table_index": 0,
         }

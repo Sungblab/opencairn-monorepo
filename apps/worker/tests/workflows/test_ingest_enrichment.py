@@ -211,7 +211,7 @@ async def test_pdf_source_note_is_created_under_analysis_group():
 
     assert captured is not None
     assert captured["tree_parent_node_id"] == "analysis-1"
-    assert captured["tree_label"] == "생성된 노트"
+    assert captured["tree_label"] == "generated_note"
     assert captured["original_file_node_id"] == "file-1"
 
 
