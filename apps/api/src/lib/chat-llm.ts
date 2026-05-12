@@ -17,6 +17,10 @@ import {
   selectChatRuntimePolicy,
   type ChatMode,
 } from "./chat-runtime-policy";
+import {
+  buildProjectWikiIndex,
+  projectWikiIndexToPrompt,
+} from "./project-wiki-index";
 import { extractSaveSuggestion } from "./save-suggestion-fence";
 import { extractAgentFileFence } from "./agent-file-fence";
 import { envInt } from "./env";
@@ -212,9 +216,15 @@ export async function* runChat(opts: {
     // Build the prompt. RAG context block lives in the system message so it
     // doesn't burn through the user-history truncation budget below.
     const ragBlock = evidenceBundleToPrompt(evidenceBundle);
+    const wikiIndexBlock = await buildChatWikiIndexBlock({
+      scope: opts.scope,
+      userId: opts.userId,
+    });
     const system: ChatMsg = {
       role: "system",
-      content: [SYSTEM_PROMPT, runtimeContext, ragBlock].filter(Boolean).join("\n\n"),
+      content: [SYSTEM_PROMPT, runtimeContext, wikiIndexBlock, ragBlock]
+        .filter(Boolean)
+        .join("\n\n"),
     };
 
     const history = truncateHistory(opts.history);
@@ -283,6 +293,23 @@ export async function* runChat(opts: {
     };
   } finally {
     yield { type: "done", payload: {} };
+  }
+}
+
+async function buildChatWikiIndexBlock(opts: {
+  scope: RetrievalScope;
+  userId?: string;
+}): Promise<string> {
+  if (opts.scope.type !== "project" || !opts.userId) return "";
+  try {
+    const index = await buildProjectWikiIndex({
+      projectId: opts.scope.projectId,
+      userId: opts.userId,
+    });
+    if (index.totals.pages === 0) return "";
+    return projectWikiIndexToPrompt(index, { pageLimit: 12 });
+  } catch {
+    return "";
   }
 }
 

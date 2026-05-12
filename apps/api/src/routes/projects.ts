@@ -8,11 +8,9 @@ import {
   pagePermissions,
   researchRuns,
   projectTreeNodes,
-  wikiLinks,
   eq,
   desc,
   and,
-  inArray,
   isNull,
   isNotNull,
 } from "@opencairn/db";
@@ -31,6 +29,7 @@ import {
   listTreeChildren,
   listTreeChildrenForParents,
 } from "../lib/project-tree-service";
+import { buildProjectWikiIndex } from "../lib/project-wiki-index";
 import type { AppEnv } from "../lib/types";
 
 export const projectRoutes = new Hono<AppEnv>()
@@ -165,71 +164,9 @@ export const projectRoutes = new Hono<AppEnv>()
       return c.json({ error: "Forbidden" }, 403);
     }
 
-    const noteRows = await db
-      .select({
-        id: notes.id,
-        title: notes.title,
-        type: notes.type,
-        sourceType: notes.sourceType,
-        updatedAt: notes.updatedAt,
-        contentText: notes.contentText,
-        inheritParent: notes.inheritParent,
-      })
-      .from(notes)
-      .where(and(eq(notes.projectId, id), isNull(notes.deletedAt)))
-      .orderBy(desc(notes.updatedAt));
-    const visibleNotes: typeof noteRows = [];
-    for (const note of noteRows) {
-      if (note.inheritParent === false) {
-        if (!(await canRead(user.id, { type: "note", id: note.id }))) continue;
-      }
-      visibleNotes.push(note);
-    }
-    const noteIds = new Set(visibleNotes.map((note) => note.id));
-
-    const linkRows = visibleNotes.length
-      ? await db
-          .select({
-            sourceNoteId: wikiLinks.sourceNoteId,
-            targetNoteId: wikiLinks.targetNoteId,
-          })
-          .from(wikiLinks)
-          .where(
-            and(
-              inArray(wikiLinks.sourceNoteId, [...noteIds]),
-              inArray(wikiLinks.targetNoteId, [...noteIds]),
-            ),
-          )
-      : [];
-    const inbound = new Map<string, number>();
-    const outbound = new Map<string, number>();
-    let wikiLinkTotal = 0;
-    for (const link of linkRows) {
-      if (!noteIds.has(link.sourceNoteId) || !noteIds.has(link.targetNoteId)) {
-        continue;
-      }
-      wikiLinkTotal += 1;
-      outbound.set(link.sourceNoteId, (outbound.get(link.sourceNoteId) ?? 0) + 1);
-      inbound.set(link.targetNoteId, (inbound.get(link.targetNoteId) ?? 0) + 1);
-    }
-
-    return c.json({
-      projectId: id,
-      totals: {
-        pages: visibleNotes.length,
-        wikiLinks: wikiLinkTotal,
-      },
-      pages: visibleNotes.map((note) => ({
-        id: note.id,
-        title: note.title,
-        type: note.type,
-        sourceType: note.sourceType,
-        summary: (note.contentText ?? "").trim().slice(0, 280),
-        updatedAt: note.updatedAt.toISOString(),
-        inboundLinks: inbound.get(note.id) ?? 0,
-        outboundLinks: outbound.get(note.id) ?? 0,
-      })),
-    });
+    return c.json(
+      await buildProjectWikiIndex({ projectId: id, userId: user.id }),
+    );
   })
 
   // 생성: workspace-scoped (/api/workspaces/:workspaceId/projects)
