@@ -29,13 +29,25 @@ describe("apiRequestLogger", () => {
     app.get("/api/integrations/google/callback", (c) => c.text("ok"));
 
     const response = await app.request(
-      "/api/integrations/google/callback?code=oauth-code&state=oauth-state&workspaceId=00000000-0000-4000-8000-000000000001",
+      "/api/integrations/google/callback?code=oauth-code&state=oauth-state&accessToken=oauth-access&signature=signed-url&workspaceId=00000000-0000-4000-8000-000000000001",
     );
 
     expect(response.status).toBe(200);
     expect(insertedLogs).toHaveLength(1);
     expect(insertedLogs[0]?.query).toBe(
-      "code=REDACTED&state=REDACTED&workspaceId=00000000-0000-4000-8000-000000000001",
+      "code=REDACTED&state=REDACTED&accessToken=REDACTED&signature=REDACTED&workspaceId=00000000-0000-4000-8000-000000000001",
     );
+  });
+
+  it("does not redact non-sensitive suffix matches", async () => {
+    const app = new Hono();
+    app.use("*", apiRequestLogger());
+    app.get("/api/search", (c) => c.text("ok"));
+
+    const response = await app.request("/api/search?csrf_token_hint=public-hint");
+
+    expect(response.status).toBe(200);
+    expect(insertedLogs).toHaveLength(1);
+    expect(insertedLogs[0]?.query).toBe("csrf_token_hint=public-hint");
   });
 });
