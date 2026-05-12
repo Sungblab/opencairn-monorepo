@@ -21,6 +21,7 @@ import type {
   WorkflowConsoleRun,
   WorkflowConsoleStatus,
 } from "@opencairn/shared";
+import type { AgentInteractionCard } from "@/components/agent-panel/interaction-card";
 export type {
   AgentAction,
   AgentActionKind,
@@ -272,6 +273,7 @@ export interface ChatThread {
 export interface ChatMessageContent {
   body: string;
   scope?: unknown;
+  interaction_card?: AgentInteractionCard;
   thought?: { summary: string; tokens?: number };
   status?: { phrase?: string };
   citations?: unknown[];

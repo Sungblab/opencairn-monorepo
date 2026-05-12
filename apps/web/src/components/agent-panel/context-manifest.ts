@@ -41,7 +41,105 @@ export type AgentContextPayload = {
   manifest: ContextManifest;
   chips: AgentContextChip[];
   strict: "strict" | "loose";
+  invocationContext?: AgentInvocationContext;
 };
+
+export type AgentInvocationContext =
+  | { kind: "note"; noteId: string; title?: string; selectionText?: string }
+  | { kind: "source"; sourceId: string; title?: string; selectionText?: string }
+  | { kind: "agent_file"; fileId: string; title?: string }
+  | { kind: "canvas"; canvasId: string; title?: string }
+  | { kind: "project"; projectId: string; title?: string };
+
+export type AgentInvocationContextLabel = {
+  labelKey:
+    | "context.currentNote"
+    | "context.selection"
+    | "context.currentPdf"
+    | "context.projectWide"
+    | "context.file";
+  title?: string;
+  selectionCount?: number;
+};
+
+const MAX_SELECTION_CONTEXT_CHARS = 1200;
+
+function boundedSelectionText(selectionText?: string): string | undefined {
+  const trimmed = selectionText?.trim();
+  if (!trimmed) return undefined;
+  return Array.from(trimmed).slice(0, MAX_SELECTION_CONTEXT_CHARS).join("");
+}
+
+export function getAgentInvocationContext(
+  activeTab: Tab | undefined,
+  opts: { selectionText?: string } = {},
+): AgentInvocationContext | null {
+  if (!activeTab?.targetId) return null;
+  const selectionText = boundedSelectionText(opts.selectionText);
+  if (activeTab.kind === "project") {
+    return {
+      kind: "project",
+      projectId: activeTab.targetId,
+      title: activeTab.title,
+    };
+  }
+  if (activeTab.kind === "agent_file") {
+    return {
+      kind: "agent_file",
+      fileId: activeTab.targetId,
+      title: activeTab.title,
+    };
+  }
+  if (activeTab.kind === "note" && activeTab.mode === "canvas") {
+    return {
+      kind: "canvas",
+      canvasId: activeTab.targetId,
+      title: activeTab.title,
+    };
+  }
+  if (activeTab.kind === "note" && activeTab.mode === "source") {
+    return {
+      kind: "source",
+      sourceId: activeTab.targetId,
+      title: activeTab.title,
+      ...(selectionText ? { selectionText } : {}),
+    };
+  }
+  if (activeTab.kind === "note") {
+    return {
+      kind: "note",
+      noteId: activeTab.targetId,
+      title: activeTab.title,
+      ...(selectionText ? { selectionText } : {}),
+    };
+  }
+  return null;
+}
+
+export function getAgentInvocationContextLabel(
+  context: AgentInvocationContext | null,
+): AgentInvocationContextLabel | null {
+  if (!context) return null;
+  const selectionText =
+    "selectionText" in context ? context.selectionText : undefined;
+  if (selectionText) {
+    return {
+      labelKey: "context.selection",
+      title: context.title,
+      selectionCount: Array.from(selectionText).length,
+    };
+  }
+  if (context.kind === "note") {
+    return { labelKey: "context.currentNote", title: context.title };
+  }
+  if (context.kind === "source") {
+    return { labelKey: "context.currentPdf", title: context.title };
+  }
+  if (context.kind === "project") {
+    return { labelKey: "context.projectWide", title: context.title };
+  }
+  return { labelKey: "context.file", title: context.title };
+}
 
 export function activeArtifactFromTab(
   activeTab: Tab | undefined,

@@ -74,6 +74,8 @@ import { ProjectToolsPanel } from "./project-tools-panel";
 import {
   buildAgentContextPayload,
   type ActionApprovalMode,
+  getAgentInvocationContext,
+  getAgentInvocationContextLabel,
   defaultSourcePolicy,
   type MemoryPolicy,
   type SourcePolicy,
@@ -89,6 +91,18 @@ import { WorkbenchActivityStack } from "./workbench-activity-stack";
 import { handleAgentWorkbenchIntent } from "./agent-workbench-intents";
 import { useCurrentProjectContext } from "@/components/sidebar/use-current-project";
 import { getDocumentGenerationPreset } from "./tool-discovery-catalog";
+import type { InteractionCardSubmit } from "./interaction-card";
+import {
+  appendInteractionResponseToScope,
+  noteDraftContentFromText,
+} from "./interaction-card-actions";
+
+type AgentPanelSendInput = {
+  content: string;
+  mode: string;
+  command?: AgentCommandId;
+  interactionResponse?: InteractionCardSubmit;
+};
 
 export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const workspaceId = useWorkspaceId(wsSlug);
@@ -135,6 +149,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const [actionApprovalMode, setActionApprovalMode] =
     useState<ActionApprovalMode>("require");
   const [activeContextEnabled, setActiveContextEnabled] = useState(true);
+  const [selectionText, setSelectionText] = useState("");
   const [draggingReference, setDraggingReference] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
@@ -150,11 +165,35 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
     ? getDocumentGenerationPreset(pendingDocumentGenerationPresetIntent.presetId)
     : null;
   const sendInFlightRef = useRef(false);
+  useEffect(() => {
+    function updateSelectionText() {
+      setSelectionText(window.getSelection()?.toString() ?? "");
+    }
+    document.addEventListener("selectionchange", updateSelectionText);
+    return () => {
+      document.removeEventListener("selectionchange", updateSelectionText);
+    };
+  }, []);
+
+  const invocationContext = useMemo(
+    () =>
+      activeContextEnabled
+        ? getAgentInvocationContext(activeTab, { selectionText })
+        : null,
+    [activeContextEnabled, activeTab, selectionText],
+  );
+  const invocationContextLabel = useMemo(
+    () => getAgentInvocationContextLabel(invocationContext),
+    [invocationContext],
+  );
   const buildScopePayload = useCallback(
-    (commandId?: AgentCommandId) => {
+    async (
+      commandId?: AgentCommandId,
+      interactionResponse?: AgentPanelSendInput["interactionResponse"],
+    ) => {
       const command = getAgentCommand(commandId);
       const scopedActiveTab = activeContextEnabled ? activeTab : undefined;
-      return buildAgentContextPayload({
+      const payload = await buildAgentContextPayload({
         activeTab: scopedActiveTab,
         workspaceId,
         sourcePolicy: command?.contextPatch?.sourcePolicy ?? sourcePolicy,
@@ -172,6 +211,12 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
           }
         },
       });
+      const contextPayload = invocationContext
+        ? { ...payload, invocationContext }
+        : payload;
+      return interactionResponse
+        ? appendInteractionResponseToScope(contextPayload, interactionResponse)
+        : contextPayload;
     },
     [
       activeTab,
@@ -179,6 +224,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
       actionApprovalMode,
       activeProjectId,
       attachedReferences,
+      invocationContext,
       memoryPolicy,
       shellProjectId,
       sourcePolicy,
@@ -230,7 +276,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
   const composerDisabled = !workspaceId || isSending || create.isPending;
 
   const handleSend = useCallback(
-    (input: { content: string; mode: string; command?: AgentCommandId }) => {
+    (input: AgentPanelSendInput) => {
       if (!workspaceId) return;
       if (sendInFlightRef.current) return;
       sendInFlightRef.current = true;
@@ -246,7 +292,10 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
           await send({
             content: input.content,
             mode: input.mode,
-            scope: await buildScopePayload(input.command),
+            scope: await buildScopePayload(
+              input.command,
+              input.interactionResponse,
+            ),
             threadId,
           });
           setAttachedReferences([]);
@@ -429,6 +478,47 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
     return null;
   }, [activeTab]);
 
+  const handleInteractionCardSubmit = useCallback(
+    (input: InteractionCardSubmit) => {
+      handleSend({
+        content: input.value,
+        mode: "auto",
+        interactionResponse: input,
+      });
+
+      const action = input.option?.action;
+      if (action?.type !== "create_note_draft") return;
+      void (async () => {
+        const projectId = await resolveProjectId();
+        if (!projectId) {
+          toast.error(t("interaction_note_failed"));
+          return;
+        }
+        const title =
+          action.title ??
+          `${input.label} - ${activeTab?.title ?? t("interaction_note_title")}`;
+        const note = await api.createNote({
+          projectId,
+          title,
+          content: noteDraftContentFromText(
+            action.body ?? input.value,
+            activeTab?.title,
+          ),
+        });
+        useTabsStore.getState().addTab(
+          newTab({
+            kind: "note",
+            targetId: note.id,
+            title: note.title,
+            mode: "plate",
+            preview: false,
+          }),
+        );
+      })().catch(() => toast.error(t("interaction_note_failed")));
+    },
+    [activeTab?.title, handleSend, resolveProjectId, t],
+  );
+
   // Validates the SSE payload, inserts markdown into the active Plate editor,
   // and shows a "create new note" toast action when no editor is open.
   const handleSaveSuggestion = useCallback(
@@ -577,17 +667,14 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
               pendingUser={pendingUser}
               onResumeRun={resumeRun}
               onSaveSuggestion={handleSaveSuggestion}
+              onInteractionCardSubmit={handleInteractionCardSubmit}
             />
           ) : (
             <AgentPanelEmptyState />
           )}
           <div className="border-t border-border bg-background pt-2">
             <ComposerContextStrip
-              activeLabel={
-                activeContextEnabled && activeTab?.targetId
-                  ? activeTab.title
-                  : null
-              }
+              activeLabel={invocationContextLabel}
               references={attachedReferences}
               onRemoveReference={handleRemoveTreeReference}
             />
@@ -696,7 +783,7 @@ function ComposerContextStrip({
   references,
   onRemoveReference,
 }: {
-  activeLabel: string | null;
+  activeLabel: ReturnType<typeof getAgentInvocationContextLabel>;
   references: ProjectTreeDragPayload[];
   onRemoveReference(id: string): void;
 }) {
@@ -712,9 +799,13 @@ function ComposerContextStrip({
         <span className="inline-flex max-w-[180px] shrink-0 items-center gap-1 rounded-[var(--radius-control)] border border-border bg-muted/35 px-2 py-1 text-xs text-muted-foreground">
           <FileText aria-hidden className="h-3 w-3 shrink-0" />
           <span className="shrink-0 text-[10px] uppercase">
-            {t("context.activeTab")}
+            {t(activeLabel.labelKey, {
+              count: activeLabel.selectionCount ?? 0,
+            })}
           </span>
-          <span className="truncate text-foreground">{activeLabel}</span>
+          {activeLabel.title ? (
+            <span className="truncate text-foreground">{activeLabel.title}</span>
+          ) : null}
         </span>
       ) : null}
       {references.map((reference) => (

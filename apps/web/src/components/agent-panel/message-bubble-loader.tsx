@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 
 import type { ChatMessage } from "@/lib/api-client";
+import type { InteractionCardSubmit } from "./interaction-card";
 
 export type MessageBubbleLoaderProps = {
   msg: ChatMessage;
@@ -13,6 +14,7 @@ export type MessageBubbleLoaderProps = {
     sentiment: "positive" | "negative",
     reason?: string,
   ) => void;
+  onInteractionCardSubmit?: (input: InteractionCardSubmit) => void;
 };
 
 const LazyMessageBubble = dynamic<MessageBubbleLoaderProps>(

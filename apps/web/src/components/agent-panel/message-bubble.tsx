@@ -21,6 +21,11 @@ import {
   asAgentFileCards,
   asDocumentGenerationCards,
 } from "./message-attachments";
+import {
+  InteractionCard,
+  isAgentInteractionCard,
+  type InteractionCardSubmit,
+} from "./interaction-card";
 export {
   AgentFileCards,
   DocumentGenerationCards,
@@ -117,11 +122,13 @@ export function MessageBubble({
   onRegenerate,
   onSaveSuggestion,
   onFeedback,
+  onInteractionCardSubmit,
 }: {
   msg: ChatMessage;
   onRegenerate(msgId: string): void;
   onSaveSuggestion(payload: unknown): void;
   onFeedback(msgId: string, s: FeedbackSentiment, reason?: string): void;
+  onInteractionCardSubmit?(input: InteractionCardSubmit): void;
 }) {
   const t = useTranslations("agentPanel.bubble");
 
@@ -160,6 +167,9 @@ export function MessageBubble({
   const generations = asDocumentGenerationCards(
     msg.content.project_object_generations,
   );
+  const interactionCard = isAgentInteractionCard(msg.content.interaction_card)
+    ? msg.content.interaction_card
+    : null;
 
   return (
     <div className="flex flex-col gap-2">
@@ -193,6 +203,12 @@ export function MessageBubble({
       {agentFiles.length > 0 ? <AgentFileCards files={agentFiles} /> : null}
       {generations.length > 0 ? (
         <DocumentGenerationCards items={generations} />
+      ) : null}
+      {interactionCard ? (
+        <InteractionCard
+          card={interactionCard}
+          onSubmit={(input) => onInteractionCardSubmit?.(input)}
+        />
       ) : null}
       <MessageActions
         text={body}
