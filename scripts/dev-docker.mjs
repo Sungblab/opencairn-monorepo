@@ -6,6 +6,8 @@ import { tmpdir } from "node:os";
 const docker = process.platform === "win32" ? "docker.exe" : "docker";
 const rootEnv = loadDotenv(".env");
 const env = { ...rootEnv, ...process.env };
+env.COMPOSE_BAKE ??= "false";
+env.BUILDX_NO_DEFAULT_ATTESTATIONS ??= "1";
 
 const useLocalPostgres = resolveLocalServiceFlag(
   env.OPENCAIRN_DEV_LOCAL_POSTGRES,
@@ -51,6 +53,9 @@ const services = [
   "hocuspocus",
   "worker",
 ];
+const buildServices = ["api", "web", "hocuspocus", "worker"];
+const shouldSkipBuild = process.argv.includes("--no-build");
+const shouldForceRebuild = process.argv.includes("--rebuild");
 
 const overrideDir = mkdtempSync(join(tmpdir(), "opencairn-dev-compose-"));
 const overridePath = join(overrideDir, "compose.override.yml");
@@ -62,17 +67,23 @@ try {
     runCompose(["down", "--remove-orphans"]);
   } else if (process.argv.includes("--logs")) {
     runCompose(["logs", "-f", ...services]);
-} else if (process.argv.includes("--dry-run")) {
+  } else if (process.argv.includes("--dry-run")) {
     printPlan();
     if (disabledServices.length > 0) {
       console.log(`[dev:docker] disabled services to stop/remove if present: ${disabledServices.join(", ")}`);
     }
     console.log(`[dev:docker] override: ${overridePath}`);
-    console.log(`[dev:docker] compose args: ${composePrefix().concat(["up", "-d", "--build", ...services]).join(" ")}`);
+    if (!shouldSkipBuild) {
+      console.log(`[dev:docker] build args: ${composePrefix().concat(buildArgs()).join(" ")}`);
+    }
+    console.log(`[dev:docker] up args: ${composePrefix().concat(["up", "-d", "--no-build", ...services]).join(" ")}`);
   } else {
     printPlan();
     stopDisabledServices();
-    runCompose(["up", "-d", "--build", ...services]);
+    if (!shouldSkipBuild) {
+      runCompose(buildArgs());
+    }
+    runCompose(["up", "-d", "--no-build", ...services]);
   }
 } finally {
   rmSync(overrideDir, { recursive: true, force: true });
@@ -189,6 +200,9 @@ function printPlan() {
   );
   console.log("[dev:docker] temporal: compose service");
   console.log(`[dev:docker] services: ${services.join(", ")}`);
+  console.log(
+    `[dev:docker] build: ${shouldSkipBuild ? "skip; reuse existing images" : shouldForceRebuild ? "force rebuild app images before up" : "build app images before up"}`,
+  );
 }
 
 function stopDisabledServices() {
@@ -215,7 +229,17 @@ function runCompose(args, options = {}) {
   }
   if (result.signal) process.kill(process.pid, result.signal);
   if (options.exitOnError === false) return;
-  process.exit(result.status ?? 0);
+  if ((result.status ?? 0) !== 0) {
+    process.exit(result.status ?? 1);
+  }
+}
+
+function buildArgs() {
+  return [
+    "build",
+    ...(shouldForceRebuild ? ["--no-cache"] : []),
+    ...buildServices,
+  ];
 }
 
 function composePrefix() {

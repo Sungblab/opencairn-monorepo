@@ -17,7 +17,8 @@
     "dev:docker": "node scripts/dev-docker.mjs",
     "dev:docker:down": "node scripts/dev-docker.mjs --down",
     "dev:docker:logs": "node scripts/dev-docker.mjs --logs",
-    "dev:docker:rebuild": "docker compose --profile app --profile worker --profile hocuspocus build --no-cache",
+    "dev:docker:no-build": "node scripts/dev-docker.mjs --no-build",
+    "dev:docker:rebuild": "node scripts/dev-docker.mjs --rebuild",
     "dev:docker:reset": "docker compose --profile app --profile worker --profile hocuspocus --profile ollama down -v"
   },
   "devDependencies": {
