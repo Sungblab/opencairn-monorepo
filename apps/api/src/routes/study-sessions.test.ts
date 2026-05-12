@@ -33,6 +33,11 @@ function appWith(options?: {
   canReadProject?: (uid: string, pid: string) => Promise<boolean>;
   canWriteProject?: (uid: string, pid: string) => Promise<boolean>;
   uploadObject?: (key: string, data: Buffer, contentType: string) => Promise<string>;
+  streamObject?: (key: string) => Promise<{
+    stream: ReadableStream<Uint8Array>;
+    contentType: string;
+    contentLength: number;
+  }>;
   startRecordingWorkflow?: (input: {
     recordingId: string;
     sessionId: string;
@@ -58,6 +63,7 @@ function appWith(options?: {
         await next();
       },
       uploadObject: options?.uploadObject,
+      streamObject: options?.streamObject,
       startRecordingWorkflow: options?.startRecordingWorkflow,
     }),
   );
@@ -283,6 +289,71 @@ describe("study session routes", () => {
     );
 
     expect(response.status).toBe(403);
+  });
+
+  it("streams a ready recording only after session and project read checks", async () => {
+    const streamed: string[] = [];
+    const { app, repo } = appWith({
+      streamObject: async (key) => {
+        streamed.push(key);
+        return {
+          stream: new Response("audio-bytes").body!,
+          contentType: "audio/webm",
+          contentLength: "audio-bytes".length,
+        };
+      },
+    });
+    const session = await repo.createSession({
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Ready recording",
+      sourceNoteId,
+    });
+    const recording = repo.seedRecording({
+      sessionId: session.id,
+      objectKey: "study-sessions/session/recordings/user/ready.webm",
+      mimeType: "audio/webm",
+      status: "ready",
+      transcriptStatus: "ready",
+    });
+
+    const response = await app.request(
+      `/api/study-sessions/${session.id}/recordings/${recording.id}/file`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("audio/webm");
+    expect(await response.text()).toBe("audio-bytes");
+    expect(streamed).toEqual([recording.objectKey]);
+  });
+
+  it("does not stream recordings from another session path", async () => {
+    const { app, repo } = appWith({
+      streamObject: async () => {
+        throw new Error("should not stream");
+      },
+    });
+    const session = await repo.createSession({
+      workspaceId,
+      projectId,
+      actorUserId: userId,
+      title: "Ready recording",
+      sourceNoteId,
+    });
+    const recording = repo.seedRecording({
+      sessionId: session.id,
+      objectKey: "study-sessions/session/recordings/user/ready.webm",
+      mimeType: "audio/webm",
+      status: "ready",
+      transcriptStatus: "ready",
+    });
+
+    const response = await app.request(
+      `/api/study-sessions/00000000-0000-4000-8000-999999999999/recordings/${recording.id}/file`,
+    );
+
+    expect(response.status).toBe(404);
   });
 
   it("stores transcript callback segments only when recording scope matches", async () => {

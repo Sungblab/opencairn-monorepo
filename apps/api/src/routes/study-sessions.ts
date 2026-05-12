@@ -30,6 +30,7 @@ import {
 import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite } from "../lib/permissions";
 import { uploadObject as defaultUploadObject } from "../lib/s3";
+import { streamObject as defaultStreamObject } from "../lib/s3-get";
 import { getTemporalClient, taskQueue } from "../lib/temporal-client";
 import type { AppEnv } from "../lib/types";
 
@@ -106,6 +107,11 @@ export interface StudySessionRouteOptions {
   canWriteProject?: (userId: string, projectId: string) => Promise<boolean>;
   projectScope?: (projectId: string) => Promise<ProjectScope | null>;
   uploadObject?: (key: string, data: Buffer, contentType: string) => Promise<string>;
+  streamObject?: (key: string) => Promise<{
+    stream: ReadableStream<Uint8Array>;
+    contentType: string;
+    contentLength: number;
+  }>;
   startRecordingWorkflow?: (input: RecordingWorkflowInput) => Promise<string>;
 }
 
@@ -153,6 +159,7 @@ export function createStudySessionRoutes(options: StudySessionRouteOptions = {})
   const repo = options.repo ?? createDrizzleStudySessionRepository();
   const auth = options.auth ?? requireAuth;
   const uploadObject = options.uploadObject ?? defaultUploadObject;
+  const streamObject = options.streamObject ?? defaultStreamObject;
   const startRecordingWorkflow = options.startRecordingWorkflow ?? startStudyRecordingWorkflow;
   const canReadWorkspace = options.canReadWorkspace ?? ((userId, workspaceId) =>
     canRead(userId, { type: "workspace", id: workspaceId }));
@@ -308,6 +315,35 @@ export function createStudySessionRoutes(options: StudySessionRouteOptions = {})
           console.error("[study-sessions] recording workflow start failed", err);
           return c.json({ error: "recording_processing_start_failed" }, 503);
         }
+      },
+    )
+    .get(
+      "/study-sessions/:id/recordings/:recordingId/file",
+      auth,
+      zValidator("param", sessionParamSchema.merge(recordingParamSchema)),
+      async (c) => {
+        const { id, recordingId } = c.req.valid("param");
+        const scope = await repo.findRecordingScope(recordingId);
+        if (!scope || scope.session.id !== id) {
+          return c.json({ error: "recording_not_found" }, 404);
+        }
+        const userId = c.get("userId");
+        if (!(await canReadWorkspace(userId, scope.session.workspaceId))) {
+          return c.json({ error: "study_session_not_found" }, 404);
+        }
+        if (!(await canReadProject(userId, scope.session.projectId))) {
+          return c.json({ error: "Forbidden" }, 403);
+        }
+        if (scope.recording.status !== "ready") {
+          return c.json({ error: "recording_not_ready" }, 409);
+        }
+
+        const object = await streamObject(scope.recording.objectKey);
+        return c.body(object.stream, 200, {
+          "Content-Type": object.contentType || scope.recording.mimeType,
+          "Content-Length": String(object.contentLength),
+          "Cache-Control": "private, max-age=60",
+        });
       },
     )
     .get(

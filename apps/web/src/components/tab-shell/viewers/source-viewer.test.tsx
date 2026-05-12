@@ -117,6 +117,30 @@ const messages = {
           transcriptReady: "전사 {count}개 구간 준비됨",
           transcriptPending: "녹음 전사 대기 중",
           noRecording: "아직 연결된 녹음이 없습니다.",
+          recordingTitle: "녹음",
+          recordingDuration: "{duration}",
+          recordingIdle: "마이크 녹음을 시작할 수 있습니다.",
+          recordingUploading: "업로드 중",
+          recordingProcessing: "처리 중",
+          recordingCompleted: "재생 가능한 녹음 {count}개",
+          recordingUnsupported: "이 브라우저에서는 녹음을 사용할 수 없습니다.",
+          recordingPermissionFailed: "마이크 권한을 얻지 못했습니다.",
+          recordingUploadFailed: "녹음 업로드에 실패했습니다.",
+          recordingEmpty: "비어 있는 녹음은 업로드하지 않았습니다.",
+          startRecording: "시작",
+          stopRecording: "정지",
+          recordingsTitle: "녹음 목록",
+          recordingUnknownDuration: "길이 미확인",
+          recordingFailed: "실패",
+          recordingReady: "완료",
+          recordingUploaded: "업로드됨",
+          playbackTitle: "재생",
+          play: "재생",
+          playing: "선택됨",
+          transcriptTitle: "전사",
+          transcriptProcessing: "전사 생성 중",
+          transcriptFailed: "전사를 만들지 못했습니다.",
+          transcriptEmpty: "아직 표시할 전사 구간이 없습니다.",
         },
       },
     },
@@ -344,4 +368,181 @@ describe("SourceViewer", () => {
       );
     });
   });
+
+  it("records audio from the Study rail and uploads it with duration", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/projects/proj-1/study-sessions?sourceNoteId=n1") {
+        return jsonResponse({
+          sessions: [studySession()],
+        });
+      }
+      if (url === "/api/study-sessions/session-1/recordings") {
+        return jsonResponse({ recordings: [] });
+      }
+      if (url === "/api/study-sessions/session-1/transcript") {
+        return jsonResponse({ sessionId: "session-1", text: "", segments: [] });
+      }
+      if (
+        url === "/api/study-sessions/session-1/recordings/upload"
+        && init?.method === "POST"
+      ) {
+        return jsonResponse({
+          recording: recording({ status: "processing", transcriptStatus: "processing" }),
+          workflowId: "study-session-recording/rec-1",
+        }, 202);
+      }
+      return jsonResponse({ error: "not_found" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const stopTrack = vi.fn();
+    vi.stubGlobal("navigator", {
+      mediaDevices: {
+        getUserMedia: vi.fn(async () => ({
+          getTracks: () => [{ stop: stopTrack }],
+        })),
+      },
+    });
+    class MockMediaRecorder {
+      static isTypeSupported = () => true;
+      state: RecordingState = "inactive";
+      mimeType = "audio/webm";
+      ondataavailable: ((event: BlobEvent) => void) | null = null;
+      onstop: (() => void) | null = null;
+      constructor(
+        _stream: MediaStream,
+        options?: MediaRecorderOptions,
+      ) {
+        this.mimeType = options?.mimeType ?? "audio/webm";
+      }
+      start() {
+        this.state = "recording";
+      }
+      stop() {
+        this.state = "inactive";
+        this.ondataavailable?.({ data: new Blob(["audio"], { type: this.mimeType }) } as BlobEvent);
+        this.onstop?.();
+      }
+    }
+    vi.stubGlobal("MediaRecorder", MockMediaRecorder);
+
+    renderSourceViewer();
+    await userEvent.click(await screen.findByRole("button", { name: "학습" }));
+    await screen.findByText("마이크 녹음을 시작할 수 있습니다.");
+
+    await userEvent.click(screen.getByRole("button", { name: "시작" }));
+    await userEvent.click(screen.getByRole("button", { name: "정지" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/study-sessions/session-1/recordings/upload",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+    const uploadCall = fetchMock.mock.calls.find(
+      ([url]) => String(url) === "/api/study-sessions/session-1/recordings/upload",
+    );
+    const form = uploadCall?.[1]?.body as FormData;
+    expect(form.get("durationSec")).toBeTruthy();
+    expect(form.get("file")).toBeInstanceOf(File);
+    expect(stopTrack).toHaveBeenCalled();
+  });
+
+  it("shows completed playback and seeks audio from transcript segments", async () => {
+    const play = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(HTMLMediaElement.prototype, "play", {
+      configurable: true,
+      value: play,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url === "/api/projects/proj-1/study-sessions?sourceNoteId=n1") {
+          return jsonResponse({ sessions: [studySession()] });
+        }
+        if (url === "/api/study-sessions/session-1/recordings") {
+          return jsonResponse({
+            recordings: [recording({ status: "ready", transcriptStatus: "ready" })],
+          });
+        }
+        if (url === "/api/study-sessions/session-1/transcript") {
+          return jsonResponse({
+            sessionId: "session-1",
+            text: "핵심 개념",
+            segments: [
+              {
+                id: "seg-1",
+                recordingId: "rec-1",
+                index: 0,
+                startSec: 2,
+                endSec: 5,
+                text: "핵심 개념",
+                speaker: null,
+                language: "ko",
+                confidence: null,
+                createdAt: "2026-05-12T00:00:00.000Z",
+              },
+            ],
+          });
+        }
+        return jsonResponse({ error: "not_found" }, 404);
+      }),
+    );
+
+    renderSourceViewer();
+    await userEvent.click(await screen.findByRole("button", { name: "학습" }));
+
+    expect(await screen.findByText("핵심 개념")).toBeInTheDocument();
+    expect(screen.getByText("0:02 - 0:05")).toBeInTheDocument();
+    expect(screen.getByText("재생 가능한 녹음 1개")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "선택됨" })).toBeInTheDocument();
+    expect(screen.getByTestId("study-recording-audio")).toHaveAttribute(
+      "src",
+      "/api/study-sessions/session-1/recordings/rec-1/file",
+    );
+
+    await userEvent.click(screen.getByText("핵심 개념"));
+
+    await waitFor(() => expect(play).toHaveBeenCalled());
+  });
 });
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function studySession() {
+  return {
+    id: "session-1",
+    workspaceId: "workspace-1",
+    projectId: "proj-1",
+    title: "doc.pdf",
+    status: "active",
+    startedAt: "2026-05-12T00:00:00.000Z",
+    endedAt: null,
+    createdBy: "user-1",
+    createdAt: "2026-05-12T00:00:00.000Z",
+    updatedAt: "2026-05-12T00:00:00.000Z",
+    sources: [],
+  };
+}
+
+function recording(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: "rec-1",
+    sessionId: "session-1",
+    objectKey: "study-sessions/session-1/recordings/user/rec.webm",
+    mimeType: "audio/webm",
+    durationSec: 5,
+    status: "ready",
+    transcriptStatus: "ready",
+    createdBy: "user-1",
+    createdAt: "2026-05-12T00:00:00.000Z",
+    updatedAt: "2026-05-12T00:00:00.000Z",
+    ...overrides,
+  };
+}

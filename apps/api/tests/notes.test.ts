@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createApp } from "../src/app.js";
-import { db, notes, eq } from "@opencairn/db";
+import { db, notes, sourcePdfAnnotations, eq } from "@opencairn/db";
 import {
   seedWorkspace,
   seedMultiRoleWorkspace,
@@ -251,5 +251,127 @@ describe("GET /api/notes/:id/role", () => {
     } finally {
       await outsider.cleanup();
     }
+  });
+});
+
+describe("PDF annotation persistence", () => {
+  let ctx: SeedResult;
+
+  beforeEach(async () => {
+    ctx = await seedWorkspace({ role: "editor" });
+    await db
+      .update(notes)
+      .set({
+        type: "source",
+        sourceType: "pdf",
+        sourceFileKey: `sources/${ctx.noteId}.pdf`,
+        mimeType: "application/pdf",
+      })
+      .where(eq(notes.id, ctx.noteId));
+  });
+
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  it("saves and restores annotations for a writable source PDF note", async () => {
+    const annotations = [
+      {
+        annotation: {
+          id: "anno-1",
+          type: "highlight",
+          pageIndex: 0,
+        },
+      },
+    ];
+
+    const save = await authedFetch(`/api/notes/${ctx.noteId}/pdf-annotations`, {
+      method: "PUT",
+      userId: ctx.userId,
+      body: JSON.stringify({ annotations }),
+    });
+
+    expect(save.status).toBe(200);
+    const [row] = await db
+      .select()
+      .from(sourcePdfAnnotations)
+      .where(eq(sourcePdfAnnotations.noteId, ctx.noteId));
+    expect(row).toMatchObject({
+      workspaceId: ctx.workspaceId,
+      projectId: ctx.projectId,
+      updatedBy: ctx.userId,
+    });
+
+    const restore = await authedFetch(`/api/notes/${ctx.noteId}/pdf-annotations`, {
+      method: "GET",
+      userId: ctx.userId,
+    });
+    expect(restore.status).toBe(200);
+    expect(await restore.json()).toMatchObject({
+      noteId: ctx.noteId,
+      annotations,
+    });
+  });
+
+  it("requires write permission to save annotations", async () => {
+    const viewerCtx = await seedWorkspace({ role: "viewer" });
+    try {
+      await db
+        .update(notes)
+        .set({
+          type: "source",
+          sourceType: "pdf",
+          sourceFileKey: `sources/${viewerCtx.noteId}.pdf`,
+          mimeType: "application/pdf",
+        })
+        .where(eq(notes.id, viewerCtx.noteId));
+
+      const response = await authedFetch(
+        `/api/notes/${viewerCtx.noteId}/pdf-annotations`,
+        {
+          method: "PUT",
+          userId: viewerCtx.userId,
+          body: JSON.stringify({ annotations: [] }),
+        },
+      );
+
+      expect(response.status).toBe(403);
+    } finally {
+      await viewerCtx.cleanup();
+    }
+  });
+
+  it("rejects deeply nested annotation payloads", async () => {
+    let annotation: Record<string, unknown> = { value: "x" };
+    for (let index = 0; index < 25; index += 1) {
+      annotation = { nested: annotation };
+    }
+
+    const response = await authedFetch(`/api/notes/${ctx.noteId}/pdf-annotations`, {
+      method: "PUT",
+      userId: ctx.userId,
+      body: JSON.stringify({ annotations: [annotation] }),
+    });
+
+    expect(response.status).toBe(400);
+  });
+
+  it("rejects non-PDF source notes", async () => {
+    await db
+      .update(notes)
+      .set({
+        type: "note",
+        sourceType: null,
+        sourceFileKey: null,
+        mimeType: null,
+      })
+      .where(eq(notes.id, ctx.noteId));
+
+    const response = await authedFetch(`/api/notes/${ctx.noteId}/pdf-annotations`, {
+      method: "GET",
+      userId: ctx.userId,
+    });
+
+    expect(response.status).toBe(409);
   });
 });
