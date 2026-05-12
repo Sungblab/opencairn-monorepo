@@ -148,6 +148,11 @@
   "graphDiscovery": {
     "title": "After adding sources, inspect the connections",
     "description": "Use {count} project documents to jump into the concept map, review cards, or a focused mindmap.",
+    "index": {
+      "label": "Wiki index",
+      "pages": "{count} pages",
+      "links": "{count} links"
+    },
     "actions": {
       "map": "Open relationship map",
       "cards": "Review as cards",

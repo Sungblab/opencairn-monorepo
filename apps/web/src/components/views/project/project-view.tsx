@@ -6,7 +6,11 @@ import { useLocale, useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { CalendarDays, FilePlus, GitBranch, Layers3, LayoutTemplate, Network, UploadCloud } from "lucide-react";
-import { projectsApi, type ProjectNoteRow } from "@/lib/api-client";
+import {
+  projectsApi,
+  type ProjectNoteRow,
+  type ProjectWikiIndex,
+} from "@/lib/api-client";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
 import { LiteratureSearchModal } from "@/components/literature/literature-search-modal";
 import {
@@ -46,6 +50,10 @@ export function ProjectView({
     queryKey: ["project-meta", projectId],
     queryFn: () => projectsApi.get(projectId),
   });
+  const { data: wikiIndex } = useQuery({
+    queryKey: ["project-wiki-index", projectId],
+    queryFn: () => projectsApi.wikiIndex(projectId),
+  });
   // Page count + last activity are derived from the unfiltered notes list to
   // avoid a third endpoint just for two scalars. The notes table publishes
   // its `filter=all` payload back here when it fires; counts also feed the
@@ -79,6 +87,14 @@ export function ProjectView({
 
   function openDocumentPreset(presetId: DocumentGenerationPresetId) {
     requestDocumentGenerationPreset(presetId);
+  }
+
+  function formatWikiIndexStats(
+    index: ProjectWikiIndex | undefined,
+    labels: { pages: string; links: string },
+  ) {
+    if (!index) return null;
+    return [labels.pages, labels.links].join(" · ");
   }
 
   function renderToolItem(item: ToolDiscoveryItem) {
@@ -172,6 +188,15 @@ export function ProjectView({
         mapLabel={t("graphDiscovery.actions.map")}
         cardsLabel={t("graphDiscovery.actions.cards")}
         mindmapLabel={t("graphDiscovery.actions.mindmap")}
+        indexLabel={t("graphDiscovery.index.label")}
+        indexStats={formatWikiIndexStats(wikiIndex, {
+          pages: t("graphDiscovery.index.pages", {
+            count: wikiIndex?.totals.pages ?? 0,
+          }),
+          links: t("graphDiscovery.index.links", {
+            count: wikiIndex?.totals.wikiLinks ?? 0,
+          }),
+        })}
         mapHref={projectGraphHref()}
         cardsHref={projectGraphHref("cards")}
         mindmapHref={projectGraphHref("mindmap")}
@@ -360,6 +385,8 @@ function GraphDiscoveryPanel({
   mapLabel,
   cardsLabel,
   mindmapLabel,
+  indexLabel,
+  indexStats,
   mapHref,
   cardsHref,
   mindmapHref,
@@ -369,6 +396,8 @@ function GraphDiscoveryPanel({
   mapLabel: string;
   cardsLabel: string;
   mindmapLabel: string;
+  indexLabel: string;
+  indexStats: string | null;
   mapHref: string;
   cardsHref: string;
   mindmapHref: string;
@@ -381,6 +410,12 @@ function GraphDiscoveryPanel({
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             {description}
           </p>
+          {indexStats ? (
+            <p className="mt-2 text-xs font-medium text-muted-foreground">
+              <span className="text-foreground">{indexLabel}</span>{" "}
+              {indexStats}
+            </p>
+          ) : null}
         </div>
         <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
           <GraphDiscoveryLink href={mapHref} label={mapLabel} Icon={Network} />

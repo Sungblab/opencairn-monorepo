@@ -24,6 +24,11 @@ vi.mock("@/hooks/useWorkspaceId", () => ({
 vi.mock("@/lib/api-client", () => ({
   projectsApi: {
     get: vi.fn(async () => ({ id: "p1", name: "Project One" })),
+    wikiIndex: vi.fn(async () => ({
+      projectId: "p1",
+      totals: { pages: 3, wikiLinks: 2 },
+      pages: [],
+    })),
   },
 }));
 
@@ -158,6 +163,14 @@ describe("ProjectView", () => {
 
     expect(
       screen.getByText("project.graphDiscovery.title"),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("project.graphDiscovery.index.label"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "project.graphDiscovery.index.pages · project.graphDiscovery.index.links",
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", {

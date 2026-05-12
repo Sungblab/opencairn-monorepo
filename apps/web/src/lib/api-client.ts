@@ -698,12 +698,33 @@ export interface ProjectNoteRow {
   updated_at: string;
 }
 
+export interface ProjectWikiIndexPage {
+  id: string;
+  title: string;
+  type: "note" | "wiki" | "source";
+  sourceType: string | null;
+  summary: string;
+  updatedAt: string;
+  inboundLinks: number;
+  outboundLinks: number;
+}
+
+export interface ProjectWikiIndex {
+  projectId: string;
+  totals: {
+    pages: number;
+    wikiLinks: number;
+  };
+  pages: ProjectWikiIndexPage[];
+}
 export const projectsApi = {
   get: (id: string) => apiClient<ProjectMeta>(`/projects/${id}`),
   notes: (id: string, filter: "all" | ProjectNoteKind = "all") =>
     apiClient<{ notes: ProjectNoteRow[] }>(
       `/projects/${id}/notes?filter=${filter}`,
     ),
+  wikiIndex: (id: string) =>
+    apiClient<ProjectWikiIndex>(`/projects/${id}/wiki-index`),
 };
 
 // ---------- Plan 8 agent entrypoints ----------
