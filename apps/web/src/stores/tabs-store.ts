@@ -75,14 +75,31 @@ export interface Tab {
   scrollY: number;
 }
 
+export type SplitPane = "primary" | "secondary";
+
+export interface SplitLayout {
+  primaryTabId: string;
+  secondaryTabId: string;
+  orientation: "vertical";
+  ratio: number;
+}
+
 // ⌘⇧T ring buffer — keeps the last N non-pinned closed tabs per workspace.
 // Persisted so a restore survives reloads (matches Chrome / VSCode behavior).
 const CLOSED_STACK_LIMIT = 10;
+const RECENT_ACTIVE_LIMIT = 20;
+const SPLIT_RATIO_MIN = 0.25;
+const SPLIT_RATIO_MAX = 0.75;
+const SPLIT_RATIO_DEFAULT = 0.5;
 
 interface Persisted {
+  version: 1;
   tabs: Tab[];
   activeId: string | null;
+  activePane: SplitPane;
+  split: SplitLayout | null;
   closedStack: Tab[];
+  recentlyActiveTabIds: string[];
 }
 
 interface State extends Persisted {
@@ -101,6 +118,13 @@ interface State extends Persisted {
   closeOthers(keepId: string): void;
   closeRight(id: string): void;
   restoreClosed(): void;
+  openTabToRight(tab: Tab, options?: { reuseExisting?: boolean }): void;
+  setActivePane(pane: SplitPane): void;
+  swapSplitPanes(): void;
+  setSplitRatio(ratio: number): void;
+  unsplit(keep?: SplitPane): void;
+  toggleActiveSplit(): void;
+  closeActiveSplitPane(): void;
 }
 
 // Per-workspace storage keys: switching workspaces flushes the outgoing
@@ -108,21 +132,133 @@ interface State extends Persisted {
 // after a multi-workspace user toggles back and forth a few times.
 const key = (wsId: string) => `oc:tabs:${wsId}`;
 
+const defaultPersisted = (): Persisted => ({
+  version: 1,
+  tabs: [],
+  activeId: null,
+  activePane: "primary",
+  split: null,
+  closedStack: [],
+  recentlyActiveTabIds: [],
+});
+
+const clamp = (v: number, lo: number, hi: number) =>
+  Math.min(hi, Math.max(lo, v));
+
+function tabExists(tabs: Tab[], id: string | null | undefined): id is string {
+  return Boolean(id && tabs.some((tab) => tab.id === id));
+}
+
+function deriveLegacySplit(tabs: Tab[]): SplitLayout | null {
+  const left = tabs.find(
+    (tab) =>
+      tab.splitSide === "left" && tabExists(tabs, tab.splitWith ?? undefined),
+  );
+  if (left?.splitWith) {
+    return {
+      primaryTabId: left.id,
+      secondaryTabId: left.splitWith,
+      orientation: "vertical",
+      ratio: SPLIT_RATIO_DEFAULT,
+    };
+  }
+
+  const right = tabs.find(
+    (tab) =>
+      tab.splitSide === "right" && tabExists(tabs, tab.splitWith ?? undefined),
+  );
+  if (right?.splitWith) {
+    return {
+      primaryTabId: right.splitWith,
+      secondaryTabId: right.id,
+      orientation: "vertical",
+      ratio: SPLIT_RATIO_DEFAULT,
+    };
+  }
+
+  return null;
+}
+
+function sanitizeSplit(
+  tabs: Tab[],
+  split: Partial<SplitLayout> | null | undefined,
+): SplitLayout | null {
+  if (!split) return null;
+  if (!tabExists(tabs, split.primaryTabId)) return null;
+  if (!tabExists(tabs, split.secondaryTabId)) return null;
+  if (split.primaryTabId === split.secondaryTabId) return null;
+  return {
+    primaryTabId: split.primaryTabId,
+    secondaryTabId: split.secondaryTabId,
+    orientation: "vertical",
+    ratio:
+      typeof split.ratio === "number" && Number.isFinite(split.ratio)
+        ? clamp(split.ratio, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX)
+        : SPLIT_RATIO_DEFAULT,
+  };
+}
+
+function paneForActive(
+  activeId: string | null,
+  split: SplitLayout | null,
+): SplitPane {
+  if (split?.secondaryTabId === activeId) return "secondary";
+  return "primary";
+}
+
+function tabIdForPane(split: SplitLayout, pane: SplitPane) {
+  return pane === "secondary" ? split.secondaryTabId : split.primaryTabId;
+}
+
+function addRecent(
+  recentlyActiveTabIds: string[],
+  id: string | null,
+): string[] {
+  if (!id) return recentlyActiveTabIds;
+  return [
+    id,
+    ...recentlyActiveTabIds.filter((existing) => existing !== id),
+  ].slice(0, RECENT_ACTIVE_LIMIT);
+}
+
+function pickFallbackActive(tabs: Tab[], recent: string[]) {
+  const recentMatch = recent.find((id) => tabExists(tabs, id));
+  if (recentMatch) return recentMatch;
+  const lastUnpinned = [...tabs].reverse().find((tab) => !tab.pinned);
+  return lastUnpinned?.id ?? tabs[0]?.id ?? null;
+}
+
+function normalizePersisted(parsed: Partial<Persisted>): Persisted {
+  const tabs = Array.isArray(parsed.tabs) ? parsed.tabs : [];
+  const closedStack = Array.isArray(parsed.closedStack)
+    ? parsed.closedStack
+    : [];
+  const recentlyActiveTabIds = Array.isArray(parsed.recentlyActiveTabIds)
+    ? parsed.recentlyActiveTabIds.filter((id): id is string => typeof id === "string")
+    : [];
+  const split = sanitizeSplit(tabs, parsed.split) ?? deriveLegacySplit(tabs);
+  const activeId = tabExists(tabs, parsed.activeId)
+    ? parsed.activeId
+    : pickFallbackActive(tabs, recentlyActiveTabIds);
+  return {
+    version: 1,
+    tabs,
+    activeId,
+    activePane: split ? paneForActive(activeId, split) : "primary",
+    split,
+    closedStack,
+    recentlyActiveTabIds,
+  };
+}
+
 function loadPersisted(wsId: string): Persisted {
   try {
     const raw = localStorage.getItem(key(wsId));
-    if (!raw) return { tabs: [], activeId: null, closedStack: [] };
+    if (!raw) return defaultPersisted();
     const parsed = JSON.parse(raw) as Partial<Persisted>;
-    return {
-      tabs: parsed.tabs ?? [],
-      activeId: parsed.activeId ?? null,
-      // closedStack was added in Phase 3. Older persisted blobs from Phase 1
-      // omit it — coerce to empty so the user doesn't see a crash on first
-      // load after the upgrade.
-      closedStack: parsed.closedStack ?? [],
-    };
+    return normalizePersisted(parsed);
   } catch {
-    return { tabs: [], activeId: null, closedStack: [] };
+    return defaultPersisted();
   }
 }
 
@@ -132,9 +268,13 @@ function flush(wsId: string, data: Persisted) {
 
 export const useTabsStore = create<State>((set, get) => ({
   workspaceId: null,
+  version: 1,
   tabs: [],
   activeId: null,
+  activePane: "primary",
+  split: null,
   closedStack: [],
+  recentlyActiveTabIds: [],
 
   setWorkspace: (id) => {
     const prev = get();
@@ -142,7 +282,11 @@ export const useTabsStore = create<State>((set, get) => ({
       flush(prev.workspaceId, {
         tabs: prev.tabs,
         activeId: prev.activeId,
+        activePane: prev.activePane,
+        split: prev.split,
         closedStack: prev.closedStack,
+        recentlyActiveTabIds: prev.recentlyActiveTabIds,
+        version: 1,
       });
     }
     const loaded = loadPersisted(id);
@@ -150,7 +294,10 @@ export const useTabsStore = create<State>((set, get) => ({
       workspaceId: id,
       tabs: loaded.tabs,
       activeId: loaded.activeId,
+      activePane: loaded.activePane,
+      split: loaded.split,
       closedStack: loaded.closedStack,
+      recentlyActiveTabIds: loaded.recentlyActiveTabIds,
     });
   },
 
@@ -158,9 +305,24 @@ export const useTabsStore = create<State>((set, get) => ({
     const s = get();
     const tabs = [...s.tabs, tab];
     const activeId = tab.id;
-    set({ tabs, activeId });
+    const recentlyActiveTabIds = addRecent(s.recentlyActiveTabIds, activeId);
+    set({
+      tabs,
+      activeId,
+      activePane: "primary",
+      split: null,
+      recentlyActiveTabIds,
+    });
     if (s.workspaceId)
-      flush(s.workspaceId, { tabs, activeId, closedStack: s.closedStack });
+      flush(s.workspaceId, {
+        version: 1,
+        tabs,
+        activeId,
+        activePane: "primary",
+        split: null,
+        closedStack: s.closedStack,
+        recentlyActiveTabIds,
+      });
   },
 
   closeTab: (id) => {
@@ -169,27 +331,56 @@ export const useTabsStore = create<State>((set, get) => ({
     if (!target || target.pinned) return;
     const idx = s.tabs.findIndex((t) => t.id === id);
     const tabs = s.tabs.filter((t) => t.id !== id);
+    let split = s.split;
     let activeId = s.activeId;
-    if (activeId === id) {
+    let activePane = s.activePane;
+    if (split && (split.primaryTabId === id || split.secondaryTabId === id)) {
+      const survivingId =
+        split.primaryTabId === id ? split.secondaryTabId : split.primaryTabId;
+      split = null;
+      activeId = tabExists(tabs, survivingId)
+        ? survivingId
+        : pickFallbackActive(tabs, s.recentlyActiveTabIds);
+      activePane = "primary";
+    } else if (activeId === id) {
       // Right neighbor wins; falls back to left when closing the rightmost.
       const right = s.tabs[idx + 1];
       const left = s.tabs[idx - 1];
       activeId = right?.id ?? left?.id ?? null;
     }
     const closedStack = [...s.closedStack, target].slice(-CLOSED_STACK_LIMIT);
-    set({ tabs, activeId, closedStack });
-    if (s.workspaceId) flush(s.workspaceId, { tabs, activeId, closedStack });
+    const recentlyActiveTabIds = addRecent(
+      s.recentlyActiveTabIds.filter((tabId) => tabId !== id),
+      activeId,
+    );
+    set({ tabs, activeId, activePane, split, closedStack, recentlyActiveTabIds });
+    if (s.workspaceId)
+      flush(s.workspaceId, {
+        version: 1,
+        tabs,
+        activeId,
+        activePane,
+        split,
+        closedStack,
+        recentlyActiveTabIds,
+      });
   },
 
   setActive: (id) => {
     const s = get();
     if (!s.tabs.some((t) => t.id === id)) return;
-    set({ activeId: id });
+    const activePane = s.split ? paneForActive(id, s.split) : "primary";
+    const recentlyActiveTabIds = addRecent(s.recentlyActiveTabIds, id);
+    set({ activeId: id, activePane, recentlyActiveTabIds });
     if (s.workspaceId)
       flush(s.workspaceId, {
+        version: 1,
         tabs: s.tabs,
         activeId: id,
+        activePane,
+        split: s.split,
         closedStack: s.closedStack,
+        recentlyActiveTabIds,
       });
   },
 
@@ -199,9 +390,13 @@ export const useTabsStore = create<State>((set, get) => ({
     set({ tabs });
     if (s.workspaceId)
       flush(s.workspaceId, {
+        version: 1,
         tabs,
         activeId: s.activeId,
+        activePane: s.activePane,
+        split: s.split,
         closedStack: s.closedStack,
+        recentlyActiveTabIds: s.recentlyActiveTabIds,
       });
   },
 
@@ -220,9 +415,20 @@ export const useTabsStore = create<State>((set, get) => ({
       s.activeId && tabs.some((t) => t.id === s.activeId)
         ? s.activeId
         : keepId;
-    set({ tabs, activeId });
+    const split = sanitizeSplit(tabs, s.split);
+    const activePane = split ? paneForActive(activeId, split) : "primary";
+    const recentlyActiveTabIds = addRecent(s.recentlyActiveTabIds, activeId);
+    set({ tabs, activeId, activePane, split, recentlyActiveTabIds });
     if (s.workspaceId)
-      flush(s.workspaceId, { tabs, activeId, closedStack: s.closedStack });
+      flush(s.workspaceId, {
+        version: 1,
+        tabs,
+        activeId,
+        activePane,
+        split,
+        closedStack: s.closedStack,
+        recentlyActiveTabIds,
+      });
   },
 
   reorderTab: (from, to) => {
@@ -233,12 +439,18 @@ export const useTabsStore = create<State>((set, get) => ({
     const next = [...s.tabs];
     const [moved] = next.splice(from, 1);
     next.splice(to, 0, moved);
-    set({ tabs: next });
+    const split = sanitizeSplit(next, s.split);
+    const activePane = split ? paneForActive(s.activeId, split) : "primary";
+    set({ tabs: next, activePane, split });
     if (s.workspaceId)
       flush(s.workspaceId, {
+        version: 1,
         tabs: next,
         activeId: s.activeId,
+        activePane,
+        split,
         closedStack: s.closedStack,
+        recentlyActiveTabIds: s.recentlyActiveTabIds,
       });
   },
 
@@ -258,19 +470,29 @@ export const useTabsStore = create<State>((set, get) => ({
     const s = get();
     const previewIdx = s.tabs.findIndex((t) => t.preview);
     // The caller's intent is "open and focus this preview tab", so activeId
-    // always resolves to the new tab — unlike addTab which preserves any
-    // existing activeId. One set / one flush for both branches.
+    // always resolves to the new tab. One set / one flush for both branches.
     const tabs =
       previewIdx < 0
         ? [...s.tabs, tab]
         : s.tabs.map((t, i) => (i === previewIdx ? tab : t));
     const activeId = tab.id;
-    set({ tabs, activeId });
+    const recentlyActiveTabIds = addRecent(s.recentlyActiveTabIds, activeId);
+    set({
+      tabs,
+      activeId,
+      activePane: "primary",
+      split: null,
+      recentlyActiveTabIds,
+    });
     if (s.workspaceId)
       flush(s.workspaceId, {
+        version: 1,
         tabs,
         activeId,
+        activePane: "primary",
+        split: null,
         closedStack: s.closedStack,
+        recentlyActiveTabIds,
       });
   },
 
@@ -287,12 +509,22 @@ export const useTabsStore = create<State>((set, get) => ({
     const closedStack = [...s.closedStack, ...evicted].slice(
       -CLOSED_STACK_LIMIT,
     );
-    set({ tabs: next, activeId: keepId, closedStack });
+    const split = sanitizeSplit(next, s.split);
+    const activePane = split ? paneForActive(keepId, split) : "primary";
+    const recentlyActiveTabIds = addRecent(
+      s.recentlyActiveTabIds.filter((id) => next.some((tab) => tab.id === id)),
+      keepId,
+    );
+    set({ tabs: next, activeId: keepId, activePane, split, closedStack, recentlyActiveTabIds });
     if (s.workspaceId)
       flush(s.workspaceId, {
+        version: 1,
         tabs: next,
         activeId: keepId,
+        activePane,
+        split,
         closedStack,
+        recentlyActiveTabIds,
       });
   },
 
@@ -309,15 +541,27 @@ export const useTabsStore = create<State>((set, get) => ({
     const rightPinned = rightSlice.filter((t) => t.pinned);
     const next = [...s.tabs.slice(0, idx + 1), ...rightPinned];
     const activeId = next.some((t) => t.id === s.activeId) ? s.activeId : id;
+    const split = sanitizeSplit(next, s.split);
+    const activePane = split ? paneForActive(activeId, split) : "primary";
     const closedStack = [...s.closedStack, ...evicted].slice(
       -CLOSED_STACK_LIMIT,
     );
-    set({ tabs: next, activeId, closedStack });
+    const recentlyActiveTabIds = addRecent(
+      s.recentlyActiveTabIds.filter((tabId) =>
+        next.some((tab) => tab.id === tabId),
+      ),
+      activeId,
+    );
+    set({ tabs: next, activeId, activePane, split, closedStack, recentlyActiveTabIds });
     if (s.workspaceId)
       flush(s.workspaceId, {
+        version: 1,
         tabs: next,
         activeId,
+        activePane,
+        split,
         closedStack,
+        recentlyActiveTabIds,
       });
   },
 
@@ -326,9 +570,201 @@ export const useTabsStore = create<State>((set, get) => ({
     if (s.closedStack.length === 0) return;
     const last = s.closedStack[s.closedStack.length - 1];
     const closedStack = s.closedStack.slice(0, -1);
-    const tabs = [...s.tabs, last];
-    set({ tabs, activeId: last.id, closedStack });
+    const restored = { ...last, pinned: false, preview: false };
+    const tabs = [...s.tabs, restored];
+    const recentlyActiveTabIds = addRecent(s.recentlyActiveTabIds, restored.id);
+    set({
+      tabs,
+      activeId: restored.id,
+      activePane: "primary",
+      split: null,
+      closedStack,
+      recentlyActiveTabIds,
+    });
     if (s.workspaceId)
-      flush(s.workspaceId, { tabs, activeId: last.id, closedStack });
+      flush(s.workspaceId, {
+        version: 1,
+        tabs,
+        activeId: restored.id,
+        activePane: "primary",
+        split: null,
+        closedStack,
+        recentlyActiveTabIds,
+      });
+  },
+
+  openTabToRight: (tab, options) => {
+    const s = get();
+    const reuseExisting = options?.reuseExisting ?? true;
+    const activeId = s.activeId ?? s.tabs[0]?.id ?? null;
+    if (!activeId) {
+      get().addTab({ ...tab, preview: false });
+      return;
+    }
+
+    const existing =
+      reuseExisting && tab.targetId !== null
+        ? s.tabs.find(
+            (candidate) =>
+              candidate.id !== activeId &&
+              candidate.kind === tab.kind &&
+              candidate.targetId === tab.targetId,
+          )
+        : undefined;
+
+    const secondary = existing ?? { ...tab, preview: false };
+    const tabs = existing
+      ? s.tabs.map((candidate) =>
+          candidate.id === existing.id ? { ...candidate, preview: false } : candidate,
+        )
+      : [...s.tabs, secondary];
+    const split: SplitLayout = {
+      primaryTabId: activeId,
+      secondaryTabId: secondary.id,
+      orientation: "vertical",
+      ratio: s.split?.ratio ?? SPLIT_RATIO_DEFAULT,
+    };
+    const recentlyActiveTabIds = addRecent(
+      addRecent(s.recentlyActiveTabIds, activeId),
+      secondary.id,
+    );
+    set({
+      tabs,
+      activeId: secondary.id,
+      activePane: "secondary",
+      split,
+      recentlyActiveTabIds,
+    });
+    if (s.workspaceId)
+      flush(s.workspaceId, {
+        version: 1,
+        tabs,
+        activeId: secondary.id,
+        activePane: "secondary",
+        split,
+        closedStack: s.closedStack,
+        recentlyActiveTabIds,
+      });
+  },
+
+  setActivePane: (pane) => {
+    const s = get();
+    if (!s.split) return;
+    const activeId = tabIdForPane(s.split, pane);
+    const recentlyActiveTabIds = addRecent(s.recentlyActiveTabIds, activeId);
+    set({ activePane: pane, activeId, recentlyActiveTabIds });
+    if (s.workspaceId)
+      flush(s.workspaceId, {
+        version: 1,
+        tabs: s.tabs,
+        activeId,
+        activePane: pane,
+        split: s.split,
+        closedStack: s.closedStack,
+        recentlyActiveTabIds,
+      });
+  },
+
+  swapSplitPanes: () => {
+    const s = get();
+    if (!s.split) return;
+    const split: SplitLayout = {
+      ...s.split,
+      primaryTabId: s.split.secondaryTabId,
+      secondaryTabId: s.split.primaryTabId,
+    };
+    const activePane = paneForActive(s.activeId, split);
+    set({ split, activePane });
+    if (s.workspaceId)
+      flush(s.workspaceId, {
+        version: 1,
+        tabs: s.tabs,
+        activeId: s.activeId,
+        activePane,
+        split,
+        closedStack: s.closedStack,
+        recentlyActiveTabIds: s.recentlyActiveTabIds,
+      });
+  },
+
+  setSplitRatio: (ratio) => {
+    const s = get();
+    if (!s.split) return;
+    const split = {
+      ...s.split,
+      ratio: clamp(ratio, SPLIT_RATIO_MIN, SPLIT_RATIO_MAX),
+    };
+    set({ split });
+    if (s.workspaceId)
+      flush(s.workspaceId, {
+        version: 1,
+        tabs: s.tabs,
+        activeId: s.activeId,
+        activePane: s.activePane,
+        split,
+        closedStack: s.closedStack,
+        recentlyActiveTabIds: s.recentlyActiveTabIds,
+      });
+  },
+
+  unsplit: (keep) => {
+    const s = get();
+    if (!s.split) return;
+    const activePane = keep ?? s.activePane;
+    const activeId = tabIdForPane(s.split, activePane);
+    const recentlyActiveTabIds = addRecent(s.recentlyActiveTabIds, activeId);
+    set({
+      split: null,
+      activePane: "primary",
+      activeId,
+      recentlyActiveTabIds,
+    });
+    if (s.workspaceId)
+      flush(s.workspaceId, {
+        version: 1,
+        tabs: s.tabs,
+        activeId,
+        activePane: "primary",
+        split: null,
+        closedStack: s.closedStack,
+        recentlyActiveTabIds,
+      });
+  },
+
+  toggleActiveSplit: () => {
+    const s = get();
+    if (s.split) {
+      get().unsplit(s.activePane);
+      return;
+    }
+    if (!s.activeId) return;
+    const activeIdx = s.tabs.findIndex((tab) => tab.id === s.activeId);
+    if (activeIdx < 0 || s.tabs.length < 2) return;
+    const secondary =
+      s.tabs[(activeIdx + 1) % s.tabs.length] ?? s.tabs.find((tab) => tab.id !== s.activeId);
+    if (!secondary || secondary.id === s.activeId) return;
+    const split: SplitLayout = {
+      primaryTabId: s.activeId,
+      secondaryTabId: secondary.id,
+      orientation: "vertical",
+      ratio: SPLIT_RATIO_DEFAULT,
+    };
+    set({ split, activePane: "primary" });
+    if (s.workspaceId)
+      flush(s.workspaceId, {
+        version: 1,
+        tabs: s.tabs,
+        activeId: s.activeId,
+        activePane: "primary",
+        split,
+        closedStack: s.closedStack,
+        recentlyActiveTabIds: s.recentlyActiveTabIds,
+      });
+  },
+
+  closeActiveSplitPane: () => {
+    const s = get();
+    if (!s.split) return;
+    get().closeTab(tabIdForPane(s.split, s.activePane));
   },
 }));

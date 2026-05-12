@@ -46,12 +46,15 @@
     "item": {
       "close": "닫기",
       "pinned": "고정됨",
-      "unsaved": "저장되지 않음"
+      "unsaved": "저장되지 않음",
+      "splitPrimary": "왼쪽 분할 탭",
+      "splitSecondary": "오른쪽 분할 탭"
     },
     "menu": {
       "pin": "고정",
       "unpin": "고정 해제",
       "duplicate": "복제",
+      "openToRight": "오른쪽에 열기",
       "close": "닫기",
       "closeOthers": "다른 탭 닫기",
       "closeRight": "오른쪽 탭 닫기",

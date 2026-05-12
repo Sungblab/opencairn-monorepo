@@ -261,6 +261,45 @@ export function ProjectTreeNode({
     });
   }
 
+  function splitTabForNode() {
+    const targetId = node.data.target_id ?? node.data.id;
+    if (!targetId) return null;
+    if (kind === "note") {
+      return newTab({
+        kind: "note",
+        targetId,
+        title: displayLabel,
+        mode: "reading",
+        preview: false,
+      });
+    }
+    if (kind === "agent_file" || kind === "source_bundle") {
+      return newTab({
+        kind: "agent_file",
+        targetId,
+        title: displayLabel,
+        mode: "agent-file",
+        preview: false,
+      });
+    }
+    if (kind === "code_workspace") {
+      return newTab({
+        kind: "code_workspace",
+        targetId,
+        title: displayLabel,
+        mode: "code-workspace",
+        preview: false,
+      });
+    }
+    return null;
+  }
+
+  function openToRight() {
+    const tab = splitTabForNode();
+    if (!tab) return;
+    useTabsStore.getState().openTabToRight(tab, { reuseExisting: false });
+  }
+
   function closeActionMenu() {
     setActionMenuPos(null);
   }
@@ -458,6 +497,18 @@ export function ProjectTreeNode({
                       type="button"
                       role="menuitem"
                       className="flex min-h-8 w-full items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-left outline-none hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
+                      disabled={!splitTabForNode()}
+                      onClick={() => {
+                        closeActionMenu();
+                        openToRight();
+                      }}
+                    >
+                      {t("open_to_right")}
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="flex min-h-8 w-full items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-left outline-none hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
                       disabled={!nodeHref()}
                       onClick={() => {
                         closeActionMenu();
@@ -520,6 +571,7 @@ export function ProjectTreeNode({
               : undefined
           }
           onCreateFolder={() => ctx.onCreateFolder(node.data.id)}
+          onOpenToRight={splitTabForNode() ? openToRight : undefined}
           onCopyLink={copyLink}
           onFavorite={nodeHref() ? pinFavorite : undefined}
           onDelete={() =>

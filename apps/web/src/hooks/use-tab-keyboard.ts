@@ -49,11 +49,49 @@ export function useTabKeyboard() {
         return;
       }
 
+      // ⌘⇧W → close the active split pane. This avoids relying on browser
+      // tab-closing behavior when the user is working inside an OpenCairn
+      // split layout.
+      if (e.shiftKey && !e.altKey && e.key.toLowerCase() === "w") {
+        if (s.split) {
+          e.preventDefault();
+          s.closeActiveSplitPane();
+        }
+        return;
+      }
+
       // Arrow handlers bail out when the target is an editable — otherwise
       // ⌘← inside the title input or Plate body would steal line-start
       // navigation, and ⌥← would steal word-back.
       const arrow = e.key === "ArrowLeft" || e.key === "ArrowRight";
       if (arrow && isEditableTarget(e.target)) return;
+
+      // ⌘⌥[ / ⌘⌥] → previous / next OpenCairn tab. Browser chrome owns
+      // Ctrl+Tab on most platforms, so bracket chords are the reliable app
+      // alternative.
+      if (!e.shiftKey && e.altKey && (e.key === "]" || e.key === "[")) {
+        if (s.tabs.length === 0) return;
+        const idx = s.tabs.findIndex((t) => t.id === s.activeId);
+        const nextIdx =
+          e.key === "]"
+            ? (idx + 1) % s.tabs.length
+            : idx < 0
+              ? s.tabs.length - 1
+              : (idx - 1 + s.tabs.length) % s.tabs.length;
+        const target = s.tabs[nextIdx];
+        if (target) {
+          e.preventDefault();
+          s.setActive(target.id);
+        }
+        return;
+      }
+
+      // ⌘⌥\ → create or dissolve a simple two-pane split.
+      if (!e.shiftKey && e.altKey && e.key === "\\") {
+        e.preventDefault();
+        s.toggleActiveSplit();
+        return;
+      }
 
       // ⌘Alt+Arrow → reorder active tab within the bar (shift comes later
       // when we add pinned-zone separator logic).

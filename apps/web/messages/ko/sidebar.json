@@ -130,6 +130,7 @@
     "rename": "이름 바꾸기",
     "rename_shortcut": "F2",
     "duplicate": "복제",
+    "open_to_right": "오른쪽에 열기",
     "copy_link": "링크 복사",
     "favorite": "즐겨찾기에 고정",
     "new_child_page": "하위 페이지 만들기",

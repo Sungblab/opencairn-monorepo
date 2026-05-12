@@ -47,9 +47,13 @@ describe("TabShell", () => {
     useTabsStore.setState(
       {
         workspaceId: null,
+        version: 1,
         tabs: [],
         activeId: null,
+        activePane: "primary",
+        split: null,
         closedStack: [],
+        recentlyActiveTabIds: [],
       },
       false,
     );
@@ -114,5 +118,48 @@ describe("TabShell", () => {
     act(() => useTabsStore.getState().addTab(mk({ mode: "plate" })));
     wrap(<div data-testid="route-child" />);
     expect(screen.getByTestId("route-child")).toBeInTheDocument();
+  });
+
+  it("renders a two-pane split with route children and a routed viewer", () => {
+    act(() => {
+      useTabsStore.getState().addTab(mk({ id: "left", mode: "plate" }));
+      useTabsStore.getState().openTabToRight(
+        mk({
+          id: "right",
+          kind: "note",
+          mode: "source",
+          targetId: "source-1",
+        }),
+      );
+    });
+
+    wrap(<div data-testid="route-child" />);
+
+    expect(screen.getByTestId("split-pane-primary")).toBeInTheDocument();
+    expect(screen.getByTestId("split-pane-secondary")).toBeInTheDocument();
+    expect(screen.getByTestId("route-child")).toBeInTheDocument();
+    expect(screen.getByTestId("router-source")).toBeInTheDocument();
+  });
+
+  it("clicking a split pane makes that pane the active pane", () => {
+    act(() => {
+      useTabsStore.getState().addTab(mk({ id: "left", mode: "plate" }));
+      useTabsStore.getState().openTabToRight(
+        mk({
+          id: "right",
+          kind: "note",
+          mode: "source",
+          targetId: "source-1",
+        }),
+      );
+    });
+
+    wrap(<div data-testid="route-child" />);
+    act(() => {
+      screen.getByTestId("split-pane-primary").click();
+    });
+
+    expect(useTabsStore.getState().activePane).toBe("primary");
+    expect(useTabsStore.getState().activeId).toBe("left");
   });
 });

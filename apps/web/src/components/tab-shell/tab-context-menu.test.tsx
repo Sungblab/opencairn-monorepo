@@ -84,6 +84,29 @@ describe("TabContextMenuItems", () => {
     expect(tabs[1].id).not.toBe("a");
   });
 
+  it("openToRight → opens the duplicated tab in the secondary split pane", () => {
+    useTabsStore.getState().addTab(mk({ id: "a", targetId: "n1" }));
+    render(
+      <Harness>
+        <TabContextMenuItems tab={mk({ id: "a" })} wsSlug="acme" />
+      </Harness>,
+    );
+
+    fireEvent.click(screen.getByText("openToRight"));
+
+    const state = useTabsStore.getState();
+    expect(state.tabs).toHaveLength(2);
+    expect(state.split).toMatchObject({
+      primaryTabId: "a",
+      secondaryTabId: state.tabs[1].id,
+    });
+    expect(state.tabs[1]).toMatchObject({
+      kind: "note",
+      targetId: "n1",
+      preview: false,
+    });
+  });
+
   it("close → closeTab removes the tab", () => {
     useTabsStore.getState().addTab(mk({ id: "a" }));
     useTabsStore.getState().addTab(mk({ id: "b" }));

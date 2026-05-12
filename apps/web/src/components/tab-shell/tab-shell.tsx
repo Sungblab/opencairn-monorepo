@@ -1,5 +1,5 @@
 "use client";
-import { useTabsStore } from "@/stores/tabs-store";
+import { useTabsStore, type SplitPane, type Tab } from "@/stores/tabs-store";
 import { TabBar } from "./tab-bar";
 import { TabModeRouterLoader } from "./tab-mode-router-loader";
 import { isRoutedByTabModeRouter } from "./tab-mode-routing";
@@ -20,6 +20,13 @@ export function TabShell({ children }: { children: React.ReactNode }) {
   const active = useTabsStore((s) =>
     s.tabs.find((t) => t.id === s.activeId),
   );
+  const split = useTabsStore((s) => s.split);
+  const primary = useTabsStore((s) =>
+    s.split ? s.tabs.find((t) => t.id === s.split?.primaryTabId) : undefined,
+  );
+  const secondary = useTabsStore((s) =>
+    s.split ? s.tabs.find((t) => t.id === s.split?.secondaryTabId) : undefined,
+  );
 
   return (
     <main
@@ -28,7 +35,15 @@ export function TabShell({ children }: { children: React.ReactNode }) {
     >
       <TabBar />
       <div className="app-scrollbar-thin flex min-h-0 flex-1 overflow-auto">
-        {active && isRoutedByTabModeRouter(active) ? (
+        {split && primary && secondary ? (
+          <SplitWorkspace
+            primary={primary}
+            secondary={secondary}
+            ratio={split.ratio}
+          >
+            {children}
+          </SplitWorkspace>
+        ) : active && isRoutedByTabModeRouter(active) ? (
           <div className="min-w-0 flex-1 w-full">
             <TabModeRouterLoader tab={active} />
           </div>
@@ -37,5 +52,88 @@ export function TabShell({ children }: { children: React.ReactNode }) {
         )}
       </div>
     </main>
+  );
+}
+
+function SplitWorkspace({
+  primary,
+  secondary,
+  ratio,
+  children,
+}: {
+  primary: Tab;
+  secondary: Tab;
+  ratio: number;
+  children: React.ReactNode;
+}) {
+  const routeChildrenPane: SplitPane | null = !isRoutedByTabModeRouter(primary)
+    ? "primary"
+    : !isRoutedByTabModeRouter(secondary)
+      ? "secondary"
+      : null;
+
+  return (
+    <div className="flex min-h-0 w-full flex-1 overflow-hidden">
+      <SplitPaneView
+        pane="primary"
+        tab={primary}
+        width={`${ratio * 100}%`}
+        routeChildrenPane={routeChildrenPane}
+      >
+        {children}
+      </SplitPaneView>
+      <div className="w-px shrink-0 bg-border" aria-hidden />
+      <SplitPaneView
+        pane="secondary"
+        tab={secondary}
+        width={`${(1 - ratio) * 100}%`}
+        routeChildrenPane={routeChildrenPane}
+      >
+        {children}
+      </SplitPaneView>
+    </div>
+  );
+}
+
+function SplitPaneView({
+  pane,
+  tab,
+  width,
+  routeChildrenPane,
+  children,
+}: {
+  pane: SplitPane;
+  tab: Tab;
+  width: string;
+  routeChildrenPane: SplitPane | null;
+  children: React.ReactNode;
+}) {
+  const activePane = useTabsStore((s) => s.activePane);
+  const setActivePane = useTabsStore((s) => s.setActivePane);
+  const isRouteBacked = !isRoutedByTabModeRouter(tab);
+  const isActivePane = activePane === pane;
+
+  return (
+    <section
+      data-testid={`split-pane-${pane}`}
+      aria-current={isActivePane ? "true" : undefined}
+      onClick={() => setActivePane(pane)}
+      className={`min-w-0 overflow-auto ${
+        isActivePane ? "bg-background" : "bg-muted/10"
+      }`}
+      style={{ width, flexShrink: 0 }}
+    >
+      {isRouteBacked ? (
+        routeChildrenPane === pane ? (
+          <div className="min-w-0 w-full">{children}</div>
+        ) : (
+          <div className="flex h-full min-h-40 items-center justify-center px-4 text-center text-sm text-muted-foreground">
+            {tab.title}
+          </div>
+        )
+      ) : (
+        <TabModeRouterLoader tab={tab} />
+      )}
+    </section>
   );
 }
