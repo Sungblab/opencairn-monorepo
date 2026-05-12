@@ -39,7 +39,26 @@
     "board": "보드",
     "switcherAria": "뷰 전환",
     "needsRoot": "이 뷰는 중심 개념이 필요합니다. 검색에서 개념을 선택하거나 'AI로 만들기'를 사용하세요.",
-    "noConcepts": "이 프로젝트에는 아직 개념이 없습니다."
+    "noConcepts": "이 프로젝트에는 아직 개념이 없습니다.",
+    "timelineNeedsDates": "시간 정보가 있는 개념이 아직 없습니다. 날짜나 연도가 있는 자료가 생기면 타임라인으로 볼 수 있습니다.",
+    "timelineOmitted": "날짜 정보가 없는 개념 {count}개는 타임라인에서 제외했습니다."
+  },
+  "inspector": {
+    "close": "닫기",
+    "open": "열기",
+    "ask": "질문",
+    "expand": "주변",
+    "degree": "연결 {count}개",
+    "noteCount": "출처 {count}개"
+  },
+  "cards": {
+    "title": "개념 카드",
+    "description": "개념 {count}개를 카드로 훑고 출처, 질문, 복습으로 이어갑니다.",
+    "truncated": "{shown} / {total}개 카드 표시 중",
+    "open": "열기",
+    "ask": "질문",
+    "quiz": "퀴즈",
+    "relationCount": "연결 {count}개"
   },
   "evidence": {
     "title": "관계 근거",

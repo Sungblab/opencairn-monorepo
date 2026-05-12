@@ -92,8 +92,8 @@
         "description": "플래시카드와 이해도 점검으로 복습합니다."
       },
       "graph": {
-        "title": "연결 보기",
-        "description": "노트와 자료 사이의 연결을 구조로 확인합니다."
+        "title": "관계 지도 보기",
+        "description": "인제스트된 자료에서 개념 연결과 근거를 탐색합니다."
       },
       "agents": {
         "title": "에이전트에게 맡기기",
@@ -143,6 +143,15 @@
     "reviewInbox": {
       "title": "검토함",
       "description": "제안된 변경과 승인 대기 항목을 확인합니다."
+    }
+  },
+  "graphDiscovery": {
+    "title": "자료를 넣었다면, 연결부터 확인하세요",
+    "description": "프로젝트 문서 {count}개를 기준으로 개념 지도, 복습 카드, 중심 마인드맵으로 바로 이어갈 수 있습니다.",
+    "actions": {
+      "map": "관계 지도로 보기",
+      "cards": "카드로 복습",
+      "mindmap": "마인드맵으로 정리"
     }
   },
   "tabs": {

@@ -62,7 +62,7 @@ importers:
         version: 1.17.0
       better-auth:
         specifier: ^1.6.9
-        version: 1.6.9(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(kysely@0.28.16)(postgres@3.4.9))(next@16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(svelte@5.55.5(@typescript-eslint/types@8.59.1))(vitest@4.1.5)(vue@3.5.33(typescript@6.0.3))
+        version: 1.6.9(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(kysely@0.28.16)(postgres@3.4.9))(next@16.2.6(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(svelte@5.55.5(@typescript-eslint/types@8.59.1))(vitest@4.1.5)(vue@3.5.33(typescript@6.0.3))
       docx:
         specifier: ^9.6.1
         version: 9.6.1
@@ -138,7 +138,7 @@ importers:
         version: 1.0.2(slate@0.124.1)(yjs@13.6.30)
       better-auth:
         specifier: ^1.6.9
-        version: 1.6.9(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(kysely@0.28.16)(postgres@3.4.9))(next@16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(svelte@5.55.5(@typescript-eslint/types@8.59.1))(vitest@4.1.5)(vue@3.5.33(typescript@6.0.3))
+        version: 1.6.9(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(kysely@0.28.16)(postgres@3.4.9))(next@16.2.6(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(svelte@5.55.5(@typescript-eslint/types@8.59.1))(vitest@4.1.5)(vue@3.5.33(typescript@6.0.3))
       pino:
         specifier: ^10.3.1
         version: 10.3.1
@@ -232,7 +232,7 @@ importers:
         version: 5.100.7(react@19.2.5)
       better-auth:
         specifier: ^1.6.9
-        version: 1.6.9(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(kysely@0.28.16)(postgres@3.4.9))(next@16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(svelte@5.55.5(@typescript-eslint/types@8.59.1))(vitest@4.1.5)(vue@3.5.33(typescript@6.0.3))
+        version: 1.6.9(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(kysely@0.28.16)(postgres@3.4.9))(next@16.2.6(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(svelte@5.55.5(@typescript-eslint/types@8.59.1))(vitest@4.1.5)(vue@3.5.33(typescript@6.0.3))
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -296,6 +296,9 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.2.5(react@19.2.5)
+      react-force-graph-2d:
+        specifier: 1.29.1
+        version: 1.29.1(react@19.2.5)
       react-json-view-lite:
         specifier: ^2.5.0
         version: 2.5.0(react@19.2.5)
@@ -3315,6 +3318,9 @@ packages:
     cpu: [arm64]
     os: [win32]
 
+  '@tweenjs/tween.js@25.0.0':
+    resolution: {integrity: sha512-XKLA6syeBUaPzx4j3qwMqzzq+V4uo72BnlbOjmuljLrRqdsd3qnzvZZoxvMHZ23ndsRS4aufU6JOZYpCbU6T1A==}
+
   '@tybys/wasm-util@0.10.2':
     resolution: {integrity: sha512-RoBvJ2X0wuKlWFIjrwffGw1IqZHKQqzIchKaadZZfnNpsAYp2mM0h36JtPCjNDAHGgYez/15uMBpfGwchhiMgg==}
 
@@ -3706,6 +3712,10 @@ packages:
     resolution: {integrity: sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng==}
     engines: {node: '>= 0.6'}
 
+  accessor-fn@1.5.3:
+    resolution: {integrity: sha512-rkAofCwe/FvYFUlMB0v0gWmhqtfAtV1IUkdPbfhTUyYniu5LrC0A0UJkTH0Jv3S8SvwkmfuAlY+mQIJATdocMA==}
+    engines: {node: '>=12'}
+
   acorn-import-attributes@1.9.5:
     resolution: {integrity: sha512-n02Vykv5uA3eHGM/Z2dQrcD56kL8TyDb2p1+0P83PClMnC/nc+anbQRhIOWnSq4Ke/KvDPrY3C9hDtC/A3eHnQ==}
     peerDependencies:
@@ -3890,6 +3900,9 @@ packages:
       zod:
         optional: true
 
+  bezier-js@6.1.4:
+    resolution: {integrity: sha512-PA0FW9ZpcHbojUCMu28z9Vg/fNkwTj5YhusSAjHHDfHDGLxJ6YUKrAN2vk1fP2MMOxVw4Oko16FMlRGVBGqLKg==}
+
   bidi-js@1.0.3:
     resolution: {integrity: sha512-RKshQI1R3YQ+n9YJz2QQ147P66ELpa1FQEg20Dk8oW9t2KgLbpDLLp9aGZ7y8WHSshDknG0bknqGw5/tyCs5tw==}
 
@@ -3954,6 +3967,10 @@ packages:
 
   caniuse-lite@1.0.30001792:
     resolution: {integrity: sha512-hVLMUZFgR4JJ6ACt1uEESvQN1/dBVqPAKY0hgrV70eN3391K6juAfTjKZLKvOMsx8PxA7gsY1/tLMMTcfFLLpw==}
+
+  canvas-color-tracker@1.3.2:
+    resolution: {integrity: sha512-ryQkDX26yJ3CXzb3hxUVNlg1NKE4REc5crLBq661Nxzr8TNd236SaEf2ffYLXyI5tSABSeguHLqcVq4vf9L3Zg==}
+    engines: {node: '>=12'}
 
   ccount@2.0.1:
     resolution: {integrity: sha512-eyrF0jiFpY+3drT6383f1qhkbGsLSifNAjA61IUjZjmLCWjItY6LB9ft9YhoDgwfmclB2zhu51Lc7+95b8NRAg==}
@@ -4170,6 +4187,9 @@ packages:
     resolution: {integrity: sha512-IH5tgjV4jE/GhHkRV0HiVYPDtvfjHQlQfJHs0usq7M30XcSBvOotpmH1IgkcXsO/5gEQZD43B//fc7SRT5S+xw==}
     engines: {node: '>=12'}
 
+  d3-binarytree@1.0.2:
+    resolution: {integrity: sha512-cElUNH+sHu95L04m92pG73t2MEJXKu+GeKUN1TJkFsu93E5W8E9Sc3kHEGJKgenGvj19m6upSn2EunvMgMD2Yw==}
+
   d3-brush@3.0.0:
     resolution: {integrity: sha512-ALnjWlVYkXsVIGlOsuWH1+3udkYFI48Ljihfnh8FZPF2QS9o+PzGLBslO0PjzVoHLZ2KCVgAM8NVkXPJB2aNnQ==}
     engines: {node: '>=12'}
@@ -4211,6 +4231,10 @@ packages:
     resolution: {integrity: sha512-kpkQIM20n3oLVBKGg6oHrUchHM3xODkTzjMoj7aWQFq5QEM+R6E4WkzT5+tojDY7yjez8KgCBRoj4aEr99Fdqw==}
     engines: {node: '>=12'}
 
+  d3-force-3d@3.0.6:
+    resolution: {integrity: sha512-4tsKHUPLOVkyfEffZo1v6sFHvGFwAIIjt/W8IThbp08DYAsXZck+2pSHEG5W1+gQgEvFLdZkYvmJAbRM2EzMnA==}
+    engines: {node: '>=12'}
+
   d3-force@3.0.0:
     resolution: {integrity: sha512-zxV/SsA+U4yte8051P4ECydjD/S+qeYtnaIyAs9tgHCqfguma/aAQDjo85A9Z6EKhBirHRJHXIgJUlffT4wdLg==}
     engines: {node: '>=12'}
@@ -4230,6 +4254,9 @@ packages:
   d3-interpolate@3.0.1:
     resolution: {integrity: sha512-3bYs1rOD33uo8aqJfKP3JWPAibgw8Zm2+L9vBKEHJ2Rg+viTR7o5Mmv5mZcieN+FRYaAOWX5SJATX6k1PWz72g==}
     engines: {node: '>=12'}
+
+  d3-octree@1.1.0:
+    resolution: {integrity: sha512-F8gPlqpP+HwRPMO/8uOu5wjH110+6q4cgJvgJT6vlpy3BEaDIKlTZrgHKZSp/i1InRpVfh4puY/kvL6MxK930A==}
 
   d3-path@1.0.9:
     resolution: {integrity: sha512-VLaYcn81dtHVTjEHd8B+pbe9yHWpXKZUC87PzoFmsFrJqgFwDe/qxfp5MlfsfM1V5E/iVt0MmEbWQ7FVIXh/bg==}
@@ -4868,6 +4895,14 @@ packages:
   flatted@3.4.2:
     resolution: {integrity: sha512-PjDse7RzhcPkIJwy5t7KPWQSZ9cAbzQXcafsetQoD7sOJRQlGikNbx7yZp2OotDnJyrDcbyRq3Ttb18iYOqkxA==}
 
+  float-tooltip@1.7.5:
+    resolution: {integrity: sha512-/kXzuDnnBqyyWyhDMH7+PfP8J/oXiAavGzcRxASOMRHFuReDtofizLLJsf7nnDLAfEaMW4pVWaXrAjtnglpEkg==}
+    engines: {node: '>=12'}
+
+  force-graph@1.51.4:
+    resolution: {integrity: sha512-TdJ2KbkoiDQ7NIRx8IPGD0mAXXpLhamS7c+b7W98b0MHG7lphnda1VOQX/98UDTsttIAdH4TcP0l0MauSnLK8w==}
+    engines: {node: '>=12'}
+
   format@0.2.2:
     resolution: {integrity: sha512-wzsgA6WOq+09wrU1tsJ09udeR/YZRaeArL9e1wPbFg3GG2yDnC2ldKpxs4xunpFF9DgqCqOIra3bc1HWrJ37Ww==}
     engines: {node: '>=0.4.x'}
@@ -5144,6 +5179,10 @@ packages:
     resolution: {integrity: sha512-EdDDZu4A2OyIK7Lr/2zG+w5jmbuk1DVBnEwREQvBzspBJkCEbRa8GxU1lghYcaGJCnRWibjDXlq779X1/y5xwg==}
     engines: {node: '>=8'}
 
+  index-array-by@1.4.2:
+    resolution: {integrity: sha512-SP23P27OUKzXWEC/TOyWlwLviofQkCSCKONnc62eItjp69yCZZPqDQtr3Pw5gJDnPeUMqExmKydNZaJO0FU9pw==}
+    engines: {node: '>=12'}
+
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
 
@@ -5293,6 +5332,10 @@ packages:
   isomorphic.js@0.2.5:
     resolution: {integrity: sha512-PIeMbHqMt4DnUP3MA/Flc0HElYjMXArsw1qwJZcm9sqR8mq3l8NYizFMty0pWwE/tzIGH3EKK5+jes5mAr85yw==}
 
+  jerrypick@1.1.2:
+    resolution: {integrity: sha512-YKnxXEekXKzhpf7CLYA0A+oDP8V0OhICNCr5lv96FvSsDEmrb0GKM776JgQvHTMjr7DTTPEVv/1Ciaw0uEWzBA==}
+    engines: {node: '>=12'}
+
   jiti@2.4.2:
     resolution: {integrity: sha512-rg9zJN+G4n2nfJl5MW3BMygZX56zKPNVEYYqq7adpmMh4Jn2QNEwhvQlFy6jPVdcod7txZtKHWnyZiA3a0zP7A==}
     hasBin: true
@@ -5410,6 +5453,10 @@ packages:
 
   jws@4.0.1:
     resolution: {integrity: sha512-EKI/M/yqPncGUUh44xz0PxSidXFr/+r0pA70+gIYhjv+et7yxM+s29Y+VGDkovRofQem0fs7Uvf4+YmAdyRduA==}
+
+  kapsule@1.16.3:
+    resolution: {integrity: sha512-4+5mNNf4vZDSwPhKprKwz3330iisPrb08JyMgbsdFrimBCKNHecua/WBwvVg3n7vwx0C1ARjfhwIpbrbd9n5wg==}
+    engines: {node: '>=12'}
 
   katex@0.16.45:
     resolution: {integrity: sha512-pQpZbdBu7wCTmQUh7ufPmLr0pFoObnGUoL/yhtwJDgmmQpbkg/0HSVti25Fu4rmd1oCR6NGWe9vqTWuWv3GcNA==}
@@ -6391,6 +6438,12 @@ packages:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
       react-dom: ^18.0 || ^19.0 || ^19.0.0-rc
 
+  react-force-graph-2d@1.29.1:
+    resolution: {integrity: sha512-1Rl/1Z3xy2iTHKj6a0jRXGyiI86xUti81K+jBQZ+Oe46csaMikp47L5AjrzA9hY9fNGD63X8ffrqnvaORukCuQ==}
+    engines: {node: '>=12'}
+    peerDependencies:
+      react: '*'
+
   react-is@16.13.1:
     resolution: {integrity: sha512-24e6ynE2H+OKt4kqsOvNd8kBpV65zoxbA4BVsEOB3ARVWQki/DHzaUoC5KuON/BiccDaCCTZBuOcfZs70kR8bQ==}
 
@@ -6402,6 +6455,12 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
+
+  react-kapsule@2.5.7:
+    resolution: {integrity: sha512-kifAF4ZPD77qZKc4CKLmozq6GY1sBzPEJTIJb0wWFK6HsePJatK3jXplZn2eeAt3x67CDozgi7/rO8fNQ/AL7A==}
+    engines: {node: '>=12'}
+    peerDependencies:
+      react: '>=16.13.1'
 
   react-markdown@10.1.0:
     resolution: {integrity: sha512-qKxVopLT/TyA6BX3Ue5NwabOsAzm0Q7kAPwq6L+wWDwisYs7R8vZ0nRXqq6rkueboxpkjvLGU9fWifiX/ZZFxQ==}
@@ -6941,6 +7000,9 @@ packages:
 
   tinybench@2.9.0:
     resolution: {integrity: sha512-0+DUvqWMValLmha6lr4kD8iAMK1HzV0/aKnCtWb9v9641TnP/MFb7Pc2bxoxQjTXAErryXVgUOfv2YqNllqGeg==}
+
+  tinycolor2@1.6.0:
+    resolution: {integrity: sha512-XPaBkWQJdsf3pLKJV9p4qN/S+fm2Oj8AIPo1BTUhg5oxkvm9+SVEGFdhyOz7tTdUTfvxMiAs4sp6/eZO2Ew+pw==}
 
   tinyexec@1.1.1:
     resolution: {integrity: sha512-VKS/ZaQhhkKFMANmAOhhXVoIfBXblQxGX1myCQ2faQrfmobMftXeJPcZGp0gS07ocvGJWDLZGyOZDadDBqYIJg==}
@@ -10133,6 +10195,8 @@ snapshots:
   '@turbo/windows-arm64@2.9.7':
     optional: true
 
+  '@tweenjs/tween.js@25.0.0': {}
+
   '@tybys/wasm-util@0.10.2':
     dependencies:
       tslib: 2.8.1
@@ -10630,6 +10694,8 @@ snapshots:
       mime-types: 3.0.2
       negotiator: 1.0.0
 
+  accessor-fn@1.5.3: {}
+
   acorn-import-attributes@1.9.5(acorn@8.16.0):
     dependencies:
       acorn: 8.16.0
@@ -10717,7 +10783,7 @@ snapshots:
 
   baseline-browser-mapping@2.10.29: {}
 
-  better-auth@1.6.9(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(kysely@0.28.16)(postgres@3.4.9))(next@16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(svelte@5.55.5(@typescript-eslint/types@8.59.1))(vitest@4.1.5)(vue@3.5.33(typescript@6.0.3)):
+  better-auth@1.6.9(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(kysely@0.28.16)(postgres@3.4.9))(next@16.2.6(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(svelte@5.55.5(@typescript-eslint/types@8.59.1))(vitest@4.1.5)(vue@3.5.33(typescript@6.0.3)):
     dependencies:
       '@better-auth/core': 1.6.9(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(@opentelemetry/api@1.9.1)(better-call@1.3.5(zod@3.25.76))(jose@6.2.3)(kysely@0.28.16)(nanostores@1.3.0)
       '@better-auth/drizzle-adapter': 1.6.9(@better-auth/core@1.6.9(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(@opentelemetry/api@1.9.1)(better-call@1.3.5(zod@3.25.76))(jose@6.2.3)(kysely@0.28.16)(nanostores@1.3.0))(@better-auth/utils@0.4.0)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(kysely@0.28.16)(postgres@3.4.9))
@@ -10757,6 +10823,8 @@ snapshots:
       set-cookie-parser: 3.1.0
     optionalDependencies:
       zod: 4.3.6
+
+  bezier-js@6.1.4: {}
 
   bidi-js@1.0.3:
     dependencies:
@@ -10830,6 +10898,10 @@ snapshots:
   callsites@3.1.0: {}
 
   caniuse-lite@1.0.30001792: {}
+
+  canvas-color-tracker@1.3.2:
+    dependencies:
+      tinycolor2: 1.6.0
 
   ccount@2.0.1: {}
 
@@ -11018,6 +11090,8 @@ snapshots:
 
   d3-axis@3.0.0: {}
 
+  d3-binarytree@1.0.2: {}
+
   d3-brush@3.0.0:
     dependencies:
       d3-dispatch: 3.0.1
@@ -11059,6 +11133,14 @@ snapshots:
     dependencies:
       d3-dsv: 3.0.1
 
+  d3-force-3d@3.0.6:
+    dependencies:
+      d3-binarytree: 1.0.2
+      d3-dispatch: 3.0.1
+      d3-octree: 1.1.0
+      d3-quadtree: 3.0.1
+      d3-timer: 3.0.1
+
   d3-force@3.0.0:
     dependencies:
       d3-dispatch: 3.0.1
@@ -11076,6 +11158,8 @@ snapshots:
   d3-interpolate@3.0.1:
     dependencies:
       d3-color: 3.1.0
+
+  d3-octree@1.1.0: {}
 
   d3-path@1.0.9: {}
 
@@ -11773,6 +11857,30 @@ snapshots:
 
   flatted@3.4.2: {}
 
+  float-tooltip@1.7.5:
+    dependencies:
+      d3-selection: 3.0.0
+      kapsule: 1.16.3
+      preact: 10.29.1
+
+  force-graph@1.51.4:
+    dependencies:
+      '@tweenjs/tween.js': 25.0.0
+      accessor-fn: 1.5.3
+      bezier-js: 6.1.4
+      canvas-color-tracker: 1.3.2
+      d3-array: 3.2.4
+      d3-drag: 3.0.0
+      d3-force-3d: 3.0.6
+      d3-scale: 4.0.2
+      d3-scale-chromatic: 3.1.0
+      d3-selection: 3.0.0
+      d3-zoom: 3.0.0
+      float-tooltip: 1.7.5
+      index-array-by: 1.4.2
+      kapsule: 1.16.3
+      lodash-es: 4.18.1
+
   format@0.2.2: {}
 
   formdata-polyfill@4.0.10:
@@ -12122,6 +12230,8 @@ snapshots:
 
   indent-string@4.0.0: {}
 
+  index-array-by@1.4.2: {}
+
   inherits@2.0.4: {}
 
   inline-style-parser@0.2.7: {}
@@ -12236,6 +12346,8 @@ snapshots:
 
   isomorphic.js@0.2.5: {}
 
+  jerrypick@1.1.2: {}
+
   jiti@2.4.2: {}
 
   jiti@2.6.1: {}
@@ -12341,6 +12453,10 @@ snapshots:
     dependencies:
       jwa: 2.0.1
       safe-buffer: 5.2.1
+
+  kapsule@1.16.3:
+    dependencies:
+      lodash-es: 4.18.1
 
   katex@0.16.45:
     dependencies:
@@ -13637,12 +13753,24 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  react-force-graph-2d@1.29.1(react@19.2.5):
+    dependencies:
+      force-graph: 1.51.4
+      prop-types: 15.8.1
+      react: 19.2.5
+      react-kapsule: 2.5.7(react@19.2.5)
+
   react-is@16.13.1: {}
 
   react-is@17.0.2: {}
 
   react-json-view-lite@2.5.0(react@19.2.5):
     dependencies:
+      react: 19.2.5
+
+  react-kapsule@2.5.7(react@19.2.5):
+    dependencies:
+      jerrypick: 1.1.2
       react: 19.2.5
 
   react-markdown@10.1.0(@types/react@19.2.14)(react@19.2.5):
@@ -14357,6 +14485,8 @@ snapshots:
   tiny-invariant@1.3.3: {}
 
   tinybench@2.9.0: {}
+
+  tinycolor2@1.6.0: {}
 
   tinyexec@1.1.1: {}
 

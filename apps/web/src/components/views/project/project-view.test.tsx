@@ -110,6 +110,29 @@ describe("ProjectView", () => {
     expect(screen.getByText("notes table")).toBeInTheDocument();
   });
 
+  it("surfaces purpose-driven graph entry points after project sources exist", async () => {
+    renderProjectView();
+
+    expect(
+      screen.getByText("project.graphDiscovery.title"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", {
+        name: /project\.graphDiscovery\.actions\.map/,
+      }),
+    ).toHaveAttribute("href", "/ko/workspace/acme/project/p1/graph");
+    expect(
+      screen.getByRole("link", {
+        name: /project\.graphDiscovery\.actions\.cards/,
+      }),
+    ).toHaveAttribute("href", "/ko/workspace/acme/project/p1/graph?view=cards");
+    expect(
+      screen.getByRole("link", {
+        name: /project\.graphDiscovery\.actions\.mindmap/,
+      }),
+    ).toHaveAttribute("href", "/ko/workspace/acme/project/p1/graph?view=mindmap");
+  });
+
   it("starts project research from the right workbench instead of routing away", async () => {
     usePanelStore.getState().setAgentPanelOpen(false);
     renderProjectView();

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NextIntlClientProvider } from "next-intl";
 import type { ReactNode } from "react";
@@ -7,20 +7,9 @@ import koGraph from "@/../messages/ko/graph.json";
 import CardsView from "../CardsView";
 
 vi.mock("../../useProjectGraph", () => ({ useProjectGraph: vi.fn() }));
-vi.mock("cytoscape-fcose", () => ({ default: vi.fn() }));
-vi.mock("react-cytoscapejs", () => ({
-  default: (props: {
-    elements?: Array<{ data: { id: string; label?: string; source?: string; target?: string } }>;
-    layout?: { name: string };
-  }) => (
-    <div data-testid="card-graph" data-layout={props.layout?.name}>
-      {(props.elements ?? []).map((element) => (
-        <span key={element.data.id}>
-          {element.data.label ?? `${element.data.source}->${element.data.target}`}
-        </span>
-      ))}
-    </div>
-  ),
+vi.mock("next/navigation", () => ({
+  useParams: () => ({ wsSlug: "acme" }),
+  useRouter: () => ({ push: vi.fn() }),
 }));
 
 const tabsAddOrReplace = vi.hoisted(() => vi.fn());
@@ -63,7 +52,7 @@ describe("CardsView", () => {
     expect(screen.getByText(koGraph.views.noConcepts)).toBeInTheDocument();
   });
 
-  it("renders connected concept cards through Cytoscape", async () => {
+  it("renders evidence-backed concept cards as a readable DOM grid", () => {
     (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
       data: {
         viewType: "cards",
@@ -98,16 +87,12 @@ describe("CardsView", () => {
       isLoading: false,
       error: null,
     });
-    wrap(<CardsView projectId="p-1" />);
-    await waitFor(() => {
-      expect(screen.getByTestId("card-graph")).toHaveAttribute(
-        "data-layout",
-        "fcose",
-      );
-    });
+    const { container } = wrap(<CardsView projectId="p-1" />);
+    expect(screen.getByTestId("concept-card-grid")).toBeInTheDocument();
+    expect(container.querySelector("canvas")).not.toBeInTheDocument();
     expect(screen.getByText("Trans")).toBeInTheDocument();
     expect(screen.getByText("BERT")).toBeInTheDocument();
-    expect(screen.getByText("depends-on")).toBeInTheDocument();
+    expect(screen.queryByText("depends-on")).not.toBeInTheDocument();
   });
 
   it("uses evidence-backed card titles when available", () => {
@@ -142,5 +127,8 @@ describe("CardsView", () => {
     });
     wrap(<CardsView projectId="p-1" />);
     expect(screen.getByText("Transformer")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /열기/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /질문/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /퀴즈/ })).toBeInTheDocument();
   });
 });
