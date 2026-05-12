@@ -173,13 +173,21 @@ export const projectRoutes = new Hono<AppEnv>()
         sourceType: notes.sourceType,
         updatedAt: notes.updatedAt,
         contentText: notes.contentText,
+        inheritParent: notes.inheritParent,
       })
       .from(notes)
       .where(and(eq(notes.projectId, id), isNull(notes.deletedAt)))
       .orderBy(desc(notes.updatedAt));
-    const noteIds = new Set(noteRows.map((note) => note.id));
+    const visibleNotes: typeof noteRows = [];
+    for (const note of noteRows) {
+      if (note.inheritParent === false) {
+        if (!(await canRead(user.id, { type: "note", id: note.id }))) continue;
+      }
+      visibleNotes.push(note);
+    }
+    const noteIds = new Set(visibleNotes.map((note) => note.id));
 
-    const linkRows = noteRows.length
+    const linkRows = visibleNotes.length
       ? await db
           .select({
             sourceNoteId: wikiLinks.sourceNoteId,
@@ -208,10 +216,10 @@ export const projectRoutes = new Hono<AppEnv>()
     return c.json({
       projectId: id,
       totals: {
-        pages: noteRows.length,
+        pages: visibleNotes.length,
         wikiLinks: wikiLinkTotal,
       },
-      pages: noteRows.map((note) => ({
+      pages: visibleNotes.map((note) => ({
         id: note.id,
         title: note.title,
         type: note.type,

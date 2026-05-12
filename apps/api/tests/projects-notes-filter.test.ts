@@ -2,7 +2,12 @@ import { describe, it, expect, afterEach } from "vitest";
 import { randomUUID } from "node:crypto";
 import { createApp } from "../src/app.js";
 import { db, notes, researchRuns, wikiLinks } from "@opencairn/db";
-import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
+import {
+  seedMultiRoleWorkspace,
+  seedWorkspace,
+  type SeedMultiRoleResult,
+  type SeedResult,
+} from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
 
 // App Shell Phase 5 Task 2 — `/api/projects/:id/notes?filter=...` 의
@@ -243,8 +248,10 @@ describe("GET /api/projects/:id/notes filter routing", () => {
 
 describe("GET /api/projects/:id/wiki-index", () => {
   let seed: SeedResult;
+  let multiSeed: SeedMultiRoleResult | undefined;
   afterEach(async () => {
     if (seed) await seed.cleanup();
+    if (multiSeed) await multiSeed.cleanup();
   });
 
   it("returns a project wiki catalog with link counts", async () => {
@@ -314,5 +321,29 @@ describe("GET /api/projects/:id/wiki-index", () => {
     } finally {
       await intruder.cleanup();
     }
+  });
+
+  it("excludes private notes and their links when the caller cannot read them", async () => {
+    multiSeed = await seedMultiRoleWorkspace();
+    await db.insert(wikiLinks).values({
+      workspaceId: multiSeed.workspaceId,
+      sourceNoteId: multiSeed.privateNoteId,
+      targetNoteId: multiSeed.noteId,
+    });
+
+    const res = await authedGet(
+      `/api/projects/${multiSeed.projectId}/wiki-index`,
+      multiSeed.viewerUserId,
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json() as {
+      totals: { wikiLinks: number };
+      pages: Array<{ id: string }>;
+    };
+    expect(body.pages.map((page) => page.id)).not.toContain(
+      multiSeed.privateNoteId,
+    );
+    expect(body.totals.wikiLinks).toBe(0);
   });
 });
