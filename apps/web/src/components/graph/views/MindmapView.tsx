@@ -62,6 +62,7 @@ export default function MindmapView({ projectId, root }: Props) {
           target: e.targetId,
           type: "edge",
           supportStatus: e.support?.status,
+          surfaceType: e.surfaceType ?? "semantic_relation",
         },
       })),
     ];
@@ -221,6 +222,15 @@ export default function MindmapView({ projectId, root }: Props) {
           {
             selector: 'edge[supportStatus = "disputed"]',
             style: { "line-color": "#dc2626", "target-arrow-color": "#dc2626" },
+          },
+          {
+            selector: 'edge[surfaceType = "co_mention"]',
+            style: {
+              "line-color": "#86efac",
+              "target-arrow-shape": "none",
+              "line-style": "dashed",
+              opacity: 0.72,
+            },
           },
         ] as cytoscape.StylesheetJsonBlock[]
       }

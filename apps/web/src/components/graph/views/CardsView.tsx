@@ -159,24 +159,37 @@ export default function CardsView({ projectId }: Props) {
                     y1={path.y1}
                     x2={path.x2}
                     y2={path.y2}
-                    className="stroke-foreground/25"
-                    strokeWidth={Math.max(1, Math.min(3, (edge.weight ?? 1) * 2))}
-                    markerEnd="url(#concept-card-arrow)"
+                    className={
+                      edge.surfaceType === "co_mention"
+                        ? "stroke-emerald-500/25"
+                        : "stroke-foreground/25"
+                    }
+                    strokeDasharray={edge.surfaceType === "co_mention" ? "4 6" : undefined}
+                    strokeWidth={
+                      edge.surfaceType === "co_mention"
+                        ? Math.max(0.75, Math.min(1.5, (edge.weight ?? 1) * 1.5))
+                        : Math.max(1, Math.min(3, (edge.weight ?? 1) * 2))
+                    }
+                    markerEnd={
+                      edge.surfaceType === "co_mention" ? undefined : "url(#concept-card-arrow)"
+                    }
                   />
-                  <text
-                    x={path.labelX}
-                    y={path.labelY - 6}
-                    textAnchor="middle"
-                    className="fill-muted-foreground text-[10px] font-medium"
-                    style={{
-                      paintOrder: "stroke",
-                      stroke: "var(--theme-bg)",
-                      strokeLinejoin: "round",
-                      strokeWidth: 4,
-                    }}
-                  >
-                    {edge.relationType}
-                  </text>
+                  {edge.surfaceType !== "co_mention" ? (
+                    <text
+                      x={path.labelX}
+                      y={path.labelY - 6}
+                      textAnchor="middle"
+                      className="fill-muted-foreground text-[10px] font-medium"
+                      style={{
+                        paintOrder: "stroke",
+                        stroke: "var(--theme-bg)",
+                        strokeLinejoin: "round",
+                        strokeWidth: 4,
+                      }}
+                    >
+                      {edge.relationType}
+                    </text>
+                  ) : null}
                 </g>
               );
             })}

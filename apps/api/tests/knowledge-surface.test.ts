@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   conceptEdgeEvidence,
   conceptEdges,
+  conceptNotes,
   concepts,
   db,
   evidenceBundleChunks,
@@ -156,6 +157,39 @@ describe("GET /api/projects/:projectId/knowledge-surface", () => {
       citationCount: 1,
     });
     expect(body.evidenceBundles?.map((bundle) => bundle.id)).toContain(seeded.bundleId);
+  });
+
+  it("adds display-only co-mention edges for concepts that share a source note", async () => {
+    const seeded = await seedSupportedEdge(ctx);
+    await db.insert(conceptNotes).values([
+      { conceptId: seeded.sourceConceptId, noteId: ctx.noteId },
+      { conceptId: seeded.targetConceptId, noteId: ctx.noteId },
+    ]);
+
+    const res = await app.request(
+      `/api/projects/${ctx.projectId}/knowledge-surface?view=graph`,
+      { headers: { cookie: await signSessionCookie(ctx.userId) } },
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      edges: Array<{
+        relationType: string;
+        surfaceType?: string;
+        displayOnly?: boolean;
+        sourceNoteIds?: string[];
+      }>;
+    };
+    expect(body.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          relationType: "co-mention",
+          surfaceType: "co_mention",
+          displayOnly: true,
+          sourceNoteIds: [ctx.noteId],
+        }),
+      ]),
+    );
   });
 
   it("returns cards backed by concept claim evidence", async () => {

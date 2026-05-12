@@ -304,11 +304,17 @@ export const ViewNode = z.object({
 export type ViewNode = z.infer<typeof ViewNode>;
 
 export const ViewEdge = z.object({
-  id: z.string().uuid().optional(),
+  id: z.string().min(1).optional(),
   sourceId: z.string().uuid(),
   targetId: z.string().uuid(),
   relationType: z.string(),
   weight: z.number().min(0).max(1),
+  surfaceType: z
+    .enum(["semantic_relation", "co_mention", "source_membership", "sequence", "bridge"])
+    .default("semantic_relation")
+    .optional(),
+  displayOnly: z.boolean().default(false).optional(),
+  sourceNoteIds: z.array(z.string().uuid()).default([]).optional(),
 });
 export type ViewEdge = z.infer<typeof ViewEdge>;
 
@@ -381,6 +387,7 @@ export const workspaceAtlasEdgeTypeSchema = z.enum([
   "wiki_link",
   "project_tree",
   "source_artifact",
+  "co_mention",
   "ai_relation",
 ]);
 export type WorkspaceAtlasEdgeType = z.infer<typeof workspaceAtlasEdgeTypeSchema>;

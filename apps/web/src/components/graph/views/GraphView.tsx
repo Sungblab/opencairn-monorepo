@@ -482,6 +482,11 @@ export default function GraphView({ projectId }: { projectId: string }) {
           linkColor={(link) => {
             const palette = canvasPaletteRef.current;
             if (link.synthetic) return "rgba(115, 115, 115, 0.16)";
+            if (link.surfaceType === "co_mention") {
+              return linkActive(link)
+                ? "rgba(34, 197, 94, 0.32)"
+                : "rgba(34, 197, 94, 0.10)";
+            }
             if (!linkActive(link)) return palette.inactiveLink;
             const status = link.supportStatus;
             if (status === "supported") return palette.supportedLink;
@@ -491,6 +496,10 @@ export default function GraphView({ projectId }: { projectId: string }) {
           linkWidth={(link) =>
             link.synthetic
               ? 0.45
+              : link.surfaceType === "co_mention"
+                ? linkActive(link)
+                  ? Math.max(0.45, Math.min(1.35, link.weight))
+                  : 0.25
               : linkActive(link)
               ? Math.max(0.8, Math.min(2.2, link.weight * 1.35))
               : 0.35
@@ -498,6 +507,7 @@ export default function GraphView({ projectId }: { projectId: string }) {
           linkDirectionalArrowLength={() => 0}
           linkDirectionalArrowRelPos={1}
           linkLineDash={(link) => {
+            if (link.surfaceType === "co_mention") return [3, 5];
             const status = link.supportStatus;
             if (status === "weak") return [4, 3];
             if (status === "missing") return [2, 4];

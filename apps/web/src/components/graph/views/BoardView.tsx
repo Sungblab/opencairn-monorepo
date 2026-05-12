@@ -36,10 +36,12 @@ export default function BoardView({ projectId, root }: Props) {
       })),
       ...data.edges.map((e) => ({
         data: {
-          id: `${e.sourceId}-${e.targetId}`,
+          id: e.id ?? `${e.sourceId}-${e.targetId}:${e.relationType}`,
           source: e.sourceId,
           target: e.targetId,
           type: "edge",
+          surfaceType: e.surfaceType ?? "semantic_relation",
+          weight: e.weight ?? 1,
         },
       })),
     ];
@@ -91,6 +93,15 @@ export default function BoardView({ projectId, root }: Props) {
             style: {
               "curve-style": "bezier",
               "line-color": "#bbb",
+              width: "mapData(weight, 0, 1, 1, 3)",
+            },
+          },
+          {
+            selector: 'edge[surfaceType = "co_mention"]',
+            style: {
+              "line-color": "#86efac",
+              "line-style": "dashed",
+              width: 1,
             },
           },
         ] as cytoscape.StylesheetJsonBlock[]

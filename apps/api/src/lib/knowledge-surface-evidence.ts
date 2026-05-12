@@ -19,6 +19,7 @@ import type {
   GraphNode,
   GraphResponse,
   GraphViewType,
+  ViewEdge,
 } from "@opencairn/shared";
 import { canRead } from "./permissions";
 import {
@@ -28,9 +29,11 @@ import {
 import {
   projectOwnsConcept,
   selectCardsGraph,
+  selectConceptsByCreatedAsc,
   selectGraphView,
   selectMaxDegreeConcept,
   selectMindmapBfs,
+  selectOneHopNeighborhood,
 } from "./graph-views";
 
 const GRAPH_LIMIT = 500;
@@ -38,12 +41,12 @@ const MINDMAP_DEPTH = 3;
 const MINDMAP_PER_PARENT_CAP = 8;
 const MINDMAP_TOTAL_CAP = 50;
 const CARDS_LIMIT = 80;
+const TIMELINE_LIMIT = 80;
+const BOARD_CAP = 200;
+const CO_MENTION_EDGE_LIMIT = 900;
 const EVIDENCE_BUNDLE_FETCH_CONCURRENCY = 8;
 
-export type KnowledgeSurfaceView = Extract<
-  GraphViewType,
-  "graph" | "mindmap" | "cards"
->;
+export type KnowledgeSurfaceView = GraphViewType;
 
 export type KnowledgeSurfaceSupportStatus =
   | "supported"
@@ -52,7 +55,8 @@ export type KnowledgeSurfaceSupportStatus =
   | "disputed"
   | "missing";
 
-export type KnowledgeSurfaceEdge = GraphEdge & {
+export type KnowledgeSurfaceEdge = ViewEdge & {
+  id: string;
   support: {
     claimId: string | null;
     evidenceBundleId: string | null;
@@ -106,6 +110,87 @@ function filterByQuery(
     nodes: filteredNodes,
     edges: edges.filter((edge) => ids.has(edge.sourceId) && ids.has(edge.targetId)),
   };
+}
+
+function edgeKey(sourceId: string, targetId: string, relationType: string): string {
+  return `${sourceId}->${targetId}:${relationType}`;
+}
+
+function normalizeEdgeWeight(value: number, max: number): number {
+  if (max <= 0) return 0.35;
+  return Math.max(0.18, Math.min(1, value / max));
+}
+
+async function selectCoMentionEdges(
+  conceptIds: string[],
+): Promise<KnowledgeSurfaceEdge[]> {
+  if (conceptIds.length < 2) return [];
+  const idArr = sql.join(
+    conceptIds.map((id) => sql`${id}::uuid`),
+    sql`, `,
+  );
+  type CoMentionRow = {
+    source_id: string;
+    target_id: string;
+    mention_count: number;
+    source_note_ids: string[] | null;
+  };
+  const raw = await db.execute(sql`
+    WITH selected_notes AS (
+      SELECT concept_id, note_id
+      FROM concept_notes
+      WHERE concept_id = ANY(ARRAY[${idArr}])
+    ),
+    pairs AS (
+      SELECT
+        LEAST(a.concept_id, b.concept_id) AS source_id,
+        GREATEST(a.concept_id, b.concept_id) AS target_id,
+        a.note_id
+      FROM selected_notes a
+      JOIN selected_notes b
+        ON a.note_id = b.note_id
+       AND a.concept_id < b.concept_id
+    )
+    SELECT
+      source_id,
+      target_id,
+      count(*)::int AS mention_count,
+      array_agg(DISTINCT note_id) AS source_note_ids
+    FROM pairs
+    GROUP BY source_id, target_id
+    ORDER BY mention_count DESC, source_id ASC, target_id ASC
+    LIMIT ${CO_MENTION_EDGE_LIMIT}
+  `);
+  const rows = ((raw as { rows?: CoMentionRow[] }).rows ?? raw) as CoMentionRow[];
+  const maxMentions = Math.max(1, ...rows.map((row) => Number(row.mention_count)));
+  return rows.map((row) => ({
+    id: edgeKey(row.source_id, row.target_id, "co-mention"),
+    sourceId: row.source_id,
+    targetId: row.target_id,
+    relationType: "co-mention",
+    weight: normalizeEdgeWeight(Number(row.mention_count), maxMentions),
+    surfaceType: "co_mention",
+    displayOnly: true,
+    sourceNoteIds: row.source_note_ids ?? [],
+    support: missingSupport(),
+  }));
+}
+
+function mergeSurfaceEdges(
+  semanticEdges: KnowledgeSurfaceEdge[],
+  displayEdges: KnowledgeSurfaceEdge[],
+): KnowledgeSurfaceEdge[] {
+  const semanticPairs = new Set(
+    semanticEdges.map((edge) => edgeKey(edge.sourceId, edge.targetId, edge.relationType)),
+  );
+  const merged = [...semanticEdges];
+  for (const edge of displayEdges) {
+    if (semanticPairs.has(edgeKey(edge.sourceId, edge.targetId, edge.relationType))) {
+      continue;
+    }
+    merged.push(edge);
+  }
+  return merged;
 }
 
 function claimStatusToSupportStatus(status: string): KnowledgeSurfaceSupportStatus {
@@ -343,6 +428,49 @@ async function selectSurfaceBase(
     };
   }
 
+  if (opts.view === "timeline") {
+    const nodes = await selectConceptsByCreatedAsc({
+      projectId,
+      limit: TIMELINE_LIMIT,
+    });
+    const filtered = filterByQuery(nodes, [], opts.query);
+    return {
+      nodes: filtered.nodes,
+      edges: filtered.edges,
+      truncated: total > TIMELINE_LIMIT,
+      totalConcepts: total,
+      layout: "preset",
+      rootId: null,
+    };
+  }
+
+  if (opts.view === "board") {
+    let selected;
+    let rootId: string | null = null;
+    if (opts.root && (await projectOwnsConcept(projectId, opts.root))) {
+      rootId = opts.root;
+      selected = await selectOneHopNeighborhood({
+        projectId,
+        rootId,
+        cap: BOARD_CAP,
+      });
+    } else {
+      selected = await selectGraphView({
+        projectId,
+        limit: BOARD_CAP,
+        order: "degree",
+      });
+    }
+    const filtered = filterByQuery(selected.nodes, selected.edges, opts.query);
+    return {
+      ...filtered,
+      truncated: total > selected.nodes.length,
+      totalConcepts: total,
+      layout: "preset",
+      rootId,
+    };
+  }
+
   const selected = await selectCardsGraph({
     projectId,
     limit: CARDS_LIMIT,
@@ -369,10 +497,19 @@ export async function getKnowledgeSurfaceForUser(
 
   const base = await selectSurfaceBase(projectId, opts);
   const support = await selectEdgeSupport(base.edges.map((edge) => edge.id));
-  const edges = base.edges.map((edge) => ({
+  const semanticEdges: KnowledgeSurfaceEdge[] = base.edges.map((edge) => ({
     ...edge,
+    id: edge.id,
+    surfaceType: "semantic_relation",
+    displayOnly: false,
+    sourceNoteIds: [],
     support: support.get(edge.id) ?? missingSupport(),
   }));
+  const displayEdges =
+    opts.view === "timeline"
+      ? []
+      : await selectCoMentionEdges(base.nodes.map((node) => node.id));
+  const edges = mergeSurfaceEdges(semanticEdges, displayEdges);
   const cards = opts.view === "cards" ? await selectCards(base.nodes) : undefined;
 
   const response: KnowledgeSurfaceResponse = {

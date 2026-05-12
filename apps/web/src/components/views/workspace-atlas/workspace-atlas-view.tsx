@@ -513,6 +513,18 @@ const ATLAS_STYLESHEET: cytoscape.StylesheetStyle[] = [
     },
   },
   {
+    selector: 'edge[edgeType = "co_mention"]',
+    style: {
+      "line-color": "#86efac",
+      "target-arrow-shape": "none",
+      "target-arrow-color": "#86efac",
+      "line-style": "dashed",
+      label: "",
+      width: "mapData(weight, 0, 1, 1, 2)",
+      opacity: 0.72,
+    },
+  },
+  {
     selector: "edge[?crossProject]",
     style: {
       "line-color": "#171717",

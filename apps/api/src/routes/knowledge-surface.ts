@@ -9,7 +9,7 @@ import type { AppEnv } from "../lib/types";
 import { requireAuth } from "../middleware/auth";
 
 const querySchema = z.object({
-  view: z.enum(["graph", "mindmap", "cards"]).default("graph"),
+  view: z.enum(["graph", "mindmap", "cards", "timeline", "board"]).default("graph"),
   query: z.string().min(1).max(200).optional(),
   root: z.string().uuid().optional(),
   includeEvidence: z

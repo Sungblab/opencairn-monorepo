@@ -16,6 +16,10 @@ export type EdgeSupport = {
 };
 
 export type GroundedEdge = GraphViewResponse["edges"][number] & {
+  id: string;
+  surfaceType?: "semantic_relation" | "co_mention" | "source_membership" | "sequence" | "bridge";
+  displayOnly?: boolean;
+  sourceNoteIds?: string[];
   support?: EdgeSupport;
 };
 

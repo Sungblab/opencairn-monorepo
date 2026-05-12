@@ -113,7 +113,7 @@ describe("useProjectGraph view+root extension", () => {
     expect(url).toContain("includeEvidence=true");
   });
 
-  it("keeps timeline on the legacy graph endpoint", async () => {
+  it("requests timeline through the grounded knowledge-surface endpoint", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({
         viewType: "timeline", layout: "preset", rootId: null,
@@ -126,8 +126,9 @@ describe("useProjectGraph view+root extension", () => {
     );
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     const url = (fetchSpy.mock.calls[0]?.[0] as string) ?? "";
-    expect(url).toContain("/api/projects/proj-1/graph?");
-    expect(url).not.toContain("knowledge-surface");
+    expect(url).toContain("/api/projects/proj-1/knowledge-surface?");
+    expect(url).toContain("view=timeline");
+    expect(url).toContain("includeEvidence=true");
   });
 
   it("uses inline ViewSpec from store when present, skips fetch", async () => {

@@ -3,6 +3,7 @@ import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   GraphExpandResponse,
+  ViewSpec,
   ViewType,
 } from "@opencairn/shared";
 import type { GroundedGraphResponse } from "./grounded-types";
@@ -15,7 +16,13 @@ interface Options {
   root?: string;
 }
 
-const GROUNDED_VIEWS = new Set<ViewType>(["graph", "mindmap", "cards"]);
+const GROUNDED_VIEWS = new Set<ViewType>([
+  "graph",
+  "mindmap",
+  "cards",
+  "timeline",
+  "board",
+]);
 
 async function fetchGraphView(
   projectId: string,
@@ -44,6 +51,25 @@ async function fetchGraphView(
   return (await res.json()) as GroundedGraphResponse;
 }
 
+function edgeId(edge: ViewSpec["edges"][number]): string {
+  return edge.id ?? `${edge.sourceId}->${edge.targetId}:${edge.relationType}`;
+}
+
+function groundedFromInline(inline: ViewSpec): GroundedGraphResponse {
+  return {
+    ...inline,
+    edges: inline.edges.map((edge) => ({
+      ...edge,
+      id: edgeId(edge),
+      surfaceType: edge.surfaceType ?? "semantic_relation",
+      displayOnly: edge.displayOnly ?? false,
+      sourceNoteIds: edge.sourceNoteIds ?? [],
+    })),
+    truncated: false,
+    totalConcepts: inline.nodes.length,
+  };
+}
+
 export function useProjectGraph(projectId: string, opts: Options = {}) {
   const view = opts.view ?? "graph";
   const root = opts.root ?? null;
@@ -62,11 +88,7 @@ export function useProjectGraph(projectId: string, opts: Options = {}) {
     staleTime: STALE_MS,
     queryFn: async ({ signal }) => {
       if (inline) {
-        return {
-          ...inline,
-          truncated: false,
-          totalConcepts: inline.nodes.length,
-        };
+        return groundedFromInline(inline);
       }
       return fetchGraphView(projectId, opts, signal);
     },

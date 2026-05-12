@@ -36,6 +36,8 @@ export type ForceGraphLink = {
   relationType: string;
   weight: number;
   supportStatus?: string;
+  surfaceType?: string;
+  displayOnly?: boolean;
   synthetic?: boolean;
 };
 
@@ -128,6 +130,8 @@ export function buildForceGraphData(
     relationType: edge.relationType,
     weight: edge.weight,
     supportStatus: edge.support?.status,
+    surfaceType: edge.surfaceType,
+    displayOnly: edge.displayOnly,
   }));
   const noteHubLinks: ForceGraphLink[] = snap.nodes
     .filter((node) => Boolean(node.firstNoteId))

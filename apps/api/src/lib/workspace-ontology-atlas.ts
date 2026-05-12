@@ -482,6 +482,47 @@ function buildAtlasEdges(
     .sort((a, b) => Number(b.crossProject) - Number(a.crossProject) || b.weight - a.weight);
 }
 
+function buildCoMentionAtlasEdges(nodes: WorkspaceAtlasNode[]): WorkspaceAtlasEdge[] {
+  const conceptNodes = nodes.filter(
+    (node) => node.objectType === "concept" && node.sourceNoteIds.length > 0,
+  );
+  const edges: WorkspaceAtlasEdge[] = [];
+  for (let i = 0; i < conceptNodes.length; i += 1) {
+    const source = conceptNodes[i];
+    const sourceNotes = new Set(source.sourceNoteIds);
+    for (let j = i + 1; j < conceptNodes.length; j += 1) {
+      const target = conceptNodes[j];
+      const sharedNotes = target.sourceNoteIds.filter((noteId) => sourceNotes.has(noteId));
+      if (sharedNotes.length === 0) continue;
+      const projectIds = [
+        ...new Set([
+          ...source.projectContexts.map((context) => context.projectId),
+          ...target.projectContexts.map((context) => context.projectId),
+        ]),
+      ];
+      edges.push({
+        id: `co:${source.id}->${target.id}`,
+        sourceId: source.id,
+        targetId: target.id,
+        edgeType: "co_mention",
+        layer: "ai",
+        relationType: "co-mention",
+        weight: Math.min(1, sharedNotes.length / 4),
+        conceptEdgeIds: [],
+        sourceNoteIds: sharedNotes,
+        projectIds,
+        crossProject: source.projectCount > 1 || target.projectCount > 1 || projectIds.length > 1,
+        stale: Boolean(source.stale || target.stale),
+        freshnessReason:
+          source.stale || target.stale ? "source_note_changed" as const : undefined,
+      });
+    }
+  }
+  return edges
+    .sort((a, b) => b.sourceNoteIds.length - a.sourceNoteIds.length || b.weight - a.weight)
+    .slice(0, 900);
+}
+
 function buildExplicitNoteNodes(rows: NoteRow[]): WorkspaceAtlasNode[] {
   return rows.map((row) => ({
     id: noteNodeId(row.id),
@@ -641,6 +682,7 @@ export async function getWorkspaceOntologyAtlasForUser(
     ...tree.edges.filter(
       (edge) => selectedNodeIds.has(edge.sourceId) && selectedNodeIds.has(edge.targetId),
     ),
+    ...buildCoMentionAtlasEdges(nodes),
     ...buildAtlasEdges(edgeRows, nodes, conceptToNode),
   ];
 
