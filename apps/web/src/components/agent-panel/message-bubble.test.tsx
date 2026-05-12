@@ -124,6 +124,52 @@ describe("message bubble citations", () => {
   });
 });
 
+describe("message bubble interaction cards", () => {
+  it("renders a structured choice card and forwards the selected answer", async () => {
+    const user = userEvent.setup();
+    const onInteractionCardSubmit = vi.fn();
+    const card = {
+      type: "choice" as const,
+      id: "card-1",
+      prompt: "어떤 형태로 만들까요?",
+      allowCustom: true,
+      options: [
+        {
+          id: "summary",
+          label: "요약 노트",
+          value: "요약 노트로 정리해줘.",
+          action: { type: "create_note_draft" as const },
+        },
+      ],
+    };
+
+    render(
+      <MessageBubble
+        msg={{
+          ...baseAgentMessage,
+          content: {
+            body: "어떤 형태로 만들까요?",
+            interaction_card: card,
+          },
+        }}
+        onRegenerate={vi.fn()}
+        onSaveSuggestion={vi.fn()}
+        onFeedback={vi.fn()}
+        onInteractionCardSubmit={onInteractionCardSubmit}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "요약 노트" }));
+
+    expect(onInteractionCardSubmit).toHaveBeenCalledWith({
+      card,
+      option: card.options[0],
+      value: "요약 노트로 정리해줘.",
+      label: "요약 노트",
+    });
+  });
+});
+
 describe("document generation cards", () => {
   beforeEach(() => {
     useTabsStore.setState(useTabsStore.getInitialState(), true);

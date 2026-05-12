@@ -34,6 +34,8 @@
     "save_suggestion_create_new": "Create new note",
     "save_suggestion_cancel": "Cancel",
     "save_suggestion_failed": "Save failed. Please try again.",
+    "interaction_note_title": "New note draft",
+    "interaction_note_failed": "Could not create the note draft.",
     "error_prefix": "Error: {message}",
     "streaming_preparing": "Preparing response",
     "jump_to_stream": "View new response",
@@ -51,6 +53,11 @@
       "irrelevant": "Irrelevant",
       "other": "Other"
     }
+  },
+  "interactionCard": {
+    "customInput": "Custom answer",
+    "customSubmit": "Send",
+    "answered": "Selected: {label}"
   },
   "noteUpdateReview": {
     "title": "Note edit proposal",
@@ -285,6 +292,11 @@
     },
     "context": {
       "activeTab": "Active",
+      "currentNote": "Current note",
+      "selection": "Selection {count}",
+      "currentPdf": "Current PDF",
+      "projectWide": "Project",
+      "file": "File",
       "pinned": "Pinned"
     },
     "addMenu": {

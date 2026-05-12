@@ -34,6 +34,8 @@
     "save_suggestion_create_new": "새 노트로 만들기",
     "save_suggestion_cancel": "취소",
     "save_suggestion_failed": "저장에 실패했어요. 다시 시도해 주세요.",
+    "interaction_note_title": "새 노트 초안",
+    "interaction_note_failed": "노트 초안을 만들지 못했어요.",
     "error_prefix": "오류: {message}",
     "streaming_preparing": "답변 준비 중",
     "jump_to_stream": "새 답변 보기",
@@ -51,6 +53,11 @@
       "irrelevant": "관련 없음",
       "other": "기타"
     }
+  },
+  "interactionCard": {
+    "customInput": "직접 입력",
+    "customSubmit": "입력",
+    "answered": "선택됨: {label}"
   },
   "noteUpdateReview": {
     "title": "노트 수정 제안",
@@ -285,6 +292,11 @@
     },
     "context": {
       "activeTab": "현재",
+      "currentNote": "현재 노트",
+      "selection": "선택 영역 {count}자",
+      "currentPdf": "현재 PDF",
+      "projectWide": "프로젝트 전체",
+      "file": "파일/자료",
       "pinned": "고정"
     },
     "addMenu": {
