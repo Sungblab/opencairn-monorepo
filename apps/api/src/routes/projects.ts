@@ -16,7 +16,7 @@ import {
 } from "@opencairn/db";
 import {
   createProjectSchema,
-  getProjectTemplate,
+  getResolvedProjectTemplate,
   projectTemplateApplyRequestSchema,
   updateProjectSchema,
 } from "@opencairn/shared";
@@ -182,7 +182,10 @@ export const projectRoutes = new Hono<AppEnv>()
       if (!isUuid(workspaceId)) return c.json({ error: "Bad Request" }, 400);
       const user = c.get("user");
       const body = c.req.valid("json");
-      const template = getProjectTemplate(body.templateId);
+      const template = getResolvedProjectTemplate(
+        body.templateId,
+        c.req.header("accept-language"),
+      );
       if (!template) return c.json({ error: "template_not_found" }, 404);
 
       const created = await db.transaction(async (tx) => {

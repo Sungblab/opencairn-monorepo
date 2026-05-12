@@ -96,7 +96,7 @@ export function NewProjectTemplateClient({
               type="button"
               disabled={pendingId !== null}
               onClick={() => applyTemplate(template.id)}
-              className="group flex min-h-40 flex-col justify-between rounded-[var(--radius-card)] border border-border bg-card p-4 text-left transition hover:border-foreground hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-70"
+              className="group flex min-h-40 flex-col justify-between rounded-[var(--radius-card)] border border-border bg-card p-4 text-left transition hover:border-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-70"
             >
               <span>
                 <span className="mb-3 inline-flex size-9 items-center justify-center rounded-[var(--radius-control)] border border-border bg-background text-muted-foreground">

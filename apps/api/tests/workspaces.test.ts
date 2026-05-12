@@ -227,11 +227,12 @@ describe("POST /api/workspaces/:workspaceId/project-templates/apply", () => {
     workspaceId: string,
     userId: string,
     templateId: string,
+    headers?: Record<string, string>,
   ): Promise<Response> {
     const cookie = await signSessionCookie(userId);
     return app.request(`/api/workspaces/${workspaceId}/project-templates/apply`, {
       method: "POST",
-      headers: { cookie, "content-type": "application/json" },
+      headers: { cookie, "content-type": "application/json", ...headers },
       body: JSON.stringify({ templateId }),
     });
   }
@@ -260,6 +261,29 @@ describe("POST /api/workspaces/:workspaceId/project-templates/apply", () => {
       .from(notes)
       .where(eq(notes.workspaceId, workspaceId));
     expect(rows).toHaveLength(16);
+  });
+
+  it("creates template projects with the requested locale copy", async () => {
+    const u = await createUser();
+    createdUserIds.add(u.id);
+    const { workspaceId } = await seedMembership(u.id);
+
+    const res = await authedTemplatePost(workspaceId, u.id, "korean", {
+      "accept-language": "en-US,en;q=0.9",
+    });
+
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as {
+      projects: Array<{ name: string; notes: Array<{ title: string }> }>;
+    };
+    expect(body.projects).toEqual([
+      expect.objectContaining({
+        name: "Korean",
+        notes: expect.arrayContaining([
+          expect.objectContaining({ title: "Korean Materials" }),
+        ]),
+      }),
+    ]);
   });
 
   it("creates an empty first project template without starter notes", async () => {

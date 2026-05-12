@@ -280,7 +280,7 @@ function ProjectStarterPanel({
       <div className="grid gap-2 md:grid-cols-4">
         <SourceUploadButton
           projectId={projectId}
-          className="flex min-h-28 w-full items-start gap-3 rounded-[var(--radius-control)] border border-border bg-background p-3 text-left hover:border-foreground"
+          className="flex min-h-28 w-full items-start gap-3 rounded-[var(--radius-control)] border border-border bg-background p-3 text-left hover:border-foreground hover:bg-muted/40"
         >
           <StarterActionContent
             Icon={UploadCloud}
@@ -290,7 +290,7 @@ function ProjectStarterPanel({
         </SourceUploadButton>
         <Link
           href={templatesHref}
-          className="flex min-h-28 items-start gap-3 rounded-[var(--radius-control)] border border-border bg-background p-3 text-left hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex min-h-28 items-start gap-3 rounded-[var(--radius-control)] border border-border bg-background p-3 text-left hover:border-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <StarterActionContent
             Icon={LayoutTemplate}
@@ -300,7 +300,7 @@ function ProjectStarterPanel({
         </Link>
         <Link
           href={importHref}
-          className="flex min-h-28 items-start gap-3 rounded-[var(--radius-control)] border border-border bg-background p-3 text-left hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex min-h-28 items-start gap-3 rounded-[var(--radius-control)] border border-border bg-background p-3 text-left hover:border-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <StarterActionContent
             Icon={FilePlus}
