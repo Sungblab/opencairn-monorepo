@@ -440,6 +440,7 @@ async function selectSourceNoteTitles(
 
 async function selectProjectWikiNoteLinks(
   projectId: string,
+  query?: string,
 ): Promise<KnowledgeSurfaceNoteLink[]> {
   type WikiNoteLinkRow = {
     source_note_id: string;
@@ -447,6 +448,10 @@ async function selectProjectWikiNoteLinks(
     target_note_id: string;
     target_title: string | null;
   };
+  const trimmedQuery = query?.trim();
+  const queryFilter = trimmedQuery
+    ? sql`AND (src.title ILIKE ${`%${trimmedQuery}%`} OR tgt.title ILIKE ${`%${trimmedQuery}%`})`
+    : sql``;
   const raw = await db.execute(sql`
     SELECT
       wl.source_note_id,
@@ -462,6 +467,7 @@ async function selectProjectWikiNoteLinks(
      AND tgt.deleted_at IS NULL
     WHERE src.project_id = ${projectId}
       AND tgt.project_id = ${projectId}
+      ${queryFilter}
     ORDER BY wl.created_at DESC
     LIMIT ${WIKI_NOTE_LINK_LIMIT}
   `);
@@ -814,7 +820,7 @@ export async function getKnowledgeSurfaceForUser(
         ]).then((parts) => parts.flat());
   const [displayEdges, noteLinks] = await Promise.all([
     displayEdgesPromise,
-    selectProjectWikiNoteLinks(projectId),
+    selectProjectWikiNoteLinks(projectId, opts.query),
   ]);
   const edges = mergeSurfaceEdges(semanticEdges, displayEdges);
   const cards = opts.view === "cards" ? await selectCards(base.nodes) : undefined;

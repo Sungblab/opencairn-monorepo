@@ -367,6 +367,84 @@ describe("GET /api/projects/:projectId/knowledge-surface", () => {
     );
   });
 
+  it("filters explicit note links by query", async () => {
+    const [matchingSource] = await db
+      .insert(notes)
+      .values({
+        projectId: ctx.projectId,
+        workspaceId: ctx.workspaceId,
+        title: "Query match source",
+        type: "wiki",
+        inheritParent: true,
+      })
+      .returning({ id: notes.id });
+    const [matchingTarget] = await db
+      .insert(notes)
+      .values({
+        projectId: ctx.projectId,
+        workspaceId: ctx.workspaceId,
+        title: "Linked target",
+        type: "wiki",
+        inheritParent: true,
+      })
+      .returning({ id: notes.id });
+    const [otherSource] = await db
+      .insert(notes)
+      .values({
+        projectId: ctx.projectId,
+        workspaceId: ctx.workspaceId,
+        title: "Other source",
+        type: "wiki",
+        inheritParent: true,
+      })
+      .returning({ id: notes.id });
+    const [otherTarget] = await db
+      .insert(notes)
+      .values({
+        projectId: ctx.projectId,
+        workspaceId: ctx.workspaceId,
+        title: "Other target",
+        type: "wiki",
+        inheritParent: true,
+      })
+      .returning({ id: notes.id });
+    await db.insert(wikiLinks).values([
+      {
+        workspaceId: ctx.workspaceId,
+        sourceNoteId: matchingSource.id,
+        targetNoteId: matchingTarget.id,
+      },
+      {
+        workspaceId: ctx.workspaceId,
+        sourceNoteId: otherSource.id,
+        targetNoteId: otherTarget.id,
+      },
+    ]);
+
+    const res = await app.request(
+      `/api/projects/${ctx.projectId}/knowledge-surface?view=timeline&query=match`,
+      { headers: { cookie: await signSessionCookie(ctx.userId) } },
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      noteLinks?: Array<{
+        sourceNoteId: string;
+        sourceTitle: string;
+        targetNoteId: string;
+        targetTitle: string;
+      }>;
+    };
+    expect(body.noteLinks).toEqual([
+      {
+        sourceNoteId: matchingSource.id,
+        sourceTitle: "Query match source",
+        targetNoteId: matchingTarget.id,
+        targetTitle: "Linked target",
+      },
+    ]);
+  });
+
   it("projects same-chunk source proximity into knowledge surface edges", async () => {
     const seeded = await seedSupportedEdge(ctx);
     const [sourceExtraction] = await db
