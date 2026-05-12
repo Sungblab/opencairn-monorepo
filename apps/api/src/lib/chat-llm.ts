@@ -1,3 +1,4 @@
+import { and, db, eq, isNull, notes, projects } from "@opencairn/db";
 import type { Citation } from "@opencairn/db";
 import {
   retrieveWithPolicy,
@@ -217,7 +218,9 @@ export async function* runChat(opts: {
     // doesn't burn through the user-history truncation budget below.
     const ragBlock = evidenceBundleToPrompt(evidenceBundle);
     const wikiIndexBlock = await buildChatWikiIndexBlock({
+      workspaceId: opts.workspaceId,
       scope: opts.scope,
+      chips: opts.chips,
       userId: opts.userId,
     });
     const system: ChatMsg = {
@@ -297,13 +300,17 @@ export async function* runChat(opts: {
 }
 
 async function buildChatWikiIndexBlock(opts: {
+  workspaceId: string;
   scope: RetrievalScope;
+  chips: RetrievalChip[];
   userId?: string;
 }): Promise<string> {
-  if (opts.scope.type !== "project" || !opts.userId) return "";
+  if (!opts.userId) return "";
   try {
+    const projectId = await resolveChatWikiIndexProjectId(opts);
+    if (!projectId) return "";
     const index = await buildProjectWikiIndex({
-      projectId: opts.scope.projectId,
+      projectId,
       userId: opts.userId,
     });
     if (index.totals.pages === 0) return "";
@@ -311,6 +318,67 @@ async function buildChatWikiIndexBlock(opts: {
   } catch {
     return "";
   }
+}
+
+async function resolveChatWikiIndexProjectId(opts: {
+  workspaceId: string;
+  scope: RetrievalScope;
+  chips: RetrievalChip[];
+}): Promise<string | null> {
+  const projectChips = opts.chips.filter((chip) => chip.type === "project");
+  if (projectChips.length === 1) {
+    return projectInChatWorkspace(projectChips[0]!.id, opts.workspaceId);
+  }
+  if (projectChips.length > 1) return null;
+
+  const pageChips = opts.chips.filter((chip) => chip.type === "page");
+  if (pageChips.length === 1) {
+    return projectIdForChatNote(pageChips[0]!.id, opts.workspaceId);
+  }
+  if (pageChips.length > 1) return null;
+
+  if (
+    opts.scope.type === "project" &&
+    opts.scope.workspaceId === opts.workspaceId
+  ) {
+    return projectInChatWorkspace(opts.scope.projectId, opts.workspaceId);
+  }
+  if (opts.scope.type === "page") {
+    return projectIdForChatNote(opts.scope.noteId, opts.workspaceId);
+  }
+  return null;
+}
+
+async function projectInChatWorkspace(
+  projectId: string,
+  workspaceId: string,
+): Promise<string | null> {
+  const rows = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(
+      and(eq(projects.id, projectId), eq(projects.workspaceId, workspaceId)),
+    )
+    .limit(1);
+  return rows[0]?.id ?? null;
+}
+
+async function projectIdForChatNote(
+  noteId: string,
+  workspaceId: string,
+): Promise<string | null> {
+  const rows = await db
+    .select({ projectId: notes.projectId })
+    .from(notes)
+    .where(
+      and(
+        eq(notes.id, noteId),
+        eq(notes.workspaceId, workspaceId),
+        isNull(notes.deletedAt),
+      ),
+    )
+    .limit(1);
+  return rows[0]?.projectId ?? null;
 }
 
 function verifyRuntimeAnswer(input: {
