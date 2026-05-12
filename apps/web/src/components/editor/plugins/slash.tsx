@@ -50,11 +50,8 @@ import type { AgentCommandId } from "@/components/agent-panel/agent-commands";
 //   * The `hr` void node has no `editor.tf.insert.hr` helper; we insert the
 //     node via raw `insertNodes`, then drop an empty paragraph after so the
 //     caret is not trapped inside a void.
-//   * There is no `@platejs/code-block` installed, so the "code" slash
-//     command toggles the inline `code` mark (same behaviour as the
-//     toolbar). A future upgrade can swap it for a block once the dep is
-//     added; i18n label has been narrowed from "코드 블록"/"Code block" to
-//     plain "코드"/"Code" to match.
+//   * Code block support uses the local `code_block` / `code_line` node shape
+//     provided by @platejs/code-block/react in NoteEditor's plugin list.
 //   * Math now inserts the local `equation` node. MathBlock owns the edit
 //     popover, so an empty `texExpression` is immediately fixable in-place.
 
@@ -214,7 +211,7 @@ const BLOCK_COMMANDS: SlashBlockDef[] = [
     icon: Code,
     labelKey: "code",
     descriptionKey: "code",
-    keywords: ["code", "inline"],
+    keywords: ["code", "block", "fence", "코드", "코드블럭"],
   },
   {
     key: "equation",
@@ -428,7 +425,6 @@ export interface SlashEditor {
     ) => void;
     insertText?: (text: string) => void;
     deleteBackward: (unit: "character" | "word" | "line" | "block") => void;
-    code?: { toggle: () => void };
     h1?: { toggle: () => void };
     h2?: { toggle: () => void };
     h3?: { toggle: () => void };
@@ -550,7 +546,18 @@ export function SlashMenu({
           });
           break;
         case "code":
-          editor.tf.code?.toggle();
+          editor.tf.insertNodes(
+            {
+              type: "code_block",
+              language: "plaintext",
+              children: [{ type: "code_line", children: [{ text: "" }] }],
+            },
+            { select: true },
+          );
+          editor.tf.insertNodes(
+            { type: "p", children: [{ text: "" }] },
+            { select: true },
+          );
           break;
         case "hr":
           // Void block — insert the `hr` node, then an empty paragraph so

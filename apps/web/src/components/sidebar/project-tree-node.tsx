@@ -20,6 +20,7 @@ import {
   MoreHorizontal,
   NotebookText,
   Plus,
+  Star,
   Sparkles,
   Table2,
 } from "lucide-react";
@@ -40,6 +41,7 @@ import {
 } from "@/components/ui/context-menu";
 import { TreeContextMenuItems } from "./tree-context-menu";
 import { useProjectTreeCtx } from "./project-tree-context";
+import { upsertSidebarFavorite } from "./sidebar-favorites-store";
 
 // react-arborist's row renderer. Combines:
 // - expand/collapse on folders (chevron + row click)
@@ -247,6 +249,18 @@ export function ProjectTreeNode({
     void navigator.clipboard?.writeText(`${origin}${href}`);
   }
 
+  function pinFavorite() {
+    const href = nodeHref();
+    if (!href || !wsSlug) return;
+    upsertSidebarFavorite(wsSlug, {
+      id: node.data.id,
+      targetId: node.data.target_id ?? node.data.id,
+      label: node.data.label,
+      href,
+      kind: "note",
+    });
+  }
+
   function closeActionMenu() {
     setActionMenuPos(null);
   }
@@ -452,6 +466,22 @@ export function ProjectTreeNode({
                     >
                       {t("copy_link")}
                     </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="flex min-h-8 w-full items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-left outline-none hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
+                      disabled={!nodeHref()}
+                      onClick={() => {
+                        closeActionMenu();
+                        pinFavorite();
+                      }}
+                    >
+                      <Star
+                        aria-hidden
+                        className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                      />
+                      {t("favorite")}
+                    </button>
                     <div className="-mx-1 my-1 h-px bg-border" />
                     <button
                       type="button"
@@ -491,6 +521,7 @@ export function ProjectTreeNode({
           }
           onCreateFolder={() => ctx.onCreateFolder(node.data.id)}
           onCopyLink={copyLink}
+          onFavorite={nodeHref() ? pinFavorite : undefined}
           onDelete={() =>
             ctx.onDelete(
               node.data.id,

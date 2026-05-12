@@ -166,10 +166,29 @@ const ELEMENTS: Record<string, (props: ElementProps) => ReactElement> = {
       {children}
     </a>
   ),
-  code_block: ({ children }) => (
-    <pre className="my-3 overflow-x-auto rounded bg-muted p-3 text-sm">
-      <code>{children}</code>
-    </pre>
+  code_block: ({ children, node }) => {
+    const language = String(node.language ?? node.lang ?? "").trim();
+    return (
+      <figure
+        className="my-4 overflow-hidden rounded-md border border-border bg-muted/30"
+        data-testid="static-code-block"
+      >
+        <figcaption className="flex min-h-8 items-center justify-between border-b border-border bg-muted/50 px-3 text-xs text-muted-foreground">
+          <span data-testid="static-code-language">
+            {language || "code"}
+          </span>
+          <span aria-hidden className="font-mono">
+            {"</>"}
+          </span>
+        </figcaption>
+        <pre className="m-0 overflow-x-auto bg-transparent p-3 text-sm leading-6">
+          <code>{children}</code>
+        </pre>
+      </figure>
+    );
+  },
+  code_line: ({ children }) => (
+    <span className="block min-h-5 whitespace-pre font-mono">{children}</span>
   ),
 };
 

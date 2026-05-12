@@ -201,4 +201,28 @@ describe("PlateStaticRenderer", () => {
     // Empty tex → null html → renders the fallback "$$$$" span
     expect(document.body.innerHTML).toContain("$$$$");
   });
+
+  it("renders code blocks with language chrome and line-preserving code", () => {
+    render(
+      <PlateStaticRenderer
+        value={[
+          {
+            type: "code_block",
+            language: "typescript",
+            children: [
+              { type: "code_line", children: [{ text: "const answer = 42;" }] },
+              { type: "code_line", children: [{ text: "console.log(answer);" }] },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByTestId("static-code-block")).toBeInTheDocument();
+    expect(screen.getByTestId("static-code-language")).toHaveTextContent(
+      "typescript",
+    );
+    expect(screen.getByText("const answer = 42;")).toBeInTheDocument();
+    expect(screen.getByText("console.log(answer);")).toBeInTheDocument();
+  });
 });

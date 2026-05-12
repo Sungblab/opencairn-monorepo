@@ -15,6 +15,7 @@ export interface TreeContextMenuItemsProps {
   onCreateFolder?(): void;
   onDuplicate?(): void;
   onCopyLink?(): void;
+  onFavorite?(): void;
 }
 
 // Items-only fragment. Callers are expected to compose the surrounding
@@ -31,6 +32,7 @@ export function TreeContextMenuItems({
   onCreateFolder,
   onDuplicate,
   onCopyLink,
+  onFavorite,
 }: TreeContextMenuItemsProps) {
   const t = useTranslations("sidebar.tree_menu");
   return (
@@ -73,6 +75,13 @@ export function TreeContextMenuItems({
         disabled={!onCopyLink}
       >
         {t("copy_link")}
+      </ContextMenuItem>
+      <ContextMenuItem
+        className="min-h-8 rounded-[var(--radius-control)] px-2 py-1.5"
+        onClick={onFavorite}
+        disabled={!onFavorite}
+      >
+        {t("favorite")}
       </ContextMenuItem>
       <ContextMenuSeparator />
       <ContextMenuItem

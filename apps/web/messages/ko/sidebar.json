@@ -32,8 +32,46 @@
     "runs": "실행 기록",
     "generate_document": "문서 생성",
     "trash": "휴지통",
+    "chat": "채팅",
+    "tools": "도구",
+    "notifications": "알림",
+    "graph": "프로젝트 그래프",
+    "agents": "에이전트",
+    "learn": "학습",
+    "atlas": "Ontology Atlas",
+    "shared_links": "공유 링크",
+    "public_pages": "공개 페이지",
+    "synthesis_export": "문서 내보내기",
+    "settings": "워크스페이스 설정",
+    "help": "도움말",
+    "feedback": "피드백",
+    "changelog": "업데이트",
     "more_aria": "더보기",
+    "create": "만들기",
     "collapse_sidebar": "왼쪽 사이드바 접기"
+  },
+  "sections": {
+    "create": "빠른 생성",
+    "favorites": "즐겨찾기",
+    "files": "파일",
+    "recent": "최근 항목",
+    "service_agent": "서비스 에이전트",
+    "project_tools": "프로젝트 도구",
+    "publish": "공유와 출판",
+    "workspace_tools": "워크스페이스",
+    "help": "도움"
+  },
+  "favorites": {
+    "empty": "고정한 항목 없음",
+    "hint": "파일의 더보기 메뉴에서 자주 쓰는 노트를 고정하세요.",
+    "remove": "즐겨찾기에서 제거"
+  },
+  "recent": {
+    "empty": "최근 작업한 항목 없음"
+  },
+  "agent_actions": {
+    "ask_ai": "AI에게 질문",
+    "ask_ai_short": "AI"
   },
   "more_menu": {
     "atlas": "Ontology Atlas",
@@ -93,6 +131,7 @@
     "rename_shortcut": "F2",
     "duplicate": "복제",
     "copy_link": "링크 복사",
+    "favorite": "즐겨찾기에 고정",
     "new_child_page": "하위 페이지 만들기",
     "new_subfolder": "하위 폴더 만들기",
     "empty_drop_hint": "여기로 드래그하거나 새 하위 페이지를 만드세요.",

@@ -17,11 +17,18 @@ import { insertTable } from "@platejs/table";
 import { CodeBlockPlugin, CodeLinePlugin } from "@platejs/code-block/react";
 import { Plate, PlateContent } from "platejs/react";
 import debounce from "lodash.debounce";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Share2 } from "lucide-react";
+import { MessageSquare, MoreHorizontal, Share2, Sparkles } from "lucide-react";
 
 import {
   useCollaborativeEditor,
@@ -610,9 +617,13 @@ export function NoteEditor({
         return;
       }
 
+      const bubbleMaxWidth = 520;
       setSelectionAskPosition({
-        left: Math.min(window.innerWidth - 140, Math.max(16, rect.right + 8)),
-        top: Math.max(16, rect.top - 4),
+        left: Math.max(
+          16,
+          Math.min(window.innerWidth - bubbleMaxWidth, rect.left),
+        ),
+        top: Math.max(16, rect.top - 40),
       });
     };
 
@@ -698,8 +709,11 @@ export function NoteEditor({
                 onShowComments={handleShowComments}
               />
             )}
-            <div className="mx-auto w-full max-w-[720px] flex-1 px-4 py-6 sm:px-8 sm:py-8">
-              <div className="border-b border-border/80 pb-5">
+            <div className="mx-auto w-full max-w-[720px] flex-1 px-4 py-5 sm:px-8 sm:py-7">
+              <div
+                className="border-b border-border/80 pb-3"
+                data-testid="note-title-section"
+              >
                 <div className="flex items-start justify-between gap-4">
                   <input
                     value={title}
@@ -732,7 +746,7 @@ export function NoteEditor({
                   </div>
                 </div>
                 <div
-                  className="text-fg-muted mt-4 h-4 text-xs"
+                  className="text-fg-muted mt-2 min-h-3 text-xs"
                   data-testid="save-status"
                   role="status"
                   aria-live="polite"
@@ -753,7 +767,11 @@ export function NoteEditor({
                 open={shareOpen}
                 onOpenChange={setShareOpen}
               />
-              <div ref={editorSurfaceRef} className="relative pt-7">
+              <div
+                ref={editorSurfaceRef}
+                className="relative pt-4"
+                data-testid="note-editor-surface"
+              >
                 <PlateContent
                   data-testid="note-body"
                   placeholder={
@@ -765,19 +783,71 @@ export function NoteEditor({
                   readOnly={readOnly}
                 />
                 {selectionAskPosition ? (
-                  <button
-                    type="button"
-                    className="fixed z-40 inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-background px-2.5 text-xs font-medium shadow-sm"
+                  <div
+                    className="fixed z-40 flex max-w-[calc(100vw-32px)] items-center gap-1 overflow-x-auto rounded-[var(--radius-control)] border border-border bg-background p-1 text-xs font-medium shadow-md"
                     style={selectionAskPosition}
-                    onMouseDown={(event) => {
-                      event.preventDefault();
-                      openCurrentNoteAi();
-                      setSelectionAskPosition(null);
-                    }}
-                    data-testid="selection-ask-ai-button"
+                    data-testid="selection-action-bubble"
                   >
-                    {t("toolbar.ask_ai")}
-                  </button>
+                    <SelectionActionButton
+                      testId="selection-ask-ai-button"
+                      onClick={() => {
+                        openCurrentNoteAi();
+                        setSelectionAskPosition(null);
+                      }}
+                    >
+                      <Sparkles aria-hidden className="h-3.5 w-3.5" />
+                      {t("toolbar.ask_ai")}
+                    </SelectionActionButton>
+                    {canComment ? (
+                      <SelectionActionButton
+                        testId="selection-comment-button"
+                        onClick={() => {
+                          setNoteRailTab("comments");
+                          setSelectionAskPosition(null);
+                        }}
+                      >
+                        <MessageSquare aria-hidden className="h-3.5 w-3.5" />
+                        {t("toolbar.comments")}
+                      </SelectionActionButton>
+                    ) : null}
+                    <SelectionActionButton
+                      testId="selection-improve-button"
+                      onClick={() => {
+                        openCurrentNoteAi();
+                        setSelectionAskPosition(null);
+                      }}
+                    >
+                      {t("toolbar.improve")}
+                    </SelectionActionButton>
+                    <SelectionActionButton
+                      testId="selection-correct-button"
+                      onClick={() => {
+                        openCurrentNoteAi();
+                        setSelectionAskPosition(null);
+                      }}
+                    >
+                      {t("toolbar.correct")}
+                    </SelectionActionButton>
+                    <SelectionActionButton
+                      testId="selection-explain-button"
+                      onClick={() => {
+                        openCurrentNoteAi();
+                        setSelectionAskPosition(null);
+                      }}
+                    >
+                      {t("toolbar.explain")}
+                    </SelectionActionButton>
+                    <SelectionActionButton
+                      testId="selection-more-button"
+                      onClick={() => {
+                        openCurrentNoteAi();
+                        setSelectionAskPosition(null);
+                      }}
+                    >
+                      <MoreHorizontal aria-hidden className="h-3.5 w-3.5" />
+                      {t("toolbar.more")}
+                    </SelectionActionButton>
+                  </div>
                 ) : null}
               </div>
             </div>
@@ -796,5 +866,29 @@ export function NoteEditor({
         </div>
       </div>
     </Plate>
+  );
+}
+
+function SelectionActionButton({
+  testId,
+  onClick,
+  children,
+}: {
+  testId: string;
+  onClick(): void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className="inline-flex h-7 shrink-0 items-center gap-1 rounded-[calc(var(--radius-control)-2px)] px-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      onMouseDown={(event) => {
+        event.preventDefault();
+        onClick();
+      }}
+      data-testid={testId}
+    >
+      {children}
+    </button>
   );
 }

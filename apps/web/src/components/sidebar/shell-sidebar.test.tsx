@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ShellSidebar } from "./shell-sidebar";
 
@@ -19,6 +19,10 @@ vi.mock("next-intl", () => ({
     ns ? `${ns}.${key}` : key,
 }));
 
+const panelStoreMock = vi.hoisted(() => ({
+  openAgentPanelTab: vi.fn(),
+}));
+
 vi.mock("@/stores/panel-store", () => ({
   usePanelStore: (
     selector: (s: {
@@ -30,10 +34,6 @@ vi.mock("@/stores/panel-store", () => ({
       toggleSidebar: vi.fn(),
       openAgentPanelTab: panelStoreMock.openAgentPanelTab,
     }),
-}));
-
-const panelStoreMock = vi.hoisted(() => ({
-  openAgentPanelTab: vi.fn(),
 }));
 
 vi.mock("./workspace-switcher", () => ({
@@ -81,12 +81,23 @@ vi.mock("./SourceUploadButton", () => ({
 vi.mock("./NewCodeWorkspaceButton", () => ({
   NewCodeWorkspaceButton: () => <button type="button">new code</button>,
 }));
+vi.mock("./GenerateDocumentButton", () => ({
+  GenerateDocumentButton: () => <button type="button">generate document</button>,
+}));
 vi.mock("./sidebar-empty-state", () => ({
   SidebarEmptyState: () => <div>project empty state</div>,
 }));
+vi.mock("./sidebar-favorites", () => ({
+  SidebarFavorites: () => <div>sidebar.favorites.empty</div>,
+}));
+vi.mock("./sidebar-recent-notes", () => ({
+  SidebarRecentNotes: () => <div>recent notes</div>,
+}));
 vi.mock("./more-menu", () => ({
   MoreMenu: ({ onOpenTrash }: { onOpenTrash: () => void }) => (
-    <button type="button" onClick={onOpenTrash}>more menu</button>
+    <button type="button" onClick={onOpenTrash}>
+      more menu
+    </button>
   ),
 }));
 vi.mock("@/components/views/workspace-settings/trash-tab", () => ({
@@ -100,6 +111,7 @@ vi.mock("@/components/literature/literature-search-button", () => ({
 describe("ShellSidebar", () => {
   beforeEach(() => {
     panelStoreMock.openAgentPanelTab.mockClear();
+    window.localStorage.clear();
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -110,11 +122,11 @@ describe("ShellSidebar", () => {
   });
 
   function renderSidebar() {
-    const qc = new QueryClient({
+    const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
     return render(
-      <QueryClientProvider client={qc}>
+      <QueryClientProvider client={queryClient}>
         <ShellSidebar deepResearchEnabled />
       </QueryClientProvider>,
     );
@@ -127,7 +139,7 @@ describe("ShellSidebar", () => {
 
     expect(screen.getByText("project hero")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
+      screen.getByRole("button", { name: "sidebar.nav.chat" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "sidebar.nav.dashboard" }),
@@ -136,7 +148,7 @@ describe("ShellSidebar", () => {
       screen.getByRole("button", { name: "sidebar.nav.trash" }),
     ).toHaveClass("rounded-[var(--radius-control)]");
     expect(
-      screen.getByRole("button", { name: "sidebar.nav.more_aria" }),
+      screen.getByRole("button", { name: "sidebar.nav.tools" }),
     ).toHaveClass("rounded-[var(--radius-control)]");
     expect(screen.queryByText("project list")).not.toBeInTheDocument();
     expect(screen.queryByText("global nav")).not.toBeInTheDocument();
@@ -145,7 +157,7 @@ describe("ShellSidebar", () => {
     expect(screen.getByText("project empty state")).toBeInTheDocument();
   });
 
-  it("keeps creation controls and the tree visible when a project is selected", () => {
+  it("keeps creation actions explicit while preserving the file explorer when a project is selected", () => {
     currentProject.value = { wsSlug: "acme", projectId: "p1" };
 
     renderSidebar();
@@ -153,14 +165,32 @@ describe("ShellSidebar", () => {
     expect(
       screen.getByRole("link", { name: "sidebar.nav.project_home" }),
     ).toHaveAttribute("href", "/ko/workspace/acme/project/p1");
+    expect(screen.getByTestId("sidebar-create-actions")).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-tree-region")).toHaveClass(
+      "overflow-hidden",
+    );
     expect(screen.getByText("new note")).toBeInTheDocument();
     expect(screen.getByText("upload source")).toBeInTheDocument();
     expect(screen.getByText("new folder")).toBeInTheDocument();
     expect(screen.getByText("new canvas")).toBeInTheDocument();
-    expect(screen.queryByText("new code")).not.toBeInTheDocument();
-    expect(screen.queryByText("graph")).not.toBeInTheDocument();
-    expect(screen.queryByText("agents")).not.toBeInTheDocument();
-    expect(screen.queryByText("learn")).not.toBeInTheDocument();
+    expect(screen.getByText("new code")).toBeInTheDocument();
+    expect(screen.getByText("generate document")).toBeInTheDocument();
+    expect(screen.getByText("sidebar.sections.favorites")).toBeInTheDocument();
+    expect(screen.getByText("sidebar.favorites.empty")).toBeInTheDocument();
+    expect(screen.getByText("sidebar.nav.graph")).toBeInTheDocument();
+    expect(screen.getByText("sidebar.nav.agents")).toBeInTheDocument();
+    expect(screen.getByText("sidebar.nav.learn")).toBeInTheDocument();
+    expect(screen.getByText("sidebar.sections.recent")).toBeInTheDocument();
+    expect(screen.getByText("recent notes")).toBeInTheDocument();
+    expect(
+      screen.getByText("sidebar.sections.service_agent"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("literature")).toBeInTheDocument();
+    expect(screen.getByText("sidebar.sections.publish")).toBeInTheDocument();
+    expect(screen.getByText("sidebar.nav.public_pages")).toBeInTheDocument();
+    expect(screen.getByText("sidebar.sections.help")).toBeInTheDocument();
+    expect(screen.getByText("sidebar.nav.feedback")).toBeInTheDocument();
+    expect(screen.getByText("sidebar.nav.changelog")).toBeInTheDocument();
     expect(screen.getByText("project tree")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "sidebar.nav.trash" }),
@@ -202,5 +232,21 @@ describe("ShellSidebar", () => {
     await user.click(screen.getByRole("button", { name: "sidebar.nav.trash" }));
 
     expect(screen.getByTestId("trash-tab-skeleton")).toBeInTheDocument();
+  });
+
+  it("opens workbench panel tabs from the explicit top icon row", async () => {
+    currentProject.value = { wsSlug: "acme", projectId: "p1" };
+
+    renderSidebar();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "sidebar.nav.chat" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "sidebar.nav.tools" }),
+    );
+
+    expect(panelStoreMock.openAgentPanelTab).toHaveBeenNthCalledWith(1, "chat");
+    expect(panelStoreMock.openAgentPanelTab).toHaveBeenNthCalledWith(2, "tools");
   });
 });
