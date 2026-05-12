@@ -24,6 +24,7 @@ export function appendInteractionResponseToScope(
       type: "choice_response",
       cardId: input.card.id,
       ...(input.option ? { optionId: input.option.id } : {}),
+      ...(input.actionId ? { actionId: input.actionId } : {}),
       label: input.label,
       value: input.value,
     },

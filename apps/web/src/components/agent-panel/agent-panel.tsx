@@ -63,6 +63,7 @@ import { AgentPanelEmptyState } from "./empty-state";
 import { NoteUpdateActionReviewList } from "./note-update-action-review";
 import { NoteActionReviewList } from "./note-action-review";
 import { CodeProjectActionReviewList } from "./code-project-action-review";
+import { InteractionActionList } from "./interaction-action-list";
 import { AgenticPlanCard } from "./agentic-plan-card";
 import {
   getAgentCommand,
@@ -530,6 +531,18 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
     [activeProjectId, activeTab?.title, handleSend, t, workspaceId],
   );
 
+  const handleInteractionActionAnswered = useCallback(
+    (input: InteractionCardSubmit) => {
+      if (!workspaceId || sendInFlightRef.current) return;
+      handleSend({
+        content: input.value,
+        mode: "auto",
+        interactionResponse: input,
+      });
+    },
+    [handleSend, workspaceId],
+  );
+
   // Validates the SSE payload, inserts markdown into the active Plate editor,
   // and shows a "create new note" toast action when no editor is open.
   const handleSaveSuggestion = useCallback(
@@ -627,6 +640,10 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
       {panelTab === "activity" ? (
         <div className="app-scrollbar-thin min-h-0 flex-1 overflow-y-auto">
           <NoteActionReviewList projectId={activeProjectId} />
+          <InteractionActionList
+            projectId={activeProjectId}
+            onAnswered={handleInteractionActionAnswered}
+          />
           <NoteUpdateActionReviewList projectId={activeProjectId} />
           <CodeProjectActionReviewList projectId={activeProjectId} />
           <AgenticPlanCard projectId={activeProjectId} />

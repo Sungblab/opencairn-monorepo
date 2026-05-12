@@ -38,6 +38,7 @@ export const agentActionApprovalModeSchema = z.enum([
 
 export const agentActionKindSchema = z.enum([
   "workflow.placeholder",
+  "interaction.choice",
   "note.create",
   "note.update",
   "note.rename",
@@ -89,6 +90,54 @@ const jsonRecordSchema = z
   .record(z.unknown())
   .default({})
   .superRefine(rejectNestedScopeFields);
+
+export const interactionChoiceOptionSchema = z
+  .object({
+    id: z.string().trim().min(1).max(80),
+    label: z.string().trim().min(1).max(120),
+    value: z.string().trim().min(1).max(2000),
+    followup: z
+      .object({
+        kind: agentActionKindSchema,
+        risk: agentActionRiskSchema,
+        input: jsonRecordSchema,
+        approvalMode: agentActionApprovalModeSchema.default("require"),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+
+export const interactionChoiceInputSchema = z
+  .object({
+    cardId: z.string().trim().min(1).max(120),
+    prompt: z.string().trim().min(1).max(500),
+    options: z.array(interactionChoiceOptionSchema).min(1).max(8),
+    allowCustom: z.boolean().default(false),
+    source: z
+      .object({
+        threadId: z.string().uuid().optional(),
+        messageId: z.string().uuid().optional(),
+      })
+      .strict()
+      .default({}),
+  })
+  .strict();
+
+export const interactionChoiceRespondRequestSchema = z
+  .object({
+    optionId: z.string().trim().min(1).max(80).optional(),
+    value: z.string().trim().min(1).max(2000),
+    label: z.string().trim().min(1).max(120),
+    threadId: z.string().uuid().optional(),
+    userMessageId: z.string().uuid().optional(),
+  })
+  .strict();
+
+export const interactionChoiceResultSchema =
+  interactionChoiceRespondRequestSchema.extend({
+    respondedAt: z.string().datetime(),
+  });
 
 export const noteCreateActionInputSchema = z
   .object({
@@ -246,6 +295,7 @@ export const createAgentActionRequestSchema = z
     }
     validatePhase2ANoteActionInput(value, ctx);
     validateCodeProjectActionInput(value, ctx);
+    validateInteractionChoiceActionInput(value, ctx);
   });
 
 export const listAgentActionsQuerySchema = z.object({
@@ -291,6 +341,10 @@ export type AgentActionStatus = z.infer<typeof agentActionStatusSchema>;
 export type AgentActionRisk = z.infer<typeof agentActionRiskSchema>;
 export type AgentActionApprovalMode = z.infer<typeof agentActionApprovalModeSchema>;
 export type AgentActionKind = z.infer<typeof agentActionKindSchema>;
+export type InteractionChoiceOption = z.infer<typeof interactionChoiceOptionSchema>;
+export type InteractionChoiceInput = z.infer<typeof interactionChoiceInputSchema>;
+export type InteractionChoiceRespondRequest = z.infer<typeof interactionChoiceRespondRequestSchema>;
+export type InteractionChoiceResult = z.infer<typeof interactionChoiceResultSchema>;
 export type NoteCreateActionInput = z.infer<typeof noteCreateActionInputSchema>;
 export type NoteRenameActionInput = z.infer<typeof noteRenameActionInputSchema>;
 export type NoteMoveActionInput = z.infer<typeof noteMoveActionInputSchema>;
@@ -347,6 +401,11 @@ export function parseCodeWorkspacePreviewRequest(value: unknown) {
 
 export function parseCodeWorkspacePreviewResult(value: unknown) {
   const parsed = codeWorkspacePreviewResultSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+export function parseInteractionChoiceInput(value: unknown): InteractionChoiceInput | null {
+  const parsed = interactionChoiceInputSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
 }
 
@@ -408,6 +467,24 @@ function validateCodeProjectActionInput(
             : null;
   if (!schema) return;
   const parsed = schema.safeParse(input);
+  if (parsed.success) return;
+  for (const issue of parsed.error.issues) {
+    ctx.addIssue({
+      ...issue,
+      path: ["input", ...issue.path],
+    });
+  }
+}
+
+function validateInteractionChoiceActionInput(
+  value: {
+    kind: AgentActionKind;
+    input?: Record<string, unknown>;
+  },
+  ctx: z.RefinementCtx,
+): void {
+  if (value.kind !== "interaction.choice") return;
+  const parsed = interactionChoiceInputSchema.safeParse(value.input ?? {});
   if (parsed.success) return;
   for (const issue of parsed.error.issues) {
     ctx.addIssue({

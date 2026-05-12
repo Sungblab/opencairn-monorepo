@@ -29,6 +29,8 @@ import {
   codeWorkspacePreviewResultSchema,
   codeWorkspacePreviewRequestSchema,
   codeWorkspacePreviewSmokeResultSchema,
+  interactionChoiceInputSchema,
+  interactionChoiceResultSchema,
   normalizeCodeWorkspacePath,
   noteUpdateApplyRequestSchema,
   noteUpdateApplyResultSchema,
@@ -58,6 +60,7 @@ import type {
   CodeWorkspaceInstallRequest,
   CodeWorkspacePreviewResult,
   CodeWorkspacePreviewSmokeResult,
+  InteractionChoiceRespondRequest,
 } from "@opencairn/shared";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import {
@@ -638,6 +641,46 @@ export async function transitionAgentActionStatus(
     preview: request.preview,
     result: request.result,
     errorCode: request.errorCode,
+  });
+  if (!updated) throw new AgentActionError("action_not_found", 404);
+  return updated;
+}
+
+export async function respondToInteractionChoiceAction(
+  id: string,
+  actorUserId: string,
+  request: InteractionChoiceRespondRequest,
+  options?: AgentActionServiceOptions,
+): Promise<AgentAction> {
+  const repo = options?.repo ?? createDrizzleAgentActionRepository();
+  const current = await getAgentAction(id, actorUserId, { ...options, repo });
+  if (current.kind !== "interaction.choice") {
+    throw new AgentActionError("action_kind_not_applicable", 409);
+  }
+  if (current.status !== "draft") {
+    throw new AgentActionError("interaction_choice_already_answered", 409);
+  }
+
+  const input = interactionChoiceInputSchema.parse(current.input);
+  const option = request.optionId
+    ? input.options.find((item) => item.id === request.optionId)
+    : null;
+  if (request.optionId && !option) {
+    throw new AgentActionError("interaction_choice_option_not_found", 400);
+  }
+  if (!request.optionId && !input.allowCustom) {
+    throw new AgentActionError("interaction_choice_custom_not_allowed", 400);
+  }
+
+  const result = interactionChoiceResultSchema.parse({
+    ...request,
+    ...(option ? { value: option.value, label: option.label } : {}),
+    respondedAt: now(options).toISOString(),
+  });
+  const updated = await repo.updateStatus(id, {
+    status: "completed",
+    result,
+    errorCode: null,
   });
   if (!updated) throw new AgentActionError("action_not_found", 404);
   return updated;
