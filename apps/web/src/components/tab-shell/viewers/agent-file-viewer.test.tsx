@@ -7,14 +7,73 @@ import type { Tab } from "@/stores/tabs-store";
 import { useTabsStore } from "@/stores/tabs-store";
 import { AgentFileViewer } from "./agent-file-viewer";
 
+const pdfViewerMock = vi.hoisted(() => ({
+  props: [] as Array<{
+    config: {
+      src: string;
+      zoom?: {
+        defaultZoomLevel?: string | number;
+        zoomStep?: number;
+        presets?: Array<{ name: string; value: string | number }>;
+      };
+      i18n?: {
+        defaultLocale?: string;
+        locales?: Array<{
+          code: string;
+          translations: {
+            toolbar?: {
+              close?: string;
+              print?: string;
+              protect?: string;
+              screenshot?: string;
+            };
+          };
+        }>;
+      };
+    };
+    style?: React.CSSProperties;
+  }>,
+}));
+
 vi.mock("@embedpdf/react-pdf-viewer", () => ({
-  PDFViewer: (props: { config: { src: string }; style?: React.CSSProperties }) => (
-    <div
-      data-testid="embedpdf-viewer"
-      data-src={props.config.src}
-      data-height={props.style?.height}
-    />
-  ),
+  ZoomMode: {
+    FitWidth: "fit-width",
+    FitPage: "fit-page",
+  },
+  PDFViewer: (props: {
+    config: {
+      src: string;
+      zoom?: {
+        defaultZoomLevel?: string | number;
+        zoomStep?: number;
+        presets?: Array<{ name: string; value: string | number }>;
+      };
+      i18n?: {
+        defaultLocale?: string;
+        locales?: Array<{
+          code: string;
+          translations: {
+            toolbar?: {
+              close?: string;
+              print?: string;
+              protect?: string;
+              screenshot?: string;
+            };
+          };
+        }>;
+      };
+    };
+    style?: React.CSSProperties;
+  }) => {
+    pdfViewerMock.props.push(props);
+    return (
+      <div
+        data-testid="embedpdf-viewer"
+        data-src={props.config.src}
+        data-height={props.style?.height}
+      />
+    );
+  },
 }));
 
 vi.mock("next/dynamic", () => ({
@@ -190,6 +249,7 @@ function renderViewer(
 
 describe("AgentFileViewer", () => {
   afterEach(() => {
+    pdfViewerMock.props = [];
     vi.unstubAllGlobals();
     useTabsStore.setState({
       workspaceId: null,
@@ -262,6 +322,30 @@ describe("AgentFileViewer", () => {
     );
     expect(screen.getByLabelText("인제스트 실행")).toBeInTheDocument();
     expect(screen.getByLabelText("Google Drive 연결 필요")).toBeInTheDocument();
+    expect(pdfViewerMock.props.at(-1)?.config.i18n).toMatchObject({
+      defaultLocale: "ko",
+      locales: [
+        {
+          code: "ko",
+          translations: {
+            toolbar: {
+              close: "닫기",
+              print: "인쇄",
+              protect: "보안",
+              screenshot: "스크린샷",
+            },
+          },
+        },
+      ],
+    });
+    expect(pdfViewerMock.props.at(-1)?.config.zoom).toMatchObject({
+      defaultZoomLevel: 1,
+      zoomStep: 0.05,
+      presets: expect.arrayContaining([
+        { name: "100%", value: 1 },
+        { name: "너비에 맞춤", value: "fit-width" },
+      ]),
+    });
   });
 
   it("renders csv as a focused table with source available on demand", async () => {

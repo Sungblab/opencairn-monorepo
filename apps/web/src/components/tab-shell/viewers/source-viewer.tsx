@@ -9,11 +9,15 @@ import type {
   PDFViewerProps,
   PluginRegistry,
 } from "@embedpdf/react-pdf-viewer";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import type { Tab } from "@/stores/tabs-store";
 import { useCurrentProjectContext } from "@/components/sidebar/use-current-project";
 import { pdfAnnotationsApi, type PdfAnnotationPayload } from "@/lib/api-client";
 import { SourceContextRail } from "./source-context-rail";
+import {
+  EMBEDPDF_STABLE_ZOOM_CONFIG,
+  embedPdfI18nConfig,
+} from "./embedpdf-config";
 
 const EmbedPDFViewer = dynamic<PDFViewerProps>(
   () => import("@embedpdf/react-pdf-viewer").then((mod) => mod.PDFViewer),
@@ -34,9 +38,6 @@ const READ_ONLY_DISABLED_CATEGORIES = [
   "signature",
   "stamp",
 ] as const;
-const PDF_DEFAULT_ZOOM =
-  "fit-width" as NonNullable<PDFViewerConfig["zoom"]>["defaultZoomLevel"];
-
 function emitViewerReady(tab: Tab, registry: PluginRegistry) {
   if (!tab.targetId || typeof window === "undefined") return;
 
@@ -139,6 +140,7 @@ function usePdfAnnotationPersistence(noteId: string | null, registry: PluginRegi
 }
 
 export function SourceViewer({ tab }: { tab: Tab }) {
+  const locale = useLocale();
   const t = useTranslations("appShell.viewers.source");
   const { projectId } = useCurrentProjectContext();
   const fileUrl = useMemo(
@@ -161,10 +163,11 @@ export function SourceViewer({ tab }: { tab: Tab }) {
               annotationAuthor: "OpenCairn",
             },
             export: { defaultFileName: title },
-            zoom: { defaultZoomLevel: PDF_DEFAULT_ZOOM },
+            i18n: embedPdfI18nConfig(locale),
+            zoom: EMBEDPDF_STABLE_ZOOM_CONFIG,
           }
         : null,
-    [fileUrl, title],
+    [fileUrl, locale, title],
   );
   const onReady = useCallback(
     (registry: PluginRegistry) => {

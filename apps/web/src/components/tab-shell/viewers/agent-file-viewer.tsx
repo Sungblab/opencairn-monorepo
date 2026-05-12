@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import type {
   PDFViewerConfig,
   PDFViewerProps,
@@ -32,6 +32,10 @@ import { documentGenerationApi, integrationsApi } from "@/lib/api-client";
 import { newTab } from "@/lib/tab-factory";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  EMBEDPDF_STABLE_ZOOM_CONFIG,
+  embedPdfI18nConfig,
+} from "./embedpdf-config";
 
 interface AgentFileResponse {
   file: AgentFileSummary;
@@ -49,9 +53,6 @@ const EmbedPDFViewer = dynamic<PDFViewerProps>(
     ),
   },
 );
-const PDF_DEFAULT_ZOOM =
-  "fit-width" as NonNullable<PDFViewerConfig["zoom"]>["defaultZoomLevel"];
-
 export function AgentFileViewer({ tab }: { tab: Tab }) {
   const t = useTranslations("agentFiles.viewer");
   const qc = useQueryClient();
@@ -411,6 +412,7 @@ function AgentFilePdfViewer({
   file: AgentFileSummary;
   fileUrl: string;
 }) {
+  const locale = useLocale();
   const config = useMemo<PDFViewerConfig>(
     () => ({
       src: fileUrl,
@@ -418,9 +420,10 @@ function AgentFilePdfViewer({
       theme: { preference: "system" },
       export: { defaultFileName: file.filename },
       disabledCategories: ["annotation", "redaction", "signature", "stamp"],
-      zoom: { defaultZoomLevel: PDF_DEFAULT_ZOOM },
+      i18n: embedPdfI18nConfig(locale),
+      zoom: EMBEDPDF_STABLE_ZOOM_CONFIG,
     }),
-    [file.filename, fileUrl],
+    [file.filename, fileUrl, locale],
   );
 
   return (

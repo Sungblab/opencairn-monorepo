@@ -10,15 +10,61 @@ import { SourceViewer } from "./source-viewer";
 
 const pdfViewerMock = vi.hoisted(() => ({
   props: [] as Array<{
-    config: { src: string; zoom?: { defaultZoomLevel?: string | number } };
+    config: {
+      src: string;
+      zoom?: {
+        defaultZoomLevel?: string | number;
+        zoomStep?: number;
+        presets?: Array<{ name: string; value: string | number }>;
+      };
+      disabledCategories?: string[];
+      i18n?: {
+        defaultLocale?: string;
+        locales?: Array<{
+          code: string;
+          translations: {
+            toolbar?: {
+              open?: string;
+              export?: string;
+              fullscreen?: string;
+            };
+          };
+        }>;
+      };
+    };
     style?: React.CSSProperties;
     onReady?: (registry: unknown) => void;
   }>,
 }));
 
 vi.mock("@embedpdf/react-pdf-viewer", () => ({
+  ZoomMode: {
+    FitWidth: "fit-width",
+    FitPage: "fit-page",
+  },
   PDFViewer: (props: {
-    config: { src: string; zoom?: { defaultZoomLevel?: string | number } };
+    config: {
+      src: string;
+      zoom?: {
+        defaultZoomLevel?: string | number;
+        zoomStep?: number;
+        presets?: Array<{ name: string; value: string | number }>;
+      };
+      disabledCategories?: string[];
+      i18n?: {
+        defaultLocale?: string;
+        locales?: Array<{
+          code: string;
+          translations: {
+            toolbar?: {
+              open?: string;
+              export?: string;
+              fullscreen?: string;
+            };
+          };
+        }>;
+      };
+    };
     style?: React.CSSProperties;
     onReady?: (registry: unknown) => void;
   }) => {
@@ -219,12 +265,32 @@ describe("SourceViewer", () => {
     expect(viewer).toBeInTheDocument();
     expect(viewer).toHaveAttribute("data-src", "/api/notes/n1/file");
     expect(viewer).toHaveAttribute("data-height", "100%");
-    expect(pdfViewerMock.props.at(-1)?.config.zoom).toEqual({
-      defaultZoomLevel: "fit-width",
+    expect(pdfViewerMock.props.at(-1)?.config.zoom).toMatchObject({
+      defaultZoomLevel: 1,
+      zoomStep: 0.05,
+      presets: expect.arrayContaining([
+        { name: "100%", value: 1 },
+        { name: "너비에 맞춤", value: "fit-width" },
+      ]),
     });
     expect(pdfViewerMock.props.at(-1)?.config.disabledCategories).toContain(
       "annotation",
     );
+    expect(pdfViewerMock.props.at(-1)?.config.i18n).toMatchObject({
+      defaultLocale: "ko",
+      locales: [
+        {
+          code: "ko",
+          translations: {
+            toolbar: {
+              open: "열기",
+              export: "내보내기",
+              fullscreen: "전체 화면",
+            },
+          },
+        },
+      ],
+    });
   });
 
   it("renders nothing when targetId is null", () => {
