@@ -167,6 +167,20 @@ describe("WorkspaceAtlasView", () => {
                 crossProject: false,
                 stale: false,
               },
+              {
+                id: "source:concept:ai%20agents->concept:retrieval",
+                sourceId: "concept:ai%20agents",
+                targetId: "concept:retrieval",
+                edgeType: "source_membership",
+                layer: "ai",
+                relationType: "source-proximity",
+                weight: 0.8,
+                conceptEdgeIds: [],
+                sourceNoteIds: ["44444444-4444-4444-8444-444444444444"],
+                projectIds: ["22222222-2222-4222-8222-222222222222"],
+                crossProject: false,
+                stale: false,
+              },
             ],
           }),
           { status: 200 },
@@ -214,6 +228,11 @@ describe("WorkspaceAtlasView", () => {
       stylesheet.find((style) => style.selector === 'edge[edgeType = "wiki_link"]')
         ?.style["line-color"],
     ).toBe("#2563eb");
+    expect(
+      stylesheet.find(
+        (style) => style.selector === 'edge[edgeType = "source_membership"]',
+      )?.style["line-color"],
+    ).toBe("#f59e0b");
     expect(
       stylesheet.find((style) => style.selector === 'edge[edgeType = "project_tree"]')
         ?.style["line-color"],

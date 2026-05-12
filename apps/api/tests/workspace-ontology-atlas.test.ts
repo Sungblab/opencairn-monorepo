@@ -5,9 +5,11 @@ import {
   db,
   concepts,
   conceptEdges,
+  conceptExtractionChunks,
   conceptNotes,
   conceptExtractions,
   evidenceBundles,
+  noteChunks,
   projects,
   notes,
   projectTreeNodes,
@@ -263,6 +265,124 @@ describe("GET /api/workspaces/:workspaceId/ontology-atlas", () => {
     expect(
       body.nodes.find((node) => node.normalizedName === "fresh concept")?.stale,
     ).toBe(false);
+  });
+
+  it("surfaces chunk-backed source membership between extracted concepts", async () => {
+    ctx = await seedWorkspace({ role: "editor" });
+    const sourceConceptId = randomUUID();
+    const targetConceptId = randomUUID();
+    await db.insert(concepts).values([
+      {
+        id: sourceConceptId,
+        projectId: ctx.projectId,
+        name: "Memory Management",
+        description: "Allocates runtime memory",
+      },
+      {
+        id: targetConceptId,
+        projectId: ctx.projectId,
+        name: "Garbage Collection",
+        description: "Reclaims unused objects",
+      },
+    ]);
+    await db.insert(conceptNotes).values([
+      {
+        conceptId: sourceConceptId,
+        noteId: ctx.noteId,
+      },
+      {
+        conceptId: targetConceptId,
+        noteId: ctx.noteId,
+      },
+    ]);
+    const noteChunkId = randomUUID();
+    await db.insert(noteChunks).values({
+      id: noteChunkId,
+      workspaceId: ctx.workspaceId,
+      projectId: ctx.projectId,
+      noteId: ctx.noteId,
+      chunkIndex: 0,
+      headingPath: "Runtime memory",
+      contextText: "Runtime memory",
+      contentText: "Memory management and garbage collection share one source span.",
+      tokenCount: 9,
+      sourceOffsets: { start: 0, end: 64 },
+      contentHash: `atlas-source-${noteChunkId}`,
+    });
+    const [bundle] = await db
+      .insert(evidenceBundles)
+      .values({
+        workspaceId: ctx.workspaceId,
+        projectId: ctx.projectId,
+        purpose: "concept_extraction",
+        producerKind: "agent",
+        producerRunId: "compiler-source-membership-test",
+        tool: "compiler",
+        createdBy: ctx.userId,
+      })
+      .returning({ id: evidenceBundles.id });
+    const extractionRows = await db
+      .insert(conceptExtractions)
+      .values([
+        {
+          workspaceId: ctx.workspaceId,
+          projectId: ctx.projectId,
+          conceptId: sourceConceptId,
+          name: "Memory Management",
+          kind: "concept",
+          normalizedName: "memory management",
+          description: "Allocates runtime memory",
+          confidence: 0.9,
+          evidenceBundleId: bundle.id,
+          sourceNoteId: ctx.noteId,
+          createdByRunId: "compiler-source-membership-test",
+        },
+        {
+          workspaceId: ctx.workspaceId,
+          projectId: ctx.projectId,
+          conceptId: targetConceptId,
+          name: "Garbage Collection",
+          kind: "concept",
+          normalizedName: "garbage collection",
+          description: "Reclaims unused objects",
+          confidence: 0.9,
+          evidenceBundleId: bundle.id,
+          sourceNoteId: ctx.noteId,
+          createdByRunId: "compiler-source-membership-test",
+        },
+      ])
+      .returning({ id: conceptExtractions.id });
+    await db.insert(conceptExtractionChunks).values(
+      extractionRows.map((row) => ({
+        extractionId: row.id,
+        noteChunkId,
+        supportScore: 0.9,
+        quote: "Memory management and garbage collection share one source span.",
+      })),
+    );
+
+    const res = await app.request(
+      `/api/workspaces/${ctx.workspaceId}/ontology-atlas`,
+      { headers: { cookie: await signSessionCookie(ctx.userId) } },
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json() as {
+      edges: Array<{
+        edgeType: string;
+        relationType: string;
+        sourceNoteIds: string[];
+        projectIds: string[];
+      }>;
+    };
+    expect(body.edges).toContainEqual(
+      expect.objectContaining({
+        edgeType: "source_membership",
+        relationType: "source-proximity",
+        sourceNoteIds: [ctx.noteId],
+        projectIds: [ctx.projectId],
+      }),
+    );
   });
 
   it("queues explicit refresh for stale source notes", async () => {

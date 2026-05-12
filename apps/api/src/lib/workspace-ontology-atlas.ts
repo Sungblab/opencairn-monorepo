@@ -56,6 +56,14 @@ type WikiLinkRow = {
   target_project_id: string;
 };
 
+type SourceMembershipRow = {
+  source_id: string;
+  target_id: string;
+  chunk_count: number;
+  source_note_ids: string[] | null;
+  project_ids: string[] | null;
+};
+
 type TreeNodeRow = {
   id: string;
   parent_id: string | null;
@@ -70,6 +78,8 @@ const DUPLICATE_CANDIDATE_SCORE = 5_000;
 const PROJECT_CONTEXT_SCORE = 1_000;
 const DEGREE_SCORE = 10;
 const EXPLICIT_LAYER_SCORE = 25;
+const SOURCE_MEMBERSHIP_EDGE_LIMIT = 900;
+const SOURCE_MEMBERSHIP_MAX_CONCEPTS_PER_CHUNK = 40;
 
 function unwrapRows<T>(raw: unknown): T[] {
   return (raw as { rows?: T[] }).rows ?? (raw as T[]);
@@ -327,6 +337,69 @@ async function fetchEdgesForConcepts(conceptIds: string[]): Promise<EdgeRow[]> {
   return unwrapRows<EdgeRow>(raw);
 }
 
+async function fetchSourceMembershipRows(
+  projectIds: string[],
+  conceptIds: string[],
+): Promise<SourceMembershipRow[]> {
+  if (projectIds.length === 0 || conceptIds.length < 2) return [];
+  const projectIdArr = idArray(projectIds);
+  const conceptIdArr = idArray(conceptIds);
+  const raw = await db.execute(sql`
+    WITH selected_chunks AS (
+      SELECT
+        ce.concept_id,
+        cec.note_chunk_id,
+        nc.note_id,
+        nc.project_id
+      FROM concept_extractions ce
+      JOIN concept_extraction_chunks cec
+        ON cec.extraction_id = ce.id
+      JOIN note_chunks nc
+        ON nc.id = cec.note_chunk_id
+       AND nc.deleted_at IS NULL
+      JOIN notes n
+        ON n.id = nc.note_id
+       AND n.deleted_at IS NULL
+      WHERE ce.project_id = ANY(ARRAY[${projectIdArr}])
+        AND nc.project_id = ANY(ARRAY[${projectIdArr}])
+        AND n.project_id = ANY(ARRAY[${projectIdArr}])
+        AND ce.concept_id = ANY(ARRAY[${conceptIdArr}])
+        AND ce.concept_id IS NOT NULL
+    ),
+    bounded_chunks AS (
+      SELECT note_chunk_id
+      FROM selected_chunks
+      GROUP BY note_chunk_id
+      HAVING count(DISTINCT concept_id) BETWEEN 2 AND ${SOURCE_MEMBERSHIP_MAX_CONCEPTS_PER_CHUNK}
+    ),
+    pairs AS (
+      SELECT
+        LEAST(a.concept_id, b.concept_id) AS source_id,
+        GREATEST(a.concept_id, b.concept_id) AS target_id,
+        a.note_chunk_id,
+        a.note_id,
+        a.project_id
+      FROM selected_chunks a
+      JOIN selected_chunks b
+        ON a.note_chunk_id = b.note_chunk_id
+       AND a.concept_id < b.concept_id
+      JOIN bounded_chunks bc
+        ON bc.note_chunk_id = a.note_chunk_id
+    )
+    SELECT
+      source_id,
+      target_id,
+      count(DISTINCT note_chunk_id)::int AS chunk_count,
+      array_agg(DISTINCT note_id) AS source_note_ids,
+      array_agg(DISTINCT project_id) AS project_ids
+    FROM pairs
+    GROUP BY source_id, target_id
+    ORDER BY chunk_count DESC, source_id ASC, target_id ASC
+    LIMIT ${SOURCE_MEMBERSHIP_EDGE_LIMIT}
+  `);
+  return unwrapRows<SourceMembershipRow>(raw);
+}
+
 function buildAtlasNodes(rows: ConceptRow[], limit: number): WorkspaceAtlasNode[] {
   const groups = new Map<string, ConceptRow[]>();
   for (const row of rows) {
@@ -523,6 +596,56 @@ function buildCoMentionAtlasEdges(nodes: WorkspaceAtlasNode[]): WorkspaceAtlasEd
     .slice(0, 900);
 }
 
+function buildSourceMembershipAtlasEdges(
+  rows: SourceMembershipRow[],
+  nodes: WorkspaceAtlasNode[],
+  conceptToNode: Map<string, string>,
+): WorkspaceAtlasEdge[] {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const selectedNodeIds = new Set(nodeById.keys());
+  const maxChunks = Math.max(1, ...rows.map((row) => Number(row.chunk_count)));
+  return rows.flatMap((row) => {
+    const sourceId = conceptToNode.get(row.source_id);
+    const targetId = conceptToNode.get(row.target_id);
+    if (!sourceId || !targetId || sourceId === targetId) return [];
+    if (!selectedNodeIds.has(sourceId) || !selectedNodeIds.has(targetId)) {
+      return [];
+    }
+    const source = nodeById.get(sourceId);
+    const target = nodeById.get(targetId);
+    if (!source || !target) return [];
+    const projectIds = row.project_ids?.length
+      ? [...new Set(row.project_ids)]
+      : [
+          ...new Set([
+            ...source.projectContexts.map((context) => context.projectId),
+            ...target.projectContexts.map((context) => context.projectId),
+          ]),
+        ];
+    return [
+      {
+        id: `source:${sourceId}->${targetId}`,
+        sourceId,
+        targetId,
+        edgeType: "source_membership" as const,
+        layer: "ai" as const,
+        relationType: "source-proximity",
+        weight: Math.max(0.18, Math.min(1, Number(row.chunk_count) / maxChunks)),
+        conceptEdgeIds: [],
+        sourceNoteIds: row.source_note_ids ?? [],
+        projectIds,
+        crossProject:
+          source.projectCount > 1 ||
+          target.projectCount > 1 ||
+          projectIds.length > 1,
+        stale: Boolean(source.stale || target.stale),
+        freshnessReason:
+          source.stale || target.stale ? "source_note_changed" as const : undefined,
+      },
+    ];
+  });
+}
+
 function buildExplicitNoteNodes(rows: NoteRow[]): WorkspaceAtlasNode[] {
   return rows.map((row) => ({
     id: noteNodeId(row.id),
@@ -673,15 +796,17 @@ export async function getWorkspaceOntologyAtlasForUser(
     }
   }
   const selectedNodeIds = new Set(nodes.map((node) => node.id));
-  const [edgeRows, wikiRows] = await Promise.all([
+  const [edgeRows, wikiRows, sourceMembershipRows] = await Promise.all([
     fetchEdgesForConcepts([...conceptToNode.keys()]),
     fetchWikiLinkRows(workspaceId, noteRows.map((row) => row.id)),
+    fetchSourceMembershipRows(projectIds, [...conceptToNode.keys()]),
   ]);
   const edges = [
     ...buildWikiLinkEdges(wikiRows, selectedNodeIds),
     ...tree.edges.filter(
       (edge) => selectedNodeIds.has(edge.sourceId) && selectedNodeIds.has(edge.targetId),
     ),
+    ...buildSourceMembershipAtlasEdges(sourceMembershipRows, nodes, conceptToNode),
     ...buildCoMentionAtlasEdges(nodes),
     ...buildAtlasEdges(edgeRows, nodes, conceptToNode),
   ];

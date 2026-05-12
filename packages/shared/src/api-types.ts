@@ -415,6 +415,7 @@ export const workspaceAtlasEdgeTypeSchema = z.enum([
   "wiki_link",
   "project_tree",
   "source_artifact",
+  "source_membership",
   "co_mention",
   "ai_relation",
 ]);

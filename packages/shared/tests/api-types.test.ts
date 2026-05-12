@@ -188,6 +188,20 @@ describe("workspace atlas contracts", () => {
           stale: true,
           freshnessReason: "source_note_changed",
         },
+        {
+          id: "source:concept%3Aretrieval->concept%3Aindexing",
+          sourceId: "concept:retrieval",
+          targetId: "concept:indexing",
+          edgeType: "source_membership",
+          layer: "ai",
+          relationType: "source-proximity",
+          weight: 1,
+          conceptEdgeIds: [],
+          sourceNoteIds: ["22222222-2222-4222-8222-222222222222"],
+          projectIds: ["33333333-3333-4333-8333-333333333333"],
+          crossProject: false,
+          stale: false,
+        },
       ],
     });
 
@@ -198,6 +212,7 @@ describe("workspace atlas contracts", () => {
     expect(parsed.edges.map((edge) => edge.edgeType)).toEqual([
       "wiki_link",
       "ai_relation",
+      "source_membership",
     ]);
     expect(parsed.nodes[1].stale).toBe(true);
   });

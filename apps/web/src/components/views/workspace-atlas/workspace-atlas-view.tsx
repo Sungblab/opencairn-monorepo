@@ -573,6 +573,15 @@ const ATLAS_STYLESHEET: cytoscape.StylesheetStyle[] = [
     },
   },
   {
+    selector: 'edge[edgeType = "source_membership"]',
+    style: {
+      "line-color": "#f59e0b",
+      "target-arrow-color": "#f59e0b",
+      "line-style": "dashed",
+      width: 2.25,
+    },
+  },
+  {
     selector: 'edge[edgeType = "project_tree"]',
     style: {
       "line-color": "#d97706",
