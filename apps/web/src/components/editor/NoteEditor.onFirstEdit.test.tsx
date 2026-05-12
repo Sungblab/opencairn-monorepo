@@ -169,6 +169,61 @@ describe("NoteEditor.onFirstEdit", () => {
     expect(screen.getByTestId("share-button")).toHaveTextContent("");
   });
 
+  it("keeps the title and body in a tighter writing rhythm", () => {
+    renderNoteEditor();
+
+    expect(screen.getByTestId("note-title-section")).toHaveClass("pb-3");
+    expect(screen.getByTestId("note-editor-surface")).toHaveClass("pt-4");
+    expect(screen.getByTestId("save-status")).toHaveClass("mt-2");
+  });
+
+  it("shows a multi-action selection bubble inside the editor surface", () => {
+    renderNoteEditor();
+    const body = screen.getByTestId("note-body");
+    const textNode = document.createTextNode("selected text");
+    body.appendChild(textNode);
+    const range = document.createRange();
+    range.setStart(textNode, 0);
+    range.setEnd(textNode, textNode.textContent?.length ?? 0);
+    range.getBoundingClientRect = () =>
+      ({
+        width: 80,
+        height: 18,
+        top: 120,
+        right: 220,
+        bottom: 138,
+        left: 140,
+        x: 140,
+        y: 120,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    fireEvent(document, new Event("selectionchange"));
+
+    expect(screen.getByTestId("selection-action-bubble")).toBeInTheDocument();
+    expect(screen.getByTestId("selection-ask-ai-button")).toHaveTextContent(
+      "AI에게 질문",
+    );
+    expect(screen.getByTestId("selection-comment-button")).toHaveTextContent(
+      "댓글",
+    );
+    expect(screen.getByTestId("selection-improve-button")).toHaveTextContent(
+      "개선",
+    );
+    expect(screen.getByTestId("selection-correct-button")).toHaveTextContent(
+      "교정",
+    );
+    expect(screen.getByTestId("selection-explain-button")).toHaveTextContent(
+      "설명",
+    );
+    expect(screen.getByTestId("selection-more-button")).toHaveTextContent(
+      "더보기",
+    );
+  });
+
   it("syncs the tab title from the mounted note title", () => {
     useTabsStore.setState({
       workspaceId: "ws_slug:ws",

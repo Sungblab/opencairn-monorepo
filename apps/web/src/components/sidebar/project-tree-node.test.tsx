@@ -72,6 +72,7 @@ function renderNode(
 describe("ProjectTreeNode", () => {
   beforeEach(() => {
     push.mockClear();
+    window.localStorage.clear();
     useTabsStore.setState(useTabsStore.getInitialState(), true);
   });
 
@@ -440,6 +441,40 @@ describe("ProjectTreeNode", () => {
       "Delete me",
       "note-1",
     );
+  });
+
+  it("pins a note row to sidebar favorites from the row action menu", () => {
+    const node = mkNode({
+      kind: "note",
+      id: "tree-note-favorite",
+      target_id: "note-favorite",
+      parent_id: null,
+      label: "서비스 에이전트 문서",
+      child_count: 0,
+    });
+    renderNode(node);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "sidebar.tree_menu.row_actions" }),
+    );
+    fireEvent.click(
+      screen.getByRole("menuitem", {
+        name: "sidebar.tree_menu.favorite",
+      }),
+    );
+
+    const raw = window.localStorage.getItem(
+      "opencairn:sidebar:favorites:acme",
+    );
+    expect(raw).not.toBeNull();
+    expect(JSON.parse(raw ?? "[]")).toMatchObject([
+      {
+        id: "tree-note-favorite",
+        label: "서비스 에이전트 문서",
+        href: "/ko/workspace/acme/note/note-favorite",
+        kind: "note",
+      },
+    ]);
   });
 
   it("keeps row actions visible for the selected row", () => {

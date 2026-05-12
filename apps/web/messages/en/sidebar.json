@@ -30,8 +30,42 @@
     "runs": "Runs",
     "generate_document": "Generate doc",
     "trash": "Trash",
+    "chat": "Chat",
+    "tools": "Tools",
+    "notifications": "Notifications",
+    "graph": "Project graph",
+    "agents": "Agents",
+    "learn": "Learn",
+    "atlas": "Ontology Atlas",
+    "shared_links": "Shared links",
+    "public_pages": "Public pages",
+    "synthesis_export": "Document export",
+    "settings": "Workspace settings",
+    "help": "Help",
+    "feedback": "Feedback",
+    "changelog": "Updates",
     "more_aria": "More",
+    "create": "Create",
     "collapse_sidebar": "Collapse left sidebar"
+  },
+  "sections": {
+    "create": "Quick create",
+    "favorites": "Favorites",
+    "files": "Files",
+    "recent": "Recent",
+    "service_agent": "Service agent",
+    "project_tools": "Project tools",
+    "publish": "Share and publish",
+    "workspace_tools": "Workspace",
+    "help": "Help"
+  },
+  "favorites": {
+    "empty": "No pinned items",
+    "hint": "Pin frequent notes from a file row's more menu.",
+    "remove": "Remove from favorites"
+  },
+  "recent": {
+    "empty": "No recent work"
   },
   "more_menu": {
     "atlas": "Ontology Atlas",
@@ -91,6 +125,7 @@
     "rename_shortcut": "F2",
     "duplicate": "Duplicate",
     "copy_link": "Copy link",
+    "favorite": "Pin to favorites",
     "new_child_page": "New child page",
     "new_subfolder": "New subfolder",
     "empty_drop_hint": "Drag items here or create a child page.",

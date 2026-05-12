@@ -206,6 +206,38 @@ describe("SlashMenu focus gate", () => {
     expect(editor.tf.deleteBackward).toHaveBeenCalledTimes(1);
   });
 
+  it("inserts a real code block from the slash command", () => {
+    const editor = makeEditor();
+
+    render(
+      wrap(
+        <>
+          <div data-slate-editor="true" tabIndex={-1} data-testid="editor" />
+          <SlashMenu editor={editor} />
+        </>,
+      ),
+    );
+
+    const editorEl = screen.getByTestId("editor") as HTMLDivElement;
+    editorEl.focus();
+    pressSlashAndFlush();
+
+    fireEvent.mouseDown(screen.getByTestId("slash-cmd-code"));
+
+    expect(editor.tf.insertNodes).toHaveBeenCalledWith(
+      {
+        type: "code_block",
+        language: "plaintext",
+        children: [{ type: "code_line", children: [{ text: "" }] }],
+      },
+      { select: true },
+    );
+    expect(editor.tf.insertNodes).toHaveBeenCalledWith(
+      { type: "p", children: [{ text: "" }] },
+      { select: true },
+    );
+  });
+
   it("opens as a lightweight command menu without dimming the whole page", () => {
     render(
       wrap(
