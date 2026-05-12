@@ -312,6 +312,61 @@ describe("GET /api/projects/:projectId/knowledge-surface", () => {
     );
   });
 
+  it("returns explicit note links for timeline even when concepts are absent", async () => {
+    const [sourceNote] = await db
+      .insert(notes)
+      .values({
+        projectId: ctx.projectId,
+        workspaceId: ctx.workspaceId,
+        title: "Timeline source",
+        type: "wiki",
+        inheritParent: true,
+      })
+      .returning({ id: notes.id });
+    const [targetNote] = await db
+      .insert(notes)
+      .values({
+        projectId: ctx.projectId,
+        workspaceId: ctx.workspaceId,
+        title: "Timeline target",
+        type: "wiki",
+        inheritParent: true,
+      })
+      .returning({ id: notes.id });
+    await db.insert(wikiLinks).values({
+      workspaceId: ctx.workspaceId,
+      sourceNoteId: sourceNote.id,
+      targetNoteId: targetNote.id,
+    });
+
+    const res = await app.request(
+      `/api/projects/${ctx.projectId}/knowledge-surface?view=timeline`,
+      { headers: { cookie: await signSessionCookie(ctx.userId) } },
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      viewType: string;
+      noteLinks?: Array<{
+        sourceNoteId: string;
+        sourceTitle: string;
+        targetNoteId: string;
+        targetTitle: string;
+      }>;
+    };
+    expect(body.viewType).toBe("timeline");
+    expect(body.noteLinks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sourceNoteId: sourceNote.id,
+          sourceTitle: "Timeline source",
+          targetNoteId: targetNote.id,
+          targetTitle: "Timeline target",
+        }),
+      ]),
+    );
+  });
+
   it("projects same-chunk source proximity into knowledge surface edges", async () => {
     const seeded = await seedSupportedEdge(ctx);
     const [sourceExtraction] = await db

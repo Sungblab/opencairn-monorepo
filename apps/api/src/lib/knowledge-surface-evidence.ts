@@ -804,17 +804,18 @@ export async function getKnowledgeSurfaceForUser(
     support: support.get(edge.id) ?? missingSupport(),
   }));
   const conceptIds = base.nodes.map((node) => node.id);
-  const [displayEdges, noteLinks] =
+  const displayEdgesPromise =
     opts.view === "timeline"
-      ? [[], []]
-      : await Promise.all([
-          Promise.all([
-            selectWikiLinkEdges(projectId, conceptIds),
-            selectSourceProximityEdges(projectId, conceptIds),
-            selectCoMentionEdges(conceptIds),
-          ]).then((parts) => parts.flat()),
-          selectProjectWikiNoteLinks(projectId),
-        ]);
+      ? Promise.resolve<KnowledgeSurfaceEdge[]>([])
+      : Promise.all([
+          selectWikiLinkEdges(projectId, conceptIds),
+          selectSourceProximityEdges(projectId, conceptIds),
+          selectCoMentionEdges(conceptIds),
+        ]).then((parts) => parts.flat());
+  const [displayEdges, noteLinks] = await Promise.all([
+    displayEdgesPromise,
+    selectProjectWikiNoteLinks(projectId),
+  ]);
   const edges = mergeSurfaceEdges(semanticEdges, displayEdges);
   const cards = opts.view === "cards" ? await selectCards(base.nodes) : undefined;
 
