@@ -59,6 +59,21 @@ def test_internal_wiki_link() -> None:
     assert link[0]["label"] == "Other"
 
 
+def test_unresolved_bracket_wiki_link_preserves_title_reference() -> None:
+    out = md_to_plate(
+        "[[Missing Page]]\n",
+        uuid_link_map={},
+        idx_to_note_id={},
+        resolve_asset=_noop_resolve,
+    )
+    para = out[0]
+    link = [c for c in para["children"] if c.get("type") == "wikilink"]
+    assert len(link) == 1
+    assert link[0]["noteId"] is None
+    assert link[0]["label"] == "Missing Page"
+    assert link[0]["children"][0]["text"] == "Missing Page"
+
+
 def test_external_link_preserved() -> None:
     out = md_to_plate(
         "[Google](https://google.com)\n",

@@ -295,7 +295,7 @@ def _flatten_inline(
         return link_stack[-1]["children"] if link_stack else out
 
     def push_text(text: str) -> None:
-        if not link_title_map or "[[" not in text:
+        if "[[" not in text:
             sink().append(_text_leaf(text, **marks))
             return
         pos = 0
@@ -306,20 +306,17 @@ def _flatten_inline(
             key = target.lower().replace("\\", "/").removesuffix(".md").removesuffix(
                 ".markdown"
             )
-            idx = link_title_map.get(key)
+            idx = link_title_map.get(key) if link_title_map else None
             note_id = idx_to_note_id.get(idx) if idx is not None else None
             label = target.rsplit("/", 1)[-1]
-            if note_id:
-                sink().append(
-                    {
-                        "type": "wikilink",
-                        "noteId": note_id,
-                        "label": label,
-                        "children": [_text_leaf(label)],
-                    }
-                )
-            else:
-                sink().append(_text_leaf(match.group(0), **marks))
+            sink().append(
+                {
+                    "type": "wikilink",
+                    "noteId": note_id,
+                    "label": label,
+                    "children": [_text_leaf(label)],
+                }
+            )
             pos = match.end()
         if pos < len(text):
             sink().append(_text_leaf(text[pos:], **marks))
