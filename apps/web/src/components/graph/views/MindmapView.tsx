@@ -5,6 +5,7 @@ import cytoscape from "cytoscape";
 import dagre from "cytoscape-dagre";
 import { useLocale, useTranslations } from "next-intl";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import type { ViewNode } from "@opencairn/shared";
 import { urls } from "@/lib/urls";
 import { useTabsStore } from "@/stores/tabs-store";
 import { useProjectGraph } from "../useProjectGraph";
@@ -35,6 +36,63 @@ function edgeElementId(edge: GroundedEdge) {
   return edge.id ?? `${edge.sourceId}->${edge.targetId}:${edge.relationType}`;
 }
 
+function withNoteLinkMindmapNodes(
+  nodes: ViewNode[],
+  edges: GroundedEdge[],
+  noteLinks: Array<{
+    sourceNoteId: string;
+    sourceTitle: string;
+    targetNoteId: string;
+    targetTitle: string;
+  }> | undefined,
+): { nodes: ViewNode[]; edges: GroundedEdge[]; noteNodeIds: Set<string> } {
+  if (!noteLinks?.length) return { nodes, edges, noteNodeIds: new Set() };
+  const nodeMap = new Map(nodes.map((node) => [node.id, node]));
+  const noteDegree = new Map<string, number>();
+  const noteTitles = new Map<string, string>();
+  for (const link of noteLinks) {
+    noteTitles.set(link.sourceNoteId, link.sourceTitle);
+    noteTitles.set(link.targetNoteId, link.targetTitle);
+    noteDegree.set(link.sourceNoteId, (noteDegree.get(link.sourceNoteId) ?? 0) + 1);
+    noteDegree.set(link.targetNoteId, (noteDegree.get(link.targetNoteId) ?? 0) + 1);
+  }
+  const noteNodeIds = new Set<string>();
+  for (const [noteId, title] of noteTitles) {
+    if (!nodeMap.has(noteId)) {
+      noteNodeIds.add(noteId);
+      nodeMap.set(noteId, {
+        id: noteId,
+        name: title,
+        description: "",
+        degree: noteDegree.get(noteId) ?? 1,
+        noteCount: 1,
+        firstNoteId: noteId,
+      });
+    }
+  }
+  const edgeMap = new Map(edges.map((edge) => [edgeElementId(edge), edge]));
+  for (const link of noteLinks) {
+    const id = `note-link:${link.sourceNoteId}->${link.targetNoteId}`;
+    if (edgeMap.has(id)) continue;
+    edgeMap.set(id, {
+      id,
+      sourceId: link.sourceNoteId,
+      targetId: link.targetNoteId,
+      relationType: "wiki-link",
+      weight: 1,
+      surfaceType: "wiki_link",
+      displayOnly: true,
+      sourceNoteIds: [link.sourceNoteId, link.targetNoteId],
+      sourceNoteLinks: [link],
+    });
+  }
+  return {
+    nodes: [...nodeMap.values()],
+    edges: [...edgeMap.values()],
+    noteNodeIds,
+  };
+}
+
 export default function MindmapView({ projectId, root }: Props) {
   const t = useTranslations("graph");
   const locale = useLocale();
@@ -52,18 +110,30 @@ export default function MindmapView({ projectId, root }: Props) {
   const selectedEdgeParam = params.get("edge");
   const consumedEdgeParam = useRef<string | null>(null);
 
+  const projected = useMemo(
+    () =>
+      withNoteLinkMindmapNodes(
+        data?.nodes ?? [],
+        data?.edges ?? [],
+        data?.noteLinks,
+      ),
+    [data?.edges, data?.nodes, data?.noteLinks],
+  );
+
   const elements = useMemo(() => {
     if (!data) return [];
     return [
-      ...data.nodes.map((n) => ({
+      ...projected.nodes.map((n) => ({
         data: {
           id: n.id,
           label: n.name,
           type: "node",
           isRoot: n.id === data.rootId,
+          noteOnly: projected.noteNodeIds.has(n.id),
+          firstNoteId: n.firstNoteId ?? null,
         },
       })),
-      ...data.edges.map((e) => ({
+      ...projected.edges.map((e) => ({
         data: {
           id: edgeElementId(e),
           source: e.sourceId,
@@ -75,19 +145,19 @@ export default function MindmapView({ projectId, root }: Props) {
         },
       })),
     ];
-  }, [data]);
+  }, [data, projected.edges, projected.noteNodeIds, projected.nodes]);
 
   const selectedEdge = useMemo(
-    () => data?.edges.find((edge) => edgeElementId(edge) === selectedEdgeId) as
+    () => projected.edges.find((edge) => edgeElementId(edge) === selectedEdgeId) as
       | GroundedEdge
       | undefined,
-    [data?.edges, selectedEdgeId],
+    [projected.edges, selectedEdgeId],
   );
   const selectedCoMentionEdge = useMemo(
-    () => data?.edges.find((edge) => edgeElementId(edge) === selectedCoMentionEdgeId) as
+    () => projected.edges.find((edge) => edgeElementId(edge) === selectedCoMentionEdgeId) as
       | GroundedEdge
       | undefined,
-    [data?.edges, selectedCoMentionEdgeId],
+    [projected.edges, selectedCoMentionEdgeId],
   );
   const bundlesById = useMemo(
     () => evidenceBundleById(data?.evidenceBundles),
@@ -102,11 +172,11 @@ export default function MindmapView({ projectId, root }: Props) {
       return;
     }
     if (selectedEdgeParam === consumedEdgeParam.current) return;
-    if (data?.edges.some((edge) => edgeElementId(edge) === selectedEdgeParam)) {
+    if (projected.edges.some((edge) => edgeElementId(edge) === selectedEdgeParam)) {
       setSelectedEdgeId(selectedEdgeParam);
       consumedEdgeParam.current = selectedEdgeParam;
     }
-  }, [data?.edges, selectedEdgeParam]);
+  }, [projected.edges, selectedEdgeParam]);
 
   // Latest tap handler. Closes over `params`, `router`, `data?.rootId` —
   // all of which can change while the cytoscape instance is mounted (e.g.
@@ -147,14 +217,17 @@ export default function MindmapView({ projectId, root }: Props) {
     [addOrReplacePreview, locale, router, wsSlug],
   );
 
-  const handlerRef = useRef(onNodeTap);
+  const nodeTapRef = useRef({
+    onNodeTap,
+    openSourceNote,
+  });
   useEffect(() => {
-    handlerRef.current = onNodeTap;
-  }, [onNodeTap]);
+    nodeTapRef.current = { onNodeTap, openSourceNote };
+  }, [onNodeTap, openSourceNote]);
 
   // Bind the cytoscape `tap` listener once per dataset. We re-bind when
   // `data` changes because react-cytoscapejs may rebuild the underlying
-  // graph; pointing at `handlerRef.current` keeps the bound callback
+  // graph; pointing at `nodeTapRef.current` keeps the bound callback
   // current without re-binding on every render.
   useEffect(() => {
     const cy = cyRef.current;
@@ -164,7 +237,12 @@ export default function MindmapView({ projectId, root }: Props) {
       const node = evt.target;
       if (node?.isNode?.()) {
         setSelectedCoMentionEdgeId(null);
-        handlerRef.current(node.id());
+        const firstNoteId = node.data("firstNoteId") as string | null | undefined;
+        if (node.data("noteOnly") && firstNoteId) {
+          nodeTapRef.current.openSourceNote(firstNoteId, String(node.data("label") ?? "Note"));
+          return;
+        }
+        nodeTapRef.current.onNodeTap(node.id());
       } else if (node?.isEdge?.()) {
         if (node.data("surfaceType") === "co_mention") {
           setSelectedCoMentionEdgeId(node.id());
@@ -193,7 +271,7 @@ export default function MindmapView({ projectId, root }: Props) {
       </div>
     );
   }
-  if (!data || data.nodes.length === 0) {
+  if (!data || projected.nodes.length === 0) {
     return (
       <div
         data-testid="mindmap-needs-root"
@@ -235,6 +313,14 @@ export default function MindmapView({ projectId, root }: Props) {
               "text-background-opacity": 0.9,
               "text-background-padding": 3,
               "text-margin-y": -8,
+            },
+          },
+          {
+            selector: "node[?noteOnly]",
+            style: {
+              "background-color": "#3b82f6",
+              "border-color": "#bfdbfe",
+              "border-width": 2,
             },
           },
           {

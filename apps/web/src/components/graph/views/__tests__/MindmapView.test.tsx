@@ -101,6 +101,60 @@ describe("MindmapView", () => {
     );
   });
 
+  it("renders standalone note wiki links in the mindmap", () => {
+    (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: {
+        viewType: "mindmap",
+        layout: "dagre",
+        rootId: null,
+        nodes: [],
+        edges: [],
+        noteLinks: [
+          {
+            sourceNoteId: "11111111-1111-4111-8111-111111111111",
+            sourceTitle: "Source note",
+            targetNoteId: "22222222-2222-4222-8222-222222222222",
+            targetTitle: "Target note",
+          },
+        ],
+        truncated: false,
+        totalConcepts: 0,
+      },
+      isLoading: false,
+      error: null,
+    });
+    wrap(<MindmapView projectId="p-1" />);
+
+    const elements = JSON.parse(
+      screen.getByTestId("cy").getAttribute("data-elements") ?? "[]",
+    ) as Array<{ data: { id: string; label?: string; type: string; noteOnly?: boolean } }>;
+    expect(elements).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          data: expect.objectContaining({
+            id: "11111111-1111-4111-8111-111111111111",
+            label: "Source note",
+            noteOnly: true,
+          }),
+        }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            id: "22222222-2222-4222-8222-222222222222",
+            label: "Target note",
+            noteOnly: true,
+          }),
+        }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            id: "note-link:11111111-1111-4111-8111-111111111111->22222222-2222-4222-8222-222222222222",
+            type: "edge",
+            surfaceType: "wiki_link",
+          }),
+        }),
+      ]),
+    );
+  });
+
   it("uses relation-aware fallback edge ids for parallel edges", () => {
     (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
       data: {
@@ -187,6 +241,9 @@ describe("MindmapView", () => {
       )
         ?.style["line-style"],
     ).toBe("dotted");
+    expect(
+      stylesheet.find((style) => style.selector === "node[?noteOnly]"),
+    ).toBeTruthy();
   });
 
   it("calls useProjectGraph with view='mindmap' + root", () => {
