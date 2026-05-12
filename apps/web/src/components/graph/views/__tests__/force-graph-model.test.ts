@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildForceGraphData,
+  getGraphLabelFontSize,
   getGraphLabel,
   getGraphNeighborhood,
   truncateGraphLabel,
@@ -62,6 +63,9 @@ describe("force graph model", () => {
     const graph = buildForceGraphData(snap);
 
     expect(graph.nodes).toHaveLength(3);
+    expect(graph.nodes[0]?.color).toMatch(/^#[0-9a-f]{6}$/i);
+    expect(graph.nodes[0]?.isHub).toBe(true);
+    expect(graph.nodes[1]?.isHub).toBe(false);
     expect(graph.links).toEqual([
       expect.objectContaining({
         edgeId: "44444444-4444-4444-8444-444444444444",
@@ -114,6 +118,13 @@ describe("force graph model", () => {
         neighborIds: new Set(),
       }),
     ).toBe("Child");
+  });
+
+  it("keeps labels small at every zoom level", () => {
+    expect(getGraphLabelFontSize({ zoom: 0.4, important: false })).toBe(0);
+    expect(getGraphLabelFontSize({ zoom: 0.4, important: true })).toBe(8);
+    expect(getGraphLabelFontSize({ zoom: 1.2, important: false })).toBe(8);
+    expect(getGraphLabelFontSize({ zoom: 2.4, important: true })).toBe(9);
   });
 
   it("builds one-hop highlight sets for hover and selected states", () => {

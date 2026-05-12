@@ -18,6 +18,7 @@ import { EdgeEvidencePanel } from "./EdgeEvidencePanel";
 import {
   buildForceGraphData,
   getGraphLabel,
+  getGraphLabelFontSize,
   getGraphNeighborhood,
   type ForceGraphLink,
   type ForceGraphNode,
@@ -187,7 +188,7 @@ function resolveCanvasPalette(el: HTMLElement | null): GraphCanvasPalette {
     border,
     fadedNode: rgbaFromHex(foregroundMuted, 0.32, DEFAULT_CANVAS_PALETTE.fadedNode),
     mutedNode: rgbaFromHex(foregroundMuted, 0.82, DEFAULT_CANVAS_PALETTE.mutedNode),
-    inactiveLink: rgbaFromHex(border, 0.42, DEFAULT_CANVAS_PALETTE.inactiveLink),
+    inactiveLink: rgbaFromHex(border, 0.36, DEFAULT_CANVAS_PALETTE.inactiveLink),
     activeLink: rgbaFromHex(foregroundMuted, 0.58, DEFAULT_CANVAS_PALETTE.activeLink),
     supportedLink: rgbaFromHex(foreground, 0.72, DEFAULT_CANVAS_PALETTE.supportedLink),
     disputedLink: rgbaFromHex(destructive, 0.72, DEFAULT_CANVAS_PALETTE.disputedLink),
@@ -356,24 +357,33 @@ export default function GraphView({ projectId }: { projectId: string }) {
         hoveredNodeId === forceNode.id ||
         neighborhood.nodeIds.has(forceNode.id);
       const faded = activeNodeId ? !important : false;
-      const radius = Math.max(4, Math.min(12, forceNode.val ?? 5));
+      const radius = Math.max(4, Math.min(14, forceNode.val ?? 5));
       const palette = canvasPaletteRef.current;
       ctx.beginPath();
       ctx.arc(forceNode.x ?? 0, forceNode.y ?? 0, radius, 0, 2 * Math.PI, false);
       ctx.fillStyle = selectedNodeId === forceNode.id
-        ? palette.primary
+        ? forceNode.color
         : hoveredNodeId === forceNode.id
-          ? palette.foreground
+          ? forceNode.color
           : faded
             ? palette.fadedNode
-            : palette.mutedNode;
+            : forceNode.color;
       ctx.fill();
-      if (important) {
-        ctx.lineWidth = 1.5 / globalScale;
-        ctx.strokeStyle = selectedNodeId === forceNode.id
-          ? palette.primary
-          : palette.foreground;
-        ctx.stroke();
+      ctx.lineWidth = (forceNode.isHub ? 2 : 1.2) / Math.max(1, globalScale);
+      ctx.strokeStyle = faded ? "rgba(255, 255, 255, 0.45)" : palette.background;
+      ctx.stroke();
+      if (important || forceNode.isHub) {
+        ctx.beginPath();
+        ctx.arc(
+          forceNode.x ?? 0,
+          forceNode.y ?? 0,
+          radius + (forceNode.isHub ? 5 : 3),
+          0,
+          2 * Math.PI,
+          false,
+        );
+        ctx.fillStyle = `${forceNode.color}24`;
+        ctx.fill();
       }
 
       const label = getGraphLabel(forceNode, {
@@ -384,15 +394,21 @@ export default function GraphView({ projectId }: { projectId: string }) {
         neighborIds: neighborhood.nodeIds,
       });
       if (!label) return;
-      const fontSize = Math.max(9, 12 / Math.max(0.9, globalScale));
-      ctx.font = `600 ${fontSize}px Pretendard, Inter, sans-serif`;
+      const fontSize = getGraphLabelFontSize({
+        zoom: globalScale,
+        important,
+      });
+      if (fontSize === 0) return;
+      ctx.font = `${important ? 600 : 500} ${fontSize}px Pretendard, Inter, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
       const textWidth = ctx.measureText(label).width;
       const x = forceNode.x ?? 0;
-      const y = (forceNode.y ?? 0) + radius + 4;
-      ctx.fillStyle = palette.labelBackground;
-      ctx.fillRect(x - textWidth / 2 - 4, y - 2, textWidth + 8, fontSize + 5);
+      const y = (forceNode.y ?? 0) + radius + 5;
+      if (important) {
+        ctx.fillStyle = palette.labelBackground;
+        ctx.fillRect(x - textWidth / 2 - 4, y - 2, textWidth + 8, fontSize + 5);
+      }
       ctx.fillStyle = faded ? palette.fadedLabel : palette.foreground;
       ctx.fillText(label, x, y);
     },
@@ -469,11 +485,11 @@ export default function GraphView({ projectId }: { projectId: string }) {
           }}
           linkWidth={(link) =>
             linkActive(link)
-              ? Math.max(0.8, Math.min(3, link.weight * 2))
-              : 0.45
+              ? Math.max(0.8, Math.min(2.2, link.weight * 1.35))
+              : 0.35
           }
           linkDirectionalArrowLength={(link) =>
-            linkActive(link) ? 4 : 0
+            linkActive(link) ? 2.5 : 0
           }
           linkDirectionalArrowRelPos={1}
           linkLineDash={(link) => {
@@ -482,9 +498,9 @@ export default function GraphView({ projectId }: { projectId: string }) {
             if (status === "missing") return [2, 4];
             return null;
           }}
-          cooldownTicks={120}
-          d3AlphaDecay={0.035}
-          d3VelocityDecay={0.32}
+          cooldownTicks={180}
+          d3AlphaDecay={0.025}
+          d3VelocityDecay={0.24}
           enableNodeDrag
           onNodeHover={(node) =>
             setHoveredNodeId(node ? node.id : null)

@@ -2,6 +2,16 @@ import type { GroundedGraphResponse } from "../grounded-types";
 
 export const GRAPH_LABEL_MAX = 28;
 export const GRAPH_FULL_LABEL_ZOOM_THRESHOLD = 1.0;
+const HUB_DEGREE_THRESHOLD = 6;
+const GRAPH_NODE_COLORS = [
+  "#22c55e",
+  "#06b6d4",
+  "#f97316",
+  "#a78bfa",
+  "#60a5fa",
+  "#f43f5e",
+] as const;
+const HUB_NODE_COLOR = "#ef4444";
 
 export type ForceGraphNode = {
   id: string;
@@ -12,6 +22,8 @@ export type ForceGraphNode = {
   noteCount: number;
   firstNoteId: string | null;
   val: number;
+  color: string;
+  isHub: boolean;
 };
 
 export type ForceGraphLink = {
@@ -51,6 +63,19 @@ function edgeId(edge: EdgeIdentity): string {
   return edge.id ?? `${edge.sourceId}->${edge.targetId}:${edge.relationType}`;
 }
 
+function hashString(value: string): number {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+}
+
+function graphNodeColor(id: string, degree: number): string {
+  if (degree >= HUB_DEGREE_THRESHOLD) return HUB_NODE_COLOR;
+  return GRAPH_NODE_COLORS[hashString(id) % GRAPH_NODE_COLORS.length];
+}
+
 export function buildForceGraphData(
   snap: GroundedGraphResponse,
 ): ForceGraphData {
@@ -64,7 +89,9 @@ export function buildForceGraphData(
       degree,
       noteCount: node.noteCount ?? 0,
       firstNoteId: node.firstNoteId ?? null,
-      val: Math.max(3, Math.min(12, 3 + Math.sqrt(degree + 1) * 2)),
+      val: Math.max(4, Math.min(16, 5 + Math.sqrt(degree + 1) * 2.2)),
+      color: graphNodeColor(node.id, degree),
+      isHub: degree >= HUB_DEGREE_THRESHOLD,
     };
   });
   const topNodeIds = new Set(
@@ -120,4 +147,13 @@ export function getGraphLabel(
 
   if (!important && opts.zoom < GRAPH_FULL_LABEL_ZOOM_THRESHOLD) return "";
   return node.shortLabel;
+}
+
+export function getGraphLabelFontSize(opts: {
+  zoom: number;
+  important: boolean;
+}): number {
+  if (!opts.important && opts.zoom < GRAPH_FULL_LABEL_ZOOM_THRESHOLD) return 0;
+  if (opts.important) return opts.zoom >= 1.8 ? 9 : 8;
+  return 8;
 }
