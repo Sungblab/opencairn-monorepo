@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useProjectGraph } from "../useProjectGraph";
 import { evidenceBundleById, type GroundedEdge } from "../grounded-types";
+import { CoMentionEdgePanel } from "./CoMentionEdgePanel";
 import { EdgeEvidencePanel } from "./EdgeEvidencePanel";
 
 // react-cytoscapejs imports cytoscape at module top level. Disable SSR — the
@@ -41,6 +42,7 @@ export default function MindmapView({ projectId, root }: Props) {
     root,
   });
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [selectedCoMentionEdgeId, setSelectedCoMentionEdgeId] = useState<string | null>(null);
   const selectedEdgeParam = params.get("edge");
   const consumedEdgeParam = useRef<string | null>(null);
 
@@ -63,6 +65,7 @@ export default function MindmapView({ projectId, root }: Props) {
           type: "edge",
           supportStatus: e.support?.status,
           surfaceType: e.surfaceType ?? "semantic_relation",
+          sourceNoteIds: e.sourceNoteIds ?? [],
         },
       })),
     ];
@@ -73,6 +76,12 @@ export default function MindmapView({ projectId, root }: Props) {
       | GroundedEdge
       | undefined,
     [data?.edges, selectedEdgeId],
+  );
+  const selectedCoMentionEdge = useMemo(
+    () => data?.edges.find((edge) => edgeElementId(edge) === selectedCoMentionEdgeId) as
+      | GroundedEdge
+      | undefined,
+    [data?.edges, selectedCoMentionEdgeId],
   );
   const bundlesById = useMemo(
     () => evidenceBundleById(data?.evidenceBundles),
@@ -127,9 +136,15 @@ export default function MindmapView({ projectId, root }: Props) {
       if (evt.target === cy) return;
       const node = evt.target;
       if (node?.isNode?.()) {
+        setSelectedCoMentionEdgeId(null);
         handlerRef.current(node.id());
       } else if (node?.isEdge?.()) {
-        if (node.data("surfaceType") === "co_mention") return;
+        if (node.data("surfaceType") === "co_mention") {
+          setSelectedCoMentionEdgeId(node.id());
+          setSelectedEdgeId(null);
+          return;
+        }
+        setSelectedCoMentionEdgeId(null);
         setSelectedEdgeId(node.id());
       }
     };
@@ -249,6 +264,12 @@ export default function MindmapView({ projectId, root }: Props) {
               : null
           }
           onClose={() => setSelectedEdgeId(null)}
+        />
+      )}
+      {selectedCoMentionEdge && (
+        <CoMentionEdgePanel
+          edge={selectedCoMentionEdge}
+          onClose={() => setSelectedCoMentionEdgeId(null)}
         />
       )}
     </div>

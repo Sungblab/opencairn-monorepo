@@ -14,6 +14,7 @@ import { GraphError } from "../GraphError";
 import { GraphEmpty } from "../GraphEmpty";
 import { INITIAL_FILTERS, type FilterState } from "../graph-types";
 import { evidenceBundleById, type GroundedEdge } from "../grounded-types";
+import { CoMentionEdgePanel } from "./CoMentionEdgePanel";
 import { EdgeEvidencePanel } from "./EdgeEvidencePanel";
 import {
   buildForceGraphData,
@@ -207,6 +208,7 @@ export default function GraphView({ projectId }: { projectId: string }) {
   const { data, isLoading, error, expand } = useProjectGraph(projectId);
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [selectedCoMentionEdgeId, setSelectedCoMentionEdgeId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const selectedEdgeParam = searchParams.get("edge");
@@ -283,6 +285,12 @@ export default function GraphView({ projectId }: { projectId: string }) {
       | GroundedEdge
       | undefined,
     [filteredData?.edges, selectedEdgeId],
+  );
+  const selectedCoMentionEdge = useMemo(
+    () => filteredData?.edges.find((edge) => edge.id === selectedCoMentionEdgeId) as
+      | GroundedEdge
+      | undefined,
+    [filteredData?.edges, selectedCoMentionEdgeId],
   );
   const bundlesById = useMemo(
     () => evidenceBundleById(filteredData?.evidenceBundles),
@@ -527,6 +535,7 @@ export default function GraphView({ projectId }: { projectId: string }) {
             }
             setSelectedNodeId(node.id);
             setSelectedEdgeId(null);
+            setSelectedCoMentionEdgeId(null);
             centerNode(node);
           }}
           onNodeDragEnd={(node) => {
@@ -534,13 +543,20 @@ export default function GraphView({ projectId }: { projectId: string }) {
             node.fy = node.y;
           }}
           onLinkClick={(link) => {
-            if (link.displayOnly) return;
+            if (link.displayOnly) {
+              setSelectedCoMentionEdgeId(link.edgeId);
+              setSelectedEdgeId(null);
+              setSelectedNodeId(null);
+              return;
+            }
             setSelectedEdgeId(link.edgeId);
+            setSelectedCoMentionEdgeId(null);
             setSelectedNodeId(null);
           }}
           onBackgroundClick={() => {
             setSelectedNodeId(null);
             setSelectedEdgeId(null);
+            setSelectedCoMentionEdgeId(null);
           }}
           showPointerCursor
         />
@@ -574,6 +590,12 @@ export default function GraphView({ projectId }: { projectId: string }) {
                 : null
             }
             onClose={() => setSelectedEdgeId(null)}
+          />
+        )}
+        {selectedCoMentionEdge && (
+          <CoMentionEdgePanel
+            edge={selectedCoMentionEdge}
+            onClose={() => setSelectedCoMentionEdgeId(null)}
           />
         )}
       </div>

@@ -76,6 +76,14 @@
       "missing": "No evidence"
     }
   },
+  "coMention": {
+    "title": "Shared source link",
+    "subtitle": "These concepts appear in the same source.",
+    "body": "This is a display-only link, not an explicit claim relation. It is created when two concepts appear together in the same note or source.",
+    "sourceCount": "{count} shared sources",
+    "noSources": "No sources to show.",
+    "close": "Close shared source link"
+  },
   "ai": {
     "trigger": "Generate with AI",
     "dialogTitle": "Generate a view with AI",
