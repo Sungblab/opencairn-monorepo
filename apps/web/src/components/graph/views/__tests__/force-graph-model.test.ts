@@ -122,14 +122,35 @@ describe("force graph model", () => {
         selectedNodeId: null,
         neighborIds: new Set(),
       }),
+    ).toBe("");
+
+    expect(
+      getGraphLabel(node, {
+        zoom: 1.35,
+        topNodeIds: new Set([node.id]),
+        hoveredNodeId: null,
+        selectedNodeId: null,
+        neighborIds: new Set(),
+      }),
+    ).toBe("Child");
+
+    expect(
+      getGraphLabel(node, {
+        zoom: 1.7,
+        topNodeIds: new Set(),
+        hoveredNodeId: null,
+        selectedNodeId: null,
+        neighborIds: new Set(),
+      }),
     ).toBe("Child");
   });
 
   it("keeps labels small at every zoom level", () => {
     expect(getGraphLabelFontSize({ zoom: 0.4, important: false })).toBe(0);
-    expect(getGraphLabelFontSize({ zoom: 0.4, important: true })).toBe(8);
-    expect(getGraphLabelFontSize({ zoom: 1.2, important: false })).toBe(8);
-    expect(getGraphLabelFontSize({ zoom: 2.4, important: true })).toBe(9);
+    expect(getGraphLabelFontSize({ zoom: 0.4, important: true })).toBe(7);
+    expect(getGraphLabelFontSize({ zoom: 1.2, important: false })).toBe(0);
+    expect(getGraphLabelFontSize({ zoom: 1.7, important: false })).toBe(7);
+    expect(getGraphLabelFontSize({ zoom: 2.4, important: true })).toBe(8);
   });
 
   it("builds one-hop highlight sets for hover and selected states", () => {

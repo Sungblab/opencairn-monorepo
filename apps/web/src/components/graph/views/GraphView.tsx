@@ -352,10 +352,12 @@ export default function GraphView({ projectId }: { projectId: string }) {
       globalScale: number,
     ) => {
       const forceNode = node;
+      const topNode = graphData?.topNodeIds.has(forceNode.id) ?? false;
       const important =
         selectedNodeId === forceNode.id ||
         hoveredNodeId === forceNode.id ||
         neighborhood.nodeIds.has(forceNode.id);
+      const labelImportant = important || topNode;
       const faded = activeNodeId ? !important : false;
       const radius = Math.max(4, Math.min(14, forceNode.val ?? 5));
       const palette = canvasPaletteRef.current;
@@ -398,16 +400,16 @@ export default function GraphView({ projectId }: { projectId: string }) {
       if (!label) return;
       const fontSize = getGraphLabelFontSize({
         zoom: globalScale,
-        important,
+        important: labelImportant,
       });
       if (fontSize === 0) return;
-      ctx.font = `${important ? 600 : 500} ${fontSize}px Pretendard, Inter, sans-serif`;
+      ctx.font = `${labelImportant ? 600 : 500} ${fontSize}px Pretendard, Inter, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
       const textWidth = ctx.measureText(label).width;
       const x = forceNode.x ?? 0;
       const y = (forceNode.y ?? 0) + radius + 5;
-      if (important) {
+      if (labelImportant) {
         ctx.fillStyle = palette.labelBackground;
         ctx.fillRect(x - textWidth / 2 - 4, y - 2, textWidth + 8, fontSize + 5);
       }
