@@ -116,10 +116,6 @@ export const useSidebarStore = create<State>((set, get) => ({
   collapsedSections: new Set(DEFAULT_COLLAPSED_SECTIONS),
   quickCreateOrder: [...DEFAULT_QUICK_CREATE_ORDER],
   setWorkspace: (id) => {
-    const prev = get();
-    if (prev.workspaceId && prev.workspaceId !== id) {
-      flush(prev.workspaceId, prev);
-    }
     set({ workspaceId: id, ...load(id) });
   },
   toggleExpanded: (nodeId) => {
