@@ -13,7 +13,11 @@ import { GraphSkeleton } from "../GraphSkeleton";
 import { GraphError } from "../GraphError";
 import { GraphEmpty } from "../GraphEmpty";
 import { INITIAL_FILTERS, type FilterState } from "../graph-types";
-import { evidenceBundleById, type GroundedEdge } from "../grounded-types";
+import {
+  evidenceBundleById,
+  type GroundedEdge,
+  type GroundedGraphResponse,
+} from "../grounded-types";
 import { CoMentionEdgePanel } from "./CoMentionEdgePanel";
 import { EdgeEvidencePanel } from "./EdgeEvidencePanel";
 import {
@@ -132,6 +136,45 @@ const DEFAULT_CANVAS_PALETTE: GraphCanvasPalette = {
   fadedLabel: "rgba(115, 115, 115, 0.72)",
 };
 
+function matchesGraphSearch(value: string | null | undefined, search: string) {
+  return (value ?? "").toLowerCase().includes(search);
+}
+
+export function filterGraphDataForView(
+  data: GroundedGraphResponse,
+  filters: FilterState,
+): GroundedGraphResponse {
+  const search = filters.search.trim().toLowerCase();
+  const visibleNodes = search
+    ? data.nodes.filter(
+        (node) =>
+          matchesGraphSearch(node.name, search) ||
+          matchesGraphSearch(node.description, search),
+      )
+    : data.nodes;
+  const visibleNodeIds = new Set(visibleNodes.map((node) => node.id));
+  const visibleEdges = data.edges.filter((edge) => {
+    if (!visibleNodeIds.has(edge.sourceId) || !visibleNodeIds.has(edge.targetId)) {
+      return false;
+    }
+    if (filters.relation && edge.relationType !== filters.relation) {
+      return false;
+    }
+    return true;
+  });
+  const noteLinks =
+    filters.relation && filters.relation !== "wiki-link"
+      ? []
+      : (data.noteLinks ?? []).filter((link) => {
+          if (!search) return true;
+          return (
+            matchesGraphSearch(link.sourceTitle, search) ||
+            matchesGraphSearch(link.targetTitle, search)
+          );
+        });
+  return { ...data, nodes: visibleNodes, edges: visibleEdges, noteLinks };
+}
+
 function resolveThemeColor(
   styles: CSSStyleDeclaration,
   name: string,
@@ -246,21 +289,7 @@ export default function GraphView({ projectId }: { projectId: string }) {
 
   const filteredData = useMemo(() => {
     if (!data) return null;
-    const search = filters.search.trim().toLowerCase();
-    const visibleNodes = search
-      ? data.nodes.filter((node) => node.name.toLowerCase().includes(search))
-      : data.nodes;
-    const visibleNodeIds = new Set(visibleNodes.map((node) => node.id));
-    const visibleEdges = data.edges.filter((edge) => {
-      if (!visibleNodeIds.has(edge.sourceId) || !visibleNodeIds.has(edge.targetId)) {
-        return false;
-      }
-      if (filters.relation && edge.relationType !== filters.relation) {
-        return false;
-      }
-      return true;
-    });
-    return { ...data, nodes: visibleNodes, edges: visibleEdges };
+    return filterGraphDataForView(data, filters);
   }, [data, filters]);
 
   const graphData = useMemo(

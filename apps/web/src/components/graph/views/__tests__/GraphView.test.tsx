@@ -3,7 +3,7 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NextIntlClientProvider } from "next-intl";
 import koGraph from "@/../messages/ko/graph.json";
-import GraphView from "../GraphView";
+import GraphView, { filterGraphDataForView } from "../GraphView";
 
 vi.mock("next/dynamic", () => ({
   default: () => () => <div data-testid="force-graph-mount">force graph</div>,
@@ -34,6 +34,87 @@ function renderWith(data: unknown) {
 }
 
 describe("GraphView", () => {
+  it("filters explicit note links with the graph search", () => {
+    const filtered = filterGraphDataForView(
+      {
+        nodes: [
+          {
+            id: "concept-alpha",
+            name: "Alpha",
+            description: "",
+            degree: 0,
+            noteCount: 0,
+            firstNoteId: null,
+          },
+          {
+            id: "concept-beta",
+            name: "Beta",
+            description: "",
+            degree: 0,
+            noteCount: 0,
+            firstNoteId: null,
+          },
+        ],
+        edges: [],
+        noteLinks: [
+          {
+            sourceNoteId: "note-alpha-source",
+            sourceTitle: "Alpha source",
+            targetNoteId: "note-alpha-target",
+            targetTitle: "Alpha target",
+          },
+          {
+            sourceNoteId: "note-other-source",
+            sourceTitle: "Other source",
+            targetNoteId: "note-other-target",
+            targetTitle: "Other target",
+          },
+        ],
+        viewType: "graph",
+        layout: "fcose",
+        rootId: null,
+        truncated: false,
+        totalConcepts: 2,
+      },
+      { search: "alpha", relation: null },
+    );
+
+    expect(filtered.nodes.map((node) => node.id)).toEqual(["concept-alpha"]);
+    expect(filtered.noteLinks).toEqual([
+      {
+        sourceNoteId: "note-alpha-source",
+        sourceTitle: "Alpha source",
+        targetNoteId: "note-alpha-target",
+        targetTitle: "Alpha target",
+      },
+    ]);
+  });
+
+  it("removes explicit note links when relation filter excludes wiki links", () => {
+    const filtered = filterGraphDataForView(
+      {
+        nodes: [],
+        edges: [],
+        noteLinks: [
+          {
+            sourceNoteId: "note-alpha-source",
+            sourceTitle: "Alpha source",
+            targetNoteId: "note-alpha-target",
+            targetTitle: "Alpha target",
+          },
+        ],
+        viewType: "graph",
+        layout: "fcose",
+        rootId: null,
+        truncated: false,
+        totalConcepts: 0,
+      },
+      { search: "", relation: "supports" },
+    );
+
+    expect(filtered.noteLinks).toEqual([]);
+  });
+
   it("does not reopen a consumed edge deep link after closing the panel", async () => {
     const edgeId = "33333333-3333-4333-8333-333333333333";
     searchParams = new URLSearchParams({ edge: edgeId });
