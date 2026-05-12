@@ -205,6 +205,7 @@ permission-checked target routes.
 | GET | /api/notes/:id | page `viewer` | 노트 조회 | - |
 | GET | /api/notes/:id/file | page `viewer` + `sourceFileKey !== null` | MinIO 오브젝트 스트리밍 (source-mode 뷰어, PDF 등). `Content-Type`은 S3 `statObject`에서. 400 non-UUID / 403 read 없음 또는 note 없음(존재 누수 방지) / 404 note는 있으나 `sourceFileKey`가 없을 때. | - |
 | GET | /api/notes/:id/data | page `viewer` | `{ data: <JSON> \| null }` — `content_text`를 JSON 파싱. 비-JSON/빈 문자열은 `null` (500 아님). data-mode 뷰어용. 400 non-UUID / 403 read 없음 또는 note 없음. | - |
+| GET | /api/notes/:id/wiki-logs | page `viewer` | Compiler/Librarian/Research 등 agent가 남긴 note-level wiki maintenance log. 최신순 응답 `{ logs: [{ id, agent, action, diff, reason, createdAt }] }`. | - |
 | GET | /api/notes/:id/pdf-annotations | page `viewer` + source PDF note | EmbedPDF annotation transfer payload 복원. 서버는 `type='source'`, `sourceType='pdf'`, `sourceFileKey`를 재검증한다. Response `{ noteId, annotations, updatedAt }`. | - |
 | PUT | /api/notes/:id/pdf-annotations | page `editor` + source PDF note | EmbedPDF annotation transfer payload 전체 저장/교체. note의 workspace/project scope를 저장 row에 denormalize한다. | `{ annotations: object[] }` |
 | POST | /api/projects/:projectId/notes | project `editor` | 노트 생성 | `{ folderId?, title?, content?, type?, inheritParent? }` |
