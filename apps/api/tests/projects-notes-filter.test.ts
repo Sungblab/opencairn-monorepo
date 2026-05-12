@@ -286,6 +286,12 @@ describe("GET /api/projects/:id/wiki-index", () => {
       generatedAt: string;
       latestPageUpdatedAt: string | null;
       totals: { pages: number; wikiLinks: number; orphanPages: number };
+      links: Array<{
+        sourceNoteId: string;
+        sourceTitle: string;
+        targetNoteId: string;
+        targetTitle: string;
+      }>;
       pages: Array<{
         id: string;
         title: string;
@@ -300,6 +306,14 @@ describe("GET /api/projects/:id/wiki-index", () => {
     expect(body.totals.pages).toBeGreaterThanOrEqual(3);
     expect(body.totals.wikiLinks).toBe(1);
     expect(body.totals.orphanPages).toBeGreaterThanOrEqual(1);
+    expect(body.links).toEqual([
+      {
+        sourceNoteId: sourceId,
+        sourceTitle: "Source packet",
+        targetNoteId: wikiId,
+        targetTitle: "Compiled concept",
+      },
+    ]);
     expect(body.pages.find((page) => page.id === sourceId)).toMatchObject({
       title: "Source packet",
       type: "source",
@@ -344,11 +358,13 @@ describe("GET /api/projects/:id/wiki-index", () => {
     expect(res.status).toBe(200);
     const body = await res.json() as {
       totals: { wikiLinks: number };
+      links: Array<{ sourceNoteId: string; targetNoteId: string }>;
       pages: Array<{ id: string }>;
     };
     expect(body.pages.map((page) => page.id)).not.toContain(
       multiSeed.privateNoteId,
     );
     expect(body.totals.wikiLinks).toBe(0);
+    expect(body.links).toEqual([]);
   });
 });
