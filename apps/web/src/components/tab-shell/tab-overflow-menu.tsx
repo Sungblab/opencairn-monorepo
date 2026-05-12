@@ -36,20 +36,22 @@ function TabOverflowItem({
       onClick={onSelect}
       className={`flex min-h-9 w-full items-center gap-2 rounded px-2.5 py-2 text-left text-sm transition-colors focus-visible:outline-none ${
         active
-          ? "bg-muted text-foreground"
-          : "hover:bg-muted focus-visible:bg-muted"
+          ? "bg-neutral-100 text-neutral-950"
+          : "text-neutral-950 hover:bg-neutral-100 focus-visible:bg-neutral-100"
       }`}
     >
       <span
         className={cn(
           "block flex-1 whitespace-nowrap",
-          tab.preview && "italic text-muted-foreground",
+          tab.preview && "italic text-neutral-500",
         )}
         title={title}
       >
         {title}
       </span>
-      {active ? <Check aria-hidden className="h-3.5 w-3.5 shrink-0" /> : null}
+      {active ? (
+        <Check aria-hidden className="h-3.5 w-3.5 shrink-0 text-neutral-600" />
+      ) : null}
     </button>
   );
 }
@@ -78,10 +80,10 @@ export function TabOverflowMenu({
       <DropdownMenuContent
         align="end"
         sideOffset={2}
-        className="max-w-[calc(100vw-16px)] overflow-hidden rounded-md border border-border bg-background p-0 shadow-md ring-0"
+        className="max-w-[calc(100vw-16px)] overflow-hidden rounded-md border border-neutral-200 bg-white p-0 text-neutral-950 shadow-md ring-0"
       >
-        <div className="border-b border-border px-3 py-2.5">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        <div className="border-b border-neutral-200 px-3 py-2.5">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">
             {t("overflowTitle")}
           </p>
         </div>

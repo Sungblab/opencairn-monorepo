@@ -51,8 +51,8 @@ export function ThreadList() {
 
   return (
     <div className="w-full">
-      <div className="border-b border-border px-3 py-2.5">
-        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <div className="border-b border-neutral-200 px-3 py-2.5">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">
           {t("title")}
         </p>
       </div>
@@ -67,8 +67,8 @@ export function ThreadList() {
               key={thread.id}
               className={`group flex min-h-11 items-center gap-2 rounded px-2.5 py-2 transition-colors ${
                 active
-                  ? "bg-muted text-foreground"
-                  : "hover:bg-muted focus-within:bg-muted"
+                  ? "bg-neutral-100 text-neutral-950"
+                  : "text-neutral-950 hover:bg-neutral-100 focus-within:bg-neutral-100"
               }`}
             >
               <button
@@ -76,10 +76,10 @@ export function ThreadList() {
                 onClick={() => setActive(thread.id)}
                 className="min-w-0 flex-1 text-left outline-none"
               >
-                <span className="block truncate text-[13px] font-medium leading-4 text-foreground">
+                <span className="block truncate text-[13px] font-medium leading-4 text-neutral-950">
                   {title}
                 </span>
-                <span className="mt-0.5 block text-[11px] leading-3 text-muted-foreground">
+                <span className="mt-0.5 block text-[11px] leading-3 text-neutral-500">
                   {now
                     ? format.relativeTime(new Date(thread.updated_at), now)
                     : null}
@@ -88,7 +88,7 @@ export function ThreadList() {
               {active ? (
                 <Check
                   aria-hidden
-                  className="h-4 w-4 shrink-0 text-muted-foreground"
+                  className="h-4 w-4 shrink-0 text-neutral-600"
                 />
               ) : null}
               <button
@@ -97,7 +97,7 @@ export function ThreadList() {
                 title={t("delete")}
                 disabled={isDeleting}
                 onClick={() => void deleteThread(thread.id)}
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] text-muted-foreground opacity-50 outline-none hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40 group-hover:opacity-100"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] text-neutral-500 opacity-50 outline-none hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40 group-hover:opacity-100"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
