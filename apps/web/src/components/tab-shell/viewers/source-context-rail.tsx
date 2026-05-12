@@ -451,14 +451,15 @@ function SourceRailStudy({
   };
 
   const seekToSegment = (recordingId: string, startSec: number) => {
+    const isSameRecording = recordingId === activePlaybackRecordingId;
     setActivePlaybackRecordingId(recordingId);
     pendingSeekRef.current = startSec;
-    window.setTimeout(() => {
-      if (!audioRef.current) return;
+
+    if (isSameRecording && audioRef.current) {
       audioRef.current.currentTime = startSec;
       void audioRef.current.play().catch(() => undefined);
       pendingSeekRef.current = null;
-    }, 0);
+    }
   };
 
   return (
@@ -577,6 +578,8 @@ function SourceRailStudy({
             onLoadedMetadata={() => {
               if (pendingSeekRef.current == null || !audioRef.current) return;
               audioRef.current.currentTime = pendingSeekRef.current;
+              void audioRef.current.play().catch(() => undefined);
+              pendingSeekRef.current = null;
             }}
           />
         </div>

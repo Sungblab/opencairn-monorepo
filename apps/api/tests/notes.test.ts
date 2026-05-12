@@ -341,6 +341,21 @@ describe("PDF annotation persistence", () => {
     }
   });
 
+  it("rejects deeply nested annotation payloads", async () => {
+    let annotation: Record<string, unknown> = { value: "x" };
+    for (let index = 0; index < 25; index += 1) {
+      annotation = { nested: annotation };
+    }
+
+    const response = await authedFetch(`/api/notes/${ctx.noteId}/pdf-annotations`, {
+      method: "PUT",
+      userId: ctx.userId,
+      body: JSON.stringify({ annotations: [annotation] }),
+    });
+
+    expect(response.status).toBe(400);
+  });
+
   it("rejects non-PDF source notes", async () => {
     await db
       .update(notes)

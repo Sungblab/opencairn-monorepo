@@ -39,8 +39,38 @@ const moveNoteSchema = z.object({
   folderId: z.string().uuid().nullable(),
 });
 
+const MAX_PDF_ANNOTATION_DEPTH = 20;
+
+function hasBoundedJsonDepth(value: unknown, maxDepth: number): boolean {
+  const stack: Array<{ value: unknown; depth: number }> = [{ value, depth: 0 }];
+  const seen = new WeakSet<object>();
+
+  while (stack.length > 0) {
+    const item = stack.pop()!;
+    if (item.depth > maxDepth) return false;
+    if (item.value === null || typeof item.value !== "object") continue;
+    if (seen.has(item.value)) continue;
+    seen.add(item.value);
+
+    const values = Array.isArray(item.value)
+      ? item.value
+      : Object.values(item.value as Record<string, unknown>);
+    for (const nested of values) {
+      stack.push({ value: nested, depth: item.depth + 1 });
+    }
+  }
+
+  return true;
+}
+
 const pdfAnnotationsSchema = z.object({
-  annotations: z.array(z.record(z.string(), z.unknown())).max(2000),
+  annotations: z
+    .array(z.record(z.string(), z.unknown()))
+    .max(2000)
+    .refine(
+      (annotations) => hasBoundedJsonDepth(annotations, MAX_PDF_ANNOTATION_DEPTH),
+      "annotations_too_deep",
+    ),
 });
 
 import { requireAuth } from "../middleware/auth";
@@ -318,14 +348,19 @@ export const noteRoutes = new Hono<AppEnv>()
   })
 
   .get("/:id/pdf-annotations", async (c) => {
-    const user = c.get("user");
     const id = c.req.param("id");
     if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+
+    const note = await findReadableSourcePdfNote(id);
+    if (!note) return c.json({ error: "Not found" }, 404);
+
+    const user = c.get("user");
+    if (!(await canRead(user.id, { type: "workspace", id: note.workspaceId }))) {
+      return c.json({ error: "Not found" }, 404);
+    }
     if (!(await canRead(user.id, { type: "note", id }))) {
       return c.json({ error: "Forbidden" }, 403);
     }
-    const note = await findReadableSourcePdfNote(id);
-    if (!note) return c.json({ error: "Not found" }, 404);
     if (!isPdfSourceNote(note)) return c.json({ error: "not_pdf_source" }, 409);
 
     const [row] = await db
@@ -348,14 +383,19 @@ export const noteRoutes = new Hono<AppEnv>()
     "/:id/pdf-annotations",
     zValidator("json", pdfAnnotationsSchema),
     async (c) => {
-      const user = c.get("user");
       const id = c.req.param("id");
       if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+
+      const note = await findReadableSourcePdfNote(id);
+      if (!note) return c.json({ error: "Not found" }, 404);
+
+      const user = c.get("user");
+      if (!(await canRead(user.id, { type: "workspace", id: note.workspaceId }))) {
+        return c.json({ error: "Not found" }, 404);
+      }
       if (!(await canRead(user.id, { type: "note", id }))) {
         return c.json({ error: "Forbidden" }, 403);
       }
-      const note = await findReadableSourcePdfNote(id);
-      if (!note) return c.json({ error: "Not found" }, 404);
       if (!isPdfSourceNote(note)) return c.json({ error: "not_pdf_source" }, 409);
       if (!(await canWrite(user.id, { type: "note", id }))) {
         return c.json({ error: "Forbidden" }, 403);

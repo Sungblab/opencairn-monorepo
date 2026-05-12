@@ -91,12 +91,13 @@ function usePdfAnnotationPersistence(noteId: string | null, registry: PluginRegi
         const saved = await pdfAnnotationsApi.get(noteId);
         if (cancelled || saved.annotations.length === 0) return;
         importingRef.current = true;
-        capability.importAnnotations(
-          saved.annotations as unknown as AnnotationTransferItem[],
-        );
-        window.setTimeout(() => {
+        try {
+          capability.importAnnotations(
+            saved.annotations as unknown as AnnotationTransferItem[],
+          );
+        } finally {
           importingRef.current = false;
-        }, 0);
+        }
       };
 
       const persistAnnotations = async () => {
