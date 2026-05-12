@@ -401,8 +401,16 @@ class IngestWorkflow:
                 "mime_type": mime,
                 "object_key": inp.object_key,
                 "text": text,
-                "tree_parent_node_id": inp.parsed_group_node_id or inp.source_bundle_node_id,
-                "tree_label": "전체 추출 노트" if inp.parsed_group_node_id else None,
+                "tree_parent_node_id": (
+                    inp.analysis_group_node_id
+                    or inp.parsed_group_node_id
+                    or inp.source_bundle_node_id
+                ),
+                "tree_label": (
+                    "생성된 노트"
+                    if inp.analysis_group_node_id
+                    else ("전체 추출 노트" if inp.parsed_group_node_id else None)
+                ),
                 "original_file_node_id": inp.original_file_node_id,
                 "workflow_id": workflow_id,
                 "started_at_ms": started_at_ms,
@@ -524,5 +532,25 @@ class IngestWorkflow:
                         "objectKey": figure.get("object_key"),
                         "mimeType": figure.get("mime_type"),
                     },
+                }
+            )
+
+        for table in parse_result.get("table_artifacts", []):
+            await create_artifact(
+                {
+                    "workflow_id": workflow_id,
+                    "bundle_node_id": inp.source_bundle_node_id,
+                    "workspace_id": inp.workspace_id,
+                    "project_id": inp.project_id,
+                    "user_id": inp.user_id,
+                    "parent_node_id": inp.figures_group_node_id,
+                    "kind": "agent_file",
+                    "label": table.get("label", "table.md"),
+                    "filename": table.get("label", "table.md"),
+                    "mime_type": "text/markdown",
+                    "role": "table",
+                    "text": table.get("text", ""),
+                    "page_index": table.get("page_index"),
+                    "table_index": table.get("table_index"),
                 }
             )

@@ -58,7 +58,7 @@ async def test_parse_pdf_emits_unit_events_per_page(tmp_path: Path):
     fake_json = {
         "pages": [
             {"text": "Page one body", "figures": [{"file": "p0-f0.png", "kind": "image"}]},
-            {"text": "Page two body", "tables": [{}]},
+            {"text": "Page two body", "tables": [{"rows": [["A"], ["1"]]}]},
         ],
     }
     out_dir = tmp_path / "out"
@@ -103,6 +103,14 @@ async def test_parse_pdf_emits_unit_events_per_page(tmp_path: Path):
     figure_payload = next(p for k, p in publish_calls if k == "figure_extracted")
     assert figure_payload["objectKey"] == "uploads/u/figures/wf-1/p0-f0.png"
     assert figure_payload["sourceUnit"] == 0
+    assert result["table_artifacts"] == [
+        {
+            "label": "table-002-01.md",
+            "text": "| A |\n| --- |\n| 1 |",
+            "page_index": 1,
+            "table_index": 0,
+        }
+    ]
 
 
 @pytest.mark.asyncio

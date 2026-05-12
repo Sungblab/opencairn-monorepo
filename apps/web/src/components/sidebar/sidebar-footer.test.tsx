@@ -125,7 +125,7 @@ describe("SidebarFooter", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("keeps workspace and account settings inside the bottom profile menu", async () => {
+  it("keeps a single workspace settings entry inside the bottom profile menu", async () => {
     sessionMock.value = {
       data: { user: { id: "u1", name: "Ada Lovelace", email: "ada@x" } },
       isPending: false,
@@ -142,14 +142,14 @@ describe("SidebarFooter", () => {
 
     expect(
       screen.getByRole("menuitem", {
-        name: "sidebar.footer.workspace_settings",
+        name: "sidebar.footer.settings_aria",
       }),
     ).toHaveAttribute("href", "/ko/workspace/acme/settings");
     expect(
-      screen.getByRole("menuitem", {
+      screen.queryByRole("menuitem", {
         name: "sidebar.footer.account_settings",
       }),
-    ).toHaveAttribute("href", "/ko/settings/profile");
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Beta")).toBeInTheDocument();
     expect(screen.queryByText("sidebar.role.member")).not.toBeInTheDocument();
     expect(screen.queryByText("ada@x")).not.toBeInTheDocument();

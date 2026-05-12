@@ -1,7 +1,9 @@
 {
   "loading": "Loading…",
   "new_note": "New note",
+  "creating_note": "Creating note…",
   "new_folder": "New folder",
+  "creating_folder": "Creating folder…",
   "upload_source": "Upload",
   "empty_project": "No notes yet in this project.",
   "empty_folder": "Empty.",
@@ -110,6 +112,7 @@
     "create_note_failed": "Couldn't create the page. Please try again.",
     "folder_created": "Folder created.",
     "create_folder_failed": "Couldn't create the folder. Please try again.",
+    "deleted": "Moved to trash.",
     "delete_failed": "Couldn't delete. Please try again."
   },
   "graph": {

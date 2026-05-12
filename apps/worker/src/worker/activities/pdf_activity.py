@@ -83,6 +83,34 @@ def _detect_scan(pdf_path: Path) -> bool:
         doc.close()
 
 
+def _table_to_markdown(table: Any) -> str:
+    if not isinstance(table, dict):
+        return str(table)
+    for key in ("markdown", "text", "content", "html"):
+        value = table.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    rows = table.get("rows") or table.get("cells")
+    if isinstance(rows, list) and rows:
+        normalized = [
+            [str(cell) for cell in row]
+            for row in rows
+            if isinstance(row, list) and row
+        ]
+        if normalized:
+            width = max(len(row) for row in normalized)
+            padded = [row + [""] * (width - len(row)) for row in normalized]
+            header = padded[0]
+            body = padded[1:]
+            lines = [
+                "| " + " | ".join(header) + " |",
+                "| " + " | ".join(["---"] * width) + " |",
+            ]
+            lines.extend("| " + " | ".join(row) + " |" for row in body)
+            return "\n".join(lines)
+    return "```json\n" + repr(table) + "\n```"
+
+
 def _render_pages_to_png(pdf_path: Path, dpi: int = 200) -> list[bytes]:
     """Render every PDF page to PNG bytes.
 
@@ -436,6 +464,7 @@ async def parse_pdf(inp: dict[str, Any]) -> dict[str, Any]:
 
         text_parts: list[str] = []
         figure_artifacts: list[dict[str, Any]] = []
+        table_artifacts: list[dict[str, Any]] = []
         complex_page_count = 0
 
         for page_idx, page in enumerate(pages):
@@ -478,6 +507,16 @@ async def parse_pdf(inp: dict[str, Any]) -> dict[str, Any]:
                     "height": fig.get("height"),
                 })
 
+            for table_idx, table in enumerate(page.get("tables") or []):
+                table_artifacts.append(
+                    {
+                        "label": f"table-{page_idx + 1:03d}-{table_idx + 1:02d}.md",
+                        "text": _table_to_markdown(table),
+                        "page_index": page_idx,
+                        "table_index": table_idx,
+                    }
+                )
+
             duration_ms = int((time.time() - t_start) * 1000)
             await publish_safe(workflow_id, "unit_parsed", {
                 "index": page_idx,
@@ -506,6 +545,7 @@ async def parse_pdf(inp: dict[str, Any]) -> dict[str, Any]:
                 for idx, page in enumerate(pages)
             ],
             "figure_artifacts": figure_artifacts,
+            "table_artifacts": table_artifacts,
             "has_complex_layout": has_complex_layout,
             "is_scan": is_scan,
             # Spec B — enrich_document reads pages[].text for type detection

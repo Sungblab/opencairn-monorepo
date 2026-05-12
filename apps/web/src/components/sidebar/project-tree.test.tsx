@@ -7,6 +7,17 @@ import { useSidebarStore } from "@/stores/sidebar-store";
 import { useTabsStore } from "@/stores/tabs-store";
 
 const uploadMock = vi.fn();
+const toastMock = vi.hoisted(() => ({
+  success: vi.fn(),
+  error: vi.fn(),
+}));
+const shortcutMock = vi.hoisted(() => ({
+  handlers: new Map<string, () => void>(),
+}));
+
+vi.mock("sonner", () => ({
+  toast: toastMock,
+}));
 
 vi.mock("next-intl", () => ({
   useLocale: () => "ko",
@@ -37,7 +48,9 @@ vi.mock("@/hooks/use-project-tree", () => ({
 }));
 
 vi.mock("@/hooks/use-keyboard-shortcut", () => ({
-  useKeyboardShortcut: vi.fn(),
+  useKeyboardShortcut: (shortcut: string, handler: () => void) => {
+    shortcutMock.handlers.set(shortcut, handler);
+  },
 }));
 
 vi.mock("@/hooks/use-tree-keyboard", () => ({
@@ -52,24 +65,36 @@ vi.mock("@/hooks/use-ingest-upload", () => ({
   }),
 }));
 
-vi.mock("react-arborist", () => ({
-  Tree: vi.fn(
-    ({
-      rowHeight,
-      data,
-    }: {
-      rowHeight: number;
-      data: TreeNode[];
-    }) => (
-      <div
-        data-testid="arborist-tree"
-        data-row-height={rowHeight}
-        data-node-count={data.length}
-        data-first-child-kind={data[0]?.children?.[0]?.kind ?? ""}
-      />
-    ),
-  ),
-}));
+vi.mock("react-arborist", async () => {
+  const React = await import("react");
+  const Tree = React.forwardRef(
+    (
+      {
+        rowHeight,
+        data,
+      }: {
+        rowHeight: number;
+        data: TreeNode[];
+      },
+      ref,
+    ) => {
+      React.useImperativeHandle(ref, () => ({
+        focusedNode: data[0] ? { data: data[0] } : null,
+      }));
+      return (
+        <div
+          data-testid="arborist-tree"
+          data-row-height={rowHeight}
+          data-node-count={data.length}
+          data-first-child-kind={data[0]?.children?.[0]?.kind ?? ""}
+        />
+      );
+    },
+  );
+  return {
+    Tree,
+  };
+});
 
 function renderTree() {
   const qc = new QueryClient({
@@ -87,6 +112,13 @@ describe("ProjectTree", () => {
     useSidebarStore.setState({ expanded: new Set() });
     useTabsStore.setState(useTabsStore.getInitialState(), true);
     uploadMock.mockReset();
+    toastMock.success.mockReset();
+    toastMock.error.mockReset();
+    shortcutMock.handlers.clear();
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({}),
+    }) as unknown as typeof fetch;
     uploadMock.mockResolvedValue({
       workflowId: "wf-1",
       objectKey: "obj-1",
@@ -149,6 +181,57 @@ describe("ProjectTree", () => {
         }),
       ]),
     );
+  });
+
+  it("ignores repeated upload clicks while the drop upload is in flight", async () => {
+    let resolveUpload: (value: {
+      workflowId: string;
+      objectKey: string;
+      sourceBundleNodeId: string | null;
+      originalFileId: string | null;
+    }) => void = () => {};
+    uploadMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveUpload = resolve;
+      }),
+    );
+    renderTree();
+    const tree = screen.getByTestId("project-tree");
+    const file = new File(["hello"], "paper.pdf", { type: "application/pdf" });
+
+    fireEvent.drop(tree, {
+      dataTransfer: { files: [file], types: ["Files"] },
+    });
+
+    const start = screen.getByRole("button", { name: "sidebar.upload.start" });
+    fireEvent.click(start);
+    fireEvent.click(start);
+
+    expect(uploadMock).toHaveBeenCalledTimes(1);
+    expect(start).toBeDisabled();
+
+    resolveUpload({
+      workflowId: "wf-1",
+      objectKey: "obj-1",
+      sourceBundleNodeId: "bundle-1",
+      originalFileId: "file-1",
+    });
+    await waitFor(() => expect(start).not.toBeInTheDocument());
+  });
+
+  it("soft-deletes the focused tree item immediately and shows a trash toast", async () => {
+    renderTree();
+
+    shortcutMock.handlers.get("mod+delete")?.();
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/notes/n-1", {
+        method: "DELETE",
+        credentials: "include",
+      });
+    });
+    expect(screen.queryByText("sidebar.tree_menu.confirm_delete_title")).not.toBeInTheDocument();
+    expect(toastMock.success).toHaveBeenCalledWith("sidebar.toasts.deleted");
   });
 
   it("closes every open tab for a deleted note and promotes the neighbor", () => {

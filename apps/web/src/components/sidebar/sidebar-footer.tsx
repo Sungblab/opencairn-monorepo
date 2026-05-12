@@ -13,7 +13,6 @@ import {
   LogOut,
   Settings,
   Shield,
-  User,
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { byokKeyQueryKey, getByokKey } from "@/lib/api-client-byok-key";
@@ -182,16 +181,9 @@ export function SidebarFooter() {
               className="min-h-9 rounded px-2 py-2"
             >
               <Settings aria-hidden className="h-4 w-4" />
-              {t("workspace_settings")}
+              {t("settings_aria")}
             </DropdownMenuItem>
           ) : null}
-          <DropdownMenuItem
-            render={<Link href={urls.settings.profile(locale)} />}
-            className="min-h-9 rounded px-2 py-2"
-          >
-            <User aria-hidden className="h-4 w-4" />
-            {t("account_settings")}
-          </DropdownMenuItem>
           {isSiteAdmin ? (
             <DropdownMenuItem
               render={<Link href={`/${locale}/admin`} />}

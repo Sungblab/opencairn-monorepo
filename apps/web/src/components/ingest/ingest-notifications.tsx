@@ -8,6 +8,8 @@ import { urls } from "@/lib/urls";
 import { useIngestStream } from "@/hooks/use-ingest-stream";
 import { useIngestStore, type IngestRunState } from "@/stores/ingest-store";
 
+const terminalToastWorkflowIds = new Set<string>();
+
 function IngestRunSubscriber({ wfid }: { wfid: string }) {
   useIngestStream(wfid);
   return null;
@@ -41,6 +43,8 @@ export function IngestNotifications() {
       if (run.status === "running") continue;
       if (notified.current.has(run.workflowId)) continue;
       notified.current.add(run.workflowId);
+      if (terminalToastWorkflowIds.has(run.workflowId)) continue;
+      terminalToastWorkflowIds.add(run.workflowId);
       notifyTerminalRun(run, {
         completed: t("completed"),
         failed: t("failed"),

@@ -88,6 +88,7 @@
     "languageJavascript": "JavaScript"
   },
   "sidebar": {
-    "newCanvas": "새 캔버스"
+    "newCanvas": "새 캔버스",
+    "creatingCanvas": "캔버스 생성 중…"
   }
 }

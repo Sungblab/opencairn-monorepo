@@ -18,6 +18,8 @@ import {
   FileArchive,
   MoreHorizontal,
   Plus,
+  Sparkles,
+  Table2,
 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
@@ -515,6 +517,7 @@ function NodeIcon({ node }: { node: TreeNode }) {
         <AgentFileIcon
           fileKind={node.file_kind}
           mimeType={node.mime_type}
+          role={typeof node.metadata?.role === "string" ? node.metadata.role : null}
           className={agentFileIconClass(node)}
         />
       );
@@ -529,19 +532,35 @@ function NodeIcon({ node }: { node: TreeNode }) {
   if (node.kind === "artifact_group") {
     const role =
       typeof node.metadata?.role === "string" ? node.metadata.role : "";
-    const color =
-      role === "figures"
-        ? "text-pink-600 group-hover:text-pink-700"
-        : role === "analysis"
-          ? "text-violet-600 group-hover:text-violet-700"
-          : "text-cyan-600 group-hover:text-cyan-700";
-    return <Folder aria-hidden className={`h-4 w-4 shrink-0 ${color}`} />;
+    if (role === "figures") {
+      return (
+        <FileImage
+          aria-hidden
+          className="h-4 w-4 shrink-0 text-pink-600 group-hover:text-pink-700"
+        />
+      );
+    }
+    if (role === "analysis") {
+      return (
+        <Sparkles
+          aria-hidden
+          className="h-4 w-4 shrink-0 text-violet-600 group-hover:text-violet-700"
+        />
+      );
+    }
+    return (
+      <Folder
+        aria-hidden
+        className="h-4 w-4 shrink-0 text-cyan-600 group-hover:text-cyan-700"
+      />
+    );
   }
   if (node.kind === "agent_file") {
     return (
       <AgentFileIcon
         fileKind={node.file_kind}
         mimeType={node.mime_type}
+        role={typeof node.metadata?.role === "string" ? node.metadata.role : null}
         className={agentFileIconClass(node)}
       />
     );
@@ -622,6 +641,8 @@ function agentFileIconClass(node: TreeNode): string {
   const mime = node.mime_type ?? "";
   if (mime === "application/pdf") return "h-4 w-4 shrink-0 text-red-600";
   if (mime.startsWith("image/")) return "h-4 w-4 shrink-0 text-pink-600";
+  if (node.metadata?.role === "table")
+    return "h-4 w-4 shrink-0 text-emerald-600";
   if (mime.startsWith("audio/")) return "h-4 w-4 shrink-0 text-amber-600";
   if (mime.startsWith("video/")) return "h-4 w-4 shrink-0 text-orange-600";
   if (
@@ -666,10 +687,12 @@ function fileBadgeFromKind(kind?: string | null): string | null {
 function AgentFileIcon({
   fileKind,
   mimeType,
+  role,
   className,
 }: {
   fileKind?: string | null;
   mimeType?: string | null;
+  role?: string | null;
   className: string;
 }) {
   if (mimeType === "application/pdf") {
@@ -683,6 +706,9 @@ function AgentFileIcon({
   }
   if (mimeType?.includes("spreadsheet") || mimeType?.includes("excel")) {
     return <FileSpreadsheet aria-hidden className={className} />;
+  }
+  if (role === "table" || fileKind === "table") {
+    return <Table2 aria-hidden className={className} />;
   }
   if (fileKind === "code" || fileKind === "html" || fileKind === "latex") {
     return <FileCode aria-hidden className={className} />;

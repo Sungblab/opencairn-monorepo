@@ -194,6 +194,39 @@ export async function ensureProjectTreeBackfill(
       AND cw.deleted_at IS NULL
     ON CONFLICT DO NOTHING
   `);
+
+  await conn.execute(sql`
+    WITH misplaced AS (
+      SELECT
+        source_note.id AS source_note_id,
+        analysis.id AS analysis_group_id,
+        analysis.path AS analysis_group_path
+      FROM project_tree_nodes source_note
+      JOIN project_tree_nodes parsed
+        ON parsed.id = source_note.parent_id
+       AND parsed.kind = 'artifact_group'
+       AND parsed.metadata->>'role' = 'parsed'
+       AND parsed.deleted_at IS NULL
+      JOIN project_tree_nodes analysis
+        ON analysis.parent_id = parsed.parent_id
+       AND analysis.kind = 'artifact_group'
+       AND analysis.metadata->>'role' = 'analysis'
+       AND analysis.deleted_at IS NULL
+      WHERE source_note.project_id = ${projectId}::uuid
+        AND source_note.deleted_at IS NULL
+        AND source_note.metadata->>'role' = 'source_note'
+    )
+    UPDATE project_tree_nodes node
+       SET parent_id = misplaced.analysis_group_id,
+           path = misplaced.analysis_group_path || replace(node.id::text, '-', '_')::ltree,
+           label = CASE
+             WHEN node.label = '전체 추출 노트' THEN '생성된 노트'
+             ELSE node.label
+           END,
+           updated_at = now()
+      FROM misplaced
+     WHERE node.id = misplaced.source_note_id
+  `);
 }
 
 export async function listTreeChildren(input: {
@@ -212,6 +245,19 @@ export async function listTreeChildren(input: {
         AND parent_id IS NOT NULL
         AND deleted_at IS NULL
         AND NOT (kind = 'agent_file' AND metadata->>'role' = 'original')
+        AND NOT (
+          kind = 'artifact_group'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM project_tree_nodes child
+            WHERE child.parent_id = project_tree_nodes.id
+              AND child.deleted_at IS NULL
+              AND NOT (
+                child.kind = 'agent_file'
+                AND child.metadata->>'role' = 'original'
+              )
+          )
+        )
       GROUP BY parent_id
     )
     SELECT
@@ -267,6 +313,19 @@ export async function listTreeChildren(input: {
       AND ${parentPredicate}
       AND n.deleted_at IS NULL
       AND NOT (n.kind = 'agent_file' AND n.metadata->>'role' = 'original')
+      AND NOT (
+        n.kind = 'artifact_group'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM project_tree_nodes child
+          WHERE child.parent_id = n.id
+            AND child.deleted_at IS NULL
+            AND NOT (
+              child.kind = 'agent_file'
+              AND child.metadata->>'role' = 'original'
+            )
+        )
+      )
     ORDER BY n.position ASC, n.created_at ASC
   `);
 
@@ -297,6 +356,19 @@ export async function listTreeChildrenForParents(input: {
         AND parent_id IS NOT NULL
         AND deleted_at IS NULL
         AND NOT (kind = 'agent_file' AND metadata->>'role' = 'original')
+        AND NOT (
+          kind = 'artifact_group'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM project_tree_nodes child
+            WHERE child.parent_id = project_tree_nodes.id
+              AND child.deleted_at IS NULL
+              AND NOT (
+                child.kind = 'agent_file'
+                AND child.metadata->>'role' = 'original'
+              )
+          )
+        )
       GROUP BY parent_id
     )
     SELECT
@@ -352,6 +424,19 @@ export async function listTreeChildrenForParents(input: {
       AND n.parent_id IN (${quoted})
       AND n.deleted_at IS NULL
       AND NOT (n.kind = 'agent_file' AND n.metadata->>'role' = 'original')
+      AND NOT (
+        n.kind = 'artifact_group'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM project_tree_nodes child
+          WHERE child.parent_id = n.id
+            AND child.deleted_at IS NULL
+            AND NOT (
+              child.kind = 'agent_file'
+              AND child.metadata->>'role' = 'original'
+            )
+        )
+      )
     ORDER BY n.position ASC, n.created_at ASC
   `);
   for (const row of asRows<RawProjectTreeRow>(result)) {

@@ -178,7 +178,7 @@ async def test_enrichment_not_called_when_flag_off():
 
 
 @pytest.mark.asyncio
-async def test_pdf_source_note_is_created_under_parsed_group():
+async def test_pdf_source_note_is_created_under_analysis_group():
     from worker.workflows.ingest_workflow import IngestWorkflow
 
     captured: dict | None = None
@@ -210,6 +210,53 @@ async def test_pdf_source_note_is_created_under_parsed_group():
         await wf._run_pipeline(_make_bundle_inp(), "wf-test", 0)
 
     assert captured is not None
-    assert captured["tree_parent_node_id"] == "parsed-1"
-    assert captured["tree_label"] == "전체 추출 노트"
+    assert captured["tree_parent_node_id"] == "analysis-1"
+    assert captured["tree_label"] == "생성된 노트"
     assert captured["original_file_node_id"] == "file-1"
+
+
+@pytest.mark.asyncio
+async def test_pdf_tables_are_materialized_under_figures_group():
+    from worker.workflows.ingest_workflow import IngestWorkflow
+
+    artifacts: list[dict] = []
+
+    async def fake_activity(name, *args, **kwargs):
+        if name == "parse_pdf":
+            return {
+                "text": "hi",
+                "markdown": "hi",
+                "has_complex_layout": True,
+                "is_scan": False,
+                "pages": [],
+                "page_artifacts": [],
+                "figure_artifacts": [],
+                "table_artifacts": [
+                    {
+                        "label": "table-001-01.md",
+                        "text": "| A |\n| - |\n| 1 |",
+                        "page_index": 0,
+                        "table_index": 0,
+                    }
+                ],
+            }
+        if name == "create_source_bundle_artifact":
+            artifacts.append(args[0])
+            return {"nodeId": f"artifact-{len(artifacts)}"}
+        if name == "enhance_with_gemini":
+            return {"text": "enhanced"}
+        if name == "create_source_note":
+            return "note-000"
+        return {}
+
+    wf = IngestWorkflow()
+    with (
+        patch("temporalio.workflow.execute_activity", side_effect=fake_activity),
+        patch("temporalio.workflow.logger", _TEST_LOGGER),
+    ):
+        await wf._run_pipeline(_make_bundle_inp(), "wf-test", 0)
+
+    table = next(item for item in artifacts if item["role"] == "table")
+    assert table["parent_node_id"] == "figures-1"
+    assert table["kind"] == "agent_file"
+    assert table["filename"] == "table-001-01.md"

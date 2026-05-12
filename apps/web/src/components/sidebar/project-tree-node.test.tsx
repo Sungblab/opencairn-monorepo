@@ -146,7 +146,7 @@ describe("ProjectTreeNode", () => {
   });
 
   it("labels artifact groups by their role", () => {
-    renderNode(
+    const { container } = renderNode(
       mkNode({
         kind: "artifact_group",
         id: "group-1",
@@ -157,6 +157,49 @@ describe("ProjectTreeNode", () => {
       }),
     );
     expect(screen.getByText("추출")).toBeInTheDocument();
+    expect(container.querySelector(".lucide-folder")).toBeInTheDocument();
+  });
+
+  it("uses distinct icons for figure groups, analysis groups, and table artifacts", () => {
+    const figures = renderNode(
+      mkNode({
+        kind: "artifact_group",
+        id: "figures-1",
+        parent_id: "bundle-1",
+        label: "이미지/도표",
+        child_count: 1,
+        metadata: { role: "figures" },
+      }),
+    );
+    expect(figures.container.querySelector(".lucide-file-image")).toBeInTheDocument();
+    figures.unmount();
+
+    const analysis = renderNode(
+      mkNode({
+        kind: "artifact_group",
+        id: "analysis-1",
+        parent_id: "bundle-1",
+        label: "분석 결과",
+        child_count: 1,
+        metadata: { role: "analysis" },
+      }),
+    );
+    expect(analysis.container.querySelector(".lucide-sparkles")).toBeInTheDocument();
+    analysis.unmount();
+
+    const table = renderNode(
+      mkNode({
+        kind: "agent_file",
+        id: "table-1",
+        parent_id: "figures-1",
+        label: "table-001-01.md",
+        child_count: 0,
+        file_kind: "markdown",
+        mime_type: "text/markdown",
+        metadata: { role: "table" },
+      }),
+    );
+    expect(table.container.querySelector(".lucide-table-2")).toBeInTheDocument();
   });
 
   it("uses the unified row density and action control treatment", () => {

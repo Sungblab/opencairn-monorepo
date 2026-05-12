@@ -106,6 +106,193 @@ describe("unified project tree routes", () => {
     ]);
   });
 
+  it("hides empty source bundle artifact groups until they have children", async () => {
+    const bundleNodeId = randomUUID();
+    const parsedGroupId = randomUUID();
+    const figuresGroupId = randomUUID();
+    const analysisGroupId = randomUUID();
+    const parsedFileId = randomUUID();
+    await db.insert(projectTreeNodes).values([
+      {
+        id: bundleNodeId,
+        workspaceId: seed.workspaceId,
+        projectId: seed.projectId,
+        parentId: null,
+        kind: "source_bundle",
+        label: "week-1.pdf",
+        icon: "file-pdf",
+        path: labelFromId(bundleNodeId),
+        metadata: {},
+      },
+      {
+        id: parsedGroupId,
+        workspaceId: seed.workspaceId,
+        projectId: seed.projectId,
+        parentId: bundleNodeId,
+        kind: "artifact_group",
+        label: "추출 결과",
+        icon: "folder",
+        path: `${labelFromId(bundleNodeId)}.${labelFromId(parsedGroupId)}`,
+        metadata: { role: "parsed" },
+      },
+      {
+        id: figuresGroupId,
+        workspaceId: seed.workspaceId,
+        projectId: seed.projectId,
+        parentId: bundleNodeId,
+        kind: "artifact_group",
+        label: "이미지/도표",
+        icon: "image",
+        path: `${labelFromId(bundleNodeId)}.${labelFromId(figuresGroupId)}`,
+        metadata: { role: "figures" },
+      },
+      {
+        id: analysisGroupId,
+        workspaceId: seed.workspaceId,
+        projectId: seed.projectId,
+        parentId: bundleNodeId,
+        kind: "artifact_group",
+        label: "분석 결과",
+        icon: "sparkles",
+        path: `${labelFromId(bundleNodeId)}.${labelFromId(analysisGroupId)}`,
+        metadata: { role: "analysis" },
+      },
+    ]);
+    await db.insert(agentFiles).values({
+      id: parsedFileId,
+      workspaceId: seed.workspaceId,
+      projectId: seed.projectId,
+      createdBy: seed.userId,
+      title: "parsed.md",
+      filename: "parsed.md",
+      extension: "md",
+      kind: "markdown",
+      mimeType: "text/markdown",
+      objectKey: "test/parsed.md",
+      bytes: 12,
+      contentHash: "hash",
+      source: "manual",
+      versionGroupId: randomUUID(),
+      version: 1,
+    });
+    await db.insert(projectTreeNodes).values({
+      id: parsedFileId,
+      workspaceId: seed.workspaceId,
+      projectId: seed.projectId,
+      parentId: parsedGroupId,
+      kind: "agent_file",
+      targetTable: "agent_files",
+      targetId: parsedFileId,
+      label: "parsed.md",
+      icon: "file",
+      path: `${labelFromId(bundleNodeId)}.${labelFromId(parsedGroupId)}.${labelFromId(parsedFileId)}`,
+      metadata: { role: "parsed" },
+    });
+
+    const res = await authedFetch(`/api/projects/${seed.projectId}/tree`, {
+      userId: seed.userId,
+    });
+
+    if (res.status !== 200) {
+      throw new Error(await res.text());
+    }
+    const body = await res.json();
+    const bundle = body.nodes.find((node: { id: string }) => node.id === bundleNodeId);
+    expect(bundle.child_count).toBe(1);
+    expect(bundle.children.map((node: { label: string }) => node.label)).toEqual([
+      "추출 결과",
+    ]);
+  });
+
+  it("moves legacy generated source notes from extracted results to analysis results", async () => {
+    const bundleNodeId = randomUUID();
+    const parsedGroupId = randomUUID();
+    const analysisGroupId = randomUUID();
+    const sourceNoteId = randomUUID();
+    await db.insert(notes).values({
+      id: sourceNoteId,
+      workspaceId: seed.workspaceId,
+      projectId: seed.projectId,
+      folderId: null,
+      title: "week-1.pdf",
+      type: "source",
+      sourceType: "pdf",
+      isAuto: true,
+    });
+    await db.insert(projectTreeNodes).values([
+      {
+        id: bundleNodeId,
+        workspaceId: seed.workspaceId,
+        projectId: seed.projectId,
+        parentId: null,
+        kind: "source_bundle",
+        label: "week-1.pdf",
+        icon: "file-pdf",
+        path: labelFromId(bundleNodeId),
+        metadata: {},
+      },
+      {
+        id: parsedGroupId,
+        workspaceId: seed.workspaceId,
+        projectId: seed.projectId,
+        parentId: bundleNodeId,
+        kind: "artifact_group",
+        label: "추출 결과",
+        icon: "folder",
+        path: `${labelFromId(bundleNodeId)}.${labelFromId(parsedGroupId)}`,
+        metadata: { role: "parsed" },
+      },
+      {
+        id: analysisGroupId,
+        workspaceId: seed.workspaceId,
+        projectId: seed.projectId,
+        parentId: bundleNodeId,
+        kind: "artifact_group",
+        label: "분석 결과",
+        icon: "sparkles",
+        path: `${labelFromId(bundleNodeId)}.${labelFromId(analysisGroupId)}`,
+        metadata: { role: "analysis" },
+      },
+      {
+        id: sourceNoteId,
+        workspaceId: seed.workspaceId,
+        projectId: seed.projectId,
+        parentId: parsedGroupId,
+        kind: "note",
+        targetTable: "notes",
+        targetId: sourceNoteId,
+        label: "전체 추출 노트",
+        icon: "file-text",
+        path: `${labelFromId(bundleNodeId)}.${labelFromId(parsedGroupId)}.${labelFromId(sourceNoteId)}`,
+        metadata: { role: "source_note", sourceType: "pdf" },
+      },
+    ]);
+
+    const res = await authedFetch(`/api/projects/${seed.projectId}/tree`, {
+      userId: seed.userId,
+    });
+
+    if (res.status !== 200) {
+      throw new Error(await res.text());
+    }
+    const body = await res.json();
+    const bundle = body.nodes.find((node: { id: string }) => node.id === bundleNodeId);
+    expect(bundle.children.map((node: { label: string }) => node.label)).toEqual([
+      "분석 결과",
+    ]);
+    const [sourceNode] = await db
+      .select({
+        parentId: projectTreeNodes.parentId,
+        label: projectTreeNodes.label,
+      })
+      .from(projectTreeNodes)
+      .where(eq(projectTreeNodes.id, sourceNoteId));
+    expect(sourceNode).toMatchObject({
+      parentId: analysisGroupId,
+      label: "생성된 노트",
+    });
+  });
+
   it("moves a note node and mirrors root moves into notes.folder_id", async () => {
     const parent = await insertNoteNode({
       seed,

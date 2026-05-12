@@ -1,6 +1,6 @@
 "use client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { FolderPlus } from "lucide-react";
+import { FolderPlus, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -33,8 +33,14 @@ export function NewFolderButton({ projectId }: { projectId: string }) {
       className="w-full justify-start gap-2"
       data-testid="new-folder-button"
     >
-      <FolderPlus className="h-4 w-4" />
-      {t("new_folder")}
+      {m.isPending ? (
+        <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+      ) : (
+        <FolderPlus aria-hidden className="h-4 w-4" />
+      )}
+      <span className="truncate">
+        {m.isPending ? t("creating_folder") : t("new_folder")}
+      </span>
     </Button>
   );
 }
