@@ -55,13 +55,6 @@ export default function TimelineView({ projectId }: Props) {
       </div>
     );
   }
-  if (layout.nodes.length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
-        {t("views.timelineNeedsDates")}
-      </div>
-    );
-  }
 
   function openNote(n: PositionedNode) {
     if (!n.firstNoteId) return;
@@ -93,25 +86,37 @@ export default function TimelineView({ projectId }: Props) {
         role="img"
         aria-label={t("views.timeline")}
       >
-        <line
-          x1={0}
-          x2={layout.width}
-          y1={layout.height / 2}
-          y2={layout.height / 2}
-          className="stroke-muted-foreground"
-        />
+        {layout.lanes.map((lane) => (
+          <g key={lane.id}>
+            <line
+              x1={0}
+              x2={layout.width}
+              y1={lane.y}
+              y2={lane.y}
+              className="stroke-muted-foreground/35"
+            />
+            <text
+              x={16}
+              y={lane.y - 16}
+              className="fill-muted-foreground text-[11px] font-medium"
+            >
+              {t(`timeline.lanes.${lane.id}`)}
+            </text>
+          </g>
+        ))}
         {layout.ticks.map((tk) => (
           <g key={tk.x}>
             <line
               x1={tk.x}
               x2={tk.x}
-              y1={layout.height / 2 - 6}
-              y2={layout.height / 2 + 6}
+              y1={layout.lanes[0]?.y ?? 0}
+              y2={layout.lanes[layout.lanes.length - 1]?.y ?? 0}
               className="stroke-muted-foreground"
+              opacity={0.16}
             />
             <text
               x={tk.x}
-              y={layout.height / 2 + 24}
+              y={layout.height - 20}
               textAnchor="middle"
               className="fill-muted-foreground text-[10px]"
             >
@@ -129,7 +134,13 @@ export default function TimelineView({ projectId }: Props) {
               cx={n.x}
               cy={n.y}
               r={TIMELINE_NODE_RADIUS}
-              className="fill-primary"
+              className={
+                n.lane === "undated"
+                  ? "fill-muted-foreground"
+                  : n.lane === "created"
+                    ? "fill-sky-500"
+                    : "fill-primary"
+              }
             />
             <text
               x={n.x}

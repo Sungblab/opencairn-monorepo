@@ -2,9 +2,17 @@ import type { ViewNode } from "@opencairn/shared";
 
 const NODE_RADIUS = 8;
 const NODE_PADDING_X = 120;
-const BASE_HEIGHT = 240;
-const LANE_GAP = 52;
-const MIN_WIDTH = 800;
+const MIN_WIDTH = 860;
+const LANE_TOP = 74;
+const LANE_GAP = 118;
+const BOTTOM_PADDING = 72;
+
+export type TimelineLaneId = "event" | "created" | "undated";
+
+export interface TimelineLane {
+  id: TimelineLaneId;
+  y: number;
+}
 
 export interface PositionedNode {
   id: string;
@@ -13,8 +21,8 @@ export interface PositionedNode {
   x: number;
   y: number;
   firstNoteId?: string | null;
-  year: number;
-  lane: number;
+  year: number | null;
+  lane: TimelineLaneId;
 }
 
 export interface TimelineTick {
@@ -24,92 +32,102 @@ export interface TimelineTick {
 
 export interface TimelineLayout {
   nodes: PositionedNode[];
+  lanes: TimelineLane[];
   ticks: TimelineTick[];
   width: number;
   height: number;
   omittedCount: number;
 }
 
-/**
- * Pick the year to use for axis placement: prefer the curated `eventYear`
- * (set by Compiler when the concept is intrinsically time-anchored — e.g.
- * "Transformer (2017)"), fall back to the note's `createdAt` if the server
- * surfaced it. Returns `null` for nodes without either signal so the caller can
- * omit them instead of stacking labels at the timeline midpoint.
- */
-function nodeYear(n: ViewNode): number | null {
-  if (typeof n.eventYear === "number") return n.eventYear;
+function nodeYearAndLane(n: ViewNode): { year: number | null; lane: TimelineLaneId } {
+  if (typeof n.eventYear === "number") {
+    return { year: n.eventYear, lane: "event" };
+  }
   const created = (n as ViewNode & { createdAt?: string }).createdAt;
   if (typeof created === "string") {
     const yr = new Date(created).getFullYear();
-    if (Number.isFinite(yr)) return yr;
+    if (Number.isFinite(yr)) return { year: yr, lane: "created" };
   }
-  return null;
+  return { year: null, lane: "undated" };
+}
+
+function laneY(lane: TimelineLaneId): number {
+  if (lane === "event") return LANE_TOP;
+  if (lane === "created") return LANE_TOP + LANE_GAP;
+  return LANE_TOP + LANE_GAP * 2;
 }
 
 /**
- * Pure layout helper for `?view=timeline`. Maps an unordered list of concepts
- * to an x/y coordinate set anchored on a left-to-right year axis. Tested in
- * isolation (no React, no DOM) so axis math regressions surface immediately.
+ * Pure layout helper for `?view=timeline`. Dated concepts sit on semantic
+ * lanes; undated concepts stay visible in their own lane instead of vanishing.
  */
 export function layoutTimeline(input: ViewNode[]): TimelineLayout {
+  const lanes: TimelineLane[] = [
+    { id: "event", y: laneY("event") },
+    { id: "created", y: laneY("created") },
+    { id: "undated", y: laneY("undated") },
+  ];
   if (input.length === 0) {
     return {
       nodes: [],
+      lanes,
       ticks: [],
       width: MIN_WIDTH,
-      height: BASE_HEIGHT,
+      height: laneY("undated") + BOTTOM_PADDING,
       omittedCount: 0,
     };
   }
-  const dated = input
-    .map((node) => ({ node, year: nodeYear(node) }))
-    .filter((entry): entry is { node: ViewNode; year: number } => entry.year !== null)
-    .sort((a, b) => a.year - b.year || a.node.name.localeCompare(b.node.name));
-  if (dated.length === 0) {
-    return {
-      nodes: [],
-      ticks: [],
-      width: MIN_WIDTH,
-      height: BASE_HEIGHT,
-      omittedCount: input.length,
-    };
-  }
-  const years = dated.map((entry) => entry.year);
-  const minYear = years[0] ?? 0;
+
+  const entries = input
+    .map((node) => ({ node, ...nodeYearAndLane(node) }))
+    .sort((a, b) => {
+      if (a.year !== null && b.year !== null && a.year !== b.year) {
+        return a.year - b.year;
+      }
+      if (a.lane !== b.lane) return a.lane.localeCompare(b.lane);
+      return a.node.name.localeCompare(b.node.name);
+    });
+  const dated = entries.filter((entry) => entry.year !== null);
+  const years = dated.map((entry) => entry.year as number);
+  const minYear = years[0] ?? new Date().getFullYear();
   const maxYear = years[years.length - 1] ?? minYear;
   const sameYear = minYear === maxYear;
   const span = Math.max(1, maxYear - minYear);
-  const width = Math.max(MIN_WIDTH, dated.length * NODE_PADDING_X);
-  const laneByYear = new Map<number, number>();
-  let maxLane = 0;
+  const width = Math.max(MIN_WIDTH, input.length * NODE_PADDING_X);
+  const indexByLane = new Map<TimelineLaneId, number>();
+  const totalByLane = new Map<TimelineLaneId, number>();
+  for (const entry of entries) {
+    totalByLane.set(entry.lane, (totalByLane.get(entry.lane) ?? 0) + 1);
+  }
 
-  const positionedNodes: PositionedNode[] = dated.map(({ node: n, year }, index) => {
-    const lane = laneByYear.get(year) ?? 0;
-    laneByYear.set(year, lane + 1);
-    maxLane = Math.max(maxLane, lane);
-    const ratio = sameYear
-      ? index / Math.max(1, dated.length - 1)
-      : (year - minYear) / span;
-    const laneOffset =
-      lane === 0 ? 0 : (lane % 2 === 1 ? 1 : -1) * Math.ceil(lane / 2) * LANE_GAP;
+  const positionedNodes: PositionedNode[] = entries.map(({ node, year, lane }, index) => {
+    const laneIndex = indexByLane.get(lane) ?? 0;
+    indexByLane.set(lane, laneIndex + 1);
+    const laneTotal = totalByLane.get(lane) ?? 1;
+    const ratio =
+      year === null
+        ? (laneIndex + 0.5) / laneTotal
+        : sameYear
+          ? index / Math.max(1, dated.length - 1)
+          : (year - minYear) / span;
     return {
-      id: n.id,
-      name: n.name,
-      description: n.description,
-      firstNoteId: n.firstNoteId ?? null,
+      id: node.id,
+      name: node.name,
+      description: node.description,
+      firstNoteId: node.firstNoteId ?? null,
       x: NODE_PADDING_X / 2 + ratio * (width - NODE_PADDING_X),
-      y: BASE_HEIGHT / 2 + laneOffset,
+      y: laneY(lane),
       year,
       lane,
     };
   });
 
-  // 2..8 ticks depending on span — short spans (<20 years) get one tick per
-  // year; longer spans cap at 8 to avoid label collisions.
-  const tickCount = sameYear
-    ? 1
-    : Math.min(8, Math.max(2, span < 20 ? span + 1 : 8));
+  const tickCount =
+    dated.length === 0
+      ? 0
+      : sameYear
+        ? 1
+        : Math.min(8, Math.max(2, span < 20 ? span + 1 : 8));
   const ticks: TimelineTick[] = Array.from({ length: tickCount }, (_, i) => {
     const ratio = tickCount === 1 ? 0 : i / (tickCount - 1);
     const year = Math.round(minYear + ratio * span);
@@ -121,10 +139,11 @@ export function layoutTimeline(input: ViewNode[]): TimelineLayout {
 
   return {
     nodes: positionedNodes,
+    lanes,
     ticks,
     width,
-    height: BASE_HEIGHT + maxLane * LANE_GAP,
-    omittedCount: input.length - dated.length,
+    height: laneY("undated") + BOTTOM_PADDING,
+    omittedCount: 0,
   };
 }
 

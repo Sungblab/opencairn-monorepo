@@ -178,6 +178,7 @@ describe("GET /api/projects/:projectId/knowledge-surface", () => {
         surfaceType?: string;
         displayOnly?: boolean;
         sourceNoteIds?: string[];
+        sourceNotes?: Array<{ id: string; title: string }>;
       }>;
     };
     expect(body.edges).toEqual(
@@ -187,6 +188,7 @@ describe("GET /api/projects/:projectId/knowledge-surface", () => {
           surfaceType: "co_mention",
           displayOnly: true,
           sourceNoteIds: [ctx.noteId],
+          sourceNotes: [expect.objectContaining({ id: ctx.noteId })],
         }),
       ]),
     );

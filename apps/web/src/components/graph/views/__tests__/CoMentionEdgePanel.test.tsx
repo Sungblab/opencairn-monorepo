@@ -7,12 +7,13 @@ import type { GroundedEdge } from "../../grounded-types";
 
 function wrap(edge: GroundedEdge) {
   const onClose = vi.fn();
+  const onOpenNote = vi.fn();
   render(
     <NextIntlClientProvider locale="ko" messages={{ graph: koGraph }}>
-      <CoMentionEdgePanel edge={edge} onClose={onClose} />
+      <CoMentionEdgePanel edge={edge} onClose={onClose} onOpenNote={onOpenNote} />
     </NextIntlClientProvider>,
   );
-  return { onClose };
+  return { onClose, onOpenNote };
 }
 
 describe("CoMentionEdgePanel", () => {
@@ -26,13 +27,18 @@ describe("CoMentionEdgePanel", () => {
       surfaceType: "co_mention",
       displayOnly: true,
       sourceNoteIds: ["33333333-3333-4333-8333-333333333333"],
+      sourceNotes: [
+        {
+          id: "33333333-3333-4333-8333-333333333333",
+          title: "Lecture 2 input/output",
+        },
+      ],
     });
 
     expect(screen.getByTestId("co-mention-panel")).toBeInTheDocument();
     expect(screen.getByText(koGraph.coMention.title)).toBeInTheDocument();
     expect(screen.getByText("공유 출처 1개")).toBeInTheDocument();
-    expect(
-      screen.getByText("33333333-3333-4333-8333-333333333333"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Lecture 2 input/output")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: koGraph.coMention.openSource })).toBeInTheDocument();
   });
 });

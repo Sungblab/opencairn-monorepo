@@ -60,6 +60,13 @@
     "quiz": "Quiz",
     "relationCount": "{count} connections"
   },
+  "timeline": {
+    "lanes": {
+      "event": "Event year",
+      "created": "Source created",
+      "undated": "Undated"
+    }
+  },
   "evidence": {
     "title": "Relation evidence",
     "close": "Close evidence",
@@ -82,6 +89,7 @@
     "body": "This is a display-only link, not an explicit claim relation. It is created when two concepts appear together in the same note or source.",
     "sourceCount": "{count} shared sources",
     "noSources": "No sources to show.",
+    "openSource": "Open",
     "close": "Close shared source link"
   },
   "ai": {

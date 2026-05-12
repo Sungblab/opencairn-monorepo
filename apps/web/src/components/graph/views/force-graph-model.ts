@@ -4,7 +4,7 @@ export const GRAPH_LABEL_MAX = 18;
 export const GRAPH_FULL_LABEL_ZOOM_THRESHOLD = 1.65;
 const GRAPH_TOP_LABEL_ZOOM_THRESHOLD = 1.35;
 const GRAPH_TOP_LABEL_LIMIT = 6;
-const HUB_DEGREE_THRESHOLD = 6;
+const HUB_DEGREE_THRESHOLD = 10;
 const GRAPH_NODE_COLORS = [
   "#22c55e",
   "#06b6d4",
@@ -98,7 +98,7 @@ export function buildForceGraphData(
       degree,
       noteCount: node.noteCount ?? 0,
       firstNoteId: node.firstNoteId ?? null,
-      val: Math.max(4, Math.min(16, 5 + Math.sqrt(degree + 1) * 2.2)),
+      val: Math.max(5, Math.min(18, 6 + Math.sqrt(degree + 1) * 2.6)),
       color: graphNodeColor(node.id, degree),
       isHub: degree >= HUB_DEGREE_THRESHOLD,
     };
@@ -112,9 +112,9 @@ export function buildForceGraphData(
     degree: snap.nodes.filter((node) => node.firstNoteId === noteId).length,
     noteCount: 1,
     firstNoteId: noteId,
-    val: 18,
-    color: HUB_NODE_COLOR,
-    isHub: true,
+    val: 4,
+    color: "#d4d4d4",
+    isHub: false,
   }));
   const allNodes = [...nodes, ...noteHubNodes];
   const topNodeIds = new Set(

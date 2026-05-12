@@ -3,8 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import cytoscape from "cytoscape";
 import dagre from "cytoscape-dagre";
-import { useTranslations } from "next-intl";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { urls } from "@/lib/urls";
+import { useTabsStore } from "@/stores/tabs-store";
 import { useProjectGraph } from "../useProjectGraph";
 import { evidenceBundleById, type GroundedEdge } from "../grounded-types";
 import { CoMentionEdgePanel } from "./CoMentionEdgePanel";
@@ -35,8 +37,12 @@ function edgeElementId(edge: GroundedEdge) {
 
 export default function MindmapView({ projectId, root }: Props) {
   const t = useTranslations("graph");
+  const locale = useLocale();
   const router = useRouter();
+  const routeParams = useParams<{ wsSlug?: string }>();
   const params = useSearchParams();
+  const wsSlug = routeParams?.wsSlug;
+  const addOrReplacePreview = useTabsStore((s) => s.addOrReplacePreview);
   const { data, isLoading, error } = useProjectGraph(projectId, {
     view: "mindmap",
     root,
@@ -118,6 +124,27 @@ export default function MindmapView({ projectId, root }: Props) {
       router.replace(`?${next.toString()}`, { scroll: false });
     },
     [data?.rootId, params, router],
+  );
+
+  const openSourceNote = useCallback(
+    (noteId: string, title: string) => {
+      if (!wsSlug) return;
+      addOrReplacePreview({
+        id: crypto.randomUUID(),
+        kind: "note",
+        targetId: noteId,
+        mode: "plate",
+        title,
+        pinned: false,
+        preview: true,
+        dirty: false,
+        splitWith: null,
+        splitSide: null,
+        scrollY: 0,
+      });
+      router.push(urls.workspace.note(locale, wsSlug, noteId));
+    },
+    [addOrReplacePreview, locale, router, wsSlug],
   );
 
   const handlerRef = useRef(onNodeTap);
@@ -270,6 +297,7 @@ export default function MindmapView({ projectId, root }: Props) {
         <CoMentionEdgePanel
           edge={selectedCoMentionEdge}
           onClose={() => setSelectedCoMentionEdgeId(null)}
+          onOpenNote={openSourceNote}
         />
       )}
     </div>

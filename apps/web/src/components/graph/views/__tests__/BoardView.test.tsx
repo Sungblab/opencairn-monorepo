@@ -1,18 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NextIntlClientProvider } from "next-intl";
 import koGraph from "@/../messages/ko/graph.json";
 import BoardView from "../BoardView";
-
-// Same dynamic-stub trick MindmapView uses: replace next/dynamic with a
-// synchronous component so we can read the cytoscape `layout.name` prop
-// without booting the canvas renderer.
-vi.mock("next/dynamic", () => ({
-  default: () => (props: { layout?: { name: string } }) => (
-    <div data-testid="cy" data-layout={props.layout?.name} />
-  ),
-}));
 
 vi.mock("../../useProjectGraph", () => ({
   useProjectGraph: vi.fn(),
@@ -34,26 +25,35 @@ function wrap(ui: React.ReactNode) {
 }
 
 describe("BoardView", () => {
-  it("renders cytoscape with layout=preset when nodes exist", () => {
+  it("renders a draggable board canvas when nodes exist", () => {
     (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
       data: {
         viewType: "board",
         layout: "preset",
         rootId: null,
         nodes: [
-          { id: "11111111-1111-4111-8111-111111111111", name: "n" },
+          { id: "11111111-1111-4111-8111-111111111111", name: "Hub" },
+          { id: "22222222-2222-4222-8222-222222222222", name: "Neighbor" },
         ],
-        edges: [],
+        edges: [
+          {
+            id: "edge-1",
+            sourceId: "11111111-1111-4111-8111-111111111111",
+            targetId: "22222222-2222-4222-8222-222222222222",
+            relationType: "related",
+            weight: 1,
+          },
+        ],
         truncated: false,
-        totalConcepts: 1,
+        totalConcepts: 2,
       },
       isLoading: false,
       error: null,
     });
     wrap(<BoardView projectId="p-1" />);
-    expect(screen.getByTestId("cy").getAttribute("data-layout")).toBe(
-      "preset",
-    );
+    expect(screen.getByTestId("board-canvas")).toBeInTheDocument();
+    expect(screen.getAllByTestId("board-node")).toHaveLength(2);
+    expect(screen.getByTestId("board-edge")).toBeInTheDocument();
   });
 
   it("renders empty state when no nodes", () => {
@@ -83,5 +83,28 @@ describe("BoardView", () => {
     (useProjectGraph as ReturnType<typeof vi.fn>).mockImplementation(spy);
     wrap(<BoardView projectId="p-1" root="abc" />);
     expect(spy).toHaveBeenCalledWith("p-1", { view: "board", root: "abc" });
+  });
+
+  it("moves a node during pointer drag", () => {
+    (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: {
+        viewType: "board",
+        layout: "preset",
+        rootId: null,
+        nodes: [{ id: "11111111-1111-4111-8111-111111111111", name: "Hub" }],
+        edges: [],
+        truncated: false,
+        totalConcepts: 1,
+      },
+      isLoading: false,
+      error: null,
+    });
+    wrap(<BoardView projectId="p-1" />);
+    const canvas = screen.getByTestId("board-canvas");
+    const node = screen.getByTestId("board-node");
+    const before = node.getAttribute("style");
+    fireEvent.pointerDown(node, { pointerId: 1, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(canvas, { clientX: 80, clientY: 40 });
+    expect(node.getAttribute("style")).not.toBe(before);
   });
 });

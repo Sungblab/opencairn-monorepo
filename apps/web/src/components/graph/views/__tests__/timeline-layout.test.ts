@@ -53,7 +53,7 @@ describe("layoutTimeline", () => {
     expect(tickYears[tickYears.length - 1]).toContain("2010");
   });
 
-  it("excludes undated concepts instead of stacking them at the midpoint", () => {
+  it("keeps undated concepts on a dedicated lane", () => {
     const out = layoutTimeline(
       nodes([
         { id: "a", name: "dated", eventYear: 2017 },
@@ -61,11 +61,12 @@ describe("layoutTimeline", () => {
       ]),
     );
 
-    expect(out.nodes.map((node) => node.id)).toEqual(["a"]);
-    expect(out.omittedCount).toBe(1);
+    expect(out.nodes.map((node) => node.id)).toContain("b");
+    expect(out.nodes.find((node) => node.id === "b")?.lane).toBe("undated");
+    expect(out.omittedCount).toBe(0);
   });
 
-  it("assigns separate lanes to concepts in the same year", () => {
+  it("keeps concepts in the same year readable by spreading x coordinates", () => {
     const out = layoutTimeline(
       nodes([
         { id: "a", name: "same 1", eventYear: 2026 },
@@ -74,7 +75,7 @@ describe("layoutTimeline", () => {
       ]),
     );
 
-    expect(new Set(out.nodes.map((node) => node.y)).size).toBe(3);
+    expect(new Set(out.nodes.map((node) => node.x)).size).toBe(3);
   });
 
   it("spreads concepts within the same year instead of stacking them on one x coordinate", () => {

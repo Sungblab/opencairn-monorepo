@@ -7,11 +7,19 @@ import type { GroundedEdge } from "../grounded-types";
 interface Props {
   edge: GroundedEdge;
   onClose: () => void;
+  onOpenNote?: (noteId: string, title: string) => void;
 }
 
-export function CoMentionEdgePanel({ edge, onClose }: Props) {
+export function CoMentionEdgePanel({ edge, onClose, onOpenNote }: Props) {
   const t = useTranslations("graph.coMention");
   const sourceNoteIds = edge.sourceNoteIds ?? [];
+  const sourceNoteById = new Map(
+    (edge.sourceNotes ?? []).map((note) => [note.id, note]),
+  );
+  const sourceNotes =
+    sourceNoteIds.length > 0
+      ? sourceNoteIds.map((id) => sourceNoteById.get(id) ?? { id, title: id })
+      : edge.sourceNotes ?? [];
 
   return (
     <aside
@@ -42,17 +50,28 @@ export function CoMentionEdgePanel({ edge, onClose }: Props) {
         </p>
         <div className="rounded-md border border-border bg-muted/30 px-3 py-2">
           <div className="text-xs font-medium">
-            {t("sourceCount", { count: sourceNoteIds.length })}
+            {t("sourceCount", { count: sourceNotes.length })}
           </div>
-          {sourceNoteIds.length > 0 ? (
+          {sourceNotes.length > 0 ? (
             <div className="mt-2 space-y-1">
-              {sourceNoteIds.map((noteId) => (
+              {sourceNotes.map((note) => (
                 <div
-                  key={noteId}
-                  className="truncate rounded bg-background px-2 py-1 font-mono text-[11px] text-muted-foreground"
-                  title={noteId}
+                  key={note.id}
+                  className="flex items-center justify-between gap-2 rounded bg-background px-2 py-1 text-[11px] text-muted-foreground"
+                  title={note.title}
                 >
-                  {noteId}
+                  <span className="truncate">{note.title}</span>
+                  {onOpenNote ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 shrink-0 px-2 text-[11px]"
+                      onClick={() => onOpenNote(note.id, note.title)}
+                    >
+                      {t("openSource")}
+                    </Button>
+                  ) : null}
                 </div>
               ))}
             </div>

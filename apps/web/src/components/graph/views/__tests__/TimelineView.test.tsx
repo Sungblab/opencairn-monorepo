@@ -68,7 +68,7 @@ describe("TimelineView", () => {
     expect(container.querySelectorAll("circle")).toHaveLength(2);
   });
 
-  it("shows a dated-only empty state when concepts have no time signal", () => {
+  it("keeps undated concepts visible in the undated lane", () => {
     (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
       data: {
         viewType: "timeline",
@@ -86,7 +86,8 @@ describe("TimelineView", () => {
       error: null,
     });
     wrap(<TimelineView projectId="p-1" />);
-    expect(screen.getByText(koGraph.views.timelineNeedsDates)).toBeInTheDocument();
+    expect(screen.getByText(koGraph.timeline.lanes.undated)).toBeInTheDocument();
+    expect(screen.getAllByText("Undated concept").length).toBeGreaterThan(0);
   });
 
   it("truncates long concept labels while preserving the full title", () => {

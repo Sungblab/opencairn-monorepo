@@ -1,5 +1,5 @@
 "use client";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useParams, useRouter } from "next/navigation";
 import { urls } from "@/lib/urls";
@@ -13,26 +13,74 @@ interface Props {
 
 const CARD_WIDTH = 260;
 const CARD_HEIGHT = 178;
-const CARD_GAP_X = 72;
-const CARD_GAP_Y = 58;
 const CARD_PADDING = 24;
 
-function cardGraphLayout(nodeIds: string[]) {
-  const columns = Math.max(1, Math.ceil(Math.sqrt(nodeIds.length)));
+function cardGraphLayout(
+  nodeIds: string[],
+  edges: GroundedEdge[],
+  focusedId: string | null,
+) {
+  const focusId = focusedId && nodeIds.includes(focusedId) ? focusedId : nodeIds[0];
   const positions = new Map<string, { x: number; y: number }>();
-  nodeIds.forEach((id, index) => {
-    const row = Math.floor(index / columns);
-    const col = index % columns;
+  if (!focusId) {
+    return { positions, width: 800, height: 420, focusId: null, activeEdgeIds: new Set<string>() };
+  }
+
+  const activeEdgeIds = new Set<string>();
+  const neighborIds: string[] = [];
+  for (const edge of edges) {
+    if (edge.sourceId === focusId || edge.targetId === focusId) {
+      activeEdgeIds.add(edge.id);
+      const otherId = edge.sourceId === focusId ? edge.targetId : edge.sourceId;
+      if (nodeIds.includes(otherId) && !neighborIds.includes(otherId)) {
+        neighborIds.push(otherId);
+      }
+    }
+  }
+
+  const focusX = CARD_PADDING + 360;
+  const focusY = CARD_PADDING + 240;
+  positions.set(focusId, { x: focusX, y: focusY });
+
+  const ringRadiusX = 390;
+  const ringRadiusY = 260;
+  neighborIds.forEach((id, index) => {
+    const angle = -Math.PI / 2 + (index / Math.max(1, neighborIds.length)) * Math.PI * 2;
     positions.set(id, {
-      x: CARD_PADDING + col * (CARD_WIDTH + CARD_GAP_X),
-      y: CARD_PADDING + row * (CARD_HEIGHT + CARD_GAP_Y),
+      x: focusX + Math.cos(angle) * ringRadiusX,
+      y: focusY + Math.sin(angle) * ringRadiusY,
     });
   });
-  const rows = Math.max(1, Math.ceil(nodeIds.length / columns));
+
+  const secondaryIds = nodeIds.filter((id) => id !== focusId && !positions.has(id));
+  const secondaryColumns = Math.max(1, Math.min(4, Math.ceil(Math.sqrt(secondaryIds.length))));
+  secondaryIds.forEach((id, index) => {
+    const row = Math.floor(index / secondaryColumns);
+    const col = index % secondaryColumns;
+    positions.set(id, {
+      x: CARD_PADDING + col * (CARD_WIDTH + 36),
+      y: focusY + ringRadiusY + 170 + row * (CARD_HEIGHT + 36),
+    });
+  });
+
+  const xs = [...positions.values()].map((p) => p.x);
+  const ys = [...positions.values()].map((p) => p.y);
+  const minX = Math.min(...xs, CARD_PADDING);
+  const minY = Math.min(...ys, CARD_PADDING);
+  if (minX < CARD_PADDING || minY < CARD_PADDING) {
+    for (const pos of positions.values()) {
+      pos.x += CARD_PADDING - minX;
+      pos.y += CARD_PADDING - minY;
+    }
+  }
+  const maxX = Math.max(...[...positions.values()].map((p) => p.x + CARD_WIDTH));
+  const maxY = Math.max(...[...positions.values()].map((p) => p.y + CARD_HEIGHT));
   return {
     positions,
-    width: CARD_PADDING * 2 + columns * CARD_WIDTH + (columns - 1) * CARD_GAP_X,
-    height: CARD_PADDING * 2 + rows * CARD_HEIGHT + (rows - 1) * CARD_GAP_Y,
+    width: Math.max(980, maxX + CARD_PADDING),
+    height: Math.max(620, maxY + CARD_PADDING),
+    focusId,
+    activeEdgeIds,
   };
 }
 
@@ -70,6 +118,7 @@ export default function CardsView({ projectId }: Props) {
   const { data, isLoading, error } = useProjectGraph(projectId, {
     view: "cards",
   });
+  const [focusedConceptId, setFocusedConceptId] = useState<string | null>(null);
 
   const cardsByConceptId = useMemo(() => {
     return new Map((data?.cards ?? []).map((card) => [card.conceptId, card]));
@@ -79,8 +128,13 @@ export default function CardsView({ projectId }: Props) {
     [data?.evidenceBundles],
   );
   const layout = useMemo(
-    () => cardGraphLayout((data?.nodes ?? []).map((node) => node.id)),
-    [data?.nodes],
+    () =>
+      cardGraphLayout(
+        (data?.nodes ?? []).map((node) => node.id),
+        data?.edges ?? [],
+        focusedConceptId,
+      ),
+    [data?.edges, data?.nodes, focusedConceptId],
   );
 
   if (isLoading) {
@@ -151,6 +205,7 @@ export default function CardsView({ projectId }: Props) {
             {data.edges.map((edge) => {
               const path = edgePath(edge, layout.positions);
               if (!path) return null;
+              const active = layout.activeEdgeIds.has(edge.id);
               return (
                 <g key={edge.id ?? `${edge.sourceId}-${edge.targetId}`}>
                   <line
@@ -161,10 +216,15 @@ export default function CardsView({ projectId }: Props) {
                     y2={path.y2}
                     className={
                       edge.surfaceType === "co_mention"
-                        ? "stroke-emerald-500/25"
-                        : "stroke-foreground/25"
+                        ? active
+                          ? "stroke-emerald-500/50"
+                          : "stroke-emerald-500/15"
+                        : active
+                          ? "stroke-foreground/45"
+                          : "stroke-foreground/12"
                     }
                     strokeDasharray={edge.surfaceType === "co_mention" ? "4 6" : undefined}
+                    opacity={active ? 1 : 0.55}
                     strokeWidth={
                       edge.surfaceType === "co_mention"
                         ? Math.max(0.75, Math.min(1.5, (edge.weight ?? 1) * 1.5))
@@ -174,7 +234,7 @@ export default function CardsView({ projectId }: Props) {
                       edge.surfaceType === "co_mention" ? undefined : "url(#concept-card-arrow)"
                     }
                   />
-                  {edge.surfaceType !== "co_mention" ? (
+                  {active && edge.surfaceType !== "co_mention" ? (
                     <text
                       x={path.labelX}
                       y={path.labelY - 6}
@@ -203,13 +263,15 @@ export default function CardsView({ projectId }: Props) {
           return (
             <div
               key={node.id}
-              className="absolute"
+              className="absolute rounded-lg transition data-[active=true]:shadow-lg data-[active=true]:ring-2 data-[active=true]:ring-foreground/60"
               style={{
                 left: position.x,
                 top: position.y,
                 width: CARD_WIDTH,
                 minHeight: CARD_HEIGHT,
               }}
+              data-active={node.id === layout.focusId}
+              onClickCapture={() => setFocusedConceptId(node.id)}
             >
               <ConceptCard
                 node={node}

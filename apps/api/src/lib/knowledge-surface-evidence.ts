@@ -171,6 +171,9 @@ async function selectCoMentionEdges(
   `);
   const rows = ((raw as { rows?: CoMentionRow[] }).rows ?? raw) as CoMentionRow[];
   const maxMentions = Math.max(1, ...rows.map((row) => Number(row.mention_count)));
+  const sourceNoteTitles = await selectSourceNoteTitles(
+    [...new Set(rows.flatMap((row) => row.source_note_ids ?? []))],
+  );
   return rows.map((row) => ({
     id: edgeKey(row.source_id, row.target_id, "co-mention"),
     sourceId: row.source_id,
@@ -180,8 +183,38 @@ async function selectCoMentionEdges(
     surfaceType: "co_mention",
     displayOnly: true,
     sourceNoteIds: row.source_note_ids ?? [],
+    sourceNotes: (row.source_note_ids ?? [])
+      .map((id) => sourceNoteTitles.get(id))
+      .filter((note): note is { id: string; title: string } => Boolean(note)),
     support: missingSupport(),
   }));
+}
+
+async function selectSourceNoteTitles(
+  noteIds: string[],
+): Promise<Map<string, { id: string; title: string }>> {
+  if (noteIds.length === 0) return new Map();
+  const idArr = sql.join(
+    noteIds.map((id) => sql`${id}::uuid`),
+    sql`, `,
+  );
+  type NoteTitleRow = {
+    id: string;
+    title: string | null;
+  };
+  const raw = await db.execute(sql`
+    SELECT id, COALESCE(NULLIF(title, ''), 'Untitled') AS title
+    FROM notes
+    WHERE id = ANY(ARRAY[${idArr}])
+      AND deleted_at IS NULL
+  `);
+  const rows = ((raw as { rows?: NoteTitleRow[] }).rows ?? raw) as NoteTitleRow[];
+  return new Map(
+    rows.map((row) => [
+      row.id,
+      { id: row.id, title: row.title?.trim() || "Untitled" },
+    ]),
+  );
 }
 
 function mergeSurfaceEdges(

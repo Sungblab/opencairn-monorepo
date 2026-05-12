@@ -25,8 +25,15 @@ vi.mock("next/dynamic", () => ({
 }));
 
 vi.mock("next/navigation", () => ({
+  useParams: () => ({ wsSlug: "acme" }),
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
+}));
+
+const addOrReplacePreview = vi.hoisted(() => vi.fn());
+vi.mock("@/stores/tabs-store", () => ({
+  useTabsStore: (sel: (s: { addOrReplacePreview: typeof addOrReplacePreview }) => unknown) =>
+    sel({ addOrReplacePreview }),
 }));
 
 vi.mock("../../useProjectGraph", () => ({

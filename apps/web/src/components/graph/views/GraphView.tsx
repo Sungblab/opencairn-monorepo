@@ -344,6 +344,26 @@ export default function GraphView({ projectId }: { projectId: string }) {
     [addOrReplacePreview, locale, router, wsSlug, t],
   );
 
+  const openSourceNote = useCallback(
+    (noteId: string, title: string) => {
+      addOrReplacePreview({
+        id: crypto.randomUUID(),
+        kind: "note",
+        targetId: noteId,
+        mode: "plate",
+        title,
+        pinned: false,
+        preview: true,
+        dirty: false,
+        splitWith: null,
+        splitSide: null,
+        scrollY: 0,
+      });
+      router.push(urls.workspace.note(locale, wsSlug, noteId));
+    },
+    [addOrReplacePreview, locale, router, wsSlug],
+  );
+
   const centerNode = useCallback((node: ForceGraphNodeObject) => {
     const graph = graphRef.current;
     if (!graph || typeof node.x !== "number" || typeof node.y !== "number") {
@@ -596,6 +616,7 @@ export default function GraphView({ projectId }: { projectId: string }) {
           <CoMentionEdgePanel
             edge={selectedCoMentionEdge}
             onClose={() => setSelectedCoMentionEdgeId(null)}
+            onOpenNote={openSourceNote}
           />
         )}
       </div>
