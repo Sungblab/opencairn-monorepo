@@ -151,7 +151,8 @@
     "index": {
       "label": "위키 인덱스",
       "pages": "{count}개 페이지",
-      "links": "{count}개 링크"
+      "links": "{count}개 링크",
+      "latest": "최근 갱신 {date}"
     },
     "actions": {
       "map": "관계 지도로 보기",

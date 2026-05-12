@@ -91,10 +91,10 @@ export function ProjectView({
 
   function formatWikiIndexStats(
     index: ProjectWikiIndex | undefined,
-    labels: { pages: string; links: string },
+    labels: { pages: string; links: string; latest?: string },
   ) {
     if (!index) return null;
-    return [labels.pages, labels.links].join(" · ");
+    return [labels.pages, labels.links, labels.latest].filter(Boolean).join(" · ");
   }
 
   function renderToolItem(item: ToolDiscoveryItem) {
@@ -196,6 +196,16 @@ export function ProjectView({
           links: t("graphDiscovery.index.links", {
             count: wikiIndex?.totals.wikiLinks ?? 0,
           }),
+          latest: wikiIndex?.latestPageUpdatedAt
+            ? t("graphDiscovery.index.latest", {
+                date: new Intl.DateTimeFormat(locale, {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }).format(new Date(wikiIndex.latestPageUpdatedAt)),
+              })
+            : undefined,
         })}
         mapHref={projectGraphHref()}
         cardsHref={projectGraphHref("cards")}

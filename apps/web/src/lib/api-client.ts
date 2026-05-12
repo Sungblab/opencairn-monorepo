@@ -711,6 +711,8 @@ export interface ProjectWikiIndexPage {
 
 export interface ProjectWikiIndex {
   projectId: string;
+  generatedAt: string;
+  latestPageUpdatedAt: string | null;
   totals: {
     pages: number;
     wikiLinks: number;

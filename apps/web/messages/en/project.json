@@ -151,7 +151,8 @@
     "index": {
       "label": "Wiki index",
       "pages": "{count} pages",
-      "links": "{count} links"
+      "links": "{count} links",
+      "latest": "Updated {date}"
     },
     "actions": {
       "map": "Open relationship map",

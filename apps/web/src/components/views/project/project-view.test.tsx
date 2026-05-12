@@ -26,6 +26,8 @@ vi.mock("@/lib/api-client", () => ({
     get: vi.fn(async () => ({ id: "p1", name: "Project One" })),
     wikiIndex: vi.fn(async () => ({
       projectId: "p1",
+      generatedAt: "2026-05-13T00:01:00.000Z",
+      latestPageUpdatedAt: "2026-05-13T00:00:00.000Z",
       totals: { pages: 3, wikiLinks: 2 },
       pages: [],
     })),
@@ -169,7 +171,7 @@ describe("ProjectView", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "project.graphDiscovery.index.pages · project.graphDiscovery.index.links",
+        "project.graphDiscovery.index.pages · project.graphDiscovery.index.links · project.graphDiscovery.index.latest",
       ),
     ).toBeInTheDocument();
     expect(
