@@ -41,6 +41,7 @@
     "bar": {
       "newTab": "New tab",
       "newTabTitle": "New note",
+      "overflowTitle": "Tab history",
       "overflowTrigger": "Tab list"
     },
     "item": {

@@ -51,12 +51,12 @@ export function ThreadList() {
 
   return (
     <div className="w-full">
-      <div className="border-b border-border px-3 py-2">
-        <p className="text-xs font-semibold text-muted-foreground">
+      <div className="border-b border-border px-2.5 py-1.5">
+        <p className="text-[11px] font-semibold text-muted-foreground">
           {t("title")}
         </p>
       </div>
-      <div className="app-scrollbar-thin max-h-72 overflow-auto p-1">
+      <div className="app-scrollbar-thin max-h-64 overflow-auto p-1">
         {threads.map((thread) => {
           const isDeleting = archive.isPending;
           const title = thread.title || t("untitled");
@@ -65,19 +65,19 @@ export function ThreadList() {
           return (
             <div
               key={thread.id}
-              className={`group flex items-center gap-1 rounded-md px-1 py-1 transition-colors hover:bg-muted ${
+              className={`group flex h-11 items-center gap-1 rounded-md px-1 transition-colors hover:bg-muted ${
                 active ? "bg-muted" : ""
               }`}
             >
               <button
                 type="button"
                 onClick={() => setActive(thread.id)}
-                className="min-w-0 flex-1 rounded px-2 py-1 text-left outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+                className="min-w-0 flex-1 rounded px-2 text-left outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
               >
-                <span className="block truncate text-sm font-medium text-foreground">
+                <span className="block truncate text-[13px] font-medium leading-4 text-foreground">
                   {title}
                 </span>
-                <span className="block text-[10px] text-muted-foreground">
+                <span className="mt-0.5 block text-[11px] leading-3 text-muted-foreground">
                   {now
                     ? format.relativeTime(new Date(thread.updated_at), now)
                     : null}
@@ -95,7 +95,7 @@ export function ThreadList() {
                 title={t("delete")}
                 disabled={isDeleting}
                 onClick={() => void deleteThread(thread.id)}
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] text-muted-foreground opacity-80 outline-none hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40 group-hover:opacity-100"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-control)] text-muted-foreground opacity-50 outline-none hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40 group-hover:opacity-100"
               >
                 <Trash2 className="h-4 w-4" />
               </button>

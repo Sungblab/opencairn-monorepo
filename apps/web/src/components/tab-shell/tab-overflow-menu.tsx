@@ -33,7 +33,7 @@ function TabOverflowItem({
     <DropdownMenuItem
       onSelect={onSelect}
       className={cn(
-        "h-8 cursor-pointer gap-2 px-2 text-sm leading-none hover:bg-muted hover:text-foreground",
+        "h-8 cursor-pointer gap-2 px-2 text-[13px] leading-none hover:bg-muted hover:text-foreground focus:bg-muted focus:text-foreground",
         active && "bg-muted text-foreground",
       )}
     >
@@ -75,22 +75,26 @@ export function TabOverflowMenu({
       <DropdownMenuContent
         align="end"
         sideOffset={2}
-        className="max-h-72 overflow-auto rounded-md border border-border bg-popover p-1 shadow-md ring-0"
-        style={{ width: 240, maxWidth: "calc(100vw - 16px)" }}
+        className="!w-56 max-w-[calc(100vw-16px)] overflow-hidden rounded-md border border-border bg-popover p-0 shadow-md ring-0"
       >
-        {tabs.map((tab) => (
-          <TabOverflowItem
-            key={tab.id}
-            tab={tab}
-            active={tab.id === activeId}
-            onSelect={() =>
-              navigateToTab(
-                { kind: tab.kind, targetId: tab.targetId, mode: tab.mode },
-                { mode: "replace" },
-              )
-            }
-          />
-        ))}
+        <div className="border-b border-border px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground">
+          {t("overflowTitle")}
+        </div>
+        <div className="app-scrollbar-thin max-h-64 overflow-auto p-1">
+          {tabs.map((tab) => (
+            <TabOverflowItem
+              key={tab.id}
+              tab={tab}
+              active={tab.id === activeId}
+              onSelect={() =>
+                navigateToTab(
+                  { kind: tab.kind, targetId: tab.targetId, mode: tab.mode },
+                  { mode: "replace" },
+                )
+              }
+            />
+          ))}
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );

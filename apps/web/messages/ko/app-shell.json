@@ -41,6 +41,7 @@
     "bar": {
       "newTab": "새 탭",
       "newTabTitle": "새 노트",
+      "overflowTitle": "탭 기록",
       "overflowTrigger": "탭 목록"
     },
     "item": {
