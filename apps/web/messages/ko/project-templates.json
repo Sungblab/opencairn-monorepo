@@ -1,0 +1,45 @@
+{
+  "title": "새 프로젝트 만들기",
+  "description": "빈 프로젝트로 시작하거나 과목, 리서치, 회의 템플릿을 골라 기본 노트까지 한 번에 만듭니다.",
+  "galleryLabel": "프로젝트 템플릿",
+  "projectCount": "{count}개 프로젝트",
+  "error": "템플릿을 적용하지 못했습니다. 잠시 후 다시 시도하세요.",
+  "templates": {
+    "empty_project": {
+      "title": "내 첫 프로젝트",
+      "description": "아무 노트 없이 직접 채워 나가는 기본 프로젝트입니다."
+    },
+    "school_subjects": {
+      "title": "국어 · 수학 · 영어 · 과학",
+      "description": "네 과목 프로젝트와 자료, 핵심 개념, 오답, 시험 일정 노트를 만듭니다."
+    },
+    "korean": {
+      "title": "국어",
+      "description": "작품, 개념, 수행평가 자료를 정리하는 국어 공부 프로젝트입니다."
+    },
+    "math": {
+      "title": "수학",
+      "description": "공식, 개념, 풀이 과정, 오답을 모아두는 수학 공부 프로젝트입니다."
+    },
+    "english": {
+      "title": "영어",
+      "description": "지문, 단어, 문법, 과제 자료를 관리하는 영어 공부 프로젝트입니다."
+    },
+    "science": {
+      "title": "과학",
+      "description": "개념, 실험, 문제 풀이, 시험 범위를 정리하는 과학 공부 프로젝트입니다."
+    },
+    "research": {
+      "title": "리서치 프로젝트",
+      "description": "질문, 출처, 결론 초안으로 조사 흐름을 잡는 프로젝트입니다."
+    },
+    "meeting": {
+      "title": "회의 노트",
+      "description": "회의 안건과 액션 아이템을 바로 기록할 수 있는 업무 프로젝트입니다."
+    },
+    "personal_knowledge": {
+      "title": "개인 지식 창고",
+      "description": "읽은 것과 아이디어를 꾸준히 쌓는 개인 지식 프로젝트입니다."
+    }
+  }
+}

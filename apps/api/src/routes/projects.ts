@@ -14,7 +14,12 @@ import {
   isNull,
   isNotNull,
 } from "@opencairn/db";
-import { createProjectSchema, updateProjectSchema } from "@opencairn/shared";
+import {
+  createProjectSchema,
+  getResolvedProjectTemplate,
+  projectTemplateApplyRequestSchema,
+  updateProjectSchema,
+} from "@opencairn/shared";
 import { requireAuth } from "../middleware/auth";
 import { canRead, canWrite, resolveRole } from "../lib/permissions";
 import { requireWorkspaceRole } from "../middleware/require-role";
@@ -166,6 +171,75 @@ export const projectRoutes = new Hono<AppEnv>()
         .returning();
       return c.json(project, 201);
     }
+  )
+
+  .post(
+    "/workspaces/:workspaceId/project-templates/apply",
+    requireWorkspaceRole("member"),
+    zValidator("json", projectTemplateApplyRequestSchema),
+    async (c) => {
+      const workspaceId = c.req.param("workspaceId");
+      if (!isUuid(workspaceId)) return c.json({ error: "Bad Request" }, 400);
+      const user = c.get("user");
+      const body = c.req.valid("json");
+      const template = getResolvedProjectTemplate(
+        body.templateId,
+        c.req.header("accept-language"),
+      );
+      if (!template) return c.json({ error: "template_not_found" }, 404);
+
+      const created = await db.transaction(async (tx) => {
+        const createdProjects: Array<{
+          id: string;
+          name: string;
+          notes: Array<{ id: string; title: string }>;
+        }> = [];
+
+        for (const templateProject of template.projects) {
+          const [project] = await tx
+            .insert(projects)
+            .values({
+              workspaceId,
+              name: templateProject.name,
+              description: templateProject.description,
+              createdBy: user.id,
+            })
+            .returning({ id: projects.id, name: projects.name });
+
+          const createdNotes: Array<{ id: string; title: string }> = [];
+          for (const templateNote of templateProject.notes) {
+            const [note] = await tx
+              .insert(notes)
+              .values({
+                projectId: project.id,
+                workspaceId,
+                title: templateNote.title,
+                contentText: templateNote.contentText,
+                content: [
+                  {
+                    type: "p",
+                    children: [{ text: templateNote.contentText }],
+                  },
+                ],
+                sourceType: "manual",
+                inheritParent: true,
+              })
+              .returning({ id: notes.id, title: notes.title });
+            createdNotes.push(note);
+          }
+
+          createdProjects.push({
+            id: project.id,
+            name: project.name,
+            notes: createdNotes,
+          });
+        }
+
+        return createdProjects;
+      });
+
+      return c.json({ templateId: template.id, projects: created }, 201);
+    },
   )
 
   // 수정 (/api/projects/:id, editor 이상 필요)

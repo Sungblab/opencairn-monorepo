@@ -1,12 +1,12 @@
-import { urls } from "@/lib/urls";
-import { redirect, notFound } from "next/navigation";
+import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
-import { DEFAULT_PROJECT_NAME } from "@opencairn/shared";
+import { getTranslations } from "next-intl/server";
+import { projectTemplates } from "@opencairn/shared";
+import {
+  NewProjectTemplateClient,
+  type ProjectTemplateClientLabels,
+} from "./NewProjectTemplateClient";
 
-// Fallback for the rare case where a workspace has zero projects
-// (e.g. user deleted them all). Auto-creates a default project and
-// redirects into it — no UI prompt, matches the "one-click into editing"
-// onboarding principle.
 export default async function NewProject({
   params,
 }: {
@@ -22,14 +22,30 @@ export default async function NewProject({
   });
   if (!wsRes.ok) notFound();
   const ws = (await wsRes.json()) as { id: string; name: string };
+  const t = await getTranslations("projectTemplates");
+  const labels: ProjectTemplateClientLabels = {
+    title: t("title"),
+    description: t("description"),
+    galleryLabel: t("galleryLabel"),
+    error: t("error"),
+    templates: Object.fromEntries(
+      projectTemplates.map((template) => [
+        template.id,
+        {
+          title: t(`templates.${template.id}.title`),
+          description: t(`templates.${template.id}.description`),
+          projectCount: t("projectCount", { count: template.projects.length }),
+        },
+      ]),
+    ) as ProjectTemplateClientLabels["templates"],
+  };
 
-  const createRes = await fetch(`${base}/api/workspaces/${ws.id}/projects`, {
-    method: "POST",
-    headers: { cookie: cookieHeader, "content-type": "application/json" },
-    body: JSON.stringify({ name: DEFAULT_PROJECT_NAME }),
-    cache: "no-store",
-  });
-  if (!createRes.ok) notFound();
-  const project = (await createRes.json()) as { id: string };
-  redirect(urls.workspace.project(locale, wsSlug, project.id));
+  return (
+    <NewProjectTemplateClient
+      locale={locale}
+      wsSlug={wsSlug}
+      workspaceId={ws.id}
+      labels={labels}
+    />
+  );
 }

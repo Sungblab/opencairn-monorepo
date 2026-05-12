@@ -154,6 +154,29 @@
       "mindmap": "Organize as mindmap"
     }
   },
+  "starter": {
+    "title": "Choose the first material to add",
+    "description": "Starter actions for an empty project.",
+    "actions": {
+      "upload": {
+        "title": "Upload files",
+        "description": "Add PDFs, images, audio, and other files to this project."
+      },
+      "templates": {
+        "title": "Add templates",
+        "description": "Create subject, research, or meeting projects with starter notes."
+      },
+      "import": {
+        "title": "Add text or links",
+        "description": "Import pasted text and web links as project material."
+      },
+      "timetable": {
+        "title": "Analyze timetable image",
+        "description": "Read a timetable image and create subject projects and schedule items.",
+        "badge": "Planned"
+      }
+    }
+  },
   "tabs": {
     "all": "All",
     "imported": "Imported",

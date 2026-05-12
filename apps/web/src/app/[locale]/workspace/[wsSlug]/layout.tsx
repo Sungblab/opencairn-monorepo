@@ -19,6 +19,7 @@ const WORKSPACE_CLIENT_MESSAGE_NAMESPACES = [
   "canvas",
   "note",
   "project",
+  "projectTemplates",
   "workspaceSettings",
   "account",
   "palette",
