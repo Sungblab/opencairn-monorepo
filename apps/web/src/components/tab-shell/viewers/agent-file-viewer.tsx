@@ -158,6 +158,7 @@ export function AgentFileViewer({ tab }: { tab: Tab }) {
   const file = data.file;
   const fileUrl = `/api/agent-files/${file.id}/file`;
   const compiledUrl = `/api/agent-files/${file.id}/compiled`;
+  const showFileToolbar = file.kind !== "pdf";
   const googleConnected = Boolean(googleIntegration.data?.connected);
   const googleExportLabel = googleConnected
     ? t("googleExport")
@@ -187,75 +188,77 @@ export function AgentFileViewer({ tab }: { tab: Tab }) {
       data-testid="agent-file-viewer"
       className="flex h-full min-h-0 flex-col bg-background"
     >
-      <div className="flex min-h-14 flex-wrap items-center gap-2 border-b px-3 py-2">
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium">{file.filename}</div>
-          <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-            {t("meta", {
-              kind: file.kind,
-              version: file.version,
-              bytes: formatBytes(file.bytes),
-            })}
-            {file.kind === "latex" ? (
-              <StatusPill label={t(`compileStatus.${file.compileStatus}`)} />
-            ) : null}
-            <StatusPill label={t(`ingestStatus.${file.ingestStatus}`)} />
+      {showFileToolbar ? (
+        <div className="flex min-h-14 flex-wrap items-center gap-2 border-b px-3 py-2">
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-medium">{file.filename}</div>
+            <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+              {t("meta", {
+                kind: file.kind,
+                version: file.version,
+                bytes: formatBytes(file.bytes),
+              })}
+              {file.kind === "latex" ? (
+                <StatusPill label={t(`compileStatus.${file.compileStatus}`)} />
+              ) : null}
+              <StatusPill label={t(`ingestStatus.${file.ingestStatus}`)} />
+            </div>
           </div>
+          <a
+            href={fileUrl}
+            download={file.filename}
+            title={t("download")}
+            aria-label={t("download")}
+            className={buttonVariants({ size: "sm", variant: "ghost" })}
+          >
+            <Download className="h-4 w-4" />
+          </a>
+          <Button
+            size="sm"
+            variant="ghost"
+            title={t("ingest")}
+            aria-label={t("ingest")}
+            onClick={() => ingest.mutate()}
+            disabled={ingest.isPending}
+          >
+            <UploadCloud className="h-4 w-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            title={googleExportLabel}
+            aria-label={googleExportLabel}
+            onClick={handleGoogleExport}
+            disabled={googleIntegration.isLoading || googleExport.isPending}
+          >
+            <ExternalLink className="h-4 w-4" />
+          </Button>
+          {file.kind === "latex" ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              title={t("compile")}
+              aria-label={t("compile")}
+              onClick={() => compile.mutate()}
+              disabled={compile.isPending}
+            >
+              <RefreshCcw className="h-4 w-4" />
+            </Button>
+          ) : null}
+          {file.kind === "code" || file.kind === "html" ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              title={t("canvas")}
+              aria-label={t("canvas")}
+              onClick={() => canvas.mutate()}
+              disabled={canvas.isPending}
+            >
+              <Play className="h-4 w-4" />
+            </Button>
+          ) : null}
         </div>
-        <a
-          href={fileUrl}
-          download={file.filename}
-          title={t("download")}
-          aria-label={t("download")}
-          className={buttonVariants({ size: "sm", variant: "ghost" })}
-        >
-          <Download className="h-4 w-4" />
-        </a>
-        <Button
-          size="sm"
-          variant="ghost"
-          title={t("ingest")}
-          aria-label={t("ingest")}
-          onClick={() => ingest.mutate()}
-          disabled={ingest.isPending}
-        >
-          <UploadCloud className="h-4 w-4" />
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          title={googleExportLabel}
-          aria-label={googleExportLabel}
-          onClick={handleGoogleExport}
-          disabled={googleIntegration.isLoading || googleExport.isPending}
-        >
-          <ExternalLink className="h-4 w-4" />
-        </Button>
-        {file.kind === "latex" ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            title={t("compile")}
-            aria-label={t("compile")}
-            onClick={() => compile.mutate()}
-            disabled={compile.isPending}
-          >
-            <RefreshCcw className="h-4 w-4" />
-          </Button>
-        ) : null}
-        {file.kind === "code" || file.kind === "html" ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            title={t("canvas")}
-            aria-label={t("canvas")}
-            onClick={() => canvas.mutate()}
-            disabled={canvas.isPending}
-          >
-            <Play className="h-4 w-4" />
-          </Button>
-        ) : null}
-      </div>
+      ) : null}
       <div className="min-h-0 flex-1">
         <FileBody file={file} fileUrl={fileUrl} compiledUrl={compiledUrl} />
       </div>

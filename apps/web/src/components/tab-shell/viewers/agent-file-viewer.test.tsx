@@ -7,6 +7,35 @@ import type { Tab } from "@/stores/tabs-store";
 import { useTabsStore } from "@/stores/tabs-store";
 import { AgentFileViewer } from "./agent-file-viewer";
 
+vi.mock("@embedpdf/react-pdf-viewer", () => ({
+  PDFViewer: (props: { config: { src: string }; style?: React.CSSProperties }) => (
+    <div
+      data-testid="embedpdf-viewer"
+      data-src={props.config.src}
+      data-height={props.style?.height}
+    />
+  ),
+}));
+
+vi.mock("next/dynamic", () => ({
+  default:
+    (loader: () => Promise<React.ComponentType<Record<string, unknown>>>) =>
+    (props: Record<string, unknown>) => {
+      const React = require("react") as typeof import("react");
+      const [Component, setComponent] =
+        React.useState<React.ComponentType<Record<string, unknown>> | null>(
+          null,
+        );
+
+      React.useEffect(() => {
+        loader().then((loaded) => setComponent(() => loaded));
+      }, []);
+
+      if (!Component) return null;
+      return <Component {...props} />;
+    },
+}));
+
 const messages = {
   agentFiles: {
     viewer: {
@@ -206,6 +235,27 @@ describe("AgentFileViewer", () => {
     await waitFor(() => {
       expect(useTabsStore.getState().tabs[0]?.title).toBe("분석 보고서");
     });
+  });
+
+  it("renders PDFs without the outer file toolbar above EmbedPDF", async () => {
+    const file = fileSummary({
+      title: "분석 보고서",
+      filename: "analysis.pdf",
+      extension: "pdf",
+      kind: "pdf",
+      mimeType: "application/pdf",
+      ingestStatus: "completed",
+    });
+    renderViewer(file, "pdf");
+
+    expect(await screen.findByTestId("agent-file-pdf-viewer")).toBeInTheDocument();
+    expect(await screen.findByTestId("embedpdf-viewer")).toHaveAttribute(
+      "data-src",
+      `/api/agent-files/${file.id}/file`,
+    );
+    expect(screen.queryByText("analysis.pdf")).not.toBeInTheDocument();
+    expect(screen.queryByText("pdf · v3 · 2.0 KB")).not.toBeInTheDocument();
+    expect(screen.queryByText("인제스트 완료")).not.toBeInTheDocument();
   });
 
   it("renders csv as a focused table with source available on demand", async () => {
