@@ -52,6 +52,26 @@ describe("CardsView", () => {
     expect(screen.getByText(koGraph.views.noConcepts)).toBeInTheDocument();
   });
 
+  it("renders empty state when the cards response is missing after loading", () => {
+    (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: null,
+    });
+    wrap(<CardsView projectId="p-1" />);
+    expect(screen.getByText(koGraph.views.noConcepts)).toBeInTheDocument();
+  });
+
+  it("renders the graph load error when card data fails", () => {
+    (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error("boom"),
+    });
+    wrap(<CardsView projectId="p-1" />);
+    expect(screen.getByText(koGraph.errors.loadFailed)).toBeInTheDocument();
+  });
+
   it("renders evidence-backed concept cards as a readable DOM grid", () => {
     (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
       data: {

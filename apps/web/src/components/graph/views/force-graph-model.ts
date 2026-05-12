@@ -1,7 +1,6 @@
 import type { GroundedGraphResponse } from "../grounded-types";
 
 export const GRAPH_LABEL_MAX = 28;
-export const GRAPH_LOW_ZOOM_LABEL_THRESHOLD = 0.72;
 export const GRAPH_FULL_LABEL_ZOOM_THRESHOLD = 1.0;
 
 export type ForceGraphNode = {
@@ -120,6 +119,5 @@ export function getGraphLabel(
     opts.neighborIds.has(node.id);
 
   if (!important && opts.zoom < GRAPH_FULL_LABEL_ZOOM_THRESHOLD) return "";
-  if (!important && opts.zoom < GRAPH_LOW_ZOOM_LABEL_THRESHOLD) return "";
   return node.shortLabel;
 }

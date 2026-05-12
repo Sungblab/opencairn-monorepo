@@ -79,9 +79,122 @@ type ForceGraph2DProps = {
 };
 
 const ForceGraph2D = dynamic(
-  () => import("react-force-graph-2d"),
+  async () => {
+    const { default: ForceGraphComponent } = await import("react-force-graph-2d");
+    const ForwardedForceGraph = React.forwardRef<
+      ForceGraphHandle,
+      Omit<ForceGraph2DProps, "ref">
+    >((props, ref) => {
+      const Component = ForceGraphComponent as unknown as React.ComponentType<
+        Omit<ForceGraph2DProps, "ref"> & { ref?: React.Ref<ForceGraphHandle> }
+      >;
+      return <Component {...props} ref={ref} />;
+    });
+    ForwardedForceGraph.displayName = "ForwardedForceGraph2D";
+    return ForwardedForceGraph;
+  },
   { ssr: false },
 ) as unknown as (props: ForceGraph2DProps) => React.ReactElement;
+
+type GraphCanvasPalette = {
+  background: string;
+  foreground: string;
+  foregroundMuted: string;
+  primary: string;
+  destructive: string;
+  border: string;
+  fadedNode: string;
+  mutedNode: string;
+  inactiveLink: string;
+  activeLink: string;
+  supportedLink: string;
+  disputedLink: string;
+  labelBackground: string;
+  fadedLabel: string;
+};
+
+const DEFAULT_CANVAS_PALETTE: GraphCanvasPalette = {
+  background: "#ffffff",
+  foreground: "#171717",
+  foregroundMuted: "#737373",
+  primary: "#171717",
+  destructive: "#dc2626",
+  border: "#e5e5e5",
+  fadedNode: "rgba(115, 115, 115, 0.32)",
+  mutedNode: "rgba(115, 115, 115, 0.82)",
+  inactiveLink: "rgba(115, 115, 115, 0.18)",
+  activeLink: "rgba(115, 115, 115, 0.48)",
+  supportedLink: "rgba(23, 23, 23, 0.72)",
+  disputedLink: "rgba(220, 38, 38, 0.72)",
+  labelBackground: "rgba(255, 255, 255, 0.88)",
+  fadedLabel: "rgba(115, 115, 115, 0.72)",
+};
+
+function resolveThemeColor(
+  styles: CSSStyleDeclaration,
+  name: string,
+  fallback: string,
+) {
+  return styles.getPropertyValue(name).trim() || fallback;
+}
+
+function rgbaFromHex(hex: string, alpha: number, fallback: string) {
+  const value = hex.trim();
+  const match = /^#?([0-9a-f]{6})$/i.exec(value);
+  if (!match) return fallback;
+  const int = Number.parseInt(match[1], 16);
+  const r = (int >> 16) & 255;
+  const g = (int >> 8) & 255;
+  const b = int & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function resolveCanvasPalette(el: HTMLElement | null): GraphCanvasPalette {
+  if (typeof window === "undefined") return DEFAULT_CANVAS_PALETTE;
+  const styles = window.getComputedStyle(el ?? document.documentElement);
+  const background = resolveThemeColor(
+    styles,
+    "--theme-bg",
+    DEFAULT_CANVAS_PALETTE.background,
+  );
+  const foreground = resolveThemeColor(
+    styles,
+    "--theme-fg",
+    DEFAULT_CANVAS_PALETTE.foreground,
+  );
+  const foregroundMuted = resolveThemeColor(
+    styles,
+    "--theme-fg-muted",
+    DEFAULT_CANVAS_PALETTE.foregroundMuted,
+  );
+  const destructive = resolveThemeColor(
+    styles,
+    "--theme-danger",
+    DEFAULT_CANVAS_PALETTE.destructive,
+  );
+  const border = resolveThemeColor(
+    styles,
+    "--theme-border",
+    DEFAULT_CANVAS_PALETTE.border,
+  );
+
+  return {
+    background,
+    foreground,
+    foregroundMuted,
+    primary: foreground,
+    destructive,
+    border,
+    fadedNode: rgbaFromHex(foregroundMuted, 0.32, DEFAULT_CANVAS_PALETTE.fadedNode),
+    mutedNode: rgbaFromHex(foregroundMuted, 0.82, DEFAULT_CANVAS_PALETTE.mutedNode),
+    inactiveLink: rgbaFromHex(border, 0.42, DEFAULT_CANVAS_PALETTE.inactiveLink),
+    activeLink: rgbaFromHex(foregroundMuted, 0.58, DEFAULT_CANVAS_PALETTE.activeLink),
+    supportedLink: rgbaFromHex(foreground, 0.72, DEFAULT_CANVAS_PALETTE.supportedLink),
+    disputedLink: rgbaFromHex(destructive, 0.72, DEFAULT_CANVAS_PALETTE.disputedLink),
+    labelBackground: rgbaFromHex(background, 0.88, DEFAULT_CANVAS_PALETTE.labelBackground),
+    fadedLabel: rgbaFromHex(foregroundMuted, 0.72, DEFAULT_CANVAS_PALETTE.fadedLabel),
+  };
+}
 
 export default function GraphView({ projectId }: { projectId: string }) {
   const t = useTranslations("graph");
@@ -99,12 +212,14 @@ export default function GraphView({ projectId }: { projectId: string }) {
   const consumedEdgeParam = useRef<string | null>(null);
   const graphRef = useRef<ForceGraphHandle>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const canvasPaletteRef = useRef<GraphCanvasPalette>(DEFAULT_CANVAS_PALETTE);
   const [size, setSize] = useState({ width: 900, height: 640 });
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const update = () => {
+      canvasPaletteRef.current = resolveCanvasPalette(el);
       const rect = el.getBoundingClientRect();
       setSize({
         width: Math.max(320, Math.floor(rect.width || 900)),
@@ -115,7 +230,15 @@ export default function GraphView({ projectId }: { projectId: string }) {
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(update);
     observer.observe(el);
-    return () => observer.disconnect();
+    const themeObserver = new MutationObserver(update);
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "data-theme"],
+    });
+    return () => {
+      observer.disconnect();
+      themeObserver.disconnect();
+    };
   }, []);
 
   const filteredData = useMemo(() => {
@@ -234,19 +357,22 @@ export default function GraphView({ projectId }: { projectId: string }) {
         neighborhood.nodeIds.has(forceNode.id);
       const faded = activeNodeId ? !important : false;
       const radius = Math.max(4, Math.min(12, forceNode.val ?? 5));
+      const palette = canvasPaletteRef.current;
       ctx.beginPath();
       ctx.arc(forceNode.x ?? 0, forceNode.y ?? 0, radius, 0, 2 * Math.PI, false);
       ctx.fillStyle = selectedNodeId === forceNode.id
-        ? "#111827"
+        ? palette.primary
         : hoveredNodeId === forceNode.id
-          ? "#2563eb"
+          ? palette.foreground
           : faded
-            ? "rgba(156, 163, 175, 0.32)"
-            : "rgba(107, 114, 128, 0.82)";
+            ? palette.fadedNode
+            : palette.mutedNode;
       ctx.fill();
       if (important) {
         ctx.lineWidth = 1.5 / globalScale;
-        ctx.strokeStyle = selectedNodeId === forceNode.id ? "#111827" : "#2563eb";
+        ctx.strokeStyle = selectedNodeId === forceNode.id
+          ? palette.primary
+          : palette.foreground;
         ctx.stroke();
       }
 
@@ -265,9 +391,9 @@ export default function GraphView({ projectId }: { projectId: string }) {
       const textWidth = ctx.measureText(label).width;
       const x = forceNode.x ?? 0;
       const y = (forceNode.y ?? 0) + radius + 4;
-      ctx.fillStyle = "rgba(255, 255, 255, 0.88)";
+      ctx.fillStyle = palette.labelBackground;
       ctx.fillRect(x - textWidth / 2 - 4, y - 2, textWidth + 8, fontSize + 5);
-      ctx.fillStyle = faded ? "rgba(55, 65, 81, 0.58)" : "#111827";
+      ctx.fillStyle = faded ? palette.fadedLabel : palette.foreground;
       ctx.fillText(label, x, y);
     },
     [
@@ -334,11 +460,12 @@ export default function GraphView({ projectId }: { projectId: string }) {
           linkTarget="target"
           linkLabel={(link) => link.relationType}
           linkColor={(link) => {
-            if (!linkActive(link)) return "rgba(156, 163, 175, 0.18)";
+            const palette = canvasPaletteRef.current;
+            if (!linkActive(link)) return palette.inactiveLink;
             const status = link.supportStatus;
-            if (status === "supported") return "rgba(37, 99, 235, 0.72)";
-            if (status === "disputed") return "rgba(220, 38, 38, 0.72)";
-            return "rgba(107, 114, 128, 0.48)";
+            if (status === "supported") return palette.supportedLink;
+            if (status === "disputed") return palette.disputedLink;
+            return palette.activeLink;
           }}
           linkWidth={(link) =>
             linkActive(link)
