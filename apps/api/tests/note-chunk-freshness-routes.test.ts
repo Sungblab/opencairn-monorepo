@@ -249,4 +249,54 @@ describe("note chunk freshness route wiring", () => {
       );
     expect(rows).toHaveLength(1);
   });
+
+  it("clears stale wiki links when internal note patch removes Plate links", async () => {
+    const create = await app.request("/api/internal/notes", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-internal-secret": "test-internal-secret",
+      },
+      body: JSON.stringify({
+        projectId: ctx.projectId,
+        title: "Patch Link Removal",
+        type: "source",
+        sourceType: "pdf",
+        content: [
+          {
+            type: "p",
+            children: [
+              { text: "Related: " },
+              {
+                type: "wiki-link",
+                targetId: ctx.noteId,
+                children: [{ text: "seed note" }],
+              },
+            ],
+          },
+        ],
+        contentText: "Related: seed note",
+      }),
+    });
+    const { noteId } = (await create.json()) as { noteId: string };
+
+    const patch = await app.request(`/api/internal/notes/${noteId}`, {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        "x-internal-secret": "test-internal-secret",
+      },
+      body: JSON.stringify({
+        content: [{ type: "p", children: [{ text: "No links now" }] }],
+        contentText: "No links now",
+      }),
+    });
+
+    expect(patch.status).toBe(200);
+    const rows = await db
+      .select({ id: wikiLinks.id })
+      .from(wikiLinks)
+      .where(eq(wikiLinks.sourceNoteId, noteId));
+    expect(rows).toHaveLength(0);
+  });
 });
