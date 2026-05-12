@@ -371,16 +371,20 @@ export const useTabsStore = create<State>((set, get) => ({
   setActive: (id) => {
     const s = get();
     if (!s.tabs.some((t) => t.id === id)) return;
-    const activePane = s.split ? paneForActive(id, s.split) : "primary";
+    const isInSplit = Boolean(
+      s.split && (s.split.primaryTabId === id || s.split.secondaryTabId === id),
+    );
+    const split = isInSplit ? s.split : null;
+    const activePane = split ? paneForActive(id, split) : "primary";
     const recentlyActiveTabIds = addRecent(s.recentlyActiveTabIds, id);
-    set({ activeId: id, activePane, recentlyActiveTabIds });
+    set({ activeId: id, activePane, split, recentlyActiveTabIds });
     if (s.workspaceId)
       flush(s.workspaceId, {
         version: 1,
         tabs: s.tabs,
         activeId: id,
         activePane,
-        split: s.split,
+        split,
         closedStack: s.closedStack,
         recentlyActiveTabIds,
       });

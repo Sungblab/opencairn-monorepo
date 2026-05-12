@@ -350,6 +350,22 @@ describe("tabs-store extensions", () => {
       expect(useTabsStore.getState().activePane).toBe("primary");
     });
 
+    it("setActive dissolves the split when activating a tab outside the split", () => {
+      useTabsStore.getState().addTab(mk({ id: "left" }));
+      useTabsStore.getState().addTab(mk({ id: "outside" }));
+      useTabsStore.getState().setActive("left");
+      useTabsStore.getState().openTabToRight(mk({ id: "right" }));
+
+      useTabsStore.getState().setActive("outside");
+
+      expect(useTabsStore.getState().split).toBeNull();
+      expect(useTabsStore.getState().activeId).toBe("outside");
+      expect(useTabsStore.getState().activePane).toBe("primary");
+      const raw = JSON.parse(localStorage.getItem("oc:tabs:ws-a")!);
+      expect(raw.split).toBeNull();
+      expect(raw.activeId).toBe("outside");
+    });
+
     it("swapSplitPanes swaps pane ids and keeps the same active tab", () => {
       useTabsStore.getState().addTab(mk({ id: "left" }));
       useTabsStore.getState().openTabToRight(mk({ id: "right" }));
