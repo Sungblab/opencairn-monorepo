@@ -4,17 +4,62 @@ import { useLocale, useTranslations } from "next-intl";
 import { useParams, useRouter } from "next/navigation";
 import { urls } from "@/lib/urls";
 import { useProjectGraph } from "../useProjectGraph";
-import { evidenceBundleById } from "../grounded-types";
+import { evidenceBundleById, type GroundedEdge } from "../grounded-types";
 import { ConceptCard } from "./ConceptCard";
 
 interface Props {
   projectId: string;
 }
 
+const CARD_WIDTH = 260;
+const CARD_HEIGHT = 178;
+const CARD_GAP_X = 72;
+const CARD_GAP_Y = 58;
+const CARD_PADDING = 24;
+
+function cardGraphLayout(nodeIds: string[]) {
+  const columns = Math.max(1, Math.ceil(Math.sqrt(nodeIds.length)));
+  const positions = new Map<string, { x: number; y: number }>();
+  nodeIds.forEach((id, index) => {
+    const row = Math.floor(index / columns);
+    const col = index % columns;
+    positions.set(id, {
+      x: CARD_PADDING + col * (CARD_WIDTH + CARD_GAP_X),
+      y: CARD_PADDING + row * (CARD_HEIGHT + CARD_GAP_Y),
+    });
+  });
+  const rows = Math.max(1, Math.ceil(nodeIds.length / columns));
+  return {
+    positions,
+    width: CARD_PADDING * 2 + columns * CARD_WIDTH + (columns - 1) * CARD_GAP_X,
+    height: CARD_PADDING * 2 + rows * CARD_HEIGHT + (rows - 1) * CARD_GAP_Y,
+  };
+}
+
+function edgePath(
+  edge: GroundedEdge,
+  positions: Map<string, { x: number; y: number }>,
+) {
+  const source = positions.get(edge.sourceId);
+  const target = positions.get(edge.targetId);
+  if (!source || !target) return null;
+  const x1 = source.x + CARD_WIDTH / 2;
+  const y1 = source.y + CARD_HEIGHT / 2;
+  const x2 = target.x + CARD_WIDTH / 2;
+  const y2 = target.y + CARD_HEIGHT / 2;
+  return {
+    x1,
+    y1,
+    x2,
+    y2,
+    labelX: (x1 + x2) / 2,
+    labelY: (y1 + y2) / 2,
+  };
+}
+
 /**
- * `?view=cards` — readable concept cards. This view is intentionally not a
- * canvas graph: cards are for scanning summaries, opening source notes, and
- * jumping into study/question flows without label collisions.
+ * `?view=cards` — connected concept cards. This keeps cards readable while
+ * preserving the ontology edges that make the view useful as a knowledge map.
  */
 export default function CardsView({ projectId }: Props) {
   const t = useTranslations("graph");
@@ -32,6 +77,10 @@ export default function CardsView({ projectId }: Props) {
   const bundlesById = useMemo(
     () => evidenceBundleById(data?.evidenceBundles),
     [data?.evidenceBundles],
+  );
+  const layout = useMemo(
+    () => cardGraphLayout((data?.nodes ?? []).map((node) => node.id)),
+    [data?.nodes],
   );
 
   if (isLoading) {
@@ -70,34 +119,104 @@ export default function CardsView({ projectId }: Props) {
           </span>
         ) : null}
       </div>
-      <div
-        data-testid="concept-card-grid"
-        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
-      >
+      <div className="overflow-auto rounded-lg border border-border bg-muted/20">
+        <div
+          data-testid="concept-card-graph"
+          className="relative"
+          style={{
+            width: layout.width,
+            height: layout.height,
+            minWidth: "100%",
+          }}
+        >
+          <svg
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            width={layout.width}
+            height={layout.height}
+          >
+            <defs>
+              <marker
+                id="concept-card-arrow"
+                viewBox="0 0 10 10"
+                refX="8"
+                refY="5"
+                markerWidth="5"
+                markerHeight="5"
+                orient="auto-start-reverse"
+              >
+                <path d="M 0 0 L 10 5 L 0 10 z" className="fill-foreground/40" />
+              </marker>
+            </defs>
+            {data.edges.map((edge) => {
+              const path = edgePath(edge, layout.positions);
+              if (!path) return null;
+              return (
+                <g key={edge.id ?? `${edge.sourceId}-${edge.targetId}`}>
+                  <line
+                    data-testid="concept-card-edge"
+                    x1={path.x1}
+                    y1={path.y1}
+                    x2={path.x2}
+                    y2={path.y2}
+                    className="stroke-foreground/25"
+                    strokeWidth={Math.max(1, Math.min(3, (edge.weight ?? 1) * 2))}
+                    markerEnd="url(#concept-card-arrow)"
+                  />
+                  <text
+                    x={path.labelX}
+                    y={path.labelY - 6}
+                    textAnchor="middle"
+                    className="fill-muted-foreground text-[10px] font-medium"
+                    style={{
+                      paintOrder: "stroke",
+                      stroke: "var(--theme-bg)",
+                      strokeLinejoin: "round",
+                      strokeWidth: 4,
+                    }}
+                  >
+                    {edge.relationType}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
         {data.nodes.map((node) => {
           const card = cardsByConceptId.get(node.id);
           const bundle = card?.evidenceBundleId
             ? bundlesById.get(card.evidenceBundleId)
             : undefined;
+          const position = layout.positions.get(node.id) ?? { x: 0, y: 0 };
           return (
-            <ConceptCard
+            <div
               key={node.id}
-              node={node}
-              card={card}
-              bundle={bundle}
-              onAsk={() => {
-                if (!wsSlug) return;
-                router.push(
-                  `${urls.workspace.projectLearnSocratic(locale, wsSlug, projectId)}?concept=${encodeURIComponent(card?.title ?? node.name)}`,
-                );
+              className="absolute"
+              style={{
+                left: position.x,
+                top: position.y,
+                width: CARD_WIDTH,
+                minHeight: CARD_HEIGHT,
               }}
-              onQuiz={() => {
-                if (!wsSlug) return;
-                router.push(urls.workspace.projectLearnFlashcards(locale, wsSlug, projectId));
-              }}
-            />
+            >
+              <ConceptCard
+                node={node}
+                card={card}
+                bundle={bundle}
+                onAsk={() => {
+                  if (!wsSlug) return;
+                  router.push(
+                    `${urls.workspace.projectLearnSocratic(locale, wsSlug, projectId)}?concept=${encodeURIComponent(card?.title ?? node.name)}`,
+                  );
+                }}
+                onQuiz={() => {
+                  if (!wsSlug) return;
+                  router.push(urls.workspace.projectLearnFlashcards(locale, wsSlug, projectId));
+                }}
+              />
+            </div>
           );
         })}
+        </div>
       </div>
     </div>
   );

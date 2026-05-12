@@ -72,7 +72,7 @@ describe("CardsView", () => {
     expect(screen.getByText(koGraph.errors.loadFailed)).toBeInTheDocument();
   });
 
-  it("renders evidence-backed concept cards as a readable DOM grid", () => {
+  it("renders evidence-backed concept cards as a connected card graph", () => {
     (useProjectGraph as ReturnType<typeof vi.fn>).mockReturnValue({
       data: {
         viewType: "cards",
@@ -108,11 +108,12 @@ describe("CardsView", () => {
       error: null,
     });
     const { container } = wrap(<CardsView projectId="p-1" />);
-    expect(screen.getByTestId("concept-card-grid")).toBeInTheDocument();
+    expect(screen.getByTestId("concept-card-graph")).toBeInTheDocument();
+    expect(screen.getByTestId("concept-card-edge")).toBeInTheDocument();
     expect(container.querySelector("canvas")).not.toBeInTheDocument();
     expect(screen.getByText("Trans")).toBeInTheDocument();
     expect(screen.getByText("BERT")).toBeInTheDocument();
-    expect(screen.queryByText("depends-on")).not.toBeInTheDocument();
+    expect(screen.getByText("depends-on")).toBeInTheDocument();
   });
 
   it("uses evidence-backed card titles when available", () => {

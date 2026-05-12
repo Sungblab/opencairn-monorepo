@@ -138,7 +138,7 @@ export default function TimelineView({ projectId }: Props) {
               className="fill-foreground text-[11px] font-medium"
               style={{
                 paintOrder: "stroke",
-                stroke: "hsl(var(--background))",
+                stroke: "var(--theme-bg)",
                 strokeLinejoin: "round",
                 strokeWidth: 4,
               }}

@@ -444,9 +444,9 @@ const ATLAS_STYLESHEET: cytoscape.StylesheetStyle[] = [
       label: "data(label)",
       "font-size": "11px",
       "font-weight": 600,
-      color: "hsl(var(--foreground))",
-      "background-color": "hsl(var(--background))",
-      "border-color": "hsl(var(--border))",
+      color: "#171717",
+      "background-color": "#ffffff",
+      "border-color": "#e5e5e5",
       "border-width": 1,
       width: "mapData(projectCount, 1, 6, 96, 150)",
       height: "mapData(mentionCount, 0, 20, 38, 58)",
@@ -460,13 +460,13 @@ const ATLAS_STYLESHEET: cytoscape.StylesheetStyle[] = [
     selector: "node[?bridge]",
     style: {
       "border-width": 3,
-      "border-color": "hsl(var(--primary))",
+      "border-color": "#171717",
     },
   },
   {
     selector: "node[?duplicateCandidate]",
     style: {
-      "background-color": "hsl(var(--muted))",
+      "background-color": "#f5f5f5",
     },
   },
   {
@@ -492,7 +492,7 @@ const ATLAS_STYLESHEET: cytoscape.StylesheetStyle[] = [
   {
     selector: "node:selected",
     style: {
-      "border-color": "hsl(var(--foreground))",
+      "border-color": "#171717",
       "border-width": 4,
     },
   },
@@ -500,14 +500,14 @@ const ATLAS_STYLESHEET: cytoscape.StylesheetStyle[] = [
     selector: "edge",
     style: {
       "curve-style": "bezier",
-      "line-color": "hsl(var(--border))",
+      "line-color": "#d4d4d4",
       width: "mapData(weight, 0, 1, 1, 4)",
       "target-arrow-shape": "triangle",
-      "target-arrow-color": "hsl(var(--border))",
+      "target-arrow-color": "#d4d4d4",
       label: "data(label)",
       "font-size": "9px",
-      color: "hsl(var(--muted-foreground))",
-      "text-background-color": "hsl(var(--background))",
+      color: "#525252",
+      "text-background-color": "#ffffff",
       "text-background-opacity": 0.85,
       "text-background-padding": "2px",
     },
@@ -515,8 +515,8 @@ const ATLAS_STYLESHEET: cytoscape.StylesheetStyle[] = [
   {
     selector: "edge[?crossProject]",
     style: {
-      "line-color": "hsl(var(--primary))",
-      "target-arrow-color": "hsl(var(--primary))",
+      "line-color": "#171717",
+      "target-arrow-color": "#171717",
     },
   },
   {

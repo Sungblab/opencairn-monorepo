@@ -185,7 +185,9 @@ export default function MindmapView({ projectId, root }: Props) {
               "font-weight": 600,
               "text-wrap": "wrap",
               "text-max-width": 150,
-              "text-background-color": "hsl(var(--background))",
+              color: "#171717",
+              "background-color": "#a3a3a3",
+              "text-background-color": "#ffffff",
               "text-background-opacity": 0.9,
               "text-background-padding": 3,
               "text-margin-y": -8,
@@ -193,7 +195,7 @@ export default function MindmapView({ projectId, root }: Props) {
           },
           {
             selector: "node[?isRoot]",
-            style: { "border-width": 2, "background-color": "#666" },
+            style: { "border-width": 2, "background-color": "#171717" },
           },
           {
             selector: "edge",
@@ -206,7 +208,7 @@ export default function MindmapView({ projectId, root }: Props) {
           },
           {
             selector: 'edge[supportStatus = "supported"]',
-            style: { "line-color": "hsl(var(--primary))", "target-arrow-color": "hsl(var(--primary))" },
+            style: { "line-color": "#171717", "target-arrow-color": "#171717" },
           },
           {
             selector: 'edge[supportStatus = "weak"]',
@@ -218,7 +220,7 @@ export default function MindmapView({ projectId, root }: Props) {
           },
           {
             selector: 'edge[supportStatus = "disputed"]',
-            style: { "line-color": "hsl(var(--destructive))", "target-arrow-color": "hsl(var(--destructive))" },
+            style: { "line-color": "#dc2626", "target-arrow-color": "#dc2626" },
           },
         ] as cytoscape.StylesheetJsonBlock[]
       }

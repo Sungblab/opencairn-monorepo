@@ -78,16 +78,19 @@ export function layoutTimeline(input: ViewNode[]): TimelineLayout {
   const years = dated.map((entry) => entry.year);
   const minYear = years[0] ?? 0;
   const maxYear = years[years.length - 1] ?? minYear;
+  const sameYear = minYear === maxYear;
   const span = Math.max(1, maxYear - minYear);
   const width = Math.max(MIN_WIDTH, dated.length * NODE_PADDING_X);
   const laneByYear = new Map<number, number>();
   let maxLane = 0;
 
-  const positionedNodes: PositionedNode[] = dated.map(({ node: n, year }) => {
+  const positionedNodes: PositionedNode[] = dated.map(({ node: n, year }, index) => {
     const lane = laneByYear.get(year) ?? 0;
     laneByYear.set(year, lane + 1);
     maxLane = Math.max(maxLane, lane);
-    const ratio = (year - minYear) / span;
+    const ratio = sameYear
+      ? index / Math.max(1, dated.length - 1)
+      : (year - minYear) / span;
     const laneOffset =
       lane === 0 ? 0 : (lane % 2 === 1 ? 1 : -1) * Math.ceil(lane / 2) * LANE_GAP;
     return {
@@ -104,7 +107,9 @@ export function layoutTimeline(input: ViewNode[]): TimelineLayout {
 
   // 2..8 ticks depending on span — short spans (<20 years) get one tick per
   // year; longer spans cap at 8 to avoid label collisions.
-  const tickCount = Math.min(8, Math.max(2, span < 20 ? span + 1 : 8));
+  const tickCount = sameYear
+    ? 1
+    : Math.min(8, Math.max(2, span < 20 ? span + 1 : 8));
   const ticks: TimelineTick[] = Array.from({ length: tickCount }, (_, i) => {
     const ratio = tickCount === 1 ? 0 : i / (tickCount - 1);
     const year = Math.round(minYear + ratio * span);

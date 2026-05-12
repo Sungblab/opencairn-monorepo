@@ -76,4 +76,16 @@ describe("layoutTimeline", () => {
 
     expect(new Set(out.nodes.map((node) => node.y)).size).toBe(3);
   });
+
+  it("spreads concepts within the same year instead of stacking them on one x coordinate", () => {
+    const out = layoutTimeline(
+      nodes([
+        { id: "a", name: "same 1", eventYear: 2026 },
+        { id: "b", name: "same 2", eventYear: 2026 },
+        { id: "c", name: "same 3", eventYear: 2026 },
+      ]),
+    );
+
+    expect(new Set(out.nodes.map((node) => node.x)).size).toBe(3);
+  });
 });

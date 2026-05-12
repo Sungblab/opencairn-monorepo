@@ -6,49 +6,52 @@ export const GRAPH_STYLESHEET: StylesheetStyle[] = [
   {
     selector: "node",
     style: {
-      "background-color": "hsl(var(--foreground) / 0.85)",
+      "background-color": "#737373",
       label: "data(label)",
       "font-size": "11px",
-      color: "hsl(var(--foreground))",
+      color: "#171717",
+      "text-background-color": "#ffffff",
+      "text-background-opacity": 0.9,
+      "text-background-padding": "3px",
       "text-margin-y": -8,
       "text-halign": "center",
       "text-valign": "top",
       width: "mapData(degree, 0, 30, 14, 36)",
       height: "mapData(degree, 0, 30, 14, 36)",
       "border-width": 1,
-      "border-color": "hsl(var(--border))",
+      "border-color": "#e5e5e5",
     },
   },
   {
     selector: "node:selected",
     style: {
       "border-width": 3,
-      "border-color": "hsl(var(--primary))",
+      "border-color": "#171717",
     },
   },
   {
     selector: "edge",
     style: {
-      "line-color": "hsl(var(--border))",
+      "line-color": "#d4d4d4",
       "curve-style": "bezier",
       width: "mapData(weight, 0, 5, 1, 4)",
       "target-arrow-shape": "triangle",
-      "target-arrow-color": "hsl(var(--border))",
+      "target-arrow-color": "#d4d4d4",
     },
   },
   {
     selector: 'edge[supportStatus = "supported"]',
     style: {
-      "line-color": "hsl(var(--primary))",
-      "target-arrow-color": "hsl(var(--primary))",
+      "line-color": "#171717",
+      "target-arrow-color": "#171717",
     },
   },
   {
     selector: 'edge[supportStatus = "weak"]',
     style: {
       "line-style": "dashed",
-      "line-color": "hsl(var(--muted-foreground))",
-      "target-arrow-color": "hsl(var(--muted-foreground))",
+      "line-color": "#737373",
+      "target-arrow-color": "#737373",
     },
   },
   {
@@ -63,8 +66,8 @@ export const GRAPH_STYLESHEET: StylesheetStyle[] = [
     selector: 'edge[supportStatus = "disputed"]',
     style: {
       "line-style": "dashed",
-      "line-color": "hsl(var(--destructive))",
-      "target-arrow-color": "hsl(var(--destructive))",
+      "line-color": "#dc2626",
+      "target-arrow-color": "#dc2626",
     },
   },
   {
