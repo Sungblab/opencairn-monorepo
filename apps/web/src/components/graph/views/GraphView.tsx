@@ -18,9 +18,9 @@ import { CoMentionEdgePanel } from "./CoMentionEdgePanel";
 import { EdgeEvidencePanel } from "./EdgeEvidencePanel";
 import {
   buildForceGraphData,
+  getForceGraphNeighborhood,
   getGraphLabel,
   getGraphLabelFontSize,
-  getGraphNeighborhood,
   type ForceGraphLink,
   type ForceGraphNode,
 } from "./force-graph-model";
@@ -302,8 +302,8 @@ export default function GraphView({ projectId }: { projectId: string }) {
   );
   const activeNodeId = hoveredNodeId ?? selectedNodeId;
   const neighborhood = useMemo(
-    () => getGraphNeighborhood(filteredData?.edges ?? [], activeNodeId),
-    [filteredData?.edges, activeNodeId],
+    () => getForceGraphNeighborhood(graphData?.links ?? [], activeNodeId),
+    [graphData?.links, activeNodeId],
   );
 
   const addOrReplacePreview = useTabsStore((s) => s.addOrReplacePreview);

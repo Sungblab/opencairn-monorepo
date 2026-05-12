@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildForceGraphData,
+  getForceGraphNeighborhood,
   getGraphLabelFontSize,
   getGraphLabel,
   getGraphNeighborhood,
@@ -184,6 +185,24 @@ describe("force graph model", () => {
     ]);
     expect([...neighborhood.edgeIds]).toEqual([
       "44444444-4444-4444-8444-444444444444",
+    ]);
+  });
+
+  it("builds one-hop highlight sets from rendered force links including note hubs", () => {
+    const graph = buildForceGraphData(snap);
+    const neighborhood = getForceGraphNeighborhood(
+      graph.links,
+      "note:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    );
+
+    expect([...neighborhood.nodeIds].sort()).toEqual([
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222",
+      "note:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    ]);
+    expect([...neighborhood.edgeIds].sort()).toEqual([
+      "note:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa:11111111-1111-4111-8111-111111111111",
+      "note:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa:22222222-2222-4222-8222-222222222222",
     ]);
   });
 });

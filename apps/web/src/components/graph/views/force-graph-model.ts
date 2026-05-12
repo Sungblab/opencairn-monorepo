@@ -192,6 +192,23 @@ export function getGraphNeighborhood(
   return { nodeIds, edgeIds };
 }
 
+export function getForceGraphNeighborhood(
+  links: ForceGraphLink[],
+  nodeId: string | null,
+): GraphNeighborhood {
+  const nodeIds = new Set<string>();
+  const edgeIds = new Set<string>();
+  if (!nodeId) return { nodeIds, edgeIds };
+  nodeIds.add(nodeId);
+  for (const link of links) {
+    if (link.source !== nodeId && link.target !== nodeId) continue;
+    nodeIds.add(link.source);
+    nodeIds.add(link.target);
+    edgeIds.add(link.edgeId);
+  }
+  return { nodeIds, edgeIds };
+}
+
 export function getGraphLabel(
   node: ForceGraphNode,
   opts: {
