@@ -67,8 +67,8 @@ export function ThreadList() {
               key={thread.id}
               className={`group flex min-h-11 items-center gap-2 rounded px-2.5 py-2 transition-colors ${
                 active
-                  ? "bg-accent text-accent-foreground"
-                  : "text-popover-foreground hover:bg-accent hover:text-accent-foreground focus-within:bg-accent focus-within:text-accent-foreground"
+                  ? "bg-foreground/10 text-popover-foreground"
+                  : "text-popover-foreground hover:bg-foreground/10 focus-within:bg-foreground/10"
               }`}
             >
               <button

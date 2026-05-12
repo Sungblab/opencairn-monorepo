@@ -37,8 +37,8 @@ function TabOverflowItem({
       onClick={onSelect}
       className={`flex min-h-9 w-full items-center gap-2 rounded px-2.5 py-2 text-left text-sm transition-colors focus-visible:outline-none ${
         active
-          ? "bg-accent text-accent-foreground"
-          : "text-popover-foreground hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground"
+          ? "bg-foreground/10 text-popover-foreground"
+          : "text-popover-foreground hover:bg-foreground/10 focus-visible:bg-foreground/10"
       }`}
     >
       <span
