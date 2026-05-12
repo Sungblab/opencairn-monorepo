@@ -8,6 +8,7 @@ const __dirname = path.dirname(__filename);
 config({ path: path.resolve(__dirname, "../../../.env") });
 
 const { db, notes, projects, workspaces, user, wikiLinks } = await import("../src");
+const { syncWikiLinks } = await import("../src/lib/wiki-link-sync");
 const { eq } = await import("drizzle-orm");
 
 describe("wiki_links table", () => {
@@ -91,5 +92,29 @@ describe("wiki_links table", () => {
     await db.delete(notes).where(eq(notes.id, d.id));
     const after = await db.select().from(wikiLinks).where(eq(wikiLinks.targetNoteId, d.id));
     expect(after).toHaveLength(0);
+  });
+
+  it("resolves title wiki-link targets within the same workspace", async () => {
+    const [source] = await db
+      .insert(notes)
+      .values({ title: "Source", projectId, workspaceId })
+      .returning();
+    const [target] = await db
+      .insert(notes)
+      .values({ title: "Linked Title", projectId, workspaceId })
+      .returning();
+
+    await db.transaction((tx) =>
+      syncWikiLinks(tx, source.id, new Set(["Linked Title"]), workspaceId),
+    );
+
+    const rows = await db
+      .select({
+        sourceNoteId: wikiLinks.sourceNoteId,
+        targetNoteId: wikiLinks.targetNoteId,
+      })
+      .from(wikiLinks)
+      .where(eq(wikiLinks.sourceNoteId, source.id));
+    expect(rows).toEqual([{ sourceNoteId: source.id, targetNoteId: target.id }]);
   });
 });

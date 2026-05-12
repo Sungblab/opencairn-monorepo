@@ -8,9 +8,22 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const WIKI_LINK_TARGET_CHUNK_SIZE = 500;
 
+export type WikiLinkReferences = {
+  targetIds: Set<string>;
+  targetTitles: Set<string>;
+};
+
 export function extractWikiLinkTargets(plateValue: unknown): Set<string> {
-  const out = new Set<string>();
-  if (!Array.isArray(plateValue)) return out;
+  const refs = extractWikiLinkReferences(plateValue);
+  return new Set([...refs.targetIds, ...refs.targetTitles]);
+}
+
+export function extractWikiLinkReferences(plateValue: unknown): WikiLinkReferences {
+  const refs: WikiLinkReferences = {
+    targetIds: new Set(),
+    targetTitles: new Set(),
+  };
+  if (!Array.isArray(plateValue)) return refs;
   const stack: unknown[] = [...plateValue];
   while (stack.length) {
     const n = stack.pop();
@@ -29,14 +42,33 @@ export function extractWikiLinkTargets(plateValue: unknown): Set<string> {
         typeof targetId === "string" &&
         UUID_RE.test(targetId)
       ) {
-        out.add(targetId);
+        refs.targetIds.add(targetId);
+      } else if (node.type === "wikilink") {
+        const label = wikiLinkLabel(node);
+        if (label) refs.targetTitles.add(label);
       }
       if (Array.isArray(node.children)) {
         for (const child of node.children) stack.push(child);
       }
     }
   }
-  return out;
+  return refs;
+}
+
+function wikiLinkLabel(node: { label?: unknown; children?: unknown }): string | null {
+  if (typeof node.label === "string" && node.label.trim()) {
+    return node.label.trim();
+  }
+  if (!Array.isArray(node.children)) return null;
+  const label = node.children
+    .map((child) =>
+      child && typeof child === "object" && "text" in child
+        ? String((child as { text?: unknown }).text ?? "")
+        : "",
+    )
+    .join("")
+    .trim();
+  return label || null;
 }
 
 export async function resolveWorkspaceForNote(
@@ -59,12 +91,15 @@ export async function syncWikiLinks(
   await tx.delete(wikiLinks).where(eq(wikiLinks.sourceNoteId, sourceNoteId));
   if (targets.size === 0) return;
 
-  const candidates = [...targets].filter((id) => id !== sourceNoteId);
+  const candidates = [...targets]
+    .map((target) => target.trim())
+    .filter((target) => target && target !== sourceNoteId);
   if (candidates.length === 0) return;
 
   const liveSet = new Set<string>();
-  for (let i = 0; i < candidates.length; i += WIKI_LINK_TARGET_CHUNK_SIZE) {
-    const chunk = candidates.slice(i, i + WIKI_LINK_TARGET_CHUNK_SIZE);
+  const candidateIds = candidates.filter((target) => UUID_RE.test(target));
+  for (let i = 0; i < candidateIds.length; i += WIKI_LINK_TARGET_CHUNK_SIZE) {
+    const chunk = candidateIds.slice(i, i + WIKI_LINK_TARGET_CHUNK_SIZE);
     const live = await tx
       .select({ id: notes.id })
       .from(notes)
@@ -77,9 +112,37 @@ export async function syncWikiLinks(
       liveSet.add(row.id);
     }
   }
-  const rows = candidates
-    .filter((targetNoteId) => liveSet.has(targetNoteId))
-    .map((targetNoteId) => ({ sourceNoteId, targetNoteId, workspaceId }));
+
+  const candidateTitles = [...new Set(
+    candidates.filter((target) => !UUID_RE.test(target)),
+  )];
+  for (let i = 0; i < candidateTitles.length; i += WIKI_LINK_TARGET_CHUNK_SIZE) {
+    const chunk = candidateTitles.slice(i, i + WIKI_LINK_TARGET_CHUNK_SIZE);
+    const live = await tx
+      .select({ id: notes.id, title: notes.title })
+      .from(notes)
+      .where(and(
+        inArray(notes.title, chunk),
+        isNull(notes.deletedAt),
+        eq(notes.workspaceId, workspaceId),
+      ));
+    const idsByTitle = new Map<string, string[]>();
+    for (const row of live) {
+      if (row.id === sourceNoteId) continue;
+      const ids = idsByTitle.get(row.title) ?? [];
+      ids.push(row.id);
+      idsByTitle.set(row.title, ids);
+    }
+    for (const ids of idsByTitle.values()) {
+      if (ids.length === 1) liveSet.add(ids[0]);
+    }
+  }
+
+  const rows = [...liveSet].map((targetNoteId) => ({
+    sourceNoteId,
+    targetNoteId,
+    workspaceId,
+  }));
   if (rows.length === 0) return;
 
   await tx.insert(wikiLinks).values(rows).onConflictDoNothing();

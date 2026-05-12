@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { extractWikiLinkTargets } from "../src/lib/wiki-link-sync";
+import {
+  extractWikiLinkReferences,
+  extractWikiLinkTargets,
+} from "../src/lib/wiki-link-sync";
 
 describe("extractWikiLinkTargets", () => {
   it("extracts editor and imported wiki-link node variants", () => {
@@ -25,5 +28,28 @@ describe("extractWikiLinkTargets", () => {
     ]);
 
     expect([...targets].sort()).toEqual([editorTarget, importedTarget].sort());
+  });
+});
+
+describe("extractWikiLinkReferences", () => {
+  it("keeps unresolved imported wiki-link labels as title references", () => {
+    const value = [
+      {
+        type: "p",
+        children: [
+          {
+            type: "wikilink",
+            noteId: null,
+            label: "운영체제",
+            children: [{ text: "운영체제" }],
+          },
+        ],
+      },
+    ];
+    const references = extractWikiLinkReferences(value);
+
+    expect(references.targetIds).toEqual(new Set());
+    expect(references.targetTitles).toEqual(new Set(["운영체제"]));
+    expect(extractWikiLinkTargets(value)).toEqual(new Set(["운영체제"]));
   });
 });
