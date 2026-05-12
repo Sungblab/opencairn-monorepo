@@ -219,6 +219,10 @@ export default function CardsView({ projectId }: Props) {
                         ? active
                           ? "stroke-emerald-500/50"
                           : "stroke-emerald-500/15"
+                        : edge.surfaceType === "wiki_link"
+                          ? active
+                            ? "stroke-blue-500/65"
+                            : "stroke-blue-500/20"
                         : active
                           ? "stroke-foreground/45"
                           : "stroke-foreground/12"

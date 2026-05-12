@@ -515,6 +515,11 @@ export default function GraphView({ projectId }: { projectId: string }) {
                 ? "rgba(34, 197, 94, 0.32)"
                 : "rgba(34, 197, 94, 0.10)";
             }
+            if (link.surfaceType === "wiki_link") {
+              return linkActive(link)
+                ? "rgba(59, 130, 246, 0.62)"
+                : "rgba(59, 130, 246, 0.18)";
+            }
             if (!linkActive(link)) return palette.inactiveLink;
             const status = link.supportStatus;
             if (status === "supported") return palette.supportedLink;
@@ -528,6 +533,10 @@ export default function GraphView({ projectId }: { projectId: string }) {
                 ? linkActive(link)
                   ? Math.max(0.45, Math.min(1.35, link.weight))
                   : 0.25
+              : link.surfaceType === "wiki_link"
+                ? linkActive(link)
+                  ? Math.max(1.1, Math.min(2.4, link.weight * 2.2))
+                  : 0.4
               : linkActive(link)
               ? Math.max(0.8, Math.min(2.2, link.weight * 1.35))
               : 0.35

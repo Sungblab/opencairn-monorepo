@@ -310,7 +310,14 @@ export const ViewEdge = z.object({
   relationType: z.string(),
   weight: z.number().min(0).max(1),
   surfaceType: z
-    .enum(["semantic_relation", "co_mention", "source_membership", "sequence", "bridge"])
+    .enum([
+      "semantic_relation",
+      "wiki_link",
+      "co_mention",
+      "source_membership",
+      "sequence",
+      "bridge",
+    ])
     .default("semantic_relation")
     .optional(),
   displayOnly: z.boolean().default(false).optional(),

@@ -43,6 +43,7 @@ const MINDMAP_TOTAL_CAP = 50;
 const CARDS_LIMIT = 80;
 const TIMELINE_LIMIT = 80;
 const BOARD_CAP = 200;
+const WIKI_LINK_EDGE_LIMIT = 500;
 const CO_MENTION_EDGE_LIMIT = 900;
 const CO_MENTION_MAX_CONCEPTS_PER_NOTE = 80;
 const EVIDENCE_BUNDLE_FETCH_CONCURRENCY = 8;
@@ -188,6 +189,92 @@ async function selectCoMentionEdges(
       .filter((note): note is { id: string; title: string } => Boolean(note)),
     support: missingSupport(),
   }));
+}
+
+async function selectWikiLinkEdges(
+  projectId: string,
+  conceptIds: string[],
+): Promise<KnowledgeSurfaceEdge[]> {
+  if (conceptIds.length < 2) return [];
+  const idArr = sql.join(
+    conceptIds.map((id) => sql`${id}::uuid`),
+    sql`, `,
+  );
+  type WikiLinkRow = {
+    source_id: string;
+    target_id: string;
+    link_count: number;
+    source_note_ids: string[] | null;
+    target_note_ids: string[] | null;
+  };
+  const raw = await db.execute(sql`
+    WITH selected_notes AS (
+      SELECT concept_id, note_id
+      FROM concept_notes
+      WHERE concept_id = ANY(ARRAY[${idArr}])
+    ),
+    pairs AS (
+      SELECT
+        source_concepts.concept_id AS source_id,
+        target_concepts.concept_id AS target_id,
+        wl.source_note_id,
+        wl.target_note_id
+      FROM wiki_links wl
+      JOIN notes source_notes
+        ON source_notes.id = wl.source_note_id
+       AND source_notes.deleted_at IS NULL
+      JOIN notes target_notes
+        ON target_notes.id = wl.target_note_id
+       AND target_notes.deleted_at IS NULL
+      JOIN selected_notes source_concepts
+        ON source_concepts.note_id = wl.source_note_id
+      JOIN selected_notes target_concepts
+        ON target_concepts.note_id = wl.target_note_id
+      WHERE source_concepts.concept_id <> target_concepts.concept_id
+        AND source_notes.project_id = ${projectId}
+        AND target_notes.project_id = ${projectId}
+    )
+    SELECT
+      source_id,
+      target_id,
+      count(*)::int AS link_count,
+      array_agg(DISTINCT source_note_id) AS source_note_ids,
+      array_agg(DISTINCT target_note_id) AS target_note_ids
+    FROM pairs
+    GROUP BY source_id, target_id
+    ORDER BY link_count DESC, source_id ASC, target_id ASC
+    LIMIT ${WIKI_LINK_EDGE_LIMIT}
+  `);
+  const rows = ((raw as { rows?: WikiLinkRow[] }).rows ?? raw) as WikiLinkRow[];
+  const maxLinks = Math.max(1, ...rows.map((row) => Number(row.link_count)));
+  const noteIds = [
+    ...new Set(
+      rows.flatMap((row) => [
+        ...(row.source_note_ids ?? []),
+        ...(row.target_note_ids ?? []),
+      ]),
+    ),
+  ];
+  const sourceNoteTitles = await selectSourceNoteTitles(noteIds);
+  return rows.map((row) => {
+    const sourceNoteIds = [
+      ...new Set([...(row.source_note_ids ?? []), ...(row.target_note_ids ?? [])]),
+    ];
+    return {
+      id: edgeKey(row.source_id, row.target_id, "wiki-link"),
+      sourceId: row.source_id,
+      targetId: row.target_id,
+      relationType: "wiki-link",
+      weight: normalizeEdgeWeight(Number(row.link_count), maxLinks),
+      surfaceType: "wiki_link",
+      displayOnly: true,
+      sourceNoteIds,
+      sourceNotes: sourceNoteIds
+        .map((id) => sourceNoteTitles.get(id))
+        .filter((note): note is { id: string; title: string } => Boolean(note)),
+      support: missingSupport(),
+    };
+  });
 }
 
 async function selectSourceNoteTitles(
@@ -549,7 +636,12 @@ export async function getKnowledgeSurfaceForUser(
   const displayEdges =
     opts.view === "timeline"
       ? []
-      : await selectCoMentionEdges(base.nodes.map((node) => node.id));
+      : (
+          await Promise.all([
+            selectWikiLinkEdges(projectId, base.nodes.map((node) => node.id)),
+            selectCoMentionEdges(base.nodes.map((node) => node.id)),
+          ])
+        ).flat();
   const edges = mergeSurfaceEdges(semanticEdges, displayEdges);
   const cards = opts.view === "cards" ? await selectCards(base.nodes) : undefined;
 

@@ -12,6 +12,7 @@ import {
   knowledgeClaims,
   noteChunks,
   notes,
+  wikiLinks,
 } from "@opencairn/db";
 import { createApp } from "../src/app.js";
 import { seedWorkspace, type SeedResult } from "./helpers/seed.js";
@@ -189,6 +190,58 @@ describe("GET /api/projects/:projectId/knowledge-surface", () => {
           displayOnly: true,
           sourceNoteIds: [ctx.noteId],
           sourceNotes: [expect.objectContaining({ id: ctx.noteId })],
+        }),
+      ]),
+    );
+  });
+
+  it("projects explicit wiki links into knowledge surface edges", async () => {
+    const seeded = await seedSupportedEdge(ctx);
+    const [targetNote] = await db
+      .insert(notes)
+      .values({
+        projectId: ctx.projectId,
+        workspaceId: ctx.workspaceId,
+        title: "Linked wiki note",
+        type: "wiki",
+        inheritParent: true,
+      })
+      .returning({ id: notes.id });
+    await db.insert(conceptNotes).values([
+      { conceptId: seeded.sourceConceptId, noteId: ctx.noteId },
+      { conceptId: seeded.targetConceptId, noteId: targetNote.id },
+    ]);
+    await db.insert(wikiLinks).values({
+      workspaceId: ctx.workspaceId,
+      sourceNoteId: ctx.noteId,
+      targetNoteId: targetNote.id,
+    });
+
+    const res = await app.request(
+      `/api/projects/${ctx.projectId}/knowledge-surface?view=graph`,
+      { headers: { cookie: await signSessionCookie(ctx.userId) } },
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      edges: Array<{
+        relationType: string;
+        surfaceType?: string;
+        displayOnly?: boolean;
+        sourceNoteIds?: string[];
+        sourceNotes?: Array<{ id: string; title: string }>;
+      }>;
+    };
+    expect(body.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          relationType: "wiki-link",
+          surfaceType: "wiki_link",
+          displayOnly: true,
+          sourceNoteIds: expect.arrayContaining([ctx.noteId, targetNote.id]),
+          sourceNotes: expect.arrayContaining([
+            expect.objectContaining({ id: targetNote.id, title: "Linked wiki note" }),
+          ]),
         }),
       ]),
     );

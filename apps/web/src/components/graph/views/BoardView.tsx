@@ -170,6 +170,8 @@ export default function BoardView({ projectId, root }: Props) {
                 className={
                   edge.surfaceType === "co_mention"
                     ? "stroke-emerald-500/30"
+                    : edge.surfaceType === "wiki_link"
+                      ? "stroke-blue-500/55"
                     : "stroke-foreground/20"
                 }
                 strokeDasharray={edge.surfaceType === "co_mention" ? "5 7" : undefined}

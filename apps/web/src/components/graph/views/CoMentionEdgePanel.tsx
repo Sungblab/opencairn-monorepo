@@ -12,6 +12,7 @@ interface Props {
 
 export function CoMentionEdgePanel({ edge, onClose, onOpenNote }: Props) {
   const t = useTranslations("graph.coMention");
+  const isWikiLink = edge.surfaceType === "wiki_link";
   const sourceNoteIds = edge.sourceNoteIds ?? [];
   const sourceNoteById = new Map(
     (edge.sourceNotes ?? []).map((note) => [note.id, note]),
@@ -28,9 +29,11 @@ export function CoMentionEdgePanel({ edge, onClose, onOpenNote }: Props) {
     >
       <div className="flex items-start justify-between gap-3 border-b px-3 py-3">
         <div className="min-w-0">
-          <div className="text-sm font-medium">{t("title")}</div>
+          <div className="text-sm font-medium">
+            {t(isWikiLink ? "wikiTitle" : "title")}
+          </div>
           <div className="truncate text-xs text-muted-foreground">
-            {t("subtitle")}
+            {t(isWikiLink ? "wikiSubtitle" : "subtitle")}
           </div>
         </div>
         <Button
@@ -46,7 +49,7 @@ export function CoMentionEdgePanel({ edge, onClose, onOpenNote }: Props) {
       </div>
       <div className="space-y-3 overflow-y-auto p-3 text-sm">
         <p className="text-xs leading-5 text-muted-foreground">
-          {t("body")}
+          {t(isWikiLink ? "wikiBody" : "body")}
         </p>
         <div className="rounded-md border border-border bg-muted/30 px-3 py-2">
           <div className="text-xs font-medium">
