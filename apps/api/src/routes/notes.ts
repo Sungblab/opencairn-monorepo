@@ -10,6 +10,8 @@ import {
   sourcePdfAnnotations,
   wikiLogs,
   wikiLinks,
+  extractWikiLinkTargets,
+  syncWikiLinks,
   eq,
   and,
   desc,
@@ -548,6 +550,12 @@ export const noteRoutes = new Hono<AppEnv>()
           },
         },
         tx,
+      );
+      await syncWikiLinks(
+        tx,
+        created.id,
+        extractWikiLinkTargets(created.content),
+        created.workspaceId,
       );
       return created;
     });

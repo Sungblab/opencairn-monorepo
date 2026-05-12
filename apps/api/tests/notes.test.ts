@@ -1,6 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createApp } from "../src/app.js";
-import { db, notes, sourcePdfAnnotations, wikiLogs, eq } from "@opencairn/db";
+import {
+  and,
+  db,
+  eq,
+  notes,
+  sourcePdfAnnotations,
+  wikiLinks,
+  wikiLogs,
+} from "@opencairn/db";
 import {
   seedWorkspace,
   seedMultiRoleWorkspace,
@@ -151,6 +159,52 @@ describe("GET /api/notes/search", () => {
       { method: "GET", userId: ctx.userId },
     );
     expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /api/notes", () => {
+  let ctx: SeedResult;
+  beforeEach(async () => { ctx = await seedWorkspace({ role: "editor" }); });
+  afterEach(async () => { await ctx.cleanup(); });
+
+  it("syncs wiki links from initial Plate content", async () => {
+    const res = await authedFetch("/api/notes", {
+      method: "POST",
+      userId: ctx.userId,
+      body: JSON.stringify({
+        projectId: ctx.projectId,
+        title: "Source note",
+        content: [
+          {
+            type: "p",
+            children: [
+              { text: "See " },
+              {
+                type: "wiki-link",
+                targetId: ctx.noteId,
+                children: [{ text: "seed note" }],
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const created = await res.json() as { id: string };
+    const rows = await db
+      .select({
+        sourceNoteId: wikiLinks.sourceNoteId,
+        targetNoteId: wikiLinks.targetNoteId,
+      })
+      .from(wikiLinks)
+      .where(
+        and(
+          eq(wikiLinks.sourceNoteId, created.id),
+          eq(wikiLinks.targetNoteId, ctx.noteId),
+        ),
+      );
+    expect(rows).toHaveLength(1);
   });
 });
 
