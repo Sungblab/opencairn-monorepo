@@ -29,8 +29,11 @@ import {
   listTreeChildren,
   listTreeChildrenForParents,
 } from "../lib/project-tree-service";
+import { requeueNoteAnalysisJobForNote } from "../lib/note-analysis-jobs";
 import { buildProjectWikiIndex } from "../lib/project-wiki-index";
 import type { AppEnv } from "../lib/types";
+
+const PROJECT_WIKI_REFRESH_NOTE_LIMIT = 100;
 
 export const projectRoutes = new Hono<AppEnv>()
   .use("*", requireAuth)
@@ -166,6 +169,62 @@ export const projectRoutes = new Hono<AppEnv>()
 
     return c.json(
       await buildProjectWikiIndex({ projectId: id, userId: user.id }),
+    );
+  })
+
+  .post("/projects/:id/wiki-index/refresh", async (c) => {
+    const user = c.get("user");
+    const id = c.req.param("id");
+    if (!isUuid(id)) return c.json({ error: "Bad Request" }, 400);
+    if (!(await canWrite(user.id, { type: "project", id }))) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+
+    const noteRows = await db
+      .select({
+        id: notes.id,
+        inheritParent: notes.inheritParent,
+      })
+      .from(notes)
+      .where(and(eq(notes.projectId, id), isNull(notes.deletedAt)))
+      .orderBy(desc(notes.updatedAt))
+      .limit(PROJECT_WIKI_REFRESH_NOTE_LIMIT);
+
+    const noteIds = (
+      await Promise.all(
+        noteRows.map(async (note) => {
+          if (
+            note.inheritParent === false &&
+            !(await canWrite(user.id, { type: "note", id: note.id }))
+          ) {
+            return null;
+          }
+          return note.id;
+        }),
+      )
+    ).filter((noteId): noteId is string => noteId !== null);
+
+    const queueResults = await Promise.all(
+      noteIds.map((noteId) =>
+        requeueNoteAnalysisJobForNote({
+          noteId,
+          projectId: id,
+          debounceMs: 0,
+        }),
+      ),
+    );
+
+    return c.json(
+      {
+        projectId: id,
+        noteIds,
+        queuedNoteAnalysisJobs: queueResults.filter(
+          (result) => result.status === "queued",
+        ).length,
+        skippedNotes: noteRows.length - noteIds.length,
+        limit: PROJECT_WIKI_REFRESH_NOTE_LIMIT,
+      },
+      202,
     );
   })
 

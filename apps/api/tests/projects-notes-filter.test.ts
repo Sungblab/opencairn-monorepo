@@ -29,6 +29,22 @@ async function authedGet(path: string, userId: string): Promise<Response> {
   return app.request(path, { headers: { cookie } });
 }
 
+async function authedPost(
+  path: string,
+  userId: string,
+  body?: unknown,
+): Promise<Response> {
+  const cookie = await signSessionCookie(userId);
+  return app.request(path, {
+    method: "POST",
+    headers: {
+      cookie,
+      "content-type": "application/json",
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+}
+
 async function insertNote(opts: {
   workspaceId: string;
   projectId: string;
@@ -566,5 +582,63 @@ describe("GET /api/projects/:id/wiki-index", () => {
         }),
       ]),
     );
+  });
+});
+
+describe("POST /api/projects/:id/wiki-index/refresh", () => {
+  let seed: SeedResult;
+  afterEach(async () => {
+    if (seed) await seed.cleanup();
+  });
+
+  it("requeues visible project notes for wiki index refresh", async () => {
+    seed = await seedWorkspace({ role: "editor" });
+    const firstNoteId = await insertNote({
+      workspaceId: seed.workspaceId,
+      projectId: seed.projectId,
+      title: "Refresh candidate one",
+      type: "wiki",
+    });
+    const secondNoteId = await insertNote({
+      workspaceId: seed.workspaceId,
+      projectId: seed.projectId,
+      title: "Refresh candidate two",
+      type: "wiki",
+    });
+
+    const res = await authedPost(
+      `/api/projects/${seed.projectId}/wiki-index/refresh`,
+      seed.userId,
+    );
+
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as {
+      projectId: string;
+      queuedNoteAnalysisJobs: number;
+      noteIds: string[];
+    };
+    expect(body.projectId).toBe(seed.projectId);
+    expect(body.noteIds).toEqual(
+      expect.arrayContaining([firstNoteId, secondNoteId]),
+    );
+    expect(body.queuedNoteAnalysisJobs).toBeGreaterThanOrEqual(2);
+    const queued = await db.query.noteAnalysisJobs.findMany({
+      where: (jobs, { inArray }) => inArray(jobs.noteId, [firstNoteId, secondNoteId]),
+    });
+    expect(queued.map((job) => job.noteId)).toEqual(
+      expect.arrayContaining([firstNoteId, secondNoteId]),
+    );
+    expect(queued.every((job) => job.status === "queued")).toBe(true);
+  });
+
+  it("requires project write access", async () => {
+    seed = await seedWorkspace({ role: "viewer" });
+
+    const res = await authedPost(
+      `/api/projects/${seed.projectId}/wiki-index/refresh`,
+      seed.userId,
+    );
+
+    expect(res.status).toBe(403);
   });
 });

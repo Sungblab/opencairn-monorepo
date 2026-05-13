@@ -162,6 +162,7 @@ site-admin inbox.
 | POST | /api/workspaces/:workspaceId/projects | member | 새 프로젝트 생성 | `{ name, description?, defaultRole? }` |
 | GET | /api/projects/:id | project `viewer` | 프로젝트 상세 | - |
 | GET | /api/projects/:id/wiki-index | project `viewer` + per-note read filter | 권한이 있는 프로젝트 노트의 live wiki index. 응답: `{ projectId, generatedAt, latestPageUpdatedAt, totals: { pages, wikiLinks, orphanPages }, health: { status: "healthy" \| "updating" \| "needs_attention" \| "blocked", issues: [{ kind, severity, count, sampleTitles }] }, links: [{ sourceNoteId, sourceTitle, targetNoteId, targetTitle }], unresolvedLinks: [{ sourceNoteId, sourceTitle, targetTitle, reason }], recentLogs: [{ noteId, noteTitle, agent, action, reason, createdAt }], pages: [{ id, title, type, sourceType, summary, updatedAt, inboundLinks, outboundLinks }] }` | - |
+| POST | /api/projects/:id/wiki-index/refresh | project `editor` + per-note write filter for private notes | 프로젝트 위키 인덱스 복구용 note-analysis job 재큐잉. 권한 있는 최근 노트 최대 100개를 즉시 재분석 대기 상태로 전환한다. 응답: `{ projectId, noteIds, queuedNoteAnalysisJobs, skippedNotes, limit }` | - |
 | PATCH | /api/projects/:id | project `editor` | 수정 | `{ name?, description?, defaultRole? }` |
 | DELETE | /api/projects/:id | workspace `owner`, `admin`, or creator | 삭제 | - |
 

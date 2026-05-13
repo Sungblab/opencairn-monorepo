@@ -174,7 +174,9 @@
         "unresolved_missing": "{count} broken links",
         "unresolved_ambiguous": "{count} duplicate links",
         "orphan_pages": "{count} isolated pages"
-      }
+      },
+      "refresh": "Refresh index",
+      "refreshing": "Refreshing"
     },
     "actions": {
       "map": "Open relationship map",

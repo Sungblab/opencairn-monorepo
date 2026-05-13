@@ -774,6 +774,19 @@ export interface ProjectWikiIndex {
   pages: ProjectWikiIndexPage[];
 }
 
+export interface ProjectPermissionsSummary {
+  role: "owner" | "admin" | "editor" | "viewer" | "none";
+  overrides: Record<string, string>;
+}
+
+export interface ProjectWikiIndexRefreshResult {
+  projectId: string;
+  noteIds: string[];
+  queuedNoteAnalysisJobs: number;
+  skippedNotes: number;
+  limit: number;
+}
+
 export const projectsApi = {
   get: (id: string) => apiClient<ProjectMeta>(`/projects/${id}`),
   create: (workspaceId: string, body: { name: string; description?: string }) =>
@@ -792,6 +805,13 @@ export const projectsApi = {
     ),
   wikiIndex: (id: string) =>
     apiClient<ProjectWikiIndex>(`/projects/${id}/wiki-index`),
+  refreshWikiIndex: (id: string) =>
+    apiClient<ProjectWikiIndexRefreshResult>(
+      `/projects/${id}/wiki-index/refresh`,
+      { method: "POST" },
+    ),
+  permissions: (id: string) =>
+    apiClient<ProjectPermissionsSummary>(`/projects/${id}/permissions`),
 };
 
 // ---------- Plan 8 agent entrypoints ----------

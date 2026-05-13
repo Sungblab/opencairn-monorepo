@@ -58,6 +58,11 @@ export function ProjectView({
     queryKey: ["project-wiki-index", projectId],
     queryFn: () => projectsApi.wikiIndex(projectId),
   });
+  const { data: projectPermissions } = useQuery({
+    queryKey: ["project-permissions", projectId],
+    queryFn: () => projectsApi.permissions(projectId),
+    staleTime: 30_000,
+  });
   const renameMutation = useMutation({
     mutationFn: (name: string) => projectsApi.update(projectId, { name }),
     onSuccess: async () => {
@@ -67,6 +72,14 @@ export function ProjectView({
         queryClient.invalidateQueries({ queryKey: ["projects"] }),
       ]);
       router.refresh();
+    },
+  });
+  const refreshWikiIndexMutation = useMutation({
+    mutationFn: () => projectsApi.refreshWikiIndex(projectId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["project-wiki-index", projectId],
+      });
     },
   });
   // Page count + last activity are derived from the unfiltered notes list to
@@ -125,6 +138,11 @@ export function ProjectView({
       )
       .join(" · ");
   }
+
+  const canRefreshWikiIndex =
+    projectPermissions?.role === "owner" ||
+    projectPermissions?.role === "admin" ||
+    projectPermissions?.role === "editor";
 
   function renderToolItem(item: ToolDiscoveryItem) {
     const title = t(`tools.items.${item.i18nKey}.title`);
@@ -249,6 +267,15 @@ export function ProjectView({
         }
         healthIssueSummary={formatWikiHealthIssueSummary(wikiIndex)}
         healthTone={wikiIndex?.health.status ?? null}
+        refreshLabel={t("graphDiscovery.health.refresh")}
+        refreshingLabel={t("graphDiscovery.health.refreshing")}
+        showRefresh={
+          Boolean(wikiIndex) &&
+          wikiIndex?.health.status !== "healthy" &&
+          canRefreshWikiIndex
+        }
+        refreshPending={refreshWikiIndexMutation.isPending}
+        onRefresh={() => refreshWikiIndexMutation.mutate()}
         mapHref={projectGraphHref()}
         cardsHref={projectGraphHref("cards")}
         mindmapHref={projectGraphHref("mindmap")}
@@ -442,6 +469,11 @@ function GraphDiscoveryPanel({
   healthStatus,
   healthIssueSummary,
   healthTone,
+  refreshLabel,
+  refreshingLabel,
+  showRefresh,
+  refreshPending,
+  onRefresh,
   mapHref,
   cardsHref,
   mindmapHref,
@@ -457,6 +489,11 @@ function GraphDiscoveryPanel({
   healthStatus: string | null;
   healthIssueSummary: string | null;
   healthTone: ProjectWikiIndexHealthStatus | null;
+  refreshLabel: string;
+  refreshingLabel: string;
+  showRefresh: boolean;
+  refreshPending: boolean;
+  onRefresh: () => void;
   mapHref: string;
   cardsHref: string;
   mindmapHref: string;
@@ -476,7 +513,7 @@ function GraphDiscoveryPanel({
             </p>
           ) : null}
           {healthStatus ? (
-            <p
+            <div
               data-testid="project-wiki-health"
               className={`mt-2 inline-flex max-w-full flex-wrap items-center gap-x-1 gap-y-1 rounded-[var(--radius-control)] border px-2 py-1 text-xs font-medium ${getWikiHealthClassName(
                 healthTone,
@@ -490,7 +527,17 @@ function GraphDiscoveryPanel({
                   · {healthIssueSummary}
                 </span>
               ) : null}
-            </p>
+              {showRefresh ? (
+                <button
+                  type="button"
+                  disabled={refreshPending}
+                  onClick={onRefresh}
+                  className="ml-1 rounded-[var(--radius-control)] border border-current/25 bg-background/70 px-1.5 py-0.5 text-[11px] font-medium text-current hover:bg-background disabled:opacity-60"
+                >
+                  {refreshPending ? refreshingLabel : refreshLabel}
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </div>
         <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">

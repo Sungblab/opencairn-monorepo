@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
 import { usePanelStore } from "@/stores/panel-store";
+import { projectsApi } from "@/lib/api-client";
 import { ProjectView } from "./project-view";
 
 const mockProjectNotes = vi.hoisted(() => ({
@@ -55,6 +56,12 @@ vi.mock("@/lib/api-client", () => ({
     update: vi.fn(async (_id: string, body: { name?: string }) => ({
       id: "p1",
       name: body.name ?? "Project One",
+    })),
+    permissions: vi.fn(async () => ({ role: "editor", overrides: {} })),
+    refreshWikiIndex: vi.fn(async () => ({
+      projectId: "p1",
+      queuedNoteAnalysisJobs: 3,
+      noteIds: ["n1", "n2", "n3"],
     })),
   },
 }));
@@ -202,6 +209,12 @@ describe("ProjectView", () => {
     expect(screen.getByTestId("project-wiki-health")).toHaveTextContent(
       "project.graphDiscovery.health.issues.analysis_failed",
     );
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: /project\.graphDiscovery\.health\.refresh/,
+      }),
+    );
+    expect(projectsApi.refreshWikiIndex).toHaveBeenCalledWith("p1");
     expect(
       screen.getByText(
         "project.graphDiscovery.index.pages · project.graphDiscovery.index.links · project.graphDiscovery.index.orphans · project.graphDiscovery.index.latest",
