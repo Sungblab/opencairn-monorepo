@@ -8,9 +8,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FilePlus, GitBranch, ImagePlus, Layers3, LayoutTemplate, Network, UploadCloud } from "lucide-react";
 import {
+  plan8AgentsApi,
   projectsApi,
   type ProjectNoteRow,
   type ProjectWikiIndex,
+  type ProjectWikiIndexHealthIssueKind,
   type ProjectWikiIndexHealthStatus,
 } from "@/lib/api-client";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
@@ -82,6 +84,14 @@ export function ProjectView({
       });
     },
   });
+  const runLibrarianMutation = useMutation({
+    mutationFn: () => plan8AgentsApi.runLibrarian({ projectId }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["plan8-agents", projectId],
+      });
+    },
+  });
   // Page count + last activity are derived from the unfiltered notes list to
   // avoid a third endpoint just for two scalars. The notes table publishes
   // its `filter=all` payload back here when it fires; counts also feed the
@@ -143,6 +153,11 @@ export function ProjectView({
     projectPermissions?.role === "owner" ||
     projectPermissions?.role === "admin" ||
     projectPermissions?.role === "editor";
+  const canRunLibrarian = canRefreshWikiIndex;
+  const shouldOfferLibrarian =
+    Boolean(wikiIndex) &&
+    canRunLibrarian &&
+    hasLibrarianRepairIssue(wikiIndex);
 
   function renderToolItem(item: ToolDiscoveryItem) {
     const title = t(`tools.items.${item.i18nKey}.title`);
@@ -276,6 +291,11 @@ export function ProjectView({
         }
         refreshPending={refreshWikiIndexMutation.isPending}
         onRefresh={() => refreshWikiIndexMutation.mutate()}
+        runLibrarianLabel={t("graphDiscovery.health.runLibrarian")}
+        runningLibrarianLabel={t("graphDiscovery.health.runningLibrarian")}
+        showRunLibrarian={shouldOfferLibrarian}
+        runLibrarianPending={runLibrarianMutation.isPending}
+        onRunLibrarian={() => runLibrarianMutation.mutate()}
         mapHref={projectGraphHref()}
         cardsHref={projectGraphHref("cards")}
         mindmapHref={projectGraphHref("mindmap")}
@@ -474,6 +494,11 @@ function GraphDiscoveryPanel({
   showRefresh,
   refreshPending,
   onRefresh,
+  runLibrarianLabel,
+  runningLibrarianLabel,
+  showRunLibrarian,
+  runLibrarianPending,
+  onRunLibrarian,
   mapHref,
   cardsHref,
   mindmapHref,
@@ -494,6 +519,11 @@ function GraphDiscoveryPanel({
   showRefresh: boolean;
   refreshPending: boolean;
   onRefresh: () => void;
+  runLibrarianLabel: string;
+  runningLibrarianLabel: string;
+  showRunLibrarian: boolean;
+  runLibrarianPending: boolean;
+  onRunLibrarian: () => void;
   mapHref: string;
   cardsHref: string;
   mindmapHref: string;
@@ -537,6 +567,16 @@ function GraphDiscoveryPanel({
                   {refreshPending ? refreshingLabel : refreshLabel}
                 </button>
               ) : null}
+              {showRunLibrarian ? (
+                <button
+                  type="button"
+                  disabled={runLibrarianPending}
+                  onClick={onRunLibrarian}
+                  className="ml-1 rounded-[var(--radius-control)] border border-current/25 bg-background/70 px-1.5 py-0.5 text-[11px] font-medium text-current hover:bg-background disabled:opacity-60"
+                >
+                  {runLibrarianPending ? runningLibrarianLabel : runLibrarianLabel}
+                </button>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -547,6 +587,22 @@ function GraphDiscoveryPanel({
         </div>
       </div>
     </section>
+  );
+}
+
+const LIBRARIAN_REPAIR_ISSUES = new Set<ProjectWikiIndexHealthIssueKind>([
+  "unresolved_missing",
+  "unresolved_ambiguous",
+  "orphan_pages",
+]);
+
+function hasLibrarianRepairIssue(
+  index: ProjectWikiIndex | undefined,
+): boolean {
+  return Boolean(
+    index?.health.issues.some((issue) =>
+      LIBRARIAN_REPAIR_ISSUES.has(issue.kind),
+    ),
   );
 }
 

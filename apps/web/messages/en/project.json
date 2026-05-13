@@ -176,7 +176,9 @@
         "orphan_pages": "{count} isolated pages"
       },
       "refresh": "Refresh index",
-      "refreshing": "Refreshing"
+      "refreshing": "Refreshing",
+      "runLibrarian": "Run organizer agent",
+      "runningLibrarian": "Starting agent"
     },
     "actions": {
       "map": "Open relationship map",

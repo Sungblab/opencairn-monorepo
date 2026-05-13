@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
 import { usePanelStore } from "@/stores/panel-store";
-import { projectsApi } from "@/lib/api-client";
+import { plan8AgentsApi, projectsApi } from "@/lib/api-client";
 import { ProjectView } from "./project-view";
 
 const mockProjectNotes = vi.hoisted(() => ({
@@ -63,6 +63,9 @@ vi.mock("@/lib/api-client", () => ({
       queuedNoteAnalysisJobs: 3,
       noteIds: ["n1", "n2", "n3"],
     })),
+  },
+  plan8AgentsApi: {
+    runLibrarian: vi.fn(async () => ({ workflowId: "librarian-workflow" })),
   },
 }));
 
@@ -215,6 +218,12 @@ describe("ProjectView", () => {
       }),
     );
     expect(projectsApi.refreshWikiIndex).toHaveBeenCalledWith("p1");
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: /project\.graphDiscovery\.health\.runLibrarian/,
+      }),
+    );
+    expect(plan8AgentsApi.runLibrarian).toHaveBeenCalledWith({ projectId: "p1" });
     expect(
       screen.getByText(
         "project.graphDiscovery.index.pages · project.graphDiscovery.index.links · project.graphDiscovery.index.orphans · project.graphDiscovery.index.latest",

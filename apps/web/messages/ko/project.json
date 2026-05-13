@@ -176,7 +176,9 @@
         "orphan_pages": "고립 페이지 {count}개"
       },
       "refresh": "인덱스 갱신",
-      "refreshing": "갱신 요청 중"
+      "refreshing": "갱신 요청 중",
+      "runLibrarian": "정리 에이전트 실행",
+      "runningLibrarian": "실행 요청 중"
     },
     "actions": {
       "map": "관계 지도로 보기",
