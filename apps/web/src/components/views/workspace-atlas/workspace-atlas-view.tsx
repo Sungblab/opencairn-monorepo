@@ -13,6 +13,8 @@ import type {
 } from "@opencairn/shared";
 import { useWorkspaceId } from "@/hooks/useWorkspaceId";
 
+const ATLAS_FIT_PADDING = 64;
+
 const CytoscapeComponent = dynamic(() => import("react-cytoscapejs"), {
   ssr: false,
 });
@@ -185,6 +187,19 @@ export function WorkspaceAtlasView({ wsSlug }: { wsSlug: string }) {
       cy.off("tap", onTap);
     };
   }, [data]);
+
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy || elements.length === 0) return;
+    const fit = () => {
+      cy.fit(undefined, ATLAS_FIT_PADDING);
+    };
+    fit();
+    cy.on("layoutstop", fit);
+    return () => {
+      cy.off("layoutstop", fit);
+    };
+  }, [elements]);
 
   const stats = useMemo(() => {
     const nodes = data?.nodes ?? [];

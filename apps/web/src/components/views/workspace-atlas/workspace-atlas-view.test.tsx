@@ -14,6 +14,8 @@ const cytoscapeMock = vi.hoisted(() => ({
   tapHandler: null as null | ((event: {
     target: { isNode?: () => boolean; id?: () => string };
   }) => void),
+  layoutStopHandler: null as null | (() => void),
+  fit: vi.fn(),
 }));
 vi.mock("react-cytoscapejs", () => ({
   default: (props: {
@@ -21,19 +23,39 @@ vi.mock("react-cytoscapejs", () => ({
     layout?: { name: string };
     stylesheet?: Array<{ selector: string; style: Record<string, unknown> }>;
     cy?: (cy: {
-      on: (event: string, handler: NonNullable<typeof cytoscapeMock.tapHandler>) => void;
-      off: (event: string, handler: NonNullable<typeof cytoscapeMock.tapHandler>) => void;
+      on: (
+        event: string,
+        handler: NonNullable<typeof cytoscapeMock.tapHandler> | (() => void),
+      ) => void;
+      off: (
+        event: string,
+        handler: NonNullable<typeof cytoscapeMock.tapHandler> | (() => void),
+      ) => void;
+      fit: typeof cytoscapeMock.fit;
     }) => void;
   }) => {
     props.cy?.({
       on: (event, handler) => {
-        if (event === "tap") cytoscapeMock.tapHandler = handler;
+        if (event === "tap") {
+          cytoscapeMock.tapHandler =
+            handler as NonNullable<typeof cytoscapeMock.tapHandler>;
+        }
+        if (event === "layoutstop") {
+          cytoscapeMock.layoutStopHandler = handler as () => void;
+        }
       },
       off: (event, handler) => {
         if (event === "tap" && cytoscapeMock.tapHandler === handler) {
           cytoscapeMock.tapHandler = null;
         }
+        if (
+          event === "layoutstop" &&
+          cytoscapeMock.layoutStopHandler === handler
+        ) {
+          cytoscapeMock.layoutStopHandler = null;
+        }
       },
+      fit: cytoscapeMock.fit,
     });
     return (
       <div
@@ -71,6 +93,8 @@ describe("WorkspaceAtlasView", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     cytoscapeMock.tapHandler = null;
+    cytoscapeMock.layoutStopHandler = null;
+    cytoscapeMock.fit.mockClear();
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
@@ -204,6 +228,18 @@ describe("WorkspaceAtlasView", () => {
     expect(screen.getByRole("button", { name: koAtlas.layers.explicit })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: koAtlas.layers.ai })).toBeInTheDocument();
     expect(screen.getByText(koAtlas.legend.stale)).toBeInTheDocument();
+  });
+
+  it("fits the atlas graph after render and layout completion", async () => {
+    wrap(<WorkspaceAtlasView wsSlug="acme" />);
+
+    await waitFor(() => {
+      expect(cytoscapeMock.fit).toHaveBeenCalledWith(undefined, 64);
+    });
+    act(() => {
+      cytoscapeMock.layoutStopHandler?.();
+    });
+    expect(cytoscapeMock.fit).toHaveBeenCalledWith(undefined, 64);
   });
 
   it("styles atlas object and relation types with distinct visual channels", async () => {
