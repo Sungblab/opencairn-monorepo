@@ -199,6 +199,30 @@ describe("GraphView", () => {
     expect(await screen.findByText(koGraph.empty.title)).toBeInTheDocument();
   });
 
+  it("mounts the force graph when only explicit wiki note links exist", async () => {
+    searchParams = new URLSearchParams();
+    renderWith({
+      nodes: [],
+      edges: [],
+      noteLinks: [
+        {
+          sourceNoteId: "note-source",
+          sourceTitle: "Lecture2: Input_Output",
+          targetNoteId: "note-target",
+          targetTitle: "Lecture3: Memory",
+        },
+      ],
+      viewType: "graph",
+      layout: "fcose",
+      rootId: null,
+      truncated: false,
+      totalConcepts: 0,
+    });
+
+    expect(await screen.findByTestId("force-graph-mount")).toBeInTheDocument();
+    expect(screen.queryByText(koGraph.empty.title)).not.toBeInTheDocument();
+  });
+
   it("mounts the force graph when there is data", async () => {
     searchParams = new URLSearchParams();
     renderWith({

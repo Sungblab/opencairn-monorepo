@@ -167,6 +167,10 @@ function matchesGraphSearch(value: string | null | undefined, search: string) {
   return (value ?? "").toLowerCase().includes(search);
 }
 
+function hasRenderableGraphData(data: GroundedGraphResponse): boolean {
+  return data.nodes.length > 0 || (data.noteLinks?.length ?? 0) > 0;
+}
+
 export function filterGraphDataForView(
   data: GroundedGraphResponse,
   filters: FilterState,
@@ -691,8 +695,9 @@ export default function GraphView({ projectId }: { projectId: string }) {
 
   if (isLoading) return <GraphSkeleton />;
   if (error) return <GraphError error={error as Error} />;
-  if (!data || data.nodes.length === 0) return <GraphEmpty />;
-  if (!filteredData || !graphData || filteredData.nodes.length === 0) {
+  if (!data) return <GraphEmpty />;
+  if (!hasRenderableGraphData(data)) return <GraphEmpty />;
+  if (!filteredData || !graphData || graphData.nodes.length === 0) {
     return (
       <div className="flex h-full flex-col">
         <GraphFilters
