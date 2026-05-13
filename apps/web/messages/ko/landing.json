@@ -1,13 +1,13 @@
 {
   "meta": {
     "title": "OpenCairn — AI 지식 OS",
-    "description": "파일과 노트를 에이전트 워크플로에 맡기고, 근거와 연결을 함께 보여 주는 개인·팀 지식 OS. 셀프호스팅 · AGPLv3 + 상용 라이선스.",
-    "ogDescription": "PDF·논문·문서를 위키로 엮고, 근거 있는 Q&A와 그래프 표면으로 탐색합니다."
+    "description": "파일, 노트, 리서치 자료를 근거 있는 워크스페이스 위키로 정리하고, 그래프 뷰와 검토 가능한 AI 액션으로 이어 주는 개인·팀 지식 OS. 셀프호스팅 · AGPLv3 + 상용 라이선스.",
+    "ogDescription": "OpenCairn은 파일과 노트를 근거 있는 위키, Q&A, 그래프 뷰, 검토 가능한 AI 액션으로 연결합니다."
   },
   "nav": {
     "logoTitle": "클릭해 보세요",
     "pipeline": "PIPELINE",
-    "agents": "AGENTS",
+    "agents": "WORKFLOWS",
     "workspace": "WORKSPACE",
     "why": "WHY",
     "pricing": "PRICING",
@@ -25,41 +25,35 @@
     "titleLine2": "도구는 많습니다.",
     "titleBrand": "OpenCairn은",
     "titleLine3": "읽은 것까지 이해합니다",
-    "sub": "PDF · 논문 · 문서 · 지원되는 미디어를 넣으면 에이전트가 <b>위키로 엮고</b>, <b>연결을 제안</b>하며, <b>이해의 깊이를 점검</b>합니다. 에이전트 워크플로 백본은 단계적으로 활성화됩니다.",
+    "sub": "논문, 문서, 노트, 지원되는 미디어를 넣으면 OpenCairn이 <b>워크스페이스 위키를 만들고</b>, <b>근거가 있는 연결을 보여 주며</b>, <b>AI 변경을 검토 가능한 흐름</b>으로 남깁니다.",
     "ctaPrimary": "로그인하기",
     "ctaSecondary": "요금 보기",
-    "noCard": "에이전트 워크플로 · 파일 올리면 바로 시작",
+    "noCard": "검토 가능한 AI 액션 · 파일 올리면 바로 시작",
     "selfhostLink": "개발자이신가요? 셀프호스팅 가이드 ↗",
     "spec": {
-      "agents": "agents",
-      "agentsVal": "staged",
-      "parsers": "parsers",
-      "parsersVal": "pdf · mp3 · mp4 · m4a",
+      "agents": "scope",
+      "agentsVal": "workspace · project · page",
+      "parsers": "actions",
+      "parsersVal": "preview · apply · recover",
       "runtime": "runtime",
-      "runtimeVal": "docker",
-      "vector": "vector",
-      "vectorVal": "pgvector",
+      "runtimeVal": "docker compose",
+      "vector": "evidence",
+      "vectorVal": "citations · graph",
       "license": "license",
       "licenseVal": "agplv3 + 상용"
     },
     "activity": {
       "title": "PREVIEW · 워크스페이스",
-      "meta": "에이전트 백본 · 데모 로그",
-      "footer": "에이전트 활동 데모 (실 동작은 단계적 활성화)",
+      "meta": "워크플로 데모 로그",
+      "footer": "워크플로 활동 데모",
       "timeLabels": ["방금", "1분 전", "3분 전", "6분 전"],
       "items": [
-        { "agent": "Compiler", "text": "<b>attention_is_all_you_need.pdf</b> 컴파일 완료 · 17 개념" },
-        { "agent": "Librarian", "text": "'self-attention' ↔ 'scaled dot-product' 중복 병합 제안" },
-        { "agent": "Synthesis", "text": "'어텐션 ↔ 인지 선택' 도메인 간 구조 유사성 발견" },
-        { "agent": "Curator", "text": "<b>RoFormer (2021)</b> 관련 논문 후보 3 건" },
-        { "agent": "Socratic", "text": "약한 개념 4 건 감지 · 복습 카드 제안" },
-        { "agent": "Connector", "text": "'signal-processing' 프로젝트와 2 개념 연결" },
-        { "agent": "Temporal", "text": "'트랜스포머' 오래된 지식 점검 후보 표시" },
-        { "agent": "Research", "text": "새 질문 후보 4 건 인덱싱 · Q&A 준비 완료" },
-        { "agent": "Deep R.", "text": "<b>\"post-LN vs pre-LN\"</b> 심층 조사 후보 등록" },
-        { "agent": "Narrator", "text": "주간 복습 스크립트 <b>12:30</b> 초안 작성" },
-        { "agent": "Code", "text": "어텐션 스코어 히트맵 · 브라우저 렌더링" },
-        { "agent": "Visual.", "text": "지식 그래프 5뷰 레이아웃 재계산" }
+        { "agent": "INGEST", "text": "<b>attention_is_all_you_need.pdf</b> 파싱 완료 · source note 생성" },
+        { "agent": "RETRIEVE", "text": "출처 칩이 붙은 관련 노트 검색" },
+        { "agent": "ACTION", "text": "노트 업데이트 제안 · 검토 대기" },
+        { "agent": "GRAPH", "text": "백링크와 근거 패널 갱신" },
+        { "agent": "EXPORT", "text": "문서 생성 표면 준비" },
+        { "agent": "RECOVER", "text": "워크플로 이벤트를 action ledger에 저장" }
       ]
     },
     "livePanel": {
@@ -67,7 +61,7 @@
       "compiling": "● compiling",
       "input": "INPUT",
       "inputItems": ["논문 PDF", "DOCX · PPTX", "Markdown ZIP", "Google Drive 파일", "지원되는 미디어"],
-      "agentsHeader": "AGENT WORKFLOWS",
+      "agentsHeader": "WORKFLOW SURFACES",
       "orchestration": "오케스트레이션",
       "status": "● running · staged",
       "output": "OUTPUT",
@@ -84,26 +78,21 @@
       "idle": "대기 중…",
       "rotating": [
         "자료 업로드 감지 · attention_is_all_you_need.pdf",
-        "Parse: 문서 본문 추출 완료 · 마크다운 변환 중",
-        "Compiler: 17 개념 추출 · 임베딩 생성 중",
-        "Librarian: 기존 위키와 3 개의 중복 병합 제안",
-        "Research: 관련 질문 후보 4 건 인덱싱",
-        "Connector: signal-processing 프로젝트와 2 개념 연결",
-        "Synthesis: \"attention ↔ selective perception\" 통합 제안",
-        "Socratic: 복습 카드 후보 제안",
-        "Narrator: 복습 스크립트 초안 작성",
-        "Deep Research: 후속 조사 주제 2 건 후보",
-        "Code: 샘플 어텐션 스코어 시각화 제안",
-        "Visualization: 그래프 뷰 레이아웃 업데이트",
-        "Curator: 추천 논문 \"RoFormer (2021)\" 발견",
-        "Temporal: 오래된 지식 점검 후보 표시"
+        "Parse: 본문과 표 구조 정규화",
+        "Retrieve: 근거가 붙은 context 인덱싱",
+        "Action: 노트 업데이트 preview 생성",
+        "Review: 적용 전 사람 승인 필요",
+        "Graph: 백링크와 근거 패널 갱신",
+        "Q&A: grounded answer surface 준비",
+        "Generate: 문서 생성 surface 대기열 등록",
+        "Recover: workflow event를 ledger에 기록"
       ]
     }
   },
   "metrics": {
     "label": "METRICS",
     "items": [
-      { "value": "AI", "suffix": "", "caption": "워크플로와 역할" },
+      { "value": "AI", "suffix": "", "caption": "검토 가능한 워크플로 액션" },
       { "value": 5, "suffix": "뷰", "caption": "하나의 그래프 · 다섯 렌즈" },
       { "value": 0, "suffix": "건", "caption": "모델 외부 호출 · 로컬 LLM" },
       { "value": "AGPLv3", "suffix": "", "caption": "오픈소스 + 상용 라이선스" }
@@ -116,7 +105,7 @@
     "title3": "여섯 단계.",
     "sub": "올리는 것이 시작입니다. 파싱, 임베딩, 위키 초안, 그래프 연결, Q&A까지 좁은 단계가 이어지고, 답변과 그래프에는 출처 칩과 근거 패널이 붙습니다.",
     "steps": [
-      { "n": "01 · INGEST", "title": "가져오기", "body": "PDF · DOCX · PPTX · XLSX · HWP/HWPX · Markdown/CSV ZIP · Google Drive. OCR과 미디어 처리는 provider와 설정에 따라 달라집니다." },
+      { "n": "01 · INGEST", "title": "가져오기", "body": "PDF, 일반 문서, Markdown/CSV ZIP 내보내기, Google Drive file-ID import, 지원되는 미디어를 가져옵니다. OCR과 미디어 처리는 provider와 설정에 따라 달라집니다." },
       { "n": "02 · PARSE", "title": "해체", "body": "본문 · 표 구조 · OCR 결과를 마크다운으로 정규화합니다. 미디어 전사는 설정된 provider 경로에서 처리됩니다." },
       { "n": "03 · EMBED", "title": "의미화", "body": "벡터 공간으로 변환. 비슷한 것끼리 가까워짐." },
       { "n": "04 · COMPILE", "title": "엮기", "body": "컴파일 워크플로가 주제별 위키 초안을 작성합니다." },
@@ -125,7 +114,7 @@
     ],
     "terminal": {
       "prompt": "$",
-      "cmd": "pnpm dev",
+      "cmd": "pnpm dev:docker",
       "result": "http://localhost:3000",
       "tail": "it just runs."
     },
@@ -139,23 +128,17 @@
     }
   },
   "agents": {
-    "label": "AGENTS",
-    "title1": "전문 에이전트들이",
-    "title2": "좁게 나뉘어 움직입니다.",
-    "sub": "열두 역할은 장기 아키텍처로 정의되어 있고, 실제 제품에는 런타임 에이전트·워크플로·기능 플래그가 섞여 단계적으로 켜집니다. 현재 켜진 범위는 공개 로드맵에서 확인합니다.",
+    "label": "WORKFLOWS",
+    "title1": "워크플로 표면은",
+    "title2": "데이터를 바꾸기 전에 검토됩니다.",
+    "sub": "현재 제품은 workflow-backed job, action ledger, note action, 생성 파일, 단계적 plan/code surface를 중심으로 움직입니다. 실제 활성 범위는 공개 roadmap과 feature registry를 기준으로 확인합니다.",
     "items": [
-      { "n": "01", "cat": "core", "name": "Compiler", "body": "업로드한 자료에서 개념을 뽑아 위키로 엮습니다. 지원되는 파일과 provider 경로는 설정에 따라 달라집니다." },
-      { "n": "02", "cat": "core", "name": "Research", "body": "여러 검색 방식을 조합한 하이브리드 Q&A. 답변에는 출처 칩을 표시합니다." },
-      { "n": "03", "cat": "maintain", "name": "Librarian", "body": "고아 페이지·모순·중복을 찾아냅니다. 위키 건강을 주기 점검." },
-      { "n": "04", "cat": "discover", "name": "Synthesis", "body": "서로 다른 분야의 구조적 유사성을 발견. 면역계 ↔ 회복성처럼." },
-      { "n": "05", "cat": "discover", "name": "Connector", "body": "프로젝트 간 연결을 제안합니다. 승인하면 크로스 링크 생성." },
-      { "n": "06", "cat": "time", "name": "Temporal", "body": "오래된 지식과 다시 검토할 후보를 찾는 방향으로 동작합니다. 배포별 활성화 범위는 설정에 따릅니다." },
-      { "n": "07", "cat": "source", "name": "Curator", "body": "지식의 빈 자리를 메울 외부 자료 후보를 추천합니다. 검색 경로는 provider와 설정에 따릅니다." },
-      { "n": "08", "cat": "source", "name": "Deep Research", "body": "한 주제의 후속 조사 후보와 보고서 초안을 남기는 장기 워크플로로 단계적으로 켜집니다." },
-      { "n": "09", "cat": "learn", "name": "Socratic", "body": "문답으로 이해를 점검하고 복습 카드 후보를 제안합니다. 간격 반복은 학습 표면에서 이어집니다." },
-      { "n": "10", "cat": "media", "name": "Narrator", "body": "위키 내용을 복습용 스크립트와 오디오 산출물로 확장하는 장기 역할입니다." },
-      { "n": "11", "cat": "execute", "name": "Code", "body": "코드 워크스페이스, 승인된 실행, 정적 미리보기를 단계적으로 처리합니다. 서버 실행은 기능 플래그와 샌드박스 경계 안에서만 켜집니다." },
-      { "n": "12", "cat": "view", "name": "Visualization", "body": "지식 그래프를 Graph · Mindmap · Cards · Timeline · Board 5뷰로." }
+      { "n": "01", "cat": "ingest", "name": "Source processing", "body": "업로드와 import를 source note, 정규화된 텍스트, 검색 가능한 project context로 바꿉니다." },
+      { "n": "02", "cat": "answer", "name": "Grounded Q&A", "body": "chat과 retrieval surface는 workspace scope 안의 context로 답하고 source evidence를 함께 보여 줍니다." },
+      { "n": "03", "cat": "action", "name": "Note actions", "body": "create, rename, move, delete, restore, update 흐름은 preview-and-apply contract를 거칩니다." },
+      { "n": "04", "cat": "artifact", "name": "Generated files", "body": "프로젝트 파일과 문서 생성 surface는 어떤 workflow run에서 나온 결과인지 추적 가능하게 유지합니다." },
+      { "n": "05", "cat": "operate", "name": "Action ledger", "body": "workflow activity, recovery state, approval 기록을 background job 안에 묻지 않고 보여 줍니다." },
+      { "n": "06", "cat": "staged", "name": "Plan and code surfaces", "body": "plan, code workspace, execution-loop 기능은 product contract와 feature flag 안에서 단계적으로 켜집니다." }
     ]
   },
   "views": {
@@ -198,7 +181,7 @@
     "label": "WORKSPACE",
     "title1": "혼자서도, 실험실 단위로도",
     "title2": "도구를 바꿀 필요가 없습니다.",
-    "sub": "위키 페이지는 그냥 글이 아니라, 자료·사람·에이전트 워크플로가 만나는 곳입니다. 페이지마다 출처·편집자·에이전트 작업 기록이 함께 살아 있습니다.",
+    "sub": "위키 페이지는 그냥 글이 아니라, 자료·사람·검토 가능한 AI 작업이 만나는 곳입니다. 페이지마다 출처·편집자·워크플로 기록이 함께 살아 있습니다.",
     "mock": {
       "chromePath": "opencairn.local / studio-kim / research-wiki",
       "sideWorkspace": "WORKSPACE",
@@ -209,24 +192,24 @@
         { "label": "Pages", "count": "214", "active": false },
         { "label": "Graph", "count": "", "active": false },
         { "label": "Library", "count": "78", "active": false },
-        { "label": "AI", "count": "roles", "active": false }
+        { "label": "AI", "count": "actions", "active": false }
       ],
       "sideProjects": "PROJECTS",
       "projects": ["· Research Wiki", "· Thesis Draft", "· Lab Meeting", "· Reading List"],
       "breadcrumb": "/ research-wiki / attention-mechanism",
       "pageTitle": "Attention Mechanism",
-      "pageMeta": ["compiled by 3 agents", "12 sources", "updated 2h ago"],
+      "pageMeta": ["reviewed AI action", "12 sources", "updated 2h ago"],
       "body": "Attention은 입력 시퀀스의 각 토큰에 가중치를 부여해 관련성을 계산하는 메커니즘입니다. Vaswani et al. (2017)의 \"Attention Is All You Need\"가 transformer 아키텍처의 기반을 제시했으며, 이후 self-attention과 multi-head attention으로 확장되었습니다.",
       "calloutTitle": "CONTRADICTION",
       "calloutBody": "자료 3개가 quadratic complexity에 대해 다른 수치를 제시합니다. Linear Attention 계열은 이 가정을 건드립니다.",
       "related": "관련 문서:",
       "relatedItems": ["Transformer", "Scaled Dot-Product", "Linear Attention"],
-      "railFeedH": "AGENT FEED",
+      "railFeedH": "ACTION FEED",
       "feed": [
-        { "agent": "RESEARCH · 14:06", "text": "contradiction detected in source 4 vs source 9" },
-        { "agent": "CONNECTOR · 14:04", "text": "new edge: Attention ↔ Memory" },
-        { "agent": "COMPILER · 13:58", "text": "merged 2 fragments into this page" },
-        { "agent": "CURATOR · y'day", "text": "5 stale links pruned", "faded": true }
+        { "agent": "REVIEW · 14:06", "text": "contradiction flagged in source 4 vs source 9" },
+        { "agent": "GRAPH · 14:04", "text": "new edge: Attention ↔ Memory" },
+        { "agent": "ACTION · 13:58", "text": "merged 2 approved fragments into this page" },
+        { "agent": "CLEANUP · y'day", "text": "5 stale links reviewed", "faded": true }
       ],
       "backlinksH": "BACKLINKS · 8",
       "backlinks": ["· Transformer", "· Position Encoding", "· KV Cache", "· Flash Attention", "+4 more"]
@@ -253,8 +236,8 @@
       {
         "tag": "[ b ]",
         "cat": "compile",
-        "title": "정리는 에이전트, 판단은 사람.",
-        "body": "Compiler 워크플로가 개념을 뽑아 위키 페이지를 만들고, 기존 위키와 연결합니다. 여러분은 결과를 검토하고 편집하기만 하면 됩니다. 손으로 옮겨 적는 시간이 사라집니다."
+        "title": "정리는 AI가 돕고, 판단은 사람이 합니다.",
+        "body": "AI 액션은 페이지 초안, 업데이트 제안, 기존 위키와의 연결을 만들 수 있습니다. 중요한 변경은 적용 전에 검토하고 편집합니다. 손으로 옮겨 적는 시간이 줄어듭니다."
       },
       {
         "tag": "[ c ]",
@@ -315,20 +298,19 @@
       "$ git clone <your-fork-url>",
       "$ cd opencairn-monorepo",
       "$ cp .env.example .env",
-      "# .env에 LLM_API_KEY 설정 (Gemini) 또는 LLM_PROVIDER=ollama",
+      "# .env에 필수 secret과 사용할 model provider 설정",
       "$ pnpm install",
+      "$ docker compose up -d postgres redis minio temporal",
       "$ pnpm db:migrate",
-      "$ pnpm dev",
-      "# Ollama 완전 로컬:",
-      "$ docker compose --profile ollama up -d"
+      "$ docker compose --profile app --profile worker --profile hocuspocus up -d --build"
     ],
     "terminalResult": "→ http://localhost:3000",
     "terminalOk": [
-      "개발 서비스 기동 완료",
+      "app stack 기동 완료",
       "헬스체크 통과",
       "첫 워크스페이스 생성 대기 중"
     ],
-    "terminalTail": "$ cp .env.example .env → pnpm db:migrate → pnpm dev"
+    "terminalTail": "$ cp .env.example .env → pnpm db:migrate → docker compose up"
   },
   "pricing": {
     "label": "PRICING",
@@ -362,7 +344,7 @@
         "line2": "사용량이 큰 AI 작업은 실행 전 예상 차감량 표시"
       },
       "bullets": [
-        "Gemini 3 관리형 호출 포함",
+        "관리형 AI 호출 포함",
         "문서 생성·요약·RAG 작업",
         "기본 커넥터와 워크스페이스 기능",
         "사용량·잔여 크레딧 UI",
@@ -392,9 +374,9 @@
       "cat": "본인 키 · 1인",
       "price": "₩4,900",
       "unit": "/월",
-      "tagline": "본인 Gemini 키 · 관리형 크레딧 없음",
+      "tagline": "본인 provider 키 · 관리형 크레딧 없음",
       "bullets": [
-        "본인 Gemini 키 (암호화 저장)",
+        "지원되는 provider의 본인 키 (암호화 저장)",
         "LLM API 사용료는 본인 결제",
         "OpenCairn 호스팅·제품 기능 사용",
         "월 제공 크레딧 없음",
@@ -445,11 +427,11 @@
       },
       {
         "q": "기존 노트 앱에서 마이그레이션할 수 있나요?",
-        "a": "Markdown/CSV 내보내기 ZIP을 업로드하면 Compiler가 위키로 다시 엮습니다. Google Drive는 현재 파일 ID 기반 가져오기가 구현되어 있습니다. Notion을 포함한 앱 연결형 가져오기는 커넥터 로드맵에서 다룹니다."
+        "a": "Markdown/CSV 내보내기 ZIP을 업로드하면 OpenCairn이 폴더와 노트 구조를 위키로 다시 구성합니다. Google Drive는 현재 파일 ID 기반 가져오기가 구현되어 있습니다. Notion을 포함한 앱 연결형 가져오기는 커넥터 로드맵에서 다룹니다."
       },
       {
         "q": "AI가 위키를 잘못 쓰면 어떻게 되나요?",
-        "a": "AI가 만든 제안은 검토·적용 흐름을 거치고, 적용 후에도 직접 수정할 수 있습니다. 노트 변경은 버전과 활동 기록으로 추적되며, Librarian 계열 워크플로는 중복과 모순을 찾는 방향으로 단계적으로 확장됩니다."
+        "a": "AI가 만든 제안은 검토·적용 흐름을 거치고, 적용 후에도 직접 수정할 수 있습니다. 노트 변경은 버전과 활동 기록으로 추적되며, 중복과 모순 검토는 workflow-backed surface로 계속 확장됩니다."
       },
       {
         "q": "실시간 협업은 얼마나 매끄러운가요?",

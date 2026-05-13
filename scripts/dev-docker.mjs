@@ -8,6 +8,9 @@ const rootEnv = loadDotenv(".env");
 const env = { ...rootEnv, ...process.env };
 env.COMPOSE_BAKE ??= "false";
 env.BUILDX_NO_DEFAULT_ATTESTATIONS ??= "1";
+env.BUILDKIT_PROGRESS ??= "plain";
+env.COMPOSE_PROGRESS ??= "plain";
+env.COMPOSE_ANSI ??= "never";
 
 const useLocalPostgres = resolveLocalServiceFlag(
   env.OPENCAIRN_DEV_LOCAL_POSTGRES,

@@ -47,7 +47,7 @@ uv sync --directory apps/worker
 cp .env.example .env
 ```
 
-필수 변수 (전부 채워야 `pnpm dev` 동작):
+필수 변수 (전부 채워야 로컬 app stack 동작):
 
 | 변수 | 설명 | 생성/획득 방법 |
 |------|------|--------------|
@@ -63,17 +63,22 @@ cp .env.example .env
 | `RESEND_API_KEY` | 이메일 | resend.com (선택 — 개발 시 console log 가능) |
 | `SENTRY_DSN` | 에러 트래킹 | (선택) |
 
-### 4. 개발 서버
+### 4. 실행 모드
 
 ```bash
-pnpm dev
+docker compose up -d postgres redis minio temporal
+pnpm db:migrate
+pnpm dev:docker
 ```
 
-`pnpm dev`는 기본적으로 Docker Compose를 사용해 OpenCairn을 한 번에
-기동한다. API, Web, Hocuspocus, Worker, Redis, Temporal dev server를
-올리고, `.env`에 외부 `DATABASE_URL`/`COMPOSE_DATABASE_URL`이 있으면 로컬
-Postgres를 시작하지 않는다. `.env`에 외부 `S3_ENDPOINT`/`COMPOSE_S3_ENDPOINT`
-가 있으면 로컬 MinIO를 시작하지 않는다.
+`pnpm dev:docker`는 개발자용 full-stack Docker wrapper다. API, Web,
+Hocuspocus, Worker, Redis, Temporal dev server를 올리고, 변경된 app 이미지를
+캐시를 사용해 다시 빌드한다. self-host 사용자가 서버를 켤 때는 아래
+Self-hosted Compose 명령을 직접 사용한다.
+
+`.env`에 외부 `DATABASE_URL`/`COMPOSE_DATABASE_URL`이 있으면 로컬 Postgres를
+시작하지 않는다. `.env`에 외부 `S3_ENDPOINT`/`COMPOSE_S3_ENDPOINT`가 있으면
+로컬 MinIO를 시작하지 않는다.
 
 명시적으로 고정하고 싶으면 `.env`에서 다음 값을 설정한다:
 
@@ -82,14 +87,16 @@ OPENCAIRN_DEV_LOCAL_POSTGRES=auto  # auto | true | false
 OPENCAIRN_DEV_LOCAL_MINIO=auto     # auto | true | false
 ```
 
-로컬 Postgres/MinIO를 쓰는 신규 설치라면 첫 실행 전후로 스키마를 적용한다:
+로컬 Postgres/MinIO를 쓰는 신규 설치라면 app stack을 올리기 전에 스키마를
+적용한다:
 
 ```bash
 pnpm db:migrate
 pnpm db:seed             # (선택) 테스트 데이터
 ```
 
-호스트 hot-reload가 꼭 필요하면 `pnpm dev:host`를 사용한다.
+빌드 없이 기존 이미지로만 다시 띄우려면 `pnpm dev:docker:no-build`를 쓴다.
+호스트 hot-reload가 필요하면 `pnpm dev:host`를 사용한다.
 
 정상 로그 예시:
 ```
@@ -105,7 +112,7 @@ pnpm db:seed             # (선택) 테스트 데이터
 
 | 증상 | 원인 | 해결 |
 |------|------|------|
-| `DATABASE_URL` 연결 실패 | DB URL/네트워크 설정 불일치 | 외부 DB면 `COMPOSE_DATABASE_URL`/`DATABASE_URL`, 로컬 DB면 `pnpm dev` 로그의 `database:` 판단 확인 |
+| `DATABASE_URL` 연결 실패 | DB URL/네트워크 설정 불일치 | 외부 DB면 `COMPOSE_DATABASE_URL`/`DATABASE_URL`, 로컬 DB면 `pnpm dev:docker` 로그의 `database:` 판단 확인 |
 | `pnpm install` EACCES | 권한 문제 | corepack 활성화: `corepack enable` |
 | `uv sync` 실패 | Python 버전 낮음 | `uv python install 3.12` |
 | Temporal 연결 거부 | Temporal UI 기동 안 됨 | `docker compose logs temporal` 확인 |
@@ -369,7 +376,7 @@ docker compose --profile app --profile worker --profile hocuspocus config
 3. Start infra and apply migrations from the host:
 
 ```bash
-pnpm dev
+docker compose up -d
 pnpm db:migrate
 ```
 
@@ -386,26 +393,26 @@ Use `--profile ollama` as well when running the local LLM service.
 
 #### Full-stack Docker shortcut
 
-The default development command is Docker-first:
+The pnpm scripts are maintainer shortcuts around the same Compose stack:
 
 ```bash
-pnpm dev                 # Docker Compose full dev
-pnpm dev:docker          # same as pnpm dev
+pnpm dev:docker          # rebuild changed app images and start the stack
+pnpm dev:docker:no-build # start selected services with existing images
 pnpm dev:docker:logs     # selected full-dev service logs follow
-pnpm dev:docker:rebuild  # 코드 수정 후 캐시 없이 다시 빌드 (이후 dev:docker로 기동)
+pnpm dev:docker:rebuild  # no-cache image rebuild; intentionally slow
 pnpm dev:docker:down     # 컨테이너 정리 (볼륨 유지)
 pnpm dev:docker:reset    # 컨테이너 + 볼륨까지 삭제 (DB/MinIO 초기화)
+pnpm dev:host            # host hot-reload for app processes
 ```
 
-`pnpm dev` inspects `.env`: when `DATABASE_URL`/`COMPOSE_DATABASE_URL` points
-to an external database such as Supabase it skips the local Postgres service;
-when `S3_ENDPOINT`/`COMPOSE_S3_ENDPOINT` points to external S3/R2 it skips the
-local MinIO service. In that managed-service mode, stale local Postgres/MinIO
-containers from earlier runs are stopped and removed without deleting named
-volumes. Temporal UI is served by the `temporal` dev-server container on
-`http://localhost:8233`; the legacy `temporal-ui` profile is not started by
-`pnpm dev`. Host hot-reload is available as `pnpm dev:host` for maintainers who
-explicitly need it.
+`pnpm dev:docker` inspects `.env`: when `DATABASE_URL`/`COMPOSE_DATABASE_URL`
+points to an external database such as Supabase it skips the local Postgres
+service; when `S3_ENDPOINT`/`COMPOSE_S3_ENDPOINT` points to external S3/R2 it
+skips the local MinIO service. In that managed-service mode, stale local
+Postgres/MinIO containers from earlier runs are stopped and removed without
+deleting named volumes. Temporal UI is served by the `temporal` dev-server
+container on `http://localhost:8233`; the legacy `temporal-ui` profile is not
+started by the app stack.
 
 ## Import (Drive + Notion)
 

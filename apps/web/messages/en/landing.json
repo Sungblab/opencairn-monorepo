@@ -1,13 +1,13 @@
 {
   "meta": {
     "title": "OpenCairn — AI Knowledge OS",
-    "description": "Delegate files and notes to agent workflows that build a grounded wiki with evidence and connection surfaces. Self-hostable · AGPLv3 + commercial license.",
-    "ogDescription": "OpenCairn weaves PDFs, papers, and documents into a wiki with grounded Q&A and graph surfaces."
+    "description": "Turn files, notes, and research sources into a grounded workspace wiki with evidence, graph views, and reviewable AI actions. Self-hostable · AGPLv3 + commercial license.",
+    "ogDescription": "OpenCairn turns files and notes into a grounded wiki with Q&A, graph views, and reviewable AI actions."
   },
   "nav": {
     "logoTitle": "Try clicking",
     "pipeline": "PIPELINE",
-    "agents": "AGENTS",
+    "agents": "WORKFLOWS",
     "workspace": "WORKSPACE",
     "why": "WHY",
     "pricing": "PRICING",
@@ -25,41 +25,35 @@
     "titleLine2": "what you write.",
     "titleBrand": "OpenCairn",
     "titleLine3": "knows what you read.",
-    "sub": "Drop in PDFs, papers, documents, and supported media. Agents <b>weave them into a wiki</b>, <b>suggest connections</b>, and <b>check how well you understand</b> what's there. The agent workflow backbone activates in stages.",
+    "sub": "Drop in papers, documents, notes, and supported media. OpenCairn <b>builds a workspace wiki</b>, <b>surfaces source-backed links</b>, and <b>keeps AI changes reviewable</b> as workflow surfaces mature.",
     "ctaPrimary": "Sign in",
     "ctaSecondary": "See pricing",
-    "noCard": "Agent workflows included",
+    "noCard": "Reviewable AI actions included",
     "selfhostLink": "Developer? Self-hosting guide ↗",
     "spec": {
-      "agents": "agents",
-      "agentsVal": "staged",
-      "parsers": "parsers",
-      "parsersVal": "pdf · mp3 · mp4 · m4a",
+      "agents": "scope",
+      "agentsVal": "workspace · project · page",
+      "parsers": "actions",
+      "parsersVal": "preview · apply · recover",
       "runtime": "runtime",
-      "runtimeVal": "docker",
-      "vector": "vector",
-      "vectorVal": "pgvector",
+      "runtimeVal": "docker compose",
+      "vector": "evidence",
+      "vectorVal": "citations · graph",
       "license": "license",
       "licenseVal": "agplv3 + commercial"
     },
     "activity": {
       "title": "PREVIEW · WORKSPACE",
-      "meta": "Agent backbone · demo log",
-      "footer": "Agent activity demo (real runs ship in stages)",
+      "meta": "Workflow demo log",
+      "footer": "Workflow activity demo",
       "timeLabels": ["just now", "1m ago", "3m ago", "6m ago"],
       "items": [
-        { "agent": "Compiler", "text": "<b>attention_is_all_you_need.pdf</b> compiled · 17 concepts" },
-        { "agent": "Librarian", "text": "‘self-attention’ ↔ ‘scaled dot-product’ merge suggested" },
-        { "agent": "Synthesis", "text": "Cross-domain analogy: ‘attention ↔ cognitive selection’" },
-        { "agent": "Curator", "text": "<b>RoFormer (2021)</b> · 3 related paper candidates" },
-        { "agent": "Socratic", "text": "4 weak concepts detected · review cards suggested" },
-        { "agent": "Connector", "text": "Linked 2 concepts with ‘signal-processing’ project" },
-        { "agent": "Temporal", "text": "‘Transformer’ marked for stale-knowledge review" },
-        { "agent": "Research", "text": "4 new question candidates indexed · Q&A ready" },
-        { "agent": "Deep R.", "text": "<b>\"post-LN vs pre-LN\"</b> deep-dive candidate logged" },
-        { "agent": "Narrator", "text": "Weekly review script drafted · <b>12:30</b>" },
-        { "agent": "Code", "text": "Attention score heatmap · rendered in browser" },
-        { "agent": "Visual.", "text": "Knowledge graph 5-view layout recomputed" }
+        { "agent": "INGEST", "text": "<b>attention_is_all_you_need.pdf</b> parsed · source note created" },
+        { "agent": "RETRIEVE", "text": "Related notes found with source chips" },
+        { "agent": "ACTION", "text": "Suggested note update queued for review" },
+        { "agent": "GRAPH", "text": "Backlinks and evidence panel refreshed" },
+        { "agent": "EXPORT", "text": "Document-generation surface prepared" },
+        { "agent": "RECOVER", "text": "Workflow event saved to the action ledger" }
       ]
     },
     "livePanel": {
@@ -67,7 +61,7 @@
       "compiling": "● compiling",
       "input": "INPUT",
       "inputItems": ["Paper PDF", "DOCX · PPTX", "Markdown ZIP", "Google Drive file", "Supported media"],
-      "agentsHeader": "AGENT WORKFLOWS",
+      "agentsHeader": "WORKFLOW SURFACES",
       "orchestration": "orchestration",
       "status": "● running · staged",
       "output": "OUTPUT",
@@ -84,25 +78,21 @@
       "idle": "idle…",
       "rotating": [
         "Upload detected · attention_is_all_you_need.pdf",
-        "Compiler: 17 concepts extracted · embedding",
-        "Librarian: 3 duplicate merges suggested with existing wiki",
-        "Research: 4 candidate questions indexed",
-        "Connector: 2 concepts linked to signal-processing project",
-        "Synthesis: \"attention ↔ selective perception\" merge proposed",
-        "Socratic: review card candidates suggested",
-        "Narrator: review script drafted",
-        "Deep Research: 2 follow-up topics suggested",
-        "Code: sample attention-score visualization suggested",
-        "Visualization: graph view layout updated",
-        "Curator: related paper \"RoFormer (2021)\" discovered",
-        "Temporal: stale-knowledge candidates marked"
+        "Parse: text and tables normalized",
+        "Retrieve: source-backed context indexed",
+        "Action: note update preview created",
+        "Review: human approval required before apply",
+        "Graph: backlinks and evidence panels refreshed",
+        "Q&A: grounded answer surface ready",
+        "Generate: document surface queued",
+        "Recover: workflow event written to the ledger"
       ]
     }
   },
   "metrics": {
     "label": "METRICS",
     "items": [
-      { "value": "AI", "suffix": "", "caption": "Workflows and roles" },
+      { "value": "AI", "suffix": "", "caption": "Reviewable workflow actions" },
       { "value": 5, "suffix": " views", "caption": "One graph · five lenses" },
       { "value": 0, "suffix": "", "caption": "Model calls · local LLM" },
       { "value": "AGPLv3", "suffix": "", "caption": "Open-source + commercial" }
@@ -115,7 +105,7 @@
     "title3": "in six steps.",
     "sub": "Instead of one giant prompt, narrow-responsibility steps parse, embed, draft, link, and serve the knowledge base. Answers and graph surfaces carry source chips and evidence panels.",
     "steps": [
-      { "n": "01 · INGEST", "title": "Intake", "body": "PDF · DOCX · PPTX · XLSX · HWP/HWPX · Markdown/CSV ZIP · Google Drive. OCR and media handling depend on provider capability and deployment settings." },
+      { "n": "01 · INGEST", "title": "Intake", "body": "PDFs, common documents, Markdown/CSV ZIP exports, Google Drive file-ID imports, and supported media. OCR and media handling depend on provider capability and deployment settings." },
       { "n": "02 · PARSE", "title": "Break down", "body": "Text, table structure, and OCR output are normalized to Markdown. Media transcription runs through configured provider paths." },
       { "n": "03 · EMBED", "title": "Meaning", "body": "Mapped to vector space. Similar things end up close." },
       { "n": "04 · COMPILE", "title": "Weave", "body": "The compile workflow drafts wiki pages per topic." },
@@ -124,7 +114,7 @@
     ],
     "terminal": {
       "prompt": "$",
-      "cmd": "pnpm dev",
+      "cmd": "pnpm dev:docker",
       "result": "http://localhost:3000",
       "tail": "it just runs."
     },
@@ -138,23 +128,17 @@
     }
   },
   "agents": {
-    "label": "AGENTS",
-    "title1": "Specialized agents,",
-    "title2": "each with a narrow job.",
-    "sub": "Twelve roles are defined in the long-term architecture. The shipped product mixes runtime agents, workflow-backed features, and feature-flagged surfaces — check the public roadmap for what's currently active.",
+    "label": "WORKFLOWS",
+    "title1": "Workflow surfaces,",
+    "title2": "reviewed before they change data.",
+    "sub": "The current product exposes workflow-backed jobs, action ledgers, note actions, generated files, and staged plan/code surfaces. The public roadmap and feature registry remain the source of truth for what is active.",
     "items": [
-      { "n": "01", "cat": "core", "name": "Compiler", "body": "Extracts concepts from uploaded sources into wiki pages. Supported files and provider paths depend on configuration." },
-      { "n": "02", "cat": "core", "name": "Research", "body": "Hybrid Q&A across multiple search strategies, with source chips on answers." },
-      { "n": "03", "cat": "maintain", "name": "Librarian", "body": "Finds orphan pages, contradictions, and duplicates. Wiki health on a schedule." },
-      { "n": "04", "cat": "discover", "name": "Synthesis", "body": "Finds structural analogies across domains — immune system ↔ resilience." },
-      { "n": "05", "cat": "discover", "name": "Connector", "body": "Suggests cross-project links; accept to create them." },
-      { "n": "06", "cat": "time", "name": "Temporal", "body": "Looks for stale knowledge and review candidates. The active scope depends on deployment configuration." },
-      { "n": "07", "cat": "source", "name": "Curator", "body": "Suggests external-source candidates for gaps in the wiki. Search paths depend on provider and configuration." },
-      { "n": "08", "cat": "source", "name": "Deep Research", "body": "A longer-running workflow for follow-up topic candidates and report drafts, enabled in staged phases." },
-      { "n": "09", "cat": "learn", "name": "Socratic", "body": "Checks understanding through dialogue and suggests review-card candidates. Spaced repetition continues in the learning surface." },
-      { "n": "10", "cat": "media", "name": "Narrator", "body": "Long-term role for turning wiki content into review scripts and audio outputs." },
-      { "n": "11", "cat": "execute", "name": "Code", "body": "Handles code workspaces, approved runs, and static previews in staged phases. Server execution only runs behind feature flags and sandbox boundaries." },
-      { "n": "12", "cat": "view", "name": "Visualization", "body": "Renders the graph as Graph · Mindmap · Cards · Timeline · Board." }
+      { "n": "01", "cat": "ingest", "name": "Source processing", "body": "Uploads and imports become source notes, normalized text, and retrievable project context." },
+      { "n": "02", "cat": "answer", "name": "Grounded Q&A", "body": "Chat and retrieval surfaces answer from scoped workspace context and carry source evidence." },
+      { "n": "03", "cat": "action", "name": "Note actions", "body": "Create, rename, move, delete, restore, and update flows run through preview-and-apply contracts." },
+      { "n": "04", "cat": "artifact", "name": "Generated files", "body": "Project-file and document-generation surfaces keep outputs traceable to workflow runs." },
+      { "n": "05", "cat": "operate", "name": "Action ledger", "body": "Workflow activity, recovery state, and approvals remain visible instead of disappearing into background jobs." },
+      { "n": "06", "cat": "staged", "name": "Plan and code surfaces", "body": "Planning, code workspace, and execution-loop features are staged behind product contracts and feature flags." }
     ]
   },
   "views": {
@@ -197,7 +181,7 @@
     "label": "WORKSPACE",
     "title1": "Same shape for a solo user",
     "title2": "as for a whole lab.",
-    "sub": "Wiki pages aren't just text — they're the meeting point of sources, agents, and teammates. Every page carries its citations, editors, and agent workflow history with it.",
+    "sub": "Wiki pages aren't just text — they're the meeting point of sources, teammates, and reviewable AI work. Every page carries its citations, editors, and workflow history with it.",
     "mock": {
       "chromePath": "opencairn.local / studio-kim / research-wiki",
       "sideWorkspace": "WORKSPACE",
@@ -208,24 +192,24 @@
         { "label": "Pages", "count": "214", "active": false },
         { "label": "Graph", "count": "", "active": false },
         { "label": "Library", "count": "78", "active": false },
-        { "label": "AI", "count": "roles", "active": false }
+        { "label": "AI", "count": "actions", "active": false }
       ],
       "sideProjects": "PROJECTS",
       "projects": ["· Research Wiki", "· Thesis Draft", "· Lab Meeting", "· Reading List"],
       "breadcrumb": "/ research-wiki / attention-mechanism",
       "pageTitle": "Attention Mechanism",
-      "pageMeta": ["compiled by 3 agents", "12 sources", "updated 2h ago"],
+      "pageMeta": ["reviewed AI action", "12 sources", "updated 2h ago"],
       "body": "Attention weights the tokens of an input sequence by relevance. Vaswani et al. (2017) — \"Attention Is All You Need\" — introduced it as the foundation of the transformer architecture; self-attention and multi-head attention followed.",
       "calloutTitle": "CONTRADICTION",
       "calloutBody": "Three sources disagree on quadratic complexity. The Linear Attention family challenges this assumption.",
       "related": "Related pages:",
       "relatedItems": ["Transformer", "Scaled Dot-Product", "Linear Attention"],
-      "railFeedH": "AGENT FEED",
+      "railFeedH": "ACTION FEED",
       "feed": [
-        { "agent": "RESEARCH · 14:06", "text": "contradiction detected in source 4 vs source 9" },
-        { "agent": "CONNECTOR · 14:04", "text": "new edge: Attention ↔ Memory" },
-        { "agent": "COMPILER · 13:58", "text": "merged 2 fragments into this page" },
-        { "agent": "CURATOR · y'day", "text": "5 stale links pruned", "faded": true }
+        { "agent": "REVIEW · 14:06", "text": "contradiction flagged in source 4 vs source 9" },
+        { "agent": "GRAPH · 14:04", "text": "new edge: Attention ↔ Memory" },
+        { "agent": "ACTION · 13:58", "text": "merged 2 approved fragments into this page" },
+        { "agent": "CLEANUP · y'day", "text": "5 stale links reviewed", "faded": true }
       ],
       "backlinksH": "BACKLINKS · 8",
       "backlinks": ["· Transformer", "· Position Encoding", "· KV Cache", "· Flash Attention", "+4 more"]
@@ -253,7 +237,7 @@
         "tag": "[ b ]",
         "cat": "compile",
         "title": "AI does the sorting, you do the judging.",
-        "body": "The Compiler agent extracts concepts, creates pages, and links them to the existing wiki. You review and edit. The time you spent copying by hand disappears."
+        "body": "AI actions can draft pages, propose updates, and link them to the existing wiki. You review and edit before important changes land. The time you spent copying by hand disappears."
       },
       {
         "tag": "[ c ]",
@@ -314,20 +298,19 @@
       "$ git clone <your-fork-url>",
       "$ cd opencairn-monorepo",
       "$ cp .env.example .env",
-      "# set LLM_API_KEY (Gemini) or LLM_PROVIDER=ollama in .env",
+      "# set required secrets and your preferred model provider in .env",
       "$ pnpm install",
+      "$ docker compose up -d postgres redis minio temporal",
       "$ pnpm db:migrate",
-      "$ pnpm dev",
-      "# fully-local Ollama:",
-      "$ docker compose --profile ollama up -d"
+      "$ docker compose --profile app --profile worker --profile hocuspocus up -d --build"
     ],
     "terminalResult": "→ http://localhost:3000",
     "terminalOk": [
-      "dev services up",
+      "app stack up",
       "health checks passed",
       "waiting for first workspace"
     ],
-    "terminalTail": "$ cp .env.example .env → pnpm db:migrate → pnpm dev"
+    "terminalTail": "$ cp .env.example .env → pnpm db:migrate → docker compose up"
   },
   "pricing": {
     "label": "PRICING",
@@ -361,7 +344,7 @@
         "line2": "Large AI jobs show estimated credit usage before running"
       },
       "bullets": [
-        "Managed Gemini 3 calls included",
+        "Managed AI calls included",
         "Document generation, summarization, and RAG",
         "Core connectors and workspace features",
         "Usage and remaining-credit UI",
@@ -391,9 +374,9 @@
       "cat": "your key · solo",
       "price": "₩4,900",
       "unit": "/mo",
-      "tagline": "Your Gemini key · no managed credits",
+      "tagline": "Your provider key · no managed credits",
       "bullets": [
-        "Your Gemini key (encrypted at rest)",
+        "Your provider key where supported (encrypted at rest)",
         "LLM API usage billed to your account",
         "OpenCairn hosting and product features",
         "No monthly managed credits",
@@ -444,11 +427,11 @@
       },
       {
         "q": "Can I migrate from my existing note app?",
-        "a": "Upload a Markdown/CSV export ZIP and Compiler re-weaves it into a wiki. Google Drive currently supports file-ID import. App-connected imports, including Notion, belong in the connector roadmap."
+        "a": "Upload a Markdown/CSV export ZIP and OpenCairn rebuilds the folder and note structure into a wiki. Google Drive currently supports file-ID import. App-connected imports, including Notion, belong in the connector roadmap."
       },
       {
         "q": "What if the AI gets the wiki wrong?",
-        "a": "AI-generated changes go through review-and-apply flows, and you can edit them afterward. Note changes are tracked through versions and activity records; Librarian-style workflows are expanding toward duplicate and contradiction review."
+        "a": "AI-generated changes go through review-and-apply flows, and you can edit them afterward. Note changes are tracked through versions and activity records; duplicate and contradiction review continues to expand through workflow-backed surfaces."
       },
       {
         "q": "How smooth is the real-time collaboration?",
@@ -465,7 +448,7 @@
     "secondary": "See pricing status",
     "bottomGithub": "GITHUB ↗",
     "bottomSelfhost": "Self-hosting guide",
-    "bottomTonight": "Tonight, start with your first PDF."
+    "bottomTonight": "Tonight, start with your first source."
   },
   "footer": {
     "tagline": "AI knowledge OS. Solo or team. Self-hosted, forever.",
