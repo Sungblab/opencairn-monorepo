@@ -311,6 +311,57 @@ async def test_compiler_does_not_count_idempotent_wiki_page_actions() -> None:
 
 
 @pytest.mark.asyncio
+async def test_compiler_proposes_wiki_pages_for_existing_concepts_without_pages() -> None:
+    extraction = json.dumps(
+        {
+            "concepts": [
+                {
+                    "name": "Batch Normalization",
+                    "description": "Existing concept lacks a wiki page.",
+                }
+            ]
+        }
+    )
+    provider = _make_provider(extraction)
+    api = _make_api(
+        existing=[
+            {
+                "id": "concept-abc",
+                "name": "Batch Normalization",
+                "similarity": 0.99,
+            }
+        ]
+    )
+    api.upsert_concept = AsyncMock(return_value=("concept-abc", False))
+    api.get_project_wiki_index = AsyncMock(return_value={"pages": []})
+    agent = CompilerAgent(provider=provider, api=api)
+
+    events = []
+    async for ev in agent.run(
+        {
+            "note_id": "note-1",
+            "project_id": "proj-1",
+            "workspace_id": "ws-1",
+            "user_id": "user-1",
+        },
+        _make_ctx(),
+    ):
+        events.append(ev)
+
+    api.create_agent_action.assert_awaited_once()
+    action_kwargs = api.create_agent_action.await_args.kwargs
+    request = action_kwargs["request"]
+    assert request["kind"] == "note.create_from_markdown"
+    assert request["input"]["title"] == "Batch Normalization"
+    assert "Existing concept lacks a wiki page." in request["input"]["bodyMarkdown"]
+
+    end = events[-1]
+    assert end.output["created_count"] == 0
+    assert end.output["merged_count"] == 1
+    assert end.output["wiki_page_actions_created"] == 1
+
+
+@pytest.mark.asyncio
 async def test_compiler_proposes_wiki_updates_for_existing_concept_pages() -> None:
     page_id = "11111111-1111-1111-1111-111111111111"
     extraction = json.dumps(

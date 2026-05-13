@@ -255,7 +255,7 @@ class CompilerAgent(Agent):
                 input=validated,
                 ctx=ctx,
                 source_title=title,
-                concepts=created_concepts,
+                concepts=[*created_concepts, *existing_concepts],
             )
             if wiki_page_actions_created > 0:
                 yield CustomEvent(
