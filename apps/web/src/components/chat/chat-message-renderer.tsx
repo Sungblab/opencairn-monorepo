@@ -120,6 +120,14 @@ export function ChatMessageRenderer({
               {children}
             </a>
           ),
+          img: ({ alt, ...props }) => (
+            <img
+              {...props}
+              alt={alt ?? ""}
+              className="my-2 max-h-80 max-w-full rounded-[var(--radius-control)] border border-border object-contain"
+              loading="lazy"
+            />
+          ),
         }}
       >
         {safeBody}

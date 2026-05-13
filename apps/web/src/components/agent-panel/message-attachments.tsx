@@ -11,8 +11,7 @@ import {
   XCircle,
 } from "lucide-react";
 
-import { newTab } from "@/lib/tab-factory";
-import { useTabsStore } from "@/stores/tabs-store";
+import { openOriginalFileTab } from "@/components/ingest/open-original-file-tab";
 
 export type AgentFileCardItem = {
   id: string;
@@ -373,10 +372,6 @@ export function DocumentGenerationCards({
   items: DocumentGenerationCardItem[];
 }) {
   const t = useTranslations("agentFiles.generation");
-  const addOrActivateTab = useTabsStore((s) => s.addTab);
-  const findTabByTarget = useTabsStore((s) => s.findTabByTarget);
-  const setActive = useTabsStore((s) => s.setActive);
-
   return (
     <div className="grid gap-2">
       {items.map((item) => {
@@ -441,6 +436,13 @@ export function DocumentGenerationCards({
                   })}
                 </span>
               ) : null}
+              {item.file?.kind === "image" && downloadUrl ? (
+                <img
+                  src={downloadUrl}
+                  alt={item.file.title}
+                  className="mt-2 max-h-44 w-full rounded-[var(--radius-control)] border border-border object-contain"
+                />
+              ) : null}
             </span>
             <span className="flex shrink-0 items-center gap-1">
               <button
@@ -449,20 +451,7 @@ export function DocumentGenerationCards({
                 className="app-btn-ghost inline-flex h-7 items-center gap-1 rounded-[var(--radius-control)] px-2 text-xs disabled:cursor-default disabled:opacity-50"
                 onClick={() => {
                   if (!item.file) return;
-                  const existing = findTabByTarget("agent_file", item.file.id);
-                  if (existing) {
-                    setActive(existing.id);
-                    return;
-                  }
-                  addOrActivateTab(
-                    newTab({
-                      kind: "agent_file",
-                      targetId: item.file.id,
-                      title: item.file.title,
-                      mode: "agent-file",
-                      preview: false,
-                    }),
-                  );
+                  openOriginalFileTab(item.file.id, item.file.title);
                 }}
               >
                 <FolderOpen aria-hidden="true" className="h-3.5 w-3.5" />
@@ -487,9 +476,6 @@ export function DocumentGenerationCards({
 
 export function AgentFileCards({ files }: { files: AgentFileCardItem[] }) {
   const t = useTranslations("agentFiles.card");
-  const addOrActivateTab = useTabsStore((s) => s.addTab);
-  const findTabByTarget = useTabsStore((s) => s.findTabByTarget);
-  const setActive = useTabsStore((s) => s.setActive);
 
   return (
     <div className="grid gap-2">
@@ -499,20 +485,7 @@ export function AgentFileCards({ files }: { files: AgentFileCardItem[] }) {
           type="button"
           className="flex w-full items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-left hover:bg-muted"
           onClick={() => {
-            const existing = findTabByTarget("agent_file", file.id);
-            if (existing) {
-              setActive(existing.id);
-              return;
-            }
-            addOrActivateTab(
-              newTab({
-                kind: "agent_file",
-                targetId: file.id,
-                title: file.title,
-                mode: "agent-file",
-                preview: false,
-              }),
-            );
+            openOriginalFileTab(file.id, file.title);
           }}
         >
           <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -523,6 +496,13 @@ export function AgentFileCards({ files }: { files: AgentFileCardItem[] }) {
             <span className="block truncate text-xs text-muted-foreground">
               {t("created", { filename: file.filename })}
             </span>
+            {file.kind === "image" ? (
+              <img
+                src={`/api/agent-files/${encodeURIComponent(file.id)}/file`}
+                alt={file.title}
+                className="mt-2 max-h-40 w-full rounded-[var(--radius-control)] border border-border object-contain"
+              />
+            ) : null}
           </span>
           <span className="text-xs text-muted-foreground">{t("open")}</span>
         </button>

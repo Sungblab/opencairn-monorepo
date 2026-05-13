@@ -2,8 +2,10 @@
 import { useEffect, useState, type ComponentType } from "react";
 import { useTranslations } from "next-intl";
 import { Copy, Check } from "lucide-react";
+import { JsonView, defaultStyles } from "react-json-view-lite";
 import { proseClasses } from "@/lib/markdown/shared-prose";
 import { MermaidChat } from "./mermaid-chat";
+import "react-json-view-lite/dist/index.css";
 
 interface CodeBlockProps {
   inline?: boolean;
@@ -28,6 +30,18 @@ function loadSyntaxCodeBlock(): Promise<SyntaxCodeBlockComponent> {
     );
   }
   return syntaxCodeBlockPromise;
+}
+
+function parseJson(code: string): unknown | null {
+  try {
+    return JSON.parse(code);
+  } catch {
+    return null;
+  }
+}
+
+function formatJsonValue(value: unknown): string {
+  return `${JSON.stringify(value, null, 2)}\n`;
 }
 
 export function CodeBlock({ inline, className, children }: CodeBlockProps) {
@@ -64,9 +78,15 @@ export function CodeBlock({ inline, className, children }: CodeBlockProps) {
     return <MermaidChat code={code} />;
   }
 
+  const parsedJson = lang === "json" ? parseJson(code) : null;
+  const canRenderJsonView =
+    parsedJson !== null && typeof parsedJson === "object";
+  const displayCode =
+    lang === "json" && parsedJson !== null ? formatJsonValue(parsedJson) : code;
+
   const onCopy = async () => {
     try {
-      await navigator.clipboard.writeText(code);
+      await navigator.clipboard.writeText(displayCode);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -98,11 +118,25 @@ export function CodeBlock({ inline, className, children }: CodeBlockProps) {
           )}
         </button>
       </div>
-      {SyntaxCodeBlock ? (
-        <SyntaxCodeBlock code={code} language={lang || "text"} />
+      {canRenderJsonView ? (
+        <div className="max-h-80 overflow-auto p-3 text-xs">
+          <div data-testid="json-code-viewer" className="font-sans">
+            <JsonView data={parsedJson} style={defaultStyles} />
+          </div>
+          <details className="mt-2 font-mono text-[color:var(--fg-muted)]">
+            <summary className="cursor-pointer select-none text-[0.7rem]">
+              raw
+            </summary>
+            <pre className="m-0 mt-2 overflow-x-auto rounded border border-[color:var(--border)] p-2 text-xs text-[color:var(--fg-base)]">
+              <code className="bg-transparent">{displayCode}</code>
+            </pre>
+          </details>
+        </div>
+      ) : SyntaxCodeBlock ? (
+        <SyntaxCodeBlock code={displayCode} language={lang || "text"} />
       ) : (
         <pre className="m-0 overflow-x-auto p-3 text-xs">
-          <code className="bg-transparent">{code}</code>
+          <code className="bg-transparent">{displayCode}</code>
         </pre>
       )}
     </div>

@@ -6,16 +6,20 @@ import { useTranslations } from "next-intl";
 import type { AgentAction } from "@opencairn/shared";
 
 import { agentActionsApi } from "@/lib/api-client";
+import { pushWorkspaceTabUrl } from "@/lib/client-tab-url";
 import { newTab } from "@/lib/tab-factory";
 import { useTabsStore } from "@/stores/tabs-store";
 
-const CHAT_NOTE_ACTIONS = new Set([
+const CHAT_PROJECT_ACTIONS = new Set([
   "note.create",
   "note.create_from_markdown",
   "note.rename",
   "note.move",
   "note.delete",
   "note.restore",
+  "file.create",
+  "file.update",
+  "file.delete",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -47,7 +51,7 @@ export function asAgentActionCards(...values: unknown[]): AgentAction[] {
       return;
     }
     if (!isAgentAction(value)) return;
-    if (!CHAT_NOTE_ACTIONS.has(value.kind)) return;
+    if (!CHAT_PROJECT_ACTIONS.has(value.kind)) return;
     if (seen.has(value.id)) return;
     seen.add(value.id);
     actions.push(value);
@@ -94,14 +98,16 @@ function AgentActionCard({
 }) {
   const t = useTranslations("agentPanel.actionCard");
   const title = actionTitle(action);
-  const createdNote = noteResult(action);
+  const openTarget = openableResult(action);
+  const openLabel =
+    openTarget?.kind === "agent_file" ? t("openFile") : t("openNote");
 
   async function apply() {
     onBusyChange(true);
     try {
       const { action: updated } = await agentActionsApi.apply(action.id);
       onUpdated(updated);
-      openCreatedNote(updated);
+      openCreatedTarget(updated);
     } finally {
       onBusyChange(false);
     }
@@ -159,12 +165,12 @@ function AgentActionCard({
               </button>
             </>
           ) : null}
-          {createdNote ? (
+          {openTarget ? (
             <button
               type="button"
-              aria-label={t("open")}
+              aria-label={openLabel}
               disabled={busy}
-              onClick={() => openNoteTab(createdNote)}
+              onClick={() => openTargetTab(openTarget)}
               className="rounded-[var(--radius-control)] border border-border p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-50"
             >
               <ExternalLink className="h-3.5 w-3.5" aria-hidden />
@@ -174,6 +180,13 @@ function AgentActionCard({
       </div>
       {action.status === "failed" && action.errorCode ? (
         <div className="mt-2 text-xs text-destructive">{action.errorCode}</div>
+      ) : null}
+      {openTarget?.kind === "agent_file" && openTarget.fileKind === "image" ? (
+        <img
+          src={`/api/agent-files/${encodeURIComponent(openTarget.id)}/file`}
+          alt={openTarget.title}
+          className="mt-2 max-h-44 w-full rounded-[var(--radius-control)] border border-border object-contain"
+        />
       ) : null}
     </article>
   );
@@ -200,45 +213,70 @@ function actionTitle(action: AgentAction): string {
   return action.kind;
 }
 
-function noteResult(action: AgentAction): { id: string; title: string } | null {
-  if (
-    (action.kind !== "note.create" &&
-      action.kind !== "note.create_from_markdown") ||
-    action.status !== "completed"
-  ) {
-    return null;
+type OpenTarget =
+  | { kind: "note"; id: string; title: string }
+  | { kind: "agent_file"; id: string; title: string; fileKind?: string };
+
+function openableResult(action: AgentAction): OpenTarget | null {
+  if (action.status !== "completed") return null;
+  if (action.kind === "note.create" || action.kind === "note.create_from_markdown") {
+    const note = isRecord(action.result) ? action.result.note : null;
+    if (
+      isRecord(note) &&
+      typeof note.id === "string" &&
+      typeof note.title === "string"
+    ) {
+      return { kind: "note", id: note.id, title: note.title };
+    }
   }
-  const note = isRecord(action.result) ? action.result.note : null;
-  if (
-    isRecord(note) &&
-    typeof note.id === "string" &&
-    typeof note.title === "string"
-  ) {
-    return { id: note.id, title: note.title };
+  if (action.kind === "file.create" || action.kind === "file.update") {
+    const file = isRecord(action.result) ? action.result.file : null;
+    if (
+      isRecord(file) &&
+      typeof file.id === "string" &&
+      typeof file.title === "string"
+    ) {
+      return {
+        kind: "agent_file",
+        id: file.id,
+        title: file.title,
+        ...(typeof file.kind === "string" ? { fileKind: file.kind } : {}),
+      };
+    }
   }
   return null;
 }
 
-function openCreatedNote(action: AgentAction) {
-  const note = noteResult(action);
-  if (note) openNoteTab(note);
+function openCreatedTarget(action: AgentAction) {
+  const target = openableResult(action);
+  if (target) openTargetTab(target);
 }
 
-function openNoteTab(note: { id: string; title: string }) {
+function openTargetTab(target: OpenTarget) {
   const tabs = useTabsStore.getState();
-  const existing = tabs.findTabByTarget("note", note.id);
+  const existing = tabs.findTabByTarget(target.kind, target.id);
   if (existing) {
     tabs.promoteFromPreview(existing.id);
     tabs.setActive(existing.id);
+    pushWorkspaceTabUrl({
+      kind: target.kind,
+      targetId: target.id,
+      mode: target.kind === "note" ? "plate" : "agent-file",
+    });
     return;
   }
   tabs.addTab(
     newTab({
-      kind: "note",
-      targetId: note.id,
-      title: note.title,
-      mode: "plate",
+      kind: target.kind,
+      targetId: target.id,
+      title: target.title,
+      mode: target.kind === "note" ? "plate" : "agent-file",
       preview: false,
     }),
   );
+  pushWorkspaceTabUrl({
+    kind: target.kind,
+    targetId: target.id,
+    mode: target.kind === "note" ? "plate" : "agent-file",
+  });
 }

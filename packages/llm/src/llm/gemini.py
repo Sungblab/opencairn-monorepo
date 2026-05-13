@@ -189,12 +189,12 @@ def _messages_to_contents_and_system(
 GEMINI_MODELS = {
     "pro": "gemini-3.1-pro-preview",
     "flash": "gemini-3-flash-preview",
-    "flash_lite": "gemini-3.1-flash-lite-preview",
+    "flash_lite": "gemini-3.1-flash-lite",
     "embed": "gemini-embedding-001",
     "tts_flash": "gemini-2.5-flash-preview-tts",
     "tts_pro": "gemini-2.5-pro-preview-tts",
     "live": "gemini-3.1-flash-live-preview",
-    "image": "gemini-3.1-flash-image-preview",
+    "image": "gemini-2.5-flash-image",
 }
 
 

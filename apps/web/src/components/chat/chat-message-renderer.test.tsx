@@ -32,10 +32,40 @@ describe("ChatMessageRenderer", () => {
     expect(container.textContent).toContain("match /a\\nb/");
   });
 
+  it("formats valid JSON code blocks before rendering", () => {
+    const md = '```json\n{"b":2,"a":{"nested":true}}\n```';
+    const { container } = render(wrap(<ChatMessageRenderer body={md} />));
+
+    expect(screen.getByTestId("code-block-lang")).toHaveTextContent("json");
+    expect(screen.getByTestId("json-code-viewer")).toBeInTheDocument();
+    expect(container.textContent).toContain('"b": 2');
+    expect(container.textContent).toContain('"nested": true');
+  });
+
+  it("falls back to raw text for incomplete JSON while streaming", () => {
+    const md = '```json\n{"b":';
+    const { container } = render(wrap(<ChatMessageRenderer body={md} streaming />));
+
+    expect(container.textContent).toContain('{"b":');
+    expect(screen.getByTestId("streaming-cursor")).toBeInTheDocument();
+  });
+
   it("renders a GFM table", () => {
     const md = "| a | b |\n|---|---|\n| 1 | 2 |";
     render(wrap(<ChatMessageRenderer body={md} />));
     expect(screen.getByRole("table")).toBeInTheDocument();
+  });
+
+  it("renders markdown images as bounded previews", () => {
+    render(
+      wrap(
+        <ChatMessageRenderer body="![Generated diagram](/api/agent-files/file-1/file)" />,
+      ),
+    );
+
+    expect(screen.getByRole("img", { name: "Generated diagram" })).toHaveClass(
+      "max-h-80",
+    );
   });
 
   it("strips a <script> tag from raw HTML", () => {

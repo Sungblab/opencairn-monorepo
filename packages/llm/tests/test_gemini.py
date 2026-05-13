@@ -1,12 +1,16 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from llm.base import EmbedInput
-from llm.gemini import GeminiProvider, _normalise_embed_task_type
+from llm.gemini import GEMINI_MODELS, GeminiProvider, _normalise_embed_task_type
 
 
 @pytest.fixture
 def provider(gemini_config):
     return GeminiProvider(gemini_config)
+
+
+def test_flash_lite_alias_uses_stable_model():
+    assert GEMINI_MODELS["flash_lite"] == "gemini-3.1-flash-lite"
 
 
 @pytest.mark.asyncio
@@ -377,9 +381,9 @@ async def test_generate_image_returns_inline_image_bytes(provider):
     assert result is not None
     assert result.image_bytes.startswith(b"\x89PNG")
     assert result.mime_type == "image/png"
-    assert result.model == "gemini-3.1-flash-image-preview"
+    assert result.model == "gemini-2.5-flash-image"
     assert result.text == "metadata"
-    assert mocked.await_args.kwargs["model"] == "gemini-3.1-flash-image-preview"
+    assert mocked.await_args.kwargs["model"] == "gemini-2.5-flash-image"
     config = mocked.await_args.kwargs["config"]
     assert isinstance(config, types.GenerateContentConfig)
     assert config.response_modalities == ["TEXT", "IMAGE"]

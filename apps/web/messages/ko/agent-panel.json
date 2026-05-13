@@ -88,7 +88,8 @@
     "completed": "작업 완료",
     "failed": "작업 실패",
     "cancelled": "작업 취소됨",
-    "open": "노트 열기",
+    "openNote": "노트 열기",
+    "openFile": "파일 열기",
     "apply": "적용",
     "reject": "거절"
   },

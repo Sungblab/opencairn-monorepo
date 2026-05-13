@@ -73,7 +73,8 @@ describe("message bubble status", () => {
     expect(screen.queryByText("관련 문서 훑는 중...")).not.toBeInTheDocument();
   });
 
-  it("does not show stale thinking metadata on completed messages", () => {
+  it("keeps completed thinking summaries as a collapsed trace", async () => {
+    const user = userEvent.setup();
     render(
       <MessageBubble
         msg={{
@@ -90,8 +91,10 @@ describe("message bubble status", () => {
     );
 
     expect(screen.getByText("완료된 답변입니다.")).toBeInTheDocument();
-    expect(screen.queryByText("thought_label")).not.toBeInTheDocument();
+    expect(screen.getByText("thought_label")).toBeInTheDocument();
     expect(screen.queryByText("사용자의 질문 분석 중")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "thought_label" }));
+    expect(screen.getByText("사용자의 질문 분석 중")).toBeInTheDocument();
   });
 
   it("shows a status line while a run is still active", () => {
@@ -182,7 +185,7 @@ describe("message bubble agent actions", () => {
     useTabsStore.getState().setWorkspace("ws-test");
   });
 
-  it("renders completed note creation actions and opens the created note", async () => {
+  it("renders completed generated-note actions and opens the created note", async () => {
     const user = userEvent.setup();
 
     render(
@@ -199,10 +202,14 @@ describe("message bubble agent actions", () => {
                 projectId,
                 actorUserId: "user-1",
                 sourceRunId: null,
-                kind: "note.create",
+                kind: "note.create_from_markdown",
                 status: "completed",
                 risk: "write",
-                input: { title: "PDF 요약 노트", folderId: null },
+                input: {
+                  title: "PDF 요약 노트",
+                  folderId: null,
+                  bodyMarkdown: "# PDF 요약",
+                },
                 preview: null,
                 result: {
                   ok: true,
@@ -225,7 +232,7 @@ describe("message bubble agent actions", () => {
     );
 
     expect(screen.getByText("noteCreateCompleted")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "open" }));
+    await user.click(screen.getByRole("button", { name: "openNote" }));
 
     expect(useTabsStore.getState().tabs).toEqual([
       expect.objectContaining({
@@ -236,6 +243,122 @@ describe("message bubble agent actions", () => {
         preview: false,
       }),
     ]);
+  });
+
+  it("renders completed file actions and opens the generated file", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MessageBubble
+        msg={{
+          ...baseAgentMessage,
+          content: {
+            body: "파일을 만들었습니다.",
+            agent_actions: [
+              {
+                id: "00000000-0000-4000-8000-000000000044",
+                requestId: "00000000-0000-4000-8000-000000000045",
+                workspaceId: "00000000-0000-4000-8000-000000000046",
+                projectId,
+                actorUserId: "user-1",
+                sourceRunId: null,
+                kind: "file.create",
+                status: "completed",
+                risk: "write",
+                input: {
+                  filename: "summary.md",
+                  title: "Summary",
+                  content: "# Summary",
+                },
+                preview: null,
+                result: {
+                  ok: true,
+                  file: {
+                    id: "00000000-0000-4000-8000-000000000047",
+                    title: "Summary",
+                    filename: "summary.md",
+                  },
+                },
+                errorCode: null,
+                createdAt: "2026-05-11T00:00:00.000Z",
+                updatedAt: "2026-05-11T00:00:00.000Z",
+              },
+            ],
+          },
+        }}
+        onRegenerate={vi.fn()}
+        onSaveSuggestion={vi.fn()}
+        onFeedback={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("completed")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "openFile" }));
+
+    expect(useTabsStore.getState().tabs).toEqual([
+      expect.objectContaining({
+        kind: "agent_file",
+        targetId: "00000000-0000-4000-8000-000000000047",
+        title: "Summary",
+        mode: "agent-file",
+        preview: false,
+      }),
+    ]);
+  });
+
+  it("renders generated image file actions with an inline preview", () => {
+    render(
+      <MessageBubble
+        msg={{
+          ...baseAgentMessage,
+          content: {
+            body: "이미지를 만들었습니다.",
+            agent_actions: [
+              {
+                id: "00000000-0000-4000-8000-000000000048",
+                requestId: "00000000-0000-4000-8000-000000000049",
+                workspaceId: "00000000-0000-4000-8000-000000000050",
+                projectId,
+                actorUserId: "user-1",
+                sourceRunId: null,
+                kind: "file.create",
+                status: "completed",
+                risk: "write",
+                input: {
+                  filename: "figure.png",
+                  title: "Generated figure",
+                  base64: "iVBORw0KGgo=",
+                },
+                preview: null,
+                result: {
+                  ok: true,
+                  file: {
+                    id: "00000000-0000-4000-8000-000000000051",
+                    title: "Generated figure",
+                    filename: "figure.png",
+                    kind: "image",
+                    mimeType: "image/png",
+                  },
+                },
+                errorCode: null,
+                createdAt: "2026-05-11T00:00:00.000Z",
+                updatedAt: "2026-05-11T00:00:00.000Z",
+              },
+            ],
+          },
+        }}
+        onRegenerate={vi.fn()}
+        onSaveSuggestion={vi.fn()}
+        onFeedback={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("img", { name: "Generated figure" }),
+    ).toHaveAttribute(
+      "src",
+      "/api/agent-files/00000000-0000-4000-8000-000000000051/file",
+    );
   });
 });
 
@@ -458,6 +581,44 @@ describe("document generation cards", () => {
     expect(screen.getByRole("link", { name: /download/ })).toHaveAttribute(
       "href",
       `/api/agent-files/${objectId}/file`,
+    );
+  });
+
+  it("shows an inline preview for completed image generation results", () => {
+    const imageId = "00000000-0000-4000-8000-000000000052";
+    const cards = asDocumentGenerationCards([
+      {
+        type: "project_object_generation_completed",
+        result: {
+          ok: true,
+          requestId,
+          workflowId: `document-generation/${requestId}`,
+          format: "image",
+          object: {
+            id: imageId,
+            objectType: "agent_file",
+            title: "Generated diagram",
+            filename: "generated-diagram.png",
+            kind: "image",
+            mimeType: "image/png",
+            projectId,
+          },
+          artifact: {
+            objectKey: "agent-files/project/generated-diagram.png",
+            mimeType: "image/png",
+            bytes: 12345,
+          },
+        },
+      },
+    ]);
+
+    render(<DocumentGenerationCards items={cards} />);
+
+    expect(
+      screen.getByRole("img", { name: "Generated diagram" }),
+    ).toHaveAttribute(
+      "src",
+      `/api/agent-files/${imageId}/file`,
     );
   });
 
