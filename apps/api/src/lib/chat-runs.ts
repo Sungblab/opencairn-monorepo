@@ -148,6 +148,7 @@ export async function createDurableChatRun(input: {
 
   await appendChatRunEvent(runId, "user_persisted", { id: userRow.id });
   await appendChatRunEvent(runId, "agent_placeholder", { id: agentMessageId });
+  await appendChatRunEvent(runId, "run_started", { id: runId });
 
   return {
     runId,

@@ -19,6 +19,7 @@ import {
 import { useTranslations } from "next-intl";
 import { stripAgentDirectiveFences } from "@opencairn/shared";
 import { ArrowDown } from "lucide-react";
+import { Square } from "lucide-react";
 
 import { ChatMessageRendererLoader } from "@/components/chat/chat-message-renderer-loader";
 import { useChatMessages } from "@/hooks/use-chat-messages";
@@ -59,6 +60,7 @@ interface Props {
   live?: StreamingAgentMessage | null;
   pendingUser?: ChatMessage | null;
   onResumeRun?: (runId: string, messageId: string) => void;
+  onStopResponse?: () => void;
   onSaveSuggestion?: (payload: unknown) => void;
   onInteractionCardSubmit?: (input: InteractionCardSubmit) => void;
   onThreadUnavailable?: () => void;
@@ -71,6 +73,7 @@ export function Conversation({
   live = null,
   pendingUser = null,
   onResumeRun,
+  onStopResponse,
   onSaveSuggestion,
   onInteractionCardSubmit,
   onThreadUnavailable,
@@ -269,6 +272,10 @@ export function Conversation({
           ) : null}
           {live ? (
             <div className="flex flex-col gap-2">
+              <LiveRunSummary
+                run={live.run}
+                onStopResponse={onStopResponse}
+              />
               {live.thought ? <ThoughtBubble {...live.thought} /> : null}
               {live.status?.phrase ? (
                 <StatusLine phrase={live.status.phrase} />
@@ -336,6 +343,54 @@ export function Conversation({
         >
           <ArrowDown className="h-3.5 w-3.5" aria-hidden />
           {live ? t("jump_to_stream") : t("jump_to_latest")}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function LiveRunSummary({
+  run,
+  onStopResponse,
+}: {
+  run: StreamingAgentMessage["run"];
+  onStopResponse?: () => void;
+}) {
+  const t = useTranslations("agentPanel.bubble.runSummary");
+  if (!run) return null;
+
+  const elapsedSeconds = Math.max(
+    0,
+    Math.round((Date.now() - run.startedAt) / 1000),
+  );
+  const tokens =
+    (run.usage?.tokensIn ?? 0) + (run.usage?.tokensOut ?? 0);
+  const chips = [
+    t("running"),
+    t("elapsed", { seconds: elapsedSeconds }),
+    run.usage?.model ?? null,
+    tokens > 0 ? t("tokens", { count: tokens }) : null,
+    t("tools", { count: run.toolEvents.length }),
+  ].filter(Boolean);
+
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-[var(--radius-card)] border border-border/70 bg-muted/20 px-2 py-1 text-[11px] text-muted-foreground">
+      <div className="min-w-0 flex-1 truncate">
+        {chips.join(" · ")}
+        {run.toolEvents.length > 0 ? (
+          <span className="ml-1 text-foreground">
+            {run.toolEvents.at(-1)?.kind}
+          </span>
+        ) : null}
+      </div>
+      {onStopResponse ? (
+        <button
+          type="button"
+          onClick={onStopResponse}
+          className="inline-flex shrink-0 items-center gap-1 rounded-[var(--radius-control)] border border-border bg-background px-2 py-1 text-[11px] font-medium text-foreground transition hover:bg-muted"
+        >
+          <Square className="h-3 w-3 fill-current" aria-hidden />
+          {t("stop")}
         </button>
       ) : null}
     </div>

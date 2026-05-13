@@ -6,7 +6,12 @@ import { ApiError, type ChatMessage } from "@/lib/api-client";
 import { Conversation } from "./conversation";
 
 vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string) => key,
+  useTranslations: () => (key: string, values?: Record<string, unknown>) => {
+    if (key === "tokens") return `${values?.count} tokens`;
+    if (key === "elapsed") return `${values?.seconds}s`;
+    if (key === "tools") return `${values?.count} tools`;
+    return key;
+  },
   useLocale: () => "ko",
 }));
 
@@ -335,6 +340,46 @@ describe("Conversation durable run resume", () => {
 
     expect(screen.getByText("noteCreateApproval")).toBeInTheDocument();
     expect(screen.getByText("PDF 요약 노트")).toBeInTheDocument();
+  });
+
+  it("renders live run telemetry and exposes response stop", () => {
+    const onStopResponse = vi.fn();
+    render(
+      <Conversation
+        threadId="thread-1"
+        onStopResponse={onStopResponse}
+        live={{
+          id: "agent-1",
+          body: "답변 중",
+          status: null,
+          thought: null,
+          citations: [],
+          save_suggestion: null,
+          agent_files: [],
+          agent_actions: [],
+          project_objects: [],
+          project_object_generations: [],
+          run: {
+            id: "run-1",
+            startedAt: Date.now() - 12_000,
+            usage: { tokensIn: 100, tokensOut: 50, model: "gemini-test" },
+            toolEvents: [
+              { kind: "note.create_from_markdown", status: "completed" },
+            ],
+          },
+          error: null,
+        }}
+      />,
+    );
+
+    expect(screen.getByText(/running/)).toHaveTextContent("gemini-test");
+    expect(screen.getByText(/running/)).toHaveTextContent("150 tokens");
+    expect(screen.getByText(/running/)).toHaveTextContent(
+      "note.create_from_markdown",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "stop" }));
+    expect(onStopResponse).toHaveBeenCalledTimes(1);
   });
 
   it("does not drag the reader to the bottom while they scroll up during streaming", async () => {

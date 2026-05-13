@@ -98,6 +98,28 @@ describe("message bubble status", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows meaningful thinking summaries expanded by default", () => {
+    render(
+      <MessageBubble
+        msg={{
+          ...baseAgentMessage,
+          content: {
+            body: "완료된 답변입니다.",
+            thought: { summary: "PDF 구조를 확인하고 장별 핵심 개념을 묶었습니다." },
+          },
+        }}
+        onRegenerate={vi.fn()}
+        onSaveSuggestion={vi.fn()}
+        onFeedback={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("thought_label")).toBeInTheDocument();
+    expect(
+      screen.getByText("PDF 구조를 확인하고 장별 핵심 개념을 묶었습니다."),
+    ).toBeInTheDocument();
+  });
+
   it("shows a status line while a run is still active", () => {
     render(
       <MessageBubble

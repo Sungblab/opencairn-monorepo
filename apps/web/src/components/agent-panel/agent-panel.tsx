@@ -158,6 +158,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
     updateQueuedPrompt,
     clearQueuedPrompt,
     interruptQueuedPrompt,
+    stopResponse,
     resumeRun,
   } = useChatSend(activeThreadId);
   const { upload, isUploading } = useIngestUpload();
@@ -756,6 +757,7 @@ export function AgentPanel({ wsSlug }: { wsSlug?: string } = {}) {
               live={live}
               pendingUser={pendingUser}
               onResumeRun={resumeRun}
+              onStopResponse={stopResponse}
               onSaveSuggestion={handleSaveSuggestion}
               onInteractionCardSubmit={handleInteractionCardSubmit}
               onThreadUnavailable={() => setActive(null)}

@@ -50,6 +50,13 @@
     "jump_to_stream": "View new response",
     "jump_to_latest": "View latest",
     "citation_fallback": "Source {index}",
+    "runSummary": {
+      "running": "Running",
+      "elapsed": "{seconds}s",
+      "tokens": "{count} tokens",
+      "tools": "{count} tools",
+      "stop": "Stop response"
+    },
     "actions": {
       "copy_aria": "Copy",
       "regenerate_aria": "Regenerate",

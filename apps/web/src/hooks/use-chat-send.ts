@@ -38,6 +38,21 @@ export interface StreamingAgentMessage {
   agent_actions: unknown[];
   project_objects: unknown[];
   project_object_generations: unknown[];
+  run?: {
+    id: string | null;
+    startedAt: number;
+    attempt?: number;
+    executionClass?: string;
+    chatMode?: string;
+    ragMode?: string;
+    memoryPolicy?: string;
+    usage?: {
+      tokensIn?: number;
+      tokensOut?: number;
+      model?: string;
+    };
+    toolEvents: Array<{ kind: string; status?: string }>;
+  };
   // Populated when the route emits `event: error` mid-stream. `done` still
   // arrives separately and triggers the live → null reset; this field lives
   // on the in-flight preview only and is not persisted (the agent row is
@@ -56,8 +71,15 @@ const initialLive: StreamingAgentMessage = {
   agent_actions: [],
   project_objects: [],
   project_object_generations: [],
+  run: { id: null, startedAt: 0, toolEvents: [] },
   error: null,
 };
+
+const initialRun = { id: null, startedAt: 0, toolEvents: [] };
+
+function currentRun(prev: StreamingAgentMessage) {
+  return prev.run ?? { ...initialRun, startedAt: Date.now() };
+}
 
 export interface SendInput {
   content: string;
@@ -92,6 +114,7 @@ export function useChatSend(threadId: string | null) {
   const [queuedUser, setQueuedUser] = useState<ChatMessage | null>(null);
   const [queuedPrompt, setQueuedPrompt] = useState<QueuedPrompt | null>(null);
   const controller = useRef<AbortController | null>(null);
+  const activeRunId = useRef<string | null>(null);
   const resumedRun = useRef<string | null>(null);
   const queuedSend = useRef<{
     input: SendInput;
@@ -125,11 +148,51 @@ export function useChatSend(threadId: string | null) {
           setLive((prev) => {
             if (!prev) return prev;
             switch (ev.event) {
+              case "run_started":
+                if (isObj(payload) && typeof payload.id === "string") {
+                  activeRunId.current = payload.id;
+                  return {
+                    ...prev,
+                    run: { ...currentRun(prev), id: payload.id },
+                  };
+                }
+                return prev;
+              case "run_attempt":
+                return isObj(payload) && typeof payload.attempt === "number"
+                  ? {
+                      ...prev,
+                      run: { ...currentRun(prev), attempt: payload.attempt },
+                    }
+                  : prev;
               case "agent_placeholder":
                 return isObj(payload) && typeof payload.id === "string"
                   ? { ...prev, id: payload.id }
                   : prev;
               case "status":
+                if (isObj(payload) && payload.kind === "runtime_context") {
+                  return {
+                    ...prev,
+                    run: {
+                      ...currentRun(prev),
+                      executionClass:
+                        typeof payload.executionClass === "string"
+                          ? payload.executionClass
+                          : currentRun(prev).executionClass,
+                      chatMode:
+                        typeof payload.chatMode === "string"
+                          ? payload.chatMode
+                          : currentRun(prev).chatMode,
+                      ragMode:
+                        typeof payload.ragMode === "string"
+                          ? payload.ragMode
+                          : currentRun(prev).ragMode,
+                      memoryPolicy:
+                        typeof payload.memoryPolicy === "string"
+                          ? payload.memoryPolicy
+                          : currentRun(prev).memoryPolicy,
+                    },
+                  };
+                }
                 return isObj(payload)
                   ? { ...prev, status: payload as { phrase?: string } }
                   : prev;
@@ -155,6 +218,24 @@ export function useChatSend(threadId: string | null) {
                 return isObj(payload)
                   ? {
                       ...prev,
+                      run: {
+                        ...currentRun(prev),
+                        toolEvents: [
+                          ...currentRun(prev).toolEvents,
+                          {
+                            kind:
+                              isObj(payload.action) &&
+                              typeof payload.action.kind === "string"
+                                ? payload.action.kind
+                                : "agent_action",
+                            status:
+                              isObj(payload.action) &&
+                              typeof payload.action.status === "string"
+                                ? payload.action.status
+                                : undefined,
+                          },
+                        ],
+                      },
                       agent_actions: [
                         ...prev.agent_actions,
                         payload.action ?? payload,
@@ -192,6 +273,29 @@ export function useChatSend(threadId: string | null) {
                         ...prev.project_object_generations,
                         payload,
                       ],
+                    }
+                  : prev;
+              case "usage":
+                return isObj(payload)
+                  ? {
+                      ...prev,
+                      run: {
+                        ...currentRun(prev),
+                        usage: {
+                          tokensIn:
+                            typeof payload.tokensIn === "number"
+                              ? payload.tokensIn
+                              : undefined,
+                          tokensOut:
+                            typeof payload.tokensOut === "number"
+                              ? payload.tokensOut
+                              : undefined,
+                          model:
+                            typeof payload.model === "string"
+                              ? payload.model
+                              : undefined,
+                        },
+                      },
                     }
                   : prev;
               case "error": {
@@ -238,6 +342,7 @@ export function useChatSend(threadId: string | null) {
           setLive(null);
           setPendingUser(null);
           controller.current = null;
+          activeRunId.current = null;
           resumedRun.current = null;
           startQueuedSend();
         }
@@ -251,10 +356,15 @@ export function useChatSend(threadId: string | null) {
       if (!threadId || controller.current || resumedRun.current === runId)
         return;
       resumedRun.current = runId;
+      activeRunId.current = runId;
       const ac = new AbortController();
       controller.current = ac;
       setPendingUser(null);
-      setLive({ ...initialLive, id: messageId });
+      setLive({
+        ...initialLive,
+        id: messageId,
+        run: { ...initialRun, id: runId, startedAt: Date.now() },
+      });
       const stream = await fetch(`/api/chat-runs/${runId}/events?after=0`, {
         credentials: "include",
         headers: { accept: "text/event-stream" },
@@ -266,6 +376,7 @@ export function useChatSend(threadId: string | null) {
         setQueuedUser(null);
         setQueuedPrompt(null);
         controller.current = null;
+        activeRunId.current = null;
         resumedRun.current = null;
         startQueuedSend();
         return;
@@ -281,7 +392,10 @@ export function useChatSend(threadId: string | null) {
       controller.current = ac;
 
       setPendingUser(pendingUserMessage(input));
-      setLive({ ...initialLive });
+      setLive({
+        ...initialLive,
+        run: { ...initialRun, startedAt: Date.now() },
+      });
 
       let res: Response;
       try {
@@ -305,6 +419,7 @@ export function useChatSend(threadId: string | null) {
             setLive(null);
             setPendingUser(null);
             controller.current = null;
+            activeRunId.current = null;
             resumedRun.current = null;
             startQueuedSend();
           }
@@ -314,6 +429,7 @@ export function useChatSend(threadId: string | null) {
         setPendingUser(null);
         if (controller.current === ac) {
           controller.current = null;
+          activeRunId.current = null;
           resumedRun.current = null;
           startQueuedSend();
         }
@@ -325,6 +441,7 @@ export function useChatSend(threadId: string | null) {
         setPendingUser(null);
         if (controller.current === ac) {
           controller.current = null;
+          activeRunId.current = null;
           resumedRun.current = null;
           startQueuedSend();
         }
@@ -378,6 +495,17 @@ export function useChatSend(threadId: string | null) {
     startQueuedSend();
   }, [startQueuedSend]);
 
+  const stopResponse = useCallback(() => {
+    const runId = activeRunId.current;
+    controller.current?.abort();
+    if (runId) {
+      void fetch(`/api/chat-runs/${runId}/cancel`, {
+        method: "POST",
+        credentials: "include",
+      });
+    }
+  }, []);
+
   return {
     send,
     live,
@@ -386,6 +514,7 @@ export function useChatSend(threadId: string | null) {
     updateQueuedPrompt,
     clearQueuedPrompt,
     interruptQueuedPrompt,
+    stopResponse,
     resumeRun,
   };
 }

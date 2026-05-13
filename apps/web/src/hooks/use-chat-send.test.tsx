@@ -217,6 +217,104 @@ describe("useChatSend", () => {
     await waitFor(() => expect(result.current.live).toBeNull());
   });
 
+  it("tracks live run metadata from status, usage, and action events", async () => {
+    let slowController: ReadableStreamDefaultController<Uint8Array> | null = null;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        slowController = controller;
+      },
+    });
+    fetchMock.mockResolvedValueOnce({ ok: true, body } as Partial<Response>);
+
+    const { result } = renderHook(() => useChatSend("t1"), {
+      wrapper: makeWrapper(),
+    });
+
+    await act(async () => {
+      void result.current.send({ content: "run with tools" });
+      await Promise.resolve();
+    });
+    await act(async () => {
+      slowController?.enqueue(
+        new TextEncoder().encode(
+          [
+            'event: agent_placeholder\ndata: {"id":"m3"}',
+            'event: run_started\ndata: {"id":"run-1"}',
+            'event: run_attempt\ndata: {"attempt":1}',
+            'event: status\ndata: {"kind":"runtime_context","executionClass":"durable_run","chatMode":"auto","ragMode":"strict"}',
+            'event: agent_action_created\ndata: {"action":{"kind":"note.create_from_markdown","status":"completed"}}',
+            'event: usage\ndata: {"tokensIn":12,"tokensOut":34,"model":"gemini-test"}',
+            "",
+          ].join("\n\n"),
+        ),
+      );
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    expect(result.current.live?.run).toMatchObject({
+      id: "run-1",
+      attempt: 1,
+      executionClass: "durable_run",
+      chatMode: "auto",
+      ragMode: "strict",
+      toolEvents: [{ kind: "note.create_from_markdown", status: "completed" }],
+      usage: { tokensIn: 12, tokensOut: 34, model: "gemini-test" },
+    });
+
+    await act(async () => {
+      slowController?.close();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+  });
+
+  it("cancels the active durable run when stopping the response", async () => {
+    let firstSignal: AbortSignal | undefined;
+    let slowController: ReadableStreamDefaultController<Uint8Array> | null = null;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        slowController = controller;
+      },
+    });
+    fetchMock.mockImplementationOnce((_url: string, init: RequestInit) => {
+      firstSignal = init.signal ?? undefined;
+      init.signal?.addEventListener(
+        "abort",
+        () => slowController?.error(new DOMException("Aborted", "AbortError")),
+        { once: true },
+      );
+      return Promise.resolve({ ok: true, body } as Partial<Response>);
+    });
+    fetchMock.mockResolvedValueOnce({ ok: true, body: null } as Partial<Response>);
+
+    const { result } = renderHook(() => useChatSend("t1"), {
+      wrapper: makeWrapper(),
+    });
+
+    await act(async () => {
+      void result.current.send({ content: "stop me" });
+      await Promise.resolve();
+    });
+    await act(async () => {
+      slowController?.enqueue(
+        new TextEncoder().encode(
+          'event: agent_placeholder\ndata: {"id":"m3"}\n\nevent: run_started\ndata: {"id":"run-1"}\n\n',
+        ),
+      );
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    await act(async () => {
+      result.current.stopResponse();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    expect(firstSignal?.aborted).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith("/api/chat-runs/run-1/cancel", {
+      method: "POST",
+      credentials: "include",
+    });
+  });
+
   it("allows retrying a resumed run after a failed replay response", async () => {
     const body = mkSseBody([
       'event: done\ndata: {"id":"m1","status":"complete"}\n\n',

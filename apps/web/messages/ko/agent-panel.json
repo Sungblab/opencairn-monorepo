@@ -50,6 +50,13 @@
     "jump_to_stream": "새 답변 보기",
     "jump_to_latest": "최신 메시지 보기",
     "citation_fallback": "출처 {index}",
+    "runSummary": {
+      "running": "실행 중",
+      "elapsed": "{seconds}초",
+      "tokens": "{count} tokens",
+      "tools": "툴 {count}개",
+      "stop": "응답 중단"
+    },
     "actions": {
       "copy_aria": "복사",
       "regenerate_aria": "재생성",

@@ -1,6 +1,6 @@
 "use client";
 
-// Collapsible "thinking" pill rendered above an agent's body. The token count
+// Expanded-by-default "thinking" pill rendered above an agent's body. The token count
 // is a rough heuristic for elapsed seconds (Gemini streams thoughts at roughly
 // 60 tok/s) — we surface it as a fuzzy duration so users get scale without
 // claiming wall-clock accuracy. Localised because both the label and the
@@ -18,7 +18,7 @@ export function ThoughtBubble({
   tokens?: number;
 }) {
   const t = useTranslations("agentPanel.bubble");
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const seconds = tokens ? Math.round(tokens / 60) : null;
 
   return (
