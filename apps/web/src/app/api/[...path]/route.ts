@@ -30,10 +30,14 @@ async function handler(
     ...(hasBody ? { duplex: "half" } : {}),
   } as RequestInit & { duplex?: "half" });
 
-  // Forward response headers including Set-Cookie; strip encoding/length that Next re-computes
+  // Forward response headers including Set-Cookie. If the upstream response is
+  // encoded, fetch may expose a decoded body while keeping encoded headers, so
+  // drop both. Otherwise preserve Content-Length; PDF range readers rely on it.
   const resHeaders = new Headers(response.headers);
-  resHeaders.delete("content-encoding");
-  resHeaders.delete("content-length");
+  if (resHeaders.has("content-encoding")) {
+    resHeaders.delete("content-encoding");
+    resHeaders.delete("content-length");
+  }
 
   return new Response(response.body, {
     status: response.status,
