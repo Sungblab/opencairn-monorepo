@@ -1,6 +1,8 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { urls } from "@/lib/urls";
+import { api } from "@/lib/api-client";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import type { PlateElementProps } from "platejs/react";
@@ -40,6 +42,14 @@ export function WikiLinkElement({
   const t = useTranslations("editor.wikilink");
   const el = element as unknown as WikiLinkElement;
   const { targetId, title, deleted } = el;
+  const targetNoteQuery = useQuery({
+    queryKey: ["note-meta", targetId],
+    queryFn: () => api.getNote(targetId),
+    enabled: Boolean(targetId) && !deleted,
+    staleTime: 60_000,
+  });
+  const currentTitle = targetNoteQuery.data?.title?.trim() || title;
+  const staleTitle = currentTitle !== title;
 
   if (deleted) {
     return (
@@ -62,8 +72,9 @@ export function WikiLinkElement({
       href={urls.workspace.projectNote(locale, wsSlug, projectId, targetId)}
       className="text-[color:var(--accent-ember)] underline underline-offset-2 hover:opacity-80"
       data-target-id={targetId}
+      data-stale-title={staleTitle ? "true" : undefined}
     >
-      {title}
+      {currentTitle}
       {children}
     </Link>
   );
