@@ -300,6 +300,8 @@ describe("ShellSidebar", () => {
               {
                 runId: "run-1",
                 runType: "document_generation",
+                agentRole: "write",
+                workGroupId: "run-1",
                 status: "running",
                 title: "보고서 생성",
                 progress: { percent: 42 },
@@ -339,6 +341,8 @@ describe("ShellSidebar", () => {
               {
                 runId: "run-1",
                 runType: "document_generation",
+                agentRole: "write",
+                workGroupId: "run-1",
                 status: "running",
                 title: "보고서 생성",
                 progress: { percent: 42 },

@@ -339,6 +339,10 @@ Workflow Console routes expose a read-only normalized projection over existing
 run sources. They do not create, cancel, retry, or mutate runs in this phase.
 The API checks project read access first, then adapts source rows into the
 shared Workflow Console envelope from `@opencairn/shared`.
+Each `WorkflowConsoleRun` includes a user-facing `agentRole`
+(`research|write|organize|export|code|review`) and a `workGroupId`; grouped
+runs share a `workGroupId` so clients can render role handoffs without guessing
+from titles, output labels, or source-specific run types.
 
 Current sources for the requesting user:
 

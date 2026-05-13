@@ -177,6 +177,10 @@
     "loading": "Loading runs…",
     "refreshing": "Refreshing",
     "loadFailed": "Could not load run status.",
+    "activeRole": "{role} · {status}",
+    "workQueueTitle": "Work queue",
+    "queueItem": "{role} · {status}",
+    "handoffTitle": "Role flow",
     "progress": "{percent}%",
     "logSummary": "{packageManager} · {packages} · exit {exitCode}",
     "evidenceSummary": "{count, plural, one {# evidence item} other {# evidence items}} {status}",
@@ -200,6 +204,14 @@
       "verification_failed": "manual review",
       "missing_source": "manual source check",
       "manual_review": "manual review"
+    },
+    "role": {
+      "research": "Research",
+      "write": "Write",
+      "organize": "Organize",
+      "export": "Export",
+      "code": "Code",
+      "review": "Review"
     },
     "type": {
       "chat": "Chat",

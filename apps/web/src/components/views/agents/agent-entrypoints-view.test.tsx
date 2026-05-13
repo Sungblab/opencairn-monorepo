@@ -170,6 +170,8 @@ const workflowRuns = [
   {
     runId: "agent_action:00000000-0000-4000-8000-000000000050",
     runType: "agent_action" as const,
+    agentRole: "review" as const,
+    workGroupId: "agent_action:00000000-0000-4000-8000-000000000050",
     sourceId: "00000000-0000-4000-8000-000000000050",
     sourceStatus: "approval_required",
     workspaceId: "workspace-1",
@@ -202,6 +204,8 @@ const workflowRuns = [
   {
     runId: "agentic_plan:00000000-0000-4000-8000-000000000070",
     runType: "agentic_plan" as const,
+    agentRole: "review" as const,
+    workGroupId: "agentic_plan:00000000-0000-4000-8000-000000000070",
     sourceId: "00000000-0000-4000-8000-000000000070",
     sourceStatus: "blocked",
     workspaceId: "workspace-1",
@@ -257,6 +261,8 @@ const workflowRuns = [
   {
     runId: "import:00000000-0000-4000-8000-000000000060",
     runType: "import" as const,
+    agentRole: "organize" as const,
+    workGroupId: "import:00000000-0000-4000-8000-000000000060",
     sourceId: "00000000-0000-4000-8000-000000000060",
     sourceStatus: "failed",
     workspaceId: "workspace-1",
@@ -275,6 +281,8 @@ const workflowRuns = [
   {
     runId: "import:00000000-0000-4000-8000-000000000061",
     runType: "import" as const,
+    agentRole: "organize" as const,
+    workGroupId: "import:00000000-0000-4000-8000-000000000061",
     sourceId: "00000000-0000-4000-8000-000000000061",
     sourceStatus: "running",
     workspaceId: "workspace-1",

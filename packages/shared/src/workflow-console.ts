@@ -43,6 +43,15 @@ export const workflowConsoleRunTypeSchema = z.enum([
   "system_workflow",
 ]);
 
+export const workflowConsoleAgentRoleSchema = z.enum([
+  "research",
+  "write",
+  "organize",
+  "export",
+  "code",
+  "review",
+]);
+
 export const workflowConsoleOutputTypeSchema = z.enum([
   "note",
   "agent_file",
@@ -130,6 +139,8 @@ export const workflowConsoleRunSchema = z
   .object({
     runId: z.string().min(1),
     runType: workflowConsoleRunTypeSchema,
+    agentRole: workflowConsoleAgentRoleSchema,
+    workGroupId: z.string().min(1),
     sourceId: z.string().min(1),
     sourceStatus: z.string().min(1).optional(),
     workspaceId: z.string().min(1),
@@ -169,6 +180,7 @@ export const workflowConsoleEventSchema = z
 
 export type WorkflowConsoleStatus = z.infer<typeof workflowConsoleStatusSchema>;
 export type WorkflowConsoleRunType = z.infer<typeof workflowConsoleRunTypeSchema>;
+export type WorkflowConsoleAgentRole = z.infer<typeof workflowConsoleAgentRoleSchema>;
 export type WorkflowConsoleRun = z.infer<typeof workflowConsoleRunSchema>;
 export type WorkflowConsoleEvent = z.infer<typeof workflowConsoleEventSchema>;
 export type WorkflowConsoleOutput = z.infer<typeof workflowConsoleOutputSchema>;
@@ -262,6 +274,8 @@ export function workflowConsoleRunFromChatRun(
   return workflowConsoleRunSchema.parse({
     runId: prefixedRunId("chat", run.id),
     runType: "chat",
+    agentRole: "research",
+    workGroupId: prefixedRunId("chat", run.id),
     sourceId: run.id,
     sourceStatus: run.status,
     workspaceId: run.workspaceId,
@@ -302,6 +316,8 @@ export function workflowConsoleRunFromAgentAction(action: AgentAction): Workflow
   return workflowConsoleRunSchema.parse({
     runId: prefixedRunId("agent_action", parsed.id),
     runType: "agent_action",
+    agentRole: agentRoleFromAgentAction(parsed),
+    workGroupId: workGroupIdFromAgentAction(parsed),
     sourceId: parsed.id,
     sourceStatus: parsed.status,
     workspaceId: parsed.workspaceId,
@@ -343,6 +359,8 @@ export function workflowConsoleRunFromAgenticPlan(plan: AgenticPlanProjectionSou
   return workflowConsoleRunSchema.parse({
     runId: prefixedRunId("agentic_plan", parsed.id),
     runType: "agentic_plan",
+    agentRole: agentRoleFromAgenticPlan(parsed),
+    workGroupId: prefixedRunId("agentic_plan", parsed.id),
     sourceId: parsed.id,
     sourceStatus: parsed.status,
     workspaceId: parsed.workspaceId,
@@ -412,6 +430,8 @@ export function workflowConsoleRunFromPlan8AgentRun(
   return workflowConsoleRunSchema.parse({
     runId: prefixedRunId("plan8_agent", run.runId),
     runType: "plan8_agent",
+    agentRole: agentRoleFromPlan8Agent(run.agentName),
+    workGroupId: prefixedRunId("plan8_agent", run.runId),
     sourceId: run.runId,
     sourceStatus: run.status,
     workspaceId: run.workspaceId,
@@ -447,6 +467,8 @@ export function workflowConsoleRunFromImportJob(
   return workflowConsoleRunSchema.parse({
     runId: prefixedRunId("import", job.id),
     runType: "import",
+    agentRole: "organize",
+    workGroupId: prefixedRunId("import", job.id),
     sourceId: job.id,
     sourceStatus: job.status,
     workspaceId: job.workspaceId,
@@ -496,6 +518,8 @@ export function workflowConsoleRunFromSynthesisExportRun(
   return workflowConsoleRunSchema.parse({
     runId: prefixedRunId("export", run.runId),
     runType: "export",
+    agentRole: "export",
+    workGroupId: prefixedRunId("export", run.runId),
     sourceId: run.runId,
     sourceStatus: run.status,
     workspaceId: run.workspaceId,
@@ -731,6 +755,61 @@ function normalizeSynthesisExportStatus(status: string): WorkflowConsoleStatus {
 
 function terminalStatus(status: WorkflowConsoleStatus): boolean {
   return ["completed", "failed", "cancelled", "reverted"].includes(status);
+}
+
+function agentRoleFromAgentAction(action: AgentAction): WorkflowConsoleAgentRole {
+  if (action.status === "approval_required" || action.status === "draft") return "review";
+  if (action.kind.startsWith("code_project.")) return "code";
+  if (action.kind.startsWith("file.") || action.kind.includes("export")) return "export";
+  if (action.kind === "note.update" || action.kind === "note.create_from_markdown") {
+    return "write";
+  }
+  if (action.kind.startsWith("note.")) return "organize";
+  if (action.kind === "interaction.choice") return "review";
+  return "organize";
+}
+
+function workGroupIdFromAgentAction(action: AgentAction): string {
+  if (!action.sourceRunId) return prefixedRunId("agent_action", action.id);
+  if (action.sourceRunId.includes(":")) return action.sourceRunId;
+  if (action.kind.startsWith("import.")) {
+    return prefixedRunId("import", action.sourceRunId);
+  }
+  if (action.kind === "export.project") {
+    return prefixedRunId("export", action.sourceRunId);
+  }
+  if (action.kind === "code_project.patch") {
+    return prefixedRunId("agent_action", action.sourceRunId);
+  }
+  return prefixedRunId("chat", action.sourceRunId);
+}
+
+function agentRoleFromAgenticPlan(plan: AgenticPlan): WorkflowConsoleAgentRole {
+  const current = plan.steps.find((step) =>
+    !["completed", "skipped", "cancelled"].includes(step.status),
+  );
+  if (!current) return "review";
+  if (current.status === "approval_required") {
+    return "review";
+  }
+  if (current.kind.startsWith("code.")) return "code";
+  if (current.kind.startsWith("file.") || current.kind.includes("export")) return "export";
+  if (current.kind === "document.generate") return "write";
+  if (current.kind === "note.review_update") {
+    return "write";
+  }
+  if (current.kind === "import.retry") return "organize";
+  if (current.kind === "agent.run") return "research";
+  return "research";
+}
+
+function agentRoleFromPlan8Agent(agentName: string): WorkflowConsoleAgentRole {
+  const name = agentName.toLowerCase();
+  if (name.includes("code")) return "code";
+  if (name.includes("synthesis") || name.includes("export")) return "export";
+  if (name.includes("librarian")) return "organize";
+  if (name.includes("research")) return "research";
+  return "research";
 }
 
 function maxPlanRisk(steps: AgenticPlanStep[]): AgenticPlanStep["risk"] {

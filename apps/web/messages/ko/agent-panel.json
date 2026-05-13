@@ -177,6 +177,10 @@
     "loading": "작업을 불러오는 중…",
     "refreshing": "새로고침 중",
     "loadFailed": "작업 상태를 불러오지 못했어요.",
+    "activeRole": "{role} · {status}",
+    "workQueueTitle": "작업 큐",
+    "queueItem": "{role} · {status}",
+    "handoffTitle": "역할 흐름",
     "progress": "{percent}%",
     "logSummary": "{packageManager} · {packages} · 종료 코드 {exitCode}",
     "evidenceSummary": "근거 {count}개 {status}",
@@ -200,6 +204,14 @@
       "verification_failed": "수동 검토",
       "missing_source": "출처 수동 확인",
       "manual_review": "수동 검토"
+    },
+    "role": {
+      "research": "리서치",
+      "write": "작성",
+      "organize": "정리",
+      "export": "내보내기",
+      "code": "코드",
+      "review": "검토"
     },
     "type": {
       "chat": "채팅",

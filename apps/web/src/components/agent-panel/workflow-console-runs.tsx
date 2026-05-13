@@ -3,7 +3,15 @@
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink } from "lucide-react";
+import {
+  ClipboardCheck,
+  Code2,
+  ExternalLink,
+  FileUp,
+  FolderKanban,
+  PenLine,
+  Search,
+} from "lucide-react";
 
 import { workflowConsoleApi, type WorkflowConsoleRun } from "@/lib/api-client";
 
@@ -14,6 +22,47 @@ const TERMINAL_STATUSES = new Set([
   "expired",
   "reverted",
 ]);
+
+type AgentWorkRole = WorkflowConsoleRun["agentRole"];
+
+const ROLE_ICON = {
+  research: Search,
+  write: PenLine,
+  organize: FolderKanban,
+  export: FileUp,
+  code: Code2,
+  review: ClipboardCheck,
+} satisfies Record<AgentWorkRole, typeof Search>;
+
+function isActiveRun(run: WorkflowConsoleRun) {
+  return !TERMINAL_STATUSES.has(run.status);
+}
+
+function uniqueRoleSteps(runs: WorkflowConsoleRun[]) {
+  const seen = new Set<AgentWorkRole>();
+  return [...runs]
+    .reverse()
+    .map((run) => ({
+      run,
+      role: run.agentRole,
+    }))
+    .filter((step) => {
+      if (seen.has(step.role)) return false;
+      seen.add(step.role);
+      return true;
+    });
+}
+
+function timelineRunsForActiveGroup(
+  runs: WorkflowConsoleRun[],
+  activeRun: WorkflowConsoleRun | null,
+) {
+  const anchor = activeRun ?? runs[0] ?? null;
+  if (!anchor) return [];
+  return uniqueRoleSteps(
+    runs.filter((run) => run.workGroupId === anchor.workGroupId),
+  );
+}
 
 export function WorkflowConsoleRuns({
   projectId,
@@ -38,6 +87,10 @@ export function WorkflowConsoleRuns({
     return null;
   }
 
+  const activeRun = runs.find(isActiveRun) ?? null;
+  const activeQueue = runs.filter(isActiveRun);
+  const roleSteps = timelineRunsForActiveGroup(runs, activeRun);
+
   return (
     <section
       aria-label={t("title")}
@@ -61,6 +114,10 @@ export function WorkflowConsoleRuns({
         <p className="text-xs text-muted-foreground">{t("loading")}</p>
       ) : null}
 
+      {activeRun ? <ActiveRoleBanner run={activeRun} /> : null}
+      {activeQueue.length > 1 ? <AgentWorkQueue runs={activeQueue} /> : null}
+      {roleSteps.length > 1 ? <RoleHandoffTimeline steps={roleSteps} /> : null}
+
       {runs.length > 0 ? (
         <div className="space-y-2">
           {runs.map((run) => (
@@ -72,8 +129,112 @@ export function WorkflowConsoleRuns({
   );
 }
 
+function AgentWorkQueue({ runs }: { runs: WorkflowConsoleRun[] }) {
+  const t = useTranslations("agentPanel.workflowConsole");
+  return (
+    <div className="mb-2 rounded border border-border bg-muted/20 px-2.5 py-2">
+      <h3 className="text-[11px] font-medium uppercase tracking-normal text-muted-foreground">
+        {t("workQueueTitle")}
+      </h3>
+      <div className="mt-1.5 space-y-1.5">
+        {runs.slice(0, 3).map((run) => {
+          const role = run.agentRole;
+          const Icon = ROLE_ICON[role];
+          return (
+            <div
+              key={run.runId}
+              className="flex min-w-0 items-center justify-between gap-2"
+            >
+              <div className="flex min-w-0 items-center gap-1.5">
+                <Icon
+                  aria-hidden
+                  className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                />
+                <span className="truncate text-xs font-medium text-foreground">
+                  {t("queueItem", {
+                    role: t(`role.${role}`),
+                    status: t(`status.${run.status}`),
+                  })}
+                </span>
+              </div>
+              <span className="min-w-0 truncate text-[11px] text-muted-foreground">
+                {run.title}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function RoleHandoffTimeline({
+  steps,
+}: {
+  steps: { run: WorkflowConsoleRun; role: AgentWorkRole }[];
+}) {
+  const t = useTranslations("agentPanel.workflowConsole");
+  return (
+    <div className="mb-2 rounded border border-border bg-background px-2.5 py-2">
+      <h3 className="text-[11px] font-medium uppercase tracking-normal text-muted-foreground">
+        {t("handoffTitle")}
+      </h3>
+      <ol className="mt-2 flex min-w-0 items-center gap-1.5 overflow-hidden">
+        {steps.map((step, index) => {
+          const Icon = ROLE_ICON[step.role];
+          return (
+            <li
+              key={`${step.role}:${step.run.runId}`}
+              className="flex min-w-0 shrink items-center gap-1.5"
+            >
+              {index > 0 ? (
+                <span
+                  aria-hidden
+                  className="h-px w-3 shrink-0 bg-border"
+                />
+              ) : null}
+              <span className="inline-flex min-w-0 items-center gap-1 rounded border border-border bg-muted/30 px-1.5 py-1 text-[11px] font-medium text-muted-foreground">
+                <Icon aria-hidden className="h-3 w-3 shrink-0" />
+                <span className="truncate">{t(`role.${step.role}`)}</span>
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+function ActiveRoleBanner({ run }: { run: WorkflowConsoleRun }) {
+  const t = useTranslations("agentPanel.workflowConsole");
+  const role = run.agentRole;
+  const Icon = ROLE_ICON[role];
+  return (
+    <div className="mb-2 rounded border border-primary/30 bg-primary/5 px-2.5 py-2">
+      <div className="flex items-center gap-2">
+        <span className="relative flex h-2.5 w-2.5 shrink-0">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/60 opacity-75" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
+        </span>
+        <Icon aria-hidden className="h-3.5 w-3.5 shrink-0 text-primary" />
+        <p className="min-w-0 truncate text-xs font-medium text-foreground">
+          {t("activeRole", {
+            role: t(`role.${role}`),
+            status: t(`status.${run.status}`),
+          })}
+        </p>
+      </div>
+      <p className="mt-1 truncate pl-9 text-[11px] text-muted-foreground">
+        {run.title}
+      </p>
+    </div>
+  );
+}
+
 function WorkflowConsoleRunRow({ run }: { run: WorkflowConsoleRun }) {
   const t = useTranslations("agentPanel.workflowConsole");
+  const role = run.agentRole;
+  const Icon = ROLE_ICON[role];
   const progress = useMemo(() => {
     if (!run.progress) return null;
     if (typeof run.progress.percent === "number") return run.progress.percent;
@@ -94,6 +255,10 @@ function WorkflowConsoleRunRow({ run }: { run: WorkflowConsoleRun }) {
     <article className="rounded border border-border bg-background px-2.5 py-2">
       <div className="flex min-w-0 items-start justify-between gap-2">
         <div className="min-w-0">
+          <div className="mb-1 inline-flex max-w-full items-center gap-1 rounded border border-border bg-muted/30 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+            <Icon aria-hidden className="h-3 w-3 shrink-0" />
+            <span className="truncate">{t(`role.${role}`)}</span>
+          </div>
           <p className="truncate text-sm font-medium text-foreground">
             {run.title}
           </p>

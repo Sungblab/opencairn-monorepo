@@ -82,6 +82,15 @@ describe("workflow console routes", () => {
     expect((await goalResponse.json() as { runs: WorkflowConsoleRun[] }).runs.map((run) => run.runType)).toEqual([
       "agentic_plan",
     ]);
+
+    const roleResponse = await app.request(
+      `/api/projects/${projectId}/workflow-console/runs?q=review`,
+    );
+    expect(roleResponse.status).toBe(200);
+    expect((await roleResponse.json() as { runs: WorkflowConsoleRun[] }).runs.map((run) => run.agentRole)).toEqual([
+      "review",
+      "review",
+    ]);
   });
 
   it("rejects unknown list status filters", async () => {

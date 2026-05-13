@@ -44,6 +44,8 @@ function run(overrides: Partial<WorkflowConsoleRun>): WorkflowConsoleRun {
   return {
     runId: "import:00000000-0000-4000-8000-000000000050",
     runType: "import",
+    agentRole: "organize",
+    workGroupId: "import:00000000-0000-4000-8000-000000000050",
     sourceId: "00000000-0000-4000-8000-000000000050",
     sourceStatus: "failed",
     workspaceId: "00000000-0000-4000-8000-000000000002",
@@ -92,6 +94,134 @@ describe("WorkflowConsoleRuns", () => {
       screen.getByText("Import could not be started. Please try again."),
     ).toBeTruthy();
     expect(workflowConsoleApi.list).toHaveBeenCalledWith(projectId, 5);
+  });
+
+  it("surfaces active work as a user-facing agent role instead of an internal run type", async () => {
+    vi.mocked(workflowConsoleApi.list).mockResolvedValue({
+      runs: [
+        run({
+          runId: "chat:00000000-0000-4000-8000-000000000090",
+          runType: "chat",
+          agentRole: "research",
+          workGroupId: "chat:00000000-0000-4000-8000-000000000090",
+          title: "Research source citations",
+          status: "running",
+          sourceStatus: "running",
+          progress: { current: 1, total: 3, percent: 33 },
+          error: null,
+          outputs: [],
+        }),
+      ],
+    });
+
+    renderWithClient();
+
+    expect(await screen.findAllByText("Research source citations")).toHaveLength(
+      2,
+    );
+    expect(screen.getAllByText("role.research").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText(
+        'activeRole:{"role":"role.research","status":"status.running"}',
+      ),
+    ).toBeTruthy();
+  });
+
+  it("renders an active work queue and role handoff timeline for multi-step agent work", async () => {
+    vi.mocked(workflowConsoleApi.list).mockResolvedValue({
+      runs: [
+        run({
+          runId: "export:00000000-0000-4000-8000-000000000102",
+          runType: "export",
+          agentRole: "export",
+          workGroupId: "chat:00000000-0000-4000-8000-000000000100",
+          title: "Export pdf report",
+          status: "queued",
+          progress: null,
+          error: null,
+          outputs: [],
+        }),
+        run({
+          runId: "agent_action:00000000-0000-4000-8000-000000000101",
+          runType: "agent_action",
+          agentRole: "review",
+          workGroupId: "chat:00000000-0000-4000-8000-000000000100",
+          title: "Review note update",
+          status: "approval_required",
+          progress: null,
+          error: null,
+          approvals: [
+            {
+              approvalId: "00000000-0000-4000-8000-000000000201",
+              status: "requested",
+              risk: "write",
+            },
+          ],
+          outputs: [],
+        }),
+        run({
+          runId: "chat:00000000-0000-4000-8000-000000000100",
+          runType: "chat",
+          agentRole: "research",
+          workGroupId: "chat:00000000-0000-4000-8000-000000000100",
+          title: "Research source citations",
+          status: "completed",
+          progress: null,
+          error: null,
+          outputs: [],
+        }),
+      ],
+    });
+
+    renderWithClient();
+
+    expect(await screen.findByText("workQueueTitle")).toBeTruthy();
+    expect(
+      screen.getByText('queueItem:{"role":"role.export","status":"status.queued"}'),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        'queueItem:{"role":"role.review","status":"status.approval_required"}',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("handoffTitle")).toBeTruthy();
+    expect(screen.getAllByText("role.research").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("role.review").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("role.export").length).toBeGreaterThan(0);
+  });
+
+  it("does not build a handoff timeline from unrelated workflow groups", async () => {
+    vi.mocked(workflowConsoleApi.list).mockResolvedValue({
+      runs: [
+        run({
+          runId: "export:00000000-0000-4000-8000-000000000111",
+          runType: "export",
+          agentRole: "export",
+          workGroupId: "export:00000000-0000-4000-8000-000000000111",
+          title: "Export pdf report",
+          status: "queued",
+          progress: null,
+          error: null,
+          outputs: [],
+        }),
+        run({
+          runId: "chat:00000000-0000-4000-8000-000000000112",
+          runType: "chat",
+          agentRole: "research",
+          workGroupId: "chat:00000000-0000-4000-8000-000000000112",
+          title: "Research source citations",
+          status: "completed",
+          progress: null,
+          error: null,
+          outputs: [],
+        }),
+      ],
+    });
+
+    renderWithClient();
+
+    expect(await screen.findAllByText("Export pdf report")).toHaveLength(2);
+    expect(screen.queryByText("handoffTitle")).toBeNull();
   });
 
   it("renders export outputs as links when the projection provides a URL", async () => {
@@ -221,7 +351,7 @@ describe("WorkflowConsoleRuns", () => {
 
     renderWithClient();
 
-    expect(await screen.findByText("Review stale evidence")).toBeTruthy();
+    expect(await screen.findAllByText("Review stale evidence")).toHaveLength(2);
     expect(
       screen.getByText(
         'evidenceSummary:{"count":1,"status":"freshnessStatus.stale"}',
@@ -279,7 +409,7 @@ describe("WorkflowConsoleRuns", () => {
 
     renderWithClient();
 
-    expect(await screen.findByText("Review missing evidence")).toBeTruthy();
+    expect(await screen.findAllByText("Review missing evidence")).toHaveLength(2);
     expect(
       screen.getByText(
         'evidenceSummary:{"count":1,"status":"freshnessStatus.missing"}',

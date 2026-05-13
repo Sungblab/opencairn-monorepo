@@ -41,6 +41,8 @@ describe("workflow console contracts", () => {
     expect(workflowConsoleRunSchema.parse(run)).toMatchObject({
       runId: "chat:00000000-0000-4000-8000-000000000010",
       runType: "chat",
+      agentRole: "research",
+      workGroupId: "chat:00000000-0000-4000-8000-000000000010",
       sourceId: "00000000-0000-4000-8000-000000000010",
       status: "completed",
       sourceStatus: "complete",
@@ -57,7 +59,7 @@ describe("workflow console contracts", () => {
       workspaceId,
       projectId,
       actorUserId: userId,
-      sourceRunId: "chat:00000000-0000-4000-8000-000000000010",
+      sourceRunId: "00000000-0000-4000-8000-000000000010",
       kind: "note.update",
       status: "approval_required",
       risk: "write",
@@ -75,6 +77,8 @@ describe("workflow console contracts", () => {
     expect(workflowConsoleRunSchema.parse(run)).toMatchObject({
       runId: "agent_action:00000000-0000-4000-8000-000000000020",
       runType: "agent_action",
+      agentRole: "review",
+      workGroupId: "chat:00000000-0000-4000-8000-000000000010",
       status: "approval_required",
       title: "note.update",
       approvals: [
@@ -648,6 +652,8 @@ describe("workflow console contracts", () => {
     expect(workflowConsoleRunSchema.parse(run)).toMatchObject({
       runId: "plan8_agent:00000000-0000-4000-8000-000000000040",
       runType: "plan8_agent",
+      agentRole: "organize",
+      workGroupId: "plan8_agent:00000000-0000-4000-8000-000000000040",
       status: "blocked",
       sourceStatus: "awaiting_input",
       cost: {
@@ -678,6 +684,8 @@ describe("workflow console contracts", () => {
     expect(workflowConsoleRunSchema.parse(run)).toMatchObject({
       runId: "import:00000000-0000-4000-8000-000000000050",
       runType: "import",
+      agentRole: "organize",
+      workGroupId: "import:00000000-0000-4000-8000-000000000050",
       status: "failed",
       sourceStatus: "failed",
       title: "Import markdown_zip",
@@ -728,6 +736,8 @@ describe("workflow console contracts", () => {
     expect(workflowConsoleRunSchema.parse(run)).toMatchObject({
       runId: "export:00000000-0000-4000-8000-000000000060",
       runType: "export",
+      agentRole: "export",
+      workGroupId: "export:00000000-0000-4000-8000-000000000060",
       status: "completed",
       sourceStatus: "completed",
       title: "Export pdf",

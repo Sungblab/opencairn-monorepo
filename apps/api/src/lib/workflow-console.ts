@@ -426,9 +426,11 @@ function workflowConsoleRunMatchesQuery(run: WorkflowConsoleRun, query: string):
   if (!needle) return true;
   const fields = [
     run.runId,
+    run.workGroupId,
     run.sourceId,
     run.sourceStatus,
     run.runType,
+    run.agentRole,
     run.title,
     run.error?.code,
     run.error?.message,
