@@ -1,7 +1,15 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { creditBalances, db, eq, user } from "@opencairn/db";
+import {
+  and,
+  creditBalances,
+  db,
+  eq,
+  projects,
+  user,
+  workspaceMembers,
+} from "@opencairn/db";
 import { requireAuth } from "../middleware/auth";
 import { canRead } from "../lib/permissions";
 import {
@@ -36,6 +44,25 @@ export const studioToolRoutes = new Hono<AppEnv>()
     async (c) => {
       const userId = c.get("userId");
       const { projectId } = c.req.valid("param");
+      const [project] = await db
+        .select({ id: projects.id, workspaceId: projects.workspaceId })
+        .from(projects)
+        .where(eq(projects.id, projectId))
+        .limit(1);
+      if (!project) return c.json({ error: "not_found" }, 404);
+
+      const [membership] = await db
+        .select({ userId: workspaceMembers.userId })
+        .from(workspaceMembers)
+        .where(
+          and(
+            eq(workspaceMembers.workspaceId, project.workspaceId),
+            eq(workspaceMembers.userId, userId),
+          ),
+        )
+        .limit(1);
+      if (!membership) return c.json({ error: "not_found" }, 404);
+
       if (!(await canRead(userId, { type: "project", id: projectId }))) {
         return c.json({ error: "forbidden" }, 403);
       }

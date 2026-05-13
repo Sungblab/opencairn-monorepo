@@ -148,11 +148,7 @@ export function createDrizzleWorkflowConsoleRepository(
         )
         .orderBy(desc(chatRuns.createdAt))
         .limit(limit);
-      return Promise.all(
-        rows
-          .slice(0, limit)
-          .map((row) => toChatRunProjection(conn, row, projectId)),
-      );
+      return toChatRunProjections(conn, rows.slice(0, limit), projectId);
     },
     async listAgentActionsByProject({ projectId, userId, limit }) {
       const rows = await conn
@@ -326,7 +322,35 @@ async function toChatRunProjection(
   row: typeof chatRuns.$inferSelect,
   projectId: string,
 ): Promise<ChatRunProjectionSource> {
-  const metadata = await loadChatRunOperationalMetadata(conn, row);
+  const metadata = (
+    await loadChatRunOperationalMetadataBatch(conn, [row])
+  ).get(row.id) ?? emptyChatRunOperationalMetadata();
+  return chatRunProjectionFromRow(row, projectId, metadata);
+}
+
+async function toChatRunProjections(
+  conn: DB,
+  rows: Array<typeof chatRuns.$inferSelect>,
+  projectId: string,
+): Promise<ChatRunProjectionSource[]> {
+  const metadataByRunId = await loadChatRunOperationalMetadataBatch(conn, rows);
+  return rows.map((row) =>
+    chatRunProjectionFromRow(
+      row,
+      projectId,
+      metadataByRunId.get(row.id) ?? emptyChatRunOperationalMetadata(),
+    ),
+  );
+}
+
+function chatRunProjectionFromRow(
+  row: typeof chatRuns.$inferSelect,
+  projectId: string,
+  metadata: Pick<
+    ChatRunProjectionSource,
+    "memory" | "runtime" | "cost" | "partialOutput"
+  >,
+): ChatRunProjectionSource {
   return {
     id: row.id,
     threadId: row.threadId,
@@ -349,57 +373,101 @@ async function toChatRunProjection(
   };
 }
 
-async function loadChatRunOperationalMetadata(
-  conn: DB,
-  row: typeof chatRuns.$inferSelect,
-): Promise<Pick<ChatRunProjectionSource, "memory" | "runtime" | "cost" | "partialOutput">> {
-  const memoryEvents = await conn
-    .select({ payload: chatRunEvents.payload })
-    .from(chatRunEvents)
-    .where(and(eq(chatRunEvents.runId, row.id), eq(chatRunEvents.event, "status")))
-    .orderBy(desc(chatRunEvents.seq))
-    .limit(20);
-  const memory =
-    memoryEvents
-      .map((event) => memoryFromStatusPayload(event.payload))
-      .find((item) => item !== null) ?? null;
-  const runtime =
-    memoryEvents
-      .map((event) => runtimeFromStatusPayload(event.payload))
-      .find((item) => item !== null) ?? null;
-  const cost = await loadChatRunUsageCost(conn, row.id);
-
-  if (row.status !== "failed") {
-    return { memory, runtime, cost, partialOutput: null };
-  }
-  const [message] = await conn
-    .select({ content: chatMessages.content })
-    .from(chatMessages)
-    .where(eq(chatMessages.id, row.agentMessageId))
-    .limit(1);
-  const body = bodyFromMessageContent(message?.content);
-  const normalized = body.trim();
-  return {
-    memory,
-    runtime,
-    cost,
-    partialOutput: normalized
-      ? {
-          chars: normalized.length,
-          preview: normalized.slice(0, 240),
-          retryable: true,
-          attempt: row.currentAttempt,
-        }
-      : null,
-  };
+function emptyChatRunOperationalMetadata(): Pick<
+  ChatRunProjectionSource,
+  "memory" | "runtime" | "cost" | "partialOutput"
+> {
+  return { memory: null, runtime: null, cost: null, partialOutput: null };
 }
 
-async function loadChatRunUsageCost(
+async function loadChatRunOperationalMetadataBatch(
   conn: DB,
-  runId: string,
-): Promise<ChatRunProjectionSource["cost"]> {
-  const [usage] = await conn
+  rows: Array<typeof chatRuns.$inferSelect>,
+): Promise<
+  Map<
+    string,
+    Pick<ChatRunProjectionSource, "memory" | "runtime" | "cost" | "partialOutput">
+  >
+> {
+  const runIds = rows.map((row) => row.id);
+  if (runIds.length === 0) return new Map();
+
+  const eventRows = await conn
+    .select({ runId: chatRunEvents.runId, payload: chatRunEvents.payload })
+    .from(chatRunEvents)
+    .where(
+      and(inArray(chatRunEvents.runId, runIds), eq(chatRunEvents.event, "status")),
+    )
+    .orderBy(desc(chatRunEvents.seq));
+  const eventsByRunId = new Map<string, Array<{ payload: unknown }>>();
+  for (const event of eventRows) {
+    const bucket = eventsByRunId.get(event.runId) ?? [];
+    if (bucket.length < 20) {
+      bucket.push({ payload: event.payload });
+      eventsByRunId.set(event.runId, bucket);
+    }
+  }
+
+  const costsByRunId = await loadChatRunUsageCosts(conn, runIds);
+  const failedRows = rows.filter((row) => row.status === "failed");
+  const failedMessageIds = failedRows
+    .map((row) => row.agentMessageId)
+    .filter((id): id is string => Boolean(id));
+  const failedMessages = failedMessageIds.length
+    ? await conn
+        .select({ id: chatMessages.id, content: chatMessages.content })
+        .from(chatMessages)
+        .where(inArray(chatMessages.id, failedMessageIds))
+    : [];
+  const failedMessageById = new Map(
+    failedMessages.map((message) => [message.id, message.content]),
+  );
+
+  const metadataByRunId = new Map<
+    string,
+    Pick<ChatRunProjectionSource, "memory" | "runtime" | "cost" | "partialOutput">
+  >();
+  for (const row of rows) {
+    const events = eventsByRunId.get(row.id) ?? [];
+    const memory =
+      events
+        .map((event) => memoryFromStatusPayload(event.payload))
+        .find((item) => item !== null) ?? null;
+    const runtime =
+      events
+        .map((event) => runtimeFromStatusPayload(event.payload))
+        .find((item) => item !== null) ?? null;
+    let partialOutput: ChatRunProjectionSource["partialOutput"] = null;
+    if (row.status === "failed" && row.agentMessageId) {
+      const body = bodyFromMessageContent(failedMessageById.get(row.agentMessageId));
+      const normalized = body.trim();
+      partialOutput = normalized
+        ? {
+            chars: normalized.length,
+            preview: normalized.slice(0, 240),
+            retryable: true,
+            attempt: row.currentAttempt,
+          }
+        : null;
+    }
+    metadataByRunId.set(row.id, {
+      memory,
+      runtime,
+      cost: costsByRunId.get(row.id) ?? null,
+      partialOutput,
+    });
+  }
+  return metadataByRunId;
+}
+
+async function loadChatRunUsageCosts(
+  conn: DB,
+  runIds: string[],
+): Promise<Map<string, ChatRunProjectionSource["cost"]>> {
+  if (runIds.length === 0) return new Map();
+  const usageRows = await conn
     .select({
+      sourceId: llmUsageEvents.sourceId,
       provider: llmUsageEvents.provider,
       model: llmUsageEvents.model,
       tokensIn: llmUsageEvents.tokensIn,
@@ -411,20 +479,23 @@ async function loadChatRunUsageCost(
     .where(
       and(
         eq(llmUsageEvents.sourceType, "chat_run"),
-        eq(llmUsageEvents.sourceId, runId),
+        inArray(llmUsageEvents.sourceId, runIds),
       ),
     )
-    .orderBy(desc(llmUsageEvents.createdAt))
-    .limit(1);
-  if (!usage) return null;
-  return {
-    provider: usage.provider,
-    model: usage.model,
-    inputTokens: usage.tokensIn,
-    outputTokens: usage.tokensOut,
-    cachedTokens: usage.cachedTokens,
-    krw: Math.round(Number(usage.costKrw)),
-  };
+    .orderBy(desc(llmUsageEvents.createdAt));
+  const costByRunId = new Map<string, ChatRunProjectionSource["cost"]>();
+  for (const usage of usageRows) {
+    if (!usage.sourceId || costByRunId.has(usage.sourceId)) continue;
+    costByRunId.set(usage.sourceId, {
+      provider: usage.provider,
+      model: usage.model,
+      inputTokens: usage.tokensIn,
+      outputTokens: usage.tokensOut,
+      cachedTokens: usage.cachedTokens,
+      krw: Math.round(Number(usage.costKrw)),
+    });
+  }
+  return costByRunId;
 }
 
 function runtimeFromStatusPayload(

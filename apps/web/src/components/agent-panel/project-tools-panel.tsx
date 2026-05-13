@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { Star } from "lucide-react";
@@ -120,7 +121,6 @@ export function ProjectToolsPanel({
   const [deepResearchOpen, setDeepResearchOpen] = useState(false);
   const [deepResearchBillingPath, setDeepResearchBillingPath] =
     useState<"managed" | "byok">("byok");
-  const [googleConnected, setGoogleConnected] = useState<boolean | null>(null);
   const { upload, isUploading } = useIngestUpload();
   const uploading = isUploading || uploadingLocal;
   const requestDocumentGenerationPreset = useAgentWorkbenchStore(
@@ -151,21 +151,30 @@ export function ProjectToolsPanel({
       .filter((group) => group.items.length > 0);
   }, [query, t, toolGroups]);
   const disabled = !projectId;
+  const googleIntegrationQuery = useQuery({
+    queryKey: ["project-tools-google-integration", workspaceId],
+    enabled: Boolean(workspaceId),
+    staleTime: 60_000,
+    retry: false,
+    queryFn: () => integrationsApi.google(workspaceId!),
+  });
+  const googleConnected = googleIntegrationQuery.isError
+    ? false
+    : (googleIntegrationQuery.data?.connected ?? null);
+
   useEffect(() => {
-    let cancelled = false;
-    setGoogleConnected(null);
-    if (!workspaceId) return;
-    void integrationsApi.google(workspaceId)
-      .then((status) => {
-        if (!cancelled) setGoogleConnected(status.connected);
-      })
-      .catch(() => {
-        if (!cancelled) setGoogleConnected(false);
-      });
+    function handleStorage(event: StorageEvent) {
+      if (event.key === FAVORITE_TOOLS_KEY) {
+        setFavoriteIds(readStoredToolIds(FAVORITE_TOOLS_KEY));
+      } else if (event.key === RECENT_TOOLS_KEY) {
+        setRecentIds(readStoredToolIds(RECENT_TOOLS_KEY));
+      }
+    }
+    window.addEventListener("storage", handleStorage);
     return () => {
-      cancelled = true;
+      window.removeEventListener("storage", handleStorage);
     };
-  }, [workspaceId]);
+  }, []);
 
   function runCommand(commandId: AgentCommandId) {
     const command = getAgentCommand(commandId);

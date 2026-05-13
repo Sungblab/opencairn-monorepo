@@ -1,4 +1,12 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { ReactNode } from "react";
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAgentWorkbenchStore } from "@/stores/agent-workbench-store";
@@ -56,6 +64,15 @@ vi.mock("@/components/ingest/open-original-file-tab", () => ({
 vi.mock("@/lib/api-client-research", () => ({
   researchApi: { createRun: researchCreateRunMock },
 }));
+
+function render(ui: ReactNode) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  });
+  return rtlRender(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
+}
 
 describe("ProjectToolsPanel", () => {
   beforeEach(() => {
@@ -619,6 +636,46 @@ describe("ProjectToolsPanel", () => {
     );
     expect(
       screen.getByText("agentPanel.projectTools.recentActive"),
+    ).toBeInTheDocument();
+  });
+
+  it("syncs favorite and recent tool ids from storage events", async () => {
+    render(
+      <ProjectToolsPanel
+        projectId="project-1"
+        workspaceId="workspace-1"
+        wsSlug="acme"
+        onRun={vi.fn()}
+        onOpenActivity={vi.fn()}
+      />,
+    );
+
+    localStorage.setItem(
+      "opencairn.agentTools.favoriteIds",
+      JSON.stringify(["mind_map"]),
+    );
+    window.dispatchEvent(
+      new StorageEvent("storage", {
+        key: "opencairn.agentTools.favoriteIds",
+      }),
+    );
+
+    expect(
+      await screen.findByText("agentPanel.projectTools.favoriteActive"),
+    ).toBeInTheDocument();
+
+    localStorage.setItem(
+      "opencairn.agentTools.recentIds",
+      JSON.stringify(["mind_map"]),
+    );
+    window.dispatchEvent(
+      new StorageEvent("storage", {
+        key: "opencairn.agentTools.recentIds",
+      }),
+    );
+
+    expect(
+      await screen.findByText("agentPanel.projectTools.recentActive"),
     ).toBeInTheDocument();
   });
 

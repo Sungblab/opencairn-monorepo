@@ -106,6 +106,31 @@ describe("Studio tool preflight estimates", () => {
     });
   });
 
+  it("returns not_found for missing project-scoped preflight targets", async () => {
+    seed = await seedWorkspace({ role: "owner" });
+    const cookie = await signSessionCookie(seed.userId);
+
+    const response = await app.request(
+      "/api/projects/11111111-1111-4111-8111-111111111111/studio-tools/preflight",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie,
+        },
+        body: JSON.stringify({
+          tool: "quiz",
+          sourceTokenEstimate: 1000,
+        }),
+      },
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "not_found",
+    });
+  });
+
   it("keeps BYOK Studio preflight startable without managed credits", async () => {
     seed = await seedWorkspace({ role: "owner" });
     await db.update(user).set({ plan: "byok" }).where(eq(user.id, seed.userId));

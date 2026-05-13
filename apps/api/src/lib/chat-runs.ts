@@ -607,6 +607,8 @@ async function compactChatRunThreadMemory(input: {
 
   const threshold = envInt("CHAT_COMPACTION_MESSAGE_THRESHOLD", 24);
   if (threshold <= 0) return;
+  const maxRows = envInt("CHAT_COMPACTION_MAX_MESSAGES", 40);
+  const fetchLimit = Math.max(threshold + 1, Math.max(1, maxRows));
 
   const bodyPresent = sql`length(${chatMessages.content}->>'body') > 0`;
   const rows = await db
@@ -624,9 +626,11 @@ async function compactChatRunThreadMemory(input: {
         bodyPresent,
       ),
     )
-    .orderBy(asc(chatMessages.createdAt), asc(chatMessages.id));
+    .orderBy(desc(chatMessages.createdAt), desc(chatMessages.id))
+    .limit(fetchLimit);
 
   if (rows.length <= threshold) return;
+  rows.reverse();
 
   const projectId = await projectIdFromScope(input.scope);
   const scopeType = projectId ? "project" : "workspace";
