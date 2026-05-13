@@ -18,7 +18,12 @@ import {
   eq,
 } from "@opencairn/db";
 import { labelFromId } from "../src/lib/tree-queries.js";
-import { createUser, seedWorkspace, type SeedResult } from "./helpers/seed.js";
+import {
+  createUser,
+  seedMultiRoleWorkspace,
+  seedWorkspace,
+  type SeedResult,
+} from "./helpers/seed.js";
 import { signSessionCookie } from "./helpers/session.js";
 
 const { workflowStartSpy } = vi.hoisted(() => ({
@@ -35,6 +40,10 @@ vi.mock("../src/lib/temporal-client.js", () => ({
 }));
 
 const app = createApp();
+
+function normalizeTestName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
 
 describe("GET /api/workspaces/:workspaceId/ontology-atlas", () => {
   let ctx: SeedResult | null = null;
@@ -223,6 +232,84 @@ describe("GET /api/workspaces/:workspaceId/ontology-atlas", () => {
       expect(res.status).toBe(403);
     } finally {
       await db.delete(user).where(eq(user.id, outsider.id));
+    }
+  });
+
+  it("does not expose private-note-only concepts or source evidence to project viewers", async () => {
+    const multi = await seedMultiRoleWorkspace();
+    try {
+      const visibleConceptId = randomUUID();
+      const privateConceptId = randomUUID();
+      const privateConceptName = `Private Atlas ${privateConceptId.slice(0, 8)}`;
+      await db.insert(concepts).values([
+        {
+          id: visibleConceptId,
+          projectId: multi.projectId,
+          name: "Visible Atlas",
+          description: "Visible project concept",
+        },
+        {
+          id: privateConceptId,
+          projectId: multi.projectId,
+          name: privateConceptName,
+          description: "Private note only concept",
+        },
+      ]);
+      await db.insert(conceptNotes).values([
+        {
+          conceptId: visibleConceptId,
+          noteId: multi.noteId,
+        },
+        {
+          conceptId: privateConceptId,
+          noteId: multi.privateNoteId,
+        },
+      ]);
+      await db.insert(conceptEdges).values({
+        sourceId: visibleConceptId,
+        targetId: privateConceptId,
+        relationType: "private-edge",
+        weight: 0.8,
+      });
+
+      const res = await app.request(
+        `/api/workspaces/${multi.workspaceId}/ontology-atlas`,
+        { headers: { cookie: await signSessionCookie(multi.viewerUserId) } },
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json() as {
+        nodes: Array<{
+          conceptIds: string[];
+          label: string;
+          normalizedName: string;
+          sourceNoteIds: string[];
+        }>;
+        edges: Array<{
+          conceptEdgeIds: string[];
+          relationType: string;
+          sourceNoteIds: string[];
+        }>;
+      };
+      const serialized = JSON.stringify(body);
+      expect(serialized).toContain(visibleConceptId);
+      expect(serialized).not.toContain(privateConceptId);
+      expect(serialized).not.toContain(privateConceptName);
+      expect(serialized).not.toContain(multi.privateNoteId);
+      expect(
+        body.nodes.some((node) => node.normalizedName === "visible atlas"),
+      ).toBe(true);
+      expect(
+        body.nodes.some(
+          (node) => node.normalizedName === normalizeTestName(privateConceptName),
+        ),
+      ).toBe(false);
+      expect(body.edges.some((edge) => edge.relationType === "private-edge")).toBe(false);
+      expect(
+        body.edges.some((edge) => edge.sourceNoteIds.includes(multi.privateNoteId)),
+      ).toBe(false);
+    } finally {
+      await multi.cleanup();
     }
   });
 

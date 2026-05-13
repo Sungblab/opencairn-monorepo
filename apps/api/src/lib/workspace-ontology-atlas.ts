@@ -233,6 +233,97 @@ async function fetchConceptRows(
   return unwrapRows<ConceptRow>(raw);
 }
 
+function sourceNoteIdsForConceptRow(row: ConceptRow): string[] {
+  return [...new Set((row.source_note_ids ?? []).map(String).filter(Boolean))];
+}
+
+async function readableNoteIdsForUser(
+  userId: string,
+  noteIds: string[],
+): Promise<Set<string>> {
+  const uniqueIds = [...new Set(noteIds)];
+  if (uniqueIds.length === 0) return new Set();
+  const permissions = await Promise.all(
+    uniqueIds.map((noteId) => canRead(userId, { type: "note", id: noteId })),
+  );
+  return new Set(uniqueIds.filter((_, index) => permissions[index]));
+}
+
+async function conceptStaleByReadableNotes(
+  conceptIds: string[],
+  readableNoteIds: string[],
+): Promise<Map<string, boolean>> {
+  if (conceptIds.length === 0 || readableNoteIds.length === 0) {
+    return new Map();
+  }
+  const conceptIdArr = idArray([...new Set(conceptIds)]);
+  const noteIdArr = idArray([...new Set(readableNoteIds)]);
+  const raw = await db.execute(sql`
+    WITH latest_extractions AS (
+      SELECT
+        concept_id,
+        source_note_id,
+        max(created_at) AS latest_extracted_at
+      FROM concept_extractions
+      WHERE concept_id = ANY(ARRAY[${conceptIdArr}])
+        AND source_note_id = ANY(ARRAY[${noteIdArr}])
+      GROUP BY concept_id, source_note_id
+    )
+    SELECT
+      cn.concept_id,
+      bool_or(
+        n.updated_at > COALESCE(le.latest_extracted_at, c.created_at)
+      ) AS stale
+    FROM concept_notes cn
+    JOIN concepts c ON c.id = cn.concept_id
+    JOIN notes n ON n.id = cn.note_id AND n.deleted_at IS NULL
+    LEFT JOIN latest_extractions le
+      ON le.concept_id = cn.concept_id
+      AND le.source_note_id = cn.note_id
+    WHERE cn.concept_id = ANY(ARRAY[${conceptIdArr}])
+      AND cn.note_id = ANY(ARRAY[${noteIdArr}])
+    GROUP BY cn.concept_id
+  `);
+  const rows = unwrapRows<{ concept_id: string; stale: boolean | null }>(raw);
+  return new Map(rows.map((row) => [row.concept_id, Boolean(row.stale)]));
+}
+
+async function filterConceptRowsByReadableNotes(
+  userId: string,
+  rows: ConceptRow[],
+): Promise<{ rows: ConceptRow[]; readableNoteIds: Set<string> }> {
+  const noteIds = rows.flatMap(sourceNoteIdsForConceptRow);
+  const readableNoteIds = await readableNoteIdsForUser(userId, noteIds);
+  const filtered = rows.flatMap((row): ConceptRow[] => {
+    const sourceNoteIds = sourceNoteIdsForConceptRow(row);
+    if (sourceNoteIds.length === 0) {
+      return [{ ...row, source_note_ids: [], note_count: 0, stale: false }];
+    }
+    const visibleSourceNoteIds = sourceNoteIds.filter((noteId) =>
+      readableNoteIds.has(noteId),
+    );
+    if (visibleSourceNoteIds.length === 0) return [];
+    return [
+      {
+        ...row,
+        source_note_ids: visibleSourceNoteIds,
+        note_count: visibleSourceNoteIds.length,
+      },
+    ];
+  });
+  const staleByConcept = await conceptStaleByReadableNotes(
+    filtered.map((row) => row.id),
+    [...readableNoteIds],
+  );
+  return {
+    rows: filtered.map((row) => ({
+      ...row,
+      stale: staleByConcept.get(row.id) ?? false,
+    })),
+    readableNoteIds,
+  };
+}
+
 async function fetchNoteRows(
   userId: string,
   projectIds: string[],
@@ -344,10 +435,18 @@ async function fetchEdgesForConcepts(conceptIds: string[]): Promise<EdgeRow[]> {
 async function fetchSourceMembershipRows(
   projectIds: string[],
   conceptIds: string[],
+  readableNoteIds: string[],
 ): Promise<SourceMembershipRow[]> {
-  if (projectIds.length === 0 || conceptIds.length < 2) return [];
+  if (
+    projectIds.length === 0 ||
+    conceptIds.length < 2 ||
+    readableNoteIds.length === 0
+  ) {
+    return [];
+  }
   const projectIdArr = idArray(projectIds);
   const conceptIdArr = idArray(conceptIds);
+  const noteIdArr = idArray([...new Set(readableNoteIds)]);
   const raw = await db.execute(sql`
     WITH selected_chunks AS (
       SELECT
@@ -366,7 +465,9 @@ async function fetchSourceMembershipRows(
        AND n.deleted_at IS NULL
       WHERE ce.project_id = ANY(ARRAY[${projectIdArr}])
         AND nc.project_id = ANY(ARRAY[${projectIdArr}])
+        AND nc.note_id = ANY(ARRAY[${noteIdArr}])
         AND n.project_id = ANY(ARRAY[${projectIdArr}])
+        AND n.id = ANY(ARRAY[${noteIdArr}])
         AND ce.concept_id = ANY(ARRAY[${conceptIdArr}])
         AND ce.concept_id IS NOT NULL
     ),
@@ -800,11 +901,13 @@ export async function getWorkspaceOntologyAtlasForUser(
     opts.projectId,
   );
   const projectIds = readableProjects.map((project) => project.id);
-  const [conceptRows, noteRows, treeRows] = await Promise.all([
+  const [rawConceptRows, noteRows, treeRows] = await Promise.all([
     fetchConceptRows(projectIds, opts.q),
     fetchNoteRows(userId, projectIds, opts.q, opts.limit),
     fetchTreeNodeRows(projectIds, opts.q),
   ]);
+  const { rows: conceptRows, readableNoteIds } =
+    await filterConceptRowsByReadableNotes(userId, rawConceptRows);
   const totalConcepts = conceptRows.length;
   const conceptNodes = buildAtlasNodes(conceptRows, opts.limit);
   const noteNodes = buildExplicitNoteNodes(noteRows);
@@ -830,7 +933,11 @@ export async function getWorkspaceOntologyAtlasForUser(
   const [edgeRows, wikiRows, sourceMembershipRows] = await Promise.all([
     fetchEdgesForConcepts([...conceptToNode.keys()]),
     fetchWikiLinkRows(workspaceId, noteRows.map((row) => row.id)),
-    fetchSourceMembershipRows(projectIds, [...conceptToNode.keys()]),
+    fetchSourceMembershipRows(
+      projectIds,
+      [...conceptToNode.keys()],
+      [...readableNoteIds],
+    ),
   ]);
   const edges = [
     ...buildWikiLinkEdges(wikiRows, selectedNodeIds),
