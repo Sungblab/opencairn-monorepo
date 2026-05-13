@@ -378,13 +378,14 @@ plan8AgentRoutes.patch(
       .where(and(eq(suggestions.id, id), eq(suggestions.userId, userId)))
       .limit(1);
     if (!row || !row.projectId) return c.json({ error: "notFound" }, 404);
+    const projectId = row.projectId;
 
-    if (!(await canRead(userId, { type: "project", id: row.projectId }))) {
+    if (!(await canRead(userId, { type: "project", id: projectId }))) {
       return c.json({ error: "notFound" }, 404);
     }
     if (
       status === "accepted" &&
-      !(await canWrite(userId, { type: "project", id: row.projectId }))
+      !(await canWrite(userId, { type: "project", id: projectId }))
     ) {
       return c.json({ error: "forbidden" }, 403);
     }
@@ -395,7 +396,7 @@ plan8AgentRoutes.patch(
     const applyResult = await db.transaction(async (tx) => {
       const result =
         status === "accepted"
-          ? await applyAcceptedSuggestion(tx, row.type, row.payload, row.projectId)
+          ? await applyAcceptedSuggestion(tx, row.type, row.payload, projectId)
           : { applied: false as const, reason: "rejected" };
 
       await tx
